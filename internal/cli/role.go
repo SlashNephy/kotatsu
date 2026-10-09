@@ -3,10 +3,12 @@ package cli
 import (
 	"context"
 	"log/slog"
+
+	"github.com/SlashNephy/kotatsu/internal/config"
 )
 
 // Runner はロールの本体。ctx が終わるまで動き続ける。
-type Runner func(ctx context.Context, logger *slog.Logger) error
+type Runner func(ctx context.Context, logger *slog.Logger, cfg *config.Config) error
 
 // Role は kotatsu のサブコマンドで起動できるロール。
 type Role struct {
@@ -61,7 +63,7 @@ func DefaultRoles() []*Role {
 	}
 }
 
-func waitUntilDone(ctx context.Context, logger *slog.Logger) error {
+func waitUntilDone(ctx context.Context, logger *slog.Logger, _ *config.Config) error {
 	logger.InfoContext(ctx, "role started")
 	<-ctx.Done()
 	logger.InfoContext(ctx, "role stopped")
