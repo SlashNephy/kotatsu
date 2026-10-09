@@ -27,7 +27,8 @@ export default defineConfig({
       ? {
           command: 'pnpm exec vp preview --host 127.0.0.1 --port 4173 --strictPort',
           url: 'http://127.0.0.1:4173',
-          reuseExistingServer: false,
+          // 手元では、起動済みの vp preview をそのまま使う。
+          reuseExistingServer: process.env['CI'] === undefined,
         }
       : undefined,
 });

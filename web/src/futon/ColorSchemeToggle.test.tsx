@@ -10,6 +10,8 @@ import { theme } from './theme';
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  // Mantine は、選んだテーマを <html> の属性に書く。cleanup では消えないので、テストごとに消す。
+  document.documentElement.removeAttribute('data-mantine-color-scheme');
 });
 
 describe('ColorSchemeToggle', () => {
