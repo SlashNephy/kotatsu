@@ -343,3 +343,18 @@ CREATE TABLE recording_history (
 -- 重複の回避の照合で、(正規化した番組名, サービス) と期間で引く (設計書 4.4)。
 -- EPGStation では、このインデックスがないために照合が全件を走査し、利用者が手でインデックスを足していた。
 CREATE INDEX recording_history_title_key_service_id_end_at_idx ON recording_history (title_key, service_id, end_at);
+
+-- 番組表ビュー (設計書 10.3)。番組表に適用する条件を、ユーザーごとに名前を付けて保存する。
+-- 条件は、ジャンルの包含と除外、番組の最短の長さ、チャンネルの並び、番組のないチャンネルを隠すかどうか。
+CREATE TABLE guide_views (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  name text NOT NULL,
+  -- 条件。ジャンルの包含と除外、最短の長さ、チャンネルの並びを持つ。
+  settings jsonb NOT NULL,
+  hide_empty_services boolean NOT NULL,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+CREATE UNIQUE INDEX guide_views_user_id_name_idx ON guide_views (user_id, name);

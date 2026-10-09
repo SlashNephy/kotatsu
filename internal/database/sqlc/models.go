@@ -45,6 +45,16 @@ type EpgChange struct {
 	CreatedAt time.Time
 }
 
+type GuideView struct {
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	Name              string
+	Settings          []byte
+	HideEmptyServices bool
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
 type Instance struct {
 	ID          uuid.UUID
 	Role        string

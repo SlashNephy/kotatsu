@@ -36,6 +36,7 @@ const (
 	noon             = "2026-10-10T12:00:00Z"
 	onePM            = "2026-10-10T13:00:00Z"
 	codeBadUserInput = "BAD_USER_INPUT"
+	codeNotFound     = "NOT_FOUND"
 )
 
 type gqlResponse struct {
@@ -269,6 +270,6 @@ func TestNode(t *testing.T) {
 	assert.Equal(t, "Service", got.Service.Typename)
 	assert.Equal(t, "こたつテスト1", got.Service.Name)
 
-	assert.Equal(t, []string{"NOT_FOUND"}, f.query(t, `query($id: ID!) { node(id: $id) { id } }`,
+	assert.Equal(t, []string{codeNotFound}, f.query(t, `query($id: ID!) { node(id: $id) { id } }`,
 		map[string]any{"id": "UHJvZ3JhbTozMjc2MzAxMDI0Ljk5OTk"}, nil))
 }

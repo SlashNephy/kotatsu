@@ -42,3 +42,8 @@ models:
         resolver: true
   GuideRow:
     model: github.com/SlashNephy/kotatsu/graph/model.GuideRow
+  GuideView:
+    model: github.com/SlashNephy/kotatsu/graph/model.GuideView
+    fields:
+      services:
+        resolver: true

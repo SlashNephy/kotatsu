@@ -104,7 +104,14 @@ func (r *queryResolver) Services(ctx context.Context, includeHidden bool) ([]*mo
 }
 
 // Guide is the resolver for the guide field.
-func (r *queryResolver) Guide(ctx context.Context, from time.Time, to time.Time, services []string) ([]*model.GuideRow, error) {
+func (r *queryResolver) Guide(ctx context.Context, from time.Time, to time.Time, services []string, view *string) ([]*model.GuideRow, error) {
+	var guideView *sqlc.GuideView
+	if view != nil {
+		var err error
+		if guideView, err = r.guideView(ctx, *view); err != nil {
+			return nil, err
+		}
+	}
 	if !from.Before(to) || to.Sub(from) > maxGuideRange {
 		return nil, NewError(CodeBadUserInput, "from must be before to, and the range must be at most 7 days")
 	}
@@ -147,6 +154,9 @@ func (r *queryResolver) Guide(ctx context.Context, from time.Time, to time.Time,
 			return nil, err
 		}
 		byService[programs[i].ServiceID].Programs = append(byService[programs[i].ServiceID].Programs, program)
+	}
+	if guideView != nil {
+		return r.applyGuideView(rows, guideView)
 	}
 
 	return rows, nil

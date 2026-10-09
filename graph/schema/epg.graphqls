@@ -81,6 +81,7 @@ extend type Query {
   """
   番組表。from から to までの時間帯に重なる番組を、サービスごとに返す。時間帯は 7 日まで。
   services を省くと、非表示でないすべてのサービスを返す。指定すると、非表示のサービスも返す。
+  view を指定すると、その番組表ビューの条件で、番組を絞り込み、サービスを並べ替える。
   """
-  guide(from: Time!, to: Time!, services: [ID!]): [GuideRow!]!
+  guide(from: Time!, to: Time!, services: [ID!], view: ID): [GuideRow!]!
 }

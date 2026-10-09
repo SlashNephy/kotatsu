@@ -23,6 +23,14 @@ input KeywordInput {
 }
 
 """
+条件のジャンル。lv2 が null なら、大分類のすべてを表す。
+"""
+type GenreCondition {
+  lv1: Int!
+  lv2: Int
+}
+
+"""
 ジャンル。lv2 を省くと、大分類のすべてを表す。
 """
 input GenreInput {

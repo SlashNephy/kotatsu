@@ -42,10 +42,26 @@ type Genre struct {
 	Lv2 int `json:"lv2"`
 }
 
+// 条件のジャンル。lv2 が null なら、大分類のすべてを表す。
+type GenreCondition struct {
+	Lv1 int  `json:"lv1"`
+	Lv2 *int `json:"lv2,omitempty"`
+}
+
 // ジャンル。lv2 を省くと、大分類のすべてを表す。
 type GenreInput struct {
 	Lv1 int  `json:"lv1"`
 	Lv2 *int `json:"lv2,omitempty"`
+}
+
+// 番組表ビューの内容。ジャンルで lv2 を省くと、大分類のすべてを表す。
+type GuideViewInput struct {
+	Name               string        `json:"name"`
+	Genres             []*GenreInput `json:"genres,omitempty"`
+	ExcludeGenres      []*GenreInput `json:"excludeGenres,omitempty"`
+	MinDurationSeconds *int          `json:"minDurationSeconds,omitempty"`
+	Services           []string      `json:"services,omitempty"`
+	HideEmptyServices  bool          `json:"hideEmptyServices"`
 }
 
 // キーワードと、その照合の仕方 (設計書 4.2)。キーワードと番組の文字列は、NFKC で正規化してから比べる。
@@ -56,6 +72,9 @@ type KeywordInput struct {
 	CaseSensitive bool `json:"caseSensitive"`
 	// 照合する項目。どれか 1 つに一致すれば、このキーワードに一致したとみなす。
 	Fields []KeywordField `json:"fields"`
+}
+
+type Mutation struct {
 }
 
 // 一覧のページの情報 (Relay の Cursor Connections)。カーソルは中身を解釈せずに、そのまま次のリクエストに渡す。

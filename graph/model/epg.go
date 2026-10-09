@@ -5,6 +5,7 @@ import "time"
 var (
 	_ Node = new(Service)
 	_ Node = new(Program)
+	_ Node = new(GuideView)
 )
 
 // Service はサービス。チャンネル種別は、リゾルバが dataloader で引く。
@@ -46,3 +47,17 @@ type GuideRow struct {
 	Service  *Service   `json:"service"`
 	Programs []*Program `json:"programs"`
 }
+
+// GuideView は番組表ビュー。サービスは、リゾルバが dataloader で引く。
+type GuideView struct {
+	ID                 string            `json:"id"`
+	Name               string            `json:"name"`
+	Genres             []*GenreCondition `json:"genres"`
+	ExcludeGenres      []*GenreCondition `json:"excludeGenres"`
+	MinDurationSeconds *int              `json:"minDurationSeconds,omitempty"`
+	HideEmptyServices  bool              `json:"hideEmptyServices"`
+	// ServiceKeys は、チャンネルの並び (Mirakurun のサービス ID)。スキーマには出さない。
+	ServiceKeys []int64 `json:"-"`
+}
+
+func (GuideView) IsNode() {}

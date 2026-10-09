@@ -29,6 +29,8 @@ func NewExecutableSchema(cfg Config) graphql.ExecutableSchema {
 type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
 type ResolverRoot interface {
+	GuideView() GuideViewResolver
+	Mutation() MutationResolver
 	Program() ProgramResolver
 	Query() QueryResolver
 	Service() ServiceResolver
@@ -55,9 +57,30 @@ type ComplexityRoot struct {
 		Lv2 func(childComplexity int) int
 	}
 
+	GenreCondition struct {
+		Lv1 func(childComplexity int) int
+		Lv2 func(childComplexity int) int
+	}
+
 	GuideRow struct {
 		Programs func(childComplexity int) int
 		Service  func(childComplexity int) int
+	}
+
+	GuideView struct {
+		ExcludeGenres      func(childComplexity int) int
+		Genres             func(childComplexity int) int
+		HideEmptyServices  func(childComplexity int) int
+		ID                 func(childComplexity int) int
+		MinDurationSeconds func(childComplexity int) int
+		Name               func(childComplexity int) int
+		Services           func(childComplexity int) int
+	}
+
+	Mutation struct {
+		CreateGuideView func(childComplexity int, input model.GuideViewInput) int
+		DeleteGuideView func(childComplexity int, id string) int
+		UpdateGuideView func(childComplexity int, id string, input model.GuideViewInput) int
 	}
 
 	PageInfo struct {
@@ -94,7 +117,8 @@ type ComplexityRoot struct {
 
 	Query struct {
 		ChannelTypes   func(childComplexity int) int
-		Guide          func(childComplexity int, from time.Time, to time.Time, services []string) int
+		Guide          func(childComplexity int, from time.Time, to time.Time, services []string, view *string) int
+		GuideViews     func(childComplexity int) int
 		Node           func(childComplexity int, id string) int
 		SearchPrograms func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
 		Services       func(childComplexity int, includeHidden bool) int
@@ -128,6 +152,14 @@ type ComplexityRoot struct {
 
 // region    ************************** generated!.gotpl **************************
 
+type GuideViewResolver interface {
+	Services(ctx context.Context, obj *model.GuideView) ([]*model.Service, error)
+}
+type MutationResolver interface {
+	CreateGuideView(ctx context.Context, input model.GuideViewInput) (*model.GuideView, error)
+	UpdateGuideView(ctx context.Context, id string, input model.GuideViewInput) (*model.GuideView, error)
+	DeleteGuideView(ctx context.Context, id string) (string, error)
+}
 type ProgramResolver interface {
 	Service(ctx context.Context, obj *model.Program) (*model.Service, error)
 }
@@ -136,7 +168,8 @@ type QueryResolver interface {
 	Node(ctx context.Context, id string) (model.Node, error)
 	ChannelTypes(ctx context.Context) ([]*model.ChannelType, error)
 	Services(ctx context.Context, includeHidden bool) ([]*model.Service, error)
-	Guide(ctx context.Context, from time.Time, to time.Time, services []string) ([]*model.GuideRow, error)
+	Guide(ctx context.Context, from time.Time, to time.Time, services []string, view *string) ([]*model.GuideRow, error)
+	GuideViews(ctx context.Context) ([]*model.GuideView, error)
 	SearchPrograms(ctx context.Context, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) (*model.ProgramConnection, error)
 }
 type ServiceResolver interface {
@@ -209,6 +242,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Genre.Lv2(childComplexity), true
 
+	case "GenreCondition.lv1":
+		if e.ComplexityRoot.GenreCondition.Lv1 == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GenreCondition.Lv1(childComplexity), true
+	case "GenreCondition.lv2":
+		if e.ComplexityRoot.GenreCondition.Lv2 == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GenreCondition.Lv2(childComplexity), true
+
 	case "GuideRow.programs":
 		if e.ComplexityRoot.GuideRow.Programs == nil {
 			break
@@ -221,6 +267,83 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.GuideRow.Service(childComplexity), true
+
+	case "GuideView.excludeGenres":
+		if e.ComplexityRoot.GuideView.ExcludeGenres == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GuideView.ExcludeGenres(childComplexity), true
+	case "GuideView.genres":
+		if e.ComplexityRoot.GuideView.Genres == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GuideView.Genres(childComplexity), true
+	case "GuideView.hideEmptyServices":
+		if e.ComplexityRoot.GuideView.HideEmptyServices == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GuideView.HideEmptyServices(childComplexity), true
+	case "GuideView.id":
+		if e.ComplexityRoot.GuideView.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GuideView.ID(childComplexity), true
+	case "GuideView.minDurationSeconds":
+		if e.ComplexityRoot.GuideView.MinDurationSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GuideView.MinDurationSeconds(childComplexity), true
+	case "GuideView.name":
+		if e.ComplexityRoot.GuideView.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GuideView.Name(childComplexity), true
+	case "GuideView.services":
+		if e.ComplexityRoot.GuideView.Services == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GuideView.Services(childComplexity), true
+
+	case "Mutation.createGuideView":
+		if e.ComplexityRoot.Mutation.CreateGuideView == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createGuideView_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateGuideView(childComplexity, args["input"].(model.GuideViewInput)), true
+	case "Mutation.deleteGuideView":
+		if e.ComplexityRoot.Mutation.DeleteGuideView == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteGuideView_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteGuideView(childComplexity, args["id"].(string)), true
+	case "Mutation.updateGuideView":
+		if e.ComplexityRoot.Mutation.UpdateGuideView == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateGuideView_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateGuideView(childComplexity, args["id"].(string), args["input"].(model.GuideViewInput)), true
 
 	case "PageInfo.endCursor":
 		if e.ComplexityRoot.PageInfo.EndCursor == nil {
@@ -362,7 +485,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Guide(childComplexity, args["from"].(time.Time), args["to"].(time.Time), args["services"].([]string)), true
+		return e.ComplexityRoot.Query.Guide(childComplexity, args["from"].(time.Time), args["to"].(time.Time), args["services"].([]string), args["view"].(*string)), true
+	case "Query.guideViews":
+		if e.ComplexityRoot.Query.GuideViews == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.GuideViews(childComplexity), true
 
 	case "Query.node":
 		if e.ComplexityRoot.Query.Node == nil {
@@ -495,6 +624,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputArchiveRangeInput,
 		ec.unmarshalInputGenreInput,
+		ec.unmarshalInputGuideViewInput,
 		ec.unmarshalInputKeywordInput,
 		ec.unmarshalInputProgramConditionsInput,
 		ec.unmarshalInputTimeRangeInput,
@@ -531,6 +661,21 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			}
 
 			return &response
+		}
+	case ast.Mutation:
+		return func(ctx context.Context) *graphql.Response {
+			if !first {
+				return nil
+			}
+			first = false
+			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
+			data := ec._Mutation(ctx, opCtx.Operation.SelectionSet)
+			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
 		}
 	case ast.Subscription:
 		next := ec._Subscription(ctx, opCtx.Operation.SelectionSet)
@@ -597,6 +742,14 @@ input KeywordInput {
   caseSensitive: Boolean! = false
   "照合する項目。どれか 1 つに一致すれば、このキーワードに一致したとみなす。"
   fields: [KeywordField!]!
+}
+
+"""
+条件のジャンル。lv2 が null なら、大分類のすべてを表す。
+"""
+type GenreCondition {
+  lv1: Int!
+  lv2: Int
 }
 
 """
@@ -721,8 +874,51 @@ extend type Query {
   """
   番組表。from から to までの時間帯に重なる番組を、サービスごとに返す。時間帯は 7 日まで。
   services を省くと、非表示でないすべてのサービスを返す。指定すると、非表示のサービスも返す。
+  view を指定すると、その番組表ビューの条件で、番組を絞り込み、サービスを並べ替える。
   """
-  guide(from: Time!, to: Time!, services: [ID!]): [GuideRow!]!
+  guide(from: Time!, to: Time!, services: [ID!], view: ID): [GuideRow!]!
+}
+`, BuiltIn: false},
+	{Name: "../schema/guide_views.graphqls", Input: `"""
+番組表ビュー (設計書 10.3)。番組表に適用する条件を、ユーザーごとに名前を付けて保存したもの。
+"""
+type GuideView implements Node {
+  id: ID!
+  name: String!
+  "どれか 1 つに一致する番組だけを出す。空ならすべて。"
+  genres: [GenreCondition!]!
+  "どれか 1 つに一致する番組を出さない。"
+  excludeGenres: [GenreCondition!]!
+  "これより短い番組を出さない。"
+  minDurationSeconds: Int
+  "チャンネルの並び。空なら既定の並び。ここに無いサービスは、既定の並びで後ろに置く。"
+  services: [Service!]!
+  "番組のないチャンネルを隠すかどうか。"
+  hideEmptyServices: Boolean!
+}
+
+"""
+番組表ビューの内容。ジャンルで lv2 を省くと、大分類のすべてを表す。
+"""
+input GuideViewInput {
+  name: String!
+  genres: [GenreInput!]
+  excludeGenres: [GenreInput!]
+  minDurationSeconds: Int
+  services: [ID!]
+  hideEmptyServices: Boolean! = false
+}
+
+extend type Query {
+  "ログイン中のユーザーの番組表ビュー。"
+  guideViews: [GuideView!]!
+}
+
+type Mutation {
+  createGuideView(input: GuideViewInput!): GuideView!
+  updateGuideView(id: ID!, input: GuideViewInput!): GuideView!
+  "消した番組表ビューの ID を返す。"
+  deleteGuideView(id: ID!): ID!
 }
 `, BuiltIn: false},
 	{Name: "../schema/schema.graphqls", Input: `"""
@@ -860,6 +1056,16 @@ func (ec *executionContext) childFields_Genre(ctx context.Context, field graphql
 	return nil, fmt.Errorf("no field named %q was found under type Genre", field.Name)
 }
 
+func (ec *executionContext) childFields_GenreCondition(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "lv1":
+		return ec.fieldContext_GenreCondition_lv1(ctx, field)
+	case "lv2":
+		return ec.fieldContext_GenreCondition_lv2(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GenreCondition", field.Name)
+}
+
 func (ec *executionContext) childFields_GuideRow(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "service":
@@ -868,6 +1074,26 @@ func (ec *executionContext) childFields_GuideRow(ctx context.Context, field grap
 		return ec.fieldContext_GuideRow_programs(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type GuideRow", field.Name)
+}
+
+func (ec *executionContext) childFields_GuideView(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_GuideView_id(ctx, field)
+	case "name":
+		return ec.fieldContext_GuideView_name(ctx, field)
+	case "genres":
+		return ec.fieldContext_GuideView_genres(ctx, field)
+	case "excludeGenres":
+		return ec.fieldContext_GuideView_excludeGenres(ctx, field)
+	case "minDurationSeconds":
+		return ec.fieldContext_GuideView_minDurationSeconds(ctx, field)
+	case "services":
+		return ec.fieldContext_GuideView_services(ctx, field)
+	case "hideEmptyServices":
+		return ec.fieldContext_GuideView_hideEmptyServices(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GuideView", field.Name)
 }
 
 func (ec *executionContext) childFields_PageInfo(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -1086,6 +1312,56 @@ func (ec *executionContext) childFields___Type(ctx context.Context, field graphq
 
 // region    ***************************** args.gotpl *****************************
 
+func (ec *executionContext) field_Mutation_createGuideView_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.GuideViewInput, error) {
+			return ec.unmarshalNGuideViewInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGuideViewInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteGuideView_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateGuideView_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.GuideViewInput, error) {
+			return ec.unmarshalNGuideViewInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGuideViewInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1127,6 +1403,14 @@ func (ec *executionContext) field_Query_guide_args(ctx context.Context, rawArgs 
 		return nil, err
 	}
 	args["services"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "view",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["view"] = arg3
 	return args, nil
 }
 
@@ -1417,6 +1701,52 @@ func (ec *executionContext) fieldContext_Genre_lv2(_ context.Context, field grap
 	return graphql.NewScalarFieldContext("Genre", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _GenreCondition_lv1(ctx context.Context, field graphql.CollectedField, obj *model.GenreCondition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GenreCondition_lv1(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Lv1, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GenreCondition_lv1(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GenreCondition", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _GenreCondition_lv2(ctx context.Context, field graphql.CollectedField, obj *model.GenreCondition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GenreCondition_lv2(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Lv2, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GenreCondition_lv2(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GenreCondition", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _GuideRow_service(ctx context.Context, field graphql.CollectedField, obj *model.GuideRow) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1477,6 +1807,326 @@ func (ec *executionContext) fieldContext_GuideRow_programs(_ context.Context, fi
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Program(ctx, field)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GuideView_id(ctx context.Context, field graphql.CollectedField, obj *model.GuideView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GuideView_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GuideView_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GuideView", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _GuideView_name(ctx context.Context, field graphql.CollectedField, obj *model.GuideView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GuideView_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GuideView_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GuideView", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _GuideView_genres(ctx context.Context, field graphql.CollectedField, obj *model.GuideView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GuideView_genres(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Genres, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.GenreCondition) graphql.Marshaler {
+			return ec.marshalNGenreCondition2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreConditionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GuideView_genres(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GuideView",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GenreCondition(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GuideView_excludeGenres(ctx context.Context, field graphql.CollectedField, obj *model.GuideView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GuideView_excludeGenres(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExcludeGenres, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.GenreCondition) graphql.Marshaler {
+			return ec.marshalNGenreCondition2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreConditionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GuideView_excludeGenres(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GuideView",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GenreCondition(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GuideView_minDurationSeconds(ctx context.Context, field graphql.CollectedField, obj *model.GuideView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GuideView_minDurationSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MinDurationSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GuideView_minDurationSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GuideView", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _GuideView_services(ctx context.Context, field graphql.CollectedField, obj *model.GuideView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GuideView_services(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.GuideView().Services(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Service) graphql.Marshaler {
+			return ec.marshalNService2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐServiceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GuideView_services(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GuideView",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Service(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GuideView_hideEmptyServices(ctx context.Context, field graphql.CollectedField, obj *model.GuideView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GuideView_hideEmptyServices(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HideEmptyServices, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GuideView_hideEmptyServices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GuideView", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Mutation_createGuideView(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createGuideView(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateGuideView(ctx, fc.Args["input"].(model.GuideViewInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.GuideView) graphql.Marshaler {
+			return ec.marshalNGuideView2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGuideView(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createGuideView(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GuideView(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createGuideView_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateGuideView(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateGuideView(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateGuideView(ctx, fc.Args["id"].(string), fc.Args["input"].(model.GuideViewInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.GuideView) graphql.Marshaler {
+			return ec.marshalNGuideView2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGuideView(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateGuideView(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GuideView(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateGuideView_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteGuideView(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteGuideView(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteGuideView(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteGuideView(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteGuideView_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -2157,7 +2807,7 @@ func (ec *executionContext) _Query_guide(ctx context.Context, field graphql.Coll
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Guide(ctx, fc.Args["from"].(time.Time), fc.Args["to"].(time.Time), fc.Args["services"].([]string))
+			return ec.Resolvers.Query().Guide(ctx, fc.Args["from"].(time.Time), fc.Args["to"].(time.Time), fc.Args["services"].([]string), fc.Args["view"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.GuideRow) graphql.Marshaler {
@@ -2187,6 +2837,38 @@ func (ec *executionContext) fieldContext_Query_guide(ctx context.Context, field 
 	if fc.Args, err = ec.field_Query_guide_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_guideViews(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_guideViews(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().GuideViews(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.GuideView) graphql.Marshaler {
+			return ec.marshalNGuideView2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGuideViewᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_guideViews(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GuideView(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -3752,6 +4434,75 @@ func (ec *executionContext) unmarshalInputGenreInput(ctx context.Context, obj an
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputGuideViewInput(ctx context.Context, obj any) (model.GuideViewInput, error) {
+	var it model.GuideViewInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["hideEmptyServices"]; !present {
+		asMap["hideEmptyServices"] = false
+	}
+
+	fieldsInOrder := [...]string{"name", "genres", "excludeGenres", "minDurationSeconds", "services", "hideEmptyServices"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "genres":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("genres"))
+			data, err := ec.unmarshalOGenreInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Genres = data
+		case "excludeGenres":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("excludeGenres"))
+			data, err := ec.unmarshalOGenreInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExcludeGenres = data
+		case "minDurationSeconds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("minDurationSeconds"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MinDurationSeconds = data
+		case "services":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("services"))
+			data, err := ec.unmarshalOID2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Services = data
+		case "hideEmptyServices":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hideEmptyServices"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.HideEmptyServices = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputKeywordInput(ctx context.Context, obj any) (model.KeywordInput, error) {
 	var it model.KeywordInput
 	if obj == nil {
@@ -3976,6 +4727,13 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 			return graphql.Null
 		}
 		return ec._Program(ctx, sel, obj)
+	case model.GuideView:
+		return ec._GuideView(ctx, sel, &obj)
+	case *model.GuideView:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._GuideView(ctx, sel, obj)
 	default:
 		if typedObj, ok := obj.(graphql.Marshaler); ok {
 			return typedObj
@@ -4123,6 +4881,49 @@ func (ec *executionContext) _Genre(ctx context.Context, sel ast.SelectionSet, ob
 	return out
 }
 
+var genreConditionImplementors = []string{"GenreCondition"}
+
+func (ec *executionContext) _GenreCondition(ctx context.Context, sel ast.SelectionSet, obj *model.GenreCondition) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, genreConditionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GenreCondition")
+		case "lv1":
+			out.Values[i] = ec._GenreCondition_lv1(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lv2":
+			out.Values[i] = ec._GenreCondition_lv2(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var guideRowImplementors = []string{"GuideRow"}
 
 func (ec *executionContext) _GuideRow(ctx context.Context, sel ast.SelectionSet, obj *model.GuideRow) graphql.Marshaler {
@@ -4142,6 +4943,169 @@ func (ec *executionContext) _GuideRow(ctx context.Context, sel ast.SelectionSet,
 			}
 		case "programs":
 			out.Values[i] = ec._GuideRow_programs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var guideViewImplementors = []string{"GuideView", "Node"}
+
+func (ec *executionContext) _GuideView(ctx context.Context, sel ast.SelectionSet, obj *model.GuideView) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, guideViewImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GuideView")
+		case "id":
+			out.Values[i] = ec._GuideView_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "name":
+			out.Values[i] = ec._GuideView_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "genres":
+			out.Values[i] = ec._GuideView_genres(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "excludeGenres":
+			out.Values[i] = ec._GuideView_excludeGenres(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "minDurationSeconds":
+			out.Values[i] = ec._GuideView_minDurationSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "services":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._GuideView_services(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "hideEmptyServices":
+			out.Values[i] = ec._GuideView_hideEmptyServices(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var mutationImplementors = []string{"Mutation"}
+
+func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mutationImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Mutation",
+	})
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		innerCtx := graphql.WithRootFieldContext(ctx, &graphql.RootFieldContext{
+			Object: field.Name,
+			Field:  field,
+		})
+
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Mutation")
+		case "createGuideView":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createGuideView(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateGuideView":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateGuideView(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteGuideView":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteGuideView(ctx, field)
+			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -4549,6 +5513,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_guide(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "guideViews":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_guideViews(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -5283,6 +6269,32 @@ func (ec *executionContext) marshalNGenre2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu
 	return ec._Genre(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNGenreCondition2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreConditionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.GenreCondition) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNGenreCondition2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreCondition(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNGenreCondition2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreCondition(ctx context.Context, sel ast.SelectionSet, v *model.GenreCondition) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._GenreCondition(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNGenreInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreInput(ctx context.Context, v any) (*model.GenreInput, error) {
 	res, err := ec.unmarshalInputGenreInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
@@ -5312,6 +6324,37 @@ func (ec *executionContext) marshalNGuideRow2ᚖgithubᚗcomᚋSlashNephyᚋkota
 		return graphql.Null
 	}
 	return ec._GuideRow(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNGuideView2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGuideViewᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.GuideView) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNGuideView2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGuideView(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNGuideView2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGuideView(ctx context.Context, sel ast.SelectionSet, v *model.GuideView) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._GuideView(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNGuideViewInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGuideViewInput(ctx context.Context, v any) (model.GuideViewInput, error) {
+	res, err := ec.unmarshalInputGuideViewInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (string, error) {
@@ -5830,6 +6873,24 @@ func (ec *executionContext) marshalOID2ᚕstringᚄ(ctx context.Context, sel ast
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v any) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalID(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalID(*v)
+	return res
 }
 
 func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v any) (*int, error) {
