@@ -64,7 +64,7 @@ func (r *Resolver) searchPrograms(
 	if err != nil {
 		return nil, err
 	}
-	edges, hasNext, endCursor, err := r.collect(ctx, matcher, params, first)
+	edges, hasNext, endCursor, err := r.collect(ctx, matcher, nil, params, first)
 	if err != nil {
 		return nil, err
 	}
@@ -76,11 +76,12 @@ func (r *Resolver) searchPrograms(
 	return &model.ProgramConnection{Edges: edges, PageInfo: info}, nil
 }
 
-// collect は、候補を順に照合し、一致した番組を first 件まで集める。
+// collect は、候補を順に照合し、一致した番組を first 件まで集める。accept が nil でなければ、accept も満たす番組だけを集める。
 // 照合した候補が上限に達したら、そこで打ち切り、照合した最後の位置のカーソルを返す。
 func (r *Resolver) collect(
 	ctx context.Context,
 	matcher *match.Matcher,
+	accept func(startAt time.Time, endUndecided bool) bool,
 	params *sqlc.SearchProgramCandidatesParams,
 	first int,
 ) ([]*model.ProgramEdge, bool, *string, error) {
@@ -93,7 +94,7 @@ func (r *Resolver) collect(
 		}
 		for i := range rows {
 			row := &rows[i]
-			edge, matched, err := r.matchCandidate(matcher, row)
+			edge, matched, err := r.matchCandidate(matcher, accept, row)
 			if err != nil {
 				return nil, false, nil, err
 			}
@@ -200,8 +201,15 @@ func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.Arc
 	return params, nil
 }
 
-// matchCandidate は、候補が条件に一致するかを照合し、一致すれば一覧の要素にする。
-func (r *Resolver) matchCandidate(matcher *match.Matcher, row *sqlc.SearchProgramCandidatesRow) (*model.ProgramEdge, bool, error) {
+// matchCandidate は、候補が条件に一致するかを照合し、一致すれば一覧の要素にする。accept が nil でなければ、accept も満たす必要がある。
+func (r *Resolver) matchCandidate(
+	matcher *match.Matcher,
+	accept func(startAt time.Time, endUndecided bool) bool,
+	row *sqlc.SearchProgramCandidatesRow,
+) (*model.ProgramEdge, bool, error) {
+	if accept != nil && !accept(row.StartAt, row.EndUndecided) {
+		return nil, false, nil
+	}
 	program, err := toProgram(&programRow{
 		ServiceID: row.ServiceID, EventID: row.EventID, StartAt: row.StartAt, EndAt: row.EndAt,
 		EndUndecided: row.EndUndecided, IsFree: row.IsFree, Name: row.Name, Description: row.Description,

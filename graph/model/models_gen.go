@@ -64,6 +64,14 @@ type GuideViewInput struct {
 	HideEmptyServices  bool          `json:"hideEmptyServices"`
 }
 
+// キーワードと、その照合の仕方。
+type Keyword struct {
+	Text          string         `json:"text"`
+	Regexp        bool           `json:"regexp"`
+	CaseSensitive bool           `json:"caseSensitive"`
+	Fields        []KeywordField `json:"fields"`
+}
+
 // キーワードと、その照合の仕方 (設計書 4.2)。キーワードと番組の文字列は、NFKC で正規化してから比べる。
 type KeywordInput struct {
 	Text string `json:"text"`
@@ -115,7 +123,55 @@ type ProgramEdge struct {
 type Query struct {
 }
 
+// 録画設定の上書き (設計書 4.7)。null の項目は全体の既定値を使う。
+type RecordingSettingsOverrides struct {
+	// 保存先プール
+	PoolID *string `json:"poolId,omitempty"`
+	// ファイル名の text/template
+	FileNameTemplate   *string `json:"fileNameTemplate,omitempty"`
+	StartMarginSeconds *int    `json:"startMarginSeconds,omitempty"`
+	EndMarginSeconds   *int    `json:"endMarginSeconds,omitempty"`
+	// 優先度 (-10〜10)。チューナーが足りないときは、高い予約から割り当てる。
+	Priority *int `json:"priority,omitempty"`
+}
+
+// 録画設定の上書き。省いた項目は全体の既定値を使う。
+type RecordingSettingsOverridesInput struct {
+	PoolID             *string `json:"poolId,omitempty"`
+	FileNameTemplate   *string `json:"fileNameTemplate,omitempty"`
+	StartMarginSeconds *int    `json:"startMarginSeconds,omitempty"`
+	EndMarginSeconds   *int    `json:"endMarginSeconds,omitempty"`
+	Priority           *int    `json:"priority,omitempty"`
+}
+
+// ルールの内容。
+type RuleInput struct {
+	// 1〜200 文字
+	Name string `json:"name"`
+	// 2000 文字まで
+	Memo            string                           `json:"memo"`
+	Enabled         bool                             `json:"enabled"`
+	Conditions      *ProgramConditionsInput          `json:"conditions"`
+	Settings        *RecordingSettingsOverridesInput `json:"settings,omitempty"`
+	ValidFrom       *time.Time                       `json:"validFrom,omitempty"`
+	ValidUntil      *time.Time                       `json:"validUntil,omitempty"`
+	AvoidDuplicates bool                             `json:"avoidDuplicates"`
+	// 1〜3650
+	DuplicateWindowDays *int `json:"duplicateWindowDays,omitempty"`
+	FollowEventRelay    bool `json:"followEventRelay"`
+}
+
 type Subscription struct {
+}
+
+// 曜日と時間帯の組。
+type TimeRange struct {
+	// 曜日の集合 (0 が日曜日、6 が土曜日)
+	Weekdays []int `json:"weekdays"`
+	// 0 時からの分で表した範囲の始まり
+	StartMinute int `json:"startMinute"`
+	// 範囲の長さ (分)
+	DurationMinutes int `json:"durationMinutes"`
 }
 
 // 曜日と時間帯の組。開始時刻が範囲に入る番組に一致する。

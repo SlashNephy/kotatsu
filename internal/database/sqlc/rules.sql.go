@@ -137,6 +137,30 @@ func (q *Queries) ListRules(ctx context.Context) ([]Rule, error) {
 	return items, nil
 }
 
+const setRuleEnabled = `-- name: SetRuleEnabled :execrows
+UPDATE rules SET enabled = $1, updated_at = $2, updated_by = $3 WHERE id = $4
+`
+
+type SetRuleEnabledParams struct {
+	Enabled bool
+	Now     time.Time
+	Actor   *uuid.UUID
+	ID      uuid.UUID
+}
+
+func (q *Queries) SetRuleEnabled(ctx context.Context, arg SetRuleEnabledParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setRuleEnabled,
+		arg.Enabled,
+		arg.Now,
+		arg.Actor,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateRule = `-- name: UpdateRule :execrows
 UPDATE rules SET
   name = $1,

@@ -47,3 +47,10 @@ models:
     fields:
       services:
         resolver: true
+  ProgramConditions:
+    model: github.com/SlashNephy/kotatsu/graph/model.ProgramConditions
+    fields:
+      services:
+        resolver: true
+  Rule:
+    model: github.com/SlashNephy/kotatsu/graph/model.Rule

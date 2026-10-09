@@ -37,6 +37,17 @@ const (
 	onePM            = "2026-10-10T13:00:00Z"
 	codeBadUserInput = "BAD_USER_INPUT"
 	codeNotFound     = "NOT_FOUND"
+	codeForbidden    = "FORBIDDEN"
+	// fieldName は、番組名を照合するキーワードの項目。
+	fieldName = "NAME"
+	// testUsername は、newFixture がログインさせるユーザーの名前。
+	testUsername = "kotatsu"
+	// GraphQL の変数の名前。
+	varInput   = "input"
+	varFirst   = "first"
+	varEnabled = "enabled"
+	// testUserAgent は、テストのリクエストの User-Agent。監査ログに残ることを確かめるのに使う。
+	testUserAgent = "kotatsu-test/1.0"
 )
 
 type gqlResponse struct {
@@ -59,6 +70,7 @@ func (f *fixture) query(t *testing.T, query string, variables any, v any) []stri
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", contentTypeJSON)
 	req.Header.Set("Cookie", auth.CookieName+"="+f.token)
+	req.Header.Set("User-Agent", testUserAgent)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer func() {

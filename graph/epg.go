@@ -1,13 +1,17 @@
 package graph
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/vikstrous/dataloadgen"
 
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
@@ -135,4 +139,22 @@ func toProgram(row *programRow) (*model.Program, error) {
 		Archived:     false,
 		ServiceKey:   row.ServiceID,
 	}, nil
+}
+
+// loadServices は、サービスを keys の順に引く。消えたサービスは飛ばす。
+func (r *Resolver) loadServices(ctx context.Context, keys []int64) ([]*model.Service, error) {
+	rows, err := loadersFrom(ctx).Services.LoadAll(ctx, keys)
+	var errs dataloadgen.ErrorSlice
+	if err != nil && !errors.As(err, &errs) {
+		return nil, err
+	}
+	services := make([]*model.Service, 0, len(rows))
+	for i, row := range rows {
+		if row == nil || (i < len(errs) && errs[i] != nil) {
+			continue
+		}
+		services = append(services, toService(row))
+	}
+
+	return services, nil
 }

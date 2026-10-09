@@ -70,6 +70,8 @@ func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error)
 		return toProgram((*programRow)(&row))
 	case archiveType:
 		return r.archivedProgram(ctx, raw)
+	case ruleType:
+		return r.rule(ctx, id)
 	case guideViewType:
 		view, err := r.guideView(ctx, id)
 		if err != nil {

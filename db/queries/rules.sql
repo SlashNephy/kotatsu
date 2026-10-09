@@ -32,3 +32,6 @@ WHERE id = @id;
 
 -- name: DeleteRule :execrows
 DELETE FROM rules WHERE id = @id;
+
+-- name: SetRuleEnabled :execrows
+UPDATE rules SET enabled = @enabled, updated_at = @now, updated_by = @actor WHERE id = @id;

@@ -224,6 +224,35 @@ func (r *Rules) Update(ctx context.Context, db Beginner, actor *audit.Actor, rul
 	return rule, nil
 }
 
+// SetEnabled は、ルールを有効または無効にする。
+func (r *Rules) SetEnabled(ctx context.Context, db Beginner, actor *audit.Actor, ruleID uuid.UUID, enabled bool) (*Rule, error) {
+	var rule *Rule
+	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		q := sqlc.New(tx)
+		n, err := q.SetRuleEnabled(ctx, sqlc.SetRuleEnabledParams{ID: ruleID, Enabled: enabled, Now: r.clock.Now(), Actor: userOf(actor)})
+		if err != nil {
+			return fmt.Errorf("failed to update the rule: %w", err)
+		}
+		if n == 0 {
+			return fmt.Errorf("%w: %s", ErrNotFound, ruleID)
+		}
+		if rule, err = get(ctx, q, ruleID); err != nil {
+			return err
+		}
+		action := "rule.disable"
+		if enabled {
+			action = "rule.enable"
+		}
+
+		return r.record(ctx, tx, actor, action, rule)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return rule, nil
+}
+
 // Delete はルールを消す。このルールだけに一致していた予約は、次の照合で消える。
 func (r *Rules) Delete(ctx context.Context, db Beginner, actor *audit.Actor, ruleID uuid.UUID) error {
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
