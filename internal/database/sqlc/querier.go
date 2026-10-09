@@ -6,12 +6,33 @@ package sqlc
 
 import (
 	"context"
+	"time"
 )
 
 type Querier interface {
+	// 期限の切れたリースだけを取れる。誰も持っていないか期限が切れていれば、世代番号を 1 つ上げて取る。
+	// 他のインスタンスが期限内のリースを持っていれば、行を返さない。
+	AcquireLease(ctx context.Context, arg AcquireLeaseParams) (int64, error)
+	BumpChangeVersion(ctx context.Context, arg BumpChangeVersionParams) (int64, error)
+	DeleteInstance(ctx context.Context, arg DeleteInstanceParams) error
+	DeleteStaleInstances(ctx context.Context, before time.Time) (int64, error)
+	GetLease(ctx context.Context, name string) (Lease, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
+	HeartbeatInstance(ctx context.Context, arg HeartbeatInstanceParams) (int64, error)
+	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
+	ListChangeVersions(ctx context.Context, channels []string) ([]ListChangeVersionsRow, error)
+	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
+	// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。
+	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
+	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
+	NotifyChange(ctx context.Context, arg NotifyChangeParams) error
 	// 下限は上げるだけで、下げない。古いバイナリで migrate を実行しても、新しいバイナリが記録した下限は残る。
 	RaiseMinBinaryVersion(ctx context.Context, arg RaiseMinBinaryVersionParams) error
+	// 期限をすぐに切れさせて、他のインスタンスがすぐに取れるようにする。世代番号は残す。
+	ReleaseLease(ctx context.Context, arg ReleaseLeaseParams) error
+	// 同じ世代のリースを期限内に延長する。期限が切れていたり、他のインスタンスに取られていたりすれば、行を更新しない。
+	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
+	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 }
 
 var _ Querier = (*Queries)(nil)

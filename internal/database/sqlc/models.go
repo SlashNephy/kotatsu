@@ -6,7 +6,32 @@ package sqlc
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
+
+type ChangeVersion struct {
+	Channel   string
+	Version   int64
+	UpdatedAt time.Time
+}
+
+type Instance struct {
+	ID          uuid.UUID
+	Role        string
+	Address     string
+	StartedAt   time.Time
+	HeartbeatAt time.Time
+}
+
+type Lease struct {
+	Name       string
+	Holder     uuid.UUID
+	Generation int64
+	AcquiredAt time.Time
+	RenewedAt  time.Time
+	ExpiresAt  time.Time
+}
 
 type SchemaCompatibility struct {
 	ID               bool

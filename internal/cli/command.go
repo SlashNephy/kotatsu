@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -13,9 +14,12 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/config"
 	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
+	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/registry"
 	"github.com/SlashNephy/kotatsu/internal/telemetry"
 )
 
@@ -37,6 +41,9 @@ type Options struct {
 	CheckSchema func(ctx context.Context, pool *pgxpool.Pool) error
 	// Migrate は kotatsu migrate の本体。
 	Migrate func(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
+	// RunRegistry は、ctx が終わるまで roles のインスタンスを登録簿に載せておく。
+	// listenAddr は API の HTTP サーバーが実際に待ち受けているアドレス。
+	RunRegistry func(ctx context.Context, logger *slog.Logger, deps *Deps, roles []string, listenAddr string) error
 }
 
 // DefaultOptions は、本番で使う依存を返す。
@@ -48,7 +55,35 @@ func DefaultOptions(logger *slog.Logger) *Options {
 		OpenDatabase: database.Open,
 		CheckSchema:  database.CheckSchema,
 		Migrate:      database.Migrate,
+		RunRegistry:  runRegistry,
 	}
+}
+
+func runRegistry(ctx context.Context, logger *slog.Logger, deps *Deps, roles []string, listenAddr string) error {
+	address, err := advertiseAddress(listenAddr)
+	if err != nil {
+		return err
+	}
+
+	return registry.New(deps.DB, deps.Clock, deps.InstanceID).Run(ctx, logger, roles, address)
+}
+
+// advertiseAddress は、他のインスタンスからこのインスタンスに届くアドレスを、待ち受けのアドレスから決める。
+// 待ち受けのホストが空か 0.0.0.0 や :: などの全アドレスなら、ホスト名を使う。
+// ポートに 0 を指定したときも実際に割り当てられたポートを載せるよう、設定値ではなく待ち受けたアドレスを渡す。
+func advertiseAddress(listen string) (string, error) {
+	host, port, err := net.SplitHostPort(listen)
+	if err != nil {
+		return "", fmt.Errorf("invalid listen address %s: %w", listen, err)
+	}
+	if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
+		host, err = os.Hostname()
+		if err != nil {
+			return "", fmt.Errorf("failed to get the hostname: %w", err)
+		}
+	}
+
+	return net.JoinHostPort(host, port), nil
 }
 
 // NewCommand は kotatsu のルートコマンドを組み立てる。
@@ -101,7 +136,13 @@ func NewCommand(opts *Options) *cobra.Command {
 			return fmt.Errorf("refusing to start: %w", err)
 		}
 
-		return serve(ctx, opts.Logger, &Deps{Config: cfg, DB: pool, Metrics: telemetry.NewRegistry()}, targets)
+		return serve(ctx, opts, &Deps{
+			Config:     cfg,
+			DB:         pool,
+			Metrics:    telemetry.NewRegistry(),
+			Clock:      new(clock.Real),
+			InstanceID: id.New(),
+		}, targets)
 	}
 
 	for _, role := range opts.Roles {
@@ -157,7 +198,8 @@ func NewCommand(opts *Options) *cobra.Command {
 //
 // HTTP サーバーは 2 つある。server.listen では /healthz と /readyz を、metrics.listen では /metrics を公開する。
 // どれかが失敗すると、残りも止める。ロールがすべて終わったときも、HTTP サーバーを止めて終わる。
-func serve(ctx context.Context, logger *slog.Logger, deps *Deps, roles []*Role) error {
+func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error {
+	logger := opts.Logger
 	tracerProvider, shutdownTracing, err := telemetry.NewTracerProvider(ctx, &deps.Config.Telemetry)
 	if err != nil {
 		return err
@@ -198,6 +240,14 @@ func serve(ctx context.Context, logger *slog.Logger, deps *Deps, roles []*Role) 
 	})
 	eg.Go(func() error {
 		return httpserver.Serve(ctx, logger.With(slog.String("server", "api")), apiListener, handler)
+	})
+	eg.Go(func() error {
+		names := make([]string, 0, len(roles))
+		for _, role := range roles {
+			names = append(names, role.Name)
+		}
+
+		return opts.RunRegistry(ctx, logger, deps, names, apiListener.Addr().String())
 	})
 	eg.Go(func() error {
 		return httpserver.Serve(ctx, logger.With(slog.String("server", "metrics")), metricsListener, metricsHandler)
