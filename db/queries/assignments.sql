@@ -12,6 +12,7 @@ ORDER BY r.id;
 SELECT DISTINCT ON (rr.reservation_id) rr.reservation_id, ru.settings
 FROM reservation_rules rr
 JOIN rules ru ON ru.id = rr.rule_id
+WHERE rr.reservation_id = ANY(@reservation_ids::uuid[])
 ORDER BY rr.reservation_id, ru.created_at, ru.id;
 
 -- name: ListUsableTuners :many

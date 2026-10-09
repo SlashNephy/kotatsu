@@ -4,4 +4,4 @@ ALTER TABLE "reservations" ADD CONSTRAINT "reservations_assignment_state_check" 
 
 -- +goose Down
 -- reverse: modify "reservations" table
-ALTER TABLE "reservations" DROP COLUMN "planned_end_at", DROP COLUMN "planned_start_at", DROP COLUMN "assigned_tuner", DROP COLUMN "assignment_state", DROP CONSTRAINT "reservations_assignment_state_check";
+ALTER TABLE "reservations" DROP CONSTRAINT "reservations_assignment_state_check", DROP COLUMN "planned_end_at", DROP COLUMN "planned_start_at", DROP COLUMN "assigned_tuner", DROP COLUMN "assignment_state";

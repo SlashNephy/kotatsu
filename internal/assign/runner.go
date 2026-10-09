@@ -127,7 +127,7 @@ func (r *Runner) RunOnce(ctx context.Context) (*Result, error) {
 		}
 
 		for i, a := range Assign(reservations, tuners) {
-			changed, conflicted, err := update(ctx, q, rows[i], a)
+			changed, conflicted, err := update(ctx, q, &rows[i], a)
 			if err != nil {
 				return err
 			}
@@ -156,7 +156,11 @@ func (r *Runner) RunOnce(ctx context.Context) (*Result, error) {
 // inputs は、DB の予約を割り当ての入力にする。録画設定は、全体の既定値に、ルール予約ならルールの上書き、
 // さらに予約自体の上書きを重ねて求める。予定の始まりが過ぎた予約は、録画が始まったものとして、割り当てたチューナーから動かさない。
 func (r *Runner) inputs(ctx context.Context, q *sqlc.Queries, rows []sqlc.ListAssignableReservationsRow, now time.Time) ([]*Reservation, error) {
-	ruleRows, err := q.ListFirstRuleSettings(ctx)
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	ruleRows, err := q.ListFirstRuleSettings(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list rule settings: %w", err)
 	}
@@ -218,7 +222,7 @@ func usableTuners(ctx context.Context, q *sqlc.Queries) ([]*Tuner, error) {
 }
 
 // update は、割り当ての結果が変わっていれば DB に書く。新たに競合になったかどうかも返す。
-func update(ctx context.Context, q *sqlc.Queries, row sqlc.ListAssignableReservationsRow, a *Assignment) (bool, bool, error) {
+func update(ctx context.Context, q *sqlc.Queries, row *sqlc.ListAssignableReservationsRow, a *Assignment) (bool, bool, error) {
 	var tuner *int64
 	if a.Tuner != NoTuner {
 		tuner = new(int64(a.Tuner))

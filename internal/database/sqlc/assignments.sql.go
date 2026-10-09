@@ -86,6 +86,7 @@ const listFirstRuleSettings = `-- name: ListFirstRuleSettings :many
 SELECT DISTINCT ON (rr.reservation_id) rr.reservation_id, ru.settings
 FROM reservation_rules rr
 JOIN rules ru ON ru.id = rr.rule_id
+WHERE rr.reservation_id = ANY($1::uuid[])
 ORDER BY rr.reservation_id, ru.created_at, ru.id
 `
 
@@ -95,8 +96,8 @@ type ListFirstRuleSettingsRow struct {
 }
 
 // ルール予約の録画設定に使う、一致したルールのうち最も古いものの上書き。
-func (q *Queries) ListFirstRuleSettings(ctx context.Context) ([]ListFirstRuleSettingsRow, error) {
-	rows, err := q.db.Query(ctx, listFirstRuleSettings)
+func (q *Queries) ListFirstRuleSettings(ctx context.Context, reservationIds []uuid.UUID) ([]ListFirstRuleSettingsRow, error) {
+	rows, err := q.db.Query(ctx, listFirstRuleSettings, reservationIds)
 	if err != nil {
 		return nil, err
 	}
