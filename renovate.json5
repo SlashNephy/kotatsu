@@ -3,4 +3,17 @@
   extends: [
     'local>SlashNephy/renovate-config',
   ],
+  customManagers: [
+    {
+      // atlas.hcl の開発用 DB のイメージ。
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^atlas\\.hcl$/',
+      ],
+      matchStrings: [
+        'docker\\+postgres://(?<depName>[^:]+):(?<currentValue>[^/]+)/',
+      ],
+      datasourceTemplate: 'docker',
+    },
+  ],
 }
