@@ -6,22 +6,31 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
+	"net/url"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/cli"
+	"github.com/SlashNephy/kotatsu/internal/config"
 )
 
 func TestHelpListsRolesWithAlias(t *testing.T) {
 	t.Parallel()
 
 	var out bytes.Buffer
-	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), cli.DefaultRoles())
+	cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), cli.DefaultRoles(), validEnv))
 	cmd.SetOut(&out)
 	cmd.SetArgs([]string{"--help"})
 	require.NoError(t, cmd.Execute())
@@ -89,7 +98,7 @@ func startedRoles(t *testing.T, arg string) []string {
 	)
 	roles := cli.DefaultRoles()
 	for _, role := range roles {
-		role.Run = func(_ context.Context, _ *slog.Logger) error {
+		role.Run = func(context.Context, *slog.Logger, *cli.Deps) error {
 			mu.Lock()
 			defer mu.Unlock()
 			started = append(started, role.Name)
@@ -98,7 +107,7 @@ func startedRoles(t *testing.T, arg string) []string {
 		}
 	}
 
-	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), roles)
+	cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), roles, validEnv))
 	cmd.SetArgs([]string{arg})
 	require.NoError(t, cmd.ExecuteContext(t.Context()))
 
@@ -110,11 +119,18 @@ func TestRoleFailureStopsOtherRoles(t *testing.T) {
 
 	errBoom := errors.New("boom")
 	roles := cli.DefaultRoles()
-	roles[0].Run = func(_ context.Context, _ *slog.Logger) error {
+	for _, role := range roles[1:] {
+		role.Run = func(ctx context.Context, _ *slog.Logger, _ *cli.Deps) error {
+			<-ctx.Done()
+
+			return nil
+		}
+	}
+	roles[0].Run = func(context.Context, *slog.Logger, *cli.Deps) error {
 		return errBoom
 	}
 
-	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), roles)
+	cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), roles, validEnv))
 	cmd.SetArgs([]string{"all"})
 
 	done := make(chan error, 1)
@@ -140,8 +156,9 @@ func TestRoleLogsDisplayNameUntilCanceled(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(&lockedWriter{mu: &mu, w: &buf}, nil))
 
 	ctx, cancel := context.WithCancel(t.Context())
-	cmd := cli.NewCommand(logger, cli.DefaultRoles())
-	cmd.SetArgs([]string{"scheduler"})
+	cmd := cli.NewCommand(testOptions(logger, cli.DefaultRoles(), validEnv))
+	// DB を使わないロールで確かめる。
+	cmd.SetArgs([]string{"recorder"})
 
 	done := make(chan error, 1)
 	go func() {
@@ -165,18 +182,187 @@ func TestRoleLogsDisplayNameUntilCanceled(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	assert.Contains(t, buf.String(), `"role":"neko (scheduler)"`)
+	assert.Contains(t, buf.String(), `"role":"mikan (recorder)"`)
 	assert.Contains(t, buf.String(), `"msg":"role stopped"`)
+	assert.Contains(t, buf.String(), `"msg":"config loaded"`)
+	assert.NotContains(t, buf.String(), "hunter2")
 }
 
 func TestUnknownSubcommandFails(t *testing.T) {
 	t.Parallel()
 
-	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), cli.DefaultRoles())
+	cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), cli.DefaultRoles(), validEnv))
 	cmd.SetOut(io.Discard)
 	cmd.SetArgs([]string{"kago"})
 	require.Error(t, cmd.Execute())
 }
+
+func TestRoleDoesNotStartWithInvalidConfig(t *testing.T) {
+	t.Parallel()
+
+	var started atomic.Bool
+	roles := cli.DefaultRoles()
+	for _, role := range roles {
+		role.Run = func(context.Context, *slog.Logger, *cli.Deps) error {
+			started.Store(true)
+
+			return nil
+		}
+	}
+
+	cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), roles, func(string) (string, bool) { return "", false }))
+	cmd.SetArgs([]string{"all"})
+	require.ErrorContains(t, cmd.ExecuteContext(t.Context()), "database.url (KOTATSU_DATABASE_URL): is required")
+	assert.False(t, started.Load())
+}
+
+func TestConfigFlagAndEnv(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	flagPath := filepath.Join(dir, "flag.yaml")
+	require.NoError(t, os.WriteFile(flagPath, []byte("server:\n  listen: "+anyLocalPort+"\n"), 0o600))
+	envPath := filepath.Join(dir, "env.yaml")
+	require.NoError(t, os.WriteFile(envPath, []byte("server:\n  listen: localhost:0\n"), 0o600))
+
+	tests := []struct {
+		name string
+		args []string
+		env  map[string]string
+		want string
+	}{
+		{name: "flag", args: []string{"--config", flagPath}, want: anyLocalPort},
+		{name: "env", env: map[string]string{"KOTATSU_CONFIG": envPath}, want: "localhost:0"},
+		{name: "flag wins over env", args: []string{"--config", flagPath}, env: map[string]string{"KOTATSU_CONFIG": envPath}, want: anyLocalPort},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got string
+			roles := cli.DefaultRoles()
+			roles[0].Run = func(_ context.Context, _ *slog.Logger, deps *cli.Deps) error {
+				got = deps.Config.Server.Listen
+
+				return nil
+			}
+
+			// server.listen は設定ファイルから与えるので、環境変数からは外す。
+			env := testEnv()
+			delete(env, "KOTATSU_SERVER_LISTEN")
+			maps.Copy(env, tt.env)
+			cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), roles, func(key string) (string, bool) {
+				v, ok := env[key]
+
+				return v, ok
+			}))
+			cmd.SetArgs(append(slices.Clone(tt.args), roles[0].Name))
+			require.NoError(t, cmd.ExecuteContext(t.Context()))
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestRoleDoesNotStartWhenSchemaIsIncompatible(t *testing.T) {
+	t.Parallel()
+
+	var started atomic.Bool
+	roles := cli.DefaultRoles()
+	for _, role := range roles {
+		role.Run = func(context.Context, *slog.Logger, *cli.Deps) error {
+			started.Store(true)
+
+			return nil
+		}
+	}
+
+	errIncompatible := errors.New("incompatible schema")
+	opts := testOptions(slog.New(slog.DiscardHandler), roles, validEnv)
+	opts.CheckSchema = func(context.Context, *pgxpool.Pool) error {
+		return errIncompatible
+	}
+
+	cmd := cli.NewCommand(opts)
+	cmd.SetArgs([]string{roles[0].Name})
+	err := cmd.ExecuteContext(t.Context())
+	require.ErrorIs(t, err, errIncompatible)
+	require.ErrorContains(t, err, "refusing to start")
+	assert.False(t, started.Load())
+}
+
+func TestMigrateRunsMigrationWithoutStartingRoles(t *testing.T) {
+	t.Parallel()
+
+	var started, migrated, checked atomic.Bool
+	roles := cli.DefaultRoles()
+	for _, role := range roles {
+		role.Run = func(context.Context, *slog.Logger, *cli.Deps) error {
+			started.Store(true)
+
+			return nil
+		}
+	}
+
+	opts := testOptions(slog.New(slog.DiscardHandler), roles, validEnv)
+	opts.Migrate = func(context.Context, *slog.Logger, *pgxpool.Pool) error {
+		migrated.Store(true)
+
+		return nil
+	}
+	// migrate はスキーマが古い DB に対して実行するものなので、スキーマを確かめてはならない。
+	opts.CheckSchema = func(context.Context, *pgxpool.Pool) error {
+		checked.Store(true)
+
+		return errors.New("must not be called")
+	}
+
+	cmd := cli.NewCommand(opts)
+	cmd.SetArgs([]string{"migrate"})
+	require.NoError(t, cmd.ExecuteContext(t.Context()))
+	assert.True(t, migrated.Load())
+	assert.False(t, checked.Load())
+	assert.False(t, started.Load())
+}
+
+// testOptions は、DB に接続しない Options を返す。
+func testOptions(logger *slog.Logger, roles []*cli.Role, lookupEnv config.LookupEnv) *cli.Options {
+	return &cli.Options{
+		Logger:    logger,
+		Roles:     roles,
+		LookupEnv: lookupEnv,
+		OpenDatabase: func(context.Context, *config.Database) (*pgxpool.Pool, error) {
+			return nil, nil
+		},
+		CheckSchema: func(context.Context, *pgxpool.Pool) error { return nil },
+		Migrate:     func(context.Context, *slog.Logger, *pgxpool.Pool) error { return nil },
+		RunRegistry: func(ctx context.Context, _ *slog.Logger, _ *cli.Deps, _ []string, _ string) error {
+			<-ctx.Done()
+
+			return nil
+		},
+		JobWorkers: func() *river.Workers { return nil },
+	}
+}
+
+// validEnv は、起動に必要な設定を与える。HTTP サーバーはテストどうしで衝突しないよう空いているポートで待ち受ける。
+func validEnv(key string) (string, bool) {
+	v, ok := testEnv()[key]
+
+	return v, ok
+}
+
+func testEnv() map[string]string {
+	databaseURL := url.URL{Scheme: "postgres", User: url.UserPassword("user", "hunter2"), Host: "db", Path: "/kotatsu"}
+
+	return map[string]string{
+		"KOTATSU_DATABASE_URL":   databaseURL.String(),
+		"KOTATSU_SERVER_LISTEN":  anyLocalPort,
+		"KOTATSU_METRICS_LISTEN": anyLocalPort,
+	}
+}
+
+// anyLocalPort は、テストどうしで衝突しないよう空いているポートで待ち受けるアドレス。
+const anyLocalPort = "127.0.0.1:0"
 
 var _ io.Writer = new(lockedWriter)
 
