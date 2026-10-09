@@ -69,7 +69,10 @@ jobs:
             docker run --rm --read-only --entrypoint ffmpeg kotatsu:smoke -hide_banner -version
             # tsreadex と psisiarc は、引数がないと使い方のエラーで終わる。起動できればよい。
             docker run --rm --read-only --entrypoint sh kotatsu:smoke -c 'tsreadex 2>&1 | grep -q arguments && psisiarc 2>&1 | grep -q arguments'
-            docker run --rm --entrypoint test kotatsu:smoke -s /usr/share/doc/kotatsu/third-party/debian-packages.tsv
+            # ライセンス文書とソースの入手先 (設計書の付録 B)。
+            for doc in debian-packages.tsv SOURCES tsreadex.License.txt psisiarc.License.txt; do
+              docker run --rm --entrypoint test kotatsu:smoke -s "/usr/share/doc/kotatsu/third-party/$doc"
+            done
           fi
       - if: github.event_name != 'pull_request'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -82,7 +85,8 @@ jobs:
           context: .
           target: ${{ matrix.target }}
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
+          # 手動で実行したときなど、付けるタグがなければ公開しない。
+          push: ${{ github.event_name != 'pull_request' && steps.meta.outputs.tags != '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.target }}
