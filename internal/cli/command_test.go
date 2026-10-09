@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/cli"
+	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/config"
 )
 
@@ -330,6 +331,7 @@ func testOptions(logger *slog.Logger, roles []*cli.Role, lookupEnv config.Lookup
 		Logger:    logger,
 		Roles:     roles,
 		LookupEnv: lookupEnv,
+		Clock:     new(clock.Real),
 		OpenDatabase: func(context.Context, *config.Database) (*pgxpool.Pool, error) {
 			return nil, nil
 		},

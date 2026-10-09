@@ -40,6 +40,7 @@ type Options struct {
 	Logger    *slog.Logger
 	Roles     []*Role
 	LookupEnv config.LookupEnv
+	Clock     clock.Clock
 
 	OpenDatabase func(ctx context.Context, cfg *config.Database) (*pgxpool.Pool, error)
 	// CheckSchema は、ロールを起動する前に、DB のスキーマでこのバイナリが動けるかを確かめる。
@@ -59,6 +60,7 @@ func DefaultOptions(logger *slog.Logger) *Options {
 		Logger:       logger,
 		Roles:        DefaultRoles(),
 		LookupEnv:    os.LookupEnv,
+		Clock:        new(clock.Real),
 		OpenDatabase: database.Open,
 		CheckSchema:  checkSchema,
 		Migrate:      migrate,
@@ -139,8 +141,8 @@ func NewCommand(opts *Options) *cobra.Command {
 		"path to the YAML config file (defaults to $"+configPathEnv+"; optional when every required setting is given by environment variables)",
 	)
 
-	// connect は設定を読み込み、DB に接続する。返した pool は呼び出し側で閉じる。
-	connect := func(ctx context.Context) (*config.Config, *pgxpool.Pool, error) {
+	// loadConfig は、--config か環境変数の設定ファイルと、環境変数から設定を読み込む。
+	loadConfig := func(ctx context.Context) (*config.Config, error) {
 		path := configPath
 		if path == "" {
 			path, _ = opts.LookupEnv(configPathEnv)
@@ -148,9 +150,19 @@ func NewCommand(opts *Options) *cobra.Command {
 
 		cfg, err := config.Load(path, opts.LookupEnv)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to load the config: %w", err)
+			return nil, fmt.Errorf("failed to load the config: %w", err)
 		}
 		opts.Logger.InfoContext(ctx, "config loaded", slog.String("path", path), slog.Any("config", cfg))
+
+		return cfg, nil
+	}
+
+	// connect は設定を読み込み、DB に接続する。返した pool は呼び出し側で閉じる。
+	connect := func(ctx context.Context) (*config.Config, *pgxpool.Pool, error) {
+		cfg, err := loadConfig(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
 
 		pool, err := opts.OpenDatabase(ctx, &cfg.Database)
 		if err != nil {
@@ -175,7 +187,7 @@ func NewCommand(opts *Options) *cobra.Command {
 			Config:     cfg,
 			DB:         pool,
 			Metrics:    telemetry.NewRegistry(),
-			Clock:      new(clock.Real),
+			Clock:      opts.Clock,
 			InstanceID: id.New(),
 			Jobs:       nil,
 			JobWorkers: nil,
@@ -234,6 +246,8 @@ func NewCommand(opts *Options) *cobra.Command {
 			return opts.Migrate(cmd.Context(), opts.Logger, pool)
 		},
 	})
+
+	root.AddCommand(newImportCommand(opts, loadConfig))
 
 	// cobra の既定のテンプレートはコマンド一覧に Name だけを出すので、役割名を併記した名前に差し替える。
 	// NamePadding は Name の長さから計算されるため、併記した名前に合わせた固定幅にする。
