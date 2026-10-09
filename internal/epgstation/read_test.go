@@ -17,6 +17,9 @@ const (
 	programID = 327360102412345
 	// recordedDirectory は、EPGStation の既定の録画の保存先ディレクトリの名前。
 	recordedDirectory = "recorded"
+	// animeDirectory と encodedDirectory は、録画の保存先ディレクトリやサブディレクトリの名前。
+	animeDirectory   = "anime"
+	encodedDirectory = "encoded"
 	// startAt は 2026-10-10 21:00 (JST) のミリ秒。
 	startAt = 1791633600000
 	endAt   = startAt + 30*60*1000
@@ -86,7 +89,7 @@ func expectedSnapshot() *epgstation.Snapshot {
 				AllowEndLack:           false,
 				TagIDs:                 []int64{1, 2},
 				ParentDirectoryName:    recordedDirectory,
-				Directory:              "anime",
+				Directory:              animeDirectory,
 				RecordedFormat:         "%TITLE%",
 			},
 			{
@@ -165,7 +168,7 @@ func expectedSnapshot() *epgstation.Snapshot {
 				Genres:      []*epgstation.Genre{{Genre: 7, SubGenre: new(0)}, {Genre: 6, SubGenre: nil}},
 				Files: []*epgstation.VideoFile{
 					{ID: 100, ParentDirectoryName: recordedDirectory, FilePath: "anime/ゆるキャン△.m2ts", Type: epgstation.VideoFileTypeTS, Name: "TS", Size: 1234567890123},
-					{ID: 101, ParentDirectoryName: "encoded", FilePath: "ゆるキャン△.mp4", Type: epgstation.VideoFileTypeEncoded, Name: "H.264", Size: 456},
+					{ID: 101, ParentDirectoryName: encodedDirectory, FilePath: "ゆるキャン△.mp4", Type: epgstation.VideoFileTypeEncoded, Name: "H.264", Size: 456},
 				},
 				Drop:   &epgstation.DropLog{ErrorCount: 4, DropCount: 5, ScramblingCount: 6},
 				TagIDs: []int64{1, 2},
