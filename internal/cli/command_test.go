@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -27,7 +28,7 @@ func TestHelpListsRolesWithAlias(t *testing.T) {
 	t.Parallel()
 
 	var out bytes.Buffer
-	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), cli.DefaultRoles(), validEnv)
+	cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), cli.DefaultRoles(), validEnv))
 	cmd.SetOut(&out)
 	cmd.SetArgs([]string{"--help"})
 	require.NoError(t, cmd.Execute())
@@ -95,7 +96,7 @@ func startedRoles(t *testing.T, arg string) []string {
 	)
 	roles := cli.DefaultRoles()
 	for _, role := range roles {
-		role.Run = func(context.Context, *slog.Logger, *config.Config) error {
+		role.Run = func(context.Context, *slog.Logger, *cli.Deps) error {
 			mu.Lock()
 			defer mu.Unlock()
 			started = append(started, role.Name)
@@ -104,7 +105,7 @@ func startedRoles(t *testing.T, arg string) []string {
 		}
 	}
 
-	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), roles, validEnv)
+	cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), roles, validEnv))
 	cmd.SetArgs([]string{arg})
 	require.NoError(t, cmd.ExecuteContext(t.Context()))
 
@@ -116,11 +117,11 @@ func TestRoleFailureStopsOtherRoles(t *testing.T) {
 
 	errBoom := errors.New("boom")
 	roles := cli.DefaultRoles()
-	roles[0].Run = func(context.Context, *slog.Logger, *config.Config) error {
+	roles[0].Run = func(context.Context, *slog.Logger, *cli.Deps) error {
 		return errBoom
 	}
 
-	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), roles, validEnv)
+	cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), roles, validEnv))
 	cmd.SetArgs([]string{"all"})
 
 	done := make(chan error, 1)
@@ -146,7 +147,7 @@ func TestRoleLogsDisplayNameUntilCanceled(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(&lockedWriter{mu: &mu, w: &buf}, nil))
 
 	ctx, cancel := context.WithCancel(t.Context())
-	cmd := cli.NewCommand(logger, cli.DefaultRoles(), validEnv)
+	cmd := cli.NewCommand(testOptions(logger, cli.DefaultRoles(), validEnv))
 	cmd.SetArgs([]string{"scheduler"})
 
 	done := make(chan error, 1)
@@ -180,7 +181,7 @@ func TestRoleLogsDisplayNameUntilCanceled(t *testing.T) {
 func TestUnknownSubcommandFails(t *testing.T) {
 	t.Parallel()
 
-	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), cli.DefaultRoles(), validEnv)
+	cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), cli.DefaultRoles(), validEnv))
 	cmd.SetOut(io.Discard)
 	cmd.SetArgs([]string{"kago"})
 	require.Error(t, cmd.Execute())
@@ -192,14 +193,14 @@ func TestRoleDoesNotStartWithInvalidConfig(t *testing.T) {
 	var started atomic.Bool
 	roles := cli.DefaultRoles()
 	for _, role := range roles {
-		role.Run = func(context.Context, *slog.Logger, *config.Config) error {
+		role.Run = func(context.Context, *slog.Logger, *cli.Deps) error {
 			started.Store(true)
 
 			return nil
 		}
 	}
 
-	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), roles, func(string) (string, bool) { return "", false })
+	cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), roles, func(string) (string, bool) { return "", false }))
 	cmd.SetArgs([]string{"all"})
 	require.ErrorContains(t, cmd.ExecuteContext(t.Context()), "database.url (KOTATSU_DATABASE_URL): is required")
 	assert.False(t, started.Load())
@@ -231,23 +232,98 @@ func TestConfigFlagAndEnv(t *testing.T) {
 
 			var got string
 			roles := cli.DefaultRoles()
-			roles[0].Run = func(_ context.Context, _ *slog.Logger, cfg *config.Config) error {
-				got = cfg.Server.Listen
+			roles[0].Run = func(_ context.Context, _ *slog.Logger, deps *cli.Deps) error {
+				got = deps.Config.Server.Listen
 
 				return nil
 			}
 
 			env := map[string]string{"KOTATSU_DATABASE_URL": "postgres://db/kotatsu"}
 			maps.Copy(env, tt.env)
-			cmd := cli.NewCommand(slog.New(slog.DiscardHandler), roles, func(key string) (string, bool) {
+			cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), roles, func(key string) (string, bool) {
 				v, ok := env[key]
 
 				return v, ok
-			})
+			}))
 			cmd.SetArgs(append(slices.Clone(tt.args), roles[0].Name))
 			require.NoError(t, cmd.ExecuteContext(t.Context()))
 			assert.Equal(t, tt.want, got)
 		})
+	}
+}
+
+func TestRoleDoesNotStartWhenSchemaIsIncompatible(t *testing.T) {
+	t.Parallel()
+
+	var started atomic.Bool
+	roles := cli.DefaultRoles()
+	for _, role := range roles {
+		role.Run = func(context.Context, *slog.Logger, *cli.Deps) error {
+			started.Store(true)
+
+			return nil
+		}
+	}
+
+	errIncompatible := errors.New("incompatible schema")
+	opts := testOptions(slog.New(slog.DiscardHandler), roles, validEnv)
+	opts.CheckSchema = func(context.Context, *pgxpool.Pool) error {
+		return errIncompatible
+	}
+
+	cmd := cli.NewCommand(opts)
+	cmd.SetArgs([]string{roles[0].Name})
+	err := cmd.ExecuteContext(t.Context())
+	require.ErrorIs(t, err, errIncompatible)
+	require.ErrorContains(t, err, "refusing to start")
+	assert.False(t, started.Load())
+}
+
+func TestMigrateRunsMigrationWithoutStartingRoles(t *testing.T) {
+	t.Parallel()
+
+	var started, migrated, checked atomic.Bool
+	roles := cli.DefaultRoles()
+	for _, role := range roles {
+		role.Run = func(context.Context, *slog.Logger, *cli.Deps) error {
+			started.Store(true)
+
+			return nil
+		}
+	}
+
+	opts := testOptions(slog.New(slog.DiscardHandler), roles, validEnv)
+	opts.Migrate = func(context.Context, *slog.Logger, *pgxpool.Pool) error {
+		migrated.Store(true)
+
+		return nil
+	}
+	// migrate はスキーマが古い DB に対して実行するものなので、スキーマを確かめてはならない。
+	opts.CheckSchema = func(context.Context, *pgxpool.Pool) error {
+		checked.Store(true)
+
+		return errors.New("must not be called")
+	}
+
+	cmd := cli.NewCommand(opts)
+	cmd.SetArgs([]string{"migrate"})
+	require.NoError(t, cmd.ExecuteContext(t.Context()))
+	assert.True(t, migrated.Load())
+	assert.False(t, checked.Load())
+	assert.False(t, started.Load())
+}
+
+// testOptions は、DB に接続しない Options を返す。
+func testOptions(logger *slog.Logger, roles []*cli.Role, lookupEnv config.LookupEnv) *cli.Options {
+	return &cli.Options{
+		Logger:    logger,
+		Roles:     roles,
+		LookupEnv: lookupEnv,
+		OpenDatabase: func(context.Context, *config.Database) (*pgxpool.Pool, error) {
+			return nil, nil
+		},
+		CheckSchema: func(context.Context, *pgxpool.Pool) error { return nil },
+		Migrate:     func(context.Context, *slog.Logger, *pgxpool.Pool) error { return nil },
 	}
 }
 

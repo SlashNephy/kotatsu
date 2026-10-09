@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	// 表示のタイムゾーンのデータを、実行環境に頼らずバイナリに埋め込む (設計書 8.1)。
+	_ "time/tzdata"
 
 	"github.com/SlashNephy/kotatsu/internal/cli"
 )
@@ -19,7 +21,7 @@ func run() int {
 	defer stop()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	if err := cli.NewCommand(logger, cli.DefaultRoles(), os.LookupEnv).ExecuteContext(ctx); err != nil {
+	if err := cli.NewCommand(cli.DefaultOptions(logger)).ExecuteContext(ctx); err != nil {
 		logger.ErrorContext(ctx, "kotatsu exited with an error", slog.Any("error", err))
 
 		return 1

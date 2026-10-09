@@ -4,11 +4,20 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/SlashNephy/kotatsu/internal/config"
 )
 
+// Deps は、ロールを起動する前に用意し、全ロールで共有するもの。
+type Deps struct {
+	Config *config.Config
+	// DB は、スキーマのバージョンを確かめた後の接続。
+	DB *pgxpool.Pool
+}
+
 // Runner はロールの本体。ctx が終わるまで動き続ける。
-type Runner func(ctx context.Context, logger *slog.Logger, cfg *config.Config) error
+type Runner func(ctx context.Context, logger *slog.Logger, deps *Deps) error
 
 // Role は kotatsu のサブコマンドで起動できるロール。
 type Role struct {
@@ -63,7 +72,7 @@ func DefaultRoles() []*Role {
 	}
 }
 
-func waitUntilDone(ctx context.Context, logger *slog.Logger, _ *config.Config) error {
+func waitUntilDone(ctx context.Context, logger *slog.Logger, _ *Deps) error {
 	logger.InfoContext(ctx, "role started")
 	<-ctx.Done()
 	logger.InfoContext(ctx, "role stopped")
