@@ -9,6 +9,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 )
 
@@ -30,4 +31,5 @@ type Resolver struct {
 	// heartbeatInterval は、heartbeat の subscription で時刻を送る間隔。
 	heartbeatInterval time.Duration
 	rules             *rule.Rules
+	reservations      *reserve.Reservations
 }

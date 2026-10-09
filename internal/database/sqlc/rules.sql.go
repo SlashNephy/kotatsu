@@ -137,6 +137,46 @@ func (q *Queries) ListRules(ctx context.Context) ([]Rule, error) {
 	return items, nil
 }
 
+const listRulesByIDs = `-- name: ListRulesByIDs :many
+SELECT id, name, memo, enabled, conditions, settings, valid_from, valid_until, avoid_duplicates, duplicate_window_days, follow_event_relay, created_at, created_by, updated_at, updated_by FROM rules WHERE id = ANY($1::uuid[])
+`
+
+func (q *Queries) ListRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rule, error) {
+	rows, err := q.db.Query(ctx, listRulesByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Rule{}
+	for rows.Next() {
+		var i Rule
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Memo,
+			&i.Enabled,
+			&i.Conditions,
+			&i.Settings,
+			&i.ValidFrom,
+			&i.ValidUntil,
+			&i.AvoidDuplicates,
+			&i.DuplicateWindowDays,
+			&i.FollowEventRelay,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.UpdatedAt,
+			&i.UpdatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setRuleEnabled = `-- name: SetRuleEnabled :execrows
 UPDATE rules SET enabled = $1, updated_at = $2, updated_by = $3 WHERE id = $4
 `

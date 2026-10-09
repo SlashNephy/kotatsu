@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 )
 
@@ -88,10 +89,12 @@ func NewHandler(opts *Options) http.Handler {
 	}
 
 	var config generated.Config
-	config.Resolvers = &Resolver{
+	resolver := &Resolver{
 		db: o.DB, clock: o.Clock, location: o.Location, maxSearchCandidates: o.MaxSearchCandidates, heartbeatInterval: o.HeartbeatInterval,
-		rules: rule.NewRules(o.Clock, o.Recorder),
+		rules:        rule.NewRules(o.Clock, o.Recorder),
+		reservations: reserve.NewReservations(o.Clock, o.Recorder),
 	}
+	config.Resolvers = resolver
 	server := handler.New(generated.NewExecutableSchema(config))
 	// SSE は Accept で POST と見分けるので、POST より先に置く。
 	server.AddTransport(transport.SSE{})
@@ -103,7 +106,7 @@ func NewHandler(opts *Options) http.Handler {
 	server.SetErrorPresenter(errorPresenter(o.Logger))
 	server.SetRecoverFunc(recoverFunc(o.Logger))
 
-	return guard(withLoaders(o.DB)(server))
+	return guard(withLoaders(o.DB, resolver.rules, resolver.reservations)(server))
 }
 
 // guard は、GraphQL の処理に入る前に、ログインしていないリクエストと、POST の JSON でないリクエストを拒否する。

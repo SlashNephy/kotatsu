@@ -1,0 +1,152 @@
+"""
+予約の種類 (設計書 4.1)。
+"""
+enum ReservationKind {
+  "番組予約。番組の放送時間の変更とイベントリレーに追従する。"
+  PROGRAM
+  "時刻予約。サービスと、開始と終了の時刻を指定する。番組の変更には追従しない。"
+  TIME
+  "ルール予約。ルールが自動で作る。"
+  RULE
+}
+
+"""
+予約のチューナーの割り当ての状態 (設計書 4.5)。
+"""
+enum AssignmentState {
+  "まだ割り当てを計算していない。"
+  PENDING
+  "全編を録画できる見込み。"
+  OK
+  "本編の一部が欠ける見込み。"
+  PARTIAL
+  "チューナーが足りない。"
+  CONFLICT
+}
+
+"""
+予約のチューナーの割り当ての結果。neko が計算し直すたびに変わる。
+"""
+type ReservationAssignment {
+  state: AssignmentState!
+  "割り当てたチューナーの番号。割り当てていなければ null。"
+  tuner: Int
+  "マージンを削った後の、録画する予定の時刻。割り当てていなければ null。"
+  plannedStartAt: Time
+  plannedEndAt: Time
+}
+
+"""
+予約 (設計書 4.1)。番組予約とルール予約は、作ったときの番組情報のコピーを持つ。予約は家族で共有する (設計書 9.7)。
+"""
+type Reservation implements Node {
+  id: ID!
+  kind: ReservationKind!
+  service: Service!
+  "番組の eventId。時刻予約では null。"
+  eventId: Int
+  startAt: Time!
+  endAt: Time!
+  name: String!
+  description: String!
+  genres: [Genre!]!
+  enabled: Boolean!
+  "イベントリレーで引き継がれた番組を、引き継ぎ先でも予約するかどうか (設計書 4.6)。"
+  followEventRelay: Boolean!
+  "この予約の録画設定の上書き。ルール予約では、一致したルールの設定が使われる。"
+  settings: RecordingSettingsOverrides!
+  assignment: ReservationAssignment!
+  "予約に一致したルール。ルールを作った順に並べる。"
+  rules: [Rule!]!
+  createdAt: Time!
+  "作成者。neko が作ったか、ユーザーが消えていれば null。"
+  createdBy: User
+  updatedAt: Time!
+  updatedBy: User
+}
+
+type ReservationEdge {
+  cursor: String!
+  node: Reservation!
+}
+
+type ReservationConnection {
+  edges: [ReservationEdge!]!
+  pageInfo: PageInfo!
+}
+
+"""
+番組予約の内容。
+"""
+input ProgramReservationInput {
+  program: ID!
+  followEventRelay: Boolean! = true
+  settings: RecordingSettingsOverridesInput
+}
+
+"""
+時刻予約の内容。長さは 24 時間まで。
+"""
+input TimeReservationInput {
+  service: ID!
+  startAt: Time!
+  endAt: Time!
+  "画面に出す名前。200 文字まで。"
+  name: String! = ""
+  settings: RecordingSettingsOverridesInput
+}
+
+"""
+予約の変更。省いた項目は変えない。
+"""
+input ReservationUpdateInput {
+  enabled: Boolean
+  followEventRelay: Boolean
+  "録画設定の上書きを、丸ごと置き換える。"
+  settings: RecordingSettingsOverridesInput
+  "startAt、endAt、name は、時刻予約でだけ変えられる。番組予約の時刻と名前は EPG に従う。"
+  startAt: Time
+  endAt: Time
+  name: String
+}
+
+"""
+予約の削除の結果。
+"""
+type DeleteReservationPayload {
+  "削除の操作をした予約の ID。"
+  id: ID!
+  "ルール予約は、消すと次の照合でまた作られるので、消さずに無効にする (設計書 4.3)。そのときの予約。消したときは null。"
+  reservation: Reservation
+}
+
+extend type Program {
+  "この番組の予約。予約がなければ null。"
+  reservation: Reservation
+}
+
+extend type Query {
+  """
+  時間帯 [from, to) に重なる予約を、開始時刻の順に返す。
+  states を指定すると、その割り当ての状態の予約だけを返す。
+  """
+  reservations(
+    from: Time!
+    to: Time!
+    states: [AssignmentState!]
+    "返す件数 (1〜100)"
+    first: Int! = 50
+    after: String
+  ): ReservationConnection!
+}
+
+extend type Mutation {
+  "番組予約を作る。同じ番組の予約がすでにあれば、作らずにその予約を返す。視聴者は使えない。"
+  createProgramReservation(input: ProgramReservationInput!): Reservation!
+  "時刻予約を作る。視聴者は使えない。"
+  createTimeReservation(input: TimeReservationInput!): Reservation!
+  "予約を変える。視聴者は使えない。"
+  updateReservation(id: ID!, input: ReservationUpdateInput!): Reservation!
+  "予約を消す。ルール予約は消さずに無効にする。視聴者は使えない。"
+  deleteReservation(id: ID!): DeleteReservationPayload!
+}

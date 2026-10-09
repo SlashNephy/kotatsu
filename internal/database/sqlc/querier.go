@@ -98,6 +98,7 @@ type Querier interface {
 	// ルール予約の録画設定は、一致したルールのうち最も古いものの上書きを使う。
 	ListReservationsToFollow(ctx context.Context, now time.Time) ([]ListReservationsToFollowRow, error)
 	ListRules(ctx context.Context) ([]Rule, error)
+	ListRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rule, error)
 	ListServices(ctx context.Context) ([]ListServicesRow, error)
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
 	ListUsableTuners(ctx context.Context) ([]ListUsableTunersRow, error)

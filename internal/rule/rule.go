@@ -297,6 +297,28 @@ func (r *Rules) List(ctx context.Context, db sqlc.DBTX) ([]*Rule, error) {
 	return rules, nil
 }
 
+// ListByIDs は、ID のルールを返す。見つからない ID は結果に含めない。
+func (r *Rules) ListByIDs(ctx context.Context, db sqlc.DBTX, ids []uuid.UUID) (map[uuid.UUID]*Rule, error) {
+	if len(ids) == 0 {
+		return map[uuid.UUID]*Rule{}, nil
+	}
+	rows, err := sqlc.New(db).ListRulesByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list rules: %w", err)
+	}
+
+	rules := make(map[uuid.UUID]*Rule, len(rows))
+	for _, row := range rows {
+		rule, err := fromRow(row)
+		if err != nil {
+			return nil, err
+		}
+		rules[rule.ID] = rule
+	}
+
+	return rules, nil
+}
+
 func get(ctx context.Context, q *sqlc.Queries, ruleID uuid.UUID) (*Rule, error) {
 	row, err := q.GetRule(ctx, ruleID)
 	if errors.Is(err, pgx.ErrNoRows) {

@@ -34,6 +34,7 @@ type ResolverRoot interface {
 	Program() ProgramResolver
 	ProgramConditions() ProgramConditionsResolver
 	Query() QueryResolver
+	Reservation() ReservationResolver
 	Service() ServiceResolver
 	Subscription() SubscriptionResolver
 }
@@ -46,6 +47,11 @@ type ComplexityRoot struct {
 		DisplayName func(childComplexity int) int
 		SortOrder   func(childComplexity int) int
 		Type        func(childComplexity int) int
+	}
+
+	DeleteReservationPayload struct {
+		ID          func(childComplexity int) int
+		Reservation func(childComplexity int) int
 	}
 
 	ExtendedItem struct {
@@ -86,13 +92,17 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		CreateGuideView func(childComplexity int, input model.GuideViewInput) int
-		CreateRule      func(childComplexity int, input model.RuleInput) int
-		DeleteGuideView func(childComplexity int, id string) int
-		DeleteRule      func(childComplexity int, id string) int
-		SetRuleEnabled  func(childComplexity int, id string, enabled bool) int
-		UpdateGuideView func(childComplexity int, id string, input model.GuideViewInput) int
-		UpdateRule      func(childComplexity int, id string, input model.RuleInput) int
+		CreateGuideView          func(childComplexity int, input model.GuideViewInput) int
+		CreateProgramReservation func(childComplexity int, input model.ProgramReservationInput) int
+		CreateRule               func(childComplexity int, input model.RuleInput) int
+		CreateTimeReservation    func(childComplexity int, input model.TimeReservationInput) int
+		DeleteGuideView          func(childComplexity int, id string) int
+		DeleteReservation        func(childComplexity int, id string) int
+		DeleteRule               func(childComplexity int, id string) int
+		SetRuleEnabled           func(childComplexity int, id string, enabled bool) int
+		UpdateGuideView          func(childComplexity int, id string, input model.GuideViewInput) int
+		UpdateReservation        func(childComplexity int, id string, input model.ReservationUpdateInput) int
+		UpdateRule               func(childComplexity int, id string, input model.RuleInput) int
 	}
 
 	PageInfo struct {
@@ -113,6 +123,7 @@ type ComplexityRoot struct {
 		ID           func(childComplexity int) int
 		IsFree       func(childComplexity int) int
 		Name         func(childComplexity int) int
+		Reservation  func(childComplexity int) int
 		Service      func(childComplexity int) int
 		StartAt      func(childComplexity int) int
 	}
@@ -146,6 +157,7 @@ type ComplexityRoot struct {
 		GuideViews     func(childComplexity int) int
 		Node           func(childComplexity int, id string) int
 		PreviewRule    func(childComplexity int, input model.RuleInput, first int, after *string) int
+		Reservations   func(childComplexity int, from time.Time, to time.Time, states []model.AssignmentState, first int, after *string) int
 		Rules          func(childComplexity int) int
 		SearchPrograms func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
 		Services       func(childComplexity int, includeHidden bool) int
@@ -158,6 +170,44 @@ type ComplexityRoot struct {
 		PoolID             func(childComplexity int) int
 		Priority           func(childComplexity int) int
 		StartMarginSeconds func(childComplexity int) int
+	}
+
+	Reservation struct {
+		Assignment       func(childComplexity int) int
+		CreatedAt        func(childComplexity int) int
+		CreatedBy        func(childComplexity int) int
+		Description      func(childComplexity int) int
+		Enabled          func(childComplexity int) int
+		EndAt            func(childComplexity int) int
+		EventID          func(childComplexity int) int
+		FollowEventRelay func(childComplexity int) int
+		Genres           func(childComplexity int) int
+		ID               func(childComplexity int) int
+		Kind             func(childComplexity int) int
+		Name             func(childComplexity int) int
+		Rules            func(childComplexity int) int
+		Service          func(childComplexity int) int
+		Settings         func(childComplexity int) int
+		StartAt          func(childComplexity int) int
+		UpdatedAt        func(childComplexity int) int
+		UpdatedBy        func(childComplexity int) int
+	}
+
+	ReservationAssignment struct {
+		PlannedEndAt   func(childComplexity int) int
+		PlannedStartAt func(childComplexity int) int
+		State          func(childComplexity int) int
+		Tuner          func(childComplexity int) int
+	}
+
+	ReservationConnection struct {
+		Edges    func(childComplexity int) int
+		PageInfo func(childComplexity int) int
+	}
+
+	ReservationEdge struct {
+		Cursor func(childComplexity int) int
+		Node   func(childComplexity int) int
 	}
 
 	Rule struct {
@@ -218,6 +268,10 @@ type MutationResolver interface {
 	CreateGuideView(ctx context.Context, input model.GuideViewInput) (*model.GuideView, error)
 	UpdateGuideView(ctx context.Context, id string, input model.GuideViewInput) (*model.GuideView, error)
 	DeleteGuideView(ctx context.Context, id string) (string, error)
+	CreateProgramReservation(ctx context.Context, input model.ProgramReservationInput) (*model.Reservation, error)
+	CreateTimeReservation(ctx context.Context, input model.TimeReservationInput) (*model.Reservation, error)
+	UpdateReservation(ctx context.Context, id string, input model.ReservationUpdateInput) (*model.Reservation, error)
+	DeleteReservation(ctx context.Context, id string) (*model.DeleteReservationPayload, error)
 	CreateRule(ctx context.Context, input model.RuleInput) (*model.Rule, error)
 	UpdateRule(ctx context.Context, id string, input model.RuleInput) (*model.Rule, error)
 	SetRuleEnabled(ctx context.Context, id string, enabled bool) (*model.Rule, error)
@@ -225,6 +279,8 @@ type MutationResolver interface {
 }
 type ProgramResolver interface {
 	Service(ctx context.Context, obj *model.Program) (*model.Service, error)
+
+	Reservation(ctx context.Context, obj *model.Program) (*model.Reservation, error)
 }
 type ProgramConditionsResolver interface {
 	Services(ctx context.Context, obj *model.ProgramConditions) ([]*model.Service, error)
@@ -236,9 +292,15 @@ type QueryResolver interface {
 	Services(ctx context.Context, includeHidden bool) ([]*model.Service, error)
 	Guide(ctx context.Context, from time.Time, to time.Time, services []string, view *string) ([]*model.GuideRow, error)
 	GuideViews(ctx context.Context) ([]*model.GuideView, error)
+	Reservations(ctx context.Context, from time.Time, to time.Time, states []model.AssignmentState, first int, after *string) (*model.ReservationConnection, error)
 	Rules(ctx context.Context) ([]*model.Rule, error)
 	PreviewRule(ctx context.Context, input model.RuleInput, first int, after *string) (*model.ProgramConnection, error)
 	SearchPrograms(ctx context.Context, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) (*model.ProgramConnection, error)
+}
+type ReservationResolver interface {
+	Service(ctx context.Context, obj *model.Reservation) (*model.Service, error)
+
+	Rules(ctx context.Context, obj *model.Reservation) ([]*model.Rule, error)
 }
 type ServiceResolver interface {
 	ChannelType(ctx context.Context, obj *model.Service) (*model.ChannelType, error)
@@ -283,6 +345,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ChannelType.Type(childComplexity), true
+
+	case "DeleteReservationPayload.id":
+		if e.ComplexityRoot.DeleteReservationPayload.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeleteReservationPayload.ID(childComplexity), true
+	case "DeleteReservationPayload.reservation":
+		if e.ComplexityRoot.DeleteReservationPayload.Reservation == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeleteReservationPayload.Reservation(childComplexity), true
 
 	case "ExtendedItem.heading":
 		if e.ComplexityRoot.ExtendedItem.Heading == nil {
@@ -415,6 +490,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateGuideView(childComplexity, args["input"].(model.GuideViewInput)), true
+	case "Mutation.createProgramReservation":
+		if e.ComplexityRoot.Mutation.CreateProgramReservation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createProgramReservation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateProgramReservation(childComplexity, args["input"].(model.ProgramReservationInput)), true
 	case "Mutation.createRule":
 		if e.ComplexityRoot.Mutation.CreateRule == nil {
 			break
@@ -426,6 +512,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateRule(childComplexity, args["input"].(model.RuleInput)), true
+	case "Mutation.createTimeReservation":
+		if e.ComplexityRoot.Mutation.CreateTimeReservation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createTimeReservation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateTimeReservation(childComplexity, args["input"].(model.TimeReservationInput)), true
 	case "Mutation.deleteGuideView":
 		if e.ComplexityRoot.Mutation.DeleteGuideView == nil {
 			break
@@ -437,6 +534,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteGuideView(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteReservation":
+		if e.ComplexityRoot.Mutation.DeleteReservation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteReservation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteReservation(childComplexity, args["id"].(string)), true
 	case "Mutation.deleteRule":
 		if e.ComplexityRoot.Mutation.DeleteRule == nil {
 			break
@@ -470,6 +578,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateGuideView(childComplexity, args["id"].(string), args["input"].(model.GuideViewInput)), true
+	case "Mutation.updateReservation":
+		if e.ComplexityRoot.Mutation.UpdateReservation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateReservation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateReservation(childComplexity, args["id"].(string), args["input"].(model.ReservationUpdateInput)), true
 	case "Mutation.updateRule":
 		if e.ComplexityRoot.Mutation.UpdateRule == nil {
 			break
@@ -567,6 +686,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Program.Name(childComplexity), true
+	case "Program.reservation":
+		if e.ComplexityRoot.Program.Reservation == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.Reservation(childComplexity), true
 	case "Program.service":
 		if e.ComplexityRoot.Program.Service == nil {
 			break
@@ -713,6 +838,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.PreviewRule(childComplexity, args["input"].(model.RuleInput), args["first"].(int), args["after"].(*string)), true
+	case "Query.reservations":
+		if e.ComplexityRoot.Query.Reservations == nil {
+			break
+		}
+
+		args, err := ec.field_Query_reservations_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Reservations(childComplexity, args["from"].(time.Time), args["to"].(time.Time), args["states"].([]model.AssignmentState), args["first"].(int), args["after"].(*string)), true
 	case "Query.rules":
 		if e.ComplexityRoot.Query.Rules == nil {
 			break
@@ -778,6 +914,166 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingSettingsOverrides.StartMarginSeconds(childComplexity), true
+
+	case "Reservation.assignment":
+		if e.ComplexityRoot.Reservation.Assignment == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.Assignment(childComplexity), true
+	case "Reservation.createdAt":
+		if e.ComplexityRoot.Reservation.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.CreatedAt(childComplexity), true
+	case "Reservation.createdBy":
+		if e.ComplexityRoot.Reservation.CreatedBy == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.CreatedBy(childComplexity), true
+	case "Reservation.description":
+		if e.ComplexityRoot.Reservation.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.Description(childComplexity), true
+	case "Reservation.enabled":
+		if e.ComplexityRoot.Reservation.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.Enabled(childComplexity), true
+	case "Reservation.endAt":
+		if e.ComplexityRoot.Reservation.EndAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.EndAt(childComplexity), true
+	case "Reservation.eventId":
+		if e.ComplexityRoot.Reservation.EventID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.EventID(childComplexity), true
+	case "Reservation.followEventRelay":
+		if e.ComplexityRoot.Reservation.FollowEventRelay == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.FollowEventRelay(childComplexity), true
+	case "Reservation.genres":
+		if e.ComplexityRoot.Reservation.Genres == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.Genres(childComplexity), true
+	case "Reservation.id":
+		if e.ComplexityRoot.Reservation.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.ID(childComplexity), true
+	case "Reservation.kind":
+		if e.ComplexityRoot.Reservation.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.Kind(childComplexity), true
+	case "Reservation.name":
+		if e.ComplexityRoot.Reservation.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.Name(childComplexity), true
+	case "Reservation.rules":
+		if e.ComplexityRoot.Reservation.Rules == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.Rules(childComplexity), true
+	case "Reservation.service":
+		if e.ComplexityRoot.Reservation.Service == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.Service(childComplexity), true
+	case "Reservation.settings":
+		if e.ComplexityRoot.Reservation.Settings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.Settings(childComplexity), true
+	case "Reservation.startAt":
+		if e.ComplexityRoot.Reservation.StartAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.StartAt(childComplexity), true
+	case "Reservation.updatedAt":
+		if e.ComplexityRoot.Reservation.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.UpdatedAt(childComplexity), true
+	case "Reservation.updatedBy":
+		if e.ComplexityRoot.Reservation.UpdatedBy == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.UpdatedBy(childComplexity), true
+
+	case "ReservationAssignment.plannedEndAt":
+		if e.ComplexityRoot.ReservationAssignment.PlannedEndAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ReservationAssignment.PlannedEndAt(childComplexity), true
+	case "ReservationAssignment.plannedStartAt":
+		if e.ComplexityRoot.ReservationAssignment.PlannedStartAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ReservationAssignment.PlannedStartAt(childComplexity), true
+	case "ReservationAssignment.state":
+		if e.ComplexityRoot.ReservationAssignment.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ReservationAssignment.State(childComplexity), true
+	case "ReservationAssignment.tuner":
+		if e.ComplexityRoot.ReservationAssignment.Tuner == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ReservationAssignment.Tuner(childComplexity), true
+
+	case "ReservationConnection.edges":
+		if e.ComplexityRoot.ReservationConnection.Edges == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ReservationConnection.Edges(childComplexity), true
+	case "ReservationConnection.pageInfo":
+		if e.ComplexityRoot.ReservationConnection.PageInfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ReservationConnection.PageInfo(childComplexity), true
+
+	case "ReservationEdge.cursor":
+		if e.ComplexityRoot.ReservationEdge.Cursor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ReservationEdge.Cursor(childComplexity), true
+	case "ReservationEdge.node":
+		if e.ComplexityRoot.ReservationEdge.Node == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ReservationEdge.Node(childComplexity), true
 
 	case "Rule.avoidDuplicates":
 		if e.ComplexityRoot.Rule.AvoidDuplicates == nil {
@@ -983,9 +1279,12 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputGuideViewInput,
 		ec.unmarshalInputKeywordInput,
 		ec.unmarshalInputProgramConditionsInput,
+		ec.unmarshalInputProgramReservationInput,
 		ec.unmarshalInputRecordingSettingsOverridesInput,
+		ec.unmarshalInputReservationUpdateInput,
 		ec.unmarshalInputRuleInput,
 		ec.unmarshalInputTimeRangeInput,
+		ec.unmarshalInputTimeReservationInput,
 	)
 	first := true
 
@@ -1279,6 +1578,159 @@ type Mutation {
   deleteGuideView(id: ID!): ID!
 }
 `, BuiltIn: false},
+	{Name: "../schema/reservations.graphqls", Input: `"""
+予約の種類 (設計書 4.1)。
+"""
+enum ReservationKind {
+  "番組予約。番組の放送時間の変更とイベントリレーに追従する。"
+  PROGRAM
+  "時刻予約。サービスと、開始と終了の時刻を指定する。番組の変更には追従しない。"
+  TIME
+  "ルール予約。ルールが自動で作る。"
+  RULE
+}
+
+"""
+予約のチューナーの割り当ての状態 (設計書 4.5)。
+"""
+enum AssignmentState {
+  "まだ割り当てを計算していない。"
+  PENDING
+  "全編を録画できる見込み。"
+  OK
+  "本編の一部が欠ける見込み。"
+  PARTIAL
+  "チューナーが足りない。"
+  CONFLICT
+}
+
+"""
+予約のチューナーの割り当ての結果。neko が計算し直すたびに変わる。
+"""
+type ReservationAssignment {
+  state: AssignmentState!
+  "割り当てたチューナーの番号。割り当てていなければ null。"
+  tuner: Int
+  "マージンを削った後の、録画する予定の時刻。割り当てていなければ null。"
+  plannedStartAt: Time
+  plannedEndAt: Time
+}
+
+"""
+予約 (設計書 4.1)。番組予約とルール予約は、作ったときの番組情報のコピーを持つ。予約は家族で共有する (設計書 9.7)。
+"""
+type Reservation implements Node {
+  id: ID!
+  kind: ReservationKind!
+  service: Service!
+  "番組の eventId。時刻予約では null。"
+  eventId: Int
+  startAt: Time!
+  endAt: Time!
+  name: String!
+  description: String!
+  genres: [Genre!]!
+  enabled: Boolean!
+  "イベントリレーで引き継がれた番組を、引き継ぎ先でも予約するかどうか (設計書 4.6)。"
+  followEventRelay: Boolean!
+  "この予約の録画設定の上書き。ルール予約では、一致したルールの設定が使われる。"
+  settings: RecordingSettingsOverrides!
+  assignment: ReservationAssignment!
+  "予約に一致したルール。ルールを作った順に並べる。"
+  rules: [Rule!]!
+  createdAt: Time!
+  "作成者。neko が作ったか、ユーザーが消えていれば null。"
+  createdBy: User
+  updatedAt: Time!
+  updatedBy: User
+}
+
+type ReservationEdge {
+  cursor: String!
+  node: Reservation!
+}
+
+type ReservationConnection {
+  edges: [ReservationEdge!]!
+  pageInfo: PageInfo!
+}
+
+"""
+番組予約の内容。
+"""
+input ProgramReservationInput {
+  program: ID!
+  followEventRelay: Boolean! = true
+  settings: RecordingSettingsOverridesInput
+}
+
+"""
+時刻予約の内容。長さは 24 時間まで。
+"""
+input TimeReservationInput {
+  service: ID!
+  startAt: Time!
+  endAt: Time!
+  "画面に出す名前。200 文字まで。"
+  name: String! = ""
+  settings: RecordingSettingsOverridesInput
+}
+
+"""
+予約の変更。省いた項目は変えない。
+"""
+input ReservationUpdateInput {
+  enabled: Boolean
+  followEventRelay: Boolean
+  "録画設定の上書きを、丸ごと置き換える。"
+  settings: RecordingSettingsOverridesInput
+  "startAt、endAt、name は、時刻予約でだけ変えられる。番組予約の時刻と名前は EPG に従う。"
+  startAt: Time
+  endAt: Time
+  name: String
+}
+
+"""
+予約の削除の結果。
+"""
+type DeleteReservationPayload {
+  "削除の操作をした予約の ID。"
+  id: ID!
+  "ルール予約は、消すと次の照合でまた作られるので、消さずに無効にする (設計書 4.3)。そのときの予約。消したときは null。"
+  reservation: Reservation
+}
+
+extend type Program {
+  "この番組の予約。予約がなければ null。"
+  reservation: Reservation
+}
+
+extend type Query {
+  """
+  時間帯 [from, to) に重なる予約を、開始時刻の順に返す。
+  states を指定すると、その割り当ての状態の予約だけを返す。
+  """
+  reservations(
+    from: Time!
+    to: Time!
+    states: [AssignmentState!]
+    "返す件数 (1〜100)"
+    first: Int! = 50
+    after: String
+  ): ReservationConnection!
+}
+
+extend type Mutation {
+  "番組予約を作る。同じ番組の予約がすでにあれば、作らずにその予約を返す。視聴者は使えない。"
+  createProgramReservation(input: ProgramReservationInput!): Reservation!
+  "時刻予約を作る。視聴者は使えない。"
+  createTimeReservation(input: TimeReservationInput!): Reservation!
+  "予約を変える。視聴者は使えない。"
+  updateReservation(id: ID!, input: ReservationUpdateInput!): Reservation!
+  "予約を消す。ルール予約は消さずに無効にする。視聴者は使えない。"
+  deleteReservation(id: ID!): DeleteReservationPayload!
+}
+`, BuiltIn: false},
 	{Name: "../schema/rules.graphqls", Input: `"""
 キーワードと、その照合の仕方。
 """
@@ -1529,6 +1981,16 @@ func (ec *executionContext) childFields_ChannelType(ctx context.Context, field g
 	return nil, fmt.Errorf("no field named %q was found under type ChannelType", field.Name)
 }
 
+func (ec *executionContext) childFields_DeleteReservationPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_DeleteReservationPayload_id(ctx, field)
+	case "reservation":
+		return ec.fieldContext_DeleteReservationPayload_reservation(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DeleteReservationPayload", field.Name)
+}
+
 func (ec *executionContext) childFields_ExtendedItem(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "heading":
@@ -1641,6 +2103,8 @@ func (ec *executionContext) childFields_Program(ctx context.Context, field graph
 		return ec.fieldContext_Program_extended(ctx, field)
 	case "genres":
 		return ec.fieldContext_Program_genres(ctx, field)
+	case "reservation":
+		return ec.fieldContext_Program_reservation(ctx, field)
 	case "archived":
 		return ec.fieldContext_Program_archived(ctx, field)
 	}
@@ -1707,6 +2171,82 @@ func (ec *executionContext) childFields_RecordingSettingsOverrides(ctx context.C
 		return ec.fieldContext_RecordingSettingsOverrides_priority(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingSettingsOverrides", field.Name)
+}
+
+func (ec *executionContext) childFields_Reservation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Reservation_id(ctx, field)
+	case "kind":
+		return ec.fieldContext_Reservation_kind(ctx, field)
+	case "service":
+		return ec.fieldContext_Reservation_service(ctx, field)
+	case "eventId":
+		return ec.fieldContext_Reservation_eventId(ctx, field)
+	case "startAt":
+		return ec.fieldContext_Reservation_startAt(ctx, field)
+	case "endAt":
+		return ec.fieldContext_Reservation_endAt(ctx, field)
+	case "name":
+		return ec.fieldContext_Reservation_name(ctx, field)
+	case "description":
+		return ec.fieldContext_Reservation_description(ctx, field)
+	case "genres":
+		return ec.fieldContext_Reservation_genres(ctx, field)
+	case "enabled":
+		return ec.fieldContext_Reservation_enabled(ctx, field)
+	case "followEventRelay":
+		return ec.fieldContext_Reservation_followEventRelay(ctx, field)
+	case "settings":
+		return ec.fieldContext_Reservation_settings(ctx, field)
+	case "assignment":
+		return ec.fieldContext_Reservation_assignment(ctx, field)
+	case "rules":
+		return ec.fieldContext_Reservation_rules(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_Reservation_createdAt(ctx, field)
+	case "createdBy":
+		return ec.fieldContext_Reservation_createdBy(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_Reservation_updatedAt(ctx, field)
+	case "updatedBy":
+		return ec.fieldContext_Reservation_updatedBy(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Reservation", field.Name)
+}
+
+func (ec *executionContext) childFields_ReservationAssignment(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "state":
+		return ec.fieldContext_ReservationAssignment_state(ctx, field)
+	case "tuner":
+		return ec.fieldContext_ReservationAssignment_tuner(ctx, field)
+	case "plannedStartAt":
+		return ec.fieldContext_ReservationAssignment_plannedStartAt(ctx, field)
+	case "plannedEndAt":
+		return ec.fieldContext_ReservationAssignment_plannedEndAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ReservationAssignment", field.Name)
+}
+
+func (ec *executionContext) childFields_ReservationConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "edges":
+		return ec.fieldContext_ReservationConnection_edges(ctx, field)
+	case "pageInfo":
+		return ec.fieldContext_ReservationConnection_pageInfo(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ReservationConnection", field.Name)
+}
+
+func (ec *executionContext) childFields_ReservationEdge(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "cursor":
+		return ec.fieldContext_ReservationEdge_cursor(ctx, field)
+	case "node":
+		return ec.fieldContext_ReservationEdge_node(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ReservationEdge", field.Name)
 }
 
 func (ec *executionContext) childFields_Rule(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -1923,6 +2463,20 @@ func (ec *executionContext) field_Mutation_createGuideView_args(ctx context.Cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createProgramReservation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.ProgramReservationInput, error) {
+			return ec.unmarshalNProgramReservationInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramReservationInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1937,7 +2491,35 @@ func (ec *executionContext) field_Mutation_createRule_args(ctx context.Context, 
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createTimeReservation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.TimeReservationInput, error) {
+			return ec.unmarshalNTimeReservationInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐTimeReservationInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteGuideView_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteReservation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -2001,6 +2583,28 @@ func (ec *executionContext) field_Mutation_updateGuideView_args(ctx context.Cont
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.GuideViewInput, error) {
 			return ec.unmarshalNGuideViewInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGuideViewInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateReservation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.ReservationUpdateInput, error) {
+			return ec.unmarshalNReservationUpdateInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservationUpdateInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -2124,6 +2728,52 @@ func (ec *executionContext) field_Query_previewRule_args(ctx context.Context, ra
 		return nil, err
 	}
 	args["after"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_reservations_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "from",
+		func(ctx context.Context, v any) (time.Time, error) {
+			return ec.unmarshalNTime2timeᚐTime(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["from"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "to",
+		func(ctx context.Context, v any) (time.Time, error) {
+			return ec.unmarshalNTime2timeᚐTime(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["to"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "states",
+		func(ctx context.Context, v any) ([]model.AssignmentState, error) {
+			return ec.unmarshalOAssignmentState2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐAssignmentStateᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["states"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "first",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["after"] = arg4
 	return args, nil
 }
 
@@ -2306,6 +2956,61 @@ func (ec *executionContext) _ChannelType_sortOrder(ctx context.Context, field gr
 }
 func (ec *executionContext) fieldContext_ChannelType_sortOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("ChannelType", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _DeleteReservationPayload_id(ctx context.Context, field graphql.CollectedField, obj *model.DeleteReservationPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeleteReservationPayload_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeleteReservationPayload_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeleteReservationPayload", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _DeleteReservationPayload_reservation(ctx context.Context, field graphql.CollectedField, obj *model.DeleteReservationPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeleteReservationPayload_reservation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Reservation, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Reservation) graphql.Marshaler {
+			return ec.marshalOReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservation(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DeleteReservationPayload_reservation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DeleteReservationPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Reservation(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _ExtendedItem_heading(ctx context.Context, field graphql.CollectedField, obj *model.ExtendedItem) (ret graphql.Marshaler) {
@@ -2922,6 +3627,182 @@ func (ec *executionContext) fieldContext_Mutation_deleteGuideView(ctx context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createProgramReservation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createProgramReservation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateProgramReservation(ctx, fc.Args["input"].(model.ProgramReservationInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Reservation) graphql.Marshaler {
+			return ec.marshalNReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservation(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createProgramReservation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Reservation(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createProgramReservation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createTimeReservation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createTimeReservation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateTimeReservation(ctx, fc.Args["input"].(model.TimeReservationInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Reservation) graphql.Marshaler {
+			return ec.marshalNReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservation(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createTimeReservation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Reservation(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createTimeReservation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateReservation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateReservation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateReservation(ctx, fc.Args["id"].(string), fc.Args["input"].(model.ReservationUpdateInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Reservation) graphql.Marshaler {
+			return ec.marshalNReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservation(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateReservation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Reservation(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateReservation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteReservation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteReservation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteReservation(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DeleteReservationPayload) graphql.Marshaler {
+			return ec.marshalNDeleteReservationPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐDeleteReservationPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteReservation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeleteReservationPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteReservation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createRule(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3465,6 +4346,38 @@ func (ec *executionContext) fieldContext_Program_genres(_ context.Context, field
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Genre(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Program_reservation(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_reservation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Program().Reservation(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Reservation) graphql.Marshaler {
+			return ec.marshalOReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservation(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Program_reservation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Program",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Reservation(ctx, field)
 		},
 	}
 	return fc, nil
@@ -4124,6 +5037,50 @@ func (ec *executionContext) fieldContext_Query_guideViews(_ context.Context, fie
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_reservations(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_reservations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Reservations(ctx, fc.Args["from"].(time.Time), fc.Args["to"].(time.Time), fc.Args["states"].([]model.AssignmentState), fc.Args["first"].(int), fc.Args["after"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ReservationConnection) graphql.Marshaler {
+			return ec.marshalNReservationConnection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservationConnection(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_reservations(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ReservationConnection(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_reservations_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_rules(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -4433,6 +5390,694 @@ func (ec *executionContext) _RecordingSettingsOverrides_priority(ctx context.Con
 }
 func (ec *executionContext) fieldContext_RecordingSettingsOverrides_priority(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Reservation_id(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reservation", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _Reservation_kind(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.ReservationKind) graphql.Marshaler {
+			return ec.marshalNReservationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservationKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reservation", field, false, false, errors.New("field of type ReservationKind does not have child fields"))
+}
+
+func (ec *executionContext) _Reservation_service(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_service(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Reservation().Service(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Service) graphql.Marshaler {
+			return ec.marshalNService2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐService(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_service(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Reservation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Service(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Reservation_eventId(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_eventId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EventID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_eventId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reservation", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Reservation_startAt(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_startAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_startAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reservation", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Reservation_endAt(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_endAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_endAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reservation", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Reservation_name(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reservation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Reservation_description(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reservation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Reservation_genres(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_genres(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Genres, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Genre) graphql.Marshaler {
+			return ec.marshalNGenre2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_genres(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Reservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Genre(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Reservation_enabled(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reservation", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Reservation_followEventRelay(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_followEventRelay(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FollowEventRelay, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_followEventRelay(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reservation", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Reservation_settings(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_settings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Settings, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RecordingSettingsOverrides) graphql.Marshaler {
+			return ec.marshalNRecordingSettingsOverrides2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingSettingsOverrides(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_settings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Reservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingSettingsOverrides(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Reservation_assignment(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_assignment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Assignment, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ReservationAssignment) graphql.Marshaler {
+			return ec.marshalNReservationAssignment2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservationAssignment(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_assignment(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Reservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ReservationAssignment(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Reservation_rules(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_rules(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Reservation().Rules(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Rule) graphql.Marshaler {
+			return ec.marshalNRule2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRuleᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_rules(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Reservation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Rule(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Reservation_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reservation", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Reservation_createdBy(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_createdBy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedBy, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.User) graphql.Marshaler {
+			return ec.marshalOUser2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐUser(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_createdBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Reservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_User(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Reservation_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reservation", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Reservation_updatedBy(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_updatedBy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedBy, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.User) graphql.Marshaler {
+			return ec.marshalOUser2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐUser(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_updatedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Reservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_User(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ReservationAssignment_state(ctx context.Context, field graphql.CollectedField, obj *model.ReservationAssignment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ReservationAssignment_state(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.AssignmentState) graphql.Marshaler {
+			return ec.marshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐAssignmentState(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ReservationAssignment_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ReservationAssignment", field, false, false, errors.New("field of type AssignmentState does not have child fields"))
+}
+
+func (ec *executionContext) _ReservationAssignment_tuner(ctx context.Context, field graphql.CollectedField, obj *model.ReservationAssignment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ReservationAssignment_tuner(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Tuner, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ReservationAssignment_tuner(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ReservationAssignment", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ReservationAssignment_plannedStartAt(ctx context.Context, field graphql.CollectedField, obj *model.ReservationAssignment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ReservationAssignment_plannedStartAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PlannedStartAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ReservationAssignment_plannedStartAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ReservationAssignment", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ReservationAssignment_plannedEndAt(ctx context.Context, field graphql.CollectedField, obj *model.ReservationAssignment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ReservationAssignment_plannedEndAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PlannedEndAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ReservationAssignment_plannedEndAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ReservationAssignment", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _ReservationConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.ReservationConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ReservationConnection_edges(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Edges, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.ReservationEdge) graphql.Marshaler {
+			return ec.marshalNReservationEdge2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservationEdgeᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ReservationConnection_edges(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ReservationConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ReservationEdge(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ReservationConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.ReservationConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ReservationConnection_pageInfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+			return ec.marshalNPageInfo2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPageInfo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ReservationConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ReservationConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PageInfo(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ReservationEdge_cursor(ctx context.Context, field graphql.CollectedField, obj *model.ReservationEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ReservationEdge_cursor(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Cursor, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ReservationEdge_cursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ReservationEdge", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ReservationEdge_node(ctx context.Context, field graphql.CollectedField, obj *model.ReservationEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ReservationEdge_node(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Node, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Reservation) graphql.Marshaler {
+			return ec.marshalNReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservation(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ReservationEdge_node(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ReservationEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Reservation(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Rule_id(ctx context.Context, field graphql.CollectedField, obj *model.Rule) (ret graphql.Marshaler) {
@@ -6546,6 +8191,54 @@ func (ec *executionContext) unmarshalInputProgramConditionsInput(ctx context.Con
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputProgramReservationInput(ctx context.Context, obj any) (model.ProgramReservationInput, error) {
+	var it model.ProgramReservationInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["followEventRelay"]; !present {
+		asMap["followEventRelay"] = true
+	}
+
+	fieldsInOrder := [...]string{"program", "followEventRelay", "settings"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "program":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("program"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Program = data
+		case "followEventRelay":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("followEventRelay"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FollowEventRelay = data
+		case "settings":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("settings"))
+			data, err := ec.unmarshalORecordingSettingsOverridesInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingSettingsOverridesInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Settings = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx context.Context, obj any) (model.RecordingSettingsOverridesInput, error) {
 	var it model.RecordingSettingsOverridesInput
 	if obj == nil {
@@ -6599,6 +8292,71 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 				return it, err
 			}
 			it.Priority = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputReservationUpdateInput(ctx context.Context, obj any) (model.ReservationUpdateInput, error) {
+	var it model.ReservationUpdateInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"enabled", "followEventRelay", "settings", "startAt", "endAt", "name"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "enabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Enabled = data
+		case "followEventRelay":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("followEventRelay"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FollowEventRelay = data
+		case "settings":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("settings"))
+			data, err := ec.unmarshalORecordingSettingsOverridesInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingSettingsOverridesInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Settings = data
+		case "startAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startAt"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartAt = data
+		case "endAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endAt"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EndAt = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
 		}
 	}
 	return it, nil
@@ -6754,6 +8512,68 @@ func (ec *executionContext) unmarshalInputTimeRangeInput(ctx context.Context, ob
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputTimeReservationInput(ctx context.Context, obj any) (model.TimeReservationInput, error) {
+	var it model.TimeReservationInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["name"]; !present {
+		asMap["name"] = ""
+	}
+
+	fieldsInOrder := [...]string{"service", "startAt", "endAt", "name", "settings"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "service":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("service"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Service = data
+		case "startAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startAt"))
+			data, err := ec.unmarshalNTime2timeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartAt = data
+		case "endAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endAt"))
+			data, err := ec.unmarshalNTime2timeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EndAt = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "settings":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("settings"))
+			data, err := ec.unmarshalORecordingSettingsOverridesInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingSettingsOverridesInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Settings = data
+		}
+	}
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -6783,6 +8603,13 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 			return graphql.Null
 		}
 		return ec._Rule(ctx, sel, obj)
+	case model.Reservation:
+		return ec._Reservation(ctx, sel, &obj)
+	case *model.Reservation:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._Reservation(ctx, sel, obj)
 	case model.Program:
 		return ec._Program(ctx, sel, &obj)
 	case *model.Program:
@@ -6835,6 +8662,49 @@ func (ec *executionContext) _ChannelType(ctx context.Context, sel ast.SelectionS
 		case "sortOrder":
 			out.Values[i] = ec._ChannelType_sortOrder(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var deleteReservationPayloadImplementors = []string{"DeleteReservationPayload"}
+
+func (ec *executionContext) _DeleteReservationPayload(ctx context.Context, sel ast.SelectionSet, obj *model.DeleteReservationPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, deleteReservationPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DeleteReservationPayload")
+		case "id":
+			out.Values[i] = ec._DeleteReservationPayload_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reservation":
+			out.Values[i] = ec._DeleteReservationPayload_reservation(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -7225,6 +9095,34 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createProgramReservation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createProgramReservation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createTimeReservation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createTimeReservation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateReservation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateReservation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteReservation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteReservation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createRule":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createRule(ctx, field)
@@ -7427,6 +9325,44 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "reservation":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Program_reservation(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "archived":
 			out.Values[i] = ec._Program_archived(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -7807,6 +9743,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "reservations":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_reservations(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "rules":
 			field := field
 
@@ -7943,6 +9901,334 @@ func (ec *executionContext) _RecordingSettingsOverrides(ctx context.Context, sel
 		case "priority":
 			out.Values[i] = ec._RecordingSettingsOverrides_priority(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var reservationImplementors = []string{"Reservation", "Node"}
+
+func (ec *executionContext) _Reservation(ctx context.Context, sel ast.SelectionSet, obj *model.Reservation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, reservationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Reservation")
+		case "id":
+			out.Values[i] = ec._Reservation_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "kind":
+			out.Values[i] = ec._Reservation_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "service":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Reservation_service(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "eventId":
+			out.Values[i] = ec._Reservation_eventId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "startAt":
+			out.Values[i] = ec._Reservation_startAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "endAt":
+			out.Values[i] = ec._Reservation_endAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "name":
+			out.Values[i] = ec._Reservation_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "description":
+			out.Values[i] = ec._Reservation_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "genres":
+			out.Values[i] = ec._Reservation_genres(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "enabled":
+			out.Values[i] = ec._Reservation_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "followEventRelay":
+			out.Values[i] = ec._Reservation_followEventRelay(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "settings":
+			out.Values[i] = ec._Reservation_settings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "assignment":
+			out.Values[i] = ec._Reservation_assignment(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "rules":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Reservation_rules(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "createdAt":
+			out.Values[i] = ec._Reservation_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "createdBy":
+			out.Values[i] = ec._Reservation_createdBy(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "updatedAt":
+			out.Values[i] = ec._Reservation_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "updatedBy":
+			out.Values[i] = ec._Reservation_updatedBy(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var reservationAssignmentImplementors = []string{"ReservationAssignment"}
+
+func (ec *executionContext) _ReservationAssignment(ctx context.Context, sel ast.SelectionSet, obj *model.ReservationAssignment) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, reservationAssignmentImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ReservationAssignment")
+		case "state":
+			out.Values[i] = ec._ReservationAssignment_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tuner":
+			out.Values[i] = ec._ReservationAssignment_tuner(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "plannedStartAt":
+			out.Values[i] = ec._ReservationAssignment_plannedStartAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "plannedEndAt":
+			out.Values[i] = ec._ReservationAssignment_plannedEndAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var reservationConnectionImplementors = []string{"ReservationConnection"}
+
+func (ec *executionContext) _ReservationConnection(ctx context.Context, sel ast.SelectionSet, obj *model.ReservationConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, reservationConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ReservationConnection")
+		case "edges":
+			out.Values[i] = ec._ReservationConnection_edges(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._ReservationConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var reservationEdgeImplementors = []string{"ReservationEdge"}
+
+func (ec *executionContext) _ReservationEdge(ctx context.Context, sel ast.SelectionSet, obj *model.ReservationEdge) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, reservationEdgeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ReservationEdge")
+		case "cursor":
+			out.Values[i] = ec._ReservationEdge_cursor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "node":
+			out.Values[i] = ec._ReservationEdge_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
@@ -8693,6 +10979,16 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) unmarshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐAssignmentState(ctx context.Context, v any) (model.AssignmentState, error) {
+	var res model.AssignmentState
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐAssignmentState(ctx context.Context, sel ast.SelectionSet, v model.AssignmentState) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -8733,6 +11029,16 @@ func (ec *executionContext) marshalNChannelType2ᚖgithubᚗcomᚋSlashNephyᚋk
 		return graphql.Null
 	}
 	return ec._ChannelType(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDeleteReservationPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐDeleteReservationPayload(ctx context.Context, sel ast.SelectionSet, v *model.DeleteReservationPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DeleteReservationPayload(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNExtendedItem2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐExtendedItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ExtendedItem) graphql.Marshaler {
@@ -9099,6 +11405,11 @@ func (ec *executionContext) marshalNProgramEdge2ᚖgithubᚗcomᚋSlashNephyᚋk
 	return ec._ProgramEdge(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNProgramReservationInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramReservationInput(ctx context.Context, v any) (model.ProgramReservationInput, error) {
+	res, err := ec.unmarshalInputProgramReservationInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNRecordingSettingsOverrides2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingSettingsOverrides(ctx context.Context, sel ast.SelectionSet, v *model.RecordingSettingsOverrides) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -9107,6 +11418,77 @@ func (ec *executionContext) marshalNRecordingSettingsOverrides2ᚖgithubᚗcom�
 		return graphql.Null
 	}
 	return ec._RecordingSettingsOverrides(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservation(ctx context.Context, sel ast.SelectionSet, v *model.Reservation) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Reservation(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNReservationAssignment2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservationAssignment(ctx context.Context, sel ast.SelectionSet, v *model.ReservationAssignment) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ReservationAssignment(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNReservationConnection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservationConnection(ctx context.Context, sel ast.SelectionSet, v *model.ReservationConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ReservationConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNReservationEdge2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservationEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ReservationEdge) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNReservationEdge2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservationEdge(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNReservationEdge2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservationEdge(ctx context.Context, sel ast.SelectionSet, v *model.ReservationEdge) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ReservationEdge(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNReservationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservationKind(ctx context.Context, v any) (model.ReservationKind, error) {
+	var res model.ReservationKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNReservationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservationKind(ctx context.Context, sel ast.SelectionSet, v model.ReservationKind) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNReservationUpdateInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservationUpdateInput(ctx context.Context, v any) (model.ReservationUpdateInput, error) {
+	res, err := ec.unmarshalInputReservationUpdateInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNRole2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRole(ctx context.Context, v any) (model.Role, error) {
@@ -9290,6 +11672,11 @@ func (ec *executionContext) unmarshalNTimeRangeInput2ᚖgithubᚗcomᚋSlashNeph
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNTimeReservationInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐTimeReservationInput(ctx context.Context, v any) (model.TimeReservationInput, error) {
+	res, err := ec.unmarshalInputTimeReservationInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -9448,6 +11835,42 @@ func (ec *executionContext) unmarshalOArchiveRangeInput2ᚖgithubᚗcomᚋSlashN
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalOAssignmentState2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐAssignmentStateᚄ(ctx context.Context, v any) ([]model.AssignmentState, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]model.AssignmentState, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐAssignmentState(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOAssignmentState2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐAssignmentStateᚄ(ctx context.Context, sel ast.SelectionSet, v []model.AssignmentState) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐAssignmentState(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) unmarshalOBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -9596,6 +12019,13 @@ func (ec *executionContext) unmarshalORecordingSettingsOverridesInput2ᚖgithub�
 	}
 	res, err := ec.unmarshalInputRecordingSettingsOverridesInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservation(ctx context.Context, sel ast.SelectionSet, v *model.Reservation) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Reservation(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {

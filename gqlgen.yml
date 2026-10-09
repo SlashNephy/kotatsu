@@ -40,6 +40,8 @@ models:
     fields:
       service:
         resolver: true
+      reservation:
+        resolver: true
   GuideRow:
     model: github.com/SlashNephy/kotatsu/graph/model.GuideRow
   GuideView:
@@ -54,3 +56,10 @@ models:
         resolver: true
   Rule:
     model: github.com/SlashNephy/kotatsu/graph/model.Rule
+  Reservation:
+    model: github.com/SlashNephy/kotatsu/graph/model.Reservation
+    fields:
+      service:
+        resolver: true
+      rules:
+        resolver: true

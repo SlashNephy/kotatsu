@@ -10,6 +10,8 @@ import (
 	"github.com/vikstrous/dataloadgen"
 
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/reserve"
+	"github.com/SlashNephy/kotatsu/internal/rule"
 )
 
 // loaderWait は、同じリクエストの中で、まとめて引くまで待つ時間。
@@ -21,12 +23,17 @@ type Loaders struct {
 	Users        *dataloadgen.Loader[uuid.UUID, *sqlc.User]
 	Services     *dataloadgen.Loader[int64, *sqlc.ListGuideServicesRow]
 	ChannelTypes *dataloadgen.Loader[string, *sqlc.ChannelType]
+	Rules        *dataloadgen.Loader[uuid.UUID, *rule.Rule]
+	// RuleIDs は、予約に一致したルールの ID。ルールに一致していない予約では空にする。
+	RuleIDs *dataloadgen.Loader[uuid.UUID, []uuid.UUID]
+	// ProgramReservations は、番組の予約。予約のない番組では nil にする。
+	ProgramReservations *dataloadgen.Loader[reserve.ProgramKey, *reserve.Reservation]
 }
 
 type loadersKey struct{}
 
 // newLoaders は、db から引く Loaders を作る。
-func newLoaders(db sqlc.DBTX) *Loaders {
+func newLoaders(db sqlc.DBTX, rules *rule.Rules, reservations *reserve.Reservations) *Loaders {
 	return &Loaders{
 		Users: dataloadgen.NewLoader(func(ctx context.Context, ids []uuid.UUID) ([]*sqlc.User, []error) {
 			rows, err := sqlc.New(db).ListUsersByIDs(ctx, ids)
@@ -64,6 +71,38 @@ func newLoaders(db sqlc.DBTX) *Loaders {
 
 			return orderBy(types, byType, "channel type")
 		}, dataloadgen.WithWait(loaderWait)),
+		Rules: dataloadgen.NewLoader(func(ctx context.Context, ids []uuid.UUID) ([]*rule.Rule, []error) {
+			byID, err := rules.ListByIDs(ctx, db, ids)
+			if err != nil {
+				return failAll[*rule.Rule](len(ids), err)
+			}
+
+			return orderBy(ids, byID, "rule")
+		}, dataloadgen.WithWait(loaderWait)),
+		RuleIDs: dataloadgen.NewLoader(func(ctx context.Context, ids []uuid.UUID) ([][]uuid.UUID, []error) {
+			byID, err := reservations.RuleIDs(ctx, db, ids)
+			if err != nil {
+				return failAll[[]uuid.UUID](len(ids), err)
+			}
+			ruleIDs := make([][]uuid.UUID, 0, len(ids))
+			for _, reservationID := range ids {
+				ruleIDs = append(ruleIDs, nonNil(byID[reservationID]))
+			}
+
+			return ruleIDs, make([]error, len(ids))
+		}, dataloadgen.WithWait(loaderWait)),
+		ProgramReservations: dataloadgen.NewLoader(func(ctx context.Context, keys []reserve.ProgramKey) ([]*reserve.Reservation, []error) {
+			byKey, err := reservations.ListByPrograms(ctx, db, keys)
+			if err != nil {
+				return failAll[*reserve.Reservation](len(keys), err)
+			}
+			found := make([]*reserve.Reservation, 0, len(keys))
+			for _, key := range keys {
+				found = append(found, byKey[key])
+			}
+
+			return found, make([]error, len(keys))
+		}, dataloadgen.WithWait(loaderWait)),
 	}
 }
 
@@ -95,10 +134,10 @@ func orderBy[K comparable, V any](keys []K, byKey map[K]V, name string) ([]V, []
 }
 
 // withLoaders は、リクエストごとに Loaders を作って context に入れるミドルウェアを返す。
-func withLoaders(db sqlc.DBTX) func(http.Handler) http.Handler {
+func withLoaders(db sqlc.DBTX, rules *rule.Rules, reservations *reserve.Reservations) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), loadersKey{}, newLoaders(db))))
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), loadersKey{}, newLoaders(db, rules, reservations))))
 		})
 	}
 }
