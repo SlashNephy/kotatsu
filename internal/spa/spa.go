@@ -51,11 +51,15 @@ func ContentSecurityPolicy(nonce string) string {
 //   - ファイルがなく、拡張子もないパスは、クライアント側のルーティングに任せるため index.html を返す。
 //   - SPA がビルドされていなければ、503 で、ビルドの仕方を案内する。
 type Handler struct {
-	app    fs.FS
-	files  http.Handler
+	app   fs.FS
+	files http.Handler
+	// built は、SPA がビルドされているかどうか。index はビルドされているときだけ中身がある。
+	built  bool
 	index  []byte
 	logger *slog.Logger
 }
+
+var _ http.Handler = new(Handler)
 
 // NewHandler は、app のファイルを配信する Handler を返す。
 func NewHandler(app fs.FS, logger *slog.Logger) (*Handler, error) {
@@ -64,13 +68,13 @@ func NewHandler(app fs.FS, logger *slog.Logger) (*Handler, error) {
 		// 未ビルドのバイナリでも API は使えるように、起動は止めない。
 		logger.Warn("the frontend is not built; build it with `mise run web:build` before go build")
 
-		return &Handler{app: app, files: http.FileServerFS(app), index: nil, logger: logger}, nil
+		return &Handler{app: app, files: http.FileServerFS(app), built: false, index: []byte{}, logger: logger}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the frontend index: %w", err)
 	}
 
-	return &Handler{app: app, files: http.FileServerFS(app), index: index, logger: logger}, nil
+	return &Handler{app: app, files: http.FileServerFS(app), built: true, index: index, logger: logger}, nil
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +84,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	if h.index == nil {
+	if !h.built {
 		http.Error(w, "the frontend is not built", http.StatusServiceUnavailable)
 
 		return

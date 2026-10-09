@@ -40,13 +40,14 @@ func TestHandler(t *testing.T) {
 		wantStatus int
 		wantBody   string
 		// wantIndex は、index.html を返すかどうか。
-		wantIndex    bool
-		wantCache    string
-		wantNoCSPKey bool
+		wantIndex bool
+		// wantCSP は、CSP を付けるかどうか。CSP の nonce は、index.html にだけ付ける。
+		wantCSP   bool
+		wantCache string
 	}{
-		{name: "root returns the index", app: builtApp(), method: http.MethodGet, path: "/", wantStatus: http.StatusOK, wantIndex: true, wantCache: noStore},
-		{name: "index.html returns the index", app: builtApp(), method: http.MethodGet, path: "/index.html", wantStatus: http.StatusOK, wantIndex: true, wantCache: noStore},
-		{name: "client route returns the index", app: builtApp(), method: http.MethodGet, path: "/recordings/123", wantStatus: http.StatusOK, wantIndex: true, wantCache: noStore},
+		{name: "root returns the index", app: builtApp(), method: http.MethodGet, path: "/", wantStatus: http.StatusOK, wantIndex: true, wantCSP: true, wantCache: noStore},
+		{name: "index.html returns the index", app: builtApp(), method: http.MethodGet, path: "/index.html", wantStatus: http.StatusOK, wantIndex: true, wantCSP: true, wantCache: noStore},
+		{name: "client route returns the index", app: builtApp(), method: http.MethodGet, path: "/recordings/123", wantStatus: http.StatusOK, wantIndex: true, wantCSP: true, wantCache: noStore},
 		{
 			name: "hashed asset is cached for long", app: builtApp(), method: http.MethodGet, path: "/assets/app.js",
 			wantStatus: http.StatusOK, wantBody: "console.log('kotatsu')", wantCache: "public, max-age=31536000, immutable",
@@ -55,7 +56,7 @@ func TestHandler(t *testing.T) {
 		{name: "missing file is not the index", app: builtApp(), method: http.MethodGet, path: "/assets/missing.js", wantStatus: http.StatusNotFound},
 		{name: "path traversal stays in the app", app: builtApp(), method: http.MethodGet, path: "/../../etc/passwd.conf", wantStatus: http.StatusNotFound},
 		{name: "POST is not allowed", app: builtApp(), method: http.MethodPost, path: "/", wantStatus: http.StatusMethodNotAllowed},
-		{name: "HEAD has no body", app: builtApp(), method: http.MethodHead, path: "/", wantStatus: http.StatusOK, wantCache: noStore},
+		{name: "HEAD has no body", app: builtApp(), method: http.MethodHead, path: "/", wantStatus: http.StatusOK, wantCSP: true, wantCache: noStore},
 		{name: "unbuilt frontend is unavailable", app: fstest.MapFS{}, method: http.MethodGet, path: "/", wantStatus: http.StatusServiceUnavailable},
 	}
 	for _, tt := range tests {
@@ -76,6 +77,7 @@ func TestHandler(t *testing.T) {
 			if tt.wantCache != "" {
 				assert.Equal(t, tt.wantCache, rec.Header().Get("Cache-Control"))
 			}
+			assert.Equal(t, tt.wantCSP, rec.Header().Get("Content-Security-Policy") != "")
 			if !tt.wantIndex {
 				return
 			}
