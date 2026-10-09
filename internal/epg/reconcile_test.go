@@ -39,6 +39,7 @@ func testNow() time.Time {
 type fixture struct {
 	pool       *pgxpool.Pool
 	fake       *faketuner.Server
+	client     *mirakurun.Client
 	reconciler *epg.Reconciler
 }
 
@@ -63,6 +64,7 @@ func newFixture(t *testing.T, guard epg.Guard) *fixture {
 	return &fixture{
 		pool:       pool,
 		fake:       fake,
+		client:     client,
 		reconciler: epg.NewReconciler(pool, client, clocktest.NewFake(testNow()), guard),
 	}
 }

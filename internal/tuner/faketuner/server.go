@@ -169,6 +169,14 @@ func (s *Server) ForgetProgram(id int64) error {
 	return nil
 }
 
+// EventSubscribers は、イベントストリームを購読している接続の数を返す。テストで購読を待つのに使う。
+func (s *Server) EventSubscribers() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return len(s.subscribers)
+}
+
 // Tuners は、今のチューナーの状態を返す。
 func (s *Server) Tuners() []*Tuner {
 	s.mu.Lock()
