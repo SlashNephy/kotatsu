@@ -106,7 +106,7 @@ type ProgramInput struct {
 // CreateProgram は番組予約を作る。番組情報は EPG からコピーする。
 // 同じ番組の予約がすでにあれば、作らずにその予約を返し、created を false にする (設計書 4.1)。
 func (r *Reservations) CreateProgram(ctx context.Context, db Beginner, actor *audit.Actor, in *ProgramInput) (*Reservation, bool, error) {
-	settings, err := encodeOverrides(in.Overrides)
+	settings, err := EncodeOverrides(in.Overrides)
 	if err != nil {
 		return nil, false, err
 	}
@@ -182,7 +182,7 @@ func (r *Reservations) CreateTime(ctx context.Context, db Beginner, actor *audit
 	if err := validateSchedule(in.StartAt, in.EndAt, in.Name); err != nil {
 		return nil, err
 	}
-	settings, err := encodeOverrides(in.Overrides)
+	settings, err := EncodeOverrides(in.Overrides)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func (r *Reservations) Update(ctx context.Context, db Beginner, actor *audit.Act
 		if err != nil {
 			return err
 		}
-		settings, err := encodeOverrides(next.Overrides)
+		settings, err := EncodeOverrides(next.Overrides)
 		if err != nil {
 			return err
 		}
@@ -364,7 +364,7 @@ func get(ctx context.Context, q *sqlc.Queries, reservationID uuid.UUID) (*Reserv
 }
 
 func fromRow(row sqlc.Reservation) (*Reservation, error) {
-	overrides, err := decodeOverrides(row.Settings)
+	overrides, err := DecodeOverrides(row.Settings)
 	if err != nil {
 		return nil, err
 	}
