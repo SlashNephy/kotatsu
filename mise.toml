@@ -1,0 +1,15 @@
+[tools]
+golangci-lint = "2.14.0" # go より先に置かないと、go/bin/ のバイナリが優先されてしまう
+go = "1.27.1"
+
+[tasks.build]
+run = "go build -trimpath -o ./bin/ ./cmd/kotatsu"
+
+[tasks.test]
+run = "go test -race ./..."
+
+[tasks.lint]
+run = "golangci-lint run"
+
+[tasks.fmt]
+run = "golangci-lint fmt"
