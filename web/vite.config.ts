@@ -9,7 +9,8 @@ export default defineConfig({
   plugins: lazyPlugins(() => [
     tanstackRouter({ target: 'react', autoCodeSplitting: true }),
     react(),
-    babel({ presets: [reactCompilerPreset()] }),
+    // graphql`...` を、Relay のコンパイラが生成したアーティファクトの import に置き換える。
+    babel({ presets: [reactCompilerPreset()], plugins: [['relay', { eagerEsModules: true }]] }),
   ]),
   html: {
     // tenban が index.html を配信するたびに、リクエストごとの nonce に置き換える (設計書 10.4)。
@@ -30,10 +31,10 @@ export default defineConfig({
   },
   fmt: {
     singleQuote: true,
-    ignorePatterns: ['src/routeTree.gen.ts'],
+    ignorePatterns: ['src/routeTree.gen.ts', 'schema.graphql', '**/__generated__/**'],
   },
   lint: {
-    ignorePatterns: ['src/routeTree.gen.ts', 'dist/**'],
+    ignorePatterns: ['src/routeTree.gen.ts', 'dist/**', '**/__generated__/**'],
     options: {
       typeAware: true,
       typeCheck: true,

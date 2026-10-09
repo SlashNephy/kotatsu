@@ -12,5 +12,12 @@
   "notFound": {
     "title": "ページが見つかりません",
     "back": "ホームに戻る"
+  },
+  "viewer": {
+    "loading": "読み込んでいます",
+    "signedOut": "ログインしていません",
+    "greeting": "{{name}} さん、こんにちは",
+    "connecting": "サーバーにつないでいます",
+    "heartbeat": "サーバーの時刻: {{time}}"
   }
 }

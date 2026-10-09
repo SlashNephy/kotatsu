@@ -6,11 +6,14 @@ import { MantineProvider } from '@mantine/core';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { RelayEnvironmentProvider } from 'react-relay';
 
 import { cspNonce, cssVariablesResolver, theme } from './futon';
+import { createEnvironment } from './relay/environment';
 import { routeTree } from './routeTree.gen';
 
 const router = createRouter({ routeTree });
+const environment = createEnvironment();
 
 declare module '@tanstack/react-router' {
   interface Register {
@@ -31,7 +34,9 @@ createRoot(root).render(
       defaultColorScheme="auto"
       getStyleNonce={cspNonce}
     >
-      <RouterProvider router={router} />
+      <RelayEnvironmentProvider environment={environment}>
+        <RouterProvider router={router} />
+      </RelayEnvironmentProvider>
     </MantineProvider>
   </StrictMode>,
 );
