@@ -231,6 +231,10 @@ type Update struct {
 
 // Update は予約を変える。
 func (r *Reservations) Update(ctx context.Context, db Beginner, actor *audit.Actor, reservationID uuid.UUID, update *Update) (*Reservation, error) {
+	if update == nil {
+		return nil, fmt.Errorf("%w: update must not be nil", ErrInvalidReservation)
+	}
+
 	var reservation *Reservation
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
@@ -247,7 +251,7 @@ func (r *Reservations) Update(ctx context.Context, db Beginner, actor *audit.Act
 			return err
 		}
 
-		_, err = q.UpdateReservation(ctx, sqlc.UpdateReservationParams{
+		n, err := q.UpdateReservation(ctx, sqlc.UpdateReservationParams{
 			ID:               reservationID,
 			StartAt:          next.StartAt,
 			EndAt:            next.EndAt,
@@ -260,6 +264,9 @@ func (r *Reservations) Update(ctx context.Context, db Beginner, actor *audit.Act
 		})
 		if err != nil {
 			return fmt.Errorf("failed to update the reservation: %w", err)
+		}
+		if n == 0 {
+			return fmt.Errorf("%w: %s", ErrNotFound, reservationID)
 		}
 		if reservation, err = get(ctx, q, reservationID); err != nil {
 			return err
@@ -326,8 +333,13 @@ func (r *Reservations) Delete(ctx context.Context, db Beginner, actor *audit.Act
 		if err != nil {
 			return err
 		}
-		if _, err := q.DeleteReservation(ctx, reservationID); err != nil {
+		n, err := q.DeleteReservation(ctx, reservationID)
+		if err != nil {
 			return fmt.Errorf("failed to delete the reservation: %w", err)
+		}
+		// 読んだ後に、別の操作が先に消していたら、消したことにしない。
+		if n == 0 {
+			return fmt.Errorf("%w: %s", ErrNotFound, reservationID)
 		}
 
 		return r.record(ctx, tx, actor, "reservation.delete", reservation, summaryOf(reservation))

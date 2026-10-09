@@ -275,6 +275,12 @@ func TestChangesAreAudited(t *testing.T) {
 	require.NoError(t, f.reservations.Delete(t.Context(), f.pool, f.user, reservation.ID))
 	_, err = f.reservations.Get(t.Context(), f.pool, reservation.ID)
 	require.ErrorIs(t, err, reserve.ErrNotFound)
+	// 消した予約は、変えることも消すこともできず、監査ログも増えない。
+	require.ErrorIs(t, f.reservations.Delete(t.Context(), f.pool, f.user, reservation.ID), reserve.ErrNotFound)
+	_, err = f.reservations.Update(t.Context(), f.pool, f.user, reservation.ID, &reserve.Update{Enabled: new(true)})
+	require.ErrorIs(t, err, reserve.ErrNotFound)
+	_, err = f.reservations.Update(t.Context(), f.pool, f.user, reservation.ID, nil)
+	require.ErrorIs(t, err, reserve.ErrInvalidReservation)
 
 	for _, action := range []string{"reservation.create", "reservation.update", "reservation.delete"} {
 		assert.Equal(t, 1, f.count(t,

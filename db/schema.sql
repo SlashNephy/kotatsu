@@ -242,9 +242,9 @@ CREATE TABLE reservations (
   settings jsonb NOT NULL,
   created_at timestamptz NOT NULL,
   -- 作成者と更新者。ルール予約は neko が作るので、ユーザーがいないことがある。
-  created_by uuid REFERENCES users (id),
+  created_by uuid REFERENCES users (id) ON DELETE SET NULL,
   updated_at timestamptz NOT NULL,
-  updated_by uuid REFERENCES users (id),
+  updated_by uuid REFERENCES users (id) ON DELETE SET NULL,
   CONSTRAINT reservations_event_check CHECK ((kind = 'time') = (event_id IS NULL)),
   CONSTRAINT reservations_time_check CHECK (start_at < end_at)
 );

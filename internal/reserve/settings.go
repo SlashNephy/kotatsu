@@ -1,7 +1,6 @@
 package reserve
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -179,11 +178,10 @@ func encodeOverrides(o *Overrides) ([]byte, error) {
 }
 
 // decodeOverrides は、JSONB に保存した上書きを読む。
+// ローリング更新の間は、新しいバイナリが足した項目を古いバイナリが読むことがあるので、知らない項目は無視する。
 func decodeOverrides(b []byte) (*Overrides, error) {
 	o := new(Overrides)
-	decoder := json.NewDecoder(bytes.NewReader(b))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(o); err != nil {
+	if err := json.Unmarshal(b, o); err != nil {
 		return nil, fmt.Errorf("failed to decode recording settings: %w", err)
 	}
 
