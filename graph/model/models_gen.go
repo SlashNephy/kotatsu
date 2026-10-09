@@ -30,6 +30,14 @@ type ChannelType struct {
 	SortOrder   int    `json:"sortOrder"`
 }
 
+// 予約の削除の結果。
+type DeleteReservationPayload struct {
+	// 削除の操作をした予約の ID。
+	ID string `json:"id"`
+	// ルール予約は、消すと次の照合でまた作られるので、消さずに無効にする (設計書 4.3)。そのときの予約。消したときは null。
+	Reservation *Reservation `json:"reservation,omitempty"`
+}
+
 // 番組の詳細の、見出しと本文の組。
 type ExtendedItem struct {
 	Heading string `json:"heading"`
@@ -62,6 +70,14 @@ type GuideViewInput struct {
 	MinDurationSeconds *int          `json:"minDurationSeconds,omitempty"`
 	Services           []string      `json:"services,omitempty"`
 	HideEmptyServices  bool          `json:"hideEmptyServices"`
+}
+
+// キーワードと、その照合の仕方。
+type Keyword struct {
+	Text          string         `json:"text"`
+	Regexp        bool           `json:"regexp"`
+	CaseSensitive bool           `json:"caseSensitive"`
+	Fields        []KeywordField `json:"fields"`
 }
 
 // キーワードと、その照合の仕方 (設計書 4.2)。キーワードと番組の文字列は、NFKC で正規化してから比べる。
@@ -112,10 +128,97 @@ type ProgramEdge struct {
 	Node   *Program `json:"node"`
 }
 
+// 番組予約の内容。
+type ProgramReservationInput struct {
+	Program          string                           `json:"program"`
+	FollowEventRelay bool                             `json:"followEventRelay"`
+	Settings         *RecordingSettingsOverridesInput `json:"settings,omitempty"`
+}
+
 type Query struct {
 }
 
+// 録画設定の上書き (設計書 4.7)。null の項目は全体の既定値を使う。
+type RecordingSettingsOverrides struct {
+	// 保存先プール
+	PoolID *string `json:"poolId,omitempty"`
+	// ファイル名の text/template
+	FileNameTemplate   *string `json:"fileNameTemplate,omitempty"`
+	StartMarginSeconds *int    `json:"startMarginSeconds,omitempty"`
+	EndMarginSeconds   *int    `json:"endMarginSeconds,omitempty"`
+	// 優先度 (-10〜10)。チューナーが足りないときは、高い予約から割り当てる。
+	Priority *int `json:"priority,omitempty"`
+}
+
+// 録画設定の上書き。省いた項目は全体の既定値を使う。
+type RecordingSettingsOverridesInput struct {
+	PoolID             *string `json:"poolId,omitempty"`
+	FileNameTemplate   *string `json:"fileNameTemplate,omitempty"`
+	StartMarginSeconds *int    `json:"startMarginSeconds,omitempty"`
+	EndMarginSeconds   *int    `json:"endMarginSeconds,omitempty"`
+	Priority           *int    `json:"priority,omitempty"`
+}
+
+// 予約のチューナーの割り当ての結果。neko が計算し直すたびに変わる。
+type ReservationAssignment struct {
+	State AssignmentState `json:"state"`
+	// 割り当てたチューナーの番号。割り当てていなければ null。
+	Tuner *int `json:"tuner,omitempty"`
+	// マージンを削った後の、録画する予定の時刻。割り当てていなければ null。
+	PlannedStartAt *time.Time `json:"plannedStartAt,omitempty"`
+	PlannedEndAt   *time.Time `json:"plannedEndAt,omitempty"`
+}
+
+type ReservationConnection struct {
+	Edges    []*ReservationEdge `json:"edges"`
+	PageInfo *PageInfo          `json:"pageInfo"`
+}
+
+type ReservationEdge struct {
+	Cursor string       `json:"cursor"`
+	Node   *Reservation `json:"node"`
+}
+
+// 予約の変更。省いた項目は変えない。
+type ReservationUpdateInput struct {
+	Enabled          *bool `json:"enabled,omitempty"`
+	FollowEventRelay *bool `json:"followEventRelay,omitempty"`
+	// 録画設定の上書きを、丸ごと置き換える。
+	Settings *RecordingSettingsOverridesInput `json:"settings,omitempty"`
+	// startAt、endAt、name は、時刻予約でだけ変えられる。番組予約の時刻と名前は EPG に従う。
+	StartAt *time.Time `json:"startAt,omitempty"`
+	EndAt   *time.Time `json:"endAt,omitempty"`
+	Name    *string    `json:"name,omitempty"`
+}
+
+// ルールの内容。
+type RuleInput struct {
+	// 1〜200 文字
+	Name string `json:"name"`
+	// 2000 文字まで
+	Memo            string                           `json:"memo"`
+	Enabled         bool                             `json:"enabled"`
+	Conditions      *ProgramConditionsInput          `json:"conditions"`
+	Settings        *RecordingSettingsOverridesInput `json:"settings,omitempty"`
+	ValidFrom       *time.Time                       `json:"validFrom,omitempty"`
+	ValidUntil      *time.Time                       `json:"validUntil,omitempty"`
+	AvoidDuplicates bool                             `json:"avoidDuplicates"`
+	// 1〜3650
+	DuplicateWindowDays *int `json:"duplicateWindowDays,omitempty"`
+	FollowEventRelay    bool `json:"followEventRelay"`
+}
+
 type Subscription struct {
+}
+
+// 曜日と時間帯の組。
+type TimeRange struct {
+	// 曜日の集合 (0 が日曜日、6 が土曜日)
+	Weekdays []int `json:"weekdays"`
+	// 0 時からの分で表した範囲の始まり
+	StartMinute int `json:"startMinute"`
+	// 範囲の長さ (分)
+	DurationMinutes int `json:"durationMinutes"`
 }
 
 // 曜日と時間帯の組。開始時刻が範囲に入る番組に一致する。
@@ -128,6 +231,16 @@ type TimeRangeInput struct {
 	DurationMinutes int `json:"durationMinutes"`
 }
 
+// 時刻予約の内容。長さは 24 時間まで。
+type TimeReservationInput struct {
+	Service string    `json:"service"`
+	StartAt time.Time `json:"startAt"`
+	EndAt   time.Time `json:"endAt"`
+	// 画面に出す名前。200 文字まで。
+	Name     string                           `json:"name"`
+	Settings *RecordingSettingsOverridesInput `json:"settings,omitempty"`
+}
+
 type User struct {
 	ID          string `json:"id"`
 	Username    string `json:"username"`
@@ -136,6 +249,70 @@ type User struct {
 }
 
 func (User) IsNode() {}
+
+// 予約のチューナーの割り当ての状態 (設計書 4.5)。
+type AssignmentState string
+
+const (
+	// まだ割り当てを計算していない。
+	AssignmentStatePending AssignmentState = "PENDING"
+	// 全編を録画できる見込み。
+	AssignmentStateOk AssignmentState = "OK"
+	// 本編の一部が欠ける見込み。
+	AssignmentStatePartial AssignmentState = "PARTIAL"
+	// チューナーが足りない。
+	AssignmentStateConflict AssignmentState = "CONFLICT"
+)
+
+var AllAssignmentState = []AssignmentState{
+	AssignmentStatePending,
+	AssignmentStateOk,
+	AssignmentStatePartial,
+	AssignmentStateConflict,
+}
+
+func (e AssignmentState) IsValid() bool {
+	switch e {
+	case AssignmentStatePending, AssignmentStateOk, AssignmentStatePartial, AssignmentStateConflict:
+		return true
+	}
+	return false
+}
+
+func (e AssignmentState) String() string {
+	return string(e)
+}
+
+func (e *AssignmentState) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AssignmentState(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AssignmentState", str)
+	}
+	return nil
+}
+
+func (e AssignmentState) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AssignmentState) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AssignmentState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
 
 // キーワードを照合する番組の項目。
 type KeywordField string
@@ -193,6 +370,67 @@ func (e *KeywordField) UnmarshalJSON(b []byte) error {
 }
 
 func (e KeywordField) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 予約の種類 (設計書 4.1)。
+type ReservationKind string
+
+const (
+	// 番組予約。番組の放送時間の変更とイベントリレーに追従する。
+	ReservationKindProgram ReservationKind = "PROGRAM"
+	// 時刻予約。サービスと、開始と終了の時刻を指定する。番組の変更には追従しない。
+	ReservationKindTime ReservationKind = "TIME"
+	// ルール予約。ルールが自動で作る。
+	ReservationKindRule ReservationKind = "RULE"
+)
+
+var AllReservationKind = []ReservationKind{
+	ReservationKindProgram,
+	ReservationKindTime,
+	ReservationKindRule,
+}
+
+func (e ReservationKind) IsValid() bool {
+	switch e {
+	case ReservationKindProgram, ReservationKindTime, ReservationKindRule:
+		return true
+	}
+	return false
+}
+
+func (e ReservationKind) String() string {
+	return string(e)
+}
+
+func (e *ReservationKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ReservationKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ReservationKind", str)
+	}
+	return nil
+}
+
+func (e ReservationKind) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ReservationKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ReservationKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

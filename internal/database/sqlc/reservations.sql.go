@@ -257,6 +257,158 @@ func (q *Queries) InsertTimeReservation(ctx context.Context, arg InsertTimeReser
 	return err
 }
 
+const listReservationRules = `-- name: ListReservationRules :many
+SELECT rr.reservation_id, rr.rule_id
+FROM reservation_rules rr
+JOIN rules ru ON ru.id = rr.rule_id
+WHERE rr.reservation_id = ANY($1::uuid[])
+ORDER BY rr.reservation_id, ru.created_at, ru.id
+`
+
+// 予約に一致したルール。ルールを作った順に返す。
+func (q *Queries) ListReservationRules(ctx context.Context, reservationIds []uuid.UUID) ([]ReservationRule, error) {
+	rows, err := q.db.Query(ctx, listReservationRules, reservationIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReservationRule{}
+	for rows.Next() {
+		var i ReservationRule
+		if err := rows.Scan(&i.ReservationID, &i.RuleID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReservations = `-- name: ListReservations :many
+SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, relayed_from FROM reservations
+WHERE end_at > $1 AND start_at < $2
+  AND (cardinality($3::text[]) = 0 OR assignment_state = ANY($3::text[]))
+  AND (start_at, id) > ($4::timestamptz, $5::uuid)
+ORDER BY start_at, id
+LIMIT $6
+`
+
+type ListReservationsParams struct {
+	FromAt       time.Time
+	ToAt         time.Time
+	States       []string
+	AfterStartAt time.Time
+	AfterID      uuid.UUID
+	RowLimit     int32
+}
+
+// 時間帯 [from, to) に重なる予約を、開始時刻の順に返す。(after_start_at, after_id) より後ろから limit 件読む。
+func (q *Queries) ListReservations(ctx context.Context, arg ListReservationsParams) ([]Reservation, error) {
+	rows, err := q.db.Query(ctx, listReservations,
+		arg.FromAt,
+		arg.ToAt,
+		arg.States,
+		arg.AfterStartAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Reservation{}
+	for rows.Next() {
+		var i Reservation
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.ServiceID,
+			&i.EventID,
+			&i.StartAt,
+			&i.EndAt,
+			&i.Name,
+			&i.Description,
+			&i.Extended,
+			&i.Genres,
+			&i.Enabled,
+			&i.FollowEventRelay,
+			&i.Settings,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.UpdatedAt,
+			&i.UpdatedBy,
+			&i.AssignmentState,
+			&i.AssignedTuner,
+			&i.PlannedStartAt,
+			&i.PlannedEndAt,
+			&i.RelayedFrom,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReservationsByPrograms = `-- name: ListReservationsByPrograms :many
+SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, relayed_from FROM reservations
+WHERE (service_id, event_id) IN (SELECT unnest($1::bigint[]), unnest($2::bigint[]))
+`
+
+type ListReservationsByProgramsParams struct {
+	ServiceIds []int64
+	EventIds   []int64
+}
+
+// 番組 (サービス, eventId) の予約。番組の予約は 1 件だけなので、番組ごとに高々 1 行になる。
+func (q *Queries) ListReservationsByPrograms(ctx context.Context, arg ListReservationsByProgramsParams) ([]Reservation, error) {
+	rows, err := q.db.Query(ctx, listReservationsByPrograms, arg.ServiceIds, arg.EventIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Reservation{}
+	for rows.Next() {
+		var i Reservation
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.ServiceID,
+			&i.EventID,
+			&i.StartAt,
+			&i.EndAt,
+			&i.Name,
+			&i.Description,
+			&i.Extended,
+			&i.Genres,
+			&i.Enabled,
+			&i.FollowEventRelay,
+			&i.Settings,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.UpdatedAt,
+			&i.UpdatedBy,
+			&i.AssignmentState,
+			&i.AssignedTuner,
+			&i.PlannedStartAt,
+			&i.PlannedEndAt,
+			&i.RelayedFrom,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setReservationEnabled = `-- name: SetReservationEnabled :execrows
 UPDATE reservations SET enabled = $1, updated_at = $2, updated_by = $3 WHERE id = $4
 `

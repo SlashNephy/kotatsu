@@ -367,6 +367,7 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", graph.NewHandler(&graph.Options{
 		DB:                  deps.DB,
+		Recorder:            audit.NewRecorder(deps.Clock),
 		Clock:               deps.Clock,
 		Location:            location,
 		MaxSearchCandidates: 0,

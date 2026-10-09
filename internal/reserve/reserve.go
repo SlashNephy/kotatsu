@@ -41,6 +41,8 @@ const (
 	// maxTimeReservation は、時刻予約の長さの上限。
 	maxTimeReservation = 24 * time.Hour
 	maxNameLength      = 200
+	// maxListLimit は、一覧で一度に返す件数の上限。
+	maxListLimit = 1000
 )
 
 var (
@@ -72,10 +74,36 @@ type Reservation struct {
 	Overrides *Overrides
 	// RelayedFrom は、イベントリレーで引き継いだ予約の、引き継ぎ元の予約。引き継いだ予約でなければ nil。
 	RelayedFrom *uuid.UUID
-	CreatedAt   time.Time
-	CreatedBy   *uuid.UUID
-	UpdatedAt   time.Time
-	UpdatedBy   *uuid.UUID
+	// Assignment は、neko が計算したチューナーの割り当ての結果 (設計書 4.5)。
+	Assignment *Assignment
+	CreatedAt  time.Time
+	CreatedBy  *uuid.UUID
+	UpdatedAt  time.Time
+	UpdatedBy  *uuid.UUID
+}
+
+// AssignmentState は、予約のチューナーの割り当ての状態。値は assign.State と同じで、まだ計算していない状態が加わる。
+type AssignmentState string
+
+const (
+	// AssignmentPending は、まだ割り当てを計算していないこと。
+	AssignmentPending AssignmentState = "pending"
+	// AssignmentOK は、全編を録画できる見込みであること。
+	AssignmentOK AssignmentState = "ok"
+	// AssignmentPartial は、本編の一部が欠ける見込みであること。
+	AssignmentPartial AssignmentState = "partial"
+	// AssignmentConflict は、チューナーが足りないこと。
+	AssignmentConflict AssignmentState = "conflict"
+)
+
+// Assignment は、予約のチューナーの割り当ての結果。
+type Assignment struct {
+	State AssignmentState
+	// Tuner は割り当てたチューナーの番号。割り当てていなければ nil。
+	Tuner *int64
+	// PlannedStartAt と PlannedEndAt は、マージンを削った後の録画する予定の時刻。割り当てていなければ nil。
+	PlannedStartAt *time.Time
+	PlannedEndAt   *time.Time
 }
 
 // Settings は、全体の既定値 defaults に、この予約の上書きを重ねた録画設定を返す。
@@ -418,6 +446,110 @@ func (r *Reservations) Get(ctx context.Context, db sqlc.DBTX, reservationID uuid
 	return get(ctx, sqlc.New(db), reservationID)
 }
 
+// ListQuery は、予約の一覧の条件。
+type ListQuery struct {
+	// From と To は時間帯 [From, To)。これに重なる予約を返す。
+	From time.Time
+	To   time.Time
+	// States は、割り当ての状態の集合。空ならすべて。
+	States []AssignmentState
+	// AfterStartAt と AfterID は、この位置より後ろから返す (開始時刻、ID の順)。最初から返すなら nil。
+	AfterStartAt *time.Time
+	AfterID      *uuid.UUID
+	Limit        int
+}
+
+// List は、時間帯に重なる予約を、開始時刻の順に返す。
+func (r *Reservations) List(ctx context.Context, db sqlc.DBTX, query *ListQuery) ([]*Reservation, error) {
+	if query == nil {
+		return nil, fmt.Errorf("%w: query must not be nil", ErrInvalidReservation)
+	}
+	if (query.AfterStartAt == nil) != (query.AfterID == nil) {
+		return nil, fmt.Errorf("%w: afterStartAt and afterID must be given together", ErrInvalidReservation)
+	}
+	if !query.From.Before(query.To) {
+		return nil, fmt.Errorf("%w: from must be before to", ErrInvalidReservation)
+	}
+	if query.Limit < 1 || query.Limit > maxListLimit {
+		return nil, fmt.Errorf("%w: limit must be between 1 and %d", ErrInvalidReservation, maxListLimit)
+	}
+	states := make([]string, 0, len(query.States))
+	for _, state := range query.States {
+		states = append(states, string(state))
+	}
+	// 位置を指定しなければ、どの予約よりも前の位置から読む。
+	afterStartAt, afterID := time.Time{}, uuid.Nil
+	if query.AfterStartAt != nil {
+		afterStartAt, afterID = *query.AfterStartAt, *query.AfterID
+	}
+
+	rows, err := sqlc.New(db).ListReservations(ctx, sqlc.ListReservationsParams{
+		FromAt:       query.From,
+		ToAt:         query.To,
+		States:       states,
+		AfterStartAt: afterStartAt,
+		AfterID:      afterID,
+		RowLimit:     int32(query.Limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list reservations: %w", err)
+	}
+
+	return fromRows(rows)
+}
+
+// ProgramKey は番組の識別子 (サービスと eventId の組)。
+type ProgramKey struct {
+	ServiceID int64
+	EventID   int64
+}
+
+// ListByPrograms は、番組の予約を返す。予約のない番組は結果に含めない。
+func (r *Reservations) ListByPrograms(ctx context.Context, db sqlc.DBTX, keys []ProgramKey) (map[ProgramKey]*Reservation, error) {
+	if len(keys) == 0 {
+		return map[ProgramKey]*Reservation{}, nil
+	}
+	serviceIDs := make([]int64, 0, len(keys))
+	eventIDs := make([]int64, 0, len(keys))
+	for _, key := range keys {
+		serviceIDs = append(serviceIDs, key.ServiceID)
+		eventIDs = append(eventIDs, key.EventID)
+	}
+	rows, err := sqlc.New(db).ListReservationsByPrograms(ctx, sqlc.ListReservationsByProgramsParams{ServiceIds: serviceIDs, EventIds: eventIDs})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list reservations of programs: %w", err)
+	}
+	reservations, err := fromRows(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	byProgram := make(map[ProgramKey]*Reservation, len(reservations))
+	for _, reservation := range reservations {
+		byProgram[ProgramKey{ServiceID: reservation.ServiceID, EventID: *reservation.EventID}] = reservation
+	}
+
+	return byProgram, nil
+}
+
+// RuleIDs は、予約に一致したルールの ID を、ルールを作った順に返す。ルールに一致していない予約は結果に含めない。
+func (r *Reservations) RuleIDs(ctx context.Context, db sqlc.DBTX, reservationIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
+	if len(reservationIDs) == 0 {
+		return map[uuid.UUID][]uuid.UUID{}, nil
+	}
+	rows, err := sqlc.New(db).ListReservationRules(ctx, reservationIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the rules of reservations: %w", err)
+	}
+
+	ruleIDs := map[uuid.UUID][]uuid.UUID{}
+	for _, row := range rows {
+		ruleIDs[row.ReservationID] = append(ruleIDs[row.ReservationID], row.RuleID)
+	}
+
+	return ruleIDs, nil
+}
+
 func (r *Reservations) remove(ctx context.Context, tx pgx.Tx, actor *audit.Actor, reservationID uuid.UUID) error {
 	q := sqlc.New(tx)
 	reservation, err := get(ctx, q, reservationID)
@@ -434,6 +566,19 @@ func (r *Reservations) remove(ctx context.Context, tx pgx.Tx, actor *audit.Actor
 	}
 
 	return r.record(ctx, tx, actor, "reservation.delete", reservation, summaryOf(reservation))
+}
+
+func fromRows(rows []sqlc.Reservation) ([]*Reservation, error) {
+	reservations := make([]*Reservation, 0, len(rows))
+	for _, row := range rows {
+		reservation, err := fromRow(row)
+		if err != nil {
+			return nil, err
+		}
+		reservations = append(reservations, reservation)
+	}
+
+	return reservations, nil
 }
 
 func get(ctx context.Context, q *sqlc.Queries, reservationID uuid.UUID) (*Reservation, error) {
@@ -469,11 +614,25 @@ func fromRow(row sqlc.Reservation) (*Reservation, error) {
 		FollowEventRelay: row.FollowEventRelay,
 		Overrides:        overrides,
 		RelayedFrom:      row.RelayedFrom,
-		CreatedAt:        row.CreatedAt.UTC(),
-		CreatedBy:        row.CreatedBy,
-		UpdatedAt:        row.UpdatedAt.UTC(),
-		UpdatedBy:        row.UpdatedBy,
+		Assignment: &Assignment{
+			State:          AssignmentState(row.AssignmentState),
+			Tuner:          row.AssignedTuner,
+			PlannedStartAt: utc(row.PlannedStartAt),
+			PlannedEndAt:   utc(row.PlannedEndAt),
+		},
+		CreatedAt: row.CreatedAt.UTC(),
+		CreatedBy: row.CreatedBy,
+		UpdatedAt: row.UpdatedAt.UTC(),
+		UpdatedBy: row.UpdatedBy,
 	}, nil
+}
+
+func utc(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+
+	return new(t.UTC())
 }
 
 func validateSchedule(start, end time.Time, name string) error {

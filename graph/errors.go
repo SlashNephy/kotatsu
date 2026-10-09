@@ -9,6 +9,9 @@ import (
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
 	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/match"
+	"github.com/SlashNephy/kotatsu/internal/reserve"
+	"github.com/SlashNephy/kotatsu/internal/rule"
 )
 
 // extensionCode は、エラーコードを入れる extensions のキー。
@@ -73,7 +76,7 @@ func errorPresenter(logger *slog.Logger) graphql.ErrorPresenterFunc {
 
 			return gqlErr
 		}
-		if e, ok := errors.AsType[*Error](err); ok {
+		if e, ok := errors.AsType[*Error](err); ok || domainError(err, &e) {
 			gqlErr.Message = e.Message
 			gqlErr.Extensions = map[string]any{extensionCode: e.Code}
 
@@ -95,4 +98,22 @@ func recoverFunc(logger *slog.Logger) graphql.RecoverFunc {
 
 		return errors.New("panic in a resolver")
 	}
+}
+
+// domainError は、ドメインのパッケージが返すエラーを、エラーコードを持つエラーにする。当てはまらなければ false を返す。
+// メッセージは、ドメインのエラーのものをそのまま使う。入力のどこが正しくないかを伝えるためである。
+func domainError(err error, target **Error) bool {
+	var code Code
+	switch {
+	case errors.Is(err, rule.ErrNotFound), errors.Is(err, reserve.ErrNotFound), errors.Is(err, reserve.ErrProgramNotFound):
+		code = CodeNotFound
+	case errors.Is(err, rule.ErrInvalidRule), errors.Is(err, reserve.ErrInvalidReservation),
+		errors.Is(err, reserve.ErrInvalidSettings), errors.Is(err, match.ErrInvalidConditions):
+		code = CodeBadUserInput
+	default:
+		return false
+	}
+	*target = NewError(code, err.Error())
+
+	return true
 }

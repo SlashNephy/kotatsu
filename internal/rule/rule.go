@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -89,7 +90,7 @@ func (in *Input) encode() (*encoded, error) {
 	}
 
 	errs := []error{}
-	if in.Name == "" || utf8.RuneCountInString(in.Name) > maxNameLength {
+	if strings.TrimSpace(in.Name) == "" || utf8.RuneCountInString(in.Name) > maxNameLength {
 		errs = append(errs, fmt.Errorf("%w: name must be 1 to %d characters", ErrInvalidRule, maxNameLength))
 	}
 	if utf8.RuneCountInString(in.Memo) > maxMemoLength {
@@ -223,6 +224,35 @@ func (r *Rules) Update(ctx context.Context, db Beginner, actor *audit.Actor, rul
 	return rule, nil
 }
 
+// SetEnabled は、ルールを有効または無効にする。
+func (r *Rules) SetEnabled(ctx context.Context, db Beginner, actor *audit.Actor, ruleID uuid.UUID, enabled bool) (*Rule, error) {
+	var rule *Rule
+	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		q := sqlc.New(tx)
+		n, err := q.SetRuleEnabled(ctx, sqlc.SetRuleEnabledParams{ID: ruleID, Enabled: enabled, Now: r.clock.Now(), Actor: userOf(actor)})
+		if err != nil {
+			return fmt.Errorf("failed to update the rule: %w", err)
+		}
+		if n == 0 {
+			return fmt.Errorf("%w: %s", ErrNotFound, ruleID)
+		}
+		if rule, err = get(ctx, q, ruleID); err != nil {
+			return err
+		}
+		action := "rule.disable"
+		if enabled {
+			action = "rule.enable"
+		}
+
+		return r.record(ctx, tx, actor, action, rule)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return rule, nil
+}
+
 // Delete はルールを消す。このルールだけに一致していた予約は、次の照合で消える。
 func (r *Rules) Delete(ctx context.Context, db Beginner, actor *audit.Actor, ruleID uuid.UUID) error {
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
@@ -262,6 +292,28 @@ func (r *Rules) List(ctx context.Context, db sqlc.DBTX) ([]*Rule, error) {
 			return nil, err
 		}
 		rules = append(rules, rule)
+	}
+
+	return rules, nil
+}
+
+// ListByIDs は、ID のルールを返す。見つからない ID は結果に含めない。
+func (r *Rules) ListByIDs(ctx context.Context, db sqlc.DBTX, ids []uuid.UUID) (map[uuid.UUID]*Rule, error) {
+	if len(ids) == 0 {
+		return map[uuid.UUID]*Rule{}, nil
+	}
+	rows, err := sqlc.New(db).ListRulesByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list rules: %w", err)
+	}
+
+	rules := make(map[uuid.UUID]*Rule, len(rows))
+	for _, row := range rows {
+		rule, err := fromRow(row)
+		if err != nil {
+			return nil, err
+		}
+		rules[rule.ID] = rule
 	}
 
 	return rules, nil

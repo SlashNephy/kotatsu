@@ -81,7 +81,7 @@ type archiveInput struct {
 
 // searchVariables は、searchPrograms の query の変数を作る。
 func searchVariables(conditions conditionsInput, archive *archiveInput, first int, after *string) map[string]any {
-	variables := map[string]any{"conditions": conditions, "first": first, "after": after}
+	variables := map[string]any{"conditions": conditions, varFirst: first, "after": after}
 	if archive != nil {
 		variables["archive"] = archive
 	}
@@ -90,7 +90,7 @@ func searchVariables(conditions conditionsInput, archive *archiveInput, first in
 }
 
 func keyword(text string, regexp bool) keywordInput {
-	return keywordInput{Text: text, Regexp: regexp, Fields: []string{"NAME"}}
+	return keywordInput{Text: text, Regexp: regexp, Fields: []string{fieldName}}
 }
 
 func TestSearchPrograms(t *testing.T) {

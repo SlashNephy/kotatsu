@@ -36,16 +36,24 @@ type Actor struct {
 	UserID uuid.UUID
 	// Role は、Type が ActorTypeSystem のときの操作したロールの名前 (neko など)。
 	Role string
+	// SourceIP と UserAgent は、ユーザーの操作の送信元。分からなければ空にする。
+	SourceIP  netip.Addr
+	UserAgent string
 }
 
 // User は、ユーザーの操作者を返す。
 func User(userID uuid.UUID) *Actor {
-	return &Actor{Type: ActorTypeUser, UserID: userID, Role: ""}
+	return &Actor{Type: ActorTypeUser, UserID: userID, Role: "", SourceIP: netip.Addr{}, UserAgent: ""}
+}
+
+// UserFrom は、送信元の分かるユーザーの操作者を返す。
+func UserFrom(userID uuid.UUID, sourceIP netip.Addr, userAgent string) *Actor {
+	return &Actor{Type: ActorTypeUser, UserID: userID, Role: "", SourceIP: sourceIP, UserAgent: userAgent}
 }
 
 // System は、システムのロールの操作者を返す。
 func System(role string) *Actor {
-	return &Actor{Type: ActorTypeSystem, UserID: uuid.Nil, Role: role}
+	return &Actor{Type: ActorTypeSystem, UserID: uuid.Nil, Role: role, SourceIP: netip.Addr{}, UserAgent: ""}
 }
 
 // Event は、記録する操作。
@@ -58,7 +66,7 @@ type Event struct {
 	TargetID   string
 	// Summary は変更の要約。JSON にして保存する。nil なら空のオブジェクトにする。
 	Summary any
-	// SourceIP と UserAgent は送信元。システムの操作では空にする。
+	// SourceIP と UserAgent は送信元。システムの操作では空にする。空なら Actor の送信元を使う。
 	SourceIP  netip.Addr
 	UserAgent string
 }
@@ -151,11 +159,18 @@ func (r *DBRecorder) params(event *Event) (sqlc.InsertAuditEventParams, error) {
 	if event.TargetID != "" {
 		params.TargetID = new(event.TargetID)
 	}
-	if event.SourceIP.IsValid() {
-		params.SourceIP = new(event.SourceIP)
+	sourceIP, userAgent := event.SourceIP, event.UserAgent
+	if !sourceIP.IsValid() {
+		sourceIP = event.Actor.SourceIP
 	}
-	if event.UserAgent != "" {
-		params.UserAgent = new(event.UserAgent)
+	if userAgent == "" {
+		userAgent = event.Actor.UserAgent
+	}
+	if sourceIP.IsValid() {
+		params.SourceIP = &sourceIP
+	}
+	if userAgent != "" {
+		params.UserAgent = &userAgent
 	}
 
 	return params, nil

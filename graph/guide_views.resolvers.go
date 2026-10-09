@@ -2,10 +2,7 @@ package graph
 
 import (
 	"context"
-	"errors"
 	"fmt"
-
-	"github.com/vikstrous/dataloadgen"
 
 	"github.com/SlashNephy/kotatsu/graph/generated"
 	"github.com/SlashNephy/kotatsu/graph/model"
@@ -14,21 +11,7 @@ import (
 
 // Services is the resolver for the services field.
 func (r *guideViewResolver) Services(ctx context.Context, obj *model.GuideView) ([]*model.Service, error) {
-	rows, err := loadersFrom(ctx).Services.LoadAll(ctx, obj.ServiceKeys)
-	var errs dataloadgen.ErrorSlice
-	if err != nil && !errors.As(err, &errs) {
-		return nil, err
-	}
-	services := make([]*model.Service, 0, len(rows))
-	for i, row := range rows {
-		// 並べた後に消えたサービスは飛ばす。
-		if row == nil || (i < len(errs) && errs[i] != nil) {
-			continue
-		}
-		services = append(services, toService(row))
-	}
-
-	return services, nil
+	return r.loadServices(ctx, obj.ServiceKeys)
 }
 
 // CreateGuideView is the resolver for the createGuideView field.

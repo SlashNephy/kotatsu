@@ -1,11 +1,17 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 var (
 	_ Node = new(Service)
 	_ Node = new(Program)
 	_ Node = new(GuideView)
+	_ Node = new(Rule)
+	_ Node = new(Reservation)
 )
 
 // Service はサービス。チャンネル種別は、リゾルバが dataloader で引く。
@@ -61,3 +67,64 @@ type GuideView struct {
 }
 
 func (GuideView) IsNode() {}
+
+// ProgramConditions は番組の条件。サービスは、リゾルバが dataloader で引く。
+type ProgramConditions struct {
+	Keywords           []*Keyword        `json:"keywords"`
+	ExcludeKeywords    []*Keyword        `json:"excludeKeywords"`
+	ChannelTypes       []string          `json:"channelTypes"`
+	Genres             []*GenreCondition `json:"genres"`
+	ExcludeGenres      []*GenreCondition `json:"excludeGenres"`
+	TimeRanges         []*TimeRange      `json:"timeRanges"`
+	MinDurationSeconds *int              `json:"minDurationSeconds,omitempty"`
+	MaxDurationSeconds *int              `json:"maxDurationSeconds,omitempty"`
+	FreeOnly           bool              `json:"freeOnly"`
+	// ServiceKeys は、サービス (Mirakurun のサービス ID)。スキーマには出さない。
+	ServiceKeys []int64 `json:"-"`
+}
+
+// Rule はルール。
+type Rule struct {
+	ID                  string                      `json:"id"`
+	Name                string                      `json:"name"`
+	Memo                string                      `json:"memo"`
+	Enabled             bool                        `json:"enabled"`
+	Conditions          *ProgramConditions          `json:"conditions"`
+	Settings            *RecordingSettingsOverrides `json:"settings"`
+	ValidFrom           *time.Time                  `json:"validFrom,omitempty"`
+	ValidUntil          *time.Time                  `json:"validUntil,omitempty"`
+	AvoidDuplicates     bool                        `json:"avoidDuplicates"`
+	DuplicateWindowDays *int                        `json:"duplicateWindowDays,omitempty"`
+	FollowEventRelay    bool                        `json:"followEventRelay"`
+	CreatedAt           time.Time                   `json:"createdAt"`
+	CreatedBy           *User                       `json:"createdBy,omitempty"`
+	UpdatedAt           time.Time                   `json:"updatedAt"`
+	UpdatedBy           *User                       `json:"updatedBy,omitempty"`
+}
+
+func (Rule) IsNode() {}
+
+// Reservation は予約。サービスと一致したルールは、リゾルバが dataloader で引く。
+type Reservation struct {
+	ID               string                      `json:"id"`
+	Kind             ReservationKind             `json:"kind"`
+	EventID          *int                        `json:"eventId,omitempty"`
+	StartAt          time.Time                   `json:"startAt"`
+	EndAt            time.Time                   `json:"endAt"`
+	Name             string                      `json:"name"`
+	Description      string                      `json:"description"`
+	Genres           []*Genre                    `json:"genres"`
+	Enabled          bool                        `json:"enabled"`
+	FollowEventRelay bool                        `json:"followEventRelay"`
+	Settings         *RecordingSettingsOverrides `json:"settings"`
+	Assignment       *ReservationAssignment      `json:"assignment"`
+	CreatedAt        time.Time                   `json:"createdAt"`
+	CreatedBy        *User                       `json:"createdBy,omitempty"`
+	UpdatedAt        time.Time                   `json:"updatedAt"`
+	UpdatedBy        *User                       `json:"updatedBy,omitempty"`
+	// Key と ServiceKey は、予約の ID と Mirakurun のサービス ID。スキーマには出さない。
+	Key        uuid.UUID `json:"-"`
+	ServiceKey int64     `json:"-"`
+}
+
+func (Reservation) IsNode() {}

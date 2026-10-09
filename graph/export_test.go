@@ -1,8 +1,16 @@
 package graph
 
-import "github.com/SlashNephy/kotatsu/internal/database/sqlc"
+import (
+	"github.com/SlashNephy/kotatsu/internal/audit"
+	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/reserve"
+	"github.com/SlashNephy/kotatsu/internal/rule"
+)
 
 // NewLoaders は newLoaders をテストから呼ぶ。
 func NewLoaders(db sqlc.DBTX) *Loaders {
-	return newLoaders(db)
+	clk := new(clock.Real)
+
+	return newLoaders(db, rule.NewRules(clk, audit.NewRecorder(clk)), reserve.NewReservations(clk, audit.NewRecorder(clk)))
 }

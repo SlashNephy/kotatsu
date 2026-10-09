@@ -62,3 +62,25 @@ RETURNING id;
 
 -- name: SetReservationEnabled :execrows
 UPDATE reservations SET enabled = @enabled, updated_at = @now, updated_by = @updated_by WHERE id = @id;
+
+-- name: ListReservations :many
+-- 時間帯 [from, to) に重なる予約を、開始時刻の順に返す。(after_start_at, after_id) より後ろから limit 件読む。
+SELECT * FROM reservations
+WHERE end_at > @from_at AND start_at < @to_at
+  AND (cardinality(@states::text[]) = 0 OR assignment_state = ANY(@states::text[]))
+  AND (start_at, id) > (@after_start_at::timestamptz, @after_id::uuid)
+ORDER BY start_at, id
+LIMIT @row_limit;
+
+-- name: ListReservationsByPrograms :many
+-- 番組 (サービス, eventId) の予約。番組の予約は 1 件だけなので、番組ごとに高々 1 行になる。
+SELECT * FROM reservations
+WHERE (service_id, event_id) IN (SELECT unnest(@service_ids::bigint[]), unnest(@event_ids::bigint[]));
+
+-- name: ListReservationRules :many
+-- 予約に一致したルール。ルールを作った順に返す。
+SELECT rr.reservation_id, rr.rule_id
+FROM reservation_rules rr
+JOIN rules ru ON ru.id = rr.rule_id
+WHERE rr.reservation_id = ANY(@reservation_ids::uuid[])
+ORDER BY rr.reservation_id, ru.created_at, ru.id;

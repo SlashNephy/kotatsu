@@ -32,10 +32,26 @@ func testNow() time.Time {
 }
 
 type fixture struct {
-	pool   *pgxpool.Pool
-	server *httptest.Server
+	pool     *pgxpool.Pool
+	server   *httptest.Server
+	clock    *clocktest.Fake
+	sessions *auth.Sessions
 	// token は、ログイン済みのセッションのトークン。
 	token string
+}
+
+// as は、role のユーザーでログインしたセッションで、同じサーバーを使う fixture を返す。
+func (f *fixture) as(t *testing.T, username string, role auth.Role) *fixture {
+	t.Helper()
+
+	user, err := auth.NewUsers(f.clock).Create(t.Context(), f.pool, &auth.NewUser{
+		Username: username, DisplayName: username, Role: role, PasswordHash: nil,
+	})
+	require.NoError(t, err)
+	token, _, err := f.sessions.Create(t.Context(), f.pool, user.ID, nil)
+	require.NoError(t, err)
+
+	return &fixture{pool: f.pool, server: f.server, clock: f.clock, sessions: f.sessions, token: token}
 }
 
 // newFixture は、ログイン済みのセッションを 1 つ持つ DB と、セッションのミドルウェアを通した /graphql を用意する。
@@ -49,7 +65,7 @@ func newFixture(t *testing.T, opts *graph.Options) *fixture {
 
 	clk := clocktest.NewFake(testNow())
 	user, err := auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{
-		Username: "kotatsu", DisplayName: "こたつ", Role: auth.RoleMember, PasswordHash: nil,
+		Username: testUsername, DisplayName: "こたつ", Role: auth.RoleMember, PasswordHash: nil,
 	})
 	require.NoError(t, err)
 	sessions := auth.NewSessions(&auth.SessionsOptions{IdleTimeout: 0, AbsoluteTimeout: 0, IsSecure: nil, Clock: clk})
@@ -65,7 +81,7 @@ func newFixture(t *testing.T, opts *graph.Options) *fixture {
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
-	return &fixture{pool: pool, server: server, token: token}
+	return &fixture{pool: pool, server: server, clock: clk, sessions: sessions, token: token}
 }
 
 type request struct {
