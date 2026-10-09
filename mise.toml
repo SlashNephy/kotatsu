@@ -26,6 +26,8 @@ run = "atlas migrate diff --env local"
 [tasks.generate]
 run = [
   "sqlc generate",
+  # GraphQL のスキーマから、実行のコードとモデルを生成する。リゾルバの実装は残る。
+  "go tool gqlgen generate",
   # schema.sql とマイグレーションが食い違っていれば、ここで新しいマイグレーションが生成される。
   "atlas migrate diff --env local",
   "atlas migrate validate --env local",

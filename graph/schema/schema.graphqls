@@ -1,0 +1,35 @@
+"""
+日時。RFC 3339 の文字列で表す。
+"""
+scalar Time
+
+"""
+ID で引けるもの (Relay の Global Object Identification)。
+"""
+interface Node {
+  id: ID!
+}
+
+"""
+一覧のページの情報 (Relay の Cursor Connections)。カーソルは中身を解釈せずに、そのまま次のリクエストに渡す。
+"""
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type Query {
+  """
+  ログイン中のユーザー。
+  """
+  viewer: User!
+}
+
+type Subscription {
+  """
+  接続を保つために、一定の間隔で届く今の時刻。
+  """
+  heartbeat: Time!
+}

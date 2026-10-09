@@ -1,0 +1,32 @@
+# GraphQL のスキーマから、実行のコードとモデルを生成する (設計書 2.1、9.1)。mise run generate で生成する。
+schema:
+  - graph/schema/*.graphqls
+
+exec:
+  package: generated
+  layout: single-file
+  filename: graph/generated/generated.go
+
+model:
+  filename: graph/model/models_gen.go
+  package: model
+
+resolver:
+  package: graph
+  layout: follow-schema
+  dir: graph
+  filename_template: "{name}.resolvers.go"
+
+# 生成したリゾルバの雛形に、コメントを残さない。
+omit_gqlgen_file_notice: false
+omit_getters: true
+struct_fields_always_pointers: true
+resolvers_always_return_pointers: true
+
+models:
+  ID:
+    model:
+      - github.com/99designs/gqlgen/graphql.ID
+  Time:
+    model:
+      - github.com/99designs/gqlgen/graphql.Time
