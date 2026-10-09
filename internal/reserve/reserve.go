@@ -461,6 +461,12 @@ type ListQuery struct {
 
 // List は、時間帯に重なる予約を、開始時刻の順に返す。
 func (r *Reservations) List(ctx context.Context, db sqlc.DBTX, query *ListQuery) ([]*Reservation, error) {
+	if query == nil {
+		return nil, fmt.Errorf("%w: query must not be nil", ErrInvalidReservation)
+	}
+	if (query.AfterStartAt == nil) != (query.AfterID == nil) {
+		return nil, fmt.Errorf("%w: afterStartAt and afterID must be given together", ErrInvalidReservation)
+	}
 	if !query.From.Before(query.To) {
 		return nil, fmt.Errorf("%w: from must be before to", ErrInvalidReservation)
 	}
@@ -473,7 +479,7 @@ func (r *Reservations) List(ctx context.Context, db sqlc.DBTX, query *ListQuery)
 	}
 	// 位置を指定しなければ、どの予約よりも前の位置から読む。
 	afterStartAt, afterID := time.Time{}, uuid.Nil
-	if query.AfterStartAt != nil && query.AfterID != nil {
+	if query.AfterStartAt != nil {
 		afterStartAt, afterID = *query.AfterStartAt, *query.AfterID
 	}
 
@@ -500,6 +506,9 @@ type ProgramKey struct {
 
 // ListByPrograms は、番組の予約を返す。予約のない番組は結果に含めない。
 func (r *Reservations) ListByPrograms(ctx context.Context, db sqlc.DBTX, keys []ProgramKey) (map[ProgramKey]*Reservation, error) {
+	if len(keys) == 0 {
+		return map[ProgramKey]*Reservation{}, nil
+	}
 	serviceIDs := make([]int64, 0, len(keys))
 	eventIDs := make([]int64, 0, len(keys))
 	for _, key := range keys {
@@ -525,6 +534,9 @@ func (r *Reservations) ListByPrograms(ctx context.Context, db sqlc.DBTX, keys []
 
 // RuleIDs は、予約に一致したルールの ID を、ルールを作った順に返す。ルールに一致していない予約は結果に含めない。
 func (r *Reservations) RuleIDs(ctx context.Context, db sqlc.DBTX, reservationIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
+	if len(reservationIDs) == 0 {
+		return map[uuid.UUID][]uuid.UUID{}, nil
+	}
 	rows, err := sqlc.New(db).ListReservationRules(ctx, reservationIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the rules of reservations: %w", err)

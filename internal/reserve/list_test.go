@@ -112,6 +112,11 @@ func TestList(t *testing.T) {
 			wantErr: reserve.ErrInvalidReservation,
 		},
 		{
+			name:    "cursor without the ID",
+			query:   reserve.ListQuery{From: at(0, 0), To: at(23, 0), States: nil, AfterStartAt: new(at(13, 0)), AfterID: nil, Limit: 10},
+			wantErr: reserve.ErrInvalidReservation,
+		},
+		{
 			name:    "zero limit",
 			query:   reserve.ListQuery{From: at(0, 0), To: at(23, 0), States: nil, AfterStartAt: nil, AfterID: nil, Limit: 0},
 			wantErr: reserve.ErrInvalidReservation,
@@ -161,17 +166,20 @@ func TestListCarriesAssignment(t *testing.T) {
 		planned_start_at = '2026-10-10T13:59:50Z', planned_end_at = '2026-10-10T14:30:00Z' WHERE id = $1`, f.ids[partial])
 	require.NoError(t, err)
 
-	got, err := f.reservations.Get(t.Context(), f.pool, f.ids[partial])
+	listed, err := f.reservations.List(t.Context(), f.pool, &reserve.ListQuery{
+		From: at(14, 0), To: at(14, 30), States: nil, AfterStartAt: nil, AfterID: nil, Limit: 10,
+	})
 	require.NoError(t, err)
+	require.Len(t, listed, 1)
 	assert.Equal(t, &reserve.Assignment{
 		State:          reserve.AssignmentPartial,
 		Tuner:          new(int64(2)),
 		PlannedStartAt: new(time.Date(2026, 10, 10, 13, 59, 50, 0, time.UTC)),
 		PlannedEndAt:   new(at(14, 30)),
-	}, got.Assignment)
+	}, listed[0].Assignment)
 
 	// まだ計算していない予約は、割り当てたチューナーと予定の時刻を持たない。
-	got, err = f.reservations.Get(t.Context(), f.pool, f.ids[first])
+	got, err := f.reservations.Get(t.Context(), f.pool, f.ids[first])
 	require.NoError(t, err)
 	assert.Equal(t, &reserve.Assignment{State: reserve.AssignmentPending, Tuner: nil, PlannedStartAt: nil, PlannedEndAt: nil}, got.Assignment)
 }
@@ -180,6 +188,10 @@ func TestListByPrograms(t *testing.T) {
 	t.Parallel()
 
 	f := newListFixture(t)
+	empty, err := f.reservations.ListByPrograms(t.Context(), f.pool, []reserve.ProgramKey{})
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+
 	got, err := f.reservations.ListByPrograms(t.Context(), f.pool, []reserve.ProgramKey{
 		{ServiceID: serviceID(), EventID: 6},
 		{ServiceID: serviceID(), EventID: 7},
