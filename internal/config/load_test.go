@@ -24,6 +24,10 @@ const (
 
 	envKeyURL   = "KOTATSU_DATABASE_URL"
 	envKeyPools = "KOTATSU_STORAGE_POOLS"
+	// envKeyTunerURL は、チューナーサーバーの URL を渡す環境変数。
+	envKeyTunerURL = "KOTATSU_TUNER_URL"
+	// leakedWord は、エラーに漏れてはいけない、URL に含めた資格情報の一部。
+	leakedWord = "hunter2"
 
 	// Default の既定値。:9090 は設計書の付録 A で定めている。
 	defaultServerListen  = ":8080"
@@ -125,6 +129,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
 				Storage:  noPools(),
+				Tuner:    config.Tuner{URL: ""},
 			},
 		},
 		{
@@ -140,6 +145,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Telemetry: config.Telemetry{OTLPEndpoint: "http://collector:4318"},
 				Audit:     config.Audit{RetentionDays: defaultAuditRetentionDays},
 				Storage:   noPools(),
+				Tuner:     config.Tuner{URL: ""},
 			},
 		},
 		{
@@ -155,6 +161,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: true},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
 				Storage:  noPools(),
+				Tuner:    config.Tuner{URL: ""},
 			},
 		},
 		{
@@ -166,6 +173,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: "postgresql://db/kotatsu", Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
 				Storage:  noPools(),
+				Tuner:    config.Tuner{URL: ""},
 			},
 		},
 		{
@@ -178,6 +186,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: 30},
 				Storage:  noPools(),
+				Tuner:    config.Tuner{URL: ""},
 			},
 		},
 		{
@@ -190,6 +199,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
 				Storage:  config.Storage{Pools: map[string]string{"main": "/mnt/main", "sub-2": "/mnt/sub"}},
+				Tuner:    config.Tuner{URL: ""},
 			},
 		},
 		{
@@ -205,6 +215,23 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
 				Storage:  config.Storage{Pools: map[string]string{"main": "/data/main", "archive": "/data/archive"}},
+				Tuner:    config.Tuner{URL: ""},
+			},
+		},
+		{
+			name: "tuner server url from env",
+			yaml: "",
+			env: map[string]string{
+				envKeyURL:      envURL,
+				envKeyTunerURL: "http://mirakurun:40772/",
+			},
+			want: &config.Config{
+				Server:   config.Server{Listen: defaultServerListen},
+				Metrics:  config.Metrics{Listen: defaultMetricsListen},
+				Database: config.Database{URL: envURL, Pooler: false},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Storage:  noPools(),
+				Tuner:    config.Tuner{URL: "http://mirakurun:40772/"},
 			},
 		},
 		{
@@ -220,6 +247,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
 				Storage:  noPools(),
+				Tuner:    config.Tuner{URL: ""},
 			},
 		},
 	}
@@ -271,6 +299,14 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 				"server.listen (KOTATSU_SERVER_LISTEN): must be in the form host:port",
 				"metrics.listen (KOTATSU_METRICS_LISTEN): must be in the form host:port",
 			},
+		},
+		{
+			name: "invalid tuner server url",
+			env: map[string]string{
+				envKeyURL:      envURL,
+				envKeyTunerURL: "mirakurun:40772",
+			},
+			wantErrs: []string{"tuner.url (KOTATSU_TUNER_URL): must be an http:// or https:// URL"},
 		},
 		{
 			name: "invalid audit retention",
@@ -358,6 +394,17 @@ func TestLoadErrorDoesNotLeakSecret(t *testing.T) {
 	_, err := config.Load("", lookup(map[string]string{envKeyURL: secretURL}))
 	require.ErrorContains(t, err, "database.url (KOTATSU_DATABASE_URL): must use the postgres:// or postgresql:// scheme")
 	assert.NotContains(t, err.Error(), "hunter2")
+}
+
+func TestTunerURLErrorDoesNotLeakSecret(t *testing.T) {
+	t.Parallel()
+
+	// パスワードに "%zz" のような不正なエスケープがあると、url.Parse は URL の全文を含むエラーを返す。
+	tunerURL := "http://user:" + leakedWord + "%zz@mirakurun:40772/"
+
+	_, err := config.Load("", lookup(map[string]string{envKeyURL: envURL, envKeyTunerURL: tunerURL}))
+	require.ErrorContains(t, err, "tuner.url (KOTATSU_TUNER_URL): must be a valid URL")
+	assert.NotContains(t, err.Error(), leakedWord)
 }
 
 func TestSecretIsRedactedInOutput(t *testing.T) {

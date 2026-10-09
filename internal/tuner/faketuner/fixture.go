@@ -28,7 +28,7 @@ func DefaultOptions(now time.Time, ts []byte) *Options {
 			Channel: "27",
 			Name:    "こたつテスト1",
 			Services: []*Service{
-				newService(grNetworkID, 0x0400, "こたつテスト1"),
+				withRemoteControlKey(newService(grNetworkID, 0x0400, "こたつテスト1"), 1),
 				newService(grNetworkID, 0x0401, "こたつテスト1 サブ"),
 			},
 		},
@@ -86,6 +86,12 @@ func DefaultOptions(now time.Time, ts []byte) *Options {
 	}
 }
 
+func withRemoteControlKey(service *Service, key int) *Service {
+	service.RemoteControlKeyID = key
+
+	return service
+}
+
 func newService(networkID, serviceID int, name string) *Service {
 	return &Service{
 		ID:        ServiceItemID(networkID, serviceID),
@@ -93,7 +99,8 @@ func newService(networkID, serviceID int, name string) *Service {
 		NetworkID: networkID,
 		Name:      name,
 		// 0x01 はデジタル TV サービス。
-		Type:    0x01,
-		Channel: nil,
+		Type:               0x01,
+		RemoteControlKeyID: 0,
+		Channel:            nil,
 	}
 }

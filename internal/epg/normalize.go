@@ -1,0 +1,13 @@
+// Package epg は、チューナーサーバーの EPG を DB に同期する (設計書 3.3)。
+package epg
+
+import "golang.org/x/text/unicode/norm"
+
+// Normalize は、検索用の列に入れる文字列を作る (設計書 3.5)。
+// NFKC で全角の英数字と記号を半角に、半角のカタカナを全角にそろえる。
+// Mirakurun はサービス名や番組名を全角で返すので、そろえないと半角で入力した語が一致しない。
+// 🈟 や 🈑 のような ARIB の囲み文字も、中の文字 (新、字) に分解される。
+// 大文字と小文字は区別したまま残す。区別するかどうかは照合の条件で決める。
+func Normalize(s string) string {
+	return norm.NFKC.String(s)
+}

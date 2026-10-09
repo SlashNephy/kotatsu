@@ -35,6 +35,11 @@ sql:
               import: time
               pointer: true
             nullable: true
+          - db_type: pg_catalog.int8
+            go_type:
+              type: int64
+              pointer: true
+            nullable: true
           - db_type: inet
             go_type:
               type: Addr

@@ -15,6 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/neko"
+	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
 
 // Deps は、ロールを起動する前に用意し、全ロールで共有するもの。
@@ -96,7 +97,31 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	logger.InfoContext(ctx, "role started")
 	defer logger.InfoContext(ctx, "role stopped")
 
-	return neko.Run(ctx, logger, deps.DB, deps.Clock, deps.InstanceID)
+	var tuner *mirakurun.Client
+	if url := deps.Config.Tuner.URL.Value(); url != "" {
+		var err error
+		tuner, err = mirakurun.New(&mirakurun.Options{
+			URL:            url,
+			Username:       "",
+			Password:       "",
+			UserAgent:      "",
+			HTTPClient:     nil,
+			RequestTimeout: 0,
+			DetectInterval: 0,
+			Clock:          deps.Clock,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return neko.Run(ctx, logger, &neko.Options{
+		DB:         deps.DB,
+		Clock:      deps.Clock,
+		InstanceID: deps.InstanceID,
+		Tuner:      tuner,
+		EPG:        nil,
+	})
 }
 
 // runNekonote は、ctx が終わるまで River のジョブを実行する。止まるときは、実行中のジョブが終わるのを待つ。

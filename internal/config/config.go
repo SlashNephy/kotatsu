@@ -26,6 +26,7 @@ type Config struct {
 	Telemetry Telemetry `yaml:"telemetry"`
 	Audit     Audit     `yaml:"audit"`
 	Storage   Storage   `yaml:"storage"`
+	Tuner     Tuner     `yaml:"tuner"`
 }
 
 // Server は tenban の HTTP サーバーの設定。
@@ -71,6 +72,13 @@ type Storage struct {
 	Pools map[string]string `yaml:"pools"`
 }
 
+// Tuner はチューナーサーバーの設定 (設計書 3.1)。
+type Tuner struct {
+	// URL はチューナーサーバーの URL (http://mirakurun:40772/ など)。BASIC 認証の資格情報を含めてよい。
+	// 資格情報を含みうるので秘密情報として扱う。空なら、neko は EPG を同期しない。
+	URL Secret `yaml:"url"`
+}
+
 // Default は既定値を入れた設定を返す。
 func Default() *Config {
 	return &Config{
@@ -94,6 +102,9 @@ func Default() *Config {
 		Storage: Storage{
 			Pools: map[string]string{},
 		},
+		Tuner: Tuner{
+			URL: "",
+		},
 	}
 }
 
@@ -108,6 +119,9 @@ func (c *Config) validate() error {
 	}
 	if err := validateDatabaseURL(c.Database.URL); err != nil {
 		errs = append(errs, fieldError("database.url", err))
+	}
+	if err := validateTunerURL(c.Tuner.URL); err != nil {
+		errs = append(errs, fieldError("tuner.url", err))
 	}
 	if err := validateOTLPEndpoint(c.Telemetry.OTLPEndpoint); err != nil {
 		errs = append(errs, fieldError("telemetry.otlp_endpoint", err))
@@ -154,6 +168,24 @@ func validateDatabaseURL(secret Secret) error {
 	}
 	if u.Scheme != "postgres" && u.Scheme != "postgresql" {
 		return errors.New("must use the postgres:// or postgresql:// scheme")
+	}
+
+	return nil
+}
+
+// validateTunerURL は、チューナーサーバーの URL を検査する。空なら、EPG を同期しないものとして通す。
+func validateTunerURL(secret Secret) error {
+	if secret.Value() == "" {
+		return nil
+	}
+
+	// url.Parse のエラーは URL の全文を含むので、資格情報を漏らさないよう理由だけを返す。
+	u, err := url.Parse(secret.Value())
+	if err != nil {
+		return errors.New("must be a valid URL")
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return errors.New("must be an http:// or https:// URL")
 	}
 
 	return nil

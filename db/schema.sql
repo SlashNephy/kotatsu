@@ -111,3 +111,79 @@ CREATE TABLE sessions (
 );
 
 CREATE INDEX sessions_user_id_idx ON sessions (user_id);
+
+-- チャンネル種別 (設計書 3.1)。チューナーサーバーが返す文字列をそのまま主キーにする。
+-- GR、BS、CS、SKY には表示名と並び順の既定値を持たせ、それ以外の種別は、同期で見つけたときに種別の文字列のまま足す。
+-- 管理者は表示名と並び順を画面から変えられるので、同期は既にある行を上書きしない。
+CREATE TABLE channel_types (
+  type text PRIMARY KEY,
+  display_name text NOT NULL,
+  sort_order integer NOT NULL
+);
+
+-- サービス (設計書 3.2)。Mirakurun のサービス ID (networkId × 100000 + serviceId) を主キーにする。
+-- 上流の整数は Go の int で受け取るので、変換で桁あふれを考えずに済むよう、整数の列は bigint にそろえる。
+-- 上流から消えたサービスも、予約や録画から参照されうるので消さない。
+CREATE TABLE services (
+  id bigint PRIMARY KEY,
+  network_id bigint NOT NULL,
+  -- 放送のサービス ID (Mirakurun の serviceId)。主キーの id と区別するため sid と呼ぶ。
+  sid bigint NOT NULL,
+  name text NOT NULL,
+  -- NFKC で正規化した名前 (設計書 3.5)。Mirakurun はサービス名を全角で返す。
+  name_normalized text NOT NULL,
+  service_type bigint NOT NULL,
+  channel_type text NOT NULL REFERENCES channel_types (type),
+  channel text NOT NULL,
+  remote_control_key_id bigint,
+  logo_id bigint,
+  -- 番組表に出さない印と、並び順の上書き。どちらも管理者が画面から変え、同期は上書きしない。
+  hidden boolean NOT NULL DEFAULT false,
+  sort_order integer,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- 放送中の番組と、これから放送される番組 (設計書 3.4)。
+-- Mirakurun と同じく、サービスと eventId の組で一意にする。EID は再利用されうるが、上流が同時に持つ番組の中では一意である。
+-- 放送時間が変わっても同じ行を更新するので、番組予約は (サービス, eventId) で番組を追える (設計書 4.6)。
+-- 開始時刻で番組を見分けるのは、放送が終わった番組を program_archives へ移すときである。
+CREATE TABLE programs (
+  service_id bigint NOT NULL REFERENCES services (id),
+  event_id bigint NOT NULL,
+  -- Mirakurun の番組 ID。属性として持つだけで、番組の同一性の判定には使わない (設計書 3.2)。
+  mirakurun_id bigint NOT NULL,
+  start_at timestamptz NOT NULL,
+  -- 終了時刻。延長などで終了時刻が未定のときは、Mirakurun の慣習どおり長さを 1 ミリ秒として扱い、end_undecided を立てる。
+  end_at timestamptz NOT NULL,
+  end_undecided boolean NOT NULL,
+  is_free boolean NOT NULL,
+  name text NOT NULL,
+  description text NOT NULL,
+  -- NFKC で正規化した番組名と説明 (設計書 3.5)。キーワードの照合と検索に使う。
+  name_normalized text NOT NULL,
+  description_normalized text NOT NULL,
+  -- 詳細 (見出しから本文への対応)、ジャンル、関連する番組 (イベント共有とイベントリレー) は、上流の JSON のまま持つ。
+  extended jsonb NOT NULL,
+  genres jsonb NOT NULL,
+  related_items jsonb NOT NULL,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL,
+  PRIMARY KEY (service_id, event_id)
+);
+
+CREATE INDEX programs_start_at_idx ON programs (start_at);
+CREATE INDEX programs_service_id_start_at_idx ON programs (service_id, start_at);
+
+-- EPG の変更の記録 (設計書 3.3)。反映のたびに、変更のあったサービスと時間帯を、通知の版数と一緒に残す。
+-- 通知で届くのは版数だけなので、受け取った側は、自分が知っている版数より後の行を読んで、何が変わったかを知る。
+CREATE TABLE epg_changes (
+  version bigint NOT NULL,
+  service_id bigint NOT NULL,
+  start_at timestamptz NOT NULL,
+  end_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL
+);
+
+CREATE INDEX epg_changes_version_idx ON epg_changes (version);
+CREATE INDEX epg_changes_created_at_idx ON epg_changes (created_at);

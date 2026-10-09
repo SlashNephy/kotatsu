@@ -31,13 +31,14 @@ type ChannelRef struct {
 // Service は /api/services の要素。
 type Service struct {
 	// ID は Mirakurun のサービス ID (networkId × 100000 + serviceId)。Kotatsu はこの値でサービスを識別する (設計書 3.2)。
-	ID                 int64       `json:"id"`
-	ServiceID          int         `json:"serviceId"`
-	NetworkID          int         `json:"networkId"`
-	Name               string      `json:"name"`
-	Type               int         `json:"type"`
-	LogoID             int         `json:"logoId,omitempty"`
-	RemoteControlKeyID int         `json:"remoteControlKeyId,omitempty"`
+	ID        int64  `json:"id"`
+	ServiceID int    `json:"serviceId"`
+	NetworkID int    `json:"networkId"`
+	Name      string `json:"name"`
+	Type      int    `json:"type"`
+	// LogoID と RemoteControlKeyID は、サーバーが返さなければ nil。
+	LogoID             *int        `json:"logoId,omitempty"`
+	RemoteControlKeyID *int        `json:"remoteControlKeyId,omitempty"`
 	Channel            *ChannelRef `json:"channel,omitempty"`
 }
 

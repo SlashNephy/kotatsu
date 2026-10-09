@@ -155,6 +155,28 @@ func (s *Server) RemoveProgram(id int64) error {
 	return nil
 }
 
+// ForgetProgram は、イベントを送らずに番組を消す。
+// Mirakurun は、放送予定から消えた番組を GC で消してもイベントを送らないことがある (設計書 3.3)。
+func (s *Server) ForgetProgram(id int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.programs[id]; !ok {
+		return fmt.Errorf("program %d not found", id)
+	}
+	delete(s.programs, id)
+
+	return nil
+}
+
+// EventSubscribers は、イベントストリームを購読している接続の数を返す。テストで購読を待つのに使う。
+func (s *Server) EventSubscribers() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return len(s.subscribers)
+}
+
 // Tuners は、今のチューナーの状態を返す。
 func (s *Server) Tuners() []*Tuner {
 	s.mu.Lock()
