@@ -245,6 +245,13 @@ CREATE TABLE reservations (
   created_by uuid REFERENCES users (id) ON DELETE SET NULL,
   updated_at timestamptz NOT NULL,
   updated_by uuid REFERENCES users (id) ON DELETE SET NULL,
+  -- チューナーの割り当ての結果 (設計書 4.5)。neko が計算し直すたびに書き換える。
+  -- 状態は、まだ計算していない (pending)、正常 (ok)、一部のみ (partial)、競合 (conflict) のどれか。
+  assignment_state text NOT NULL DEFAULT 'pending' CHECK (assignment_state IN ('pending', 'ok', 'partial', 'conflict')),
+  -- 割り当てたチューナーの番号と、マージンを削った後の録画する予定の時刻。割り当てていなければ NULL。
+  assigned_tuner bigint,
+  planned_start_at timestamptz,
+  planned_end_at timestamptz,
   CONSTRAINT reservations_event_check CHECK ((kind = 'time') = (event_id IS NULL)),
   CONSTRAINT reservations_time_check CHECK (start_at < end_at)
 );

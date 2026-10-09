@@ -63,7 +63,7 @@ func (q *Queries) GetProgramForReservation(ctx context.Context, arg GetProgramFo
 }
 
 const getReservation = `-- name: GetReservation :one
-SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by FROM reservations WHERE id = $1
+SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at FROM reservations WHERE id = $1
 `
 
 func (q *Queries) GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error) {
@@ -87,12 +87,16 @@ func (q *Queries) GetReservation(ctx context.Context, id uuid.UUID) (Reservation
 		&i.CreatedBy,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
+		&i.AssignmentState,
+		&i.AssignedTuner,
+		&i.PlannedStartAt,
+		&i.PlannedEndAt,
 	)
 	return i, err
 }
 
 const getReservationByProgram = `-- name: GetReservationByProgram :one
-SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by FROM reservations WHERE service_id = $1 AND event_id = $2
+SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at FROM reservations WHERE service_id = $1 AND event_id = $2
 `
 
 type GetReservationByProgramParams struct {
@@ -121,6 +125,10 @@ func (q *Queries) GetReservationByProgram(ctx context.Context, arg GetReservatio
 		&i.CreatedBy,
 		&i.UpdatedAt,
 		&i.UpdatedBy,
+		&i.AssignmentState,
+		&i.AssignedTuner,
+		&i.PlannedStartAt,
+		&i.PlannedEndAt,
 	)
 	return i, err
 }

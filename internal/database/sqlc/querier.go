@@ -20,6 +20,8 @@ type Querier interface {
 	// 同じ番組を移し直すことは通常ないが、移した後に上流から同じ番組が届き、また移すときは新しい内容で上書きする。
 	ArchivePrograms(ctx context.Context, arg ArchiveProgramsParams) (int64, error)
 	BumpChangeVersion(ctx context.Context, arg BumpChangeVersionParams) (int64, error)
+	// 無効にした予約の割り当ての結果を消す。
+	ClearDisabledAssignments(ctx context.Context) (int64, error)
 	DeleteAuditEventsBefore(ctx context.Context, before time.Time) (int64, error)
 	DeleteInstance(ctx context.Context, arg DeleteInstanceParams) error
 	// 放送が始まった番組は、アーカイブに移すまで残す (設計書 3.3、3.4)。
@@ -56,9 +58,13 @@ type Querier interface {
 	InsertUser(ctx context.Context, arg InsertUserParams) error
 	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
 	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
+	// 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。
+	ListAssignableReservations(ctx context.Context, now time.Time) ([]ListAssignableReservationsRow, error)
 	ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error)
 	ListChangeVersions(ctx context.Context, channels []string) ([]ListChangeVersionsRow, error)
 	ListEPGChangesSince(ctx context.Context, version int64) ([]ListEPGChangesSinceRow, error)
+	// ルール予約の録画設定に使う、一致したルールのうち最も古いものの上書き。
+	ListFirstRuleSettings(ctx context.Context) ([]ListFirstRuleSettingsRow, error)
 	// 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。
 	ListFutureProgramReservations(ctx context.Context, now time.Time) ([]ListFutureProgramReservationsRow, error)
 	ListFutureReservationRules(ctx context.Context, now time.Time) ([]ReservationRule, error)
@@ -71,6 +77,7 @@ type Querier interface {
 	ListRules(ctx context.Context) ([]Rule, error)
 	ListServices(ctx context.Context) ([]ListServicesRow, error)
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
+	ListUsableTuners(ctx context.Context) ([]ListUsableTunersRow, error)
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
 	// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
@@ -91,6 +98,7 @@ type Querier interface {
 	SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
+	UpdateAssignment(ctx context.Context, arg UpdateAssignmentParams) error
 	UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error)
 	UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, error)
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error

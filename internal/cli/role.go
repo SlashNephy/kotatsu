@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/riverqueue/river"
 
+	"github.com/SlashNephy/kotatsu/internal/assign"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/config"
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
@@ -136,6 +137,12 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 		Tuners:     nil,
 		Location:   location,
 		Rules: &rule.RunnerOptions{
+			Debounce:     0,
+			Interval:     0,
+			PollOnly:     deps.Config.Database.Pooler,
+			PollInterval: 0,
+		},
+		Assign: &assign.RunnerOptions{
 			Debounce:     0,
 			Interval:     0,
 			PollOnly:     deps.Config.Database.Pooler,
