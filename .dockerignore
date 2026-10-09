@@ -4,3 +4,5 @@ bin
 docs
 testdata
 **/*_test.go
+web/node_modules
+web/dist/app

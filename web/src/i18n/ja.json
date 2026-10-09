@@ -1,0 +1,16 @@
+{
+  "app": {
+    "name": "Kotatsu",
+    "tagline": "テレビの予約、録画、視聴をまとめるアプリ"
+  },
+  "colorScheme": {
+    "label": "テーマ",
+    "auto": "自動",
+    "light": "ライト",
+    "dark": "ダーク"
+  },
+  "notFound": {
+    "title": "ページが見つかりません",
+    "back": "ホームに戻る"
+  }
+}

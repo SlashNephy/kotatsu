@@ -1,0 +1,37 @@
+import '@fontsource/zen-maru-gothic/700.css';
+import '@mantine/core/styles.css';
+import './i18n';
+
+import { MantineProvider } from '@mantine/core';
+import { createRouter, RouterProvider } from '@tanstack/react-router';
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+
+import { cspNonce, cssVariablesResolver, theme } from './futon';
+import { routeTree } from './routeTree.gen';
+
+const router = createRouter({ routeTree });
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router;
+  }
+}
+
+const root = document.getElementById('root');
+if (root === null) {
+  throw new Error('the root element is missing');
+}
+
+createRoot(root).render(
+  <StrictMode>
+    <MantineProvider
+      theme={theme}
+      cssVariablesResolver={cssVariablesResolver}
+      defaultColorScheme="auto"
+      getStyleNonce={cspNonce}
+    >
+      <RouterProvider router={router} />
+    </MantineProvider>
+  </StrictMode>,
+);

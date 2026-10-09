@@ -87,3 +87,16 @@ jobs:
       - run: mise run generate
       # 生成物や未生成のマイグレーションがあれば、新しいファイルも含めて差分として検出する。
       - run: git add -N . && git diff --exit-code
+
+  # フロントエンド (設計書 10.1)。整形、lint、型検査をし、ビルドする。
+  # ルーティングの定義はビルドで生成するので、コミットしたものと食い違っていないかも確かめる。
+  web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - run: mise run web:check
+      - run: mise run web:build
+      - run: git add -N . && git diff --exit-code
