@@ -1,0 +1,2 @@
+# scripts/generate-test-ts.sh で作るテスト用の TS。
+testdata/ts/*.ts binary linguist-generated
