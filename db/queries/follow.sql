@@ -1,13 +1,21 @@
 -- name: ListReservationsToFollow :many
--- 番組を指定した予約のうち、録画の予定の終わりがまだ来ていないものと、その番組の今の EPG。
-SELECT r.id, r.service_id, r.event_id, r.start_at, r.end_at, r.name, r.description, r.extended, r.genres,
+-- 番組を指定した予約のうち、予約か番組の終わりがまだ来ていないものと、その番組の今の EPG。
+-- ルール予約の録画設定は、一致したルールのうち最も古いものの上書きを使う。
+SELECT r.id, r.kind, r.enabled, r.service_id, r.event_id, r.start_at, r.end_at, r.name, r.description, r.extended, r.genres,
   r.follow_event_relay, r.settings,
+  (
+    SELECT ru.settings FROM reservation_rules rr JOIN rules ru ON ru.id = rr.rule_id
+    WHERE rr.reservation_id = r.id
+    ORDER BY ru.created_at, ru.id
+    LIMIT 1
+  )::jsonb AS rule_settings,
   p.start_at AS program_start_at, p.end_at AS program_end_at, p.end_undecided AS program_end_undecided,
   p.name AS program_name, p.description AS program_description, p.extended AS program_extended,
   p.genres AS program_genres, p.related_items AS program_related_items
 FROM reservations r
 JOIN programs p ON p.service_id = r.service_id AND p.event_id = r.event_id
-WHERE r.event_id IS NOT NULL AND coalesce(r.planned_end_at, r.end_at) > @now::timestamptz
+WHERE r.event_id IS NOT NULL
+  AND (coalesce(r.planned_end_at, r.end_at) > @now::timestamptz OR p.end_at > @now::timestamptz)
 ORDER BY r.id;
 
 -- name: UpdateReservationProgram :exec

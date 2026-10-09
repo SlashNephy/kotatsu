@@ -50,19 +50,28 @@ func (q *Queries) InsertRelayedReservation(ctx context.Context, arg InsertRelaye
 }
 
 const listReservationsToFollow = `-- name: ListReservationsToFollow :many
-SELECT r.id, r.service_id, r.event_id, r.start_at, r.end_at, r.name, r.description, r.extended, r.genres,
+SELECT r.id, r.kind, r.enabled, r.service_id, r.event_id, r.start_at, r.end_at, r.name, r.description, r.extended, r.genres,
   r.follow_event_relay, r.settings,
+  (
+    SELECT ru.settings FROM reservation_rules rr JOIN rules ru ON ru.id = rr.rule_id
+    WHERE rr.reservation_id = r.id
+    ORDER BY ru.created_at, ru.id
+    LIMIT 1
+  )::jsonb AS rule_settings,
   p.start_at AS program_start_at, p.end_at AS program_end_at, p.end_undecided AS program_end_undecided,
   p.name AS program_name, p.description AS program_description, p.extended AS program_extended,
   p.genres AS program_genres, p.related_items AS program_related_items
 FROM reservations r
 JOIN programs p ON p.service_id = r.service_id AND p.event_id = r.event_id
-WHERE r.event_id IS NOT NULL AND coalesce(r.planned_end_at, r.end_at) > $1::timestamptz
+WHERE r.event_id IS NOT NULL
+  AND (coalesce(r.planned_end_at, r.end_at) > $1::timestamptz OR p.end_at > $1::timestamptz)
 ORDER BY r.id
 `
 
 type ListReservationsToFollowRow struct {
 	ID                  uuid.UUID
+	Kind                string
+	Enabled             bool
 	ServiceID           int64
 	EventID             *int64
 	StartAt             time.Time
@@ -73,6 +82,7 @@ type ListReservationsToFollowRow struct {
 	Genres              []byte
 	FollowEventRelay    bool
 	Settings            []byte
+	RuleSettings        []byte
 	ProgramStartAt      time.Time
 	ProgramEndAt        time.Time
 	ProgramEndUndecided bool
@@ -83,7 +93,8 @@ type ListReservationsToFollowRow struct {
 	ProgramRelatedItems []byte
 }
 
-// 番組を指定した予約のうち、録画の予定の終わりがまだ来ていないものと、その番組の今の EPG。
+// 番組を指定した予約のうち、予約か番組の終わりがまだ来ていないものと、その番組の今の EPG。
+// ルール予約の録画設定は、一致したルールのうち最も古いものの上書きを使う。
 func (q *Queries) ListReservationsToFollow(ctx context.Context, now time.Time) ([]ListReservationsToFollowRow, error) {
 	rows, err := q.db.Query(ctx, listReservationsToFollow, now)
 	if err != nil {
@@ -95,6 +106,8 @@ func (q *Queries) ListReservationsToFollow(ctx context.Context, now time.Time) (
 		var i ListReservationsToFollowRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.Kind,
+			&i.Enabled,
 			&i.ServiceID,
 			&i.EventID,
 			&i.StartAt,
@@ -105,6 +118,7 @@ func (q *Queries) ListReservationsToFollow(ctx context.Context, now time.Time) (
 			&i.Genres,
 			&i.FollowEventRelay,
 			&i.Settings,
+			&i.RuleSettings,
 			&i.ProgramStartAt,
 			&i.ProgramEndAt,
 			&i.ProgramEndUndecided,

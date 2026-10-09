@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/tuner/faketuner"
 )
@@ -71,6 +72,18 @@ func TestFollowerUpdatesRescheduledPrograms(t *testing.T) {
 			wantEnd:     time.Date(2026, 10, 10, 14, 10, 0, 0, time.UTC),
 		},
 		{
+			name: "delayed with an undecided end",
+			change: func(t *testing.T, fake *faketuner.Server) {
+				t.Helper()
+				// 前の番組が延びて開始が 40 分遅れ、終了時刻は未定。予約の長さ (30 分) を保ったまま後ろにずらす。
+				require.NoError(t, fake.RescheduleProgram(faketuner.ProgramID(grNetworkID, grServiceID, futureEvent),
+					time.Date(2026, 10, 10, 14, 10, 0, 0, time.UTC), time.Millisecond))
+			},
+			wantUpdated: 1,
+			wantStart:   time.Date(2026, 10, 10, 14, 10, 0, 0, time.UTC),
+			wantEnd:     time.Date(2026, 10, 10, 14, 40, 0, 0, time.UTC),
+		},
+		{
 			name: "end becomes undecided",
 			change: func(t *testing.T, fake *faketuner.Server) {
 				t.Helper()
@@ -112,10 +125,12 @@ func TestFollowerCreatesRelayedReservations(t *testing.T) {
 	tests := []struct {
 		name        string
 		follow      bool
+		disabled    bool
 		wantRelayed int
 	}{
-		{name: "following", follow: true, wantRelayed: 1},
-		{name: "not following", follow: false, wantRelayed: 0},
+		{name: "following", follow: true, disabled: false, wantRelayed: 1},
+		{name: "not following", follow: false, disabled: false, wantRelayed: 0},
+		{name: "disabled", follow: true, disabled: true, wantRelayed: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -127,6 +142,10 @@ func TestFollowerCreatesRelayedReservations(t *testing.T) {
 			in.Overrides = &reserve.Overrides{Priority: new(3)}
 			original, _, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, in)
 			require.NoError(t, err)
+			if tt.disabled {
+				_, err := f.reservations.Update(t.Context(), f.pool, f.user, original.ID, &reserve.Update{Enabled: new(false)})
+				require.NoError(t, err)
+			}
 
 			// こたつテスト1 の eventId 6 が、サブチャンネルの eventId 7 に引き継がれる。
 			start := time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC)
@@ -157,4 +176,35 @@ func TestFollowerCreatesRelayedReservations(t *testing.T) {
 			assert.Equal(t, 3, priority)
 		})
 	}
+}
+
+// TestFollowerRelaysRuleSettings は、ルール予約を引き継ぐとき、一致したルールの録画設定を引き継ぐことを確かめる。
+func TestFollowerRelaysRuleSettings(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	original, _, err := f.reservations.CreateRule(t.Context(), f.pool, f.user, serviceID(), futureEvent, true)
+	require.NoError(t, err)
+	ruleID := id.New()
+	_, err = f.pool.Exec(t.Context(),
+		`INSERT INTO rules (id, name, memo, enabled, conditions, settings, avoid_duplicates, follow_event_relay, created_at, updated_at)
+		VALUES ($1, 'ルール', '', true, '{"version":1,"conditions":{}}', '{"priority":4}', false, true, $2, $2)`, ruleID, testNow())
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), "INSERT INTO reservation_rules (reservation_id, rule_id) VALUES ($1, $2)", original.ID, ruleID)
+	require.NoError(t, err)
+
+	start := time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC)
+	f.fake.AddProgram(&faketuner.Program{
+		ID: faketuner.ProgramID(grNetworkID, grServiceID, futureEvent), EventID: futureEvent, ServiceID: grServiceID, NetworkID: grNetworkID,
+		StartAt: start.UnixMilli(), Duration: (30 * time.Minute).Milliseconds(), IsFree: true,
+		Name: "こたつテスト1 テスト番組 6", Description: "偽のチューナーサーバーが合成した番組です。",
+		RelatedItems: []*faketuner.RelatedItem{{Type: "relay", NetworkID: 0, ServiceID: subServiceID, EventID: 7}},
+	})
+	f.syncEPG(t)
+
+	assert.Equal(t, 1, f.follow(t).Relayed)
+	var priority int
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT (settings ->> 'priority')::int FROM reservations WHERE relayed_from = $1", original.ID).Scan(&priority))
+	assert.Equal(t, 4, priority)
 }

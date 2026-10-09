@@ -76,7 +76,8 @@ type Querier interface {
 	ListMatchablePrograms(ctx context.Context, now time.Time) ([]ListMatchableProgramsRow, error)
 	ListPrograms(ctx context.Context) ([]ListProgramsRow, error)
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
-	// 番組を指定した予約のうち、録画の予定の終わりがまだ来ていないものと、その番組の今の EPG。
+	// 番組を指定した予約のうち、予約か番組の終わりがまだ来ていないものと、その番組の今の EPG。
+	// ルール予約の録画設定は、一致したルールのうち最も古いものの上書きを使う。
 	ListReservationsToFollow(ctx context.Context, now time.Time) ([]ListReservationsToFollowRow, error)
 	ListRules(ctx context.Context) ([]Rule, error)
 	ListServices(ctx context.Context) ([]ListServicesRow, error)

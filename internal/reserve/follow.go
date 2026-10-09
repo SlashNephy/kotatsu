@@ -131,7 +131,8 @@ func (f *Follower) RunOnce(ctx context.Context) (*FollowResult, error) {
 			if updated {
 				result.Updated++
 			}
-			if !row.FollowEventRelay {
+			// 無効にした予約は、引き継ぎ先に予約を作って録り直さない。
+			if !row.Enabled || !row.FollowEventRelay {
 				continue
 			}
 			relayed, err := f.relay(ctx, tx, row, now)
@@ -155,7 +156,8 @@ func (f *Follower) RunOnce(ctx context.Context) (*FollowResult, error) {
 func (f *Follower) update(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservationsToFollowRow, now time.Time) (bool, error) {
 	endAt := row.ProgramEndAt
 	if row.ProgramEndUndecided {
-		endAt = row.EndAt
+		// 開始が遅れたときは、予約の長さを保ったまま後ろにずらす。
+		endAt = later(row.EndAt, row.ProgramStartAt.Add(row.EndAt.Sub(row.StartAt)))
 	}
 	same := row.StartAt.Equal(row.ProgramStartAt) && row.EndAt.Equal(endAt) &&
 		row.Name == row.ProgramName && row.Description == row.ProgramDescription &&
@@ -189,10 +191,16 @@ func (f *Follower) update(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservat
 
 // relay は、番組のイベントリレーの引き継ぎ先に、番組予約を作る。引き継ぎ先の番組が EPG にまだ無ければ、次の追従を待つ。
 // 引き継ぎ先の予約は、元の予約の録画設定を引き継ぎ、元の予約と関連付ける。
+// ルール予約の録画設定はルールにあるので、一致したルールの上書きを引き継ぐ。
 func (f *Follower) relay(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservationsToFollowRow, now time.Time) (int, error) {
 	var related []*mirakurun.RelatedItem
 	if err := json.Unmarshal(row.ProgramRelatedItems, &related); err != nil {
 		return 0, fmt.Errorf("failed to decode the related items of reservation %s: %w", row.ID, err)
+	}
+
+	settings := row.Settings
+	if Kind(row.Kind) == KindRule && row.RuleSettings != nil {
+		settings = row.RuleSettings
 	}
 
 	relayed := 0
@@ -208,7 +216,7 @@ func (f *Follower) relay(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservati
 		serviceID := networkID*serviceIDBase + int64(item.ServiceID)
 		reservationID, err := q.InsertRelayedReservation(ctx, sqlc.InsertRelayedReservationParams{
 			ID:          id.New(),
-			Settings:    row.Settings,
+			Settings:    settings,
 			Now:         now,
 			RelayedFrom: &row.ID,
 			ServiceID:   serviceID,
@@ -234,4 +242,12 @@ func (f *Follower) relay(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservati
 	}
 
 	return relayed, nil
+}
+
+func later(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+
+	return b
 }
