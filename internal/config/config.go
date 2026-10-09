@@ -4,8 +4,12 @@ package config
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"net/url"
+	"path/filepath"
+	"regexp"
+	"slices"
 )
 
 // Config は起動に必要な設定。
@@ -21,6 +25,7 @@ type Config struct {
 	Database  Database  `yaml:"database"`
 	Telemetry Telemetry `yaml:"telemetry"`
 	Audit     Audit     `yaml:"audit"`
+	Storage   Storage   `yaml:"storage"`
 }
 
 // Server は tenban の HTTP サーバーの設定。
@@ -58,6 +63,14 @@ type Audit struct {
 	RetentionDays int `yaml:"retention_days"`
 }
 
+// Storage は保存先プール (kago) の設定 (設計書 5.6)。
+type Storage struct {
+	// Pools は、プール ID からマウント先のディレクトリへの対応。
+	// 録画のパスは「プール ID ＋ プール内の相対パス」で DB に記録するので、ロールごとにマウント先が違っていてもよい。
+	// 環境変数では、KOTATSU_STORAGE_POOLS=main=/mnt/main,sub=/mnt/sub のように「ID=パス」をカンマで区切って渡す。
+	Pools map[string]string `yaml:"pools"`
+}
+
 // Default は既定値を入れた設定を返す。
 func Default() *Config {
 	return &Config{
@@ -77,6 +90,9 @@ func Default() *Config {
 		Audit: Audit{
 			// 設計書の付録 A の初期値。
 			RetentionDays: 365,
+		},
+		Storage: Storage{
+			Pools: map[string]string{},
 		},
 	}
 }
@@ -99,6 +115,11 @@ func (c *Config) validate() error {
 	if c.Audit.RetentionDays < 1 {
 		errs = append(errs, fieldError("audit.retention_days", errors.New("must be at least 1")))
 	}
+	for _, id := range slices.Sorted(maps.Keys(c.Storage.Pools)) {
+		if err := validatePool(id, c.Storage.Pools[id]); err != nil {
+			errs = append(errs, fieldError("storage.pools", err))
+		}
+	}
 
 	return errors.Join(errs...)
 }
@@ -106,6 +127,20 @@ func (c *Config) validate() error {
 func validateListen(addr string) error {
 	if _, _, err := net.SplitHostPort(addr); err != nil {
 		return fmt.Errorf("must be in the form host:port: %w", err)
+	}
+
+	return nil
+}
+
+// poolIDPattern は、プール ID に使える文字。DB に記録し、環境変数でも渡すので、記号は - と _ に限る。
+var poolIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,62}$`)
+
+func validatePool(id, mount string) error {
+	if !poolIDPattern.MatchString(id) {
+		return fmt.Errorf("pool ID %q must consist of lowercase letters, digits, - and _ (up to 63 characters)", id)
+	}
+	if !filepath.IsAbs(mount) {
+		return fmt.Errorf("mount point of pool %q must be an absolute path", id)
 	}
 
 	return nil

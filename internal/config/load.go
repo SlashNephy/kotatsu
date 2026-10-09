@@ -147,11 +147,40 @@ func applyEnvToField(value reflect.Value, keys []string, lookupEnv LookupEnv) er
 			}
 			*ptr = b
 		}
+	case *map[string]string:
+		if hasValue {
+			m, err := parseMap(raw)
+			if err != nil {
+				return err
+			}
+			*ptr = m
+		}
 	default:
 		return fmt.Errorf("unsupported field type %s", value.Type())
 	}
 
 	return nil
+}
+
+// parseMap は「key=value」をカンマで区切った文字列を読む。空の文字列は空の対応にする。
+func parseMap(raw string) (map[string]string, error) {
+	m := map[string]string{}
+	if strings.TrimSpace(raw) == "" {
+		return m, nil
+	}
+	for pair := range strings.SplitSeq(raw, ",") {
+		key, value, ok := strings.Cut(pair, "=")
+		key = strings.TrimSpace(key)
+		if !ok || key == "" {
+			return nil, errors.New("must be a comma-separated list of key=value")
+		}
+		if _, dup := m[key]; dup {
+			return nil, fmt.Errorf("key %q is given more than once", key)
+		}
+		m[key] = strings.TrimSpace(value)
+	}
+
+	return m, nil
 }
 
 // envName は YAML のキーの並びから環境変数の名前を作る (database, url → KOTATSU_DATABASE_URL)。
