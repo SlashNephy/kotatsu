@@ -151,6 +151,22 @@ func (c *Client) Version(ctx context.Context) (*Version, error) {
 	return &version, nil
 }
 
+// ServerDate は、/api/version の応答の Date ヘッダーから、チューナーサーバーの時計の時刻を返す (設計書 3.7)。
+// Date ヘッダーは秒の精度なので、比べるときは 1 秒程度の誤差を見込む。
+func (c *Client) ServerDate(ctx context.Context) (time.Time, error) {
+	var version Version
+	header, err := c.get(ctx, "api/version", nil, &version)
+	if err != nil {
+		return time.Time{}, err
+	}
+	date, err := http.ParseTime(header.Get("Date"))
+	if err != nil {
+		return time.Time{}, fmt.Errorf("the tuner server returned no valid Date header: %w", err)
+	}
+
+	return date.UTC(), nil
+}
+
 // Channels は /api/channels を取得する。
 func (c *Client) Channels(ctx context.Context) ([]*Channel, error) {
 	channels := []*Channel{}
@@ -253,29 +269,36 @@ func (c *Client) openStream(req *http.Request) (io.ReadCloser, error) {
 }
 
 func (c *Client) getJSON(ctx context.Context, path string, query url.Values, v any) error {
+	_, err := c.get(ctx, path, query, v)
+
+	return err
+}
+
+// get は JSON の API を呼び、応答を v に読み込んで、応答のヘッダーを返す。
+func (c *Client) get(ctx context.Context, path string, query url.Values, v any) (http.Header, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.requestTimeout)
 	defer cancel()
 
 	req, err := c.newRequest(ctx, path, query)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to request %s %s: %w", req.Method, req.URL.Redacted(), err)
+		return nil, fmt.Errorf("failed to request %s %s: %w", req.Method, req.URL.Redacted(), err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if err := checkResponse(resp); err != nil {
-		return err
+		return nil, err
 	}
 	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
-		return fmt.Errorf("failed to decode the response of %s %s: %w", req.Method, req.URL.Redacted(), err)
+		return nil, fmt.Errorf("failed to decode the response of %s %s: %w", req.Method, req.URL.Redacted(), err)
 	}
 
-	return nil
+	return resp.Header, nil
 }
 
 func (c *Client) newRequest(ctx context.Context, path string, query url.Values) (*http.Request, error) {

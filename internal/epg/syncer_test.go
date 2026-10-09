@@ -189,3 +189,65 @@ func TestSyncerBacksOffWhileReconnecting(t *testing.T) {
 	// 接続し直しても、下限の間隔 (1 時間) が過ぎるまで全量は取得し直さない。
 	assert.Equal(t, int32(1), upstream.fullFetches.Load())
 }
+
+// TestSyncerNotifiesTunerEvents は、チューナーのイベントが届くと OnTunerEvent を呼ぶことを確かめる (設計書 3.6)。
+func TestSyncerNotifiesTunerEvents(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	called := make(chan struct{}, 1)
+	syncer := epg.NewSyncer(f.reconciler, f.client, clocktest.NewFake(testNow()), slog.New(slog.DiscardHandler), &epg.SyncerOptions{
+		BatchWindow: 50 * time.Millisecond,
+		OnTunerEvent: func() {
+			select {
+			case called <- struct{}{}:
+			default:
+			}
+		},
+	})
+	runSyncer(t, syncer)
+	require.Eventually(t, func() bool { return f.fake.EventSubscribers() == 1 }, waitFor, tick)
+
+	f.fake.SetTuners([]*faketuner.TunerConfig{{Name: "GR0", Types: []string{"GR"}}})
+	select {
+	case <-called:
+	case <-time.After(waitFor):
+		t.Fatal("OnTunerEvent was not called")
+	}
+}
+
+// flakyEvents は、最初の failures 回はイベントストリームを開くのに失敗し、その後は本物を開く。
+type flakyEvents struct {
+	epg.EventSource
+
+	failures atomic.Int32
+}
+
+func (e *flakyEvents) OpenEvents(ctx context.Context, query *mirakurun.EventsQuery) (mirakurun.EventStream, error) {
+	if e.failures.Add(-1) >= 0 {
+		return nil, errors.New("connection refused")
+	}
+
+	return e.EventSource.OpenEvents(ctx, query)
+}
+
+// TestSyncerSyncsAllAfterReconnect は、接続できない状態から戻ったら、全量の突き合わせからやり直すことを確かめる (設計書 3.7)。
+func TestSyncerSyncsAllAfterReconnect(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	upstream := &countingUpstream{Upstream: f.client}
+	events := &flakyEvents{EventSource: f.client}
+	events.failures.Store(3)
+	reconciler := epg.NewReconciler(f.pool, upstream, clock.Real{}, func(context.Context, pgx.Tx) error { return nil })
+	syncer := epg.NewSyncer(reconciler, events, clock.Real{}, slog.New(slog.DiscardHandler), &epg.SyncerOptions{
+		// 接続できない間に下限の間隔が過ぎるようにする。
+		MinFullSyncInterval: 10 * time.Millisecond,
+		BackoffInitial:      20 * time.Millisecond,
+	})
+	runSyncer(t, syncer)
+
+	require.Eventually(t, func() bool { return f.fake.EventSubscribers() == 1 }, waitFor, tick)
+	// 最初の接続と、失敗した 3 回の後の接続し直しのたびに、全量を取得し直す。
+	assert.GreaterOrEqual(t, upstream.fullFetches.Load(), int32(4))
+}

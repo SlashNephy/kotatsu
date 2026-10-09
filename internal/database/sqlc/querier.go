@@ -26,6 +26,7 @@ type Querier interface {
 	DeletePrograms(ctx context.Context, arg []DeleteProgramsParams) *DeleteProgramsBatchResults
 	DeleteReservation(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteStaleInstances(ctx context.Context, before time.Time) (int64, error)
+	DeleteTuners(ctx context.Context) error
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
 	// 種別が無ければ既定値で足す。管理者が変えた表示名と並び順は上書きしない。
 	EnsureChannelType(ctx context.Context, arg EnsureChannelTypeParams) error
@@ -35,6 +36,7 @@ type Querier interface {
 	GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error)
 	GetReservationByProgram(ctx context.Context, arg GetReservationByProgramParams) (Reservation, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
+	GetTunerServerStatus(ctx context.Context) (GetTunerServerStatusRow, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	HeartbeatInstance(ctx context.Context, arg HeartbeatInstanceParams) (int64, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
@@ -43,6 +45,7 @@ type Querier interface {
 	InsertProgramReservation(ctx context.Context, arg InsertProgramReservationParams) (uuid.UUID, error)
 	InsertSession(ctx context.Context, arg InsertSessionParams) error
 	InsertTimeReservation(ctx context.Context, arg InsertTimeReservationParams) error
+	InsertTuner(ctx context.Context, arg InsertTunerParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) error
 	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
 	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
@@ -52,6 +55,7 @@ type Querier interface {
 	ListPrograms(ctx context.Context) ([]ListProgramsRow, error)
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
 	ListServices(ctx context.Context) ([]ListServicesRow, error)
+	ListTuners(ctx context.Context) ([]ListTunersRow, error)
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
 	// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
@@ -75,6 +79,7 @@ type Querier interface {
 	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults
 	// 上流から来る項目だけを更新する。非表示の印と並び順の上書きは、管理者のものなので触らない。
 	UpsertService(ctx context.Context, arg UpsertServiceParams) error
+	UpsertTunerServerStatus(ctx context.Context, arg UpsertTunerServerStatusParams) error
 }
 
 var _ Querier = (*Queries)(nil)
