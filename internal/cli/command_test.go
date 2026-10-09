@@ -6,8 +6,13 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,13 +20,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/cli"
+	"github.com/SlashNephy/kotatsu/internal/config"
 )
 
 func TestHelpListsRolesWithAlias(t *testing.T) {
 	t.Parallel()
 
 	var out bytes.Buffer
-	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), cli.DefaultRoles())
+	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), cli.DefaultRoles(), validEnv)
 	cmd.SetOut(&out)
 	cmd.SetArgs([]string{"--help"})
 	require.NoError(t, cmd.Execute())
@@ -89,7 +95,7 @@ func startedRoles(t *testing.T, arg string) []string {
 	)
 	roles := cli.DefaultRoles()
 	for _, role := range roles {
-		role.Run = func(_ context.Context, _ *slog.Logger) error {
+		role.Run = func(context.Context, *slog.Logger, *config.Config) error {
 			mu.Lock()
 			defer mu.Unlock()
 			started = append(started, role.Name)
@@ -98,7 +104,7 @@ func startedRoles(t *testing.T, arg string) []string {
 		}
 	}
 
-	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), roles)
+	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), roles, validEnv)
 	cmd.SetArgs([]string{arg})
 	require.NoError(t, cmd.ExecuteContext(t.Context()))
 
@@ -110,11 +116,11 @@ func TestRoleFailureStopsOtherRoles(t *testing.T) {
 
 	errBoom := errors.New("boom")
 	roles := cli.DefaultRoles()
-	roles[0].Run = func(_ context.Context, _ *slog.Logger) error {
+	roles[0].Run = func(context.Context, *slog.Logger, *config.Config) error {
 		return errBoom
 	}
 
-	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), roles)
+	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), roles, validEnv)
 	cmd.SetArgs([]string{"all"})
 
 	done := make(chan error, 1)
@@ -140,7 +146,7 @@ func TestRoleLogsDisplayNameUntilCanceled(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(&lockedWriter{mu: &mu, w: &buf}, nil))
 
 	ctx, cancel := context.WithCancel(t.Context())
-	cmd := cli.NewCommand(logger, cli.DefaultRoles())
+	cmd := cli.NewCommand(logger, cli.DefaultRoles(), validEnv)
 	cmd.SetArgs([]string{"scheduler"})
 
 	done := make(chan error, 1)
@@ -167,15 +173,90 @@ func TestRoleLogsDisplayNameUntilCanceled(t *testing.T) {
 	defer mu.Unlock()
 	assert.Contains(t, buf.String(), `"role":"neko (scheduler)"`)
 	assert.Contains(t, buf.String(), `"msg":"role stopped"`)
+	assert.Contains(t, buf.String(), `"msg":"config loaded"`)
+	assert.NotContains(t, buf.String(), "hunter2")
 }
 
 func TestUnknownSubcommandFails(t *testing.T) {
 	t.Parallel()
 
-	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), cli.DefaultRoles())
+	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), cli.DefaultRoles(), validEnv)
 	cmd.SetOut(io.Discard)
 	cmd.SetArgs([]string{"kago"})
 	require.Error(t, cmd.Execute())
+}
+
+func TestRoleDoesNotStartWithInvalidConfig(t *testing.T) {
+	t.Parallel()
+
+	var started atomic.Bool
+	roles := cli.DefaultRoles()
+	for _, role := range roles {
+		role.Run = func(context.Context, *slog.Logger, *config.Config) error {
+			started.Store(true)
+
+			return nil
+		}
+	}
+
+	cmd := cli.NewCommand(slog.New(slog.DiscardHandler), roles, func(string) (string, bool) { return "", false })
+	cmd.SetArgs([]string{"all"})
+	require.ErrorContains(t, cmd.ExecuteContext(t.Context()), "database.url (KOTATSU_DATABASE_URL): is required")
+	assert.False(t, started.Load())
+}
+
+func TestConfigFlagAndEnv(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	flagPath := filepath.Join(dir, "flag.yaml")
+	require.NoError(t, os.WriteFile(flagPath, []byte("server:\n  listen: :1111\n"), 0o600))
+	envPath := filepath.Join(dir, "env.yaml")
+	require.NoError(t, os.WriteFile(envPath, []byte("server:\n  listen: :2222\n"), 0o600))
+
+	tests := []struct {
+		name string
+		args []string
+		env  map[string]string
+		want string
+	}{
+		{name: "flag", args: []string{"--config", flagPath}, want: ":1111"},
+		{name: "env", env: map[string]string{"KOTATSU_CONFIG": envPath}, want: ":2222"},
+		{name: "flag wins over env", args: []string{"--config", flagPath}, env: map[string]string{"KOTATSU_CONFIG": envPath}, want: ":1111"},
+		{name: "neither", want: ":8080"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got string
+			roles := cli.DefaultRoles()
+			roles[0].Run = func(_ context.Context, _ *slog.Logger, cfg *config.Config) error {
+				got = cfg.Server.Listen
+
+				return nil
+			}
+
+			env := map[string]string{"KOTATSU_DATABASE_URL": "postgres://db/kotatsu"}
+			maps.Copy(env, tt.env)
+			cmd := cli.NewCommand(slog.New(slog.DiscardHandler), roles, func(key string) (string, bool) {
+				v, ok := env[key]
+
+				return v, ok
+			})
+			cmd.SetArgs(append(slices.Clone(tt.args), roles[0].Name))
+			require.NoError(t, cmd.ExecuteContext(t.Context()))
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func validEnv(key string) (string, bool) {
+	if key == "KOTATSU_DATABASE_URL" {
+		return "postgres://user:hunter2@db/kotatsu", true
+	}
+
+	return "", false
 }
 
 var _ io.Writer = new(lockedWriter)
