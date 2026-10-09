@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"net"
+	"net/netip"
 	"net/url"
 	"path/filepath"
 	"regexp"
@@ -33,6 +34,22 @@ type Config struct {
 type Server struct {
 	// Listen は待ち受けアドレス。
 	Listen string `yaml:"listen"`
+	// AllowedNetworks は、接続を受け付ける送信元のネットワーク (CIDR か IP アドレス) (設計書 9.5)。
+	// 既定はプライベートアドレスだけで、インターネットから受け付けるには 0.0.0.0/0 と ::/0 を明示する。
+	// 環境変数では、カンマで区切って渡す。
+	AllowedNetworks []string `yaml:"allowed_networks"`
+	// TrustedProxies は、X-Forwarded-For などを信頼するリバースプロキシのネットワーク (CIDR か IP アドレス)。
+	// ここに含まれない送信元から X-Forwarded-For が届いたら、設定方法を案内するエラーを返す。
+	TrustedProxies []string `yaml:"trusted_proxies"`
+}
+
+// DefaultAllowedNetworks は、接続を受け付ける送信元の既定値 (設計書 9.5)。
+// RFC 1918 のアドレス、ループバック、IPv6 のユニークローカルアドレスとリンクローカルアドレス、Tailscale が使う 100.64.0.0/10。
+func DefaultAllowedNetworks() []string {
+	return []string{
+		"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8", "100.64.0.0/10",
+		"::1/128", "fc00::/7", "fe80::/10",
+	}
 }
 
 // Metrics は /metrics の設定。
@@ -83,7 +100,9 @@ type Tuner struct {
 func Default() *Config {
 	return &Config{
 		Server: Server{
-			Listen: ":8080",
+			Listen:          ":8080",
+			AllowedNetworks: DefaultAllowedNetworks(),
+			TrustedProxies:  []string{},
 		},
 		Metrics: Metrics{
 			Listen: ":9090",
@@ -113,6 +132,12 @@ func (c *Config) validate() error {
 	errs := []error{}
 	if err := validateListen(c.Server.Listen); err != nil {
 		errs = append(errs, fieldError("server.listen", err))
+	}
+	if err := validateNetworks(c.Server.AllowedNetworks); err != nil {
+		errs = append(errs, fieldError("server.allowed_networks", err))
+	}
+	if err := validateNetworks(c.Server.TrustedProxies); err != nil {
+		errs = append(errs, fieldError("server.trusted_proxies", err))
 	}
 	if err := validateListen(c.Metrics.Listen); err != nil {
 		errs = append(errs, fieldError("metrics.listen", err))
@@ -177,6 +202,31 @@ func validateDatabaseURL(secret Secret) error {
 	}
 
 	return nil
+}
+
+// ParseNetworks は、CIDR か IP アドレスの一覧を、ネットワークの一覧にする。IP アドレスは、そのアドレスだけのネットワークにする。
+func ParseNetworks(networks []string) ([]netip.Prefix, error) {
+	prefixes := make([]netip.Prefix, 0, len(networks))
+	for _, network := range networks {
+		if prefix, err := netip.ParsePrefix(network); err == nil {
+			prefixes = append(prefixes, prefix.Masked())
+
+			continue
+		}
+		addr, err := netip.ParseAddr(network)
+		if err != nil {
+			return nil, fmt.Errorf("%q must be a CIDR or an IP address", network)
+		}
+		prefixes = append(prefixes, netip.PrefixFrom(addr, addr.BitLen()))
+	}
+
+	return prefixes, nil
+}
+
+func validateNetworks(networks []string) error {
+	_, err := ParseNetworks(networks)
+
+	return err
 }
 
 // validateTunerURL は、チューナーサーバーの URL を検査する。空なら、EPG を同期しないものとして通す。

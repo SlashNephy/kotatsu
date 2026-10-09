@@ -7,6 +7,8 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/vektah/gqlparser/v2/gqlerror"
+
+	"github.com/SlashNephy/kotatsu/internal/auth"
 )
 
 // extensionCode は、エラーコードを入れる extensions のキー。
@@ -18,6 +20,8 @@ type Code string
 const (
 	// CodeUnauthenticated は、ログインしていないこと。
 	CodeUnauthenticated Code = "UNAUTHENTICATED"
+	// CodeReauthenticationRequired は、重要な操作の前に、もう一度認証する必要があること (設計書 9.5)。
+	CodeReauthenticationRequired Code = "REAUTHENTICATION_REQUIRED"
 	// CodeForbidden は、ロールに許されていない操作であること。
 	CodeForbidden Code = "FORBIDDEN"
 	// CodeNotFound は、対象がないこと。
@@ -57,6 +61,18 @@ func errorPresenter(logger *slog.Logger) graphql.ErrorPresenterFunc {
 			return gqlErr
 		}
 
+		switch {
+		case errors.Is(err, auth.ErrReauthenticationRequired):
+			gqlErr.Message = "reauthentication required"
+			gqlErr.Extensions = map[string]any{extensionCode: CodeReauthenticationRequired}
+
+			return gqlErr
+		case errors.Is(err, auth.ErrUnauthenticated):
+			gqlErr.Message = "login required"
+			gqlErr.Extensions = map[string]any{extensionCode: CodeUnauthenticated}
+
+			return gqlErr
+		}
 		if e, ok := errors.AsType[*Error](err); ok {
 			gqlErr.Message = e.Message
 			gqlErr.Extensions = map[string]any{extensionCode: e.Code}

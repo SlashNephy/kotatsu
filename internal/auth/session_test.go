@@ -143,7 +143,8 @@ func TestAuthenticate(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, &auth.Principal{UserID: f.userID, Role: auth.RoleMember, SessionID: session.ID}, principal)
+			// 使い続けても、認証した日時はログインしたときのまま。
+			assert.Equal(t, &auth.Principal{UserID: f.userID, Role: auth.RoleMember, SessionID: session.ID, AuthenticatedAt: testNow()}, principal)
 		})
 	}
 

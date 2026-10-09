@@ -295,9 +295,17 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 
 	mux := http.NewServeMux()
 	httpserver.RegisterHealth(mux, logger, deps.DB)
-	// GraphQL は tenban が受け持つ (設計書 1.2、9.1)。
+	// API は tenban が受け持つ (設計書 1.2、9.1)。
 	if slices.ContainsFunc(roles, func(role *Role) bool { return role.Name == tenbanRoleName }) {
-		registerAPI(mux, logger, deps)
+		api, err := newAPI(logger, deps)
+		if err != nil {
+			_ = apiListener.Close()
+			_ = metricsListener.Close()
+
+			return err
+		}
+		// ヘルスチェックは、Kubernetes などがプライベートでないアドレスから叩くこともあるので、接続元の制限に含めない。
+		mux.Handle("/", api)
 	}
 	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider))
 	metricsHandler := telemetry.NewMetricsHandler(deps.Metrics)
@@ -329,17 +337,39 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 	return eg.Wait()
 }
 
-// registerAPI は、tenban の API を mux に登録する。ログイン中のユーザーは、サーバー側のセッションから引く (設計書 9.5)。
-func registerAPI(mux *http.ServeMux, logger *slog.Logger, deps *Deps) {
-	sessions := auth.NewSessions(&auth.SessionsOptions{IdleTimeout: 0, AbsoluteTimeout: 0, IsSecure: nil, Clock: deps.Clock})
-	mux.Handle("/graphql", sessions.Middleware(deps.DB)(graph.NewHandler(&graph.Options{
+// newAPI は、tenban の API のハンドラーを返す。
+//
+// どのリクエストも、まず接続元を確かめ (設計書 9.5)、ログイン中のユーザーをサーバー側のセッションから引く。
+// /auth/* の状態を変えるリクエストは、Origin が同じでなければ拒否する。
+func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
+	policy, err := httpserver.NewAccessPolicy(&deps.Config.Server, logger.With(slog.String("component", "access")))
+	if err != nil {
+		return nil, err
+	}
+	sessions := auth.NewSessions(&auth.SessionsOptions{
+		IdleTimeout:     0,
+		AbsoluteTimeout: 0,
+		// リバースプロキシが HTTPS を終端するときも、信頼済みのプロキシの X-Forwarded-Proto で Secure を付ける。
+		IsSecure: func(r *http.Request) bool {
+			client := httpserver.ClientFrom(r.Context())
+
+			return client != nil && client.Secure
+		},
+		Clock: deps.Clock,
+	})
+
+	mux := http.NewServeMux()
+	mux.Handle("/graphql", graph.NewHandler(&graph.Options{
 		DB:                deps.DB,
 		Clock:             deps.Clock,
 		Logger:            logger.With(slog.String("component", "graphql")),
 		MaxDepth:          0,
 		MaxComplexity:     0,
 		HeartbeatInterval: 0,
-	})))
+	}))
+	mux.Handle("POST /auth/logout", httpserver.RequireSameOrigin(sessions.LogoutHandler(deps.DB)))
+
+	return policy.Middleware(sessions.Middleware(deps.DB)(mux)), nil
 }
 
 // runRoles は roles を並行に動かす。どれかが失敗すると、残りも止める。
