@@ -152,7 +152,7 @@ func TestServerRedetects(t *testing.T) {
 	assert.Equal(t, mirakurun.ServerMahiron, info.Kind)
 }
 
-func TestOpenEventsBySeverKind(t *testing.T) {
+func TestOpenEventsByServerKind(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
