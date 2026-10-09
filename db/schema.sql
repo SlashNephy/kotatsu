@@ -43,3 +43,32 @@ CREATE TABLE change_versions (
   version bigint NOT NULL,
   updated_at timestamptz NOT NULL
 );
+
+-- 監査ログ (設計書 8.5)。誰が何をしたかを記録する。
+CREATE TABLE audit_events (
+  id uuid PRIMARY KEY,
+  occurred_at timestamptz NOT NULL,
+  -- 操作者の種類。user ならユーザーの操作、system ならシステムのロールの操作。
+  actor_type text NOT NULL,
+  -- 操作したユーザーの ID。ユーザーを消しても記録は残すので、users への外部キーは張らない。
+  actor_user_id uuid,
+  -- 操作したシステムのロールの名前 (neko など)。
+  actor_role text,
+  -- 操作の種類 (rule.create など)。
+  action text NOT NULL,
+  -- 対象の種類と ID。ID の形は対象ごとに異なるので文字列で持つ。
+  target_type text NOT NULL,
+  target_id text,
+  -- 変更の要約。
+  summary jsonb NOT NULL,
+  -- 送信元。システムの操作では空。
+  source_ip inet,
+  user_agent text,
+  CONSTRAINT audit_events_actor_check CHECK (
+    (actor_type = 'user' AND actor_user_id IS NOT NULL AND actor_role IS NULL)
+    OR (actor_type = 'system' AND actor_user_id IS NULL AND actor_role IS NOT NULL)
+  )
+);
+
+-- 保持期間を過ぎた記録を消すときと、新しい順に並べるときに使う。
+CREATE INDEX audit_events_occurred_at_idx ON audit_events (occurred_at);

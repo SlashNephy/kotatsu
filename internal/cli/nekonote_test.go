@@ -11,10 +11,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/cli"
+	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
+)
+
+const (
+	subcommandMigrate = "migrate"
+	roleNekonote      = "nekonote"
 )
 
 type pingArgs struct{}
@@ -50,22 +57,22 @@ func TestNekonoteWorksJobs(t *testing.T) {
 
 		return v, ok
 	}
-	opts.JobWorkers = func() *river.Workers {
+	opts.JobWorkers = func(*cli.Deps) (*river.Workers, []*river.PeriodicJob) {
 		workers := river.NewWorkers()
 		river.AddWorker(workers, worker)
 
-		return workers
+		return workers, []*river.PeriodicJob{}
 	}
 	// neko のリースや登録簿は、このテストの対象ではない。
-	opts.Roles = filterRoles(opts.Roles, "nekonote")
+	opts.Roles = filterRoles(opts.Roles, roleNekonote)
 
 	migrateCmd := cli.NewCommand(opts)
-	migrateCmd.SetArgs([]string{"migrate"})
+	migrateCmd.SetArgs([]string{subcommandMigrate})
 	require.NoError(t, migrateCmd.ExecuteContext(t.Context()))
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cmd := cli.NewCommand(opts)
-	cmd.SetArgs([]string{"nekonote"})
+	cmd.SetArgs([]string{roleNekonote})
 	done := make(chan error, 1)
 	go func() {
 		done <- cmd.ExecuteContext(ctx)
@@ -89,6 +96,58 @@ func TestNekonoteWorksJobs(t *testing.T) {
 	case <-time.After(30 * time.Second):
 		t.Fatal("nekonote did not work the job")
 	}
+
+	cancel()
+	assert.NoError(t, <-done)
+}
+
+// TestNekonotePrunesAuditEvents は、既定の nekonote が、保持期間を過ぎた監査ログを起動時に消すことを確かめる。
+func TestNekonotePrunesAuditEvents(t *testing.T) {
+	t.Parallel()
+
+	dbConfig := databasetest.New(t)
+	env := testEnv()
+	env["KOTATSU_DATABASE_URL"] = dbConfig.URL.Value()
+	env["KOTATSU_AUDIT_RETENTION_DAYS"] = "30"
+
+	opts := cli.DefaultOptions(slog.New(slog.DiscardHandler))
+	opts.LookupEnv = func(key string) (string, bool) {
+		v, ok := env[key]
+
+		return v, ok
+	}
+	opts.Roles = filterRoles(opts.Roles, roleNekonote)
+
+	migrateCmd := cli.NewCommand(opts)
+	migrateCmd.SetArgs([]string{subcommandMigrate})
+	require.NoError(t, migrateCmd.ExecuteContext(t.Context()))
+
+	pool, err := database.Open(t.Context(), dbConfig)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	for _, at := range []time.Time{time.Now().AddDate(0, 0, -31), time.Now().AddDate(0, 0, -29)} {
+		require.NoError(t, audit.NewRecorder(clocktest.NewFake(at)).Record(t.Context(), pool, &audit.Event{
+			Actor:      audit.System("neko"),
+			Action:     "test",
+			TargetType: "test",
+		}))
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cmd := cli.NewCommand(opts)
+	cmd.SetArgs([]string{roleNekonote})
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.ExecuteContext(ctx)
+	}()
+
+	// 設定した保持期間 (30 日) を過ぎた 1 件だけが消える。
+	require.Eventually(t, func() bool {
+		var count int
+		err := pool.QueryRow(t.Context(), "SELECT count(*) FROM audit_events").Scan(&count)
+
+		return err == nil && count == 1
+	}, 30*time.Second, 100*time.Millisecond)
 
 	cancel()
 	assert.NoError(t, <-done)

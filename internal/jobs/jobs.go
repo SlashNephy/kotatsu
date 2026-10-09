@@ -32,6 +32,8 @@ type Options struct {
 	PollOnly bool
 	// Workers は、このクライアントで実行するジョブの Worker。nil なら投入だけを行うクライアントになる。
 	Workers *river.Workers
+	// PeriodicJobs は定期ジョブ。River のリーダーになったクライアントだけが投入する。Workers が nil なら使わない。
+	PeriodicJobs []*river.PeriodicJob
 }
 
 // NewClient は River のクライアントを作る。ジョブを実行するには、Workers を与えて Start を呼ぶ。
@@ -45,6 +47,7 @@ func NewClient(pool *pgxpool.Pool, logger *slog.Logger, opts *Options) (*Client,
 		config.Queues = map[string]river.QueueConfig{
 			river.QueueDefault: {MaxWorkers: maxWorkers},
 		}
+		config.PeriodicJobs = opts.PeriodicJobs
 	}
 
 	client, err := river.NewClient(riverpgxv5.New(pool), config)
@@ -53,12 +56,6 @@ func NewClient(pool *pgxpool.Pool, logger *slog.Logger, opts *Options) (*Client,
 	}
 
 	return client, nil
-}
-
-// Workers は、nekonote で実行するジョブの Worker を返す。まだ Worker がないので nil を返す。
-// Worker を足したら、ここで river.AddWorker する。
-func Workers() *river.Workers {
-	return nil
 }
 
 // Migrate は River のテーブルのマイグレーションを適用する。適用済みなら何もしない。

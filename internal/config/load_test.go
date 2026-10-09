@@ -27,6 +27,8 @@ const (
 	// Default の既定値。:9090 は設計書の付録 A で定めている。
 	defaultServerListen  = ":8080"
 	defaultMetricsListen = ":9090"
+	// 設計書の付録 A の初期値。
+	defaultAuditRetentionDays = 365
 )
 
 func TestLoadPrecedence(t *testing.T) {
@@ -115,6 +117,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: defaultServerListen},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
 			},
 		},
 		{
@@ -128,6 +131,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Metrics:   config.Metrics{Listen: defaultMetricsListen},
 				Database:  config.Database{URL: envURL, Pooler: false},
 				Telemetry: config.Telemetry{OTLPEndpoint: "http://collector:4318"},
+				Audit:     config.Audit{RetentionDays: defaultAuditRetentionDays},
 			},
 		},
 		{
@@ -141,6 +145,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: "127.0.0.1:3000"},
 				Metrics:  config.Metrics{Listen: ":9100"},
 				Database: config.Database{URL: envURL, Pooler: true},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
 			},
 		},
 		{
@@ -150,6 +155,18 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: defaultServerListen},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: "postgresql://db/kotatsu", Pooler: false},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+			},
+		},
+		{
+			name: "audit retention",
+			yaml: "audit:\n  retention_days: 30\n",
+			env:  map[string]string{envKeyURL: envURL},
+			want: &config.Config{
+				Server:   config.Server{Listen: defaultServerListen},
+				Metrics:  config.Metrics{Listen: defaultMetricsListen},
+				Database: config.Database{URL: envURL, Pooler: false},
+				Audit:    config.Audit{RetentionDays: 30},
 			},
 		},
 		{
@@ -163,6 +180,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: defaultServerListen},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
 			},
 		},
 	}
@@ -214,6 +232,22 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 				"server.listen (KOTATSU_SERVER_LISTEN): must be in the form host:port",
 				"metrics.listen (KOTATSU_METRICS_LISTEN): must be in the form host:port",
 			},
+		},
+		{
+			name: "invalid audit retention",
+			env: map[string]string{
+				envKeyURL:                      envURL,
+				"KOTATSU_AUDIT_RETENTION_DAYS": "0",
+			},
+			wantErrs: []string{"audit.retention_days (KOTATSU_AUDIT_RETENTION_DAYS): must be at least 1"},
+		},
+		{
+			name: "non-integer audit retention",
+			env: map[string]string{
+				envKeyURL:                      envURL,
+				"KOTATSU_AUDIT_RETENTION_DAYS": "a year",
+			},
+			wantErrs: []string{"audit.retention_days (KOTATSU_AUDIT_RETENTION_DAYS): must be an integer"},
 		},
 		{
 			name: "invalid otlp endpoint",

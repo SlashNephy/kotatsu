@@ -20,6 +20,7 @@ type Config struct {
 	Metrics   Metrics   `yaml:"metrics"`
 	Database  Database  `yaml:"database"`
 	Telemetry Telemetry `yaml:"telemetry"`
+	Audit     Audit     `yaml:"audit"`
 }
 
 // Server は tenban の HTTP サーバーの設定。
@@ -51,6 +52,12 @@ type Telemetry struct {
 	OTLPEndpoint string `yaml:"otlp_endpoint"`
 }
 
+// Audit は監査ログの設定。
+type Audit struct {
+	// RetentionDays は監査ログの保持期間 (日)。これを過ぎた記録は定期的に消す。
+	RetentionDays int `yaml:"retention_days"`
+}
+
 // Default は既定値を入れた設定を返す。
 func Default() *Config {
 	return &Config{
@@ -66,6 +73,10 @@ func Default() *Config {
 		},
 		Telemetry: Telemetry{
 			OTLPEndpoint: "",
+		},
+		Audit: Audit{
+			// 設計書の付録 A の初期値。
+			RetentionDays: 365,
 		},
 	}
 }
@@ -84,6 +95,9 @@ func (c *Config) validate() error {
 	}
 	if err := validateOTLPEndpoint(c.Telemetry.OTLPEndpoint); err != nil {
 		errs = append(errs, fieldError("telemetry.otlp_endpoint", err))
+	}
+	if c.Audit.RetentionDays < 1 {
+		errs = append(errs, fieldError("audit.retention_days", errors.New("must be at least 1")))
 	}
 
 	return errors.Join(errs...)

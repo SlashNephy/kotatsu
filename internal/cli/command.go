@@ -9,6 +9,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -16,6 +17,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/config"
 	"github.com/SlashNephy/kotatsu/internal/database"
@@ -47,8 +49,8 @@ type Options struct {
 	// RunRegistry は、ctx が終わるまで roles のインスタンスを登録簿に載せておく。
 	// listenAddr は API の HTTP サーバーが実際に待ち受けているアドレス。
 	RunRegistry func(ctx context.Context, logger *slog.Logger, deps *Deps, roles []string, listenAddr string) error
-	// JobWorkers は、nekonote で実行するジョブの Worker を返す。実行するジョブがなければ nil を返す。
-	JobWorkers func() *river.Workers
+	// JobWorkers は、nekonote で実行するジョブの Worker と定期ジョブを返す。
+	JobWorkers func(deps *Deps) (*river.Workers, []*river.PeriodicJob)
 }
 
 // DefaultOptions は、本番で使う依存を返す。
@@ -61,8 +63,17 @@ func DefaultOptions(logger *slog.Logger) *Options {
 		CheckSchema:  checkSchema,
 		Migrate:      migrate,
 		RunRegistry:  runRegistry,
-		JobWorkers:   jobs.Workers,
+		JobWorkers:   jobWorkers,
 	}
+}
+
+// jobWorkers は、nekonote で実行するジョブの Worker と定期ジョブを返す。ジョブを足したら、ここに登録する。
+func jobWorkers(deps *Deps) (*river.Workers, []*river.PeriodicJob) {
+	workers := river.NewWorkers()
+	retention := time.Duration(deps.Config.Audit.RetentionDays) * 24 * time.Hour
+	river.AddWorker(workers, audit.NewPruneWorker(deps.DB, deps.Clock, retention))
+
+	return workers, []*river.PeriodicJob{audit.PrunePeriodicJob()}
 }
 
 // migrate は、Kotatsu のスキーマと River のテーブルのマイグレーションを適用する。
@@ -160,25 +171,31 @@ func NewCommand(opts *Options) *cobra.Command {
 			return fmt.Errorf("refusing to start: %w", err)
 		}
 
-		// ジョブを実行するのは nekonote だけで、他のロールは投入だけを行う。
-		var workers *river.Workers
-		if slices.ContainsFunc(targets, func(role *Role) bool { return role.Name == nekonoteRoleName }) {
-			workers = opts.JobWorkers()
-		}
-		jobClient, err := jobs.NewClient(pool, opts.Logger, &jobs.Options{PollOnly: cfg.Database.Pooler, Workers: workers})
-		if err != nil {
-			return err
-		}
-
-		return serve(ctx, opts, &Deps{
+		deps := &Deps{
 			Config:     cfg,
 			DB:         pool,
 			Metrics:    telemetry.NewRegistry(),
 			Clock:      new(clock.Real),
 			InstanceID: id.New(),
-			Jobs:       jobClient,
-			JobWorkers: workers,
-		}, targets)
+			Jobs:       nil,
+			JobWorkers: nil,
+		}
+
+		// ジョブを実行するのは nekonote だけで、他のロールは投入だけを行う。
+		periodicJobs := []*river.PeriodicJob{}
+		if slices.ContainsFunc(targets, func(role *Role) bool { return role.Name == nekonoteRoleName }) {
+			deps.JobWorkers, periodicJobs = opts.JobWorkers(deps)
+		}
+		deps.Jobs, err = jobs.NewClient(pool, opts.Logger, &jobs.Options{
+			PollOnly:     cfg.Database.Pooler,
+			Workers:      deps.JobWorkers,
+			PeriodicJobs: periodicJobs,
+		})
+		if err != nil {
+			return err
+		}
+
+		return serve(ctx, opts, deps, targets)
 	}
 
 	for _, role := range opts.Roles {

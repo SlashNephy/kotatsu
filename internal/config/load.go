@@ -131,6 +131,14 @@ func applyEnvToField(value reflect.Value, keys []string, lookupEnv LookupEnv) er
 		if hasValue {
 			*ptr = Secret(raw)
 		}
+	case *int:
+		if hasValue {
+			n, err := strconv.Atoi(raw)
+			if err != nil {
+				return errors.New("must be an integer")
+			}
+			*ptr = n
+		}
 	case *bool:
 		if hasValue {
 			b, err := strconv.ParseBool(raw)
