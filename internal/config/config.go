@@ -149,8 +149,14 @@ func validateListen(addr string) error {
 // poolIDPattern は、プール ID に使える文字。DB に記録し、環境変数でも渡すので、記号は - と _ に限る。
 var poolIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,62}$`)
 
+// IsValidPoolID は、プール ID が使える文字だけでできているかどうかを返す。
+// 録画設定でプールを指定するときも、同じ規則で検査する。
+func IsValidPoolID(id string) bool {
+	return poolIDPattern.MatchString(id)
+}
+
 func validatePool(id, mount string) error {
-	if !poolIDPattern.MatchString(id) {
+	if !IsValidPoolID(id) {
 		return fmt.Errorf("pool ID %q must consist of lowercase letters, digits, - and _ (up to 63 characters)", id)
 	}
 	if !filepath.IsAbs(mount) {

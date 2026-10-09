@@ -102,6 +102,26 @@ type ProgramArchive struct {
 	ArchivedAt            time.Time
 }
 
+type Reservation struct {
+	ID               uuid.UUID
+	Kind             string
+	ServiceID        int64
+	EventID          *int64
+	StartAt          time.Time
+	EndAt            time.Time
+	Name             string
+	Description      string
+	Extended         []byte
+	Genres           []byte
+	Enabled          bool
+	FollowEventRelay bool
+	Settings         []byte
+	CreatedAt        time.Time
+	CreatedBy        *uuid.UUID
+	UpdatedAt        time.Time
+	UpdatedBy        *uuid.UUID
+}
+
 type SchemaCompatibility struct {
 	ID               bool
 	MinBinaryVersion int64

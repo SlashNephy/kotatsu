@@ -24,18 +24,25 @@ type Querier interface {
 	DeleteInstance(ctx context.Context, arg DeleteInstanceParams) error
 	// 放送が始まった番組は、アーカイブに移すまで残す (設計書 3.3、3.4)。
 	DeletePrograms(ctx context.Context, arg []DeleteProgramsParams) *DeleteProgramsBatchResults
+	DeleteReservation(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteStaleInstances(ctx context.Context, before time.Time) (int64, error)
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
 	// 種別が無ければ既定値で足す。管理者が変えた表示名と並び順は上書きしない。
 	EnsureChannelType(ctx context.Context, arg EnsureChannelTypeParams) error
 	GetLease(ctx context.Context, name string) (Lease, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
+	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
+	GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error)
+	GetReservationByProgram(ctx context.Context, arg GetReservationByProgramParams) (Reservation, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	HeartbeatInstance(ctx context.Context, arg HeartbeatInstanceParams) (int64, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
 	InsertEPGChange(ctx context.Context, arg InsertEPGChangeParams) error
+	// 同じ番組の予約がすでにあれば何もしない。そのときは行を返さない。
+	InsertProgramReservation(ctx context.Context, arg InsertProgramReservationParams) (uuid.UUID, error)
 	InsertSession(ctx context.Context, arg InsertSessionParams) error
+	InsertTimeReservation(ctx context.Context, arg InsertTimeReservationParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) error
 	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
 	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
@@ -63,6 +70,7 @@ type Querier interface {
 	ServiceExists(ctx context.Context, id int64) (bool, error)
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
+	UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error)
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults
 	// 上流から来る項目だけを更新する。非表示の印と並び順の上書きは、管理者のものなので触らない。

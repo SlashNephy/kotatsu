@@ -218,3 +218,39 @@ CREATE INDEX program_archives_service_id_start_at_idx ON program_archives (servi
 CREATE INDEX program_archives_end_at_idx ON program_archives (end_at);
 -- 猶予が過ぎた番組を探すときに使う。
 CREATE INDEX programs_end_at_idx ON programs (end_at);
+
+-- 予約 (設計書 4.1)。番組予約 (program) と時刻予約 (time) を持つ。ルール予約 (rule) はルールの照合が作る。
+-- どの予約も番組情報のコピーを持ち、番組が EPG から消えても内容を表示できるようにする。
+-- そのため programs への外部キーは張らない。
+CREATE TABLE reservations (
+  id uuid PRIMARY KEY,
+  kind text NOT NULL CHECK (kind IN ('program', 'time', 'rule')),
+  service_id bigint NOT NULL REFERENCES services (id),
+  -- 番組予約とルール予約の番組の eventId。時刻予約では NULL。
+  event_id bigint,
+  start_at timestamptz NOT NULL,
+  end_at timestamptz NOT NULL,
+  -- 番組情報のコピー。時刻予約では、ユーザーが付けた名前だけを持つ。
+  name text NOT NULL,
+  description text NOT NULL,
+  extended jsonb NOT NULL,
+  genres jsonb NOT NULL,
+  enabled boolean NOT NULL DEFAULT true,
+  -- イベントリレーで引き継がれた番組を、引き継ぎ先でも自動で予約するかどうか (設計書 4.6)。
+  follow_event_relay boolean NOT NULL DEFAULT true,
+  -- 録画設定の上書き (設計書 4.7)。指定のない項目は全体の既定値を使う。
+  settings jsonb NOT NULL,
+  created_at timestamptz NOT NULL,
+  -- 作成者と更新者。ルール予約は neko が作るので、ユーザーがいないことがある。
+  created_by uuid REFERENCES users (id),
+  updated_at timestamptz NOT NULL,
+  updated_by uuid REFERENCES users (id),
+  CONSTRAINT reservations_event_check CHECK ((kind = 'time') = (event_id IS NULL)),
+  CONSTRAINT reservations_time_check CHECK (start_at < end_at)
+);
+
+-- 1 つの番組に対する予約は、常に 1 件だけにする (設計書 4.1)。
+-- 番組は programs と同じく (サービス, eventId) で識別するので、放送時間が変わっても同じ予約のままになる。
+-- 放送が終わった番組の予約は、録画の状態遷移 (#28) で片付け、EID の再利用で新しい番組を予約できなくならないようにする。
+CREATE UNIQUE INDEX reservations_program_idx ON reservations (service_id, event_id) WHERE event_id IS NOT NULL;
+CREATE INDEX reservations_start_at_idx ON reservations (start_at);
