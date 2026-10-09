@@ -147,6 +147,19 @@ func TestAuthenticate(t *testing.T) {
 		})
 	}
 
+	t.Run("without options and client info", func(t *testing.T) {
+		t.Parallel()
+
+		f := newSessionFixture(t, db)
+		sessions := auth.NewSessions(nil)
+		token, session, err := sessions.Create(t.Context(), f.db, f.userID, nil)
+		require.NoError(t, err)
+		assert.Empty(t, session.UserAgent)
+		assert.False(t, session.SourceIP.IsValid())
+		_, err = sessions.Authenticate(t.Context(), f.db, token)
+		require.NoError(t, err)
+	})
+
 	t.Run("unknown token", func(t *testing.T) {
 		t.Parallel()
 

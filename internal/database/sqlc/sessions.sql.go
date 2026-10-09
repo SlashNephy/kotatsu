@@ -121,11 +121,11 @@ func (q *Queries) ListActiveSessions(ctx context.Context, arg ListActiveSessions
 }
 
 const revokeSession = `-- name: RevokeSession :execrows
-UPDATE sessions SET revoked_at = $1 WHERE id = $2 AND user_id = $3 AND revoked_at IS NULL
+UPDATE sessions SET revoked_at = $1::timestamptz WHERE id = $2 AND user_id = $3 AND revoked_at IS NULL
 `
 
 type RevokeSessionParams struct {
-	Now    *time.Time
+	Now    time.Time
 	ID     uuid.UUID
 	UserID uuid.UUID
 }

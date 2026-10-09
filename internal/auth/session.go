@@ -79,8 +79,11 @@ type Sessions struct {
 	clock           clock.Clock
 }
 
-// NewSessions は Sessions を作る。
+// NewSessions は Sessions を作る。opts は nil でもよい。
 func NewSessions(opts *SessionsOptions) *Sessions {
+	if opts == nil {
+		opts = &SessionsOptions{IdleTimeout: 0, AbsoluteTimeout: 0, IsSecure: nil, Clock: nil}
+	}
 	s := &Sessions{
 		idleTimeout:     opts.IdleTimeout,
 		absoluteTimeout: opts.AbsoluteTimeout,
@@ -104,8 +107,11 @@ func NewSessions(opts *SessionsOptions) *Sessions {
 }
 
 // Create は、ログインしたユーザーのセッションを作り、Cookie に入れるトークンとセッションを返す。
-// トークンは DB に保存しないので、ここでしか得られない。
+// トークンは DB に保存しないので、ここでしか得られない。client は nil でもよい。
 func (s *Sessions) Create(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, client *ClientInfo) (string, *Session, error) {
+	if client == nil {
+		client = &ClientInfo{UserAgent: "", SourceIP: netip.Addr{}}
+	}
 	raw := make([]byte, tokenBytes)
 	if _, err := rand.Read(raw); err != nil {
 		return "", nil, fmt.Errorf("failed to generate a session token: %w", err)
@@ -211,7 +217,7 @@ func (s *Sessions) List(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) ([]
 // Revoke は、ユーザーのセッションを失効させる。
 // 他のユーザーのセッションや、失効済みのセッションを指定したときは ErrSessionNotFound を返す。
 func (s *Sessions) Revoke(ctx context.Context, db sqlc.DBTX, userID, sessionID uuid.UUID) error {
-	n, err := sqlc.New(db).RevokeSession(ctx, sqlc.RevokeSessionParams{Now: new(s.clock.Now()), ID: sessionID, UserID: userID})
+	n, err := sqlc.New(db).RevokeSession(ctx, sqlc.RevokeSessionParams{Now: s.clock.Now(), ID: sessionID, UserID: userID})
 	if err != nil {
 		return fmt.Errorf("failed to revoke a session: %w", err)
 	}
