@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/SlashNephy/kotatsu/internal/config"
 )
@@ -14,6 +15,8 @@ type Deps struct {
 	Config *config.Config
 	// DB は、スキーマのバージョンを確かめた後の接続。
 	DB *pgxpool.Pool
+	// Metrics は /metrics で公開するレジストリ。各ロールのメトリクスはここに登録する。
+	Metrics *prometheus.Registry
 }
 
 // Runner はロールの本体。ctx が終わるまで動き続ける。
