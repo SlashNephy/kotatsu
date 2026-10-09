@@ -5,10 +5,12 @@ import (
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 )
 
 // Resolver は、リゾルバが使う依存。
 type Resolver struct {
+	db    sqlc.DBTX
 	clock clock.Clock
 	// heartbeatInterval は、heartbeat の subscription で時刻を送る間隔。
 	heartbeatInterval time.Duration

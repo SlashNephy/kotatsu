@@ -18,7 +18,9 @@ const loaderWait = time.Millisecond
 // Loaders は、1 つのリクエストの中で、同じ種類のデータをまとめて引く dataloader (設計書 9.1)。
 // N+1 問題を防ぐため、リゾルバは DB を直接引かずに、ここから引く。リクエストごとに作り直す。
 type Loaders struct {
-	Users *dataloadgen.Loader[uuid.UUID, *sqlc.User]
+	Users        *dataloadgen.Loader[uuid.UUID, *sqlc.User]
+	Services     *dataloadgen.Loader[int64, *sqlc.ListGuideServicesRow]
+	ChannelTypes *dataloadgen.Loader[string, *sqlc.ChannelType]
 }
 
 type loadersKey struct{}
@@ -37,6 +39,30 @@ func newLoaders(db sqlc.DBTX) *Loaders {
 			}
 
 			return orderBy(ids, byID, "user")
+		}, dataloadgen.WithWait(loaderWait)),
+		Services: dataloadgen.NewLoader(func(ctx context.Context, ids []int64) ([]*sqlc.ListGuideServicesRow, []error) {
+			rows, err := sqlc.New(db).ListGuideServices(ctx, sqlc.ListGuideServicesParams{IncludeHidden: true, Ids: ids})
+			if err != nil {
+				return failAll[*sqlc.ListGuideServicesRow](len(ids), fmt.Errorf("failed to load services: %w", err))
+			}
+			byID := make(map[int64]*sqlc.ListGuideServicesRow, len(rows))
+			for i := range rows {
+				byID[rows[i].ID] = &rows[i]
+			}
+
+			return orderBy(ids, byID, "service")
+		}, dataloadgen.WithWait(loaderWait)),
+		ChannelTypes: dataloadgen.NewLoader(func(ctx context.Context, types []string) ([]*sqlc.ChannelType, []error) {
+			rows, err := sqlc.New(db).ListChannelTypesByTypes(ctx, types)
+			if err != nil {
+				return failAll[*sqlc.ChannelType](len(types), fmt.Errorf("failed to load channel types: %w", err))
+			}
+			byType := make(map[string]*sqlc.ChannelType, len(rows))
+			for i := range rows {
+				byType[rows[i].Type] = &rows[i]
+			}
+
+			return orderBy(types, byType, "channel type")
 		}, dataloadgen.WithWait(loaderWait)),
 	}
 }

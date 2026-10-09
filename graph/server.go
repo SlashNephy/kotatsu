@@ -71,7 +71,7 @@ func NewHandler(opts *Options) http.Handler {
 	}
 
 	var config generated.Config
-	config.Resolvers = &Resolver{clock: o.Clock, heartbeatInterval: o.HeartbeatInterval}
+	config.Resolvers = &Resolver{db: o.DB, clock: o.Clock, heartbeatInterval: o.HeartbeatInterval}
 	server := handler.New(generated.NewExecutableSchema(config))
 	// SSE は Accept で POST と見分けるので、POST より先に置く。
 	server.AddTransport(transport.SSE{})

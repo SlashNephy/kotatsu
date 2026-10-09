@@ -14,6 +14,25 @@ type Node interface {
 	IsNode()
 }
 
+// チャンネル種別 (設計書 3.1)。種別の文字列はチューナーサーバーが返すものをそのまま使い、表示名と並び順は管理者が変えられる。
+type ChannelType struct {
+	Type        string `json:"type"`
+	DisplayName string `json:"displayName"`
+	SortOrder   int    `json:"sortOrder"`
+}
+
+// 番組の詳細の、見出しと本文の組。
+type ExtendedItem struct {
+	Heading string `json:"heading"`
+	Text    string `json:"text"`
+}
+
+// 番組のジャンル。ARIB STD-B10 の content_nibble の大分類と中分類。
+type Genre struct {
+	Lv1 int `json:"lv1"`
+	Lv2 int `json:"lv2"`
+}
+
 // 一覧のページの情報 (Relay の Cursor Connections)。カーソルは中身を解釈せずに、そのまま次のリクエストに渡す。
 type PageInfo struct {
 	HasNextPage     bool    `json:"hasNextPage"`

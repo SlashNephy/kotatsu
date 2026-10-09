@@ -34,6 +34,7 @@ type Querier interface {
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
 	// 種別が無ければ既定値で足す。管理者が変えた表示名と並び順は上書きしない。
 	EnsureChannelType(ctx context.Context, arg EnsureChannelTypeParams) error
+	GetGuideProgram(ctx context.Context, arg GetGuideProgramParams) (GetGuideProgramRow, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
@@ -64,17 +65,23 @@ type Querier interface {
 	ListAssignableReservations(ctx context.Context, now time.Time) ([]ListAssignableReservationsRow, error)
 	ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error)
 	ListChangeVersions(ctx context.Context, channels []string) ([]ListChangeVersionsRow, error)
+	ListChannelTypes(ctx context.Context) ([]ChannelType, error)
+	ListChannelTypesByTypes(ctx context.Context, types []string) ([]ChannelType, error)
 	ListEPGChangesSince(ctx context.Context, version int64) ([]ListEPGChangesSinceRow, error)
 	// ルール予約の録画設定に使う、一致したルールのうち最も古いものの上書き。
 	ListFirstRuleSettings(ctx context.Context, reservationIds []uuid.UUID) ([]ListFirstRuleSettingsRow, error)
 	// 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。
 	ListFutureProgramReservations(ctx context.Context, now time.Time) ([]ListFutureProgramReservationsRow, error)
 	ListFutureReservationRules(ctx context.Context, now time.Time) ([]ReservationRule, error)
+	// 番組表の並び順のサービス。チャンネル種別の並び順、管理者の上書き、リモコンのキー、サービス ID の順に並べる。
+	ListGuideServices(ctx context.Context, arg ListGuideServicesParams) ([]ListGuideServicesRow, error)
 	// 番組名のキーごと、サービスごとの、最後に録画した番組の終了時刻。
 	ListLatestRecordingHistory(ctx context.Context, titleKeys []string) ([]ListLatestRecordingHistoryRow, error)
 	// ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
 	ListMatchablePrograms(ctx context.Context, now time.Time) ([]ListMatchableProgramsRow, error)
 	ListPrograms(ctx context.Context) ([]ListProgramsRow, error)
+	// 時間帯 [from, to) に重なる番組。
+	ListProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]ListProgramsInRangeRow, error)
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
 	// 番組を指定した予約のうち、予約か番組の終わりがまだ来ていないものと、その番組の今の EPG。
 	// ルール予約の録画設定は、一致したルールのうち最も古いものの上書きを使う。

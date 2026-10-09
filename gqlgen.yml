@@ -17,8 +17,8 @@ resolver:
   dir: graph
   filename_template: "{name}.resolvers.go"
 
-# 生成したリゾルバの雛形に、コメントを残さない。
-omit_gqlgen_file_notice: false
+# リゾルバのファイルに「Code generated」の注記を付けない。付けると、整形 (golangci-lint fmt) の対象から外れるからである。
+omit_gqlgen_file_notice: true
 omit_getters: true
 struct_fields_always_pointers: true
 resolvers_always_return_pointers: true
@@ -30,3 +30,15 @@ models:
   Time:
     model:
       - github.com/99designs/gqlgen/graphql.Time
+  Service:
+    model: github.com/SlashNephy/kotatsu/graph/model.Service
+    fields:
+      channelType:
+        resolver: true
+  Program:
+    model: github.com/SlashNephy/kotatsu/graph/model.Program
+    fields:
+      service:
+        resolver: true
+  GuideRow:
+    model: github.com/SlashNephy/kotatsu/graph/model.GuideRow

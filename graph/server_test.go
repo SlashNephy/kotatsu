@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -31,6 +32,7 @@ func testNow() time.Time {
 }
 
 type fixture struct {
+	pool   *pgxpool.Pool
 	server *httptest.Server
 	// token は、ログイン済みのセッションのトークン。
 	token string
@@ -63,7 +65,7 @@ func newFixture(t *testing.T, opts *graph.Options) *fixture {
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
-	return &fixture{server: server, token: token}
+	return &fixture{pool: pool, server: server, token: token}
 }
 
 type request struct {
