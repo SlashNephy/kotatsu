@@ -1,3 +1,8 @@
+# Storybook が使う esbuild の postinstall は、バイナリを確かめるだけなので走らせない。
+# バイナリは、プラットフォームごとの optionalDependencies から入る。
+allowBuilds:
+  esbuild: false
+
 # Vite+ が同梱する vite と vitest を、依存のどこから引いても同じものにする (Vite+ の手動導入の手順)。
 overrides:
   vite: npm:@voidzero-dev/vite-plus-core@1.1.0

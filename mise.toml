@@ -34,6 +34,23 @@ dir = "web"
 depends = ["web:relay"]
 run = "pnpm exec vp check"
 
+[tasks."web:test"]
+dir = "web"
+depends = ["web:relay"]
+run = "pnpm exec vp test run"
+
+[tasks."web:storybook"]
+dir = "web"
+depends = ["web:relay"]
+run = "pnpm exec storybook build --quiet"
+
+# E2E テスト。ビルド済みの SPA を vp preview で配信して確かめる。
+# Chromium は pnpm exec playwright install chromium で入れるか、KOTATSU_E2E_CHROMIUM に手元のものを指定する。
+[tasks."web:e2e"]
+dir = "web"
+depends = ["web:build"]
+run = "pnpm exec playwright test"
+
 [tasks."web:dev"]
 dir = "web"
 depends = ["web:install"]

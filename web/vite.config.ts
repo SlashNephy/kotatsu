@@ -74,7 +74,12 @@ export default defineConfig({
     ignorePatterns: ['src/routeTree.gen.ts', 'schema.graphql', '**/__generated__/**'],
   },
   lint: {
-    ignorePatterns: ['src/routeTree.gen.ts', 'dist/**', '**/__generated__/**'],
+    ignorePatterns: [
+      'src/routeTree.gen.ts',
+      'dist/**',
+      'storybook-static/**',
+      '**/__generated__/**',
+    ],
     options: {
       typeAware: true,
       typeCheck: true,
@@ -82,5 +87,7 @@ export default defineConfig({
   },
   test: {
     include: ['src/**/*.test.{ts,tsx}'],
+    environment: 'jsdom',
+    setupFiles: ['src/test/setup.ts'],
   },
 });
