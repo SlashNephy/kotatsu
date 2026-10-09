@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -49,7 +50,7 @@ func (s *guideViewSettings) conditions() *match.Conditions {
 
 // guideViewFromInput は、入力を検証して、保存する形にする。
 func guideViewFromInput(in *model.GuideViewInput) (*guideViewSettings, error) {
-	if in.Name == "" || utf8.RuneCountInString(in.Name) > maxGuideViewName {
+	if strings.TrimSpace(in.Name) == "" || utf8.RuneCountInString(in.Name) > maxGuideViewName {
 		return nil, NewError(CodeBadUserInput, fmt.Sprintf("name must be 1 to %d characters", maxGuideViewName))
 	}
 	if len(in.Services) > maxGuideViewServices {

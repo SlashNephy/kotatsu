@@ -70,6 +70,13 @@ func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error)
 		return toProgram((*programRow)(&row))
 	case archiveType:
 		return r.archivedProgram(ctx, raw)
+	case guideViewType:
+		view, err := r.guideView(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+
+		return toGuideView(view)
 	default:
 		return nil, NewError(CodeBadUserInput, "unknown type "+typeName)
 	}

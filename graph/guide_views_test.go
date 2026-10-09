@@ -1,6 +1,7 @@
 package graph_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -93,6 +94,13 @@ func TestGuideViews(t *testing.T) {
 	require.Empty(t, f.query(t, `{ guideViews { `+guideViewFields+` } }`, nil, &listed))
 	assert.Equal(t, []guideView{view}, listed.GuideViews)
 
+	// node でも引ける。
+	var node struct {
+		Node guideView `json:"node"`
+	}
+	require.Empty(t, f.query(t, `query($id: ID!) { node(id: $id) { ... on GuideView { `+guideViewFields+` } } }`, map[string]any{"id": view.ID}, &node))
+	assert.Equal(t, view, node.Node)
+
 	// ビューを当てると、アニメの番組だけが残り、番組のないサービスは隠れ、ビューの並びになる。
 	var guide struct {
 		Guide []struct {
@@ -138,6 +146,7 @@ func TestGuideViewErrors(t *testing.T) {
 
 	f := newFixture(t, nil)
 	f.syncEPG(t)
+	services := f.serviceIDs(t)
 	create := `mutation($input: GuideViewInput!) { createGuideView(input: $input) { id } }`
 	require.Empty(t, f.query(t, create, inputVariables(guideViewInput{Name: "アニメ"}), nil))
 
@@ -160,7 +169,17 @@ func TestGuideViewErrors(t *testing.T) {
 	}{
 		{name: "duplicate name", query: create, variables: inputVariables(guideViewInput{Name: "アニメ"}), want: codeBadUserInput},
 		{name: "empty name", query: create, variables: inputVariables(guideViewInput{Name: ""}), want: codeBadUserInput},
+		{name: "blank name", query: create, variables: inputVariables(guideViewInput{Name: " 　"}), want: codeBadUserInput},
+		{name: "too long name", query: create, variables: inputVariables(guideViewInput{Name: strings.Repeat("あ", 101)}), want: codeBadUserInput},
+		{
+			name: "duplicate services", query: create,
+			variables: inputVariables(guideViewInput{Name: "x", Services: []string{services["こたつテスト1"], services["こたつテスト1"]}}), want: codeBadUserInput,
+		},
 		{name: "invalid genre", query: create, variables: inputVariables(guideViewInput{Name: "x", Genres: []genreInput{{Lv1: 16}}}), want: codeBadUserInput},
+		{
+			name: "other user's view cannot be fetched by node", query: `query($id: ID!) { node(id: $id) { id } }`,
+			variables: map[string]any{"id": otherViewID}, want: codeNotFound,
+		},
 		{
 			name: "other user's view cannot be updated", query: `mutation($id: ID!, $input: GuideViewInput!) { updateGuideView(id: $id, input: $input) { id } }`,
 			variables: guideViewVariables{ID: otherViewID, Input: &guideViewInput{Name: "x"}}, want: codeNotFound,
@@ -179,6 +198,79 @@ func TestGuideViewErrors(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, []string{tt.want}, f.query(t, tt.query, tt.variables, nil))
+		})
+	}
+}
+
+// TestGuideViewFilters は、番組表ビューの除外するジャンルと番組の最短の長さで、番組表が絞り込まれることを確かめる。
+func TestGuideViewFilters(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	// こたつテスト2 の 12:30 の番組 (eventId 4) だけをアニメにする。
+	_, err := f.pool.Exec(t.Context(), `UPDATE programs SET genres = '[{"lv1":7,"lv2":0,"un1":15,"un2":15}]'
+		WHERE event_id = 4 AND service_id IN (SELECT id FROM services WHERE name = 'こたつテスト2')`)
+	require.NoError(t, err)
+
+	type guideRows struct {
+		Guide []struct {
+			Programs []struct {
+				Name string `json:"name"`
+			} `json:"programs"`
+		} `json:"guide"`
+	}
+	// count は、番組表のサービスの数と番組の数を返す。
+	count := func(t *testing.T, viewID *string) (int, int) {
+		t.Helper()
+
+		var got guideRows
+		require.Empty(t, f.query(t, `query($view: ID) { guide(from: "2026-10-10T12:00:00Z", to: "2026-10-10T13:00:00Z", view: $view) { programs { name } } }`,
+			map[string]any{"view": viewID}, &got))
+		programs := 0
+		for _, row := range got.Guide {
+			programs += len(row.Programs)
+		}
+
+		return len(got.Guide), programs
+	}
+	allServices, allPrograms := count(t, nil)
+	require.Positive(t, allPrograms)
+
+	tests := []struct {
+		name         string
+		input        guideViewInput
+		wantServices int
+		wantPrograms int
+	}{
+		{
+			name: "excluded genre", input: guideViewInput{Name: "アニメ以外", ExcludeGenres: []genreInput{{Lv1: 7}}},
+			wantServices: allServices, wantPrograms: allPrograms - 1,
+		},
+		{
+			name: "programs as long as the minimum remain", input: guideViewInput{Name: "30 分以上", MinDurationSeconds: new(1800)},
+			wantServices: allServices, wantPrograms: allPrograms,
+		},
+		{
+			name: "shorter programs are removed", input: guideViewInput{Name: "1 時間以上", MinDurationSeconds: new(3600)},
+			wantServices: allServices, wantPrograms: 0,
+		},
+		{
+			name: "services without programs are hidden", input: guideViewInput{Name: "1 時間以上で隠す", MinDurationSeconds: new(3600), HideEmptyServices: true},
+			wantServices: 0, wantPrograms: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var created struct {
+				CreateGuideView guideView `json:"createGuideView"`
+			}
+			require.Empty(t, f.query(t, `mutation($input: GuideViewInput!) { createGuideView(input: $input) { id } }`, inputVariables(tt.input), &created))
+			services, programs := count(t, &created.CreateGuideView.ID)
+			assert.Equal(t, tt.wantServices, services)
+			assert.Equal(t, tt.wantPrograms, programs)
 		})
 	}
 }
