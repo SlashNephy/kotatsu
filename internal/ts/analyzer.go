@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// Analyzer は、書き込まれる TS を流し読みし、PID ごとの統計を数える。
+// Analyzer は、書き込まれる TS を流し読みし、PID ごとの統計と、PAT と PMT が表す番組の構成を記録する。
 //
 // 録画ファイルへの書き込みと並べて io.MultiWriter で使う。パケットの途中で区切られた書き込みも受け付ける。
 // Write は 1 つの goroutine から呼ぶ。Stats は、Write と並行に別の goroutine から呼んでよい。
@@ -23,6 +23,9 @@ type Analyzer struct {
 	syncLosses int64
 	packets    int64
 	pids       map[uint16]*pidState
+	programs   *programTable
+	// sections は、PAT と PMT の PID ごとの、組み立て中のセクション。
+	sections map[uint16]*sectionAssembler
 }
 
 var _ io.Writer = new(Analyzer)
@@ -58,6 +61,8 @@ type Stats struct {
 	SyncLosses int64
 	// PIDs は、PID の昇順に並べた統計。null パケットの PID は含めない。
 	PIDs []*PIDStats
+	// Programs は、最後に読んだ PAT と PMT が表す番組の構成。program_number の昇順に並べる。
+	Programs []*Program
 }
 
 // NewAnalyzer は Analyzer を作る。
@@ -71,6 +76,8 @@ func NewAnalyzer() *Analyzer {
 		syncLosses: 0,
 		packets:    0,
 		pids:       map[uint16]*pidState{},
+		programs:   newProgramTable(),
+		sections:   map[uint16]*sectionAssembler{},
 	}
 }
 
@@ -143,6 +150,7 @@ func (a *Analyzer) Stats() *Stats {
 		Packets:    a.packets,
 		SyncLosses: a.syncLosses,
 		PIDs:       pids,
+		Programs:   a.programs.snapshot(),
 	}
 }
 
@@ -165,6 +173,9 @@ func (a *Analyzer) handle(b []byte) {
 		// 次のパケットを基準に数え直し、1 つの誤りをドロップとしても数えないようにする。
 		state.stats.Errors++
 		state.lastCC = -1
+		if assembler := a.sections[pkt.pid]; assembler != nil {
+			assembler.reset()
+		}
 
 		return
 	}
@@ -172,13 +183,49 @@ func (a *Analyzer) handle(b []byte) {
 		// アダプテーションフィールドの長さが壊れていて、ペイロードの位置もフラグも分からない。
 		// 誤りと同じく、次のパケットを基準に数え直す。
 		state.lastCC = -1
+		if assembler := a.sections[pkt.pid]; assembler != nil {
+			assembler.reset()
+		}
 
 		return
 	}
+	result := state.checkContinuity(&pkt)
 	if pkt.scrambling != 0 {
+		// スクランブルされたペイロードは読めない。
 		state.stats.Scrambled++
+
+		return
 	}
-	state.checkContinuity(&pkt)
+	if pkt.payload == nil || result == continuityDuplicate {
+		// 重複したパケットのペイロードは、直前のパケットで読んでいる。
+		return
+	}
+	a.handlePSI(&pkt, result == continuityDropped)
+}
+
+// handlePSI は、PAT と PMT のパケットからセクションを組み立てて読む。
+func (a *Analyzer) handlePSI(pkt *packet, dropped bool) {
+	pid := pkt.pid
+	if pid != patPID && !a.programs.isPMTPID(pid) {
+		return
+	}
+
+	assembler := a.sections[pid]
+	if assembler == nil {
+		assembler = newSectionAssembler()
+		a.sections[pid] = assembler
+	}
+	if dropped {
+		// 途中のパケットが欠けたセクションは、組み立てても CRC で弾かれるので、捨てて次の始まりを待つ。
+		assembler.reset()
+	}
+	assembler.feed(pkt.payloadUnitStart, pkt.payload, func(section []byte) {
+		if pid == patPID {
+			a.programs.handlePAT(section)
+		} else {
+			a.programs.handlePMT(pid, section)
+		}
+	})
 }
 
 // continuity は、continuity_counter を調べた結果。
