@@ -67,10 +67,12 @@ type programTable struct {
 	pmtPIDs map[uint16]uint16
 	// programs は、program_number ごとの、最後に読んだ PMT の内容。
 	programs map[uint16]*Program
+	// generation は、PAT か PMT を読んで構成が変わるたびに増える。
+	generation int
 }
 
 func newProgramTable() *programTable {
-	return &programTable{patVersion: -1, pmtPIDs: map[uint16]uint16{}, programs: map[uint16]*Program{}}
+	return &programTable{patVersion: -1, pmtPIDs: map[uint16]uint16{}, programs: map[uint16]*Program{}, generation: 0}
 }
 
 // isPMTPID は、pid が PAT に書かれた PMT の PID かどうかを返す。
@@ -108,6 +110,7 @@ func (t *programTable) handlePAT(section []byte) {
 
 		return !ok
 	})
+	t.generation++
 }
 
 // handlePMT は PMT のセクションを読む。
@@ -150,6 +153,20 @@ func (t *programTable) handlePMT(pid uint16, section []byte) {
 		entry = entry[5+esInfoLength:]
 	}
 	t.programs[number] = program
+	t.generation++
+}
+
+// mpeg2VideoPID は、program_number が最も小さい番組の、最初の MPEG-2 (MPEG-1 を含む) 映像の PID を返す。
+func (t *programTable) mpeg2VideoPID() (uint16, bool) {
+	for _, number := range slices.Sorted(maps.Keys(t.programs)) {
+		for _, s := range t.programs[number].Streams {
+			if s.StreamType == streamTypeMPEG2Video || s.StreamType == streamTypeMPEG1Video {
+				return s.PID, true
+			}
+		}
+	}
+
+	return 0, false
 }
 
 // snapshot は、番組の構成を program_number の昇順に並べて複製する。

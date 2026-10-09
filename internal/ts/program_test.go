@@ -110,7 +110,7 @@ func psiPackets(pid uint16, cc *byte, sections ...[]byte) [][]byte {
 func TestAnalyzerProgramsFromTestTS(t *testing.T) {
 	t.Parallel()
 
-	analyzer := ts.NewAnalyzer()
+	analyzer := ts.NewAnalyzer(nil)
 	_, err := analyzer.Write(loadTestTS(t))
 	require.NoError(t, err)
 
@@ -225,7 +225,7 @@ func TestAnalyzerPrograms(t *testing.T) {
 			t.Parallel()
 
 			cc := map[uint16]*byte{0: new(byte), pmtPID: new(byte), 0x01F1: new(byte)}
-			analyzer := ts.NewAnalyzer()
+			analyzer := ts.NewAnalyzer(nil)
 			_, err := analyzer.Write(join(tt.build(cc)))
 			require.NoError(t, err)
 

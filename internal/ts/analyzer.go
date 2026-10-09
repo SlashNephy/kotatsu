@@ -8,6 +8,7 @@ import (
 )
 
 // Analyzer は、書き込まれる TS を流し読みし、PID ごとの統計と、PAT と PMT が表す番組の構成を記録する。
+// 索引の書き込み先を渡せば、MPEG-2 映像の I フレームの位置と PTS を索引に追記していく。
 //
 // 録画ファイルへの書き込みと並べて io.MultiWriter で使う。パケットの途中で区切られた書き込みも受け付ける。
 // Write は 1 つの goroutine から呼ぶ。Stats は、Write と並行に別の goroutine から呼んでよい。
@@ -26,6 +27,22 @@ type Analyzer struct {
 	programs   *programTable
 	// sections は、PAT と PMT の PID ごとの、組み立て中のセクション。
 	sections map[uint16]*sectionAssembler
+
+	index *IndexWriter
+	// indexErr は、索引の書き込みで起きたエラー。起きたら、それ以降は索引を書かない。
+	// 録画の書き込みを止めないよう、Write からは返さない。
+	indexErr error
+	iframes  int64
+	// video は、I フレームを探す映像の PID の状態。MPEG-2 の映像がまだ見つかっていなければ nil。
+	video *iframeDetector
+	// programsGeneration は、video を選んだときの番組の構成の世代。
+	programsGeneration int
+}
+
+// AnalyzerOptions は Analyzer の設定。
+type AnalyzerOptions struct {
+	// Index は索引の書き込み先。nil なら索引を作らない。
+	Index *IndexWriter
 }
 
 var _ io.Writer = new(Analyzer)
@@ -63,10 +80,19 @@ type Stats struct {
 	PIDs []*PIDStats
 	// Programs は、最後に読んだ PAT と PMT が表す番組の構成。program_number の昇順に並べる。
 	Programs []*Program
+	// IFrames は、見つけた I フレームの数。
+	IFrames int64
+	// IndexError は、索引の書き込みで起きたエラー。起きていなければ nil。
+	IndexError error
 }
 
-// NewAnalyzer は Analyzer を作る。
-func NewAnalyzer() *Analyzer {
+// NewAnalyzer は Analyzer を作る。opts は nil でもよい。
+func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
+	var index *IndexWriter
+	if opts != nil {
+		index = opts.Index
+	}
+
 	return &Analyzer{
 		mu:         sync.Mutex{},
 		offset:     0,
@@ -78,6 +104,12 @@ func NewAnalyzer() *Analyzer {
 		pids:       map[uint16]*pidState{},
 		programs:   newProgramTable(),
 		sections:   map[uint16]*sectionAssembler{},
+
+		index:              index,
+		indexErr:           nil,
+		iframes:            0,
+		video:              nil,
+		programsGeneration: -1,
 	}
 }
 
@@ -96,7 +128,7 @@ func (a *Analyzer) Write(p []byte) (int, error) {
 		if a.carryLen < PacketSize {
 			return n, nil
 		}
-		a.handle(a.carry[:])
+		a.handle(a.carry[:], a.offset-PacketSize)
 		a.carryLen = 0
 	}
 
@@ -126,7 +158,7 @@ func (a *Analyzer) Write(p []byte) (int, error) {
 
 			break
 		}
-		a.handle(p[:PacketSize])
+		a.handle(p[:PacketSize], a.offset)
 		p = p[PacketSize:]
 		a.offset += PacketSize
 	}
@@ -151,11 +183,13 @@ func (a *Analyzer) Stats() *Stats {
 		SyncLosses: a.syncLosses,
 		PIDs:       pids,
 		Programs:   a.programs.snapshot(),
+		IFrames:    a.iframes,
+		IndexError: a.indexErr,
 	}
 }
 
-// handle は 1 パケットを処理する。
-func (a *Analyzer) handle(b []byte) {
+// handle は 1 パケットを処理する。offset は、パケットの先頭の位置 (受け取ったバイト列の先頭からのバイト数)。
+func (a *Analyzer) handle(b []byte, offset int64) {
 	a.packets++
 	pkt := parsePacket(b)
 	if pkt.pid == NullPID {
@@ -175,6 +209,9 @@ func (a *Analyzer) handle(b []byte) {
 		state.lastCC = -1
 		if assembler := a.sections[pkt.pid]; assembler != nil {
 			assembler.reset()
+		}
+		if a.video != nil && a.video.pid == pkt.pid {
+			a.video.reset()
 		}
 
 		return
@@ -201,6 +238,36 @@ func (a *Analyzer) handle(b []byte) {
 		return
 	}
 	a.handlePSI(&pkt, result == continuityDropped)
+	a.handleVideo(&pkt, offset, result == continuityDropped)
+}
+
+// handleVideo は、映像のパケットから I フレームを探し、見つけたら索引に追記する。
+func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
+	if a.programsGeneration != a.programs.generation {
+		a.programsGeneration = a.programs.generation
+		pid, ok := a.programs.mpeg2VideoPID()
+		switch {
+		case !ok:
+			a.video = nil
+		case a.video == nil || a.video.pid != pid:
+			a.video = newIFrameDetector(pid)
+		}
+	}
+	if a.video == nil || a.video.pid != pkt.pid {
+		return
+	}
+	if dropped {
+		a.video.reset()
+	}
+
+	entry, ok := a.video.feed(pkt, offset)
+	if !ok {
+		return
+	}
+	a.iframes++
+	if a.index != nil && a.indexErr == nil {
+		a.indexErr = a.index.Append(entry)
+	}
 }
 
 // handlePSI は、PAT と PMT のパケットからセクションを組み立てて読む。

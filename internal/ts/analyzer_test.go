@@ -198,7 +198,7 @@ func TestAnalyzerMutations(t *testing.T) {
 			t.Parallel()
 
 			input := join(tt.mutate(t, packets(original)))
-			analyzer := ts.NewAnalyzer()
+			analyzer := ts.NewAnalyzer(nil)
 			n, err := analyzer.Write(input)
 			require.NoError(t, err)
 			assert.Equal(t, len(input), n)
@@ -227,7 +227,7 @@ func TestAnalyzerChunkedWrites(t *testing.T) {
 	t.Parallel()
 
 	input := loadTestTS(t)
-	whole := ts.NewAnalyzer()
+	whole := ts.NewAnalyzer(nil)
 	_, err := whole.Write(input)
 	require.NoError(t, err)
 	want := whole.Stats()
@@ -238,7 +238,7 @@ func TestAnalyzerChunkedWrites(t *testing.T) {
 		t.Run(strconv.Itoa(size), func(t *testing.T) {
 			t.Parallel()
 
-			analyzer := ts.NewAnalyzer()
+			analyzer := ts.NewAnalyzer(nil)
 			for chunk := range slices.Chunk(input, size) {
 				_, err := analyzer.Write(chunk)
 				require.NoError(t, err)
@@ -266,7 +266,7 @@ func TestAnalyzerResync(t *testing.T) {
 			t.Parallel()
 
 			input := join(slices.Concat(pkts[:50], [][]byte{tt.garbage}, pkts[50:]))
-			analyzer := ts.NewAnalyzer()
+			analyzer := ts.NewAnalyzer(nil)
 			_, err := analyzer.Write(input)
 			require.NoError(t, err)
 
@@ -363,7 +363,7 @@ func TestAnalyzerContinuityRules(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			analyzer := ts.NewAnalyzer()
+			analyzer := ts.NewAnalyzer(nil)
 			_, err := analyzer.Write(join(tt.sequence))
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantDrops, statsOf(analyzer.Stats(), syntheticPID).Drops)

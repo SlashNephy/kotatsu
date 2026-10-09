@@ -1,0 +1,240 @@
+package ts_test
+
+import (
+	"bytes"
+	"errors"
+	"slices"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/SlashNephy/kotatsu/internal/ts"
+)
+
+// wantIFramePTS は、testdata/ts/test.ts の I フレームの PTS。
+// ffprobe -select_streams v:0 -show_entries frame=pict_type,pts で数えた値で、GOP は 15 フレーム (45045 刻み) ごと。
+func wantIFramePTS() []int64 {
+	return []int64{129003, 174048, 219093, 264138, 309183, 354228, 399273, 444318, 489363, 534408, 579453, 624498}
+}
+
+// analyzeWithIndex は、input を解析し、索引の中身と統計を返す。
+func analyzeWithIndex(t *testing.T, chunks ...[]byte) ([]ts.IndexEntry, *ts.Stats) {
+	t.Helper()
+
+	var buf bytes.Buffer
+	writer, err := ts.NewIndexWriter(&buf)
+	require.NoError(t, err)
+	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer})
+	for _, chunk := range chunks {
+		_, err := analyzer.Write(chunk)
+		require.NoError(t, err)
+	}
+	entries, err := ts.ReadIndex(&buf)
+	require.NoError(t, err)
+
+	return entries, analyzer.Stats()
+}
+
+func ptsOf(entries []ts.IndexEntry) []int64 {
+	out := make([]int64, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, e.PTS)
+	}
+
+	return out
+}
+
+func TestAnalyzerIndex(t *testing.T) {
+	t.Parallel()
+
+	input := loadTestTS(t)
+	entries, stats := analyzeWithIndex(t, input)
+	assert.Equal(t, wantIFramePTS(), ptsOf(entries))
+	assert.Equal(t, int64(len(entries)), stats.IFrames)
+	require.NoError(t, stats.IndexError)
+
+	for _, e := range entries {
+		require.Zero(t, e.Offset%ts.PacketSize, "the offset must point to a packet boundary")
+		p := input[e.Offset : e.Offset+ts.PacketSize]
+		assert.Equal(t, uint16(videoPID), pidOf(p), "the offset must point to a video packet")
+		assert.NotZero(t, p[1]&0x40, "the offset must point to the start of a PES")
+	}
+
+	// 書き込みの区切り方によらず、同じ索引ができる。
+	chunked, _ := analyzeWithIndex(t, slices.Collect(slices.Chunk(input, 1000))...)
+	assert.Equal(t, entries, chunked)
+}
+
+func TestAnalyzerIndexGrowsWhileWriting(t *testing.T) {
+	t.Parallel()
+
+	input := loadTestTS(t)
+	half := len(input) / 2 / ts.PacketSize * ts.PacketSize
+
+	var buf bytes.Buffer
+	writer, err := ts.NewIndexWriter(&buf)
+	require.NoError(t, err)
+	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer})
+
+	_, err = analyzer.Write(input[:half])
+	require.NoError(t, err)
+	partial, err := ts.ReadIndex(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+	assert.Equal(t, wantIFramePTS()[:len(partial)], ptsOf(partial))
+	assert.NotEmpty(t, partial)
+	assert.Less(t, len(partial), len(wantIFramePTS()))
+
+	_, err = analyzer.Write(input[half:])
+	require.NoError(t, err)
+	full, err := ts.ReadIndex(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+	assert.Equal(t, wantIFramePTS(), ptsOf(full))
+}
+
+func TestAnalyzerIndexWithBrokenVideo(t *testing.T) {
+	t.Parallel()
+
+	original := loadTestTS(t)
+	entries, _ := analyzeWithIndex(t, original)
+	// 3 番目の I フレームを含む PES の先頭パケット。
+	target := int(entries[2].Offset / ts.PacketSize)
+
+	tests := []struct {
+		name    string
+		mutate  func(pkts [][]byte) [][]byte
+		wantPTS []int64
+	}{
+		{
+			name:    "the packet starting an I frame PES is dropped",
+			mutate:  func(pkts [][]byte) [][]byte { return slices.Delete(pkts, target, target+1) },
+			wantPTS: slices.Delete(wantIFramePTS(), 2, 3),
+		},
+		{
+			name: "the packet starting an I frame PES is scrambled",
+			mutate: func(pkts [][]byte) [][]byte {
+				pkts[target][3] |= 0x80
+
+				return pkts
+			},
+			wantPTS: slices.Delete(wantIFramePTS(), 2, 3),
+		},
+		{
+			name: "the packet starting an I frame PES has a transport error",
+			mutate: func(pkts [][]byte) [][]byte {
+				pkts[target][1] |= 0x80
+
+				return pkts
+			},
+			wantPTS: slices.Delete(wantIFramePTS(), 2, 3),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, _ := analyzeWithIndex(t, join(tt.mutate(packets(original))))
+			assert.Equal(t, tt.wantPTS, ptsOf(got))
+		})
+	}
+}
+
+// failingWriter は、ヘッダーの後の書き込みで失敗する。
+type failingWriter struct {
+	writes int
+}
+
+var errDiskFull = errors.New("disk full")
+
+func (w *failingWriter) Write(p []byte) (int, error) {
+	w.writes++
+	if w.writes > 1 {
+		return 0, errDiskFull
+	}
+
+	return len(p), nil
+}
+
+func TestAnalyzerIndexWriteError(t *testing.T) {
+	t.Parallel()
+
+	writer, err := ts.NewIndexWriter(new(failingWriter))
+	require.NoError(t, err)
+	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer})
+
+	// 索引を書けなくても、録画の書き込みを止めないよう、Write はエラーを返さない。
+	input := loadTestTS(t)
+	n, err := analyzer.Write(input)
+	require.NoError(t, err)
+	assert.Equal(t, len(input), n)
+
+	stats := analyzer.Stats()
+	require.ErrorIs(t, stats.IndexError, errDiskFull)
+	assert.Equal(t, int64(len(wantIFramePTS())), stats.IFrames)
+}
+
+func TestReadIndex(t *testing.T) {
+	t.Parallel()
+
+	written := []ts.IndexEntry{{Offset: 376, PTS: 129003}, {Offset: 176908, PTS: 1<<33 - 1}}
+	var buf bytes.Buffer
+	writer, err := ts.NewIndexWriter(&buf)
+	require.NoError(t, err)
+	for _, e := range written {
+		require.NoError(t, writer.Append(e))
+	}
+	file := buf.Bytes()
+	headerOnly := file[:8]
+
+	tests := []struct {
+		name    string
+		input   []byte
+		want    []ts.IndexEntry
+		wantErr error
+	}{
+		{name: "round trip", input: file, want: written},
+		{name: "header only", input: headerOnly, want: []ts.IndexEntry{}},
+		{name: "the last record is cut while appending", input: file[:len(file)-5], want: written[:1]},
+		{name: "empty file", input: []byte{}, wantErr: ts.ErrInvalidIndex},
+		{name: "wrong magic", input: append([]byte("XXXX"), file[4:]...), wantErr: ts.ErrInvalidIndex},
+		{name: "unsupported version", input: append(append([]byte("KTIX"), 0x02, 0x00), file[6:]...), wantErr: ts.ErrInvalidIndex},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := ts.ReadIndex(bytes.NewReader(tt.input))
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestPTSDiff(t *testing.T) {
+	t.Parallel()
+
+	const wrap = int64(1) << 33
+
+	tests := []struct {
+		name     string
+		from, to int64
+		want     int64
+	}{
+		{name: "forward", from: 129003, to: 174048, want: 45045},
+		{name: "backward", from: 174048, to: 129003, want: -45045},
+		{name: "forward across the wrap", from: wrap - 45045, to: 0, want: 45045},
+		{name: "backward across the wrap", from: 100, to: wrap - 100, want: -200},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, ts.PTSDiff(tt.from, tt.to))
+		})
+	}
+}
