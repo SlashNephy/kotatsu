@@ -82,7 +82,7 @@ type channelKey struct {
 type demand struct {
 	channel      channelKey
 	reservations []*Reservation
-	start, end   time.Time
+	end          time.Time
 	// recording は、録画が始まった予約を含むかどうか。含むなら、その予約のチューナーから動かさない。
 	recording bool
 	tuner     int
@@ -214,7 +214,7 @@ func group(reservations []*Reservation) []*demand {
 			current.reservations = append(current.reservations, r)
 			current.end = later(current.end, r.fullEnd())
 		} else {
-			current = &demand{channel: r.channel(), reservations: []*Reservation{r}, start: r.fullStart(), end: r.fullEnd(), recording: false, tuner: NoTuner}
+			current = &demand{channel: r.channel(), reservations: []*Reservation{r}, end: r.fullEnd(), recording: false, tuner: NoTuner}
 			demands = append(demands, current)
 		}
 		if r.Recording {
@@ -261,24 +261,57 @@ func choose(d *demand, tuners []*Tuner, byTuner map[int][]*placed) (int, bool) {
 // 先に置いた予約は優先度が同じか高いので、本編が重なれば、この需要の本編を削る。
 // どれかの予約の本編がすべて削られるなら、置けないので false を返す。
 func lossOn(d *demand, existing []*placed) (time.Duration, time.Duration, bool) {
+	// 別のチャンネルの予約が譲れない区間の和。同じ時間に同じチャンネルの予約がいくつあっても、二重には数えない。
+	others := []*placed{}
+	for _, p := range existing {
+		// 同じチャンネルは、チューナーを共有するので削らない。
+		if p.reservation.channel() != d.channel {
+			others = append(others, p)
+		}
+	}
+	hard := union(others)
+
 	var coreCut, padding time.Duration
 	for _, r := range d.reservations {
 		var cut time.Duration
-		for _, p := range existing {
-			if p.reservation.channel() == d.channel {
-				// 同じチャンネルは、チューナーを共有するので削らない。
-				continue
-			}
-			cut += overlap(r.StartAt, r.EndAt, p.hardStart(), p.hardEnd())
-			padding += marginLoss(r, p)
+		for _, span := range hard {
+			cut += overlap(r.StartAt, r.EndAt, span.start, span.end)
 		}
 		if cut >= r.EndAt.Sub(r.StartAt) {
 			return 0, 0, false
 		}
 		coreCut += cut
+		for _, p := range others {
+			padding += marginLoss(r, p)
+		}
 	}
 
 	return coreCut, padding, true
+}
+
+type span struct {
+	start, end time.Time
+}
+
+// union は、予約が譲れない区間を、重なりをまとめた区間の列にする。
+func union(list []*placed) []span {
+	spans := make([]span, 0, len(list))
+	for _, p := range list {
+		spans = append(spans, span{start: p.hardStart(), end: p.hardEnd()})
+	}
+	slices.SortFunc(spans, func(a, b span) int { return a.start.Compare(b.start) })
+
+	merged := make([]span, 0, len(spans))
+	for _, s := range spans {
+		if n := len(merged); n > 0 && !s.start.After(merged[n-1].end) {
+			merged[n-1].end = later(merged[n-1].end, s.end)
+
+			continue
+		}
+		merged = append(merged, s)
+	}
+
+	return merged
 }
 
 // overlap は、2 つの区間の重なる長さを返す。
@@ -305,7 +338,7 @@ func marginLoss(r *Reservation, p *placed) time.Duration {
 
 // trim は、同じチューナーに置いた別のチャンネルの予約の区間が重ならないように削る。録画が始まった予約は削らない。
 //
-//  1. 本編どうしが重なるときは、後から置いた方 (優先度の低い方) の録画する時間を、相手の録画する時間の手前か後ろまで削る。
+//  1. 本編どうしが重なるときは、後から置いた方 (優先度の低い方) の録画する時間を、相手の本編の手前か後ろまで削る。
 //  2. マージンが重なるときは、前の録画の終了マージンを先に削り、次に後の録画の開始マージンを削る。
 func trim(list []*placed) {
 	slices.SortFunc(list, func(a, b *placed) int {
@@ -316,11 +349,15 @@ func trim(list []*placed) {
 }
 
 // conflicting は、同じチューナーに置いた別のチャンネルの予約の、録画する時間が重なるかどうかを返す。
+// 録画する時間がなくなった予約は、競合になるので数えない。
 func conflicting(a, b *placed) bool {
-	return a.reservation.channel() != b.reservation.channel() && a.start.Before(b.end) && b.start.Before(a.end)
+	return a.reservation.channel() != b.reservation.channel() &&
+		a.start.Before(a.end) && b.start.Before(b.end) &&
+		a.start.Before(b.end) && b.start.Before(a.end)
 }
 
-// resolveCores は、本編どうしが重なる予約のうち、後から置いた方の録画する時間を、相手の録画する時間の手前か後ろまで削る。
+// resolveCores は、本編どうしが重なる予約のうち、後から置いた方の録画する時間を、相手の本編の手前か後ろまで削る。
+// 本編はマージンより優先するので、残った本編に重なる相手のマージンも削る。
 func resolveCores(list []*placed) {
 	for i, a := range list {
 		for _, b := range list[i+1:] {
@@ -335,9 +372,15 @@ func resolveCores(list []*placed) {
 				loserIsB = true
 			}
 			if loserIsB {
-				b.start = later(b.start, a.end)
+				b.start = later(b.start, a.hardEnd())
+				if !a.reservation.Recording {
+					a.end = earlier(a.end, later(b.start, a.hardEnd()))
+				}
 			} else {
-				a.end = earlier(a.end, b.start)
+				a.end = earlier(a.end, b.hardStart())
+				if !b.reservation.Recording {
+					b.start = later(b.start, earlier(a.end, b.hardStart()))
+				}
 			}
 		}
 	}

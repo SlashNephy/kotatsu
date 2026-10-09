@@ -95,13 +95,13 @@ func TestAssign(t *testing.T) {
 			name: "only the end margin of the earlier one is trimmed when it is enough",
 			reservations: []*assign.Reservation{
 				program(1, "27", 0, 30),
-				// 本編どうしの間が 30 秒あるので、前の録画の終了マージンを 15 秒削れば、後の開始マージンは残る。
-				startingLater(program(2, "26", 30, 30), 30*time.Second),
+				// 本編どうしの間が 20 秒あり、マージンは 10 秒重なる。前の録画の終了マージンを 10 秒削れば、後の開始マージンは残る。
+				startingLater(program(2, "26", 30, 30), 20*time.Second),
 			},
 			tuners: grTuners(1),
 			want: []*assign.Assignment{
-				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(margin)},
-				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(30).Add(margin), PlannedEnd: at(60).Add(margin)},
+				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(5 * time.Second)},
+				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(30).Add(5 * time.Second), PlannedEnd: at(60).Add(margin)},
 			},
 		},
 		{
@@ -130,8 +130,9 @@ func TestAssign(t *testing.T) {
 			},
 			tuners: grTuners(1),
 			want: []*assign.Assignment{
-				{ReservationID: reservationID(1), State: assign.StatePartial, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(-margin)},
-				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(30).Add(-margin), PlannedEnd: at(90).Add(margin)},
+				// 優先度の低い方の本編を削る。本編はマージンより優先するので、高い方の開始マージンは、低い方の残った本編に譲る。
+				{ReservationID: reservationID(1), State: assign.StatePartial, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30)},
+				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(30), PlannedEnd: at(90).Add(margin)},
 			},
 		},
 		{
@@ -141,6 +142,42 @@ func TestAssign(t *testing.T) {
 			want: []*assign.Assignment{
 				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(60).Add(margin)},
 				{ReservationID: reservationID(2), State: assign.StateConflict, Tuner: assign.NoTuner, PlannedStart: at(10).Add(-margin), PlannedEnd: at(40).Add(margin)},
+			},
+		},
+		{
+			name: "concurrent programs on the same channel are counted once",
+			reservations: []*assign.Reservation{
+				withPriority(program(1, "27", 0, 60), 10),
+				withPriority(program(2, "27", 0, 60), 10),
+				program(3, "26", 0, 90),
+			},
+			tuners: grTuners(1),
+			want: []*assign.Assignment{
+				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(60)},
+				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(60)},
+				{ReservationID: reservationID(3), State: assign.StatePartial, Tuner: 0, PlannedStart: at(60), PlannedEnd: at(90).Add(margin)},
+			},
+		},
+		{
+			name: "the margin of the winner does not swallow the remaining core of the loser",
+			reservations: []*assign.Reservation{
+				func() *assign.Reservation {
+					r := withPriority(program(1, "27", 0, 30), 10)
+					r.EndMargin = 15 * time.Minute
+
+					return r
+				}(),
+				func() *assign.Reservation {
+					r := program(2, "26", 20, 20)
+					r.StartMargin, r.EndMargin = 0, 0
+
+					return r
+				}(),
+			},
+			tuners: grTuners(1),
+			want: []*assign.Assignment{
+				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30)},
+				{ReservationID: reservationID(2), State: assign.StatePartial, Tuner: 0, PlannedStart: at(30), PlannedEnd: at(40)},
 			},
 		},
 		{
