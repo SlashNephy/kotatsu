@@ -122,20 +122,21 @@ CREATE TABLE channel_types (
 );
 
 -- サービス (設計書 3.2)。Mirakurun のサービス ID (networkId × 100000 + serviceId) を主キーにする。
+-- 上流の整数は Go の int で受け取るので、変換で桁あふれを考えずに済むよう、整数の列は bigint にそろえる。
 -- 上流から消えたサービスも、予約や録画から参照されうるので消さない。
 CREATE TABLE services (
   id bigint PRIMARY KEY,
-  network_id integer NOT NULL,
+  network_id bigint NOT NULL,
   -- 放送のサービス ID (Mirakurun の serviceId)。主キーの id と区別するため sid と呼ぶ。
-  sid integer NOT NULL,
+  sid bigint NOT NULL,
   name text NOT NULL,
   -- NFKC で正規化した名前 (設計書 3.5)。Mirakurun はサービス名を全角で返す。
   name_normalized text NOT NULL,
-  service_type integer NOT NULL,
+  service_type bigint NOT NULL,
   channel_type text NOT NULL REFERENCES channel_types (type),
   channel text NOT NULL,
-  remote_control_key_id integer,
-  logo_id integer,
+  remote_control_key_id bigint,
+  logo_id bigint,
   -- 番組表に出さない印と、並び順の上書き。どちらも管理者が画面から変え、同期は上書きしない。
   hidden boolean NOT NULL DEFAULT false,
   sort_order integer,
@@ -149,7 +150,7 @@ CREATE TABLE services (
 -- 開始時刻で番組を見分けるのは、放送が終わった番組を program_archives へ移すときである。
 CREATE TABLE programs (
   service_id bigint NOT NULL REFERENCES services (id),
-  event_id integer NOT NULL,
+  event_id bigint NOT NULL,
   -- Mirakurun の番組 ID。属性として持つだけで、番組の同一性の判定には使わない (設計書 3.2)。
   mirakurun_id bigint NOT NULL,
   start_at timestamptz NOT NULL,

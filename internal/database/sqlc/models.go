@@ -65,7 +65,7 @@ type Lease struct {
 
 type Program struct {
 	ServiceID             int64
-	EventID               int32
+	EventID               int64
 	MirakurunID           int64
 	StartAt               time.Time
 	EndAt                 time.Time
@@ -90,15 +90,15 @@ type SchemaCompatibility struct {
 
 type Service struct {
 	ID                 int64
-	NetworkID          int32
-	Sid                int32
+	NetworkID          int64
+	Sid                int64
 	Name               string
 	NameNormalized     string
-	ServiceType        int32
+	ServiceType        int64
 	ChannelType        string
 	Channel            string
-	RemoteControlKeyID pgtype.Int4
-	LogoID             pgtype.Int4
+	RemoteControlKeyID pgtype.Int8
+	LogoID             pgtype.Int8
 	Hidden             bool
 	SortOrder          pgtype.Int4
 	CreatedAt          time.Time
