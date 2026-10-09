@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	// videoPID と audioPID は、testdata/ts/test.ts の映像と音声の PID (scripts/testts/generate.sh)。
+	// videoPID と audioPID は、testdata/ts/test.ts の映像と音声の PID。scripts/generate-test-ts.sh で作るときに指定している。
 	videoPID = 0x0111
 	audioPID = 0x0112
 )
@@ -252,18 +252,33 @@ func TestAnalyzerResync(t *testing.T) {
 	t.Parallel()
 
 	pkts := packets(loadTestTS(t))
-	// パケットの間に、sync byte を含まないゴミを挟む。
-	garbage := []byte{0x00, 0x01, 0x02, 0x03, 0x04}
-	input := join(slices.Concat(pkts[:50], [][]byte{garbage}, pkts[50:]))
 
-	analyzer := ts.NewAnalyzer()
-	_, err := analyzer.Write(input)
-	require.NoError(t, err)
-	stats := analyzer.Stats()
-	assert.Equal(t, int64(1), stats.SyncLosses)
-	assert.Equal(t, int64(len(pkts)), stats.Packets)
-	assert.Equal(t, int64(len(input)), stats.Bytes)
-	assert.Zero(t, statsOf(stats, videoPID).Drops)
+	tests := []struct {
+		name    string
+		garbage []byte
+	}{
+		{name: "garbage without a sync byte", garbage: []byte{0x00, 0x01, 0x02, 0x03, 0x04}},
+		// ゴミの中の 0x47 を、パケットの先頭と取り違えない。
+		{name: "garbage containing a sync byte", garbage: []byte{0x00, 0x47, 0x02, 0x47, 0x04}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := join(slices.Concat(pkts[:50], [][]byte{tt.garbage}, pkts[50:]))
+			analyzer := ts.NewAnalyzer()
+			_, err := analyzer.Write(input)
+			require.NoError(t, err)
+
+			stats := analyzer.Stats()
+			assert.Equal(t, int64(1), stats.SyncLosses)
+			assert.Equal(t, int64(len(pkts)), stats.Packets)
+			assert.Equal(t, int64(len(input)), stats.Bytes)
+			for _, s := range stats.PIDs {
+				assert.Zero(t, s.Drops, "PID 0x%04X", s.PID)
+			}
+		})
+	}
 }
 
 // syntheticPID は、合成のパケットの PID。
@@ -315,6 +330,26 @@ func TestAnalyzerContinuityRules(t *testing.T) {
 				adaptationOnly[3] = 0x20 | 2
 
 				return [][]byte{synthetic(2, false), adaptationOnly, synthetic(3, false)}
+			}(),
+			wantDrops: 0,
+		},
+		{
+			name: "discontinuity indicator on a packet without payload",
+			sequence: func() [][]byte {
+				adaptationOnly := synthetic(2, true)
+				adaptationOnly[3] = 0x20 | 2
+
+				return [][]byte{synthetic(2, false), adaptationOnly, synthetic(9, false)}
+			}(),
+			wantDrops: 0,
+		},
+		{
+			name: "a packet with a broken adaptation field restarts the check",
+			sequence: func() [][]byte {
+				broken := synthetic(5, false)
+				broken[4] = 200
+
+				return [][]byte{synthetic(2, false), broken, synthetic(9, false)}
 			}(),
 			wantDrops: 0,
 		},

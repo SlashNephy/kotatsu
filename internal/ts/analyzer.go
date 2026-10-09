@@ -104,6 +104,14 @@ func (a *Analyzer) Write(p []byte) (int, error) {
 
 			continue
 		}
+		if !a.synced && len(p) > PacketSize && p[PacketSize] != syncByte {
+			// 同期を失っている間は、次のパケットの先頭も sync byte であることを確かめてから合わせ直す。
+			// ペイロードの中の 0x47 を、パケットの先頭と取り違えないためである。
+			p = p[1:]
+			a.offset++
+
+			continue
+		}
 		a.synced = true
 		if len(p) < PacketSize {
 			a.carryLen = copy(a.carry[:], p)
@@ -160,20 +168,44 @@ func (a *Analyzer) handle(b []byte) {
 
 		return
 	}
+	if pkt.malformed {
+		// アダプテーションフィールドの長さが壊れていて、ペイロードの位置もフラグも分からない。
+		// 誤りと同じく、次のパケットを基準に数え直す。
+		state.lastCC = -1
+
+		return
+	}
 	if pkt.scrambling != 0 {
 		state.stats.Scrambled++
 	}
 	state.checkContinuity(&pkt)
 }
 
+// continuity は、continuity_counter を調べた結果。
+type continuity int
+
+const (
+	// continuityOK は、連続しているか、調べようがない (最初のパケット、ペイロードがない、意図的な不連続) ことを表す。
+	continuityOK continuity = iota
+	// continuityDuplicate は、直前のパケットの再送であることを表す。ペイロードは二重に読んではいけない。
+	continuityDuplicate
+	// continuityDropped は、パケットが欠けたことを表す。
+	continuityDropped
+)
+
 // checkContinuity は、continuity_counter の不連続を数える。
 //
 //   - ペイロードを持たないパケットでは continuity_counter は増えないので、見ない
-//   - discontinuity_indicator が立っていれば、不連続は意図的なので数えない
+//   - discontinuity_indicator が立っていれば、不連続は意図的なので数えない。
+//     ペイロードを持たないパケットで立っていれば、次のパケットを基準に数え直す
 //   - 同じ値の再送 (重複) は 1 回だけ許す
-func (s *pidState) checkContinuity(pkt *packet) {
+func (s *pidState) checkContinuity(pkt *packet) continuity {
 	if !pkt.hasPayload {
-		return
+		if pkt.discontinuity {
+			s.lastCC = -1
+		}
+
+		return continuityOK
 	}
 	cc := int(pkt.continuityCounter)
 	defer func() { s.lastCC = cc }()
@@ -181,15 +213,19 @@ func (s *pidState) checkContinuity(pkt *packet) {
 	if s.lastCC < 0 || pkt.discontinuity {
 		s.duplicated = false
 
-		return
+		return continuityOK
 	}
 	if cc == s.lastCC && !s.duplicated {
 		s.duplicated = true
 
-		return
+		return continuityDuplicate
 	}
 	s.duplicated = false
 	if cc != (s.lastCC+1)&0x0F {
 		s.stats.Drops++
+
+		return continuityDropped
 	}
+
+	return continuityOK
 }
