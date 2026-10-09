@@ -2,14 +2,18 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/riverqueue/river"
 
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/config"
+	"github.com/SlashNephy/kotatsu/internal/httpserver"
+	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/neko"
 )
 
@@ -23,7 +27,14 @@ type Deps struct {
 	Clock   clock.Clock
 	// InstanceID は、このプロセスのインスタンスの ID。リースの持ち主や、インスタンスの登録簿に使う。
 	InstanceID uuid.UUID
+	// Jobs は River のクライアント。ジョブはドメインの書き込みと同じトランザクションで InsertTx で投入する。
+	Jobs *jobs.Client
+	// JobWorkers は、Jobs で実行するジョブの Worker。nekonote を動かさないプロセスや、Worker がないときは nil。
+	JobWorkers *river.Workers
 }
+
+// nekonoteRoleName は、ジョブを実行するロールの名前。
+const nekonoteRoleName = "nekonote"
 
 // Runner はロールの本体。ctx が終わるまで動き続ける。
 type Runner func(ctx context.Context, logger *slog.Logger, deps *Deps) error
@@ -67,10 +78,10 @@ func DefaultRoles() []*Role {
 			Run:   waitUntilDone,
 		},
 		{
-			Name:  "nekonote",
+			Name:  nekonoteRoleName,
 			Alias: "worker",
 			Short: "Run background jobs such as thumbnails and notifications",
-			Run:   waitUntilDone,
+			Run:   runNekonote,
 		},
 		{
 			Name:  "kyusu",
@@ -86,6 +97,33 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	defer logger.InfoContext(ctx, "role stopped")
 
 	return neko.Run(ctx, logger, deps.DB, deps.Clock, deps.InstanceID)
+}
+
+// runNekonote は、ctx が終わるまで River のジョブを実行する。止まるときは、実行中のジョブが終わるのを待つ。
+func runNekonote(ctx context.Context, logger *slog.Logger, deps *Deps) error {
+	logger.InfoContext(ctx, "role started")
+	defer logger.InfoContext(ctx, "role stopped")
+
+	if deps.JobWorkers == nil {
+		logger.InfoContext(ctx, "no job workers are registered yet")
+		<-ctx.Done()
+
+		return nil
+	}
+
+	if err := deps.Jobs.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start the River client: %w", err)
+	}
+	<-ctx.Done()
+
+	// 終了のシグナルで ctx は終わっているので、実行中のジョブを待つための context を別に作る。
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), httpserver.ShutdownTimeout)
+	defer cancel()
+	if err := deps.Jobs.Stop(stopCtx); err != nil {
+		return fmt.Errorf("failed to stop the River client gracefully: %w", err)
+	}
+
+	return nil
 }
 
 func waitUntilDone(ctx context.Context, logger *slog.Logger, _ *Deps) error {
