@@ -16,7 +16,7 @@ GROUP BY title_key, service_id;
 
 -- name: ListFutureProgramReservations :many
 -- 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。
-SELECT id, kind, service_id, event_id, enabled
+SELECT id, kind, service_id, event_id, enabled, follow_event_relay
 FROM reservations
 WHERE event_id IS NOT NULL AND start_at > @now
 ORDER BY id;
@@ -33,3 +33,6 @@ ON CONFLICT DO NOTHING;
 
 -- name: DeleteReservationRule :exec
 DELETE FROM reservation_rules WHERE reservation_id = @reservation_id AND rule_id = @rule_id;
+
+-- name: SetReservationFollowEventRelay :exec
+UPDATE reservations SET follow_event_relay = @follow_event_relay, updated_at = @now WHERE id = @id;

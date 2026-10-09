@@ -322,23 +322,8 @@ func (e *Engine) apply(ctx context.Context, tx pgx.Tx, now time.Time, desired ma
 	for _, row := range existing {
 		key := programKey{serviceID: row.ServiceID, eventID: *row.EventID}
 		reserved[key] = true
-		d, ok := desired[key]
-		switch {
-		case ok:
-			if err := e.link(ctx, q, row.ID, links[row.ID], d.ruleIDs(), result); err != nil {
-				return err
-			}
-		case reserve.Kind(row.Kind) == reserve.KindRule:
-			// どのルールにも一致しなくなった。無効にしたルール予約も消す。
-			if err := e.reservations.Remove(ctx, tx, engineActor(), row.ID); err != nil {
-				return err
-			}
-			result.Deleted++
-		default:
-			// 手動の予約は残し、ルールとの関係だけを除く。
-			if err := e.link(ctx, q, row.ID, links[row.ID], map[uuid.UUID]bool{}, result); err != nil {
-				return err
-			}
+		if err := e.reconcile(ctx, tx, now, row, desired[key], links[row.ID], result); err != nil {
+			return err
 		}
 	}
 
@@ -357,6 +342,49 @@ func (e *Engine) apply(ctx context.Context, tx pgx.Tx, now time.Time, desired ma
 		if err := e.link(ctx, q, reservation.ID, map[uuid.UUID]bool{}, d.ruleIDs(), result); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// reconcile は、既存の予約 1 件を、予約すべき集合に合わせる。d は、その番組が集合になければ nil。
+func (e *Engine) reconcile(
+	ctx context.Context,
+	tx pgx.Tx,
+	now time.Time,
+	row sqlc.ListFutureProgramReservationsRow,
+	d *desiredProgram,
+	have map[uuid.UUID]bool,
+	result *Result,
+) error {
+	q := sqlc.New(tx)
+	isRule := reserve.Kind(row.Kind) == reserve.KindRule
+	switch {
+	case d == nil && isRule:
+		// どのルールにも一致しなくなった。無効にしたルール予約も消す。
+		if err := e.reservations.Remove(ctx, tx, engineActor(), row.ID); err != nil {
+			return err
+		}
+		result.Deleted++
+
+		return nil
+	case d == nil:
+		// 手動の予約は残し、ルールとの関係だけを除く。
+		return e.link(ctx, q, row.ID, have, map[uuid.UUID]bool{}, result)
+	}
+
+	if err := e.link(ctx, q, row.ID, have, d.ruleIDs(), result); err != nil {
+		return err
+	}
+	// ルール予約のイベントリレーへの追従は、一致したルールに合わせる。手動の予約は手動の設定を優先する。
+	if !isRule || row.FollowEventRelay == d.followEventRelay() {
+		return nil
+	}
+	err := q.SetReservationFollowEventRelay(ctx, sqlc.SetReservationFollowEventRelayParams{
+		ID: row.ID, FollowEventRelay: d.followEventRelay(), Now: now,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update reservation %s: %w", row.ID, err)
 	}
 
 	return nil

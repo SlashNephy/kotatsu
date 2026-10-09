@@ -182,6 +182,21 @@ func TestEngineIsIdempotent(t *testing.T) {
 	}
 }
 
+// TestEngineFollowsEventRelaySettingOfRules は、ルール予約のイベントリレーへの追従を、一致したルールに合わせることを確かめる。
+func TestEngineFollowsEventRelaySettingOfRules(t *testing.T) {
+	t.Parallel()
+
+	f := newEngineFixture(t)
+	f.createRule(t, `テスト番組 5$`, func(in *rule.Input) { in.FollowEventRelay = false })
+	f.run(t)
+	assert.False(t, f.reservationOf(t, 5).FollowEventRelay)
+
+	// 追従するルールも一致すると、追従するようになる。
+	f.createRule(t, `テスト番組 (5|6)$`, func(in *rule.Input) { in.FollowEventRelay = true })
+	f.run(t)
+	assert.True(t, f.reservationOf(t, 5).FollowEventRelay)
+}
+
 // TestEngineDeletesReservationsThatNoLongerMatch は、どのルールにも一致しなくなった録画前の予約を消し、
 // 放送が始まった予約は残すことを確かめる。
 func TestEngineDeletesReservationsThatNoLongerMatch(t *testing.T) {

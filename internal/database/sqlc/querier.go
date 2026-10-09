@@ -88,6 +88,7 @@ type Querier interface {
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	ServiceExists(ctx context.Context, id int64) (bool, error)
 	SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error)
+	SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
 	UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error)

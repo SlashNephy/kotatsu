@@ -42,18 +42,19 @@ func (q *Queries) InsertReservationRule(ctx context.Context, arg InsertReservati
 }
 
 const listFutureProgramReservations = `-- name: ListFutureProgramReservations :many
-SELECT id, kind, service_id, event_id, enabled
+SELECT id, kind, service_id, event_id, enabled, follow_event_relay
 FROM reservations
 WHERE event_id IS NOT NULL AND start_at > $1
 ORDER BY id
 `
 
 type ListFutureProgramReservationsRow struct {
-	ID        uuid.UUID
-	Kind      string
-	ServiceID int64
-	EventID   *int64
-	Enabled   bool
+	ID               uuid.UUID
+	Kind             string
+	ServiceID        int64
+	EventID          *int64
+	Enabled          bool
+	FollowEventRelay bool
 }
 
 // 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。
@@ -72,6 +73,7 @@ func (q *Queries) ListFutureProgramReservations(ctx context.Context, now time.Ti
 			&i.ServiceID,
 			&i.EventID,
 			&i.Enabled,
+			&i.FollowEventRelay,
 		); err != nil {
 			return nil, err
 		}
@@ -198,4 +200,19 @@ func (q *Queries) ListMatchablePrograms(ctx context.Context, now time.Time) ([]L
 		return nil, err
 	}
 	return items, nil
+}
+
+const setReservationFollowEventRelay = `-- name: SetReservationFollowEventRelay :exec
+UPDATE reservations SET follow_event_relay = $1, updated_at = $2 WHERE id = $3
+`
+
+type SetReservationFollowEventRelayParams struct {
+	FollowEventRelay bool
+	Now              time.Time
+	ID               uuid.UUID
+}
+
+func (q *Queries) SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error {
+	_, err := q.db.Exec(ctx, setReservationFollowEventRelay, arg.FollowEventRelay, arg.Now, arg.ID)
+	return err
 }
