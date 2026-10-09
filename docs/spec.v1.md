@@ -283,11 +283,12 @@ Next.js の利点は SSR と RSC ですが、そのためには本番で Node.js
 | イメージ | ベース | 用途 |
 |---|---|---|
 | `ghcr.io/slashnephy/kotatsu:<バージョン>` | `gcr.io/distroless/static-debian13:nonroot` | tenban、neko、mikan |
-| `ghcr.io/slashnephy/kotatsu:<バージョン>-ffmpeg` | Debian 13 の slim に jellyfin-ffmpeg を入れ、tsreadex と psisiarc をソースからビルドして同梱します | kyusu、nekonote、`all` |
+| `ghcr.io/slashnephy/kotatsu:<バージョン>-ffmpeg` | Debian 13 の slim に Debian の `ffmpeg` パッケージと VAAPI・QSV のドライバを入れ、tsreadex と psisiarc をソースからビルドして同梱します | kyusu、nekonote、`all` |
 
 FFmpeg（VAAPI や QSV のドライバを含む）、tsreadex、psisiarc は共有ライブラリを必要とするので、static のイメージには入りません。
 サムネイルの生成に FFmpeg が要るので、全ロールを 1 プロセスで動かす `all` も `-ffmpeg` イメージを使います。
 `-ffmpeg` イメージの実行ユーザーは、distroless の `nonroot` と同じ UID 65532 にそろえます。
+VAAPI と QSV のドライバには、Debian の main コンポーネントのパッケージ（`mesa-va-drivers`、amd64 では加えて `intel-media-va-driver`、`libvpl2`、`libmfx-gen1.2`）を使い、non-free のパッケージは入れません。NVENC のライブラリは、NVIDIA Container Toolkit がホストから渡します。
 どちらも amd64 と arm64 に対応します。
 
 ## 3. チューナーサーバーと EPG の連携
@@ -1034,7 +1035,7 @@ Kotatsu は公開リポジトリなので、実際の放送の TS をテスト�
 | デュアルモノ | mpeg2toh264 のプレイヤーが、デュアルモノの音声を切り替えられるか | ブラウザ内での変換では主音声だけを再生し、切り替えは kyusu の経路で行います。 |
 | 実況チャンネルの対応表 | サービスと NX-Jikkyo のチャンネルの対応表を、NX-Jikkyo のチャンネル情報 API から取得できるか | 対応表を Kotatsu に同梱します。 |
 | PWA のプラグイン | Service Worker を生成するプラグインが、Vite+ と組み合わせて動くか | Service Worker を手で書きます。 |
-| FFmpeg のライセンス | `-ffmpeg` イメージに入れる FFmpeg が GPL と LGPL のどちらの構成でビルドされているか、イメージに同梱すべきライセンス文書とソースの入手先は何か | GPL の構成であれば、イメージにライセンス文書とソースの入手先を同梱します。本体は子プロセスとして呼び出すだけなので、Kotatsu のライセンスは変わりません。 |
+| ハードウェアエンコード | Debian の `ffmpeg` と main コンポーネントのドライバで、VAAPI、QSV、NVENC の H.264 と HEVC のエンコードが動くか | 動かないエンコーダーは、v1 の選択肢から外します。 |
 
 ## 付録 A. 既定値の一覧
 
@@ -1074,11 +1075,19 @@ Kotatsu 本体は Apache License 2.0 で公開します。
 | ソフトウェア | ライセンス | 扱い |
 |---|---|---|
 | @mpeg2toh264/yadif | LGPL-2.1-or-later（FFmpeg 由来） | フロントエンドに同梱します。差し替えられる形（独立したモジュール）で配信し、ソースの入手先を示します。 |
-| FFmpeg（jellyfin-ffmpeg） | LGPL または GPL（ビルドの構成による） | `-ffmpeg` イメージにだけ同梱し、子プロセスとして実行します。本体とはリンクしません。イメージに含めるライセンス文書とソースの入手先は、[12 章](#12-要検証事項)で確認します。 |
+| FFmpeg（Debian の `ffmpeg` パッケージ） | GPL-2.0-or-later（`--enable-gpl` の構成） | `-ffmpeg` イメージにだけ同梱し、子プロセスとして実行します。本体とはリンクしません。ライセンス文書とソースの入手先は、この表の後で示す方法でイメージに含めます。 |
 | tsreadex、psisiarc | MIT | `-ffmpeg` イメージに同梱し、子プロセスとして実行します。 |
 | mpeg2toh264、aribb24.js、web-bml、niconicomments、hls.js、Mantine、Relay | MIT または Apache-2.0 | フロントエンドに同梱します。 |
 | 見出し用のフォント | SIL Open Font License | フロントエンドに同梱します。 |
 | mirakc-arib、aribb24（C 実装） | GPL-2.0、LGPL-3.0 | v1 では使いません。将来使う場合も、子プロセスとして実行し、本体とはリンクしません。 |
+| jellyfin-ffmpeg | GPL-3.0-or-later（libfdk-aac をリンク） | 使いません。GPL と両立しない libfdk-aac を、FFmpeg の nonfree の判定を外してリンクしているためです。 |
+
+`-ffmpeg` イメージには、ライセンス文書とソースの入手先を次のように含めます。
+
+- Debian のパッケージは、各パッケージの `/usr/share/doc/<パッケージ>/copyright` と `/usr/share/common-licenses/` を削らずに残します。
+- tsreadex と psisiarc は、ライセンス文書を `/usr/share/doc/kotatsu/third-party/` に置きます。
+- イメージのビルド時に、入れた Debian のパッケージとソースパッケージの名前と版の一覧を `/usr/share/doc/kotatsu/third-party/` に書き出します。ソースの入手先には、その版を固定して取得できる snapshot.debian.org を示します。tsreadex と psisiarc は、ビルドに使ったリポジトリとコミットを示します。
+- 音声のエンコードには FFmpeg 標準の `aac` エンコーダーを使います。libfdk-aac は使いません。
 
 ## 付録 C. 参考にしたプロジェクト
 
