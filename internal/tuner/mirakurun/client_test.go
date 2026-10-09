@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"slices"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -172,6 +173,7 @@ func TestClientOpenServiceStream(t *testing.T) {
 	}{
 		{name: "decode", opts: &mirakurun.StreamOptions{Decode: true, Priority: 2}, wantDecode: "1", wantPriority: "2"},
 		{name: "raw", opts: &mirakurun.StreamOptions{Decode: false, Priority: -1}, wantDecode: "", wantPriority: "-1"},
+		{name: "default", opts: nil, wantDecode: "", wantPriority: "0"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -194,7 +196,7 @@ func TestClientOpenServiceStream(t *testing.T) {
 
 			users := fake.Tuners()[0].Users
 			require.Len(t, users, 1)
-			assert.Equal(t, tt.opts.Priority, users[0].Priority)
+			assert.Equal(t, tt.wantPriority, strconv.Itoa(users[0].Priority))
 
 			require.NoError(t, stream.Close())
 			// 閉じたら、チューナーが解放される。

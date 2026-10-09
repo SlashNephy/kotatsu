@@ -52,6 +52,8 @@ type Program struct {
 	Description string            `json:"description,omitempty"`
 	Genres      []*Genre          `json:"genres,omitempty"`
 	Extended    map[string]string `json:"extended,omitempty"`
+	// RelatedItems は、イベント共有 (shared) とイベントリレー (relay) で関連づけられた番組 (設計書 4.4、4.6)。
+	RelatedItems []*RelatedItem `json:"relatedItems,omitempty"`
 }
 
 // Start は開始時刻を返す。
@@ -65,6 +67,15 @@ type Genre struct {
 	Lv2 int `json:"lv2"`
 	Un1 int `json:"un1"`
 	Un2 int `json:"un2"`
+}
+
+// RelatedItem は、番組に関連づけられた別のサービスの番組。
+type RelatedItem struct {
+	// Type は shared (同じイベントを複数のサービスで放送する)、relay (別のサービスに引き継ぐ)、movement のどれか。
+	Type      string `json:"type"`
+	NetworkID int    `json:"networkId,omitempty"`
+	ServiceID int    `json:"serviceId"`
+	EventID   int    `json:"eventId"`
 }
 
 // Tuner は /api/tuners の要素。

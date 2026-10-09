@@ -61,6 +61,8 @@ type APIError struct {
 	Reason string
 }
 
+var _ error = new(APIError)
+
 func (e *APIError) Error() string {
 	return fmt.Sprintf("tuner server responded %d to %s %s: %s", e.StatusCode, e.Method, e.URL, e.Reason)
 }
@@ -190,8 +192,12 @@ type StreamOptions struct {
 
 // OpenServiceStream は、サービス ID (networkId × 100000 + serviceId) のストリームを開く。
 // 返す io.ReadCloser は、読み終えたら必ず閉じる。ctx が終わると、ストリームも閉じる。
+// opts が nil なら、スクランブルを解除せず、優先度 0 で開く。
 // チューナーを確保できなければ、StatusCode が 503 の *APIError を返す。
 func (c *Client) OpenServiceStream(ctx context.Context, serviceID int64, opts *StreamOptions) (io.ReadCloser, error) {
+	if opts == nil {
+		opts = &StreamOptions{Decode: false, Priority: 0}
+	}
 	values := url.Values{}
 	if opts.Decode {
 		values.Set("decode", "1")
