@@ -46,3 +46,19 @@ WHERE id = @id;
 
 -- name: DeleteReservation :execrows
 DELETE FROM reservations WHERE id = @id;
+
+-- name: InsertRuleReservation :one
+-- ルール予約を、番組情報をコピーして作る。同じ番組の予約がすでにあれば何もせず、行を返さない。
+INSERT INTO reservations (
+  id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres,
+  enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by
+)
+SELECT @id, 'rule', p.service_id, p.event_id, p.start_at, p.end_at, p.name, p.description, p.extended, p.genres,
+  true, @follow_event_relay, '{}', @now, NULL, @now, NULL
+FROM programs p
+WHERE p.service_id = @service_id AND p.event_id = @event_id
+ON CONFLICT (service_id, event_id) WHERE event_id IS NOT NULL DO NOTHING
+RETURNING id;
+
+-- name: SetReservationEnabled :execrows
+UPDATE reservations SET enabled = @enabled, updated_at = @now, updated_by = @updated_by WHERE id = @id;

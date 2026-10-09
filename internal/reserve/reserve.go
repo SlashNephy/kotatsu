@@ -167,6 +167,61 @@ func (r *Reservations) CreateProgram(ctx context.Context, db Beginner, actor *au
 	return reservation, created, nil
 }
 
+// CreateRule は、ルールが一致した番組のルール予約を、番組情報をコピーして作る (設計書 4.3)。
+// 同じ番組の予約がすでにあれば、作らずにその予約を返し、created を false にする。
+// ルール予約の録画設定は、一致したルールから求めるので、予約自体には上書きを持たせない。
+func (r *Reservations) CreateRule(ctx context.Context, db Beginner, actor *audit.Actor, serviceID, eventID int64, followEventRelay bool) (*Reservation, bool, error) {
+	var reservation *Reservation
+	created := false
+	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		q := sqlc.New(tx)
+		_, err := q.InsertRuleReservation(ctx, sqlc.InsertRuleReservationParams{
+			ID:               id.New(),
+			FollowEventRelay: followEventRelay,
+			Now:              r.clock.Now(),
+			ServiceID:        serviceID,
+			EventID:          eventID,
+		})
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			// 同じ番組の予約がすでにあるか、番組が EPG にない。
+		case err != nil:
+			return fmt.Errorf("failed to create a rule reservation: %w", err)
+		default:
+			created = true
+		}
+
+		row, err := q.GetReservationByProgram(ctx, sqlc.GetReservationByProgramParams{ServiceID: serviceID, EventID: &eventID})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("%w: service %d, event %d", ErrProgramNotFound, serviceID, eventID)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read the reservation: %w", err)
+		}
+		if reservation, err = fromRow(row); err != nil {
+			return err
+		}
+		if !created {
+			return nil
+		}
+
+		return r.record(ctx, tx, actor, "reservation.create", reservation, summaryOf(reservation))
+	})
+	if err != nil {
+		return nil, false, err
+	}
+
+	return reservation, created, nil
+}
+
+// Remove は、予約を消す。ルールの照合が、どのルールにも一致しなくなったルール予約を消すのに使う。
+// ユーザーの操作には Delete を使う。
+func (r *Reservations) Remove(ctx context.Context, db Beginner, actor *audit.Actor, reservationID uuid.UUID) error {
+	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		return r.remove(ctx, tx, actor, reservationID)
+	})
+}
+
 // TimeInput は、時刻予約の内容。
 type TimeInput struct {
 	ServiceID int64
@@ -325,7 +380,8 @@ func valueOr[T any](v *T, fallback T) T {
 	return *v
 }
 
-// Delete は予約を消す。
+// Delete は、ユーザーの操作で予約を消す。
+// ルール予約は消さずに無効にする (設計書 4.3)。消すと、次の照合でまた作られてしまうからである。
 func (r *Reservations) Delete(ctx context.Context, db Beginner, actor *audit.Actor, reservationID uuid.UUID) error {
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
@@ -333,22 +389,46 @@ func (r *Reservations) Delete(ctx context.Context, db Beginner, actor *audit.Act
 		if err != nil {
 			return err
 		}
-		n, err := q.DeleteReservation(ctx, reservationID)
-		if err != nil {
-			return fmt.Errorf("failed to delete the reservation: %w", err)
+		if reservation.Kind != KindRule {
+			return r.remove(ctx, tx, actor, reservationID)
 		}
-		// 読んだ後に、別の操作が先に消していたら、消したことにしない。
+
+		n, err := q.SetReservationEnabled(ctx, sqlc.SetReservationEnabledParams{
+			ID: reservationID, Enabled: false, Now: r.clock.Now(), UpdatedBy: userOf(actor),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to disable the reservation: %w", err)
+		}
 		if n == 0 {
 			return fmt.Errorf("%w: %s", ErrNotFound, reservationID)
 		}
+		reservation.Enabled = false
 
-		return r.record(ctx, tx, actor, "reservation.delete", reservation, summaryOf(reservation))
+		return r.record(ctx, tx, actor, "reservation.disable", reservation, summaryOf(reservation))
 	})
 }
 
 // Get は予約を返す。
 func (r *Reservations) Get(ctx context.Context, db sqlc.DBTX, reservationID uuid.UUID) (*Reservation, error) {
 	return get(ctx, sqlc.New(db), reservationID)
+}
+
+func (r *Reservations) remove(ctx context.Context, tx pgx.Tx, actor *audit.Actor, reservationID uuid.UUID) error {
+	q := sqlc.New(tx)
+	reservation, err := get(ctx, q, reservationID)
+	if err != nil {
+		return err
+	}
+	n, err := q.DeleteReservation(ctx, reservationID)
+	if err != nil {
+		return fmt.Errorf("failed to delete the reservation: %w", err)
+	}
+	// 読んだ後に、別の操作が先に消していたら、消したことにしない。
+	if n == 0 {
+		return fmt.Errorf("%w: %s", ErrNotFound, reservationID)
+	}
+
+	return r.record(ctx, tx, actor, "reservation.delete", reservation, summaryOf(reservation))
 }
 
 func get(ctx context.Context, q *sqlc.Queries, reservationID uuid.UUID) (*Reservation, error) {
