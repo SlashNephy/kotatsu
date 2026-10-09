@@ -1,0 +1,89 @@
+name: Image
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - v*
+  workflow_dispatch:
+
+concurrency:
+  # pull_request では github.ref が refs/pull/N/merge になるため head_ref でまとめる
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  # 2 種類のイメージを amd64 と arm64 でビルドし、main とタグでは ghcr.io に公開する (設計書 2.4、11.1)。
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: static
+            suffix: ""
+          - target: ffmpeg
+            suffix: -ffmpeg
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/slashnephy/kotatsu
+          flavor: |
+            latest=false
+            suffix=${{ matrix.suffix }},onlatest=true
+          tags: |
+            type=semver,pattern={{version}}
+            type=edge,branch=main
+            type=ref,event=pr
+      # 公開する前に、amd64 のイメージを読み取り専用のルートファイルシステムで起動できるかを確かめる。
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          platforms: linux/amd64
+          load: true
+          tags: kotatsu:smoke
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,scope=${{ matrix.target }},mode=max
+      - name: Smoke test
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -eux
+          test "$(docker inspect kotatsu:smoke -f '{{.Config.User}}')" = 65532:65532
+          docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges kotatsu:smoke --help
+          if [ "$TARGET" = ffmpeg ]; then
+            docker run --rm --read-only --entrypoint ffmpeg kotatsu:smoke -hide_banner -version
+            # tsreadex と psisiarc は、引数がないと使い方のエラーで終わる。起動できればよい。
+            docker run --rm --read-only --entrypoint sh kotatsu:smoke -c 'tsreadex 2>&1 | grep -q arguments && psisiarc 2>&1 | grep -q arguments'
+            docker run --rm --entrypoint test kotatsu:smoke -s /usr/share/doc/kotatsu/third-party/debian-packages.tsv
+          fi
+      - if: github.event_name != 'pull_request'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,scope=${{ matrix.target }},mode=max

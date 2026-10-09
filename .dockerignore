@@ -1,0 +1,6 @@
+.git
+.github
+bin
+docs
+testdata
+**/*_test.go
