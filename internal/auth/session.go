@@ -179,7 +179,7 @@ func (s *Sessions) Authenticate(ctx context.Context, db sqlc.DBTX, token string)
 		return nil, fmt.Errorf("failed to touch a session: %w", err)
 	}
 
-	return &Principal{UserID: session.UserID, Role: role, SessionID: session.ID}, nil
+	return &Principal{UserID: session.UserID, Role: role, SessionID: session.ID, AuthenticatedAt: session.AuthenticatedAt.UTC()}, nil
 }
 
 // List は、ユーザーの使えるセッションを、最後に使われた順に返す。
@@ -268,6 +268,23 @@ func (s *Sessions) Middleware(db sqlc.DBTX) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), principal)))
 		})
 	}
+}
+
+// LogoutHandler は、ログイン中のセッションを失効させ、Cookie を消すハンドラーを返す (POST /auth/logout)。
+// ログインしていなくても、Cookie を消して成功を返す。
+func (s *Sessions) LogoutHandler(db sqlc.DBTX) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if principal := PrincipalFrom(r.Context()); principal != nil {
+			err := s.Revoke(r.Context(), db, principal.UserID, principal.SessionID)
+			if err != nil && !errors.Is(err, ErrSessionNotFound) {
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+
+				return
+			}
+		}
+		s.ClearCookie(w, r)
+		w.WriteHeader(http.StatusNoContent)
+	})
 }
 
 func (s *Sessions) cookie(r *http.Request, value string, expires time.Time) *http.Cookie {

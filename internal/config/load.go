@@ -121,8 +121,13 @@ func applyEnvToField(value reflect.Value, keys []string, lookupEnv LookupEnv) er
 		}
 	}
 
-	// 対応していない型の項目を Config に足したときに黙って無視しないよう、環境変数の有無にかかわらず型を確かめる。
-	switch ptr := value.Addr().Interface().(type) {
+	return setField(value.Addr().Interface(), raw, hasValue)
+}
+
+// setField は、hasValue なら、環境変数の値 raw を項目に入れる。
+// 対応していない型の項目を Config に足したときに黙って無視しないよう、環境変数の有無にかかわらず型を確かめる。
+func setField(field any, raw string, hasValue bool) error {
+	switch ptr := field.(type) {
 	case *string:
 		if hasValue {
 			*ptr = raw
@@ -147,6 +152,10 @@ func applyEnvToField(value reflect.Value, keys []string, lookupEnv LookupEnv) er
 			}
 			*ptr = b
 		}
+	case *[]string:
+		if hasValue {
+			*ptr = parseList(raw)
+		}
 	case *map[string]string:
 		if hasValue {
 			m, err := parseMap(raw)
@@ -156,10 +165,22 @@ func applyEnvToField(value reflect.Value, keys []string, lookupEnv LookupEnv) er
 			*ptr = m
 		}
 	default:
-		return fmt.Errorf("unsupported field type %s", value.Type())
+		return fmt.Errorf("unsupported field type %T", field)
 	}
 
 	return nil
+}
+
+// parseList は、カンマで区切った文字列を読む。前後の空白は取り除き、空の要素は捨てる。空の文字列は空の一覧にする。
+func parseList(raw string) []string {
+	list := []string{}
+	for item := range strings.SplitSeq(raw, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			list = append(list, item)
+		}
+	}
+
+	return list
 }
 
 // parseMap は「key=value」をカンマで区切った文字列を読む。空の文字列は空の対応にする。
