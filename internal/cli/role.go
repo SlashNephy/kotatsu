@@ -121,6 +121,7 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 		InstanceID: deps.InstanceID,
 		Tuner:      tuner,
 		EPG:        nil,
+		Archive:    nil,
 	})
 }
 

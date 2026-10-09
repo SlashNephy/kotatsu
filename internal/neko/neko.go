@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/epg"
@@ -36,10 +37,12 @@ type Options struct {
 	Tuner *mirakurun.Client
 	// EPG は EPG の同期の設定。nil なら既定値を使う。
 	EPG *epg.SyncerOptions
+	// Archive は、放送が終わった番組のアーカイブの設定。nil なら既定値を使う。
+	Archive *epg.ArchiverOptions
 }
 
 // Run は、ctx が終わるまでリースを取り合い、リーダーになっている間だけ neko の処理を動かす。
-// リーダーの間は EPG を同期する (設計書 3.3)。DB への書き込みは、その世代のリースを持っている間だけ通す。
+// リーダーの間は、EPG を同期し (設計書 3.3)、放送が終わった番組をアーカイブに移す (設計書 3.4)。DB への書き込みは、その世代のリースを持っている間だけ通す。
 func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 	manager := lease.NewManager(opts.DB, opts.Clock, LeaseName, opts.InstanceID, LeaseTTL)
 	elector, err := lease.NewElector(manager, logger, RenewInterval)
@@ -48,18 +51,27 @@ func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 	}
 
 	return elector.Run(ctx, func(ctx context.Context, generation int64) error {
-		if opts.Tuner == nil {
-			logger.WarnContext(ctx, "tuner server is not configured; EPG sync is disabled")
-			<-ctx.Done()
-
-			return nil
-		}
-
 		guard := func(ctx context.Context, tx pgx.Tx) error {
 			return manager.Guard(ctx, tx, generation)
 		}
-		reconciler := epg.NewReconciler(opts.DB, opts.Tuner, opts.Clock, guard)
+		logger := logger.With(slog.String("component", "epg"))
 
-		return epg.NewSyncer(reconciler, opts.Tuner, opts.Clock, logger.With(slog.String("component", "epg")), opts.EPG).Run(ctx)
+		eg, ctx := errgroup.WithContext(ctx)
+		eg.Go(func() error {
+			return epg.NewArchiver(opts.DB, opts.Clock, guard, logger, opts.Archive).Run(ctx)
+		})
+		eg.Go(func() error {
+			if opts.Tuner == nil {
+				logger.WarnContext(ctx, "tuner server is not configured; EPG sync is disabled")
+				<-ctx.Done()
+
+				return nil
+			}
+			reconciler := epg.NewReconciler(opts.DB, opts.Tuner, opts.Clock, guard)
+
+			return epg.NewSyncer(reconciler, opts.Tuner, opts.Clock, logger, opts.EPG).Run(ctx)
+		})
+
+		return eg.Wait()
 	})
 }
