@@ -200,6 +200,16 @@ func TestAnalyzerPrograms(t *testing.T) {
 			wantStreams: nil,
 		},
 		{
+			name: "a duplicated packet in the middle of a PMT is read once",
+			build: func(cc map[uint16]*byte) [][]byte {
+				long := esEntry{streamType: 0x0F, pid: 0x0113, infoLength: 400}
+				pmt := psiPackets(pmtPID, cc[pmtPID], pmtSection(0, video, long, audio))
+
+				return append(psiPackets(0, cc[0], patSection(0, pat)), pmt[0], pmt[1], pmt[1], pmt[2])
+			},
+			wantStreams: []ts.StreamKind{ts.StreamVideo, ts.StreamAudio, ts.StreamAudio},
+		},
+		{
 			name: "PMT missing a middle packet is ignored",
 			build: func(cc map[uint16]*byte) [][]byte {
 				long := esEntry{streamType: 0x0F, pid: 0x0113, infoLength: 400}

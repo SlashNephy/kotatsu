@@ -32,7 +32,7 @@ func (s *sectionAssembler) reset() {
 }
 
 // feed はパケットのペイロードを受け取り、組み立て終えたセクションごとに emit を呼ぶ。
-// emit に渡すスライスは、次の feed の呼び出しまでしか使えない。
+// emit に渡すスライスは、emit から戻るまでしか使えない。同じパケットの次のセクションで上書きされるからである。
 func (s *sectionAssembler) feed(payloadUnitStart bool, payload []byte, emit func(section []byte)) {
 	if !payloadUnitStart {
 		if s.active {
