@@ -27,7 +27,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/registry"
+	"github.com/SlashNephy/kotatsu/internal/spa"
 	"github.com/SlashNephy/kotatsu/internal/telemetry"
+	"github.com/SlashNephy/kotatsu/web"
 )
 
 const (
@@ -337,10 +339,11 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 	return eg.Wait()
 }
 
-// newAPI は、tenban の API のハンドラーを返す。
+// newAPI は、tenban の API と SPA のハンドラーを返す。
 //
-// どのリクエストも、まず接続元を確かめ (設計書 9.5)、ログイン中のユーザーをサーバー側のセッションから引く。
-// /auth/* の状態を変えるリクエストは、Origin が同じでなければ拒否する。
+// どのリクエストも、まず接続元を確かめる (設計書 9.5)。
+// API は、ログイン中のユーザーをサーバー側のセッションから引く。/auth/* の状態を変えるリクエストは、Origin が同じでなければ拒否する。
+// SPA は、ログイン画面も含むので、セッションを引かずに配信する。
 func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 	policy, err := httpserver.NewAccessPolicy(&deps.Config.Server, logger.With(slog.String("component", "access")))
 	if err != nil {
@@ -377,8 +380,18 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		HeartbeatInterval:   0,
 	}))
 	mux.Handle("POST /auth/logout", httpserver.RequireSameOrigin(sessions.LogoutHandler(deps.DB)))
+	api := sessions.Middleware(deps.DB)(mux)
 
-	return policy.Middleware(sessions.Middleware(deps.DB)(mux)), nil
+	app, err := spa.NewHandler(web.App(), logger.With(slog.String("component", "spa")))
+	if err != nil {
+		return nil, err
+	}
+	root := http.NewServeMux()
+	root.Handle("/graphql", api)
+	root.Handle("/auth/", api)
+	root.Handle("/", app)
+
+	return policy.Middleware(root), nil
 }
 
 // runRoles は roles を並行に動かす。どれかが失敗すると、残りも止める。

@@ -3,9 +3,58 @@ golangci-lint = "2.14.0" # go より先に置かないと、go/bin/ のバイナ
 go = "1.27.1"
 atlas-community = "1.3.0"
 sqlc = "1.31.1"
+# フロントエンド (web/) のツールチェーン。Vite+ は web/package.json の devDependency にする (設計書 10.1)。
+node = "24.21.0"
+pnpm = "12.9.0"
 
 [tasks.build]
 run = "go build -trimpath -o ./bin/ ./cmd/kotatsu"
+
+# フロントエンド (web/)。ビルドした SPA は web/dist/app に出力され、go build で埋め込まれる。
+# 埋め込んだバイナリを作るときは、mise run web:build の後に mise run build を実行する。
+[tasks."web:install"]
+dir = "web"
+run = "pnpm install --frozen-lockfile"
+
+# GraphQL のクエリから、Relay の型とアーティファクト (__generated__) を生成する。
+# watchman があれば使おうとするが、使わなくても足りるので切る。
+[tasks."web:relay"]
+dir = "web"
+depends = ["web:install"]
+env = { FORCE_NO_WATCHMAN = "1" }
+run = "pnpm exec relay-compiler"
+
+[tasks."web:build"]
+dir = "web"
+depends = ["web:relay"]
+run = "pnpm exec vp build"
+
+[tasks."web:check"]
+dir = "web"
+depends = ["web:relay"]
+run = "pnpm exec vp check"
+
+[tasks."web:test"]
+dir = "web"
+depends = ["web:relay"]
+run = "pnpm exec vp test run"
+
+[tasks."web:storybook"]
+dir = "web"
+depends = ["web:relay"]
+run = "pnpm exec storybook build --quiet"
+
+# E2E テスト。ビルド済みの SPA を vp preview で配信して確かめる。
+# Chromium は pnpm exec playwright install chromium で入れるか、KOTATSU_E2E_CHROMIUM に手元のものを指定する。
+[tasks."web:e2e"]
+dir = "web"
+depends = ["web:build"]
+run = "pnpm exec playwright test"
+
+[tasks."web:dev"]
+dir = "web"
+depends = ["web:install"]
+run = "pnpm exec vp dev"
 
 [tasks.test]
 # DB を使うテストは、パッケージをまたいで並行に動くと PostgreSQL の接続数の上限 (既定は 100) に達する。
@@ -30,6 +79,8 @@ run = [
   "go tool gqlgen generate",
   # gqlgen が書き換えたリゾルバの import を、リポジトリの形式にそろえる。
   "golangci-lint fmt",
+  # フロントエンドの Relay のコンパイラが読む、1 つにまとめたスキーマを書き出す。
+  "go run ./graph/printschema > web/schema.graphql",
   # schema.sql とマイグレーションが食い違っていれば、ここで新しいマイグレーションが生成される。
   "atlas migrate diff --env local",
   "atlas migrate validate --env local",

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 焦げ茶の背景に、木の天板、みかん色の布団、天板に載せたみかんで、こたつを表す。 -->
+  <rect width="512" height="512" rx="112" fill="#2a221c"/>
+  <path d="M112 226h288l40 150q4 26-22 26H94q-26 0-22-26z" fill="#ff7407"/>
+  <path d="M94 402q40-20 81 0t81 0 81 0 81 0" fill="none" stroke="#e36200" stroke-width="10" stroke-linecap="round"/>
+  <rect x="70" y="196" width="372" height="40" rx="14" fill="#c9a27a"/>
+  <circle cx="256" cy="150" r="46" fill="#ffa862"/>
+  <path d="M256 104q10-22 34-20" fill="none" stroke="#6b8e23" stroke-width="10" stroke-linecap="round"/>
+</svg>

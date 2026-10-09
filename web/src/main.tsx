@@ -1,0 +1,46 @@
+import '@fontsource/zen-maru-gothic/700.css';
+import '@mantine/core/styles.css';
+import './i18n';
+
+import { MantineProvider } from '@mantine/core';
+import { createRouter, RouterProvider } from '@tanstack/react-router';
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { RelayEnvironmentProvider } from 'react-relay';
+import { registerSW } from 'virtual:pwa-register';
+
+import { cspNonce, cssVariablesResolver, theme } from './futon';
+import { createEnvironment } from './relay/environment';
+import { routeTree } from './routeTree.gen';
+
+const router = createRouter({ routeTree });
+const environment = createEnvironment();
+
+// Service Worker を登録する。新しい版があれば、次に開いたときに切り替わる。
+void registerSW({ immediate: true });
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router;
+  }
+}
+
+const root = document.getElementById('root');
+if (root === null) {
+  throw new Error('the root element is missing');
+}
+
+createRoot(root).render(
+  <StrictMode>
+    <MantineProvider
+      theme={theme}
+      cssVariablesResolver={cssVariablesResolver}
+      defaultColorScheme="auto"
+      getStyleNonce={cspNonce}
+    >
+      <RelayEnvironmentProvider environment={environment}>
+        <RouterProvider router={router} />
+      </RelayEnvironmentProvider>
+    </MantineProvider>
+  </StrictMode>,
+);
