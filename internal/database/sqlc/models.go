@@ -97,8 +97,8 @@ type Service struct {
 	ServiceType        int64
 	ChannelType        string
 	Channel            string
-	RemoteControlKeyID pgtype.Int8
-	LogoID             pgtype.Int8
+	RemoteControlKeyID *int64
+	LogoID             *int64
 	Hidden             bool
 	SortOrder          pgtype.Int4
 	CreatedAt          time.Time

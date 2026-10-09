@@ -18,25 +18,35 @@ type Querier interface {
 	BumpChangeVersion(ctx context.Context, arg BumpChangeVersionParams) (int64, error)
 	DeleteAuditEventsBefore(ctx context.Context, before time.Time) (int64, error)
 	DeleteInstance(ctx context.Context, arg DeleteInstanceParams) error
+	// 放送が始まった番組は、アーカイブに移すまで残す (設計書 3.3、3.4)。
+	DeletePrograms(ctx context.Context, arg []DeleteProgramsParams) *DeleteProgramsBatchResults
 	DeleteStaleInstances(ctx context.Context, before time.Time) (int64, error)
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
+	// 種別が無ければ既定値で足す。管理者が変えた表示名と並び順は上書きしない。
+	EnsureChannelType(ctx context.Context, arg EnsureChannelTypeParams) error
 	GetLease(ctx context.Context, name string) (Lease, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	HeartbeatInstance(ctx context.Context, arg HeartbeatInstanceParams) (int64, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
+	InsertEPGChange(ctx context.Context, arg InsertEPGChangeParams) error
 	InsertSession(ctx context.Context, arg InsertSessionParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) error
 	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
 	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
 	ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error)
 	ListChangeVersions(ctx context.Context, channels []string) ([]ListChangeVersionsRow, error)
+	ListEPGChangesSince(ctx context.Context, version int64) ([]ListEPGChangesSinceRow, error)
+	ListPrograms(ctx context.Context) ([]ListProgramsRow, error)
+	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
+	ListServices(ctx context.Context) ([]ListServicesRow, error)
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
 	// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
 	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
 	NotifyChange(ctx context.Context, arg NotifyChangeParams) error
+	PruneEPGChanges(ctx context.Context, before time.Time) (int64, error)
 	// 下限は上げるだけで、下げない。古いバイナリで migrate を実行しても、新しいバイナリが記録した下限は残る。
 	RaiseMinBinaryVersion(ctx context.Context, arg RaiseMinBinaryVersionParams) error
 	// 期限をすぐに切れさせて、他のインスタンスがすぐに取れるようにする。世代番号は残す。
@@ -44,9 +54,13 @@ type Querier interface {
 	// 同じ世代のリースを期限内に延長する。期限が切れていたり、他のインスタンスに取られていたりすれば、行を更新しない。
 	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
+	ServiceExists(ctx context.Context, id int64) (bool, error)
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
+	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults
+	// 上流から来る項目だけを更新する。非表示の印と並び順の上書きは、管理者のものなので触らない。
+	UpsertService(ctx context.Context, arg UpsertServiceParams) error
 }
 
 var _ Querier = (*Queries)(nil)
