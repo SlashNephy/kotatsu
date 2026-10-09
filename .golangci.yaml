@@ -1,0 +1,69 @@
+version: "2"
+
+run:
+  modules-download-mode: readonly
+
+linters:
+  default: all
+  disable:
+    - canonicalheader # HTTP ヘッダー名のキャメルケースを強制しない
+    - depguard # import の制限は、レイヤーの境界が決まった時点でルールとともに有効にする
+    - dupl # 重複コードを許可する
+    - err113 # 動的な error の生成を許可する
+    - exhaustruct # 非推奨。exhaustruct_v5 を使う
+    - funlen # 関数の長さを制限しない
+    - godoclint # godoc をシンボル名から始めることを強制しない
+    - godot # godoc の末尾に . を必要としない
+    - godox # TODO コメントを許可する
+    - gomodguard # 非推奨
+    - gosmopolitan # 日本語の文字列を許可する
+    - interfacebloat # interface のメソッド数を制限しない
+    - ireturn # interface を返す関数を許可する
+    - lll # 行の長さを制限しない
+    - mnd # マジックナンバーを検出しない
+    - noinlineerr # if err := f(); err != nil {} を許可する
+    - tagalign # struct tag を揃えない
+    - tagliatelle # struct tag の命名を強制しない
+    - varnamelen # 短い変数名を許可する
+    - wrapcheck # 外部パッケージの error をそのまま返すことを許可する
+    - wsl # 非推奨
+    - wsl_v5 # 空行の入れ方を強制しない
+  settings:
+    cyclop:
+      max-complexity: 20
+    exhaustruct_v5:
+      # 既定では cobra.Command のような外部の型まで全フィールドの指定を求めるので、自前の型に限る。
+      explicit-mode: true
+      enforce-patterns:
+        - ^github.com/SlashNephy/kotatsu/.+$
+    forbidigo:
+      forbid:
+        # context を渡さないログの呼び出しを禁止する
+        - pattern: ^slog\.(Debug|Info|Warn|Error)$
+        - pattern: ^\(\*log/slog\.Logger\)\.(Debug|Info|Warn|Error)$
+      analyze-types: true
+  exclusions:
+    generated: strict
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # テストでは構造体のフィールドを省略してよい
+      - path: _test\.go
+        linters:
+          - exhaustruct_v5
+
+formatters:
+  enable:
+    - gofumpt
+    - gci
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - localmodule
+  exclusions:
+    generated: lax
