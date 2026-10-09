@@ -2,7 +2,6 @@ package rule
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -60,45 +59,12 @@ func NewRunner(engine *Engine, pool *pgxpool.Pool, logger *slog.Logger, opts *Ru
 // Run は、ctx が終わるまで、起動したとき、EPG かルールが変わったとき、Interval ごとに照合する。
 // 照合に失敗したら、ログに出して次のきっかけを待つ。
 func (r *Runner) Run(ctx context.Context) error {
-	watcher, err := notify.NewWatcher(ctx, r.pool, r.logger, []string{epg.NotifyChannel, NotifyChannel}, notify.WatcherOptions{
-		UseListen:    !r.opts.PollOnly,
-		PollInterval: r.opts.PollInterval,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to watch EPG and rule changes: %w", err)
-	}
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	watchErr := make(chan error, 1)
-	go func() {
-		watchErr <- watcher.Run(ctx)
-	}()
-
-	ticker := time.NewTicker(r.opts.Interval)
-	defer ticker.Stop()
-	for {
-		r.runOnce(ctx)
-
-		select {
-		case <-ctx.Done():
-			return <-watchErr
-		case err := <-watchErr:
-			return err
-		case <-ticker.C:
-		case <-watcher.Changes():
-			// 立て続けの変更をまとめるため、少し待ってから照合する。
-			select {
-			case <-ctx.Done():
-				return <-watchErr
-			case <-time.After(r.opts.Debounce):
-			}
-			// 待つ間に来た変更は、これからの照合で反映するので捨てる。
-			select {
-			case <-watcher.Changes():
-			default:
-			}
-		}
-	}
+	return notify.Loop(ctx, r.pool, r.logger, &notify.LoopOptions{
+		Channels: []string{epg.NotifyChannel, NotifyChannel},
+		Debounce: r.opts.Debounce,
+		Interval: r.opts.Interval,
+		Watcher:  notify.WatcherOptions{UseListen: !r.opts.PollOnly, PollInterval: r.opts.PollInterval},
+	}, r.runOnce)
 }
 
 func (r *Runner) runOnce(ctx context.Context) {

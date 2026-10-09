@@ -129,6 +129,10 @@ type Reservation struct {
 	CreatedBy        *uuid.UUID
 	UpdatedAt        time.Time
 	UpdatedBy        *uuid.UUID
+	AssignmentState  string
+	AssignedTuner    *int64
+	PlannedStartAt   *time.Time
+	PlannedEndAt     *time.Time
 }
 
 type ReservationRule struct {
