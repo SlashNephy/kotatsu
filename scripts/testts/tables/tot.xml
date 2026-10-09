@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 現在時刻 (TOT)。生成するたびに中身が変わらないよう、固定の時刻にする。 -->
+<tsduck>
+  <TOT UTC_time="2026-01-01 00:00:00"/>
+</tsduck>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 偽チューナーサーバーの GR 27ch のサービス (internal/tuner/faketuner の既定のデータと揃える)。 -->
+<tsduck>
+  <SDT version="0" current="true" transport_stream_id="0x7FE0" original_network_id="0x7FE0" actual="true">
+    <service service_id="0x0400" EIT_schedule="false" EIT_present_following="true" running_status="running" CA_mode="false">
+      <service_descriptor service_type="0x01" service_provider_name="Kotatsu" service_name="こたつテスト1"/>
+    </service>
+  </SDT>
+</tsduck>

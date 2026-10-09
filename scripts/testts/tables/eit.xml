@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 現在と次の番組 (EIT[p/f])。時刻は ARIB の慣習どおり日本時間で書く。 -->
+<tsduck>
+  <EIT type="pf" version="0" current="true" actual="true" service_id="0x0400" transport_stream_id="0x7FE0" original_network_id="0x7FE0" last_table_id="0x4E">
+    <event event_id="0x0001" start_time="2026-01-01 00:00:00" duration="00:30:00" running_status="running" CA_mode="false">
+      <short_event_descriptor language_code="jpn">
+        <event_name>テスト番組</event_name>
+        <text>合成した映像と音声です。</text>
+      </short_event_descriptor>
+    </event>
+    <event event_id="0x0002" start_time="2026-01-01 00:30:00" duration="00:30:00" running_status="not-running" CA_mode="false">
+      <short_event_descriptor language_code="jpn">
+        <event_name>次のテスト番組</event_name>
+        <text>合成した映像と音声です。</text>
+      </short_event_descriptor>
+    </event>
+  </EIT>
+</tsduck>
