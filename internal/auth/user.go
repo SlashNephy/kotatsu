@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -28,6 +29,8 @@ var (
 	ErrUsernameTaken = errors.New("username is already taken")
 	// ErrInvalidUser は、ユーザーの項目が正しくないことを表す。
 	ErrInvalidUser = errors.New("invalid user")
+	// ErrUserNotFound は、対象の有効なユーザーがいないことを表す。
+	ErrUserNotFound = errors.New("user not found")
 )
 
 // User はユーザー。
@@ -93,25 +96,43 @@ func (u *Users) Create(ctx context.Context, db sqlc.DBTX, user *NewUser) (*User,
 }
 
 // Disable はユーザーを無効にする。無効にしたユーザーのセッションは、その時点から使えなくなる。
+// ユーザーがいないか、すでに無効なら ErrUserNotFound を返す。
 func (u *Users) Disable(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) error {
-	if _, err := sqlc.New(db).DisableUser(ctx, sqlc.DisableUserParams{ID: userID, DisabledAt: new(u.clock.Now())}); err != nil {
+	n, err := sqlc.New(db).DisableUser(ctx, sqlc.DisableUserParams{ID: userID, DisabledAt: new(u.clock.Now())})
+	if err != nil {
 		return fmt.Errorf("failed to disable a user: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("%w: %s", ErrUserNotFound, userID)
 	}
 
 	return nil
 }
 
 func validateNewUser(user *NewUser) error {
-	errs := []error{}
-	if user.Username == "" || utf8.RuneCountInString(user.Username) > maxUsernameLength || strings.TrimSpace(user.Username) != user.Username {
-		errs = append(errs, fmt.Errorf("%w: username must be 1 to %d characters without surrounding spaces", ErrInvalidUser, maxUsernameLength))
+	if user == nil {
+		return fmt.Errorf("%w: user is nil", ErrInvalidUser)
 	}
-	if user.DisplayName == "" || utf8.RuneCountInString(user.DisplayName) > maxDisplayNameLength {
-		errs = append(errs, fmt.Errorf("%w: display name must be 1 to %d characters", ErrInvalidUser, maxDisplayNameLength))
+
+	errs := []error{}
+	if !validName(user.Username, maxUsernameLength) {
+		errs = append(errs, fmt.Errorf("%w: username must be 1 to %d characters without surrounding spaces or control characters", ErrInvalidUser, maxUsernameLength))
+	}
+	if !validName(user.DisplayName, maxDisplayNameLength) {
+		errs = append(errs, fmt.Errorf("%w: display name must be 1 to %d characters without surrounding spaces or control characters", ErrInvalidUser, maxDisplayNameLength))
 	}
 	if _, err := ParseRole(string(user.Role)); err != nil {
 		errs = append(errs, err)
 	}
 
 	return errors.Join(errs...)
+}
+
+// validName は、名前が 1 文字以上 maxLength 文字以下で、前後に空白がなく、制御文字を含まないかどうかを返す。
+func validName(name string, maxLength int) bool {
+	if name == "" || utf8.RuneCountInString(name) > maxLength || strings.TrimSpace(name) != name {
+		return false
+	}
+
+	return !strings.ContainsFunc(name, unicode.IsControl)
 }
