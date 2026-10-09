@@ -48,6 +48,8 @@ type Querier interface {
 	InsertEPGChange(ctx context.Context, arg InsertEPGChangeParams) error
 	// 同じ番組の予約がすでにあれば何もしない。そのときは行を返さない。
 	InsertProgramReservation(ctx context.Context, arg InsertProgramReservationParams) (uuid.UUID, error)
+	// イベントリレーの引き継ぎ先の番組予約を、番組情報をコピーして作る。引き継ぎ先の予約がすでにあれば何もせず、行を返さない。
+	InsertRelayedReservation(ctx context.Context, arg InsertRelayedReservationParams) (uuid.UUID, error)
 	InsertReservationRule(ctx context.Context, arg InsertReservationRuleParams) error
 	InsertRule(ctx context.Context, arg InsertRuleParams) error
 	// ルール予約を、番組情報をコピーして作る。同じ番組の予約がすでにあれば何もせず、行を返さない。
@@ -74,6 +76,9 @@ type Querier interface {
 	ListMatchablePrograms(ctx context.Context, now time.Time) ([]ListMatchableProgramsRow, error)
 	ListPrograms(ctx context.Context) ([]ListProgramsRow, error)
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
+	// 番組を指定した予約のうち、予約か番組の終わりがまだ来ていないものと、その番組の今の EPG。
+	// ルール予約の録画設定は、一致したルールのうち最も古いものの上書きを使う。
+	ListReservationsToFollow(ctx context.Context, now time.Time) ([]ListReservationsToFollowRow, error)
 	ListRules(ctx context.Context) ([]Rule, error)
 	ListServices(ctx context.Context) ([]ListServicesRow, error)
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
@@ -100,6 +105,7 @@ type Querier interface {
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
 	UpdateAssignment(ctx context.Context, arg UpdateAssignmentParams) error
 	UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error)
+	UpdateReservationProgram(ctx context.Context, arg UpdateReservationProgramParams) error
 	UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, error)
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults

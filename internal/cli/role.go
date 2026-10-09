@@ -17,6 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/neko"
+	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
@@ -143,6 +144,12 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 			PollInterval: 0,
 		},
 		Assign: &assign.RunnerOptions{
+			Debounce:     0,
+			Interval:     0,
+			PollOnly:     deps.Config.Database.Pooler,
+			PollInterval: 0,
+		},
+		Follow: &reserve.FollowerOptions{
 			Debounce:     0,
 			Interval:     0,
 			PollOnly:     deps.Config.Database.Pooler,

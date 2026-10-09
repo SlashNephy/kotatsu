@@ -252,6 +252,8 @@ CREATE TABLE reservations (
   assigned_tuner bigint,
   planned_start_at timestamptz,
   planned_end_at timestamptz,
+  -- イベントリレーで引き継いだ予約の、引き継ぎ元の予約 (設計書 4.6)。
+  relayed_from uuid REFERENCES reservations (id) ON DELETE SET NULL,
   CONSTRAINT reservations_event_check CHECK ((kind = 'time') = (event_id IS NULL)),
   CONSTRAINT reservations_time_check CHECK (start_at < end_at)
 );
@@ -261,6 +263,8 @@ CREATE TABLE reservations (
 -- 放送が終わった番組の予約は、録画の状態遷移 (#28) で片付け、EID の再利用で新しい番組を予約できなくならないようにする。
 CREATE UNIQUE INDEX reservations_program_idx ON reservations (service_id, event_id) WHERE event_id IS NOT NULL;
 CREATE INDEX reservations_start_at_idx ON reservations (start_at);
+-- 引き継ぎ元の予約を消すときに、引き継いだ予約を探すのに使う。
+CREATE INDEX reservations_relayed_from_idx ON reservations (relayed_from) WHERE relayed_from IS NOT NULL;
 
 -- チューナーの構成 (設計書 3.6)。neko が、チューナーサーバーから定期的に、またイベントで取得して更新する。
 -- チューナーの割り当て (neko) と、システムの状態の画面 (tenban) が読む。

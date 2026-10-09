@@ -133,6 +133,7 @@ type Reservation struct {
 	AssignedTuner    *int64
 	PlannedStartAt   *time.Time
 	PlannedEndAt     *time.Time
+	RelayedFrom      *uuid.UUID
 }
 
 type ReservationRule struct {
