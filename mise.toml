@@ -8,7 +8,9 @@ sqlc = "1.31.1"
 run = "go build -trimpath -o ./bin/ ./cmd/kotatsu"
 
 [tasks.test]
-run = "go test -race ./..."
+# DB を使うテストは、パッケージをまたいで並行に動くと PostgreSQL の接続数の上限 (既定は 100) に達する。
+# CPU の多いマシンでも CI (4 コア) と同じ並行度になるよう、同時に動かすパッケージの数を絞る。
+run = "go test -race -p 4 ./..."
 
 [tasks.lint]
 run = "golangci-lint run"
