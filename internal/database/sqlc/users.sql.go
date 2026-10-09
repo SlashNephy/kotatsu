@@ -74,3 +74,36 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) error {
 	)
 	return err
 }
+
+const listUsersByIDs = `-- name: ListUsersByIDs :many
+SELECT id, username, display_name, role, password_hash, disabled_at, created_at, updated_at FROM users WHERE id = ANY($1::uuid[])
+`
+
+func (q *Queries) ListUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsersByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Username,
+			&i.DisplayName,
+			&i.Role,
+			&i.PasswordHash,
+			&i.DisabledAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

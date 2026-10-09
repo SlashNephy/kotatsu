@@ -41,6 +41,9 @@ type Deps struct {
 // defaultTimeZone は、表示のタイムゾーンの既定値 (設計書 8.1)。
 const defaultTimeZone = "Asia/Tokyo"
 
+// tenbanRoleName は、API を受け持つロールの名前。
+const tenbanRoleName = "tenban"
+
 // nekonoteRoleName は、ジョブを実行するロールの名前。
 const nekonoteRoleName = "nekonote"
 
@@ -68,7 +71,7 @@ func (r *Role) DisplayName() string {
 func DefaultRoles() []*Role {
 	return []*Role{
 		{
-			Name:  "tenban",
+			Name:  tenbanRoleName,
 			Alias: "server",
 			Short: "Serve the GraphQL API, the web UI, and media streams",
 			Run:   waitUntilDone,

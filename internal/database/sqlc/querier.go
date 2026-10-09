@@ -83,6 +83,7 @@ type Querier interface {
 	ListServices(ctx context.Context) ([]ListServicesRow, error)
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
 	ListUsableTuners(ctx context.Context) ([]ListUsableTunersRow, error)
+	ListUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
 	// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
