@@ -118,6 +118,13 @@ func TestRoleFailureStopsOtherRoles(t *testing.T) {
 
 	errBoom := errors.New("boom")
 	roles := cli.DefaultRoles()
+	for _, role := range roles[1:] {
+		role.Run = func(ctx context.Context, _ *slog.Logger, _ *cli.Deps) error {
+			<-ctx.Done()
+
+			return nil
+		}
+	}
 	roles[0].Run = func(context.Context, *slog.Logger, *cli.Deps) error {
 		return errBoom
 	}
@@ -149,7 +156,8 @@ func TestRoleLogsDisplayNameUntilCanceled(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cmd := cli.NewCommand(testOptions(logger, cli.DefaultRoles(), validEnv))
-	cmd.SetArgs([]string{"scheduler"})
+	// DB を使わないロールで確かめる。
+	cmd.SetArgs([]string{"recorder"})
 
 	done := make(chan error, 1)
 	go func() {
@@ -173,7 +181,7 @@ func TestRoleLogsDisplayNameUntilCanceled(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	assert.Contains(t, buf.String(), `"role":"neko (scheduler)"`)
+	assert.Contains(t, buf.String(), `"role":"mikan (recorder)"`)
 	assert.Contains(t, buf.String(), `"msg":"role stopped"`)
 	assert.Contains(t, buf.String(), `"msg":"config loaded"`)
 	assert.NotContains(t, buf.String(), "hunter2")
@@ -326,6 +334,11 @@ func testOptions(logger *slog.Logger, roles []*cli.Role, lookupEnv config.Lookup
 		},
 		CheckSchema: func(context.Context, *pgxpool.Pool) error { return nil },
 		Migrate:     func(context.Context, *slog.Logger, *pgxpool.Pool) error { return nil },
+		RunRegistry: func(ctx context.Context, _ *slog.Logger, _ *cli.Deps, _ []string, _ string) error {
+			<-ctx.Done()
+
+			return nil
+		},
 	}
 }
 

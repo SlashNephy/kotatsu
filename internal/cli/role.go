@@ -4,10 +4,13 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/config"
+	"github.com/SlashNephy/kotatsu/internal/neko"
 )
 
 // Deps は、ロールを起動する前に用意し、全ロールで共有するもの。
@@ -17,6 +20,9 @@ type Deps struct {
 	DB *pgxpool.Pool
 	// Metrics は /metrics で公開するレジストリ。各ロールのメトリクスはここに登録する。
 	Metrics *prometheus.Registry
+	Clock   clock.Clock
+	// InstanceID は、このプロセスのインスタンスの ID。リースの持ち主や、インスタンスの登録簿に使う。
+	InstanceID uuid.UUID
 }
 
 // Runner はロールの本体。ctx が終わるまで動き続ける。
@@ -39,7 +45,7 @@ func (r *Role) DisplayName() string {
 }
 
 // DefaultRoles は全ロールを返す。呼び出しのたびに新しい値を返すので、呼び出し側で書き換えてよい。
-// 各ロールの本体は未実装で、起動ログを出して終了を待つだけである。
+// neko 以外のロールの本体は未実装で、起動ログを出して終了を待つだけである。
 func DefaultRoles() []*Role {
 	return []*Role{
 		{
@@ -52,7 +58,7 @@ func DefaultRoles() []*Role {
 			Name:  "neko",
 			Alias: "scheduler",
 			Short: "Sync the EPG, match rules, and assign recordings (one active instance)",
-			Run:   waitUntilDone,
+			Run:   runNeko,
 		},
 		{
 			Name:  "mikan",
@@ -73,6 +79,13 @@ func DefaultRoles() []*Role {
 			Run:   waitUntilDone,
 		},
 	}
+}
+
+func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
+	logger.InfoContext(ctx, "role started")
+	defer logger.InfoContext(ctx, "role stopped")
+
+	return neko.Run(ctx, logger, deps.DB, deps.Clock, deps.InstanceID)
 }
 
 func waitUntilDone(ctx context.Context, logger *slog.Logger, _ *Deps) error {
