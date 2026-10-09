@@ -11,8 +11,31 @@ sql:
         # 将来 SQLite のクエリを足すときの差し替え口にする (設計書 2.1)。
         emit_interface: true
         emit_empty_slices: true
+        rename:
+          source_ip: SourceIP
         overrides:
           - db_type: uuid
             go_type: github.com/google/uuid.UUID
+          - db_type: uuid
+            go_type:
+              type: UUID
+              import: github.com/google/uuid
+              pointer: true
+            nullable: true
+          - db_type: text
+            go_type:
+              type: string
+              pointer: true
+            nullable: true
           - db_type: timestamptz
             go_type: time.Time
+          - db_type: inet
+            go_type:
+              type: Addr
+              import: net/netip
+          - db_type: inet
+            go_type:
+              type: Addr
+              import: net/netip
+              pointer: true
+            nullable: true

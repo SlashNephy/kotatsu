@@ -14,12 +14,15 @@ type Querier interface {
 	// 他のインスタンスが期限内のリースを持っていれば、行を返さない。
 	AcquireLease(ctx context.Context, arg AcquireLeaseParams) (int64, error)
 	BumpChangeVersion(ctx context.Context, arg BumpChangeVersionParams) (int64, error)
+	DeleteAuditEventsBefore(ctx context.Context, before time.Time) (int64, error)
 	DeleteInstance(ctx context.Context, arg DeleteInstanceParams) error
 	DeleteStaleInstances(ctx context.Context, before time.Time) (int64, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
 	HeartbeatInstance(ctx context.Context, arg HeartbeatInstanceParams) (int64, error)
+	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
 	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
+	ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error)
 	ListChangeVersions(ctx context.Context, channels []string) ([]ListChangeVersionsRow, error)
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
 	// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。

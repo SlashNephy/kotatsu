@@ -5,10 +5,25 @@
 package sqlc
 
 import (
+	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+type AuditEvent struct {
+	ID          uuid.UUID
+	OccurredAt  time.Time
+	ActorType   string
+	ActorUserID *uuid.UUID
+	ActorRole   *string
+	Action      string
+	TargetType  string
+	TargetID    *string
+	Summary     []byte
+	SourceIP    *netip.Addr
+	UserAgent   *string
+}
 
 type ChangeVersion struct {
 	Channel   string

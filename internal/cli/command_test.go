@@ -62,7 +62,7 @@ func TestSubcommandAcceptsCodenameAndAlias(t *testing.T) {
 		{codename: "tenban", alias: "server"},
 		{codename: "neko", alias: "scheduler"},
 		{codename: "mikan", alias: "recorder"},
-		{codename: "nekonote", alias: "worker"},
+		{codename: roleNekonote, alias: "worker"},
 		{codename: "kyusu", alias: "transcoder"},
 	}
 	for _, tt := range tests {
@@ -317,7 +317,7 @@ func TestMigrateRunsMigrationWithoutStartingRoles(t *testing.T) {
 	}
 
 	cmd := cli.NewCommand(opts)
-	cmd.SetArgs([]string{"migrate"})
+	cmd.SetArgs([]string{subcommandMigrate})
 	require.NoError(t, cmd.ExecuteContext(t.Context()))
 	assert.True(t, migrated.Load())
 	assert.False(t, checked.Load())
@@ -340,7 +340,7 @@ func testOptions(logger *slog.Logger, roles []*cli.Role, lookupEnv config.Lookup
 
 			return nil
 		},
-		JobWorkers: func() *river.Workers { return nil },
+		JobWorkers: func(*cli.Deps) (*river.Workers, []*river.PeriodicJob) { return nil, []*river.PeriodicJob{} },
 	}
 }
 
