@@ -17,7 +17,9 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/SlashNephy/kotatsu/graph"
 	"github.com/SlashNephy/kotatsu/internal/audit"
+	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/config"
 	"github.com/SlashNephy/kotatsu/internal/database"
@@ -293,6 +295,10 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 
 	mux := http.NewServeMux()
 	httpserver.RegisterHealth(mux, logger, deps.DB)
+	// GraphQL は tenban が受け持つ (設計書 1.2、9.1)。
+	if slices.ContainsFunc(roles, func(role *Role) bool { return role.Name == tenbanRoleName }) {
+		registerAPI(mux, logger, deps)
+	}
 	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider))
 	metricsHandler := telemetry.NewMetricsHandler(deps.Metrics)
 
@@ -321,6 +327,19 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 	})
 
 	return eg.Wait()
+}
+
+// registerAPI は、tenban の API を mux に登録する。ログイン中のユーザーは、サーバー側のセッションから引く (設計書 9.5)。
+func registerAPI(mux *http.ServeMux, logger *slog.Logger, deps *Deps) {
+	sessions := auth.NewSessions(&auth.SessionsOptions{IdleTimeout: 0, AbsoluteTimeout: 0, IsSecure: nil, Clock: deps.Clock})
+	mux.Handle("/graphql", sessions.Middleware(deps.DB)(graph.NewHandler(&graph.Options{
+		DB:                deps.DB,
+		Clock:             deps.Clock,
+		Logger:            logger.With(slog.String("component", "graphql")),
+		MaxDepth:          0,
+		MaxComplexity:     0,
+		HeartbeatInterval: 0,
+	})))
 }
 
 // runRoles は roles を並行に動かす。どれかが失敗すると、残りも止める。
