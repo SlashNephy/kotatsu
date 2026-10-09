@@ -47,7 +47,7 @@ func newUser(t *testing.T, pool *pgxpool.Pool) *audit.Actor {
 
 func validInput() *rule.Input {
 	return &rule.Input{
-		Name:    "ゆるキャン△",
+		Name:    yurucamp,
 		Memo:    "",
 		Enabled: true,
 		Conditions: &match.Conditions{

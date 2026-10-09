@@ -8,6 +8,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/rule"
 )
 
+// yurucamp は、記号を取り除いた後の番組名。
+const yurucamp = "ゆるキャン△"
+
 func TestTitleKey(t *testing.T) {
 	t.Parallel()
 
@@ -17,8 +20,8 @@ func TestTitleKey(t *testing.T) {
 		want string
 	}{
 		{name: "ARIB enclosed marks", in: "🈟ゆるキャン△ 第1話🈑", want: "ゆるキャン△ 第1話"},
-		{name: "bracketed marks", in: "[新]ゆるキャン△[字][デ]", want: "ゆるキャン△"},
-		{name: "lenticular brackets", in: "【再】ゆるキャン△　【終】", want: "ゆるキャン△"},
+		{name: "bracketed marks", in: "[新]ゆるキャン△[字][デ]", want: yurucamp},
+		{name: "lenticular brackets", in: "【再】ゆるキャン△　【終】", want: yurucamp},
 		{name: "full-width letters and spaces", in: "ゆるキャン△　ＳＥＡＳＯＮ３", want: "ゆるキャン△ SEASON3"},
 		{name: "episode numbers are kept", in: "ゆるキャン△ #2「ふじさん」[字]", want: "ゆるキャン△ #2「ふじさん」"},
 		{name: "a 新 that is part of the title is kept", in: "新世界より", want: "新世界より"},
