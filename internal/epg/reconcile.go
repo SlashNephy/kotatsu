@@ -108,7 +108,8 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 	q := sqlc.New(r.pool)
 	upstreamPrograms := []*mirakurun.Program{}
 	currentPrograms := []sqlc.ListProgramsRow{}
-	for _, serviceID := range serviceIDs {
+	// イベントをまとめると同じサービスが何度も出てくるので、1 回ずつにする。
+	for _, serviceID := range slices.Compact(slices.Sorted(slices.Values(serviceIDs))) {
 		exists, err := q.ServiceExists(ctx, serviceID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to look up service %d: %w", serviceID, err)
@@ -223,7 +224,8 @@ func diffServices(upstream []*mirakurun.Service, current []sqlc.ListServicesRow)
 			continue
 		}
 		row, ok := byID[service.ID]
-		if ok && row == serviceRow(service) {
+		// 行はポインタの列を持つので、== ではなく値で比べる。
+		if ok && reflect.DeepEqual(row, serviceRow(service)) {
 			continue
 		}
 		diff.upserts = append(diff.upserts, service)
@@ -452,7 +454,7 @@ func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, no
 		})
 	}
 
-	var errs []error
+	errs := []error{}
 	q.UpsertPrograms(ctx, params).Exec(func(i int, err error) {
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to upsert program %d/%d: %w", params[i].ServiceID, params[i].EventID, err))
@@ -473,7 +475,7 @@ func deletePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, n
 	for _, p := range programs {
 		params = append(params, sqlc.DeleteProgramsParams{ServiceID: p.ServiceID, EventID: p.EventID, Now: now})
 	}
-	var errs []error
+	errs := []error{}
 	q.DeletePrograms(ctx, params).Exec(func(i int, err error) {
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to delete program %d/%d: %w", params[i].ServiceID, params[i].EventID, err))

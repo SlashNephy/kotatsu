@@ -24,12 +24,14 @@ type ChannelRef struct {
 // Service は /api/services の要素。
 type Service struct {
 	// ID は Mirakurun のサービス ID (networkId × 100000 + serviceId)。
-	ID        int64       `json:"id"`
-	ServiceID int         `json:"serviceId"`
-	NetworkID int         `json:"networkId"`
-	Name      string      `json:"name"`
-	Type      int         `json:"type"`
-	Channel   *ChannelRef `json:"channel,omitempty"`
+	ID        int64  `json:"id"`
+	ServiceID int    `json:"serviceId"`
+	NetworkID int    `json:"networkId"`
+	Name      string `json:"name"`
+	Type      int    `json:"type"`
+	// RemoteControlKeyID はリモコンのキーの番号。0 なら返さない。
+	RemoteControlKeyID int         `json:"remoteControlKeyId,omitempty"`
+	Channel            *ChannelRef `json:"channel,omitempty"`
 }
 
 // Program は /api/programs の要素。

@@ -237,7 +237,8 @@ func TestSyncServicesOnlyTouchesGivenServices(t *testing.T) {
 	require.NoError(t, f.fake.ForgetProgram(other))
 	require.NoError(t, f.fake.ExtendProgram(programID(4), 15*time.Minute))
 
-	result, err := f.reconciler.SyncServices(t.Context(), []int64{serviceID(), faketuner.ServiceItemID(1, 1)})
+	// 同じサービスを重ねて指定しても、1 回だけ突き合わせる。DB に無いサービスは飛ばす。
+	result, err := f.reconciler.SyncServices(t.Context(), []int64{serviceID(), faketuner.ServiceItemID(1, 1), serviceID()})
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.ProgramsUpserted)
 	assert.Equal(t, 1, result.ProgramsDeleted)
