@@ -25,8 +25,10 @@ const (
 	headerXFP   = "X-Forwarded-Proto"
 	schemeHTTPS = "https"
 	// proxiedHost は、リバースプロキシが受けたホスト名。
-	proxiedHost  = "tv.example.com"
-	headerOrigin = "Origin"
+	proxiedHost = "tv.example.com"
+	// publicRejected は、インターネットの送信元を拒否したときの応答。
+	publicRejected = "access from 203.0.113.5 is not allowed"
+	headerOrigin   = "Origin"
 )
 
 // clientEcho は、判定した送信元を応答のヘッダーに書く。
@@ -77,18 +79,28 @@ func TestAccessPolicy(t *testing.T) {
 		{
 			name: "public client behind a trusted proxy is rejected", remoteAddr: trustedProxy,
 			headers:    map[string]string{headerXFF: publicAddr},
-			wantStatus: http.StatusForbidden, wantBody: "access from 203.0.113.5 is not allowed",
+			wantStatus: http.StatusForbidden, wantBody: publicRejected,
 		},
 		{
 			// 左側は送信元が自由に書けるので、信頼済みのプロキシが足した右側から送信元を決める。
 			name: "spoofed private address on the left is ignored", remoteAddr: trustedProxy,
 			headers:    map[string]string{headerXFF: "10.0.0.9, " + publicAddr},
-			wantStatus: http.StatusForbidden, wantBody: "access from 203.0.113.5 is not allowed",
+			wantStatus: http.StatusForbidden, wantBody: publicRejected,
 		},
 		{
 			name: "chain of trusted proxies", remoteAddr: trustedProxy,
 			headers:    map[string]string{headerXFF: lanAddr + ", " + trustedProxy},
 			wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "http://" + hostName,
+		},
+		{
+			name: "X-Real-IP behind a trusted proxy", remoteAddr: trustedProxy,
+			headers:    map[string]string{"X-Real-IP": publicAddr},
+			wantStatus: http.StatusForbidden, wantBody: publicRejected,
+		},
+		{
+			// プロキシ自身のプライベートアドレスで判定すると、制限をすり抜けてしまう。
+			name: "trusted proxy without forwarded client address is rejected", remoteAddr: trustedProxy,
+			wantStatus: http.StatusBadRequest, wantBody: "the request from the trusted proxy 10.0.0.2 has neither X-Forwarded-For nor X-Real-IP",
 		},
 		{
 			name: "invalid X-Forwarded-For", remoteAddr: trustedProxy,
@@ -142,6 +154,11 @@ func TestRequireSameOrigin(t *testing.T) {
 		{
 			name: "same origin over HTTPS behind a trusted proxy", method: http.MethodPost, remoteAddr: trustedProxy,
 			headers:    map[string]string{headerXFF: lanAddr, headerXFP: schemeHTTPS, headerXFH: proxiedHost, headerOrigin: "https://" + proxiedHost},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "default port in the forwarded host", method: http.MethodPost, remoteAddr: trustedProxy,
+			headers:    map[string]string{headerXFF: lanAddr, headerXFP: schemeHTTPS, headerXFH: proxiedHost + ":443", headerOrigin: "https://" + proxiedHost},
 			wantStatus: http.StatusOK,
 		},
 		{

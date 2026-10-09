@@ -34,6 +34,18 @@ func (c *Client) Origin() string {
 	return scheme + "://" + c.Host
 }
 
+// defaultPort は、scheme の既定のポートを返す。Origin では省かれるので、比べる前に取り除く。
+func defaultPort(scheme string) string {
+	switch strings.ToLower(scheme) {
+	case "http":
+		return "80"
+	case "https":
+		return "443"
+	default:
+		return ""
+	}
+}
+
 type clientKey struct{}
 
 // ClientFrom は、AccessPolicy.Middleware が context に入れた送信元を返す。入っていなければ nil を返す。
@@ -121,9 +133,22 @@ func (p *AccessPolicy) isTrusted(addr netip.Addr) bool {
 // applyForwarded は、信頼済みのプロキシが伝えた送信元を client に反映する。
 // X-Forwarded-For は、右から順に信頼済みのプロキシを飛ばし、最初の信頼していないアドレスを送信元にする。
 // 左側は送信元が自由に書けるので、信頼済みのプロキシが足した右側だけを信じる。
+// X-Forwarded-For が無ければ X-Real-IP を使う。どちらも無ければ、送信元が分からないので拒否する。
+// プロキシ自身のアドレスで判定すると、プロキシのプライベートアドレスで接続元の制限をすり抜けてしまうからである。
 func (p *AccessPolicy) applyForwarded(client *Client, header http.Header) error {
+	values := header.Values("X-Forwarded-For")
+	if len(values) == 0 {
+		if realIP := header.Get("X-Real-IP"); realIP != "" {
+			values = []string{realIP}
+		}
+	}
+	if len(values) == 0 {
+		return fmt.Errorf("the request from the trusted proxy %s has neither X-Forwarded-For nor X-Real-IP; "+
+			"configure the proxy to send X-Forwarded-For", client.IP)
+	}
+
 	hops := []netip.Addr{}
-	for _, value := range header.Values("X-Forwarded-For") {
+	for _, value := range values {
 		for hop := range strings.SplitSeq(value, ",") {
 			addr, err := parseHop(strings.TrimSpace(hop))
 			if err != nil {
@@ -236,5 +261,14 @@ func sameOrigin(a, b string) bool {
 		return false
 	}
 
-	return strings.EqualFold(ua.Scheme, ub.Scheme) && strings.EqualFold(ua.Host, ub.Host)
+	return strings.EqualFold(ua.Scheme, ub.Scheme) && strings.EqualFold(hostWithoutDefaultPort(ua), hostWithoutDefaultPort(ub))
+}
+
+// hostWithoutDefaultPort は、ホストから scheme の既定のポートを取り除く (https://example.com:443 → example.com)。
+func hostWithoutDefaultPort(u *url.URL) string {
+	if port := u.Port(); port != "" && port == defaultPort(u.Scheme) {
+		return u.Hostname()
+	}
+
+	return u.Host
 }
