@@ -254,3 +254,30 @@ CREATE TABLE reservations (
 -- 放送が終わった番組の予約は、録画の状態遷移 (#28) で片付け、EID の再利用で新しい番組を予約できなくならないようにする。
 CREATE UNIQUE INDEX reservations_program_idx ON reservations (service_id, event_id) WHERE event_id IS NOT NULL;
 CREATE INDEX reservations_start_at_idx ON reservations (start_at);
+
+-- チューナーの構成 (設計書 3.6)。neko が、チューナーサーバーから定期的に、またイベントで取得して更新する。
+-- チューナーの割り当て (neko) と、システムの状態の画面 (tenban) が読む。
+-- 利用者のように刻々と変わる値は持たず、割り当てに使う構成だけを持つ。
+CREATE TABLE tuners (
+  -- チューナーサーバーでのチューナーの番号。
+  tuner_index bigint PRIMARY KEY,
+  name text NOT NULL,
+  -- 受信できるチャンネル種別。1 本で複数の種別を受信できる機器もある。
+  types text[] NOT NULL,
+  is_available boolean NOT NULL,
+  is_remote boolean NOT NULL,
+  is_fault boolean NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- チューナーサーバーの状態 (設計書 3.7)。行は 1 つだけ持つ。
+CREATE TABLE tuner_server_status (
+  id boolean PRIMARY KEY DEFAULT true CHECK (id),
+  -- 接続できない間は縮退中とし、接続できなくなった日時を持つ。接続できていれば NULL。
+  degraded_since timestamptz,
+  -- 最後に接続に失敗した理由。
+  last_error text NOT NULL,
+  -- チューナーサーバーの時計 (HTTP の Date ヘッダー) と OS の時計の差 (ミリ秒)。分からなければ NULL。
+  clock_skew_ms bigint,
+  checked_at timestamptz NOT NULL
+);

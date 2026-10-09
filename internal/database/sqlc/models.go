@@ -158,6 +158,24 @@ type Session struct {
 	SourceIP        *netip.Addr
 }
 
+type Tuner struct {
+	TunerIndex  int64
+	Name        string
+	Types       []string
+	IsAvailable bool
+	IsRemote    bool
+	IsFault     bool
+	UpdatedAt   time.Time
+}
+
+type TunerServerStatus struct {
+	ID            bool
+	DegradedSince *time.Time
+	LastError     string
+	ClockSkewMs   *int64
+	CheckedAt     time.Time
+}
+
 type User struct {
 	ID           uuid.UUID
 	Username     string

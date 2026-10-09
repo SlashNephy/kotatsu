@@ -44,6 +44,8 @@ type SyncerOptions struct {
 	BackoffInitial      time.Duration
 	BackoffMax          time.Duration
 	StableAfter         time.Duration
+	// OnTunerEvent は、チューナーのイベントが届いたときに呼ぶ。チューナーの構成を取得し直させるのに使う。nil なら呼ばない。
+	OnTunerEvent func()
 }
 
 // Syncer は、全量の突き合わせとイベントの購読を組み合わせて、EPG を同期し続ける (設計書 3.3)。
@@ -70,8 +72,10 @@ func NewSyncer(reconciler *Reconciler, events EventSource, clk clock.Clock, logg
 		BackoffInitial:      DefaultBackoffInitial,
 		BackoffMax:          DefaultBackoffMax,
 		StableAfter:         DefaultStableAfter,
+		OnTunerEvent:        nil,
 	}
 	if opts != nil {
+		o.OnTunerEvent = opts.OnTunerEvent
 		o.FullSyncInterval = cmpOr(opts.FullSyncInterval, o.FullSyncInterval)
 		o.MinFullSyncInterval = cmpOr(opts.MinFullSyncInterval, o.MinFullSyncInterval)
 		o.BatchWindow = cmpOr(opts.BatchWindow, o.BatchWindow)
@@ -196,6 +200,10 @@ func (s *Syncer) consume(ctx context.Context, stream mirakurun.EventStream) erro
 				return err
 			}
 			// 溜まっていたイベントの変化は、今の全量の突き合わせで反映済みなので捨てる。
+			// チューナーの構成は全量の突き合わせの対象ではないので、チューナーのイベントだけは知らせる。
+			if batch.tuners && s.opts.OnTunerEvent != nil {
+				s.opts.OnTunerEvent()
+			}
 			flush = nil
 			batch = newEventBatch()
 		}
@@ -204,6 +212,9 @@ func (s *Syncer) consume(ctx context.Context, stream mirakurun.EventStream) erro
 
 // apply は、まとめたイベントを反映する。サービスが変わったときは全量を、番組が変わったときはそのサービスを突き合わせる。
 func (s *Syncer) apply(ctx context.Context, batch *eventBatch) error {
+	if batch.tuners && s.opts.OnTunerEvent != nil {
+		s.opts.OnTunerEvent()
+	}
 	if batch.services {
 		return s.syncAll(ctx)
 	}
@@ -253,10 +264,12 @@ type eventBatch struct {
 	serviceIDs map[int64]struct{}
 	// services は、サービスが変わったかどうか。
 	services bool
+	// tuners は、チューナーのイベントが届いたかどうか。
+	tuners bool
 }
 
 func newEventBatch() *eventBatch {
-	return &eventBatch{serviceIDs: map[int64]struct{}{}, services: false}
+	return &eventBatch{serviceIDs: map[int64]struct{}{}, services: false, tuners: false}
 }
 
 // add は、イベントから変化のあったものを読み取る。
@@ -290,5 +303,7 @@ func (b *eventBatch) add(event *mirakurun.Event) {
 		}
 	case event.Resource == "service":
 		b.services = true
+	case event.Resource == "tuner":
+		b.tuners = true
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/epg"
 	"github.com/SlashNephy/kotatsu/internal/lease"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/tunerstate"
 )
 
 const (
@@ -39,10 +40,13 @@ type Options struct {
 	EPG *epg.SyncerOptions
 	// Archive は、放送が終わった番組のアーカイブの設定。nil なら既定値を使う。
 	Archive *epg.ArchiverOptions
+	// Tuners は、チューナーの状態の把握の設定。nil なら既定値を使う。
+	Tuners *tunerstate.Options
 }
 
 // Run は、ctx が終わるまでリースを取り合い、リーダーになっている間だけ neko の処理を動かす。
-// リーダーの間は、EPG を同期し (設計書 3.3)、放送が終わった番組をアーカイブに移す (設計書 3.4)。DB への書き込みは、その世代のリースを持っている間だけ通す。
+// リーダーの間は、EPG を同期し (設計書 3.3)、放送が終わった番組をアーカイブに移し (設計書 3.4)、
+// チューナーの構成とチューナーサーバーの状態を把握する (設計書 3.6、3.7)。DB への書き込みは、その世代のリースを持っている間だけ通す。
 func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 	manager := lease.NewManager(opts.DB, opts.Clock, LeaseName, opts.InstanceID, LeaseTTL)
 	elector, err := lease.NewElector(manager, logger, RenewInterval)
@@ -54,22 +58,30 @@ func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 		guard := func(ctx context.Context, tx pgx.Tx) error {
 			return manager.Guard(ctx, tx, generation)
 		}
-		logger := logger.With(slog.String("component", "epg"))
+		epgLogger := logger.With(slog.String("component", "epg"))
 
 		eg, ctx := errgroup.WithContext(ctx)
 		eg.Go(func() error {
-			return epg.NewArchiver(opts.DB, opts.Clock, guard, logger, opts.Archive).Run(ctx)
+			return epg.NewArchiver(opts.DB, opts.Clock, guard, epgLogger, opts.Archive).Run(ctx)
+		})
+		if opts.Tuner == nil {
+			logger.WarnContext(ctx, "tuner server is not configured; EPG sync and tuner monitoring are disabled")
+
+			return eg.Wait()
+		}
+		monitor := tunerstate.NewMonitor(opts.DB, opts.Tuner, opts.Clock, tunerstate.Guard(guard), logger.With(slog.String("component", "tuners")), opts.Tuners)
+		eg.Go(func() error {
+			return monitor.Run(ctx)
 		})
 		eg.Go(func() error {
-			if opts.Tuner == nil {
-				logger.WarnContext(ctx, "tuner server is not configured; EPG sync is disabled")
-				<-ctx.Done()
-
-				return nil
+			var syncerOptions epg.SyncerOptions
+			if opts.EPG != nil {
+				syncerOptions = *opts.EPG
 			}
+			syncerOptions.OnTunerEvent = monitor.Trigger
 			reconciler := epg.NewReconciler(opts.DB, opts.Tuner, opts.Clock, guard)
 
-			return epg.NewSyncer(reconciler, opts.Tuner, opts.Clock, logger, opts.EPG).Run(ctx)
+			return epg.NewSyncer(reconciler, opts.Tuner, opts.Clock, epgLogger, &syncerOptions).Run(ctx)
 		})
 
 		return eg.Wait()

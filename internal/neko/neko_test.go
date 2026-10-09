@@ -44,6 +44,7 @@ func TestLeaderSyncsEPG(t *testing.T) {
 			Tuner:      client,
 			EPG:        nil,
 			Archive:    nil,
+			Tuners:     nil,
 		})
 	}()
 

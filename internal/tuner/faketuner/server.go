@@ -110,7 +110,31 @@ func New(opts *Options) *Server {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// 時計のずれを再現できるよう、Date ヘッダーは偽チューナーサーバーの時計で返す。
+	w.Header().Set("Date", s.clock.Now().UTC().Format(http.TimeFormat))
 	s.mux.ServeHTTP(w, r)
+}
+
+// SetTuners は、チューナーの構成を置き換え、各チューナーの tuner の update イベントを送る。
+// 使っている利用者がいるチューナーを置き換えると、その利用者は外れたものとして扱う。
+func (s *Server) SetTuners(configs []*TunerConfig) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, tuner := range s.tuners {
+		for _, user := range tuner.users {
+			user.kick()
+		}
+		// 外した利用者のストリームが閉じるときに、置き換えた後のチューナーを探さないよう、利用者を空にしておく。
+		tuner.users = []*streamUser{}
+	}
+	s.tuners = make([]*tunerState, 0, len(configs))
+	for _, config := range configs {
+		s.tuners = append(s.tuners, &tunerState{config: config, channel: nil, users: []*streamUser{}})
+	}
+	for _, tuner := range s.tunersLocked() {
+		s.publishLocked("tuner", "update", tuner)
+	}
 }
 
 // AddProgram は番組を足し、program の create イベントを送る。
