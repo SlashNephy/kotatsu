@@ -63,7 +63,7 @@ func TestSyncerAppliesEvents(t *testing.T) {
 		args   []any
 	}{
 		{
-			name: "create",
+			name: typeCreate,
 			change: func(t *testing.T) {
 				t.Helper()
 				f.fake.AddProgram(&faketuner.Program{

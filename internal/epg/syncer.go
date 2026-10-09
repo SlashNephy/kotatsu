@@ -195,6 +195,9 @@ func (s *Syncer) consume(ctx context.Context, stream mirakurun.EventStream) erro
 			if err := s.syncAll(ctx); err != nil {
 				return err
 			}
+			// 溜まっていたイベントの変化は、今の全量の突き合わせで反映済みなので捨てる。
+			flush = nil
+			batch = newEventBatch()
 		}
 	}
 }
@@ -271,7 +274,8 @@ func (b *eventBatch) add(event *mirakurun.Event) {
 			// 形の分からないイベントは捨てる。取りこぼしは全量の突き合わせで埋まる。
 			return
 		}
-		if data.NetworkID != 0 || data.ServiceID != 0 {
+		// サービスの番号は networkId と組でしか一意にならないので、片方しか無ければ番組 ID から求める。
+		if data.NetworkID != 0 && data.ServiceID != 0 {
 			b.serviceIDs[data.NetworkID*serviceIDBase+data.ServiceID] = struct{}{}
 		} else if data.ID != 0 {
 			// 番組 ID は (networkId × 100000 + serviceId) × 100000 + eventId なので、下 5 桁を除くとサービス ID になる。
