@@ -207,12 +207,7 @@ func (a *Analyzer) handle(b []byte, offset int64) {
 		// 次のパケットを基準に数え直し、1 つの誤りをドロップとしても数えないようにする。
 		state.stats.Errors++
 		state.lastCC = -1
-		if assembler := a.sections[pkt.pid]; assembler != nil {
-			assembler.reset()
-		}
-		if a.video != nil && a.video.pid == pkt.pid {
-			a.video.reset()
-		}
+		a.discardPayload(pkt.pid)
 
 		return
 	}
@@ -220,9 +215,7 @@ func (a *Analyzer) handle(b []byte, offset int64) {
 		// アダプテーションフィールドの長さが壊れていて、ペイロードの位置もフラグも分からない。
 		// 誤りと同じく、次のパケットを基準に数え直す。
 		state.lastCC = -1
-		if assembler := a.sections[pkt.pid]; assembler != nil {
-			assembler.reset()
-		}
+		a.discardPayload(pkt.pid)
 
 		return
 	}
@@ -230,6 +223,7 @@ func (a *Analyzer) handle(b []byte, offset int64) {
 	if pkt.scrambling != 0 {
 		// スクランブルされたペイロードは読めない。
 		state.stats.Scrambled++
+		a.discardPayload(pkt.pid)
 
 		return
 	}
@@ -239,6 +233,17 @@ func (a *Analyzer) handle(b []byte, offset int64) {
 	}
 	a.handlePSI(&pkt, result == continuityDropped)
 	a.handleVideo(&pkt, offset, result == continuityDropped)
+}
+
+// discardPayload は、ペイロードを読めなかった PID の、組み立て中のセクションと I フレームの探索を捨てる。
+// 欠けたペイロードをまたいでつなぐと、壊れたセクションや、別の PES の位置を索引に書いてしまうからである。
+func (a *Analyzer) discardPayload(pid uint16) {
+	if assembler := a.sections[pid]; assembler != nil {
+		assembler.reset()
+	}
+	if a.video != nil && a.video.pid == pid {
+		a.video.reset()
+	}
 }
 
 // handleVideo は、映像のパケットから I フレームを探し、見つけたら索引に追記する。

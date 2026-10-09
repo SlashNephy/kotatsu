@@ -198,6 +198,7 @@ func TestReadIndex(t *testing.T) {
 		{name: "empty file", input: []byte{}, wantErr: ts.ErrInvalidIndex},
 		{name: "wrong magic", input: append([]byte("XXXX"), file[4:]...), wantErr: ts.ErrInvalidIndex},
 		{name: "unsupported version", input: append(append([]byte("KTIX"), 0x02, 0x00), file[6:]...), wantErr: ts.ErrInvalidIndex},
+		{name: "unexpected record size", input: append(append([]byte("KTIX"), 0x01, 0x00, 0x20, 0x00), file[8:]...), wantErr: ts.ErrInvalidIndex},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -235,6 +236,104 @@ func TestPTSDiff(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.want, ts.PTSDiff(tt.from, tt.to))
+		})
+	}
+}
+
+// pesHeader は、PTS を持つ映像の PES のヘッダー。pts は PTS の 5 バイトの符号化。
+func pesHeader(pts [5]byte) []byte {
+	return append([]byte{0x00, 0x00, 0x01, 0xE0, 0x00, 0x00, 0x80, 0x80, 0x05}, pts[:]...)
+}
+
+// pictureHeader は、picture_coding_type が pictureType の MPEG-2 のピクチャヘッダー。
+func pictureHeader(pictureType byte) []byte {
+	return []byte{0x00, 0x00, 0x01, 0x00, 0x00, pictureType << 3}
+}
+
+// videoPacket は、映像の PID の合成のパケットを作る。ペイロードの残りは 0xFF で埋める。
+func videoPacket(cc *byte, payloadUnitStart, scrambled bool, payload ...[]byte) []byte {
+	p := make([]byte, ts.PacketSize)
+	for i := range p {
+		p[i] = 0xFF
+	}
+	p[0] = 0x47
+	p[1] = videoPID >> 8
+	if payloadUnitStart {
+		p[1] |= 0x40
+	}
+	p[2] = videoPID & 0xFF
+	p[3] = 0x10 | *cc&0x0F
+	if scrambled {
+		p[3] |= 0x80
+	}
+	*cc++
+	copy(p[4:], slices.Concat(payload...))
+
+	return p
+}
+
+func TestAnalyzerIndexIgnoresScrambledPESStart(t *testing.T) {
+	t.Parallel()
+
+	var (
+		pts1000 = [5]byte{0x21, 0x00, 0x01, 0x07, 0xD1}
+		pts3000 = [5]byte{0x21, 0x00, 0x01, 0x17, 0x71}
+	)
+	const (
+		pictureI = 1
+		pictureP = 2
+	)
+
+	tests := []struct {
+		name    string
+		video   func(cc *byte) [][]byte
+		wantPTS []int64
+	}{
+		{
+			name: "I picture after a P picture",
+			video: func(cc *byte) [][]byte {
+				return [][]byte{
+					videoPacket(cc, true, false, pesHeader(pts1000), pictureHeader(pictureP)),
+					videoPacket(cc, true, false, pesHeader(pts3000), pictureHeader(pictureI)),
+				}
+			},
+			wantPTS: []int64{3000},
+		},
+		{
+			// PES の始まりが読めなければ、その PES の位置と PTS は分からない。
+			// 続きのパケットで I ピクチャを見つけても、前の PES の位置と PTS で索引に書いてはいけない。
+			name: "the start of the I picture PES is scrambled",
+			video: func(cc *byte) [][]byte {
+				return [][]byte{
+					videoPacket(cc, true, false, pesHeader(pts1000), pictureHeader(pictureP)),
+					videoPacket(cc, true, true, pesHeader(pts3000)),
+					videoPacket(cc, false, false, pictureHeader(pictureI)),
+				}
+			},
+			wantPTS: []int64{},
+		},
+		{
+			name: "the I picture header straddles two packets",
+			video: func(cc *byte) [][]byte {
+				header := pictureHeader(pictureI)
+				first := videoPacket(cc, true, false, pesHeader(pts3000))
+				// 先頭の 3 バイト (00 00 01) を 1 つ目のパケットの末尾に置き、残りを 2 つ目のパケットに置く。
+				copy(first[ts.PacketSize-3:], header[:3])
+
+				return [][]byte{first, videoPacket(cc, false, false, header[3:])}
+			},
+			wantPTS: []int64{3000},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cc := map[uint16]*byte{0: new(byte), pmtPID: new(byte)}
+			pkts := append(psiPackets(0, cc[0], patSection(0, map[uint16]uint16{programNum: pmtPID})),
+				psiPackets(pmtPID, cc[pmtPID], pmtSection(0, esEntry{streamType: 0x02, pid: videoPID}))...)
+			entries, _ := analyzeWithIndex(t, join(append(pkts, tt.video(new(byte))...)))
+			assert.Equal(t, tt.wantPTS, ptsOf(entries))
 		})
 	}
 }

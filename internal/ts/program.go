@@ -92,9 +92,12 @@ func (t *programTable) handlePAT(section []byte) {
 	if header == nil || header.tableID != tableIDPAT || !header.currentNext {
 		return
 	}
+	// PAT は 100 ミリ秒ほどの間隔で同じ内容が繰り返し届くので、構成が変わったときだけ世代を進める。
+	changed := false
 	if int(header.version) != t.patVersion {
 		t.patVersion = int(header.version)
 		clear(t.pmtPIDs)
+		changed = true
 	}
 
 	for entry := header.body; len(entry) >= 4; entry = entry[4:] {
@@ -103,14 +106,19 @@ func (t *programTable) handlePAT(section []byte) {
 		if number == 0 {
 			continue
 		}
-		t.pmtPIDs[number] = pid
+		if current, ok := t.pmtPIDs[number]; !ok || current != pid {
+			t.pmtPIDs[number] = pid
+			changed = true
+		}
 	}
 	maps.DeleteFunc(t.programs, func(number uint16, _ *Program) bool {
 		_, ok := t.pmtPIDs[number]
 
 		return !ok
 	})
-	t.generation++
+	if changed {
+		t.generation++
+	}
 }
 
 // handlePMT は PMT のセクションを読む。
