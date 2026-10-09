@@ -49,7 +49,7 @@ type gqlResponse struct {
 }
 
 // query は、ログイン済みのユーザーとして GraphQL を叩き、data を v に読む。エラーがあれば、そのエラーコードを返す。
-func (f *fixture) query(t *testing.T, query string, variables map[string]any, v any) []string {
+func (f *fixture) query(t *testing.T, query string, variables any, v any) []string {
 	t.Helper()
 
 	body, err := json.Marshal(map[string]any{"query": query, "variables": variables})
@@ -118,9 +118,15 @@ func TestChannelTypesAndServices(t *testing.T) {
 	assert.Len(t, got.All, 5)
 }
 
+type guideInput struct {
+	From     string   `json:"from"`
+	To       string   `json:"to"`
+	Services []string `json:"services"`
+}
+
 // guideVariables は、guide の query の変数を作る。
-func guideVariables(from, to string, services []string) map[string]any {
-	return map[string]any{"from": from, "to": to, "services": services}
+func guideVariables(from, to string, services []string) any {
+	return guideInput{From: from, To: to, Services: services}
 }
 
 func TestGuide(t *testing.T) {
@@ -146,7 +152,7 @@ func TestGuide(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		variables map[string]any
+		variables any
 		wantRows  []string
 		// wantPrograms は、最初の列の番組名。
 		wantPrograms []string

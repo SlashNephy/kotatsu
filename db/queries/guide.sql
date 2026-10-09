@@ -24,3 +24,8 @@ ORDER BY service_id, start_at, event_id;
 SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres
 FROM programs
 WHERE service_id = @service_id AND event_id = @event_id;
+
+-- name: GetArchivedProgram :one
+SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres
+FROM program_archives
+WHERE service_id = @service_id AND event_id = @event_id AND start_at = @start_at;

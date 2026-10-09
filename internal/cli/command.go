@@ -358,10 +358,17 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		Clock: deps.Clock,
 	})
 
+	// 表示のタイムゾーンは設定で決める (設計書 8.1) が、設定の項目はまだないので、既定の Asia/Tokyo を使う。
+	location, err := time.LoadLocation(defaultTimeZone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load the time zone %s: %w", defaultTimeZone, err)
+	}
+
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", graph.NewHandler(&graph.Options{
 		DB:                deps.DB,
 		Clock:             deps.Clock,
+		Location:          location,
 		Logger:            logger.With(slog.String("component", "graphql")),
 		MaxDepth:          0,
 		MaxComplexity:     0,

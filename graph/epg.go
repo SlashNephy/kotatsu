@@ -132,6 +132,7 @@ func toProgram(row *programRow) (*model.Program, error) {
 		Description:  row.Description,
 		Extended:     extended,
 		Genres:       genres,
+		Archived:     false,
 		ServiceKey:   row.ServiceID,
 	}, nil
 }

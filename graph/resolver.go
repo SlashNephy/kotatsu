@@ -12,6 +12,8 @@ import (
 type Resolver struct {
 	db    sqlc.DBTX
 	clock clock.Clock
+	// location は、番組の曜日と時間帯を判定する、表示のタイムゾーン。
+	location *time.Location
 	// heartbeatInterval は、heartbeat の subscription で時刻を送る間隔。
 	heartbeatInterval time.Duration
 }

@@ -68,6 +68,8 @@ func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error)
 		}
 
 		return toProgram((*programRow)(&row))
+	case archiveType:
+		return r.archivedProgram(ctx, raw)
 	default:
 		return nil, NewError(CodeBadUserInput, "unknown type "+typeName)
 	}

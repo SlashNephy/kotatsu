@@ -10,6 +10,49 @@ import (
 	"time"
 )
 
+const getArchivedProgram = `-- name: GetArchivedProgram :one
+SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres
+FROM program_archives
+WHERE service_id = $1 AND event_id = $2 AND start_at = $3
+`
+
+type GetArchivedProgramParams struct {
+	ServiceID int64
+	EventID   int64
+	StartAt   time.Time
+}
+
+type GetArchivedProgramRow struct {
+	ServiceID    int64
+	EventID      int64
+	StartAt      time.Time
+	EndAt        time.Time
+	EndUndecided bool
+	IsFree       bool
+	Name         string
+	Description  string
+	Extended     []byte
+	Genres       []byte
+}
+
+func (q *Queries) GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error) {
+	row := q.db.QueryRow(ctx, getArchivedProgram, arg.ServiceID, arg.EventID, arg.StartAt)
+	var i GetArchivedProgramRow
+	err := row.Scan(
+		&i.ServiceID,
+		&i.EventID,
+		&i.StartAt,
+		&i.EndAt,
+		&i.EndUndecided,
+		&i.IsFree,
+		&i.Name,
+		&i.Description,
+		&i.Extended,
+		&i.Genres,
+	)
+	return i, err
+}
+
 const getGuideProgram = `-- name: GetGuideProgram :one
 SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres
 FROM programs

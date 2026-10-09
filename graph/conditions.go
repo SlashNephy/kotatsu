@@ -1,0 +1,77 @@
+package graph
+
+import (
+	"strings"
+
+	"github.com/SlashNephy/kotatsu/graph/model"
+	"github.com/SlashNephy/kotatsu/internal/match"
+)
+
+// toConditions は、GraphQL の番組の条件を、照合の条件にする。条件の検証は match が行う。
+func toConditions(in *model.ProgramConditionsInput) (*match.Conditions, error) {
+	services := make([]int64, 0, len(in.Services))
+	for _, globalID := range in.Services {
+		id, err := parseServiceGlobalID(globalID)
+		if err != nil {
+			return nil, err
+		}
+		services = append(services, id)
+	}
+
+	conditions := &match.Conditions{
+		Keywords:           toKeywords(in.Keywords),
+		ExcludeKeywords:    toKeywords(in.ExcludeKeywords),
+		ChannelTypes:       nonNil(in.ChannelTypes),
+		ServiceIDs:         services,
+		Genres:             toGenres(in.Genres),
+		ExcludeGenres:      toGenres(in.ExcludeGenres),
+		TimeRanges:         toTimeRanges(in.TimeRanges),
+		MinDurationSeconds: in.MinDurationSeconds,
+		MaxDurationSeconds: in.MaxDurationSeconds,
+		FreeOnly:           in.FreeOnly != nil && *in.FreeOnly,
+	}
+	if err := conditions.Validate(); err != nil {
+		return nil, NewError(CodeBadUserInput, err.Error())
+	}
+
+	return conditions, nil
+}
+
+func toKeywords(in []*model.KeywordInput) []*match.Keyword {
+	keywords := make([]*match.Keyword, 0, len(in))
+	for _, k := range in {
+		fields := make([]match.Field, 0, len(k.Fields))
+		for _, field := range k.Fields {
+			fields = append(fields, match.Field(strings.ToLower(string(field))))
+		}
+		keywords = append(keywords, &match.Keyword{Text: k.Text, Regexp: k.Regexp, CaseSensitive: k.CaseSensitive, Fields: fields})
+	}
+
+	return keywords
+}
+
+func toGenres(in []*model.GenreInput) []*match.Genre {
+	genres := make([]*match.Genre, 0, len(in))
+	for _, g := range in {
+		genres = append(genres, &match.Genre{Lv1: g.Lv1, Lv2: g.Lv2})
+	}
+
+	return genres
+}
+
+func toTimeRanges(in []*model.TimeRangeInput) []*match.TimeRange {
+	ranges := make([]*match.TimeRange, 0, len(in))
+	for _, r := range in {
+		ranges = append(ranges, &match.TimeRange{Weekdays: nonNil(r.Weekdays), StartMinute: r.StartMinute, DurationMinutes: r.DurationMinutes})
+	}
+
+	return ranges
+}
+
+func nonNil[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+
+	return s
+}

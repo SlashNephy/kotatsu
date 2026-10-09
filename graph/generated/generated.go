@@ -68,6 +68,7 @@ type ComplexityRoot struct {
 	}
 
 	Program struct {
+		Archived     func(childComplexity int) int
 		Description  func(childComplexity int) int
 		EndAt        func(childComplexity int) int
 		EndUndecided func(childComplexity int) int
@@ -81,12 +82,23 @@ type ComplexityRoot struct {
 		StartAt      func(childComplexity int) int
 	}
 
+	ProgramConnection struct {
+		Edges    func(childComplexity int) int
+		PageInfo func(childComplexity int) int
+	}
+
+	ProgramEdge struct {
+		Cursor func(childComplexity int) int
+		Node   func(childComplexity int) int
+	}
+
 	Query struct {
-		ChannelTypes func(childComplexity int) int
-		Guide        func(childComplexity int, from time.Time, to time.Time, services []string) int
-		Node         func(childComplexity int, id string) int
-		Services     func(childComplexity int, includeHidden bool) int
-		Viewer       func(childComplexity int) int
+		ChannelTypes   func(childComplexity int) int
+		Guide          func(childComplexity int, from time.Time, to time.Time, services []string) int
+		Node           func(childComplexity int, id string) int
+		SearchPrograms func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
+		Services       func(childComplexity int, includeHidden bool) int
+		Viewer         func(childComplexity int) int
 	}
 
 	Service struct {
@@ -125,6 +137,7 @@ type QueryResolver interface {
 	ChannelTypes(ctx context.Context) ([]*model.ChannelType, error)
 	Services(ctx context.Context, includeHidden bool) ([]*model.Service, error)
 	Guide(ctx context.Context, from time.Time, to time.Time, services []string) ([]*model.GuideRow, error)
+	SearchPrograms(ctx context.Context, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) (*model.ProgramConnection, error)
 }
 type ServiceResolver interface {
 	ChannelType(ctx context.Context, obj *model.Service) (*model.ChannelType, error)
@@ -234,6 +247,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.PageInfo.StartCursor(childComplexity), true
 
+	case "Program.archived":
+		if e.ComplexityRoot.Program.Archived == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.Archived(childComplexity), true
 	case "Program.description":
 		if e.ComplexityRoot.Program.Description == nil {
 			break
@@ -301,6 +320,32 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Program.StartAt(childComplexity), true
 
+	case "ProgramConnection.edges":
+		if e.ComplexityRoot.ProgramConnection.Edges == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProgramConnection.Edges(childComplexity), true
+	case "ProgramConnection.pageInfo":
+		if e.ComplexityRoot.ProgramConnection.PageInfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProgramConnection.PageInfo(childComplexity), true
+
+	case "ProgramEdge.cursor":
+		if e.ComplexityRoot.ProgramEdge.Cursor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProgramEdge.Cursor(childComplexity), true
+	case "ProgramEdge.node":
+		if e.ComplexityRoot.ProgramEdge.Node == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProgramEdge.Node(childComplexity), true
+
 	case "Query.channelTypes":
 		if e.ComplexityRoot.Query.ChannelTypes == nil {
 			break
@@ -330,6 +375,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Node(childComplexity, args["id"].(string)), true
+	case "Query.searchPrograms":
+		if e.ComplexityRoot.Query.SearchPrograms == nil {
+			break
+		}
+
+		args, err := ec.field_Query_searchPrograms_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.SearchPrograms(childComplexity, args["conditions"].(model.ProgramConditionsInput), args["archive"].(*model.ArchiveRangeInput), args["first"].(int), args["after"].(*string)), true
 	case "Query.services":
 		if e.ComplexityRoot.Query.Services == nil {
 			break
@@ -436,7 +492,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
-	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputArchiveRangeInput,
+		ec.unmarshalInputGenreInput,
+		ec.unmarshalInputKeywordInput,
+		ec.unmarshalInputProgramConditionsInput,
+		ec.unmarshalInputTimeRangeInput,
+	)
 	first := true
 
 	switch opCtx.Operation.Operation {
@@ -513,6 +575,69 @@ func newExecutionContext(
 }
 
 var sources = []*ast.Source{
+	{Name: "../schema/conditions.graphqls", Input: `"""
+キーワードを照合する番組の項目。
+"""
+enum KeywordField {
+  "番組名"
+  NAME
+  "概要"
+  DESCRIPTION
+  "詳細"
+  EXTENDED
+}
+
+"""
+キーワードと、その照合の仕方 (設計書 4.2)。キーワードと番組の文字列は、NFKC で正規化してから比べる。
+"""
+input KeywordInput {
+  text: String!
+  "text を正規表現 (RE2) として扱うかどうか。"
+  regexp: Boolean! = false
+  caseSensitive: Boolean! = false
+  "照合する項目。どれか 1 つに一致すれば、このキーワードに一致したとみなす。"
+  fields: [KeywordField!]!
+}
+
+"""
+ジャンル。lv2 を省くと、大分類のすべてを表す。
+"""
+input GenreInput {
+  lv1: Int!
+  lv2: Int
+}
+
+"""
+曜日と時間帯の組。開始時刻が範囲に入る番組に一致する。
+"""
+input TimeRangeInput {
+  "曜日の集合 (0 が日曜日、6 が土曜日)"
+  weekdays: [Int!]!
+  "0 時からの分で表した範囲の始まり (0〜1439)"
+  startMinute: Int!
+  "範囲の長さ (分)。日付をまたいでよい。"
+  durationMinutes: Int!
+}
+
+"""
+番組の条件 (設計書 4.2)。番組の検索とルールで共通に使う。省いた項目では絞り込まない。
+"""
+input ProgramConditionsInput {
+  "すべてに一致する番組だけを対象にする。"
+  keywords: [KeywordInput!]
+  "どれか 1 つに一致したら除外する。"
+  excludeKeywords: [KeywordInput!]
+  "チャンネル種別とサービスは、どちらかに含まれていれば対象にする。"
+  channelTypes: [String!]
+  services: [ID!]
+  genres: [GenreInput!]
+  excludeGenres: [GenreInput!]
+  timeRanges: [TimeRangeInput!]
+  minDurationSeconds: Int
+  maxDurationSeconds: Int
+  freeOnly: Boolean
+}
+`, BuiltIn: false},
 	{Name: "../schema/epg.graphqls", Input: `"""
 チャンネル種別 (設計書 3.1)。種別の文字列はチューナーサーバーが返すものをそのまま使い、表示名と並び順は管理者が変えられる。
 """
@@ -636,6 +761,45 @@ type Subscription {
   heartbeat: Time!
 }
 `, BuiltIn: false},
+	{Name: "../schema/search.graphqls", Input: `"""
+過去の番組の検索の期間 (設計書 3.4)。開始時刻がこの範囲に入るアーカイブの番組も検索する。
+"""
+input ArchiveRangeInput {
+  "期間の始まり。省くと、今から 30 日前。"
+  from: Time
+  "期間の終わり。省くと、今。"
+  to: Time
+}
+
+type ProgramEdge {
+  cursor: String!
+  node: Program!
+}
+
+type ProgramConnection {
+  edges: [ProgramEdge!]!
+  pageInfo: PageInfo!
+}
+
+extend type Program {
+  "放送が終わり、アーカイブに移した番組かどうか。"
+  archived: Boolean!
+}
+
+extend type Query {
+  """
+  番組の検索 (設計書 3.5)。ルールの照合と同じ照合関数で、開始時刻の順に返す。
+  archive を指定したときだけ、その期間の放送が終わった番組も検索する。
+  """
+  searchPrograms(
+    conditions: ProgramConditionsInput!
+    archive: ArchiveRangeInput
+    "返す件数 (1〜100)"
+    first: Int! = 50
+    after: String
+  ): ProgramConnection!
+}
+`, BuiltIn: false},
 	{Name: "../schema/user.graphqls", Input: `"""
 ユーザーのロール (設計書 9.7)。
 """
@@ -704,6 +868,20 @@ func (ec *executionContext) childFields_GuideRow(ctx context.Context, field grap
 	return nil, fmt.Errorf("no field named %q was found under type GuideRow", field.Name)
 }
 
+func (ec *executionContext) childFields_PageInfo(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "hasNextPage":
+		return ec.fieldContext_PageInfo_hasNextPage(ctx, field)
+	case "hasPreviousPage":
+		return ec.fieldContext_PageInfo_hasPreviousPage(ctx, field)
+	case "startCursor":
+		return ec.fieldContext_PageInfo_startCursor(ctx, field)
+	case "endCursor":
+		return ec.fieldContext_PageInfo_endCursor(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PageInfo", field.Name)
+}
+
 func (ec *executionContext) childFields_Program(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -728,8 +906,30 @@ func (ec *executionContext) childFields_Program(ctx context.Context, field graph
 		return ec.fieldContext_Program_extended(ctx, field)
 	case "genres":
 		return ec.fieldContext_Program_genres(ctx, field)
+	case "archived":
+		return ec.fieldContext_Program_archived(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Program", field.Name)
+}
+
+func (ec *executionContext) childFields_ProgramConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "edges":
+		return ec.fieldContext_ProgramConnection_edges(ctx, field)
+	case "pageInfo":
+		return ec.fieldContext_ProgramConnection_pageInfo(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProgramConnection", field.Name)
+}
+
+func (ec *executionContext) childFields_ProgramEdge(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "cursor":
+		return ec.fieldContext_ProgramEdge_cursor(ctx, field)
+	case "node":
+		return ec.fieldContext_ProgramEdge_node(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProgramEdge", field.Name)
 }
 
 func (ec *executionContext) childFields_Service(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -939,6 +1139,44 @@ func (ec *executionContext) field_Query_node_args(ctx context.Context, rawArgs m
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_searchPrograms_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "conditions",
+		func(ctx context.Context, v any) (model.ProgramConditionsInput, error) {
+			return ec.unmarshalNProgramConditionsInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramConditionsInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["conditions"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "archive",
+		func(ctx context.Context, v any) (*model.ArchiveRangeInput, error) {
+			return ec.unmarshalOArchiveRangeInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐArchiveRangeInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["archive"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "first",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["after"] = arg3
 	return args, nil
 }
 
@@ -1613,6 +1851,148 @@ func (ec *executionContext) fieldContext_Program_genres(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _Program_archived(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_archived(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Archived, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_archived(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Program", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ProgramConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.ProgramConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProgramConnection_edges(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Edges, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.ProgramEdge) graphql.Marshaler {
+			return ec.marshalNProgramEdge2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramEdgeᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProgramConnection_edges(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProgramConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProgramEdge(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProgramConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.ProgramConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProgramConnection_pageInfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+			return ec.marshalNPageInfo2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPageInfo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProgramConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProgramConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PageInfo(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProgramEdge_cursor(ctx context.Context, field graphql.CollectedField, obj *model.ProgramEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProgramEdge_cursor(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Cursor, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProgramEdge_cursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProgramEdge", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProgramEdge_node(ctx context.Context, field graphql.CollectedField, obj *model.ProgramEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProgramEdge_node(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Node, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Program) graphql.Marshaler {
+			return ec.marshalNProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgram(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProgramEdge_node(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProgramEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_viewer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1803,6 +2183,50 @@ func (ec *executionContext) fieldContext_Query_guide(ctx context.Context, field 
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_guide_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_searchPrograms(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_searchPrograms(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().SearchPrograms(ctx, fc.Args["conditions"].(model.ProgramConditionsInput), fc.Args["archive"].(*model.ArchiveRangeInput), fc.Args["first"].(int), fc.Args["after"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ProgramConnection) graphql.Marshaler {
+			return ec.marshalNProgramConnection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramConnection(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_searchPrograms(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProgramConnection(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_searchPrograms_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -3252,6 +3676,275 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputArchiveRangeInput(ctx context.Context, obj any) (model.ArchiveRangeInput, error) {
+	var it model.ArchiveRangeInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"from", "to"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "from":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("from"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.From = data
+		case "to":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("to"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.To = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputGenreInput(ctx context.Context, obj any) (model.GenreInput, error) {
+	var it model.GenreInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"lv1", "lv2"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "lv1":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("lv1"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Lv1 = data
+		case "lv2":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("lv2"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Lv2 = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputKeywordInput(ctx context.Context, obj any) (model.KeywordInput, error) {
+	var it model.KeywordInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["regexp"]; !present {
+		asMap["regexp"] = false
+	}
+	if _, present := asMap["caseSensitive"]; !present {
+		asMap["caseSensitive"] = false
+	}
+
+	fieldsInOrder := [...]string{"text", "regexp", "caseSensitive", "fields"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "text":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("text"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Text = data
+		case "regexp":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("regexp"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Regexp = data
+		case "caseSensitive":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("caseSensitive"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CaseSensitive = data
+		case "fields":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("fields"))
+			data, err := ec.unmarshalNKeywordField2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordFieldᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Fields = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputProgramConditionsInput(ctx context.Context, obj any) (model.ProgramConditionsInput, error) {
+	var it model.ProgramConditionsInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"keywords", "excludeKeywords", "channelTypes", "services", "genres", "excludeGenres", "timeRanges", "minDurationSeconds", "maxDurationSeconds", "freeOnly"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "keywords":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("keywords"))
+			data, err := ec.unmarshalOKeywordInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Keywords = data
+		case "excludeKeywords":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("excludeKeywords"))
+			data, err := ec.unmarshalOKeywordInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExcludeKeywords = data
+		case "channelTypes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("channelTypes"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ChannelTypes = data
+		case "services":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("services"))
+			data, err := ec.unmarshalOID2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Services = data
+		case "genres":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("genres"))
+			data, err := ec.unmarshalOGenreInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Genres = data
+		case "excludeGenres":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("excludeGenres"))
+			data, err := ec.unmarshalOGenreInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExcludeGenres = data
+		case "timeRanges":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("timeRanges"))
+			data, err := ec.unmarshalOTimeRangeInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐTimeRangeInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TimeRanges = data
+		case "minDurationSeconds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("minDurationSeconds"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MinDurationSeconds = data
+		case "maxDurationSeconds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("maxDurationSeconds"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MaxDurationSeconds = data
+		case "freeOnly":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("freeOnly"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FreeOnly = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputTimeRangeInput(ctx context.Context, obj any) (model.TimeRangeInput, error) {
+	var it model.TimeRangeInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"weekdays", "startMinute", "durationMinutes"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "weekdays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("weekdays"))
+			data, err := ec.unmarshalNInt2ᚕintᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Weekdays = data
+		case "startMinute":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startMinute"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartMinute = data
+		case "durationMinutes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("durationMinutes"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DurationMinutes = data
+		}
+	}
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -3624,6 +4317,97 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "archived":
+			out.Values[i] = ec._Program_archived(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var programConnectionImplementors = []string{"ProgramConnection"}
+
+func (ec *executionContext) _ProgramConnection(ctx context.Context, sel ast.SelectionSet, obj *model.ProgramConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, programConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProgramConnection")
+		case "edges":
+			out.Values[i] = ec._ProgramConnection_edges(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._ProgramConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var programEdgeImplementors = []string{"ProgramEdge"}
+
+func (ec *executionContext) _ProgramEdge(ctx context.Context, sel ast.SelectionSet, obj *model.ProgramEdge) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, programEdgeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProgramEdge")
+		case "cursor":
+			out.Values[i] = ec._ProgramEdge_cursor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "node":
+			out.Values[i] = ec._ProgramEdge_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3763,6 +4547,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_guide(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "searchPrograms":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_searchPrograms(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -4475,6 +5281,11 @@ func (ec *executionContext) marshalNGenre2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu
 	return ec._Genre(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNGenreInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreInput(ctx context.Context, v any) (*model.GenreInput, error) {
+	res, err := ec.unmarshalInputGenreInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNGuideRow2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGuideRowᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.GuideRow) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -4533,6 +5344,90 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
+func (ec *executionContext) unmarshalNInt2ᚕintᚄ(ctx context.Context, v any) ([]int, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]int, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNInt2int(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNInt2ᚕintᚄ(ctx context.Context, sel ast.SelectionSet, v []int) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNInt2int(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordField(ctx context.Context, v any) (model.KeywordField, error) {
+	var res model.KeywordField
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordField(ctx context.Context, sel ast.SelectionSet, v model.KeywordField) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNKeywordField2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordFieldᚄ(ctx context.Context, v any) ([]model.KeywordField, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]model.KeywordField, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordField(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNKeywordField2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordFieldᚄ(ctx context.Context, sel ast.SelectionSet, v []model.KeywordField) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordField(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNKeywordInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordInput(ctx context.Context, v any) (*model.KeywordInput, error) {
+	res, err := ec.unmarshalInputKeywordInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PageInfo(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNProgram2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Program) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -4557,6 +5452,47 @@ func (ec *executionContext) marshalNProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotat
 		return graphql.Null
 	}
 	return ec._Program(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNProgramConditionsInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramConditionsInput(ctx context.Context, v any) (model.ProgramConditionsInput, error) {
+	res, err := ec.unmarshalInputProgramConditionsInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNProgramConnection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramConnection(ctx context.Context, sel ast.SelectionSet, v *model.ProgramConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProgramConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProgramEdge2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ProgramEdge) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNProgramEdge2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramEdge(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNProgramEdge2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramEdge(ctx context.Context, sel ast.SelectionSet, v *model.ProgramEdge) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProgramEdge(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNRole2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRole(ctx context.Context, v any) (model.Role, error) {
@@ -4647,6 +5583,11 @@ func (ec *executionContext) marshalNTime2ᚖtimeᚐTime(ctx context.Context, sel
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNTimeRangeInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐTimeRangeInput(ctx context.Context, v any) (*model.TimeRangeInput, error) {
+	res, err := ec.unmarshalInputTimeRangeInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
@@ -4799,6 +5740,14 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 	return res
 }
 
+func (ec *executionContext) unmarshalOArchiveRangeInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐArchiveRangeInput(ctx context.Context, v any) (*model.ArchiveRangeInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputArchiveRangeInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalOBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -4827,6 +5776,23 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	_ = ctx
 	res := graphql.MarshalBoolean(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOGenreInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreInputᚄ(ctx context.Context, v any) ([]*model.GenreInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.GenreInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNGenreInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) unmarshalOID2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
@@ -4882,11 +5848,63 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	return res
 }
 
+func (ec *executionContext) unmarshalOKeywordInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordInputᚄ(ctx context.Context, v any) ([]*model.KeywordInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.KeywordInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNKeywordInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
 func (ec *executionContext) marshalONode2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNode(ctx context.Context, sel ast.SelectionSet, v model.Node) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Node(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v any) (*string, error) {
@@ -4905,6 +5923,41 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	_ = ctx
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOTime2ᚖtimeᚐTime(ctx context.Context, v any) (*time.Time, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalTime(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOTime2ᚖtimeᚐTime(ctx context.Context, sel ast.SelectionSet, v *time.Time) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalTime(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOTimeRangeInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐTimeRangeInputᚄ(ctx context.Context, v any) ([]*model.TimeRangeInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.TimeRangeInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNTimeRangeInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐTimeRangeInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {
