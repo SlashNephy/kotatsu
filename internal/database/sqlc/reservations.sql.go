@@ -176,6 +176,41 @@ func (q *Queries) InsertProgramReservation(ctx context.Context, arg InsertProgra
 	return id, err
 }
 
+const insertRuleReservation = `-- name: InsertRuleReservation :one
+INSERT INTO reservations (
+  id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres,
+  enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by
+)
+SELECT $1, 'rule', p.service_id, p.event_id, p.start_at, p.end_at, p.name, p.description, p.extended, p.genres,
+  true, $2, '{}', $3, NULL, $3, NULL
+FROM programs p
+WHERE p.service_id = $4 AND p.event_id = $5
+ON CONFLICT (service_id, event_id) WHERE event_id IS NOT NULL DO NOTHING
+RETURNING id
+`
+
+type InsertRuleReservationParams struct {
+	ID               uuid.UUID
+	FollowEventRelay bool
+	Now              time.Time
+	ServiceID        int64
+	EventID          int64
+}
+
+// ルール予約を、番組情報をコピーして作る。同じ番組の予約がすでにあれば何もせず、行を返さない。
+func (q *Queries) InsertRuleReservation(ctx context.Context, arg InsertRuleReservationParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, insertRuleReservation,
+		arg.ID,
+		arg.FollowEventRelay,
+		arg.Now,
+		arg.ServiceID,
+		arg.EventID,
+	)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const insertTimeReservation = `-- name: InsertTimeReservation :exec
 INSERT INTO reservations (
   id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres,
@@ -210,6 +245,30 @@ func (q *Queries) InsertTimeReservation(ctx context.Context, arg InsertTimeReser
 		arg.CreatedBy,
 	)
 	return err
+}
+
+const setReservationEnabled = `-- name: SetReservationEnabled :execrows
+UPDATE reservations SET enabled = $1, updated_at = $2, updated_by = $3 WHERE id = $4
+`
+
+type SetReservationEnabledParams struct {
+	Enabled   bool
+	Now       time.Time
+	UpdatedBy *uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setReservationEnabled,
+		arg.Enabled,
+		arg.Now,
+		arg.UpdatedBy,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateReservation = `-- name: UpdateReservation :execrows

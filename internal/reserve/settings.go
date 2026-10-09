@@ -161,8 +161,8 @@ func (o *Overrides) Validate() error {
 	return errors.Join(errs...)
 }
 
-// encodeOverrides は、検証した上書きを JSONB に保存する形にする。nil なら空のオブジェクトにする。
-func encodeOverrides(o *Overrides) ([]byte, error) {
+// EncodeOverrides は、上書きを検証し、JSONB に保存する形にする。ルールも同じ形で保存する。nil なら空のオブジェクトにする。
+func EncodeOverrides(o *Overrides) ([]byte, error) {
 	if err := o.Validate(); err != nil {
 		return nil, err
 	}
@@ -177,9 +177,9 @@ func encodeOverrides(o *Overrides) ([]byte, error) {
 	return b, nil
 }
 
-// decodeOverrides は、JSONB に保存した上書きを読む。
+// DecodeOverrides は、JSONB に保存した上書きを読む。
 // ローリング更新の間は、新しいバイナリが足した項目を古いバイナリが読むことがあるので、知らない項目は無視する。
-func decodeOverrides(b []byte) (*Overrides, error) {
+func DecodeOverrides(b []byte) (*Overrides, error) {
 	o := new(Overrides)
 	if err := json.Unmarshal(b, o); err != nil {
 		return nil, fmt.Errorf("failed to decode recording settings: %w", err)

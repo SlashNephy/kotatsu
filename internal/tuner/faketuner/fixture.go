@@ -59,15 +59,16 @@ func DefaultOptions(now time.Time, ts []byte) *Options {
 			for i := range programsBefore + programsAfter {
 				eventID := i + 1
 				programs = append(programs, &Program{
-					ID:          ProgramID(service.NetworkID, service.ServiceID, eventID),
-					EventID:     eventID,
-					ServiceID:   service.ServiceID,
-					NetworkID:   service.NetworkID,
-					StartAt:     start.Add(time.Duration(i) * programDuration).UnixMilli(),
-					Duration:    programDuration.Milliseconds(),
-					IsFree:      true,
-					Name:        fmt.Sprintf("%s テスト番組 %d", service.Name, eventID),
-					Description: "偽のチューナーサーバーが合成した番組です。",
+					ID:           ProgramID(service.NetworkID, service.ServiceID, eventID),
+					EventID:      eventID,
+					ServiceID:    service.ServiceID,
+					NetworkID:    service.NetworkID,
+					StartAt:      start.Add(time.Duration(i) * programDuration).UnixMilli(),
+					Duration:     programDuration.Milliseconds(),
+					IsFree:       true,
+					Name:         fmt.Sprintf("%s テスト番組 %d", service.Name, eventID),
+					Description:  "偽のチューナーサーバーが合成した番組です。",
+					RelatedItems: nil,
 				})
 			}
 		}

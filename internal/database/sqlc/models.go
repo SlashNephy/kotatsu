@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type AuditEvent struct {
@@ -102,6 +101,16 @@ type ProgramArchive struct {
 	ArchivedAt            time.Time
 }
 
+type RecordingHistory struct {
+	ID        uuid.UUID
+	ServiceID int64
+	TitleKey  string
+	Name      string
+	StartAt   time.Time
+	EndAt     time.Time
+	CreatedAt time.Time
+}
+
 type Reservation struct {
 	ID               uuid.UUID
 	Kind             string
@@ -122,6 +131,29 @@ type Reservation struct {
 	UpdatedBy        *uuid.UUID
 }
 
+type ReservationRule struct {
+	ReservationID uuid.UUID
+	RuleID        uuid.UUID
+}
+
+type Rule struct {
+	ID                  uuid.UUID
+	Name                string
+	Memo                string
+	Enabled             bool
+	Conditions          []byte
+	Settings            []byte
+	ValidFrom           *time.Time
+	ValidUntil          *time.Time
+	AvoidDuplicates     bool
+	DuplicateWindowDays *int32
+	FollowEventRelay    bool
+	CreatedAt           time.Time
+	CreatedBy           *uuid.UUID
+	UpdatedAt           time.Time
+	UpdatedBy           *uuid.UUID
+}
+
 type SchemaCompatibility struct {
 	ID               bool
 	MinBinaryVersion int64
@@ -140,7 +172,7 @@ type Service struct {
 	RemoteControlKeyID *int64
 	LogoID             *int64
 	Hidden             bool
-	SortOrder          pgtype.Int4
+	SortOrder          *int32
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 }

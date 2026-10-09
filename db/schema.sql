@@ -281,3 +281,54 @@ CREATE TABLE tuner_server_status (
   clock_skew_ms bigint,
   checked_at timestamptz NOT NULL
 );
+
+-- ルール (設計書 4.2)。条件は match パッケージの型で検証し、スキーマのバージョンを付けて JSONB に保存する (設計書 8.3)。
+CREATE TABLE rules (
+  id uuid PRIMARY KEY,
+  name text NOT NULL,
+  memo text NOT NULL,
+  enabled boolean NOT NULL,
+  conditions jsonb NOT NULL,
+  -- 録画設定の上書き (設計書 4.7)。
+  settings jsonb NOT NULL,
+  -- ルール自体の有効期間。番組の開始時刻がこの範囲に入るときだけ予約する。NULL なら区切らない。
+  valid_from timestamptz,
+  valid_until timestamptz,
+  -- 重複の回避 (設計書 4.4)。同じ番組名を duplicate_window_days 日以内に録画済みなら予約しない。日数が NULL なら期間を区切らない。
+  avoid_duplicates boolean NOT NULL,
+  duplicate_window_days integer,
+  -- ルール予約で、イベントリレーの引き継ぎ先も予約するかどうか (設計書 4.6)。
+  follow_event_relay boolean NOT NULL,
+  created_at timestamptz NOT NULL,
+  created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+  updated_at timestamptz NOT NULL,
+  updated_by uuid REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT rules_valid_period_check CHECK (valid_from IS NULL OR valid_until IS NULL OR valid_from < valid_until),
+  CONSTRAINT rules_duplicate_window_check CHECK (duplicate_window_days IS NULL OR duplicate_window_days > 0)
+);
+
+-- 予約と、一致したルールの多対多の関係 (設計書 4.1)。複数のルールに一致した番組も、予約は 1 件にまとめる。
+CREATE TABLE reservation_rules (
+  reservation_id uuid NOT NULL REFERENCES reservations (id) ON DELETE CASCADE,
+  rule_id uuid NOT NULL REFERENCES rules (id) ON DELETE CASCADE,
+  PRIMARY KEY (reservation_id, rule_id)
+);
+
+CREATE INDEX reservation_rules_rule_id_idx ON reservation_rules (rule_id);
+
+-- 録画履歴 (設計書 4.4)。重複の回避に使う。正常に終了し、ドロップが閾値未満だった録画だけを記録し、録画を削除しても残す。
+CREATE TABLE recording_history (
+  id uuid PRIMARY KEY,
+  service_id bigint NOT NULL REFERENCES services (id),
+  -- 重複の判定に使う、番組名を正規化したもの。[新] や [再] のような記号を取り除き、話数は残す。
+  title_key text NOT NULL,
+  -- 画面に出す、元の番組名。
+  name text NOT NULL,
+  start_at timestamptz NOT NULL,
+  end_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL
+);
+
+-- 重複の回避の照合で、(正規化した番組名, サービス) と期間で引く (設計書 4.4)。
+-- EPGStation では、このインデックスがないために照合が全件を走査し、利用者が手でインデックスを足していた。
+CREATE INDEX recording_history_title_key_service_id_end_at_idx ON recording_history (title_key, service_id, end_at);

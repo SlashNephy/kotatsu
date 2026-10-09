@@ -14,9 +14,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/epg"
 	"github.com/SlashNephy/kotatsu/internal/lease"
+	"github.com/SlashNephy/kotatsu/internal/reserve"
+	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/tunerstate"
 )
@@ -42,11 +45,15 @@ type Options struct {
 	Archive *epg.ArchiverOptions
 	// Tuners は、チューナーの状態の把握の設定。nil なら既定値を使う。
 	Tuners *tunerstate.Options
+	// Location は、ルールの曜日と時間帯を判定する、表示のタイムゾーン (設計書 8.1)。
+	Location *time.Location
+	// Rules は、ルールの照合の設定。nil なら既定値を使う。
+	Rules *rule.RunnerOptions
 }
 
 // Run は、ctx が終わるまでリースを取り合い、リーダーになっている間だけ neko の処理を動かす。
 // リーダーの間は、EPG を同期し (設計書 3.3)、放送が終わった番組をアーカイブに移し (設計書 3.4)、
-// チューナーの構成とチューナーサーバーの状態を把握する (設計書 3.6、3.7)。DB への書き込みは、その世代のリースを持っている間だけ通す。
+// チューナーの構成とチューナーサーバーの状態を把握し (設計書 3.6、3.7)、ルールから予約を作る (設計書 4.3)。DB への書き込みは、その世代のリースを持っている間だけ通す。
 func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 	manager := lease.NewManager(opts.DB, opts.Clock, LeaseName, opts.InstanceID, LeaseTTL)
 	elector, err := lease.NewElector(manager, logger, RenewInterval)
@@ -63,6 +70,12 @@ func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 		eg, ctx := errgroup.WithContext(ctx)
 		eg.Go(func() error {
 			return epg.NewArchiver(opts.DB, opts.Clock, guard, epgLogger, opts.Archive).Run(ctx)
+		})
+		eg.Go(func() error {
+			reservations := reserve.NewReservations(opts.Clock, audit.NewRecorder(opts.Clock))
+			engine := rule.NewEngine(opts.DB, opts.Clock, opts.Location, rule.Guard(guard), reservations)
+
+			return rule.NewRunner(engine, opts.DB, logger.With(slog.String("component", "rules")), opts.Rules).Run(ctx)
 		})
 		if opts.Tuner == nil {
 			logger.WarnContext(ctx, "tuner server is not configured; EPG sync and tuner monitoring are disabled")

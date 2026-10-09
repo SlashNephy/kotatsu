@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/neko"
+	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
 
@@ -33,6 +35,9 @@ type Deps struct {
 	// JobWorkers は、Jobs で実行するジョブの Worker。nekonote を動かさないプロセスや、Worker がないときは nil。
 	JobWorkers *river.Workers
 }
+
+// defaultTimeZone は、表示のタイムゾーンの既定値 (設計書 8.1)。
+const defaultTimeZone = "Asia/Tokyo"
 
 // nekonoteRoleName は、ジョブを実行するロールの名前。
 const nekonoteRoleName = "nekonote"
@@ -115,6 +120,12 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 		}
 	}
 
+	// 表示のタイムゾーンは設定で決める (設計書 8.1) が、設定の項目はまだないので、既定の Asia/Tokyo を使う。
+	location, err := time.LoadLocation(defaultTimeZone)
+	if err != nil {
+		return fmt.Errorf("failed to load the time zone %s: %w", defaultTimeZone, err)
+	}
+
 	return neko.Run(ctx, logger, &neko.Options{
 		DB:         deps.DB,
 		Clock:      deps.Clock,
@@ -123,6 +134,13 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 		EPG:        nil,
 		Archive:    nil,
 		Tuners:     nil,
+		Location:   location,
+		Rules: &rule.RunnerOptions{
+			Debounce:     0,
+			Interval:     0,
+			PollOnly:     deps.Config.Database.Pooler,
+			PollInterval: 0,
+		},
 	})
 }
 

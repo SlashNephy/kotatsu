@@ -25,6 +25,8 @@ type Querier interface {
 	// 放送が始まった番組は、アーカイブに移すまで残す (設計書 3.3、3.4)。
 	DeletePrograms(ctx context.Context, arg []DeleteProgramsParams) *DeleteProgramsBatchResults
 	DeleteReservation(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteReservationRule(ctx context.Context, arg DeleteReservationRuleParams) error
+	DeleteRule(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteStaleInstances(ctx context.Context, before time.Time) (int64, error)
 	DeleteTuners(ctx context.Context) error
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
@@ -35,6 +37,7 @@ type Querier interface {
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error)
 	GetReservationByProgram(ctx context.Context, arg GetReservationByProgramParams) (Reservation, error)
+	GetRule(ctx context.Context, id uuid.UUID) (Rule, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
 	GetTunerServerStatus(ctx context.Context) (GetTunerServerStatusRow, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
@@ -43,6 +46,10 @@ type Querier interface {
 	InsertEPGChange(ctx context.Context, arg InsertEPGChangeParams) error
 	// 同じ番組の予約がすでにあれば何もしない。そのときは行を返さない。
 	InsertProgramReservation(ctx context.Context, arg InsertProgramReservationParams) (uuid.UUID, error)
+	InsertReservationRule(ctx context.Context, arg InsertReservationRuleParams) error
+	InsertRule(ctx context.Context, arg InsertRuleParams) error
+	// ルール予約を、番組情報をコピーして作る。同じ番組の予約がすでにあれば何もせず、行を返さない。
+	InsertRuleReservation(ctx context.Context, arg InsertRuleReservationParams) (uuid.UUID, error)
 	InsertSession(ctx context.Context, arg InsertSessionParams) error
 	InsertTimeReservation(ctx context.Context, arg InsertTimeReservationParams) error
 	InsertTuner(ctx context.Context, arg InsertTunerParams) error
@@ -52,8 +59,16 @@ type Querier interface {
 	ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error)
 	ListChangeVersions(ctx context.Context, channels []string) ([]ListChangeVersionsRow, error)
 	ListEPGChangesSince(ctx context.Context, version int64) ([]ListEPGChangesSinceRow, error)
+	// 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。
+	ListFutureProgramReservations(ctx context.Context, now time.Time) ([]ListFutureProgramReservationsRow, error)
+	ListFutureReservationRules(ctx context.Context, now time.Time) ([]ReservationRule, error)
+	// 番組名のキーごと、サービスごとの、最後に録画した番組の終了時刻。
+	ListLatestRecordingHistory(ctx context.Context, titleKeys []string) ([]ListLatestRecordingHistoryRow, error)
+	// ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
+	ListMatchablePrograms(ctx context.Context, now time.Time) ([]ListMatchableProgramsRow, error)
 	ListPrograms(ctx context.Context) ([]ListProgramsRow, error)
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
+	ListRules(ctx context.Context) ([]Rule, error)
 	ListServices(ctx context.Context) ([]ListServicesRow, error)
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
@@ -72,9 +87,12 @@ type Querier interface {
 	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	ServiceExists(ctx context.Context, id int64) (bool, error)
+	SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error)
+	SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
 	UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error)
+	UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, error)
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults
 	// 上流から来る項目だけを更新する。非表示の印と並び順の上書きは、管理者のものなので触らない。
