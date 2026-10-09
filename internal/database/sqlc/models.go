@@ -53,3 +53,27 @@ type SchemaCompatibility struct {
 	MinBinaryVersion int64
 	UpdatedAt        time.Time
 }
+
+type Session struct {
+	ID              uuid.UUID
+	TokenHash       []byte
+	UserID          uuid.UUID
+	CreatedAt       time.Time
+	AuthenticatedAt time.Time
+	LastSeenAt      time.Time
+	ExpiresAt       time.Time
+	RevokedAt       *time.Time
+	UserAgent       string
+	SourceIP        *netip.Addr
+}
+
+type User struct {
+	ID           uuid.UUID
+	Username     string
+	DisplayName  string
+	Role         string
+	PasswordHash *string
+	DisabledAt   *time.Time
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
