@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -211,9 +212,9 @@ func TestConfigFlagAndEnv(t *testing.T) {
 
 	dir := t.TempDir()
 	flagPath := filepath.Join(dir, "flag.yaml")
-	require.NoError(t, os.WriteFile(flagPath, []byte("server:\n  listen: :1111\n"), 0o600))
+	require.NoError(t, os.WriteFile(flagPath, []byte("server:\n  listen: "+anyLocalPort+"\n"), 0o600))
 	envPath := filepath.Join(dir, "env.yaml")
-	require.NoError(t, os.WriteFile(envPath, []byte("server:\n  listen: :2222\n"), 0o600))
+	require.NoError(t, os.WriteFile(envPath, []byte("server:\n  listen: localhost:0\n"), 0o600))
 
 	tests := []struct {
 		name string
@@ -221,10 +222,9 @@ func TestConfigFlagAndEnv(t *testing.T) {
 		env  map[string]string
 		want string
 	}{
-		{name: "flag", args: []string{"--config", flagPath}, want: ":1111"},
-		{name: "env", env: map[string]string{"KOTATSU_CONFIG": envPath}, want: ":2222"},
-		{name: "flag wins over env", args: []string{"--config", flagPath}, env: map[string]string{"KOTATSU_CONFIG": envPath}, want: ":1111"},
-		{name: "neither", want: ":8080"},
+		{name: "flag", args: []string{"--config", flagPath}, want: anyLocalPort},
+		{name: "env", env: map[string]string{"KOTATSU_CONFIG": envPath}, want: "localhost:0"},
+		{name: "flag wins over env", args: []string{"--config", flagPath}, env: map[string]string{"KOTATSU_CONFIG": envPath}, want: anyLocalPort},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -238,7 +238,9 @@ func TestConfigFlagAndEnv(t *testing.T) {
 				return nil
 			}
 
-			env := map[string]string{"KOTATSU_DATABASE_URL": "postgres://db/kotatsu"}
+			// server.listen は設定ファイルから与えるので、環境変数からは外す。
+			env := testEnv()
+			delete(env, "KOTATSU_SERVER_LISTEN")
 			maps.Copy(env, tt.env)
 			cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), roles, func(key string) (string, bool) {
 				v, ok := env[key]
@@ -327,13 +329,25 @@ func testOptions(logger *slog.Logger, roles []*cli.Role, lookupEnv config.Lookup
 	}
 }
 
+// validEnv は、起動に必要な設定を与える。HTTP サーバーはテストどうしで衝突しないよう空いているポートで待ち受ける。
 func validEnv(key string) (string, bool) {
-	if key == "KOTATSU_DATABASE_URL" {
-		return "postgres://user:hunter2@db/kotatsu", true
-	}
+	v, ok := testEnv()[key]
 
-	return "", false
+	return v, ok
 }
+
+func testEnv() map[string]string {
+	databaseURL := url.URL{Scheme: "postgres", User: url.UserPassword("user", "hunter2"), Host: "db", Path: "/kotatsu"}
+
+	return map[string]string{
+		"KOTATSU_DATABASE_URL":   databaseURL.String(),
+		"KOTATSU_SERVER_LISTEN":  anyLocalPort,
+		"KOTATSU_METRICS_LISTEN": anyLocalPort,
+	}
+}
+
+// anyLocalPort は、テストどうしで衝突しないよう空いているポートで待ち受けるアドレス。
+const anyLocalPort = "127.0.0.1:0"
 
 var _ io.Writer = new(lockedWriter)
 

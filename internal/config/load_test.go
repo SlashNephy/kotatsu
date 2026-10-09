@@ -118,6 +118,19 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			},
 		},
 		{
+			name: "otlp endpoint",
+			env: map[string]string{
+				envKeyURL:                         envURL,
+				"KOTATSU_TELEMETRY_OTLP_ENDPOINT": "http://collector:4318",
+			},
+			want: &config.Config{
+				Server:    config.Server{Listen: defaultServerListen},
+				Metrics:   config.Metrics{Listen: defaultMetricsListen},
+				Database:  config.Database{URL: envURL, Pooler: false},
+				Telemetry: config.Telemetry{OTLPEndpoint: "http://collector:4318"},
+			},
+		},
+		{
 			name: "yaml and env for different fields",
 			yaml: "server:\n  listen: 127.0.0.1:3000\ndatabase:\n  pooler: true\n",
 			env: map[string]string{
@@ -201,6 +214,14 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 				"server.listen (KOTATSU_SERVER_LISTEN): must be in the form host:port",
 				"metrics.listen (KOTATSU_METRICS_LISTEN): must be in the form host:port",
 			},
+		},
+		{
+			name: "invalid otlp endpoint",
+			env: map[string]string{
+				envKeyURL:                         envURL,
+				"KOTATSU_TELEMETRY_OTLP_ENDPOINT": "collector:4318",
+			},
+			wantErrs: []string{"telemetry.otlp_endpoint (KOTATSU_TELEMETRY_OTLP_ENDPOINT): must be an http:// or https:// URL"},
 		},
 		{
 			name:     "unknown key in yaml",

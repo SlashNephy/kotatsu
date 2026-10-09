@@ -16,9 +16,10 @@ import (
 //
 // required:"true" を付けた項目は、どこからも値が与えられなければ起動を止める。
 type Config struct {
-	Server   Server   `yaml:"server"`
-	Metrics  Metrics  `yaml:"metrics"`
-	Database Database `yaml:"database"`
+	Server    Server    `yaml:"server"`
+	Metrics   Metrics   `yaml:"metrics"`
+	Database  Database  `yaml:"database"`
+	Telemetry Telemetry `yaml:"telemetry"`
 }
 
 // Server は tenban の HTTP サーバーの設定。
@@ -42,6 +43,14 @@ type Database struct {
 	Pooler bool `yaml:"pooler"`
 }
 
+// Telemetry は OpenTelemetry の設定。
+type Telemetry struct {
+	// OTLPEndpoint は、トレースを送る OTLP/HTTP の送信先のベースの URL (http://collector:4318 など)。
+	// OTEL_EXPORTER_OTLP_ENDPOINT と同じく、トレースは /v1/traces を付けた URL に送る。
+	// 空ならトレースを送らない。
+	OTLPEndpoint string `yaml:"otlp_endpoint"`
+}
+
 // Default は既定値を入れた設定を返す。
 func Default() *Config {
 	return &Config{
@@ -54,6 +63,9 @@ func Default() *Config {
 		Database: Database{
 			URL:    "",
 			Pooler: false,
+		},
+		Telemetry: Telemetry{
+			OTLPEndpoint: "",
 		},
 	}
 }
@@ -69,6 +81,9 @@ func (c *Config) validate() error {
 	}
 	if err := validateDatabaseURL(c.Database.URL); err != nil {
 		errs = append(errs, fieldError("database.url", err))
+	}
+	if err := validateOTLPEndpoint(c.Telemetry.OTLPEndpoint); err != nil {
+		errs = append(errs, fieldError("telemetry.otlp_endpoint", err))
 	}
 
 	return errors.Join(errs...)
@@ -90,6 +105,22 @@ func validateDatabaseURL(secret Secret) error {
 	}
 	if u.Scheme != "postgres" && u.Scheme != "postgresql" {
 		return errors.New("must use the postgres:// or postgresql:// scheme")
+	}
+
+	return nil
+}
+
+func validateOTLPEndpoint(endpoint string) error {
+	if endpoint == "" {
+		return nil
+	}
+
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return fmt.Errorf("must be a valid URL: %w", err)
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return errors.New("must be an http:// or https:// URL")
 	}
 
 	return nil

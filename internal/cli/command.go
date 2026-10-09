@@ -4,15 +4,19 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/SlashNephy/kotatsu/internal/config"
 	"github.com/SlashNephy/kotatsu/internal/database"
+	"github.com/SlashNephy/kotatsu/internal/httpserver"
+	"github.com/SlashNephy/kotatsu/internal/telemetry"
 )
 
 const (
@@ -97,7 +101,7 @@ func NewCommand(opts *Options) *cobra.Command {
 			return fmt.Errorf("refusing to start: %w", err)
 		}
 
-		return runRoles(ctx, opts.Logger, &Deps{Config: cfg, DB: pool}, targets)
+		return serve(ctx, opts.Logger, &Deps{Config: cfg, DB: pool, Metrics: telemetry.NewRegistry()}, targets)
 	}
 
 	for _, role := range opts.Roles {
@@ -147,6 +151,59 @@ func NewCommand(opts *Options) *cobra.Command {
 	))
 
 	return root
+}
+
+// serve は、roles と HTTP サーバーを並行に動かす。
+//
+// HTTP サーバーは 2 つある。server.listen では /healthz と /readyz を、metrics.listen では /metrics を公開する。
+// どれかが失敗すると、残りも止める。ロールがすべて終わったときも、HTTP サーバーを止めて終わる。
+func serve(ctx context.Context, logger *slog.Logger, deps *Deps, roles []*Role) error {
+	tracerProvider, shutdownTracing, err := telemetry.NewTracerProvider(ctx, &deps.Config.Telemetry)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		// 終了のシグナルで ctx は終わっているので、送り残したトレースを送るための context を別に作る。
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), httpserver.ShutdownTimeout)
+		defer cancel()
+		if err := shutdownTracing(shutdownCtx); err != nil {
+			logger.WarnContext(shutdownCtx, "failed to flush traces", slog.Any("error", err))
+		}
+	}()
+
+	apiListener, err := httpserver.Listen(ctx, deps.Config.Server.Listen)
+	if err != nil {
+		return err
+	}
+	metricsListener, err := httpserver.Listen(ctx, deps.Config.Metrics.Listen)
+	if err != nil {
+		_ = apiListener.Close()
+
+		return err
+	}
+
+	mux := http.NewServeMux()
+	httpserver.RegisterHealth(mux, logger, deps.DB)
+	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider))
+	metricsHandler := telemetry.NewMetricsHandler(deps.Metrics)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	eg, ctx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		defer cancel()
+
+		return runRoles(ctx, logger, deps, roles)
+	})
+	eg.Go(func() error {
+		return httpserver.Serve(ctx, logger.With(slog.String("server", "api")), apiListener, handler)
+	})
+	eg.Go(func() error {
+		return httpserver.Serve(ctx, logger.With(slog.String("server", "metrics")), metricsListener, metricsHandler)
+	})
+
+	return eg.Wait()
 }
 
 // runRoles は roles を並行に動かす。どれかが失敗すると、残りも止める。
