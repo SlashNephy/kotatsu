@@ -82,6 +82,26 @@ type Program struct {
 	UpdatedAt             time.Time
 }
 
+type ProgramArchive struct {
+	ServiceID             int64
+	EventID               int64
+	MirakurunID           int64
+	StartAt               time.Time
+	EndAt                 time.Time
+	EndUndecided          bool
+	IsFree                bool
+	Name                  string
+	Description           string
+	NameNormalized        string
+	DescriptionNormalized string
+	Extended              []byte
+	Genres                []byte
+	RelatedItems          []byte
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	ArchivedAt            time.Time
+}
+
 type SchemaCompatibility struct {
 	ID               bool
 	MinBinaryVersion int64

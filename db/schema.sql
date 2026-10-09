@@ -187,3 +187,34 @@ CREATE TABLE epg_changes (
 
 CREATE INDEX epg_changes_version_idx ON epg_changes (version);
 CREATE INDEX epg_changes_created_at_idx ON epg_changes (created_at);
+
+-- 放送が終わった番組 (設計書 3.4)。neko が、放送の終わりから猶予が過ぎた番組を programs から移す。
+-- EID は再利用されうるので、サービスと eventId に開始時刻を加えた組で一意にする (設計書 3.2)。
+CREATE TABLE program_archives (
+  service_id bigint NOT NULL REFERENCES services (id),
+  event_id bigint NOT NULL,
+  mirakurun_id bigint NOT NULL,
+  start_at timestamptz NOT NULL,
+  end_at timestamptz NOT NULL,
+  end_undecided boolean NOT NULL,
+  is_free boolean NOT NULL,
+  name text NOT NULL,
+  description text NOT NULL,
+  name_normalized text NOT NULL,
+  description_normalized text NOT NULL,
+  extended jsonb NOT NULL,
+  genres jsonb NOT NULL,
+  related_items jsonb NOT NULL,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL,
+  archived_at timestamptz NOT NULL,
+  PRIMARY KEY (service_id, event_id, start_at)
+);
+
+-- 過去の番組の検索は期間の指定が必須なので、期間で絞り込むインデックスを効かせる (設計書 3.4)。
+CREATE INDEX program_archives_start_at_idx ON program_archives (start_at);
+CREATE INDEX program_archives_service_id_start_at_idx ON program_archives (service_id, start_at);
+-- 保持期間を過ぎたアーカイブを消すときに使う。
+CREATE INDEX program_archives_end_at_idx ON program_archives (end_at);
+-- 猶予が過ぎた番組を探すときに使う。
+CREATE INDEX programs_end_at_idx ON programs (end_at);

@@ -43,6 +43,7 @@ func TestLeaderSyncsEPG(t *testing.T) {
 			InstanceID: id.New(),
 			Tuner:      client,
 			EPG:        nil,
+			Archive:    nil,
 		})
 	}()
 

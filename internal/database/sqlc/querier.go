@@ -15,6 +15,10 @@ type Querier interface {
 	// 期限の切れたリースだけを取れる。誰も持っていないか期限が切れていれば、世代番号を 1 つ上げて取る。
 	// 他のインスタンスが期限内のリースを持っていれば、行を返さない。
 	AcquireLease(ctx context.Context, arg AcquireLeaseParams) (int64, error)
+	// 放送の終わりが before より前の番組を、最大 batch_size 件だけ program_archives へ移す。
+	// 終了時刻が未定の番組は、開始時刻が before より前なら移す。猶予 (既定 24 時間) より長い番組は無いからである。
+	// 同じ番組を移し直すことは通常ないが、移した後に上流から同じ番組が届き、また移すときは新しい内容で上書きする。
+	ArchivePrograms(ctx context.Context, arg ArchiveProgramsParams) (int64, error)
 	BumpChangeVersion(ctx context.Context, arg BumpChangeVersionParams) (int64, error)
 	DeleteAuditEventsBefore(ctx context.Context, before time.Time) (int64, error)
 	DeleteInstance(ctx context.Context, arg DeleteInstanceParams) error
@@ -47,6 +51,8 @@ type Querier interface {
 	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
 	NotifyChange(ctx context.Context, arg NotifyChangeParams) error
 	PruneEPGChanges(ctx context.Context, before time.Time) (int64, error)
+	// 放送の終わりが before より前のアーカイブを、最大 batch_size 件だけ消す。一度に大量の行をロックしないよう、少しずつ消す。
+	PruneProgramArchives(ctx context.Context, arg PruneProgramArchivesParams) (int64, error)
 	// 下限は上げるだけで、下げない。古いバイナリで migrate を実行しても、新しいバイナリが記録した下限は残る。
 	RaiseMinBinaryVersion(ctx context.Context, arg RaiseMinBinaryVersionParams) error
 	// 期限をすぐに切れさせて、他のインスタンスがすぐに取れるようにする。世代番号は残す。
