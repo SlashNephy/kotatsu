@@ -59,7 +59,7 @@ func TestTenbanServesGraphQL(t *testing.T) {
 			pool, err := database.Open(t.Context(), dbConfig)
 			require.NoError(t, err)
 			t.Cleanup(pool.Close)
-			user, err := auth.NewUsers(clock.Real{}).Create(t.Context(), pool, &auth.NewUser{
+			user, err := auth.NewUsers(new(clock.Real)).Create(t.Context(), pool, &auth.NewUser{
 				Username: "kotatsu", DisplayName: "こたつ", Role: auth.RoleViewer, PasswordHash: nil,
 			})
 			require.NoError(t, err)
