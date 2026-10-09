@@ -101,6 +101,21 @@ func TestRunRegistersAndDeregisters(t *testing.T) {
 	assert.Empty(t, addresses(t, r, roleKyusu))
 }
 
+// TestRunStopsWithoutErrorBeforeRegistered は、登録を終える前に止められても、正常な停止として扱うことを確かめる。
+// 起動直後に終了のシグナルを受けると、登録の途中で ctx が終わる。
+func TestRunStopsWithoutErrorBeforeRegistered(t *testing.T) {
+	t.Parallel()
+
+	pool := migratedPool(t)
+	r := registry.New(pool, clocktest.NewFake(time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)), id.New())
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	require.NoError(t, r.Run(ctx, slog.New(slog.DiscardHandler), []string{"tenban", roleKyusu}, addressA))
+	assert.Empty(t, addresses(t, r, "tenban"))
+	assert.Empty(t, addresses(t, r, roleKyusu))
+}
+
 func addresses(t *testing.T, r *registry.Registry, role string) []string {
 	t.Helper()
 

@@ -129,14 +129,8 @@ func (r *Registry) PruneStale(ctx context.Context) (int64, error) {
 // Run は、roles のインスタンスとして address を登録し、ctx が終わるまでハートビートを書き続ける。
 // 止まるときは登録簿から外す。ハートビートを書けなかったときは、ログに出して書き続ける。
 func (r *Registry) Run(ctx context.Context, logger *slog.Logger, roles []string, address string) error {
-	for _, role := range roles {
-		if err := r.Register(ctx, role, address); err != nil {
-			return err
-		}
-	}
-	logger.InfoContext(ctx, "registered the instance", slog.String("instance_id", r.id.String()), slog.Any("roles", roles), slog.String("address", address))
-
 	defer func() {
+		// 登録の途中で止まったときも、登録できた分を外す。
 		// 終了のシグナルで ctx は終わっているので、登録簿から外すための context を別に作る。
 		deregisterCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), HeartbeatInterval)
 		defer cancel()
@@ -146,6 +140,18 @@ func (r *Registry) Run(ctx context.Context, logger *slog.Logger, roles []string,
 			}
 		}
 	}()
+
+	for _, role := range roles {
+		if err := r.Register(ctx, role, address); err != nil {
+			// 登録を終える前に終了のシグナルを受けたなら、正常な停止として扱う。
+			if ctx.Err() != nil {
+				return nil
+			}
+
+			return err
+		}
+	}
+	logger.InfoContext(ctx, "registered the instance", slog.String("instance_id", r.id.String()), slog.Any("roles", roles), slog.String("address", address))
 
 	ticker := time.NewTicker(HeartbeatInterval)
 	defer ticker.Stop()
