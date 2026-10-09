@@ -10,7 +10,7 @@ type State = {
 };
 
 // ErrorBoundary は、子の描画で起きたエラーを捕まえ、fallback を出す。
-// Relay のクエリは、GraphQL のエラーを描画中の例外として投げる。
+// Relay のクエリは、データを取得できなかったエラーを、描画中の例外として投げる。
 export class ErrorBoundary extends Component<Props, State> {
   override state: State = { error: null };
 

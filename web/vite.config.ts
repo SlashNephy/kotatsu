@@ -7,7 +7,12 @@ import { defineConfig, lazyPlugins } from 'vite-plus';
 // dist 自体は、未ビルドでも go build が通るように、空の .gitkeep だけを置いてリポジトリに残す。
 export default defineConfig({
   plugins: lazyPlugins(() => [
-    tanstackRouter({ target: 'react', autoCodeSplitting: true }),
+    // Relay のコンパイラが routes/ に生成する __generated__ は、ルートではない。
+    tanstackRouter({
+      target: 'react',
+      autoCodeSplitting: true,
+      routeFileIgnorePattern: '__generated__',
+    }),
     react(),
     // graphql`...` を、Relay のコンパイラが生成したアーティファクトの import に置き換える。
     babel({ presets: [reactCompilerPreset()], plugins: [['relay', { eagerEsModules: true }]] }),

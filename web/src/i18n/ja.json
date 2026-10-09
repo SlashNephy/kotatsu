@@ -18,6 +18,7 @@
     "signedOut": "ログインしていません",
     "greeting": "{{name}} さん、こんにちは",
     "connecting": "サーバーにつないでいます",
-    "heartbeat": "サーバーの時刻: {{time}}"
+    "heartbeat": "サーバーの時刻: {{time}}",
+    "error": "読み込めませんでした。時間をおいてやり直してください"
   }
 }

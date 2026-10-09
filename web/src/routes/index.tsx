@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useSubscription } from 'react-relay';
 
 import { ErrorBoundary } from '../futon';
+import { isUnauthenticated } from '../relay/environment';
 import type { routesHeartbeatSubscription } from './__generated__/routesHeartbeatSubscription.graphql';
 import type { routesViewerQuery } from './__generated__/routesViewerQuery.graphql';
 
@@ -19,7 +20,13 @@ function Home() {
     <Stack>
       <Title order={2}>{t('app.name')}</Title>
       <Text>{t('app.tagline')}</Text>
-      <ErrorBoundary fallback={() => <Alert color="amber">{t('viewer.signedOut')}</Alert>}>
+      <ErrorBoundary
+        fallback={(error) => (
+          <Alert color="amber">
+            {isUnauthenticated(error) ? t('viewer.signedOut') : t('viewer.error')}
+          </Alert>
+        )}
+      >
         <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
           <Viewer />
         </Suspense>
