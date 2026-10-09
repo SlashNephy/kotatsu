@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"slices"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -119,16 +120,22 @@ func (m *Monitor) Run(ctx context.Context) error {
 // Check は、チューナーの構成とチューナーサーバーの時計を取得し、DB に記録する。
 // チューナーサーバーに接続できなければ縮退中として記録する。エラーを返すのは、DB に記録できなかったときだけである。
 func (m *Monitor) Check(ctx context.Context) error {
-	tuners, tunersErr := m.upstream.Tuners(ctx)
-	date, dateErr := m.upstream.ServerDate(ctx)
+	tuners, err := m.upstream.Tuners(ctx)
 	now := m.clock.Now()
-
-	if err := errors.Join(tunersErr, dateErr); err != nil {
+	if err != nil {
 		return m.recordDegraded(ctx, now, err)
 	}
 
-	skew := date.Sub(now)
-	m.warnSkew(ctx, skew)
+	// 時計は、Date ヘッダーが取れたときだけ比べる。取れなくても、チューナーの構成は記録する。
+	var skewMs *int64
+	date, err := m.upstream.ServerDate(ctx)
+	if err != nil {
+		m.logger.WarnContext(ctx, "failed to read the clock of the tuner server", slog.Any("error", err))
+	} else {
+		skew := date.Sub(now)
+		m.warnSkew(ctx, skew)
+		skewMs = new(skew.Milliseconds())
+	}
 
 	return pgx.BeginFunc(ctx, m.pool, func(tx pgx.Tx) error {
 		if err := m.guard(ctx, tx); err != nil {
@@ -138,7 +145,7 @@ func (m *Monitor) Check(ctx context.Context) error {
 		if err := q.UpsertTunerServerStatus(ctx, sqlc.UpsertTunerServerStatusParams{
 			DegradedSince: nil,
 			LastError:     "",
-			ClockSkewMs:   new(skew.Milliseconds()),
+			ClockSkewMs:   skewMs,
 			CheckedAt:     now,
 		}); err != nil {
 			return fmt.Errorf("failed to record the tuner server status: %w", err)
@@ -167,10 +174,7 @@ func (m *Monitor) recordDegraded(ctx context.Context, now time.Time, cause error
 			since = *current.DegradedSince
 		}
 
-		message := cause.Error()
-		if len(message) > maxErrorLength {
-			message = message[:maxErrorLength]
-		}
+		message := truncate(cause.Error(), maxErrorLength)
 		if err := q.UpsertTunerServerStatus(ctx, sqlc.UpsertTunerServerStatusParams{
 			DegradedSince: &since,
 			LastError:     message,
@@ -207,9 +211,10 @@ func (m *Monitor) replaceTuners(ctx context.Context, tx pgx.Tx, q *sqlc.Queries,
 	next := make([]sqlc.ListTunersRow, 0, len(tuners))
 	for _, tuner := range tuners {
 		next = append(next, sqlc.ListTunersRow{
-			TunerIndex:  int64(tuner.Index),
-			Name:        tuner.Name,
-			Types:       tuner.Types,
+			TunerIndex: int64(tuner.Index),
+			Name:       tuner.Name,
+			// 種別の列は NOT NULL なので、返されなかったときは空にする。
+			Types:       append([]string{}, tuner.Types...),
 			IsAvailable: tuner.IsAvailable,
 			IsRemote:    tuner.IsRemote,
 			IsFault:     tuner.IsFault,
@@ -242,6 +247,19 @@ func (m *Monitor) replaceTuners(ctx context.Context, tx pgx.Tx, q *sqlc.Queries,
 	m.logger.InfoContext(ctx, "tuner configuration changed", slog.Int("tuners", len(next)))
 
 	return nil
+}
+
+// truncate は、s を maxBytes バイト以内に、文字の途中で切らずに縮める。
+func truncate(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	s = s[:maxBytes]
+	for !utf8.ValidString(s) {
+		s = s[:len(s)-1]
+	}
+
+	return s
 }
 
 func equalTuner(a, b sqlc.ListTunersRow) bool {

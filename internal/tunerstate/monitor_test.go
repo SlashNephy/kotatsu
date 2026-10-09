@@ -2,6 +2,7 @@ package tunerstate_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http/httptest"
 	"sync"
@@ -224,6 +225,35 @@ func TestCheckRecordsDegradedWhileUnreachable(t *testing.T) {
 	assert.Equal(t, testNow(), since.UTC())
 }
 
+// dateless は、Date ヘッダーを返さないチューナーサーバー (プロキシが取り除いた場合など) を再現する。
+type dateless struct {
+	tunerstate.Upstream
+}
+
+func (dateless) ServerDate(context.Context) (time.Time, error) {
+	return time.Time{}, errors.New("the tuner server returned no valid Date header")
+}
+
+// TestCheckRecordsTunersWithoutDate は、Date ヘッダーが取れなくても縮退にせず、チューナーの構成を記録することを確かめる。
+func TestCheckRecordsTunersWithoutDate(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, 0)
+	client, err := mirakurun.New(&mirakurun.Options{URL: f.server.URL})
+	require.NoError(t, err)
+	monitor := tunerstate.NewMonitor(f.pool, dateless{Upstream: client}, f.clock, noGuard, slog.New(slog.DiscardHandler), nil)
+	require.NoError(t, monitor.Check(t.Context()))
+
+	assert.Len(t, f.tuners(t), 3)
+	var (
+		since *time.Time
+		skew  *int64
+	)
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT degraded_since, clock_skew_ms FROM tuner_server_status").Scan(&since, &skew))
+	assert.Nil(t, since)
+	assert.Nil(t, skew)
+}
+
 func TestCheckClearsDegradedAfterReconnect(t *testing.T) {
 	t.Parallel()
 
@@ -239,4 +269,27 @@ func TestCheckClearsDegradedAfterReconnect(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT degraded_since, last_error FROM tuner_server_status").Scan(&since, &lastError))
 	assert.Nil(t, since)
 	assert.Empty(t, lastError)
+}
+
+func TestTruncateKeepsValidUTF8(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		in       string
+		maxBytes int
+		want     string
+	}{
+		{name: "short enough", in: "接続できません", maxBytes: 100, want: "接続できません"},
+		// 「接」は 3 バイトなので、4 バイトで切ると 2 文字目の途中になる。
+		{name: "cut in the middle of a character", in: "接続", maxBytes: 4, want: "接"},
+		{name: "ascii", in: "connection refused", maxBytes: 10, want: "connection"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, tunerstate.Truncate(tt.in, tt.maxBytes))
+		})
+	}
 }

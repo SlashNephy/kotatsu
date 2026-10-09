@@ -200,6 +200,10 @@ func (s *Syncer) consume(ctx context.Context, stream mirakurun.EventStream) erro
 				return err
 			}
 			// 溜まっていたイベントの変化は、今の全量の突き合わせで反映済みなので捨てる。
+			// チューナーの構成は全量の突き合わせの対象ではないので、チューナーのイベントだけは知らせる。
+			if batch.tuners && s.opts.OnTunerEvent != nil {
+				s.opts.OnTunerEvent()
+			}
 			flush = nil
 			batch = newEventBatch()
 		}
