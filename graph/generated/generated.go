@@ -1633,7 +1633,7 @@ type Reservation implements Node {
   enabled: Boolean!
   "イベントリレーで引き継がれた番組を、引き継ぎ先でも予約するかどうか (設計書 4.6)。"
   followEventRelay: Boolean!
-  "この予約の録画設定の上書き。ルール予約では、一致したルールの設定が使われる。"
+  "この予約自体の録画設定の上書き。ルール予約では、一致したルールのうち最も古いものの上書きに、さらにこれを重ねる。"
   settings: RecordingSettingsOverrides!
   assignment: ReservationAssignment!
   "予約に一致したルール。ルールを作った順に並べる。"
