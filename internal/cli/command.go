@@ -7,9 +7,11 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/sync/errgroup"
@@ -19,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/registry"
 	"github.com/SlashNephy/kotatsu/internal/telemetry"
 )
@@ -44,6 +47,8 @@ type Options struct {
 	// RunRegistry は、ctx が終わるまで roles のインスタンスを登録簿に載せておく。
 	// listenAddr は API の HTTP サーバーが実際に待ち受けているアドレス。
 	RunRegistry func(ctx context.Context, logger *slog.Logger, deps *Deps, roles []string, listenAddr string) error
+	// JobWorkers は、nekonote で実行するジョブの Worker を返す。実行するジョブがなければ nil を返す。
+	JobWorkers func() *river.Workers
 }
 
 // DefaultOptions は、本番で使う依存を返す。
@@ -53,10 +58,29 @@ func DefaultOptions(logger *slog.Logger) *Options {
 		Roles:        DefaultRoles(),
 		LookupEnv:    os.LookupEnv,
 		OpenDatabase: database.Open,
-		CheckSchema:  database.CheckSchema,
-		Migrate:      database.Migrate,
+		CheckSchema:  checkSchema,
+		Migrate:      migrate,
 		RunRegistry:  runRegistry,
+		JobWorkers:   jobs.Workers,
 	}
+}
+
+// migrate は、Kotatsu のスキーマと River のテーブルのマイグレーションを適用する。
+func migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
+	if err := database.Migrate(ctx, logger, pool); err != nil {
+		return err
+	}
+
+	return jobs.Migrate(ctx, logger, pool)
+}
+
+// checkSchema は、Kotatsu のスキーマと River のテーブルで、このバイナリが動けるかを確かめる。
+func checkSchema(ctx context.Context, pool *pgxpool.Pool) error {
+	if err := database.CheckSchema(ctx, pool); err != nil {
+		return err
+	}
+
+	return jobs.CheckSchema(ctx, pool)
 }
 
 func runRegistry(ctx context.Context, logger *slog.Logger, deps *Deps, roles []string, listenAddr string) error {
@@ -136,12 +160,24 @@ func NewCommand(opts *Options) *cobra.Command {
 			return fmt.Errorf("refusing to start: %w", err)
 		}
 
+		// ジョブを実行するのは nekonote だけで、他のロールは投入だけを行う。
+		var workers *river.Workers
+		if slices.ContainsFunc(targets, func(role *Role) bool { return role.Name == nekonoteRoleName }) {
+			workers = opts.JobWorkers()
+		}
+		jobClient, err := jobs.NewClient(pool, opts.Logger, &jobs.Options{PollOnly: cfg.Database.Pooler, Workers: workers})
+		if err != nil {
+			return err
+		}
+
 		return serve(ctx, opts, &Deps{
 			Config:     cfg,
 			DB:         pool,
 			Metrics:    telemetry.NewRegistry(),
 			Clock:      new(clock.Real),
 			InstanceID: id.New(),
+			Jobs:       jobClient,
+			JobWorkers: workers,
 		}, targets)
 	}
 

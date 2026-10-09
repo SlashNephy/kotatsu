@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -339,6 +340,7 @@ func testOptions(logger *slog.Logger, roles []*cli.Role, lookupEnv config.Lookup
 
 			return nil
 		},
+		JobWorkers: func() *river.Workers { return nil },
 	}
 }
 
