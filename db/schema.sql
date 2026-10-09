@@ -89,3 +89,25 @@ CREATE TABLE users (
 
 -- ユーザー名は大文字と小文字を区別せずに一意にする。citext は拡張を要するので使わない。
 CREATE UNIQUE INDEX users_lower_username_idx ON users (lower(username));
+
+-- サーバー側で持つセッション (設計書 9.5)。全インスタンスで共有する。
+-- Cookie にはランダムなトークンを入れ、DB にはその SHA-256 だけを保存する。DB が漏れても、セッションを乗っ取れない。
+CREATE TABLE sessions (
+  id uuid PRIMARY KEY,
+  token_hash bytea NOT NULL UNIQUE,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL,
+  -- 最後にパスワードなどで認証した日時。重要な操作の前の再認証 (設計書 9.5) の判定に使う。
+  authenticated_at timestamptz NOT NULL,
+  -- 最後に使われた日時。無操作の期限の判定に使う。書き込みを減らすため、一定の間隔でしか更新しない。
+  last_seen_at timestamptz NOT NULL,
+  -- 絶対的な期限。使われ続けていても、これを過ぎたら使えない。
+  expires_at timestamptz NOT NULL,
+  -- ユーザーが失効させた日時。
+  revoked_at timestamptz,
+  -- セッションの一覧で、どの端末かを見分けるための情報。
+  user_agent text NOT NULL,
+  source_ip inet
+);
+
+CREATE INDEX sessions_user_id_idx ON sessions (user_id);

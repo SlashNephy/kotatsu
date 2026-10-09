@@ -22,10 +22,13 @@ type Querier interface {
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
+	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	HeartbeatInstance(ctx context.Context, arg HeartbeatInstanceParams) (int64, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
+	InsertSession(ctx context.Context, arg InsertSessionParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) error
+	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
 	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
 	ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error)
 	ListChangeVersions(ctx context.Context, channels []string) ([]ListChangeVersionsRow, error)
@@ -40,6 +43,9 @@ type Querier interface {
 	ReleaseLease(ctx context.Context, arg ReleaseLeaseParams) error
 	// 同じ世代のリースを期限内に延長する。期限が切れていたり、他のインスタンスに取られていたりすれば、行を更新しない。
 	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
+	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
+	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
+	TouchSession(ctx context.Context, arg TouchSessionParams) error
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 }
 

@@ -54,6 +54,19 @@ type SchemaCompatibility struct {
 	UpdatedAt        time.Time
 }
 
+type Session struct {
+	ID              uuid.UUID
+	TokenHash       []byte
+	UserID          uuid.UUID
+	CreatedAt       time.Time
+	AuthenticatedAt time.Time
+	LastSeenAt      time.Time
+	ExpiresAt       time.Time
+	RevokedAt       *time.Time
+	UserAgent       string
+	SourceIP        *netip.Addr
+}
+
 type User struct {
 	ID           uuid.UUID
 	Username     string
