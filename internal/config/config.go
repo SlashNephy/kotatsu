@@ -120,6 +120,9 @@ func (c *Config) validate() error {
 	if err := validateDatabaseURL(c.Database.URL); err != nil {
 		errs = append(errs, fieldError("database.url", err))
 	}
+	if err := validateTunerURL(c.Tuner.URL); err != nil {
+		errs = append(errs, fieldError("tuner.url", err))
+	}
 	if err := validateOTLPEndpoint(c.Telemetry.OTLPEndpoint); err != nil {
 		errs = append(errs, fieldError("telemetry.otlp_endpoint", err))
 	}
@@ -165,6 +168,24 @@ func validateDatabaseURL(secret Secret) error {
 	}
 	if u.Scheme != "postgres" && u.Scheme != "postgresql" {
 		return errors.New("must use the postgres:// or postgresql:// scheme")
+	}
+
+	return nil
+}
+
+// validateTunerURL は、チューナーサーバーの URL を検査する。空なら、EPG を同期しないものとして通す。
+func validateTunerURL(secret Secret) error {
+	if secret.Value() == "" {
+		return nil
+	}
+
+	// url.Parse のエラーは URL の全文を含むので、資格情報を漏らさないよう理由だけを返す。
+	u, err := url.Parse(secret.Value())
+	if err != nil {
+		return errors.New("must be a valid URL")
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return errors.New("must be an http:// or https:// URL")
 	}
 
 	return nil
