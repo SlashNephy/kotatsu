@@ -2,6 +2,11 @@ package model
 
 import "time"
 
+var (
+	_ Node = new(Service)
+	_ Node = new(Program)
+)
+
 // Service はサービス。チャンネル種別は、リゾルバが dataloader で引く。
 type Service struct {
 	ID                 string `json:"id"`

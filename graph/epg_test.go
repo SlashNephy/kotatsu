@@ -165,6 +165,11 @@ func TestGuide(t *testing.T) {
 			wantPrograms: []string{"こたつ BS テスト番組 3"},
 		},
 		{
+			name:      "empty services",
+			variables: guideVariables(noon, onePM, []string{}),
+			wantRows:  []string{},
+		},
+		{
 			name:      "range longer than 7 days",
 			variables: guideVariables("2026-10-10T00:00:00Z", "2026-10-17T00:00:01Z", nil),
 			wantCodes: []string{codeBadUserInput},
@@ -206,6 +211,9 @@ func TestGuide(t *testing.T) {
 				rows = append(rows, row.Service.Name)
 			}
 			assert.Equal(t, tt.wantRows, rows)
+			if len(got.Guide) == 0 {
+				return
+			}
 			programs := []string{}
 			for _, p := range got.Guide[0].Programs {
 				programs = append(programs, p.Name)

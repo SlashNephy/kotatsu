@@ -44,7 +44,7 @@ func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error)
 
 		return toUser(user), nil
 	case serviceType:
-		serviceID, err := parseServiceID(id)
+		serviceID, err := parseServiceID(raw)
 		if err != nil {
 			return nil, err
 		}
@@ -106,9 +106,13 @@ func (r *queryResolver) Guide(ctx context.Context, from time.Time, to time.Time,
 	if !from.Before(to) || to.Sub(from) > maxGuideRange {
 		return nil, NewError(CodeBadUserInput, "from must be before to, and the range must be at most 7 days")
 	}
+	// 空の一覧を指定したときは、どのサービスも選ばれていないので、何も返さない。省いたときとは区別する。
+	if services != nil && len(services) == 0 {
+		return []*model.GuideRow{}, nil
+	}
 	ids := make([]int64, 0, len(services))
 	for _, globalID := range services {
-		id, err := parseServiceID(globalID)
+		id, err := parseServiceGlobalID(globalID)
 		if err != nil {
 			return nil, err
 		}

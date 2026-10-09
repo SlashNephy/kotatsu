@@ -29,12 +29,18 @@ func programGlobalID(serviceID, eventID int64) string {
 	return GlobalID(programType, strconv.FormatInt(serviceID, 10)+"."+strconv.FormatInt(eventID, 10))
 }
 
-// parseServiceID は、Service の ID から、Mirakurun のサービス ID を取り出す。
-func parseServiceID(globalID string) (int64, error) {
+// parseServiceGlobalID は、Service の ID から、Mirakurun のサービス ID を取り出す。
+func parseServiceGlobalID(globalID string) (int64, error) {
 	typeName, raw, err := ParseGlobalID(globalID)
 	if err != nil || typeName != serviceType {
 		return 0, NewError(CodeBadUserInput, "invalid service ID")
 	}
+
+	return parseServiceID(raw)
+}
+
+// parseServiceID は、Service の ID の中身から、Mirakurun のサービス ID を取り出す。
+func parseServiceID(raw string) (int64, error) {
 	id, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
 		return 0, NewError(CodeBadUserInput, "invalid service ID")
