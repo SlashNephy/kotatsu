@@ -185,6 +185,8 @@ func TestRules(t *testing.T) {
 	}
 	require.Empty(t, f.query(t, setEnabled, map[string]any{"id": got.ID, varEnabled: false}, &disabled))
 	assert.False(t, disabled.SetRuleEnabled.Enabled)
+	require.Empty(t, f.query(t, setEnabled, map[string]any{"id": got.ID, varEnabled: true}, &disabled))
+	assert.True(t, disabled.SetRuleEnabled.Enabled)
 
 	var deleted struct {
 		DeleteRule string `json:"deleteRule"`
@@ -203,7 +205,7 @@ func TestRules(t *testing.T) {
 		actions = append(actions, action)
 	}
 	require.NoError(t, rows.Err())
-	assert.ElementsMatch(t, []string{"rule.create", "rule.update", "rule.disable", "rule.delete"}, actions)
+	assert.ElementsMatch(t, []string{"rule.create", "rule.update", "rule.disable", "rule.enable", "rule.delete"}, actions)
 }
 
 func TestRuleErrors(t *testing.T) {
@@ -225,6 +227,12 @@ func TestRuleErrors(t *testing.T) {
 
 		return ruleVariables("", input)
 	}
+	invalidPreview := func(modify func(*ruleInput)) map[string]any {
+		variables := invalid(modify)
+		variables[varFirst] = 1
+
+		return variables
+	}
 	tests := []struct {
 		name      string
 		f         *fixture
@@ -243,6 +251,9 @@ func TestRuleErrors(t *testing.T) {
 		{name: "invalid duplicate window", f: f, query: createRule, variables: invalid(func(in *ruleInput) { in.DuplicateWindowDays = new(0) }), want: codeBadUserInput},
 		{name: "invalid priority", f: f, query: createRule, variables: invalid(func(in *ruleInput) { in.Settings = &settingsInput{Priority: new(11)} }), want: codeBadUserInput},
 		{name: "empty valid period", f: f, query: createRule, variables: invalid(func(in *ruleInput) { in.ValidFrom, in.ValidUntil = noon, noon }), want: codeBadUserInput},
+		{name: "preview without programs to return", f: f, query: previewRule, variables: map[string]any{varInput: testProgramRule(services), varFirst: 0}, want: codeBadUserInput},
+		{name: "preview with too many programs to return", f: f, query: previewRule, variables: map[string]any{varInput: testProgramRule(services), varFirst: 101}, want: codeBadUserInput},
+		{name: "preview with an empty valid period", f: f, query: previewRule, variables: invalidPreview(func(in *ruleInput) { in.ValidFrom, in.ValidUntil = noon, noon }), want: codeBadUserInput},
 		{name: "invalid rule ID", f: f, query: deleteRule, variables: map[string]any{"id": "invalid"}, want: codeBadUserInput},
 		{
 			name: "unknown rule", f: f, query: setEnabled,
