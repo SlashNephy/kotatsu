@@ -1,6 +1,7 @@
 import babel from '@rolldown/plugin-babel';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig, lazyPlugins } from 'vite-plus';
 
 // ビルドした SPA は、Go のバイナリに埋め込む (設計書 2.3)。web/embed.go が dist/app を埋め込む。
@@ -16,6 +17,40 @@ export default defineConfig({
     react(),
     // graphql`...` を、Relay のコンパイラが生成したアーティファクトの import に置き換える。
     babel({ presets: [reactCompilerPreset()], plugins: [['relay', { eagerEsModules: true }]] }),
+    // PWA の外枠 (設計書 10.1)。Web Push の受信とナビゲーションは、自前の Service Worker (src/sw.ts) に書く。
+    VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      // 登録は main.tsx で virtual:pwa-register から行う。CSP の nonce のない inline script を差し込ませない。
+      injectRegister: false,
+      injectManifest: {
+        // 外枠だけを対象にする。見出しのフォントは、unicode-range ごとに 100 以上のファイルに分かれて
+        // 3 MB ほどになるので含めない。オフラインでは、見出しもシステムフォントで出る。
+        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
+      },
+      manifest: {
+        name: 'Kotatsu',
+        short_name: 'Kotatsu',
+        description: 'テレビの予約、録画、視聴をまとめるアプリ',
+        lang: 'ja',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        theme_color: '#ff7407',
+        background_color: '#fbf7ef',
+        icons: [
+          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          {
+            src: '/icons/icon-maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+    }),
   ]),
   html: {
     // tenban が index.html を配信するたびに、リクエストごとの nonce に置き換える (設計書 10.4)。

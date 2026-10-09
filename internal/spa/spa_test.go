@@ -22,9 +22,10 @@ const index = `<meta property="csp-nonce" nonce="__KOTATSU_CSP_NONCE__"><script 
 
 func builtApp() fstest.MapFS {
 	return fstest.MapFS{
-		"index.html":    {Data: []byte(index)},
-		"assets/app.js": {Data: []byte("console.log('kotatsu')")},
-		"favicon.ico":   {Data: []byte("icon")},
+		"index.html":           {Data: []byte(index)},
+		"assets/app.js":        {Data: []byte("console.log('kotatsu')")},
+		"favicon.ico":          {Data: []byte("icon")},
+		"manifest.webmanifest": {Data: []byte(`{"name":"Kotatsu"}`)},
 	}
 }
 
@@ -42,8 +43,9 @@ func TestHandler(t *testing.T) {
 		// wantIndex は、index.html を返すかどうか。
 		wantIndex bool
 		// wantCSP は、CSP を付けるかどうか。CSP の nonce は、index.html にだけ付ける。
-		wantCSP   bool
-		wantCache string
+		wantCSP     bool
+		wantCache   string
+		wantContent string
 	}{
 		{name: "root returns the index", app: builtApp(), method: http.MethodGet, path: "/", wantStatus: http.StatusOK, wantIndex: true, wantCSP: true, wantCache: noStore},
 		{name: "index.html returns the index", app: builtApp(), method: http.MethodGet, path: "/index.html", wantStatus: http.StatusOK, wantIndex: true, wantCSP: true, wantCache: noStore},
@@ -53,6 +55,10 @@ func TestHandler(t *testing.T) {
 			wantStatus: http.StatusOK, wantBody: "console.log('kotatsu')", wantCache: "public, max-age=31536000, immutable",
 		},
 		{name: "other file is revalidated", app: builtApp(), method: http.MethodGet, path: "/favicon.ico", wantStatus: http.StatusOK, wantBody: "icon", wantCache: "no-cache"},
+		{
+			name: "web app manifest has its media type", app: builtApp(), method: http.MethodGet, path: "/manifest.webmanifest",
+			wantStatus: http.StatusOK, wantCache: "no-cache", wantContent: "application/manifest+json",
+		},
 		{name: "missing file is not the index", app: builtApp(), method: http.MethodGet, path: "/assets/missing.js", wantStatus: http.StatusNotFound},
 		{name: "path traversal stays in the app", app: builtApp(), method: http.MethodGet, path: "/../../etc/passwd.conf", wantStatus: http.StatusNotFound},
 		{name: "POST is not allowed", app: builtApp(), method: http.MethodPost, path: "/", wantStatus: http.StatusMethodNotAllowed},
@@ -76,6 +82,9 @@ func TestHandler(t *testing.T) {
 			}
 			if tt.wantCache != "" {
 				assert.Equal(t, tt.wantCache, rec.Header().Get("Cache-Control"))
+			}
+			if tt.wantContent != "" {
+				assert.Equal(t, tt.wantContent, rec.Header().Get("Content-Type"))
 			}
 			assert.Equal(t, tt.wantCSP, rec.Header().Get("Content-Security-Policy") != "")
 			if !tt.wantIndex {

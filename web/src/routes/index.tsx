@@ -22,8 +22,13 @@ function Home() {
       <Text>{t('app.tagline')}</Text>
       <ErrorBoundary
         fallback={(error) => (
+          // オフラインでも、Service Worker が外枠を返すので、ここまでは表示される。
           <Alert color="amber">
-            {isUnauthenticated(error) ? t('viewer.signedOut') : t('viewer.error')}
+            {!navigator.onLine
+              ? t('viewer.offline')
+              : isUnauthenticated(error)
+                ? t('viewer.signedOut')
+                : t('viewer.error')}
           </Alert>
         )}
       >

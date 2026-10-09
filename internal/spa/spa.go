@@ -108,6 +108,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serveFile(w http.ResponseWriter, r *http.Request, name string) {
+	// Go の mime パッケージが知らない拡張子は、中身から推測させずに型を決める。
+	if path.Ext(name) == ".webmanifest" {
+		w.Header().Set("Content-Type", "application/manifest+json")
+	}
 	if strings.HasPrefix(name, "assets/") {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	} else {

@@ -18,7 +18,11 @@
     "react-dom": "19.3.0",
     "react-i18next": "17.0.16",
     "react-relay": "21.0.1",
-    "relay-runtime": "21.0.1"
+    "relay-runtime": "21.0.1",
+    "workbox-core": "7.4.1",
+    "workbox-precaching": "7.4.1",
+    "workbox-routing": "7.4.1",
+    "workbox-strategies": "7.4.1"
   },
   "devDependencies": {
     "@rolldown/plugin-babel": "0.2.4",
@@ -31,8 +35,10 @@
     "relay-compiler": "21.0.1",
     "typescript": "7.0.2",
     "vite": "npm:@voidzero-dev/vite-plus-core@1.1.0",
+    "vite-plugin-pwa": "2.0.0",
     "vite-plus": "1.1.0",
-    "vitest": "5.0.3"
+    "vitest": "5.0.3",
+    "workbox-window": "7.4.1"
   },
   "packageManager": "pnpm@12.9.0"
 }
