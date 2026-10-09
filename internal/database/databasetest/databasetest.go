@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"net/url"
 	"os"
 	"testing"
@@ -35,22 +36,15 @@ func New(t *testing.T) *config.Database {
 		t.Skipf("%s is not set; skipping a test that needs PostgreSQL", EnvURL)
 	}
 
-	ctx := t.Context()
-	admin, err := pgx.Connect(ctx, adminURL)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = admin.Close(context.Background())
-	})
-
+	// 管理用の接続は、作るときと消すときだけつなぐ。テストの間つなぎっぱなしにすると、
+	// 並行に走るテストの数だけ接続を使い、PostgreSQL の接続数の上限に当たる。
 	name := "kotatsu_test_" + randomSuffix(t)
-	_, err = admin.Exec(ctx, "CREATE DATABASE "+pgx.Identifier{name}.Sanitize())
-	require.NoError(t, err)
+	require.NoError(t, execAdmin(t.Context(), adminURL, "CREATE DATABASE "+pgx.Identifier{name}.Sanitize()))
 	t.Cleanup(func() {
 		// t.Context() はクリーンアップの時点で終わっているので、別の context を使う。
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		_, err := admin.Exec(ctx, "DROP DATABASE "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)")
-		if err != nil {
+		if err := execAdmin(ctx, adminURL, "DROP DATABASE "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)"); err != nil {
 			t.Errorf("failed to drop the test database %s: %v", name, err)
 		}
 	})
@@ -60,6 +54,22 @@ func New(t *testing.T) *config.Database {
 	u.Path = "/" + name
 
 	return &config.Database{URL: config.Secret(u.String()), Pooler: false}
+}
+
+// execAdmin は、管理用の接続で sql を実行し、接続を閉じる。
+func execAdmin(ctx context.Context, adminURL, sql string) error {
+	admin, err := pgx.Connect(ctx, adminURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to the admin database: %w", err)
+	}
+	defer func() {
+		_ = admin.Close(context.WithoutCancel(ctx))
+	}()
+	if _, err := admin.Exec(ctx, sql); err != nil {
+		return fmt.Errorf("failed to run %q: %w", sql, err)
+	}
+
+	return nil
 }
 
 func randomSuffix(t *testing.T) string {
