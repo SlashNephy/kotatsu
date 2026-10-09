@@ -26,6 +26,7 @@ type Config struct {
 	Telemetry Telemetry `yaml:"telemetry"`
 	Audit     Audit     `yaml:"audit"`
 	Storage   Storage   `yaml:"storage"`
+	Tuner     Tuner     `yaml:"tuner"`
 }
 
 // Server は tenban の HTTP サーバーの設定。
@@ -71,6 +72,13 @@ type Storage struct {
 	Pools map[string]string `yaml:"pools"`
 }
 
+// Tuner はチューナーサーバーの設定 (設計書 3.1)。
+type Tuner struct {
+	// URL はチューナーサーバーの URL (http://mirakurun:40772/ など)。BASIC 認証の資格情報を含めてよい。
+	// 資格情報を含みうるので秘密情報として扱う。空なら、neko は EPG を同期しない。
+	URL Secret `yaml:"url"`
+}
+
 // Default は既定値を入れた設定を返す。
 func Default() *Config {
 	return &Config{
@@ -93,6 +101,9 @@ func Default() *Config {
 		},
 		Storage: Storage{
 			Pools: map[string]string{},
+		},
+		Tuner: Tuner{
+			URL: "",
 		},
 	}
 }

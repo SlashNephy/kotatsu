@@ -125,6 +125,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
 				Storage:  noPools(),
+				Tuner:    config.Tuner{URL: ""},
 			},
 		},
 		{
@@ -140,6 +141,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Telemetry: config.Telemetry{OTLPEndpoint: "http://collector:4318"},
 				Audit:     config.Audit{RetentionDays: defaultAuditRetentionDays},
 				Storage:   noPools(),
+				Tuner:     config.Tuner{URL: ""},
 			},
 		},
 		{
@@ -155,6 +157,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: true},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
 				Storage:  noPools(),
+				Tuner:    config.Tuner{URL: ""},
 			},
 		},
 		{
@@ -166,6 +169,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: "postgresql://db/kotatsu", Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
 				Storage:  noPools(),
+				Tuner:    config.Tuner{URL: ""},
 			},
 		},
 		{
@@ -178,6 +182,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: 30},
 				Storage:  noPools(),
+				Tuner:    config.Tuner{URL: ""},
 			},
 		},
 		{
@@ -190,6 +195,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
 				Storage:  config.Storage{Pools: map[string]string{"main": "/mnt/main", "sub-2": "/mnt/sub"}},
+				Tuner:    config.Tuner{URL: ""},
 			},
 		},
 		{
@@ -205,6 +211,23 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
 				Storage:  config.Storage{Pools: map[string]string{"main": "/data/main", "archive": "/data/archive"}},
+				Tuner:    config.Tuner{URL: ""},
+			},
+		},
+		{
+			name: "tuner server url from env",
+			yaml: "",
+			env: map[string]string{
+				envKeyURL:           envURL,
+				"KOTATSU_TUNER_URL": "http://mirakurun:40772/",
+			},
+			want: &config.Config{
+				Server:   config.Server{Listen: defaultServerListen},
+				Metrics:  config.Metrics{Listen: defaultMetricsListen},
+				Database: config.Database{URL: envURL, Pooler: false},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Storage:  noPools(),
+				Tuner:    config.Tuner{URL: "http://mirakurun:40772/"},
 			},
 		},
 		{
@@ -220,6 +243,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
 				Storage:  noPools(),
+				Tuner:    config.Tuner{URL: ""},
 			},
 		},
 	}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type AuditEvent struct {
@@ -31,6 +32,20 @@ type ChangeVersion struct {
 	UpdatedAt time.Time
 }
 
+type ChannelType struct {
+	Type        string
+	DisplayName string
+	SortOrder   int32
+}
+
+type EpgChange struct {
+	Version   int64
+	ServiceID int64
+	StartAt   time.Time
+	EndAt     time.Time
+	CreatedAt time.Time
+}
+
 type Instance struct {
 	ID          uuid.UUID
 	Role        string
@@ -48,10 +63,46 @@ type Lease struct {
 	ExpiresAt  time.Time
 }
 
+type Program struct {
+	ServiceID             int64
+	EventID               int32
+	MirakurunID           int64
+	StartAt               time.Time
+	EndAt                 time.Time
+	EndUndecided          bool
+	IsFree                bool
+	Name                  string
+	Description           string
+	NameNormalized        string
+	DescriptionNormalized string
+	Extended              []byte
+	Genres                []byte
+	RelatedItems          []byte
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}
+
 type SchemaCompatibility struct {
 	ID               bool
 	MinBinaryVersion int64
 	UpdatedAt        time.Time
+}
+
+type Service struct {
+	ID                 int64
+	NetworkID          int32
+	Sid                int32
+	Name               string
+	NameNormalized     string
+	ServiceType        int32
+	ChannelType        string
+	Channel            string
+	RemoteControlKeyID pgtype.Int4
+	LogoID             pgtype.Int4
+	Hidden             bool
+	SortOrder          pgtype.Int4
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 type Session struct {
