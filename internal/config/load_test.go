@@ -22,7 +22,8 @@ const (
 	envURL  = "postgres://env@db/kotatsu"
 	fileURL = "postgres://file@db/kotatsu"
 
-	envKeyURL = "KOTATSU_DATABASE_URL"
+	envKeyURL   = "KOTATSU_DATABASE_URL"
+	envKeyPools = "KOTATSU_STORAGE_POOLS"
 
 	// Default の既定値。:9090 は設計書の付録 A で定めている。
 	defaultServerListen  = ":8080"
@@ -30,6 +31,11 @@ const (
 	// 設計書の付録 A の初期値。
 	defaultAuditRetentionDays = 365
 )
+
+// noPools は、プールを設定していないときの Storage。
+func noPools() config.Storage {
+	return config.Storage{Pools: map[string]string{}}
+}
 
 func TestLoadPrecedence(t *testing.T) {
 	t.Parallel()
@@ -118,6 +124,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Storage:  noPools(),
 			},
 		},
 		{
@@ -132,6 +139,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database:  config.Database{URL: envURL, Pooler: false},
 				Telemetry: config.Telemetry{OTLPEndpoint: "http://collector:4318"},
 				Audit:     config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Storage:   noPools(),
 			},
 		},
 		{
@@ -146,6 +154,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Metrics:  config.Metrics{Listen: ":9100"},
 				Database: config.Database{URL: envURL, Pooler: true},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Storage:  noPools(),
 			},
 		},
 		{
@@ -156,6 +165,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: "postgresql://db/kotatsu", Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Storage:  noPools(),
 			},
 		},
 		{
@@ -167,6 +177,34 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: 30},
+				Storage:  noPools(),
+			},
+		},
+		{
+			name: "storage pools in yaml",
+			yaml: "storage:\n  pools:\n    main: /mnt/main\n    sub-2: /mnt/sub\n",
+			env:  map[string]string{envKeyURL: envURL},
+			want: &config.Config{
+				Server:   config.Server{Listen: defaultServerListen},
+				Metrics:  config.Metrics{Listen: defaultMetricsListen},
+				Database: config.Database{URL: envURL, Pooler: false},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Storage:  config.Storage{Pools: map[string]string{"main": "/mnt/main", "sub-2": "/mnt/sub"}},
+			},
+		},
+		{
+			name: "env replaces storage pools in yaml",
+			yaml: "storage:\n  pools:\n    main: /mnt/main\n",
+			env: map[string]string{
+				envKeyURL:   envURL,
+				envKeyPools: "main=/data/main, archive=/data/archive",
+			},
+			want: &config.Config{
+				Server:   config.Server{Listen: defaultServerListen},
+				Metrics:  config.Metrics{Listen: defaultMetricsListen},
+				Database: config.Database{URL: envURL, Pooler: false},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Storage:  config.Storage{Pools: map[string]string{"main": "/data/main", "archive": "/data/archive"}},
 			},
 		},
 		{
@@ -181,6 +219,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Storage:  noPools(),
 			},
 		},
 	}
@@ -256,6 +295,31 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 				"KOTATSU_TELEMETRY_OTLP_ENDPOINT": "collector:4318",
 			},
 			wantErrs: []string{"telemetry.otlp_endpoint (KOTATSU_TELEMETRY_OTLP_ENDPOINT): must be an http:// or https:// URL"},
+		},
+		{
+			name: "invalid pool ID and relative mount point",
+			yaml: "storage:\n  pools:\n    Main: /mnt/main\n    sub: mnt/sub\n",
+			env:  map[string]string{envKeyURL: envURL},
+			wantErrs: []string{
+				`storage.pools (KOTATSU_STORAGE_POOLS): pool ID "Main" must consist of`,
+				`storage.pools (KOTATSU_STORAGE_POOLS): mount point of pool "sub" must be an absolute path`,
+			},
+		},
+		{
+			name: "malformed pools in env",
+			env: map[string]string{
+				envKeyURL:   envURL,
+				envKeyPools: "main:/mnt/main",
+			},
+			wantErrs: []string{"storage.pools (KOTATSU_STORAGE_POOLS): must be a comma-separated list of key=value"},
+		},
+		{
+			name: "duplicated pool in env",
+			env: map[string]string{
+				envKeyURL:   envURL,
+				envKeyPools: "main=/a,main=/b",
+			},
+			wantErrs: []string{`storage.pools (KOTATSU_STORAGE_POOLS): key "main" is given more than once`},
 		},
 		{
 			name:     "unknown key in yaml",
