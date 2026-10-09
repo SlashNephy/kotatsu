@@ -1,0 +1,117 @@
+package auth
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/id"
+)
+
+const (
+	maxUsernameLength    = 64
+	maxDisplayNameLength = 64
+	// pgUniqueViolation は、一意制約の違反を表す PostgreSQL のエラーコード。
+	pgUniqueViolation = "23505"
+)
+
+var (
+	// ErrUsernameTaken は、同じユーザー名 (大文字と小文字を区別しない) のユーザーがいることを表す。
+	ErrUsernameTaken = errors.New("username is already taken")
+	// ErrInvalidUser は、ユーザーの項目が正しくないことを表す。
+	ErrInvalidUser = errors.New("invalid user")
+)
+
+// User はユーザー。
+type User struct {
+	ID          uuid.UUID
+	Username    string
+	DisplayName string
+	Role        Role
+	// DisabledAt は無効にした日時。有効なら nil。
+	DisabledAt *time.Time
+	CreatedAt  time.Time
+}
+
+// NewUser は、作るユーザーの項目。
+type NewUser struct {
+	Username    string
+	DisplayName string
+	Role        Role
+	// PasswordHash はパスワードのハッシュ。OIDC だけでログインするユーザーでは nil。
+	PasswordHash *string
+}
+
+// Users はユーザーを扱う。
+type Users struct {
+	clock clock.Clock
+}
+
+// NewUsers は Users を作る。
+func NewUsers(clk clock.Clock) *Users {
+	return &Users{clock: clk}
+}
+
+// Create はユーザーを作る。
+func (u *Users) Create(ctx context.Context, db sqlc.DBTX, user *NewUser) (*User, error) {
+	if err := validateNewUser(user); err != nil {
+		return nil, err
+	}
+
+	created := &User{
+		ID:          id.New(),
+		Username:    user.Username,
+		DisplayName: user.DisplayName,
+		Role:        user.Role,
+		DisabledAt:  nil,
+		CreatedAt:   u.clock.Now(),
+	}
+	err := sqlc.New(db).InsertUser(ctx, sqlc.InsertUserParams{
+		ID:           created.ID,
+		Username:     created.Username,
+		DisplayName:  created.DisplayName,
+		Role:         string(created.Role),
+		PasswordHash: user.PasswordHash,
+		CreatedAt:    created.CreatedAt,
+	})
+	if pgErr := (*pgconn.PgError)(nil); errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
+		return nil, fmt.Errorf("%w: %s", ErrUsernameTaken, user.Username)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a user: %w", err)
+	}
+
+	return created, nil
+}
+
+// Disable はユーザーを無効にする。無効にしたユーザーのセッションは、その時点から使えなくなる。
+func (u *Users) Disable(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) error {
+	if _, err := sqlc.New(db).DisableUser(ctx, sqlc.DisableUserParams{ID: userID, DisabledAt: new(u.clock.Now())}); err != nil {
+		return fmt.Errorf("failed to disable a user: %w", err)
+	}
+
+	return nil
+}
+
+func validateNewUser(user *NewUser) error {
+	errs := []error{}
+	if user.Username == "" || utf8.RuneCountInString(user.Username) > maxUsernameLength || strings.TrimSpace(user.Username) != user.Username {
+		errs = append(errs, fmt.Errorf("%w: username must be 1 to %d characters without surrounding spaces", ErrInvalidUser, maxUsernameLength))
+	}
+	if user.DisplayName == "" || utf8.RuneCountInString(user.DisplayName) > maxDisplayNameLength {
+		errs = append(errs, fmt.Errorf("%w: display name must be 1 to %d characters", ErrInvalidUser, maxDisplayNameLength))
+	}
+	if _, err := ParseRole(string(user.Role)); err != nil {
+		errs = append(errs, err)
+	}
+
+	return errors.Join(errs...)
+}

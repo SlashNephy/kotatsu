@@ -7,6 +7,8 @@ package sqlc
 import (
 	"context"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Querier interface {
@@ -17,10 +19,13 @@ type Querier interface {
 	DeleteAuditEventsBefore(ctx context.Context, before time.Time) (int64, error)
 	DeleteInstance(ctx context.Context, arg DeleteInstanceParams) error
 	DeleteStaleInstances(ctx context.Context, before time.Time) (int64, error)
+	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
+	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	HeartbeatInstance(ctx context.Context, arg HeartbeatInstanceParams) (int64, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
+	InsertUser(ctx context.Context, arg InsertUserParams) error
 	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
 	ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error)
 	ListChangeVersions(ctx context.Context, channels []string) ([]ListChangeVersionsRow, error)

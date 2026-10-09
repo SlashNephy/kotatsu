@@ -53,3 +53,14 @@ type SchemaCompatibility struct {
 	MinBinaryVersion int64
 	UpdatedAt        time.Time
 }
+
+type User struct {
+	ID           uuid.UUID
+	Username     string
+	DisplayName  string
+	Role         string
+	PasswordHash *string
+	DisabledAt   *time.Time
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}

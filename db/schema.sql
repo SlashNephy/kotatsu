@@ -72,3 +72,20 @@ CREATE TABLE audit_events (
 
 -- 保持期間を過ぎた記録を消すときと、新しい順に並べるときに使う。
 CREATE INDEX audit_events_occurred_at_idx ON audit_events (occurred_at);
+
+-- ユーザー (設計書 9.7)。ロールは admin (管理者)、member (メンバー)、viewer (視聴者) のどれか。
+CREATE TABLE users (
+  id uuid PRIMARY KEY,
+  username text NOT NULL,
+  display_name text NOT NULL,
+  role text NOT NULL CHECK (role IN ('admin', 'member', 'viewer')),
+  -- パスワードのハッシュ (設計書 9.3)。OIDC だけでログインするユーザーでは空。
+  password_hash text,
+  -- 無効にした日時。無効にしたユーザーのセッションは使えない。
+  disabled_at timestamptz,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- ユーザー名は大文字と小文字を区別せずに一意にする。citext は拡張を要するので使わない。
+CREATE UNIQUE INDEX users_lower_username_idx ON users (lower(username));
