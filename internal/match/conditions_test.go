@@ -79,6 +79,15 @@ func TestValidateRejectsInvalidConditions(t *testing.T) {
 			wantErr: "minDurationSeconds must not exceed maxDurationSeconds",
 		},
 		{
+			name: "too many time ranges",
+			modify: func(c *match.Conditions) {
+				for range 1000 {
+					c.TimeRanges = append(c.TimeRanges, c.TimeRanges[0])
+				}
+			},
+			wantErr: "timeRanges must have at most 1000 items",
+		},
+		{
 			name:    "empty channel type",
 			modify:  func(c *match.Conditions) { c.ChannelTypes = []string{""} },
 			wantErr: "channelTypes must not contain an empty string",
@@ -98,6 +107,17 @@ func TestValidateRejectsInvalidConditions(t *testing.T) {
 			require.ErrorIs(t, err, match.ErrInvalidConditions)
 		})
 	}
+}
+
+func TestNilInputsAreRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := match.Encode(nil)
+	require.ErrorIs(t, err, match.ErrInvalidConditions)
+	_, err = match.Compile(nil, time.UTC)
+	require.ErrorIs(t, err, match.ErrInvalidConditions)
+	_, err = match.Compile(fullConditions(), nil)
+	require.ErrorContains(t, err, "location must not be nil")
 }
 
 func TestDecodeRejectsUnknownData(t *testing.T) {

@@ -97,11 +97,26 @@ type Conditions struct {
 
 // Validate は、条件が正しいかを確かめる。正しくなければ、理由をすべてまとめた ErrInvalidConditions を返す。
 func (c *Conditions) Validate() error {
+	if c == nil {
+		return invalid("conditions must not be null")
+	}
+
 	errs := []error{}
 	errs = append(errs, validateKeywords("keywords", c.Keywords)...)
 	errs = append(errs, validateKeywords("excludeKeywords", c.ExcludeKeywords)...)
-	if len(c.ChannelTypes) > maxListLength || len(c.ServiceIDs) > maxListLength {
-		errs = append(errs, invalid("channelTypes and serviceIds must have at most %d items", maxListLength))
+	for _, list := range []struct {
+		name   string
+		length int
+	}{
+		{"channelTypes", len(c.ChannelTypes)},
+		{"serviceIds", len(c.ServiceIDs)},
+		{"genres", len(c.Genres)},
+		{"excludeGenres", len(c.ExcludeGenres)},
+		{"timeRanges", len(c.TimeRanges)},
+	} {
+		if list.length > maxListLength {
+			errs = append(errs, invalid("%s must have at most %d items", list.name, maxListLength))
+		}
 	}
 	if slices.Contains(c.ChannelTypes, "") {
 		errs = append(errs, invalid("channelTypes must not contain an empty string"))
@@ -216,9 +231,6 @@ type envelope struct {
 
 // Encode は、条件を検証してから、スキーマのバージョンを付けた JSON にする。
 func Encode(c *Conditions) ([]byte, error) {
-	if c == nil {
-		return nil, fmt.Errorf("%w: conditions must not be null", ErrInvalidConditions)
-	}
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}

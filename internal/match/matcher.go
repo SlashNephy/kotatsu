@@ -1,6 +1,7 @@
 package match
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"regexp"
@@ -82,6 +83,9 @@ type compiledKeyword struct {
 func Compile(c *Conditions, location *time.Location) (*Matcher, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
+	}
+	if location == nil {
+		return nil, errors.New("location must not be nil")
 	}
 
 	m := &Matcher{
