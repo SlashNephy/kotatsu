@@ -1,11 +1,16 @@
 // Package mirakurun は、Mirakurun 互換のチューナーサーバーのクライアントを提供する (設計書 3.1)。
 //
-// Mirakurun、mirakc、Mahiron が共通して持つ、Mirakurun 互換の REST API とサービスストリームを扱う。
+// Mirakurun 互換の REST API とサービスストリームを基本にし、サーバーの種類 (Mirakurun、mirakc、Mahiron) と
+// 追加機能は、接続時と定期的に判定し直す。イベントは、Mirakurun と Mahiron では /api/events/stream、
+// mirakc では /events (SSE) から読む。
 //
 // JSON の形は Mirakurun の api.d.ts に合わせている。Kotatsu が使わない項目は省いている。
 package mirakurun
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Channel は /api/channels の要素。
 type Channel struct {
@@ -105,4 +110,20 @@ type Version struct {
 	Latest  string `json:"latest"`
 	// Server は、Mahiron が "mahiron" を返す。Mirakurun と mirakc は返さない。
 	Server string `json:"server,omitempty"`
+}
+
+// Event は、チューナーサーバーから届いたイベント。
+//
+// Mirakurun と Mahiron のイベントは、Resource が program、service、tuner のどれかで、
+// Type が create、update、remove のどれかになる。
+// mirakc のイベントは、SSE のイベント名 (例: epg.programs-updated) を最初の "." で分け、
+// Resource を epg、Type を programs-updated のようにする。mirakc のイベントには時刻がないので、Time はゼロ値になる。
+//
+// Mirakurun のイベントは取りこぼしや遅れがあるので、データの正しさは全量の取得で保証する (設計書 3.3)。
+type Event struct {
+	Resource string
+	Type     string
+	// Data はイベントの中身。Resource と Type によって形が変わるので、受け取った JSON のまま持つ。
+	Data json.RawMessage
+	Time time.Time
 }

@@ -27,6 +27,10 @@ func testNow() time.Time {
 const (
 	// grServiceID は、偽チューナーの GR 27 のサービス (networkId 0x7FE0、serviceId 0x0400) の ID。
 	grServiceID = int64(32736_01024)
+
+	resourceProgram   = "program"
+	resourceTuner     = "tuner"
+	typeStatusChanged = "status-changed"
 )
 
 // recorder は、偽チューナーへのリクエストを記録する。

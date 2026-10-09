@@ -10,8 +10,10 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/config"
 )
 
@@ -21,6 +23,7 @@ const (
 
 	defaultUserAgent      = "kotatsu"
 	defaultRequestTimeout = 30 * time.Second
+	defaultDetectInterval = 10 * time.Minute
 	// maxErrorBodySize は、エラーの応答から読む本文の上限。
 	maxErrorBodySize = 64 << 10
 )
@@ -39,6 +42,9 @@ type Options struct {
 	HTTPClient *http.Client
 	// RequestTimeout は、ストリーム以外の API の呼び出しにかける時間の上限。0 なら 30 秒。
 	RequestTimeout time.Duration
+	// DetectInterval は、サーバーの種類を判定し直す間隔。0 なら 10 分。
+	DetectInterval time.Duration
+	Clock          clock.Clock
 }
 
 // Client は Mirakurun 互換のチューナーサーバーのクライアント。複数の goroutine から使ってよい。
@@ -49,6 +55,13 @@ type Client struct {
 	userAgent      string
 	httpClient     *http.Client
 	requestTimeout time.Duration
+	detectInterval time.Duration
+	clock          clock.Clock
+
+	mu sync.Mutex
+	// server は、最後に判定したサーバーの種類。detectedAt から detectInterval が過ぎたら判定し直す。
+	server     *ServerInfo
+	detectedAt time.Time
 }
 
 // APIError は、チューナーサーバーが 2xx 以外の状態を返したことを表す。
@@ -104,6 +117,14 @@ func New(opts *Options) (*Client, error) {
 	if requestTimeout == 0 {
 		requestTimeout = defaultRequestTimeout
 	}
+	detectInterval := opts.DetectInterval
+	if detectInterval == 0 {
+		detectInterval = defaultDetectInterval
+	}
+	clk := opts.Clock
+	if clk == nil {
+		clk = new(clock.Real)
+	}
 
 	return &Client{
 		baseURL:        baseURL,
@@ -112,6 +133,11 @@ func New(opts *Options) (*Client, error) {
 		userAgent:      userAgent,
 		httpClient:     httpClient,
 		requestTimeout: requestTimeout,
+		detectInterval: detectInterval,
+		clock:          clk,
+		mu:             sync.Mutex{},
+		server:         nil,
+		detectedAt:     time.Time{},
 	}, nil
 }
 
