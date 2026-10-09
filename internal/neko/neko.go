@@ -47,7 +47,7 @@ type Options struct {
 	Tuners *tunerstate.Options
 	// Location は、ルールの曜日と時間帯を判定する、表示のタイムゾーン (設計書 8.1)。
 	Location *time.Location
-	// Rules は、ルールの照合の設定。nil なら既定値を使う。変更の通知を LISTEN で受けるかは UseListen で決める。
+	// Rules は、ルールの照合の設定。nil なら既定値を使う。
 	Rules *rule.RunnerOptions
 }
 

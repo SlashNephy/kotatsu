@@ -138,7 +138,7 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 		Rules: &rule.RunnerOptions{
 			Debounce:     0,
 			Interval:     0,
-			UseListen:    !deps.Config.Database.Pooler,
+			PollOnly:     deps.Config.Database.Pooler,
 			PollInterval: 0,
 		},
 	})

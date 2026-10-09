@@ -50,7 +50,7 @@ func TestLeaderSyncsEPGAndMatchesRules(t *testing.T) {
 			Archive:    nil,
 			Tuners:     nil,
 			Location:   time.UTC,
-			Rules:      &rule.RunnerOptions{Debounce: 10 * time.Millisecond, Interval: time.Hour, UseListen: true, PollInterval: 0},
+			Rules:      &rule.RunnerOptions{Debounce: 10 * time.Millisecond, Interval: time.Hour, PollOnly: false, PollInterval: 0},
 		})
 	}()
 

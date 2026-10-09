@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	// DefaultDebounce は、EPG やルールが変わってから照合するまで待つ時間。立て続けの変更を 1 回の照合にまとめる (設計書 4.5)。
+	// DefaultDebounce は、EPG やルールが変わってから照合するまで待つ時間。立て続けの変更を 1 回の照合にまとめる (設計書 4.3)。
 	DefaultDebounce = 2 * time.Second
 	// DefaultInterval は、変更がなくても照合する間隔。通知を取りこぼしても、これより長く遅れない。
 	DefaultInterval = 10 * time.Minute
@@ -23,8 +23,9 @@ const (
 type RunnerOptions struct {
 	Debounce time.Duration
 	Interval time.Duration
-	// UseListen は、変更の通知を LISTEN で受けるかどうか。トランザクションプーリングを経由するときは false にする。
-	UseListen bool
+	// PollOnly は、変更の通知を LISTEN で受けずに、ポーリングだけで知るかどうか。
+	// トランザクションプーリングを経由するときは true にする。
+	PollOnly bool
 	// PollInterval は、変更の通知の版数をポーリングする間隔。0 なら notify の既定値。
 	PollInterval time.Duration
 }
@@ -39,9 +40,9 @@ type Runner struct {
 
 // NewRunner は Runner を作る。opts は nil でもよい。
 func NewRunner(engine *Engine, pool *pgxpool.Pool, logger *slog.Logger, opts *RunnerOptions) *Runner {
-	o := RunnerOptions{Debounce: DefaultDebounce, Interval: DefaultInterval, UseListen: true, PollInterval: notify.DefaultPollInterval}
+	o := RunnerOptions{Debounce: DefaultDebounce, Interval: DefaultInterval, PollOnly: false, PollInterval: notify.DefaultPollInterval}
 	if opts != nil {
-		o.UseListen = opts.UseListen
+		o.PollOnly = opts.PollOnly
 		if opts.Debounce > 0 {
 			o.Debounce = opts.Debounce
 		}
@@ -60,7 +61,7 @@ func NewRunner(engine *Engine, pool *pgxpool.Pool, logger *slog.Logger, opts *Ru
 // 照合に失敗したら、ログに出して次のきっかけを待つ。
 func (r *Runner) Run(ctx context.Context) error {
 	watcher, err := notify.NewWatcher(ctx, r.pool, r.logger, []string{epg.NotifyChannel, NotifyChannel}, notify.WatcherOptions{
-		UseListen:    r.opts.UseListen,
+		UseListen:    !r.opts.PollOnly,
 		PollInterval: r.opts.PollInterval,
 	})
 	if err != nil {
@@ -85,11 +86,16 @@ func (r *Runner) Run(ctx context.Context) error {
 			return err
 		case <-ticker.C:
 		case <-watcher.Changes():
-			// 立て続けの変更をまとめるため、少し待ってから照合する。待つ間に来た変更は、次の Changes にまとまる。
+			// 立て続けの変更をまとめるため、少し待ってから照合する。
 			select {
 			case <-ctx.Done():
 				return <-watchErr
 			case <-time.After(r.opts.Debounce):
+			}
+			// 待つ間に来た変更は、これからの照合で反映するので捨てる。
+			select {
+			case <-watcher.Changes():
+			default:
 			}
 		}
 	}
