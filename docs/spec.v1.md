@@ -892,7 +892,7 @@ Ingress を経由すると、送信元が Ingress のプライベートアドレ
 | 番組表 | TanStack Virtual | 縦と横の両方を仮想化し、チャンネル数と番組数が多くても描画する要素を画面内に限ります。 |
 | 再生 | mpeg2toh264、hls.js、aribb24.js、web-bml、niconicomments | |
 | 認証 | @simplewebauthn/browser、zxcvbn-ts | |
-| PWA | Service Worker でアプリの外枠だけをキャッシュし、Web Push を受け取ります | 番組データと映像はキャッシュしません。Service Worker を生成するプラグインは、Vite+ との相性を実装時に確かめて決めます。 |
+| PWA | Service Worker でアプリの外枠だけをキャッシュし、Web Push を受け取ります | 番組データと映像はキャッシュしません。Service Worker は vite-plugin-pwa の `injectManifest` で作ります。プリキャッシュの一覧はプラグインに注入させ、Web Push の受信とナビゲーションの扱いは自前の Service Worker に書きます。 |
 | 文言 | i18next | v1 は日本語だけですが、後から仕組みを入れ直さずに済むよう最初から導入します。 |
 | 品質 | Oxlint と Oxfmt（`vp check`）、Vitest、Storybook、Playwright | Storybook は futon の部品の確認に使います。 |
 
@@ -1034,7 +1034,6 @@ Kotatsu は公開リポジトリなので、実際の放送の TS をテスト�
 | データ放送の渡し方 | web-bml にデータを渡す方法として、ブラウザに届いた TS を使う方法、Mahiron のデータ放送 API、psisiarc のどれが使えるか | 使える方法をサーバーごとに選びます。どれも使えないサーバーでは、データ放送を表示しません。 |
 | デュアルモノ | mpeg2toh264 のプレイヤーが、デュアルモノの音声を切り替えられるか | ブラウザ内での変換では主音声だけを再生し、切り替えは kyusu の経路で行います。 |
 | 実況チャンネルの対応表 | サービスと NX-Jikkyo のチャンネルの対応表を、NX-Jikkyo のチャンネル情報 API から取得できるか | 対応表を Kotatsu に同梱します。 |
-| PWA のプラグイン | Service Worker を生成するプラグインが、Vite+ と組み合わせて動くか | Service Worker を手で書きます。 |
 | ハードウェアエンコード | Debian の `ffmpeg` と main コンポーネントのドライバで、VAAPI、QSV、NVENC の H.264 と HEVC のエンコードが動くか。Intel の GPU は、non-free のドライバに頼りやすい Gen11 以前と、Gen12 以降の両方で確かめます | 動かないエンコーダーや GPU の世代は、v1 の対応から外します。 |
 
 ## 付録 A. 既定値の一覧
