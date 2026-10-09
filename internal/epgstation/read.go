@@ -160,8 +160,8 @@ func readManualReserves(ctx context.Context, tx *sql.Tx) ([]*Reserve, error) {
 		}
 
 		reserve.ProgramID = int64OrNil(programID)
-		reserve.StartAt = time.UnixMilli(startAt)
-		reserve.EndAt = time.UnixMilli(endAt)
+		reserve.StartAt = fromMillis(startAt)
+		reserve.EndAt = fromMillis(endAt)
 		reserve.Name = name.String
 		reserve.ParentDirectoryName = parentDirectory.String
 		reserve.Directory = directory.String
@@ -198,8 +198,8 @@ func readRecordings(ctx context.Context, tx *sql.Tx) ([]*Recording, error) {
 		recording.TagIDs = []int64{}
 		recording.RuleID = int64OrNil(ruleID)
 		recording.ProgramID = int64OrNil(programID)
-		recording.StartAt = time.UnixMilli(startAt)
-		recording.EndAt = time.UnixMilli(endAt)
+		recording.StartAt = fromMillis(startAt)
+		recording.EndAt = fromMillis(endAt)
 		recording.Description = description.String
 		recording.Extended = extended.String
 		recording.Genres = genresOf([][2]sql.NullInt64{{genre1, subGenre1}, {genre2, subGenre2}, {genre3, subGenre3}})
@@ -285,7 +285,7 @@ func readHistories(ctx context.Context, tx *sql.Tx) ([]*RecordedHistory, error) 
 		if err := rows.Scan(&history.ID, &history.Name, &history.ChannelID, &endAt); err != nil {
 			return nil, err
 		}
-		history.EndAt = time.UnixMilli(endAt)
+		history.EndAt = fromMillis(endAt)
 
 		return history, nil
 	})
@@ -357,7 +357,7 @@ func decodePeriods(column sql.NullString) ([]*Period, error) {
 
 	periods := make([]*Period, 0, len(raw))
 	for _, p := range raw {
-		periods = append(periods, &Period{StartAt: time.UnixMilli(p.StartAt), EndAt: time.UnixMilli(p.EndAt)})
+		periods = append(periods, &Period{StartAt: fromMillis(p.StartAt), EndAt: fromMillis(p.EndAt)})
 	}
 
 	return periods, nil
@@ -377,4 +377,9 @@ func int64OrNil(v sql.NullInt64) *int64 {
 	}
 
 	return new(v.Int64)
+}
+
+// fromMillis は、EPGStation が保存する Unix 時間のミリ秒を、UTC の時刻にする (設計書 8.1)。
+func fromMillis(ms int64) time.Time {
+	return time.UnixMilli(ms).UTC()
 }
