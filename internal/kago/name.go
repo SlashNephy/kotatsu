@@ -23,11 +23,19 @@ const (
 	maxSequence = 10_000
 	// fallbackName は、整えた結果が空になったときの名前。
 	fallbackName = "untitled"
+	// maxExtBytes は、拡張子の長さの上限。
+	maxExtBytes = 16
+	// trimmedChars は、名前の前後から取り除く文字 (空白、ドット、全角空白)。
+	trimmedChars = " .\u3000"
 )
 
 // RenderName は、ファイル名のテンプレートに data を当てはめ、ファイル名として使えるように整えて ext を付ける。
 // ext はドットを含めて渡す (例: ".m2ts")。
 func RenderName(tmpl *template.Template, data any, ext string) (string, error) {
+	if len(ext) > maxExtBytes || !strings.HasPrefix(ext, ".") || ext[1:] != SanitizeName(ext[1:]) {
+		return "", fmt.Errorf("%w: invalid extension %q", ErrInvalidPath, ext)
+	}
+
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("failed to render the file name: %w", err)
@@ -51,7 +59,7 @@ func SanitizeName(name string) string {
 
 		return r
 	}, name)
-	name = strings.Trim(name, " .　")
+	name = strings.Trim(name, trimmedChars)
 	if name == "" {
 		return fallbackName
 	}
@@ -61,13 +69,14 @@ func SanitizeName(name string) string {
 
 // fitName は、base + suffix + ext が maxFileNameBytes 以内に収まるよう、base を文字の境界で切り詰める。
 func fitName(base, ext, suffix string) string {
-	limit := maxFileNameBytes - len(ext) - len(suffix)
+	limit := max(maxFileNameBytes-len(ext)-len(suffix), 0)
 	if len(base) > limit {
 		cut := limit
 		for cut > 0 && !utf8.RuneStart(base[cut]) {
 			cut--
 		}
-		base = strings.TrimRight(base[:cut], " .")
+		// 切った位置の前に空白やドットが残ると、SanitizeName を通した名前と食い違うので取り除く。
+		base = strings.TrimRight(base[:cut], trimmedChars)
 		if base == "" {
 			base = fallbackName
 		}

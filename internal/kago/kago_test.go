@@ -166,6 +166,17 @@ func TestCreateSidecarDir(t *testing.T) {
 	}
 }
 
+func TestCreateSidecarDirRejectsFile(t *testing.T) {
+	t.Parallel()
+
+	mount := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(mount, fileName+".kotatsu"), []byte{}, 0o600))
+	store := kago.New(map[string]string{poolMain: mount}, nil)
+
+	_, err := store.CreateSidecarDir(poolMain, fileName)
+	require.ErrorIs(t, err, kago.ErrInvalidPath)
+}
+
 func TestFreeSpace(t *testing.T) {
 	t.Parallel()
 

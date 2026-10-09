@@ -9,6 +9,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -48,7 +49,8 @@ func New(mounts map[string]string, freeSpace FreeSpaceFunc) *Store {
 		freeSpace = FreeSpace
 	}
 
-	return &Store{mounts: mounts, freeSpace: freeSpace}
+	// 呼び出し側が後から書き換えても影響しないよう、複製して持つ。
+	return &Store{mounts: maps.Clone(mounts), freeSpace: freeSpace}
 }
 
 // Path は、プール ID とプール内の相対パスから、このロールでのパスを返す。
@@ -106,7 +108,20 @@ func (s *Store) CreateSidecarDir(poolID, rel string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := os.Mkdir(dir, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
+	err = os.Mkdir(dir, 0o755)
+	if errors.Is(err, os.ErrExist) {
+		// 同じ名前のディレクトリでないものがあれば、付属ファイルを置けない。
+		info, statErr := os.Stat(dir)
+		if statErr != nil {
+			return "", fmt.Errorf("failed to inspect the sidecar directory: %w", statErr)
+		}
+		if !info.IsDir() {
+			return "", fmt.Errorf("%w: %q exists and is not a directory", ErrInvalidPath, dirRel)
+		}
+
+		return dirRel, nil
+	}
+	if err != nil {
 		return "", fmt.Errorf("failed to create the sidecar directory: %w", err)
 	}
 

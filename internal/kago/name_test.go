@@ -100,6 +100,32 @@ func TestRenderName(t *testing.T) {
 		})
 	}
 
+	t.Run("invalid extension", func(t *testing.T) {
+		t.Parallel()
+
+		for _, ext := range []string{"m2ts", "./m2ts", "." + strings.Repeat("x", 20)} {
+			_, err := kago.RenderName(tmpl, data{Date: date, Channel: channel, Title: title}, ext)
+			require.ErrorIs(t, err, kago.ErrInvalidPath, ext)
+		}
+	})
+
+	t.Run("a name cut at an ideographic space can be created", func(t *testing.T) {
+		t.Parallel()
+
+		// 切る位置の直前に全角空白が来るようにする。名前の先頭 (日付とチャンネルと空白) は 34 バイトで、
+		// 上限の 247 バイトから ".m2ts" を引いた 242 バイトまでに入れる。
+		// 34 + 3×68 + 3 (全角空白) = 241 バイトで、次の文字を足すと 244 バイトになるので、全角空白の直後で切れる。
+		long := strings.Repeat("あ", 68) + "\u3000" + strings.Repeat("い", 20)
+		name, err := kago.RenderName(tmpl, data{Date: date, Channel: channel, Title: long}, ".m2ts")
+		require.NoError(t, err)
+		assert.NotContains(t, name, "\u3000.m2ts", "the trailing ideographic space must be trimmed")
+
+		store := kago.New(map[string]string{poolMain: t.TempDir()}, nil)
+		f, _, err := store.Create(poolMain, "", name)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+	})
+
 	t.Run("template error", func(t *testing.T) {
 		t.Parallel()
 
