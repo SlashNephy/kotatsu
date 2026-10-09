@@ -29,7 +29,7 @@ func newLoaders(db sqlc.DBTX) *Loaders {
 		Users: dataloadgen.NewLoader(func(ctx context.Context, ids []uuid.UUID) ([]*sqlc.User, []error) {
 			rows, err := sqlc.New(db).ListUsersByIDs(ctx, ids)
 			if err != nil {
-				return nil, []error{fmt.Errorf("failed to load users: %w", err)}
+				return failAll[*sqlc.User](len(ids), fmt.Errorf("failed to load users: %w", err))
 			}
 			byID := make(map[uuid.UUID]*sqlc.User, len(rows))
 			for i := range rows {
@@ -39,6 +39,16 @@ func newLoaders(db sqlc.DBTX) *Loaders {
 			return orderBy(ids, byID, "user")
 		}, dataloadgen.WithWait(loaderWait)),
 	}
+}
+
+// failAll は、まとめて引いたすべてのキーに、同じエラーを返す。
+func failAll[V any](n int, err error) ([]V, []error) {
+	errs := make([]error, n)
+	for i := range errs {
+		errs[i] = err
+	}
+
+	return make([]V, n), errs
 }
 
 // orderBy は、キーの順に値を並べる。見つからないキーには NOT_FOUND のエラーを返す。

@@ -50,7 +50,16 @@ type Options struct {
 //
 // subscription は、同じエンドポイントで、Accept: text/event-stream のリクエストに SSE で配信する。
 func NewHandler(opts *Options) http.Handler {
-	o := *opts
+	var o Options
+	if opts != nil {
+		o = *opts
+	}
+	if o.Logger == nil {
+		o.Logger = slog.New(slog.DiscardHandler)
+	}
+	if o.Clock == nil {
+		o.Clock = new(clock.Real)
+	}
 	if o.MaxDepth <= 0 {
 		o.MaxDepth = DefaultMaxDepth
 	}

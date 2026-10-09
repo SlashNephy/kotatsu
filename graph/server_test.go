@@ -135,6 +135,18 @@ func TestHandler(t *testing.T) {
 			wantBody:   []string{`"queryType":{"name":"Query"}`},
 		},
 		{
+			name:       "unknown field is a validation error, not an internal error",
+			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: `{"query":"{ viewer { nope } }"}`, loggedIn: true},
+			wantStatus: http.StatusUnprocessableEntity,
+			wantBody:   []string{`"code":"GRAPHQL_VALIDATION_FAILED"`, `Cannot query field \"nope\"`},
+		},
+		{
+			name:       "syntax error is a parse error, not an internal error",
+			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: `{"query":"{ viewer { "}`, loggedIn: true},
+			wantStatus: http.StatusUnprocessableEntity,
+			wantBody:   []string{`"code":"GRAPHQL_PARSE_FAILED"`},
+		},
+		{
 			name:       "GET query is rejected",
 			req:        request{method: http.MethodGet, contentType: "", body: "", loggedIn: true},
 			wantStatus: http.StatusMethodNotAllowed,

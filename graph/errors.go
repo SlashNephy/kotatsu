@@ -31,6 +31,8 @@ const (
 	CodeInternal Code = "INTERNAL"
 )
 
+var _ error = new(Error)
+
 // Error は、エラーコードを持つエラー。リゾルバはこれを返す。
 type Error struct {
 	Code    Code
@@ -51,7 +53,7 @@ func errorPresenter(logger *slog.Logger) graphql.ErrorPresenterFunc {
 	return func(ctx context.Context, err error) *gqlerror.Error {
 		gqlErr := graphql.DefaultErrorPresenter(ctx, err)
 		if gqlErr.Extensions != nil && gqlErr.Extensions[extensionCode] != nil {
-			// 構文や検証のエラーなど、gqlgen がコードを付けたもの。
+			// 構文や検証のエラーなど、gqlgen がコードを付けたもの (GRAPHQL_PARSE_FAILED、GRAPHQL_VALIDATION_FAILED など)。
 			return gqlErr
 		}
 

@@ -17,8 +17,8 @@ type depthLimit struct {
 }
 
 var (
-	_ graphql.HandlerExtension        = depthLimit{max: 0}
-	_ graphql.OperationContextMutator = depthLimit{max: 0}
+	_ graphql.HandlerExtension        = new(depthLimit)
+	_ graphql.OperationContextMutator = new(depthLimit)
 )
 
 func (depthLimit) ExtensionName() string { return "DepthLimit" }
@@ -68,8 +68,8 @@ func selectionDepth(set ast.SelectionSet, fragments ast.FragmentDefinitionList, 
 type introspectionForViewer struct{}
 
 var (
-	_ graphql.HandlerExtension        = introspectionForViewer{}
-	_ graphql.OperationContextMutator = introspectionForViewer{}
+	_ graphql.HandlerExtension        = new(introspectionForViewer)
+	_ graphql.OperationContextMutator = new(introspectionForViewer)
 )
 
 func (introspectionForViewer) ExtensionName() string { return "IntrospectionForViewer" }
