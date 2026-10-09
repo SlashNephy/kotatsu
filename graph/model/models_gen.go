@@ -17,7 +17,7 @@ type Node interface {
 
 // 過去の番組の検索の期間 (設計書 3.4)。開始時刻がこの範囲に入るアーカイブの番組も検索する。
 type ArchiveRangeInput struct {
-	// 期間の始まり。省くと、今から 30 日前。
+	// 期間の始まり。省くと、期間の終わりの 30 日前。
 	From *time.Time `json:"from,omitempty"`
 	// 期間の終わり。省くと、今。
 	To *time.Time `json:"to,omitempty"`

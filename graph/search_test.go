@@ -1,12 +1,14 @@
 package graph_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/graph"
 	"github.com/SlashNephy/kotatsu/internal/id"
 )
 
@@ -53,11 +55,23 @@ type keywordInput struct {
 	Fields []string `json:"fields"`
 }
 
+type genreInput struct {
+	Lv1 int  `json:"lv1"`
+	Lv2 *int `json:"lv2,omitempty"`
+}
+
 type conditionsInput struct {
 	Keywords        []keywordInput `json:"keywords,omitempty"`
 	ExcludeKeywords []keywordInput `json:"excludeKeywords,omitempty"`
 	ChannelTypes    []string       `json:"channelTypes,omitempty"`
 	Services        []string       `json:"services,omitempty"`
+	Genres          []genreInput   `json:"genres,omitempty"`
+	ExcludeGenres   []genreInput   `json:"excludeGenres,omitempty"`
+}
+
+// programName は、こたつテスト1 の eventId の番組の名前を返す。
+func programName(eventID int) string {
+	return fmt.Sprintf("こたつテスト1 テスト番組 %d", eventID)
 }
 
 type archiveInput struct {
@@ -95,13 +109,13 @@ func TestSearchPrograms(t *testing.T) {
 			name:       "regular expression across services in start time order",
 			conditions: conditionsInput{Keywords: []keywordInput{keyword("テスト番組 5$", true)}},
 			want: []string{
-				"こたつ BS テスト番組 5", "こたつテスト1 テスト番組 5", "こたつテスト1 サブ テスト番組 5", "こたつテスト2 テスト番組 5", "こたつテスト3 テスト番組 5",
+				"こたつ BS テスト番組 5", programName(5), "こたつテスト1 サブ テスト番組 5", "こたつテスト2 テスト番組 5", "こたつテスト3 テスト番組 5",
 			},
 		},
 		{
 			name:       "full-width keyword matches after NFKC",
 			conditions: conditionsInput{Keywords: []keywordInput{keyword("こたつテスト１　テスト番組　１４", false)}},
-			want:       []string{"こたつテスト1 テスト番組 14"},
+			want:       []string{programName(14)},
 		},
 		{
 			name:       "channel type",
@@ -113,7 +127,7 @@ func TestSearchPrograms(t *testing.T) {
 			conditions: conditionsInput{
 				Keywords: []keywordInput{keyword("テスト番組 5$", true)}, ExcludeKeywords: []keywordInput{keyword("サブ|BS", true)},
 			},
-			want: []string{"こたつテスト1 テスト番組 5", "こたつテスト2 テスト番組 5", "こたつテスト3 テスト番組 5"},
+			want: []string{programName(5), "こたつテスト2 テスト番組 5", "こたつテスト3 テスト番組 5"},
 		},
 	}
 	for _, tt := range tests {
@@ -152,8 +166,8 @@ func TestSearchProgramsPagination(t *testing.T) {
 	// こたつテスト1 の番組は 14 件あるので、5 件、5 件、4 件に分かれる。
 	require.Len(t, pages, 3)
 	assert.Equal(t, []int{5, 5, 4}, []int{len(pages[0]), len(pages[1]), len(pages[2])})
-	assert.Equal(t, "こたつテスト1 テスト番組 1", pages[0][0])
-	assert.Equal(t, "こたつテスト1 テスト番組 14", pages[2][3])
+	assert.Equal(t, programName(1), pages[0][0])
+	assert.Equal(t, programName(14), pages[2][3])
 }
 
 // TestSearchArchivedPrograms は、過去の番組を、期間を指定したときだけ検索することを確かめる (設計書 3.4)。
@@ -227,6 +241,85 @@ func TestSearchProgramsRejectsInvalidInput(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, []string{codeBadUserInput}, f.query(t, searchQuery, tt.variables, nil))
+		})
+	}
+}
+
+// TestSearchProgramsStopsAtCandidateLimit は、照合する候補が上限に達したら途中で返し、カーソルから続きを検索できることを確かめる。
+func TestSearchProgramsStopsAtCandidateLimit(t *testing.T) {
+	t.Parallel()
+
+	// 候補を 7 件ずつしか照合しない。地上波のサービスの eventId 14 の番組は 70 件中の最後のほうにある。
+	f := newFixture(t, &graph.Options{MaxSearchCandidates: 7})
+	f.syncEPG(t)
+	conditions := conditionsInput{Keywords: []keywordInput{keyword("テスト番組 14$", true)}}
+
+	found := []string{}
+	requests := 0
+	var after *string
+	for {
+		var got searchResult
+		require.Empty(t, f.query(t, searchQuery, searchVariables(conditions, nil, 50, after), &got))
+		requests++
+		found = append(found, got.names()...)
+		if !got.SearchPrograms.PageInfo.HasNextPage {
+			break
+		}
+		require.NotNil(t, got.SearchPrograms.PageInfo.EndCursor)
+		after = got.SearchPrograms.PageInfo.EndCursor
+	}
+
+	// 上限で区切っても、続きを検索すれば、すべて見つかる。
+	assert.Len(t, found, 5)
+	assert.Greater(t, requests, 5)
+}
+
+// TestSearchProgramsByGenre は、ジャンルの包含と除外で絞り込めることを確かめる。
+func TestSearchProgramsByGenre(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	// eventId 5 をアニメ (大分類 7)、6 をアニメの中分類 1 にする。
+	_, err := f.pool.Exec(t.Context(), `UPDATE programs SET genres = '[{"lv1":7,"lv2":0,"un1":15,"un2":15}]' WHERE event_id = 5`)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `UPDATE programs SET genres = '[{"lv1":7,"lv2":1,"un1":15,"un2":15}]' WHERE event_id = 6`)
+	require.NoError(t, err)
+	base := []keywordInput{keyword("^こたつテスト1 テスト番組 [4-7]$", true)}
+
+	tests := []struct {
+		name       string
+		conditions conditionsInput
+		want       []string
+	}{
+		{
+			name:       "major genre",
+			conditions: conditionsInput{Keywords: base, Genres: []genreInput{{Lv1: 7}}},
+			want:       []string{programName(5), programName(6)},
+		},
+		{
+			name:       "minor genre",
+			conditions: conditionsInput{Keywords: base, Genres: []genreInput{{Lv1: 7, Lv2: new(1)}}},
+			want:       []string{programName(6)},
+		},
+		{
+			name:       "excluded major genre",
+			conditions: conditionsInput{Keywords: base, ExcludeGenres: []genreInput{{Lv1: 7}}},
+			want:       []string{programName(4), programName(7)},
+		},
+		{
+			name:       "excluded minor genre",
+			conditions: conditionsInput{Keywords: base, ExcludeGenres: []genreInput{{Lv1: 7, Lv2: new(0)}}},
+			want:       []string{programName(4), programName(6), programName(7)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got searchResult
+			require.Empty(t, f.query(t, searchQuery, searchVariables(tt.conditions, nil, 50, nil), &got))
+			assert.Equal(t, tt.want, got.names())
 		})
 	}
 }

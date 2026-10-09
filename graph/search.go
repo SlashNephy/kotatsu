@@ -23,6 +23,9 @@ const (
 	maxSearchResults = 100
 	// searchBatchSize は、候補を DB から読む 1 回の件数。照合で落ちる候補が多いので、返す件数より多めに読む。
 	searchBatchSize = 500
+	// DefaultMaxSearchCandidates は、1 回のリクエストで照合する候補の数の上限。
+	// 一致する番組が少ないと、アーカイブを含めた全件を読むことになるので、上限で区切って続きはカーソルで検索してもらう。
+	DefaultMaxSearchCandidates = 20_000
 )
 
 // searchCursor は、番組の検索のカーソルの位置。並べ替えのキーと同じ。
@@ -61,36 +64,68 @@ func (r *Resolver) searchPrograms(
 	if err != nil {
 		return nil, err
 	}
+	edges, hasNext, endCursor, err := r.collect(ctx, matcher, params, first)
+	if err != nil {
+		return nil, err
+	}
+	info := pageInfo(edges, hasNext, after != nil)
+	if endCursor != nil {
+		info.EndCursor = endCursor
+	}
+
+	return &model.ProgramConnection{Edges: edges, PageInfo: info}, nil
+}
+
+// collect は、候補を順に照合し、一致した番組を first 件まで集める。
+// 照合した候補が上限に達したら、そこで打ち切り、照合した最後の位置のカーソルを返す。
+func (r *Resolver) collect(
+	ctx context.Context,
+	matcher *match.Matcher,
+	params *sqlc.SearchProgramCandidatesParams,
+	first int,
+) ([]*model.ProgramEdge, bool, *string, error) {
 	edges := []*model.ProgramEdge{}
-	hasNext := false
+	inspected := 0
 	for {
 		rows, err := sqlc.New(r.db).SearchProgramCandidates(ctx, *params)
 		if err != nil {
-			return nil, fmt.Errorf("failed to search programs: %w", err)
+			return nil, false, nil, fmt.Errorf("failed to search programs: %w", err)
 		}
 		for i := range rows {
 			row := &rows[i]
-			params.AfterStartAt, params.AfterServiceID, params.AfterEventID = row.StartAt, row.ServiceID, row.EventID
 			edge, matched, err := r.matchCandidate(matcher, row)
 			if err != nil {
-				return nil, err
+				return nil, false, nil, err
 			}
-			if !matched {
-				continue
+			if matched && len(edges) == first {
+				return edges, true, nil, nil
 			}
-			if len(edges) == first {
-				hasNext = true
+			params.AfterStartAt, params.AfterServiceID, params.AfterEventID = row.StartAt, row.ServiceID, row.EventID
+			inspected++
+			if matched {
+				edges = append(edges, edge)
+			}
+			if inspected >= r.maxSearchCandidates && i < len(rows)-1 {
+				cursor, err := EncodeCursor(searchCursor{StartAt: row.StartAt, ServiceID: row.ServiceID, EventID: row.EventID})
+				if err != nil {
+					return nil, false, nil, err
+				}
 
-				break
+				return edges, true, &cursor, nil
 			}
-			edges = append(edges, edge)
 		}
-		if hasNext || len(rows) < int(params.BatchSize) {
-			break
+		if len(rows) < int(params.BatchSize) {
+			return edges, false, nil, nil
+		}
+		if inspected >= r.maxSearchCandidates {
+			cursor, err := EncodeCursor(searchCursor{StartAt: params.AfterStartAt, ServiceID: params.AfterServiceID, EventID: params.AfterEventID})
+			if err != nil {
+				return nil, false, nil, err
+			}
+
+			return edges, true, &cursor, nil
 		}
 	}
-
-	return &model.ProgramConnection{Edges: edges, PageInfo: pageInfo(edges, hasNext, after != nil)}, nil
 }
 
 // archivedProgram は、ProgramArchive の ID の中身 (サービス ID.eventId.開始時刻の UNIX 時間) から、アーカイブの番組を引く。
@@ -127,11 +162,13 @@ func (r *Resolver) archivedProgram(ctx context.Context, raw string) (*model.Prog
 // searchParams は、候補を引くクエリの引数を作る。
 func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.ArchiveRangeInput, after *string) (*sqlc.SearchProgramCandidatesParams, error) {
 	params := &sqlc.SearchProgramCandidatesParams{
-		IncludeArchive: archive != nil,
-		ArchiveFrom:    time.Time{},
-		ArchiveTo:      time.Time{},
-		ChannelTypes:   conditions.ChannelTypes,
-		ServiceIds:     conditions.ServiceIDs,
+		IncludeArchive:    archive != nil,
+		ArchiveFrom:       time.Time{},
+		ArchiveTo:         time.Time{},
+		ChannelTypes:      conditions.ChannelTypes,
+		ServiceIds:        conditions.ServiceIDs,
+		GenreLv1s:         genreLv1s(conditions.Genres, false),
+		ExcludedGenreLv1s: genreLv1s(conditions.ExcludeGenres, true),
 		// カーソルが無ければ、最も古い位置から読む。
 		AfterStartAt:   time.Unix(0, 0).UTC(),
 		AfterServiceID: 0,
@@ -205,6 +242,20 @@ func (r *Resolver) matchCandidate(matcher *match.Matcher, row *sqlc.SearchProgra
 	}
 
 	return &model.ProgramEdge{Cursor: cursor, Node: program}, true, nil
+}
+
+// genreLv1s は、SQL で絞り込むジャンルの大分類を返す。wholeOnly なら、中分類を指定していない (大分類のすべての) ものだけを返す。
+// 中分類まで指定した除外は、大分類で除くと除きすぎるので、Go の照合に任せる。
+func genreLv1s(genres []*match.Genre, wholeOnly bool) []int64 {
+	lv1s := []int64{}
+	for _, g := range genres {
+		if wholeOnly && g.Lv2 != nil {
+			continue
+		}
+		lv1s = append(lv1s, int64(g.Lv1))
+	}
+
+	return lv1s
 }
 
 // pageInfo は、一覧のページの情報を作る。前のページは、カーソルを渡されたかどうかで判断する。

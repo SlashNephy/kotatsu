@@ -35,10 +35,12 @@ type Options struct {
 	Clock  clock.Clock
 	Logger *slog.Logger
 	// Location は、番組の曜日と時間帯を判定する、表示のタイムゾーン。nil なら UTC。
-	Location          *time.Location
-	MaxDepth          int
-	MaxComplexity     int
-	HeartbeatInterval time.Duration
+	Location *time.Location
+	// MaxSearchCandidates は、番組の検索で 1 回に照合する候補の数の上限。0 なら DefaultMaxSearchCandidates。
+	MaxSearchCandidates int
+	MaxDepth            int
+	MaxComplexity       int
+	HeartbeatInterval   time.Duration
 }
 
 // NewHandler は、POST /graphql のハンドラーを返す (設計書 9.1)。
@@ -65,6 +67,9 @@ func NewHandler(opts *Options) http.Handler {
 	if o.Location == nil {
 		o.Location = time.UTC
 	}
+	if o.MaxSearchCandidates <= 0 {
+		o.MaxSearchCandidates = DefaultMaxSearchCandidates
+	}
 	if o.MaxDepth <= 0 {
 		o.MaxDepth = DefaultMaxDepth
 	}
@@ -76,7 +81,9 @@ func NewHandler(opts *Options) http.Handler {
 	}
 
 	var config generated.Config
-	config.Resolvers = &Resolver{db: o.DB, clock: o.Clock, location: o.Location, heartbeatInterval: o.HeartbeatInterval}
+	config.Resolvers = &Resolver{
+		db: o.DB, clock: o.Clock, location: o.Location, maxSearchCandidates: o.MaxSearchCandidates, heartbeatInterval: o.HeartbeatInterval,
+	}
 	server := handler.New(generated.NewExecutableSchema(config))
 	// SSE は Accept で POST と見分けるので、POST より先に置く。
 	server.AddTransport(transport.SSE{})

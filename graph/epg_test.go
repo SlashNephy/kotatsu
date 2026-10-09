@@ -162,7 +162,7 @@ func TestGuide(t *testing.T) {
 			name:         "all services between 12:00 and 13:00",
 			variables:    guideVariables(noon, onePM, nil),
 			wantRows:     []string{"こたつテスト1", "こたつテスト1 サブ", "こたつテスト2", "こたつテスト3", "こたつ BS"},
-			wantPrograms: []string{"こたつテスト1 テスト番組 3", "こたつテスト1 テスト番組 4"},
+			wantPrograms: []string{programName(3), programName(4)},
 		},
 		{
 			name:         "a program overlapping the start is included",
@@ -264,7 +264,7 @@ func TestNode(t *testing.T) {
 	}`, map[string]any{"program": guide.Guide[0].Programs[0].ID, "service": guide.Guide[0].Service.ID}, &got)
 	require.Empty(t, codes)
 	assert.Equal(t, "Program", got.Program.Typename)
-	assert.Equal(t, "こたつテスト1 テスト番組 3", got.Program.Name)
+	assert.Equal(t, programName(3), got.Program.Name)
 	assert.Equal(t, 3, got.Program.EventID)
 	assert.Equal(t, "Service", got.Service.Typename)
 	assert.Equal(t, "こたつテスト1", got.Service.Name)

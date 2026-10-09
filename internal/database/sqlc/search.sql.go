@@ -30,21 +30,30 @@ WHERE (
     OR c.channel_type = ANY($4::text[])
     OR c.service_id = ANY($5::bigint[])
   )
-  AND (c.start_at, c.service_id, c.event_id) > ($6::timestamptz, $7::bigint, $8::bigint)
+  AND (
+    cardinality($6::bigint[]) = 0
+    OR EXISTS (SELECT 1 FROM jsonb_array_elements(c.genres) g WHERE (g ->> 'lv1')::bigint = ANY($6::bigint[]))
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements(c.genres) g WHERE (g ->> 'lv1')::bigint = ANY($7::bigint[])
+  )
+  AND (c.start_at, c.service_id, c.event_id) > ($8::timestamptz, $9::bigint, $10::bigint)
 ORDER BY c.start_at, c.service_id, c.event_id
-LIMIT $9::integer
+LIMIT $11::integer
 `
 
 type SearchProgramCandidatesParams struct {
-	IncludeArchive bool
-	ArchiveFrom    time.Time
-	ArchiveTo      time.Time
-	ChannelTypes   []string
-	ServiceIds     []int64
-	AfterStartAt   time.Time
-	AfterServiceID int64
-	AfterEventID   int64
-	BatchSize      int32
+	IncludeArchive    bool
+	ArchiveFrom       time.Time
+	ArchiveTo         time.Time
+	ChannelTypes      []string
+	ServiceIds        []int64
+	GenreLv1s         []int64
+	ExcludedGenreLv1s []int64
+	AfterStartAt      time.Time
+	AfterServiceID    int64
+	AfterEventID      int64
+	BatchSize         int32
 }
 
 type SearchProgramCandidatesRow struct {
@@ -62,7 +71,8 @@ type SearchProgramCandidatesRow struct {
 	ChannelType  string
 }
 
-// 番組の検索の候補。チャンネル種別とサービスで絞り、開始時刻、サービス、eventId の順に、カーソルの後ろから返す。
+// 番組の検索の候補。チャンネル種別、サービス、ジャンルの大分類で絞り、開始時刻、サービス、eventId の順に、カーソルの後ろから返す。
+// ジャンルの中分類とキーワードは、ルールの照合と同じ照合関数で、Go で判定する (設計書 3.5)。
 // include_archive なら、開始時刻が [archive_from, archive_to) のアーカイブの番組も含める。
 func (q *Queries) SearchProgramCandidates(ctx context.Context, arg SearchProgramCandidatesParams) ([]SearchProgramCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, searchProgramCandidates,
@@ -71,6 +81,8 @@ func (q *Queries) SearchProgramCandidates(ctx context.Context, arg SearchProgram
 		arg.ArchiveTo,
 		arg.ChannelTypes,
 		arg.ServiceIds,
+		arg.GenreLv1s,
+		arg.ExcludedGenreLv1s,
 		arg.AfterStartAt,
 		arg.AfterServiceID,
 		arg.AfterEventID,

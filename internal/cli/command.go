@@ -366,13 +366,14 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", graph.NewHandler(&graph.Options{
-		DB:                deps.DB,
-		Clock:             deps.Clock,
-		Location:          location,
-		Logger:            logger.With(slog.String("component", "graphql")),
-		MaxDepth:          0,
-		MaxComplexity:     0,
-		HeartbeatInterval: 0,
+		DB:                  deps.DB,
+		Clock:               deps.Clock,
+		Location:            location,
+		MaxSearchCandidates: 0,
+		Logger:              logger.With(slog.String("component", "graphql")),
+		MaxDepth:            0,
+		MaxComplexity:       0,
+		HeartbeatInterval:   0,
 	}))
 	mux.Handle("POST /auth/logout", httpserver.RequireSameOrigin(sessions.LogoutHandler(deps.DB)))
 

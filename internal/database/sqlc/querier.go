@@ -107,7 +107,8 @@ type Querier interface {
 	// 同じ世代のリースを期限内に延長する。期限が切れていたり、他のインスタンスに取られていたりすれば、行を更新しない。
 	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
-	// 番組の検索の候補。チャンネル種別とサービスで絞り、開始時刻、サービス、eventId の順に、カーソルの後ろから返す。
+	// 番組の検索の候補。チャンネル種別、サービス、ジャンルの大分類で絞り、開始時刻、サービス、eventId の順に、カーソルの後ろから返す。
+	// ジャンルの中分類とキーワードは、ルールの照合と同じ照合関数で、Go で判定する (設計書 3.5)。
 	// include_archive なら、開始時刻が [archive_from, archive_to) のアーカイブの番組も含める。
 	SearchProgramCandidates(ctx context.Context, arg SearchProgramCandidatesParams) ([]SearchProgramCandidatesRow, error)
 	ServiceExists(ctx context.Context, id int64) (bool, error)
