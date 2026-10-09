@@ -1,0 +1,87 @@
+"""
+チャンネル種別 (設計書 3.1)。種別の文字列はチューナーサーバーが返すものをそのまま使い、表示名と並び順は管理者が変えられる。
+"""
+type ChannelType {
+  type: String!
+  displayName: String!
+  sortOrder: Int!
+}
+
+"""
+サービス (設計書 3.2)。
+"""
+type Service implements Node {
+  id: ID!
+  "ネットワーク ID"
+  networkId: Int!
+  "放送のサービス ID"
+  serviceId: Int!
+  name: String!
+  channelType: ChannelType!
+  "チャンネル (GR の物理チャンネルなど)"
+  channel: String!
+  remoteControlKeyId: Int
+  "番組表に出さない印"
+  hidden: Boolean!
+}
+
+"""
+番組のジャンル。ARIB STD-B10 の content_nibble の大分類と中分類。
+"""
+type Genre {
+  lv1: Int!
+  lv2: Int!
+}
+
+"""
+番組の詳細の、見出しと本文の組。
+"""
+type ExtendedItem {
+  heading: String!
+  text: String!
+}
+
+"""
+番組。放送中の番組と、これから放送される番組。
+"""
+type Program implements Node {
+  id: ID!
+  service: Service!
+  eventId: Int!
+  startAt: Time!
+  endAt: Time!
+  "延長などで終了時刻が未定かどうか。未定のときの endAt は、開始時刻の 1 ミリ秒後になる。"
+  endUndecided: Boolean!
+  isFree: Boolean!
+  name: String!
+  description: String!
+  extended: [ExtendedItem!]!
+  genres: [Genre!]!
+}
+
+"""
+番組表の 1 列 (1 つのサービスの番組)。
+"""
+type GuideRow {
+  service: Service!
+  "時間帯に重なる番組を、開始時刻の順に並べたもの。"
+  programs: [Program!]!
+}
+
+extend type Query {
+  "ID で引く (Relay の Global Object Identification)。見つからなければ NOT_FOUND のエラーを返す。"
+  node(id: ID!): Node
+
+  "チャンネル種別を、並び順に並べたもの。"
+  channelTypes: [ChannelType!]!
+
+  "サービスを、番組表の並び順に並べたもの。"
+  services("非表示のサービスも含めるかどうか" includeHidden: Boolean! = false): [Service!]!
+
+  """
+  番組表。from から to までの時間帯に重なる番組を、サービスごとに返す。時間帯は 7 日まで。
+  services を省くと、非表示でないすべてのサービスを返す。指定すると、非表示のサービスも返す。
+  view を指定すると、その番組表ビューの条件で、番組を絞り込み、サービスを並べ替える。
+  """
+  guide(from: Time!, to: Time!, services: [ID!], view: ID): [GuideRow!]!
+}

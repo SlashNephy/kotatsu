@@ -7,11 +7,74 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"time"
 )
 
 // ID で引けるもの (Relay の Global Object Identification)。
 type Node interface {
 	IsNode()
+}
+
+// 過去の番組の検索の期間 (設計書 3.4)。開始時刻がこの範囲に入るアーカイブの番組も検索する。
+type ArchiveRangeInput struct {
+	// 期間の始まり。省くと、期間の終わりの 30 日前。
+	From *time.Time `json:"from,omitempty"`
+	// 期間の終わり。省くと、今。
+	To *time.Time `json:"to,omitempty"`
+}
+
+// チャンネル種別 (設計書 3.1)。種別の文字列はチューナーサーバーが返すものをそのまま使い、表示名と並び順は管理者が変えられる。
+type ChannelType struct {
+	Type        string `json:"type"`
+	DisplayName string `json:"displayName"`
+	SortOrder   int    `json:"sortOrder"`
+}
+
+// 番組の詳細の、見出しと本文の組。
+type ExtendedItem struct {
+	Heading string `json:"heading"`
+	Text    string `json:"text"`
+}
+
+// 番組のジャンル。ARIB STD-B10 の content_nibble の大分類と中分類。
+type Genre struct {
+	Lv1 int `json:"lv1"`
+	Lv2 int `json:"lv2"`
+}
+
+// 条件のジャンル。lv2 が null なら、大分類のすべてを表す。
+type GenreCondition struct {
+	Lv1 int  `json:"lv1"`
+	Lv2 *int `json:"lv2,omitempty"`
+}
+
+// ジャンル。lv2 を省くと、大分類のすべてを表す。
+type GenreInput struct {
+	Lv1 int  `json:"lv1"`
+	Lv2 *int `json:"lv2,omitempty"`
+}
+
+// 番組表ビューの内容。ジャンルで lv2 を省くと、大分類のすべてを表す。
+type GuideViewInput struct {
+	Name               string        `json:"name"`
+	Genres             []*GenreInput `json:"genres,omitempty"`
+	ExcludeGenres      []*GenreInput `json:"excludeGenres,omitempty"`
+	MinDurationSeconds *int          `json:"minDurationSeconds,omitempty"`
+	Services           []string      `json:"services,omitempty"`
+	HideEmptyServices  bool          `json:"hideEmptyServices"`
+}
+
+// キーワードと、その照合の仕方 (設計書 4.2)。キーワードと番組の文字列は、NFKC で正規化してから比べる。
+type KeywordInput struct {
+	Text string `json:"text"`
+	// text を正規表現 (RE2) として扱うかどうか。
+	Regexp        bool `json:"regexp"`
+	CaseSensitive bool `json:"caseSensitive"`
+	// 照合する項目。どれか 1 つに一致すれば、このキーワードに一致したとみなす。
+	Fields []KeywordField `json:"fields"`
+}
+
+type Mutation struct {
 }
 
 // 一覧のページの情報 (Relay の Cursor Connections)。カーソルは中身を解釈せずに、そのまま次のリクエストに渡す。
@@ -22,10 +85,47 @@ type PageInfo struct {
 	EndCursor       *string `json:"endCursor,omitempty"`
 }
 
+// 番組の条件 (設計書 4.2)。番組の検索とルールで共通に使う。省いた項目では絞り込まない。
+type ProgramConditionsInput struct {
+	// すべてに一致する番組だけを対象にする。
+	Keywords []*KeywordInput `json:"keywords,omitempty"`
+	// どれか 1 つに一致したら除外する。
+	ExcludeKeywords []*KeywordInput `json:"excludeKeywords,omitempty"`
+	// チャンネル種別とサービスは、どちらかに含まれていれば対象にする。
+	ChannelTypes       []string          `json:"channelTypes,omitempty"`
+	Services           []string          `json:"services,omitempty"`
+	Genres             []*GenreInput     `json:"genres,omitempty"`
+	ExcludeGenres      []*GenreInput     `json:"excludeGenres,omitempty"`
+	TimeRanges         []*TimeRangeInput `json:"timeRanges,omitempty"`
+	MinDurationSeconds *int              `json:"minDurationSeconds,omitempty"`
+	MaxDurationSeconds *int              `json:"maxDurationSeconds,omitempty"`
+	FreeOnly           *bool             `json:"freeOnly,omitempty"`
+}
+
+type ProgramConnection struct {
+	Edges    []*ProgramEdge `json:"edges"`
+	PageInfo *PageInfo      `json:"pageInfo"`
+}
+
+type ProgramEdge struct {
+	Cursor string   `json:"cursor"`
+	Node   *Program `json:"node"`
+}
+
 type Query struct {
 }
 
 type Subscription struct {
+}
+
+// 曜日と時間帯の組。開始時刻が範囲に入る番組に一致する。
+type TimeRangeInput struct {
+	// 曜日の集合 (0 が日曜日、6 が土曜日)
+	Weekdays []int `json:"weekdays"`
+	// 0 時からの分で表した範囲の始まり (0〜1439)
+	StartMinute int `json:"startMinute"`
+	// 範囲の長さ (分)。日付をまたいでよい。
+	DurationMinutes int `json:"durationMinutes"`
 }
 
 type User struct {
@@ -36,6 +136,67 @@ type User struct {
 }
 
 func (User) IsNode() {}
+
+// キーワードを照合する番組の項目。
+type KeywordField string
+
+const (
+	// 番組名
+	KeywordFieldName KeywordField = "NAME"
+	// 概要
+	KeywordFieldDescription KeywordField = "DESCRIPTION"
+	// 詳細
+	KeywordFieldExtended KeywordField = "EXTENDED"
+)
+
+var AllKeywordField = []KeywordField{
+	KeywordFieldName,
+	KeywordFieldDescription,
+	KeywordFieldExtended,
+}
+
+func (e KeywordField) IsValid() bool {
+	switch e {
+	case KeywordFieldName, KeywordFieldDescription, KeywordFieldExtended:
+		return true
+	}
+	return false
+}
+
+func (e KeywordField) String() string {
+	return string(e)
+}
+
+func (e *KeywordField) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = KeywordField(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid KeywordField", str)
+	}
+	return nil
+}
+
+func (e KeywordField) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *KeywordField) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e KeywordField) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
 
 // ユーザーのロール (設計書 9.7)。
 type Role string

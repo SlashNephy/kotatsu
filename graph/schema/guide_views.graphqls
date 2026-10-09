@@ -1,0 +1,41 @@
+"""
+番組表ビュー (設計書 10.3)。番組表に適用する条件を、ユーザーごとに名前を付けて保存したもの。
+"""
+type GuideView implements Node {
+  id: ID!
+  name: String!
+  "どれか 1 つに一致する番組だけを出す。空ならすべて。"
+  genres: [GenreCondition!]!
+  "どれか 1 つに一致する番組を出さない。"
+  excludeGenres: [GenreCondition!]!
+  "これより短い番組を出さない。"
+  minDurationSeconds: Int
+  "チャンネルの並び。空なら既定の並び。ここに無いサービスは、既定の並びで後ろに置く。"
+  services: [Service!]!
+  "番組のないチャンネルを隠すかどうか。"
+  hideEmptyServices: Boolean!
+}
+
+"""
+番組表ビューの内容。ジャンルで lv2 を省くと、大分類のすべてを表す。
+"""
+input GuideViewInput {
+  name: String!
+  genres: [GenreInput!]
+  excludeGenres: [GenreInput!]
+  minDurationSeconds: Int
+  services: [ID!]
+  hideEmptyServices: Boolean! = false
+}
+
+extend type Query {
+  "ログイン中のユーザーの番組表ビュー。"
+  guideViews: [GuideView!]!
+}
+
+type Mutation {
+  createGuideView(input: GuideViewInput!): GuideView!
+  updateGuideView(id: ID!, input: GuideViewInput!): GuideView!
+  "消した番組表ビューの ID を返す。"
+  deleteGuideView(id: ID!): ID!
+}

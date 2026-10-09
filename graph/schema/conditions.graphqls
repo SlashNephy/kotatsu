@@ -1,0 +1,70 @@
+"""
+キーワードを照合する番組の項目。
+"""
+enum KeywordField {
+  "番組名"
+  NAME
+  "概要"
+  DESCRIPTION
+  "詳細"
+  EXTENDED
+}
+
+"""
+キーワードと、その照合の仕方 (設計書 4.2)。キーワードと番組の文字列は、NFKC で正規化してから比べる。
+"""
+input KeywordInput {
+  text: String!
+  "text を正規表現 (RE2) として扱うかどうか。"
+  regexp: Boolean! = false
+  caseSensitive: Boolean! = false
+  "照合する項目。どれか 1 つに一致すれば、このキーワードに一致したとみなす。"
+  fields: [KeywordField!]!
+}
+
+"""
+条件のジャンル。lv2 が null なら、大分類のすべてを表す。
+"""
+type GenreCondition {
+  lv1: Int!
+  lv2: Int
+}
+
+"""
+ジャンル。lv2 を省くと、大分類のすべてを表す。
+"""
+input GenreInput {
+  lv1: Int!
+  lv2: Int
+}
+
+"""
+曜日と時間帯の組。開始時刻が範囲に入る番組に一致する。
+"""
+input TimeRangeInput {
+  "曜日の集合 (0 が日曜日、6 が土曜日)"
+  weekdays: [Int!]!
+  "0 時からの分で表した範囲の始まり (0〜1439)"
+  startMinute: Int!
+  "範囲の長さ (分)。日付をまたいでよい。"
+  durationMinutes: Int!
+}
+
+"""
+番組の条件 (設計書 4.2)。番組の検索とルールで共通に使う。省いた項目では絞り込まない。
+"""
+input ProgramConditionsInput {
+  "すべてに一致する番組だけを対象にする。"
+  keywords: [KeywordInput!]
+  "どれか 1 つに一致したら除外する。"
+  excludeKeywords: [KeywordInput!]
+  "チャンネル種別とサービスは、どちらかに含まれていれば対象にする。"
+  channelTypes: [String!]
+  services: [ID!]
+  genres: [GenreInput!]
+  excludeGenres: [GenreInput!]
+  timeRanges: [TimeRangeInput!]
+  minDurationSeconds: Int
+  maxDurationSeconds: Int
+  freeOnly: Boolean
+}

@@ -28,6 +28,8 @@ run = [
   "sqlc generate",
   # GraphQL のスキーマから、実行のコードとモデルを生成する。リゾルバの実装は残る。
   "go tool gqlgen generate",
+  # gqlgen が書き換えたリゾルバの import を、リポジトリの形式にそろえる。
+  "golangci-lint fmt",
   # schema.sql とマイグレーションが食い違っていれば、ここで新しいマイグレーションが生成される。
   "atlas migrate diff --env local",
   "atlas migrate validate --env local",

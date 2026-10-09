@@ -23,6 +23,7 @@ type Querier interface {
 	// 無効にした予約の割り当ての結果を消す。
 	ClearDisabledAssignments(ctx context.Context) (int64, error)
 	DeleteAuditEventsBefore(ctx context.Context, before time.Time) (int64, error)
+	DeleteGuideView(ctx context.Context, arg DeleteGuideViewParams) (int64, error)
 	DeleteInstance(ctx context.Context, arg DeleteInstanceParams) error
 	// 放送が始まった番組は、アーカイブに移すまで残す (設計書 3.3、3.4)。
 	DeletePrograms(ctx context.Context, arg []DeleteProgramsParams) *DeleteProgramsBatchResults
@@ -34,6 +35,9 @@ type Querier interface {
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
 	// 種別が無ければ既定値で足す。管理者が変えた表示名と並び順は上書きしない。
 	EnsureChannelType(ctx context.Context, arg EnsureChannelTypeParams) error
+	GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error)
+	GetGuideProgram(ctx context.Context, arg GetGuideProgramParams) (GetGuideProgramRow, error)
+	GetGuideView(ctx context.Context, arg GetGuideViewParams) (GuideView, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
@@ -46,6 +50,7 @@ type Querier interface {
 	HeartbeatInstance(ctx context.Context, arg HeartbeatInstanceParams) (int64, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
 	InsertEPGChange(ctx context.Context, arg InsertEPGChangeParams) error
+	InsertGuideView(ctx context.Context, arg InsertGuideViewParams) error
 	// 同じ番組の予約がすでにあれば何もしない。そのときは行を返さない。
 	InsertProgramReservation(ctx context.Context, arg InsertProgramReservationParams) (uuid.UUID, error)
 	// イベントリレーの引き継ぎ先の番組予約を、番組情報をコピーして作る。引き継ぎ先の予約がすでにあれば何もせず、行を返さない。
@@ -64,17 +69,24 @@ type Querier interface {
 	ListAssignableReservations(ctx context.Context, now time.Time) ([]ListAssignableReservationsRow, error)
 	ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error)
 	ListChangeVersions(ctx context.Context, channels []string) ([]ListChangeVersionsRow, error)
+	ListChannelTypes(ctx context.Context) ([]ChannelType, error)
+	ListChannelTypesByTypes(ctx context.Context, types []string) ([]ChannelType, error)
 	ListEPGChangesSince(ctx context.Context, version int64) ([]ListEPGChangesSinceRow, error)
 	// ルール予約の録画設定に使う、一致したルールのうち最も古いものの上書き。
 	ListFirstRuleSettings(ctx context.Context, reservationIds []uuid.UUID) ([]ListFirstRuleSettingsRow, error)
 	// 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。
 	ListFutureProgramReservations(ctx context.Context, now time.Time) ([]ListFutureProgramReservationsRow, error)
 	ListFutureReservationRules(ctx context.Context, now time.Time) ([]ReservationRule, error)
+	// 番組表の並び順のサービス。チャンネル種別の並び順、管理者の上書き、リモコンのキー、サービス ID の順に並べる。
+	ListGuideServices(ctx context.Context, arg ListGuideServicesParams) ([]ListGuideServicesRow, error)
+	ListGuideViews(ctx context.Context, userID uuid.UUID) ([]GuideView, error)
 	// 番組名のキーごと、サービスごとの、最後に録画した番組の終了時刻。
 	ListLatestRecordingHistory(ctx context.Context, titleKeys []string) ([]ListLatestRecordingHistoryRow, error)
 	// ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
 	ListMatchablePrograms(ctx context.Context, now time.Time) ([]ListMatchableProgramsRow, error)
 	ListPrograms(ctx context.Context) ([]ListProgramsRow, error)
+	// 時間帯 [from, to) に重なる番組。
+	ListProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]ListProgramsInRangeRow, error)
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
 	// 番組を指定した予約のうち、予約か番組の終わりがまだ来ていないものと、その番組の今の EPG。
 	// ルール予約の録画設定は、一致したルールのうち最も古いものの上書きを使う。
@@ -99,12 +111,17 @@ type Querier interface {
 	// 同じ世代のリースを期限内に延長する。期限が切れていたり、他のインスタンスに取られていたりすれば、行を更新しない。
 	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
+	// 番組の検索の候補。チャンネル種別、サービス、ジャンルの大分類で絞り、開始時刻、サービス、eventId の順に、カーソルの後ろから返す。
+	// ジャンルの中分類とキーワードは、ルールの照合と同じ照合関数で、Go で判定する (設計書 3.5)。
+	// include_archive なら、開始時刻が [archive_from, archive_to) のアーカイブの番組も含める。
+	SearchProgramCandidates(ctx context.Context, arg SearchProgramCandidatesParams) ([]SearchProgramCandidatesRow, error)
 	ServiceExists(ctx context.Context, id int64) (bool, error)
 	SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error)
 	SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
 	UpdateAssignment(ctx context.Context, arg UpdateAssignmentParams) error
+	UpdateGuideView(ctx context.Context, arg UpdateGuideViewParams) (int64, error)
 	UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error)
 	UpdateReservationProgram(ctx context.Context, arg UpdateReservationProgramParams) error
 	UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, error)
