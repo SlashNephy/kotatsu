@@ -18,6 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/notify"
 )
 
 // Kind は予約の種類。
@@ -33,6 +34,8 @@ const (
 )
 
 const (
+	// NotifyChannel は、予約が変わったことを知らせる変更通知のチャンネル。チューナーの割り当てを計算し直すきっかけになる。
+	NotifyChannel = "reservations"
 	// auditTarget は、監査ログの対象の種類。
 	auditTarget = "reservation"
 	// maxTimeReservation は、時刻予約の長さの上限。
@@ -493,7 +496,13 @@ func userOf(actor *audit.Actor) *uuid.UUID {
 	return &actor.UserID
 }
 
+// record は、予約の変更を監査ログに残し、予約が変わったことを通知する。
+// 予約の書き込みは、必ずこれを同じトランザクションで呼ぶ。
 func (r *Reservations) record(ctx context.Context, tx pgx.Tx, actor *audit.Actor, action string, reservation *Reservation, summary map[string]any) error {
+	if _, err := notify.Publish(ctx, tx, r.clock, NotifyChannel); err != nil {
+		return err
+	}
+
 	return r.recorder.Record(ctx, tx, &audit.Event{
 		Actor:      actor,
 		Action:     action,

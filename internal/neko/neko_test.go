@@ -10,17 +10,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/match"
 	"github.com/SlashNephy/kotatsu/internal/neko"
+	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/tuner/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
 
-// TestLeaderSyncsEPG は、リーダーになった neko が、チューナーサーバーの EPG を DB に同期することを確かめる。
-func TestLeaderSyncsEPG(t *testing.T) {
+// TestLeaderSyncsEPGAndMatchesRules は、リーダーになった neko が、チューナーサーバーの EPG を DB に同期し、
+// ルールが作られると、その変更の通知を受けて予約を作ることを確かめる。
+func TestLeaderSyncsEPGAndMatchesRules(t *testing.T) {
 	t.Parallel()
 
 	pool, err := database.Open(t.Context(), databasetest.New(t))
@@ -45,6 +49,8 @@ func TestLeaderSyncsEPG(t *testing.T) {
 			EPG:        nil,
 			Archive:    nil,
 			Tuners:     nil,
+			Location:   time.UTC,
+			Rules:      &rule.RunnerOptions{Debounce: 10 * time.Millisecond, Interval: time.Hour, UseListen: true, PollInterval: 0},
 		})
 	}()
 
@@ -53,6 +59,24 @@ func TestLeaderSyncsEPG(t *testing.T) {
 		require.NoError(t, pool.QueryRow(t.Context(), "SELECT count(*) FROM programs").Scan(&n))
 
 		return n == len(options.Programs)
+	}, 10*time.Second, 20*time.Millisecond)
+
+	// こたつテスト1 の eventId 10 は、今から数時間後に放送される。
+	rules := rule.NewRules(clock.Real{}, audit.NewRecorder(clock.Real{}))
+	_, err = rules.Create(t.Context(), pool, audit.System("test"), &rule.Input{
+		Name: "テスト", Memo: "", Enabled: true,
+		Conditions: &match.Conditions{
+			Keywords:   []*match.Keyword{{Text: "こたつテスト1 テスト番組 10$", Regexp: true, CaseSensitive: false, Fields: []match.Field{match.FieldName}}},
+			ServiceIDs: []int64{faketuner.ServiceItemID(0x7FE0, 0x0400)},
+		},
+		Overrides: nil, ValidFrom: nil, ValidUntil: nil, AvoidDuplicates: false, DuplicateWindowDays: nil, FollowEventRelay: true,
+	})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		var n int
+		require.NoError(t, pool.QueryRow(t.Context(), "SELECT count(*) FROM reservations WHERE kind = 'rule' AND event_id = 10").Scan(&n))
+
+		return n == 1
 	}, 10*time.Second, 20*time.Millisecond)
 
 	cancel()

@@ -17,10 +17,13 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/match"
+	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 )
 
 const (
+	// NotifyChannel は、ルールが変わったことを知らせる変更通知のチャンネル。
+	NotifyChannel = "rules"
 	// auditTarget は、監査ログの対象の種類。
 	auditTarget = "rule"
 	// maxNameLength と maxMemoLength は、名前とメモの長さの上限。
@@ -326,7 +329,12 @@ func userOf(actor *audit.Actor) *uuid.UUID {
 	return &actor.UserID
 }
 
+// record は、ルールの変更を監査ログに残し、ルールが変わったことを通知する。ルールの照合を走らせるきっかけになる。
 func (r *Rules) record(ctx context.Context, tx pgx.Tx, actor *audit.Actor, action string, rule *Rule) error {
+	if _, err := notify.Publish(ctx, tx, r.clock, NotifyChannel); err != nil {
+		return err
+	}
+
 	return r.recorder.Record(ctx, tx, &audit.Event{
 		Actor:      actor,
 		Action:     action,
