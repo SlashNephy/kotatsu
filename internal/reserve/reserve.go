@@ -70,10 +70,12 @@ type Reservation struct {
 	FollowEventRelay bool
 	// Overrides は、この予約の録画設定の上書き。
 	Overrides *Overrides
-	CreatedAt time.Time
-	CreatedBy *uuid.UUID
-	UpdatedAt time.Time
-	UpdatedBy *uuid.UUID
+	// RelayedFrom は、イベントリレーで引き継いだ予約の、引き継ぎ元の予約。引き継いだ予約でなければ nil。
+	RelayedFrom *uuid.UUID
+	CreatedAt   time.Time
+	CreatedBy   *uuid.UUID
+	UpdatedAt   time.Time
+	UpdatedBy   *uuid.UUID
 }
 
 // Settings は、全体の既定値 defaults に、この予約の上書きを重ねた録画設定を返す。
@@ -466,6 +468,7 @@ func fromRow(row sqlc.Reservation) (*Reservation, error) {
 		Enabled:          row.Enabled,
 		FollowEventRelay: row.FollowEventRelay,
 		Overrides:        overrides,
+		RelayedFrom:      row.RelayedFrom,
 		CreatedAt:        row.CreatedAt.UTC(),
 		CreatedBy:        row.CreatedBy,
 		UpdatedAt:        row.UpdatedAt.UTC(),

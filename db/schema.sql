@@ -252,6 +252,8 @@ CREATE TABLE reservations (
   assigned_tuner bigint,
   planned_start_at timestamptz,
   planned_end_at timestamptz,
+  -- イベントリレーで引き継いだ予約の、引き継ぎ元の予約 (設計書 4.6)。
+  relayed_from uuid REFERENCES reservations (id) ON DELETE SET NULL,
   CONSTRAINT reservations_event_check CHECK ((kind = 'time') = (event_id IS NULL)),
   CONSTRAINT reservations_time_check CHECK (start_at < end_at)
 );
