@@ -142,12 +142,24 @@ func TestNekonotePrunesAuditEvents(t *testing.T) {
 	}()
 
 	// 設定した保持期間 (30 日) を過ぎた 1 件だけが消える。
-	require.Eventually(t, func() bool {
-		var count int
-		err := pool.QueryRow(t.Context(), "SELECT count(*) FROM audit_events").Scan(&count)
-
-		return err == nil && count == 1
-	}, 30*time.Second, 100*time.Millisecond)
+	// nekonote が先に止まったら、待ち続けずに、止まった理由で失敗させる。
+	deadline := time.After(30 * time.Second)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for pruned := false; !pruned; {
+		select {
+		case err := <-done:
+			t.Fatalf("nekonote stopped before pruning: %v", err)
+		case <-deadline:
+			var count int
+			require.NoError(t, pool.QueryRow(t.Context(), "SELECT count(*) FROM audit_events").Scan(&count))
+			t.Fatalf("nekonote did not prune the audit events in time: %d events remain", count)
+		case <-ticker.C:
+			var count int
+			err := pool.QueryRow(t.Context(), "SELECT count(*) FROM audit_events").Scan(&count)
+			pruned = err == nil && count == 1
+		}
+	}
 
 	cancel()
 	assert.NoError(t, <-done)
