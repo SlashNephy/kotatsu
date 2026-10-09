@@ -88,6 +88,12 @@ type Querier interface {
 	// 時間帯 [from, to) に重なる番組。
 	ListProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]ListProgramsInRangeRow, error)
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
+	// 予約に一致したルール。ルールを作った順に返す。
+	ListReservationRules(ctx context.Context, reservationIds []uuid.UUID) ([]ReservationRule, error)
+	// 時間帯 [from, to) に重なる予約を、開始時刻の順に返す。(after_start_at, after_id) より後ろから limit 件読む。
+	ListReservations(ctx context.Context, arg ListReservationsParams) ([]Reservation, error)
+	// 番組 (サービス, eventId) の予約。番組の予約は 1 件だけなので、番組ごとに高々 1 行になる。
+	ListReservationsByPrograms(ctx context.Context, arg ListReservationsByProgramsParams) ([]Reservation, error)
 	// 番組を指定した予約のうち、予約か番組の終わりがまだ来ていないものと、その番組の今の EPG。
 	// ルール予約の録画設定は、一致したルールのうち最も古いものの上書きを使う。
 	ListReservationsToFollow(ctx context.Context, now time.Time) ([]ListReservationsToFollowRow, error)

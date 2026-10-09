@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -89,7 +90,7 @@ func (in *Input) encode() (*encoded, error) {
 	}
 
 	errs := []error{}
-	if in.Name == "" || utf8.RuneCountInString(in.Name) > maxNameLength {
+	if strings.TrimSpace(in.Name) == "" || utf8.RuneCountInString(in.Name) > maxNameLength {
 		errs = append(errs, fmt.Errorf("%w: name must be 1 to %d characters", ErrInvalidRule, maxNameLength))
 	}
 	if utf8.RuneCountInString(in.Memo) > maxMemoLength {

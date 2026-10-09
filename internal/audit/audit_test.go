@@ -101,6 +101,23 @@ func TestRecordStoresUserAndSystemActors(t *testing.T) {
 				SourceIP:    new(netip.MustParseAddr("2001:db8::1")),
 			},
 		},
+		{
+			name: "user with the client on the actor",
+			event: &audit.Event{
+				Actor:      audit.UserFrom(userID, netip.MustParseAddr("192.0.2.20"), "Kotatsu/1.0"),
+				Action:     "rule.delete",
+				TargetType: targetRule,
+			},
+			want: sqlc.AuditEvent{
+				ActorType:   actorUser,
+				ActorUserID: &userID,
+				Action:      "rule.delete",
+				TargetType:  targetRule,
+				Summary:     []byte(`{}`),
+				SourceIP:    new(netip.MustParseAddr("192.0.2.20")),
+				UserAgent:   new("Kotatsu/1.0"),
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -119,6 +119,7 @@ func TestCreateRejectsInvalidRules(t *testing.T) {
 		wantErr error
 	}{
 		{name: "empty name", modify: func(in *rule.Input) { in.Name = "" }, wantErr: rule.ErrInvalidRule},
+		{name: "blank name", modify: func(in *rule.Input) { in.Name = " \u3000" }, wantErr: rule.ErrInvalidRule},
 		{name: "invalid regular expression", modify: func(in *rule.Input) {
 			in.Conditions.Keywords[0] = &match.Keyword{Text: "(", Regexp: true, CaseSensitive: false, Fields: []match.Field{match.FieldName}}
 		}, wantErr: match.ErrInvalidConditions},
