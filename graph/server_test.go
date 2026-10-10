@@ -23,6 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/password"
 	"github.com/SlashNephy/kotatsu/internal/password/passwordtest"
+	"github.com/SlashNephy/kotatsu/internal/webhook"
 )
 
 const (
@@ -93,6 +94,8 @@ func newFixture(t *testing.T, opts *graph.Options) *fixture {
 	opts.UserAdmin = auth.NewUserAdmin(clk, audit.NewRecorder(clk), policy)
 	opts.Passwords = auth.NewPasswords(clk, audit.NewRecorder(clk), policy)
 	opts.Sessions = sessions
+	opts.Webhooks, err = webhook.NewStore(clk, audit.NewRecorder(clk), "kotatsu-graph-test-application-key-0123456789")
+	require.NoError(t, err)
 	opts.Passkeys = auth.NewPasskeys(&auth.PasskeysOptions{
 		Clock: clk, Recorder: audit.NewRecorder(clk), Logger: slog.New(slog.DiscardHandler), Sessions: sessions,
 	})

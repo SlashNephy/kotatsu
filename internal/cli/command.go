@@ -34,6 +34,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/settings"
 	"github.com/SlashNephy/kotatsu/internal/spa"
 	"github.com/SlashNephy/kotatsu/internal/telemetry"
+	"github.com/SlashNephy/kotatsu/internal/webhook"
 	"github.com/SlashNephy/kotatsu/web"
 )
 
@@ -60,7 +61,7 @@ type Options struct {
 	// listenAddr は API の HTTP サーバーが実際に待ち受けているアドレス。
 	RunRegistry func(ctx context.Context, logger *slog.Logger, deps *Deps, roles []string, listenAddr string) error
 	// JobWorkers は、nekonote で実行するジョブの Worker と定期ジョブを返す。
-	JobWorkers func(deps *Deps) (*river.Workers, []*river.PeriodicJob)
+	JobWorkers func(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.PeriodicJob, error)
 	// LogSetupToken は、all の起動時に、管理者がいなければセットアップトークンを発行してログに出す (設計書 9.2)。
 	LogSetupToken func(ctx context.Context, logger *slog.Logger, clk clock.Clock, pool *pgxpool.Pool) error
 	// PasswordStrengthTimeout は、パスワードの強度の判定の時間の上限。0 なら既定値にする。
@@ -87,14 +88,31 @@ func DefaultOptions(logger *slog.Logger) *Options {
 }
 
 // jobWorkers は、nekonote で実行するジョブの Worker と定期ジョブを返す。ジョブを足したら、ここに登録する。
-func jobWorkers(deps *Deps) (*river.Workers, []*river.PeriodicJob) {
+func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.PeriodicJob, error) {
 	workers := river.NewWorkers()
 	retention := time.Duration(deps.Config.Audit.RetentionDays) * 24 * time.Hour
 	river.AddWorker(workers, audit.NewPruneWorker(deps.DB, deps.Clock, retention))
-	dispatcher := notification.NewDispatcher(deps.DB, deps.Clock)
-	river.AddWorker(workers, notification.NewDispatchWorker(dispatcher))
 
-	return workers, []*river.PeriodicJob{audit.PrunePeriodicJob(), notification.DispatchPeriodicJob()}
+	// Webhook の配信のジョブは、イベントを配るトランザクションの中で投入する。
+	// 投入に使う River のクライアントは、ここで作る Worker を必要とするので、投入だけを行うクライアントを別に作る。
+	inserter, err := jobs.NewClient(deps.DB, logger, &jobs.Options{PollOnly: deps.Config.Database.Pooler, Workers: nil, PeriodicJobs: nil})
+	if err != nil {
+		return nil, nil, err
+	}
+	webhooks, err := webhook.NewStore(deps.Clock, audit.NewRecorder(deps.Clock), deps.Config.Auth.SecretKey.Value())
+	if err != nil {
+		return nil, nil, err
+	}
+	// 表示のタイムゾーンは設定で決める (設計書 8.1) が、設定の項目はまだないので、既定の Asia/Tokyo を使う。
+	location, err := time.LoadLocation(defaultTimeZone)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to load the time zone %s: %w", defaultTimeZone, err)
+	}
+	dispatcher := notification.NewDispatcher(deps.DB, deps.Clock, webhook.NewEnqueuer(inserter))
+	river.AddWorker(workers, notification.NewDispatchWorker(dispatcher))
+	river.AddWorker(workers, webhook.NewDeliverWorker(deps.DB, webhooks, deps.Clock, location))
+
+	return workers, []*river.PeriodicJob{audit.PrunePeriodicJob(), notification.DispatchPeriodicJob()}, nil
 }
 
 // migrate は、Kotatsu のスキーマと River のテーブルのマイグレーションを適用する。
@@ -221,7 +239,14 @@ func NewCommand(opts *Options) *cobra.Command {
 		// ジョブを実行するのは nekonote だけで、他のロールは投入だけを行う。
 		periodicJobs := []*river.PeriodicJob{}
 		if slices.ContainsFunc(targets, func(role *Role) bool { return role.Name == nekonoteRoleName }) {
-			deps.JobWorkers, periodicJobs = opts.JobWorkers(deps)
+			// Webhook の署名用の秘密キーは、アプリの秘密キーで暗号化して保存する (設計書 8.4)。秘密キーがなければ、署名できない。
+			if cfg.Auth.SecretKey.Value() == "" {
+				return errSecretKeyRequired
+			}
+			deps.JobWorkers, periodicJobs, err = opts.JobWorkers(deps, opts.Logger)
+			if err != nil {
+				return err
+			}
 		}
 		deps.Jobs, err = jobs.NewClient(pool, opts.Logger, &jobs.Options{
 			PollOnly:     cfg.Database.Pooler,
@@ -409,6 +434,10 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	webhooks, err := webhook.NewStore(deps.Clock, audit.NewRecorder(deps.Clock), deps.Config.Auth.SecretKey.Value())
+	if err != nil {
+		return nil, err
+	}
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", graph.NewHandler(&graph.Options{
 		DB:                  deps.DB,
@@ -419,6 +448,7 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		Passwords:           auth.NewPasswords(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
 		Sessions:            sessions,
 		Settings:            settings.NewStore(deps.Clock, audit.NewRecorder(deps.Clock)),
+		Webhooks:            webhooks,
 		Pools:               deps.Config.Storage.Pools,
 		Clock:               deps.Clock,
 		Location:            location,
@@ -477,8 +507,8 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 	return policy.Middleware(root), nil
 }
 
-// errSecretKeyRequired は、tenban を、アプリの秘密キーなしで起動しようとしたことを表す。
-var errSecretKeyRequired = errors.New("auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban; " +
+// errSecretKeyRequired は、tenban か nekonote を、アプリの秘密キーなしで起動しようとしたことを表す。
+var errSecretKeyRequired = errors.New("auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban and nekonote; " +
 	"set a random string of at least 32 bytes, e.g. the output of `openssl rand -base64 48`")
 
 // clientInfo は、リクエストの送信元を返す。リバースプロキシを経由したときは、信頼済みのプロキシが伝えた値にする。

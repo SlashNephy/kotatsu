@@ -103,7 +103,7 @@ func TestNotifications(t *testing.T) {
 	f := newFixture(t, nil)
 	// 視聴者も通知を受け取る。
 	other := f.as(t, "viewer", auth.RoleViewer)
-	f.notify(t, notification.KindRecordingStarted, map[string]any{"name": "こたつ特集"})
+	f.notify(t, notification.KindRecordingStarted, map[string]any{varName: "こたつ特集"})
 	f.notify(t, notification.KindRecordingCompleted, nil)
 	f.notify(t, notification.KindRecordingFailed, nil)
 

@@ -1,0 +1,78 @@
+"""
+Webhook で送る形式 (設計書 6.2)。
+"""
+enum WebhookFormat {
+  "汎用の JSON"
+  JSON
+  "Discord の Webhook"
+  DISCORD
+  "Slack の Incoming Webhook"
+  SLACK
+}
+
+"""
+管理者が設定した Webhook (設計書 6.2)。通知するイベントを、外部のサービスに送る。
+"""
+type Webhook {
+  id: ID!
+  name: String!
+  "送り先の URL。Discord や Slack の URL は、それ自体が秘密のトークンを含む。"
+  url: String!
+  format: WebhookFormat!
+  "送るイベントの種類。"
+  kinds: [NotificationKind!]!
+  enabled: Boolean!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type CreateWebhookPayload {
+  webhook: Webhook!
+  "署名用の秘密キー。受信側で署名を確かめるのに使う。ここでしか返さない。"
+  secret: String!
+}
+
+input CreateWebhookInput {
+  "1〜100 文字。"
+  name: String!
+  "http か https の URL。"
+  url: String!
+  format: WebhookFormat!
+  "送るイベントの種類。1 つ以上。"
+  kinds: [NotificationKind!]!
+  enabled: Boolean! = true
+}
+
+"""
+Webhook の変える項目。省いた項目は変えない。署名用の秘密キーは変えない。
+"""
+input UpdateWebhookInput {
+  name: String
+  url: String
+  format: WebhookFormat
+  kinds: [NotificationKind!]
+  enabled: Boolean
+}
+
+extend type Query {
+  "Webhook を作った順に返す。管理者だけが使える (設計書 9.7)。"
+  webhooks: [Webhook!]!
+}
+
+extend type Mutation {
+  """
+  Webhook を作り、署名用の秘密キーと一緒に返す。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  正しくない値なら BAD_USER_INPUT を返す。
+  """
+  createWebhook(input: CreateWebhookInput!): CreateWebhookPayload!
+  """
+  Webhook を変える。管理者だけが使え、直近 10 分以内の認証が要る。
+  Webhook がなければ NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
+  """
+  updateWebhook(id: ID!, input: UpdateWebhookInput!): Webhook!
+  """
+  Webhook を消し、消した Webhook の ID を返す。送り直しを待っている配信は取りやめる。
+  管理者だけが使え、直近 10 分以内の認証が要る。Webhook がなければ NOT_FOUND を返す。
+  """
+  deleteWebhook(id: ID!): ID!
+}

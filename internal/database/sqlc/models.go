@@ -351,3 +351,15 @@ type WebauthnCeremony struct {
 	CreatedAt time.Time
 	ExpiresAt time.Time
 }
+
+type Webhook struct {
+	ID               uuid.UUID
+	Name             string
+	URL              string
+	Format           string
+	Kinds            []string
+	SecretCiphertext []byte
+	Enabled          bool
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}

@@ -1,11 +1,14 @@
 package notification_test
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,6 +19,11 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/notification"
+)
+
+const (
+	keyPool  = "pool"
+	poolName = "main"
 )
 
 func testNow() time.Time {
@@ -100,7 +108,7 @@ func TestEmit(t *testing.T) {
 		want    map[string]any
 		wantErr error
 	}{
-		{name: "payload を JSON にして記録する", kind: notification.KindStorageLow, payload: map[string]any{"pool": "main", "freeBytes": 1024}, want: map[string]any{"pool": "main", "freeBytes": float64(1024)}, wantErr: nil},
+		{name: "payload を JSON にして記録する", kind: notification.KindStorageLow, payload: map[string]any{keyPool: poolName, "freeBytes": 1024}, want: map[string]any{keyPool: poolName, "freeBytes": float64(1024)}, wantErr: nil},
 		{name: "payload がなければ空のオブジェクトを記録する", kind: notification.KindRecordingStarted, payload: nil, want: map[string]any{}, wantErr: nil},
 		{name: "知らない種類は記録しない", kind: notification.Kind("unknown"), payload: nil, want: nil, wantErr: notification.ErrUnknownKind},
 	}
@@ -297,4 +305,43 @@ func TestPreferences(t *testing.T) {
 			assert.Equal(t, tt.want(), got)
 		})
 	}
+}
+
+// recordingHook は、呼ばれたイベントを残す。fail なら、エラーを返す。
+type recordingHook struct {
+	events []*notification.Event
+	fail   bool
+}
+
+var errHook = errors.New("hook failed")
+
+func (h *recordingHook) OnEvent(_ context.Context, _ pgx.Tx, event *notification.Event) error {
+	if h.fail {
+		return errHook
+	}
+	h.events = append(h.events, event)
+
+	return nil
+}
+
+// TestDispatchOnceCallsHooks は、受け取るユーザーがいなくても、イベントごとにフックを呼び、
+// フックが失敗すれば、イベントを配らずに残すことを確かめる。
+func TestDispatchOnceCallsHooks(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	require.NoError(t, notification.Emit(t.Context(), f.pool, f.clock, notification.KindStorageLow, map[string]any{keyPool: poolName}))
+
+	failing := &recordingHook{events: []*notification.Event{}, fail: true}
+	_, err := notification.NewDispatcher(f.pool, f.clock, failing).DispatchOnce(t.Context())
+	require.ErrorIs(t, err, errHook)
+
+	hook := &recordingHook{events: []*notification.Event{}, fail: false}
+	n, err := notification.NewDispatcher(f.pool, f.clock, hook).DispatchOnce(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, n, "the event is still pending after the failed hook")
+	require.Len(t, hook.events, 1)
+	assert.Equal(t, notification.KindStorageLow, hook.events[0].Kind)
+	assert.Equal(t, map[string]any{keyPool: poolName}, hook.events[0].Payload)
+	assert.True(t, testNow().Equal(hook.events[0].OccurredAt))
 }

@@ -98,6 +98,23 @@ type CreateUserInput struct {
 	Password *string `json:"password,omitempty"`
 }
 
+type CreateWebhookInput struct {
+	// 1〜100 文字。
+	Name string `json:"name"`
+	// http か https の URL。
+	URL    string        `json:"url"`
+	Format WebhookFormat `json:"format"`
+	// 送るイベントの種類。1 つ以上。
+	Kinds   []NotificationKind `json:"kinds"`
+	Enabled bool               `json:"enabled"`
+}
+
+type CreateWebhookPayload struct {
+	Webhook *Webhook `json:"webhook"`
+	// 署名用の秘密キー。受信側で署名を確かめるのに使う。ここでしか返さない。
+	Secret string `json:"secret"`
+}
+
 // 予約の削除の結果。
 type DeleteReservationPayload struct {
 	// 削除の操作をした予約の ID。
@@ -492,6 +509,15 @@ type UpdateUserInput struct {
 	Role        *Role   `json:"role,omitempty"`
 }
 
+// Webhook の変える項目。省いた項目は変えない。署名用の秘密キーは変えない。
+type UpdateWebhookInput struct {
+	Name    *string            `json:"name,omitempty"`
+	URL     *string            `json:"url,omitempty"`
+	Format  *WebhookFormat     `json:"format,omitempty"`
+	Kinds   []NotificationKind `json:"kinds,omitempty"`
+	Enabled *bool              `json:"enabled,omitempty"`
+}
+
 type User struct {
 	ID          string `json:"id"`
 	Username    string `json:"username"`
@@ -503,6 +529,20 @@ type User struct {
 }
 
 func (User) IsNode() {}
+
+// 管理者が設定した Webhook (設計書 6.2)。通知するイベントを、外部のサービスに送る。
+type Webhook struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// 送り先の URL。Discord や Slack の URL は、それ自体が秘密のトークンを含む。
+	URL    string        `json:"url"`
+	Format WebhookFormat `json:"format"`
+	// 送るイベントの種類。
+	Kinds     []NotificationKind `json:"kinds"`
+	Enabled   bool               `json:"enabled"`
+	CreatedAt time.Time          `json:"createdAt"`
+	UpdatedAt time.Time          `json:"updatedAt"`
+}
 
 // 予約のチューナーの割り当ての状態 (設計書 4.5)。
 type AssignmentState string
@@ -816,6 +856,67 @@ func (e *Role) UnmarshalJSON(b []byte) error {
 }
 
 func (e Role) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// Webhook で送る形式 (設計書 6.2)。
+type WebhookFormat string
+
+const (
+	// 汎用の JSON
+	WebhookFormatJSON WebhookFormat = "JSON"
+	// Discord の Webhook
+	WebhookFormatDiscord WebhookFormat = "DISCORD"
+	// Slack の Incoming Webhook
+	WebhookFormatSLACk WebhookFormat = "SLACK"
+)
+
+var AllWebhookFormat = []WebhookFormat{
+	WebhookFormatJSON,
+	WebhookFormatDiscord,
+	WebhookFormatSLACk,
+}
+
+func (e WebhookFormat) IsValid() bool {
+	switch e {
+	case WebhookFormatJSON, WebhookFormatDiscord, WebhookFormatSLACk:
+		return true
+	}
+	return false
+}
+
+func (e WebhookFormat) String() string {
+	return string(e)
+}
+
+func (e *WebhookFormat) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = WebhookFormat(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid WebhookFormat", str)
+	}
+	return nil
+}
+
+func (e WebhookFormat) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *WebhookFormat) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e WebhookFormat) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
