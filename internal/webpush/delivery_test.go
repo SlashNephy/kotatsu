@@ -264,6 +264,20 @@ func TestDeliverWorkerCancelsWithoutTarget(t *testing.T) {
 	assert.Empty(t, requests)
 }
 
+// TestDeliverWorkerCancelsNonPublicEndpoint は、LAN の中の送り先には送らず、送り直さずに取りやめることを確かめる。
+func TestDeliverWorkerCancelsNonPublicEndpoint(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	server, requests := pushService(t, func() int { return http.StatusCreated })
+	subscriptionID := f.subscribe(t, "mikan", server.URL+"/send/mikan", newBrowser(t))
+	eventID := f.emit(t, notification.KindRecordingStarted, nil)
+
+	var cancel *rivertype.JobCancelError
+	require.ErrorAs(t, f.deliver(t, webpush.NewHTTPClient(), subscriptionID, eventID), &cancel)
+	assert.Empty(t, requests)
+}
+
 // TestNewHTTPClientRefusesNonPublicAddresses は、プッシュサービスに送るクライアントが、LAN の中のアドレスには接続しないことを確かめる。
 func TestNewHTTPClientRefusesNonPublicAddresses(t *testing.T) {
 	t.Parallel()

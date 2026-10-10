@@ -190,6 +190,10 @@ func (w *DeliverWorker) send(ctx context.Context, subscription *sqlc.WebPushSubs
 	req.Header.Set("Authorization", authorization)
 
 	resp, err := w.client.Do(req)
+	if errors.Is(err, errNonPublicAddress) {
+		// LAN の中の送り先は、送り直しても送らないので、取りやめる。
+		return river.JobCancel(fmt.Errorf("failed to send the web push: %w", err))
+	}
 	if err != nil {
 		return fmt.Errorf("failed to send the web push: %w", err)
 	}
