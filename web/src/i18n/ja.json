@@ -398,7 +398,16 @@
     "error": "再生できませんでした。時間をおいてやり直してください",
     "play": "再生",
     "pause": "一時停止",
-    "seek": "再生位置"
+    "seek": "再生位置",
+    "quality": "画質",
+    "original": "オリジナル (この端末で変換)",
+    "preset": "{{name}}",
+    "presetHevc": "{{name}} (HEVC)",
+    "unavailable": {
+      "title": "この端末では再生できません",
+      "noTranscoder": "この端末ではブラウザの中で映像を変換できず、サーバー側でのトランスコードも使えません。サーバーに FFmpeg と tsreadex を入れると、kyusu の映像で再生できます",
+      "noPlayer": "この端末のブラウザは、Media Source Extensions に対応していないので、映像を再生できません"
+    }
   },
   "live": {
     "title": "ライブ",

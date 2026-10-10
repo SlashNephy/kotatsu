@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<81bbed718d35cece215883c2047cdaf1>>
+ * @generated SignedSource<<7a59205189d9e1d0a0475cb5b1f71508>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type VideoCodec = "H264" | "HEVC" | "%future added value";
 export type ServiceIdLiveQuery$variables = {
   from: string;
   id: string;
@@ -28,6 +29,13 @@ export type ServiceIdLiveQuery$data = {
     // value in case none of the concrete values match.
     readonly __typename: "%other";
   } | null | undefined;
+  readonly transcoding: {
+    readonly available: boolean;
+    readonly presets: ReadonlyArray<{
+      readonly codec: VideoCodec;
+      readonly name: string;
+    }>;
+  };
 };
 export type ServiceIdLiveQuery = {
   response: ServiceIdLiveQuery$data;
@@ -112,6 +120,43 @@ v7 = [
 v8 = {
   "alias": null,
   "args": null,
+  "concreteType": "Transcoding",
+  "kind": "LinkedField",
+  "name": "transcoding",
+  "plural": false,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "available",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "StreamPreset",
+      "kind": "LinkedField",
+      "name": "presets",
+      "plural": true,
+      "selections": [
+        (v5/*:: as any*/),
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "codec",
+          "storageKey": null
+        }
+      ],
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v9 = {
+  "alias": null,
+  "args": null,
   "kind": "ScalarField",
   "name": "id",
   "storageKey": null
@@ -162,7 +207,8 @@ return {
           }
         ],
         "storageKey": null
-      }
+      },
+      (v8/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -187,7 +233,7 @@ return {
         "selections": [
           (v4/*:: as any*/),
           (v6/*:: as any*/),
-          (v8/*:: as any*/)
+          (v9/*:: as any*/)
         ],
         "storageKey": null
       },
@@ -208,26 +254,27 @@ return {
             "plural": true,
             "selections": [
               (v5/*:: as any*/),
-              (v8/*:: as any*/)
+              (v9/*:: as any*/)
             ],
             "storageKey": null
           }
         ],
         "storageKey": null
-      }
+      },
+      (v8/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "b087981af015296f5b62eb0a3708080d",
+    "cacheID": "67f729134fb0a2080c60428e3d85bb5e",
     "id": null,
     "metadata": {},
     "name": "ServiceIdLiveQuery",
     "operationKind": "query",
-    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      streamUrl\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      id\n    }\n  }\n}\n"
+    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      streamUrl\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "76c55712f68095056820f8bcafae91b2";
+(node as any).hash = "cfa273db392acb615e1c6e138f3af507";
 
 export default node;

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<7395e7ed835998f5d8939af5e4ffa5d9>>
+ * @generated SignedSource<<fd5883cc8262e3b5fc09f248c5d0268f>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type VideoCodec = "H264" | "HEVC" | "%future added value";
 export type RecordingIdPlayQuery$variables = {
   id: string;
 };
@@ -26,6 +27,13 @@ export type RecordingIdPlayQuery$data = {
     // value in case none of the concrete values match.
     readonly __typename: "%other";
   } | null | undefined;
+  readonly transcoding: {
+    readonly available: boolean;
+    readonly presets: ReadonlyArray<{
+      readonly codec: VideoCodec;
+      readonly name: string;
+    }>;
+  };
 };
 export type RecordingIdPlayQuery = {
   response: RecordingIdPlayQuery$data;
@@ -85,6 +93,43 @@ v6 = {
 v7 = {
   "alias": null,
   "args": null,
+  "concreteType": "Transcoding",
+  "kind": "LinkedField",
+  "name": "transcoding",
+  "plural": false,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "available",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "StreamPreset",
+      "kind": "LinkedField",
+      "name": "presets",
+      "plural": true,
+      "selections": [
+        (v3/*:: as any*/),
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "codec",
+          "storageKey": null
+        }
+      ],
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v8 = {
+  "alias": null,
+  "args": null,
   "kind": "ScalarField",
   "name": "id",
   "storageKey": null
@@ -130,7 +175,8 @@ return {
           }
         ],
         "storageKey": null
-      }
+      },
+      (v7/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -166,7 +212,7 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v7/*:: as any*/)
+                  (v8/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -174,23 +220,24 @@ return {
             "type": "Recording",
             "abstractKey": null
           },
-          (v7/*:: as any*/)
+          (v8/*:: as any*/)
         ],
         "storageKey": null
-      }
+      },
+      (v7/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "1822980747d87adb8bedcf5c133d6fe8",
+    "cacheID": "0cbb9be70b0b5d27e413e67ac0174c69",
     "id": null,
     "metadata": {},
     "name": "RecordingIdPlayQuery",
     "operationKind": "query",
-    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      streamUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        id\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      streamUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "f4bc29291ebafb1712c0221a44e8af6b";
+(node as any).hash = "41f391a2070f8723480a0c312caae297";
 
 export default node;

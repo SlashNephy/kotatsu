@@ -6,8 +6,12 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 
 import { ErrorBoundary } from '../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
+import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { formatDuration, playbackPosition } from '../../yunomi/position';
+import { PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
+import { hlsURL } from '../../yunomi/route';
 import { TsPlayer } from '../../yunomi/TsPlayer';
+import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
 
@@ -15,7 +19,7 @@ export const Route = createFileRoute('/recordings/$recordingId_/play')({
   component: PlayPage,
 });
 
-// PlayPage は、録画をブラウザの中で変換して再生する画面 (設計書 7.2)。
+// PlayPage は、録画を再生する画面。ブラウザの中で変換するか、kyusu の HLS で再生する (設計書 7.1)。
 function PlayPage() {
   const { t } = useTranslation();
   const { recordingId } = Route.useParams();
@@ -72,13 +76,26 @@ function Player({ recordingId }: { recordingId: string }) {
             }
           }
         }
+        transcoding {
+          available
+          presets {
+            name
+            codec
+          }
+        }
       }
     `,
     { id: recordingId },
   );
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const visible = useVisible(videoRef);
-  // offset は、今の読み込みを始めた、録画の始まりからの秒。シークすると、新しい開始位置で読み直す (設計書 7.2)。
+  // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で調べる。
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const visible = useVisible(frameRef);
+  const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
+  // kyusu の HLS は、録画の全体を 1 つのプレイリストで表すので、video の時刻がそのまま録画の中の位置になる。
+  const hls = route.kind === 'kyusu';
+  // offset は、今の読み込みを始めた、録画の始まりからの秒。ブラウザの中で変換するときは、シークすると、
+  // 新しい開始位置で読み直す (設計書 7.2)。kyusu の HLS では、画質を変えたときに続きから読む位置に使う。
   const [offset, setOffset] = useState(0);
   // base は、読み込んだ映像の最初のフレームの、video の時刻。変換した映像の時刻は 0 から始まるとは限らない。
   const base = useRef(0);
@@ -110,6 +127,25 @@ function Player({ recordingId }: { recordingId: string }) {
     setOffset(seconds);
   };
 
+  // seek は、指定の位置に移る。kyusu の HLS は、プレイリストの中を移るだけで、読み直さない。
+  const seek = (seconds: number) => {
+    const video = videoRef.current;
+    if (hls && video !== null) {
+      video.currentTime = seconds;
+      positionRef.current = seconds;
+      setPosition(seconds);
+
+      return;
+    }
+    startAt(seconds);
+  };
+
+  // changeQuality は、画質を変え、それまでの位置から続ける。
+  const changeQuality = (next: string) => {
+    startAt(positionRef.current);
+    setQuality(next);
+  };
+
   // 画面の外に出たら、読み込みも止める。戻ったら、止めた位置から読み直す (設計書 7.2)。
   useEffect(() => {
     if (!visible) {
@@ -125,6 +161,12 @@ function Player({ recordingId }: { recordingId: string }) {
       return;
     }
     const update = () => {
+      if (hls) {
+        positionRef.current = video.currentTime;
+        setPosition(video.currentTime);
+
+        return;
+      }
       if (phase.current === 'loading') {
         return;
       }
@@ -151,12 +193,14 @@ function Player({ recordingId }: { recordingId: string }) {
       video.removeEventListener('pause', onPause);
       video.removeEventListener('play', onPlay);
     };
-  }, [offset]);
+    // 画質を変えると video の要素を作り直すので、経路が変わったら付け直す。
+  }, [offset, hls, quality]);
 
   if (recording === null) {
     return <Alert color="amber">{t('recordings.notFound')}</Alert>;
   }
   const url = `${recording.streamUrl}?start=${offset.toFixed(1)}`;
+  const onError = () => setError(t('player.error'));
   const shown = seeking ?? position;
 
   return (
@@ -167,17 +211,36 @@ function Player({ recordingId }: { recordingId: string }) {
       <Text size="sm" c="dimmed">
         {recording.service.name}
       </Text>
-      <TsPlayer
-        url={url}
-        videoRef={videoRef}
-        active={visible}
-        onLoaded={() => {
-          // 最初のフレームが出たときの時刻を、base にする。
-          phase.current = 'awaitingBase';
-          setError(null);
-        }}
-        onError={() => setError(t('player.error'))}
-      />
+      <Group justify="flex-end">
+        <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
+      </Group>
+      <PlaybackUnavailable route={route} />
+      <div ref={frameRef}>
+        {route.kind === 'convert' && (
+          <TsPlayer
+            url={url}
+            videoRef={videoRef}
+            active={visible}
+            onLoaded={() => {
+              // 最初のフレームが出たときの時刻を、base にする。
+              phase.current = 'awaitingBase';
+              setError(null);
+            }}
+            onError={onError}
+          />
+        )}
+        {route.kind === 'kyusu' && (
+          <HlsPlayer
+            url={hlsURL(recording.streamUrl, route.preset)}
+            videoRef={videoRef}
+            active={visible}
+            live={false}
+            startPosition={offset}
+            onLoaded={() => setError(null)}
+            onError={onError}
+          />
+        )}
+      </div>
       <Group gap="sm" wrap="nowrap">
         <ActionIcon
           variant="default"
@@ -208,7 +271,7 @@ function Player({ recordingId }: { recordingId: string }) {
           onChange={setSeeking}
           onChangeEnd={(value) => {
             setSeeking(null);
-            startAt(value);
+            seek(value);
           }}
         />
         <Text size="sm" ff="monospace" style={{ flexShrink: 0 }}>

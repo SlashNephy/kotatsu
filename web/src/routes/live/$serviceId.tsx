@@ -1,4 +1,4 @@
-import { Alert, Anchor, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Group, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -6,8 +6,12 @@ import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'reac
 
 import { ErrorBoundary } from '../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
+import { HlsPlayer } from '../../yunomi/HlsPlayer';
+import { PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
 import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
+import { hlsURL } from '../../yunomi/route';
 import { TsPlayer } from '../../yunomi/TsPlayer';
+import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
 import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordingsQuery.graphql';
@@ -32,7 +36,7 @@ const recordingsQuery = graphql`
   }
 `;
 
-// LiveServicePage は、サービスをブラウザの中で変換してライブ視聴する画面 (設計書 7.2)。
+// LiveServicePage は、サービスをライブ視聴する画面。ブラウザの中で変換するか、kyusu の HLS で再生する (設計書 7.1)。
 function LiveServicePage() {
   const { t } = useTranslation();
   const { serviceId } = Route.useParams();
@@ -98,12 +102,22 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
             name
           }
         }
+        transcoding {
+          available
+          presets {
+            name
+            codec
+          }
+        }
       }
     `,
     { id: serviceId, ...range },
   );
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const visible = useVisible(videoRef);
+  // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で調べる。
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const visible = useVisible(frameRef);
+  const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
   // session は、つなぎ直すたびに増やし、URL を変えて読み直させる。
   const [session, setSession] = useState(0);
   const attempt = useRef(0);
@@ -174,8 +188,13 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
   if (service === null) {
     return <Alert color="amber">{t('live.notFound')}</Alert>;
   }
-  // 画面の外に出たときと、タブが隠れたときは、読み込みも止めて、チューナーを手放す (設計書 7.2)。
-  const url = `${service.streamUrl}${service.streamUrl.includes('?') ? '&' : '?'}session=${session}`;
+  // session を付けて、つなぎ直すたびに URL を変える。
+  const withSession = (base: string) =>
+    `${base}${base.includes('?') ? '&' : '?'}session=${session}`;
+  const onLoaded = () => {
+    attempt.current = 0;
+    preempted.current = false;
+  };
 
   return (
     <Stack gap="xs">
@@ -185,22 +204,41 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
       <Text size="sm" c="dimmed">
         {data.guide[0]?.programs[0]?.name ?? t('live.noProgram')}
       </Text>
-      <TsPlayer
-        url={disconnection === null ? url : null}
-        videoRef={videoRef}
-        active={visible}
-        onLoaded={() => {
-          attempt.current = 0;
-          preempted.current = false;
-        }}
-        onState={(state) => {
-          // ライブのストリームは終わらないので、読み終えたのは、切れたということ。
-          if (state === 'completed' || state === 'error') {
-            disconnected();
-          }
-        }}
-        onError={disconnected}
-      />
+      <Group justify="flex-end">
+        <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
+      </Group>
+      <PlaybackUnavailable route={route} />
+      {/* 画面の外に出たときと、タブが隠れたときは、読み込みも止めて、チューナーを手放す (設計書 7.2)。 */}
+      <div ref={frameRef}>
+        {route.kind === 'convert' && (
+          <TsPlayer
+            url={disconnection === null ? withSession(service.streamUrl) : null}
+            videoRef={videoRef}
+            active={visible}
+            onLoaded={onLoaded}
+            onState={(state) => {
+              // ライブのストリームは終わらないので、読み終えたのは、切れたということ。
+              if (state === 'completed' || state === 'error') {
+                disconnected();
+              }
+            }}
+            onError={disconnected}
+          />
+        )}
+        {route.kind === 'kyusu' && (
+          <HlsPlayer
+            url={
+              disconnection === null ? withSession(hlsURL(service.streamUrl, route.preset)) : null
+            }
+            videoRef={videoRef}
+            active={visible}
+            live
+            onLoaded={onLoaded}
+            // チューナーを使われて切れると、hls.js が読み直しを諦めたところで、致命的なエラーになる。
+            onError={disconnected}
+          />
+        )}
+      </div>
       {!visible && (
         <Text size="sm" c="dimmed">
           {t('live.paused')}
