@@ -72,6 +72,23 @@ type Lease struct {
 	ExpiresAt  time.Time
 }
 
+type LoginChallenge struct {
+	ID        uuid.UUID
+	TokenHash []byte
+	UserID    uuid.UUID
+	CreatedAt time.Time
+	ExpiresAt time.Time
+	UserAgent string
+	SourceIP  *netip.Addr
+}
+
+type LoginThrottle struct {
+	Key          string
+	Failures     int32
+	LockedUntil  time.Time
+	LastFailedAt time.Time
+}
+
 type Program struct {
 	ServiceID             int64
 	EventID               int64

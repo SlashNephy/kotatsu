@@ -177,6 +177,20 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			},
 		},
 		{
+			name: "have i been pwned",
+			yaml: "auth:\n  hibp:\n    url: https://hibp.example.com\n",
+			env:  map[string]string{envKeyURL: envURL, "KOTATSU_AUTH_HIBP_ENABLED": "true"},
+			want: &config.Config{
+				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}},
+				Metrics:  config.Metrics{Listen: defaultMetricsListen},
+				Database: config.Database{URL: envURL, Pooler: false},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Storage:  noPools(),
+				Tuner:    config.Tuner{URL: ""},
+				Auth:     config.Auth{HIBP: config.HIBP{Enabled: true, URL: "https://hibp.example.com"}},
+			},
+		},
+		{
 			name: "audit retention",
 			yaml: "audit:\n  retention_days: 30\n",
 			env:  map[string]string{envKeyURL: envURL},
@@ -331,6 +345,14 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 				envKeyTunerURL: "mirakurun:40772",
 			},
 			wantErrs: []string{"tuner.url (KOTATSU_TUNER_URL): must be an http:// or https:// URL"},
+		},
+		{
+			name: "invalid have i been pwned url",
+			env: map[string]string{
+				envKeyURL:               envURL,
+				"KOTATSU_AUTH_HIBP_URL": "api.pwnedpasswords.com",
+			},
+			wantErrs: []string{"auth.hibp.url (KOTATSU_AUTH_HIBP_URL): must be an http:// or https:// URL"},
 		},
 		{
 			name: "invalid audit retention",

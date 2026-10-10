@@ -28,6 +28,7 @@ type Config struct {
 	Audit     Audit     `yaml:"audit"`
 	Storage   Storage   `yaml:"storage"`
 	Tuner     Tuner     `yaml:"tuner"`
+	Auth      Auth      `yaml:"auth"`
 }
 
 // Server は tenban の HTTP サーバーの設定。
@@ -96,6 +97,19 @@ type Tuner struct {
 	URL Secret `yaml:"url"`
 }
 
+// Auth は認証の設定 (設計書 9.3)。
+type Auth struct {
+	HIBP HIBP `yaml:"hibp"`
+}
+
+// HIBP は、パスワードを設定するときに、Have I Been Pwned に漏洩済みかを照会する設定。
+// 外部への通信になるので、既定では照会しない (設計書 9.3)。
+type HIBP struct {
+	Enabled bool `yaml:"enabled"`
+	// URL は Pwned Passwords の API。空なら https://api.pwnedpasswords.com にする。
+	URL string `yaml:"url"`
+}
+
 // Default は既定値を入れた設定を返す。
 func Default() *Config {
 	return &Config{
@@ -124,6 +138,9 @@ func Default() *Config {
 		Tuner: Tuner{
 			URL: "",
 		},
+		Auth: Auth{
+			HIBP: HIBP{Enabled: false, URL: ""},
+		},
 	}
 }
 
@@ -148,8 +165,11 @@ func (c *Config) validate() error {
 	if err := validateTunerURL(c.Tuner.URL); err != nil {
 		errs = append(errs, fieldError("tuner.url", err))
 	}
-	if err := validateOTLPEndpoint(c.Telemetry.OTLPEndpoint); err != nil {
+	if err := validateHTTPURL(c.Telemetry.OTLPEndpoint); err != nil {
 		errs = append(errs, fieldError("telemetry.otlp_endpoint", err))
+	}
+	if err := validateHTTPURL(c.Auth.HIBP.URL); err != nil {
+		errs = append(errs, fieldError("auth.hibp.url", err))
 	}
 	if c.Audit.RetentionDays < 1 {
 		errs = append(errs, fieldError("audit.retention_days", errors.New("must be at least 1")))
@@ -247,7 +267,8 @@ func validateTunerURL(secret Secret) error {
 	return nil
 }
 
-func validateOTLPEndpoint(endpoint string) error {
+// validateHTTPURL は、空でなければ http:// か https:// の URL であることを確かめる。
+func validateHTTPURL(endpoint string) error {
 	if endpoint == "" {
 		return nil
 	}

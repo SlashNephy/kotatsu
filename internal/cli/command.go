@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"slices"
 	"strings"
@@ -56,6 +57,9 @@ type Options struct {
 	RunRegistry func(ctx context.Context, logger *slog.Logger, deps *Deps, roles []string, listenAddr string) error
 	// JobWorkers は、nekonote で実行するジョブの Worker と定期ジョブを返す。
 	JobWorkers func(deps *Deps) (*river.Workers, []*river.PeriodicJob)
+	// PasswordStrengthTimeout は、パスワードの強度の判定の時間の上限。0 なら既定値にする。
+	// テストは、-race で遅くなるので長くする。
+	PasswordStrengthTimeout time.Duration
 }
 
 // DefaultOptions は、本番で使う依存を返す。
@@ -70,6 +74,8 @@ func DefaultOptions(logger *slog.Logger) *Options {
 		Migrate:      migrate,
 		RunRegistry:  runRegistry,
 		JobWorkers:   jobWorkers,
+
+		PasswordStrengthTimeout: 0,
 	}
 }
 
@@ -252,6 +258,7 @@ func NewCommand(opts *Options) *cobra.Command {
 	})
 
 	root.AddCommand(newImportCommand(opts, loadConfig))
+	root.AddCommand(newUserCommand(opts, connect))
 
 	// cobra の既定のテンプレートはコマンド一覧に Name だけを出すので、役割名を併記した名前に差し替える。
 	// NamePadding は Name の長さから計算されるため、併記した名前に合わせた固定幅にする。
@@ -380,6 +387,13 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		HeartbeatInterval:   0,
 	}))
 	mux.Handle("POST /auth/logout", httpserver.RequireSameOrigin(sessions.LogoutHandler(deps.DB)))
+	logins := auth.NewLogins(&auth.LoginsOptions{
+		Clock:        deps.Clock,
+		Recorder:     audit.NewRecorder(deps.Clock),
+		Logger:       logger.With(slog.String("component", "login")),
+		ChallengeTTL: 0,
+	})
+	mux.Handle("POST /auth/login", httpserver.RequireSameOrigin(logins.PasswordHandler(deps.DB, sessions, clientInfo)))
 	api := sessions.Middleware(deps.DB)(mux)
 
 	app, err := spa.NewHandler(web.App(), logger.With(slog.String("component", "spa")))
@@ -392,6 +406,16 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 	root.Handle("/", app)
 
 	return policy.Middleware(root), nil
+}
+
+// clientInfo は、リクエストの送信元を返す。リバースプロキシを経由したときは、信頼済みのプロキシが伝えた値にする。
+func clientInfo(r *http.Request) *auth.ClientInfo {
+	info := &auth.ClientInfo{UserAgent: r.UserAgent(), SourceIP: netip.Addr{}}
+	if client := httpserver.ClientFrom(r.Context()); client != nil {
+		info.SourceIP = client.IP
+	}
+
+	return info
 }
 
 // runRoles は roles を並行に動かす。どれかが失敗すると、残りも止める。
