@@ -4,8 +4,10 @@ go 1.27.0
 
 require (
 	github.com/99designs/gqlgen v0.17.95
+	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/dop251/goja v0.0.0-20261009133625-a4bedf5f6000
 	github.com/fxamacker/cbor/v2 v2.9.4
+	github.com/go-jose/go-jose/v4 v4.1.5
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/google/uuid v1.6.0
@@ -25,6 +27,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/crypto v0.57.0
+	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sync v0.24.0
 	golang.org/x/text v0.43.0
 	modernc.org/sqlite v1.60.1

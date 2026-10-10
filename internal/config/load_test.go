@@ -34,7 +34,23 @@ const (
 	defaultMetricsListen = ":9090"
 	// 設計書の付録 A の初期値。
 	defaultAuditRetentionDays = 365
+
+	testIssuer    = "https://idp.example.com"
+	envOIDCIssuer = "KOTATSU_AUTH_OIDC_ISSUER"
+	defaultGroups = "groups"
+	testClientID  = "kotatsu"
 )
+
+// defaultOIDC は、OIDC の既定値 (OIDC でのログインは無効)。
+func defaultOIDC() config.OIDC {
+	return config.OIDC{
+		Issuer: "", ClientID: "", ClientSecret: "", RedirectURL: "",
+		Scopes: []string{"openid", "profile", "email"}, DisplayName: "OIDC", UsernameClaim: "preferred_username",
+		AutoCreate: config.AutoCreate{
+			Enabled: false, GroupsClaim: defaultGroups, AdminGroups: []string{}, MemberGroups: []string{}, ViewerGroups: []string{},
+		},
+	}
+}
 
 // noPools は、プールを設定していないときの Storage。
 func noPools() config.Storage {
@@ -191,6 +207,29 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			},
 		},
 		{
+			name: "oidc",
+			yaml: "auth:\n  oidc:\n    issuer: https://idp.example.com\n    client_id: kotatsu\n    auto_create:\n      enabled: true\n",
+			env: map[string]string{
+				envKeyURL: envURL, "KOTATSU_AUTH_OIDC_SCOPES": "openid, groups",
+				"KOTATSU_AUTH_OIDC_AUTO_CREATE_ADMIN_GROUPS": "admins", "KOTATSU_AUTH_OIDC_AUTO_CREATE_VIEWER_GROUPS": "family,guests",
+			},
+			want: &config.Config{
+				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}},
+				Metrics:  config.Metrics{Listen: defaultMetricsListen},
+				Database: config.Database{URL: envURL, Pooler: false},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Storage:  noPools(),
+				Tuner:    config.Tuner{URL: ""},
+				Auth: config.Auth{OIDC: config.OIDC{
+					Issuer: testIssuer, ClientID: testClientID, ClientSecret: "", RedirectURL: "",
+					Scopes: []string{"openid", "groups"}, DisplayName: "OIDC", UsernameClaim: "preferred_username",
+					AutoCreate: config.AutoCreate{
+						Enabled: true, GroupsClaim: defaultGroups, AdminGroups: []string{"admins"}, MemberGroups: []string{}, ViewerGroups: []string{"family", "guests"},
+					},
+				}},
+			},
+		},
+		{
 			name: "audit retention",
 			yaml: "audit:\n  retention_days: 30\n",
 			env:  map[string]string{envKeyURL: envURL},
@@ -292,6 +331,10 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 
 			cfg, err := config.Load(path, lookup(tt.env))
 			require.NoError(t, err)
+			// OIDC を扱わないケースでは、既定値のままであることを確かめる。
+			if tt.want.Auth.OIDC.Scopes == nil {
+				tt.want.Auth.OIDC = defaultOIDC()
+			}
 			assert.Equal(t, tt.want, cfg)
 		})
 	}
@@ -361,6 +404,31 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 				"KOTATSU_AUTH_HIBP_URL": "api.pwnedpasswords.com",
 			},
 			wantErrs: []string{"auth.hibp.url (KOTATSU_AUTH_HIBP_URL): must be an http:// or https:// URL"},
+		},
+		{
+			name: "oidc without client id and openid scope",
+			env: map[string]string{
+				envKeyURL: envURL, envOIDCIssuer: testIssuer, "KOTATSU_AUTH_OIDC_SCOPES": "profile",
+			},
+			wantErrs: []string{
+				"auth.oidc.client_id (KOTATSU_AUTH_OIDC_CLIENT_ID): is required when auth.oidc.issuer is set",
+				"auth.oidc.scopes (KOTATSU_AUTH_OIDC_SCOPES): must include openid",
+			},
+		},
+		{
+			name: "oidc auto_create without groups",
+			env: map[string]string{
+				envKeyURL: envURL, envOIDCIssuer: testIssuer, "KOTATSU_AUTH_OIDC_CLIENT_ID": testClientID,
+				"KOTATSU_AUTH_OIDC_AUTO_CREATE_ENABLED": "true",
+			},
+			wantErrs: []string{"auth.oidc.auto_create (KOTATSU_AUTH_OIDC_AUTO_CREATE): needs at least one of admin_groups, member_groups or viewer_groups"},
+		},
+		{
+			name: "invalid oidc issuer",
+			env: map[string]string{
+				envKeyURL: envURL, envOIDCIssuer: "idp.example.com", "KOTATSU_AUTH_OIDC_CLIENT_ID": testClientID,
+			},
+			wantErrs: []string{"auth.oidc.issuer (KOTATSU_AUTH_OIDC_ISSUER): must be an http:// or https:// URL"},
 		},
 		{
 			name: "invalid audit retention",

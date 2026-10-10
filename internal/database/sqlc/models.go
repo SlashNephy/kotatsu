@@ -91,6 +91,17 @@ type LoginThrottle struct {
 	LastFailedAt time.Time
 }
 
+type OidcLogin struct {
+	ID           uuid.UUID
+	TokenHash    []byte
+	State        string
+	Nonce        string
+	CodeVerifier string
+	RedirectUri  string
+	CreatedAt    time.Time
+	ExpiresAt    time.Time
+}
+
 type Program struct {
 	ServiceID             int64
 	EventID               int64
@@ -263,6 +274,15 @@ type User struct {
 	DisabledAt   *time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+}
+
+type UserOidcIdentity struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Issuer     string
+	Subject    string
+	CreatedAt  time.Time
+	LastUsedAt *time.Time
 }
 
 type UserPasskey struct {
