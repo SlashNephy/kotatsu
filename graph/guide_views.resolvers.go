@@ -39,12 +39,8 @@ func (r *mutationResolver) DeleteGuideView(ctx context.Context, id string) (stri
 	if err != nil {
 		return "", err
 	}
-	n, err := sqlc.New(r.db).DeleteGuideView(ctx, sqlc.DeleteGuideViewParams{ID: viewID, UserID: principal.UserID})
-	if err != nil {
-		return "", fmt.Errorf("failed to delete the guide view: %w", err)
-	}
-	if n == 0 {
-		return "", NewError(CodeNotFound, "guide view not found")
+	if err := r.deleteGuideView(ctx, principal.UserID, viewID); err != nil {
+		return "", err
 	}
 
 	return id, nil

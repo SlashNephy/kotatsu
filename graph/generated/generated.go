@@ -394,6 +394,7 @@ type ComplexityRoot struct {
 		DataChanged             func(childComplexity int) int
 		Heartbeat               func(childComplexity int) int
 		UnreadNotificationCount func(childComplexity int) int
+		ViewerSettingsChanged   func(childComplexity int) int
 	}
 
 	SystemSettings struct {
@@ -544,6 +545,7 @@ type SubscriptionResolver interface {
 	Heartbeat(ctx context.Context) (<-chan *time.Time, error)
 	DataChanged(ctx context.Context) (<-chan *model.DataChange, error)
 	UnreadNotificationCount(ctx context.Context) (<-chan int, error)
+	ViewerSettingsChanged(ctx context.Context) (<-chan int, error)
 }
 
 // endregion ************************** generated!.gotpl **************************
@@ -2165,6 +2167,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Subscription.UnreadNotificationCount(childComplexity), true
+	case "Subscription.viewerSettingsChanged":
+		if e.ComplexityRoot.Subscription.ViewerSettingsChanged == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Subscription.ViewerSettingsChanged(childComplexity), true
 
 	case "SystemSettings.archiveRetentionDays":
 		if e.ComplexityRoot.SystemSettings.ArchiveRetentionDays == nil {
@@ -2706,6 +2714,11 @@ extend type Subscription {
   通知が増えたときも、ほかの端末で既読にしたときも届く。
   """
   unreadNotificationCount: Int!
+  """
+  ログイン中のユーザーの設定の版数 (設計書 9.1)。購読を始めたときに今の版数を送り、その後は、同じユーザーが、どの端末からでも設定を変えたときに送る。
+  クライアントは、届いたら設定を読み直す。対象の設定は、通知の設定、番組表ビュー、第二要素、パスキー、セッションの失効。
+  """
+  viewerSettingsChanged: Int!
 }
 `, BuiltIn: false},
 	{Name: "../schema/conditions.graphqls", Input: `"""
@@ -11923,6 +11936,29 @@ func (ec *executionContext) fieldContext_Subscription_unreadNotificationCount(_ 
 	return graphql.NewScalarFieldContext("Subscription", field, true, true, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _Subscription_viewerSettingsChanged(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_viewerSettingsChanged(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Subscription().ViewerSettingsChanged(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_viewerSettingsChanged(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Subscription", field, true, true, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _SystemSettings_recordingDefaults(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -18220,6 +18256,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_dataChanged(ctx, fields[0])
 	case "unreadNotificationCount":
 		return ec._Subscription_unreadNotificationCount(ctx, fields[0])
+	case "viewerSettingsChanged":
+		return ec._Subscription_viewerSettingsChanged(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}

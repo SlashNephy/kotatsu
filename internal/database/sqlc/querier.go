@@ -20,6 +20,7 @@ type Querier interface {
 	// 同じ番組を移し直すことは通常ないが、移した後に上流から同じ番組が届き、また移すときは新しい内容で上書きする。
 	ArchivePrograms(ctx context.Context, arg ArchiveProgramsParams) (int64, error)
 	BumpChangeVersion(ctx context.Context, arg BumpChangeVersionParams) (int64, error)
+	BumpUserSettingsVersion(ctx context.Context, arg BumpUserSettingsVersionParams) (int64, error)
 	// 無効にした予約の割り当ての結果を消す。
 	ClearDisabledAssignments(ctx context.Context) (int64, error)
 	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
@@ -74,6 +75,7 @@ type Querier interface {
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	GetUserForUpdate(ctx context.Context, id uuid.UUID) (User, error)
+	GetUserSettingsVersion(ctx context.Context, userID uuid.UUID) (int64, error)
 	GetUserTOTPForUpdate(ctx context.Context, userID uuid.UUID) (UserTotp, error)
 	GetWebhook(ctx context.Context, id uuid.UUID) (Webhook, error)
 	// 無効にした管理者も数える。管理者を作った後は、初回セットアップを開き直さない (設計書 9.2)。

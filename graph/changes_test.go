@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/graph"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/notify"
@@ -180,4 +182,49 @@ func TestUnreadNotificationCountIsPerUser(t *testing.T) {
 	// 自分の数が変わると、それだけが届く。
 	f.notify(t, notification.KindRecordingFailed, nil)
 	assert.JSONEq(t, `{"unreadNotificationCount":2}`, string(next(t, events)))
+}
+
+// TestViewerSettingsChanged は、ある端末で設定を変えると、同じユーザーのほかの端末にだけ届くことを確かめる (設計書 9.1)。
+func TestViewerSettingsChanged(t *testing.T) {
+	t.Parallel()
+
+	f := newFixtureWithChanges(t)
+	other := f.as(t, "viewer", auth.RoleViewer)
+	mine := f.subscribe(t, `subscription { viewerSettingsChanged }`)
+	theirs := other.subscribe(t, `subscription { viewerSettingsChanged }`)
+	assert.JSONEq(t, `{"viewerSettingsChanged":0}`, string(next(t, mine)))
+	assert.JSONEq(t, `{"viewerSettingsChanged":0}`, string(next(t, theirs)))
+
+	tests := []struct {
+		name   string
+		change func(t *testing.T, device *fixture)
+	}{
+		{name: "通知の設定", change: func(t *testing.T, device *fixture) {
+			t.Helper()
+
+			input := map[string]any{"kind": "STORAGE_LOW", "inApp": false, "webPush": true}
+			require.Empty(t, device.query(t, updatePreference, map[string]any{varInput: input}, nil))
+		}},
+		{name: "番組表ビュー", change: func(t *testing.T, device *fixture) {
+			t.Helper()
+
+			require.Empty(t, device.query(t, `mutation { createGuideView(input: {name: "地上波", hideEmptyServices: false}) { id } }`, nil, nil))
+		}},
+		{name: "セッションの失効", change: func(t *testing.T, device *fixture) {
+			t.Helper()
+
+			_, spare, err := device.sessions.Create(t.Context(), device.pool, device.userID, nil)
+			require.NoError(t, err)
+			require.Empty(t, device.query(t, `mutation($id: ID!) { revokeSession(id: $id) }`, map[string]any{varID: graph.GlobalID("Session", spare.ID.String())}, nil))
+		}},
+	}
+	// 別の端末 (同じユーザーの別のセッション) で変える。
+	device := f.withNewSession(t)
+	for i, tt := range tests {
+		tt.change(t, device)
+		assert.JSONEq(t, `{"viewerSettingsChanged":`+strconv.Itoa(i+1)+`}`, string(next(t, mine)), tt.name)
+	}
+	// ほかのユーザーの端末には届かない。そのユーザーが自分で変えたときだけ届く。
+	tests[0].change(t, other)
+	assert.JSONEq(t, `{"viewerSettingsChanged":1}`, string(next(t, theirs)))
 }

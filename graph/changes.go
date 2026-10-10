@@ -11,6 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/tunerstate"
+	"github.com/SlashNephy/kotatsu/internal/usersettings"
 )
 
 // Changes は、ロール間の変更の通知を、subscription の購読者に知らせる。*notify.Broadcaster が満たす。
@@ -44,12 +45,12 @@ func dataChannels() []struct {
 
 // WatchedChannels は、subscription で知らせるのに使う、変更の通知のチャンネルを返す。tenban は、これらを見張る。
 func WatchedChannels() []string {
-	channels := make([]string, 0, len(dataChannels())+1)
+	channels := make([]string, 0, len(dataChannels())+2)
 	for _, c := range dataChannels() {
 		channels = append(channels, c.notify)
 	}
 
-	return append(channels, notification.NotifyChannel)
+	return append(channels, notification.NotifyChannel, usersettings.NotifyChannel)
 }
 
 // subscribeDataChanges は、購読を始めたときに今の版数を送り、その後は版数が上がったデータの種類を送る。
@@ -155,6 +156,62 @@ func (r *Resolver) subscribeUnreadNotificationCount(ctx context.Context) (<-chan
 			case <-ctx.Done():
 				return
 			case out <- count:
+			}
+		}
+	}()
+
+	return out, nil
+}
+
+// subscribeViewerSettings は、購読を始めたときにログイン中のユーザーの設定の版数を送り、その後は版数が上がったときに送る。
+// ほかのユーザーが設定を変えたときは、版数を読み直すだけで、何も送らない。
+func (r *Resolver) subscribeViewerSettings(ctx context.Context) (<-chan int, error) {
+	principal, err := viewer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.changes == nil {
+		return nil, errChangesUnavailable
+	}
+	// 版数を読む前に購読し、読んだ後の変更を取りこぼさないようにする。
+	wake, unsubscribe := r.changes.Subscribe()
+	channelVersion := r.changes.Version(usersettings.NotifyChannel)
+	version, err := usersettings.Version(ctx, r.db, principal.UserID)
+	if err != nil {
+		unsubscribe()
+
+		return nil, err
+	}
+
+	out := make(chan int, 1)
+	out <- int(version)
+	go func() {
+		defer close(out)
+		defer unsubscribe()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-wake:
+			}
+			latest := r.changes.Version(usersettings.NotifyChannel)
+			if latest <= channelVersion {
+				continue
+			}
+			channelVersion = latest
+			current, err := usersettings.Version(ctx, r.db, principal.UserID)
+			if err != nil {
+				// 読めなければ、購読を終える。クライアントは、購読し直して今の版数を受け取る。
+				return
+			}
+			if current <= version {
+				continue
+			}
+			version = current
+			select {
+			case <-ctx.Done():
+				return
+			case out <- int(version):
 			}
 		}
 	}()

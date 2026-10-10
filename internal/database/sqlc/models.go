@@ -335,6 +335,12 @@ type UserRecoveryCode struct {
 	UsedAt    *time.Time
 }
 
+type UserSettingVersion struct {
+	UserID    uuid.UUID
+	Version   int64
+	UpdatedAt time.Time
+}
+
 type UserTotp struct {
 	UserID          uuid.UUID
 	SecretEncrypted []byte

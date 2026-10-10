@@ -297,6 +297,13 @@ CREATE TABLE notification_preferences (
   PRIMARY KEY (user_id, kind)
 );
 
+-- ユーザーの設定の版数 (設計書 9.1)。ユーザーが自分の設定を変えるたびに上げ、同じユーザーのほかの端末に、subscription で知らせる。
+CREATE TABLE user_setting_versions (
+  user_id uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+  version bigint NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
 -- 管理者が設定する Webhook (設計書 6.2)。通知するイベントを、外部のサービスに送る。
 CREATE TABLE webhooks (
   id uuid PRIMARY KEY,

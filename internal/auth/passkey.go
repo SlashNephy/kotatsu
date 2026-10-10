@@ -24,6 +24,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/usersettings"
 )
 
 const (
@@ -324,7 +325,12 @@ func (p *Passkeys) register(
 	return passkey, p.record(ctx, tx, actor, "user.passkey_registered", userID, passkey)
 }
 
+// record は、パスキーの変更を監査ログに残し、同じユーザーのほかの端末に、設定が変わったことを知らせる。
 func (p *Passkeys) record(ctx context.Context, tx pgx.Tx, actor *audit.Actor, action string, userID uuid.UUID, passkey *Passkey) error {
+	if err := usersettings.Touch(ctx, tx, p.clock, userID); err != nil {
+		return err
+	}
+
 	return p.recorder.Record(ctx, tx, &audit.Event{
 		Actor:      actor,
 		Action:     action,

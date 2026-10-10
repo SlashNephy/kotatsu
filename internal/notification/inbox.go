@@ -13,6 +13,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/notify"
+	"github.com/SlashNephy/kotatsu/internal/usersettings"
 )
 
 // Notification は、ユーザーに届いた画面内の通知。
@@ -149,19 +150,22 @@ func (b *Inbox) Preferences(ctx context.Context, db sqlc.DBTX, userID uuid.UUID)
 	return preferences, nil
 }
 
-// SetPreference は、ユーザーのイベントの種類 kind の通知設定を変える。
-func (b *Inbox) SetPreference(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, preference *Preference) error {
+// SetPreference は、ユーザーのイベントの種類 kind の通知設定を変え、同じユーザーのほかの端末に、設定が変わったことを知らせる。
+func (b *Inbox) SetPreference(ctx context.Context, db Database, userID uuid.UUID, preference *Preference) error {
 	if _, err := ParseKind(string(preference.Kind)); err != nil {
 		return err
 	}
-	err := sqlc.New(db).UpsertNotificationPreference(ctx, sqlc.UpsertNotificationPreferenceParams{
-		UserID: userID, Kind: string(preference.Kind), InApp: preference.InApp, WebPush: preference.WebPush, Now: b.clock.Now(),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to save the notification preference: %w", err)
-	}
 
-	return nil
+	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		err := sqlc.New(tx).UpsertNotificationPreference(ctx, sqlc.UpsertNotificationPreferenceParams{
+			UserID: userID, Kind: string(preference.Kind), InApp: preference.InApp, WebPush: preference.WebPush, Now: b.clock.Now(),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to save the notification preference: %w", err)
+		}
+
+		return usersettings.Touch(ctx, tx, b.clock, userID)
+	})
 }
 
 // markRead は、mark で既読にし、既読にした通知があれば、同じユーザーのほかの端末の未読の数が変わるよう、変更を通知する。
