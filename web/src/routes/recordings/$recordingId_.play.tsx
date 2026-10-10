@@ -8,9 +8,10 @@ import { ErrorBoundary } from '../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { formatDuration, playbackPosition } from '../../yunomi/position';
-import { PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
+import { CaptionsToggle, PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
 import { hlsURL } from '../../yunomi/route';
 import { TsPlayer } from '../../yunomi/TsPlayer';
+import { useCaptionsPreference } from '../../yunomi/useCaptionsPreference';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
@@ -92,6 +93,7 @@ function Player({ recordingId }: { recordingId: string }) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const visible = useVisible(frameRef);
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
+  const [captions, setCaptions] = useCaptionsPreference();
   // kyusu の HLS は、録画の全体を 1 つのプレイリストで表すので、video の時刻がそのまま録画の中の位置になる。
   const hls = route.kind === 'kyusu';
   // offset は、今の読み込みを始めた、録画の始まりからの秒。ブラウザの中で変換するときは、シークすると、
@@ -211,7 +213,8 @@ function Player({ recordingId }: { recordingId: string }) {
       <Text size="sm" c="dimmed">
         {recording.service.name}
       </Text>
-      <Group justify="flex-end">
+      <Group justify="flex-end" gap="md">
+        <CaptionsToggle checked={captions} onChange={setCaptions} />
         <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
       </Group>
       <PlaybackUnavailable route={route} />
@@ -221,6 +224,7 @@ function Player({ recordingId }: { recordingId: string }) {
             url={url}
             videoRef={videoRef}
             active={visible}
+            captions={captions}
             onLoaded={() => {
               // 最初のフレームが出たときの時刻を、base にする。
               phase.current = 'awaitingBase';
@@ -234,6 +238,7 @@ function Player({ recordingId }: { recordingId: string }) {
             url={hlsURL(recording.streamUrl, route.preset)}
             videoRef={videoRef}
             active={visible}
+            captions={captions}
             live={false}
             startPosition={offset}
             onLoaded={() => setError(null)}

@@ -7,10 +7,11 @@ import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'reac
 import { ErrorBoundary } from '../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
-import { PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
+import { CaptionsToggle, PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
 import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
 import { hlsURL } from '../../yunomi/route';
 import { TsPlayer } from '../../yunomi/TsPlayer';
+import { useCaptionsPreference } from '../../yunomi/useCaptionsPreference';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
@@ -118,6 +119,7 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
   const frameRef = useRef<HTMLDivElement | null>(null);
   const visible = useVisible(frameRef);
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
+  const [captions, setCaptions] = useCaptionsPreference();
   // session は、つなぎ直すたびに増やし、URL を変えて読み直させる。
   const [session, setSession] = useState(0);
   const attempt = useRef(0);
@@ -204,7 +206,8 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
       <Text size="sm" c="dimmed">
         {data.guide[0]?.programs[0]?.name ?? t('live.noProgram')}
       </Text>
-      <Group justify="flex-end">
+      <Group justify="flex-end" gap="md">
+        <CaptionsToggle checked={captions} onChange={setCaptions} />
         <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
       </Group>
       <PlaybackUnavailable route={route} />
@@ -215,6 +218,7 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
             url={disconnection === null ? withSession(service.streamUrl) : null}
             videoRef={videoRef}
             active={visible}
+            captions={captions}
             onLoaded={onLoaded}
             onState={(state) => {
               // ライブのストリームは終わらないので、読み終えたのは、切れたということ。
@@ -232,6 +236,7 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
             }
             videoRef={videoRef}
             active={visible}
+            captions={captions}
             live
             onLoaded={onLoaded}
             // チューナーを使われて切れると、hls.js が読み直しを諦めたところで、致命的なエラーになる。

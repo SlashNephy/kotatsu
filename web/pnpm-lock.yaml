@@ -206,6 +206,9 @@ importers:
       '@zxcvbn-ts/language-ja':
         specifier: 4.1.1
         version: 4.1.1
+      aribb24.js:
+        specifier: 2.0.30
+        version: 2.0.30
       get-nonce:
         specifier: 1.0.1
         version: 1.0.1
@@ -2695,6 +2698,10 @@ packages:
 
   aria-query@5.3.0:
     resolution: {integrity: sha512-b0P0sZPKtyu8HkeRAfCq0IfURZK+SuwMjY1UXGBU27wpAiTwQAIlq56IbIO+ytk/JjS1fMR14ee5WBBfKi5J6A==}
+
+  aribb24.js@2.0.30:
+    resolution: {integrity: sha512-SneInEa57s1Eh2FfnRVMtc5ydtYU+4i/+RgJA8Me6ncRzlWYCSg9j+nrk8ygC7rJLqqULYqcspjIH3NONghMzQ==}
+    hasBin: true
 
   array-buffer-byte-length@1.0.2:
     resolution: {integrity: sha512-LHE+8BuR7RYGDKvnrmcuSq3tDcKv9OFEXQt/HpbZhY7V6h0zlUXutnAD82GiFx9rdieCMjkvtcsPqBwgUl1Iiw==}
@@ -6467,6 +6474,8 @@ snapshots:
   aria-query@5.3.0:
     dependencies:
       dequal: 2.0.3
+
+  aribb24.js@2.0.30: {}
 
   array-buffer-byte-length@1.0.2:
     dependencies:

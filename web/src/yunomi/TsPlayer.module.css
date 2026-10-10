@@ -1,5 +1,7 @@
 /* プレイヤーの枠。操作の部品が画面に収まるよう、幅を画面の高さに合わせて抑える。 */
 .frame {
+  /* 字幕の canvas を、枠に重ねる。 */
+  position: relative;
   aspect-ratio: 16 / 9;
   width: 100%;
   max-width: min(100%, calc((100dvh - 280px) * 16 / 9));
