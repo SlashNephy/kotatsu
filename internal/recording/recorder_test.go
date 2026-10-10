@@ -280,3 +280,104 @@ func TestRecorderRecordsFailures(t *testing.T) {
 		})
 	}
 }
+
+// onceStream は、TS を 1 回だけ流し、その後は閉じるまで何も流さないストリーム。繰り返しのつなぎ目のドロップを避ける。
+type onceStream struct{ data []byte }
+
+func (s onceStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
+	reader, writer := io.Pipe()
+	go func() {
+		_, _ = writer.Write(s.data)
+		<-ctx.Done()
+		_ = writer.CloseWithError(ctx.Err())
+	}()
+
+	return reader, nil
+}
+
+// TestRecorderDecidesStateFromWholeRecording は、録画を終えたときの状態を、前のセグメントも含めた録画全体のドロップで決めることを確かめる。
+func TestRecorderDecidesStateFromWholeRecording(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	tests := []struct {
+		name string
+		// earlierDrops は、引き継ぐ前のセグメントで数えたドロップ。
+		earlierDrops int64
+		want         recording.State
+	}{
+		{name: "どのセグメントにもドロップがない", earlierDrops: 0, want: recording.StateCompleted},
+		{name: "前のセグメントにドロップがある", earlierDrops: 3, want: recording.StateCompletedWithErrors},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			if tt.earlierDrops > 0 {
+				_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+					state, protected, drops, recorded_from, created_at, updated_at)
+					SELECT $1, id, service_id, event_id, name, description, start_at, end_at, 'recording', false, $2, $4, $4, $4
+					FROM reservations WHERE id = $3`, id.New(), tt.earlierDrops, reservationID, f.clock.Now())
+				require.NoError(t, err)
+			}
+			recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
+			_, done := f.session(t, recorder, reservationID)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			require.Eventually(t, func() bool {
+				files := f.files(t, reservationID)
+
+				return len(files) == 2
+			}, waitTimeout, 10*time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
+			f.clock.Advance(time.Hour)
+
+			require.NoError(t, wait(t, done))
+			got, _ := f.recording(t, reservationID)
+			assert.Equal(t, recorded{state: string(tt.want), failureReason: nil, drops: tt.earlierDrops}, got)
+		})
+	}
+}
+
+// TestRecorderCancelsWhenDisabled は、録画中に予約を無効にしたら、録画を取り消しとして失敗にすることを確かめる。
+func TestRecorderCancelsWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	recorder, _ := f.newRecorder(t, f.tuner, nil)
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return len(f.files(t, reservationID)) == 2
+	}, waitTimeout, 10*time.Millisecond)
+
+	_, err := f.reservations.Update(t.Context(), f.pool, audit.System("test"), reservationID, &reserve.Update{Enabled: new(false)})
+	require.NoError(t, err)
+	require.NoError(t, wait(t, done))
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StateFailed), got.state)
+	assert.Equal(t, new(string(recording.FailureCancelled)), got.failureReason)
+	for _, file := range f.files(t, reservationID) {
+		assert.True(t, file.closed, file.path)
+	}
+}
+
+// TestRecorderFailsOnUnmountedPool は、録画設定のプールがこのインスタンスにマウントされていなければ、保存先がないとして失敗にすることを確かめる。
+func TestRecorderFailsOnUnmountedPool(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	_, err := f.pool.Exec(t.Context(), `UPDATE reservations SET settings = '{"poolId": "elsewhere"}' WHERE id = $1`, reservationID)
+	require.NoError(t, err)
+	recorder, _ := f.newRecorder(t, f.tuner, nil)
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+
+	require.NoError(t, wait(t, done))
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, recorded{state: string(recording.StateFailed), failureReason: new(string(recording.FailureStorageUnavailable)), drops: 0}, got)
+}

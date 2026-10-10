@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -155,7 +156,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	}
 	logger.InfoContext(ctx, "started recording", slog.String("pool_id", segment.poolID), slog.String("path", segment.path))
 
-	stats, copyErr := r.copyUntilEnd(ctx, assignment, stream, segment)
+	stats, end, copyErr := r.copyUntilEnd(ctx, assignment, stream, segment)
 	closeErr := r.closeSegment(context.WithoutCancel(ctx), &recording, segment, stats)
 	switch {
 	case ctx.Err() != nil:
@@ -169,10 +170,19 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		logger.WarnContext(ctx, "the stream was interrupted", slog.Any("error", copyErr))
 
 		return r.fail(ctx, &recording, FailureStreamInterrupted)
+	case end == endCancelled:
+		logger.InfoContext(ctx, "the reservation was disabled while recording")
+
+		return r.fail(ctx, &recording, FailureCancelled)
 	}
 
+	// 引き継ぎや再開で、前のセグメントにドロップがあることもあるので、録画全体の集計で決める。
+	finished, err := q.GetRecording(ctx, recording.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get the recording: %w", err)
+	}
 	state := StateCompleted
-	if drops(stats) > 0 {
+	if finished.Drops > 0 {
 		state = StateCompletedWithErrors
 	}
 	if err := q.FinishRecording(ctx, sqlc.FinishRecordingParams{State: string(state), FailureReason: nil, Now: new(r.clock.Now()), ID: recording.ID}); err != nil {
@@ -234,10 +244,14 @@ func (r *Recorder) createSegment(
 		return nil, FailureStorageUnavailable, err
 	}
 	pools := []*kago.Pool{}
+	mounted := r.store.PoolIDs()
+	if (settings.PoolID != "" && !slices.Contains(mounted, settings.PoolID)) || len(mounted) == 0 {
+		return nil, FailureStorageUnavailable, fmt.Errorf("%w: %q", kago.ErrPoolNotMounted, settings.PoolID)
+	}
 	if settings.PoolID != "" {
 		pools = append(pools, &kago.Pool{ID: settings.PoolID, Priority: 0, MinFreeBytes: 0})
 	} else {
-		for _, poolID := range r.store.PoolIDs() {
+		for _, poolID := range mounted {
 			pools = append(pools, &kago.Pool{ID: poolID, Priority: 0, MinFreeBytes: 0})
 		}
 	}
@@ -282,6 +296,9 @@ func (r *Recorder) createSegment(
 	})
 	if err != nil {
 		_ = file.Close()
+		if seg.indexFile != nil {
+			_ = seg.indexFile.Close()
+		}
 
 		return nil, FailureStorageUnavailable, fmt.Errorf("failed to save the recording file: %w", err)
 	}
@@ -327,16 +344,28 @@ func (r *Recorder) createIndex(poolID, rel string) (*ts.Analyzer, *os.File, stri
 	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer}), file, indexRel, nil
 }
 
-// copyUntilEnd は、予定の終わりが来るまで、ストリームを録画ファイルと解析器に書く。
-// 予定の終わりは、予約を読み直して決める。予定の終わりが来て止めたときは nil を返す。
-func (r *Recorder) copyUntilEnd(ctx context.Context, assignment *Assignment, stream io.ReadCloser, seg *segment) (*ts.Stats, error) {
-	ended := make(chan struct{})
+// endReason は、録画を止めた理由。
+type endReason int
+
+const (
+	// endNone は、まだ止めていないことを表す。
+	endNone endReason = iota
+	// endPlanned は、予定の終わりが来たことを表す。
+	endPlanned
+	// endCancelled は、録画中に予約を無効にしたことを表す。
+	endCancelled
+)
+
+// copyUntilEnd は、予定の終わりが来るか、予約を無効にするまで、ストリームを録画ファイルと解析器に書き、止めた理由を返す。
+// 予定の終わりは、予約を読み直して決める。その前にストリームが切れたら、エラーを返す。
+func (r *Recorder) copyUntilEnd(ctx context.Context, assignment *Assignment, stream io.ReadCloser, seg *segment) (*ts.Stats, endReason, error) {
+	ended := make(chan endReason, 1)
 	watchCtx, stopWatch := context.WithCancel(ctx)
 	watchDone := make(chan struct{})
 	go func() {
 		defer close(watchDone)
-		if r.waitUntilEnd(watchCtx, assignment) {
-			close(ended)
+		if reason := r.waitUntilEnd(watchCtx, assignment); reason != endNone {
+			ended <- reason
 			// 読み込み中のストリームを閉じて、書き込みを止める。
 			_ = stream.Close()
 		}
@@ -347,25 +376,25 @@ func (r *Recorder) copyUntilEnd(ctx context.Context, assignment *Assignment, str
 	<-watchDone
 	stats := seg.analyzer.Stats()
 	select {
-	case <-ended:
-		return stats, nil
+	case reason := <-ended:
+		return stats, reason, nil
 	default:
 	}
 	if err == nil {
 		err = io.ErrUnexpectedEOF
 	}
 
-	return stats, err
+	return stats, endNone, err
 }
 
-// waitUntilEnd は、予定の終わりが来るか、予約を無効にしたら true を返す。ctx が終わったら false を返す。
-func (r *Recorder) waitUntilEnd(ctx context.Context, assignment *Assignment) bool {
+// waitUntilEnd は、予定の終わりが来るか、予約を無効にするまで待ち、その理由を返す。ctx が終わったら endNone を返す。
+func (r *Recorder) waitUntilEnd(ctx context.Context, assignment *Assignment) endReason {
 	ticker := time.NewTicker(r.opts.Tick)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			return false
+			return endNone
 		case <-ticker.C:
 		}
 		reservation, err := sqlc.New(r.pool).GetReservationForRecording(ctx, assignment.ReservationID)
@@ -377,8 +406,12 @@ func (r *Recorder) waitUntilEnd(ctx context.Context, assignment *Assignment) boo
 
 			continue
 		}
-		if !reservation.Enabled || reservation.PlannedEndAt == nil || !r.clock.Now().Before(*reservation.PlannedEndAt) {
-			return true
+		// 割り当てを消されても (予定の時刻が NULL)、無効にしたのでなければ、取り消しとは扱わない。
+		if !reservation.Enabled {
+			return endCancelled
+		}
+		if reservation.PlannedEndAt == nil || !r.clock.Now().Before(*reservation.PlannedEndAt) {
+			return endPlanned
 		}
 	}
 }
@@ -414,7 +447,7 @@ func (r *Recorder) closeSegment(ctx context.Context, recording *sqlc.Recording, 
 			r.logger.WarnContext(ctx, "failed to close the index file", slog.Any("error", err))
 		}
 		if err := q.CloseRecordingFile(ctx, sqlc.CloseRecordingFileParams{Size: indexSize, EndedAt: &now, ID: seg.indexID}); err != nil {
-			errs = append(errs, fmt.Errorf("failed to save the index file size: %w", err))
+			r.logger.WarnContext(ctx, "failed to save the index file size", slog.Any("error", err))
 		}
 	}
 	var errorsCount, scrambled int64
