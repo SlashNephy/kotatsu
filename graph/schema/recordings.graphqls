@@ -42,6 +42,10 @@ enum RecordingFileKind {
   SEGMENT
   "セグメントの索引"
   INDEX
+  "代表画像 (JPEG)"
+  THUMBNAIL
+  "シークバー用のプレビュー画像 (JPEG)。コマの並びは、同じディレクトリの preview.json に書く"
+  PREVIEW
 }
 
 """

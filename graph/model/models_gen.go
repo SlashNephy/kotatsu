@@ -982,16 +982,22 @@ const (
 	RecordingFileKindSegment RecordingFileKind = "SEGMENT"
 	// セグメントの索引
 	RecordingFileKindIndex RecordingFileKind = "INDEX"
+	// 代表画像 (JPEG)
+	RecordingFileKindThumbnail RecordingFileKind = "THUMBNAIL"
+	// シークバー用のプレビュー画像 (JPEG)。コマの並びは、同じディレクトリの preview.json に書く
+	RecordingFileKindPreview RecordingFileKind = "PREVIEW"
 )
 
 var AllRecordingFileKind = []RecordingFileKind{
 	RecordingFileKindSegment,
 	RecordingFileKindIndex,
+	RecordingFileKindThumbnail,
+	RecordingFileKindPreview,
 }
 
 func (e RecordingFileKind) IsValid() bool {
 	switch e {
-	case RecordingFileKindSegment, RecordingFileKindIndex:
+	case RecordingFileKindSegment, RecordingFileKindIndex, RecordingFileKindThumbnail, RecordingFileKindPreview:
 		return true
 	}
 	return false
