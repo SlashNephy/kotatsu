@@ -140,7 +140,8 @@
   "nav": {
     "home": "ホーム",
     "guide": "番組表",
-    "search": "番組検索"
+    "search": "番組検索",
+    "reservations": "予約"
   },
   "guide": {
     "title": "番組表",
@@ -234,5 +235,38 @@
       "error": "ルールを作れませんでした。時間をおいてやり直してください",
       "close": "閉じる"
     }
+  },
+  "reservations": {
+    "title": "予約",
+    "filter": {
+      "all": "すべて",
+      "problems": "録画が欠ける見込み"
+    },
+    "attention": "録画が欠ける見込みの予約が {{count}} 件あります",
+    "empty": "これからの予約はありません",
+    "noProblems": "録画が欠ける見込みの予約はありません",
+    "untitled": "(名前なし)",
+    "kind": {
+      "PROGRAM": "番組予約",
+      "TIME": "時刻予約",
+      "RULE": "ルール予約"
+    },
+    "state": {
+      "PENDING": "割り当て待ち",
+      "OK": "録画できる見込み",
+      "PARTIAL": "一部のみ録画",
+      "CONFLICT": "チューナー不足で録画できない"
+    },
+    "disabled": "無効",
+    "enabled": "有効にする",
+    "delete": "削除",
+    "disable": "無効にする",
+    "deleteTitle": "予約を削除",
+    "deleteDescription": "この予約を削除します。録画は行いません。",
+    "disableTitle": "ルール予約を無効にする",
+    "disableDescription": "ルール予約は、削除しても次の照合でまた作られるので、無効にします。録画は行いません。有効に戻すこともできます。",
+    "deleteError": "操作できませんでした。時間をおいてやり直してください",
+    "cancel": "やめる",
+    "more": "さらに読み込む"
   }
 }
