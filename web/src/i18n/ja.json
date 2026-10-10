@@ -156,6 +156,31 @@
       "reserve": "予約する",
       "reserved": "予約しました",
       "reserveError": "予約できませんでした。時間をおいてやり直してください"
+    },
+    "view": {
+      "label": "番組表ビュー",
+      "all": "すべての番組",
+      "create": "ビューを作る",
+      "edit": "ビューを編集",
+      "createTitle": "番組表ビューを作る",
+      "editTitle": "番組表ビューを編集",
+      "name": "名前",
+      "genres": "出すジャンル",
+      "genresDescription": "選んだジャンルのどれかに当たる番組だけを出します。選ばなければ、すべてのジャンルを出します",
+      "excludeGenres": "出さないジャンル",
+      "minDuration": "番組の最短の長さ",
+      "minDurationDescription": "これより短い番組を出しません",
+      "minutes": " 分",
+      "services": "チャンネルの並び",
+      "servicesDescription": "選んだ順に左から並べます。選ばなかったチャンネルは、その後ろに既定の順で並べます",
+      "hideEmpty": "番組のないチャンネルを隠す",
+      "save": "保存",
+      "delete": "削除",
+      "saveError": "保存できませんでした。名前を確かめてから、やり直してください",
+      "deleteError": "削除できませんでした。時間をおいてやり直してください",
+      "subGenre": "{{genre}}（中分類 {{lv2}}）",
+      "notFound": "開こうとした番組表ビューは見つかりませんでした。",
+      "showAll": "すべての番組を表示する"
     }
   },
   "genre": {
