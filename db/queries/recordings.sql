@@ -30,21 +30,8 @@ SELECT * FROM recordings WHERE id = @id;
 -- name: ListRecordingFiles :many
 SELECT * FROM recording_files WHERE recording_id = @recording_id ORDER BY started_at, kind, id;
 
--- name: AddRecordingGap :exec
--- 途切れた区間を記録する。
-UPDATE recordings SET gaps = gaps || jsonb_build_array(jsonb_build_object('from', @gap_from::timestamptz, 'to', @gap_to::timestamptz)), updated_at = @now
-WHERE id = @id;
-
 -- name: MarkRecordingProgramLost :exec
 UPDATE recordings SET program_lost = true, updated_at = @now WHERE id = @id AND NOT program_lost;
-
--- name: GetLastRecordingFileEnd :one
--- 録画のセグメントのうち、最後に書き終えた時刻。引き継ぎや再開のときに、途切れた区間を求めるのに使う。
--- まだ書き終えたセグメントがなければ、行を返さない。何も書けなかったセグメントは、録れたものに数えない。
-SELECT ended_at FROM recording_files
-WHERE recording_id = @recording_id AND kind = 'segment' AND ended_at IS NOT NULL AND size > 0
-ORDER BY ended_at DESC
-LIMIT 1;
 
 -- name: GetProgramEnd :one
 -- 録画中の番組の、今の EPG の終了時刻と、未定かどうか。番組が EPG から消えていれば行を返さない。
@@ -67,3 +54,11 @@ SELECT sqlc.embed(recordings), s.name AS service_name
 FROM recordings
 JOIN services s ON s.id = recordings.service_id
 WHERE recordings.id = @id;
+
+-- name: ListOpenRecordingFiles :many
+-- 録画の、書き終えていないファイル。落ちた mikan が書きかけたまま残したものを、引き継ぐ mikan が閉じる。
+SELECT * FROM recording_files WHERE recording_id = @recording_id AND ended_at IS NULL ORDER BY started_at, id;
+
+-- name: SetRecordingGaps :exec
+-- 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
+UPDATE recordings SET gaps = @gaps, updated_at = @now WHERE id = @id;

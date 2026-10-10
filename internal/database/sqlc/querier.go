@@ -17,9 +17,9 @@ type Querier interface {
 	AcquireLease(ctx context.Context, arg AcquireLeaseParams) (int64, error)
 	// mikan が、誰も持っていないか、リースの切れた割り振りを 1 つ取る。ほかの mikan が同時に取ろうとしている行は飛ばす。
 	// 取るたびに世代番号を上げ、古い mikan のリースの延長を失敗させる。優先度の高い録画から取る。
-	AcquireRecordingAssignment(ctx context.Context, arg AcquireRecordingAssignmentParams) (RecordingAssignment, error)
-	// 途切れた区間を記録する。
-	AddRecordingGap(ctx context.Context, arg AddRecordingGapParams) error
+	// 引き継ぎ待ちの割り振りは、リースが切れていなくても、ほかの mikan が取る (設計書 5.4)。
+	// 取る前の状態と、リースの期限も返す。引き継ぎか、落ちた mikan の代わりかで、途切れた区間の扱いが変わる。
+	AcquireRecordingAssignment(ctx context.Context, arg AcquireRecordingAssignmentParams) (AcquireRecordingAssignmentRow, error)
 	// 書き終えたセグメントのドロップ、エラー、スクランブルを、録画の集計に足す。
 	AddRecordingStats(ctx context.Context, arg AddRecordingStatsParams) error
 	// 放送の終わりが before より前の番組を、最大 batch_size 件だけ program_archives へ移す。
@@ -68,14 +68,11 @@ type Querier interface {
 	// 種別が無ければ既定値で足す。管理者が変えた表示名と並び順は上書きしない。
 	EnsureChannelType(ctx context.Context, arg EnsureChannelTypeParams) error
 	FinishRecording(ctx context.Context, arg FinishRecordingParams) error
-	// 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。
+	// 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。引き継ぎ待ちの間に予定の終わりが来ても終える。
 	FinishRecordingAssignment(ctx context.Context, arg FinishRecordingAssignmentParams) (int64, error)
 	GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error)
 	GetGuideProgram(ctx context.Context, arg GetGuideProgramParams) (GetGuideProgramRow, error)
 	GetGuideView(ctx context.Context, arg GetGuideViewParams) (GuideView, error)
-	// 録画のセグメントのうち、最後に書き終えた時刻。引き継ぎや再開のときに、途切れた区間を求めるのに使う。
-	// まだ書き終えたセグメントがなければ、行を返さない。何も書けなかったセグメントは、録れたものに数えない。
-	GetLastRecordingFileEnd(ctx context.Context, recordingID uuid.UUID) (*time.Time, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
 	GetLoginChallengeForUpdate(ctx context.Context, arg GetLoginChallengeForUpdateParams) (LoginChallenge, error)
 	GetLoginThrottles(ctx context.Context, throttleKeys []string) ([]LoginThrottle, error)
@@ -87,6 +84,7 @@ type Querier interface {
 	GetProgramEnd(ctx context.Context, arg GetProgramEndParams) (GetProgramEndRow, error)
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetRecording(ctx context.Context, id uuid.UUID) (Recording, error)
+	GetRecordingAssignmentStream(ctx context.Context, id uuid.UUID) (GetRecordingAssignmentStreamRow, error)
 	// 通知に載せる、録画とサービス名。
 	GetRecordingWithService(ctx context.Context, id uuid.UUID) (GetRecordingWithServiceRow, error)
 	GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error)
@@ -176,6 +174,8 @@ type Querier interface {
 	// ユーザーの通知を、新しい順に返す。before_at と before_id より前 (古い) の通知だけを返し、ページを送る。
 	// before_at と before_id は、両方を渡すか、両方を NULL にする。
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]ListNotificationsRow, error)
+	// 録画の、書き終えていないファイル。落ちた mikan が書きかけたまま残したものを、引き継ぐ mikan が閉じる。
+	ListOpenRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error)
 	// 配っていないイベントを、古い順に引き、ロックする。ほかの nekonote が同じイベントを配らないよう、ロック中の行は飛ばす。
 	ListPendingNotificationEvents(ctx context.Context, maxCount int32) ([]NotificationEvent, error)
 	ListPrograms(ctx context.Context) ([]ListProgramsRow, error)
@@ -217,6 +217,8 @@ type Querier interface {
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
 	// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
+	// 録画を終える前に、割り振りをロックして、今の世代番号を読む。ほかの mikan が取っていたら、録画を終えない。
+	LockRecordingAssignmentGeneration(ctx context.Context, id uuid.UUID) (int64, error)
 	// 初回セットアップを、全インスタンスで 1 つずつ行わせる。トランザクションが終わるまでロックする。
 	LockSetup(ctx context.Context) error
 	// 変える前の値を監査ログに残すため、行をロックして読む。行がなければ、既定値で作ってから読む。
@@ -230,7 +232,11 @@ type Querier interface {
 	MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) (int64, error)
 	MarkNotificationEventDispatched(ctx context.Context, arg MarkNotificationEventDispatchedParams) error
 	MarkNotificationsRead(ctx context.Context, arg MarkNotificationsReadParams) (int64, error)
+	// 止まる mikan が、割り振りに引き継ぎ待ちの印を付ける (設計書 5.4)。
+	MarkRecordingHandover(ctx context.Context, arg MarkRecordingHandoverParams) (int64, error)
 	MarkRecordingProgramLost(ctx context.Context, arg MarkRecordingProgramLostParams) error
+	// 割り振りを取った mikan が、ストリームを開いたことを記録する。
+	MarkRecordingStreamOpened(ctx context.Context, arg MarkRecordingStreamOpenedParams) error
 	// 空き容量が閾値を下回ったままになったことを記録する。すでに記録していれば何もしない (0 行)。
 	MarkStoragePoolLow(ctx context.Context, arg MarkStoragePoolLowParams) (int64, error)
 	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
@@ -248,10 +254,12 @@ type Querier interface {
 	RecordPasskeyUse(ctx context.Context, arg RecordPasskeyUseParams) error
 	// 期限をすぐに切れさせて、他のインスタンスがすぐに取れるようにする。世代番号は残す。
 	ReleaseLease(ctx context.Context, arg ReleaseLeaseParams) error
+	// 止まる mikan が、引き継ぐ mikan がいないときに、割り振りを手放す。再起動した mikan が、リースが切れるのを待たずに取れる。
+	ReleaseRecordingAssignment(ctx context.Context, arg ReleaseRecordingAssignmentParams) error
 	RenameUserPasskey(ctx context.Context, arg RenameUserPasskeyParams) (int64, error)
 	// 同じ世代のリースを期限内に延長する。期限が切れていたり、他のインスタンスに取られていたりすれば、行を更新しない。
 	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
-	// 割り振りのリースを延長する。世代番号が進んでいたら、ほかの mikan が取ったので、延長しない。
+	// 割り振りのリースを延長する。世代番号が進んでいたら、ほかの mikan が取ったので、延長しない。引き継ぎ待ちの間も延長する。
 	RenewRecordingAssignment(ctx context.Context, arg RenewRecordingAssignmentParams) (int64, error)
 	ResetLoginThrottle(ctx context.Context, key string) error
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
@@ -265,6 +273,8 @@ type Querier interface {
 	ServiceExists(ctx context.Context, id int64) (bool, error)
 	SetLoginChallengeWebAuthnSession(ctx context.Context, arg SetLoginChallengeWebAuthnSessionParams) error
 	SetLoginLockedUntil(ctx context.Context, arg SetLoginLockedUntilParams) error
+	// 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
+	SetRecordingGaps(ctx context.Context, arg SetRecordingGapsParams) error
 	SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error)
 	SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error
 	SetRuleEnabled(ctx context.Context, arg SetRuleEnabledParams) (int64, error)

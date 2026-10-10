@@ -479,6 +479,8 @@ CREATE TABLE recording_assignments (
   -- 担当の mikan のインスタンスと、リースの期限。誰も取っていなければ NULL。
   holder uuid,
   lease_expires_at timestamptz,
+  -- ストリームを開いた mikan の世代番号。引き継ぎ待ちの古い mikan は、これが自分の世代より進んだら、ストリームを閉じる (設計書 5.4)。
+  stream_generation bigint NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL
 );

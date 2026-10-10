@@ -93,10 +93,19 @@ func (f *fixture) files(t *testing.T, reservationID uuid.UUID) []recordedFile {
 func (f *fixture) session(t *testing.T, recorder *recording.Recorder, reservationID uuid.UUID) (context.CancelCauseFunc, <-chan error) {
 	t.Helper()
 
+	return f.sessionWith(t, recorder, &recording.Assignment{
+		ID: id.New(), ReservationID: reservationID, Priority: recording.Priority, Generation: 1, HandedOver: false, PreviousLeaseExpiresAt: nil,
+	})
+}
+
+// sessionWith は、Recorder の Session を、割り振り assignment を取ったものとして、別の goroutine で動かす。
+func (f *fixture) sessionWith(t *testing.T, recorder *recording.Recorder, assignment *recording.Assignment) (context.CancelCauseFunc, <-chan error) {
+	t.Helper()
+
 	ctx, cancel := context.WithCancelCause(t.Context())
 	done := make(chan error, 1)
 	go func() {
-		done <- recorder.Session()(ctx, &recording.Assignment{ID: id.New(), ReservationID: reservationID, Priority: recording.Priority, Generation: 1})
+		done <- recorder.Session()(ctx, assignment)
 	}()
 	t.Cleanup(func() { cancel(nil) })
 
@@ -393,16 +402,19 @@ func TestRecorderFailsOnUnmountedPool(t *testing.T) {
 }
 
 // flakyStream は、最初に開いたストリームを head だけ流して切り、2 回目からは TS を 1 回だけ流す。
+// 開き直すときは、reopen を呼ぶ (時計を進めて、開き直すまでにかかった時間を表す)。
 type flakyStream struct {
 	head   []byte
 	data   []byte
 	opened *atomic.Int32
+	reopen func()
 }
 
 func (s flakyStream) OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error) {
 	if s.opened.Add(1) == 1 {
 		return io.NopCloser(bytes.NewReader(s.head)), nil
 	}
+	s.reopen()
 
 	return onceStream{data: s.data}.OpenServiceStream(ctx, serviceID, opts)
 }
@@ -445,7 +457,7 @@ func TestRecorderReconnects(t *testing.T) {
 	f := newFixture(t)
 	reservationID := f.reserve(t, 0)
 	opened := new(atomic.Int32)
-	recorder, _ := f.newRecorder(t, flakyStream{head: data[:188*1000], data: data, opened: opened}, nil)
+	recorder, _ := f.newRecorder(t, flakyStream{head: data[:188*1000], data: data, opened: opened, reopen: func() { f.clock.Advance(time.Second) }}, nil)
 	_, done := f.session(t, recorder, reservationID)
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 	require.Eventually(t, func() bool {
@@ -774,4 +786,334 @@ func TestRecorderUsesPoolSettings(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestRecorderContinuesAfterHandover は、止まる mikan から引き継いだときは、古い mikan と重なって録るので、
+// 途切れた区間を記録しないことを確かめる (設計書 5.4)。
+func TestRecorderContinuesAfterHandover(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
+	assignmentID := id.New()
+	stopOld, oldDone := f.sessionWith(t, recorder, &recording.Assignment{
+		ID: assignmentID, ReservationID: reservationID, Priority: recording.Priority, Generation: 1, HandedOver: false, PreviousLeaseExpiresAt: nil,
+	})
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return len(f.files(t, reservationID)) == 2
+	}, waitTimeout, 10*time.Millisecond)
+
+	// 古い mikan が書いている間に、新しい mikan が引き継いで、2 つ目のセグメントを書き始める。
+	f.clock.Advance(time.Minute)
+	_, newDone := f.sessionWith(t, recorder, &recording.Assignment{
+		ID: assignmentID, ReservationID: reservationID, Priority: recording.Priority, Generation: 2, HandedOver: true, PreviousLeaseExpiresAt: nil,
+	})
+	require.Eventually(t, func() bool {
+		return f.segments(t, reservationID) == 2
+	}, waitTimeout, 10*time.Millisecond)
+	stopOld(recording.ErrHandedOver)
+	require.ErrorIs(t, wait(t, oldDone), recording.ErrHandedOver)
+
+	f.clock.Advance(time.Hour)
+	require.NoError(t, wait(t, newDone))
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StateCompleted), got.state)
+	assert.Equal(t, gapsAndLost{gaps: 0, programLost: false}, f.gapsAndLost(t, reservationID))
+}
+
+// TestRecorderTakesOverFromCrashedMikan は、落ちた mikan の代わりに取ったときは、書きかけのセグメントを、
+// ファイルの大きさと、最後に書き込んだ時刻で閉じ、そこからを途切れた区間とすることを確かめる (設計書 5.4)。
+func TestRecorderTakesOverFromCrashedMikan(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	recorder, dir := f.newRecorder(t, onceStream{data: data}, nil)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+
+	// 落ちた mikan が、1000 バイトを書いたところで止まり、セグメントを書きかけのまま残したことにする。
+	recordingID := id.New()
+	startedAt := f.clock.Now()
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+		state, protected, recorded_from, created_at, updated_at)
+		SELECT $1, id, service_id, event_id, name, description, start_at, end_at, 'recording', false, $3, $3, $3
+		FROM reservations WHERE id = $2`, recordingID, reservationID, startedAt)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "crashed.m2ts"), make([]byte, 1000), 0o600))
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+		VALUES ($1, $2, 'segment', $3, 'crashed.m2ts', 0, $4, NULL, $4)`, id.New(), recordingID, poolID, startedAt)
+	require.NoError(t, err)
+
+	// 落ちた mikan は、録画を始めてから 1 分後に最後に書き込み、その後に落ちた。
+	lastRenewal := startedAt.Add(time.Minute)
+	require.NoError(t, os.Chtimes(filepath.Join(dir, "crashed.m2ts"), lastRenewal, lastRenewal))
+	f.clock.Advance(5 * time.Minute)
+	_, done := f.sessionWith(t, recorder, &recording.Assignment{
+		ID: id.New(), ReservationID: reservationID, Priority: recording.Priority, Generation: 2,
+		HandedOver: false, PreviousLeaseExpiresAt: new(lastRenewal.Add(recording.DefaultLeaseTTL)),
+	})
+	require.Eventually(t, func() bool {
+		return f.segments(t, reservationID) == 2
+	}, waitTimeout, 10*time.Millisecond)
+	f.clock.Advance(time.Hour)
+	require.NoError(t, wait(t, done))
+
+	var crashed struct {
+		size    int64
+		endedAt time.Time
+	}
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT size, ended_at FROM recording_files WHERE path = 'crashed.m2ts'").Scan(&crashed.size, &crashed.endedAt))
+	assert.Equal(t, int64(1000), crashed.size)
+	assert.True(t, lastRenewal.Equal(crashed.endedAt), crashed.endedAt)
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StatePartial), got.state)
+	var gapFrom time.Time
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT (gaps->0->>'from')::timestamptz FROM recordings WHERE id = $1", recordingID).Scan(&gapFrom))
+	assert.True(t, lastRenewal.Equal(gapFrom), gapFrom)
+}
+
+// failOnceStream は、最初に開くときだけ失敗し、2 回目からは TS を 1 回だけ流す。
+type failOnceStream struct {
+	data   []byte
+	opened *atomic.Int32
+}
+
+func (s failOnceStream) OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error) {
+	if s.opened.Add(1) == 1 {
+		return nil, errors.New("connection refused")
+	}
+
+	return onceStream{data: s.data}.OpenServiceStream(ctx, serviceID, opts)
+}
+
+// TestRecorderHandoverGap は、引き継いだ mikan がストリームをすぐに開けなくても、古い mikan が書いている間は途切れた区間にせず、
+// 古い mikan がもう止まっていれば、そのセグメントの終わりからを途切れた区間にすることを確かめる (設計書 5.4)。
+func TestRecorderHandoverGap(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	tests := []struct {
+		name string
+		// oldEnded は、古い mikan のセグメントを、止まって閉じたことにするかどうか。
+		oldEnded bool
+		wantGaps int
+	}{
+		{name: "古い mikan がまだ書いている", oldEnded: false, wantGaps: 0},
+		{name: "古い mikan がもう止まった", oldEnded: true, wantGaps: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			recorder, dir := f.newRecorder(t, failOnceStream{data: data, opened: new(atomic.Int32)}, nil)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+
+			// 古い mikan が書いているセグメントを用意する。
+			recordingID := id.New()
+			startedAt := f.clock.Now()
+			_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+				state, protected, recorded_from, created_at, updated_at)
+				SELECT $1, id, service_id, event_id, name, description, start_at, end_at, 'recording', false, $3, $3, $3
+				FROM reservations WHERE id = $2`, recordingID, reservationID, startedAt)
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "old.m2ts"), make([]byte, 1000), 0o600))
+			var endedAt *time.Time
+			// 古い mikan が書いている間は、ファイルに書き込み続ける。
+			touch := func() {
+				require.NoError(t, os.Chtimes(filepath.Join(dir, "old.m2ts"), f.clock.Now(), f.clock.Now()))
+			}
+			if tt.oldEnded {
+				endedAt = new(startedAt.Add(time.Minute))
+			}
+			_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+				VALUES ($1, $2, 'segment', $3, 'old.m2ts', 1000, $4, $5, $4)`, id.New(), recordingID, poolID, startedAt, endedAt)
+			require.NoError(t, err)
+
+			f.clock.Advance(2 * time.Minute)
+			if !tt.oldEnded {
+				touch()
+			}
+			_, done := f.sessionWith(t, recorder, &recording.Assignment{
+				ID: id.New(), ReservationID: reservationID, Priority: recording.Priority, Generation: 2, HandedOver: true, PreviousLeaseExpiresAt: nil,
+			})
+			require.Eventually(t, func() bool {
+				return f.segments(t, reservationID) == 2
+			}, waitTimeout, 10*time.Millisecond)
+			if !tt.oldEnded {
+				// 古い mikan は、新しい mikan がストリームを開いたのを見て止まる。
+				_, err := f.pool.Exec(t.Context(), "UPDATE recording_files SET ended_at = $1 WHERE path = 'old.m2ts'", f.clock.Now())
+				require.NoError(t, err)
+			}
+			f.clock.Advance(time.Hour)
+			require.NoError(t, wait(t, done))
+			assert.Equal(t, gapsAndLost{gaps: tt.wantGaps, programLost: false}, f.gapsAndLost(t, reservationID))
+		})
+	}
+}
+
+// TestRecorderHandoverEdgeCases は、引き継いだのに録れなかったときや、古い mikan が引き継ぎの最中に落ちたときに、
+// 途切れた区間と録画の状態を正しく記録することを確かめる (設計書 5.4)。
+func TestRecorderHandoverEdgeCases(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	tests := []struct {
+		name string
+		// oldFile は、古い mikan が書いたセグメントを用意するかどうか。
+		oldFile bool
+		// oldEnded は、古い mikan のセグメントを閉じたことにするかどうか。閉じていなければ、書き込みが 5 分前に止まった (落ちた) ことにする。
+		oldEnded bool
+		// tuner は、新しい mikan のストリーム。
+		tuner     func() recording.StreamOpener
+		wantState recording.State
+		wantGaps  int
+	}{
+		{
+			name: "古い mikan が止まった後、新しい mikan がストリームを開けないまま終わる", oldFile: true, oldEnded: true,
+			tuner:     func() recording.StreamOpener { return failingStream{err: errors.New("connection refused")} },
+			wantState: recording.StatePartial, wantGaps: 1,
+		},
+		{
+			name: "古い mikan がまだ何も書いていないときに引き継ぎ、開けないまま終わる", oldFile: false, oldEnded: false,
+			tuner:     func() recording.StreamOpener { return failingStream{err: errors.New("connection refused")} },
+			wantState: recording.StateFailed, wantGaps: 0,
+		},
+		{
+			name: "古い mikan が引き継ぎの最中に落ちた", oldFile: true, oldEnded: false,
+			tuner:     func() recording.StreamOpener { return onceStream{data: data} },
+			wantState: recording.StatePartial, wantGaps: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			recorder, dir := f.newRecorder(t, tt.tuner(), nil)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			startedAt := f.clock.Now()
+			if tt.oldFile {
+				recordingID := id.New()
+				_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+					state, protected, recorded_from, created_at, updated_at)
+					SELECT $1, id, service_id, event_id, name, description, start_at, end_at, 'recording', false, $3, $3, $3
+					FROM reservations WHERE id = $2`, recordingID, reservationID, startedAt)
+				require.NoError(t, err)
+				path := filepath.Join(dir, "old.m2ts")
+				require.NoError(t, os.WriteFile(path, make([]byte, 1000), 0o600))
+				lastWrite := startedAt.Add(time.Minute)
+				require.NoError(t, os.Chtimes(path, lastWrite, lastWrite))
+				var endedAt *time.Time
+				if tt.oldEnded {
+					endedAt = &lastWrite
+				}
+				_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+					VALUES ($1, $2, 'segment', $3, 'old.m2ts', 1000, $4, $5, $4)`, id.New(), recordingID, poolID, startedAt, endedAt)
+				require.NoError(t, err)
+			}
+
+			f.clock.Advance(6 * time.Minute)
+			_, done := f.sessionWith(t, recorder, &recording.Assignment{
+				ID: id.New(), ReservationID: reservationID, Priority: recording.Priority, Generation: 2, HandedOver: true, PreviousLeaseExpiresAt: nil,
+			})
+			time.Sleep(200 * time.Millisecond)
+			f.clock.Advance(time.Hour)
+			require.NoError(t, wait(t, done))
+
+			got, _ := f.recording(t, reservationID)
+			assert.Equal(t, string(tt.wantState), got.state)
+			assert.Equal(t, gapsAndLost{gaps: tt.wantGaps, programLost: false}, f.gapsAndLost(t, reservationID))
+			if tt.oldFile {
+				var closed bool
+				require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT ended_at IS NOT NULL FROM recording_files WHERE path = 'old.m2ts'").Scan(&closed))
+				assert.True(t, closed, "the abandoned segment is closed")
+			}
+		})
+	}
+}
+
+// TestRecorderLeavesFinishingToCurrentGeneration は、ほかの mikan が割り振りを取った後に予定の終わりが来ても、
+// 古い世代の mikan は録画を終えず、今の世代の mikan に任せることを確かめる。
+func TestRecorderLeavesFinishingToCurrentGeneration(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.assignOne(t)
+	var assignmentID uuid.UUID
+	require.NoError(t, f.pool.QueryRow(t.Context(), "UPDATE recording_assignments SET generation = 1 WHERE reservation_id = $1 RETURNING id",
+		reservationID).Scan(&assignmentID))
+	recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
+	_, done := f.sessionWith(t, recorder, &recording.Assignment{
+		ID: assignmentID, ReservationID: reservationID, Priority: recording.Priority, Generation: 1, HandedOver: false, PreviousLeaseExpiresAt: nil,
+	})
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return len(f.files(t, reservationID)) == 2
+	}, waitTimeout, 10*time.Millisecond)
+
+	// ほかの mikan が、世代 2 で取った。
+	_, err = f.pool.Exec(t.Context(), "UPDATE recording_assignments SET generation = 2 WHERE id = $1", assignmentID)
+	require.NoError(t, err)
+	f.clock.Advance(time.Hour)
+	require.NoError(t, wait(t, done))
+
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StateRecording), got.state, "the current generation finishes the recording")
+	assert.Empty(t, f.events(t)[1:], "the old generation does not notify the completion")
+}
+
+// TestRecorderRecordsTrailingGap は、ストリームが切れたまま開き直せずに予定の終わりが来たら、
+// 最後のセグメントの終わりから予定の終わりまでを、途切れた区間にすることを確かめる。
+func TestRecorderRecordsTrailingGap(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	opened := new(atomic.Int32)
+	// 最初に開いたストリームは少しだけ流して切れ、その後は開けない。
+	stream := flakyStream{head: data[:188*1000], data: nil, opened: opened, reopen: func() {}}
+	recorder, _ := f.newRecorder(t, cutThenFail{flaky: stream}, nil)
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return opened.Load() >= 2
+	}, waitTimeout, 10*time.Millisecond)
+	f.clock.Advance(time.Hour)
+	require.NoError(t, wait(t, done))
+
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StatePartial), got.state)
+	var gap struct {
+		From time.Time `json:"from"`
+		To   time.Time `json:"to"`
+	}
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT gaps->0 FROM recordings WHERE reservation_id = $1", reservationID).Scan(&gap))
+	assert.True(t, f.clock.Now().Equal(gap.To), "the gap lasts until the end")
+}
+
+// cutThenFail は、最初は flaky の最初のストリームを返し、2 回目からは開けない。
+type cutThenFail struct{ flaky flakyStream }
+
+func (s cutThenFail) OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error) {
+	if s.flaky.opened.Load() == 0 {
+		return s.flaky.OpenServiceStream(ctx, serviceID, opts)
+	}
+	s.flaky.opened.Add(1)
+
+	return nil, errors.New("connection refused")
 }

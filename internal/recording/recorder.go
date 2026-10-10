@@ -49,6 +49,9 @@ const (
 	segmentExt = ".m2ts"
 	// indexFileName は、付属ファイルのディレクトリに置く、索引のファイルの名前。
 	indexFileName = "index"
+	// fileKindSegment と fileKindIndex は、録画のファイルの種類 (recording_files.kind)。
+	fileKindSegment = "segment"
+	fileKindIndex   = "index"
 )
 
 // FailureReason は、録画に失敗した理由 (設計書 5.5)。
@@ -141,25 +144,21 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	}
 	logger := r.logger.With(slog.String("reservation_id", reservation.ID.String()), slog.String("name", reservation.Name))
 
-	q := sqlc.New(r.pool)
 	recording, err := r.start(ctx, &reservation)
 	if err != nil {
 		return err
 	}
 	logger = logger.With(slog.String("recording_id", recording.ID.String()))
-
-	// 引き継ぎや再開で続きを録るときは、前のセグメントを書き終えてから今までを、途切れた区間とする (設計書 5.2)。
-	var gapFrom *time.Time
-	lastEnd, recorded, err := r.previousEnd(ctx, recording.ID)
-	if err != nil {
-		return err
-	}
-	if recorded {
-		gapFrom = &lastEnd
+	// 落ちた mikan の代わりに取ったなら、書きかけのセグメントを、最後に書き込んだ時刻で閉じる (設計書 5.4)。
+	// 止まる mikan から引き継いだなら、古い mikan がまだ書いているので、閉じない。
+	if !assignment.HandedOver {
+		if err := r.closeStaleFiles(ctx, recording.ID, r.clock.Now()); err != nil {
+			return err
+		}
 	}
 
 	tracker := newEndTracker(r, &recording, &reservation)
-	var lastFailure FailureReason
+	result := &sessionResult{lastFailure: ""}
 	for {
 		stream, err := r.tuner.OpenServiceStream(ctx, reservation.ServiceID, &mirakurun.StreamOptions{Decode: true, Priority: assignment.Priority})
 		if err != nil {
@@ -167,23 +166,25 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 				return context.Cause(ctx)
 			}
 			// チューナーが空くか、チューナーサーバーにつながるまで、予定の終わりまで開き直す。
-			lastFailure = streamFailure(err)
+			result.lastFailure = streamFailure(err)
 			logger.WarnContext(ctx, "failed to open the service stream; retrying", slog.Any("error", err))
-			gapFrom = r.gapStart(gapFrom)
 			end, err := tracker.sleep(ctx, r.opts.RetryInterval)
-			if err != nil || end != endNone {
-				return errors.Join(err, r.finishIfEnded(ctx, logger, &recording, end, recorded, gapFrom, lastFailure))
+			if err != nil {
+				return err
+			}
+			if end != endNone {
+				// つながらないまま終えるので、最後のセグメントの終わりから今までも、途切れた区間にする。
+				return r.finish(ctx, logger, assignment, &recording, end, result, true)
 			}
 
 			continue
 		}
-		if gapFrom != nil {
-			if err := q.AddRecordingGap(ctx, sqlc.AddRecordingGapParams{GapFrom: *gapFrom, GapTo: r.clock.Now(), Now: r.clock.Now(), ID: recording.ID}); err != nil {
-				_ = stream.Close()
-
-				return fmt.Errorf("failed to record the gap: %w", err)
-			}
-			gapFrom = nil
+		// 引き継ぎ待ちの古い mikan は、ストリームを開いたことを見て、自分のストリームを閉じる (設計書 5.4)。
+		err = sqlc.New(r.pool).MarkRecordingStreamOpened(ctx, sqlc.MarkRecordingStreamOpenedParams{
+			Generation: assignment.Generation, Now: r.clock.Now(), ID: assignment.ID,
+		})
+		if err != nil {
+			logger.WarnContext(ctx, "failed to record that the stream was opened", slog.Any("error", err))
 		}
 
 		segment, reason, err := r.createSegment(ctx, &recording, &reservation)
@@ -194,14 +195,13 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 			}
 			logger.WarnContext(ctx, "failed to create a recording file", slog.Any("error", err))
 
-			return r.fail(ctx, &recording, reason)
+			return r.fail(ctx, assignment, &recording, reason)
 		}
 		logger.InfoContext(ctx, "started recording", slog.String("pool_id", segment.poolID), slog.String("path", segment.path))
 
 		stats, end, copyErr := r.copyUntilEnd(ctx, tracker, stream, segment)
 		_ = stream.Close()
 		closeErr := r.closeSegment(context.WithoutCancel(ctx), &recording, segment, stats)
-		recorded = recorded || stats.Bytes > 0
 		switch {
 		case ctx.Err() != nil:
 			// リースを失ったか、止めるときは、録画を録画中のまま残し、続きを録る mikan に任せる。
@@ -209,97 +209,151 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		case closeErr != nil:
 			logger.WarnContext(ctx, "failed to close the recording file", slog.Any("error", closeErr))
 
-			return r.fail(ctx, &recording, FailureStorageUnavailable)
+			return r.fail(ctx, assignment, &recording, FailureStorageUnavailable)
 		case copyErr != nil:
 			// ストリームが切れたら、開き直して、新しいセグメントに書く (設計書 5.2)。
 			logger.WarnContext(ctx, "the stream was interrupted; reconnecting", slog.Any("error", copyErr))
-			lastFailure = FailureStreamInterrupted
-			gapFrom = new(r.clock.Now())
+			result.lastFailure = FailureStreamInterrupted
 
 			continue
 		}
 
-		return r.finish(ctx, logger, &recording, end, recorded, gapFrom, lastFailure)
+		return r.finish(ctx, logger, assignment, &recording, end, result, false)
 	}
 }
 
-// previousEnd は、録画の前のセグメントを書き終えた時刻を返す。前のセグメントがなければ false を返す。
-func (r *Recorder) previousEnd(ctx context.Context, recordingID uuid.UUID) (time.Time, bool, error) {
-	lastEnd, err := sqlc.New(r.pool).GetLastRecordingFileEnd(ctx, recordingID)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && lastEnd == nil) {
-		return time.Time{}, false, nil
-	}
-	if err != nil {
-		return time.Time{}, false, fmt.Errorf("failed to get the last recording file: %w", err)
-	}
-
-	return *lastEnd, true, nil
+// sessionResult は、この mikan が録画を担当した間の結果。
+type sessionResult struct {
+	// lastFailure は、最後にストリームを開けなかったか、切れた理由。
+	lastFailure FailureReason
 }
 
-// gapStart は、途切れた区間が始まっていなければ、今から始める。
-func (r *Recorder) gapStart(gapFrom *time.Time) *time.Time {
-	if gapFrom != nil {
-		return gapFrom
-	}
-
-	return new(r.clock.Now())
-}
-
-// finishIfEnded は、録画を止めるときが来ていれば、録画を終える。
-func (r *Recorder) finishIfEnded(
-	ctx context.Context, logger *slog.Logger, recording *sqlc.Recording, end endReason, recorded bool, gapFrom *time.Time, lastFailure FailureReason,
-) error {
-	if end == endNone {
-		return nil
-	}
-
-	return r.finish(ctx, logger, recording, end, recorded, gapFrom, lastFailure)
-}
-
-// finish は、録画を止めた理由と、録れたかどうか、途切れた区間から、録画の最後の状態を決めて記録する (設計書 5.5)。
-func (r *Recorder) finish(
-	ctx context.Context, logger *slog.Logger, recording *sqlc.Recording, end endReason, recorded bool, gapFrom *time.Time, lastFailure FailureReason,
-) error {
+// closeStaleFiles は、録画の書きかけのファイルのうち、staleBefore より前から書き込みのないものを、落ちた mikan が残したものとして、
+// ファイルの大きさと、最後に書き込んだ時刻で閉じる。
+func (r *Recorder) closeStaleFiles(ctx context.Context, recordingID uuid.UUID, staleBefore time.Time) error {
 	q := sqlc.New(r.pool)
-	now := r.clock.Now()
-	if gapFrom != nil {
-		if err := q.AddRecordingGap(ctx, sqlc.AddRecordingGapParams{GapFrom: *gapFrom, GapTo: now, Now: now, ID: recording.ID}); err != nil {
-			return fmt.Errorf("failed to record the gap: %w", err)
+	files, err := q.ListOpenRecordingFiles(ctx, recordingID)
+	if err != nil {
+		return fmt.Errorf("failed to list the open recording files: %w", err)
+	}
+	for i := range files {
+		// ファイルを読めなければ、書き込んだ時刻も分からないので、記録している大きさのまま、書き始めた時刻で閉じる。
+		size, writtenAt := files[i].Size, files[i].StartedAt
+		if path, err := r.store.Path(files[i].PoolID, files[i].Path); err == nil {
+			if info, err := os.Stat(path); err == nil {
+				size, writtenAt = info.Size(), maxTime(info.ModTime(), files[i].StartedAt)
+			}
+		}
+		if !writtenAt.Before(staleBefore) {
+			continue
+		}
+		if err := q.CloseRecordingFile(ctx, sqlc.CloseRecordingFileParams{Size: size, EndedAt: &writtenAt, ID: files[i].ID}); err != nil {
+			return fmt.Errorf("failed to close an abandoned recording file: %w", err)
 		}
 	}
-	switch {
-	case end == endCancelled:
+
+	return nil
+}
+
+// finish は、録画を止めた理由と、セグメントの時間の範囲から、途切れた区間と録画の最後の状態を決めて記録する (設計書 5.2、5.5)。
+// 途切れた区間は、書けたセグメントの時間の範囲のすき間とする。引き継ぎで重なった範囲は、途切れていない。
+// ストリームにつながらないまま終えるなら (disconnected)、最後のセグメントの終わりから今までも、途切れた区間とする。
+func (r *Recorder) finish(
+	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, end endReason, result *sessionResult, disconnected bool,
+) error {
+	if end == endCancelled {
 		logger.InfoContext(ctx, "the reservation was disabled while recording")
 
-		return r.fail(ctx, recording, FailureCancelled)
-	case !recorded:
-		logger.WarnContext(ctx, "nothing was recorded", slog.String("reason", string(lastFailure)))
+		return r.fail(ctx, assignment, recording, FailureCancelled)
+	}
+	// 落ちた mikan が残した書きかけのファイルを閉じる。止まる mikan は、ストリームを開いたのを見てから、RenewInterval ごとに確かめて止まるので、
+	// それより長く書き込みのないファイルは、落ちた mikan のものとする。
+	now := r.clock.Now()
+	if err := r.closeStaleFiles(ctx, recording.ID, now.Add(-2*DefaultRenewInterval)); err != nil {
+		return err
+	}
+	files, err := sqlc.New(r.pool).ListRecordingFiles(ctx, recording.ID)
+	if err != nil {
+		return fmt.Errorf("failed to list the recording files: %w", err)
+	}
+	gaps, recorded := gapsOf(files, now, disconnected)
+	if !recorded {
+		reason := result.lastFailure
+		if reason == "" {
+			reason = FailureStreamInterrupted
+		}
+		logger.WarnContext(ctx, "nothing was recorded", slog.String("reason", string(reason)))
 
-		return r.fail(ctx, recording, lastFailure)
+		return r.fail(ctx, assignment, recording, reason)
+	}
+	encoded, err := json.Marshal(gaps)
+	if err != nil {
+		return fmt.Errorf("failed to encode the recording gaps: %w", err)
+	}
+	if err := sqlc.New(r.pool).SetRecordingGaps(ctx, sqlc.SetRecordingGapsParams{Gaps: encoded, Now: now, ID: recording.ID}); err != nil {
+		return fmt.Errorf("failed to record the gaps: %w", err)
 	}
 
 	// 引き継ぎや再開で、前のセグメントにドロップがあることもあるので、録画全体の集計で決める。
-	finished, err := q.GetRecording(ctx, recording.ID)
+	finished, err := sqlc.New(r.pool).GetRecording(ctx, recording.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get the recording: %w", err)
 	}
-	var gaps []json.RawMessage
-	if err := json.Unmarshal(finished.Gaps, &gaps); err != nil {
-		return fmt.Errorf("failed to decode the recording gaps: %w", err)
-	}
-	state := StateCompleted
+	finalState := StateCompleted
 	switch {
 	case len(gaps) > 0:
-		state = StatePartial
+		finalState = StatePartial
 	case finished.Drops > 0:
-		state = StateCompletedWithErrors
+		finalState = StateCompletedWithErrors
 	}
-	if err := r.complete(ctx, recording.ID, state, ""); err != nil {
+	if err := r.complete(ctx, assignment, recording.ID, finalState, ""); err != nil {
 		return err
 	}
-	logger.InfoContext(ctx, "finished recording", slog.String("state", string(state)))
+	logger.InfoContext(ctx, "finished recording", slog.String("state", string(finalState)))
 
 	return nil
+}
+
+// gap は、途切れた区間。
+type gap struct {
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
+}
+
+// gapsOf は、書けたセグメントの時間の範囲のすき間を、途切れた区間として返す。書けたセグメントがなければ false を返す。
+// 書いている途中のセグメントは、now まで書いているものとする。trailing なら、最後のセグメントの終わりから now までも途切れた区間にする。
+func gapsOf(files []sqlc.RecordingFile, now time.Time, trailing bool) ([]gap, bool) {
+	type span struct{ from, to time.Time }
+	spans := []span{}
+	writing := false
+	for i := range files {
+		file := &files[i]
+		switch {
+		case file.Kind != fileKindSegment:
+		case file.EndedAt == nil:
+			writing = true
+			spans = append(spans, span{from: file.StartedAt, to: now})
+		case file.Size > 0:
+			spans = append(spans, span{from: file.StartedAt, to: *file.EndedAt})
+		}
+	}
+	if len(spans) == 0 {
+		return []gap{}, false
+	}
+	slices.SortFunc(spans, func(a, b span) int { return a.from.Compare(b.from) })
+	gaps := []gap{}
+	covered := spans[0].to
+	for _, s := range spans[1:] {
+		if s.from.After(covered) {
+			gaps = append(gaps, gap{From: covered, To: s.from})
+		}
+		covered = maxTime(covered, s.to)
+	}
+	if trailing && !writing && covered.Before(now) {
+		gaps = append(gaps, gap{From: covered, To: now})
+	}
+
+	return gaps, true
 }
 
 // waitUntilOpen は、予定の開始からチューニングにかかる時間を引いた時刻まで待ち、そのときの予約を返す。
@@ -397,7 +451,7 @@ func (r *Recorder) createSegment(
 	q := sqlc.New(r.pool)
 	seg.fileID = id.New()
 	err = q.InsertRecordingFile(ctx, sqlc.InsertRecordingFileParams{
-		ID: seg.fileID, RecordingID: recording.ID, Kind: "segment", PoolID: pool.ID, Path: rel, StartedAt: seg.startedAt, Now: seg.startedAt,
+		ID: seg.fileID, RecordingID: recording.ID, Kind: fileKindSegment, PoolID: pool.ID, Path: rel, StartedAt: seg.startedAt, Now: seg.startedAt,
 	})
 	if err != nil {
 		_ = file.Close()
@@ -410,7 +464,7 @@ func (r *Recorder) createSegment(
 	if seg.indexFile != nil {
 		seg.indexID = id.New()
 		err = q.InsertRecordingFile(ctx, sqlc.InsertRecordingFileParams{
-			ID: seg.indexID, RecordingID: recording.ID, Kind: "index", PoolID: pool.ID, Path: seg.indexPath, StartedAt: seg.startedAt, Now: seg.startedAt,
+			ID: seg.indexID, RecordingID: recording.ID, Kind: fileKindIndex, PoolID: pool.ID, Path: seg.indexPath, StartedAt: seg.startedAt, Now: seg.startedAt,
 		})
 		if err != nil {
 			_ = file.Close()
@@ -710,8 +764,8 @@ func (r *Recorder) closeSegment(ctx context.Context, recording *sqlc.Recording, 
 }
 
 // fail は、録画を失敗にし、理由を記録する。割り振りは終わったことにするので、nil を返す。
-func (r *Recorder) fail(ctx context.Context, recording *sqlc.Recording, reason FailureReason) error {
-	return r.complete(ctx, recording.ID, StateFailed, reason)
+func (r *Recorder) fail(ctx context.Context, assignment *Assignment, recording *sqlc.Recording, reason FailureReason) error {
+	return r.complete(ctx, assignment, recording.ID, StateFailed, reason)
 }
 
 // start は、予約の録画を始め、新しく始めたときは、録画の開始を通知する (設計書 6.2)。引き継ぎや再開で続きを録るときは通知しない。
@@ -741,9 +795,19 @@ func (r *Recorder) start(ctx context.Context, reservation *sqlc.GetReservationFo
 
 // complete は、録画を state で終え、正常に終わってドロップが閾値以下なら録画履歴に記録し (設計書 4.4)、
 // 録画の完了か失敗を通知する (設計書 6.2)。完了の通知には、Webhook のためにセグメントのプール内のパスを載せる。
-func (r *Recorder) complete(ctx context.Context, recordingID uuid.UUID, state State, reason FailureReason) error {
+func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordingID uuid.UUID, state State, reason FailureReason) error {
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
+		// 引き継ぎの最中に予定の終わりが来ると、古い mikan と新しい mikan の両方が録画を終えようとする。
+		// 録画を終えるのは、今の世代の mikan だけにする。
+		generation, err := q.LockRecordingAssignmentGeneration(ctx, assignment.ID)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+		case err != nil:
+			return fmt.Errorf("failed to lock the recording assignment: %w", err)
+		case generation != assignment.Generation:
+			return errSuperseded
+		}
 		now := r.clock.Now()
 		var failure *string
 		if reason != "" {
@@ -788,12 +852,20 @@ func (r *Recorder) complete(ctx context.Context, recordingID uuid.UUID, state St
 
 		return notification.Emit(ctx, tx, r.clock, notification.KindRecordingCompleted, payload)
 	})
+	if errors.Is(err, errSuperseded) {
+		r.logger.InfoContext(ctx, "another mikan took over the recording; leaving it to finish", slog.String("recording_id", recordingID.String()))
+
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("failed to complete the recording: %w", err)
 	}
 
 	return nil
 }
+
+// errSuperseded は、ほかの mikan が割り振りを取ったので、録画を終えないことを表す。
+var errSuperseded = errors.New("the recording assignment was taken over")
 
 // settings は、予約の録画設定を、全体の既定値に、ルール予約ならルールの上書き、さらに予約自体の上書きを重ねて求める。
 func (r *Recorder) settings(ctx context.Context, reservation *sqlc.GetReservationForRecordingRow) (*reserve.Settings, error) {

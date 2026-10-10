@@ -12,29 +12,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const addRecordingGap = `-- name: AddRecordingGap :exec
-UPDATE recordings SET gaps = gaps || jsonb_build_array(jsonb_build_object('from', $1::timestamptz, 'to', $2::timestamptz)), updated_at = $3
-WHERE id = $4
-`
-
-type AddRecordingGapParams struct {
-	GapFrom time.Time
-	GapTo   time.Time
-	Now     time.Time
-	ID      uuid.UUID
-}
-
-// 途切れた区間を記録する。
-func (q *Queries) AddRecordingGap(ctx context.Context, arg AddRecordingGapParams) error {
-	_, err := q.db.Exec(ctx, addRecordingGap,
-		arg.GapFrom,
-		arg.GapTo,
-		arg.Now,
-		arg.ID,
-	)
-	return err
-}
-
 const addRecordingStats = `-- name: AddRecordingStats :exec
 UPDATE recordings SET drops = drops + $1, errors = errors + $2, scrambled = scrambled + $3, updated_at = $4
 WHERE id = $5
@@ -96,22 +73,6 @@ func (q *Queries) FinishRecording(ctx context.Context, arg FinishRecordingParams
 		arg.ID,
 	)
 	return err
-}
-
-const getLastRecordingFileEnd = `-- name: GetLastRecordingFileEnd :one
-SELECT ended_at FROM recording_files
-WHERE recording_id = $1 AND kind = 'segment' AND ended_at IS NOT NULL AND size > 0
-ORDER BY ended_at DESC
-LIMIT 1
-`
-
-// 録画のセグメントのうち、最後に書き終えた時刻。引き継ぎや再開のときに、途切れた区間を求めるのに使う。
-// まだ書き終えたセグメントがなければ、行を返さない。何も書けなかったセグメントは、録れたものに数えない。
-func (q *Queries) GetLastRecordingFileEnd(ctx context.Context, recordingID uuid.UUID) (*time.Time, error) {
-	row := q.db.QueryRow(ctx, getLastRecordingFileEnd, recordingID)
-	var ended_at *time.Time
-	err := row.Scan(&ended_at)
-	return ended_at, err
 }
 
 const getProgramEnd = `-- name: GetProgramEnd :one
@@ -267,6 +228,41 @@ func (q *Queries) InsertRecordingHistory(ctx context.Context, arg InsertRecordin
 	return err
 }
 
+const listOpenRecordingFiles = `-- name: ListOpenRecordingFiles :many
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
+`
+
+// 録画の、書き終えていないファイル。落ちた mikan が書きかけたまま残したものを、引き継ぐ mikan が閉じる。
+func (q *Queries) ListOpenRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error) {
+	rows, err := q.db.Query(ctx, listOpenRecordingFiles, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RecordingFile{}
+	for rows.Next() {
+		var i RecordingFile
+		if err := rows.Scan(
+			&i.ID,
+			&i.RecordingID,
+			&i.Kind,
+			&i.PoolID,
+			&i.Path,
+			&i.Size,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecordingFiles = `-- name: ListRecordingFiles :many
 SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind, id
 `
@@ -344,6 +340,22 @@ type MarkRecordingProgramLostParams struct {
 
 func (q *Queries) MarkRecordingProgramLost(ctx context.Context, arg MarkRecordingProgramLostParams) error {
 	_, err := q.db.Exec(ctx, markRecordingProgramLost, arg.Now, arg.ID)
+	return err
+}
+
+const setRecordingGaps = `-- name: SetRecordingGaps :exec
+UPDATE recordings SET gaps = $1, updated_at = $2 WHERE id = $3
+`
+
+type SetRecordingGapsParams struct {
+	Gaps []byte
+	Now  time.Time
+	ID   uuid.UUID
+}
+
+// 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
+func (q *Queries) SetRecordingGaps(ctx context.Context, arg SetRecordingGapsParams) error {
+	_, err := q.db.Exec(ctx, setRecordingGaps, arg.Gaps, arg.Now, arg.ID)
 	return err
 }
 
