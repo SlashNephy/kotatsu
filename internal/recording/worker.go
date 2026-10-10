@@ -141,8 +141,10 @@ func (w *Worker) Run(ctx context.Context) error {
 			if !ok {
 				return
 			}
+			// 止めるときに引き継ぎから漏れないよう、Session を始める前に、録画している割り振りに載せる。
+			active, sessionCtx := w.register(sessionsCtx, assignment)
 			wg.Go(func() {
-				w.record(sessionsCtx, assignment)
+				w.record(sessionCtx, active)
 			})
 		}
 	})
@@ -284,22 +286,35 @@ func (w *Worker) acquire(ctx context.Context) (*Assignment, bool, error) {
 		return nil, false, fmt.Errorf("failed to acquire a recording assignment: %w", err)
 	}
 
+	// 引き継ぎ待ちでも、古い mikan のリースが切れていれば、引き継ぎの最中に落ちたので、落ちた mikan の代わりとして扱う。
+	handedOver := row.PreviousState == string(AssignmentHandover) && row.PreviousLeaseExpiresAt != nil && row.PreviousLeaseExpiresAt.After(now)
+
 	return &Assignment{
 		ID: row.ID, ReservationID: row.ReservationID, Priority: int(row.Priority), Generation: row.Generation,
-		HandedOver: row.PreviousState == string(AssignmentHandover), PreviousLeaseExpiresAt: row.PreviousLeaseExpiresAt,
+		HandedOver: handedOver, PreviousLeaseExpiresAt: row.PreviousLeaseExpiresAt,
 	}, true, nil
 }
 
-// record は、リースを延長しながら Session で録画し、録画を終えたら割り振りを終わったことにする。
-func (w *Worker) record(ctx context.Context, assignment *Assignment) {
-	logger := w.logger.With(slog.String("assignment_id", assignment.ID.String()), slog.String("reservation_id", assignment.ReservationID.String()),
-		slog.Int64("generation", assignment.Generation))
+// register は、割り振りを、録画している割り振りに載せ、その Session の context を返す。
+func (w *Worker) register(ctx context.Context, assignment *Assignment) (*activeSession, context.Context) {
 	sessionCtx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
 	active := &activeSession{assignment: assignment, cancel: cancel, handingOver: atomic.Bool{}}
 	w.mu.Lock()
 	w.active[assignment.ID] = active
 	w.mu.Unlock()
+
+	return active, sessionCtx
+}
+
+// record は、リースを延長しながら Session で録画し、録画を終えたら割り振りを終わったことにする。
+// sessionCtx は、register が返した Session の context。
+func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
+	assignment, cancel := active.assignment, active.cancel
+	// Session を止めた後も、割り振りを終わったことにするため、止まらない context を使う。
+	ctx := context.WithoutCancel(sessionCtx)
+	logger := w.logger.With(slog.String("assignment_id", assignment.ID.String()), slog.String("reservation_id", assignment.ReservationID.String()),
+		slog.Int64("generation", assignment.Generation))
+	defer cancel(nil)
 	defer func() {
 		w.mu.Lock()
 		delete(w.active, assignment.ID)
@@ -319,7 +334,7 @@ func (w *Worker) record(ctx context.Context, assignment *Assignment) {
 		logger.WarnContext(ctx, "stopped recording; another mikan took over the assignment")
 
 		return
-	case errors.Is(cause, ErrHandedOver), errors.Is(cause, ErrStopped), ctx.Err() != nil:
+	case errors.Is(cause, ErrHandedOver), errors.Is(cause, ErrStopped):
 		// 止めるときは、割り振りを残し、ほかの mikan か、再起動した mikan に続きを任せる (設計書 5.4)。
 		return
 	case err != nil:

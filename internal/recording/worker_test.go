@@ -322,3 +322,45 @@ func TestWorkerReleasesWithoutSuccessor(t *testing.T) {
 		})
 	}
 }
+
+// TestWorkerTreatsCrashDuringHandoverAsCrash は、引き継ぎ待ちの印を付けた mikan が、引き継ぎの最中に落ちてリースが切れたら、
+// 引き継ぎではなく、落ちた mikan の代わりとして取ることを確かめる。
+func TestWorkerTreatsCrashDuringHandoverAsCrash(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		leaseRemaining time.Duration
+		wantHandedOver bool
+	}{
+		{name: "リースが残っていれば引き継ぎ", leaseRemaining: 5 * time.Second, wantHandedOver: true},
+		{name: "リースが切れていれば落ちた mikan の代わり", leaseRemaining: -time.Second, wantHandedOver: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.assignOne(t)
+			_, err := f.pool.Exec(t.Context(),
+				"UPDATE recording_assignments SET state = 'handover', generation = 1, holder = $1, lease_expires_at = $2 WHERE reservation_id = $3",
+				id.New(), f.clock.Now().Add(tt.leaseRemaining), reservationID)
+			require.NoError(t, err)
+
+			taken := make(chan *recording.Assignment, 1)
+			f.startWorker(t, id.New(), func(ctx context.Context, assignment *recording.Assignment) error {
+				taken <- assignment
+				<-ctx.Done()
+
+				return nil
+			})
+			select {
+			case assignment := <-taken:
+				assert.Equal(t, int64(2), assignment.Generation)
+				assert.Equal(t, tt.wantHandedOver, assignment.HandedOver)
+			case <-time.After(waitTimeout):
+				t.Fatal("no mikan took the assignment")
+			}
+		})
+	}
+}

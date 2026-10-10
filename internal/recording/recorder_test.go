@@ -873,3 +873,78 @@ func TestRecorderTakesOverFromCrashedMikan(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT (gaps->0->>'from')::timestamptz FROM recordings WHERE id = $1", recordingID).Scan(&gapFrom))
 	assert.True(t, lastRenewal.Equal(gapFrom), gapFrom)
 }
+
+// failOnceStream は、最初に開くときだけ失敗し、2 回目からは TS を 1 回だけ流す。
+type failOnceStream struct {
+	data   []byte
+	opened *atomic.Int32
+}
+
+func (s failOnceStream) OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error) {
+	if s.opened.Add(1) == 1 {
+		return nil, errors.New("connection refused")
+	}
+
+	return onceStream{data: s.data}.OpenServiceStream(ctx, serviceID, opts)
+}
+
+// TestRecorderHandoverGap は、引き継いだ mikan がストリームをすぐに開けなくても、古い mikan が書いている間は途切れた区間にせず、
+// 古い mikan がもう止まっていれば、そのセグメントの終わりからを途切れた区間にすることを確かめる (設計書 5.4)。
+func TestRecorderHandoverGap(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	tests := []struct {
+		name string
+		// oldEnded は、古い mikan のセグメントを、止まって閉じたことにするかどうか。
+		oldEnded bool
+		wantGaps int
+	}{
+		{name: "古い mikan がまだ書いている", oldEnded: false, wantGaps: 0},
+		{name: "古い mikan がもう止まった", oldEnded: true, wantGaps: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			recorder, dir := f.newRecorder(t, failOnceStream{data: data, opened: new(atomic.Int32)}, nil)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+
+			// 古い mikan が書いているセグメントを用意する。
+			recordingID := id.New()
+			startedAt := f.clock.Now()
+			_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+				state, protected, recorded_from, created_at, updated_at)
+				SELECT $1, id, service_id, event_id, name, description, start_at, end_at, 'recording', false, $3, $3, $3
+				FROM reservations WHERE id = $2`, recordingID, reservationID, startedAt)
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "old.m2ts"), make([]byte, 1000), 0o600))
+			var endedAt *time.Time
+			if tt.oldEnded {
+				endedAt = new(startedAt.Add(time.Minute))
+			}
+			_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+				VALUES ($1, $2, 'segment', $3, 'old.m2ts', 1000, $4, $5, $4)`, id.New(), recordingID, poolID, startedAt, endedAt)
+			require.NoError(t, err)
+
+			f.clock.Advance(2 * time.Minute)
+			_, done := f.sessionWith(t, recorder, &recording.Assignment{
+				ID: id.New(), ReservationID: reservationID, Priority: recording.Priority, Generation: 2, HandedOver: true, PreviousLeaseExpiresAt: nil,
+			})
+			require.Eventually(t, func() bool {
+				return f.segments(t, reservationID) == 2
+			}, waitTimeout, 10*time.Millisecond)
+			if !tt.oldEnded {
+				// 古い mikan は、新しい mikan がストリームを開いたのを見て止まる。
+				_, err := f.pool.Exec(t.Context(), "UPDATE recording_files SET ended_at = $1 WHERE path = 'old.m2ts'", f.clock.Now())
+				require.NoError(t, err)
+			}
+			f.clock.Advance(time.Hour)
+			require.NoError(t, wait(t, done))
+			assert.Equal(t, gapsAndLost{gaps: tt.wantGaps, programLost: false}, f.gapsAndLost(t, reservationID))
+		})
+	}
+}
