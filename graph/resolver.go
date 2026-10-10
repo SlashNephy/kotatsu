@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/settings"
+	"github.com/SlashNephy/kotatsu/internal/stream"
 	"github.com/SlashNephy/kotatsu/internal/webhook"
 	"github.com/SlashNephy/kotatsu/internal/webpush"
 )
@@ -48,6 +49,7 @@ type Resolver struct {
 	inbox             *notification.Inbox
 	webhooks          *webhook.Store
 	webPush           *webpush.Service
+	streamSigner      *stream.Signer
 	library           *library.Library
 	changes           Changes
 	pools             map[string]string

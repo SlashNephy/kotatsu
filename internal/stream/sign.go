@@ -37,6 +37,16 @@ var (
 	ErrInvalidSignature = errors.New("invalid or expired signature")
 )
 
+// ServicePath は、サービスのライブ視聴のパスを返す。
+func ServicePath(serviceID int64) string {
+	return "/streams/services/" + strconv.FormatInt(serviceID, 10)
+}
+
+// RecordingPath は、録画の再生のパスを返す。
+func RecordingPath(recordingID uuid.UUID) string {
+	return "/streams/recordings/" + recordingID.String()
+}
+
 // Signer は、映像の URL に署名し、署名を確かめる。
 type Signer struct {
 	key []byte

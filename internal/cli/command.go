@@ -518,6 +518,11 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	if err != nil {
 		return nil, err
 	}
+	// 外部プレイヤー用の映像の URL には、アプリの秘密キーから導いたキーで署名する (設計書 9.6)。
+	signer, err := stream.NewSigner(deps.Config.Auth.SecretKey.Value())
+	if err != nil {
+		return nil, err
+	}
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", graph.NewHandler(&graph.Options{
 		DB:                  deps.DB,
@@ -530,6 +535,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Settings:            settings.NewStore(deps.Clock, audit.NewRecorder(deps.Clock)),
 		Webhooks:            webhooks,
 		WebPush:             webPush,
+		StreamSigner:        signer,
 		Changes:             changes,
 		Pools:               deps.Config.Storage.Pools,
 		FreeSpace:           nil,
@@ -578,10 +584,6 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		mux.Handle(pattern, httpserver.RequireSameOrigin(handler))
 	}
 	// 映像の配信 (設計書 7.2、7.6、9.6)。セッションか署名付き URL で認可する。
-	signer, err := stream.NewSigner(deps.Config.Auth.SecretKey.Value())
-	if err != nil {
-		return nil, err
-	}
 	var tuner stream.ServiceOpener
 	if deps.Config.Tuner.URL.Value() != "" {
 		client, err := newTunerClient(deps)
