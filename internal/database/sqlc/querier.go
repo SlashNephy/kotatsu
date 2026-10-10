@@ -145,6 +145,8 @@ type Querier interface {
 	PruneProgramArchives(ctx context.Context, arg PruneProgramArchivesParams) (int64, error)
 	// 下限は上げるだけで、下げない。古いバイナリで migrate を実行しても、新しいバイナリが記録した下限は残る。
 	RaiseMinBinaryVersion(ctx context.Context, arg RaiseMinBinaryVersionParams) error
+	// 再認証した日時を記録する (設計書 9.5)。失効したセッションは更新しない。
+	ReauthenticateSession(ctx context.Context, arg ReauthenticateSessionParams) (int64, error)
 	// 失敗を数える。最後の失敗が reset_before より前なら、数え直す。
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) (int32, error)
 	RecordPasskeyUse(ctx context.Context, arg RecordPasskeyUseParams) error

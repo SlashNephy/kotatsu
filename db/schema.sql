@@ -184,13 +184,13 @@ CREATE TABLE user_passkeys (
 
 CREATE INDEX user_passkeys_user_id_idx ON user_passkeys (user_id);
 
--- パスキーの登録と、パスキーだけでのログインの手続きの途中の状態。Cookie に入れたトークンで引く。
+-- パスキーの登録、パスキーだけでのログイン、パスキーでの再認証の手続きの途中の状態。Cookie に入れたトークンで引く。
 -- パスワードの後の第二要素としての手続きは、login_challenges の webauthn_session に持つ。
 CREATE TABLE webauthn_ceremonies (
   id uuid PRIMARY KEY,
   token_hash bytea NOT NULL UNIQUE,
-  kind text NOT NULL CHECK (kind IN ('registration', 'login')),
-  -- 登録するユーザー。ログインでは、どのユーザーかを認証器が答えるまで分からないので空。
+  kind text NOT NULL CHECK (kind IN ('registration', 'login', 'reauthentication')),
+  -- 登録や再認証をするユーザー。ログインでは、どのユーザーかを認証器が答えるまで分からないので空。
   user_id uuid REFERENCES users (id) ON DELETE CASCADE,
   -- go-webauthn の SessionData を JSON にしたもの。チャレンジを持つ。
   session jsonb NOT NULL,

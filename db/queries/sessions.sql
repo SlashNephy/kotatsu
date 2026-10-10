@@ -22,3 +22,7 @@ ORDER BY last_seen_at DESC, id DESC;
 
 -- name: RevokeSession :execrows
 UPDATE sessions SET revoked_at = @now::timestamptz WHERE id = @id AND user_id = @user_id AND revoked_at IS NULL;
+
+-- name: ReauthenticateSession :execrows
+-- 再認証した日時を記録する (設計書 9.5)。失効したセッションは更新しない。
+UPDATE sessions SET authenticated_at = @now WHERE id = @id AND user_id = @user_id AND revoked_at IS NULL;

@@ -443,6 +443,9 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		"POST /auth/passkey/login/confirm":         logins.PasskeyLoginConfirmHandler(deps.DB, clientInfo),
 		"POST /auth/passkey/registration":          passkeys.RegistrationHandler(deps.DB, clientInfo),
 		"POST /auth/passkey/registration/confirm":  passkeys.RegistrationConfirmHandler(deps.DB, clientInfo),
+		"POST /auth/reauth":                        logins.ReauthenticateHandler(deps.DB, clientInfo),
+		"POST /auth/reauth/passkey":                logins.PasskeyReauthenticationHandler(deps.DB, clientInfo),
+		"POST /auth/reauth/passkey/confirm":        logins.PasskeyReauthenticationConfirmHandler(deps.DB, clientInfo),
 	} {
 		mux.Handle(pattern, httpserver.RequireSameOrigin(handler))
 	}

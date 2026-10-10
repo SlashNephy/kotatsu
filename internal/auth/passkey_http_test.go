@@ -189,7 +189,7 @@ func TestPasskeyHandlers(t *testing.T) {
 		Next    string   `json:"next"`
 		Methods []string `json:"methods"`
 	}
-	require.Equal(t, http.StatusOK, s.post("/auth/login", map[string]any{"username": loginName, "password": loginPhrase}, &login, testAuthHeader, "none"))
+	require.Equal(t, http.StatusOK, s.post("/auth/login", map[string]any{"username": loginName, passwordText: loginPhrase}, &login, testAuthHeader, "none"))
 	assert.Equal(t, "second_factor", login.Next)
 	assert.Equal(t, []string{"passkey"}, login.Methods)
 	require.Equal(t, http.StatusOK, s.post("/auth/login/passkey", map[string]any{}, &assertion, testAuthHeader, "none"))
@@ -241,7 +241,7 @@ func TestPasskeyHandlersRejectMissingInput(t *testing.T) {
 	}
 
 	// パスキーのないユーザーには、第二要素としての確認を始めさせない。
-	require.Equal(t, http.StatusOK, s.post("/auth/login", map[string]any{"username": loginName, "password": loginPhrase}, nil))
+	require.Equal(t, http.StatusOK, s.post("/auth/login", map[string]any{"username": loginName, passwordText: loginPhrase}, nil))
 	var failed errorBody
 	assert.Equal(t, http.StatusBadRequest, s.post("/auth/login/passkey", map[string]any{}, &failed))
 	assert.Equal(t, "NO_PASSKEY", failed.Error.Code)
