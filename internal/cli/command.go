@@ -37,6 +37,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/settings"
 	"github.com/SlashNephy/kotatsu/internal/spa"
 	"github.com/SlashNephy/kotatsu/internal/telemetry"
+	"github.com/SlashNephy/kotatsu/internal/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/webhook"
 	"github.com/SlashNephy/kotatsu/internal/webpush"
 	"github.com/SlashNephy/kotatsu/web"
@@ -119,7 +120,8 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	if err != nil {
 		return nil, nil, err
 	}
-	dispatcher := notification.NewDispatcher(deps.DB, deps.Clock, webhook.NewEnqueuer(inserter), webpush.NewEnqueuer(inserter))
+	dispatcher := notification.NewDispatcher(deps.DB, deps.Clock,
+		webhook.NewEnqueuer(inserter), webpush.NewEnqueuer(inserter), thumbnail.NewEnqueuer(inserter))
 	river.AddWorker(workers, notification.NewDispatchWorker(dispatcher))
 	river.AddWorker(workers, webhook.NewDeliverWorker(deps.DB, webhooks, deps.Clock, location))
 	river.AddWorker(workers, webpush.NewDeliverWorker(deps.DB, webPush, deps.Clock, webPushSubject(deps.Config), location, webpush.NewHTTPClient()))
@@ -128,6 +130,9 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	manager := capacity.NewManager(deps.DB, deps.Clock, kago.New(deps.Config.Storage.Pools, nil), audit.NewRecorder(deps.Clock),
 		logger.With(slog.String("component", "capacity")))
 	river.AddWorker(workers, capacity.NewCheckWorker(manager))
+	// 録画を終えたら、代表画像とプレビュー画像を作る (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。
+	river.AddWorker(workers, thumbnail.NewGenerateWorker(deps.DB, kago.New(deps.Config.Storage.Pools, nil), deps.Clock,
+		!deps.Config.Thumbnail.DisablePreview))
 
 	return workers, []*river.PeriodicJob{audit.PrunePeriodicJob(), notification.DispatchPeriodicJob(), capacity.CheckPeriodicJob()}, nil
 }

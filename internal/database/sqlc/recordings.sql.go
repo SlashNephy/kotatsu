@@ -424,3 +424,36 @@ func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) 
 	)
 	return i, err
 }
+
+const upsertRecordingImage = `-- name: UpsertRecordingImage :exec
+INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, ended_at = EXCLUDED.ended_at
+WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.kind = EXCLUDED.kind
+`
+
+type UpsertRecordingImageParams struct {
+	ID          uuid.UUID
+	RecordingID uuid.UUID
+	Kind        string
+	PoolID      string
+	Path        string
+	Size        int64
+	StartedAt   time.Time
+	Now         *time.Time
+}
+
+// 録画の代表画像かプレビュー画像を記録する。作り直したときは、同じパスの行を書き換える。
+func (q *Queries) UpsertRecordingImage(ctx context.Context, arg UpsertRecordingImageParams) error {
+	_, err := q.db.Exec(ctx, upsertRecordingImage,
+		arg.ID,
+		arg.RecordingID,
+		arg.Kind,
+		arg.PoolID,
+		arg.Path,
+		arg.Size,
+		arg.StartedAt,
+		arg.Now,
+	)
+	return err
+}

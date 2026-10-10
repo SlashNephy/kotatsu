@@ -22,8 +22,13 @@ import (
 // Client は River のクライアント。トランザクションには pgx.Tx を使う。
 type Client = river.Client[pgx.Tx]
 
-// maxWorkers は、nekonote が同時に実行するジョブの数の上限。
-const maxWorkers = 10
+const (
+	// maxWorkers は、nekonote が既定のキューで同時に実行するジョブの数の上限。
+	maxWorkers = 10
+	// QueueMedia は、FFmpeg で動画を読むような重いジョブのキュー。
+	// EPGStation から多くの録画を取り込んだときも、CPU とディスクを使い切らないよう、1 つずつ実行する。
+	QueueMedia = "media"
+)
 
 // Options は NewClient の設定。
 type Options struct {
@@ -46,6 +51,7 @@ func NewClient(pool *pgxpool.Pool, logger *slog.Logger, opts *Options) (*Client,
 		config.Workers = opts.Workers
 		config.Queues = map[string]river.QueueConfig{
 			river.QueueDefault: {MaxWorkers: maxWorkers},
+			QueueMedia:         {MaxWorkers: 1},
 		}
 		config.PeriodicJobs = opts.PeriodicJobs
 	}

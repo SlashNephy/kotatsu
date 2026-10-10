@@ -306,19 +306,6 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			},
 		},
 		{
-			name: "web push subject",
-			env:  map[string]string{envKeyURL: envURL, "KOTATSU_WEB_PUSH_SUBJECT": "mailto:admin@kotatsu.example"},
-			want: &config.Config{
-				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}},
-				Metrics:  config.Metrics{Listen: defaultMetricsListen},
-				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
-				Storage:  noPools(),
-				Tuner:    config.Tuner{URL: ""},
-				WebPush:  config.WebPush{Subject: "mailto:admin@kotatsu.example"},
-			},
-		},
-		{
 			name: "env overrides yaml boolean",
 			yaml: "database:\n  pooler: true\n",
 			env: map[string]string{
@@ -351,6 +338,50 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				tt.want.Auth.OIDC = defaultOIDC()
 			}
 			assert.Equal(t, tt.want, cfg)
+		})
+	}
+}
+
+// TestLoadWebPushAndThumbnail は、Web Push とサムネイルの設定を、YAML と環境変数から読むことを確かめる。
+func TestLoadWebPushAndThumbnail(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		yaml          string
+		env           map[string]string
+		wantWebPush   config.WebPush
+		wantThumbnail config.Thumbnail
+	}{
+		{
+			name: "defaults", env: map[string]string{envKeyURL: envURL},
+			wantWebPush: config.WebPush{Subject: ""}, wantThumbnail: config.Thumbnail{DisablePreview: false},
+		},
+		{
+			name: "web push subject", env: map[string]string{envKeyURL: envURL, "KOTATSU_WEB_PUSH_SUBJECT": "mailto:admin@kotatsu.example"},
+			wantWebPush: config.WebPush{Subject: "mailto:admin@kotatsu.example"}, wantThumbnail: config.Thumbnail{DisablePreview: false},
+		},
+		{
+			name: "disable preview in yaml", yaml: "thumbnail:\n  disable_preview: true\n", env: map[string]string{envKeyURL: envURL},
+			wantWebPush: config.WebPush{Subject: ""}, wantThumbnail: config.Thumbnail{DisablePreview: true},
+		},
+		{
+			name: "disable preview in env", env: map[string]string{envKeyURL: envURL, "KOTATSU_THUMBNAIL_DISABLE_PREVIEW": envTrue},
+			wantWebPush: config.WebPush{Subject: ""}, wantThumbnail: config.Thumbnail{DisablePreview: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := ""
+			if tt.yaml != "" {
+				path = writeFile(t, t.TempDir(), "config.yaml", tt.yaml)
+			}
+			cfg, err := config.Load(path, lookup(tt.env))
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantWebPush, cfg.WebPush)
+			assert.Equal(t, tt.wantThumbnail, cfg.Thumbnail)
 		})
 	}
 }

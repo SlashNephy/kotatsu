@@ -11,6 +11,13 @@ RETURNING sqlc.embed(recordings), (xmax = 0)::boolean AS inserted;
 INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
 VALUES (@id, @recording_id, @kind, @pool_id, @path, 0, @started_at, NULL, @now);
 
+-- name: UpsertRecordingImage :exec
+-- 録画の代表画像かプレビュー画像を記録する。作り直したときは、同じパスの行を書き換える。
+INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+VALUES (@id, @recording_id, @kind, @pool_id, @path, @size, @started_at, @now, @now)
+ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, ended_at = EXCLUDED.ended_at
+WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.kind = EXCLUDED.kind;
+
 -- name: CloseRecordingFile :exec
 -- 書き終えたファイルの大きさと、表す時間の終わりを記録する。
 UPDATE recording_files SET size = @size, ended_at = @ended_at WHERE id = @id;

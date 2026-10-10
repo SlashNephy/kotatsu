@@ -69,6 +69,13 @@ func (f *fakeExtractor) Extract(_ context.Context, r io.Reader, size thumbnail.S
 func segment(t *testing.T, start time.Duration, n int, step time.Duration, first int) thumbnail.Segment {
 	t.Helper()
 
+	return segmentAt(t, filepath.Join(t.TempDir(), "segment.m2ts"), start, n, step, first)
+}
+
+// segmentAt は、segment と同じセグメントを、path に作る。
+func segmentAt(t *testing.T, path string, start time.Duration, n int, step time.Duration, first int) thumbnail.Segment {
+	t.Helper()
+
 	data := make([]byte, n*keyframeSize)
 	index := make([]ts.IndexEntry, 0, n)
 	// PTS は 33 ビットで一周する。途中で一周させても、時間を正しく求めることを確かめる。
@@ -81,7 +88,6 @@ func segment(t *testing.T, start time.Duration, n int, step time.Duration, first
 		pts := (base + int64(i)*int64(step/time.Millisecond)*ts.PTSClock/1000) % (1 << 33)
 		index = append(index, ts.IndexEntry{Offset: int64(i * keyframeSize), PTS: pts})
 	}
-	path := filepath.Join(t.TempDir(), "segment.m2ts")
 	require.NoError(t, os.WriteFile(path, data, 0o600))
 
 	return thumbnail.Segment{Path: path, Start: start, Index: index}

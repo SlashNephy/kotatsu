@@ -635,12 +635,13 @@ CREATE TABLE recordings (
   updated_at timestamptz NOT NULL
 );
 
--- 録画のファイル (設計書 5.2、8.2)。セグメントは、ストリームを開き直すたびに作る。索引は、セグメントごとの付属ファイル。
+-- 録画のファイル (設計書 5.2、5.6、8.2)。セグメントは、ストリームを開き直すたびに作る。索引は、セグメントごとの付属ファイル。
+-- 代表画像とプレビュー画像は、録画を終えた後に nekonote が作り、最初のセグメントの付属ファイルのディレクトリに置く。
 CREATE TABLE recording_files (
   id uuid PRIMARY KEY,
   recording_id uuid NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,
-  -- 種類は、TS のセグメント (segment) か、セグメントの索引 (index) のどちらか。
-  kind text NOT NULL CHECK (kind IN ('segment', 'index')),
+  -- 種類は、TS のセグメント (segment)、セグメントの索引 (index)、代表画像 (thumbnail)、シークバー用のプレビュー画像 (preview) のどれか。
+  kind text NOT NULL CHECK (kind IN ('segment', 'index', 'thumbnail', 'preview')),
   -- 保存先プールの ID と、プール内の相対パス (設計書 5.6)。
   pool_id text NOT NULL,
   path text NOT NULL,

@@ -139,6 +139,18 @@ func TestRecordings(t *testing.T) {
 	assert.Equal(t, "SEGMENT", first.Files[0].Kind)
 	assert.Equal(t, int64(2), first.Files[0].Size)
 
+	// nekonote が作った代表画像とプレビュー画像も、録画のファイルとして返す。
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+		SELECT gen_random_uuid(), recording_id, kinds.kind, pool_id, path || '.kotatsu/' || kinds.kind || '.jpg', 1, started_at, ended_at, created_at
+		FROM recording_files CROSS JOIN (VALUES ('thumbnail'), ('preview')) AS kinds (kind) WHERE path = $1`, episode1+".m2ts")
+	require.NoError(t, err)
+	files := f.recordings(t, 10, nil, nil).Recordings.Edges[2].Node.Files
+	kinds := make([]string, 0, len(files))
+	for _, file := range files {
+		kinds = append(kinds, file.Kind)
+	}
+	assert.ElementsMatch(t, []string{"SEGMENT", "THUMBNAIL", "PREVIEW"}, kinds)
+
 	page := f.recordings(t, 2, nil, nil)
 	assert.True(t, page.Recordings.PageInfo.HasNextPage)
 	next := f.recordings(t, 2, page.Recordings.PageInfo.EndCursor, nil)

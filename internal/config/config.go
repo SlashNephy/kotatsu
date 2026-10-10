@@ -31,6 +31,7 @@ type Config struct {
 	Tuner     Tuner     `yaml:"tuner"`
 	Auth      Auth      `yaml:"auth"`
 	WebPush   WebPush   `yaml:"web_push"`
+	Thumbnail Thumbnail `yaml:"thumbnail"`
 }
 
 // Server は tenban の HTTP サーバーの設定。
@@ -97,6 +98,13 @@ type Tuner struct {
 	// URL はチューナーサーバーの URL (http://mirakurun:40772/ など)。BASIC 認証の資格情報を含めてよい。
 	// 資格情報を含みうるので秘密情報として扱う。空なら、neko は EPG を同期しない。
 	URL Secret `yaml:"url"`
+}
+
+// Thumbnail は、録画の代表画像とシークバー用のプレビュー画像の設定 (設計書 6.1)。nekonote が使う。
+// 画像は FFmpeg で作るので、FFmpeg の入ったイメージ (-ffmpeg) を使うか、PATH に FFmpeg を入れる。
+type Thumbnail struct {
+	// DisablePreview は、プレビュー画像を作らないかどうか。低スペック機では、代表画像だけにして負荷を減らせる。
+	DisablePreview bool `yaml:"disable_preview"`
 }
 
 // WebPush は Web Push の通知の設定 (設計書 6.2)。
@@ -197,7 +205,8 @@ func Default() *Config {
 				},
 			},
 		},
-		WebPush: WebPush{Subject: ""},
+		WebPush:   WebPush{Subject: ""},
+		Thumbnail: Thumbnail{DisablePreview: false},
 	}
 }
 
