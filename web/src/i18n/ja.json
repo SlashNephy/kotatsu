@@ -139,7 +139,8 @@
   },
   "nav": {
     "home": "ホーム",
-    "guide": "番組表"
+    "guide": "番組表",
+    "search": "番組検索"
   },
   "guide": {
     "title": "番組表",
@@ -200,5 +201,38 @@
     "13": "予備",
     "14": "拡張",
     "15": "その他"
+  },
+  "search": {
+    "title": "番組検索",
+    "keyword": "キーワード",
+    "keywordPlaceholder": "空白で区切ると、すべての語に一致する番組を探します",
+    "scope": {
+      "name": "番組名",
+      "nameAndDescription": "番組名と概要",
+      "all": "詳細まで"
+    },
+    "excludeKeyword": "除外するキーワード",
+    "channelTypes": "チャンネル種別",
+    "genres": "ジャンル",
+    "freeOnly": "無料の番組だけ",
+    "includeArchive": "過去の放送も探す",
+    "archiveDays": "過去の放送を探す日数",
+    "archiveDaysPrefix": "直近 ",
+    "archiveDaysSuffix": " 日",
+    "submit": "検索",
+    "createRule": "この条件でルールを作る",
+    "error": "検索できませんでした。条件を確かめてから、やり直してください",
+    "empty": "条件に一致する番組はありません",
+    "archived": "放送済み",
+    "more": "さらに読み込む",
+    "rule": {
+      "title": "ルールを作る",
+      "description": "いまの検索の条件に一致する番組を、自動で予約するルールを作ります。条件の細かい調整は、ルールの画面でできます。",
+      "name": "ルールの名前",
+      "submit": "作る",
+      "created": "ルールを作りました。一致する番組は、次の照合で予約されます",
+      "error": "ルールを作れませんでした。時間をおいてやり直してください",
+      "close": "閉じる"
+    }
   }
 }

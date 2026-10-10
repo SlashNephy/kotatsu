@@ -36,7 +36,9 @@ export function ProgramDetail({ programId, onClose }: Props) {
   );
 }
 
+// 検索から過去の番組も開くので、年も出す。
 const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+  year: 'numeric',
   month: 'numeric',
   day: 'numeric',
   weekday: 'short',
@@ -70,6 +72,7 @@ function Detail({ programId }: { programId: string }) {
             endAt
             endUndecided
             isFree
+            archived
             service {
               name
             }
@@ -111,6 +114,8 @@ function Detail({ programId }: { programId: string }) {
     });
   };
   const start = Date.parse(program.startAt);
+  const ended =
+    program.archived || (!program.endUndecided && Date.parse(program.endAt) <= Date.now());
 
   return (
     <Stack>
@@ -130,7 +135,8 @@ function Detail({ programId }: { programId: string }) {
           <Badge variant="light">{t(genreKey(program.genres[0].lv1))}</Badge>
         )}
       </Group>
-      {data.viewer.role !== 'VIEWER' && (
+      {/* 検索から開いた、放送の終わった番組は予約できない。 */}
+      {data.viewer.role !== 'VIEWER' && !ended && (
         <Button onClick={reserve} loading={inFlight} disabled={result === 'reserved'}>
           {result === 'reserved' ? t('guide.detail.reserved') : t('guide.detail.reserve')}
         </Button>

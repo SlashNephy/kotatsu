@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<9321d221fe66b85de3f11e7dfd585a6a>>
+ * @generated SignedSource<<51aa12ff6c26c3efaf2ba5e440274d71>>
  * @lightSyntaxTransform
  */
 
@@ -15,6 +15,7 @@ export type ProgramDetailQuery$variables = {
 export type ProgramDetailQuery$data = {
   readonly node: {
     readonly __typename: "Program";
+    readonly archived: boolean;
     readonly description: string;
     readonly endAt: string;
     readonly endUndecided: boolean;
@@ -127,6 +128,13 @@ v10 = {
 v11 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "archived",
+  "storageKey": null
+},
+v12 = {
+  "alias": null,
+  "args": null,
   "concreteType": "Genre",
   "kind": "LinkedField",
   "name": "genres",
@@ -142,7 +150,7 @@ v11 = {
   ],
   "storageKey": null
 },
-v12 = {
+v13 = {
   "alias": null,
   "args": null,
   "concreteType": "ExtendedItem",
@@ -205,6 +213,7 @@ return {
               (v8/*:: as any*/),
               (v9/*:: as any*/),
               (v10/*:: as any*/),
+              (v11/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -217,8 +226,8 @@ return {
                 ],
                 "storageKey": null
               },
-              (v11/*:: as any*/),
-              (v12/*:: as any*/)
+              (v12/*:: as any*/),
+              (v13/*:: as any*/)
             ],
             "type": "Program",
             "abstractKey": null
@@ -268,6 +277,7 @@ return {
               (v8/*:: as any*/),
               (v9/*:: as any*/),
               (v10/*:: as any*/),
+              (v11/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -281,8 +291,8 @@ return {
                 ],
                 "storageKey": null
               },
-              (v11/*:: as any*/),
-              (v12/*:: as any*/)
+              (v12/*:: as any*/),
+              (v13/*:: as any*/)
             ],
             "type": "Program",
             "abstractKey": null
@@ -293,16 +303,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "e6836d3449e1f7df82284129bc3b97b9",
+    "cacheID": "6368f95f36ea1ab0cd82f8b6aef914a3",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      service {\n        name\n        id\n      }\n      genres {\n        lv1\n      }\n      extended {\n        heading\n        text\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      service {\n        name\n        id\n      }\n      genres {\n        lv1\n      }\n      extended {\n        heading\n        text\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "6633c1894af35c0c078551e13e194e3d";
+(node as any).hash = "ac2d617dd059e41a92833f246553ee3d";
 
 export default node;
