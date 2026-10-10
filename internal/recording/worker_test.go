@@ -364,3 +364,43 @@ func TestWorkerTreatsCrashDuringHandoverAsCrash(t *testing.T) {
 		})
 	}
 }
+
+// TestWorkerFinishesDuringHandover は、引き継ぎを待つ間に予定の終わりが来て録画を終えたら、割り振りを終わったことにし、
+// 引き継ぎを待たずに止まることを確かめる。
+func TestWorkerFinishesDuringHandover(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.assignOne(t)
+	holder := id.New()
+	f.register(t, holder)
+	f.register(t, id.New())
+	started := make(chan struct{})
+	finish := make(chan struct{})
+	stop := f.startWorker(t, holder, func(ctx context.Context, _ *recording.Assignment) error {
+		close(started)
+		select {
+		case <-ctx.Done():
+		case <-finish:
+		}
+
+		return nil
+	})
+	<-started
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		stop()
+	}()
+	require.Eventually(t, func() bool {
+		return f.assignment(t, reservationID).state == string(recording.AssignmentHandover)
+	}, waitTimeout, 10*time.Millisecond)
+
+	close(finish)
+	select {
+	case <-stopped:
+	case <-time.After(400 * time.Millisecond):
+		t.Fatal("the mikan kept waiting for a successor after finishing the recording")
+	}
+	assert.Equal(t, assignmentRow{state: string(recording.AssignmentFinished), generation: 1, holder: nil}, f.assignment(t, reservationID))
+}

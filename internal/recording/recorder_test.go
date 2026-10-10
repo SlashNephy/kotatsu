@@ -1074,3 +1074,46 @@ func TestRecorderLeavesFinishingToCurrentGeneration(t *testing.T) {
 	assert.Equal(t, string(recording.StateRecording), got.state, "the current generation finishes the recording")
 	assert.Empty(t, f.events(t)[1:], "the old generation does not notify the completion")
 }
+
+// TestRecorderRecordsTrailingGap は、ストリームが切れたまま開き直せずに予定の終わりが来たら、
+// 最後のセグメントの終わりから予定の終わりまでを、途切れた区間にすることを確かめる。
+func TestRecorderRecordsTrailingGap(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	opened := new(atomic.Int32)
+	// 最初に開いたストリームは少しだけ流して切れ、その後は開けない。
+	stream := flakyStream{head: data[:188*1000], data: nil, opened: opened, reopen: func() {}}
+	recorder, _ := f.newRecorder(t, cutThenFail{flaky: stream}, nil)
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return opened.Load() >= 2
+	}, waitTimeout, 10*time.Millisecond)
+	f.clock.Advance(time.Hour)
+	require.NoError(t, wait(t, done))
+
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StatePartial), got.state)
+	var gap struct {
+		From time.Time `json:"from"`
+		To   time.Time `json:"to"`
+	}
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT gaps->0 FROM recordings WHERE reservation_id = $1", reservationID).Scan(&gap))
+	assert.True(t, f.clock.Now().Equal(gap.To), "the gap lasts until the end")
+}
+
+// cutThenFail は、最初は flaky の最初のストリームを返し、2 回目からは開けない。
+type cutThenFail struct{ flaky flakyStream }
+
+func (s cutThenFail) OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error) {
+	if s.flaky.opened.Load() == 0 {
+		return s.flaky.OpenServiceStream(ctx, serviceID, opts)
+	}
+	s.flaky.opened.Add(1)
+
+	return nil, errors.New("connection refused")
+}

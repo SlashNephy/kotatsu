@@ -81,9 +81,9 @@ WHERE id = @id AND generation = @generation AND stream_generation < @generation;
 SELECT generation, stream_generation FROM recording_assignments WHERE id = @id;
 
 -- name: FinishRecordingAssignment :execrows
--- 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。
+-- 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。引き継ぎ待ちの間に予定の終わりが来ても終える。
 UPDATE recording_assignments SET state = 'finished', holder = NULL, lease_expires_at = NULL, updated_at = @now
-WHERE id = @id AND generation = @generation AND holder = @holder;
+WHERE id = @id AND generation = @generation AND holder = @holder AND state IN ('recording', 'handover');
 
 -- name: GetReservationForRecording :one
 -- 録画に使う予約の情報。予定の時刻は、録画中も neko が計算し直すので、録画しながら読み直す。

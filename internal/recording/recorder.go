@@ -158,7 +158,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	}
 
 	tracker := newEndTracker(r, &recording, &reservation)
-	result := &sessionResult{wrote: false, lastFailure: ""}
+	result := &sessionResult{lastFailure: ""}
 	for {
 		stream, err := r.tuner.OpenServiceStream(ctx, reservation.ServiceID, &mirakurun.StreamOptions{Decode: true, Priority: assignment.Priority})
 		if err != nil {
@@ -173,7 +173,8 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 				return err
 			}
 			if end != endNone {
-				return r.finish(ctx, logger, assignment, &recording, end, result)
+				// つながらないまま終えるので、最後のセグメントの終わりから今までも、途切れた区間にする。
+				return r.finish(ctx, logger, assignment, &recording, end, result, true)
 			}
 
 			continue
@@ -201,7 +202,6 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		stats, end, copyErr := r.copyUntilEnd(ctx, tracker, stream, segment)
 		_ = stream.Close()
 		closeErr := r.closeSegment(context.WithoutCancel(ctx), &recording, segment, stats)
-		result.wrote = result.wrote || stats.Bytes > 0
 		switch {
 		case ctx.Err() != nil:
 			// リースを失ったか、止めるときは、録画を録画中のまま残し、続きを録る mikan に任せる。
@@ -218,14 +218,12 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 			continue
 		}
 
-		return r.finish(ctx, logger, assignment, &recording, end, result)
+		return r.finish(ctx, logger, assignment, &recording, end, result, false)
 	}
 }
 
 // sessionResult は、この mikan が録画を担当した間の結果。
 type sessionResult struct {
-	// wrote は、この mikan がどれかのセグメントに書けたかどうか。
-	wrote bool
 	// lastFailure は、最後にストリームを開けなかったか、切れた理由。
 	lastFailure FailureReason
 }
@@ -259,8 +257,10 @@ func (r *Recorder) closeStaleFiles(ctx context.Context, recordingID uuid.UUID, s
 
 // finish は、録画を止めた理由と、セグメントの時間の範囲から、途切れた区間と録画の最後の状態を決めて記録する (設計書 5.2、5.5)。
 // 途切れた区間は、書けたセグメントの時間の範囲のすき間とする。引き継ぎで重なった範囲は、途切れていない。
-// この mikan が何も書けずに終わるなら、最後のセグメントの終わりから今までも、途切れた区間とする。
-func (r *Recorder) finish(ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, end endReason, result *sessionResult) error {
+// ストリームにつながらないまま終えるなら (disconnected)、最後のセグメントの終わりから今までも、途切れた区間とする。
+func (r *Recorder) finish(
+	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, end endReason, result *sessionResult, disconnected bool,
+) error {
 	if end == endCancelled {
 		logger.InfoContext(ctx, "the reservation was disabled while recording")
 
@@ -276,7 +276,7 @@ func (r *Recorder) finish(ctx context.Context, logger *slog.Logger, assignment *
 	if err != nil {
 		return fmt.Errorf("failed to list the recording files: %w", err)
 	}
-	gaps, recorded := gapsOf(files, now, !result.wrote)
+	gaps, recorded := gapsOf(files, now, disconnected)
 	if !recorded {
 		reason := result.lastFailure
 		if reason == "" {

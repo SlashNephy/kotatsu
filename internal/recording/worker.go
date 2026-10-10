@@ -110,6 +110,8 @@ type activeSession struct {
 	cancel     context.CancelCauseFunc
 	// handingOver は、引き継ぎ待ちかどうか。引き継ぎ待ちの間は、世代が進んでリースを延長できなくても、ストリームを閉じない。
 	handingOver atomic.Bool
+	// done は、Session が返ったら閉じる。引き継ぎを待つ間に録画を終えたら、待つのをやめる。
+	done chan struct{}
 }
 
 // Run は、ctx が終わるまで、割り振りが変わったときと AcquireInterval ごとに、取れる割り振りをすべて取って録画する。
@@ -206,7 +208,7 @@ func (w *Worker) handOver(ctx context.Context, active *activeSession, hasPeers b
 		if marked {
 			active.handingOver.Store(true)
 			logger.InfoContext(ctx, "waiting for another mikan to take over the recording")
-			if w.waitForSuccessor(ctx, a) {
+			if w.waitForSuccessor(ctx, active) {
 				logger.InfoContext(ctx, "another mikan took over the recording")
 				active.cancel(ErrHandedOver)
 
@@ -248,7 +250,9 @@ func (w *Worker) markHandover(ctx context.Context, a *Assignment) (bool, error) 
 }
 
 // waitForSuccessor は、ほかの mikan が割り振りを取ってストリームを開くまで、HandoverTimeout の間待つ。開いたら true を返す。
-func (w *Worker) waitForSuccessor(ctx context.Context, a *Assignment) bool {
+// 待つ間に録画を終えたら、引き継ぐものがないので true を返す。
+func (w *Worker) waitForSuccessor(ctx context.Context, active *activeSession) bool {
+	a := active.assignment
 	timeout := time.NewTimer(w.opts.HandoverTimeout)
 	defer timeout.Stop()
 	ticker := time.NewTicker(w.opts.RenewInterval)
@@ -259,6 +263,8 @@ func (w *Worker) waitForSuccessor(ctx context.Context, a *Assignment) bool {
 			return false
 		case <-timeout.C:
 			return false
+		case <-active.done:
+			return true
 		case <-ticker.C:
 		}
 		stream, err := sqlc.New(w.pool).GetRecordingAssignmentStream(ctx, a.ID)
@@ -298,7 +304,7 @@ func (w *Worker) acquire(ctx context.Context) (*Assignment, bool, error) {
 // register は、割り振りを、録画している割り振りに載せ、その Session の context を返す。
 func (w *Worker) register(ctx context.Context, assignment *Assignment) (*activeSession, context.Context) {
 	sessionCtx, cancel := context.WithCancelCause(ctx)
-	active := &activeSession{assignment: assignment, cancel: cancel, handingOver: atomic.Bool{}}
+	active := &activeSession{assignment: assignment, cancel: cancel, handingOver: atomic.Bool{}, done: make(chan struct{})}
 	w.mu.Lock()
 	w.active[assignment.ID] = active
 	w.mu.Unlock()
@@ -319,6 +325,7 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 		w.mu.Lock()
 		delete(w.active, assignment.ID)
 		w.mu.Unlock()
+		close(active.done)
 	}()
 	renewDone := make(chan struct{})
 	go func() {

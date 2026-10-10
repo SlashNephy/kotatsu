@@ -90,7 +90,7 @@ func (q *Queries) DeleteStaleRecordingAssignments(ctx context.Context, arg Delet
 
 const finishRecordingAssignment = `-- name: FinishRecordingAssignment :execrows
 UPDATE recording_assignments SET state = 'finished', holder = NULL, lease_expires_at = NULL, updated_at = $1
-WHERE id = $2 AND generation = $3 AND holder = $4
+WHERE id = $2 AND generation = $3 AND holder = $4 AND state IN ('recording', 'handover')
 `
 
 type FinishRecordingAssignmentParams struct {
@@ -100,7 +100,7 @@ type FinishRecordingAssignmentParams struct {
 	Holder     *uuid.UUID
 }
 
-// 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。
+// 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。引き継ぎ待ちの間に予定の終わりが来ても終える。
 func (q *Queries) FinishRecordingAssignment(ctx context.Context, arg FinishRecordingAssignmentParams) (int64, error) {
 	result, err := q.db.Exec(ctx, finishRecordingAssignment,
 		arg.Now,
