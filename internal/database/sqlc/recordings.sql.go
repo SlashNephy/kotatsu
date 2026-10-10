@@ -168,6 +168,48 @@ func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, er
 	return i, err
 }
 
+const getRecordingWithService = `-- name: GetRecordingWithService :one
+SELECT recordings.id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.program_lost, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
+FROM recordings
+JOIN services s ON s.id = recordings.service_id
+WHERE recordings.id = $1
+`
+
+type GetRecordingWithServiceRow struct {
+	Recording   Recording
+	ServiceName string
+}
+
+// 通知に載せる、録画とサービス名。
+func (q *Queries) GetRecordingWithService(ctx context.Context, id uuid.UUID) (GetRecordingWithServiceRow, error) {
+	row := q.db.QueryRow(ctx, getRecordingWithService, id)
+	var i GetRecordingWithServiceRow
+	err := row.Scan(
+		&i.Recording.ID,
+		&i.Recording.ReservationID,
+		&i.Recording.ServiceID,
+		&i.Recording.EventID,
+		&i.Recording.Name,
+		&i.Recording.Description,
+		&i.Recording.StartAt,
+		&i.Recording.EndAt,
+		&i.Recording.State,
+		&i.Recording.FailureReason,
+		&i.Recording.Protected,
+		&i.Recording.Drops,
+		&i.Recording.Errors,
+		&i.Recording.Scrambled,
+		&i.Recording.Gaps,
+		&i.Recording.ProgramLost,
+		&i.Recording.RecordedFrom,
+		&i.Recording.RecordedUntil,
+		&i.Recording.CreatedAt,
+		&i.Recording.UpdatedAt,
+		&i.ServiceName,
+	)
+	return i, err
+}
+
 const insertRecordingFile = `-- name: InsertRecordingFile :exec
 INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
 VALUES ($1, $2, $3, $4, $5, 0, $6, NULL, $7)
@@ -191,6 +233,35 @@ func (q *Queries) InsertRecordingFile(ctx context.Context, arg InsertRecordingFi
 		arg.PoolID,
 		arg.Path,
 		arg.StartedAt,
+		arg.Now,
+	)
+	return err
+}
+
+const insertRecordingHistory = `-- name: InsertRecordingHistory :exec
+INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+`
+
+type InsertRecordingHistoryParams struct {
+	ID        uuid.UUID
+	ServiceID int64
+	TitleKey  string
+	Name      string
+	StartAt   time.Time
+	EndAt     time.Time
+	Now       time.Time
+}
+
+// 重複の回避に使う録画履歴を記録する (設計書 4.4)。録画を削除しても残す。
+func (q *Queries) InsertRecordingHistory(ctx context.Context, arg InsertRecordingHistoryParams) error {
+	_, err := q.db.Exec(ctx, insertRecordingHistory,
+		arg.ID,
+		arg.ServiceID,
+		arg.TitleKey,
+		arg.Name,
+		arg.StartAt,
+		arg.EndAt,
 		arg.Now,
 	)
 	return err
@@ -230,6 +301,38 @@ func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID)
 	return items, nil
 }
 
+const listRecordingSegments = `-- name: ListRecordingSegments :many
+SELECT pool_id, path FROM recording_files
+WHERE recording_id = $1 AND kind = 'segment' AND size > 0
+ORDER BY started_at, id
+`
+
+type ListRecordingSegmentsRow struct {
+	PoolID string
+	Path   string
+}
+
+// 通知に載せる、録画のセグメントの保存先プールとプール内の相対パス。何も書けなかったセグメントは含めない。
+func (q *Queries) ListRecordingSegments(ctx context.Context, recordingID uuid.UUID) ([]ListRecordingSegmentsRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingSegments, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingSegmentsRow{}
+	for rows.Next() {
+		var i ListRecordingSegmentsRow
+		if err := rows.Scan(&i.PoolID, &i.Path); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markRecordingProgramLost = `-- name: MarkRecordingProgramLost :exec
 UPDATE recordings SET program_lost = true, updated_at = $1 WHERE id = $2 AND NOT program_lost
 `
@@ -250,7 +353,7 @@ INSERT INTO recordings (id, reservation_id, service_id, event_id, name, descript
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'recording', NULL,
   false, 0, 0, 0, $9, NULL, $9, $9)
 ON CONFLICT (reservation_id) DO UPDATE SET state = 'recording', failure_reason = NULL, recorded_until = NULL, updated_at = EXCLUDED.updated_at
-RETURNING id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, program_lost, recorded_from, recorded_until, created_at, updated_at
+RETURNING recordings.id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.program_lost, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, (xmax = 0)::boolean AS inserted
 `
 
 type StartRecordingParams struct {
@@ -265,8 +368,13 @@ type StartRecordingParams struct {
 	Now           time.Time
 }
 
-// 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。
-func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) (Recording, error) {
+type StartRecordingRow struct {
+	Recording Recording
+	Inserted  bool
+}
+
+// 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。新しく始めたかどうかを inserted で返す。
+func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error) {
 	row := q.db.QueryRow(ctx, startRecording,
 		arg.ID,
 		arg.ReservationID,
@@ -278,28 +386,29 @@ func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) 
 		arg.EndAt,
 		arg.Now,
 	)
-	var i Recording
+	var i StartRecordingRow
 	err := row.Scan(
-		&i.ID,
-		&i.ReservationID,
-		&i.ServiceID,
-		&i.EventID,
-		&i.Name,
-		&i.Description,
-		&i.StartAt,
-		&i.EndAt,
-		&i.State,
-		&i.FailureReason,
-		&i.Protected,
-		&i.Drops,
-		&i.Errors,
-		&i.Scrambled,
-		&i.Gaps,
-		&i.ProgramLost,
-		&i.RecordedFrom,
-		&i.RecordedUntil,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.Recording.ID,
+		&i.Recording.ReservationID,
+		&i.Recording.ServiceID,
+		&i.Recording.EventID,
+		&i.Recording.Name,
+		&i.Recording.Description,
+		&i.Recording.StartAt,
+		&i.Recording.EndAt,
+		&i.Recording.State,
+		&i.Recording.FailureReason,
+		&i.Recording.Protected,
+		&i.Recording.Drops,
+		&i.Recording.Errors,
+		&i.Recording.Scrambled,
+		&i.Recording.Gaps,
+		&i.Recording.ProgramLost,
+		&i.Recording.RecordedFrom,
+		&i.Recording.RecordedUntil,
+		&i.Recording.CreatedAt,
+		&i.Recording.UpdatedAt,
+		&i.Inserted,
 	)
 	return i, err
 }

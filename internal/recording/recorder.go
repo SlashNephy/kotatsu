@@ -22,7 +22,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
+	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/ts"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
@@ -34,6 +36,8 @@ const (
 	DefaultTick = 500 * time.Millisecond
 	// DefaultRetryInterval は、ストリームを開けなかったときや、切れたときに、開き直すまで待つ時間。
 	DefaultRetryInterval = 2 * time.Second
+	// MaxHistoryDrops は、重複の回避で「録画済み」とみなすドロップの数の上限 (付録 A)。EDCB と同じく 2 件未満にする。
+	MaxHistoryDrops = 1
 	// ExtensionStep と MaxExtension は、延長中で終了時刻が未定の番組の、録画の延長幅と上限 (付録 A)。
 	ExtensionStep = 5 * time.Minute
 	MaxExtension  = 3 * time.Hour
@@ -138,13 +142,9 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	logger := r.logger.With(slog.String("reservation_id", reservation.ID.String()), slog.String("name", reservation.Name))
 
 	q := sqlc.New(r.pool)
-	now := r.clock.Now()
-	recording, err := q.StartRecording(ctx, sqlc.StartRecordingParams{
-		ID: id.New(), ReservationID: &reservation.ID, ServiceID: reservation.ServiceID, EventID: reservation.EventID,
-		Name: reservation.Name, Description: reservation.Description, StartAt: reservation.StartAt, EndAt: reservation.EndAt, Now: now,
-	})
+	recording, err := r.start(ctx, &reservation)
 	if err != nil {
-		return fmt.Errorf("failed to start the recording: %w", err)
+		return err
 	}
 	logger = logger.With(slog.String("recording_id", recording.ID.String()))
 
@@ -294,8 +294,8 @@ func (r *Recorder) finish(
 	case finished.Drops > 0:
 		state = StateCompletedWithErrors
 	}
-	if err := q.FinishRecording(ctx, sqlc.FinishRecordingParams{State: string(state), FailureReason: nil, Now: &now, ID: recording.ID}); err != nil {
-		return fmt.Errorf("failed to finish the recording: %w", err)
+	if err := r.complete(ctx, recording.ID, state, ""); err != nil {
+		return err
 	}
 	logger.InfoContext(ctx, "finished recording", slog.String("state", string(state)))
 
@@ -688,11 +688,85 @@ func (r *Recorder) closeSegment(ctx context.Context, recording *sqlc.Recording, 
 
 // fail は、録画を失敗にし、理由を記録する。割り振りは終わったことにするので、nil を返す。
 func (r *Recorder) fail(ctx context.Context, recording *sqlc.Recording, reason FailureReason) error {
-	err := sqlc.New(r.pool).FinishRecording(ctx, sqlc.FinishRecordingParams{
-		State: string(StateFailed), FailureReason: new(string(reason)), Now: new(r.clock.Now()), ID: recording.ID,
+	return r.complete(ctx, recording.ID, StateFailed, reason)
+}
+
+// start は、予約の録画を始め、新しく始めたときは、録画の開始を通知する (設計書 6.2)。引き継ぎや再開で続きを録るときは通知しない。
+func (r *Recorder) start(ctx context.Context, reservation *sqlc.GetReservationForRecordingRow) (sqlc.Recording, error) {
+	var recording sqlc.Recording
+	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		started, err := sqlc.New(tx).StartRecording(ctx, sqlc.StartRecordingParams{
+			ID: id.New(), ReservationID: &reservation.ID, ServiceID: reservation.ServiceID, EventID: reservation.EventID,
+			Name: reservation.Name, Description: reservation.Description, StartAt: reservation.StartAt, EndAt: reservation.EndAt, Now: r.clock.Now(),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to start the recording: %w", err)
+		}
+		recording = started.Recording
+		if !started.Inserted {
+			return nil
+		}
+
+		return notification.Emit(ctx, tx, r.clock, notification.KindRecordingStarted, map[string]any{
+			"recordingId": recording.ID.String(), "name": recording.Name, "serviceName": reservation.ServiceName,
+			"startAt": recording.StartAt, "endAt": recording.EndAt,
+		})
+	})
+
+	return recording, err
+}
+
+// complete は、録画を state で終え、正常に終わってドロップが閾値以下なら録画履歴に記録し (設計書 4.4)、
+// 録画の完了か失敗を通知する (設計書 6.2)。完了の通知には、Webhook のためにセグメントのプール内のパスを載せる。
+func (r *Recorder) complete(ctx context.Context, recordingID uuid.UUID, state State, reason FailureReason) error {
+	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		q := sqlc.New(tx)
+		now := r.clock.Now()
+		var failure *string
+		if reason != "" {
+			failure = new(string(reason))
+		}
+		if err := q.FinishRecording(ctx, sqlc.FinishRecordingParams{State: string(state), FailureReason: failure, Now: &now, ID: recordingID}); err != nil {
+			return fmt.Errorf("failed to finish the recording: %w", err)
+		}
+		row, err := q.GetRecordingWithService(ctx, recordingID)
+		if err != nil {
+			return fmt.Errorf("failed to get the recording: %w", err)
+		}
+		recording := row.Recording
+		payload := map[string]any{
+			"recordingId": recording.ID.String(), "name": recording.Name, "serviceName": row.ServiceName,
+			"startAt": recording.StartAt, "endAt": recording.EndAt, "state": string(state),
+		}
+		if state == StateFailed {
+			payload["reason"] = string(reason)
+
+			return notification.Emit(ctx, tx, r.clock, notification.KindRecordingFailed, payload)
+		}
+
+		if (state == StateCompleted || state == StateCompletedWithErrors) && recording.Drops <= MaxHistoryDrops {
+			err := q.InsertRecordingHistory(ctx, sqlc.InsertRecordingHistoryParams{
+				ID: id.New(), ServiceID: recording.ServiceID, TitleKey: rule.TitleKey(recording.Name), Name: recording.Name,
+				StartAt: recording.StartAt, EndAt: recording.EndAt, Now: now,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to save the recording history: %w", err)
+			}
+		}
+		segments, err := q.ListRecordingSegments(ctx, recordingID)
+		if err != nil {
+			return fmt.Errorf("failed to list the recording files: %w", err)
+		}
+		files := make([]map[string]string, 0, len(segments))
+		for _, segment := range segments {
+			files = append(files, map[string]string{"poolId": segment.PoolID, "path": segment.Path})
+		}
+		payload["files"] = files
+
+		return notification.Emit(ctx, tx, r.clock, notification.KindRecordingCompleted, payload)
 	})
 	if err != nil {
-		return fmt.Errorf("failed to record the recording failure: %w", err)
+		return fmt.Errorf("failed to complete the recording: %w", err)
 	}
 
 	return nil
