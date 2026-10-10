@@ -240,6 +240,13 @@ type SetupToken struct {
 	CreatedAt time.Time
 }
 
+type SystemSetting struct {
+	ID                   int16
+	RecordingDefaults    []byte
+	ArchiveRetentionDays int32
+	UpdatedAt            time.Time
+}
+
 type TotpEnrollment struct {
 	UserID          uuid.UUID
 	SecretEncrypted []byte

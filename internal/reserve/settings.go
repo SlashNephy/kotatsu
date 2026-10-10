@@ -43,8 +43,8 @@ type Settings struct {
 	Priority int
 }
 
-// DefaultSettings は、全体の既定値を返す。
-// 設計書 11.2 では全体の既定値は画面から変える設定なので、DB に置くのはシステム設定の API (#48) で行う。
+// DefaultSettings は、Go の既定値を返す。
+// 画面で変えた全体の既定値 (設計書 11.2) は、settings パッケージが、この値に重ねて返す。
 func DefaultSettings() *Settings {
 	return &Settings{
 		PoolID:             "",

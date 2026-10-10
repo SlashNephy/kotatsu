@@ -63,6 +63,7 @@ type Querier interface {
 	GetReservationByProgram(ctx context.Context, arg GetReservationByProgramParams) (Reservation, error)
 	GetRule(ctx context.Context, id uuid.UUID) (Rule, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
+	GetSystemSettings(ctx context.Context) (SystemSetting, error)
 	GetTOTPEnrollmentForUpdate(ctx context.Context, arg GetTOTPEnrollmentForUpdateParams) (TotpEnrollment, error)
 	GetTunerServerStatus(ctx context.Context) (GetTunerServerStatusRow, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
@@ -146,6 +147,8 @@ type Querier interface {
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
 	// 初回セットアップを、全インスタンスで 1 つずつ行わせる。トランザクションが終わるまでロックする。
 	LockSetup(ctx context.Context) error
+	// 行がなければ既定値で作り、行をロックする。同時に変えても、片方の変更を失わない。
+	LockSystemSettings(ctx context.Context, arg LockSystemSettingsParams) (SystemSetting, error)
 	// ユーザーの行を、トランザクションが終わるまで書き込みからロックする。同じユーザーの登録を同時に行わせない。
 	LockUser(ctx context.Context, id uuid.UUID) (LockUserRow, error)
 	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
@@ -192,6 +195,7 @@ type Querier interface {
 	UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error)
 	UpdateReservationProgram(ctx context.Context, arg UpdateReservationProgramParams) error
 	UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, error)
+	UpdateSystemSettings(ctx context.Context, arg UpdateSystemSettingsParams) (SystemSetting, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults

@@ -17,10 +17,12 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/assign"
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/epg"
 	"github.com/SlashNephy/kotatsu/internal/lease"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
+	"github.com/SlashNephy/kotatsu/internal/settings"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/tunerstate"
 )
@@ -75,7 +77,23 @@ func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 
 		eg, ctx := errgroup.WithContext(ctx)
 		eg.Go(func() error {
-			return epg.NewArchiver(opts.DB, opts.Clock, guard, epgLogger, opts.Archive).Run(ctx)
+			// 過去の番組の保持期間は、画面から変えられる (設計書 11.2) ので、消すたびに引く。
+			archive := epg.ArchiverOptions{Grace: 0, Retention: 0, RetentionFunc: nil, Interval: 0, BatchSize: 0}
+			if opts.Archive != nil {
+				archive = *opts.Archive
+			}
+			if archive.RetentionFunc == nil {
+				archive.RetentionFunc = func(ctx context.Context) (time.Duration, error) {
+					system, err := settings.Load(ctx, opts.DB)
+					if err != nil {
+						return 0, err
+					}
+
+					return system.ArchiveRetention(), nil
+				}
+			}
+
+			return epg.NewArchiver(opts.DB, opts.Clock, guard, epgLogger, &archive).Run(ctx)
 		})
 		eg.Go(func() error {
 			reservations := reserve.NewReservations(opts.Clock, audit.NewRecorder(opts.Clock))
@@ -89,8 +107,16 @@ func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 			return reserve.NewFollower(opts.DB, reserve.Guard(guard), logger.With(slog.String("component", "follow")), reservations, opts.Follow).Run(ctx)
 		})
 		eg.Go(func() error {
-			// 録画設定の全体の既定値は、システム設定 (#48) ができるまで Go の既定値を使う。
-			runner := assign.NewRunner(opts.DB, opts.Clock, assign.Guard(guard), logger.With(slog.String("component", "assign")), reserve.DefaultSettings(), opts.Assign)
+			// 録画設定の全体の既定値は、画面から変えられる (設計書 11.2) ので、割り当てのたびに引く。
+			defaults := func(ctx context.Context, db sqlc.DBTX) (*reserve.Settings, error) {
+				system, err := settings.Load(ctx, db)
+				if err != nil {
+					return nil, err
+				}
+
+				return system.Recording, nil
+			}
+			runner := assign.NewRunner(opts.DB, opts.Clock, assign.Guard(guard), logger.With(slog.String("component", "assign")), defaults, opts.Assign)
 
 			return runner.Run(ctx)
 		})

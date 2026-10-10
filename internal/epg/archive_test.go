@@ -2,6 +2,7 @@ package epg_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -98,14 +99,18 @@ func TestArchiverPrunesInBatches(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		retention  time.Duration
+		name      string
+		retention time.Duration
+		// fromFunc なら、保持期間を RetentionFunc から返し、Retention には残す期間 (7 日) を入れる。
+		// 画面から変えた保持期間が、起動時の値より優先されることを確かめる。
+		fromFunc   bool
 		wantPruned int
 	}{
 		// 3 日後の時点で、保持期間 1 日なら全番組が期限切れになる。
 		{name: "expired archives are pruned", retention: 24 * time.Hour, wantPruned: fixturePrograms},
 		{name: "archives within retention are kept", retention: 7 * 24 * time.Hour, wantPruned: 0},
 		{name: "negative retention keeps archives forever", retention: -1, wantPruned: 0},
+		{name: "retention from the function", retention: 24 * time.Hour, fromFunc: true, wantPruned: fixturePrograms},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -114,11 +119,16 @@ func TestArchiverPrunesInBatches(t *testing.T) {
 			f := newFixture(t, nil)
 			_, err := f.reconciler.SyncAll(t.Context())
 			require.NoError(t, err)
-			archiver := epg.NewArchiver(f.pool, clocktest.NewFake(testNow().Add(72*time.Hour)), noGuard, slog.New(slog.DiscardHandler), &epg.ArchiverOptions{
+			opts := &epg.ArchiverOptions{
 				Retention: tt.retention,
 				// 番組の数より小さくして、何回かに分けて移し、消すことを確かめる。
 				BatchSize: 7,
-			})
+			}
+			if tt.fromFunc {
+				opts.Retention = 7 * 24 * time.Hour
+				opts.RetentionFunc = func(context.Context) (time.Duration, error) { return tt.retention, nil }
+			}
+			archiver := epg.NewArchiver(f.pool, clocktest.NewFake(testNow().Add(72*time.Hour)), noGuard, slog.New(slog.DiscardHandler), opts)
 
 			result, err := archiver.RunOnce(t.Context())
 			require.NoError(t, err)
@@ -127,4 +137,21 @@ func TestArchiverPrunesInBatches(t *testing.T) {
 			assert.Equal(t, fixturePrograms-tt.wantPruned, f.count(t, "SELECT count(*) FROM program_archives"))
 		})
 	}
+}
+
+// TestArchiverRetentionError は、保持期間を引けなければ、アーカイブを消さずにエラーを返すことを確かめる。
+func TestArchiverRetentionError(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	errLoad := errors.New("load failed")
+	archiver := epg.NewArchiver(f.pool, clocktest.NewFake(testNow().Add(72*time.Hour)), noGuard, slog.New(slog.DiscardHandler), &epg.ArchiverOptions{
+		Retention:     24 * time.Hour,
+		RetentionFunc: func(context.Context) (time.Duration, error) { return 0, errLoad },
+	})
+	_, err = archiver.RunOnce(t.Context())
+	require.ErrorIs(t, err, errLoad)
+	assert.Equal(t, fixturePrograms, f.count(t, "SELECT count(*) FROM program_archives"))
 }

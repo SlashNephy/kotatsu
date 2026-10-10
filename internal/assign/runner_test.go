@@ -71,7 +71,7 @@ func newFixture(t *testing.T) *fixture {
 		pool:         pool,
 		clock:        clk,
 		reservations: reserve.NewReservations(clk, audit.NewRecorder(clk)),
-		runner:       assign.NewRunner(pool, clk, noGuard, slog.New(slog.DiscardHandler), reserve.DefaultSettings(), nil),
+		runner:       assign.NewRunner(pool, clk, noGuard, slog.New(slog.DiscardHandler), assign.FixedDefaults(reserve.DefaultSettings()), nil),
 	}
 }
 
@@ -206,7 +206,7 @@ func TestRunRecomputesOnReservationChanges(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
-	runner := assign.NewRunner(f.pool, f.clock, noGuard, slog.New(slog.DiscardHandler), reserve.DefaultSettings(),
+	runner := assign.NewRunner(f.pool, f.clock, noGuard, slog.New(slog.DiscardHandler), assign.FixedDefaults(reserve.DefaultSettings()),
 		&assign.RunnerOptions{Debounce: 10 * time.Millisecond, Interval: time.Hour, PollOnly: false, PollInterval: 0})
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)

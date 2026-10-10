@@ -1,0 +1,153 @@
+package settings_test
+
+import (
+	"log/slog"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/SlashNephy/kotatsu/internal/audit"
+	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
+	"github.com/SlashNephy/kotatsu/internal/database"
+	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/reserve"
+	"github.com/SlashNephy/kotatsu/internal/settings"
+)
+
+func testNow() time.Time {
+	return time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
+}
+
+func newDB(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+
+	pool, err := database.Open(t.Context(), databasetest.New(t))
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+
+	return pool
+}
+
+func newStore() *settings.Store {
+	clk := clocktest.NewFake(testNow())
+
+	return settings.NewStore(clk, audit.NewRecorder(clk))
+}
+
+// TestLoadDefaults は、一度も変えていなければ、既定値を返すことを確かめる。
+func TestLoadDefaults(t *testing.T) {
+	t.Parallel()
+
+	got, err := settings.Load(t.Context(), newDB(t))
+	require.NoError(t, err)
+	assert.Equal(t, reserve.DefaultSettings(), got.Recording)
+	assert.Equal(t, settings.DefaultArchiveRetentionDays, got.ArchiveRetentionDays)
+	assert.Equal(t, 90*24*time.Hour, got.ArchiveRetention())
+	assert.Nil(t, got.UpdatedAt)
+}
+
+// TestUpdate は、変えた項目だけを、既定値や前の変更に重ねることを確かめる。
+func TestUpdate(t *testing.T) {
+	t.Parallel()
+
+	db := newDB(t)
+	store := newStore()
+	actor := audit.System("test")
+
+	margin, priority := 30, 3
+	_, err := store.Update(t.Context(), db, actor, &settings.Changes{
+		Recording:            &reserve.Overrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: &margin, EndMarginSeconds: nil, Priority: nil},
+		ArchiveRetentionDays: nil,
+	})
+	require.NoError(t, err)
+	zero := 0
+	updated, err := store.Update(t.Context(), db, actor, &settings.Changes{
+		Recording:            &reserve.Overrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: &priority},
+		ArchiveRetentionDays: &zero,
+	})
+	require.NoError(t, err)
+
+	loaded, err := settings.Load(t.Context(), db)
+	require.NoError(t, err)
+	assert.Equal(t, updated, loaded)
+	want := reserve.DefaultSettings()
+	want.StartMarginSeconds, want.Priority = margin, priority
+	assert.Equal(t, want, loaded.Recording, "the earlier change is kept and the rest stays at the defaults")
+	assert.Equal(t, 0, loaded.ArchiveRetentionDays)
+	assert.Negative(t, loaded.ArchiveRetention(), "0 days keeps archives forever")
+	require.NotNil(t, loaded.UpdatedAt)
+	assert.True(t, loaded.UpdatedAt.Equal(testNow()))
+
+	var audited int
+	require.NoError(t, db.QueryRow(t.Context(), "SELECT count(*) FROM audit_events WHERE action = 'settings.updated'").Scan(&audited))
+	assert.Equal(t, 2, audited)
+}
+
+// TestUpdateRejectsInvalidSettings は、正しくない値を保存しないことを確かめる。
+func TestUpdateRejectsInvalidSettings(t *testing.T) {
+	t.Parallel()
+
+	negative, tooLong, badTemplate := -1, 3651, "{{.Unknown}}"
+	tests := []struct {
+		name    string
+		changes *settings.Changes
+		wantErr error
+	}{
+		{name: "nil", changes: nil, wantErr: settings.ErrInvalidSettings},
+		{name: "negative retention", changes: &settings.Changes{Recording: nil, ArchiveRetentionDays: &negative}, wantErr: settings.ErrInvalidSettings},
+		{name: "too long retention", changes: &settings.Changes{Recording: nil, ArchiveRetentionDays: &tooLong}, wantErr: settings.ErrInvalidSettings},
+		{
+			name: "negative margin", wantErr: reserve.ErrInvalidSettings,
+			changes: &settings.Changes{
+				Recording:            &reserve.Overrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: &negative, EndMarginSeconds: nil, Priority: nil},
+				ArchiveRetentionDays: nil,
+			},
+		},
+		{
+			name: "unknown template field", wantErr: reserve.ErrInvalidSettings,
+			changes: &settings.Changes{
+				Recording:            &reserve.Overrides{PoolID: nil, FileNameTemplate: &badTemplate, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil},
+				ArchiveRetentionDays: nil,
+			},
+		},
+	}
+	db := newDB(t)
+	for _, tt := range tests {
+		_, err := newStore().Update(t.Context(), db, audit.System("test"), tt.changes)
+		require.ErrorIs(t, err, tt.wantErr, tt.name)
+	}
+	loaded, err := settings.Load(t.Context(), db)
+	require.NoError(t, err)
+	assert.Equal(t, reserve.DefaultSettings(), loaded.Recording)
+	assert.Equal(t, settings.DefaultArchiveRetentionDays, loaded.ArchiveRetentionDays)
+}
+
+// TestUpdateConcurrently は、違う項目を同時に変えても、どちらの変更も失わないことを確かめる。
+func TestUpdateConcurrently(t *testing.T) {
+	t.Parallel()
+
+	db := newDB(t)
+	store := newStore()
+	start, end := 20, 40
+	var wg sync.WaitGroup
+	for _, change := range []*reserve.Overrides{
+		{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: &start, EndMarginSeconds: nil, Priority: nil},
+		{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: &end, Priority: nil},
+	} {
+		wg.Go(func() {
+			_, err := store.Update(t.Context(), db, audit.System("test"), &settings.Changes{Recording: change, ArchiveRetentionDays: nil})
+			assert.NoError(t, err)
+		})
+	}
+	wg.Wait()
+
+	loaded, err := settings.Load(t.Context(), db)
+	require.NoError(t, err)
+	assert.Equal(t, start, loaded.Recording.StartMarginSeconds)
+	assert.Equal(t, end, loaded.Recording.EndMarginSeconds)
+}
