@@ -144,10 +144,9 @@ func TestRoleFailureStopsOtherRoles(t *testing.T) {
 		done <- cmd.ExecuteContext(t.Context())
 	}()
 
+	// done は、failed を閉じた直後に届くこともあるので、ここでは待たない。
 	select {
 	case <-failed:
-	case err := <-done:
-		t.Fatalf("the command exited before the role failed: %v", err)
 	case <-time.After(time.Minute):
 		t.Fatal("the roles did not start")
 	}
