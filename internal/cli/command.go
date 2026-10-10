@@ -591,8 +591,11 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		tuner = client
 	}
 	authorizer := stream.NewAuthorizer(signer, deps.DB, deps.Clock)
-	mux.Handle("GET /streams/services/{id}",
-		authorizer.Middleware(stream.NewLiveHandler(tuner, logger.With(slog.String("component", "stream")))))
+	streamLogger := logger.With(slog.String("component", "stream"))
+	mux.Handle("GET /streams/services/{id}", authorizer.Middleware(stream.NewLiveHandler(tuner, streamLogger)))
+	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
+	mux.Handle("GET /streams/recordings/{id}",
+		authorizer.Middleware(stream.NewRecordingHandler(deps.DB, kago.New(deps.Config.Storage.Pools, nil), streamLogger, 0)))
 	api := sessions.Middleware(deps.DB)(mux)
 
 	app, err := spa.NewHandler(web.App(), logger.With(slog.String("component", "spa")))
