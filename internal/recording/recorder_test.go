@@ -582,3 +582,30 @@ func TestRecorderRecordsGapOnResume(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT gaps->0 FROM recordings WHERE reservation_id = $1", reservationID).Scan(&gap))
 	assert.Equal(t, time.Minute, gap.To.Sub(gap.From))
 }
+
+// TestRecorderIgnoresEmptyEarlierSegments は、前の mikan が何も書けなかったセグメントを、録れたものに数えないことを確かめる。
+func TestRecorderIgnoresEmptyEarlierSegments(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	recordingID := id.New()
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+		state, protected, recorded_from, created_at, updated_at)
+		SELECT $1, id, service_id, event_id, name, description, start_at, end_at, 'recording', false, $3, $3, $3
+		FROM reservations WHERE id = $2`, recordingID, reservationID, f.clock.Now())
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+		VALUES ($1, $2, 'segment', 'main', 'empty.m2ts', 0, $3, $3, $3)`, id.New(), recordingID, f.clock.Now())
+	require.NoError(t, err)
+
+	recorder, _ := f.newRecorder(t, failingStream{err: errors.New("connection refused")}, nil)
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	time.Sleep(100 * time.Millisecond)
+	f.clock.Advance(time.Hour)
+
+	require.NoError(t, wait(t, done))
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, recorded{state: string(recording.StateFailed), failureReason: new(string(recording.FailureTunerServerUnreachable)), drops: 0}, got)
+}

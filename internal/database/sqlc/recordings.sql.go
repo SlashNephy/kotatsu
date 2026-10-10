@@ -100,13 +100,13 @@ func (q *Queries) FinishRecording(ctx context.Context, arg FinishRecordingParams
 
 const getLastRecordingFileEnd = `-- name: GetLastRecordingFileEnd :one
 SELECT ended_at FROM recording_files
-WHERE recording_id = $1 AND kind = 'segment' AND ended_at IS NOT NULL
+WHERE recording_id = $1 AND kind = 'segment' AND ended_at IS NOT NULL AND size > 0
 ORDER BY ended_at DESC
 LIMIT 1
 `
 
 // 録画のセグメントのうち、最後に書き終えた時刻。引き継ぎや再開のときに、途切れた区間を求めるのに使う。
-// まだ書き終えたセグメントがなければ、行を返さない。
+// まだ書き終えたセグメントがなければ、行を返さない。何も書けなかったセグメントは、録れたものに数えない。
 func (q *Queries) GetLastRecordingFileEnd(ctx context.Context, recordingID uuid.UUID) (*time.Time, error) {
 	row := q.db.QueryRow(ctx, getLastRecordingFileEnd, recordingID)
 	var ended_at *time.Time

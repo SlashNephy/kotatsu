@@ -40,9 +40,9 @@ UPDATE recordings SET program_lost = true, updated_at = @now WHERE id = @id AND 
 
 -- name: GetLastRecordingFileEnd :one
 -- 録画のセグメントのうち、最後に書き終えた時刻。引き継ぎや再開のときに、途切れた区間を求めるのに使う。
--- まだ書き終えたセグメントがなければ、行を返さない。
+-- まだ書き終えたセグメントがなければ、行を返さない。何も書けなかったセグメントは、録れたものに数えない。
 SELECT ended_at FROM recording_files
-WHERE recording_id = @recording_id AND kind = 'segment' AND ended_at IS NOT NULL
+WHERE recording_id = @recording_id AND kind = 'segment' AND ended_at IS NOT NULL AND size > 0
 ORDER BY ended_at DESC
 LIMIT 1;
 
