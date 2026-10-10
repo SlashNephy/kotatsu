@@ -297,6 +297,22 @@ CREATE TABLE notification_preferences (
   PRIMARY KEY (user_id, kind)
 );
 
+-- 管理者が設定する Webhook (設計書 6.2)。通知するイベントを、外部のサービスに送る。
+CREATE TABLE webhooks (
+  id uuid PRIMARY KEY,
+  name text NOT NULL,
+  url text NOT NULL,
+  -- 送る形式。汎用の JSON、Discord、Slack のいずれか。
+  format text NOT NULL CHECK (format IN ('json', 'discord', 'slack')),
+  -- 送るイベントの種類。
+  kinds text[] NOT NULL,
+  -- 署名用の秘密キー。アプリの秘密キーで暗号化する (設計書 8.4)。
+  secret_ciphertext bytea NOT NULL,
+  enabled boolean NOT NULL,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
 -- チャンネル種別 (設計書 3.1)。チューナーサーバーが返す文字列をそのまま主キーにする。
 -- GR、BS、CS、SKY には表示名と並び順の既定値を持たせ、それ以外の種別は、同期で見つけたときに種別の文字列のまま足す。
 -- 管理者は表示名と並び順を画面から変えられるので、同期は既にある行を上書きしない。

@@ -46,6 +46,7 @@ type Querier interface {
 	DeleteTuners(ctx context.Context) error
 	DeleteUserPasskey(ctx context.Context, arg DeleteUserPasskeyParams) (int64, error)
 	DeleteUserTOTP(ctx context.Context, userID uuid.UUID) (int64, error)
+	DeleteWebhook(ctx context.Context, id uuid.UUID) (int64, error)
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
 	EnableUser(ctx context.Context, arg EnableUserParams) (int64, error)
 	// 種別が無ければ既定値で足す。管理者が変えた表示名と並び順は上書きしない。
@@ -73,6 +74,7 @@ type Querier interface {
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	GetUserForUpdate(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserTOTPForUpdate(ctx context.Context, userID uuid.UUID) (UserTotp, error)
+	GetWebhook(ctx context.Context, id uuid.UUID) (Webhook, error)
 	// 無効にした管理者も数える。管理者を作った後は、初回セットアップを開き直さない (設計書 9.2)。
 	HasAdmin(ctx context.Context) (bool, error)
 	HasUserTOTP(ctx context.Context, userID uuid.UUID) (bool, error)
@@ -103,6 +105,7 @@ type Querier interface {
 	InsertUser(ctx context.Context, arg InsertUserParams) error
 	InsertUserPasskey(ctx context.Context, arg InsertUserPasskeyParams) error
 	InsertWebAuthnCeremony(ctx context.Context, arg InsertWebAuthnCeremonyParams) error
+	InsertWebhook(ctx context.Context, arg InsertWebhookParams) (Webhook, error)
 	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
 	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
 	// 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。
@@ -157,6 +160,9 @@ type Querier interface {
 	ListUserPasskeys(ctx context.Context, userID uuid.UUID) ([]UserPasskey, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	ListUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
+	ListWebhooks(ctx context.Context) ([]Webhook, error)
+	// イベントの種類 kind を送る、有効な Webhook の ID を返す。
+	ListWebhooksForKind(ctx context.Context, kind string) ([]uuid.UUID, error)
 	// 有効な管理者の行をロックする。最後の管理者を外したり無効にしたりする操作を、同時に行わせない。
 	LockActiveAdmins(ctx context.Context) ([]uuid.UUID, error)
 	// 変える前の値を監査ログに残すため、種別の行をロックして読む。
@@ -170,6 +176,8 @@ type Querier interface {
 	LockSystemSettings(ctx context.Context, arg LockSystemSettingsParams) (SystemSetting, error)
 	// ユーザーの行を、トランザクションが終わるまで書き込みからロックする。同じユーザーの登録を同時に行わせない。
 	LockUser(ctx context.Context, id uuid.UUID) (LockUserRow, error)
+	// 変える前の値を監査ログに残すため、行をロックして読む。
+	LockWebhook(ctx context.Context, id uuid.UUID) (Webhook, error)
 	MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) (int64, error)
 	MarkNotificationEventDispatched(ctx context.Context, arg MarkNotificationEventDispatchedParams) error
 	MarkNotificationsRead(ctx context.Context, arg MarkNotificationsReadParams) (int64, error)
@@ -223,6 +231,7 @@ type Querier interface {
 	UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, error)
 	UpdateSystemSettings(ctx context.Context, arg UpdateSystemSettingsParams) (SystemSetting, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
+	UpdateWebhook(ctx context.Context, arg UpdateWebhookParams) (Webhook, error)
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error
 	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults
