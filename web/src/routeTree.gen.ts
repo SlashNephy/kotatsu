@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SetupRouteImport } from './routes/setup'
+import { Route as GuideIndexRouteImport } from './routes/guide/index'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as LoginEnrollRouteImport } from './routes/login/enroll'
 import { Route as LoginSecondFactorRouteImport } from './routes/login/second-factor'
@@ -24,6 +25,11 @@ const IndexRoute = IndexRouteImport.update({
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
   path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuideIndexRoute = GuideIndexRouteImport.update({
+  id: '/guide/',
+  path: '/guide/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginIndexRoute = LoginIndexRouteImport.update({
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
   '/settings/password': typeof SettingsPasswordRoute
+  '/guide/': typeof GuideIndexRoute
   '/login/': typeof LoginIndexRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
   '/settings/password': typeof SettingsPasswordRoute
+  '/guide': typeof GuideIndexRoute
   '/login': typeof LoginIndexRoute
 }
 export interface FileRoutesById {
@@ -70,6 +78,7 @@ export interface FileRoutesById {
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
   '/settings/password': typeof SettingsPasswordRoute
+  '/guide/': typeof GuideIndexRoute
   '/login/': typeof LoginIndexRoute
 }
 export interface FileRouteTypes {
@@ -80,6 +89,7 @@ export interface FileRouteTypes {
     | '/login/enroll'
     | '/login/second-factor'
     | '/settings/password'
+    | '/guide/'
     | '/login/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -88,6 +98,7 @@ export interface FileRouteTypes {
     | '/login/enroll'
     | '/login/second-factor'
     | '/settings/password'
+    | '/guide'
     | '/login'
   id:
     | '__root__'
@@ -96,6 +107,7 @@ export interface FileRouteTypes {
     | '/login/enroll'
     | '/login/second-factor'
     | '/settings/password'
+    | '/guide/'
     | '/login/'
   fileRoutesById: FileRoutesById
 }
@@ -105,6 +117,7 @@ export interface RootRouteChildren {
   LoginEnrollRoute: typeof LoginEnrollRoute
   LoginSecondFactorRoute: typeof LoginSecondFactorRoute
   SettingsPasswordRoute: typeof SettingsPasswordRoute
+  GuideIndexRoute: typeof GuideIndexRoute
   LoginIndexRoute: typeof LoginIndexRoute
 }
 
@@ -122,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/setup'
       fullPath: '/setup'
       preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guide/': {
+      id: '/guide/'
+      path: '/guide'
+      fullPath: '/guide/'
+      preLoaderRoute: typeof GuideIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login/': {
@@ -161,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginEnrollRoute: LoginEnrollRoute,
   LoginSecondFactorRoute: LoginSecondFactorRoute,
   SettingsPasswordRoute: SettingsPasswordRoute,
+  GuideIndexRoute: GuideIndexRoute,
   LoginIndexRoute: LoginIndexRoute,
 }
 export const routeTree = rootRouteImport
