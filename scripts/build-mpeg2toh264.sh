@@ -42,10 +42,12 @@ copy_package() {
   local from="$src/packages/$name" to="$vendor/$name"
   rm -rf "$to"
   mkdir -p "$to"
-  (cd "$from" && find dist -type f ! -name '*.map' -print0 | xargs -0 -I{} install -D -m 0644 {} "$to/{}")
-  find "$to/dist" -type f -name '*.js' -exec sed -i '/^\/\/# sourceMappingURL=/d' {} +
-  find "$to/dist" -type f -name '*.d.ts' -exec sed -i '/^\/\/# sourceMappingURL=/d' {} +
-  install -m 0644 "$from/LICENSE" "$to/LICENSE"
+  # GNU と BSD のどちらの install と sed でも動くよう、-D と -i を使わない。
+  (cd "$from" && find dist -type f ! -name '*.map') | while IFS= read -r file; do
+    mkdir -p "$to/$(dirname "$file")"
+    grep -v '^//# sourceMappingURL=' "$from/$file" >"$to/$file" || true
+  done
+  cp "$from/LICENSE" "$to/LICENSE"
   cat >"$to/package.json" <<EOF
 {
   "name": "@mpeg2toh264/$name",
@@ -67,7 +69,8 @@ EOF
 copy_package player MIT
 copy_package yadif LGPL-2.1-or-later
 rm -rf "$public"
-install -D -m 0644 "$src/packages/player/wasm/mpeg2toh264_wasm_bg.wasm" "$public/mpeg2toh264_wasm_bg.wasm"
-install -m 0644 "$src/LICENSE" "$public/LICENSE"
+mkdir -p "$public"
+cp "$src/packages/player/wasm/mpeg2toh264_wasm_bg.wasm" "$public/mpeg2toh264_wasm_bg.wasm"
+cp "$src/LICENSE" "$public/LICENSE"
 
 echo "built mpeg2toh264 $commit"

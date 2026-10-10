@@ -1,6 +1,6 @@
 # mpeg2toh264 のプレイヤーを、どの commit からビルドするか (設計書 7.2)。
 # 変えたら、mise run web:mpeg2toh264 でビルドし直す。CI は、ビルドし直したものとの差分がないことを確かめる。
-# wasm-bindgen の版は、この commit の Cargo.lock の wasm-bindgen と揃える (mise.toml)。
+# wasm-bindgen の版は、この commit の Cargo.lock の wasm-bindgen と揃える (mise.mpeg2toh264.toml)。
 repository=https://github.com/otya128/mpeg2toh264
 # renovate: datasource=git-refs depName=https://github.com/otya128/mpeg2toh264 currentValue=main
 commit=7b008c64c2ff6b5bbca54232712276c852d1e194
