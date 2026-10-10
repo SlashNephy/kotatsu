@@ -47,8 +47,9 @@ function SignedOut() {
   const navigate = useNavigate();
   useEffect(() => {
     authApi.setupStatus().then(
-      (status) => navigate({ to: status.required ? '/setup' : '/login' }),
-      () => navigate({ to: '/login' }),
+      // 戻るボタンで、ここに戻ってまた移る、を繰り返さないよう、履歴を置き換える。
+      (status) => navigate({ to: status.required ? '/setup' : '/login', replace: true }),
+      () => navigate({ to: '/login', replace: true }),
     );
   }, [navigate]);
 

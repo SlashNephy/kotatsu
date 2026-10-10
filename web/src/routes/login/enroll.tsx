@@ -51,7 +51,7 @@ function Enroll() {
     setError(null);
     try {
       const completed = await authApi.confirmEnrollment(code);
-      setRecoveryCodes(completed.recoveryCodes);
+      setRecoveryCodes(completed.recoveryCodes ?? []);
     } catch (caught) {
       setError(authErrorMessage(t, caught));
       setCode('');
@@ -92,7 +92,7 @@ function Enroll() {
       ) : (
         <>
           <Image
-            src={`data:image/svg+xml;utf8,${encodeURIComponent(renderSVG(enrollment.uri))}`}
+            src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(renderSVG(enrollment.uri))}`}
             alt={t('auth.enroll.qr')}
             w={200}
             h={200}

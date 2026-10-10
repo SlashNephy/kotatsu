@@ -25,7 +25,7 @@ function SecondFactor() {
     setSubmitting(true);
     setError(null);
     try {
-      await (useRecovery ? authApi.recoveryCode(code) : authApi.totp(code));
+      await (useRecovery ? authApi.recoveryCode(code.trim()) : authApi.totp(code));
       // セッションの Cookie が入ったので、画面を読み直して、ログイン後のデータを取り直す。
       window.location.assign('/');
     } catch (caught) {

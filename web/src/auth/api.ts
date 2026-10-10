@@ -52,12 +52,12 @@ async function handle<T>(response: Response): Promise<T> {
     : {};
   if (!response.ok) {
     const error = (json as ErrorBody).error;
-    const retryAfter = response.headers.get('Retry-After');
+    const retryAfter = Number.parseInt(response.headers.get('Retry-After') ?? '', 10);
     throw new AuthError(
       response.status,
       error?.code ?? `HTTP_${response.status}`,
       error?.reason,
-      retryAfter === null ? undefined : Number(retryAfter),
+      Number.isNaN(retryAfter) ? undefined : retryAfter,
     );
   }
 
