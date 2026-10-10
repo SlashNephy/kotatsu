@@ -200,6 +200,9 @@ importers:
       '@zxcvbn-ts/language-ja':
         specifier: 4.1.1
         version: 4.1.1
+      get-nonce:
+        specifier: 1.0.1
+        version: 1.0.1
       graphql:
         specifier: 17.0.2
         version: 17.0.2
