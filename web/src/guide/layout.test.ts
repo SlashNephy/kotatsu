@@ -1,0 +1,162 @@
+import { describe, expect, test } from 'vitest';
+
+import { broadcastDay, layoutColumn, programBox, visibleRange, type ProgramTime } from './layout';
+
+const minute = 60_000;
+// 2026-10-11T04:00:00+09:00
+const dayStart = Date.parse('2026-10-11T04:00:00+09:00');
+const window = { from: dayStart, to: dayStart + 24 * 60 * minute };
+
+function program(startMinute: number, endMinute: number, endUndecided = false): ProgramTime {
+  return {
+    startAt: dayStart + startMinute * minute,
+    // 終了時刻が未定の番組は、tenban が開始の 1 ミリ秒後を endAt にして返す。
+    endAt: endUndecided ? dayStart + startMinute * minute + 1 : dayStart + endMinute * minute,
+    endUndecided,
+  };
+}
+
+describe('programBox', () => {
+  test.each([
+    {
+      name: '時刻に比例した位置と高さ',
+      program: program(60, 90),
+      end: 90,
+      want: { top: 180, height: 90 },
+    },
+    {
+      name: '時間帯の前から続く番組は、上端で切り詰める',
+      program: program(-30, 30),
+      end: 30,
+      want: { top: 0, height: 90 },
+    },
+    {
+      name: '時間帯の後まで続く番組は、下端で切り詰める',
+      program: program(24 * 60 - 10, 24 * 60 + 50),
+      end: 24 * 60 + 50,
+      want: { top: (24 * 60 - 10) * 3, height: 30 },
+    },
+    {
+      name: '短い番組も、名前が読める高さにする',
+      program: program(0, 1),
+      end: 1,
+      want: { top: 0, height: 12 },
+    },
+  ])('$name', ({ program, end, want }) => {
+    expect(programBox(window, program, dayStart + end * minute)).toEqual(want);
+  });
+});
+
+describe('layoutColumn', () => {
+  const at = (m: number) => dayStart + m * minute;
+
+  test.each([
+    {
+      name: '重ならない番組は、1 つずつ縦に並べる',
+      programs: [program(0, 30), program(30, 60)],
+      want: { ends: [at(30), at(60)], lanes: [0, 0], laneCounts: [1, 1] },
+    },
+    {
+      name: '終了時刻が未定の番組は、次の番組の開始まで伸ばす',
+      programs: [program(0, 0, true), program(90, 120)],
+      want: { ends: [at(90), at(120)], lanes: [0, 0], laneCounts: [1, 1] },
+    },
+    {
+      name: '終了時刻が未定で、次の番組がなければ、60 分にする',
+      programs: [program(0, 0, true)],
+      want: { ends: [at(60)], lanes: [0], laneCounts: [1] },
+    },
+    {
+      // スポーツ中継と、中止のときの番組が、同じ時刻に重なって届く。
+      name: '重なる番組は、横に並べる',
+      programs: [
+        program(0, 10),
+        program(10, 230),
+        program(10, 70),
+        program(70, 75),
+        program(230, 260),
+      ],
+      want: {
+        ends: [at(10), at(230), at(70), at(75), at(260)],
+        lanes: [0, 0, 1, 1, 0],
+        laneCounts: [1, 2, 2, 2, 1],
+      },
+    },
+    {
+      name: '終了時刻が未定の番組は、同じ時刻に始まる番組を飛ばして、次に始まる番組まで伸ばす',
+      programs: [program(0, 0, true), program(0, 50), program(50, 60)],
+      want: { ends: [at(50), at(50), at(60)], lanes: [0, 1, 0], laneCounts: [2, 2, 1] },
+    },
+  ])('$name', ({ programs, want }) => {
+    const layout = layoutColumn(programs);
+    expect({ ends: layout.ends, lanes: layout.lanes, laneCounts: layout.laneCounts }).toEqual(want);
+  });
+});
+
+describe('visibleRange', () => {
+  // 0〜30、30〜60、60〜(未定、次は 120)、120〜180、180〜240 分
+  const programs = [
+    program(0, 30),
+    program(30, 60),
+    program(60, 0, true),
+    program(120, 180),
+    program(180, 240),
+  ];
+  const at = (m: number) => dayStart + m * minute;
+
+  const layout = layoutColumn(programs);
+
+  test.each([
+    { name: '先頭の番組だけ', from: at(0), to: at(10), want: { start: 0, end: 1 } },
+    {
+      name: '境界にちょうど接する番組は含めない',
+      from: at(30),
+      to: at(60),
+      want: { start: 1, end: 2 },
+    },
+    {
+      name: '終了時刻が未定の番組は、次の番組の開始まで見える',
+      from: at(100),
+      to: at(110),
+      want: { start: 2, end: 3 },
+    },
+    { name: '複数にまたがる', from: at(50), to: at(130), want: { start: 1, end: 4 } },
+    { name: 'すべての番組の後', from: at(300), to: at(400), want: { start: 5, end: 5 } },
+    { name: 'すべての番組の前', from: at(-100), to: at(-50), want: { start: 0, end: 0 } },
+  ])('$name', ({ from, to, want }) => {
+    expect(visibleRange(programs, layout, from, to)).toEqual(want);
+  });
+
+  test('番組がない列', () => {
+    expect(visibleRange([], layoutColumn([]), at(0), at(60))).toEqual({ start: 0, end: 0 });
+  });
+
+  test('長い番組と重なる短い番組の後ろも、長い番組が見えている間は含める', () => {
+    // 0〜240 分の中継と、0〜60 分、60〜120 分の番組が重なる。
+    const overlapping = [program(0, 240), program(0, 60), program(60, 120), program(240, 300)];
+    expect(visibleRange(overlapping, layoutColumn(overlapping), at(150), at(160))).toEqual({
+      start: 0,
+      end: 3,
+    });
+  });
+});
+
+describe('broadcastDay', () => {
+  test.each([
+    {
+      name: '4 時より後は、その日の放送日',
+      time: '2026-10-11T13:50:00+09:00',
+      want: '2026-10-11T04:00:00+09:00',
+    },
+    {
+      name: '4 時より前は、前の日の放送日',
+      time: '2026-10-11T03:59:59+09:00',
+      want: '2026-10-10T04:00:00+09:00',
+    },
+    { name: 'ちょうど 4 時', time: '2026-10-11T04:00:00+09:00', want: '2026-10-11T04:00:00+09:00' },
+  ])('$name', ({ time, want }) => {
+    const day = broadcastDay(Date.parse(time));
+    expect(day.from).toBe(Date.parse(want));
+    expect(day.to - day.from).toBe(24 * 60 * minute);
+  });
+});

@@ -4,6 +4,7 @@ import './i18n';
 
 import { MantineProvider } from '@mantine/core';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
+import { setNonce } from 'get-nonce';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RelayEnvironmentProvider } from 'react-relay';
@@ -12,6 +13,10 @@ import { registerSW } from 'virtual:pwa-register';
 import { cspNonce, cssVariablesResolver, theme } from './futon';
 import { createEnvironment } from './relay/environment';
 import { routeTree } from './routeTree.gen';
+
+// Mantine の Modal と Drawer は、背景のスクロールを止める <style> を react-remove-scroll で差し込む。
+// react-remove-scroll は get-nonce から nonce を引くので、CSP の nonce を渡しておく (設計書 10.4)。
+setNonce(cspNonce());
 
 const router = createRouter({ routeTree });
 const environment = createEnvironment();
