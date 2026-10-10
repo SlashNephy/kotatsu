@@ -50,6 +50,11 @@ export function commentSessionHandshake(threadId: string, threadKey: string): un
   ];
 }
 
+// isPostError は、エラーのコードが、投稿の失敗を表すかどうかを返す。
+function isPostError(code: string): boolean {
+  return code.startsWith('COMMENT_') || code === 'INVALID_MESSAGE';
+}
+
 type Pending = { resolve: () => void; reject: (error: Error) => void };
 
 // NXJikkyoSession は、実況のチャンネル channelId のコメントを受け取り続ける。切れたら、間隔を延ばしながらつなぎ直す。
@@ -62,6 +67,8 @@ export class NXJikkyoSession {
   private watch: SocketLike | null = null;
   private comment: SocketLike | null = null;
   private cancelTimers: (() => void)[] = [];
+  // cancelKeepSeat は、座席を保つ keepSeat の繰り返しを止める。seat が届き直したら、前の繰り返しを止めてから始め直す。
+  private cancelKeepSeat: (() => void) | null = null;
   private vposBaseTime = 0;
   private attempt = 0;
   private closed = false;
@@ -148,9 +155,10 @@ export class NXJikkyoSession {
         const interval = (message.data?.keepIntervalSec ?? 30) * 1000;
         const keep = () => {
           this.watch?.send(JSON.stringify({ type: 'keepSeat' }));
-          this.cancelTimers.push(this.setTimer(keep, interval));
+          this.cancelKeepSeat = this.setTimer(keep, interval);
         };
-        this.cancelTimers.push(this.setTimer(keep, interval));
+        this.cancelKeepSeat?.();
+        this.cancelKeepSeat = this.setTimer(keep, interval);
         break;
       }
       case 'ping':
@@ -171,12 +179,13 @@ export class NXJikkyoSession {
         break;
       case 'error':
         // 投稿の失敗は、投稿を待っている側に返す。それ以外のエラーは、つなぎ直す。
-        if (this.pending !== null && message.data?.code?.startsWith('COMMENT_')) {
-          this.pending.reject(new Error(message.data.code));
+        const code = message.data?.code;
+        if (this.pending !== null && code !== undefined && isPostError(code)) {
+          this.pending.reject(new Error(code));
           this.pending = null;
           break;
         }
-        this.reconnect(message.data?.code ?? 'ERROR');
+        this.reconnect(code ?? 'ERROR');
         break;
       case 'disconnect':
         this.reconnect(message.data?.reason ?? 'DISCONNECTED');
@@ -192,9 +201,15 @@ export class NXJikkyoSession {
     threadKey: string,
     generation: number,
   ): void {
-    const current = () => generation === this.generation && !this.closed;
+    // room が届き直したら (スレッドが変わったときなど)、前のコメントセッションを閉じてから開き直す。
+    // 閉じた前のセッションから遅れて届いたイベントは、今のセッションのものでないので捨てる。
+    const previous = this.comment;
+    this.comment = null;
+    previous?.close();
     const comment = this.createSocket(uri);
     this.comment = comment;
+    const current = () =>
+      generation === this.generation && !this.closed && this.comment === comment;
     // 最初に届く直近のコメントは、もう流れ終えたものなので流さない。rf:0 の ping で、届き終えたと分かる。
     let caughtUp = false;
     comment.addEventListener('open', () => {
@@ -251,6 +266,8 @@ export class NXJikkyoSession {
       cancel();
     }
     this.cancelTimers = [];
+    this.cancelKeepSeat?.();
+    this.cancelKeepSeat = null;
     this.pending?.reject(new Error('disconnected'));
     this.pending = null;
     this.watch?.close();

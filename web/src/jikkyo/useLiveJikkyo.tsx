@@ -70,7 +70,7 @@ export function useLiveJikkyo(
   return {
     overlay:
       channelId === null ? undefined : (
-        <CommentCanvas ref={canvas} clock={clock} drawing={active} />
+        <CommentCanvas key={channelId} ref={canvas} clock={clock} drawing={active} />
       ),
     status,
     post,

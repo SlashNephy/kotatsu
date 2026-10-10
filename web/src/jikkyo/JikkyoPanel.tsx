@@ -55,7 +55,10 @@ export function JikkyoPanel({ channelName, status, onPost }: Props) {
           value={text}
           disabled={!connected}
           error={error}
-          onChange={(event) => setText(event.currentTarget.value)}
+          onChange={(event) => {
+            setText(event.currentTarget.value);
+            setError(null);
+          }}
         />
         <Button
           type="submit"

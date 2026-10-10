@@ -171,3 +171,33 @@ describe('NXJikkyoSession', () => {
     expect(env.statuses.at(-1)).not.toMatchObject({ kind: 'disconnected' });
   });
 });
+
+describe('NXJikkyoSession の座席とスレッド', () => {
+  test('seat が届き直しても、keepSeat の繰り返しは 1 つだけにする', () => {
+    const env = setup();
+    const { watch } = connect(env);
+    watch?.emit('message', { type: 'seat', data: { keepIntervalSec: 30 } });
+    watch?.emit('message', { type: 'seat', data: { keepIntervalSec: 30 } });
+
+    const active = env.timers.filter((timer) => timer.ms === 30_000 && !timer.cancelled);
+    expect(active).toHaveLength(1);
+  });
+
+  test('room が届き直したら、前のコメントセッションを閉じ、前のセッションのイベントではつなぎ直さない', () => {
+    const env = setup();
+    const { watch, comment } = connect(env);
+    watch?.emit('message', {
+      type: 'room',
+      data: {
+        messageServer: { uri: 'wss://nx-jikkyo.example/comment2' },
+        threadId: '27360',
+        vposBaseTime: '2026-10-12T04:00:00+09:00',
+      },
+    });
+    comment?.emit('close');
+
+    expect(comment?.closed).toBe(true);
+    expect(env.sockets[2]?.url).toBe('wss://nx-jikkyo.example/comment2');
+    expect(env.statuses.at(-1)).not.toMatchObject({ kind: 'disconnected' });
+  });
+});
