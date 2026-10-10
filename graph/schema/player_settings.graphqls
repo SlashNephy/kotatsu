@@ -1,0 +1,26 @@
+"""
+ログイン中のユーザーのプレイヤーの設定 (設計書 9.1)。端末をまたいで同期する。
+"""
+type PlayerSettings {
+  "実況のコメントを出すかどうか。出さなければ、NX-Jikkyo に接続しない (設計書 7.4)。"
+  jikkyoEnabled: Boolean!
+  "字幕と文字スーパーを出すかどうか。"
+  captionsEnabled: Boolean!
+}
+
+"""
+プレイヤーの設定の変更。省いた項目は変えない。
+"""
+input PlayerSettingsInput {
+  jikkyoEnabled: Boolean
+  captionsEnabled: Boolean
+}
+
+extend type Query {
+  playerSettings: PlayerSettings!
+}
+
+extend type Mutation {
+  "プレイヤーの設定を変え、同じユーザーのほかの端末に viewerSettingsChanged で知らせる。"
+  updatePlayerSettings(input: PlayerSettingsInput!): PlayerSettings!
+}

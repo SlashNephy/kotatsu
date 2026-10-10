@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const bumpUserSettingsVersion = `-- name: BumpUserSettingsVersion :one
@@ -31,6 +32,27 @@ func (q *Queries) BumpUserSettingsVersion(ctx context.Context, arg BumpUserSetti
 	return version, err
 }
 
+const getPlayerSettings = `-- name: GetPlayerSettings :one
+SELECT
+  coalesce(s.jikkyo_enabled, true)::boolean AS jikkyo_enabled,
+  coalesce(s.captions_enabled, true)::boolean AS captions_enabled
+FROM (SELECT $1::uuid AS id) AS u
+LEFT JOIN user_settings s ON s.user_id = u.id
+`
+
+type GetPlayerSettingsRow struct {
+	JikkyoEnabled   bool
+	CaptionsEnabled bool
+}
+
+// プレイヤーの設定。一度も変えていなければ、既定値を返す。
+func (q *Queries) GetPlayerSettings(ctx context.Context, userID uuid.UUID) (GetPlayerSettingsRow, error) {
+	row := q.db.QueryRow(ctx, getPlayerSettings, userID)
+	var i GetPlayerSettingsRow
+	err := row.Scan(&i.JikkyoEnabled, &i.CaptionsEnabled)
+	return i, err
+}
+
 const getUserSettingsVersion = `-- name: GetUserSettingsVersion :one
 SELECT coalesce((SELECT version FROM user_setting_versions WHERE user_id = $1), 0)::bigint AS version
 `
@@ -40,4 +62,39 @@ func (q *Queries) GetUserSettingsVersion(ctx context.Context, userID uuid.UUID) 
 	var version int64
 	err := row.Scan(&version)
 	return version, err
+}
+
+const upsertPlayerSettings = `-- name: UpsertPlayerSettings :one
+INSERT INTO user_settings (user_id, jikkyo_enabled, captions_enabled, updated_at)
+VALUES ($1, coalesce($2::boolean, true), coalesce($3::boolean, true), $4)
+ON CONFLICT (user_id) DO UPDATE SET
+  jikkyo_enabled = coalesce($2::boolean, user_settings.jikkyo_enabled),
+  captions_enabled = coalesce($3::boolean, user_settings.captions_enabled),
+  updated_at = EXCLUDED.updated_at
+RETURNING jikkyo_enabled, captions_enabled
+`
+
+type UpsertPlayerSettingsParams struct {
+	UserID          uuid.UUID
+	JikkyoEnabled   pgtype.Bool
+	CaptionsEnabled pgtype.Bool
+	Now             time.Time
+}
+
+type UpsertPlayerSettingsRow struct {
+	JikkyoEnabled   bool
+	CaptionsEnabled bool
+}
+
+// プレイヤーの設定を変える。null の項目は変えない。
+func (q *Queries) UpsertPlayerSettings(ctx context.Context, arg UpsertPlayerSettingsParams) (UpsertPlayerSettingsRow, error) {
+	row := q.db.QueryRow(ctx, upsertPlayerSettings,
+		arg.UserID,
+		arg.JikkyoEnabled,
+		arg.CaptionsEnabled,
+		arg.Now,
+	)
+	var i UpsertPlayerSettingsRow
+	err := row.Scan(&i.JikkyoEnabled, &i.CaptionsEnabled)
+	return i, err
 }

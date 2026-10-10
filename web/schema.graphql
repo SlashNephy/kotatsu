@@ -410,6 +410,10 @@ type Mutation {
   """
   deletePasskey(id: ID!): ID!
   """
+  プレイヤーの設定を変え、同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
+  """
+  updatePlayerSettings(input: PlayerSettingsInput!): PlayerSettings!
+  """
   録画を消し、消した録画の ID を返す。録画ファイルと付属ファイルも消すが、録画履歴は残す。視聴者は使えない (設計書 9.7)。
   保護した録画と、録画中の録画は消さずに CONFLICT を返す。
   """
@@ -661,6 +665,26 @@ type Passkey {
   lastUsedAt: Time
 }
 """
+ログイン中のユーザーのプレイヤーの設定 (設計書 9.1)。端末をまたいで同期する。
+"""
+type PlayerSettings {
+  """
+  実況のコメントを出すかどうか。出さなければ、NX-Jikkyo に接続しない (設計書 7.4)。
+  """
+  jikkyoEnabled: Boolean!
+  """
+  字幕と文字スーパーを出すかどうか。
+  """
+  captionsEnabled: Boolean!
+}
+"""
+プレイヤーの設定の変更。省いた項目は変えない。
+"""
+input PlayerSettingsInput {
+  jikkyoEnabled: Boolean
+  captionsEnabled: Boolean
+}
+"""
 番組。放送中の番組と、これから放送される番組。
 """
 type Program implements Node {
@@ -798,6 +822,7 @@ type Query {
   ログイン中のユーザーのパスキー。登録した順に並べる。
   """
   passkeys: [Passkey!]!
+  playerSettings: PlayerSettings!
   """
   録画を、録画を始めた日時の新しい順に first 件まで返す。
   """
@@ -1461,7 +1486,7 @@ type Subscription {
   unreadNotificationCount: Int!
   """
   ログイン中のユーザーの設定の版数 (設計書 9.1)。購読を始めたときに今の版数を送り、その後は、同じユーザーが、どの端末からでも設定を変えたときに送る。
-  クライアントは、届いたら設定を読み直す。対象の設定は、通知の設定、番組表ビュー、第二要素、パスキー、セッションの失効。
+  クライアントは、届いたら設定を読み直す。対象の設定は、通知の設定、番組表ビュー、プレイヤーの設定、第二要素、パスキー、セッションの失効。
   """
   viewerSettingsChanged: Int!
 }

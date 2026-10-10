@@ -86,6 +86,8 @@ type Querier interface {
 	GetNotificationEvent(ctx context.Context, id uuid.UUID) (NotificationEvent, error)
 	GetOIDCIdentity(ctx context.Context, arg GetOIDCIdentityParams) (UserOidcIdentity, error)
 	GetPasskeyByCredentialID(ctx context.Context, credentialID []byte) (UserPasskey, error)
+	// プレイヤーの設定。一度も変えていなければ、既定値を返す。
+	GetPlayerSettings(ctx context.Context, userID uuid.UUID) (GetPlayerSettingsRow, error)
 	// 録画中の番組の、今の EPG の終了時刻と、未定かどうか。番組が EPG から消えていれば行を返さない。
 	GetProgramEnd(ctx context.Context, arg GetProgramEndParams) (GetProgramEndRow, error)
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
@@ -341,6 +343,8 @@ type Querier interface {
 	UpdateWebhook(ctx context.Context, arg UpdateWebhookParams) (Webhook, error)
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error
+	// プレイヤーの設定を変える。null の項目は変えない。
+	UpsertPlayerSettings(ctx context.Context, arg UpsertPlayerSettingsParams) (UpsertPlayerSettingsRow, error)
 	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults
 	// 録画の代表画像かプレビュー画像を記録する。作り直したときは、同じパスの行を書き換える。
 	UpsertRecordingImage(ctx context.Context, arg UpsertRecordingImageParams) error
