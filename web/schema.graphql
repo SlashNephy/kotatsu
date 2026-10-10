@@ -400,6 +400,23 @@ type Mutation {
   """
   deletePasskey(id: ID!): ID!
   """
+  録画を消し、消した録画の ID を返す。録画ファイルと付属ファイルも消すが、録画履歴は残す。視聴者は使えない (設計書 9.7)。
+  保護した録画と、録画中の録画は消さずに CONFLICT を返す。
+  """
+  deleteRecording(id: ID!): ID!
+  """
+  録画に保護の印を付けるか、外す。視聴者は使えない。
+  """
+  setRecordingProtected(id: ID!, protected: Boolean!): Recording!
+  """
+  録画のタグを置き換える。ないタグは作る。視聴者は使えない。
+  """
+  setRecordingTags(id: ID!, tags: [String!]!): Recording!
+  """
+  ログイン中のユーザーの再生位置 (ミリ秒) を保存する。誰でも使える。
+  """
+  saveWatchPosition(id: ID!, positionMs: Int64!): Recording!
+  """
   番組予約を作る。同じ番組の予約がすでにあれば、作らずにその予約を返す。視聴者は使えない。
   """
   createProgramReservation(input: ProgramReservationInput!): Reservation!
@@ -758,6 +775,14 @@ type Query {
   """
   passkeys: [Passkey!]!
   """
+  録画を、録画を始めた日時の新しい順に first 件まで返す。
+  """
+  recordings(first: Int! = 50, after: String, filter: RecordingFilter): RecordingConnection!
+  """
+  タグを、名前の順に返す。
+  """
+  tags: [Tag!]!
+  """
   時間帯 [from, to) に重なる予約を、開始時刻の順に返す。
   states を指定すると、その割り当ての状態の予約だけを返す。
   """
@@ -816,6 +841,165 @@ type Query {
   webhooks: [Webhook!]!
 }
 """
+録画 (設計書 5.5、8.2)。
+"""
+type Recording implements Node {
+  id: ID!
+  service: Service!
+  """
+  番組の eventId。時刻予約の録画では null。
+  """
+  eventId: Int
+  name: String!
+  description: String!
+  """
+  番組の放送の開始と終了。
+  """
+  startAt: Time!
+  endAt: Time!
+  state: RecordingState!
+  """
+  失敗した理由。失敗していなければ null。
+  """
+  failureReason: RecordingFailureReason
+  """
+  保護の印。保護した録画は、容量の管理でも、ユーザーの操作でも消さない。
+  """
+  protected: Boolean!
+  """
+  全 PID のドロップ、エラー、スクランブルの数。
+  """
+  drops: Int64!
+  errors: Int64!
+  scrambled: Int64!
+  gaps: [RecordingGap!]!
+  """
+  録画中に番組が EPG から消えたかどうか。
+  """
+  programLost: Boolean!
+  """
+  実際に録画を始めた日時と、終えた日時。録画中なら終えた日時は null。
+  """
+  recordedFrom: Time!
+  recordedUntil: Time
+  """
+  名前の順。
+  """
+  tags: [Tag!]!
+  files: [RecordingFile!]!
+  """
+  ログイン中のユーザーの再生位置 (ミリ秒)。再生していなければ null。
+  """
+  watchPositionMs: Int64
+}
+type RecordingConnection {
+  edges: [RecordingEdge!]!
+  pageInfo: PageInfo!
+}
+type RecordingEdge {
+  cursor: String!
+  node: Recording!
+}
+"""
+録画に失敗した理由 (設計書 5.5)。
+"""
+enum RecordingFailureReason {
+  """
+  チューナーを確保できなかった
+  """
+  TUNER_UNAVAILABLE
+  """
+  チューナーサーバーに接続できなかった
+  """
+  TUNER_SERVER_UNREACHABLE
+  """
+  ストリームが中断し、再接続もできなかった
+  """
+  STREAM_INTERRUPTED
+  """
+  保存先に書き込めなかった
+  """
+  STORAGE_UNAVAILABLE
+  """
+  保存先の容量が足りなかった
+  """
+  STORAGE_FULL
+  """
+  番組が見つからなかった
+  """
+  PROGRAM_NOT_FOUND
+  """
+  録画を取り消した
+  """
+  CANCELLED
+}
+"""
+録画のファイル。
+"""
+type RecordingFile {
+  kind: RecordingFileKind!
+  """
+  保存先プールの ID。
+  """
+  poolId: String!
+  """
+  プール内の相対パス。
+  """
+  path: String!
+  """
+  大きさ (バイト)。
+  """
+  size: Int64!
+  startedAt: Time!
+  """
+  書き終えた日時。書いている間は null。
+  """
+  endedAt: Time
+}
+"""
+録画のファイルの種類。
+"""
+enum RecordingFileKind {
+  """
+  TS のセグメント
+  """
+  SEGMENT
+  """
+  セグメントの索引
+  """
+  INDEX
+}
+"""
+録画の絞り込み。省いた条件は絞り込まない。
+"""
+input RecordingFilter {
+  """
+  どれかのタグが付いた録画。
+  """
+  tagIds: [ID!]
+  states: [RecordingState!]
+  serviceIds: [ID!]
+  """
+  番組名に含む文字列。大文字と小文字を区別しない。
+  """
+  keyword: String
+  """
+  放送の開始がこの日時以降の録画。
+  """
+  since: Time
+  """
+  放送の開始がこの日時より前の録画。
+  """
+  until: Time
+}
+"""
+途切れた区間。
+"""
+type RecordingGap {
+  from: Time!
+  to: Time!
+}
+"""
 録画設定 (設計書 4.7)。全体の既定値に、ルールや予約の上書きを重ねる。
 """
 type RecordingSettings {
@@ -862,6 +1046,31 @@ input RecordingSettingsOverridesInput {
   startMarginSeconds: Int
   endMarginSeconds: Int
   priority: Int
+}
+"""
+録画の状態 (設計書 5.5)。
+"""
+enum RecordingState {
+  """
+  録画中
+  """
+  RECORDING
+  """
+  完了
+  """
+  COMPLETED
+  """
+  ドロップのある完了
+  """
+  COMPLETED_WITH_ERRORS
+  """
+  途切れた区間のある一部のみ
+  """
+  PARTIAL
+  """
+  失敗
+  """
+  FAILED
 }
 """
 リカバリーコード。この応答でしか見せないので、ユーザーに控えてもらう。
@@ -1207,6 +1416,17 @@ type TOTPEnrollment {
   これまでに confirmTotpEnrollment でコードを確かめないと、登録は取り消される。
   """
   expiresAt: Time!
+}
+"""
+録画のタグ。
+"""
+type Tag {
+  id: ID!
+  name: String!
+  """
+  このタグが付いた録画の数。
+  """
+  recordings: Int!
 }
 """
 日時。RFC 3339 の文字列で表す。

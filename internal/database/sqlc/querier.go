@@ -46,6 +46,7 @@ type Querier interface {
 	// 放送が始まった番組は、アーカイブに移すまで残す (設計書 3.3、3.4)。
 	DeletePrograms(ctx context.Context, arg []DeleteProgramsParams) *DeleteProgramsBatchResults
 	DeleteRecording(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteRecordingTags(ctx context.Context, recordingID uuid.UUID) error
 	DeleteRecoveryCodes(ctx context.Context, userID uuid.UUID) error
 	DeleteReservation(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteReservationRule(ctx context.Context, arg DeleteReservationRuleParams) error
@@ -124,6 +125,7 @@ type Querier interface {
 	InsertRecordingFile(ctx context.Context, arg InsertRecordingFileParams) error
 	// 重複の回避に使う録画履歴を記録する (設計書 4.4)。録画を削除しても残す。
 	InsertRecordingHistory(ctx context.Context, arg InsertRecordingHistoryParams) error
+	InsertRecordingTag(ctx context.Context, arg InsertRecordingTagParams) error
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
 	// イベントリレーの引き継ぎ先の番組予約を、番組情報をコピーして作る。引き継ぎ先の予約がすでにあれば何もせず、行を返さない。
 	InsertRelayedReservation(ctx context.Context, arg InsertRelayedReservationParams) (uuid.UUID, error)
@@ -184,8 +186,12 @@ type Querier interface {
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
 	ListRecordingAssignments(ctx context.Context) ([]RecordingAssignment, error)
 	ListRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error)
+	ListRecordingFilesByRecordings(ctx context.Context, recordingIds []uuid.UUID) ([]RecordingFile, error)
 	// 通知に載せる、録画のセグメントの保存先プールとプール内の相対パス。何も書けなかったセグメントは含めない。
 	ListRecordingSegments(ctx context.Context, recordingID uuid.UUID) ([]ListRecordingSegmentsRow, error)
+	// 録画 recording_ids のタグを、録画ごとに名前の順で、タグが付いている録画の数と一緒に返す。
+	ListRecordingTags(ctx context.Context, recordingIds []uuid.UUID) ([]ListRecordingTagsRow, error)
+	ListRecordingsByIDs(ctx context.Context, ids []uuid.UUID) ([]Recording, error)
 	// 予約に一致したルール。ルールを作った順に返す。
 	ListReservationRules(ctx context.Context, reservationIds []uuid.UUID) ([]ReservationRule, error)
 	// 時間帯 [from, to) に重なる予約を、開始時刻の順に返す。(after_start_at, after_id) より後ろから limit 件読む。
@@ -199,12 +205,15 @@ type Querier interface {
 	ListRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rule, error)
 	ListServices(ctx context.Context) ([]ListServicesRow, error)
 	ListStoragePools(ctx context.Context) ([]StoragePool, error)
+	// タグを、付いている録画の数と一緒に、名前の順で返す。
+	ListTags(ctx context.Context) ([]ListTagsRow, error)
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
 	ListUsableTuners(ctx context.Context) ([]ListUsableTunersRow, error)
 	ListUserOIDCIdentities(ctx context.Context, userID uuid.UUID) ([]UserOidcIdentity, error)
 	ListUserPasskeys(ctx context.Context, userID uuid.UUID) ([]UserPasskey, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	ListUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
+	ListWatchProgress(ctx context.Context, arg ListWatchProgressParams) ([]WatchProgress, error)
 	ListWebhooks(ctx context.Context) ([]Webhook, error)
 	// イベントの種類 kind を送る、有効な Webhook の ID を返す。
 	ListWebhooksForKind(ctx context.Context, kind string) ([]uuid.UUID, error)
@@ -217,6 +226,8 @@ type Querier interface {
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
 	// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
+	// 録画を変える前に、ロックして読む。
+	LockRecording(ctx context.Context, id uuid.UUID) (Recording, error)
 	// 録画を終える前に、割り振りをロックして、今の世代番号を読む。ほかの mikan が取っていたら、録画を終えない。
 	LockRecordingAssignmentGeneration(ctx context.Context, id uuid.UUID) (int64, error)
 	// 初回セットアップを、全インスタンスで 1 つずつ行わせる。トランザクションが終わるまでロックする。
@@ -270,11 +281,15 @@ type Querier interface {
 	// ジャンルの中分類とキーワードは、ルールの照合と同じ照合関数で、Go で判定する (設計書 3.5)。
 	// include_archive なら、開始時刻が [archive_from, archive_to) のアーカイブの番組も含める。
 	SearchProgramCandidates(ctx context.Context, arg SearchProgramCandidatesParams) ([]SearchProgramCandidatesRow, error)
+	// 録画を、録画を始めた日時の新しい順に返す。絞り込まない条件は NULL か空にする。
+	// before_at と before_id より前 (古い) の録画だけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
+	SearchRecordings(ctx context.Context, arg SearchRecordingsParams) ([]Recording, error)
 	ServiceExists(ctx context.Context, id int64) (bool, error)
 	SetLoginChallengeWebAuthnSession(ctx context.Context, arg SetLoginChallengeWebAuthnSessionParams) error
 	SetLoginLockedUntil(ctx context.Context, arg SetLoginLockedUntilParams) error
 	// 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
 	SetRecordingGaps(ctx context.Context, arg SetRecordingGapsParams) error
+	SetRecordingProtected(ctx context.Context, arg SetRecordingProtectedParams) error
 	SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error)
 	SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error
 	SetRuleEnabled(ctx context.Context, arg SetRuleEnabledParams) (int64, error)
@@ -307,8 +322,11 @@ type Querier interface {
 	UpsertService(ctx context.Context, arg UpsertServiceParams) error
 	UpsertStoragePool(ctx context.Context, arg UpsertStoragePoolParams) (StoragePool, error)
 	UpsertTOTPEnrollment(ctx context.Context, arg UpsertTOTPEnrollmentParams) error
+	// 名前のタグを作り、ID を返す。すでにあれば、そのタグの ID を返す。
+	UpsertTag(ctx context.Context, arg UpsertTagParams) (uuid.UUID, error)
 	UpsertTunerServerStatus(ctx context.Context, arg UpsertTunerServerStatusParams) error
 	UpsertUserTOTP(ctx context.Context, arg UpsertUserTOTPParams) error
+	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) error
 	UseRecoveryCode(ctx context.Context, arg UseRecoveryCodeParams) (int64, error)
 }
 

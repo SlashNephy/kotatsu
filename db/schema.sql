@@ -623,6 +623,38 @@ CREATE TABLE recording_files (
 
 CREATE INDEX recording_files_recording_id_idx ON recording_files (recording_id, started_at);
 
+-- 録画を一覧で新しい順に並べ、ページを送るのに使う。
+CREATE INDEX recordings_recorded_from_id_idx ON recordings (recorded_from DESC, id DESC);
+
+-- 録画のタグ (設計書 8.2)。名前は、前後の空白を落として重ならないようにする。
+CREATE TABLE tags (
+  id uuid PRIMARY KEY,
+  name text NOT NULL UNIQUE,
+  created_at timestamptz NOT NULL
+);
+
+CREATE TABLE recording_tags (
+  recording_id uuid NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,
+  tag_id uuid NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
+  PRIMARY KEY (recording_id, tag_id)
+);
+
+-- タグで録画を絞り込むのに使う。
+CREATE INDEX recording_tags_tag_id_idx ON recording_tags (tag_id, recording_id);
+
+-- ユーザーごと、録画ごとの再生位置 (設計書 8.2)。続きから再生するのに使う。
+CREATE TABLE watch_progress (
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  recording_id uuid NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,
+  -- 録画の始まりからの再生位置 (ミリ秒)。
+  position_ms bigint NOT NULL CHECK (position_ms >= 0),
+  updated_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, recording_id)
+);
+
+-- 録画を消すときに、その録画の再生位置を消すのに使う。
+CREATE INDEX watch_progress_recording_id_idx ON watch_progress (recording_id);
+
 -- 録画履歴 (設計書 4.4)。重複の回避に使う。正常に終了し、ドロップが閾値未満だった録画だけを記録し、録画を削除しても残す。
 CREATE TABLE recording_history (
   id uuid PRIMARY KEY,

@@ -59,6 +59,11 @@ models:
         resolver: true
   Rule:
     model: github.com/SlashNephy/kotatsu/graph/model.Rule
+  Recording:
+    model: github.com/SlashNephy/kotatsu/graph/model.Recording
+    fields:
+      service:
+        resolver: true
   Reservation:
     model: github.com/SlashNephy/kotatsu/graph/model.Reservation
     fields:

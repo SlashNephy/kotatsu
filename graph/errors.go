@@ -36,6 +36,8 @@ const (
 	CodeNotFound Code = "NOT_FOUND"
 	// CodeBadUserInput は、入力が正しくないこと。
 	CodeBadUserInput Code = "BAD_USER_INPUT"
+	// CodeConflict は、対象の今の状態では、その操作ができないこと (保護した録画を消すなど)。
+	CodeConflict Code = "CONFLICT"
 	// CodeQueryTooDeep は、クエリの深さが上限を超えていること。
 	// 複雑度が上限を超えたときは、gqlgen の COMPLEXITY_LIMIT_EXCEEDED を返す。
 	CodeQueryTooDeep Code = "DEPTH_LIMIT_EXCEEDED"

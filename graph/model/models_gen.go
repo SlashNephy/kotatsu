@@ -303,6 +303,50 @@ type ProgramReservationInput struct {
 type Query struct {
 }
 
+type RecordingConnection struct {
+	Edges    []*RecordingEdge `json:"edges"`
+	PageInfo *PageInfo        `json:"pageInfo"`
+}
+
+type RecordingEdge struct {
+	Cursor string     `json:"cursor"`
+	Node   *Recording `json:"node"`
+}
+
+// 録画のファイル。
+type RecordingFile struct {
+	Kind RecordingFileKind `json:"kind"`
+	// 保存先プールの ID。
+	PoolID string `json:"poolId"`
+	// プール内の相対パス。
+	Path string `json:"path"`
+	// 大きさ (バイト)。
+	Size      int64     `json:"size"`
+	StartedAt time.Time `json:"startedAt"`
+	// 書き終えた日時。書いている間は null。
+	EndedAt *time.Time `json:"endedAt,omitempty"`
+}
+
+// 録画の絞り込み。省いた条件は絞り込まない。
+type RecordingFilter struct {
+	// どれかのタグが付いた録画。
+	TagIds     []string         `json:"tagIds,omitempty"`
+	States     []RecordingState `json:"states,omitempty"`
+	ServiceIds []string         `json:"serviceIds,omitempty"`
+	// 番組名に含む文字列。大文字と小文字を区別しない。
+	Keyword *string `json:"keyword,omitempty"`
+	// 放送の開始がこの日時以降の録画。
+	Since *time.Time `json:"since,omitempty"`
+	// 放送の開始がこの日時より前の録画。
+	Until *time.Time `json:"until,omitempty"`
+}
+
+// 途切れた区間。
+type RecordingGap struct {
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
+}
+
 // 録画設定 (設計書 4.7)。全体の既定値に、ルールや予約の上書きを重ねる。
 type RecordingSettings struct {
 	// 保存先プール。null なら、推定サイズが収まるプールを選ぶ。
@@ -469,6 +513,14 @@ type TOTPEnrollment struct {
 	URI string `json:"uri"`
 	// これまでに confirmTotpEnrollment でコードを確かめないと、登録は取り消される。
 	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+// 録画のタグ。
+type Tag struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// このタグが付いた録画の数。
+	Recordings int `json:"recordings"`
 }
 
 // 曜日と時間帯の組。
@@ -825,6 +877,204 @@ func (e *NotificationKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e NotificationKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 録画に失敗した理由 (設計書 5.5)。
+type RecordingFailureReason string
+
+const (
+	// チューナーを確保できなかった
+	RecordingFailureReasonTunerUnavailable RecordingFailureReason = "TUNER_UNAVAILABLE"
+	// チューナーサーバーに接続できなかった
+	RecordingFailureReasonTunerServerUnreachable RecordingFailureReason = "TUNER_SERVER_UNREACHABLE"
+	// ストリームが中断し、再接続もできなかった
+	RecordingFailureReasonStreamInterrupted RecordingFailureReason = "STREAM_INTERRUPTED"
+	// 保存先に書き込めなかった
+	RecordingFailureReasonStorageUnavailable RecordingFailureReason = "STORAGE_UNAVAILABLE"
+	// 保存先の容量が足りなかった
+	RecordingFailureReasonStorageFull RecordingFailureReason = "STORAGE_FULL"
+	// 番組が見つからなかった
+	RecordingFailureReasonProgramNotFound RecordingFailureReason = "PROGRAM_NOT_FOUND"
+	// 録画を取り消した
+	RecordingFailureReasonCancelled RecordingFailureReason = "CANCELLED"
+)
+
+var AllRecordingFailureReason = []RecordingFailureReason{
+	RecordingFailureReasonTunerUnavailable,
+	RecordingFailureReasonTunerServerUnreachable,
+	RecordingFailureReasonStreamInterrupted,
+	RecordingFailureReasonStorageUnavailable,
+	RecordingFailureReasonStorageFull,
+	RecordingFailureReasonProgramNotFound,
+	RecordingFailureReasonCancelled,
+}
+
+func (e RecordingFailureReason) IsValid() bool {
+	switch e {
+	case RecordingFailureReasonTunerUnavailable, RecordingFailureReasonTunerServerUnreachable, RecordingFailureReasonStreamInterrupted, RecordingFailureReasonStorageUnavailable, RecordingFailureReasonStorageFull, RecordingFailureReasonProgramNotFound, RecordingFailureReasonCancelled:
+		return true
+	}
+	return false
+}
+
+func (e RecordingFailureReason) String() string {
+	return string(e)
+}
+
+func (e *RecordingFailureReason) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = RecordingFailureReason(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid RecordingFailureReason", str)
+	}
+	return nil
+}
+
+func (e RecordingFailureReason) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *RecordingFailureReason) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e RecordingFailureReason) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 録画のファイルの種類。
+type RecordingFileKind string
+
+const (
+	// TS のセグメント
+	RecordingFileKindSegment RecordingFileKind = "SEGMENT"
+	// セグメントの索引
+	RecordingFileKindIndex RecordingFileKind = "INDEX"
+)
+
+var AllRecordingFileKind = []RecordingFileKind{
+	RecordingFileKindSegment,
+	RecordingFileKindIndex,
+}
+
+func (e RecordingFileKind) IsValid() bool {
+	switch e {
+	case RecordingFileKindSegment, RecordingFileKindIndex:
+		return true
+	}
+	return false
+}
+
+func (e RecordingFileKind) String() string {
+	return string(e)
+}
+
+func (e *RecordingFileKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = RecordingFileKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid RecordingFileKind", str)
+	}
+	return nil
+}
+
+func (e RecordingFileKind) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *RecordingFileKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e RecordingFileKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 録画の状態 (設計書 5.5)。
+type RecordingState string
+
+const (
+	// 録画中
+	RecordingStateRecording RecordingState = "RECORDING"
+	// 完了
+	RecordingStateCompleted RecordingState = "COMPLETED"
+	// ドロップのある完了
+	RecordingStateCompletedWithErrors RecordingState = "COMPLETED_WITH_ERRORS"
+	// 途切れた区間のある一部のみ
+	RecordingStatePartial RecordingState = "PARTIAL"
+	// 失敗
+	RecordingStateFailed RecordingState = "FAILED"
+)
+
+var AllRecordingState = []RecordingState{
+	RecordingStateRecording,
+	RecordingStateCompleted,
+	RecordingStateCompletedWithErrors,
+	RecordingStatePartial,
+	RecordingStateFailed,
+}
+
+func (e RecordingState) IsValid() bool {
+	switch e {
+	case RecordingStateRecording, RecordingStateCompleted, RecordingStateCompletedWithErrors, RecordingStatePartial, RecordingStateFailed:
+		return true
+	}
+	return false
+}
+
+func (e RecordingState) String() string {
+	return string(e)
+}
+
+func (e *RecordingState) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = RecordingState(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid RecordingState", str)
+	}
+	return nil
+}
+
+func (e RecordingState) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *RecordingState) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e RecordingState) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
