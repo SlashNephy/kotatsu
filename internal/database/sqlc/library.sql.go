@@ -70,7 +70,8 @@ func (q *Queries) ListRecordingFilesByRecordings(ctx context.Context, recordingI
 }
 
 const listRecordingTags = `-- name: ListRecordingTags :many
-SELECT rt.recording_id, t.id, t.name FROM recording_tags rt
+SELECT rt.recording_id, t.id, t.name, (SELECT count(*) FROM recording_tags c WHERE c.tag_id = t.id)::bigint AS recordings
+FROM recording_tags rt
 JOIN tags t ON t.id = rt.tag_id
 WHERE rt.recording_id = ANY($1::uuid[])
 ORDER BY rt.recording_id, t.name
@@ -80,9 +81,10 @@ type ListRecordingTagsRow struct {
 	RecordingID uuid.UUID
 	ID          uuid.UUID
 	Name        string
+	Recordings  int64
 }
 
-// 録画 recording_ids のタグを、録画ごとに名前の順で返す。
+// 録画 recording_ids のタグを、録画ごとに名前の順で、タグが付いている録画の数と一緒に返す。
 func (q *Queries) ListRecordingTags(ctx context.Context, recordingIds []uuid.UUID) ([]ListRecordingTagsRow, error) {
 	rows, err := q.db.Query(ctx, listRecordingTags, recordingIds)
 	if err != nil {
@@ -92,7 +94,12 @@ func (q *Queries) ListRecordingTags(ctx context.Context, recordingIds []uuid.UUI
 	items := []ListRecordingTagsRow{}
 	for rows.Next() {
 		var i ListRecordingTagsRow
-		if err := rows.Scan(&i.RecordingID, &i.ID, &i.Name); err != nil {
+		if err := rows.Scan(
+			&i.RecordingID,
+			&i.ID,
+			&i.Name,
+			&i.Recordings,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -168,7 +168,7 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []sqlc.Recording) (
 	}
 	tags := map[uuid.UUID][]*model.Tag{}
 	for _, row := range tagRows {
-		tags[row.RecordingID] = append(tags[row.RecordingID], &model.Tag{ID: GlobalID(tagType, row.ID.String()), Name: row.Name, Recordings: 0})
+		tags[row.RecordingID] = append(tags[row.RecordingID], &model.Tag{ID: GlobalID(tagType, row.ID.String()), Name: row.Name, Recordings: int(row.Recordings)})
 	}
 	fileRows, err := q.ListRecordingFilesByRecordings(ctx, ids)
 	if err != nil {

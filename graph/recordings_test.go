@@ -149,6 +149,19 @@ func TestRecordings(t *testing.T) {
 	}
 	require.Empty(t, f.query(t, tagRecording, map[string]any{varID: oldest, varTags: []string{tagKotatsu, " アニメ "}}, &tagged))
 	assert.Len(t, tagged.SetRecordingTags.Tags, 2)
+	// 別の録画にも同じタグを付けると、どちらの録画から見ても、タグの録画の数が 2 になる。
+	var another struct {
+		SetRecordingTags struct {
+			Tags []struct {
+				Name       string `json:"name"`
+				Recordings int    `json:"recordings"`
+			} `json:"tags"`
+		} `json:"setRecordingTags"`
+	}
+	require.Empty(t, f.query(t, `mutation($id: ID!, $tags: [String!]!) { setRecordingTags(id: $id, tags: $tags) { tags { name recordings } } }`,
+		map[string]any{varID: newest, varTags: []string{tagKotatsu}}, &another))
+	assert.Equal(t, 2, another.SetRecordingTags.Tags[0].Recordings)
+	require.Empty(t, f.query(t, tagRecording, map[string]any{varID: newest, varTags: []string{}}, nil))
 	var tags struct {
 		Tags []struct {
 			ID         string `json:"id"`

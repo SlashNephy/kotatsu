@@ -18,8 +18,9 @@ DELETE FROM recording_tags WHERE recording_id = @recording_id;
 INSERT INTO recording_tags (recording_id, tag_id) VALUES (@recording_id, @tag_id) ON CONFLICT DO NOTHING;
 
 -- name: ListRecordingTags :many
--- 録画 recording_ids のタグを、録画ごとに名前の順で返す。
-SELECT rt.recording_id, t.id, t.name FROM recording_tags rt
+-- 録画 recording_ids のタグを、録画ごとに名前の順で、タグが付いている録画の数と一緒に返す。
+SELECT rt.recording_id, t.id, t.name, (SELECT count(*) FROM recording_tags c WHERE c.tag_id = t.id)::bigint AS recordings
+FROM recording_tags rt
 JOIN tags t ON t.id = rt.tag_id
 WHERE rt.recording_id = ANY(@recording_ids::uuid[])
 ORDER BY rt.recording_id, t.name;

@@ -189,7 +189,7 @@ type Querier interface {
 	ListRecordingFilesByRecordings(ctx context.Context, recordingIds []uuid.UUID) ([]RecordingFile, error)
 	// 通知に載せる、録画のセグメントの保存先プールとプール内の相対パス。何も書けなかったセグメントは含めない。
 	ListRecordingSegments(ctx context.Context, recordingID uuid.UUID) ([]ListRecordingSegmentsRow, error)
-	// 録画 recording_ids のタグを、録画ごとに名前の順で返す。
+	// 録画 recording_ids のタグを、録画ごとに名前の順で、タグが付いている録画の数と一緒に返す。
 	ListRecordingTags(ctx context.Context, recordingIds []uuid.UUID) ([]ListRecordingTagsRow, error)
 	ListRecordingsByIDs(ctx context.Context, ids []uuid.UUID) ([]Recording, error)
 	// 予約に一致したルール。ルールを作った順に返す。

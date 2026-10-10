@@ -29,4 +29,6 @@ type Recording struct {
 	ServiceKey int64 `json:"-"`
 }
 
+var _ Node = new(Recording)
+
 func (Recording) IsNode() {}
