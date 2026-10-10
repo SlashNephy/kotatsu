@@ -385,6 +385,10 @@
     "deleteError": "削除できませんでした。時間をおいてやり直してください",
     "actionError": "操作できませんでした。時間をおいてやり直してください",
     "openExternally": "外部プレイヤー用の URL を発行",
-    "streamURLDescription": "VLC や mpv などで開けます。URL は 6 時間で使えなくなります。"
+    "streamURLDescription": "VLC や mpv などで開けます。URL は 6 時間で使えなくなります。",
+    "unknownEnd": "不明",
+    "copy": "コピー",
+    "copied": "コピーしました",
+    "cancel": "やめる"
   }
 }

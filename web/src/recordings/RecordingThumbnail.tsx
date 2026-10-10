@@ -10,9 +10,10 @@ type Props = {
 // RecordingThumbnail は、録画の代表画像。画像をまだ作っていないか、読めなければ、代わりの表示を出す。
 export function RecordingThumbnail({ url }: Props) {
   const { t } = useTranslation();
-  const [failed, setFailed] = useState(false);
+  // failedURL は、読み込めなかった画像の URL。URL が変われば、読み直す。
+  const [failedURL, setFailedURL] = useState<string | null>(null);
 
-  if (url == null || failed) {
+  if (url == null || failedURL === url) {
     return (
       <Center bg="var(--mantine-color-default-hover)">
         <Text size="xs" c="dimmed">
@@ -22,5 +23,5 @@ export function RecordingThumbnail({ url }: Props) {
     );
   }
 
-  return <Image src={url} alt="" loading="lazy" fit="cover" onError={() => setFailed(true)} />;
+  return <Image src={url} alt="" loading="lazy" fit="cover" onError={() => setFailedURL(url)} />;
 }

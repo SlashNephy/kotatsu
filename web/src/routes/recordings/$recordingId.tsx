@@ -53,6 +53,12 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
   hourCycle: 'h23',
   timeZone: 'Asia/Tokyo',
 });
+const minuteFormat = new Intl.DateTimeFormat('ja-JP', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+  timeZone: 'Asia/Tokyo',
+});
 const timeFormat = new Intl.DateTimeFormat('ja-JP', {
   hour: '2-digit',
   minute: '2-digit',
@@ -197,9 +203,8 @@ function Recording({ recordingId }: { recordingId: string }) {
     }
   `);
   const node = data.node;
-  const [tags, setTags] = useState(
-    node?.__typename === 'Recording' ? node.tags.map((tag) => tag.name) : [],
-  );
+  // editedTags は、編集中のタグ。編集していなければ null で、サーバーのタグをそのまま出す。
+  const [editedTags, setEditedTags] = useState<string[] | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [streamURL, setStreamURL] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -208,8 +213,9 @@ function Recording({ recordingId }: { recordingId: string }) {
   }
   const recording = node;
   const canEdit = data.viewer.role !== 'VIEWER';
-  const tagsChanged =
-    JSON.stringify(tags) !== JSON.stringify(recording.tags.map((tag) => tag.name));
+  const savedTags = recording.tags.map((tag) => tag.name);
+  const tags = editedTags ?? savedTags;
+  const tagsChanged = JSON.stringify(tags) !== JSON.stringify(savedTags);
   const segments = recording.files.filter((file) => file.kind === 'SEGMENT');
   const size = segments.reduce((sum, file) => sum + Number(file.size), 0);
   const failed = (errors: readonly unknown[] | null | undefined) =>
@@ -249,7 +255,7 @@ function Recording({ recordingId }: { recordingId: string }) {
                 <CopyButton value={streamURL}>
                   {({ copied, copy }) => (
                     <Button size="xs" variant="default" onClick={copy}>
-                      {copied ? t('auth.enroll.copied') : t('auth.enroll.copy')}
+                      {copied ? t('recordings.copied') : t('recordings.copy')}
                     </Button>
                   )}
                 </CopyButton>
@@ -267,7 +273,7 @@ function Recording({ recordingId }: { recordingId: string }) {
             <Text size="sm">{recording.service.name}</Text>
             <Text size="sm" c="dimmed">
               {dateTimeFormat.format(Date.parse(recording.startAt))}〜
-              {timeFormat.format(Date.parse(recording.endAt)).slice(0, 5)}
+              {minuteFormat.format(Date.parse(recording.endAt))}
             </Text>
             <Badge color={stateColor(recording.state)} variant="light">
               {t(stateKey(recording.state))}
@@ -302,10 +308,13 @@ function Recording({ recordingId }: { recordingId: string }) {
               <Text size="sm" c="dimmed">
                 {t('recordings.recordedRange', {
                   from: timeFormat.format(Date.parse(recording.recordedFrom)),
+                  // 終えた日時がないのは、録画中か、終えた日時を記録できずに止まった録画。
                   until:
-                    recording.recordedUntil == null
-                      ? t('recordings.state.RECORDING')
-                      : timeFormat.format(Date.parse(recording.recordedUntil)),
+                    recording.recordedUntil != null
+                      ? timeFormat.format(Date.parse(recording.recordedUntil))
+                      : recording.state === 'RECORDING'
+                        ? t('recordings.state.RECORDING')
+                        : t('recordings.unknownEnd'),
                 })}
                 {segments.length > 0 &&
                   ` ・ ${t('recordings.size', { size: formatBytes(size), count: segments.length })}`}
@@ -331,7 +340,7 @@ function Recording({ recordingId }: { recordingId: string }) {
                 label={t('recordings.tags')}
                 data={data.tags.map((tag) => tag.name)}
                 value={tags}
-                onChange={setTags}
+                onChange={setEditedTags}
                 disabled={!canEdit}
                 clearable
               />
@@ -345,8 +354,16 @@ function Recording({ recordingId }: { recordingId: string }) {
                     onClick={() =>
                       saveTags({
                         variables: { id: recording.id, tags },
-                        onCompleted: (_response, errors) =>
-                          setError(failed(errors) ? t('recordings.actionError') : null),
+                        onCompleted: (_response, errors) => {
+                          if (failed(errors)) {
+                            setError(t('recordings.actionError'));
+
+                            return;
+                          }
+                          // 保存したら、サーバーが返したタグを出す。
+                          setError(null);
+                          setEditedTags(null);
+                        },
                         onError: () => setError(t('recordings.actionError')),
                       })
                     }
@@ -400,7 +417,7 @@ function Recording({ recordingId }: { recordingId: string }) {
             <Text size="sm">{t('recordings.deleteDescription')}</Text>
             <Group justify="flex-end">
               <Button variant="default" onClick={() => setDeleting(false)}>
-                {t('reservations.cancel')}
+                {t('recordings.cancel')}
               </Button>
               <Button
                 color="red"
