@@ -217,14 +217,16 @@ func (w *Worker) handOver(ctx context.Context, active *activeSession, hasPeers b
 			logger.WarnContext(ctx, "no mikan took over the recording in time")
 		}
 	}
-	// 引き継ぐ mikan がいなければ、再起動した mikan がすぐに取れるよう、割り振りを手放す。
+	// 引き継ぐ mikan がいなければ、録画を止め、再起動した mikan がすぐに取れるよう、割り振りを手放す。
+	// 先に手放すと、止めるまでの間にリースの延長に失敗し、リースを失ったものとして止まるので、止めてから手放す。
+	active.cancel(ErrStopped)
+	<-active.done
 	err := sqlc.New(w.pool).ReleaseRecordingAssignment(ctx, sqlc.ReleaseRecordingAssignmentParams{
 		Now: w.clock.Now(), ID: a.ID, Generation: a.Generation, Holder: &w.holder,
 	})
 	if err != nil {
 		logger.WarnContext(ctx, "failed to release the recording assignment", slog.Any("error", err))
 	}
-	active.cancel(ErrStopped)
 }
 
 // markHandover は、割り振りに引き継ぎ待ちの印を付け、ほかの mikan に知らせる。
