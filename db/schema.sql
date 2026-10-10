@@ -652,6 +652,9 @@ CREATE TABLE watch_progress (
   PRIMARY KEY (user_id, recording_id)
 );
 
+-- 録画を消すときに、その録画の再生位置を消すのに使う。
+CREATE INDEX watch_progress_recording_id_idx ON watch_progress (recording_id);
+
 -- 録画履歴 (設計書 4.4)。重複の回避に使う。正常に終了し、ドロップが閾値未満だった録画だけを記録し、録画を削除しても残す。
 CREATE TABLE recording_history (
   id uuid PRIMARY KEY,

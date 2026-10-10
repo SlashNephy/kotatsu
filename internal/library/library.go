@@ -73,7 +73,7 @@ func New(clk clock.Clock, recorder audit.Recorder, store *kago.Store, logger *sl
 // 保護した録画は ErrProtected を、録画中の録画は ErrRecording を返して消さない。reason は、監査ログに残す消した理由。
 // ファイルを先に消すと、DB を書けなかったときに、ファイルのない録画が残るので、DB を先に書く。
 func (l *Library) Delete(ctx context.Context, db Database, actor *audit.Actor, recordingID uuid.UUID, reason string) error {
-	var files []sqlc.RecordingFile
+	files := []sqlc.RecordingFile{}
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		recording, err := lock(ctx, q, recordingID)
@@ -150,6 +150,14 @@ func (l *Library) SetTags(ctx context.Context, db Database, actor *audit.Actor, 
 		if err != nil {
 			return fmt.Errorf("failed to list the recording tags: %w", err)
 		}
+		previous := make([]string, 0, len(before))
+		for _, row := range before {
+			previous = append(previous, row.Name)
+		}
+		// 変わらなければ、書かず、監査ログにも残さない。
+		if slices.Equal(previous, normalized) {
+			return nil
+		}
 		if err := q.DeleteRecordingTags(ctx, recordingID); err != nil {
 			return fmt.Errorf("failed to clear the recording tags: %w", err)
 		}
@@ -162,10 +170,6 @@ func (l *Library) SetTags(ctx context.Context, db Database, actor *audit.Actor, 
 			if err := q.InsertRecordingTag(ctx, sqlc.InsertRecordingTagParams{RecordingID: recordingID, TagID: tagID}); err != nil {
 				return fmt.Errorf("failed to tag the recording: %w", err)
 			}
-		}
-		previous := make([]string, 0, len(before))
-		for _, row := range before {
-			previous = append(previous, row.Name)
 		}
 
 		return l.record(ctx, tx, actor, "recording.tagged", &recording, map[string]any{

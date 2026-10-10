@@ -223,6 +223,11 @@ func TestSetTags(t *testing.T) {
 			}
 			assert.Equal(t, tt.want, stored)
 			assert.Equal(t, []string{"recording.tagged", "recording.tagged"}, f.actions(t, recordingID))
+
+			// 同じタグに置き換えても、変わらないので、監査ログに残さない。
+			_, err = f.library.SetTags(t.Context(), f.pool, audit.User(f.userID), recordingID, tt.tags)
+			require.NoError(t, err)
+			assert.Len(t, f.actions(t, recordingID), 2)
 		})
 	}
 }

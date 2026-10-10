@@ -9,8 +9,12 @@ CREATE TABLE "recording_tags" ("recording_id" uuid NOT NULL, "tag_id" uuid NOT N
 CREATE INDEX "recording_tags_tag_id_idx" ON "recording_tags" ("tag_id", "recording_id");
 -- create "watch_progress" table
 CREATE TABLE "watch_progress" ("user_id" uuid NOT NULL, "recording_id" uuid NOT NULL, "position_ms" bigint NOT NULL, "updated_at" timestamptz NOT NULL, PRIMARY KEY ("user_id", "recording_id"), CONSTRAINT "watch_progress_recording_id_fkey" FOREIGN KEY ("recording_id") REFERENCES "recordings" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, CONSTRAINT "watch_progress_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, CONSTRAINT "watch_progress_position_ms_check" CHECK (position_ms >= 0));
+-- create index "watch_progress_recording_id_idx" to table: "watch_progress"
+CREATE INDEX "watch_progress_recording_id_idx" ON "watch_progress" ("recording_id");
 
 -- +goose Down
+-- reverse: create index "watch_progress_recording_id_idx" to table: "watch_progress"
+DROP INDEX "watch_progress_recording_id_idx";
 -- reverse: create "watch_progress" table
 DROP TABLE "watch_progress";
 -- reverse: create index "recording_tags_tag_id_idx" to table: "recording_tags"
