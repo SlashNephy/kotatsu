@@ -168,8 +168,12 @@ function Reservations({ range }: { range: { from: string; to: string } }) {
   const { t } = useTranslation();
   const navigate = Route.useNavigate();
   const { problems = false } = Route.useSearch();
-  // fetchKey は、予約を変えたときに、一覧を取り直すための合図。
-  const [fetchKey, setFetchKey] = useState(0);
+  // patches は、この画面で変えた予約。一覧を取り直さずに反映し、読み込んだ続きを捨てない。
+  const [patches, setPatches] = useState<Record<string, { enabled?: boolean; removed?: boolean }>>(
+    {},
+  );
+  const patch = (id: string, change: { enabled?: boolean; removed?: boolean }) =>
+    setPatches((prev) => ({ ...prev, [id]: { ...prev[id], ...change } }));
   const data = useLazyLoadQuery<reservationsQuery>(
     query,
     {
@@ -178,21 +182,21 @@ function Reservations({ range }: { range: { from: string; to: string } }) {
       first: pageSize,
       after: null,
     },
-    { fetchKey, fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network' },
   );
   const environment = useRelayEnvironment();
-  // more は、続きの読み込みで足した予約と、その次のカーソル。取り直したら捨てる。
-  const [more, setMore] = useState<{ key: string; nodes: Node[]; next: string | null } | null>(
+  // more は、続きの読み込みで足した予約と、その次のカーソル。絞り込みを変えたら捨てる。
+  const [more, setMore] = useState<{ key: boolean; nodes: Node[]; next: string | null } | null>(
     null,
   );
   const [loadingMore, setLoadingMore] = useState(false);
-  // 続きは、取り直したときと、絞り込みを変えたときに捨てる。
-  const moreKey = `${fetchKey}:${problems}`;
-  const extra = more?.key === moreKey ? more : null;
+  const [moreError, setMoreError] = useState(false);
+  const extra = more?.key === problems ? more : null;
   const next = extra !== null ? extra.next : (data.reservations.pageInfo.endCursor ?? null);
   const hasMore = extra !== null ? extra.next !== null : data.reservations.pageInfo.hasNextPage;
   const loadMore = async () => {
     setLoadingMore(true);
+    setMoreError(false);
     try {
       const page = await fetchQuery<reservationsQuery>(environment, query, {
         ...range,
@@ -202,13 +206,15 @@ function Reservations({ range }: { range: { from: string; to: string } }) {
       }).toPromise();
       if (page !== undefined) {
         setMore({
-          key: moreKey,
+          key: problems,
           nodes: [...(extra?.nodes ?? []), ...page.reservations.edges.map((edge) => edge.node)],
           next: page.reservations.pageInfo.hasNextPage
             ? (page.reservations.pageInfo.endCursor ?? null)
             : null,
         });
       }
+    } catch {
+      setMoreError(true);
     } finally {
       setLoadingMore(false);
     }
@@ -218,7 +224,13 @@ function Reservations({ range }: { range: { from: string; to: string } }) {
   const reservations: Reservation[] = [
     ...data.reservations.edges.map((edge) => edge.node),
     ...(extra?.nodes ?? []),
-  ].map((node) => ({ ...node, startMs: Date.parse(node.startAt) }));
+  ]
+    .filter((node) => patches[node.id]?.removed !== true)
+    .map((node) => ({
+      ...node,
+      enabled: patches[node.id]?.enabled ?? node.enabled,
+      startMs: Date.parse(node.startAt),
+    }));
   const groups = groupByDay(reservations);
   const attention = reservations.filter((reservation) =>
     needsAttention(reservation.assignment.state, reservation.enabled),
@@ -258,12 +270,17 @@ function Reservations({ range }: { range: { from: string; to: string } }) {
               reservation={reservation}
               dayFrom={group.from}
               canEdit={canEdit}
-              onChanged={() => setFetchKey((key) => key + 1)}
+              onChanged={(enabled) => patch(reservation.id, { enabled })}
               onDelete={() => setDeleting(reservation)}
             />
           ))}
         </Stack>
       ))}
+      {moreError && (
+        <Alert color="red" role="alert">
+          {t('reservations.moreError')}
+        </Alert>
+      )}
       {hasMore && (
         <Button variant="default" loading={loadingMore} onClick={() => void loadMore()}>
           {t('reservations.more')}
@@ -273,9 +290,10 @@ function Reservations({ range }: { range: { from: string; to: string } }) {
         <DeleteDialog
           reservation={deleting}
           onClose={() => setDeleting(null)}
-          onDeleted={() => {
+          onDeleted={(disabled) => {
+            // ルール予約は消さずに無効にするので、無効として残す。
+            patch(deleting.id, disabled ? { enabled: false } : { removed: true });
             setDeleting(null);
-            setFetchKey((key) => key + 1);
           }}
         />
       )}
@@ -287,7 +305,7 @@ type RowProps = {
   reservation: Reservation;
   dayFrom: number;
   canEdit: boolean;
-  onChanged: () => void;
+  onChanged: (enabled: boolean) => void;
   onDelete: () => void;
 };
 
@@ -301,6 +319,7 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
       }
     }
   `);
+  const [toggleError, setToggleError] = useState(false);
   const end = Date.parse(reservation.endAt);
   const bar = timelineBar(dayFrom, reservation.startMs, end);
   const state = reservation.assignment.state;
@@ -356,12 +375,16 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
               aria-label={t('reservations.enabled')}
               checked={reservation.enabled}
               disabled={inFlight}
-              onChange={(e) =>
+              onChange={(e) => {
+                const enabled = e.currentTarget.checked;
+                setToggleError(false);
                 commit({
-                  variables: { id: reservation.id, enabled: e.currentTarget.checked },
-                  onCompleted: onChanged,
-                })
-              }
+                  variables: { id: reservation.id, enabled },
+                  onCompleted: (_response, errors) =>
+                    errors != null && errors.length > 0 ? setToggleError(true) : onChanged(enabled),
+                  onError: () => setToggleError(true),
+                });
+              }}
             />
             {/* ルール予約は、消しても次の照合でまた作られるので、無効にする (設計書 4.3)。 */}
             {(reservation.kind !== 'RULE' || reservation.enabled) && (
@@ -393,6 +416,11 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
           }}
         />
       </Box>
+      {toggleError && (
+        <Text size="xs" c="red" role="alert" mt={4}>
+          {t('reservations.toggleError')}
+        </Text>
+      )}
     </Card>
   );
 }
@@ -400,7 +428,8 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
 type DeleteProps = {
   reservation: Reservation;
   onClose: () => void;
-  onDeleted: () => void;
+  // onDeleted は、予約を無効にしたなら true、消したなら false を受け取る。
+  onDeleted: (disabled: boolean) => void;
 };
 
 // DeleteDialog は、予約を消すか、ルール予約なら無効にする前に確かめる。
@@ -427,7 +456,9 @@ function DeleteDialog({ reservation, onClose, onDeleted }: DeleteProps) {
       title={isRule ? t('reservations.disableTitle') : t('reservations.deleteTitle')}
     >
       <Stack>
-        <Text size="sm">{reservation.name}</Text>
+        <Text size="sm">
+          {reservation.name === '' ? t('reservations.untitled') : reservation.name}
+        </Text>
         <Text size="sm" c="dimmed">
           {isRule ? t('reservations.disableDescription') : t('reservations.deleteDescription')}
         </Text>
@@ -446,8 +477,10 @@ function DeleteDialog({ reservation, onClose, onDeleted }: DeleteProps) {
             onClick={() =>
               commit({
                 variables: { id: reservation.id },
-                onCompleted: (_response, errors) =>
-                  errors != null && errors.length > 0 ? setError(true) : onDeleted(),
+                onCompleted: (response, errors) =>
+                  errors != null && errors.length > 0
+                    ? setError(true)
+                    : onDeleted(response.deleteReservation.reservation !== null),
                 onError: () => setError(true),
               })
             }

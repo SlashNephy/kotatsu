@@ -19,6 +19,18 @@ describe('groupByDay', () => {
     ]);
   });
 
+  test('同じ日の予約が離れて渡されても、1 つにまとめる', () => {
+    const items = [
+      { id: 'a', startMs: at('2026-10-12T10:00:00+09:00') },
+      { id: 'b', startMs: at('2026-10-11T10:00:00+09:00') },
+      { id: 'c', startMs: at('2026-10-12T11:00:00+09:00') },
+    ];
+    expect(groupByDay(items)).toEqual([
+      { from: at('2026-10-11T00:00:00+09:00'), items: [items[1]] },
+      { from: at('2026-10-12T00:00:00+09:00'), items: [items[0], items[2]] },
+    ]);
+  });
+
   test('予約がなければ、空', () => {
     expect(groupByDay([])).toEqual([]);
   });

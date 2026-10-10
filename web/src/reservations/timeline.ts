@@ -7,20 +7,20 @@ const jst = 9 * 60 * minute;
 // DayGroup は、1 日分の予約。from は、その日の 0 時 (日本時間)。
 export type DayGroup<T> = { from: number; items: T[] };
 
-// groupByDay は、開始時刻の順に並んだ予約を、開始した日 (日本時間) ごとにまとめる。
+// groupByDay は、予約を、開始した日 (日本時間) ごとにまとめる。日は早い順に、日の中の予約は渡された順に並べる。
 export function groupByDay<T extends { startMs: number }>(items: readonly T[]): DayGroup<T>[] {
-  const groups: DayGroup<T>[] = [];
+  const groups = new Map<number, DayGroup<T>>();
   for (const item of items) {
     const from = Math.floor((item.startMs + jst) / day) * day - jst;
-    const last = groups.at(-1);
-    if (last?.from === from) {
-      last.items.push(item);
+    const group = groups.get(from);
+    if (group === undefined) {
+      groups.set(from, { from, items: [item] });
     } else {
-      groups.push({ from, items: [item] });
+      group.items.push(item);
     }
   }
 
-  return groups;
+  return [...groups.values()].sort((a, b) => a.from - b.from);
 }
 
 // Bar は、24 時間の軸の上の、予約の帯の位置と幅 (%)。
