@@ -41,6 +41,12 @@ type Options struct {
 	SecondFactors *auth.SecondFactors
 	// Passkeys は、パスキーの一覧、名前の変更、削除に使う。nil なら、パスキーの操作は内部のエラーにする。
 	Passkeys *auth.Passkeys
+	// UserAdmin は、管理者によるユーザーの管理に使う。nil なら、ユーザーの管理は内部のエラーにする。
+	UserAdmin *auth.UserAdmin
+	// Passwords は、ログイン中のユーザーがパスワードを変えるのに使う。nil なら、内部のエラーにする。
+	Passwords *auth.Passwords
+	// Sessions は、ログイン中のユーザーのセッションの一覧と失効に使う。nil なら、内部のエラーにする。
+	Sessions *auth.Sessions
 	Clock    clock.Clock
 	Logger   *slog.Logger
 	// Location は、番組の曜日と時間帯を判定する、表示のタイムゾーン。nil なら UTC。
@@ -99,6 +105,9 @@ func NewHandler(opts *Options) http.Handler {
 		reservations: reserve.NewReservations(o.Clock, o.Recorder),
 		factors:      o.SecondFactors,
 		passkeys:     o.Passkeys,
+		userAdmin:    o.UserAdmin,
+		passwords:    o.Passwords,
+		sessions:     o.Sessions,
 	}
 	config.Resolvers = resolver
 	server := handler.New(generated.NewExecutableSchema(config))

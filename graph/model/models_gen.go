@@ -30,6 +30,15 @@ type ChannelType struct {
 	SortOrder   int    `json:"sortOrder"`
 }
 
+// 管理者が作るユーザー。
+type CreateUserInput struct {
+	Username    string `json:"username"`
+	DisplayName string `json:"displayName"`
+	Role        Role   `json:"role"`
+	// パスワード。省くと、パスワードを持たないユーザー (OIDC やパスキーだけで使う) にする。
+	Password *string `json:"password,omitempty"`
+}
+
 // 予約の削除の結果。
 type DeleteReservationPayload struct {
 	// 削除の操作をした予約の ID。
@@ -232,6 +241,18 @@ type SecondFactorStatus struct {
 	RemainingRecoveryCodes int `json:"remainingRecoveryCodes"`
 }
 
+// ログイン中のセッション (設計書 9.5)。どの端末かを見分け、個別に失効させるのに使う。
+type Session struct {
+	ID string `json:"id"`
+	// このリクエストに使っているセッションかどうか。
+	Current    bool      `json:"current"`
+	CreatedAt  time.Time `json:"createdAt"`
+	LastSeenAt time.Time `json:"lastSeenAt"`
+	UserAgent  string    `json:"userAgent"`
+	// ログインしたときの送信元。分からなければ null。
+	SourceIP *string `json:"sourceIp,omitempty"`
+}
+
 type Subscription struct {
 }
 
@@ -275,11 +296,20 @@ type TimeReservationInput struct {
 	Settings *RecordingSettingsOverridesInput `json:"settings,omitempty"`
 }
 
+// ユーザーの変える項目。省いた項目は変えない。
+type UpdateUserInput struct {
+	DisplayName *string `json:"displayName,omitempty"`
+	Role        *Role   `json:"role,omitempty"`
+}
+
 type User struct {
 	ID          string `json:"id"`
 	Username    string `json:"username"`
 	DisplayName string `json:"displayName"`
 	Role        Role   `json:"role"`
+	// 無効にしたユーザーかどうか。無効にしたユーザーは、ログインできない。
+	Disabled  bool      `json:"disabled"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 func (User) IsNode() {}

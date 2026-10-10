@@ -151,13 +151,13 @@ func TestOIDCLogin(t *testing.T) {
 		{name: "not linked and auto_create is disabled", wantErr: auth.ErrOIDCAccessDenied},
 		{
 			name: "auto_create picks the strongest role", autoCreate: autoCreateGroups(),
-			claims:   map[string]any{nameClaim: "mikan", nameText: "みかん", groupsClaim: []string{viewersGroup, adminsGroup}},
-			wantRole: auth.RoleAdmin, wantUsername: "mikan", wantDisplayName: "みかん",
+			claims:   map[string]any{nameClaim: mikanName, nameText: mikanLabel, groupsClaim: []string{viewersGroup, adminsGroup}},
+			wantRole: auth.RoleAdmin, wantUsername: mikanName, wantDisplayName: mikanLabel,
 		},
 		{
 			name: "auto_create accepts a single group string", autoCreate: autoCreateGroups(),
-			claims:   map[string]any{nameClaim: "neko", groupsClaim: membersGroup},
-			wantRole: auth.RoleMember, wantUsername: "neko",
+			claims:   map[string]any{nameClaim: nekoName, groupsClaim: membersGroup},
+			wantRole: auth.RoleMember, wantUsername: nekoName,
 		},
 		{
 			name: "auto_create rejects users outside the groups", autoCreate: autoCreateGroups(),

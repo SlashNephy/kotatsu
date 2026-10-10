@@ -20,6 +20,8 @@ func toUser(user *sqlc.User) *model.User {
 		Username:    user.Username,
 		DisplayName: user.DisplayName,
 		Role:        model.Role(strings.ToUpper(user.Role)),
+		Disabled:    user.DisabledAt != nil,
+		CreatedAt:   user.CreatedAt,
 	}
 }
 

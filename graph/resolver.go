@@ -35,4 +35,7 @@ type Resolver struct {
 	reservations      *reserve.Reservations
 	factors           *auth.SecondFactors
 	passkeys          *auth.Passkeys
+	userAdmin         *auth.UserAdmin
+	passwords         *auth.Passwords
+	sessions          *auth.Sessions
 }

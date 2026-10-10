@@ -56,11 +56,14 @@ type gqlResponse struct {
 		Message    string `json:"message"`
 		Extensions struct {
 			Code string `json:"code"`
+			// Reason は、パスワードの規定に当たった理由。
+			Reason string `json:"reason"`
 		} `json:"extensions"`
 	} `json:"errors"`
 }
 
 // query は、ログイン済みのユーザーとして GraphQL を叩き、data を v に読む。エラーがあれば、そのエラーコードを返す。
+// extensions.reason があれば、エラーコードに「:理由」を付ける。
 func (f *fixture) query(t *testing.T, query string, variables any, v any) []string {
 	t.Helper()
 
@@ -81,7 +84,11 @@ func (f *fixture) query(t *testing.T, query string, variables any, v any) []stri
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&decoded))
 	codes := make([]string, 0, len(decoded.Errors))
 	for _, e := range decoded.Errors {
-		codes = append(codes, e.Extensions.Code)
+		code := e.Extensions.Code
+		if e.Extensions.Reason != "" {
+			code += ":" + e.Extensions.Reason
+		}
+		codes = append(codes, code)
 	}
 	if len(codes) == 0 && v != nil {
 		require.NoError(t, json.Unmarshal(decoded.Data, v))
