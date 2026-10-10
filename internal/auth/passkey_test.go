@@ -11,6 +11,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/usersettings"
 	"github.com/SlashNephy/kotatsu/internal/webauthntest"
 )
 
@@ -421,13 +422,22 @@ func TestRenameAndDeletePasskey(t *testing.T) {
 			err = pgx.BeginFunc(t.Context(), f.db, func(tx pgx.Tx) error {
 				return f.passkeys.Delete(t.Context(), tx, actor, f.user.ID, target.ID)
 			})
+			// 登録、名前の変更、削除のたびに、ほかの端末に知らせるため、設定の版数を上げる。消せなければ上げない。
+			version := func() int64 {
+				v, err := usersettings.Version(t.Context(), f.db, f.user.ID)
+				require.NoError(t, err)
+
+				return v
+			}
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM user_passkeys WHERE name = 'スマートフォン'"))
+				assert.Equal(t, int64(tt.passkeys+1), version())
 
 				return
 			}
 			require.NoError(t, err)
+			assert.Equal(t, int64(tt.passkeys+2), version())
 			assert.Equal(t, tt.passkeys-1, f.count(t, "SELECT count(*) FROM user_passkeys"))
 			assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM audit_events WHERE action = 'user.passkey_deleted' AND summary->>'name' = 'スマートフォン'"))
 		})
