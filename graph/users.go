@@ -26,12 +26,19 @@ func (r *Resolver) administrator(ctx context.Context) (*auth.Principal, *audit.A
 	if r.userAdmin == nil {
 		return nil, nil, errUsersUnavailable
 	}
+
+	return r.recentAdministrator(ctx, "only administrators can manage users")
+}
+
+// recentAdministrator は、ログイン中のユーザーが管理者で、直近 10 分以内に認証したことを確かめ、操作者を返す。
+// 管理者でなければ、message を付けて FORBIDDEN を返す。
+func (r *Resolver) recentAdministrator(ctx context.Context, message string) (*auth.Principal, *audit.Actor, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 	if !principal.Role.Can(auth.PermissionAdminister) {
-		return nil, nil, NewError(CodeForbidden, "only administrators can manage users")
+		return nil, nil, NewError(CodeForbidden, message)
 	}
 	if err := auth.RequireRecentAuthentication(ctx, r.clock); err != nil {
 		return nil, nil, err

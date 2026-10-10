@@ -158,6 +158,18 @@ type ProgramReservationInput struct {
 type Query struct {
 }
 
+// 録画設定 (設計書 4.7)。全体の既定値に、ルールや予約の上書きを重ねる。
+type RecordingSettings struct {
+	// 保存先プール。null なら、推定サイズが収まるプールを選ぶ。
+	PoolID *string `json:"poolId,omitempty"`
+	// ファイル名の text/template
+	FileNameTemplate   string `json:"fileNameTemplate"`
+	StartMarginSeconds int    `json:"startMarginSeconds"`
+	EndMarginSeconds   int    `json:"endMarginSeconds"`
+	// 優先度 (-10〜10)。チューナーが足りないときは、高い予約から割り当てる。
+	Priority int `json:"priority"`
+}
+
 // 録画設定の上書き (設計書 4.7)。null の項目は全体の既定値を使う。
 type RecordingSettingsOverrides struct {
 	// 保存先プール
@@ -254,6 +266,23 @@ type Session struct {
 }
 
 type Subscription struct {
+}
+
+// 画面から変える、全体の設定 (設計書 11.2)。
+type SystemSettings struct {
+	// 録画設定の全体の既定値。
+	RecordingDefaults *RecordingSettings `json:"recordingDefaults"`
+	// 過去の番組の保持期間 (日)。0 なら無期限。
+	ArchiveRetentionDays int `json:"archiveRetentionDays"`
+	// 最後に変えた日時。一度も変えていなければ null。
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+}
+
+// 全体の設定の変える項目。省いた項目は変えない。
+type SystemSettingsInput struct {
+	// 録画設定の既定値の変える項目。省いた項目は変えない。
+	RecordingDefaults    *RecordingSettingsOverridesInput `json:"recordingDefaults,omitempty"`
+	ArchiveRetentionDays *int                             `json:"archiveRetentionDays,omitempty"`
 }
 
 // 登録中の TOTP。秘密キーは、この応答でしか見せない。

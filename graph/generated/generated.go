@@ -115,6 +115,7 @@ type ComplexityRoot struct {
 		UpdateGuideView          func(childComplexity int, id string, input model.GuideViewInput) int
 		UpdateReservation        func(childComplexity int, id string, input model.ReservationUpdateInput) int
 		UpdateRule               func(childComplexity int, id string, input model.RuleInput) int
+		UpdateSystemSettings     func(childComplexity int, input model.SystemSettingsInput) int
 		UpdateUser               func(childComplexity int, id string, input model.UpdateUserInput) int
 	}
 
@@ -185,8 +186,17 @@ type ComplexityRoot struct {
 		SecondFactors  func(childComplexity int) int
 		Services       func(childComplexity int, includeHidden bool) int
 		Sessions       func(childComplexity int) int
+		SystemSettings func(childComplexity int) int
 		Users          func(childComplexity int) int
 		Viewer         func(childComplexity int) int
+	}
+
+	RecordingSettings struct {
+		EndMarginSeconds   func(childComplexity int) int
+		FileNameTemplate   func(childComplexity int) int
+		PoolID             func(childComplexity int) int
+		Priority           func(childComplexity int) int
+		StartMarginSeconds func(childComplexity int) int
 	}
 
 	RecordingSettingsOverrides struct {
@@ -286,6 +296,12 @@ type ComplexityRoot struct {
 		Heartbeat func(childComplexity int) int
 	}
 
+	SystemSettings struct {
+		ArchiveRetentionDays func(childComplexity int) int
+		RecordingDefaults    func(childComplexity int) int
+		UpdatedAt            func(childComplexity int) int
+	}
+
 	TOTPEnrollment struct {
 		ExpiresAt func(childComplexity int) int
 		Secret    func(childComplexity int) int
@@ -333,6 +349,7 @@ type MutationResolver interface {
 	ConfirmTotpEnrollment(ctx context.Context, code string) (*model.RecoveryCodes, error)
 	DeleteTotp(ctx context.Context) (*model.SecondFactorStatus, error)
 	RegenerateRecoveryCodes(ctx context.Context) (*model.RecoveryCodes, error)
+	UpdateSystemSettings(ctx context.Context, input model.SystemSettingsInput) (*model.SystemSettings, error)
 	CreateUser(ctx context.Context, input model.CreateUserInput) (*model.User, error)
 	UpdateUser(ctx context.Context, id string, input model.UpdateUserInput) (*model.User, error)
 	DisableUser(ctx context.Context, id string) (*model.User, error)
@@ -362,6 +379,7 @@ type QueryResolver interface {
 	PreviewRule(ctx context.Context, input model.RuleInput, first int, after *string) (*model.ProgramConnection, error)
 	SearchPrograms(ctx context.Context, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) (*model.ProgramConnection, error)
 	SecondFactors(ctx context.Context) (*model.SecondFactorStatus, error)
+	SystemSettings(ctx context.Context) (*model.SystemSettings, error)
 	Users(ctx context.Context) ([]*model.User, error)
 	Sessions(ctx context.Context) ([]*model.Session, error)
 }
@@ -785,6 +803,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateRule(childComplexity, args["id"].(string), args["input"].(model.RuleInput)), true
+	case "Mutation.updateSystemSettings":
+		if e.ComplexityRoot.Mutation.UpdateSystemSettings == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateSystemSettings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateSystemSettings(childComplexity, args["input"].(model.SystemSettingsInput)), true
 	case "Mutation.updateUser":
 		if e.ComplexityRoot.Mutation.UpdateUser == nil {
 			break
@@ -1122,6 +1151,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Sessions(childComplexity), true
+	case "Query.systemSettings":
+		if e.ComplexityRoot.Query.SystemSettings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.SystemSettings(childComplexity), true
 	case "Query.users":
 		if e.ComplexityRoot.Query.Users == nil {
 			break
@@ -1134,6 +1169,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Viewer(childComplexity), true
+
+	case "RecordingSettings.endMarginSeconds":
+		if e.ComplexityRoot.RecordingSettings.EndMarginSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettings.EndMarginSeconds(childComplexity), true
+	case "RecordingSettings.fileNameTemplate":
+		if e.ComplexityRoot.RecordingSettings.FileNameTemplate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettings.FileNameTemplate(childComplexity), true
+	case "RecordingSettings.poolId":
+		if e.ComplexityRoot.RecordingSettings.PoolID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettings.PoolID(childComplexity), true
+	case "RecordingSettings.priority":
+		if e.ComplexityRoot.RecordingSettings.Priority == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettings.Priority(childComplexity), true
+	case "RecordingSettings.startMarginSeconds":
+		if e.ComplexityRoot.RecordingSettings.StartMarginSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettings.StartMarginSeconds(childComplexity), true
 
 	case "RecordingSettingsOverrides.endMarginSeconds":
 		if e.ComplexityRoot.RecordingSettingsOverrides.EndMarginSeconds == nil {
@@ -1530,6 +1596,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Subscription.Heartbeat(childComplexity), true
 
+	case "SystemSettings.archiveRetentionDays":
+		if e.ComplexityRoot.SystemSettings.ArchiveRetentionDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.ArchiveRetentionDays(childComplexity), true
+	case "SystemSettings.recordingDefaults":
+		if e.ComplexityRoot.SystemSettings.RecordingDefaults == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.RecordingDefaults(childComplexity), true
+	case "SystemSettings.updatedAt":
+		if e.ComplexityRoot.SystemSettings.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.UpdatedAt(childComplexity), true
+
 	case "TOTPEnrollment.expiresAt":
 		if e.ComplexityRoot.TOTPEnrollment.ExpiresAt == nil {
 			break
@@ -1623,6 +1708,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputRecordingSettingsOverridesInput,
 		ec.unmarshalInputReservationUpdateInput,
 		ec.unmarshalInputRuleInput,
+		ec.unmarshalInputSystemSettingsInput,
 		ec.unmarshalInputTimeRangeInput,
 		ec.unmarshalInputTimeReservationInput,
 		ec.unmarshalInputUpdateUserInput,
@@ -2366,6 +2452,54 @@ extend type Mutation {
   regenerateRecoveryCodes: RecoveryCodes!
 }
 `, BuiltIn: false},
+	{Name: "../schema/settings.graphqls", Input: `"""
+録画設定 (設計書 4.7)。全体の既定値に、ルールや予約の上書きを重ねる。
+"""
+type RecordingSettings {
+  "保存先プール。null なら、推定サイズが収まるプールを選ぶ。"
+  poolId: String
+  "ファイル名の text/template"
+  fileNameTemplate: String!
+  startMarginSeconds: Int!
+  endMarginSeconds: Int!
+  "優先度 (-10〜10)。チューナーが足りないときは、高い予約から割り当てる。"
+  priority: Int!
+}
+
+"""
+画面から変える、全体の設定 (設計書 11.2)。
+"""
+type SystemSettings {
+  "録画設定の全体の既定値。"
+  recordingDefaults: RecordingSettings!
+  "過去の番組の保持期間 (日)。0 なら無期限。"
+  archiveRetentionDays: Int!
+  "最後に変えた日時。一度も変えていなければ null。"
+  updatedAt: Time
+}
+
+"""
+全体の設定の変える項目。省いた項目は変えない。
+"""
+input SystemSettingsInput {
+  "録画設定の既定値の変える項目。省いた項目は変えない。"
+  recordingDefaults: RecordingSettingsOverridesInput
+  archiveRetentionDays: Int
+}
+
+extend type Query {
+  "全体の設定。ログイン中のユーザーなら誰でも読める。"
+  systemSettings: SystemSettings!
+}
+
+extend type Mutation {
+  """
+  全体の設定を変える。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  正しくない値なら、BAD_USER_INPUT を返す。
+  """
+  updateSystemSettings(input: SystemSettingsInput!): SystemSettings!
+}
+`, BuiltIn: false},
 	{Name: "../schema/user.graphqls", Input: `"""
 ユーザーのロール (設計書 9.7)。
 """
@@ -2668,6 +2802,22 @@ func (ec *executionContext) childFields_ProgramEdge(ctx context.Context, field g
 	return nil, fmt.Errorf("no field named %q was found under type ProgramEdge", field.Name)
 }
 
+func (ec *executionContext) childFields_RecordingSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "poolId":
+		return ec.fieldContext_RecordingSettings_poolId(ctx, field)
+	case "fileNameTemplate":
+		return ec.fieldContext_RecordingSettings_fileNameTemplate(ctx, field)
+	case "startMarginSeconds":
+		return ec.fieldContext_RecordingSettings_startMarginSeconds(ctx, field)
+	case "endMarginSeconds":
+		return ec.fieldContext_RecordingSettings_endMarginSeconds(ctx, field)
+	case "priority":
+		return ec.fieldContext_RecordingSettings_priority(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RecordingSettings", field.Name)
+}
+
 func (ec *executionContext) childFields_RecordingSettingsOverrides(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "poolId":
@@ -2852,6 +3002,18 @@ func (ec *executionContext) childFields_Session(ctx context.Context, field graph
 		return ec.fieldContext_Session_sourceIp(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Session", field.Name)
+}
+
+func (ec *executionContext) childFields_SystemSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "recordingDefaults":
+		return ec.fieldContext_SystemSettings_recordingDefaults(ctx, field)
+	case "archiveRetentionDays":
+		return ec.fieldContext_SystemSettings_archiveRetentionDays(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_SystemSettings_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SystemSettings", field.Name)
 }
 
 func (ec *executionContext) childFields_TOTPEnrollment(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -3337,6 +3499,20 @@ func (ec *executionContext) field_Mutation_updateRule_args(ctx context.Context, 
 		return nil, err
 	}
 	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateSystemSettings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.SystemSettingsInput, error) {
+			return ec.unmarshalNSystemSettingsInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐSystemSettingsInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -4930,6 +5106,50 @@ func (ec *executionContext) fieldContext_Mutation_regenerateRecoveryCodes(_ cont
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_RecoveryCodes(ctx, field)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateSystemSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateSystemSettings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateSystemSettings(ctx, fc.Args["input"].(model.SystemSettingsInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SystemSettings) graphql.Marshaler {
+			return ec.marshalNSystemSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐSystemSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateSystemSettings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SystemSettings(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateSystemSettings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -6643,6 +6863,38 @@ func (ec *executionContext) fieldContext_Query_secondFactors(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_systemSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_systemSettings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().SystemSettings(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SystemSettings) graphql.Marshaler {
+			return ec.marshalNSystemSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐSystemSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_systemSettings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SystemSettings(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_users(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -6781,6 +7033,121 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _RecordingSettings_poolId(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettings_poolId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PoolID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettings_poolId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettings", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingSettings_fileNameTemplate(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettings_fileNameTemplate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FileNameTemplate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettings_fileNameTemplate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettings", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingSettings_startMarginSeconds(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettings_startMarginSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartMarginSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettings_startMarginSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettings", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingSettings_endMarginSeconds(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettings_endMarginSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndMarginSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettings_endMarginSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettings", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingSettings_priority(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettings_priority(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Priority, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettings_priority(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettings", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _RecordingSettingsOverrides_poolId(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettingsOverrides) (ret graphql.Marshaler) {
@@ -8388,6 +8755,84 @@ func (ec *executionContext) _Subscription_heartbeat(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_Subscription_heartbeat(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Subscription", field, true, true, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _SystemSettings_recordingDefaults(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_recordingDefaults(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecordingDefaults, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RecordingSettings) graphql.Marshaler {
+			return ec.marshalNRecordingSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_recordingDefaults(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SystemSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingSettings(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SystemSettings_archiveRetentionDays(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_archiveRetentionDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ArchiveRetentionDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_archiveRetentionDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SystemSettings_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _TOTPEnrollment_secret(ctx context.Context, field graphql.CollectedField, obj *model.TOTPEnrollment) (ret graphql.Marshaler) {
@@ -10347,6 +10792,43 @@ func (ec *executionContext) unmarshalInputRuleInput(ctx context.Context, obj any
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Context, obj any) (model.SystemSettingsInput, error) {
+	var it model.SystemSettingsInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "recordingDefaults":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("recordingDefaults"))
+			data, err := ec.unmarshalORecordingSettingsOverridesInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingSettingsOverridesInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RecordingDefaults = data
+		case "archiveRetentionDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("archiveRetentionDays"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ArchiveRetentionDays = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputTimeRangeInput(ctx context.Context, obj any) (model.TimeRangeInput, error) {
 	var it model.TimeRangeInput
 	if obj == nil {
@@ -11105,6 +11587,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "regenerateRecoveryCodes":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_regenerateRecoveryCodes(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateSystemSettings":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateSystemSettings(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -11940,6 +12429,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "systemSettings":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_systemSettings(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "users":
 			field := field
 
@@ -11997,6 +12508,64 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			})
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var recordingSettingsImplementors = []string{"RecordingSettings"}
+
+func (ec *executionContext) _RecordingSettings(ctx context.Context, sel ast.SelectionSet, obj *model.RecordingSettings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, recordingSettingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RecordingSettings")
+		case "poolId":
+			out.Values[i] = ec._RecordingSettings_poolId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "fileNameTemplate":
+			out.Values[i] = ec._RecordingSettings_fileNameTemplate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startMarginSeconds":
+			out.Values[i] = ec._RecordingSettings_startMarginSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endMarginSeconds":
+			out.Values[i] = ec._RecordingSettings_endMarginSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "priority":
+			out.Values[i] = ec._RecordingSettings_priority(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -12781,6 +13350,54 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
+}
+
+var systemSettingsImplementors = []string{"SystemSettings"}
+
+func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.SelectionSet, obj *model.SystemSettings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, systemSettingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SystemSettings")
+		case "recordingDefaults":
+			out.Values[i] = ec._SystemSettings_recordingDefaults(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "archiveRetentionDays":
+			out.Values[i] = ec._SystemSettings_archiveRetentionDays(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._SystemSettings_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
 }
 
 var tOTPEnrollmentImplementors = []string{"TOTPEnrollment"}
@@ -13796,6 +14413,16 @@ func (ec *executionContext) unmarshalNProgramReservationInput2githubᚗcomᚋSla
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNRecordingSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingSettings(ctx context.Context, sel ast.SelectionSet, v *model.RecordingSettings) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RecordingSettings(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNRecordingSettingsOverrides2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingSettingsOverrides(ctx context.Context, sel ast.SelectionSet, v *model.RecordingSettingsOverrides) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -14033,6 +14660,21 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalNSystemSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐSystemSettings(ctx context.Context, sel ast.SelectionSet, v *model.SystemSettings) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SystemSettings(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNSystemSettingsInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐSystemSettingsInput(ctx context.Context, v any) (model.SystemSettingsInput, error) {
+	res, err := ec.unmarshalInputSystemSettingsInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNTOTPEnrollment2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐTOTPEnrollment(ctx context.Context, sel ast.SelectionSet, v *model.TOTPEnrollment) graphql.Marshaler {

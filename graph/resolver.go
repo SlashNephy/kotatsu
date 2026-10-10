@@ -12,6 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
+	"github.com/SlashNephy/kotatsu/internal/settings"
 )
 
 // Database は、リゾルバが使う DB。書き込みをトランザクションにまとめるので、トランザクションを始められる。
@@ -38,4 +39,5 @@ type Resolver struct {
 	userAdmin         *auth.UserAdmin
 	passwords         *auth.Passwords
 	sessions          *auth.Sessions
+	settings          *settings.Store
 }

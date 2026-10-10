@@ -30,6 +30,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/password"
 	"github.com/SlashNephy/kotatsu/internal/registry"
+	"github.com/SlashNephy/kotatsu/internal/settings"
 	"github.com/SlashNephy/kotatsu/internal/spa"
 	"github.com/SlashNephy/kotatsu/internal/telemetry"
 	"github.com/SlashNephy/kotatsu/web"
@@ -414,6 +415,7 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		UserAdmin:           auth.NewUserAdmin(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
 		Passwords:           auth.NewPasswords(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
 		Sessions:            sessions,
+		Settings:            settings.NewStore(deps.Clock, audit.NewRecorder(deps.Clock)),
 		Clock:               deps.Clock,
 		Location:            location,
 		MaxSearchCandidates: 0,

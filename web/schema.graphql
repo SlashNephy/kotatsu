@@ -251,6 +251,11 @@ type Mutation {
   """
   regenerateRecoveryCodes: RecoveryCodes!
   """
+  全体の設定を変える。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  正しくない値なら、BAD_USER_INPUT を返す。
+  """
+  updateSystemSettings(input: SystemSettingsInput!): SystemSettings!
+  """
   ユーザーを作る。管理者だけが使え、直近 10 分以内の認証が要る。
   パスワードが規定に当たれば、BAD_USER_INPUT と、extensions.reason に理由 (too_weak など) を返す。
   """
@@ -474,6 +479,10 @@ type Query {
   """
   secondFactors: SecondFactorStatus!
   """
+  全体の設定。ログイン中のユーザーなら誰でも読める。
+  """
+  systemSettings: SystemSettings!
+  """
   すべてのユーザーを、作った順に返す。管理者だけが使える (設計書 9.7)。
   """
   users: [User!]!
@@ -481,6 +490,25 @@ type Query {
   ログイン中のユーザーの、使えるセッションを、最後に使われた順に返す。
   """
   sessions: [Session!]!
+}
+"""
+録画設定 (設計書 4.7)。全体の既定値に、ルールや予約の上書きを重ねる。
+"""
+type RecordingSettings {
+  """
+  保存先プール。null なら、推定サイズが収まるプールを選ぶ。
+  """
+  poolId: String
+  """
+  ファイル名の text/template
+  """
+  fileNameTemplate: String!
+  startMarginSeconds: Int!
+  endMarginSeconds: Int!
+  """
+  優先度 (-10〜10)。チューナーが足りないときは、高い予約から割り当てる。
+  """
+  priority: Int!
 }
 """
 録画設定の上書き (設計書 4.7)。null の項目は全体の既定値を使う。
@@ -748,6 +776,33 @@ type Subscription {
   接続を保つために、一定の間隔で届く今の時刻。
   """
   heartbeat: Time!
+}
+"""
+画面から変える、全体の設定 (設計書 11.2)。
+"""
+type SystemSettings {
+  """
+  録画設定の全体の既定値。
+  """
+  recordingDefaults: RecordingSettings!
+  """
+  過去の番組の保持期間 (日)。0 なら無期限。
+  """
+  archiveRetentionDays: Int!
+  """
+  最後に変えた日時。一度も変えていなければ null。
+  """
+  updatedAt: Time
+}
+"""
+全体の設定の変える項目。省いた項目は変えない。
+"""
+input SystemSettingsInput {
+  """
+  録画設定の既定値の変える項目。省いた項目は変えない。
+  """
+  recordingDefaults: RecordingSettingsOverridesInput
+  archiveRetentionDays: Int
 }
 """
 登録中の TOTP。秘密キーは、この応答でしか見せない。

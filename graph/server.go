@@ -18,6 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
+	"github.com/SlashNephy/kotatsu/internal/settings"
 )
 
 const (
@@ -47,6 +48,8 @@ type Options struct {
 	Passwords *auth.Passwords
 	// Sessions は、ログイン中のユーザーのセッションの一覧と失効に使う。nil なら、内部のエラーにする。
 	Sessions *auth.Sessions
+	// Settings は、全体の設定を変えるのに使う。nil なら、Recorder と Clock で作る。
+	Settings *settings.Store
 	Clock    clock.Clock
 	Logger   *slog.Logger
 	// Location は、番組の曜日と時間帯を判定する、表示のタイムゾーン。nil なら UTC。
@@ -108,6 +111,10 @@ func NewHandler(opts *Options) http.Handler {
 		userAdmin:    o.UserAdmin,
 		passwords:    o.Passwords,
 		sessions:     o.Sessions,
+		settings:     o.Settings,
+	}
+	if resolver.settings == nil {
+		resolver.settings = settings.NewStore(o.Clock, o.Recorder)
 	}
 	config.Resolvers = resolver
 	server := handler.New(generated.NewExecutableSchema(config))
