@@ -105,6 +105,14 @@ func (s *Store) Select(pools []*Pool, estimated uint64) (*Pool, error) {
 // sidecarSuffix は、録画ファイルの横に作る、付属ファイル用のディレクトリの名前に付ける接尾辞。
 const sidecarSuffix = ".kotatsu"
 
+// indexFileName は、付属ファイルのディレクトリに置く、セグメントの索引のファイルの名前 (設計書 5.6)。
+const indexFileName = "index"
+
+// IndexPath は、録画ファイル rel の索引の、プール内の相対パスを返す。
+func IndexPath(rel string) string {
+	return rel + sidecarSuffix + "/" + indexFileName
+}
+
 // CreateSidecarDir は、録画ファイルの横に、索引やサムネイルを置くディレクトリ (例: 番組名.m2ts.kotatsu/) を作り、
 // そのプール内の相対パスを返す。すでにあれば、そのまま使う。
 func (s *Store) CreateSidecarDir(poolID, rel string) (string, error) {

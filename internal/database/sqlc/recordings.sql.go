@@ -359,6 +359,36 @@ func (q *Queries) SetRecordingGaps(ctx context.Context, arg SetRecordingGapsPara
 	return err
 }
 
+const setRecordingStats = `-- name: SetRecordingStats :exec
+UPDATE recordings SET drops = $1, errors = $2, scrambled = $3,
+  state = CASE WHEN state IN ('completed', 'completed_with_errors')
+    THEN CASE WHEN $1::bigint > 0 THEN 'completed_with_errors' ELSE 'completed' END
+    ELSE state END,
+  updated_at = $4
+WHERE id = $5
+`
+
+type SetRecordingStatsParams struct {
+	Drops     int64
+	Errors    int64
+	Scrambled int64
+	Now       time.Time
+	ID        uuid.UUID
+}
+
+// 録画を終えた後に解析したドロップ、エラー、スクランブルで、録画の集計を置き換える。
+// 完了した録画は、ドロップの有無で、完了とエラーありの完了を決め直す。
+func (q *Queries) SetRecordingStats(ctx context.Context, arg SetRecordingStatsParams) error {
+	_, err := q.db.Exec(ctx, setRecordingStats,
+		arg.Drops,
+		arg.Errors,
+		arg.Scrambled,
+		arg.Now,
+		arg.ID,
+	)
+	return err
+}
+
 const startRecording = `-- name: StartRecording :one
 INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
   protected, drops, errors, scrambled, recorded_from, recorded_until, created_at, updated_at)
@@ -453,6 +483,39 @@ func (q *Queries) UpsertRecordingImage(ctx context.Context, arg UpsertRecordingI
 		arg.Path,
 		arg.Size,
 		arg.StartedAt,
+		arg.Now,
+	)
+	return err
+}
+
+const upsertRecordingIndex = `-- name: UpsertRecordingIndex :exec
+INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+VALUES ($1, $2, 'index', $3, $4, $5, $6, $7, $8)
+ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, ended_at = EXCLUDED.ended_at
+WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.kind = 'index'
+`
+
+type UpsertRecordingIndexParams struct {
+	ID          uuid.UUID
+	RecordingID uuid.UUID
+	PoolID      string
+	Path        string
+	Size        int64
+	StartedAt   time.Time
+	EndedAt     *time.Time
+	Now         time.Time
+}
+
+// 録画を終えた後に作ったセグメントの索引を記録する。索引は、セグメントと同じ時間の範囲を表す。作り直したときは、同じパスの行を書き換える。
+func (q *Queries) UpsertRecordingIndex(ctx context.Context, arg UpsertRecordingIndexParams) error {
+	_, err := q.db.Exec(ctx, upsertRecordingIndex,
+		arg.ID,
+		arg.RecordingID,
+		arg.PoolID,
+		arg.Path,
+		arg.Size,
+		arg.StartedAt,
+		arg.EndedAt,
 		arg.Now,
 	)
 	return err

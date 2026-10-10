@@ -18,6 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/config"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/epgstation"
+	"github.com/SlashNephy/kotatsu/internal/jobs"
 )
 
 var (
@@ -86,7 +87,7 @@ func newImportCommand(
 				return printImportPlan(cmd.OutOrStdout(), plan)
 			}
 
-			result, err := importEPGStation(cmd.Context(), opts, pool, snapshot, poolMap, username)
+			result, err := importEPGStation(cmd.Context(), opts, &cfg.Database, pool, snapshot, poolMap, username)
 			if err != nil {
 				return err
 			}
@@ -120,8 +121,10 @@ func readEPGStation(ctx context.Context, source string) (*epgstation.Snapshot, e
 }
 
 // importEPGStation は、snapshot を Kotatsu に取り込む。チャンネルを同期する前は、どのデータも取り込めないので拒む。
+// 取り込んだ録画を解析するジョブは、nekonote が実行する。
 func importEPGStation(
-	ctx context.Context, opts *Options, pool *pgxpool.Pool, snapshot *epgstation.Snapshot, poolMap map[string]string, username string,
+	ctx context.Context, opts *Options, db *config.Database, pool *pgxpool.Pool,
+	snapshot *epgstation.Snapshot, poolMap map[string]string, username string,
 ) (*epgstation.Result, error) {
 	serviceIDs, err := sqlc.New(pool).ListServiceIDs(ctx)
 	if err != nil {
@@ -135,7 +138,12 @@ func importEPGStation(
 		return nil, err
 	}
 
-	return epgstation.NewImporter(opts.Clock, audit.NewRecorder(opts.Clock)).Apply(ctx, pool, snapshot, &epgstation.ApplyOptions{
+	inserter, err := jobs.NewClient(pool, opts.Logger, &jobs.Options{PollOnly: db.Pooler, Workers: nil, PeriodicJobs: nil})
+	if err != nil {
+		return nil, err
+	}
+
+	return epgstation.NewImporter(opts.Clock, audit.NewRecorder(opts.Clock), inserter).Apply(ctx, pool, snapshot, &epgstation.ApplyOptions{
 		Pools: poolMap, UserID: userID,
 	})
 }

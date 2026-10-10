@@ -190,18 +190,21 @@ type sidecar struct {
 }
 
 // segments は、録画のファイルから、索引のあるセグメントを、始まりの順に読む。このインスタンスにマウントされていないプールのものは使えない。
+// 索引は、セグメントの付属ファイルのディレクトリにあるものを、そのセグメントの索引とする。
+// EPGStation から取り込んだ録画では、複数のセグメントの始まりが同じことがあるので、始まりでは対応付けない。
 func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, *sidecar, error) {
-	indexes := map[time.Time]*sqlc.RecordingFile{}
+	type location struct{ poolID, path string }
+	indexes := map[location]*sqlc.RecordingFile{}
 	for i := range files {
 		if files[i].Kind == kindIndex {
-			indexes[files[i].StartedAt] = &files[i]
+			indexes[location{poolID: files[i].PoolID, path: files[i].Path}] = &files[i]
 		}
 	}
 	segments := []Segment{}
 	var first *sidecar
 	for i := range files {
 		file := &files[i]
-		index, ok := indexes[file.StartedAt]
+		index, ok := indexes[location{poolID: file.PoolID, path: kago.IndexPath(file.Path)}]
 		if file.Kind != kindSegment || file.Size == 0 || !ok {
 			continue
 		}

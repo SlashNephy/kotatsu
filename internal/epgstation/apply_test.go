@@ -19,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/epgstation"
 	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/match"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
@@ -72,7 +73,11 @@ func newApplyFixture(t *testing.T) *applyFixture {
 		ID: userID, Username: "mikan", DisplayName: mikan, Role: "admin", PasswordHash: nil, CreatedAt: clk.Now(),
 	}))
 
-	return &applyFixture{pool: pool, clock: clk, userID: userID, importer: epgstation.NewImporter(clk, audit.NewRecorder(clk))}
+	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+	inserter, err := jobs.NewClient(pool, slog.New(slog.DiscardHandler), &jobs.Options{PollOnly: false, Workers: nil, PeriodicJobs: nil})
+	require.NoError(t, err)
+
+	return &applyFixture{pool: pool, clock: clk, userID: userID, importer: epgstation.NewImporter(clk, audit.NewRecorder(clk), inserter)}
 }
 
 func (f *applyFixture) apply(t *testing.T, snapshot *epgstation.Snapshot) *epgstation.Result {
@@ -547,7 +552,7 @@ func TestApplyRecordings(t *testing.T) {
 	full.TagIDs = []int64{1, 1, 2, 3, 4}
 	full.Files = []*epgstation.VideoFile{
 		{ID: 1, ParentDirectoryName: recordedDirectory, FilePath: "こたつ特集.m2ts", Type: epgstation.VideoFileTypeTS, Name: "TS", Size: 100},
-		{ID: 2, ParentDirectoryName: encodedDirectory, FilePath: encodedFile, Type: epgstation.VideoFileTypeEncoded, Name: "H.264", Size: 50},
+		{ID: 2, ParentDirectoryName: encodedDirectory, FilePath: encodedFile, Type: epgstation.VideoFileTypeEncoded, Name: encodeName, Size: 50},
 		{ID: 3, ParentDirectoryName: animeDirectory, FilePath: encodedFile, Type: epgstation.VideoFileTypeEncoded, Name: "H.265", Size: 40},
 	}
 	clean := recording(2)
@@ -565,10 +570,15 @@ func TestApplyRecordings(t *testing.T) {
 	noDrops := recording(7)
 	noDrops.Files[0].FilePath = "no-drops.m2ts"
 	noDrops.Drop = &epgstation.DropLog{ErrorCount: 1, DropCount: 0, ScramblingCount: 1}
-	snapshot.Recordings = []*epgstation.Recording{full, clean, inProgress, unmapped, missingService, sameFile, noDrops}
+	// エンコード済みのファイルしかない録画は、取り込むが、解析するものがない。
+	encodedOnly := recording(8)
+	encodedOnly.Files[0] = &epgstation.VideoFile{
+		ID: 8, ParentDirectoryName: encodedDirectory, FilePath: "encoded-only.mp4", Type: epgstation.VideoFileTypeEncoded, Name: encodeName, Size: 1,
+	}
+	snapshot.Recordings = []*epgstation.Recording{full, clean, inProgress, unmapped, missingService, sameFile, noDrops, encodedOnly}
 
 	result := f.apply(t, snapshot)
-	assert.Equal(t, map[epgstation.Kind]int{epgstation.KindRecorded: 3}, result.Imported)
+	assert.Equal(t, map[epgstation.Kind]int{epgstation.KindRecorded: 4}, result.Imported)
 	reasons := map[int64]string{}
 	for _, skipped := range result.Skipped {
 		reasons[skipped.SourceID] = skipped.Reason
@@ -578,6 +588,22 @@ func TestApplyRecordings(t *testing.T) {
 	assert.Equal(t, "no file is in a directory mapped to a pool", reasons[4])
 	assert.Equal(t, "service 3273601025 is not in Kotatsu", reasons[5])
 	assert.Contains(t, reasons[6], "duplicate key value violates unique constraint")
+
+	// TS のある録画だけ、索引と集計を作るジョブを、重いジョブのキューに投入する。飛ばした録画のジョブは、巻き戻して残さない。
+	rows, err := f.pool.Query(t.Context(), "SELECT queue, (args->>'recordingId')::uuid FROM river_job WHERE kind = 'recording_analyze'")
+	require.NoError(t, err)
+	type queuedJob struct {
+		Queue       string
+		RecordingID uuid.UUID
+	}
+	queued, err := pgx.CollectRows(rows, pgx.RowToStructByPos[queuedJob])
+	require.NoError(t, err)
+	sourceIDs := []int64{1, 2, 7}
+	want := make([]queuedJob, 0, len(sourceIDs))
+	for _, sourceID := range sourceIDs {
+		want = append(want, queuedJob{Queue: jobs.QueueMedia, RecordingID: f.targetOf(t, epgstation.KindRecorded, sourceID)})
+	}
+	assert.ElementsMatch(t, want, queued)
 
 	type importedRecording struct {
 		ServiceID     int64
@@ -729,4 +755,8 @@ func TestApplyIsIdempotent(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT (SELECT count(*) FROM rules), (SELECT count(*) FROM reservations),
 		(SELECT count(*) FROM recordings), (SELECT count(*) FROM recording_history)`).Scan(&counts[0], &counts[1], &counts[2], &counts[3]))
 	assert.Equal(t, [4]int{1, 1, 1, 1}, counts)
+	// 録画を解析するジョブも、2 度目の取り込みでは投入しない。
+	var analyses int
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM river_job WHERE kind = 'recording_analyze'").Scan(&analyses))
+	assert.Equal(t, 1, analyses)
 }

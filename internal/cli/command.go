@@ -20,6 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/SlashNephy/kotatsu/graph"
+	"github.com/SlashNephy/kotatsu/internal/analysis"
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/capacity"
@@ -133,6 +134,8 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	// 録画を終えたら、代表画像とプレビュー画像を作る (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。
 	river.AddWorker(workers, thumbnail.NewGenerateWorker(deps.DB, kago.New(deps.Config.Storage.Pools, nil), deps.Clock,
 		!deps.Config.Thumbnail.DisablePreview))
+	// 取り込んだ録画は、録画ファイルを読み直して索引と集計を作ってから、画像を作るジョブに渡す (設計書 6.3)。
+	river.AddWorker(workers, analysis.NewAnalyzeWorker(deps.DB, kago.New(deps.Config.Storage.Pools, nil), deps.Clock, inserter))
 
 	return workers, []*river.PeriodicJob{audit.PrunePeriodicJob(), notification.DispatchPeriodicJob(), capacity.CheckPeriodicJob()}, nil
 }
