@@ -51,6 +51,15 @@ dir = "web"
 depends = ["web:build"]
 run = "pnpm exec playwright test"
 
+# サーバーの goja で動かす zxcvbn-ts のバンドル (設計書 2.2) を作り、gzip で internal/password に置く。
+[tasks."password:zxcvbn"]
+dir = "web"
+depends = ["web:install"]
+run = [
+  "pnpm exec vp build --config zxcvbn/vite.config.ts",
+  "gzip -9nc zxcvbn/dist/zxcvbn.js > ../internal/password/zxcvbn.js.gz",
+]
+
 [tasks."web:dev"]
 dir = "web"
 depends = ["web:install"]
@@ -73,6 +82,7 @@ run = "golangci-lint fmt"
 run = "atlas migrate diff --env local"
 
 [tasks.generate]
+depends = ["password:zxcvbn"]
 run = [
   "sqlc generate",
   # GraphQL のスキーマから、実行のコードとモデルを生成する。リゾルバの実装は残る。
