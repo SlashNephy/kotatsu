@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/settings"
@@ -114,6 +115,7 @@ func NewHandler(opts *Options) http.Handler {
 		passwords:    o.Passwords,
 		sessions:     o.Sessions,
 		settings:     o.Settings,
+		inbox:        notification.NewInbox(o.Clock),
 		pools:        o.Pools,
 	}
 	if resolver.settings == nil {

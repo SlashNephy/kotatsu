@@ -178,6 +178,43 @@ type Lease struct {
 type Mutation struct {
 }
 
+// ログイン中のユーザーに届いた、画面内の通知 (設計書 6.2)。
+type Notification struct {
+	ID   string           `json:"id"`
+	Kind NotificationKind `json:"kind"`
+	// 出来事が起きた日時。
+	OccurredAt time.Time `json:"occurredAt"`
+	// 画面に出す文の材料 (番組名や理由など)。種類ごとに項目が違う。JSON の文字列。
+	Payload string `json:"payload"`
+	// 既読にした日時。未読なら null。
+	ReadAt *time.Time `json:"readAt,omitempty"`
+}
+
+type NotificationConnection struct {
+	Edges    []*NotificationEdge `json:"edges"`
+	PageInfo *PageInfo           `json:"pageInfo"`
+}
+
+type NotificationEdge struct {
+	Cursor string        `json:"cursor"`
+	Node   *Notification `json:"node"`
+}
+
+// イベントの種類ごとの通知設定。
+type NotificationPreference struct {
+	Kind NotificationKind `json:"kind"`
+	// 画面内の通知で受け取るかどうか。
+	InApp bool `json:"inApp"`
+	// Web Push で受け取るかどうか。購読していなければ届かない。
+	WebPush bool `json:"webPush"`
+}
+
+type NotificationPreferenceInput struct {
+	Kind    NotificationKind `json:"kind"`
+	InApp   bool             `json:"inApp"`
+	WebPush bool             `json:"webPush"`
+}
+
 // 一覧のページの情報 (Relay の Cursor Connections)。カーソルは中身を解釈せずに、そのまま次のリクエストに渡す。
 type PageInfo struct {
 	HasNextPage     bool    `json:"hasNextPage"`
@@ -579,6 +616,76 @@ func (e *KeywordField) UnmarshalJSON(b []byte) error {
 }
 
 func (e KeywordField) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 通知するイベントの種類 (設計書 6.2)。
+type NotificationKind string
+
+const (
+	// 録画の開始
+	NotificationKindRecordingStarted NotificationKind = "RECORDING_STARTED"
+	// 録画の完了
+	NotificationKindRecordingCompleted NotificationKind = "RECORDING_COMPLETED"
+	// 録画の失敗
+	NotificationKindRecordingFailed NotificationKind = "RECORDING_FAILED"
+	// 新たな競合の発生
+	NotificationKindReservationConflict NotificationKind = "RESERVATION_CONFLICT"
+	// 空き容量の不足
+	NotificationKindStorageLow NotificationKind = "STORAGE_LOW"
+	// チューナーサーバーへの接続不可
+	NotificationKindTunerServerUnreachable NotificationKind = "TUNER_SERVER_UNREACHABLE"
+)
+
+var AllNotificationKind = []NotificationKind{
+	NotificationKindRecordingStarted,
+	NotificationKindRecordingCompleted,
+	NotificationKindRecordingFailed,
+	NotificationKindReservationConflict,
+	NotificationKindStorageLow,
+	NotificationKindTunerServerUnreachable,
+}
+
+func (e NotificationKind) IsValid() bool {
+	switch e {
+	case NotificationKindRecordingStarted, NotificationKindRecordingCompleted, NotificationKindRecordingFailed, NotificationKindReservationConflict, NotificationKindStorageLow, NotificationKindTunerServerUnreachable:
+		return true
+	}
+	return false
+}
+
+func (e NotificationKind) String() string {
+	return string(e)
+}
+
+func (e *NotificationKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = NotificationKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid NotificationKind", str)
+	}
+	return nil
+}
+
+func (e NotificationKind) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *NotificationKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e NotificationKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
