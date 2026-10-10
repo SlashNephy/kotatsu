@@ -421,10 +421,10 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	setup := auth.NewSetup(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy)
-	mux.Handle("GET /auth/setup", setup.StatusHandler(deps.DB, logins))
+	setup := auth.NewSetup(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy, logger.With(slog.String("component", "setup")))
+	mux.Handle("GET /auth/setup", setup.StatusHandler(deps.DB))
 	for pattern, handler := range map[string]http.Handler{
-		"POST /auth/setup":                         setup.CreateHandler(deps.DB, logins, clientInfo),
+		"POST /auth/setup":                         setup.CreateHandler(deps.DB, clientInfo),
 		"POST /auth/login":                         logins.PasswordHandler(deps.DB, clientInfo),
 		"POST /auth/login/totp":                    logins.TOTPHandler(deps.DB, clientInfo),
 		"POST /auth/login/recovery-code":           logins.RecoveryCodeHandler(deps.DB, clientInfo),

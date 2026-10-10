@@ -109,7 +109,7 @@ func newAdminCommand(opts *Options, connect func(ctx context.Context) (*config.C
 			}
 			defer closePool(pool)
 
-			token, err := auth.NewSetup(opts.Clock, audit.NewRecorder(opts.Clock), nil).IssueToken(cmd.Context(), pool)
+			token, err := auth.NewSetup(opts.Clock, audit.NewRecorder(opts.Clock), nil, opts.Logger).IssueToken(cmd.Context(), pool)
 			if errors.Is(err, auth.ErrSetupDone) {
 				return errors.New("an administrator already exists; the setup is done")
 			}
@@ -127,7 +127,7 @@ func newAdminCommand(opts *Options, connect func(ctx context.Context) (*config.C
 
 // logSetupToken は、管理者がいなければ、セットアップトークンを発行してログに出す (設計書 9.2)。
 func logSetupToken(ctx context.Context, logger *slog.Logger, clk clock.Clock, pool *pgxpool.Pool) error {
-	setup := auth.NewSetup(clk, audit.NewRecorder(clk), nil)
+	setup := auth.NewSetup(clk, audit.NewRecorder(clk), nil, logger)
 	needed, err := setup.Needed(ctx, pool)
 	if err != nil || !needed {
 		return err

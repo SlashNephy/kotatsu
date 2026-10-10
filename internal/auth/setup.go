@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/jackc/pgx/v5"
@@ -32,16 +33,18 @@ type Setup struct {
 	clock    clock.Clock
 	recorder audit.Recorder
 	policy   *password.Policy
+	logger   *slog.Logger
 }
 
 // NewSetup は Setup を返す。policy で、管理者のパスワードの規定を確かめる。
-func NewSetup(clk clock.Clock, recorder audit.Recorder, policy *password.Policy) *Setup {
-	return &Setup{clock: clk, recorder: recorder, policy: policy}
+func NewSetup(clk clock.Clock, recorder audit.Recorder, policy *password.Policy, logger *slog.Logger) *Setup {
+	return &Setup{clock: clk, recorder: recorder, policy: policy, logger: logger}
 }
 
-// Needed は、有効な管理者が 1 人もおらず、初回セットアップが要るかどうかを返す。
+// Needed は、管理者が 1 人もおらず、初回セットアップが要るかどうかを返す。
+// 無効にした管理者も数える。管理者を作った後は、初回セットアップを開き直さない。
 func (s *Setup) Needed(ctx context.Context, db sqlc.DBTX) (bool, error) {
-	hasAdmin, err := sqlc.New(db).HasActiveAdmin(ctx)
+	hasAdmin, err := sqlc.New(db).HasAdmin(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to find an administrator: %w", err)
 	}
@@ -90,7 +93,14 @@ type NewAdmin struct {
 // 管理者には、パスワードだけを設定する。第二要素は、最初にログインするときに登録する (設計書 9.3)。
 func (s *Setup) CreateAdmin(ctx context.Context, db Database, token string, admin *NewAdmin, client *ClientInfo) (*User, error) {
 	// パスワードの規定の確認とハッシュ化は時間がかかるので、トランザクションの外で行う。
-	// トークンを確かめる前に行うが、トークンがなければ、結果を使わずに捨てる。
+	// その前に、セットアップが済んでいないか、トークンが正しいかを安く確かめ、正しいトークンを持つ人にだけ時間を使う。
+	// パスワードの規定に当たったかどうかも、トークンを持たない人には見せない。
+	if err := s.requireNoAdmin(ctx, db); err != nil {
+		return nil, err
+	}
+	if err := s.requireToken(ctx, db, token); err != nil {
+		return nil, err
+	}
 	if err := s.policy.Check(ctx, admin.Password, []string{admin.Username, admin.DisplayName}); err != nil {
 		return nil, err
 	}
@@ -105,15 +115,12 @@ func (s *Setup) CreateAdmin(ctx context.Context, db Database, token string, admi
 		if err := q.LockSetup(ctx); err != nil {
 			return fmt.Errorf("failed to lock the setup: %w", err)
 		}
+		// ロックを取ってから、もう一度確かめる。同時に作られないようにするためである。
 		if err := s.requireNoAdmin(ctx, tx); err != nil {
 			return err
 		}
-		exists, err := q.SetupTokenExists(ctx, hashToken(token))
-		if err != nil {
-			return fmt.Errorf("failed to find the setup token: %w", err)
-		}
-		if !exists {
-			return ErrInvalidSetupToken
+		if err := s.requireToken(ctx, tx, token); err != nil {
+			return err
 		}
 		created, err = NewUsers(s.clock).Create(ctx, tx, &NewUser{
 			Username: admin.Username, DisplayName: admin.DisplayName, Role: RoleAdmin, PasswordHash: &encoded,
@@ -170,11 +177,11 @@ type weakPasswordBody struct {
 }
 
 // StatusHandler は、初回セットアップが要るかを返すハンドラーを返す (GET /auth/setup)。
-func (s *Setup) StatusHandler(db sqlc.DBTX, logins *Logins) http.Handler {
+func (s *Setup) StatusHandler(db sqlc.DBTX) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		needed, err := s.Needed(r.Context(), db)
 		if err != nil {
-			logins.internalError(w, r, err)
+			writeInternalError(w, r, s.logger, "failed to set up", err)
 
 			return
 		}
@@ -183,7 +190,7 @@ func (s *Setup) StatusHandler(db sqlc.DBTX, logins *Logins) http.Handler {
 }
 
 // CreateHandler は、セットアップトークンを確かめて、最初の管理者を作るハンドラーを返す (POST /auth/setup)。
-func (s *Setup) CreateHandler(db Database, logins *Logins, client func(*http.Request) *ClientInfo) http.Handler {
+func (s *Setup) CreateHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req setupRequest
 		if !decodeJSON(w, r, &req) {
@@ -213,18 +220,30 @@ func (s *Setup) CreateHandler(db Database, logins *Logins, client func(*http.Req
 		case errors.Is(err, ErrInvalidUser), errors.Is(err, ErrUsernameTaken):
 			writeLoginError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		default:
-			logins.internalError(w, r, err)
+			writeInternalError(w, r, s.logger, "failed to set up", err)
 		}
 	})
 }
 
-func (s *Setup) requireNoAdmin(ctx context.Context, tx pgx.Tx) error {
-	needed, err := s.Needed(ctx, tx)
+func (s *Setup) requireNoAdmin(ctx context.Context, db sqlc.DBTX) error {
+	needed, err := s.Needed(ctx, db)
 	if err != nil {
 		return err
 	}
 	if !needed {
 		return ErrSetupDone
+	}
+
+	return nil
+}
+
+func (s *Setup) requireToken(ctx context.Context, db sqlc.DBTX, token string) error {
+	exists, err := sqlc.New(db).SetupTokenExists(ctx, hashToken(token))
+	if err != nil {
+		return fmt.Errorf("failed to find the setup token: %w", err)
+	}
+	if !exists {
+		return ErrInvalidSetupToken
 	}
 
 	return nil

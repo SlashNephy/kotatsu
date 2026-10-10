@@ -61,7 +61,8 @@ type Querier interface {
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	GetUserTOTPForUpdate(ctx context.Context, userID uuid.UUID) (UserTotp, error)
-	HasActiveAdmin(ctx context.Context) (bool, error)
+	// 無効にした管理者も数える。管理者を作った後は、初回セットアップを開き直さない (設計書 9.2)。
+	HasAdmin(ctx context.Context) (bool, error)
 	HasUserTOTP(ctx context.Context, userID uuid.UUID) (bool, error)
 	HeartbeatInstance(ctx context.Context, arg HeartbeatInstanceParams) (int64, error)
 	IncrementLoginChallengeFailures(ctx context.Context, id uuid.UUID) (int32, error)

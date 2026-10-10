@@ -23,7 +23,10 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/password"
 )
 
-const adminPhrase = "neko-to-mikan-no-fuyu-2026"
+const (
+	adminPhrase       = "neko-to-mikan-no-fuyu-2026"
+	invalidSetupToken = `"code":"INVALID_SETUP_TOKEN"`
+)
 
 type setupFixture struct {
 	db     *pgxpool.Pool
@@ -41,7 +44,7 @@ func newSetupFixture(t *testing.T) *setupFixture {
 
 	return &setupFixture{
 		db:     newDB(t),
-		setup:  auth.NewSetup(clk, audit.NewRecorder(clk), policy),
+		setup:  auth.NewSetup(clk, audit.NewRecorder(clk), policy, slog.New(slog.DiscardHandler)),
 		client: &auth.ClientInfo{UserAgent: browserUA, SourceIP: netip.MustParseAddr("192.168.1.10")},
 	}
 }
@@ -93,6 +96,12 @@ func TestSetup(t *testing.T) {
 	_, err = f.setup.IssueToken(t.Context(), f.db)
 	require.ErrorIs(t, err, auth.ErrSetupDone)
 
+	// 管理者を無効にしても、初回セットアップは開き直さない。
+	require.NoError(t, auth.NewUsers(clocktest.NewFake(testNow())).Disable(t.Context(), f.db, admin.ID))
+	needed, err = f.setup.Needed(t.Context(), f.db)
+	require.NoError(t, err)
+	assert.False(t, needed)
+
 	var audited int
 	require.NoError(t, f.db.QueryRow(t.Context(), "SELECT count(*) FROM audit_events WHERE action = 'user.setup' AND source_ip = '192.168.1.10'").Scan(&audited))
 	assert.Equal(t, 1, audited)
@@ -142,10 +151,9 @@ func TestSetupHandlers(t *testing.T) {
 	t.Parallel()
 
 	f := newSetupFixture(t)
-	logins := newLoginFixture(t).logins
 	client := func(*http.Request) *auth.ClientInfo { return f.client }
-	status := f.setup.StatusHandler(f.db, logins)
-	create := f.setup.CreateHandler(f.db, logins, client)
+	status := f.setup.StatusHandler(f.db)
+	create := f.setup.CreateHandler(f.db, client)
 	token, err := f.setup.IssueToken(t.Context(), f.db)
 	require.NoError(t, err)
 
@@ -173,8 +181,10 @@ func TestSetupHandlers(t *testing.T) {
 		wantStatus int
 		want       string
 	}{
-		{name: "missing token", body: body("", adminPhrase), wantStatus: http.StatusUnauthorized, want: `"code":"INVALID_SETUP_TOKEN"`},
-		{name: "wrong token", body: body("wrong", adminPhrase), wantStatus: http.StatusUnauthorized, want: `"code":"INVALID_SETUP_TOKEN"`},
+		{name: "missing token", body: body("", adminPhrase), wantStatus: http.StatusUnauthorized, want: invalidSetupToken},
+		{name: "wrong token", body: body("wrong", adminPhrase), wantStatus: http.StatusUnauthorized, want: invalidSetupToken},
+		// トークンがなければ、パスワードの規定に当たるかどうかも見せない。
+		{name: "wrong token and weak password", body: body("wrong", "kotatsukotatsu"), wantStatus: http.StatusUnauthorized, want: invalidSetupToken},
 		{name: "weak password", body: body(token, "kotatsukotatsu"), wantStatus: http.StatusBadRequest, want: `{"error":{"code":"WEAK_PASSWORD","reason":"too_weak"}}`},
 		{name: "created", body: body(token, adminPhrase), wantStatus: http.StatusCreated, want: `{"username":"admin","next":"login"}`},
 		{name: "already done", body: body(token, adminPhrase), wantStatus: http.StatusConflict, want: `"code":"SETUP_DONE"`},

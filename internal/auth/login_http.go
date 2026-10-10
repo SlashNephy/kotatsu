@@ -210,7 +210,12 @@ func (l *Logins) writeSecondFactorError(w http.ResponseWriter, r *http.Request, 
 }
 
 func (l *Logins) internalError(w http.ResponseWriter, r *http.Request, err error) {
-	l.logger.ErrorContext(r.Context(), "failed to log in", slog.Any("error", err))
+	writeInternalError(w, r, l.logger, "failed to log in", err)
+}
+
+// writeInternalError は、内部のエラーをログに残し、詳細を隠して 500 を返す。
+func writeInternalError(w http.ResponseWriter, r *http.Request, logger *slog.Logger, message string, err error) {
+	logger.ErrorContext(r.Context(), message, slog.Any("error", err))
 	writeLoginError(w, http.StatusInternalServerError, "INTERNAL", "internal error")
 }
 

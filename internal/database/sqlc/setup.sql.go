@@ -19,12 +19,13 @@ func (q *Queries) DeleteSetupTokens(ctx context.Context) error {
 	return err
 }
 
-const hasActiveAdmin = `-- name: HasActiveAdmin :one
-SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin' AND disabled_at IS NULL)
+const hasAdmin = `-- name: HasAdmin :one
+SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin')
 `
 
-func (q *Queries) HasActiveAdmin(ctx context.Context) (bool, error) {
-	row := q.db.QueryRow(ctx, hasActiveAdmin)
+// 無効にした管理者も数える。管理者を作った後は、初回セットアップを開き直さない (設計書 9.2)。
+func (q *Queries) HasAdmin(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, hasAdmin)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
