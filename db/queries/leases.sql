@@ -35,3 +35,6 @@ FOR SHARE;
 
 -- name: GetLease :one
 SELECT * FROM leases WHERE name = @name;
+
+-- name: ListLeases :many
+SELECT * FROM leases ORDER BY name;

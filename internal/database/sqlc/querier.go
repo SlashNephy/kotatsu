@@ -114,8 +114,11 @@ type Querier interface {
 	// 番組表の並び順のサービス。チャンネル種別の並び順、管理者の上書き、リモコンのキー、サービス ID の順に並べる。
 	ListGuideServices(ctx context.Context, arg ListGuideServicesParams) ([]ListGuideServicesRow, error)
 	ListGuideViews(ctx context.Context, userID uuid.UUID) ([]GuideView, error)
+	// 止まった直後の行も含めて、すべてのインスタンスを返す。システムの状態の画面で、止まったインスタンスも示すため。
+	ListInstances(ctx context.Context) ([]Instance, error)
 	// 番組名のキーごと、サービスごとの、最後に録画した番組の終了時刻。
 	ListLatestRecordingHistory(ctx context.Context, titleKeys []string) ([]ListLatestRecordingHistoryRow, error)
+	ListLeases(ctx context.Context) ([]Lease, error)
 	// ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
 	ListMatchablePrograms(ctx context.Context, now time.Time) ([]ListMatchableProgramsRow, error)
 	ListPrograms(ctx context.Context) ([]ListProgramsRow, error)
@@ -171,6 +174,9 @@ type Querier interface {
 	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
 	ResetLoginThrottle(ctx context.Context, key string) error
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
+	// 監査ログを、新しい順に返す。条件の NULL の項目は絞り込まない。
+	// before_at と before_id より前 (古い) の記録だけを返し、ページを送る。
+	SearchAuditEvents(ctx context.Context, arg SearchAuditEventsParams) ([]AuditEvent, error)
 	// 番組の検索の候補。チャンネル種別、サービス、ジャンルの大分類で絞り、開始時刻、サービス、eventId の順に、カーソルの後ろから返す。
 	// ジャンルの中分類とキーワードは、ルールの照合と同じ照合関数で、Go で判定する (設計書 3.5)。
 	// include_archive なら、開始時刻が [archive_from, archive_to) のアーカイブの番組も含める。

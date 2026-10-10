@@ -416,6 +416,7 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		Passwords:           auth.NewPasswords(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
 		Sessions:            sessions,
 		Settings:            settings.NewStore(deps.Clock, audit.NewRecorder(deps.Clock)),
+		Pools:               deps.Config.Storage.Pools,
 		Clock:               deps.Clock,
 		Location:            location,
 		MaxSearchCandidates: 0,

@@ -40,4 +40,5 @@ type Resolver struct {
 	passwords         *auth.Passwords
 	sessions          *auth.Sessions
 	settings          *settings.Store
+	pools             map[string]string
 }

@@ -93,6 +93,37 @@ func (q *Queries) ListAliveInstances(ctx context.Context, arg ListAliveInstances
 	return items, nil
 }
 
+const listInstances = `-- name: ListInstances :many
+SELECT id, role, address, started_at, heartbeat_at FROM instances ORDER BY role, started_at, id
+`
+
+// 止まった直後の行も含めて、すべてのインスタンスを返す。システムの状態の画面で、止まったインスタンスも示すため。
+func (q *Queries) ListInstances(ctx context.Context) ([]Instance, error) {
+	rows, err := q.db.Query(ctx, listInstances)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Instance{}
+	for rows.Next() {
+		var i Instance
+		if err := rows.Scan(
+			&i.ID,
+			&i.Role,
+			&i.Address,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertInstance = `-- name: UpsertInstance :exec
 INSERT INTO instances (id, role, address, started_at, heartbeat_at)
 VALUES ($1, $2, $3, $4, $4)

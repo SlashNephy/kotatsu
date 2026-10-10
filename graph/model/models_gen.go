@@ -23,6 +23,58 @@ type ArchiveRangeInput struct {
 	To *time.Time `json:"to,omitempty"`
 }
 
+// 監査ログの操作者。ユーザーの操作か、システムのロールの操作か。
+type AuditActor struct {
+	// user か system。
+	Type string `json:"type"`
+	// ユーザーの操作なら、そのユーザー。ユーザーを消していれば null。
+	User *User `json:"user,omitempty"`
+	// システムの操作なら、ロールの名前 (neko など)。
+	Role *string `json:"role,omitempty"`
+}
+
+// 監査ログの記録 (設計書 8.5)。誰が何をしたかを残す。
+type AuditEvent struct {
+	ID         string      `json:"id"`
+	OccurredAt time.Time   `json:"occurredAt"`
+	Actor      *AuditActor `json:"actor"`
+	// 操作の種類 (user.created など)。
+	Action string `json:"action"`
+	// 対象の種類 (user、rule など) と ID。
+	TargetType string  `json:"targetType"`
+	TargetID   *string `json:"targetId,omitempty"`
+	// 変更の要約。JSON の文字列。
+	Summary string `json:"summary"`
+	// 送信元。システムの操作では null。
+	SourceIP  *string `json:"sourceIp,omitempty"`
+	UserAgent *string `json:"userAgent,omitempty"`
+}
+
+func (AuditEvent) IsNode() {}
+
+type AuditEventConnection struct {
+	Edges    []*AuditEventEdge `json:"edges"`
+	PageInfo *PageInfo         `json:"pageInfo"`
+}
+
+type AuditEventEdge struct {
+	Cursor string      `json:"cursor"`
+	Node   *AuditEvent `json:"node"`
+}
+
+// 監査ログの絞り込み。省いた項目は絞り込まない。
+type AuditEventFilter struct {
+	// 操作の種類の先頭 (user. ならユーザーの操作だけ)。
+	ActionPrefix *string `json:"actionPrefix,omitempty"`
+	ActorUserID  *string `json:"actorUserId,omitempty"`
+	TargetType   *string `json:"targetType,omitempty"`
+	TargetID     *string `json:"targetId,omitempty"`
+	// この日時以降の記録だけを返す。
+	Since *time.Time `json:"since,omitempty"`
+	// この日時より前の記録だけを返す。
+	Until *time.Time `json:"until,omitempty"`
+}
+
 // チャンネル種別 (設計書 3.1)。種別の文字列はチューナーサーバーが返すものをそのまま使い、表示名と並び順は管理者が変えられる。
 type ChannelType struct {
 	Type        string `json:"type"`
@@ -81,6 +133,19 @@ type GuideViewInput struct {
 	HideEmptyServices  bool          `json:"hideEmptyServices"`
 }
 
+// 各ロールのインスタンス (設計書 1.4)。
+type Instance struct {
+	// インスタンスの ID。all では、1 つのプロセスがロールごとに同じ ID で登録する。
+	InstanceID string `json:"instanceId"`
+	Role       string `json:"role"`
+	// ほかのインスタンスから届くアドレス (host:port)。
+	Address     string    `json:"address"`
+	StartedAt   time.Time `json:"startedAt"`
+	HeartbeatAt time.Time `json:"heartbeatAt"`
+	// 最近ハートビートを書いたかどうか。止まったインスタンスは、しばらく残してから消す。
+	Alive bool `json:"alive"`
+}
+
 // キーワードと、その照合の仕方。
 type Keyword struct {
 	Text          string         `json:"text"`
@@ -97,6 +162,18 @@ type KeywordInput struct {
 	CaseSensitive bool `json:"caseSensitive"`
 	// 照合する項目。どれか 1 つに一致すれば、このキーワードに一致したとみなす。
 	Fields []KeywordField `json:"fields"`
+}
+
+// リーダー選出のリース (設計書 1.4)。neko のリースを持つインスタンスだけがアクティブになる。
+type Lease struct {
+	Name string `json:"name"`
+	// リースを持っているインスタンスの ID。
+	HolderInstanceID string    `json:"holderInstanceId"`
+	Generation       int       `json:"generation"`
+	AcquiredAt       time.Time `json:"acquiredAt"`
+	ExpiresAt        time.Time `json:"expiresAt"`
+	// 期限が切れていないかどうか。
+	Valid bool `json:"valid"`
 }
 
 type Mutation struct {
@@ -265,6 +342,13 @@ type Session struct {
 	SourceIP *string `json:"sourceIp,omitempty"`
 }
 
+// 保存先プール (設計書 5.6)。
+type StoragePool struct {
+	ID string `json:"id"`
+	// このインスタンスでのマウント先。
+	Path string `json:"path"`
+}
+
 type Subscription struct {
 }
 
@@ -283,6 +367,16 @@ type SystemSettingsInput struct {
 	// 録画設定の既定値の変える項目。省いた項目は変えない。
 	RecordingDefaults    *RecordingSettingsOverridesInput `json:"recordingDefaults,omitempty"`
 	ArchiveRetentionDays *int                             `json:"archiveRetentionDays,omitempty"`
+}
+
+// システムの状態。
+type SystemStatus struct {
+	Instances []*Instance `json:"instances"`
+	Leases    []*Lease    `json:"leases"`
+	// チューナーサーバーの状態。まだ確かめていなければ null。
+	TunerServer *TunerServerStatus `json:"tunerServer,omitempty"`
+	Tuners      []*Tuner           `json:"tuners"`
+	Pools       []*StoragePool     `json:"pools"`
 }
 
 // 登録中の TOTP。秘密キーは、この応答でしか見せない。
@@ -323,6 +417,29 @@ type TimeReservationInput struct {
 	// 画面に出す名前。200 文字まで。
 	Name     string                           `json:"name"`
 	Settings *RecordingSettingsOverridesInput `json:"settings,omitempty"`
+}
+
+// チューナー (設計書 3.1)。
+type Tuner struct {
+	Index int    `json:"index"`
+	Name  string `json:"name"`
+	// 受信できるチャンネル種別。
+	Types     []string `json:"types"`
+	Available bool     `json:"available"`
+	Remote    bool     `json:"remote"`
+	Fault     bool     `json:"fault"`
+}
+
+// チューナーサーバーの状態 (設計書 3.7)。
+type TunerServerStatus struct {
+	// 接続できない縮退中かどうか。
+	Degraded      bool       `json:"degraded"`
+	DegradedSince *time.Time `json:"degradedSince,omitempty"`
+	// 最後に接続に失敗した理由。
+	LastError string `json:"lastError"`
+	// チューナーサーバーの時計と OS の時計の差 (ミリ秒)。分からなければ null。
+	ClockSkewMs *int      `json:"clockSkewMs,omitempty"`
+	CheckedAt   time.Time `json:"checkedAt"`
 }
 
 // ユーザーの変える項目。省いた項目は変えない。

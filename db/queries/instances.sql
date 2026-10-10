@@ -17,3 +17,7 @@ DELETE FROM instances WHERE id = @id AND role = @role;
 
 -- name: DeleteStaleInstances :execrows
 DELETE FROM instances WHERE heartbeat_at < @before;
+
+-- name: ListInstances :many
+-- 止まった直後の行も含めて、すべてのインスタンスを返す。システムの状態の画面で、止まったインスタンスも示すため。
+SELECT * FROM instances ORDER BY role, started_at, id;

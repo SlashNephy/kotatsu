@@ -50,8 +50,10 @@ type Options struct {
 	Sessions *auth.Sessions
 	// Settings は、全体の設定を変えるのに使う。nil なら、Recorder と Clock で作る。
 	Settings *settings.Store
-	Clock    clock.Clock
-	Logger   *slog.Logger
+	// Pools は、保存先プールの ID からマウント先への対応。システムの状態で示す。
+	Pools  map[string]string
+	Clock  clock.Clock
+	Logger *slog.Logger
 	// Location は、番組の曜日と時間帯を判定する、表示のタイムゾーン。nil なら UTC。
 	Location *time.Location
 	// MaxSearchCandidates は、番組の検索で 1 回に照合する候補の数の上限。0 なら DefaultMaxSearchCandidates。
@@ -112,6 +114,7 @@ func NewHandler(opts *Options) http.Handler {
 		passwords:    o.Passwords,
 		sessions:     o.Sessions,
 		settings:     o.Settings,
+		pools:        o.Pools,
 	}
 	if resolver.settings == nil {
 		resolver.settings = settings.NewStore(o.Clock, o.Recorder)
