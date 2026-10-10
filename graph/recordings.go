@@ -238,6 +238,7 @@ func recordingModel(row *sqlc.Recording) (*model.Recording, error) {
 		Protected: row.Protected, Drops: row.Drops, Errors: row.Errors, Scrambled: row.Scrambled, Gaps: orEmpty(gaps),
 		ProgramLost: row.ProgramLost, RecordedFrom: row.RecordedFrom, RecordedUntil: row.RecordedUntil,
 		Tags: []*model.Tag{}, Files: []*model.RecordingFile{}, WatchPositionMs: nil, ThumbnailURL: nil, PreviewURL: nil,
+		StreamURL:  "/streams/recordings/" + row.ID.String(),
 		ServiceKey: row.ServiceID,
 	}
 	if row.EventID != nil {

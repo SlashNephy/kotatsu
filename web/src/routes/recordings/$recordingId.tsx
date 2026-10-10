@@ -242,7 +242,14 @@ function Recording({ recordingId }: { recordingId: string }) {
               <RecordingThumbnail url={recording.thumbnailUrl} />
             </AspectRatio>
           </Card>
-          <Button onClick={openExternally} loading={creatingURL}>
+          <Button
+            renderRoot={(props) => (
+              <Link {...props} to="/recordings/$recordingId/play" params={{ recordingId }} />
+            )}
+          >
+            {t('recordings.play')}
+          </Button>
+          <Button variant="default" onClick={openExternally} loading={creatingURL}>
             {t('recordings.openExternally')}
           </Button>
           {streamURL !== null && (

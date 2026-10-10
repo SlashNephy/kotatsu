@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,6 +29,15 @@ type Service struct {
 }
 
 func (Service) IsNode() {}
+
+// StreamURL は、ライブ視聴の TS を流す URL のパス。tenban の GET /streams/services/{id} で、Mirakurun のサービス ID を使う。
+// IsNode と揃えて、値のレシーバーにする。
+func (s Service) StreamURL() string {
+	return fmt.Sprintf("/streams/services/%d", int64(s.NetworkID)*mirakurunServiceIDBase+int64(s.ServiceID))
+}
+
+// mirakurunServiceIDBase は、Mirakurun のサービス ID の、ネットワーク ID の桁の重み (network_id * 100000 + service_id)。
+const mirakurunServiceIDBase = 100000
 
 // Program は番組。サービスは、リゾルバが dataloader で引く。
 type Program struct {
