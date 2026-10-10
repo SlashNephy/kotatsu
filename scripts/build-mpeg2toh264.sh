@@ -24,9 +24,22 @@ git init -q "$src"
 git -C "$src" fetch -q --depth 1 "$repository" "$commit"
 git -C "$src" -c advice.detachedHead=false checkout -q FETCH_HEAD
 
+# wasm-bindgen は、成果物に自分の版 (ビルドした commit を含む) を書くので、mise で固定した配布物を使う。
+# cargo install で入れたものが ~/.cargo/bin にあると、そちらが先に見つかってしまう。
+if command -v mise >/dev/null 2>&1; then
+  PATH="$(mise where github:wasm-bindgen/wasm-bindgen):$PATH"
+fi
+
 # Rust は、パニックのメッセージなどにソースの絶対パスを埋め込むので、どこでビルドしても同じパスにする。
+# RUSTFLAGS で渡すと、上流の .cargo/config.toml の rustflags (simd128 など) が使われなくなるので、
+# 親のディレクトリの設定に書き、上流の設定と合わせて使わせる。
 cargo_home="${CARGO_HOME:-$HOME/.cargo}"
-export RUSTFLAGS="--remap-path-prefix=$src=/mpeg2toh264 --remap-path-prefix=$cargo_home=/cargo"
+mkdir -p "$work/.cargo"
+cat >"$work/.cargo/config.toml" <<EOF
+[target.wasm32-unknown-unknown]
+rustflags = ["--remap-path-prefix=$src=/mpeg2toh264", "--remap-path-prefix=$cargo_home=/cargo"]
+EOF
+unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
 (
   cd "$src"
   # 上流のスクリプトは、wasm-bindgen の CLI と crate の版が揃っていることを確かめてからビルドする。
