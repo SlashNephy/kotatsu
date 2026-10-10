@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import i18next from '../i18n';
 import { AuthError } from './api';
-import { authErrorMessage } from './messages';
+import { authErrorMessage, oidcErrorMessage } from './messages';
 import { PasskeyCancelledError } from './passkey';
 
 describe('authErrorMessage', () => {
@@ -64,5 +64,27 @@ describe('authErrorMessage', () => {
     },
   ])('$name', ({ error, want }) => {
     expect(authErrorMessage(i18next.t, error)).toBe(want);
+  });
+});
+
+describe('oidcErrorMessage', () => {
+  test.each([
+    {
+      name: '紐付けたユーザーがいない',
+      reason: 'oidc_denied',
+      want: 'このアカウントでは Kotatsu にログインできません。管理者にお問い合わせください',
+    },
+    {
+      name: '期限切れ',
+      reason: 'oidc_expired',
+      want: '時間が経ったので、もう一度ログインしてください',
+    },
+    {
+      name: '知らない理由',
+      reason: 'oidc_failed',
+      want: 'うまくいきませんでした。時間をおいてやり直してください',
+    },
+  ])('$name', ({ reason, want }) => {
+    expect(oidcErrorMessage(i18next.t, reason)).toBe(want);
   });
 });

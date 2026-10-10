@@ -59,7 +59,15 @@
       "PASSKEY_UNAVAILABLE": "パスキーは、HTTPS か localhost で、IP アドレスではなくドメイン名で接続したときだけ使えます",
       "NO_PASSKEY": "この接続先で使えるパスキーが登録されていません",
       "PASSKEY_CANCELLED": "パスキーの確認が取り消されたか、使えるパスキーが見つかりませんでした",
-      "unknown": "うまくいきませんでした。時間をおいてやり直してください"
+      "unknown": "うまくいきませんでした。時間をおいてやり直してください",
+      "OIDC_UNAVAILABLE": "IdP に接続できませんでした。時間をおいてやり直してください"
+    },
+    "oidcErrors": {
+      "oidc_expired": "時間が経ったので、もう一度ログインしてください",
+      "oidc_invalid": "ログインを確かめられませんでした。もう一度ログインしてください",
+      "oidc_denied": "このアカウントでは Kotatsu にログインできません。管理者にお問い合わせください",
+      "oidc_username_taken": "同じユーザー名のユーザーがいるので、アカウントを作れませんでした。管理者にお問い合わせください",
+      "oidc_unavailable": "IdP に接続できませんでした。時間をおいてやり直してください"
     },
     "setup": {
       "title": "初回セットアップ",
@@ -73,7 +81,8 @@
       "submit": "ログイン",
       "passkey": "パスキーでログイン",
       "or": "または",
-      "passkeyUnavailable": "パスキーは、HTTPS か localhost で接続したときだけ使えます。"
+      "passkeyUnavailable": "パスキーは、HTTPS か localhost で接続したときだけ使えます。",
+      "oidc": "{{name}} でログイン"
     },
     "secondFactor": {
       "title": "第二要素の確認",
