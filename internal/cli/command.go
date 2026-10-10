@@ -409,6 +409,8 @@ type ChangeFeed interface {
 	Run(ctx context.Context) error
 }
 
+var _ ChangeFeed = new(notify.Broadcaster)
+
 // apiHandler は、tenban の API のハンドラーと、subscription に変更を知らせる ChangeFeed。
 type apiHandler struct {
 	handler http.Handler

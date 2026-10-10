@@ -408,7 +408,7 @@ func testOptions(logger *slog.Logger, roles []*cli.Role, lookupEnv config.Lookup
 // idleChanges は、変更を知らせない ChangeFeed。DB に接続しないテストで使う。
 type idleChanges struct{}
 
-var _ cli.ChangeFeed = idleChanges{}
+var _ cli.ChangeFeed = new(idleChanges)
 
 func (idleChanges) Subscribe() (<-chan struct{}, func()) { return make(chan struct{}), func() {} }
 
