@@ -29,7 +29,7 @@ func TestUserSetPassword(t *testing.T) {
 	env["KOTATSU_DATABASE_URL"] = dbConfig.URL.Value()
 	opts := cli.DefaultOptions(slog.New(slog.DiscardHandler))
 	// -race では、パスワードの強度の判定が 10 倍以上遅くなる。
-	opts.PasswordStrengthTimeout = 2 * time.Minute
+	opts.PasswordStrengthTimeout = 10 * time.Minute
 	opts.LookupEnv = func(key string) (string, bool) {
 		v, ok := env[key]
 

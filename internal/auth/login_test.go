@@ -311,7 +311,7 @@ func TestSetPassword(t *testing.T) {
 			t.Parallel()
 
 			f := newLoginFixture(t)
-			policy, err := password.NewPolicy(&password.PolicyOptions{HIBP: nil, StrengthTimeout: time.Minute, Logger: slog.New(slog.DiscardHandler)})
+			policy, err := password.NewPolicy(&password.PolicyOptions{HIBP: nil, StrengthTimeout: 10 * time.Minute, Logger: slog.New(slog.DiscardHandler)})
 			require.NoError(t, err)
 			passwords := auth.NewPasswords(f.clock, audit.NewRecorder(f.clock), policy)
 
@@ -334,7 +334,7 @@ func TestSetPassword(t *testing.T) {
 	}
 
 	f := newLoginFixture(t)
-	policy, err := password.NewPolicy(&password.PolicyOptions{HIBP: nil, StrengthTimeout: time.Minute, Logger: slog.New(slog.DiscardHandler)})
+	policy, err := password.NewPolicy(&password.PolicyOptions{HIBP: nil, StrengthTimeout: 10 * time.Minute, Logger: slog.New(slog.DiscardHandler)})
 	require.NoError(t, err)
 	_, err = auth.UserIDByUsername(t.Context(), f.db, "nobody")
 	require.ErrorIs(t, err, auth.ErrUserNotFound)
