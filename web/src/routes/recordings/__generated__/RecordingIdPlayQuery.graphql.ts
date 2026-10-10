@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<fd5883cc8262e3b5fc09f248c5d0268f>>
+ * @generated SignedSource<<c859f4ef0aaec33f4380c8e9b42af729>>
  * @lightSyntaxTransform
  */
 
@@ -15,10 +15,15 @@ export type RecordingIdPlayQuery$variables = {
 export type RecordingIdPlayQuery$data = {
   readonly node: {
     readonly __typename: "Recording";
+    readonly jikkyoCommentsUrl: string;
     readonly name: string;
     readonly recordedFrom: string;
     readonly recordedUntil: string | null | undefined;
     readonly service: {
+      readonly jikkyo: {
+        readonly id: string;
+        readonly name: string;
+      } | null | undefined;
       readonly name: string;
     };
     readonly streamUrl: string;
@@ -93,6 +98,33 @@ v6 = {
 v7 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "jikkyoCommentsUrl",
+  "storageKey": null
+},
+v8 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "id",
+  "storageKey": null
+},
+v9 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "JikkyoChannel",
+  "kind": "LinkedField",
+  "name": "jikkyo",
+  "plural": false,
+  "selections": [
+    (v8/*:: as any*/),
+    (v3/*:: as any*/)
+  ],
+  "storageKey": null
+},
+v10 = {
+  "alias": null,
+  "args": null,
   "concreteType": "Transcoding",
   "kind": "LinkedField",
   "name": "transcoding",
@@ -126,13 +158,6 @@ v7 = {
     }
   ],
   "storageKey": null
-},
-v8 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "id",
-  "storageKey": null
 };
 return {
   "fragment": {
@@ -157,6 +182,7 @@ return {
               (v4/*:: as any*/),
               (v5/*:: as any*/),
               (v6/*:: as any*/),
+              (v7/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -165,7 +191,8 @@ return {
                 "name": "service",
                 "plural": false,
                 "selections": [
-                  (v3/*:: as any*/)
+                  (v3/*:: as any*/),
+                  (v9/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -176,7 +203,7 @@ return {
         ],
         "storageKey": null
       },
-      (v7/*:: as any*/)
+      (v10/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -203,6 +230,7 @@ return {
               (v4/*:: as any*/),
               (v5/*:: as any*/),
               (v6/*:: as any*/),
+              (v7/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -212,6 +240,7 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
+                  (v9/*:: as any*/),
                   (v8/*:: as any*/)
                 ],
                 "storageKey": null
@@ -224,20 +253,20 @@ return {
         ],
         "storageKey": null
       },
-      (v7/*:: as any*/)
+      (v10/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "0cbb9be70b0b5d27e413e67ac0174c69",
+    "cacheID": "540dc8a5d84fc8d3ff8517d29a3d5df5",
     "id": null,
     "metadata": {},
     "name": "RecordingIdPlayQuery",
     "operationKind": "query",
-    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      streamUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n}\n"
+    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      streamUrl\n      recordedFrom\n      recordedUntil\n      jikkyoCommentsUrl\n      service {\n        name\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "41f391a2070f8723480a0c312caae297";
+(node as any).hash = "cfc251b0061da7d4bd6a5d9c7b4a3155";
 
 export default node;

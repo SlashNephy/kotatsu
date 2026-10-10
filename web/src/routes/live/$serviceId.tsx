@@ -6,7 +6,6 @@ import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'reac
 
 import { ErrorBoundary } from '../../futon';
 import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
-import { useJikkyoPreference } from '../../jikkyo/useJikkyoPreference';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
@@ -19,8 +18,8 @@ import {
 import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
 import { hlsURL } from '../../yunomi/route';
 import { TsPlayer } from '../../yunomi/TsPlayer';
-import { useCaptionsPreference } from '../../yunomi/useCaptionsPreference';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
+import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
 import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordingsQuery.graphql';
@@ -131,8 +130,12 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
   const frameRef = useRef<HTMLDivElement | null>(null);
   const visible = useVisible(frameRef);
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
-  const [captions, setCaptions] = useCaptionsPreference();
-  const [jikkyoEnabled, setJikkyoEnabled] = useJikkyoPreference();
+  const {
+    captionsEnabled: captions,
+    setCaptionsEnabled: setCaptions,
+    jikkyoEnabled,
+    setJikkyoEnabled,
+  } = usePlayerSettings();
   const channel = data.node?.__typename === 'Service' ? (data.node.jikkyo ?? null) : null;
   const jikkyo = useLiveJikkyo(jikkyoEnabled ? (channel?.id ?? null) : null, videoRef, visible);
   // session は、つなぎ直すたびに増やし、URL を変えて読み直させる。
