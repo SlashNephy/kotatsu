@@ -375,10 +375,19 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		return nil, fmt.Errorf("failed to load the time zone %s: %w", defaultTimeZone, err)
 	}
 
+	// TOTP の秘密キーは、アプリの秘密キーで暗号化して保存する (設計書 8.4)。秘密キーがなければ、ログインを受け付けられない。
+	if deps.Config.Auth.SecretKey.Value() == "" {
+		return nil, errSecretKeyRequired
+	}
+	factors, err := auth.NewSecondFactors(deps.Clock, audit.NewRecorder(deps.Clock), deps.Config.Auth.SecretKey.Value())
+	if err != nil {
+		return nil, err
+	}
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", graph.NewHandler(&graph.Options{
 		DB:                  deps.DB,
 		Recorder:            audit.NewRecorder(deps.Clock),
+		SecondFactors:       factors,
 		Clock:               deps.Clock,
 		Location:            location,
 		MaxSearchCandidates: 0,
@@ -388,14 +397,6 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		HeartbeatInterval:   0,
 	}))
 	mux.Handle("POST /auth/logout", httpserver.RequireSameOrigin(sessions.LogoutHandler(deps.DB)))
-	// TOTP の秘密キーは、アプリの秘密キーで暗号化して保存する (設計書 8.4)。秘密キーがなければ、ログインを受け付けられない。
-	if deps.Config.Auth.SecretKey.Value() == "" {
-		return nil, errSecretKeyRequired
-	}
-	factors, err := auth.NewSecondFactors(deps.Clock, audit.NewRecorder(deps.Clock), deps.Config.Auth.SecretKey.Value())
-	if err != nil {
-		return nil, err
-	}
 	logins := auth.NewLogins(&auth.LoginsOptions{
 		Clock:         deps.Clock,
 		Recorder:      audit.NewRecorder(deps.Clock),

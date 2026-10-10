@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/graph"
+	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/database"
@@ -76,6 +77,8 @@ func newFixture(t *testing.T, opts *graph.Options) *fixture {
 		opts = &graph.Options{}
 	}
 	opts.DB, opts.Clock, opts.Logger = pool, clk, slog.New(slog.DiscardHandler)
+	opts.SecondFactors, err = auth.NewSecondFactors(clk, audit.NewRecorder(clk), "kotatsu-graph-test-application-key-0123456789")
+	require.NoError(t, err)
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", sessions.Middleware(pool)(graph.NewHandler(opts)))
 	server := httptest.NewServer(mux)

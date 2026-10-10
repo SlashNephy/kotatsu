@@ -102,6 +102,21 @@ func (s *SecondFactors) Methods(ctx context.Context, db sqlc.DBTX, userID uuid.U
 	return methods, nil
 }
 
+// Status は、ユーザーが TOTP を登録しているかと、使っていないリカバリーコードの数を返す。
+func (s *SecondFactors) Status(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) (bool, int, error) {
+	q := sqlc.New(db)
+	hasTOTP, err := q.HasUserTOTP(ctx, userID)
+	if err != nil {
+		return false, 0, fmt.Errorf("failed to get the TOTP: %w", err)
+	}
+	codes, err := q.CountUnusedRecoveryCodes(ctx, userID)
+	if err != nil {
+		return false, 0, fmt.Errorf("failed to count recovery codes: %w", err)
+	}
+
+	return hasTOTP, int(codes), nil
+}
+
 // BeginTOTP は、TOTP の登録を始め、新しい秘密キーを返す。ConfirmTOTP でコードを確かめるまで、有効にはならない。
 // 登録済みの TOTP があっても、確かめるまでは古い TOTP がそのまま使える。
 func (s *SecondFactors) BeginTOTP(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, account string) (*TOTPEnrollment, error) {

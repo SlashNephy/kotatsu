@@ -210,6 +210,25 @@ type Mutation {
   ルールを消し、消したルールの ID を返す。このルールだけに一致していた予約は、次の照合で消える。視聴者は使えない。
   """
   deleteRule(id: ID!): ID!
+  """
+  TOTP の登録を始める。登録済みの TOTP を置き換えるときも使う。confirmTotpEnrollment で確かめるまでは、今の TOTP がそのまま使える。
+  直近 10 分以内に認証していなければ、REAUTHENTICATION_REQUIRED を返す (設計書 9.5)。
+  """
+  beginTotpEnrollment: TOTPEnrollment!
+  """
+  登録中の TOTP のコードを確かめて有効にし、新しいリカバリーコードを返す。古いリカバリーコードは使えなくなる。
+  直近 10 分以内の認証が要る。
+  """
+  confirmTotpEnrollment(code: String!): RecoveryCodes!
+  """
+  TOTP を消す。予備のリカバリーコードもあわせて消える。第二要素がなくなると、次にパスワードでログインするときに、TOTP を登録し直す。
+  直近 10 分以内の認証が要る。
+  """
+  deleteTotp: SecondFactorStatus!
+  """
+  リカバリーコードを作り直す。古いコードは使えなくなる。直近 10 分以内の認証が要る。
+  """
+  regenerateRecoveryCodes: RecoveryCodes!
 }
 """
 ID で引けるもの (Relay の Global Object Identification)。
@@ -377,6 +396,10 @@ type Query {
     """
     first: Int! = 50
   after: String): ProgramConnection!
+  """
+  ログイン中のユーザーの第二要素の状態。
+  """
+  secondFactors: SecondFactorStatus!
 }
 """
 録画設定の上書き (設計書 4.7)。null の項目は全体の既定値を使う。
@@ -406,6 +429,12 @@ input RecordingSettingsOverridesInput {
   startMarginSeconds: Int
   endMarginSeconds: Int
   priority: Int
+}
+"""
+リカバリーコード。この応答でしか見せないので、ユーザーに控えてもらう。
+"""
+type RecoveryCodes {
+  codes: [String!]!
 }
 """
 予約 (設計書 4.1)。番組予約とルール予約は、作ったときの番組情報のコピーを持つ。予約は家族で共有する (設計書 9.7)。
@@ -579,6 +608,19 @@ input RuleInput {
   followEventRelay: Boolean! = true
 }
 """
+ログイン中のユーザーの第二要素の状態 (設計書 9.3)。
+"""
+type SecondFactorStatus {
+  """
+  TOTP を登録しているかどうか。
+  """
+  totp: Boolean!
+  """
+  使っていないリカバリーコードの数。
+  """
+  remainingRecoveryCodes: Int!
+}
+"""
 サービス (設計書 3.2)。
 """
 type Service implements Node {
@@ -608,6 +650,23 @@ type Subscription {
   接続を保つために、一定の間隔で届く今の時刻。
   """
   heartbeat: Time!
+}
+"""
+登録中の TOTP。秘密キーは、この応答でしか見せない。
+"""
+type TOTPEnrollment {
+  """
+  認証アプリに手で入力する形の秘密キー (Base32)。
+  """
+  secret: String!
+  """
+  認証アプリが QR コードから読む otpauth URI。
+  """
+  uri: String!
+  """
+  これまでに confirmTotpEnrollment でコードを確かめないと、登録は取り消される。
+  """
+  expiresAt: Time!
 }
 """
 日時。RFC 3339 の文字列で表す。
