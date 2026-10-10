@@ -1,4 +1,14 @@
-import { Alert, Anchor, Button, Group, SegmentedControl, Stack, Text, Title } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Button,
+  Group,
+  SegmentedControl,
+  Select,
+  Stack,
+  Text,
+  Title,
+} from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Suspense, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -6,6 +16,7 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 
 import { ErrorBoundary } from '../../futon';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
+import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
 import { broadcastDay } from '../../guide/layout';
 import { ProgramDetail } from '../../guide/ProgramDetail';
 import { isUnauthenticated } from '../../relay/environment';
@@ -18,6 +29,8 @@ type GuideSearch = {
   type?: string;
   // program は、詳細を開いている番組の ID。
   program?: string;
+  // view は、適用する番組表ビューの ID。省くと、絞り込まない。
+  view?: string;
 };
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -32,11 +45,13 @@ export const Route = createFileRoute('/guide/')({
     const date = text('date');
     const type = text('type');
     const program = text('program');
+    const view = text('view');
 
     return {
       ...(date !== undefined && datePattern.test(date) ? { date } : {}),
       ...(type !== undefined ? { type } : {}),
       ...(program !== undefined ? { program } : {}),
+      ...(view !== undefined ? { view } : {}),
     };
   },
   component: GuidePage,
@@ -89,14 +104,43 @@ function Guide() {
 
     return { from, to: from + day };
   }, [search.date, today.from]);
+  // fetchKey は、番組表ビューを保存したときに、番組表とビューの一覧を取り直すための合図。
+  const [fetchKey, setFetchKey] = useState(0);
+  // editing は、編集中の番組表ビュー。
+  const [editing, setEditing] = useState<EditableGuideView | null>(null);
   const data = useLazyLoadQuery<guideQuery>(
     graphql`
-      query guideQuery($from: Time!, $to: Time!) {
+      query guideQuery($from: Time!, $to: Time!, $view: ID) {
         channelTypes {
           type
           displayName
         }
-        guide(from: $from, to: $to) {
+        services {
+          id
+          name
+          serviceId
+          channelType {
+            displayName
+          }
+        }
+        guideViews {
+          id
+          name
+          genres {
+            lv1
+            lv2
+          }
+          excludeGenres {
+            lv1
+            lv2
+          }
+          minDurationSeconds
+          services {
+            id
+          }
+          hideEmptyServices
+        }
+        guide(from: $from, to: $to, view: $view) {
           service {
             id
             name
@@ -117,8 +161,14 @@ function Guide() {
         }
       }
     `,
-    { from: new Date(window.from).toISOString(), to: new Date(window.to).toISOString() },
+    {
+      from: new Date(window.from).toISOString(),
+      to: new Date(window.to).toISOString(),
+      view: search.view ?? null,
+    },
+    { fetchKey, fetchPolicy: fetchKey === 0 ? 'store-or-network' : 'network-only' },
   );
+  const currentView = data.guideViews.find((view) => view.id === search.view);
 
   const types = data.channelTypes.filter((channelType) =>
     data.guide.some((row) => row.service.channelType.type === channelType.type),
@@ -185,6 +235,55 @@ function Guide() {
             {t('guide.today')}
           </Button>
         </Group>
+        <Group gap="xs">
+          <Select
+            size="xs"
+            aria-label={t('guide.view.label')}
+            value={currentView?.id ?? ''}
+            onChange={(value) =>
+              void navigate({
+                search: (prev) => ({
+                  ...prev,
+                  view: value === '' ? undefined : (value ?? undefined),
+                }),
+              })
+            }
+            data={[
+              { value: '', label: t('guide.view.all') },
+              ...data.guideViews.map((view) => ({ value: view.id, label: view.name })),
+            ]}
+            allowDeselect={false}
+          />
+          <Button
+            variant="default"
+            size="xs"
+            onClick={() =>
+              setEditing(
+                currentView === undefined
+                  ? {
+                      id: undefined,
+                      name: '',
+                      genres: [],
+                      excludeGenres: [],
+                      minDurationSeconds: null,
+                      services: [],
+                      hideEmptyServices: false,
+                    }
+                  : {
+                      id: currentView.id,
+                      name: currentView.name,
+                      genres: currentView.genres,
+                      excludeGenres: currentView.excludeGenres,
+                      minDurationSeconds: currentView.minDurationSeconds,
+                      services: currentView.services.map((service) => service.id),
+                      hideEmptyServices: currentView.hideEmptyServices,
+                    },
+              )
+            }
+          >
+            {currentView === undefined ? t('guide.view.create') : t('guide.view.edit')}
+          </Button>
+        </Group>
         {types.length > 0 && (
           <SegmentedControl
             size="xs"
@@ -208,6 +307,18 @@ function Guide() {
           now={now}
           initialTime={offset === 0 ? now : window.from + 15 * 3_600_000}
           onSelect={(program) => void navigate({ search: (prev) => ({ ...prev, program }) })}
+        />
+      )}
+      {editing !== null && (
+        <GuideViewEditor
+          view={editing}
+          services={data.services}
+          onClose={() => setEditing(null)}
+          onSaved={(id) => {
+            setEditing(null);
+            setFetchKey((key) => key + 1);
+            void navigate({ search: (prev) => ({ ...prev, view: id }) });
+          }}
         />
       )}
       <ProgramDetail

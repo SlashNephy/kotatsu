@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<45951803500018e1d3c57b12aad2391c>>
+ * @generated SignedSource<<d8249c62bd92c2849196d23ab3a1597b>>
  * @lightSyntaxTransform
  */
 
@@ -11,6 +11,7 @@ import { ConcreteRequest } from 'relay-runtime';
 export type guideQuery$variables = {
   from: string;
   to: string;
+  view?: string | null | undefined;
 };
 export type guideQuery$data = {
   readonly channelTypes: ReadonlyArray<{
@@ -36,6 +37,31 @@ export type guideQuery$data = {
       readonly name: string;
     };
   }>;
+  readonly guideViews: ReadonlyArray<{
+    readonly excludeGenres: ReadonlyArray<{
+      readonly lv1: number;
+      readonly lv2: number | null | undefined;
+    }>;
+    readonly genres: ReadonlyArray<{
+      readonly lv1: number;
+      readonly lv2: number | null | undefined;
+    }>;
+    readonly hideEmptyServices: boolean;
+    readonly id: string;
+    readonly minDurationSeconds: number | null | undefined;
+    readonly name: string;
+    readonly services: ReadonlyArray<{
+      readonly id: string;
+    }>;
+  }>;
+  readonly services: ReadonlyArray<{
+    readonly channelType: {
+      readonly displayName: string;
+    };
+    readonly id: string;
+    readonly name: string;
+    readonly serviceId: number;
+  }>;
 };
 export type guideQuery = {
   response: guideQuery$data;
@@ -53,6 +79,11 @@ var v0 = [
     "defaultValue": null,
     "kind": "LocalArgument",
     "name": "to"
+  },
+  {
+    "defaultValue": null,
+    "kind": "LocalArgument",
+    "name": "view"
   }
 ],
 v1 = {
@@ -66,17 +97,41 @@ v2 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "id",
+  "name": "displayName",
   "storageKey": null
 },
 v3 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
+  "name": "id",
+  "storageKey": null
+},
+v4 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
   "name": "name",
   "storageKey": null
 },
-v4 = [
+v5 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "lv1",
+  "storageKey": null
+},
+v6 = [
+  (v5/*:: as any*/),
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "lv2",
+    "storageKey": null
+  }
+],
+v7 = [
   {
     "alias": null,
     "args": null,
@@ -86,11 +141,96 @@ v4 = [
     "plural": true,
     "selections": [
       (v1/*:: as any*/),
+      (v2/*:: as any*/)
+    ],
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "Service",
+    "kind": "LinkedField",
+    "name": "services",
+    "plural": true,
+    "selections": [
+      (v3/*:: as any*/),
+      (v4/*:: as any*/),
       {
         "alias": null,
         "args": null,
         "kind": "ScalarField",
-        "name": "displayName",
+        "name": "serviceId",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "ChannelType",
+        "kind": "LinkedField",
+        "name": "channelType",
+        "plural": false,
+        "selections": [
+          (v2/*:: as any*/)
+        ],
+        "storageKey": null
+      }
+    ],
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "GuideView",
+    "kind": "LinkedField",
+    "name": "guideViews",
+    "plural": true,
+    "selections": [
+      (v3/*:: as any*/),
+      (v4/*:: as any*/),
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "GenreCondition",
+        "kind": "LinkedField",
+        "name": "genres",
+        "plural": true,
+        "selections": (v6/*:: as any*/),
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "GenreCondition",
+        "kind": "LinkedField",
+        "name": "excludeGenres",
+        "plural": true,
+        "selections": (v6/*:: as any*/),
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "minDurationSeconds",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "Service",
+        "kind": "LinkedField",
+        "name": "services",
+        "plural": true,
+        "selections": [
+          (v3/*:: as any*/)
+        ],
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "hideEmptyServices",
         "storageKey": null
       }
     ],
@@ -108,6 +248,11 @@ v4 = [
         "kind": "Variable",
         "name": "to",
         "variableName": "to"
+      },
+      {
+        "kind": "Variable",
+        "name": "view",
+        "variableName": "view"
       }
     ],
     "concreteType": "GuideRow",
@@ -123,8 +268,8 @@ v4 = [
         "name": "service",
         "plural": false,
         "selections": [
-          (v2/*:: as any*/),
           (v3/*:: as any*/),
+          (v4/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -148,7 +293,7 @@ v4 = [
         "name": "programs",
         "plural": true,
         "selections": [
-          (v2/*:: as any*/),
+          (v3/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -170,7 +315,7 @@ v4 = [
             "name": "endUndecided",
             "storageKey": null
           },
-          (v3/*:: as any*/),
+          (v4/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -179,13 +324,7 @@ v4 = [
             "name": "genres",
             "plural": true,
             "selections": [
-              {
-                "alias": null,
-                "args": null,
-                "kind": "ScalarField",
-                "name": "lv1",
-                "storageKey": null
-              }
+              (v5/*:: as any*/)
             ],
             "storageKey": null
           }
@@ -202,7 +341,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "guideQuery",
-    "selections": (v4/*:: as any*/),
+    "selections": (v7/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -211,19 +350,19 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
     "name": "guideQuery",
-    "selections": (v4/*:: as any*/)
+    "selections": (v7/*:: as any*/)
   },
   "params": {
-    "cacheID": "1a8b155c6cce68addf856861efadc370",
+    "cacheID": "cda58d00f4616b4e58f411cc41f4859e",
     "id": null,
     "metadata": {},
     "name": "guideQuery",
     "operationKind": "query",
-    "text": "query guideQuery(\n  $from: Time!\n  $to: Time!\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  guide(from: $from, to: $to) {\n    service {\n      id\n      name\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      startAt\n      endAt\n      endUndecided\n      name\n      genres {\n        lv1\n      }\n    }\n  }\n}\n"
+    "text": "query guideQuery(\n  $from: Time!\n  $to: Time!\n  $view: ID\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  services {\n    id\n    name\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  guideViews {\n    id\n    name\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    minDurationSeconds\n    services {\n      id\n    }\n    hideEmptyServices\n  }\n  guide(from: $from, to: $to, view: $view) {\n    service {\n      id\n      name\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      startAt\n      endAt\n      endUndecided\n      name\n      genres {\n        lv1\n      }\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "7911f3256aabf4ed005bfd462275ce59";
+(node as any).hash = "408ff651491e052eb6215edd2a2cead0";
 
 export default node;
