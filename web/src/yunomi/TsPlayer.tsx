@@ -48,20 +48,19 @@ export function TsPlayer({ url, videoRef, active, captions, onState, onError, on
     video.autoplay = true;
     frame.append(video);
     videoRef.current = video;
+    // 字幕は、aribb24.js を読み終えるまで溜めておくので、プレイヤーより先に作る。
+    const renderer = createCaptions(video, frame);
+    renderer.setVisible(showCaptions.current);
+    captionsRef.current = renderer;
     let destroyed = false;
     void (async () => {
-      const [{ Mpeg2TsPlayer: Player }, { Deinterlacer }, renderer] = await Promise.all([
+      const [{ Mpeg2TsPlayer: Player }, { Deinterlacer }] = await Promise.all([
         import('@mpeg2toh264/player'),
         import('@mpeg2toh264/yadif'),
-        createCaptions(video, frame),
       ]);
       if (destroyed) {
-        renderer.destroy();
-
         return;
       }
-      renderer.setVisible(showCaptions.current);
-      captionsRef.current = renderer;
       const player = new Player(video, {
         wasmUrl: wasmURL,
         deinterlace: true,

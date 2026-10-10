@@ -65,19 +65,12 @@ export function HlsPlayer({
     video.autoplay = true;
     frame.append(video);
     videoRef.current = video;
-    let destroyed = false;
-    void createCaptions(video, frame).then((renderer) => {
-      if (destroyed) {
-        renderer.destroy();
-
-        return;
-      }
-      renderer.setVisible(showCaptions.current);
-      captionsRef.current = renderer;
-    });
+    // 字幕は、aribb24.js を読み終えるまで溜めておくので、最初のセグメントの字幕も落とさない。
+    const renderer = createCaptions(video, frame);
+    renderer.setVisible(showCaptions.current);
+    captionsRef.current = renderer;
 
     return () => {
-      destroyed = true;
       captionsRef.current?.destroy();
       captionsRef.current = null;
       videoRef.current = null;
