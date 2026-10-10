@@ -33,6 +33,7 @@ type Config struct {
 	WebPush   WebPush   `yaml:"web_push"`
 	Thumbnail Thumbnail `yaml:"thumbnail"`
 	Kyusu     Kyusu     `yaml:"kyusu"`
+	Jikkyo    Jikkyo    `yaml:"jikkyo"`
 }
 
 // Server は tenban の HTTP サーバーの設定。
@@ -123,6 +124,14 @@ const (
 	// EncoderNVENC は、NVIDIA NVENC。
 	EncoderNVENC = "nvenc"
 )
+
+// Jikkyo は、ニコニコ実況の設定 (設計書 7.4)。
+type Jikkyo struct {
+	// Channels は、同梱した対応表に重ねる、サービスと実況のチャンネルの対応。
+	// キーは「ネットワーク ID:サービス ID」、値は jk1 などの実況のチャンネルの ID。
+	// 環境変数では、4:101=jk101,32736:1024=jk1 のようにカンマで区切って渡す。
+	Channels map[string]string `yaml:"channels"`
+}
 
 // Kyusu は、kyusu のトランスコードの設定 (設計書 7.3)。
 // kyusu は FFmpeg と tsreadex を使うので、FFmpeg の入ったイメージ (-ffmpeg) を使うか、PATH に入れる。
@@ -237,6 +246,7 @@ func Default() *Config {
 		WebPush:   WebPush{Subject: ""},
 		Thumbnail: Thumbnail{DisablePreview: false},
 		Kyusu:     Kyusu{Encoder: EncoderX264, VAAPIDevice: "/dev/dri/renderD128", WorkDir: ""},
+		Jikkyo:    Jikkyo{Channels: map[string]string{}},
 	}
 }
 

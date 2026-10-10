@@ -86,3 +86,10 @@ UPDATE recordings SET drops = @drops, errors = @errors, scrambled = @scrambled,
     ELSE state END,
   updated_at = @now
 WHERE id = @id;
+
+-- name: GetRecordingJikkyoSource :one
+-- 実況の過去ログを引くための、録画した時間帯とサービス (設計書 7.4)。
+SELECT r.recorded_from, r.recorded_until, s.network_id, s.sid
+FROM recordings r
+JOIN services s ON s.id = r.service_id
+WHERE r.id = @id;

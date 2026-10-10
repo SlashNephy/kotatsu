@@ -125,6 +125,11 @@ type Recording implements Node {
   """
   previewUrl: String
   """
+  録画の時間帯の実況の過去ログを返す URL のパス (設計書 7.4)。tenban が過去ログ API から取って中継する。
+  録画したサービスに実況のチャンネルがなければ、空の一覧を返す。
+  """
+  jikkyoCommentsUrl: String!
+  """
   録画の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。末尾に ?start=秒 を付けると、その位置から流す。
   外部プレイヤーには、createStreamURL で署名付きの URL を発行する。
   """

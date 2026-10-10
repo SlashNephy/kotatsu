@@ -25,6 +25,15 @@ type Service implements Node {
   hidden: Boolean!
   "ライブ視聴の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。"
   streamUrl: String!
+  "ニコニコ実況のチャンネル (設計書 7.4)。対応するチャンネルがないか、NX-Jikkyo が扱っていなければ null。"
+  jikkyo: JikkyoChannel
+}
+
+"NX-Jikkyo の実況のチャンネル。"
+type JikkyoChannel {
+  "jk1 などの ID。NX-Jikkyo の WebSocket の URL に使う。"
+  id: String!
+  name: String!
 }
 
 """

@@ -38,6 +38,8 @@ models:
     fields:
       channelType:
         resolver: true
+      jikkyo:
+        resolver: true
   Program:
     model: github.com/SlashNephy/kotatsu/graph/model.Program
     fields:

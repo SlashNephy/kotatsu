@@ -3,6 +3,7 @@ package graph
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -10,6 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/library"
 	"github.com/SlashNephy/kotatsu/internal/notification"
@@ -50,6 +52,9 @@ type Resolver struct {
 	webhooks          *webhook.Store
 	webPush           *webpush.Service
 	streamSigner      *stream.Signer
+	jikkyoTable       *jikkyo.Table
+	jikkyoClient      *jikkyo.Client
+	logger            *slog.Logger
 	library           *library.Library
 	changes           Changes
 	pools             map[string]string

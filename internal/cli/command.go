@@ -29,6 +29,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/kyusu"
@@ -555,6 +556,12 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	if err != nil {
 		return nil, err
 	}
+	// 実況のチャンネルの対応表と、NX-Jikkyo と過去ログ API への問い合わせ (設計書 7.4)。
+	jikkyoTable, err := jikkyo.NewTable(deps.Config.Jikkyo.Channels)
+	if err != nil {
+		return nil, err
+	}
+	jikkyoClient := jikkyo.NewClient(&jikkyo.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: nil, Clock: deps.Clock})
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", graph.NewHandler(&graph.Options{
 		DB:                  deps.DB,
@@ -568,6 +575,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Webhooks:            webhooks,
 		WebPush:             webPush,
 		StreamSigner:        signer,
+		JikkyoTable:         jikkyoTable,
+		JikkyoClient:        jikkyoClient,
 		Changes:             changes,
 		Pools:               deps.Config.Storage.Pools,
 		FreeSpace:           nil,
@@ -643,6 +652,9 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	// 録画の代表画像とプレビュー画像も、このインスタンスにマウントしたプールのものだけ配信できる。
 	mux.Handle("GET /media/recordings/{id}/{file}",
 		authorizer.Middleware(thumbnail.NewImageHandler(deps.DB, kago.New(deps.Config.Storage.Pools, nil), streamLogger)))
+	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
+	mux.Handle("GET /media/recordings/{id}/"+jikkyo.CommentsFileName, authorizer.Middleware(
+		jikkyo.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))))
 	api := sessions.Middleware(deps.DB)(mux)
 
 	app, err := spa.NewHandler(web.App(), logger.With(slog.String("component", "spa")))

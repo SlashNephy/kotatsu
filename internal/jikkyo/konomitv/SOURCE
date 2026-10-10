@@ -1,0 +1,4 @@
+# jikkyo_channels.json は、KonomiTV の server/static/jikkyo_channels.json を、そのまま写したもの (設計書 7.4)。
+# LICENSE は、同じ commit の License.txt。
+repository=https://github.com/tsukumijima/KonomiTV
+commit=144d4069e77085553aa5499f120c5b12fa53dc29

@@ -314,6 +314,16 @@ type Instance {
 """
 scalar Int64
 """
+NX-Jikkyo の実況のチャンネル。
+"""
+type JikkyoChannel {
+  """
+  jk1 などの ID。NX-Jikkyo の WebSocket の URL に使う。
+  """
+  id: String!
+  name: String!
+}
+"""
 キーワードと、その照合の仕方。
 """
 type Keyword {
@@ -927,6 +937,11 @@ type Recording implements Node {
   """
   previewUrl: String
   """
+  録画の時間帯の実況の過去ログを返す URL のパス (設計書 7.4)。tenban が過去ログ API から取って中継する。
+  録画したサービスに実況のチャンネルがなければ、空の一覧を返す。
+  """
+  jikkyoCommentsUrl: String!
+  """
   録画の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。末尾に ?start=秒 を付けると、その位置から流す。
   外部プレイヤーには、createStreamURL で署名付きの URL を発行する。
   """
@@ -1342,6 +1357,10 @@ type Service implements Node {
   ライブ視聴の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。
   """
   streamUrl: String!
+  """
+  ニコニコ実況のチャンネル (設計書 7.4)。対応するチャンネルがないか、NX-Jikkyo が扱っていなければ null。
+  """
+  jikkyo: JikkyoChannel
 }
 """
 ログイン中のセッション (設計書 9.5)。どの端末かを見分け、個別に失効させるのに使う。

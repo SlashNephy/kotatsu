@@ -190,6 +190,11 @@ func (r *serviceResolver) ChannelType(ctx context.Context, obj *model.Service) (
 	return toChannelType(row), nil
 }
 
+// Jikkyo is the resolver for the jikkyo field.
+func (r *serviceResolver) Jikkyo(ctx context.Context, obj *model.Service) (*model.JikkyoChannel, error) {
+	return r.serviceJikkyo(ctx, obj), nil
+}
+
 // Program returns generated.ProgramResolver implementation.
 func (r *Resolver) Program() generated.ProgramResolver { return &programResolver{r} }
 

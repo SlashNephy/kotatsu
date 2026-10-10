@@ -129,6 +129,33 @@ func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, er
 	return i, err
 }
 
+const getRecordingJikkyoSource = `-- name: GetRecordingJikkyoSource :one
+SELECT r.recorded_from, r.recorded_until, s.network_id, s.sid
+FROM recordings r
+JOIN services s ON s.id = r.service_id
+WHERE r.id = $1
+`
+
+type GetRecordingJikkyoSourceRow struct {
+	RecordedFrom  time.Time
+	RecordedUntil *time.Time
+	NetworkID     int64
+	Sid           int64
+}
+
+// 実況の過去ログを引くための、録画した時間帯とサービス (設計書 7.4)。
+func (q *Queries) GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (GetRecordingJikkyoSourceRow, error) {
+	row := q.db.QueryRow(ctx, getRecordingJikkyoSource, id)
+	var i GetRecordingJikkyoSourceRow
+	err := row.Scan(
+		&i.RecordedFrom,
+		&i.RecordedUntil,
+		&i.NetworkID,
+		&i.Sid,
+	)
+	return i, err
+}
+
 const getRecordingWithService = `-- name: GetRecordingWithService :one
 SELECT recordings.id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.program_lost, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
 FROM recordings
