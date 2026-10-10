@@ -161,39 +161,6 @@ func (q *Queries) ListUserPasskeys(ctx context.Context, userID uuid.UUID) ([]Use
 	return items, nil
 }
 
-const listUserPasskeysForUpdate = `-- name: ListUserPasskeysForUpdate :many
-SELECT id, user_id, credential_id, credential, rp_id, name, created_at, last_used_at FROM user_passkeys WHERE user_id = $1 ORDER BY created_at, id FOR UPDATE
-`
-
-func (q *Queries) ListUserPasskeysForUpdate(ctx context.Context, userID uuid.UUID) ([]UserPasskey, error) {
-	rows, err := q.db.Query(ctx, listUserPasskeysForUpdate, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []UserPasskey{}
-	for rows.Next() {
-		var i UserPasskey
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.CredentialID,
-			&i.Credential,
-			&i.RpID,
-			&i.Name,
-			&i.CreatedAt,
-			&i.LastUsedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const recordPasskeyUse = `-- name: RecordPasskeyUse :exec
 UPDATE user_passkeys SET credential = $1, last_used_at = $2 WHERE id = $3
 `

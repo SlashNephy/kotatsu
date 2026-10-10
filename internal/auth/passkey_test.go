@@ -459,3 +459,44 @@ func TestPasskeyOfAnotherUser(t *testing.T) {
 	}
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM user_passkeys WHERE name = $1", deviceLabel))
 }
+
+// TestPasskeyIsBoundToTheHost は、パスキーを、登録したときのホスト名でだけ使わせることを確かめる。
+func TestPasskeyIsBoundToTheHost(t *testing.T) {
+	t.Parallel()
+
+	f := newPasskeyFixture(t)
+	a := newAuthenticator(t)
+	f.register(t, a)
+	other := &auth.ClientInfo{UserAgent: browserUA, SourceIP: f.client.SourceIP, Host: "kotatsu.other.example", Secure: true}
+	a.Origin = "https://" + other.Host
+
+	// ほかのホスト名では、パスキーだけでログインできない。
+	assertion, err := f.logins.BeginPasskeyLogin(t.Context(), f.db, other)
+	require.NoError(t, err)
+	response, err := a.Get(assertion.Options)
+	require.NoError(t, err)
+	_, err = f.logins.CompleteWithPasskey(t.Context(), f.db, assertion.Token, response, other)
+	require.ErrorIs(t, err, auth.ErrInvalidPasskey)
+
+	// 第二要素としても、ほかのホスト名で登録したパスキーは候補にしない。
+	token, _, err := f.logins.Password(t.Context(), f.db, loginName, loginPhrase, other)
+	require.NoError(t, err)
+	_, err = f.logins.BeginPasskeySecondFactor(t.Context(), f.db, token, other)
+	require.ErrorIs(t, err, auth.ErrNoPasskey)
+
+	// ほかのホスト名でも、パスキーを登録できる。登録済みのパスキーは、除外の候補にしない。
+	creation, err := f.passkeys.BeginRegistration(t.Context(), f.db, f.user.ID, other)
+	require.NoError(t, err)
+	assert.Empty(t, creation.Options.CredentialExcludeList)
+}
+
+// TestPasskeyWithMixedCaseHost は、Host ヘッダーに大文字が混じっていても、小文字の RP ID でパスキーを登録することを確かめる。
+// ブラウザーは、オリジンのホスト名を小文字にして署名する。go-webauthn は、オリジンを大文字と小文字を区別せずに比べる。
+func TestPasskeyWithMixedCaseHost(t *testing.T) {
+	t.Parallel()
+
+	f := newPasskeyFixture(t)
+	f.client.Host = "Kotatsu.Example"
+	passkey := f.register(t, newAuthenticator(t))
+	assert.Equal(t, testHost, passkey.RPID)
+}

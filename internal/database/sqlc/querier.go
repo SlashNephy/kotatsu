@@ -130,7 +130,6 @@ type Querier interface {
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
 	ListUsableTuners(ctx context.Context) ([]ListUsableTunersRow, error)
 	ListUserPasskeys(ctx context.Context, userID uuid.UUID) ([]UserPasskey, error)
-	ListUserPasskeysForUpdate(ctx context.Context, userID uuid.UUID) ([]UserPasskey, error)
 	ListUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
 	// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。

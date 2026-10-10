@@ -1,9 +1,6 @@
 -- name: ListUserPasskeys :many
 SELECT * FROM user_passkeys WHERE user_id = @user_id ORDER BY created_at, id;
 
--- name: ListUserPasskeysForUpdate :many
-SELECT * FROM user_passkeys WHERE user_id = @user_id ORDER BY created_at, id FOR UPDATE;
-
 -- name: CountUserPasskeys :one
 SELECT count(*) FROM user_passkeys WHERE user_id = @user_id;
 

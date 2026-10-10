@@ -113,11 +113,11 @@ func (p *Passkeys) BeginRegistration(ctx context.Context, db Database, userID uu
 	}
 	var creation *PasskeyCreation
 	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		user, err := loadWebAuthnUser(ctx, tx, userID)
+		user, err := loadWebAuthnUser(ctx, tx, userID, rp.Config.RPID)
 		if err != nil {
 			return err
 		}
-		if len(user.credentials) >= MaxPasskeys {
+		if user.total >= MaxPasskeys {
 			return ErrTooManyPasskeys
 		}
 		// 登録済みの認証器に、同じユーザーのパスキーを重ねて作らせない。
@@ -274,11 +274,11 @@ func (p *Passkeys) register(
 	response []byte,
 	now time.Time,
 ) (*Passkey, error) {
-	user, err := loadWebAuthnUser(ctx, tx, userID)
+	user, err := loadWebAuthnUser(ctx, tx, userID, rp.Config.RPID)
 	if err != nil {
 		return nil, err
 	}
-	if len(user.credentials) >= MaxPasskeys {
+	if user.total >= MaxPasskeys {
 		return nil, ErrTooManyPasskeys
 	}
 	parsed, err := protocol.ParseCredentialCreationResponseBytes(response)
@@ -384,6 +384,9 @@ type webauthnUser struct {
 	displayName string
 	disabled    bool
 	hasPassword bool
+	// total は、どのホスト名で登録したかを問わない、パスキーの数。
+	total int
+	// passkeys と credentials は、今の RP ID で登録したパスキーだけを持つ。
 	passkeys    []sqlc.UserPasskey
 	credentials []webauthn.Credential
 }
@@ -404,8 +407,11 @@ func (u *webauthnUser) WebAuthnCredentials() []webauthn.Credential {
 	return u.credentials
 }
 
-// loadWebAuthnUser は、ユーザーと、そのパスキーを引く。
-func loadWebAuthnUser(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) (*webauthnUser, error) {
+// loadWebAuthnUser は、ユーザーと、RP ID が rpID のパスキーを引く。
+//
+// ほかのホスト名で登録したパスキーは、ブラウザーが使わせないので、ログインの候補にも登録の除外にも入れない。
+// 認証器が答えても、候補にないパスキーは go-webauthn が受け付けない。
+func loadWebAuthnUser(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, rpID string) (*webauthnUser, error) {
 	q := sqlc.New(db)
 	user, err := q.GetUser(ctx, userID)
 	if err != nil {
@@ -415,12 +421,17 @@ func loadWebAuthnUser(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) (*web
 	if err != nil {
 		return nil, fmt.Errorf("failed to list passkeys: %w", err)
 	}
+	passkeys := make([]sqlc.UserPasskey, 0, len(rows))
 	credentials := make([]webauthn.Credential, 0, len(rows))
 	for i := range rows {
+		if rows[i].RpID != rpID {
+			continue
+		}
 		var credential webauthn.Credential
 		if err := json.Unmarshal(rows[i].Credential, &credential); err != nil {
 			return nil, fmt.Errorf("failed to decode the passkey %s: %w", rows[i].ID, err)
 		}
+		passkeys = append(passkeys, rows[i])
 		credentials = append(credentials, credential)
 	}
 
@@ -430,7 +441,8 @@ func loadWebAuthnUser(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) (*web
 		displayName: user.DisplayName,
 		disabled:    user.DisabledAt != nil,
 		hasPassword: user.PasswordHash != nil,
-		passkeys:    rows,
+		total:       len(rows),
+		passkeys:    passkeys,
 		credentials: credentials,
 	}, nil
 }

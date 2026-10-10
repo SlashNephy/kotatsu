@@ -104,7 +104,7 @@ func (l *Logins) verifyDiscoverablePasskey(
 	if err != nil {
 		return nil, fmt.Errorf("failed to find the passkey: %w", err)
 	}
-	user, err := loadWebAuthnUser(ctx, tx, row.UserID)
+	user, err := loadWebAuthnUser(ctx, tx, row.UserID, rp.Config.RPID)
 	if err != nil {
 		return nil, err
 	}
@@ -148,10 +148,11 @@ func (l *Logins) BeginPasskeySecondFactor(ctx context.Context, db Database, toke
 		if err != nil {
 			return err
 		}
-		user, err := loadWebAuthnUser(ctx, tx, row.UserID)
+		user, err := loadWebAuthnUser(ctx, tx, row.UserID, rp.Config.RPID)
 		if err != nil {
 			return err
 		}
+		// ほかのホスト名で登録したパスキーしかなければ、ブラウザーは使わせない。
 		if len(user.credentials) == 0 {
 			return ErrNoPasskey
 		}
@@ -197,7 +198,7 @@ func (l *Logins) CompleteWithPasskeySecondFactor(ctx context.Context, db Databas
 		if err != nil {
 			return fmt.Errorf("%w: %w", ErrInvalidSecondFactor, err)
 		}
-		user, err := loadWebAuthnUser(ctx, tx, row.UserID)
+		user, err := loadWebAuthnUser(ctx, tx, row.UserID, rp.Config.RPID)
 		if err != nil {
 			return err
 		}
