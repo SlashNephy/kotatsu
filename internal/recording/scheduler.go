@@ -36,6 +36,20 @@ const (
 	ConflictPriority = 1
 )
 
+// State は、割り振りの状態 (recording_assignments.state)。
+type State string
+
+const (
+	// StateWaiting は、まだ mikan が取っていない割り振り。
+	StateWaiting State = "waiting"
+	// StateRecording は、mikan が取って録画している割り振り。
+	StateRecording State = "recording"
+	// StateHandover は、止まる mikan が、引き継ぎを待っている割り振り (設計書 5.4)。
+	StateHandover State = "handover"
+	// StateFinished は、録画を終えた割り振り。
+	StateFinished State = "finished"
+)
+
 // Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確かめる。
 type Guard func(ctx context.Context, tx pgx.Tx) error
 

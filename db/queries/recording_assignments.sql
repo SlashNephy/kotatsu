@@ -37,3 +37,35 @@ WHERE a.reservation_id = r.id
 
 -- name: ListRecordingAssignments :many
 SELECT * FROM recording_assignments ORDER BY created_at, id;
+
+-- name: AcquireRecordingAssignment :one
+-- mikan が、誰も持っていないか、リースの切れた割り振りを 1 つ取る。ほかの mikan が同時に取ろうとしている行は飛ばす。
+-- 取るたびに世代番号を上げ、古い mikan のリースの延長を失敗させる。優先度の高い録画から取る。
+WITH target AS (
+  SELECT a.id FROM recording_assignments a
+  WHERE a.state IN ('waiting', 'recording') AND (a.holder IS NULL OR a.lease_expires_at <= @now::timestamptz)
+  ORDER BY a.priority DESC, a.created_at, a.id
+  LIMIT 1
+  FOR UPDATE SKIP LOCKED
+)
+UPDATE recording_assignments a
+SET holder = @holder, generation = a.generation + 1, lease_expires_at = @expires_at, state = 'recording', updated_at = @now
+FROM target
+WHERE a.id = target.id
+RETURNING a.*;
+
+-- name: RenewRecordingAssignment :execrows
+-- 割り振りのリースを延長する。世代番号が進んでいたら、ほかの mikan が取ったので、延長しない。
+UPDATE recording_assignments SET lease_expires_at = @expires_at, updated_at = @now
+WHERE id = @id AND generation = @generation AND holder = @holder AND state = 'recording' AND lease_expires_at > @now::timestamptz;
+
+-- name: FinishRecordingAssignment :execrows
+-- 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。
+UPDATE recording_assignments SET state = 'finished', holder = NULL, lease_expires_at = NULL, updated_at = @now
+WHERE id = @id AND generation = @generation AND holder = @holder;
+
+-- name: GetReservationForRecording :one
+-- 録画に使う予約の情報。予定の時刻は、録画中も neko が計算し直すので、録画しながら読み直す。
+SELECT r.id, r.service_id, r.event_id, r.name, r.start_at, r.end_at, r.enabled, r.planned_start_at, r.planned_end_at, r.settings
+FROM reservations r
+WHERE r.id = @id;

@@ -15,6 +15,9 @@ type Querier interface {
 	// 期限の切れたリースだけを取れる。誰も持っていないか期限が切れていれば、世代番号を 1 つ上げて取る。
 	// 他のインスタンスが期限内のリースを持っていれば、行を返さない。
 	AcquireLease(ctx context.Context, arg AcquireLeaseParams) (int64, error)
+	// mikan が、誰も持っていないか、リースの切れた割り振りを 1 つ取る。ほかの mikan が同時に取ろうとしている行は飛ばす。
+	// 取るたびに世代番号を上げ、古い mikan のリースの延長を失敗させる。優先度の高い録画から取る。
+	AcquireRecordingAssignment(ctx context.Context, arg AcquireRecordingAssignmentParams) (RecordingAssignment, error)
 	// 放送の終わりが before より前の番組を、最大 batch_size 件だけ program_archives へ移す。
 	// 終了時刻が未定の番組は、開始時刻が before より前なら移す。猶予 (既定 24 時間) より長い番組は無いからである。
 	// 同じ番組を移し直すことは通常ないが、移した後に上流から同じ番組が届き、また移すときは新しい内容で上書きする。
@@ -56,6 +59,8 @@ type Querier interface {
 	EnableUser(ctx context.Context, arg EnableUserParams) (int64, error)
 	// 種別が無ければ既定値で足す。管理者が変えた表示名と並び順は上書きしない。
 	EnsureChannelType(ctx context.Context, arg EnsureChannelTypeParams) error
+	// 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。
+	FinishRecordingAssignment(ctx context.Context, arg FinishRecordingAssignmentParams) (int64, error)
 	GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error)
 	GetGuideProgram(ctx context.Context, arg GetGuideProgramParams) (GetGuideProgramRow, error)
 	GetGuideView(ctx context.Context, arg GetGuideViewParams) (GuideView, error)
@@ -71,6 +76,8 @@ type Querier interface {
 	GetReservationByProgram(ctx context.Context, arg GetReservationByProgramParams) (Reservation, error)
 	// 競合の通知に載せる、予約の番組名とサービス名。
 	GetReservationForNotification(ctx context.Context, id uuid.UUID) (GetReservationForNotificationRow, error)
+	// 録画に使う予約の情報。予定の時刻は、録画中も neko が計算し直すので、録画しながら読み直す。
+	GetReservationForRecording(ctx context.Context, id uuid.UUID) (GetReservationForRecordingRow, error)
 	GetRule(ctx context.Context, id uuid.UUID) (Rule, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
 	GetSystemSettings(ctx context.Context) (SystemSetting, error)
@@ -210,6 +217,8 @@ type Querier interface {
 	RenameUserPasskey(ctx context.Context, arg RenameUserPasskeyParams) (int64, error)
 	// 同じ世代のリースを期限内に延長する。期限が切れていたり、他のインスタンスに取られていたりすれば、行を更新しない。
 	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
+	// 割り振りのリースを延長する。世代番号が進んでいたら、ほかの mikan が取ったので、延長しない。
+	RenewRecordingAssignment(ctx context.Context, arg RenewRecordingAssignmentParams) (int64, error)
 	ResetLoginThrottle(ctx context.Context, key string) error
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	// 監査ログを、新しい順に返す。条件の NULL の項目は絞り込まない。

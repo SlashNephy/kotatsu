@@ -12,6 +12,46 @@ import (
 	"github.com/google/uuid"
 )
 
+const acquireRecordingAssignment = `-- name: AcquireRecordingAssignment :one
+WITH target AS (
+  SELECT a.id FROM recording_assignments a
+  WHERE a.state IN ('waiting', 'recording') AND (a.holder IS NULL OR a.lease_expires_at <= $3::timestamptz)
+  ORDER BY a.priority DESC, a.created_at, a.id
+  LIMIT 1
+  FOR UPDATE SKIP LOCKED
+)
+UPDATE recording_assignments a
+SET holder = $1, generation = a.generation + 1, lease_expires_at = $2, state = 'recording', updated_at = $3
+FROM target
+WHERE a.id = target.id
+RETURNING a.id, a.reservation_id, a.priority, a.state, a.generation, a.holder, a.lease_expires_at, a.created_at, a.updated_at
+`
+
+type AcquireRecordingAssignmentParams struct {
+	Holder    *uuid.UUID
+	ExpiresAt *time.Time
+	Now       time.Time
+}
+
+// mikan が、誰も持っていないか、リースの切れた割り振りを 1 つ取る。ほかの mikan が同時に取ろうとしている行は飛ばす。
+// 取るたびに世代番号を上げ、古い mikan のリースの延長を失敗させる。優先度の高い録画から取る。
+func (q *Queries) AcquireRecordingAssignment(ctx context.Context, arg AcquireRecordingAssignmentParams) (RecordingAssignment, error) {
+	row := q.db.QueryRow(ctx, acquireRecordingAssignment, arg.Holder, arg.ExpiresAt, arg.Now)
+	var i RecordingAssignment
+	err := row.Scan(
+		&i.ID,
+		&i.ReservationID,
+		&i.Priority,
+		&i.State,
+		&i.Generation,
+		&i.Holder,
+		&i.LeaseExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deleteStaleRecordingAssignments = `-- name: DeleteStaleRecordingAssignments :execrows
 DELETE FROM recording_assignments a
 USING reservations r
@@ -37,6 +77,70 @@ func (q *Queries) DeleteStaleRecordingAssignments(ctx context.Context, arg Delet
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const finishRecordingAssignment = `-- name: FinishRecordingAssignment :execrows
+UPDATE recording_assignments SET state = 'finished', holder = NULL, lease_expires_at = NULL, updated_at = $1
+WHERE id = $2 AND generation = $3 AND holder = $4
+`
+
+type FinishRecordingAssignmentParams struct {
+	Now        time.Time
+	ID         uuid.UUID
+	Generation int64
+	Holder     *uuid.UUID
+}
+
+// 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。
+func (q *Queries) FinishRecordingAssignment(ctx context.Context, arg FinishRecordingAssignmentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, finishRecordingAssignment,
+		arg.Now,
+		arg.ID,
+		arg.Generation,
+		arg.Holder,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const getReservationForRecording = `-- name: GetReservationForRecording :one
+SELECT r.id, r.service_id, r.event_id, r.name, r.start_at, r.end_at, r.enabled, r.planned_start_at, r.planned_end_at, r.settings
+FROM reservations r
+WHERE r.id = $1
+`
+
+type GetReservationForRecordingRow struct {
+	ID             uuid.UUID
+	ServiceID      int64
+	EventID        *int64
+	Name           string
+	StartAt        time.Time
+	EndAt          time.Time
+	Enabled        bool
+	PlannedStartAt *time.Time
+	PlannedEndAt   *time.Time
+	Settings       []byte
+}
+
+// 録画に使う予約の情報。予定の時刻は、録画中も neko が計算し直すので、録画しながら読み直す。
+func (q *Queries) GetReservationForRecording(ctx context.Context, id uuid.UUID) (GetReservationForRecordingRow, error) {
+	row := q.db.QueryRow(ctx, getReservationForRecording, id)
+	var i GetReservationForRecordingRow
+	err := row.Scan(
+		&i.ID,
+		&i.ServiceID,
+		&i.EventID,
+		&i.Name,
+		&i.StartAt,
+		&i.EndAt,
+		&i.Enabled,
+		&i.PlannedStartAt,
+		&i.PlannedEndAt,
+		&i.Settings,
+	)
+	return i, err
 }
 
 const insertRecordingAssignment = `-- name: InsertRecordingAssignment :exec
@@ -135,6 +239,34 @@ func (q *Queries) ListRecordingAssignments(ctx context.Context) ([]RecordingAssi
 		return nil, err
 	}
 	return items, nil
+}
+
+const renewRecordingAssignment = `-- name: RenewRecordingAssignment :execrows
+UPDATE recording_assignments SET lease_expires_at = $1, updated_at = $2
+WHERE id = $3 AND generation = $4 AND holder = $5 AND state = 'recording' AND lease_expires_at > $2::timestamptz
+`
+
+type RenewRecordingAssignmentParams struct {
+	ExpiresAt  *time.Time
+	Now        time.Time
+	ID         uuid.UUID
+	Generation int64
+	Holder     *uuid.UUID
+}
+
+// 割り振りのリースを延長する。世代番号が進んでいたら、ほかの mikan が取ったので、延長しない。
+func (q *Queries) RenewRecordingAssignment(ctx context.Context, arg RenewRecordingAssignmentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, renewRecordingAssignment,
+		arg.ExpiresAt,
+		arg.Now,
+		arg.ID,
+		arg.Generation,
+		arg.Holder,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateWaitingRecordingPriorities = `-- name: UpdateWaitingRecordingPriorities :execrows
