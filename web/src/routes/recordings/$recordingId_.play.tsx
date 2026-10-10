@@ -80,34 +80,41 @@ function Player({ recordingId }: { recordingId: string }) {
   const visible = useVisible(videoRef);
   // offset は、今の読み込みを始めた、録画の始まりからの秒。シークすると、新しい開始位置で読み直す (設計書 7.2)。
   const [offset, setOffset] = useState(0);
-  // base は、読み込み直後の video の currentTime。変換した映像の時刻は 0 から始まるとは限らない。
+  // base は、読み込んだ映像の最初のフレームの、video の時刻。変換した映像の時刻は 0 から始まるとは限らない。
   const base = useRef(0);
+  // phase は、読み込みの段階。読み直している間に、前の映像の時刻で位置を動かさないよう、base を決めるまで位置を更新しない。
+  const phase = useRef<'loading' | 'awaitingBase' | 'playing'>('loading');
   const [position, setPosition] = useState(0);
+  // positionRef は、画面の外に出たときに、戻ってから続ける位置。
+  const positionRef = useRef(0);
   const [seeking, setSeeking] = useState<number | null>(null);
-  const [paused, setPaused] = useState(false);
+  const [paused, setPaused] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // wasPlaying は、画面の外に出たときに再生していたかどうか。戻ったら再生を続ける。
-  const wasPlaying = useRef(false);
 
   const recording = data.node?.__typename === 'Recording' ? data.node : null;
   const duration =
     recording === null
       ? 0
-      : ((recording.recordedUntil == null ? Date.now() : Date.parse(recording.recordedUntil)) -
-          Date.parse(recording.recordedFrom)) /
-        1000;
+      : Math.max(
+          ((recording.recordedUntil == null ? Date.now() : Date.parse(recording.recordedUntil)) -
+            Date.parse(recording.recordedFrom)) /
+            1000,
+          0,
+        );
 
-  // 画面の外に出たら止め、戻ったら続ける。
+  // startAt は、指定の位置から読み直す。
+  const startAt = (seconds: number) => {
+    phase.current = 'loading';
+    positionRef.current = seconds;
+    setPosition(seconds);
+    setOffset(seconds);
+  };
+
+  // 画面の外に出たら、読み込みも止める。戻ったら、止めた位置から読み直す (設計書 7.2)。
   useEffect(() => {
-    const video = videoRef.current;
-    if (video === null) {
-      return;
-    }
     if (!visible) {
-      wasPlaying.current = !video.paused;
-      video.pause();
-    } else if (wasPlaying.current) {
-      void video.play().catch(() => {});
+      phase.current = 'loading';
+      setOffset(positionRef.current);
     }
   }, [visible]);
 
@@ -117,12 +124,27 @@ function Player({ recordingId }: { recordingId: string }) {
     if (video === null) {
       return;
     }
-    const update = () => setPosition(playbackPosition(offset, base.current, video.currentTime));
+    const update = () => {
+      if (phase.current === 'loading') {
+        return;
+      }
+      if (phase.current === 'awaitingBase') {
+        if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+          return;
+        }
+        base.current = video.currentTime;
+        phase.current = 'playing';
+      }
+      const next = playbackPosition(offset, base.current, video.currentTime);
+      positionRef.current = next;
+      setPosition(next);
+    };
     const onPause = () => setPaused(true);
     const onPlay = () => setPaused(false);
     video.addEventListener('timeupdate', update);
     video.addEventListener('pause', onPause);
     video.addEventListener('play', onPlay);
+    setPaused(video.paused);
 
     return () => {
       video.removeEventListener('timeupdate', update);
@@ -148,10 +170,10 @@ function Player({ recordingId }: { recordingId: string }) {
       <TsPlayer
         url={url}
         videoRef={videoRef}
-        active
+        active={visible}
         onLoaded={() => {
-          const video = videoRef.current;
-          base.current = video !== null && video.buffered.length > 0 ? video.buffered.start(0) : 0;
+          // 最初のフレームが出たときの時刻を、base にする。
+          phase.current = 'awaitingBase';
           setError(null);
         }}
         onError={() => setError(t('player.error'))}
@@ -186,8 +208,7 @@ function Player({ recordingId }: { recordingId: string }) {
           onChange={setSeeking}
           onChangeEnd={(value) => {
             setSeeking(null);
-            setPosition(value);
-            setOffset(value);
+            startAt(value);
           }}
         />
         <Text size="sm" ff="monospace" style={{ flexShrink: 0 }}>

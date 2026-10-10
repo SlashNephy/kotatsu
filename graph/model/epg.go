@@ -31,7 +31,7 @@ type Service struct {
 func (Service) IsNode() {}
 
 // StreamURL は、ライブ視聴の TS を流す URL のパス。tenban の GET /streams/services/{id} で、Mirakurun のサービス ID を使う。
-func (s Service) StreamURL() string {
+func (s *Service) StreamURL() string {
 	return fmt.Sprintf("/streams/services/%d", int64(s.NetworkID)*mirakurunServiceIDBase+int64(s.ServiceID))
 }
 

@@ -99,6 +99,8 @@ export function TsPlayer({ url, videoRef, active, onState, onError, onLoaded }: 
 
     return () => {
       cancelled = true;
+      // URL が変わるか、外すときは、前の読み込みを止めて、サーバーに無駄な読み込みをさせない。
+      player.stop();
     };
   }, [ready, url, active]);
 
