@@ -54,49 +54,13 @@ EPGStationの録画の保存先ディレクトリは、`--pool 名前=プールI
 ## 動かす
 
 KotatsuにはPostgreSQLと、Mirakurun、mirakc、Mahironのいずれかのチューナーサーバーが必要です。
-CIでは、PostgreSQL 17で動作を確認しています。
-
 コンテナイメージは`ghcr.io/slashnephy/kotatsu`で配布しています。
 
-| タグ | 内容 |
-| --- | --- |
-| `edge` | mainの最新版。FFmpegを含まない |
-| `edge-ffmpeg` | mainの最新版。サーバー側のトランスコードに使うFFmpegを含む |
+Docker Composeで1台のマシンに立てる手順と、HelmでKubernetesに立てる手順は、次のドキュメントにまとめました。
 
-### 設定
-
-設定はYAMLのファイルか、`KOTATSU_`で始まる環境変数で渡してください。
-主な項目は次の表のとおりです。
-
-| 環境変数 | 内容 |
-| --- | --- |
-| `KOTATSU_DATABASE_URL` | PostgreSQLの接続先（例: `postgres://user:password@host:5432/kotatsu`） |
-| `KOTATSU_AUTH_SECRET_KEY` | アプリの秘密キー。32バイト以上のランダムな文字列を指定する（例: `openssl rand -base64 48`の出力）。TOTPやWebhookの署名用の秘密キーの暗号化に使うので、後から変えると暗号化した値を読めなくなる。tenbanとnekonoteの起動に必要 |
-| `KOTATSU_TUNER_URL` | チューナーサーバーのURL（例: `http://mirakurun:40772`） |
-| `KOTATSU_STORAGE_POOLS` | 録画の保存先。`main=/mnt/main,sub=/mnt/sub`のように「ID=パス」をカンマで区切って指定する |
-| `KOTATSU_SERVER_LISTEN` | 待ち受けアドレス。既定は`:8080` |
-| `KOTATSU_SERVER_ALLOWED_NETWORKS` | 接続を受け付けるネットワーク。既定はプライベートアドレスだけ |
-
-秘密情報は、ファイルのパスとしても渡せます。
-その場合は、環境変数の名前の末尾に`_FILE`を付けてください（例: `KOTATSU_AUTH_SECRET_KEY_FILE`）。
-
-### 起動と初回セットアップ
-
-最初に、DBのスキーマを作ります。
-
-```bash
-kotatsu migrate
-```
-
-次に、全ロールを1つのプロセスで起動してください。
-
-```bash
-kotatsu all
-```
-
-管理者がまだいなければ、起動時のログにセットアップトークンが出力されます。
-ブラウザで`http://<ホスト>:8080/setup`を開き、そのトークンを入力して最初の管理者を作ってください。
-作った管理者でログインすると、認証アプリの登録を求められます。
+- [セットアップ](docs/setup.md)：Docker ComposeとHelmでの起動、最初の管理者の作り方、HTTPSの注意点
+- [設定](docs/configuration.md)：すべての設定項目と、YAMLと環境変数での書き方
+- [運用](docs/operations.md)：バックアップの対象、録画を止めない更新、監視
 
 ## 開発
 
