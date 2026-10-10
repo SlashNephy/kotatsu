@@ -1,0 +1,10 @@
+apiVersion: v2
+name: kotatsu
+description: Kotatsu reserves, records, and serves Japanese TV broadcasts
+type: application
+# Chart の版。Kotatsu の版と合わせて、リリースのときに書き換える。
+version: 0.0.0
+appVersion: edge
+home: https://github.com/SlashNephy/kotatsu
+sources:
+  - https://github.com/SlashNephy/kotatsu

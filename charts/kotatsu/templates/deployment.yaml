@@ -1,0 +1,10 @@
+{{- if eq .Values.mode "all" }}
+{{- include "kotatsu.deployment" (dict "root" $ "component" "all" "args" (list "all") "pod" .Values.all "replicas" 1 "ffmpeg" true "pools" true) }}
+{{- else if eq .Values.mode "split" }}
+{{- range $name, $role := .Values.roles }}
+---
+{{ include "kotatsu.deployment" (dict "root" $ "component" $name "args" (list $name) "pod" $role "replicas" $role.replicas "ffmpeg" $role.ffmpeg "pools" $role.pools) }}
+{{- end }}
+{{- else }}
+{{- fail "mode must be all or split" }}
+{{- end }}

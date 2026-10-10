@@ -1,0 +1,130 @@
+# Kotatsu の Helm Chart の設定 (設計書 11.1)。
+# PostgreSQL は Chart に含めないので、外部のもの (CloudNativePG など) を用意して、接続先を Secret で渡す。
+
+# mode は、全ロールを 1 つの Pod で動かす all か、ロールごとに Pod を分ける split のどちらか。
+mode: all
+
+image:
+  repository: ghcr.io/slashnephy/kotatsu
+  # tag が空なら、Chart の appVersion を使う。
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# secret は、Kotatsu に渡す秘密情報を持つ Secret。Chart は Secret を作らないので、先に作っておく。
+secret:
+  name: kotatsu
+  # databaseURLKey は、PostgreSQL の接続先 (postgres://...) を持つキー。
+  databaseURLKey: database-url
+  # secretKeyKey は、アプリの秘密キー (32 バイト以上) を持つキー。なくすと、TOTP と Web Push の設定し直しが必要になる。
+  secretKeyKey: secret-key
+
+# config は、環境変数で渡す Kotatsu の設定 (KOTATSU_ の後ろの名前と値)。
+# 例: {TUNER_URL: http://mirakurun:40772/, SERVER_ALLOWED_NETWORKS: "10.0.0.0/8,192.168.0.0/16"}
+config: {}
+
+# storage.pools は、録画の保存先プール。どのプールも、録画を書く mikan、読む tenban と kyusu、解析する nekonote にマウントする。
+# volume は、Pod の volume の定義 (persistentVolumeClaim や nfs など)。
+# 例:
+#   - id: main
+#     volume:
+#       persistentVolumeClaim:
+#         claimName: kotatsu-recordings
+storage:
+  pools: []
+
+# podSecurityContext と securityContext は、すべての Pod とコンテナに付ける。既定値は堅くしてあり、そのまま使える。
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: kotatsu.example.com
+  tls: []
+
+# migration は、install と upgrade の前に kotatsu migrate を実行する Job (設計書 11.4)。
+migration:
+  enabled: true
+  resources: {}
+
+# all は、mode が all のときの Pod の設定。FFmpeg が要るので、-ffmpeg のイメージを使う。
+all:
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # terminationGracePeriodSeconds は、mikan が録画を引き継ぐまで待つ時間を含める。
+  terminationGracePeriodSeconds: 300
+
+# roles は、mode が split のときの、ロールごとの Pod の設定。
+# ffmpeg が true のロールは、-ffmpeg のイメージを使う。pools が true のロールには、録画の保存先プールをマウントする。
+roles:
+  tenban:
+    replicas: 2
+    ffmpeg: false
+    pools: true
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    terminationGracePeriodSeconds: 30
+  neko:
+    # neko は、リースを持つ 1 つだけが動くので、増やしても待機になる。
+    replicas: 1
+    ffmpeg: false
+    pools: false
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    terminationGracePeriodSeconds: 30
+  mikan:
+    # mikan を 2 つ以上にすると、更新の間も録画が途切れない (設計書 5.4)。
+    replicas: 2
+    ffmpeg: false
+    pools: true
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    # 終了のシグナルを受けてから、別の mikan が録画を引き継ぐまで待つ。
+    terminationGracePeriodSeconds: 300
+    podDisruptionBudget:
+      maxUnavailable: 1
+  nekonote:
+    replicas: 1
+    ffmpeg: true
+    pools: true
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    terminationGracePeriodSeconds: 60
+  kyusu:
+    # kyusu はサーバー側でのトランスコードで、なくても動く。GPU のあるノードに置くときは nodeSelector と resources を使う。
+    replicas: 0
+    ffmpeg: true
+    pools: true
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    terminationGracePeriodSeconds: 30
