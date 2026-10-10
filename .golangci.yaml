@@ -54,6 +54,12 @@ linters:
       - path: _test\.go
         linters:
           - exhaustruct_v5
+      # kyusu は、設定のエンコーダーと、固定の表の画質から組み立てた引数で FFmpeg と tsreadex を起動する。
+      # 引数は変数になるが、利用者の入力をそのまま渡すことはない。
+      - path: internal/kyusu/
+        linters:
+          - gosec
+        text: G204
 
 formatters:
   enable:

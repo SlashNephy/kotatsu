@@ -337,6 +337,8 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			if tt.want.Auth.OIDC.Scopes == nil {
 				tt.want.Auth.OIDC = defaultOIDC()
 			}
+			// kyusu の設定は TestLoadKyusu で確かめるので、ここでは既定値のままであることだけを確かめる。
+			tt.want.Kyusu = config.Kyusu{Encoder: config.EncoderX264, VAAPIDevice: defaultVAAPIDevice, WorkDir: ""}
 			assert.Equal(t, tt.want, cfg)
 		})
 	}
@@ -382,6 +384,58 @@ func TestLoadWebPushAndThumbnail(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantWebPush, cfg.WebPush)
 			assert.Equal(t, tt.wantThumbnail, cfg.Thumbnail)
+		})
+	}
+}
+
+// defaultVAAPIDevice は、VAAPI で使うデバイスの既定値。
+const defaultVAAPIDevice = "/dev/dri/renderD128"
+
+// TestLoadKyusu は、kyusu の設定を、YAML と環境変数から読み、知らないエンコーダーを拒むことを確かめる。
+func TestLoadKyusu(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		yaml    string
+		env     map[string]string
+		want    config.Kyusu
+		wantErr string
+	}{
+		{
+			name: "default encoder", env: map[string]string{envKeyURL: envURL},
+			want: config.Kyusu{Encoder: config.EncoderX264, VAAPIDevice: defaultVAAPIDevice, WorkDir: ""},
+		},
+		{
+			name: "yaml", yaml: "kyusu:\n  encoder: vaapi\n  vaapi_device: /dev/dri/renderD129\n  work_dir: /var/kyusu\n",
+			env:  map[string]string{envKeyURL: envURL},
+			want: config.Kyusu{Encoder: config.EncoderVAAPI, VAAPIDevice: "/dev/dri/renderD129", WorkDir: "/var/kyusu"},
+		},
+		{
+			name: "env", env: map[string]string{envKeyURL: envURL, "KOTATSU_KYUSU_ENCODER": "nvenc", "KOTATSU_KYUSU_WORK_DIR": "/tmp/kyusu"},
+			want: config.Kyusu{Encoder: config.EncoderNVENC, VAAPIDevice: defaultVAAPIDevice, WorkDir: "/tmp/kyusu"},
+		},
+		{
+			name: "unknown encoder", env: map[string]string{envKeyURL: envURL, "KOTATSU_KYUSU_ENCODER": "amf"},
+			wantErr: "kyusu.encoder (KOTATSU_KYUSU_ENCODER): must be one of x264, vaapi, qsv, nvenc",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := ""
+			if tt.yaml != "" {
+				path = writeFile(t, t.TempDir(), "config.yaml", tt.yaml)
+			}
+			cfg, err := config.Load(path, lookup(tt.env))
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.Kyusu)
 		})
 	}
 }
