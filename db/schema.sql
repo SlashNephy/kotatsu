@@ -121,11 +121,42 @@ CREATE TABLE login_challenges (
   user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
   created_at timestamptz NOT NULL,
   expires_at timestamptz NOT NULL,
+  -- 第二要素の確認に失敗した回数。上限に達したら、パスワードの確認からやり直させる。
+  failed_attempts integer NOT NULL DEFAULT 0,
   user_agent text NOT NULL,
   source_ip inet
 );
 
 CREATE INDEX login_challenges_user_id_idx ON login_challenges (user_id);
+
+-- 第二要素の TOTP (設計書 9.3)。ユーザーごとに 1 つだけ持つ。
+-- 秘密キーは、アプリの秘密キーで暗号化して保存する (設計書 8.4)。
+CREATE TABLE user_totps (
+  user_id uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+  secret_encrypted bytea NOT NULL,
+  -- 最後に受け付けたコードのステップ。同じコードを使い回させないため、これ以下のステップは受け付けない。
+  last_used_step bigint NOT NULL,
+  created_at timestamptz NOT NULL
+);
+
+-- 登録中の TOTP。認証アプリに秘密キーを読ませ、コードで確かめるまでの間だけ持つ。
+CREATE TABLE totp_enrollments (
+  user_id uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+  secret_encrypted bytea NOT NULL,
+  created_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL
+);
+
+-- リカバリーコード (設計書 9.3)。どれも 1 回だけ使える。
+-- コードは 50 ビットのランダムな値なので、パスワードと違い、SHA-256 のハッシュで足りる。
+CREATE TABLE user_recovery_codes (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  code_hash bytea NOT NULL,
+  created_at timestamptz NOT NULL,
+  used_at timestamptz,
+  UNIQUE (user_id, code_hash)
+);
 
 -- ログインの試行回数の制限 (設計書 9.5)。アカウント単位と IP 単位の 2 種類の行を持つ。
 -- 失敗が続くと待ち時間を指数的に延ばすが、上限を設けて永久にはロックしない。

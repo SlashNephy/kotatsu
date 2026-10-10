@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -374,10 +375,19 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		return nil, fmt.Errorf("failed to load the time zone %s: %w", defaultTimeZone, err)
 	}
 
+	// TOTP の秘密キーは、アプリの秘密キーで暗号化して保存する (設計書 8.4)。秘密キーがなければ、ログインを受け付けられない。
+	if deps.Config.Auth.SecretKey.Value() == "" {
+		return nil, errSecretKeyRequired
+	}
+	factors, err := auth.NewSecondFactors(deps.Clock, audit.NewRecorder(deps.Clock), deps.Config.Auth.SecretKey.Value())
+	if err != nil {
+		return nil, err
+	}
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", graph.NewHandler(&graph.Options{
 		DB:                  deps.DB,
 		Recorder:            audit.NewRecorder(deps.Clock),
+		SecondFactors:       factors,
 		Clock:               deps.Clock,
 		Location:            location,
 		MaxSearchCandidates: 0,
@@ -388,12 +398,22 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 	}))
 	mux.Handle("POST /auth/logout", httpserver.RequireSameOrigin(sessions.LogoutHandler(deps.DB)))
 	logins := auth.NewLogins(&auth.LoginsOptions{
-		Clock:        deps.Clock,
-		Recorder:     audit.NewRecorder(deps.Clock),
-		Logger:       logger.With(slog.String("component", "login")),
-		ChallengeTTL: 0,
+		Clock:         deps.Clock,
+		Recorder:      audit.NewRecorder(deps.Clock),
+		Logger:        logger.With(slog.String("component", "login")),
+		Sessions:      sessions,
+		SecondFactors: factors,
+		ChallengeTTL:  0,
 	})
-	mux.Handle("POST /auth/login", httpserver.RequireSameOrigin(logins.PasswordHandler(deps.DB, sessions, clientInfo)))
+	for pattern, handler := range map[string]http.Handler{
+		"POST /auth/login":                         logins.PasswordHandler(deps.DB, clientInfo),
+		"POST /auth/login/totp":                    logins.TOTPHandler(deps.DB, clientInfo),
+		"POST /auth/login/recovery-code":           logins.RecoveryCodeHandler(deps.DB, clientInfo),
+		"POST /auth/login/totp/enrollment":         logins.EnrollmentHandler(deps.DB),
+		"POST /auth/login/totp/enrollment/confirm": logins.EnrollmentConfirmHandler(deps.DB, clientInfo),
+	} {
+		mux.Handle(pattern, httpserver.RequireSameOrigin(handler))
+	}
 	api := sessions.Middleware(deps.DB)(mux)
 
 	app, err := spa.NewHandler(web.App(), logger.With(slog.String("component", "spa")))
@@ -407,6 +427,10 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 
 	return policy.Middleware(root), nil
 }
+
+// errSecretKeyRequired は、tenban を、アプリの秘密キーなしで起動しようとしたことを表す。
+var errSecretKeyRequired = errors.New("auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban; " +
+	"set a random string of at least 32 bytes, e.g. the output of `openssl rand -base64 48`")
 
 // clientInfo は、リクエストの送信元を返す。リバースプロキシを経由したときは、信頼済みのプロキシが伝えた値にする。
 func clientInfo(r *http.Request) *auth.ClientInfo {

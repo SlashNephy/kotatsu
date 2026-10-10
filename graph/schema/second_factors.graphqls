@@ -1,0 +1,53 @@
+"""
+ログイン中のユーザーの第二要素の状態 (設計書 9.3)。
+"""
+type SecondFactorStatus {
+  "TOTP を登録しているかどうか。"
+  totp: Boolean!
+  "使っていないリカバリーコードの数。"
+  remainingRecoveryCodes: Int!
+}
+
+"""
+登録中の TOTP。秘密キーは、この応答でしか見せない。
+"""
+type TOTPEnrollment {
+  "認証アプリに手で入力する形の秘密キー (Base32)。"
+  secret: String!
+  "認証アプリが QR コードから読む otpauth URI。"
+  uri: String!
+  "これまでに confirmTotpEnrollment でコードを確かめないと、登録は取り消される。"
+  expiresAt: Time!
+}
+
+"""
+リカバリーコード。この応答でしか見せないので、ユーザーに控えてもらう。
+"""
+type RecoveryCodes {
+  codes: [String!]!
+}
+
+extend type Query {
+  "ログイン中のユーザーの第二要素の状態。"
+  secondFactors: SecondFactorStatus!
+}
+
+extend type Mutation {
+  """
+  TOTP の登録を始める。登録済みの TOTP を置き換えるときも使う。confirmTotpEnrollment で確かめるまでは、今の TOTP がそのまま使える。
+  直近 10 分以内に認証していなければ、REAUTHENTICATION_REQUIRED を返す (設計書 9.5)。
+  """
+  beginTotpEnrollment: TOTPEnrollment!
+  """
+  登録中の TOTP のコードを確かめて有効にし、新しいリカバリーコードを返す。古いリカバリーコードは使えなくなる。
+  直近 10 分以内の認証が要る。
+  """
+  confirmTotpEnrollment(code: String!): RecoveryCodes!
+  """
+  TOTP を消す。予備のリカバリーコードもあわせて消える。第二要素がなくなると、次にパスワードでログインするときに、TOTP を登録し直す。
+  直近 10 分以内の認証が要る。
+  """
+  deleteTotp: SecondFactorStatus!
+  "リカバリーコードを作り直す。古いコードは使えなくなる。直近 10 分以内の認証が要る。"
+  regenerateRecoveryCodes: RecoveryCodes!
+}

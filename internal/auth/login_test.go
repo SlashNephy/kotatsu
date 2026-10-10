@@ -35,11 +35,13 @@ const (
 
 // loginFixture は、パスワードを設定したユーザーを 1 人持つ DB と、偽の時計で動く Logins。
 type loginFixture struct {
-	db     *pgxpool.Pool
-	clock  *clocktest.Fake
-	logins *auth.Logins
-	user   *auth.User
-	client *auth.ClientInfo
+	db       *pgxpool.Pool
+	clock    *clocktest.Fake
+	sessions *auth.Sessions
+	factors  *auth.SecondFactors
+	logins   *auth.Logins
+	user     *auth.User
+	client   *auth.ClientInfo
 }
 
 func newLoginFixture(t *testing.T) *loginFixture {
@@ -54,11 +56,18 @@ func newLoginFixture(t *testing.T) *loginFixture {
 	})
 	require.NoError(t, err)
 
+	sessions := auth.NewSessions(&auth.SessionsOptions{Clock: clk})
+	factors, err := auth.NewSecondFactors(clk, audit.NewRecorder(clk), appKeyMaterial)
+	require.NoError(t, err)
+
 	return &loginFixture{
-		db:    db,
-		clock: clk,
+		db:       db,
+		clock:    clk,
+		sessions: sessions,
+		factors:  factors,
 		logins: auth.NewLogins(&auth.LoginsOptions{
-			Clock: clk, Recorder: audit.NewRecorder(clk), Logger: slog.New(slog.DiscardHandler), ChallengeTTL: 0,
+			Clock: clk, Recorder: audit.NewRecorder(clk), Logger: slog.New(slog.DiscardHandler),
+			Sessions: sessions, SecondFactors: factors, ChallengeTTL: 0,
 		}),
 		user:   user,
 		client: &auth.ClientInfo{UserAgent: browserUA, SourceIP: netip.MustParseAddr("192.168.1.10")},
@@ -262,8 +271,7 @@ func TestPasswordHandler(t *testing.T) {
 					_, _, _ = f.logins.Password(t.Context(), f.db, loginName, "x", f.client)
 				}
 			}
-			sessions := auth.NewSessions(&auth.SessionsOptions{Clock: f.clock})
-			handler := f.logins.PasswordHandler(f.db, sessions, func(*http.Request) *auth.ClientInfo { return f.client })
+			handler := f.logins.PasswordHandler(f.db, func(*http.Request) *auth.ClientInfo { return f.client })
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, "/auth/login", strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", tt.contentType)
 			rec := httptest.NewRecorder()
@@ -283,7 +291,8 @@ func TestPasswordHandler(t *testing.T) {
 			if tt.wantStatus != http.StatusOK {
 				return
 			}
-			assert.JSONEq(t, `{"next":"second_factor","methods":[],"expiresAt":"2026-10-09T21:05:00Z"}`, string(body))
+			// 第二要素を登録していないので、TOTP の登録を求める。
+			assert.JSONEq(t, `{"next":"enroll_second_factor","methods":[],"expiresAt":"2026-10-09T21:05:00Z"}`, string(body))
 			cookies := rec.Result().Cookies()
 			require.Len(t, cookies, 1)
 			assert.Equal(t, auth.ChallengeCookieName, cookies[0].Name)

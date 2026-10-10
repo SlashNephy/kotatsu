@@ -32,6 +32,12 @@ func scheduler(ctx context.Context) (*audit.Actor, error) {
 	if !principal.Role.Can(auth.PermissionManageSchedule) {
 		return nil, NewError(CodeForbidden, "viewers cannot change rules and reservations")
 	}
+
+	return actorOf(ctx, principal), nil
+}
+
+// actorOf は、ログイン中のユーザーの操作者を返す。監査ログに残すため、送信元の IP アドレスと User-Agent も持たせる。
+func actorOf(ctx context.Context, principal *auth.Principal) *audit.Actor {
 	actor := audit.User(principal.UserID)
 	if client := httpserver.ClientFrom(ctx); client != nil {
 		actor.SourceIP = client.IP
@@ -40,7 +46,7 @@ func scheduler(ctx context.Context) (*audit.Actor, error) {
 		actor.UserAgent = userAgent
 	}
 
-	return actor, nil
+	return actor
 }
 
 // parseRuleID は、Rule の ID から、ルールの ID を取り出す。

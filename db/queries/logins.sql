@@ -32,3 +32,16 @@ DELETE FROM login_challenges WHERE expires_at <= @now;
 -- name: DeleteStaleLoginThrottles :execrows
 -- 数え直す時間を過ぎ、待たせてもいない行を消す。存在しないユーザー名や IP の行が溜まり続けないようにする。
 DELETE FROM login_throttles WHERE last_failed_at < @reset_before AND locked_until <= @now;
+
+-- name: GetLoginChallengeForUpdate :one
+SELECT * FROM login_challenges WHERE token_hash = @token_hash AND expires_at > @now FOR UPDATE;
+
+-- name: IncrementLoginChallengeFailures :one
+UPDATE login_challenges SET failed_attempts = failed_attempts + 1 WHERE id = @id RETURNING failed_attempts;
+
+-- name: DeleteLoginChallenge :exec
+DELETE FROM login_challenges WHERE id = @id;
+
+-- name: LockUser :one
+-- ユーザーの行を、トランザクションが終わるまで書き込みからロックする。同じユーザーの登録を同時に行わせない。
+SELECT id, username FROM users WHERE id = @id FOR UPDATE;

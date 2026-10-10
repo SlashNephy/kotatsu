@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
@@ -32,4 +33,5 @@ type Resolver struct {
 	heartbeatInterval time.Duration
 	rules             *rule.Rules
 	reservations      *reserve.Reservations
+	factors           *auth.SecondFactors
 }

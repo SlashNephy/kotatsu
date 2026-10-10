@@ -92,6 +92,8 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
+		BeginTotpEnrollment      func(childComplexity int) int
+		ConfirmTotpEnrollment    func(childComplexity int, code string) int
 		CreateGuideView          func(childComplexity int, input model.GuideViewInput) int
 		CreateProgramReservation func(childComplexity int, input model.ProgramReservationInput) int
 		CreateRule               func(childComplexity int, input model.RuleInput) int
@@ -99,6 +101,8 @@ type ComplexityRoot struct {
 		DeleteGuideView          func(childComplexity int, id string) int
 		DeleteReservation        func(childComplexity int, id string) int
 		DeleteRule               func(childComplexity int, id string) int
+		DeleteTotp               func(childComplexity int) int
+		RegenerateRecoveryCodes  func(childComplexity int) int
 		SetRuleEnabled           func(childComplexity int, id string, enabled bool) int
 		UpdateGuideView          func(childComplexity int, id string, input model.GuideViewInput) int
 		UpdateReservation        func(childComplexity int, id string, input model.ReservationUpdateInput) int
@@ -160,6 +164,7 @@ type ComplexityRoot struct {
 		Reservations   func(childComplexity int, from time.Time, to time.Time, states []model.AssignmentState, first int, after *string) int
 		Rules          func(childComplexity int) int
 		SearchPrograms func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
+		SecondFactors  func(childComplexity int) int
 		Services       func(childComplexity int, includeHidden bool) int
 		Viewer         func(childComplexity int) int
 	}
@@ -170,6 +175,10 @@ type ComplexityRoot struct {
 		PoolID             func(childComplexity int) int
 		Priority           func(childComplexity int) int
 		StartMarginSeconds func(childComplexity int) int
+	}
+
+	RecoveryCodes struct {
+		Codes func(childComplexity int) int
 	}
 
 	Reservation struct {
@@ -228,6 +237,11 @@ type ComplexityRoot struct {
 		ValidUntil          func(childComplexity int) int
 	}
 
+	SecondFactorStatus struct {
+		RemainingRecoveryCodes func(childComplexity int) int
+		Totp                   func(childComplexity int) int
+	}
+
 	Service struct {
 		Channel            func(childComplexity int) int
 		ChannelType        func(childComplexity int) int
@@ -241,6 +255,12 @@ type ComplexityRoot struct {
 
 	Subscription struct {
 		Heartbeat func(childComplexity int) int
+	}
+
+	TOTPEnrollment struct {
+		ExpiresAt func(childComplexity int) int
+		Secret    func(childComplexity int) int
+		URI       func(childComplexity int) int
 	}
 
 	TimeRange struct {
@@ -276,6 +296,10 @@ type MutationResolver interface {
 	UpdateRule(ctx context.Context, id string, input model.RuleInput) (*model.Rule, error)
 	SetRuleEnabled(ctx context.Context, id string, enabled bool) (*model.Rule, error)
 	DeleteRule(ctx context.Context, id string) (string, error)
+	BeginTotpEnrollment(ctx context.Context) (*model.TOTPEnrollment, error)
+	ConfirmTotpEnrollment(ctx context.Context, code string) (*model.RecoveryCodes, error)
+	DeleteTotp(ctx context.Context) (*model.SecondFactorStatus, error)
+	RegenerateRecoveryCodes(ctx context.Context) (*model.RecoveryCodes, error)
 }
 type ProgramResolver interface {
 	Service(ctx context.Context, obj *model.Program) (*model.Service, error)
@@ -296,6 +320,7 @@ type QueryResolver interface {
 	Rules(ctx context.Context) ([]*model.Rule, error)
 	PreviewRule(ctx context.Context, input model.RuleInput, first int, after *string) (*model.ProgramConnection, error)
 	SearchPrograms(ctx context.Context, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) (*model.ProgramConnection, error)
+	SecondFactors(ctx context.Context) (*model.SecondFactorStatus, error)
 }
 type ReservationResolver interface {
 	Service(ctx context.Context, obj *model.Reservation) (*model.Service, error)
@@ -479,6 +504,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Keyword.Text(childComplexity), true
 
+	case "Mutation.beginTotpEnrollment":
+		if e.ComplexityRoot.Mutation.BeginTotpEnrollment == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.BeginTotpEnrollment(childComplexity), true
+	case "Mutation.confirmTotpEnrollment":
+		if e.ComplexityRoot.Mutation.ConfirmTotpEnrollment == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_confirmTotpEnrollment_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ConfirmTotpEnrollment(childComplexity, args["code"].(string)), true
 	case "Mutation.createGuideView":
 		if e.ComplexityRoot.Mutation.CreateGuideView == nil {
 			break
@@ -556,6 +598,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteRule(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteTotp":
+		if e.ComplexityRoot.Mutation.DeleteTotp == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteTotp(childComplexity), true
+	case "Mutation.regenerateRecoveryCodes":
+		if e.ComplexityRoot.Mutation.RegenerateRecoveryCodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.RegenerateRecoveryCodes(childComplexity), true
 	case "Mutation.setRuleEnabled":
 		if e.ComplexityRoot.Mutation.SetRuleEnabled == nil {
 			break
@@ -866,6 +920,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.SearchPrograms(childComplexity, args["conditions"].(model.ProgramConditionsInput), args["archive"].(*model.ArchiveRangeInput), args["first"].(int), args["after"].(*string)), true
+	case "Query.secondFactors":
+		if e.ComplexityRoot.Query.SecondFactors == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.SecondFactors(childComplexity), true
 	case "Query.services":
 		if e.ComplexityRoot.Query.Services == nil {
 			break
@@ -914,6 +974,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingSettingsOverrides.StartMarginSeconds(childComplexity), true
+
+	case "RecoveryCodes.codes":
+		if e.ComplexityRoot.RecoveryCodes.Codes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecoveryCodes.Codes(childComplexity), true
 
 	case "Reservation.assignment":
 		if e.ComplexityRoot.Reservation.Assignment == nil {
@@ -1166,6 +1233,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Rule.ValidUntil(childComplexity), true
 
+	case "SecondFactorStatus.remainingRecoveryCodes":
+		if e.ComplexityRoot.SecondFactorStatus.RemainingRecoveryCodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SecondFactorStatus.RemainingRecoveryCodes(childComplexity), true
+	case "SecondFactorStatus.totp":
+		if e.ComplexityRoot.SecondFactorStatus.Totp == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SecondFactorStatus.Totp(childComplexity), true
+
 	case "Service.channel":
 		if e.ComplexityRoot.Service.Channel == nil {
 			break
@@ -1221,6 +1301,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Subscription.Heartbeat(childComplexity), true
+
+	case "TOTPEnrollment.expiresAt":
+		if e.ComplexityRoot.TOTPEnrollment.ExpiresAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TOTPEnrollment.ExpiresAt(childComplexity), true
+	case "TOTPEnrollment.secret":
+		if e.ComplexityRoot.TOTPEnrollment.Secret == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TOTPEnrollment.Secret(childComplexity), true
+	case "TOTPEnrollment.uri":
+		if e.ComplexityRoot.TOTPEnrollment.URI == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TOTPEnrollment.URI(childComplexity), true
 
 	case "TimeRange.durationMinutes":
 		if e.ComplexityRoot.TimeRange.DurationMinutes == nil {
@@ -1943,6 +2042,60 @@ extend type Query {
   ): ProgramConnection!
 }
 `, BuiltIn: false},
+	{Name: "../schema/second_factors.graphqls", Input: `"""
+ログイン中のユーザーの第二要素の状態 (設計書 9.3)。
+"""
+type SecondFactorStatus {
+  "TOTP を登録しているかどうか。"
+  totp: Boolean!
+  "使っていないリカバリーコードの数。"
+  remainingRecoveryCodes: Int!
+}
+
+"""
+登録中の TOTP。秘密キーは、この応答でしか見せない。
+"""
+type TOTPEnrollment {
+  "認証アプリに手で入力する形の秘密キー (Base32)。"
+  secret: String!
+  "認証アプリが QR コードから読む otpauth URI。"
+  uri: String!
+  "これまでに confirmTotpEnrollment でコードを確かめないと、登録は取り消される。"
+  expiresAt: Time!
+}
+
+"""
+リカバリーコード。この応答でしか見せないので、ユーザーに控えてもらう。
+"""
+type RecoveryCodes {
+  codes: [String!]!
+}
+
+extend type Query {
+  "ログイン中のユーザーの第二要素の状態。"
+  secondFactors: SecondFactorStatus!
+}
+
+extend type Mutation {
+  """
+  TOTP の登録を始める。登録済みの TOTP を置き換えるときも使う。confirmTotpEnrollment で確かめるまでは、今の TOTP がそのまま使える。
+  直近 10 分以内に認証していなければ、REAUTHENTICATION_REQUIRED を返す (設計書 9.5)。
+  """
+  beginTotpEnrollment: TOTPEnrollment!
+  """
+  登録中の TOTP のコードを確かめて有効にし、新しいリカバリーコードを返す。古いリカバリーコードは使えなくなる。
+  直近 10 分以内の認証が要る。
+  """
+  confirmTotpEnrollment(code: String!): RecoveryCodes!
+  """
+  TOTP を消す。予備のリカバリーコードもあわせて消える。第二要素がなくなると、次にパスワードでログインするときに、TOTP を登録し直す。
+  直近 10 分以内の認証が要る。
+  """
+  deleteTotp: SecondFactorStatus!
+  "リカバリーコードを作り直す。古いコードは使えなくなる。直近 10 分以内の認証が要る。"
+  regenerateRecoveryCodes: RecoveryCodes!
+}
+`, BuiltIn: false},
 	{Name: "../schema/user.graphqls", Input: `"""
 ユーザーのロール (設計書 9.7)。
 """
@@ -2173,6 +2326,14 @@ func (ec *executionContext) childFields_RecordingSettingsOverrides(ctx context.C
 	return nil, fmt.Errorf("no field named %q was found under type RecordingSettingsOverrides", field.Name)
 }
 
+func (ec *executionContext) childFields_RecoveryCodes(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "codes":
+		return ec.fieldContext_RecoveryCodes_codes(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RecoveryCodes", field.Name)
+}
+
 func (ec *executionContext) childFields_Reservation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -2285,6 +2446,16 @@ func (ec *executionContext) childFields_Rule(ctx context.Context, field graphql.
 	return nil, fmt.Errorf("no field named %q was found under type Rule", field.Name)
 }
 
+func (ec *executionContext) childFields_SecondFactorStatus(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "totp":
+		return ec.fieldContext_SecondFactorStatus_totp(ctx, field)
+	case "remainingRecoveryCodes":
+		return ec.fieldContext_SecondFactorStatus_remainingRecoveryCodes(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SecondFactorStatus", field.Name)
+}
+
 func (ec *executionContext) childFields_Service(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -2305,6 +2476,18 @@ func (ec *executionContext) childFields_Service(ctx context.Context, field graph
 		return ec.fieldContext_Service_hidden(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Service", field.Name)
+}
+
+func (ec *executionContext) childFields_TOTPEnrollment(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "secret":
+		return ec.fieldContext_TOTPEnrollment_secret(ctx, field)
+	case "uri":
+		return ec.fieldContext_TOTPEnrollment_uri(ctx, field)
+	case "expiresAt":
+		return ec.fieldContext_TOTPEnrollment_expiresAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TOTPEnrollment", field.Name)
 }
 
 func (ec *executionContext) childFields_TimeRange(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -2448,6 +2631,20 @@ func (ec *executionContext) childFields___Type(ctx context.Context, field graphq
 // endregion ************************** internal!.gotpl ***************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) field_Mutation_confirmTotpEnrollment_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "code",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["code"] = arg0
+	return args, nil
+}
 
 func (ec *executionContext) field_Mutation_createGuideView_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
@@ -3979,6 +4176,146 @@ func (ec *executionContext) fieldContext_Mutation_deleteRule(ctx context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_beginTotpEnrollment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_beginTotpEnrollment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().BeginTotpEnrollment(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.TOTPEnrollment) graphql.Marshaler {
+			return ec.marshalNTOTPEnrollment2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐTOTPEnrollment(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_beginTotpEnrollment(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TOTPEnrollment(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_confirmTotpEnrollment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_confirmTotpEnrollment(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ConfirmTotpEnrollment(ctx, fc.Args["code"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RecoveryCodes) graphql.Marshaler {
+			return ec.marshalNRecoveryCodes2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecoveryCodes(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_confirmTotpEnrollment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecoveryCodes(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_confirmTotpEnrollment_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteTotp(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteTotp(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().DeleteTotp(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SecondFactorStatus) graphql.Marshaler {
+			return ec.marshalNSecondFactorStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐSecondFactorStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteTotp(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SecondFactorStatus(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_regenerateRecoveryCodes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_regenerateRecoveryCodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().RegenerateRecoveryCodes(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RecoveryCodes) graphql.Marshaler {
+			return ec.marshalNRecoveryCodes2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecoveryCodes(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_regenerateRecoveryCodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecoveryCodes(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _PageInfo_hasNextPage(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5201,6 +5538,38 @@ func (ec *executionContext) fieldContext_Query_searchPrograms(ctx context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_secondFactors(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_secondFactors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().SecondFactors(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SecondFactorStatus) graphql.Marshaler {
+			return ec.marshalNSecondFactorStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐSecondFactorStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_secondFactors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SecondFactorStatus(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5390,6 +5759,29 @@ func (ec *executionContext) _RecordingSettingsOverrides_priority(ctx context.Con
 }
 func (ec *executionContext) fieldContext_RecordingSettingsOverrides_priority(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _RecoveryCodes_codes(ctx context.Context, field graphql.CollectedField, obj *model.RecoveryCodes) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecoveryCodes_codes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Codes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecoveryCodes_codes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecoveryCodes", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Reservation_id(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
@@ -6461,6 +6853,52 @@ func (ec *executionContext) fieldContext_Rule_updatedBy(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _SecondFactorStatus_totp(ctx context.Context, field graphql.CollectedField, obj *model.SecondFactorStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SecondFactorStatus_totp(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Totp, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SecondFactorStatus_totp(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SecondFactorStatus", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _SecondFactorStatus_remainingRecoveryCodes(ctx context.Context, field graphql.CollectedField, obj *model.SecondFactorStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SecondFactorStatus_remainingRecoveryCodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RemainingRecoveryCodes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SecondFactorStatus_remainingRecoveryCodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SecondFactorStatus", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _Service_id(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -6675,6 +7113,75 @@ func (ec *executionContext) _Subscription_heartbeat(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_Subscription_heartbeat(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Subscription", field, true, true, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _TOTPEnrollment_secret(ctx context.Context, field graphql.CollectedField, obj *model.TOTPEnrollment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TOTPEnrollment_secret(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Secret, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TOTPEnrollment_secret(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TOTPEnrollment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TOTPEnrollment_uri(ctx context.Context, field graphql.CollectedField, obj *model.TOTPEnrollment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TOTPEnrollment_uri(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URI, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TOTPEnrollment_uri(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TOTPEnrollment", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TOTPEnrollment_expiresAt(ctx context.Context, field graphql.CollectedField, obj *model.TOTPEnrollment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TOTPEnrollment_expiresAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExpiresAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TOTPEnrollment_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TOTPEnrollment", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _TimeRange_weekdays(ctx context.Context, field graphql.CollectedField, obj *model.TimeRange) (ret graphql.Marshaler) {
@@ -9151,6 +9658,34 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "beginTotpEnrollment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_beginTotpEnrollment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "confirmTotpEnrollment":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_confirmTotpEnrollment(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteTotp":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteTotp(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "regenerateRecoveryCodes":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_regenerateRecoveryCodes(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -9831,6 +10366,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "secondFactors":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_secondFactors(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -9901,6 +10458,44 @@ func (ec *executionContext) _RecordingSettingsOverrides(ctx context.Context, sel
 		case "priority":
 			out.Values[i] = ec._RecordingSettingsOverrides_priority(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var recoveryCodesImplementors = []string{"RecoveryCodes"}
+
+func (ec *executionContext) _RecoveryCodes(ctx context.Context, sel ast.SelectionSet, obj *model.RecoveryCodes) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, recoveryCodesImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RecoveryCodes")
+		case "codes":
+			out.Values[i] = ec._RecoveryCodes_codes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
@@ -10360,6 +10955,49 @@ func (ec *executionContext) _Rule(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
+var secondFactorStatusImplementors = []string{"SecondFactorStatus"}
+
+func (ec *executionContext) _SecondFactorStatus(ctx context.Context, sel ast.SelectionSet, obj *model.SecondFactorStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, secondFactorStatusImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SecondFactorStatus")
+		case "totp":
+			out.Values[i] = ec._SecondFactorStatus_totp(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "remainingRecoveryCodes":
+			out.Values[i] = ec._SecondFactorStatus_remainingRecoveryCodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var serviceImplementors = []string{"Service", "Node"}
 
 func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, obj *model.Service) graphql.Marshaler {
@@ -10484,6 +11122,54 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
+}
+
+var tOTPEnrollmentImplementors = []string{"TOTPEnrollment"}
+
+func (ec *executionContext) _TOTPEnrollment(ctx context.Context, sel ast.SelectionSet, obj *model.TOTPEnrollment) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, tOTPEnrollmentImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TOTPEnrollment")
+		case "secret":
+			out.Values[i] = ec._TOTPEnrollment_secret(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "uri":
+			out.Values[i] = ec._TOTPEnrollment_uri(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "expiresAt":
+			out.Values[i] = ec._TOTPEnrollment_expiresAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
 }
 
 var timeRangeImplementors = []string{"TimeRange"}
@@ -11420,6 +12106,16 @@ func (ec *executionContext) marshalNRecordingSettingsOverrides2ᚖgithubᚗcom�
 	return ec._RecordingSettingsOverrides(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNRecoveryCodes2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecoveryCodes(ctx context.Context, sel ast.SelectionSet, v *model.RecoveryCodes) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RecoveryCodes(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservation(ctx context.Context, sel ast.SelectionSet, v *model.Reservation) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -11532,6 +12228,16 @@ func (ec *executionContext) unmarshalNRuleInput2githubᚗcomᚋSlashNephyᚋkota
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNSecondFactorStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐSecondFactorStatus(ctx context.Context, sel ast.SelectionSet, v *model.SecondFactorStatus) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SecondFactorStatus(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNService2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐServiceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Service) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -11601,6 +12307,16 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalNTOTPEnrollment2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐTOTPEnrollment(ctx context.Context, sel ast.SelectionSet, v *model.TOTPEnrollment) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TOTPEnrollment(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNTime2timeᚐTime(ctx context.Context, v any) (time.Time, error) {

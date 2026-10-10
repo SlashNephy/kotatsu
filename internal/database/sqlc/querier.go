@@ -22,19 +22,24 @@ type Querier interface {
 	BumpChangeVersion(ctx context.Context, arg BumpChangeVersionParams) (int64, error)
 	// 無効にした予約の割り当ての結果を消す。
 	ClearDisabledAssignments(ctx context.Context) (int64, error)
+	CountUnusedRecoveryCodes(ctx context.Context, userID uuid.UUID) (int64, error)
 	DeleteAuditEventsBefore(ctx context.Context, before time.Time) (int64, error)
 	DeleteExpiredLoginChallenges(ctx context.Context, now time.Time) (int64, error)
 	DeleteGuideView(ctx context.Context, arg DeleteGuideViewParams) (int64, error)
 	DeleteInstance(ctx context.Context, arg DeleteInstanceParams) error
+	DeleteLoginChallenge(ctx context.Context, id uuid.UUID) error
 	// 放送が始まった番組は、アーカイブに移すまで残す (設計書 3.3、3.4)。
 	DeletePrograms(ctx context.Context, arg []DeleteProgramsParams) *DeleteProgramsBatchResults
+	DeleteRecoveryCodes(ctx context.Context, userID uuid.UUID) error
 	DeleteReservation(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteReservationRule(ctx context.Context, arg DeleteReservationRuleParams) error
 	DeleteRule(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteStaleInstances(ctx context.Context, before time.Time) (int64, error)
 	// 数え直す時間を過ぎ、待たせてもいない行を消す。存在しないユーザー名や IP の行が溜まり続けないようにする。
 	DeleteStaleLoginThrottles(ctx context.Context, arg DeleteStaleLoginThrottlesParams) (int64, error)
+	DeleteTOTPEnrollment(ctx context.Context, userID uuid.UUID) error
 	DeleteTuners(ctx context.Context) error
+	DeleteUserTOTP(ctx context.Context, userID uuid.UUID) (int64, error)
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
 	// 種別が無ければ既定値で足す。管理者が変えた表示名と並び順は上書きしない。
 	EnsureChannelType(ctx context.Context, arg EnsureChannelTypeParams) error
@@ -42,6 +47,7 @@ type Querier interface {
 	GetGuideProgram(ctx context.Context, arg GetGuideProgramParams) (GetGuideProgramRow, error)
 	GetGuideView(ctx context.Context, arg GetGuideViewParams) (GuideView, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
+	GetLoginChallengeForUpdate(ctx context.Context, arg GetLoginChallengeForUpdateParams) (LoginChallenge, error)
 	GetLoginThrottles(ctx context.Context, throttleKeys []string) ([]LoginThrottle, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
@@ -49,16 +55,21 @@ type Querier interface {
 	GetReservationByProgram(ctx context.Context, arg GetReservationByProgramParams) (Reservation, error)
 	GetRule(ctx context.Context, id uuid.UUID) (Rule, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
+	GetTOTPEnrollmentForUpdate(ctx context.Context, arg GetTOTPEnrollmentForUpdateParams) (TotpEnrollment, error)
 	GetTunerServerStatus(ctx context.Context) (GetTunerServerStatusRow, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
+	GetUserTOTPForUpdate(ctx context.Context, userID uuid.UUID) (UserTotp, error)
+	HasUserTOTP(ctx context.Context, userID uuid.UUID) (bool, error)
 	HeartbeatInstance(ctx context.Context, arg HeartbeatInstanceParams) (int64, error)
+	IncrementLoginChallengeFailures(ctx context.Context, id uuid.UUID) (int32, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
 	InsertEPGChange(ctx context.Context, arg InsertEPGChangeParams) error
 	InsertGuideView(ctx context.Context, arg InsertGuideViewParams) error
 	InsertLoginChallenge(ctx context.Context, arg InsertLoginChallengeParams) error
 	// 同じ番組の予約がすでにあれば何もしない。そのときは行を返さない。
 	InsertProgramReservation(ctx context.Context, arg InsertProgramReservationParams) (uuid.UUID, error)
+	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
 	// イベントリレーの引き継ぎ先の番組予約を、番組情報をコピーして作る。引き継ぎ先の予約がすでにあれば何もせず、行を返さない。
 	InsertRelayedReservation(ctx context.Context, arg InsertRelayedReservationParams) (uuid.UUID, error)
 	InsertReservationRule(ctx context.Context, arg InsertReservationRuleParams) error
@@ -112,6 +123,8 @@ type Querier interface {
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
 	// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
+	// ユーザーの行を、トランザクションが終わるまで書き込みからロックする。同じユーザーの登録を同時に行わせない。
+	LockUser(ctx context.Context, id uuid.UUID) (LockUserRow, error)
 	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
 	NotifyChange(ctx context.Context, arg NotifyChangeParams) error
 	PruneEPGChanges(ctx context.Context, before time.Time) (int64, error)
@@ -136,6 +149,7 @@ type Querier interface {
 	SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error)
 	SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error
 	SetRuleEnabled(ctx context.Context, arg SetRuleEnabledParams) (int64, error)
+	SetTOTPLastUsedStep(ctx context.Context, arg SetTOTPLastUsedStepParams) error
 	SetUserPassword(ctx context.Context, arg SetUserPasswordParams) (int64, error)
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
@@ -148,7 +162,10 @@ type Querier interface {
 	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults
 	// 上流から来る項目だけを更新する。非表示の印と並び順の上書きは、管理者のものなので触らない。
 	UpsertService(ctx context.Context, arg UpsertServiceParams) error
+	UpsertTOTPEnrollment(ctx context.Context, arg UpsertTOTPEnrollmentParams) error
 	UpsertTunerServerStatus(ctx context.Context, arg UpsertTunerServerStatusParams) error
+	UpsertUserTOTP(ctx context.Context, arg UpsertUserTOTPParams) error
+	UseRecoveryCode(ctx context.Context, arg UseRecoveryCodeParams) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)

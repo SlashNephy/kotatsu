@@ -347,6 +347,14 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 			wantErrs: []string{"tuner.url (KOTATSU_TUNER_URL): must be an http:// or https:// URL"},
 		},
 		{
+			name: "short secret key",
+			env: map[string]string{
+				envKeyURL:                 envURL,
+				"KOTATSU_AUTH_SECRET_KEY": "too-short",
+			},
+			wantErrs: []string{"auth.secret_key (KOTATSU_AUTH_SECRET_KEY): must be at least 32 bytes"},
+		},
+		{
 			name: "invalid have i been pwned url",
 			env: map[string]string{
 				envKeyURL:               envURL,

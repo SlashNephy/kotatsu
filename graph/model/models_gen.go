@@ -159,6 +159,11 @@ type RecordingSettingsOverridesInput struct {
 	Priority           *int    `json:"priority,omitempty"`
 }
 
+// リカバリーコード。この応答でしか見せないので、ユーザーに控えてもらう。
+type RecoveryCodes struct {
+	Codes []string `json:"codes"`
+}
+
 // 予約のチューナーの割り当ての結果。neko が計算し直すたびに変わる。
 type ReservationAssignment struct {
 	State AssignmentState `json:"state"`
@@ -208,7 +213,25 @@ type RuleInput struct {
 	FollowEventRelay    bool `json:"followEventRelay"`
 }
 
+// ログイン中のユーザーの第二要素の状態 (設計書 9.3)。
+type SecondFactorStatus struct {
+	// TOTP を登録しているかどうか。
+	Totp bool `json:"totp"`
+	// 使っていないリカバリーコードの数。
+	RemainingRecoveryCodes int `json:"remainingRecoveryCodes"`
+}
+
 type Subscription struct {
+}
+
+// 登録中の TOTP。秘密キーは、この応答でしか見せない。
+type TOTPEnrollment struct {
+	// 認証アプリに手で入力する形の秘密キー (Base32)。
+	Secret string `json:"secret"`
+	// 認証アプリが QR コードから読む otpauth URI。
+	URI string `json:"uri"`
+	// これまでに confirmTotpEnrollment でコードを確かめないと、登録は取り消される。
+	ExpiresAt time.Time `json:"expiresAt"`
 }
 
 // 曜日と時間帯の組。

@@ -37,8 +37,10 @@ type Options struct {
 	DB Database
 	// Recorder は、ルールや予約の変更を残す監査ログ。nil なら DB に記録する。
 	Recorder audit.Recorder
-	Clock    clock.Clock
-	Logger   *slog.Logger
+	// SecondFactors は、第二要素の登録と削除に使う。nil なら、第二要素の操作は内部のエラーにする。
+	SecondFactors *auth.SecondFactors
+	Clock         clock.Clock
+	Logger        *slog.Logger
 	// Location は、番組の曜日と時間帯を判定する、表示のタイムゾーン。nil なら UTC。
 	Location *time.Location
 	// MaxSearchCandidates は、番組の検索で 1 回に照合する候補の数の上限。0 なら DefaultMaxSearchCandidates。
@@ -93,6 +95,7 @@ func NewHandler(opts *Options) http.Handler {
 		db: o.DB, clock: o.Clock, location: o.Location, maxSearchCandidates: o.MaxSearchCandidates, heartbeatInterval: o.HeartbeatInterval,
 		rules:        rule.NewRules(o.Clock, o.Recorder),
 		reservations: reserve.NewReservations(o.Clock, o.Recorder),
+		factors:      o.SecondFactors,
 	}
 	config.Resolvers = resolver
 	server := handler.New(generated.NewExecutableSchema(config))

@@ -22,6 +22,7 @@ import (
 const (
 	subcommandMigrate = "migrate"
 	roleNekonote      = "nekonote"
+	roleTenban        = "tenban"
 )
 
 type pingArgs struct{}

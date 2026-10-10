@@ -25,6 +25,15 @@ func (q *Queries) DeleteExpiredLoginChallenges(ctx context.Context, now time.Tim
 	return result.RowsAffected(), nil
 }
 
+const deleteLoginChallenge = `-- name: DeleteLoginChallenge :exec
+DELETE FROM login_challenges WHERE id = $1
+`
+
+func (q *Queries) DeleteLoginChallenge(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteLoginChallenge, id)
+	return err
+}
+
 const deleteStaleLoginThrottles = `-- name: DeleteStaleLoginThrottles :execrows
 DELETE FROM login_throttles WHERE last_failed_at < $1 AND locked_until <= $2
 `
@@ -41,6 +50,31 @@ func (q *Queries) DeleteStaleLoginThrottles(ctx context.Context, arg DeleteStale
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const getLoginChallengeForUpdate = `-- name: GetLoginChallengeForUpdate :one
+SELECT id, token_hash, user_id, created_at, expires_at, failed_attempts, user_agent, source_ip FROM login_challenges WHERE token_hash = $1 AND expires_at > $2 FOR UPDATE
+`
+
+type GetLoginChallengeForUpdateParams struct {
+	TokenHash []byte
+	Now       time.Time
+}
+
+func (q *Queries) GetLoginChallengeForUpdate(ctx context.Context, arg GetLoginChallengeForUpdateParams) (LoginChallenge, error) {
+	row := q.db.QueryRow(ctx, getLoginChallengeForUpdate, arg.TokenHash, arg.Now)
+	var i LoginChallenge
+	err := row.Scan(
+		&i.ID,
+		&i.TokenHash,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.FailedAttempts,
+		&i.UserAgent,
+		&i.SourceIP,
+	)
+	return i, err
 }
 
 const getLoginThrottles = `-- name: GetLoginThrottles :many
@@ -92,6 +126,17 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 	return i, err
 }
 
+const incrementLoginChallengeFailures = `-- name: IncrementLoginChallengeFailures :one
+UPDATE login_challenges SET failed_attempts = failed_attempts + 1 WHERE id = $1 RETURNING failed_attempts
+`
+
+func (q *Queries) IncrementLoginChallengeFailures(ctx context.Context, id uuid.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, incrementLoginChallengeFailures, id)
+	var failed_attempts int32
+	err := row.Scan(&failed_attempts)
+	return failed_attempts, err
+}
+
 const insertLoginChallenge = `-- name: InsertLoginChallenge :exec
 INSERT INTO login_challenges (id, token_hash, user_id, created_at, expires_at, user_agent, source_ip)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -118,6 +163,23 @@ func (q *Queries) InsertLoginChallenge(ctx context.Context, arg InsertLoginChall
 		arg.SourceIP,
 	)
 	return err
+}
+
+const lockUser = `-- name: LockUser :one
+SELECT id, username FROM users WHERE id = $1 FOR UPDATE
+`
+
+type LockUserRow struct {
+	ID       uuid.UUID
+	Username string
+}
+
+// ユーザーの行を、トランザクションが終わるまで書き込みからロックする。同じユーザーの登録を同時に行わせない。
+func (q *Queries) LockUser(ctx context.Context, id uuid.UUID) (LockUserRow, error) {
+	row := q.db.QueryRow(ctx, lockUser, id)
+	var i LockUserRow
+	err := row.Scan(&i.ID, &i.Username)
+	return i, err
 }
 
 const recordLoginFailure = `-- name: RecordLoginFailure :one
