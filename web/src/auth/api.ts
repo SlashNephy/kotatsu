@@ -110,7 +110,7 @@ export const authApi = {
     post<Completed>('/auth/login/passkey/confirm', { credential }),
   // OIDC でのログイン (設計書 9.4)。始めると、IdP の認可のエンドポイントを返すので、ブラウザーを送り出す。
   oidcStatus: () => get<OIDCStatus>('/auth/oidc'),
-  beginOidc: () => post<{ authorizationUrl: string }>('/auth/oidc', {}),
+  beginOIDC: () => post<{ authorizationUrl: string }>('/auth/oidc', {}),
   logout: async () => {
     await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
   },

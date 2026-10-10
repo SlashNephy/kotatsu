@@ -20,7 +20,9 @@ const oidcDisabled: OIDCStatus = { enabled: false, displayName: '' };
 export const Route = createFileRoute('/login/')({
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
     ...(search['setup'] === true ? { setup: true } : {}),
-    ...(typeof search['error'] === 'string' ? { error: search['error'] } : {}),
+    ...(typeof search['error'] === 'string' && search['error'] !== ''
+      ? { error: search['error'] }
+      : {}),
   }),
   // OIDC のボタンを出すかを確かめる。確かめられなくても、パスワードとパスキーではログインできる。
   loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
@@ -39,6 +41,8 @@ function Login() {
   const [error, setError] = useState<string | null>(null);
   // passkeyError は、パスキーでのログインのエラー。パスワードの入力欄のエラーと分けて、ボタンの近くに出す。
   const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  // oidcBeginError は、IdP へ送り出せなかったときのエラー。OIDC のボタンの近くに出す。
+  const [oidcBeginError, setOIDCBeginError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async (event: FormEvent) => {
@@ -84,11 +88,12 @@ function Login() {
     setSubmitting(true);
     setError(null);
     setPasskeyError(null);
+    setOIDCBeginError(null);
     try {
-      const { authorizationUrl } = await authApi.beginOidc();
+      const { authorizationUrl } = await authApi.beginOIDC();
       window.location.assign(authorizationUrl);
     } catch (caught) {
-      setPasskeyError(authErrorMessage(t, caught));
+      setOIDCBeginError(authErrorMessage(t, caught));
       setSubmitting(false);
     }
   };
@@ -137,11 +142,6 @@ function Login() {
         >
           {t('auth.login.passkey')}
         </Button>
-        {oidc.enabled && (
-          <Button variant="default" loading={submitting} onClick={() => void loginWithOIDC()}>
-            {t('auth.login.oidc', { name: oidc.displayName })}
-          </Button>
-        )}
         {!canUsePasskey && (
           <Text size="xs" c="dimmed">
             {t('auth.login.passkeyUnavailable')}
@@ -153,6 +153,18 @@ function Login() {
           </Alert>
         )}
       </Stack>
+      {oidc.enabled && (
+        <Stack gap="xs">
+          <Button variant="default" loading={submitting} onClick={() => void loginWithOIDC()}>
+            {t('auth.login.oidc', { name: oidc.displayName })}
+          </Button>
+          {oidcBeginError !== null && (
+            <Alert color="red" role="alert">
+              {oidcBeginError}
+            </Alert>
+          )}
+        </Stack>
+      )}
     </AuthCard>
   );
 }

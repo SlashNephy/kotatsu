@@ -53,6 +53,11 @@ describe('authErrorMessage', () => {
       want: 'この接続先で使えるパスキーが登録されていません',
     },
     {
+      name: 'IdP に届かず、ログインを始められない',
+      error: new AuthError(503, 'OIDC_UNAVAILABLE', undefined, undefined),
+      want: 'IdP に接続できませんでした。時間をおいてやり直してください',
+    },
+    {
       name: 'パスキーの確認の取り消し',
       error: new PasskeyCancelledError(),
       want: 'パスキーの確認が取り消されたか、使えるパスキーが見つかりませんでした',
@@ -78,6 +83,21 @@ describe('oidcErrorMessage', () => {
       name: '期限切れ',
       reason: 'oidc_expired',
       want: '時間が経ったので、もう一度ログインしてください',
+    },
+    {
+      name: 'state や ID トークンを確かめられない',
+      reason: 'oidc_invalid',
+      want: 'ログインを確かめられませんでした。もう一度ログインしてください',
+    },
+    {
+      name: 'ユーザー名の重なり',
+      reason: 'oidc_username_taken',
+      want: '同じユーザー名のユーザーがいるので、アカウントを作れませんでした。管理者にお問い合わせください',
+    },
+    {
+      name: 'IdP に届かない',
+      reason: 'oidc_unavailable',
+      want: 'IdP に接続できませんでした。時間をおいてやり直してください',
     },
     {
       name: '知らない理由',
