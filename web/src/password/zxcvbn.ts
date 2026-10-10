@@ -19,7 +19,14 @@ export type Strength = {
   suggestions: string[];
 };
 
+// maxStrengthInput は、判定するパスワードの長さ (文字数) の上限。サーバーの password.MaxStrengthInput と同じ。
+// zxcvbn-ts の計算量は入力の長さに対して急に増えるので、これより長いパスワードは判定せずに十分強いとみなす。
+export const maxStrengthInput = 128;
+
 export function checkStrength(password: string, userInputs: string[]): Strength {
+  if ([...password].length > maxStrengthInput) {
+    return { score: 4, guessesLog10: 0, warning: null, suggestions: [] };
+  }
   const result = zxcvbn.check(password, userInputs);
 
   return {

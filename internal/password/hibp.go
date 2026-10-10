@@ -44,7 +44,8 @@ var ErrHIBPUnavailable = errors.New("have i been pwned is unavailable")
 
 // Breached は、パスワードが漏洩済みのパスワードに含まれるかを返す。
 func (h *HIBP) Breached(ctx context.Context, password string) (bool, error) {
-	// API が SHA-1 を定めている。crypto/sha1 は net/http が既に読み込んでいる。
+	// API が SHA-1 を定めている。照会に使う net/http が crypto/tls を通じて crypto/sha1 を読み込むので、
+	// crypto.SHA1 は登録済みになる。登録されていなければ、照会できなかったものとして扱う。
 	if !crypto.SHA1.Available() {
 		return false, fmt.Errorf("%w: SHA-1 is not available", ErrHIBPUnavailable)
 	}

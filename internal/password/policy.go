@@ -38,6 +38,8 @@ const (
 // ErrWeakPassword は、パスワードが規定を満たさないことを表す。errors.As で RejectedError を取り出せる。
 var ErrWeakPassword = errors.New("the password does not meet the policy")
 
+var _ error = new(RejectedError)
+
 // RejectedError は、パスワードを拒否した理由を持つエラー。
 type RejectedError struct {
 	Reason Reason
@@ -82,7 +84,12 @@ func NewPolicy(opts *PolicyOptions) (*Policy, error) {
 		return nil, err
 	}
 
-	return &Policy{blocklist: blocklist, estimator: estimator, hibp: opts.HIBP, logger: opts.Logger}, nil
+	logger := opts.Logger
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
+
+	return &Policy{blocklist: blocklist, estimator: estimator, hibp: opts.HIBP, logger: logger}, nil
 }
 
 // Check は、パスワードが規定を満たすかを確かめる。満たさなければ *RejectedError を返す。

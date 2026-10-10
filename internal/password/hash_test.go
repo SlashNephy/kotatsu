@@ -63,7 +63,9 @@ func TestVerifyRejectsInvalidHashes(t *testing.T) {
 		{name: "other version", encoded: "$argon2id$v=16$m=19456,t=2,p=1$c2FsdA$a2V5"},
 		{name: "zero memory", encoded: "$argon2id$v=19$m=0,t=2,p=1$c2FsdA$a2V5"},
 		{name: "broken salt", encoded: "$argon2id$v=19$m=19456,t=2,p=1$!!!$a2V5"},
-		{name: "empty key", encoded: "$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$"},
+		{name: "empty key", encoded: "$argon2id$v=19$m=19456,t=2,p=1$MDEyMzQ1Njc4OWFiY2RlZg$"},
+		{name: "short salt", encoded: "$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$a2V5"},
+		{name: "prefix before the identifier", encoded: "x$argon2id$v=19$m=19456,t=2,p=1$MDEyMzQ1Njc4OWFiY2RlZg$a2V5"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

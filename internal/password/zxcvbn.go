@@ -82,7 +82,10 @@ func (e *Estimator) Estimate(ctx context.Context, password string, userInputs []
 	if utf8.RuneCountInString(password) > MaxStrengthInput {
 		return &Strength{Score: 4, GuessesLog10: 0, Warning: nil, Suggestions: []string{}}, nil
 	}
-	if len(userInputs) > maxUserInputs {
+	switch {
+	case userInputs == nil:
+		userInputs = []string{}
+	case len(userInputs) > maxUserInputs:
 		userInputs = userInputs[:maxUserInputs]
 	}
 	input, err := json.Marshal(map[string]any{"password": password, "userInputs": userInputs})

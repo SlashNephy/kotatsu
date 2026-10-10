@@ -22,6 +22,7 @@ const (
 	argon2Iterations  uint32 = 2
 	argon2Parallelism uint8  = 1
 	argon2SaltLength         = 16
+	minSaltLength            = 8
 	argon2KeyLength   uint32 = 32
 )
 
@@ -96,7 +97,7 @@ func VerifyDummy(password string) error {
 func decode(encoded string) (params, []byte, []byte, error) {
 	var p params
 	parts := strings.Split(encoded, "$")
-	if len(parts) != 6 || parts[1] != "argon2id" {
+	if len(parts) != 6 || parts[0] != "" || parts[1] != "argon2id" {
 		return p, nil, nil, fmt.Errorf("%w: not an argon2id hash", ErrInvalidHash)
 	}
 	var version int
@@ -112,6 +113,10 @@ func decode(encoded string) (params, []byte, []byte, error) {
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
 		return p, nil, nil, fmt.Errorf("%w: invalid salt: %w", ErrInvalidHash, err)
+	}
+	// Argon2 の仕様は、塩を 8 バイト以上と定めている。
+	if len(salt) < minSaltLength {
+		return p, nil, nil, fmt.Errorf("%w: the salt is too short", ErrInvalidHash)
 	}
 	key, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
