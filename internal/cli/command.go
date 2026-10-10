@@ -419,7 +419,7 @@ type apiHandler struct {
 
 // watchChanges は、subscription で知らせるデータの変更の通知を見張る。
 func watchChanges(ctx context.Context, logger *slog.Logger, deps *Deps) (ChangeFeed, error) {
-	watcher, err := notify.NewWatcher(ctx, deps.DB, logger.With(slog.String("component", "changes")), graph.DataChannels(), notify.WatcherOptions{
+	watcher, err := notify.NewWatcher(ctx, deps.DB, logger.With(slog.String("component", "changes")), graph.WatchedChannels(), notify.WatcherOptions{
 		UseListen: !deps.Config.Database.Pooler, PollInterval: notify.DefaultPollInterval,
 	})
 	if err != nil {

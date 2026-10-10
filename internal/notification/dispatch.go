@@ -14,6 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/notify"
 )
 
 const (
@@ -80,6 +81,12 @@ func (d *Dispatcher) dispatchBatch(ctx context.Context) (int, error) {
 		for i := range events {
 			if err := d.dispatchEvent(ctx, tx, &events[i], now, recipientsByKind); err != nil {
 				return err
+			}
+		}
+		// 画面内の通知が増えたことを、subscription を配信する tenban に知らせる。
+		if len(events) > 0 {
+			if _, err := notify.Publish(ctx, tx, d.clock, NotifyChannel); err != nil {
+				return fmt.Errorf("failed to publish the notification change: %w", err)
 			}
 		}
 		dispatched = len(events)

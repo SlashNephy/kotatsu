@@ -31,4 +31,9 @@ extend type Subscription {
   どの tenban で起きた変更も届く。
   """
   dataChanged: DataChange!
+  """
+  ログイン中のユーザーの未読の通知の数 (設計書 6.2、9.1)。購読を始めたときに今の数を送り、その後は数が変わったときに送る。
+  通知が増えたときも、ほかの端末で既読にしたときも届く。
+  """
+  unreadNotificationCount: Int!
 }

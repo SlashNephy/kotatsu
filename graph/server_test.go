@@ -64,6 +64,16 @@ func (f *fixture) as(t *testing.T, username string, role auth.Role) *fixture {
 	return &fixture{pool: f.pool, server: f.server, clock: f.clock, sessions: f.sessions, passkeys: f.passkeys, userID: user.ID, token: token}
 }
 
+// withNewSession は、同じユーザーの別のセッション (別の端末) で、同じサーバーを使う fixture を返す。
+func (f *fixture) withNewSession(t *testing.T) *fixture {
+	t.Helper()
+
+	token, _, err := f.sessions.Create(t.Context(), f.pool, f.userID, nil)
+	require.NoError(t, err)
+
+	return &fixture{pool: f.pool, server: f.server, clock: f.clock, sessions: f.sessions, passkeys: f.passkeys, userID: f.userID, token: token}
+}
+
 // newFixture は、ログイン済みのセッションを 1 つ持つ DB と、セッションのミドルウェアを通した /graphql を用意する。
 func newFixture(t *testing.T, opts *graph.Options) *fixture {
 	t.Helper()
@@ -83,7 +93,7 @@ func newFixtureWithChanges(t *testing.T) *fixture {
 func startChanges(t *testing.T, pool *pgxpool.Pool) *notify.Broadcaster {
 	t.Helper()
 
-	watcher, err := notify.NewWatcher(t.Context(), pool, slog.New(slog.DiscardHandler), graph.DataChannels(),
+	watcher, err := notify.NewWatcher(t.Context(), pool, slog.New(slog.DiscardHandler), graph.WatchedChannels(),
 		notify.WatcherOptions{UseListen: true, PollInterval: time.Second})
 	require.NoError(t, err)
 	changes := notify.NewBroadcaster(watcher)

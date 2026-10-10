@@ -345,3 +345,37 @@ func TestDispatchOnceCallsHooks(t *testing.T) {
 	assert.Equal(t, map[string]any{keyPool: poolName}, hook.events[0].Payload)
 	assert.True(t, testNow().Equal(hook.events[0].OccurredAt))
 }
+
+// TestChangesArePublished は、通知を配ったときと、既読にしたときだけ、変更を通知することを確かめる。
+func TestChangesArePublished(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	alice := f.user(t, "alice")
+	version := func() int64 {
+		var v int64
+		require.NoError(t, f.pool.QueryRow(t.Context(),
+			"SELECT coalesce((SELECT version FROM change_versions WHERE channel = $1), 0)", notification.NotifyChannel).Scan(&v))
+
+		return v
+	}
+
+	// 配るイベントがなければ、通知しない。
+	f.dispatch(t)
+	assert.Zero(t, version())
+	f.emit(t, notification.KindStorageLow)
+	f.emit(t, notification.KindRecordingFailed)
+	f.dispatch(t)
+	assert.Equal(t, int64(1), version(), "one change per batch")
+
+	// 既読にした通知がなければ、通知しない。
+	_, err := f.inbox.MarkRead(t.Context(), f.pool, alice, []uuid.UUID{id.New()})
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), version())
+	_, err = f.inbox.MarkAllRead(t.Context(), f.pool, alice)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), version())
+	_, err = f.inbox.MarkAllRead(t.Context(), f.pool, alice)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), version())
+}

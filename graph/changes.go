@@ -7,6 +7,7 @@ import (
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/assign"
 	"github.com/SlashNephy/kotatsu/internal/epg"
+	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/tunerstate"
@@ -41,14 +42,14 @@ func dataChannels() []struct {
 	}
 }
 
-// DataChannels は、dataChanged で知らせる変更の通知のチャンネルを返す。tenban は、これらを見張る。
-func DataChannels() []string {
-	channels := make([]string, 0, len(dataChannels()))
+// WatchedChannels は、subscription で知らせるのに使う、変更の通知のチャンネルを返す。tenban は、これらを見張る。
+func WatchedChannels() []string {
+	channels := make([]string, 0, len(dataChannels())+1)
 	for _, c := range dataChannels() {
 		channels = append(channels, c.notify)
 	}
 
-	return channels
+	return append(channels, notification.NotifyChannel)
 }
 
 // subscribeDataChanges は、購読を始めたときに今の版数を送り、その後は版数が上がったデータの種類を送る。
@@ -98,6 +99,62 @@ func (r *Resolver) subscribeDataChanges(ctx context.Context) (<-chan *model.Data
 				if !send(&model.DataChange{Channel: c.channel, Version: int(version)}) {
 					return
 				}
+			}
+		}
+	}()
+
+	return out, nil
+}
+
+// subscribeUnreadNotificationCount は、購読を始めたときに未読の通知の数を送り、その後は数が変わったときに送る。
+// 通知が増えるか既読にするたびに、購読者ごとに数を読み直す。
+func (r *Resolver) subscribeUnreadNotificationCount(ctx context.Context) (<-chan int, error) {
+	principal, err := viewer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.changes == nil {
+		return nil, errChangesUnavailable
+	}
+	// 数を読む前に購読し、読んだ後の変更を取りこぼさないようにする。
+	wake, unsubscribe := r.changes.Subscribe()
+	version := r.changes.Version(notification.NotifyChannel)
+	count, err := r.inbox.UnreadCount(ctx, r.db, principal.UserID)
+	if err != nil {
+		unsubscribe()
+
+		return nil, err
+	}
+
+	out := make(chan int, 1)
+	out <- count
+	go func() {
+		defer close(out)
+		defer unsubscribe()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-wake:
+			}
+			latest := r.changes.Version(notification.NotifyChannel)
+			if latest <= version {
+				continue
+			}
+			version = latest
+			current, err := r.inbox.UnreadCount(ctx, r.db, principal.UserID)
+			if err != nil {
+				// 読めなければ、購読を終える。クライアントは、購読し直して今の数を受け取る。
+				return
+			}
+			if current == count {
+				continue
+			}
+			count = current
+			select {
+			case <-ctx.Done():
+				return
+			case out <- count:
 			}
 		}
 	}()

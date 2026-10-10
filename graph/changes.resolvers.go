@@ -10,3 +10,8 @@ import (
 func (r *subscriptionResolver) DataChanged(ctx context.Context) (<-chan *model.DataChange, error) {
 	return r.subscribeDataChanges(ctx)
 }
+
+// UnreadNotificationCount is the resolver for the unreadNotificationCount field.
+func (r *subscriptionResolver) UnreadNotificationCount(ctx context.Context) (<-chan int, error) {
+	return r.subscribeUnreadNotificationCount(ctx)
+}

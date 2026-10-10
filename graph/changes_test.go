@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/tunerstate"
@@ -143,4 +144,40 @@ func TestDataChangedRequiresLogin(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+// TestUnreadNotificationCount は、通知が増えたときと、ほかの端末で既読にしたときに、未読の数が届くことを確かめる (設計書 6.2)。
+func TestUnreadNotificationCount(t *testing.T) {
+	t.Parallel()
+
+	f := newFixtureWithChanges(t)
+	f.notify(t, notification.KindRecordingStarted, nil)
+	events := f.subscribe(t, `subscription { unreadNotificationCount }`)
+	assert.JSONEq(t, `{"unreadNotificationCount":1}`, string(next(t, events)))
+
+	// nekonote が配った通知が届く。
+	f.notify(t, notification.KindRecordingCompleted, nil)
+	assert.JSONEq(t, `{"unreadNotificationCount":2}`, string(next(t, events)))
+
+	// 別の端末 (同じユーザーの別のセッション) で既読にすると、数が減る。
+	other := f.withNewSession(t)
+	require.Empty(t, other.query(t, markAllRead, nil, nil))
+	assert.JSONEq(t, `{"unreadNotificationCount":0}`, string(next(t, events)))
+}
+
+// TestUnreadNotificationCountIsPerUser は、ほかのユーザーの既読では、自分の未読の数を送らないことを確かめる。
+func TestUnreadNotificationCountIsPerUser(t *testing.T) {
+	t.Parallel()
+
+	f := newFixtureWithChanges(t)
+	other := f.as(t, "viewer", auth.RoleViewer)
+	f.notify(t, notification.KindRecordingStarted, nil)
+	events := f.subscribe(t, `subscription { unreadNotificationCount }`)
+	assert.JSONEq(t, `{"unreadNotificationCount":1}`, string(next(t, events)))
+
+	// ほかのユーザーが既読にしても、自分の数は変わらないので、何も届かない。
+	require.Empty(t, other.query(t, markAllRead, nil, nil))
+	// 自分の数が変わると、それだけが届く。
+	f.notify(t, notification.KindRecordingFailed, nil)
+	assert.JSONEq(t, `{"unreadNotificationCount":2}`, string(next(t, events)))
 }
