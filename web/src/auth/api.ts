@@ -80,6 +80,9 @@ export type TOTPEnrollment = { secret: string; uri: string; expiresAt: string };
 
 export type Completed = { recoveryCodes: string[] };
 
+// Reauthenticated は、再認証を終えたときの応答。authenticatedAt から 10 分の間、重要な操作ができる。
+export type Reauthenticated = { authenticatedAt: string };
+
 // OIDCStatus は、OIDC でのログインを受け付けるかと、ボタンに出す IdP の名前。
 export type OIDCStatus = { enabled: boolean; displayName: string };
 
@@ -111,6 +114,15 @@ export const authApi = {
   // OIDC でのログイン (設計書 9.4)。始めると、IdP の認可のエンドポイントを返すので、ブラウザーを送り出す。
   oidcStatus: () => get<OIDCStatus>('/auth/oidc'),
   beginOIDC: () => post<{ authorizationUrl: string }>('/auth/oidc', {}),
+  // ログイン中のセッションのまま、もう一度確かめる (設計書 9.3)。パスワードの変更などの前に求められる。
+  reauthenticate: (password: string, method: 'totp' | 'recovery_code', code: string) =>
+    post<Reauthenticated>('/auth/reauth', { password, method, code }),
+  beginPasskeyReauthentication: () => post<PasskeyAssertion>('/auth/reauth/passkey', {}),
+  confirmPasskeyReauthentication: (credential: AuthenticationResponseJSON) =>
+    post<Reauthenticated>('/auth/reauth/passkey/confirm', { credential }),
+  // IdP で再認証する。終えると、returnTo のパスに戻る。失敗したときは、returnTo に error=<理由> が付く。
+  beginOIDCReauthentication: (returnTo: string) =>
+    post<{ authorizationUrl: string }>('/auth/reauth/oidc', { returnTo }),
   logout: async () => {
     await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
   },

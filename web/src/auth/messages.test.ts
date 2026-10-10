@@ -58,6 +58,11 @@ describe('authErrorMessage', () => {
       want: 'IdP に接続できませんでした。時間をおいてやり直してください',
     },
     {
+      name: 'IdP と紐付いていないユーザーの再認証',
+      error: new AuthError(409, 'OIDC_NOT_LINKED', undefined, undefined),
+      want: 'このユーザーは IdP と紐付いていないので、IdP では確かめられません',
+    },
+    {
       name: 'パスキーの確認の取り消し',
       error: new PasskeyCancelledError(),
       want: 'パスキーの確認が取り消されたか、使えるパスキーが見つかりませんでした',
@@ -98,6 +103,16 @@ describe('oidcErrorMessage', () => {
       name: 'IdP に届かない',
       reason: 'oidc_unavailable',
       want: 'IdP に接続できませんでした。時間をおいてやり直してください',
+    },
+    {
+      name: 'IdP が、もう一度認証させなかった',
+      reason: 'oidc_reauth_stale',
+      want: 'IdP で、もう一度認証したことを確かめられませんでした。IdP にもう一度ログインしてから、やり直してください',
+    },
+    {
+      name: 'ログイン中のユーザーと違うアカウントでの再認証',
+      reason: 'oidc_reauth_mismatch',
+      want: 'ログイン中のユーザーとは違うアカウントで認証されました。同じアカウントで、やり直してください',
     },
     {
       name: '知らない理由',
