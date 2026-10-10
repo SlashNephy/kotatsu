@@ -122,6 +122,8 @@ type OidcLogin struct {
 	Nonce        string
 	CodeVerifier string
 	RedirectUri  string
+	SessionID    *uuid.UUID
+	ReturnTo     *string
 	CreatedAt    time.Time
 	ExpiresAt    time.Time
 }
