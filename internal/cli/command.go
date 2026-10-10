@@ -22,12 +22,14 @@ import (
 	"github.com/SlashNephy/kotatsu/graph"
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/capacity"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/config"
 	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
+	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/password"
@@ -116,7 +118,12 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, notification.NewDispatchWorker(dispatcher))
 	river.AddWorker(workers, webhook.NewDeliverWorker(deps.DB, webhooks, deps.Clock, location))
 
-	return workers, []*river.PeriodicJob{audit.PrunePeriodicJob(), notification.DispatchPeriodicJob()}, nil
+	// 保存先プールの容量は、このインスタンスにマウントされたプールについて調べる (設計書 6.1)。
+	manager := capacity.NewManager(deps.DB, deps.Clock, kago.New(deps.Config.Storage.Pools, nil), audit.NewRecorder(deps.Clock),
+		logger.With(slog.String("component", "capacity")))
+	river.AddWorker(workers, capacity.NewCheckWorker(manager))
+
+	return workers, []*river.PeriodicJob{audit.PrunePeriodicJob(), notification.DispatchPeriodicJob(), capacity.CheckPeriodicJob()}, nil
 }
 
 // migrate は、Kotatsu のスキーマと River のテーブルのマイグレーションを適用する。
@@ -492,6 +499,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Webhooks:            webhooks,
 		Changes:             changes,
 		Pools:               deps.Config.Storage.Pools,
+		FreeSpace:           nil,
 		Clock:               deps.Clock,
 		Location:            location,
 		MaxSearchCandidates: 0,

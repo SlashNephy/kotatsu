@@ -311,6 +311,14 @@ type SetupToken struct {
 	CreatedAt time.Time
 }
 
+type StoragePool struct {
+	ID           string
+	Priority     int32
+	MinFreeBytes int64
+	LowSince     *time.Time
+	UpdatedAt    time.Time
+}
+
 type SystemSetting struct {
 	ID                   int16
 	RecordingDefaults    []byte

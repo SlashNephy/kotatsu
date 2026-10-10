@@ -171,7 +171,7 @@ func TestAuditEvents(t *testing.T) {
 func TestSystemStatus(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t, &graph.Options{Pools: map[string]string{"sub": "/mnt/sub", "main": "/mnt/main"}})
+	f := newFixture(t, &graph.Options{Pools: map[string]string{poolSub: mountSub, poolMain: mountMain}})
 	admin := f.as(t, adminName, auth.RoleAdmin)
 	now := f.clock.Now()
 	alive, stopped := id.New(), id.New()
@@ -238,8 +238,8 @@ func TestSystemStatus(t *testing.T) {
 	require.Len(t, status.Tuners, 1)
 	assert.Equal(t, []string{"GR", "BS"}, status.Tuners[0].Types)
 	require.Len(t, status.Pools, 2)
-	assert.Equal(t, "main", status.Pools[0].ID)
-	assert.Equal(t, "/mnt/main", status.Pools[0].Path)
+	assert.Equal(t, poolMain, status.Pools[0].ID)
+	assert.Equal(t, mountMain, status.Pools[0].Path)
 }
 
 // TestSystemStatusBeforeChecks は、まだ何も確かめていないときも、空の状態を返すことを確かめる。

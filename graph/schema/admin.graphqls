@@ -118,6 +118,12 @@ type StoragePool {
   id: String!
   "このインスタンスでのマウント先。"
   path: String!
+  "選ばれる優先順位。大きいほど先に選ぶ。"
+  priority: Int!
+  "容量の閾値 (バイト)。空き容量がこれを下回ったら、保護されていない古い録画から消す。0 なら消さない。"
+  minFreeBytes: Int64!
+  "このインスタンスから見た空き容量 (バイト)。調べられなければ null。"
+  freeBytes: Int64
 }
 
 """

@@ -4,6 +4,11 @@
 scalar Time
 
 """
+64 ビットの整数。ファイルや容量の大きさ (バイト) のように、32 ビットの Int に収まらない値に使う。
+"""
+scalar Int64
+
+"""
 ID で引けるもの (Relay の Global Object Identification)。
 """
 interface Node {
