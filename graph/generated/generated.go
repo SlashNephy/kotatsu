@@ -160,6 +160,7 @@ type ComplexityRoot struct {
 		ResetUserPassword            func(childComplexity int, id string, password string) int
 		RevokeSession                func(childComplexity int, id string) int
 		SetRuleEnabled               func(childComplexity int, id string, enabled bool) int
+		UpdateChannelType            func(childComplexity int, typeArg string, input model.ChannelTypeInput) int
 		UpdateGuideView              func(childComplexity int, id string, input model.GuideViewInput) int
 		UpdateNotificationPreference func(childComplexity int, input model.NotificationPreferenceInput) int
 		UpdateReservation            func(childComplexity int, id string, input model.ReservationUpdateInput) int
@@ -461,6 +462,7 @@ type MutationResolver interface {
 	DeleteTotp(ctx context.Context) (*model.SecondFactorStatus, error)
 	RegenerateRecoveryCodes(ctx context.Context) (*model.RecoveryCodes, error)
 	UpdateSystemSettings(ctx context.Context, input model.SystemSettingsInput) (*model.SystemSettings, error)
+	UpdateChannelType(ctx context.Context, typeArg string, input model.ChannelTypeInput) (*model.ChannelType, error)
 	CreateUser(ctx context.Context, input model.CreateUserInput) (*model.User, error)
 	UpdateUser(ctx context.Context, id string, input model.UpdateUserInput) (*model.User, error)
 	DisableUser(ctx context.Context, id string) (*model.User, error)
@@ -1077,6 +1079,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetRuleEnabled(childComplexity, args["id"].(string), args["enabled"].(bool)), true
+	case "Mutation.updateChannelType":
+		if e.ComplexityRoot.Mutation.UpdateChannelType == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateChannelType_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateChannelType(childComplexity, args["type"].(string), args["input"].(model.ChannelTypeInput)), true
 	case "Mutation.updateGuideView":
 		if e.ComplexityRoot.Mutation.UpdateGuideView == nil {
 			break
@@ -2246,6 +2259,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputArchiveRangeInput,
 		ec.unmarshalInputAuditEventFilter,
+		ec.unmarshalInputChannelTypeInput,
 		ec.unmarshalInputCreateUserInput,
 		ec.unmarshalInputGenreInput,
 		ec.unmarshalInputGuideViewInput,
@@ -3253,6 +3267,16 @@ input SystemSettingsInput {
   archiveRetentionDays: Int
 }
 
+"""
+チャンネル種別の表示の変える項目。省いた項目は変えない。
+"""
+input ChannelTypeInput {
+  "表示名。1〜32 文字。"
+  displayName: String
+  "並び順。小さいほど前に並ぶ。0〜10000。"
+  sortOrder: Int
+}
+
 extend type Query {
   "全体の設定。ログイン中のユーザーなら誰でも読める。"
   systemSettings: SystemSettings!
@@ -3264,6 +3288,12 @@ extend type Mutation {
   正しくない値なら、BAD_USER_INPUT を返す。
   """
   updateSystemSettings(input: SystemSettingsInput!): SystemSettings!
+
+  """
+  チャンネル種別 type の表示名と並び順を変える (設計書 3.1)。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  種別がなければ NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
+  """
+  updateChannelType(type: String!, input: ChannelTypeInput!): ChannelType!
 }
 `, BuiltIn: false},
 	{Name: "../schema/user.graphqls", Input: `"""
@@ -4413,6 +4443,28 @@ func (ec *executionContext) field_Mutation_setRuleEnabled_args(ctx context.Conte
 		return nil, err
 	}
 	args["enabled"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateChannelType_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "type",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["type"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.ChannelTypeInput, error) {
+			return ec.unmarshalNChannelTypeInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐChannelTypeInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
 	return args, nil
 }
 
@@ -7002,6 +7054,50 @@ func (ec *executionContext) fieldContext_Mutation_updateSystemSettings(ctx conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateSystemSettings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateChannelType(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateChannelType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateChannelType(ctx, fc.Args["type"].(string), fc.Args["input"].(model.ChannelTypeInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ChannelType) graphql.Marshaler {
+			return ec.marshalNChannelType2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐChannelType(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateChannelType(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ChannelType(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateChannelType_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -13063,6 +13159,43 @@ func (ec *executionContext) unmarshalInputAuditEventFilter(ctx context.Context, 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputChannelTypeInput(ctx context.Context, obj any) (model.ChannelTypeInput, error) {
+	var it model.ChannelTypeInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"displayName", "sortOrder"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "displayName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("displayName"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DisplayName = data
+		case "sortOrder":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortOrder"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SortOrder = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateUserInput(ctx context.Context, obj any) (model.CreateUserInput, error) {
 	var it model.CreateUserInput
 	if obj == nil {
@@ -14853,6 +14986,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "updateSystemSettings":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateSystemSettings(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateChannelType":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateChannelType(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -17840,6 +17980,11 @@ func (ec *executionContext) marshalNChannelType2ᚖgithubᚗcomᚋSlashNephyᚋk
 		return graphql.Null
 	}
 	return ec._ChannelType(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNChannelTypeInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐChannelTypeInput(ctx context.Context, v any) (model.ChannelTypeInput, error) {
+	res, err := ec.unmarshalInputChannelTypeInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNCreateUserInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐCreateUserInput(ctx context.Context, v any) (model.CreateUserInput, error) {

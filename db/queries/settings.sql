@@ -12,3 +12,11 @@ RETURNING *;
 UPDATE system_settings SET recording_defaults = @recording_defaults, archive_retention_days = @archive_retention_days, updated_at = @now
 WHERE id = 1
 RETURNING *;
+
+-- name: LockChannelType :one
+-- 変える前の値を監査ログに残すため、種別の行をロックして読む。
+SELECT * FROM channel_types WHERE type = @type FOR UPDATE;
+
+-- name: UpdateChannelType :one
+UPDATE channel_types SET display_name = @display_name, sort_order = @sort_order WHERE type = @type
+RETURNING *;

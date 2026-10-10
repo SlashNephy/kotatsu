@@ -81,6 +81,14 @@ type ChannelType struct {
 	SortOrder   int    `json:"sortOrder"`
 }
 
+// チャンネル種別の表示の変える項目。省いた項目は変えない。
+type ChannelTypeInput struct {
+	// 表示名。1〜32 文字。
+	DisplayName *string `json:"displayName,omitempty"`
+	// 並び順。小さいほど前に並ぶ。0〜10000。
+	SortOrder *int `json:"sortOrder,omitempty"`
+}
+
 // 管理者が作るユーザー。
 type CreateUserInput struct {
 	Username    string `json:"username"`

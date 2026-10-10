@@ -26,6 +26,18 @@ func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) 
 	return i, err
 }
 
+const lockChannelType = `-- name: LockChannelType :one
+SELECT type, display_name, sort_order FROM channel_types WHERE type = $1 FOR UPDATE
+`
+
+// 変える前の値を監査ログに残すため、種別の行をロックして読む。
+func (q *Queries) LockChannelType(ctx context.Context, type_ string) (ChannelType, error) {
+	row := q.db.QueryRow(ctx, lockChannelType, type_)
+	var i ChannelType
+	err := row.Scan(&i.Type, &i.DisplayName, &i.SortOrder)
+	return i, err
+}
+
 const lockSystemSettings = `-- name: LockSystemSettings :one
 INSERT INTO system_settings (id, recording_defaults, archive_retention_days, updated_at)
 VALUES (1, '{}', $1, $2)
@@ -48,6 +60,24 @@ func (q *Queries) LockSystemSettings(ctx context.Context, arg LockSystemSettings
 		&i.ArchiveRetentionDays,
 		&i.UpdatedAt,
 	)
+	return i, err
+}
+
+const updateChannelType = `-- name: UpdateChannelType :one
+UPDATE channel_types SET display_name = $1, sort_order = $2 WHERE type = $3
+RETURNING type, display_name, sort_order
+`
+
+type UpdateChannelTypeParams struct {
+	DisplayName string
+	SortOrder   int32
+	Type        string
+}
+
+func (q *Queries) UpdateChannelType(ctx context.Context, arg UpdateChannelTypeParams) (ChannelType, error) {
+	row := q.db.QueryRow(ctx, updateChannelType, arg.DisplayName, arg.SortOrder, arg.Type)
+	var i ChannelType
+	err := row.Scan(&i.Type, &i.DisplayName, &i.SortOrder)
 	return i, err
 }
 
