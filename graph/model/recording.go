@@ -27,6 +27,7 @@ type Recording struct {
 	WatchPositionMs *int64                  `json:"watchPositionMs,omitempty"`
 	ThumbnailURL    *string                 `json:"thumbnailUrl,omitempty"`
 	PreviewURL      *string                 `json:"previewUrl,omitempty"`
+	StreamURL       string                  `json:"streamUrl"`
 	// ServiceKey は、Mirakurun のサービス ID。スキーマには出さない。
 	ServiceKey int64 `json:"-"`
 }

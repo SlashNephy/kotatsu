@@ -922,6 +922,11 @@ type Recording implements Node {
   コマの並びは、同じディレクトリの preview.json に書く (末尾の preview.jpg を preview.json に変えた URL で取れる)。
   """
   previewUrl: String
+  """
+  録画の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。末尾に ?start=秒 を付けると、その位置から流す。
+  外部プレイヤーには、createStreamURL で署名付きの URL を発行する。
+  """
+  streamUrl: String!
 }
 type RecordingConnection {
   edges: [RecordingEdge!]!
@@ -1329,6 +1334,10 @@ type Service implements Node {
   番組表に出さない印
   """
   hidden: Boolean!
+  """
+  ライブ視聴の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。
+  """
+  streamUrl: String!
 }
 """
 ログイン中のセッション (設計書 9.5)。どの端末かを見分け、個別に失効させるのに使う。

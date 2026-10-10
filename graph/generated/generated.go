@@ -317,6 +317,7 @@ type ComplexityRoot struct {
 		Service         func(childComplexity int) int
 		StartAt         func(childComplexity int) int
 		State           func(childComplexity int) int
+		StreamURL       func(childComplexity int) int
 		Tags            func(childComplexity int) int
 		ThumbnailURL    func(childComplexity int) int
 		WatchPositionMs func(childComplexity int) int
@@ -436,6 +437,7 @@ type ComplexityRoot struct {
 		NetworkID          func(childComplexity int) int
 		RemoteControlKeyID func(childComplexity int) int
 		ServiceID          func(childComplexity int) int
+		StreamURL          func(childComplexity int) int
 	}
 
 	Session struct {
@@ -2046,6 +2048,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.State(childComplexity), true
+	case "Recording.streamUrl":
+		if e.ComplexityRoot.Recording.StreamURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.StreamURL(childComplexity), true
 	case "Recording.tags":
 		if e.ComplexityRoot.Recording.Tags == nil {
 			break
@@ -2522,6 +2530,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Service.ServiceID(childComplexity), true
+	case "Service.streamUrl":
+		if e.ComplexityRoot.Service.StreamURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Service.StreamURL(childComplexity), true
 
 	case "Session.createdAt":
 		if e.ComplexityRoot.Session.CreatedAt == nil {
@@ -3325,6 +3339,8 @@ type Service implements Node {
   remoteControlKeyId: Int
   "番組表に出さない印"
   hidden: Boolean!
+  "ライブ視聴の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。"
+  streamUrl: String!
 }
 
 """
@@ -3661,6 +3677,11 @@ type Recording implements Node {
   コマの並びは、同じディレクトリの preview.json に書く (末尾の preview.jpg を preview.json に変えた URL で取れる)。
   """
   previewUrl: String
+  """
+  録画の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。末尾に ?start=秒 を付けると、その位置から流す。
+  外部プレイヤーには、createStreamURL で署名付きの URL を発行する。
+  """
+  streamUrl: String!
 }
 
 type RecordingEdge {
@@ -4863,6 +4884,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_thumbnailUrl(ctx, field)
 	case "previewUrl":
 		return ec.fieldContext_Recording_previewUrl(ctx, field)
+	case "streamUrl":
+		return ec.fieldContext_Recording_streamUrl(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Recording", field.Name)
 }
@@ -5095,6 +5118,8 @@ func (ec *executionContext) childFields_Service(ctx context.Context, field graph
 		return ec.fieldContext_Service_remoteControlKeyId(ctx, field)
 	case "hidden":
 		return ec.fieldContext_Service_hidden(ctx, field)
+	case "streamUrl":
+		return ec.fieldContext_Service_streamUrl(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Service", field.Name)
 }
@@ -12218,6 +12243,29 @@ func (ec *executionContext) fieldContext_Recording_previewUrl(_ context.Context,
 	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Recording_streamUrl(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_streamUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StreamURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_streamUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _RecordingConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.RecordingConnection) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -14080,6 +14128,29 @@ func (ec *executionContext) _Service_hidden(ctx context.Context, field graphql.C
 }
 func (ec *executionContext) fieldContext_Service_hidden(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Service", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Service_streamUrl(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Service_streamUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StreamURL(), nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Service_streamUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Service", field, true, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Session_id(ctx context.Context, field graphql.CollectedField, obj *model.Session) (ret graphql.Marshaler) {
@@ -20528,6 +20599,11 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "streamUrl":
+			out.Values[i] = ec._Recording_streamUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -21456,6 +21532,11 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "hidden":
 			out.Values[i] = ec._Service_hidden(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "streamUrl":
+			out.Values[i] = ec._Service_streamUrl(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

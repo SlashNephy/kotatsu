@@ -389,6 +389,14 @@
     "unknownEnd": "不明",
     "copy": "コピー",
     "copied": "コピーしました",
-    "cancel": "やめる"
+    "cancel": "やめる",
+    "play": "再生"
+  },
+  "player": {
+    "backToRecording": "録画の詳細に戻る",
+    "error": "再生できませんでした。時間をおいてやり直してください",
+    "play": "再生",
+    "pause": "一時停止",
+    "seek": "再生位置"
   }
 }

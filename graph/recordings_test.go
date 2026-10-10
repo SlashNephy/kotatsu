@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	recordingFields = `id name state protected drops gaps { from to } tags { name } files { kind poolId path size } watchPositionMs thumbnailUrl previewUrl service { name }`
+	recordingFields = `id name state protected drops gaps { from to } tags { name } files { kind poolId path size } watchPositionMs thumbnailUrl previewUrl streamUrl service { name }`
 	listRecordings  = `query($first: Int!, $after: String, $filter: RecordingFilter) {
 		recordings(first: $first, after: $after, filter: $filter) { edges { node { ` + recordingFields + ` } } pageInfo { hasNextPage endCursor } } }`
 	deleteRecording    = `mutation($id: ID!) { deleteRecording(id: $id) }`
@@ -55,6 +55,7 @@ type recordingNode struct {
 	WatchPositionMs *int64  `json:"watchPositionMs"`
 	ThumbnailURL    *string `json:"thumbnailUrl"`
 	PreviewURL      *string `json:"previewUrl"`
+	StreamURL       string  `json:"streamUrl"`
 	Service         struct {
 		Name string `json:"name"`
 	} `json:"service"`
@@ -153,6 +154,7 @@ func TestRecordings(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT recording_id::text FROM recording_files WHERE path = $1`, episode1+".m2ts").Scan(&rawID))
 	assert.Equal(t, new("/media/recordings/"+rawID+"/thumbnail.jpg"), withImages.ThumbnailURL)
 	assert.Equal(t, new("/media/recordings/"+rawID+"/preview.jpg"), withImages.PreviewURL)
+	assert.Equal(t, "/streams/recordings/"+rawID, withImages.StreamURL)
 	assert.Nil(t, f.recordings(t, 10, nil, nil).Recordings.Edges[0].Node.ThumbnailURL)
 	kinds := make([]string, 0, len(files))
 	for _, file := range files {

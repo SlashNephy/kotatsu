@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -164,11 +165,18 @@ func TestGuide(t *testing.T) {
 	}
 	var services struct {
 		Services []struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
+			ID        string `json:"id"`
+			Name      string `json:"name"`
+			NetworkID int64  `json:"networkId"`
+			ServiceID int64  `json:"serviceId"`
+			StreamURL string `json:"streamUrl"`
 		} `json:"services"`
 	}
-	require.Empty(t, f.query(t, `{ services { id name } }`, nil, &services))
+	require.Empty(t, f.query(t, `{ services { id name networkId serviceId streamUrl } }`, nil, &services))
+	// ライブ視聴の URL は、Mirakurun のサービス ID (network_id * 100000 + service_id) で表す。
+	for _, service := range services.Services {
+		assert.Equal(t, fmt.Sprintf("/streams/services/%d", service.NetworkID*100000+service.ServiceID), service.StreamURL)
+	}
 
 	tests := []struct {
 		name      string

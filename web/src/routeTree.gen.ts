@@ -22,6 +22,7 @@ import { Route as RecordingsRecordingIdRouteImport } from './routes/recordings/$
 import { Route as RulesIndexRouteImport } from './routes/rules/index'
 import { Route as RulesRuleIdRouteImport } from './routes/rules/$ruleId'
 import { Route as SettingsPasswordRouteImport } from './routes/settings/password'
+import { Route as RecordingsRecordingIdPlayRouteImport } from './routes/recordings/$recordingId_.play'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -88,6 +89,12 @@ const SettingsPasswordRoute = SettingsPasswordRouteImport.update({
   path: '/settings/password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RecordingsRecordingIdPlayRoute =
+  RecordingsRecordingIdPlayRouteImport.update({
+    id: '/recordings/$recordingId_/play',
+    path: '/recordings/$recordingId/play',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -103,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/login/': typeof LoginIndexRoute
   '/recordings/': typeof RecordingsIndexRoute
   '/rules/': typeof RulesIndexRoute
+  '/recordings/$recordingId/play': typeof RecordingsRecordingIdPlayRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -118,6 +126,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginIndexRoute
   '/recordings': typeof RecordingsIndexRoute
   '/rules': typeof RulesIndexRoute
+  '/recordings/$recordingId/play': typeof RecordingsRecordingIdPlayRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -134,6 +143,7 @@ export interface FileRoutesById {
   '/login/': typeof LoginIndexRoute
   '/recordings/': typeof RecordingsIndexRoute
   '/rules/': typeof RulesIndexRoute
+  '/recordings/$recordingId_/play': typeof RecordingsRecordingIdPlayRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/login/'
     | '/recordings/'
     | '/rules/'
+    | '/recordings/$recordingId/play'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -166,6 +177,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/recordings'
     | '/rules'
+    | '/recordings/$recordingId/play'
   id:
     | '__root__'
     | '/'
@@ -181,6 +193,7 @@ export interface FileRouteTypes {
     | '/login/'
     | '/recordings/'
     | '/rules/'
+    | '/recordings/$recordingId_/play'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -197,6 +210,7 @@ export interface RootRouteChildren {
   LoginIndexRoute: typeof LoginIndexRoute
   RecordingsIndexRoute: typeof RecordingsIndexRoute
   RulesIndexRoute: typeof RulesIndexRoute
+  RecordingsRecordingIdPlayRoute: typeof RecordingsRecordingIdPlayRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -292,6 +306,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/recordings/$recordingId_/play': {
+      id: '/recordings/$recordingId_/play'
+      path: '/recordings/$recordingId/play'
+      fullPath: '/recordings/$recordingId/play'
+      preLoaderRoute: typeof RecordingsRecordingIdPlayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -309,6 +330,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginIndexRoute: LoginIndexRoute,
   RecordingsIndexRoute: RecordingsIndexRoute,
   RulesIndexRoute: RulesIndexRoute,
+  RecordingsRecordingIdPlayRoute: RecordingsRecordingIdPlayRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

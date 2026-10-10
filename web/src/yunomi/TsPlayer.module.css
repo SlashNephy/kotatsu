@@ -1,0 +1,23 @@
+/* プレイヤーの枠。操作の部品が画面に収まるよう、幅を画面の高さに合わせて抑える。 */
+.frame {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  max-width: min(100%, calc((100dvh - 280px) * 16 / 9));
+  min-width: min(100%, 320px);
+  background: black;
+}
+
+/* yadif は、video を inline-block の要素で包み、その上に描画用の canvas を重ねる。包む要素も枠いっぱいに広げる。 */
+.frame > div {
+  display: block !important;
+  width: 100%;
+  height: 100%;
+}
+
+.video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* 映像の比率によらず、枠の中に収める。 */
+  object-fit: contain;
+}
