@@ -27,6 +27,9 @@ function RootLayout() {
               <Anchor component={Link} to="/guide" size="sm">
                 {t('nav.guide')}
               </Anchor>
+              <Anchor component={Link} to="/search" size="sm">
+                {t('nav.search')}
+              </Anchor>
             </Group>
           </Group>
           <ColorSchemeToggle />
