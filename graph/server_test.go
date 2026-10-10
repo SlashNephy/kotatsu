@@ -2,6 +2,7 @@ package graph_test
 
 import (
 	"bufio"
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/password"
 	"github.com/SlashNephy/kotatsu/internal/password/passwordtest"
 	"github.com/SlashNephy/kotatsu/internal/webhook"
@@ -99,6 +101,21 @@ func newFixture(t *testing.T, opts *graph.Options) *fixture {
 	opts.Passkeys = auth.NewPasskeys(&auth.PasskeysOptions{
 		Clock: clk, Recorder: audit.NewRecorder(clk), Logger: slog.New(slog.DiscardHandler), Sessions: sessions,
 	})
+	// 変更の subscription のため、本物の Watcher で変更の通知を見張る。
+	watcher, err := notify.NewWatcher(t.Context(), pool, slog.New(slog.DiscardHandler), graph.DataChannels(),
+		notify.WatcherOptions{UseListen: true, PollInterval: time.Second})
+	require.NoError(t, err)
+	changes := notify.NewBroadcaster(watcher)
+	changesCtx, stopChanges := context.WithCancel(t.Context())
+	changesDone := make(chan error, 1)
+	go func() {
+		changesDone <- changes.Run(changesCtx)
+	}()
+	t.Cleanup(func() {
+		stopChanges()
+		assert.NoError(t, <-changesDone)
+	})
+	opts.Changes = changes
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", sessions.Middleware(pool)(graph.NewHandler(opts)))
 	server := httptest.NewServer(mux)

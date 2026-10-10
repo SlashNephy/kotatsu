@@ -1,0 +1,34 @@
+"""
+変更を知らせるデータの種類 (設計書 1.4、9.1)。
+"""
+enum DataChannel {
+  "番組表と番組"
+  EPG
+  "ルール"
+  RULES
+  "予約"
+  RESERVATIONS
+  "チューナーの割り当て"
+  ASSIGNMENTS
+  "予約の競合"
+  RESERVATION_CONFLICTS
+  "チューナーとチューナーサーバーの状態"
+  TUNERS
+}
+
+"""
+データの変更。何が変わったかだけを知らせるので、クライアントは、そのデータを読み直す。
+"""
+type DataChange {
+  channel: DataChannel!
+  "変更の版数。変わるたびに大きくなる。"
+  version: Int!
+}
+
+extend type Subscription {
+  """
+  データの変更 (設計書 9.1)。購読を始めたときに、すべての種類の今の版数を送り、その後は版数が上がった種類を送る。
+  どの tenban で起きた変更も届く。
+  """
+  dataChanged: DataChange!
+}

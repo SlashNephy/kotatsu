@@ -115,6 +115,13 @@ type CreateWebhookPayload struct {
 	Secret string `json:"secret"`
 }
 
+// データの変更。何が変わったかだけを知らせるので、クライアントは、そのデータを読み直す。
+type DataChange struct {
+	Channel DataChannel `json:"channel"`
+	// 変更の版数。変わるたびに大きくなる。
+	Version int `json:"version"`
+}
+
 // 予約の削除の結果。
 type DeleteReservationPayload struct {
 	// 削除の操作をした予約の ID。
@@ -603,6 +610,76 @@ func (e *AssignmentState) UnmarshalJSON(b []byte) error {
 }
 
 func (e AssignmentState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 変更を知らせるデータの種類 (設計書 1.4、9.1)。
+type DataChannel string
+
+const (
+	// 番組表と番組
+	DataChannelEpg DataChannel = "EPG"
+	// ルール
+	DataChannelRules DataChannel = "RULES"
+	// 予約
+	DataChannelReservations DataChannel = "RESERVATIONS"
+	// チューナーの割り当て
+	DataChannelAssignments DataChannel = "ASSIGNMENTS"
+	// 予約の競合
+	DataChannelReservationConflicts DataChannel = "RESERVATION_CONFLICTS"
+	// チューナーとチューナーサーバーの状態
+	DataChannelTuners DataChannel = "TUNERS"
+)
+
+var AllDataChannel = []DataChannel{
+	DataChannelEpg,
+	DataChannelRules,
+	DataChannelReservations,
+	DataChannelAssignments,
+	DataChannelReservationConflicts,
+	DataChannelTuners,
+}
+
+func (e DataChannel) IsValid() bool {
+	switch e {
+	case DataChannelEpg, DataChannelRules, DataChannelReservations, DataChannelAssignments, DataChannelReservationConflicts, DataChannelTuners:
+		return true
+	}
+	return false
+}
+
+func (e DataChannel) String() string {
+	return string(e)
+}
+
+func (e *DataChannel) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DataChannel(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DataChannel", str)
+	}
+	return nil
+}
+
+func (e DataChannel) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DataChannel) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DataChannel) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

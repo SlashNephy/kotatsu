@@ -54,6 +54,8 @@ type Options struct {
 	Settings *settings.Store
 	// Webhooks は、Webhook の管理に使う。nil なら、Webhook の操作は内部のエラーにする。
 	Webhooks *webhook.Store
+	// Changes は、ロール間の変更の通知を、subscription で知らせるのに使う。nil なら、変更の subscription は内部のエラーにする。
+	Changes Changes
 	// Pools は、保存先プールの ID からマウント先への対応。システムの状態で示す。
 	Pools  map[string]string
 	Clock  clock.Clock
@@ -120,6 +122,7 @@ func NewHandler(opts *Options) http.Handler {
 		settings:     o.Settings,
 		inbox:        notification.NewInbox(o.Clock),
 		webhooks:     o.Webhooks,
+		changes:      o.Changes,
 		pools:        o.Pools,
 	}
 	if resolver.settings == nil {

@@ -82,6 +82,11 @@ type ComplexityRoot struct {
 		Webhook func(childComplexity int) int
 	}
 
+	DataChange struct {
+		Channel func(childComplexity int) int
+		Version func(childComplexity int) int
+	}
+
 	DeleteReservationPayload struct {
 		ID          func(childComplexity int) int
 		Reservation func(childComplexity int) int
@@ -386,7 +391,8 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		Heartbeat func(childComplexity int) int
+		DataChanged func(childComplexity int) int
+		Heartbeat   func(childComplexity int) int
 	}
 
 	SystemSettings struct {
@@ -535,6 +541,7 @@ type ServiceResolver interface {
 }
 type SubscriptionResolver interface {
 	Heartbeat(ctx context.Context) (<-chan *time.Time, error)
+	DataChanged(ctx context.Context) (<-chan *model.DataChange, error)
 }
 
 // endregion ************************** generated!.gotpl **************************
@@ -686,6 +693,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CreateWebhookPayload.Webhook(childComplexity), true
+
+	case "DataChange.channel":
+		if e.ComplexityRoot.DataChange.Channel == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DataChange.Channel(childComplexity), true
+	case "DataChange.version":
+		if e.ComplexityRoot.DataChange.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DataChange.Version(childComplexity), true
 
 	case "DeleteReservationPayload.id":
 		if e.ComplexityRoot.DeleteReservationPayload.ID == nil {
@@ -2125,6 +2145,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.StoragePool.Path(childComplexity), true
 
+	case "Subscription.dataChanged":
+		if e.ComplexityRoot.Subscription.DataChanged == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Subscription.DataChanged(childComplexity), true
 	case "Subscription.heartbeat":
 		if e.ComplexityRoot.Subscription.Heartbeat == nil {
 			break
@@ -2632,6 +2658,41 @@ extend type Query {
   auditEvents(first: Int! = 50, after: String, filter: AuditEventFilter): AuditEventConnection!
   "システムの状態。管理者だけが使える (設計書 9.7)。"
   systemStatus: SystemStatus!
+}
+`, BuiltIn: false},
+	{Name: "../schema/changes.graphqls", Input: `"""
+変更を知らせるデータの種類 (設計書 1.4、9.1)。
+"""
+enum DataChannel {
+  "番組表と番組"
+  EPG
+  "ルール"
+  RULES
+  "予約"
+  RESERVATIONS
+  "チューナーの割り当て"
+  ASSIGNMENTS
+  "予約の競合"
+  RESERVATION_CONFLICTS
+  "チューナーとチューナーサーバーの状態"
+  TUNERS
+}
+
+"""
+データの変更。何が変わったかだけを知らせるので、クライアントは、そのデータを読み直す。
+"""
+type DataChange {
+  channel: DataChannel!
+  "変更の版数。変わるたびに大きくなる。"
+  version: Int!
+}
+
+extend type Subscription {
+  """
+  データの変更 (設計書 9.1)。購読を始めたときに、すべての種類の今の版数を送り、その後は版数が上がった種類を送る。
+  どの tenban で起きた変更も届く。
+  """
+  dataChanged: DataChange!
 }
 `, BuiltIn: false},
 	{Name: "../schema/conditions.graphqls", Input: `"""
@@ -3676,6 +3737,16 @@ func (ec *executionContext) childFields_CreateWebhookPayload(ctx context.Context
 		return ec.fieldContext_CreateWebhookPayload_secret(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CreateWebhookPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_DataChange(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "channel":
+		return ec.fieldContext_DataChange_channel(ctx, field)
+	case "version":
+		return ec.fieldContext_DataChange_version(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DataChange", field.Name)
 }
 
 func (ec *executionContext) childFields_DeleteReservationPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -5721,6 +5792,52 @@ func (ec *executionContext) _CreateWebhookPayload_secret(ctx context.Context, fi
 }
 func (ec *executionContext) fieldContext_CreateWebhookPayload_secret(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CreateWebhookPayload", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DataChange_channel(ctx context.Context, field graphql.CollectedField, obj *model.DataChange) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DataChange_channel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Channel, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.DataChannel) graphql.Marshaler {
+			return ec.marshalNDataChannel2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐDataChannel(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DataChange_channel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DataChange", field, false, false, errors.New("field of type DataChannel does not have child fields"))
+}
+
+func (ec *executionContext) _DataChange_version(ctx context.Context, field graphql.CollectedField, obj *model.DataChange) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DataChange_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DataChange_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DataChange", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _DeleteReservationPayload_id(ctx context.Context, field graphql.CollectedField, obj *model.DeleteReservationPayload) (ret graphql.Marshaler) {
@@ -11738,6 +11855,38 @@ func (ec *executionContext) fieldContext_Subscription_heartbeat(_ context.Contex
 	return graphql.NewScalarFieldContext("Subscription", field, true, true, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _Subscription_dataChanged(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_dataChanged(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Subscription().DataChanged(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DataChange) graphql.Marshaler {
+			return ec.marshalNDataChange2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐDataChange(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_dataChanged(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DataChange(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SystemSettings_recordingDefaults(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15182,6 +15331,49 @@ func (ec *executionContext) _CreateWebhookPayload(ctx context.Context, sel ast.S
 	return out
 }
 
+var dataChangeImplementors = []string{"DataChange"}
+
+func (ec *executionContext) _DataChange(ctx context.Context, sel ast.SelectionSet, obj *model.DataChange) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dataChangeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DataChange")
+		case "channel":
+			out.Values[i] = ec._DataChange_channel(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "version":
+			out.Values[i] = ec._DataChange_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var deleteReservationPayloadImplementors = []string{"DeleteReservationPayload"}
 
 func (ec *executionContext) _DeleteReservationPayload(ctx context.Context, sel ast.SelectionSet, obj *model.DeleteReservationPayload) graphql.Marshaler {
@@ -17988,6 +18180,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	switch fields[0].Name {
 	case "heartbeat":
 		return ec._Subscription_heartbeat(ctx, fields[0])
+	case "dataChanged":
+		return ec._Subscription_dataChanged(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -18975,6 +19169,26 @@ func (ec *executionContext) marshalNCreateWebhookPayload2ᚖgithubᚗcomᚋSlash
 		return graphql.Null
 	}
 	return ec._CreateWebhookPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDataChange2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐDataChange(ctx context.Context, sel ast.SelectionSet, v *model.DataChange) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DataChange(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNDataChannel2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐDataChannel(ctx context.Context, v any) (model.DataChannel, error) {
+	var res model.DataChannel
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNDataChannel2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐDataChannel(ctx context.Context, sel ast.SelectionSet, v model.DataChannel) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNDeleteReservationPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐDeleteReservationPayload(ctx context.Context, sel ast.SelectionSet, v *model.DeleteReservationPayload) graphql.Marshaler {

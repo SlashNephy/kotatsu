@@ -1,0 +1,146 @@
+package graph_test
+
+import (
+	"bufio"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/notify"
+	"github.com/SlashNephy/kotatsu/internal/rule"
+	"github.com/SlashNephy/kotatsu/internal/tunerstate"
+)
+
+// subscribe は、subscription を SSE で購読し、届いた data を、届いた順に渡すチャンネルを返す。
+func (f *fixture) subscribe(t *testing.T, query string) <-chan json.RawMessage {
+	t.Helper()
+
+	body, err := json.Marshal(struct {
+		Query string `json:"query"`
+	}{Query: query})
+	require.NoError(t, err)
+	r, err := http.NewRequestWithContext(t.Context(), http.MethodPost, f.server.URL+"/graphql", strings.NewReader(string(body)))
+	require.NoError(t, err)
+	r.Header.Set("Content-Type", contentTypeJSON)
+	r.Header.Set("Accept", "text/event-stream")
+	r.Header.Set("Cookie", auth.CookieName+"="+f.token)
+	resp, err := http.DefaultClient.Do(r)
+	require.NoError(t, err)
+	// 本文は、テストが終わるときに閉じ、購読をやめる。
+	t.Cleanup(func() { _ = resp.Body.Close() })
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	events := make(chan json.RawMessage, 100)
+	go func() {
+		defer close(events)
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			data, ok := strings.CutPrefix(scanner.Text(), "data: ")
+			if !ok {
+				continue
+			}
+			var payload struct {
+				Data   json.RawMessage `json:"data"`
+				Errors []any           `json:"errors"`
+			}
+			if json.Unmarshal([]byte(data), &payload) != nil {
+				continue
+			}
+			if len(payload.Errors) > 0 {
+				events <- json.RawMessage(data)
+
+				continue
+			}
+			events <- payload.Data
+		}
+	}()
+
+	return events
+}
+
+func next(t *testing.T, events <-chan json.RawMessage) json.RawMessage {
+	t.Helper()
+
+	select {
+	case event, ok := <-events:
+		require.True(t, ok, "the stream ended")
+
+		return event
+	case <-time.After(10 * time.Second):
+		t.Fatal("no event arrived")
+
+		return nil
+	}
+}
+
+func (f *fixture) publish(t *testing.T, channel string) {
+	t.Helper()
+
+	require.NoError(t, pgx.BeginFunc(t.Context(), f.pool, func(tx pgx.Tx) error {
+		_, err := notify.Publish(t.Context(), tx, f.clock, channel)
+
+		return err
+	}))
+}
+
+// TestDataChanged は、購読を始めたときに今の版数が届き、ほかの tenban で起きた変更も届くことを確かめる (設計書 1.4、9.1)。
+func TestDataChanged(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	events := f.as(t, "viewer", auth.RoleViewer).subscribe(t, `subscription { dataChanged { channel version } }`)
+	initial := make([]string, 0, 6)
+	for range 6 {
+		initial = append(initial, string(next(t, events)))
+	}
+	assert.Equal(t, []string{
+		`{"dataChanged":{"channel":"EPG","version":0}}`,
+		`{"dataChanged":{"channel":"RULES","version":0}}`,
+		`{"dataChanged":{"channel":"RESERVATIONS","version":0}}`,
+		`{"dataChanged":{"channel":"ASSIGNMENTS","version":0}}`,
+		`{"dataChanged":{"channel":"RESERVATION_CONFLICTS","version":0}}`,
+		`{"dataChanged":{"channel":"TUNERS","version":0}}`,
+	}, initial)
+
+	// 別の tenban の変更は、DB の変更の通知だけで届く。ここでは、この tenban を通さずに DB で通知する。
+	f.publish(t, rule.NotifyChannel)
+	assert.JSONEq(t, `{"dataChanged":{"channel":"RULES","version":1}}`, string(next(t, events)))
+	f.publish(t, tunerstate.NotifyChannel)
+	f.publish(t, tunerstate.NotifyChannel)
+	// 立て続けの変更は 1 つにまとまることがあるので、最後の版数が届くまで読む。
+	for {
+		var got struct {
+			DataChanged struct {
+				Channel string `json:"channel"`
+				Version int    `json:"version"`
+			} `json:"dataChanged"`
+		}
+		require.NoError(t, json.Unmarshal(next(t, events), &got))
+		assert.Equal(t, "TUNERS", got.DataChanged.Channel)
+		if got.DataChanged.Version == 2 {
+			break
+		}
+	}
+}
+
+func TestDataChangedRequiresLogin(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	r, err := http.NewRequestWithContext(t.Context(), http.MethodPost, f.server.URL+"/graphql",
+		strings.NewReader(`{"query":"subscription { dataChanged { channel } }"}`))
+	require.NoError(t, err)
+	r.Header.Set("Content-Type", contentTypeJSON)
+	r.Header.Set("Accept", "text/event-stream")
+	resp, err := http.DefaultClient.Do(r)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}

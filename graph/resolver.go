@@ -44,5 +44,6 @@ type Resolver struct {
 	settings          *settings.Store
 	inbox             *notification.Inbox
 	webhooks          *webhook.Store
+	changes           Changes
 	pools             map[string]string
 }
