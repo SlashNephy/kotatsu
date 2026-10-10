@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import i18next from '../i18n';
 import { AuthError } from './api';
 import { authErrorMessage } from './messages';
+import { PasskeyCancelledError } from './passkey';
 
 describe('authErrorMessage', () => {
   test.each([
@@ -30,6 +31,31 @@ describe('authErrorMessage', () => {
       name: '知らない理由',
       error: new AuthError(400, 'WEAK_PASSWORD', 'unknown', undefined),
       want: 'うまくいきませんでした。時間をおいてやり直してください',
+    },
+    {
+      name: 'パスキーを使えない接続',
+      error: new AuthError(400, 'PASSKEY_UNAVAILABLE', undefined, undefined),
+      want: 'パスキーは、HTTPS か localhost で、IP アドレスではなくドメイン名で接続したときだけ使えます',
+    },
+    {
+      name: '確かめられなかったパスキー',
+      error: new AuthError(401, 'INVALID_PASSKEY', undefined, undefined),
+      want: 'パスキーを確かめられませんでした。登録したパスキーで、もう一度お試しください',
+    },
+    {
+      name: '期限の切れたパスキーの手続き',
+      error: new AuthError(401, 'PASSKEY_CEREMONY_EXPIRED', undefined, undefined),
+      want: '時間が経ったので、もう一度パスキーで確かめてください',
+    },
+    {
+      name: 'この接続先のパスキーがない',
+      error: new AuthError(400, 'NO_PASSKEY', undefined, undefined),
+      want: 'この接続先で使えるパスキーが登録されていません',
+    },
+    {
+      name: 'パスキーの確認の取り消し',
+      error: new PasskeyCancelledError(),
+      want: 'パスキーの確認が取り消されたか、使えるパスキーが見つかりませんでした',
     },
     {
       name: '通信のエラー',
