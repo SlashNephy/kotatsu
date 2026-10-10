@@ -175,3 +175,63 @@ func migratedPool(t *testing.T) *pgxpool.Pool {
 
 	return pool
 }
+
+// TestBroadcasterWakesEverySubscriber は、変更をすべての購読者に知らせ、遅れた購読者も版数で変更を取りこぼさないことを確かめる。
+func TestBroadcasterWakesEverySubscriber(t *testing.T) {
+	t.Parallel()
+
+	pool := migratedPool(t)
+	watcher, err := notify.NewWatcher(t.Context(), pool, slog.New(slog.DiscardHandler), []string{channel, otherChannel},
+		notify.WatcherOptions{UseListen: false, PollInterval: 50 * time.Millisecond})
+	require.NoError(t, err)
+	broadcaster := notify.NewBroadcaster(watcher)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		done <- broadcaster.Run(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		assert.NoError(t, <-done)
+	})
+
+	first, unsubscribeFirst := broadcaster.Subscribe()
+	defer unsubscribeFirst()
+	// slow は、知らせを受け取らないまま、2 つのチャンネルの変更を待つ。
+	slow, unsubscribeSlow := broadcaster.Subscribe()
+	defer unsubscribeSlow()
+	stopped, unsubscribeStopped := broadcaster.Subscribe()
+	unsubscribeStopped()
+
+	publish(t, pool, channel)
+	waitWake(t, first)
+	assert.Equal(t, int64(1), broadcaster.Version(channel))
+
+	publish(t, pool, otherChannel)
+	waitWake(t, first)
+	// 2 回の変更の知らせは 1 回にまとまるが、どちらの版数も上がっている。
+	waitWake(t, slow)
+	assert.Equal(t, int64(1), broadcaster.Version(channel))
+	assert.Equal(t, int64(1), broadcaster.Version(otherChannel))
+	select {
+	case <-slow:
+		t.Fatal("the coalesced wake-up must be delivered only once")
+	default:
+	}
+	// 購読をやめた購読者には知らせない。
+	select {
+	case <-stopped:
+		t.Fatal("an unsubscribed subscriber must not be woken")
+	default:
+	}
+}
+
+func waitWake(t *testing.T, wake <-chan struct{}) {
+	t.Helper()
+
+	select {
+	case <-wake:
+	case <-time.After(waitTimeout):
+		t.Fatal("the subscriber was not woken")
+	}
+}

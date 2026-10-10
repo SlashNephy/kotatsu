@@ -395,11 +395,29 @@ func testOptions(logger *slog.Logger, roles []*cli.Role, lookupEnv config.Lookup
 		JobWorkers: func(*cli.Deps, *slog.Logger) (*river.Workers, []*river.PeriodicJob, error) {
 			return nil, []*river.PeriodicJob{}, nil
 		},
+		WatchChanges: func(context.Context, *slog.Logger, *cli.Deps) (cli.ChangeFeed, error) {
+			return idleChanges{}, nil
+		},
 		LogSetupToken: func(context.Context, *slog.Logger, clock.Clock, *pgxpool.Pool) error {
 			return nil
 		},
 		PasswordStrengthTimeout: 0,
 	}
+}
+
+// idleChanges は、変更を知らせない ChangeFeed。DB に接続しないテストで使う。
+type idleChanges struct{}
+
+var _ cli.ChangeFeed = new(idleChanges)
+
+func (idleChanges) Subscribe() (<-chan struct{}, func()) { return make(chan struct{}), func() {} }
+
+func (idleChanges) Version(string) int64 { return 0 }
+
+func (idleChanges) Run(ctx context.Context) error {
+	<-ctx.Done()
+
+	return nil
 }
 
 // validEnv は、起動に必要な設定を与える。HTTP サーバーはテストどうしで衝突しないよう空いているポートで待ち受ける。

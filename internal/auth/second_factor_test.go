@@ -14,6 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/secretbox"
 	"github.com/SlashNephy/kotatsu/internal/totp"
+	"github.com/SlashNephy/kotatsu/internal/usersettings"
 )
 
 // appKeyMaterial は、テストのアプリの秘密キー。
@@ -186,7 +187,16 @@ func TestDeleteTOTP(t *testing.T) {
 		})
 	}
 
+	version := func() int64 {
+		v, err := usersettings.Version(t.Context(), f.db, f.user.ID)
+		require.NoError(t, err)
+
+		return v
+	}
+	// 登録と削除のたびに、ほかの端末に知らせるため、設定の版数を上げる。
+	assert.Equal(t, int64(1), version())
 	require.NoError(t, deleteTOTP())
+	assert.Equal(t, int64(2), version())
 	assert.Empty(t, f.methods(t))
 	require.ErrorIs(t, f.factors.UseRecoveryCode(t.Context(), f.db, f.user.ID, codes[0]), auth.ErrInvalidSecondFactor)
 	require.ErrorIs(t, deleteTOTP(), auth.ErrNoTOTP)
@@ -196,6 +206,7 @@ func TestDeleteTOTP(t *testing.T) {
 		return err
 	})
 	require.ErrorIs(t, err, auth.ErrNoTOTP)
+	assert.Equal(t, int64(2), version(), "failed changes do not bump the version")
 }
 
 // TestTOTPNeedsTheSameApplicationSecret は、アプリの秘密キーが変わると、保存した秘密キーを読めないことを確かめる。

@@ -20,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/secretbox"
 	"github.com/SlashNephy/kotatsu/internal/totp"
+	"github.com/SlashNephy/kotatsu/internal/usersettings"
 )
 
 const (
@@ -287,7 +288,12 @@ func (s *SecondFactors) replaceRecoveryCodes(ctx context.Context, q *sqlc.Querie
 	return codes, nil
 }
 
+// record は、第二要素の変更を監査ログに残し、同じユーザーのほかの端末に、設定が変わったことを知らせる。
 func (s *SecondFactors) record(ctx context.Context, tx pgx.Tx, actor *audit.Actor, action string, userID uuid.UUID) error {
+	if err := usersettings.Touch(ctx, tx, s.clock, userID); err != nil {
+		return err
+	}
+
 	return s.recorder.Record(ctx, tx, &audit.Event{
 		Actor:      actor,
 		Action:     action,

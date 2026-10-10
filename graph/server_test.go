@@ -2,6 +2,7 @@ package graph_test
 
 import (
 	"bufio"
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/password"
 	"github.com/SlashNephy/kotatsu/internal/password/passwordtest"
 	"github.com/SlashNephy/kotatsu/internal/webhook"
@@ -62,8 +64,53 @@ func (f *fixture) as(t *testing.T, username string, role auth.Role) *fixture {
 	return &fixture{pool: f.pool, server: f.server, clock: f.clock, sessions: f.sessions, passkeys: f.passkeys, userID: user.ID, token: token}
 }
 
+// withNewSession は、同じユーザーの別のセッション (別の端末) で、同じサーバーを使う fixture を返す。
+func (f *fixture) withNewSession(t *testing.T) *fixture {
+	t.Helper()
+
+	token, _, err := f.sessions.Create(t.Context(), f.pool, f.userID, nil)
+	require.NoError(t, err)
+
+	return &fixture{pool: f.pool, server: f.server, clock: f.clock, sessions: f.sessions, passkeys: f.passkeys, userID: f.userID, token: token}
+}
+
 // newFixture は、ログイン済みのセッションを 1 つ持つ DB と、セッションのミドルウェアを通した /graphql を用意する。
 func newFixture(t *testing.T, opts *graph.Options) *fixture {
+	t.Helper()
+
+	return newFixtureWith(t, opts, false)
+}
+
+// newFixtureWithChanges は、newFixture に加えて、変更の subscription のため、本物の Watcher で変更の通知を見張る。
+// Watcher は LISTEN の接続を 1 つ持つので、DB の接続の数を抑えるよう、要るテストでだけ使う。
+func newFixtureWithChanges(t *testing.T) *fixture {
+	t.Helper()
+
+	return newFixtureWith(t, nil, true)
+}
+
+// startChanges は、変更の通知を見張る Broadcaster を、テストが終わるまで動かす。
+func startChanges(t *testing.T, pool *pgxpool.Pool) *notify.Broadcaster {
+	t.Helper()
+
+	watcher, err := notify.NewWatcher(t.Context(), pool, slog.New(slog.DiscardHandler), graph.WatchedChannels(),
+		notify.WatcherOptions{UseListen: true, PollInterval: time.Second})
+	require.NoError(t, err)
+	changes := notify.NewBroadcaster(watcher)
+	ctx, stop := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		done <- changes.Run(ctx)
+	}()
+	t.Cleanup(func() {
+		stop()
+		assert.NoError(t, <-done)
+	})
+
+	return changes
+}
+
+func newFixtureWith(t *testing.T, opts *graph.Options, watchChanges bool) *fixture {
 	t.Helper()
 
 	pool, err := database.Open(t.Context(), databasetest.New(t))
@@ -99,6 +146,9 @@ func newFixture(t *testing.T, opts *graph.Options) *fixture {
 	opts.Passkeys = auth.NewPasskeys(&auth.PasskeysOptions{
 		Clock: clk, Recorder: audit.NewRecorder(clk), Logger: slog.New(slog.DiscardHandler), Sessions: sessions,
 	})
+	if watchChanges {
+		opts.Changes = startChanges(t, pool)
+	}
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", sessions.Middleware(pool)(graph.NewHandler(opts)))
 	server := httptest.NewServer(mux)

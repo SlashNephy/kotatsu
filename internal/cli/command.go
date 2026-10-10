@@ -29,6 +29,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/notification"
+	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/password"
 	"github.com/SlashNephy/kotatsu/internal/registry"
 	"github.com/SlashNephy/kotatsu/internal/settings"
@@ -62,6 +63,8 @@ type Options struct {
 	RunRegistry func(ctx context.Context, logger *slog.Logger, deps *Deps, roles []string, listenAddr string) error
 	// JobWorkers は、nekonote で実行するジョブの Worker と定期ジョブを返す。
 	JobWorkers func(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.PeriodicJob, error)
+	// WatchChanges は、tenban が subscription に知らせる変更の通知を見張るものを作る。
+	WatchChanges func(ctx context.Context, logger *slog.Logger, deps *Deps) (ChangeFeed, error)
 	// LogSetupToken は、all の起動時に、管理者がいなければセットアップトークンを発行してログに出す (設計書 9.2)。
 	LogSetupToken func(ctx context.Context, logger *slog.Logger, clk clock.Clock, pool *pgxpool.Pool) error
 	// PasswordStrengthTimeout は、パスワードの強度の判定の時間の上限。0 なら既定値にする。
@@ -81,6 +84,7 @@ func DefaultOptions(logger *slog.Logger) *Options {
 		Migrate:      migrate,
 		RunRegistry:  runRegistry,
 		JobWorkers:   jobWorkers,
+		WatchChanges: watchChanges,
 
 		LogSetupToken:           logSetupToken,
 		PasswordStrengthTimeout: 0,
@@ -346,9 +350,10 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 
 	mux := http.NewServeMux()
 	httpserver.RegisterHealth(mux, logger, deps.DB)
+	var api *apiHandler
 	// API は tenban が受け持つ (設計書 1.2、9.1)。
 	if slices.ContainsFunc(roles, func(role *Role) bool { return role.Name == tenbanRoleName }) {
-		api, err := newAPI(logger, deps)
+		api, err = newAPI(ctx, logger, deps, opts.WatchChanges)
 		if err != nil {
 			_ = apiListener.Close()
 			_ = metricsListener.Close()
@@ -356,7 +361,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 			return err
 		}
 		// ヘルスチェックは、Kubernetes などがプライベートでないアドレスから叩くこともあるので、接続元の制限に含めない。
-		mux.Handle("/", api)
+		mux.Handle("/", api.handler)
 	}
 	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider))
 	metricsHandler := telemetry.NewMetricsHandler(deps.Metrics)
@@ -373,6 +378,11 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 	eg.Go(func() error {
 		return httpserver.Serve(ctx, logger.With(slog.String("server", "api")), apiListener, handler)
 	})
+	if api != nil {
+		eg.Go(func() error {
+			return api.changes.Run(ctx)
+		})
+	}
 	eg.Go(func() error {
 		names := make([]string, 0, len(roles))
 		for _, role := range roles {
@@ -393,7 +403,33 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 // どのリクエストも、まず接続元を確かめる (設計書 9.5)。
 // API は、ログイン中のユーザーをサーバー側のセッションから引く。/auth/* の状態を変えるリクエストは、Origin が同じでなければ拒否する。
 // SPA は、ログイン画面も含むので、セッションを引かずに配信する。
-func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
+// ChangeFeed は、変更の通知を見張り、subscription の購読者に知らせる。API を配信する間、Run で動かし続ける。
+type ChangeFeed interface {
+	graph.Changes
+	Run(ctx context.Context) error
+}
+
+var _ ChangeFeed = new(notify.Broadcaster)
+
+// apiHandler は、tenban の API のハンドラーと、subscription に変更を知らせる ChangeFeed。
+type apiHandler struct {
+	handler http.Handler
+	changes ChangeFeed
+}
+
+// watchChanges は、subscription で知らせるデータの変更の通知を見張る。
+func watchChanges(ctx context.Context, logger *slog.Logger, deps *Deps) (ChangeFeed, error) {
+	watcher, err := notify.NewWatcher(ctx, deps.DB, logger.With(slog.String("component", "changes")), graph.WatchedChannels(), notify.WatcherOptions{
+		UseListen: !deps.Config.Database.Pooler, PollInterval: notify.DefaultPollInterval,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to watch changes: %w", err)
+	}
+
+	return notify.NewBroadcaster(watcher), nil
+}
+
+func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(context.Context, *slog.Logger, *Deps) (ChangeFeed, error)) (*apiHandler, error) {
 	policy, err := httpserver.NewAccessPolicy(&deps.Config.Server, logger.With(slog.String("component", "access")))
 	if err != nil {
 		return nil, err
@@ -438,6 +474,11 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	// subscription は、どの tenban で起きた変更も届けるため、変更の通知のチャンネルを見張る (設計書 1.4、9.1)。
+	changes, err := watch(ctx, logger, deps)
+	if err != nil {
+		return nil, err
+	}
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", graph.NewHandler(&graph.Options{
 		DB:                  deps.DB,
@@ -449,6 +490,7 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		Sessions:            sessions,
 		Settings:            settings.NewStore(deps.Clock, audit.NewRecorder(deps.Clock)),
 		Webhooks:            webhooks,
+		Changes:             changes,
 		Pools:               deps.Config.Storage.Pools,
 		Clock:               deps.Clock,
 		Location:            location,
@@ -504,7 +546,7 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 	root.Handle("/auth/", api)
 	root.Handle("/", app)
 
-	return policy.Middleware(root), nil
+	return &apiHandler{handler: policy.Middleware(root), changes: changes}, nil
 }
 
 // errSecretKeyRequired は、tenban か nekonote を、アプリの秘密キーなしで起動しようとしたことを表す。

@@ -5,6 +5,7 @@
 // ユーザーは、イベントの種類ごとに、どの通知先で受け取るかを設定できる。
 //
 // ロール間の変更の通知 (notify パッケージ) とは別のもので、こちらは人に届ける。
+// 画面内の通知が増えたことや既読にしたことは、notify の NotifyChannel で tenban に知らせ、subscription で届ける。
 package notification
 
 import (
@@ -30,6 +31,9 @@ const (
 	KindStorageLow             Kind = "storage_low"
 	KindTunerServerUnreachable Kind = "tuner_server_unreachable"
 )
+
+// NotifyChannel は、ユーザーの画面内の通知が増えたか、既読にしたときに、変更を通知するチャンネル (設計書 1.4)。
+const NotifyChannel = "notifications"
 
 // ErrUnknownKind は、知らない種類のイベントであることを表す。
 var ErrUnknownKind = errors.New("unknown notification kind")

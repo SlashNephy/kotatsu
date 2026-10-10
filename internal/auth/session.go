@@ -17,6 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/usersettings"
 )
 
 const (
@@ -228,18 +229,20 @@ func (s *Sessions) List(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) ([]
 	return sessions, nil
 }
 
-// Revoke は、ユーザーのセッションを失効させる。
+// Revoke は、ユーザーのセッションを失効させ、同じユーザーのほかの端末に、セッションの一覧が変わったことを知らせる。
 // 他のユーザーのセッションや、失効済みのセッションを指定したときは ErrSessionNotFound を返す。
-func (s *Sessions) Revoke(ctx context.Context, db sqlc.DBTX, userID, sessionID uuid.UUID) error {
-	n, err := sqlc.New(db).RevokeSession(ctx, sqlc.RevokeSessionParams{Now: s.clock.Now(), ID: sessionID, UserID: userID})
-	if err != nil {
-		return fmt.Errorf("failed to revoke a session: %w", err)
-	}
-	if n == 0 {
-		return ErrSessionNotFound
-	}
+func (s *Sessions) Revoke(ctx context.Context, db Database, userID, sessionID uuid.UUID) error {
+	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		n, err := sqlc.New(tx).RevokeSession(ctx, sqlc.RevokeSessionParams{Now: s.clock.Now(), ID: sessionID, UserID: userID})
+		if err != nil {
+			return fmt.Errorf("failed to revoke a session: %w", err)
+		}
+		if n == 0 {
+			return ErrSessionNotFound
+		}
 
-	return nil
+		return usersettings.Touch(ctx, tx, s.clock, userID)
+	})
 }
 
 // SetCookie は、セッションのトークンを Cookie に入れる。
@@ -286,7 +289,7 @@ func (s *Sessions) Middleware(db sqlc.DBTX) func(http.Handler) http.Handler {
 
 // LogoutHandler は、ログイン中のセッションを失効させ、Cookie を消すハンドラーを返す (POST /auth/logout)。
 // ログインしていなくても、Cookie を消して成功を返す。
-func (s *Sessions) LogoutHandler(db sqlc.DBTX) http.Handler {
+func (s *Sessions) LogoutHandler(db Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if principal := PrincipalFrom(r.Context()); principal != nil {
 			err := s.Revoke(r.Context(), db, principal.UserID, principal.SessionID)
