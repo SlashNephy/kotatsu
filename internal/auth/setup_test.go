@@ -25,7 +25,7 @@ import (
 
 const (
 	adminPhrase       = "neko-to-mikan-no-fuyu-2026"
-	invalidSetupToken = `"code":"INVALID_SETUP_TOKEN"`
+	rejectedSetupCode = `"code":"INVALID_SETUP_TOKEN"`
 )
 
 type setupFixture struct {
@@ -181,10 +181,10 @@ func TestSetupHandlers(t *testing.T) {
 		wantStatus int
 		want       string
 	}{
-		{name: "missing token", body: body("", adminPhrase), wantStatus: http.StatusUnauthorized, want: invalidSetupToken},
-		{name: "wrong token", body: body("wrong", adminPhrase), wantStatus: http.StatusUnauthorized, want: invalidSetupToken},
+		{name: "missing token", body: body("", adminPhrase), wantStatus: http.StatusUnauthorized, want: rejectedSetupCode},
+		{name: "wrong token", body: body("wrong", adminPhrase), wantStatus: http.StatusUnauthorized, want: rejectedSetupCode},
 		// トークンがなければ、パスワードの規定に当たるかどうかも見せない。
-		{name: "wrong token and weak password", body: body("wrong", "kotatsukotatsu"), wantStatus: http.StatusUnauthorized, want: invalidSetupToken},
+		{name: "wrong token and weak password", body: body("wrong", "kotatsukotatsu"), wantStatus: http.StatusUnauthorized, want: rejectedSetupCode},
 		{name: "weak password", body: body(token, "kotatsukotatsu"), wantStatus: http.StatusBadRequest, want: `{"error":{"code":"WEAK_PASSWORD","reason":"too_weak"}}`},
 		{name: "created", body: body(token, adminPhrase), wantStatus: http.StatusCreated, want: `{"username":"admin","next":"login"}`},
 		{name: "already done", body: body(token, adminPhrase), wantStatus: http.StatusConflict, want: `"code":"SETUP_DONE"`},
