@@ -51,6 +51,9 @@ const tenbanRoleName = "tenban"
 // nekonoteRoleName は、ジョブを実行するロールの名前。
 const nekonoteRoleName = "nekonote"
 
+// kyusuRoleName は、サーバー側でのトランスコードを受け持つロールの名前。
+const kyusuRoleName = "kyusu"
+
 // Runner はロールの本体。ctx が終わるまで動き続ける。
 type Runner func(ctx context.Context, logger *slog.Logger, deps *Deps) error
 
@@ -99,7 +102,7 @@ func DefaultRoles() []*Role {
 			Run:   runNekonote,
 		},
 		{
-			Name:  "kyusu",
+			Name:  kyusuRoleName,
 			Alias: "transcoder",
 			Short: "Transcode streams on demand",
 			Run:   waitUntilDone,

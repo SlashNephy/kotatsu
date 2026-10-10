@@ -31,6 +31,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/password"
@@ -397,6 +398,19 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 		// ヘルスチェックは、Kubernetes などがプライベートでないアドレスから叩くこともあるので、接続元の制限に含めない。
 		mux.Handle("/", api.handler)
 	}
+	var live *kyusu.Live
+	// サーバー側でのトランスコードは kyusu が受け持つ (設計書 7.3)。tenban が、インスタンスの登録簿で引いて中継する。
+	if slices.ContainsFunc(roles, func(role *Role) bool { return role.Name == kyusuRoleName }) {
+		var token *kyusu.Token
+		live, token, err = newLive(ctx, logger, deps)
+		if err != nil {
+			_ = apiListener.Close()
+			_ = metricsListener.Close()
+
+			return err
+		}
+		mux.Handle(kyusu.LivePathPrefix, live.Handler(token))
+	}
 	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider))
 	metricsHandler := telemetry.NewMetricsHandler(deps.Metrics)
 
@@ -415,6 +429,11 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 	if api != nil {
 		eg.Go(func() error {
 			return api.changes.Run(ctx)
+		})
+	}
+	if live != nil {
+		eg.Go(func() error {
+			return live.Run(ctx)
 		})
 	}
 	eg.Go(func() error {
@@ -613,8 +632,48 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	return &apiHandler{handler: policy.Middleware(root), changes: changes}, nil
 }
 
-// errSecretKeyRequired は、tenban か nekonote を、アプリの秘密キーなしで起動しようとしたことを表す。
-var errSecretKeyRequired = errors.New("auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban and nekonote; " +
+// newLive は、kyusu のライブ視聴のセッションと、tenban からのリクエストを確かめるトークンを返す。
+// FFmpeg か tsreadex がなければ、起動はするが、ライブ視聴には理由を添えて 503 を返す。
+func newLive(ctx context.Context, logger *slog.Logger, deps *Deps) (*kyusu.Live, *kyusu.Token, error) {
+	// tenban だけが、アプリの秘密キーから導いたトークンを付けて、kyusu に中継する。
+	token, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
+	if errors.Is(err, kyusu.ErrNoKey) {
+		return nil, nil, errSecretKeyRequired
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	var opener kyusu.ServiceOpener
+	if deps.Config.Tuner.URL.Value() != "" {
+		client, err := newTunerClient(deps)
+		if err != nil {
+			return nil, nil, err
+		}
+		opener = client
+	}
+	var encoder kyusu.Encoder
+	transcoder, err := kyusu.NewTranscoder(&deps.Config.Kyusu)
+	switch {
+	case errors.Is(err, kyusu.ErrToolNotFound):
+		logger.WarnContext(ctx, "FFmpeg or tsreadex is not found; server-side transcoding is disabled", slog.Any("error", err))
+	case err != nil:
+		return nil, nil, err
+	default:
+		encoder = transcoder
+	}
+	live, err := kyusu.NewLive(&kyusu.LiveOptions{
+		Opener: opener, Encoder: encoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock,
+		Logger: logger.With(slog.String("component", "kyusu")), IdleTimeout: 0,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return live, token, nil
+}
+
+// errSecretKeyRequired は、tenban、nekonote か kyusu を、アプリの秘密キーなしで起動しようとしたことを表す。
+var errSecretKeyRequired = errors.New("auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban, nekonote, and kyusu; " +
 	"set a random string of at least 32 bytes, e.g. the output of `openssl rand -base64 48`")
 
 // clientInfo は、リクエストの送信元を返す。リバースプロキシを経由したときは、信頼済みのプロキシが伝えた値にする。

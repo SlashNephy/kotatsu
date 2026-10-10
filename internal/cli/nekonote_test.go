@@ -23,6 +23,7 @@ const (
 	subcommandMigrate = "migrate"
 	roleNekonote      = "nekonote"
 	roleTenban        = "tenban"
+	roleKyusu         = "kyusu"
 )
 
 type pingArgs struct{}

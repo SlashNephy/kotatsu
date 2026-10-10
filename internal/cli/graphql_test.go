@@ -29,7 +29,7 @@ func TestTenbanServesGraphQL(t *testing.T) {
 		wantBody   string
 	}{
 		{role: "tenban", wantStatus: http.StatusOK, wantBody: `{"data":{"viewer":{"username":"kotatsu"}}}`},
-		{role: "kyusu", wantStatus: http.StatusNotFound, wantBody: "404 page not found"},
+		{role: roleKyusu, wantStatus: http.StatusNotFound, wantBody: "404 page not found"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.role, func(t *testing.T) {
