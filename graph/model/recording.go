@@ -25,6 +25,8 @@ type Recording struct {
 	Tags            []*Tag                  `json:"tags"`
 	Files           []*RecordingFile        `json:"files"`
 	WatchPositionMs *int64                  `json:"watchPositionMs,omitempty"`
+	ThumbnailURL    *string                 `json:"thumbnailUrl,omitempty"`
+	PreviewURL      *string                 `json:"previewUrl,omitempty"`
 	// ServiceKey は、Mirakurun のサービス ID。スキーマには出さない。
 	ServiceKey int64 `json:"-"`
 }

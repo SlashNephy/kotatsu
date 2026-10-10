@@ -15,6 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/library"
+	"github.com/SlashNephy/kotatsu/internal/thumbnail"
 )
 
 const (
@@ -199,6 +200,7 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []sqlc.Recording) (
 		}
 		recording.Tags = orEmpty(tags[rows[i].ID])
 		recording.Files = orEmpty(files[rows[i].ID])
+		recording.ThumbnailURL, recording.PreviewURL = imageURLs(rows[i].ID, recording.Files)
 		if position, ok := progress[rows[i].ID]; ok {
 			recording.WatchPositionMs = &position
 		}
@@ -206,6 +208,23 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []sqlc.Recording) (
 	}
 
 	return recordings, nil
+}
+
+// imageURLs は、録画の代表画像とプレビュー画像の URL のパスを返す。画像のファイルがなければ nil にする。
+// 画像は、GET /media/recordings/{id}/{file} で配信する (thumbnail.ImageHandler)。
+func imageURLs(recordingID uuid.UUID, files []*model.RecordingFile) (*string, *string) {
+	var thumbnailURL, previewURL *string
+	for _, file := range files {
+		switch file.Kind {
+		case model.RecordingFileKindThumbnail:
+			thumbnailURL = new("/media/recordings/" + recordingID.String() + "/" + thumbnail.ThumbnailFileName)
+		case model.RecordingFileKindPreview:
+			previewURL = new("/media/recordings/" + recordingID.String() + "/" + thumbnail.PreviewFileName)
+		case model.RecordingFileKindSegment, model.RecordingFileKindIndex, model.RecordingFileKindOther:
+		}
+	}
+
+	return thumbnailURL, previewURL
 }
 
 func recordingModel(row *sqlc.Recording) (*model.Recording, error) {
@@ -218,7 +237,8 @@ func recordingModel(row *sqlc.Recording) (*model.Recording, error) {
 		StartAt: row.StartAt, EndAt: row.EndAt, State: model.RecordingState(strings.ToUpper(row.State)), FailureReason: nil,
 		Protected: row.Protected, Drops: row.Drops, Errors: row.Errors, Scrambled: row.Scrambled, Gaps: orEmpty(gaps),
 		ProgramLost: row.ProgramLost, RecordedFrom: row.RecordedFrom, RecordedUntil: row.RecordedUntil,
-		Tags: []*model.Tag{}, Files: []*model.RecordingFile{}, WatchPositionMs: nil, ServiceKey: row.ServiceID,
+		Tags: []*model.Tag{}, Files: []*model.RecordingFile{}, WatchPositionMs: nil, ThumbnailURL: nil, PreviewURL: nil,
+		ServiceKey: row.ServiceID,
 	}
 	if row.EventID != nil {
 		recording.EventID = new(int(*row.EventID))

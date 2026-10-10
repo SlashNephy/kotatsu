@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	recordingFields = `id name state protected drops gaps { from to } tags { name } files { kind poolId path size } watchPositionMs service { name }`
+	recordingFields = `id name state protected drops gaps { from to } tags { name } files { kind poolId path size } watchPositionMs thumbnailUrl previewUrl service { name }`
 	listRecordings  = `query($first: Int!, $after: String, $filter: RecordingFilter) {
 		recordings(first: $first, after: $after, filter: $filter) { edges { node { ` + recordingFields + ` } } pageInfo { hasNextPage endCursor } } }`
 	deleteRecording    = `mutation($id: ID!) { deleteRecording(id: $id) }`
@@ -52,7 +52,9 @@ type recordingNode struct {
 		Path   string `json:"path"`
 		Size   int64  `json:"size"`
 	} `json:"files"`
-	WatchPositionMs *int64 `json:"watchPositionMs"`
+	WatchPositionMs *int64  `json:"watchPositionMs"`
+	ThumbnailURL    *string `json:"thumbnailUrl"`
+	PreviewURL      *string `json:"previewUrl"`
 	Service         struct {
 		Name string `json:"name"`
 	} `json:"service"`
@@ -144,7 +146,14 @@ func TestRecordings(t *testing.T) {
 		SELECT gen_random_uuid(), recording_id, kinds.kind, pool_id, path || '.kotatsu/' || kinds.kind || '.jpg', 1, started_at, ended_at, created_at
 		FROM recording_files CROSS JOIN (VALUES ('thumbnail'), ('preview')) AS kinds (kind) WHERE path = $1`, episode1+".m2ts")
 	require.NoError(t, err)
-	files := f.recordings(t, 10, nil, nil).Recordings.Edges[2].Node.Files
+	withImages := f.recordings(t, 10, nil, nil).Recordings.Edges[2].Node
+	files := withImages.Files
+	// 画像は /media で配信するので、その URL のパスを返す。画像のない録画では null にする。
+	var rawID string
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT recording_id::text FROM recording_files WHERE path = $1`, episode1+".m2ts").Scan(&rawID))
+	assert.Equal(t, new("/media/recordings/"+rawID+"/thumbnail.jpg"), withImages.ThumbnailURL)
+	assert.Equal(t, new("/media/recordings/"+rawID+"/preview.jpg"), withImages.PreviewURL)
+	assert.Nil(t, f.recordings(t, 10, nil, nil).Recordings.Edges[0].Node.ThumbnailURL)
 	kinds := make([]string, 0, len(files))
 	for _, file := range files {
 		kinds = append(kinds, file.Kind)
