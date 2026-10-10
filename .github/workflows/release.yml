@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  pull_request:
+    # 配布の設定を変えた PR では、公開せずにビルドできるかを確かめる。
+    paths:
+      - .goreleaser.yaml
+      - .github/workflows/release.yml
+      - mise.toml
+      - mise.lock
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+
+concurrency:
+  # pull_request では github.ref が refs/pull/N/merge になるため head_ref でまとめる
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  # 配布の設定を変えた PR などでは、公開せずに、SPA を埋め込んだバイナリを作れるかを確かめる。
+  snapshot:
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # 公開する workflow なので、PR でもキャッシュを書かない。PR から公開のジョブにキャッシュを汚させないため。
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          cache: false
+      - run: mise run release:snapshot
+
+  # SPA を埋め込んだ linux の amd64 と arm64 のバイナリを、GitHub Releases に公開する (設計書 11.1)。
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # 変更履歴を前のタグから作るので、タグを含めて取得する。
+          fetch-depth: 0
+          persist-credentials: false
+      # 公開するバイナリには、キャッシュから復元したツールを使わない。
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          cache: false
+      - run: mise run web:build
+      - run: goreleaser release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
