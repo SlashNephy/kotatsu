@@ -155,6 +155,7 @@ type ComplexityRoot struct {
 		CreateGuideView              func(childComplexity int, input model.GuideViewInput) int
 		CreateProgramReservation     func(childComplexity int, input model.ProgramReservationInput) int
 		CreateRule                   func(childComplexity int, input model.RuleInput) int
+		CreateStreamURL              func(childComplexity int, target string) int
 		CreateTimeReservation        func(childComplexity int, input model.TimeReservationInput) int
 		CreateUser                   func(childComplexity int, input model.CreateUserInput) int
 		CreateWebhook                func(childComplexity int, input model.CreateWebhookInput) int
@@ -452,6 +453,11 @@ type ComplexityRoot struct {
 		Priority     func(childComplexity int) int
 	}
 
+	StreamURL struct {
+		ExpiresAt func(childComplexity int) int
+		URL       func(childComplexity int) int
+	}
+
 	Subscription struct {
 		DataChanged             func(childComplexity int) int
 		Heartbeat               func(childComplexity int) int
@@ -571,6 +577,7 @@ type MutationResolver interface {
 	UpdateSystemSettings(ctx context.Context, input model.SystemSettingsInput) (*model.SystemSettings, error)
 	UpdateChannelType(ctx context.Context, typeArg string, input model.ChannelTypeInput) (*model.ChannelType, error)
 	UpdateStoragePool(ctx context.Context, id string, input model.StoragePoolInput) (*model.StoragePool, error)
+	CreateStreamURL(ctx context.Context, target string) (*model.StreamURL, error)
 	CreateUser(ctx context.Context, input model.CreateUserInput) (*model.User, error)
 	UpdateUser(ctx context.Context, id string, input model.UpdateUserInput) (*model.User, error)
 	DisableUser(ctx context.Context, id string) (*model.User, error)
@@ -1068,6 +1075,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateRule(childComplexity, args["input"].(model.RuleInput)), true
+	case "Mutation.createStreamURL":
+		if e.ComplexityRoot.Mutation.CreateStreamURL == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createStreamURL_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateStreamURL(childComplexity, args["target"].(string)), true
 	case "Mutation.createTimeReservation":
 		if e.ComplexityRoot.Mutation.CreateTimeReservation == nil {
 			break
@@ -2558,6 +2576,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.StoragePool.Priority(childComplexity), true
+
+	case "StreamURL.expiresAt":
+		if e.ComplexityRoot.StreamURL.ExpiresAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamURL.ExpiresAt(childComplexity), true
+	case "StreamURL.url":
+		if e.ComplexityRoot.StreamURL.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamURL.URL(childComplexity), true
 
 	case "Subscription.dataChanged":
 		if e.ComplexityRoot.Subscription.DataChanged == nil {
@@ -4162,6 +4193,28 @@ extend type Mutation {
   updateStoragePool(id: String!, input: StoragePoolInput!): StoragePool!
 }
 `, BuiltIn: false},
+	{Name: "../schema/streams.graphqls", Input: `"""
+外部プレイヤー (VLC や mpv) で開くための、署名付きの映像の URL (設計書 7.6、9.6)。
+URL には、リソース、URL を発行したユーザー、有効期限に対する署名が付く。中身は TS をそのまま流す。
+"""
+type StreamURL {
+  """
+  パスとクエリ (例: /streams/services/3273601024?expires=...&sig=...&user=...)。オリジンは含まないので、ページのオリジンを補って使う。
+  録画の URL には、署名を変えずに start (録画の始まりからの秒) を足して、再生を始める位置を指定できる。
+  """
+  url: String!
+  "有効期限。既定では発行から 6 時間。"
+  expiresAt: Time!
+}
+
+extend type Mutation {
+  """
+  サービス (ライブ視聴) か録画 (再生) の、署名付きの映像の URL を発行する。誰でも使える。
+  target には、Service か Recording の ID を渡す。
+  """
+  createStreamURL(target: ID!): StreamURL!
+}
+`, BuiltIn: false},
 	{Name: "../schema/user.graphqls", Input: `"""
 ユーザーのロール (設計書 9.7)。
 """
@@ -5055,6 +5108,16 @@ func (ec *executionContext) childFields_StoragePool(ctx context.Context, field g
 	return nil, fmt.Errorf("no field named %q was found under type StoragePool", field.Name)
 }
 
+func (ec *executionContext) childFields_StreamURL(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "url":
+		return ec.fieldContext_StreamURL_url(ctx, field)
+	case "expiresAt":
+		return ec.fieldContext_StreamURL_expiresAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type StreamURL", field.Name)
+}
+
 func (ec *executionContext) childFields_SystemSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "recordingDefaults":
@@ -5390,6 +5453,20 @@ func (ec *executionContext) field_Mutation_createRule_args(ctx context.Context, 
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createStreamURL_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "target",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["target"] = arg0
 	return args, nil
 }
 
@@ -8782,6 +8859,50 @@ func (ec *executionContext) fieldContext_Mutation_updateStoragePool(ctx context.
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateStoragePool_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createStreamURL(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createStreamURL(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateStreamURL(ctx, fc.Args["target"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.StreamURL) graphql.Marshaler {
+			return ec.marshalNStreamURL2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamURL(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createStreamURL(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_StreamURL(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createStreamURL_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -14143,6 +14264,52 @@ func (ec *executionContext) fieldContext_StoragePool_freeBytes(_ context.Context
 	return graphql.NewScalarFieldContext("StoragePool", field, false, false, errors.New("field of type Int64 does not have child fields"))
 }
 
+func (ec *executionContext) _StreamURL_url(ctx context.Context, field graphql.CollectedField, obj *model.StreamURL) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StreamURL_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StreamURL_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StreamURL", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _StreamURL_expiresAt(ctx context.Context, field graphql.CollectedField, obj *model.StreamURL) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StreamURL_expiresAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExpiresAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StreamURL_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StreamURL", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
 func (ec *executionContext) _Subscription_heartbeat(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
 	return graphql.ResolveFieldStream(
 		ctx,
@@ -18749,6 +18916,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "createStreamURL":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createStreamURL(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createUser":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createUser(ctx, field)
@@ -21346,6 +21520,49 @@ func (ec *executionContext) _StoragePool(ctx context.Context, sel ast.SelectionS
 	return out
 }
 
+var streamURLImplementors = []string{"StreamURL"}
+
+func (ec *executionContext) _StreamURL(ctx context.Context, sel ast.SelectionSet, obj *model.StreamURL) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, streamURLImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("StreamURL")
+		case "url":
+			out.Values[i] = ec._StreamURL_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "expiresAt":
+			out.Values[i] = ec._StreamURL_expiresAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var subscriptionImplementors = []string{"Subscription"}
 
 func (ec *executionContext) _Subscription(ctx context.Context, sel ast.SelectionSet) func(ctx context.Context) graphql.Marshaler {
@@ -23447,6 +23664,16 @@ func (ec *executionContext) marshalNStoragePool2ᚖgithubᚗcomᚋSlashNephyᚋk
 func (ec *executionContext) unmarshalNStoragePoolInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStoragePoolInput(ctx context.Context, v any) (model.StoragePoolInput, error) {
 	res, err := ec.unmarshalInputStoragePoolInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNStreamURL2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamURL(ctx context.Context, sel ast.SelectionSet, v *model.StreamURL) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._StreamURL(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {

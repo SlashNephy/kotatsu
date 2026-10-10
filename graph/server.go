@@ -22,6 +22,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/settings"
+	"github.com/SlashNephy/kotatsu/internal/stream"
 	"github.com/SlashNephy/kotatsu/internal/webhook"
 	"github.com/SlashNephy/kotatsu/internal/webpush"
 )
@@ -59,6 +60,8 @@ type Options struct {
 	Webhooks *webhook.Store
 	// WebPush は、Web Push の購読に使う。nil なら、Web Push の操作は内部のエラーにする。
 	WebPush *webpush.Service
+	// StreamSigner は、外部プレイヤー用の映像の URL に署名する。nil なら、URL の発行は内部のエラーにする。
+	StreamSigner *stream.Signer
 	// Changes は、ロール間の変更の通知を、subscription で知らせるのに使う。nil なら、変更の subscription は内部のエラーにする。
 	Changes Changes
 	// Pools は、保存先プールの ID からマウント先への対応。システムの状態で示す。
@@ -130,6 +133,7 @@ func NewHandler(opts *Options) http.Handler {
 		inbox:        notification.NewInbox(o.Clock),
 		webhooks:     o.Webhooks,
 		webPush:      o.WebPush,
+		streamSigner: o.StreamSigner,
 		changes:      o.Changes,
 		pools:        o.Pools,
 		freeSpace:    o.FreeSpace,

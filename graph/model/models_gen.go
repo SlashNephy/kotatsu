@@ -475,6 +475,16 @@ type StoragePoolInput struct {
 	MinFreeBytes *int64 `json:"minFreeBytes,omitempty"`
 }
 
+// 外部プレイヤー (VLC や mpv) で開くための、署名付きの映像の URL (設計書 7.6、9.6)。
+// URL には、リソース、URL を発行したユーザー、有効期限に対する署名が付く。中身は TS をそのまま流す。
+type StreamURL struct {
+	// パスとクエリ (例: /streams/services/3273601024?expires=...&sig=...&user=...)。オリジンは含まないので、ページのオリジンを補って使う。
+	// 録画の URL には、署名を変えずに start (録画の始まりからの秒) を足して、再生を始める位置を指定できる。
+	URL string `json:"url"`
+	// 有効期限。既定では発行から 6 時間。
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
 type Subscription struct {
 }
 

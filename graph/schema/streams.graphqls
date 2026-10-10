@@ -1,0 +1,21 @@
+"""
+外部プレイヤー (VLC や mpv) で開くための、署名付きの映像の URL (設計書 7.6、9.6)。
+URL には、リソース、URL を発行したユーザー、有効期限に対する署名が付く。中身は TS をそのまま流す。
+"""
+type StreamURL {
+  """
+  パスとクエリ (例: /streams/services/3273601024?expires=...&sig=...&user=...)。オリジンは含まないので、ページのオリジンを補って使う。
+  録画の URL には、署名を変えずに start (録画の始まりからの秒) を足して、再生を始める位置を指定できる。
+  """
+  url: String!
+  "有効期限。既定では発行から 6 時間。"
+  expiresAt: Time!
+}
+
+extend type Mutation {
+  """
+  サービス (ライブ視聴) か録画 (再生) の、署名付きの映像の URL を発行する。誰でも使える。
+  target には、Service か Recording の ID を渡す。
+  """
+  createStreamURL(target: ID!): StreamURL!
+}
