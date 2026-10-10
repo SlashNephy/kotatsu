@@ -1,6 +1,6 @@
 -- name: InsertOIDCLogin :exec
-INSERT INTO oidc_logins (id, token_hash, state, nonce, code_verifier, redirect_uri, created_at, expires_at)
-VALUES (@id, @token_hash, @state, @nonce, @code_verifier, @redirect_uri, @now, @expires_at);
+INSERT INTO oidc_logins (id, token_hash, state, nonce, code_verifier, redirect_uri, session_id, return_to, created_at, expires_at)
+VALUES (@id, @token_hash, @state, @nonce, @code_verifier, @redirect_uri, sqlc.narg(session_id), sqlc.narg(return_to), @now, @expires_at);
 
 -- name: TakeOIDCLogin :one
 -- ログインの途中の状態は 1 回しか使わせないので、引くと同時に消す。

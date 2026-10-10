@@ -149,53 +149,7 @@ type OIDCLogin struct {
 
 // Begin は、OIDC でのログインを始め、IdP の認可のエンドポイントの URL を返す。
 func (o *OIDC) Begin(ctx context.Context, db Database, client *ClientInfo) (*OIDCLogin, error) {
-	provider, err := o.loadProvider(ctx)
-	if err != nil {
-		return nil, err
-	}
-	redirectURI := o.settings.RedirectURL
-	if redirectURI == "" {
-		redirectURI = client.Origin() + OIDCCallbackPath
-	}
-	state, err := randomString()
-	if err != nil {
-		return nil, err
-	}
-	nonce, err := randomString()
-	if err != nil {
-		return nil, err
-	}
-	token, err := randomString()
-	if err != nil {
-		return nil, err
-	}
-	verifier := oauth2.GenerateVerifier()
-	now := o.clock.Now()
-	login := &OIDCLogin{
-		AuthorizationURL: o.oauth2Config(provider, redirectURI).AuthCodeURL(state, oidc.Nonce(nonce), oauth2.S256ChallengeOption(verifier)),
-		Token:            token,
-		ExpiresAt:        now.Add(OIDCLoginTTL),
-	}
-	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		q := sqlc.New(tx)
-		if _, err := q.DeleteExpiredOIDCLogins(ctx, now); err != nil {
-			return fmt.Errorf("failed to delete expired OIDC logins: %w", err)
-		}
-		err := q.InsertOIDCLogin(ctx, sqlc.InsertOIDCLoginParams{
-			ID: id.New(), TokenHash: hashToken(token), State: state, Nonce: nonce, CodeVerifier: verifier,
-			RedirectUri: redirectURI, Now: now, ExpiresAt: login.ExpiresAt,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to save the OIDC login: %w", err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return login, nil
+	return o.begin(ctx, db, client, nil)
 }
 
 // OIDCCallback は、IdP からリダイレクト URI に戻ってきたときのパラメーター。
@@ -210,64 +164,14 @@ type OIDCCallback struct {
 //
 // ログインの途中の状態は、確かめられなくても使用済みにする。state、ID トークン、nonce を確かめた後、
 // (issuer, subject) で紐付けたユーザーを引く。いなければ、自動作成の条件を満たすときだけ作る。
+// 再認証として始めたものは、ログインとしては完了させない。
 func (o *OIDC) Complete(ctx context.Context, db Database, token string, callback *OIDCCallback, client *ClientInfo) (*LoginResult, error) {
-	provider, err := o.loadProvider(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var row sqlc.OidcLogin
-	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		row, err = sqlc.New(tx).TakeOIDCLogin(ctx, sqlc.TakeOIDCLoginParams{TokenHash: hashToken(token), Now: o.clock.Now()})
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrOIDCLoginExpired
-		}
-		if err != nil {
-			return fmt.Errorf("failed to get the OIDC login: %w", err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	if subtle.ConstantTimeCompare([]byte(callback.State), []byte(row.State)) != 1 {
-		return nil, ErrOIDCStateMismatch
-	}
-	if callback.Error != "" {
-		return nil, fmt.Errorf("%w: the provider returned %s", ErrOIDCAccessDenied, callback.Error)
-	}
-	claims, err := o.verify(ctx, provider, &row, callback.Code)
+	outcome, err := o.complete(ctx, db, token, callback, client, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var (
-		result  *LoginResult
-		denyErr error
-	)
-	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		userID, err := o.userFor(ctx, tx, claims, client)
-		if errors.Is(err, ErrOIDCAccessDenied) || errors.Is(err, ErrOIDCUsernameTaken) {
-			denyErr = err
-
-			// 拒んだことは、ロールバックせずに監査ログに残す。
-			return o.recordDenied(ctx, tx, claims, userID, client, err)
-		}
-		if err != nil {
-			return err
-		}
-		result, err = startSession(ctx, tx, o.sessions, o.recorder, *userID, methodOIDC, client)
-
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	if denyErr != nil {
-		return nil, denyErr
-	}
-
-	return result, nil
+	return outcome.login, nil
 }
 
 // oidcClaims は、ID トークンから読んだ、ユーザーを特定し、作るための値。
@@ -349,6 +253,160 @@ func (o *OIDC) Link(ctx context.Context, db Database, actor *audit.Actor, userna
 			UserAgent:  "",
 		})
 	})
+}
+
+// oidcReauthRequest は、IdP での再認証を始めるときの、認証の日時を更新するセッションと、終えたときに戻すパス。
+type oidcReauthRequest struct {
+	sessionID uuid.UUID
+	returnTo  string
+}
+
+// begin は、IdP へ送り出すログインを始める。reauth があれば、IdP にもう一度認証させる再認証にする。
+func (o *OIDC) begin(ctx context.Context, db Database, client *ClientInfo, reauth *oidcReauthRequest) (*OIDCLogin, error) {
+	provider, err := o.loadProvider(ctx)
+	if err != nil {
+		return nil, err
+	}
+	redirectURI := o.settings.RedirectURL
+	if redirectURI == "" {
+		redirectURI = client.Origin() + OIDCCallbackPath
+	}
+	state, err := randomString()
+	if err != nil {
+		return nil, err
+	}
+	nonce, err := randomString()
+	if err != nil {
+		return nil, err
+	}
+	token, err := randomString()
+	if err != nil {
+		return nil, err
+	}
+	verifier := oauth2.GenerateVerifier()
+	now := o.clock.Now()
+	options := []oauth2.AuthCodeOption{oidc.Nonce(nonce), oauth2.S256ChallengeOption(verifier)}
+	var sessionID *uuid.UUID
+	var returnTo *string
+	if reauth != nil {
+		// IdP に、ログイン中でも、もう一度認証させる (OpenID Connect Core 1.0 3.1.2.1)。
+		options = append(options, oauth2.SetAuthURLParam("prompt", "login"), oauth2.SetAuthURLParam("max_age", "0"))
+		sessionID, returnTo = &reauth.sessionID, &reauth.returnTo
+	}
+	login := &OIDCLogin{
+		AuthorizationURL: o.oauth2Config(provider, redirectURI).AuthCodeURL(state, options...),
+		Token:            token,
+		ExpiresAt:        now.Add(OIDCLoginTTL),
+	}
+	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		q := sqlc.New(tx)
+		if _, err := q.DeleteExpiredOIDCLogins(ctx, now); err != nil {
+			return fmt.Errorf("failed to delete expired OIDC logins: %w", err)
+		}
+		err := q.InsertOIDCLogin(ctx, sqlc.InsertOIDCLoginParams{
+			ID: id.New(), TokenHash: hashToken(token), State: state, Nonce: nonce, CodeVerifier: verifier,
+			RedirectUri: redirectURI, SessionID: sessionID, ReturnTo: returnTo, Now: now, ExpiresAt: login.ExpiresAt,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to save the OIDC login: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return login, nil
+}
+
+// oidcOutcome は、IdP から戻ってきたログインか再認証の結果。
+type oidcOutcome struct {
+	// login は、ログインで作ったセッション。再認証なら nil。
+	login *LoginResult
+	// reauth は、再認証の結果。ログインなら nil。
+	reauth *OIDCReauthentication
+	// returnTo は、再認証を終えたときに戻すパス。再認証に失敗しても、途中の状態を引けたら入れる。
+	returnTo string
+}
+
+// complete は、IdP から戻ってきたログインか再認証を確かめる。principal は、戻ってきたリクエストのログイン中のユーザー。
+// 再認証に失敗しても、途中の状態を引けたら、戻すパスを入れた結果を、エラーと一緒に返す。
+func (o *OIDC) complete(
+	ctx context.Context, db Database, token string, callback *OIDCCallback, client *ClientInfo, principal *Principal,
+) (*oidcOutcome, error) {
+	provider, err := o.loadProvider(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var row sqlc.OidcLogin
+	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		row, err = sqlc.New(tx).TakeOIDCLogin(ctx, sqlc.TakeOIDCLoginParams{TokenHash: hashToken(token), Now: o.clock.Now()})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrOIDCLoginExpired
+		}
+		if err != nil {
+			return fmt.Errorf("failed to get the OIDC login: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	outcome := &oidcOutcome{login: nil, reauth: nil, returnTo: ""}
+	if row.ReturnTo != nil {
+		outcome.returnTo = *row.ReturnTo
+	}
+	if subtle.ConstantTimeCompare([]byte(callback.State), []byte(row.State)) != 1 {
+		return outcome, ErrOIDCStateMismatch
+	}
+	if callback.Error != "" {
+		return outcome, fmt.Errorf("%w: the provider returned %s", ErrOIDCAccessDenied, callback.Error)
+	}
+	claims, err := o.verify(ctx, provider, &row, callback.Code)
+	if err != nil {
+		return outcome, err
+	}
+	if row.SessionID != nil {
+		outcome.reauth, err = o.reauthenticate(ctx, db, &row, claims, principal, client)
+
+		return outcome, err
+	}
+	outcome.login, err = o.login(ctx, db, claims, client)
+
+	return outcome, err
+}
+
+// login は、確かめた ID トークンのユーザーで、セッションを作る。
+func (o *OIDC) login(ctx context.Context, db Database, claims *oidcClaims, client *ClientInfo) (*LoginResult, error) {
+	var (
+		result  *LoginResult
+		denyErr error
+	)
+	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		userID, err := o.userFor(ctx, tx, claims, client)
+		if errors.Is(err, ErrOIDCAccessDenied) || errors.Is(err, ErrOIDCUsernameTaken) {
+			denyErr = err
+
+			// 拒んだことは、ロールバックせずに監査ログに残す。
+			return o.recordDenied(ctx, tx, claims, userID, client, err)
+		}
+		if err != nil {
+			return err
+		}
+		result, err = startSession(ctx, tx, o.sessions, o.recorder, *userID, methodOIDC, client)
+
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	if denyErr != nil {
+		return nil, denyErr
+	}
+
+	return result, nil
 }
 
 // verify は、認可コードを ID トークンと引き換え、署名、issuer、audience、期限、nonce を確かめる。

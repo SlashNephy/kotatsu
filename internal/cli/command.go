@@ -564,6 +564,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		"POST /auth/reauth":                        logins.ReauthenticateHandler(deps.DB, clientInfo),
 		"POST /auth/reauth/passkey":                logins.PasskeyReauthenticationHandler(deps.DB, clientInfo),
 		"POST /auth/reauth/passkey/confirm":        logins.PasskeyReauthenticationConfirmHandler(deps.DB, clientInfo),
+		"POST /auth/reauth/oidc":                   oidc.ReauthenticationHandler(deps.DB, clientInfo),
 	} {
 		mux.Handle(pattern, httpserver.RequireSameOrigin(handler))
 	}

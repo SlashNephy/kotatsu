@@ -207,6 +207,13 @@ func (l *Logins) verifyPasskeyOf(
 
 // markReauthenticated は、セッションの認証の日時を now にし、監査ログに残す。
 func (l *Logins) markReauthenticated(ctx context.Context, tx pgx.Tx, principal *Principal, method SecondFactor, client *ClientInfo, now time.Time) error {
+	return markSessionReauthenticated(ctx, tx, l.recorder, principal, method, client, now)
+}
+
+// markSessionReauthenticated は、セッションの認証の日時を now にし、method で再認証したことを監査ログに残す。
+func markSessionReauthenticated(
+	ctx context.Context, tx pgx.Tx, recorder audit.Recorder, principal *Principal, method SecondFactor, client *ClientInfo, now time.Time,
+) error {
 	n, err := sqlc.New(tx).ReauthenticateSession(ctx, sqlc.ReauthenticateSessionParams{Now: now, ID: principal.SessionID, UserID: principal.UserID})
 	if err != nil {
 		return fmt.Errorf("failed to update the session: %w", err)
@@ -216,7 +223,7 @@ func (l *Logins) markReauthenticated(ctx context.Context, tx pgx.Tx, principal *
 		return ErrUnauthenticated
 	}
 
-	return l.recorder.Record(ctx, tx, &audit.Event{
+	return recorder.Record(ctx, tx, &audit.Event{
 		Actor:      audit.UserFrom(principal.UserID, client.SourceIP, client.UserAgent),
 		Action:     actionReauthenticated,
 		TargetType: loginAuditTarget,
