@@ -1057,6 +1057,13 @@ Kotatsu は公開リポジトリなので、実際の放送の TS をテスト�
 | 外部プレイヤー用 URL の有効期限 | 6 時間 | 合意 |
 | 重要な操作の前に求める再認証の期限 | 10 分 | 合意 |
 | パスワードの最小の長さ | 8 文字 | 合意 |
+| パスワードの最大の長さ | 256 文字 | 初期値 |
+| パスワードの強度の閾値 | zxcvbn-ts のスコア 2 以上（試行回数を制限したオンラインの攻撃に耐える強さ。第二要素が必須なので、これで足ります） | 初期値 |
+| zxcvbn-ts に渡すパスワードの長さの上限 | 128 文字（これより長いパスワードは判定せずに十分強いとみなします） | 初期値 |
+| zxcvbn-ts の 1 回の判定の時間の上限 | 5 秒 | 初期値 |
+| ログインの試行回数の制限 | アカウント単位は 5 回、IP 単位は 20 回の失敗までは待たせず、それを超えると 1 秒から倍々に延ばし、15 分で頭打ちにします。最後の失敗から 24 時間で数え直します | 初期値 |
+| パスワードの確認から第二要素の確認までに許す時間 | 5 分 | 初期値 |
+| Argon2id のパラメーター | メモリ 19 MiB、反復 2 回、並列 1（OWASP の Password Storage Cheat Sheet の最小の構成） | 初期値 |
 | `/metrics` の待ち受けアドレス | `:9090` | 合意 |
 | 録画の開始マージン | 15 秒 | 初期値 |
 | 録画の終了マージン | 15 秒 | 初期値 |
@@ -1079,6 +1086,9 @@ Kotatsu 本体は Apache License 2.0 で公開します。
 | tsreadex、psisiarc | MIT | `-ffmpeg` イメージに同梱し、子プロセスとして実行します。 |
 | mpeg2toh264、aribb24.js、web-bml、niconicomments、hls.js、Mantine、Relay | MIT または Apache-2.0 | フロントエンドに同梱します。 |
 | 見出し用のフォント | SIL Open Font License | フロントエンドに同梱します。 |
+| zxcvbn-ts（`@zxcvbn-ts/core` と言語の辞書） | MIT | フロントエンドに同梱し、goja で動かすバンドルを本体にも埋め込みます。 |
+| goja | MIT | 本体にリンクします。 |
+| パスワードのブロックリスト（SecLists の `xato-net-10-million-passwords-100000.txt` から作成） | MIT | 本体に埋め込み、ライセンスと出典を `internal/password/` に残します。 |
 | 実況チャンネルの対応表（KonomiTV の `jikkyo_channels.json` から作成） | MIT | 本体に同梱し、著作権表示を残します。 |
 | mirakc-arib、aribb24（C 実装） | GPL-2.0、LGPL-3.0 | v1 では使いません。将来使う場合も、子プロセスとして実行し、本体とはリンクしません。 |
 | jellyfin-ffmpeg | GPL-3.0-or-later（libfdk-aac をリンク） | 使いません。GPL と両立しない libfdk-aac を、FFmpeg の nonfree の判定を外してリンクしているためです。 |

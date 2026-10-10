@@ -112,6 +112,33 @@ CREATE TABLE sessions (
 
 CREATE INDEX sessions_user_id_idx ON sessions (user_id);
 
+-- パスワードの確認を終え、第二要素の確認を待っているログイン (設計書 9.3)。
+-- パスワードでのログインは、第二要素を確かめるまでセッションにしない。
+-- Cookie にはランダムなトークンを入れ、DB にはその SHA-256 だけを保存する。
+CREATE TABLE login_challenges (
+  id uuid PRIMARY KEY,
+  token_hash bytea NOT NULL UNIQUE,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL,
+  user_agent text NOT NULL,
+  source_ip inet
+);
+
+CREATE INDEX login_challenges_user_id_idx ON login_challenges (user_id);
+
+-- ログインの試行回数の制限 (設計書 9.5)。アカウント単位と IP 単位の 2 種類の行を持つ。
+-- 失敗が続くと待ち時間を指数的に延ばすが、上限を設けて永久にはロックしない。
+CREATE TABLE login_throttles (
+  -- 制限の単位。account:<小文字のユーザー名> か ip:<アドレス>。存在しないユーザー名も制限する。
+  key text PRIMARY KEY,
+  -- 連続した失敗の回数。成功するか、最後の失敗から十分に時間が経つと数え直す。
+  failures integer NOT NULL,
+  -- この時刻までは、試行を受け付けない。
+  locked_until timestamptz NOT NULL,
+  last_failed_at timestamptz NOT NULL
+);
+
 -- チャンネル種別 (設計書 3.1)。チューナーサーバーが返す文字列をそのまま主キーにする。
 -- GR、BS、CS、SKY には表示名と並び順の既定値を持たせ、それ以外の種別は、同期で見つけたときに種別の文字列のまま足す。
 -- 管理者は表示名と並び順を画面から変えられるので、同期は既にある行を上書きしない。

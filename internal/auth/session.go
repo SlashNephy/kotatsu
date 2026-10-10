@@ -288,10 +288,15 @@ func (s *Sessions) LogoutHandler(db sqlc.DBTX) http.Handler {
 }
 
 func (s *Sessions) cookie(r *http.Request, value string, expires time.Time) *http.Cookie {
+	return s.namedCookie(r, CookieName, "/", value, expires)
+}
+
+// namedCookie は、セッションと同じ属性の Cookie を返す。
+func (s *Sessions) namedCookie(r *http.Request, name, path, value string, expires time.Time) *http.Cookie {
 	return &http.Cookie{ //nolint:gosec // 設計書 9.5: HTTP の LAN でも使うため、Secure は HTTPS のときだけ付ける。
-		Name:     CookieName,
+		Name:     name,
 		Value:    value,
-		Path:     "/",
+		Path:     path,
 		Expires:  expires,
 		HttpOnly: true,
 		Secure:   s.isSecure(r),

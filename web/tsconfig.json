@@ -14,5 +14,5 @@
     "noEmit": true,
     "types": ["vite/client", "vite-plugin-pwa/client", "node"]
   },
-  "include": ["src", "e2e", ".storybook", "vite.config.ts", "playwright.config.ts"]
+  "include": ["src", "e2e", "zxcvbn", ".storybook", "vite.config.ts", "playwright.config.ts"]
 }
