@@ -99,7 +99,11 @@ type Tuner struct {
 
 // Auth は認証の設定 (設計書 9.3)。
 type Auth struct {
-	HIBP HIBP `yaml:"hibp"`
+	// SecretKey はアプリの秘密キー (設計書 8.4)。TOTP の秘密キーなどを暗号化して DB に保存するのに使う。
+	// 32 バイト以上のランダムな文字列にする (openssl rand -base64 48 など)。tenban は、これがないと起動しない。
+	// 変えると、暗号化して保存した値を読めなくなる。
+	SecretKey Secret `yaml:"secret_key"`
+	HIBP      HIBP   `yaml:"hibp"`
 }
 
 // HIBP は、パスワードを設定するときに、Have I Been Pwned に漏洩済みかを照会する設定。
@@ -109,6 +113,9 @@ type HIBP struct {
 	// URL は Pwned Passwords の API。空なら https://api.pwnedpasswords.com にする。
 	URL string `yaml:"url"`
 }
+
+// MinSecretKeyLength は、アプリの秘密キーの長さ (バイト) の下限。
+const MinSecretKeyLength = 32
 
 // Default は既定値を入れた設定を返す。
 func Default() *Config {
@@ -139,7 +146,8 @@ func Default() *Config {
 			URL: "",
 		},
 		Auth: Auth{
-			HIBP: HIBP{Enabled: false, URL: ""},
+			SecretKey: "",
+			HIBP:      HIBP{Enabled: false, URL: ""},
 		},
 	}
 }
@@ -167,6 +175,9 @@ func (c *Config) validate() error {
 	}
 	if err := validateHTTPURL(c.Telemetry.OTLPEndpoint); err != nil {
 		errs = append(errs, fieldError("telemetry.otlp_endpoint", err))
+	}
+	if key := c.Auth.SecretKey.Value(); key != "" && len(key) < MinSecretKeyLength {
+		errs = append(errs, fieldError("auth.secret_key", fmt.Errorf("must be at least %d bytes", MinSecretKeyLength)))
 	}
 	if err := validateHTTPURL(c.Auth.HIBP.URL); err != nil {
 		errs = append(errs, fieldError("auth.hibp.url", err))

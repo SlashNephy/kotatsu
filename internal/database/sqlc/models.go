@@ -222,6 +222,13 @@ type Session struct {
 	SourceIP        *netip.Addr
 }
 
+type TotpEnrollment struct {
+	UserID          uuid.UUID
+	SecretEncrypted []byte
+	CreatedAt       time.Time
+	ExpiresAt       time.Time
+}
+
 type Tuner struct {
 	TunerIndex  int64
 	Name        string
@@ -249,4 +256,19 @@ type User struct {
 	DisabledAt   *time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+}
+
+type UserRecoveryCode struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	CodeHash  []byte
+	CreatedAt time.Time
+	UsedAt    *time.Time
+}
+
+type UserTotp struct {
+	UserID          uuid.UUID
+	SecretEncrypted []byte
+	LastUsedStep    int64
+	CreatedAt       time.Time
 }
