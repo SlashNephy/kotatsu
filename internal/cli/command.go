@@ -332,7 +332,7 @@ func NewCommand(opts *Options) *cobra.Command {
 		},
 	})
 
-	root.AddCommand(newImportCommand(opts, loadConfig))
+	root.AddCommand(newImportCommand(opts, loadConfig, connect))
 	root.AddCommand(newUserCommand(opts, connect))
 	root.AddCommand(newAdminCommand(opts, connect))
 

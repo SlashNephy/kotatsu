@@ -10,21 +10,32 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
 
+	"github.com/SlashNephy/kotatsu/internal/audit"
+	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/config"
+	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/epgstation"
 )
 
 var (
-	// errImportNotImplemented は、dry run のほかの取り込みがまだ無いことを表す。
-	errImportNotImplemented = errors.New("importing is not implemented yet; run with --dry-run to see the plan")
+	// errImportUserRequired は、取り込みに --user が要ることを表す。
+	errImportUserRequired = errors.New("--user is required to import; run with --dry-run to only see the plan")
+	// errNoServices は、Kotatsu がまだチャンネルを同期していないことを表す。
+	errNoServices = errors.New("kotatsu has no services yet; start kotatsu and let it sync the channels from the tuner server before importing")
 	// errInvalidPoolMapping は、--pool の値が正しくないことを表す。
 	errInvalidPoolMapping = errors.New("invalid --pool")
 )
 
 // newImportCommand は kotatsu import を作る。loadConfig は、--config と環境変数から設定を読む。
-func newImportCommand(opts *Options, loadConfig func(ctx context.Context) (*config.Config, error)) *cobra.Command {
+// connect は、設定を読み、DB に接続する。dry run では DB に接続しない。
+func newImportCommand(
+	opts *Options,
+	loadConfig func(ctx context.Context) (*config.Config, error),
+	connect func(ctx context.Context) (*config.Config, *pgxpool.Pool, error),
+) *cobra.Command {
 	importCmd := &cobra.Command{
 		Use:   "import",
 		Short: "Import data from another recorder",
@@ -32,43 +43,55 @@ func newImportCommand(opts *Options, loadConfig func(ctx context.Context) (*conf
 	}
 
 	var (
-		source string
-		pools  []string
-		dryRun bool
+		source   string
+		pools    []string
+		dryRun   bool
+		username string
 	)
 	epgstationCmd := &cobra.Command{
 		Use:   "epgstation",
 		Short: "Import rules, reserves, and recordings from an EPGStation database",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !dryRun {
-				return errImportNotImplemented
+			if !dryRun && username == "" {
+				return errImportUserRequired
 			}
 
-			cfg, err := loadConfig(cmd.Context())
+			// dry run では DB に接続しない。
+			var (
+				cfg  *config.Config
+				pool *pgxpool.Pool
+				err  error
+			)
+			if dryRun {
+				cfg, err = loadConfig(cmd.Context())
+			} else {
+				cfg, pool, err = connect(cmd.Context())
+			}
 			if err != nil {
 				return err
 			}
+			defer closePool(pool)
 			poolMap, err := parsePoolMappings(pools, cfg.Storage.Pools)
 			if err != nil {
 				return err
 			}
-
-			src, err := epgstation.Open(cmd.Context(), source)
+			snapshot, err := readEPGStation(cmd.Context(), source)
 			if err != nil {
 				return err
 			}
-			defer func() {
-				_ = src.Close()
-			}()
-			snapshot, err := src.Read(cmd.Context())
+			if dryRun {
+				plan := epgstation.NewPlan(snapshot, &epgstation.PlanOptions{Now: opts.Clock.Now(), Pools: poolMap})
+
+				return printImportPlan(cmd.OutOrStdout(), plan)
+			}
+
+			result, err := importEPGStation(cmd.Context(), opts, pool, snapshot, poolMap, username)
 			if err != nil {
 				return err
 			}
 
-			plan := epgstation.NewPlan(snapshot, &epgstation.PlanOptions{Now: opts.Clock.Now(), Pools: poolMap})
-
-			return printImportPlan(cmd.OutOrStdout(), plan)
+			return printImportResult(cmd.OutOrStdout(), result)
 		},
 	}
 	epgstationCmd.Flags().StringVar(&source, "source", "",
@@ -76,10 +99,45 @@ func newImportCommand(opts *Options, loadConfig func(ctx context.Context) (*conf
 	epgstationCmd.Flags().StringArrayVar(&pools, "pool", []string{},
 		"map an EPGStation recorded directory name to a Kotatsu storage pool ID, as NAME=POOL_ID (repeatable)")
 	epgstationCmd.Flags().BoolVar(&dryRun, "dry-run", false, "only show what would be imported")
+	epgstationCmd.Flags().StringVar(&username, "user", "", "the Kotatsu user recorded as the creator of the imported rules and reserves")
 	_ = epgstationCmd.MarkFlagRequired("source")
 	importCmd.AddCommand(epgstationCmd)
 
 	return importCmd
+}
+
+// readEPGStation は、EPGStation の DB を読み取り専用で開き、取り込むデータを読む。
+func readEPGStation(ctx context.Context, source string) (*epgstation.Snapshot, error) {
+	src, err := epgstation.Open(ctx, source)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = src.Close()
+	}()
+
+	return src.Read(ctx)
+}
+
+// importEPGStation は、snapshot を Kotatsu に取り込む。チャンネルを同期する前は、どのデータも取り込めないので拒む。
+func importEPGStation(
+	ctx context.Context, opts *Options, pool *pgxpool.Pool, snapshot *epgstation.Snapshot, poolMap map[string]string, username string,
+) (*epgstation.Result, error) {
+	serviceIDs, err := sqlc.New(pool).ListServiceIDs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list services: %w", err)
+	}
+	if len(serviceIDs) == 0 {
+		return nil, errNoServices
+	}
+	userID, err := auth.UserIDByUsername(ctx, pool, username)
+	if err != nil {
+		return nil, err
+	}
+
+	return epgstation.NewImporter(opts.Clock, audit.NewRecorder(opts.Clock)).Apply(ctx, pool, snapshot, &epgstation.ApplyOptions{
+		Pools: poolMap, UserID: userID,
+	})
 }
 
 // parsePoolMappings は、--pool の NAME=POOL_ID を対応にする。POOL_ID は設定にあるプールでなければならない。
@@ -141,6 +199,58 @@ func printImportPlan(w io.Writer, plan *epgstation.Plan) error {
 
 	if err := tw.Flush(); err != nil {
 		return fmt.Errorf("failed to print the import plan: %w", err)
+	}
+
+	return nil
+}
+
+// importKinds は、取り込みの結果に出すデータの種類と、その見出し。取り込む順に並べる。
+func importKinds() []struct {
+	kind  epgstation.Kind
+	label string
+} {
+	return []struct {
+		kind  epgstation.Kind
+		label string
+	}{
+		{epgstation.KindRule, "Rules"},
+		{epgstation.KindReserve, "Manual reserves"},
+		{epgstation.KindRecorded, "Recordings"},
+		{epgstation.KindRecordedHistory, "Recorded histories"},
+	}
+}
+
+// printImportResult は、取り込みの結果を表にして w に書く。
+func printImportResult(w io.Writer, result *epgstation.Result) error {
+	skipped := map[epgstation.Kind]int{}
+	for _, s := range result.Skipped {
+		skipped[s.Kind]++
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	lines := []string{
+		"EPGStation import result",
+		"",
+		"KIND\tIMPORTED\tALREADY IMPORTED\tSKIPPED",
+	}
+	labels := map[epgstation.Kind]string{}
+	for _, k := range importKinds() {
+		labels[k.kind] = k.label
+		lines = append(lines, fmt.Sprintf("%s\t%d\t%d\t%d", k.label, result.Imported[k.kind], result.AlreadyImported[k.kind], skipped[k.kind]))
+	}
+	if len(result.Skipped) > 0 {
+		lines = append(lines, "", "Skipped", "  KIND\tID\tREASON")
+		for _, s := range result.Skipped {
+			lines = append(lines, fmt.Sprintf("  %s\t%d\t%s", labels[s.Kind], s.SourceID, s.Reason))
+		}
+	}
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(tw, line); err != nil {
+			return fmt.Errorf("failed to print the import result: %w", err)
+		}
+	}
+
+	if err := tw.Flush(); err != nil {
+		return fmt.Errorf("failed to print the import result: %w", err)
 	}
 
 	return nil

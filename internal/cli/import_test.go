@@ -6,11 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/cli"
 	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
+	"github.com/SlashNephy/kotatsu/internal/database"
+	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/epgstation/epgstationtest"
 )
 
@@ -40,9 +44,16 @@ func epgstationSeed() []string {
 // poolFlag は、録画の保存先ディレクトリにプールを対応付けるフラグ。
 const (
 	poolFlag = "--pool"
+	// sourceFlag は、EPGStation の DB の URL を指定するフラグ。
+	sourceFlag = "--source"
 	// mapRecordedToMain は、EPGStation の既定の保存先ディレクトリをプール main に対応付ける。
 	mapRecordedToMain = "recorded=main"
 )
+
+// importArgs は、kotatsu import epgstation の引数を返す。
+func importArgs(args ...string) []string {
+	return append([]string{"import", "epgstation"}, args...)
+}
 
 func TestImportEPGStationDryRun(t *testing.T) {
 	t.Parallel()
@@ -129,7 +140,7 @@ Skipped
 			var out bytes.Buffer
 			cmd := cli.NewCommand(importOptions(t))
 			cmd.SetOut(&out)
-			cmd.SetArgs(append([]string{"import", "epgstation", "--dry-run", "--source", db.URL}, tt.args...))
+			cmd.SetArgs(importArgs(append([]string{"--dry-run", sourceFlag, db.URL}, tt.args...)...))
 			err := cmd.ExecuteContext(t.Context())
 			if tt.wantErr != "" {
 				require.EqualError(t, err, tt.wantErr)
@@ -142,13 +153,136 @@ Skipped
 	}
 }
 
-func TestImportEPGStationRequiresDryRun(t *testing.T) {
+func TestImportEPGStationRequiresUser(t *testing.T) {
 	t.Parallel()
 
 	db := epgstationtest.New(t, epgstationtest.SQLite)
 	cmd := cli.NewCommand(importOptions(t))
-	cmd.SetArgs([]string{"import", "epgstation", "--source", db.URL})
-	require.EqualError(t, cmd.ExecuteContext(t.Context()), "importing is not implemented yet; run with --dry-run to see the plan")
+	cmd.SetArgs(importArgs(sourceFlag, db.URL))
+	require.EqualError(t, cmd.ExecuteContext(t.Context()), "--user is required to import; run with --dry-run to only see the plan")
+}
+
+// TestImportEPGStation は、取り込みの結果を表にして出し、2 度目の取り込みでは前に取り込んだものを飛ばすことを確かめる。
+func TestImportEPGStation(t *testing.T) {
+	t.Parallel()
+
+	first := `EPGStation import result
+
+KIND                IMPORTED  ALREADY IMPORTED  SKIPPED
+Rules               1         0                 0
+Manual reserves     1         0                 2
+Recordings          1         0                 1
+Recorded histories  1         0                 0
+
+Skipped
+  KIND             ID  REASON
+  Manual reserves  1   program not found: service 0, event 1
+  Manual reserves  3   the reservation has already started
+  Recordings       2   the program is still being recorded
+`
+	second := `EPGStation import result
+
+KIND                IMPORTED  ALREADY IMPORTED  SKIPPED
+Rules               0         1                 0
+Manual reserves     0         1                 2
+Recordings          0         1                 1
+Recorded histories  0         1                 0
+
+Skipped
+  KIND             ID  REASON
+  Manual reserves  1   program not found: service 0, event 1
+  Manual reserves  3   the reservation has already started
+  Recordings       2   the program is still being recorded
+`
+	tests := []struct {
+		name     string
+		services bool
+		username string
+		want     []string
+		wantErr  string
+	}{
+		{name: "imports and then skips what was imported", services: true, username: adminUsername, want: []string{first, second}, wantErr: ""},
+		{
+			name: "channels are not synced yet", services: false, username: adminUsername, want: []string{},
+			wantErr: "kotatsu has no services yet; start kotatsu and let it sync the channels from the tuner server before importing",
+		},
+		{name: "unknown user", services: true, username: "nobody", want: []string{}, wantErr: "user not found: nobody"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			source := epgstationtest.New(t, epgstationtest.SQLite)
+			epgstationtest.Exec(t, source.Writer, epgstationSeed()...)
+			opts, pool := importDatabase(t, tt.services)
+			run := func() (string, error) {
+				var out bytes.Buffer
+				cmd := cli.NewCommand(opts)
+				cmd.SetOut(&out)
+				cmd.SetArgs(importArgs(sourceFlag, source.URL, poolFlag, mapRecordedToMain, "--user", tt.username))
+				err := cmd.ExecuteContext(t.Context())
+
+				return out.String(), err
+			}
+			if tt.wantErr != "" {
+				_, err := run()
+				require.EqualError(t, err, tt.wantErr)
+				var imported int
+				require.NoError(t, pool.QueryRow(t.Context(), "SELECT count(*) FROM import_sources").Scan(&imported))
+				assert.Zero(t, imported)
+
+				return
+			}
+			for _, want := range tt.want {
+				out, err := run()
+				require.NoError(t, err)
+				assert.Equal(t, want, out)
+				// 2 度目の取り込みでも、取り込んだ記録は増えない。
+				var imported int
+				require.NoError(t, pool.QueryRow(t.Context(), "SELECT count(*) FROM import_sources").Scan(&imported))
+				assert.Equal(t, 4, imported)
+			}
+		})
+	}
+}
+
+// importDatabase は、マイグレーションした Kotatsu の DB と、ユーザー adminUsername を用意する。
+// services なら、EPGStation のテストのデータが参照するサービスも用意する。
+func importDatabase(t *testing.T, services bool) (*cli.Options, *pgxpool.Pool) {
+	t.Helper()
+
+	dbConfig := databasetest.New(t)
+	opts := importOptions(t)
+	env := testEnv()
+	env["KOTATSU_DATABASE_URL"] = dbConfig.URL.Value()
+	env["KOTATSU_STORAGE_POOLS"] = "main=" + t.TempDir() + ",archive=" + t.TempDir()
+	defaults := cli.DefaultOptions(slog.New(slog.DiscardHandler))
+	opts.OpenDatabase, opts.Migrate = defaults.OpenDatabase, defaults.Migrate
+	opts.LookupEnv = func(key string) (string, bool) {
+		v, ok := env[key]
+
+		return v, ok
+	}
+	migrateCmd := cli.NewCommand(opts)
+	migrateCmd.SetArgs([]string{subcommandMigrate})
+	require.NoError(t, migrateCmd.ExecuteContext(t.Context()))
+
+	pool, err := database.Open(t.Context(), dbConfig)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	_, err = auth.NewUsers(opts.Clock).Create(t.Context(), pool, &auth.NewUser{
+		Username: adminUsername, DisplayName: adminUsername, Role: auth.RoleAdmin, PasswordHash: nil,
+	})
+	require.NoError(t, err)
+	if services {
+		_, err = pool.Exec(t.Context(), "INSERT INTO channel_types (type, display_name, sort_order) VALUES ('GR', '地上波', 10)")
+		require.NoError(t, err)
+		_, err = pool.Exec(t.Context(), `INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
+			VALUES (3273601024, 32736, 1024, 'こたつテスト1', 'こたつテスト1', 1, 'GR', '27', $1, $1)`, opts.Clock.Now())
+		require.NoError(t, err)
+	}
+
+	return opts, pool
 }
 
 // importOptions は、保存先プールを 2 つ設定し、今を 2026-10-10 21:00 (JST) にした Options を返す。
