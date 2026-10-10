@@ -17,13 +17,24 @@ import (
 
 const waitTimeout = 10 * time.Second
 
+// shortHandoverTimeout は、引き継ぎを待ちきれないことを確かめるテストで使う、引き継ぎを待つ時間。
+const shortHandoverTimeout = 500 * time.Millisecond
+
 // startWorker は、session で録画する mikan を動かし、止める関数を返す。止める関数は、Run が返るのを待つ。
+// 引き継ぎを待つ時間は shortHandoverTimeout にする。
 func (f *fixture) startWorker(t *testing.T, holder uuid.UUID, session recording.Session) func() {
+	t.Helper()
+
+	return f.startWorkerWithHandoverTimeout(t, holder, shortHandoverTimeout, session)
+}
+
+// startWorkerWithHandoverTimeout は、引き継ぎを待つ時間を handoverTimeout にして、mikan を動かす。
+func (f *fixture) startWorkerWithHandoverTimeout(t *testing.T, holder uuid.UUID, handoverTimeout time.Duration, session recording.Session) func() {
 	t.Helper()
 
 	worker := recording.NewWorker(f.pool, f.clock, holder, slog.New(slog.DiscardHandler), session, &recording.WorkerOptions{
 		LeaseTTL: 10 * time.Second, RenewInterval: 20 * time.Millisecond, AcquireInterval: 50 * time.Millisecond,
-		HandoverTimeout: 500 * time.Millisecond, PollOnly: true, PollInterval: 50 * time.Millisecond,
+		HandoverTimeout: handoverTimeout, PollOnly: true, PollInterval: 50 * time.Millisecond,
 	})
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
@@ -213,7 +224,8 @@ func TestWorkerHandsOver(t *testing.T) {
 
 	oldCauses := make(chan error, 1)
 	oldStarted := make(chan struct{})
-	stopOld := f.startWorker(t, old, func(ctx context.Context, _ *recording.Assignment) error {
+	// 新しい mikan がストリームを開くまでの時間より十分に長く待たせる。CI の遅い環境でも、待ちきれずに止まらないようにする。
+	stopOld := f.startWorkerWithHandoverTimeout(t, old, waitTimeout, func(ctx context.Context, _ *recording.Assignment) error {
 		close(oldStarted)
 		<-ctx.Done()
 		oldCauses <- context.Cause(ctx)
