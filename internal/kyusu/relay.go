@@ -1,4 +1,4 @@
-package stream
+package kyusu
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/registry"
 )
 
@@ -29,25 +28,25 @@ type Instances interface {
 
 var _ Instances = new(registry.Registry)
 
-// HLSHandler は、ライブ視聴の HLS を、担当の kyusu に中継する (GET /streams/services/{id}/hls/{preset}/{file}) (設計書 7.3)。
+// Relay は、tenban で、ライブ視聴の HLS を、担当の kyusu に中継する (GET /streams/services/{id}/hls/{preset}/{file}) (設計書 7.3)。
 //
 // 同じサービスを同じ画質で見る視聴者が 1 つのエンコーダーを共有できるよう、(サービス, 画質) から決まった kyusu に中継する。
 // kyusu が増えたり減ったりして担当が変わると、見ている視聴者は新しい担当のエンコーダーに移る。
-type HLSHandler struct {
+type Relay struct {
 	instances Instances
-	token     *kyusu.Token
+	token     *Token
 	client    *http.Client
 	logger    *slog.Logger
 }
 
-var _ http.Handler = new(HLSHandler)
+var _ http.Handler = new(Relay)
 
-// NewHLSHandler は HLSHandler を返す。token は、kyusu へのリクエストに付ける。
-func NewHLSHandler(instances Instances, token *kyusu.Token, logger *slog.Logger) *HLSHandler {
-	return &HLSHandler{instances: instances, token: token, client: &http.Client{Timeout: relayTimeout}, logger: logger}
+// NewRelay は Relay を返す。token は、kyusu へのリクエストに付ける。
+func NewRelay(instances Instances, token *Token, logger *slog.Logger) *Relay {
+	return &Relay{instances: instances, token: token, client: &http.Client{Timeout: relayTimeout}, logger: logger}
 }
 
-func (h *HLSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *Relay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	serviceID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		http.Error(w, "invalid service ID", http.StatusBadRequest)
@@ -71,7 +70,7 @@ func (h *HLSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	target := &url.URL{
 		Scheme: "http", Host: instance.Address,
 		// Path は、エスケープする前のパス。String でエスケープする。
-		Path: kyusu.LivePathPrefix + strconv.FormatInt(serviceID, 10) + "/" + preset + "/" + file,
+		Path: LivePathPrefix + strconv.FormatInt(serviceID, 10) + "/" + preset + "/" + file,
 	}
 	if err := h.relay(w, r, target); err != nil && r.Context().Err() == nil {
 		h.logger.WarnContext(r.Context(), "failed to relay to kyusu", slog.String("instance", instance.Address), slog.Any("error", err))
@@ -79,7 +78,7 @@ func (h *HLSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // relay は、target に GET を送り、状態と本文をそのまま返す。
-func (h *HLSHandler) relay(w http.ResponseWriter, r *http.Request, target *url.URL) error {
+func (h *Relay) relay(w http.ResponseWriter, r *http.Request, target *url.URL) error {
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, target.String(), nil)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

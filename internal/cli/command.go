@@ -620,7 +620,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		return nil, err
 	}
 	mux.Handle("GET /streams/services/{id}/hls/{preset}/{file}", authorizer.Middleware(
-		stream.NewHLSHandler(registry.New(deps.DB, deps.Clock, deps.InstanceID), kyusuToken, streamLogger)))
+		kyusu.NewRelay(registry.New(deps.DB, deps.Clock, deps.InstanceID), kyusuToken, streamLogger)))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
 	mux.Handle("GET /streams/recordings/{id}",
 		authorizer.Middleware(stream.NewRecordingHandler(deps.DB, kago.New(deps.Config.Storage.Pools, nil), streamLogger, 0)))
