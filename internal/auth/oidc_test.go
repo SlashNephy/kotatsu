@@ -454,3 +454,33 @@ func TestOIDCHandlers(t *testing.T) {
 	resp = do(http.MethodGet, callback(redirect))
 	assert.Equal(t, "/login?error=oidc_expired", resp.location)
 }
+
+// TestOIDCHandlersUnavailable は、OIDC を設定していないときや、IdP に届かないときの応答を確かめる。
+func TestOIDCHandlersUnavailable(t *testing.T) {
+	t.Parallel()
+
+	f := newOIDCFixture(t, auth.OIDCAutoCreate{})
+	client := func(*http.Request) *auth.ClientInfo { return f.client }
+	disabled := auth.NewOIDC(&auth.OIDCOptions{Clock: f.clock, Recorder: audit.NewRecorder(f.clock), Logger: slog.New(slog.DiscardHandler)})
+	f.idp.Close()
+
+	tests := []struct {
+		name       string
+		handler    http.Handler
+		method     string
+		wantStatus int
+		want       string
+	}{
+		{name: "status when disabled", handler: disabled.StatusHandler(), method: http.MethodGet, wantStatus: http.StatusOK, want: `{"enabled":false,"displayName":""}`},
+		{name: "begin when disabled", handler: disabled.BeginHandler(f.db, client), method: http.MethodPost, wantStatus: http.StatusNotFound, want: `"code":"OIDC_DISABLED"`},
+		{name: "begin when the provider is down", handler: f.oidc.BeginHandler(f.db, client), method: http.MethodPost, wantStatus: http.StatusServiceUnavailable, want: `"code":"OIDC_UNAVAILABLE"`},
+	}
+	for _, tt := range tests {
+		req := httptest.NewRequestWithContext(t.Context(), tt.method, "/auth/oidc", strings.NewReader("{}"))
+		req.Header.Set("Content-Type", jsonType)
+		rec := httptest.NewRecorder()
+		tt.handler.ServeHTTP(rec, req)
+		assert.Equal(t, tt.wantStatus, rec.Code, tt.name)
+		assert.Contains(t, rec.Body.String(), tt.want, tt.name)
+	}
+}
