@@ -120,7 +120,8 @@ func NewStore(clk clock.Clock, recorder audit.Recorder, appSecret string) (*Stor
 	return &Store{clock: clk, recorder: recorder, box: box}, nil
 }
 
-// Create は、Webhook を作り、作った Webhook と、署名用の秘密キーを返す。秘密キーは、ここでしか返さない。
+// Create は、Webhook を作り、作った Webhook と、署名用の秘密キーを返す。
+// 管理者に秘密キーを示すのは、このときだけにする。後から復号する Secret は、配信のジョブが署名に使う。
 func (s *Store) Create(ctx context.Context, db Database, actor *audit.Actor, input *Input) (*Webhook, string, error) {
 	normalized, err := normalize(input)
 	if err != nil {
@@ -227,7 +228,7 @@ func (s *Store) Delete(ctx context.Context, db Database, actor *audit.Actor, web
 	})
 }
 
-// Secret は、Webhook の署名用の秘密キーを復号して返す。
+// Secret は、Webhook の署名用の秘密キーを復号して返す。署名に使うためのもので、管理者に示すためのものではない。
 func (s *Store) Secret(ctx context.Context, db sqlc.DBTX, webhookID uuid.UUID) (string, error) {
 	row, err := sqlc.New(db).GetWebhook(ctx, webhookID)
 	if errors.Is(err, pgx.ErrNoRows) {
