@@ -38,6 +38,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/spa"
 	"github.com/SlashNephy/kotatsu/internal/telemetry"
 	"github.com/SlashNephy/kotatsu/internal/webhook"
+	"github.com/SlashNephy/kotatsu/internal/webpush"
 	"github.com/SlashNephy/kotatsu/web"
 )
 
@@ -114,9 +115,14 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load the time zone %s: %w", defaultTimeZone, err)
 	}
-	dispatcher := notification.NewDispatcher(deps.DB, deps.Clock, webhook.NewEnqueuer(inserter))
+	webPush, err := webpush.NewService(deps.Clock, deps.Config.Auth.SecretKey.Value())
+	if err != nil {
+		return nil, nil, err
+	}
+	dispatcher := notification.NewDispatcher(deps.DB, deps.Clock, webhook.NewEnqueuer(inserter), webpush.NewEnqueuer(inserter))
 	river.AddWorker(workers, notification.NewDispatchWorker(dispatcher))
 	river.AddWorker(workers, webhook.NewDeliverWorker(deps.DB, webhooks, deps.Clock, location))
+	river.AddWorker(workers, webpush.NewDeliverWorker(deps.DB, webPush, deps.Clock, webPushSubject(deps.Config), location, webpush.NewHTTPClient()))
 
 	// 保存先プールの容量は、このインスタンスにマウントされたプールについて調べる (設計書 6.1)。
 	manager := capacity.NewManager(deps.DB, deps.Clock, kago.New(deps.Config.Storage.Pools, nil), audit.NewRecorder(deps.Clock),
@@ -124,6 +130,18 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, capacity.NewCheckWorker(manager))
 
 	return workers, []*river.PeriodicJob{audit.PrunePeriodicJob(), notification.DispatchPeriodicJob(), capacity.CheckPeriodicJob()}, nil
+}
+
+// defaultWebPushSubject は、Web Push の送り手の連絡先を設定していないときに、プッシュサービスに示す URI。
+const defaultWebPushSubject = "https://github.com/SlashNephy/kotatsu"
+
+// webPushSubject は、プッシュサービスに示す送り手の連絡先を返す。
+func webPushSubject(cfg *config.Config) string {
+	if cfg.WebPush.Subject == "" {
+		return defaultWebPushSubject
+	}
+
+	return cfg.WebPush.Subject
 }
 
 // migrate は、Kotatsu のスキーマと River のテーブルのマイグレーションを適用する。
@@ -481,6 +499,11 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	if err != nil {
 		return nil, err
 	}
+	// VAPID の鍵は、ブラウザが購読するために公開鍵を求めたときか、初めて通知を送るときに作る。
+	webPush, err := webpush.NewService(deps.Clock, deps.Config.Auth.SecretKey.Value())
+	if err != nil {
+		return nil, err
+	}
 	// subscription は、どの tenban で起きた変更も届けるため、変更の通知のチャンネルを見張る (設計書 1.4、9.1)。
 	changes, err := watch(ctx, logger, deps)
 	if err != nil {
@@ -497,6 +520,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Sessions:            sessions,
 		Settings:            settings.NewStore(deps.Clock, audit.NewRecorder(deps.Clock)),
 		Webhooks:            webhooks,
+		WebPush:             webPush,
 		Changes:             changes,
 		Pools:               deps.Config.Storage.Pools,
 		FreeSpace:           nil,

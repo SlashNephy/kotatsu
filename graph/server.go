@@ -23,6 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/settings"
 	"github.com/SlashNephy/kotatsu/internal/webhook"
+	"github.com/SlashNephy/kotatsu/internal/webpush"
 )
 
 const (
@@ -56,6 +57,8 @@ type Options struct {
 	Settings *settings.Store
 	// Webhooks は、Webhook の管理に使う。nil なら、Webhook の操作は内部のエラーにする。
 	Webhooks *webhook.Store
+	// WebPush は、Web Push の購読に使う。nil なら、Web Push の操作は内部のエラーにする。
+	WebPush *webpush.Service
 	// Changes は、ロール間の変更の通知を、subscription で知らせるのに使う。nil なら、変更の subscription は内部のエラーにする。
 	Changes Changes
 	// Pools は、保存先プールの ID からマウント先への対応。システムの状態で示す。
@@ -126,6 +129,7 @@ func NewHandler(opts *Options) http.Handler {
 		settings:     o.Settings,
 		inbox:        notification.NewInbox(o.Clock),
 		webhooks:     o.Webhooks,
+		webPush:      o.WebPush,
 		changes:      o.Changes,
 		pools:        o.Pools,
 		freeSpace:    o.FreeSpace,

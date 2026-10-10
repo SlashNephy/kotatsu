@@ -1,0 +1,39 @@
+"""
+Web Push の購読 (設計書 6.2)。端末とブラウザごとに 1 つある。
+"""
+type WebPushSubscription {
+  id: ID!
+  "プッシュサービスの送り先の URL。"
+  endpoint: String!
+  "購読した端末の User-Agent。端末を見分けるのに使う。"
+  userAgent: String!
+  createdAt: Time!
+}
+
+"""
+ブラウザの PushSubscription。PushSubscription.toJSON() の値をそのまま渡せる。
+"""
+input WebPushSubscriptionInput {
+  endpoint: String!
+  "ブラウザの P-256 の公開鍵を base64url にしたもの。"
+  p256dh: String!
+  "認証用の秘密を base64url にしたもの。"
+  auth: String!
+}
+
+extend type Query {
+  "ブラウザが購読するときに applicationServerKey に渡す、VAPID の公開鍵を base64url にしたもの。"
+  webPushPublicKey: String!
+  "ログイン中のユーザーの Web Push の購読を、古い順に返す。"
+  webPushSubscriptions: [WebPushSubscription!]!
+}
+
+extend type Mutation {
+  """
+  ログイン中のユーザーの端末で、Web Push を購読する。送り先は https の URL に限る。
+  同じ端末をほかのユーザーが購読していたら、このユーザーの購読に移す。
+  """
+  subscribeWebPush(input: WebPushSubscriptionInput!): WebPushSubscription!
+  "ログイン中のユーザーの、送り先 endpoint の購読を解除し、解除したかどうかを返す。"
+  unsubscribeWebPush(endpoint: String!): Boolean!
+}

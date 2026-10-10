@@ -306,6 +306,19 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			},
 		},
 		{
+			name: "web push subject",
+			env:  map[string]string{envKeyURL: envURL, "KOTATSU_WEB_PUSH_SUBJECT": "mailto:admin@kotatsu.example"},
+			want: &config.Config{
+				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}},
+				Metrics:  config.Metrics{Listen: defaultMetricsListen},
+				Database: config.Database{URL: envURL, Pooler: false},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Storage:  noPools(),
+				Tuner:    config.Tuner{URL: ""},
+				WebPush:  config.WebPush{Subject: "mailto:admin@kotatsu.example"},
+			},
+		},
+		{
 			name: "env overrides yaml boolean",
 			yaml: "database:\n  pooler: true\n",
 			env: map[string]string{
@@ -406,6 +419,14 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 				"KOTATSU_AUTH_HIBP_URL": "api.pwnedpasswords.com",
 			},
 			wantErrs: []string{"auth.hibp.url (KOTATSU_AUTH_HIBP_URL): must be an http:// or https:// URL"},
+		},
+		{
+			name: "invalid web push subject",
+			env: map[string]string{
+				envKeyURL:                  envURL,
+				"KOTATSU_WEB_PUSH_SUBJECT": "admin@kotatsu.example",
+			},
+			wantErrs: []string{"web_push.subject (KOTATSU_WEB_PUSH_SUBJECT): must be a mailto: or https:// URI"},
 		},
 		{
 			name: "oidc without client id and openid scope",

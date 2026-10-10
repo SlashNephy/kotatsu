@@ -177,6 +177,8 @@ type ComplexityRoot struct {
 		SetRecordingProtected        func(childComplexity int, id string, protected bool) int
 		SetRecordingTags             func(childComplexity int, id string, tags []string) int
 		SetRuleEnabled               func(childComplexity int, id string, enabled bool) int
+		SubscribeWebPush             func(childComplexity int, input model.WebPushSubscriptionInput) int
+		UnsubscribeWebPush           func(childComplexity int, endpoint string) int
 		UpdateChannelType            func(childComplexity int, typeArg string, input model.ChannelTypeInput) int
 		UpdateGuideView              func(childComplexity int, id string, input model.GuideViewInput) int
 		UpdateNotificationPreference func(childComplexity int, input model.NotificationPreferenceInput) int
@@ -289,6 +291,8 @@ type ComplexityRoot struct {
 		UnreadNotificationCount func(childComplexity int) int
 		Users                   func(childComplexity int) int
 		Viewer                  func(childComplexity int) int
+		WebPushPublicKey        func(childComplexity int) int
+		WebPushSubscriptions    func(childComplexity int) int
 		Webhooks                func(childComplexity int) int
 	}
 
@@ -513,6 +517,13 @@ type ComplexityRoot struct {
 		Username    func(childComplexity int) int
 	}
 
+	WebPushSubscription struct {
+		CreatedAt func(childComplexity int) int
+		Endpoint  func(childComplexity int) int
+		ID        func(childComplexity int) int
+		UserAgent func(childComplexity int) int
+	}
+
 	Webhook struct {
 		CreatedAt func(childComplexity int) int
 		Enabled   func(childComplexity int) int
@@ -567,6 +578,8 @@ type MutationResolver interface {
 	ResetUserPassword(ctx context.Context, id string, password string) (*model.User, error)
 	ChangePassword(ctx context.Context, password string) (bool, error)
 	RevokeSession(ctx context.Context, id string) (string, error)
+	SubscribeWebPush(ctx context.Context, input model.WebPushSubscriptionInput) (*model.WebPushSubscription, error)
+	UnsubscribeWebPush(ctx context.Context, endpoint string) (bool, error)
 	CreateWebhook(ctx context.Context, input model.CreateWebhookInput) (*model.CreateWebhookPayload, error)
 	UpdateWebhook(ctx context.Context, id string, input model.UpdateWebhookInput) (*model.Webhook, error)
 	DeleteWebhook(ctx context.Context, id string) (string, error)
@@ -602,6 +615,8 @@ type QueryResolver interface {
 	SystemSettings(ctx context.Context) (*model.SystemSettings, error)
 	Users(ctx context.Context) ([]*model.User, error)
 	Sessions(ctx context.Context) ([]*model.Session, error)
+	WebPushPublicKey(ctx context.Context) (string, error)
+	WebPushSubscriptions(ctx context.Context) ([]*model.WebPushSubscription, error)
 	Webhooks(ctx context.Context) ([]*model.Webhook, error)
 }
 type RecordingResolver interface {
@@ -1280,6 +1295,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetRuleEnabled(childComplexity, args["id"].(string), args["enabled"].(bool)), true
+	case "Mutation.subscribeWebPush":
+		if e.ComplexityRoot.Mutation.SubscribeWebPush == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_subscribeWebPush_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SubscribeWebPush(childComplexity, args["input"].(model.WebPushSubscriptionInput)), true
+	case "Mutation.unsubscribeWebPush":
+		if e.ComplexityRoot.Mutation.UnsubscribeWebPush == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_unsubscribeWebPush_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UnsubscribeWebPush(childComplexity, args["endpoint"].(string)), true
 	case "Mutation.updateChannelType":
 		if e.ComplexityRoot.Mutation.UpdateChannelType == nil {
 			break
@@ -1856,6 +1893,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Viewer(childComplexity), true
+	case "Query.webPushPublicKey":
+		if e.ComplexityRoot.Query.WebPushPublicKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.WebPushPublicKey(childComplexity), true
+	case "Query.webPushSubscriptions":
+		if e.ComplexityRoot.Query.WebPushSubscriptions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.WebPushSubscriptions(childComplexity), true
 	case "Query.webhooks":
 		if e.ComplexityRoot.Query.Webhooks == nil {
 			break
@@ -2747,6 +2796,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.User.Username(childComplexity), true
 
+	case "WebPushSubscription.createdAt":
+		if e.ComplexityRoot.WebPushSubscription.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WebPushSubscription.CreatedAt(childComplexity), true
+	case "WebPushSubscription.endpoint":
+		if e.ComplexityRoot.WebPushSubscription.Endpoint == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WebPushSubscription.Endpoint(childComplexity), true
+	case "WebPushSubscription.id":
+		if e.ComplexityRoot.WebPushSubscription.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WebPushSubscription.ID(childComplexity), true
+	case "WebPushSubscription.userAgent":
+		if e.ComplexityRoot.WebPushSubscription.UserAgent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WebPushSubscription.UserAgent(childComplexity), true
+
 	case "Webhook.createdAt":
 		if e.ComplexityRoot.Webhook.CreatedAt == nil {
 			break
@@ -2825,6 +2899,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputTimeReservationInput,
 		ec.unmarshalInputUpdateUserInput,
 		ec.unmarshalInputUpdateWebhookInput,
+		ec.unmarshalInputWebPushSubscriptionInput,
 	)
 	first := true
 
@@ -4172,6 +4247,46 @@ extend type Mutation {
   revokeSession(id: ID!): ID!
 }
 `, BuiltIn: false},
+	{Name: "../schema/web_push.graphqls", Input: `"""
+Web Push の購読 (設計書 6.2)。端末とブラウザごとに 1 つある。
+"""
+type WebPushSubscription {
+  id: ID!
+  "プッシュサービスの送り先の URL。"
+  endpoint: String!
+  "購読した端末の User-Agent。端末を見分けるのに使う。"
+  userAgent: String!
+  createdAt: Time!
+}
+
+"""
+ブラウザの PushSubscription。PushSubscription.toJSON() の値をそのまま渡せる。
+"""
+input WebPushSubscriptionInput {
+  endpoint: String!
+  "ブラウザの P-256 の公開鍵を base64url にしたもの。"
+  p256dh: String!
+  "認証用の秘密を base64url にしたもの。"
+  auth: String!
+}
+
+extend type Query {
+  "ブラウザが購読するときに applicationServerKey に渡す、VAPID の公開鍵を base64url にしたもの。"
+  webPushPublicKey: String!
+  "ログイン中のユーザーの Web Push の購読を、古い順に返す。"
+  webPushSubscriptions: [WebPushSubscription!]!
+}
+
+extend type Mutation {
+  """
+  ログイン中のユーザーの端末で、Web Push を購読する。送り先は https の URL に限る。
+  同じ端末をほかのユーザーが購読していたら、このユーザーの購読に移す。
+  """
+  subscribeWebPush(input: WebPushSubscriptionInput!): WebPushSubscription!
+  "ログイン中のユーザーの、送り先 endpoint の購読を解除し、解除したかどうかを返す。"
+  unsubscribeWebPush(endpoint: String!): Boolean!
+}
+`, BuiltIn: false},
 	{Name: "../schema/webhooks.graphqls", Input: `"""
 Webhook で送る形式 (設計書 6.2)。
 """
@@ -5050,6 +5165,20 @@ func (ec *executionContext) childFields_User(ctx context.Context, field graphql.
 	return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 }
 
+func (ec *executionContext) childFields_WebPushSubscription(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_WebPushSubscription_id(ctx, field)
+	case "endpoint":
+		return ec.fieldContext_WebPushSubscription_endpoint(ctx, field)
+	case "userAgent":
+		return ec.fieldContext_WebPushSubscription_userAgent(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_WebPushSubscription_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type WebPushSubscription", field.Name)
+}
+
 func (ec *executionContext) childFields_Webhook(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -5569,6 +5698,34 @@ func (ec *executionContext) field_Mutation_setRuleEnabled_args(ctx context.Conte
 		return nil, err
 	}
 	args["enabled"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_subscribeWebPush_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.WebPushSubscriptionInput, error) {
+			return ec.unmarshalNWebPushSubscriptionInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWebPushSubscriptionInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_unsubscribeWebPush_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "endpoint",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["endpoint"] = arg0
 	return args, nil
 }
 
@@ -8933,6 +9090,94 @@ func (ec *executionContext) fieldContext_Mutation_revokeSession(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_subscribeWebPush(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_subscribeWebPush(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SubscribeWebPush(ctx, fc.Args["input"].(model.WebPushSubscriptionInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.WebPushSubscription) graphql.Marshaler {
+			return ec.marshalNWebPushSubscription2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWebPushSubscription(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_subscribeWebPush(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WebPushSubscription(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_subscribeWebPush_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_unsubscribeWebPush(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_unsubscribeWebPush(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UnsubscribeWebPush(ctx, fc.Args["endpoint"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_unsubscribeWebPush(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_unsubscribeWebPush_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createWebhook(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -11111,6 +11356,61 @@ func (ec *executionContext) fieldContext_Query_sessions(_ context.Context, field
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Session(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_webPushPublicKey(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_webPushPublicKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().WebPushPublicKey(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_webPushPublicKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Query_webPushSubscriptions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_webPushSubscriptions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().WebPushSubscriptions(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.WebPushSubscription) graphql.Marshaler {
+			return ec.marshalNWebPushSubscription2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWebPushSubscriptionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_webPushSubscriptions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WebPushSubscription(ctx, field)
 		},
 	}
 	return fc, nil
@@ -14774,6 +15074,98 @@ func (ec *executionContext) fieldContext_User_createdAt(_ context.Context, field
 	return graphql.NewScalarFieldContext("User", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _WebPushSubscription_id(ctx context.Context, field graphql.CollectedField, obj *model.WebPushSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WebPushSubscription_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WebPushSubscription_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WebPushSubscription", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _WebPushSubscription_endpoint(ctx context.Context, field graphql.CollectedField, obj *model.WebPushSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WebPushSubscription_endpoint(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Endpoint, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WebPushSubscription_endpoint(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WebPushSubscription", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WebPushSubscription_userAgent(ctx context.Context, field graphql.CollectedField, obj *model.WebPushSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WebPushSubscription_userAgent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UserAgent, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WebPushSubscription_userAgent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WebPushSubscription", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WebPushSubscription_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.WebPushSubscription) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WebPushSubscription_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WebPushSubscription_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WebPushSubscription", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
 func (ec *executionContext) _Webhook_id(ctx context.Context, field graphql.CollectedField, obj *model.Webhook) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -17187,6 +17579,50 @@ func (ec *executionContext) unmarshalInputUpdateWebhookInput(ctx context.Context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputWebPushSubscriptionInput(ctx context.Context, obj any) (model.WebPushSubscriptionInput, error) {
+	var it model.WebPushSubscriptionInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"endpoint", "p256dh", "auth"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "endpoint":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endpoint"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Endpoint = data
+		case "p256dh":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("p256dh"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.P256dh = data
+		case "auth":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("auth"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Auth = data
+		}
+	}
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -18352,6 +18788,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "revokeSession":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_revokeSession(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "subscribeWebPush":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_subscribeWebPush(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unsubscribeWebPush":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_unsubscribeWebPush(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -19559,6 +20009,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_sessions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "webPushPublicKey":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_webPushPublicKey(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "webPushSubscriptions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_webPushSubscriptions(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -21282,6 +21776,59 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "createdAt":
 			out.Values[i] = ec._User_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var webPushSubscriptionImplementors = []string{"WebPushSubscription"}
+
+func (ec *executionContext) _WebPushSubscription(ctx context.Context, sel ast.SelectionSet, obj *model.WebPushSubscription) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, webPushSubscriptionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WebPushSubscription")
+		case "id":
+			out.Values[i] = ec._WebPushSubscription_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endpoint":
+			out.Values[i] = ec._WebPushSubscription_endpoint(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userAgent":
+			out.Values[i] = ec._WebPushSubscription_userAgent(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._WebPushSubscription_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -23136,6 +23683,37 @@ func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu�
 		return graphql.Null
 	}
 	return ec._User(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWebPushSubscription2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWebPushSubscriptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.WebPushSubscription) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNWebPushSubscription2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWebPushSubscription(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNWebPushSubscription2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWebPushSubscription(ctx context.Context, sel ast.SelectionSet, v *model.WebPushSubscription) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WebPushSubscription(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNWebPushSubscriptionInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWebPushSubscriptionInput(ctx context.Context, v any) (model.WebPushSubscriptionInput, error) {
+	res, err := ec.unmarshalInputWebPushSubscriptionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNWebhook2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWebhookᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Webhook) graphql.Marshaler {
