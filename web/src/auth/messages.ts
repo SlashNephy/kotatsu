@@ -55,6 +55,8 @@ const oidcReasons = [
   'oidc_denied',
   'oidc_username_taken',
   'oidc_unavailable',
+  'oidc_reauth_stale',
+  'oidc_reauth_mismatch',
 ] as const;
 
 // oidcErrorMessage は、OIDC でのログインに失敗して戻ってきた理由を、画面に出す文に直す。

@@ -114,11 +114,14 @@ function ChangePassword() {
           return;
         }
         const reason = passwordReasons.find((known) => known === details.reason);
-        setError(
-          details.code === 'BAD_USER_INPUT' && reason !== undefined
-            ? t(`password.rejected.${reason}`)
-            : t('auth.errors.unknown'),
-        );
+        if (details.code === 'BAD_USER_INPUT' && reason !== undefined) {
+          setError(t(`password.rejected.${reason}`));
+        } else if (details.code === 'UNAUTHENTICATED') {
+          // 画面を開いている間に、セッションが切れた。
+          setError(t('auth.errors.UNAUTHENTICATED'));
+        } else {
+          setError(t('auth.errors.unknown'));
+        }
       },
     });
   };
@@ -130,20 +133,30 @@ function ChangePassword() {
 
   if (needsReauthentication) {
     return (
-      <Reauthenticate
-        methods={{
-          totp: data.secondFactors.totp,
-          recoveryCode: data.secondFactors.remainingRecoveryCodes > 0,
-          passkey: data.passkeys.length > 0,
-          oidc,
-        }}
-        returnTo={path}
-        // 再認証を終えたら、入力済みのパスワードで、もう一度変更を試みる。
-        onDone={() => {
-          setNeedsReauthentication(false);
-          change();
-        }}
-      />
+      <Stack>
+        <Reauthenticate
+          methods={{
+            totp: data.secondFactors.totp,
+            recoveryCode: data.secondFactors.remainingRecoveryCodes > 0,
+            passkey: data.passkeys.length > 0,
+            oidc,
+          }}
+          returnTo={path}
+          // 再認証を終えたら、入力済みのパスワードで、もう一度変更を試みる。
+          onDone={() => {
+            setNeedsReauthentication(false);
+            change();
+          }}
+        />
+        <Anchor
+          component="button"
+          type="button"
+          size="sm"
+          onClick={() => setNeedsReauthentication(false)}
+        >
+          {t('settings.password.cancel')}
+        </Anchor>
+      </Stack>
     );
   }
 

@@ -179,7 +179,11 @@ export function Reauthenticate({ methods, returnTo, onDone }: Props) {
                 {error}
               </Alert>
             )}
-            <Button type="submit" loading={submitting} disabled={password === '' || code === ''}>
+            <Button
+              type="submit"
+              loading={submitting}
+              disabled={password === '' || (useRecovery ? code.trim() === '' : code.length < 6)}
+            >
               {t('auth.reauth.submit')}
             </Button>
             {methods.totp && methods.recoveryCode && (
