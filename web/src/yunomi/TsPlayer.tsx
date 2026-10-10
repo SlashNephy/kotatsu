@@ -1,5 +1,5 @@
 import type { Mpeg2TsPlayer, PlayerState, PrivateStream } from '@mpeg2toh264/player';
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, type ReactNode, useState, type RefObject } from 'react';
 
 import { createCaptions, type Captions } from './captions';
 import classes from './TsPlayer.module.css';
@@ -20,11 +20,22 @@ type Props = {
   onError?: (error: Error) => void;
   // onLoaded は、最初のデータが入り、再生を始められるようになったときに呼ぶ。
   onLoaded?: () => void;
+  // overlay は、映像の上に重ねるもの (実況のコメント)。
+  overlay?: ReactNode;
 };
 
 // TsPlayer は、MPEG-2 の TS をブラウザの中で H.264 に変換して再生する (設計書 7.2)。
 // 1080i のインターレースは、yadif で解除する。yadif は LGPL なので、別のチャンクとして読む。
-export function TsPlayer({ url, videoRef, active, captions, onState, onError, onLoaded }: Props) {
+export function TsPlayer({
+  url,
+  videoRef,
+  active,
+  captions,
+  onState,
+  onError,
+  onLoaded,
+  overlay,
+}: Props) {
   const playerRef = useRef<Mpeg2TsPlayer | null>(null);
   const captionsRef = useRef<Captions | null>(null);
   const showCaptions = useRef(captions);
@@ -129,5 +140,10 @@ export function TsPlayer({ url, videoRef, active, captions, onState, onError, on
     };
   }, [ready, url, active]);
 
-  return <div ref={frameRef} className={classes.frame} />;
+  return (
+    <div className={classes.frame}>
+      <div ref={frameRef} className={classes.media} />
+      {overlay !== undefined && <div className={classes.overlay}>{overlay}</div>}
+    </div>
+  );
 }

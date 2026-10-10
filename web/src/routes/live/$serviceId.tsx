@@ -5,9 +5,17 @@ import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
 import { ErrorBoundary } from '../../futon';
+import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
+import { useJikkyoPreference } from '../../jikkyo/useJikkyoPreference';
+import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
-import { CaptionsToggle, PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
+import {
+  CaptionsToggle,
+  JikkyoToggle,
+  PlaybackUnavailable,
+  QualitySelect,
+} from '../../yunomi/QualitySelect';
 import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
 import { hlsURL } from '../../yunomi/route';
 import { TsPlayer } from '../../yunomi/TsPlayer';
@@ -96,6 +104,10 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
           ... on Service {
             name
             streamUrl
+            jikkyo {
+              id
+              name
+            }
           }
         }
         guide(from: $from, to: $to, services: [$id]) {
@@ -120,6 +132,9 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
   const visible = useVisible(frameRef);
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
   const [captions, setCaptions] = useCaptionsPreference();
+  const [jikkyoEnabled, setJikkyoEnabled] = useJikkyoPreference();
+  const channel = data.node?.__typename === 'Service' ? (data.node.jikkyo ?? null) : null;
+  const jikkyo = useLiveJikkyo(jikkyoEnabled ? (channel?.id ?? null) : null, videoRef, visible);
   // session は、つなぎ直すたびに増やし、URL を変えて読み直させる。
   const [session, setSession] = useState(0);
   const attempt = useRef(0);
@@ -207,6 +222,7 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
         {data.guide[0]?.programs[0]?.name ?? t('live.noProgram')}
       </Text>
       <Group justify="flex-end" gap="md">
+        {channel !== null && <JikkyoToggle checked={jikkyoEnabled} onChange={setJikkyoEnabled} />}
         <CaptionsToggle checked={captions} onChange={setCaptions} />
         <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
       </Group>
@@ -220,6 +236,7 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
             active={visible}
             captions={captions}
             onLoaded={onLoaded}
+            overlay={jikkyo.overlay}
             onState={(state) => {
               // ライブのストリームは終わらないので、読み終えたのは、切れたということ。
               if (state === 'completed' || state === 'error') {
@@ -239,11 +256,15 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
             captions={captions}
             live
             onLoaded={onLoaded}
+            overlay={jikkyo.overlay}
             // チューナーを使われて切れると、hls.js が読み直しを諦めたところで、致命的なエラーになる。
             onError={disconnected}
           />
         )}
       </div>
+      {channel !== null && jikkyoEnabled && (
+        <JikkyoPanel channelName={channel.name} status={jikkyo.status} onPost={jikkyo.post} />
+      )}
       {!visible && (
         <Text size="sm" c="dimmed">
           {t('live.paused')}

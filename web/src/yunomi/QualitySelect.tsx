@@ -81,3 +81,23 @@ export function CaptionsToggle({
     />
   );
 }
+
+// JikkyoToggle は、実況のコメントを出すかどうかの切り替え。
+export function JikkyoToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Switch
+      size="sm"
+      label={t('jikkyo.toggle')}
+      checked={checked}
+      onChange={(event) => onChange(event.currentTarget.checked)}
+    />
+  );
+}

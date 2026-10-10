@@ -1,5 +1,5 @@
 import type Hls from 'hls.js';
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, type ReactNode, useState, type RefObject } from 'react';
 
 import { createCaptions, type Captions } from './captions';
 import classes from './TsPlayer.module.css';
@@ -20,6 +20,8 @@ type Props = {
   onError?: (error: Error) => void;
   // onLoaded は、プレイリストを読み、再生を始められるようになったときに呼ぶ。
   onLoaded?: () => void;
+  // overlay は、映像の上に重ねるもの (実況のコメント)。
+  overlay?: ReactNode;
 };
 
 // HlsPlayer は、kyusu がトランスコードした HLS を hls.js で再生する (設計書 7.3)。
@@ -33,6 +35,7 @@ export function HlsPlayer({
   startPosition,
   onError,
   onLoaded,
+  overlay,
 }: Props) {
   const hlsRef = useRef<Hls | null>(null);
   // hls は、作り終えた hls.js。作るのを待つ間に active が変わっても、作り終えてから読み込みを止められるようにする。
@@ -162,5 +165,10 @@ export function HlsPlayer({
     }
   }, [videoRef, hls, active, live]);
 
-  return <div ref={frameRef} className={classes.frame} />;
+  return (
+    <div className={classes.frame}>
+      <div ref={frameRef} className={classes.media} />
+      {overlay !== undefined && <div className={classes.overlay}>{overlay}</div>}
+    </div>
+  );
 }

@@ -1,0 +1,6 @@
+/* コメントを描く canvas。1920x1080 で描いたものを、映像の枠に合わせて縮める。 */
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
