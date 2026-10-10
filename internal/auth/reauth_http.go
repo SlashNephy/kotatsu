@@ -32,7 +32,7 @@ func (l *Logins) ReauthenticateHandler(db Database, client func(*http.Request) *
 		if !ok {
 			return
 		}
-		if req.Password == "" || req.Code == "" {
+		if req.Password == "" || req.Method == "" || req.Code == "" {
 			writeLoginError(w, http.StatusBadRequest, "BAD_REQUEST", "password, method and code are required")
 
 			return

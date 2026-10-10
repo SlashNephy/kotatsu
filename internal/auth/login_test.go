@@ -32,6 +32,7 @@ const (
 	// 表のケースの名前と、パスワードを表す文字列 (JSON のキー、監査ログの方式)。
 	caseWrongPassword = "wrong password"
 	caseNoUV          = "without user verification"
+	caseDisabledUser  = "disabled user"
 	passwordText      = "password"
 	unknownUser       = "unknown user"
 	jsonType          = "application/json"
@@ -105,7 +106,7 @@ func TestPasswordLogin(t *testing.T) {
 		{name: caseWrongPassword, username: loginName, phrase: "mikan-kotatsu-neko-2025!", wantErr: auth.ErrInvalidCredentials},
 		{name: unknownUser, username: "nobody", phrase: loginPhrase, wantErr: auth.ErrInvalidCredentials},
 		{
-			name: "disabled user", username: loginName, phrase: loginPhrase, wantErr: auth.ErrInvalidCredentials,
+			name: caseDisabledUser, username: loginName, phrase: loginPhrase, wantErr: auth.ErrInvalidCredentials,
 			prepare: func(t *testing.T, f *loginFixture) {
 				t.Helper()
 				require.NoError(t, auth.NewUsers(f.clock).Disable(t.Context(), f.db, f.user.ID))

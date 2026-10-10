@@ -80,6 +80,25 @@ func TestReauthenticate(t *testing.T) {
 			code:    func(*testing.T, *reauthFixture) string { return "000000" },
 			wantErr: auth.ErrInvalidSecondFactor, wantFailedMethod: "totp",
 		},
+		{
+			name: "used recovery code", phrase: loginPhrase, method: auth.SecondFactorRecoveryCode,
+			code: func(t *testing.T, f *reauthFixture) string {
+				t.Helper()
+				require.NoError(t, f.factors.UseRecoveryCode(t.Context(), f.db, f.user.ID, f.recoveryCodes[0]))
+
+				return f.recoveryCodes[0]
+			},
+			wantErr: auth.ErrInvalidSecondFactor, wantFailedMethod: "recovery_code",
+		},
+		{
+			// セッションが残っていても、無効にしたユーザーは再認証できない。
+			name: caseDisabledUser, phrase: loginPhrase, method: auth.SecondFactorTOTP,
+			wantErr: auth.ErrInvalidCredentials, wantFailedMethod: passwordText,
+			prepare: func(t *testing.T, f *reauthFixture) {
+				t.Helper()
+				require.NoError(t, auth.NewUsers(f.clock).Disable(t.Context(), f.db, f.user.ID))
+			},
+		},
 		{name: "passkey with a password", phrase: loginPhrase, method: auth.SecondFactorPasskey, wantErr: auth.ErrUnsupportedSecondFactor},
 		{
 			name: "revoked session", phrase: loginPhrase, method: auth.SecondFactorTOTP, wantErr: auth.ErrUnauthenticated,

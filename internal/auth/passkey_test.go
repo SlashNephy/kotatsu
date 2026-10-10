@@ -266,7 +266,7 @@ func TestPasskeyLogin(t *testing.T) {
 			},
 		},
 		{
-			name: "disabled user", wantErr: auth.ErrInvalidPasskey,
+			name: caseDisabledUser, wantErr: auth.ErrInvalidPasskey,
 			prepare: func(t *testing.T, f *passkeyFixture, _ *webauthntest.Authenticator) {
 				t.Helper()
 				require.NoError(t, auth.NewUsers(f.clock).Disable(t.Context(), f.db, f.user.ID))
