@@ -725,7 +725,7 @@ Viteがワーカーのチャンクにbase64で埋め込むと、ストリーミ�
 - **字幕と文字スーパー**：aribb24.jsで描画します。ブラウザ内での変換では、プレイヤーがprivate PESをイベントとして渡すので、それを使います（private_stream_1が字幕、private_stream_2が文字スーパーです）。kyusuの経路では、hls.jsが取り出したID3のデータを使います。
 - **データ放送**：ライブ視聴でだけ、web-bmlで表示します。web-bmlにデータを渡す方法は要調査です（[12章](#12-要検証事項)）。
 - **ニコニコ実況**：NX-Jikkyoを使います。ライブ視聴ではWebSocketでリアルタイムのコメントを受け取り、録画の再生では過去ログを取得して流します。コメントはniconicommentsで描画します。投稿はNX-Jikkyoへの投稿に限ります。ライブ視聴ではブラウザからNX-Jikkyoへ直接接続するので、設定で無効にもできるようにします。
-- **実況の過去ログ**：過去ログは、tenbanがNX-Jikkyoのスレッド取得API（`/api/v1/threads/{thread_id}`）から取得して中継します。このAPIはKotatsuのオリジンにCORSのヘッダーを返さないので、ブラウザからは取得できません。また、1つのスレッドは1日分のコメントを丸ごと返し、1チャンネルで数MBから数十MBになります。そのためtenbanは、録画の時間帯のコメントだけを、描画に使う項目に絞って返します。終わったスレッドは変わらないので、tenbanはメモリーに上限を設けてキャッシュします。
+- **実況の過去ログ**：過去ログは、tenbanが[ニコニコ実況 過去ログ API](https://jikkyo.tsukumijima.net/)から取得して中継します。このAPIは、NX-Jikkyoのスレッドとニコニコ生放送の実況の両方のコメントを、時間帯を指定して返します。tenbanは録画の時間帯を指定して取得し、描画に使う項目に絞って返します。ブラウザが接続する先を増やさずに済み、CSPを狭いまま保てます。
 - **実況チャンネルの対応表**：NX-Jikkyoのチャンネル情報API（`/api/v1/channels`）は、実況チャンネルのID（`jk1`など）と名前しか返さず、ネットワークIDとサービスIDを持ちません。そのため、サービスと実況チャンネルの対応表をKotatsuに同梱します。対応表はKonomiTVの`jikkyo_channels.json`を元に作り、BSとCSはネットワークIDとサービスIDの組で、地上波はサービスIDで引きます。地上波のサブチャンネルは、サービスIDが1つ前か2つ前のメインチャンネルに寄せます。チャンネル情報APIはtenbanが取得してキャッシュし、対応表で見つかった実況チャンネルのうち、APIが返さないものは表示しません。対応表は、設定ファイルで上書きや追加をできるようにします。
 
 ### 7.5 その他のプレイヤー機能
@@ -977,7 +977,7 @@ Vite+ にもNode.jsのバージョンを管理する機能（`vp env`）があ�
 
 Content Security Policyは厳しく設定します。
 明示的に許可するのは、WebAssemblyの実行（`wasm-unsafe-eval`）と、NX-JikkyoへのWebSocketの接続だけです。
-実況の過去ログはtenbanが中継するので（[7.4](#74-字幕データ放送実況)）、NX-JikkyoへのHTTPSの接続は許可しません。
+実況の過去ログはtenbanが中継するので（[7.4](#74-字幕データ放送実況)）、過去ログ APIへの接続は許可しません。
 
 ## 11. 運用と開発
 
@@ -1171,4 +1171,5 @@ Kotatsu本体はApache License 2.0で公開します。
 | [mirakc/mirakc](https://github.com/mirakc/mirakc) | SSEのイベント、onairのAPI、ARIBの処理を外部コマンドに任せる構成 |
 | [rokoucha/Mahiron](https://github.com/rokoucha/Mahiron) | 任意の文字列のチャンネル種別、データ放送のAPI |
 | [otya128/mpeg2toh264](https://github.com/otya128/mpeg2toh264) | ブラウザ内でのMPEG-2からH.264への変換 |
-| [tsukumijima/NX-Jikkyo](https://github.com/tsukumijima/NX-Jikkyo) | ニコニコ実況のコメントのWebSocket APIと過去ログ |
+| [tsukumijima/NX-Jikkyo](https://github.com/tsukumijima/NX-Jikkyo) | ニコニコ実況のコメントのWebSocket API |
+| [tsukumijima/jikkyo-api](https://github.com/tsukumijima/jikkyo-api) | ニコニコ実況とNX-Jikkyoの過去ログのAPI |
