@@ -35,6 +35,8 @@ const (
 	auditTarget = "recording"
 	// segmentKind は、録画ファイルのうち、TS のセグメントの種類。
 	segmentKind = "segment"
+	// otherKind は、録画ファイルのうち、取り込んだ MP4 のような TS 以外のファイルの種類。
+	otherKind = "other"
 )
 
 var (
@@ -99,8 +101,8 @@ func (l *Library) Delete(ctx context.Context, db Database, actor *audit.Actor, r
 		return err
 	}
 	for i := range files {
-		// 索引は、録画ファイルの付属ファイルのディレクトリにあるので、録画ファイルと一緒に消える。
-		if files[i].Kind != segmentKind {
+		// 索引や画像は、録画ファイルの付属ファイルのディレクトリにあるので、録画ファイルと一緒に消える。
+		if files[i].Kind != segmentKind && files[i].Kind != otherKind {
 			continue
 		}
 		if err := l.store.Remove(files[i].PoolID, files[i].Path); err != nil {

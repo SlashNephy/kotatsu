@@ -640,8 +640,9 @@ CREATE TABLE recordings (
 CREATE TABLE recording_files (
   id uuid PRIMARY KEY,
   recording_id uuid NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,
-  -- 種類は、TS のセグメント (segment)、セグメントの索引 (index)、代表画像 (thumbnail)、シークバー用のプレビュー画像 (preview) のどれか。
-  kind text NOT NULL CHECK (kind IN ('segment', 'index', 'thumbnail', 'preview')),
+  -- 種類は、TS のセグメント (segment)、セグメントの索引 (index)、代表画像 (thumbnail)、シークバー用のプレビュー画像 (preview)、
+  -- その他のファイル (other) のどれか。その他のファイルは、EPGStation から取り込んだ、エンコード済みの MP4 のような TS 以外のファイル (設計書 6.3)。
+  kind text NOT NULL CHECK (kind IN ('segment', 'index', 'thumbnail', 'preview', 'other')),
   -- 保存先プールの ID と、プール内の相対パス (設計書 5.6)。
   pool_id text NOT NULL,
   path text NOT NULL,
@@ -718,3 +719,19 @@ CREATE TABLE guide_views (
 );
 
 CREATE UNIQUE INDEX guide_views_user_id_name_idx ON guide_views (user_id, name);
+
+-- ほかの録画ソフトから取り込んだデータの、取り込み元の ID と、取り込んで作った行の対応 (設計書 6.3)。
+-- 取り込みを何度実行しても、同じデータを二重に取り込まないために使う。
+-- 取り込んだ後に Kotatsu で消した行も、取り込み直さないよう、対応は残す。そのため target_id には外部キーを付けない。
+CREATE TABLE import_sources (
+  -- 取り込み元のソフト。今は epgstation だけ。
+  source text NOT NULL,
+  -- 取り込み元のデータの種類 (rule、reserve、recorded、recorded_history)。
+  kind text NOT NULL,
+  -- 取り込み元での ID。
+  source_id bigint NOT NULL,
+  -- 取り込んで作った行の ID。種類によって、ルール、予約、録画、録画履歴のどれかを指す。
+  target_id uuid NOT NULL,
+  created_at timestamptz NOT NULL,
+  PRIMARY KEY (source, kind, source_id)
+);

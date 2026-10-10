@@ -986,6 +986,8 @@ const (
 	RecordingFileKindThumbnail RecordingFileKind = "THUMBNAIL"
 	// シークバー用のプレビュー画像 (JPEG)。コマの並びは、同じディレクトリの preview.json に書く
 	RecordingFileKindPreview RecordingFileKind = "PREVIEW"
+	// EPGStation から取り込んだ、エンコード済みの MP4 のような TS 以外のファイル
+	RecordingFileKindOther RecordingFileKind = "OTHER"
 )
 
 var AllRecordingFileKind = []RecordingFileKind{
@@ -993,11 +995,12 @@ var AllRecordingFileKind = []RecordingFileKind{
 	RecordingFileKindIndex,
 	RecordingFileKindThumbnail,
 	RecordingFileKindPreview,
+	RecordingFileKindOther,
 }
 
 func (e RecordingFileKind) IsValid() bool {
 	switch e {
-	case RecordingFileKindSegment, RecordingFileKindIndex, RecordingFileKindThumbnail, RecordingFileKindPreview:
+	case RecordingFileKindSegment, RecordingFileKindIndex, RecordingFileKindThumbnail, RecordingFileKindPreview, RecordingFileKindOther:
 		return true
 	}
 	return false

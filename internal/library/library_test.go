@@ -79,7 +79,9 @@ func (f *fixture) recording(t *testing.T, state string, protected bool) uuid.UUI
 	require.NoError(t, os.WriteFile(filepath.Join(f.dir, path), []byte("ts"), 0o600))
 	require.NoError(t, os.Mkdir(filepath.Join(f.dir, path+".kotatsu"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(f.dir, path+".kotatsu", "index"), []byte("index"), 0o600))
-	for _, file := range []struct{ kind, path string }{{"segment", path}, {"index", path + ".kotatsu/index"}} {
+	// EPGStation から取り込んだ録画には、エンコード済みの MP4 のような、その他のファイルもある。
+	require.NoError(t, os.WriteFile(filepath.Join(f.dir, name+".mp4"), []byte("mp4"), 0o600))
+	for _, file := range []struct{ kind, path string }{{"segment", path}, {"index", path + ".kotatsu/index"}, {"other", name + ".mp4"}} {
 		_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
 			VALUES ($1, $2, $3, $4, $5, 2, $6, $6, $6)`, id.New(), recordingID, file.kind, poolID, file.path, now)
 		require.NoError(t, err)
@@ -145,8 +147,10 @@ func TestDelete(t *testing.T) {
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM recordings"))
-				_, err := os.Stat(filepath.Join(f.dir, "録画.m2ts"))
-				require.NoError(t, err, "the file is kept")
+				for _, path := range []string{"録画.m2ts", "録画.mp4"} {
+					_, err := os.Stat(filepath.Join(f.dir, path))
+					require.NoError(t, err, "%s is kept", path)
+				}
 				assert.Empty(t, f.actions(t, recordingID))
 
 				return
@@ -154,7 +158,7 @@ func TestDelete(t *testing.T) {
 			require.NoError(t, err)
 			assert.Zero(t, f.count(t, "SELECT count(*) FROM recordings"))
 			assert.Zero(t, f.count(t, "SELECT count(*) FROM recording_files"))
-			for _, path := range []string{"録画.m2ts", "録画.m2ts.kotatsu"} {
+			for _, path := range []string{"録画.m2ts", "録画.m2ts.kotatsu", "録画.mp4"} {
 				_, err := os.Stat(filepath.Join(f.dir, path))
 				require.ErrorIs(t, err, fs.ErrNotExist, path)
 			}

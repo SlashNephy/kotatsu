@@ -77,6 +77,8 @@ type Querier interface {
 	GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error)
 	GetGuideProgram(ctx context.Context, arg GetGuideProgramParams) (GetGuideProgramRow, error)
 	GetGuideView(ctx context.Context, arg GetGuideViewParams) (GuideView, error)
+	// 取り込み元のデータを、既に取り込んだかどうか。取り込んでいれば、作った行の ID を返す。
+	GetImportedTarget(ctx context.Context, arg GetImportedTargetParams) (uuid.UUID, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
 	GetLoginChallengeForUpdate(ctx context.Context, arg GetLoginChallengeForUpdateParams) (LoginChallenge, error)
 	GetLoginThrottles(ctx context.Context, throttleKeys []string) ([]LoginThrottle, error)
@@ -118,6 +120,11 @@ type Querier interface {
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
 	InsertEPGChange(ctx context.Context, arg InsertEPGChangeParams) error
 	InsertGuideView(ctx context.Context, arg InsertGuideViewParams) error
+	InsertImportSource(ctx context.Context, arg InsertImportSourceParams) error
+	// 取り込んだ、録画を終えた録画を記録する。予約とは結び付けない。
+	InsertImportedRecording(ctx context.Context, arg InsertImportedRecordingParams) error
+	// 取り込んだ録画のファイルを記録する。書き終えたファイルなので、大きさと終わりも記録する。
+	InsertImportedRecordingFile(ctx context.Context, arg InsertImportedRecordingFileParams) error
 	InsertLoginChallenge(ctx context.Context, arg InsertLoginChallengeParams) error
 	InsertNotificationEvent(ctx context.Context, arg InsertNotificationEventParams) error
 	// イベント event_id を、ユーザー user_ids に配る。ids と user_ids は同じ順に並べる。
@@ -210,6 +217,8 @@ type Querier interface {
 	ListReservationsToFollow(ctx context.Context, now time.Time) ([]ListReservationsToFollowRow, error)
 	ListRules(ctx context.Context) ([]Rule, error)
 	ListRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rule, error)
+	// 取り込むデータが参照するサービスが、Kotatsu にあるかを確かめるのに使う。
+	ListServiceIDs(ctx context.Context) ([]int64, error)
 	ListServices(ctx context.Context) ([]ListServicesRow, error)
 	ListStoragePools(ctx context.Context) ([]StoragePool, error)
 	// タグを、付いている録画の数と一緒に、名前の順で返す。

@@ -55,6 +55,14 @@ type GuideView struct {
 	UpdatedAt         time.Time
 }
 
+type ImportSource struct {
+	Source    string
+	Kind      string
+	SourceID  int64
+	TargetID  uuid.UUID
+	CreatedAt time.Time
+}
+
 type Instance struct {
 	ID          uuid.UUID
 	Role        string
