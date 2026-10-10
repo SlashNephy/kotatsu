@@ -165,6 +165,18 @@ type ProgramArchive struct {
 	ArchivedAt            time.Time
 }
 
+type RecordingAssignment struct {
+	ID             uuid.UUID
+	ReservationID  uuid.UUID
+	Priority       int32
+	State          string
+	Generation     int64
+	Holder         *uuid.UUID
+	LeaseExpiresAt *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type RecordingHistory struct {
 	ID        uuid.UUID
 	ServiceID int64

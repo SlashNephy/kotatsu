@@ -43,6 +43,9 @@ type Querier interface {
 	DeleteStaleInstances(ctx context.Context, before time.Time) (int64, error)
 	// 数え直す時間を過ぎ、待たせてもいない行を消す。存在しないユーザー名や IP の行が溜まり続けないようにする。
 	DeleteStaleLoginThrottles(ctx context.Context, arg DeleteStaleLoginThrottlesParams) (int64, error)
+	// まだ mikan が取っていない割り振りのうち、録画しなくなった予約のものを消す。
+	// 予約を無効にしたか、割り当てを計算し直す前の状態に戻ったか、予定の開始が due_before より後に動いたもの。
+	DeleteStaleRecordingAssignments(ctx context.Context, dueBefore time.Time) (int64, error)
 	DeleteTOTPEnrollment(ctx context.Context, userID uuid.UUID) error
 	DeleteTuners(ctx context.Context) error
 	DeleteUserPasskey(ctx context.Context, arg DeleteUserPasskeyParams) (int64, error)
@@ -94,6 +97,7 @@ type Querier interface {
 	InsertOIDCLogin(ctx context.Context, arg InsertOIDCLoginParams) error
 	// 同じ番組の予約がすでにあれば何もしない。そのときは行を返さない。
 	InsertProgramReservation(ctx context.Context, arg InsertProgramReservationParams) (uuid.UUID, error)
+	InsertRecordingAssignment(ctx context.Context, arg InsertRecordingAssignmentParams) error
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
 	// イベントリレーの引き継ぎ先の番組予約を、番組情報をコピーして作る。引き継ぎ先の予約がすでにあれば何もせず、行を返さない。
 	InsertRelayedReservation(ctx context.Context, arg InsertRelayedReservationParams) (uuid.UUID, error)
@@ -117,6 +121,8 @@ type Querier interface {
 	ListChangeVersions(ctx context.Context, channels []string) ([]ListChangeVersionsRow, error)
 	ListChannelTypes(ctx context.Context) ([]ChannelType, error)
 	ListChannelTypesByTypes(ctx context.Context, types []string) ([]ChannelType, error)
+	// 割り振りを書く予約。有効で、チューナーの割り当てを計算済みで、予定の開始が due_before までに来て、まだ終わっておらず、割り振りのないもの。
+	ListDueReservations(ctx context.Context, arg ListDueReservationsParams) ([]ListDueReservationsRow, error)
 	ListEPGChangesSince(ctx context.Context, version int64) ([]ListEPGChangesSinceRow, error)
 	// ルール予約の録画設定に使う、一致したルールのうち最も古いものの上書き。
 	ListFirstRuleSettings(ctx context.Context, reservationIds []uuid.UUID) ([]ListFirstRuleSettingsRow, error)
@@ -145,6 +151,7 @@ type Querier interface {
 	// 時間帯 [from, to) に重なる番組。
 	ListProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]ListProgramsInRangeRow, error)
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
+	ListRecordingAssignments(ctx context.Context) ([]RecordingAssignment, error)
 	// 予約に一致したルール。ルールを作った順に返す。
 	ListReservationRules(ctx context.Context, reservationIds []uuid.UUID) ([]ReservationRule, error)
 	// 時間帯 [from, to) に重なる予約を、開始時刻の順に返す。(after_start_at, after_id) より後ろから limit 件読む。
@@ -234,6 +241,8 @@ type Querier interface {
 	UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, error)
 	UpdateSystemSettings(ctx context.Context, arg UpdateSystemSettingsParams) (SystemSetting, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
+	// まだ mikan が取っていない割り振りの優先度を、予約の今の割り当ての状態に合わせる。
+	UpdateWaitingRecordingPriorities(ctx context.Context, arg UpdateWaitingRecordingPrioritiesParams) (int64, error)
 	UpdateWebhook(ctx context.Context, arg UpdateWebhookParams) (Webhook, error)
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error

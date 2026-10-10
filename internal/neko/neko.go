@@ -20,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/epg"
 	"github.com/SlashNephy/kotatsu/internal/lease"
+	"github.com/SlashNephy/kotatsu/internal/recording"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/settings"
@@ -56,12 +57,14 @@ type Options struct {
 	Assign *assign.RunnerOptions
 	// Follow は、番組の変更への追従の設定。nil なら既定値を使う。
 	Follow *reserve.FollowerOptions
+	// Recording は、録画の割り振りの設定。nil なら既定値を使う。
+	Recording *recording.SchedulerOptions
 }
 
 // Run は、ctx が終わるまでリースを取り合い、リーダーになっている間だけ neko の処理を動かす。
 // リーダーの間は、EPG を同期し (設計書 3.3)、放送が終わった番組をアーカイブに移し (設計書 3.4)、
 // チューナーの構成とチューナーサーバーの状態を把握し (設計書 3.6、3.7)、ルールから予約を作り (設計書 4.3)、
-// 予約をチューナーに割り当て (設計書 4.5)、番組の変更に予約を追従させる (設計書 4.6)。DB への書き込みは、その世代のリースを持っている間だけ通す。
+// 予約をチューナーに割り当て (設計書 4.5)、番組の変更に予約を追従させ (設計書 4.6)、録画を mikan に割り振る (設計書 1.5)。DB への書き込みは、その世代のリースを持っている間だけ通す。
 func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 	manager := lease.NewManager(opts.DB, opts.Clock, LeaseName, opts.InstanceID, LeaseTTL)
 	elector, err := lease.NewElector(manager, logger, RenewInterval)
@@ -119,6 +122,11 @@ func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 			runner := assign.NewRunner(opts.DB, opts.Clock, assign.Guard(guard), logger.With(slog.String("component", "assign")), defaults, opts.Assign)
 
 			return runner.Run(ctx)
+		})
+		eg.Go(func() error {
+			scheduler := recording.NewScheduler(opts.DB, opts.Clock, recording.Guard(guard), logger.With(slog.String("component", "recording")), opts.Recording)
+
+			return scheduler.Run(ctx)
 		})
 		if opts.Tuner == nil {
 			logger.WarnContext(ctx, "tuner server is not configured; EPG sync and tuner monitoring are disabled")

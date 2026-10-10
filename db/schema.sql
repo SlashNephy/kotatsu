@@ -466,6 +466,23 @@ CREATE TABLE reservations (
   CONSTRAINT reservations_time_check CHECK (start_at < end_at)
 );
 
+-- 録画の mikan への割り振り (設計書 1.5)。neko が録画開始の少し前に書き、mikan が行をロックして取り、リースを延長しながら録画する。
+CREATE TABLE recording_assignments (
+  id uuid PRIMARY KEY,
+  reservation_id uuid NOT NULL UNIQUE REFERENCES reservations (id) ON DELETE CASCADE,
+  -- チューナーサーバーに渡す優先度 (設計書 1.6)。競合すると判定された録画は低くする。
+  priority integer NOT NULL,
+  -- 状態は、mikan を待つ (waiting)、録画中 (recording)、引き継ぎ待ち (handover)、終わった (finished) のどれか。
+  state text NOT NULL CHECK (state IN ('waiting', 'recording', 'handover', 'finished')),
+  -- mikan が取るたびに上げる世代番号。古い mikan は、リースの延長に失敗した時点で書き込みをやめる。
+  generation bigint NOT NULL,
+  -- 担当の mikan のインスタンスと、リースの期限。誰も取っていなければ NULL。
+  holder uuid,
+  lease_expires_at timestamptz,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
 -- 1 つの番組に対する予約は、常に 1 件だけにする (設計書 4.1)。
 -- 番組は programs と同じく (サービス, eventId) で識別するので、放送時間が変わっても同じ予約のままになる。
 -- 放送が終わった番組の予約は、録画の状態遷移 (#28) で片付け、EID の再利用で新しい番組を予約できなくならないようにする。
