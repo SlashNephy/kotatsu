@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/jackc/pgx/v5"
 
@@ -227,7 +226,8 @@ func (l *Logins) requireNoSecondFactor(ctx context.Context, tx pgx.Tx, row *sqlc
 	if err != nil {
 		return err
 	}
-	if slices.Contains(methods, SecondFactorTOTP) {
+	// どの種類でも、第二要素があれば、パスワードを知っているだけで登録させない。
+	if len(methods) > 0 {
 		return ErrSecondFactorEnrolled
 	}
 
