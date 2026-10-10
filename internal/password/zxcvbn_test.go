@@ -20,8 +20,7 @@ const testStrengthTimeout = 10 * time.Minute
 func TestEstimateMatchesNode(t *testing.T) {
 	t.Parallel()
 
-	estimator, err := password.NewEstimator(testStrengthTimeout)
-	require.NoError(t, err)
+	estimator := password.NewEstimator(testStrengthTimeout)
 
 	tests := []struct {
 		phrase       string
@@ -60,8 +59,7 @@ func TestEstimateMatchesNode(t *testing.T) {
 func TestEstimateLimits(t *testing.T) {
 	t.Parallel()
 
-	estimator, err := password.NewEstimator(testStrengthTimeout)
-	require.NoError(t, err)
+	estimator := password.NewEstimator(testStrengthTimeout)
 
 	// 上限より長い入力は、VM に渡さずに十分強いとみなす。
 	got, err := estimator.Estimate(t.Context(), strings.Repeat("a", password.MaxStrengthInput+1), nil)

@@ -58,7 +58,7 @@ func (e *RejectedError) Unwrap() error {
 // Policy は、パスワードの規定 (設計書 9.3)。
 type Policy struct {
 	blocklist map[string]struct{}
-	estimator *Estimator
+	estimator StrengthEstimator
 	// hibp は、Have I Been Pwned への照会。nil なら照会しない。
 	hibp   *HIBP
 	logger *slog.Logger
@@ -70,7 +70,10 @@ type PolicyOptions struct {
 	HIBP *HIBP
 	// StrengthTimeout は、zxcvbn-ts の 1 回の判定の時間の上限。0 なら DefaultStrengthTimeout にする。
 	StrengthTimeout time.Duration
-	Logger          *slog.Logger
+	// Estimator は、強度を判定するもの。nil なら zxcvbn-ts で判定する。
+	// zxcvbn-ts は -race で 1 回に数十秒かかるので、強度の判定そのものを確かめないテストで差し替える。
+	Estimator StrengthEstimator
+	Logger    *slog.Logger
 }
 
 // NewPolicy は、埋め込んだブロックリストと zxcvbn-ts を読み込んで Policy を返す。
@@ -79,9 +82,9 @@ func NewPolicy(opts *PolicyOptions) (*Policy, error) {
 	if err != nil {
 		return nil, err
 	}
-	estimator, err := NewEstimator(opts.StrengthTimeout)
-	if err != nil {
-		return nil, err
+	estimator := opts.Estimator
+	if estimator == nil {
+		estimator = NewEstimator(opts.StrengthTimeout)
 	}
 
 	logger := opts.Logger

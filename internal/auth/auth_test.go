@@ -15,7 +15,23 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/password"
+	"github.com/SlashNephy/kotatsu/internal/password/passwordtest"
 )
+
+// newTestPolicy は、パスワードの規定を返す。強度の判定は、-race で遅い zxcvbn-ts の代わりに、
+// 決まったパスワード (kotatsukotatsu) と、ユーザー名を含むパスワードを弱いとみなすものに差し替える。
+// zxcvbn-ts での判定は、password パッケージのテストで確かめる。
+func newTestPolicy(t *testing.T) *password.Policy {
+	t.Helper()
+
+	policy, err := password.NewPolicy(&password.PolicyOptions{
+		HIBP: nil, StrengthTimeout: 0, Estimator: passwordtest.NewEstimator("kotatsukotatsu"), Logger: slog.New(slog.DiscardHandler),
+	})
+	require.NoError(t, err)
+
+	return policy
+}
 
 func testNow() time.Time {
 	return time.Date(2026, 10, 9, 21, 0, 0, 0, time.UTC)

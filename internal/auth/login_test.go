@@ -329,11 +329,9 @@ func TestSetPassword(t *testing.T) {
 			t.Parallel()
 
 			f := newLoginFixture(t)
-			policy, err := password.NewPolicy(&password.PolicyOptions{HIBP: nil, StrengthTimeout: 10 * time.Minute, Logger: slog.New(slog.DiscardHandler)})
-			require.NoError(t, err)
-			passwords := auth.NewPasswords(f.clock, audit.NewRecorder(f.clock), policy)
+			passwords := auth.NewPasswords(f.clock, audit.NewRecorder(f.clock), newTestPolicy(t))
 
-			err = passwords.Set(t.Context(), f.db, audit.System("cli"), f.user.ID, tt.phrase)
+			err := passwords.Set(t.Context(), f.db, audit.System("cli"), f.user.ID, tt.phrase)
 			if tt.want != "" {
 				rejected, ok := errors.AsType[*password.RejectedError](err)
 				require.True(t, ok, "got %v", err)
@@ -352,9 +350,8 @@ func TestSetPassword(t *testing.T) {
 	}
 
 	f := newLoginFixture(t)
-	policy, err := password.NewPolicy(&password.PolicyOptions{HIBP: nil, StrengthTimeout: 10 * time.Minute, Logger: slog.New(slog.DiscardHandler)})
-	require.NoError(t, err)
-	_, err = auth.UserIDByUsername(t.Context(), f.db, "nobody")
+	policy := newTestPolicy(t)
+	_, err := auth.UserIDByUsername(t.Context(), f.db, "nobody")
 	require.ErrorIs(t, err, auth.ErrUserNotFound)
 	err = auth.NewPasswords(f.clock, audit.NewRecorder(f.clock), policy).Set(t.Context(), f.db, audit.System("cli"), id.New(), loginPhrase)
 	require.ErrorIs(t, err, auth.ErrUserNotFound)

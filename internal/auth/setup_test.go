@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -38,9 +37,7 @@ func newSetupFixture(t *testing.T) *setupFixture {
 	t.Helper()
 
 	clk := clocktest.NewFake(testNow())
-	// -race の CI では、パスワードの強度の判定が遅くなる。
-	policy, err := password.NewPolicy(&password.PolicyOptions{HIBP: nil, StrengthTimeout: 10 * time.Minute, Logger: slog.New(slog.DiscardHandler)})
-	require.NoError(t, err)
+	policy := newTestPolicy(t)
 
 	return &setupFixture{
 		db:     newDB(t),

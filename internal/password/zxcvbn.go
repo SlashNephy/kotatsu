@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -44,19 +45,34 @@ type Strength struct {
 	Suggestions  []string `json:"suggestions"`
 }
 
-// Estimator は、パスワードの強度を zxcvbn-ts で判定する (設計書 2.2)。
-type Estimator struct {
-	// program は、バンドルを解凍してコンパイルしたもの。VM をまたいで使い回せる。
-	program *goja.Program
-	timeout time.Duration
+// StrengthEstimator は、パスワードの強度を判定するもの。
+type StrengthEstimator interface {
+	Estimate(ctx context.Context, password string, userInputs []string) (*Strength, error)
 }
 
-// NewEstimator は、埋め込んだバンドルをコンパイルして Estimator を返す。
+var _ StrengthEstimator = new(Estimator)
+
+// Estimator は、パスワードの強度を zxcvbn-ts で判定する (設計書 2.2)。
+type Estimator struct {
+	timeout time.Duration
+
+	// compile は、バンドルを解凍してコンパイルする。最初に判定するときに 1 回だけ行う。
+	// 起動のたびにコンパイルすると、パスワードを扱わないロールまで起動が遅くなるからである。
+	compile func() (*goja.Program, error)
+}
+
+// NewEstimator は Estimator を返す。埋め込んだバンドルは、最初に判定するときにコンパイルする。
 // timeout は 1 回の判定の時間の上限で、0 なら DefaultStrengthTimeout にする。
-func NewEstimator(timeout time.Duration) (*Estimator, error) {
+func NewEstimator(timeout time.Duration) *Estimator {
 	if timeout <= 0 {
 		timeout = DefaultStrengthTimeout
 	}
+
+	return &Estimator{timeout: timeout, compile: sync.OnceValues(compileBundle)}
+}
+
+// compileBundle は、埋め込んだバンドルを解凍してコンパイルする。コンパイルしたものは、VM をまたいで使い回せる。
+func compileBundle() (*goja.Program, error) {
 	r, err := gzip.NewReader(bytes.NewReader(zxcvbnBundle))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the zxcvbn bundle: %w", err)
@@ -70,7 +86,7 @@ func NewEstimator(timeout time.Duration) (*Estimator, error) {
 		return nil, fmt.Errorf("failed to compile the zxcvbn bundle: %w", err)
 	}
 
-	return &Estimator{program: program, timeout: timeout}, nil
+	return program, nil
 }
 
 // Estimate は、パスワードの強度を判定する。
@@ -88,6 +104,10 @@ func (e *Estimator) Estimate(ctx context.Context, password string, userInputs []
 	case len(userInputs) > maxUserInputs:
 		userInputs = userInputs[:maxUserInputs]
 	}
+	program, err := e.compile()
+	if err != nil {
+		return nil, err
+	}
 	input, err := json.Marshal(map[string]any{"password": password, "userInputs": userInputs})
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the strength input: %w", err)
@@ -101,7 +121,7 @@ func (e *Estimator) Estimate(ctx context.Context, password string, userInputs []
 	})
 	defer stop()
 
-	if _, err := vm.RunProgram(e.program); err != nil {
+	if _, err := vm.RunProgram(program); err != nil {
 		return nil, interrupted(err, "failed to load zxcvbn")
 	}
 	check, ok := goja.AssertFunction(vm.Get("kotatsuCheckStrength"))
