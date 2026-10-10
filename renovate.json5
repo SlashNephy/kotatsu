@@ -3,7 +3,31 @@
   extends: [
     'local>SlashNephy/renovate-config',
   ],
+  packageRules: [
+    {
+      // wasm-bindgen の CLI は、mpeg2toh264 の Cargo.lock の wasm-bindgen と同じ版でないと使えない。
+      // mpeg2toh264 の commit を上げるときに、合わせて手で上げる。
+      matchFileNames: [
+        'mise.mpeg2toh264.toml',
+      ],
+      matchDepNames: [
+        '/wasm-bindgen/',
+      ],
+      enabled: false,
+    },
+  ],
   customManagers: [
+    {
+      // ブラウザ内での変換に使う mpeg2toh264 の commit (設計書 7.2)。更新したら、mise run web:mpeg2toh264 でビルドし直す。
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^web/vendor/mpeg2toh264/SOURCE$/',
+      ],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) currentValue=(?<currentValue>\\S+)\\ncommit=(?<currentDigest>[0-9a-f]{40})',
+      ],
+      autoReplaceStringTemplate: '# renovate: datasource={{{datasource}}} depName={{{depName}}} currentValue={{{currentValue}}}\ncommit={{{newDigest}}}',
+    },
     {
       // atlas.hcl の開発用 DB のイメージ。
       customType: 'regex',

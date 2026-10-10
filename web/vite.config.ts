@@ -73,7 +73,8 @@ export default defineConfig({
   },
   fmt: {
     singleQuote: true,
-    ignorePatterns: ['src/routeTree.gen.ts', 'schema.graphql', '**/__generated__/**'],
+    // vendor/ は、上流のソースからビルドした成果物なので、整形しない (scripts/build-mpeg2toh264.sh)。
+    ignorePatterns: ['src/routeTree.gen.ts', 'schema.graphql', '**/__generated__/**', 'vendor/**'],
   },
   lint: {
     ignorePatterns: [
@@ -81,6 +82,7 @@ export default defineConfig({
       'dist/**',
       'storybook-static/**',
       '**/__generated__/**',
+      'vendor/**',
     ],
     options: {
       typeAware: true,

@@ -179,6 +179,12 @@ importers:
       '@mantine/hooks':
         specifier: 9.7.1
         version: 9.7.1(react@19.3.0)
+      '@mpeg2toh264/player':
+        specifier: workspace:*
+        version: link:vendor/mpeg2toh264/player
+      '@mpeg2toh264/yadif':
+        specifier: workspace:*
+        version: link:vendor/mpeg2toh264/yadif
       '@simplewebauthn/browser':
         specifier: 14.0.0
         version: 14.0.0
@@ -306,6 +312,10 @@ importers:
       workbox-window:
         specifier: 7.4.1
         version: 7.4.1
+
+  vendor/mpeg2toh264/player: {}
+
+  vendor/mpeg2toh264/yadif: {}
 
 packages:
 
