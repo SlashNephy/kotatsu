@@ -19,7 +19,7 @@ import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
 import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
 import { broadcastDay } from '../../guide/layout';
 import { ProgramDetail } from '../../guide/ProgramDetail';
-import { isUnauthenticated } from '../../relay/environment';
+import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { guideQuery } from './__generated__/guideQuery.graphql';
 
 type GuideSearch = {
@@ -64,16 +64,32 @@ function dateOf(time: number): string {
 
 function GuidePage() {
   const { t } = useTranslation();
+  const navigate = useNavigate({ from: '/guide/' });
+  const { view } = Route.useSearch();
 
   return (
     <Stack gap="sm">
       <Title order={2}>{t('guide.title')}</Title>
+      {/* ビューを外したら、エラーの表示を消して読み直す。 */}
       <ErrorBoundary
+        key={view ?? ''}
         fallback={(error) =>
           isUnauthenticated(error) ? (
             <Alert color="amber">
               <Anchor component={Link} to="/login">
                 {t('guide.signedOut')}
+              </Anchor>
+            </Alert>
+          ) : view !== undefined && graphQLErrorDetails(error).code === 'NOT_FOUND' ? (
+            // 消したビューのリンクを開いたときは、ビューを外して開き直せるようにする。
+            <Alert color="amber">
+              {t('guide.view.notFound')}{' '}
+              <Anchor
+                component="button"
+                type="button"
+                onClick={() => void navigate({ search: (prev) => ({ ...prev, view: undefined }) })}
+              >
+                {t('guide.view.showAll')}
               </Anchor>
             </Alert>
           ) : (
@@ -166,7 +182,8 @@ function Guide() {
       to: new Date(window.to).toISOString(),
       view: search.view ?? null,
     },
-    { fetchKey, fetchPolicy: fetchKey === 0 ? 'store-or-network' : 'network-only' },
+    // fetchKey が変わると、Relay は fetchPolicy によらず取り直す。
+    { fetchKey, fetchPolicy: 'store-or-network' },
   );
   const currentView = data.guideViews.find((view) => view.id === search.view);
 
@@ -239,7 +256,8 @@ function Guide() {
           <Select
             size="xs"
             aria-label={t('guide.view.label')}
-            value={currentView?.id ?? ''}
+            // URL のビューが消えていても、「すべての番組」を選び直して外せるよう、URL の値をそのまま使う。
+            value={search.view ?? ''}
             onChange={(value) =>
               void navigate({
                 search: (prev) => ({

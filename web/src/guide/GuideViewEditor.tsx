@@ -99,6 +99,10 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    // 空白だけの名前は、Enter で送られても保存しない。
+    if (name.trim() === '') {
+      return;
+    }
     setError(null);
     const input = {
       name: name.trim(),
@@ -197,7 +201,13 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
           )}
           <Group justify="space-between">
             {view.id !== undefined ? (
-              <Button color="red" variant="subtle" onClick={deleteView} loading={removing}>
+              <Button
+                type="button"
+                color="red"
+                variant="subtle"
+                onClick={deleteView}
+                loading={removing}
+              >
                 {t('guide.view.delete')}
               </Button>
             ) : (
