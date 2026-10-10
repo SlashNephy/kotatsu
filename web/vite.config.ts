@@ -28,6 +28,8 @@ export default defineConfig({
         // 外枠だけを対象にする。見出しのフォントは、unicode-range ごとに 100 以上のファイルに分かれて
         // 3 MB ほどになるので含めない。オフラインでは、見出しもシステムフォントで出る。
         globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
+        // パスワードの強度の判定の辞書 (2 MB ほど) は、セットアップとパスワードの変更でしか使わないので含めない。
+        globIgnores: ['**/zxcvbn-*.js'],
       },
       manifest: {
         name: 'Kotatsu',

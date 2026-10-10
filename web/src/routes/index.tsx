@@ -1,9 +1,10 @@
-import { Alert, Card, Stack, Text, Title } from '@mantine/core';
-import { createFileRoute } from '@tanstack/react-router';
-import { Suspense, useMemo, useState } from 'react';
+import { Alert, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useSubscription } from 'react-relay';
 
+import { authApi } from '../auth/api';
 import { ErrorBoundary } from '../futon';
 import { isUnauthenticated } from '../relay/environment';
 import type { routesHeartbeatSubscription } from './__generated__/routesHeartbeatSubscription.graphql';
@@ -21,16 +22,16 @@ function Home() {
       <Title order={2}>{t('app.name')}</Title>
       <Text>{t('app.tagline')}</Text>
       <ErrorBoundary
-        fallback={(error) => (
+        fallback={(error) =>
           // オフラインでも、Service Worker が外枠を返すので、ここまでは表示される。
-          <Alert color="amber">
-            {!navigator.onLine
-              ? t('viewer.offline')
-              : isUnauthenticated(error)
-                ? t('viewer.signedOut')
-                : t('viewer.error')}
-          </Alert>
-        )}
+          !navigator.onLine ? (
+            <Alert color="amber">{t('viewer.offline')}</Alert>
+          ) : isUnauthenticated(error) ? (
+            <SignedOut />
+          ) : (
+            <Alert color="amber">{t('viewer.error')}</Alert>
+          )
+        }
       >
         <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
           <Viewer />
@@ -38,6 +39,20 @@ function Home() {
       </ErrorBoundary>
     </Stack>
   );
+}
+
+// SignedOut は、ログインしていないときに、初回セットアップかログインの画面に移る (設計書 9.2)。
+function SignedOut() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    authApi.setupStatus().then(
+      (status) => navigate({ to: status.required ? '/setup' : '/login' }),
+      () => navigate({ to: '/login' }),
+    );
+  }, [navigate]);
+
+  return <Text c="dimmed">{t('viewer.signedOut')}</Text>;
 }
 
 function Viewer() {
@@ -56,7 +71,18 @@ function Viewer() {
 
   return (
     <Card withBorder>
-      <Text>{t('viewer.greeting', { name: data.viewer.displayName })}</Text>
+      <Group justify="space-between">
+        <Text>{t('viewer.greeting', { name: data.viewer.displayName })}</Text>
+        <Button
+          variant="subtle"
+          size="xs"
+          onClick={() => {
+            void authApi.logout().then(() => window.location.assign('/login'));
+          }}
+        >
+          {t('auth.logout')}
+        </Button>
+      </Group>
       <Heartbeat />
     </Card>
   );
