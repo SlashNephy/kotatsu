@@ -25,6 +25,24 @@ func (q *Queries) DeleteExpiredLoginChallenges(ctx context.Context, now time.Tim
 	return result.RowsAffected(), nil
 }
 
+const deleteStaleLoginThrottles = `-- name: DeleteStaleLoginThrottles :execrows
+DELETE FROM login_throttles WHERE last_failed_at < $1 AND locked_until <= $2
+`
+
+type DeleteStaleLoginThrottlesParams struct {
+	ResetBefore time.Time
+	Now         time.Time
+}
+
+// 数え直す時間を過ぎ、待たせてもいない行を消す。存在しないユーザー名や IP の行が溜まり続けないようにする。
+func (q *Queries) DeleteStaleLoginThrottles(ctx context.Context, arg DeleteStaleLoginThrottlesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteStaleLoginThrottles, arg.ResetBefore, arg.Now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getLoginThrottles = `-- name: GetLoginThrottles :many
 SELECT key, failures, locked_until, last_failed_at FROM login_throttles WHERE key = ANY($1::text[])
 `

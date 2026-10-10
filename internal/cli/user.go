@@ -45,7 +45,11 @@ func newUserCommand(opts *Options, connect func(ctx context.Context) (*config.Co
 			line, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
 			secret := strings.TrimRight(line, "\r\n")
 			if secret == "" {
-				return fmt.Errorf("%w: %w", errPasswordRequired, err)
+				if err != nil {
+					return fmt.Errorf("%w: %w", errPasswordRequired, err)
+				}
+
+				return errPasswordRequired
 			}
 
 			cfg, pool, err := connect(cmd.Context())

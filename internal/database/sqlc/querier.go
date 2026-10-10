@@ -32,6 +32,8 @@ type Querier interface {
 	DeleteReservationRule(ctx context.Context, arg DeleteReservationRuleParams) error
 	DeleteRule(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteStaleInstances(ctx context.Context, before time.Time) (int64, error)
+	// 数え直す時間を過ぎ、待たせてもいない行を消す。存在しないユーザー名や IP の行が溜まり続けないようにする。
+	DeleteStaleLoginThrottles(ctx context.Context, arg DeleteStaleLoginThrottlesParams) (int64, error)
 	DeleteTuners(ctx context.Context) error
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
 	// 種別が無ければ既定値で足す。管理者が変えた表示名と並び順は上書きしない。

@@ -189,6 +189,23 @@ func TestPasswordLoginThrottlesByIP(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestStaleLoginThrottlesAreDeleted は、数え直す時間を過ぎた制限の行が、次の失敗のときに消えることを確かめる。
+// 存在しないユーザー名の行は、成功で消えることがないので、溜まり続けないようにする。
+func TestStaleLoginThrottlesAreDeleted(t *testing.T) {
+	t.Parallel()
+
+	f := newLoginFixture(t)
+	_, _, err := f.logins.Password(t.Context(), f.db, "nobody", "x", f.client)
+	require.ErrorIs(t, err, auth.ErrInvalidCredentials)
+	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM login_throttles WHERE key = 'account:nobody'"))
+
+	f.clock.Advance(25 * time.Hour)
+	_, _, err = f.logins.Password(t.Context(), f.db, "someone", "x", f.client)
+	require.ErrorIs(t, err, auth.ErrInvalidCredentials)
+	assert.Zero(t, f.count(t, "SELECT count(*) FROM login_throttles WHERE key = 'account:nobody'"))
+	assert.Equal(t, 1, f.count(t, "SELECT failures FROM login_throttles WHERE key = 'ip:192.168.1.10'"))
+}
+
 // TestPasswordLoginRehashes は、古いパラメーターのハッシュでログインすると、今のパラメーターで作り直すことを確かめる。
 func TestPasswordLoginRehashes(t *testing.T) {
 	t.Parallel()

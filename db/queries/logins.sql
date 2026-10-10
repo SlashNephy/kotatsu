@@ -28,3 +28,7 @@ VALUES (@id, @token_hash, @user_id, @created_at, @expires_at, @user_agent, @sour
 
 -- name: DeleteExpiredLoginChallenges :execrows
 DELETE FROM login_challenges WHERE expires_at <= @now;
+
+-- name: DeleteStaleLoginThrottles :execrows
+-- 数え直す時間を過ぎ、待たせてもいない行を消す。存在しないユーザー名や IP の行が溜まり続けないようにする。
+DELETE FROM login_throttles WHERE last_failed_at < @reset_before AND locked_until <= @now;

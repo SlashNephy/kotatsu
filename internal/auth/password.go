@@ -15,6 +15,12 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/password"
 )
 
+// Database は、読み出しと、トランザクションでの書き込みに使う DB。*pgxpool.Pool が満たす。
+type Database interface {
+	sqlc.DBTX
+	Beginner
+}
+
 // Passwords は、ローカルアカウントのパスワードを設定する (設計書 9.3)。
 type Passwords struct {
 	clock    clock.Clock
@@ -30,25 +36,30 @@ func NewPasswords(clk clock.Clock, recorder audit.Recorder, policy *password.Pol
 // Set は、パスワードが規定を満たすかを確かめ、Argon2id でハッシュ化して保存する。
 // 規定を満たさなければ、*password.RejectedError を返す。
 // ユーザー名と表示名は、パスワードに含まれると推測しやすい語として、強度の判定に渡す。
-func (p *Passwords) Set(ctx context.Context, db Beginner, actor *audit.Actor, userID uuid.UUID, secret string) error {
+func (p *Passwords) Set(ctx context.Context, db Database, actor *audit.Actor, userID uuid.UUID, secret string) error {
+	// 強度の判定、Have I Been Pwned への照会、ハッシュ化は時間がかかるので、トランザクションの外で行う。
+	user, err := sqlc.New(db).GetUser(ctx, userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("%w: %s", ErrUserNotFound, userID)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get the user: %w", err)
+	}
+	if err := p.policy.Check(ctx, secret, []string{user.Username, user.DisplayName}); err != nil {
+		return err
+	}
+	encoded, err := password.Hash(secret)
+	if err != nil {
+		return err
+	}
+
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		q := sqlc.New(tx)
-		user, err := q.GetUser(ctx, userID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return fmt.Errorf("%w: %s", ErrUserNotFound, userID)
-		}
+		n, err := sqlc.New(tx).SetUserPassword(ctx, sqlc.SetUserPasswordParams{ID: userID, PasswordHash: &encoded, Now: p.clock.Now()})
 		if err != nil {
-			return fmt.Errorf("failed to get the user: %w", err)
-		}
-		if err := p.policy.Check(ctx, secret, []string{user.Username, user.DisplayName}); err != nil {
-			return err
-		}
-		encoded, err := password.Hash(secret)
-		if err != nil {
-			return err
-		}
-		if _, err := q.SetUserPassword(ctx, sqlc.SetUserPasswordParams{ID: userID, PasswordHash: &encoded, Now: p.clock.Now()}); err != nil {
 			return fmt.Errorf("failed to set the password: %w", err)
+		}
+		if n == 0 {
+			return fmt.Errorf("%w: %s", ErrUserNotFound, userID)
 		}
 
 		return p.recorder.Record(ctx, tx, &audit.Event{

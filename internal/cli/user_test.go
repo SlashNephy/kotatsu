@@ -55,7 +55,8 @@ func TestUserSetPassword(t *testing.T) {
 		wantErr  string
 	}{
 		{name: "weak password is rejected", username: adminUsername, stdin: "kotatsukotatsu\n", wantErr: "the password was rejected: too_weak"},
-		{name: "empty input", username: adminUsername, stdin: "", wantErr: "the password must be given on the standard input"},
+		{name: "empty input", username: adminUsername, stdin: "", wantErr: "the password must be given on the standard input: EOF"},
+		{name: "empty line", username: adminUsername, stdin: "\n", wantErr: "the password must be given on the standard input"},
 		{name: "unknown user", username: "nobody", stdin: "neko-to-mikan-no-fuyu-2026\n", wantErr: "user not found"},
 		{name: "strong password is set", username: "KOTATSU", stdin: "neko-to-mikan-no-fuyu-2026\n", wantOut: "set the password of KOTATSU\n"},
 	}

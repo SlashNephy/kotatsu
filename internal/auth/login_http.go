@@ -40,7 +40,7 @@ type loginErrorBody struct {
 //
 // パスワードを確かめると、第二要素の確認を待つトークンを Cookie (kotatsu_login) に入れて返す。
 // セッションは、第二要素を確かめるまで作らない。client は、リクエストから送信元を求める。
-func (l *Logins) PasswordHandler(db Beginner, sessions *Sessions, client func(*http.Request) *ClientInfo) http.Handler {
+func (l *Logins) PasswordHandler(db Database, sessions *Sessions, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", http.MethodPost)

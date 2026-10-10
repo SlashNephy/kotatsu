@@ -51,6 +51,8 @@ var (
 	ErrThrottled = errors.New("too many login attempts")
 )
 
+var _ error = new(ThrottledError)
+
 // ThrottledError は、次に試せるまでの時間を持つ、試行回数の制限のエラー。
 type ThrottledError struct {
 	RetryAfter time.Duration
@@ -136,49 +138,62 @@ func throttleKeys(username string, sourceIP netip.Addr) []string {
 //
 // 失敗は、アカウント単位と IP 単位で数え、続くと待ち時間を指数的に延ばす。
 // ユーザーがいなくても、パスワードの検証と同じだけ時間をかけ、ユーザー名が存在するかを推測させない。
-func (l *Logins) Password(ctx context.Context, db Beginner, username, secret string, client *ClientInfo) (string, *Challenge, error) {
+func (l *Logins) Password(ctx context.Context, db Database, username, secret string, client *ClientInfo) (string, *Challenge, error) {
 	now := l.clock.Now()
 	keys := throttleKeys(username, client.SourceIP)
 	if err := l.checkThrottle(ctx, db, keys, now); err != nil {
 		return "", nil, err
 	}
 
+	// パスワードの検証は CPU を使うので、トランザクションの外で行い、接続を長く占有しない。
+	user, err := sqlc.New(db).GetUserByUsername(ctx, username)
+	usable := err == nil && user.DisabledAt == nil && user.PasswordHash != nil
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", nil, fmt.Errorf("failed to get the user: %w", err)
+	}
+	verification := &password.Verification{OK: false, NeedsRehash: false}
+	if usable {
+		if verification, err = password.Verify(secret, *user.PasswordHash); err != nil {
+			return "", nil, err
+		}
+	} else if err := password.VerifyDummy(secret); err != nil {
+		return "", nil, err
+	}
+
+	if !verification.OK {
+		var userID *uuid.UUID
+		if usable {
+			userID = &user.ID
+		}
+		if err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+			return l.recordFailure(ctx, tx, keys, userID, username, client, now)
+		}); err != nil {
+			return "", nil, err
+		}
+
+		return "", nil, ErrInvalidCredentials
+	}
+
+	// ハッシュの作り直しも、トランザクションの外で計算しておく。
+	var rehashed *string
+	if verification.NeedsRehash {
+		encoded, err := password.Hash(secret)
+		if err != nil {
+			return "", nil, err
+		}
+		rehashed = &encoded
+	}
 	var (
 		token     string
 		challenge *Challenge
-		verified  bool
 	)
-	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		q := sqlc.New(tx)
-		user, err := q.GetUserByUsername(ctx, username)
-		if errors.Is(err, pgx.ErrNoRows) || (err == nil && (user.DisabledAt != nil || user.PasswordHash == nil)) {
-			if err := password.VerifyDummy(secret); err != nil {
-				return err
-			}
-
-			return l.recordFailure(ctx, tx, keys, nil, username, client, now)
-		}
-		if err != nil {
-			return fmt.Errorf("failed to get the user: %w", err)
-		}
-		verification, err := password.Verify(secret, *user.PasswordHash)
-		if err != nil {
-			return err
-		}
-		if !verification.OK {
-			return l.recordFailure(ctx, tx, keys, &user.ID, username, client, now)
-		}
-
-		verified = true
-		token, challenge, err = l.succeed(ctx, tx, &user, secret, verification.NeedsRehash, keys[0], client, now)
+	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		token, challenge, err = l.succeed(ctx, tx, &user, rehashed, keys[0], client, now)
 
 		return err
 	})
 	if err != nil {
 		return "", nil, err
-	}
-	if !verified {
-		return "", nil, ErrInvalidCredentials
 	}
 
 	return token, challenge, nil
@@ -219,6 +234,9 @@ func (l *Logins) recordFailure(
 	now time.Time,
 ) error {
 	q := sqlc.New(tx)
+	if _, err := q.DeleteStaleLoginThrottles(ctx, sqlc.DeleteStaleLoginThrottlesParams{ResetBefore: now.Add(-throttleReset), Now: now}); err != nil {
+		return fmt.Errorf("failed to delete stale login throttles: %w", err)
+	}
 	for _, key := range keys {
 		failures, err := q.RecordLoginFailure(ctx, sqlc.RecordLoginFailureParams{Key: key, Now: now, ResetBefore: now.Add(-throttleReset)})
 		if err != nil {
@@ -252,13 +270,12 @@ func (l *Logins) recordFailure(
 }
 
 // succeed は、アカウント単位の失敗の回数を消し、第二要素の確認を待つ Challenge を作る。
-// ハッシュのパラメーターが古ければ、今のパラメーターで作り直す。
+// rehashed が nil でなければ、今のパラメーターで作り直したハッシュに置き換える。
 func (l *Logins) succeed(
 	ctx context.Context,
 	tx pgx.Tx,
 	user *sqlc.User,
-	secret string,
-	needsRehash bool,
+	rehashed *string,
 	accountKey string,
 	client *ClientInfo,
 	now time.Time,
@@ -267,12 +284,8 @@ func (l *Logins) succeed(
 	if err := q.ResetLoginThrottle(ctx, accountKey); err != nil {
 		return "", nil, fmt.Errorf("failed to reset the login throttle: %w", err)
 	}
-	if needsRehash {
-		encoded, err := password.Hash(secret)
-		if err != nil {
-			return "", nil, err
-		}
-		if _, err := q.SetUserPassword(ctx, sqlc.SetUserPasswordParams{ID: user.ID, PasswordHash: &encoded, Now: now}); err != nil {
+	if rehashed != nil {
+		if _, err := q.SetUserPassword(ctx, sqlc.SetUserPasswordParams{ID: user.ID, PasswordHash: rehashed, Now: now}); err != nil {
 			return "", nil, fmt.Errorf("failed to rehash the password: %w", err)
 		}
 	}
@@ -308,7 +321,7 @@ func (l *Logins) succeed(
 		Action:     "user.password_verified",
 		TargetType: loginAuditTarget,
 		TargetID:   user.ID.String(),
-		Summary:    map[string]any{"rehashed": needsRehash},
+		Summary:    map[string]any{"rehashed": rehashed != nil},
 		SourceIP:   client.SourceIP,
 		UserAgent:  client.UserAgent,
 	})
