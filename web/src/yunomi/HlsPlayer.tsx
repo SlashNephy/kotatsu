@@ -1,5 +1,5 @@
 import type Hls from 'hls.js';
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 
 import classes from './TsPlayer.module.css';
 
@@ -31,6 +31,14 @@ export function HlsPlayer({
   onLoaded,
 }: Props) {
   const hlsRef = useRef<Hls | null>(null);
+  // hls は、作り終えた hls.js。作るのを待つ間に active が変わっても、作り終えてから読み込みを止められるようにする。
+  const [hls, setHls] = useState<Hls | null>(null);
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  // resume は、隠れる前に再生していたかどうか。利用者が止めていた録画は、戻っても止めたままにする。
+  const resume = useRef(true);
+  // loading は、hls.js がセグメントを読んでいるかどうか。読み込みを止めたり再開したりするのは、変わったときだけにする。
+  const loading = useRef(false);
   const handlers = useRef({ onError, onLoaded });
   handlers.current = { onError, onLoaded };
   // 読み始める位置は、読み直すときにだけ使う。位置が変わるたびに読み直さないよう、ref で渡す。
@@ -70,44 +78,57 @@ export function HlsPlayer({
       if (destroyed) {
         return;
       }
-      const hls = new HlsClass({ startPosition: live ? -1 : (start.current ?? -1) });
-      hls.on(HlsClass.Events.MANIFEST_PARSED, () => {
-        handlers.current.onLoaded?.();
-        void video.play().catch(() => {});
+      const instance = new HlsClass({
+        startPosition: live ? -1 : (start.current ?? -1),
+        // 隠れたまま開いた録画は、見えるまでセグメントを読まない。
+        autoStartLoad: activeRef.current,
       });
-      hls.on(HlsClass.Events.ERROR, (_event, data) => {
+      instance.on(HlsClass.Events.MANIFEST_PARSED, () => {
+        handlers.current.onLoaded?.();
+        if (activeRef.current) {
+          void video.play().catch(() => {});
+        }
+      });
+      instance.on(HlsClass.Events.ERROR, (_event, data) => {
         // 致命的でないエラーは、hls.js が読み直して回復する。
         if (data.fatal) {
           handlers.current.onError?.(new Error(`${data.type}: ${data.details}`));
         }
       });
-      hls.loadSource(url);
-      hls.attachMedia(video);
-      hlsRef.current = hls;
+      instance.loadSource(url);
+      instance.attachMedia(video);
+      hlsRef.current = instance;
+      loading.current = activeRef.current;
+      setHls(instance);
     });
 
     return () => {
       destroyed = true;
       hlsRef.current?.destroy();
       hlsRef.current = null;
+      setHls(null);
     };
   }, [videoRef, url, live, attached]);
 
   // 録画は、隠れている間は読み込みを止め、戻ったら同じ位置から続ける。
   useEffect(() => {
     const video = videoRef.current;
-    const hls = hlsRef.current;
-    if (live || video === null || hls === null) {
+    if (live || video === null || hls === null || active === loading.current) {
       return;
     }
+    loading.current = active;
     if (active) {
-      hls.startLoad(video.currentTime);
-      void video.play().catch(() => {});
+      // 一度も読んでいなければ、読み始める位置から読む。
+      hls.startLoad(video.readyState > 0 ? video.currentTime : (start.current ?? -1));
+      if (resume.current) {
+        void video.play().catch(() => {});
+      }
     } else {
+      resume.current = !video.paused;
       video.pause();
       hls.stopLoad();
     }
-  }, [videoRef, active, live]);
+  }, [videoRef, hls, active, live]);
 
   return <div ref={frameRef} className={classes.frame} />;
 }
