@@ -1,4 +1,4 @@
-h1:kNBhhIzSsOsM1mkwdf+zGAxi7w9OylkgoaYwxxXYRzM=
+h1:G6VEWjSvEmqD9kj4a5oCyaIciHQ06Ob3SW3aP5YVB/4=
 20261009102215_init.sql h1:djnv0wCljjLLAM5B5hIIhKRznUe+i3cP9cxgvQGM8xc=
 20261009105537_coordination.sql h1:4kuzfKBnc3dZixraSK3FOFkkX25e2X59okkh0iXnETo=
 20261009114515_audit_events.sql h1:5zL6ffLkLETRIkZis+kRS1SdjTlgdvLW4NNecIsxWQE=
@@ -23,3 +23,5 @@ h1:kNBhhIzSsOsM1mkwdf+zGAxi7w9OylkgoaYwxxXYRzM=
 20261010070138_add_notifications.sql h1:jJZmpVhjEzBaaUeHwpZ+97uXzxYkBSZT+L6KdXbGM8E=
 20261010071813_add_webhooks.sql h1:rDxHPs1EYGPK1xkdAHUeLG8CAVwlzB1L9EofnzjRnJM=
 20261010074717_add_user_setting_versions.sql h1:9De4OmrSFiGyrX8wR3lC+dRAeH3jOAAhsn6Uz1Vx84k=
+20261010082530_add_recording_assignments.sql h1:ADHiHPNVKOEyrpKxJY3g0bkiQQ8h1jbMA9Q2ie4zWZg=
+20261010083211_add_recordings.sql h1:QcDoY5fYGaZnB0OVKQ3Krl1e4+ZXaylPQjMMprUW2d4=

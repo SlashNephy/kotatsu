@@ -53,6 +53,11 @@ func New(mounts map[string]string, freeSpace FreeSpaceFunc) *Store {
 	return &Store{mounts: maps.Clone(mounts), freeSpace: freeSpace}
 }
 
+// PoolIDs は、このロールにマウントされているプールの ID を、昇順に返す。
+func (s *Store) PoolIDs() []string {
+	return slices.Sorted(maps.Keys(s.mounts))
+}
+
 // Path は、プール ID とプール内の相対パスから、このロールでのパスを返す。
 // 相対パスがプールの外を指すとき (絶対パスや .. を含むとき) は ErrInvalidPath を返す。
 func (s *Store) Path(poolID, rel string) (string, error) {
