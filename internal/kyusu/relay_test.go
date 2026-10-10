@@ -185,3 +185,43 @@ func TestRelayErrors(t *testing.T) {
 		})
 	}
 }
+
+// TestRecordingRelay は、録画の仮想 HLS を、書き方をそろえた録画の ID で kyusu に中継し、録画の ID でないものは中継しないことを確かめる。
+func TestRecordingRelay(t *testing.T) {
+	t.Parallel()
+
+	token, err := kyusu.NewToken(keyMaterial)
+	require.NoError(t, err)
+	recordingID := uuid.New().String()
+	tests := []struct {
+		name       string
+		id         string
+		wantStatus int
+		wantPaths  []string
+	}{
+		{
+			name: "録画の ID", id: recordingID, wantStatus: http.StatusOK,
+			wantPaths: []string{"/internal/kyusu/recordings/" + recordingID + "/720p/playlist.m3u8"},
+		},
+		{
+			name: "大文字の録画の ID", id: strings.ToUpper(recordingID), wantStatus: http.StatusOK,
+			wantPaths: []string{"/internal/kyusu/recordings/" + recordingID + "/720p/playlist.m3u8"},
+		},
+		{name: "サービスの ID", id: "3273601024", wantStatus: http.StatusBadRequest, wantPaths: []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			backend, instance := newFakeKyusu(t, token)
+			mux := http.NewServeMux()
+			mux.Handle("GET /streams/recordings/{id}/hls/{preset}/{file}",
+				kyusu.NewRecordingRelay(&fakeInstances{instances: []*registry.Instance{instance}}, token, slog.New(slog.DiscardHandler)))
+			server := httptest.NewServer(mux)
+			t.Cleanup(server.Close)
+
+			assert.Equal(t, tt.wantStatus, fetch(t, server.URL+"/streams/recordings/"+tt.id+"/hls/720p/playlist.m3u8").status)
+			assert.Equal(t, tt.wantPaths, backend.requests())
+		})
+	}
+}

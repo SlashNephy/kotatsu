@@ -11,14 +11,17 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/SlashNephy/kotatsu/internal/registry"
 )
 
 const (
 	// kyusuRole は、サーバー側でのトランスコードを受け持つロールの名前。
 	kyusuRole = "kyusu"
-	// relayTimeout は、kyusu への中継にかける時間の上限。kyusu は、最初のセグメントができるまで、プレイリストを最大 20 秒待つ。
-	relayTimeout = 30 * time.Second
+	// relayTimeout は、kyusu への中継にかける時間の上限。kyusu は、ライブ視聴の最初のセグメントを最大 20 秒、
+	// 録画のセグメントを最大 30 秒待つので、それより長くして、kyusu が待ちきれなかった理由を返せるようにする。
+	relayTimeout = time.Minute
 )
 
 // Instances は、ロールの動いているインスタンスを引く。*registry.Registry が満たす。
@@ -28,28 +31,54 @@ type Instances interface {
 
 var _ Instances = new(registry.Registry)
 
-// Relay は、tenban で、ライブ視聴の HLS を、担当の kyusu に中継する (GET /streams/services/{id}/hls/{preset}/{file}) (設計書 7.3)。
+// Relay は、tenban で、HLS を担当の kyusu に中継する (設計書 7.3)。
+// ライブ視聴は GET /streams/services/{id}/hls/{preset}/{file}、録画は GET /streams/recordings/{id}/hls/{preset}/{file} で受け付ける。
 //
-// 同じサービスを同じ画質で見る視聴者が 1 つのエンコーダーを共有できるよう、(サービス, 画質) から決まった kyusu に中継する。
+// 同じものを同じ画質で見る視聴者が 1 つのエンコーダーを共有できるよう、(サービスか録画, 画質) から決まった kyusu に中継する。
 // kyusu が増えたり減ったりして担当が変わると、見ている視聴者は新しい担当のエンコーダーに移る。
 type Relay struct {
 	instances Instances
 	token     *Token
 	client    *http.Client
 	logger    *slog.Logger
+	// prefix は、kyusu のパスの前置き。canonical は、パスの {id} を確かめ、同じものが同じ文字列になるように直す。
+	prefix    string
+	canonical func(id string) (string, bool)
 }
 
 var _ http.Handler = new(Relay)
 
-// NewRelay は Relay を返す。token は、kyusu へのリクエストに付ける。
+// NewRelay は、ライブ視聴の HLS を中継する Relay を返す。token は、kyusu へのリクエストに付ける。
 func NewRelay(instances Instances, token *Token, logger *slog.Logger) *Relay {
-	return &Relay{instances: instances, token: token, client: &http.Client{Timeout: relayTimeout}, logger: logger}
+	return &Relay{
+		instances: instances, token: token, client: &http.Client{Timeout: relayTimeout}, logger: logger,
+		prefix: LivePathPrefix,
+		canonical: func(id string) (string, bool) {
+			serviceID, err := strconv.ParseInt(id, 10, 64)
+
+			return strconv.FormatInt(serviceID, 10), err == nil
+		},
+	}
+}
+
+// NewRecordingRelay は、録画の仮想 HLS を中継する Relay を返す。token は、kyusu へのリクエストに付ける。
+func NewRecordingRelay(instances Instances, token *Token, logger *slog.Logger) *Relay {
+	return &Relay{
+		instances: instances, token: token, client: &http.Client{Timeout: relayTimeout}, logger: logger,
+		prefix: RecordingPathPrefix,
+		canonical: func(id string) (string, bool) {
+			recordingID, err := uuid.Parse(id)
+
+			return recordingID.String(), err == nil
+		},
+	}
 }
 
 func (h *Relay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	serviceID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		http.Error(w, "invalid service ID", http.StatusBadRequest)
+	// 書き方の違う同じ ID も、同じ kyusu に中継する。
+	id, ok := h.canonical(r.PathValue("id"))
+	if !ok {
+		http.Error(w, "invalid ID", http.StatusBadRequest)
 
 		return
 	}
@@ -66,11 +95,11 @@ func (h *Relay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	instance := pick(instances, strconv.FormatInt(serviceID, 10)+"/"+preset)
+	instance := pick(instances, h.prefix+id+"/"+preset)
 	target := &url.URL{
 		Scheme: "http", Host: instance.Address,
 		// Path は、エスケープする前のパス。String でエスケープする。
-		Path: LivePathPrefix + strconv.FormatInt(serviceID, 10) + "/" + preset + "/" + file,
+		Path: h.prefix + id + "/" + preset + "/" + file,
 	}
 	if err := h.relay(w, r, target); err != nil && r.Context().Err() == nil {
 		h.logger.WarnContext(r.Context(), "failed to relay to kyusu", slog.String("instance", instance.Address), slog.Any("error", err))
