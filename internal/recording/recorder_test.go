@@ -402,16 +402,19 @@ func TestRecorderFailsOnUnmountedPool(t *testing.T) {
 }
 
 // flakyStream は、最初に開いたストリームを head だけ流して切り、2 回目からは TS を 1 回だけ流す。
+// 開き直すときは、reopen を呼ぶ (時計を進めて、開き直すまでにかかった時間を表す)。
 type flakyStream struct {
 	head   []byte
 	data   []byte
 	opened *atomic.Int32
+	reopen func()
 }
 
 func (s flakyStream) OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error) {
 	if s.opened.Add(1) == 1 {
 		return io.NopCloser(bytes.NewReader(s.head)), nil
 	}
+	s.reopen()
 
 	return onceStream{data: s.data}.OpenServiceStream(ctx, serviceID, opts)
 }
@@ -454,7 +457,7 @@ func TestRecorderReconnects(t *testing.T) {
 	f := newFixture(t)
 	reservationID := f.reserve(t, 0)
 	opened := new(atomic.Int32)
-	recorder, _ := f.newRecorder(t, flakyStream{head: data[:188*1000], data: data, opened: opened}, nil)
+	recorder, _ := f.newRecorder(t, flakyStream{head: data[:188*1000], data: data, opened: opened, reopen: func() { f.clock.Advance(time.Second) }}, nil)
 	_, done := f.session(t, recorder, reservationID)
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 	require.Eventually(t, func() bool {

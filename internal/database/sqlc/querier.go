@@ -20,8 +20,6 @@ type Querier interface {
 	// 引き継ぎ待ちの割り振りは、リースが切れていなくても、ほかの mikan が取る (設計書 5.4)。
 	// 取る前の状態と、リースの期限も返す。引き継ぎか、落ちた mikan の代わりかで、途切れた区間の扱いが変わる。
 	AcquireRecordingAssignment(ctx context.Context, arg AcquireRecordingAssignmentParams) (AcquireRecordingAssignmentRow, error)
-	// 途切れた区間を記録する。
-	AddRecordingGap(ctx context.Context, arg AddRecordingGapParams) error
 	// 書き終えたセグメントのドロップ、エラー、スクランブルを、録画の集計に足す。
 	AddRecordingStats(ctx context.Context, arg AddRecordingStatsParams) error
 	// 放送の終わりが before より前の番組を、最大 batch_size 件だけ program_archives へ移す。
@@ -75,9 +73,6 @@ type Querier interface {
 	GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error)
 	GetGuideProgram(ctx context.Context, arg GetGuideProgramParams) (GetGuideProgramRow, error)
 	GetGuideView(ctx context.Context, arg GetGuideViewParams) (GuideView, error)
-	// 録画のセグメントのうち、最後に書き終えた時刻。引き継ぎや再開のときに、途切れた区間を求めるのに使う。
-	// まだ書き終えたセグメントがなければ、行を返さない。何も書けなかったセグメントは、録れたものに数えない。
-	GetLastRecordingFileEnd(ctx context.Context, recordingID uuid.UUID) (*time.Time, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
 	GetLoginChallengeForUpdate(ctx context.Context, arg GetLoginChallengeForUpdateParams) (LoginChallenge, error)
 	GetLoginThrottles(ctx context.Context, throttleKeys []string) ([]LoginThrottle, error)
@@ -278,6 +273,8 @@ type Querier interface {
 	ServiceExists(ctx context.Context, id int64) (bool, error)
 	SetLoginChallengeWebAuthnSession(ctx context.Context, arg SetLoginChallengeWebAuthnSessionParams) error
 	SetLoginLockedUntil(ctx context.Context, arg SetLoginLockedUntilParams) error
+	// 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
+	SetRecordingGaps(ctx context.Context, arg SetRecordingGapsParams) error
 	SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error)
 	SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error
 	SetRuleEnabled(ctx context.Context, arg SetRuleEnabledParams) (int64, error)
