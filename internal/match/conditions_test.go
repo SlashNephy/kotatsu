@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/match"
 )
@@ -148,11 +148,9 @@ func TestDecodeRejectsUnknownData(t *testing.T) {
 func TestConditionsRoundTripThroughJSONB(t *testing.T) {
 	t.Parallel()
 
-	conn, err := pgx.Connect(t.Context(), databasetest.New(t).URL.Value())
+	conn, err := database.Open(t.Context(), databasetest.New(t))
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = conn.Close(t.Context())
-	})
+	t.Cleanup(conn.Close)
 
 	encoded, err := match.Encode(fullConditions())
 	require.NoError(t, err)

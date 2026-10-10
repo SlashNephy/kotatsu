@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -21,8 +22,12 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/config"
 )
 
-// EnvURL は、テストに使う PostgreSQL の接続先を与える環境変数。
-const EnvURL = "KOTATSU_TEST_DATABASE_URL"
+const (
+	// EnvURL は、テストに使う PostgreSQL の接続先を与える環境変数。
+	EnvURL = "KOTATSU_TEST_DATABASE_URL"
+	// maxConnsPerTest は、1 つのテストの接続プールの上限。
+	maxConnsPerTest = 4
+)
 
 // New は空のデータベースを作り、その接続先を返す。データベースはテストの終了時に消す。
 func New(t *testing.T) *config.Database {
@@ -52,6 +57,11 @@ func New(t *testing.T) *config.Database {
 	u, err := url.Parse(adminURL)
 	require.NoError(t, err)
 	u.Path = "/" + name
+	// 接続プールの上限の既定値は CPU の数なので、CPU の多いマシンで多くのテストを並べて走らせると、
+	// PostgreSQL の接続数の上限に当たる。テストでは小さく抑える。
+	query := u.Query()
+	query.Set("pool_max_conns", strconv.Itoa(maxConnsPerTest))
+	u.RawQuery = query.Encode()
 
 	return &config.Database{URL: config.Secret(u.String()), Pooler: false}
 }
