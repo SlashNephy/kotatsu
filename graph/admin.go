@@ -85,7 +85,7 @@ func (r *Resolver) listAuditEvents(ctx context.Context, first int, after *string
 	for i := range rows {
 		actorIDs = append(actorIDs, rows[i].ActorUserID)
 	}
-	byID, err := users(ctx, actorIDs...)
+	byID, err := r.auditActors(ctx, actorIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -104,6 +104,30 @@ func (r *Resolver) listAuditEvents(ctx context.Context, first int, after *string
 	}
 
 	return &model.AuditEventConnection{Edges: edges, PageInfo: info}, nil
+}
+
+// auditActors は、監査ログの操作者のユーザーを引く。監査ログは、ユーザーを消しても残すので (設計書 8.5)、
+// 見つからないユーザーは表に入れず、操作者のユーザーを null にする。
+func (r *Resolver) auditActors(ctx context.Context, ids []*uuid.UUID) (map[uuid.UUID]*model.User, error) {
+	keys := make([]uuid.UUID, 0, len(ids))
+	for _, userID := range ids {
+		if userID != nil && !slices.Contains(keys, *userID) {
+			keys = append(keys, *userID)
+		}
+	}
+	byID := make(map[uuid.UUID]*model.User, len(keys))
+	if len(keys) == 0 {
+		return byID, nil
+	}
+	rows, err := sqlc.New(r.db).ListUsersByIDs(ctx, keys)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users: %w", err)
+	}
+	for i := range rows {
+		byID[rows[i].ID] = toUser(&rows[i])
+	}
+
+	return byID, nil
 }
 
 func auditEventOf(row *sqlc.AuditEvent, byID map[uuid.UUID]*model.User) *model.AuditEvent {

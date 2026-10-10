@@ -100,6 +100,19 @@ func TestAuditEvents(t *testing.T) {
 	for _, event := range events {
 		f.record(t, event)
 	}
+	// 消したユーザーの操作も、操作者のユーザーを null にして返す。
+	gone, err := auth.NewUsers(f.clock).Create(t.Context(), f.pool, &auth.NewUser{Username: "gone", DisplayName: "gone", Role: auth.RoleMember, PasswordHash: nil})
+	require.NoError(t, err)
+	f.record(t, &audit.Event{Actor: audit.User(gone.ID), Action: "guide_view.create", TargetType: "guide_view", TargetID: "g1", Summary: map[string]any{}})
+	_, err = f.pool.Exec(t.Context(), "DELETE FROM users WHERE id = $1", gone.ID)
+	require.NoError(t, err)
+	var orphan auditEventsResult
+	require.Empty(t, admin.query(t, auditEventsQuery, map[string]any{varFirst: 1}, &orphan))
+	require.Len(t, orphan.AuditEvents.Edges, 1)
+	assert.Equal(t, "user", orphan.AuditEvents.Edges[0].Node.Actor.Type)
+	assert.Nil(t, orphan.AuditEvents.Edges[0].Node.Actor.User)
+	_, err = f.pool.Exec(t.Context(), "DELETE FROM audit_events WHERE action = 'guide_view.create'")
+	require.NoError(t, err)
 
 	assert.Equal(t, []string{codeForbidden}, f.query(t, auditEventsQuery, map[string]any{varFirst: 10}, nil), "members cannot read the audit log")
 
@@ -227,4 +240,28 @@ func TestSystemStatus(t *testing.T) {
 	require.Len(t, status.Pools, 2)
 	assert.Equal(t, "main", status.Pools[0].ID)
 	assert.Equal(t, "/mnt/main", status.Pools[0].Path)
+}
+
+// TestSystemStatusBeforeChecks は、まだ何も確かめていないときも、空の状態を返すことを確かめる。
+func TestSystemStatusBeforeChecks(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	admin := f.as(t, adminName, auth.RoleAdmin)
+	var got struct {
+		SystemStatus struct {
+			Instances   []any `json:"instances"`
+			Leases      []any `json:"leases"`
+			TunerServer *any  `json:"tunerServer"`
+			Tuners      []any `json:"tuners"`
+			Pools       []any `json:"pools"`
+		} `json:"systemStatus"`
+	}
+	require.Empty(t, admin.query(t, systemStatusQuery, nil, &got))
+	assert.Empty(t, got.SystemStatus.Instances)
+	assert.Empty(t, got.SystemStatus.Leases)
+	assert.Nil(t, got.SystemStatus.TunerServer, "the tuner server has not been checked")
+	assert.Empty(t, got.SystemStatus.Tuners)
+	assert.NotNil(t, got.SystemStatus.Pools)
+	assert.Empty(t, got.SystemStatus.Pools)
 }

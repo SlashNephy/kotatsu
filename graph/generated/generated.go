@@ -2190,8 +2190,9 @@ func newExecutionContext(
 var sources = []*ast.Source{
 	{Name: "../schema/admin.graphqls", Input: `"""
 監査ログの記録 (設計書 8.5)。誰が何をしたかを残す。
+一覧から読むだけなので、node で引き直すことはできない。
 """
-type AuditEvent implements Node {
+type AuditEvent {
   id: ID!
   occurredAt: Time!
   actor: AuditActor!
@@ -13017,13 +13018,6 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 			return graphql.Null
 		}
 		return ec._GuideView(ctx, sel, obj)
-	case model.AuditEvent:
-		return ec._AuditEvent(ctx, sel, &obj)
-	case *model.AuditEvent:
-		if obj == nil {
-			return graphql.Null
-		}
-		return ec._AuditEvent(ctx, sel, obj)
 	default:
 		if typedObj, ok := obj.(graphql.Marshaler); ok {
 			return typedObj
@@ -13085,7 +13079,7 @@ func (ec *executionContext) _AuditActor(ctx context.Context, sel ast.SelectionSe
 	return out
 }
 
-var auditEventImplementors = []string{"AuditEvent", "Node"}
+var auditEventImplementors = []string{"AuditEvent"}
 
 func (ec *executionContext) _AuditEvent(ctx context.Context, sel ast.SelectionSet, obj *model.AuditEvent) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, auditEventImplementors)

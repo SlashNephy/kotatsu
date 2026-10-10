@@ -34,6 +34,7 @@ type AuditActor struct {
 }
 
 // 監査ログの記録 (設計書 8.5)。誰が何をしたかを残す。
+// 一覧から読むだけなので、node で引き直すことはできない。
 type AuditEvent struct {
 	ID         string      `json:"id"`
 	OccurredAt time.Time   `json:"occurredAt"`
@@ -49,8 +50,6 @@ type AuditEvent struct {
 	SourceIP  *string `json:"sourceIp,omitempty"`
 	UserAgent *string `json:"userAgent,omitempty"`
 }
-
-func (AuditEvent) IsNode() {}
 
 type AuditEventConnection struct {
 	Edges    []*AuditEventEdge `json:"edges"`
