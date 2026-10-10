@@ -62,7 +62,10 @@ export function RulePreview({ input, enabled }: Props) {
 
   useEffect(() => {
     if (!enabled) {
+      // 条件を消したら、読み込み中とエラーの表示も消す。読み込み中の応答は、cleanup で捨てている。
       setPreview(null);
+      setLoading(false);
+      setError(false);
 
       return;
     }

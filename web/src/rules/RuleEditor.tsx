@@ -385,7 +385,15 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
                 onClick={() =>
                   remove({
                     variables: { id: ruleId },
-                    onCompleted: () => void navigate({ to: '/rules' }),
+                    onCompleted: (_response, errors) => {
+                      if (errors != null && errors.length > 0) {
+                        setDeleting(false);
+                        setResult('error');
+
+                        return;
+                      }
+                      void navigate({ to: '/rules' });
+                    },
                     onError: () => {
                       setDeleting(false);
                       setResult('error');
@@ -453,6 +461,12 @@ function KeywordRows({ label, description, rows, onChange }: KeywordRowsProps) {
             label={t('rules.regexp')}
             checked={row.regexp}
             onChange={(e) => change(index, { regexp: e.currentTarget.checked })}
+          />
+          <Checkbox
+            size="xs"
+            label={t('rules.caseSensitive')}
+            checked={row.caseSensitive}
+            onChange={(e) => change(index, { caseSensitive: e.currentTarget.checked })}
           />
           <ActionIcon
             variant="subtle"

@@ -11,7 +11,7 @@ import {
   Title,
 } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
@@ -87,6 +87,7 @@ function Rules() {
     }
   `);
   const canEdit = data.viewer.role !== 'VIEWER';
+  const [toggleError, setToggleError] = useState(false);
 
   return (
     <Stack>
@@ -100,6 +101,11 @@ function Rules() {
             {t('rules.create')}
           </Button>
         </Group>
+      )}
+      {toggleError && (
+        <Alert color="red" role="alert">
+          {t('reservations.toggleError')}
+        </Alert>
       )}
       {data.rules.length === 0 && <Alert color="gray">{t('rules.empty')}</Alert>}
       {data.rules.map((rule) => (
@@ -142,7 +148,12 @@ function Rules() {
                 aria-label={t('rules.enabled')}
                 checked={rule.enabled}
                 onChange={(e) =>
-                  commit({ variables: { id: rule.id, enabled: e.currentTarget.checked } })
+                  commit({
+                    variables: { id: rule.id, enabled: e.currentTarget.checked },
+                    onCompleted: (_response, errors) =>
+                      setToggleError(errors != null && errors.length > 0),
+                    onError: () => setToggleError(true),
+                  })
                 }
               />
             )}

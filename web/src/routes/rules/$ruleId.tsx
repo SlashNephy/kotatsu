@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
 import { ErrorBoundary } from '../../futon';
-import { isUnauthenticated } from '../../relay/environment';
+import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { emptyRuleForm, fromRule } from '../../rules/form';
 import { RuleEditor } from '../../rules/RuleEditor';
 import type { RuleIdQuery } from './__generated__/RuleIdQuery.graphql';
@@ -13,6 +13,14 @@ import type { RuleIdQuery } from './__generated__/RuleIdQuery.graphql';
 export const Route = createFileRoute('/rules/$ruleId')({
   component: RulePage,
 });
+
+// RuleNotFoundError は、URL のルールが見つからないことを表す。通信の失敗とは分けて示す。
+class RuleNotFoundError extends Error {
+  constructor() {
+    super('rule not found');
+    this.name = 'RuleNotFoundError';
+  }
+}
 
 // newRuleId は、新しいルールを作るときの、URL のルールの ID。
 const newRuleId = 'new';
@@ -39,7 +47,11 @@ function RulePage() {
               </Anchor>
             </Alert>
           ) : (
-            <Alert color="amber">{t('rules.notFound')}</Alert>
+            <Alert color="amber">
+              {error instanceof RuleNotFoundError || graphQLErrorDetails(error).code === 'NOT_FOUND'
+                ? t('rules.notFound')
+                : t('viewer.error')}
+            </Alert>
           )
         }
       >
@@ -134,7 +146,7 @@ function Rule({ ruleId }: { ruleId: string }) {
   );
   const node = data.node;
   if (!isNew && node?.__typename !== 'Rule') {
-    throw new Error('rule not found');
+    throw new RuleNotFoundError();
   }
 
   return (
