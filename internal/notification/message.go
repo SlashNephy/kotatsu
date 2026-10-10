@@ -6,8 +6,11 @@ import (
 )
 
 // Message は、イベントを、人が読む 1 行の文にする。Discord や Slack の Webhook のように、文で届ける通知先に使う。
-// 日時は、表示のタイムゾーン location で書く。payload に材料がなければ、種類だけの文にする。
+// 日時は、表示のタイムゾーン location で書く。nil なら UTC で書く。payload に材料がなければ、種類だけの文にする。
 func Message(kind Kind, payload map[string]any, location *time.Location) string {
+	if location == nil {
+		location = time.UTC
+	}
 	name, _ := payload["name"].(string)
 	withName := func(text string) string {
 		if name == "" {

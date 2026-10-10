@@ -332,11 +332,11 @@ func TestDispatchOnceCallsHooks(t *testing.T) {
 	f := newFixture(t)
 	require.NoError(t, notification.Emit(t.Context(), f.pool, f.clock, notification.KindStorageLow, map[string]any{keyPool: poolName}))
 
-	failing := &recordingHook{events: nil, fail: true}
+	failing := &recordingHook{events: []*notification.Event{}, fail: true}
 	_, err := notification.NewDispatcher(f.pool, f.clock, failing).DispatchOnce(t.Context())
 	require.ErrorIs(t, err, errHook)
 
-	hook := &recordingHook{events: nil, fail: false}
+	hook := &recordingHook{events: []*notification.Event{}, fail: false}
 	n, err := notification.NewDispatcher(f.pool, f.clock, hook).DispatchOnce(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, 1, n, "the event is still pending after the failed hook")
