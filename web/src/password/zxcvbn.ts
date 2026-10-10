@@ -24,7 +24,8 @@ export type Strength = {
 export const maxStrengthInput = 128;
 
 export function checkStrength(password: string, userInputs: string[]): Strength {
-  if ([...password].length > maxStrengthInput) {
+  // サーバーと同じく、コードポイントの数で数える。
+  if (Array.from(password).length > maxStrengthInput) {
     return { score: 4, guessesLog10: 0, warning: null, suggestions: [] };
   }
   const result = zxcvbn.check(password, userInputs);

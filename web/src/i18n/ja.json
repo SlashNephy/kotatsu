@@ -21,5 +21,73 @@
     "heartbeat": "サーバーの時刻: {{time}}",
     "error": "読み込めませんでした。時間をおいてやり直してください",
     "offline": "オフラインです。サーバーにつながると表示できます"
+  },
+  "password": {
+    "strength": {
+      "label": "パスワードの強さ",
+      "score0": "とても弱い",
+      "score1": "弱い",
+      "score2": "ふつう",
+      "score3": "強い",
+      "score4": "とても強い",
+      "tooWeak": "このパスワードは弱すぎるので使えません"
+    },
+    "rejected": {
+      "too_short": "パスワードは 8 文字以上にしてください",
+      "too_long": "パスワードは 256 文字以内にしてください",
+      "blocklisted": "よく使われているパスワードなので使えません",
+      "breached": "漏洩したことのあるパスワードなので使えません",
+      "too_weak": "推測されやすいパスワードなので使えません。長くするか、単語を組み合わせてください"
+    }
+  },
+  "auth": {
+    "username": "ユーザー名",
+    "displayName": "表示名",
+    "password": "パスワード",
+    "submit": "次へ",
+    "logout": "ログアウト",
+    "errors": {
+      "INVALID_CREDENTIALS": "ユーザー名かパスワードが違います",
+      "TOO_MANY_ATTEMPTS": "試行が多すぎます。{{seconds}} 秒ほど待ってからやり直してください",
+      "INVALID_SECOND_FACTOR": "コードが違います",
+      "LOGIN_REQUIRED": "時間が経ったので、もう一度パスワードを入力してください",
+      "INVALID_SETUP_TOKEN": "セットアップトークンが違います",
+      "SETUP_DONE": "セットアップは済んでいます。ログインしてください",
+      "SECOND_FACTOR_ENROLLED": "第二要素は登録済みです",
+      "unknown": "うまくいきませんでした。時間をおいてやり直してください"
+    },
+    "setup": {
+      "title": "初回セットアップ",
+      "description": "最初の管理者を作ります。セットアップトークンは、Kotatsu の起動時のログか、kotatsu admin setup-token で確かめられます。",
+      "token": "セットアップトークン",
+      "submit": "管理者を作る",
+      "done": "管理者を作りました。ログインして、第二要素を登録してください。"
+    },
+    "login": {
+      "title": "ログイン",
+      "submit": "ログイン"
+    },
+    "secondFactor": {
+      "title": "第二要素の確認",
+      "totpDescription": "認証アプリに表示されている 6 桁のコードを入力してください。",
+      "totp": "認証アプリのコード",
+      "useRecoveryCode": "リカバリーコードを使う",
+      "recoveryCode": "リカバリーコード",
+      "useTOTP": "認証アプリのコードを使う",
+      "submit": "確認"
+    },
+    "enroll": {
+      "title": "認証アプリの登録",
+      "description": "ログインには、パスワードのほかに、認証アプリのコードが要ります。認証アプリで QR コードを読み取るか、キーを入力してください。",
+      "qr": "認証アプリに読み取らせる QR コード",
+      "secret": "手で入力するときのキー",
+      "code": "認証アプリに表示されたコード",
+      "submit": "登録する",
+      "recoveryTitle": "リカバリーコード",
+      "recoveryDescription": "認証アプリを使えないときは、リカバリーコードでログインできます。どのコードも 1 回だけ使えます。このコードはもう表示できないので、安全な場所に控えてください。",
+      "copied": "コピーしました",
+      "copy": "コピー",
+      "continue": "控えたので続ける"
+    }
   }
 }

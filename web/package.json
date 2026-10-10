@@ -23,6 +23,7 @@
     "react-i18next": "17.0.16",
     "react-relay": "21.0.1",
     "relay-runtime": "21.0.1",
+    "uqr": "0.1.3",
     "workbox-core": "7.4.1",
     "workbox-precaching": "7.4.1",
     "workbox-routing": "7.4.1",
