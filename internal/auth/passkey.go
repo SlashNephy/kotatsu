@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 	"strings"
@@ -91,15 +92,26 @@ type PasskeyAssertion struct {
 	ExpiresAt time.Time
 }
 
+// PasskeysOptions は Passkeys の設定。
+type PasskeysOptions struct {
+	Clock    clock.Clock
+	Recorder audit.Recorder
+	Logger   *slog.Logger
+	// Sessions は、手続きのトークンを入れる Cookie の属性を、セッションの Cookie とそろえる。
+	Sessions *Sessions
+}
+
 // Passkeys は、パスキーの登録と管理を扱う (設計書 9.3)。ログインでの確認は Logins が扱う。
 type Passkeys struct {
 	clock    clock.Clock
 	recorder audit.Recorder
+	logger   *slog.Logger
+	sessions *Sessions
 }
 
 // NewPasskeys は Passkeys を返す。
-func NewPasskeys(clk clock.Clock, recorder audit.Recorder) *Passkeys {
-	return &Passkeys{clock: clk, recorder: recorder}
+func NewPasskeys(opts *PasskeysOptions) *Passkeys {
+	return &Passkeys{clock: opts.Clock, recorder: opts.Recorder, logger: opts.Logger, sessions: opts.Sessions}
 }
 
 // BeginRegistration は、ログイン中のユーザーにパスキーの登録を始めさせる。

@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/google/uuid"
@@ -30,7 +31,9 @@ func newPasskeyFixture(t *testing.T) *passkeyFixture {
 
 	f := newLoginFixture(t)
 
-	return &passkeyFixture{loginFixture: f, passkeys: auth.NewPasskeys(f.clock, audit.NewRecorder(f.clock))}
+	return &passkeyFixture{loginFixture: f, passkeys: auth.NewPasskeys(&auth.PasskeysOptions{
+		Clock: f.clock, Recorder: audit.NewRecorder(f.clock), Logger: slog.New(slog.DiscardHandler), Sessions: f.sessions,
+	})}
 }
 
 func newAuthenticator(t *testing.T) *webauthntest.Authenticator {

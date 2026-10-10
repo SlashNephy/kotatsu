@@ -259,8 +259,8 @@ func TestPasswordHandler(t *testing.T) {
 			name: "throttled", method: http.MethodPost, contentType: jsonType, body: `{"username":"Kotatsu","password":"x"}`,
 			throttle: true, wantStatus: http.StatusTooManyRequests, wantCode: "TOO_MANY_ATTEMPTS",
 		},
-		{name: "missing password", method: http.MethodPost, contentType: jsonType, body: `{"username":"Kotatsu"}`, wantStatus: http.StatusBadRequest, wantCode: "BAD_REQUEST"},
-		{name: "form post", method: http.MethodPost, contentType: "application/x-www-form-urlencoded", body: "username=Kotatsu", wantStatus: http.StatusUnsupportedMediaType, wantCode: "BAD_REQUEST"},
+		{name: "missing password", method: http.MethodPost, contentType: jsonType, body: `{"username":"Kotatsu"}`, wantStatus: http.StatusBadRequest, wantCode: badRequest},
+		{name: "form post", method: http.MethodPost, contentType: "application/x-www-form-urlencoded", body: "username=Kotatsu", wantStatus: http.StatusUnsupportedMediaType, wantCode: badRequest},
 		{name: "GET", method: http.MethodGet, wantStatus: http.StatusMethodNotAllowed, wantCode: "METHOD_NOT_ALLOWED"},
 	}
 	for _, tt := range tests {
