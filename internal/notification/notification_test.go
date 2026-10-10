@@ -41,7 +41,7 @@ func newFixture(t *testing.T) *fixture {
 	return &fixture{
 		pool:       pool,
 		clock:      clk,
-		dispatcher: notification.NewDispatcher(pool, clk, slog.New(slog.DiscardHandler)),
+		dispatcher: notification.NewDispatcher(pool, clk),
 		inbox:      notification.NewInbox(clk),
 	}
 }
@@ -120,7 +120,7 @@ func TestEmit(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, 1, f.dispatch(t))
 
-			got := f.list(t, userID, &notification.ListQuery{UnreadOnly: false, BeforeCreatedAt: nil, BeforeID: nil, Limit: 10})
+			got := f.list(t, userID, &notification.ListQuery{UnreadOnly: false, Before: nil, Limit: 10})
 			require.Len(t, got, 1)
 			assert.Equal(t, tt.kind, got[0].Kind)
 			assert.Equal(t, tt.want, got[0].Payload)
@@ -150,7 +150,7 @@ func TestDispatchOnce(t *testing.T) {
 	// 配ったイベントは、もう一度は配らない。
 	assert.Zero(t, f.dispatch(t))
 
-	all := &notification.ListQuery{UnreadOnly: false, BeforeCreatedAt: nil, BeforeID: nil, Limit: 10}
+	all := &notification.ListQuery{UnreadOnly: false, Before: nil, Limit: 10}
 	tests := []struct {
 		name   string
 		userID uuid.UUID
@@ -202,17 +202,17 @@ func TestInbox(t *testing.T) {
 		f.clock.Advance(time.Minute)
 	}
 
-	all := f.list(t, alice, &notification.ListQuery{UnreadOnly: false, BeforeCreatedAt: nil, BeforeID: nil, Limit: 10})
+	all := f.list(t, alice, &notification.ListQuery{UnreadOnly: false, Before: nil, Limit: 10})
 	assert.Equal(t, []notification.Kind{notification.KindRecordingFailed, notification.KindRecordingCompleted, notification.KindRecordingStarted}, kinds(all))
 
 	// 最初の 2 件の次のページは、最も古い 1 件だけである。
-	page := f.list(t, alice, &notification.ListQuery{UnreadOnly: false, BeforeCreatedAt: nil, BeforeID: nil, Limit: 2})
+	page := f.list(t, alice, &notification.ListQuery{UnreadOnly: false, Before: nil, Limit: 2})
 	require.Len(t, page, 2)
-	next := f.list(t, alice, &notification.ListQuery{UnreadOnly: false, BeforeCreatedAt: &page[1].CreatedAt, BeforeID: &page[1].ID, Limit: 2})
+	next := f.list(t, alice, &notification.ListQuery{UnreadOnly: false, Before: &notification.Position{CreatedAt: page[1].CreatedAt, ID: page[1].ID}, Limit: 2})
 	assert.Equal(t, []notification.Kind{notification.KindRecordingStarted}, kinds(next))
 
 	// ほかのユーザーの通知は既読にできず、既読の通知は数えない。
-	bobs := f.list(t, bob, &notification.ListQuery{UnreadOnly: false, BeforeCreatedAt: nil, BeforeID: nil, Limit: 1})
+	bobs := f.list(t, bob, &notification.ListQuery{UnreadOnly: false, Before: nil, Limit: 1})
 	read, err := f.inbox.MarkRead(t.Context(), f.pool, alice, []uuid.UUID{all[0].ID, bobs[0].ID})
 	require.NoError(t, err)
 	assert.Equal(t, 1, read)
@@ -220,11 +220,17 @@ func TestInbox(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, read)
 
-	unread := f.list(t, alice, &notification.ListQuery{UnreadOnly: true, BeforeCreatedAt: nil, BeforeID: nil, Limit: 10})
+	unread := f.list(t, alice, &notification.ListQuery{UnreadOnly: true, Before: nil, Limit: 10})
 	assert.Equal(t, []notification.Kind{notification.KindRecordingCompleted, notification.KindRecordingStarted}, kinds(unread))
-	marked := f.list(t, alice, &notification.ListQuery{UnreadOnly: false, BeforeCreatedAt: nil, BeforeID: nil, Limit: 1})
+	marked := f.list(t, alice, &notification.ListQuery{UnreadOnly: false, Before: nil, Limit: 1})
 	require.NotNil(t, marked[0].ReadAt)
 	assert.True(t, f.clock.Now().Equal(*marked[0].ReadAt))
+
+	read, err = f.inbox.MarkRead(t.Context(), f.pool, alice, []uuid.UUID{})
+	require.NoError(t, err)
+	assert.Zero(t, read)
+	_, err = f.inbox.List(t.Context(), f.pool, alice, &notification.ListQuery{UnreadOnly: false, Before: nil, Limit: 0})
+	require.ErrorIs(t, err, notification.ErrInvalidLimit)
 
 	read, err = f.inbox.MarkAllRead(t.Context(), f.pool, alice)
 	require.NoError(t, err)

@@ -19,13 +19,15 @@ LEFT JOIN notification_preferences p ON p.user_id = users.id AND p.kind = @kind
 WHERE users.disabled_at IS NULL AND COALESCE(p.in_app, true)
 ORDER BY users.id;
 
--- name: InsertNotification :exec
+-- name: InsertNotifications :exec
+-- イベント event_id を、ユーザー user_ids に配る。ids と user_ids は同じ順に並べる。
 INSERT INTO notifications (id, user_id, event_id, created_at, read_at)
-VALUES (@id, @user_id, @event_id, @now, NULL)
+SELECT unnest(@ids::uuid[]), unnest(@user_ids::uuid[]), @event_id, @now, NULL
 ON CONFLICT (user_id, event_id) DO NOTHING;
 
 -- name: ListNotifications :many
 -- ユーザーの通知を、新しい順に返す。before_at と before_id より前 (古い) の通知だけを返し、ページを送る。
+-- before_at と before_id は、両方を渡すか、両方を NULL にする。
 SELECT sqlc.embed(notifications), sqlc.embed(notification_events)
 FROM notifications
 JOIN notification_events ON notification_events.id = notifications.event_id

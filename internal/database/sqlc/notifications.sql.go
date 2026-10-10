@@ -51,29 +51,6 @@ func (q *Queries) GetReservationForNotification(ctx context.Context, id uuid.UUI
 	return i, err
 }
 
-const insertNotification = `-- name: InsertNotification :exec
-INSERT INTO notifications (id, user_id, event_id, created_at, read_at)
-VALUES ($1, $2, $3, $4, NULL)
-ON CONFLICT (user_id, event_id) DO NOTHING
-`
-
-type InsertNotificationParams struct {
-	ID      uuid.UUID
-	UserID  uuid.UUID
-	EventID uuid.UUID
-	Now     time.Time
-}
-
-func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotificationParams) error {
-	_, err := q.db.Exec(ctx, insertNotification,
-		arg.ID,
-		arg.UserID,
-		arg.EventID,
-		arg.Now,
-	)
-	return err
-}
-
 const insertNotificationEvent = `-- name: InsertNotificationEvent :exec
 INSERT INTO notification_events (id, kind, occurred_at, payload, dispatched_at)
 VALUES ($1, $2, $3, $4, NULL)
@@ -92,6 +69,30 @@ func (q *Queries) InsertNotificationEvent(ctx context.Context, arg InsertNotific
 		arg.Kind,
 		arg.OccurredAt,
 		arg.Payload,
+	)
+	return err
+}
+
+const insertNotifications = `-- name: InsertNotifications :exec
+INSERT INTO notifications (id, user_id, event_id, created_at, read_at)
+SELECT unnest($1::uuid[]), unnest($2::uuid[]), $3, $4, NULL
+ON CONFLICT (user_id, event_id) DO NOTHING
+`
+
+type InsertNotificationsParams struct {
+	Ids     []uuid.UUID
+	UserIds []uuid.UUID
+	EventID uuid.UUID
+	Now     time.Time
+}
+
+// イベント event_id を、ユーザー user_ids に配る。ids と user_ids は同じ順に並べる。
+func (q *Queries) InsertNotifications(ctx context.Context, arg InsertNotificationsParams) error {
+	_, err := q.db.Exec(ctx, insertNotifications,
+		arg.Ids,
+		arg.UserIds,
+		arg.EventID,
+		arg.Now,
 	)
 	return err
 }
@@ -180,6 +181,7 @@ type ListNotificationsRow struct {
 }
 
 // ユーザーの通知を、新しい順に返す。before_at と before_id より前 (古い) の通知だけを返し、ページを送る。
+// before_at と before_id は、両方を渡すか、両方を NULL にする。
 func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]ListNotificationsRow, error) {
 	rows, err := q.db.Query(ctx, listNotifications,
 		arg.UserID,

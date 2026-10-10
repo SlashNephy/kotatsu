@@ -3,6 +3,7 @@ package notification
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -23,14 +24,23 @@ type Notification struct {
 	ReadAt *time.Time
 }
 
+// Position は、通知の一覧での位置。通知を作った日時と ID で並べる。
+type Position struct {
+	CreatedAt time.Time
+	ID        uuid.UUID
+}
+
 // ListQuery は、通知の一覧の条件。
 type ListQuery struct {
 	UnreadOnly bool
-	// BeforeCreatedAt と BeforeID は、これより前 (古い) の通知だけを返すためのカーソル。
-	BeforeCreatedAt *time.Time
-	BeforeID        *uuid.UUID
-	Limit           int32
+	// Before は、これより前 (古い) の通知だけを返すためのカーソル。nil なら最も新しい通知から返す。
+	Before *Position
+	// Limit は、返す件数の上限。1 以上にする。
+	Limit int32
 }
+
+// ErrInvalidLimit は、一覧の件数の上限が 1 未満であることを表す。
+var ErrInvalidLimit = errors.New("the limit must be positive")
 
 // Inbox は、ユーザーの画面内の通知と、通知設定を扱う。
 type Inbox struct {
@@ -44,9 +54,14 @@ func NewInbox(clk clock.Clock) *Inbox {
 
 // List は、ユーザーの通知を、新しい順に返す。
 func (b *Inbox) List(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, query *ListQuery) ([]*Notification, error) {
-	rows, err := sqlc.New(db).ListNotifications(ctx, sqlc.ListNotificationsParams{
-		UserID: userID, UnreadOnly: query.UnreadOnly, BeforeAt: query.BeforeCreatedAt, BeforeID: query.BeforeID, MaxCount: query.Limit,
-	})
+	if query.Limit < 1 {
+		return nil, ErrInvalidLimit
+	}
+	params := sqlc.ListNotificationsParams{UserID: userID, UnreadOnly: query.UnreadOnly, BeforeAt: nil, BeforeID: nil, MaxCount: query.Limit}
+	if query.Before != nil {
+		params.BeforeAt, params.BeforeID = &query.Before.CreatedAt, &query.Before.ID
+	}
+	rows, err := sqlc.New(db).ListNotifications(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list notifications: %w", err)
 	}
@@ -81,6 +96,9 @@ func (b *Inbox) UnreadCount(ctx context.Context, db sqlc.DBTX, userID uuid.UUID)
 
 // MarkRead は、ユーザーの通知 ids を既読にし、既読にした数を返す。ほかのユーザーの通知や、既読の通知は飛ばす。
 func (b *Inbox) MarkRead(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, ids []uuid.UUID) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
 	n, err := sqlc.New(db).MarkNotificationsRead(ctx, sqlc.MarkNotificationsReadParams{UserID: userID, Ids: ids, Now: new(b.clock.Now())})
 	if err != nil {
 		return 0, fmt.Errorf("failed to mark notifications read: %w", err)

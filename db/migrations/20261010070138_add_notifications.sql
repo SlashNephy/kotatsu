@@ -1,6 +1,6 @@
 -- +goose Up
 -- create "notification_preferences" table
-CREATE TABLE "notification_preferences" ("user_id" uuid NOT NULL, "kind" text NOT NULL, "in_app" boolean NOT NULL, "web_push" boolean NOT NULL, "updated_at" timestamptz NOT NULL, PRIMARY KEY ("user_id", "kind"), CONSTRAINT "notification_preferences_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE);
+CREATE TABLE "notification_preferences" ("user_id" uuid NOT NULL, "kind" text NOT NULL, "in_app" boolean NOT NULL, "web_push" boolean NOT NULL, "updated_at" timestamptz NOT NULL, PRIMARY KEY ("user_id", "kind"), CONSTRAINT "notification_preferences_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON UPDATE NO ACTION ON DELETE CASCADE, CONSTRAINT "notification_preferences_kind_check" CHECK (kind = ANY (ARRAY['recording_started'::text, 'recording_completed'::text, 'recording_failed'::text, 'reservation_conflict'::text, 'storage_low'::text, 'tuner_server_unreachable'::text])));
 -- create "notification_events" table
 CREATE TABLE "notification_events" ("id" uuid NOT NULL, "kind" text NOT NULL, "occurred_at" timestamptz NOT NULL, "payload" jsonb NOT NULL, "dispatched_at" timestamptz NULL, PRIMARY KEY ("id"), CONSTRAINT "notification_events_kind_check" CHECK (kind = ANY (ARRAY['recording_started'::text, 'recording_completed'::text, 'recording_failed'::text, 'reservation_conflict'::text, 'storage_low'::text, 'tuner_server_unreachable'::text])));
 -- create index "notification_events_pending_idx" to table: "notification_events"

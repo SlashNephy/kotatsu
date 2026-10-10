@@ -3,9 +3,9 @@ package notification
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -25,14 +25,13 @@ const (
 // Dispatcher は、配っていないイベントを、受け取るユーザーごとの画面内の通知に配る。
 // 複数の nekonote が同時に動いても、行のロックを飛ばすので、同じイベントを二度配らない。
 type Dispatcher struct {
-	pool   *pgxpool.Pool
-	clock  clock.Clock
-	logger *slog.Logger
+	pool  *pgxpool.Pool
+	clock clock.Clock
 }
 
 // NewDispatcher は Dispatcher を返す。
-func NewDispatcher(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *Dispatcher {
-	return &Dispatcher{pool: pool, clock: clk, logger: logger}
+func NewDispatcher(pool *pgxpool.Pool, clk clock.Clock) *Dispatcher {
+	return &Dispatcher{pool: pool, clock: clk}
 }
 
 // DispatchOnce は、配っていないイベントがなくなるまで配り、配ったイベントの数を返す。
@@ -59,15 +58,25 @@ func (d *Dispatcher) dispatchBatch(ctx context.Context) (int, error) {
 			return fmt.Errorf("failed to list pending notification events: %w", err)
 		}
 		now := d.clock.Now()
+		// 受け取るユーザーは種類ごとに決まるので、同じ種類のイベントでは引き直さない。
+		recipientsByKind := map[string][]uuid.UUID{}
 		for i := range events {
-			recipients, err := q.ListNotificationRecipients(ctx, events[i].Kind)
-			if err != nil {
-				return fmt.Errorf("failed to list notification recipients: %w", err)
-			}
-			for _, userID := range recipients {
-				err := q.InsertNotification(ctx, sqlc.InsertNotificationParams{ID: id.New(), UserID: userID, EventID: events[i].ID, Now: now})
+			recipients, ok := recipientsByKind[events[i].Kind]
+			if !ok {
+				recipients, err = q.ListNotificationRecipients(ctx, events[i].Kind)
 				if err != nil {
-					return fmt.Errorf("failed to save a notification: %w", err)
+					return fmt.Errorf("failed to list notification recipients: %w", err)
+				}
+				recipientsByKind[events[i].Kind] = recipients
+			}
+			if len(recipients) > 0 {
+				ids := make([]uuid.UUID, 0, len(recipients))
+				for range recipients {
+					ids = append(ids, id.New())
+				}
+				err := q.InsertNotifications(ctx, sqlc.InsertNotificationsParams{Ids: ids, UserIds: recipients, EventID: events[i].ID, Now: now})
+				if err != nil {
+					return fmt.Errorf("failed to save notifications: %w", err)
 				}
 			}
 			if err := q.MarkNotificationEventDispatched(ctx, sqlc.MarkNotificationEventDispatchedParams{ID: events[i].ID, Now: &now}); err != nil {

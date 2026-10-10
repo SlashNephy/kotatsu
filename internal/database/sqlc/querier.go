@@ -82,8 +82,9 @@ type Querier interface {
 	InsertEPGChange(ctx context.Context, arg InsertEPGChangeParams) error
 	InsertGuideView(ctx context.Context, arg InsertGuideViewParams) error
 	InsertLoginChallenge(ctx context.Context, arg InsertLoginChallengeParams) error
-	InsertNotification(ctx context.Context, arg InsertNotificationParams) error
 	InsertNotificationEvent(ctx context.Context, arg InsertNotificationEventParams) error
+	// イベント event_id を、ユーザー user_ids に配る。ids と user_ids は同じ順に並べる。
+	InsertNotifications(ctx context.Context, arg InsertNotificationsParams) error
 	InsertOIDCIdentity(ctx context.Context, arg InsertOIDCIdentityParams) error
 	InsertOIDCLogin(ctx context.Context, arg InsertOIDCLoginParams) error
 	// 同じ番組の予約がすでにあれば何もしない。そのときは行を返さない。
@@ -130,6 +131,7 @@ type Querier interface {
 	// イベントの種類 kind を画面内の通知で受け取る、有効なユーザーを返す。設定がなければ受け取る。
 	ListNotificationRecipients(ctx context.Context, kind string) ([]uuid.UUID, error)
 	// ユーザーの通知を、新しい順に返す。before_at と before_id より前 (古い) の通知だけを返し、ページを送る。
+	// before_at と before_id は、両方を渡すか、両方を NULL にする。
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]ListNotificationsRow, error)
 	// 配っていないイベントを、古い順に引き、ロックする。ほかの nekonote が同じイベントを配らないよう、ロック中の行は飛ばす。
 	ListPendingNotificationEvents(ctx context.Context, maxCount int32) ([]NotificationEvent, error)

@@ -285,7 +285,10 @@ CREATE INDEX notifications_user_id_created_at_idx ON notifications (user_id, cre
 -- イベントの種類ごとの通知設定 (設計書 6.2)。行がなければ、どの通知先でも受け取る。
 CREATE TABLE notification_preferences (
   user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-  kind text NOT NULL,
+  kind text NOT NULL CHECK (kind IN (
+    'recording_started', 'recording_completed', 'recording_failed',
+    'reservation_conflict', 'storage_low', 'tuner_server_unreachable'
+  )),
   -- 画面内の通知で受け取るかどうか。
   in_app boolean NOT NULL,
   -- Web Push で受け取るかどうか。購読していなければ届かない。

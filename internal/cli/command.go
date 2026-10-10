@@ -91,7 +91,7 @@ func jobWorkers(deps *Deps) (*river.Workers, []*river.PeriodicJob) {
 	workers := river.NewWorkers()
 	retention := time.Duration(deps.Config.Audit.RetentionDays) * 24 * time.Hour
 	river.AddWorker(workers, audit.NewPruneWorker(deps.DB, deps.Clock, retention))
-	dispatcher := notification.NewDispatcher(deps.DB, deps.Clock, slog.Default().With(slog.String("component", "notification")))
+	dispatcher := notification.NewDispatcher(deps.DB, deps.Clock)
 	river.AddWorker(workers, notification.NewDispatchWorker(dispatcher))
 
 	return workers, []*river.PeriodicJob{audit.PrunePeriodicJob(), notification.DispatchPeriodicJob()}
