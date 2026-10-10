@@ -112,6 +112,10 @@ func (c *Client) Channel(ctx context.Context, id string) (*Channel, error) {
 	retry := c.fetchErr == nil || now.Sub(c.attemptedAt) >= channelsRetryAfter
 	if stale && retry {
 		channels, err := c.fetchChannels(ctx)
+		// 要求を取りやめたせいで取れなかったときは、NX-Jikkyo が落ちているとはみなさず、次の要求で取り直す。
+		if err != nil && ctx.Err() != nil {
+			return nil, err
+		}
 		c.attemptedAt, c.fetchErr = now, err
 		if err == nil {
 			c.channels, c.fetchedAt = channels, now
@@ -196,6 +200,9 @@ func (c *Client) getJSON(ctx context.Context, rawURL string, v any) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
+		// 本文を読み切って、接続を使い回せるようにする。
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxResponseBytes))
+
 		return fmt.Errorf("unexpected status %d", resp.StatusCode)
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBytes)).Decode(v); err != nil {

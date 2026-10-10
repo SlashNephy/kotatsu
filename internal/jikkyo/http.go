@@ -88,6 +88,12 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if source.RecordedUntil != nil && source.RecordedUntil.Before(to) {
 		to = *source.RecordedUntil
 	}
+	// 録画を始めた直後は、時計のずれで終わりが始まりより前になることがある。過去ログ API はこれを拒むので、問い合わせない。
+	if !to.After(from) {
+		h.write(w, r, resp, source.RecordedUntil != nil)
+
+		return
+	}
 	comments, err := h.client.Comments(r.Context(), id, from, to)
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "failed to fetch the jikkyo comments",

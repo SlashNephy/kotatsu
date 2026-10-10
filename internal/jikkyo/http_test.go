@@ -65,7 +65,7 @@ func newCommentsFixture(t *testing.T, kakolog string) *commentsFixture {
 }
 
 // recording は、録画を作る。until が nil なら録画中にする。
-func (f *commentsFixture) recording(t *testing.T, serviceID int64, until *time.Time) uuid.UUID {
+func (f *commentsFixture) recording(t *testing.T, serviceID int64, from time.Time, until *time.Time) uuid.UUID {
 	t.Helper()
 
 	recordingID := id.New()
@@ -75,7 +75,7 @@ func (f *commentsFixture) recording(t *testing.T, serviceID int64, until *time.T
 	}
 	_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
 		state, protected, recorded_from, recorded_until, created_at, updated_at)
-		VALUES ($1, NULL, $2, NULL, '録画', '', $3, $3, $4, false, $3, $5, $3, $3)`, recordingID, serviceID, recordedFrom(), state, until)
+		VALUES ($1, NULL, $2, NULL, '録画', '', $3, $3, $4, false, $3, $5, $3, $3)`, recordingID, serviceID, from, state, until)
 	require.NoError(t, err)
 
 	return recordingID
@@ -102,8 +102,10 @@ func TestCommentsHandler(t *testing.T) {
 		{"chat":{"date":"1791635460","date_usec":"0","mail":"184","user_id":"a:z","content":"終わった後"}}]}`
 	finished := recordedFrom().Add(30 * time.Minute)
 	tests := []struct {
-		name         string
-		serviceID    int64
+		name      string
+		serviceID int64
+		// from は、録画を始めた時刻。ゼロなら recordedFrom。
+		from         time.Time
 		until        *time.Time
 		wantChannel  string
 		wantContents []string
@@ -122,6 +124,10 @@ func TestCommentsHandler(t *testing.T) {
 			wantQuery: "jk1?endtime=1791636000&format=json&starttime=1791633600", wantCache: "no-store",
 		},
 		{
+			name: "録画を始めた時刻が今より後なら、過去ログ API に問い合わせず空の一覧を返す", serviceID: grServiceID, from: recordedFrom().Add(time.Hour), until: nil,
+			wantChannel: "jk1", wantContents: []string{}, wantTimes: []float64{}, wantQuery: "", wantCache: "no-store",
+		},
+		{
 			name: "実況のチャンネルがないサービスは、過去ログ API に問い合わせず空の一覧を返す", serviceID: bsServiceID, until: &finished,
 			wantChannel: "", wantContents: []string{}, wantTimes: []float64{}, wantQuery: "", wantCache: "private, max-age=600",
 		},
@@ -131,7 +137,11 @@ func TestCommentsHandler(t *testing.T) {
 			t.Parallel()
 
 			f := newCommentsFixture(t, kakolog)
-			recordingID := f.recording(t, tt.serviceID, tt.until)
+			from := tt.from
+			if from.IsZero() {
+				from = recordedFrom()
+			}
+			recordingID := f.recording(t, tt.serviceID, from, tt.until)
 			rec := httptest.NewRecorder()
 			f.handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet,
 				"/media/recordings/"+recordingID.String()+"/"+jikkyo.CommentsFileName, http.NoBody))
@@ -185,7 +195,7 @@ func TestCommentsHandlerErrors(t *testing.T) {
 			path := tt.path
 			if tt.recording {
 				finished := recordedFrom().Add(time.Hour)
-				path = f.recording(t, grServiceID, &finished).String()
+				path = f.recording(t, grServiceID, recordedFrom(), &finished).String()
 			}
 			rec := httptest.NewRecorder()
 			f.handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet,

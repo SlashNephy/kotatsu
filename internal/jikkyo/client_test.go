@@ -1,6 +1,7 @@
 package jikkyo_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -92,6 +93,24 @@ func TestClientChannel(t *testing.T) {
 	_, err = client.Channel(t.Context(), jkBS)
 	require.NoError(t, err)
 	assert.Equal(t, int32(3), fake.channelRequests.Load())
+}
+
+func TestClientChannelRetriesAfterCanceledRequest(t *testing.T) {
+	t.Parallel()
+
+	fake, server := newFakeJikkyo(t, channelsJSON, "")
+	clk := clocktest.NewFake(time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC))
+	client := jikkyo.NewClient(&jikkyo.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: nil, Clock: clk})
+
+	// 取りやめた要求で取れなかったことは、NX-Jikkyo が落ちているとはみなさない。次の要求では、すぐに取り直す。
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := client.Channel(ctx, jkNHK)
+	require.Error(t, err)
+	got, err := client.Channel(t.Context(), jkNHK)
+	require.NoError(t, err)
+	assert.Equal(t, "NHK総合", got.Name)
+	assert.Equal(t, int32(1), fake.channelRequests.Load())
 }
 
 func TestClientChannelWithoutAnyList(t *testing.T) {
