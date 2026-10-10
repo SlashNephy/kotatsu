@@ -20,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/recording"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/ts"
@@ -311,9 +312,12 @@ func TestRecorderDecidesStateFromWholeRecording(t *testing.T) {
 		// earlierDrops は、引き継ぐ前のセグメントで数えたドロップ。
 		earlierDrops int64
 		want         recording.State
+		wantHistory  bool
 	}{
-		{name: "どのセグメントにもドロップがない", earlierDrops: 0, want: recording.StateCompleted},
-		{name: "前のセグメントにドロップがある", earlierDrops: 3, want: recording.StateCompletedWithErrors},
+		{name: "どのセグメントにもドロップがない", earlierDrops: 0, want: recording.StateCompleted, wantHistory: true},
+		// 録画履歴には、ドロップが 1 件以下の録画だけを記録する (付録 A)。
+		{name: "前のセグメントのドロップが閾値以下", earlierDrops: 1, want: recording.StateCompletedWithErrors, wantHistory: true},
+		{name: "前のセグメントのドロップが閾値を超える", earlierDrops: 3, want: recording.StateCompletedWithErrors, wantHistory: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -342,6 +346,7 @@ func TestRecorderDecidesStateFromWholeRecording(t *testing.T) {
 			require.NoError(t, wait(t, done))
 			got, _ := f.recording(t, reservationID)
 			assert.Equal(t, recorded{state: string(tt.want), failureReason: nil, drops: tt.earlierDrops}, got)
+			assert.Equal(t, tt.wantHistory, f.historyCount(t) == 1)
 		})
 	}
 }
@@ -575,6 +580,14 @@ func TestRecorderRecordsGapOnResume(t *testing.T) {
 
 	got, _ := f.recording(t, reservationID)
 	assert.Equal(t, string(recording.StatePartial), got.state)
+	// 続きを録るときは、録画の開始を通知し直さない。一部のみの録画は、録画履歴に記録しない。
+	events := f.events(t)
+	kinds := make([]string, 0, len(events))
+	for _, e := range events {
+		kinds = append(kinds, e.Kind)
+	}
+	assert.Equal(t, []string{string(notification.KindRecordingStarted), string(notification.KindRecordingCompleted)}, kinds)
+	assert.Zero(t, f.historyCount(t))
 	var gap struct {
 		From time.Time `json:"from"`
 		To   time.Time `json:"to"`
@@ -608,4 +621,108 @@ func TestRecorderIgnoresEmptyEarlierSegments(t *testing.T) {
 	require.NoError(t, wait(t, done))
 	got, _ := f.recording(t, reservationID)
 	assert.Equal(t, recorded{state: string(recording.StateFailed), failureReason: new(string(recording.FailureTunerServerUnreachable)), drops: 0}, got)
+}
+
+func (f *fixture) historyCount(t *testing.T) int {
+	t.Helper()
+
+	var n int
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM recording_history").Scan(&n))
+
+	return n
+}
+
+type event struct {
+	Kind    string         `json:"kind"`
+	Payload map[string]any `json:"payload"`
+}
+
+func (f *fixture) events(t *testing.T) []event {
+	t.Helper()
+
+	rows, err := f.pool.Query(t.Context(), "SELECT kind, payload FROM notification_events ORDER BY occurred_at, id")
+	require.NoError(t, err)
+	defer rows.Close()
+	events := []event{}
+	for rows.Next() {
+		var e event
+		require.NoError(t, rows.Scan(&e.Kind, &e.Payload))
+		events = append(events, e)
+	}
+	require.NoError(t, rows.Err())
+
+	return events
+}
+
+// TestRecorderEmitsEvents は、録画を始めたとき、終えたとき、失敗したときに、通知するイベントを記録し、
+// 正常に終えた録画だけを録画履歴に記録することを確かめる (設計書 4.4、6.2)。
+func TestRecorderEmitsEvents(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	tests := []struct {
+		name        string
+		tuner       recording.StreamOpener
+		wantKinds   []string
+		wantHistory int
+	}{
+		{name: "録画を終えた", tuner: onceStream{data: data}, wantKinds: []string{string(notification.KindRecordingStarted), string(notification.KindRecordingCompleted)}, wantHistory: 1},
+		{
+			name: "チューナーサーバーに接続できず失敗した", tuner: failingStream{err: errors.New("connection refused")},
+			wantKinds: []string{string(notification.KindRecordingStarted), string(notification.KindRecordingFailed)}, wantHistory: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			recorder, _ := f.newRecorder(t, tt.tuner, nil)
+			_, done := f.session(t, recorder, reservationID)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			time.Sleep(200 * time.Millisecond)
+			f.clock.Advance(time.Hour)
+			require.NoError(t, wait(t, done))
+
+			events := f.events(t)
+			kinds := make([]string, 0, len(events))
+			for _, e := range events {
+				kinds = append(kinds, e.Kind)
+				assert.Equal(t, reservationName(t, f, reservationID), e.Payload["name"], e.Kind)
+				assert.NotEmpty(t, e.Payload["recordingId"], e.Kind)
+				assert.NotEmpty(t, e.Payload["serviceName"], e.Kind)
+			}
+			assert.Equal(t, tt.wantKinds, kinds)
+			last := events[len(events)-1].Payload
+			switch last["state"] {
+			case string(recording.StateFailed):
+				assert.Equal(t, string(recording.FailureTunerServerUnreachable), last["reason"])
+			default:
+				// Webhook で録画のファイルを示せるよう、完了の通知にはセグメントのプール内のパスを載せる。
+				files, ok := last["files"].([]any)
+				require.True(t, ok)
+				require.Len(t, files, 1)
+				file, ok := files[0].(map[string]any)
+				require.True(t, ok)
+				assert.Equal(t, poolID, file["poolId"])
+			}
+			assert.Equal(t, tt.wantHistory, f.historyCount(t))
+
+			// 録画を消しても、録画履歴は残す (設計書 4.4)。
+			_, err := f.pool.Exec(t.Context(), "DELETE FROM recordings WHERE reservation_id = $1", reservationID)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantHistory, f.historyCount(t))
+		})
+	}
+}
+
+func reservationName(t *testing.T, f *fixture, reservationID uuid.UUID) string {
+	t.Helper()
+
+	var name string
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT name FROM reservations WHERE id = $1", reservationID).Scan(&name))
+
+	return name
 }

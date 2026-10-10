@@ -85,6 +85,8 @@ type Querier interface {
 	GetProgramEnd(ctx context.Context, arg GetProgramEndParams) (GetProgramEndRow, error)
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetRecording(ctx context.Context, id uuid.UUID) (Recording, error)
+	// 通知に載せる、録画とサービス名。
+	GetRecordingWithService(ctx context.Context, id uuid.UUID) (GetRecordingWithServiceRow, error)
 	GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error)
 	GetReservationByProgram(ctx context.Context, arg GetReservationByProgramParams) (Reservation, error)
 	// 競合の通知に載せる、予約の番組名とサービス名。
@@ -120,6 +122,8 @@ type Querier interface {
 	InsertProgramReservation(ctx context.Context, arg InsertProgramReservationParams) (uuid.UUID, error)
 	InsertRecordingAssignment(ctx context.Context, arg InsertRecordingAssignmentParams) error
 	InsertRecordingFile(ctx context.Context, arg InsertRecordingFileParams) error
+	// 重複の回避に使う録画履歴を記録する (設計書 4.4)。録画を削除しても残す。
+	InsertRecordingHistory(ctx context.Context, arg InsertRecordingHistoryParams) error
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
 	// イベントリレーの引き継ぎ先の番組予約を、番組情報をコピーして作る。引き継ぎ先の予約がすでにあれば何もせず、行を返さない。
 	InsertRelayedReservation(ctx context.Context, arg InsertRelayedReservationParams) (uuid.UUID, error)
@@ -175,6 +179,8 @@ type Querier interface {
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
 	ListRecordingAssignments(ctx context.Context) ([]RecordingAssignment, error)
 	ListRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error)
+	// 通知に載せる、録画のセグメントの保存先プールとプール内の相対パス。何も書けなかったセグメントは含めない。
+	ListRecordingSegments(ctx context.Context, recordingID uuid.UUID) ([]ListRecordingSegmentsRow, error)
 	// 予約に一致したルール。ルールを作った順に返す。
 	ListReservationRules(ctx context.Context, reservationIds []uuid.UUID) ([]ReservationRule, error)
 	// 時間帯 [from, to) に重なる予約を、開始時刻の順に返す。(after_start_at, after_id) より後ろから limit 件読む。
@@ -253,8 +259,8 @@ type Querier interface {
 	SetTOTPLastUsedStep(ctx context.Context, arg SetTOTPLastUsedStepParams) error
 	SetUserPassword(ctx context.Context, arg SetUserPasswordParams) (int64, error)
 	SetupTokenExists(ctx context.Context, tokenHash []byte) (bool, error)
-	// 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。
-	StartRecording(ctx context.Context, arg StartRecordingParams) (Recording, error)
+	// 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。新しく始めたかどうかを inserted で返す。
+	StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error)
 	// ログインの途中の状態は 1 回しか使わせないので、引くと同時に消す。
 	TakeOIDCLogin(ctx context.Context, arg TakeOIDCLoginParams) (OidcLogin, error)
 	// 手続きは 1 回しか使わせないので、引くと同時に消す。
