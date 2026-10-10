@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 )
 
 // Config は起動に必要な設定。
@@ -29,6 +30,7 @@ type Config struct {
 	Storage   Storage   `yaml:"storage"`
 	Tuner     Tuner     `yaml:"tuner"`
 	Auth      Auth      `yaml:"auth"`
+	WebPush   WebPush   `yaml:"web_push"`
 }
 
 // Server は tenban の HTTP サーバーの設定。
@@ -95,6 +97,13 @@ type Tuner struct {
 	// URL はチューナーサーバーの URL (http://mirakurun:40772/ など)。BASIC 認証の資格情報を含めてよい。
 	// 資格情報を含みうるので秘密情報として扱う。空なら、neko は EPG を同期しない。
 	URL Secret `yaml:"url"`
+}
+
+// WebPush は Web Push の通知の設定 (設計書 6.2)。
+type WebPush struct {
+	// Subject は、プッシュサービスに示す、送り手の連絡先 (mailto: か https: の URI) (RFC 8292)。
+	// プッシュサービスは、送り手に問題があるときに、ここに連絡する。空なら、Kotatsu のリポジトリの URL にする。
+	Subject string `yaml:"subject"`
 }
 
 // Auth は認証の設定 (設計書 9.3)。
@@ -188,6 +197,7 @@ func Default() *Config {
 				},
 			},
 		},
+		WebPush: WebPush{Subject: ""},
 	}
 }
 
@@ -222,6 +232,9 @@ func (c *Config) validate() error {
 		errs = append(errs, fieldError("auth.hibp.url", err))
 	}
 	errs = append(errs, c.Auth.OIDC.validate()...)
+	if subject := c.WebPush.Subject; subject != "" && !strings.HasPrefix(subject, "mailto:") && !strings.HasPrefix(subject, "https://") {
+		errs = append(errs, fieldError("web_push.subject", errors.New("must be a mailto: or https:// URI")))
+	}
 	if c.Audit.RetentionDays < 1 {
 		errs = append(errs, fieldError("audit.retention_days", errors.New("must be at least 1")))
 	}

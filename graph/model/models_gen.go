@@ -603,6 +603,25 @@ type User struct {
 
 func (User) IsNode() {}
 
+// Web Push の購読 (設計書 6.2)。端末とブラウザごとに 1 つある。
+type WebPushSubscription struct {
+	ID string `json:"id"`
+	// プッシュサービスの送り先の URL。
+	Endpoint string `json:"endpoint"`
+	// 購読した端末の User-Agent。端末を見分けるのに使う。
+	UserAgent string    `json:"userAgent"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// ブラウザの PushSubscription。PushSubscription.toJSON() の値をそのまま渡せる。
+type WebPushSubscriptionInput struct {
+	Endpoint string `json:"endpoint"`
+	// ブラウザの P-256 の公開鍵を base64url にしたもの。
+	P256dh string `json:"p256dh"`
+	// 認証用の秘密を base64url にしたもの。
+	Auth string `json:"auth"`
+}
+
 // 管理者が設定した Webhook (設計書 6.2)。通知するイベントを、外部のサービスに送る。
 type Webhook struct {
 	ID   string `json:"id"`

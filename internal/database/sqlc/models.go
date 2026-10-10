@@ -415,11 +415,29 @@ type UserTotp struct {
 	CreatedAt       time.Time
 }
 
+type VAPIDKey struct {
+	ID                   bool
+	PublicKey            []byte
+	PrivateKeyCiphertext []byte
+	CreatedAt            time.Time
+}
+
 type WatchProgress struct {
 	UserID      uuid.UUID
 	RecordingID uuid.UUID
 	PositionMs  int64
 	UpdatedAt   time.Time
+}
+
+type WebPushSubscription struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	Endpoint  string
+	P256DH    []byte
+	Auth      []byte
+	UserAgent string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type WebauthnCeremony struct {

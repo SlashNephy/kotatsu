@@ -304,6 +304,33 @@ CREATE TABLE user_setting_versions (
   updated_at timestamptz NOT NULL
 );
 
+-- Web Push の購読 (設計書 6.2)。ブラウザの PushSubscription を、ユーザーごとに持つ。
+CREATE TABLE web_push_subscriptions (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  -- プッシュサービスの送り先の URL。端末とブラウザごとに 1 つ決まる。
+  endpoint text NOT NULL UNIQUE,
+  -- 通知を暗号化する、ブラウザの P-256 の公開鍵 (非圧縮の 65 バイト) と、認証用の秘密 (16 バイト) (RFC 8291)。
+  p256dh bytea NOT NULL,
+  auth bytea NOT NULL,
+  -- 購読した端末を、ユーザーが見分けるための User-Agent。
+  user_agent text NOT NULL,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+CREATE INDEX web_push_subscriptions_user_id_idx ON web_push_subscriptions (user_id);
+
+-- Web Push の送り手を示す VAPID の鍵 (設計書 6.2、RFC 8292)。行は 1 つだけ持ち、初めて使うときに作る。
+CREATE TABLE vapid_keys (
+  id boolean PRIMARY KEY DEFAULT true CHECK (id),
+  -- P-256 の公開鍵 (非圧縮の 65 バイト)。ブラウザが購読するときの applicationServerKey に渡す。
+  public_key bytea NOT NULL,
+  -- 秘密鍵。アプリの秘密キーで暗号化する (設計書 8.4)。
+  private_key_ciphertext bytea NOT NULL,
+  created_at timestamptz NOT NULL
+);
+
 -- 管理者が設定する Webhook (設計書 6.2)。通知するイベントを、外部のサービスに送る。
 CREATE TABLE webhooks (
   id uuid PRIMARY KEY,

@@ -14,6 +14,8 @@ sql:
         rename:
           source_ip: SourceIP
           url: URL
+          vapid_key: VAPIDKey
+          p256dh: P256DH
         overrides:
           - db_type: uuid
             go_type: github.com/google/uuid.UUID
