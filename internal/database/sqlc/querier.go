@@ -40,6 +40,8 @@ type Querier interface {
 	DeleteExpiredLoginChallenges(ctx context.Context, now time.Time) (int64, error)
 	DeleteExpiredOIDCLogins(ctx context.Context, now time.Time) (int64, error)
 	DeleteExpiredWebAuthnCeremonies(ctx context.Context, now time.Time) (int64, error)
+	// プッシュサービスが失効を返した購読を消す。送った後に、同じ端末が購読し直していたら (鍵が変わっていたら)、消さない。
+	DeleteExpiredWebPushSubscription(ctx context.Context, arg DeleteExpiredWebPushSubscriptionParams) error
 	DeleteGuideView(ctx context.Context, arg DeleteGuideViewParams) (int64, error)
 	DeleteInstance(ctx context.Context, arg DeleteInstanceParams) error
 	DeleteLoginChallenge(ctx context.Context, id uuid.UUID) error
@@ -63,6 +65,7 @@ type Querier interface {
 	DeleteTuners(ctx context.Context) error
 	DeleteUserPasskey(ctx context.Context, arg DeleteUserPasskeyParams) (int64, error)
 	DeleteUserTOTP(ctx context.Context, userID uuid.UUID) (int64, error)
+	DeleteWebPushSubscription(ctx context.Context, arg DeleteWebPushSubscriptionParams) (int64, error)
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (int64, error)
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
 	EnableUser(ctx context.Context, arg EnableUserParams) (int64, error)
@@ -104,6 +107,8 @@ type Querier interface {
 	GetUserForUpdate(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserSettingsVersion(ctx context.Context, userID uuid.UUID) (int64, error)
 	GetUserTOTPForUpdate(ctx context.Context, userID uuid.UUID) (UserTotp, error)
+	GetVAPIDKeys(ctx context.Context) (VAPIDKey, error)
+	GetWebPushSubscription(ctx context.Context, id uuid.UUID) (WebPushSubscription, error)
 	GetWebhook(ctx context.Context, id uuid.UUID) (Webhook, error)
 	// 無効にした管理者も数える。管理者を作った後は、初回セットアップを開き直さない (設計書 9.2)。
 	HasAdmin(ctx context.Context) (bool, error)
@@ -139,6 +144,8 @@ type Querier interface {
 	InsertTuner(ctx context.Context, arg InsertTunerParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) error
 	InsertUserPasskey(ctx context.Context, arg InsertUserPasskeyParams) error
+	// VAPID の鍵を保存する。ほかのインスタンスが先に作っていたら、そちらを使うので、何もしない。
+	InsertVAPIDKeys(ctx context.Context, arg InsertVAPIDKeysParams) error
 	InsertWebAuthnCeremony(ctx context.Context, arg InsertWebAuthnCeremonyParams) error
 	InsertWebhook(ctx context.Context, arg InsertWebhookParams) (Webhook, error)
 	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
@@ -214,6 +221,9 @@ type Querier interface {
 	ListUsers(ctx context.Context) ([]User, error)
 	ListUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	ListWatchProgress(ctx context.Context, arg ListWatchProgressParams) ([]WatchProgress, error)
+	ListWebPushSubscriptions(ctx context.Context, userID uuid.UUID) ([]WebPushSubscription, error)
+	// イベントの種類 kind を Web Push で受け取る、有効なユーザーの購読の ID を返す。設定がなければ受け取る。
+	ListWebPushSubscriptionsForKind(ctx context.Context, kind string) ([]uuid.UUID, error)
 	ListWebhooks(ctx context.Context) ([]Webhook, error)
 	// イベントの種類 kind を送る、有効な Webhook の ID を返す。
 	ListWebhooksForKind(ctx context.Context, kind string) ([]uuid.UUID, error)
@@ -327,6 +337,8 @@ type Querier interface {
 	UpsertTunerServerStatus(ctx context.Context, arg UpsertTunerServerStatusParams) error
 	UpsertUserTOTP(ctx context.Context, arg UpsertUserTOTPParams) error
 	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) error
+	// 購読を保存する。同じ端末 (endpoint) を別のユーザーが購読し直したら、そのユーザーの購読に移す。
+	UpsertWebPushSubscription(ctx context.Context, arg UpsertWebPushSubscriptionParams) error
 	UseRecoveryCode(ctx context.Context, arg UseRecoveryCodeParams) (int64, error)
 }
 
