@@ -54,14 +54,40 @@ func NewTranscoder(cfg *config.Kyusu) (*Transcoder, error) {
 	return &Transcoder{cfg: cfg, ffmpeg: ffmpeg, tsreadex: tsreadex}, nil
 }
 
+// RunOptions は、録画の仮想 HLS のセグメントを書くときの設定 (設計書 7.3)。
+// 仮想 HLS では、録画の始まりからの時間を、Segment の長さで区切ってセグメントの番号を決めておき、
+// k 番目のセグメントから書くときは、その時刻の手前の I フレームから入力を流して、エンコーダーを起動し直す。
+type RunOptions struct {
+	// StartNumber は、最初に書くセグメントの番号 k。
+	StartNumber int
+	// Trim は、入力の始まり (流し始めた I フレーム) から、k 番目のセグメントの始まりまでの時間。デコードして捨てる。
+	Trim time.Duration
+}
+
+// VODSegmentDuration は、録画の仮想 HLS のセグメントの長さ。ライブ視聴と同じ 2 秒にして、シークの位置を細かく合わせる。
+const VODSegmentDuration = segmentSeconds * time.Second
+
+// vodPlaylistName は、録画のトランスコードで FFmpeg が書くプレイリストの名前。視聴者には、kyusu が作るプレイリストを返す。
+const vodPlaylistName = "encoder.m3u8"
+
 // Run は、src を読み終えるか ctx が終わるまで、preset の画質で dir に HLS を書く。dir は作っておく。
 // ctx が終わったら、どちらのプロセスも止めて、ctx のエラーを返す。
 // どちらかのプロセスが失敗したら、もう一方も止めて、失敗したプロセスの標準エラー出力を添えたエラーを返す。
 func (t *Transcoder) Run(ctx context.Context, src io.Reader, preset *Preset, dir string) error {
+	return t.run(ctx, src, ffmpegArgs(t.cfg, preset, dir, nil))
+}
+
+// RunVOD は、録画の仮想 HLS のセグメントを、opts.StartNumber 番目から書く。src は、k 番目のセグメントの手前の I フレームから流す。
+// 書いたセグメントは消さないので、視聴者は巻き戻せる。セグメントの時刻は、k 番目のセグメントの始まりを k × セグメントの長さにする。
+func (t *Transcoder) RunVOD(ctx context.Context, src io.Reader, preset *Preset, dir string, opts *RunOptions) error {
+	return t.run(ctx, src, ffmpegArgs(t.cfg, preset, dir, opts))
+}
+
+func (t *Transcoder) run(ctx context.Context, src io.Reader, args []string) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	normalizer := exec.CommandContext(runCtx, t.tsreadex, tsreadexArgs()...)
-	encoder := exec.CommandContext(runCtx, t.ffmpeg, ffmpegArgs(t.cfg, preset, dir)...)
+	encoder := exec.CommandContext(runCtx, t.ffmpeg, args...)
 	normalizerErr, encoderErr := newTailBuffer(stderrLimit), newTailBuffer(stderrLimit)
 	for _, cmd := range []*exec.Cmd{normalizer, encoder} {
 		cmd.WaitDelay = stopDelay
@@ -147,8 +173,8 @@ func tsreadexArgs() []string {
 }
 
 // ffmpegArgs は、FFmpeg の引数を返す。映像は、どのエンコーダーでも、CPU の yadif でインターレースを解除してから縮める (設計書 7.2)。
-// VAAPI と QSV では、解除した後に GPU へ送って縮める。
-func ffmpegArgs(cfg *config.Kyusu, preset *Preset, dir string) []string {
+// VAAPI と QSV では、解除した後に GPU へ送って縮める。vod が nil でなければ、録画の仮想 HLS のセグメントを書く。
+func ffmpegArgs(cfg *config.Kyusu, preset *Preset, dir string, vod *RunOptions) []string {
 	height := strconv.Itoa(preset.Height)
 	device := []string{}
 	filter := "yadif=0:-1:1,scale=-2:" + height
@@ -175,7 +201,28 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, dir string) []string {
 	args := make([]string, 0, 64)
 	args = append(args, "-hide_banner", "-loglevel", "warning", "-nostdin")
 	args = append(args, device...)
-	args = append(args, "-f", "mpegts", "-i", "pipe:0", "-map", "0:v:0", "-map", "0:a:0", "-map", "0:d?", "-vf", filter)
+	args = append(args, "-f", "mpegts", "-i", "pipe:0", "-map", "0:v:0", "-map", "0:a:0", "-map", "0:d?")
+	hls := []string{
+		"-hls_list_size", strconv.Itoa(playlistSize),
+		// temp_file は、書きかけのプレイリストとセグメントを読ませないようにする。
+		"-hls_flags", "delete_segments+independent_segments+temp_file",
+		"-hls_segment_filename", filepath.Join(dir, segmentPattern),
+		filepath.Join(dir, PlaylistName),
+	}
+	if vod != nil {
+		// 出力側の -ss は、デコードしてから捨てるので、k 番目のセグメントは、フレーム単位で k × セグメントの長さから始まる。
+		args = append(args,
+			"-ss", seconds(vod.Trim),
+			"-output_ts_offset", seconds(time.Duration(vod.StartNumber)*VODSegmentDuration),
+		)
+		hls = []string{
+			"-hls_list_size", "0", "-start_number", strconv.Itoa(vod.StartNumber),
+			"-hls_flags", "independent_segments+temp_file",
+			"-hls_segment_filename", filepath.Join(dir, segmentPattern),
+			filepath.Join(dir, vodPlaylistName),
+		}
+	}
+	args = append(args, "-vf", filter)
 	args = append(args, "-c:v", encoder)
 	args = append(args, options...)
 	args = append(args,
@@ -184,15 +231,15 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, dir string) []string {
 		"-force_key_frames", "expr:gte(t,n_forced*"+strconv.Itoa(segmentSeconds)+")",
 		"-c:a", "aac", "-b:a", strconv.Itoa(audioBitrate)+"k", "-ac", "2", "-ar", "48000",
 		"-c:d", "copy",
-		"-f", "hls", "-hls_segment_type", "mpegts",
-		"-hls_time", strconv.Itoa(segmentSeconds), "-hls_list_size", strconv.Itoa(playlistSize),
-		// temp_file は、書きかけのプレイリストとセグメントを読ませないようにする。
-		"-hls_flags", "delete_segments+independent_segments+temp_file",
-		"-hls_segment_filename", filepath.Join(dir, segmentPattern),
-		filepath.Join(dir, PlaylistName),
+		"-f", "hls", "-hls_segment_type", "mpegts", "-hls_time", strconv.Itoa(segmentSeconds),
 	)
 
-	return args
+	return append(args, hls...)
+}
+
+// seconds は、FFmpeg の引数に渡す秒を返す。
+func seconds(d time.Duration) string {
+	return strconv.FormatFloat(d.Seconds(), 'f', 6, 64)
 }
 
 // tailBuffer は、書かれたものの末尾 limit バイトだけを残す。プロセスの標準エラー出力を、エラーの説明に添えるのに使う。

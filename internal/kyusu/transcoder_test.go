@@ -47,20 +47,20 @@ func newTranscoder(t *testing.T) *kyusu.Transcoder {
 	return transcoder
 }
 
-// stream は、ffprobe が報告するストリーム。
-type stream struct {
+// probedStream は、ffprobe が報告するストリーム。
+type probedStream struct {
 	CodecType string `json:"codec_type"`
 	CodecName string `json:"codec_name"`
 	Height    int    `json:"height"`
 }
 
-func probe(t *testing.T, path string) []stream {
+func probe(t *testing.T, path string) []probedStream {
 	t.Helper()
 
 	out, err := exec.CommandContext(t.Context(), "ffprobe", "-v", "error", "-show_streams", "-of", "json", path).Output()
 	require.NoError(t, err)
 	var probed struct {
-		Streams []stream `json:"streams"`
+		Streams []probedStream `json:"streams"`
 	}
 	require.NoError(t, json.Unmarshal(out, &probed))
 
@@ -105,7 +105,7 @@ func TestTranscoderWritesHLS(t *testing.T) {
 			require.NoError(t, err)
 			assert.Zero(t, len(data)%ts.PacketSize, "a segment consists of whole TS packets")
 
-			got := map[string]stream{}
+			got := map[string]probedStream{}
 			for _, s := range probe(t, segments[0]) {
 				got[s.CodecType] = s
 			}
