@@ -23,7 +23,8 @@ export async function verifyWithPasskey(
   begin: () => Promise<PasskeyAssertion>,
   confirm: (credential: AuthenticationResponseJSON) => Promise<Completed>,
 ): Promise<Completed> {
-  if (!window.isSecureContext) {
+  // 使えない画面では、サーバーに手続きを始めさせない。
+  if (!passkeyAvailable()) {
     throw new AuthError(400, 'PASSKEY_UNAVAILABLE', undefined, undefined);
   }
   const assertion = await begin();

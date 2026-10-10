@@ -38,6 +38,21 @@ describe('authErrorMessage', () => {
       want: 'パスキーは、HTTPS か localhost で、IP アドレスではなくドメイン名で接続したときだけ使えます',
     },
     {
+      name: '確かめられなかったパスキー',
+      error: new AuthError(401, 'INVALID_PASSKEY', undefined, undefined),
+      want: 'パスキーを確かめられませんでした。登録したパスキーで、もう一度お試しください',
+    },
+    {
+      name: '期限の切れたパスキーの手続き',
+      error: new AuthError(401, 'PASSKEY_CEREMONY_EXPIRED', undefined, undefined),
+      want: '時間が経ったので、もう一度パスキーで確かめてください',
+    },
+    {
+      name: 'この接続先のパスキーがない',
+      error: new AuthError(400, 'NO_PASSKEY', undefined, undefined),
+      want: 'この接続先で使えるパスキーが登録されていません',
+    },
+    {
       name: 'パスキーの確認の取り消し',
       error: new PasskeyCancelledError(),
       want: 'パスキーの確認が取り消されたか、使えるパスキーが見つかりませんでした',

@@ -85,7 +85,8 @@
       "submit": "確認",
       "passkey": "パスキーで確認",
       "passkeyDescription": "登録したパスキーで確かめられます。",
-      "or": "または認証アプリのコード"
+      "or": "または認証アプリのコード",
+      "passkeyUnavailable": "パスキーは、HTTPS か localhost で接続したときだけ使えます。認証アプリのコードか、リカバリーコードで確かめてください。"
     },
     "enroll": {
       "title": "認証アプリの登録",

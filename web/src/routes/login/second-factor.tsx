@@ -22,7 +22,10 @@ export const Route = createFileRoute('/login/second-factor')({
       return {};
     }
 
-    return { methods: allMethods.filter((method) => methods.includes(method)) };
+    const known = allMethods.filter((method) => methods.includes(method));
+
+    // 知っている種類が 1 つもなければ、画面を直接開いたときと同じく、コードの入力を出す。
+    return known.length > 0 ? { methods: known } : {};
   },
   component: SecondFactor,
 });
@@ -38,12 +41,15 @@ function SecondFactor() {
   const [useRecovery, setUseRecovery] = useState(false);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // passkeyError は、パスキーでの確認のエラー。コードの入力欄のエラーと分けて、ボタンの近くに出す。
+  const [passkeyError, setPasskeyError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // complete は、verify でログインを完了させる。待っているログインが切れていれば、パスワードの入力に戻す。
-  const complete = async (verify: () => Promise<unknown>) => {
+  const complete = async (verify: () => Promise<unknown>, report: (message: string) => void) => {
     setSubmitting(true);
     setError(null);
+    setPasskeyError(null);
     try {
       await verify();
       // セッションの Cookie が入ったので、画面を読み直して、ログイン後のデータを取り直す。
@@ -54,7 +60,7 @@ function SecondFactor() {
 
         return;
       }
-      setError(authErrorMessage(t, caught));
+      report(authErrorMessage(t, caught));
       setCode('');
     } finally {
       setSubmitting(false);
@@ -63,12 +69,16 @@ function SecondFactor() {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    void complete(() => (useRecovery ? authApi.recoveryCode(code.trim()) : authApi.totp(code)));
+    void complete(
+      () => (useRecovery ? authApi.recoveryCode(code.trim()) : authApi.totp(code)),
+      setError,
+    );
   };
 
   const verifyPasskey = () =>
-    void complete(() =>
-      verifyWithPasskey(authApi.beginPasskeySecondFactor, authApi.confirmPasskeySecondFactor),
+    void complete(
+      () => verifyWithPasskey(authApi.beginPasskeySecondFactor, authApi.confirmPasskeySecondFactor),
+      setPasskeyError,
     );
 
   return (
@@ -81,17 +91,17 @@ function SecondFactor() {
           </Button>
           {!passkeyAvailable() && (
             <Text size="xs" c="dimmed">
-              {t('auth.login.passkeyUnavailable')}
+              {t('auth.secondFactor.passkeyUnavailable')}
             </Text>
+          )}
+          {passkeyError !== null && (
+            <Alert color="red" role="alert">
+              {passkeyError}
+            </Alert>
           )}
         </Stack>
       )}
       {hasPasskey && hasCode && <Divider label={t('auth.secondFactor.or')} />}
-      {error !== null && !hasCode && (
-        <Alert color="red" role="alert">
-          {error}
-        </Alert>
-      )}
       {hasCode && (
         <form onSubmit={submit}>
           <Stack>
