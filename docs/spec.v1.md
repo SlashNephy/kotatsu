@@ -778,7 +778,8 @@ EPGStationをシングルサインオンの背後に置いた運用では、外�
 | 通知 | `notifications` | 画面内の通知です。ユーザーごとに既読を管理します。 |
 | | `web_push_subscriptions`、`notification_preferences` | Web Pushの購読と、イベントごとの通知設定 |
 | | `webhooks` | 形式、対象のイベント、署名用の秘密キー |
-| システム | `system_settings` | 画面から変える設定（[11.2](#112-設定の置き場所)）と、VAPIDキー |
+| システム | `system_settings` | 画面から変える設定（[11.2](#112-設定の置き場所)） |
+| | `vapid_keys` | Web PushのVAPIDキー。秘密鍵はアプリの秘密キーで暗号化する（[8.4](#84-秘密情報)） |
 | 監査 | `audit_events` | [8.5](#85-監査ログ)で定めます。 |
 
 Riverは、自身のテーブルを同じデータベースに作ります。

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,7 +28,7 @@ const (
 	SealPurpose = "kotatsu/vapid/v1"
 	// maxEndpointLength は、購読の送り先の URL の長さの上限。
 	maxEndpointLength = 2048
-	// maxUserAgentLength は、購読した端末の User-Agent を保存する長さの上限。
+	// maxUserAgentLength は、購読した端末の User-Agent を保存する文字数の上限。
 	maxUserAgentLength = 512
 )
 
@@ -104,9 +105,10 @@ func (s *Service) Subscribe(ctx context.Context, db sqlc.DBTX, userID uuid.UUID,
 	if err := validate(subscription); err != nil {
 		return err
 	}
-	userAgent := subscription.UserAgent
-	if len(userAgent) > maxUserAgentLength {
-		userAgent = userAgent[:maxUserAgentLength]
+	// User-Agent は、端末を見分けられれば足りるので、文字の途中で切らないように、上限の文字数で切る。
+	userAgent := strings.ToValidUTF8(subscription.UserAgent, "")
+	if runes := []rune(userAgent); len(runes) > maxUserAgentLength {
+		userAgent = string(runes[:maxUserAgentLength])
 	}
 	err := sqlc.New(db).UpsertWebPushSubscription(ctx, sqlc.UpsertWebPushSubscriptionParams{
 		ID: id.New(), UserID: userID, Endpoint: subscription.Endpoint, P256DH: subscription.P256DH, Auth: subscription.Auth,

@@ -244,6 +244,17 @@ func TestSubscribe(t *testing.T) {
 		assert.Equal(t, valid.P256DH, got[0].P256DH)
 		assert.Equal(t, "Mozilla/5.0", got[0].UserAgent)
 
+		// 長い User-Agent は、文字の途中で切らずに、512 文字にする。
+		long := newBrowser(t).subscription("https://push.example/send/long")
+		long.UserAgent = strings.Repeat("あ", 600)
+		require.NoError(t, f.service.Subscribe(t.Context(), f.pool, mikan, long))
+		got, err = f.service.List(t.Context(), f.pool, mikan)
+		require.NoError(t, err)
+		require.Len(t, got, 2)
+		assert.Equal(t, strings.Repeat("あ", 512), got[1].UserAgent)
+		_, err = f.service.Unsubscribe(t.Context(), f.pool, mikan, long.Endpoint)
+		require.NoError(t, err)
+
 		// 同じ端末を別のユーザーが購読し直したら、そのユーザーの購読に移る。
 		require.NoError(t, f.service.Subscribe(t.Context(), f.pool, yuzu, valid))
 		for user, want := range map[uuid.UUID]int{mikan: 0, yuzu: 1} {
