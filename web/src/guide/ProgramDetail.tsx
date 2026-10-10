@@ -42,11 +42,13 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
   weekday: 'short',
   hour: '2-digit',
   minute: '2-digit',
+  hourCycle: 'h23',
   timeZone: 'Asia/Tokyo',
 });
 const timeFormat = new Intl.DateTimeFormat('ja-JP', {
   hour: '2-digit',
   minute: '2-digit',
+  hourCycle: 'h23',
   timeZone: 'Asia/Tokyo',
 });
 
@@ -101,7 +103,9 @@ function Detail({ programId }: { programId: string }) {
     setResult(null);
     commit({
       variables: { program: program.id },
-      onCompleted: () => setResult('reserved'),
+      // Relay は、data とともに返ったエラーを、onError ではなく onCompleted に渡す。
+      onCompleted: (_response, errors) =>
+        setResult(errors != null && errors.length > 0 ? 'error' : 'reserved'),
       // 予約を作れないロールには、ボタンを出していないので、ここでは理由を出し分けない。
       onError: () => setResult('error'),
     });

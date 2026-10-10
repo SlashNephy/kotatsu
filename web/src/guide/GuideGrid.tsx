@@ -48,9 +48,16 @@ const headerHeight = 36;
 // overscanPixels は、見えている範囲の上下に、余分に描く高さ。速くスクロールしても、空白が見えにくくする。
 const overscanPixels = 600;
 
+// 端末の設定によらず、24 時間制で表す。
 const timeFormat = new Intl.DateTimeFormat('ja-JP', {
   hour: '2-digit',
   minute: '2-digit',
+  hourCycle: 'h23',
+  timeZone: 'Asia/Tokyo',
+});
+const hourFormat = new Intl.DateTimeFormat('ja-JP', {
+  hour: '2-digit',
+  hourCycle: 'h23',
   timeZone: 'Asia/Tokyo',
 });
 
@@ -196,7 +203,7 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
               ta="center"
               style={{ position: 'absolute', top: timeToY(window, hour), width: axisWidth }}
             >
-              {timeFormat.format(hour).slice(0, 2)}
+              {hourFormat.format(hour).replace('時', '')}
             </Text>
           ))}
         </Box>

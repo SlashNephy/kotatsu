@@ -123,7 +123,10 @@ function Guide() {
   const types = data.channelTypes.filter((channelType) =>
     data.guide.some((row) => row.service.channelType.type === channelType.type),
   );
-  const type = search.type ?? types[0]?.type;
+  // URL の種別が、この日の番組表にないときは、最初の種別にする。
+  const type = types.some((channelType) => channelType.type === search.type)
+    ? search.type
+    : types[0]?.type;
   const columns = useMemo<GuideColumn[]>(
     () =>
       data.guide
