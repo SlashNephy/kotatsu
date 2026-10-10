@@ -17,6 +17,8 @@ import { Route as GuideIndexRouteImport } from './routes/guide/index'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as LoginEnrollRouteImport } from './routes/login/enroll'
 import { Route as LoginSecondFactorRouteImport } from './routes/login/second-factor'
+import { Route as RulesIndexRouteImport } from './routes/rules/index'
+import { Route as RulesRuleIdRouteImport } from './routes/rules/$ruleId'
 import { Route as SettingsPasswordRouteImport } from './routes/settings/password'
 
 const IndexRoute = IndexRouteImport.update({
@@ -59,6 +61,16 @@ const LoginSecondFactorRoute = LoginSecondFactorRouteImport.update({
   path: '/login/second-factor',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RulesIndexRoute = RulesIndexRouteImport.update({
+  id: '/rules/',
+  path: '/rules/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RulesRuleIdRoute = RulesRuleIdRouteImport.update({
+  id: '/rules/$ruleId',
+  path: '/rules/$ruleId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsPasswordRoute = SettingsPasswordRouteImport.update({
   id: '/settings/password',
   path: '/settings/password',
@@ -72,9 +84,11 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
+  '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/password': typeof SettingsPasswordRoute
   '/guide/': typeof GuideIndexRoute
   '/login/': typeof LoginIndexRoute
+  '/rules/': typeof RulesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -83,9 +97,11 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
+  '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/password': typeof SettingsPasswordRoute
   '/guide': typeof GuideIndexRoute
   '/login': typeof LoginIndexRoute
+  '/rules': typeof RulesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -95,9 +111,11 @@ export interface FileRoutesById {
   '/setup': typeof SetupRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
+  '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/password': typeof SettingsPasswordRoute
   '/guide/': typeof GuideIndexRoute
   '/login/': typeof LoginIndexRoute
+  '/rules/': typeof RulesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -108,9 +126,11 @@ export interface FileRouteTypes {
     | '/setup'
     | '/login/enroll'
     | '/login/second-factor'
+    | '/rules/$ruleId'
     | '/settings/password'
     | '/guide/'
     | '/login/'
+    | '/rules/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -119,9 +139,11 @@ export interface FileRouteTypes {
     | '/setup'
     | '/login/enroll'
     | '/login/second-factor'
+    | '/rules/$ruleId'
     | '/settings/password'
     | '/guide'
     | '/login'
+    | '/rules'
   id:
     | '__root__'
     | '/'
@@ -130,9 +152,11 @@ export interface FileRouteTypes {
     | '/setup'
     | '/login/enroll'
     | '/login/second-factor'
+    | '/rules/$ruleId'
     | '/settings/password'
     | '/guide/'
     | '/login/'
+    | '/rules/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -142,9 +166,11 @@ export interface RootRouteChildren {
   SetupRoute: typeof SetupRoute
   LoginEnrollRoute: typeof LoginEnrollRoute
   LoginSecondFactorRoute: typeof LoginSecondFactorRoute
+  RulesRuleIdRoute: typeof RulesRuleIdRoute
   SettingsPasswordRoute: typeof SettingsPasswordRoute
   GuideIndexRoute: typeof GuideIndexRoute
   LoginIndexRoute: typeof LoginIndexRoute
+  RulesIndexRoute: typeof RulesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -205,6 +231,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginSecondFactorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rules/': {
+      id: '/rules/'
+      path: '/rules'
+      fullPath: '/rules/'
+      preLoaderRoute: typeof RulesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rules/$ruleId': {
+      id: '/rules/$ruleId'
+      path: '/rules/$ruleId'
+      fullPath: '/rules/$ruleId'
+      preLoaderRoute: typeof RulesRuleIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/password': {
       id: '/settings/password'
       path: '/settings/password'
@@ -222,9 +262,11 @@ const rootRouteChildren: RootRouteChildren = {
   SetupRoute: SetupRoute,
   LoginEnrollRoute: LoginEnrollRoute,
   LoginSecondFactorRoute: LoginSecondFactorRoute,
+  RulesRuleIdRoute: RulesRuleIdRoute,
   SettingsPasswordRoute: SettingsPasswordRoute,
   GuideIndexRoute: GuideIndexRoute,
   LoginIndexRoute: LoginIndexRoute,
+  RulesIndexRoute: RulesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

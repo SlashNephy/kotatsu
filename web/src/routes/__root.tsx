@@ -33,6 +33,9 @@ function RootLayout() {
               <Anchor component={Link} to="/reservations" size="sm">
                 {t('nav.reservations')}
               </Anchor>
+              <Anchor component={Link} to="/rules" size="sm">
+                {t('nav.rules')}
+              </Anchor>
             </Group>
           </Group>
           <ColorSchemeToggle />
