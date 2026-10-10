@@ -11,8 +11,9 @@ import (
 // segment は、録画のセグメントと、その索引。
 type segment struct {
 	id uuid.UUID
-	// path は、セグメントのファイルの絶対パス。
-	path string
+	// poolID と path は、セグメントのファイルの、プール ID とプール内の相対パス。
+	poolID string
+	path   string
 	// startedAt は、セグメントの始まり。録画の始まりからの時間は、最初のセグメントとの差で求める。
 	startedAt time.Time
 	// open は、セグメントを書いている途中かどうか。
@@ -38,16 +39,42 @@ type piece struct {
 //
 // start は、最も近い手前の I フレームに丸める。時間は、サムネイルのコマの時間と同じく、セグメントの始まりの差と、
 // セグメントの中の PTS の差を足して求める。start より手前に I フレームがなければ、最初から配信する。
-func plan(segments []*segment, start time.Duration) []*piece {
+func plan(segments []*segment, start time.Duration) ([]*piece, time.Duration) {
 	pieces := trim(segments)
 	if len(pieces) == 0 {
-		return pieces
+		return pieces, 0
 	}
-	first, from := seek(pieces, segments[0].startedAt, start)
+	first, from, at := seek(pieces, segments[0].startedAt, start)
 	pieces = pieces[first:]
 	pieces[0].from = from
 
-	return pieces
+	return pieces, at
+}
+
+// keyframes は、trim した範囲の I フレームの、録画の始まりからの時間を、順に返す。索引のないセグメントは、その始まりだけを含める。
+func keyframes(segments []*segment) []time.Duration {
+	times := []time.Duration{}
+	pieces := trim(segments)
+	if len(pieces) == 0 {
+		return times
+	}
+	origin := segments[0].startedAt
+	for _, p := range pieces {
+		base := p.segment.startedAt.Sub(origin)
+		if len(p.segment.index) == 0 {
+			times = append(times, base)
+
+			continue
+		}
+		head := p.segment.index[0].PTS
+		for _, entry := range p.segment.index {
+			if entry.Offset >= p.from && (p.to < 0 || entry.Offset < p.to) {
+				times = append(times, base+time.Duration(ts.PTSDiff(head, entry.PTS))*time.Second/ts.PTSClock)
+			}
+		}
+	}
+
+	return times
 }
 
 // trim は、セグメントごとに配信する範囲を決め、引き継ぎで重なった区間を切り詰める。
@@ -73,9 +100,9 @@ func trim(segments []*segment) []*piece {
 	return pieces
 }
 
-// seek は、録画の始まり origin から start の位置に最も近い手前の I フレームを探し、その範囲の添え字とバイト位置を返す。
+// seek は、録画の始まり origin から start の位置に最も近い手前の I フレームを探し、その範囲の添え字と、バイト位置と、時間を返す。
 // 配信しない範囲 (切り詰めた区間) の I フレームは使わない。索引のないセグメントには、始まりからしか入れない。
-func seek(pieces []*piece, origin time.Time, start time.Duration) (int, int64) {
+func seek(pieces []*piece, origin time.Time, start time.Duration) (int, int64, time.Duration) {
 	best, bestOffset := 0, pieces[0].from
 	var bestAt time.Duration
 	found := false
@@ -99,5 +126,5 @@ func seek(pieces []*piece, origin time.Time, start time.Duration) (int, int64) {
 		}
 	}
 
-	return best, bestOffset
+	return best, bestOffset, bestAt
 }

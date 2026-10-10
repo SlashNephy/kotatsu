@@ -2,6 +2,7 @@ package kago_test
 
 import (
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -142,6 +143,50 @@ func TestPath(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// segmentFile は、TestOpen でプールに置くファイルの名前。
+const segmentFile = "a.m2ts"
+
+// TestOpen は、プールの中のファイルだけを開き、シンボリックリンクでもプールの外を開かないことを確かめる。
+func TestOpen(t *testing.T) {
+	t.Parallel()
+
+	dir, outside := t.TempDir(), t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, segmentFile), []byte("ts"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(outside, "secret"), []byte("secret"), 0o600))
+	require.NoError(t, os.Symlink(filepath.Join(outside, "secret"), filepath.Join(dir, "link.m2ts")))
+	store := kago.New(map[string]string{poolMain: dir}, nil)
+
+	tests := []struct {
+		name    string
+		poolID  string
+		rel     string
+		want    string
+		wantErr bool
+	}{
+		{name: "file", poolID: poolMain, rel: segmentFile, want: "ts", wantErr: false},
+		{name: "symbolic link to the outside", poolID: poolMain, rel: "link.m2ts", want: "", wantErr: true},
+		{name: "outside the pool", poolID: poolMain, rel: "../secret", want: "", wantErr: true},
+		{name: "unknown pool", poolID: "sub", rel: segmentFile, want: "", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			file, err := store.Open(tt.poolID, tt.rel)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+			require.NoError(t, err)
+			defer file.Close()
+			got, err := io.ReadAll(file)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, string(got))
 		})
 	}
 }

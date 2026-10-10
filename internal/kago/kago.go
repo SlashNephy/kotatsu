@@ -72,6 +72,20 @@ func (s *Store) Path(poolID, rel string) (string, error) {
 	return filepath.Join(mount, rel), nil
 }
 
+// Open は、プール ID とプール内の相対パスのファイルを、読むために開く。
+// ファイルは、プールのマウント先の中に限って開くので、シンボリックリンクでもプールの外は開かない。
+func (s *Store) Open(poolID, rel string) (*os.File, error) {
+	mount, ok := s.mounts[poolID]
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
+	}
+	if !filepath.IsLocal(rel) {
+		return nil, fmt.Errorf("%w: %q", ErrInvalidPath, rel)
+	}
+
+	return os.OpenInRoot(mount, rel)
+}
+
 // Select は、推定サイズ estimated (バイト) を書いても空き容量が閾値を下回らないプールのうち、
 // 優先順位が最も高いものを選ぶ。優先順位が同じなら ID の昇順で選ぶ。
 // このロールにマウントされていないプールと、空き容量を調べられなかったプールは選ばない。

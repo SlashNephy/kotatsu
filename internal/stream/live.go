@@ -100,9 +100,19 @@ func writeStreamHeader(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// copyFlushing は、src を読み終えるまで、読んだ分を w に書いて送り出す。
-func copyFlushing(w http.ResponseWriter, src io.Reader) error {
-	controller := http.NewResponseController(w)
+// copyFlushing は、src を読み終えるまで、読んだ分を w に書いて送り出す。w が HTTP の応答なら、書くたびに送り出す。
+func copyFlushing(w io.Writer, src io.Reader) error {
+	flush := func() error { return nil }
+	if rw, ok := w.(http.ResponseWriter); ok {
+		controller := http.NewResponseController(rw)
+		flush = func() error {
+			if err := controller.Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
+				return err
+			}
+
+			return nil
+		}
+	}
 	buf := make([]byte, copyBufferSize)
 	for {
 		n, err := src.Read(buf)
@@ -110,7 +120,7 @@ func copyFlushing(w http.ResponseWriter, src io.Reader) error {
 			if _, werr := w.Write(buf[:n]); werr != nil {
 				return werr
 			}
-			if ferr := controller.Flush(); ferr != nil && !errors.Is(ferr, http.ErrNotSupported) {
+			if ferr := flush(); ferr != nil {
 				return ferr
 			}
 		}

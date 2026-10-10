@@ -399,10 +399,11 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 		mux.Handle("/", api.handler)
 	}
 	var live *kyusu.Live
+	var vod *kyusu.VOD
 	// サーバー側でのトランスコードは kyusu が受け持つ (設計書 7.3)。tenban が、インスタンスの登録簿で引いて中継する。
 	if slices.ContainsFunc(roles, func(role *Role) bool { return role.Name == kyusuRoleName }) {
 		var token *kyusu.Token
-		live, token, err = newLive(ctx, logger, deps)
+		live, vod, token, err = newKyusu(ctx, logger, deps)
 		if err != nil {
 			_ = apiListener.Close()
 			_ = metricsListener.Close()
@@ -410,6 +411,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 			return err
 		}
 		mux.Handle(kyusu.LivePathPrefix, live.Handler(token))
+		mux.Handle(kyusu.RecordingPathPrefix, vod.Handler(token))
 	}
 	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider))
 	metricsHandler := telemetry.NewMetricsHandler(deps.Metrics)
@@ -434,6 +436,9 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 	if live != nil {
 		eg.Go(func() error {
 			return live.Run(ctx)
+		})
+		eg.Go(func() error {
+			return vod.Run(ctx)
 		})
 	}
 	eg.Go(func() error {
@@ -619,8 +624,11 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	if err != nil {
 		return nil, err
 	}
-	mux.Handle("GET /streams/services/{id}/hls/{preset}/{file}", authorizer.Middleware(
-		stream.NewHLSHandler(registry.New(deps.DB, deps.Clock, deps.InstanceID), kyusuToken, streamLogger)))
+	instances := registry.New(deps.DB, deps.Clock, deps.InstanceID)
+	mux.Handle("GET /streams/services/{id}/hls/{preset}/{file}",
+		authorizer.Middleware(kyusu.NewRelay(instances, kyusuToken, streamLogger)))
+	mux.Handle("GET /streams/recordings/{id}/hls/{preset}/{file}",
+		authorizer.Middleware(kyusu.NewRecordingRelay(instances, kyusuToken, streamLogger)))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
 	mux.Handle("GET /streams/recordings/{id}",
 		authorizer.Middleware(stream.NewRecordingHandler(deps.DB, kago.New(deps.Config.Storage.Pools, nil), streamLogger, 0)))
@@ -639,44 +647,53 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	return &apiHandler{handler: policy.Middleware(root), changes: changes}, nil
 }
 
-// newLive は、kyusu のライブ視聴のセッションと、tenban からのリクエストを確かめるトークンを返す。
-// FFmpeg か tsreadex がなければ、起動はするが、ライブ視聴には理由を添えて 503 を返す。
-func newLive(ctx context.Context, logger *slog.Logger, deps *Deps) (*kyusu.Live, *kyusu.Token, error) {
+// newKyusu は、kyusu のライブ視聴と録画の仮想 HLS のセッションと、tenban からのリクエストを確かめるトークンを返す。
+// FFmpeg か tsreadex がなければ、起動はするが、トランスコードには理由を添えて 503 を返す。
+// 録画は、このインスタンスにマウントした保存先プールから読む。
+func newKyusu(ctx context.Context, logger *slog.Logger, deps *Deps) (*kyusu.Live, *kyusu.VOD, *kyusu.Token, error) {
 	// tenban だけが、アプリの秘密キーから導いたトークンを付けて、kyusu に中継する。
 	token, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
 	if errors.Is(err, kyusu.ErrNoKey) {
-		return nil, nil, errSecretKeyRequired
+		return nil, nil, nil, errSecretKeyRequired
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	var opener kyusu.ServiceOpener
 	if deps.Config.Tuner.URL.Value() != "" {
 		client, err := newTunerClient(deps)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		opener = client
 	}
-	var encoder kyusu.Encoder
+	kyusuLogger := logger.With(slog.String("component", "kyusu"))
+	var liveEncoder kyusu.Encoder
+	var vodEncoder kyusu.VODEncoder
 	transcoder, err := kyusu.NewTranscoder(&deps.Config.Kyusu)
 	switch {
 	case errors.Is(err, kyusu.ErrToolNotFound):
 		logger.WarnContext(ctx, "FFmpeg or tsreadex is not found; server-side transcoding is disabled", slog.Any("error", err))
 	case err != nil:
-		return nil, nil, err
+		return nil, nil, nil, err
 	default:
-		encoder = transcoder
+		liveEncoder, vodEncoder = transcoder, transcoder
 	}
 	live, err := kyusu.NewLive(&kyusu.LiveOptions{
-		Opener: opener, Encoder: encoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock,
-		Logger: logger.With(slog.String("component", "kyusu")), IdleTimeout: 0,
+		Opener: opener, Encoder: liveEncoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock, Logger: kyusuLogger, IdleTimeout: 0,
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+	vod, err := kyusu.NewVOD(&kyusu.VODOptions{
+		Opener:  stream.NewRecordingSource(deps.DB, kago.New(deps.Config.Storage.Pools, nil), 0),
+		Encoder: vodEncoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock, Logger: kyusuLogger, IdleTimeout: 0,
+	})
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
-	return live, token, nil
+	return live, vod, token, nil
 }
 
 // errSecretKeyRequired は、tenban、nekonote か kyusu を、アプリの秘密キーなしで起動しようとしたことを表す。
