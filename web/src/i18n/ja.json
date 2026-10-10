@@ -142,7 +142,8 @@
     "guide": "番組表",
     "search": "番組検索",
     "reservations": "予約",
-    "rules": "ルール"
+    "rules": "ルール",
+    "recordings": "録画"
   },
   "guide": {
     "title": "番組表",
@@ -338,5 +339,56 @@
       "more": "ほかにも一致する番組があります"
     },
     "caseSensitive": "大文字と小文字を区別"
+  },
+  "recordings": {
+    "title": "録画",
+    "keyword": "番組名",
+    "tags": "タグ",
+    "states": "状態",
+    "filter": "絞り込む",
+    "error": "録画を読み込めませんでした。時間をおいてやり直してください",
+    "empty": "条件に一致する録画はありません",
+    "more": "さらに読み込む",
+    "protected": "保護",
+    "noThumbnail": "画像はまだありません",
+    "state": {
+      "RECORDING": "録画中",
+      "COMPLETED": "完了",
+      "COMPLETED_WITH_ERRORS": "ドロップあり",
+      "PARTIAL": "一部のみ",
+      "FAILED": "失敗"
+    },
+    "back": "録画の一覧に戻る",
+    "notFound": "録画が見つかりませんでした",
+    "failure": {
+      "TUNER_UNAVAILABLE": "チューナーを確保できませんでした",
+      "TUNER_SERVER_UNREACHABLE": "チューナーサーバーに接続できませんでした",
+      "STREAM_INTERRUPTED": "ストリームが中断し、つなぎ直せませんでした",
+      "STORAGE_UNAVAILABLE": "保存先に書き込めませんでした",
+      "STORAGE_FULL": "保存先の容量が足りませんでした",
+      "PROGRAM_NOT_FOUND": "番組が見つかりませんでした",
+      "CANCELLED": "録画を取り消しました",
+      "unknown": "録画に失敗しました"
+    },
+    "quality": "録画の品質",
+    "qualityCounts": "ドロップ {{drops}}・エラー {{errors}}・スクランブル {{scrambled}}",
+    "recordedRange": "録画した時刻 {{from}}〜{{until}}",
+    "size": "{{size}}（{{count}} ファイル）",
+    "gap": "{{from}}〜{{to}} が途切れています",
+    "programLost": "録画中に、番組が番組表から消えました",
+    "saveTags": "タグを保存",
+    "protect": "保護する",
+    "protectDescription": "保護した録画は、容量が足りなくなっても消しません",
+    "delete": "削除",
+    "deleteTitle": "録画を削除",
+    "deleteDescription": "録画のファイルを消します。消した録画は元に戻せません。録画履歴は残るので、重複の回避には使い続けます。",
+    "deleteError": "削除できませんでした。時間をおいてやり直してください",
+    "actionError": "操作できませんでした。時間をおいてやり直してください",
+    "openExternally": "外部プレイヤー用の URL を発行",
+    "streamURLDescription": "VLC や mpv などで開けます。URL は 6 時間で使えなくなります。",
+    "unknownEnd": "不明",
+    "copy": "コピー",
+    "copied": "コピーしました",
+    "cancel": "やめる"
   }
 }
