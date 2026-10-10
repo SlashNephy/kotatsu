@@ -197,7 +197,7 @@ func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, *sidec
 			indexes[files[i].StartedAt] = &files[i]
 		}
 	}
-	var segments []Segment
+	segments := []Segment{}
 	var first *sidecar
 	for i := range files {
 		file := &files[i]
