@@ -13,7 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/riverqueue/river"
 
+	"github.com/SlashNephy/kotatsu/internal/analysis"
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
@@ -95,11 +97,14 @@ type Importer struct {
 	clock        clock.Clock
 	rules        *rule.Rules
 	reservations *reserve.Reservations
+	inserter     analysis.Inserter
 }
 
-// NewImporter は Importer を作る。
-func NewImporter(clk clock.Clock, recorder audit.Recorder) *Importer {
-	return &Importer{clock: clk, rules: rule.NewRules(clk, recorder), reservations: reserve.NewReservations(clk, recorder)}
+// NewImporter は Importer を作る。inserter は、取り込んだ録画を解析するジョブを投入する。
+func NewImporter(clk clock.Clock, recorder audit.Recorder, inserter analysis.Inserter) *Importer {
+	return &Importer{
+		clock: clk, rules: rule.NewRules(clk, recorder), reservations: reserve.NewReservations(clk, recorder), inserter: inserter,
+	}
 }
 
 // Database は、取り込みに使う DB。*pgxpool.Pool が満たす。
@@ -554,6 +559,15 @@ func (a *applier) recording(ctx context.Context, tx pgx.Tx, r *Recording) (uuid.
 		}
 		if err := q.InsertRecordingTag(ctx, sqlc.InsertRecordingTagParams{RecordingID: recordingID, TagID: kotatsuTagID}); err != nil {
 			return uuid.Nil, fmt.Errorf("failed to tag the recording: %w", err)
+		}
+	}
+
+	// TS のセグメントがあれば、nekonote が索引とドロップの集計を作り、続けて画像を作る (設計書 6.3)。
+	// エンコード済みのファイルしかない録画には、作るものがない。
+	if slices.ContainsFunc(files, func(f *mappedFile) bool { return f.file.Type == VideoFileTypeTS }) {
+		params := []river.InsertManyParams{{Args: analysis.AnalyzeArgs{RecordingID: recordingID}, InsertOpts: nil}}
+		if _, err := a.importer.inserter.InsertManyTx(ctx, tx, params); err != nil {
+			return uuid.Nil, fmt.Errorf("failed to enqueue the analysis: %w", err)
 		}
 	}
 

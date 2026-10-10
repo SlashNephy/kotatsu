@@ -22,6 +22,8 @@ const (
 	encodedDirectory = "encoded"
 	// recordedFormat は、ルールと予約のファイル名の形式。
 	recordedFormat = "%TITLE%"
+	// encodeName は、エンコードしたファイルの、エンコードの設定の名前。
+	encodeName = "H.264"
 	// animeTag はタグの名前。
 	animeTag = "アニメ"
 	// startAt は 2026-10-10 21:00 (JST) のミリ秒。
@@ -172,7 +174,7 @@ func expectedSnapshot() *epgstation.Snapshot {
 				Genres:      []*epgstation.Genre{{Genre: 7, SubGenre: new(0)}, {Genre: 6, SubGenre: nil}},
 				Files: []*epgstation.VideoFile{
 					{ID: 100, ParentDirectoryName: recordedDirectory, FilePath: "anime/ゆるキャン△.m2ts", Type: epgstation.VideoFileTypeTS, Name: "TS", Size: 1234567890123},
-					{ID: 101, ParentDirectoryName: encodedDirectory, FilePath: "ゆるキャン△.mp4", Type: epgstation.VideoFileTypeEncoded, Name: "H.264", Size: 456},
+					{ID: 101, ParentDirectoryName: encodedDirectory, FilePath: "ゆるキャン△.mp4", Type: epgstation.VideoFileTypeEncoded, Name: encodeName, Size: 456},
 				},
 				Drop:   &epgstation.DropLog{ErrorCount: 4, DropCount: 5, ScramblingCount: 6},
 				TagIDs: []int64{1, 2},
