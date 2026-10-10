@@ -17,6 +17,8 @@ import { Route as GuideIndexRouteImport } from './routes/guide/index'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as LoginEnrollRouteImport } from './routes/login/enroll'
 import { Route as LoginSecondFactorRouteImport } from './routes/login/second-factor'
+import { Route as RecordingsIndexRouteImport } from './routes/recordings/index'
+import { Route as RecordingsRecordingIdRouteImport } from './routes/recordings/$recordingId'
 import { Route as RulesIndexRouteImport } from './routes/rules/index'
 import { Route as RulesRuleIdRouteImport } from './routes/rules/$ruleId'
 import { Route as SettingsPasswordRouteImport } from './routes/settings/password'
@@ -61,6 +63,16 @@ const LoginSecondFactorRoute = LoginSecondFactorRouteImport.update({
   path: '/login/second-factor',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RecordingsIndexRoute = RecordingsIndexRouteImport.update({
+  id: '/recordings/',
+  path: '/recordings/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecordingsRecordingIdRoute = RecordingsRecordingIdRouteImport.update({
+  id: '/recordings/$recordingId',
+  path: '/recordings/$recordingId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RulesIndexRoute = RulesIndexRouteImport.update({
   id: '/rules/',
   path: '/rules/',
@@ -84,10 +96,12 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
+  '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/password': typeof SettingsPasswordRoute
   '/guide/': typeof GuideIndexRoute
   '/login/': typeof LoginIndexRoute
+  '/recordings/': typeof RecordingsIndexRoute
   '/rules/': typeof RulesIndexRoute
 }
 export interface FileRoutesByTo {
@@ -97,10 +111,12 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
+  '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/password': typeof SettingsPasswordRoute
   '/guide': typeof GuideIndexRoute
   '/login': typeof LoginIndexRoute
+  '/recordings': typeof RecordingsIndexRoute
   '/rules': typeof RulesIndexRoute
 }
 export interface FileRoutesById {
@@ -111,10 +127,12 @@ export interface FileRoutesById {
   '/setup': typeof SetupRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
+  '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/password': typeof SettingsPasswordRoute
   '/guide/': typeof GuideIndexRoute
   '/login/': typeof LoginIndexRoute
+  '/recordings/': typeof RecordingsIndexRoute
   '/rules/': typeof RulesIndexRoute
 }
 export interface FileRouteTypes {
@@ -126,10 +144,12 @@ export interface FileRouteTypes {
     | '/setup'
     | '/login/enroll'
     | '/login/second-factor'
+    | '/recordings/$recordingId'
     | '/rules/$ruleId'
     | '/settings/password'
     | '/guide/'
     | '/login/'
+    | '/recordings/'
     | '/rules/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -139,10 +159,12 @@ export interface FileRouteTypes {
     | '/setup'
     | '/login/enroll'
     | '/login/second-factor'
+    | '/recordings/$recordingId'
     | '/rules/$ruleId'
     | '/settings/password'
     | '/guide'
     | '/login'
+    | '/recordings'
     | '/rules'
   id:
     | '__root__'
@@ -152,10 +174,12 @@ export interface FileRouteTypes {
     | '/setup'
     | '/login/enroll'
     | '/login/second-factor'
+    | '/recordings/$recordingId'
     | '/rules/$ruleId'
     | '/settings/password'
     | '/guide/'
     | '/login/'
+    | '/recordings/'
     | '/rules/'
   fileRoutesById: FileRoutesById
 }
@@ -166,10 +190,12 @@ export interface RootRouteChildren {
   SetupRoute: typeof SetupRoute
   LoginEnrollRoute: typeof LoginEnrollRoute
   LoginSecondFactorRoute: typeof LoginSecondFactorRoute
+  RecordingsRecordingIdRoute: typeof RecordingsRecordingIdRoute
   RulesRuleIdRoute: typeof RulesRuleIdRoute
   SettingsPasswordRoute: typeof SettingsPasswordRoute
   GuideIndexRoute: typeof GuideIndexRoute
   LoginIndexRoute: typeof LoginIndexRoute
+  RecordingsIndexRoute: typeof RecordingsIndexRoute
   RulesIndexRoute: typeof RulesIndexRoute
 }
 
@@ -231,6 +257,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginSecondFactorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/recordings/': {
+      id: '/recordings/'
+      path: '/recordings'
+      fullPath: '/recordings/'
+      preLoaderRoute: typeof RecordingsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recordings/$recordingId': {
+      id: '/recordings/$recordingId'
+      path: '/recordings/$recordingId'
+      fullPath: '/recordings/$recordingId'
+      preLoaderRoute: typeof RecordingsRecordingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rules/': {
       id: '/rules/'
       path: '/rules'
@@ -262,10 +302,12 @@ const rootRouteChildren: RootRouteChildren = {
   SetupRoute: SetupRoute,
   LoginEnrollRoute: LoginEnrollRoute,
   LoginSecondFactorRoute: LoginSecondFactorRoute,
+  RecordingsRecordingIdRoute: RecordingsRecordingIdRoute,
   RulesRuleIdRoute: RulesRuleIdRoute,
   SettingsPasswordRoute: SettingsPasswordRoute,
   GuideIndexRoute: GuideIndexRoute,
   LoginIndexRoute: LoginIndexRoute,
+  RecordingsIndexRoute: RecordingsIndexRoute,
   RulesIndexRoute: RulesIndexRoute,
 }
 export const routeTree = rootRouteImport
