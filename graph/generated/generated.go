@@ -3538,6 +3538,8 @@ enum RecordingFileKind {
   THUMBNAIL
   "シークバー用のプレビュー画像 (JPEG)。コマの並びは、同じディレクトリの preview.json に書く"
   PREVIEW
+  "EPGStation から取り込んだ、エンコード済みの MP4 のような TS 以外のファイル"
+  OTHER
 }
 
 """

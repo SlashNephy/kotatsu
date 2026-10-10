@@ -20,6 +20,10 @@ const (
 	// animeDirectory と encodedDirectory は、録画の保存先ディレクトリやサブディレクトリの名前。
 	animeDirectory   = "anime"
 	encodedDirectory = "encoded"
+	// recordedFormat は、ルールと予約のファイル名の形式。
+	recordedFormat = "%TITLE%"
+	// animeTag はタグの名前。
+	animeTag = "アニメ"
 	// startAt は 2026-10-10 21:00 (JST) のミリ秒。
 	startAt = 1791633600000
 	endAt   = startAt + 30*60*1000
@@ -90,7 +94,7 @@ func expectedSnapshot() *epgstation.Snapshot {
 				TagIDs:                 []int64{1, 2},
 				ParentDirectoryName:    recordedDirectory,
 				Directory:              animeDirectory,
-				RecordedFormat:         "%TITLE%",
+				RecordedFormat:         recordedFormat,
 			},
 			{
 				ID:                     2,
@@ -132,7 +136,7 @@ func expectedSnapshot() *epgstation.Snapshot {
 				TagIDs:              []int64{2},
 				ParentDirectoryName: recordedDirectory,
 				Directory:           "news",
-				RecordedFormat:      "%TITLE%",
+				RecordedFormat:      recordedFormat,
 			},
 			{
 				ID:                  2,
@@ -195,7 +199,7 @@ func expectedSnapshot() *epgstation.Snapshot {
 			{ID: 1, Name: "ゆるキャン△", ChannelID: channelID, EndAt: time.UnixMilli(endAt).UTC()},
 		},
 		Tags: []*epgstation.Tag{
-			{ID: 1, Name: "アニメ", Color: "#ff0000"},
+			{ID: 1, Name: animeTag, Color: "#ff0000"},
 			{ID: 2, Name: "お気に入り", Color: "#00ff00"},
 		},
 	}
