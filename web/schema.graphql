@@ -842,6 +842,10 @@ type Query {
   """
   systemSettings: SystemSettings!
   """
+  サーバー側でのトランスコードを使えるかと、選べる画質。
+  """
+  transcoding: Transcoding!
+  """
   すべてのユーザーを、作った順に返す。管理者だけが使える (設計書 9.7)。
   """
   users: [User!]!
@@ -1392,6 +1396,21 @@ input StoragePoolInput {
   minFreeBytes: Int64
 }
 """
+サーバー側でのトランスコードの画質 (設計書 7.3)。
+"""
+type StreamPreset {
+  """
+  URL に使う名前 (720p、720p-hevc など)。HLS は /streams/{services|recordings}/{id}/hls/{name}/playlist.m3u8 で取る。
+  """
+  name: String!
+  height: Int!
+  """
+  映像のビットレート (kbps)。
+  """
+  videoBitrate: Int!
+  codec: VideoCodec!
+}
+"""
 外部プレイヤー (VLC や mpv) で開くための、署名付きの映像の URL (設計書 7.6、9.6)。
 URL には、リソース、URL を発行したユーザー、有効期限に対する署名が付く。中身は TS をそのまま流す。
 """
@@ -1547,6 +1566,19 @@ input TimeReservationInput {
   settings: RecordingSettingsOverridesInput
 }
 """
+サーバー側でのトランスコード (kyusu) の状態 (設計書 7.1)。
+"""
+type Transcoding {
+  """
+  トランスコードできる kyusu が動いているかどうか。動いていなければ、ブラウザ内での変換だけを使える。
+  """
+  available: Boolean!
+  """
+  選べる画質。高い順に並べる。
+  """
+  presets: [StreamPreset!]!
+}
+"""
 チューナー (設計書 3.1)。
 """
 type Tuner {
@@ -1606,6 +1638,13 @@ type User implements Node {
   """
   disabled: Boolean!
   createdAt: Time!
+}
+"""
+サーバー側でのトランスコード (kyusu) の映像のコーデック。
+"""
+enum VideoCodec {
+  H264
+  HEVC
 }
 """
 Web Push の購読 (設計書 6.2)。端末とブラウザごとに 1 つある。

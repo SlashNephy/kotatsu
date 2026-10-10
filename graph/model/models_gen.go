@@ -475,6 +475,16 @@ type StoragePoolInput struct {
 	MinFreeBytes *int64 `json:"minFreeBytes,omitempty"`
 }
 
+// サーバー側でのトランスコードの画質 (設計書 7.3)。
+type StreamPreset struct {
+	// URL に使う名前 (720p、720p-hevc など)。HLS は /streams/{services|recordings}/{id}/hls/{name}/playlist.m3u8 で取る。
+	Name   string `json:"name"`
+	Height int    `json:"height"`
+	// 映像のビットレート (kbps)。
+	VideoBitrate int        `json:"videoBitrate"`
+	Codec        VideoCodec `json:"codec"`
+}
+
 // 外部プレイヤー (VLC や mpv) で開くための、署名付きの映像の URL (設計書 7.6、9.6)。
 // URL には、リソース、URL を発行したユーザー、有効期限に対する署名が付く。中身は TS をそのまま流す。
 type StreamURL struct {
@@ -561,6 +571,14 @@ type TimeReservationInput struct {
 	// 画面に出す名前。200 文字まで。
 	Name     string                           `json:"name"`
 	Settings *RecordingSettingsOverridesInput `json:"settings,omitempty"`
+}
+
+// サーバー側でのトランスコード (kyusu) の状態 (設計書 7.1)。
+type Transcoding struct {
+	// トランスコードできる kyusu が動いているかどうか。動いていなければ、ブラウザ内での変換だけを使える。
+	Available bool `json:"available"`
+	// 選べる画質。高い順に並べる。
+	Presets []*StreamPreset `json:"presets"`
 }
 
 // チューナー (設計書 3.1)。
@@ -1235,6 +1253,62 @@ func (e *Role) UnmarshalJSON(b []byte) error {
 }
 
 func (e Role) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// サーバー側でのトランスコード (kyusu) の映像のコーデック。
+type VideoCodec string
+
+const (
+	VideoCodecH264 VideoCodec = "H264"
+	VideoCodecHevc VideoCodec = "HEVC"
+)
+
+var AllVideoCodec = []VideoCodec{
+	VideoCodecH264,
+	VideoCodecHevc,
+}
+
+func (e VideoCodec) IsValid() bool {
+	switch e {
+	case VideoCodecH264, VideoCodecHevc:
+		return true
+	}
+	return false
+}
+
+func (e VideoCodec) String() string {
+	return string(e)
+}
+
+func (e *VideoCodec) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = VideoCodec(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid VideoCodec", str)
+	}
+	return nil
+}
+
+func (e VideoCodec) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *VideoCodec) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e VideoCodec) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

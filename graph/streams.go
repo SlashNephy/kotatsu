@@ -9,6 +9,8 @@ import (
 
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/kyusu"
+	"github.com/SlashNephy/kotatsu/internal/registry"
 	"github.com/SlashNephy/kotatsu/internal/stream"
 )
 
@@ -70,4 +72,29 @@ func (r *Resolver) streamResource(ctx context.Context, target string) (string, e
 	default:
 		return "", NewError(CodeBadUserInput, "target must be a Service or Recording ID")
 	}
+}
+
+// transcoding は、サーバー側でのトランスコードを使えるかと、選べる画質を返す (設計書 7.1)。
+// kyusu は、トランスコードできるときだけ登録簿に載るので、生きている kyusu がいれば使えるとみなす。
+func (r *Resolver) transcoding(ctx context.Context) (*model.Transcoding, error) {
+	if _, err := viewer(ctx); err != nil {
+		return nil, err
+	}
+	// 登録簿を読むだけなので、このインスタンスの ID は使わない。
+	instances, err := registry.New(r.db, r.clock, uuid.Nil).ListAlive(ctx, kyusu.Role)
+	if err != nil {
+		return nil, err
+	}
+	presets := make([]*model.StreamPreset, 0, len(kyusu.Presets()))
+	for _, preset := range kyusu.Presets() {
+		codec := model.VideoCodecH264
+		if preset.Codec == kyusu.CodecHEVC {
+			codec = model.VideoCodecHevc
+		}
+		presets = append(presets, &model.StreamPreset{
+			Name: preset.Name, Height: preset.Height, VideoBitrate: preset.VideoBitrate, Codec: codec,
+		})
+	}
+
+	return &model.Transcoding{Available: len(instances) > 0, Presets: presets}, nil
 }

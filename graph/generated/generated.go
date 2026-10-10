@@ -289,6 +289,7 @@ type ComplexityRoot struct {
 		SystemSettings          func(childComplexity int) int
 		SystemStatus            func(childComplexity int) int
 		Tags                    func(childComplexity int) int
+		Transcoding             func(childComplexity int) int
 		UnreadNotificationCount func(childComplexity int) int
 		Users                   func(childComplexity int) int
 		Viewer                  func(childComplexity int) int
@@ -457,6 +458,13 @@ type ComplexityRoot struct {
 		Priority     func(childComplexity int) int
 	}
 
+	StreamPreset struct {
+		Codec        func(childComplexity int) int
+		Height       func(childComplexity int) int
+		Name         func(childComplexity int) int
+		VideoBitrate func(childComplexity int) int
+	}
+
 	StreamURL struct {
 		ExpiresAt func(childComplexity int) int
 		URL       func(childComplexity int) int
@@ -499,6 +507,11 @@ type ComplexityRoot struct {
 		DurationMinutes func(childComplexity int) int
 		StartMinute     func(childComplexity int) int
 		Weekdays        func(childComplexity int) int
+	}
+
+	Transcoding struct {
+		Available func(childComplexity int) int
+		Presets   func(childComplexity int) int
 	}
 
 	Tuner struct {
@@ -624,6 +637,7 @@ type QueryResolver interface {
 	SearchPrograms(ctx context.Context, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) (*model.ProgramConnection, error)
 	SecondFactors(ctx context.Context) (*model.SecondFactorStatus, error)
 	SystemSettings(ctx context.Context) (*model.SystemSettings, error)
+	Transcoding(ctx context.Context) (*model.Transcoding, error)
 	Users(ctx context.Context) ([]*model.User, error)
 	Sessions(ctx context.Context) ([]*model.Session, error)
 	WebPushPublicKey(ctx context.Context) (string, error)
@@ -1897,6 +1911,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Tags(childComplexity), true
+	case "Query.transcoding":
+		if e.ComplexityRoot.Query.Transcoding == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.Transcoding(childComplexity), true
 	case "Query.unreadNotificationCount":
 		if e.ComplexityRoot.Query.UnreadNotificationCount == nil {
 			break
@@ -2605,6 +2625,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.StoragePool.Priority(childComplexity), true
 
+	case "StreamPreset.codec":
+		if e.ComplexityRoot.StreamPreset.Codec == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamPreset.Codec(childComplexity), true
+	case "StreamPreset.height":
+		if e.ComplexityRoot.StreamPreset.Height == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamPreset.Height(childComplexity), true
+	case "StreamPreset.name":
+		if e.ComplexityRoot.StreamPreset.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamPreset.Name(childComplexity), true
+	case "StreamPreset.videoBitrate":
+		if e.ComplexityRoot.StreamPreset.VideoBitrate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamPreset.VideoBitrate(childComplexity), true
+
 	case "StreamURL.expiresAt":
 		if e.ComplexityRoot.StreamURL.ExpiresAt == nil {
 			break
@@ -2749,6 +2794,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TimeRange.Weekdays(childComplexity), true
+
+	case "Transcoding.available":
+		if e.ComplexityRoot.Transcoding.Available == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Transcoding.Available(childComplexity), true
+	case "Transcoding.presets":
+		if e.ComplexityRoot.Transcoding.Presets == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Transcoding.Presets(childComplexity), true
 
 	case "Tuner.available":
 		if e.ComplexityRoot.Tuner.Available == nil {
@@ -4256,6 +4314,41 @@ extend type Mutation {
   """
   createStreamURL(target: ID!): StreamURL!
 }
+
+"""
+サーバー側でのトランスコード (kyusu) の映像のコーデック。
+"""
+enum VideoCodec {
+  H264
+  HEVC
+}
+
+"""
+サーバー側でのトランスコードの画質 (設計書 7.3)。
+"""
+type StreamPreset {
+  "URL に使う名前 (720p、720p-hevc など)。HLS は /streams/{services|recordings}/{id}/hls/{name}/playlist.m3u8 で取る。"
+  name: String!
+  height: Int!
+  "映像のビットレート (kbps)。"
+  videoBitrate: Int!
+  codec: VideoCodec!
+}
+
+"""
+サーバー側でのトランスコード (kyusu) の状態 (設計書 7.1)。
+"""
+type Transcoding {
+  "トランスコードできる kyusu が動いているかどうか。動いていなければ、ブラウザ内での変換だけを使える。"
+  available: Boolean!
+  "選べる画質。高い順に並べる。"
+  presets: [StreamPreset!]!
+}
+
+extend type Query {
+  "サーバー側でのトランスコードを使えるかと、選べる画質。"
+  transcoding: Transcoding!
+}
 `, BuiltIn: false},
 	{Name: "../schema/user.graphqls", Input: `"""
 ユーザーのロール (設計書 9.7)。
@@ -5158,6 +5251,20 @@ func (ec *executionContext) childFields_StoragePool(ctx context.Context, field g
 	return nil, fmt.Errorf("no field named %q was found under type StoragePool", field.Name)
 }
 
+func (ec *executionContext) childFields_StreamPreset(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "name":
+		return ec.fieldContext_StreamPreset_name(ctx, field)
+	case "height":
+		return ec.fieldContext_StreamPreset_height(ctx, field)
+	case "videoBitrate":
+		return ec.fieldContext_StreamPreset_videoBitrate(ctx, field)
+	case "codec":
+		return ec.fieldContext_StreamPreset_codec(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type StreamPreset", field.Name)
+}
+
 func (ec *executionContext) childFields_StreamURL(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "url":
@@ -5230,6 +5337,16 @@ func (ec *executionContext) childFields_TimeRange(ctx context.Context, field gra
 		return ec.fieldContext_TimeRange_durationMinutes(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TimeRange", field.Name)
+}
+
+func (ec *executionContext) childFields_Transcoding(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "available":
+		return ec.fieldContext_Transcoding_available(ctx, field)
+	case "presets":
+		return ec.fieldContext_Transcoding_presets(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Transcoding", field.Name)
 }
 
 func (ec *executionContext) childFields_Tuner(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -11474,6 +11591,38 @@ func (ec *executionContext) fieldContext_Query_systemSettings(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_transcoding(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_transcoding(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().Transcoding(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Transcoding) graphql.Marshaler {
+			return ec.marshalNTranscoding2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐTranscoding(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_transcoding(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Transcoding(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_users(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -14406,6 +14555,98 @@ func (ec *executionContext) fieldContext_StoragePool_freeBytes(_ context.Context
 	return graphql.NewScalarFieldContext("StoragePool", field, false, false, errors.New("field of type Int64 does not have child fields"))
 }
 
+func (ec *executionContext) _StreamPreset_name(ctx context.Context, field graphql.CollectedField, obj *model.StreamPreset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StreamPreset_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StreamPreset_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StreamPreset", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _StreamPreset_height(ctx context.Context, field graphql.CollectedField, obj *model.StreamPreset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StreamPreset_height(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Height, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StreamPreset_height(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StreamPreset", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _StreamPreset_videoBitrate(ctx context.Context, field graphql.CollectedField, obj *model.StreamPreset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StreamPreset_videoBitrate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.VideoBitrate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StreamPreset_videoBitrate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StreamPreset", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _StreamPreset_codec(ctx context.Context, field graphql.CollectedField, obj *model.StreamPreset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StreamPreset_codec(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Codec, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.VideoCodec) graphql.Marshaler {
+			return ec.marshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐVideoCodec(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StreamPreset_codec(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StreamPreset", field, false, false, errors.New("field of type VideoCodec does not have child fields"))
+}
+
 func (ec *executionContext) _StreamURL_url(ctx context.Context, field graphql.CollectedField, obj *model.StreamURL) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -14996,6 +15237,61 @@ func (ec *executionContext) _TimeRange_durationMinutes(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_TimeRange_durationMinutes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TimeRange", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Transcoding_available(ctx context.Context, field graphql.CollectedField, obj *model.Transcoding) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Transcoding_available(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Available, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Transcoding_available(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Transcoding", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Transcoding_presets(ctx context.Context, field graphql.CollectedField, obj *model.Transcoding) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Transcoding_presets(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Presets, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.StreamPreset) graphql.Marshaler {
+			return ec.marshalNStreamPreset2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamPresetᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Transcoding_presets(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Transcoding",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_StreamPreset(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Tuner_index(ctx context.Context, field graphql.CollectedField, obj *model.Tuner) (ret graphql.Marshaler) {
@@ -20299,6 +20595,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "transcoding":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_transcoding(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "users":
 			field := field
 
@@ -21682,6 +22000,59 @@ func (ec *executionContext) _StoragePool(ctx context.Context, sel ast.SelectionS
 	return out
 }
 
+var streamPresetImplementors = []string{"StreamPreset"}
+
+func (ec *executionContext) _StreamPreset(ctx context.Context, sel ast.SelectionSet, obj *model.StreamPreset) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, streamPresetImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("StreamPreset")
+		case "name":
+			out.Values[i] = ec._StreamPreset_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "height":
+			out.Values[i] = ec._StreamPreset_height(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "videoBitrate":
+			out.Values[i] = ec._StreamPreset_videoBitrate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "codec":
+			out.Values[i] = ec._StreamPreset_codec(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var streamURLImplementors = []string{"StreamURL"}
 
 func (ec *executionContext) _StreamURL(ctx context.Context, sel ast.SelectionSet, obj *model.StreamURL) graphql.Marshaler {
@@ -21977,6 +22348,49 @@ func (ec *executionContext) _TimeRange(ctx context.Context, sel ast.SelectionSet
 			}
 		case "durationMinutes":
 			out.Values[i] = ec._TimeRange_durationMinutes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var transcodingImplementors = []string{"Transcoding"}
+
+func (ec *executionContext) _Transcoding(ctx context.Context, sel ast.SelectionSet, obj *model.Transcoding) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, transcodingImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Transcoding")
+		case "available":
+			out.Values[i] = ec._Transcoding_available(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "presets":
+			out.Values[i] = ec._Transcoding_presets(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -23828,6 +24242,32 @@ func (ec *executionContext) unmarshalNStoragePoolInput2githubᚗcomᚋSlashNephy
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNStreamPreset2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamPresetᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.StreamPreset) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNStreamPreset2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamPreset(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNStreamPreset2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamPreset(ctx context.Context, sel ast.SelectionSet, v *model.StreamPreset) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._StreamPreset(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNStreamURL2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamURL(ctx context.Context, sel ast.SelectionSet, v *model.StreamURL) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -24018,6 +24458,16 @@ func (ec *executionContext) unmarshalNTimeReservationInput2githubᚗcomᚋSlashN
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNTranscoding2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐTranscoding(ctx context.Context, sel ast.SelectionSet, v *model.Transcoding) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Transcoding(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNTuner2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐTunerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Tuner) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -24078,6 +24528,16 @@ func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu�
 		return graphql.Null
 	}
 	return ec._User(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐVideoCodec(ctx context.Context, v any) (model.VideoCodec, error) {
+	var res model.VideoCodec
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐVideoCodec(ctx context.Context, sel ast.SelectionSet, v model.VideoCodec) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNWebPushSubscription2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWebPushSubscriptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.WebPushSubscription) graphql.Marshaler {
