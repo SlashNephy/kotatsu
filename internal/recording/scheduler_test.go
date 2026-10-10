@@ -166,34 +166,55 @@ func TestSchedulerWritesAssignmentsBeforeStart(t *testing.T) {
 }
 
 // TestSchedulerDeletesStaleAssignments は、まだ mikan が取っていない割り振りのうち、録画しなくなった予約のものを消し、
-// 録画中の割り振りは消さないことを確かめる。
+// mikan が取った割り振りは消さないことを確かめる。
 func TestSchedulerDeletesStaleAssignments(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t)
-	waiting, recordingID := f.reserve(t, 0), f.reserve(t, 1)
-	f.clock.Advance(programStart().Add(-time.Minute).Sub(f.clock.Now()))
-	f.schedule(t)
-	// mikan が取ったものとして、録画中にする。
-	_, err := f.pool.Exec(t.Context(), "UPDATE recording_assignments SET state = 'recording', generation = 1 WHERE reservation_id = $1", recordingID)
-	require.NoError(t, err)
+	tests := []struct {
+		name   string
+		change func(t *testing.T, f *fixture, reservationID uuid.UUID)
+	}{
+		{name: "予約を無効にした", change: func(t *testing.T, f *fixture, reservationID uuid.UUID) {
+			t.Helper()
 
-	for _, reservationID := range []uuid.UUID{waiting, recordingID} {
-		_, err := f.reservations.Update(t.Context(), f.pool, audit.System("test"), reservationID, &reserve.Update{Enabled: new(false)})
-		require.NoError(t, err)
+			_, err := f.reservations.Update(t.Context(), f.pool, audit.System("test"), reservationID, &reserve.Update{Enabled: new(false)})
+			require.NoError(t, err)
+		}},
+		{name: "予定の開始が後に動いた", change: func(t *testing.T, f *fixture, reservationID uuid.UUID) {
+			t.Helper()
+
+			_, err := f.pool.Exec(t.Context(), "UPDATE reservations SET planned_start_at = planned_start_at + interval '1 hour' WHERE id = $1", reservationID)
+			require.NoError(t, err)
+		}},
+		{name: "mikan が取らないまま予定の終わりが過ぎた", change: func(t *testing.T, f *fixture, _ uuid.UUID) {
+			t.Helper()
+
+			f.clock.Advance(time.Hour)
+		}},
 	}
-	assert.Equal(t, &recording.ScheduleResult{Created: 0, Deleted: 1}, f.schedule(t))
-	var states []string
-	require.NoError(t, pgx.BeginFunc(t.Context(), f.pool, func(tx pgx.Tx) error {
-		rows, err := tx.Query(t.Context(), "SELECT state FROM recording_assignments")
-		if err != nil {
-			return err
-		}
-		states, err = pgx.CollectRows(rows, pgx.RowTo[string])
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		return err
-	}))
-	assert.Equal(t, []string{"recording"}, states, "the recording one is left to mikan")
+			f := newFixture(t)
+			waiting, taken := f.reserve(t, 0), f.reserve(t, 1)
+			f.clock.Advance(programStart().Add(-time.Minute).Sub(f.clock.Now()))
+			require.Equal(t, 2, f.schedule(t).Created)
+			// 片方は、mikan が取ったものとして、録画中にする。
+			_, err := f.pool.Exec(t.Context(), "UPDATE recording_assignments SET state = 'recording', generation = 1 WHERE reservation_id = $1", taken)
+			require.NoError(t, err)
+
+			tt.change(t, f, waiting)
+			tt.change(t, f, taken)
+			assert.Equal(t, &recording.ScheduleResult{Created: 0, Deleted: 1}, f.schedule(t))
+			var left []uuid.UUID
+			rows, err := f.pool.Query(t.Context(), "SELECT reservation_id FROM recording_assignments")
+			require.NoError(t, err)
+			left, err = pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+			require.NoError(t, err)
+			assert.Equal(t, []uuid.UUID{taken}, left, "the taken one is left to mikan")
+		})
+	}
 }
 
 // TestSchedulerSkipsFinishedReservations は、予定の終わりが過ぎた予約には割り振りを書かないことを確かめる。

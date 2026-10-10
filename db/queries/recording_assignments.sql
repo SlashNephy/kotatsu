@@ -15,12 +15,16 @@ VALUES (@id, @reservation_id, @priority, 'waiting', 0, NULL, NULL, @now, @now);
 
 -- name: DeleteStaleRecordingAssignments :execrows
 -- まだ mikan が取っていない割り振りのうち、録画しなくなった予約のものを消す。
--- 予約を無効にしたか、割り当てを計算し直す前の状態に戻ったか、予定の開始が due_before より後に動いたもの。
+-- 予約を無効にしたか、割り当てを計算し直す前の状態に戻ったか、予定の開始が due_before より後に動いたか、
+-- mikan が取らないまま予定の終わりが過ぎたもの。
 DELETE FROM recording_assignments a
 USING reservations r
 WHERE a.reservation_id = r.id
   AND a.state = 'waiting'
-  AND (NOT r.enabled OR r.assignment_state = 'pending' OR r.planned_start_at > @due_before::timestamptz);
+  AND (
+    NOT r.enabled OR r.assignment_state = 'pending' OR r.planned_start_at > @due_before::timestamptz
+    OR coalesce(r.planned_end_at, r.end_at) <= @now::timestamptz
+  );
 
 -- name: UpdateWaitingRecordingPriorities :execrows
 -- まだ mikan が取っていない割り振りの優先度を、予約の今の割り当ての状態に合わせる。

@@ -44,8 +44,9 @@ type Querier interface {
 	// 数え直す時間を過ぎ、待たせてもいない行を消す。存在しないユーザー名や IP の行が溜まり続けないようにする。
 	DeleteStaleLoginThrottles(ctx context.Context, arg DeleteStaleLoginThrottlesParams) (int64, error)
 	// まだ mikan が取っていない割り振りのうち、録画しなくなった予約のものを消す。
-	// 予約を無効にしたか、割り当てを計算し直す前の状態に戻ったか、予定の開始が due_before より後に動いたもの。
-	DeleteStaleRecordingAssignments(ctx context.Context, dueBefore time.Time) (int64, error)
+	// 予約を無効にしたか、割り当てを計算し直す前の状態に戻ったか、予定の開始が due_before より後に動いたか、
+	// mikan が取らないまま予定の終わりが過ぎたもの。
+	DeleteStaleRecordingAssignments(ctx context.Context, arg DeleteStaleRecordingAssignmentsParams) (int64, error)
 	DeleteTOTPEnrollment(ctx context.Context, userID uuid.UUID) error
 	DeleteTuners(ctx context.Context) error
 	DeleteUserPasskey(ctx context.Context, arg DeleteUserPasskeyParams) (int64, error)

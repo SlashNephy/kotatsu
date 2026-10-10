@@ -112,7 +112,7 @@ func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
 		now := s.clock.Now()
 		dueBefore := now.Add(s.opts.Lead)
 
-		deleted, err := q.DeleteStaleRecordingAssignments(ctx, dueBefore)
+		deleted, err := q.DeleteStaleRecordingAssignments(ctx, sqlc.DeleteStaleRecordingAssignmentsParams{DueBefore: dueBefore, Now: now})
 		if err != nil {
 			return fmt.Errorf("failed to delete stale recording assignments: %w", err)
 		}
