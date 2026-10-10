@@ -13,7 +13,7 @@ import (
 )
 
 // testStrengthTimeout は、テストでの判定の時間の上限。-race では goja が 10 倍以上遅くなるので、長くとる。
-const testStrengthTimeout = 2 * time.Minute
+const testStrengthTimeout = 10 * time.Minute
 
 // TestEstimateMatchesNode は、goja で動かした zxcvbn-ts が、Node.js で動かした同じバンドルと同じ結果を返すことを確かめる。
 // 期待値は、web/zxcvbn/dist/zxcvbn.js を Node.js の vm で読み込んで得た (設計書 2.2)。
