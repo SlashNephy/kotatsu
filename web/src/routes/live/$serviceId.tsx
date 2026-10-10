@@ -107,6 +107,8 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
   // session は、つなぎ直すたびに増やし、URL を変えて読み直させる。
   const [session, setSession] = useState(0);
   const attempt = useRef(0);
+  // preempted は、録画のためにチューナーを使われて切れたかどうか。つなぎ直せない間の理由に使う。
+  const preempted = useRef(false);
   const [disconnection, setDisconnection] = useState<Disconnection | null>(null);
 
   // 視聴が切れたら、理由を調べ、間隔を延ばしながらつなぎ直す。
@@ -115,7 +117,8 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
       return;
     }
     const at = Date.now();
-    const retried = attempt.current > 0;
+    // 録画にチューナーを使われて切れた後は、録画が続いている間はつなぎ直せない。
+    const retried = attempt.current > 0 && preempted.current;
     const delay = reconnectDelay(attempt.current);
     setDisconnection({ at, retryIn: delay, recordings: [] });
     void fetchQuery<ServiceIdRecordingsQuery>(
@@ -137,6 +140,9 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
         // 最初に切れたときは、その前後に始まった録画を理由とみなす。つなぎ直せなかったときは、
         // 録画が続いている間はチューナーが空かないので、録画中のものをすべて示す。
         const recordings = retried ? inProgress : recordingsThatTookTuner(inProgress, at);
+        if (recordings.length > 0) {
+          preempted.current = true;
+        }
         setDisconnection((prev) => (prev?.at === at ? { ...prev, recordings } : prev));
       })
       // 理由を調べられなくても、つなぎ直しは続ける。
@@ -169,7 +175,7 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
     return <Alert color="amber">{t('live.notFound')}</Alert>;
   }
   // 画面の外に出たときと、タブが隠れたときは、読み込みも止めて、チューナーを手放す (設計書 7.2)。
-  const url = `${service.streamUrl}?session=${session}`;
+  const url = `${service.streamUrl}${service.streamUrl.includes('?') ? '&' : '?'}session=${session}`;
 
   return (
     <Stack gap="xs">
@@ -185,6 +191,7 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
         active={visible}
         onLoaded={() => {
           attempt.current = 0;
+          preempted.current = false;
         }}
         onState={(state) => {
           // ライブのストリームは終わらないので、読み終えたのは、切れたということ。
