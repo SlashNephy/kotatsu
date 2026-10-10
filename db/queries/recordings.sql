@@ -69,3 +69,20 @@ SELECT * FROM recording_files WHERE recording_id = @recording_id AND ended_at IS
 -- name: SetRecordingGaps :exec
 -- 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
 UPDATE recordings SET gaps = @gaps, updated_at = @now WHERE id = @id;
+
+-- name: UpsertRecordingIndex :exec
+-- 録画を終えた後に作ったセグメントの索引を記録する。索引は、セグメントと同じ時間の範囲を表す。作り直したときは、同じパスの行を書き換える。
+INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+VALUES (@id, @recording_id, 'index', @pool_id, @path, @size, @started_at, sqlc.narg(ended_at), @now)
+ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, ended_at = EXCLUDED.ended_at
+WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.kind = 'index';
+
+-- name: SetRecordingStats :exec
+-- 録画を終えた後に解析したドロップ、エラー、スクランブルで、録画の集計を置き換える。
+-- 完了した録画は、ドロップの有無で、完了とエラーありの完了を決め直す。
+UPDATE recordings SET drops = @drops, errors = @errors, scrambled = @scrambled,
+  state = CASE WHEN state IN ('completed', 'completed_with_errors')
+    THEN CASE WHEN @drops::bigint > 0 THEN 'completed_with_errors' ELSE 'completed' END
+    ELSE state END,
+  updated_at = @now
+WHERE id = @id;

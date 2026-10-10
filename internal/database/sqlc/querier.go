@@ -309,6 +309,9 @@ type Querier interface {
 	// 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
 	SetRecordingGaps(ctx context.Context, arg SetRecordingGapsParams) error
 	SetRecordingProtected(ctx context.Context, arg SetRecordingProtectedParams) error
+	// 録画を終えた後に解析したドロップ、エラー、スクランブルで、録画の集計を置き換える。
+	// 完了した録画は、ドロップの有無で、完了とエラーありの完了を決め直す。
+	SetRecordingStats(ctx context.Context, arg SetRecordingStatsParams) error
 	SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error)
 	SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error
 	SetRuleEnabled(ctx context.Context, arg SetRuleEnabledParams) (int64, error)
@@ -339,6 +342,8 @@ type Querier interface {
 	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults
 	// 録画の代表画像かプレビュー画像を記録する。作り直したときは、同じパスの行を書き換える。
 	UpsertRecordingImage(ctx context.Context, arg UpsertRecordingImageParams) error
+	// 録画を終えた後に作ったセグメントの索引を記録する。索引は、セグメントと同じ時間の範囲を表す。作り直したときは、同じパスの行を書き換える。
+	UpsertRecordingIndex(ctx context.Context, arg UpsertRecordingIndexParams) error
 	// 上流から来る項目だけを更新する。非表示の印と並び順の上書きは、管理者のものなので触らない。
 	UpsertService(ctx context.Context, arg UpsertServiceParams) error
 	UpsertStoragePool(ctx context.Context, arg UpsertStoragePoolParams) (StoragePool, error)

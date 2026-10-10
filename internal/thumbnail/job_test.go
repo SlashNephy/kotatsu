@@ -192,6 +192,44 @@ func TestGenerateWorker(t *testing.T) {
 	}
 }
 
+// TestGenerateWorkerPairsIndexesByPath は、始まりが同じセグメントが 2 つあっても、それぞれの付属ファイルのディレクトリの索引を使うことを確かめる。
+// EPGStation から取り込んだ録画では、どのファイルも番組の始まりを始まりとして記録する。
+func TestGenerateWorkerPairsIndexesByPath(t *testing.T) {
+	t.Parallel()
+
+	f := newJobFixture(t)
+	recordingID := f.recording(t, 30)
+	// 後から足す、0 秒と 30 秒の位置にだけ I フレームを索引したセグメント。始まりは最初のセグメントと同じにする。
+	// 最初のセグメントの I フレームは 0〜29 秒にあるので、このセグメントの索引を使ったときだけ、30 秒のコマができる。
+	const second = "録画-2.m2ts"
+	seg := segmentAt(t, filepath.Join(f.dir, second), 0, 31, time.Second, 100)
+	sidecar, err := f.store.CreateSidecarDir(poolID, second)
+	require.NoError(t, err)
+	var index bytes.Buffer
+	writer, err := ts.NewIndexWriter(&index)
+	require.NoError(t, err)
+	for _, i := range []int{0, 30} {
+		require.NoError(t, writer.Append(seg.Index[i]))
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(f.dir, sidecar, indexName), index.Bytes(), 0o600))
+	for _, file := range []struct {
+		kind, path string
+		size       int
+	}{{"segment", second, 31 * keyframeSize}, {indexName, sidecar + "/" + indexName, index.Len()}} {
+		_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7)`, id.New(), recordingID, file.kind, poolID, file.path, file.size, f.clock.Now())
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, f.generate(t, recordingID, true, fake))
+	var manifest thumbnail.Manifest
+	data, err := os.ReadFile(filepath.Join(f.dir, segmentName+".kotatsu", "preview.json"))
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(data, &manifest))
+	// それぞれのセグメントの索引から、10 秒ごとのコマを取り出す。
+	assert.Equal(t, []float64{0, 10, 20, 30}, manifest.Times)
+}
+
 // TestGenerateWorkerCancels は、FFmpeg がないか、録画が消されたか、画像を作れるセグメントがなければ、送り直さずに取りやめることを確かめる。
 func TestGenerateWorkerCancels(t *testing.T) {
 	t.Parallel()
