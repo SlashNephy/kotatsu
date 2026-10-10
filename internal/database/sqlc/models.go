@@ -180,6 +180,8 @@ type Recording struct {
 	Drops         int64
 	Errors        int64
 	Scrambled     int64
+	Gaps          []byte
+	ProgramLost   bool
 	RecordedFrom  time.Time
 	RecordedUntil *time.Time
 	CreatedAt     time.Time
