@@ -726,3 +726,52 @@ func reservationName(t *testing.T, f *fixture, reservationID uuid.UUID) string {
 
 	return name
 }
+
+// TestRecorderUsesPoolSettings は、録画を書くプールを、設定した優先順位と容量の閾値で選ぶことを確かめる (設計書 5.6)。
+func TestRecorderUsesPoolSettings(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	tests := []struct {
+		name string
+		// settings は、プール ID ごとの優先順位と容量の閾値。
+		settings map[string][2]int64
+		want     string
+	}{
+		{name: "設定がなければ ID の順", settings: map[string][2]int64{}, want: "a"},
+		{name: "優先順位の高いプール", settings: map[string][2]int64{"b": {10, 0}}, want: "b"},
+		{name: "書くと閾値を下回るプールは選ばない", settings: map[string][2]int64{"b": {10, 1 << 40}}, want: "a"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			for id, setting := range tt.settings {
+				_, err := f.pool.Exec(t.Context(), "INSERT INTO storage_pools (id, priority, min_free_bytes, updated_at) VALUES ($1, $2, $3, $4)",
+					id, setting[0], setting[1], f.clock.Now())
+				require.NoError(t, err)
+			}
+			tokyo, err := time.LoadLocation("Asia/Tokyo")
+			require.NoError(t, err)
+			store := kago.New(map[string]string{"a": t.TempDir(), "b": t.TempDir()}, func(string) (uint64, error) { return 1 << 40, nil })
+			recorder := recording.NewRecorder(f.pool, f.clock, onceStream{data: data}, store, nil, tokyo, slog.New(slog.DiscardHandler),
+				&recording.RecorderOptions{TuningTime: 0, Tick: 10 * time.Millisecond, RetryInterval: 20 * time.Millisecond})
+			_, done := f.session(t, recorder, reservationID)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			require.Eventually(t, func() bool {
+				return len(f.files(t, reservationID)) == 2
+			}, waitTimeout, 10*time.Millisecond)
+			f.clock.Advance(time.Hour)
+			require.NoError(t, wait(t, done))
+
+			var got string
+			require.NoError(t, f.pool.QueryRow(t.Context(),
+				"SELECT pool_id FROM recording_files WHERE kind = 'segment' AND recording_id = (SELECT id FROM recordings WHERE reservation_id = $1)",
+				reservationID).Scan(&got))
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

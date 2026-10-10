@@ -132,3 +132,33 @@ func (s *Store) CreateSidecarDir(poolID, rel string) (string, error) {
 
 	return dirRel, nil
 }
+
+// PoolFreeSpace は、プール poolID の空き容量 (バイト) を返す。
+func (s *Store) PoolFreeSpace(poolID string) (uint64, error) {
+	mount, ok := s.mounts[poolID]
+	if !ok {
+		return 0, fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
+	}
+	free, err := s.freeSpace(mount)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get the free space of pool %s: %w", poolID, err)
+	}
+
+	return free, nil
+}
+
+// Remove は、プールの録画ファイル rel と、その付属ファイルのディレクトリを消す。どちらもなければ、何もしない。
+func (s *Store) Remove(poolID, rel string) error {
+	path, err := s.Path(poolID, rel)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to remove a file in pool %s: %w", poolID, err)
+	}
+	if err := os.RemoveAll(path + sidecarSuffix); err != nil {
+		return fmt.Errorf("failed to remove the sidecar directory in pool %s: %w", poolID, err)
+	}
+
+	return nil
+}

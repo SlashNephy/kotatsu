@@ -552,6 +552,19 @@ CREATE TABLE reservation_rules (
 
 CREATE INDEX reservation_rules_rule_id_idx ON reservation_rules (rule_id);
 
+-- 保存先プールの設定 (設計書 5.6、11.2)。マウント先は各ロールの設定で与え、優先順位と容量の閾値を DB に置く。
+-- 行がなければ、優先順位 0、容量の閾値 0 (容量の管理をしない) として扱う。
+CREATE TABLE storage_pools (
+  id text PRIMARY KEY,
+  -- 選ばれる優先順位。大きいほど先に選ぶ。
+  priority integer NOT NULL,
+  -- 容量の閾値 (バイト)。空き容量がこれを下回ったら、保護されていない古い録画から消す。0 なら消さない。
+  min_free_bytes bigint NOT NULL CHECK (min_free_bytes >= 0),
+  -- 古い録画を消しても、空き容量が閾値を下回ったままになった日時。不足を何度も通知しないために使う。
+  low_since timestamptz,
+  updated_at timestamptz NOT NULL
+);
+
 -- 録画 (設計書 5.5、8.2)。1 つの予約の録画は、引き継ぎや再接続でファイルが分かれても、1 つの録画にまとめる。
 CREATE TABLE recordings (
   id uuid PRIMARY KEY,

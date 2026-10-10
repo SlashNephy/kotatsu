@@ -352,17 +352,13 @@ func (r *Recorder) createSegment(
 	if err != nil {
 		return nil, FailureStorageUnavailable, err
 	}
-	pools := []*kago.Pool{}
 	mounted := r.store.PoolIDs()
 	if (settings.PoolID != "" && !slices.Contains(mounted, settings.PoolID)) || len(mounted) == 0 {
 		return nil, FailureStorageUnavailable, fmt.Errorf("%w: %q", kago.ErrPoolNotMounted, settings.PoolID)
 	}
-	if settings.PoolID != "" {
-		pools = append(pools, &kago.Pool{ID: settings.PoolID, Priority: 0, MinFreeBytes: 0})
-	} else {
-		for _, poolID := range mounted {
-			pools = append(pools, &kago.Pool{ID: poolID, Priority: 0, MinFreeBytes: 0})
-		}
+	pools, err := r.pools(ctx, mounted, settings.PoolID)
+	if err != nil {
+		return nil, FailureStorageUnavailable, err
 	}
 	estimated := uint64(max(reservation.PlannedEndAt.Sub(*reservation.PlannedStartAt), 0)/time.Second) * estimatedBytesPerSecond
 	pool, err := r.store.Select(pools, estimated)
@@ -430,6 +426,33 @@ func (r *Recorder) createSegment(
 	}
 
 	return seg, "", nil
+}
+
+// pools は、録画を書く候補のプールを、優先順位と容量の閾値の設定と一緒に返す (設計書 5.6)。
+// 録画設定でプールを指定していれば、そのプールだけを返す。設定のないプールは、優先順位 0、容量の閾値 0 とする。
+func (r *Recorder) pools(ctx context.Context, mounted []string, poolID string) ([]*kago.Pool, error) {
+	rows, err := sqlc.New(r.pool).ListStoragePools(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list storage pools: %w", err)
+	}
+	settings := make(map[string]*kago.Pool, len(rows))
+	for i := range rows {
+		settings[rows[i].ID] = &kago.Pool{ID: rows[i].ID, Priority: int(rows[i].Priority), MinFreeBytes: uint64(max(rows[i].MinFreeBytes, 0))}
+	}
+	candidates := mounted
+	if poolID != "" {
+		candidates = []string{poolID}
+	}
+	pools := make([]*kago.Pool, 0, len(candidates))
+	for _, id := range candidates {
+		pool, ok := settings[id]
+		if !ok {
+			pool = &kago.Pool{ID: id, Priority: 0, MinFreeBytes: 0}
+		}
+		pools = append(pools, pool)
+	}
+
+	return pools, nil
 }
 
 // createIndex は、録画ファイル rel の付属ファイルのディレクトリに索引を作り、索引を書く解析器を返す。
