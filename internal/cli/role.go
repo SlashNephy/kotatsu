@@ -14,12 +14,15 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/assign"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/config"
+	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
+	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/neko"
 	"github.com/SlashNephy/kotatsu/internal/recording"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
+	"github.com/SlashNephy/kotatsu/internal/settings"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
 
@@ -87,7 +90,7 @@ func DefaultRoles() []*Role {
 			Name:  "mikan",
 			Alias: "recorder",
 			Short: "Record broadcast streams to files",
-			Run:   waitUntilDone,
+			Run:   runMikan,
 		},
 		{
 			Name:  nekonoteRoleName,
@@ -109,19 +112,9 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	defer logger.InfoContext(ctx, "role stopped")
 
 	var tuner *mirakurun.Client
-	if url := deps.Config.Tuner.URL.Value(); url != "" {
+	if deps.Config.Tuner.URL.Value() != "" {
 		var err error
-		tuner, err = mirakurun.New(&mirakurun.Options{
-			URL:            url,
-			Username:       "",
-			Password:       "",
-			UserAgent:      "",
-			HTTPClient:     nil,
-			RequestTimeout: 0,
-			DetectInterval: 0,
-			Clock:          deps.Clock,
-		})
-		if err != nil {
+		if tuner, err = newTunerClient(deps); err != nil {
 			return err
 		}
 	}
@@ -202,4 +195,58 @@ func waitUntilDone(ctx context.Context, logger *slog.Logger, _ *Deps) error {
 	logger.InfoContext(ctx, "role stopped")
 
 	return nil
+}
+
+// newTunerClient は、設定したチューナーサーバーのクライアントを返す。
+func newTunerClient(deps *Deps) (*mirakurun.Client, error) {
+	return mirakurun.New(&mirakurun.Options{
+		URL:            deps.Config.Tuner.URL.Value(),
+		Username:       "",
+		Password:       "",
+		UserAgent:      "",
+		HTTPClient:     nil,
+		RequestTimeout: 0,
+		DetectInterval: 0,
+		Clock:          deps.Clock,
+	})
+}
+
+// runMikan は、ctx が終わるまで、割り振りを取って録画する (設計書 1.5、5 章)。
+// 止めるときは、録画中の割り振りを残し、ほかの mikan か、再起動した mikan に続きを任せる。
+func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
+	logger.InfoContext(ctx, "role started")
+	defer logger.InfoContext(ctx, "role stopped")
+
+	if deps.Config.Tuner.URL.Value() == "" {
+		// neko と同じく、チューナーサーバーを設定するまでは、何もせずに待つ。
+		logger.WarnContext(ctx, "tuner server is not configured; recording is disabled")
+		<-ctx.Done()
+
+		return nil
+	}
+	tuner, err := newTunerClient(deps)
+	if err != nil {
+		return err
+	}
+	// 表示のタイムゾーンは設定で決める (設計書 8.1) が、設定の項目はまだないので、既定の Asia/Tokyo を使う。
+	location, err := time.LoadLocation(defaultTimeZone)
+	if err != nil {
+		return fmt.Errorf("failed to load the time zone %s: %w", defaultTimeZone, err)
+	}
+	// 録画設定の全体の既定値は、画面から変えられる (設計書 11.2) ので、録画のたびに引く。
+	defaults := func(ctx context.Context, db sqlc.DBTX) (*reserve.Settings, error) {
+		system, err := settings.Load(ctx, db)
+		if err != nil {
+			return nil, err
+		}
+
+		return system.Recording, nil
+	}
+	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, kago.New(deps.Config.Storage.Pools, nil), defaults, location,
+		logger.With(slog.String("component", "recorder")), nil)
+	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), &recording.WorkerOptions{
+		LeaseTTL: 0, RenewInterval: 0, AcquireInterval: 0, PollOnly: deps.Config.Database.Pooler, PollInterval: 0,
+	})
+
+	return worker.Run(ctx)
 }

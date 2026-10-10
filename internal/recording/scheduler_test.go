@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -48,6 +49,7 @@ func noGuard(context.Context, pgx.Tx) error { return nil }
 
 type fixture struct {
 	pool         *pgxpool.Pool
+	tuner        *mirakurun.Client
 	clock        *clocktest.Fake
 	reservations *reserve.Reservations
 	assigner     *assign.Runner
@@ -63,7 +65,10 @@ func newFixture(t *testing.T) *fixture {
 	t.Cleanup(pool.Close)
 	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 
-	server := httptest.NewServer(faketuner.New(faketuner.DefaultOptions(testNow(), nil)))
+	// 録画のテストのため、本物の TS を流す。
+	stream, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	server := httptest.NewServer(faketuner.New(faketuner.DefaultOptions(testNow(), stream)))
 	t.Cleanup(server.Close)
 	client, err := mirakurun.New(&mirakurun.Options{URL: server.URL})
 	require.NoError(t, err)
@@ -74,6 +79,7 @@ func newFixture(t *testing.T) *fixture {
 
 	return &fixture{
 		pool:         pool,
+		tuner:        client,
 		clock:        clk,
 		reservations: reserve.NewReservations(clk, audit.NewRecorder(clk)),
 		assigner:     assign.NewRunner(pool, clk, noGuard, slog.New(slog.DiscardHandler), nil, nil),

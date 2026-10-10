@@ -106,22 +106,29 @@ func (q *Queries) FinishRecordingAssignment(ctx context.Context, arg FinishRecor
 }
 
 const getReservationForRecording = `-- name: GetReservationForRecording :one
-SELECT r.id, r.service_id, r.event_id, r.name, r.start_at, r.end_at, r.enabled, r.planned_start_at, r.planned_end_at, r.settings
+SELECT r.id, r.kind, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.enabled,
+  r.planned_start_at, r.planned_end_at, r.settings, s.name AS service_name, s.channel_type, s.channel
 FROM reservations r
+JOIN services s ON s.id = r.service_id
 WHERE r.id = $1
 `
 
 type GetReservationForRecordingRow struct {
 	ID             uuid.UUID
+	Kind           string
 	ServiceID      int64
 	EventID        *int64
 	Name           string
+	Description    string
 	StartAt        time.Time
 	EndAt          time.Time
 	Enabled        bool
 	PlannedStartAt *time.Time
 	PlannedEndAt   *time.Time
 	Settings       []byte
+	ServiceName    string
+	ChannelType    string
+	Channel        string
 }
 
 // 録画に使う予約の情報。予定の時刻は、録画中も neko が計算し直すので、録画しながら読み直す。
@@ -130,15 +137,20 @@ func (q *Queries) GetReservationForRecording(ctx context.Context, id uuid.UUID) 
 	var i GetReservationForRecordingRow
 	err := row.Scan(
 		&i.ID,
+		&i.Kind,
 		&i.ServiceID,
 		&i.EventID,
 		&i.Name,
+		&i.Description,
 		&i.StartAt,
 		&i.EndAt,
 		&i.Enabled,
 		&i.PlannedStartAt,
 		&i.PlannedEndAt,
 		&i.Settings,
+		&i.ServiceName,
+		&i.ChannelType,
+		&i.Channel,
 	)
 	return i, err
 }

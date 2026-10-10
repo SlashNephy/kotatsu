@@ -108,15 +108,15 @@ func TestWorkersShareAssignment(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
 	assert.Equal(t, int32(1), sessions.Load())
 	row := f.assignment(t, reservationID)
-	assert.Equal(t, string(recording.StateRecording), row.state)
+	assert.Equal(t, string(recording.AssignmentRecording), row.state)
 	require.NotNil(t, row.holder)
 	assert.Contains(t, holders, *row.holder)
 
 	close(finish)
 	require.Eventually(t, func() bool {
-		return f.assignment(t, reservationID).state == string(recording.StateFinished)
+		return f.assignment(t, reservationID).state == string(recording.AssignmentFinished)
 	}, waitTimeout, 20*time.Millisecond)
-	assert.Equal(t, assignmentRow{state: string(recording.StateFinished), generation: 1, holder: nil}, f.assignment(t, reservationID))
+	assert.Equal(t, assignmentRow{state: string(recording.AssignmentFinished), generation: 1, holder: nil}, f.assignment(t, reservationID))
 }
 
 // TestWorkerStopsWhenLeaseIsLost は、ほかの mikan が世代を進めて割り振りを取ると、古い mikan が書き込みをやめ、
@@ -147,7 +147,7 @@ func TestWorkerStopsWhenLeaseIsLost(t *testing.T) {
 	case <-time.After(waitTimeout):
 		t.Fatal("the old mikan kept recording after losing the lease")
 	}
-	assert.Equal(t, assignmentRow{state: string(recording.StateRecording), generation: 2, holder: &successor}, f.assignment(t, reservationID),
+	assert.Equal(t, assignmentRow{state: string(recording.AssignmentRecording), generation: 2, holder: &successor}, f.assignment(t, reservationID),
 		"the old mikan does not finish the assignment")
 }
 
@@ -203,5 +203,5 @@ func TestWorkerLeavesAssignmentOnShutdown(t *testing.T) {
 		t.Fatal("the mikan did not acquire the assignment")
 	}
 	stop()
-	assert.Equal(t, assignmentRow{state: string(recording.StateRecording), generation: 1, holder: &holder}, f.assignment(t, reservationID))
+	assert.Equal(t, assignmentRow{state: string(recording.AssignmentRecording), generation: 1, holder: &holder}, f.assignment(t, reservationID))
 }

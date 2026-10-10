@@ -66,6 +66,8 @@ WHERE id = @id AND generation = @generation AND holder = @holder;
 
 -- name: GetReservationForRecording :one
 -- 録画に使う予約の情報。予定の時刻は、録画中も neko が計算し直すので、録画しながら読み直す。
-SELECT r.id, r.service_id, r.event_id, r.name, r.start_at, r.end_at, r.enabled, r.planned_start_at, r.planned_end_at, r.settings
+SELECT r.id, r.kind, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.enabled,
+  r.planned_start_at, r.planned_end_at, r.settings, s.name AS service_name, s.channel_type, s.channel
 FROM reservations r
+JOIN services s ON s.id = r.service_id
 WHERE r.id = @id;

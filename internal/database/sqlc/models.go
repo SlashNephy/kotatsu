@@ -165,6 +165,27 @@ type ProgramArchive struct {
 	ArchivedAt            time.Time
 }
 
+type Recording struct {
+	ID            uuid.UUID
+	ReservationID *uuid.UUID
+	ServiceID     int64
+	EventID       *int64
+	Name          string
+	Description   string
+	StartAt       time.Time
+	EndAt         time.Time
+	State         string
+	FailureReason *string
+	Protected     bool
+	Drops         int64
+	Errors        int64
+	Scrambled     int64
+	RecordedFrom  time.Time
+	RecordedUntil *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type RecordingAssignment struct {
 	ID             uuid.UUID
 	ReservationID  uuid.UUID
@@ -175,6 +196,18 @@ type RecordingAssignment struct {
 	LeaseExpiresAt *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+type RecordingFile struct {
+	ID          uuid.UUID
+	RecordingID uuid.UUID
+	Kind        string
+	PoolID      string
+	Path        string
+	Size        int64
+	StartedAt   time.Time
+	EndedAt     *time.Time
+	CreatedAt   time.Time
 }
 
 type RecordingHistory struct {

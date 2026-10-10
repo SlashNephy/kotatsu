@@ -552,6 +552,58 @@ CREATE TABLE reservation_rules (
 
 CREATE INDEX reservation_rules_rule_id_idx ON reservation_rules (rule_id);
 
+-- 録画 (設計書 5.5、8.2)。1 つの予約の録画は、引き継ぎや再接続でファイルが分かれても、1 つの録画にまとめる。
+CREATE TABLE recordings (
+  id uuid PRIMARY KEY,
+  -- 録画した予約。予約を消しても録画は残すので、NULL にする。
+  reservation_id uuid UNIQUE REFERENCES reservations (id) ON DELETE SET NULL,
+  service_id bigint NOT NULL REFERENCES services (id),
+  -- 番組の eventId。時刻予約では NULL。
+  event_id bigint,
+  -- 番組情報。録画を始めたときの予約からコピーし、放送後に確定したものに置き換える。
+  name text NOT NULL,
+  description text NOT NULL,
+  start_at timestamptz NOT NULL,
+  end_at timestamptz NOT NULL,
+  -- 状態は、録画中 (recording)、完了 (completed)、エラーあり完了 (completed_with_errors)、一部のみ (partial)、失敗 (failed) のどれか。
+  state text NOT NULL CHECK (state IN ('recording', 'completed', 'completed_with_errors', 'partial', 'failed')),
+  -- 失敗の理由 (設計書 5.5)。失敗していなければ NULL。
+  failure_reason text CHECK (failure_reason IN (
+    'tuner_unavailable', 'tuner_server_unreachable', 'stream_interrupted', 'storage_unavailable',
+    'storage_full', 'program_not_found', 'cancelled'
+  )),
+  -- 保護の印。容量の管理で消さない (設計書 6.1)。
+  protected boolean NOT NULL DEFAULT false,
+  -- ドロップ、エラー、スクランブルの集計 (設計書 5.3)。全 PID の合計。
+  drops bigint NOT NULL DEFAULT 0,
+  errors bigint NOT NULL DEFAULT 0,
+  scrambled bigint NOT NULL DEFAULT 0,
+  -- 実際に録画を始めた日時と、終えた日時。録画中なら終えた日時は NULL。
+  recorded_from timestamptz NOT NULL,
+  recorded_until timestamptz,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- 録画のファイル (設計書 5.2、8.2)。セグメントは、ストリームを開き直すたびに作る。索引は、セグメントごとの付属ファイル。
+CREATE TABLE recording_files (
+  id uuid PRIMARY KEY,
+  recording_id uuid NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,
+  -- 種類は、TS のセグメント (segment) か、セグメントの索引 (index) のどちらか。
+  kind text NOT NULL CHECK (kind IN ('segment', 'index')),
+  -- 保存先プールの ID と、プール内の相対パス (設計書 5.6)。
+  pool_id text NOT NULL,
+  path text NOT NULL,
+  size bigint NOT NULL,
+  -- ファイルが表す時間の範囲。書いている間は、終わりを NULL にする。
+  started_at timestamptz NOT NULL,
+  ended_at timestamptz,
+  created_at timestamptz NOT NULL,
+  UNIQUE (pool_id, path)
+);
+
+CREATE INDEX recording_files_recording_id_idx ON recording_files (recording_id, started_at);
+
 -- 録画履歴 (設計書 4.4)。重複の回避に使う。正常に終了し、ドロップが閾値未満だった録画だけを記録し、録画を削除しても残す。
 CREATE TABLE recording_history (
   id uuid PRIMARY KEY,
