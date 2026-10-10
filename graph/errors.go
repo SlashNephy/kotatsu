@@ -10,12 +10,17 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/match"
+	"github.com/SlashNephy/kotatsu/internal/password"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 )
 
-// extensionCode は、エラーコードを入れる extensions のキー。
-const extensionCode = "code"
+const (
+	// extensionCode は、エラーコードを入れる extensions のキー。
+	extensionCode = "code"
+	// extensionReason は、パスワードの規定に当たった理由を入れる extensions のキー。
+	extensionReason = "reason"
+)
 
 // Code は、エラーの extensions.code に入れるエラーコード (設計書 9.1)。クライアントはこれで処理を分ける。
 type Code string
@@ -76,6 +81,13 @@ func errorPresenter(logger *slog.Logger) graphql.ErrorPresenterFunc {
 
 			return gqlErr
 		}
+		// パスワードの規定に当たったときは、画面が理由を示せるよう、理由を extensions.reason に入れる。
+		if rejected, ok := errors.AsType[*password.RejectedError](err); ok {
+			gqlErr.Message = "the password was rejected"
+			gqlErr.Extensions = map[string]any{extensionCode: CodeBadUserInput, extensionReason: rejected.Reason}
+
+			return gqlErr
+		}
 		if e, ok := errors.AsType[*Error](err); ok || domainError(err, &e) {
 			gqlErr.Message = e.Message
 			gqlErr.Extensions = map[string]any{extensionCode: e.Code}
@@ -105,10 +117,13 @@ func recoverFunc(logger *slog.Logger) graphql.RecoverFunc {
 func domainError(err error, target **Error) bool {
 	var code Code
 	switch {
-	case errors.Is(err, rule.ErrNotFound), errors.Is(err, reserve.ErrNotFound), errors.Is(err, reserve.ErrProgramNotFound):
+	case errors.Is(err, rule.ErrNotFound), errors.Is(err, reserve.ErrNotFound), errors.Is(err, reserve.ErrProgramNotFound),
+		errors.Is(err, auth.ErrUserNotFound), errors.Is(err, auth.ErrSessionNotFound):
 		code = CodeNotFound
 	case errors.Is(err, rule.ErrInvalidRule), errors.Is(err, reserve.ErrInvalidReservation),
-		errors.Is(err, reserve.ErrInvalidSettings), errors.Is(err, match.ErrInvalidConditions):
+		errors.Is(err, reserve.ErrInvalidSettings), errors.Is(err, match.ErrInvalidConditions),
+		errors.Is(err, auth.ErrInvalidUser), errors.Is(err, auth.ErrUsernameTaken), errors.Is(err, auth.ErrInvalidRole),
+		errors.Is(err, auth.ErrLastAdmin), errors.Is(err, auth.ErrCannotDisableSelf):
 		code = CodeBadUserInput
 	default:
 		return false

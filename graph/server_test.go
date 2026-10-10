@@ -21,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/password"
 )
 
 const (
@@ -83,6 +84,12 @@ func newFixture(t *testing.T, opts *graph.Options) *fixture {
 	opts.DB, opts.Clock, opts.Logger = pool, clk, slog.New(slog.DiscardHandler)
 	opts.SecondFactors, err = auth.NewSecondFactors(clk, audit.NewRecorder(clk), "kotatsu-graph-test-application-key-0123456789")
 	require.NoError(t, err)
+	// -race の CI では、パスワードの強度の判定が遅くなる。
+	policy, err := password.NewPolicy(&password.PolicyOptions{HIBP: nil, StrengthTimeout: 10 * time.Minute, Logger: slog.New(slog.DiscardHandler)})
+	require.NoError(t, err)
+	opts.UserAdmin = auth.NewUserAdmin(clk, audit.NewRecorder(clk), policy)
+	opts.Passwords = auth.NewPasswords(clk, audit.NewRecorder(clk), policy)
+	opts.Sessions = sessions
 	opts.Passkeys = auth.NewPasskeys(&auth.PasskeysOptions{
 		Clock: clk, Recorder: audit.NewRecorder(clk), Logger: slog.New(slog.DiscardHandler), Sessions: sessions,
 	})

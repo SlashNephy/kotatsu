@@ -15,4 +15,7 @@ type User implements Node {
   username: String!
   displayName: String!
   role: Role!
+  "無効にしたユーザーかどうか。無効にしたユーザーは、ログインできない。"
+  disabled: Boolean!
+  createdAt: Time!
 }

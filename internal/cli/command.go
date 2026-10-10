@@ -401,12 +401,19 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		Logger:   logger.With(slog.String("component", "passkey")),
 		Sessions: sessions,
 	})
+	passwordPolicy, err := password.NewPolicy(&password.PolicyOptions{HIBP: hibpOf(deps.Config), StrengthTimeout: 0, Estimator: nil, Logger: logger})
+	if err != nil {
+		return nil, err
+	}
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", graph.NewHandler(&graph.Options{
 		DB:                  deps.DB,
 		Recorder:            audit.NewRecorder(deps.Clock),
 		SecondFactors:       factors,
 		Passkeys:            passkeys,
+		UserAdmin:           auth.NewUserAdmin(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
+		Passwords:           auth.NewPasswords(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
+		Sessions:            sessions,
 		Clock:               deps.Clock,
 		Location:            location,
 		MaxSearchCandidates: 0,
@@ -424,10 +431,6 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		SecondFactors: factors,
 		ChallengeTTL:  0,
 	})
-	passwordPolicy, err := password.NewPolicy(&password.PolicyOptions{HIBP: hibpOf(deps.Config), StrengthTimeout: 0, Estimator: nil, Logger: logger})
-	if err != nil {
-		return nil, err
-	}
 	setup := auth.NewSetup(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy, logger.With(slog.String("component", "setup")))
 	mux.Handle("GET /auth/setup", setup.StatusHandler(deps.DB))
 	// OIDC でのログイン (設計書 9.4)。IdP からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
