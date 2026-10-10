@@ -93,7 +93,7 @@ func (m *Manager) check(ctx context.Context, row *sqlc.StoragePool, mounted []st
 		return nil, err
 	}
 	result := &PoolResult{PoolID: row.ID, FreeBytes: free, Deleted: 0, Low: false}
-	for free < threshold && result.Deleted < maxDeletionsPerPool {
+	for attempts := 0; free < threshold && attempts < maxDeletionsPerPool; attempts++ {
 		candidates, err := sqlc.New(m.pool).ListDeletableRecordings(ctx, sqlc.ListDeletableRecordingsParams{PoolID: row.ID, Mounted: mounted, MaxCount: 1})
 		if err != nil {
 			return nil, fmt.Errorf("failed to list deletable recordings: %w", err)
@@ -101,10 +101,13 @@ func (m *Manager) check(ctx context.Context, row *sqlc.StoragePool, mounted []st
 		if len(candidates) == 0 {
 			break
 		}
-		if err := m.delete(ctx, candidates[0].ID, row.ID); err != nil {
+		deleted, err := m.delete(ctx, candidates[0].ID, row.ID)
+		if err != nil {
 			return nil, err
 		}
-		result.Deleted++
+		if deleted {
+			result.Deleted++
+		}
 		if free, err = m.store.PoolFreeSpace(row.ID); err != nil {
 			return nil, err
 		}
@@ -115,10 +118,11 @@ func (m *Manager) check(ctx context.Context, row *sqlc.StoragePool, mounted []st
 	return result, m.report(ctx, row, result)
 }
 
-// delete は、録画を DB から消し、監査ログに残してから、ファイルを消す。
+// delete は、録画を DB から消し、監査ログに残してから、ファイルを消す。消したら true を返す。
 // ファイルを先に消すと、DB を書けなかったときに、ファイルのない録画が残るので、DB を先に書く。
-func (m *Manager) delete(ctx context.Context, recordingID uuid.UUID, poolID string) error {
+func (m *Manager) delete(ctx context.Context, recordingID uuid.UUID, poolID string) (bool, error) {
 	var files []sqlc.RecordingFile
+	deleted := false
 	err := pgx.BeginFunc(ctx, m.pool, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		recording, err := q.LockDeletableRecording(ctx, recordingID)
@@ -135,6 +139,7 @@ func (m *Manager) delete(ctx context.Context, recordingID uuid.UUID, poolID stri
 		if _, err := q.DeleteRecording(ctx, recordingID); err != nil {
 			return fmt.Errorf("failed to delete the recording: %w", err)
 		}
+		deleted = true
 
 		return m.recorder.Record(ctx, tx, &audit.Event{
 			Actor:      audit.System(auditRole),
@@ -146,8 +151,8 @@ func (m *Manager) delete(ctx context.Context, recordingID uuid.UUID, poolID stri
 			UserAgent:  "",
 		})
 	})
-	if err != nil {
-		return err
+	if err != nil || !deleted {
+		return false, err
 	}
 	for i := range files {
 		// 索引は録画ファイルの付属ファイルのディレクトリにあるので、録画ファイルと一緒に消える。
@@ -161,7 +166,7 @@ func (m *Manager) delete(ctx context.Context, recordingID uuid.UUID, poolID stri
 	m.logger.InfoContext(ctx, "deleted a recording to free up the storage pool",
 		slog.String("recording_id", recordingID.String()), slog.String("pool_id", poolID))
 
-	return nil
+	return true, nil
 }
 
 // report は、録画を消したか、消しても空き容量が閾値を下回ったままになったときに、空き容量の不足を通知する。

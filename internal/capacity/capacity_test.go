@@ -236,3 +236,33 @@ func TestRunOnceReportsLowStorageOnce(t *testing.T) {
 	f.runOnce(t)
 	assert.Len(t, f.storageLowEvents(t), 3)
 }
+
+// TestDeleteSkipsRecordingsProtectedMeanwhile は、消す候補に選んだ後に保護されたか、録画を始めた録画を、消さずに数えないことを確かめる。
+func TestDeleteSkipsRecordingsProtectedMeanwhile(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		change string
+	}{
+		{name: "保護された", change: "UPDATE recordings SET protected = true WHERE id = $1"},
+		{name: "録画を始めた", change: "UPDATE recordings SET state = 'recording' WHERE id = $1"},
+		{name: "ほかで消された", change: "DELETE FROM recordings WHERE id = $1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			recordingID := f.recording(t, "録画", "completed", false)
+			_, err := f.pool.Exec(t.Context(), tt.change, recordingID)
+			require.NoError(t, err)
+
+			deleted, err := f.manager.Delete(t.Context(), recordingID, poolID)
+			require.NoError(t, err)
+			assert.False(t, deleted)
+			_, err = os.Stat(filepath.Join(f.dir, "録画.m2ts"))
+			require.NoError(t, err, "the file is kept")
+		})
+	}
+}
