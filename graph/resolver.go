@@ -11,6 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/library"
 	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
@@ -45,6 +46,7 @@ type Resolver struct {
 	settings          *settings.Store
 	inbox             *notification.Inbox
 	webhooks          *webhook.Store
+	library           *library.Library
 	changes           Changes
 	pools             map[string]string
 	freeSpace         kago.FreeSpaceFunc

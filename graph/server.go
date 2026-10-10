@@ -17,6 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/library"
 	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
@@ -128,6 +129,7 @@ func NewHandler(opts *Options) http.Handler {
 		changes:      o.Changes,
 		pools:        o.Pools,
 		freeSpace:    o.FreeSpace,
+		library:      library.New(o.Clock, o.Recorder, kago.New(o.Pools, o.FreeSpace), o.Logger),
 	}
 	if resolver.freeSpace == nil {
 		resolver.freeSpace = kago.FreeSpace

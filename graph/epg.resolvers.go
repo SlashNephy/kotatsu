@@ -43,6 +43,13 @@ func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error)
 		}
 
 		return toUser(user), nil
+	case recordingType:
+		recordingID, err := uuid.Parse(raw)
+		if err != nil {
+			return nil, NewError(CodeBadUserInput, "invalid recording ID")
+		}
+
+		return r.recording(ctx, recordingID)
 	case serviceType:
 		serviceID, err := parseServiceID(raw)
 		if err != nil {

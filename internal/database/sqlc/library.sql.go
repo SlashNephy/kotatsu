@@ -35,6 +35,40 @@ func (q *Queries) InsertRecordingTag(ctx context.Context, arg InsertRecordingTag
 	return err
 }
 
+const listRecordingFilesByRecordings = `-- name: ListRecordingFilesByRecordings :many
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at FROM recording_files WHERE recording_id = ANY($1::uuid[]) ORDER BY recording_id, started_at, kind, id
+`
+
+func (q *Queries) ListRecordingFilesByRecordings(ctx context.Context, recordingIds []uuid.UUID) ([]RecordingFile, error) {
+	rows, err := q.db.Query(ctx, listRecordingFilesByRecordings, recordingIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RecordingFile{}
+	for rows.Next() {
+		var i RecordingFile
+		if err := rows.Scan(
+			&i.ID,
+			&i.RecordingID,
+			&i.Kind,
+			&i.PoolID,
+			&i.Path,
+			&i.Size,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecordingTags = `-- name: ListRecordingTags :many
 SELECT rt.recording_id, t.id, t.name FROM recording_tags rt
 JOIN tags t ON t.id = rt.tag_id
@@ -59,6 +93,51 @@ func (q *Queries) ListRecordingTags(ctx context.Context, recordingIds []uuid.UUI
 	for rows.Next() {
 		var i ListRecordingTagsRow
 		if err := rows.Scan(&i.RecordingID, &i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecordingsByIDs = `-- name: ListRecordingsByIDs :many
+SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, program_lost, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = ANY($1::uuid[])
+`
+
+func (q *Queries) ListRecordingsByIDs(ctx context.Context, ids []uuid.UUID) ([]Recording, error) {
+	rows, err := q.db.Query(ctx, listRecordingsByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Recording{}
+	for rows.Next() {
+		var i Recording
+		if err := rows.Scan(
+			&i.ID,
+			&i.ReservationID,
+			&i.ServiceID,
+			&i.EventID,
+			&i.Name,
+			&i.Description,
+			&i.StartAt,
+			&i.EndAt,
+			&i.State,
+			&i.FailureReason,
+			&i.Protected,
+			&i.Drops,
+			&i.Errors,
+			&i.Scrambled,
+			&i.Gaps,
+			&i.ProgramLost,
+			&i.RecordedFrom,
+			&i.RecordedUntil,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -168,6 +247,87 @@ func (q *Queries) LockRecording(ctx context.Context, id uuid.UUID) (Recording, e
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const searchRecordings = `-- name: SearchRecordings :many
+SELECT r.id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.program_lost, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM recordings r
+WHERE (cardinality($1::text[]) = 0 OR r.state = ANY($1::text[]))
+  AND (cardinality($2::bigint[]) = 0 OR r.service_id = ANY($2::bigint[]))
+  AND (cardinality($3::uuid[]) = 0 OR EXISTS (
+    SELECT 1 FROM recording_tags rt WHERE rt.recording_id = r.id AND rt.tag_id = ANY($3::uuid[])
+  ))
+  AND ($4::text IS NULL OR r.name ILIKE '%' || $4::text || '%')
+  AND ($5::timestamptz IS NULL OR r.start_at >= $5::timestamptz)
+  AND ($6::timestamptz IS NULL OR r.start_at < $6::timestamptz)
+  AND ($7::timestamptz IS NULL
+    OR (r.recorded_from, r.id) < ($7::timestamptz, $8::uuid))
+ORDER BY r.recorded_from DESC, r.id DESC
+LIMIT $9
+`
+
+type SearchRecordingsParams struct {
+	States     []string
+	ServiceIds []int64
+	TagIds     []uuid.UUID
+	Keyword    *string
+	Since      *time.Time
+	Until      *time.Time
+	BeforeAt   *time.Time
+	BeforeID   *uuid.UUID
+	MaxCount   int32
+}
+
+// 録画を、録画を始めた日時の新しい順に返す。絞り込まない条件は NULL か空にする。
+// before_at と before_id より前 (古い) の録画だけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
+func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsParams) ([]Recording, error) {
+	rows, err := q.db.Query(ctx, searchRecordings,
+		arg.States,
+		arg.ServiceIds,
+		arg.TagIds,
+		arg.Keyword,
+		arg.Since,
+		arg.Until,
+		arg.BeforeAt,
+		arg.BeforeID,
+		arg.MaxCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Recording{}
+	for rows.Next() {
+		var i Recording
+		if err := rows.Scan(
+			&i.ID,
+			&i.ReservationID,
+			&i.ServiceID,
+			&i.EventID,
+			&i.Name,
+			&i.Description,
+			&i.StartAt,
+			&i.EndAt,
+			&i.State,
+			&i.FailureReason,
+			&i.Protected,
+			&i.Drops,
+			&i.Errors,
+			&i.Scrambled,
+			&i.Gaps,
+			&i.ProgramLost,
+			&i.RecordedFrom,
+			&i.RecordedUntil,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const setRecordingProtected = `-- name: SetRecordingProtected :exec
