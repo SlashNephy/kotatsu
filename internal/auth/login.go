@@ -181,7 +181,7 @@ func (l *Logins) Password(ctx context.Context, db Database, username, secret str
 			userID = &user.ID
 		}
 		if err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-			return l.recordFailure(ctx, tx, keys, userID, username, client, now)
+			return l.recordFailure(ctx, tx, keys, userID, username, client, now, actionLoginFailed, "password")
 		}); err != nil {
 			return "", nil, err
 		}
@@ -238,7 +238,7 @@ func (l *Logins) checkThrottle(ctx context.Context, db Beginner, keys []string, 
 	return nil
 }
 
-// recordFailure は、失敗を数えて待ち時間を決め、監査ログに残す。
+// recordFailure は、失敗を数えて待ち時間を決め、action と、試した方式 method を監査ログに残す。
 func (l *Logins) recordFailure(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -247,6 +247,7 @@ func (l *Logins) recordFailure(
 	username string,
 	client *ClientInfo,
 	now time.Time,
+	action, method string,
 ) error {
 	q := sqlc.New(tx)
 	if _, err := q.DeleteStaleLoginThrottles(ctx, sqlc.DeleteStaleLoginThrottlesParams{ResetBefore: now.Add(-throttleReset), Now: now}); err != nil {
@@ -275,10 +276,10 @@ func (l *Logins) recordFailure(
 
 	return l.recorder.Record(ctx, tx, &audit.Event{
 		Actor:      actor,
-		Action:     actionLoginFailed,
+		Action:     action,
 		TargetType: loginAuditTarget,
 		TargetID:   targetID,
-		Summary:    map[string]any{summaryUsername: username, summaryMethod: "password"},
+		Summary:    map[string]any{summaryUsername: username, summaryMethod: method},
 		SourceIP:   client.SourceIP,
 		UserAgent:  client.UserAgent,
 	})

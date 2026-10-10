@@ -26,13 +26,17 @@ import (
 )
 
 const (
-	browserUA   = "Mozilla/5.0"
-	testHost    = "kotatsu.example"
-	otherName   = "other"
-	unknownUser = "unknown user"
-	jsonType    = "application/json"
-	loginName   = "Kotatsu"
-	loginPhrase = "mikan-kotatsu-neko-2026!"
+	browserUA = "Mozilla/5.0"
+	testHost  = "kotatsu.example"
+	otherName = "other"
+	// 表のケースの名前と、パスワードを表す文字列 (JSON のキー、監査ログの方式)。
+	caseWrongPassword = "wrong password"
+	caseNoUV          = "without user verification"
+	passwordText      = "password"
+	unknownUser       = "unknown user"
+	jsonType          = "application/json"
+	loginName         = "Kotatsu"
+	loginPhrase       = "mikan-kotatsu-neko-2026!"
 )
 
 // loginFixture は、パスワードを設定したユーザーを 1 人持つ DB と、偽の時計で動く Logins。
@@ -98,7 +102,7 @@ func TestPasswordLogin(t *testing.T) {
 	}{
 		{name: "correct password", username: loginName, phrase: loginPhrase},
 		{name: "username is case-insensitive", username: strings.ToLower(loginName), phrase: loginPhrase},
-		{name: "wrong password", username: loginName, phrase: "mikan-kotatsu-neko-2025!", wantErr: auth.ErrInvalidCredentials},
+		{name: caseWrongPassword, username: loginName, phrase: "mikan-kotatsu-neko-2025!", wantErr: auth.ErrInvalidCredentials},
 		{name: unknownUser, username: "nobody", phrase: loginPhrase, wantErr: auth.ErrInvalidCredentials},
 		{
 			name: "disabled user", username: loginName, phrase: loginPhrase, wantErr: auth.ErrInvalidCredentials,
@@ -253,7 +257,7 @@ func TestPasswordHandler(t *testing.T) {
 		wantCode   string
 	}{
 		{name: "correct password", method: http.MethodPost, contentType: jsonType, body: `{"username":"Kotatsu","password":"` + loginPhrase + `"}`, wantStatus: http.StatusOK},
-		{name: "wrong password", method: http.MethodPost, contentType: jsonType, body: `{"username":"Kotatsu","password":"x"}`, wantStatus: http.StatusUnauthorized, wantCode: "INVALID_CREDENTIALS"},
+		{name: caseWrongPassword, method: http.MethodPost, contentType: jsonType, body: `{"username":"Kotatsu","password":"x"}`, wantStatus: http.StatusUnauthorized, wantCode: "INVALID_CREDENTIALS"},
 		{name: unknownUser, method: http.MethodPost, contentType: jsonType, body: `{"username":"nobody","password":"x"}`, wantStatus: http.StatusUnauthorized, wantCode: "INVALID_CREDENTIALS"},
 		{
 			name: "throttled", method: http.MethodPost, contentType: jsonType, body: `{"username":"Kotatsu","password":"x"}`,

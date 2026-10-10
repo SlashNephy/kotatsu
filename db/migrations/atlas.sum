@@ -1,4 +1,4 @@
-h1:nX2cltH4L77EOFDK/n5YiDz1ukkZkaPMl5F3DYqMo6E=
+h1:fgnA8Dc8NPvNfuvUlMzQxdPeRJSyVzU1UI0qoNvcg1Q=
 20261009102215_init.sql h1:djnv0wCljjLLAM5B5hIIhKRznUe+i3cP9cxgvQGM8xc=
 20261009105537_coordination.sql h1:4kuzfKBnc3dZixraSK3FOFkkX25e2X59okkh0iXnETo=
 20261009114515_audit_events.sql h1:5zL6ffLkLETRIkZis+kRS1SdjTlgdvLW4NNecIsxWQE=
@@ -17,3 +17,4 @@ h1:nX2cltH4L77EOFDK/n5YiDz1ukkZkaPMl5F3DYqMo6E=
 20261010005441_add_login_challenge_failures.sql h1:Xx/mL91xsZ4hdM4OXmwupEC2FPyR3k4elR7uVNSuSHU=
 20261010012323_add_setup_tokens.sql h1:yJbPstLH4x3cbEA35fTdW6DYk6MSOAsolo3+VjTw3AY=
 20261010021816_add_passkeys.sql h1:MD9TsR1BTpKwU1DHp7hSPHlRwNqB4h004LgEoM74l3Y=
+20261010032917_allow_reauthentication_ceremony.sql h1:tXREk0d+BItlyUGiNKnR1HTiDFVSkTiwsTRoSQh3OFI=

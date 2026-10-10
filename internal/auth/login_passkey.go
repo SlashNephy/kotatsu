@@ -124,7 +124,7 @@ func (l *Logins) verifyDiscoverablePasskey(
 		return l.acceptPasskey(ctx, tx, user, credential)
 	}()
 	if errors.Is(verifyErr, ErrInvalidPasskey) {
-		if err := l.recordPasskeyFailure(ctx, tx, user, client); err != nil {
+		if err := l.recordPasskeyFailure(ctx, tx, user, client, actionLoginFailed); err != nil {
 			return nil, err
 		}
 	}
@@ -232,10 +232,11 @@ func (l *Logins) acceptPasskey(ctx context.Context, tx pgx.Tx, user *webauthnUse
 	return recordPasskeyUse(ctx, tx, user, credential, l.clock.Now())
 }
 
-func (l *Logins) recordPasskeyFailure(ctx context.Context, tx pgx.Tx, user *webauthnUser, client *ClientInfo) error {
+// recordPasskeyFailure は、パスキーを確かめられなかったことを、action の操作として監査ログに残す。
+func (l *Logins) recordPasskeyFailure(ctx context.Context, tx pgx.Tx, user *webauthnUser, client *ClientInfo, action string) error {
 	return l.recorder.Record(ctx, tx, &audit.Event{
 		Actor:      audit.User(user.id),
-		Action:     actionLoginFailed,
+		Action:     action,
 		TargetType: loginAuditTarget,
 		TargetID:   user.id.String(),
 		Summary:    map[string]any{summaryUsername: user.name, summaryMethod: string(SecondFactorPasskey)},

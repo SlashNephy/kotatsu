@@ -98,7 +98,7 @@ func TestPasskeyRegistration(t *testing.T) {
 		{name: "name is trimmed", passName: "  " + deviceLabel + "  "},
 		{name: "empty name", passName: "   ", wantErr: auth.ErrInvalidPasskeyName},
 		{
-			name: "without user verification", passName: deviceLabel, wantErr: auth.ErrInvalidPasskey,
+			name: caseNoUV, passName: deviceLabel, wantErr: auth.ErrInvalidPasskey,
 			authenticator: func(a *webauthntest.Authenticator) { a.UserVerified = false },
 		},
 		{
@@ -260,7 +260,7 @@ func TestPasskeyLogin(t *testing.T) {
 			},
 		},
 		{
-			name: "without user verification", wantErr: auth.ErrInvalidPasskey,
+			name: caseNoUV, wantErr: auth.ErrInvalidPasskey,
 			prepare: func(_ *testing.T, _ *passkeyFixture, a *webauthntest.Authenticator) {
 				a.UserVerified = false
 			},

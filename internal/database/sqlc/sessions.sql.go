@@ -120,6 +120,25 @@ func (q *Queries) ListActiveSessions(ctx context.Context, arg ListActiveSessions
 	return items, nil
 }
 
+const reauthenticateSession = `-- name: ReauthenticateSession :execrows
+UPDATE sessions SET authenticated_at = $1 WHERE id = $2 AND user_id = $3 AND revoked_at IS NULL
+`
+
+type ReauthenticateSessionParams struct {
+	Now    time.Time
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+// 再認証した日時を記録する (設計書 9.5)。失効したセッションは更新しない。
+func (q *Queries) ReauthenticateSession(ctx context.Context, arg ReauthenticateSessionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, reauthenticateSession, arg.Now, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const revokeSession = `-- name: RevokeSession :execrows
 UPDATE sessions SET revoked_at = $1::timestamptz WHERE id = $2 AND user_id = $3 AND revoked_at IS NULL
 `
