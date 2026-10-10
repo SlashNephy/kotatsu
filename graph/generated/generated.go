@@ -138,31 +138,58 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		BeginTotpEnrollment      func(childComplexity int) int
-		ChangePassword           func(childComplexity int, password string) int
-		ConfirmTotpEnrollment    func(childComplexity int, code string) int
-		CreateGuideView          func(childComplexity int, input model.GuideViewInput) int
-		CreateProgramReservation func(childComplexity int, input model.ProgramReservationInput) int
-		CreateRule               func(childComplexity int, input model.RuleInput) int
-		CreateTimeReservation    func(childComplexity int, input model.TimeReservationInput) int
-		CreateUser               func(childComplexity int, input model.CreateUserInput) int
-		DeleteGuideView          func(childComplexity int, id string) int
-		DeletePasskey            func(childComplexity int, id string) int
-		DeleteReservation        func(childComplexity int, id string) int
-		DeleteRule               func(childComplexity int, id string) int
-		DeleteTotp               func(childComplexity int) int
-		DisableUser              func(childComplexity int, id string) int
-		EnableUser               func(childComplexity int, id string) int
-		RegenerateRecoveryCodes  func(childComplexity int) int
-		RenamePasskey            func(childComplexity int, id string, name string) int
-		ResetUserPassword        func(childComplexity int, id string, password string) int
-		RevokeSession            func(childComplexity int, id string) int
-		SetRuleEnabled           func(childComplexity int, id string, enabled bool) int
-		UpdateGuideView          func(childComplexity int, id string, input model.GuideViewInput) int
-		UpdateReservation        func(childComplexity int, id string, input model.ReservationUpdateInput) int
-		UpdateRule               func(childComplexity int, id string, input model.RuleInput) int
-		UpdateSystemSettings     func(childComplexity int, input model.SystemSettingsInput) int
-		UpdateUser               func(childComplexity int, id string, input model.UpdateUserInput) int
+		BeginTotpEnrollment          func(childComplexity int) int
+		ChangePassword               func(childComplexity int, password string) int
+		ConfirmTotpEnrollment        func(childComplexity int, code string) int
+		CreateGuideView              func(childComplexity int, input model.GuideViewInput) int
+		CreateProgramReservation     func(childComplexity int, input model.ProgramReservationInput) int
+		CreateRule                   func(childComplexity int, input model.RuleInput) int
+		CreateTimeReservation        func(childComplexity int, input model.TimeReservationInput) int
+		CreateUser                   func(childComplexity int, input model.CreateUserInput) int
+		DeleteGuideView              func(childComplexity int, id string) int
+		DeletePasskey                func(childComplexity int, id string) int
+		DeleteReservation            func(childComplexity int, id string) int
+		DeleteRule                   func(childComplexity int, id string) int
+		DeleteTotp                   func(childComplexity int) int
+		DisableUser                  func(childComplexity int, id string) int
+		EnableUser                   func(childComplexity int, id string) int
+		MarkAllNotificationsRead     func(childComplexity int) int
+		MarkNotificationsRead        func(childComplexity int, ids []string) int
+		RegenerateRecoveryCodes      func(childComplexity int) int
+		RenamePasskey                func(childComplexity int, id string, name string) int
+		ResetUserPassword            func(childComplexity int, id string, password string) int
+		RevokeSession                func(childComplexity int, id string) int
+		SetRuleEnabled               func(childComplexity int, id string, enabled bool) int
+		UpdateGuideView              func(childComplexity int, id string, input model.GuideViewInput) int
+		UpdateNotificationPreference func(childComplexity int, input model.NotificationPreferenceInput) int
+		UpdateReservation            func(childComplexity int, id string, input model.ReservationUpdateInput) int
+		UpdateRule                   func(childComplexity int, id string, input model.RuleInput) int
+		UpdateSystemSettings         func(childComplexity int, input model.SystemSettingsInput) int
+		UpdateUser                   func(childComplexity int, id string, input model.UpdateUserInput) int
+	}
+
+	Notification struct {
+		ID         func(childComplexity int) int
+		Kind       func(childComplexity int) int
+		OccurredAt func(childComplexity int) int
+		Payload    func(childComplexity int) int
+		ReadAt     func(childComplexity int) int
+	}
+
+	NotificationConnection struct {
+		Edges    func(childComplexity int) int
+		PageInfo func(childComplexity int) int
+	}
+
+	NotificationEdge struct {
+		Cursor func(childComplexity int) int
+		Node   func(childComplexity int) int
+	}
+
+	NotificationPreference struct {
+		InApp   func(childComplexity int) int
+		Kind    func(childComplexity int) int
+		WebPush func(childComplexity int) int
 	}
 
 	PageInfo struct {
@@ -220,23 +247,26 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		AuditEvents    func(childComplexity int, first int, after *string, filter *model.AuditEventFilter) int
-		ChannelTypes   func(childComplexity int) int
-		Guide          func(childComplexity int, from time.Time, to time.Time, services []string, view *string) int
-		GuideViews     func(childComplexity int) int
-		Node           func(childComplexity int, id string) int
-		Passkeys       func(childComplexity int) int
-		PreviewRule    func(childComplexity int, input model.RuleInput, first int, after *string) int
-		Reservations   func(childComplexity int, from time.Time, to time.Time, states []model.AssignmentState, first int, after *string) int
-		Rules          func(childComplexity int) int
-		SearchPrograms func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
-		SecondFactors  func(childComplexity int) int
-		Services       func(childComplexity int, includeHidden bool) int
-		Sessions       func(childComplexity int) int
-		SystemSettings func(childComplexity int) int
-		SystemStatus   func(childComplexity int) int
-		Users          func(childComplexity int) int
-		Viewer         func(childComplexity int) int
+		AuditEvents             func(childComplexity int, first int, after *string, filter *model.AuditEventFilter) int
+		ChannelTypes            func(childComplexity int) int
+		Guide                   func(childComplexity int, from time.Time, to time.Time, services []string, view *string) int
+		GuideViews              func(childComplexity int) int
+		Node                    func(childComplexity int, id string) int
+		NotificationPreferences func(childComplexity int) int
+		Notifications           func(childComplexity int, first int, after *string, unreadOnly bool) int
+		Passkeys                func(childComplexity int) int
+		PreviewRule             func(childComplexity int, input model.RuleInput, first int, after *string) int
+		Reservations            func(childComplexity int, from time.Time, to time.Time, states []model.AssignmentState, first int, after *string) int
+		Rules                   func(childComplexity int) int
+		SearchPrograms          func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
+		SecondFactors           func(childComplexity int) int
+		Services                func(childComplexity int, includeHidden bool) int
+		Sessions                func(childComplexity int) int
+		SystemSettings          func(childComplexity int) int
+		SystemStatus            func(childComplexity int) int
+		UnreadNotificationCount func(childComplexity int) int
+		Users                   func(childComplexity int) int
+		Viewer                  func(childComplexity int) int
 	}
 
 	RecordingSettings struct {
@@ -413,6 +443,9 @@ type MutationResolver interface {
 	CreateGuideView(ctx context.Context, input model.GuideViewInput) (*model.GuideView, error)
 	UpdateGuideView(ctx context.Context, id string, input model.GuideViewInput) (*model.GuideView, error)
 	DeleteGuideView(ctx context.Context, id string) (string, error)
+	MarkNotificationsRead(ctx context.Context, ids []string) (int, error)
+	MarkAllNotificationsRead(ctx context.Context) (int, error)
+	UpdateNotificationPreference(ctx context.Context, input model.NotificationPreferenceInput) (*model.NotificationPreference, error)
 	RenamePasskey(ctx context.Context, id string, name string) (*model.Passkey, error)
 	DeletePasskey(ctx context.Context, id string) (string, error)
 	CreateProgramReservation(ctx context.Context, input model.ProgramReservationInput) (*model.Reservation, error)
@@ -453,6 +486,9 @@ type QueryResolver interface {
 	Services(ctx context.Context, includeHidden bool) ([]*model.Service, error)
 	Guide(ctx context.Context, from time.Time, to time.Time, services []string, view *string) ([]*model.GuideRow, error)
 	GuideViews(ctx context.Context) ([]*model.GuideView, error)
+	Notifications(ctx context.Context, first int, after *string, unreadOnly bool) (*model.NotificationConnection, error)
+	UnreadNotificationCount(ctx context.Context) (int, error)
+	NotificationPreferences(ctx context.Context) ([]*model.NotificationPreference, error)
 	Passkeys(ctx context.Context) ([]*model.Passkey, error)
 	Reservations(ctx context.Context, from time.Time, to time.Time, states []model.AssignmentState, first int, after *string) (*model.ReservationConnection, error)
 	Rules(ctx context.Context) ([]*model.Rule, error)
@@ -974,6 +1010,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.EnableUser(childComplexity, args["id"].(string)), true
+	case "Mutation.markAllNotificationsRead":
+		if e.ComplexityRoot.Mutation.MarkAllNotificationsRead == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.MarkAllNotificationsRead(childComplexity), true
+	case "Mutation.markNotificationsRead":
+		if e.ComplexityRoot.Mutation.MarkNotificationsRead == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_markNotificationsRead_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.MarkNotificationsRead(childComplexity, args["ids"].([]string)), true
 	case "Mutation.regenerateRecoveryCodes":
 		if e.ComplexityRoot.Mutation.RegenerateRecoveryCodes == nil {
 			break
@@ -1035,6 +1088,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateGuideView(childComplexity, args["id"].(string), args["input"].(model.GuideViewInput)), true
+	case "Mutation.updateNotificationPreference":
+		if e.ComplexityRoot.Mutation.UpdateNotificationPreference == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateNotificationPreference_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateNotificationPreference(childComplexity, args["input"].(model.NotificationPreferenceInput)), true
 	case "Mutation.updateReservation":
 		if e.ComplexityRoot.Mutation.UpdateReservation == nil {
 			break
@@ -1079,6 +1143,82 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateUser(childComplexity, args["id"].(string), args["input"].(model.UpdateUserInput)), true
+
+	case "Notification.id":
+		if e.ComplexityRoot.Notification.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Notification.ID(childComplexity), true
+	case "Notification.kind":
+		if e.ComplexityRoot.Notification.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Notification.Kind(childComplexity), true
+	case "Notification.occurredAt":
+		if e.ComplexityRoot.Notification.OccurredAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Notification.OccurredAt(childComplexity), true
+	case "Notification.payload":
+		if e.ComplexityRoot.Notification.Payload == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Notification.Payload(childComplexity), true
+	case "Notification.readAt":
+		if e.ComplexityRoot.Notification.ReadAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Notification.ReadAt(childComplexity), true
+
+	case "NotificationConnection.edges":
+		if e.ComplexityRoot.NotificationConnection.Edges == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NotificationConnection.Edges(childComplexity), true
+	case "NotificationConnection.pageInfo":
+		if e.ComplexityRoot.NotificationConnection.PageInfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NotificationConnection.PageInfo(childComplexity), true
+
+	case "NotificationEdge.cursor":
+		if e.ComplexityRoot.NotificationEdge.Cursor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NotificationEdge.Cursor(childComplexity), true
+	case "NotificationEdge.node":
+		if e.ComplexityRoot.NotificationEdge.Node == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NotificationEdge.Node(childComplexity), true
+
+	case "NotificationPreference.inApp":
+		if e.ComplexityRoot.NotificationPreference.InApp == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NotificationPreference.InApp(childComplexity), true
+	case "NotificationPreference.kind":
+		if e.ComplexityRoot.NotificationPreference.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NotificationPreference.Kind(childComplexity), true
+	case "NotificationPreference.webPush":
+		if e.ComplexityRoot.NotificationPreference.WebPush == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NotificationPreference.WebPush(childComplexity), true
 
 	case "PageInfo.endCursor":
 		if e.ComplexityRoot.PageInfo.EndCursor == nil {
@@ -1348,6 +1488,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Node(childComplexity, args["id"].(string)), true
+	case "Query.notificationPreferences":
+		if e.ComplexityRoot.Query.NotificationPreferences == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.NotificationPreferences(childComplexity), true
+	case "Query.notifications":
+		if e.ComplexityRoot.Query.Notifications == nil {
+			break
+		}
+
+		args, err := ec.field_Query_notifications_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Notifications(childComplexity, args["first"].(int), args["after"].(*string), args["unreadOnly"].(bool)), true
 	case "Query.passkeys":
 		if e.ComplexityRoot.Query.Passkeys == nil {
 			break
@@ -1428,6 +1585,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.SystemStatus(childComplexity), true
+	case "Query.unreadNotificationCount":
+		if e.ComplexityRoot.Query.UnreadNotificationCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.UnreadNotificationCount(childComplexity), true
 	case "Query.users":
 		if e.ComplexityRoot.Query.Users == nil {
 			break
@@ -2087,6 +2250,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputGenreInput,
 		ec.unmarshalInputGuideViewInput,
 		ec.unmarshalInputKeywordInput,
+		ec.unmarshalInputNotificationPreferenceInput,
 		ec.unmarshalInputProgramConditionsInput,
 		ec.unmarshalInputProgramReservationInput,
 		ec.unmarshalInputRecordingSettingsOverridesInput,
@@ -2528,6 +2692,83 @@ type Mutation {
   updateGuideView(id: ID!, input: GuideViewInput!): GuideView!
   "消した番組表ビューの ID を返す。"
   deleteGuideView(id: ID!): ID!
+}
+`, BuiltIn: false},
+	{Name: "../schema/notifications.graphqls", Input: `"""
+通知するイベントの種類 (設計書 6.2)。
+"""
+enum NotificationKind {
+  "録画の開始"
+  RECORDING_STARTED
+  "録画の完了"
+  RECORDING_COMPLETED
+  "録画の失敗"
+  RECORDING_FAILED
+  "新たな競合の発生"
+  RESERVATION_CONFLICT
+  "空き容量の不足"
+  STORAGE_LOW
+  "チューナーサーバーへの接続不可"
+  TUNER_SERVER_UNREACHABLE
+}
+
+"""
+ログイン中のユーザーに届いた、画面内の通知 (設計書 6.2)。
+"""
+type Notification {
+  id: ID!
+  kind: NotificationKind!
+  "出来事が起きた日時。"
+  occurredAt: Time!
+  "画面に出す文の材料 (番組名や理由など)。種類ごとに項目が違う。JSON の文字列。"
+  payload: String!
+  "既読にした日時。未読なら null。"
+  readAt: Time
+}
+
+type NotificationEdge {
+  cursor: String!
+  node: Notification!
+}
+
+type NotificationConnection {
+  edges: [NotificationEdge!]!
+  pageInfo: PageInfo!
+}
+
+"""
+イベントの種類ごとの通知設定。
+"""
+type NotificationPreference {
+  kind: NotificationKind!
+  "画面内の通知で受け取るかどうか。"
+  inApp: Boolean!
+  "Web Push で受け取るかどうか。購読していなければ届かない。"
+  webPush: Boolean!
+}
+
+input NotificationPreferenceInput {
+  kind: NotificationKind!
+  inApp: Boolean!
+  webPush: Boolean!
+}
+
+extend type Query {
+  "ログイン中のユーザーの通知を、新しい順に first 件まで返す。unreadOnly なら未読だけを返す。"
+  notifications(first: Int! = 50, after: String, unreadOnly: Boolean! = false): NotificationConnection!
+  "ログイン中のユーザーの未読の通知の数。"
+  unreadNotificationCount: Int!
+  "ログイン中のユーザーの通知設定を、すべての種類について返す。設定していない種類は、どの通知先でも受け取る。"
+  notificationPreferences: [NotificationPreference!]!
+}
+
+extend type Mutation {
+  "ログイン中のユーザーの通知 ids を既読にし、既読にした数を返す。ほかのユーザーの通知や、既読の通知は飛ばす。"
+  markNotificationsRead(ids: [ID!]!): Int!
+  "ログイン中のユーザーの未読の通知をすべて既読にし、既読にした数を返す。"
+  markAllNotificationsRead: Int!
+  "ログイン中のユーザーの、イベントの種類ごとの通知設定を変える。"
+  updateNotificationPreference(input: NotificationPreferenceInput!): NotificationPreference!
 }
 `, BuiltIn: false},
 	{Name: "../schema/passkeys.graphqls", Input: `"""
@@ -3311,6 +3552,54 @@ func (ec *executionContext) childFields_Lease(ctx context.Context, field graphql
 	return nil, fmt.Errorf("no field named %q was found under type Lease", field.Name)
 }
 
+func (ec *executionContext) childFields_Notification(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Notification_id(ctx, field)
+	case "kind":
+		return ec.fieldContext_Notification_kind(ctx, field)
+	case "occurredAt":
+		return ec.fieldContext_Notification_occurredAt(ctx, field)
+	case "payload":
+		return ec.fieldContext_Notification_payload(ctx, field)
+	case "readAt":
+		return ec.fieldContext_Notification_readAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Notification", field.Name)
+}
+
+func (ec *executionContext) childFields_NotificationConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "edges":
+		return ec.fieldContext_NotificationConnection_edges(ctx, field)
+	case "pageInfo":
+		return ec.fieldContext_NotificationConnection_pageInfo(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type NotificationConnection", field.Name)
+}
+
+func (ec *executionContext) childFields_NotificationEdge(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "cursor":
+		return ec.fieldContext_NotificationEdge_cursor(ctx, field)
+	case "node":
+		return ec.fieldContext_NotificationEdge_node(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type NotificationEdge", field.Name)
+}
+
+func (ec *executionContext) childFields_NotificationPreference(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "kind":
+		return ec.fieldContext_NotificationPreference_kind(ctx, field)
+	case "inApp":
+		return ec.fieldContext_NotificationPreference_inApp(ctx, field)
+	case "webPush":
+		return ec.fieldContext_NotificationPreference_webPush(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type NotificationPreference", field.Name)
+}
+
 func (ec *executionContext) childFields_PageInfo(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "hasNextPage":
@@ -4033,6 +4322,20 @@ func (ec *executionContext) field_Mutation_enableUser_args(ctx context.Context, 
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_markNotificationsRead_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ids",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ids"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_renamePasskey_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -4132,6 +4435,20 @@ func (ec *executionContext) field_Mutation_updateGuideView_args(ctx context.Cont
 		return nil, err
 	}
 	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateNotificationPreference_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.NotificationPreferenceInput, error) {
+			return ec.unmarshalNNotificationPreferenceInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationPreferenceInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -4308,6 +4625,36 @@ func (ec *executionContext) field_Query_node_args(ctx context.Context, rawArgs m
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_notifications_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["after"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "unreadOnly",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["unreadOnly"] = arg2
 	return args, nil
 }
 
@@ -5926,6 +6273,117 @@ func (ec *executionContext) fieldContext_Mutation_deleteGuideView(ctx context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_markNotificationsRead(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_markNotificationsRead(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().MarkNotificationsRead(ctx, fc.Args["ids"].([]string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_markNotificationsRead(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_markNotificationsRead_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_markAllNotificationsRead(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_markAllNotificationsRead(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().MarkAllNotificationsRead(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_markAllNotificationsRead(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Mutation", field, true, true, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Mutation_updateNotificationPreference(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateNotificationPreference(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateNotificationPreference(ctx, fc.Args["input"].(model.NotificationPreferenceInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.NotificationPreference) graphql.Marshaler {
+			return ec.marshalNNotificationPreference2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationPreference(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateNotificationPreference(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_NotificationPreference(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateNotificationPreference_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_renamePasskey(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -6856,6 +7314,309 @@ func (ec *executionContext) fieldContext_Mutation_revokeSession(ctx context.Cont
 		return fc, err
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Notification_id(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Notification_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Notification_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Notification", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _Notification_kind(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Notification_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.NotificationKind) graphql.Marshaler {
+			return ec.marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Notification_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Notification", field, false, false, errors.New("field of type NotificationKind does not have child fields"))
+}
+
+func (ec *executionContext) _Notification_occurredAt(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Notification_occurredAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OccurredAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Notification_occurredAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Notification", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Notification_payload(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Notification_payload(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Payload, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Notification_payload(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Notification", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Notification_readAt(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Notification_readAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ReadAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Notification_readAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Notification", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _NotificationConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.NotificationConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NotificationConnection_edges(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Edges, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.NotificationEdge) graphql.Marshaler {
+			return ec.marshalNNotificationEdge2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationEdgeᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NotificationConnection_edges(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "NotificationConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_NotificationEdge(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _NotificationConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.NotificationConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NotificationConnection_pageInfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+			return ec.marshalNPageInfo2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPageInfo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NotificationConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "NotificationConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PageInfo(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _NotificationEdge_cursor(ctx context.Context, field graphql.CollectedField, obj *model.NotificationEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NotificationEdge_cursor(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Cursor, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NotificationEdge_cursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NotificationEdge", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _NotificationEdge_node(ctx context.Context, field graphql.CollectedField, obj *model.NotificationEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NotificationEdge_node(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Node, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Notification) graphql.Marshaler {
+			return ec.marshalNNotification2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotification(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NotificationEdge_node(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "NotificationEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Notification(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _NotificationPreference_kind(ctx context.Context, field graphql.CollectedField, obj *model.NotificationPreference) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NotificationPreference_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.NotificationKind) graphql.Marshaler {
+			return ec.marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NotificationPreference_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NotificationPreference", field, false, false, errors.New("field of type NotificationKind does not have child fields"))
+}
+
+func (ec *executionContext) _NotificationPreference_inApp(ctx context.Context, field graphql.CollectedField, obj *model.NotificationPreference) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NotificationPreference_inApp(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InApp, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NotificationPreference_inApp(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NotificationPreference", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _NotificationPreference_webPush(ctx context.Context, field graphql.CollectedField, obj *model.NotificationPreference) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NotificationPreference_webPush(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WebPush, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NotificationPreference_webPush(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NotificationPreference", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _PageInfo_hasNextPage(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
@@ -8102,6 +8863,105 @@ func (ec *executionContext) fieldContext_Query_guideViews(_ context.Context, fie
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_GuideView(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_notifications(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_notifications(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Notifications(ctx, fc.Args["first"].(int), fc.Args["after"].(*string), fc.Args["unreadOnly"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.NotificationConnection) graphql.Marshaler {
+			return ec.marshalNNotificationConnection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationConnection(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_notifications(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_NotificationConnection(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_notifications_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_unreadNotificationCount(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_unreadNotificationCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().UnreadNotificationCount(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_unreadNotificationCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Query_notificationPreferences(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_notificationPreferences(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().NotificationPreferences(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.NotificationPreference) graphql.Marshaler {
+			return ec.marshalNNotificationPreference2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationPreferenceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_notificationPreferences(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_NotificationPreference(ctx, field)
 		},
 	}
 	return fc, nil
@@ -12418,6 +13278,50 @@ func (ec *executionContext) unmarshalInputKeywordInput(ctx context.Context, obj 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputNotificationPreferenceInput(ctx context.Context, obj any) (model.NotificationPreferenceInput, error) {
+	var it model.NotificationPreferenceInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"kind", "inApp", "webPush"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "kind":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
+			data, err := ec.unmarshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationKind(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Kind = data
+		case "inApp":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("inApp"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.InApp = data
+		case "webPush":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("webPush"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WebPush = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputProgramConditionsInput(ctx context.Context, obj any) (model.ProgramConditionsInput, error) {
 	var it model.ProgramConditionsInput
 	if obj == nil {
@@ -13827,6 +14731,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "markNotificationsRead":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_markNotificationsRead(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "markAllNotificationsRead":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_markAllNotificationsRead(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateNotificationPreference":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateNotificationPreference(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "renamePasskey":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_renamePasskey(ctx, field)
@@ -13978,6 +14903,198 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_revokeSession(ctx, field)
 			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var notificationImplementors = []string{"Notification"}
+
+func (ec *executionContext) _Notification(ctx context.Context, sel ast.SelectionSet, obj *model.Notification) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, notificationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Notification")
+		case "id":
+			out.Values[i] = ec._Notification_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._Notification_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "occurredAt":
+			out.Values[i] = ec._Notification_occurredAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "payload":
+			out.Values[i] = ec._Notification_payload(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "readAt":
+			out.Values[i] = ec._Notification_readAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var notificationConnectionImplementors = []string{"NotificationConnection"}
+
+func (ec *executionContext) _NotificationConnection(ctx context.Context, sel ast.SelectionSet, obj *model.NotificationConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, notificationConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("NotificationConnection")
+		case "edges":
+			out.Values[i] = ec._NotificationConnection_edges(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._NotificationConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var notificationEdgeImplementors = []string{"NotificationEdge"}
+
+func (ec *executionContext) _NotificationEdge(ctx context.Context, sel ast.SelectionSet, obj *model.NotificationEdge) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, notificationEdgeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("NotificationEdge")
+		case "cursor":
+			out.Values[i] = ec._NotificationEdge_cursor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "node":
+			out.Values[i] = ec._NotificationEdge_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var notificationPreferenceImplementors = []string{"NotificationPreference"}
+
+func (ec *executionContext) _NotificationPreference(ctx context.Context, sel ast.SelectionSet, obj *model.NotificationPreference) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, notificationPreferenceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("NotificationPreference")
+		case "kind":
+			out.Values[i] = ec._NotificationPreference_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "inApp":
+			out.Values[i] = ec._NotificationPreference_inApp(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "webPush":
+			out.Values[i] = ec._NotificationPreference_webPush(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -14663,6 +15780,72 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_guideViews(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "notifications":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_notifications(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "unreadNotificationCount":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_unreadNotificationCount(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "notificationPreferences":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_notificationPreferences(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -16830,6 +18013,35 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
+func (ec *executionContext) unmarshalNID2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNID2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNID2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNID2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalNInstance2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐInstanceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Instance) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -16996,6 +18208,93 @@ func (ec *executionContext) marshalNLease2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu
 		return graphql.Null
 	}
 	return ec._Lease(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNNotification2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotification(ctx context.Context, sel ast.SelectionSet, v *model.Notification) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Notification(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNNotificationConnection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationConnection(ctx context.Context, sel ast.SelectionSet, v *model.NotificationConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._NotificationConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNNotificationEdge2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.NotificationEdge) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNNotificationEdge2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationEdge(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNNotificationEdge2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationEdge(ctx context.Context, sel ast.SelectionSet, v *model.NotificationEdge) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._NotificationEdge(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationKind(ctx context.Context, v any) (model.NotificationKind, error) {
+	var res model.NotificationKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationKind(ctx context.Context, sel ast.SelectionSet, v model.NotificationKind) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNNotificationPreference2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationPreferenceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.NotificationPreference) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNNotificationPreference2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationPreference(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNNotificationPreference2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationPreference(ctx context.Context, sel ast.SelectionSet, v *model.NotificationPreference) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._NotificationPreference(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNNotificationPreferenceInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationPreferenceInput(ctx context.Context, v any) (model.NotificationPreferenceInput, error) {
+	res, err := ec.unmarshalInputNotificationPreferenceInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {

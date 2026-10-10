@@ -13,6 +13,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/epg"
+	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/tunerstate"
@@ -158,6 +159,9 @@ func (r *Runner) RunOnce(ctx context.Context) (*Result, error) {
 				result.NewConflicts = append(result.NewConflicts, a.ReservationID)
 			}
 		}
+		if err := r.emitConflicts(ctx, tx, result.NewConflicts); err != nil {
+			return err
+		}
 		cleared, err := q.ClearDisabledAssignments(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to clear assignments of disabled reservations: %w", err)
@@ -171,6 +175,29 @@ func (r *Runner) RunOnce(ctx context.Context) (*Result, error) {
 	}
 
 	return result, nil
+}
+
+// emitConflicts は、新たに競合になった予約を、通知するイベントとして記録する (設計書 6.2)。
+func (r *Runner) emitConflicts(ctx context.Context, tx pgx.Tx, conflicts []uuid.UUID) error {
+	q := sqlc.New(tx)
+	for _, reservationID := range conflicts {
+		reservation, err := q.GetReservationForNotification(ctx, reservationID)
+		if err != nil {
+			return fmt.Errorf("failed to get the conflicting reservation: %w", err)
+		}
+		err = notification.Emit(ctx, tx, r.clock, notification.KindReservationConflict, map[string]any{
+			"reservationId": reservation.ID.String(),
+			"name":          reservation.Name,
+			"serviceName":   reservation.ServiceName,
+			"startAt":       reservation.StartAt,
+			"endAt":         reservation.EndAt,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // inputs は、DB の予約を割り当ての入力にする。録画設定は、全体の既定値に、ルール予約ならルールの上書き、

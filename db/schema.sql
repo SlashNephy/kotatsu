@@ -252,6 +252,51 @@ CREATE TABLE system_settings (
   updated_at timestamptz NOT NULL
 );
 
+-- 通知するイベント (設計書 6.2)。各ロールが、出来事を書くトランザクションの中で記録する。
+-- nekonote の配信のジョブが、ユーザーごとの通知に配り、配った日時を記録する。
+CREATE TABLE notification_events (
+  id uuid PRIMARY KEY,
+  kind text NOT NULL CHECK (kind IN (
+    'recording_started', 'recording_completed', 'recording_failed',
+    'reservation_conflict', 'storage_low', 'tuner_server_unreachable'
+  )),
+  occurred_at timestamptz NOT NULL,
+  -- 画面に出す文の材料 (番組名や理由など)。種類ごとに項目が違う。
+  payload jsonb NOT NULL,
+  -- ユーザーごとの通知に配った日時。まだ配っていなければ NULL。
+  dispatched_at timestamptz
+);
+
+-- 配っていないイベントを、古い順に引くのに使う。
+CREATE INDEX notification_events_pending_idx ON notification_events (occurred_at) WHERE dispatched_at IS NULL;
+
+-- 画面内の通知 (設計書 6.2)。既読はユーザーごとに管理する。
+CREATE TABLE notifications (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  event_id uuid NOT NULL REFERENCES notification_events (id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL,
+  read_at timestamptz,
+  UNIQUE (user_id, event_id)
+);
+
+CREATE INDEX notifications_user_id_created_at_idx ON notifications (user_id, created_at DESC, id DESC);
+
+-- イベントの種類ごとの通知設定 (設計書 6.2)。行がなければ、どの通知先でも受け取る。
+CREATE TABLE notification_preferences (
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  kind text NOT NULL CHECK (kind IN (
+    'recording_started', 'recording_completed', 'recording_failed',
+    'reservation_conflict', 'storage_low', 'tuner_server_unreachable'
+  )),
+  -- 画面内の通知で受け取るかどうか。
+  in_app boolean NOT NULL,
+  -- Web Push で受け取るかどうか。購読していなければ届かない。
+  web_push boolean NOT NULL,
+  updated_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, kind)
+);
+
 -- チャンネル種別 (設計書 3.1)。チューナーサーバーが返す文字列をそのまま主キーにする。
 -- GR、BS、CS、SKY には表示名と並び順の既定値を持たせ、それ以外の種別は、同期で見つけたときに種別の文字列のまま足す。
 -- 管理者は表示名と並び順を画面から変えられるので、同期は既にある行を上書きしない。

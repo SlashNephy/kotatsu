@@ -22,6 +22,7 @@ type Querier interface {
 	BumpChangeVersion(ctx context.Context, arg BumpChangeVersionParams) (int64, error)
 	// 無効にした予約の割り当ての結果を消す。
 	ClearDisabledAssignments(ctx context.Context) (int64, error)
+	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUnusedRecoveryCodes(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
 	DeleteAuditEventsBefore(ctx context.Context, before time.Time) (int64, error)
@@ -61,6 +62,8 @@ type Querier interface {
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error)
 	GetReservationByProgram(ctx context.Context, arg GetReservationByProgramParams) (Reservation, error)
+	// 競合の通知に載せる、予約の番組名とサービス名。
+	GetReservationForNotification(ctx context.Context, id uuid.UUID) (GetReservationForNotificationRow, error)
 	GetRule(ctx context.Context, id uuid.UUID) (Rule, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
 	GetSystemSettings(ctx context.Context) (SystemSetting, error)
@@ -79,6 +82,9 @@ type Querier interface {
 	InsertEPGChange(ctx context.Context, arg InsertEPGChangeParams) error
 	InsertGuideView(ctx context.Context, arg InsertGuideViewParams) error
 	InsertLoginChallenge(ctx context.Context, arg InsertLoginChallengeParams) error
+	InsertNotificationEvent(ctx context.Context, arg InsertNotificationEventParams) error
+	// イベント event_id を、ユーザー user_ids に配る。ids と user_ids は同じ順に並べる。
+	InsertNotifications(ctx context.Context, arg InsertNotificationsParams) error
 	InsertOIDCIdentity(ctx context.Context, arg InsertOIDCIdentityParams) error
 	InsertOIDCLogin(ctx context.Context, arg InsertOIDCLoginParams) error
 	// 同じ番組の予約がすでにあれば何もしない。そのときは行を返さない。
@@ -121,6 +127,14 @@ type Querier interface {
 	ListLeases(ctx context.Context) ([]Lease, error)
 	// ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
 	ListMatchablePrograms(ctx context.Context, now time.Time) ([]ListMatchableProgramsRow, error)
+	ListNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
+	// イベントの種類 kind を画面内の通知で受け取る、有効なユーザーを返す。設定がなければ受け取る。
+	ListNotificationRecipients(ctx context.Context, kind string) ([]uuid.UUID, error)
+	// ユーザーの通知を、新しい順に返す。before_at と before_id より前 (古い) の通知だけを返し、ページを送る。
+	// before_at と before_id は、両方を渡すか、両方を NULL にする。
+	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]ListNotificationsRow, error)
+	// 配っていないイベントを、古い順に引き、ロックする。ほかの nekonote が同じイベントを配らないよう、ロック中の行は飛ばす。
+	ListPendingNotificationEvents(ctx context.Context, maxCount int32) ([]NotificationEvent, error)
 	ListPrograms(ctx context.Context) ([]ListProgramsRow, error)
 	// 時間帯 [from, to) に重なる番組。
 	ListProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]ListProgramsInRangeRow, error)
@@ -154,6 +168,9 @@ type Querier interface {
 	LockSystemSettings(ctx context.Context, arg LockSystemSettingsParams) (SystemSetting, error)
 	// ユーザーの行を、トランザクションが終わるまで書き込みからロックする。同じユーザーの登録を同時に行わせない。
 	LockUser(ctx context.Context, id uuid.UUID) (LockUserRow, error)
+	MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) (int64, error)
+	MarkNotificationEventDispatched(ctx context.Context, arg MarkNotificationEventDispatchedParams) error
+	MarkNotificationsRead(ctx context.Context, arg MarkNotificationsReadParams) (int64, error)
 	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
 	NotifyChange(ctx context.Context, arg NotifyChangeParams) error
 	PruneEPGChanges(ctx context.Context, before time.Time) (int64, error)
@@ -204,6 +221,7 @@ type Querier interface {
 	UpdateSystemSettings(ctx context.Context, arg UpdateSystemSettingsParams) (SystemSetting, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
+	UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error
 	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults
 	// 上流から来る項目だけを更新する。非表示の印と並び順の上書きは、管理者のものなので触らない。
 	UpsertService(ctx context.Context, arg UpsertServiceParams) error

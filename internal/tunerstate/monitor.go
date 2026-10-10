@@ -20,6 +20,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
@@ -164,17 +165,24 @@ func (m *Monitor) recordDegraded(ctx context.Context, now time.Time, cause error
 			return err
 		}
 		q := sqlc.New(tx)
-		since := now
+		since, starting := now, true
 		current, err := q.GetTunerServerStatus(ctx)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 		case err != nil:
 			return fmt.Errorf("failed to read the tuner server status: %w", err)
 		case current.DegradedSince != nil:
-			since = *current.DegradedSince
+			since, starting = *current.DegradedSince, false
 		}
 
 		message := truncate(cause.Error(), maxErrorLength)
+		// 縮退し始めたときだけ通知する (設計書 6.2)。縮退が続く間は、確かめるたびに通知しない。
+		// 通知は視聴者にも届くので、チューナーサーバーの URL を含みうる理由は載せない。理由は、管理者がシステムの状態で読む。
+		if starting {
+			if err := notification.Emit(ctx, tx, m.clock, notification.KindTunerServerUnreachable, nil); err != nil {
+				return err
+			}
+		}
 		if err := q.UpsertTunerServerStatus(ctx, sqlc.UpsertTunerServerStatusParams{
 			DegradedSince: &since,
 			LastError:     message,

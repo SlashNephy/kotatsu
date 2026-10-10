@@ -10,6 +10,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/settings"
@@ -40,5 +41,6 @@ type Resolver struct {
 	passwords         *auth.Passwords
 	sessions          *auth.Sessions
 	settings          *settings.Store
+	inbox             *notification.Inbox
 	pools             map[string]string
 }
