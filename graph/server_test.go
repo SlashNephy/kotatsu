@@ -68,6 +68,41 @@ func (f *fixture) as(t *testing.T, username string, role auth.Role) *fixture {
 func newFixture(t *testing.T, opts *graph.Options) *fixture {
 	t.Helper()
 
+	return newFixtureWith(t, opts, false)
+}
+
+// newFixtureWithChanges は、newFixture に加えて、変更の subscription のため、本物の Watcher で変更の通知を見張る。
+// Watcher は LISTEN の接続を 1 つ持つので、DB の接続の数を抑えるよう、要るテストでだけ使う。
+func newFixtureWithChanges(t *testing.T) *fixture {
+	t.Helper()
+
+	return newFixtureWith(t, nil, true)
+}
+
+// startChanges は、変更の通知を見張る Broadcaster を、テストが終わるまで動かす。
+func startChanges(t *testing.T, pool *pgxpool.Pool) *notify.Broadcaster {
+	t.Helper()
+
+	watcher, err := notify.NewWatcher(t.Context(), pool, slog.New(slog.DiscardHandler), graph.DataChannels(),
+		notify.WatcherOptions{UseListen: true, PollInterval: time.Second})
+	require.NoError(t, err)
+	changes := notify.NewBroadcaster(watcher)
+	ctx, stop := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		done <- changes.Run(ctx)
+	}()
+	t.Cleanup(func() {
+		stop()
+		assert.NoError(t, <-done)
+	})
+
+	return changes
+}
+
+func newFixtureWith(t *testing.T, opts *graph.Options, watchChanges bool) *fixture {
+	t.Helper()
+
 	pool, err := database.Open(t.Context(), databasetest.New(t))
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
@@ -101,21 +136,9 @@ func newFixture(t *testing.T, opts *graph.Options) *fixture {
 	opts.Passkeys = auth.NewPasskeys(&auth.PasskeysOptions{
 		Clock: clk, Recorder: audit.NewRecorder(clk), Logger: slog.New(slog.DiscardHandler), Sessions: sessions,
 	})
-	// 変更の subscription のため、本物の Watcher で変更の通知を見張る。
-	watcher, err := notify.NewWatcher(t.Context(), pool, slog.New(slog.DiscardHandler), graph.DataChannels(),
-		notify.WatcherOptions{UseListen: true, PollInterval: time.Second})
-	require.NoError(t, err)
-	changes := notify.NewBroadcaster(watcher)
-	changesCtx, stopChanges := context.WithCancel(t.Context())
-	changesDone := make(chan error, 1)
-	go func() {
-		changesDone <- changes.Run(changesCtx)
-	}()
-	t.Cleanup(func() {
-		stopChanges()
-		assert.NoError(t, <-changesDone)
-	})
-	opts.Changes = changes
+	if watchChanges {
+		opts.Changes = startChanges(t, pool)
+	}
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", sessions.Middleware(pool)(graph.NewHandler(opts)))
 	server := httptest.NewServer(mux)

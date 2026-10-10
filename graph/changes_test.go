@@ -94,7 +94,7 @@ func (f *fixture) publish(t *testing.T, channel string) {
 func TestDataChanged(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t, nil)
+	f := newFixtureWithChanges(t)
 	events := f.as(t, "viewer", auth.RoleViewer).subscribe(t, `subscription { dataChanged { channel version } }`)
 	initial := make([]string, 0, 6)
 	for range 6 {
@@ -133,7 +133,7 @@ func TestDataChanged(t *testing.T) {
 func TestDataChangedRequiresLogin(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t, nil)
+	f := newFixtureWithChanges(t)
 	r, err := http.NewRequestWithContext(t.Context(), http.MethodPost, f.server.URL+"/graphql",
 		strings.NewReader(`{"query":"subscription { dataChanged { channel } }"}`))
 	require.NoError(t, err)
