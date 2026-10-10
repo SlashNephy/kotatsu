@@ -200,6 +200,14 @@ func bytesOf(v any) ([]byte, error) {
 		return v, nil
 	case []byte:
 		return v, nil
+	case string:
+		// JSON から読んだオプションでは、base64url の文字列になる。
+		b, err := base64.RawURLEncoding.DecodeString(v)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode the user ID: %w", err)
+		}
+
+		return b, nil
 	default:
 		return nil, fmt.Errorf("unexpected user ID type %T", v)
 	}

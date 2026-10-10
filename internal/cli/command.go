@@ -421,6 +421,12 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	passkeys := auth.NewPasskeys(&auth.PasskeysOptions{
+		Clock:    deps.Clock,
+		Recorder: audit.NewRecorder(deps.Clock),
+		Logger:   logger.With(slog.String("component", "passkey")),
+		Sessions: sessions,
+	})
 	setup := auth.NewSetup(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy, logger.With(slog.String("component", "setup")))
 	mux.Handle("GET /auth/setup", setup.StatusHandler(deps.DB))
 	for pattern, handler := range map[string]http.Handler{
@@ -430,6 +436,12 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		"POST /auth/login/recovery-code":           logins.RecoveryCodeHandler(deps.DB, clientInfo),
 		"POST /auth/login/totp/enrollment":         logins.EnrollmentHandler(deps.DB),
 		"POST /auth/login/totp/enrollment/confirm": logins.EnrollmentConfirmHandler(deps.DB, clientInfo),
+		"POST /auth/login/passkey":                 logins.PasskeySecondFactorHandler(deps.DB, clientInfo),
+		"POST /auth/login/passkey/confirm":         logins.PasskeySecondFactorConfirmHandler(deps.DB, clientInfo),
+		"POST /auth/passkey/login":                 logins.PasskeyLoginHandler(deps.DB, clientInfo),
+		"POST /auth/passkey/login/confirm":         logins.PasskeyLoginConfirmHandler(deps.DB, clientInfo),
+		"POST /auth/passkey/registration":          passkeys.RegistrationHandler(deps.DB, clientInfo),
+		"POST /auth/passkey/registration/confirm":  passkeys.RegistrationConfirmHandler(deps.DB, clientInfo),
 	} {
 		mux.Handle(pattern, httpserver.RequireSameOrigin(handler))
 	}

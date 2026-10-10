@@ -238,10 +238,15 @@ func requireJSONPost(w http.ResponseWriter, r *http.Request) bool {
 
 // decodeJSON は、POST の JSON の本文を v に読む。読めなければ、エラーを書いて false を返す。
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	return decodeJSONWithin(w, r, v, maxLoginBody)
+}
+
+// decodeJSONWithin は、limit バイトまでの POST の JSON の本文を v に読む。読めなければ、エラーを書いて false を返す。
+func decodeJSONWithin(w http.ResponseWriter, r *http.Request, v any, limit int64) bool {
 	if !requireJSONPost(w, r) {
 		return false
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxLoginBody)).Decode(v); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit)).Decode(v); err != nil {
 		writeLoginError(w, http.StatusBadRequest, "BAD_REQUEST", "the body must be a JSON object")
 
 		return false
