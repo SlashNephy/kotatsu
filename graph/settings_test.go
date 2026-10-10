@@ -13,6 +13,7 @@ import (
 
 const (
 	fieldDefaults  = "recordingDefaults"
+	fieldDays      = "archiveRetentionDays"
 	settingsQuery  = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays } }`
 	updateSettings = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
 		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays } }`
@@ -46,6 +47,13 @@ func TestSystemSettings(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
+	var unstamped struct {
+		SystemSettings struct {
+			UpdatedAt *time.Time `json:"updatedAt"`
+		} `json:"systemSettings"`
+	}
+	require.Empty(t, f.query(t, `{ systemSettings { updatedAt } }`, nil, &unstamped))
+	assert.Nil(t, unstamped.SystemSettings.UpdatedAt, "never changed")
 	var got struct {
 		SystemSettings systemSettings `json:"systemSettings"`
 	}
@@ -53,7 +61,7 @@ func TestSystemSettings(t *testing.T) {
 	require.Empty(t, viewerFixture.query(t, settingsQuery, nil, &got))
 	assert.Equal(t, defaultSystemSettings(), got.SystemSettings)
 
-	change := map[string]any{varInput: map[string]any{fieldDefaults: map[string]any{"startMarginSeconds": 30, "poolId": "main"}, "archiveRetentionDays": 0}}
+	change := map[string]any{varInput: map[string]any{fieldDefaults: map[string]any{"startMarginSeconds": 30, "poolId": "main"}, fieldDays: 0}}
 	for _, user := range []*fixture{f, viewerFixture} {
 		assert.Equal(t, []string{codeForbidden}, user.query(t, updateSettings, change, nil), "only administrators can change the settings")
 	}
@@ -73,7 +81,7 @@ func TestSystemSettings(t *testing.T) {
 
 	// 正しくない値は、BAD_USER_INPUT を返し、保存しない。
 	for _, input := range []map[string]any{
-		{"archiveRetentionDays": -1},
+		{fieldDays: -1},
 		{fieldDefaults: map[string]any{"fileNameTemplate": "{{.Unknown}}"}},
 		{fieldDefaults: map[string]any{"priority": 11}},
 	} {
@@ -81,6 +89,26 @@ func TestSystemSettings(t *testing.T) {
 	}
 	require.Empty(t, f.query(t, settingsQuery, nil, &got))
 	assert.Equal(t, want, got.SystemSettings)
+
+	// 省いた項目は変えない。プールは空にすると、自動で選ぶのに戻る。
+	var partial struct {
+		UpdateSystemSettings systemSettings `json:"updateSystemSettings"`
+	}
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldDefaults: map[string]any{"poolId": ""}}}, &partial))
+	want.RecordingDefaults.PoolID = nil
+	assert.Equal(t, want, partial.UpdateSystemSettings)
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldDays: 30}}, &partial))
+	want.ArchiveRetentionDays = 30
+	assert.Equal(t, want, partial.UpdateSystemSettings)
+
+	var stamped struct {
+		SystemSettings struct {
+			UpdatedAt *time.Time `json:"updatedAt"`
+		} `json:"systemSettings"`
+	}
+	require.Empty(t, f.query(t, `{ systemSettings { updatedAt } }`, nil, &stamped))
+	require.NotNil(t, stamped.SystemSettings.UpdatedAt)
+	assert.True(t, stamped.SystemSettings.UpdatedAt.Equal(f.clock.Now()))
 
 	// 設定を変えるのは重要な操作なので、直前の再認証を求める。
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
