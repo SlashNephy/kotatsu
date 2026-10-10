@@ -273,6 +273,20 @@ type Passkey struct {
 	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 }
 
+// ログイン中のユーザーのプレイヤーの設定 (設計書 9.1)。端末をまたいで同期する。
+type PlayerSettings struct {
+	// 実況のコメントを出すかどうか。出さなければ、NX-Jikkyo に接続しない (設計書 7.4)。
+	JikkyoEnabled bool `json:"jikkyoEnabled"`
+	// 字幕と文字スーパーを出すかどうか。
+	CaptionsEnabled bool `json:"captionsEnabled"`
+}
+
+// プレイヤーの設定の変更。省いた項目は変えない。
+type PlayerSettingsInput struct {
+	JikkyoEnabled   *bool `json:"jikkyoEnabled,omitempty"`
+	CaptionsEnabled *bool `json:"captionsEnabled,omitempty"`
+}
+
 // 番組の条件 (設計書 4.2)。番組の検索とルールで共通に使う。省いた項目では絞り込まない。
 type ProgramConditionsInput struct {
 	// すべてに一致する番組だけを対象にする。

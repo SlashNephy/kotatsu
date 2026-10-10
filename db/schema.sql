@@ -308,6 +308,16 @@ CREATE TABLE user_setting_versions (
   updated_at timestamptz NOT NULL
 );
 
+-- 端末をまたいで同期する、プレイヤーの設定 (設計書 9.1)。行がなければ既定値を使う。
+CREATE TABLE user_settings (
+  user_id uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+  -- 実況のコメントを出すかどうか。出さなければ、NX-Jikkyo に接続しない (設計書 7.4)。
+  jikkyo_enabled boolean NOT NULL DEFAULT true,
+  -- 字幕と文字スーパーを出すかどうか。
+  captions_enabled boolean NOT NULL DEFAULT true,
+  updated_at timestamptz NOT NULL
+);
+
 -- Web Push の購読 (設計書 6.2)。ブラウザの PushSubscription を、ユーザーごとに持つ。
 CREATE TABLE web_push_subscriptions (
   id uuid PRIMARY KEY,

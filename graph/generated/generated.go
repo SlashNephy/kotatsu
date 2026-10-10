@@ -188,6 +188,7 @@ type ComplexityRoot struct {
 		UpdateChannelType            func(childComplexity int, typeArg string, input model.ChannelTypeInput) int
 		UpdateGuideView              func(childComplexity int, id string, input model.GuideViewInput) int
 		UpdateNotificationPreference func(childComplexity int, input model.NotificationPreferenceInput) int
+		UpdatePlayerSettings         func(childComplexity int, input model.PlayerSettingsInput) int
 		UpdateReservation            func(childComplexity int, id string, input model.ReservationUpdateInput) int
 		UpdateRule                   func(childComplexity int, id string, input model.RuleInput) int
 		UpdateStoragePool            func(childComplexity int, id string, input model.StoragePoolInput) int
@@ -233,6 +234,11 @@ type ComplexityRoot struct {
 		LastUsedAt func(childComplexity int) int
 		Name       func(childComplexity int) int
 		RpID       func(childComplexity int) int
+	}
+
+	PlayerSettings struct {
+		CaptionsEnabled func(childComplexity int) int
+		JikkyoEnabled   func(childComplexity int) int
 	}
 
 	Program struct {
@@ -283,6 +289,7 @@ type ComplexityRoot struct {
 		NotificationPreferences func(childComplexity int) int
 		Notifications           func(childComplexity int, first int, after *string, unreadOnly bool) int
 		Passkeys                func(childComplexity int) int
+		PlayerSettings          func(childComplexity int) int
 		PreviewRule             func(childComplexity int, input model.RuleInput, first int, after *string) int
 		Recordings              func(childComplexity int, first int, after *string, filter *model.RecordingFilter) int
 		Reservations            func(childComplexity int, from time.Time, to time.Time, states []model.AssignmentState, first int, after *string) int
@@ -582,6 +589,7 @@ type MutationResolver interface {
 	UpdateNotificationPreference(ctx context.Context, input model.NotificationPreferenceInput) (*model.NotificationPreference, error)
 	RenamePasskey(ctx context.Context, id string, name string) (*model.Passkey, error)
 	DeletePasskey(ctx context.Context, id string) (string, error)
+	UpdatePlayerSettings(ctx context.Context, input model.PlayerSettingsInput) (*model.PlayerSettings, error)
 	DeleteRecording(ctx context.Context, id string) (string, error)
 	SetRecordingProtected(ctx context.Context, id string, protected bool) (*model.Recording, error)
 	SetRecordingTags(ctx context.Context, id string, tags []string) (*model.Recording, error)
@@ -636,6 +644,7 @@ type QueryResolver interface {
 	UnreadNotificationCount(ctx context.Context) (int, error)
 	NotificationPreferences(ctx context.Context) ([]*model.NotificationPreference, error)
 	Passkeys(ctx context.Context) ([]*model.Passkey, error)
+	PlayerSettings(ctx context.Context) (*model.PlayerSettings, error)
 	Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter) (*model.RecordingConnection, error)
 	Tags(ctx context.Context) ([]*model.Tag, error)
 	Reservations(ctx context.Context, from time.Time, to time.Time, states []model.AssignmentState, first int, after *string) (*model.ReservationConnection, error)
@@ -1408,6 +1417,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateNotificationPreference(childComplexity, args["input"].(model.NotificationPreferenceInput)), true
+	case "Mutation.updatePlayerSettings":
+		if e.ComplexityRoot.Mutation.UpdatePlayerSettings == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updatePlayerSettings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdatePlayerSettings(childComplexity, args["input"].(model.PlayerSettingsInput)), true
 	case "Mutation.updateReservation":
 		if e.ComplexityRoot.Mutation.UpdateReservation == nil {
 			break
@@ -1606,6 +1626,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Passkey.RpID(childComplexity), true
+
+	case "PlayerSettings.captionsEnabled":
+		if e.ComplexityRoot.PlayerSettings.CaptionsEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerSettings.CaptionsEnabled(childComplexity), true
+	case "PlayerSettings.jikkyoEnabled":
+		if e.ComplexityRoot.PlayerSettings.JikkyoEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerSettings.JikkyoEnabled(childComplexity), true
 
 	case "Program.archived":
 		if e.ComplexityRoot.Program.Archived == nil {
@@ -1842,6 +1875,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Passkeys(childComplexity), true
+	case "Query.playerSettings":
+		if e.ComplexityRoot.Query.PlayerSettings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.PlayerSettings(childComplexity), true
 	case "Query.previewRule":
 		if e.ComplexityRoot.Query.PreviewRule == nil {
 			break
@@ -3038,6 +3077,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputGuideViewInput,
 		ec.unmarshalInputKeywordInput,
 		ec.unmarshalInputNotificationPreferenceInput,
+		ec.unmarshalInputPlayerSettingsInput,
 		ec.unmarshalInputProgramConditionsInput,
 		ec.unmarshalInputProgramReservationInput,
 		ec.unmarshalInputRecordingFilter,
@@ -3330,7 +3370,7 @@ extend type Subscription {
   unreadNotificationCount: Int!
   """
   ログイン中のユーザーの設定の版数 (設計書 9.1)。購読を始めたときに今の版数を送り、その後は、同じユーザーが、どの端末からでも設定を変えたときに送る。
-  クライアントは、届いたら設定を読み直す。対象の設定は、通知の設定、番組表ビュー、第二要素、パスキー、セッションの失効。
+  クライアントは、届いたら設定を読み直す。対象の設定は、通知の設定、番組表ビュー、プレイヤーの設定、第二要素、パスキー、セッションの失効。
   """
   viewerSettingsChanged: Int!
 }
@@ -3650,6 +3690,33 @@ extend type Mutation {
   パスワードを持たないユーザーの最後のパスキーは、ログインする手段がなくなるので消せない (BAD_USER_INPUT)。
   """
   deletePasskey(id: ID!): ID!
+}
+`, BuiltIn: false},
+	{Name: "../schema/player_settings.graphqls", Input: `"""
+ログイン中のユーザーのプレイヤーの設定 (設計書 9.1)。端末をまたいで同期する。
+"""
+type PlayerSettings {
+  "実況のコメントを出すかどうか。出さなければ、NX-Jikkyo に接続しない (設計書 7.4)。"
+  jikkyoEnabled: Boolean!
+  "字幕と文字スーパーを出すかどうか。"
+  captionsEnabled: Boolean!
+}
+
+"""
+プレイヤーの設定の変更。省いた項目は変えない。
+"""
+input PlayerSettingsInput {
+  jikkyoEnabled: Boolean
+  captionsEnabled: Boolean
+}
+
+extend type Query {
+  playerSettings: PlayerSettings!
+}
+
+extend type Mutation {
+  "プレイヤーの設定を変え、同じユーザーのほかの端末に viewerSettingsChanged で知らせる。"
+  updatePlayerSettings(input: PlayerSettingsInput!): PlayerSettings!
 }
 `, BuiltIn: false},
 	{Name: "../schema/recordings.graphqls", Input: `"""
@@ -4911,6 +4978,16 @@ func (ec *executionContext) childFields_Passkey(ctx context.Context, field graph
 	return nil, fmt.Errorf("no field named %q was found under type Passkey", field.Name)
 }
 
+func (ec *executionContext) childFields_PlayerSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "jikkyoEnabled":
+		return ec.fieldContext_PlayerSettings_jikkyoEnabled(ctx, field)
+	case "captionsEnabled":
+		return ec.fieldContext_PlayerSettings_captionsEnabled(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PlayerSettings", field.Name)
+}
+
 func (ec *executionContext) childFields_Program(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -6091,6 +6168,20 @@ func (ec *executionContext) field_Mutation_updateNotificationPreference_args(ctx
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.NotificationPreferenceInput, error) {
 			return ec.unmarshalNNotificationPreferenceInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationPreferenceInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updatePlayerSettings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.PlayerSettingsInput, error) {
+			return ec.unmarshalNPlayerSettingsInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerSettingsInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -8340,6 +8431,50 @@ func (ec *executionContext) fieldContext_Mutation_deletePasskey(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_updatePlayerSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updatePlayerSettings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdatePlayerSettings(ctx, fc.Args["input"].(model.PlayerSettingsInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PlayerSettings) graphql.Marshaler {
+			return ec.marshalNPlayerSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updatePlayerSettings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PlayerSettings(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updatePlayerSettings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_deleteRecording(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -10222,6 +10357,52 @@ func (ec *executionContext) fieldContext_Passkey_lastUsedAt(_ context.Context, f
 	return graphql.NewScalarFieldContext("Passkey", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _PlayerSettings_jikkyoEnabled(ctx context.Context, field graphql.CollectedField, obj *model.PlayerSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerSettings_jikkyoEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.JikkyoEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerSettings_jikkyoEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerSettings_captionsEnabled(ctx context.Context, field graphql.CollectedField, obj *model.PlayerSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerSettings_captionsEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CaptionsEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerSettings_captionsEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _Program_id(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -11390,6 +11571,38 @@ func (ec *executionContext) fieldContext_Query_passkeys(_ context.Context, field
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Passkey(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_playerSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_playerSettings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().PlayerSettings(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PlayerSettings) graphql.Marshaler {
+			return ec.marshalNPlayerSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_playerSettings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PlayerSettings(ctx, field)
 		},
 	}
 	return fc, nil
@@ -17643,6 +17856,43 @@ func (ec *executionContext) unmarshalInputNotificationPreferenceInput(ctx contex
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputPlayerSettingsInput(ctx context.Context, obj any) (model.PlayerSettingsInput, error) {
+	var it model.PlayerSettingsInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"jikkyoEnabled", "captionsEnabled"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "jikkyoEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("jikkyoEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.JikkyoEnabled = data
+		case "captionsEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("captionsEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CaptionsEnabled = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputProgramConditionsInput(ctx context.Context, obj any) (model.ProgramConditionsInput, error) {
 	var it model.ProgramConditionsInput
 	if obj == nil {
@@ -19427,6 +19677,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "updatePlayerSettings":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updatePlayerSettings(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "deleteRecording":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteRecording(ctx, field)
@@ -19952,6 +20209,49 @@ func (ec *executionContext) _Passkey(ctx context.Context, sel ast.SelectionSet, 
 		case "lastUsedAt":
 			out.Values[i] = ec._Passkey_lastUsedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var playerSettingsImplementors = []string{"PlayerSettings"}
+
+func (ec *executionContext) _PlayerSettings(ctx context.Context, sel ast.SelectionSet, obj *model.PlayerSettings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, playerSettingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PlayerSettings")
+		case "jikkyoEnabled":
+			out.Values[i] = ec._PlayerSettings_jikkyoEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "captionsEnabled":
+			out.Values[i] = ec._PlayerSettings_captionsEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
@@ -20613,6 +20913,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_passkeys(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "playerSettings":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_playerSettings(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -24049,6 +24371,21 @@ func (ec *executionContext) marshalNPasskey2ᚖgithubᚗcomᚋSlashNephyᚋkotat
 		return graphql.Null
 	}
 	return ec._Passkey(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPlayerSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerSettings(ctx context.Context, sel ast.SelectionSet, v *model.PlayerSettings) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PlayerSettings(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNPlayerSettingsInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerSettingsInput(ctx context.Context, v any) (model.PlayerSettingsInput, error) {
+	res, err := ec.unmarshalInputPlayerSettingsInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNProgram2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Program) graphql.Marshaler {

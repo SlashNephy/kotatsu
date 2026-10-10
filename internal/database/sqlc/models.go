@@ -412,6 +412,13 @@ type UserRecoveryCode struct {
 	UsedAt    *time.Time
 }
 
+type UserSetting struct {
+	UserID          uuid.UUID
+	JikkyoEnabled   bool
+	CaptionsEnabled bool
+	UpdatedAt       time.Time
+}
+
 type UserSettingVersion struct {
 	UserID    uuid.UUID
 	Version   int64
