@@ -34,4 +34,5 @@ type Resolver struct {
 	rules             *rule.Rules
 	reservations      *reserve.Reservations
 	factors           *auth.SecondFactors
+	passkeys          *auth.Passkeys
 }

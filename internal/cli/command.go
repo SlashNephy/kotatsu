@@ -395,11 +395,18 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	passkeys := auth.NewPasskeys(&auth.PasskeysOptions{
+		Clock:    deps.Clock,
+		Recorder: audit.NewRecorder(deps.Clock),
+		Logger:   logger.With(slog.String("component", "passkey")),
+		Sessions: sessions,
+	})
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", graph.NewHandler(&graph.Options{
 		DB:                  deps.DB,
 		Recorder:            audit.NewRecorder(deps.Clock),
 		SecondFactors:       factors,
+		Passkeys:            passkeys,
 		Clock:               deps.Clock,
 		Location:            location,
 		MaxSearchCandidates: 0,
@@ -421,12 +428,6 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	passkeys := auth.NewPasskeys(&auth.PasskeysOptions{
-		Clock:    deps.Clock,
-		Recorder: audit.NewRecorder(deps.Clock),
-		Logger:   logger.With(slog.String("component", "passkey")),
-		Sessions: sessions,
-	})
 	setup := auth.NewSetup(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy, logger.With(slog.String("component", "setup")))
 	mux.Handle("GET /auth/setup", setup.StatusHandler(deps.DB))
 	for pattern, handler := range map[string]http.Handler{

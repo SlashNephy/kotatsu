@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,6 +38,9 @@ type fixture struct {
 	server   *httptest.Server
 	clock    *clocktest.Fake
 	sessions *auth.Sessions
+	passkeys *auth.Passkeys
+	// userID は、ログイン済みのユーザーの ID。
+	userID uuid.UUID
 	// token は、ログイン済みのセッションのトークン。
 	token string
 }
@@ -52,7 +56,7 @@ func (f *fixture) as(t *testing.T, username string, role auth.Role) *fixture {
 	token, _, err := f.sessions.Create(t.Context(), f.pool, user.ID, nil)
 	require.NoError(t, err)
 
-	return &fixture{pool: f.pool, server: f.server, clock: f.clock, sessions: f.sessions, token: token}
+	return &fixture{pool: f.pool, server: f.server, clock: f.clock, sessions: f.sessions, passkeys: f.passkeys, userID: user.ID, token: token}
 }
 
 // newFixture は、ログイン済みのセッションを 1 つ持つ DB と、セッションのミドルウェアを通した /graphql を用意する。
@@ -79,12 +83,15 @@ func newFixture(t *testing.T, opts *graph.Options) *fixture {
 	opts.DB, opts.Clock, opts.Logger = pool, clk, slog.New(slog.DiscardHandler)
 	opts.SecondFactors, err = auth.NewSecondFactors(clk, audit.NewRecorder(clk), "kotatsu-graph-test-application-key-0123456789")
 	require.NoError(t, err)
+	opts.Passkeys = auth.NewPasskeys(&auth.PasskeysOptions{
+		Clock: clk, Recorder: audit.NewRecorder(clk), Logger: slog.New(slog.DiscardHandler), Sessions: sessions,
+	})
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", sessions.Middleware(pool)(graph.NewHandler(opts)))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
-	return &fixture{pool: pool, server: server, clock: clk, sessions: sessions, token: token}
+	return &fixture{pool: pool, server: server, clock: clk, sessions: sessions, passkeys: opts.Passkeys, userID: user.ID, token: token}
 }
 
 type request struct {

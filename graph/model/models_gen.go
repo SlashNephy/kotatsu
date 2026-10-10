@@ -101,6 +101,17 @@ type PageInfo struct {
 	EndCursor       *string `json:"endCursor,omitempty"`
 }
 
+// ログイン中のユーザーが登録したパスキー (設計書 9.3)。登録とログインは、/auth/passkey/* で扱う。
+type Passkey struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// 登録したときに接続していたホスト名 (RP ID)。パスキーは、このホスト名でしか使えない。
+	RpID      string    `json:"rpId"`
+	CreatedAt time.Time `json:"createdAt"`
+	// 最後にログインに使った日時。使っていなければ null。
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+}
+
 // 番組の条件 (設計書 4.2)。番組の検索とルールで共通に使う。省いた項目では絞り込まない。
 type ProgramConditionsInput struct {
 	// すべてに一致する番組だけを対象にする。
