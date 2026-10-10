@@ -93,10 +93,19 @@ func (f *fixture) files(t *testing.T, reservationID uuid.UUID) []recordedFile {
 func (f *fixture) session(t *testing.T, recorder *recording.Recorder, reservationID uuid.UUID) (context.CancelCauseFunc, <-chan error) {
 	t.Helper()
 
+	return f.sessionWith(t, recorder, &recording.Assignment{
+		ID: id.New(), ReservationID: reservationID, Priority: recording.Priority, Generation: 1, HandedOver: false, PreviousLeaseExpiresAt: nil,
+	})
+}
+
+// sessionWith は、Recorder の Session を、割り振り assignment を取ったものとして、別の goroutine で動かす。
+func (f *fixture) sessionWith(t *testing.T, recorder *recording.Recorder, assignment *recording.Assignment) (context.CancelCauseFunc, <-chan error) {
+	t.Helper()
+
 	ctx, cancel := context.WithCancelCause(t.Context())
 	done := make(chan error, 1)
 	go func() {
-		done <- recorder.Session()(ctx, &recording.Assignment{ID: id.New(), ReservationID: reservationID, Priority: recording.Priority, Generation: 1})
+		done <- recorder.Session()(ctx, assignment)
 	}()
 	t.Cleanup(func() { cancel(nil) })
 
@@ -774,4 +783,93 @@ func TestRecorderUsesPoolSettings(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestRecorderContinuesAfterHandover は、止まる mikan から引き継いだときは、古い mikan と重なって録るので、
+// 途切れた区間を記録しないことを確かめる (設計書 5.4)。
+func TestRecorderContinuesAfterHandover(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
+	assignmentID := id.New()
+	stopOld, oldDone := f.sessionWith(t, recorder, &recording.Assignment{
+		ID: assignmentID, ReservationID: reservationID, Priority: recording.Priority, Generation: 1, HandedOver: false, PreviousLeaseExpiresAt: nil,
+	})
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return len(f.files(t, reservationID)) == 2
+	}, waitTimeout, 10*time.Millisecond)
+
+	// 古い mikan が書いている間に、新しい mikan が引き継いで、2 つ目のセグメントを書き始める。
+	f.clock.Advance(time.Minute)
+	_, newDone := f.sessionWith(t, recorder, &recording.Assignment{
+		ID: assignmentID, ReservationID: reservationID, Priority: recording.Priority, Generation: 2, HandedOver: true, PreviousLeaseExpiresAt: nil,
+	})
+	require.Eventually(t, func() bool {
+		return f.segments(t, reservationID) == 2
+	}, waitTimeout, 10*time.Millisecond)
+	stopOld(recording.ErrHandedOver)
+	require.ErrorIs(t, wait(t, oldDone), recording.ErrHandedOver)
+
+	f.clock.Advance(time.Hour)
+	require.NoError(t, wait(t, newDone))
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StateCompleted), got.state)
+	assert.Equal(t, gapsAndLost{gaps: 0, programLost: false}, f.gapsAndLost(t, reservationID))
+}
+
+// TestRecorderTakesOverFromCrashedMikan は、落ちた mikan の代わりに取ったときは、書きかけのセグメントを、
+// ファイルの大きさと、最後にリースを延長したころの時刻で閉じ、そこからを途切れた区間とすることを確かめる (設計書 5.4)。
+func TestRecorderTakesOverFromCrashedMikan(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	recorder, dir := f.newRecorder(t, onceStream{data: data}, nil)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+
+	// 落ちた mikan が、1000 バイトを書いたところで止まり、セグメントを書きかけのまま残したことにする。
+	recordingID := id.New()
+	startedAt := f.clock.Now()
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+		state, protected, recorded_from, created_at, updated_at)
+		SELECT $1, id, service_id, event_id, name, description, start_at, end_at, 'recording', false, $3, $3, $3
+		FROM reservations WHERE id = $2`, recordingID, reservationID, startedAt)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "crashed.m2ts"), make([]byte, 1000), 0o600))
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+		VALUES ($1, $2, 'segment', $3, 'crashed.m2ts', 0, $4, NULL, $4)`, id.New(), recordingID, poolID, startedAt)
+	require.NoError(t, err)
+
+	// 落ちた mikan のリースは、録画を始めてから 1 分後に延長したものが最後で、その 10 秒後に切れた。
+	f.clock.Advance(5 * time.Minute)
+	lastRenewal := startedAt.Add(time.Minute)
+	_, done := f.sessionWith(t, recorder, &recording.Assignment{
+		ID: id.New(), ReservationID: reservationID, Priority: recording.Priority, Generation: 2,
+		HandedOver: false, PreviousLeaseExpiresAt: new(lastRenewal.Add(recording.DefaultLeaseTTL)),
+	})
+	require.Eventually(t, func() bool {
+		return f.segments(t, reservationID) == 2
+	}, waitTimeout, 10*time.Millisecond)
+	f.clock.Advance(time.Hour)
+	require.NoError(t, wait(t, done))
+
+	var crashed struct {
+		size    int64
+		endedAt time.Time
+	}
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT size, ended_at FROM recording_files WHERE path = 'crashed.m2ts'").Scan(&crashed.size, &crashed.endedAt))
+	assert.Equal(t, int64(1000), crashed.size)
+	assert.True(t, lastRenewal.Equal(crashed.endedAt), crashed.endedAt)
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StatePartial), got.state)
+	var gapFrom time.Time
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT (gaps->0->>'from')::timestamptz FROM recordings WHERE id = $1", recordingID).Scan(&gapFrom))
+	assert.True(t, lastRenewal.Equal(gapFrom), gapFrom)
 }

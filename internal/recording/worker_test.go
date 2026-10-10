@@ -23,7 +23,7 @@ func (f *fixture) startWorker(t *testing.T, holder uuid.UUID, session recording.
 
 	worker := recording.NewWorker(f.pool, f.clock, holder, slog.New(slog.DiscardHandler), session, &recording.WorkerOptions{
 		LeaseTTL: 10 * time.Second, RenewInterval: 20 * time.Millisecond, AcquireInterval: 50 * time.Millisecond,
-		PollOnly: true, PollInterval: 50 * time.Millisecond,
+		HandoverTimeout: 500 * time.Millisecond, PollOnly: true, PollInterval: 50 * time.Millisecond,
 	})
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
@@ -183,25 +183,142 @@ func TestWorkerTakesOverExpiredLease(t *testing.T) {
 	assert.Equal(t, &successor, f.assignment(t, reservationID).holder)
 }
 
-// TestWorkerLeavesAssignmentOnShutdown は、mikan を止めると、録画を止め、割り振りを、続きを録る mikan のために残すことを確かめる。
-func TestWorkerLeavesAssignmentOnShutdown(t *testing.T) {
+// register は、mikan のインスタンスを、動いているものとして登録簿に載せる。
+func (f *fixture) register(t *testing.T, holder uuid.UUID) {
+	t.Helper()
+
+	_, err := f.pool.Exec(t.Context(), "INSERT INTO instances (id, role, address, started_at, heartbeat_at) VALUES ($1, 'mikan', '127.0.0.1:0', $2, $2)",
+		holder, f.clock.Now())
+	require.NoError(t, err)
+}
+
+// streamOpened は、Recorder がストリームを開いたときと同じく、ストリームを開いたことを記録する。
+func (f *fixture) streamOpened(ctx context.Context, t *testing.T, assignment *recording.Assignment) {
+	t.Helper()
+
+	_, err := f.pool.Exec(ctx, "UPDATE recording_assignments SET stream_generation = $1 WHERE id = $2", assignment.Generation, assignment.ID)
+	require.NoError(t, err)
+}
+
+// TestWorkerHandsOver は、止まる mikan が、ほかの mikan がストリームを開くまで録り続けてから止まり、
+// 割り振りを終わったことにしないことを確かめる (設計書 5.4)。
+func TestWorkerHandsOver(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
 	reservationID := f.assignOne(t)
-	holder := id.New()
-	started := make(chan struct{})
-	stop := f.startWorker(t, holder, func(ctx context.Context, _ *recording.Assignment) error {
-		close(started)
-		<-ctx.Done()
+	old, successor := id.New(), id.New()
+	f.register(t, old)
+	f.register(t, successor)
 
-		return ctx.Err()
+	oldCauses := make(chan error, 1)
+	oldStarted := make(chan struct{})
+	stopOld := f.startWorker(t, old, func(ctx context.Context, _ *recording.Assignment) error {
+		close(oldStarted)
+		<-ctx.Done()
+		oldCauses <- context.Cause(ctx)
+
+		return nil
 	})
 	select {
-	case <-started:
+	case <-oldStarted:
 	case <-time.After(waitTimeout):
-		t.Fatal("the mikan did not acquire the assignment")
+		t.Fatal("the old mikan did not acquire the assignment")
 	}
-	stop()
-	assert.Equal(t, assignmentRow{state: string(recording.AssignmentRecording), generation: 1, holder: &holder}, f.assignment(t, reservationID))
+
+	// 新しい mikan は、ストリームを開くまで 300 ミリ秒かかるものとする。
+	taken := make(chan *recording.Assignment, 1)
+	f.startWorker(t, successor, func(ctx context.Context, assignment *recording.Assignment) error {
+		taken <- assignment
+		time.Sleep(300 * time.Millisecond)
+		f.streamOpened(ctx, t, assignment)
+		<-ctx.Done()
+
+		return nil
+	})
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		stopOld()
+	}()
+
+	var got *recording.Assignment
+	select {
+	case got = <-taken:
+	case <-time.After(waitTimeout):
+		t.Fatal("no mikan took over the assignment")
+	}
+	assert.Equal(t, int64(2), got.Generation)
+	assert.True(t, got.HandedOver)
+	// 新しい mikan がストリームを開くまでは、古い mikan も録り続ける。
+	select {
+	case cause := <-oldCauses:
+		t.Fatalf("the old mikan stopped before the successor opened the stream: %v", cause)
+	case <-time.After(150 * time.Millisecond):
+	}
+	select {
+	case cause := <-oldCauses:
+		require.ErrorIs(t, cause, recording.ErrHandedOver)
+	case <-time.After(waitTimeout):
+		t.Fatal("the old mikan did not stop after the handover")
+	}
+	<-stopped
+	assert.Equal(t, assignmentRow{state: string(recording.AssignmentRecording), generation: 2, holder: &successor}, f.assignment(t, reservationID))
+}
+
+// TestWorkerReleasesWithoutSuccessor は、引き継ぐ mikan がいないか、引き継ぎを待ちきれなければ、割り振りを手放して止まり、
+// 再起動した mikan が、リースが切れるのを待たずに続きを録れることを確かめる (設計書 5.4)。
+func TestWorkerReleasesWithoutSuccessor(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// peer は、動いているほかの mikan を登録簿に載せるかどうか。載せても、録画を取らない。
+		peer bool
+	}{
+		{name: "ほかの mikan がいない", peer: false},
+		{name: "ほかの mikan が引き継がない", peer: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.assignOne(t)
+			holder := id.New()
+			f.register(t, holder)
+			if tt.peer {
+				f.register(t, id.New())
+			}
+			causes := make(chan error, 1)
+			started := make(chan struct{})
+			stop := f.startWorker(t, holder, func(ctx context.Context, _ *recording.Assignment) error {
+				close(started)
+				<-ctx.Done()
+				causes <- context.Cause(ctx)
+
+				return nil
+			})
+			<-started
+			stop()
+			require.ErrorIs(t, <-causes, recording.ErrStopped)
+			assert.Equal(t, assignmentRow{state: string(recording.AssignmentRecording), generation: 1, holder: nil}, f.assignment(t, reservationID))
+
+			// 再起動した mikan は、時計を進めなくても (リースが切れなくても)、すぐに取る。
+			taken := make(chan *recording.Assignment, 1)
+			f.startWorker(t, holder, func(ctx context.Context, assignment *recording.Assignment) error {
+				taken <- assignment
+				<-ctx.Done()
+
+				return nil
+			})
+			select {
+			case assignment := <-taken:
+				assert.Equal(t, int64(2), assignment.Generation)
+				assert.False(t, assignment.HandedOver)
+			case <-time.After(waitTimeout):
+				t.Fatal("the restarted mikan did not take the released assignment")
+			}
+		})
+	}
 }

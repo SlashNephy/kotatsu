@@ -267,6 +267,41 @@ func (q *Queries) InsertRecordingHistory(ctx context.Context, arg InsertRecordin
 	return err
 }
 
+const listOpenRecordingFiles = `-- name: ListOpenRecordingFiles :many
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
+`
+
+// 録画の、書き終えていないファイル。落ちた mikan が書きかけたまま残したものを、引き継ぐ mikan が閉じる。
+func (q *Queries) ListOpenRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error) {
+	rows, err := q.db.Query(ctx, listOpenRecordingFiles, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RecordingFile{}
+	for rows.Next() {
+		var i RecordingFile
+		if err := rows.Scan(
+			&i.ID,
+			&i.RecordingID,
+			&i.Kind,
+			&i.PoolID,
+			&i.Path,
+			&i.Size,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecordingFiles = `-- name: ListRecordingFiles :many
 SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind, id
 `

@@ -189,15 +189,16 @@ type Recording struct {
 }
 
 type RecordingAssignment struct {
-	ID             uuid.UUID
-	ReservationID  uuid.UUID
-	Priority       int32
-	State          string
-	Generation     int64
-	Holder         *uuid.UUID
-	LeaseExpiresAt *time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID               uuid.UUID
+	ReservationID    uuid.UUID
+	Priority         int32
+	State            string
+	Generation       int64
+	Holder           *uuid.UUID
+	LeaseExpiresAt   *time.Time
+	StreamGeneration int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type RecordingFile struct {

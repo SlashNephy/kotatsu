@@ -67,3 +67,7 @@ SELECT sqlc.embed(recordings), s.name AS service_name
 FROM recordings
 JOIN services s ON s.id = recordings.service_id
 WHERE recordings.id = @id;
+
+-- name: ListOpenRecordingFiles :many
+-- 録画の、書き終えていないファイル。落ちた mikan が書きかけたまま残したものを、引き継ぐ mikan が閉じる。
+SELECT * FROM recording_files WHERE recording_id = @recording_id AND ended_at IS NULL ORDER BY started_at, id;

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/notify"
+	"github.com/SlashNephy/kotatsu/internal/registry"
 )
 
 const (
@@ -23,10 +25,21 @@ const (
 	DefaultRenewInterval = 3 * time.Second
 	// DefaultAcquireInterval は、変更の通知がなくても、取れる割り振りを探す間隔。リースの切れた割り振りに気づくのに使う。
 	DefaultAcquireInterval = 5 * time.Second
+	// DefaultHandoverTimeout は、止まる mikan が、ほかの mikan がストリームを開くのを待つ時間の上限 (設計書 5.4)。
+	// Kubernetes の既定の猶予 (30 秒) に収まるようにする。
+	DefaultHandoverTimeout = 20 * time.Second
+	// mikanRole は、録画のロールの名前。引き継ぐ mikan がいるかを、インスタンスの登録簿で調べるのに使う。
+	mikanRole = "mikan"
 )
 
-// ErrLeaseLost は、割り振りのリースを失ったことを表す。ほかの mikan が録画を引き継いだので、書き込みをやめる。
-var ErrLeaseLost = errors.New("the recording assignment lease was lost")
+var (
+	// ErrLeaseLost は、割り振りのリースを失ったことを表す。ほかの mikan が録画を引き継いだので、書き込みをやめる。
+	ErrLeaseLost = errors.New("the recording assignment lease was lost")
+	// ErrHandedOver は、止まる mikan が、ほかの mikan にストリームを開いてもらい、録画を引き継いだことを表す (設計書 5.4)。
+	ErrHandedOver = errors.New("the recording was handed over to another mikan")
+	// ErrStopped は、mikan を止めるので、録画をやめたことを表す。引き継ぐ mikan がいなかったか、引き継ぎを待ちきれなかった。
+	ErrStopped = errors.New("the mikan is stopping")
+)
 
 // Assignment は、mikan が取った割り振り。
 type Assignment struct {
@@ -36,6 +49,10 @@ type Assignment struct {
 	Priority int
 	// Generation は、取ったときの世代番号。
 	Generation int64
+	// HandedOver は、止まる mikan から引き継いだかどうか。引き継いだなら、古い mikan がまだ書いているので、録画は途切れていない。
+	HandedOver bool
+	// PreviousLeaseExpiresAt は、前の mikan のリースの期限。落ちた mikan の代わりに取ったとき、途切れた区間の始まりを見積もるのに使う。
+	PreviousLeaseExpiresAt *time.Time
 }
 
 // Session は、1 つの割り振りの録画を行い、録画を終えたら返る。
@@ -47,6 +64,7 @@ type WorkerOptions struct {
 	LeaseTTL        time.Duration
 	RenewInterval   time.Duration
 	AcquireInterval time.Duration
+	HandoverTimeout time.Duration
 	// PollOnly は、変更の通知を LISTEN で受けずに、ポーリングだけで知るかどうか。
 	PollOnly     bool
 	PollInterval time.Duration
@@ -61,40 +79,51 @@ type Worker struct {
 	logger  *slog.Logger
 	session Session
 	opts    WorkerOptions
+
+	mu     sync.Mutex
+	active map[uuid.UUID]*activeSession
 }
 
 // NewWorker は Worker を返す。holder は、この mikan のインスタンスの ID。opts は nil でもよい。
 func NewWorker(pool *pgxpool.Pool, clk clock.Clock, holder uuid.UUID, logger *slog.Logger, session Session, opts *WorkerOptions) *Worker {
 	o := WorkerOptions{
 		LeaseTTL: DefaultLeaseTTL, RenewInterval: DefaultRenewInterval, AcquireInterval: DefaultAcquireInterval,
-		PollOnly: false, PollInterval: notify.DefaultPollInterval,
+		HandoverTimeout: DefaultHandoverTimeout, PollOnly: false, PollInterval: notify.DefaultPollInterval,
 	}
 	if opts != nil {
-		o.PollOnly = opts.PollOnly
-		if opts.LeaseTTL > 0 {
-			o.LeaseTTL = opts.LeaseTTL
-		}
-		if opts.RenewInterval > 0 {
-			o.RenewInterval = opts.RenewInterval
-		}
-		if opts.AcquireInterval > 0 {
-			o.AcquireInterval = opts.AcquireInterval
-		}
-		if opts.PollInterval > 0 {
-			o.PollInterval = opts.PollInterval
+		o = WorkerOptions{
+			LeaseTTL:        orDefault(opts.LeaseTTL, o.LeaseTTL),
+			RenewInterval:   orDefault(opts.RenewInterval, o.RenewInterval),
+			AcquireInterval: orDefault(opts.AcquireInterval, o.AcquireInterval),
+			HandoverTimeout: orDefault(opts.HandoverTimeout, o.HandoverTimeout),
+			PollOnly:        opts.PollOnly,
+			PollInterval:    orDefault(opts.PollInterval, o.PollInterval),
 		}
 	}
 
-	return &Worker{pool: pool, clock: clk, holder: holder, logger: logger, session: session, opts: o}
+	return &Worker{pool: pool, clock: clk, holder: holder, logger: logger, session: session, opts: o, mu: sync.Mutex{}, active: map[uuid.UUID]*activeSession{}}
+}
+
+// activeSession は、録画している割り振りと、その Session を止める関数。
+type activeSession struct {
+	assignment *Assignment
+	cancel     context.CancelCauseFunc
+	// handingOver は、引き継ぎ待ちかどうか。引き継ぎ待ちの間は、世代が進んでリースを延長できなくても、ストリームを閉じない。
+	handingOver atomic.Bool
 }
 
 // Run は、ctx が終わるまで、割り振りが変わったときと AcquireInterval ごとに、取れる割り振りをすべて取って録画する。
-// ctx が終わったら、録画中の Session が返るのを待つ。止めた録画の割り振りは、終わったことにせず、ほかの mikan か、再起動した mikan に任せる。
+//
+// ctx が終わったら、録画を引き継ぐ (設計書 5.4)。ほかの mikan が動いていれば、割り振りに引き継ぎ待ちの印を付け、
+// ほかの mikan がストリームを開くまで録り続けてから止める。いなければ、割り振りを手放してすぐに止め、再起動した mikan に続きを任せる。
+// どちらも、割り振りは終わったことにしない。Session がすべて返るまで待つ。
 func (w *Worker) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
-	defer wg.Wait()
+	// Session は、ctx が終わっても、引き継ぎを終えるまで録り続けるので、ctx とは別に止める。
+	sessionsCtx, stopSessions := context.WithCancel(context.WithoutCancel(ctx))
+	defer stopSessions()
 
-	return notify.Loop(ctx, w.pool, w.logger, &notify.LoopOptions{
+	err := notify.Loop(ctx, w.pool, w.logger, &notify.LoopOptions{
 		Channels: []string{NotifyChannel},
 		Debounce: 0,
 		Interval: w.opts.AcquireInterval,
@@ -113,10 +142,133 @@ func (w *Worker) Run(ctx context.Context) error {
 				return
 			}
 			wg.Go(func() {
-				w.record(ctx, assignment)
+				w.record(sessionsCtx, assignment)
 			})
 		}
 	})
+	w.handOverAll(sessionsCtx, &wg)
+	wg.Wait()
+
+	return err
+}
+
+// handOverAll は、録画しているすべての割り振りを、ほかの mikan に引き継ぐか、手放す。
+func (w *Worker) handOverAll(ctx context.Context, wg *sync.WaitGroup) {
+	w.mu.Lock()
+	sessions := make([]*activeSession, 0, len(w.active))
+	for _, active := range w.active {
+		sessions = append(sessions, active)
+	}
+	w.mu.Unlock()
+	if len(sessions) == 0 {
+		return
+	}
+	peers, err := w.peers(ctx)
+	if err != nil {
+		w.logger.WarnContext(ctx, "failed to find another mikan; stopping without handover", slog.Any("error", err))
+	}
+	for _, active := range sessions {
+		wg.Go(func() {
+			w.handOver(ctx, active, peers > 0)
+		})
+	}
+}
+
+// peers は、動いているほかの mikan の数を返す。
+func (w *Worker) peers(ctx context.Context) (int, error) {
+	instances, err := sqlc.New(w.pool).ListAliveInstances(ctx, sqlc.ListAliveInstancesParams{
+		Role: mikanRole, AliveSince: w.clock.Now().Add(-registry.AliveTTL),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to list alive mikan instances: %w", err)
+	}
+	n := 0
+	for i := range instances {
+		if instances[i].ID != w.holder {
+			n++
+		}
+	}
+
+	return n, nil
+}
+
+// handOver は、1 つの割り振りを、ほかの mikan に引き継ぐ。引き継げなければ、割り振りを手放して止める。
+func (w *Worker) handOver(ctx context.Context, active *activeSession, hasPeers bool) {
+	a := active.assignment
+	logger := w.logger.With(slog.String("assignment_id", a.ID.String()), slog.Int64("generation", a.Generation))
+	if hasPeers {
+		marked, err := w.markHandover(ctx, a)
+		if err != nil {
+			logger.WarnContext(ctx, "failed to mark the recording for handover", slog.Any("error", err))
+		}
+		if marked {
+			active.handingOver.Store(true)
+			logger.InfoContext(ctx, "waiting for another mikan to take over the recording")
+			if w.waitForSuccessor(ctx, a) {
+				logger.InfoContext(ctx, "another mikan took over the recording")
+				active.cancel(ErrHandedOver)
+
+				return
+			}
+			logger.WarnContext(ctx, "no mikan took over the recording in time")
+		}
+	}
+	// 引き継ぐ mikan がいなければ、再起動した mikan がすぐに取れるよう、割り振りを手放す。
+	err := sqlc.New(w.pool).ReleaseRecordingAssignment(ctx, sqlc.ReleaseRecordingAssignmentParams{
+		Now: w.clock.Now(), ID: a.ID, Generation: a.Generation, Holder: &w.holder,
+	})
+	if err != nil {
+		logger.WarnContext(ctx, "failed to release the recording assignment", slog.Any("error", err))
+	}
+	active.cancel(ErrStopped)
+}
+
+// markHandover は、割り振りに引き継ぎ待ちの印を付け、ほかの mikan に知らせる。
+func (w *Worker) markHandover(ctx context.Context, a *Assignment) (bool, error) {
+	marked := false
+	err := pgx.BeginFunc(ctx, w.pool, func(tx pgx.Tx) error {
+		n, err := sqlc.New(tx).MarkRecordingHandover(ctx, sqlc.MarkRecordingHandoverParams{
+			Now: w.clock.Now(), ID: a.ID, Generation: a.Generation, Holder: &w.holder,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to mark the recording for handover: %w", err)
+		}
+		if n == 0 {
+			return nil
+		}
+		marked = true
+		_, err = notify.Publish(ctx, tx, w.clock, NotifyChannel)
+
+		return err
+	})
+
+	return marked, err
+}
+
+// waitForSuccessor は、ほかの mikan が割り振りを取ってストリームを開くまで、HandoverTimeout の間待つ。開いたら true を返す。
+func (w *Worker) waitForSuccessor(ctx context.Context, a *Assignment) bool {
+	timeout := time.NewTimer(w.opts.HandoverTimeout)
+	defer timeout.Stop()
+	ticker := time.NewTicker(w.opts.RenewInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-timeout.C:
+			return false
+		case <-ticker.C:
+		}
+		stream, err := sqlc.New(w.pool).GetRecordingAssignmentStream(ctx, a.ID)
+		if err != nil {
+			w.logger.WarnContext(ctx, "failed to check the handover", slog.Any("error", err))
+
+			continue
+		}
+		if stream.StreamGeneration > a.Generation {
+			return true
+		}
+	}
 }
 
 // acquire は、取れる割り振りを 1 つ取る。なければ false を返す。
@@ -132,7 +284,10 @@ func (w *Worker) acquire(ctx context.Context) (*Assignment, bool, error) {
 		return nil, false, fmt.Errorf("failed to acquire a recording assignment: %w", err)
 	}
 
-	return &Assignment{ID: row.ID, ReservationID: row.ReservationID, Priority: int(row.Priority), Generation: row.Generation}, true, nil
+	return &Assignment{
+		ID: row.ID, ReservationID: row.ReservationID, Priority: int(row.Priority), Generation: row.Generation,
+		HandedOver: row.PreviousState == string(AssignmentHandover), PreviousLeaseExpiresAt: row.PreviousLeaseExpiresAt,
+	}, true, nil
 }
 
 // record は、リースを延長しながら Session で録画し、録画を終えたら割り振りを終わったことにする。
@@ -141,21 +296,30 @@ func (w *Worker) record(ctx context.Context, assignment *Assignment) {
 		slog.Int64("generation", assignment.Generation))
 	sessionCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
+	active := &activeSession{assignment: assignment, cancel: cancel, handingOver: atomic.Bool{}}
+	w.mu.Lock()
+	w.active[assignment.ID] = active
+	w.mu.Unlock()
+	defer func() {
+		w.mu.Lock()
+		delete(w.active, assignment.ID)
+		w.mu.Unlock()
+	}()
 	renewDone := make(chan struct{})
 	go func() {
 		defer close(renewDone)
-		w.renew(sessionCtx, cancel, assignment, logger)
+		w.renew(sessionCtx, active, logger)
 	}()
 
 	err := w.session(sessionCtx, assignment)
 	cancel(nil)
 	<-renewDone
-	switch {
-	case errors.Is(context.Cause(sessionCtx), ErrLeaseLost):
+	switch cause := context.Cause(sessionCtx); {
+	case errors.Is(cause, ErrLeaseLost):
 		logger.WarnContext(ctx, "stopped recording; another mikan took over the assignment")
 
 		return
-	case ctx.Err() != nil:
+	case errors.Is(cause, ErrHandedOver), errors.Is(cause, ErrStopped), ctx.Err() != nil:
 		// 止めるときは、割り振りを残し、ほかの mikan か、再起動した mikan に続きを任せる (設計書 5.4)。
 		return
 	case err != nil:
@@ -176,7 +340,8 @@ func (w *Worker) record(ctx context.Context, assignment *Assignment) {
 
 // renew は、ctx が終わるまで、RenewInterval ごとにリースを延長する。
 // ほかの mikan が取ったか、延長できないままリースが切れたら、ErrLeaseLost で録画を止める。
-func (w *Worker) renew(ctx context.Context, cancel context.CancelCauseFunc, assignment *Assignment, logger *slog.Logger) {
+func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.Logger) {
+	assignment, cancel := active.assignment, active.cancel
 	ticker := time.NewTicker(w.opts.RenewInterval)
 	defer ticker.Stop()
 	expiresAt := w.clock.Now().Add(w.opts.LeaseTTL)
@@ -201,6 +366,9 @@ func (w *Worker) renew(ctx context.Context, cancel context.CancelCauseFunc, assi
 
 				return
 			}
+		case n == 0 && active.handingOver.Load():
+			// 引き継ぎ待ちの間に世代が進んだのは、ほかの mikan が取ったからである。ストリームを開くまで録り続ける。
+			return
 		case n == 0:
 			cancel(ErrLeaseLost)
 
@@ -209,4 +377,13 @@ func (w *Worker) renew(ctx context.Context, cancel context.CancelCauseFunc, assi
 			expiresAt = now.Add(w.opts.LeaseTTL)
 		}
 	}
+}
+
+// orDefault は、v が 0 以下なら d を返す。
+func orDefault(v, d time.Duration) time.Duration {
+	if v > 0 {
+		return v
+	}
+
+	return d
 }

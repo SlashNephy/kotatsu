@@ -149,13 +149,9 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	logger = logger.With(slog.String("recording_id", recording.ID.String()))
 
 	// 引き継ぎや再開で続きを録るときは、前のセグメントを書き終えてから今までを、途切れた区間とする (設計書 5.2)。
-	var gapFrom *time.Time
-	lastEnd, recorded, err := r.previousEnd(ctx, recording.ID)
+	gapFrom, recorded, err := r.previousEnd(ctx, assignment, recording.ID)
 	if err != nil {
 		return err
-	}
-	if recorded {
-		gapFrom = &lastEnd
 	}
 
 	tracker := newEndTracker(r, &recording, &reservation)
@@ -176,6 +172,11 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 			}
 
 			continue
+		}
+		// 引き継ぎ待ちの古い mikan は、ストリームを開いたことを見て、自分のストリームを閉じる (設計書 5.4)。
+		err = q.MarkRecordingStreamOpened(ctx, sqlc.MarkRecordingStreamOpenedParams{Generation: assignment.Generation, Now: r.clock.Now(), ID: assignment.ID})
+		if err != nil {
+			logger.WarnContext(ctx, "failed to record that the stream was opened", slog.Any("error", err))
 		}
 		if gapFrom != nil {
 			if err := q.AddRecordingGap(ctx, sqlc.AddRecordingGapParams{GapFrom: *gapFrom, GapTo: r.clock.Now(), Now: r.clock.Now(), ID: recording.ID}); err != nil {
@@ -223,17 +224,56 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	}
 }
 
-// previousEnd は、録画の前のセグメントを書き終えた時刻を返す。前のセグメントがなければ false を返す。
-func (r *Recorder) previousEnd(ctx context.Context, recordingID uuid.UUID) (time.Time, bool, error) {
-	lastEnd, err := sqlc.New(r.pool).GetLastRecordingFileEnd(ctx, recordingID)
+// previousEnd は、前のセグメントを書き終えた時刻 (途切れた区間の始まり) と、前のセグメントがあるかを返す (設計書 5.2、5.4)。
+//   - 止まる mikan から引き継いだなら、古い mikan がまだ書いているので、途切れていない。始まりは nil にする。
+//   - 落ちた mikan の代わりに取ったなら、書きかけのセグメントを、最後にリースを延長したころの時刻で閉じ、そこから途切れたとする。
+func (r *Recorder) previousEnd(ctx context.Context, assignment *Assignment, recordingID uuid.UUID) (*time.Time, bool, error) {
+	q := sqlc.New(r.pool)
+	if assignment.HandedOver {
+		return nil, true, nil
+	}
+	if err := r.closeAbandonedFiles(ctx, assignment, recordingID); err != nil {
+		return nil, false, err
+	}
+	lastEnd, err := q.GetLastRecordingFileEnd(ctx, recordingID)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && lastEnd == nil) {
-		return time.Time{}, false, nil
+		return nil, false, nil
 	}
 	if err != nil {
-		return time.Time{}, false, fmt.Errorf("failed to get the last recording file: %w", err)
+		return nil, false, fmt.Errorf("failed to get the last recording file: %w", err)
 	}
 
-	return *lastEnd, true, nil
+	return lastEnd, true, nil
+}
+
+// closeAbandonedFiles は、落ちた mikan が書きかけたまま残したファイルを、ファイルの大きさと、最後にリースを延長したころの時刻で閉じる。
+func (r *Recorder) closeAbandonedFiles(ctx context.Context, assignment *Assignment, recordingID uuid.UUID) error {
+	q := sqlc.New(r.pool)
+	files, err := q.ListOpenRecordingFiles(ctx, recordingID)
+	if err != nil {
+		return fmt.Errorf("failed to list the open recording files: %w", err)
+	}
+	if len(files) == 0 {
+		return nil
+	}
+	endedAt := r.clock.Now()
+	if assignment.PreviousLeaseExpiresAt != nil {
+		endedAt = minTime(endedAt, assignment.PreviousLeaseExpiresAt.Add(-DefaultLeaseTTL))
+	}
+	for i := range files {
+		var size int64
+		if path, err := r.store.Path(files[i].PoolID, files[i].Path); err == nil {
+			if info, err := os.Stat(path); err == nil {
+				size = info.Size()
+			}
+		}
+		endedAt := maxTime(endedAt, files[i].StartedAt)
+		if err := q.CloseRecordingFile(ctx, sqlc.CloseRecordingFileParams{Size: size, EndedAt: &endedAt, ID: files[i].ID}); err != nil {
+			return fmt.Errorf("failed to close an abandoned recording file: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // gapStart は、途切れた区間が始まっていなければ、今から始める。
