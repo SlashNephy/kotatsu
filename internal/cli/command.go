@@ -424,7 +424,7 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		SecondFactors: factors,
 		ChallengeTTL:  0,
 	})
-	passwordPolicy, err := password.NewPolicy(&password.PolicyOptions{HIBP: hibpOf(deps.Config), StrengthTimeout: 0, Logger: logger})
+	passwordPolicy, err := password.NewPolicy(&password.PolicyOptions{HIBP: hibpOf(deps.Config), StrengthTimeout: 0, Estimator: nil, Logger: logger})
 	if err != nil {
 		return nil, err
 	}

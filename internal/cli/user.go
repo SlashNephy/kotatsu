@@ -32,7 +32,7 @@ func hibpOf(cfg *config.Config) *password.HIBP {
 
 // newPasswordPolicy は、設定に従って、パスワードの規定を作る。
 func newPasswordPolicy(opts *Options, cfg *config.Config) (*password.Policy, error) {
-	return password.NewPolicy(&password.PolicyOptions{HIBP: hibpOf(cfg), StrengthTimeout: opts.PasswordStrengthTimeout, Logger: opts.Logger})
+	return password.NewPolicy(&password.PolicyOptions{HIBP: hibpOf(cfg), StrengthTimeout: opts.PasswordStrengthTimeout, Estimator: nil, Logger: opts.Logger})
 }
 
 // newUserCommand は kotatsu user を作る。初回セットアップ (#31) の画面ができるまで、管理者がパスワードを設定するのにも使う。

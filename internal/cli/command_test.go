@@ -120,6 +120,9 @@ func TestRoleFailureStopsOtherRoles(t *testing.T) {
 
 	errBoom := errors.New("boom")
 	roles := cli.DefaultRoles()
+	// failed は、ロールが失敗した時点で閉じる。起動にかかる時間は、CI の負荷で大きく変わるので、
+	// ほかのロールが止まるまでの時間は、失敗した時点から測る。
+	failed := make(chan struct{})
 	for _, role := range roles[1:] {
 		role.Run = func(ctx context.Context, _ *slog.Logger, _ *cli.Deps) error {
 			<-ctx.Done()
@@ -128,6 +131,8 @@ func TestRoleFailureStopsOtherRoles(t *testing.T) {
 		}
 	}
 	roles[0].Run = func(context.Context, *slog.Logger, *cli.Deps) error {
+		close(failed)
+
 		return errBoom
 	}
 
@@ -139,6 +144,12 @@ func TestRoleFailureStopsOtherRoles(t *testing.T) {
 		done <- cmd.ExecuteContext(t.Context())
 	}()
 
+	// done は、failed を閉じた直後に届くこともあるので、ここでは待たない。
+	select {
+	case <-failed:
+	case <-time.After(time.Minute):
+		t.Fatal("the roles did not start")
+	}
 	select {
 	case err := <-done:
 		require.ErrorIs(t, err, errBoom)
