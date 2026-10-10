@@ -1,3 +1,7 @@
+# mpeg2toh264 のプレイヤーは npm に公開されていないので、ソースからビルドしたものを置き、ワークスペースのパッケージとして使う (設計書 7.2)。
+packages:
+  - vendor/mpeg2toh264/*
+
 # Storybook が使う esbuild の postinstall は、バイナリを確かめるだけなので走らせない。
 # バイナリは、プラットフォームごとの optionalDependencies から入る。
 allowBuilds:

@@ -5,6 +5,16 @@
   ],
   customManagers: [
     {
+      // ブラウザ内での変換に使う mpeg2toh264 の commit (設計書 7.2)。更新したら、mise run web:mpeg2toh264 でビルドし直す。
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^web/vendor/mpeg2toh264/SOURCE$/',
+      ],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) currentValue=(?<currentValue>\\S+)\\ncommit=(?<currentDigest>[0-9a-f]{40})',
+      ],
+    },
+    {
       // atlas.hcl の開発用 DB のイメージ。
       customType: 'regex',
       managerFilePatterns: [

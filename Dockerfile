@@ -18,6 +18,8 @@ WORKDIR /src/web
 # pnpm の版は package.json の packageManager に従う。
 RUN corepack enable
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
+# ワークスペースのパッケージ (ビルドした mpeg2toh264) も、依存を入れる前に置く。
+COPY web/vendor/ ./vendor/
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
 COPY web/ ./
 RUN pnpm exec vp build

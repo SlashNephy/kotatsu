@@ -1,0 +1,14 @@
+{
+  "name": "@mpeg2toh264/yadif",
+  "version": "0.0.0",
+  "private": true,
+  "description": "yadif of mpeg2toh264, built by scripts/build-mpeg2toh264.sh",
+  "type": "module",
+  "license": "LGPL-2.1-or-later",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  }
+}
