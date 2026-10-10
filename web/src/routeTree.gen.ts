@@ -14,6 +14,8 @@ import { Route as ReservationsRouteImport } from './routes/reservations'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as GuideIndexRouteImport } from './routes/guide/index'
+import { Route as LiveIndexRouteImport } from './routes/live/index'
+import { Route as LiveServiceIdRouteImport } from './routes/live/$serviceId'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as LoginEnrollRouteImport } from './routes/login/enroll'
 import { Route as LoginSecondFactorRouteImport } from './routes/login/second-factor'
@@ -47,6 +49,16 @@ const SetupRoute = SetupRouteImport.update({
 const GuideIndexRoute = GuideIndexRouteImport.update({
   id: '/guide/',
   path: '/guide/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiveIndexRoute = LiveIndexRouteImport.update({
+  id: '/live/',
+  path: '/live/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiveServiceIdRoute = LiveServiceIdRouteImport.update({
+  id: '/live/$serviceId',
+  path: '/live/$serviceId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginIndexRoute = LoginIndexRouteImport.update({
@@ -101,12 +113,14 @@ export interface FileRoutesByFullPath {
   '/reservations': typeof ReservationsRoute
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
+  '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/password': typeof SettingsPasswordRoute
   '/guide/': typeof GuideIndexRoute
+  '/live/': typeof LiveIndexRoute
   '/login/': typeof LoginIndexRoute
   '/recordings/': typeof RecordingsIndexRoute
   '/rules/': typeof RulesIndexRoute
@@ -117,12 +131,14 @@ export interface FileRoutesByTo {
   '/reservations': typeof ReservationsRoute
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
+  '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/password': typeof SettingsPasswordRoute
   '/guide': typeof GuideIndexRoute
+  '/live': typeof LiveIndexRoute
   '/login': typeof LoginIndexRoute
   '/recordings': typeof RecordingsIndexRoute
   '/rules': typeof RulesIndexRoute
@@ -134,12 +150,14 @@ export interface FileRoutesById {
   '/reservations': typeof ReservationsRoute
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
+  '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/password': typeof SettingsPasswordRoute
   '/guide/': typeof GuideIndexRoute
+  '/live/': typeof LiveIndexRoute
   '/login/': typeof LoginIndexRoute
   '/recordings/': typeof RecordingsIndexRoute
   '/rules/': typeof RulesIndexRoute
@@ -152,12 +170,14 @@ export interface FileRouteTypes {
     | '/reservations'
     | '/search'
     | '/setup'
+    | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
     | '/settings/password'
     | '/guide/'
+    | '/live/'
     | '/login/'
     | '/recordings/'
     | '/rules/'
@@ -168,12 +188,14 @@ export interface FileRouteTypes {
     | '/reservations'
     | '/search'
     | '/setup'
+    | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
     | '/settings/password'
     | '/guide'
+    | '/live'
     | '/login'
     | '/recordings'
     | '/rules'
@@ -184,12 +206,14 @@ export interface FileRouteTypes {
     | '/reservations'
     | '/search'
     | '/setup'
+    | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
     | '/settings/password'
     | '/guide/'
+    | '/live/'
     | '/login/'
     | '/recordings/'
     | '/rules/'
@@ -201,12 +225,14 @@ export interface RootRouteChildren {
   ReservationsRoute: typeof ReservationsRoute
   SearchRoute: typeof SearchRoute
   SetupRoute: typeof SetupRoute
+  LiveServiceIdRoute: typeof LiveServiceIdRoute
   LoginEnrollRoute: typeof LoginEnrollRoute
   LoginSecondFactorRoute: typeof LoginSecondFactorRoute
   RecordingsRecordingIdRoute: typeof RecordingsRecordingIdRoute
   RulesRuleIdRoute: typeof RulesRuleIdRoute
   SettingsPasswordRoute: typeof SettingsPasswordRoute
   GuideIndexRoute: typeof GuideIndexRoute
+  LiveIndexRoute: typeof LiveIndexRoute
   LoginIndexRoute: typeof LoginIndexRoute
   RecordingsIndexRoute: typeof RecordingsIndexRoute
   RulesIndexRoute: typeof RulesIndexRoute
@@ -248,6 +274,20 @@ declare module '@tanstack/react-router' {
       path: '/guide'
       fullPath: '/guide/'
       preLoaderRoute: typeof GuideIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/live/': {
+      id: '/live/'
+      path: '/live'
+      fullPath: '/live/'
+      preLoaderRoute: typeof LiveIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/live/$serviceId': {
+      id: '/live/$serviceId'
+      path: '/live/$serviceId'
+      fullPath: '/live/$serviceId'
+      preLoaderRoute: typeof LiveServiceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login/': {
@@ -321,12 +361,14 @@ const rootRouteChildren: RootRouteChildren = {
   ReservationsRoute: ReservationsRoute,
   SearchRoute: SearchRoute,
   SetupRoute: SetupRoute,
+  LiveServiceIdRoute: LiveServiceIdRoute,
   LoginEnrollRoute: LoginEnrollRoute,
   LoginSecondFactorRoute: LoginSecondFactorRoute,
   RecordingsRecordingIdRoute: RecordingsRecordingIdRoute,
   RulesRuleIdRoute: RulesRuleIdRoute,
   SettingsPasswordRoute: SettingsPasswordRoute,
   GuideIndexRoute: GuideIndexRoute,
+  LiveIndexRoute: LiveIndexRoute,
   LoginIndexRoute: LoginIndexRoute,
   RecordingsIndexRoute: RecordingsIndexRoute,
   RulesIndexRoute: RulesIndexRoute,
