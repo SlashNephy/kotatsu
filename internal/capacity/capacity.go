@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/netip"
 	"slices"
 	"time"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/library"
 	"github.com/SlashNephy/kotatsu/internal/notification"
 )
 
@@ -36,16 +36,16 @@ const (
 
 // Manager は、保存先プールの容量を管理する。
 type Manager struct {
-	pool     *pgxpool.Pool
-	clock    clock.Clock
-	store    *kago.Store
-	recorder audit.Recorder
-	logger   *slog.Logger
+	pool    *pgxpool.Pool
+	clock   clock.Clock
+	store   *kago.Store
+	library *library.Library
+	logger  *slog.Logger
 }
 
 // NewManager は Manager を返す。store は、このインスタンスにマウントされたプール。
 func NewManager(pool *pgxpool.Pool, clk clock.Clock, store *kago.Store, recorder audit.Recorder, logger *slog.Logger) *Manager {
-	return &Manager{pool: pool, clock: clk, store: store, recorder: recorder, logger: logger}
+	return &Manager{pool: pool, clock: clk, store: store, library: library.New(clk, recorder, store, logger), logger: logger}
 }
 
 // PoolResult は、1 つのプールの確認の結果。
@@ -118,50 +118,14 @@ func (m *Manager) check(ctx context.Context, row *sqlc.StoragePool, mounted []st
 	return result, m.report(ctx, row, result)
 }
 
-// delete は、録画を DB から消し、監査ログに残してから、ファイルを消す。消したら true を返す。
-// ファイルを先に消すと、DB を書けなかったときに、ファイルのない録画が残るので、DB を先に書く。
+// delete は、録画を消す (library.Delete)。候補に選んだ後に保護されたか、録画を始めたか、ほかで消されたなら、消さずに false を返す。
 func (m *Manager) delete(ctx context.Context, recordingID uuid.UUID, poolID string) (bool, error) {
-	var files []sqlc.RecordingFile
-	deleted := false
-	err := pgx.BeginFunc(ctx, m.pool, func(tx pgx.Tx) error {
-		q := sqlc.New(tx)
-		recording, err := q.LockDeletableRecording(ctx, recordingID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			// 確かめた後に、保護されたか、消されたので、消さない。
-			return nil
-		}
-		if err != nil {
-			return fmt.Errorf("failed to lock the recording: %w", err)
-		}
-		if files, err = q.ListRecordingFiles(ctx, recordingID); err != nil {
-			return fmt.Errorf("failed to list the recording files: %w", err)
-		}
-		if _, err := q.DeleteRecording(ctx, recordingID); err != nil {
-			return fmt.Errorf("failed to delete the recording: %w", err)
-		}
-		deleted = true
-
-		return m.recorder.Record(ctx, tx, &audit.Event{
-			Actor:      audit.System(auditRole),
-			Action:     "recording.deleted",
-			TargetType: "recording",
-			TargetID:   recordingID.String(),
-			Summary:    map[string]any{"name": recording.Name, "reason": "storage_low", "poolId": poolID},
-			SourceIP:   netip.Addr{},
-			UserAgent:  "",
-		})
-	})
-	if err != nil || !deleted {
-		return false, err
+	err := m.library.Delete(ctx, m.pool, audit.System(auditRole), recordingID, "storage_low")
+	if errors.Is(err, library.ErrProtected) || errors.Is(err, library.ErrRecording) || errors.Is(err, library.ErrNotFound) {
+		return false, nil
 	}
-	for i := range files {
-		// 索引は録画ファイルの付属ファイルのディレクトリにあるので、録画ファイルと一緒に消える。
-		if files[i].Kind != "segment" {
-			continue
-		}
-		if err := m.store.Remove(files[i].PoolID, files[i].Path); err != nil {
-			m.logger.WarnContext(ctx, "failed to remove a recording file", slog.String("path", files[i].Path), slog.Any("error", err))
-		}
+	if err != nil {
+		return false, err
 	}
 	m.logger.InfoContext(ctx, "deleted a recording to free up the storage pool",
 		slog.String("recording_id", recordingID.String()), slog.String("pool_id", poolID))

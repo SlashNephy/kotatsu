@@ -223,6 +223,11 @@ type RecordingHistory struct {
 	CreatedAt time.Time
 }
 
+type RecordingTag struct {
+	RecordingID uuid.UUID
+	TagID       uuid.UUID
+}
+
 type Reservation struct {
 	ID               uuid.UUID
 	Kind             string
@@ -327,6 +332,12 @@ type SystemSetting struct {
 	UpdatedAt            time.Time
 }
 
+type Tag struct {
+	ID        uuid.UUID
+	Name      string
+	CreatedAt time.Time
+}
+
 type TotpEnrollment struct {
 	UserID          uuid.UUID
 	SecretEncrypted []byte
@@ -402,6 +413,13 @@ type UserTotp struct {
 	SecretEncrypted []byte
 	LastUsedStep    int64
 	CreatedAt       time.Time
+}
+
+type WatchProgress struct {
+	UserID      uuid.UUID
+	RecordingID uuid.UUID
+	PositionMs  int64
+	UpdatedAt   time.Time
 }
 
 type WebauthnCeremony struct {
