@@ -434,6 +434,10 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	webhooks, err := webhook.NewStore(deps.Clock, audit.NewRecorder(deps.Clock), deps.Config.Auth.SecretKey.Value())
+	if err != nil {
+		return nil, err
+	}
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", graph.NewHandler(&graph.Options{
 		DB:                  deps.DB,
@@ -444,6 +448,7 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		Passwords:           auth.NewPasswords(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
 		Sessions:            sessions,
 		Settings:            settings.NewStore(deps.Clock, audit.NewRecorder(deps.Clock)),
+		Webhooks:            webhooks,
 		Pools:               deps.Config.Storage.Pools,
 		Clock:               deps.Clock,
 		Location:            location,

@@ -20,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/settings"
+	"github.com/SlashNephy/kotatsu/internal/webhook"
 )
 
 const (
@@ -51,6 +52,8 @@ type Options struct {
 	Sessions *auth.Sessions
 	// Settings は、全体の設定を変えるのに使う。nil なら、Recorder と Clock で作る。
 	Settings *settings.Store
+	// Webhooks は、Webhook の管理に使う。nil なら、Webhook の操作は内部のエラーにする。
+	Webhooks *webhook.Store
 	// Pools は、保存先プールの ID からマウント先への対応。システムの状態で示す。
 	Pools  map[string]string
 	Clock  clock.Clock
@@ -116,6 +119,7 @@ func NewHandler(opts *Options) http.Handler {
 		sessions:     o.Sessions,
 		settings:     o.Settings,
 		inbox:        notification.NewInbox(o.Clock),
+		webhooks:     o.Webhooks,
 		pools:        o.Pools,
 	}
 	if resolver.settings == nil {

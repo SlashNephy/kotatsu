@@ -92,7 +92,7 @@ func TestAuditEvents(t *testing.T) {
 	admin := f.as(t, adminName, auth.RoleAdmin)
 	since := f.clock.Now()
 	events := []*audit.Event{
-		{Actor: audit.UserFrom(f.userID, netip.MustParseAddr("192.168.1.10"), "kotatsu-test/1.0"), Action: actionRuleCreate, TargetType: "rule", TargetID: "r1", Summary: map[string]any{"name": animeLabel}},
+		{Actor: audit.UserFrom(f.userID, netip.MustParseAddr("192.168.1.10"), "kotatsu-test/1.0"), Action: actionRuleCreate, TargetType: "rule", TargetID: "r1", Summary: map[string]any{varName: animeLabel}},
 		{Actor: audit.System("neko"), Action: actionReserve, TargetType: "reservation", TargetID: "v1", Summary: map[string]any{}},
 		{Actor: audit.User(admin.userID), Action: actionUserCreated, TargetType: targetUser, TargetID: f.userID.String(), Summary: map[string]any{}},
 		{Actor: audit.User(admin.userID), Action: actionUserDisabled, TargetType: targetUser, TargetID: f.userID.String(), Summary: map[string]any{}},

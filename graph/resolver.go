@@ -14,6 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/settings"
+	"github.com/SlashNephy/kotatsu/internal/webhook"
 )
 
 // Database は、リゾルバが使う DB。書き込みをトランザクションにまとめるので、トランザクションを始められる。
@@ -42,5 +43,6 @@ type Resolver struct {
 	sessions          *auth.Sessions
 	settings          *settings.Store
 	inbox             *notification.Inbox
+	webhooks          *webhook.Store
 	pools             map[string]string
 }
