@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ReservationsRouteImport } from './routes/reservations'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as GuideIndexRouteImport } from './routes/guide/index'
@@ -21,6 +22,11 @@ import { Route as SettingsPasswordRouteImport } from './routes/settings/password
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReservationsRoute = ReservationsRouteImport.update({
+  id: '/reservations',
+  path: '/reservations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SearchRoute = SearchRouteImport.update({
@@ -61,6 +67,7 @@ const SettingsPasswordRoute = SettingsPasswordRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/reservations': typeof ReservationsRoute
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
   '/login/enroll': typeof LoginEnrollRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/reservations': typeof ReservationsRoute
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
   '/login/enroll': typeof LoginEnrollRoute
@@ -82,6 +90,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/reservations': typeof ReservationsRoute
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
   '/login/enroll': typeof LoginEnrollRoute
@@ -94,6 +103,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/reservations'
     | '/search'
     | '/setup'
     | '/login/enroll'
@@ -104,6 +114,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/reservations'
     | '/search'
     | '/setup'
     | '/login/enroll'
@@ -114,6 +125,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/reservations'
     | '/search'
     | '/setup'
     | '/login/enroll'
@@ -125,6 +137,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ReservationsRoute: typeof ReservationsRoute
   SearchRoute: typeof SearchRoute
   SetupRoute: typeof SetupRoute
   LoginEnrollRoute: typeof LoginEnrollRoute
@@ -141,6 +154,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reservations': {
+      id: '/reservations'
+      path: '/reservations'
+      fullPath: '/reservations'
+      preLoaderRoute: typeof ReservationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/search': {
@@ -197,6 +217,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ReservationsRoute: ReservationsRoute,
   SearchRoute: SearchRoute,
   SetupRoute: SetupRoute,
   LoginEnrollRoute: LoginEnrollRoute,
