@@ -2,6 +2,7 @@ package assign_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http/httptest"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/epg"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/tuner/faketuner"
@@ -178,6 +180,39 @@ func TestRunOnceUsesRecordingSettings(t *testing.T) {
 	start := time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC)
 	assert.Equal(t, start.Add(-reserve.DefaultMarginSeconds*time.Second), f.stored(t, withDefault).plannedStart.UTC())
 	assert.Equal(t, start.Add(-time.Minute), f.stored(t, withOverride).plannedStart.UTC())
+}
+
+// TestRunOnceReadsDefaultsEachTime は、録画設定の全体の既定値を、割り当てのたびに引くことを確かめる。
+// 画面で既定値を変えたら、次の割り当てから反映する (設計書 11.2)。
+func TestRunOnceReadsDefaultsEachTime(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	margin := reserve.DefaultMarginSeconds
+	var loadErr error
+	f.runner = assign.NewRunner(f.pool, f.clock, noGuard, slog.New(slog.DiscardHandler), func(context.Context, sqlc.DBTX) (*reserve.Settings, error) {
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		settings := reserve.DefaultSettings()
+		settings.StartMarginSeconds = margin
+
+		return settings, nil
+	}, nil)
+	reservationID := f.reserve(t, 0, nil)
+	start := time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC)
+	f.runOnce(t)
+	assert.Equal(t, start.Add(-reserve.DefaultMarginSeconds*time.Second), f.stored(t, reservationID).plannedStart.UTC())
+
+	margin = 120
+	f.runOnce(t)
+	assert.Equal(t, start.Add(-2*time.Minute), f.stored(t, reservationID).plannedStart.UTC())
+
+	// 既定値を引けなければ、割り当てを変えずにエラーを返す。
+	loadErr = errors.New("load failed")
+	_, err := f.runner.RunOnce(t.Context())
+	require.ErrorIs(t, err, loadErr)
+	assert.Equal(t, start.Add(-2*time.Minute), f.stored(t, reservationID).plannedStart.UTC())
 }
 
 // TestRunOnceKeepsRecordingReservations は、録画が始まった予約を、後から優先度の高い予約が来ても動かさないことを確かめる。

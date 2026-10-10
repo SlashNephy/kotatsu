@@ -83,9 +83,30 @@ func TestUpdate(t *testing.T) {
 	require.NotNil(t, loaded.UpdatedAt)
 	assert.True(t, loaded.UpdatedAt.Equal(testNow()))
 
+	// ファイル名のテンプレートとプールも、ほかの項目を保ったまま変えられる。プールは空にすると、自動で選ぶのに戻る。
+	template, pool, empty := `{{.Name}}`, "main", ""
+	_, err = store.Update(t.Context(), db, actor, &settings.Changes{
+		Recording:            &reserve.Overrides{PoolID: &pool, FileNameTemplate: &template, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil},
+		ArchiveRetentionDays: nil,
+	})
+	require.NoError(t, err)
+	loaded, err = settings.Load(t.Context(), db)
+	require.NoError(t, err)
+	want.PoolID, want.FileNameTemplate = pool, template
+	assert.Equal(t, want, loaded.Recording)
+	_, err = store.Update(t.Context(), db, actor, &settings.Changes{
+		Recording:            &reserve.Overrides{PoolID: &empty, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil},
+		ArchiveRetentionDays: nil,
+	})
+	require.NoError(t, err)
+	loaded, err = settings.Load(t.Context(), db)
+	require.NoError(t, err)
+	want.PoolID = ""
+	assert.Equal(t, want, loaded.Recording)
+
 	var audited int
 	require.NoError(t, db.QueryRow(t.Context(), "SELECT count(*) FROM audit_events WHERE action = 'settings.updated'").Scan(&audited))
-	assert.Equal(t, 2, audited)
+	assert.Equal(t, 4, audited)
 }
 
 // TestUpdateRejectsInvalidSettings は、正しくない値を保存しないことを確かめる。

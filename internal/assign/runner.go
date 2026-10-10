@@ -62,8 +62,11 @@ func FixedDefaults(settings *reserve.Settings) DefaultsFunc {
 	}
 }
 
-// NewRunner は Runner を作る。defaults は録画設定の全体の既定値を返す。opts は nil でもよい。
+// NewRunner は Runner を作る。defaults は録画設定の全体の既定値を返す。nil なら Go の既定値を使う。opts は nil でもよい。
 func NewRunner(pool *pgxpool.Pool, clk clock.Clock, guard Guard, logger *slog.Logger, defaults DefaultsFunc, opts *RunnerOptions) *Runner {
+	if defaults == nil {
+		defaults = FixedDefaults(reserve.DefaultSettings())
+	}
 	o := RunnerOptions{Debounce: DefaultDebounce, Interval: DefaultInterval, PollOnly: false, PollInterval: notify.DefaultPollInterval}
 	if opts != nil {
 		o.PollOnly = opts.PollOnly
@@ -130,6 +133,9 @@ func (r *Runner) RunOnce(ctx context.Context) (*Result, error) {
 		defaults, err := r.defaults(ctx, tx)
 		if err != nil {
 			return fmt.Errorf("failed to get the default recording settings: %w", err)
+		}
+		if defaults == nil {
+			defaults = reserve.DefaultSettings()
 		}
 		reservations, err := r.inputs(ctx, q, defaults, rows, now)
 		if err != nil {
