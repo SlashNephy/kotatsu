@@ -37,6 +37,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/registry"
 	"github.com/SlashNephy/kotatsu/internal/settings"
 	"github.com/SlashNephy/kotatsu/internal/spa"
+	"github.com/SlashNephy/kotatsu/internal/stream"
 	"github.com/SlashNephy/kotatsu/internal/telemetry"
 	"github.com/SlashNephy/kotatsu/internal/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/webhook"
@@ -576,6 +577,22 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	} {
 		mux.Handle(pattern, httpserver.RequireSameOrigin(handler))
 	}
+	// 映像の配信 (設計書 7.2、7.6、9.6)。セッションか署名付き URL で認可する。
+	signer, err := stream.NewSigner(deps.Config.Auth.SecretKey.Value())
+	if err != nil {
+		return nil, err
+	}
+	var tuner stream.ServiceOpener
+	if deps.Config.Tuner.URL.Value() != "" {
+		client, err := newTunerClient(deps)
+		if err != nil {
+			return nil, err
+		}
+		tuner = client
+	}
+	authorizer := stream.NewAuthorizer(signer, deps.DB, deps.Clock)
+	mux.Handle("GET /streams/services/{id}",
+		authorizer.Middleware(stream.NewLiveHandler(tuner, logger.With(slog.String("component", "stream")))))
 	api := sessions.Middleware(deps.DB)(mux)
 
 	app, err := spa.NewHandler(web.App(), logger.With(slog.String("component", "spa")))
@@ -585,6 +602,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	root := http.NewServeMux()
 	root.Handle("/graphql", api)
 	root.Handle("/auth/", api)
+	root.Handle("/streams/", api)
 	root.Handle("/", app)
 
 	return &apiHandler{handler: policy.Middleware(root), changes: changes}, nil
