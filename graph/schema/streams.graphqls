@@ -19,3 +19,38 @@ extend type Mutation {
   """
   createStreamURL(target: ID!): StreamURL!
 }
+
+"""
+サーバー側でのトランスコード (kyusu) の映像のコーデック。
+"""
+enum VideoCodec {
+  H264
+  HEVC
+}
+
+"""
+サーバー側でのトランスコードの画質 (設計書 7.3)。
+"""
+type StreamPreset {
+  "URL に使う名前 (720p、720p-hevc など)。HLS は /streams/{services|recordings}/{id}/hls/{name}/playlist.m3u8 で取る。"
+  name: String!
+  height: Int!
+  "映像のビットレート (kbps)。"
+  videoBitrate: Int!
+  codec: VideoCodec!
+}
+
+"""
+サーバー側でのトランスコード (kyusu) の状態 (設計書 7.1)。
+"""
+type Transcoding {
+  "トランスコードできる kyusu が動いているかどうか。動いていなければ、ブラウザ内での変換だけを使える。"
+  available: Boolean!
+  "選べる画質。H.264、HEVC の順に、それぞれ高い画質から並べる。"
+  presets: [StreamPreset!]!
+}
+
+extend type Query {
+  "サーバー側でのトランスコードを使えるかと、選べる画質。"
+  transcoding: Transcoding!
+}

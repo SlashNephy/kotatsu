@@ -447,6 +447,11 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 	eg.Go(func() error {
 		names := make([]string, 0, len(roles))
 		for _, role := range roles {
+			// トランスコードできない kyusu は、登録簿に載せない。画面は、登録簿に kyusu がいるかで、
+			// サーバー側でのトランスコードを使えるかを判断する (設計書 7.1)。
+			if role.Name == kyusuRoleName && (live == nil || !live.CanTranscode()) {
+				continue
+			}
 			names = append(names, role.Name)
 		}
 

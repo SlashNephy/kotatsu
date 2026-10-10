@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	// kyusuRole は、サーバー側でのトランスコードを受け持つロールの名前。
-	kyusuRole = "kyusu"
+	// Role は、サーバー側でのトランスコードを受け持つロールの名前。インスタンスの登録簿で、kyusu を引くのに使う。
+	Role = "kyusu"
 	// relayTimeout は、kyusu への中継にかける時間の上限。kyusu は、ライブ視聴の最初のセグメントを最大 20 秒、
 	// 録画のセグメントを最大 30 秒待つので、それより長くして、kyusu が待ちきれなかった理由を返せるようにする。
 	relayTimeout = time.Minute
@@ -83,7 +83,7 @@ func (h *Relay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	preset, file := r.PathValue("preset"), r.PathValue("file")
-	instances, err := h.instances.ListAlive(r.Context(), kyusuRole)
+	instances, err := h.instances.ListAlive(r.Context(), Role)
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "failed to list kyusu instances", slog.Any("error", err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

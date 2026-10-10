@@ -94,3 +94,51 @@ func TestCreateStreamURLRejectsTarget(t *testing.T) {
 		})
 	}
 }
+
+// TestTranscoding は、生きている kyusu が登録簿にいるときだけ、サーバー側でのトランスコードを使えるとすることを確かめる。
+func TestTranscoding(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// heartbeat は、登録簿に載せる kyusu の最後のハートビートの、今からの差。nil なら載せない。
+		heartbeat     *time.Duration
+		wantAvailable bool
+	}{
+		{name: "kyusu がいない", heartbeat: nil, wantAvailable: false},
+		{name: "生きている kyusu がいる", heartbeat: new(-10 * time.Second), wantAvailable: true},
+		{name: "ハートビートの途絶えた kyusu しかいない", heartbeat: new(-time.Hour), wantAvailable: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			if tt.heartbeat != nil {
+				at := testNow().Add(*tt.heartbeat)
+				_, err := f.pool.Exec(t.Context(), `INSERT INTO instances (id, role, address, started_at, heartbeat_at)
+					VALUES (gen_random_uuid(), 'kyusu', '127.0.0.1:8080', $1, $1)`, at)
+				require.NoError(t, err)
+			}
+			var got struct {
+				Transcoding struct {
+					Available bool `json:"available"`
+					Presets   []struct {
+						Name         string `json:"name"`
+						Height       int    `json:"height"`
+						VideoBitrate int    `json:"videoBitrate"`
+						Codec        string `json:"codec"`
+					} `json:"presets"`
+				} `json:"transcoding"`
+			}
+			require.Empty(t, f.query(t, `{ transcoding { available presets { name height videoBitrate codec } } }`, nil, &got))
+			assert.Equal(t, tt.wantAvailable, got.Transcoding.Available)
+			// 画質は、kyusu の有無によらず、URL に使う名前とともに返す。
+			require.NotEmpty(t, got.Transcoding.Presets)
+			assert.Equal(t, "1080p", got.Transcoding.Presets[0].Name)
+			assert.Equal(t, 6000, got.Transcoding.Presets[0].VideoBitrate)
+			assert.Equal(t, "H264", got.Transcoding.Presets[0].Codec)
+			assert.Equal(t, "HEVC", got.Transcoding.Presets[len(got.Transcoding.Presets)-1].Codec)
+		})
+	}
+}

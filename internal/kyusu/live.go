@@ -162,6 +162,12 @@ func (l *Live) Handler(token *Token) http.Handler {
 	return token.Middleware(mux)
 }
 
+// CanTranscode は、エンコーダーがあり、トランスコードできるかどうかを返す。
+// FFmpeg か tsreadex がなければ、kyusu は起動しても、トランスコードの要求に 503 を返す。
+func (l *Live) CanTranscode() bool {
+	return l.encoder != nil
+}
+
 // reap は、now の時点で、セグメントを idleTimeout より長く要求されていないセッションを止める。
 // 最初のセグメントができるまでの間は、プレイリストを待つ時間の上限まで止めない。
 // 止めたセッションは、すぐに一覧から外すので、止まり終わる前に来た視聴者には、新しいセッションを作る。
