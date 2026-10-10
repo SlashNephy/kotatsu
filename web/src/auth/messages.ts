@@ -1,6 +1,7 @@
 import type { TFunction } from 'i18next';
 
 import { AuthError } from './api';
+import { PasskeyCancelledError } from './passkey';
 
 const knownCodes = [
   'INVALID_CREDENTIALS',
@@ -10,6 +11,10 @@ const knownCodes = [
   'INVALID_SETUP_TOKEN',
   'SETUP_DONE',
   'SECOND_FACTOR_ENROLLED',
+  'INVALID_PASSKEY',
+  'PASSKEY_CEREMONY_EXPIRED',
+  'PASSKEY_UNAVAILABLE',
+  'NO_PASSKEY',
 ] as const;
 
 const knownReasons = ['too_short', 'too_long', 'blocklisted', 'breached', 'too_weak'] as const;
@@ -21,6 +26,9 @@ function isKnown<T extends string>(values: readonly T[], value: string | undefin
 // authErrorMessage は、認証の API のエラーを、画面に出す文に直す。
 // パスワードの規定に当たったときは、サーバーが返した理由を出す (#59 の完了条件)。
 export function authErrorMessage(t: TFunction, error: unknown): string {
+  if (error instanceof PasskeyCancelledError) {
+    return t('auth.errors.PASSKEY_CANCELLED');
+  }
   if (!(error instanceof AuthError)) {
     return t('auth.errors.unknown');
   }

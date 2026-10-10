@@ -54,6 +54,11 @@
       "INVALID_SETUP_TOKEN": "セットアップトークンが違います",
       "SETUP_DONE": "セットアップは済んでいます。ログインしてください",
       "SECOND_FACTOR_ENROLLED": "第二要素は登録済みです",
+      "INVALID_PASSKEY": "パスキーを確かめられませんでした。登録したパスキーで、もう一度お試しください",
+      "PASSKEY_CEREMONY_EXPIRED": "時間が経ったので、もう一度パスキーで確かめてください",
+      "PASSKEY_UNAVAILABLE": "パスキーは、HTTPS か localhost で、IP アドレスではなくドメイン名で接続したときだけ使えます",
+      "NO_PASSKEY": "この接続先で使えるパスキーが登録されていません",
+      "PASSKEY_CANCELLED": "パスキーの確認が取り消されたか、使えるパスキーが見つかりませんでした",
       "unknown": "うまくいきませんでした。時間をおいてやり直してください"
     },
     "setup": {
@@ -65,7 +70,10 @@
     },
     "login": {
       "title": "ログイン",
-      "submit": "ログイン"
+      "submit": "ログイン",
+      "passkey": "パスキーでログイン",
+      "or": "または",
+      "passkeyUnavailable": "パスキーは、HTTPS か localhost で接続したときだけ使えます。"
     },
     "secondFactor": {
       "title": "第二要素の確認",
@@ -74,7 +82,10 @@
       "useRecoveryCode": "リカバリーコードを使う",
       "recoveryCode": "リカバリーコード",
       "useTOTP": "認証アプリのコードを使う",
-      "submit": "確認"
+      "submit": "確認",
+      "passkey": "パスキーで確認",
+      "passkeyDescription": "登録したパスキーで確かめられます。",
+      "or": "または認証アプリのコード"
     },
     "enroll": {
       "title": "認証アプリの登録",

@@ -1,7 +1,12 @@
 // 認証の API (/auth/*) を呼ぶ。GraphQL の外にあるのは、ログインする前に使うからである (設計書 9.2、9.3)。
 // tenban は、CSRF を防ぐため、POST の JSON だけを受け付け、Origin を確かめる。fetch は同じオリジンの Origin を付ける。
 
-export type SecondFactor = 'totp' | 'recovery_code';
+import type {
+  AuthenticationResponseJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+} from '@simplewebauthn/browser';
+
+export type SecondFactor = 'totp' | 'passkey' | 'recovery_code';
 
 // AuthError は、tenban が返したエラー。code で画面の案内を出し分ける。
 export class AuthError extends Error {
@@ -75,6 +80,12 @@ export type TOTPEnrollment = { secret: string; uri: string; expiresAt: string };
 
 export type Completed = { recoveryCodes: string[] };
 
+// PasskeyAssertion は、パスキーでの確認の開始。options を、そのまま navigator.credentials.get に渡す。
+export type PasskeyAssertion = {
+  options: PublicKeyCredentialRequestOptionsJSON;
+  expiresAt: string;
+};
+
 export const authApi = {
   setupStatus: () => get<{ required: boolean }>('/auth/setup'),
   setup: (input: { token: string; username: string; displayName: string; password: string }) =>
@@ -86,6 +97,14 @@ export const authApi = {
   beginEnrollment: () => post<TOTPEnrollment>('/auth/login/totp/enrollment', {}),
   confirmEnrollment: (code: string) =>
     post<Completed>('/auth/login/totp/enrollment/confirm', { code }),
+  // パスキーだけでログインする。どのユーザーかは、認証器が答える。
+  beginPasskeyLogin: () => post<PasskeyAssertion>('/auth/passkey/login', {}),
+  confirmPasskeyLogin: (credential: AuthenticationResponseJSON) =>
+    post<Completed>('/auth/passkey/login/confirm', { credential }),
+  // パスワードの後の第二要素として、パスキーで確かめる。
+  beginPasskeySecondFactor: () => post<PasskeyAssertion>('/auth/login/passkey', {}),
+  confirmPasskeySecondFactor: (credential: AuthenticationResponseJSON) =>
+    post<Completed>('/auth/login/passkey/confirm', { credential }),
   logout: async () => {
     await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
   },
