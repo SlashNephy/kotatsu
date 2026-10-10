@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import i18next from '../i18n';
 import { AuthError } from './api';
-import { authErrorMessage } from './messages';
+import { authErrorMessage, oidcErrorMessage } from './messages';
 import { PasskeyCancelledError } from './passkey';
 
 describe('authErrorMessage', () => {
@@ -53,6 +53,11 @@ describe('authErrorMessage', () => {
       want: 'この接続先で使えるパスキーが登録されていません',
     },
     {
+      name: 'IdP に届かず、ログインを始められない',
+      error: new AuthError(503, 'OIDC_UNAVAILABLE', undefined, undefined),
+      want: 'IdP に接続できませんでした。時間をおいてやり直してください',
+    },
+    {
       name: 'パスキーの確認の取り消し',
       error: new PasskeyCancelledError(),
       want: 'パスキーの確認が取り消されたか、使えるパスキーが見つかりませんでした',
@@ -64,5 +69,42 @@ describe('authErrorMessage', () => {
     },
   ])('$name', ({ error, want }) => {
     expect(authErrorMessage(i18next.t, error)).toBe(want);
+  });
+});
+
+describe('oidcErrorMessage', () => {
+  test.each([
+    {
+      name: '紐付けたユーザーがいない',
+      reason: 'oidc_denied',
+      want: 'このアカウントでは Kotatsu にログインできません。管理者にお問い合わせください',
+    },
+    {
+      name: '期限切れ',
+      reason: 'oidc_expired',
+      want: '時間が経ったので、もう一度ログインしてください',
+    },
+    {
+      name: 'state や ID トークンを確かめられない',
+      reason: 'oidc_invalid',
+      want: 'ログインを確かめられませんでした。もう一度ログインしてください',
+    },
+    {
+      name: 'ユーザー名の重なり',
+      reason: 'oidc_username_taken',
+      want: '同じユーザー名のユーザーがいるので、アカウントを作れませんでした。管理者にお問い合わせください',
+    },
+    {
+      name: 'IdP に届かない',
+      reason: 'oidc_unavailable',
+      want: 'IdP に接続できませんでした。時間をおいてやり直してください',
+    },
+    {
+      name: '知らない理由',
+      reason: 'oidc_failed',
+      want: 'うまくいきませんでした。時間をおいてやり直してください',
+    },
+  ])('$name', ({ reason, want }) => {
+    expect(oidcErrorMessage(i18next.t, reason)).toBe(want);
   });
 });

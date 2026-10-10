@@ -34,10 +34,12 @@ const (
 	caseNoUV          = "without user verification"
 	caseDisabledUser  = "disabled user"
 	passwordText      = "password"
-	unknownUser       = "unknown user"
-	jsonType          = "application/json"
-	loginName         = "Kotatsu"
-	loginPhrase       = "mikan-kotatsu-neko-2026!"
+	// nameText は、名前を表す文字列 (JSON のキー、OIDC の claim)。
+	nameText    = "name"
+	unknownUser = "unknown user"
+	jsonType    = "application/json"
+	loginName   = "Kotatsu"
+	loginPhrase = "mikan-kotatsu-neko-2026!"
 )
 
 // loginFixture は、パスワードを設定したユーザーを 1 人持つ DB と、偽の時計で動く Logins。

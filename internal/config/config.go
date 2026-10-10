@@ -104,6 +104,38 @@ type Auth struct {
 	// 変えると、暗号化して保存した値を読めなくなる。
 	SecretKey Secret `yaml:"secret_key"`
 	HIBP      HIBP   `yaml:"hibp"`
+	OIDC      OIDC   `yaml:"oidc"`
+}
+
+// OIDC は、OpenID Connect の IdP でのログインの設定 (設計書 9.4)。Issuer が空なら、OIDC でのログインを受け付けない。
+type OIDC struct {
+	// Issuer は IdP の issuer の URL。/.well-known/openid-configuration から、エンドポイントを引く。
+	Issuer       string `yaml:"issuer"`
+	ClientID     string `yaml:"client_id"`
+	ClientSecret Secret `yaml:"client_secret"`
+	// RedirectURL は、IdP に登録したリダイレクト URI。空なら、接続したオリジンに /auth/oidc/callback を付けたものにする。
+	RedirectURL string `yaml:"redirect_url"`
+	// Scopes は、IdP に求めるスコープ。openid は必ず含める。環境変数では、カンマで区切って渡す。
+	Scopes []string `yaml:"scopes"`
+	// DisplayName は、ログインの画面のボタンに出す IdP の名前。
+	DisplayName string `yaml:"display_name"`
+	// UsernameClaim は、自動で作るユーザーのユーザー名にする claim。
+	UsernameClaim string     `yaml:"username_claim"`
+	AutoCreate    AutoCreate `yaml:"auto_create"`
+}
+
+// AutoCreate は、OIDC で初めてログインしたユーザーを自動で作る設定 (設計書 9.4)。
+//
+// 有効にしても、GroupsClaim のグループのどれかが、AdminGroups、MemberGroups、ViewerGroups のどれかに含まれる
+// ユーザーだけを作る。ロールは、含まれる中で最も強いものにする。ロールは作るときだけ決め、後のログインでは変えない。
+type AutoCreate struct {
+	Enabled bool `yaml:"enabled"`
+	// GroupsClaim は、ユーザーのグループを入れた claim。文字列の配列か、1 つの文字列を受け付ける。
+	GroupsClaim string `yaml:"groups_claim"`
+	// 環境変数では、カンマで区切って渡す。
+	AdminGroups  []string `yaml:"admin_groups"`
+	MemberGroups []string `yaml:"member_groups"`
+	ViewerGroups []string `yaml:"viewer_groups"`
 }
 
 // HIBP は、パスワードを設定するときに、Have I Been Pwned に漏洩済みかを照会する設定。
@@ -148,6 +180,13 @@ func Default() *Config {
 		Auth: Auth{
 			SecretKey: "",
 			HIBP:      HIBP{Enabled: false, URL: ""},
+			OIDC: OIDC{
+				Issuer: "", ClientID: "", ClientSecret: "", RedirectURL: "",
+				Scopes: []string{"openid", "profile", "email"}, DisplayName: "OIDC", UsernameClaim: "preferred_username",
+				AutoCreate: AutoCreate{
+					Enabled: false, GroupsClaim: "groups", AdminGroups: []string{}, MemberGroups: []string{}, ViewerGroups: []string{},
+				},
+			},
 		},
 	}
 }
@@ -182,6 +221,7 @@ func (c *Config) validate() error {
 	if err := validateHTTPURL(c.Auth.HIBP.URL); err != nil {
 		errs = append(errs, fieldError("auth.hibp.url", err))
 	}
+	errs = append(errs, c.Auth.OIDC.validate()...)
 	if c.Audit.RetentionDays < 1 {
 		errs = append(errs, fieldError("audit.retention_days", errors.New("must be at least 1")))
 	}
@@ -293,4 +333,41 @@ func validateHTTPURL(endpoint string) error {
 	}
 
 	return nil
+}
+
+// Enabled は、OIDC でのログインを受け付けるかどうかを返す。
+func (o *OIDC) Enabled() bool {
+	return o.Issuer != ""
+}
+
+func (o *OIDC) validate() []error {
+	errs := []error{}
+	if !o.Enabled() {
+		return errs
+	}
+	if err := validateHTTPURL(o.Issuer); err != nil {
+		errs = append(errs, fieldError("auth.oidc.issuer", err))
+	}
+	if err := validateHTTPURL(o.RedirectURL); err != nil {
+		errs = append(errs, fieldError("auth.oidc.redirect_url", err))
+	}
+	if o.ClientID == "" {
+		errs = append(errs, fieldError("auth.oidc.client_id", errors.New("is required when auth.oidc.issuer is set")))
+	}
+	if !slices.Contains(o.Scopes, "openid") {
+		errs = append(errs, fieldError("auth.oidc.scopes", errors.New("must include openid")))
+	}
+	if o.AutoCreate.Enabled {
+		if o.UsernameClaim == "" {
+			errs = append(errs, fieldError("auth.oidc.username_claim", errors.New("is required when auto_create is enabled")))
+		}
+		if o.AutoCreate.GroupsClaim == "" {
+			errs = append(errs, fieldError("auth.oidc.auto_create.groups_claim", errors.New("is required when auto_create is enabled")))
+		}
+		if len(o.AutoCreate.AdminGroups)+len(o.AutoCreate.MemberGroups)+len(o.AutoCreate.ViewerGroups) == 0 {
+			errs = append(errs, fieldError("auth.oidc.auto_create", errors.New("needs at least one of admin_groups, member_groups or viewer_groups")))
+		}
+	}
+
+	return errs
 }

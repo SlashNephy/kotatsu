@@ -430,6 +430,10 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 	}
 	setup := auth.NewSetup(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy, logger.With(slog.String("component", "setup")))
 	mux.Handle("GET /auth/setup", setup.StatusHandler(deps.DB))
+	// OIDC でのログイン (設計書 9.4)。IdP からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
+	oidc := newOIDC(deps.Clock, logger, deps.Config, sessions)
+	mux.Handle("GET /auth/oidc", oidc.StatusHandler())
+	mux.Handle("GET "+auth.OIDCCallbackPath, oidc.CallbackHandler(deps.DB, clientInfo))
 	for pattern, handler := range map[string]http.Handler{
 		"POST /auth/setup":                         setup.CreateHandler(deps.DB, clientInfo),
 		"POST /auth/login":                         logins.PasswordHandler(deps.DB, clientInfo),
@@ -443,6 +447,7 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		"POST /auth/passkey/login/confirm":         logins.PasskeyLoginConfirmHandler(deps.DB, clientInfo),
 		"POST /auth/passkey/registration":          passkeys.RegistrationHandler(deps.DB, clientInfo),
 		"POST /auth/passkey/registration/confirm":  passkeys.RegistrationConfirmHandler(deps.DB, clientInfo),
+		"POST /auth/oidc":                          oidc.BeginHandler(deps.DB, clientInfo),
 		"POST /auth/reauth":                        logins.ReauthenticateHandler(deps.DB, clientInfo),
 		"POST /auth/reauth/passkey":                logins.PasskeyReauthenticationHandler(deps.DB, clientInfo),
 		"POST /auth/reauth/passkey/confirm":        logins.PasskeyReauthenticationConfirmHandler(deps.DB, clientInfo),

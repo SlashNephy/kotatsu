@@ -135,3 +135,55 @@ func TestAdminSetupToken(t *testing.T) {
 	require.NoError(t, opts.LogSetupToken(t.Context(), slog.New(slog.NewJSONHandler(&logs, nil)), opts.Clock, pool))
 	assert.Empty(t, logs.String())
 }
+
+// TestUserLinkOIDC は、kotatsu user link-oidc が、設定の IdP のユーザーとローカルのアカウントを紐付けることを確かめる。
+func TestUserLinkOIDC(t *testing.T) {
+	t.Parallel()
+
+	const issuer = "https://idp.example.com"
+	dbConfig := databasetest.New(t)
+	env := testEnv()
+	env["KOTATSU_DATABASE_URL"] = dbConfig.URL.Value()
+	opts := cli.DefaultOptions(slog.New(slog.DiscardHandler))
+	opts.LookupEnv = func(key string) (string, bool) {
+		v, ok := env[key]
+
+		return v, ok
+	}
+	migrateCmd := cli.NewCommand(opts)
+	migrateCmd.SetArgs([]string{subcommandMigrate})
+	require.NoError(t, migrateCmd.ExecuteContext(t.Context()))
+	pool, err := database.Open(t.Context(), dbConfig)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	_, err = auth.NewUsers(clocktest.NewFake(time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC))).Create(t.Context(), pool, &auth.NewUser{
+		Username: adminUsername, DisplayName: adminUsername, Role: auth.RoleAdmin, PasswordHash: nil,
+	})
+	require.NoError(t, err)
+
+	run := func(args ...string) (string, error) {
+		var out bytes.Buffer
+		cmd := cli.NewCommand(opts)
+		cmd.SetArgs(append([]string{"user", "link-oidc"}, args...))
+		cmd.SetOut(&out)
+		err := cmd.ExecuteContext(t.Context())
+
+		return out.String(), err
+	}
+
+	// IdP を設定していなければ、紐付けられない。
+	_, err = run(adminUsername, "sub-1")
+	require.ErrorIs(t, err, auth.ErrOIDCDisabled)
+
+	env["KOTATSU_AUTH_OIDC_ISSUER"] = issuer
+	env["KOTATSU_AUTH_OIDC_CLIENT_ID"] = "kotatsu"
+	out, err := run(adminUsername, "sub-1")
+	require.NoError(t, err)
+	assert.Equal(t, "linked kotatsu to sub-1 at "+issuer+"\n", out)
+	var linked int
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT count(*) FROM user_oidc_identities WHERE issuer = $1 AND subject = 'sub-1'", issuer).Scan(&linked))
+	assert.Equal(t, 1, linked)
+
+	_, err = run(adminUsername, "sub-1")
+	require.ErrorIs(t, err, auth.ErrOIDCIdentityLinked)
+}

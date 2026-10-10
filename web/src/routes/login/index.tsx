@@ -3,19 +3,29 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { authApi } from '../../auth/api';
+import { authApi, type OIDCStatus } from '../../auth/api';
 import { AuthCard } from '../../auth/AuthCard';
-import { authErrorMessage } from '../../auth/messages';
+import { authErrorMessage, oidcErrorMessage } from '../../auth/messages';
 import { passkeyAvailable, verifyWithPasskey } from '../../auth/passkey';
 
 type LoginSearch = {
   // setup は、初回セットアップの直後かどうか。
   setup?: boolean;
+  // error は、OIDC でのログインに失敗して戻ってきたときの理由 (oidc_denied など)。
+  error?: string;
 };
 
+const oidcDisabled: OIDCStatus = { enabled: false, displayName: '' };
+
 export const Route = createFileRoute('/login/')({
-  validateSearch: (search: Record<string, unknown>): LoginSearch =>
-    search['setup'] === true ? { setup: true } : {},
+  validateSearch: (search: Record<string, unknown>): LoginSearch => ({
+    ...(search['setup'] === true ? { setup: true } : {}),
+    ...(typeof search['error'] === 'string' && search['error'] !== ''
+      ? { error: search['error'] }
+      : {}),
+  }),
+  // OIDC のボタンを出すかを確かめる。確かめられなくても、パスワードとパスキーではログインできる。
+  loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: Login,
 });
 
@@ -23,13 +33,16 @@ export const Route = createFileRoute('/login/')({
 function Login() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { setup } = Route.useSearch();
+  const { setup, error: oidcError } = Route.useSearch();
+  const oidc = Route.useLoaderData();
   const canUsePasskey = passkeyAvailable();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   // passkeyError は、パスキーでのログインのエラー。パスワードの入力欄のエラーと分けて、ボタンの近くに出す。
   const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  // oidcBeginError は、IdP へ送り出せなかったときのエラー。OIDC のボタンの近くに出す。
+  const [oidcBeginError, setOIDCBeginError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async (event: FormEvent) => {
@@ -70,9 +83,29 @@ function Login() {
     }
   };
 
+  // IdP へ送り出す。戻ってくると、セッションの Cookie を受け取ってホームに進むか、理由を付けてこの画面に戻る。
+  const loginWithOIDC = async () => {
+    setSubmitting(true);
+    setError(null);
+    setPasskeyError(null);
+    setOIDCBeginError(null);
+    try {
+      const { authorizationUrl } = await authApi.beginOIDC();
+      window.location.assign(authorizationUrl);
+    } catch (caught) {
+      setOIDCBeginError(authErrorMessage(t, caught));
+      setSubmitting(false);
+    }
+  };
+
   return (
     <AuthCard title={t('auth.login.title')}>
       {setup === true && <Alert color="mikan">{t('auth.setup.done')}</Alert>}
+      {oidcError !== undefined && (
+        <Alert color="red" role="alert">
+          {oidcErrorMessage(t, oidcError)}
+        </Alert>
+      )}
       <form onSubmit={(event) => void submit(event)}>
         <Stack>
           <TextInput
@@ -120,6 +153,18 @@ function Login() {
           </Alert>
         )}
       </Stack>
+      {oidc.enabled && (
+        <Stack gap="xs">
+          <Button variant="default" loading={submitting} onClick={() => void loginWithOIDC()}>
+            {t('auth.login.oidc', { name: oidc.displayName })}
+          </Button>
+          {oidcBeginError !== null && (
+            <Alert color="red" role="alert">
+              {oidcBeginError}
+            </Alert>
+          )}
+        </Stack>
+      )}
     </AuthCard>
   );
 }

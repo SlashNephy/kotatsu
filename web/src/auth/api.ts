@@ -80,6 +80,9 @@ export type TOTPEnrollment = { secret: string; uri: string; expiresAt: string };
 
 export type Completed = { recoveryCodes: string[] };
 
+// OIDCStatus は、OIDC でのログインを受け付けるかと、ボタンに出す IdP の名前。
+export type OIDCStatus = { enabled: boolean; displayName: string };
+
 // PasskeyAssertion は、パスキーでの確認の開始。options を、そのまま navigator.credentials.get に渡す。
 export type PasskeyAssertion = {
   options: PublicKeyCredentialRequestOptionsJSON;
@@ -105,6 +108,9 @@ export const authApi = {
   beginPasskeySecondFactor: () => post<PasskeyAssertion>('/auth/login/passkey', {}),
   confirmPasskeySecondFactor: (credential: AuthenticationResponseJSON) =>
     post<Completed>('/auth/login/passkey/confirm', { credential }),
+  // OIDC でのログイン (設計書 9.4)。始めると、IdP の認可のエンドポイントを返すので、ブラウザーを送り出す。
+  oidcStatus: () => get<OIDCStatus>('/auth/oidc'),
+  beginOIDC: () => post<{ authorizationUrl: string }>('/auth/oidc', {}),
   logout: async () => {
     await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
   },

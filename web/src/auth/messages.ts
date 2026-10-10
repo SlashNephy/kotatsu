@@ -15,6 +15,7 @@ const knownCodes = [
   'PASSKEY_CEREMONY_EXPIRED',
   'PASSKEY_UNAVAILABLE',
   'NO_PASSKEY',
+  'OIDC_UNAVAILABLE',
 ] as const;
 
 const knownReasons = ['too_short', 'too_long', 'blocklisted', 'breached', 'too_weak'] as const;
@@ -40,6 +41,23 @@ export function authErrorMessage(t: TFunction, error: unknown): string {
   }
   if (isKnown(knownCodes, error.code)) {
     return t(`auth.errors.${error.code}`);
+  }
+
+  return t('auth.errors.unknown');
+}
+
+const oidcReasons = [
+  'oidc_expired',
+  'oidc_invalid',
+  'oidc_denied',
+  'oidc_username_taken',
+  'oidc_unavailable',
+] as const;
+
+// oidcErrorMessage は、OIDC でのログインに失敗して戻ってきた理由を、画面に出す文に直す。
+export function oidcErrorMessage(t: TFunction, reason: string): string {
+  if (isKnown(oidcReasons, reason)) {
+    return t(`auth.oidcErrors.${reason}`);
   }
 
   return t('auth.errors.unknown');

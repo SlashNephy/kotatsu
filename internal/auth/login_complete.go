@@ -138,11 +138,24 @@ func (l *Logins) finish(ctx context.Context, tx pgx.Tx, row *sqlc.LoginChallenge
 
 // startSession は、セッションを作り、ログインを監査ログに残す。
 func (l *Logins) startSession(ctx context.Context, tx pgx.Tx, userID uuid.UUID, method SecondFactor, client *ClientInfo) (*LoginResult, error) {
-	token, session, err := l.sessions.Create(ctx, tx, userID, client)
+	return startSession(ctx, tx, l.sessions, l.recorder, userID, method, client)
+}
+
+// startSession は、sessions でセッションを作り、method でのログインを recorder の監査ログに残す。
+func startSession(
+	ctx context.Context,
+	tx pgx.Tx,
+	sessions *Sessions,
+	recorder audit.Recorder,
+	userID uuid.UUID,
+	method SecondFactor,
+	client *ClientInfo,
+) (*LoginResult, error) {
+	token, session, err := sessions.Create(ctx, tx, userID, client)
 	if err != nil {
 		return nil, err
 	}
-	err = l.recorder.Record(ctx, tx, &audit.Event{
+	err = recorder.Record(ctx, tx, &audit.Event{
 		Actor:      audit.User(userID),
 		Action:     "user.login",
 		TargetType: loginAuditTarget,

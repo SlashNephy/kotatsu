@@ -26,6 +26,7 @@ type Querier interface {
 	CountUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
 	DeleteAuditEventsBefore(ctx context.Context, before time.Time) (int64, error)
 	DeleteExpiredLoginChallenges(ctx context.Context, now time.Time) (int64, error)
+	DeleteExpiredOIDCLogins(ctx context.Context, now time.Time) (int64, error)
 	DeleteExpiredWebAuthnCeremonies(ctx context.Context, now time.Time) (int64, error)
 	DeleteGuideView(ctx context.Context, arg DeleteGuideViewParams) (int64, error)
 	DeleteInstance(ctx context.Context, arg DeleteInstanceParams) error
@@ -54,6 +55,7 @@ type Querier interface {
 	GetLoginChallengeForUpdate(ctx context.Context, arg GetLoginChallengeForUpdateParams) (LoginChallenge, error)
 	GetLoginThrottles(ctx context.Context, throttleKeys []string) ([]LoginThrottle, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
+	GetOIDCIdentity(ctx context.Context, arg GetOIDCIdentityParams) (UserOidcIdentity, error)
 	GetPasskeyByCredentialID(ctx context.Context, credentialID []byte) (UserPasskey, error)
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error)
@@ -74,6 +76,8 @@ type Querier interface {
 	InsertEPGChange(ctx context.Context, arg InsertEPGChangeParams) error
 	InsertGuideView(ctx context.Context, arg InsertGuideViewParams) error
 	InsertLoginChallenge(ctx context.Context, arg InsertLoginChallengeParams) error
+	InsertOIDCIdentity(ctx context.Context, arg InsertOIDCIdentityParams) error
+	InsertOIDCLogin(ctx context.Context, arg InsertOIDCLoginParams) error
 	// 同じ番組の予約がすでにあれば何もしない。そのときは行を返さない。
 	InsertProgramReservation(ctx context.Context, arg InsertProgramReservationParams) (uuid.UUID, error)
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
@@ -129,6 +133,7 @@ type Querier interface {
 	ListServices(ctx context.Context) ([]ListServicesRow, error)
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
 	ListUsableTuners(ctx context.Context) ([]ListUsableTunersRow, error)
+	ListUserOIDCIdentities(ctx context.Context, userID uuid.UUID) ([]UserOidcIdentity, error)
 	ListUserPasskeys(ctx context.Context, userID uuid.UUID) ([]UserPasskey, error)
 	ListUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
@@ -149,6 +154,7 @@ type Querier interface {
 	ReauthenticateSession(ctx context.Context, arg ReauthenticateSessionParams) (int64, error)
 	// 失敗を数える。最後の失敗が reset_before より前なら、数え直す。
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) (int32, error)
+	RecordOIDCIdentityUse(ctx context.Context, arg RecordOIDCIdentityUseParams) error
 	RecordPasskeyUse(ctx context.Context, arg RecordPasskeyUseParams) error
 	// 期限をすぐに切れさせて、他のインスタンスがすぐに取れるようにする。世代番号は残す。
 	ReleaseLease(ctx context.Context, arg ReleaseLeaseParams) error
@@ -170,6 +176,8 @@ type Querier interface {
 	SetTOTPLastUsedStep(ctx context.Context, arg SetTOTPLastUsedStepParams) error
 	SetUserPassword(ctx context.Context, arg SetUserPasswordParams) (int64, error)
 	SetupTokenExists(ctx context.Context, tokenHash []byte) (bool, error)
+	// ログインの途中の状態は 1 回しか使わせないので、引くと同時に消す。
+	TakeOIDCLogin(ctx context.Context, arg TakeOIDCLoginParams) (OidcLogin, error)
 	// 手続きは 1 回しか使わせないので、引くと同時に消す。
 	TakeWebAuthnCeremony(ctx context.Context, arg TakeWebAuthnCeremonyParams) (WebauthnCeremony, error)
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。

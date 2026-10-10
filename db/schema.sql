@@ -167,6 +167,35 @@ CREATE TABLE user_recovery_codes (
   UNIQUE (user_id, code_hash)
 );
 
+-- OIDC の IdP のユーザーとの紐付け (設計書 9.4)。ユーザーは (issuer, subject) の組で特定する。
+CREATE TABLE user_oidc_identities (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  issuer text NOT NULL,
+  subject text NOT NULL,
+  created_at timestamptz NOT NULL,
+  last_used_at timestamptz,
+  UNIQUE (issuer, subject)
+);
+
+CREATE INDEX user_oidc_identities_user_id_idx ON user_oidc_identities (user_id);
+
+-- OIDC でのログインの途中の状態。IdP から戻ってくるまでの間だけ持ち、Cookie に入れたトークンで引く。
+-- PKCE の code_verifier はサーバーにだけ置くので、暗号化しない。
+CREATE TABLE oidc_logins (
+  id uuid PRIMARY KEY,
+  token_hash bytea NOT NULL UNIQUE,
+  state text NOT NULL,
+  nonce text NOT NULL,
+  code_verifier text NOT NULL,
+  -- IdP に渡したリダイレクト URI。トークンと引き換えるときに、同じ値を渡す。
+  redirect_uri text NOT NULL,
+  created_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL
+);
+
+CREATE INDEX oidc_logins_expires_at_idx ON oidc_logins (expires_at);
+
 -- パスキー (設計書 9.3)。第二要素にも、単体でのログインにも使う。
 CREATE TABLE user_passkeys (
   id uuid PRIMARY KEY,
