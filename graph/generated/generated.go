@@ -308,6 +308,7 @@ type ComplexityRoot struct {
 		Gaps            func(childComplexity int) int
 		ID              func(childComplexity int) int
 		Name            func(childComplexity int) int
+		PreviewURL      func(childComplexity int) int
 		ProgramLost     func(childComplexity int) int
 		Protected       func(childComplexity int) int
 		RecordedFrom    func(childComplexity int) int
@@ -317,6 +318,7 @@ type ComplexityRoot struct {
 		StartAt         func(childComplexity int) int
 		State           func(childComplexity int) int
 		Tags            func(childComplexity int) int
+		ThumbnailURL    func(childComplexity int) int
 		WatchPositionMs func(childComplexity int) int
 	}
 
@@ -1990,6 +1992,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.Name(childComplexity), true
+	case "Recording.previewUrl":
+		if e.ComplexityRoot.Recording.PreviewURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.PreviewURL(childComplexity), true
 	case "Recording.programLost":
 		if e.ComplexityRoot.Recording.ProgramLost == nil {
 			break
@@ -2044,6 +2052,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.Tags(childComplexity), true
+	case "Recording.thumbnailUrl":
+		if e.ComplexityRoot.Recording.ThumbnailURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.ThumbnailURL(childComplexity), true
 	case "Recording.watchPositionMs":
 		if e.ComplexityRoot.Recording.WatchPositionMs == nil {
 			break
@@ -3640,6 +3654,13 @@ type Recording implements Node {
   files: [RecordingFile!]!
   "ログイン中のユーザーの再生位置 (ミリ秒)。再生していなければ null。"
   watchPositionMs: Int64
+  "代表画像の URL のパス。画像をまだ作っていなければ null。tenban にマウントしたプールから配信する。"
+  thumbnailUrl: String
+  """
+  シークバー用のプレビュー画像の URL のパス。画像をまだ作っていなければ null。
+  コマの並びは、同じディレクトリの preview.json に書く (末尾の preview.jpg を preview.json に変えた URL で取れる)。
+  """
+  previewUrl: String
 }
 
 type RecordingEdge {
@@ -4838,6 +4859,10 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_files(ctx, field)
 	case "watchPositionMs":
 		return ec.fieldContext_Recording_watchPositionMs(ctx, field)
+	case "thumbnailUrl":
+		return ec.fieldContext_Recording_thumbnailUrl(ctx, field)
+	case "previewUrl":
+		return ec.fieldContext_Recording_previewUrl(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Recording", field.Name)
 }
@@ -12145,6 +12170,52 @@ func (ec *executionContext) _Recording_watchPositionMs(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_Recording_watchPositionMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _Recording_thumbnailUrl(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_thumbnailUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ThumbnailURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_thumbnailUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Recording_previewUrl(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_previewUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PreviewURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_previewUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _RecordingConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.RecordingConnection) (ret graphql.Marshaler) {
@@ -20444,6 +20515,16 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			}
 		case "watchPositionMs":
 			out.Values[i] = ec._Recording_watchPositionMs(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "thumbnailUrl":
+			out.Values[i] = ec._Recording_thumbnailUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "previewUrl":
+			out.Values[i] = ec._Recording_previewUrl(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

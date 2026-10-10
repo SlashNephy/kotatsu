@@ -117,6 +117,13 @@ type Recording implements Node {
   files: [RecordingFile!]!
   "ログイン中のユーザーの再生位置 (ミリ秒)。再生していなければ null。"
   watchPositionMs: Int64
+  "代表画像の URL のパス。画像をまだ作っていなければ null。tenban にマウントしたプールから配信する。"
+  thumbnailUrl: String
+  """
+  シークバー用のプレビュー画像の URL のパス。画像をまだ作っていなければ null。
+  コマの並びは、同じディレクトリの preview.json に書く (末尾の preview.jpg を preview.json に変えた URL で取れる)。
+  """
+  previewUrl: String
 }
 
 type RecordingEdge {
