@@ -124,17 +124,19 @@ func TestTranscoding(t *testing.T) {
 				Transcoding struct {
 					Available bool `json:"available"`
 					Presets   []struct {
-						Name   string `json:"name"`
-						Height int    `json:"height"`
-						Codec  string `json:"codec"`
+						Name         string `json:"name"`
+						Height       int    `json:"height"`
+						VideoBitrate int    `json:"videoBitrate"`
+						Codec        string `json:"codec"`
 					} `json:"presets"`
 				} `json:"transcoding"`
 			}
-			require.Empty(t, f.query(t, `{ transcoding { available presets { name height codec } } }`, nil, &got))
+			require.Empty(t, f.query(t, `{ transcoding { available presets { name height videoBitrate codec } } }`, nil, &got))
 			assert.Equal(t, tt.wantAvailable, got.Transcoding.Available)
 			// 画質は、kyusu の有無によらず、URL に使う名前とともに返す。
 			require.NotEmpty(t, got.Transcoding.Presets)
 			assert.Equal(t, "1080p", got.Transcoding.Presets[0].Name)
+			assert.Equal(t, 6000, got.Transcoding.Presets[0].VideoBitrate)
 			assert.Equal(t, "H264", got.Transcoding.Presets[0].Codec)
 			assert.Equal(t, "HEVC", got.Transcoding.Presets[len(got.Transcoding.Presets)-1].Codec)
 		})

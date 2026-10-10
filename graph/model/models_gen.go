@@ -577,7 +577,7 @@ type TimeReservationInput struct {
 type Transcoding struct {
 	// トランスコードできる kyusu が動いているかどうか。動いていなければ、ブラウザ内での変換だけを使える。
 	Available bool `json:"available"`
-	// 選べる画質。高い順に並べる。
+	// 選べる画質。H.264、HEVC の順に、それぞれ高い画質から並べる。
 	Presets []*StreamPreset `json:"presets"`
 }
 

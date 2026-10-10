@@ -28,6 +28,7 @@ func TestKyusuRegistersOnlyWhenItCanTranscode(t *testing.T) {
 	}{
 		{name: "FFmpeg と tsreadex がある", tools: []string{"ffmpeg", "tsreadex"}, wantRoles: []string{roleKyusu}},
 		{name: "tsreadex がない", tools: []string{"ffmpeg"}, wantRoles: []string{}},
+		{name: "FFmpeg がない", tools: []string{"tsreadex"}, wantRoles: []string{}},
 		{name: "どちらもない", tools: []string{}, wantRoles: []string{}},
 	}
 	for _, tt := range tests {

@@ -4341,7 +4341,7 @@ type StreamPreset {
 type Transcoding {
   "トランスコードできる kyusu が動いているかどうか。動いていなければ、ブラウザ内での変換だけを使える。"
   available: Boolean!
-  "選べる画質。高い順に並べる。"
+  "選べる画質。H.264、HEVC の順に、それぞれ高い画質から並べる。"
   presets: [StreamPreset!]!
 }
 

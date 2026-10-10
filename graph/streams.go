@@ -87,9 +87,14 @@ func (r *Resolver) transcoding(ctx context.Context) (*model.Transcoding, error) 
 	}
 	presets := make([]*model.StreamPreset, 0, len(kyusu.Presets()))
 	for _, preset := range kyusu.Presets() {
-		codec := model.VideoCodecH264
-		if preset.Codec == kyusu.CodecHEVC {
+		var codec model.VideoCodec
+		switch preset.Codec {
+		case kyusu.CodecH264:
+			codec = model.VideoCodecH264
+		case kyusu.CodecHEVC:
 			codec = model.VideoCodecHevc
+		default:
+			return nil, fmt.Errorf("unknown codec of preset %q: %s", preset.Name, preset.Codec)
 		}
 		presets = append(presets, &model.StreamPreset{
 			Name: preset.Name, Height: preset.Height, VideoBitrate: preset.VideoBitrate, Codec: codec,
