@@ -28,6 +28,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
+	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/password"
 	"github.com/SlashNephy/kotatsu/internal/registry"
 	"github.com/SlashNephy/kotatsu/internal/settings"
@@ -90,8 +91,10 @@ func jobWorkers(deps *Deps) (*river.Workers, []*river.PeriodicJob) {
 	workers := river.NewWorkers()
 	retention := time.Duration(deps.Config.Audit.RetentionDays) * 24 * time.Hour
 	river.AddWorker(workers, audit.NewPruneWorker(deps.DB, deps.Clock, retention))
+	dispatcher := notification.NewDispatcher(deps.DB, deps.Clock, slog.Default().With(slog.String("component", "notification")))
+	river.AddWorker(workers, notification.NewDispatchWorker(dispatcher))
 
-	return workers, []*river.PeriodicJob{audit.PrunePeriodicJob()}
+	return workers, []*river.PeriodicJob{audit.PrunePeriodicJob(), notification.DispatchPeriodicJob()}
 }
 
 // migrate は、Kotatsu のスキーマと River のテーブルのマイグレーションを適用する。

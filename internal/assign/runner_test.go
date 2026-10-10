@@ -116,6 +116,18 @@ func (f *fixture) version(t *testing.T, channel string) int64 {
 	return version
 }
 
+// notifiedConflicts は、競合を通知したイベントの、予約の ID を返す。
+func (f *fixture) notifiedConflicts(t *testing.T) []uuid.UUID {
+	t.Helper()
+
+	rows, err := f.pool.Query(t.Context(), "SELECT (payload->>'reservationId')::uuid FROM notification_events WHERE kind = 'reservation_conflict'")
+	require.NoError(t, err)
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	require.NoError(t, err)
+
+	return ids
+}
+
 func (f *fixture) runOnce(t *testing.T) *assign.Result {
 	t.Helper()
 
@@ -142,6 +154,7 @@ func TestRunOnceStoresAssignments(t *testing.T) {
 	result := f.runOnce(t)
 	assert.Equal(t, 3, result.Changed)
 	assert.Equal(t, []uuid.UUID{conflicted}, result.NewConflicts)
+	assert.Equal(t, []uuid.UUID{conflicted}, f.notifiedConflicts(t))
 	assert.Positive(t, f.version(t, assign.ConflictChannel))
 	for _, id := range ids {
 		want := string(assign.StateOK)
@@ -155,6 +168,7 @@ func TestRunOnceStoresAssignments(t *testing.T) {
 	conflicts := f.version(t, assign.ConflictChannel)
 	assert.Equal(t, &assign.Result{Changed: 0, NewConflicts: []uuid.UUID{}}, f.runOnce(t))
 	assert.Equal(t, conflicts, f.version(t, assign.ConflictChannel))
+	assert.Equal(t, []uuid.UUID{conflicted}, f.notifiedConflicts(t))
 
 	// 1 件を無効にすると、競合していた予約にチューナーが空く。無効にした予約の結果は消す。
 	disabled := ids[0]

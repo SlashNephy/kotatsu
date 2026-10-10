@@ -209,12 +209,23 @@ func TestCheckRecordsDegradedWhileUnreachable(t *testing.T) {
 	status := func() {
 		require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT degraded_since, last_error FROM tuner_server_status").Scan(&since, &lastError))
 	}
+	notified := func() []string {
+		rows, err := f.pool.Query(t.Context(), "SELECT payload->>'error' FROM notification_events WHERE kind = 'tuner_server_unreachable'")
+		require.NoError(t, err)
+		messages, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		require.NoError(t, err)
+
+		return messages
+	}
+	// 接続できている間は通知しない。
+	assert.Empty(t, notified())
 
 	require.NoError(t, f.monitor.Check(t.Context()))
 	status()
 	require.NotNil(t, since)
 	assert.Equal(t, testNow(), since.UTC())
 	assert.Contains(t, lastError, "connection refused")
+	assert.Equal(t, []string{lastError}, notified())
 	// 接続できなかった間も、チューナーの構成は最後に分かったものを残す。
 	assert.Len(t, f.tuners(t), 3)
 
@@ -223,6 +234,7 @@ func TestCheckRecordsDegradedWhileUnreachable(t *testing.T) {
 	require.NoError(t, f.monitor.Check(t.Context()))
 	status()
 	assert.Equal(t, testNow(), since.UTC())
+	assert.Len(t, notified(), 1)
 }
 
 // dateless は、Date ヘッダーを返さないチューナーサーバー (プロキシが取り除いた場合など) を再現する。

@@ -1,4 +1,4 @@
-h1:uNiYGVy9D0GbbBeCjHOZOH5EgPrHexsFWoqpEtvk1dc=
+h1:vpfmQtFkpnMCjL05fSeUC1M5c6aT3wDUnegHLKdYylE=
 20261009102215_init.sql h1:djnv0wCljjLLAM5B5hIIhKRznUe+i3cP9cxgvQGM8xc=
 20261009105537_coordination.sql h1:4kuzfKBnc3dZixraSK3FOFkkX25e2X59okkh0iXnETo=
 20261009114515_audit_events.sql h1:5zL6ffLkLETRIkZis+kRS1SdjTlgdvLW4NNecIsxWQE=
@@ -20,3 +20,4 @@ h1:uNiYGVy9D0GbbBeCjHOZOH5EgPrHexsFWoqpEtvk1dc=
 20261010032917_allow_reauthentication_ceremony.sql h1:tXREk0d+BItlyUGiNKnR1HTiDFVSkTiwsTRoSQh3OFI=
 20261010035738_add_oidc.sql h1:7R+byCp54301hUsFNq+yaTezqX4pDIRGpw0uK/tjkhA=
 20261010054641_add_system_settings.sql h1:8tg/hnOxvER7WViGtdT9tgQgViRqtxRMRWduZT91G6Q=
+20261010064459_add_notifications.sql h1:3cV4bA42f0XHcWYzhOxSyF9Jdfbv0nV7vfbAu1bIdyw=

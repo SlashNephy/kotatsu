@@ -91,6 +91,30 @@ type LoginThrottle struct {
 	LastFailedAt time.Time
 }
 
+type Notification struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	EventID   uuid.UUID
+	CreatedAt time.Time
+	ReadAt    *time.Time
+}
+
+type NotificationEvent struct {
+	ID           uuid.UUID
+	Kind         string
+	OccurredAt   time.Time
+	Payload      []byte
+	DispatchedAt *time.Time
+}
+
+type NotificationPreference struct {
+	UserID    uuid.UUID
+	Kind      string
+	InApp     bool
+	WebPush   bool
+	UpdatedAt time.Time
+}
+
 type OidcLogin struct {
 	ID           uuid.UUID
 	TokenHash    []byte
