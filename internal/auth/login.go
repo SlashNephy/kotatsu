@@ -41,6 +41,8 @@ const (
 
 	// loginAuditTarget は、ログインの監査ログの対象の種類。
 	loginAuditTarget = "user"
+	// summaryMethod は、ログインの監査ログの要約で、認証に使った方式を入れる項目。
+	summaryMethod = "method"
 )
 
 var (
@@ -94,6 +96,10 @@ type LoginsOptions struct {
 	Clock    clock.Clock
 	Recorder audit.Recorder
 	Logger   *slog.Logger
+	// Sessions は、第二要素まで確かめたログインのセッションを作る。
+	Sessions *Sessions
+	// SecondFactors は、第二要素を確かめる。
+	SecondFactors *SecondFactors
 	// ChallengeTTL は、パスワードの確認から第二要素の確認までに許す時間。0 なら DefaultChallengeTTL にする。
 	ChallengeTTL time.Duration
 }
@@ -103,12 +109,17 @@ type Logins struct {
 	clock        clock.Clock
 	recorder     audit.Recorder
 	logger       *slog.Logger
+	sessions     *Sessions
+	factors      *SecondFactors
 	challengeTTL time.Duration
 }
 
 // NewLogins は Logins を返す。
 func NewLogins(opts *LoginsOptions) *Logins {
-	l := &Logins{clock: opts.Clock, recorder: opts.Recorder, logger: opts.Logger, challengeTTL: opts.ChallengeTTL}
+	l := &Logins{
+		clock: opts.Clock, recorder: opts.Recorder, logger: opts.Logger,
+		sessions: opts.Sessions, factors: opts.SecondFactors, challengeTTL: opts.ChallengeTTL,
+	}
 	if l.challengeTTL <= 0 {
 		l.challengeTTL = DefaultChallengeTTL
 	}
@@ -263,7 +274,7 @@ func (l *Logins) recordFailure(
 		Action:     "user.login_failed",
 		TargetType: loginAuditTarget,
 		TargetID:   targetID,
-		Summary:    map[string]any{"username": username, "method": "password"},
+		Summary:    map[string]any{"username": username, summaryMethod: "password"},
 		SourceIP:   client.SourceIP,
 		UserAgent:  client.UserAgent,
 	})

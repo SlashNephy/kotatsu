@@ -217,6 +217,32 @@ func TestRoleDoesNotStartWithInvalidConfig(t *testing.T) {
 	assert.False(t, started.Load())
 }
 
+// TestTenbanRequiresSecretKey は、アプリの秘密キーがなければ、tenban を起動しないことを確かめる (設計書 8.4)。
+func TestTenbanRequiresSecretKey(t *testing.T) {
+	t.Parallel()
+
+	var started atomic.Bool
+	roles := cli.DefaultRoles()
+	for _, role := range roles {
+		role.Run = func(context.Context, *slog.Logger, *cli.Deps) error {
+			started.Store(true)
+
+			return nil
+		}
+	}
+	env := testEnv()
+	delete(env, "KOTATSU_AUTH_SECRET_KEY")
+
+	cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), roles, func(key string) (string, bool) {
+		v, ok := env[key]
+
+		return v, ok
+	}))
+	cmd.SetArgs([]string{roleTenban})
+	require.ErrorContains(t, cmd.ExecuteContext(t.Context()), "auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban")
+	assert.False(t, started.Load())
+}
+
 func TestConfigFlagAndEnv(t *testing.T) {
 	t.Parallel()
 
@@ -357,11 +383,15 @@ func testEnv() map[string]string {
 	databaseURL := url.URL{Scheme: "postgres", User: url.UserPassword("user", "hunter2"), Host: "db", Path: "/kotatsu"}
 
 	return map[string]string{
-		"KOTATSU_DATABASE_URL":   databaseURL.String(),
-		"KOTATSU_SERVER_LISTEN":  anyLocalPort,
-		"KOTATSU_METRICS_LISTEN": anyLocalPort,
+		"KOTATSU_DATABASE_URL":    databaseURL.String(),
+		"KOTATSU_SERVER_LISTEN":   anyLocalPort,
+		"KOTATSU_METRICS_LISTEN":  anyLocalPort,
+		"KOTATSU_AUTH_SECRET_KEY": testKeyMaterial,
 	}
 }
+
+// testKeyMaterial は、テストのアプリの秘密キー。tenban は、これがないと起動しない。
+const testKeyMaterial = "kotatsu-cli-test-application-key-0123456789"
 
 // anyLocalPort は、テストどうしで衝突しないよう空いているポートで待ち受けるアドレス。
 const anyLocalPort = "127.0.0.1:0"

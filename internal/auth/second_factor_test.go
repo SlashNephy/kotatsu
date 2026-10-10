@@ -21,18 +21,12 @@ const appKeyMaterial = "kotatsu-test-application-secret-key-0123456789"
 
 type secondFactorFixture struct {
 	*loginFixture
-
-	factors *auth.SecondFactors
 }
 
 func newSecondFactorFixture(t *testing.T) *secondFactorFixture {
 	t.Helper()
 
-	f := newLoginFixture(t)
-	factors, err := auth.NewSecondFactors(f.clock, audit.NewRecorder(f.clock), appKeyMaterial)
-	require.NoError(t, err)
-
-	return &secondFactorFixture{loginFixture: f, factors: factors}
+	return &secondFactorFixture{loginFixture: newLoginFixture(t)}
 }
 
 // code は、登録で受け取った秘密キーの、今のコードを返す。

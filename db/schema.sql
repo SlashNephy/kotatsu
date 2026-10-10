@@ -121,6 +121,8 @@ CREATE TABLE login_challenges (
   user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
   created_at timestamptz NOT NULL,
   expires_at timestamptz NOT NULL,
+  -- 第二要素の確認に失敗した回数。上限に達したら、パスワードの確認からやり直させる。
+  failed_attempts integer NOT NULL DEFAULT 0,
   user_agent text NOT NULL,
   source_ip inet
 );

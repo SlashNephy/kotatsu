@@ -73,13 +73,14 @@ type Lease struct {
 }
 
 type LoginChallenge struct {
-	ID        uuid.UUID
-	TokenHash []byte
-	UserID    uuid.UUID
-	CreatedAt time.Time
-	ExpiresAt time.Time
-	UserAgent string
-	SourceIP  *netip.Addr
+	ID             uuid.UUID
+	TokenHash      []byte
+	UserID         uuid.UUID
+	CreatedAt      time.Time
+	ExpiresAt      time.Time
+	FailedAttempts int32
+	UserAgent      string
+	SourceIP       *netip.Addr
 }
 
 type LoginThrottle struct {
