@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ const (
 	enableQuery     = `mutation($id: ID!) { enableUser(id: $id) { id disabled } }`
 	resetQuery      = `mutation($id: ID!, $value: String!) { resetUserPassword(id: $id, password: $value) { id } }`
 	changeQuery     = `mutation($value: String!) { changePassword(password: $value) }`
-	sessionsQuery   = `{ sessions { id current userAgent } }`
+	sessionsQuery   = `{ sessions { id current userAgent sourceIp } }`
 	revokeQuery     = `mutation($id: ID!) { revokeSession(id: $id) }`
 
 	adminName    = "admin"
@@ -117,7 +118,19 @@ func TestManageUsers(t *testing.T) {
 	}
 	require.Empty(t, admin.query(t, enableQuery, map[string]any{varID: created.CreateUser.ID}, &enabled))
 	assert.False(t, enabled.EnableUser.Disabled)
+	assert.Equal(t, []string{tooWeak}, admin.query(t, resetQuery, map[string]any{varID: created.CreateUser.ID, varValue: weakValue}, nil))
 	require.Empty(t, admin.query(t, resetQuery, map[string]any{varID: created.CreateUser.ID, varValue: strongPhrase + "!"}, nil))
+
+	// パスワードを省くと、パスワードを持たないユーザーにする。
+	var passwordless struct {
+		CreateUser userResult `json:"createUser"`
+	}
+	require.Empty(t, admin.query(t, createUserQuery, map[string]any{
+		varInput: map[string]any{fieldUser: "neko", fieldDisplay: "ねこ", fieldRole: roleViewer},
+	}, &passwordless))
+	var hasHash bool
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT password_hash IS NOT NULL FROM users WHERE username = 'neko'").Scan(&hasHash))
+	assert.False(t, hasHash)
 
 	// 自分自身は無効にできず、最後の管理者を外せない。
 	self := graph.GlobalID("User", admin.userID.String())
@@ -134,13 +147,13 @@ func TestManageUsers(t *testing.T) {
 	for _, user := range listed.Users {
 		usernames = append(usernames, user.Username)
 	}
-	assert.Equal(t, []string{testUsername, adminName, mikanUser}, usernames)
+	assert.Equal(t, []string{testUsername, adminName, mikanUser, "neko"}, usernames)
 
 	var audited int
 	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT count(*) FROM audit_events
 		WHERE action IN ('user.created', 'user.updated', 'user.disabled', 'user.enabled', 'user.password_set') AND actor_user_id = $1 AND user_agent = $2`,
 		admin.userID, testUserAgent).Scan(&audited))
-	assert.Equal(t, 5, audited)
+	assert.Equal(t, 6, audited)
 
 	// ユーザーの管理は重要な操作なので、直前の再認証を求める。
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
@@ -162,24 +175,29 @@ func TestChangePasswordAndSessions(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT password_hash IS NOT NULL FROM users WHERE id = $1", f.userID).Scan(&hasPassword))
 	assert.True(t, hasPassword)
 
-	// 同じユーザーで、もう 1 つセッションを作る。
-	_, other, err := f.sessions.Create(t.Context(), f.pool, f.userID, nil)
+	// 同じユーザーで、送信元の分かるセッションを、もう 1 つ作る。
+	_, other, err := f.sessions.Create(t.Context(), f.pool, f.userID, &auth.ClientInfo{
+		UserAgent: "kotatsu-other/1.0", SourceIP: netip.MustParseAddr("192.168.1.20"), Host: "", Secure: false,
+	})
 	require.NoError(t, err)
 	var listed struct {
 		Sessions []struct {
-			ID      string `json:"id"`
-			Current bool   `json:"current"`
+			ID        string  `json:"id"`
+			Current   bool    `json:"current"`
+			UserAgent string  `json:"userAgent"`
+			SourceIP  *string `json:"sourceIp"`
 		} `json:"sessions"`
 	}
 	require.Empty(t, f.query(t, sessionsQuery, nil, &listed))
 	require.Len(t, listed.Sessions, 2)
-	currents := 0
+	sourceIPs := map[bool]*string{}
 	for _, session := range listed.Sessions {
-		if session.Current {
-			currents++
-		}
+		sourceIPs[session.Current] = session.SourceIP
 	}
-	assert.Equal(t, 1, currents)
+	require.Len(t, sourceIPs, 2, "exactly one session is current")
+	assert.Nil(t, sourceIPs[true], "the fixture session has no source")
+	require.NotNil(t, sourceIPs[false])
+	assert.Equal(t, "192.168.1.20", *sourceIPs[false])
 
 	otherID := graph.GlobalID("Session", other.ID.String())
 	var revoked struct {
