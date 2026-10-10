@@ -279,6 +279,18 @@ func (q *Queries) ListRecordingAssignments(ctx context.Context) ([]RecordingAssi
 	return items, nil
 }
 
+const lockRecordingAssignmentGeneration = `-- name: LockRecordingAssignmentGeneration :one
+SELECT generation FROM recording_assignments WHERE id = $1 FOR UPDATE
+`
+
+// 録画を終える前に、割り振りをロックして、今の世代番号を読む。ほかの mikan が取っていたら、録画を終えない。
+func (q *Queries) LockRecordingAssignmentGeneration(ctx context.Context, id uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, lockRecordingAssignmentGeneration, id)
+	var generation int64
+	err := row.Scan(&generation)
+	return generation, err
+}
+
 const markRecordingHandover = `-- name: MarkRecordingHandover :execrows
 UPDATE recording_assignments SET state = 'handover', updated_at = $1
 WHERE id = $2 AND generation = $3 AND holder = $4 AND state = 'recording'

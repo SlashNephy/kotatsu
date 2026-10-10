@@ -92,3 +92,7 @@ SELECT r.id, r.kind, r.service_id, r.event_id, r.name, r.description, r.start_at
 FROM reservations r
 JOIN services s ON s.id = r.service_id
 WHERE r.id = @id;
+
+-- name: LockRecordingAssignmentGeneration :one
+-- 録画を終える前に、割り振りをロックして、今の世代番号を読む。ほかの mikan が取っていたら、録画を終えない。
+SELECT generation FROM recording_assignments WHERE id = @id FOR UPDATE;

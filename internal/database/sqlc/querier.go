@@ -222,6 +222,8 @@ type Querier interface {
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
 	// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
+	// 録画を終える前に、割り振りをロックして、今の世代番号を読む。ほかの mikan が取っていたら、録画を終えない。
+	LockRecordingAssignmentGeneration(ctx context.Context, id uuid.UUID) (int64, error)
 	// 初回セットアップを、全インスタンスで 1 つずつ行わせる。トランザクションが終わるまでロックする。
 	LockSetup(ctx context.Context) error
 	// 変える前の値を監査ログに残すため、行をロックして読む。行がなければ、既定値で作ってから読む。
