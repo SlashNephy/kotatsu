@@ -128,7 +128,12 @@ func domainError(err error, target **Error) bool {
 	default:
 		return false
 	}
-	*target = NewError(code, err.Error())
+	// gqlgen は、リゾルバのエラーを、位置とパスを付けた *gqlerror.Error に包む。メッセージには、元のエラーの文だけを使う。
+	message := err.Error()
+	if wrapped, ok := errors.AsType[*gqlerror.Error](err); ok && wrapped.Err != nil {
+		message = wrapped.Err.Error()
+	}
+	*target = NewError(code, message)
 
 	return true
 }

@@ -1,6 +1,9 @@
 package graph_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
 	"testing"
 	"time"
 
@@ -119,6 +122,7 @@ func TestManageUsers(t *testing.T) {
 	// 自分自身は無効にできず、最後の管理者を外せない。
 	self := graph.GlobalID("User", admin.userID.String())
 	assert.Equal(t, []string{codeBadUserInput}, admin.query(t, disableQuery, map[string]any{varID: self}, nil))
+	assert.Equal(t, []string{"you cannot disable yourself"}, admin.messages(t, disableQuery, map[string]any{varID: self}), "the message has no location prefix")
 	assert.Equal(t, []string{codeBadUserInput}, admin.query(t, updateUserQuery, map[string]any{varID: self, varInput: map[string]any{fieldRole: roleMember}}, nil))
 	assert.Equal(t, []string{codeNotFound}, admin.query(t, disableQuery, map[string]any{varID: graph.GlobalID("User", "0199c1c0-0000-7000-8000-000000000000")}, nil))
 
@@ -191,4 +195,29 @@ func TestChangePasswordAndSessions(t *testing.T) {
 
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 	assert.Equal(t, []string{codeReauthRequired}, f.query(t, changeQuery, map[string]any{varValue: strongPhrase + "!"}, nil))
+}
+
+// messages は、GraphQL を叩き、エラーのメッセージを返す。
+func (f *fixture) messages(t *testing.T, query string, variables any) []string {
+	t.Helper()
+
+	body, err := json.Marshal(map[string]any{"query": query, "variables": variables})
+	require.NoError(t, err)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, f.server.URL+"/graphql", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", contentTypeJSON)
+	req.Header.Set("Cookie", auth.CookieName+"="+f.token)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+	var decoded gqlResponse
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&decoded))
+	messages := make([]string, 0, len(decoded.Errors))
+	for _, e := range decoded.Errors {
+		messages = append(messages, e.Message)
+	}
+
+	return messages
 }
