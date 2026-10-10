@@ -34,6 +34,12 @@ const (
 	caseNoUV          = "without user verification"
 	caseDisabledUser  = "disabled user"
 	passwordText      = "password"
+	// テストのユーザーの名前と、規定に当たる弱いパスワード。
+	mikanName  = "mikan"
+	mikanLabel = "みかん"
+	nekoName   = "neko"
+	rootName   = "root"
+	weakPhrase = "kotatsukotatsu"
 	// nameText は、名前を表す文字列 (JSON のキー、OIDC の claim)。
 	nameText    = "name"
 	unknownUser = "unknown user"

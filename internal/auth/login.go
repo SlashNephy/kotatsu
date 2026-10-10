@@ -45,6 +45,8 @@ const (
 	summaryMethod = "method"
 	// summaryUsername は、監査ログの要約で、ユーザー名を入れる項目。
 	summaryUsername = "username"
+	// summaryRole は、監査ログの要約で、ロールを入れる項目。
+	summaryRole = "role"
 	// actionLoginFailed は、ログインに失敗したことを表す監査ログの操作。
 	actionLoginFailed = "user.login_failed"
 )

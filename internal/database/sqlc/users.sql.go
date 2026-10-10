@@ -29,12 +29,49 @@ func (q *Queries) DisableUser(ctx context.Context, arg DisableUserParams) (int64
 	return result.RowsAffected(), nil
 }
 
+const enableUser = `-- name: EnableUser :execrows
+UPDATE users SET disabled_at = NULL, updated_at = $1 WHERE id = $2 AND disabled_at IS NOT NULL
+`
+
+type EnableUserParams struct {
+	Now time.Time
+	ID  uuid.UUID
+}
+
+func (q *Queries) EnableUser(ctx context.Context, arg EnableUserParams) (int64, error) {
+	result, err := q.db.Exec(ctx, enableUser, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getUser = `-- name: GetUser :one
 SELECT id, username, display_name, role, password_hash, disabled_at, created_at, updated_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
 	row := q.db.QueryRow(ctx, getUser, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.DisplayName,
+		&i.Role,
+		&i.PasswordHash,
+		&i.DisabledAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserForUpdate = `-- name: GetUserForUpdate :one
+SELECT id, username, display_name, role, password_hash, disabled_at, created_at, updated_at FROM users WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetUserForUpdate(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, getUserForUpdate, id)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -75,6 +112,39 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) error {
 	return err
 }
 
+const listUsers = `-- name: ListUsers :many
+SELECT id, username, display_name, role, password_hash, disabled_at, created_at, updated_at FROM users ORDER BY created_at, id
+`
+
+func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Username,
+			&i.DisplayName,
+			&i.Role,
+			&i.PasswordHash,
+			&i.DisabledAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUsersByIDs = `-- name: ListUsersByIDs :many
 SELECT id, username, display_name, role, password_hash, disabled_at, created_at, updated_at FROM users WHERE id = ANY($1::uuid[])
 `
@@ -106,4 +176,61 @@ func (q *Queries) ListUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, 
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockActiveAdmins = `-- name: LockActiveAdmins :many
+SELECT id FROM users WHERE role = 'admin' AND disabled_at IS NULL ORDER BY id FOR UPDATE
+`
+
+// 有効な管理者の行をロックする。最後の管理者を外したり無効にしたりする操作を、同時に行わせない。
+func (q *Queries) LockActiveAdmins(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, lockActiveAdmins)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateUserProfile = `-- name: UpdateUserProfile :one
+UPDATE users SET display_name = $1, role = $2, updated_at = $3 WHERE id = $4 RETURNING id, username, display_name, role, password_hash, disabled_at, created_at, updated_at
+`
+
+type UpdateUserProfileParams struct {
+	DisplayName string
+	Role        string
+	Now         time.Time
+	ID          uuid.UUID
+}
+
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserProfile,
+		arg.DisplayName,
+		arg.Role,
+		arg.Now,
+		arg.ID,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.DisplayName,
+		&i.Role,
+		&i.PasswordHash,
+		&i.DisabledAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

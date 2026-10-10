@@ -448,7 +448,7 @@ func (o *OIDC) autoCreate(ctx context.Context, tx pgx.Tx, claims *oidcClaims, cl
 		Action:     "user.created_by_oidc",
 		TargetType: loginAuditTarget,
 		TargetID:   created.ID.String(),
-		Summary:    map[string]any{summaryUsername: created.Username, "role": string(role), summaryIssuer: claims.issuer, summarySubject: claims.subject},
+		Summary:    map[string]any{summaryUsername: created.Username, summaryRole: string(role), summaryIssuer: claims.issuer, summarySubject: claims.subject},
 		SourceIP:   client.SourceIP,
 		UserAgent:  client.UserAgent,
 	})
