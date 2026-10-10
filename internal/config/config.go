@@ -46,6 +46,10 @@ type Server struct {
 	// TrustedProxies は、X-Forwarded-For などを信頼するリバースプロキシのネットワーク (CIDR か IP アドレス)。
 	// ここに含まれない送信元から X-Forwarded-For が届いたら、設定方法を案内するエラーを返す。
 	TrustedProxies []string `yaml:"trusted_proxies"`
+	// AdvertiseHost は、インスタンスの登録簿に載せる、ほかのインスタンスからこのインスタンスに届くホスト (設計書 1.2)。
+	// 空なら、待ち受けのホストを使い、全アドレスで待ち受けるならホスト名を使う。
+	// Kubernetes では、ホスト名で Pod に届かないので、Pod の IP を渡す。
+	AdvertiseHost string `yaml:"advertise_host"`
 }
 
 // DefaultAllowedNetworks は、接続を受け付ける送信元の既定値 (設計書 9.5)。
@@ -195,6 +199,7 @@ func Default() *Config {
 	return &Config{
 		Server: Server{
 			Listen:          ":8080",
+			AdvertiseHost:   "",
 			AllowedNetworks: DefaultAllowedNetworks(),
 			TrustedProxies:  []string{},
 		},

@@ -173,7 +173,7 @@ func checkSchema(ctx context.Context, pool *pgxpool.Pool) error {
 }
 
 func runRegistry(ctx context.Context, logger *slog.Logger, deps *Deps, roles []string, listenAddr string) error {
-	address, err := advertiseAddress(listenAddr)
+	address, err := advertiseAddress(listenAddr, deps.Config.Server.AdvertiseHost)
 	if err != nil {
 		return err
 	}
@@ -182,12 +182,15 @@ func runRegistry(ctx context.Context, logger *slog.Logger, deps *Deps, roles []s
 }
 
 // advertiseAddress は、他のインスタンスからこのインスタンスに届くアドレスを、待ち受けのアドレスから決める。
-// 待ち受けのホストが空か 0.0.0.0 や :: などの全アドレスなら、ホスト名を使う。
-// ポートに 0 を指定したときも実際に割り当てられたポートを載せるよう、設定値ではなく待ち受けたアドレスを渡す。
-func advertiseAddress(listen string) (string, error) {
+// advertiseHost があれば、そのホストを使う。なければ、待ち受けのホストを使い、それが空か 0.0.0.0 や :: などの全アドレスなら、
+// ホスト名を使う。ポートに 0 を指定したときも実際に割り当てられたポートを載せるよう、設定値ではなく待ち受けたアドレスを渡す。
+func advertiseAddress(listen, advertiseHost string) (string, error) {
 	host, port, err := net.SplitHostPort(listen)
 	if err != nil {
 		return "", fmt.Errorf("invalid listen address %s: %w", listen, err)
+	}
+	if advertiseHost != "" {
+		return net.JoinHostPort(advertiseHost, port), nil
 	}
 	if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
 		host, err = os.Hostname()
