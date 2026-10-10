@@ -635,6 +635,9 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
 	mux.Handle("GET /streams/recordings/{id}",
 		authorizer.Middleware(stream.NewRecordingHandler(deps.DB, kago.New(deps.Config.Storage.Pools, nil), streamLogger, 0)))
+	// 録画の代表画像とプレビュー画像も、このインスタンスにマウントしたプールのものだけ配信できる。
+	mux.Handle("GET /media/recordings/{id}/{file}",
+		authorizer.Middleware(thumbnail.NewImageHandler(deps.DB, kago.New(deps.Config.Storage.Pools, nil), streamLogger)))
 	api := sessions.Middleware(deps.DB)(mux)
 
 	app, err := spa.NewHandler(web.App(), logger.With(slog.String("component", "spa")))
@@ -645,6 +648,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	root.Handle("/graphql", api)
 	root.Handle("/auth/", api)
 	root.Handle("/streams/", api)
+	root.Handle("/media/", api)
 	root.Handle("/", app)
 
 	return &apiHandler{handler: policy.Middleware(root), changes: changes}, nil

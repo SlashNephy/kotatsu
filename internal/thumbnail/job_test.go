@@ -36,6 +36,9 @@ const (
 	segmentName = "録画.m2ts"
 	// indexName は、付属ファイルのディレクトリの、索引のファイルの名前。
 	indexName = "index"
+	// kindThumbnail と kindPreview は、recording_files の、代表画像とプレビュー画像の種類。
+	kindThumbnail = "thumbnail"
+	kindPreview   = "preview"
 	// recordingIDKey は、録画の通知の材料のうち、録画の ID のキー。
 	recordingIDKey = "recordingId"
 )
@@ -175,10 +178,10 @@ func TestGenerateWorker(t *testing.T) {
 			assert.Equal(t, tt.wantFiles, names)
 
 			want := map[string]string{
-				"thumbnail": fmt.Sprintf("%s.kotatsu/thumbnail.jpg %d", segmentName, fileSize(t, filepath.Join(sidecar, "thumbnail.jpg"))),
+				kindThumbnail: fmt.Sprintf("%s.kotatsu/thumbnail.jpg %d", segmentName, fileSize(t, filepath.Join(sidecar, "thumbnail.jpg"))),
 			}
 			if tt.preview {
-				want["preview"] = fmt.Sprintf("%s.kotatsu/preview.jpg %d", segmentName, fileSize(t, filepath.Join(sidecar, "preview.jpg")))
+				want[kindPreview] = fmt.Sprintf("%s.kotatsu/preview.jpg %d", segmentName, fileSize(t, filepath.Join(sidecar, "preview.jpg")))
 				var manifest thumbnail.Manifest
 				data, err := os.ReadFile(filepath.Join(sidecar, "preview.json"))
 				require.NoError(t, err)
