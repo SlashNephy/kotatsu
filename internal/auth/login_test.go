@@ -27,6 +27,8 @@ import (
 
 const (
 	browserUA   = "Mozilla/5.0"
+	testHost    = "kotatsu.example"
+	otherName   = "other"
 	unknownUser = "unknown user"
 	jsonType    = "application/json"
 	loginName   = "Kotatsu"
@@ -70,7 +72,7 @@ func newLoginFixture(t *testing.T) *loginFixture {
 			Sessions: sessions, SecondFactors: factors, ChallengeTTL: 0,
 		}),
 		user:   user,
-		client: &auth.ClientInfo{UserAgent: browserUA, SourceIP: netip.MustParseAddr("192.168.1.10")},
+		client: &auth.ClientInfo{UserAgent: browserUA, SourceIP: netip.MustParseAddr("192.168.1.10"), Host: testHost, Secure: true},
 	}
 }
 
@@ -193,7 +195,7 @@ func TestPasswordLoginThrottlesByIP(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrThrottled)
 
 	// 別の IP からは、待たずに試せる。
-	other := &auth.ClientInfo{UserAgent: browserUA, SourceIP: netip.MustParseAddr("192.168.1.11")}
+	other := &auth.ClientInfo{UserAgent: browserUA, SourceIP: netip.MustParseAddr("192.168.1.11"), Host: testHost, Secure: true}
 	_, _, err = f.logins.Password(t.Context(), f.db, loginName, loginPhrase, other)
 	require.NoError(t, err)
 }

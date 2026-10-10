@@ -73,14 +73,15 @@ type Lease struct {
 }
 
 type LoginChallenge struct {
-	ID             uuid.UUID
-	TokenHash      []byte
-	UserID         uuid.UUID
-	CreatedAt      time.Time
-	ExpiresAt      time.Time
-	FailedAttempts int32
-	UserAgent      string
-	SourceIP       *netip.Addr
+	ID              uuid.UUID
+	TokenHash       []byte
+	UserID          uuid.UUID
+	CreatedAt       time.Time
+	ExpiresAt       time.Time
+	FailedAttempts  int32
+	WebauthnSession []byte
+	UserAgent       string
+	SourceIP        *netip.Addr
 }
 
 type LoginThrottle struct {
@@ -264,6 +265,17 @@ type User struct {
 	UpdatedAt    time.Time
 }
 
+type UserPasskey struct {
+	ID           uuid.UUID
+	UserID       uuid.UUID
+	CredentialID []byte
+	Credential   []byte
+	RpID         string
+	Name         string
+	CreatedAt    time.Time
+	LastUsedAt   *time.Time
+}
+
 type UserRecoveryCode struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
@@ -277,4 +289,14 @@ type UserTotp struct {
 	SecretEncrypted []byte
 	LastUsedStep    int64
 	CreatedAt       time.Time
+}
+
+type WebauthnCeremony struct {
+	ID        uuid.UUID
+	TokenHash []byte
+	Kind      string
+	UserID    *uuid.UUID
+	Session   []byte
+	CreatedAt time.Time
+	ExpiresAt time.Time
 }

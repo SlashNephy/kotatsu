@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
@@ -117,7 +118,7 @@ func (l *Logins) recordSecondFactorFailure(ctx context.Context, tx pgx.Tx, row *
 
 	return l.recorder.Record(ctx, tx, &audit.Event{
 		Actor:      audit.User(row.UserID),
-		Action:     "user.login_failed",
+		Action:     actionLoginFailed,
 		TargetType: loginAuditTarget,
 		TargetID:   row.UserID.String(),
 		Summary:    map[string]any{summaryMethod: string(method)},
@@ -126,20 +127,26 @@ func (l *Logins) recordSecondFactorFailure(ctx context.Context, tx pgx.Tx, row *
 	})
 }
 
-// finish は、待っているログインを消し、セッションを作り、ログインを監査ログに残す。
+// finish は、待っているログインを消し、セッションを作る。
 func (l *Logins) finish(ctx context.Context, tx pgx.Tx, row *sqlc.LoginChallenge, method SecondFactor, client *ClientInfo) (*LoginResult, error) {
 	if err := sqlc.New(tx).DeleteLoginChallenge(ctx, row.ID); err != nil {
 		return nil, fmt.Errorf("failed to delete the login challenge: %w", err)
 	}
-	token, session, err := l.sessions.Create(ctx, tx, row.UserID, client)
+
+	return l.startSession(ctx, tx, row.UserID, method, client)
+}
+
+// startSession は、セッションを作り、ログインを監査ログに残す。
+func (l *Logins) startSession(ctx context.Context, tx pgx.Tx, userID uuid.UUID, method SecondFactor, client *ClientInfo) (*LoginResult, error) {
+	token, session, err := l.sessions.Create(ctx, tx, userID, client)
 	if err != nil {
 		return nil, err
 	}
 	err = l.recorder.Record(ctx, tx, &audit.Event{
-		Actor:      audit.User(row.UserID),
+		Actor:      audit.User(userID),
 		Action:     "user.login",
 		TargetType: loginAuditTarget,
-		TargetID:   row.UserID.String(),
+		TargetID:   userID.String(),
 		Summary:    map[string]any{summaryMethod: string(method), "sessionId": session.ID.String()},
 		SourceIP:   client.SourceIP,
 		UserAgent:  client.UserAgent,

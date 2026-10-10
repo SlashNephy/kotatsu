@@ -130,6 +130,8 @@ CREATE TABLE login_challenges (
   expires_at timestamptz NOT NULL,
   -- 第二要素の確認に失敗した回数。上限に達したら、パスワードの確認からやり直させる。
   failed_attempts integer NOT NULL DEFAULT 0,
+  -- 第二要素としてパスキーを確かめる手続きの途中の状態 (go-webauthn の SessionData)。始めていなければ空。
+  webauthn_session jsonb,
   user_agent text NOT NULL,
   source_ip inet
 );
@@ -164,6 +166,39 @@ CREATE TABLE user_recovery_codes (
   used_at timestamptz,
   UNIQUE (user_id, code_hash)
 );
+
+-- パスキー (設計書 9.3)。第二要素にも、単体でのログインにも使う。
+CREATE TABLE user_passkeys (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  -- 認証器が決めたクレデンシャルの ID。ログインのときに、これでパスキーを引く。
+  credential_id bytea NOT NULL UNIQUE,
+  -- go-webauthn の Credential を JSON にしたもの。公開鍵、署名の回数、フラグを持つ。
+  credential jsonb NOT NULL,
+  -- 登録したときの RP ID (接続したホスト名)。パスキーは、このホスト名でしか使えない。
+  rp_id text NOT NULL,
+  name text NOT NULL,
+  created_at timestamptz NOT NULL,
+  last_used_at timestamptz
+);
+
+CREATE INDEX user_passkeys_user_id_idx ON user_passkeys (user_id);
+
+-- パスキーの登録と、パスキーだけでのログインの手続きの途中の状態。Cookie に入れたトークンで引く。
+-- パスワードの後の第二要素としての手続きは、login_challenges の webauthn_session に持つ。
+CREATE TABLE webauthn_ceremonies (
+  id uuid PRIMARY KEY,
+  token_hash bytea NOT NULL UNIQUE,
+  kind text NOT NULL CHECK (kind IN ('registration', 'login')),
+  -- 登録するユーザー。ログインでは、どのユーザーかを認証器が答えるまで分からないので空。
+  user_id uuid REFERENCES users (id) ON DELETE CASCADE,
+  -- go-webauthn の SessionData を JSON にしたもの。チャレンジを持つ。
+  session jsonb NOT NULL,
+  created_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL
+);
+
+CREATE INDEX webauthn_ceremonies_expires_at_idx ON webauthn_ceremonies (expires_at);
 
 -- ログインの試行回数の制限 (設計書 9.5)。アカウント単位と IP 単位の 2 種類の行を持つ。
 -- 失敗が続くと待ち時間を指数的に延ばすが、上限を設けて永久にはロックしない。

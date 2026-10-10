@@ -53,7 +53,7 @@ func (q *Queries) DeleteStaleLoginThrottles(ctx context.Context, arg DeleteStale
 }
 
 const getLoginChallengeForUpdate = `-- name: GetLoginChallengeForUpdate :one
-SELECT id, token_hash, user_id, created_at, expires_at, failed_attempts, user_agent, source_ip FROM login_challenges WHERE token_hash = $1 AND expires_at > $2 FOR UPDATE
+SELECT id, token_hash, user_id, created_at, expires_at, failed_attempts, webauthn_session, user_agent, source_ip FROM login_challenges WHERE token_hash = $1 AND expires_at > $2 FOR UPDATE
 `
 
 type GetLoginChallengeForUpdateParams struct {
@@ -71,6 +71,7 @@ func (q *Queries) GetLoginChallengeForUpdate(ctx context.Context, arg GetLoginCh
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.FailedAttempts,
+		&i.WebauthnSession,
 		&i.UserAgent,
 		&i.SourceIP,
 	)

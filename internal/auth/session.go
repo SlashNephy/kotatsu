@@ -56,6 +56,20 @@ type Session struct {
 type ClientInfo struct {
 	UserAgent string
 	SourceIP  netip.Addr
+	// Host は、送信元が接続したホスト名 (ポートを含む)。パスキーの RP ID とオリジンに使う。
+	Host string
+	// Secure は、送信元が HTTPS でつないでいるかどうか。
+	Secure bool
+}
+
+// Origin は、送信元が接続したオリジン (scheme://host) を返す。
+func (c *ClientInfo) Origin() string {
+	scheme := "http"
+	if c.Secure {
+		scheme = "https"
+	}
+
+	return scheme + "://" + c.Host
 }
 
 // SessionsOptions は Sessions の設定。
@@ -110,7 +124,7 @@ func NewSessions(opts *SessionsOptions) *Sessions {
 // トークンは DB に保存しないので、ここでしか得られない。client は nil でもよい。
 func (s *Sessions) Create(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, client *ClientInfo) (string, *Session, error) {
 	if client == nil {
-		client = &ClientInfo{UserAgent: "", SourceIP: netip.Addr{}}
+		client = &ClientInfo{UserAgent: "", SourceIP: netip.Addr{}, Host: "", Secure: false}
 	}
 	raw := make([]byte, tokenBytes)
 	if _, err := rand.Read(raw); err != nil {
