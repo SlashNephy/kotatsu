@@ -6,6 +6,7 @@ package thumbnail
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/ts"
@@ -111,9 +113,12 @@ type Generator struct {
 	opts      Options
 }
 
-// NewGenerator は Generator を返す。
+// NewGenerator は Generator を返す。opts が nil なら、プレビュー画像も、既定の間隔で作る。
 func NewGenerator(extractor Extractor, opts *Options) *Generator {
-	o := *opts
+	o := Options{Preview: true, Interval: DefaultInterval}
+	if opts != nil {
+		o = *opts
+	}
 	if o.Interval <= 0 {
 		o.Interval = DefaultInterval
 	}
@@ -156,7 +161,7 @@ func (g *Generator) Generate(ctx context.Context, segments []Segment) (*Result, 
 func (g *Generator) thumbnail(ctx context.Context, segments []Segment, keyframes []keyframe) ([]byte, error) {
 	duration := keyframes[len(keyframes)-1].at
 	start := nearest(keyframes, time.Duration(float64(duration)*ThumbnailPosition))
-	var errs []error
+	errs := []error{}
 	for i := start; i < len(keyframes) && i < start+thumbnailAttempts; i++ {
 		frame, err := g.extract(ctx, segments, keyframes[i], SizeThumbnail)
 		if err == nil {
@@ -176,10 +181,10 @@ func (g *Generator) thumbnail(ctx context.Context, segments []Segment, keyframes
 func (g *Generator) preview(ctx context.Context, segments []Segment, keyframes []keyframe) ([]byte, *Manifest, error) {
 	duration := keyframes[len(keyframes)-1].at
 	interval := max(g.opts.Interval, time.Duration(math.Ceil(float64(duration)/MaxFrames)))
-	var frames []image.Image
+	frames := []image.Image{}
 	manifest := &Manifest{Width: TileWidth, Height: TileHeight, Columns: Columns, Times: []float64{}}
 	last := -1
-	var errs []error
+	errs := []error{}
 	for target := time.Duration(0); target <= duration && len(frames) < MaxFrames; target += interval {
 		i := nearest(keyframes, target)
 		// I フレームの間隔が、コマの間隔より広ければ、同じ I フレームを二度使わない。
@@ -231,8 +236,9 @@ func (g *Generator) extract(ctx context.Context, segments []Segment, k keyframe,
 }
 
 // keyframesOf は、セグメントの索引を、録画の始まりからの時間の順に並べる。
+// 放送の PTS が途中で飛んだり、セグメントの時間が重なったりしても、時間の順に並べ直す。
 func keyframesOf(segments []Segment) []keyframe {
-	var keyframes []keyframe
+	keyframes := []keyframe{}
 	for i := range segments {
 		index := segments[i].Index
 		for _, entry := range index {
@@ -240,6 +246,7 @@ func keyframesOf(segments []Segment) []keyframe {
 			keyframes = append(keyframes, keyframe{segment: i, offset: entry.Offset, at: at})
 		}
 	}
+	slices.SortStableFunc(keyframes, func(a, b keyframe) int { return cmp.Compare(a.at, b.at) })
 
 	return keyframes
 }

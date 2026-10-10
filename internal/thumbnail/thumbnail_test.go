@@ -175,6 +175,18 @@ func TestGenerate(t *testing.T) {
 			wantMarkers:   []int{1, 3, 4},
 		},
 		{
+			name: "セグメントが始まりの順に並んでいなくても、時間の順に並べ直す",
+			segments: func(t *testing.T) []thumbnail.Segment {
+				t.Helper()
+
+				return []thumbnail.Segment{segment(t, 10*time.Second, 3, time.Second, 3), segment(t, 0, 3, time.Second, 0)}
+			},
+			interval:      5 * time.Second,
+			wantThumbnail: 3,
+			wantTimes:     []float64{0, 2, 10},
+			wantMarkers:   []int{1, 3, 4},
+		},
+		{
 			name: "取り出せない I フレームは、代表画像では後ろで試し直し、プレビュー画像では飛ばす",
 			segments: func(t *testing.T) []thumbnail.Segment {
 				t.Helper()

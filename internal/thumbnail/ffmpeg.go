@@ -27,7 +27,7 @@ const (
 // ErrFFmpegNotFound は、FFmpeg が PATH に見つからないことを表す。FFmpeg の入ったイメージ (-ffmpeg) を使うか、FFmpeg を入れる。
 var ErrFFmpegNotFound = errors.New("FFmpeg is not found in PATH")
 
-// FFmpeg は、FFmpeg を子プロセスとして動かし、TS からフレームを取り出す (設計書 13)。
+// FFmpeg は、FFmpeg を子プロセスとして動かし、TS からフレームを取り出す。本体とはリンクしない (設計書 付録 B)。
 type FFmpeg struct{}
 
 var _ Extractor = new(FFmpeg)
