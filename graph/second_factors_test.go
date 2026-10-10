@@ -142,3 +142,31 @@ func TestViewerCanManageOwnTOTP(t *testing.T) {
 	require.Empty(t, f.query(t, beginEnrollment, nil, &got))
 	assert.NotEmpty(t, got.BeginTotpEnrollment.Secret)
 }
+
+// TestReplaceTOTP は、登録済みの TOTP を置き換えるとき、新しい TOTP を確かめるまでは古い TOTP が残り、
+// 確かめると古いリカバリーコードが使えなくなることを確かめる。
+func TestReplaceTOTP(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	// 登録を始めていなければ、確かめられない。
+	assert.Equal(t, []string{codeBadUserInput}, f.query(t, confirmEnrollment, map[string]any{varCode: "000000"}, nil))
+
+	first := f.beginTOTP(t)
+	require.Empty(t, f.query(t, confirmEnrollment, map[string]any{varCode: f.totpCode(t, first)}, nil))
+	var firstSecret []byte
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT secret_encrypted FROM user_totps").Scan(&firstSecret))
+
+	second := f.beginTOTP(t)
+	var unchanged []byte
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT secret_encrypted FROM user_totps").Scan(&unchanged))
+	assert.Equal(t, firstSecret, unchanged, "the current TOTP must stay until the new one is confirmed")
+
+	// 前の登録で使ったステップのコードは使えないので、次のステップに進めてから確かめる。
+	f.clock.Advance(totp.Period)
+	require.Empty(t, f.query(t, confirmEnrollment, map[string]any{varCode: f.totpCode(t, second)}, nil))
+	var replaced []byte
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT secret_encrypted FROM user_totps").Scan(&replaced))
+	assert.NotEqual(t, firstSecret, replaced)
+	assert.Equal(t, secondFactorStatus{TOTP: true, RemainingRecoveryCodes: auth.RecoveryCodeCount}, f.status(t))
+}
