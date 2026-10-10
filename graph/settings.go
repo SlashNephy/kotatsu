@@ -32,6 +32,9 @@ func settingsError(err error) error {
 	if errors.Is(err, settings.ErrInvalidSettings) {
 		return NewError(CodeBadUserInput, err.Error())
 	}
+	if errors.Is(err, settings.ErrChannelTypeNotFound) {
+		return NewError(CodeNotFound, "channel type not found")
+	}
 
 	return err
 }

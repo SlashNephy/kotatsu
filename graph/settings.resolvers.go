@@ -24,6 +24,23 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 	return systemSettingsOf(updated), nil
 }
 
+// UpdateChannelType is the resolver for the updateChannelType field.
+func (r *mutationResolver) UpdateChannelType(ctx context.Context, typeArg string, input model.ChannelTypeInput) (*model.ChannelType, error) {
+	_, actor, err := r.recentAdministrator(ctx, "only administrators can change channel types")
+	if err != nil {
+		return nil, err
+	}
+	updated, err := r.settings.UpdateChannelType(ctx, r.db, actor, typeArg, &settings.ChannelTypeChanges{
+		DisplayName: input.DisplayName,
+		SortOrder:   input.SortOrder,
+	})
+	if err != nil {
+		return nil, settingsError(err)
+	}
+
+	return toChannelType(updated), nil
+}
+
 // SystemSettings is the resolver for the systemSettings field.
 func (r *queryResolver) SystemSettings(ctx context.Context) (*model.SystemSettings, error) {
 	if _, err := viewer(ctx); err != nil {

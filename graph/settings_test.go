@@ -1,6 +1,7 @@
 package graph_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -113,4 +114,106 @@ func TestSystemSettings(t *testing.T) {
 	// 設定を変えるのは重要な操作なので、直前の再認証を求める。
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateSettings, change, nil))
+}
+
+const fieldSortOrder = "sortOrder"
+
+const updateChannelType = `mutation($type: String!, $input: ChannelTypeInput!) {
+	updateChannelType(type: $type, input: $input) { type displayName sortOrder } }`
+
+type channelType struct {
+	Type        string `json:"type"`
+	DisplayName string `json:"displayName"`
+	SortOrder   int    `json:"sortOrder"`
+}
+
+// TestUpdateChannelType は、管理者だけがチャンネル種別の表示名と並び順を変えられ、変えた順に並ぶことを確かめる (設計書 3.1、11.2)。
+func TestUpdateChannelType(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	list := func() []channelType {
+		var got struct {
+			ChannelTypes []channelType `json:"channelTypes"`
+		}
+		require.Empty(t, f.query(t, `{ channelTypes { type displayName sortOrder } }`, nil, &got))
+
+		return got.ChannelTypes
+	}
+	before := list()
+	require.NotEmpty(t, before)
+	last := before[len(before)-1]
+
+	variables := func(channel string, input map[string]any) map[string]any {
+		return map[string]any{"type": channel, varInput: input}
+	}
+	// 最後の種別を、表示名を変えて先頭に動かす。
+	change := variables(last.Type, map[string]any{fieldDisplay: "ちでじ", fieldSortOrder: 0})
+	assert.Equal(t, []string{codeForbidden}, f.query(t, updateChannelType, change, nil), "only administrators can change channel types")
+
+	admin := f.as(t, adminName, auth.RoleAdmin)
+	var updated struct {
+		UpdateChannelType channelType `json:"updateChannelType"`
+	}
+	require.Empty(t, admin.query(t, updateChannelType, change, &updated))
+	want := channelType{Type: last.Type, DisplayName: "ちでじ", SortOrder: 0}
+	assert.Equal(t, want, updated.UpdateChannelType)
+	assert.Equal(t, want, list()[0])
+
+	// 省いた項目は変えない。
+	require.Empty(t, admin.query(t, updateChannelType, variables(last.Type, map[string]any{fieldSortOrder: 10000}), &updated))
+	want.SortOrder = 10000
+	assert.Equal(t, want, updated.UpdateChannelType)
+
+	var action string
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT action FROM audit_events WHERE target_type = 'channel_type' AND target_id = $1 ORDER BY occurred_at DESC, id DESC LIMIT 1", last.Type).Scan(&action))
+	assert.Equal(t, "channel_type.updated", action)
+
+	// 表示を変えるのは管理者の設定の変更なので、直前の再認証を求める。
+	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
+	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateChannelType, change, nil))
+}
+
+// TestUpdateChannelTypeRejectsInvalidInput は、正しくない値と、ない種別を拒み、保存しないことを確かめる。
+func TestUpdateChannelTypeRejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	admin := f.as(t, adminName, auth.RoleAdmin)
+	const query = `{ channelTypes { type displayName sortOrder } }`
+	var before struct {
+		ChannelTypes []channelType `json:"channelTypes"`
+	}
+	require.Empty(t, f.query(t, query, nil, &before))
+	require.NotEmpty(t, before.ChannelTypes)
+	target := before.ChannelTypes[0].Type
+
+	tests := []struct {
+		name    string
+		channel string
+		input   map[string]any
+		want    string
+	}{
+		{name: "空の表示名", channel: target, input: map[string]any{fieldDisplay: " "}, want: codeBadUserInput},
+		{name: "長すぎる表示名", channel: target, input: map[string]any{fieldDisplay: strings.Repeat("あ", 33)}, want: codeBadUserInput},
+		{name: "負の並び順", channel: target, input: map[string]any{fieldSortOrder: -1}, want: codeBadUserInput},
+		{name: "上限を超える並び順", channel: target, input: map[string]any{fieldSortOrder: 10001}, want: codeBadUserInput},
+		{name: "ない種別", channel: "UNKNOWN", input: map[string]any{fieldSortOrder: 1}, want: codeNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			variables := map[string]any{"type": tt.channel, varInput: tt.input}
+			assert.Equal(t, []string{tt.want}, admin.query(t, updateChannelType, variables, nil))
+			var after struct {
+				ChannelTypes []channelType `json:"channelTypes"`
+			}
+			require.Empty(t, f.query(t, query, nil, &after))
+			assert.Equal(t, before.ChannelTypes, after.ChannelTypes, "rejected changes are not saved")
+		})
+	}
 }

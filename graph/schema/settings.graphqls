@@ -33,6 +33,16 @@ input SystemSettingsInput {
   archiveRetentionDays: Int
 }
 
+"""
+チャンネル種別の表示の変える項目。省いた項目は変えない。
+"""
+input ChannelTypeInput {
+  "表示名。1〜32 文字。"
+  displayName: String
+  "並び順。小さいほど前に並ぶ。0〜10000。"
+  sortOrder: Int
+}
+
 extend type Query {
   "全体の設定。ログイン中のユーザーなら誰でも読める。"
   systemSettings: SystemSettings!
@@ -44,4 +54,10 @@ extend type Mutation {
   正しくない値なら、BAD_USER_INPUT を返す。
   """
   updateSystemSettings(input: SystemSettingsInput!): SystemSettings!
+
+  """
+  チャンネル種別 type の表示名と並び順を変える (設計書 3.1)。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  種別がなければ NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
+  """
+  updateChannelType(type: String!, input: ChannelTypeInput!): ChannelType!
 }

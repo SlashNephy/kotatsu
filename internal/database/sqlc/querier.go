@@ -159,6 +159,8 @@ type Querier interface {
 	ListUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	// 有効な管理者の行をロックする。最後の管理者を外したり無効にしたりする操作を、同時に行わせない。
 	LockActiveAdmins(ctx context.Context) ([]uuid.UUID, error)
+	// 変える前の値を監査ログに残すため、種別の行をロックして読む。
+	LockChannelType(ctx context.Context, type_ string) (ChannelType, error)
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
 	// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
@@ -214,6 +216,7 @@ type Querier interface {
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
 	UpdateAssignment(ctx context.Context, arg UpdateAssignmentParams) error
+	UpdateChannelType(ctx context.Context, arg UpdateChannelTypeParams) (ChannelType, error)
 	UpdateGuideView(ctx context.Context, arg UpdateGuideViewParams) (int64, error)
 	UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error)
 	UpdateReservationProgram(ctx context.Context, arg UpdateReservationProgramParams) error

@@ -1,7 +1,7 @@
 // Package settings は、画面から変える全体の設定を扱う (設計書 11.2)。
 //
 // 起動に要るものや秘密情報は YAML と環境変数に置き、家族が日常的に変えたいものを DB に置く。
-// ここでは、録画設定の全体の既定値と、過去の番組の保持期間を扱う。
+// ここでは、録画設定の全体の既定値、過去の番組の保持期間、チャンネル種別の表示を扱う。
 package settings
 
 import (
@@ -139,8 +139,8 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			TargetType: auditTarget,
 			TargetID:   "system",
 			Summary: map[string]any{
-				"recording":            map[string]any{"from": current.RecordingOverrides, "to": updated.RecordingOverrides},
-				"archiveRetentionDays": map[string]int{"from": current.ArchiveRetentionDays, "to": updated.ArchiveRetentionDays},
+				"recording":            change(current.RecordingOverrides, updated.RecordingOverrides),
+				"archiveRetentionDays": change(current.ArchiveRetentionDays, updated.ArchiveRetentionDays),
 			},
 			// 送信元は、操作者 (actor) に持たせる。
 			SourceIP:  netip.Addr{},
@@ -152,6 +152,11 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 	}
 
 	return updated, nil
+}
+
+// change は、監査ログに残す、変える前と後の値。
+func change(from, to any) map[string]any {
+	return map[string]any{"from": from, "to": to}
 }
 
 // retentionDays は、保持期間の日数が範囲にあるかを確かめ、DB に保存する形にする。
