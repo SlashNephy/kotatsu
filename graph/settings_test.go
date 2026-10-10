@@ -148,8 +148,8 @@ func TestUpdateChannelType(t *testing.T) {
 	variables := func(channel string, input map[string]any) map[string]any {
 		return map[string]any{"type": channel, varInput: input}
 	}
-	// 最後の種別を、表示名を変えて先頭に動かす。
-	change := variables(last.Type, map[string]any{fieldDisplay: "ちでじ", fieldSortOrder: 0})
+	// 最後の種別を、表示名を変えて先頭に動かす。表示名の前後の空白は落とす。
+	change := variables(last.Type, map[string]any{fieldDisplay: " ちでじ ", fieldSortOrder: 0})
 	assert.Equal(t, []string{codeForbidden}, f.query(t, updateChannelType, change, nil), "only administrators can change channel types")
 
 	admin := f.as(t, adminName, auth.RoleAdmin)

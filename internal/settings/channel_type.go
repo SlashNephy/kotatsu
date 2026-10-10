@@ -40,8 +40,14 @@ func (s *Store) UpdateChannelType(
 	if changes == nil {
 		return nil, fmt.Errorf("%w: changes is nil", ErrInvalidSettings)
 	}
-	if name := changes.DisplayName; name != nil && (strings.TrimSpace(*name) == "" || utf8.RuneCountInString(*name) > maxDisplayNameLength) {
-		return nil, fmt.Errorf("%w: displayName must be 1 to %d characters", ErrInvalidSettings, maxDisplayNameLength)
+	// 表示名の前後の空白は落とす。
+	var name *string
+	if changes.DisplayName != nil {
+		trimmed := strings.TrimSpace(*changes.DisplayName)
+		if trimmed == "" || utf8.RuneCountInString(trimmed) > maxDisplayNameLength {
+			return nil, fmt.Errorf("%w: displayName must be 1 to %d characters", ErrInvalidSettings, maxDisplayNameLength)
+		}
+		name = &trimmed
 	}
 	var order *int32
 	if changes.SortOrder != nil {
@@ -63,8 +69,8 @@ func (s *Store) UpdateChannelType(
 			return fmt.Errorf("failed to lock the channel type: %w", err)
 		}
 		params := sqlc.UpdateChannelTypeParams{Type: channelType, DisplayName: current.DisplayName, SortOrder: current.SortOrder}
-		if changes.DisplayName != nil {
-			params.DisplayName = *changes.DisplayName
+		if name != nil {
+			params.DisplayName = *name
 		}
 		if order != nil {
 			params.SortOrder = *order
