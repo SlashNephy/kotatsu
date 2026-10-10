@@ -91,6 +91,8 @@ type Querier interface {
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetRecording(ctx context.Context, id uuid.UUID) (Recording, error)
 	GetRecordingAssignmentStream(ctx context.Context, id uuid.UUID) (GetRecordingAssignmentStreamRow, error)
+	// 実況の過去ログを引くための、録画した時間帯とサービス (設計書 7.4)。
+	GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (GetRecordingJikkyoSourceRow, error)
 	// 通知に載せる、録画とサービス名。
 	GetRecordingWithService(ctx context.Context, id uuid.UUID) (GetRecordingWithServiceRow, error)
 	GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error)

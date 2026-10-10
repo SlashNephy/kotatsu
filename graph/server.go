@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/library"
 	"github.com/SlashNephy/kotatsu/internal/notification"
@@ -62,6 +63,9 @@ type Options struct {
 	WebPush *webpush.Service
 	// StreamSigner は、外部プレイヤー用の映像の URL に署名する。nil なら、URL の発行は内部のエラーにする。
 	StreamSigner *stream.Signer
+	// JikkyoTable と JikkyoClient は、サービスの実況のチャンネルを引くのに使う。どちらかが nil なら、実況のチャンネルは null にする。
+	JikkyoTable  *jikkyo.Table
+	JikkyoClient *jikkyo.Client
 	// Changes は、ロール間の変更の通知を、subscription で知らせるのに使う。nil なら、変更の subscription は内部のエラーにする。
 	Changes Changes
 	// Pools は、保存先プールの ID からマウント先への対応。システムの状態で示す。
@@ -134,6 +138,9 @@ func NewHandler(opts *Options) http.Handler {
 		webhooks:     o.Webhooks,
 		webPush:      o.WebPush,
 		streamSigner: o.StreamSigner,
+		jikkyoTable:  o.JikkyoTable,
+		jikkyoClient: o.JikkyoClient,
+		logger:       o.Logger,
 		changes:      o.Changes,
 		pools:        o.Pools,
 		freeSpace:    o.FreeSpace,

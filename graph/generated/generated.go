@@ -132,6 +132,11 @@ type ComplexityRoot struct {
 		StartedAt   func(childComplexity int) int
 	}
 
+	JikkyoChannel struct {
+		ID   func(childComplexity int) int
+		Name func(childComplexity int) int
+	}
+
 	Keyword struct {
 		CaseSensitive func(childComplexity int) int
 		Fields        func(childComplexity int) int
@@ -299,29 +304,30 @@ type ComplexityRoot struct {
 	}
 
 	Recording struct {
-		Description     func(childComplexity int) int
-		Drops           func(childComplexity int) int
-		EndAt           func(childComplexity int) int
-		Errors          func(childComplexity int) int
-		EventID         func(childComplexity int) int
-		FailureReason   func(childComplexity int) int
-		Files           func(childComplexity int) int
-		Gaps            func(childComplexity int) int
-		ID              func(childComplexity int) int
-		Name            func(childComplexity int) int
-		PreviewURL      func(childComplexity int) int
-		ProgramLost     func(childComplexity int) int
-		Protected       func(childComplexity int) int
-		RecordedFrom    func(childComplexity int) int
-		RecordedUntil   func(childComplexity int) int
-		Scrambled       func(childComplexity int) int
-		Service         func(childComplexity int) int
-		StartAt         func(childComplexity int) int
-		State           func(childComplexity int) int
-		StreamURL       func(childComplexity int) int
-		Tags            func(childComplexity int) int
-		ThumbnailURL    func(childComplexity int) int
-		WatchPositionMs func(childComplexity int) int
+		Description       func(childComplexity int) int
+		Drops             func(childComplexity int) int
+		EndAt             func(childComplexity int) int
+		Errors            func(childComplexity int) int
+		EventID           func(childComplexity int) int
+		FailureReason     func(childComplexity int) int
+		Files             func(childComplexity int) int
+		Gaps              func(childComplexity int) int
+		ID                func(childComplexity int) int
+		JikkyoCommentsURL func(childComplexity int) int
+		Name              func(childComplexity int) int
+		PreviewURL        func(childComplexity int) int
+		ProgramLost       func(childComplexity int) int
+		Protected         func(childComplexity int) int
+		RecordedFrom      func(childComplexity int) int
+		RecordedUntil     func(childComplexity int) int
+		Scrambled         func(childComplexity int) int
+		Service           func(childComplexity int) int
+		StartAt           func(childComplexity int) int
+		State             func(childComplexity int) int
+		StreamURL         func(childComplexity int) int
+		Tags              func(childComplexity int) int
+		ThumbnailURL      func(childComplexity int) int
+		WatchPositionMs   func(childComplexity int) int
 	}
 
 	RecordingConnection struct {
@@ -434,6 +440,7 @@ type ComplexityRoot struct {
 		ChannelType        func(childComplexity int) int
 		Hidden             func(childComplexity int) int
 		ID                 func(childComplexity int) int
+		Jikkyo             func(childComplexity int) int
 		Name               func(childComplexity int) int
 		NetworkID          func(childComplexity int) int
 		RemoteControlKeyID func(childComplexity int) int
@@ -654,6 +661,8 @@ type ReservationResolver interface {
 }
 type ServiceResolver interface {
 	ChannelType(ctx context.Context, obj *model.Service) (*model.ChannelType, error)
+
+	Jikkyo(ctx context.Context, obj *model.Service) (*model.JikkyoChannel, error)
 }
 type SubscriptionResolver interface {
 	Heartbeat(ctx context.Context) (<-chan *time.Time, error)
@@ -969,6 +978,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Instance.StartedAt(childComplexity), true
+
+	case "JikkyoChannel.id":
+		if e.ComplexityRoot.JikkyoChannel.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JikkyoChannel.ID(childComplexity), true
+	case "JikkyoChannel.name":
+		if e.ComplexityRoot.JikkyoChannel.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JikkyoChannel.Name(childComplexity), true
 
 	case "Keyword.caseSensitive":
 		if e.ComplexityRoot.Keyword.CaseSensitive == nil {
@@ -2008,6 +2030,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.ID(childComplexity), true
+	case "Recording.jikkyoCommentsUrl":
+		if e.ComplexityRoot.Recording.JikkyoCommentsURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.JikkyoCommentsURL(childComplexity), true
 	case "Recording.name":
 		if e.ComplexityRoot.Recording.Name == nil {
 			break
@@ -2526,6 +2554,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Service.ID(childComplexity), true
+	case "Service.jikkyo":
+		if e.ComplexityRoot.Service.Jikkyo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Service.Jikkyo(childComplexity), true
 	case "Service.name":
 		if e.ComplexityRoot.Service.Name == nil {
 			break
@@ -3399,6 +3433,15 @@ type Service implements Node {
   hidden: Boolean!
   "ライブ視聴の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。"
   streamUrl: String!
+  "ニコニコ実況のチャンネル (設計書 7.4)。対応するチャンネルがないか、NX-Jikkyo が扱っていなければ null。"
+  jikkyo: JikkyoChannel
+}
+
+"NX-Jikkyo の実況のチャンネル。"
+type JikkyoChannel {
+  "jk1 などの ID。NX-Jikkyo の WebSocket の URL に使う。"
+  id: String!
+  name: String!
 }
 
 """
@@ -3735,6 +3778,11 @@ type Recording implements Node {
   コマの並びは、同じディレクトリの preview.json に書く (末尾の preview.jpg を preview.json に変えた URL で取れる)。
   """
   previewUrl: String
+  """
+  録画の時間帯の実況の過去ログを返す URL のパス (設計書 7.4)。tenban が過去ログ API から取って中継する。
+  録画したサービスに実況のチャンネルがなければ、空の一覧を返す。
+  """
+  jikkyoCommentsUrl: String!
   """
   録画の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。末尾に ?start=秒 を付けると、その位置から流す。
   外部プレイヤーには、createStreamURL で署名付きの URL を発行する。
@@ -4743,6 +4791,16 @@ func (ec *executionContext) childFields_Instance(ctx context.Context, field grap
 	return nil, fmt.Errorf("no field named %q was found under type Instance", field.Name)
 }
 
+func (ec *executionContext) childFields_JikkyoChannel(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_JikkyoChannel_id(ctx, field)
+	case "name":
+		return ec.fieldContext_JikkyoChannel_name(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type JikkyoChannel", field.Name)
+}
+
 func (ec *executionContext) childFields_Keyword(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "text":
@@ -4977,6 +5035,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_thumbnailUrl(ctx, field)
 	case "previewUrl":
 		return ec.fieldContext_Recording_previewUrl(ctx, field)
+	case "jikkyoCommentsUrl":
+		return ec.fieldContext_Recording_jikkyoCommentsUrl(ctx, field)
 	case "streamUrl":
 		return ec.fieldContext_Recording_streamUrl(ctx, field)
 	}
@@ -5213,6 +5273,8 @@ func (ec *executionContext) childFields_Service(ctx context.Context, field graph
 		return ec.fieldContext_Service_hidden(ctx, field)
 	case "streamUrl":
 		return ec.fieldContext_Service_streamUrl(ctx, field)
+	case "jikkyo":
+		return ec.fieldContext_Service_jikkyo(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Service", field.Name)
 }
@@ -7669,6 +7731,52 @@ func (ec *executionContext) _Instance_alive(ctx context.Context, field graphql.C
 }
 func (ec *executionContext) fieldContext_Instance_alive(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Instance", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _JikkyoChannel_id(ctx context.Context, field graphql.CollectedField, obj *model.JikkyoChannel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JikkyoChannel_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_JikkyoChannel_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JikkyoChannel", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _JikkyoChannel_name(ctx context.Context, field graphql.CollectedField, obj *model.JikkyoChannel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JikkyoChannel_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_JikkyoChannel_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JikkyoChannel", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Keyword_text(ctx context.Context, field graphql.CollectedField, obj *model.Keyword) (ret graphql.Marshaler) {
@@ -12392,6 +12500,29 @@ func (ec *executionContext) fieldContext_Recording_previewUrl(_ context.Context,
 	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Recording_jikkyoCommentsUrl(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_jikkyoCommentsUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.JikkyoCommentsURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_jikkyoCommentsUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _Recording_streamUrl(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -14300,6 +14431,38 @@ func (ec *executionContext) _Service_streamUrl(ctx context.Context, field graphq
 }
 func (ec *executionContext) fieldContext_Service_streamUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Service", field, true, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Service_jikkyo(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Service_jikkyo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Service().Jikkyo(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.JikkyoChannel) graphql.Marshaler {
+			return ec.marshalOJikkyoChannel2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐJikkyoChannel(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Service_jikkyo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Service",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_JikkyoChannel(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Session_id(ctx context.Context, field graphql.CollectedField, obj *model.Session) (ret graphql.Marshaler) {
@@ -19029,6 +19192,49 @@ func (ec *executionContext) _Instance(ctx context.Context, sel ast.SelectionSet,
 	return out
 }
 
+var jikkyoChannelImplementors = []string{"JikkyoChannel"}
+
+func (ec *executionContext) _JikkyoChannel(ctx context.Context, sel ast.SelectionSet, obj *model.JikkyoChannel) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, jikkyoChannelImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("JikkyoChannel")
+		case "id":
+			out.Values[i] = ec._JikkyoChannel_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._JikkyoChannel_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var keywordImplementors = []string{"Keyword"}
 
 func (ec *executionContext) _Keyword(ctx context.Context, sel ast.SelectionSet, obj *model.Keyword) graphql.Marshaler {
@@ -20917,6 +21123,11 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "jikkyoCommentsUrl":
+			out.Values[i] = ec._Recording_jikkyoCommentsUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "streamUrl":
 			out.Values[i] = ec._Recording_streamUrl(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -21858,6 +22069,44 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "jikkyo":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Service_jikkyo(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -24933,6 +25182,13 @@ func (ec *executionContext) marshalOInt642ᚖint64(ctx context.Context, sel ast.
 	_ = ctx
 	res := graphql.MarshalInt64(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOJikkyoChannel2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐJikkyoChannel(ctx context.Context, sel ast.SelectionSet, v *model.JikkyoChannel) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._JikkyoChannel(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOKeywordInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordInputᚄ(ctx context.Context, v any) ([]*model.KeywordInput, error) {

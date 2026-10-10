@@ -177,6 +177,13 @@ type Instance struct {
 	Alive bool `json:"alive"`
 }
 
+// NX-Jikkyo の実況のチャンネル。
+type JikkyoChannel struct {
+	// jk1 などの ID。NX-Jikkyo の WebSocket の URL に使う。
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 // キーワードと、その照合の仕方。
 type Keyword struct {
 	Text          string         `json:"text"`

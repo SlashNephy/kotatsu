@@ -14,6 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/library"
 	"github.com/SlashNephy/kotatsu/internal/thumbnail"
 )
@@ -238,8 +239,9 @@ func recordingModel(row *sqlc.Recording) (*model.Recording, error) {
 		Protected: row.Protected, Drops: row.Drops, Errors: row.Errors, Scrambled: row.Scrambled, Gaps: orEmpty(gaps),
 		ProgramLost: row.ProgramLost, RecordedFrom: row.RecordedFrom, RecordedUntil: row.RecordedUntil,
 		Tags: []*model.Tag{}, Files: []*model.RecordingFile{}, WatchPositionMs: nil, ThumbnailURL: nil, PreviewURL: nil,
-		StreamURL:  "/streams/recordings/" + row.ID.String(),
-		ServiceKey: row.ServiceID,
+		StreamURL:         "/streams/recordings/" + row.ID.String(),
+		JikkyoCommentsURL: "/media/recordings/" + row.ID.String() + "/" + jikkyo.CommentsFileName,
+		ServiceKey:        row.ServiceID,
 	}
 	if row.EventID != nil {
 		recording.EventID = new(int(*row.EventID))
