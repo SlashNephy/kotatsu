@@ -137,7 +137,7 @@ func (s *Setup) CreateAdmin(ctx context.Context, db Database, token string, admi
 			Action:     "user.setup",
 			TargetType: loginAuditTarget,
 			TargetID:   created.ID.String(),
-			Summary:    map[string]any{"username": created.Username},
+			Summary:    map[string]any{summaryUsername: created.Username},
 			SourceIP:   client.SourceIP,
 			UserAgent:  client.UserAgent,
 		})

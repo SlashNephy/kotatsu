@@ -52,6 +52,8 @@ func (f *sessionFixture) login(t *testing.T) (string, *auth.Session) {
 	token, session, err := f.sessions.Create(t.Context(), f.db, f.userID, &auth.ClientInfo{
 		UserAgent: "Mozilla/5.0",
 		SourceIP:  netip.MustParseAddr("192.168.1.10"),
+		Host:      testHost,
+		Secure:    false,
 	})
 	require.NoError(t, err)
 
@@ -262,7 +264,7 @@ func newCookieServer(t *testing.T, f *sessionFixture, tls bool) *httptest.Server
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /login", func(w http.ResponseWriter, r *http.Request) {
-		token, session, err := f.sessions.Create(r.Context(), f.db, f.userID, &auth.ClientInfo{UserAgent: r.UserAgent(), SourceIP: netip.Addr{}})
+		token, session, err := f.sessions.Create(r.Context(), f.db, f.userID, &auth.ClientInfo{UserAgent: r.UserAgent(), SourceIP: netip.Addr{}, Host: "", Secure: false})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 

@@ -30,7 +30,7 @@ type loginRequest struct {
 // loginResponse は、パスワードを確かめた後の応答。next は、次に求めるもの。
 type loginResponse struct {
 	Next string `json:"next"`
-	// Methods は、使える第二要素の種類 (totp、recovery_code)。登録したものがなければ空。
+	// Methods は、使える第二要素の種類 (totp、passkey、recovery_code)。登録したものがなければ空。
 	Methods   []SecondFactor `json:"methods"`
 	ExpiresAt time.Time      `json:"expiresAt"`
 }

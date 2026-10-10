@@ -45,7 +45,7 @@ func newSetupFixture(t *testing.T) *setupFixture {
 	return &setupFixture{
 		db:     newDB(t),
 		setup:  auth.NewSetup(clk, audit.NewRecorder(clk), policy, slog.New(slog.DiscardHandler)),
-		client: &auth.ClientInfo{UserAgent: browserUA, SourceIP: netip.MustParseAddr("192.168.1.10")},
+		client: &auth.ClientInfo{UserAgent: browserUA, SourceIP: netip.MustParseAddr("192.168.1.10"), Host: testHost, Secure: true},
 	}
 }
 
@@ -91,7 +91,7 @@ func TestSetup(t *testing.T) {
 	var tokens int
 	require.NoError(t, f.db.QueryRow(t.Context(), "SELECT count(*) FROM setup_tokens").Scan(&tokens))
 	assert.Zero(t, tokens)
-	_, err = f.setup.CreateAdmin(t.Context(), f.db, token, &auth.NewAdmin{Username: "other", DisplayName: "other", Password: adminPhrase}, f.client)
+	_, err = f.setup.CreateAdmin(t.Context(), f.db, token, &auth.NewAdmin{Username: otherName, DisplayName: otherName, Password: adminPhrase}, f.client)
 	require.ErrorIs(t, err, auth.ErrSetupDone)
 	_, err = f.setup.IssueToken(t.Context(), f.db)
 	require.ErrorIs(t, err, auth.ErrSetupDone)

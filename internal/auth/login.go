@@ -43,6 +43,10 @@ const (
 	loginAuditTarget = "user"
 	// summaryMethod は、ログインの監査ログの要約で、認証に使った方式を入れる項目。
 	summaryMethod = "method"
+	// summaryUsername は、監査ログの要約で、ユーザー名を入れる項目。
+	summaryUsername = "username"
+	// actionLoginFailed は、ログインに失敗したことを表す監査ログの操作。
+	actionLoginFailed = "user.login_failed"
 )
 
 var (
@@ -271,10 +275,10 @@ func (l *Logins) recordFailure(
 
 	return l.recorder.Record(ctx, tx, &audit.Event{
 		Actor:      actor,
-		Action:     "user.login_failed",
+		Action:     actionLoginFailed,
 		TargetType: loginAuditTarget,
 		TargetID:   targetID,
-		Summary:    map[string]any{"username": username, summaryMethod: "password"},
+		Summary:    map[string]any{summaryUsername: username, summaryMethod: "password"},
 		SourceIP:   client.SourceIP,
 		UserAgent:  client.UserAgent,
 	})

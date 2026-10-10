@@ -453,9 +453,9 @@ var errSecretKeyRequired = errors.New("auth.secret_key (KOTATSU_AUTH_SECRET_KEY)
 
 // clientInfo は、リクエストの送信元を返す。リバースプロキシを経由したときは、信頼済みのプロキシが伝えた値にする。
 func clientInfo(r *http.Request) *auth.ClientInfo {
-	info := &auth.ClientInfo{UserAgent: r.UserAgent(), SourceIP: netip.Addr{}}
+	info := &auth.ClientInfo{UserAgent: r.UserAgent(), SourceIP: netip.Addr{}, Host: r.Host, Secure: r.TLS != nil}
 	if client := httpserver.ClientFrom(r.Context()); client != nil {
-		info.SourceIP = client.IP
+		info.SourceIP, info.Host, info.Secure = client.IP, client.Host, client.Secure
 	}
 
 	return info

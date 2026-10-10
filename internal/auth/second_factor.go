@@ -62,7 +62,7 @@ type TOTPEnrollment struct {
 	ExpiresAt time.Time
 }
 
-// SecondFactors は、第二要素 (TOTP とリカバリーコード) を扱う (設計書 9.3)。
+// SecondFactors は、第二要素 (TOTP とリカバリーコード) を扱う (設計書 9.3)。パスキーは Passkeys が扱う。
 type SecondFactors struct {
 	clock    clock.Clock
 	recorder audit.Recorder
@@ -90,6 +90,13 @@ func (s *SecondFactors) Methods(ctx context.Context, db sqlc.DBTX, userID uuid.U
 	}
 	if hasTOTP {
 		methods = append(methods, SecondFactorTOTP)
+	}
+	passkeys, err := q.CountUserPasskeys(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count passkeys: %w", err)
+	}
+	if passkeys > 0 {
+		methods = append(methods, SecondFactorPasskey)
 	}
 	codes, err := q.CountUnusedRecoveryCodes(ctx, userID)
 	if err != nil {

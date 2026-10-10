@@ -23,8 +23,10 @@ type Querier interface {
 	// 無効にした予約の割り当ての結果を消す。
 	ClearDisabledAssignments(ctx context.Context) (int64, error)
 	CountUnusedRecoveryCodes(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
 	DeleteAuditEventsBefore(ctx context.Context, before time.Time) (int64, error)
 	DeleteExpiredLoginChallenges(ctx context.Context, now time.Time) (int64, error)
+	DeleteExpiredWebAuthnCeremonies(ctx context.Context, now time.Time) (int64, error)
 	DeleteGuideView(ctx context.Context, arg DeleteGuideViewParams) (int64, error)
 	DeleteInstance(ctx context.Context, arg DeleteInstanceParams) error
 	DeleteLoginChallenge(ctx context.Context, id uuid.UUID) error
@@ -40,6 +42,7 @@ type Querier interface {
 	DeleteStaleLoginThrottles(ctx context.Context, arg DeleteStaleLoginThrottlesParams) (int64, error)
 	DeleteTOTPEnrollment(ctx context.Context, userID uuid.UUID) error
 	DeleteTuners(ctx context.Context) error
+	DeleteUserPasskey(ctx context.Context, arg DeleteUserPasskeyParams) (int64, error)
 	DeleteUserTOTP(ctx context.Context, userID uuid.UUID) (int64, error)
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
 	// 種別が無ければ既定値で足す。管理者が変えた表示名と並び順は上書きしない。
@@ -51,6 +54,7 @@ type Querier interface {
 	GetLoginChallengeForUpdate(ctx context.Context, arg GetLoginChallengeForUpdateParams) (LoginChallenge, error)
 	GetLoginThrottles(ctx context.Context, throttleKeys []string) ([]LoginThrottle, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
+	GetPasskeyByCredentialID(ctx context.Context, credentialID []byte) (UserPasskey, error)
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error)
 	GetReservationByProgram(ctx context.Context, arg GetReservationByProgramParams) (Reservation, error)
@@ -84,6 +88,8 @@ type Querier interface {
 	InsertTimeReservation(ctx context.Context, arg InsertTimeReservationParams) error
 	InsertTuner(ctx context.Context, arg InsertTunerParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) error
+	InsertUserPasskey(ctx context.Context, arg InsertUserPasskeyParams) error
+	InsertWebAuthnCeremony(ctx context.Context, arg InsertWebAuthnCeremonyParams) error
 	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
 	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
 	// 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。
@@ -123,6 +129,8 @@ type Querier interface {
 	ListServices(ctx context.Context) ([]ListServicesRow, error)
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
 	ListUsableTuners(ctx context.Context) ([]ListUsableTunersRow, error)
+	ListUserPasskeys(ctx context.Context, userID uuid.UUID) ([]UserPasskey, error)
+	ListUserPasskeysForUpdate(ctx context.Context, userID uuid.UUID) ([]UserPasskey, error)
 	ListUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
 	// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。
@@ -140,8 +148,10 @@ type Querier interface {
 	RaiseMinBinaryVersion(ctx context.Context, arg RaiseMinBinaryVersionParams) error
 	// 失敗を数える。最後の失敗が reset_before より前なら、数え直す。
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) (int32, error)
+	RecordPasskeyUse(ctx context.Context, arg RecordPasskeyUseParams) error
 	// 期限をすぐに切れさせて、他のインスタンスがすぐに取れるようにする。世代番号は残す。
 	ReleaseLease(ctx context.Context, arg ReleaseLeaseParams) error
+	RenameUserPasskey(ctx context.Context, arg RenameUserPasskeyParams) (int64, error)
 	// 同じ世代のリースを期限内に延長する。期限が切れていたり、他のインスタンスに取られていたりすれば、行を更新しない。
 	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
 	ResetLoginThrottle(ctx context.Context, key string) error
@@ -151,6 +161,7 @@ type Querier interface {
 	// include_archive なら、開始時刻が [archive_from, archive_to) のアーカイブの番組も含める。
 	SearchProgramCandidates(ctx context.Context, arg SearchProgramCandidatesParams) ([]SearchProgramCandidatesRow, error)
 	ServiceExists(ctx context.Context, id int64) (bool, error)
+	SetLoginChallengeWebAuthnSession(ctx context.Context, arg SetLoginChallengeWebAuthnSessionParams) error
 	SetLoginLockedUntil(ctx context.Context, arg SetLoginLockedUntilParams) error
 	SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error)
 	SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error
@@ -158,6 +169,8 @@ type Querier interface {
 	SetTOTPLastUsedStep(ctx context.Context, arg SetTOTPLastUsedStepParams) error
 	SetUserPassword(ctx context.Context, arg SetUserPasswordParams) (int64, error)
 	SetupTokenExists(ctx context.Context, tokenHash []byte) (bool, error)
+	// 手続きは 1 回しか使わせないので、引くと同時に消す。
+	TakeWebAuthnCeremony(ctx context.Context, arg TakeWebAuthnCeremonyParams) (WebauthnCeremony, error)
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
 	UpdateAssignment(ctx context.Context, arg UpdateAssignmentParams) error
