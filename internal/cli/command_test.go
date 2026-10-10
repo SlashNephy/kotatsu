@@ -64,7 +64,7 @@ func TestSubcommandAcceptsCodenameAndAlias(t *testing.T) {
 		{codename: "neko", alias: "scheduler"},
 		{codename: "mikan", alias: "recorder"},
 		{codename: roleNekonote, alias: "worker"},
-		{codename: "kyusu", alias: "transcoder"},
+		{codename: roleKyusu, alias: "transcoder"},
 	}
 	for _, tt := range tests {
 		for _, arg := range []string{tt.codename, tt.alias} {
@@ -228,7 +228,7 @@ func TestRoleDoesNotStartWithInvalidConfig(t *testing.T) {
 	assert.False(t, started.Load())
 }
 
-// TestRolesRequireSecretKey は、アプリの秘密キーがなければ、tenban と nekonote を起動しないことを確かめる (設計書 8.4)。
+// TestRolesRequireSecretKey は、アプリの秘密キーがなければ、tenban、nekonote と kyusu を起動しないことを確かめる (設計書 8.4)。
 func TestRolesRequireSecretKey(t *testing.T) {
 	t.Parallel()
 
@@ -238,6 +238,7 @@ func TestRolesRequireSecretKey(t *testing.T) {
 	}{
 		{name: "TOTP の秘密キーを暗号化する tenban", role: roleTenban},
 		{name: "Webhook の署名用の秘密キーを復号する nekonote", role: roleNekonote},
+		{name: "tenban からのリクエストを確かめる kyusu", role: roleKyusu},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -261,7 +262,7 @@ func TestRolesRequireSecretKey(t *testing.T) {
 				return v, ok
 			}))
 			cmd.SetArgs([]string{tt.role})
-			require.ErrorContains(t, cmd.ExecuteContext(t.Context()), "auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban and nekonote")
+			require.ErrorContains(t, cmd.ExecuteContext(t.Context()), "auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban, nekonote, and kyusu")
 			assert.False(t, started.Load())
 		})
 	}

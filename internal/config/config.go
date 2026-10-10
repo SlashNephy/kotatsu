@@ -32,6 +32,7 @@ type Config struct {
 	Auth      Auth      `yaml:"auth"`
 	WebPush   WebPush   `yaml:"web_push"`
 	Thumbnail Thumbnail `yaml:"thumbnail"`
+	Kyusu     Kyusu     `yaml:"kyusu"`
 }
 
 // Server は tenban の HTTP サーバーの設定。
@@ -105,6 +106,29 @@ type Tuner struct {
 type Thumbnail struct {
 	// DisablePreview は、プレビュー画像を作らないかどうか。低スペック機では、代表画像だけにして負荷を減らせる。
 	DisablePreview bool `yaml:"disable_preview"`
+}
+
+// kyusu が映像のエンコードに使うエンコーダー (設計書 7.3)。
+const (
+	// EncoderX264 は、ソフトウェアの x264 (HEVC では x265)。GPU がなくても動く。
+	EncoderX264 = "x264"
+	// EncoderVAAPI は、VAAPI (Intel と AMD の GPU)。
+	EncoderVAAPI = "vaapi"
+	// EncoderQSV は、Intel Quick Sync Video。
+	EncoderQSV = "qsv"
+	// EncoderNVENC は、NVIDIA NVENC。
+	EncoderNVENC = "nvenc"
+)
+
+// Kyusu は、kyusu のトランスコードの設定 (設計書 7.3)。
+// kyusu は FFmpeg と tsreadex を使うので、FFmpeg の入ったイメージ (-ffmpeg) を使うか、PATH に入れる。
+type Kyusu struct {
+	// Encoder は、映像のエンコーダー (x264、vaapi、qsv、nvenc のどれか)。既定は x264。
+	Encoder string `yaml:"encoder"`
+	// VAAPIDevice は、VAAPI で使うデバイス。
+	VAAPIDevice string `yaml:"vaapi_device"`
+	// WorkDir は、HLS のセグメントを置く一時領域。Kubernetes では emptyDir を指す。空なら、OS の一時ディレクトリの下に作る。
+	WorkDir string `yaml:"work_dir"`
 }
 
 // WebPush は Web Push の通知の設定 (設計書 6.2)。
@@ -207,6 +231,7 @@ func Default() *Config {
 		},
 		WebPush:   WebPush{Subject: ""},
 		Thumbnail: Thumbnail{DisablePreview: false},
+		Kyusu:     Kyusu{Encoder: EncoderX264, VAAPIDevice: "/dev/dri/renderD128", WorkDir: ""},
 	}
 }
 
@@ -243,6 +268,9 @@ func (c *Config) validate() error {
 	errs = append(errs, c.Auth.OIDC.validate()...)
 	if subject := c.WebPush.Subject; subject != "" && !strings.HasPrefix(subject, "mailto:") && !strings.HasPrefix(subject, "https://") {
 		errs = append(errs, fieldError("web_push.subject", errors.New("must be a mailto: or https:// URI")))
+	}
+	if !slices.Contains([]string{EncoderX264, EncoderVAAPI, EncoderQSV, EncoderNVENC}, c.Kyusu.Encoder) {
+		errs = append(errs, fieldError("kyusu.encoder", errors.New("must be one of x264, vaapi, qsv, nvenc")))
 	}
 	if c.Audit.RetentionDays < 1 {
 		errs = append(errs, fieldError("audit.retention_days", errors.New("must be at least 1")))
