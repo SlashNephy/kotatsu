@@ -578,6 +578,10 @@ CREATE TABLE recordings (
   drops bigint NOT NULL DEFAULT 0,
   errors bigint NOT NULL DEFAULT 0,
   scrambled bigint NOT NULL DEFAULT 0,
+  -- 途切れた区間 (設計書 5.2)。[{"from": ..., "to": ...}] の形で、ストリームを開き直すまでの間を記録する。
+  gaps jsonb NOT NULL DEFAULT '[]',
+  -- 録画中に番組が EPG から消えたかどうか (設計書 5.1)。消えたら、予定の終わりまで録り続ける。
+  program_lost boolean NOT NULL DEFAULT false,
   -- 実際に録画を始めた日時と、終えた日時。録画中なら終えた日時は NULL。
   recorded_from timestamptz NOT NULL,
   recorded_until timestamptz,

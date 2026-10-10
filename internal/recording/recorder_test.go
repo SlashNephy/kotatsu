@@ -1,6 +1,7 @@
 package recording_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -37,7 +39,7 @@ func (f *fixture) newRecorder(t *testing.T, tuner recording.StreamOpener, freeSp
 		freeSpace = func(string) (uint64, error) { return 1 << 40, nil }
 	}
 	recorder := recording.NewRecorder(f.pool, f.clock, tuner, kago.New(map[string]string{poolID: dir}, freeSpace), nil, tokyo,
-		slog.New(slog.DiscardHandler), &recording.RecorderOptions{TuningTime: 0, Tick: 10 * time.Millisecond})
+		slog.New(slog.DiscardHandler), &recording.RecorderOptions{TuningTime: 0, Tick: 10 * time.Millisecond, RetryInterval: 20 * time.Millisecond})
 
 	return recorder, dir
 }
@@ -272,6 +274,9 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			recorder, _ := f.newRecorder(t, tt.tuner(f), tt.freeSpace)
 			_, done := f.session(t, recorder, reservationID)
 			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			// ストリームを開けないときは、予定の終わりまで開き直すので、予定の終わりまで進める。
+			time.Sleep(100 * time.Millisecond)
+			f.clock.Advance(time.Hour)
 
 			require.NoError(t, wait(t, done))
 			got, ok := f.recording(t, reservationID)
@@ -380,4 +385,200 @@ func TestRecorderFailsOnUnmountedPool(t *testing.T) {
 	require.NoError(t, wait(t, done))
 	got, _ := f.recording(t, reservationID)
 	assert.Equal(t, recorded{state: string(recording.StateFailed), failureReason: new(string(recording.FailureStorageUnavailable)), drops: 0}, got)
+}
+
+// flakyStream は、最初に開いたストリームを head だけ流して切り、2 回目からは TS を 1 回だけ流す。
+type flakyStream struct {
+	head   []byte
+	data   []byte
+	opened *atomic.Int32
+}
+
+func (s flakyStream) OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error) {
+	if s.opened.Add(1) == 1 {
+		return io.NopCloser(bytes.NewReader(s.head)), nil
+	}
+
+	return onceStream{data: s.data}.OpenServiceStream(ctx, serviceID, opts)
+}
+
+type gapsAndLost struct {
+	gaps        int
+	programLost bool
+}
+
+func (f *fixture) gapsAndLost(t *testing.T, reservationID uuid.UUID) gapsAndLost {
+	t.Helper()
+
+	var got gapsAndLost
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT jsonb_array_length(gaps), program_lost FROM recordings WHERE reservation_id = $1", reservationID).
+		Scan(&got.gaps, &got.programLost))
+
+	return got
+}
+
+func (f *fixture) segments(t *testing.T, reservationID uuid.UUID) int {
+	t.Helper()
+
+	n := 0
+	for _, file := range f.files(t, reservationID) {
+		if file.kind == "segment" {
+			n++
+		}
+	}
+
+	return n
+}
+
+// TestRecorderReconnects は、予定の終わりの前にストリームが切れたら、開き直して新しいセグメントに書き、
+// 途切れた区間を記録して、録画を一部のみにすることを確かめる (設計書 5.2、5.5)。
+func TestRecorderReconnects(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	opened := new(atomic.Int32)
+	recorder, _ := f.newRecorder(t, flakyStream{head: data[:188*1000], data: data, opened: opened}, nil)
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return f.segments(t, reservationID) == 2
+	}, waitTimeout, 10*time.Millisecond)
+	f.clock.Advance(time.Hour)
+
+	require.NoError(t, wait(t, done))
+	assert.Equal(t, int32(2), opened.Load())
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StatePartial), got.state)
+	assert.Equal(t, gapsAndLost{gaps: 1, programLost: false}, f.gapsAndLost(t, reservationID))
+	for _, file := range f.files(t, reservationID) {
+		assert.True(t, file.closed, file.path)
+	}
+}
+
+// TestRecorderExtendsWhileEndIsUndecided は、番組の終了時刻が未定 (延長中) の間は、終わりが来るたびに録画を 5 分ずつ延ばし、
+// 終了時刻が決まったら止めることを確かめる (設計書 5.1)。
+func TestRecorderExtendsWhileEndIsUndecided(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	plannedEnd := programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second)
+	tests := []struct {
+		name string
+		// stop は、延長を始めた後に、録画を止める出来事を起こし、止まる時刻を返す。
+		stop func(t *testing.T, f *fixture) time.Time
+	}{
+		{name: "終了時刻が決まったら止める", stop: func(t *testing.T, f *fixture) time.Time {
+			t.Helper()
+
+			_, err := f.pool.Exec(t.Context(), "UPDATE programs SET end_undecided = false WHERE service_id = $1 AND event_id = 6", grService(0))
+			require.NoError(t, err)
+
+			return f.clock.Now()
+		}},
+		{name: "未定のままでも、予定の終わりから 3 時間で止める", stop: func(*testing.T, *fixture) time.Time {
+			return plannedEnd.Add(recording.MaxExtension)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
+			_, done := f.session(t, recorder, reservationID)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			require.Eventually(t, func() bool {
+				return len(f.files(t, reservationID)) == 2
+			}, waitTimeout, 10*time.Millisecond)
+			_, err := f.pool.Exec(t.Context(), "UPDATE programs SET end_undecided = true WHERE service_id = $1 AND event_id = 6", grService(0))
+			require.NoError(t, err)
+
+			// 予定の終わりと、延ばした 5 分後の終わりが来ても、録り続ける。
+			for _, at := range []time.Time{plannedEnd, plannedEnd.Add(recording.ExtensionStep)} {
+				f.clock.Advance(at.Sub(f.clock.Now()))
+				time.Sleep(100 * time.Millisecond)
+				got, _ := f.recording(t, reservationID)
+				require.Equal(t, string(recording.StateRecording), got.state, at)
+			}
+
+			stopsAt := tt.stop(t, f)
+			f.clock.Advance(max(stopsAt.Sub(f.clock.Now()), 0))
+			require.NoError(t, wait(t, done))
+			got, _ := f.recording(t, reservationID)
+			assert.Equal(t, string(recording.StateCompleted), got.state)
+			assert.Equal(t, gapsAndLost{gaps: 0, programLost: false}, f.gapsAndLost(t, reservationID))
+		})
+	}
+}
+
+// TestRecorderKeepsRecordingWhenProgramIsLost は、番組が EPG から消えたら、予定の終わりまで録って、見失ったと記録することを確かめる (設計書 5.1)。
+func TestRecorderKeepsRecordingWhenProgramIsLost(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	plannedEnd := programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return len(f.files(t, reservationID)) == 2
+	}, waitTimeout, 10*time.Millisecond)
+	_, err = f.pool.Exec(t.Context(), "DELETE FROM programs WHERE service_id = $1 AND event_id = 6", grService(0))
+	require.NoError(t, err)
+
+	f.clock.Advance(plannedEnd.Add(-time.Second).Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return f.gapsAndLost(t, reservationID).programLost
+	}, waitTimeout, 10*time.Millisecond)
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StateRecording), got.state)
+
+	f.clock.Advance(time.Second)
+	require.NoError(t, wait(t, done))
+	got, _ = f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StateCompleted), got.state)
+}
+
+// TestRecorderRecordsGapOnResume は、引き継ぎや再開で続きを録るとき、前のセグメントを書き終えてからの間を、途切れた区間として記録することを確かめる。
+func TestRecorderRecordsGapOnResume(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
+	stop, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return len(f.files(t, reservationID)) == 2
+	}, waitTimeout, 10*time.Millisecond)
+	stop(recording.ErrLeaseLost)
+	require.ErrorIs(t, wait(t, done), recording.ErrLeaseLost)
+
+	// 1 分後に、別の mikan が続きを録る。
+	f.clock.Advance(time.Minute)
+	_, done = f.session(t, recorder, reservationID)
+	require.Eventually(t, func() bool {
+		return f.segments(t, reservationID) == 2
+	}, waitTimeout, 10*time.Millisecond)
+	f.clock.Advance(time.Hour)
+	require.NoError(t, wait(t, done))
+
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StatePartial), got.state)
+	var gap struct {
+		From time.Time `json:"from"`
+		To   time.Time `json:"to"`
+	}
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT gaps->0 FROM recordings WHERE reservation_id = $1", reservationID).Scan(&gap))
+	assert.Equal(t, time.Minute, gap.To.Sub(gap.From))
 }

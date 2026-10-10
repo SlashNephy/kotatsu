@@ -12,6 +12,29 @@ import (
 	"github.com/google/uuid"
 )
 
+const addRecordingGap = `-- name: AddRecordingGap :exec
+UPDATE recordings SET gaps = gaps || jsonb_build_array(jsonb_build_object('from', $1::timestamptz, 'to', $2::timestamptz)), updated_at = $3
+WHERE id = $4
+`
+
+type AddRecordingGapParams struct {
+	GapFrom time.Time
+	GapTo   time.Time
+	Now     time.Time
+	ID      uuid.UUID
+}
+
+// 途切れた区間を記録する。
+func (q *Queries) AddRecordingGap(ctx context.Context, arg AddRecordingGapParams) error {
+	_, err := q.db.Exec(ctx, addRecordingGap,
+		arg.GapFrom,
+		arg.GapTo,
+		arg.Now,
+		arg.ID,
+	)
+	return err
+}
+
 const addRecordingStats = `-- name: AddRecordingStats :exec
 UPDATE recordings SET drops = drops + $1, errors = errors + $2, scrambled = scrambled + $3, updated_at = $4
 WHERE id = $5
@@ -75,8 +98,46 @@ func (q *Queries) FinishRecording(ctx context.Context, arg FinishRecordingParams
 	return err
 }
 
+const getLastRecordingFileEnd = `-- name: GetLastRecordingFileEnd :one
+SELECT ended_at FROM recording_files
+WHERE recording_id = $1 AND kind = 'segment' AND ended_at IS NOT NULL
+ORDER BY ended_at DESC
+LIMIT 1
+`
+
+// 録画のセグメントのうち、最後に書き終えた時刻。引き継ぎや再開のときに、途切れた区間を求めるのに使う。
+// まだ書き終えたセグメントがなければ、行を返さない。
+func (q *Queries) GetLastRecordingFileEnd(ctx context.Context, recordingID uuid.UUID) (*time.Time, error) {
+	row := q.db.QueryRow(ctx, getLastRecordingFileEnd, recordingID)
+	var ended_at *time.Time
+	err := row.Scan(&ended_at)
+	return ended_at, err
+}
+
+const getProgramEnd = `-- name: GetProgramEnd :one
+SELECT end_at, end_undecided FROM programs WHERE service_id = $1 AND event_id = $2
+`
+
+type GetProgramEndParams struct {
+	ServiceID int64
+	EventID   int64
+}
+
+type GetProgramEndRow struct {
+	EndAt        time.Time
+	EndUndecided bool
+}
+
+// 録画中の番組の、今の EPG の終了時刻と、未定かどうか。番組が EPG から消えていれば行を返さない。
+func (q *Queries) GetProgramEnd(ctx context.Context, arg GetProgramEndParams) (GetProgramEndRow, error) {
+	row := q.db.QueryRow(ctx, getProgramEnd, arg.ServiceID, arg.EventID)
+	var i GetProgramEndRow
+	err := row.Scan(&i.EndAt, &i.EndUndecided)
+	return i, err
+}
+
 const getRecording = `-- name: GetRecording :one
-SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1
+SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, program_lost, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1
 `
 
 func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, error) {
@@ -97,6 +158,8 @@ func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, er
 		&i.Drops,
 		&i.Errors,
 		&i.Scrambled,
+		&i.Gaps,
+		&i.ProgramLost,
 		&i.RecordedFrom,
 		&i.RecordedUntil,
 		&i.CreatedAt,
@@ -167,13 +230,27 @@ func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID)
 	return items, nil
 }
 
+const markRecordingProgramLost = `-- name: MarkRecordingProgramLost :exec
+UPDATE recordings SET program_lost = true, updated_at = $1 WHERE id = $2 AND NOT program_lost
+`
+
+type MarkRecordingProgramLostParams struct {
+	Now time.Time
+	ID  uuid.UUID
+}
+
+func (q *Queries) MarkRecordingProgramLost(ctx context.Context, arg MarkRecordingProgramLostParams) error {
+	_, err := q.db.Exec(ctx, markRecordingProgramLost, arg.Now, arg.ID)
+	return err
+}
+
 const startRecording = `-- name: StartRecording :one
 INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
   protected, drops, errors, scrambled, recorded_from, recorded_until, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'recording', NULL,
   false, 0, 0, 0, $9, NULL, $9, $9)
 ON CONFLICT (reservation_id) DO UPDATE SET state = 'recording', failure_reason = NULL, recorded_until = NULL, updated_at = EXCLUDED.updated_at
-RETURNING id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, recorded_from, recorded_until, created_at, updated_at
+RETURNING id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, program_lost, recorded_from, recorded_until, created_at, updated_at
 `
 
 type StartRecordingParams struct {
@@ -217,6 +294,8 @@ func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) 
 		&i.Drops,
 		&i.Errors,
 		&i.Scrambled,
+		&i.Gaps,
+		&i.ProgramLost,
 		&i.RecordedFrom,
 		&i.RecordedUntil,
 		&i.CreatedAt,
