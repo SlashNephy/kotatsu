@@ -1,5 +1,5 @@
-import { Alert, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Alert, Anchor, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useSubscription } from 'react-relay';
@@ -74,15 +74,20 @@ function Viewer() {
     <Card withBorder>
       <Group justify="space-between">
         <Text>{t('viewer.greeting', { name: data.viewer.displayName })}</Text>
-        <Button
-          variant="subtle"
-          size="xs"
-          onClick={() => {
-            void authApi.logout().then(() => window.location.assign('/login'));
-          }}
-        >
-          {t('auth.logout')}
-        </Button>
+        <Group gap="xs">
+          <Anchor component={Link} to="/settings/password" size="sm">
+            {t('viewer.changePassword')}
+          </Anchor>
+          <Button
+            variant="subtle"
+            size="xs"
+            onClick={() => {
+              void authApi.logout().then(() => window.location.assign('/login'));
+            }}
+          >
+            {t('auth.logout')}
+          </Button>
+        </Group>
       </Group>
       <Heartbeat />
     </Card>

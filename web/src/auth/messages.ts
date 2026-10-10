@@ -16,6 +16,9 @@ const knownCodes = [
   'PASSKEY_UNAVAILABLE',
   'NO_PASSKEY',
   'OIDC_UNAVAILABLE',
+  'OIDC_NOT_LINKED',
+  'OIDC_DISABLED',
+  'UNAUTHENTICATED',
 ] as const;
 
 const knownReasons = ['too_short', 'too_long', 'blocklisted', 'breached', 'too_weak'] as const;

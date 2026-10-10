@@ -33,6 +33,30 @@ export function isUnauthenticated(error: unknown): boolean {
   return error instanceof GraphQLRequestError && error.code === 'UNAUTHENTICATED';
 }
 
+// GraphQLErrorDetails は、GraphQL のエラーの extensions のうち、画面が使うもの。
+export type GraphQLErrorDetails = {
+  // code は、エラーの種類 (REAUTHENTICATION_REQUIRED、BAD_USER_INPUT など)。
+  code: string | undefined;
+  // reason は、パスワードの規定に当たったときの理由 (too_weak など)。
+  reason: string | undefined;
+};
+
+type RelaySourceError = {
+  source?: { errors?: { extensions?: { code?: unknown; reason?: unknown } }[] | null };
+};
+
+// graphQLErrorDetails は、query や mutation が失敗したエラーから、最初の GraphQL のエラーの extensions を取り出す。
+// Relay は、data のない応答を、source.errors に GraphQL のエラーを持つ Error にして投げる。
+export function graphQLErrorDetails(error: unknown): GraphQLErrorDetails {
+  if (error instanceof GraphQLRequestError) {
+    return { code: error.code, reason: undefined };
+  }
+  const extensions = (error as RelaySourceError | null)?.source?.errors?.[0]?.extensions;
+  const text = (value: unknown) => (typeof value === 'string' ? value : undefined);
+
+  return { code: text(extensions?.code), reason: text(extensions?.reason) };
+}
+
 type ErrorBody = {
   errors?: { message?: string; extensions?: { code?: string } }[];
 };

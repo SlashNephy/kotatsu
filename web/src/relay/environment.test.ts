@@ -1,7 +1,12 @@
 import type { RequestParameters } from 'relay-runtime';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { fetchQuery, GraphQLRequestError, isUnauthenticated } from './environment';
+import {
+  fetchQuery,
+  graphQLErrorDetails,
+  GraphQLRequestError,
+  isUnauthenticated,
+} from './environment';
 
 const operation = {
   text: 'query viewer { viewer { id } }',
@@ -78,5 +83,50 @@ describe('fetchQuery', () => {
     expect(error).toBeInstanceOf(GraphQLRequestError);
     expect(error).toMatchObject({ message: want.message, status: want.status, code: want.code });
     expect(isUnauthenticated(error)).toBe(want.unauthenticated);
+  });
+});
+
+describe('graphQLErrorDetails', () => {
+  // relayError は、Relay が data のない応答から作るエラーと同じ形のもの。
+  function relayError(errors: unknown) {
+    return Object.assign(new Error('No data returned'), { source: { errors } });
+  }
+
+  test.each([
+    {
+      name: 'Relay のエラーから、最初の GraphQL のエラーの code と reason を取り出す',
+      error: relayError([
+        { message: 'weak', extensions: { code: 'BAD_USER_INPUT', reason: 'too_weak' } },
+        { message: 'other', extensions: { code: 'INTERNAL' } },
+      ]),
+      want: { code: 'BAD_USER_INPUT', reason: 'too_weak' },
+    },
+    {
+      name: 'reason のないエラー',
+      error: relayError([{ message: 'reauth', extensions: { code: 'REAUTHENTICATION_REQUIRED' } }]),
+      want: { code: 'REAUTHENTICATION_REQUIRED', reason: undefined },
+    },
+    {
+      name: 'GraphQL の処理に入る前に拒否されたエラー',
+      error: new GraphQLRequestError('unauthenticated', 401, 'UNAUTHENTICATED'),
+      want: { code: 'UNAUTHENTICATED', reason: undefined },
+    },
+    {
+      name: '文字列でない extensions は使わない',
+      error: relayError([{ message: 'x', extensions: { code: 1, reason: null } }]),
+      want: { code: undefined, reason: undefined },
+    },
+    {
+      name: 'GraphQL のエラーでないもの',
+      error: new TypeError('Failed to fetch'),
+      want: { code: undefined, reason: undefined },
+    },
+    {
+      name: 'errors が null',
+      error: relayError(null),
+      want: { code: undefined, reason: undefined },
+    },
+  ])('$name', ({ error, want }) => {
+    expect(graphQLErrorDetails(error)).toEqual(want);
   });
 });
