@@ -1,4 +1,4 @@
-import { Alert, Select } from '@mantine/core';
+import { Alert, Select, Switch } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
 import { original, type PlaybackRoute } from './route';
@@ -59,5 +59,25 @@ export function PlaybackUnavailable({ route }: { route: PlaybackRoute }) {
         ? t('player.unavailable.noTranscoder')
         : t('player.unavailable.noPlayer')}
     </Alert>
+  );
+}
+
+// CaptionsToggle は、字幕と文字スーパーを出すかどうかの切り替え。
+export function CaptionsToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Switch
+      size="sm"
+      label={t('player.captions')}
+      checked={checked}
+      onChange={(event) => onChange(event.currentTarget.checked)}
+    />
   );
 }

@@ -1,6 +1,7 @@
-import type { Mpeg2TsPlayer, PlayerState } from '@mpeg2toh264/player';
+import type { Mpeg2TsPlayer, PlayerState, PrivateStream } from '@mpeg2toh264/player';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 
+import { createCaptions, type Captions } from './captions';
 import classes from './TsPlayer.module.css';
 
 // wasmURL は、変換に使う WebAssembly の URL。Vite にワーカーへ埋め込ませず、明示的な URL で配信して、
@@ -13,6 +14,8 @@ type Props = {
   videoRef: RefObject<HTMLVideoElement | null>;
   // active は、再生してよいかどうか。画面の外に出たときや、タブが隠れたときに false にする。
   active: boolean;
+  // captions は、字幕と文字スーパーを出すかどうか。
+  captions: boolean;
   onState?: (state: PlayerState) => void;
   onError?: (error: Error) => void;
   // onLoaded は、最初のデータが入り、再生を始められるようになったときに呼ぶ。
@@ -21,8 +24,11 @@ type Props = {
 
 // TsPlayer は、MPEG-2 の TS をブラウザの中で H.264 に変換して再生する (設計書 7.2)。
 // 1080i のインターレースは、yadif で解除する。yadif は LGPL なので、別のチャンクとして読む。
-export function TsPlayer({ url, videoRef, active, onState, onError, onLoaded }: Props) {
+export function TsPlayer({ url, videoRef, active, captions, onState, onError, onLoaded }: Props) {
   const playerRef = useRef<Mpeg2TsPlayer | null>(null);
+  const captionsRef = useRef<Captions | null>(null);
+  const showCaptions = useRef(captions);
+  showCaptions.current = captions;
   const [ready, setReady] = useState(false);
   const handlers = useRef({ onState, onError, onLoaded });
   handlers.current = { onState, onError, onLoaded };
@@ -42,6 +48,10 @@ export function TsPlayer({ url, videoRef, active, onState, onError, onLoaded }: 
     video.autoplay = true;
     frame.append(video);
     videoRef.current = video;
+    // 字幕は、aribb24.js を読み終えるまで溜めておくので、プレイヤーより先に作る。
+    const renderer = createCaptions(video, frame);
+    renderer.setVisible(showCaptions.current);
+    captionsRef.current = renderer;
     let destroyed = false;
     void (async () => {
       const [{ Mpeg2TsPlayer: Player }, { Deinterlacer }] = await Promise.all([
@@ -60,6 +70,14 @@ export function TsPlayer({ url, videoRef, active, onState, onError, onLoaded }: 
         handlers.current.onState?.(event.detail.state),
       );
       player.addEventListener('error', (event) => handlers.current.onError?.(event.detail.error));
+      // 字幕は private_stream_1、文字スーパーは private_stream_2 で届く。時刻は、video の時刻にそろっている。
+      const feed = (event: CustomEvent<PrivateStream>) => {
+        if (event.detail.pts !== null) {
+          renderer.feedB24(event.detail.data, event.detail.pts);
+        }
+      };
+      player.addEventListener('private_stream_1', feed);
+      player.addEventListener('private_stream_2', feed);
       playerRef.current = player;
       setReady(true);
     })();
@@ -68,12 +86,18 @@ export function TsPlayer({ url, videoRef, active, onState, onError, onLoaded }: 
       destroyed = true;
       playerRef.current?.destroy();
       playerRef.current = null;
+      captionsRef.current?.destroy();
+      captionsRef.current = null;
       videoRef.current = null;
       // yadif が包んだ要素ごと取り除く。
       frame.replaceChildren();
       setReady(false);
     };
   }, [videoRef]);
+
+  useEffect(() => {
+    captionsRef.current?.setVisible(captions);
+  }, [captions]);
 
   // URL が変わったら読み直す。再生してよくないときは、読み込みも止めて、帯域とチューナーを使わない。
   useEffect(() => {
@@ -87,6 +111,7 @@ export function TsPlayer({ url, videoRef, active, onState, onError, onLoaded }: 
       return;
     }
     let cancelled = false;
+    captionsRef.current?.reset();
     player.load(url).then(
       () => {
         if (!cancelled) {

@@ -8,6 +8,9 @@ allowBuilds:
   esbuild: false
 
 # Vite+ が同梱する vite と vitest を、依存のどこから引いても同じものにする (Vite+ の手動導入の手順)。
+minimumReleaseAgeExclude:
+  - aribb24.js@2.0.30
+
 overrides:
   vite: npm:@voidzero-dev/vite-plus-core@1.1.0
   vitest: 5.0.3

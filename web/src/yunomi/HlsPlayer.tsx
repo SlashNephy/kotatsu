@@ -1,6 +1,7 @@
 import type Hls from 'hls.js';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 
+import { createCaptions, type Captions } from './captions';
 import classes from './TsPlayer.module.css';
 
 type Props = {
@@ -12,6 +13,8 @@ type Props = {
   // live は、ライブ視聴かどうか。ライブは、隠れている間は読み込みをやめ、戻ったら最新の位置から読み直す。
   // 録画は、隠れている間は読み込みを止め、戻ったら同じ位置から続ける。
   live: boolean;
+  // captions は、字幕と文字スーパーを出すかどうか。
+  captions: boolean;
   // startPosition は、録画で、読み始める位置 (秒)。画質を変えたときに、それまでの位置から続けるのに使う。
   startPosition?: number;
   onError?: (error: Error) => void;
@@ -26,6 +29,7 @@ export function HlsPlayer({
   videoRef,
   active,
   live,
+  captions,
   startPosition,
   onError,
   onLoaded,
@@ -45,6 +49,9 @@ export function HlsPlayer({
   const start = useRef(startPosition);
   start.current = startPosition;
   const frameRef = useRef<HTMLDivElement | null>(null);
+  const captionsRef = useRef<Captions | null>(null);
+  const showCaptions = useRef(captions);
+  showCaptions.current = captions;
 
   // video の要素は、TsPlayer と同じく React に持たせずに作り、どちらの経路でも同じ見た目にする。
   useEffect(() => {
@@ -58,8 +65,14 @@ export function HlsPlayer({
     video.autoplay = true;
     frame.append(video);
     videoRef.current = video;
+    // 字幕は、aribb24.js を読み終えるまで溜めておくので、最初のセグメントの字幕も落とさない。
+    const renderer = createCaptions(video, frame);
+    renderer.setVisible(showCaptions.current);
+    captionsRef.current = renderer;
 
     return () => {
+      captionsRef.current?.destroy();
+      captionsRef.current = null;
       videoRef.current = null;
       frame.replaceChildren();
     };
@@ -82,6 +95,19 @@ export function HlsPlayer({
         startPosition: live ? -1 : (start.current ?? -1),
         // 隠れたまま開いた録画は、見えるまでセグメントを読まない。
         autoStartLoad: activeRef.current,
+        // 字幕は、FRAG_PARSING_METADATA で受け取った ID3 から描く。hls.js の字幕と、ID3 を入れる TextTrack は使わない。
+        // TextTrack は、CSP で禁じた data: の URL を読もうとする。
+        enableID3MetadataCues: false,
+        enableEmsgMetadataCues: false,
+        enableDateRangeMetadataCues: false,
+        enableWebVTT: false,
+        enableCEA708Captions: false,
+      });
+      // tsreadex が、字幕と文字スーパーを ID3 に入れて運ぶ (設計書 7.3)。時刻は、video の時刻にそろっている。
+      instance.on(HlsClass.Events.FRAG_PARSING_METADATA, (_event, data) => {
+        for (const sample of data.samples) {
+          captionsRef.current?.feedID3(sample.data, sample.pts);
+        }
       });
       instance.on(HlsClass.Events.MANIFEST_PARSED, () => {
         handlers.current.onLoaded?.();
@@ -95,6 +121,8 @@ export function HlsPlayer({
           handlers.current.onError?.(new Error(`${data.type}: ${data.details}`));
         }
       });
+      // ライブを読み直すと、video の時刻の基準が変わるので、前の字幕を捨てる。
+      captionsRef.current?.reset();
       instance.loadSource(url);
       instance.attachMedia(video);
       hlsRef.current = instance;
@@ -109,6 +137,10 @@ export function HlsPlayer({
       setHls(null);
     };
   }, [videoRef, url, live, attached]);
+
+  useEffect(() => {
+    captionsRef.current?.setVisible(captions);
+  }, [captions]);
 
   // 録画は、隠れている間は読み込みを止め、戻ったら同じ位置から続ける。
   useEffect(() => {
