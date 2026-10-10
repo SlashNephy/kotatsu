@@ -241,6 +241,17 @@ CREATE TABLE login_throttles (
   last_failed_at timestamptz NOT NULL
 );
 
+-- 画面から変える、全体の設定 (設計書 11.2)。1 行だけ持つ。行がなければ、既定値を使う。
+CREATE TABLE system_settings (
+  id smallint PRIMARY KEY CHECK (id = 1),
+  -- 録画設定の全体の既定値 (設計書 4.7)。ルールの上書きと同じ形で、Go の既定値に重ねる。
+  -- 新しい項目を足しても、古い行は Go の既定値のまま読める。
+  recording_defaults jsonb NOT NULL,
+  -- 過去の番組の保持期間 (日)。0 なら無期限 (設計書 3.4)。
+  archive_retention_days integer NOT NULL CHECK (archive_retention_days >= 0),
+  updated_at timestamptz NOT NULL
+);
+
 -- チャンネル種別 (設計書 3.1)。チューナーサーバーが返す文字列をそのまま主キーにする。
 -- GR、BS、CS、SKY には表示名と並び順の既定値を持たせ、それ以外の種別は、同期で見つけたときに種別の文字列のまま足す。
 -- 管理者は表示名と並び順を画面から変えられるので、同期は既にある行を上書きしない。

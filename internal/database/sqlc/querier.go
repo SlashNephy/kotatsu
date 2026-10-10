@@ -63,6 +63,7 @@ type Querier interface {
 	GetReservationByProgram(ctx context.Context, arg GetReservationByProgramParams) (Reservation, error)
 	GetRule(ctx context.Context, id uuid.UUID) (Rule, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
+	GetSystemSettings(ctx context.Context) (SystemSetting, error)
 	GetTOTPEnrollmentForUpdate(ctx context.Context, arg GetTOTPEnrollmentForUpdateParams) (TotpEnrollment, error)
 	GetTunerServerStatus(ctx context.Context) (GetTunerServerStatusRow, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
@@ -113,8 +114,11 @@ type Querier interface {
 	// 番組表の並び順のサービス。チャンネル種別の並び順、管理者の上書き、リモコンのキー、サービス ID の順に並べる。
 	ListGuideServices(ctx context.Context, arg ListGuideServicesParams) ([]ListGuideServicesRow, error)
 	ListGuideViews(ctx context.Context, userID uuid.UUID) ([]GuideView, error)
+	// 止まった直後の行も含めて、すべてのインスタンスを返す。システムの状態の画面で、止まったインスタンスも示すため。
+	ListInstances(ctx context.Context) ([]Instance, error)
 	// 番組名のキーごと、サービスごとの、最後に録画した番組の終了時刻。
 	ListLatestRecordingHistory(ctx context.Context, titleKeys []string) ([]ListLatestRecordingHistoryRow, error)
+	ListLeases(ctx context.Context) ([]Lease, error)
 	// ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
 	ListMatchablePrograms(ctx context.Context, now time.Time) ([]ListMatchableProgramsRow, error)
 	ListPrograms(ctx context.Context) ([]ListProgramsRow, error)
@@ -146,6 +150,8 @@ type Querier interface {
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
 	// 初回セットアップを、全インスタンスで 1 つずつ行わせる。トランザクションが終わるまでロックする。
 	LockSetup(ctx context.Context) error
+	// 行がなければ既定値で作り、行をロックする。同時に変えても、片方の変更を失わない。
+	LockSystemSettings(ctx context.Context, arg LockSystemSettingsParams) (SystemSetting, error)
 	// ユーザーの行を、トランザクションが終わるまで書き込みからロックする。同じユーザーの登録を同時に行わせない。
 	LockUser(ctx context.Context, id uuid.UUID) (LockUserRow, error)
 	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
@@ -168,6 +174,9 @@ type Querier interface {
 	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
 	ResetLoginThrottle(ctx context.Context, key string) error
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
+	// 監査ログを、新しい順に返す。条件の NULL の項目は絞り込まない。
+	// before_at と before_id より前 (古い) の記録だけを返し、ページを送る。
+	SearchAuditEvents(ctx context.Context, arg SearchAuditEventsParams) ([]AuditEvent, error)
 	// 番組の検索の候補。チャンネル種別、サービス、ジャンルの大分類で絞り、開始時刻、サービス、eventId の順に、カーソルの後ろから返す。
 	// ジャンルの中分類とキーワードは、ルールの照合と同じ照合関数で、Go で判定する (設計書 3.5)。
 	// include_archive なら、開始時刻が [archive_from, archive_to) のアーカイブの番組も含める。
@@ -192,6 +201,7 @@ type Querier interface {
 	UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error)
 	UpdateReservationProgram(ctx context.Context, arg UpdateReservationProgramParams) error
 	UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, error)
+	UpdateSystemSettings(ctx context.Context, arg UpdateSystemSettingsParams) (SystemSetting, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults

@@ -65,6 +65,37 @@ func (q *Queries) GetLease(ctx context.Context, name string) (Lease, error) {
 	return i, err
 }
 
+const listLeases = `-- name: ListLeases :many
+SELECT name, holder, generation, acquired_at, renewed_at, expires_at FROM leases ORDER BY name
+`
+
+func (q *Queries) ListLeases(ctx context.Context) ([]Lease, error) {
+	rows, err := q.db.Query(ctx, listLeases)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Lease{}
+	for rows.Next() {
+		var i Lease
+		if err := rows.Scan(
+			&i.Name,
+			&i.Holder,
+			&i.Generation,
+			&i.AcquiredAt,
+			&i.RenewedAt,
+			&i.ExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockLeaseForWrite = `-- name: LockLeaseForWrite :one
 SELECT generation
 FROM leases

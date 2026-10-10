@@ -31,8 +31,10 @@ type ArchiverOptions struct {
 	Grace time.Duration
 	// Retention はアーカイブの保持期間。負の値なら無期限に残す (設計書 3.4 の「0 で無期限」を、ここでは負の値で表す)。
 	Retention time.Duration
-	Interval  time.Duration
-	BatchSize int32
+	// RetentionFunc は、保持期間を返す。画面から変えられるので (設計書 11.2)、消すたびに引く。nil なら Retention を使う。
+	RetentionFunc func(ctx context.Context) (time.Duration, error)
+	Interval      time.Duration
+	BatchSize     int32
 }
 
 // Archiver は、放送が終わった番組を program_archives へ移し、保持期間を過ぎたアーカイブを消す (設計書 3.4)。
@@ -48,14 +50,16 @@ type Archiver struct {
 // NewArchiver は Archiver を作る。opts は nil でもよい。
 func NewArchiver(pool *pgxpool.Pool, clk clock.Clock, guard Guard, logger *slog.Logger, opts *ArchiverOptions) *Archiver {
 	o := ArchiverOptions{
-		Grace:     DefaultArchiveGrace,
-		Retention: DefaultArchiveRetention,
-		Interval:  DefaultArchiveInterval,
-		BatchSize: DefaultArchiveBatchSize,
+		Grace:         DefaultArchiveGrace,
+		Retention:     DefaultArchiveRetention,
+		RetentionFunc: nil,
+		Interval:      DefaultArchiveInterval,
+		BatchSize:     DefaultArchiveBatchSize,
 	}
 	if opts != nil {
 		o.Grace = cmpOr(opts.Grace, o.Grace)
 		o.Retention = cmpOr(opts.Retention, o.Retention)
+		o.RetentionFunc = opts.RetentionFunc
 		o.Interval = cmpOr(opts.Interval, o.Interval)
 		if opts.BatchSize > 0 {
 			o.BatchSize = opts.BatchSize
@@ -105,11 +109,17 @@ func (a *Archiver) RunOnce(ctx context.Context) (*ArchiveResult, error) {
 		return result, fmt.Errorf("failed to archive programs: %w", err)
 	}
 
-	if a.opts.Retention < 0 {
+	retention := a.opts.Retention
+	if a.opts.RetentionFunc != nil {
+		if retention, err = a.opts.RetentionFunc(ctx); err != nil {
+			return result, fmt.Errorf("failed to get the archive retention: %w", err)
+		}
+	}
+	if retention < 0 {
 		return result, nil
 	}
 	pruned, err := a.repeat(ctx, func(q *sqlc.Queries) (int64, error) {
-		return q.PruneProgramArchives(ctx, sqlc.PruneProgramArchivesParams{Before: now.Add(-a.opts.Retention), BatchSize: a.opts.BatchSize})
+		return q.PruneProgramArchives(ctx, sqlc.PruneProgramArchivesParams{Before: now.Add(-retention), BatchSize: a.opts.BatchSize})
 	})
 	result.Pruned = pruned
 	if err != nil {

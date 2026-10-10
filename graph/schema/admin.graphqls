@@ -1,0 +1,140 @@
+"""
+監査ログの記録 (設計書 8.5)。誰が何をしたかを残す。
+一覧から読むだけなので、node で引き直すことはできない。
+"""
+type AuditEvent {
+  id: ID!
+  occurredAt: Time!
+  actor: AuditActor!
+  "操作の種類 (user.created など)。"
+  action: String!
+  "対象の種類 (user、rule など) と ID。"
+  targetType: String!
+  targetId: String
+  "変更の要約。JSON の文字列。"
+  summary: String!
+  "送信元。システムの操作では null。"
+  sourceIp: String
+  userAgent: String
+}
+
+"""
+監査ログの操作者。ユーザーの操作か、システムのロールの操作か。
+"""
+type AuditActor {
+  "user か system。"
+  type: String!
+  "ユーザーの操作なら、そのユーザー。ユーザーを消していれば null。"
+  user: User
+  "システムの操作なら、ロールの名前 (neko など)。"
+  role: String
+}
+
+type AuditEventEdge {
+  cursor: String!
+  node: AuditEvent!
+}
+
+type AuditEventConnection {
+  edges: [AuditEventEdge!]!
+  pageInfo: PageInfo!
+}
+
+"""
+監査ログの絞り込み。省いた項目は絞り込まない。
+"""
+input AuditEventFilter {
+  "操作の種類の先頭 (user. ならユーザーの操作だけ)。"
+  actionPrefix: String
+  actorUserId: ID
+  targetType: String
+  targetId: String
+  "この日時以降の記録だけを返す。"
+  since: Time
+  "この日時より前の記録だけを返す。"
+  until: Time
+}
+
+"""
+各ロールのインスタンス (設計書 1.4)。
+"""
+type Instance {
+  "インスタンスの ID。all では、1 つのプロセスがロールごとに同じ ID で登録する。"
+  instanceId: String!
+  role: String!
+  "ほかのインスタンスから届くアドレス (host:port)。"
+  address: String!
+  startedAt: Time!
+  heartbeatAt: Time!
+  "最近ハートビートを書いたかどうか。止まったインスタンスは、しばらく残してから消す。"
+  alive: Boolean!
+}
+
+"""
+リーダー選出のリース (設計書 1.4)。neko のリースを持つインスタンスだけがアクティブになる。
+"""
+type Lease {
+  name: String!
+  "リースを持っているインスタンスの ID。"
+  holderInstanceId: String!
+  generation: Int!
+  acquiredAt: Time!
+  expiresAt: Time!
+  "期限が切れていないかどうか。"
+  valid: Boolean!
+}
+
+"""
+チューナーサーバーの状態 (設計書 3.7)。
+"""
+type TunerServerStatus {
+  "接続できない縮退中かどうか。"
+  degraded: Boolean!
+  degradedSince: Time
+  "最後に接続に失敗した理由。"
+  lastError: String!
+  "チューナーサーバーの時計と OS の時計の差 (ミリ秒)。分からなければ null。"
+  clockSkewMs: Int
+  checkedAt: Time!
+}
+
+"""
+チューナー (設計書 3.1)。
+"""
+type Tuner {
+  index: Int!
+  name: String!
+  "受信できるチャンネル種別。"
+  types: [String!]!
+  available: Boolean!
+  remote: Boolean!
+  fault: Boolean!
+}
+
+"""
+保存先プール (設計書 5.6)。
+"""
+type StoragePool {
+  id: String!
+  "このインスタンスでのマウント先。"
+  path: String!
+}
+
+"""
+システムの状態。
+"""
+type SystemStatus {
+  instances: [Instance!]!
+  leases: [Lease!]!
+  "チューナーサーバーの状態。まだ確かめていなければ null。"
+  tunerServer: TunerServerStatus
+  tuners: [Tuner!]!
+  pools: [StoragePool!]!
+}
+
+extend type Query {
+  "監査ログを、新しい順に first 件まで返す。管理者だけが使える (設計書 9.7)。"
+  auditEvents(first: Int! = 50, after: String, filter: AuditEventFilter): AuditEventConnection!
+  "システムの状態。管理者だけが使える (設計書 9.7)。"
+  systemStatus: SystemStatus!
+}

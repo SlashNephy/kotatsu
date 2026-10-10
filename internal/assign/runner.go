@@ -48,12 +48,25 @@ type Runner struct {
 	clock    clock.Clock
 	guard    Guard
 	logger   *slog.Logger
-	defaults *reserve.Settings
+	defaults DefaultsFunc
 	opts     RunnerOptions
 }
 
-// NewRunner は Runner を作る。defaults は録画設定の全体の既定値。opts は nil でもよい。
-func NewRunner(pool *pgxpool.Pool, clk clock.Clock, guard Guard, logger *slog.Logger, defaults *reserve.Settings, opts *RunnerOptions) *Runner {
+// DefaultsFunc は、録画設定の全体の既定値を返す。画面から変えられるので (設計書 11.2)、割り当てのたびに引く。
+type DefaultsFunc func(ctx context.Context, db sqlc.DBTX) (*reserve.Settings, error)
+
+// FixedDefaults は、いつも settings を返す DefaultsFunc を返す。
+func FixedDefaults(settings *reserve.Settings) DefaultsFunc {
+	return func(context.Context, sqlc.DBTX) (*reserve.Settings, error) {
+		return settings, nil
+	}
+}
+
+// NewRunner は Runner を作る。defaults は録画設定の全体の既定値を返す。nil なら Go の既定値を使う。opts は nil でもよい。
+func NewRunner(pool *pgxpool.Pool, clk clock.Clock, guard Guard, logger *slog.Logger, defaults DefaultsFunc, opts *RunnerOptions) *Runner {
+	if defaults == nil {
+		defaults = FixedDefaults(reserve.DefaultSettings())
+	}
 	o := RunnerOptions{Debounce: DefaultDebounce, Interval: DefaultInterval, PollOnly: false, PollInterval: notify.DefaultPollInterval}
 	if opts != nil {
 		o.PollOnly = opts.PollOnly
@@ -117,7 +130,14 @@ func (r *Runner) RunOnce(ctx context.Context) (*Result, error) {
 		if err != nil {
 			return fmt.Errorf("failed to list reservations: %w", err)
 		}
-		reservations, err := r.inputs(ctx, q, rows, now)
+		defaults, err := r.defaults(ctx, tx)
+		if err != nil {
+			return fmt.Errorf("failed to get the default recording settings: %w", err)
+		}
+		if defaults == nil {
+			defaults = reserve.DefaultSettings()
+		}
+		reservations, err := r.inputs(ctx, q, defaults, rows, now)
 		if err != nil {
 			return err
 		}
@@ -155,7 +175,13 @@ func (r *Runner) RunOnce(ctx context.Context) (*Result, error) {
 
 // inputs は、DB の予約を割り当ての入力にする。録画設定は、全体の既定値に、ルール予約ならルールの上書き、
 // さらに予約自体の上書きを重ねて求める。予定の始まりが過ぎた予約は、録画が始まったものとして、割り当てたチューナーから動かさない。
-func (r *Runner) inputs(ctx context.Context, q *sqlc.Queries, rows []sqlc.ListAssignableReservationsRow, now time.Time) ([]*Reservation, error) {
+func (r *Runner) inputs(
+	ctx context.Context,
+	q *sqlc.Queries,
+	defaults *reserve.Settings,
+	rows []sqlc.ListAssignableReservationsRow,
+	now time.Time,
+) ([]*Reservation, error) {
 	ids := make([]uuid.UUID, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.ID)
@@ -171,7 +197,7 @@ func (r *Runner) inputs(ctx context.Context, q *sqlc.Queries, rows []sqlc.ListAs
 
 	reservations := make([]*Reservation, 0, len(rows))
 	for _, row := range rows {
-		settings := r.defaults
+		settings := defaults
 		if raw, ok := ruleSettings[row.ID]; ok && reserve.Kind(row.Kind) == reserve.KindRule {
 			overrides, err := reserve.DecodeOverrides(raw)
 			if err != nil {

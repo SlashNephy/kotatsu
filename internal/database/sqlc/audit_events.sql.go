@@ -99,3 +99,72 @@ func (q *Queries) ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditE
 	}
 	return items, nil
 }
+
+const searchAuditEvents = `-- name: SearchAuditEvents :many
+SELECT id, occurred_at, actor_type, actor_user_id, actor_role, action, target_type, target_id, summary, source_ip, user_agent FROM audit_events
+WHERE ($1::text IS NULL OR starts_with(action, $1::text))
+  AND ($2::uuid IS NULL OR actor_user_id = $2::uuid)
+  AND ($3::text IS NULL OR target_type = $3::text)
+  AND ($4::text IS NULL OR target_id = $4::text)
+  AND ($5::timestamptz IS NULL OR occurred_at >= $5::timestamptz)
+  AND ($6::timestamptz IS NULL OR occurred_at < $6::timestamptz)
+  AND ($7::timestamptz IS NULL OR (occurred_at, id) < ($7::timestamptz, $8::uuid))
+ORDER BY occurred_at DESC, id DESC
+LIMIT $9
+`
+
+type SearchAuditEventsParams struct {
+	ActionPrefix *string
+	ActorUserID  *uuid.UUID
+	TargetType   *string
+	TargetID     *string
+	Since        *time.Time
+	Until        *time.Time
+	BeforeAt     *time.Time
+	BeforeID     *uuid.UUID
+	MaxCount     int32
+}
+
+// 監査ログを、新しい順に返す。条件の NULL の項目は絞り込まない。
+// before_at と before_id より前 (古い) の記録だけを返し、ページを送る。
+func (q *Queries) SearchAuditEvents(ctx context.Context, arg SearchAuditEventsParams) ([]AuditEvent, error) {
+	rows, err := q.db.Query(ctx, searchAuditEvents,
+		arg.ActionPrefix,
+		arg.ActorUserID,
+		arg.TargetType,
+		arg.TargetID,
+		arg.Since,
+		arg.Until,
+		arg.BeforeAt,
+		arg.BeforeID,
+		arg.MaxCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditEvent{}
+	for rows.Next() {
+		var i AuditEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.OccurredAt,
+			&i.ActorType,
+			&i.ActorUserID,
+			&i.ActorRole,
+			&i.Action,
+			&i.TargetType,
+			&i.TargetID,
+			&i.Summary,
+			&i.SourceIP,
+			&i.UserAgent,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

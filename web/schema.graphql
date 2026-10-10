@@ -34,6 +34,78 @@ enum AssignmentState {
   CONFLICT
 }
 """
+監査ログの操作者。ユーザーの操作か、システムのロールの操作か。
+"""
+type AuditActor {
+  """
+  user か system。
+  """
+  type: String!
+  """
+  ユーザーの操作なら、そのユーザー。ユーザーを消していれば null。
+  """
+  user: User
+  """
+  システムの操作なら、ロールの名前 (neko など)。
+  """
+  role: String
+}
+"""
+監査ログの記録 (設計書 8.5)。誰が何をしたかを残す。
+一覧から読むだけなので、node で引き直すことはできない。
+"""
+type AuditEvent {
+  id: ID!
+  occurredAt: Time!
+  actor: AuditActor!
+  """
+  操作の種類 (user.created など)。
+  """
+  action: String!
+  """
+  対象の種類 (user、rule など) と ID。
+  """
+  targetType: String!
+  targetId: String
+  """
+  変更の要約。JSON の文字列。
+  """
+  summary: String!
+  """
+  送信元。システムの操作では null。
+  """
+  sourceIp: String
+  userAgent: String
+}
+type AuditEventConnection {
+  edges: [AuditEventEdge!]!
+  pageInfo: PageInfo!
+}
+type AuditEventEdge {
+  cursor: String!
+  node: AuditEvent!
+}
+"""
+監査ログの絞り込み。省いた項目は絞り込まない。
+"""
+input AuditEventFilter {
+  """
+  操作の種類の先頭 (user. ならユーザーの操作だけ)。
+  """
+  actionPrefix: String
+  actorUserId: ID
+  targetType: String
+  targetId: String
+  """
+  この日時以降の記録だけを返す。
+  """
+  since: Time
+  """
+  この日時より前の記録だけを返す。
+  """
+  until: Time
+}
+"""
 チャンネル種別 (設計書 3.1)。種別の文字列はチューナーサーバーが返すものをそのまま使い、表示名と並び順は管理者が変えられる。
 """
 type ChannelType {
@@ -143,6 +215,26 @@ input GuideViewInput {
   hideEmptyServices: Boolean! = false
 }
 """
+各ロールのインスタンス (設計書 1.4)。
+"""
+type Instance {
+  """
+  インスタンスの ID。all では、1 つのプロセスがロールごとに同じ ID で登録する。
+  """
+  instanceId: String!
+  role: String!
+  """
+  ほかのインスタンスから届くアドレス (host:port)。
+  """
+  address: String!
+  startedAt: Time!
+  heartbeatAt: Time!
+  """
+  最近ハートビートを書いたかどうか。止まったインスタンスは、しばらく残してから消す。
+  """
+  alive: Boolean!
+}
+"""
 キーワードと、その照合の仕方。
 """
 type Keyword {
@@ -182,6 +274,23 @@ input KeywordInput {
   照合する項目。どれか 1 つに一致すれば、このキーワードに一致したとみなす。
   """
   fields: [KeywordField!]!
+}
+"""
+リーダー選出のリース (設計書 1.4)。neko のリースを持つインスタンスだけがアクティブになる。
+"""
+type Lease {
+  name: String!
+  """
+  リースを持っているインスタンスの ID。
+  """
+  holderInstanceId: String!
+  generation: Int!
+  acquiredAt: Time!
+  expiresAt: Time!
+  """
+  期限が切れていないかどうか。
+  """
+  valid: Boolean!
 }
 type Mutation {
   createGuideView(input: GuideViewInput!): GuideView!
@@ -250,6 +359,11 @@ type Mutation {
   リカバリーコードを作り直す。古いコードは使えなくなる。直近 10 分以内の認証が要る。
   """
   regenerateRecoveryCodes: RecoveryCodes!
+  """
+  全体の設定を変える。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  正しくない値なら、BAD_USER_INPUT を返す。
+  """
+  updateSystemSettings(input: SystemSettingsInput!): SystemSettings!
   """
   ユーザーを作る。管理者だけが使え、直近 10 分以内の認証が要る。
   パスワードが規定に当たれば、BAD_USER_INPUT と、extensions.reason に理由 (too_weak など) を返す。
@@ -402,6 +516,14 @@ type Query {
   """
   viewer: User!
   """
+  監査ログを、新しい順に first 件まで返す。管理者だけが使える (設計書 9.7)。
+  """
+  auditEvents(first: Int! = 50, after: String, filter: AuditEventFilter): AuditEventConnection!
+  """
+  システムの状態。管理者だけが使える (設計書 9.7)。
+  """
+  systemStatus: SystemStatus!
+  """
   ID で引く (Relay の Global Object Identification)。見つからなければ NOT_FOUND のエラーを返す。
   """
   node(id: ID!): Node
@@ -474,6 +596,10 @@ type Query {
   """
   secondFactors: SecondFactorStatus!
   """
+  全体の設定。ログイン中のユーザーなら誰でも読める。
+  """
+  systemSettings: SystemSettings!
+  """
   すべてのユーザーを、作った順に返す。管理者だけが使える (設計書 9.7)。
   """
   users: [User!]!
@@ -481,6 +607,25 @@ type Query {
   ログイン中のユーザーの、使えるセッションを、最後に使われた順に返す。
   """
   sessions: [Session!]!
+}
+"""
+録画設定 (設計書 4.7)。全体の既定値に、ルールや予約の上書きを重ねる。
+"""
+type RecordingSettings {
+  """
+  保存先プール。null なら、推定サイズが収まるプールを選ぶ。
+  """
+  poolId: String
+  """
+  ファイル名の text/template
+  """
+  fileNameTemplate: String!
+  startMarginSeconds: Int!
+  endMarginSeconds: Int!
+  """
+  優先度 (-10〜10)。チューナーが足りないときは、高い予約から割り当てる。
+  """
+  priority: Int!
 }
 """
 録画設定の上書き (設計書 4.7)。null の項目は全体の既定値を使う。
@@ -743,11 +888,61 @@ type Session {
   """
   sourceIp: String
 }
+"""
+保存先プール (設計書 5.6)。
+"""
+type StoragePool {
+  id: String!
+  """
+  このインスタンスでのマウント先。
+  """
+  path: String!
+}
 type Subscription {
   """
   接続を保つために、一定の間隔で届く今の時刻。
   """
   heartbeat: Time!
+}
+"""
+画面から変える、全体の設定 (設計書 11.2)。
+"""
+type SystemSettings {
+  """
+  録画設定の全体の既定値。
+  """
+  recordingDefaults: RecordingSettings!
+  """
+  過去の番組の保持期間 (日)。0 なら無期限。
+  """
+  archiveRetentionDays: Int!
+  """
+  最後に変えた日時。一度も変えていなければ null。
+  """
+  updatedAt: Time
+}
+"""
+全体の設定の変える項目。省いた項目は変えない。
+"""
+input SystemSettingsInput {
+  """
+  録画設定の既定値の変える項目。省いた項目は変えない。
+  """
+  recordingDefaults: RecordingSettingsOverridesInput
+  archiveRetentionDays: Int
+}
+"""
+システムの状態。
+"""
+type SystemStatus {
+  instances: [Instance!]!
+  leases: [Lease!]!
+  """
+  チューナーサーバーの状態。まだ確かめていなければ null。
+  """
+  tunerServer: TunerServerStatus
+  tuners: [Tuner!]!
+  pools: [StoragePool!]!
 }
 """
 登録中の TOTP。秘密キーは、この応答でしか見せない。
@@ -816,6 +1011,39 @@ input TimeReservationInput {
   """
   name: String! = ""
   settings: RecordingSettingsOverridesInput
+}
+"""
+チューナー (設計書 3.1)。
+"""
+type Tuner {
+  index: Int!
+  name: String!
+  """
+  受信できるチャンネル種別。
+  """
+  types: [String!]!
+  available: Boolean!
+  remote: Boolean!
+  fault: Boolean!
+}
+"""
+チューナーサーバーの状態 (設計書 3.7)。
+"""
+type TunerServerStatus {
+  """
+  接続できない縮退中かどうか。
+  """
+  degraded: Boolean!
+  degradedSince: Time
+  """
+  最後に接続に失敗した理由。
+  """
+  lastError: String!
+  """
+  チューナーサーバーの時計と OS の時計の差 (ミリ秒)。分からなければ null。
+  """
+  clockSkewMs: Int
+  checkedAt: Time!
 }
 """
 ユーザーの変える項目。省いた項目は変えない。
