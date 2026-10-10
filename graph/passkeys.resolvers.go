@@ -6,16 +6,17 @@ import (
 	pgx "github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/graph/model"
+	"github.com/SlashNephy/kotatsu/internal/auth"
 )
 
 // RenamePasskey is the resolver for the renamePasskey field.
 func (r *mutationResolver) RenamePasskey(ctx context.Context, id string, name string) (*model.Passkey, error) {
+	if r.passkeys == nil {
+		return nil, errPasskeysUnavailable
+	}
 	principal, err := viewer(ctx)
 	if err != nil {
 		return nil, err
-	}
-	if r.passkeys == nil {
-		return nil, errPasskeysUnavailable
 	}
 	passkeyID, err := parsePasskeyID(id)
 	if err != nil {
@@ -42,13 +43,18 @@ func (r *mutationResolver) RenamePasskey(ctx context.Context, id string, name st
 
 // DeletePasskey is the resolver for the deletePasskey field.
 func (r *mutationResolver) DeletePasskey(ctx context.Context, id string) (string, error) {
-	principal, actor, err := r.recentlyAuthenticated(ctx)
-	if err != nil {
-		return "", err
-	}
 	if r.passkeys == nil {
 		return "", errPasskeysUnavailable
 	}
+	principal, err := viewer(ctx)
+	if err != nil {
+		return "", err
+	}
+	// パスキーを消すことは、第二要素を変える操作なので、直前の再認証を求める (設計書 9.5)。
+	if err := auth.RequireRecentAuthentication(ctx, r.clock); err != nil {
+		return "", err
+	}
+	actor := actorOf(ctx, principal)
 	passkeyID, err := parsePasskeyID(id)
 	if err != nil {
 		return "", err
@@ -64,12 +70,12 @@ func (r *mutationResolver) DeletePasskey(ctx context.Context, id string) (string
 
 // Passkeys is the resolver for the passkeys field.
 func (r *queryResolver) Passkeys(ctx context.Context) ([]*model.Passkey, error) {
+	if r.passkeys == nil {
+		return nil, errPasskeysUnavailable
+	}
 	principal, err := viewer(ctx)
 	if err != nil {
 		return nil, err
-	}
-	if r.passkeys == nil {
-		return nil, errPasskeysUnavailable
 	}
 	passkeys, err := r.passkeys.List(ctx, r.db, principal.UserID)
 	if err != nil {
