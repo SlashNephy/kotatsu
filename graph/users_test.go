@@ -36,7 +36,7 @@ const (
 	fieldRole    = "role"
 	fieldUser    = "username"
 	mikanLabel   = "みかん"
-	strongPhrase = "neko-to-mikan-no-fuyu-2026"
+	strongPhrase = "yuki-ga-furu-yoru-2026"
 	tooWeak      = "BAD_USER_INPUT:too_weak"
 	varValue     = "value"
 )
