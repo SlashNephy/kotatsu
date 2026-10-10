@@ -2,9 +2,7 @@ package auth_test
 
 import (
 	"errors"
-	"log/slog"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,6 +14,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/password"
 )
+
+// snowPhrase は、mikan の名前を含まない、十分強いパスワード。
+const snowPhrase = "yuki-ga-furu-yoru-2026"
 
 type userAdminFixture struct {
 	db    *pgxpool.Pool
@@ -30,9 +31,7 @@ func newUserAdminFixture(t *testing.T) *userAdminFixture {
 	t.Helper()
 
 	clk := clocktest.NewFake(testNow())
-	// -race の CI では、パスワードの強度の判定が遅くなる。
-	policy, err := password.NewPolicy(&password.PolicyOptions{HIBP: nil, StrengthTimeout: 10 * time.Minute, Logger: slog.New(slog.DiscardHandler)})
-	require.NoError(t, err)
+	policy := newTestPolicy(t)
 	db := newDB(t)
 	users := auth.NewUsers(clk)
 	root, err := users.Create(t.Context(), db, &auth.NewUser{Username: rootName, DisplayName: rootName, Role: auth.RoleAdmin, PasswordHash: nil})
@@ -75,7 +74,7 @@ func TestUserAdminCreate(t *testing.T) {
 		wantRejected bool
 		wantHash     bool
 	}{
-		{name: "with a password", account: auth.NewAccount{Username: mikanName, DisplayName: mikanLabel, Role: auth.RoleMember, Password: adminPhrase}, wantHash: true},
+		{name: "with a password", account: auth.NewAccount{Username: mikanName, DisplayName: mikanLabel, Role: auth.RoleMember, Password: snowPhrase}, wantHash: true},
 		{name: "without a password", account: auth.NewAccount{Username: nekoName, DisplayName: "ねこ", Role: auth.RoleViewer, Password: ""}},
 		{name: "weak password", account: auth.NewAccount{Username: mikanName, DisplayName: mikanLabel, Role: auth.RoleMember, Password: weakPhrase}, wantRejected: true},
 		{name: "taken username", account: auth.NewAccount{Username: "ROOT", DisplayName: rootName, Role: auth.RoleMember, Password: ""}, wantErr: auth.ErrUsernameTaken},
@@ -261,7 +260,7 @@ func TestUserAdminUpdateAndEnable(t *testing.T) {
 	rejected, ok := errors.AsType[*password.RejectedError](err)
 	require.True(t, ok, "got %v", err)
 	assert.Equal(t, password.ReasonTooWeak, rejected.Reason)
-	require.NoError(t, f.admin.ResetPassword(t.Context(), f.db, f.actor(), user.ID, adminPhrase))
+	require.NoError(t, f.admin.ResetPassword(t.Context(), f.db, f.actor(), user.ID, snowPhrase))
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM users WHERE id = $1 AND password_hash IS NOT NULL", user.ID))
 }
 
