@@ -36,7 +36,9 @@ export function ProgramDetail({ programId, onClose }: Props) {
   );
 }
 
+// 検索から過去の番組も開くので、年も出す。
 const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+  year: 'numeric',
   month: 'numeric',
   day: 'numeric',
   weekday: 'short',

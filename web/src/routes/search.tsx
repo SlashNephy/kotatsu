@@ -16,7 +16,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Suspense, useState, type FormEvent } from 'react';
+import { Suspense, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
@@ -84,6 +84,14 @@ const query = graphql`
 
 type Result = searchProgramsQuery$data['searchPrograms']['edges'][number]['node'];
 
+// Page は、表示している検索の結果。続きは、同じ条件と、その条件で得たカーソルで読む。
+type Page = {
+  variables: searchProgramsQuery['variables'];
+  results: Result[];
+  // next は、続きのカーソル。続きがなければ null。
+  next: string | null;
+};
+
 // SearchPage は、番組を検索する画面 (設計書 10.3)。過去の放送も検索でき、検索の条件からルールを作れる。
 function SearchPage() {
   const { t } = useTranslation();
@@ -139,35 +147,51 @@ function Search() {
   });
   const [includeArchive, setIncludeArchive] = useState(false);
   const [archiveDays, setArchiveDays] = useState(30);
-  const [results, setResults] = useState<Result[] | null>(null);
-  const [next, setNext] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState<Page | null>(null);
+  // loading は、読み込み中の操作。新しい検索と、続きの読み込みで、ボタンの表示を分ける。
+  const [loading, setLoading] = useState<'search' | 'more' | null>(null);
   const [error, setError] = useState(false);
+  // request は、最後に始めた読み込みの番号。古い読み込みの応答は捨てる。
+  const request = useRef(0);
   const [selected, setSelected] = useState<string | undefined>(undefined);
   const [creatingRule, setCreatingRule] = useState(false);
-  // searched は、結果を出している検索の条件。入力を変えても、続きは同じ条件で読む。
-  const [searched, setSearched] = useState<searchProgramsQuery['variables'] | null>(null);
   const conditions = toConditions(form);
 
-  const load = async (variables: searchProgramsQuery['variables'], append: boolean) => {
-    setLoading(true);
+  // load は、variables で検索し、previous の後ろに足す。新しい検索では、previous を空にする。
+  // 失敗したときは、表示している結果とカーソルの組を変えないので、続きを別の条件で読むことはない。
+  const load = async (
+    variables: searchProgramsQuery['variables'],
+    previous: Result[],
+    kind: 'search' | 'more',
+  ) => {
+    const id = ++request.current;
+    setLoading(kind);
     setError(false);
     try {
       const data = await fetchQuery<searchProgramsQuery>(environment, query, variables, {
         fetchPolicy: 'network-only',
       }).toPromise();
-      const page = data?.searchPrograms;
-      if (page === undefined) {
+      if (id !== request.current) {
+        return;
+      }
+      const result = data?.searchPrograms;
+      if (result === undefined) {
         throw new Error('no data');
       }
-      const nodes = page.edges.map((edge) => edge.node);
-      setResults((prev) => (append && prev !== null ? [...prev, ...nodes] : nodes));
-      // 照合する番組の数の上限に達すると、first 件に満たなくても続きがある。
-      setNext(page.pageInfo.hasNextPage ? (page.pageInfo.endCursor ?? null) : null);
+      setPage({
+        variables,
+        results: [...previous, ...result.edges.map((edge) => edge.node)],
+        // 照合する番組の数の上限に達すると、first 件に満たなくても続きがある。
+        next: result.pageInfo.hasNextPage ? (result.pageInfo.endCursor ?? null) : null,
+      });
     } catch {
-      setError(true);
+      if (id === request.current) {
+        setError(true);
+      }
     } finally {
-      setLoading(false);
+      if (id === request.current) {
+        setLoading(null);
+      }
     }
   };
 
@@ -182,8 +206,7 @@ function Search() {
       first: pageSize,
       after: null,
     };
-    setSearched(variables);
-    void load(variables, false);
+    void load(variables, [], 'search');
   };
 
   const update = (patch: Partial<SearchForm>) => setForm((prev) => ({ ...prev, ...patch }));
@@ -279,7 +302,7 @@ function Search() {
             ) : (
               <span />
             )}
-            <Button type="submit" loading={loading && searched?.after == null}>
+            <Button type="submit" loading={loading === 'search'}>
               {t('search.submit')}
             </Button>
           </Group>
@@ -290,12 +313,12 @@ function Search() {
           {t('search.error')}
         </Alert>
       )}
-      {results !== null && results.length === 0 && next === null && (
+      {page !== null && page.results.length === 0 && page.next === null && (
         <Alert color="gray">{t('search.empty')}</Alert>
       )}
-      {results !== null && results.length > 0 && (
+      {page !== null && page.results.length > 0 && (
         <Stack gap={4}>
-          {results.map((program) => (
+          {page.results.map((program) => (
             <UnstyledButton
               key={program.id}
               onClick={() => setSelected(program.id)}
@@ -318,11 +341,13 @@ function Search() {
           ))}
         </Stack>
       )}
-      {next !== null && searched !== null && (
+      {page?.next != null && (
         <Button
           variant="default"
-          loading={loading}
-          onClick={() => void load({ ...searched, after: next }, true)}
+          loading={loading === 'more'}
+          // 新しい検索の最中は、前の検索の続きを読まない。
+          disabled={loading === 'search'}
+          onClick={() => void load({ ...page.variables, after: page.next }, page.results, 'more')}
         >
           {t('search.more')}
         </Button>

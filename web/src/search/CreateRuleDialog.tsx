@@ -27,6 +27,10 @@ export function CreateRuleDialog({ conditions, defaultName, onClose }: Props) {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    // 空白だけの名前と、送っている最中の Enter は、送らない。
+    if (name.trim() === '' || inFlight) {
+      return;
+    }
     setResult(null);
     commit({
       variables: { input: { name: name.trim(), conditions } },
