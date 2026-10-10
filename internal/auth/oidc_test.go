@@ -1,10 +1,17 @@
 package auth_test
 
 import (
+	"encoding/json"
+	"io"
 	"log/slog"
+	"net/http"
+	"net/http/cookiejar"
+	"net/http/httptest"
 	"net/netip"
 	"net/url"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -351,4 +358,99 @@ func TestOIDCUnavailable(t *testing.T) {
 	f.idp.Close()
 	_, err = f.oidc.Begin(t.Context(), f.db, f.client)
 	require.ErrorIs(t, err, auth.ErrOIDCUnavailable)
+}
+
+// TestOIDCHandlers は、ログインの開始から、IdP を経て、セッションの Cookie を受け取るまでを HTTP で確かめる。
+func TestOIDCHandlers(t *testing.T) {
+	t.Parallel()
+
+	f := newOIDCFixture(t, auth.OIDCAutoCreate{})
+	f.linkedUser(t)
+	// Cookie の期限は時計から決まる。過去の時刻のままだと、Cookie の入れ物が期限切れとして捨てる。
+	f.clock.Advance(time.Since(f.clock.Now()))
+	client := func(*http.Request) *auth.ClientInfo { return f.client }
+	mux := http.NewServeMux()
+	mux.Handle("GET /auth/oidc", f.oidc.StatusHandler())
+	mux.Handle("POST /auth/oidc", f.oidc.BeginHandler(f.db, client))
+	mux.Handle("GET "+auth.OIDCCallbackPath, f.oidc.CallbackHandler(f.db, client))
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	// リダイレクトは、テストで 1 つずつたどる。
+	httpClient := &http.Client{Jar: jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	type response struct {
+		status   int
+		location string
+		body     []byte
+	}
+	do := func(method, target string) *response {
+		req, err := http.NewRequestWithContext(t.Context(), method, target, strings.NewReader("{}"))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", jsonType)
+		resp, err := httpClient.Do(req)
+		require.NoError(t, err)
+		defer func() {
+			_ = resp.Body.Close()
+		}()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		return &response{status: resp.StatusCode, location: resp.Header.Get("Location"), body: body}
+	}
+	cookie := func(name string) string {
+		for _, c := range jar.Cookies(mustParseURL(t, server.URL+"/auth/")) {
+			if c.Name == name {
+				return c.Value
+			}
+		}
+
+		return ""
+	}
+	// IdP は、画面の代わりに、テストのサーバーのコールバックへ戻す。
+	callback := func(redirect string) string {
+		u := mustParseURL(t, redirect)
+
+		return server.URL + u.Path + "?" + u.RawQuery
+	}
+
+	var status struct {
+		Enabled     bool   `json:"enabled"`
+		DisplayName string `json:"displayName"`
+	}
+	require.NoError(t, json.Unmarshal(do(http.MethodGet, server.URL+"/auth/oidc").body, &status))
+	assert.True(t, status.Enabled)
+	assert.Equal(t, "Test IdP", status.DisplayName)
+
+	// state を書き換えたリダイレクトは、ログインさせずに、ログインの画面へ戻す。
+	var begin struct {
+		AuthorizationURL string `json:"authorizationUrl"`
+	}
+	require.NoError(t, json.Unmarshal(do(http.MethodPost, server.URL+"/auth/oidc").body, &begin))
+	redirect, err := f.idp.Authorize(begin.AuthorizationURL)
+	require.NoError(t, err)
+	forged := mustParseURL(t, callback(redirect))
+	query := forged.Query()
+	query.Set("state", "forged")
+	forged.RawQuery = query.Encode()
+	resp := do(http.MethodGet, forged.String())
+	assert.Equal(t, http.StatusSeeOther, resp.status)
+	assert.Equal(t, "/login?error=oidc_invalid", resp.location)
+	assert.Empty(t, cookie(auth.CookieName))
+	assert.Empty(t, cookie(auth.OIDCCookieName), "the login state cookie must be cleared")
+
+	// 正しく戻ってくれば、セッションの Cookie を受け取り、ホームへ進む。
+	require.NoError(t, json.Unmarshal(do(http.MethodPost, server.URL+"/auth/oidc").body, &begin))
+	assert.NotEmpty(t, cookie(auth.OIDCCookieName))
+	redirect, err = f.idp.Authorize(begin.AuthorizationURL)
+	require.NoError(t, err)
+	resp = do(http.MethodGet, callback(redirect))
+	assert.Equal(t, http.StatusSeeOther, resp.status)
+	assert.Equal(t, "/", resp.location)
+	assert.NotEmpty(t, cookie(auth.CookieName), "the session cookie must be set")
+	assert.Empty(t, cookie(auth.OIDCCookieName))
+
+	// 同じリダイレクトを繰り返しても、ログインさせない。
+	resp = do(http.MethodGet, callback(redirect))
+	assert.Equal(t, "/login?error=oidc_expired", resp.location)
 }

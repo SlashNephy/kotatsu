@@ -85,7 +85,48 @@ func newUserCommand(opts *Options, connect func(ctx context.Context) (*config.Co
 		},
 	})
 
+	userCmd.AddCommand(&cobra.Command{
+		Use:   "link-oidc <username> <subject>",
+		Short: "Link a local account to a user of the OIDC provider (auth.oidc.issuer) by the subject (sub claim)",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, pool, err := connect(cmd.Context())
+			if err != nil {
+				return err
+			}
+			defer closePool(pool)
+			oidc := newOIDC(opts.Clock, opts.Logger, cfg, nil)
+			if err := oidc.Link(cmd.Context(), pool, audit.System("cli"), args[0], args[1]); err != nil {
+				return err
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "linked %s to %s at %s\n", args[0], args[1], cfg.Auth.OIDC.Issuer)
+
+			return err
+		},
+	})
+
 	return userCmd
+}
+
+// newOIDC は、設定から OIDC を作る。sessions は、ログインのセッションを作るときだけ要る。
+func newOIDC(clk clock.Clock, logger *slog.Logger, cfg *config.Config, sessions *auth.Sessions) *auth.OIDC {
+	c := cfg.Auth.OIDC
+
+	return auth.NewOIDC(&auth.OIDCOptions{
+		Settings: auth.OIDCSettings{
+			Issuer: c.Issuer, ClientID: c.ClientID, ClientSecret: c.ClientSecret.Value(), RedirectURL: c.RedirectURL,
+			Scopes: c.Scopes, DisplayName: c.DisplayName, UsernameClaim: c.UsernameClaim,
+			AutoCreate: auth.OIDCAutoCreate{
+				Enabled: c.AutoCreate.Enabled, GroupsClaim: c.AutoCreate.GroupsClaim,
+				AdminGroups: c.AutoCreate.AdminGroups, MemberGroups: c.AutoCreate.MemberGroups, ViewerGroups: c.AutoCreate.ViewerGroups,
+			},
+		},
+		Clock:      clk,
+		Recorder:   audit.NewRecorder(clk),
+		Logger:     logger.With(slog.String("component", "oidc")),
+		Sessions:   sessions,
+		HTTPClient: nil,
+	})
 }
 
 // newAdminCommand は kotatsu admin を作る。
