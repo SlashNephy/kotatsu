@@ -34,6 +34,7 @@ type Querier interface {
 	DeleteReservation(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteReservationRule(ctx context.Context, arg DeleteReservationRuleParams) error
 	DeleteRule(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteSetupTokens(ctx context.Context) error
 	DeleteStaleInstances(ctx context.Context, before time.Time) (int64, error)
 	// 数え直す時間を過ぎ、待たせてもいない行を消す。存在しないユーザー名や IP の行が溜まり続けないようにする。
 	DeleteStaleLoginThrottles(ctx context.Context, arg DeleteStaleLoginThrottlesParams) (int64, error)
@@ -60,6 +61,7 @@ type Querier interface {
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	GetUserTOTPForUpdate(ctx context.Context, userID uuid.UUID) (UserTotp, error)
+	HasActiveAdmin(ctx context.Context) (bool, error)
 	HasUserTOTP(ctx context.Context, userID uuid.UUID) (bool, error)
 	HeartbeatInstance(ctx context.Context, arg HeartbeatInstanceParams) (int64, error)
 	IncrementLoginChallengeFailures(ctx context.Context, id uuid.UUID) (int32, error)
@@ -77,6 +79,7 @@ type Querier interface {
 	// ルール予約を、番組情報をコピーして作る。同じ番組の予約がすでにあれば何もせず、行を返さない。
 	InsertRuleReservation(ctx context.Context, arg InsertRuleReservationParams) (uuid.UUID, error)
 	InsertSession(ctx context.Context, arg InsertSessionParams) error
+	InsertSetupToken(ctx context.Context, arg InsertSetupTokenParams) error
 	InsertTimeReservation(ctx context.Context, arg InsertTimeReservationParams) error
 	InsertTuner(ctx context.Context, arg InsertTunerParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) error
@@ -123,6 +126,8 @@ type Querier interface {
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
 	// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
+	// 初回セットアップを、全インスタンスで 1 つずつ行わせる。トランザクションが終わるまでロックする。
+	LockSetup(ctx context.Context) error
 	// ユーザーの行を、トランザクションが終わるまで書き込みからロックする。同じユーザーの登録を同時に行わせない。
 	LockUser(ctx context.Context, id uuid.UUID) (LockUserRow, error)
 	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
@@ -151,6 +156,7 @@ type Querier interface {
 	SetRuleEnabled(ctx context.Context, arg SetRuleEnabledParams) (int64, error)
 	SetTOTPLastUsedStep(ctx context.Context, arg SetTOTPLastUsedStepParams) error
 	SetUserPassword(ctx context.Context, arg SetUserPasswordParams) (int64, error)
+	SetupTokenExists(ctx context.Context, tokenHash []byte) (bool, error)
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
 	UpdateAssignment(ctx context.Context, arg UpdateAssignmentParams) error

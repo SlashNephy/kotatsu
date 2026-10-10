@@ -369,6 +369,10 @@ func testOptions(logger *slog.Logger, roles []*cli.Role, lookupEnv config.Lookup
 			return nil
 		},
 		JobWorkers: func(*cli.Deps) (*river.Workers, []*river.PeriodicJob) { return nil, []*river.PeriodicJob{} },
+		LogSetupToken: func(context.Context, *slog.Logger, clock.Clock, *pgxpool.Pool) error {
+			return nil
+		},
+		PasswordStrengthTimeout: 0,
 	}
 }
 

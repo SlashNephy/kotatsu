@@ -112,6 +112,13 @@ CREATE TABLE sessions (
 
 CREATE INDEX sessions_user_id_idx ON sessions (user_id);
 
+-- 初回セットアップのトークン (設計書 9.2)。管理者が 1 人もいない間だけ発行し、管理者を作ったら消す。
+-- トークンそのものは保存せず、SHA-256 だけを保存する。
+CREATE TABLE setup_tokens (
+  token_hash bytea PRIMARY KEY,
+  created_at timestamptz NOT NULL
+);
+
 -- パスワードの確認を終え、第二要素の確認を待っているログイン (設計書 9.3)。
 -- パスワードでのログインは、第二要素を確かめるまでセッションにしない。
 -- Cookie にはランダムなトークンを入れ、DB にはその SHA-256 だけを保存する。

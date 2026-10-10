@@ -43,7 +43,7 @@ func TestUserSetPassword(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 	user, err := auth.NewUsers(clocktest.NewFake(time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC))).Create(t.Context(), pool, &auth.NewUser{
-		Username: adminUsername, DisplayName: "こたつ", Role: auth.RoleAdmin, PasswordHash: nil,
+		Username: adminUsername, DisplayName: adminUsername, Role: auth.RoleAdmin, PasswordHash: nil,
 	})
 	require.NoError(t, err)
 
@@ -85,4 +85,53 @@ func TestUserSetPassword(t *testing.T) {
 			assert.True(t, verification.OK)
 		})
 	}
+}
+
+// TestAdminSetupToken は、kotatsu admin setup-token が、管理者がいない間だけトークンを発行することを確かめる。
+func TestAdminSetupToken(t *testing.T) {
+	t.Parallel()
+
+	dbConfig := databasetest.New(t)
+	env := testEnv()
+	env["KOTATSU_DATABASE_URL"] = dbConfig.URL.Value()
+	opts := cli.DefaultOptions(slog.New(slog.DiscardHandler))
+	opts.LookupEnv = func(key string) (string, bool) {
+		v, ok := env[key]
+
+		return v, ok
+	}
+	migrateCmd := cli.NewCommand(opts)
+	migrateCmd.SetArgs([]string{subcommandMigrate})
+	require.NoError(t, migrateCmd.ExecuteContext(t.Context()))
+	pool, err := database.Open(t.Context(), dbConfig)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	issue := func() (string, error) {
+		var out bytes.Buffer
+		cmd := cli.NewCommand(opts)
+		cmd.SetArgs([]string{"admin", "setup-token"})
+		cmd.SetOut(&out)
+		err := cmd.ExecuteContext(t.Context())
+
+		return out.String(), err
+	}
+	token, err := issue()
+	require.NoError(t, err)
+	assert.Regexp(t, `^[A-Za-z0-9_-]{43}\n$`, token)
+
+	// all の起動時にも、管理者がいなければ、トークンをログに出す。
+	var logs bytes.Buffer
+	require.NoError(t, opts.LogSetupToken(t.Context(), slog.New(slog.NewJSONHandler(&logs, nil)), opts.Clock, pool))
+	assert.Regexp(t, `"setup_token":"[A-Za-z0-9_-]{43}"`, logs.String())
+
+	_, err = auth.NewUsers(clocktest.NewFake(time.Now())).Create(t.Context(), pool, &auth.NewUser{
+		Username: adminUsername, DisplayName: adminUsername, Role: auth.RoleAdmin, PasswordHash: nil,
+	})
+	require.NoError(t, err)
+	_, err = issue()
+	require.ErrorContains(t, err, "an administrator already exists")
+	logs.Reset()
+	require.NoError(t, opts.LogSetupToken(t.Context(), slog.New(slog.NewJSONHandler(&logs, nil)), opts.Clock, pool))
+	assert.Empty(t, logs.String())
 }

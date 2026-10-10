@@ -28,6 +28,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
+	"github.com/SlashNephy/kotatsu/internal/password"
 	"github.com/SlashNephy/kotatsu/internal/registry"
 	"github.com/SlashNephy/kotatsu/internal/spa"
 	"github.com/SlashNephy/kotatsu/internal/telemetry"
@@ -58,6 +59,8 @@ type Options struct {
 	RunRegistry func(ctx context.Context, logger *slog.Logger, deps *Deps, roles []string, listenAddr string) error
 	// JobWorkers は、nekonote で実行するジョブの Worker と定期ジョブを返す。
 	JobWorkers func(deps *Deps) (*river.Workers, []*river.PeriodicJob)
+	// LogSetupToken は、all の起動時に、管理者がいなければセットアップトークンを発行してログに出す (設計書 9.2)。
+	LogSetupToken func(ctx context.Context, logger *slog.Logger, clk clock.Clock, pool *pgxpool.Pool) error
 	// PasswordStrengthTimeout は、パスワードの強度の判定の時間の上限。0 なら既定値にする。
 	// テストは、-race で遅くなるので長くする。
 	PasswordStrengthTimeout time.Duration
@@ -76,6 +79,7 @@ func DefaultOptions(logger *slog.Logger) *Options {
 		RunRegistry:  runRegistry,
 		JobWorkers:   jobWorkers,
 
+		LogSetupToken:           logSetupToken,
 		PasswordStrengthTimeout: 0,
 	}
 }
@@ -183,7 +187,8 @@ func NewCommand(opts *Options) *cobra.Command {
 		return cfg, pool, nil
 	}
 
-	start := func(ctx context.Context, targets []*Role) error {
+	// start は targets のロールを起動する。issueSetupToken なら、管理者がいないときに、セットアップトークンを発行してログに出す。
+	start := func(ctx context.Context, targets []*Role, issueSetupToken bool) error {
 		cfg, pool, err := connect(ctx)
 		if err != nil {
 			return err
@@ -192,6 +197,11 @@ func NewCommand(opts *Options) *cobra.Command {
 
 		if err := opts.CheckSchema(ctx, pool); err != nil {
 			return fmt.Errorf("refusing to start: %w", err)
+		}
+		if issueSetupToken {
+			if err := opts.LogSetupToken(ctx, opts.Logger, opts.Clock, pool); err != nil {
+				return err
+			}
 		}
 
 		deps := &Deps{
@@ -229,7 +239,7 @@ func NewCommand(opts *Options) *cobra.Command {
 			Args:        cobra.NoArgs,
 			Annotations: map[string]string{displayNameAnnotation: role.DisplayName()},
 			RunE: func(cmd *cobra.Command, _ []string) error {
-				return start(cmd.Context(), []*Role{role})
+				return start(cmd.Context(), []*Role{role}, false)
 			},
 		})
 	}
@@ -239,7 +249,8 @@ func NewCommand(opts *Options) *cobra.Command {
 		Short: "Run all roles in a single process",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return start(cmd.Context(), opts.Roles)
+			// all の構成では、初回セットアップのトークンを起動時にログへ出す (設計書 9.2)。
+			return start(cmd.Context(), opts.Roles, true)
 		},
 	})
 
@@ -260,6 +271,7 @@ func NewCommand(opts *Options) *cobra.Command {
 
 	root.AddCommand(newImportCommand(opts, loadConfig))
 	root.AddCommand(newUserCommand(opts, connect))
+	root.AddCommand(newAdminCommand(opts, connect))
 
 	// cobra の既定のテンプレートはコマンド一覧に Name だけを出すので、役割名を併記した名前に差し替える。
 	// NamePadding は Name の長さから計算されるため、併記した名前に合わせた固定幅にする。
@@ -405,7 +417,14 @@ func newAPI(logger *slog.Logger, deps *Deps) (http.Handler, error) {
 		SecondFactors: factors,
 		ChallengeTTL:  0,
 	})
+	passwordPolicy, err := password.NewPolicy(&password.PolicyOptions{HIBP: hibpOf(deps.Config), StrengthTimeout: 0, Logger: logger})
+	if err != nil {
+		return nil, err
+	}
+	setup := auth.NewSetup(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy)
+	mux.Handle("GET /auth/setup", setup.StatusHandler(deps.DB, logins))
 	for pattern, handler := range map[string]http.Handler{
+		"POST /auth/setup":                         setup.CreateHandler(deps.DB, logins, clientInfo),
 		"POST /auth/login":                         logins.PasswordHandler(deps.DB, clientInfo),
 		"POST /auth/login/totp":                    logins.TOTPHandler(deps.DB, clientInfo),
 		"POST /auth/login/recovery-code":           logins.RecoveryCodeHandler(deps.DB, clientInfo),

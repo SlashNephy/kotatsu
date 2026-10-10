@@ -223,6 +223,11 @@ type Session struct {
 	SourceIP        *netip.Addr
 }
 
+type SetupToken struct {
+	TokenHash []byte
+	CreatedAt time.Time
+}
+
 type TotpEnrollment struct {
 	UserID          uuid.UUID
 	SecretEncrypted []byte
