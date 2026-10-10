@@ -30,6 +30,9 @@ models:
   Time:
     model:
       - github.com/99designs/gqlgen/graphql.Time
+  Int64:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int64
   Service:
     model: github.com/SlashNephy/kotatsu/graph/model.Service
     fields:

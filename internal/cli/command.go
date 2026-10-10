@@ -499,6 +499,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Webhooks:            webhooks,
 		Changes:             changes,
 		Pools:               deps.Config.Storage.Pools,
+		FreeSpace:           nil,
 		Clock:               deps.Clock,
 		Location:            location,
 		MaxSearchCandidates: 0,

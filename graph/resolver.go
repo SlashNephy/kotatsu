@@ -10,6 +10,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
@@ -46,4 +47,5 @@ type Resolver struct {
 	webhooks          *webhook.Store
 	changes           Changes
 	pools             map[string]string
+	freeSpace         kago.FreeSpaceFunc
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/graph"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 )
@@ -62,7 +63,7 @@ func TestSystemSettings(t *testing.T) {
 	require.Empty(t, viewerFixture.query(t, settingsQuery, nil, &got))
 	assert.Equal(t, defaultSystemSettings(), got.SystemSettings)
 
-	change := map[string]any{varInput: map[string]any{fieldDefaults: map[string]any{"startMarginSeconds": 30, "poolId": "main"}, fieldDays: 0}}
+	change := map[string]any{varInput: map[string]any{fieldDefaults: map[string]any{"startMarginSeconds": 30, "poolId": poolMain}, fieldDays: 0}}
 	for _, user := range []*fixture{f, viewerFixture} {
 		assert.Equal(t, []string{codeForbidden}, user.query(t, updateSettings, change, nil), "only administrators can change the settings")
 	}
@@ -216,4 +217,87 @@ func TestUpdateChannelTypeRejectsInvalidInput(t *testing.T) {
 			assert.Equal(t, before.ChannelTypes, after.ChannelTypes, "rejected changes are not saved")
 		})
 	}
+}
+
+const (
+	poolMain     = "main"
+	poolSub      = "sub"
+	mountMain    = "/mnt/main"
+	mountSub     = "/mnt/sub"
+	fieldMinFree = "minFreeBytes"
+)
+
+const updateStoragePool = `mutation($id: String!, $input: StoragePoolInput!) {
+	updateStoragePool(id: $id, input: $input) { id path priority minFreeBytes freeBytes } }`
+
+type storagePool struct {
+	ID           string `json:"id"`
+	Path         string `json:"path"`
+	Priority     int    `json:"priority"`
+	MinFreeBytes int    `json:"minFreeBytes"`
+	FreeBytes    *int   `json:"freeBytes"`
+}
+
+// TestUpdateStoragePool は、管理者だけが保存先プールの優先順位と容量の閾値を変えられ、システムの状態で読めることを確かめる (設計書 5.6、6.1)。
+func TestUpdateStoragePool(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, &graph.Options{
+		Pools:     map[string]string{poolMain: mountMain, poolSub: mountSub},
+		FreeSpace: func(path string) (uint64, error) { return map[string]uint64{mountMain: 100 << 30}[path], nil },
+	})
+	pools := func(user *fixture) []storagePool {
+		var got struct {
+			SystemStatus struct {
+				Pools []storagePool `json:"pools"`
+			} `json:"systemStatus"`
+		}
+		require.Empty(t, user.query(t, `{ systemStatus { pools { id path priority minFreeBytes freeBytes } } }`, nil, &got))
+
+		return got.SystemStatus.Pools
+	}
+	admin := f.as(t, adminName, auth.RoleAdmin)
+	// 設定していないプールは、優先順位 0、容量の閾値 0 で、録画を消さない。
+	assert.Equal(t, []storagePool{
+		{ID: poolMain, Path: mountMain, Priority: 0, MinFreeBytes: 0, FreeBytes: new(100 << 30)},
+		{ID: poolSub, Path: mountSub, Priority: 0, MinFreeBytes: 0, FreeBytes: new(0)},
+	}, pools(admin))
+
+	change := map[string]any{"id": poolMain, varInput: map[string]any{varPriority: 10, fieldMinFree: 50 << 30}}
+	assert.Equal(t, []string{codeForbidden}, f.query(t, updateStoragePool, change, nil), "only administrators can change storage pools")
+	var updated struct {
+		UpdateStoragePool storagePool `json:"updateStoragePool"`
+	}
+	require.Empty(t, admin.query(t, updateStoragePool, change, &updated))
+	want := storagePool{ID: poolMain, Path: mountMain, Priority: 10, MinFreeBytes: 50 << 30, FreeBytes: new(100 << 30)}
+	assert.Equal(t, want, updated.UpdateStoragePool)
+	assert.Equal(t, want, pools(admin)[0])
+
+	// 省いた項目は変えない。
+	require.Empty(t, admin.query(t, updateStoragePool, map[string]any{"id": poolMain, varInput: map[string]any{fieldMinFree: 0}}, &updated))
+	want.MinFreeBytes = 0
+	assert.Equal(t, want, updated.UpdateStoragePool)
+
+	var action string
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT action FROM audit_events WHERE target_type = 'storage_pool' AND target_id = 'main' ORDER BY occurred_at DESC, id DESC LIMIT 1").Scan(&action))
+	assert.Equal(t, "storage_pool.updated", action)
+
+	tests := []struct {
+		name  string
+		id    string
+		input map[string]any
+		want  string
+	}{
+		{name: "マウントされていないプール", id: "elsewhere", input: map[string]any{varPriority: 1}, want: codeNotFound},
+		{name: "優先順位が範囲の外", id: poolMain, input: map[string]any{varPriority: 1001}, want: codeBadUserInput},
+		{name: "負の容量の閾値", id: poolMain, input: map[string]any{fieldMinFree: -1}, want: codeBadUserInput},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, []string{tt.want}, admin.query(t, updateStoragePool, map[string]any{"id": tt.id, varInput: tt.input}, nil), tt.name)
+	}
+	assert.Equal(t, want, pools(admin)[0], "rejected changes are not saved")
+
+	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
+	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateStoragePool, change, nil))
 }

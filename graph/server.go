@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
@@ -57,9 +58,11 @@ type Options struct {
 	// Changes は、ロール間の変更の通知を、subscription で知らせるのに使う。nil なら、変更の subscription は内部のエラーにする。
 	Changes Changes
 	// Pools は、保存先プールの ID からマウント先への対応。システムの状態で示す。
-	Pools  map[string]string
-	Clock  clock.Clock
-	Logger *slog.Logger
+	Pools map[string]string
+	// FreeSpace は、保存先プールの空き容量を調べる。nil なら、ファイルシステムに問い合わせる。
+	FreeSpace kago.FreeSpaceFunc
+	Clock     clock.Clock
+	Logger    *slog.Logger
 	// Location は、番組の曜日と時間帯を判定する、表示のタイムゾーン。nil なら UTC。
 	Location *time.Location
 	// MaxSearchCandidates は、番組の検索で 1 回に照合する候補の数の上限。0 なら DefaultMaxSearchCandidates。
@@ -124,6 +127,10 @@ func NewHandler(opts *Options) http.Handler {
 		webhooks:     o.Webhooks,
 		changes:      o.Changes,
 		pools:        o.Pools,
+		freeSpace:    o.FreeSpace,
+	}
+	if resolver.freeSpace == nil {
+		resolver.freeSpace = kago.FreeSpace
 	}
 	if resolver.settings == nil {
 		resolver.settings = settings.NewStore(o.Clock, o.Recorder)

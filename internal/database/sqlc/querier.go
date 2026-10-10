@@ -219,6 +219,8 @@ type Querier interface {
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
 	// 初回セットアップを、全インスタンスで 1 つずつ行わせる。トランザクションが終わるまでロックする。
 	LockSetup(ctx context.Context) error
+	// 変える前の値を監査ログに残すため、行をロックして読む。行がなければ、既定値で作ってから読む。
+	LockStoragePool(ctx context.Context, arg LockStoragePoolParams) (StoragePool, error)
 	// 行がなければ既定値で作り、行をロックする。同時に変えても、片方の変更を失わない。
 	LockSystemSettings(ctx context.Context, arg LockSystemSettingsParams) (SystemSetting, error)
 	// ユーザーの行を、トランザクションが終わるまで書き込みからロックする。同じユーザーの登録を同時に行わせない。

@@ -43,6 +43,16 @@ input ChannelTypeInput {
   sortOrder: Int
 }
 
+"""
+保存先プールの設定の変える項目。省いた項目は変えない。
+"""
+input StoragePoolInput {
+  "-1000〜1000。"
+  priority: Int
+  "0 以上。0 なら、容量の管理で録画を消さない。"
+  minFreeBytes: Int64
+}
+
 extend type Query {
   "全体の設定。ログイン中のユーザーなら誰でも読める。"
   systemSettings: SystemSettings!
@@ -60,4 +70,10 @@ extend type Mutation {
   種別がなければ NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
   """
   updateChannelType(type: String!, input: ChannelTypeInput!): ChannelType!
+
+  """
+  保存先プール id の優先順位と容量の閾値を変える (設計書 5.6、6.1)。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  このインスタンスにマウントされていないプールなら NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
+  """
+  updateStoragePool(id: String!, input: StoragePoolInput!): StoragePool!
 }

@@ -122,6 +122,32 @@ func (q *Queries) LockDeletableRecording(ctx context.Context, id uuid.UUID) (Loc
 	return i, err
 }
 
+const lockStoragePool = `-- name: LockStoragePool :one
+INSERT INTO storage_pools (id, priority, min_free_bytes, low_since, updated_at)
+VALUES ($1, 0, 0, NULL, $2)
+ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id
+RETURNING id, priority, min_free_bytes, low_since, updated_at
+`
+
+type LockStoragePoolParams struct {
+	ID  string
+	Now time.Time
+}
+
+// 変える前の値を監査ログに残すため、行をロックして読む。行がなければ、既定値で作ってから読む。
+func (q *Queries) LockStoragePool(ctx context.Context, arg LockStoragePoolParams) (StoragePool, error) {
+	row := q.db.QueryRow(ctx, lockStoragePool, arg.ID, arg.Now)
+	var i StoragePool
+	err := row.Scan(
+		&i.ID,
+		&i.Priority,
+		&i.MinFreeBytes,
+		&i.LowSince,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const markStoragePoolLow = `-- name: MarkStoragePoolLow :execrows
 UPDATE storage_pools SET low_since = $1 WHERE id = $2 AND low_since IS NULL
 `

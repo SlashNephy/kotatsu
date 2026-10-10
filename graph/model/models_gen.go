@@ -415,6 +415,20 @@ type StoragePool struct {
 	ID string `json:"id"`
 	// このインスタンスでのマウント先。
 	Path string `json:"path"`
+	// 選ばれる優先順位。大きいほど先に選ぶ。
+	Priority int `json:"priority"`
+	// 容量の閾値 (バイト)。空き容量がこれを下回ったら、保護されていない古い録画から消す。0 なら消さない。
+	MinFreeBytes int64 `json:"minFreeBytes"`
+	// このインスタンスから見た空き容量 (バイト)。調べられなければ null。
+	FreeBytes *int64 `json:"freeBytes,omitempty"`
+}
+
+// 保存先プールの設定の変える項目。省いた項目は変えない。
+type StoragePoolInput struct {
+	// -1000〜1000。
+	Priority *int `json:"priority,omitempty"`
+	// 0 以上。0 なら、容量の管理で録画を消さない。
+	MinFreeBytes *int64 `json:"minFreeBytes,omitempty"`
 }
 
 type Subscription struct {

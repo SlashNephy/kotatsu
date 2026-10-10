@@ -177,6 +177,7 @@ type ComplexityRoot struct {
 		UpdateNotificationPreference func(childComplexity int, input model.NotificationPreferenceInput) int
 		UpdateReservation            func(childComplexity int, id string, input model.ReservationUpdateInput) int
 		UpdateRule                   func(childComplexity int, id string, input model.RuleInput) int
+		UpdateStoragePool            func(childComplexity int, id string, input model.StoragePoolInput) int
 		UpdateSystemSettings         func(childComplexity int, input model.SystemSettingsInput) int
 		UpdateUser                   func(childComplexity int, id string, input model.UpdateUserInput) int
 		UpdateWebhook                func(childComplexity int, id string, input model.UpdateWebhookInput) int
@@ -386,8 +387,11 @@ type ComplexityRoot struct {
 	}
 
 	StoragePool struct {
-		ID   func(childComplexity int) int
-		Path func(childComplexity int) int
+		FreeBytes    func(childComplexity int) int
+		ID           func(childComplexity int) int
+		MinFreeBytes func(childComplexity int) int
+		Path         func(childComplexity int) int
+		Priority     func(childComplexity int) int
 	}
 
 	Subscription struct {
@@ -491,6 +495,7 @@ type MutationResolver interface {
 	RegenerateRecoveryCodes(ctx context.Context) (*model.RecoveryCodes, error)
 	UpdateSystemSettings(ctx context.Context, input model.SystemSettingsInput) (*model.SystemSettings, error)
 	UpdateChannelType(ctx context.Context, typeArg string, input model.ChannelTypeInput) (*model.ChannelType, error)
+	UpdateStoragePool(ctx context.Context, id string, input model.StoragePoolInput) (*model.StoragePool, error)
 	CreateUser(ctx context.Context, input model.CreateUserInput) (*model.User, error)
 	UpdateUser(ctx context.Context, id string, input model.UpdateUserInput) (*model.User, error)
 	DisableUser(ctx context.Context, id string) (*model.User, error)
@@ -1217,6 +1222,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateRule(childComplexity, args["id"].(string), args["input"].(model.RuleInput)), true
+	case "Mutation.updateStoragePool":
+		if e.ComplexityRoot.Mutation.UpdateStoragePool == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateStoragePool_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateStoragePool(childComplexity, args["id"].(string), args["input"].(model.StoragePoolInput)), true
 	case "Mutation.updateSystemSettings":
 		if e.ComplexityRoot.Mutation.UpdateSystemSettings == nil {
 			break
@@ -2136,18 +2152,36 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Session.UserAgent(childComplexity), true
 
+	case "StoragePool.freeBytes":
+		if e.ComplexityRoot.StoragePool.FreeBytes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StoragePool.FreeBytes(childComplexity), true
 	case "StoragePool.id":
 		if e.ComplexityRoot.StoragePool.ID == nil {
 			break
 		}
 
 		return e.ComplexityRoot.StoragePool.ID(childComplexity), true
+	case "StoragePool.minFreeBytes":
+		if e.ComplexityRoot.StoragePool.MinFreeBytes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StoragePool.MinFreeBytes(childComplexity), true
 	case "StoragePool.path":
 		if e.ComplexityRoot.StoragePool.Path == nil {
 			break
 		}
 
 		return e.ComplexityRoot.StoragePool.Path(childComplexity), true
+	case "StoragePool.priority":
+		if e.ComplexityRoot.StoragePool.Priority == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StoragePool.Priority(childComplexity), true
 
 	case "Subscription.dataChanged":
 		if e.ComplexityRoot.Subscription.DataChanged == nil {
@@ -2438,6 +2472,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputRecordingSettingsOverridesInput,
 		ec.unmarshalInputReservationUpdateInput,
 		ec.unmarshalInputRuleInput,
+		ec.unmarshalInputStoragePoolInput,
 		ec.unmarshalInputSystemSettingsInput,
 		ec.unmarshalInputTimeRangeInput,
 		ec.unmarshalInputTimeReservationInput,
@@ -2655,6 +2690,12 @@ type StoragePool {
   id: String!
   "このインスタンスでのマウント先。"
   path: String!
+  "選ばれる優先順位。大きいほど先に選ぶ。"
+  priority: Int!
+  "容量の閾値 (バイト)。空き容量がこれを下回ったら、保護されていない古い録画から消す。0 なら消さない。"
+  minFreeBytes: Int64!
+  "このインスタンスから見た空き容量 (バイト)。調べられなければ null。"
+  freeBytes: Int64
 }
 
 """
@@ -3321,6 +3362,11 @@ extend type Mutation {
 scalar Time
 
 """
+64 ビットの整数。ファイルや容量の大きさ (バイト) のように、32 ビットの Int に収まらない値に使う。
+"""
+scalar Int64
+
+"""
 ID で引けるもの (Relay の Global Object Identification)。
 """
 interface Node {
@@ -3491,6 +3537,16 @@ input ChannelTypeInput {
   sortOrder: Int
 }
 
+"""
+保存先プールの設定の変える項目。省いた項目は変えない。
+"""
+input StoragePoolInput {
+  "-1000〜1000。"
+  priority: Int
+  "0 以上。0 なら、容量の管理で録画を消さない。"
+  minFreeBytes: Int64
+}
+
 extend type Query {
   "全体の設定。ログイン中のユーザーなら誰でも読める。"
   systemSettings: SystemSettings!
@@ -3508,6 +3564,12 @@ extend type Mutation {
   種別がなければ NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
   """
   updateChannelType(type: String!, input: ChannelTypeInput!): ChannelType!
+
+  """
+  保存先プール id の優先順位と容量の閾値を変える (設計書 5.6、6.1)。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  このインスタンスにマウントされていないプールなら NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
+  """
+  updateStoragePool(id: String!, input: StoragePoolInput!): StoragePool!
 }
 `, BuiltIn: false},
 	{Name: "../schema/user.graphqls", Input: `"""
@@ -4259,6 +4321,12 @@ func (ec *executionContext) childFields_StoragePool(ctx context.Context, field g
 		return ec.fieldContext_StoragePool_id(ctx, field)
 	case "path":
 		return ec.fieldContext_StoragePool_path(ctx, field)
+	case "priority":
+		return ec.fieldContext_StoragePool_priority(ctx, field)
+	case "minFreeBytes":
+		return ec.fieldContext_StoragePool_minFreeBytes(ctx, field)
+	case "freeBytes":
+		return ec.fieldContext_StoragePool_freeBytes(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type StoragePool", field.Name)
 }
@@ -4903,6 +4971,28 @@ func (ec *executionContext) field_Mutation_updateRule_args(ctx context.Context, 
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.RuleInput, error) {
 			return ec.unmarshalNRuleInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRuleInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateStoragePool_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.StoragePoolInput, error) {
+			return ec.unmarshalNStoragePoolInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStoragePoolInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -7584,6 +7674,50 @@ func (ec *executionContext) fieldContext_Mutation_updateChannelType(ctx context.
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateChannelType_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateStoragePool(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateStoragePool(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateStoragePool(ctx, fc.Args["id"].(string), fc.Args["input"].(model.StoragePoolInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.StoragePool) graphql.Marshaler {
+			return ec.marshalNStoragePool2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStoragePool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateStoragePool(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_StoragePool(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateStoragePool_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -11858,6 +11992,75 @@ func (ec *executionContext) fieldContext_StoragePool_path(_ context.Context, fie
 	return graphql.NewScalarFieldContext("StoragePool", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _StoragePool_priority(ctx context.Context, field graphql.CollectedField, obj *model.StoragePool) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StoragePool_priority(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Priority, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StoragePool_priority(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StoragePool", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _StoragePool_minFreeBytes(ctx context.Context, field graphql.CollectedField, obj *model.StoragePool) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StoragePool_minFreeBytes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MinFreeBytes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StoragePool_minFreeBytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StoragePool", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _StoragePool_freeBytes(ctx context.Context, field graphql.CollectedField, obj *model.StoragePool) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StoragePool_freeBytes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FreeBytes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int64) graphql.Marshaler {
+			return ec.marshalOInt642ᚖint64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_StoragePool_freeBytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StoragePool", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
 func (ec *executionContext) _Subscription_heartbeat(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
 	return graphql.ResolveFieldStream(
 		ctx,
@@ -14799,6 +15002,43 @@ func (ec *executionContext) unmarshalInputRuleInput(ctx context.Context, obj any
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputStoragePoolInput(ctx context.Context, obj any) (model.StoragePoolInput, error) {
+	var it model.StoragePoolInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"priority", "minFreeBytes"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "priority":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("priority"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Priority = data
+		case "minFreeBytes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("minFreeBytes"))
+			data, err := ec.unmarshalOInt642ᚖint64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MinFreeBytes = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Context, obj any) (model.SystemSettingsInput, error) {
 	var it model.SystemSettingsInput
 	if obj == nil {
@@ -16111,6 +16351,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "updateChannelType":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateChannelType(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateStoragePool":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateStoragePool(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -18216,6 +18463,21 @@ func (ec *executionContext) _StoragePool(ctx context.Context, sel ast.SelectionS
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "priority":
+			out.Values[i] = ec._StoragePool_priority(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "minFreeBytes":
+			out.Values[i] = ec._StoragePool_minFreeBytes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "freeBytes":
+			out.Values[i] = ec._StoragePool_freeBytes(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -19533,6 +19795,22 @@ func (ec *executionContext) marshalNInt2ᚕintᚄ(ctx context.Context, sel ast.S
 	return ret
 }
 
+func (ec *executionContext) unmarshalNInt642int64(ctx context.Context, v any) (int64, error) {
+	res, err := graphql.UnmarshalInt64(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNInt642int64(ctx context.Context, sel ast.SelectionSet, v int64) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalInt64(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
 func (ec *executionContext) marshalNKeyword2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Keyword) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -20100,6 +20378,11 @@ func (ec *executionContext) marshalNStoragePool2ᚖgithubᚗcomᚋSlashNephyᚋk
 	return ec._StoragePool(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNStoragePoolInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStoragePoolInput(ctx context.Context, v any) (model.StoragePoolInput, error) {
+	res, err := ec.unmarshalInputStoragePoolInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -20659,6 +20942,24 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	_ = sel
 	_ = ctx
 	res := graphql.MarshalInt(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOInt642ᚖint64(ctx context.Context, v any) (*int64, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalInt64(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOInt642ᚖint64(ctx context.Context, sel ast.SelectionSet, v *int64) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalInt64(*v)
 	return res
 }
 

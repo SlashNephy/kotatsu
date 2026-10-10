@@ -30,3 +30,10 @@ SELECT id, name FROM recordings WHERE id = @id AND NOT protected AND state <> 'r
 
 -- name: DeleteRecording :execrows
 DELETE FROM recordings WHERE id = @id;
+
+-- name: LockStoragePool :one
+-- 変える前の値を監査ログに残すため、行をロックして読む。行がなければ、既定値で作ってから読む。
+INSERT INTO storage_pools (id, priority, min_free_bytes, low_since, updated_at)
+VALUES (@id, 0, 0, NULL, @now)
+ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id
+RETURNING *;

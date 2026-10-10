@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"time"
 
@@ -204,9 +205,42 @@ func (r *Resolver) systemStatus(ctx context.Context) (*model.SystemStatus, error
 			Index: int(row.TunerIndex), Name: row.Name, Types: row.Types, Available: row.IsAvailable, Remote: row.IsRemote, Fault: row.IsFault,
 		})
 	}
-	for _, id := range slices.Sorted(maps.Keys(r.pools)) {
-		status.Pools = append(status.Pools, &model.StoragePool{ID: id, Path: r.pools[id]})
+	pools, err := r.storagePools(ctx)
+	if err != nil {
+		return nil, err
 	}
+	status.Pools = pools
 
 	return status, nil
+}
+
+// storagePools は、このインスタンスにマウントされた保存先プールを、設定と空き容量と一緒に返す。
+func (r *Resolver) storagePools(ctx context.Context) ([]*model.StoragePool, error) {
+	rows, err := sqlc.New(r.db).ListStoragePools(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list storage pools: %w", err)
+	}
+	settings := make(map[string]*sqlc.StoragePool, len(rows))
+	for i := range rows {
+		settings[rows[i].ID] = &rows[i]
+	}
+	pools := make([]*model.StoragePool, 0, len(r.pools))
+	for _, id := range slices.Sorted(maps.Keys(r.pools)) {
+		pools = append(pools, r.storagePoolOf(id, settings[id]))
+	}
+
+	return pools, nil
+}
+
+// storagePoolOf は、保存先プールを GraphQL の形にする。設定がなければ、優先順位 0、容量の閾値 0 とする。
+func (r *Resolver) storagePoolOf(id string, setting *sqlc.StoragePool) *model.StoragePool {
+	pool := &model.StoragePool{ID: id, Path: r.pools[id], Priority: 0, MinFreeBytes: 0, FreeBytes: nil}
+	if setting != nil {
+		pool.Priority, pool.MinFreeBytes = int(setting.Priority), setting.MinFreeBytes
+	}
+	if free, err := r.freeSpace(r.pools[id]); err == nil {
+		pool.FreeBytes = new(int64(min(free, math.MaxInt64)))
+	}
+
+	return pool
 }
