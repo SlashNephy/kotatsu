@@ -229,12 +229,13 @@ func (s *SecondFactors) DeleteTOTP(ctx context.Context, tx pgx.Tx, actor *audit.
 // RegenerateRecoveryCodes は、リカバリーコードを作り直す。古いコードは使えなくなる。TOTP を登録していなければ作らない。
 func (s *SecondFactors) RegenerateRecoveryCodes(ctx context.Context, tx pgx.Tx, actor *audit.Actor, userID uuid.UUID) ([]string, error) {
 	q := sqlc.New(tx)
-	hasTOTP, err := q.HasUserTOTP(ctx, userID)
+	// TOTP の行をロックし、同時に TOTP を消されて、TOTP のないリカバリーコードが残らないようにする。
+	_, err := q.GetUserTOTPForUpdate(ctx, userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNoTOTP
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the TOTP: %w", err)
-	}
-	if !hasTOTP {
-		return nil, ErrNoTOTP
 	}
 	codes, err := s.replaceRecoveryCodes(ctx, q, userID, s.clock.Now())
 	if err != nil {
