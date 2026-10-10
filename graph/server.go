@@ -39,8 +39,10 @@ type Options struct {
 	Recorder audit.Recorder
 	// SecondFactors は、第二要素の登録と削除に使う。nil なら、第二要素の操作は内部のエラーにする。
 	SecondFactors *auth.SecondFactors
-	Clock         clock.Clock
-	Logger        *slog.Logger
+	// Passkeys は、パスキーの一覧、名前の変更、削除に使う。nil なら、パスキーの操作は内部のエラーにする。
+	Passkeys *auth.Passkeys
+	Clock    clock.Clock
+	Logger   *slog.Logger
 	// Location は、番組の曜日と時間帯を判定する、表示のタイムゾーン。nil なら UTC。
 	Location *time.Location
 	// MaxSearchCandidates は、番組の検索で 1 回に照合する候補の数の上限。0 なら DefaultMaxSearchCandidates。
@@ -96,6 +98,7 @@ func NewHandler(opts *Options) http.Handler {
 		rules:        rule.NewRules(o.Clock, o.Recorder),
 		reservations: reserve.NewReservations(o.Clock, o.Recorder),
 		factors:      o.SecondFactors,
+		passkeys:     o.Passkeys,
 	}
 	config.Resolvers = resolver
 	server := handler.New(generated.NewExecutableSchema(config))

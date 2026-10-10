@@ -53,6 +53,12 @@ func secondFactorError(err error) error {
 		return NewError(CodeBadUserInput, "start the TOTP enrollment first")
 	case errors.Is(err, auth.ErrNoTOTP):
 		return NewError(CodeNotFound, "TOTP is not enabled")
+	case errors.Is(err, auth.ErrPasskeyNotFound):
+		return NewError(CodeNotFound, "passkey not found")
+	case errors.Is(err, auth.ErrInvalidPasskeyName):
+		return NewError(CodeBadUserInput, "the name must be 1 to 64 characters")
+	case errors.Is(err, auth.ErrLastPasskey):
+		return NewError(CodeBadUserInput, "the last passkey of a user without a password cannot be deleted")
 	default:
 		return err
 	}

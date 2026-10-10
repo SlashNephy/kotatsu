@@ -179,6 +179,15 @@ type Mutation {
   """
   deleteGuideView(id: ID!): ID!
   """
+  パスキーの名前を変える。名前は 1 文字以上 64 文字以下。
+  """
+  renamePasskey(id: ID!, name: String!): Passkey!
+  """
+  パスキーを消し、消したパスキーの ID を返す。直近 10 分以内の認証が要る。
+  パスワードを持たないユーザーの最後のパスキーは、ログインする手段がなくなるので消せない (BAD_USER_INPUT)。
+  """
+  deletePasskey(id: ID!): ID!
+  """
   番組予約を作る。同じ番組の予約がすでにあれば、作らずにその予約を返す。視聴者は使えない。
   """
   createProgramReservation(input: ProgramReservationInput!): Reservation!
@@ -244,6 +253,22 @@ type PageInfo {
   hasPreviousPage: Boolean!
   startCursor: String
   endCursor: String
+}
+"""
+ログイン中のユーザーが登録したパスキー (設計書 9.3)。登録とログインは、/auth/passkey/* で扱う。
+"""
+type Passkey {
+  id: ID!
+  name: String!
+  """
+  登録したときに接続していたホスト名 (RP ID)。パスキーは、このホスト名でしか使えない。
+  """
+  rpId: String!
+  createdAt: Time!
+  """
+  最後にログインに使った日時。使っていなければ null。
+  """
+  lastUsedAt: Time
 }
 """
 番組。放送中の番組と、これから放送される番組。
@@ -359,6 +384,10 @@ type Query {
   ログイン中のユーザーの番組表ビュー。
   """
   guideViews: [GuideView!]!
+  """
+  ログイン中のユーザーのパスキー。登録した順に並べる。
+  """
+  passkeys: [Passkey!]!
   """
   時間帯 [from, to) に重なる予約を、開始時刻の順に返す。
   states を指定すると、その割り当ての状態の予約だけを返す。

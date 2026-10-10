@@ -1,0 +1,27 @@
+"""
+ログイン中のユーザーが登録したパスキー (設計書 9.3)。登録とログインは、/auth/passkey/* で扱う。
+"""
+type Passkey {
+  id: ID!
+  name: String!
+  "登録したときに接続していたホスト名 (RP ID)。パスキーは、このホスト名でしか使えない。"
+  rpId: String!
+  createdAt: Time!
+  "最後にログインに使った日時。使っていなければ null。"
+  lastUsedAt: Time
+}
+
+extend type Query {
+  "ログイン中のユーザーのパスキー。登録した順に並べる。"
+  passkeys: [Passkey!]!
+}
+
+extend type Mutation {
+  "パスキーの名前を変える。名前は 1 文字以上 64 文字以下。"
+  renamePasskey(id: ID!, name: String!): Passkey!
+  """
+  パスキーを消し、消したパスキーの ID を返す。直近 10 分以内の認証が要る。
+  パスワードを持たないユーザーの最後のパスキーは、ログインする手段がなくなるので消せない (BAD_USER_INPUT)。
+  """
+  deletePasskey(id: ID!): ID!
+}
