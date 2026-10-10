@@ -410,6 +410,16 @@
       "noPlayer": "この端末のブラウザは、Media Source Extensions に対応していないので、映像を再生できません"
     }
   },
+  "jikkyo": {
+    "toggle": "実況",
+    "comment": "実況のコメント",
+    "placeholder": "{{channel}} の実況にコメントする",
+    "post": "投稿",
+    "postError": "コメントを投稿できませんでした。時間をおいてやり直してください",
+    "connecting": "実況につないでいます",
+    "connected": "{{channel}} の実況のコメントを流しています",
+    "disconnected": "実況との接続が切れました。{{seconds}} 秒後につなぎ直します"
+  },
   "live": {
     "title": "ライブ",
     "empty": "視聴できるチャンネルがありません。チューナーサーバーから番組表を同期したか確かめてください",

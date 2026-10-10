@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<7a59205189d9e1d0a0475cb5b1f71508>>
+ * @generated SignedSource<<4363034d95da33bd87c833fe3b95afd9>>
  * @lightSyntaxTransform
  */
 
@@ -22,6 +22,10 @@ export type ServiceIdLiveQuery$data = {
   }>;
   readonly node: {
     readonly __typename: "Service";
+    readonly jikkyo: {
+      readonly id: string;
+      readonly name: string;
+    } | null | undefined;
     readonly name: string;
     readonly streamUrl: string;
   } | {
@@ -80,6 +84,13 @@ v5 = {
   "storageKey": null
 },
 v6 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "id",
+  "storageKey": null
+},
+v7 = {
   "kind": "InlineFragment",
   "selections": [
     (v5/*:: as any*/),
@@ -89,12 +100,25 @@ v6 = {
       "kind": "ScalarField",
       "name": "streamUrl",
       "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "JikkyoChannel",
+      "kind": "LinkedField",
+      "name": "jikkyo",
+      "plural": false,
+      "selections": [
+        (v6/*:: as any*/),
+        (v5/*:: as any*/)
+      ],
+      "storageKey": null
     }
   ],
   "type": "Service",
   "abstractKey": null
 },
-v7 = [
+v8 = [
   {
     "kind": "Variable",
     "name": "from",
@@ -117,7 +141,7 @@ v7 = [
     "variableName": "to"
   }
 ],
-v8 = {
+v9 = {
   "alias": null,
   "args": null,
   "concreteType": "Transcoding",
@@ -153,13 +177,6 @@ v8 = {
     }
   ],
   "storageKey": null
-},
-v9 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "id",
-  "storageKey": null
 };
 return {
   "fragment": {
@@ -181,13 +198,13 @@ return {
         "plural": false,
         "selections": [
           (v4/*:: as any*/),
-          (v6/*:: as any*/)
+          (v7/*:: as any*/)
         ],
         "storageKey": null
       },
       {
         "alias": null,
-        "args": (v7/*:: as any*/),
+        "args": (v8/*:: as any*/),
         "concreteType": "GuideRow",
         "kind": "LinkedField",
         "name": "guide",
@@ -208,7 +225,7 @@ return {
         ],
         "storageKey": null
       },
-      (v8/*:: as any*/)
+      (v9/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -232,14 +249,14 @@ return {
         "plural": false,
         "selections": [
           (v4/*:: as any*/),
-          (v6/*:: as any*/),
-          (v9/*:: as any*/)
+          (v7/*:: as any*/),
+          (v6/*:: as any*/)
         ],
         "storageKey": null
       },
       {
         "alias": null,
-        "args": (v7/*:: as any*/),
+        "args": (v8/*:: as any*/),
         "concreteType": "GuideRow",
         "kind": "LinkedField",
         "name": "guide",
@@ -254,27 +271,27 @@ return {
             "plural": true,
             "selections": [
               (v5/*:: as any*/),
-              (v9/*:: as any*/)
+              (v6/*:: as any*/)
             ],
             "storageKey": null
           }
         ],
         "storageKey": null
       },
-      (v8/*:: as any*/)
+      (v9/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "67f729134fb0a2080c60428e3d85bb5e",
+    "cacheID": "cd36ca74c7dd188af87dcb113bcdcf38",
     "id": null,
     "metadata": {},
     "name": "ServiceIdLiveQuery",
     "operationKind": "query",
-    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      streamUrl\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n}\n"
+    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      streamUrl\n      jikkyo {\n        id\n        name\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "cfa273db392acb615e1c6e138f3af507";
+(node as any).hash = "048b02fb4b9bec33de5a64662e70212b";
 
 export default node;
