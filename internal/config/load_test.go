@@ -39,6 +39,8 @@ const (
 	envOIDCIssuer = "KOTATSU_AUTH_OIDC_ISSUER"
 	defaultGroups = "groups"
 	testClientID  = "kotatsu"
+	envOIDCClient = "KOTATSU_AUTH_OIDC_CLIENT_ID"
+	envTrue       = "true"
 )
 
 // defaultOIDC は、OIDC の既定値 (OIDC でのログインは無効)。
@@ -195,7 +197,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 		{
 			name: "have i been pwned",
 			yaml: "auth:\n  hibp:\n    url: https://hibp.example.com\n",
-			env:  map[string]string{envKeyURL: envURL, "KOTATSU_AUTH_HIBP_ENABLED": "true"},
+			env:  map[string]string{envKeyURL: envURL, "KOTATSU_AUTH_HIBP_ENABLED": envTrue},
 			want: &config.Config{
 				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
@@ -418,15 +420,24 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 		{
 			name: "oidc auto_create without groups",
 			env: map[string]string{
-				envKeyURL: envURL, envOIDCIssuer: testIssuer, "KOTATSU_AUTH_OIDC_CLIENT_ID": testClientID,
-				"KOTATSU_AUTH_OIDC_AUTO_CREATE_ENABLED": "true",
+				envKeyURL: envURL, envOIDCIssuer: testIssuer, envOIDCClient: testClientID,
+				"KOTATSU_AUTH_OIDC_AUTO_CREATE_ENABLED": envTrue,
 			},
 			wantErrs: []string{"auth.oidc.auto_create (KOTATSU_AUTH_OIDC_AUTO_CREATE): needs at least one of admin_groups, member_groups or viewer_groups"},
 		},
 		{
+			name: "oidc auto_create without username claim",
+			yaml: "auth:\n  oidc:\n    username_claim: \"\"\n",
+			env: map[string]string{
+				envKeyURL: envURL, envOIDCIssuer: testIssuer, envOIDCClient: testClientID,
+				"KOTATSU_AUTH_OIDC_AUTO_CREATE_ENABLED": envTrue, "KOTATSU_AUTH_OIDC_AUTO_CREATE_MEMBER_GROUPS": "family",
+			},
+			wantErrs: []string{"auth.oidc.username_claim (KOTATSU_AUTH_OIDC_USERNAME_CLAIM): is required when auto_create is enabled"},
+		},
+		{
 			name: "invalid oidc issuer",
 			env: map[string]string{
-				envKeyURL: envURL, envOIDCIssuer: "idp.example.com", "KOTATSU_AUTH_OIDC_CLIENT_ID": testClientID,
+				envKeyURL: envURL, envOIDCIssuer: "idp.example.com", envOIDCClient: testClientID,
 			},
 			wantErrs: []string{"auth.oidc.issuer (KOTATSU_AUTH_OIDC_ISSUER): must be an http:// or https:// URL"},
 		},

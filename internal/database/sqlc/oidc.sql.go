@@ -49,15 +49,16 @@ func (q *Queries) GetOIDCIdentity(ctx context.Context, arg GetOIDCIdentityParams
 
 const insertOIDCIdentity = `-- name: InsertOIDCIdentity :exec
 INSERT INTO user_oidc_identities (id, user_id, issuer, subject, created_at, last_used_at)
-VALUES ($1, $2, $3, $4, $5, NULL)
+VALUES ($1, $2, $3, $4, $5, $6)
 `
 
 type InsertOIDCIdentityParams struct {
-	ID      uuid.UUID
-	UserID  uuid.UUID
-	Issuer  string
-	Subject string
-	Now     time.Time
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Issuer     string
+	Subject    string
+	Now        time.Time
+	LastUsedAt *time.Time
 }
 
 func (q *Queries) InsertOIDCIdentity(ctx context.Context, arg InsertOIDCIdentityParams) error {
@@ -67,6 +68,7 @@ func (q *Queries) InsertOIDCIdentity(ctx context.Context, arg InsertOIDCIdentity
 		arg.Issuer,
 		arg.Subject,
 		arg.Now,
+		arg.LastUsedAt,
 	)
 	return err
 }

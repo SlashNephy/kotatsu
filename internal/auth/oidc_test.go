@@ -127,6 +127,8 @@ func TestOIDCLogin(t *testing.T) {
 		wantRole   auth.Role
 		// wantUsername は、ログインしたユーザーの名前。
 		wantUsername string
+		// wantDisplayName は、ログインしたユーザーの表示名。空なら確かめない。
+		wantDisplayName string
 	}{
 		{
 			name: "linked user", wantRole: auth.RoleMember, wantUsername: linkedName,
@@ -142,8 +144,8 @@ func TestOIDCLogin(t *testing.T) {
 		{name: "not linked and auto_create is disabled", wantErr: auth.ErrOIDCAccessDenied},
 		{
 			name: "auto_create picks the strongest role", autoCreate: autoCreateGroups(),
-			claims:   map[string]any{nameClaim: "mikan", groupsClaim: []string{viewersGroup, adminsGroup}},
-			wantRole: auth.RoleAdmin, wantUsername: "mikan",
+			claims:   map[string]any{nameClaim: "mikan", nameText: "みかん", groupsClaim: []string{viewersGroup, adminsGroup}},
+			wantRole: auth.RoleAdmin, wantUsername: "mikan", wantDisplayName: "みかん",
 		},
 		{
 			name: "auto_create accepts a single group string", autoCreate: autoCreateGroups(),
@@ -193,17 +195,21 @@ func TestOIDCLogin(t *testing.T) {
 			}
 			require.NoError(t, err)
 			var (
-				username string
-				role     string
-				hasHash  bool
+				username    string
+				displayName string
+				role        string
+				hasHash     bool
 			)
-			require.NoError(t, f.db.QueryRow(t.Context(), "SELECT username, role, password_hash IS NOT NULL FROM users WHERE id = $1", result.Session.UserID).
-				Scan(&username, &role, &hasHash))
+			require.NoError(t, f.db.QueryRow(t.Context(), "SELECT username, display_name, role, password_hash IS NOT NULL FROM users WHERE id = $1", result.Session.UserID).
+				Scan(&username, &displayName, &role, &hasHash))
 			assert.Equal(t, tt.wantUsername, username)
+			if tt.wantDisplayName != "" {
+				assert.Equal(t, tt.wantDisplayName, displayName)
+			}
 			assert.Equal(t, string(tt.wantRole), role)
 			assert.False(t, hasHash, "an OIDC user has no password")
-			assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM user_oidc_identities WHERE user_id = $1 AND issuer = $2 AND subject = $3",
-				result.Session.UserID, f.idp.Issuer(), idpSubject))
+			assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM user_oidc_identities WHERE user_id = $1 AND issuer = $2 AND subject = $3 AND last_used_at = $4",
+				result.Session.UserID, f.idp.Issuer(), idpSubject, testNow()))
 			assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM audit_events WHERE action = 'user.login' AND summary->>'method' = 'oidc'"))
 			assert.Zero(t, f.count(t, "SELECT count(*) FROM oidc_logins"), "the login state is consumed")
 
@@ -294,6 +300,19 @@ func TestOIDCLoginExpires(t *testing.T) {
 		f.clock.Advance(auth.OIDCLoginTTL)
 	})
 	require.ErrorIs(t, err, auth.ErrOIDCLoginExpired)
+}
+
+// TestOIDCLoginPurgesExpiredLogins は、IdP から戻らなかったログインの状態を、次にログインを始めるときに消すことを確かめる。
+func TestOIDCLoginPurgesExpiredLogins(t *testing.T) {
+	t.Parallel()
+
+	f := newOIDCFixture(t, auth.OIDCAutoCreate{})
+	_, err := f.oidc.Begin(t.Context(), f.db, f.client)
+	require.NoError(t, err)
+	f.clock.Advance(auth.OIDCLoginTTL)
+	_, err = f.oidc.Begin(t.Context(), f.db, f.client)
+	require.NoError(t, err)
+	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM oidc_logins"))
 }
 
 // TestOIDCLink は、紐付けの重なりを拒むことを確かめる。

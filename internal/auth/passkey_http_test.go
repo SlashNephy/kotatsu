@@ -120,7 +120,7 @@ type errorBody struct {
 func credentialBody(t *testing.T, credential []byte, name string) map[string]any {
 	t.Helper()
 
-	return map[string]any{credentialKey: json.RawMessage(credential), "name": name}
+	return map[string]any{credentialKey: json.RawMessage(credential), nameText: name}
 }
 
 // TestPasskeyHandlers は、パスキーの登録、パスキーだけでのログイン、第二要素としての確認を、HTTP で通して確かめる。

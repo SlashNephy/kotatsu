@@ -341,10 +341,10 @@ func (o *OIDC) Enabled() bool {
 }
 
 func (o *OIDC) validate() []error {
+	errs := []error{}
 	if !o.Enabled() {
-		return nil
+		return errs
 	}
-	var errs []error
 	if err := validateHTTPURL(o.Issuer); err != nil {
 		errs = append(errs, fieldError("auth.oidc.issuer", err))
 	}
@@ -358,6 +358,9 @@ func (o *OIDC) validate() []error {
 		errs = append(errs, fieldError("auth.oidc.scopes", errors.New("must include openid")))
 	}
 	if o.AutoCreate.Enabled {
+		if o.UsernameClaim == "" {
+			errs = append(errs, fieldError("auth.oidc.username_claim", errors.New("is required when auto_create is enabled")))
+		}
 		if o.AutoCreate.GroupsClaim == "" {
 			errs = append(errs, fieldError("auth.oidc.auto_create.groups_claim", errors.New("is required when auto_create is enabled")))
 		}

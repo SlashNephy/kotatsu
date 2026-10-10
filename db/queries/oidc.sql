@@ -15,7 +15,7 @@ SELECT * FROM user_oidc_identities WHERE issuer = @issuer AND subject = @subject
 
 -- name: InsertOIDCIdentity :exec
 INSERT INTO user_oidc_identities (id, user_id, issuer, subject, created_at, last_used_at)
-VALUES (@id, @user_id, @issuer, @subject, @now, NULL);
+VALUES (@id, @user_id, @issuer, @subject, @now, sqlc.narg(last_used_at));
 
 -- name: RecordOIDCIdentityUse :exec
 UPDATE user_oidc_identities SET last_used_at = @now WHERE id = @id;

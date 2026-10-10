@@ -36,6 +36,8 @@ const (
 	methodOIDC SecondFactor = "oidc"
 	// oidcRandomBytes は、state と nonce の乱数の長さ。
 	oidcRandomBytes = 32
+	// oidcHTTPTimeout は、IdP との 1 回の通信に許す時間。IdP が応答しないときに、待ち続けないようにする。
+	oidcHTTPTimeout = 15 * time.Second
 	// summaryIssuer は、監査ログの要約で、IdP の issuer を入れる項目。
 	summaryIssuer = "issuer"
 	// summarySubject は、監査ログの要約で、IdP のユーザーの subject を入れる項目。
@@ -93,7 +95,7 @@ type OIDCOptions struct {
 	Logger   *slog.Logger
 	// Sessions は、ログインしたユーザーのセッションを作る。
 	Sessions *Sessions
-	// HTTPClient は、IdP と通信するクライアント。nil なら http.DefaultClient。
+	// HTTPClient は、IdP と通信するクライアント。nil なら、oidcHTTPTimeout で打ち切るクライアントにする。
 	HTTPClient *http.Client
 }
 
@@ -117,7 +119,7 @@ type OIDC struct {
 func NewOIDC(opts *OIDCOptions) *OIDC {
 	httpClient := opts.HTTPClient
 	if httpClient == nil {
-		httpClient = http.DefaultClient
+		httpClient = &http.Client{Timeout: oidcHTTPTimeout}
 	}
 
 	return &OIDC{
@@ -300,6 +302,8 @@ func groupsOf(claim any) []string {
 	switch v := claim.(type) {
 	case string:
 		return []string{v}
+	case []string:
+		return v
 	case []any:
 		groups := make([]string, 0, len(v))
 		for _, item := range v {
@@ -331,7 +335,7 @@ func (o *OIDC) Link(ctx context.Context, db Database, actor *audit.Actor, userna
 		if err != nil {
 			return fmt.Errorf("failed to get the user: %w", err)
 		}
-		if err := o.link(ctx, tx, user.ID, o.settings.Issuer, subject); err != nil {
+		if err := o.link(ctx, tx, user.ID, o.settings.Issuer, subject, nil); err != nil {
 			return err
 		}
 
@@ -435,7 +439,8 @@ func (o *OIDC) autoCreate(ctx context.Context, tx pgx.Tx, claims *oidcClaims, cl
 	if err != nil {
 		return nil, err
 	}
-	if err := o.link(ctx, tx, created.ID, claims.issuer, claims.subject); err != nil {
+	// 作ったユーザーは、このログインで使ったことにする。
+	if err := o.link(ctx, tx, created.ID, claims.issuer, claims.subject, new(o.clock.Now())); err != nil {
 		return nil, err
 	}
 	err = o.recorder.Record(ctx, tx, &audit.Event{
@@ -454,14 +459,17 @@ func (o *OIDC) autoCreate(ctx context.Context, tx pgx.Tx, claims *oidcClaims, cl
 	return &created.ID, nil
 }
 
-func (o *OIDC) link(ctx context.Context, tx pgx.Tx, userID uuid.UUID, issuer, subject string) error {
+// link は、userID を IdP のユーザーと紐付ける。lastUsedAt は、紐付けたときにログインに使ったなら、その日時。
+func (o *OIDC) link(ctx context.Context, tx pgx.Tx, userID uuid.UUID, issuer, subject string, lastUsedAt *time.Time) error {
 	q := sqlc.New(tx)
 	if _, err := q.GetOIDCIdentity(ctx, sqlc.GetOIDCIdentityParams{Issuer: issuer, Subject: subject}); err == nil {
 		return ErrOIDCIdentityLinked
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("failed to get the OIDC identity: %w", err)
 	}
-	err := q.InsertOIDCIdentity(ctx, sqlc.InsertOIDCIdentityParams{ID: id.New(), UserID: userID, Issuer: issuer, Subject: subject, Now: o.clock.Now()})
+	err := q.InsertOIDCIdentity(ctx, sqlc.InsertOIDCIdentityParams{
+		ID: id.New(), UserID: userID, Issuer: issuer, Subject: subject, Now: o.clock.Now(), LastUsedAt: lastUsedAt,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to link the OIDC identity: %w", err)
 	}
@@ -498,8 +506,11 @@ func (o *OIDC) loadProvider(ctx context.Context) (*oidc.Provider, error) {
 	if o.provider != nil {
 		return o.provider, nil
 	}
-	// go-oidc は、ここで渡した context を、後で署名の鍵を引き直すのにも使う。リクエストが終わっても使えるようにする。
-	provider, err := oidc.NewProvider(oidc.ClientContext(context.WithoutCancel(ctx), o.httpClient), o.settings.Issuer)
+	// IdP が応答しないときに、ロックを持ったまま待ち続けないよう、時間を区切る。
+	// go-oidc は、署名の鍵を引き直すときには、この context ではなく、クライアントだけを使う。
+	ctx, cancel := context.WithTimeout(ctx, oidcHTTPTimeout)
+	defer cancel()
+	provider, err := oidc.NewProvider(oidc.ClientContext(ctx, o.httpClient), o.settings.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrOIDCUnavailable, err)
 	}
