@@ -1,0 +1,14 @@
+{{- /* mikan は、更新の間も録画を引き継げるよう、同時に止める数を絞る (設計書 5.4)。 */}}
+{{- if and (eq .Values.mode "split") (gt (int .Values.roles.mikan.replicas) 0) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ printf "%s-mikan" (include "kotatsu.fullname" .) }}
+  labels:
+    {{- include "kotatsu.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: {{ .Values.roles.mikan.podDisruptionBudget.maxUnavailable }}
+  selector:
+    matchLabels:
+      {{- include "kotatsu.selectorLabels" (dict "root" $ "component" "mikan") | nindent 6 }}
+{{- end }}

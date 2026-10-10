@@ -1,0 +1,15 @@
+{{- /* 画面と API は tenban が受け持つ。all では、全ロールの Pod に向ける。 */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kotatsu.fullname" . }}
+  labels:
+    {{- include "kotatsu.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "kotatsu.selectorLabels" (dict "root" $ "component" (ternary "all" "tenban" (eq .Values.mode "all"))) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http

@@ -1,0 +1,10 @@
+# 全ロールを 1 つの Pod で動かす構成の例 (all.yaml の生成に使う)。
+mode: all
+config:
+  TUNER_URL: http://mirakurun:40772/
+storage:
+  pools:
+    - id: main
+      volume:
+        persistentVolumeClaim:
+          claimName: kotatsu-recordings

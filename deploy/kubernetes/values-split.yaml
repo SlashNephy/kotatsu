@@ -1,0 +1,24 @@
+# ロールごとに Pod を分ける構成の例 (split.yaml の生成に使う)。kyusu を GPU のあるノードに置く。
+mode: split
+config:
+  TUNER_URL: http://mirakurun:40772/
+  KYUSU_ENCODER: vaapi
+storage:
+  pools:
+    - id: main
+      volume:
+        persistentVolumeClaim:
+          claimName: kotatsu-recordings
+roles:
+  kyusu:
+    replicas: 1
+    ffmpeg: true
+    pools: true
+    resources:
+      limits:
+        gpu.intel.com/i915: 1
+    nodeSelector:
+      kotatsu.example.com/gpu: "true"
+    tolerations: []
+    affinity: {}
+    terminationGracePeriodSeconds: 30

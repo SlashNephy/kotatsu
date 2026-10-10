@@ -6,6 +6,7 @@ on:
     paths:
       - .goreleaser.yaml
       - .github/workflows/release.yml
+      - charts/**
       - mise.toml
       - mise.lock
   push:
@@ -36,6 +37,7 @@ jobs:
         with:
           cache: false
       - run: mise run release:snapshot
+      - run: helm package charts/kotatsu --destination "$RUNNER_TEMP"
 
   # SPA を埋め込んだ linux の amd64 と arm64 のバイナリを、GitHub Releases に公開する (設計書 11.1)。
   release:
@@ -57,3 +59,27 @@ jobs:
       - run: goreleaser release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Helm Chart を、タグの版で oci://ghcr.io/slashnephy/charts に公開する (設計書 11.1)。
+  chart:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          cache: false
+      - env:
+          REF_NAME: ${{ github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${REF_NAME#v}"
+          helm package charts/kotatsu --version "$version" --app-version "$version"
+          echo "$GITHUB_TOKEN" | helm registry login ghcr.io --username "$ACTOR" --password-stdin
+          helm push "kotatsu-$version.tgz" oci://ghcr.io/slashnephy/charts
