@@ -233,6 +233,15 @@ func TestUserAdminUpdateAndEnable(t *testing.T) {
 	assert.Equal(t, role, updated.Role)
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM audit_events WHERE action = 'user.updated' AND summary->'role'->>'from' = 'viewer' AND summary->'role'->>'to' = 'member'"))
 
+	// 何も変わらなければ、記録しない。
+	_, err = f.admin.Update(t.Context(), f.db, f.actor(), user.ID, &auth.UserChanges{DisplayName: &name, Role: &role})
+	require.NoError(t, err)
+	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM audit_events WHERE action = 'user.updated'"))
+	_, err = f.admin.Update(t.Context(), f.db, f.actor(), user.ID, nil)
+	require.ErrorIs(t, err, auth.ErrInvalidUser)
+	_, err = f.admin.Create(t.Context(), f.db, f.actor(), nil)
+	require.ErrorIs(t, err, auth.ErrInvalidUser)
+
 	blank := " "
 	_, err = f.admin.Update(t.Context(), f.db, f.actor(), user.ID, &auth.UserChanges{DisplayName: &blank, Role: nil})
 	require.ErrorIs(t, err, auth.ErrInvalidUser)

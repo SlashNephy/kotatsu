@@ -71,6 +71,9 @@ func (a *UserAdmin) List(ctx context.Context, db sqlc.DBTX) ([]*User, error) {
 
 // Create はユーザーを作る。パスワードを渡したときは、規定を満たすかを確かめてから、ハッシュにして保存する。
 func (a *UserAdmin) Create(ctx context.Context, db Database, actor *audit.Actor, account *NewAccount) (*User, error) {
+	if account == nil {
+		return nil, fmt.Errorf("%w: account is nil", ErrInvalidUser)
+	}
 	var hash *string
 	if account.Password != "" {
 		// パスワードの規定の確認とハッシュ化は時間がかかるので、トランザクションの外で行う。
@@ -106,7 +109,11 @@ func (a *UserAdmin) Create(ctx context.Context, db Database, actor *audit.Actor,
 }
 
 // Update は、ユーザーの表示名とロールを変える。最後の有効な管理者を、管理者から外せない。
+// 何も変わらなければ、保存も監査ログへの記録もしない。
 func (a *UserAdmin) Update(ctx context.Context, db Database, actor *audit.Actor, userID uuid.UUID, changes *UserChanges) (*User, error) {
+	if changes == nil {
+		return nil, fmt.Errorf("%w: changes is nil", ErrInvalidUser)
+	}
 	var updated *User
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		row, admins, err := a.lockUser(ctx, tx, userID)
@@ -127,6 +134,11 @@ func (a *UserAdmin) Update(ctx context.Context, db Database, actor *audit.Actor,
 		if err := validateNewUser(&NewUser{Username: next.Username, DisplayName: next.DisplayName, Role: next.Role, PasswordHash: nil}); err != nil {
 			return err
 		}
+		if next.DisplayName == current.DisplayName && next.Role == current.Role {
+			updated = current
+
+			return nil
+		}
 		if current.Role == RoleAdmin && current.DisabledAt == nil && next.Role != RoleAdmin && admins <= 1 {
 			return ErrLastAdmin
 		}
@@ -141,8 +153,9 @@ func (a *UserAdmin) Update(ctx context.Context, db Database, actor *audit.Actor,
 		}
 
 		return a.record(ctx, tx, actor, "user.updated", userID, map[string]any{
-			"displayName": map[string]string{"from": current.DisplayName, "to": next.DisplayName},
-			summaryRole:   map[string]string{"from": string(current.Role), "to": string(next.Role)},
+			summaryUsername: current.Username,
+			"displayName":   map[string]string{"from": current.DisplayName, "to": next.DisplayName},
+			summaryRole:     map[string]string{"from": string(current.Role), "to": string(next.Role)},
 		})
 	})
 	if err != nil {
