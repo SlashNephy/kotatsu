@@ -23,6 +23,23 @@ func (q *Queries) CountUnreadNotifications(ctx context.Context, userID uuid.UUID
 	return count, err
 }
 
+const getNotificationEvent = `-- name: GetNotificationEvent :one
+SELECT id, kind, occurred_at, payload, dispatched_at FROM notification_events WHERE id = $1
+`
+
+func (q *Queries) GetNotificationEvent(ctx context.Context, id uuid.UUID) (NotificationEvent, error) {
+	row := q.db.QueryRow(ctx, getNotificationEvent, id)
+	var i NotificationEvent
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.OccurredAt,
+		&i.Payload,
+		&i.DispatchedAt,
+	)
+	return i, err
+}
+
 const getReservationForNotification = `-- name: GetReservationForNotification :one
 SELECT reservations.id, reservations.name, reservations.start_at, reservations.end_at, services.name AS service_name
 FROM reservations JOIN services ON services.id = reservations.service_id

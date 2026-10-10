@@ -58,6 +58,7 @@ type Querier interface {
 	GetLoginChallengeForUpdate(ctx context.Context, arg GetLoginChallengeForUpdateParams) (LoginChallenge, error)
 	GetLoginThrottles(ctx context.Context, throttleKeys []string) ([]LoginThrottle, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
+	GetNotificationEvent(ctx context.Context, id uuid.UUID) (NotificationEvent, error)
 	GetOIDCIdentity(ctx context.Context, arg GetOIDCIdentityParams) (UserOidcIdentity, error)
 	GetPasskeyByCredentialID(ctx context.Context, credentialID []byte) (UserPasskey, error)
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)

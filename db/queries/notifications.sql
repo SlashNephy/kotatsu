@@ -60,3 +60,6 @@ ON CONFLICT (user_id, kind) DO UPDATE SET in_app = EXCLUDED.in_app, web_push = E
 SELECT reservations.id, reservations.name, reservations.start_at, reservations.end_at, services.name AS service_name
 FROM reservations JOIN services ON services.id = reservations.service_id
 WHERE reservations.id = @id;
+
+-- name: GetNotificationEvent :one
+SELECT * FROM notification_events WHERE id = @id;

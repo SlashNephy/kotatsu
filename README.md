@@ -66,7 +66,7 @@ CIでは、PostgreSQL 17で動作を確認しています。
 | 環境変数 | 内容 |
 | --- | --- |
 | `KOTATSU_DATABASE_URL` | PostgreSQLの接続先（例: `postgres://user:password@host:5432/kotatsu`） |
-| `KOTATSU_AUTH_SECRET_KEY` | アプリの秘密キー。32バイト以上のランダムな文字列を指定する（例: `openssl rand -base64 48`の出力）。TOTPの秘密キーなどの暗号化に使うので、後から変えると暗号化した値を読めなくなる |
+| `KOTATSU_AUTH_SECRET_KEY` | アプリの秘密キー。32バイト以上のランダムな文字列を指定する（例: `openssl rand -base64 48`の出力）。TOTPやWebhookの署名用の秘密キーの暗号化に使うので、後から変えると暗号化した値を読めなくなる。tenbanとnekonoteの起動に必要 |
 | `KOTATSU_TUNER_URL` | チューナーサーバーのURL（例: `http://mirakurun:40772`） |
 | `KOTATSU_STORAGE_POOLS` | 録画の保存先。`main=/mnt/main,sub=/mnt/sub`のように「ID=パス」をカンマで区切って指定する |
 | `KOTATSU_SERVER_LISTEN` | 待ち受けアドレス。既定は`:8080` |

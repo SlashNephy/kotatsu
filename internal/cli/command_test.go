@@ -228,30 +228,43 @@ func TestRoleDoesNotStartWithInvalidConfig(t *testing.T) {
 	assert.False(t, started.Load())
 }
 
-// TestTenbanRequiresSecretKey は、アプリの秘密キーがなければ、tenban を起動しないことを確かめる (設計書 8.4)。
-func TestTenbanRequiresSecretKey(t *testing.T) {
+// TestRolesRequireSecretKey は、アプリの秘密キーがなければ、tenban と nekonote を起動しないことを確かめる (設計書 8.4)。
+func TestRolesRequireSecretKey(t *testing.T) {
 	t.Parallel()
 
-	var started atomic.Bool
-	roles := cli.DefaultRoles()
-	for _, role := range roles {
-		role.Run = func(context.Context, *slog.Logger, *cli.Deps) error {
-			started.Store(true)
-
-			return nil
-		}
+	tests := []struct {
+		name string
+		role string
+	}{
+		{name: "TOTP の秘密キーを暗号化する tenban", role: roleTenban},
+		{name: "Webhook の署名用の秘密キーを復号する nekonote", role: roleNekonote},
 	}
-	env := testEnv()
-	delete(env, "KOTATSU_AUTH_SECRET_KEY")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), roles, func(key string) (string, bool) {
-		v, ok := env[key]
+			var started atomic.Bool
+			roles := cli.DefaultRoles()
+			for _, role := range roles {
+				role.Run = func(context.Context, *slog.Logger, *cli.Deps) error {
+					started.Store(true)
 
-		return v, ok
-	}))
-	cmd.SetArgs([]string{roleTenban})
-	require.ErrorContains(t, cmd.ExecuteContext(t.Context()), "auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban")
-	assert.False(t, started.Load())
+					return nil
+				}
+			}
+			env := testEnv()
+			delete(env, "KOTATSU_AUTH_SECRET_KEY")
+
+			cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), roles, func(key string) (string, bool) {
+				v, ok := env[key]
+
+				return v, ok
+			}))
+			cmd.SetArgs([]string{tt.role})
+			require.ErrorContains(t, cmd.ExecuteContext(t.Context()), "auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban and nekonote")
+			assert.False(t, started.Load())
+		})
+	}
 }
 
 func TestConfigFlagAndEnv(t *testing.T) {
@@ -379,7 +392,9 @@ func testOptions(logger *slog.Logger, roles []*cli.Role, lookupEnv config.Lookup
 
 			return nil
 		},
-		JobWorkers: func(*cli.Deps) (*river.Workers, []*river.PeriodicJob) { return nil, []*river.PeriodicJob{} },
+		JobWorkers: func(*cli.Deps, *slog.Logger) (*river.Workers, []*river.PeriodicJob, error) {
+			return nil, []*river.PeriodicJob{}, nil
+		},
 		LogSetupToken: func(context.Context, *slog.Logger, clock.Clock, *pgxpool.Pool) error {
 			return nil
 		},
@@ -405,7 +420,7 @@ func testEnv() map[string]string {
 	}
 }
 
-// testKeyMaterial は、テストのアプリの秘密キー。tenban は、これがないと起動しない。
+// testKeyMaterial は、テストのアプリの秘密キー。tenban と nekonote は、これがないと起動しない。
 const testKeyMaterial = "kotatsu-cli-test-application-key-0123456789"
 
 // anyLocalPort は、テストどうしで衝突しないよう空いているポートで待ち受けるアドレス。

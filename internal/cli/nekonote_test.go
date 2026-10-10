@@ -58,11 +58,11 @@ func TestNekonoteWorksJobs(t *testing.T) {
 
 		return v, ok
 	}
-	opts.JobWorkers = func(*cli.Deps) (*river.Workers, []*river.PeriodicJob) {
+	opts.JobWorkers = func(*cli.Deps, *slog.Logger) (*river.Workers, []*river.PeriodicJob, error) {
 		workers := river.NewWorkers()
 		river.AddWorker(workers, worker)
 
-		return workers, []*river.PeriodicJob{}
+		return workers, []*river.PeriodicJob{}, nil
 	}
 	// neko のリースや登録簿は、このテストの対象ではない。
 	opts.Roles = filterRoles(opts.Roles, roleNekonote)

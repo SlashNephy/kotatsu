@@ -237,7 +237,13 @@ func (s *Store) Secret(ctx context.Context, db sqlc.DBTX, webhookID uuid.UUID) (
 	if err != nil {
 		return "", fmt.Errorf("failed to get the webhook: %w", err)
 	}
-	secret, err := s.box.Open(row.SecretCiphertext)
+
+	return s.open(row.SecretCiphertext)
+}
+
+// open は、暗号化した署名用の秘密キーを復号する。
+func (s *Store) open(sealed []byte) (string, error) {
+	secret, err := s.box.Open(sealed)
 	if err != nil {
 		return "", fmt.Errorf("failed to decrypt the webhook secret: %w", err)
 	}
