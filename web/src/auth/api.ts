@@ -3,7 +3,9 @@
 
 import type {
   AuthenticationResponseJSON,
+  PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON,
 } from '@simplewebauthn/browser';
 
 export type SecondFactor = 'totp' | 'passkey' | 'recovery_code';
@@ -92,6 +94,15 @@ export type PasskeyAssertion = {
   expiresAt: string;
 };
 
+// PasskeyCreation は、パスキーの登録を始めた応答。options を navigator.credentials.create に渡す。
+export type PasskeyCreation = {
+  options: PublicKeyCredentialCreationOptionsJSON;
+  expiresAt: string;
+};
+
+// RegisteredPasskey は、登録したパスキー。
+export type RegisteredPasskey = { id: string; name: string };
+
 export const authApi = {
   setupStatus: () => get<{ required: boolean }>('/auth/setup'),
   setup: (input: { token: string; username: string; displayName: string; password: string }) =>
@@ -118,6 +129,10 @@ export const authApi = {
   reauthenticate: (password: string, method: 'totp' | 'recovery_code', code: string) =>
     post<Reauthenticated>('/auth/reauth', { password, method, code }),
   beginPasskeyReauthentication: () => post<PasskeyAssertion>('/auth/reauth/passkey', {}),
+  // ログイン中のユーザーに、パスキーを登録する。直前に再認証していなければ、REAUTHENTICATION_REQUIRED を返す。
+  beginPasskeyRegistration: () => post<PasskeyCreation>('/auth/passkey/registration', {}),
+  confirmPasskeyRegistration: (credential: RegistrationResponseJSON, name: string) =>
+    post<RegisteredPasskey>('/auth/passkey/registration/confirm', { credential, name }),
   confirmPasskeyReauthentication: (credential: AuthenticationResponseJSON) =>
     post<Reauthenticated>('/auth/reauth/passkey/confirm', { credential }),
   // IdP で再認証する。終えると、returnTo のパスに戻る。失敗したときは、returnTo に error=<理由> が付く。

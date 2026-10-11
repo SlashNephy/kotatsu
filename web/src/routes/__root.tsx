@@ -43,6 +43,9 @@ function RootLayout() {
               <Anchor component={Link} to="/recordings" size="sm">
                 {t('nav.recordings')}
               </Anchor>
+              <Anchor component={Link} to="/settings" size="sm">
+                {t('nav.settings')}
+              </Anchor>
             </Group>
           </Group>
           <Group gap="md">
