@@ -23,7 +23,7 @@ import { graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import { renderSVG } from 'uqr';
 
 import { authApi, type OIDCStatus } from '../../auth/api';
-import { authErrorMessage } from '../../auth/messages';
+import { settingsErrorMessage } from '../../settings/errors';
 import { PasskeyCancelledError, passkeyAvailable, registerPasskey } from '../../auth/passkey';
 import { ErrorBoundary } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
@@ -126,7 +126,7 @@ function Account() {
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
   const player = usePlayerSettings();
   const [error, setError] = useState<string | null>(null);
-  const fail = (caught: unknown) => setError(authErrorMessage(t, caught));
+  const fail = (caught: unknown) => setError(settingsErrorMessage(t, caught));
   // run は、前の操作のエラーを消してから、操作を行う。
   const run: Run = (operation, onError) => {
     setError(null);

@@ -225,7 +225,13 @@
       "signedOut": "ログインしていません。ログインしてからやり直してください",
       "cancel": "やめる"
     },
-    "adminSection": "管理"
+    "adminSection": "管理",
+    "errors": {
+      "BAD_USER_INPUT": "入力した内容を受け付けられませんでした。値を確かめてください",
+      "NOT_FOUND": "対象が見つかりませんでした。画面を読み直してください",
+      "FORBIDDEN": "この操作は管理者だけができます",
+      "CONFLICT": "ほかの変更と重なりました。画面を読み直してからやり直してください"
+    }
   },
   "nav": {
     "home": "ホーム",
@@ -598,6 +604,33 @@
       "channelTypes": "チャンネル種別の表示",
       "channelTypeName": "表示名",
       "channelTypeOrder": "並び順"
+    },
+    "users": {
+      "title": "ユーザー",
+      "summary": "ユーザーを作り、ロールを変え、無効にします",
+      "roles": {
+        "ADMIN": "管理者",
+        "MEMBER": "メンバー",
+        "VIEWER": "視聴者"
+      },
+      "roleHelp": "管理者は、ユーザーやシステムの設定も扱えます。メンバーは、ルール、予約、録画を扱えます。視聴者は、見るだけです",
+      "you": "あなた",
+      "disabled": "無効",
+      "createdAt": "作成 {{at}}",
+      "create": "ユーザーを作る",
+      "username": "ユーザー名",
+      "displayName": "表示名",
+      "role": "ロール",
+      "password": "パスワード",
+      "passwordHelp": "省くと、パスワードを持たないユーザーになります。OIDC やパスキーだけでログインします",
+      "created": "{{username}} を作りました",
+      "edit": "変える",
+      "cancel": "やめる",
+      "disable": "無効にする",
+      "enable": "有効に戻す",
+      "resetPassword": "パスワードを設定し直す",
+      "newPassword": "新しいパスワード",
+      "passwordReset": "{{username}} のパスワードを設定し直しました"
     }
   }
 }
