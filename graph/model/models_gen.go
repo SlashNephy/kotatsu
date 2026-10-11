@@ -289,6 +289,17 @@ type PlayerSettingsInput struct {
 	CaptionsEnabled *bool `json:"captionsEnabled,omitempty"`
 }
 
+// 番組の音声。ARIB STD-B10 の音声コンポーネント記述子の内容。
+type ProgramAudio struct {
+	// component_type。1 はシングルモノ、2 はデュアルモノ、3 はステレオ、9 は 5.1ch など。
+	ComponentType int `json:"componentType"`
+	// 主音声かどうか。
+	IsMain bool `json:"isMain"`
+	// 言語のコード (ISO 639-2)。デュアルモノでは、主音声と副音声の 2 つになる。
+	Languages    []string `json:"languages"`
+	SamplingRate int      `json:"samplingRate"`
+}
+
 // 番組の条件 (設計書 4.2)。番組の検索とルールで共通に使う。省いた項目では絞り込まない。
 type ProgramConditionsInput struct {
 	// すべてに一致する番組だけを対象にする。

@@ -323,6 +323,7 @@ type Querier interface {
 	SetUserPassword(ctx context.Context, arg SetUserPasswordParams) (int64, error)
 	SetupTokenExists(ctx context.Context, tokenHash []byte) (bool, error)
 	// 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。新しく始めたかどうかを inserted で返す。
+	// 番組の音声の構成は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
 	StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error)
 	// ログインの途中の状態は 1 回しか使わせないので、引くと同時に消す。
 	TakeOIDCLogin(ctx context.Context, arg TakeOIDCLoginParams) (OidcLogin, error)

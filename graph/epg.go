@@ -105,6 +105,7 @@ type programRow struct {
 	Description  string
 	Extended     []byte
 	Genres       []byte
+	Audios       []byte
 }
 
 func toProgram(row *programRow) (*model.Program, error) {
@@ -124,6 +125,10 @@ func toProgram(row *programRow) (*model.Program, error) {
 	for _, g := range upstreamGenres {
 		genres = append(genres, &model.Genre{Lv1: g.Lv1, Lv2: g.Lv2})
 	}
+	audios, err := toProgramAudios(row.Audios)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode the audios of program %d/%d: %w", row.ServiceID, row.EventID, err)
+	}
 
 	return &model.Program{
 		ID:           programGlobalID(row.ServiceID, row.EventID),
@@ -136,9 +141,41 @@ func toProgram(row *programRow) (*model.Program, error) {
 		Description:  row.Description,
 		Extended:     extended,
 		Genres:       genres,
+		Audios:       audios,
 		Archived:     false,
 		ServiceKey:   row.ServiceID,
 	}, nil
+}
+
+// toProgramAudios は、上流の JSON のままの音声の構成を、主音声が先になるよう並べて返す。
+// mirakc は、主音声でない音声を先に返すことがある。
+func toProgramAudios(raw []byte) ([]*model.ProgramAudio, error) {
+	upstream := []*mirakurun.Audio{}
+	if err := json.Unmarshal(raw, &upstream); err != nil {
+		return nil, err
+	}
+	audios := make([]*model.ProgramAudio, 0, len(upstream))
+	for _, a := range upstream {
+		languages := a.Langs
+		if languages == nil {
+			languages = []string{}
+		}
+		audios = append(audios, &model.ProgramAudio{
+			ComponentType: a.ComponentType, IsMain: a.IsMain, Languages: languages, SamplingRate: a.SamplingRate,
+		})
+	}
+	slices.SortStableFunc(audios, func(a, b *model.ProgramAudio) int {
+		switch {
+		case a.IsMain == b.IsMain:
+			return 0
+		case a.IsMain:
+			return -1
+		default:
+			return 1
+		}
+	})
+
+	return audios, nil
 }
 
 // loadServices は、サービスを keys の順に引く。消えたサービスは飛ばす。

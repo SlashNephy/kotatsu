@@ -300,3 +300,64 @@ func TestNode(t *testing.T) {
 	assert.Equal(t, []string{codeNotFound}, f.query(t, `query($id: ID!) { node(id: $id) { id } }`,
 		map[string]any{"id": "UHJvZ3JhbTozMjc2MzAxMDI0Ljk5OTk"}, nil))
 }
+
+// TestProgramAudios は、番組の音声の構成を、主音声を先にして返すことを確かめる (#284)。
+func TestProgramAudios(t *testing.T) {
+	t.Parallel()
+
+	type audio struct {
+		ComponentType int      `json:"componentType"`
+		IsMain        bool     `json:"isMain"`
+		Languages     []string `json:"languages"`
+		SamplingRate  int      `json:"samplingRate"`
+	}
+	tests := []struct {
+		name   string
+		stored string
+		want   []audio
+	}{
+		{name: "unknown", stored: `[]`, want: []audio{}},
+		{
+			// mirakc は、主音声でない音声を先に返すことがあり、componentTag も返さない。
+			name: "main audio comes first",
+			stored: `[{"componentType":3,"isMain":false,"samplingRate":48000,"langs":["eng"]},` +
+				`{"componentType":3,"isMain":true,"samplingRate":48000,"langs":["jpn"]}]`,
+			want: []audio{
+				{ComponentType: 3, IsMain: true, Languages: []string{"jpn"}, SamplingRate: 48000},
+				{ComponentType: 3, IsMain: false, Languages: []string{"eng"}, SamplingRate: 48000},
+			},
+		},
+		{
+			name:   "dual mono",
+			stored: `[{"componentType":2,"componentTag":16,"isMain":true,"samplingRate":48000,"langs":["jpn","eng"]}]`,
+			want:   []audio{{ComponentType: 2, IsMain: true, Languages: []string{"jpn", "eng"}, SamplingRate: 48000}},
+		},
+		{
+			name:   "no languages",
+			stored: `[{"componentType":3,"isMain":true,"samplingRate":48000}]`,
+			want:   []audio{{ComponentType: 3, IsMain: true, Languages: []string{}, SamplingRate: 48000}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			f.syncEPG(t)
+			_, err := f.pool.Exec(t.Context(), `UPDATE programs SET audios = $1 WHERE event_id = 3`, tt.stored)
+			require.NoError(t, err)
+			var got struct {
+				Guide []struct {
+					Programs []struct {
+						Audios []audio `json:"audios"`
+					} `json:"programs"`
+				} `json:"guide"`
+			}
+			require.Empty(t, f.query(t, `{ guide(from: "2026-10-10T12:00:00Z", to: "2026-10-10T12:30:00Z") { programs { audios {
+				componentType isMain languages samplingRate } } } }`, nil, &got))
+			require.NotEmpty(t, got.Guide)
+			require.NotEmpty(t, got.Guide[0].Programs)
+			assert.Equal(t, tt.want, got.Guide[0].Programs[0].Audios)
+		})
+	}
+}

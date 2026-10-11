@@ -602,6 +602,36 @@ func TestRecorderKeepsRecordingWhenProgramIsLost(t *testing.T) {
 	assert.Equal(t, string(recording.StateCompleted), got.state)
 }
 
+// TestRecorderCopiesProgramAudios は、録画を始めたときの番組の音声の構成を録画に残し、
+// 録画中に番組の構成が変わっても書き換えないことを確かめる (#284)。
+func TestRecorderCopiesProgramAudios(t *testing.T) {
+	t.Parallel()
+
+	const bilingual = `[{"componentType":3,"isMain":true,"samplingRate":48000,"langs":["jpn"]},` +
+		`{"componentType":3,"isMain":false,"samplingRate":48000,"langs":["eng"]}]`
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	_, err = f.pool.Exec(t.Context(), "UPDATE programs SET audios = $2 WHERE service_id = $1 AND event_id = 6", grService(0), bilingual)
+	require.NoError(t, err)
+	reservationID := f.reserve(t, 0)
+	recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return len(f.files(t, reservationID)) == 2
+	}, waitTimeout, 10*time.Millisecond)
+	_, err = f.pool.Exec(t.Context(), "UPDATE programs SET audios = '[]' WHERE service_id = $1 AND event_id = 6", grService(0))
+	require.NoError(t, err)
+
+	f.clock.Advance(programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
+	require.NoError(t, wait(t, done))
+	var same bool
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT audios = $2::jsonb FROM recordings WHERE reservation_id = $1",
+		reservationID, bilingual).Scan(&same))
+	assert.True(t, same)
+}
+
 // TestRecorderRecordsGapOnResume は、引き継ぎや再開で続きを録るとき、前のセグメントを書き終えてからの間を、途切れた区間として記録することを確かめる。
 func TestRecorderRecordsGapOnResume(t *testing.T) {
 	t.Parallel()

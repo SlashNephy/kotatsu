@@ -51,6 +51,7 @@ type Program struct {
 	Description  string          `json:"description"`
 	Extended     []*ExtendedItem `json:"extended"`
 	Genres       []*Genre        `json:"genres"`
+	Audios       []*ProgramAudio `json:"audios"`
 	Archived     bool            `json:"archived"`
 	// ServiceKey は、Mirakurun のサービス ID。スキーマには出さない。
 	ServiceKey int64 `json:"-"`

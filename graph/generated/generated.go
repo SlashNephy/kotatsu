@@ -244,6 +244,7 @@ type ComplexityRoot struct {
 
 	Program struct {
 		Archived     func(childComplexity int) int
+		Audios       func(childComplexity int) int
 		Description  func(childComplexity int) int
 		EndAt        func(childComplexity int) int
 		EndUndecided func(childComplexity int) int
@@ -256,6 +257,13 @@ type ComplexityRoot struct {
 		Reservation  func(childComplexity int) int
 		Service      func(childComplexity int) int
 		StartAt      func(childComplexity int) int
+	}
+
+	ProgramAudio struct {
+		ComponentType func(childComplexity int) int
+		IsMain        func(childComplexity int) int
+		Languages     func(childComplexity int) int
+		SamplingRate  func(childComplexity int) int
 	}
 
 	ProgramConditions struct {
@@ -313,6 +321,7 @@ type ComplexityRoot struct {
 	}
 
 	Recording struct {
+		Audios            func(childComplexity int) int
 		Description       func(childComplexity int) int
 		Drops             func(childComplexity int) int
 		EndAt             func(childComplexity int) int
@@ -1660,6 +1669,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Program.Archived(childComplexity), true
+	case "Program.audios":
+		if e.ComplexityRoot.Program.Audios == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.Audios(childComplexity), true
 	case "Program.description":
 		if e.ComplexityRoot.Program.Description == nil {
 			break
@@ -1732,6 +1747,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Program.StartAt(childComplexity), true
+
+	case "ProgramAudio.componentType":
+		if e.ComplexityRoot.ProgramAudio.ComponentType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProgramAudio.ComponentType(childComplexity), true
+	case "ProgramAudio.isMain":
+		if e.ComplexityRoot.ProgramAudio.IsMain == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProgramAudio.IsMain(childComplexity), true
+	case "ProgramAudio.languages":
+		if e.ComplexityRoot.ProgramAudio.Languages == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProgramAudio.Languages(childComplexity), true
+	case "ProgramAudio.samplingRate":
+		if e.ComplexityRoot.ProgramAudio.SamplingRate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProgramAudio.SamplingRate(childComplexity), true
 
 	case "ProgramConditions.channelTypes":
 		if e.ComplexityRoot.ProgramConditions.ChannelTypes == nil {
@@ -2035,6 +2075,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.Webhooks(childComplexity), true
 
+	case "Recording.audios":
+		if e.ComplexityRoot.Recording.Audios == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.Audios(childComplexity), true
 	case "Recording.description":
 		if e.ComplexityRoot.Recording.Description == nil {
 			break
@@ -3542,6 +3588,19 @@ type Genre {
 }
 
 """
+番組の音声。ARIB STD-B10 の音声コンポーネント記述子の内容。
+"""
+type ProgramAudio {
+  "component_type。1 はシングルモノ、2 はデュアルモノ、3 はステレオ、9 は 5.1ch など。"
+  componentType: Int!
+  "主音声かどうか。"
+  isMain: Boolean!
+  "言語のコード (ISO 639-2)。デュアルモノでは、主音声と副音声の 2 つになる。"
+  languages: [String!]!
+  samplingRate: Int!
+}
+
+"""
 番組の詳細の、見出しと本文の組。
 """
 type ExtendedItem {
@@ -3565,6 +3624,8 @@ type Program implements Node {
   description: String!
   extended: [ExtendedItem!]!
   genres: [Genre!]!
+  "音声の構成。主音声を先に並べる。チューナーサーバーが返さなければ空になる。"
+  audios: [ProgramAudio!]!
 }
 
 """
@@ -3879,6 +3940,8 @@ type Recording implements Node {
   errors: Int64!
   scrambled: Int64!
   gaps: [RecordingGap!]!
+  "録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。"
+  audios: [ProgramAudio!]!
   "録画中に番組が EPG から消えたかどうか。"
   programLost: Boolean!
   "実際に録画を始めた日時と、終えた日時。録画中なら終えた日時は null。"
@@ -5070,12 +5133,28 @@ func (ec *executionContext) childFields_Program(ctx context.Context, field graph
 		return ec.fieldContext_Program_extended(ctx, field)
 	case "genres":
 		return ec.fieldContext_Program_genres(ctx, field)
+	case "audios":
+		return ec.fieldContext_Program_audios(ctx, field)
 	case "reservation":
 		return ec.fieldContext_Program_reservation(ctx, field)
 	case "archived":
 		return ec.fieldContext_Program_archived(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Program", field.Name)
+}
+
+func (ec *executionContext) childFields_ProgramAudio(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "componentType":
+		return ec.fieldContext_ProgramAudio_componentType(ctx, field)
+	case "isMain":
+		return ec.fieldContext_ProgramAudio_isMain(ctx, field)
+	case "languages":
+		return ec.fieldContext_ProgramAudio_languages(ctx, field)
+	case "samplingRate":
+		return ec.fieldContext_ProgramAudio_samplingRate(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProgramAudio", field.Name)
 }
 
 func (ec *executionContext) childFields_ProgramConditions(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -5154,6 +5233,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_scrambled(ctx, field)
 	case "gaps":
 		return ec.fieldContext_Recording_gaps(ctx, field)
+	case "audios":
+		return ec.fieldContext_Recording_audios(ctx, field)
 	case "programLost":
 		return ec.fieldContext_Recording_programLost(ctx, field)
 	case "recordedFrom":
@@ -10782,6 +10863,38 @@ func (ec *executionContext) fieldContext_Program_genres(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _Program_audios(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_audios(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Audios, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.ProgramAudio) graphql.Marshaler {
+			return ec.marshalNProgramAudio2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramAudioᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_audios(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Program",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProgramAudio(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Program_reservation(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -10835,6 +10948,98 @@ func (ec *executionContext) _Program_archived(ctx context.Context, field graphql
 }
 func (ec *executionContext) fieldContext_Program_archived(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Program", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ProgramAudio_componentType(ctx context.Context, field graphql.CollectedField, obj *model.ProgramAudio) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProgramAudio_componentType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ComponentType, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProgramAudio_componentType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProgramAudio", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ProgramAudio_isMain(ctx context.Context, field graphql.CollectedField, obj *model.ProgramAudio) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProgramAudio_isMain(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsMain, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProgramAudio_isMain(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProgramAudio", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _ProgramAudio_languages(ctx context.Context, field graphql.CollectedField, obj *model.ProgramAudio) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProgramAudio_languages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Languages, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProgramAudio_languages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProgramAudio", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProgramAudio_samplingRate(ctx context.Context, field graphql.CollectedField, obj *model.ProgramAudio) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProgramAudio_samplingRate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SamplingRate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProgramAudio_samplingRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProgramAudio", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _ProgramConditions_keywords(ctx context.Context, field graphql.CollectedField, obj *model.ProgramConditions) (ret graphql.Marshaler) {
@@ -12637,6 +12842,38 @@ func (ec *executionContext) fieldContext_Recording_gaps(_ context.Context, field
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_RecordingGap(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Recording_audios(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_audios(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Audios, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.ProgramAudio) graphql.Marshaler {
+			return ec.marshalNProgramAudio2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramAudioᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_audios(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProgramAudio(ctx, field)
 		},
 	}
 	return fc, nil
@@ -20557,6 +20794,11 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "audios":
+			out.Values[i] = ec._Program_audios(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "reservation":
 			field := field
 
@@ -20599,6 +20841,59 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 			out.Values[i] = ec._Program_archived(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var programAudioImplementors = []string{"ProgramAudio"}
+
+func (ec *executionContext) _ProgramAudio(ctx context.Context, sel ast.SelectionSet, obj *model.ProgramAudio) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, programAudioImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProgramAudio")
+		case "componentType":
+			out.Values[i] = ec._ProgramAudio_componentType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isMain":
+			out.Values[i] = ec._ProgramAudio_isMain(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "languages":
+			out.Values[i] = ec._ProgramAudio_languages(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "samplingRate":
+			out.Values[i] = ec._ProgramAudio_samplingRate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -21606,6 +21901,11 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			}
 		case "gaps":
 			out.Values[i] = ec._Recording_gaps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "audios":
+			out.Values[i] = ec._Recording_audios(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
@@ -24659,6 +24959,32 @@ func (ec *executionContext) marshalNProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotat
 		return graphql.Null
 	}
 	return ec._Program(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProgramAudio2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramAudioᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ProgramAudio) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNProgramAudio2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramAudio(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNProgramAudio2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramAudio(ctx context.Context, sel ast.SelectionSet, v *model.ProgramAudio) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ProgramAudio(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNProgramConditions2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramConditions(ctx context.Context, sel ast.SelectionSet, v *model.ProgramConditions) graphql.Marshaler {

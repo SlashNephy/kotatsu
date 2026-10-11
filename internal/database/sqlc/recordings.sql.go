@@ -98,7 +98,7 @@ func (q *Queries) GetProgramEnd(ctx context.Context, arg GetProgramEndParams) (G
 }
 
 const getRecording = `-- name: GetRecording :one
-SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, program_lost, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1
+SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, program_lost, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1
 `
 
 func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, error) {
@@ -120,6 +120,7 @@ func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, er
 		&i.Errors,
 		&i.Scrambled,
 		&i.Gaps,
+		&i.Audios,
 		&i.ProgramLost,
 		&i.RecordedFrom,
 		&i.RecordedUntil,
@@ -157,7 +158,7 @@ func (q *Queries) GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (G
 }
 
 const getRecordingWithService = `-- name: GetRecordingWithService :one
-SELECT recordings.id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.program_lost, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
+SELECT recordings.id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.program_lost, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
 FROM recordings
 JOIN services s ON s.id = recordings.service_id
 WHERE recordings.id = $1
@@ -188,6 +189,7 @@ func (q *Queries) GetRecordingWithService(ctx context.Context, id uuid.UUID) (Ge
 		&i.Recording.Errors,
 		&i.Recording.Scrambled,
 		&i.Recording.Gaps,
+		&i.Recording.Audios,
 		&i.Recording.ProgramLost,
 		&i.Recording.RecordedFrom,
 		&i.Recording.RecordedUntil,
@@ -418,11 +420,13 @@ func (q *Queries) SetRecordingStats(ctx context.Context, arg SetRecordingStatsPa
 
 const startRecording = `-- name: StartRecording :one
 INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
-  protected, drops, errors, scrambled, recorded_from, recorded_until, created_at, updated_at)
+  protected, drops, errors, scrambled, audios, recorded_from, recorded_until, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'recording', NULL,
-  false, 0, 0, 0, $9, NULL, $9, $9)
+  false, 0, 0, 0,
+  COALESCE((SELECT p.audios FROM programs p WHERE p.service_id = $3 AND p.event_id = $4), '[]'::jsonb),
+  $9, NULL, $9, $9)
 ON CONFLICT (reservation_id) DO UPDATE SET state = 'recording', failure_reason = NULL, recorded_until = NULL, updated_at = EXCLUDED.updated_at
-RETURNING recordings.id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.program_lost, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, (xmax = 0)::boolean AS inserted
+RETURNING recordings.id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.program_lost, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, (xmax = 0)::boolean AS inserted
 `
 
 type StartRecordingParams struct {
@@ -443,6 +447,7 @@ type StartRecordingRow struct {
 }
 
 // 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。新しく始めたかどうかを inserted で返す。
+// 番組の音声の構成は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
 func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error) {
 	row := q.db.QueryRow(ctx, startRecording,
 		arg.ID,
@@ -472,6 +477,7 @@ func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) 
 		&i.Recording.Errors,
 		&i.Recording.Scrambled,
 		&i.Recording.Gaps,
+		&i.Recording.Audios,
 		&i.Recording.ProgramLost,
 		&i.Recording.RecordedFrom,
 		&i.Recording.RecordedUntil,

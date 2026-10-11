@@ -164,6 +164,13 @@ func (s *Server) ExtendProgram(id int64, extra time.Duration) error {
 	})
 }
 
+// ChangeProgramAudios は番組の音声の構成を変え、program の update イベントを送る。
+func (s *Server) ChangeProgramAudios(id int64, audios []*Audio) error {
+	return s.updateProgram(id, func(p *Program) {
+		p.Audios = audios
+	})
+}
+
 // RemoveProgram は番組を消し、program の remove イベントを送る。
 func (s *Server) RemoveProgram(id int64) error {
 	s.mu.Lock()

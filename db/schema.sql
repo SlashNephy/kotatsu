@@ -412,10 +412,11 @@ CREATE TABLE programs (
   -- NFKC で正規化した番組名と説明 (設計書 3.5)。キーワードの照合と検索に使う。
   name_normalized text NOT NULL,
   description_normalized text NOT NULL,
-  -- 詳細 (見出しから本文への対応)、ジャンル、関連する番組 (イベント共有とイベントリレー) は、上流の JSON のまま持つ。
+  -- 詳細 (見出しから本文への対応)、ジャンル、関連する番組 (イベント共有とイベントリレー)、音声の構成は、上流の JSON のまま持つ。
   extended jsonb NOT NULL,
   genres jsonb NOT NULL,
   related_items jsonb NOT NULL,
+  audios jsonb NOT NULL DEFAULT '[]',
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   PRIMARY KEY (service_id, event_id)
@@ -454,6 +455,7 @@ CREATE TABLE program_archives (
   extended jsonb NOT NULL,
   genres jsonb NOT NULL,
   related_items jsonb NOT NULL,
+  audios jsonb NOT NULL DEFAULT '[]',
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   archived_at timestamptz NOT NULL,
@@ -636,6 +638,8 @@ CREATE TABLE recordings (
   scrambled bigint NOT NULL DEFAULT 0,
   -- 途切れた区間 (設計書 5.2)。[{"from": ..., "to": ...}] の形で、ストリームを開き直すまでの間を記録する。
   gaps jsonb NOT NULL DEFAULT '[]',
+  -- 録画を始めたときの番組の音声の構成 (programs.audios の写し)。時刻予約や、番組がないときは空にする。
+  audios jsonb NOT NULL DEFAULT '[]',
   -- 録画中に番組が EPG から消えたかどうか (設計書 5.1)。消えたら、予定の終わりまで録り続ける。
   program_lost boolean NOT NULL DEFAULT false,
   -- 実際に録画を始めた日時と、終えた日時。録画中なら終えた日時は NULL。
