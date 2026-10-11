@@ -85,30 +85,27 @@ export function useDataBroadcast(
       restore?.();
       restore = null;
     };
-    const moveIn = () => {
+    // hidden は、文書が隠れているか、TS を読めなくなって層を隠したこと。
+    let hidden = false;
+    // place は、映像をデータ放送の中へ移すか、プレイヤーへ戻す。どのイベントでも、同じ条件で決める。
+    // 層を隠している間と、映像の位置がないページでは、mediaElement が見えないか文書の外に出るので、プレイヤーへ戻す。
+    const place = () => {
       const video = videoRef.current;
-      if (restore !== null || video === null) {
-        return;
+      if (hidden || video === null || browser.getVideoElement() === null) {
+        putBack();
+      } else if (restore === null) {
+        restore = moveMedia(video, mediaElement);
       }
-      restore = moveMedia(video, mediaElement);
     };
     browser.addEventListener('load', (event) => {
       setResolution(event.detail.resolution);
       setState('shown');
-      // 映像の位置がないページでは、mediaElement が文書の外に出て、映像が止まる。プレイヤーへ戻して、下に映す。
-      if (browser.getVideoElement() === null) {
-        putBack();
-      } else {
-        moveIn();
-      }
+      place();
     });
     browser.addEventListener('invisible', (event) => {
+      hidden = event.detail;
       setInvisible(event.detail);
-      if (event.detail) {
-        putBack();
-      } else {
-        moveIn();
-      }
+      place();
     });
 
     const worker = new Worker(new URL('./dataBroadcastWorker.ts', import.meta.url), {
@@ -117,7 +114,11 @@ export function useDataBroadcast(
     worker.addEventListener('message', (event: MessageEvent) => {
       const message = event.data as Parameters<BMLBrowser['emitMessage']>[0] | DataBroadcastEnd;
       if (message.type === 'kotatsu:end') {
+        // 文書は更新されなくなるので、層を隠し、映像をプレイヤーへ戻す。
+        hidden = true;
+        setInvisible(true);
         setState('ended');
+        place();
 
         return;
       }
