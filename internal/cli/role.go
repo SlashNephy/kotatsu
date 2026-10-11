@@ -130,7 +130,7 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 		return fmt.Errorf("failed to load the time zone %s: %w", defaultTimeZone, err)
 	}
 
-	// EPG の同期の遅れは、最後に全量を突き合わせた時刻から求める (設計書 11.3)。リーダーでない間は 0 のままにする。
+	// EPG の同期の遅れは、最後に全量を突き合わせた時刻から求める (設計書 11.3)。リーダーになるまでは 0 で、リーダーでなくなった後は最後の値を残す。
 	lastFullSync := prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: metrics.Namespace, Name: "epg_last_full_sync_timestamp_seconds",
 		Help: "Unix time when this instance last synced the whole EPG as the neko leader.",

@@ -61,6 +61,12 @@ func TestDBCollector(t *testing.T) {
 	tuner(1, true, false)
 	tuner(2, false, false)
 	tuner(3, true, true)
+	reservation := id.New()
+	exec(`INSERT INTO reservations (id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres,
+		enabled, follow_event_relay, settings, created_at, updated_at)
+		VALUES ($1, 'time', 3273601024, NULL, $2, $3, '', '', '{}', '[]', true, false, '{}', $2, $2)`, reservation, now, now.Add(time.Hour))
+	exec(`INSERT INTO recording_assignments (id, reservation_id, priority, state, generation, created_at, updated_at)
+		VALUES ($1, $2, 2, 'recording', 1, $3, $3)`, id.New(), reservation, now)
 	exec(`INSERT INTO river_job (args, kind, max_attempts, queue, state) VALUES ('{}', 'test', 1, 'default', 'available'), ('{}', 'test', 1, 'default', 'available')`)
 
 	collector := metrics.NewDBCollector(pool, clk, instanceID, logger)
@@ -79,6 +85,9 @@ kotatsu_recording_failures{reason="tuner_unavailable"} 1
 kotatsu_recording_active_packets{kind="drop"} 7
 kotatsu_recording_active_packets{kind="error"} 2
 kotatsu_recording_active_packets{kind="scrambled"} 0
+# HELP kotatsu_recording_assignments Number of recording assignments by state.
+# TYPE kotatsu_recording_assignments gauge
+kotatsu_recording_assignments{state="recording"} 1
 # HELP kotatsu_tuners Number of tuners of the tuner server by state.
 # TYPE kotatsu_tuners gauge
 kotatsu_tuners{state="available"} 2
@@ -92,7 +101,7 @@ kotatsu_river_jobs{queue="default",state="available"} 2
 kotatsu_metrics_collection_errors 0
 `
 	names := []string{
-		"kotatsu_recordings", "kotatsu_recording_failures", "kotatsu_recording_active_packets", "kotatsu_tuners",
+		"kotatsu_recordings", "kotatsu_recording_failures", "kotatsu_recording_active_packets", "kotatsu_recording_assignments", "kotatsu_tuners",
 		"kotatsu_river_jobs", "kotatsu_metrics_collection_errors", "kotatsu_neko_leader",
 	}
 	leader := func(value string) string {
