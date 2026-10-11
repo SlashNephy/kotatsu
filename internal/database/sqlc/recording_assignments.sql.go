@@ -334,6 +334,18 @@ func (q *Queries) MarkRecordingStreamOpened(ctx context.Context, arg MarkRecordi
 	return err
 }
 
+const recordingAssignmentExists = `-- name: RecordingAssignmentExists :one
+SELECT EXISTS (SELECT 1 FROM recording_assignments WHERE id = $1)
+`
+
+// 割り振りが残っているかどうか。予約を消すと、割り振りも一緒に消える。
+func (q *Queries) RecordingAssignmentExists(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, recordingAssignmentExists, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const releaseRecordingAssignment = `-- name: ReleaseRecordingAssignment :exec
 UPDATE recording_assignments SET state = 'recording', holder = NULL, lease_expires_at = NULL, updated_at = $1
 WHERE id = $2 AND generation = $3 AND holder = $4 AND state IN ('recording', 'handover')

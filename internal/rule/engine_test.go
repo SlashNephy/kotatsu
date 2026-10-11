@@ -220,6 +220,33 @@ func TestEngineDeletesReservationsThatNoLongerMatch(t *testing.T) {
 	assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
 }
 
+// TestEngineKeepsReservationsWhoseRecordingStarted は、放送の前でも、録画が始まった予約は、ルールに一致しなくなっても消さないことを確かめる (#304)。
+// 録画は、放送の開始マージンだけ前に始まる。
+func TestEngineKeepsReservationsWhoseRecordingStarted(t *testing.T) {
+	t.Parallel()
+
+	f := newEngineFixture(t)
+	r := f.createRule(t, `テスト番組 (5|6)$`, nil)
+	f.run(t)
+
+	// eventId 5 の放送の 10 秒前。録画は 15 秒前に始まっている。
+	start := f.reservationOf(t, 5).StartAt
+	f.clock.Advance(start.Add(-10 * time.Second).Sub(f.clock.Now()))
+	_, err := f.pool.Exec(t.Context(), "UPDATE reservations SET planned_start_at = $1 WHERE id = $2",
+		start.Add(-15*time.Second), f.reservationOf(t, 5).ID)
+	require.NoError(t, err)
+	in := &rule.Input{
+		Name: r.Name, Memo: "", Enabled: true,
+		Conditions: &match.Conditions{Keywords: []*match.Keyword{{Text: "一致しない", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldName}}}},
+		Overrides:  nil, ValidFrom: nil, ValidUntil: nil, AvoidDuplicates: false, DuplicateWindowDays: nil, FollowEventRelay: true,
+	}
+	_, err = f.rules.Update(t.Context(), f.pool, f.user, r.ID, in)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, f.run(t).Deleted)
+	assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
+}
+
 // TestEngineDoesNotRecreateDisabledReservations は、ユーザーが削除したルール予約を無効にして残し、次の照合で作り直さないことを確かめる。
 func TestEngineDoesNotRecreateDisabledReservations(t *testing.T) {
 	t.Parallel()

@@ -402,23 +402,52 @@ func TestRecorderDecidesStateFromWholeRecording(t *testing.T) {
 func TestRecorderCancelsWhenDisabled(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t)
-	reservationID := f.reserve(t, 0)
-	recorder, _ := f.newRecorder(t, f.tuner, nil)
-	_, done := f.session(t, recorder, reservationID)
-	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
-	require.Eventually(t, func() bool {
-		return len(f.files(t, reservationID)) == 2
-	}, waitTimeout, 10*time.Millisecond)
+	tests := []struct {
+		name string
+		// cancel は、録画中の予約を取り消す。
+		cancel func(t *testing.T, f *fixture, reservationID uuid.UUID)
+	}{
+		{name: "無効にする", cancel: func(t *testing.T, f *fixture, reservationID uuid.UUID) {
+			t.Helper()
 
-	_, err := f.reservations.Update(t.Context(), f.pool, audit.System("test"), reservationID, &reserve.Update{Enabled: new(false)})
-	require.NoError(t, err)
-	require.NoError(t, wait(t, done))
-	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StateFailed), got.state)
-	assert.Equal(t, new(string(recording.FailureCancelled)), got.failureReason)
-	for _, file := range f.files(t, reservationID) {
-		assert.True(t, file.closed, file.path)
+			_, err := f.reservations.Update(t.Context(), f.pool, audit.System("test"), reservationID, &reserve.Update{Enabled: new(false)})
+			require.NoError(t, err)
+		}},
+		{name: "消す (#304)", cancel: func(t *testing.T, f *fixture, reservationID uuid.UUID) {
+			t.Helper()
+
+			require.NoError(t, f.reservations.Delete(t.Context(), f.pool, audit.System("test"), reservationID))
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			recorder, _ := f.newRecorder(t, f.tuner, nil)
+			_, done := f.session(t, recorder, reservationID)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			require.Eventually(t, func() bool {
+				return len(f.files(t, reservationID)) == 2
+			}, waitTimeout, 10*time.Millisecond)
+			// 予約を消すと、録画の reservation_id は NULL になるので、録画の ID で追う。
+			var recordingID uuid.UUID
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT id FROM recordings WHERE reservation_id = $1", reservationID).Scan(&recordingID))
+
+			tt.cancel(t, f, reservationID)
+			require.NoError(t, wait(t, done))
+			var state string
+			var failureReason *string
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT state, failure_reason FROM recordings WHERE id = $1", recordingID).
+				Scan(&state, &failureReason))
+			assert.Equal(t, string(recording.StateFailed), state)
+			assert.Equal(t, new(string(recording.FailureCancelled)), failureReason)
+			var open int
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL",
+				recordingID).Scan(&open))
+			assert.Zero(t, open, "all files are closed")
+		})
 	}
 }
 
