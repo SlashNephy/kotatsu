@@ -36,3 +36,40 @@ registerRoute(
 // それまでは、開いているタブが読み込む古い版のファイルを、古いキャッシュから返し続ける。
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
+
+// Web Push の通知を出す (設計書 6.2)。本文は、tenban が組み立てて送る (webpush.Payload)。
+type PushPayload = { title: string; body: string; eventId: string; kind: string };
+
+self.addEventListener('push', (event) => {
+  const payload = event.data?.json() as PushPayload | undefined;
+  if (payload === undefined) {
+    return;
+  }
+  // 同じ出来事の通知は、届き直しても 1 つにまとめる。
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      tag: payload.eventId,
+      icon: '/icons/icon-192.png',
+      data: { kind: payload.kind },
+    }),
+  );
+});
+
+// 通知を押したら、開いているタブがあればそこで、なければ新しいタブで、通知の一覧を開く。
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const opened = windows[0];
+      if (opened !== undefined) {
+        await opened.focus();
+        await opened.navigate('/notifications');
+
+        return;
+      }
+      await self.clients.openWindow('/notifications');
+    })(),
+  );
+});

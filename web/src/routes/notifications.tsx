@@ -1,0 +1,169 @@
+import { Alert, Anchor, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { Suspense, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
+
+import { ErrorBoundary } from '../futon';
+import { isUnauthenticated } from '../relay/environment';
+import type { notificationsListQuery } from './__generated__/notificationsListQuery.graphql';
+import type { notificationsMarkAllMutation } from './__generated__/notificationsMarkAllMutation.graphql';
+import type { notificationsMarkMutation } from './__generated__/notificationsMarkMutation.graphql';
+
+export const Route = createFileRoute('/notifications')({
+  component: NotificationsPage,
+});
+
+const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+  month: 'numeric',
+  day: 'numeric',
+  weekday: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+  timeZone: 'Asia/Tokyo',
+});
+
+// NotificationsPage は、画面内の通知の一覧 (設計書 6.2)。
+function NotificationsPage() {
+  const { t } = useTranslation();
+
+  return (
+    <Stack gap="sm">
+      <Group justify="space-between">
+        <Title order={2} size="h4">
+          {t('notifications.title')}
+        </Title>
+        <Anchor component={Link} to="/settings/notifications" size="sm">
+          {t('notifications.settings')}
+        </Anchor>
+      </Group>
+      <ErrorBoundary
+        fallback={(error) =>
+          isUnauthenticated(error) ? (
+            <Alert color="amber">
+              <Anchor component={Link} to="/login">
+                {t('guide.signedOut')}
+              </Anchor>
+            </Alert>
+          ) : (
+            <Alert color="amber">{t('viewer.error')}</Alert>
+          )
+        }
+      >
+        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+          <NotificationList />
+        </Suspense>
+      </ErrorBoundary>
+    </Stack>
+  );
+}
+
+// pageSize は、一度に出す通知の数。
+const pageSize = 100;
+
+function NotificationList() {
+  const { t } = useTranslation();
+  // fetchKey を変えると、読み直す。既読にした後に、一覧を新しくするのに使う。
+  const [fetchKey, setFetchKey] = useState(0);
+  const data = useLazyLoadQuery<notificationsListQuery>(
+    graphql`
+      query notificationsListQuery($first: Int!) {
+        notifications(first: $first) {
+          edges {
+            node {
+              id
+              kind
+              occurredAt
+              message
+              readAt
+            }
+          }
+        }
+      }
+    `,
+    { first: pageSize },
+    { fetchKey, fetchPolicy: 'store-and-network' },
+  );
+  const [markRead] = useMutation<notificationsMarkMutation>(graphql`
+    mutation notificationsMarkMutation($ids: [ID!]!) {
+      markNotificationsRead(ids: $ids)
+    }
+  `);
+  const [markAll, markingAll] = useMutation<notificationsMarkAllMutation>(graphql`
+    mutation notificationsMarkAllMutation {
+      markAllNotificationsRead
+    }
+  `);
+  const [error, setError] = useState(false);
+  const refresh = () => setFetchKey((key) => key + 1);
+  const unread = data.notifications.edges.filter((edge) => edge.node.readAt == null).length;
+
+  return (
+    <Stack gap="xs">
+      <Group justify="space-between">
+        <Text size="sm" c="dimmed">
+          {t('notifications.unread', { count: unread })}
+        </Text>
+        <Button
+          size="compact-sm"
+          variant="default"
+          disabled={unread === 0}
+          loading={markingAll}
+          onClick={() =>
+            markAll({ variables: {}, onCompleted: refresh, onError: () => setError(true) })
+          }
+        >
+          {t('notifications.markAll')}
+        </Button>
+      </Group>
+      {error && (
+        <Alert color="red" role="alert">
+          {t('notifications.markError')}
+        </Alert>
+      )}
+      {data.notifications.edges.length === 0 ? (
+        <Text c="dimmed">{t('notifications.empty')}</Text>
+      ) : (
+        data.notifications.edges.map(({ node }) => {
+          const isUnread = node.readAt == null;
+
+          return (
+            <Card
+              key={node.id}
+              withBorder
+              padding="xs"
+              data-unread={isUnread}
+              // 未読の通知は、押すと既読にする。
+              onClick={
+                isUnread
+                  ? () =>
+                      markRead({
+                        variables: { ids: [node.id] },
+                        onCompleted: refresh,
+                        onError: () => setError(true),
+                      })
+                  : undefined
+              }
+              style={{ cursor: isUnread ? 'pointer' : undefined }}
+            >
+              <Group gap="xs" wrap="nowrap" align="flex-start">
+                <Text size="xs" c={isUnread ? 'mikan' : 'dimmed'} style={{ flexShrink: 0 }}>
+                  {isUnread ? '●' : '○'}
+                </Text>
+                <Stack gap={2}>
+                  <Text size="sm" fw={isUnread ? 600 : undefined}>
+                    {node.message}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {dateTimeFormat.format(Date.parse(node.occurredAt))}
+                  </Text>
+                </Stack>
+              </Group>
+            </Card>
+          );
+        })
+      )}
+    </Stack>
+  );
+}
