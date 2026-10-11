@@ -71,7 +71,8 @@ function RootLayout() {
               {t(item.key)}
             </Anchor>
           ))}
-          <ColorSchemeToggle />
+          {/* 配色の切り替えは、広い画面ではヘッダーにある。同じものを 2 つ置かないよう、引き出しを開いたときだけ描く。 */}
+          {opened && <ColorSchemeToggle />}
         </Stack>
       </AppShell.Navbar>
       <AppShell.Main>
