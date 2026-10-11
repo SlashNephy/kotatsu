@@ -168,13 +168,8 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 			// チューナーが空くか、チューナーサーバーにつながるまで、予定の終わりまで開き直す。
 			result.lastFailure = streamFailure(err)
 			logger.WarnContext(ctx, "failed to open the service stream; retrying", slog.Any("error", err))
-			end, err := tracker.sleep(ctx, r.opts.RetryInterval)
-			if err != nil {
+			if done, err := r.waitToReopen(ctx, logger, assignment, &recording, tracker, result, r.opts.RetryInterval); done {
 				return err
-			}
-			if end != endNone {
-				// つながらないまま終えるので、最後のセグメントの終わりから今までも、途切れた区間にする。
-				return r.finish(ctx, logger, assignment, &recording, end, result, true)
 			}
 
 			continue
@@ -217,14 +212,9 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 			result.lastFailure = FailureStreamInterrupted
 			// 開いてすぐに切れ続けると、セグメントを作り続けるので、開き直すのは RetryInterval に 1 回までにする。
 			// 長く録れていたなら、待たずに開き直し、途切れる区間を短くする。
-			if wait := r.opts.RetryInterval - r.clock.Now().Sub(openedAt); wait > 0 {
-				end, err := tracker.sleep(ctx, wait)
-				if err != nil {
-					return err
-				}
-				if end != endNone {
-					return r.finish(ctx, logger, assignment, &recording, end, result, true)
-				}
+			wait := r.opts.RetryInterval - r.clock.Now().Sub(openedAt)
+			if done, err := r.waitToReopen(ctx, logger, assignment, &recording, tracker, result, wait); done {
+				return err
 			}
 
 			continue
@@ -232,6 +222,26 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 
 		return r.finish(ctx, logger, assignment, &recording, end, result, false)
 	}
+}
+
+// waitToReopen は、ストリームを開き直す前に d だけ待つ。d が 0 以下なら待たない。
+// 待つ間に録画を止めるときが来たら、つながらないまま録画を終え、true と、録画を終えた結果を返す。
+func (r *Recorder) waitToReopen(
+	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, tracker *endTracker, result *sessionResult, d time.Duration,
+) (bool, error) {
+	if d <= 0 {
+		return false, nil
+	}
+	end, err := tracker.sleep(ctx, d)
+	if err != nil {
+		return true, err
+	}
+	if end == endNone {
+		return false, nil
+	}
+
+	// つながらないまま終えるので、最後のセグメントの終わりから今までも、途切れた区間にする。
+	return true, r.finish(ctx, logger, assignment, recording, end, result, true)
 }
 
 // sessionResult は、この mikan が録画を担当した間の結果。
