@@ -115,6 +115,14 @@ describe('kyusuAudioChoices', () => {
       ],
     },
     {
+      name: '2 つ目の音声に言語がない',
+      audios: [stereo(['jpn']), stereo([])],
+      want: [
+        { slot: 1, kind: 'stream', language: 'jpn' },
+        { slot: 2, kind: 'stream', language: null },
+      ],
+    },
+    {
       name: 'デュアルモノ',
       audios: [{ componentType: 2, languages: ['jpn', 'eng'] }],
       want: [
