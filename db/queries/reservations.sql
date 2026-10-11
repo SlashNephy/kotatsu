@@ -60,6 +60,13 @@ WHERE p.service_id = @service_id AND p.event_id = @event_id
 ON CONFLICT (service_id, event_id) WHERE event_id IS NOT NULL DO NOTHING
 RETURNING id;
 
+-- name: PromoteRuleReservation :execrows
+-- ルール予約を、手動の番組予約に切り替え、手動の設定を書き込む (設計書 4.1)。無効にしたルール予約も、有効に戻す。
+-- 一致したルールとの関連は残す。
+UPDATE reservations
+SET kind = 'program', enabled = true, follow_event_relay = @follow_event_relay, settings = @settings, updated_at = @now, updated_by = @updated_by
+WHERE service_id = @service_id AND event_id = @event_id AND kind = 'rule';
+
 -- name: SetReservationEnabled :execrows
 UPDATE reservations SET enabled = @enabled, updated_at = @now, updated_by = @updated_by WHERE id = @id;
 

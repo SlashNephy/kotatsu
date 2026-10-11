@@ -139,6 +139,7 @@ type ProgramInput struct {
 
 // CreateProgram は番組予約を作る。番組情報は EPG からコピーする。
 // 同じ番組の予約がすでにあれば、作らずにその予約を返し、created を false にする (設計書 4.1)。
+// すでにあるのがルール予約なら、手動の設定をルールの設定より優先するため、手動の番組予約に切り替える。
 func (r *Reservations) CreateProgram(ctx context.Context, db Beginner, actor *audit.Actor, in *ProgramInput) (*Reservation, bool, error) {
 	settings, err := EncodeOverrides(in.Overrides)
 	if err != nil {
@@ -172,9 +173,17 @@ func (r *Reservations) CreateProgram(ctx context.Context, db Beginner, actor *au
 			Now:              r.clock.Now(),
 			CreatedBy:        userOf(actor),
 		})
+		promoted := int64(0)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
-			// 同じ番組の予約がすでにある。
+			// 同じ番組の予約がすでにある。ルール予約なら、手動の番組予約に切り替える。
+			promoted, err = q.PromoteRuleReservation(ctx, sqlc.PromoteRuleReservationParams{
+				FollowEventRelay: in.FollowEventRelay, Settings: settings, Now: r.clock.Now(), UpdatedBy: userOf(actor),
+				ServiceID: in.ServiceID, EventID: &in.EventID,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to turn the rule reservation into a program reservation: %w", err)
+			}
 		case err != nil:
 			return fmt.Errorf("failed to create a reservation: %w", err)
 		default:
@@ -188,11 +197,14 @@ func (r *Reservations) CreateProgram(ctx context.Context, db Beginner, actor *au
 		if reservation, err = fromRow(row); err != nil {
 			return err
 		}
-		if !created {
+		switch {
+		case created:
+			return r.record(ctx, tx, actor, "reservation.create", reservation, summaryOf(reservation))
+		case promoted > 0:
+			return r.record(ctx, tx, actor, "reservation.update", reservation, summaryOf(reservation))
+		default:
 			return nil
 		}
-
-		return r.record(ctx, tx, actor, "reservation.create", reservation, summaryOf(reservation))
 	})
 	if err != nil {
 		return nil, false, err
