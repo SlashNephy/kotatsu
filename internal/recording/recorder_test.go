@@ -457,6 +457,18 @@ func (s flakyStream) OpenServiceStream(ctx context.Context, serviceID int64, opt
 	return onceStream{data: s.data}.OpenServiceStream(ctx, serviceID, opts)
 }
 
+// shortStream は、開くたびに data を流して、すぐに切れる。開いた回数を opened に数える。
+type shortStream struct {
+	data   []byte
+	opened *atomic.Int32
+}
+
+func (s shortStream) OpenServiceStream(context.Context, int64, *mirakurun.StreamOptions) (io.ReadCloser, error) {
+	s.opened.Add(1)
+
+	return io.NopCloser(bytes.NewReader(s.data)), nil
+}
+
 type gapsAndLost struct {
 	gaps        int
 	programLost bool
@@ -483,6 +495,30 @@ func (f *fixture) segments(t *testing.T, reservationID uuid.UUID) int {
 	}
 
 	return n
+}
+
+// TestRecorderWaitsBeforeReopeningShortStreams は、開いてすぐに切れ続けるストリームを、RetryInterval に 1 回までしか開き直さないことを確かめる (#305)。
+func TestRecorderWaitsBeforeReopeningShortStreams(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	opened := new(atomic.Int32)
+	recorder, _ := f.newRecorder(t, shortStream{data: data[:188*100], opened: opened}, nil)
+	cancel, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return opened.Load() > 0
+	}, waitTimeout, 10*time.Millisecond)
+
+	// RetryInterval は 20 ミリ秒なので、500 ミリ秒の間に開くのは、多くても 26 回である。
+	time.Sleep(500 * time.Millisecond)
+	cancel(nil)
+	_ = wait(t, done)
+	assert.LessOrEqual(t, opened.Load(), int32(26))
+	assert.LessOrEqual(t, f.segments(t, reservationID), 26)
 }
 
 // TestRecorderReconnects は、予定の終わりの前にストリームが切れたら、開き直して新しいセグメントに書き、

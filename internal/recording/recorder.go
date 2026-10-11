@@ -198,6 +198,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 			return r.fail(ctx, assignment, &recording, reason)
 		}
 		logger.InfoContext(ctx, "started recording", slog.String("pool_id", segment.poolID), slog.String("path", segment.path))
+		openedAt := r.clock.Now()
 
 		stats, end, copyErr := r.copyUntilEnd(ctx, tracker, stream, segment)
 		_ = stream.Close()
@@ -214,6 +215,17 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 			// ストリームが切れたら、開き直して、新しいセグメントに書く (設計書 5.2)。
 			logger.WarnContext(ctx, "the stream was interrupted; reconnecting", slog.Any("error", copyErr))
 			result.lastFailure = FailureStreamInterrupted
+			// 開いてすぐに切れ続けると、セグメントを作り続けるので、開き直すのは RetryInterval に 1 回までにする。
+			// 長く録れていたなら、待たずに開き直し、途切れる区間を短くする。
+			if wait := r.opts.RetryInterval - r.clock.Now().Sub(openedAt); wait > 0 {
+				end, err := tracker.sleep(ctx, wait)
+				if err != nil {
+					return err
+				}
+				if end != endNone {
+					return r.finish(ctx, logger, assignment, &recording, end, result, true)
+				}
+			}
 
 			continue
 		}
