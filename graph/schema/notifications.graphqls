@@ -26,6 +26,8 @@ type Notification {
   occurredAt: Time!
   "画面に出す文の材料 (番組名や理由など)。種類ごとに項目が違う。JSON の文字列。"
   payload: String!
+  "画面に出す文。Web Push で送る本文と同じもの。時刻は、表示のタイムゾーンで書く。"
+  message: String!
   "既読にした日時。未読なら null。"
   readAt: Time
 }

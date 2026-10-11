@@ -200,6 +200,7 @@ type ComplexityRoot struct {
 	Notification struct {
 		ID         func(childComplexity int) int
 		Kind       func(childComplexity int) int
+		Message    func(childComplexity int) int
 		OccurredAt func(childComplexity int) int
 		Payload    func(childComplexity int) int
 		ReadAt     func(childComplexity int) int
@@ -1514,6 +1515,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Notification.Kind(childComplexity), true
+	case "Notification.message":
+		if e.ComplexityRoot.Notification.Message == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Notification.Message(childComplexity), true
 	case "Notification.occurredAt":
 		if e.ComplexityRoot.Notification.OccurredAt == nil {
 			break
@@ -3657,6 +3664,8 @@ type Notification {
   occurredAt: Time!
   "画面に出す文の材料 (番組名や理由など)。種類ごとに項目が違う。JSON の文字列。"
   payload: String!
+  "画面に出す文。Web Push で送る本文と同じもの。時刻は、表示のタイムゾーンで書く。"
+  message: String!
   "既読にした日時。未読なら null。"
   readAt: Time
 }
@@ -4952,6 +4961,8 @@ func (ec *executionContext) childFields_Notification(ctx context.Context, field 
 		return ec.fieldContext_Notification_occurredAt(ctx, field)
 	case "payload":
 		return ec.fieldContext_Notification_payload(ctx, field)
+	case "message":
+		return ec.fieldContext_Notification_message(ctx, field)
 	case "readAt":
 		return ec.fieldContext_Notification_readAt(ctx, field)
 	}
@@ -9988,6 +9999,29 @@ func (ec *executionContext) _Notification_payload(ctx context.Context, field gra
 	)
 }
 func (ec *executionContext) fieldContext_Notification_payload(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Notification", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Notification_message(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Notification_message(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Notification_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Notification", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -20088,6 +20122,11 @@ func (ec *executionContext) _Notification(ctx context.Context, sel ast.Selection
 			}
 		case "payload":
 			out.Values[i] = ec._Notification_payload(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._Notification_message(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

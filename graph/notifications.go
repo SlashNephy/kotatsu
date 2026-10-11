@@ -57,7 +57,7 @@ func (r *Resolver) listNotifications(ctx context.Context, first int, after *stri
 		if err != nil {
 			return nil, err
 		}
-		node, err := notificationOf(n)
+		node, err := notificationOf(n, r.location)
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +148,8 @@ func (r *Resolver) updateNotificationPreference(ctx context.Context, input *mode
 	return preferenceOf(preference), nil
 }
 
-func notificationOf(n *notification.Notification) (*model.Notification, error) {
+// notificationOf は、通知を GraphQL の型にする。文は、Web Push と同じく、表示のタイムゾーン location で書く。
+func notificationOf(n *notification.Notification, location *time.Location) (*model.Notification, error) {
 	payload, err := json.Marshal(n.Payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the notification payload: %w", err)
@@ -159,6 +160,7 @@ func notificationOf(n *notification.Notification) (*model.Notification, error) {
 		Kind:       kindOf(n.Kind),
 		OccurredAt: n.OccurredAt,
 		Payload:    string(payload),
+		Message:    notification.Message(n.Kind, n.Payload, location),
 		ReadAt:     n.ReadAt,
 	}, nil
 }

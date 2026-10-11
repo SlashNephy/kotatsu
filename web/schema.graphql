@@ -579,6 +579,10 @@ type Notification {
   """
   payload: String!
   """
+  画面に出す文。Web Push で送る本文と同じもの。時刻は、表示のタイムゾーンで書く。
+  """
+  message: String!
+  """
   既読にした日時。未読なら null。
   """
   readAt: Time

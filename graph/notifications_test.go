@@ -15,7 +15,7 @@ import (
 const (
 	listNotifications = `query($first: Int!, $after: String, $unreadOnly: Boolean!) {
 		notifications(first: $first, after: $after, unreadOnly: $unreadOnly) {
-			edges { node { id kind payload readAt } } pageInfo { hasNextPage endCursor } } }`
+			edges { node { id kind payload message readAt } } pageInfo { hasNextPage endCursor } } }`
 	unreadCount         = `{ unreadNotificationCount }`
 	markRead            = `mutation($ids: [ID!]!) { markNotificationsRead(ids: $ids) }`
 	markAllRead         = `mutation { markAllNotificationsRead }`
@@ -33,6 +33,7 @@ type notificationNode struct {
 	ID      string     `json:"id"`
 	Kind    string     `json:"kind"`
 	Payload string     `json:"payload"`
+	Message string     `json:"message"`
 	ReadAt  *time.Time `json:"readAt"`
 }
 
@@ -103,13 +104,13 @@ func TestNotifications(t *testing.T) {
 	f := newFixture(t, nil)
 	// 視聴者も通知を受け取る。
 	other := f.as(t, "viewer", auth.RoleViewer)
-	f.notify(t, notification.KindRecordingStarted, map[string]any{varName: "こたつ特集"})
+	f.notify(t, notification.KindRecordingStarted, map[string]any{varName: tagKotatsu})
 	f.notify(t, notification.KindRecordingCompleted, nil)
 	f.notify(t, notification.KindRecordingFailed, nil)
 
 	all := f.notifications(t, 10, nil, false)
 	assert.Equal(t, []string{kindRecordingFailed, kindRecordingDone, kindRecordingBegan}, all.kinds())
-	assert.JSONEq(t, `{"name": "こたつ特集"}`, all.nodes()[2].Payload)
+	assert.JSONEq(t, `{"name": "`+tagKotatsu+`"}`, all.nodes()[2].Payload)
 	assert.Equal(t, 3, f.unreadCount(t))
 
 	// 2 件ずつページを送る。
@@ -203,4 +204,36 @@ func TestNotificationPreferences(t *testing.T) {
 	f.notify(t, notification.KindStorageLow, nil)
 	f.notify(t, notification.KindRecordingFailed, nil)
 	assert.Equal(t, []string{kindRecordingFailed}, f.notifications(t, 10, nil, false).kinds())
+}
+
+// TestNotificationMessage は、通知に、Web Push と同じ文を、表示のタイムゾーンで付けることを確かめる。
+func TestNotificationMessage(t *testing.T) {
+	t.Parallel()
+
+	tokyo, err := time.LoadLocation("Asia/Tokyo")
+	require.NoError(t, err)
+	tests := []struct {
+		name    string
+		kind    notification.Kind
+		payload map[string]any
+		want    string
+	}{
+		{name: "番組名を添える", kind: notification.KindRecordingStarted, payload: map[string]any{varName: tagKotatsu}, want: "録画を始めました: " + tagKotatsu},
+		{
+			name: "競合した予約の日時を、表示のタイムゾーンで書く", kind: notification.KindReservationConflict,
+			payload: map[string]any{"startAt": "2026-10-10T12:00:00Z", "serviceName": "NHK総合", varName: tagKotatsu},
+			want:    "予約が競合しています。チューナーが足りないので、録画できない見込みです: 10/10 (土) 21:00 NHK総合 " + tagKotatsu,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, &graph.Options{Location: tokyo})
+			f.notify(t, tt.kind, tt.payload)
+			nodes := f.notifications(t, 1, nil, false).nodes()
+			require.Len(t, nodes, 1)
+			assert.Equal(t, tt.want, nodes[0].Message)
+		})
+	}
 }

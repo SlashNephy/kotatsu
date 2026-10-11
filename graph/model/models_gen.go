@@ -225,6 +225,8 @@ type Notification struct {
 	OccurredAt time.Time `json:"occurredAt"`
 	// 画面に出す文の材料 (番組名や理由など)。種類ごとに項目が違う。JSON の文字列。
 	Payload string `json:"payload"`
+	// 画面に出す文。Web Push で送る本文と同じもの。時刻は、表示のタイムゾーンで書く。
+	Message string `json:"message"`
 	// 既読にした日時。未読なら null。
 	ReadAt *time.Time `json:"readAt,omitempty"`
 }
