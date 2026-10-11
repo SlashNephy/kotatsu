@@ -191,6 +191,7 @@ type ComplexityRoot struct {
 		UpdatePlayerSettings         func(childComplexity int, input model.PlayerSettingsInput) int
 		UpdateReservation            func(childComplexity int, id string, input model.ReservationUpdateInput) int
 		UpdateRule                   func(childComplexity int, id string, input model.RuleInput) int
+		UpdateService                func(childComplexity int, id string, input model.ServiceInput) int
 		UpdateStoragePool            func(childComplexity int, id string, input model.StoragePoolInput) int
 		UpdateSystemSettings         func(childComplexity int, input model.SystemSettingsInput) int
 		UpdateUser                   func(childComplexity int, id string, input model.UpdateUserInput) int
@@ -463,6 +464,7 @@ type ComplexityRoot struct {
 		NetworkID          func(childComplexity int) int
 		RemoteControlKeyID func(childComplexity int) int
 		ServiceID          func(childComplexity int) int
+		SortOrder          func(childComplexity int) int
 		StreamURL          func(childComplexity int) int
 	}
 
@@ -624,6 +626,7 @@ type MutationResolver interface {
 	RegenerateRecoveryCodes(ctx context.Context) (*model.RecoveryCodes, error)
 	UpdateSystemSettings(ctx context.Context, input model.SystemSettingsInput) (*model.SystemSettings, error)
 	UpdateChannelType(ctx context.Context, typeArg string, input model.ChannelTypeInput) (*model.ChannelType, error)
+	UpdateService(ctx context.Context, id string, input model.ServiceInput) (*model.Service, error)
 	UpdateStoragePool(ctx context.Context, id string, input model.StoragePoolInput) (*model.StoragePool, error)
 	CreateStreamURL(ctx context.Context, target string) (*model.StreamURL, error)
 	CreateUser(ctx context.Context, input model.CreateUserInput) (*model.User, error)
@@ -1467,6 +1470,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateRule(childComplexity, args["id"].(string), args["input"].(model.RuleInput)), true
+	case "Mutation.updateService":
+		if e.ComplexityRoot.Mutation.UpdateService == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateService_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateService(childComplexity, args["id"].(string), args["input"].(model.ServiceInput)), true
 	case "Mutation.updateStoragePool":
 		if e.ComplexityRoot.Mutation.UpdateStoragePool == nil {
 			break
@@ -2689,6 +2703,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Service.ServiceID(childComplexity), true
+	case "Service.sortOrder":
+		if e.ComplexityRoot.Service.SortOrder == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Service.SortOrder(childComplexity), true
 	case "Service.streamUrl":
 		if e.ComplexityRoot.Service.StreamURL == nil {
 			break
@@ -3163,6 +3183,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputRecordingSettingsOverridesInput,
 		ec.unmarshalInputReservationUpdateInput,
 		ec.unmarshalInputRuleInput,
+		ec.unmarshalInputServiceInput,
 		ec.unmarshalInputStoragePoolInput,
 		ec.unmarshalInputSystemSettingsInput,
 		ec.unmarshalInputTimeRangeInput,
@@ -3566,6 +3587,8 @@ type Service implements Node {
   remoteControlKeyId: Int
   "番組表に出さない印"
   hidden: Boolean!
+  "並び順の上書き。小さいほど前に並ぶ。上書きしていなければ null で、リモコンのキーの順に並ぶ。"
+  sortOrder: Int
   "ライブ視聴の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。"
   streamUrl: String!
   "ニコニコ実況のチャンネル (設計書 7.4)。対応するチャンネルがないか、NX-Jikkyo が扱っていなければ null。"
@@ -4490,6 +4513,18 @@ input ChannelTypeInput {
 }
 
 """
+サービスの表示の変える項目。省いた項目は変えない。
+"""
+input ServiceInput {
+  "番組表に出さない印"
+  hidden: Boolean
+  "並び順の上書き。小さいほど前に並ぶ。0〜10000。"
+  sortOrder: Int
+  "並び順の上書きを消し、リモコンのキーの順に戻す。sortOrder と一緒には使えない。"
+  resetSortOrder: Boolean! = false
+}
+
+"""
 保存先プールの設定の変える項目。省いた項目は変えない。
 """
 input StoragePoolInput {
@@ -4516,6 +4551,12 @@ extend type Mutation {
   種別がなければ NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
   """
   updateChannelType(type: String!, input: ChannelTypeInput!): ChannelType!
+
+  """
+  サービス id の、番組表に出さない印と並び順の上書きを変える (設計書 8.2、10.3)。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  サービスがなければ NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
+  """
+  updateService(id: ID!, input: ServiceInput!): Service!
 
   """
   保存先プール id の優先順位と容量の閾値を変える (設計書 5.6、6.1)。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
@@ -5487,6 +5528,8 @@ func (ec *executionContext) childFields_Service(ctx context.Context, field graph
 		return ec.fieldContext_Service_remoteControlKeyId(ctx, field)
 	case "hidden":
 		return ec.fieldContext_Service_hidden(ctx, field)
+	case "sortOrder":
+		return ec.fieldContext_Service_sortOrder(ctx, field)
 	case "streamUrl":
 		return ec.fieldContext_Service_streamUrl(ctx, field)
 	case "jikkyo":
@@ -6375,6 +6418,28 @@ func (ec *executionContext) field_Mutation_updateRule_args(ctx context.Context, 
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
 		func(ctx context.Context, v any) (model.RuleInput, error) {
 			return ec.unmarshalNRuleInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRuleInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateService_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.ServiceInput, error) {
+			return ec.unmarshalNServiceInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐServiceInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -9382,6 +9447,50 @@ func (ec *executionContext) fieldContext_Mutation_updateChannelType(ctx context.
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateChannelType_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateService(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateService(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateService(ctx, fc.Args["id"].(string), fc.Args["input"].(model.ServiceInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Service) graphql.Marshaler {
+			return ec.marshalNService2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐService(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateService(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Service(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateService_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -14991,6 +15100,29 @@ func (ec *executionContext) fieldContext_Service_hidden(_ context.Context, field
 	return graphql.NewScalarFieldContext("Service", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _Service_sortOrder(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Service_sortOrder(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SortOrder, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Service_sortOrder(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Service", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _Service_streamUrl(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -18742,6 +18874,54 @@ func (ec *executionContext) unmarshalInputRuleInput(ctx context.Context, obj any
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputServiceInput(ctx context.Context, obj any) (model.ServiceInput, error) {
+	var it model.ServiceInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["resetSortOrder"]; !present {
+		asMap["resetSortOrder"] = false
+	}
+
+	fieldsInOrder := [...]string{"hidden", "sortOrder", "resetSortOrder"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "hidden":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hidden"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Hidden = data
+		case "sortOrder":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sortOrder"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SortOrder = data
+		case "resetSortOrder":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("resetSortOrder"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ResetSortOrder = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputStoragePoolInput(ctx context.Context, obj any) (model.StoragePoolInput, error) {
 	var it model.StoragePoolInput
 	if obj == nil {
@@ -20220,6 +20400,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "updateChannelType":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateChannelType(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateService":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateService(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -22890,6 +23077,11 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "sortOrder":
+			out.Values[i] = ec._Service_sortOrder(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "streamUrl":
 			out.Values[i] = ec._Service_streamUrl(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -25342,6 +25534,11 @@ func (ec *executionContext) marshalNService2ᚖgithubᚗcomᚋSlashNephyᚋkotat
 		return graphql.Null
 	}
 	return ec._Service(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNServiceInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐServiceInput(ctx context.Context, v any) (model.ServiceInput, error) {
+	res, err := ec.unmarshalInputServiceInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNSession2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐSessionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Session) graphql.Marshaler {

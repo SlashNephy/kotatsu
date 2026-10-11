@@ -476,6 +476,16 @@ type SecondFactorStatus struct {
 	RemainingRecoveryCodes int `json:"remainingRecoveryCodes"`
 }
 
+// サービスの表示の変える項目。省いた項目は変えない。
+type ServiceInput struct {
+	// 番組表に出さない印
+	Hidden *bool `json:"hidden,omitempty"`
+	// 並び順の上書き。小さいほど前に並ぶ。0〜10000。
+	SortOrder *int `json:"sortOrder,omitempty"`
+	// 並び順の上書きを消し、リモコンのキーの順に戻す。sortOrder と一緒には使えない。
+	ResetSortOrder bool `json:"resetSortOrder"`
+}
+
 // ログイン中のセッション (設計書 9.5)。どの端末かを見分け、個別に失効させるのに使う。
 type Session struct {
 	ID string `json:"id"`

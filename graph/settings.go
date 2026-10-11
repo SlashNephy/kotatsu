@@ -35,6 +35,9 @@ func settingsError(err error) error {
 	if errors.Is(err, settings.ErrChannelTypeNotFound) {
 		return NewError(CodeNotFound, "channel type not found")
 	}
+	if errors.Is(err, settings.ErrServiceNotFound) {
+		return NewError(CodeNotFound, "service not found")
+	}
 
 	return err
 }

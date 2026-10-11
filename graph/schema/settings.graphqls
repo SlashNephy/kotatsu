@@ -44,6 +44,18 @@ input ChannelTypeInput {
 }
 
 """
+サービスの表示の変える項目。省いた項目は変えない。
+"""
+input ServiceInput {
+  "番組表に出さない印"
+  hidden: Boolean
+  "並び順の上書き。小さいほど前に並ぶ。0〜10000。"
+  sortOrder: Int
+  "並び順の上書きを消し、リモコンのキーの順に戻す。sortOrder と一緒には使えない。"
+  resetSortOrder: Boolean! = false
+}
+
+"""
 保存先プールの設定の変える項目。省いた項目は変えない。
 """
 input StoragePoolInput {
@@ -70,6 +82,12 @@ extend type Mutation {
   種別がなければ NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
   """
   updateChannelType(type: String!, input: ChannelTypeInput!): ChannelType!
+
+  """
+  サービス id の、番組表に出さない印と並び順の上書きを変える (設計書 8.2、10.3)。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  サービスがなければ NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
+  """
+  updateService(id: ID!, input: ServiceInput!): Service!
 
   """
   保存先プール id の優先順位と容量の閾値を変える (設計書 5.6、6.1)。管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。

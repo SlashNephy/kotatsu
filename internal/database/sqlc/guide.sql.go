@@ -148,7 +148,7 @@ func (q *Queries) ListChannelTypesByTypes(ctx context.Context, types []string) (
 }
 
 const listGuideServices = `-- name: ListGuideServices :many
-SELECT s.id, s.network_id, s.sid, s.name, s.channel_type, s.channel, s.remote_control_key_id, s.hidden
+SELECT s.id, s.network_id, s.sid, s.name, s.channel_type, s.channel, s.remote_control_key_id, s.hidden, s.sort_order
 FROM services s
 JOIN channel_types ct ON ct.type = s.channel_type
 WHERE ($1::boolean OR NOT s.hidden)
@@ -170,6 +170,7 @@ type ListGuideServicesRow struct {
 	Channel            string
 	RemoteControlKeyID *int64
 	Hidden             bool
+	SortOrder          *int32
 }
 
 // 番組表の並び順のサービス。チャンネル種別の並び順、管理者の上書き、リモコンのキー、サービス ID の順に並べる。
@@ -191,6 +192,7 @@ func (q *Queries) ListGuideServices(ctx context.Context, arg ListGuideServicesPa
 			&i.Channel,
 			&i.RemoteControlKeyID,
 			&i.Hidden,
+			&i.SortOrder,
 		); err != nil {
 			return nil, err
 		}

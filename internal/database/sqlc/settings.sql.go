@@ -38,6 +38,24 @@ func (q *Queries) LockChannelType(ctx context.Context, type_ string) (ChannelTyp
 	return i, err
 }
 
+const lockService = `-- name: LockService :one
+SELECT id, hidden, sort_order FROM services WHERE id = $1 FOR UPDATE
+`
+
+type LockServiceRow struct {
+	ID        int64
+	Hidden    bool
+	SortOrder *int32
+}
+
+// 変える前の値を監査ログに残すため、サービスの行をロックして読む。
+func (q *Queries) LockService(ctx context.Context, id int64) (LockServiceRow, error) {
+	row := q.db.QueryRow(ctx, lockService, id)
+	var i LockServiceRow
+	err := row.Scan(&i.ID, &i.Hidden, &i.SortOrder)
+	return i, err
+}
+
 const lockSystemSettings = `-- name: LockSystemSettings :one
 INSERT INTO system_settings (id, recording_defaults, archive_retention_days, updated_at)
 VALUES (1, '{}', $1, $2)
@@ -79,6 +97,28 @@ func (q *Queries) UpdateChannelType(ctx context.Context, arg UpdateChannelTypePa
 	var i ChannelType
 	err := row.Scan(&i.Type, &i.DisplayName, &i.SortOrder)
 	return i, err
+}
+
+const updateServiceDisplay = `-- name: UpdateServiceDisplay :exec
+UPDATE services SET hidden = $1, sort_order = $2, updated_at = $3 WHERE id = $4
+`
+
+type UpdateServiceDisplayParams struct {
+	Hidden    bool
+	SortOrder *int32
+	Now       time.Time
+	ID        int64
+}
+
+// 番組表に出さない印と、並び順の上書きを変える。EPG の同期は、この 2 つを上書きしない (設計書 8.2)。
+func (q *Queries) UpdateServiceDisplay(ctx context.Context, arg UpdateServiceDisplayParams) error {
+	_, err := q.db.Exec(ctx, updateServiceDisplay,
+		arg.Hidden,
+		arg.SortOrder,
+		arg.Now,
+		arg.ID,
+	)
+	return err
 }
 
 const updateSystemSettings = `-- name: UpdateSystemSettings :one

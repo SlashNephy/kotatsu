@@ -622,7 +622,12 @@
       "poolMinFreeDescription": "空き容量がこれを下回ると、保護していない古い録画から消します。0 なら消しません",
       "channelTypes": "チャンネル種別の表示",
       "channelTypeName": "表示名",
-      "channelTypeOrder": "並び順"
+      "channelTypeOrder": "並び順",
+      "services": "チャンネルの表示",
+      "servicesDescription": "番組表とライブに出さないチャンネルを選び、並び順を変えます。並び順は、同じチャンネル種別の中で、小さいほど前に並びます",
+      "serviceHidden": "出さない",
+      "serviceOrder": "並び順",
+      "serviceOrderDefault": "既定"
     },
     "users": {
       "title": "ユーザー",
