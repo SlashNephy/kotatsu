@@ -26,6 +26,20 @@
       ],
       enabled: false,
     },
+    {
+      // atlas.hcl の開発用 DB の URL (docker+postgres://) には、digest を書けない。
+      matchFileNames: [
+        'atlas.hcl',
+      ],
+      pinDigests: false,
+    },
+    {
+      // 配布物の例 (deploy/) にある Kotatsu 自身のイメージは、利用者が edge の最新を追うためのものなので、digest で固定しない。
+      matchDepNames: [
+        'ghcr.io/slashnephy/kotatsu',
+      ],
+      enabled: false,
+    },
   ],
   customManagers: [
     {
