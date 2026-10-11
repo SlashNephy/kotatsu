@@ -2,15 +2,13 @@
 # Kotatsu のコンテナイメージ (設計書 2.4、11.1、付録 B)。
 #
 #   - static: distroless の static イメージ。tenban、neko、mikan 向け。
-#   - ffmpeg: Debian 13 の slim に FFmpeg、tsreadex、psisiarc を入れたイメージ。kyusu、nekonote、all 向け。
+#   - ffmpeg: Debian 13 の slim に FFmpeg と tsreadex を入れたイメージ。kyusu、nekonote、all 向け。
 #
 # docker buildx build --platform linux/amd64,linux/arm64 --target static . のようにビルドする。
 # Docker Hub の取得の回数の上限に当たらないよう、Docker Hub の公式イメージは Google のミラーから取得する。
 
 # renovate: datasource=github-tags depName=xtne6f/tsreadex versioning=loose
 ARG TSREADEX_VERSION=master-260428
-# renovate: datasource=github-tags depName=xtne6f/psisiarc versioning=loose
-ARG PSISIARC_VERSION=master-230324
 
 # SPA は、どのアーキテクチャでも同じものになるので、ビルドするマシンのアーキテクチャで 1 回だけビルドする。
 FROM --platform=$BUILDPLATFORM mirror.gcr.io/library/node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66 AS web
@@ -36,21 +34,18 @@ ARG TARGETARCH
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags='-s -w' -o /out/kotatsu ./cmd/kotatsu
 
-# tsreadex と psisiarc は、配布されているバイナリがないので、対象のアーキテクチャでソースからビルドする。
+# tsreadex は、配布されているバイナリがないので、対象のアーキテクチャでソースからビルドする。
 FROM mirror.gcr.io/library/debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f AS tools
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates g++ git make \
     && rm -rf /var/lib/apt/lists/*
 ARG TSREADEX_VERSION
-ARG PSISIARC_VERSION
 WORKDIR /build
 RUN git clone --depth 1 --branch "$TSREADEX_VERSION" https://github.com/xtne6f/tsreadex.git \
-    && make -C tsreadex \
-    && git clone --depth 1 --branch "$PSISIARC_VERSION" https://github.com/xtne6f/psisiarc.git \
-    && make -C psisiarc
+    && make -C tsreadex
 # ライセンス文書と、ビルドに使ったリポジトリとコミットを残す (付録 B)。
 RUN mkdir -p /out/doc \
-    && for name in tsreadex psisiarc; do \
+    && for name in tsreadex; do \
         cp "$name/$name" /out/ \
         && cp "$name/License.txt" "/out/doc/$name.License.txt" \
         && echo "$name https://github.com/xtne6f/$name $(git -C "$name" rev-parse HEAD)" >> /out/doc/SOURCES; \
@@ -70,7 +65,7 @@ RUN apt-get update \
     && if [ "$TARGETARCH" = "amd64" ]; then drivers="$drivers intel-media-va-driver libvpl2 libmfx-gen1.2"; fi \
     && apt-get install -y --no-install-recommends ca-certificates ffmpeg $drivers \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=tools /out/tsreadex /out/psisiarc /usr/local/bin/
+COPY --from=tools /out/tsreadex /usr/local/bin/
 COPY --from=tools /out/doc/ /usr/share/doc/kotatsu/third-party/
 COPY build/container/write-debian-sources.sh /tmp/
 # 入れた Debian のパッケージとソースパッケージの一覧を、ソースの入手先とともに書き出す (付録 B)。
