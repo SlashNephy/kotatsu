@@ -79,6 +79,11 @@ function AdminLinks() {
             body: t('admin.users.summary'),
           },
           {
+            to: '/admin/webhooks',
+            title: t('admin.webhooks.title'),
+            body: t('admin.webhooks.summary'),
+          },
+          {
             to: '/admin/system',
             title: t('admin.system.title'),
             body: t('admin.system.summary'),

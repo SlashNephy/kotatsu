@@ -7,6 +7,7 @@ import type { PayloadError, RecordSourceSelectorProxy } from 'relay-runtime';
 
 import { ErrorBoundary } from '../../futon';
 import { currentSubscription, pushSupported, subscribe } from '../../notifications/push';
+import { notificationKinds } from '../../notifications/kinds';
 import { isUnauthenticated } from '../../relay/environment';
 import type { notificationsPreferenceMutation } from './__generated__/notificationsPreferenceMutation.graphql';
 import type { notificationsSettingsQuery } from './__generated__/notificationsSettingsQuery.graphql';
@@ -49,15 +50,6 @@ function NotificationSettingsPage() {
     </Stack>
   );
 }
-
-const kindKeys = {
-  RECORDING_STARTED: 'notifications.kind.RECORDING_STARTED',
-  RECORDING_COMPLETED: 'notifications.kind.RECORDING_COMPLETED',
-  RECORDING_FAILED: 'notifications.kind.RECORDING_FAILED',
-  RESERVATION_CONFLICT: 'notifications.kind.RESERVATION_CONFLICT',
-  STORAGE_LOW: 'notifications.kind.STORAGE_LOW',
-  TUNER_SERVER_UNREACHABLE: 'notifications.kind.TUNER_SERVER_UNREACHABLE',
-} as const;
 
 function Settings() {
   const { t } = useTranslation();
@@ -191,7 +183,7 @@ function Settings() {
         </Table.Thead>
         <Table.Tbody>
           {data.notificationPreferences.map((preference) => {
-            const label = kindKeys[preference.kind as keyof typeof kindKeys];
+            const label = notificationKinds[preference.kind as keyof typeof notificationKinds];
             if (label === undefined) {
               return null;
             }

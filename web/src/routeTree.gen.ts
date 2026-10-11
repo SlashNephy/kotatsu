@@ -16,6 +16,7 @@ import { Route as SearchRouteImport } from './routes/search'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as AdminSystemRouteImport } from './routes/admin/system'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as AdminWebhooksRouteImport } from './routes/admin/webhooks'
 import { Route as GuideIndexRouteImport } from './routes/guide/index'
 import { Route as LiveIndexRouteImport } from './routes/live/index'
 import { Route as LiveServiceIdRouteImport } from './routes/live/$serviceId'
@@ -65,6 +66,11 @@ const AdminSystemRoute = AdminSystemRouteImport.update({
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminWebhooksRoute = AdminWebhooksRouteImport.update({
+  id: '/admin/webhooks',
+  path: '/admin/webhooks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GuideIndexRoute = GuideIndexRouteImport.update({
@@ -152,6 +158,7 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute
   '/admin/system': typeof AdminSystemRoute
   '/admin/users': typeof AdminUsersRoute
+  '/admin/webhooks': typeof AdminWebhooksRoute
   '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
@@ -176,6 +183,7 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/admin/system': typeof AdminSystemRoute
   '/admin/users': typeof AdminUsersRoute
+  '/admin/webhooks': typeof AdminWebhooksRoute
   '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
@@ -201,6 +209,7 @@ export interface FileRoutesById {
   '/setup': typeof SetupRoute
   '/admin/system': typeof AdminSystemRoute
   '/admin/users': typeof AdminUsersRoute
+  '/admin/webhooks': typeof AdminWebhooksRoute
   '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
@@ -227,6 +236,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/admin/system'
     | '/admin/users'
+    | '/admin/webhooks'
     | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
@@ -251,6 +261,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/admin/system'
     | '/admin/users'
+    | '/admin/webhooks'
     | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
@@ -275,6 +286,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/admin/system'
     | '/admin/users'
+    | '/admin/webhooks'
     | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
@@ -300,6 +312,7 @@ export interface RootRouteChildren {
   SetupRoute: typeof SetupRoute
   AdminSystemRoute: typeof AdminSystemRoute
   AdminUsersRoute: typeof AdminUsersRoute
+  AdminWebhooksRoute: typeof AdminWebhooksRoute
   LiveServiceIdRoute: typeof LiveServiceIdRoute
   LoginEnrollRoute: typeof LoginEnrollRoute
   LoginSecondFactorRoute: typeof LoginSecondFactorRoute
@@ -366,6 +379,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/webhooks': {
+      id: '/admin/webhooks'
+      path: '/admin/webhooks'
+      fullPath: '/admin/webhooks'
+      preLoaderRoute: typeof AdminWebhooksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/guide/': {
@@ -484,6 +504,7 @@ const rootRouteChildren: RootRouteChildren = {
   SetupRoute: SetupRoute,
   AdminSystemRoute: AdminSystemRoute,
   AdminUsersRoute: AdminUsersRoute,
+  AdminWebhooksRoute: AdminWebhooksRoute,
   LiveServiceIdRoute: LiveServiceIdRoute,
   LoginEnrollRoute: LoginEnrollRoute,
   LoginSecondFactorRoute: LoginSecondFactorRoute,
