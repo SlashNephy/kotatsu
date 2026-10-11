@@ -109,6 +109,11 @@ func (e *Estimator) Estimate(ctx context.Context, password string, userInputs []
 	case len(userInputs) > maxUserInputs:
 		userInputs = userInputs[:maxUserInputs]
 	}
+	// バンドルのコンパイルは最初の 1 回だけで、時間がかかるので、判定の時間の上限に含めない。
+	program, err := e.compile()
+	if err != nil {
+		return nil, err
+	}
 	// 判定の枠が空くのを待つ。待つ時間も、1 回の判定の時間の上限に含める。
 	ctx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
@@ -117,10 +122,6 @@ func (e *Estimator) Estimate(ctx context.Context, password string, userInputs []
 		defer func() { <-e.slots }()
 	case <-ctx.Done():
 		return nil, fmt.Errorf("%w: %w", ErrStrengthTimeout, context.Cause(ctx))
-	}
-	program, err := e.compile()
-	if err != nil {
-		return nil, err
 	}
 	input, err := json.Marshal(map[string]any{"password": password, "userInputs": userInputs})
 	if err != nil {
