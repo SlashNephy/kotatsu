@@ -243,6 +243,12 @@ func (s *Setup) requireToken(ctx context.Context, db sqlc.DBTX, token string) er
 		return fmt.Errorf("failed to find the setup token: %w", err)
 	}
 	if !exists {
+		// 管理者を作るとトークンはすべて消える。セットアップが済んだ後に古いトークンで来た人には、トークンの誤りではなく、
+		// セットアップが済んだことを返す。管理者の有無を確かめた後に、別の人のセットアップが終わった場合もここに来る。
+		if err := s.requireNoAdmin(ctx, db); err != nil {
+			return err
+		}
+
 		return ErrInvalidSetupToken
 	}
 
