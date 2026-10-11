@@ -657,6 +657,26 @@
       "delete": "消す",
       "deleted": "{{name}} を消しました",
       "confirmDelete": "{{name}} を消しますか。送り直しを待っている配信も取りやめます"
+    },
+    "audit": {
+      "title": "監査ログ",
+      "summary": "誰が、いつ、何をしたかを確かめます",
+      "actionPrefix": "操作の種類",
+      "actionPrefixPlaceholder": "例: user.",
+      "actor": "操作者",
+      "anyActor": "すべての操作者",
+      "filter": "絞り込む",
+      "empty": "記録はありません",
+      "occurredAt": "日時",
+      "action": "操作",
+      "target": "対象",
+      "source": "送信元",
+      "system": "システム ({{role}})",
+      "deletedUser": "消したユーザー",
+      "details": "詳しく",
+      "userAgent": "User-Agent: {{userAgent}}",
+      "more": "さらに読み込む",
+      "moreError": "続きを読み込めませんでした。時間をおいてやり直してください"
     }
   }
 }

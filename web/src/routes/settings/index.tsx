@@ -88,6 +88,11 @@ function AdminLinks() {
             title: t('admin.system.title'),
             body: t('admin.system.summary'),
           },
+          {
+            to: '/admin/audit',
+            title: t('admin.audit.title'),
+            body: t('admin.audit.summary'),
+          },
         ]}
       />
     </>

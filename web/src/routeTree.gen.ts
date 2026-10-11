@@ -14,6 +14,7 @@ import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as ReservationsRouteImport } from './routes/reservations'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SetupRouteImport } from './routes/setup'
+import { Route as AdminAuditRouteImport } from './routes/admin/audit'
 import { Route as AdminSystemRouteImport } from './routes/admin/system'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminWebhooksRouteImport } from './routes/admin/webhooks'
@@ -56,6 +57,11 @@ const SearchRoute = SearchRouteImport.update({
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
   path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminAuditRoute = AdminAuditRouteImport.update({
+  id: '/admin/audit',
+  path: '/admin/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminSystemRoute = AdminSystemRouteImport.update({
@@ -156,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/reservations': typeof ReservationsRoute
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
+  '/admin/audit': typeof AdminAuditRoute
   '/admin/system': typeof AdminSystemRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/webhooks': typeof AdminWebhooksRoute
@@ -181,6 +188,7 @@ export interface FileRoutesByTo {
   '/reservations': typeof ReservationsRoute
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
+  '/admin/audit': typeof AdminAuditRoute
   '/admin/system': typeof AdminSystemRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/webhooks': typeof AdminWebhooksRoute
@@ -207,6 +215,7 @@ export interface FileRoutesById {
   '/reservations': typeof ReservationsRoute
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
+  '/admin/audit': typeof AdminAuditRoute
   '/admin/system': typeof AdminSystemRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/webhooks': typeof AdminWebhooksRoute
@@ -234,6 +243,7 @@ export interface FileRouteTypes {
     | '/reservations'
     | '/search'
     | '/setup'
+    | '/admin/audit'
     | '/admin/system'
     | '/admin/users'
     | '/admin/webhooks'
@@ -259,6 +269,7 @@ export interface FileRouteTypes {
     | '/reservations'
     | '/search'
     | '/setup'
+    | '/admin/audit'
     | '/admin/system'
     | '/admin/users'
     | '/admin/webhooks'
@@ -284,6 +295,7 @@ export interface FileRouteTypes {
     | '/reservations'
     | '/search'
     | '/setup'
+    | '/admin/audit'
     | '/admin/system'
     | '/admin/users'
     | '/admin/webhooks'
@@ -310,6 +322,7 @@ export interface RootRouteChildren {
   ReservationsRoute: typeof ReservationsRoute
   SearchRoute: typeof SearchRoute
   SetupRoute: typeof SetupRoute
+  AdminAuditRoute: typeof AdminAuditRoute
   AdminSystemRoute: typeof AdminSystemRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminWebhooksRoute: typeof AdminWebhooksRoute
@@ -365,6 +378,13 @@ declare module '@tanstack/react-router' {
       path: '/setup'
       fullPath: '/setup'
       preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/audit': {
+      id: '/admin/audit'
+      path: '/admin/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof AdminAuditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/system': {
@@ -502,6 +522,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReservationsRoute: ReservationsRoute,
   SearchRoute: SearchRoute,
   SetupRoute: SetupRoute,
+  AdminAuditRoute: AdminAuditRoute,
   AdminSystemRoute: AdminSystemRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminWebhooksRoute: AdminWebhooksRoute,
