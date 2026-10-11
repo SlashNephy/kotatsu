@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<6a446f5a9c5ec1a794a4b46cc933698d>>
+ * @generated SignedSource<<741c1cf3d6e56c9719a641002115e1ad>>
  * @lightSyntaxTransform
  */
 
@@ -15,6 +15,10 @@ export type RecordingIdPlayQuery$variables = {
 export type RecordingIdPlayQuery$data = {
   readonly node: {
     readonly __typename: "Recording";
+    readonly audios: ReadonlyArray<{
+      readonly componentType: number;
+      readonly languages: ReadonlyArray<string>;
+    }>;
     readonly jikkyoCommentsUrl: string;
     readonly name: string;
     readonly recordedFrom: string;
@@ -121,11 +125,36 @@ v9 = {
 v10 = {
   "alias": null,
   "args": null,
+  "concreteType": "ProgramAudio",
+  "kind": "LinkedField",
+  "name": "audios",
+  "plural": true,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "componentType",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "languages",
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v11 = {
+  "alias": null,
+  "args": null,
   "kind": "ScalarField",
   "name": "id",
   "storageKey": null
 },
-v11 = {
+v12 = {
   "alias": null,
   "args": null,
   "concreteType": "JikkyoChannel",
@@ -133,12 +162,12 @@ v11 = {
   "name": "jikkyo",
   "plural": false,
   "selections": [
-    (v10/*:: as any*/),
+    (v11/*:: as any*/),
     (v3/*:: as any*/)
   ],
   "storageKey": null
 },
-v12 = {
+v13 = {
   "alias": null,
   "args": null,
   "concreteType": "Transcoding",
@@ -201,6 +230,7 @@ return {
               (v7/*:: as any*/),
               (v8/*:: as any*/),
               (v9/*:: as any*/),
+              (v10/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -210,7 +240,7 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v11/*:: as any*/)
+                  (v12/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -221,7 +251,7 @@ return {
         ],
         "storageKey": null
       },
-      (v12/*:: as any*/)
+      (v13/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -251,6 +281,7 @@ return {
               (v7/*:: as any*/),
               (v8/*:: as any*/),
               (v9/*:: as any*/),
+              (v10/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -260,8 +291,8 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v11/*:: as any*/),
-                  (v10/*:: as any*/)
+                  (v12/*:: as any*/),
+                  (v11/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -269,24 +300,24 @@ return {
             "type": "Recording",
             "abstractKey": null
           },
-          (v10/*:: as any*/)
+          (v11/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v12/*:: as any*/)
+      (v13/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "635c00d04c33249c6b9043095cf93aca",
+    "cacheID": "52ea72a08aac502bfaa403074da4a443",
     "id": null,
     "metadata": {},
     "name": "RecordingIdPlayQuery",
     "operationKind": "query",
-    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      streamUrl\n      recordedFrom\n      recordedUntil\n      jikkyoCommentsUrl\n      watchPositionMs\n      thumbnailUrl\n      service {\n        name\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n}\n"
+    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      streamUrl\n      recordedFrom\n      recordedUntil\n      jikkyoCommentsUrl\n      watchPositionMs\n      thumbnailUrl\n      audios {\n        componentType\n        languages\n      }\n      service {\n        name\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "893e26a288a9272c870f27609d651d43";
+(node as any).hash = "19023f8cc0c2a020b20f3d4694d842a3";
 
 export default node;

@@ -1,7 +1,7 @@
 import { Alert, Select, Switch } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
-import type { AudioChoice } from './audio';
+import type { AudioChoice, KyusuAudioChoice } from './audio';
 import { original, type KyusuAudio, type PlaybackRoute } from './route';
 
 type Props = {
@@ -130,6 +130,8 @@ const languageNames: Record<string, string> = {
   kor: '韓国語',
   zho: '中国語',
   chi: '中国語',
+  // ARIB STD-B10 で、上の言語に当たらないことを表す。
+  etc: 'その他の言語',
 };
 
 // AudioSelect は、音声のメニュー。二か国語放送の音声や、デュアルモノの主音声と副音声を選ぶ (設計書 7.5)。
@@ -174,16 +176,35 @@ export function AudioSelect({
   );
 }
 
-// KyusuAudioSelect は、kyusu の経路の音声のメニュー。サーバーは番組の音声の構成を知らないので、いつも 2 つを出す。
-// 第 2 音声は、デュアルモノの副音声か、2 つ目の音声。どちらもない番組では、主音声と同じものになる。
+// KyusuAudioSelect は、kyusu の経路の音声のメニュー。番組の音声の構成から作った選択肢を出し、第 2 音声がなければ出さない。
+// 構成が分からないときは、主音声と第 2 音声を出す。第 2 音声がない番組では、主音声と同じものになる。
 export function KyusuAudioSelect({
+  choices,
   value,
   onChange,
 }: {
+  choices: KyusuAudioChoice[];
   value: KyusuAudio;
   onChange: (value: KyusuAudio) => void;
 }) {
   const { t } = useTranslation();
+  if (choices.length < 2) {
+    return null;
+  }
+  const label = (choice: KyusuAudioChoice) => {
+    let base: string;
+    if (choice.kind === 'dualMono') {
+      base = t(choice.slot === 1 ? 'player.audioMain' : 'player.audioSub');
+    } else if (choice.kind === 'stream') {
+      base = t('player.audioStream', { number: choice.slot });
+    } else {
+      base = t(choice.slot === 1 ? 'player.audioMain' : 'player.audioSecond');
+    }
+
+    return choice.language === null
+      ? base
+      : `${base} (${languageNames[choice.language] ?? choice.language})`;
+  };
 
   return (
     <Select
@@ -191,10 +212,7 @@ export function KyusuAudioSelect({
       size="xs"
       w={180}
       allowDeselect={false}
-      data={[
-        { value: '1', label: t('player.audioMain') },
-        { value: '2', label: t('player.audioSecond') },
-      ]}
+      data={choices.map((choice) => ({ value: String(choice.slot), label: label(choice) }))}
       value={String(value)}
       onChange={(next) => {
         if (next === '1' || next === '2') {
