@@ -277,3 +277,37 @@ func TestSyncRejectsWritesFromOldLeader(t *testing.T) {
 	assert.Zero(t, f.count(t, "SELECT count(*) FROM programs"))
 	assert.Zero(t, f.count(t, "SELECT count(*) FROM services"))
 }
+
+// TestSyncAllMarksUndecidedEnd は、終了時刻が未定の番組を、上流ごとの表し方によらず未定として記録することを確かめる。
+// 長さは、Mirakurun が 1 ミリ秒、Mahiron が 0 で返す (#23 の実測)。
+func TestSyncAllMarksUndecidedEnd(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		duration      int64
+		wantUndecided bool
+	}{
+		{name: "Mirakurun returns 1 ms", duration: 1, wantUndecided: true},
+		{name: "Mahiron returns 0", duration: 0, wantUndecided: true},
+		{name: "decided end", duration: int64(time.Hour / time.Millisecond), wantUndecided: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			f.fake.AddProgram(&faketuner.Program{
+				ID: programID(200), EventID: 200, ServiceID: grServiceID, NetworkID: grNetworkID,
+				StartAt: testNow().Add(-time.Hour).UnixMilli(), Duration: tt.duration,
+				IsFree: true, Name: "延長中の番組", Description: "",
+			})
+			_, err := f.reconciler.SyncAll(t.Context())
+			require.NoError(t, err)
+
+			assert.Equal(t, 1, f.count(t,
+				"SELECT count(*) FROM programs WHERE service_id = $1 AND event_id = 200 AND end_undecided = $2",
+				serviceID(), tt.wantUndecided))
+		})
+	}
+}
