@@ -77,6 +77,11 @@ func toService(row *sqlc.ListGuideServicesRow) *model.Service {
 		key = new(int(*row.RemoteControlKeyID))
 	}
 
+	var order *int
+	if row.SortOrder != nil {
+		order = new(int(*row.SortOrder))
+	}
+
 	return &model.Service{
 		ID:                 serviceGlobalID(row.ID),
 		NetworkID:          int(row.NetworkID),
@@ -85,6 +90,7 @@ func toService(row *sqlc.ListGuideServicesRow) *model.Service {
 		Channel:            row.Channel,
 		RemoteControlKeyID: key,
 		Hidden:             row.Hidden,
+		SortOrder:          order,
 		ChannelTypeKey:     row.ChannelType,
 	}
 }

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<ccab578c257bd5596560309101e60518>>
+ * @generated SignedSource<<f46f3b124041d5c2540aef5895b52d07>>
  * @lightSyntaxTransform
  */
 
@@ -22,6 +22,15 @@ export type systemQuery$data = {
     readonly remainingRecoveryCodes: number;
     readonly totp: boolean;
   };
+  readonly services: ReadonlyArray<{
+    readonly channelType: {
+      readonly displayName: string;
+    };
+    readonly hidden: boolean;
+    readonly id: string;
+    readonly name: string;
+    readonly sortOrder: number | null | undefined;
+  }>;
   readonly systemStatus: {
     readonly instances: ReadonlyArray<{
       readonly address: string;
@@ -82,7 +91,21 @@ v1 = {
   "name": "id",
   "storageKey": null
 },
-v2 = [
+v2 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "displayName",
+  "storageKey": null
+},
+v3 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "sortOrder",
+  "storageKey": null
+},
+v4 = [
   {
     "alias": null,
     "args": null,
@@ -335,22 +358,49 @@ v2 = [
         "name": "type",
         "storageKey": null
       },
+      (v2/*:: as any*/),
+      (v3/*:: as any*/)
+    ],
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": [
+      {
+        "kind": "Literal",
+        "name": "includeHidden",
+        "value": true
+      }
+    ],
+    "concreteType": "Service",
+    "kind": "LinkedField",
+    "name": "services",
+    "plural": true,
+    "selections": [
+      (v1/*:: as any*/),
+      (v0/*:: as any*/),
       {
         "alias": null,
         "args": null,
         "kind": "ScalarField",
-        "name": "displayName",
+        "name": "hidden",
         "storageKey": null
       },
+      (v3/*:: as any*/),
       {
         "alias": null,
         "args": null,
-        "kind": "ScalarField",
-        "name": "sortOrder",
+        "concreteType": "ChannelType",
+        "kind": "LinkedField",
+        "name": "channelType",
+        "plural": false,
+        "selections": [
+          (v2/*:: as any*/)
+        ],
         "storageKey": null
       }
     ],
-    "storageKey": null
+    "storageKey": "services(includeHidden:true)"
   },
   {
     "alias": null,
@@ -396,7 +446,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "systemQuery",
-    "selections": (v2/*:: as any*/),
+    "selections": (v4/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -405,19 +455,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "systemQuery",
-    "selections": (v2/*:: as any*/)
+    "selections": (v4/*:: as any*/)
   },
   "params": {
-    "cacheID": "4667b0cd22c7c7edea6e537b4df87c28",
+    "cacheID": "1b7e259eecf97c33b009a46002e797a5",
     "id": null,
     "metadata": {},
     "name": "systemQuery",
     "operationKind": "query",
-    "text": "query systemQuery {\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      checkedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n    pools {\n      id\n      path\n      priority\n      minFreeBytes\n      freeBytes\n    }\n  }\n  channelTypes {\n    type\n    displayName\n    sortOrder\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query systemQuery {\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      checkedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n    pools {\n      id\n      path\n      priority\n      minFreeBytes\n      freeBytes\n    }\n  }\n  channelTypes {\n    type\n    displayName\n    sortOrder\n  }\n  services(includeHidden: true) {\n    id\n    name\n    hidden\n    sortOrder\n    channelType {\n      displayName\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "5a6f64afecba37a688d13187cdd483ac";
+(node as any).hash = "a4b9f55099e8573ece0a228b91f2a611";
 
 export default node;

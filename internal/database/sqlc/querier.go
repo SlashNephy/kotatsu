@@ -254,6 +254,8 @@ type Querier interface {
 	LockRecording(ctx context.Context, id uuid.UUID) (Recording, error)
 	// 録画を終える前に、割り振りをロックして、今の世代番号を読む。ほかの mikan が取っていたら、録画を終えない。
 	LockRecordingAssignmentGeneration(ctx context.Context, id uuid.UUID) (int64, error)
+	// 変える前の値を監査ログに残すため、サービスの行をロックして読む。
+	LockService(ctx context.Context, id int64) (LockServiceRow, error)
 	// 初回セットアップを、全インスタンスで 1 つずつ行わせる。トランザクションが終わるまでロックする。
 	LockSetup(ctx context.Context) error
 	// 変える前の値を監査ログに残すため、行をロックして読む。行がなければ、既定値で作ってから読む。
@@ -343,6 +345,8 @@ type Querier interface {
 	UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error)
 	UpdateReservationProgram(ctx context.Context, arg UpdateReservationProgramParams) error
 	UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, error)
+	// 番組表に出さない印と、並び順の上書きを変える。EPG の同期は、この 2 つを上書きしない (設計書 8.2)。
+	UpdateServiceDisplay(ctx context.Context, arg UpdateServiceDisplayParams) error
 	UpdateSystemSettings(ctx context.Context, arg UpdateSystemSettingsParams) (SystemSetting, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	// まだ mikan が取っていない割り振りの優先度を、予約の今の割り当ての状態に合わせる。

@@ -5,7 +5,9 @@ import {
   Card,
   Group,
   NumberInput,
+  ScrollArea,
   Stack,
+  Switch,
   Table,
   Text,
   TextInput,
@@ -24,6 +26,7 @@ import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import type { systemChannelTypeMutation } from './__generated__/systemChannelTypeMutation.graphql';
 import type { systemPoolMutation } from './__generated__/systemPoolMutation.graphql';
+import type { systemServiceMutation } from './__generated__/systemServiceMutation.graphql';
 import type { systemQuery } from './__generated__/systemQuery.graphql';
 
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '' };
@@ -103,6 +106,15 @@ const query = graphql`
       type
       displayName
       sortOrder
+    }
+    services(includeHidden: true) {
+      id
+      name
+      hidden
+      sortOrder
+      channelType {
+        displayName
+      }
     }
     secondFactors {
       totp
@@ -347,6 +359,40 @@ function SystemStatus() {
           />
         ))}
       </Section>
+
+      <Section title={t('admin.system.services')}>
+        <Text size="sm" c="dimmed">
+          {t('admin.system.servicesDescription')}
+        </Text>
+        <ScrollArea.Autosize mah={480}>
+          <Stack gap="xs">
+            {data.services.map((service) => (
+              <ServiceEditor
+                key={`${service.id}/${service.hidden}/${service.sortOrder}`}
+                service={service}
+                onSave={(input) =>
+                  gate.run(async () => {
+                    await mutate<systemServiceMutation>(
+                      environment,
+                      graphql`
+                        mutation systemServiceMutation($id: ID!, $input: ServiceInput!) {
+                          updateService(id: $id, input: $input) {
+                            id
+                            hidden
+                            sortOrder
+                          }
+                        }
+                      `,
+                      { id: service.id, input },
+                    );
+                    done();
+                  }, fail)
+                }
+              />
+            ))}
+          </Stack>
+        </ScrollArea.Autosize>
+      </Section>
     </Stack>
   );
 }
@@ -473,6 +519,70 @@ function PoolEditor({
 }
 
 // ChannelTypeEditor は、チャンネル種別の表示名と並び順を変える。
+// ServiceEditor は、サービスの、番組表に出さない印と並び順の上書きを変える行。
+// 並び順を空にして保存すると、上書きを消して、リモコンのキーの順に戻す。
+function ServiceEditor({
+  service,
+  onSave,
+}: {
+  service: {
+    name: string;
+    hidden: boolean;
+    sortOrder: number | null | undefined;
+    channelType: { displayName: string };
+  };
+  onSave: (input: { hidden: boolean; sortOrder?: number; resetSortOrder: boolean }) => void;
+}) {
+  const { t } = useTranslation();
+  const [hidden, setHidden] = useState(service.hidden);
+  const [sortOrder, setSortOrder] = useState<number | string>(service.sortOrder ?? '');
+  const order = typeof sortOrder === 'number' ? sortOrder : null;
+
+  return (
+    <Group gap="xs" align="flex-end">
+      <Stack gap={0} w={200} pb={4}>
+        <Text size="sm" fw={600} truncate>
+          {service.name}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {service.channelType.displayName}
+        </Text>
+      </Stack>
+      <Switch
+        size="sm"
+        pb={6}
+        label={t('admin.system.serviceHidden')}
+        checked={hidden}
+        onChange={(event) => setHidden(event.currentTarget.checked)}
+      />
+      <NumberInput
+        size="xs"
+        w={120}
+        label={t('admin.system.serviceOrder')}
+        placeholder={t('admin.system.serviceOrderDefault')}
+        min={0}
+        max={10000}
+        allowDecimal={false}
+        value={sortOrder}
+        onChange={setSortOrder}
+      />
+      <Button
+        size="compact-sm"
+        mb={2}
+        onClick={() =>
+          onSave(
+            order === null
+              ? { hidden, resetSortOrder: true }
+              : { hidden, sortOrder: order, resetSortOrder: false },
+          )
+        }
+      >
+        {t('admin.save')}
+      </Button>
+    </Group>
+  );
+}
+
 function ChannelTypeEditor({
   channelType,
   onSave,

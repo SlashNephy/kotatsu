@@ -20,3 +20,11 @@ SELECT * FROM channel_types WHERE type = @type FOR UPDATE;
 -- name: UpdateChannelType :one
 UPDATE channel_types SET display_name = @display_name, sort_order = @sort_order WHERE type = @type
 RETURNING *;
+
+-- name: LockService :one
+-- 変える前の値を監査ログに残すため、サービスの行をロックして読む。
+SELECT id, hidden, sort_order FROM services WHERE id = @id FOR UPDATE;
+
+-- name: UpdateServiceDisplay :exec
+-- 番組表に出さない印と、並び順の上書きを変える。EPG の同期は、この 2 つを上書きしない (設計書 8.2)。
+UPDATE services SET hidden = @hidden, sort_order = sqlc.narg(sort_order), updated_at = @now WHERE id = @id;

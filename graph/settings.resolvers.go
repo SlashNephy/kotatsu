@@ -2,8 +2,10 @@ package graph
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/SlashNephy/kotatsu/graph/model"
+	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/settings"
 )
 
@@ -39,6 +41,33 @@ func (r *mutationResolver) UpdateChannelType(ctx context.Context, typeArg string
 	}
 
 	return toChannelType(updated), nil
+}
+
+// UpdateService is the resolver for the updateService field.
+func (r *mutationResolver) UpdateService(ctx context.Context, id string, input model.ServiceInput) (*model.Service, error) {
+	_, actor, err := r.recentAdministrator(ctx, "only administrators can change services")
+	if err != nil {
+		return nil, err
+	}
+	serviceID, err := parseServiceGlobalID(id)
+	if err != nil {
+		return nil, err
+	}
+	err = r.settings.UpdateService(ctx, r.db, actor, serviceID, &settings.ServiceChanges{
+		Hidden: input.Hidden, SortOrder: input.SortOrder, ResetSortOrder: input.ResetSortOrder,
+	})
+	if err != nil {
+		return nil, settingsError(err)
+	}
+	rows, err := sqlc.New(r.db).ListGuideServices(ctx, sqlc.ListGuideServicesParams{IncludeHidden: true, Ids: []int64{serviceID}})
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the service: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, NewError(CodeNotFound, "service not found")
+	}
+
+	return toService(&rows[0]), nil
 }
 
 // UpdateStoragePool is the resolver for the updateStoragePool field.

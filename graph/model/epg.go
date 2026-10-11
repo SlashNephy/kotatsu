@@ -24,6 +24,7 @@ type Service struct {
 	Channel            string `json:"channel"`
 	RemoteControlKeyID *int   `json:"remoteControlKeyId,omitempty"`
 	Hidden             bool   `json:"hidden"`
+	SortOrder          *int   `json:"sortOrder,omitempty"`
 	// ChannelTypeKey は、チャンネル種別の文字列。スキーマには出さない。
 	ChannelTypeKey string `json:"-"`
 }

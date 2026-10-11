@@ -301,3 +301,129 @@ func TestUpdateStoragePool(t *testing.T) {
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateStoragePool, change, nil))
 }
+
+// fieldHidden は、ServiceInput の非表示の印。
+const fieldHidden = "hidden"
+
+const updateService = `mutation($id: ID!, $input: ServiceInput!) { updateService(id: $id, input: $input) { id name hidden sortOrder } }`
+
+type serviceRow struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Hidden    bool   `json:"hidden"`
+	SortOrder *int   `json:"sortOrder"`
+}
+
+// TestUpdateService は、管理者だけがサービスの非表示の印と並び順の上書きを変えられ、EPG の同期で上書きされないことを確かめる (#309)。
+func TestUpdateService(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	list := func(includeHidden bool) []serviceRow {
+		var got struct {
+			Services []serviceRow `json:"services"`
+		}
+		require.Empty(t, f.query(t, `query($all: Boolean!) { services(includeHidden: $all) { id name hidden sortOrder } }`,
+			map[string]any{"all": includeHidden}, &got))
+
+		return got.Services
+	}
+	before := list(false)
+	require.Greater(t, len(before), 1)
+	// 並びは、チャンネル種別の順が先に来るので、先頭の種別の中で、最後のサービスを動かす。
+	var types struct {
+		Services []struct {
+			ChannelType struct {
+				Type string `json:"type"`
+			} `json:"channelType"`
+		} `json:"services"`
+	}
+	require.Empty(t, f.query(t, `{ services { channelType { type } } }`, nil, &types))
+	lastIndex := 0
+	for i, service := range types.Services {
+		if service.ChannelType.Type == types.Services[0].ChannelType.Type {
+			lastIndex = i
+		}
+	}
+	require.Positive(t, lastIndex)
+	last := before[lastIndex]
+	variables := func(input map[string]any) map[string]any {
+		return map[string]any{"id": last.ID, varInput: input}
+	}
+
+	// 最後のサービスを、並び順を上書きして先頭に動かす。
+	change := variables(map[string]any{fieldSortOrder: 0})
+	assert.Equal(t, []string{codeForbidden}, f.query(t, updateService, change, nil), "only administrators can change services")
+	admin := f.as(t, adminName, auth.RoleAdmin)
+	var updated struct {
+		UpdateService serviceRow `json:"updateService"`
+	}
+	require.Empty(t, admin.query(t, updateService, change, &updated))
+	assert.Equal(t, serviceRow{ID: last.ID, Name: last.Name, Hidden: false, SortOrder: new(0)}, updated.UpdateService)
+	assert.Equal(t, last.ID, list(false)[0].ID)
+
+	// 非表示にすると、番組表のサービスから外れる。省いた並び順は変えない。
+	require.Empty(t, admin.query(t, updateService, variables(map[string]any{fieldHidden: true}), &updated))
+	assert.Equal(t, serviceRow{ID: last.ID, Name: last.Name, Hidden: true, SortOrder: new(0)}, updated.UpdateService)
+	assert.NotContains(t, list(false), updated.UpdateService)
+	assert.Contains(t, list(true), updated.UpdateService)
+
+	// EPG を同期し直しても、管理者が変えた値は残る。
+	f.syncEPG(t)
+	assert.Contains(t, list(true), updated.UpdateService)
+
+	// 並び順の上書きを消すと、元の並びに戻る。
+	require.Empty(t, admin.query(t, updateService, variables(map[string]any{fieldHidden: false, "resetSortOrder": true}), &updated))
+	assert.Equal(t, last, updated.UpdateService)
+	assert.Equal(t, before, list(false))
+
+	var action string
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT action FROM audit_events WHERE target_type = 'service' ORDER BY occurred_at DESC, id DESC LIMIT 1").Scan(&action))
+	assert.Equal(t, "service.updated", action)
+
+	// 表示を変えるのは管理者の設定の変更なので、直前の再認証を求める。
+	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
+	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateService, change, nil))
+}
+
+// TestUpdateServiceRejectsInvalidInput は、正しくない値と、ないサービスを拒み、保存しないことを確かめる。
+func TestUpdateServiceRejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	admin := f.as(t, adminName, auth.RoleAdmin)
+	const query = `{ services(includeHidden: true) { id name hidden sortOrder } }`
+	var before struct {
+		Services []serviceRow `json:"services"`
+	}
+	require.Empty(t, f.query(t, query, nil, &before))
+	require.NotEmpty(t, before.Services)
+	target := before.Services[0].ID
+
+	tests := []struct {
+		name  string
+		id    string
+		input map[string]any
+		want  string
+	}{
+		{name: "負の並び順", id: target, input: map[string]any{fieldSortOrder: -1}, want: codeBadUserInput},
+		{name: "上限を超える並び順", id: target, input: map[string]any{fieldSortOrder: 10001}, want: codeBadUserInput},
+		{name: "並び順の上書きと消去を一緒に指定する", id: target, input: map[string]any{fieldSortOrder: 1, "resetSortOrder": true}, want: codeBadUserInput},
+		{name: "ないサービス", id: graph.GlobalID("Service", "999999"), input: map[string]any{fieldHidden: true}, want: codeNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, []string{tt.want}, admin.query(t, updateService, map[string]any{"id": tt.id, varInput: tt.input}, nil))
+			var after struct {
+				Services []serviceRow `json:"services"`
+			}
+			require.Empty(t, f.query(t, query, nil, &after))
+			assert.Equal(t, before.Services, after.Services, "rejected changes are not saved")
+		})
+	}
+}

@@ -23,6 +23,8 @@ type Service implements Node {
   remoteControlKeyId: Int
   "番組表に出さない印"
   hidden: Boolean!
+  "並び順の上書き。小さいほど前に並ぶ。上書きしていなければ null で、リモコンのキーの順に並ぶ。"
+  sortOrder: Int
   "ライブ視聴の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。"
   streamUrl: String!
   "ニコニコ実況のチャンネル (設計書 7.4)。対応するチャンネルがないか、NX-Jikkyo が扱っていなければ null。"
