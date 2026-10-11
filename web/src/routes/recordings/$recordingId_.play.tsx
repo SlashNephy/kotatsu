@@ -5,14 +5,20 @@ import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
 import { ErrorBoundary } from '../../futon';
+import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { formatDuration, playbackPosition } from '../../yunomi/position';
-import { CaptionsToggle, PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
+import {
+  CaptionsToggle,
+  JikkyoToggle,
+  PlaybackUnavailable,
+  QualitySelect,
+} from '../../yunomi/QualitySelect';
 import { hlsURL } from '../../yunomi/route';
 import { TsPlayer } from '../../yunomi/TsPlayer';
-import { useCaptionsPreference } from '../../yunomi/useCaptionsPreference';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
+import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
 
@@ -72,8 +78,13 @@ function Player({ recordingId }: { recordingId: string }) {
             streamUrl
             recordedFrom
             recordedUntil
+            jikkyoCommentsUrl
             service {
               name
+              jikkyo {
+                id
+                name
+              }
             }
           }
         }
@@ -93,7 +104,12 @@ function Player({ recordingId }: { recordingId: string }) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const visible = useVisible(frameRef);
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
-  const [captions, setCaptions] = useCaptionsPreference();
+  const {
+    captionsEnabled: captions,
+    setCaptionsEnabled: setCaptions,
+    jikkyoEnabled,
+    setJikkyoEnabled,
+  } = usePlayerSettings();
   // kyusu の HLS は、録画の全体を 1 つのプレイリストで表すので、video の時刻がそのまま録画の中の位置になる。
   const hls = route.kind === 'kyusu';
   // offset は、今の読み込みを始めた、録画の始まりからの秒。ブラウザの中で変換するときは、シークすると、
@@ -120,6 +136,29 @@ function Player({ recordingId }: { recordingId: string }) {
             1000,
           0,
         );
+
+  // currentPosition は、今の再生位置 (録画の始まりからの秒) を返す。実況のコメントを、画面の更新ごとに描くのに使う。
+  // timeupdate で更新する position は間隔が粗いので、video の時刻から求め直す。
+  const currentPosition = () => {
+    const video = videoRef.current;
+    if (video === null) {
+      return positionRef.current;
+    }
+    if (hls) {
+      return video.currentTime;
+    }
+    if (phase.current !== 'playing') {
+      return positionRef.current;
+    }
+
+    return playbackPosition(offset, base.current, video.currentTime);
+  };
+  const channel = recording?.service.jikkyo ?? null;
+  const jikkyo = useRecordedJikkyo(
+    channel !== null && jikkyoEnabled && recording !== null ? recording.jikkyoCommentsUrl : null,
+    currentPosition,
+    visible,
+  );
 
   // startAt は、指定の位置から読み直す。
   const startAt = (seconds: number) => {
@@ -214,6 +253,7 @@ function Player({ recordingId }: { recordingId: string }) {
         {recording.service.name}
       </Text>
       <Group justify="flex-end" gap="md">
+        {channel !== null && <JikkyoToggle checked={jikkyoEnabled} onChange={setJikkyoEnabled} />}
         <CaptionsToggle checked={captions} onChange={setCaptions} />
         <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
       </Group>
@@ -231,6 +271,7 @@ function Player({ recordingId }: { recordingId: string }) {
               setError(null);
             }}
             onError={onError}
+            overlay={jikkyo.overlay}
           />
         )}
         {route.kind === 'kyusu' && (
@@ -241,6 +282,7 @@ function Player({ recordingId }: { recordingId: string }) {
             captions={captions}
             live={false}
             startPosition={offset}
+            overlay={jikkyo.overlay}
             onLoaded={() => setError(null)}
             onError={onError}
           />
@@ -283,6 +325,17 @@ function Player({ recordingId }: { recordingId: string }) {
           {formatDuration(shown)} / {formatDuration(duration)}
         </Text>
       </Group>
+      {jikkyo.state !== null && (
+        <Text size="xs" c={jikkyo.state.kind === 'error' ? 'red' : 'dimmed'} role="status">
+          {jikkyo.state.kind === 'loading'
+            ? t('jikkyo.kakologLoading')
+            : jikkyo.state.kind === 'error'
+              ? t('jikkyo.kakologError')
+              : jikkyo.state.count === 0
+                ? t('jikkyo.kakologEmpty')
+                : t('jikkyo.kakologLoaded', { count: jikkyo.state.count })}
+        </Text>
+      )}
       {error !== null && (
         <Alert color="red" role="alert">
           {error}
