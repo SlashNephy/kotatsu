@@ -411,9 +411,10 @@ func TestWorkerFinishesDuringHandover(t *testing.T) {
 	}, waitTimeout, 10*time.Millisecond)
 
 	close(finish)
+	// 引き継ぎを待つ時間 (waitTimeout) より十分に短い間に止まれば、録画を終えたから待つのをやめたと言える。
 	select {
 	case <-stopped:
-	case <-time.After(400 * time.Millisecond):
+	case <-time.After(waitTimeout / 2):
 		t.Fatal("the mikan kept waiting for a successor after finishing the recording")
 	}
 	assert.Equal(t, assignmentRow{state: string(recording.AssignmentFinished), generation: 1, holder: nil}, f.assignment(t, reservationID))

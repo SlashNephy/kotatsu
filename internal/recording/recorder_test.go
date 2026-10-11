@@ -306,11 +306,11 @@ type drainedStream struct {
 	drained chan struct{}
 }
 
-func newDrainedStream(data []byte) drainedStream {
-	return drainedStream{data: data, drained: make(chan struct{}, 4)}
+func newDrainedStream(data []byte) *drainedStream {
+	return &drainedStream{data: data, drained: make(chan struct{}, 4)}
 }
 
-func (s drainedStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (s *drainedStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
 	reader, writer := io.Pipe()
 	go func() {
 		// io.Pipe の Write は、読む側がすべて読むまで戻らない。
@@ -325,7 +325,7 @@ func (s drainedStream) OpenServiceStream(ctx context.Context, _ int64, _ *miraku
 }
 
 // wait は、ストリームを 1 回読み終えるまで待つ。
-func (s drainedStream) wait(t *testing.T) {
+func (s *drainedStream) wait(t *testing.T) {
 	t.Helper()
 
 	select {
@@ -335,7 +335,7 @@ func (s drainedStream) wait(t *testing.T) {
 	}
 }
 
-var _ recording.StreamOpener = drainedStream{}
+var _ recording.StreamOpener = new(drainedStream)
 
 func (s onceStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
 	reader, writer := io.Pipe()
