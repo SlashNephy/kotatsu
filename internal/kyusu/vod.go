@@ -143,6 +143,14 @@ func NewVOD(opts *VODOptions) (*VOD, error) {
 	}, nil
 }
 
+// Sessions は、今ある録画の再生のセッションの数を返す。/metrics に出す (設計書 11.3)。
+func (v *VOD) Sessions() int {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	return len(v.sessions)
+}
+
 // Run は、ctx が終わるまで、使われなくなったセッションを止める。ctx が終わったら、すべてのセッションを止める。
 func (v *VOD) Run(ctx context.Context) error {
 	ticker := time.NewTicker(reapInterval)

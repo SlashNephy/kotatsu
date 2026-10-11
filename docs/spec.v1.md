@@ -1028,7 +1028,21 @@ EPGStationのように、秘密情報を平文の設定ファイルに書く必�
 - `/readyz`はreadiness用で、DBに接続できれば成功を返します。チューナーサーバーの状態は判定に含めません（[3.7](#37-時刻と縮退)）。
 - `/healthz`と`/readyz`は、外部からの死活監視に使えるよう、認証なしで最小限の情報だけを返します。
 - `/metrics`は、別の待ち受けアドレス（既定は`:9090`）で公開します。メトリクスのラベルには、番組名のように視聴の傾向が分かる情報を入れません。
-- 主なメトリクスは、録画中の件数、失敗の件数、ドロップの数、チューナーの使用状況、EPGの同期の遅れ、nekoのリースを持っているインスタンス、Riverのキューの長さ、kyusuのセッション数です。
+- 主なメトリクスは、録画中の件数、失敗の件数、ドロップの数、チューナーの使用状況、EPGの同期の遅れ、nekoのリースを持っているインスタンス、Riverのキューの長さ、kyusuのセッション数です。名前は次のとおりです。
+
+  | メトリクス | 内容 |
+  |---|---|
+  | `kotatsu_recordings{state}` | 状態ごとの録画の数 |
+  | `kotatsu_recording_failures{reason}` | 失敗の理由ごとの録画の数 |
+  | `kotatsu_recording_active_packets{kind}` | 録画中の録画の、ドロップ、エラー、スクランブルの数の合計 |
+  | `kotatsu_recording_assignments{state}` | 状態ごとの録画の割り振りの数。`recording`が、録画に使っているチューナーの数です。 |
+  | `kotatsu_tuners{state}` | 使える、使えない、故障の別のチューナーの数 |
+  | `kotatsu_epg_last_full_sync_timestamp_seconds` | nekoのリーダーが最後にEPGの全量を突き合わせた時刻。今の時刻との差が、同期の遅れです。 |
+  | `kotatsu_neko_leader` | このインスタンスがnekoのリースを持っていれば1 |
+  | `kotatsu_river_jobs{queue,state}` | 待っているか動いているRiverのジョブの数 |
+  | `kotatsu_kyusu_sessions{kind}` | このインスタンスのkyusuのセッションの数（`live`か`vod`） |
+
+  録画、チューナー、ジョブのキューは、DBから読むので、どのインスタンスも同じ値を返します。集計するときは、インスタンスをまたいで足さずに、`max`などでまとめます。
 - ログはslogのJSON形式で標準出力に書きます。
 
 EPGStationの運用では、不調を避けるために毎日再起動している例があります。

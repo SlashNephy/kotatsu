@@ -33,6 +33,14 @@ type Querier interface {
 	ClearStoragePoolLow(ctx context.Context, id string) error
 	// 書き終えたファイルの大きさと、表す時間の終わりを記録する。
 	CloseRecordingFile(ctx context.Context, arg CloseRecordingFileParams) error
+	// /metrics に出す、状態ごとの録画の割り振りの数。
+	CountRecordingAssignmentsByState(ctx context.Context) ([]CountRecordingAssignmentsByStateRow, error)
+	// /metrics に出す、失敗の理由ごとの録画の数。
+	CountRecordingFailures(ctx context.Context) ([]CountRecordingFailuresRow, error)
+	// /metrics に出す、状態ごとの録画の数 (設計書 11.3)。
+	CountRecordingsByState(ctx context.Context) ([]CountRecordingsByStateRow, error)
+	// /metrics に出す、状態ごとのチューナーの数。故障は、使えるかどうかより先に数える。
+	CountTunersByState(ctx context.Context) (CountTunersByStateRow, error)
 	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUnusedRecoveryCodes(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
@@ -120,6 +128,8 @@ type Querier interface {
 	HasAdmin(ctx context.Context) (bool, error)
 	HasUserTOTP(ctx context.Context, userID uuid.UUID) (bool, error)
 	HeartbeatInstance(ctx context.Context, arg HeartbeatInstanceParams) (int64, error)
+	// リース name を、holder が今持っているかどうか。
+	HoldsLease(ctx context.Context, arg HoldsLeaseParams) (bool, error)
 	IncrementLoginChallengeFailures(ctx context.Context, id uuid.UUID) (int32, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
 	InsertEPGChange(ctx context.Context, arg InsertEPGChangeParams) error
@@ -328,6 +338,8 @@ type Querier interface {
 	// 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。新しく始めたかどうかを inserted で返す。
 	// 番組の音声の構成は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
 	StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error)
+	// /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。
+	SumActiveRecordingPackets(ctx context.Context) (SumActiveRecordingPacketsRow, error)
 	// ログインの途中の状態は 1 回しか使わせないので、引くと同時に消す。
 	TakeOIDCLogin(ctx context.Context, arg TakeOIDCLoginParams) (OidcLogin, error)
 	// 手続きは 1 回しか使わせないので、引くと同時に消す。

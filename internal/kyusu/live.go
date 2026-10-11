@@ -139,6 +139,14 @@ func NewLive(opts *LiveOptions) (*Live, error) {
 	}, nil
 }
 
+// Sessions は、今あるライブ視聴のセッションの数を返す。/metrics に出す (設計書 11.3)。
+func (l *Live) Sessions() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	return len(l.sessions)
+}
+
 // Run は、ctx が終わるまで、使われなくなったセッションを止める。ctx が終わったら、すべてのセッションを止める。
 func (l *Live) Run(ctx context.Context) error {
 	ticker := time.NewTicker(reapInterval)
