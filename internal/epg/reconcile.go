@@ -311,7 +311,7 @@ func (p *program) key() programKey {
 }
 
 // fromUpstream は、上流の番組を program にする。
-// 長さが 1 ミリ秒なのは、Mirakurun が終了時刻が未定のときに返す値である。
+// 終了時刻が未定のとき、Mirakurun は長さを 1 ミリ秒に、Mahiron は 0 にして返す (#23 の実測)。
 func fromUpstream(p *mirakurun.Program) *program {
 	start := p.Start()
 	extended := p.Extended
@@ -333,7 +333,7 @@ func fromUpstream(p *mirakurun.Program) *program {
 		MirakurunID:  p.ID,
 		StartAt:      start,
 		EndAt:        start.Add(time.Duration(p.Duration) * time.Millisecond),
-		EndUndecided: p.Duration == 1,
+		EndUndecided: p.Duration <= 1,
 		IsFree:       p.IsFree,
 		Name:         p.Name,
 		Description:  p.Description,
