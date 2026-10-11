@@ -8,6 +8,8 @@ describe('resumePosition', () => {
     { name: '少し見ただけなら、最初から', savedMs: 4_000, want: 0 },
     { name: '途中まで見ていたら、続きから', savedMs: 754_500, want: 754.5 },
     { name: '終わりの近くまで見ていたら、最初から', savedMs: 1_795_000, want: 0 },
+    { name: '続きから再生する下限', savedMs: 5_000, want: 5 },
+    { name: '続きから再生する上限', savedMs: 1_790_000, want: 1790 },
   ])('$name', ({ savedMs, want }) => {
     // 30 分の録画。
     expect(resumePosition(savedMs, 1800)).toBe(want);

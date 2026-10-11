@@ -162,11 +162,12 @@ function Player({ recordingId }: { recordingId: string }) {
     if (video === null) {
       return positionRef.current;
     }
-    if (hls) {
-      return video.currentTime;
-    }
+    // 読み直している間は、video の時刻がまだ読み始める位置になっていないので、前に求めた位置を使う。
     if (phase.current !== 'playing') {
       return positionRef.current;
+    }
+    if (hls) {
+      return video.currentTime;
     }
 
     return playbackPosition(offset, base.current, video.currentTime);
@@ -226,6 +227,10 @@ function Player({ recordingId }: { recordingId: string }) {
     }
     const update = () => {
       if (hls) {
+        // kyusu の HLS は、読み始める位置へ移るまで video の時刻が 0 のことがあるので、再生を始めるまで位置を動かさない。
+        if (phase.current !== 'playing') {
+          return;
+        }
         positionRef.current = video.currentTime;
         setPosition(video.currentTime);
 
@@ -247,15 +252,23 @@ function Player({ recordingId }: { recordingId: string }) {
     };
     const onPause = () => setPaused(true);
     const onPlay = () => setPaused(false);
+    // kyusu の HLS は、読み始める位置へ移り、映像が流れ始めたところから、video の時刻を録画の中の位置として使う。
+    const onPlaying = () => {
+      if (hls) {
+        phase.current = 'playing';
+      }
+    };
     video.addEventListener('timeupdate', update);
     video.addEventListener('pause', onPause);
     video.addEventListener('play', onPlay);
+    video.addEventListener('playing', onPlaying);
     setPaused(video.paused);
 
     return () => {
       video.removeEventListener('timeupdate', update);
       video.removeEventListener('pause', onPause);
       video.removeEventListener('play', onPlay);
+      video.removeEventListener('playing', onPlaying);
     };
     // 画質を変えると video の要素を作り直すので、経路が変わったら付け直す。
   }, [offset, hls, quality]);
