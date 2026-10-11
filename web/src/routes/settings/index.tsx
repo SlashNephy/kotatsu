@@ -84,6 +84,11 @@ function AdminLinks() {
             body: t('admin.webhooks.summary'),
           },
           {
+            to: '/admin/settings',
+            title: t('admin.settings.title'),
+            body: t('admin.settings.summary'),
+          },
+          {
             to: '/admin/system',
             title: t('admin.system.title'),
             body: t('admin.system.summary'),
