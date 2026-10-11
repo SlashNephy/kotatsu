@@ -1,6 +1,8 @@
 import { Alert, Anchor, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Suspense, useEffect, useMemo, useState } from 'react';
+
+import { Dashboard, type DashboardRange } from '../home/Dashboard';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useSubscription } from 'react-relay';
 
@@ -14,8 +16,23 @@ export const Route = createFileRoute('/')({
   component: Home,
 });
 
+// upcomingDays は、ホームに出す、これからの予約と予約の競合の期間 (日)。
+const upcomingDays = 7;
+
 function Home() {
   const { t } = useTranslation();
+  // 時刻は、待たない親で決める。待つ子で決めると、待つたびに決め直して、読み込みが終わらなくなる。
+  const [range] = useState<DashboardRange>(() => {
+    const now = Date.now();
+
+    return {
+      now,
+      from: new Date(now).toISOString(),
+      // 放送中の番組は、今に重なる番組を引けば足りる。
+      nowEnd: new Date(now + 1000).toISOString(),
+      to: new Date(now + upcomingDays * 24 * 60 * 60 * 1000).toISOString(),
+    };
+  });
 
   return (
     <Stack>
@@ -34,7 +51,10 @@ function Home() {
         }
       >
         <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
-          <Viewer />
+          <Stack gap="lg">
+            <Dashboard range={range} />
+            <Viewer />
+          </Stack>
         </Suspense>
       </ErrorBoundary>
     </Stack>
