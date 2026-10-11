@@ -299,6 +299,44 @@ func TestRecorderRecordsFailures(t *testing.T) {
 // onceStream は、TS を 1 回だけ流し、その後は閉じるまで何も流さないストリーム。繰り返しのつなぎ目のドロップを避ける。
 type onceStream struct{ data []byte }
 
+// drainedStream は、onceStream と同じく data を流してから閉じられるまで待つ。開くたびに、録画が data を読み終えたら drained に送る。
+// 書き始める前に止めたり終えたりすると、何も書けていないセグメントになるので、その前にこれを待つ。
+type drainedStream struct {
+	data    []byte
+	drained chan struct{}
+}
+
+func newDrainedStream(data []byte) *drainedStream {
+	return &drainedStream{data: data, drained: make(chan struct{}, 4)}
+}
+
+func (s *drainedStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
+	reader, writer := io.Pipe()
+	go func() {
+		// io.Pipe の Write は、読む側がすべて読むまで戻らない。
+		if _, err := writer.Write(s.data); err == nil {
+			s.drained <- struct{}{}
+		}
+		<-ctx.Done()
+		_ = writer.CloseWithError(ctx.Err())
+	}()
+
+	return reader, nil
+}
+
+// wait は、ストリームを 1 回読み終えるまで待つ。
+func (s *drainedStream) wait(t *testing.T) {
+	t.Helper()
+
+	select {
+	case <-s.drained:
+	case <-time.After(waitTimeout):
+		require.FailNow(t, "the recorder did not read the stream")
+	}
+}
+
+var _ recording.StreamOpener = new(drainedStream)
+
 func (s onceStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
 	reader, writer := io.Pipe()
 	go func() {
@@ -572,12 +610,12 @@ func TestRecorderRecordsGapOnResume(t *testing.T) {
 	require.NoError(t, err)
 	f := newFixture(t)
 	reservationID := f.reserve(t, 0)
-	recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
+	stream := newDrainedStream(data)
+	recorder, _ := f.newRecorder(t, stream, nil)
 	stop, done := f.session(t, recorder, reservationID)
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
-	require.Eventually(t, func() bool {
-		return len(f.files(t, reservationID)) == 2
-	}, waitTimeout, 10*time.Millisecond)
+	// 最初のセグメントに書き終えてから止める。何も書けていないセグメントは、録れた範囲に数えない。
+	stream.wait(t)
 	stop(recording.ErrLeaseLost)
 	require.ErrorIs(t, wait(t, done), recording.ErrLeaseLost)
 
@@ -587,6 +625,8 @@ func TestRecorderRecordsGapOnResume(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return f.segments(t, reservationID) == 2
 	}, waitTimeout, 10*time.Millisecond)
+	// 続きのセグメントにも書き終えてから、予定の終わりを過ぎさせる。
+	stream.wait(t)
 	f.clock.Advance(time.Hour)
 	require.NoError(t, wait(t, done))
 

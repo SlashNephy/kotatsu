@@ -389,7 +389,9 @@ func TestWorkerFinishesDuringHandover(t *testing.T) {
 	f.register(t, id.New())
 	started := make(chan struct{})
 	finish := make(chan struct{})
-	stop := f.startWorker(t, holder, func(ctx context.Context, _ *recording.Assignment) error {
+	// 引き継ぎを待つ時間を長くし、待ちきれずにやめたのではなく、録画を終えたからやめたことを確かめる。
+	// 短いと、引き継ぎ待ちの印がすぐに外れ、遅い環境では、印を見る前に外れることもある。
+	stop := f.startWorkerWithHandoverTimeout(t, holder, waitTimeout, func(ctx context.Context, _ *recording.Assignment) error {
 		close(started)
 		select {
 		case <-ctx.Done():
@@ -409,9 +411,10 @@ func TestWorkerFinishesDuringHandover(t *testing.T) {
 	}, waitTimeout, 10*time.Millisecond)
 
 	close(finish)
+	// 引き継ぎを待つ時間 (waitTimeout) より十分に短い間に止まれば、録画を終えたから待つのをやめたと言える。
 	select {
 	case <-stopped:
-	case <-time.After(400 * time.Millisecond):
+	case <-time.After(waitTimeout / 2):
 		t.Fatal("the mikan kept waiting for a successor after finishing the recording")
 	}
 	assert.Equal(t, assignmentRow{state: string(recording.AssignmentFinished), generation: 1, holder: nil}, f.assignment(t, reservationID))
