@@ -139,6 +139,7 @@ func (r *Resolver) listReservations(
 	ctx context.Context,
 	from, to time.Time,
 	states []model.AssignmentState,
+	enabled *bool,
 	first int,
 	after *string,
 ) (*model.ReservationConnection, error) {
@@ -146,7 +147,7 @@ func (r *Resolver) listReservations(
 		return nil, NewError(CodeBadUserInput, fmt.Sprintf("first must be between 1 and %d", maxReservations))
 	}
 	query := &reserve.ListQuery{
-		From: from, To: to, States: make([]reserve.AssignmentState, 0, len(states)), AfterStartAt: nil, AfterID: nil,
+		From: from, To: to, States: make([]reserve.AssignmentState, 0, len(states)), Enabled: enabled, AfterStartAt: nil, AfterID: nil,
 		// 次のページがあるかを知るため、1 件多く読む。
 		Limit: first + 1,
 	}

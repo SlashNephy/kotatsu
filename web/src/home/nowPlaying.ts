@@ -22,6 +22,9 @@ export function nowPlaying(
 ): NowPlaying[] {
   const playing: NowPlaying[] = [];
   for (const row of rows) {
+    if (playing.length >= limit) {
+      break;
+    }
     const program = row.programs.find(
       (candidate) => Date.parse(candidate.startAt) <= now && now < Date.parse(candidate.endAt),
     );
@@ -33,9 +36,6 @@ export function nowPlaying(
         startAt: program.startAt,
         endAt: program.endAt,
       });
-    }
-    if (playing.length >= limit) {
-      break;
     }
   }
 

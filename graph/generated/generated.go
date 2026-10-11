@@ -292,7 +292,7 @@ type ComplexityRoot struct {
 		PlayerSettings          func(childComplexity int) int
 		PreviewRule             func(childComplexity int, input model.RuleInput, first int, after *string) int
 		Recordings              func(childComplexity int, first int, after *string, filter *model.RecordingFilter) int
-		Reservations            func(childComplexity int, from time.Time, to time.Time, states []model.AssignmentState, first int, after *string) int
+		Reservations            func(childComplexity int, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, first int, after *string) int
 		Rules                   func(childComplexity int) int
 		SearchPrograms          func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
 		SecondFactors           func(childComplexity int) int
@@ -654,7 +654,7 @@ type QueryResolver interface {
 	PlayerSettings(ctx context.Context) (*model.PlayerSettings, error)
 	Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter) (*model.RecordingConnection, error)
 	Tags(ctx context.Context) ([]*model.Tag, error)
-	Reservations(ctx context.Context, from time.Time, to time.Time, states []model.AssignmentState, first int, after *string) (*model.ReservationConnection, error)
+	Reservations(ctx context.Context, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, first int, after *string) (*model.ReservationConnection, error)
 	Rules(ctx context.Context) ([]*model.Rule, error)
 	PreviewRule(ctx context.Context, input model.RuleInput, first int, after *string) (*model.ProgramConnection, error)
 	SearchPrograms(ctx context.Context, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) (*model.ProgramConnection, error)
@@ -1920,7 +1920,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Reservations(childComplexity, args["from"].(time.Time), args["to"].(time.Time), args["states"].([]model.AssignmentState), args["first"].(int), args["after"].(*string)), true
+		return e.ComplexityRoot.Query.Reservations(childComplexity, args["from"].(time.Time), args["to"].(time.Time), args["states"].([]model.AssignmentState), args["enabled"].(*bool), args["first"].(int), args["after"].(*string)), true
 	case "Query.rules":
 		if e.ComplexityRoot.Query.Rules == nil {
 			break
@@ -4077,11 +4077,13 @@ extend type Query {
   """
   時間帯 [from, to) に重なる予約を、開始時刻の順に返す。
   states を指定すると、その割り当ての状態の予約だけを返す。
+  enabled を指定すると、有効な予約だけ (true) か、無効な予約だけ (false) を返す。
   """
   reservations(
     from: Time!
     to: Time!
     states: [AssignmentState!]
+    enabled: Boolean
     "返す件数 (1〜100)"
     first: Int! = 50
     after: String
@@ -6579,22 +6581,30 @@ func (ec *executionContext) field_Query_reservations_args(ctx context.Context, r
 		return nil, err
 	}
 	args["states"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "first",
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "enabled",
+		func(ctx context.Context, v any) (*bool, error) {
+			return ec.unmarshalOBoolean2ᚖbool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["enabled"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "first",
 		func(ctx context.Context, v any) (int, error) {
 			return ec.unmarshalNInt2int(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["first"] = arg3
-	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+	args["first"] = arg4
+	arg5, err := graphql.ProcessArgField(ctx, rawArgs, "after",
 		func(ctx context.Context, v any) (*string, error) {
 			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["after"] = arg4
+	args["after"] = arg5
 	return args, nil
 }
 
@@ -11778,7 +11788,7 @@ func (ec *executionContext) _Query_reservations(ctx context.Context, field graph
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Reservations(ctx, fc.Args["from"].(time.Time), fc.Args["to"].(time.Time), fc.Args["states"].([]model.AssignmentState), fc.Args["first"].(int), fc.Args["after"].(*string))
+			return ec.Resolvers.Query().Reservations(ctx, fc.Args["from"].(time.Time), fc.Args["to"].(time.Time), fc.Args["states"].([]model.AssignmentState), fc.Args["enabled"].(*bool), fc.Args["first"].(int), fc.Args["after"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ReservationConnection) graphql.Marshaler {

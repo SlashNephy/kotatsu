@@ -34,5 +34,6 @@ describe('nowPlaying', () => {
     }));
 
     expect(nowPlaying(rows, now, 2).map((item) => item.serviceId)).toEqual(['s1', 's2']);
+    expect(nowPlaying(rows, now, 0)).toEqual([]);
   });
 });

@@ -14,10 +14,12 @@ import (
 )
 
 // 予約の名前。conflicting は割り当てが競合している予約、partial は一部のみ録画できる予約にするもの。
+// disabled は、無効にした時刻予約。
 const (
 	first       = "event 5"
 	conflicting = "event 6"
 	partial     = "event 7"
+	disabled    = "time"
 )
 
 // at は、テストの日の時刻を返す。
@@ -26,7 +28,7 @@ func at(hour, minute int) time.Time {
 }
 
 // listFixture は、13:00、13:30、14:00 に始まる番組予約 (eventId 5、6、7) と、13:00〜13:30 の時刻予約を持つ。
-// 13:30 の番組予約だけ、割り当てが競合している。
+// 13:30 の番組予約だけ、割り当てが競合している。時刻予約だけ、無効にしてある。
 type listFixture struct {
 	*fixture
 
@@ -49,9 +51,11 @@ func newListFixture(t *testing.T) *listFixture {
 	reservation, err := f.reservations.CreateTime(t.Context(), f.pool, f.user,
 		&reserve.TimeInput{ServiceID: serviceID(), StartAt: at(13, 0), EndAt: at(13, 30), Name: "時刻予約", Overrides: nil})
 	require.NoError(t, err)
-	f.add(reservation.ID, "time")
+	f.add(reservation.ID, disabled)
 
 	_, err = f.pool.Exec(t.Context(), `UPDATE reservations SET assignment_state = 'conflict' WHERE id = $1`, f.ids[conflicting])
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `UPDATE reservations SET enabled = false WHERE id = $1`, f.ids[disabled])
 	require.NoError(t, err)
 
 	return f
@@ -76,7 +80,7 @@ func TestList(t *testing.T) {
 
 	f := newListFixture(t)
 	// 13:00 に始まる 2 件は ID の順に並ぶ。ID は作った順に大きくなる。
-	all := []string{first, "time", conflicting, partial}
+	all := []string{first, disabled, conflicting, partial}
 
 	tests := []struct {
 		name    string
@@ -86,7 +90,7 @@ func TestList(t *testing.T) {
 	}{
 		{
 			name:  "all reservations in the order of the start time",
-			query: reserve.ListQuery{From: at(0, 0), To: at(23, 0), States: nil, AfterStartAt: nil, AfterID: nil, Limit: 10},
+			query: reserve.ListQuery{From: at(0, 0), To: at(23, 0), States: nil, Enabled: nil, AfterStartAt: nil, AfterID: nil, Limit: 10},
 			want:  all,
 		},
 		{
@@ -100,6 +104,16 @@ func TestList(t *testing.T) {
 				From: at(0, 0), To: at(23, 0), States: []reserve.AssignmentState{reserve.AssignmentConflict}, AfterStartAt: nil, AfterID: nil, Limit: 10,
 			},
 			want: []string{conflicting},
+		},
+		{
+			name:  "enabled reservations only",
+			query: reserve.ListQuery{From: at(0, 0), To: at(23, 0), States: nil, Enabled: new(true), AfterStartAt: nil, AfterID: nil, Limit: 10},
+			want:  []string{first, conflicting, partial},
+		},
+		{
+			name:  "disabled reservations only",
+			query: reserve.ListQuery{From: at(0, 0), To: at(23, 0), States: nil, Enabled: new(false), AfterStartAt: nil, AfterID: nil, Limit: 10},
+			want:  []string{disabled},
 		},
 		{
 			name:  "limit",
@@ -155,7 +169,7 @@ func TestListPagesThroughAllReservations(t *testing.T) {
 		last := page[len(page)-1]
 		query.AfterStartAt, query.AfterID = &last.StartAt, &last.ID
 	}
-	assert.Equal(t, []string{first, "time", conflicting, partial}, got)
+	assert.Equal(t, []string{first, disabled, conflicting, partial}, got)
 }
 
 func TestListCarriesAssignment(t *testing.T) {

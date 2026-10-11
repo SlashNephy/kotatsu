@@ -838,8 +838,9 @@ type Query {
   """
   時間帯 [from, to) に重なる予約を、開始時刻の順に返す。
   states を指定すると、その割り当ての状態の予約だけを返す。
+  enabled を指定すると、有効な予約だけ (true) か、無効な予約だけ (false) を返す。
   """
-  reservations(from: Time!, to: Time!, states: [AssignmentState!],
+  reservations(from: Time!, to: Time!, states: [AssignmentState!], enabled: Boolean,
     """
     返す件数 (1〜100)
     """

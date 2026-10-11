@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<89dd4b233369b13718a3233f93b066f7>>
+ * @generated SignedSource<<00c39da6902985fd2e9960db49e0dcce>>
  * @lightSyntaxTransform
  */
 
@@ -45,10 +45,12 @@ export type DashboardQuery$data = {
   readonly troubles: {
     readonly edges: ReadonlyArray<{
       readonly node: {
-        readonly enabled: boolean;
         readonly id: string;
       };
     }>;
+    readonly pageInfo: {
+      readonly hasNextPage: boolean;
+    };
   };
   readonly tunerServerHealth: {
     readonly degraded: boolean;
@@ -60,7 +62,6 @@ export type DashboardQuery$data = {
         readonly assignment: {
           readonly state: AssignmentState;
         };
-        readonly enabled: boolean;
         readonly endAt: string;
         readonly id: string;
         readonly name: string;
@@ -240,26 +241,25 @@ v12 = {
   "storageKey": null
 },
 v13 = {
+  "kind": "Literal",
+  "name": "enabled",
+  "value": true
+},
+v14 = {
   "kind": "Variable",
   "name": "to",
   "variableName": "to"
 },
-v14 = [
+v15 = [
+  (v13/*:: as any*/),
   {
     "kind": "Literal",
     "name": "first",
     "value": 5
   },
   (v2/*:: as any*/),
-  (v13/*:: as any*/)
+  (v14/*:: as any*/)
 ],
-v15 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "enabled",
-  "storageKey": null
-},
 v16 = {
   "alias": null,
   "args": null,
@@ -275,6 +275,7 @@ v16 = {
 v17 = {
   "alias": "troubles",
   "args": [
+    (v13/*:: as any*/),
     {
       "kind": "Literal",
       "name": "first",
@@ -289,7 +290,7 @@ v17 = {
         "PARTIAL"
       ]
     },
-    (v13/*:: as any*/)
+    (v14/*:: as any*/)
   ],
   "concreteType": "ReservationConnection",
   "kind": "LinkedField",
@@ -312,9 +313,26 @@ v17 = {
           "name": "node",
           "plural": false,
           "selections": [
-            (v3/*:: as any*/),
-            (v15/*:: as any*/)
+            (v3/*:: as any*/)
           ],
+          "storageKey": null
+        }
+      ],
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "PageInfo",
+      "kind": "LinkedField",
+      "name": "pageInfo",
+      "plural": false,
+      "selections": [
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "hasNextPage",
           "storageKey": null
         }
       ],
@@ -386,7 +404,7 @@ return {
       },
       {
         "alias": "upcoming",
-        "args": (v14/*:: as any*/),
+        "args": (v15/*:: as any*/),
         "concreteType": "ReservationConnection",
         "kind": "LinkedField",
         "name": "reservations",
@@ -412,7 +430,6 @@ return {
                   (v4/*:: as any*/),
                   (v5/*:: as any*/),
                   (v6/*:: as any*/),
-                  (v15/*:: as any*/),
                   (v12/*:: as any*/),
                   (v16/*:: as any*/)
                 ],
@@ -478,7 +495,7 @@ return {
       },
       {
         "alias": "upcoming",
-        "args": (v14/*:: as any*/),
+        "args": (v15/*:: as any*/),
         "concreteType": "ReservationConnection",
         "kind": "LinkedField",
         "name": "reservations",
@@ -504,7 +521,6 @@ return {
                   (v4/*:: as any*/),
                   (v5/*:: as any*/),
                   (v6/*:: as any*/),
-                  (v15/*:: as any*/),
                   (v18/*:: as any*/),
                   (v16/*:: as any*/)
                 ],
@@ -520,16 +536,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "953add4aa070d2397fa44e318730a8ce",
+    "cacheID": "3122ccb4137d54845204ab6438134e3c",
     "id": null,
     "metadata": {},
     "name": "DashboardQuery",
     "operationKind": "query",
-    "text": "query DashboardQuery(\n  $from: Time!\n  $nowEnd: Time!\n  $to: Time!\n) {\n  tunerServerHealth {\n    degraded\n    degradedSince\n  }\n  guide(from: $from, to: $nowEnd) {\n    service {\n      id\n      name\n    }\n    programs {\n      id\n      name\n      startAt\n      endAt\n    }\n  }\n  recordings(first: 6) {\n    edges {\n      node {\n        id\n        name\n        state\n        recordedFrom\n        thumbnailUrl\n        service {\n          name\n          id\n        }\n      }\n    }\n  }\n  upcoming: reservations(from: $from, to: $to, first: 5) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        enabled\n        service {\n          name\n          id\n        }\n        assignment {\n          state\n        }\n      }\n    }\n  }\n  troubles: reservations(from: $from, to: $to, states: [CONFLICT, PARTIAL], first: 100) {\n    edges {\n      node {\n        id\n        enabled\n      }\n    }\n  }\n}\n"
+    "text": "query DashboardQuery(\n  $from: Time!\n  $nowEnd: Time!\n  $to: Time!\n) {\n  tunerServerHealth {\n    degraded\n    degradedSince\n  }\n  guide(from: $from, to: $nowEnd) {\n    service {\n      id\n      name\n    }\n    programs {\n      id\n      name\n      startAt\n      endAt\n    }\n  }\n  recordings(first: 6) {\n    edges {\n      node {\n        id\n        name\n        state\n        recordedFrom\n        thumbnailUrl\n        service {\n          name\n          id\n        }\n      }\n    }\n  }\n  upcoming: reservations(from: $from, to: $to, enabled: true, first: 5) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        service {\n          name\n          id\n        }\n        assignment {\n          state\n        }\n      }\n    }\n  }\n  troubles: reservations(from: $from, to: $to, states: [CONFLICT, PARTIAL], enabled: true, first: 100) {\n    edges {\n      node {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "927ad60cf92022e4c7ee7159a35c46dc";
+(node as any).hash = "03c78c72bdc0f281d0e746bdf2d039cc";
 
 export default node;

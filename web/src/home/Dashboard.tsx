@@ -66,14 +66,13 @@ export function Dashboard({ range }: { range: DashboardRange }) {
             }
           }
         }
-        upcoming: reservations(from: $from, to: $to, first: 5) {
+        upcoming: reservations(from: $from, to: $to, enabled: true, first: 5) {
           edges {
             node {
               id
               name
               startAt
               endAt
-              enabled
               service {
                 name
               }
@@ -83,12 +82,20 @@ export function Dashboard({ range }: { range: DashboardRange }) {
             }
           }
         }
-        troubles: reservations(from: $from, to: $to, states: [CONFLICT, PARTIAL], first: 100) {
+        troubles: reservations(
+          from: $from
+          to: $to
+          states: [CONFLICT, PARTIAL]
+          enabled: true
+          first: 100
+        ) {
           edges {
             node {
               id
-              enabled
             }
+          }
+          pageInfo {
+            hasNextPage
           }
         }
       }
@@ -96,7 +103,9 @@ export function Dashboard({ range }: { range: DashboardRange }) {
     { from: range.from, nowEnd: range.nowEnd, to: range.to },
   );
   const playing = nowPlaying(data.guide, range.now, maxNowPlaying);
-  const troubles = data.troubles.edges.filter((edge) => edge.node.enabled).length;
+  // 100 件を超えたら、「100 件以上」と示す。
+  const troubles = data.troubles.edges.length;
+  const moreTroubles = data.troubles.pageInfo.hasNextPage;
 
   return (
     <Stack gap="lg">
@@ -112,7 +121,11 @@ export function Dashboard({ range }: { range: DashboardRange }) {
       {troubles > 0 && (
         <Alert color="amber" role="alert" title={t('home.conflicts.title')}>
           <Group gap="xs">
-            <Text size="sm">{t('home.conflicts.body', { count: troubles })}</Text>
+            <Text size="sm">
+              {t(moreTroubles ? 'home.conflicts.bodyMore' : 'home.conflicts.body', {
+                count: troubles,
+              })}
+            </Text>
             <Anchor component={Link} to="/reservations" size="sm">
               {t('home.conflicts.link')}
             </Anchor>
@@ -225,22 +238,21 @@ export function Dashboard({ range }: { range: DashboardRange }) {
                 <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
                   {dateTimeFormat.format(Date.parse(node.startAt))}
                 </Text>
-                <Text size="sm" truncate>
+                <Text size="sm" truncate style={{ flex: 1, minWidth: 0 }}>
                   {node.name}
                 </Text>
                 <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
                   {node.service.name}
                 </Text>
-                {node.enabled &&
-                  (node.assignment.state === 'CONFLICT' || node.assignment.state === 'PARTIAL') && (
-                    <Badge size="xs" color="amber" variant="light">
-                      {t(
-                        node.assignment.state === 'CONFLICT'
-                          ? 'reservations.state.CONFLICT'
-                          : 'reservations.state.PARTIAL',
-                      )}
-                    </Badge>
-                  )}
+                {(node.assignment.state === 'CONFLICT' || node.assignment.state === 'PARTIAL') && (
+                  <Badge size="xs" color="amber" variant="light">
+                    {t(
+                      node.assignment.state === 'CONFLICT'
+                        ? 'reservations.state.CONFLICT'
+                        : 'reservations.state.PARTIAL',
+                    )}
+                  </Badge>
+                )}
               </Group>
             ))}
           </Stack>
