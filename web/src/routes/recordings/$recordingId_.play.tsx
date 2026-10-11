@@ -1,4 +1,14 @@
-import { ActionIcon, Alert, Anchor, Group, Slider, Stack, Text, Title } from '@mantine/core';
+import {
+  ActionIcon,
+  Alert,
+  Anchor,
+  Button,
+  Group,
+  Slider,
+  Stack,
+  Text,
+  Title,
+} from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +29,8 @@ import { hlsURL } from '../../yunomi/route';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
+import { useWatchPositionSaver } from '../../yunomi/useWatchPositionSaver';
+import { resumePosition } from '../../yunomi/resume';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
 
@@ -79,6 +91,7 @@ function Player({ recordingId }: { recordingId: string }) {
             recordedFrom
             recordedUntil
             jikkyoCommentsUrl
+            watchPositionMs
             service {
               name
               jikkyo {
@@ -110,22 +123,6 @@ function Player({ recordingId }: { recordingId: string }) {
     jikkyoEnabled,
     setJikkyoEnabled,
   } = usePlayerSettings();
-  // kyusu の HLS は、録画の全体を 1 つのプレイリストで表すので、video の時刻がそのまま録画の中の位置になる。
-  const hls = route.kind === 'kyusu';
-  // offset は、今の読み込みを始めた、録画の始まりからの秒。ブラウザの中で変換するときは、シークすると、
-  // 新しい開始位置で読み直す (設計書 7.2)。kyusu の HLS では、画質を変えたときに続きから読む位置に使う。
-  const [offset, setOffset] = useState(0);
-  // base は、読み込んだ映像の最初のフレームの、video の時刻。変換した映像の時刻は 0 から始まるとは限らない。
-  const base = useRef(0);
-  // phase は、読み込みの段階。読み直している間に、前の映像の時刻で位置を動かさないよう、base を決めるまで位置を更新しない。
-  const phase = useRef<'loading' | 'awaitingBase' | 'playing'>('loading');
-  const [position, setPosition] = useState(0);
-  // positionRef は、画面の外に出たときに、戻ってから続ける位置。
-  const positionRef = useRef(0);
-  const [seeking, setSeeking] = useState<number | null>(null);
-  const [paused, setPaused] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const recording = data.node?.__typename === 'Recording' ? data.node : null;
   const duration =
     recording === null
@@ -136,6 +133,27 @@ function Player({ recordingId }: { recordingId: string }) {
             1000,
           0,
         );
+  // resumeAt は、前回の続きから再生する位置 (秒)。続きがなければ 0 (設計書 7.5)。
+  // Int64 は Relay の型では any になるので、数に直す。
+  const savedMs = recording?.watchPositionMs == null ? null : Number(recording.watchPositionMs);
+  const [resumeAt] = useState(() => resumePosition(savedMs, duration));
+  // kyusu の HLS は、録画の全体を 1 つのプレイリストで表すので、video の時刻がそのまま録画の中の位置になる。
+  const hls = route.kind === 'kyusu';
+  // offset は、今の読み込みを始めた、録画の始まりからの秒。ブラウザの中で変換するときは、シークすると、
+  // 新しい開始位置で読み直す (設計書 7.2)。kyusu の HLS では、画質を変えたときに続きから読む位置に使う。
+  const [offset, setOffset] = useState(resumeAt);
+  // loads は、読み込みを始め直した回数。同じ位置へシークし直したときも、URL を変えて読み直させる。
+  const [loads, setLoads] = useState(0);
+  // base は、読み込んだ映像の最初のフレームの、video の時刻。変換した映像の時刻は 0 から始まるとは限らない。
+  const base = useRef(0);
+  // phase は、読み込みの段階。読み直している間に、前の映像の時刻で位置を動かさないよう、base を決めるまで位置を更新しない。
+  const phase = useRef<'loading' | 'awaitingBase' | 'playing'>('loading');
+  const [position, setPosition] = useState(resumeAt);
+  // positionRef は、画面の外に出たときに、戻ってから続ける位置。
+  const positionRef = useRef(resumeAt);
+  const [seeking, setSeeking] = useState<number | null>(null);
+  const [paused, setPaused] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // currentPosition は、今の再生位置 (録画の始まりからの秒) を返す。実況のコメントを、画面の更新ごとに描くのに使う。
   // timeupdate で更新する position は間隔が粗いので、video の時刻から求め直す。
@@ -154,6 +172,9 @@ function Player({ recordingId }: { recordingId: string }) {
     return playbackPosition(offset, base.current, video.currentTime);
   };
   const channel = recording?.service.jikkyo ?? null;
+  useWatchPositionSaver(recordingId, currentPosition, !paused);
+  // resumed は、続きから再生したことを示すかどうか。最初から再生し直したら消す。
+  const [resumed, setResumed] = useState(resumeAt > 0);
   const jikkyo = useRecordedJikkyo(
     channel !== null && jikkyoEnabled && recording !== null ? recording.jikkyoCommentsUrl : null,
     currentPosition,
@@ -166,6 +187,7 @@ function Player({ recordingId }: { recordingId: string }) {
     positionRef.current = seconds;
     setPosition(seconds);
     setOffset(seconds);
+    setLoads((n) => n + 1);
   };
 
   // seek は、指定の位置に移る。kyusu の HLS は、プレイリストの中を移るだけで、読み直さない。
@@ -192,6 +214,7 @@ function Player({ recordingId }: { recordingId: string }) {
     if (!visible) {
       phase.current = 'loading';
       setOffset(positionRef.current);
+      setLoads((n) => n + 1);
     }
   }, [visible]);
 
@@ -240,7 +263,8 @@ function Player({ recordingId }: { recordingId: string }) {
   if (recording === null) {
     return <Alert color="amber">{t('recordings.notFound')}</Alert>;
   }
-  const url = `${recording.streamUrl}?start=${offset.toFixed(1)}`;
+  // フラグメントはサーバーに送られないので、読み込みを始め直すためだけに使う。
+  const url = `${recording.streamUrl}?start=${offset.toFixed(1)}#${loads}`;
   const onError = () => setError(t('player.error'));
   const shown = seeking ?? position;
 
@@ -325,6 +349,23 @@ function Player({ recordingId }: { recordingId: string }) {
           {formatDuration(shown)} / {formatDuration(duration)}
         </Text>
       </Group>
+      {resumed && (
+        <Group gap="xs">
+          <Text size="sm" c="dimmed">
+            {t('player.resumed', { time: formatDuration(resumeAt) })}
+          </Text>
+          <Button
+            size="compact-sm"
+            variant="subtle"
+            onClick={() => {
+              setResumed(false);
+              seek(0);
+            }}
+          >
+            {t('player.fromStart')}
+          </Button>
+        </Group>
+      )}
       {jikkyo.state !== null && (
         <Text size="xs" c={jikkyo.state.kind === 'error' ? 'red' : 'dimmed'} role="status">
           {jikkyo.state.kind === 'loading'
