@@ -574,10 +574,10 @@ func TestRecorderWaitsBeforeReopeningShortStreams(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 	cancel(nil)
 	_ = wait(t, done)
-	limit := int32(time.Since(started)/(20*time.Millisecond)) + 2
+	limit := int64(time.Since(started)/(20*time.Millisecond)) + 2
 	assert.Greater(t, opened.Load(), int32(5), "it keeps reopening")
-	assert.LessOrEqual(t, opened.Load(), limit)
-	assert.LessOrEqual(t, f.segments(t, reservationID), int(limit))
+	assert.LessOrEqual(t, int64(opened.Load()), limit)
+	assert.LessOrEqual(t, int64(f.segments(t, reservationID)), limit)
 }
 
 // TestRecorderReconnects は、予定の終わりの前にストリームが切れたら、開き直して新しいセグメントに書き、
