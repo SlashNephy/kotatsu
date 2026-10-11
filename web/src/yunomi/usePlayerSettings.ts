@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import {
   fetchQuery,
   graphql,
@@ -43,6 +43,8 @@ export function usePlayerSettings(): Settings & {
       }
     }
   `);
+  // version は、最後に知らされた設定の版数。購読を始めたときに届く今の版数では読み直さない。
+  const version = useRef<number | null>(null);
   const subscription = useMemo(
     () => ({
       subscription: graphql`
@@ -51,8 +53,16 @@ export function usePlayerSettings(): Settings & {
         }
       `,
       variables: {},
-      // 購読を始めたときにも今の版数が届くが、読み直しても同じなので、気にせず読み直す。
-      onNext: () => {
+      onNext: (response: usePlayerSettingsSubscription['response'] | null | undefined) => {
+        const next = response?.viewerSettingsChanged;
+        if (next === undefined) {
+          return;
+        }
+        const previous = version.current;
+        version.current = next;
+        if (previous === null || next <= previous) {
+          return;
+        }
         void fetchQuery<usePlayerSettingsQuery>(
           environment,
           settingsQuery,
@@ -74,10 +84,15 @@ export function usePlayerSettings(): Settings & {
       variables: { input },
       // 切り替えはすぐに画面に出し、失敗したら元に戻す。
       optimisticResponse: { updatePlayerSettings: next },
+      // 続けて切り替えたときに、前の切り替えを上書きしないよう、変えた項目だけを書く。
       optimisticUpdater: (store) => {
         const record = store.getRoot().getLinkedRecord('playerSettings');
-        record?.setValue(next.jikkyoEnabled, 'jikkyoEnabled');
-        record?.setValue(next.captionsEnabled, 'captionsEnabled');
+        if (input.jikkyoEnabled !== undefined) {
+          record?.setValue(input.jikkyoEnabled, 'jikkyoEnabled');
+        }
+        if (input.captionsEnabled !== undefined) {
+          record?.setValue(input.captionsEnabled, 'captionsEnabled');
+        }
       },
       updater: (store) => {
         const updated = store.getRootField('updatePlayerSettings');

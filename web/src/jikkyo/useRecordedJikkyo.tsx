@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { CommentCanvas, type CommentCanvasHandle } from './CommentCanvas';
 import type { JikkyoComment } from './comments';
@@ -21,12 +21,32 @@ export function useRecordedJikkyo(
   clock: () => number,
   drawing: boolean,
 ): { overlay: ReactNode; state: RecordedJikkyoState | null } {
+  // cache は、取った過去ログ。画質を変えて描く canvas が作り直されても、実況を切って入れ直しても、取り直さずに渡す。
+  const cache = useRef(new Map<string, JikkyoComment[]>());
   const canvas = useRef<CommentCanvasHandle | null>(null);
   const [state, setState] = useState<RecordedJikkyoState | null>(null);
+
+  // canvas ができるたびに、取ってある過去ログを渡す。
+  const attach = useCallback(
+    (handle: CommentCanvasHandle | null) => {
+      canvas.current = handle;
+      const comments = url === null ? undefined : cache.current.get(url);
+      if (handle !== null && comments !== undefined) {
+        handle.add(comments);
+      }
+    },
+    [url],
+  );
 
   useEffect(() => {
     if (url === null) {
       setState(null);
+
+      return;
+    }
+    const cached = cache.current.get(url);
+    if (cached !== undefined) {
+      setState({ kind: 'loaded', count: cached.length });
 
       return;
     }
@@ -41,6 +61,7 @@ export function useRecordedJikkyo(
         return (await response.json()) as RecordedComments;
       })
       .then((body) => {
+        cache.current.set(url, body.comments);
         canvas.current?.add(body.comments);
         setState({ kind: 'loaded', count: body.comments.length });
       })
@@ -56,7 +77,7 @@ export function useRecordedJikkyo(
   return {
     overlay:
       url === null ? undefined : (
-        <CommentCanvas key={url} ref={canvas} clock={clock} drawing={drawing} />
+        <CommentCanvas key={url} ref={attach} clock={clock} drawing={drawing} />
       ),
     state,
   };
