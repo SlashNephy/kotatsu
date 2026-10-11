@@ -54,6 +54,7 @@ class FakeWorker extends EventTarget {
 
 beforeEach(() => {
   fake.FakeBrowser.instances = [];
+  players.length = 0;
   vi.stubGlobal('Worker', FakeWorker);
 });
 afterEach(() => {

@@ -67,6 +67,8 @@ export function useDataBroadcast(
     const mediaElement = document.createElement('div');
     mediaElement.style.width = '100%';
     mediaElement.style.height = '100%';
+    // 字幕の canvas は、aribb24.js が絶対位置で映像に重ねるので、その基準にする。
+    mediaElement.style.position = 'relative';
     const browser = new BMLBrowser({
       containerElement: container,
       mediaElement,
