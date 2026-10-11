@@ -103,6 +103,26 @@ export function JikkyoToggle({
   );
 }
 
+// DataBroadcastToggle は、データ放送を出すかどうかの切り替え。
+export function DataBroadcastToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Switch
+      size="sm"
+      label={t('player.dataBroadcast')}
+      checked={checked}
+      onChange={(event) => onChange(event.currentTarget.checked)}
+    />
+  );
+}
+
 // languageNames は、記述子の言語のコード (ISO 639) を、メニューに出す名前にする。知らない言語は、コードのまま出す。
 const languageNames: Record<string, string> = {
   jpn: '日本語',

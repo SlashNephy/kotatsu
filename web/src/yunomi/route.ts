@@ -81,3 +81,22 @@ export function hlsURL(streamUrl: string, preset: string, audio: KyusuAudio): st
 
   return query === undefined ? playlist : `${playlist}?${query}`;
 }
+
+// serviceIDBase は、Mirakurun のサービス ID を組み立てる基数 (networkId × 100000 + serviceId)。
+const serviceIDBase = 100_000;
+
+// DataBroadcastSource は、データ放送の TS を読む先と、その TS の中のサービスの program_number。
+export type DataBroadcastSource = { url: string; serviceId: number };
+
+// dataBroadcastSource は、ライブ視聴の TS の URL から、データ放送用のエンドポイントを返す (設計書 7.4)。
+// URL の最後の部分が、Mirakurun のサービス ID でなければ null を返す。
+export function dataBroadcastSource(streamUrl: string): DataBroadcastSource | null {
+  const [path = '', query] = streamUrl.split('?', 2);
+  const id = Number(path.split('/').pop());
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    return null;
+  }
+  const url = `${path}/data-broadcast`;
+
+  return { url: query === undefined ? url : `${url}?${query}`, serviceId: id % serviceIDBase };
+}

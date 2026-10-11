@@ -1,0 +1,86 @@
+diff --git a/dist/client/bml_browser.d.ts b/dist/client/bml_browser.d.ts
+index eea1a56e8b61cc708a5cc57ae0edc9ffa3553a41..046698bf3752c992ab34b6f73b4ab1e9b338b53b 100644
+--- a/dist/client/bml_browser.d.ts
++++ b/dist/client/bml_browser.d.ts
+@@ -154,6 +154,8 @@ export type BMLBrowserOptions = {
+     indicator?: Indicator;
+     fonts?: BMLBrowserFonts;
+     storagePrefix?: string;
++    /** Kotatsu: web-bml が作る <style> に付ける、CSP の nonce。 */
++    styleNonce?: string;
+     nvramPrefix?: string;
+     broadcasterDatabasePrefix?: string;
+     tabIndex?: number;
+diff --git a/dist/client/bml_browser.js b/dist/client/bml_browser.js
+index 1202f644c601109916f25101418c261a093c9637..a16ce0400d4a1b6a8fbb296ccae1e517e38b68da 100644
+--- a/dist/client/bml_browser.js
++++ b/dist/client/bml_browser.js
+@@ -105,6 +105,8 @@ class BMLBrowser {
+         this.eventQueue.dispatchFocus = this.eventDispatcher.dispatchFocus.bind(this.eventDispatcher);
+         this.eventQueue.dispatchChange = this.eventDispatcher.dispatchChange.bind(this.eventDispatcher);
+         this.content = new content_1.Content(this.bmlDocument, this.documentElement, this.resources, this.eventQueue, this.eventDispatcher, this.interpreter, this.mediaElement, this.eventTarget, this.indicator, options.videoPlaneModeEnabled ?? false, options.inputApplication, options.showErrorMessage, contentLogger);
++        // Kotatsu: Content が作る <style> に付ける、CSP の nonce。
++        this.content.styleNonce = options.styleNonce;
+         this.browserAPI = new browser_1.BrowserAPI(this.resources, this.eventQueue, this.eventDispatcher, this.content, this.nvram, this.interpreter, audioNodeProvider, options.ip ?? {}, this.indicator, options.ureg, options.greg, options.X_DPA_startResidentApp, browserLogger);
+         this.interpreter.setupEnvironment(this.browserAPI, this.resources, this.content, this.epg);
+         if (options.fonts?.roundGothic) {
+diff --git a/dist/client/bml_to_xhtml.js b/dist/client/bml_to_xhtml.js
+index d956f46b155042377919cbf69da3e92bf18c8a41..d6445542037f17935224593f311ab7e2cbacbc78 100644
+--- a/dist/client/bml_to_xhtml.js
++++ b/dist/client/bml_to_xhtml.js
+@@ -133,6 +133,11 @@ function bmlToXHTMLFXP(data, cProfile) {
+                 }
+             }
+         }
++        // Kotatsu: style 属性は CSP に止められるので、別の名前で持ち、Content が CSSOM で書く。
++        if (node[":@"] != null && node[":@"]["@_style"] != null) {
++            node[":@"]["@_web-bml-style"] = node[":@"]["@_style"];
++            delete node[":@"]["@_style"];
++        }
+         if (nodeName == "object" && node[":@"] != null) {
+             node[":@"]["@_arib-type"] = node[":@"]["@_type"];
+             delete node[":@"]["@_type"];
+diff --git a/dist/client/content.js b/dist/client/content.js
+index 9651335bb2a225a3ff6535f873b2c0af92ea2d35..c7018e6590bcc5ddd5e22d353cc8b7e7bd98c3d7 100644
+--- a/dist/client/content.js
++++ b/dist/client/content.js
+@@ -446,6 +446,8 @@ class Content {
+     async loadDocumentToDOM(data) {
+         if (this.uaStyle == null) {
+             this.uaStyle = document.createElement("style");
++            // Kotatsu: CSP の nonce を付ける。
++            this.uaStyle.nonce = this.styleNonce ?? "";
+             this.uaStyle.textContent = this.resources.profile === resource_1.Profile.TrProfileC ? default_c_css_1.defaultCProfileCSS : default_css_1.defaultCSS;
+             this.documentElement.parentNode?.prepend(this.uaStyle);
+         }
+@@ -463,6 +465,7 @@ class Content {
+                 const href = style.getAttribute("href");
+                 if (href != null) {
+                     const newStyle = document.createElement("style");
++                newStyle.nonce = this.styleNonce ?? "";
+                     const res = await this.resources.fetchResourceAsync(href);
+                     if (res != null) {
+                         newStyle.textContent = await (0, transpile_css_1.transpileCSS)(this.decodeText(res.data), { inline: false, clutReader: this.getCLUT.bind(this), convertUrl: this.convertCSSUrl.bind(this) });
+@@ -472,16 +475,19 @@ class Content {
+             }
+             else if (style.textContent) {
+                 const newStyle = document.createElement("style");
++                newStyle.nonce = this.styleNonce ?? "";
+                 newStyle.textContent = await (0, transpile_css_1.transpileCSS)(style.textContent, { inline: false, clutReader: this.getCLUT.bind(this), convertUrl: this.convertCSSUrl.bind(this) });
+                 style.parentElement?.appendChild(newStyle);
+             }
+         }
+-        for (const style of Array.from(documentElement.querySelectorAll("[style]"))) {
+-            const styleAttribute = style.getAttribute("style");
++        // Kotatsu: bmlToXHTMLFXP が退避した style 属性を、CSP に止められない CSSOM で書く。
++        for (const style of Array.from(documentElement.querySelectorAll("[web-bml-style]"))) {
++            const styleAttribute = style.getAttribute("web-bml-style");
++            style.removeAttribute("web-bml-style");
+             if (!styleAttribute) {
+                 continue;
+             }
+-            style.setAttribute("style", await (0, transpile_css_1.transpileCSS)(styleAttribute, { inline: true, clutReader: this.getCLUT.bind(this), convertUrl: this.convertCSSUrl.bind(this) }));
++            style.style.cssText = (await (0, transpile_css_1.transpileCSS)(styleAttribute, { inline: true, clutReader: this.getCLUT.bind(this), convertUrl: this.convertCSSUrl.bind(this) }));
+         }
+         this.documentElement.append(...Array.from(documentElement.children));
+         if (videoElementNew != null) {

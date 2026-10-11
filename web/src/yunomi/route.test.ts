@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'vitest';
 
-import { chooseRoute, hlsURL, qualities, type Capabilities, type Transcoding } from './route';
+import {
+  chooseRoute,
+  dataBroadcastSource,
+  hlsURL,
+  qualities,
+  type Capabilities,
+  type Transcoding,
+} from './route';
 
 const pc: Capabilities = { convert: true, hls: true, hevc: true };
 // iPhone は MediaSource を持たず、ManagedMediaSource で hls.js を動かす。HEVC は再生できる。
@@ -109,5 +116,23 @@ describe('hlsURL', () => {
     },
   ])('$name', ({ streamUrl, audio, want }) => {
     expect(hlsURL(streamUrl, '720p-hevc', audio)).toBe(want);
+  });
+});
+
+describe('dataBroadcastSource', () => {
+  test.each([
+    {
+      name: 'TS の URL に、データ放送のパスを足し、サービス ID の下 5 桁を program_number にする',
+      streamUrl: '/streams/services/3273601024',
+      want: { url: '/streams/services/3273601024/data-broadcast', serviceId: 1024 },
+    },
+    {
+      name: 'クエリは、データ放送のパスの後ろに付け直す',
+      streamUrl: '/streams/services/400101?token=abc',
+      want: { url: '/streams/services/400101/data-broadcast?token=abc', serviceId: 101 },
+    },
+    { name: 'サービス ID でない', streamUrl: '/streams/services/nhk', want: null },
+  ])('$name', ({ streamUrl, want }) => {
+    expect(dataBroadcastSource(streamUrl)).toEqual(want);
   });
 });
