@@ -257,6 +257,10 @@ func TestManualReservationOverridesRuleReservation(t *testing.T) {
 			assert.False(t, got.FollowEventRelay)
 			assert.Equal(t, &reserve.Overrides{EndMarginSeconds: new(120)}, got.Overrides)
 
+			// ルールに一致したまま照合しても、手動の予約のまま変えない。
+			assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0}, f.run(t))
+			assert.Equal(t, reserve.KindProgram, f.reservationOf(t, 5).Kind)
+
 			// ルールに一致しなくなっても、手動の予約は残る。
 			in := &rule.Input{
 				Name: r.Name, Memo: "", Enabled: true,
