@@ -21,7 +21,7 @@ import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, formatBytes } from '../../futon';
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
 import { stateColor, stateKey } from '../../recordings/states';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -76,11 +76,6 @@ const failureKeys = {
   PROGRAM_NOT_FOUND: 'recordings.failure.PROGRAM_NOT_FOUND',
   CANCELLED: 'recordings.failure.CANCELLED',
 } as const;
-
-// formatBytes は、バイト数を、GB か MB で表す。
-function formatBytes(bytes: number): string {
-  return bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : `${(bytes / 1e6).toFixed(1)} MB`;
-}
 
 // RecordingPage は、録画の詳細の画面 (設計書 10.3)。保護、タグ付け、削除と、外部プレイヤーでの再生ができる。
 function RecordingPage() {

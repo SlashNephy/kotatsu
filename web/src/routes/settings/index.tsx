@@ -1,15 +1,22 @@
 import { Card, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
+import { graphql, useLazyLoadQuery } from 'react-relay';
+
+import { ErrorBoundary } from '../../futon';
+import type { settingsViewerQuery } from './__generated__/settingsViewerQuery.graphql';
 
 export const Route = createFileRoute('/settings/')({
   component: SettingsPage,
 });
 
-// SettingsPage は、設定の入り口 (設計書 10.3)。
+type SettingsLink = { to: string; title: string; body: string };
+
+// SettingsPage は、設定の入り口 (設計書 10.3)。管理者には、管理者向けの画面へのリンクも出す。
 function SettingsPage() {
   const { t } = useTranslation();
-  const links = [
+  const links: SettingsLink[] = [
     {
       to: '/settings/account',
       title: t('settings.account.title'),
@@ -25,26 +32,70 @@ function SettingsPage() {
       title: t('viewer.changePassword'),
       body: t('settings.passwordSummary'),
     },
-  ] as const;
+  ];
 
   return (
     <Stack gap="sm">
       <Title order={2} size="h4">
         {t('settings.title')}
       </Title>
-      {links.map((link) => (
-        <Card
-          key={link.to}
-          withBorder
-          padding="sm"
-          renderRoot={(props) => <Link {...props} to={link.to} />}
-        >
-          <Text fw={600}>{link.title}</Text>
-          <Text size="sm" c="dimmed">
-            {link.body}
-          </Text>
-        </Card>
-      ))}
+      <Links links={links} />
+      {/* 管理者かどうかを確かめられなければ、管理者向けのリンクは出さない。画面を使えるかは、サーバーが確かめる。 */}
+      <ErrorBoundary fallback={() => null}>
+        <Suspense fallback={null}>
+          <AdminLinks />
+        </Suspense>
+      </ErrorBoundary>
     </Stack>
   );
+}
+
+function AdminLinks() {
+  const { t } = useTranslation();
+  const data = useLazyLoadQuery<settingsViewerQuery>(
+    graphql`
+      query settingsViewerQuery {
+        viewer {
+          role
+        }
+      }
+    `,
+    {},
+  );
+  if (data.viewer.role !== 'ADMIN') {
+    return null;
+  }
+
+  return (
+    <>
+      <Title order={3} size="h5" mt="sm">
+        {t('settings.adminSection')}
+      </Title>
+      <Links
+        links={[
+          {
+            to: '/admin/system',
+            title: t('admin.system.title'),
+            body: t('admin.system.summary'),
+          },
+        ]}
+      />
+    </>
+  );
+}
+
+function Links({ links }: { links: SettingsLink[] }) {
+  return links.map((link) => (
+    <Card
+      key={link.to}
+      withBorder
+      padding="sm"
+      renderRoot={(props) => <Link {...props} to={link.to} />}
+    >
+      <Text fw={600}>{link.title}</Text>
+      <Text size="sm" c="dimmed">
+        {link.body}
+      </Text>
+    </Card>
+  ));
 }

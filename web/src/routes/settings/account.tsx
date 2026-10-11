@@ -28,7 +28,7 @@ import { PasskeyCancelledError, passkeyAvailable, registerPasskey } from '../../
 import { ErrorBoundary } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { mutate } from '../../settings/mutate';
-import { useReauthGate } from '../../settings/useReauthGate';
+import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import type { accountBeginTotpMutation } from './__generated__/accountBeginTotpMutation.graphql';
 import type { accountConfirmTotpMutation } from './__generated__/accountConfirmTotpMutation.graphql';
@@ -123,15 +123,7 @@ function Account() {
   const [fetchKey, setFetchKey] = useState(0);
   const data = useLazyLoadQuery<accountQuery>(query, {}, { fetchKey, fetchPolicy: 'network-only' });
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const gate = useReauthGate(
-    {
-      totp: data.secondFactors.totp,
-      recoveryCode: data.secondFactors.remainingRecoveryCodes > 0,
-      passkey: data.passkeys.length > 0,
-      oidc,
-    },
-    path,
-  );
+  const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
   const player = usePlayerSettings();
   const [error, setError] = useState<string | null>(null);
   const fail = (caught: unknown) => setError(authErrorMessage(t, caught));

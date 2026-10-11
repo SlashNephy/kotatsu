@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<0fbd50a0a221da403ef9c0be1381c457>>
+ * @generated SignedSource<<c75a73cfaf0c6435d6336078f5962885>>
  * @lightSyntaxTransform
  */
 
@@ -10,12 +10,12 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type useWatchPositionSaverMutation$variables = {
   id: string;
-  positionMs: any;
+  positionMs: number;
 };
 export type useWatchPositionSaverMutation$data = {
   readonly saveWatchPosition: {
     readonly id: string;
-    readonly watchPositionMs: any | null | undefined;
+    readonly watchPositionMs: number | null | undefined;
   };
 };
 export type useWatchPositionSaverMutation = {
