@@ -199,7 +199,9 @@ function Player({ recordingId }: { recordingId: string }) {
   };
 
   // seek は、指定の位置に移る。kyusu の HLS は、プレイリストの中を移るだけで、読み直さない。
-  const seek = (seconds: number) => {
+  const seek = (target: number) => {
+    // 録画の外へは移らない。OS のメディア操作からも、範囲の外の位置が届くことがある。
+    const seconds = Math.min(Math.max(target, 0), duration);
     const video = videoRef.current;
     if (hls && video !== null) {
       video.currentTime = seconds;
@@ -243,8 +245,7 @@ function Player({ recordingId }: { recordingId: string }) {
     }
   };
   // skip は、今の位置から seconds 秒だけ進むか戻る。
-  const skip = (seconds: number) =>
-    seek(Math.min(Math.max(currentPosition() + seconds, 0), duration));
+  const skip = (seconds: number) => seek(currentPosition() + seconds);
   usePlayerShortcuts({
     togglePlay,
     seekBackward: () => skip(-10),

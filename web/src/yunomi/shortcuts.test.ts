@@ -26,7 +26,23 @@ describe('shortcutFor', () => {
     { name: '入力欄の中では使わない', key: ' ', target: input, ctrlKey: false, want: null },
     { name: '修飾キーと一緒なら使わない', key: 'c', target: body, ctrlKey: true, want: null },
     { name: '割り当てのないキー', key: 'x', target: body, ctrlKey: false, want: null },
-  ])('$name', ({ key, target, ctrlKey, want }) => {
-    expect(shortcutFor({ key, target, ctrlKey, metaKey: false, altKey: false })).toBe(want);
+    {
+      name: '押し続けても、切り替えは繰り返さない',
+      key: ' ',
+      target: body,
+      ctrlKey: false,
+      repeat: true,
+      want: null,
+    },
+    {
+      name: '押し続けると、シークは繰り返す',
+      key: 'ArrowRight',
+      target: body,
+      ctrlKey: false,
+      repeat: true,
+      want: 'seekForward',
+    },
+  ])('$name', ({ key, target, ctrlKey, repeat = false, want }) => {
+    expect(shortcutFor({ key, target, ctrlKey, metaKey: false, altKey: false, repeat })).toBe(want);
   });
 });

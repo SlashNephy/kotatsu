@@ -118,16 +118,13 @@ export function TsPlayer({
   }, [captions]);
 
   // 聞く音声を選ぶ。切り替えは、これから変換する部分から効く (設計書 12 章のデュアルモノ)。
+  // 読み直すとプレイヤーが既定の音声に戻ることがあるので、読み直すたびにも選び直す。
+  const audioRef = useRef(audio);
+  audioRef.current = audio;
   useEffect(() => {
     const player = playerRef.current;
-    if (!ready || player === null || audio === null) {
-      return;
-    }
-    const [kind, value] = audio.split(':');
-    if (kind === 'stream') {
-      player.selectAudio(Number(value));
-    } else if (kind === 'dualMono') {
-      player.selectDualMono(value === 'sub');
+    if (ready && player !== null) {
+      selectAudio(player, audio);
     }
   }, [ready, audio]);
 
@@ -144,6 +141,7 @@ export function TsPlayer({
     }
     let cancelled = false;
     captionsRef.current?.reset();
+    selectAudio(player, audioRef.current);
     player.load(url).then(
       () => {
         if (!cancelled) {
@@ -167,4 +165,17 @@ export function TsPlayer({
       {overlay !== undefined && <div className={classes.overlay}>{overlay}</div>}
     </div>
   );
+}
+
+// selectAudio は、audioChoices の値 choice の音声を、プレイヤーに選ばせる。null なら、何もしない。
+function selectAudio(player: Mpeg2TsPlayer, choice: string | null): void {
+  if (choice === null) {
+    return;
+  }
+  const [kind, value] = choice.split(':');
+  if (kind === 'stream') {
+    player.selectAudio(Number(value));
+  } else if (kind === 'dualMono') {
+    player.selectDualMono(value === 'sub');
+  }
 }
