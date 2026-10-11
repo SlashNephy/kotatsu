@@ -16,6 +16,7 @@ permissions: {}
 
 jobs:
   test:
+    name: test (${{ matrix.db }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
