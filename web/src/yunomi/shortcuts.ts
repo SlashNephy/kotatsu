@@ -1,0 +1,55 @@
+// プレイヤーのキーボードショートカット (設計書 7.5)。
+
+export type ShortcutAction =
+  | 'togglePlay'
+  | 'seekBackward'
+  | 'seekForward'
+  | 'toggleCaptions'
+  | 'toggleMute'
+  | 'toggleFullscreen';
+
+type KeyLike = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'repeat'> & {
+  target: EventTarget | null;
+};
+
+// repeatable は、キーを押し続けたときに、繰り返してよい操作。切り替える操作は、押すたびに 1 回だけにする。
+const repeatable: ReadonlySet<ShortcutAction> = new Set(['seekBackward', 'seekForward']);
+
+// shortcutFor は、押したキーに割り当てた操作を返す。文字を入力している欄では、ショートカットにしない。
+export function shortcutFor(event: KeyLike): ShortcutAction | null {
+  const action = actionFor(event);
+
+  return action !== null && event.repeat && !repeatable.has(action) ? null : action;
+}
+
+function actionFor(event: KeyLike): ShortcutAction | null {
+  if (event.ctrlKey || event.metaKey || event.altKey) {
+    return null;
+  }
+  const target = event.target;
+  if (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+  ) {
+    return null;
+  }
+  switch (event.key) {
+    case ' ':
+    case 'k':
+      return 'togglePlay';
+    case 'ArrowLeft':
+    case 'j':
+      return 'seekBackward';
+    case 'ArrowRight':
+    case 'l':
+      return 'seekForward';
+    case 'c':
+      return 'toggleCaptions';
+    case 'm':
+      return 'toggleMute';
+    case 'f':
+      return 'toggleFullscreen';
+    default:
+      return null;
+  }
+}

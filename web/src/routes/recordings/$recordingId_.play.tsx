@@ -20,7 +20,9 @@ import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment'
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { formatDuration, playbackPosition } from '../../yunomi/position';
 import {
+  AudioSelect,
   CaptionsToggle,
+  RateSelect,
   JikkyoToggle,
   PlaybackUnavailable,
   QualitySelect,
@@ -30,6 +32,10 @@ import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useWatchPositionSaver } from '../../yunomi/useWatchPositionSaver';
+import { audioChoices, currentAudioChoice } from '../../yunomi/audio';
+import { useMediaSession } from '../../yunomi/useMediaSession';
+import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
+import type { AudioTracks } from '@mpeg2toh264/player';
 import { resumePosition } from '../../yunomi/resume';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
@@ -92,6 +98,7 @@ function Player({ recordingId }: { recordingId: string }) {
             recordedUntil
             jikkyoCommentsUrl
             watchPositionMs
+            thumbnailUrl
             service {
               name
               jikkyo {
@@ -192,7 +199,9 @@ function Player({ recordingId }: { recordingId: string }) {
   };
 
   // seek は、指定の位置に移る。kyusu の HLS は、プレイリストの中を移るだけで、読み直さない。
-  const seek = (seconds: number) => {
+  const seek = (target: number) => {
+    // 録画の外へは移らない。OS のメディア操作からも、範囲の外の位置が届くことがある。
+    const seconds = Math.min(Math.max(target, 0), duration);
     const video = videoRef.current;
     if (hls && video !== null) {
       video.currentTime = seconds;
@@ -209,6 +218,67 @@ function Player({ recordingId }: { recordingId: string }) {
     startAt(positionRef.current);
     setQuality(next);
   };
+
+  // 音声は、ブラウザの中で変換する経路でだけ選べる。kyusu の経路は、主音声を流す。
+  const [audioTracks, setAudioTracks] = useState<AudioTracks | null>(null);
+  const [audio, setAudio] = useState<string | null>(null);
+  const tracks = route.kind === 'convert' ? audioTracks : null;
+  // 再生速度は、video の要素を作り直したときにも当て直す。
+  const [rate, setRate] = useState(1);
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video !== null) {
+      video.defaultPlaybackRate = rate;
+      video.playbackRate = rate;
+    }
+  }, [rate, hls, quality, loads]);
+
+  const togglePlay = () => {
+    const video = videoRef.current;
+    if (video === null) {
+      return;
+    }
+    if (video.paused) {
+      void video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  };
+  // skip は、今の位置から seconds 秒だけ進むか戻る。
+  const skip = (seconds: number) => seek(currentPosition() + seconds);
+  usePlayerShortcuts({
+    togglePlay,
+    seekBackward: () => skip(-10),
+    seekForward: () => skip(10),
+    toggleCaptions: () => setCaptions(!captions),
+    toggleMute: () => {
+      const video = videoRef.current;
+      if (video !== null) {
+        video.muted = !video.muted;
+      }
+    },
+    toggleFullscreen: () => {
+      if (document.fullscreenElement === null) {
+        void frameRef.current?.requestFullscreen().catch(() => {});
+      } else {
+        void document.exitFullscreen().catch(() => {});
+      }
+    },
+  });
+  useMediaSession(
+    {
+      title: recording?.name ?? '',
+      artist: recording?.service.name ?? '',
+      artwork: recording?.thumbnailUrl ?? null,
+    },
+    {
+      play: () => void videoRef.current?.play().catch(() => {}),
+      pause: () => videoRef.current?.pause(),
+      seekBackward: () => skip(-10),
+      seekForward: () => skip(10),
+      seekTo: (seconds) => seek(seconds),
+    },
+  );
 
   // 画面の外に出たら、読み込みも止める。戻ったら、止めた位置から読み直す (設計書 7.2)。
   useEffect(() => {
@@ -290,6 +360,12 @@ function Player({ recordingId }: { recordingId: string }) {
         {recording.service.name}
       </Text>
       <Group justify="flex-end" gap="md">
+        <AudioSelect
+          choices={audioChoices(tracks)}
+          value={currentAudioChoice(tracks)}
+          onChange={setAudio}
+        />
+        <RateSelect value={rate} onChange={setRate} />
         {channel !== null && <JikkyoToggle checked={jikkyoEnabled} onChange={setJikkyoEnabled} />}
         <CaptionsToggle checked={captions} onChange={setCaptions} />
         <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
@@ -309,6 +385,8 @@ function Player({ recordingId }: { recordingId: string }) {
             }}
             onError={onError}
             overlay={jikkyo.overlay}
+            onAudio={setAudioTracks}
+            audio={audio}
           />
         )}
         {route.kind === 'kyusu' && (

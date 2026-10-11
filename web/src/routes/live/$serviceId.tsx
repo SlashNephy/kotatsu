@@ -10,6 +10,7 @@ import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import {
+  AudioSelect,
   CaptionsToggle,
   JikkyoToggle,
   PlaybackUnavailable,
@@ -20,6 +21,10 @@ import { hlsURL } from '../../yunomi/route';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
+import { audioChoices, currentAudioChoice } from '../../yunomi/audio';
+import { useMediaSession } from '../../yunomi/useMediaSession';
+import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
+import type { AudioTracks } from '@mpeg2toh264/player';
 import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
 import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordingsQuery.graphql';
@@ -204,6 +209,44 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
     return () => clearTimeout(timer);
   }, [disconnection]);
 
+  // 音声は、ブラウザの中で変換する経路でだけ選べる。kyusu の経路は、主音声を流す。
+  const [audioTracks, setAudioTracks] = useState<AudioTracks | null>(null);
+  const [audio, setAudio] = useState<string | null>(null);
+  const tracks = route.kind === 'convert' ? audioTracks : null;
+  const programName = data.guide[0]?.programs[0]?.name ?? null;
+  const serviceName = data.node?.__typename === 'Service' ? data.node.name : '';
+  usePlayerShortcuts({
+    togglePlay: () => {
+      const video = videoRef.current;
+      if (video?.paused === true) {
+        void video.play().catch(() => {});
+      } else {
+        video?.pause();
+      }
+    },
+    toggleCaptions: () => setCaptions(!captions),
+    toggleMute: () => {
+      const video = videoRef.current;
+      if (video !== null) {
+        video.muted = !video.muted;
+      }
+    },
+    toggleFullscreen: () => {
+      if (document.fullscreenElement === null) {
+        void frameRef.current?.requestFullscreen().catch(() => {});
+      } else {
+        void document.exitFullscreen().catch(() => {});
+      }
+    },
+  });
+  useMediaSession(
+    { title: programName ?? serviceName, artist: serviceName, artwork: null },
+    {
+      play: () => void videoRef.current?.play().catch(() => {}),
+      pause: () => videoRef.current?.pause(),
+    },
+  );
+
   const service = data.node?.__typename === 'Service' ? data.node : null;
   if (service === null) {
     return <Alert color="amber">{t('live.notFound')}</Alert>;
@@ -225,6 +268,11 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
         {data.guide[0]?.programs[0]?.name ?? t('live.noProgram')}
       </Text>
       <Group justify="flex-end" gap="md">
+        <AudioSelect
+          choices={audioChoices(tracks)}
+          value={currentAudioChoice(tracks)}
+          onChange={setAudio}
+        />
         {channel !== null && <JikkyoToggle checked={jikkyoEnabled} onChange={setJikkyoEnabled} />}
         <CaptionsToggle checked={captions} onChange={setCaptions} />
         <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
@@ -247,6 +295,8 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
               }
             }}
             onError={disconnected}
+            onAudio={setAudioTracks}
+            audio={audio}
           />
         )}
         {route.kind === 'kyusu' && (
