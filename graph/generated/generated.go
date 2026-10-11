@@ -302,6 +302,7 @@ type ComplexityRoot struct {
 		SystemStatus            func(childComplexity int) int
 		Tags                    func(childComplexity int) int
 		Transcoding             func(childComplexity int) int
+		TunerServerHealth       func(childComplexity int) int
 		UnreadNotificationCount func(childComplexity int) int
 		Users                   func(childComplexity int) int
 		Viewer                  func(childComplexity int) int
@@ -537,6 +538,11 @@ type ComplexityRoot struct {
 		Types     func(childComplexity int) int
 	}
 
+	TunerServerHealth struct {
+		Degraded      func(childComplexity int) int
+		DegradedSince func(childComplexity int) int
+	}
+
 	TunerServerStatus struct {
 		CheckedAt     func(childComplexity int) int
 		ClockSkewMs   func(childComplexity int) int
@@ -635,6 +641,7 @@ type QueryResolver interface {
 	Viewer(ctx context.Context) (*model.User, error)
 	AuditEvents(ctx context.Context, first int, after *string, filter *model.AuditEventFilter) (*model.AuditEventConnection, error)
 	SystemStatus(ctx context.Context) (*model.SystemStatus, error)
+	TunerServerHealth(ctx context.Context) (*model.TunerServerHealth, error)
 	Node(ctx context.Context, id string) (model.Node, error)
 	ChannelTypes(ctx context.Context) ([]*model.ChannelType, error)
 	Services(ctx context.Context, includeHidden bool) ([]*model.Service, error)
@@ -1978,6 +1985,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Transcoding(childComplexity), true
+	case "Query.tunerServerHealth":
+		if e.ComplexityRoot.Query.TunerServerHealth == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.TunerServerHealth(childComplexity), true
 	case "Query.unreadNotificationCount":
 		if e.ComplexityRoot.Query.UnreadNotificationCount == nil {
 			break
@@ -2918,6 +2931,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Tuner.Types(childComplexity), true
 
+	case "TunerServerHealth.degraded":
+		if e.ComplexityRoot.TunerServerHealth.Degraded == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerHealth.Degraded(childComplexity), true
+	case "TunerServerHealth.degradedSince":
+		if e.ComplexityRoot.TunerServerHealth.DegradedSince == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerHealth.DegradedSince(childComplexity), true
+
 	case "TunerServerStatus.checkedAt":
 		if e.ComplexityRoot.TunerServerStatus.CheckedAt == nil {
 			break
@@ -3328,6 +3354,21 @@ extend type Query {
   auditEvents(first: Int! = 50, after: String, filter: AuditEventFilter): AuditEventConnection!
   "システムの状態。管理者だけが使える (設計書 9.7)。"
   systemStatus: SystemStatus!
+}
+
+"""
+チューナーサーバーにつながっているかどうか (設計書 3.7)。ログイン中の誰でも読め、画面に縮退中であることを示すのに使う。
+理由などの詳しいことは、管理者向けの systemStatus で返す。
+"""
+type TunerServerHealth {
+  "接続できない縮退中かどうか。まだ確かめていなければ false。"
+  degraded: Boolean!
+  "縮退が始まった日時。縮退中でなければ null。"
+  degradedSince: Time
+}
+
+extend type Query {
+  tunerServerHealth: TunerServerHealth!
 }
 `, BuiltIn: false},
 	{Name: "../schema/changes.graphqls", Input: `"""
@@ -5504,6 +5545,16 @@ func (ec *executionContext) childFields_Tuner(ctx context.Context, field graphql
 		return ec.fieldContext_Tuner_fault(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Tuner", field.Name)
+}
+
+func (ec *executionContext) childFields_TunerServerHealth(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "degraded":
+		return ec.fieldContext_TunerServerHealth_degraded(ctx, field)
+	case "degradedSince":
+		return ec.fieldContext_TunerServerHealth_degradedSince(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TunerServerHealth", field.Name)
 }
 
 func (ec *executionContext) childFields_TunerServerStatus(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -11249,6 +11300,38 @@ func (ec *executionContext) fieldContext_Query_systemStatus(_ context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_tunerServerHealth(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_tunerServerHealth(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().TunerServerHealth(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.TunerServerHealth) graphql.Marshaler {
+			return ec.marshalNTunerServerHealth2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐTunerServerHealth(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_tunerServerHealth(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TunerServerHealth(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_node(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15806,6 +15889,52 @@ func (ec *executionContext) _Tuner_fault(ctx context.Context, field graphql.Coll
 }
 func (ec *executionContext) fieldContext_Tuner_fault(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Tuner", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _TunerServerHealth_degraded(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerHealth) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerHealth_degraded(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Degraded, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerHealth_degraded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerHealth", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _TunerServerHealth_degradedSince(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerHealth) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerHealth_degradedSince(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DegradedSince, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerHealth_degradedSince(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerHealth", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _TunerServerStatus_degraded(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerStatus) (ret graphql.Marshaler) {
@@ -20727,6 +20856,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "tunerServerHealth":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_tunerServerHealth(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "node":
 			field := field
 
@@ -23049,6 +23200,49 @@ func (ec *executionContext) _Tuner(ctx context.Context, sel ast.SelectionSet, ob
 	return out
 }
 
+var tunerServerHealthImplementors = []string{"TunerServerHealth"}
+
+func (ec *executionContext) _TunerServerHealth(ctx context.Context, sel ast.SelectionSet, obj *model.TunerServerHealth) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, tunerServerHealthImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TunerServerHealth")
+		case "degraded":
+			out.Values[i] = ec._TunerServerHealth_degraded(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "degradedSince":
+			out.Values[i] = ec._TunerServerHealth_degradedSince(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var tunerServerStatusImplementors = []string{"TunerServerStatus"}
 
 func (ec *executionContext) _TunerServerStatus(ctx context.Context, sel ast.SelectionSet, obj *model.TunerServerStatus) graphql.Marshaler {
@@ -25078,6 +25272,16 @@ func (ec *executionContext) marshalNTuner2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu
 		return graphql.Null
 	}
 	return ec._Tuner(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTunerServerHealth2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐTunerServerHealth(ctx context.Context, sel ast.SelectionSet, v *model.TunerServerHealth) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TunerServerHealth(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNUpdateUserInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐUpdateUserInput(ctx context.Context, v any) (model.UpdateUserInput, error) {

@@ -144,3 +144,18 @@ extend type Query {
   "システムの状態。管理者だけが使える (設計書 9.7)。"
   systemStatus: SystemStatus!
 }
+
+"""
+チューナーサーバーにつながっているかどうか (設計書 3.7)。ログイン中の誰でも読め、画面に縮退中であることを示すのに使う。
+理由などの詳しいことは、管理者向けの systemStatus で返す。
+"""
+type TunerServerHealth {
+  "接続できない縮退中かどうか。まだ確かめていなければ false。"
+  degraded: Boolean!
+  "縮退が始まった日時。縮退中でなければ null。"
+  degradedSince: Time
+}
+
+extend type Query {
+  tunerServerHealth: TunerServerHealth!
+}

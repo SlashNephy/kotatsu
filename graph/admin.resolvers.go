@@ -15,3 +15,8 @@ func (r *queryResolver) AuditEvents(ctx context.Context, first int, after *strin
 func (r *queryResolver) SystemStatus(ctx context.Context) (*model.SystemStatus, error) {
 	return r.systemStatus(ctx)
 }
+
+// TunerServerHealth is the resolver for the tunerServerHealth field.
+func (r *queryResolver) TunerServerHealth(ctx context.Context) (*model.TunerServerHealth, error) {
+	return r.tunerServerHealth(ctx)
+}
