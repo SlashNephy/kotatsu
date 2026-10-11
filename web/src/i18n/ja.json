@@ -34,6 +34,7 @@
     "upcoming": "これからの予約",
     "allReservations": "すべての予約",
     "noReservations": "これから 1 週間の予約はありません"
+  },
   "notifications": {
     "title": "通知",
     "settings": "通知の設定",
