@@ -484,6 +484,8 @@
     "deleteDescription": "録画のファイルを消します。消した録画は元に戻せません。録画履歴は残るので、重複の回避には使い続けます。",
     "deleteError": "削除できませんでした。時間をおいてやり直してください",
     "actionError": "操作できませんでした。時間をおいてやり直してください",
+    "otherFiles": "その他のファイル",
+    "otherFilesDescription": "EPGStation から取り込んだファイルです。ブラウザが対応している形式なら、そのまま再生できます",
     "openExternally": "外部プレイヤー用の URL を発行",
     "streamURLDescription": "VLC や mpv などで開けます。URL は 6 時間で使えなくなります。",
     "unknownEnd": "不明",

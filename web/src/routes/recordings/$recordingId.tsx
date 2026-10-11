@@ -156,7 +156,9 @@ function Recording({ recordingId }: { recordingId: string }) {
             }
             files {
               kind
+              path
               size
+              url
             }
           }
         }
@@ -213,6 +215,8 @@ function Recording({ recordingId }: { recordingId: string }) {
   const tagsChanged = JSON.stringify(tags) !== JSON.stringify(savedTags);
   const segments = recording.files.filter((file) => file.kind === 'SEGMENT');
   const size = segments.reduce((sum, file) => sum + Number(file.size), 0);
+  // others は、EPGStation から取り込んだ、エンコード済みの MP4 のような TS 以外のファイル (設計書 6.3)。
+  const others = recording.files.filter((file) => file.kind === 'OTHER' && file.url != null);
   const failed = (errors: readonly unknown[] | null | undefined) =>
     errors != null && errors.length > 0;
 
@@ -237,16 +241,21 @@ function Recording({ recordingId }: { recordingId: string }) {
               <RecordingThumbnail url={recording.thumbnailUrl} />
             </AspectRatio>
           </Card>
-          <Button
-            renderRoot={(props) => (
-              <Link {...props} to="/recordings/$recordingId/play" params={{ recordingId }} />
-            )}
-          >
-            {t('recordings.play')}
-          </Button>
-          <Button variant="default" onClick={openExternally} loading={creatingURL}>
-            {t('recordings.openExternally')}
-          </Button>
+          {segments.length > 0 && (
+            <Button
+              renderRoot={(props) => (
+                <Link {...props} to="/recordings/$recordingId/play" params={{ recordingId }} />
+              )}
+            >
+              {t('recordings.play')}
+            </Button>
+          )}
+          {/* 外部プレイヤー用の URL は、TS のセグメントを流す。セグメントのない取り込んだ録画では出さない。 */}
+          {segments.length > 0 && (
+            <Button variant="default" onClick={openExternally} loading={creatingURL}>
+              {t('recordings.openExternally')}
+            </Button>
+          )}
           {streamURL !== null && (
             <Stack gap={4}>
               <Text size="xs" c="dimmed">
@@ -336,6 +345,34 @@ function Recording({ recordingId }: { recordingId: string }) {
               )}
             </Stack>
           </Card>
+          {others.length > 0 && (
+            <Card withBorder>
+              <Stack gap="xs">
+                <Text size="sm" fw={700}>
+                  {t('recordings.otherFiles')}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {t('recordings.otherFilesDescription')}
+                </Text>
+                {others.map((file) => (
+                  <Stack key={file.url} gap={4}>
+                    <Text size="sm">
+                      {file.path.split('/').pop()} ・ {formatBytes(Number(file.size))}
+                    </Text>
+                    {/* ブラウザがそのコーデックに対応していれば、そのまま再生できる。 */}
+                    <video
+                      controls
+                      preload="metadata"
+                      src={file.url ?? undefined}
+                      style={{ width: '100%' }}
+                    >
+                      <track kind="captions" />
+                    </video>
+                  </Stack>
+                ))}
+              </Stack>
+            </Card>
+          )}
           <Card withBorder>
             <Stack gap="xs">
               <TagsInput

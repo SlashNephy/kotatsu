@@ -359,6 +359,9 @@ type RecordingFile struct {
 	StartedAt time.Time `json:"startedAt"`
 	// 書き終えた日時。書いている間は null。
 	EndedAt *time.Time `json:"endedAt,omitempty"`
+	// ファイルをそのまま流す URL のパス。その他のファイル (OTHER) だけにあり、ほかの種類では null。
+	// ブラウザがそのコーデックに対応していれば、<video> でそのまま再生できる (設計書 6.3)。
+	URL *string `json:"url,omitempty"`
 }
 
 // 録画の絞り込み。省いた条件は絞り込まない。

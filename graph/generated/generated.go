@@ -365,6 +365,7 @@ type ComplexityRoot struct {
 		PoolID    func(childComplexity int) int
 		Size      func(childComplexity int) int
 		StartedAt func(childComplexity int) int
+		URL       func(childComplexity int) int
 	}
 
 	RecordingGap struct {
@@ -2288,6 +2289,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingFile.StartedAt(childComplexity), true
+	case "RecordingFile.url":
+		if e.ComplexityRoot.RecordingFile.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingFile.URL(childComplexity), true
 
 	case "RecordingGap.from":
 		if e.ComplexityRoot.RecordingGap.From == nil {
@@ -3897,6 +3904,11 @@ type RecordingFile {
   startedAt: Time!
   "書き終えた日時。書いている間は null。"
   endedAt: Time
+  """
+  ファイルをそのまま流す URL のパス。その他のファイル (OTHER) だけにあり、ほかの種類では null。
+  ブラウザがそのコーデックに対応していれば、<video> でそのまま再生できる (設計書 6.3)。
+  """
+  url: String
 }
 
 """
@@ -5293,6 +5305,8 @@ func (ec *executionContext) childFields_RecordingFile(ctx context.Context, field
 		return ec.fieldContext_RecordingFile_startedAt(ctx, field)
 	case "endedAt":
 		return ec.fieldContext_RecordingFile_endedAt(ctx, field)
+	case "url":
+		return ec.fieldContext_RecordingFile_url(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingFile", field.Name)
 }
@@ -13382,6 +13396,29 @@ func (ec *executionContext) _RecordingFile_endedAt(ctx context.Context, field gr
 }
 func (ec *executionContext) fieldContext_RecordingFile_endedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RecordingFile", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingFile_url(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingFile_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingFile_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingFile", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _RecordingGap_from(ctx context.Context, field graphql.CollectedField, obj *model.RecordingGap) (ret graphql.Marshaler) {
@@ -22105,6 +22142,11 @@ func (ec *executionContext) _RecordingFile(ctx context.Context, sel ast.Selectio
 			}
 		case "endedAt":
 			out.Values[i] = ec._RecordingFile_endedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._RecordingFile_url(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
