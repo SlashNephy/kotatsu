@@ -8,7 +8,7 @@
 # 置くもの:
 #   web/vendor/mpeg2toh264/player  @mpeg2toh264/player (MIT)。変換のワーカーを含む
 #   web/vendor/mpeg2toh264/yadif   @mpeg2toh264/yadif (LGPL-2.1-or-later)。差し替えられるよう、別のパッケージのままにする
-#   web/public/mpeg2toh264/        変換に使う WebAssembly。明示的な URL で配信する
+#   web/public/mpeg2toh264/        変換に使う WebAssembly と、yadif のライセンス文書とソースの入手先。明示的な URL で配信する
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -85,5 +85,15 @@ rm -rf "$public"
 mkdir -p "$public"
 cp "$src/packages/player/wasm/mpeg2toh264_wasm_bg.wasm" "$public/mpeg2toh264_wasm_bg.wasm"
 cp "$src/LICENSE" "$public/LICENSE"
+# yadif は LGPL なので、配信する SPA に、ライセンス文書とソースの入手先を含める (付録 B)。
+cp "$src/packages/yadif/LICENSE" "$public/yadif-LICENSE"
+cat >"$public/yadif-SOURCE" <<EOF
+@mpeg2toh264/yadif (LGPL-2.1-or-later) is built from the following source.
+Its license is in yadif-LICENSE next to this file.
+
+repository: $repository
+commit: $commit
+directory: packages/yadif
+EOF
 
 echo "built mpeg2toh264 $commit"
