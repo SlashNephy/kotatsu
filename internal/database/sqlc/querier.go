@@ -175,7 +175,8 @@ type Querier interface {
 	ListEPGChangesSince(ctx context.Context, version int64) ([]ListEPGChangesSinceRow, error)
 	// ルール予約の録画設定に使う、一致したルールのうち最も古いものの上書き。
 	ListFirstRuleSettings(ctx context.Context, reservationIds []uuid.UUID) ([]ListFirstRuleSettingsRow, error)
-	// 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。
+	// 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。照合の対象の番組 (ListMatchablePrograms) とそろえる。
+	// 録画は開始マージンとチューニングの時間だけ前に始まるので、録画中かどうか (recording) も返す。録画中の予約は、照合で消さない (設計書 4.3)。
 	ListFutureProgramReservations(ctx context.Context, now time.Time) ([]ListFutureProgramReservationsRow, error)
 	ListFutureReservationRules(ctx context.Context, now time.Time) ([]ReservationRule, error)
 	// 番組表の並び順のサービス。チャンネル種別の並び順、管理者の上書き、リモコンのキー、サービス ID の順に並べる。
@@ -289,6 +290,8 @@ type Querier interface {
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) (int32, error)
 	RecordOIDCIdentityUse(ctx context.Context, arg RecordOIDCIdentityUseParams) error
 	RecordPasskeyUse(ctx context.Context, arg RecordPasskeyUseParams) error
+	// 割り振りが残っているかどうか。予約を消すと、割り振りも一緒に消える。
+	RecordingAssignmentExists(ctx context.Context, id uuid.UUID) (bool, error)
 	// 期限をすぐに切れさせて、他のインスタンスがすぐに取れるようにする。世代番号は残す。
 	ReleaseLease(ctx context.Context, arg ReleaseLeaseParams) error
 	// 止まる mikan が、引き継ぐ mikan がいないときに、割り振りを手放す。再起動した mikan が、リースが切れるのを待たずに取れる。

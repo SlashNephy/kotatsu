@@ -62,6 +62,10 @@ RETURNING a.id, a.reservation_id, a.priority, a.generation, target.previous_stat
 UPDATE recording_assignments SET lease_expires_at = @expires_at, updated_at = @now
 WHERE id = @id AND generation = @generation AND holder = @holder AND state IN ('recording', 'handover') AND lease_expires_at > @now::timestamptz;
 
+-- name: RecordingAssignmentExists :one
+-- 割り振りが残っているかどうか。予約を消すと、割り振りも一緒に消える。
+SELECT EXISTS (SELECT 1 FROM recording_assignments WHERE id = @id);
+
 -- name: MarkRecordingHandover :execrows
 -- 止まる mikan が、割り振りに引き継ぎ待ちの印を付ける (設計書 5.4)。
 UPDATE recording_assignments SET state = 'handover', updated_at = @now

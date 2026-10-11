@@ -162,6 +162,39 @@ func TestWorkerStopsWhenLeaseIsLost(t *testing.T) {
 		"the old mikan does not finish the assignment")
 }
 
+// TestWorkerKeepsSessionWhenAssignmentDeleted は、録画中に予約が消され、割り振りも消えたとき、
+// ほかの mikan が取ったとは扱わず、録画を終えるのを Session に任せることを確かめる (#304)。
+func TestWorkerKeepsSessionWhenAssignmentDeleted(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.assignOne(t)
+	causes := make(chan error, 1)
+	release := make(chan struct{})
+	f.startWorker(t, id.New(), func(ctx context.Context, _ *recording.Assignment) error {
+		select {
+		case <-ctx.Done():
+			causes <- context.Cause(ctx)
+		case <-release:
+		}
+
+		return nil
+	})
+	require.Eventually(t, func() bool {
+		return f.assignment(t, reservationID).generation == 1
+	}, waitTimeout, 20*time.Millisecond)
+
+	_, err := f.pool.Exec(t.Context(), "DELETE FROM reservations WHERE id = $1", reservationID)
+	require.NoError(t, err)
+	// リースを延長する間隔 (20 ミリ秒) の何倍も待っても、Session を止めない。
+	select {
+	case cause := <-causes:
+		t.Fatalf("the session was stopped: %v", cause)
+	case <-time.After(500 * time.Millisecond):
+	}
+	close(release)
+}
+
 // TestWorkerTakesOverExpiredLease は、リースが切れたまま延長されない割り振りを、別の mikan が世代を進めて取ることを確かめる (設計書 1.5)。
 func TestWorkerTakesOverExpiredLease(t *testing.T) {
 	t.Parallel()

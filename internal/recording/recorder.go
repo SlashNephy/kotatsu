@@ -291,7 +291,7 @@ func (r *Recorder) finish(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, end endReason, result *sessionResult, disconnected bool,
 ) error {
 	if end == endCancelled {
-		logger.InfoContext(ctx, "the reservation was disabled while recording")
+		logger.InfoContext(ctx, "the reservation was disabled or deleted while recording")
 
 		return r.fail(ctx, assignment, recording, FailureCancelled)
 	}
@@ -392,6 +392,10 @@ func (r *Recorder) waitUntilOpen(ctx context.Context, assignment *Assignment) (s
 	defer ticker.Stop()
 	for {
 		reservation, err := sqlc.New(r.pool).GetReservationForRecording(ctx, assignment.ReservationID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			// 録画を始める前に予約が消された。無効にしたときと同じく、録画せずに終える。
+			return reservation, false, nil
+		}
 		if err != nil {
 			return reservation, false, fmt.Errorf("failed to get the reservation: %w", err)
 		}
@@ -672,6 +676,10 @@ func (t *endTracker) check(ctx context.Context) endReason {
 	r := t.recorder
 	q := sqlc.New(r.pool)
 	reservation, err := q.GetReservationForRecording(ctx, t.reservationID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// 録画中に予約が消された。無効にしたときと同じく、取り消しとして終える。
+		return endCancelled
+	}
 	if err != nil {
 		if ctx.Err() == nil {
 			r.logger.WarnContext(ctx, "failed to reload the reservation", slog.Any("error", err))

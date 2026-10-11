@@ -357,7 +357,7 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 
 		return
 	}
-	if n == 0 {
+	if n == 0 && !w.assignmentDeleted(ctx, assignment.ID, logger) {
 		logger.WarnContext(ctx, "the recording assignment was taken over before it finished")
 	}
 }
@@ -393,6 +393,11 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 		case n == 0 && active.handingOver.Load():
 			// 引き継ぎ待ちの間に世代が進んだのは、ほかの mikan が取ったからである。ストリームを開くまで録り続ける。
 			return
+		case n == 0 && w.assignmentDeleted(ctx, assignment.ID, logger):
+			// 録画中に予約が消され、割り振りも一緒に消えた。録画は、予約を読み直したときに取り消しとして終える。
+			logger.InfoContext(ctx, "the recording assignment was deleted with its reservation")
+
+			return
 		case n == 0:
 			cancel(ErrLeaseLost)
 
@@ -401,6 +406,18 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 			expiresAt = now.Add(w.opts.LeaseTTL)
 		}
 	}
+}
+
+// assignmentDeleted は、割り振りが DB から消えたかどうかを返す。確かめられなければ、消えていないとみなす。
+func (w *Worker) assignmentDeleted(ctx context.Context, id uuid.UUID, logger *slog.Logger) bool {
+	exists, err := sqlc.New(w.pool).RecordingAssignmentExists(ctx, id)
+	if err != nil {
+		logger.WarnContext(ctx, "failed to check the recording assignment", slog.Any("error", err))
+
+		return false
+	}
+
+	return !exists
 }
 
 // orDefault は、v が 0 以下なら d を返す。
