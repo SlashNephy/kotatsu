@@ -197,6 +197,15 @@ func TestEngineFollowsEventRelaySettingOfRules(t *testing.T) {
 	assert.True(t, f.reservationOf(t, 5).FollowEventRelay)
 }
 
+// unmatchedInput は、ルール r を、どの番組にも一致しない条件に変える入力を返す。
+func unmatchedInput(r *rule.Rule) *rule.Input {
+	return &rule.Input{
+		Name: r.Name, Memo: "", Enabled: true,
+		Conditions: &match.Conditions{Keywords: []*match.Keyword{{Text: "一致しない", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldName}}}},
+		Overrides:  nil, ValidFrom: nil, ValidUntil: nil, AvoidDuplicates: false, DuplicateWindowDays: nil, FollowEventRelay: true,
+	}
+}
+
 // TestEngineDeletesReservationsThatNoLongerMatch は、どのルールにも一致しなくなった録画前の予約を消し、
 // 放送が始まった予約は残すことを確かめる。
 func TestEngineDeletesReservationsThatNoLongerMatch(t *testing.T) {
@@ -208,11 +217,7 @@ func TestEngineDeletesReservationsThatNoLongerMatch(t *testing.T) {
 
 	// eventId 5 (13:00〜) の放送が始まった後に、ルールがどちらにも一致しなくなる。
 	f.clock.Advance(time.Hour)
-	in := &rule.Input{
-		Name: r.Name, Memo: "", Enabled: true,
-		Conditions: &match.Conditions{Keywords: []*match.Keyword{{Text: "一致しない", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldName}}}},
-		Overrides:  nil, ValidFrom: nil, ValidUntil: nil, AvoidDuplicates: false, DuplicateWindowDays: nil, FollowEventRelay: true,
-	}
+	in := unmatchedInput(r)
 	_, err := f.rules.Update(t.Context(), f.pool, f.user, r.ID, in)
 	require.NoError(t, err)
 
@@ -239,11 +244,7 @@ func TestEngineKeepsReservationsWhoseRecordingStarted(t *testing.T) {
 	// ルールに一致したままなら、何も変えない。録画中の予約を作り直そうとしない。
 	assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0}, f.run(t))
 
-	in := &rule.Input{
-		Name: r.Name, Memo: "", Enabled: true,
-		Conditions: &match.Conditions{Keywords: []*match.Keyword{{Text: "一致しない", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldName}}}},
-		Overrides:  nil, ValidFrom: nil, ValidUntil: nil, AvoidDuplicates: false, DuplicateWindowDays: nil, FollowEventRelay: true,
-	}
+	in := unmatchedInput(r)
 	_, err = f.rules.Update(t.Context(), f.pool, f.user, r.ID, in)
 	require.NoError(t, err)
 
@@ -293,11 +294,7 @@ func TestManualReservationOverridesRuleReservation(t *testing.T) {
 			assert.Equal(t, reserve.KindProgram, f.reservationOf(t, 5).Kind)
 
 			// ルールに一致しなくなっても、手動の予約は残る。
-			in := &rule.Input{
-				Name: r.Name, Memo: "", Enabled: true,
-				Conditions: &match.Conditions{Keywords: []*match.Keyword{{Text: "一致しない", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldName}}}},
-				Overrides:  nil, ValidFrom: nil, ValidUntil: nil, AvoidDuplicates: false, DuplicateWindowDays: nil, FollowEventRelay: true,
-			}
+			in := unmatchedInput(r)
 			_, err = f.rules.Update(t.Context(), f.pool, f.user, r.ID, in)
 			require.NoError(t, err)
 			assert.Equal(t, 0, f.run(t).Deleted)
