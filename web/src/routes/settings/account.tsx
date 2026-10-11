@@ -1,0 +1,582 @@
+import {
+  Alert,
+  Anchor,
+  Badge,
+  Button,
+  Card,
+  Code,
+  Fieldset,
+  Group,
+  Image,
+  PinInput,
+  SimpleGrid,
+  Stack,
+  Switch,
+  Text,
+  TextInput,
+  Title,
+} from '@mantine/core';
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { Suspense, startTransition, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
+import { renderSVG } from 'uqr';
+
+import { authApi, type OIDCStatus } from '../../auth/api';
+import { authErrorMessage } from '../../auth/messages';
+import { PasskeyCancelledError, passkeyAvailable, registerPasskey } from '../../auth/passkey';
+import { ErrorBoundary } from '../../futon';
+import { isUnauthenticated } from '../../relay/environment';
+import { mutate } from '../../settings/mutate';
+import { useReauthGate } from '../../settings/useReauthGate';
+import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
+import type { accountBeginTotpMutation } from './__generated__/accountBeginTotpMutation.graphql';
+import type { accountConfirmTotpMutation } from './__generated__/accountConfirmTotpMutation.graphql';
+import type { accountDeletePasskeyMutation } from './__generated__/accountDeletePasskeyMutation.graphql';
+import type { accountDeleteTotpMutation } from './__generated__/accountDeleteTotpMutation.graphql';
+import type { accountQuery } from './__generated__/accountQuery.graphql';
+import type { accountRegenerateMutation } from './__generated__/accountRegenerateMutation.graphql';
+import type { accountRenamePasskeyMutation } from './__generated__/accountRenamePasskeyMutation.graphql';
+import type { accountRevokeSessionMutation } from './__generated__/accountRevokeSessionMutation.graphql';
+
+const oidcDisabled: OIDCStatus = { enabled: false, displayName: '' };
+const path = '/settings/account';
+
+export const Route = createFileRoute('/settings/account')({
+  // IdP での再認証を出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
+  loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
+  component: AccountPage,
+});
+
+const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+  timeZone: 'Asia/Tokyo',
+});
+
+// AccountPage は、ログイン中のユーザーの個人の設定 (設計書 10.3)。プレイヤー、セッション、パスキー、第二要素を扱う。
+function AccountPage() {
+  const { t } = useTranslation();
+
+  return (
+    <Stack gap="md">
+      <Anchor component={Link} to="/settings" size="sm">
+        {t('settings.back')}
+      </Anchor>
+      <Title order={2} size="h4">
+        {t('settings.account.title')}
+      </Title>
+      <ErrorBoundary
+        fallback={(error) =>
+          isUnauthenticated(error) ? (
+            <Alert color="amber">
+              <Anchor component={Link} to="/login">
+                {t('guide.signedOut')}
+              </Anchor>
+            </Alert>
+          ) : (
+            <Alert color="amber">{t('viewer.error')}</Alert>
+          )
+        }
+      >
+        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+          <Account />
+        </Suspense>
+      </ErrorBoundary>
+    </Stack>
+  );
+}
+
+const query = graphql`
+  query accountQuery {
+    secondFactors {
+      totp
+      remainingRecoveryCodes
+    }
+    passkeys {
+      id
+      name
+      createdAt
+      lastUsedAt
+    }
+    sessions {
+      id
+      current
+      createdAt
+      lastSeenAt
+      userAgent
+      sourceIp
+    }
+  }
+`;
+
+function Account() {
+  const { t } = useTranslation();
+  const environment = useRelayEnvironment();
+  const oidc = Route.useLoaderData();
+  // fetchKey を変えると、読み直す。登録や削除の後に、一覧を新しくするのに使う。
+  // 読み直す間も画面を出したままにして、作り直したリカバリーコードなどの表示を消さないよう、transition の中で変える。
+  const [fetchKey, setFetchKey] = useState(0);
+  const data = useLazyLoadQuery<accountQuery>(query, {}, { fetchKey, fetchPolicy: 'network-only' });
+  const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
+  const gate = useReauthGate(
+    {
+      totp: data.secondFactors.totp,
+      recoveryCode: data.secondFactors.remainingRecoveryCodes > 0,
+      passkey: data.passkeys.length > 0,
+      oidc,
+    },
+    path,
+  );
+  const player = usePlayerSettings();
+  const [error, setError] = useState<string | null>(null);
+  const fail = (caught: unknown) => setError(authErrorMessage(t, caught));
+  // run は、前の操作のエラーを消してから、操作を行う。
+  const run: Run = (operation, onError) => {
+    setError(null);
+    gate.run(operation, onError);
+  };
+
+  return (
+    <Stack gap="md">
+      {gate.modal}
+      {error !== null && (
+        <Alert color="red" role="alert" withCloseButton onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      <Card withBorder>
+        <Stack gap="xs">
+          <Title order={3} size="h5">
+            {t('settings.account.player')}
+          </Title>
+          <Switch
+            label={t('settings.account.jikkyo')}
+            checked={player.jikkyoEnabled}
+            onChange={(event) => player.setJikkyoEnabled(event.currentTarget.checked)}
+          />
+          <Switch
+            label={t('settings.account.captions')}
+            checked={player.captionsEnabled}
+            onChange={(event) => player.setCaptionsEnabled(event.currentTarget.checked)}
+          />
+        </Stack>
+      </Card>
+
+      {/* 操作の途中は、ほかのボタンを押せないようにする。 */}
+      <Fieldset variant="unstyled" disabled={gate.busy} p={0} m={0} miw={0}>
+        <Stack gap="md">
+          <TwoFactor
+            totp={data.secondFactors.totp}
+            remaining={data.secondFactors.remainingRecoveryCodes}
+            onChanged={refresh}
+            run={run}
+            fail={fail}
+            environment={environment}
+          />
+
+          <Passkeys
+            passkeys={data.passkeys}
+            onChanged={refresh}
+            run={run}
+            fail={fail}
+            environment={environment}
+          />
+
+          <Card withBorder>
+            <Stack gap="xs">
+              <Title order={3} size="h5">
+                {t('settings.account.sessions')}
+              </Title>
+              {data.sessions.map((session) => (
+                <Group
+                  key={session.id}
+                  justify="space-between"
+                  wrap="nowrap"
+                  data-session={session.id}
+                >
+                  <Stack gap={0} miw={0} flex={1}>
+                    <Group gap="xs">
+                      <Text size="sm" truncate>
+                        {session.userAgent || t('settings.account.unknownDevice')}
+                      </Text>
+                      {session.current && (
+                        <Badge size="xs" variant="light">
+                          {t('settings.account.thisSession')}
+                        </Badge>
+                      )}
+                    </Group>
+                    <Text size="xs" c="dimmed">
+                      {t('settings.account.sessionTimes', {
+                        lastSeen: dateTimeFormat.format(Date.parse(session.lastSeenAt)),
+                        source: session.sourceIp ?? '-',
+                      })}
+                    </Text>
+                  </Stack>
+                  {!session.current && (
+                    <Button
+                      size="compact-sm"
+                      variant="default"
+                      flex="none"
+                      onClick={() =>
+                        run(async () => {
+                          await mutate<accountRevokeSessionMutation>(
+                            environment,
+                            graphql`
+                              mutation accountRevokeSessionMutation($id: ID!) {
+                                revokeSession(id: $id)
+                              }
+                            `,
+                            { id: session.id },
+                          );
+                          refresh();
+                        }, fail)
+                      }
+                    >
+                      {t('settings.account.revoke')}
+                    </Button>
+                  )}
+                </Group>
+              ))}
+            </Stack>
+          </Card>
+        </Stack>
+      </Fieldset>
+
+      <Anchor component={Link} to="/settings/password" size="sm">
+        {t('viewer.changePassword')}
+      </Anchor>
+    </Stack>
+  );
+}
+
+type Run = ReturnType<typeof useReauthGate>['run'];
+
+type SectionProps = {
+  onChanged: () => void;
+  run: Run;
+  fail: (error: unknown) => void;
+  environment: ReturnType<typeof useRelayEnvironment>;
+};
+
+// TwoFactor は、認証アプリ (TOTP) とリカバリーコード。登録と削除、リカバリーコードの作り直しは、再認証してから行う。
+function TwoFactor({
+  totp,
+  remaining,
+  onChanged,
+  run,
+  fail,
+  environment,
+}: SectionProps & { totp: boolean; remaining: number }) {
+  const { t } = useTranslation();
+  const [enrollment, setEnrollment] = useState<{ secret: string; uri: string } | null>(null);
+  const [code, setCode] = useState('');
+  const [codes, setCodes] = useState<readonly string[] | null>(null);
+
+  const begin = () =>
+    run(async () => {
+      const response = await mutate<accountBeginTotpMutation>(
+        environment,
+        graphql`
+          mutation accountBeginTotpMutation {
+            beginTotpEnrollment {
+              secret
+              uri
+            }
+          }
+        `,
+        {},
+      );
+      setEnrollment(response.beginTotpEnrollment);
+      setCode('');
+      setCodes(null);
+    }, fail);
+  const confirm = () =>
+    run(async () => {
+      const response = await mutate<accountConfirmTotpMutation>(
+        environment,
+        graphql`
+          mutation accountConfirmTotpMutation($code: String!) {
+            confirmTotpEnrollment(code: $code) {
+              codes
+            }
+          }
+        `,
+        { code },
+      );
+      setEnrollment(null);
+      setCodes(response.confirmTotpEnrollment.codes);
+      onChanged();
+    }, fail);
+  const remove = () =>
+    run(async () => {
+      await mutate<accountDeleteTotpMutation>(
+        environment,
+        graphql`
+          mutation accountDeleteTotpMutation {
+            deleteTotp {
+              totp
+            }
+          }
+        `,
+        {},
+      );
+      // 認証アプリの登録を消すと、リカバリーコードも使えなくなるので、表示していたものを消す。
+      setCodes(null);
+      onChanged();
+    }, fail);
+  const regenerate = () =>
+    run(async () => {
+      const response = await mutate<accountRegenerateMutation>(
+        environment,
+        graphql`
+          mutation accountRegenerateMutation {
+            regenerateRecoveryCodes {
+              codes
+            }
+          }
+        `,
+        {},
+      );
+      setCodes(response.regenerateRecoveryCodes.codes);
+      onChanged();
+    }, fail);
+
+  return (
+    <Card withBorder>
+      <Stack gap="xs">
+        <Title order={3} size="h5">
+          {t('settings.account.twoFactor')}
+        </Title>
+        <Text size="sm">
+          {totp
+            ? t('settings.account.totpEnabled', { count: remaining })
+            : t('settings.account.totpDisabled')}
+        </Text>
+        <Group gap="xs">
+          {totp ? (
+            <>
+              <Button size="compact-sm" variant="default" onClick={regenerate}>
+                {t('settings.account.regenerate')}
+              </Button>
+              <Button size="compact-sm" variant="default" color="red" onClick={remove}>
+                {t('settings.account.deleteTotp')}
+              </Button>
+            </>
+          ) : (
+            enrollment === null && (
+              <Button size="compact-sm" onClick={begin}>
+                {t('settings.account.enrollTotp')}
+              </Button>
+            )
+          )}
+        </Group>
+        {enrollment !== null && (
+          <Stack gap="xs">
+            <Text size="sm">{t('auth.enroll.description')}</Text>
+            <Image
+              src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(renderSVG(enrollment.uri))}`}
+              alt={t('auth.enroll.qr')}
+              w={180}
+              h={180}
+            />
+            <Code>{enrollment.secret}</Code>
+            <PinInput
+              length={6}
+              type="number"
+              oneTimeCode
+              value={code}
+              onChange={setCode}
+              aria-label={t('auth.enroll.code')}
+            />
+            <Group gap="xs">
+              <Button size="compact-sm" disabled={code.length !== 6} onClick={confirm}>
+                {t('settings.account.confirmTotp')}
+              </Button>
+              <Button size="compact-sm" variant="subtle" onClick={() => setEnrollment(null)}>
+                {t('settings.password.cancel')}
+              </Button>
+            </Group>
+          </Stack>
+        )}
+        {codes !== null && (
+          <Alert color="amber" title={t('settings.account.recoveryCodes')}>
+            <Text size="sm">{t('settings.account.recoveryCodesNote')}</Text>
+            <SimpleGrid cols={2} spacing={4} mt="xs">
+              {codes.map((recoveryCode) => (
+                <Code key={recoveryCode}>{recoveryCode}</Code>
+              ))}
+            </SimpleGrid>
+          </Alert>
+        )}
+      </Stack>
+    </Card>
+  );
+}
+
+type PasskeyItem = {
+  id: string;
+  name: string;
+  createdAt: string;
+  lastUsedAt: string | null | undefined;
+};
+
+// Passkeys は、パスキーの一覧と、名前の変更、削除、登録。削除と登録は、再認証してから行う。
+function Passkeys({
+  passkeys,
+  onChanged,
+  run,
+  fail,
+  environment,
+}: SectionProps & { passkeys: readonly PasskeyItem[] }) {
+  const { t } = useTranslation();
+  const [name, setName] = useState('');
+  const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
+  const available = passkeyAvailable();
+
+  const add = () =>
+    run(
+      async () => {
+        await registerPasskey(name.trim());
+        setName('');
+        onChanged();
+      },
+      (caught) => {
+        // 認証器の画面を閉じただけなら、何も示さない。
+        if (!(caught instanceof PasskeyCancelledError)) {
+          fail(caught);
+        }
+      },
+    );
+
+  return (
+    <Card withBorder>
+      <Stack gap="xs">
+        <Title order={3} size="h5">
+          {t('settings.account.passkeys')}
+        </Title>
+        {passkeys.length === 0 && (
+          <Text size="sm" c="dimmed">
+            {t('settings.account.noPasskeys')}
+          </Text>
+        )}
+        {passkeys.map((passkey) => (
+          <Group key={passkey.id} justify="space-between" wrap="nowrap">
+            {editing?.id === passkey.id ? (
+              <TextInput
+                size="xs"
+                miw={0}
+                flex={1}
+                aria-label={t('settings.account.passkeyName')}
+                value={editing.name}
+                onChange={(event) =>
+                  setEditing({ id: passkey.id, name: event.currentTarget.value })
+                }
+              />
+            ) : (
+              <Stack gap={0} miw={0} flex={1}>
+                <Text size="sm" truncate>
+                  {passkey.name}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {t('settings.account.passkeyTimes', {
+                    created: dateTimeFormat.format(Date.parse(passkey.createdAt)),
+                    lastUsed:
+                      passkey.lastUsedAt == null
+                        ? '-'
+                        : dateTimeFormat.format(Date.parse(passkey.lastUsedAt)),
+                  })}
+                </Text>
+              </Stack>
+            )}
+            <Group gap="xs" wrap="nowrap" flex="none">
+              {editing?.id === passkey.id ? (
+                <Button
+                  size="compact-sm"
+                  disabled={editing.name.trim() === ''}
+                  onClick={() =>
+                    run(async () => {
+                      await mutate<accountRenamePasskeyMutation>(
+                        environment,
+                        graphql`
+                          mutation accountRenamePasskeyMutation($id: ID!, $name: String!) {
+                            renamePasskey(id: $id, name: $name) {
+                              id
+                              name
+                            }
+                          }
+                        `,
+                        { id: passkey.id, name: editing.name.trim() },
+                      );
+                      setEditing(null);
+                      onChanged();
+                    }, fail)
+                  }
+                >
+                  {t('settings.account.save')}
+                </Button>
+              ) : null}
+              {editing?.id === passkey.id ? (
+                <Button size="compact-sm" variant="subtle" onClick={() => setEditing(null)}>
+                  {t('settings.password.cancel')}
+                </Button>
+              ) : (
+                <Button
+                  size="compact-sm"
+                  variant="default"
+                  onClick={() => setEditing({ id: passkey.id, name: passkey.name })}
+                >
+                  {t('settings.account.rename')}
+                </Button>
+              )}
+              <Button
+                size="compact-sm"
+                variant="default"
+                color="red"
+                onClick={() =>
+                  run(async () => {
+                    await mutate<accountDeletePasskeyMutation>(
+                      environment,
+                      graphql`
+                        mutation accountDeletePasskeyMutation($id: ID!) {
+                          deletePasskey(id: $id)
+                        }
+                      `,
+                      { id: passkey.id },
+                    );
+                    onChanged();
+                  }, fail)
+                }
+              >
+                {t('settings.account.delete')}
+              </Button>
+            </Group>
+          </Group>
+        ))}
+        {available ? (
+          <Group gap="xs" align="flex-end">
+            <TextInput
+              size="xs"
+              label={t('settings.account.newPasskeyName')}
+              placeholder={t('settings.account.newPasskeyPlaceholder')}
+              value={name}
+              onChange={(event) => setName(event.currentTarget.value)}
+            />
+            <Button size="compact-sm" disabled={name.trim() === ''} onClick={add}>
+              {t('settings.account.addPasskey')}
+            </Button>
+          </Group>
+        ) : (
+          <Text size="xs" c="dimmed">
+            {t('settings.account.passkeyUnavailable')}
+          </Text>
+        )}
+      </Stack>
+    </Card>
+  );
+}

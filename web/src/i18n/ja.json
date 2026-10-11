@@ -176,6 +176,46 @@
     }
   },
   "settings": {
+    "title": "設定",
+    "back": "設定に戻る",
+    "notificationsSummary": "画面内の通知と Web Push で、何を受け取るかを選びます",
+    "passwordSummary": "ログインに使うパスワードを変えます",
+    "reauth": {
+      "title": "もう一度ログインの確認をしてください",
+      "close": "閉じる"
+    },
+    "account": {
+      "title": "アカウント",
+      "summary": "プレイヤー、第二要素、パスキー、ログイン中の端末を管理します",
+      "player": "プレイヤー",
+      "jikkyo": "実況のコメントを出す",
+      "captions": "字幕を出す",
+      "twoFactor": "認証アプリ (第二要素)",
+      "totpEnabled": "認証アプリを登録しています。使っていないリカバリーコードは {{count}} 個です",
+      "totpDisabled": "認証アプリを登録していません",
+      "enrollTotp": "認証アプリを登録する",
+      "confirmTotp": "登録する",
+      "deleteTotp": "認証アプリの登録を消す",
+      "regenerate": "リカバリーコードを作り直す",
+      "recoveryCodes": "リカバリーコード",
+      "recoveryCodesNote": "このコードは、今だけ表示します。認証アプリを使えないときのために、安全な場所に控えてください",
+      "passkeys": "パスキー",
+      "noPasskeys": "パスキーを登録していません",
+      "passkeyName": "パスキーの名前",
+      "passkeyTimes": "登録 {{created}}・最後に使った日時 {{lastUsed}}",
+      "newPasskeyName": "新しいパスキーの名前",
+      "newPasskeyPlaceholder": "例: 自宅の PC",
+      "addPasskey": "パスキーを登録する",
+      "passkeyUnavailable": "この画面ではパスキーを使えません。HTTPS か localhost で開いてください",
+      "rename": "名前を変える",
+      "save": "保存",
+      "delete": "消す",
+      "sessions": "ログイン中の端末",
+      "thisSession": "この端末",
+      "unknownDevice": "不明な端末",
+      "sessionTimes": "最後に使った日時 {{lastSeen}}・送信元 {{source}}",
+      "revoke": "ログアウトさせる"
+    },
     "password": {
       "title": "パスワードの変更",
       "description": "新しいパスワードを入力してください。パスワードをまだ設定していなければ、ここで設定できます。",
@@ -194,6 +234,7 @@
     "rules": "ルール",
     "recordings": "録画",
     "notifications": "通知",
+    "settings": "設定",
     "live": "ライブ"
   },
   "guide": {

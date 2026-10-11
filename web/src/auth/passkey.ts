@@ -1,8 +1,12 @@
 // パスキー (WebAuthn) で確かめる。WebAuthn は、Secure Context (HTTPS か localhost) でしか使えない (設計書 9.3)。
-import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser';
+import {
+  browserSupportsWebAuthn,
+  startAuthentication,
+  startRegistration,
+} from '@simplewebauthn/browser';
 import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
 
-import { AuthError, type PasskeyAssertion } from './api';
+import { AuthError, authApi, type PasskeyAssertion, type RegisteredPasskey } from './api';
 
 // PasskeyCancelledError は、ユーザーがパスキーの確認を取り消したか、使えるパスキーがなかったことを表す。
 // ブラウザーは、プライバシーのため、この 2 つを区別させない。
@@ -39,4 +43,24 @@ export async function verifyWithPasskey<T>(
   }
 
   return confirm(credential);
+}
+
+// registerPasskey は、ログイン中のユーザーに、name という名前のパスキーを登録する。
+// 直前に再認証していなければ、サーバーが REAUTHENTICATION_REQUIRED の AuthError を返す。
+export async function registerPasskey(name: string): Promise<RegisteredPasskey> {
+  if (!passkeyAvailable()) {
+    throw new AuthError(400, 'PASSKEY_UNAVAILABLE', undefined, undefined);
+  }
+  const creation = await authApi.beginPasskeyRegistration();
+  let credential;
+  try {
+    credential = await startRegistration({ optionsJSON: creation.options });
+  } catch (caught) {
+    if (caught instanceof Error && caught.name === 'NotAllowedError') {
+      throw new PasskeyCancelledError();
+    }
+    throw caught;
+  }
+
+  return authApi.confirmPasskeyRegistration(credential, name);
 }
