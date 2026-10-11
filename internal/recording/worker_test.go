@@ -389,7 +389,9 @@ func TestWorkerFinishesDuringHandover(t *testing.T) {
 	f.register(t, id.New())
 	started := make(chan struct{})
 	finish := make(chan struct{})
-	stop := f.startWorker(t, holder, func(ctx context.Context, _ *recording.Assignment) error {
+	// 引き継ぎを待つ時間を長くし、待ちきれずにやめたのではなく、録画を終えたからやめたことを確かめる。
+	// 短いと、引き継ぎ待ちの印がすぐに外れ、遅い環境では、印を見る前に外れることもある。
+	stop := f.startWorkerWithHandoverTimeout(t, holder, waitTimeout, func(ctx context.Context, _ *recording.Assignment) error {
 		close(started)
 		select {
 		case <-ctx.Done():
