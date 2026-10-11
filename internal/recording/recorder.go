@@ -771,6 +771,15 @@ func (r *Recorder) closeSegment(ctx context.Context, recording *sqlc.Recording, 
 	if err := q.CloseRecordingFile(ctx, sqlc.CloseRecordingFileParams{Size: stats.Bytes, EndedAt: &now, ID: seg.fileID}); err != nil {
 		errs = append(errs, fmt.Errorf("failed to save the recording file size: %w", err))
 	}
+	// EPG から音声の構成を写せなかった録画 (時刻予約など) は、TS の EIT[p/f] から読んだもので埋める (設計書 5.3)。
+	// 音声のメニューに使うだけなので、記録できなくても録画の失敗にしない。
+	if audios, ok, err := ts.RecordingAudios(stats.Events, recording.ServiceID, recording.EventID); err != nil {
+		r.logger.WarnContext(ctx, "failed to encode the audio components", slog.Any("error", err))
+	} else if ok {
+		if err := q.SetRecordingAudiosIfUnknown(ctx, sqlc.SetRecordingAudiosIfUnknownParams{Audios: audios, Now: now, ID: recording.ID}); err != nil {
+			r.logger.WarnContext(ctx, "failed to save the audio components", slog.Any("error", err))
+		}
+	}
 	if seg.indexFile != nil {
 		// 索引は、なくても再生できるので、書けなくても録画の失敗にしない。
 		var indexSize int64

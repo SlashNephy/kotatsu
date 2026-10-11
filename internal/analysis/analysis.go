@@ -132,12 +132,14 @@ func (w *AnalyzeWorker) Work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 	}
 	results := make([]*analyzed, 0, len(segments))
 	total := new(ts.PIDStats)
+	events := [][]*ts.EventAudio{}
 	for _, segment := range segments {
 		result, stats, err := w.analyze(ctx, segment)
 		if err != nil {
 			return err
 		}
 		results = append(results, result)
+		events = append(events, stats.Events)
 		for _, pid := range stats.PIDs {
 			total.Drops += pid.Drops
 			total.Errors += pid.Errors
@@ -145,7 +147,16 @@ func (w *AnalyzeWorker) Work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 		}
 	}
 
-	return w.record(ctx, job.Args.RecordingID, results, total)
+	// EPG から音声の構成を写せなかった録画 (取り込んだ録画や時刻予約) は、TS の EIT[p/f] から読んだもので埋める (設計書 6.1)。
+	audios, ok, err := ts.RecordingAudios(ts.MergeEvents(events...), recording.ServiceID, recording.EventID)
+	if err != nil {
+		return fmt.Errorf("failed to encode the audio components: %w", err)
+	}
+	if !ok {
+		audios = nil
+	}
+
+	return w.record(ctx, job.Args.RecordingID, results, total, audios)
 }
 
 // segments は、録画のファイルから TS のセグメントを選ぶ。
@@ -238,7 +249,8 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 }
 
 // record は、索引と集計を記録し、同じトランザクションで、代表画像とプレビュー画像を作るジョブを投入する。
-func (w *AnalyzeWorker) record(ctx context.Context, recordingID uuid.UUID, results []*analyzed, total *ts.PIDStats) error {
+// audios は、TS から読んだ音声の構成の JSON。読めなければ nil。
+func (w *AnalyzeWorker) record(ctx context.Context, recordingID uuid.UUID, results []*analyzed, total *ts.PIDStats, audios []byte) error {
 	now := w.clock.Now()
 	err := pgx.BeginFunc(ctx, w.db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
@@ -256,6 +268,11 @@ func (w *AnalyzeWorker) record(ctx context.Context, recordingID uuid.UUID, resul
 		})
 		if err != nil {
 			return fmt.Errorf("failed to record the stats: %w", err)
+		}
+		if audios != nil {
+			if err := q.SetRecordingAudiosIfUnknown(ctx, sqlc.SetRecordingAudiosIfUnknownParams{Audios: audios, Now: now, ID: recordingID}); err != nil {
+				return fmt.Errorf("failed to record the audio components: %w", err)
+			}
 		}
 		params := []river.InsertManyParams{{Args: thumbnail.GenerateArgs{RecordingID: recordingID}, InsertOpts: nil}}
 		if _, err := w.inserter.InsertManyTx(ctx, tx, params); err != nil {

@@ -372,6 +372,22 @@ func (q *Queries) MarkRecordingProgramLost(ctx context.Context, arg MarkRecordin
 	return err
 }
 
+const setRecordingAudiosIfUnknown = `-- name: SetRecordingAudiosIfUnknown :exec
+UPDATE recordings SET audios = $1, updated_at = $2 WHERE id = $3 AND audios = '[]'::jsonb
+`
+
+type SetRecordingAudiosIfUnknownParams struct {
+	Audios []byte
+	Now    time.Time
+	ID     uuid.UUID
+}
+
+// 録画の音声の構成を、TS の EIT[p/f] から読んだもので埋める。EPG から写したものがあれば、それを残す。
+func (q *Queries) SetRecordingAudiosIfUnknown(ctx context.Context, arg SetRecordingAudiosIfUnknownParams) error {
+	_, err := q.db.Exec(ctx, setRecordingAudiosIfUnknown, arg.Audios, arg.Now, arg.ID)
+	return err
+}
+
 const setRecordingGaps = `-- name: SetRecordingGaps :exec
 UPDATE recordings SET gaps = $1, updated_at = $2 WHERE id = $3
 `
