@@ -401,6 +401,8 @@
     "seek": "再生位置",
     "quality": "画質",
     "captions": "字幕",
+    "resumed": "前回の続き ({{time}}) から再生しています",
+    "fromStart": "最初から再生する",
     "original": "オリジナル (この端末で変換)",
     "preset": "{{name}}",
     "presetHevc": "{{name}} (HEVC)",

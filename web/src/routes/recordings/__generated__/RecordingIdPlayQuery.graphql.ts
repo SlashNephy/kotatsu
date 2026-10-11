@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<c859f4ef0aaec33f4380c8e9b42af729>>
+ * @generated SignedSource<<0886da8defa06d8274ebf659b72c707b>>
  * @lightSyntaxTransform
  */
 
@@ -27,6 +27,7 @@ export type RecordingIdPlayQuery$data = {
       readonly name: string;
     };
     readonly streamUrl: string;
+    readonly watchPositionMs: any | null | undefined;
   } | {
     // This will never be '%other', but we need some
     // value in case none of the concrete values match.
@@ -106,10 +107,17 @@ v8 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "id",
+  "name": "watchPositionMs",
   "storageKey": null
 },
 v9 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "id",
+  "storageKey": null
+},
+v10 = {
   "alias": null,
   "args": null,
   "concreteType": "JikkyoChannel",
@@ -117,12 +125,12 @@ v9 = {
   "name": "jikkyo",
   "plural": false,
   "selections": [
-    (v8/*:: as any*/),
+    (v9/*:: as any*/),
     (v3/*:: as any*/)
   ],
   "storageKey": null
 },
-v10 = {
+v11 = {
   "alias": null,
   "args": null,
   "concreteType": "Transcoding",
@@ -183,6 +191,7 @@ return {
               (v5/*:: as any*/),
               (v6/*:: as any*/),
               (v7/*:: as any*/),
+              (v8/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -192,7 +201,7 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v9/*:: as any*/)
+                  (v10/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -203,7 +212,7 @@ return {
         ],
         "storageKey": null
       },
-      (v10/*:: as any*/)
+      (v11/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -231,6 +240,7 @@ return {
               (v5/*:: as any*/),
               (v6/*:: as any*/),
               (v7/*:: as any*/),
+              (v8/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -240,8 +250,8 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v9/*:: as any*/),
-                  (v8/*:: as any*/)
+                  (v10/*:: as any*/),
+                  (v9/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -249,24 +259,24 @@ return {
             "type": "Recording",
             "abstractKey": null
           },
-          (v8/*:: as any*/)
+          (v9/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v10/*:: as any*/)
+      (v11/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "540dc8a5d84fc8d3ff8517d29a3d5df5",
+    "cacheID": "cc190c381c51d9f4d801cd17b48025af",
     "id": null,
     "metadata": {},
     "name": "RecordingIdPlayQuery",
     "operationKind": "query",
-    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      streamUrl\n      recordedFrom\n      recordedUntil\n      jikkyoCommentsUrl\n      service {\n        name\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n}\n"
+    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      streamUrl\n      recordedFrom\n      recordedUntil\n      jikkyoCommentsUrl\n      watchPositionMs\n      service {\n        name\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "cfc251b0061da7d4bd6a5d9c7b4a3155";
+(node as any).hash = "53cfff5544c9af3c7151d835174c68fa";
 
 export default node;
