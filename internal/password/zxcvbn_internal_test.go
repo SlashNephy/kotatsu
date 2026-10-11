@@ -16,23 +16,29 @@ func TestEstimateWaitsForSlot(t *testing.T) {
 	tests := []struct {
 		name string
 		// busy は、判定を呼ぶ前に埋めておく枠の数。
-		busy    int
+		busy int
+		// release は、判定を呼んでから枠を 1 つ空けるまでの時間。0 なら空けない。
+		release time.Duration
 		wantErr error
 	}{
-		{name: "枠が空いている", busy: maxConcurrentEstimates - 1, wantErr: nil},
-		{name: "枠が埋まっている", busy: maxConcurrentEstimates, wantErr: ErrStrengthTimeout},
+		{name: "枠が空いている", busy: maxConcurrentEstimates - 1, release: 0, wantErr: nil},
+		{name: "待つ間に枠が空く", busy: maxConcurrentEstimates, release: 50 * time.Millisecond, wantErr: nil},
+		{name: "枠が埋まったまま", busy: maxConcurrentEstimates, release: 0, wantErr: ErrStrengthTimeout},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			e := NewEstimator(10 * time.Second)
-			// 時間切れを待つ時間を短くするため、枠を埋めるときだけ、上限を短くする。
-			if tt.busy == maxConcurrentEstimates {
+			// 時間切れを待つ時間を短くするため、枠が空かないときだけ、上限を短くする。
+			if tt.wantErr != nil {
 				e.timeout = 100 * time.Millisecond
 			}
 			for range tt.busy {
 				e.slots <- struct{}{}
+			}
+			if tt.release > 0 {
+				time.AfterFunc(tt.release, func() { <-e.slots })
 			}
 
 			strength, err := e.Estimate(t.Context(), "correct horse battery staple", []string{})
