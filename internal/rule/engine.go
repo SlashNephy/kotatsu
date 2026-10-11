@@ -360,7 +360,7 @@ func (e *Engine) reconcile(
 	q := sqlc.New(tx)
 	isRule := reserve.Kind(row.Kind) == reserve.KindRule
 	switch {
-	case d == nil && isRule && row.PlannedStartAt != nil && !row.PlannedStartAt.After(now):
+	case d == nil && isRule && row.Recording:
 		// 録画が始まった予約は、どのルールにも一致しなくなっても消さない。消すと録画を取り消してしまう (#304)。
 		return nil
 	case d == nil && isRule:

@@ -16,11 +16,12 @@ GROUP BY title_key, service_id;
 
 -- name: ListFutureProgramReservations :many
 -- 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。照合の対象の番組 (ListMatchablePrograms) とそろえる。
--- 録画は開始マージンだけ前に始まるので、録画の開始 (planned_start_at) も返す。録画が始まった予約は、照合で消さない (設計書 4.3)。
-SELECT id, kind, service_id, event_id, enabled, follow_event_relay, planned_start_at
-FROM reservations
-WHERE event_id IS NOT NULL AND start_at > @now
-ORDER BY id;
+-- 録画は開始マージンとチューニングの時間だけ前に始まるので、録画中かどうか (recording) も返す。録画中の予約は、照合で消さない (設計書 4.3)。
+SELECT r.id, r.kind, r.service_id, r.event_id, r.enabled, r.follow_event_relay,
+  EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id AND rec.state = 'recording') AS recording
+FROM reservations r
+WHERE r.event_id IS NOT NULL AND r.start_at > @now
+ORDER BY r.id;
 
 -- name: ListFutureReservationRules :many
 SELECT rr.reservation_id, rr.rule_id

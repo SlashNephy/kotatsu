@@ -221,7 +221,7 @@ func TestEngineDeletesReservationsThatNoLongerMatch(t *testing.T) {
 }
 
 // TestEngineKeepsReservationsWhoseRecordingStarted は、放送の前でも、録画が始まった予約は、ルールに一致しなくなっても消さないことを確かめる (#304)。
-// 録画は、放送の開始マージンだけ前に始まる。
+// 録画は、放送の開始マージンとチューニングの時間だけ前に始まる。
 func TestEngineKeepsReservationsWhoseRecordingStarted(t *testing.T) {
 	t.Parallel()
 
@@ -229,11 +229,12 @@ func TestEngineKeepsReservationsWhoseRecordingStarted(t *testing.T) {
 	r := f.createRule(t, `テスト番組 (5|6)$`, nil)
 	f.run(t)
 
-	// eventId 5 の放送の 10 秒前。録画は 15 秒前に始まっている。
-	start := f.reservationOf(t, 5).StartAt
-	f.clock.Advance(start.Add(-10 * time.Second).Sub(f.clock.Now()))
-	_, err := f.pool.Exec(t.Context(), "UPDATE reservations SET planned_start_at = $1 WHERE id = $2",
-		start.Add(-15*time.Second), f.reservationOf(t, 5).ID)
+	// eventId 5 の放送の 20 秒前に、録画が始まっている。予定の録画の開始 (15 秒前) より、チューニングの時間だけ前である。
+	reservation := f.reservationOf(t, 5)
+	f.clock.Advance(reservation.StartAt.Add(-20 * time.Second).Sub(f.clock.Now()))
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+		state, recorded_from, created_at, updated_at)
+		VALUES ($1, $2, $3, 5, '', '', $4, $4, 'recording', $5, $5, $5)`, id.New(), reservation.ID, serviceID(), reservation.StartAt, f.clock.Now())
 	require.NoError(t, err)
 	// ルールに一致したままなら、何も変えない。録画中の予約を作り直そうとしない。
 	assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0}, f.run(t))
