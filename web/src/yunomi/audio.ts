@@ -66,3 +66,47 @@ export function choiceForSlot(choices: AudioChoice[], slot: KyusuAudio): string 
 
   return candidates.find((choice) => audioSlot(choice) === slot)?.value ?? null;
 }
+
+// ProgramAudio は、EPG から読んだ番組の音声 (GraphQL の ProgramAudio)。主音声が先に並ぶ。
+export type ProgramAudio = {
+  readonly componentType: number;
+  readonly languages: ReadonlyArray<string>;
+};
+
+// dualMonoComponentType は、デュアルモノ (1/0+1/0) の component_type。
+const dualMonoComponentType = 2;
+
+// KyusuAudioChoice は、kyusu の経路の音声のメニューの選択肢。
+// kind は、デュアルモノの主音声と副音声 (dualMono)、音声の ES (stream)、構成が分からないとき (unknown) のどれか。
+export type KyusuAudioChoice = {
+  slot: KyusuAudio;
+  kind: 'dualMono' | 'stream' | 'unknown';
+  language: string | null;
+};
+
+// kyusuAudioChoices は、番組の音声の構成から、kyusu の経路の音声のメニューの選択肢を返す。第 2 音声がなければ、空にする。
+// 構成が分からないとき (EPG にない番組や、構成を残す前の録画) は、第 1 音声と第 2 音声の 2 つを出す。
+// tsreadex は、主音声がデュアルモノなら右 (副音声) を、そうでなければ 2 つ目の音声の ES を、第 2 音声にする。
+export function kyusuAudioChoices(audios: ReadonlyArray<ProgramAudio> | null): KyusuAudioChoice[] {
+  const [main, second] = audios ?? [];
+  if (main === undefined) {
+    return [
+      { slot: 1, kind: 'unknown', language: null },
+      { slot: 2, kind: 'unknown', language: null },
+    ];
+  }
+  if (main.componentType === dualMonoComponentType) {
+    return [
+      { slot: 1, kind: 'dualMono', language: main.languages[0] ?? null },
+      { slot: 2, kind: 'dualMono', language: main.languages[1] ?? null },
+    ];
+  }
+  if (second === undefined) {
+    return [];
+  }
+
+  return [
+    { slot: 1, kind: 'stream', language: main.languages[0] ?? null },
+    { slot: 2, kind: 'stream', language: second.languages[0] ?? null },
+  ];
+}
