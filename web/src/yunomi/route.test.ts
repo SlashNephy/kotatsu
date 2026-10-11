@@ -90,16 +90,24 @@ describe('chooseRoute', () => {
 describe('hlsURL', () => {
   test.each([
     {
-      name: 'TS の URL に、画質ごとのプレイリストのパスを足す',
+      name: 'TS の URL に、画質と音声ごとのプレイリストのパスを足す',
       streamUrl: '/streams/services/3273601024',
-      want: '/streams/services/3273601024/hls/720p-hevc/playlist.m3u8',
+      audio: 1 as const,
+      want: '/streams/services/3273601024/hls/720p-hevc/1/playlist.m3u8',
+    },
+    {
+      name: '第 2 音声',
+      streamUrl: '/streams/services/3273601024',
+      audio: 2 as const,
+      want: '/streams/services/3273601024/hls/720p-hevc/2/playlist.m3u8',
     },
     {
       name: 'クエリは、プレイリストのパスの後ろに付け直す',
       streamUrl: '/streams/services/3273601024?token=abc',
-      want: '/streams/services/3273601024/hls/720p-hevc/playlist.m3u8?token=abc',
+      audio: 1 as const,
+      want: '/streams/services/3273601024/hls/720p-hevc/1/playlist.m3u8?token=abc',
     },
-  ])('$name', ({ streamUrl, want }) => {
-    expect(hlsURL(streamUrl, '720p-hevc')).toBe(want);
+  ])('$name', ({ streamUrl, audio, want }) => {
+    expect(hlsURL(streamUrl, '720p-hevc', audio)).toBe(want);
   });
 });

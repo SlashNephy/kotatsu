@@ -53,7 +53,7 @@ type ServiceOpener interface {
 
 // Encoder は、TS を HLS にする。*Transcoder が満たす。
 type Encoder interface {
-	Run(ctx context.Context, src io.Reader, preset *Preset, dir string) error
+	Run(ctx context.Context, src io.Reader, preset *Preset, audio Audio, dir string) error
 }
 
 var (
@@ -61,10 +61,11 @@ var (
 	_ Encoder       = new(Transcoder)
 )
 
-// sessionKey は、ライブ視聴のセッションを見分けるもの。同じサービスを同じ画質で見る視聴者は、1 つのセッションを共有する。
+// sessionKey は、ライブ視聴のセッションを見分けるもの。同じサービスを同じ画質と音声で見る視聴者は、1 つのセッションを共有する。
 type sessionKey struct {
 	serviceID int64
 	preset    string
+	audio     Audio
 }
 
 // session は、1 つのエンコーダーと、それが HLS を書くディレクトリ。
@@ -83,7 +84,7 @@ type session struct {
 	lastAccess time.Time
 }
 
-// Live は、ライブ視聴のセッションを、(サービス, 画質) の組ごとに作って共有し、使われなくなったら止める (設計書 7.3)。
+// Live は、ライブ視聴のセッションを、(サービス, 画質, 音声) の組ごとに作って共有し、使われなくなったら止める (設計書 7.3)。
 type Live struct {
 	// opener は、チューナーサーバーのクライアント。設定していなければ nil。
 	opener ServiceOpener
@@ -157,7 +158,7 @@ func (l *Live) Run(ctx context.Context) error {
 // Handler は、ライブ視聴の HLS を配信するハンドラーを返す。token を付けたリクエストだけを受け付ける。
 func (l *Live) Handler(token *Token) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET "+LivePathPrefix+"{service}/{preset}/{file}", l.serveHTTP)
+	mux.HandleFunc("GET "+LivePathPrefix+"{service}/{preset}/{audio}/{file}", l.serveHTTP)
 
 	return token.Middleware(mux)
 }
@@ -179,7 +180,8 @@ func (l *Live) reap(now time.Time) {
 			continue
 		}
 		if now.Sub(s.lastAccess) > l.idleTimeout {
-			l.logger.Info("stopping an idle live session", slog.Int64("service_id", s.key.serviceID), slog.String("preset", s.key.preset))
+			l.logger.Info("stopping an idle live session",
+				slog.Int64("service_id", s.key.serviceID), slog.String("preset", s.key.preset), slog.String("audio", s.key.audio.String()))
 			delete(l.sessions, key)
 			s.cancel()
 		}
@@ -201,16 +203,16 @@ func (l *Live) stopAll() {
 	}
 }
 
-// start は、(サービス, 画質) のセッションを返す。なければ、エンコーダーを起動して作る。
+// start は、(サービス, 画質, 音声) のセッションを返す。なければ、エンコーダーを起動して作る。
 // エンコーダーは、リクエストより長く動くので、ctx の値だけを引き継ぎ、ctx が終わっても止めない。
-func (l *Live) start(ctx context.Context, serviceID int64, preset *Preset) (*session, error) {
+func (l *Live) start(ctx context.Context, serviceID int64, preset *Preset, audio Audio) (*session, error) {
 	if l.opener == nil {
 		return nil, errNoTuner
 	}
 	if l.encoder == nil {
 		return nil, errNoEncoder
 	}
-	key := sessionKey{serviceID: serviceID, preset: preset.Name}
+	key := sessionKey{serviceID: serviceID, preset: preset.Name, audio: audio}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.stopped {
@@ -219,7 +221,7 @@ func (l *Live) start(ctx context.Context, serviceID int64, preset *Preset) (*ses
 	if s, ok := l.sessions[key]; ok {
 		return s, nil
 	}
-	dir, err := os.MkdirTemp(l.dir, strconv.FormatInt(serviceID, 10)+"-"+preset.Name+"-")
+	dir, err := os.MkdirTemp(l.dir, strconv.FormatInt(serviceID, 10)+"-"+preset.Name+"-a"+audio.String()+"-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the session directory: %w", err)
 	}
@@ -227,7 +229,8 @@ func (l *Live) start(ctx context.Context, serviceID int64, preset *Preset) (*ses
 	now := l.clock.Now()
 	s := &session{key: key, dir: dir, cancel: cancel, done: make(chan struct{}), err: nil, startedAt: now, ready: false, lastAccess: now}
 	l.sessions[key] = s
-	l.logger.InfoContext(ctx, "starting a live session", slog.Int64("service_id", serviceID), slog.String("preset", preset.Name))
+	l.logger.InfoContext(ctx, "starting a live session",
+		slog.Int64("service_id", serviceID), slog.String("preset", preset.Name), slog.String("audio", audio.String()))
 	go l.encode(sessionCtx, s, preset)
 
 	return s, nil
@@ -244,7 +247,7 @@ func (l *Live) encode(ctx context.Context, s *session, preset *Preset) {
 			_ = upstream.Close()
 		}()
 
-		return l.encoder.Run(ctx, upstream, preset, s.dir)
+		return l.encoder.Run(ctx, upstream, preset, s.key.audio, s.dir)
 	}()
 	if ctx.Err() != nil {
 		// 使われなくなったか、kyusu を止めたので止めた。
@@ -305,10 +308,10 @@ func (l *Live) markReady(s *session) {
 }
 
 // segment は、セッションのセグメントのパスを返し、セッションを使われているものとして残す。セッションがなければ false を返す。
-func (l *Live) segment(serviceID int64, preset *Preset, name string) (string, bool) {
+func (l *Live) segment(serviceID int64, preset *Preset, audio Audio, name string) (string, bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	s, ok := l.sessions[sessionKey{serviceID: serviceID, preset: preset.Name}]
+	s, ok := l.sessions[sessionKey{serviceID: serviceID, preset: preset.Name, audio: audio}]
 	if !ok {
 		return "", false
 	}
@@ -330,19 +333,25 @@ func (l *Live) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+	audio, ok := ParseAudio(r.PathValue("audio"))
+	if !ok {
+		http.Error(w, "unknown audio", http.StatusNotFound)
+
+		return
+	}
 	file := r.PathValue("file")
 	switch {
 	case file == PlaylistName:
-		l.servePlaylist(w, r, serviceID, preset)
+		l.servePlaylist(w, r, serviceID, preset, audio)
 	case segmentName.MatchString(file):
-		l.serveSegment(w, r, serviceID, preset, file)
+		l.serveSegment(w, r, serviceID, preset, audio, file)
 	default:
 		http.NotFound(w, r)
 	}
 }
 
-func (l *Live) servePlaylist(w http.ResponseWriter, r *http.Request, serviceID int64, preset *Preset) {
-	s, err := l.start(r.Context(), serviceID, preset)
+func (l *Live) servePlaylist(w http.ResponseWriter, r *http.Request, serviceID int64, preset *Preset, audio Audio) {
+	s, err := l.start(r.Context(), serviceID, preset, audio)
 	var data []byte
 	if err == nil {
 		data, err = l.playlist(r.Context(), s)
@@ -365,8 +374,8 @@ func (l *Live) servePlaylist(w http.ResponseWriter, r *http.Request, serviceID i
 	}
 }
 
-func (l *Live) serveSegment(w http.ResponseWriter, r *http.Request, serviceID int64, preset *Preset, name string) {
-	path, ok := l.segment(serviceID, preset, name)
+func (l *Live) serveSegment(w http.ResponseWriter, r *http.Request, serviceID int64, preset *Preset, audio Audio, name string) {
+	path, ok := l.segment(serviceID, preset, audio, name)
 	if !ok {
 		http.Error(w, "the live session is not running", http.StatusNotFound)
 

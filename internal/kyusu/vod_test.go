@@ -123,7 +123,7 @@ func (f *vodFixture) get(t *testing.T, recordingID uuid.UUID, file string) (int,
 	t.Helper()
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
-		f.server.URL+kyusu.RecordingPathPrefix+recordingID.String()+"/360p/"+file, nil)
+		f.server.URL+kyusu.RecordingPathPrefix+recordingID.String()+"/360p/1/"+file, nil)
 	require.NoError(t, err)
 	f.token.Authorize(req)
 	resp, err := http.DefaultClient.Do(req)
@@ -182,7 +182,7 @@ type fakeVODEncoder struct {
 	running atomic.Int32
 }
 
-func (e *fakeVODEncoder) RunVOD(ctx context.Context, src io.Reader, _ *kyusu.Preset, dir string, opts *kyusu.RunOptions) error {
+func (e *fakeVODEncoder) RunVOD(ctx context.Context, src io.Reader, _ *kyusu.Preset, _ kyusu.Audio, dir string, opts *kyusu.RunOptions) error {
 	e.runs.Add(1)
 	e.running.Add(1)
 	defer e.running.Add(-1)

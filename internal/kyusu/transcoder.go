@@ -70,17 +70,17 @@ const VODSegmentDuration = segmentSeconds * time.Second
 // vodPlaylistName は、録画のトランスコードで FFmpeg が書くプレイリストの名前。視聴者には、kyusu が作るプレイリストを返す。
 const vodPlaylistName = "encoder.m3u8"
 
-// Run は、src を読み終えるか ctx が終わるまで、preset の画質で dir に HLS を書く。dir は作っておく。
+// Run は、src を読み終えるか ctx が終わるまで、preset の画質と audio の音声で dir に HLS を書く。dir は作っておく。
 // ctx が終わったら、どちらのプロセスも止めて、ctx のエラーを返す。
 // どちらかのプロセスが失敗したら、もう一方も止めて、失敗したプロセスの標準エラー出力を添えたエラーを返す。
-func (t *Transcoder) Run(ctx context.Context, src io.Reader, preset *Preset, dir string) error {
-	return t.run(ctx, src, ffmpegArgs(t.cfg, preset, dir, nil))
+func (t *Transcoder) Run(ctx context.Context, src io.Reader, preset *Preset, audio Audio, dir string) error {
+	return t.run(ctx, src, ffmpegArgs(t.cfg, preset, audio, dir, nil))
 }
 
 // RunVOD は、録画の仮想 HLS のセグメントを、opts.StartNumber 番目から書く。src は、k 番目のセグメントの手前の I フレームから流す。
 // 書いたセグメントは消さないので、視聴者は巻き戻せる。セグメントの時刻は、k 番目のセグメントの始まりを k × セグメントの長さにする。
-func (t *Transcoder) RunVOD(ctx context.Context, src io.Reader, preset *Preset, dir string, opts *RunOptions) error {
-	return t.run(ctx, src, ffmpegArgs(t.cfg, preset, dir, opts))
+func (t *Transcoder) RunVOD(ctx context.Context, src io.Reader, preset *Preset, audio Audio, dir string, opts *RunOptions) error {
+	return t.run(ctx, src, ffmpegArgs(t.cfg, preset, audio, dir, opts))
 }
 
 func (t *Transcoder) run(ctx context.Context, src io.Reader, args []string) error {
@@ -172,9 +172,9 @@ func tsreadexArgs() []string {
 	return []string{"-x", "18/38/39", "-n", "-1", "-a", "13", "-b", "7", "-c", "5", "-u", "1", "-d", "9", "-"}
 }
 
-// ffmpegArgs は、FFmpeg の引数を返す。映像は、どのエンコーダーでも、CPU の yadif でインターレースを解除してから縮める (設計書 7.2)。
+// ffmpegArgs は、FFmpeg の引数を返す。音声は、audio で選んだ tsreadex の出力の音声を 1 つだけ入れる。映像は、どのエンコーダーでも、CPU の yadif でインターレースを解除してから縮める (設計書 7.2)。
 // VAAPI と QSV では、解除した後に GPU へ送って縮める。vod が nil でなければ、録画の仮想 HLS のセグメントを書く。
-func ffmpegArgs(cfg *config.Kyusu, preset *Preset, dir string, vod *RunOptions) []string {
+func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod *RunOptions) []string {
 	height := strconv.Itoa(preset.Height)
 	device := []string{}
 	filter := "yadif=0:-1:1,scale=-2:" + height
@@ -201,7 +201,7 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, dir string, vod *RunOptions) 
 	args := make([]string, 0, 64)
 	args = append(args, "-hide_banner", "-loglevel", "warning", "-nostdin")
 	args = append(args, device...)
-	args = append(args, "-f", "mpegts", "-i", "pipe:0", "-map", "0:v:0", "-map", "0:a:0", "-map", "0:d?")
+	args = append(args, "-f", "mpegts", "-i", "pipe:0", "-map", "0:v:0", "-map", "0:a:"+audio.streamIndex(), "-map", "0:d?")
 	hls := []string{
 		"-hls_list_size", strconv.Itoa(playlistSize),
 		// temp_file は、書きかけのプレイリストとセグメントを読ませないようにする。

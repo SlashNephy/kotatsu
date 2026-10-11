@@ -27,7 +27,7 @@ const (
 	// keyMaterial は、テストのアプリの秘密キー。
 	keyMaterial = "kotatsu-kyusu-test-application-key-0123456789"
 	// livePath は、「こたつテスト1」を 360p で見るときのパス。
-	livePath = kyusu.LivePathPrefix + "3273601024/360p/"
+	livePath = kyusu.LivePathPrefix + "3273601024/360p/1/"
 	// fakePlaylist は、fakeEncoder が書くプレイリスト。
 	fakePlaylist = "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:2.0,\nsegment00000.ts\n"
 )
@@ -35,14 +35,20 @@ const (
 // fakeEncoder は、プレイリストとセグメントを 1 つずつ書き、止められるまで待つ。起動した回数と、動いている数を数える。
 // warmup があれば、閉じられるまで、プレイリストを書かずに待つ。stopDelay は、止められてから戻るまでの時間。
 type fakeEncoder struct {
-	runs      atomic.Int32
+	runs atomic.Int32
+	// audios は、起動されたときの音声を、起動した順に持つ。
+	mu        sync.Mutex
+	audios    []kyusu.Audio
 	running   atomic.Int32
 	warmup    chan struct{}
 	stopDelay time.Duration
 }
 
-func (e *fakeEncoder) Run(ctx context.Context, _ io.Reader, _ *kyusu.Preset, dir string) error {
+func (e *fakeEncoder) Run(ctx context.Context, _ io.Reader, _ *kyusu.Preset, audio kyusu.Audio, dir string) error {
 	e.runs.Add(1)
+	e.mu.Lock()
+	e.audios = append(e.audios, audio)
+	e.mu.Unlock()
 	e.running.Add(1)
 	defer e.running.Add(-1)
 	if e.warmup != nil {
@@ -162,10 +168,15 @@ func TestLiveSharesSession(t *testing.T) {
 	assert.Equal(t, "\x47", body)
 
 	assert.Equal(t, int32(1), f.encoder.runs.Load(), "viewers share one encoder")
-	// 別の画質は、別のエンコーダーにする。
-	status, _ = f.get(t, kyusu.LivePathPrefix+"3273601024/720p/"+kyusu.PlaylistName)
+	// 別の画質と、別の音声は、別のエンコーダーにする。
+	status, _ = f.get(t, kyusu.LivePathPrefix+"3273601024/720p/1/"+kyusu.PlaylistName)
 	assert.Equal(t, http.StatusOK, status)
-	assert.Equal(t, int32(2), f.encoder.runs.Load())
+	status, _ = f.get(t, kyusu.LivePathPrefix+"3273601024/360p/2/"+kyusu.PlaylistName)
+	assert.Equal(t, http.StatusOK, status)
+	assert.Equal(t, int32(3), f.encoder.runs.Load())
+	f.encoder.mu.Lock()
+	defer f.encoder.mu.Unlock()
+	assert.Equal(t, []kyusu.Audio{kyusu.AudioFirst, kyusu.AudioFirst, kyusu.AudioSecond}, f.encoder.audios)
 }
 
 // TestLiveStopsIdleSession は、セグメントへのリクエストが 10 秒途絶えたら、エンコーダーを止め、HLS を消すことを確かめる。
@@ -270,7 +281,11 @@ func TestLiveErrors(t *testing.T) {
 	}{
 		{
 			name: "知らない画質", opener: &fakeOpener{err: nil}, encoder: new(fakeEncoder),
-			path: kyusu.LivePathPrefix + "3273601024/4k/" + kyusu.PlaylistName, wantStatus: http.StatusNotFound, wantBody: "unknown preset",
+			path: kyusu.LivePathPrefix + "3273601024/4k/1/" + kyusu.PlaylistName, wantStatus: http.StatusNotFound, wantBody: "unknown preset",
+		},
+		{
+			name: "知らない音声", opener: &fakeOpener{err: nil}, encoder: new(fakeEncoder),
+			path: kyusu.LivePathPrefix + "3273601024/360p/3/" + kyusu.PlaylistName, wantStatus: http.StatusNotFound, wantBody: "unknown audio",
 		},
 		{
 			name: "HLS でないファイル", opener: &fakeOpener{err: nil}, encoder: new(fakeEncoder),

@@ -290,7 +290,9 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
       )}
       {route.kind === 'kyusu' && (
         <HlsPlayer
-          url={disconnection === null ? withSession(hlsURL(service.streamUrl, route.preset)) : null}
+          url={
+            disconnection === null ? withSession(hlsURL(service.streamUrl, route.preset, 1)) : null
+          }
           videoRef={videoRef}
           active={visible}
           captions={captions}

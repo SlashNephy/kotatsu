@@ -3,13 +3,16 @@ package kyusu_test
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -90,7 +93,7 @@ func TestTranscoderWritesHLS(t *testing.T) {
 			preset, ok := kyusu.PresetByName(tt.preset)
 			require.True(t, ok)
 			dir := t.TempDir()
-			require.NoError(t, transcoder.Run(t.Context(), bytes.NewReader(loadTestTS(t)), preset, dir))
+			require.NoError(t, transcoder.Run(t.Context(), bytes.NewReader(loadTestTS(t)), preset, kyusu.AudioFirst, dir))
 
 			playlist, err := os.ReadFile(filepath.Join(dir, kyusu.PlaylistName))
 			require.NoError(t, err)
@@ -144,7 +147,7 @@ func TestTranscoderStopsWithContext(t *testing.T) {
 	src := &loopReader{data: loadTestTS(t), pos: 0}
 	done := make(chan error, 1)
 	go func() {
-		done <- transcoder.Run(ctx, src, preset, dir)
+		done <- transcoder.Run(ctx, src, preset, kyusu.AudioFirst, dir)
 	}()
 	require.Eventually(t, func() bool {
 		playlist, err := os.ReadFile(filepath.Join(dir, kyusu.PlaylistName))
@@ -195,7 +198,7 @@ func TestTranscoderReportsEncoderFailure(t *testing.T) {
 	done := make(chan error, 1)
 	src := &stallingReader{data: loadTestTS(t), unblock: unblock}
 	go func() {
-		done <- transcoder.Run(t.Context(), src, preset, dir)
+		done <- transcoder.Run(t.Context(), src, preset, kyusu.AudioFirst, dir)
 	}()
 
 	select {
@@ -203,5 +206,146 @@ func TestTranscoderReportsEncoderFailure(t *testing.T) {
 		require.ErrorContains(t, err, "FFmpeg failed")
 	case <-time.After(30 * time.Second):
 		t.Fatal("the transcoder did not return after FFmpeg failed")
+	}
+}
+
+// twoAudioTS は、test.ts の映像に、第 1 音声として 1 kHz の音を、第 2 音声として無音を付けた TS を作る。
+// tsreadex は、放送と同じく、PMT の stream_identifier_descriptor (component_tag) で第 2 音声を見分けるので、付け足す。
+func twoAudioTS(t *testing.T) []byte {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "two-audio.ts")
+	cmd := exec.CommandContext(t.Context(), "ffmpeg", "-hide_banner", "-loglevel", "error",
+		"-i", filepath.Join("..", "..", "testdata", "ts", "test.ts"),
+		"-f", "lavfi", "-i", "sine=frequency=1000:sample_rate=48000",
+		"-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+		"-map", "0:v:0", "-map", "1:a", "-map", "2:a", "-c:v", "copy", "-c:a", "aac", "-shortest", "-f", "mpegts", path)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	return tagComponents(t, data)
+}
+
+// tagComponents は、FFmpeg が書いた PMT の ES に、順に stream_identifier_descriptor を付ける。
+// component_tag は、映像は 0x00、第 1 音声は 0x10、第 2 音声は 0x11 (ARIB TR-B14)。
+// FFmpeg の PMT は 1 つのパケットに収まり、ES に記述子を持たないものとして扱う。
+func tagComponents(t *testing.T, data []byte) []byte {
+	t.Helper()
+
+	componentTags := []byte{0x00, 0x10, 0x11}
+
+	const pmtPID = 0x1000 // FFmpeg の mpegts の PMT の PID の既定値
+	out := make([]byte, 0, len(data))
+	for i := 0; i+ts.PacketSize <= len(data); i += ts.PacketSize {
+		packet := data[i : i+ts.PacketSize]
+		pid := int(packet[1]&0x1f)<<8 | int(packet[2])
+		if pid != pmtPID || packet[1]&0x40 == 0 {
+			out = append(out, packet...)
+
+			continue
+		}
+		section := packet[5:] // ヘッダーの 4 バイトと pointer_field (0) の後
+		length := int(section[1]&0x0f)<<8 | int(section[2])
+		programInfoLength := int(section[10]&0x0f)<<8 | int(section[11])
+		esStart, esEnd := 12+programInfoLength, 3+length-4
+		rebuilt := append([]byte{}, section[:esStart]...)
+		// added は、足した記述子のバイト数。section_length に足す。
+		var added uint16
+		for pos, n := esStart, 0; pos < esEnd; n++ {
+			infoLength := int(section[pos+3]&0x0f)<<8 | int(section[pos+4])
+			require.Zero(t, infoLength, "FFmpeg writes no ES descriptors")
+			require.Less(t, n, len(componentTags))
+			rebuilt = append(rebuilt, section[pos], section[pos+1], section[pos+2], 0xf0, 3, 0x52, 1, componentTags[n])
+			added += 3
+			pos += 5
+		}
+		binary.BigEndian.PutUint16(rebuilt[1:3], binary.BigEndian.Uint16(rebuilt[1:3])+added)
+		rebuilt = binary.BigEndian.AppendUint32(rebuilt, mpegCRC32(rebuilt))
+		next := append(append([]byte{}, packet[:5]...), rebuilt...)
+		require.LessOrEqual(t, len(next), ts.PacketSize)
+		for len(next) < ts.PacketSize {
+			next = append(next, 0xff)
+		}
+		out = append(out, next...)
+	}
+
+	return out
+}
+
+// mpegCRC32 は、PSI のセクションの CRC (MPEG-2 の CRC-32) を返す。
+func mpegCRC32(b []byte) uint32 {
+	crc := uint32(0xffffffff)
+	for _, v := range b {
+		crc ^= uint32(v) << 24
+		for range 8 {
+			if crc&0x80000000 != 0 {
+				crc = crc<<1 ^ 0x04c11db7
+			} else {
+				crc <<= 1
+			}
+		}
+	}
+
+	return crc
+}
+
+// meanVolume は、HLS のセグメントの音声の平均の音量 (dB) を返す。無音なら、およそ -91 dB になる。
+func meanVolume(t *testing.T, path string) float64 {
+	t.Helper()
+
+	out, err := exec.CommandContext(t.Context(), "ffmpeg", "-hide_banner", "-i", path,
+		"-map", "0:a:0", "-af", "volumedetect", "-f", "null", "-").CombinedOutput()
+	require.NoError(t, err, string(out))
+	match := regexp.MustCompile(`mean_volume: (-?[0-9.]+) dB`).FindSubmatch(out)
+	require.NotNil(t, match, string(out))
+	volume, err := strconv.ParseFloat(string(match[1]), 64)
+	require.NoError(t, err)
+
+	return volume
+}
+
+// TestTranscoderSelectsAudio は、選んだ音声だけを HLS に入れることを確かめる (設計書 7.5)。
+func TestTranscoderSelectsAudio(t *testing.T) {
+	t.Parallel()
+
+	transcoder := newTranscoder(t)
+	src := twoAudioTS(t)
+	preset, ok := kyusu.PresetByName("360p")
+	require.True(t, ok)
+	tests := []struct {
+		name   string
+		audio  kyusu.Audio
+		silent bool
+	}{
+		{name: "第 1 音声", audio: kyusu.AudioFirst, silent: false},
+		{name: "第 2 音声", audio: kyusu.AudioSecond, silent: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			require.NoError(t, transcoder.Run(t.Context(), bytes.NewReader(src), preset, tt.audio, dir))
+			segments, err := filepath.Glob(filepath.Join(dir, "segment*.ts"))
+			require.NoError(t, err)
+			require.NotEmpty(t, segments)
+			sort.Strings(segments)
+
+			audios := 0
+			for _, s := range probe(t, segments[0]) {
+				if s.CodecType == "audio" {
+					audios++
+				}
+			}
+			assert.Equal(t, 1, audios, "only the selected audio is encoded")
+			volume := meanVolume(t, segments[0])
+			if tt.silent {
+				assert.Less(t, volume, -80.0)
+			} else {
+				assert.Greater(t, volume, -40.0)
+			}
+		})
 	}
 }

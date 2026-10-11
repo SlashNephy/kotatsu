@@ -1453,7 +1453,8 @@ input StoragePoolInput {
 """
 type StreamPreset {
   """
-  URL に使う名前 (720p、720p-hevc など)。HLS は /streams/{services|recordings}/{id}/hls/{name}/playlist.m3u8 で取る。
+  URL に使う名前 (720p、720p-hevc など)。HLS は /streams/{services|recordings}/{id}/hls/{name}/{audio}/playlist.m3u8 で取る。
+  audio は、第 1 音声なら 1、第 2 音声 (デュアルモノの副音声や 2 つ目の音声) なら 2。
   """
   name: String!
   height: Int!

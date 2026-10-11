@@ -381,7 +381,7 @@ function Player({ recordingId }: { recordingId: string }) {
       )}
       {route.kind === 'kyusu' && (
         <HlsPlayer
-          url={hlsURL(recording.streamUrl, route.preset)}
+          url={hlsURL(recording.streamUrl, route.preset, 1)}
           videoRef={videoRef}
           active={visible}
           captions={captions}
