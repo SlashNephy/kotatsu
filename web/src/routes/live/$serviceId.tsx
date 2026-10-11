@@ -10,14 +10,17 @@ import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
+import { DataBroadcastRemote } from '../../yunomi/DataBroadcastRemote';
 import {
   CaptionsToggle,
+  DataBroadcastToggle,
   JikkyoToggle,
   PlaybackUnavailable,
   QualitySelect,
 } from '../../yunomi/QualitySelect';
 import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
-import { hlsURL } from '../../yunomi/route';
+import { dataBroadcastSource, hlsURL } from '../../yunomi/route';
+import { useDataBroadcast } from '../../yunomi/useDataBroadcast';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
@@ -149,6 +152,8 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
   } = usePlayerSettings();
   const channel = data.node?.__typename === 'Service' ? (data.node.jikkyo ?? null) : null;
   const jikkyo = useLiveJikkyo(jikkyoEnabled ? (channel?.id ?? null) : null, videoRef, visible);
+  // dataBroadcastEnabled は、データ放送を出すかどうか。TS をもう 1 本読むので、既定では出さない (設計書 7.4)。
+  const [dataBroadcastEnabled, setDataBroadcastEnabled] = useState(false);
   // session は、つなぎ直すたびに増やし、URL を変えて読み直させる。
   const [session, setSession] = useState(0);
   const attempt = useRef(0);
@@ -252,6 +257,13 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
   );
 
   const service = data.node?.__typename === 'Service' ? data.node : null;
+  // 視聴が切れている間と、映像が見えていない間は、データ放送の TS も読まない。
+  const dataBroadcast = useDataBroadcast(
+    dataBroadcastEnabled && service !== null && visible && disconnection === null
+      ? dataBroadcastSource(service.streamUrl)
+      : null,
+    videoRef,
+  );
   if (service === null) {
     return <Alert color="amber">{t('live.notFound')}</Alert>;
   }
@@ -272,7 +284,12 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
           active={visible}
           captions={captions}
           onLoaded={onLoaded}
-          overlay={jikkyo.overlay}
+          overlay={
+            <>
+              {dataBroadcast.layer}
+              {jikkyo.overlay}
+            </>
+          }
           onState={(state) => {
             // ライブのストリームは終わらないので、読み終えたのは、切れたということ。
             if (state === 'completed' || state === 'error') {
@@ -296,7 +313,12 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
           captions={captions}
           live
           onLoaded={onLoaded}
-          overlay={jikkyo.overlay}
+          overlay={
+            <>
+              {dataBroadcast.layer}
+              {jikkyo.overlay}
+            </>
+          }
           // チューナーを使われて切れると、hls.js が読み直しを諦めたところで、致命的なエラーになる。
           onError={disconnected}
         />
@@ -316,10 +338,14 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
         <PlayerTools frameRef={playerBoxRef} videoRef={videoRef} name={service.name} pip={pip} />
         {audio.menu}
         {channel !== null && <JikkyoToggle checked={jikkyoEnabled} onChange={setJikkyoEnabled} />}
+        <DataBroadcastToggle checked={dataBroadcastEnabled} onChange={setDataBroadcastEnabled} />
         <CaptionsToggle checked={captions} onChange={setCaptions} />
         <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
       </Group>
       <PlaybackUnavailable route={route} />
+      {dataBroadcastEnabled && (
+        <DataBroadcastRemote state={dataBroadcast.state} onPress={dataBroadcast.press} />
+      )}
       {/* 画面の外に出たときと、タブが隠れたときは、読み込みも止めて、チューナーを手放す (設計書 7.2)。 */}
       <div ref={frameRef}>
         {pip.container === null ? (
