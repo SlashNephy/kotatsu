@@ -1,0 +1,105 @@
+diff --git a/History.md b/History.md
+deleted file mode 100644
+index edadbf4b29942593713acd89a9e593d1596bcfe4..0000000000000000000000000000000000000000
+diff --git a/lib/parse/index.js b/lib/parse/index.js
+index 053f059682c49f9f5eccbea18f5360fa3742e9b3..0b7ae68e7ec9fdd5528a1f9b3e3c32e900341620 100644
+--- a/lib/parse/index.js
++++ b/lib/parse/index.js
+@@ -216,9 +216,9 @@ module.exports = function(css, options){
+     var pos = position();
+ 
+     // prop
+-    var prop = match(/^(\*?[-#\/\*\\\w]+(\[[0-9a-z_-]+\])?)\s*/);
++    var prop = match(/^[\s;]*(\*?[-#\/\*\\\w]+(\[[0-9a-z_-]+\])?)\s*/);
+     if (!prop) return;
+-    prop = trim(prop[0]);
++    prop = trim(prop[1]);
+ 
+     // :
+     if (!match(/^:\s*/)) return error("property missing ':'");
+diff --git a/lib/stringify/compress.js b/lib/stringify/compress.js
+index 929b4a2129fe8881b12cd90031ef535293ea90ea..e420a1196d35c23f62ec06d82cee85437cc80bf3 100644
+--- a/lib/stringify/compress.js
++++ b/lib/stringify/compress.js
+@@ -4,7 +4,6 @@
+  */
+ 
+ var Base = require('./compiler');
+-var inherits = require('inherits');
+ 
+ /**
+  * Expose compiler.
+@@ -24,7 +23,7 @@ function Compiler(options) {
+  * Inherit from `Base.prototype`.
+  */
+ 
+-inherits(Compiler, Base);
++Object.setPrototypeOf(Compiler.prototype, Base.prototype);
+ 
+ /**
+  * Compile `node`.
+diff --git a/lib/stringify/identity.js b/lib/stringify/identity.js
+index b390c91e13f0c9f997bc7b4e07a13e8c5ba3c4c2..238aa48023d06e77d38519ca8fe70c541db48d88 100644
+--- a/lib/stringify/identity.js
++++ b/lib/stringify/identity.js
+@@ -4,7 +4,6 @@
+  */
+ 
+ var Base = require('./compiler');
+-var inherits = require('inherits');
+ 
+ /**
+  * Expose compiler.
+@@ -19,14 +18,14 @@ module.exports = Compiler;
+ function Compiler(options) {
+   options = options || {};
+   Base.call(this, options);
+-  this.indentation = options.indent;
++  this.indentation = typeof options.indent === 'string' ? options.indent : '  ';
+ }
+ 
+ /**
+  * Inherit from `Base.prototype`.
+  */
+ 
+-inherits(Compiler, Base);
++Object.setPrototypeOf(Compiler.prototype, Base.prototype);
+ 
+ /**
+  * Compile `node`.
+@@ -250,5 +249,5 @@ Compiler.prototype.indent = function(level) {
+     return '';
+   }
+ 
+-  return Array(this.level).join(this.indentation || '  ');
++  return Array(this.level).join(this.indentation);
+ };
+diff --git a/lib/stringify/index.js b/lib/stringify/index.js
+index deffb95946e12c92c4af857f05ecb437e9c4f116..ba1fda23b2a5100c94a1dd4bfff495e29666ee96 100644
+--- a/lib/stringify/index.js
++++ b/lib/stringify/index.js
+@@ -27,21 +27,6 @@ module.exports = function(node, options){
+     ? new Compressed(options)
+     : new Identity(options);
+ 
+-  // source maps
+-  if (options.sourcemap) {
+-    var sourcemaps = require('./source-map-support');
+-    sourcemaps(compiler);
+-
+-    var code = compiler.compile(node);
+-    compiler.applySourceMaps();
+-
+-    var map = options.sourcemap === 'generator'
+-      ? compiler.map
+-      : compiler.map.toJSON();
+-
+-    return { code: code, map: map };
+-  }
+-
+   var code = compiler.compile(node);
+   return code;
+ };
+diff --git a/lib/stringify/source-map-support.js b/lib/stringify/source-map-support.js
+deleted file mode 100644
+index 9b7e7a247a36107caadafc927672d757ad75762a..0000000000000000000000000000000000000000
