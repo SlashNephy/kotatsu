@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Code,
+  Fieldset,
   Group,
   Image,
   PinInput,
@@ -134,6 +135,11 @@ function Account() {
   const player = usePlayerSettings();
   const [error, setError] = useState<string | null>(null);
   const fail = (caught: unknown) => setError(authErrorMessage(t, caught));
+  // run は、前の操作のエラーを消してから、操作を行う。
+  const run: Run = (operation, onError) => {
+    setError(null);
+    gate.run(operation, onError);
+  };
 
   return (
     <Stack gap="md">
@@ -162,75 +168,85 @@ function Account() {
         </Stack>
       </Card>
 
-      <TwoFactor
-        totp={data.secondFactors.totp}
-        remaining={data.secondFactors.remainingRecoveryCodes}
-        onChanged={refresh}
-        run={gate.run}
-        fail={fail}
-        environment={environment}
-      />
+      {/* 操作の途中は、ほかのボタンを押せないようにする。 */}
+      <Fieldset variant="unstyled" disabled={gate.busy} p={0} m={0} miw={0}>
+        <Stack gap="md">
+          <TwoFactor
+            totp={data.secondFactors.totp}
+            remaining={data.secondFactors.remainingRecoveryCodes}
+            onChanged={refresh}
+            run={run}
+            fail={fail}
+            environment={environment}
+          />
 
-      <Passkeys
-        passkeys={data.passkeys}
-        onChanged={refresh}
-        run={gate.run}
-        fail={fail}
-        environment={environment}
-      />
+          <Passkeys
+            passkeys={data.passkeys}
+            onChanged={refresh}
+            run={run}
+            fail={fail}
+            environment={environment}
+          />
 
-      <Card withBorder>
-        <Stack gap="xs">
-          <Title order={3} size="h5">
-            {t('settings.account.sessions')}
-          </Title>
-          {data.sessions.map((session) => (
-            <Group key={session.id} justify="space-between" wrap="nowrap" data-session={session.id}>
-              <Stack gap={0} miw={0} flex={1}>
-                <Group gap="xs">
-                  <Text size="sm" truncate>
-                    {session.userAgent || t('settings.account.unknownDevice')}
-                  </Text>
-                  {session.current && (
-                    <Badge size="xs" variant="light">
-                      {t('settings.account.thisSession')}
-                    </Badge>
+          <Card withBorder>
+            <Stack gap="xs">
+              <Title order={3} size="h5">
+                {t('settings.account.sessions')}
+              </Title>
+              {data.sessions.map((session) => (
+                <Group
+                  key={session.id}
+                  justify="space-between"
+                  wrap="nowrap"
+                  data-session={session.id}
+                >
+                  <Stack gap={0} miw={0} flex={1}>
+                    <Group gap="xs">
+                      <Text size="sm" truncate>
+                        {session.userAgent || t('settings.account.unknownDevice')}
+                      </Text>
+                      {session.current && (
+                        <Badge size="xs" variant="light">
+                          {t('settings.account.thisSession')}
+                        </Badge>
+                      )}
+                    </Group>
+                    <Text size="xs" c="dimmed">
+                      {t('settings.account.sessionTimes', {
+                        lastSeen: dateTimeFormat.format(Date.parse(session.lastSeenAt)),
+                        source: session.sourceIp ?? '-',
+                      })}
+                    </Text>
+                  </Stack>
+                  {!session.current && (
+                    <Button
+                      size="compact-sm"
+                      variant="default"
+                      flex="none"
+                      onClick={() =>
+                        run(async () => {
+                          await mutate<accountRevokeSessionMutation>(
+                            environment,
+                            graphql`
+                              mutation accountRevokeSessionMutation($id: ID!) {
+                                revokeSession(id: $id)
+                              }
+                            `,
+                            { id: session.id },
+                          );
+                          refresh();
+                        }, fail)
+                      }
+                    >
+                      {t('settings.account.revoke')}
+                    </Button>
                   )}
                 </Group>
-                <Text size="xs" c="dimmed">
-                  {t('settings.account.sessionTimes', {
-                    lastSeen: dateTimeFormat.format(Date.parse(session.lastSeenAt)),
-                    source: session.sourceIp ?? '-',
-                  })}
-                </Text>
-              </Stack>
-              {!session.current && (
-                <Button
-                  size="compact-sm"
-                  variant="default"
-                  flex="none"
-                  onClick={() =>
-                    gate.run(async () => {
-                      await mutate<accountRevokeSessionMutation>(
-                        environment,
-                        graphql`
-                          mutation accountRevokeSessionMutation($id: ID!) {
-                            revokeSession(id: $id)
-                          }
-                        `,
-                        { id: session.id },
-                      );
-                      refresh();
-                    }, fail)
-                  }
-                >
-                  {t('settings.account.revoke')}
-                </Button>
-              )}
-            </Group>
-          ))}
+              ))}
+            </Stack>
+          </Card>
         </Stack>
-      </Card>
+      </Fieldset>
 
       <Anchor component={Link} to="/settings/password" size="sm">
         {t('viewer.changePassword')}
@@ -503,6 +519,11 @@ function Passkeys({
                   }
                 >
                   {t('settings.account.save')}
+                </Button>
+              ) : null}
+              {editing?.id === passkey.id ? (
+                <Button size="compact-sm" variant="subtle" onClick={() => setEditing(null)}>
+                  {t('settings.password.cancel')}
                 </Button>
               ) : (
                 <Button

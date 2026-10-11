@@ -1,5 +1,5 @@
 import { Modal } from '@mantine/core';
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { AuthError } from '../auth/api';
@@ -23,20 +23,35 @@ export function useReauthGate(
   returnTo: string,
 ): {
   run: (operation: () => Promise<void>, onError: (error: unknown) => void) => void;
+  busy: boolean;
   modal: ReactNode;
 } {
   const { t } = useTranslation();
   const [pending, setPending] = useState<Pending | null>(null);
+  // running は、操作の途中かどうか。続けて押されても、同じ操作を重ねて送らないようにする。
+  // 押した直後の 2 回目の押下も止めるため、描画を待たない ref で持つ。
+  const running = useRef(false);
+  const [busy, setBusy] = useState(false);
 
-  const run = (operation: () => Promise<void>, onError: (error: unknown) => void) => {
-    operation().catch((error: unknown) => {
-      if (needsReauthentication(error)) {
-        setPending({ operation, onError });
+  const execute = (operation: () => Promise<void>, onError: (error: unknown) => void) => {
+    if (running.current) {
+      return;
+    }
+    running.current = true;
+    setBusy(true);
+    operation()
+      .catch((error: unknown) => {
+        if (needsReauthentication(error)) {
+          setPending({ operation, onError });
 
-        return;
-      }
-      onError(error);
-    });
+          return;
+        }
+        onError(error);
+      })
+      .finally(() => {
+        running.current = false;
+        setBusy(false);
+      });
   };
 
   const modal = (
@@ -53,12 +68,12 @@ export function useReauthGate(
           onDone={() => {
             const { operation, onError } = pending;
             setPending(null);
-            operation().catch(onError);
+            execute(operation, onError);
           }}
         />
       )}
     </Modal>
   );
 
-  return { run, modal };
+  return { run: execute, busy, modal };
 }
