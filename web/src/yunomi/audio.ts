@@ -1,4 +1,5 @@
 import type { AudioTracks } from '@mpeg2toh264/player';
+import type { KyusuAudio } from './route';
 
 // AudioChoice は、音声のメニューの選択肢。音声の ES を選ぶものと、デュアルモノの主音声と副音声を選ぶものがある (設計書 7.5)。
 export type AudioChoice =
@@ -45,4 +46,23 @@ export function currentAudioChoice(tracks: AudioTracks | null): string | null {
   }
 
   return tracks.current === null ? null : `stream:${tracks.current}`;
+}
+
+// audioSlot は、ブラウザの中で変換する経路の音声の選択肢を、kyusu の音声の番号にする。
+// kyusu では、tsreadex がデュアルモノの副音声と 2 つ目以降の音声の ES を、第 2 音声にする。
+export function audioSlot(choice: AudioChoice): KyusuAudio {
+  if (choice.kind === 'dualMono') {
+    return choice.sub ? 2 : 1;
+  }
+
+  return choice.index === 0 ? 1 : 2;
+}
+
+// choiceForSlot は、kyusu の音声の番号に当たる、ブラウザの中で変換する経路の選択肢の値を返す。
+// デュアルモノなら主音声か副音声を、そうでなければ音声の ES を選ぶ。当たるものがなければ null を返す。
+export function choiceForSlot(choices: AudioChoice[], slot: KyusuAudio): string | null {
+  const dualMono = choices.filter((choice) => choice.kind === 'dualMono');
+  const candidates = dualMono.length > 0 ? dualMono : choices;
+
+  return candidates.find((choice) => audioSlot(choice) === slot)?.value ?? null;
 }
