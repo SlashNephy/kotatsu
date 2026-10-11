@@ -70,7 +70,7 @@ func DefaultOptions(now time.Time, ts []byte) *Options {
 					Description:  "偽のチューナーサーバーが合成した番組です。",
 					RelatedItems: nil,
 					// 実機で最も多い、日本語のステレオ 1 つにする。
-					Audios: []*Audio{{ComponentType: 3, ComponentTag: 16, IsMain: true, SamplingRate: 48000, Langs: []string{"jpn"}}},
+					Audios: []*Audio{{ComponentType: 3, ComponentTag: new(16), IsMain: true, SamplingRate: 48000, Langs: []string{"jpn"}}},
 				})
 			}
 		}

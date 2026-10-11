@@ -215,8 +215,8 @@ func TestSyncAllStoresProgramAudios(t *testing.T) {
 	_, err := f.reconciler.SyncAll(t.Context())
 	require.NoError(t, err)
 	require.NoError(t, f.fake.ChangeProgramAudios(programID(6), []*faketuner.Audio{
-		{ComponentType: 3, ComponentTag: 16, IsMain: true, SamplingRate: 48000, Langs: []string{"jpn"}},
-		{ComponentType: 3, ComponentTag: 17, IsMain: false, SamplingRate: 48000, Langs: []string{"eng"}},
+		{ComponentType: 3, ComponentTag: new(16), IsMain: true, SamplingRate: 48000, Langs: []string{"jpn"}},
+		{ComponentType: 3, ComponentTag: new(17), IsMain: false, SamplingRate: 48000, Langs: []string{"eng"}},
 	}))
 
 	result, err := f.reconciler.SyncAll(t.Context())

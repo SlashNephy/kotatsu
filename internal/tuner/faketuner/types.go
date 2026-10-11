@@ -56,11 +56,12 @@ type Program struct {
 
 // Audio は、番組の音声。Mirakurun の audios の要素と同じ形にする。
 type Audio struct {
-	ComponentType int      `json:"componentType"`
-	ComponentTag  int      `json:"componentTag"`
-	IsMain        bool     `json:"isMain"`
-	SamplingRate  int      `json:"samplingRate"`
-	Langs         []string `json:"langs"`
+	ComponentType int `json:"componentType"`
+	// ComponentTag は component_tag。nil なら、mirakc と同じく返さない。
+	ComponentTag *int     `json:"componentTag,omitempty"`
+	IsMain       bool     `json:"isMain"`
+	SamplingRate int      `json:"samplingRate"`
+	Langs        []string `json:"langs"`
 }
 
 // RelatedItem は、番組に関連づけた別のサービスの番組。
