@@ -29,7 +29,8 @@ func TestEstimateWaitsForSlot(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			e := NewEstimator(10 * time.Second)
+			// CI では、判定に 10 秒を超えることがあるので、枠が空くときは上限を長くする。
+			e := NewEstimator(2 * time.Minute)
 			// 時間切れを待つ時間を短くするため、枠が空かないときだけ、上限を短くする。
 			if tt.wantErr != nil {
 				e.timeout = 100 * time.Millisecond
