@@ -27,8 +27,10 @@ export function usePlayerAudio(
   const [slot, setSlot] = useState<KyusuAudio>(1);
   const convertTracks = route.kind === 'convert' ? tracks : null;
   const choices = audioChoices(convertTracks);
+  // 選んだものが今の番組の音声になければ (番組が変わって音声の構成が変わったときなど)、選んだ音声の番号から選び直す。
   // 第 1 音声なら、プレイヤーの既定 (主音声) のままにする。
-  const convertAudio = choice ?? (slot === 1 ? null : choiceForSlot(choices, slot));
+  const current = choices.some((candidate) => candidate.value === choice) ? choice : null;
+  const convertAudio = current ?? (slot === 1 ? null : choiceForSlot(choices, slot));
 
   let menu: ReactNode = null;
   if (route.kind === 'convert') {
