@@ -3,7 +3,7 @@ package password
 import (
 	"bufio"
 	"context"
-	"crypto"
+	"crypto/sha1" //nolint:gosec // Have I Been Pwned の API が SHA-1 を定めている。
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -44,14 +44,9 @@ var ErrHIBPUnavailable = errors.New("have i been pwned is unavailable")
 
 // Breached は、パスワードが漏洩済みのパスワードに含まれるかを返す。
 func (h *HIBP) Breached(ctx context.Context, password string) (bool, error) {
-	// API が SHA-1 を定めている。照会に使う net/http が crypto/tls を通じて crypto/sha1 を読み込むので、
-	// crypto.SHA1 は登録済みになる。登録されていなければ、照会できなかったものとして扱う。
-	if !crypto.SHA1.Available() {
-		return false, fmt.Errorf("%w: SHA-1 is not available", ErrHIBPUnavailable)
-	}
-	hasher := crypto.SHA1.New()
-	hasher.Write([]byte(password))
-	digest := strings.ToUpper(hex.EncodeToString(hasher.Sum(nil)))
+	// API が SHA-1 を定めている。
+	sum := sha1.Sum([]byte(password)) //nolint:gosec // Have I Been Pwned の API が SHA-1 を定めている。
+	digest := strings.ToUpper(hex.EncodeToString(sum[:]))
 	prefix, suffix := digest[:5], digest[5:]
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, h.url+"/range/"+prefix, nil)

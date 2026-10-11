@@ -4,13 +4,12 @@
 package totp
 
 import (
-	"crypto"
 	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha1" //nolint:gosec // RFC 6238 と認証アプリが HMAC-SHA1 を定めている。
 	"crypto/subtle"
 	"encoding/base32"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -28,9 +27,6 @@ const (
 	// skew は、時計のずれを許すステップの数。前後 1 ステップ (30 秒) まで受け付ける。
 	skew = 1
 )
-
-// ErrSHA1Unavailable は、SHA-1 が使えないことを表す。
-var ErrSHA1Unavailable = errors.New("SHA-1 is not available")
 
 // NewSecret は、ランダムな秘密キーを作る。
 func NewSecret() ([]byte, error) {
@@ -67,16 +63,13 @@ func Step(t time.Time) int64 {
 
 // Code は、ステップ step のコードを digits 桁で返す (RFC 4226 の HOTP)。
 func Code(secret []byte, step int64, digits int) (string, error) {
-	// RFC 6238 と認証アプリは HMAC-SHA1 を使う。crypto/sha1 は、net/http などが読み込むので登録済みになる。
-	if !crypto.SHA1.Available() {
-		return "", ErrSHA1Unavailable
-	}
+	// RFC 6238 と認証アプリは HMAC-SHA1 を使う。
 	if step < 0 {
 		return "", fmt.Errorf("the step must not be negative: %d", step)
 	}
 	var counter [8]byte
 	binary.BigEndian.PutUint64(counter[:], uint64(step))
-	mac := hmac.New(crypto.SHA1.New, secret)
+	mac := hmac.New(sha1.New, secret)
 	mac.Write(counter[:])
 	sum := mac.Sum(nil)
 	offset := sum[len(sum)-1] & 0x0f
