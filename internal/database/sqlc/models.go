@@ -151,6 +151,7 @@ type Program struct {
 	Extended              []byte
 	Genres                []byte
 	RelatedItems          []byte
+	Audios                []byte
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }
@@ -170,6 +171,7 @@ type ProgramArchive struct {
 	Extended              []byte
 	Genres                []byte
 	RelatedItems          []byte
+	Audios                []byte
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	ArchivedAt            time.Time
@@ -191,6 +193,7 @@ type Recording struct {
 	Errors        int64
 	Scrambled     int64
 	Gaps          []byte
+	Audios        []byte
 	ProgramLost   bool
 	RecordedFrom  time.Time
 	RecordedUntil *time.Time

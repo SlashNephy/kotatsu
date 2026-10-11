@@ -33,13 +33,13 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- name: ListPrograms :many
 SELECT service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
-  extended, genres, related_items
+  extended, genres, related_items, audios
 FROM programs
 ORDER BY service_id, event_id;
 
 -- name: ListProgramsOfService :many
 SELECT service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
-  extended, genres, related_items
+  extended, genres, related_items, audios
 FROM programs
 WHERE service_id = @service_id
 ORDER BY event_id;
@@ -47,12 +47,12 @@ ORDER BY event_id;
 -- name: UpsertPrograms :batchexec
 INSERT INTO programs (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
-  name, description, name_normalized, description_normalized, extended, genres, related_items,
+  name, description, name_normalized, description_normalized, extended, genres, related_items, audios,
   created_at, updated_at
 )
 VALUES (
   @service_id, @event_id, @mirakurun_id, @start_at, @end_at, @end_undecided, @is_free,
-  @name, @description, @name_normalized, @description_normalized, @extended, @genres, @related_items,
+  @name, @description, @name_normalized, @description_normalized, @extended, @genres, @related_items, @audios,
   @now, @now
 )
 ON CONFLICT (service_id, event_id) DO UPDATE SET
@@ -68,6 +68,7 @@ ON CONFLICT (service_id, event_id) DO UPDATE SET
   extended = excluded.extended,
   genres = excluded.genres,
   related_items = excluded.related_items,
+  audios = excluded.audios,
   updated_at = excluded.updated_at;
 
 -- name: DeletePrograms :batchexec
@@ -102,12 +103,12 @@ WITH moved AS (
 )
 INSERT INTO program_archives (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
-  name, description, name_normalized, description_normalized, extended, genres, related_items,
+  name, description, name_normalized, description_normalized, extended, genres, related_items, audios,
   created_at, updated_at, archived_at
 )
 SELECT
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
-  name, description, name_normalized, description_normalized, extended, genres, related_items,
+  name, description, name_normalized, description_normalized, extended, genres, related_items, audios,
   created_at, updated_at, @now
 FROM moved
 -- 同じ番組を移し直すことは通常ないが、移した後に上流から同じ番組が届き、また移すときは新しい内容で上書きする。
@@ -123,6 +124,7 @@ ON CONFLICT (service_id, event_id, start_at) DO UPDATE SET
   extended = excluded.extended,
   genres = excluded.genres,
   related_items = excluded.related_items,
+  audios = excluded.audios,
   updated_at = excluded.updated_at,
   archived_at = excluded.archived_at;
 

@@ -213,7 +213,7 @@ func (r *Resolver) matchCandidate(
 	program, err := toProgram(&programRow{
 		ServiceID: row.ServiceID, EventID: row.EventID, StartAt: row.StartAt, EndAt: row.EndAt,
 		EndUndecided: row.EndUndecided, IsFree: row.IsFree, Name: row.Name, Description: row.Description,
-		Extended: row.Extended, Genres: row.Genres,
+		Extended: row.Extended, Genres: row.Genres, Audios: row.Audios,
 	})
 	if err != nil {
 		return nil, false, err

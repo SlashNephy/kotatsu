@@ -15,17 +15,17 @@ ORDER BY ct.sort_order, ct.type, s.sort_order NULLS LAST, s.remote_control_key_i
 
 -- name: ListProgramsInRange :many
 -- 時間帯 [from, to) に重なる番組。
-SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres
+SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios
 FROM programs
 WHERE service_id = ANY(@service_ids::bigint[]) AND end_at > @from_at AND start_at < @to_at
 ORDER BY service_id, start_at, event_id;
 
 -- name: GetGuideProgram :one
-SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres
+SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios
 FROM programs
 WHERE service_id = @service_id AND event_id = @event_id;
 
 -- name: GetArchivedProgram :one
-SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres
+SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios
 FROM program_archives
 WHERE service_id = @service_id AND event_id = @event_id AND start_at = @start_at;

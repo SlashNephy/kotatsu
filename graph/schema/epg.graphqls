@@ -45,6 +45,19 @@ type Genre {
 }
 
 """
+番組の音声。ARIB STD-B10 の音声コンポーネント記述子の内容。
+"""
+type ProgramAudio {
+  "component_type。1 はシングルモノ、2 はデュアルモノ、3 はステレオ、9 は 5.1ch など。"
+  componentType: Int!
+  "主音声かどうか。"
+  isMain: Boolean!
+  "言語のコード (ISO 639-2)。デュアルモノでは、主音声と副音声の 2 つになる。"
+  languages: [String!]!
+  samplingRate: Int!
+}
+
+"""
 番組の詳細の、見出しと本文の組。
 """
 type ExtendedItem {
@@ -68,6 +81,8 @@ type Program implements Node {
   description: String!
   extended: [ExtendedItem!]!
   genres: [Genre!]!
+  "音声の構成。主音声を先に並べる。チューナーサーバーが返さなければ空になる。"
+  audios: [ProgramAudio!]!
 }
 
 """

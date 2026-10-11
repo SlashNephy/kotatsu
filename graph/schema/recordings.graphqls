@@ -107,6 +107,8 @@ type Recording implements Node {
   errors: Int64!
   scrambled: Int64!
   gaps: [RecordingGap!]!
+  "録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。"
+  audios: [ProgramAudio!]!
   "録画中に番組が EPG から消えたかどうか。"
   programLost: Boolean!
   "実際に録画を始めた日時と、終えた日時。録画中なら終えた日時は null。"

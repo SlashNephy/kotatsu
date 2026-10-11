@@ -707,6 +707,10 @@ type Program implements Node {
   extended: [ExtendedItem!]!
   genres: [Genre!]!
   """
+  音声の構成。主音声を先に並べる。チューナーサーバーが返さなければ空になる。
+  """
+  audios: [ProgramAudio!]!
+  """
   この番組の予約。予約がなければ null。
   """
   reservation: Reservation
@@ -714,6 +718,24 @@ type Program implements Node {
   放送が終わり、アーカイブに移した番組かどうか。
   """
   archived: Boolean!
+}
+"""
+番組の音声。ARIB STD-B10 の音声コンポーネント記述子の内容。
+"""
+type ProgramAudio {
+  """
+  component_type。1 はシングルモノ、2 はデュアルモノ、3 はステレオ、9 は 5.1ch など。
+  """
+  componentType: Int!
+  """
+  主音声かどうか。
+  """
+  isMain: Boolean!
+  """
+  言語のコード (ISO 639-2)。デュアルモノでは、主音声と副音声の 2 つになる。
+  """
+  languages: [String!]!
+  samplingRate: Int!
 }
 """
 番組の条件 (設計書 4.2)。空の項目では絞り込まない。
@@ -943,6 +965,10 @@ type Recording implements Node {
   errors: Int64!
   scrambled: Int64!
   gaps: [RecordingGap!]!
+  """
+  録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。
+  """
+  audios: [ProgramAudio!]!
   """
   録画中に番組が EPG から消えたかどうか。
   """

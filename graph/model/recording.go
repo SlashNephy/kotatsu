@@ -19,6 +19,7 @@ type Recording struct {
 	Errors            int64                   `json:"errors"`
 	Scrambled         int64                   `json:"scrambled"`
 	Gaps              []*RecordingGap         `json:"gaps"`
+	Audios            []*ProgramAudio         `json:"audios"`
 	ProgramLost       bool                    `json:"programLost"`
 	RecordedFrom      time.Time               `json:"recordedFrom"`
 	RecordedUntil     *time.Time              `json:"recordedUntil,omitempty"`

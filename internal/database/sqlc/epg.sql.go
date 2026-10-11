@@ -19,16 +19,16 @@ WITH moved AS (
     ORDER BY p.end_at
     LIMIT $3::integer
   )
-  RETURNING service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description, name_normalized, description_normalized, extended, genres, related_items, created_at, updated_at
+  RETURNING service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description, name_normalized, description_normalized, extended, genres, related_items, audios, created_at, updated_at
 )
 INSERT INTO program_archives (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
-  name, description, name_normalized, description_normalized, extended, genres, related_items,
+  name, description, name_normalized, description_normalized, extended, genres, related_items, audios,
   created_at, updated_at, archived_at
 )
 SELECT
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
-  name, description, name_normalized, description_normalized, extended, genres, related_items,
+  name, description, name_normalized, description_normalized, extended, genres, related_items, audios,
   created_at, updated_at, $1
 FROM moved
 ON CONFLICT (service_id, event_id, start_at) DO UPDATE SET
@@ -43,6 +43,7 @@ ON CONFLICT (service_id, event_id, start_at) DO UPDATE SET
   extended = excluded.extended,
   genres = excluded.genres,
   related_items = excluded.related_items,
+  audios = excluded.audios,
   updated_at = excluded.updated_at,
   archived_at = excluded.archived_at
 `
@@ -144,7 +145,7 @@ func (q *Queries) ListEPGChangesSince(ctx context.Context, version int64) ([]Lis
 
 const listPrograms = `-- name: ListPrograms :many
 SELECT service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
-  extended, genres, related_items
+  extended, genres, related_items, audios
 FROM programs
 ORDER BY service_id, event_id
 `
@@ -162,6 +163,7 @@ type ListProgramsRow struct {
 	Extended     []byte
 	Genres       []byte
 	RelatedItems []byte
+	Audios       []byte
 }
 
 func (q *Queries) ListPrograms(ctx context.Context) ([]ListProgramsRow, error) {
@@ -186,6 +188,7 @@ func (q *Queries) ListPrograms(ctx context.Context) ([]ListProgramsRow, error) {
 			&i.Extended,
 			&i.Genres,
 			&i.RelatedItems,
+			&i.Audios,
 		); err != nil {
 			return nil, err
 		}
@@ -199,7 +202,7 @@ func (q *Queries) ListPrograms(ctx context.Context) ([]ListProgramsRow, error) {
 
 const listProgramsOfService = `-- name: ListProgramsOfService :many
 SELECT service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
-  extended, genres, related_items
+  extended, genres, related_items, audios
 FROM programs
 WHERE service_id = $1
 ORDER BY event_id
@@ -218,6 +221,7 @@ type ListProgramsOfServiceRow struct {
 	Extended     []byte
 	Genres       []byte
 	RelatedItems []byte
+	Audios       []byte
 }
 
 func (q *Queries) ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error) {
@@ -242,6 +246,7 @@ func (q *Queries) ListProgramsOfService(ctx context.Context, serviceID int64) ([
 			&i.Extended,
 			&i.Genres,
 			&i.RelatedItems,
+			&i.Audios,
 		); err != nil {
 			return nil, err
 		}

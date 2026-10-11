@@ -233,10 +233,15 @@ func recordingModel(row *sqlc.Recording) (*model.Recording, error) {
 	if err := json.Unmarshal(row.Gaps, &gaps); err != nil {
 		return nil, fmt.Errorf("failed to decode the recording gaps: %w", err)
 	}
+	audios, err := toProgramAudios(row.Audios)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode the recording audios: %w", err)
+	}
 	recording := &model.Recording{
 		ID: GlobalID(recordingType, row.ID.String()), EventID: nil, Name: row.Name, Description: row.Description,
 		StartAt: row.StartAt, EndAt: row.EndAt, State: model.RecordingState(strings.ToUpper(row.State)), FailureReason: nil,
 		Protected: row.Protected, Drops: row.Drops, Errors: row.Errors, Scrambled: row.Scrambled, Gaps: orEmpty(gaps),
+		Audios:      audios,
 		ProgramLost: row.ProgramLost, RecordedFrom: row.RecordedFrom, RecordedUntil: row.RecordedUntil,
 		Tags: []*model.Tag{}, Files: []*model.RecordingFile{}, WatchPositionMs: nil, ThumbnailURL: nil, PreviewURL: nil,
 		StreamURL:         "/streams/recordings/" + row.ID.String(),

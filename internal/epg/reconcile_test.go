@@ -207,6 +207,33 @@ func TestSyncAllReflectsChangesWithoutEvents(t *testing.T) {
 	}
 }
 
+// TestSyncAllStoresProgramAudios は、番組の音声の構成を保存し、変わらなければ書き直さないことを確かめる (#284)。
+func TestSyncAllStoresProgramAudios(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, f.fake.ChangeProgramAudios(programID(6), []*faketuner.Audio{
+		{ComponentType: 3, ComponentTag: 16, IsMain: true, SamplingRate: 48000, Langs: []string{"jpn"}},
+		{ComponentType: 3, ComponentTag: 17, IsMain: false, SamplingRate: 48000, Langs: []string{"eng"}},
+	}))
+
+	result, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.ProgramsUpserted)
+	var languages []string
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT ARRAY(SELECT a->'langs'->>0 FROM jsonb_array_elements(audios) a) FROM programs WHERE service_id = $1 AND event_id = 6",
+		serviceID()).Scan(&languages))
+	assert.Equal(t, []string{"jpn", "eng"}, languages)
+
+	// 音声の構成を DB から読み直しても、上流と同じとみなす。
+	result, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, &epg.Result{ServicesUpserted: 0, ProgramsUpserted: 0, ProgramsDeleted: 0, Version: 0}, result)
+}
+
 // TestSyncAllKeepsAdministratorSettings は、管理者が画面から変えた値を同期が上書きしないことを確かめる。
 func TestSyncAllKeepsAdministratorSettings(t *testing.T) {
 	t.Parallel()

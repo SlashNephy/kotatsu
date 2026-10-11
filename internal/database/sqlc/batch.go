@@ -72,13 +72,13 @@ func (b *DeleteProgramsBatchResults) Close() error {
 const upsertPrograms = `-- name: UpsertPrograms :batchexec
 INSERT INTO programs (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
-  name, description, name_normalized, description_normalized, extended, genres, related_items,
+  name, description, name_normalized, description_normalized, extended, genres, related_items, audios,
   created_at, updated_at
 )
 VALUES (
   $1, $2, $3, $4, $5, $6, $7,
-  $8, $9, $10, $11, $12, $13, $14,
-  $15, $15
+  $8, $9, $10, $11, $12, $13, $14, $15,
+  $16, $16
 )
 ON CONFLICT (service_id, event_id) DO UPDATE SET
   mirakurun_id = excluded.mirakurun_id,
@@ -93,6 +93,7 @@ ON CONFLICT (service_id, event_id) DO UPDATE SET
   extended = excluded.extended,
   genres = excluded.genres,
   related_items = excluded.related_items,
+  audios = excluded.audios,
   updated_at = excluded.updated_at
 `
 
@@ -117,6 +118,7 @@ type UpsertProgramsParams struct {
 	Extended              []byte
 	Genres                []byte
 	RelatedItems          []byte
+	Audios                []byte
 	Now                   time.Time
 }
 
@@ -138,6 +140,7 @@ func (q *Queries) UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams
 			a.Extended,
 			a.Genres,
 			a.RelatedItems,
+			a.Audios,
 			a.Now,
 		}
 		batch.Queue(upsertPrograms, vals...)

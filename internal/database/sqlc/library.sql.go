@@ -111,7 +111,7 @@ func (q *Queries) ListRecordingTags(ctx context.Context, recordingIds []uuid.UUI
 }
 
 const listRecordingsByIDs = `-- name: ListRecordingsByIDs :many
-SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, program_lost, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = ANY($1::uuid[])
+SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, program_lost, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = ANY($1::uuid[])
 `
 
 func (q *Queries) ListRecordingsByIDs(ctx context.Context, ids []uuid.UUID) ([]Recording, error) {
@@ -139,6 +139,7 @@ func (q *Queries) ListRecordingsByIDs(ctx context.Context, ids []uuid.UUID) ([]R
 			&i.Errors,
 			&i.Scrambled,
 			&i.Gaps,
+			&i.Audios,
 			&i.ProgramLost,
 			&i.RecordedFrom,
 			&i.RecordedUntil,
@@ -224,7 +225,7 @@ func (q *Queries) ListWatchProgress(ctx context.Context, arg ListWatchProgressPa
 }
 
 const lockRecording = `-- name: LockRecording :one
-SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, program_lost, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1 FOR UPDATE
+SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, program_lost, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1 FOR UPDATE
 `
 
 // 録画を変える前に、ロックして読む。
@@ -247,6 +248,7 @@ func (q *Queries) LockRecording(ctx context.Context, id uuid.UUID) (Recording, e
 		&i.Errors,
 		&i.Scrambled,
 		&i.Gaps,
+		&i.Audios,
 		&i.ProgramLost,
 		&i.RecordedFrom,
 		&i.RecordedUntil,
@@ -257,7 +259,7 @@ func (q *Queries) LockRecording(ctx context.Context, id uuid.UUID) (Recording, e
 }
 
 const searchRecordings = `-- name: SearchRecordings :many
-SELECT r.id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.program_lost, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM recordings r
+SELECT r.id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.program_lost, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM recordings r
 WHERE (cardinality($1::text[]) = 0 OR r.state = ANY($1::text[]))
   AND (cardinality($2::bigint[]) = 0 OR r.service_id = ANY($2::bigint[]))
   AND (cardinality($3::uuid[]) = 0 OR EXISTS (
@@ -321,6 +323,7 @@ func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsPara
 			&i.Errors,
 			&i.Scrambled,
 			&i.Gaps,
+			&i.Audios,
 			&i.ProgramLost,
 			&i.RecordedFrom,
 			&i.RecordedUntil,

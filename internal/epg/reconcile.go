@@ -353,6 +353,7 @@ type program struct {
 	Extended     map[string]string
 	Genres       []*mirakurun.Genre
 	RelatedItems []*mirakurun.RelatedItem
+	Audios       []*mirakurun.Audio
 }
 
 // programKey は番組の主キー (サービスと eventId の組)。
@@ -381,6 +382,10 @@ func fromUpstream(p *mirakurun.Program) *program {
 	if related == nil {
 		related = []*mirakurun.RelatedItem{}
 	}
+	audios := p.Audios
+	if audios == nil {
+		audios = []*mirakurun.Audio{}
+	}
 
 	return &program{
 		ServiceID:    int64(p.NetworkID)*serviceIDBase + int64(p.ServiceID),
@@ -395,6 +400,7 @@ func fromUpstream(p *mirakurun.Program) *program {
 		Extended:     extended,
 		Genres:       genres,
 		RelatedItems: related,
+		Audios:       audios,
 	}
 }
 
@@ -413,11 +419,12 @@ func fromRow(row sqlc.ListProgramsRow) (*program, error) {
 		Extended:     map[string]string{},
 		Genres:       []*mirakurun.Genre{},
 		RelatedItems: []*mirakurun.RelatedItem{},
+		Audios:       []*mirakurun.Audio{},
 	}
 	for _, column := range []struct {
 		raw []byte
 		v   any
-	}{{row.Extended, &p.Extended}, {row.Genres, &p.Genres}, {row.RelatedItems, &p.RelatedItems}} {
+	}{{row.Extended, &p.Extended}, {row.Genres, &p.Genres}, {row.RelatedItems, &p.RelatedItems}, {row.Audios, &p.Audios}} {
 		if err := json.Unmarshal(column.raw, column.v); err != nil {
 			return nil, fmt.Errorf("failed to decode program %d/%d: %w", row.ServiceID, row.EventID, err)
 		}
@@ -486,7 +493,7 @@ func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, no
 
 	params := make([]sqlc.UpsertProgramsParams, 0, len(programs))
 	for _, p := range programs {
-		extended, genres, related, err := encodeJSONColumns(p)
+		columns, err := encodeJSONColumns(p)
 		if err != nil {
 			return err
 		}
@@ -502,9 +509,10 @@ func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, no
 			Description:           p.Description,
 			NameNormalized:        Normalize(p.Name),
 			DescriptionNormalized: Normalize(p.Description),
-			Extended:              extended,
-			Genres:                genres,
-			RelatedItems:          related,
+			Extended:              columns.extended,
+			Genres:                columns.genres,
+			RelatedItems:          columns.related,
+			Audios:                columns.audios,
 			Now:                   now,
 		})
 	}
@@ -548,21 +556,31 @@ func deletePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, n
 	return deleted, nil
 }
 
-func encodeJSONColumns(p *program) ([]byte, []byte, []byte, error) {
-	extended, err := json.Marshal(p.Extended)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to encode extended: %w", err)
-	}
-	genres, err := json.Marshal(p.Genres)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to encode genres: %w", err)
-	}
-	related, err := json.Marshal(p.RelatedItems)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to encode related items: %w", err)
+// jsonColumns は、番組の JSON の列。
+type jsonColumns struct {
+	extended, genres, related, audios []byte
+}
+
+func encodeJSONColumns(p *program) (*jsonColumns, error) {
+	c := new(jsonColumns)
+	for _, column := range []struct {
+		name string
+		v    any
+		dst  *[]byte
+	}{
+		{"extended", p.Extended, &c.extended},
+		{"genres", p.Genres, &c.genres},
+		{"related items", p.RelatedItems, &c.related},
+		{"audios", p.Audios, &c.audios},
+	} {
+		b, err := json.Marshal(column.v)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode %s: %w", column.name, err)
+		}
+		*column.dst = b
 	}
 
-	return extended, genres, related, nil
+	return c, nil
 }
 
 // span は時間帯。

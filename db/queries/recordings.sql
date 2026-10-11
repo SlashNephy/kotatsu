@@ -1,9 +1,12 @@
 -- name: StartRecording :one
 -- 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。新しく始めたかどうかを inserted で返す。
+-- 番組の音声の構成は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
 INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
-  protected, drops, errors, scrambled, recorded_from, recorded_until, created_at, updated_at)
+  protected, drops, errors, scrambled, audios, recorded_from, recorded_until, created_at, updated_at)
 VALUES (@id, @reservation_id, @service_id, @event_id, @name, @description, @start_at, @end_at, 'recording', NULL,
-  false, 0, 0, 0, @now, NULL, @now, @now)
+  false, 0, 0, 0,
+  COALESCE((SELECT p.audios FROM programs p WHERE p.service_id = @service_id AND p.event_id = sqlc.narg(event_id)), '[]'::jsonb),
+  @now, NULL, @now, @now)
 ON CONFLICT (reservation_id) DO UPDATE SET state = 'recording', failure_reason = NULL, recorded_until = NULL, updated_at = EXCLUDED.updated_at
 RETURNING sqlc.embed(recordings), (xmax = 0)::boolean AS inserted;
 
