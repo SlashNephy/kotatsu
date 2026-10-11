@@ -457,6 +457,47 @@ func (s flakyStream) OpenServiceStream(ctx context.Context, serviceID int64, opt
 	return onceStream{data: s.data}.OpenServiceStream(ctx, serviceID, opts)
 }
 
+// shortStream は、開くたびに data を流して、すぐに切れる。開いた回数を opened に数える。
+type shortStream struct {
+	data   []byte
+	opened *atomic.Int32
+}
+
+var _ recording.StreamOpener = new(shortStream)
+
+func (s *shortStream) OpenServiceStream(context.Context, int64, *mirakurun.StreamOptions) (io.ReadCloser, error) {
+	s.opened.Add(1)
+
+	return io.NopCloser(bytes.NewReader(s.data)), nil
+}
+
+// endingStream は、data を流した後、close を閉じるまで待ってから、ストリームを終える。開いた回数を opened に数える。
+type endingStream struct {
+	data   []byte
+	close  chan struct{}
+	opened *atomic.Int32
+}
+
+var _ recording.StreamOpener = new(endingStream)
+
+func (s *endingStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
+	s.opened.Add(1)
+	reader, writer := io.Pipe()
+	go func() {
+		if _, err := writer.Write(s.data); err != nil {
+			return
+		}
+		select {
+		case <-s.close:
+			_ = writer.Close()
+		case <-ctx.Done():
+			_ = writer.CloseWithError(ctx.Err())
+		}
+	}()
+
+	return reader, nil
+}
+
 type gapsAndLost struct {
 	gaps        int
 	programLost bool
@@ -483,6 +524,60 @@ func (f *fixture) segments(t *testing.T, reservationID uuid.UUID) int {
 	}
 
 	return n
+}
+
+// TestRecorderDoesNotReopenAfterPlannedEnd は、予定の終わりにチューナーサーバーがストリームを閉じたとき、
+// 開き直さずに録画を終えることを確かめる (#305)。
+func TestRecorderDoesNotReopenAfterPlannedEnd(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	opened := new(atomic.Int32)
+	stream := &endingStream{data: data, close: make(chan struct{}), opened: opened}
+	recorder, _ := f.newRecorder(t, stream, nil)
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return len(f.files(t, reservationID)) == 2
+	}, waitTimeout, 10*time.Millisecond)
+
+	// 予定の終わりを過ぎてから、ストリームが閉じる。
+	f.clock.Advance(programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
+	close(stream.close)
+	require.NoError(t, wait(t, done))
+	assert.Equal(t, int32(1), opened.Load())
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StateCompleted), got.state)
+}
+
+// TestRecorderWaitsBeforeReopeningShortStreams は、開いてすぐに切れ続けるストリームを、RetryInterval に 1 回までしか開き直さないことを確かめる (#305)。
+func TestRecorderWaitsBeforeReopeningShortStreams(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	opened := new(atomic.Int32)
+	recorder, _ := f.newRecorder(t, &shortStream{data: data[:188*100], opened: opened}, nil)
+	cancel, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return opened.Load() > 0
+	}, waitTimeout, 10*time.Millisecond)
+
+	// 開き直すのは、RetryInterval (20 ミリ秒) に 1 回までである。実際に待った時間から、開く回数の上限を求める。
+	started := time.Now()
+	time.Sleep(500 * time.Millisecond)
+	cancel(nil)
+	_ = wait(t, done)
+	limit := int64(time.Since(started)/(20*time.Millisecond)) + 2
+	assert.GreaterOrEqual(t, opened.Load(), int32(2), "it keeps reopening")
+	assert.LessOrEqual(t, int64(opened.Load()), limit)
+	assert.LessOrEqual(t, int64(f.segments(t, reservationID)), limit)
 }
 
 // TestRecorderReconnects は、予定の終わりの前にストリームが切れたら、開き直して新しいセグメントに書き、
