@@ -42,7 +42,8 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
   timeZone: 'Asia/Tokyo',
 });
 
-// autoPool は、保存先プールのメニューで「自動で選ぶ」を表す値。保存するときは空文字にする。
+// autoPool は、保存先プールのメニューで「自動で選ぶ」を表す値。保存するときも空文字のまま送る。
+// API では、null は「変えない」で、空文字が「自動で選ぶのに戻す」なので。
 const autoPool = '';
 
 // SettingsPage は、録画設定の既定値と、過去の番組の保持期間を変える、管理者向けの画面 (設計書 4.7、11.2)。
