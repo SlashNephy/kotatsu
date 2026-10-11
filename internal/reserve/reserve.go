@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/clock"
@@ -453,6 +454,8 @@ type ListQuery struct {
 	To   time.Time
 	// States は、割り当ての状態の集合。空ならすべて。
 	States []AssignmentState
+	// Enabled は、有効な予約だけ (true) か、無効な予約だけ (false) を返す。nil ならどちらも。
+	Enabled *bool
 	// AfterStartAt と AfterID は、この位置より後ろから返す (開始時刻、ID の順)。最初から返すなら nil。
 	AfterStartAt *time.Time
 	AfterID      *uuid.UUID
@@ -487,6 +490,7 @@ func (r *Reservations) List(ctx context.Context, db sqlc.DBTX, query *ListQuery)
 		FromAt:       query.From,
 		ToAt:         query.To,
 		States:       states,
+		Enabled:      optionalBool(query.Enabled),
 		AfterStartAt: afterStartAt,
 		AfterID:      afterID,
 		RowLimit:     int32(query.Limit),
@@ -690,4 +694,13 @@ func summaryOf(r *Reservation) map[string]any {
 	}
 
 	return summary
+}
+
+// optionalBool は、指定しない条件 (nil) を、DB の NULL にする。
+func optionalBool(v *bool) pgtype.Bool {
+	if v == nil {
+		return pgtype.Bool{Bool: false, Valid: false}
+	}
+
+	return pgtype.Bool{Bool: *v, Valid: true}
 }

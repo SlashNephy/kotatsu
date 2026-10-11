@@ -68,6 +68,7 @@ UPDATE reservations SET enabled = @enabled, updated_at = @now, updated_by = @upd
 SELECT * FROM reservations
 WHERE end_at > @from_at AND start_at < @to_at
   AND (cardinality(@states::text[]) = 0 OR assignment_state = ANY(@states::text[]))
+  AND (sqlc.narg(enabled)::boolean IS NULL OR enabled = sqlc.narg(enabled)::boolean)
   AND (start_at, id) > (@after_start_at::timestamptz, @after_id::uuid)
 ORDER BY start_at, id
 LIMIT @row_limit;

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const deleteReservation = `-- name: DeleteReservation :execrows
@@ -290,15 +291,17 @@ const listReservations = `-- name: ListReservations :many
 SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, relayed_from FROM reservations
 WHERE end_at > $1 AND start_at < $2
   AND (cardinality($3::text[]) = 0 OR assignment_state = ANY($3::text[]))
-  AND (start_at, id) > ($4::timestamptz, $5::uuid)
+  AND ($4::boolean IS NULL OR enabled = $4::boolean)
+  AND (start_at, id) > ($5::timestamptz, $6::uuid)
 ORDER BY start_at, id
-LIMIT $6
+LIMIT $7
 `
 
 type ListReservationsParams struct {
 	FromAt       time.Time
 	ToAt         time.Time
 	States       []string
+	Enabled      pgtype.Bool
 	AfterStartAt time.Time
 	AfterID      uuid.UUID
 	RowLimit     int32
@@ -310,6 +313,7 @@ func (q *Queries) ListReservations(ctx context.Context, arg ListReservationsPara
 		arg.FromAt,
 		arg.ToAt,
 		arg.States,
+		arg.Enabled,
 		arg.AfterStartAt,
 		arg.AfterID,
 		arg.RowLimit,
