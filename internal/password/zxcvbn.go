@@ -55,6 +55,8 @@ var _ StrengthEstimator = new(Estimator)
 // Estimator は、パスワードの強度を zxcvbn-ts で判定する (設計書 2.2)。
 type Estimator struct {
 	timeout time.Duration
+	// slots は、同時に動かす判定の数を抑える。判定 1 回で VM が 37 MiB ほど使うので、同時に呼ばれてもメモリが急に増えないようにする (設計書 2.2)。
+	slots chan struct{}
 
 	// compile は、バンドルを解凍してコンパイルする。最初に判定するときに 1 回だけ行う。
 	// 起動のたびにコンパイルすると、パスワードを扱わないロールまで起動が遅くなるからである。
@@ -68,7 +70,7 @@ func NewEstimator(timeout time.Duration) *Estimator {
 		timeout = DefaultStrengthTimeout
 	}
 
-	return &Estimator{timeout: timeout, compile: sync.OnceValues(compileBundle)}
+	return &Estimator{timeout: timeout, slots: make(chan struct{}, maxConcurrentEstimates), compile: sync.OnceValues(compileBundle)}
 }
 
 // compileBundle は、埋め込んだバンドルを解凍してコンパイルする。コンパイルしたものは、VM をまたいで使い回せる。
@@ -89,6 +91,9 @@ func compileBundle() (*goja.Program, error) {
 	return program, nil
 }
 
+// maxConcurrentEstimates は、同時に動かす判定の数の上限。
+const maxConcurrentEstimates = 2
+
 // Estimate は、パスワードの強度を判定する。
 //
 // VM を判定のたびに作って捨てる。VM を保持すると、ヒープを 37 MiB ほど使い続けるからである。
@@ -104,6 +109,15 @@ func (e *Estimator) Estimate(ctx context.Context, password string, userInputs []
 	case len(userInputs) > maxUserInputs:
 		userInputs = userInputs[:maxUserInputs]
 	}
+	// 判定の枠が空くのを待つ。待つ時間も、1 回の判定の時間の上限に含める。
+	ctx, cancel := context.WithTimeout(ctx, e.timeout)
+	defer cancel()
+	select {
+	case e.slots <- struct{}{}:
+		defer func() { <-e.slots }()
+	case <-ctx.Done():
+		return nil, fmt.Errorf("%w: %w", ErrStrengthTimeout, context.Cause(ctx))
+	}
 	program, err := e.compile()
 	if err != nil {
 		return nil, err
@@ -114,8 +128,6 @@ func (e *Estimator) Estimate(ctx context.Context, password string, userInputs []
 	}
 
 	vm := goja.New()
-	ctx, cancel := context.WithTimeout(ctx, e.timeout)
-	defer cancel()
 	stop := context.AfterFunc(ctx, func() {
 		vm.Interrupt(ErrStrengthTimeout)
 	})
