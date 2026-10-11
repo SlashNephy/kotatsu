@@ -220,6 +220,57 @@ func TestEngineDeletesReservationsThatNoLongerMatch(t *testing.T) {
 	assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
 }
 
+// TestManualReservationOverridesRuleReservation は、ルール予約がある番組を手動で予約すると、手動の番組予約に切り替わり、
+// 手動の設定が残ることと、ルールに一致しなくなっても消えないことを確かめる (設計書 4.1、#306)。
+func TestManualReservationOverridesRuleReservation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// disable は、手動で予約する前に、ユーザーがルール予約を消して (無効にして) おくかどうか。
+		disable bool
+	}{
+		{name: "有効なルール予約", disable: false},
+		{name: "ユーザーが消したルール予約", disable: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newEngineFixture(t)
+			r := f.createRule(t, `テスト番組 5$`, nil)
+			f.run(t)
+			ruleReservation := f.reservationOf(t, 5)
+			require.Equal(t, reserve.KindRule, ruleReservation.Kind)
+			if tt.disable {
+				require.NoError(t, f.reservations.Delete(t.Context(), f.pool, f.user, ruleReservation.ID))
+			}
+
+			got, created, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, &reserve.ProgramInput{
+				ServiceID: serviceID(), EventID: 5, FollowEventRelay: false, Overrides: &reserve.Overrides{EndMarginSeconds: new(120)},
+			})
+			require.NoError(t, err)
+			assert.False(t, created)
+			assert.Equal(t, ruleReservation.ID, got.ID)
+			assert.Equal(t, reserve.KindProgram, got.Kind)
+			assert.True(t, got.Enabled)
+			assert.False(t, got.FollowEventRelay)
+			assert.Equal(t, &reserve.Overrides{EndMarginSeconds: new(120)}, got.Overrides)
+
+			// ルールに一致しなくなっても、手動の予約は残る。
+			in := &rule.Input{
+				Name: r.Name, Memo: "", Enabled: true,
+				Conditions: &match.Conditions{Keywords: []*match.Keyword{{Text: "一致しない", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldName}}}},
+				Overrides:  nil, ValidFrom: nil, ValidUntil: nil, AvoidDuplicates: false, DuplicateWindowDays: nil, FollowEventRelay: true,
+			}
+			_, err = f.rules.Update(t.Context(), f.pool, f.user, r.ID, in)
+			require.NoError(t, err)
+			assert.Equal(t, 0, f.run(t).Deleted)
+			assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
+		})
+	}
+}
+
 // TestEngineDoesNotRecreateDisabledReservations は、ユーザーが削除したルール予約を無効にして残し、次の照合で作り直さないことを確かめる。
 func TestEngineDoesNotRecreateDisabledReservations(t *testing.T) {
 	t.Parallel()
