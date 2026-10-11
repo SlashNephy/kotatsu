@@ -3,6 +3,6 @@
 #
 #   MISE_ENV=mpeg2toh264 mise run web:mpeg2toh264
 [tools]
-rust = { version = "1.98.1", targets = "wasm32-unknown-unknown", profile = "minimal" }
+rust = { version = "1.99.0", targets = "wasm32-unknown-unknown", profile = "minimal" }
 # mpeg2toh264 の Cargo.lock の wasm-bindgen と同じ版にする。違うと、生成した glue が読めない。
 "github:wasm-bindgen/wasm-bindgen" = "0.2.126"
