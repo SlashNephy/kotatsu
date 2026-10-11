@@ -100,6 +100,10 @@ function Player({ recordingId }: { recordingId: string }) {
             jikkyoCommentsUrl
             watchPositionMs
             thumbnailUrl
+            audios {
+              componentType
+              languages
+            }
             service {
               name
               jikkyo {
@@ -227,7 +231,10 @@ function Player({ recordingId }: { recordingId: string }) {
   };
 
   // 音声は、経路ごとのメニューで選び、画質を変えても同じ音声を保つ。kyusu の音声を変えるときも、それまでの位置から続ける。
-  const audio = usePlayerAudio(route, () => startAt(positionRef.current));
+  // kyusu の経路では、録画を始めたときの番組の音声の構成から選ぶ。
+  const audio = usePlayerAudio(route, recording?.audios ?? null, () =>
+    startAt(positionRef.current),
+  );
   // 再生速度は、video の要素を作り直したときにも当て直す。
   const [rate, setRate] = useState(1);
   useEffect(() => {

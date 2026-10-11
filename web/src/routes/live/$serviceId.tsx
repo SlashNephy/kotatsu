@@ -1,6 +1,6 @@
 import { Alert, Anchor, Group, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { startTransition, Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
@@ -58,11 +58,9 @@ function LiveServicePage() {
   const { t } = useTranslation();
   const { serviceId } = Route.useParams();
   // 放送中の番組を出すので、画面を開いた時刻を、待たない親で決める。
-  const [range] = useState(() => {
-    const now = Date.now();
-
-    return { from: new Date(now).toISOString(), to: new Date(now + 60_000).toISOString() };
-  });
+  const [range, setRange] = useState(() => liveRange(Date.now()));
+  // 番組が終わったら、次の番組を読み直す。読み直す間も、再生は続ける。
+  const refresh = () => startTransition(() => setRange(liveRange(Date.now())));
 
   return (
     <Stack gap="sm">
@@ -87,12 +85,20 @@ function LiveServicePage() {
         }
       >
         <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
-          <Live key={serviceId} serviceId={serviceId} range={range} />
+          <Live key={serviceId} serviceId={serviceId} range={range} onProgramEnd={refresh} />
         </Suspense>
       </ErrorBoundary>
     </Stack>
   );
 }
+
+// liveRange は、now から 1 分の時間帯。ここに重なる番組を、放送中の番組とみなす。
+function liveRange(now: number): { from: string; to: string } {
+  return { from: new Date(now).toISOString(), to: new Date(now + 60_000).toISOString() };
+}
+
+// undecidedRecheckMs は、終了時刻が未定の番組や、番組がないときに、放送中の番組を読み直す間隔。
+const undecidedRecheckMs = 60_000;
 
 // Disconnection は、視聴が切れたことと、つなぎ直すまでの秒と、切れた理由とみなす録画。
 type Disconnection = {
@@ -101,7 +107,15 @@ type Disconnection = {
   recordings: { name: string; serviceName: string }[];
 };
 
-function Live({ serviceId, range }: { serviceId: string; range: { from: string; to: string } }) {
+function Live({
+  serviceId,
+  range,
+  onProgramEnd,
+}: {
+  serviceId: string;
+  range: { from: string; to: string };
+  onProgramEnd: () => void;
+}) {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const data = useLazyLoadQuery<ServiceIdLiveQuery>(
@@ -121,6 +135,12 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
         guide(from: $from, to: $to, services: [$id]) {
           programs {
             name
+            endAt
+            endUndecided
+            audios {
+              componentType
+              languages
+            }
           }
         }
         transcoding {
@@ -220,9 +240,18 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
     return () => clearTimeout(timer);
   }, [disconnection]);
 
-  // 音声は、経路ごとのメニューで選び、画質を変えても同じ音声を保つ。
-  const audio = usePlayerAudio(route);
-  const programName = data.guide[0]?.programs[0]?.name ?? null;
+  const program = data.guide[0]?.programs[0] ?? null;
+  // 番組が終わる時刻に、放送中の番組を読み直す。終了時刻が未定か、番組がなければ、1 分ごとに読み直す。
+  const programEnd = program === null || program.endUndecided ? null : program.endAt;
+  useEffect(() => {
+    const delay = programEnd === null ? undecidedRecheckMs : Date.parse(programEnd) - Date.now();
+    const timer = setTimeout(onProgramEnd, Math.max(delay, 1000));
+
+    return () => clearTimeout(timer);
+  }, [programEnd, range, onProgramEnd]);
+  // 音声は、経路ごとのメニューで選び、画質を変えても同じ音声を保つ。kyusu の経路では、番組の音声の構成から選ぶ。
+  const audio = usePlayerAudio(route, program?.audios ?? null);
+  const programName = program?.name ?? null;
   const serviceName = data.node?.__typename === 'Service' ? data.node.name : '';
   usePlayerShortcuts({
     togglePlay: () => {

@@ -276,6 +276,9 @@ type Querier interface {
 	MarkStoragePoolLow(ctx context.Context, arg MarkStoragePoolLowParams) (int64, error)
 	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
 	NotifyChange(ctx context.Context, arg NotifyChangeParams) error
+	// ルール予約を、手動の番組予約に切り替え、手動の設定を書き込む (設計書 4.1)。無効にしたルール予約も、有効に戻す。
+	// 一致したルールとの関連は残す。
+	PromoteRuleReservation(ctx context.Context, arg PromoteRuleReservationParams) (int64, error)
 	PruneEPGChanges(ctx context.Context, before time.Time) (int64, error)
 	// 放送の終わりが before より前のアーカイブを、最大 batch_size 件だけ消す。一度に大量の行をロックしないよう、少しずつ消す。
 	PruneProgramArchives(ctx context.Context, arg PruneProgramArchivesParams) (int64, error)

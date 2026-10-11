@@ -1,7 +1,13 @@
 import type { AudioTracks } from '@mpeg2toh264/player';
 import { describe, expect, test } from 'vitest';
 
-import { audioChoices, audioSlot, choiceForSlot, currentAudioChoice } from './audio';
+import {
+  audioChoices,
+  audioSlot,
+  choiceForSlot,
+  currentAudioChoice,
+  kyusuAudioChoices,
+} from './audio';
 
 const mono = { pid: 0x110, componentTag: 0x10, dualMono: false, languages: ['jpn'] };
 const commentary = { pid: 0x111, componentTag: 0x11, dualMono: false, languages: ['eng'] };
@@ -77,5 +83,62 @@ describe('audioSlot と choiceForSlot', () => {
 
   test('選べる音声がなければ、kyusu の音声の番号に当たるものはない', () => {
     expect(choiceForSlot([], 2)).toBeNull();
+  });
+});
+
+describe('kyusuAudioChoices', () => {
+  const stereo = (languages: string[]) => ({ componentType: 3, languages });
+  test.each([
+    {
+      name: '構成が分からない',
+      audios: null,
+      want: [
+        { slot: 1, kind: 'unknown', language: null },
+        { slot: 2, kind: 'unknown', language: null },
+      ],
+    },
+    {
+      name: '構成を残す前の録画',
+      audios: [],
+      want: [
+        { slot: 1, kind: 'unknown', language: null },
+        { slot: 2, kind: 'unknown', language: null },
+      ],
+    },
+    { name: '音声が 1 つ', audios: [stereo(['jpn'])], want: [] },
+    {
+      name: '二か国語放送 (音声の ES が 2 つ)',
+      audios: [stereo(['jpn']), stereo(['eng'])],
+      want: [
+        { slot: 1, kind: 'stream', language: 'jpn' },
+        { slot: 2, kind: 'stream', language: 'eng' },
+      ],
+    },
+    {
+      name: '2 つ目の音声に言語がない',
+      audios: [stereo(['jpn']), stereo([])],
+      want: [
+        { slot: 1, kind: 'stream', language: 'jpn' },
+        { slot: 2, kind: 'stream', language: null },
+      ],
+    },
+    {
+      name: 'デュアルモノ',
+      audios: [{ componentType: 2, languages: ['jpn', 'eng'] }],
+      want: [
+        { slot: 1, kind: 'dualMono', language: 'jpn' },
+        { slot: 2, kind: 'dualMono', language: 'eng' },
+      ],
+    },
+    {
+      name: '言語が 1 つだけのデュアルモノ',
+      audios: [{ componentType: 2, languages: ['jpn'] }],
+      want: [
+        { slot: 1, kind: 'dualMono', language: 'jpn' },
+        { slot: 2, kind: 'dualMono', language: null },
+      ],
+    },
+  ])('$name', ({ audios, want }) => {
+    expect(kyusuAudioChoices(audios)).toEqual(want);
   });
 });

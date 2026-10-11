@@ -1,16 +1,25 @@
 import type { AudioTracks } from '@mpeg2toh264/player';
 import { useState, type ReactNode } from 'react';
 
-import { audioChoices, audioSlot, choiceForSlot, currentAudioChoice } from './audio';
+import {
+  audioChoices,
+  audioSlot,
+  choiceForSlot,
+  currentAudioChoice,
+  kyusuAudioChoices,
+  type ProgramAudio,
+} from './audio';
 import { AudioSelect, KyusuAudioSelect } from './QualitySelect';
 import type { KyusuAudio, PlaybackRoute } from './route';
 
 // usePlayerAudio は、聞く音声を選ぶ (設計書 7.5)。ブラウザの中で変換する経路では、番組の音声から選び、
-// kyusu の経路では、第 1 音声と第 2 音声から選ぶ。どちらで選んでも、選んだ音声 (slot) を覚えておき、
-// 画質を変えて経路が変わっても、同じ音声を聞けるようにする。
+// kyusu の経路では、番組の音声の構成 (programAudios) から、第 1 音声と第 2 音声を選ぶ。第 2 音声がない番組では、第 1 音声にする。
+// どちらで選んでも、選んだ音声 (slot) を覚えておき、画質を変えて経路が変わっても、同じ音声を聞けるようにする。
 // kyusu の経路で音声を変えると、HLS の URL が変わって読み直すので、その前に onReload を呼ぶ。録画では、位置を保つのに使う。
+// programAudios は、EPG から読んだ番組の音声の構成。分からなければ null にする。
 export function usePlayerAudio(
   route: PlaybackRoute,
+  programAudios: ReadonlyArray<ProgramAudio> | null,
   onReload?: () => void,
 ): {
   // onAudio は、TsPlayer に渡す、番組の音声を受け取るもの。
@@ -26,6 +35,9 @@ export function usePlayerAudio(
   const [choice, setChoice] = useState<string | null>(null);
   const [slot, setSlot] = useState<KyusuAudio>(1);
   const convertTracks = route.kind === 'convert' ? tracks : null;
+  const kyusuChoices = kyusuAudioChoices(programAudios);
+  // 選んだ番号の音声がない番組では、第 1 音声を流す。選んだ番号は、次に第 2 音声がある番組のために覚えておく。
+  const kyusuAudio = kyusuChoices.some((candidate) => candidate.slot === slot) ? slot : 1;
   const choices = audioChoices(convertTracks);
   // 選んだものが今の番組の音声になければ (番組が変わって音声の構成が変わったときなど)、選んだ音声の番号から選び直す。
   // 第 1 音声なら、プレイヤーの既定 (主音声) のままにする。
@@ -50,9 +62,10 @@ export function usePlayerAudio(
   } else if (route.kind === 'kyusu') {
     menu = (
       <KyusuAudioSelect
-        value={slot}
+        choices={kyusuChoices}
+        value={kyusuAudio}
         onChange={(next) => {
-          if (next !== slot) {
+          if (next !== kyusuAudio) {
             onReload?.();
           }
           setSlot(next);
@@ -62,5 +75,5 @@ export function usePlayerAudio(
     );
   }
 
-  return { onAudio: setTracks, convertAudio, kyusuAudio: slot, menu };
+  return { onAudio: setTracks, convertAudio, kyusuAudio, menu };
 }

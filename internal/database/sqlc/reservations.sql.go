@@ -413,6 +413,38 @@ func (q *Queries) ListReservationsByPrograms(ctx context.Context, arg ListReserv
 	return items, nil
 }
 
+const promoteRuleReservation = `-- name: PromoteRuleReservation :execrows
+UPDATE reservations
+SET kind = 'program', enabled = true, follow_event_relay = $1, settings = $2, updated_at = $3, updated_by = $4
+WHERE service_id = $5 AND event_id = $6 AND kind = 'rule'
+`
+
+type PromoteRuleReservationParams struct {
+	FollowEventRelay bool
+	Settings         []byte
+	Now              time.Time
+	UpdatedBy        *uuid.UUID
+	ServiceID        int64
+	EventID          *int64
+}
+
+// ルール予約を、手動の番組予約に切り替え、手動の設定を書き込む (設計書 4.1)。無効にしたルール予約も、有効に戻す。
+// 一致したルールとの関連は残す。
+func (q *Queries) PromoteRuleReservation(ctx context.Context, arg PromoteRuleReservationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, promoteRuleReservation,
+		arg.FollowEventRelay,
+		arg.Settings,
+		arg.Now,
+		arg.UpdatedBy,
+		arg.ServiceID,
+		arg.EventID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setReservationEnabled = `-- name: SetReservationEnabled :execrows
 UPDATE reservations SET enabled = $1, updated_at = $2, updated_by = $3 WHERE id = $4
 `

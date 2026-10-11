@@ -1,0 +1,6 @@
+@mpeg2toh264/yadif (LGPL-2.1-or-later) is built from the following source.
+Its license is in yadif-LICENSE next to this file.
+
+repository: https://github.com/otya128/mpeg2toh264
+commit: 7b008c64c2ff6b5bbca54232712276c852d1e194
+directory: packages/yadif
