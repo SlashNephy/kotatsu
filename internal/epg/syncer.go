@@ -274,7 +274,7 @@ func newEventBatch() *eventBatch {
 
 // add は、イベントから変化のあったものを読み取る。
 // Mirakurun と Mahiron の program のイベントは、create と update では番組を、remove では番組の ID だけを送る。
-// mirakc の epg.programs-updated は、番組が変わったサービスの ID を送る。
+// mirakc の epg.programs-updated と onair.program-changed は、番組が変わったサービスの ID を送る。
 func (b *eventBatch) add(event *mirakurun.Event) {
 	switch {
 	case event.Resource == "program":
@@ -294,7 +294,9 @@ func (b *eventBatch) add(event *mirakurun.Event) {
 			// 番組 ID は (networkId × 100000 + serviceId) × 100000 + eventId なので、下 5 桁を除くとサービス ID になる。
 			b.serviceIDs[data.ID/serviceIDBase] = struct{}{}
 		}
-	case event.Resource == "epg" && event.Type == "programs-updated":
+	// mirakc の onair.program-changed は、放送中か次の番組 (EIT[p/f]) が変わったサービスの ID を送る (設計書 5.1)。
+	case event.Resource == "epg" && event.Type == "programs-updated",
+		event.Resource == "onair" && event.Type == "program-changed":
 		var data struct {
 			ServiceID int64 `json:"serviceId"`
 		}

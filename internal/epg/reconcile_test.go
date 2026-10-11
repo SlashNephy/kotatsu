@@ -311,3 +311,81 @@ func TestSyncAllMarksUndecidedEnd(t *testing.T) {
 		})
 	}
 }
+
+// onAirUpstream は、faketuner の番組表に、mirakc の /api/onair の代わりの放送中と次の番組を足した上流。
+type onAirUpstream struct {
+	*mirakurun.Client
+
+	onair []*mirakurun.OnAirProgram
+}
+
+func (u *onAirUpstream) OnAirPrograms(context.Context) ([]*mirakurun.OnAirProgram, error) {
+	return u.onair, nil
+}
+
+// TestSyncReflectsOnAirPrograms は、番組表 (EIT[schedule]) に、放送中と次の番組 (EIT[p/f]) を重ねて反映することを確かめる (設計書 5.1)。
+// mirakc の /api/programs は、延長や繰り上げを、番組表を取り直すまで反映しない。
+func TestSyncReflectsOnAirPrograms(t *testing.T) {
+	t.Parallel()
+
+	// 放送中の eventId 3 が延長して終了時刻が未定になり、その後に、番組表にない eventId 900 が差し込まれた。
+	extended := &mirakurun.Program{
+		ID: programID(3), EventID: 3, ServiceID: grServiceID, NetworkID: grNetworkID,
+		StartAt: programStart(3).UnixMilli(), Duration: 1, IsFree: true, Name: "終了時刻が未定の中継",
+	}
+	inserted := &mirakurun.Program{
+		ID: programID(900), EventID: 900, ServiceID: grServiceID, NetworkID: grNetworkID,
+		StartAt: programStart(4).UnixMilli(), Duration: int64(5 * time.Minute / time.Millisecond), IsFree: true, Name: "差し込まれた番組",
+	}
+	// 同期しないサービスの放送中の番組は、SyncServices では反映しない。
+	otherService := faketuner.ServiceItemID(grNetworkID, grServiceID+1)
+	other := &mirakurun.Program{
+		ID: faketuner.ProgramID(grNetworkID, grServiceID+1, 901), EventID: 901, ServiceID: grServiceID + 1, NetworkID: grNetworkID,
+		StartAt: programStart(3).UnixMilli(), Duration: 1, IsFree: true, Name: "ほかのサービスの番組",
+	}
+
+	tests := []struct {
+		name      string
+		sync      func(t *testing.T, r *epg.Reconciler)
+		wantOther int
+	}{
+		{
+			name: "SyncAll",
+			sync: func(t *testing.T, r *epg.Reconciler) {
+				t.Helper()
+				_, err := r.SyncAll(t.Context())
+				require.NoError(t, err)
+			},
+			wantOther: 1,
+		},
+		{
+			name: "SyncServices",
+			sync: func(t *testing.T, r *epg.Reconciler) {
+				t.Helper()
+				_, err := r.SyncServices(t.Context(), []int64{serviceID()})
+				require.NoError(t, err)
+			},
+			wantOther: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			// サービスと番組表を先に入れておく。
+			_, err := f.reconciler.SyncAll(t.Context())
+			require.NoError(t, err)
+
+			upstream := &onAirUpstream{Client: f.client, onair: []*mirakurun.OnAirProgram{
+				{ServiceID: serviceID(), Current: extended, Next: inserted},
+				{ServiceID: otherService, Current: other, Next: nil},
+			}}
+			tt.sync(t, epg.NewReconciler(f.pool, upstream, clocktest.NewFake(testNow()), func(context.Context, pgx.Tx) error { return nil }))
+
+			assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1 AND event_id = 3 AND end_undecided", serviceID()))
+			assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1 AND event_id = 900", serviceID()))
+			assert.Equal(t, tt.wantOther, f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1 AND event_id = 901", otherService))
+		})
+	}
+}

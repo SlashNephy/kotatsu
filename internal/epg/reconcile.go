@@ -33,6 +33,8 @@ const (
 type Upstream interface {
 	Services(ctx context.Context) ([]*mirakurun.Service, error)
 	Programs(ctx context.Context, query *mirakurun.ProgramsQuery) ([]*mirakurun.Program, error)
+	// OnAirPrograms は、放送中と次の番組 (EIT[p/f]) を返す。持たないサーバーでは空を返す。
+	OnAirPrograms(ctx context.Context) ([]*mirakurun.OnAirProgram, error)
 }
 
 var _ Upstream = new(mirakurun.Client)
@@ -94,6 +96,10 @@ func (r *Reconciler) SyncAll(ctx context.Context) (*Result, error) {
 	for _, service := range currentServices {
 		known[service.ID] = true
 	}
+	upstreamPrograms, err = r.withOnAir(ctx, upstreamPrograms, known)
+	if err != nil {
+		return nil, err
+	}
 	programs, err := diffPrograms(filterPrograms(upstreamPrograms, known), currentPrograms)
 	if err != nil {
 		return nil, err
@@ -108,6 +114,7 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 	q := sqlc.New(r.pool)
 	upstreamPrograms := []*mirakurun.Program{}
 	currentPrograms := []sqlc.ListProgramsRow{}
+	synced := map[int64]bool{}
 	// イベントをまとめると同じサービスが何度も出てくるので、1 回ずつにする。
 	for _, serviceID := range slices.Compact(slices.Sorted(slices.Values(serviceIDs))) {
 		exists, err := q.ServiceExists(ctx, serviceID)
@@ -117,6 +124,7 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 		if !exists {
 			continue
 		}
+		synced[serviceID] = true
 
 		programs, err := r.upstream.Programs(ctx, &mirakurun.ProgramsQuery{
 			NetworkID: int(serviceID / serviceIDBase),
@@ -137,12 +145,59 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 		}
 	}
 
+	upstreamPrograms, err := r.withOnAir(ctx, upstreamPrograms, synced)
+	if err != nil {
+		return nil, err
+	}
 	programs, err := diffPrograms(upstreamPrograms, currentPrograms)
 	if err != nil {
 		return nil, err
 	}
 
 	return r.apply(ctx, &serviceDiff{upserts: []*mirakurun.Service{}}, programs)
+}
+
+// withOnAir は、上流の番組に、放送中と次の番組 (EIT[p/f]) の内容を重ねる (設計書 5.1)。
+// mirakc の /api/programs は EIT[schedule] から作るので、延長や繰り上げは、番組表を取り直すまで反映されない。
+// 重ねるのは、services に含まれるサービスの番組だけにする。番組表にない番組 (差し込まれた番組) は足す。
+func (r *Reconciler) withOnAir(ctx context.Context, programs []*mirakurun.Program, services map[int64]bool) ([]*mirakurun.Program, error) {
+	if len(services) == 0 {
+		return programs, nil
+	}
+	onair, err := r.upstream.OnAirPrograms(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch on-air programs: %w", err)
+	}
+	if len(onair) == 0 {
+		return programs, nil
+	}
+
+	key := func(p *mirakurun.Program) programKey {
+		return programKey{serviceID: int64(p.NetworkID)*serviceIDBase + int64(p.ServiceID), eventID: int64(p.EventID)}
+	}
+	merged := slices.Clone(programs)
+	index := map[programKey]int{}
+	for i, p := range merged {
+		index[key(p)] = i
+	}
+	for _, service := range onair {
+		if !services[service.ServiceID] {
+			continue
+		}
+		for _, p := range []*mirakurun.Program{service.Current, service.Next} {
+			if p == nil {
+				continue
+			}
+			if i, ok := index[key(p)]; ok {
+				merged[i] = p
+			} else {
+				index[key(p)] = len(merged)
+				merged = append(merged, p)
+			}
+		}
+	}
+
+	return merged, nil
 }
 
 // apply は差分を 1 つのトランザクションで書き、変わったものがあれば通知する。
