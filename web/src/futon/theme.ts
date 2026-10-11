@@ -52,6 +52,8 @@ export const theme = createTheme({
   colors: { mikan, amber, dark: kogecha },
   // 角丸は大きめにする。
   defaultRadius: 'lg',
+  // OS で動きを減らす設定にしていれば、Mantine の部品の動きを止める (設計書 10.2)。
+  respectReducedMotion: true,
   // 本文はシステムフォント、見出しは同梱した丸ゴシック体にする。
   fontFamily: 'system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif',
   headings: { fontFamily: headingFontFamily, fontWeight: '700' },
