@@ -613,6 +613,15 @@ type Tuner struct {
 	Fault     bool     `json:"fault"`
 }
 
+// チューナーサーバーにつながっているかどうか (設計書 3.7)。ログイン中の誰でも読め、画面に縮退中であることを示すのに使う。
+// 理由などの詳しいことは、管理者向けの systemStatus で返す。
+type TunerServerHealth struct {
+	// 接続できない縮退中かどうか。まだ確かめていなければ false。
+	Degraded bool `json:"degraded"`
+	// 縮退が始まった日時。縮退中でなければ null。
+	DegradedSince *time.Time `json:"degradedSince,omitempty"`
+}
+
 // チューナーサーバーの状態 (設計書 3.7)。
 type TunerServerStatus struct {
 	// 接続できない縮退中かどうか。

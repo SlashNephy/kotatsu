@@ -780,6 +780,10 @@ type Query {
   """
   systemStatus: SystemStatus!
   """
+  チューナーサーバーにつながっているかどうか (設計書 3.7)。ログイン中の誰でも読める。
+  """
+  tunerServerHealth: TunerServerHealth!
+  """
   ID で引く (Relay の Global Object Identification)。見つからなければ NOT_FOUND のエラーを返す。
   """
   node(id: ID!): Node
@@ -1635,6 +1639,20 @@ type Tuner {
   available: Boolean!
   remote: Boolean!
   fault: Boolean!
+}
+"""
+チューナーサーバーにつながっているかどうか (設計書 3.7)。ログイン中の誰でも読め、画面に縮退中であることを示すのに使う。
+理由などの詳しいことは、管理者向けの systemStatus で返す。
+"""
+type TunerServerHealth {
+  """
+  接続できない縮退中かどうか。まだ確かめていなければ false。
+  """
+  degraded: Boolean!
+  """
+  縮退が始まった日時。縮退中でなければ null。
+  """
+  degradedSince: Time
 }
 """
 チューナーサーバーの状態 (設計書 3.7)。

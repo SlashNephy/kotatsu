@@ -150,6 +150,22 @@ func auditEventOf(row *sqlc.AuditEvent, byID map[uuid.UUID]*model.User) *model.A
 	return event
 }
 
+// tunerServerHealth は、チューナーサーバーにつながっているかどうかを返す (設計書 3.7)。ログイン中の誰でも読める。
+func (r *Resolver) tunerServerHealth(ctx context.Context) (*model.TunerServerHealth, error) {
+	if _, err := viewer(ctx); err != nil {
+		return nil, err
+	}
+	server, err := sqlc.New(r.db).GetTunerServerStatus(ctx)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return &model.TunerServerHealth{Degraded: false, DegradedSince: nil}, nil
+	case err != nil:
+		return nil, fmt.Errorf("failed to get the tuner server status: %w", err)
+	}
+
+	return &model.TunerServerHealth{Degraded: server.DegradedSince != nil, DegradedSince: server.DegradedSince}, nil
+}
+
 // systemStatus は、インスタンス、リース、チューナー、保存先プールの状態を返す。
 func (r *Resolver) systemStatus(ctx context.Context) (*model.SystemStatus, error) {
 	if err := administer(ctx); err != nil {
