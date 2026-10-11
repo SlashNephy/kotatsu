@@ -636,6 +636,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	authorizer := stream.NewAuthorizer(signer, deps.DB, deps.Clock)
 	streamLogger := logger.With(slog.String("component", "stream"))
 	mux.Handle("GET /streams/services/{id}", authorizer.Middleware(stream.NewLiveHandler(tuner, streamLogger)))
+	mux.Handle("GET /streams/services/{id}/data-broadcast", authorizer.Middleware(stream.NewDataBroadcastHandler(tuner, streamLogger)))
 	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
 	kyusuToken, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
 	if err != nil {

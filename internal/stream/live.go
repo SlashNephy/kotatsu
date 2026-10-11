@@ -31,15 +31,24 @@ var _ ServiceOpener = new(mirakurun.Client)
 // LiveHandler は、チューナーサーバーのサービスストリームを中継する (GET /streams/services/{id})。
 type LiveHandler struct {
 	// tuner は、チューナーサーバーのクライアント。設定していなければ nil。
-	tuner  ServiceOpener
-	logger *slog.Logger
+	tuner ServiceOpener
+	// dataBroadcast は、データ放送の描画に要るパケットだけを流すかどうか (設計書 7.4)。
+	dataBroadcast bool
+	logger        *slog.Logger
 }
 
 var _ http.Handler = new(LiveHandler)
 
 // NewLiveHandler は LiveHandler を返す。tuner が nil なら、すべてのリクエストに 503 を返す。
 func NewLiveHandler(tuner ServiceOpener, logger *slog.Logger) *LiveHandler {
-	return &LiveHandler{tuner: tuner, logger: logger}
+	return &LiveHandler{tuner: tuner, dataBroadcast: false, logger: logger}
+}
+
+// NewDataBroadcastHandler は、サービスストリームから、データ放送の描画に要るパケットだけを流す LiveHandler を返す
+// (GET /streams/services/{id}/data-broadcast、設計書 7.4)。ブラウザは、これを web-bml に渡す。
+// tuner が nil なら、すべてのリクエストに 503 を返す。
+func NewDataBroadcastHandler(tuner ServiceOpener, logger *slog.Logger) *LiveHandler {
+	return &LiveHandler{tuner: tuner, dataBroadcast: true, logger: logger}
 }
 
 // ServeHTTP は、スクランブルを解除したストリームを、クライアントが切断するまで流す。
@@ -50,6 +59,16 @@ func (h *LiveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid service ID", http.StatusBadRequest)
 
 		return
+	}
+	dst := w
+	if h.dataBroadcast {
+		number, ok := programNumber(serviceID)
+		if !ok {
+			http.Error(w, "invalid service ID", http.StatusBadRequest)
+
+			return
+		}
+		dst = newDataBroadcastWriter(w, number)
 	}
 	if h.tuner == nil {
 		http.Error(w, "tuner server is not configured", http.StatusServiceUnavailable)
@@ -87,7 +106,7 @@ func (h *LiveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	writeStreamHeader(w)
-	if err := copyFlushing(w, upstream); err != nil && r.Context().Err() == nil {
+	if err := copyFlushing(dst, upstream); err != nil && r.Context().Err() == nil {
 		// クライアントの切断ではなく、上流が途切れた。視聴の再接続はクライアントに任せる。
 		h.logger.WarnContext(r.Context(), "the service stream ended", slog.Int64("service_id", serviceID), slog.Any("error", err))
 	}
