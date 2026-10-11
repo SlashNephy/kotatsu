@@ -96,3 +96,7 @@ SELECT r.recorded_from, r.recorded_until, s.network_id, s.sid
 FROM recordings r
 JOIN services s ON s.id = r.service_id
 WHERE r.id = @id;
+
+-- name: SetRecordingAudiosIfUnknown :exec
+-- 録画の音声の構成を、TS の EIT[p/f] から読んだもので埋める。EPG から写したものがあれば、それを残す。
+UPDATE recordings SET audios = @audios, updated_at = @now WHERE id = @id AND audios = '[]'::jsonb;

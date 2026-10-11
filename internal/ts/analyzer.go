@@ -25,6 +25,8 @@ type Analyzer struct {
 	packets    int64
 	pids       map[uint16]*pidState
 	programs   *programTable
+	// eit は、EIT[p/f] で放送中とされた番組の音声の構成。
+	eit *eitTable
 	// sections は、PAT と PMT の PID ごとの、組み立て中のセクション。
 	sections map[uint16]*sectionAssembler
 
@@ -84,6 +86,8 @@ type Stats struct {
 	IFrames int64
 	// IndexError は、索引の書き込みで起きたエラー。起きていなければ nil。
 	IndexError error
+	// Events は、EIT[p/f] で放送中とされた番組と、その音声の構成。サービス ID、eventId の順に並べる。
+	Events []*EventAudio
 }
 
 // NewAnalyzer は Analyzer を作る。opts は nil でもよい。
@@ -104,6 +108,7 @@ func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
 		pids:       map[uint16]*pidState{},
 		programs:   newProgramTable(),
 		sections:   map[uint16]*sectionAssembler{},
+		eit:        newEITTable(),
 
 		index:              index,
 		indexErr:           nil,
@@ -185,6 +190,7 @@ func (a *Analyzer) Stats() *Stats {
 		Programs:   a.programs.snapshot(),
 		IFrames:    a.iframes,
 		IndexError: a.indexErr,
+		Events:     a.eit.snapshot(),
 	}
 }
 
@@ -275,10 +281,10 @@ func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 	}
 }
 
-// handlePSI は、PAT と PMT のパケットからセクションを組み立てて読む。
+// handlePSI は、PAT、PMT、EIT のパケットからセクションを組み立てて読む。
 func (a *Analyzer) handlePSI(pkt *packet, dropped bool) {
 	pid := pkt.pid
-	if pid != patPID && !a.programs.isPMTPID(pid) {
+	if pid != patPID && pid != eitPID && !a.programs.isPMTPID(pid) {
 		return
 	}
 
@@ -292,9 +298,12 @@ func (a *Analyzer) handlePSI(pkt *packet, dropped bool) {
 		assembler.reset()
 	}
 	assembler.feed(pkt.payloadUnitStart, pkt.payload, func(section []byte) {
-		if pid == patPID {
+		switch pid {
+		case patPID:
 			a.programs.handlePAT(section)
-		} else {
+		case eitPID:
+			a.eit.handle(section)
+		default:
 			a.programs.handlePMT(pid, section)
 		}
 	})
