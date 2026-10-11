@@ -121,7 +121,7 @@ function Users() {
               key={`${user.id}/${user.displayName}/${user.role}/${String(user.disabled)}`}
               user={user}
               self={user.id === data.viewer.id}
-              onUpdate={(input) =>
+              onUpdate={(input, onDone) =>
                 gate.run(async () => {
                   await mutate<usersUpdateMutation>(
                     environment,
@@ -136,6 +136,7 @@ function Users() {
                     `,
                     { id: user.id, input },
                   );
+                  onDone();
                   succeed(t('admin.saved'));
                 }, fail)
               }
@@ -243,7 +244,7 @@ function UserRow({
 }: {
   user: UserItem;
   self: boolean;
-  onUpdate: (input: { displayName: string; role: Role }) => void;
+  onUpdate: (input: { displayName: string; role: Role }, onDone: () => void) => void;
   onToggle: () => void;
   onResetPassword: (password: string, onDone: () => void) => void;
 }) {
@@ -253,6 +254,13 @@ function UserRow({
   const [displayName, setDisplayName] = useState(user.displayName);
   const [role, setRole] = useState<Role>(user.role);
   const [password, setPassword] = useState('');
+  // close は、入力を捨てて、行を閉じる。やめたときと、保存したときに使う。
+  const close = () => {
+    setDisplayName(user.displayName);
+    setRole(user.role);
+    setPassword('');
+    setMode('view');
+  };
   // サーバーが新しいロールを足したときは、名前をそのまま出す。
   const knownRole = roles.find((known) => known === user.role);
 
@@ -326,11 +334,11 @@ function UserRow({
           <Button
             size="compact-sm"
             disabled={displayName.trim() === ''}
-            onClick={() => onUpdate({ displayName: displayName.trim(), role })}
+            onClick={() => onUpdate({ displayName: displayName.trim(), role }, close)}
           >
             {t('admin.save')}
           </Button>
-          <Button size="compact-sm" variant="subtle" onClick={() => setMode('view')}>
+          <Button size="compact-sm" variant="subtle" onClick={close}>
             {t('admin.users.cancel')}
           </Button>
         </Group>
@@ -349,16 +357,11 @@ function UserRow({
             <Button
               size="compact-sm"
               disabled={password === ''}
-              onClick={() =>
-                onResetPassword(password, () => {
-                  setPassword('');
-                  setMode('view');
-                })
-              }
+              onClick={() => onResetPassword(password, close)}
             >
               {t('admin.save')}
             </Button>
-            <Button size="compact-sm" variant="subtle" onClick={() => setMode('view')}>
+            <Button size="compact-sm" variant="subtle" onClick={close}>
               {t('admin.users.cancel')}
             </Button>
           </Group>
@@ -387,6 +390,10 @@ function CreateUser({
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    // 空白だけのユーザー名は、required を通っても送らない。
+    if (username.trim() === '') {
+      return;
+    }
     onCreate(
       {
         username: username.trim(),
