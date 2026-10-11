@@ -48,6 +48,11 @@ func TestBatchEvents(t *testing.T) {
 			wantServices: map[int64]struct{}{service: {}},
 		},
 		{
+			name:         "on-air program changed on mirakc",
+			events:       []*mirakurun.Event{{Resource: "onair", Type: "program-changed", Data: json.RawMessage(`{"serviceId":3273601024}`)}},
+			wantServices: map[int64]struct{}{service: {}},
+		},
+		{
 			name:         "service changed",
 			events:       []*mirakurun.Event{{Resource: "service", Type: typeUpdate, Data: json.RawMessage(`{"id":3273601024}`)}},
 			wantServices: map[int64]struct{}{},

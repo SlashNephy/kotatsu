@@ -15,7 +15,7 @@ import (
 )
 
 // stubServer は、種類を途中で切り替えられるチューナーサーバーのスタブ。
-// /api/version と /events だけを、各サーバーと同じように返す。
+// /api/version、/events、/api/onair だけを、各サーバーと同じように返す。
 type stubServer struct {
 	kind atomic.Value
 }
@@ -46,6 +46,10 @@ func (s *stubServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 		<-r.Context().Done()
+	case r.URL.Path == "/api/onair" && kind == mirakurun.ServerMirakc:
+		// 延長で終了時刻が未定になった番組と、次の番組がない状態。形は mirakc の OpenAPI の WebOnairProgram に従う。
+		_, _ = w.Write([]byte(`[{"serviceId":3273601024,"current":{"id":327360102401405,"eventId":1405,"serviceId":1024,` +
+			`"networkId":32736,"startAt":1791702600000,"duration":1,"isFree":true,"name":"中継"},"next":null}]`))
 	case r.URL.Path == "/events" && kind == "spa":
 		// SPA のフォールバックで、知らないパスにも HTML を返すサーバー。
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

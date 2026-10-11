@@ -51,7 +51,7 @@ type Program struct {
 	NetworkID int   `json:"networkId"`
 	// StartAt は開始時刻 (UNIX 時間のミリ秒)。
 	StartAt int64 `json:"startAt"`
-	// Duration は長さ (ミリ秒)。終了時刻が未定のときは 1 になる。
+	// Duration は長さ (ミリ秒)。終了時刻が未定のときは、Mirakurun では 1、Mahiron では 0 になる。
 	Duration    int64             `json:"duration"`
 	IsFree      bool              `json:"isFree"`
 	Name        string            `json:"name,omitempty"`

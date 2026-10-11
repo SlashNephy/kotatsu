@@ -213,6 +213,36 @@ func (c *Client) Programs(ctx context.Context, query *ProgramsQuery) ([]*Program
 	return programs, nil
 }
 
+// OnAirProgram は、mirakc の /api/onair が返す、サービスで放送中の番組と次の番組。
+// /api/programs と違い、EIT[schedule] ではなく EIT[p/f] から作るので、延長や繰り上げがすぐに反映される。
+type OnAirProgram struct {
+	// ServiceID は Mirakurun のサービス ID (networkId × 100000 + serviceId)。
+	ServiceID int64 `json:"serviceId"`
+	// Current は放送中の番組。放送していなければ nil。
+	Current *Program `json:"current"`
+	// Next は次の番組。なければ nil。
+	Next *Program `json:"next"`
+}
+
+// OnAirPrograms は、mirakc の /api/onair を取得する (設計書 5.1)。
+// /api/onair を持たないサーバー (Mirakurun と Mahiron) では、取得せずに空のスライスを返す。
+func (c *Client) OnAirPrograms(ctx context.Context) ([]*OnAirProgram, error) {
+	server, err := c.Server(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !server.OnAir {
+		return []*OnAirProgram{}, nil
+	}
+
+	programs := []*OnAirProgram{}
+	if err := c.getJSON(ctx, "api/onair", nil, &programs); err != nil {
+		return nil, err
+	}
+
+	return programs, nil
+}
+
 // Tuners は /api/tuners を取得する。
 func (c *Client) Tuners(ctx context.Context) ([]*Tuner, error) {
 	tuners := []*Tuner{}
