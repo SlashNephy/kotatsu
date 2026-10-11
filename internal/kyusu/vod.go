@@ -214,7 +214,7 @@ func (v *VOD) close(s *vodSession) {
 	}
 }
 
-// session は、(録画, 画質) のセッションを返す。なければ作る。セッションを作っても、エンコーダーは起動しない。
+// session は、(録画, 画質, 音声) のセッションを返す。なければ作る。セッションを作っても、エンコーダーは起動しない。
 func (v *VOD) session(key vodKey) (*vodSession, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
