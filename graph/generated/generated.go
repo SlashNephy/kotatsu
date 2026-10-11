@@ -3368,6 +3368,7 @@ type TunerServerHealth {
 }
 
 extend type Query {
+  "チューナーサーバーにつながっているかどうか (設計書 3.7)。ログイン中の誰でも読める。"
   tunerServerHealth: TunerServerHealth!
 }
 `, BuiltIn: false},
