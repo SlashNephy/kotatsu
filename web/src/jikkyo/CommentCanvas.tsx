@@ -89,5 +89,14 @@ export function CommentCanvas({ clock, drawing, ref }: Props) {
     return () => cancelAnimationFrame(frame);
   }, [drawing]);
 
-  return <canvas ref={canvasRef} className={classes.canvas} width={1920} height={1080} />;
+  // data-overlay は、キャプチャで写す canvas の印。
+  return (
+    <canvas
+      ref={canvasRef}
+      className={classes.canvas}
+      width={1920}
+      height={1080}
+      data-overlay="comments"
+    />
+  );
 }

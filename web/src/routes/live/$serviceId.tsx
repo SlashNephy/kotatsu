@@ -1,6 +1,7 @@
 import { Alert, Anchor, Group, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
@@ -24,6 +25,8 @@ import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { audioChoices, currentAudioChoice } from '../../yunomi/audio';
 import { useMediaSession } from '../../yunomi/useMediaSession';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
+import { PlayerTools } from '../../yunomi/PlayerTools';
+import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import type { AudioTracks } from '@mpeg2toh264/player';
 import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
@@ -133,7 +136,12 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で調べる。
   const frameRef = useRef<HTMLDivElement | null>(null);
-  const visible = useVisible(frameRef);
+  const inPage = useVisible(frameRef);
+  // pip は、視聴画面を出す別のウィンドウ。出している間は、このページが隠れても再生を続ける (設計書 7.5)。
+  const pip = useDocumentPictureInPicture();
+  const visible = inPage || pip.container !== null;
+  // playerBoxRef は、プレイヤーを包む要素。別のウィンドウに出すと移るので、キャプチャと全画面は、これを使う。
+  const playerBoxRef = useRef<HTMLDivElement | null>(null);
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
   const {
     captionsEnabled: captions,
@@ -233,7 +241,7 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
     },
     toggleFullscreen: () => {
       if (document.fullscreenElement === null) {
-        void frameRef.current?.requestFullscreen().catch(() => {});
+        void playerBoxRef.current?.requestFullscreen().catch(() => {});
       } else {
         void document.exitFullscreen().catch(() => {});
       }
@@ -259,6 +267,43 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
     preempted.current = false;
   };
 
+  const playerBox = (
+    <div ref={playerBoxRef}>
+      {route.kind === 'convert' && (
+        <TsPlayer
+          url={disconnection === null ? withSession(service.streamUrl) : null}
+          videoRef={videoRef}
+          active={visible}
+          captions={captions}
+          onLoaded={onLoaded}
+          overlay={jikkyo.overlay}
+          onState={(state) => {
+            // ライブのストリームは終わらないので、読み終えたのは、切れたということ。
+            if (state === 'completed' || state === 'error') {
+              disconnected();
+            }
+          }}
+          onError={disconnected}
+          onAudio={setAudioTracks}
+          audio={audio}
+        />
+      )}
+      {route.kind === 'kyusu' && (
+        <HlsPlayer
+          url={disconnection === null ? withSession(hlsURL(service.streamUrl, route.preset)) : null}
+          videoRef={videoRef}
+          active={visible}
+          captions={captions}
+          live
+          onLoaded={onLoaded}
+          overlay={jikkyo.overlay}
+          // チューナーを使われて切れると、hls.js が読み直しを諦めたところで、致命的なエラーになる。
+          onError={disconnected}
+        />
+      )}
+    </div>
+  );
+
   return (
     <Stack gap="xs">
       <Title order={2} size="h4">
@@ -268,6 +313,7 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
         {data.guide[0]?.programs[0]?.name ?? t('live.noProgram')}
       </Text>
       <Group justify="flex-end" gap="md">
+        <PlayerTools frameRef={playerBoxRef} videoRef={videoRef} name={service.name} pip={pip} />
         <AudioSelect
           choices={audioChoices(tracks)}
           value={currentAudioChoice(tracks)}
@@ -280,41 +326,15 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
       <PlaybackUnavailable route={route} />
       {/* 画面の外に出たときと、タブが隠れたときは、読み込みも止めて、チューナーを手放す (設計書 7.2)。 */}
       <div ref={frameRef}>
-        {route.kind === 'convert' && (
-          <TsPlayer
-            url={disconnection === null ? withSession(service.streamUrl) : null}
-            videoRef={videoRef}
-            active={visible}
-            captions={captions}
-            onLoaded={onLoaded}
-            overlay={jikkyo.overlay}
-            onState={(state) => {
-              // ライブのストリームは終わらないので、読み終えたのは、切れたということ。
-              if (state === 'completed' || state === 'error') {
-                disconnected();
-              }
-            }}
-            onError={disconnected}
-            onAudio={setAudioTracks}
-            audio={audio}
-          />
-        )}
-        {route.kind === 'kyusu' && (
-          <HlsPlayer
-            url={
-              disconnection === null ? withSession(hlsURL(service.streamUrl, route.preset)) : null
-            }
-            videoRef={videoRef}
-            active={visible}
-            captions={captions}
-            live
-            onLoaded={onLoaded}
-            overlay={jikkyo.overlay}
-            // チューナーを使われて切れると、hls.js が読み直しを諦めたところで、致命的なエラーになる。
-            onError={disconnected}
-          />
+        {pip.container === null ? (
+          playerBox
+        ) : (
+          <Text size="sm" c="dimmed">
+            {t('player.pipActive')}
+          </Text>
         )}
       </div>
+      {pip.container !== null && createPortal(playerBox, pip.container)}
       {channel !== null && jikkyoEnabled && (
         <JikkyoPanel channelName={channel.name} status={jikkyo.status} onPost={jikkyo.post} />
       )}

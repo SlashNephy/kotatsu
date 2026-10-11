@@ -30,6 +30,10 @@ vi.mock('aribb24.js', () => {
       clear() {}
     },
     CanvasMainThreadRenderer: class {
+      private readonly canvas = document.createElement('canvas');
+      getPresentationCanvas() {
+        return this.canvas;
+      }
       clear() {}
       destroy() {}
     },

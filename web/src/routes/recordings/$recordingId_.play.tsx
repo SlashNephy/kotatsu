@@ -11,6 +11,7 @@ import {
 } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
@@ -35,6 +36,8 @@ import { useWatchPositionSaver } from '../../yunomi/useWatchPositionSaver';
 import { audioChoices, currentAudioChoice } from '../../yunomi/audio';
 import { useMediaSession } from '../../yunomi/useMediaSession';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
+import { PlayerTools } from '../../yunomi/PlayerTools';
+import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import type { AudioTracks } from '@mpeg2toh264/player';
 import { resumePosition } from '../../yunomi/resume';
 import { useVisible } from '../../yunomi/useVisible';
@@ -122,7 +125,13 @@ function Player({ recordingId }: { recordingId: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で調べる。
   const frameRef = useRef<HTMLDivElement | null>(null);
-  const visible = useVisible(frameRef);
+  const inPage = useVisible(frameRef);
+  // pip は、視聴画面を出す別のウィンドウ。出している間は、このページが隠れても再生を続ける (設計書 7.5)。
+  // 別のウィンドウに移したり戻したりすると、プレイヤーを作り直すので、今の位置から読み直す。
+  const pip = useDocumentPictureInPicture(() => startAt(positionRef.current));
+  const visible = inPage || pip.container !== null;
+  // playerBoxRef は、プレイヤーを包む要素。別のウィンドウに出すと移るので、キャプチャと全画面は、これを使う。
+  const playerBoxRef = useRef<HTMLDivElement | null>(null);
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
   const {
     captionsEnabled: captions,
@@ -231,7 +240,7 @@ function Player({ recordingId }: { recordingId: string }) {
       video.defaultPlaybackRate = rate;
       video.playbackRate = rate;
     }
-  }, [rate, hls, quality, loads]);
+  }, [rate, hls, quality, loads, pip.container]);
 
   const togglePlay = () => {
     const video = videoRef.current;
@@ -259,7 +268,7 @@ function Player({ recordingId }: { recordingId: string }) {
     },
     toggleFullscreen: () => {
       if (document.fullscreenElement === null) {
-        void frameRef.current?.requestFullscreen().catch(() => {});
+        void playerBoxRef.current?.requestFullscreen().catch(() => {});
       } else {
         void document.exitFullscreen().catch(() => {});
       }
@@ -340,8 +349,8 @@ function Player({ recordingId }: { recordingId: string }) {
       video.removeEventListener('play', onPlay);
       video.removeEventListener('playing', onPlaying);
     };
-    // 画質を変えると video の要素を作り直すので、経路が変わったら付け直す。
-  }, [offset, hls, quality]);
+    // 画質を変えたときと、別のウィンドウに出したり戻したりしたときは、video の要素を作り直すので、付け直す。
+  }, [offset, hls, quality, pip.container]);
 
   if (recording === null) {
     return <Alert color="amber">{t('recordings.notFound')}</Alert>;
@@ -350,6 +359,41 @@ function Player({ recordingId }: { recordingId: string }) {
   const url = `${recording.streamUrl}?start=${offset.toFixed(1)}#${loads}`;
   const onError = () => setError(t('player.error'));
   const shown = seeking ?? position;
+
+  const playerBox = (
+    <div ref={playerBoxRef}>
+      {route.kind === 'convert' && (
+        <TsPlayer
+          url={url}
+          videoRef={videoRef}
+          active={visible}
+          captions={captions}
+          onLoaded={() => {
+            // 最初のフレームが出たときの時刻を、base にする。
+            phase.current = 'awaitingBase';
+            setError(null);
+          }}
+          onError={onError}
+          overlay={jikkyo.overlay}
+          onAudio={setAudioTracks}
+          audio={audio}
+        />
+      )}
+      {route.kind === 'kyusu' && (
+        <HlsPlayer
+          url={hlsURL(recording.streamUrl, route.preset)}
+          videoRef={videoRef}
+          active={visible}
+          captions={captions}
+          live={false}
+          startPosition={offset}
+          overlay={jikkyo.overlay}
+          onLoaded={() => setError(null)}
+          onError={onError}
+        />
+      )}
+    </div>
+  );
 
   return (
     <Stack gap="xs">
@@ -360,6 +404,7 @@ function Player({ recordingId }: { recordingId: string }) {
         {recording.service.name}
       </Text>
       <Group justify="flex-end" gap="md">
+        <PlayerTools frameRef={playerBoxRef} videoRef={videoRef} name={recording.name} pip={pip} />
         <AudioSelect
           choices={audioChoices(tracks)}
           value={currentAudioChoice(tracks)}
@@ -372,37 +417,15 @@ function Player({ recordingId }: { recordingId: string }) {
       </Group>
       <PlaybackUnavailable route={route} />
       <div ref={frameRef}>
-        {route.kind === 'convert' && (
-          <TsPlayer
-            url={url}
-            videoRef={videoRef}
-            active={visible}
-            captions={captions}
-            onLoaded={() => {
-              // 最初のフレームが出たときの時刻を、base にする。
-              phase.current = 'awaitingBase';
-              setError(null);
-            }}
-            onError={onError}
-            overlay={jikkyo.overlay}
-            onAudio={setAudioTracks}
-            audio={audio}
-          />
-        )}
-        {route.kind === 'kyusu' && (
-          <HlsPlayer
-            url={hlsURL(recording.streamUrl, route.preset)}
-            videoRef={videoRef}
-            active={visible}
-            captions={captions}
-            live={false}
-            startPosition={offset}
-            overlay={jikkyo.overlay}
-            onLoaded={() => setError(null)}
-            onError={onError}
-          />
+        {pip.container === null ? (
+          playerBox
+        ) : (
+          <Text size="sm" c="dimmed">
+            {t('player.pipActive')}
+          </Text>
         )}
       </div>
+      {pip.container !== null && createPortal(playerBox, pip.container)}
       <Group gap="sm" wrap="nowrap">
         <ActionIcon
           variant="default"
