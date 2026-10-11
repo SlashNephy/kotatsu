@@ -3,6 +3,7 @@ import { createRootRoute, Link, Outlet } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 
 import { ColorSchemeToggle } from '../futon';
+import { NotificationBell } from '../notifications/NotificationBell';
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -44,7 +45,10 @@ function RootLayout() {
               </Anchor>
             </Group>
           </Group>
-          <ColorSchemeToggle />
+          <Group gap="md">
+            <NotificationBell />
+            <ColorSchemeToggle />
+          </Group>
         </Group>
       </AppShell.Header>
       <AppShell.Main>

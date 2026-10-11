@@ -35,6 +35,33 @@
     "allReservations": "すべての予約",
     "noReservations": "これから 1 週間の予約はありません"
   },
+  "notifications": {
+    "title": "通知",
+    "settings": "通知の設定",
+    "settingsTitle": "通知の設定",
+    "back": "通知の一覧に戻る",
+    "unread": "未読 {{count}} 件",
+    "markAll": "すべて既読にする",
+    "markError": "既読にできませんでした。時間をおいてやり直してください",
+    "empty": "まだ通知はありません",
+    "webPush": "Web Push",
+    "inApp": "画面内",
+    "kindColumn": "知らせること",
+    "thisDevice": "この端末で、Web Push の通知を受け取る",
+    "pushUnsupported": "この端末のブラウザは、Web Push に対応していません",
+    "subscribeError": "Web Push を購読できませんでした。ブラウザで通知を許可したか確かめてください",
+    "unsubscribeError": "Web Push の購読をやめられませんでした。時間をおいてやり直してください",
+    "preferenceError": "通知の設定を変えられませんでした。時間をおいてやり直してください",
+    "preferenceNote": "Web Push は、購読した端末にだけ届きます。端末ごとに購読してください",
+    "kind": {
+      "RECORDING_STARTED": "録画を始めた",
+      "RECORDING_COMPLETED": "録画が終わった",
+      "RECORDING_FAILED": "録画に失敗した",
+      "RESERVATION_CONFLICT": "予約が競合した",
+      "STORAGE_LOW": "保存先の空き容量が足りない",
+      "TUNER_SERVER_UNREACHABLE": "チューナーサーバーにつながらない"
+    }
+  },
   "viewer": {
     "loading": "読み込んでいます",
     "signedOut": "ログインしていません",
@@ -166,6 +193,7 @@
     "reservations": "予約",
     "rules": "ルール",
     "recordings": "録画",
+    "notifications": "通知",
     "live": "ライブ"
   },
   "guide": {
