@@ -127,7 +127,8 @@ function Player({ recordingId }: { recordingId: string }) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const inPage = useVisible(frameRef);
   // pip は、視聴画面を出す別のウィンドウ。出している間は、このページが隠れても再生を続ける (設計書 7.5)。
-  const pip = useDocumentPictureInPicture();
+  // 別のウィンドウに移したり戻したりすると、プレイヤーを作り直すので、今の位置から読み直す。
+  const pip = useDocumentPictureInPicture(() => startAt(positionRef.current));
   const visible = inPage || pip.container !== null;
   // playerBoxRef は、プレイヤーを包む要素。別のウィンドウに出すと移るので、キャプチャと全画面は、これを使う。
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
@@ -403,13 +404,7 @@ function Player({ recordingId }: { recordingId: string }) {
         {recording.service.name}
       </Text>
       <Group justify="flex-end" gap="md">
-        <PlayerTools
-          frameRef={playerBoxRef}
-          videoRef={videoRef}
-          name={recording.name}
-          pip={pip}
-          onBeforePip={() => startAt(positionRef.current)}
-        />
+        <PlayerTools frameRef={playerBoxRef} videoRef={videoRef} name={recording.name} pip={pip} />
         <AudioSelect
           choices={audioChoices(tracks)}
           value={currentAudioChoice(tracks)}

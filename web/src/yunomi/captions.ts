@@ -76,6 +76,8 @@ export function createCaptions(video: HTMLVideoElement, container: HTMLElement):
         const renderer = new RendererClass({
           resize: { target: 'container', objectFit: 'contain' },
         });
+        // キャプチャで写す canvas だと分かるよう、印を付ける。
+        renderer.getPresentationCanvas().dataset.overlay = 'captions';
         controller.attachFeeder(feeder);
         controller.attachRenderer(renderer);
         controller.attachMedia(video, container);

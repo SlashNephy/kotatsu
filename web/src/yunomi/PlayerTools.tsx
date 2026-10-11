@@ -1,5 +1,5 @@
 import { Button, Checkbox, Group, Menu } from '@mantine/core';
-import { useState, type RefObject } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { captureFrame, copyBlob, overlayCanvases, saveBlob } from './capture';
@@ -12,16 +12,23 @@ type Props = {
   // name は、キャプチャのファイル名に使う、番組名やチャンネル名。
   name: string;
   pip: ReturnType<typeof useDocumentPictureInPicture>;
-  // onBeforePip は、別のウィンドウに出す前と戻す前に呼ぶ。プレイヤーを作り直すので、録画では再生位置を覚えておく。
-  onBeforePip?: () => void;
 };
 
 // PlayerTools は、キャプチャと、別のウィンドウに出す操作 (設計書 7.5)。
-export function PlayerTools({ frameRef, videoRef, name, pip, onBeforePip }: Props) {
+export function PlayerTools({ frameRef, videoRef, name, pip }: Props) {
   const { t } = useTranslation();
   // overlays は、キャプチャに、字幕とコメントを写すかどうか。
   const [overlays, setOverlays] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+  // 知らせは、しばらくしたら消す。
+  useEffect(() => {
+    if (message === null) {
+      return;
+    }
+    const timer = setTimeout(() => setMessage(null), 3000);
+
+    return () => clearTimeout(timer);
+  }, [message]);
 
   const capture = async (action: 'save' | 'copy') => {
     const video = videoRef.current;
@@ -30,7 +37,7 @@ export function PlayerTools({ frameRef, videoRef, name, pip, onBeforePip }: Prop
       return;
     }
     try {
-      const blob = await captureFrame(video, overlays ? overlayCanvases(frame, video) : []);
+      const blob = await captureFrame(video, overlays ? overlayCanvases(frame) : []);
       if (action === 'save') {
         const stamp = new Date().toISOString().replaceAll(':', '-').replace(/\..*$/, '');
         saveBlob(blob, `${name}-${stamp}.png`);
@@ -70,9 +77,8 @@ export function PlayerTools({ frameRef, videoRef, name, pip, onBeforePip }: Prop
           size="compact-sm"
           variant="default"
           onClick={() => {
-            onBeforePip?.();
             if (pip.container === null) {
-              void pip.open(640, 360, classes.pip ?? '');
+              pip.open(640, 360, classes.pip ?? '').catch(() => setMessage(t('player.pipError')));
             } else {
               pip.close();
             }

@@ -15,7 +15,9 @@ function api(): DocumentPictureInPicture | null {
 // useDocumentPictureInPicture は、視聴画面を別のウィンドウに出す (設計書 7.5)。
 // container に、別のウィンドウの中の要素を返すので、そこへ React のポータルで描く。
 // 別のウィンドウには、このページのスタイルシートを写して、同じ見た目にする。
-export function useDocumentPictureInPicture(): {
+// onMove は、プレイヤーを別のウィンドウに移す前と、このページに戻す前に呼ぶ。別のウィンドウの閉じるボタンで閉じたときも呼ぶ。
+// プレイヤーを作り直すので、録画では再生位置を覚えておくのに使う。
+export function useDocumentPictureInPicture(onMove?: () => void): {
   supported: boolean;
   container: HTMLElement | null;
   // className は、別のウィンドウの中で描く要素に付けるクラス。
@@ -24,11 +26,22 @@ export function useDocumentPictureInPicture(): {
 } {
   const [container, setContainer] = useState<HTMLElement | null>(null);
   const pipWindow = useRef<Window | null>(null);
-
-  const close = () => {
-    pipWindow.current?.close();
+  const moveRef = useRef(onMove);
+  moveRef.current = onMove;
+  // back は、このページに戻す。戻すボタンと、別のウィンドウが閉じられたときの両方で使う。
+  const back = () => {
+    if (pipWindow.current === null) {
+      return;
+    }
+    moveRef.current?.();
     pipWindow.current = null;
     setContainer(null);
+  };
+
+  const close = () => {
+    const win = pipWindow.current;
+    back();
+    win?.close();
   };
 
   const open = async (width: number, height: number, className: string) => {
@@ -52,10 +65,8 @@ export function useDocumentPictureInPicture(): {
     const root = win.document.createElement('div');
     root.className = className;
     win.document.body.append(root);
-    win.addEventListener('pagehide', () => {
-      pipWindow.current = null;
-      setContainer(null);
-    });
+    win.addEventListener('pagehide', back);
+    moveRef.current?.();
     pipWindow.current = win;
     setContainer(root);
   };

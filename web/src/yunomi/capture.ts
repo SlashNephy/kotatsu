@@ -53,11 +53,11 @@ export async function captureFrame(
   });
 }
 
-// overlayCanvases は、映像の枠の中にある、字幕とコメントの canvas を返す。yadif が映像の上に重ねる canvas は、映像そのものなので除く。
-export function overlayCanvases(frame: HTMLElement, video: HTMLVideoElement): HTMLCanvasElement[] {
-  return [...frame.querySelectorAll('canvas')].filter(
-    (canvas) =>
-      canvas.parentElement !== video.parentElement && canvas.style.visibility !== 'hidden',
+// overlayCanvases は、映像の枠の中にある、字幕とコメントの canvas のうち、出しているものを返す。
+// どちらも data-overlay の印を付けている。yadif が映像の上に重ねる canvas は、映像そのものなので、印がない。
+export function overlayCanvases(frame: HTMLElement): HTMLCanvasElement[] {
+  return [...frame.querySelectorAll<HTMLCanvasElement>('canvas[data-overlay]')].filter(
+    (canvas) => canvas.style.visibility !== 'hidden',
   );
 }
 
@@ -67,7 +67,10 @@ export function saveBlob(blob: Blob, name: string): void {
   const link = document.createElement('a');
   link.href = url;
   link.download = name;
+  // 文書に置いてから押さないと、保存しないブラウザがある。
+  document.body.append(link);
   link.click();
+  link.remove();
   // 保存を始めた後で、URL を手放す。
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
