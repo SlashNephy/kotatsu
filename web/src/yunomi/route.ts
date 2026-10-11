@@ -70,11 +70,14 @@ export function chooseRoute(
   };
 }
 
+// KyusuAudio は、kyusu の HLS に入れる音声。1 は第 1 音声 (主音声)、2 は第 2 音声 (副音声や 2 つ目の音声)。
+export type KyusuAudio = 1 | 2;
+
 // hlsURL は、kyusu の HLS のプレイリストの URL を返す。streamUrl は、tenban の TS の URL。
 // TS の URL にクエリがあれば、プレイリストの URL の後ろに付け直す。
-export function hlsURL(streamUrl: string, preset: string): string {
+export function hlsURL(streamUrl: string, preset: string, audio: KyusuAudio): string {
   const [path = '', query] = streamUrl.split('?', 2);
-  const playlist = `${path}/hls/${encodeURIComponent(preset)}/playlist.m3u8`;
+  const playlist = `${path}/hls/${encodeURIComponent(preset)}/${audio}/playlist.m3u8`;
 
   return query === undefined ? playlist : `${playlist}?${query}`;
 }

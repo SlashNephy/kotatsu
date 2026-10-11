@@ -32,9 +32,9 @@ type Instances interface {
 var _ Instances = new(registry.Registry)
 
 // Relay は、tenban で、HLS を担当の kyusu に中継する (設計書 7.3)。
-// ライブ視聴は GET /streams/services/{id}/hls/{preset}/{file}、録画は GET /streams/recordings/{id}/hls/{preset}/{file} で受け付ける。
+// ライブ視聴は GET /streams/services/{id}/hls/{preset}/{audio}/{file}、録画は GET /streams/recordings/{id}/hls/{preset}/{audio}/{file} で受け付ける。
 //
-// 同じものを同じ画質で見る視聴者が 1 つのエンコーダーを共有できるよう、(サービスか録画, 画質) から決まった kyusu に中継する。
+// 同じものを同じ画質と音声で見る視聴者が 1 つのエンコーダーを共有できるよう、(サービスか録画, 画質, 音声) から決まった kyusu に中継する。
 // kyusu が増えたり減ったりして担当が変わると、見ている視聴者は新しい担当のエンコーダーに移る。
 type Relay struct {
 	instances Instances
@@ -82,7 +82,7 @@ func (h *Relay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	preset, file := r.PathValue("preset"), r.PathValue("file")
+	preset, audio, file := r.PathValue("preset"), r.PathValue("audio"), r.PathValue("file")
 	instances, err := h.instances.ListAlive(r.Context(), Role)
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "failed to list kyusu instances", slog.Any("error", err))
@@ -95,11 +95,11 @@ func (h *Relay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	instance := pick(instances, h.prefix+id+"/"+preset)
+	instance := pick(instances, h.prefix+id+"/"+preset+"/"+audio)
 	target := &url.URL{
 		Scheme: "http", Host: instance.Address,
 		// Path は、エスケープする前のパス。String でエスケープする。
-		Path: h.prefix + id + "/" + preset + "/" + file,
+		Path: h.prefix + id + "/" + preset + "/" + audio + "/" + file,
 	}
 	if err := h.relay(w, r, target); err != nil && r.Context().Err() == nil {
 		h.logger.WarnContext(r.Context(), "failed to relay to kyusu", slog.String("instance", instance.Address), slog.Any("error", err))

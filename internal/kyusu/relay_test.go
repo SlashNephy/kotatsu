@@ -21,7 +21,7 @@ import (
 
 const (
 	// hlsPattern は、ライブ視聴の HLS のパス。
-	hlsPattern = "GET /streams/services/{id}/hls/{preset}/{file}"
+	hlsPattern = "GET /streams/services/{id}/hls/{preset}/{audio}/{file}"
 	// kyusuRole は、kyusu のロールの名前。
 	kyusuRole = "kyusu"
 )
@@ -126,20 +126,20 @@ func TestRelayRelaysToKyusu(t *testing.T) {
 	forward := newHLSServer(t, &fakeInstances{instances: []*registry.Instance{firstInstance, secondInstance}}, token)
 	backward := newHLSServer(t, &fakeInstances{instances: []*registry.Instance{secondInstance, firstInstance}}, token)
 
-	got := fetch(t, forward.URL+"/streams/services/3273601024/hls/720p/playlist.m3u8")
+	got := fetch(t, forward.URL+"/streams/services/3273601024/hls/720p/1/playlist.m3u8")
 	assert.Equal(t, &relayed{status: http.StatusOK, contentType: "application/vnd.apple.mpegurl", cacheControl: "no-store", body: "#EXTM3U\n"}, got)
-	assert.Equal(t, http.StatusOK, fetch(t, backward.URL+"/streams/services/3273601024/hls/720p/segment00000.ts").status)
+	assert.Equal(t, http.StatusOK, fetch(t, backward.URL+"/streams/services/3273601024/hls/720p/1/segment00000.ts").status)
 
 	// どちらの tenban からも、同じ kyusu に届く。
 	assert.ElementsMatch(t, []string{
-		"/internal/kyusu/live/3273601024/720p/playlist.m3u8", "/internal/kyusu/live/3273601024/720p/segment00000.ts",
+		"/internal/kyusu/live/3273601024/720p/1/playlist.m3u8", "/internal/kyusu/live/3273601024/720p/1/segment00000.ts",
 	}, append(first.requests(), second.requests()...))
 	assert.True(t, len(first.requests()) == 2 || len(second.requests()) == 2, "both requests reach the same kyusu")
 
 	// サービスと画質の組が違えば、ほかの kyusu も使う。
 	for _, preset := range kyusu.Presets() {
 		for _, service := range []string{"3273601024", "3273601025", "3273601026"} {
-			require.Equal(t, http.StatusOK, fetch(t, forward.URL+"/streams/services/"+service+"/hls/"+preset.Name+"/playlist.m3u8").status)
+			require.Equal(t, http.StatusOK, fetch(t, forward.URL+"/streams/services/"+service+"/hls/"+preset.Name+"/1/playlist.m3u8").status)
 		}
 	}
 	assert.NotEmpty(t, first.requests())
@@ -161,15 +161,15 @@ func TestRelayErrors(t *testing.T) {
 		wantBody   string
 	}{
 		{
-			name: "kyusu が動いていない", instances: []*registry.Instance{}, path: "/streams/services/3273601024/hls/720p/playlist.m3u8",
+			name: "kyusu が動いていない", instances: []*registry.Instance{}, path: "/streams/services/3273601024/hls/720p/1/playlist.m3u8",
 			wantStatus: http.StatusServiceUnavailable, wantBody: "server-side transcoding is not available; no kyusu instance is running",
 		},
 		{
-			name: "kyusu のエラーをそのまま返す", instances: []*registry.Instance{instance}, path: "/streams/services/3273601024/hls/720p/missing.ts",
+			name: "kyusu のエラーをそのまま返す", instances: []*registry.Instance{instance}, path: "/streams/services/3273601024/hls/720p/1/missing.ts",
 			wantStatus: http.StatusNotFound, wantBody: "the live session is not running",
 		},
 		{
-			name: "届かない kyusu", path: "/streams/services/3273601024/hls/720p/playlist.m3u8",
+			name: "届かない kyusu", path: "/streams/services/3273601024/hls/720p/1/playlist.m3u8",
 			instances:  []*registry.Instance{{ID: uuid.New(), Role: kyusuRole, Address: "127.0.0.1:1"}},
 			wantStatus: http.StatusBadGateway, wantBody: "failed to reach kyusu",
 		},
@@ -201,11 +201,11 @@ func TestRecordingRelay(t *testing.T) {
 	}{
 		{
 			name: "録画の ID", id: recordingID, wantStatus: http.StatusOK,
-			wantPaths: []string{"/internal/kyusu/recordings/" + recordingID + "/720p/playlist.m3u8"},
+			wantPaths: []string{"/internal/kyusu/recordings/" + recordingID + "/720p/1/playlist.m3u8"},
 		},
 		{
 			name: "大文字の録画の ID", id: strings.ToUpper(recordingID), wantStatus: http.StatusOK,
-			wantPaths: []string{"/internal/kyusu/recordings/" + recordingID + "/720p/playlist.m3u8"},
+			wantPaths: []string{"/internal/kyusu/recordings/" + recordingID + "/720p/1/playlist.m3u8"},
 		},
 		{name: "サービスの ID", id: "3273601024", wantStatus: http.StatusBadRequest, wantPaths: []string{}},
 	}
@@ -215,12 +215,12 @@ func TestRecordingRelay(t *testing.T) {
 
 			backend, instance := newFakeKyusu(t, token)
 			mux := http.NewServeMux()
-			mux.Handle("GET /streams/recordings/{id}/hls/{preset}/{file}",
+			mux.Handle("GET /streams/recordings/{id}/hls/{preset}/{audio}/{file}",
 				kyusu.NewRecordingRelay(&fakeInstances{instances: []*registry.Instance{instance}}, token, slog.New(slog.DiscardHandler)))
 			server := httptest.NewServer(mux)
 			t.Cleanup(server.Close)
 
-			assert.Equal(t, tt.wantStatus, fetch(t, server.URL+"/streams/recordings/"+tt.id+"/hls/720p/playlist.m3u8").status)
+			assert.Equal(t, tt.wantStatus, fetch(t, server.URL+"/streams/recordings/"+tt.id+"/hls/720p/1/playlist.m3u8").status)
 			assert.Equal(t, tt.wantPaths, backend.requests())
 		})
 	}

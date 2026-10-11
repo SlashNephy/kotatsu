@@ -49,7 +49,7 @@ type RecordingOpener interface {
 
 // VODEncoder は、録画の仮想 HLS のセグメントを書く。*Transcoder が満たす。
 type VODEncoder interface {
-	RunVOD(ctx context.Context, src io.Reader, preset *Preset, dir string, opts *RunOptions) error
+	RunVOD(ctx context.Context, src io.Reader, preset *Preset, audio Audio, dir string, opts *RunOptions) error
 }
 
 var (
@@ -57,10 +57,11 @@ var (
 	_ VODEncoder      = new(Transcoder)
 )
 
-// vodKey は、録画の仮想 HLS のセッションを見分けるもの。同じ録画を同じ画質で見る視聴者は、1 つのセッションを共有する。
+// vodKey は、録画の仮想 HLS のセッションを見分けるもの。同じ録画を同じ画質と音声で見る視聴者は、1 つのセッションを共有する。
 type vodKey struct {
 	recordingID uuid.UUID
 	preset      string
+	audio       Audio
 }
 
 // vodRun は、k 番目のセグメントから書くエンコーダーの 1 回の起動。
@@ -161,7 +162,7 @@ func (v *VOD) Run(ctx context.Context) error {
 // Handler は、録画の仮想 HLS を配信するハンドラーを返す。token を付けたリクエストだけを受け付ける。
 func (v *VOD) Handler(token *Token) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET "+RecordingPathPrefix+"{id}/{preset}/{file}", v.serveHTTP)
+	mux.HandleFunc("GET "+RecordingPathPrefix+"{id}/{preset}/{audio}/{file}", v.serveHTTP)
 
 	return token.Middleware(mux)
 }
@@ -178,7 +179,8 @@ func (v *VOD) reap(now time.Time) {
 	}
 	v.mu.Unlock()
 	for _, s := range idle {
-		v.logger.Info("stopping an idle recording session", slog.String("recording_id", s.key.recordingID.String()), slog.String("preset", s.key.preset))
+		v.logger.Info("stopping an idle recording session", slog.String("recording_id", s.key.recordingID.String()),
+			slog.String("preset", s.key.preset), slog.String("audio", s.key.audio.String()))
 		v.close(s)
 	}
 }
@@ -222,7 +224,7 @@ func (v *VOD) session(key vodKey) (*vodSession, error) {
 	if s, ok := v.sessions[key]; ok {
 		return s, nil
 	}
-	dir, err := os.MkdirTemp(v.dir, key.recordingID.String()+"-"+key.preset+"-")
+	dir, err := os.MkdirTemp(v.dir, key.recordingID.String()+"-"+key.preset+"-a"+key.audio.String()+"-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the session directory: %w", err)
 	}
@@ -245,6 +247,12 @@ func (v *VOD) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+	audio, ok := ParseAudio(r.PathValue("audio"))
+	if !ok {
+		http.Error(w, "unknown audio", http.StatusNotFound)
+
+		return
+	}
 	file := r.PathValue("file")
 	switch {
 	case file == PlaylistName:
@@ -256,7 +264,7 @@ func (v *VOD) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 			return
 		}
-		v.serveSegment(w, r, vodKey{recordingID: recordingID, preset: preset.Name}, preset, number)
+		v.serveSegment(w, r, vodKey{recordingID: recordingID, preset: preset.Name, audio: audio}, preset, number)
 	default:
 		http.NotFound(w, r)
 	}
@@ -486,7 +494,7 @@ func (v *VOD) start(ctx context.Context, s *vodSession, preset *Preset, number i
 		writer.CloseWithError(recording.Write(runCtx, writer, pos))
 	}()
 	go func() {
-		err := v.encoder.RunVOD(runCtx, reader, preset, s.dir, &RunOptions{StartNumber: number, Trim: max(at-pos.At, 0)})
+		err := v.encoder.RunVOD(runCtx, reader, preset, s.key.audio, s.dir, &RunOptions{StartNumber: number, Trim: max(at-pos.At, 0)})
 		reader.CloseWithError(err)
 		if runCtx.Err() != nil {
 			err = errEnded
