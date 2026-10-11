@@ -678,6 +678,26 @@
       "userAgent": "User-Agent: {{userAgent}}",
       "more": "さらに読み込む",
       "moreError": "続きを読み込めませんでした。時間をおいてやり直してください"
+    },
+    "settings": {
+      "title": "全体の設定",
+      "summary": "録画設定の既定値と、過去の番組の保持期間を変えます",
+      "recordingDefaults": "録画設定の既定値",
+      "recordingDefaultsNote": "ルールや予約で上書きしていない項目に使います",
+      "pool": "保存先プール",
+      "poolAuto": "自動で選ぶ",
+      "poolHelp": "自動なら、推定サイズが収まるプールを、優先順位の高い順に選びます",
+      "fileNameTemplate": "ファイル名のテンプレート",
+      "fileNameTemplateHelp": "Go の text/template で書きます。使える項目は .StartAt、.EndAt、.ServiceName、.ChannelType、.Channel、.Name、.EventID です",
+      "startMargin": "開始前のマージン (秒)",
+      "endMargin": "終了後のマージン (秒)",
+      "priority": "優先度",
+      "priorityHelp": "-10〜10。チューナーが足りないときは、高い予約から割り当てます",
+      "archive": "過去の番組",
+      "archiveRetentionDays": "保持期間 (日)",
+      "archiveRetentionHelp": "放送が終わった番組を、番組表と検索に残す日数です。0 なら無期限に残します",
+      "updatedAt": "最後に変えた日時 {{at}}",
+      "neverUpdated": "まだ変えていません"
     }
   }
 }
