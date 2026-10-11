@@ -233,7 +233,7 @@ EPGの収集は、Mirakurunの内部でpriority -1として動きます。
 | 可観測性 | OpenTelemetryとPrometheus形式の`/metrics` | OTLPの送信先を設定したときだけトレースを送ります。 |
 | 設定 | YAMLと環境変数 | 置き場所の基準は[11.2](#112-設定の置き場所)で定めます。 |
 | 認証 | go-webauthn、pquerna/otp、coreos/go-oidc、x/crypto/argon2、webpush-go | |
-| ARIBの処理 | tsreadex、psisiarcを子プロセスとして使います | GoにはARIBの文字符号を扱える成熟したライブラリがありません。番組情報はMirakurunがJSONで返し、字幕とデータ放送はブラウザで描画するので、Kotatsuの中でARIBの文字符号を解く必要はありません。 |
+| ARIBの処理 | tsreadexを子プロセスとして使います | GoにはARIBの文字符号を扱える成熟したライブラリがありません。番組情報はMirakurunがJSONで返し、字幕とデータ放送はブラウザで描画するので、Kotatsuの中でARIBの文字符号を解く必要はありません。 |
 
 Kotatsuの中でTSを解析するのは、パケット単位の処理（ドロップの集計、PATとPMT、Iフレームの位置）だけです。
 これらはARIBの知識を必要としないので、Goで直接書きます。
@@ -283,9 +283,9 @@ Next.jsの利点はSSRとRSCですが、そのためには本番でNode.jsのプ
 | イメージ | ベース | 用途 |
 |---|---|---|
 | `ghcr.io/slashnephy/kotatsu:<バージョン>` | `gcr.io/distroless/static-debian13:nonroot` | tenban、neko、mikan |
-| `ghcr.io/slashnephy/kotatsu:<バージョン>-ffmpeg` | Debian 13のslimにDebianの`ffmpeg`パッケージとVAAPI・QSVのドライバを入れ、tsreadexとpsisiarcをソースからビルドして同梱します | kyusu、nekonote、`all` |
+| `ghcr.io/slashnephy/kotatsu:<バージョン>-ffmpeg` | Debian 13のslimにDebianの`ffmpeg`パッケージとVAAPI・QSVのドライバを入れ、tsreadexをソースからビルドして同梱します | kyusu、nekonote、`all` |
 
-FFmpeg（VAAPIやQSVのドライバを含む）、tsreadex、psisiarcは共有ライブラリを必要とするので、staticのイメージには入りません。
+FFmpeg（VAAPIやQSVのドライバを含む）とtsreadexは共有ライブラリを必要とするので、staticのイメージには入りません。
 サムネイルの生成にFFmpegが要るので、全ロールを1プロセスで動かす`all`も`-ffmpeg`イメージを使います。
 `-ffmpeg`イメージの実行ユーザーは、distrolessの`nonroot`と同じUID 65532にそろえます。
 VAAPIとQSVのドライバには、Debianのmainコンポーネントのパッケージ（`mesa-va-drivers`、amd64では加えて`intel-media-va-driver`、`libvpl2`、`libmfx-gen1.2`）を使い、non-freeのパッケージは入れません。NVENCのライブラリは、NVIDIA Container Toolkitがホストから渡します。
@@ -723,7 +723,7 @@ Viteがワーカーのチャンクにbase64で埋め込むと、ストリーミ�
 ### 7.4 字幕、データ放送、実況
 
 - **字幕と文字スーパー**：aribb24.jsで描画します。ブラウザ内での変換では、プレイヤーがprivate PESをイベントとして渡すので、それを使います（private_stream_1が字幕、private_stream_2が文字スーパーです）。kyusuの経路では、hls.jsが取り出したID3のデータを使います。
-- **データ放送**：ライブ視聴でだけ、web-bmlで表示します。web-bmlにデータを渡す方法は要調査です（[12章](#12-要検証事項)）。
+- **データ放送**：ライブ視聴でだけ、web-bmlで表示します。tenbanは、チューナーサーバーから受け取ったTSから、データ放送に要るPID（PAT、PMT、NIT、SDT、EIT、TOT、BIT、データカルーセルのES、PCR）だけを残したTSを、データ放送用のエンドポイントで配信します。ブラウザは、Web Workerの中でweb-bmlの`decodeTS`にこのTSを渡し、出てきたメッセージを`BMLBrowser`に渡して描画します。この方法は、チューナーサーバーの種類と、再生の経路（ブラウザ内での変換かkyusuか）によらず同じように使え、外部のプログラムも要りません（[12章](#12-要検証事項)）。
 - **ニコニコ実況**：NX-Jikkyoを使います。ライブ視聴ではWebSocketでリアルタイムのコメントを受け取り、録画の再生では過去ログを取得して流します。コメントはniconicommentsで描画します。投稿はNX-Jikkyoへの投稿に限ります。ライブ視聴ではブラウザからNX-Jikkyoへ直接接続するので、設定で無効にもできるようにします。
 - **実況の過去ログ**：過去ログは、tenbanが[ニコニコ実況 過去ログ API](https://jikkyo.tsukumijima.net/)から取得して中継します。このAPIは、NX-Jikkyoのスレッドとニコニコ生放送の実況の両方のコメントを、時間帯を指定して返します。tenbanは録画の時間帯を指定して取得し、描画に使う項目に絞って返します。ブラウザが接続する先を増やさずに済み、CSPを狭いまま保てます。
 - **実況チャンネルの対応表**：NX-Jikkyoのチャンネル情報API（`/api/v1/channels`）は、実況チャンネルのID（`jk1`など）と名前しか返さず、ネットワークIDとサービスIDを持ちません。そのため、サービスと実況チャンネルの対応表をKotatsuに同梱します。対応表はKonomiTVの`jikkyo_channels.json`を元に作り、BSとCSはネットワークIDとサービスIDの組で、地上波はサービスIDで引きます。地上波のサブチャンネルは、サービスIDが1つ前か2つ前のメインチャンネルに寄せます。チャンネル情報APIはtenbanが取得してキャッシュし、対応表で見つかった実況チャンネルのうち、APIが返さないものは表示しません。対応表は、設定ファイルで上書きや追加をできるようにします。
@@ -985,8 +985,8 @@ Content Security Policyは厳しく設定します。
 
 | 配布物 | 内容 |
 |---|---|
-| コンテナイメージ | [2.4](#24-コンテナイメージ)の2種類です。ビルドに使うtsreadexとpsisiarcのバージョンは、Renovateで追跡できる形で固定します。 |
-| バイナリ | GoReleaserでGitHub Releasesに置きます。SPAは埋め込み済みです。FFmpeg、tsreadex、psisiarcは利用者が別途用意します。 |
+| コンテナイメージ | [2.4](#24-コンテナイメージ)の2種類です。ビルドに使うtsreadexのバージョンは、Renovateで追跡できる形で固定します。 |
+| バイナリ | GoReleaserでGitHub Releasesに置きます。SPAは埋め込み済みです。FFmpegとtsreadexは利用者が別途用意します。 |
 | Helm Chart | `oci://ghcr.io/slashnephy/charts/kotatsu`で配布します。 |
 | Kubernetesのマニフェスト | Helm Chartから`helm template`で生成します。 |
 | Docker Composeの例 | `-ffmpeg`イメージの`all`構成とPostgreSQLの組み合わせです。 |
@@ -1075,7 +1075,7 @@ Kotatsuは公開リポジトリなので、実際の放送のTSをテスト用�
 | 延長の検知の遅れ | サービスストリームで録画している最中に、延長や繰り下げがMirakurun、mirakc、Mahironのそれぞれから、番組の更新イベントとして何秒以内に届くか | 番組ストリームを併用し、終了の判断をMirakurunに任せます。 | 未検証 |
 | チューナーの解放 | ブラウザが接続を切ったときに、tenbanからMirakurunへの接続が閉じ、チューナーが解放されるか | 明示的なタイムアウトと切断の検知を足します。 | 想定どおりでした。Mahiron（実機）、Docker上のMirakurun 4.1.5とmirakc 3.4.89（録画したTSを流すチューナー）のどれでも、tenbanへの接続を切ってから0.2秒以内に`/api/tuners`から利用者が消えました（#52）。 |
 | 長時間のストリームとタイムアウト | net/httpのタイムアウトの設定が、何時間も続くストリームを切らないか | ストリーム用のハンドラでだけ、書き込みのタイムアウトを外します。 | 想定どおりでした。tenbanのHTTPサーバーは`ReadHeaderTimeout`だけを設定し、書き込みのタイムアウトを設定していません。Docker上のmirakc 3.4.89（録画したTSを流すチューナー）からのライブ視聴のストリームを、tenban経由で3時間受け取り続けても切れませんでした（#53）。 |
-| データ放送の渡し方 | web-bmlにデータを渡す方法として、ブラウザに届いたTSを使う方法、Mahironのデータ放送API、psisiarcのどれが使えるか | 使える方法をサーバーごとに選びます。どれも使えないサーバーでは、データ放送を表示しません。 | 未検証 |
+| データ放送の渡し方 | web-bmlにデータを渡す方法として、ブラウザに届いたTSを使う方法、Mahironのデータ放送API、psisiarcのどれが使えるか | 使える方法をサーバーごとに選びます。どれも使えないサーバーでは、データ放送を表示しません。 | どれも使えますが、tenbanがTSからデータ放送に要るPIDだけを残して配信し、ブラウザでweb-bmlの`decodeTS`に渡す方法を、どのサーバーでも使います（#67）。実際の地上波の10秒のTSで比べると、PIDを絞ったTS（約1.8Mbps、元の約18%）から、元のTSと同じメッセージが出ました。ブラウザに届いたTSは、mpeg2toh264のプレイヤーが字幕と文字スーパーのPESしか外に出さないので、そのままでは使えません。MahironのAPIは、web-bmlの形に組み立て直す処理が重く、Mahironでしか使えません。psisiarcは帯域をさらに半分ほどにできますが、外部のプログラムが要るので使いません。web-bmlは`<style>`要素とstyle属性を書くので、今のCSPではそのままでは描画できません。この扱いは#68で決めます。 |
 | デュアルモノ | mpeg2toh264のプレイヤーが、デュアルモノの音声を切り替えられるか | ブラウザ内での変換では主音声だけを再生し、切り替えはkyusuの経路で行います。 | 切り替えられました。プレイヤーは音声のフレームからデュアルモノを見分け、`selectDualMono`で副音声に切り替えます。実際の放送のデュアルモノの番組から取ったTSを再生し、切り替えの前は主音声と、後は副音声と、FFmpegで復号したものと波形が一致しました。切り替えは変換を終えたところから効くので、録画では最大で約8秒遅れて聞こえます（#69）。 |
 | ハードウェアエンコード | Debianの`ffmpeg`とmainコンポーネントのドライバで、VAAPI、QSV、NVENCのH.264とHEVCのエンコードが動くか。IntelのGPUは、non-freeのドライバに頼りやすいGen11以前と、Gen12以降の両方で確かめます | 動かないエンコーダーやGPUの世代は、v1の対応から外します。 | 未検証 |
 
@@ -1142,7 +1142,7 @@ Kotatsu本体はApache License 2.0で公開します。
 |---|---|---|
 | @mpeg2toh264/yadif | LGPL-2.1-or-later（FFmpeg由来） | フロントエンドに同梱します。差し替えられる形（独立したモジュール）で配信し、ソースの入手先を示します。 |
 | FFmpeg（Debianの`ffmpeg`パッケージ） | GPL-2.0-or-later（`--enable-gpl`の構成） | `-ffmpeg`イメージにだけ同梱し、子プロセスとして実行します。本体とはリンクしません。ライセンス文書とソースの入手先は、この表の後で示す方法でイメージに含めます。 |
-| tsreadex、psisiarc | MIT | `-ffmpeg`イメージに同梱し、子プロセスとして実行します。 |
+| tsreadex | MIT | `-ffmpeg`イメージに同梱し、子プロセスとして実行します。 |
 | mpeg2toh264、aribb24.js、web-bml、niconicomments、hls.js、Mantine、Relay | MITまたはApache-2.0 | フロントエンドに同梱します。 |
 | 見出し用のフォント | SIL Open Font License | フロントエンドに同梱します。 |
 | zxcvbn-ts（`@zxcvbn-ts/core`と言語の辞書） | MIT | フロントエンドに同梱し、gojaで動かすバンドルを本体にも埋め込みます。 |
@@ -1155,8 +1155,8 @@ Kotatsu本体はApache License 2.0で公開します。
 `-ffmpeg`イメージには、ライセンス文書とソースの入手先を次のように含めます。
 
 - Debianのパッケージは、各パッケージの`/usr/share/doc/<パッケージ>/copyright`と`/usr/share/common-licenses/`を削らずに残します。
-- tsreadexとpsisiarcは、ライセンス文書を`/usr/share/doc/kotatsu/third-party/`に置きます。
-- イメージのビルド時に、入れたDebianのパッケージとソースパッケージの名前と版の一覧を`/usr/share/doc/kotatsu/third-party/`に書き出します。ソースの入手先には、その版を固定して取得できるsnapshot.debian.orgを示します。tsreadexとpsisiarcは、ビルドに使ったリポジトリとコミットを示します。
+- tsreadexは、ライセンス文書を`/usr/share/doc/kotatsu/third-party/`に置きます。
+- イメージのビルド時に、入れたDebianのパッケージとソースパッケージの名前と版の一覧を`/usr/share/doc/kotatsu/third-party/`に書き出します。ソースの入手先には、その版を固定して取得できるsnapshot.debian.orgを示します。tsreadexは、ビルドに使ったリポジトリとコミットを示します。
 - 音声のエンコードにはFFmpeg標準の`aac`エンコーダーを使います。libfdk-aacは使いません。
 
 ## 付録 C. 参考にしたプロジェクト
