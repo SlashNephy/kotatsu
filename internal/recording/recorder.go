@@ -225,12 +225,19 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 }
 
 // waitToReopen は、ストリームを開き直す前に d だけ待つ。d が 0 以下なら待たない。
-// 待つ間に録画を止めるときが来たら、つながらないまま録画を終え、true と、録画を終えた結果を返す。
+// 待つ前か、待つ間に録画を止めるときが来たら、録画を終え、true と、録画を終えた結果を返す。
 func (r *Recorder) waitToReopen(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, tracker *endTracker, result *sessionResult, d time.Duration,
 ) (bool, error) {
 	if d <= 0 {
-		return false, nil
+		// 予定の終わりに、チューナーサーバーがストリームを閉じることもあるので、開き直す前に、止めるときかを確かめる。
+		// 切れてすぐなので、途切れた区間は足さない。
+		end := tracker.check(ctx)
+		if end == endNone {
+			return false, nil
+		}
+
+		return true, r.finish(ctx, logger, assignment, recording, end, result, false)
 	}
 	end, err := tracker.sleep(ctx, d)
 	if err != nil {
