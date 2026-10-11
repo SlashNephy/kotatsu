@@ -15,6 +15,17 @@
       ],
       enabled: false,
     },
+    {
+      // CI で確かめる、対応する最も古い DB の版 (.github/workflows/ci.yml の oldest) と、atlas.hcl の開発用 DB。
+      // 古いバージョンのマネージド DB や EPGStation の利用者の DB で動くことを確かめるために残すので、メジャーバージョンは手で上げる。
+      matchDepTypes: [
+        'oldest',
+      ],
+      matchUpdateTypes: [
+        'major',
+      ],
+      enabled: false,
+    },
   ],
   customManagers: [
     {
@@ -36,6 +47,18 @@
       ],
       matchStrings: [
         'docker\\+postgres://(?<depName>[^:]+):(?<currentValue>[^/]+)/',
+      ],
+      datasourceTemplate: 'docker',
+      depTypeTemplate: 'oldest',
+    },
+    {
+      // CI で確かめる DB の版。oldest と latest の 2 つの版を、matrix の値として書いている。
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^\\.github/workflows/ci\\.yml$/',
+      ],
+      matchStrings: [
+        '(?<depName>mirror\\.gcr\\.io/library/[a-z]+):(?<currentValue>[^@\\s]+)(?:@(?<currentDigest>sha256:[0-9a-f]{64}))? # renovate: (?<depType>oldest|latest)',
       ],
       datasourceTemplate: 'docker',
     },
