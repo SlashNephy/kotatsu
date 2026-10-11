@@ -235,6 +235,9 @@ func TestEngineKeepsReservationsWhoseRecordingStarted(t *testing.T) {
 	_, err := f.pool.Exec(t.Context(), "UPDATE reservations SET planned_start_at = $1 WHERE id = $2",
 		start.Add(-15*time.Second), f.reservationOf(t, 5).ID)
 	require.NoError(t, err)
+	// ルールに一致したままなら、何も変えない。録画中の予約を作り直そうとしない。
+	assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0}, f.run(t))
+
 	in := &rule.Input{
 		Name: r.Name, Memo: "", Enabled: true,
 		Conditions: &match.Conditions{Keywords: []*match.Keyword{{Text: "一致しない", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldName}}}},

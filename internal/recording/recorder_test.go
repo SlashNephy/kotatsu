@@ -225,16 +225,39 @@ func TestRecorderStopsWhenStopped(t *testing.T) {
 func TestRecorderSkipsDisabledReservations(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t)
-	reservationID := f.reserve(t, 0)
-	recorder, _ := f.newRecorder(t, f.tuner, nil)
-	_, done := f.session(t, recorder, reservationID)
-	_, err := f.reservations.Update(t.Context(), f.pool, audit.System("test"), reservationID, &reserve.Update{Enabled: new(false)})
-	require.NoError(t, err)
+	tests := []struct {
+		name string
+		// cancel は、録画を始める前に予約を取り消す。
+		cancel func(t *testing.T, f *fixture, reservationID uuid.UUID)
+	}{
+		{name: "無効にする", cancel: func(t *testing.T, f *fixture, reservationID uuid.UUID) {
+			t.Helper()
 
-	require.NoError(t, wait(t, done))
-	_, started := f.recording(t, reservationID)
-	assert.False(t, started)
+			_, err := f.reservations.Update(t.Context(), f.pool, audit.System("test"), reservationID, &reserve.Update{Enabled: new(false)})
+			require.NoError(t, err)
+		}},
+		{name: "消す (#304)", cancel: func(t *testing.T, f *fixture, reservationID uuid.UUID) {
+			t.Helper()
+
+			require.NoError(t, f.reservations.Delete(t.Context(), f.pool, audit.System("test"), reservationID))
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			recorder, _ := f.newRecorder(t, f.tuner, nil)
+			_, done := f.session(t, recorder, reservationID)
+			tt.cancel(t, f, reservationID)
+
+			require.NoError(t, wait(t, done))
+			var recordings int
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM recordings").Scan(&recordings))
+			assert.Zero(t, recordings)
+		})
+	}
 }
 
 // failingStream は、ストリームを開くと err を返す。

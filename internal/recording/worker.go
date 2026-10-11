@@ -357,7 +357,7 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 
 		return
 	}
-	if n == 0 {
+	if n == 0 && !w.assignmentDeleted(ctx, assignment.ID, logger) {
 		logger.WarnContext(ctx, "the recording assignment was taken over before it finished")
 	}
 }

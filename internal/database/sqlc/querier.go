@@ -175,8 +175,8 @@ type Querier interface {
 	ListEPGChangesSince(ctx context.Context, version int64) ([]ListEPGChangesSinceRow, error)
 	// ルール予約の録画設定に使う、一致したルールのうち最も古いものの上書き。
 	ListFirstRuleSettings(ctx context.Context, reservationIds []uuid.UUID) ([]ListFirstRuleSettingsRow, error)
-	// 録画が始まっていない、番組を指定した予約 (番組予約とルール予約)。
-	// 録画は放送の開始マージンだけ前に始まるので、割り当てた録画の開始 (planned_start_at) を過ぎた予約は、照合で消さない (設計書 4.3)。
+	// 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。照合の対象の番組 (ListMatchablePrograms) とそろえる。
+	// 録画は開始マージンだけ前に始まるので、録画の開始 (planned_start_at) も返す。録画が始まった予約は、照合で消さない (設計書 4.3)。
 	ListFutureProgramReservations(ctx context.Context, now time.Time) ([]ListFutureProgramReservationsRow, error)
 	ListFutureReservationRules(ctx context.Context, now time.Time) ([]ReservationRule, error)
 	// 番組表の並び順のサービス。チャンネル種別の並び順、管理者の上書き、リモコンのキー、サービス ID の順に並べる。

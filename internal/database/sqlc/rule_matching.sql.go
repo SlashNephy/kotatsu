@@ -42,9 +42,9 @@ func (q *Queries) InsertReservationRule(ctx context.Context, arg InsertReservati
 }
 
 const listFutureProgramReservations = `-- name: ListFutureProgramReservations :many
-SELECT id, kind, service_id, event_id, enabled, follow_event_relay
+SELECT id, kind, service_id, event_id, enabled, follow_event_relay, planned_start_at
 FROM reservations
-WHERE event_id IS NOT NULL AND COALESCE(planned_start_at, start_at) > $1::timestamptz
+WHERE event_id IS NOT NULL AND start_at > $1
 ORDER BY id
 `
 
@@ -55,10 +55,11 @@ type ListFutureProgramReservationsRow struct {
 	EventID          *int64
 	Enabled          bool
 	FollowEventRelay bool
+	PlannedStartAt   *time.Time
 }
 
-// 録画が始まっていない、番組を指定した予約 (番組予約とルール予約)。
-// 録画は放送の開始マージンだけ前に始まるので、割り当てた録画の開始 (planned_start_at) を過ぎた予約は、照合で消さない (設計書 4.3)。
+// 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。照合の対象の番組 (ListMatchablePrograms) とそろえる。
+// 録画は開始マージンだけ前に始まるので、録画の開始 (planned_start_at) も返す。録画が始まった予約は、照合で消さない (設計書 4.3)。
 func (q *Queries) ListFutureProgramReservations(ctx context.Context, now time.Time) ([]ListFutureProgramReservationsRow, error) {
 	rows, err := q.db.Query(ctx, listFutureProgramReservations, now)
 	if err != nil {
@@ -75,6 +76,7 @@ func (q *Queries) ListFutureProgramReservations(ctx context.Context, now time.Ti
 			&i.EventID,
 			&i.Enabled,
 			&i.FollowEventRelay,
+			&i.PlannedStartAt,
 		); err != nil {
 			return nil, err
 		}
@@ -90,7 +92,7 @@ const listFutureReservationRules = `-- name: ListFutureReservationRules :many
 SELECT rr.reservation_id, rr.rule_id
 FROM reservation_rules rr
 JOIN reservations r ON r.id = rr.reservation_id
-WHERE r.event_id IS NOT NULL AND COALESCE(r.planned_start_at, r.start_at) > $1::timestamptz
+WHERE r.event_id IS NOT NULL AND r.start_at > $1
 `
 
 func (q *Queries) ListFutureReservationRules(ctx context.Context, now time.Time) ([]ReservationRule, error) {

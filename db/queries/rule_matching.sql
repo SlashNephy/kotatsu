@@ -15,18 +15,18 @@ WHERE title_key = ANY(@title_keys::text[])
 GROUP BY title_key, service_id;
 
 -- name: ListFutureProgramReservations :many
--- 録画が始まっていない、番組を指定した予約 (番組予約とルール予約)。
--- 録画は放送の開始マージンだけ前に始まるので、割り当てた録画の開始 (planned_start_at) を過ぎた予約は、照合で消さない (設計書 4.3)。
-SELECT id, kind, service_id, event_id, enabled, follow_event_relay
+-- 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。照合の対象の番組 (ListMatchablePrograms) とそろえる。
+-- 録画は開始マージンだけ前に始まるので、録画の開始 (planned_start_at) も返す。録画が始まった予約は、照合で消さない (設計書 4.3)。
+SELECT id, kind, service_id, event_id, enabled, follow_event_relay, planned_start_at
 FROM reservations
-WHERE event_id IS NOT NULL AND COALESCE(planned_start_at, start_at) > @now::timestamptz
+WHERE event_id IS NOT NULL AND start_at > @now
 ORDER BY id;
 
 -- name: ListFutureReservationRules :many
 SELECT rr.reservation_id, rr.rule_id
 FROM reservation_rules rr
 JOIN reservations r ON r.id = rr.reservation_id
-WHERE r.event_id IS NOT NULL AND COALESCE(r.planned_start_at, r.start_at) > @now::timestamptz;
+WHERE r.event_id IS NOT NULL AND r.start_at > @now;
 
 -- name: InsertReservationRule :exec
 INSERT INTO reservation_rules (reservation_id, rule_id) VALUES (@reservation_id, @rule_id)

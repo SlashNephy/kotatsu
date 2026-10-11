@@ -363,6 +363,10 @@ func (r *Recorder) waitUntilOpen(ctx context.Context, assignment *Assignment) (s
 	defer ticker.Stop()
 	for {
 		reservation, err := sqlc.New(r.pool).GetReservationForRecording(ctx, assignment.ReservationID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			// 録画を始める前に予約が消された。無効にしたときと同じく、録画せずに終える。
+			return reservation, false, nil
+		}
 		if err != nil {
 			return reservation, false, fmt.Errorf("failed to get the reservation: %w", err)
 		}
