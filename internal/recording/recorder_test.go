@@ -569,12 +569,15 @@ func TestRecorderWaitsBeforeReopeningShortStreams(t *testing.T) {
 		return opened.Load() > 0
 	}, waitTimeout, 10*time.Millisecond)
 
-	// RetryInterval は 20 ミリ秒なので、500 ミリ秒の間に開くのは、多くても 26 回である。
+	// 開き直すのは、RetryInterval (20 ミリ秒) に 1 回までである。実際に待った時間から、開く回数の上限を求める。
+	started := time.Now()
 	time.Sleep(500 * time.Millisecond)
 	cancel(nil)
 	_ = wait(t, done)
-	assert.LessOrEqual(t, opened.Load(), int32(26))
-	assert.LessOrEqual(t, f.segments(t, reservationID), 26)
+	limit := int32(time.Since(started)/(20*time.Millisecond)) + 2
+	assert.Greater(t, opened.Load(), int32(5), "it keeps reopening")
+	assert.LessOrEqual(t, opened.Load(), limit)
+	assert.LessOrEqual(t, f.segments(t, reservationID), int(limit))
 }
 
 // TestRecorderReconnects は、予定の終わりの前にストリームが切れたら、開き直して新しいセグメントに書き、
