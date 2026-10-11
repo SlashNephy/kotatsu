@@ -319,6 +319,8 @@ type onAirUpstream struct {
 	onair []*mirakurun.OnAirProgram
 }
 
+var _ epg.Upstream = new(onAirUpstream)
+
 func (u *onAirUpstream) OnAirPrograms(context.Context) ([]*mirakurun.OnAirProgram, error) {
 	return u.onair, nil
 }
