@@ -631,6 +631,32 @@
       "resetPassword": "パスワードを設定し直す",
       "newPassword": "新しいパスワード",
       "passwordReset": "{{username}} のパスワードを設定し直しました"
+    },
+    "webhooks": {
+      "title": "Webhook",
+      "summary": "通知するイベントを、Discord や Slack などの外部のサービスに送ります",
+      "empty": "Webhook はまだありません",
+      "name": "名前",
+      "url": "送り先の URL",
+      "urlHelp": "Discord や Slack の URL は、それ自体が秘密のトークンを含みます。人に見せないでください",
+      "format": "形式",
+      "formats": {
+        "JSON": "汎用の JSON",
+        "DISCORD": "Discord",
+        "SLACK": "Slack"
+      },
+      "kinds": "送るイベント",
+      "enabled": "送る",
+      "paused": "止めている",
+      "create": "Webhook を作る",
+      "created": "{{name}} を作りました",
+      "secret": "署名用の秘密キー",
+      "secretNote": "このキーは、今だけ表示します。受け取る側で、署名を確かめるのに使います",
+      "edit": "変える",
+      "cancel": "やめる",
+      "delete": "消す",
+      "deleted": "{{name}} を消しました",
+      "confirmDelete": "{{name}} を消しますか。送り直しを待っている配信も取りやめます"
     }
   }
 }
