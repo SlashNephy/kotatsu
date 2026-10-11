@@ -1,6 +1,7 @@
 import { Alert, Select, Switch } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
+import type { AudioChoice } from './audio';
 import { original, type PlaybackRoute } from './route';
 
 type Props = {
@@ -98,6 +99,87 @@ export function JikkyoToggle({
       label={t('jikkyo.toggle')}
       checked={checked}
       onChange={(event) => onChange(event.currentTarget.checked)}
+    />
+  );
+}
+
+// languageNames は、記述子の言語のコード (ISO 639) を、メニューに出す名前にする。知らない言語は、コードのまま出す。
+const languageNames: Record<string, string> = {
+  jpn: '日本語',
+  eng: '英語',
+  kor: '韓国語',
+  zho: '中国語',
+  chi: '中国語',
+};
+
+// AudioSelect は、音声のメニュー。二か国語放送の音声や、デュアルモノの主音声と副音声を選ぶ (設計書 7.5)。
+export function AudioSelect({
+  choices,
+  value,
+  onChange,
+}: {
+  choices: AudioChoice[];
+  value: string | null;
+  onChange: (value: string) => void;
+}) {
+  const { t } = useTranslation();
+  if (choices.length < 2) {
+    return null;
+  }
+  const label = (choice: AudioChoice) => {
+    const base =
+      choice.kind === 'dualMono'
+        ? t(choice.sub ? 'player.audioSub' : 'player.audioMain')
+        : t('player.audioStream', { number: choice.index + 1 });
+
+    return choice.language === null
+      ? base
+      : `${base} (${languageNames[choice.language] ?? choice.language})`;
+  };
+
+  return (
+    <Select
+      aria-label={t('player.audio')}
+      size="xs"
+      w={180}
+      allowDeselect={false}
+      data={choices.map((choice) => ({ value: choice.value, label: label(choice) }))}
+      value={value}
+      onChange={(next) => {
+        if (next !== null) {
+          onChange(next);
+        }
+      }}
+    />
+  );
+}
+
+// rates は、選べる再生速度。
+const rates = ['0.75', '1', '1.25', '1.5', '2'];
+
+// RateSelect は、録画の再生速度のメニュー (設計書 7.5)。
+export function RateSelect({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (rate: number) => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Select
+      aria-label={t('player.rate')}
+      size="xs"
+      w={90}
+      allowDeselect={false}
+      data={rates.map((rate) => ({ value: rate, label: `${rate}x` }))}
+      value={String(value)}
+      onChange={(next) => {
+        if (next !== null) {
+          onChange(Number(next));
+        }
+      }}
     />
   );
 }

@@ -1,4 +1,4 @@
-import type { Mpeg2TsPlayer, PlayerState, PrivateStream } from '@mpeg2toh264/player';
+import type { AudioTracks, Mpeg2TsPlayer, PlayerState, PrivateStream } from '@mpeg2toh264/player';
 import { useEffect, useRef, type ReactNode, useState, type RefObject } from 'react';
 
 import { createCaptions, type Captions } from './captions';
@@ -22,6 +22,10 @@ type Props = {
   onLoaded?: () => void;
   // overlay は、映像の上に重ねるもの (実況のコメント)。
   overlay?: ReactNode;
+  // onAudio は、番組の音声と、今どれを聞いているかが分かったとき、変わったときに呼ぶ。
+  onAudio?: (tracks: AudioTracks) => void;
+  // audio は、聞く音声 (audioChoices の値)。null なら、プレイヤーに任せる。
+  audio?: string | null;
 };
 
 // TsPlayer は、MPEG-2 の TS をブラウザの中で H.264 に変換して再生する (設計書 7.2)。
@@ -35,14 +39,16 @@ export function TsPlayer({
   onError,
   onLoaded,
   overlay,
+  onAudio,
+  audio = null,
 }: Props) {
   const playerRef = useRef<Mpeg2TsPlayer | null>(null);
   const captionsRef = useRef<Captions | null>(null);
   const showCaptions = useRef(captions);
   showCaptions.current = captions;
   const [ready, setReady] = useState(false);
-  const handlers = useRef({ onState, onError, onLoaded });
-  handlers.current = { onState, onError, onLoaded };
+  const handlers = useRef({ onState, onError, onLoaded, onAudio });
+  handlers.current = { onState, onError, onLoaded, onAudio };
 
   const frameRef = useRef<HTMLDivElement | null>(null);
 
@@ -87,6 +93,7 @@ export function TsPlayer({
           renderer.feedB24(event.detail.data, event.detail.pts);
         }
       };
+      player.addEventListener('audio', (event) => handlers.current.onAudio?.(event.detail));
       player.addEventListener('private_stream_1', feed);
       player.addEventListener('private_stream_2', feed);
       playerRef.current = player;
@@ -109,6 +116,20 @@ export function TsPlayer({
   useEffect(() => {
     captionsRef.current?.setVisible(captions);
   }, [captions]);
+
+  // 聞く音声を選ぶ。切り替えは、これから変換する部分から効く (設計書 12 章のデュアルモノ)。
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!ready || player === null || audio === null) {
+      return;
+    }
+    const [kind, value] = audio.split(':');
+    if (kind === 'stream') {
+      player.selectAudio(Number(value));
+    } else if (kind === 'dualMono') {
+      player.selectDualMono(value === 'sub');
+    }
+  }, [ready, audio]);
 
   // URL が変わったら読み直す。再生してよくないときは、読み込みも止めて、帯域とチューナーを使わない。
   useEffect(() => {
