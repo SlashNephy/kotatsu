@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<94066af9d48f2228e3ffa016035b0cc4>>
+ * @generated SignedSource<<a8f72fc3ccd8d9dcafe2734c0c23f249>>
  * @lightSyntaxTransform
  */
 
@@ -24,6 +24,7 @@ export type notificationsListQuery$data = {
       };
     }>;
   };
+  readonly unreadNotificationCount: number;
 };
 export type notificationsListQuery = {
   response: notificationsListQuery$data;
@@ -39,6 +40,13 @@ var v0 = [
   }
 ],
 v1 = [
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "unreadNotificationCount",
+    "storageKey": null
+  },
   {
     "alias": null,
     "args": [
@@ -132,16 +140,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "aef59641af446f20a04791a7a8333973",
+    "cacheID": "1065b08cca8ceae9c02177058389bf0d",
     "id": null,
     "metadata": {},
     "name": "notificationsListQuery",
     "operationKind": "query",
-    "text": "query notificationsListQuery(\n  $first: Int!\n) {\n  notifications(first: $first) {\n    edges {\n      node {\n        id\n        kind\n        occurredAt\n        message\n        readAt\n      }\n    }\n  }\n}\n"
+    "text": "query notificationsListQuery(\n  $first: Int!\n) {\n  unreadNotificationCount\n  notifications(first: $first) {\n    edges {\n      node {\n        id\n        kind\n        occurredAt\n        message\n        readAt\n      }\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "ac94e6bd08633ccd3f6737504171ddca";
+(node as any).hash = "08e60e630da7df5d2e5dd65e947ec7c9";
 
 export default node;

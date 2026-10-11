@@ -3,6 +3,7 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
+import type { PayloadError, RecordSourceSelectorProxy } from 'relay-runtime';
 
 import { ErrorBoundary } from '../../futon';
 import { currentSubscription, pushSupported, subscribe } from '../../notifications/push';
@@ -140,7 +141,7 @@ function Settings() {
           await new Promise<void>((resolve, reject) =>
             unsubscribePush({
               variables: { endpoint: subscription.endpoint },
-              onCompleted: () => resolve(),
+              onCompleted: settle(resolve, reject),
               onError: reject,
             }),
           );
@@ -194,14 +195,29 @@ function Settings() {
             if (label === undefined) {
               return null;
             }
-            const set = (input: { inApp: boolean; webPush: boolean }) =>
+            // NotificationPreference は ID を持たず、Relay が一覧の行と結び付けられないので、種類で探して書き換える。
+            const set = (input: { inApp: boolean; webPush: boolean }) => {
+              const write = (store: RecordSourceSelectorProxy) => {
+                const row = store
+                  .getRoot()
+                  .getLinkedRecords('notificationPreferences')
+                  ?.find((record) => record?.getValue('kind') === preference.kind);
+                row?.setValue(input.inApp, 'inApp');
+                row?.setValue(input.webPush, 'webPush');
+              };
               updatePreference({
                 variables: { input: { kind: preference.kind, ...input } },
-                optimisticResponse: {
-                  updateNotificationPreference: { kind: preference.kind, ...input },
+                optimisticUpdater: write,
+                updater: write,
+                onCompleted: (_response, errors) => {
+                  if (errors != null && errors.length > 0) {
+                    setError(t('notifications.preferenceError'));
+                    refresh();
+                  }
                 },
                 onError: () => setError(t('notifications.preferenceError')),
               });
+            };
 
             return (
               <Table.Tr key={preference.kind}>
@@ -238,4 +254,16 @@ function Settings() {
       </Group>
     </Stack>
   );
+}
+
+// settle は、Relay の mutation の結果を、Promise の成功と失敗にする。Relay は、GraphQL のエラーも onCompleted に渡す。
+function settle(resolve: () => void, reject: (error: Error) => void) {
+  return (_response: unknown, errors: readonly PayloadError[] | null | undefined) => {
+    if (errors != null && errors.length > 0) {
+      reject(new Error(errors[0]?.message ?? 'GraphQL error'));
+
+      return;
+    }
+    resolve();
+  };
 }

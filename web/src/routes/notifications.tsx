@@ -1,6 +1,6 @@
 import { Alert, Anchor, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Suspense, useState } from 'react';
+import { Suspense, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
@@ -69,6 +69,7 @@ function NotificationList() {
   const data = useLazyLoadQuery<notificationsListQuery>(
     graphql`
       query notificationsListQuery($first: Int!) {
+        unreadNotificationCount
         notifications(first: $first) {
           edges {
             node {
@@ -97,7 +98,10 @@ function NotificationList() {
   `);
   const [error, setError] = useState(false);
   const refresh = () => setFetchKey((key) => key + 1);
-  const unread = data.notifications.edges.filter((edge) => edge.node.readAt == null).length;
+  const read = (id: string) =>
+    markRead({ variables: { ids: [id] }, onCompleted: refresh, onError: () => setError(true) });
+  // 未読の数は、読み込んだ分だけでなく、すべての通知について数えたものを使う。
+  const unread = data.unreadNotificationCount;
 
   return (
     <Stack gap="xs">
@@ -134,15 +138,18 @@ function NotificationList() {
               withBorder
               padding="xs"
               data-unread={isUnread}
-              // 未読の通知は、押すと既読にする。
-              onClick={
+              // 未読の通知は、押すか、Enter かスペースで、既読にする。
+              role={isUnread ? 'button' : undefined}
+              tabIndex={isUnread ? 0 : undefined}
+              onClick={isUnread ? () => read(node.id) : undefined}
+              onKeyDown={
                 isUnread
-                  ? () =>
-                      markRead({
-                        variables: { ids: [node.id] },
-                        onCompleted: refresh,
-                        onError: () => setError(true),
-                      })
+                  ? (event: KeyboardEvent<HTMLDivElement>) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        read(node.id);
+                      }
+                    }
                   : undefined
               }
               style={{ cursor: isUnread ? 'pointer' : undefined }}

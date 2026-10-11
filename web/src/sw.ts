@@ -41,8 +41,8 @@ cleanupOutdatedCaches();
 type PushPayload = { title: string; body: string; eventId: string; kind: string };
 
 self.addEventListener('push', (event) => {
-  const payload = event.data?.json() as PushPayload | undefined;
-  if (payload === undefined) {
+  const payload = parsePush(event.data);
+  if (payload === null) {
     return;
   }
   // 同じ出来事の通知は、届き直しても 1 つにまとめる。
@@ -73,3 +73,21 @@ self.addEventListener('notificationclick', (event) => {
     })(),
   );
 });
+
+// parsePush は、Web Push の本文を読む。壊れた本文なら null を返す。
+function parsePush(data: PushMessageData | null): PushPayload | null {
+  try {
+    const payload: unknown = data?.json();
+    if (
+      typeof payload !== 'object' ||
+      payload === null ||
+      typeof (payload as PushPayload).title !== 'string'
+    ) {
+      return null;
+    }
+
+    return payload as PushPayload;
+  } catch {
+    return null;
+  }
+}
