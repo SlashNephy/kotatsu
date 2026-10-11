@@ -46,6 +46,8 @@ type SyncerOptions struct {
 	StableAfter         time.Duration
 	// OnTunerEvent は、チューナーのイベントが届いたときに呼ぶ。チューナーの構成を取得し直させるのに使う。nil なら呼ばない。
 	OnTunerEvent func()
+	// OnFullSync は、全量の突き合わせを終えたときに、終えた時刻を渡して呼ぶ。/metrics で同期の遅れを示すのに使う。nil なら呼ばない。
+	OnFullSync func(at time.Time)
 }
 
 // Syncer は、全量の突き合わせとイベントの購読を組み合わせて、EPG を同期し続ける (設計書 3.3)。
@@ -73,9 +75,11 @@ func NewSyncer(reconciler *Reconciler, events EventSource, clk clock.Clock, logg
 		BackoffMax:          DefaultBackoffMax,
 		StableAfter:         DefaultStableAfter,
 		OnTunerEvent:        nil,
+		OnFullSync:          nil,
 	}
 	if opts != nil {
 		o.OnTunerEvent = opts.OnTunerEvent
+		o.OnFullSync = opts.OnFullSync
 		o.FullSyncInterval = cmpOr(opts.FullSyncInterval, o.FullSyncInterval)
 		o.MinFullSyncInterval = cmpOr(opts.MinFullSyncInterval, o.MinFullSyncInterval)
 		o.BatchWindow = cmpOr(opts.BatchWindow, o.BatchWindow)
@@ -158,6 +162,9 @@ func (s *Syncer) syncAll(ctx context.Context) error {
 	}
 	s.lastFullSync = s.clock.Now()
 	s.logResult(ctx, "synced the whole EPG", result)
+	if s.opts.OnFullSync != nil {
+		s.opts.OnFullSync(s.lastFullSync)
+	}
 
 	return nil
 }

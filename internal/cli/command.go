@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/riverqueue/river"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -33,6 +34,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/kyusu"
+	"github.com/SlashNephy/kotatsu/internal/metrics"
 	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/password"
@@ -278,6 +280,8 @@ func NewCommand(opts *Options) *cobra.Command {
 			Jobs:       nil,
 			JobWorkers: nil,
 		}
+		// 録画、チューナー、ジョブのキューの状態は、DB から読む (設計書 11.3)。
+		deps.Metrics.MustRegister(metrics.NewDBCollector(pool, opts.Clock, deps.InstanceID, opts.Logger.With(slog.String("component", "metrics"))))
 
 		// ジョブを実行するのは nekonote だけで、他のロールは投入だけを行う。
 		periodicJobs := []*river.PeriodicJob{}
@@ -719,6 +723,12 @@ func newKyusu(ctx context.Context, logger *slog.Logger, deps *Deps) (*kyusu.Live
 	})
 	if err != nil {
 		return nil, nil, nil, err
+	}
+	for kind, sessions := range map[string]func() int{"live": live.Sessions, "vod": vod.Sessions} {
+		deps.Metrics.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Namespace: metrics.Namespace, Name: "kyusu_sessions", Help: "Number of kyusu transcoding sessions on this instance.",
+			ConstLabels: prometheus.Labels{"kind": kind},
+		}, func() float64 { return float64(sessions()) }))
 	}
 
 	return live, vod, token, nil

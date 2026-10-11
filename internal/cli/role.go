@@ -15,9 +15,11 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/config"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/epg"
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/metrics"
 	"github.com/SlashNephy/kotatsu/internal/neko"
 	"github.com/SlashNephy/kotatsu/internal/recording"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
@@ -128,15 +130,25 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 		return fmt.Errorf("failed to load the time zone %s: %w", defaultTimeZone, err)
 	}
 
+	// EPG の同期の遅れは、最後に全量を突き合わせた時刻から求める (設計書 11.3)。リーダーになるまでは 0 で、リーダーでなくなった後は最後の値を残す。
+	lastFullSync := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: metrics.Namespace, Name: "epg_last_full_sync_timestamp_seconds",
+		Help: "Unix time when this instance last synced the whole EPG as the neko leader.",
+	})
+	deps.Metrics.MustRegister(lastFullSync)
+
 	return neko.Run(ctx, logger, &neko.Options{
 		DB:         deps.DB,
 		Clock:      deps.Clock,
 		InstanceID: deps.InstanceID,
 		Tuner:      tuner,
-		EPG:        nil,
-		Archive:    nil,
-		Tuners:     nil,
-		Location:   location,
+		EPG: &epg.SyncerOptions{
+			FullSyncInterval: 0, MinFullSyncInterval: 0, BatchWindow: 0, BackoffInitial: 0, BackoffMax: 0, StableAfter: 0, OnTunerEvent: nil,
+			OnFullSync: func(at time.Time) { lastFullSync.Set(float64(at.Unix())) },
+		},
+		Archive:  nil,
+		Tuners:   nil,
+		Location: location,
 		Rules: &rule.RunnerOptions{
 			Debounce:     0,
 			Interval:     0,
