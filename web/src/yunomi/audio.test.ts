@@ -1,7 +1,7 @@
 import type { AudioTracks } from '@mpeg2toh264/player';
 import { describe, expect, test } from 'vitest';
 
-import { audioChoices, currentAudioChoice } from './audio';
+import { audioChoices, audioSlot, choiceForSlot, currentAudioChoice } from './audio';
 
 const mono = { pid: 0x110, componentTag: 0x10, dualMono: false, languages: ['jpn'] };
 const commentary = { pid: 0x111, componentTag: 0x11, dualMono: false, languages: ['eng'] };
@@ -47,5 +47,35 @@ describe('audioChoices', () => {
     };
 
     expect(audioChoices(tracks).map((choice) => choice.language)).toEqual(['jpn', 'eng']);
+  });
+});
+
+describe('audioSlot と choiceForSlot', () => {
+  const twoStreams = audioChoices({
+    available: [mono, commentary],
+    current: 0x110,
+    dualMono: false,
+    dualMonoSub: false,
+  });
+  const dualMono = audioChoices({
+    available: [bilingual],
+    current: 0x110,
+    dualMono: true,
+    dualMonoSub: false,
+  });
+
+  test.each([
+    { name: '1 つ目の音声の ES', choices: twoStreams, value: 'stream:272', slot: 1 },
+    { name: '2 つ目の音声の ES', choices: twoStreams, value: 'stream:273', slot: 2 },
+    { name: 'デュアルモノの主音声', choices: dualMono, value: 'dualMono:main', slot: 1 },
+    { name: 'デュアルモノの副音声', choices: dualMono, value: 'dualMono:sub', slot: 2 },
+  ])('$name は、kyusu の第 $slot 音声に当たる', ({ choices, value, slot }) => {
+    const choice = choices.find((candidate) => candidate.value === value);
+    expect(choice && audioSlot(choice)).toBe(slot);
+    expect(choiceForSlot(choices, slot as 1 | 2)).toBe(value);
+  });
+
+  test('選べる音声がなければ、kyusu の音声の番号に当たるものはない', () => {
+    expect(choiceForSlot([], 2)).toBeNull();
   });
 });

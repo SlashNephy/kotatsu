@@ -21,7 +21,6 @@ import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment'
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { formatDuration, playbackPosition } from '../../yunomi/position';
 import {
-  AudioSelect,
   CaptionsToggle,
   RateSelect,
   JikkyoToggle,
@@ -29,16 +28,15 @@ import {
   QualitySelect,
 } from '../../yunomi/QualitySelect';
 import { hlsURL } from '../../yunomi/route';
+import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useWatchPositionSaver } from '../../yunomi/useWatchPositionSaver';
-import { audioChoices, currentAudioChoice } from '../../yunomi/audio';
 import { useMediaSession } from '../../yunomi/useMediaSession';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { PlayerTools } from '../../yunomi/PlayerTools';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
-import type { AudioTracks } from '@mpeg2toh264/player';
 import { resumePosition } from '../../yunomi/resume';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
@@ -228,10 +226,8 @@ function Player({ recordingId }: { recordingId: string }) {
     setQuality(next);
   };
 
-  // 音声は、ブラウザの中で変換する経路でだけ選べる。kyusu の経路は、主音声を流す。
-  const [audioTracks, setAudioTracks] = useState<AudioTracks | null>(null);
-  const [audio, setAudio] = useState<string | null>(null);
-  const tracks = route.kind === 'convert' ? audioTracks : null;
+  // 音声は、経路ごとのメニューで選び、画質を変えても同じ音声を保つ。kyusu の音声を変えるときも、それまでの位置から続ける。
+  const audio = usePlayerAudio(route, () => startAt(positionRef.current));
   // 再生速度は、video の要素を作り直したときにも当て直す。
   const [rate, setRate] = useState(1);
   useEffect(() => {
@@ -375,13 +371,13 @@ function Player({ recordingId }: { recordingId: string }) {
           }}
           onError={onError}
           overlay={jikkyo.overlay}
-          onAudio={setAudioTracks}
-          audio={audio}
+          onAudio={audio.onAudio}
+          audio={audio.convertAudio}
         />
       )}
       {route.kind === 'kyusu' && (
         <HlsPlayer
-          url={hlsURL(recording.streamUrl, route.preset, 1)}
+          url={hlsURL(recording.streamUrl, route.preset, audio.kyusuAudio)}
           videoRef={videoRef}
           active={visible}
           captions={captions}
@@ -405,11 +401,7 @@ function Player({ recordingId }: { recordingId: string }) {
       </Text>
       <Group justify="flex-end" gap="md">
         <PlayerTools frameRef={playerBoxRef} videoRef={videoRef} name={recording.name} pip={pip} />
-        <AudioSelect
-          choices={audioChoices(tracks)}
-          value={currentAudioChoice(tracks)}
-          onChange={setAudio}
-        />
+        {audio.menu}
         <RateSelect value={rate} onChange={setRate} />
         {channel !== null && <JikkyoToggle checked={jikkyoEnabled} onChange={setJikkyoEnabled} />}
         <CaptionsToggle checked={captions} onChange={setCaptions} />

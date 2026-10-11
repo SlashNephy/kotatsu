@@ -2,7 +2,7 @@ import { Alert, Select, Switch } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
 import type { AudioChoice } from './audio';
-import { original, type PlaybackRoute } from './route';
+import { original, type KyusuAudio, type PlaybackRoute } from './route';
 
 type Props = {
   choices: string[];
@@ -148,6 +148,37 @@ export function AudioSelect({
       onChange={(next) => {
         if (next !== null) {
           onChange(next);
+        }
+      }}
+    />
+  );
+}
+
+// KyusuAudioSelect は、kyusu の経路の音声のメニュー。サーバーは番組の音声の構成を知らないので、いつも 2 つを出す。
+// 第 2 音声は、デュアルモノの副音声か、2 つ目の音声。どちらもない番組では、主音声と同じものになる。
+export function KyusuAudioSelect({
+  value,
+  onChange,
+}: {
+  value: KyusuAudio;
+  onChange: (value: KyusuAudio) => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Select
+      aria-label={t('player.audio')}
+      size="xs"
+      w={180}
+      allowDeselect={false}
+      data={[
+        { value: '1', label: t('player.audioMain') },
+        { value: '2', label: t('player.audioSecond') },
+      ]}
+      value={String(value)}
+      onChange={(next) => {
+        if (next === '1' || next === '2') {
+          onChange(next === '1' ? 1 : 2);
         }
       }}
     />

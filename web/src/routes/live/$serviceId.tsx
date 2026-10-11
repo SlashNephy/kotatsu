@@ -11,7 +11,6 @@ import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import {
-  AudioSelect,
   CaptionsToggle,
   JikkyoToggle,
   PlaybackUnavailable,
@@ -19,15 +18,14 @@ import {
 } from '../../yunomi/QualitySelect';
 import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
 import { hlsURL } from '../../yunomi/route';
+import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
-import { audioChoices, currentAudioChoice } from '../../yunomi/audio';
 import { useMediaSession } from '../../yunomi/useMediaSession';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { PlayerTools } from '../../yunomi/PlayerTools';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
-import type { AudioTracks } from '@mpeg2toh264/player';
 import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
 import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordingsQuery.graphql';
@@ -217,10 +215,8 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
     return () => clearTimeout(timer);
   }, [disconnection]);
 
-  // 音声は、ブラウザの中で変換する経路でだけ選べる。kyusu の経路は、主音声を流す。
-  const [audioTracks, setAudioTracks] = useState<AudioTracks | null>(null);
-  const [audio, setAudio] = useState<string | null>(null);
-  const tracks = route.kind === 'convert' ? audioTracks : null;
+  // 音声は、経路ごとのメニューで選び、画質を変えても同じ音声を保つ。
+  const audio = usePlayerAudio(route);
   const programName = data.guide[0]?.programs[0]?.name ?? null;
   const serviceName = data.node?.__typename === 'Service' ? data.node.name : '';
   usePlayerShortcuts({
@@ -284,14 +280,16 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
             }
           }}
           onError={disconnected}
-          onAudio={setAudioTracks}
-          audio={audio}
+          onAudio={audio.onAudio}
+          audio={audio.convertAudio}
         />
       )}
       {route.kind === 'kyusu' && (
         <HlsPlayer
           url={
-            disconnection === null ? withSession(hlsURL(service.streamUrl, route.preset, 1)) : null
+            disconnection === null
+              ? withSession(hlsURL(service.streamUrl, route.preset, audio.kyusuAudio))
+              : null
           }
           videoRef={videoRef}
           active={visible}
@@ -316,11 +314,7 @@ function Live({ serviceId, range }: { serviceId: string; range: { from: string; 
       </Text>
       <Group justify="flex-end" gap="md">
         <PlayerTools frameRef={playerBoxRef} videoRef={videoRef} name={service.name} pip={pip} />
-        <AudioSelect
-          choices={audioChoices(tracks)}
-          value={currentAudioChoice(tracks)}
-          onChange={setAudio}
-        />
+        {audio.menu}
         {channel !== null && <JikkyoToggle checked={jikkyoEnabled} onChange={setJikkyoEnabled} />}
         <CaptionsToggle checked={captions} onChange={setCaptions} />
         <QualitySelect choices={choices} quality={quality} onChange={setQuality} />

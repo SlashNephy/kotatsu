@@ -1,6 +1,7 @@
 import type { AudioTracks, Mpeg2TsPlayer, PlayerState, PrivateStream } from '@mpeg2toh264/player';
 import { useEffect, useRef, type ReactNode, useState, type RefObject } from 'react';
 
+import { audioChoices, currentAudioChoice } from './audio';
 import { createCaptions, type Captions } from './captions';
 import classes from './TsPlayer.module.css';
 
@@ -49,6 +50,8 @@ export function TsPlayer({
   const [ready, setReady] = useState(false);
   const handlers = useRef({ onState, onError, onLoaded, onAudio });
   handlers.current = { onState, onError, onLoaded, onAudio };
+  const audioRef = useRef(audio);
+  audioRef.current = audio;
 
   const frameRef = useRef<HTMLDivElement | null>(null);
 
@@ -93,7 +96,19 @@ export function TsPlayer({
           renderer.feedB24(event.detail.data, event.detail.pts);
         }
       };
-      player.addEventListener('audio', (event) => handlers.current.onAudio?.(event.detail));
+      player.addEventListener('audio', (event) => {
+        // 読み直すと、プレイヤーは、新しいストリームの音声が分かったところで既定の音声に戻る。
+        // 選んでいた音声がそのストリームにあれば、選び直す。選び直すと、もう一度このイベントが届く。
+        const wanted = audioRef.current;
+        if (
+          wanted !== null &&
+          wanted !== currentAudioChoice(event.detail) &&
+          audioChoices(event.detail).some((choice) => choice.value === wanted)
+        ) {
+          selectAudio(player, wanted);
+        }
+        handlers.current.onAudio?.(event.detail);
+      });
       player.addEventListener('private_stream_1', feed);
       player.addEventListener('private_stream_2', feed);
       playerRef.current = player;
@@ -119,8 +134,6 @@ export function TsPlayer({
 
   // 聞く音声を選ぶ。切り替えは、これから変換する部分から効く (設計書 12 章のデュアルモノ)。
   // 読み直すとプレイヤーが既定の音声に戻ることがあるので、読み直すたびにも選び直す。
-  const audioRef = useRef(audio);
-  audioRef.current = audio;
   useEffect(() => {
     const player = playerRef.current;
     if (ready && player !== null) {
