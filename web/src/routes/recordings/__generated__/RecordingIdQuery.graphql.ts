@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<0e13d2b5dae01cf47619738f5594a367>>
+ * @generated SignedSource<<ea4724efc9233c0ecb6abfe6f29416ab>>
  * @lightSyntaxTransform
  */
 
@@ -19,13 +19,13 @@ export type RecordingIdQuery$data = {
   readonly node: {
     readonly __typename: "Recording";
     readonly description: string;
-    readonly drops: any;
+    readonly drops: number;
     readonly endAt: string;
-    readonly errors: any;
+    readonly errors: number;
     readonly failureReason: RecordingFailureReason | null | undefined;
     readonly files: ReadonlyArray<{
       readonly kind: RecordingFileKind;
-      readonly size: any;
+      readonly size: number;
     }>;
     readonly gaps: ReadonlyArray<{
       readonly from: string;
@@ -37,7 +37,7 @@ export type RecordingIdQuery$data = {
     readonly protected: boolean;
     readonly recordedFrom: string;
     readonly recordedUntil: string | null | undefined;
-    readonly scrambled: any;
+    readonly scrambled: number;
     readonly service: {
       readonly name: string;
     };

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<c12bfd3f3d738c7ffaabdbdeabfe736d>>
+ * @generated SignedSource<<6a446f5a9c5ec1a794a4b46cc933698d>>
  * @lightSyntaxTransform
  */
 
@@ -28,7 +28,7 @@ export type RecordingIdPlayQuery$data = {
     };
     readonly streamUrl: string;
     readonly thumbnailUrl: string | null | undefined;
-    readonly watchPositionMs: any | null | undefined;
+    readonly watchPositionMs: number | null | undefined;
   } | {
     // This will never be '%other', but we need some
     // value in case none of the concrete values match.

@@ -77,3 +77,17 @@ export function useReauthGate(
 
   return { run: execute, busy, modal };
 }
+
+// reauthMethods は、第二要素とパスキーの登録の状況から、再認証に使える方法を返す。
+export function reauthMethods(
+  secondFactors: { readonly totp: boolean; readonly remainingRecoveryCodes: number },
+  passkeys: readonly unknown[],
+  oidc: ReauthenticationMethods['oidc'],
+): ReauthenticationMethods {
+  return {
+    totp: secondFactors.totp,
+    recoveryCode: secondFactors.remainingRecoveryCodes > 0,
+    passkey: passkeys.length > 0,
+    oidc,
+  };
+}
