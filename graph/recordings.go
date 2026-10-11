@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/library"
+	"github.com/SlashNephy/kotatsu/internal/stream"
 	"github.com/SlashNephy/kotatsu/internal/thumbnail"
 )
 
@@ -179,10 +180,14 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []sqlc.Recording) (
 	files := map[uuid.UUID][]*model.RecordingFile{}
 	for i := range fileRows {
 		row := &fileRows[i]
-		files[row.RecordingID] = append(files[row.RecordingID], &model.RecordingFile{
+		file := &model.RecordingFile{
 			Kind: model.RecordingFileKind(strings.ToUpper(row.Kind)), PoolID: row.PoolID, Path: row.Path, Size: row.Size,
-			StartedAt: row.StartedAt, EndedAt: row.EndedAt,
-		})
+			StartedAt: row.StartedAt, EndedAt: row.EndedAt, URL: nil,
+		}
+		if file.Kind == model.RecordingFileKindOther {
+			file.URL = new(stream.OtherFileURL(row.RecordingID, row.ID))
+		}
+		files[row.RecordingID] = append(files[row.RecordingID], file)
 	}
 	progressRows, err := q.ListWatchProgress(ctx, sqlc.ListWatchProgressParams{UserID: principal.UserID, RecordingIds: ids})
 	if err != nil {
