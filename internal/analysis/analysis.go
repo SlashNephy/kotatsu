@@ -132,14 +132,14 @@ func (w *AnalyzeWorker) Work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 	}
 	results := make([]*analyzed, 0, len(segments))
 	total := new(ts.PIDStats)
-	events := []*ts.EventAudio{}
+	events := [][]*ts.EventAudio{}
 	for _, segment := range segments {
 		result, stats, err := w.analyze(ctx, segment)
 		if err != nil {
 			return err
 		}
 		results = append(results, result)
-		events = append(events, stats.Events...)
+		events = append(events, stats.Events)
 		for _, pid := range stats.PIDs {
 			total.Drops += pid.Drops
 			total.Errors += pid.Errors
@@ -148,7 +148,7 @@ func (w *AnalyzeWorker) Work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 	}
 
 	// EPG から音声の構成を写せなかった録画 (取り込んだ録画や時刻予約) は、TS の EIT[p/f] から読んだもので埋める (設計書 6.1)。
-	audios, ok, err := ts.RecordingAudios(events, recording.ServiceID, recording.EventID)
+	audios, ok, err := ts.RecordingAudios(ts.MergeEvents(events...), recording.ServiceID, recording.EventID)
 	if err != nil {
 		return fmt.Errorf("failed to encode the audio components: %w", err)
 	}

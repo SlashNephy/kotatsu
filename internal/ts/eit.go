@@ -73,8 +73,10 @@ func (t *eitTable) handle(section []byte) {
 	key := [2]uint16{header.tableIDExtension, eventID}
 	if current := t.events[key]; current != nil {
 		current.Seen++
-		// 構成は、番組の途中で変わることがあるので、最後に読んだものにする。
-		current.Audios = audios
+		// 構成は、番組の途中で変わることがあるので、最後に読んだものにする。音声コンポーネント記述子のないセクションでは、前のものを残す。
+		if len(audios) > 0 {
+			current.Audios = audios
+		}
 
 		return
 	}
@@ -148,6 +150,30 @@ func samplingRate(code uint8) int {
 	}
 }
 
+// MergeEvents は、複数のセグメントで集めた番組をまとめる。放送中として読んだ回数は足し、音声の構成は後のセグメントのものにする。
+// 後のセグメントで構成が読めなかった番組は、前のセグメントの構成を残す。
+func MergeEvents(lists ...[]*EventAudio) []*EventAudio {
+	table := newEITTable()
+	for _, events := range lists {
+		for _, event := range events {
+			key := [2]uint16{event.ServiceID, event.EventID}
+			current := table.events[key]
+			if current == nil {
+				copied := *event
+				table.events[key] = &copied
+
+				continue
+			}
+			current.Seen += event.Seen
+			if len(event.Audios) > 0 {
+				current.Audios = event.Audios
+			}
+		}
+	}
+
+	return table.snapshot()
+}
+
 // PresentAudios は、録画したサービス serviceID の、放送中だった番組の音声の構成を返す。
 // eventID があれば、その番組のものを返す。なければ (時刻予約など)、最も長く放送中だった番組のものを返す。見つからなければ nil。
 func PresentAudios(events []*EventAudio, serviceID uint16, eventID *uint16) []*AudioComponent {
@@ -202,7 +228,11 @@ const serviceIDBase = 100000
 // eventID は、番組予約なら番組の eventId で、時刻予約なら nil。見つからなければ、false を返す。
 func RecordingAudios(events []*EventAudio, serviceKey int64, eventID *int64) ([]byte, bool, error) {
 	var event *uint16
-	if eventID != nil && *eventID >= 0 && *eventID <= 0xFFFF {
+	if eventID != nil {
+		// 番組予約で eventId が範囲の外なら、別の番組の構成を当てないよう、見つからないとする。
+		if *eventID < 0 || *eventID > 0xFFFF {
+			return nil, false, nil
+		}
 		event = new(uint16(*eventID))
 	}
 	sid := serviceKey % serviceIDBase

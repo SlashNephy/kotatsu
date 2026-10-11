@@ -102,6 +102,16 @@ func TestAnalyzerEventAudios(t *testing.T) {
 			}}},
 		},
 		{
+			name: "後のセクションに音声コンポーネント記述子がなければ、前の構成を残す",
+			sections: [][]byte{
+				eitSection(0, 100, audioDescriptor(3, 0x10, true, langJapanese)),
+				eitSection(0, 100, []byte{0x4D, 0x02, 0x00, 0x00}),
+			},
+			want: []*ts.EventAudio{{ServiceID: testServiceID, EventID: 100, Seen: 2, Audios: []*ts.AudioComponent{
+				{ComponentType: 3, ComponentTag: 0x10, IsMain: true, SamplingRate: 48000, Languages: []string{langJapanese}},
+			}}},
+		},
+		{
 			name:     "音声コンポーネント記述子がない",
 			sections: [][]byte{eitSection(0, 100, []byte{0x4D, 0x02, 0x00, 0x00})},
 			want:     []*ts.EventAudio{{ServiceID: testServiceID, EventID: 100, Seen: 1, Audios: []*ts.AudioComponent{}}},
@@ -150,6 +160,7 @@ func TestRecordingAudios(t *testing.T) {
 		},
 		{name: "番組が見つからない", service: serviceKey, eventID: new(int64(999)), want: ""},
 		{name: "サービスが違う", service: 32736*100000 + 1032, eventID: nil, want: ""},
+		{name: "範囲の外の eventId は、時刻予約として扱わない", service: serviceKey, eventID: new(int64(0x10000)), want: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -166,4 +177,25 @@ func TestRecordingAudios(t *testing.T) {
 			assert.JSONEq(t, tt.want, string(got))
 		})
 	}
+}
+
+// TestMergeEvents は、セグメントごとに集めた番組をまとめ、放送中として読んだ回数を足すことを確かめる。
+func TestMergeEvents(t *testing.T) {
+	t.Parallel()
+
+	stereo := []*ts.AudioComponent{{ComponentType: 3, ComponentTag: 0x10, IsMain: true, SamplingRate: 48000, Languages: []string{langJapanese}}}
+	dualMono := []*ts.AudioComponent{{ComponentType: 2, ComponentTag: 0x10, IsMain: true, SamplingRate: 48000, Languages: []string{langJapanese, langEnglish}}}
+	got := ts.MergeEvents(
+		[]*ts.EventAudio{{ServiceID: testServiceID, EventID: 100, Audios: stereo, Seen: 6}, {ServiceID: testServiceID, EventID: 101, Audios: dualMono, Seen: 4}},
+		[]*ts.EventAudio{{ServiceID: testServiceID, EventID: 101, Audios: []*ts.AudioComponent{}, Seen: 5}},
+	)
+	assert.Equal(t, []*ts.EventAudio{
+		{ServiceID: testServiceID, EventID: 100, Audios: stereo, Seen: 6},
+		{ServiceID: testServiceID, EventID: 101, Audios: dualMono, Seen: 9},
+	}, got)
+	// 合わせると、101 のほうが長く放送中だった。
+	audios, ok, err := ts.RecordingAudios(got, 32736*100000+testServiceID, nil)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.JSONEq(t, `[{"componentType":2,"componentTag":16,"isMain":true,"samplingRate":48000,"langs":["jpn","eng"]}]`, string(audios))
 }
