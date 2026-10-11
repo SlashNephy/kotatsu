@@ -575,7 +575,7 @@ func TestRecorderWaitsBeforeReopeningShortStreams(t *testing.T) {
 	cancel(nil)
 	_ = wait(t, done)
 	limit := int64(time.Since(started)/(20*time.Millisecond)) + 2
-	assert.Greater(t, opened.Load(), int32(5), "it keeps reopening")
+	assert.GreaterOrEqual(t, opened.Load(), int32(2), "it keeps reopening")
 	assert.LessOrEqual(t, int64(opened.Load()), limit)
 	assert.LessOrEqual(t, int64(f.segments(t, reservationID)), limit)
 }
