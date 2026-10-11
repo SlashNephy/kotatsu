@@ -74,6 +74,11 @@ function AdminLinks() {
       <Links
         links={[
           {
+            to: '/admin/users',
+            title: t('admin.users.title'),
+            body: t('admin.users.summary'),
+          },
+          {
             to: '/admin/system',
             title: t('admin.system.title'),
             body: t('admin.system.summary'),

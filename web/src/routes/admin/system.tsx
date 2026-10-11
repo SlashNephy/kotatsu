@@ -18,7 +18,7 @@ import { graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
 import { AdminPage } from '../../admin/AdminPage';
 import { authApi, type OIDCStatus } from '../../auth/api';
-import { authErrorMessage } from '../../auth/messages';
+import { settingsErrorMessage } from '../../settings/errors';
 import { formatBytes } from '../../futon';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
@@ -124,7 +124,8 @@ function SystemStatus() {
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const fail = (caught: unknown) => setMessage({ ok: false, text: authErrorMessage(t, caught) });
+  const fail = (caught: unknown) =>
+    setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
   const done = () => {
     setMessage({ ok: true, text: t('admin.saved') });
     refresh();
