@@ -3,6 +3,7 @@ import { BMLBrowser } from 'web-bml';
 
 import { cspNonce } from '../futon';
 import type { DataBroadcastEnd, DataBroadcastRequest } from './dataBroadcastWorker';
+import { deinterlacerCanvas } from './deinterlacer';
 import type { DataBroadcastSource } from './route';
 import classes from './TsPlayer.module.css';
 
@@ -189,6 +190,10 @@ export function moveMedia(video: HTMLVideoElement, target: HTMLElement): () => v
   // 戻すときに元に戻すので、移す前のインラインのスタイルを覚える。style 属性は CSP に止められるので、CSSOM で読み書きする。
   const saved = elements.map((element) => [element, element.style.cssText] as const);
   for (const element of elements) {
+    // yadif の canvas は、yadif が video に合わせて置き直す。大きさを変えると、位置だけが元のままずれ、映像が二重に見える。
+    if (element.dataset[deinterlacerCanvas] !== undefined) {
+      continue;
+    }
     element.style.display = 'block';
     element.style.width = '100%';
     element.style.height = '100%';

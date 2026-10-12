@@ -3,6 +3,7 @@ import { useEffect, useRef, type ReactNode, useState, type RefObject } from 'rea
 
 import { audioChoices, currentAudioChoice } from './audio';
 import { createCaptions, type Captions } from './captions';
+import { deinterlacerCanvas } from './deinterlacer';
 import classes from './TsPlayer.module.css';
 
 // wasmURL は、変換に使う WebAssembly の URL。Vite にワーカーへ埋め込ませず、明示的な URL で配信して、
@@ -84,7 +85,14 @@ export function TsPlayer({
       const player = new Player(video, {
         wasmUrl: wasmURL,
         deinterlace: true,
-        deinterlacer: (element) => new Deinterlacer(element),
+        deinterlacer: (element) => {
+          const deinterlacer = new Deinterlacer(element);
+          // yadif は、解除した映像を描く canvas の位置と大きさを、video に合わせて自分で決める。
+          // データ放送の中へ映像を移すときに、この canvas の大きさを変えないよう印を付ける。
+          deinterlacer.canvas.dataset[deinterlacerCanvas] = '';
+
+          return deinterlacer;
+        },
       });
       player.addEventListener('statechange', (event) =>
         handlers.current.onState?.(event.detail.state),
