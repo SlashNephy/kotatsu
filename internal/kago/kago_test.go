@@ -71,7 +71,7 @@ func TestSelect(t *testing.T) {
 			name:      "a pool whose free space falls below its threshold is skipped",
 			free:      map[string]uint64{mountFast: 15 * gib, mountBig: 1000 * gib, mountSpare: 1000 * gib},
 			estimated: 8 * gib,
-			// fast は書いた後に 7 GiB しか残らない。big と spare は優先順位が同じなので ID の昇順で選ぶ。
+			// fast は書いた後に 7 GiB しか残らない。big と spare は優先順位が同じなので、プールの順で先の big を選ぶ。
 			wantID: poolBig,
 		},
 		{
@@ -231,4 +231,42 @@ func TestFreeSpace(t *testing.T) {
 
 	_, err = kago.FreeSpace(filepath.Join(t.TempDir(), "missing"))
 	require.Error(t, err)
+}
+
+// TestSelectPrefersConfiguredOrder は、優先順位が同じプールを、設定に書いた順で選ぶことを確かめる。
+func TestSelectPrefersConfiguredOrder(t *testing.T) {
+	t.Parallel()
+
+	const (
+		poolMain  = "main"
+		poolLocal = "local"
+	)
+
+	mounts := map[string]string{poolMain: mountBig, poolLocal: mountSpare}
+	free := fakeFreeSpace(map[string]uint64{mountBig: 1000 * gib, mountSpare: 1000 * gib})
+	// どちらも優先順位の設定がない (0 の) プール。
+	pools := []*kago.Pool{{ID: poolLocal, Priority: 0, MinFreeBytes: 0}, {ID: poolMain, Priority: 0, MinFreeBytes: 0}}
+
+	tests := []struct {
+		name      string
+		order     []string
+		wantID    string
+		wantOrder []string
+	}{
+		{name: "設定に書いた順で先のプール", order: []string{poolMain, poolLocal}, wantID: poolMain, wantOrder: []string{poolMain, poolLocal}},
+		{name: "順を逆にすると逆のプール", order: []string{poolLocal, poolMain}, wantID: poolLocal, wantOrder: []string{poolLocal, poolMain}},
+		{name: "順がなければ ID の昇順", order: nil, wantID: poolLocal, wantOrder: []string{poolLocal, poolMain}},
+		{name: "順にないプールは後ろに ID の昇順で並べる", order: []string{poolMain, "unknown"}, wantID: poolMain, wantOrder: []string{poolMain, poolLocal}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := kago.NewOrdered(mounts, tt.order, free)
+			got, err := store.Select(pools, 8*gib)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantID, got.ID)
+			assert.Equal(t, tt.wantOrder, store.PoolIDs())
+		})
+	}
 }

@@ -97,6 +97,9 @@ type Storage struct {
 	// 録画のパスは「プール ID ＋ プール内の相対パス」で DB に記録するので、ロールごとにマウント先が違っていてもよい。
 	// 環境変数では、KOTATSU_STORAGE_POOLS=main=/mnt/main,sub=/mnt/sub のように「ID=パス」をカンマで区切って渡す。
 	Pools map[string]string `yaml:"pools"`
+	// PoolOrder は、Pools を書いた順のプール ID。優先順位が同じプールは、この順に選ぶ (設計書 5.6)。
+	// 対応 (map) では順が失われるので、読み込むときに設定ファイルか環境変数から求める。
+	PoolOrder []string `yaml:"-"`
 }
 
 // Tuner はチューナーサーバーの設定 (設計書 3.1)。
@@ -227,7 +230,8 @@ func Default() *Config {
 			RetentionDays: 365,
 		},
 		Storage: Storage{
-			Pools: map[string]string{},
+			Pools:     map[string]string{},
+			PoolOrder: []string{},
 		},
 		Tuner: Tuner{
 			URL: "",
