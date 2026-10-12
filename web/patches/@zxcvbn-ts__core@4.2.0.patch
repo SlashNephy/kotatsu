@@ -1,3 +1,35 @@
+diff --git a/dist/Options.cjs b/dist/Options.cjs
+index 598f3b6bfd381df49e6e2e7438451bf46e73273c..d0092f9d080eb5d25417d2068c82cba46e471ed5 100644
+--- a/dist/Options.cjs
++++ b/dist/Options.cjs
+@@ -55,6 +55,11 @@ class Options {
+       this.dictionary = options.dictionary;
+       this.setRankedDictionaries();
+     }
++    // kotatsu: 順位を付け終えた辞書を受け取る。辞書を展開して順位を付ける時間を省くため。
++    if (options.precomputedDictionary) {
++      this.rankedDictionaries = options.precomputedDictionary.rankedDictionaries;
++      this.rankedDictionariesMaxWordSize = options.precomputedDictionary.rankedDictionariesMaxWordSize;
++    }
+     if (options.translations) {
+       this.setTranslations(options.translations);
+     }
+diff --git a/dist/Options.mjs b/dist/Options.mjs
+index 7a6cb4047d4c9c2d3426713f4d25fc29f5ec252e..67c366710d52d48b70ee787f6f68eaad39104a51 100644
+--- a/dist/Options.mjs
++++ b/dist/Options.mjs
+@@ -53,6 +53,11 @@ class Options {
+       this.dictionary = options.dictionary;
+       this.setRankedDictionaries();
+     }
++    // kotatsu: 順位を付け終えた辞書を受け取る。辞書を展開して順位を付ける時間を省くため。
++    if (options.precomputedDictionary) {
++      this.rankedDictionaries = options.precomputedDictionary.rankedDictionaries;
++      this.rankedDictionariesMaxWordSize = options.precomputedDictionary.rankedDictionariesMaxWordSize;
++    }
+     if (options.translations) {
+       this.setTranslations(options.translations);
+     }
 diff --git a/dist/matcher/dictionary/matching.cjs b/dist/matcher/dictionary/matching.cjs
 index 04c3b081316b241dc1080be2d68a2f17700bc630..2d8afa47f05855255be88a27b9e9d820cd9303c5 100644
 --- a/dist/matcher/dictionary/matching.cjs
@@ -208,3 +240,21 @@ index 25d6e40dd4b40220f1945828107d662e5e40b63f..ba211a3f78de1c7c67a4a4c06f05c1db
        });
        matchedDictionary.forEach(match => {
          const extras = getExtras(subbedPassword, match.i, match.j);
+diff --git a/dist/types.d.ts b/dist/types.d.ts
+index 7266f271d530206862ab32d77ba68bcf36f543e2..2ad81351fb17a47313d09229585791302361c710 100644
+--- a/dist/types.d.ts
++++ b/dist/types.d.ts
+@@ -165,6 +165,13 @@ export interface OptionsType {
+      * @description Define dictionary that should be used to check against. The matcher will search the dictionaries for similar password with l33t speak and reversed words. The recommended sets are found in @zxcvbn-ts/language-common and @zxcvbn-ts/language-en.
+      */
+     dictionary?: OptionsDictionary;
++    /**
++     * @description kotatsu: Defines dictionaries that are already ranked, e.g. the rankedDictionaries and rankedDictionariesMaxWordSize of an Options built ahead of time. It skips ranking the dictionaries at runtime.
++     */
++    precomputedDictionary?: {
++        rankedDictionaries: RankedDictionaries;
++        rankedDictionariesMaxWordSize: Record<string, number>;
++    };
+     /**
+      * @description Defines if the levenshtein algorithm should be used. This will be only used on the complete password and not on parts of it. This will decrease the calcTime a bit but will significantly improve the password check. The recommended sets are found in @zxcvbn-ts/language-common and @zxcvbn-ts/language-en.
+      * @default false
