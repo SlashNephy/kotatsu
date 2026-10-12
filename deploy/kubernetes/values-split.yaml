@@ -8,8 +8,6 @@ secrets:
   secretKey:
     name: kotatsu
     key: secret-key
-# 録画を担う Pod を、ほかの Pod より先に起動させる。
-priorityClassName: recording
 config:
   TUNER_URL: http://mirakurun:40772/
   KYUSU_ENCODER: vaapi
@@ -19,7 +17,12 @@ storage:
       volume:
         persistentVolumeClaim:
           claimName: kotatsu-recordings
+# 録画を担う mikan と、予約とチューナーの割り当てを担う neko を、ほかの Pod より先に起動させる。
 roles:
+  mikan:
+    priorityClassName: recording
+  neko:
+    priorityClassName: recording
   kyusu:
     replicas: 1
     ffmpeg: true

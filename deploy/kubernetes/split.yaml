@@ -78,7 +78,6 @@ spec:
         runAsUser: 65532
         seccompProfile:
           type: RuntimeDefault
-      priorityClassName: recording
       terminationGracePeriodSeconds: 30
       containers:
         - name: kotatsu
@@ -409,7 +408,6 @@ spec:
         runAsUser: 65532
         seccompProfile:
           type: RuntimeDefault
-      priorityClassName: recording
       terminationGracePeriodSeconds: 60
       containers:
         - name: kotatsu
@@ -520,7 +518,6 @@ spec:
         runAsUser: 65532
         seccompProfile:
           type: RuntimeDefault
-      priorityClassName: recording
       terminationGracePeriodSeconds: 30
       containers:
         - name: kotatsu
@@ -630,7 +627,6 @@ spec:
         runAsUser: 65532
         seccompProfile:
           type: RuntimeDefault
-      priorityClassName: recording
       containers:
         - name: migrate
           image: ghcr.io/slashnephy/kotatsu:edge
