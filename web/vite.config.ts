@@ -7,7 +7,8 @@ import { defineConfig, lazyPlugins } from 'vite-plus';
 // ビルドした SPA は、Go のバイナリに埋め込む (設計書 2.3)。web/embed.go が dist/app を埋め込む。
 // dist 自体は、未ビルドでも go build が通るように、空の .gitkeep だけを置いてリポジトリに残す。
 // devAPI は、mise run web:dev のときに API を中継する先。
-const devAPI = `http://127.0.0.1:${process.env.KOTATSU_DEV_PORT ?? '8080'}`;
+// 空の値は、compose.yaml の ${KOTATSU_DEV_PORT:-8080} と同じく、渡していないものとして扱う。
+const devAPI = `http://127.0.0.1:${process.env.KOTATSU_DEV_PORT || '8080'}`;
 
 export default defineConfig({
   plugins: lazyPlugins(() => [
