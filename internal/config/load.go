@@ -43,6 +43,10 @@ func Load(path string, lookupEnv LookupEnv) (*Config, error) {
 	if err := applyEnv(reflect.ValueOf(cfg).Elem(), []string{}, lookupEnv); err != nil {
 		return nil, err
 	}
+	if raw, ok := lookupEnv(envName([]string{"storage", "pools"})); ok {
+		// 環境変数は、設定ファイルの対応を丸ごと置き換えるので、順も環境変数から求める。
+		cfg.Storage.PoolOrder = mapKeys(raw)
+	}
 
 	if err := cfg.validate(); err != nil {
 		return nil, err
@@ -63,8 +67,36 @@ func loadYAML(path string, cfg *Config) error {
 	if err := decoder.Decode(cfg); err != nil && !errors.Is(err, io.EOF) {
 		return fmt.Errorf("failed to parse the config file %s: %w", path, err)
 	}
+	order, err := yamlPoolOrder(data)
+	if err != nil {
+		return fmt.Errorf("failed to parse the config file %s: %w", path, err)
+	}
+	cfg.Storage.PoolOrder = order
 
 	return nil
+}
+
+// yamlPoolOrder は、設定ファイルの storage.pools に書いたプール ID を、書いた順に返す。
+func yamlPoolOrder(data []byte) ([]string, error) {
+	var doc struct {
+		Storage struct {
+			Pools yaml.Node `yaml:"pools"`
+		} `yaml:"storage"`
+	}
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, err
+	}
+	pools := doc.Storage.Pools
+	order := []string{}
+	if pools.Kind != yaml.MappingNode {
+		return order, nil
+	}
+	// 対応のノードは、キーと値を交互に持つ。
+	for i := 0; i+1 < len(pools.Content); i += 2 {
+		order = append(order, pools.Content[i].Value)
+	}
+
+	return order, nil
 }
 
 // applyEnv は構造体の各項目を、対応する環境変数で上書きし、必須の項目が埋まっているかを確かめる。
@@ -202,6 +234,20 @@ func parseMap(raw string) (map[string]string, error) {
 	}
 
 	return m, nil
+}
+
+// mapKeys は、parseMap と同じ「key=value」をカンマで区切った文字列から、キーを書いた順に返す。
+// 形の誤りは parseMap が報告するので、ここでは読めた分だけを返す。
+func mapKeys(raw string) []string {
+	keys := []string{}
+	for pair := range strings.SplitSeq(raw, ",") {
+		key, _, ok := strings.Cut(pair, "=")
+		if key = strings.TrimSpace(key); ok && key != "" && !slices.Contains(keys, key) {
+			keys = append(keys, key)
+		}
+	}
+
+	return keys
 }
 
 // envName は YAML のキーの並びから環境変数の名前を作る (database, url → KOTATSU_DATABASE_URL)。
