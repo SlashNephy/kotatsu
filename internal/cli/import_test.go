@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"log/slog"
+	"net/url"
 	"testing"
 	"time"
 
@@ -299,4 +300,61 @@ func importOptions(t *testing.T) *cli.Options {
 	opts.Clock = clocktest.NewFake(time.UnixMilli(1791633600000))
 
 	return opts
+}
+
+func TestSourceWithPassword(t *testing.T) {
+	t.Parallel()
+
+	const (
+		envName = "KOTATSU_IMPORT_SOURCE_PASSWORD"
+		mariadb = "mysql://epgstation@mariadb:3306/epgstation"
+	)
+	// withUserinfo は、URL の userinfo にパスワードを持つ取り込み元を作る。
+	withUserinfo := (&url.URL{Scheme: "mysql", User: url.UserPassword("epgstation", "old"), Host: "mariadb:3306", Path: "/epgstation"}).String()
+
+	tests := []struct {
+		name        string
+		source      string
+		env         map[string]string
+		wantSame    bool
+		wantDecoded string
+		wantErr     bool
+	}{
+		{name: "環境変数がなければそのまま", source: mariadb, env: map[string]string{}, wantSame: true},
+		{name: "空の環境変数は無視する", source: mariadb, env: map[string]string{envName: ""}, wantSame: true},
+		{name: "記号を含むパスワードを入れる", source: mariadb + "?parseTime=true", env: map[string]string{envName: "p@ss/w:rd#?"}, wantDecoded: "p@ss/w:rd#?"},
+		{name: "URL にもパスワードがあれば拒む", source: withUserinfo, env: map[string]string{envName: "new"}, wantErr: true},
+		{name: "ユーザー名がなければ拒む", source: "mysql://mariadb:3306/epgstation", env: map[string]string{envName: "x"}, wantErr: true},
+		{name: "ユーザー名が空なら拒む", source: "mysql://@mariadb:3306/epgstation", env: map[string]string{envName: "x"}, wantErr: true},
+		{name: "URL として読めなければ拒む", source: "mysql://epgstation@mariadb:3306/epg\x7fstation", env: map[string]string{envName: "x"}, wantErr: true},
+		{name: "SQLite では使わない", source: "sqlite:///data/database.db", env: map[string]string{envName: "x"}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := cli.SourceWithPassword(tt.source, tt.env)
+			if tt.wantErr {
+				require.ErrorIs(t, err, cli.ErrSourcePassword)
+
+				return
+			}
+			require.NoError(t, err)
+			if tt.wantSame {
+				assert.Equal(t, tt.source, got)
+
+				return
+			}
+			// 記号はエスケープされ、URL として読み直すと元のパスワードに戻る。ほかの部分は変わらない。
+			u, err := url.Parse(got)
+			require.NoError(t, err)
+			password, ok := u.User.Password()
+			assert.True(t, ok)
+			assert.Equal(t, tt.wantDecoded, password)
+			assert.Equal(t, "epgstation", u.User.Username())
+			assert.Equal(t, "mariadb:3306", u.Host)
+			assert.Equal(t, "/epgstation", u.Path)
+			assert.Equal(t, "parseTime=true", u.RawQuery)
+		})
+	}
 }

@@ -4,3 +4,15 @@ package cli
 func AdvertiseAddress(listen, advertiseHost string) (string, error) {
 	return advertiseAddress(listen, advertiseHost)
 }
+
+// SourceWithPassword は、テストから sourceWithPassword を呼ぶために公開する。
+func SourceWithPassword(source string, env map[string]string) (string, error) {
+	return sourceWithPassword(source, func(key string) (string, bool) {
+		value, ok := env[key]
+
+		return value, ok
+	})
+}
+
+// ErrSourcePassword は、テストから errSourcePassword と比べるために公開する。
+var ErrSourcePassword = errSourcePassword
