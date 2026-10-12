@@ -290,9 +290,8 @@ function Reservations({ range }: { range: { from: string; to: string } }) {
         <DeleteDialog
           reservation={deleting}
           onClose={() => setDeleting(null)}
-          onDeleted={(disabled) => {
-            // ルール予約は消さずに無効にするので、無効として残す。
-            patch(deleting.id, disabled ? { enabled: false } : { removed: true });
+          onDeleted={() => {
+            patch(deleting.id, { removed: true });
             setDeleting(null);
           }}
         />
@@ -431,11 +430,10 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
 type DeleteProps = {
   reservation: Reservation;
   onClose: () => void;
-  // onDeleted は、予約を無効にしたなら true、消したなら false を受け取る。
-  onDeleted: (disabled: boolean) => void;
+  onDeleted: () => void;
 };
 
-// DeleteDialog は、予約を消すか、ルール予約なら無効にする前に確かめる。
+// DeleteDialog は、番組予約や時刻予約を消す前に確かめる。ルール予約は、行のスイッチで無効にする。
 function DeleteDialog({ reservation, onClose, onDeleted }: DeleteProps) {
   const { t } = useTranslation();
   const [error, setError] = useState(false);
@@ -474,10 +472,8 @@ function DeleteDialog({ reservation, onClose, onDeleted }: DeleteProps) {
             onClick={() =>
               commit({
                 variables: { id: reservation.id },
-                onCompleted: (response, errors) =>
-                  errors != null && errors.length > 0
-                    ? setError(true)
-                    : onDeleted(response.deleteReservation.reservation !== null),
+                onCompleted: (_response, errors) =>
+                  errors != null && errors.length > 0 ? setError(true) : onDeleted(),
                 onError: () => setError(true),
               })
             }

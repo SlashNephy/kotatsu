@@ -193,7 +193,7 @@ function Account() {
                 >
                   <Stack gap={0} miw={0} flex={1}>
                     <Group gap="xs">
-                      <Text size="sm" truncate>
+                      <Text size="sm" truncate title={session.userAgent}>
                         {deviceName(session.userAgent) ??
                           (session.userAgent || t('settings.account.unknownDevice'))}
                       </Text>

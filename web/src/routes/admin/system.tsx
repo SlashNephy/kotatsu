@@ -438,5 +438,3 @@ function PoolEditor({
     </Stack>
   );
 }
-
-// ChannelTypeEditor は、チャンネル種別の表示名と並び順を変える。

@@ -25,6 +25,8 @@ describe('deviceName', () => {
       want: 'Firefox（Android）',
     },
     { name: 'OS だけ分かる', ua: 'Something (Macintosh)', want: 'macOS' },
+    { name: 'ブラウザーだけ分かる', ua: 'Mozilla/5.0 Firefox/140.0', want: 'Firefox' },
+    { name: '空', ua: '', want: null },
     { name: '読み取れない', ua: 'kotatsu-evidence/1.0', want: null },
   ])('$name', ({ ua, want }) => {
     expect(deviceName(ua)).toBe(want);
