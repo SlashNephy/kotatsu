@@ -1,16 +1,13 @@
-import { Alert, Anchor, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Alert, Stack, Text } from '@mantine/core';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Suspense, useEffect, useState } from 'react';
 
 import { Dashboard, type DashboardRange } from '../home/Dashboard';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery, useSubscription } from 'react-relay';
 
 import { authApi } from '../auth/api';
 import { ErrorBoundary } from '../futon';
 import { isUnauthenticated } from '../relay/environment';
-import type { routesHeartbeatSubscription } from './__generated__/routesHeartbeatSubscription.graphql';
-import type { routesViewerQuery } from './__generated__/routesViewerQuery.graphql';
 
 export const Route = createFileRoute('/')({
   component: Home,
@@ -36,8 +33,6 @@ function Home() {
 
   return (
     <Stack>
-      <Title order={2}>{t('app.name')}</Title>
-      <Text>{t('app.tagline')}</Text>
       <ErrorBoundary
         fallback={(error) =>
           // オフラインでも、Service Worker が外枠を返すので、ここまでは表示される。
@@ -51,10 +46,7 @@ function Home() {
         }
       >
         <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
-          <Stack gap="lg">
-            <Dashboard range={range} />
-            <Viewer />
-          </Stack>
+          <Dashboard range={range} />
         </Suspense>
       </ErrorBoundary>
     </Stack>
@@ -74,73 +66,4 @@ function SignedOut() {
   }, [navigate]);
 
   return <Text c="dimmed">{t('viewer.signedOut')}</Text>;
-}
-
-function Viewer() {
-  const { t } = useTranslation();
-  const data = useLazyLoadQuery<routesViewerQuery>(
-    graphql`
-      query routesViewerQuery {
-        viewer {
-          displayName
-          role
-        }
-      }
-    `,
-    {},
-  );
-
-  return (
-    <Card withBorder>
-      <Group justify="space-between">
-        <Text>{t('viewer.greeting', { name: data.viewer.displayName })}</Text>
-        <Group gap="xs">
-          <Anchor component={Link} to="/settings/password" size="sm">
-            {t('viewer.changePassword')}
-          </Anchor>
-          <Button
-            variant="subtle"
-            size="xs"
-            onClick={() => {
-              void authApi.logout().then(() => window.location.assign('/login'));
-            }}
-          >
-            {t('auth.logout')}
-          </Button>
-        </Group>
-      </Group>
-      <Heartbeat />
-    </Card>
-  );
-}
-
-// Heartbeat は、tenban から SSE で届く時刻を出す。subscription がつながっていることを確かめる。
-function Heartbeat() {
-  const { t } = useTranslation();
-  const [now, setNow] = useState<string | null>(null);
-  const config = useMemo(
-    () => ({
-      subscription: graphql`
-        subscription routesHeartbeatSubscription {
-          heartbeat
-        }
-      `,
-      variables: {},
-      onNext: (response: routesHeartbeatSubscription['response'] | null | undefined) => {
-        if (response) {
-          setNow(response.heartbeat);
-        }
-      },
-    }),
-    [],
-  );
-  useSubscription<routesHeartbeatSubscription>(config);
-
-  return (
-    <Text size="sm" c="dimmed">
-      {now === null
-        ? t('viewer.connecting')
-        : t('viewer.heartbeat', { time: new Date(now).toLocaleString('ja-JP') })}
-    </Text>
-  );
 }

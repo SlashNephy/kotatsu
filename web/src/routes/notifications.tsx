@@ -31,9 +31,7 @@ function NotificationsPage() {
   return (
     <Stack gap="sm">
       <Group justify="space-between">
-        <Title order={2} size="h4">
-          {t('notifications.title')}
-        </Title>
+        <Title order={2}>{t('notifications.title')}</Title>
         <Anchor component={Link} to="/settings/notifications" size="sm">
           {t('notifications.settings')}
         </Anchor>

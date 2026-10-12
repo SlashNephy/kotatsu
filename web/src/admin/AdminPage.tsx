@@ -16,9 +16,7 @@ export function AdminPage({ title, children }: { title: string; children: ReactN
       <Anchor component={Link} to="/settings" size="sm">
         {t('settings.back')}
       </Anchor>
-      <Title order={2} size="h4">
-        {title}
-      </Title>
+      <Title order={2}>{title}</Title>
       <ErrorBoundary
         fallback={(error) =>
           isUnauthenticated(error) ? (

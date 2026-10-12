@@ -1,0 +1,7 @@
+/* 今いる画面のリンクを、太字と下線で示す。TanStack Router は、今いる画面のリンクに data-status="active" を付ける。 */
+.navLink[data-status='active'] {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 6px;
+  text-decoration-thickness: 2px;
+}
