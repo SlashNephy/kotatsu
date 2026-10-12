@@ -12,6 +12,7 @@ import {
   Group,
   Modal,
   MultiSelect,
+  Select,
   NumberInput,
   Stack,
   Switch,
@@ -39,6 +40,9 @@ import {
   type TimeRangeRow,
 } from './form';
 import { RulePreview } from './RulePreview';
+
+// joinDefault は、分かれたファイルをつなぐかどうかの選択で、全体の既定値に従うことを表す値。
+const joinDefault = 'default';
 
 type Props = {
   // ruleId は、編集するルールの ID。新しいルールなら undefined。
@@ -342,6 +346,30 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
                     min={-10}
                     max={10}
                     allowDecimal={false}
+                  />
+                  <Select
+                    label={t('rules.joinSegments')}
+                    maw={360}
+                    data={[
+                      { value: joinDefault, label: t('rules.joinSegmentsDefault') },
+                      { value: 'true', label: t('rules.joinSegmentsOn') },
+                      { value: 'false', label: t('rules.joinSegmentsOff') },
+                    ]}
+                    value={
+                      form.settings.joinSegments === null
+                        ? joinDefault
+                        : String(form.settings.joinSegments)
+                    }
+                    onChange={(value) =>
+                      set({
+                        settings: {
+                          ...form.settings,
+                          joinSegments:
+                            value === null || value === joinDefault ? null : value === 'true',
+                        },
+                      })
+                    }
+                    allowDeselect={false}
                   />
                 </Stack>
               </Card>

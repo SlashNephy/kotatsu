@@ -1154,6 +1154,10 @@ type RecordingSettings {
   優先度 (-10〜10)。チューナーが足りないときは、高い予約から割り当てる。
   """
   priority: Int!
+  """
+  引き継ぎや再起動で分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか (設計書 5.4)
+  """
+  joinSegments: Boolean!
 }
 """
 録画設定の上書き (設計書 4.7)。null の項目は全体の既定値を使う。
@@ -1173,6 +1177,10 @@ type RecordingSettingsOverrides {
   優先度 (-10〜10)。チューナーが足りないときは、高い予約から割り当てる。
   """
   priority: Int
+  """
+  分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか
+  """
+  joinSegments: Boolean
 }
 """
 録画設定の上書き。省いた項目は全体の既定値を使う。
@@ -1183,6 +1191,7 @@ input RecordingSettingsOverridesInput {
   startMarginSeconds: Int
   endMarginSeconds: Int
   priority: Int
+  joinSegments: Boolean
 }
 """
 録画の状態 (設計書 5.5)。

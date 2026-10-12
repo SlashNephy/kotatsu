@@ -21,7 +21,6 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/kago"
-	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/ts"
 )
 
@@ -72,43 +71,6 @@ func (GenerateArgs) InsertOpts() river.InsertOpts {
 // Inserter は、ジョブをトランザクションの中で投入する。*jobs.Client が満たす。
 type Inserter interface {
 	InsertManyTx(ctx context.Context, tx pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error)
-}
-
-// Enqueuer は、録画の完了のイベントを配るときに、その録画の画像を作るジョブを投入する。
-type Enqueuer struct {
-	inserter Inserter
-}
-
-var _ notification.Hook = new(Enqueuer)
-
-// NewEnqueuer は Enqueuer を返す。
-func NewEnqueuer(inserter Inserter) *Enqueuer {
-	return &Enqueuer{inserter: inserter}
-}
-
-func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.Event) error {
-	if event.Kind != notification.KindRecordingCompleted {
-		return nil
-	}
-	recordingID, ok := recordingIDOf(event.Payload)
-	if !ok {
-		// 録画の ID のないイベントでは、画像を作れない。ほかの通知は配りたいので、失敗にはしない。
-		return nil
-	}
-	params := []river.InsertManyParams{{Args: GenerateArgs{RecordingID: recordingID}, InsertOpts: nil}}
-	if _, err := e.inserter.InsertManyTx(ctx, tx, params); err != nil {
-		return fmt.Errorf("failed to enqueue the thumbnail generation: %w", err)
-	}
-
-	return nil
-}
-
-// recordingIDOf は、録画の完了のイベントの材料から、録画の ID を読む。
-func recordingIDOf(payload map[string]any) (uuid.UUID, bool) {
-	raw, _ := payload["recordingId"].(string)
-	recordingID, err := uuid.Parse(raw)
-
-	return recordingID, err == nil
 }
 
 // GenerateWorker は、録画の代表画像とプレビュー画像を作り、最初のセグメントの付属ファイルのディレクトリに置く。

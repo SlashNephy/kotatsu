@@ -87,7 +87,7 @@ func toRuleInput(in *model.RuleInput) (*rule.Input, error) {
 // toOverrides は、録画設定の上書きの入力を、予約の録画設定の上書きにする。省いたら何も上書きしない。
 func toOverrides(in *model.RecordingSettingsOverridesInput) *reserve.Overrides {
 	if in == nil {
-		return &reserve.Overrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil}
+		return &reserve.Overrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil}
 	}
 
 	return &reserve.Overrides{
@@ -96,12 +96,13 @@ func toOverrides(in *model.RecordingSettingsOverridesInput) *reserve.Overrides {
 		StartMarginSeconds: in.StartMarginSeconds,
 		EndMarginSeconds:   in.EndMarginSeconds,
 		Priority:           in.Priority,
+		JoinSegments:       in.JoinSegments,
 	}
 }
 
 func toOverridesModel(o *reserve.Overrides) *model.RecordingSettingsOverrides {
 	if o == nil {
-		return &model.RecordingSettingsOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil}
+		return &model.RecordingSettingsOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil}
 	}
 
 	return &model.RecordingSettingsOverrides{
@@ -110,6 +111,7 @@ func toOverridesModel(o *reserve.Overrides) *model.RecordingSettingsOverrides {
 		StartMarginSeconds: o.StartMarginSeconds,
 		EndMarginSeconds:   o.EndMarginSeconds,
 		Priority:           o.Priority,
+		JoinSegments:       o.JoinSegments,
 	}
 }
 

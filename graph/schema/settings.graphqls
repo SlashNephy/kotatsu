@@ -10,6 +10,8 @@ type RecordingSettings {
   endMarginSeconds: Int!
   "優先度 (-10〜10)。チューナーが足りないときは、高い予約から割り当てる。"
   priority: Int!
+  "引き継ぎや再起動で分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか (設計書 5.4)"
+  joinSegments: Boolean!
 }
 
 """

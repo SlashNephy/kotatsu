@@ -100,3 +100,7 @@ WHERE r.id = @id;
 -- name: SetRecordingAudiosIfUnknown :exec
 -- 録画の音声の構成を、TS の EIT[p/f] から読んだもので埋める。EPG から写したものがあれば、それを残す。
 UPDATE recordings SET audios = @audios, updated_at = @now WHERE id = @id AND audios = '[]'::jsonb;
+
+-- name: DeleteRecordingFiles :exec
+-- 録画のファイルの記録を消す。セグメントを 1 つにつないだあとで、つないだ元のセグメントと索引の記録を消すのに使う。
+DELETE FROM recording_files WHERE recording_id = @recording_id AND id = ANY(@ids::uuid[]);

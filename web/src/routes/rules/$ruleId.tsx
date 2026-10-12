@@ -130,6 +130,7 @@ function Rule({ ruleId }: { ruleId: string }) {
               startMarginSeconds
               endMarginSeconds
               priority
+              joinSegments
             }
             validFrom
             validUntil

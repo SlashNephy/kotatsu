@@ -28,6 +28,8 @@ type Settings = {
   startMarginSeconds: number | null;
   endMarginSeconds: number | null;
   priority: number | null;
+  // joinSegments は、分かれた録画のファイルを1つにつなぐかどうか。null なら全体の既定値に従う。
+  joinSegments: boolean | null;
 };
 
 // RuleForm は、ルールの編集の画面の入力。
@@ -48,7 +50,7 @@ export type RuleForm = {
   avoidDuplicates: boolean;
   duplicateWindowDays: number | null;
   followEventRelay: boolean;
-  // settings と validFrom、validUntil は、画面では優先度だけを変え、ほかはそのまま保存し直す。
+  // settings と validFrom、validUntil は、画面では優先度と、分かれたファイルをつなぐかどうかだけを変え、ほかはそのまま保存し直す。
   settings: Settings;
   validFrom: string | null;
   validUntil: string | null;
@@ -90,6 +92,7 @@ export type RuleData = {
     readonly startMarginSeconds?: number | null;
     readonly endMarginSeconds?: number | null;
     readonly priority?: number | null;
+    readonly joinSegments?: boolean | null;
   };
   readonly validFrom?: string | null;
   readonly validUntil?: string | null;
@@ -123,6 +126,7 @@ export function emptyRuleForm(): RuleForm {
       startMarginSeconds: null,
       endMarginSeconds: null,
       priority: null,
+      joinSegments: null,
     },
     validFrom: null,
     validUntil: null,
@@ -176,6 +180,7 @@ export function fromRule(rule: RuleData): RuleForm {
       startMarginSeconds: rule.settings.startMarginSeconds ?? null,
       endMarginSeconds: rule.settings.endMarginSeconds ?? null,
       priority: rule.settings.priority ?? null,
+      joinSegments: rule.settings.joinSegments ?? null,
     },
     validFrom: rule.validFrom ?? null,
     validUntil: rule.validUntil ?? null,

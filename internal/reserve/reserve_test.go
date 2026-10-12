@@ -177,6 +177,7 @@ func TestOverridesApplyOnDefaults(t *testing.T) {
 		StartMarginSeconds: new(60),
 		EndMarginSeconds:   nil,
 		Priority:           new(3),
+		JoinSegments:       new(false),
 	}
 	created, _, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, in)
 	require.NoError(t, err)
@@ -190,6 +191,7 @@ func TestOverridesApplyOnDefaults(t *testing.T) {
 		// 上書きしなかった項目は、全体の既定値のまま。
 		EndMarginSeconds: reserve.DefaultMarginSeconds,
 		Priority:         3,
+		JoinSegments:     false,
 	}, got.Settings(reserve.DefaultSettings()))
 }
 

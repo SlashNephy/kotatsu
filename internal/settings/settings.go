@@ -189,6 +189,9 @@ func merge(base, changes *reserve.Overrides) *reserve.Overrides {
 	if changes.Priority != nil {
 		merged.Priority = changes.Priority
 	}
+	if changes.JoinSegments != nil {
+		merged.JoinSegments = changes.JoinSegments
+	}
 
 	return &merged
 }

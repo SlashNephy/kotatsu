@@ -842,6 +842,8 @@ func (r *Recorder) start(ctx context.Context, reservation *sqlc.GetReservationFo
 // complete は、録画を state で終え、正常に終わってドロップが閾値以下なら録画履歴に記録し (設計書 4.4)、
 // 録画の完了か失敗を通知する (設計書 6.2)。完了の通知には、Webhook のためにセグメントのプール内のパスを載せる。
 func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordingID uuid.UUID, state State, reason FailureReason) error {
+	// 録画設定は、トランザクションの外で先に読む。トランザクションの中でプールから別の接続を借りると、接続が足りないときに詰まる。
+	join := r.joinSegments(ctx, assignment)
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		// 引き継ぎの最中に予定の終わりが来ると、古い mikan と新しい mikan の両方が録画を終えようとする。
@@ -895,6 +897,7 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 			files = append(files, map[string]string{"poolId": segment.PoolID, "path": segment.Path})
 		}
 		payload["files"] = files
+		payload["joinSegments"] = join
 
 		return notification.Emit(ctx, tx, r.clock, notification.KindRecordingCompleted, payload)
 	})
@@ -908,6 +911,26 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 	}
 
 	return nil
+}
+
+// joinSegments は、録画が終わったら、分かれたセグメントを 1 つにつなぐかどうかを、予約の録画設定から求める (設計書 5.4)。
+// 予約が消えていれば、全体の既定値に従う。録画設定を読めなくても、録画の完了は止めない。
+func (r *Recorder) joinSegments(ctx context.Context, assignment *Assignment) bool {
+	reservation, err := sqlc.New(r.pool).GetReservationForRecording(ctx, assignment.ReservationID)
+	if err == nil {
+		settings, err := r.settings(ctx, &reservation)
+		if err == nil {
+			return settings.JoinSegments
+		}
+	}
+	settings, err := r.defaults(ctx, r.pool)
+	if err != nil {
+		r.logger.WarnContext(ctx, "failed to read the recording settings; joining the segments by default", slog.Any("error", err))
+
+		return reserve.DefaultSettings().JoinSegments
+	}
+
+	return settings.JoinSegments
 }
 
 // errSuperseded は、ほかの mikan が割り振りを取ったので、録画を終えないことを表す。

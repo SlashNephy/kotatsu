@@ -56,6 +56,8 @@ type Querier interface {
 	// 放送が始まった番組は、アーカイブに移すまで残す (設計書 3.3、3.4)。
 	DeletePrograms(ctx context.Context, arg []DeleteProgramsParams) *DeleteProgramsBatchResults
 	DeleteRecording(ctx context.Context, id uuid.UUID) (int64, error)
+	// 録画のファイルの記録を消す。セグメントを 1 つにつないだあとで、つないだ元のセグメントと索引の記録を消すのに使う。
+	DeleteRecordingFiles(ctx context.Context, arg DeleteRecordingFilesParams) error
 	DeleteRecordingTags(ctx context.Context, recordingID uuid.UUID) error
 	DeleteRecoveryCodes(ctx context.Context, userID uuid.UUID) error
 	DeleteReservation(ctx context.Context, id uuid.UUID) (int64, error)

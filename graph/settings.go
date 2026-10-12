@@ -15,6 +15,7 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 		StartMarginSeconds: system.Recording.StartMarginSeconds,
 		EndMarginSeconds:   system.Recording.EndMarginSeconds,
 		Priority:           system.Recording.Priority,
+		JoinSegments:       system.Recording.JoinSegments,
 	}
 	if system.Recording.PoolID != "" {
 		recording.PoolID = new(system.Recording.PoolID)
