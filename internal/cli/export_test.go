@@ -13,3 +13,6 @@ func SourceWithPassword(source string, env map[string]string) (string, error) {
 		return value, ok
 	})
 }
+
+// ErrSourcePassword は、テストから errSourcePassword と比べるために公開する。
+var ErrSourcePassword = errSourcePassword

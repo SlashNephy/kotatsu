@@ -325,6 +325,8 @@ func TestSourceWithPassword(t *testing.T) {
 		{name: "記号を含むパスワードを入れる", source: mariadb + "?parseTime=true", env: map[string]string{envName: "p@ss/w:rd#?"}, wantDecoded: "p@ss/w:rd#?"},
 		{name: "URL にもパスワードがあれば拒む", source: withUserinfo, env: map[string]string{envName: "new"}, wantErr: true},
 		{name: "ユーザー名がなければ拒む", source: "mysql://mariadb:3306/epgstation", env: map[string]string{envName: "x"}, wantErr: true},
+		{name: "ユーザー名が空なら拒む", source: "mysql://@mariadb:3306/epgstation", env: map[string]string{envName: "x"}, wantErr: true},
+		{name: "URL として読めなければ拒む", source: "mysql://epgstation@mariadb:3306/epg\x7fstation", env: map[string]string{envName: "x"}, wantErr: true},
 		{name: "SQLite では使わない", source: "sqlite:///data/database.db", env: map[string]string{envName: "x"}, wantErr: true},
 	}
 	for _, tt := range tests {
@@ -333,7 +335,7 @@ func TestSourceWithPassword(t *testing.T) {
 
 			got, err := cli.SourceWithPassword(tt.source, tt.env)
 			if tt.wantErr {
-				require.Error(t, err)
+				require.ErrorIs(t, err, cli.ErrSourcePassword)
 
 				return
 			}

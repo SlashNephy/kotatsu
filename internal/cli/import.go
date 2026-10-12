@@ -29,7 +29,8 @@ var (
 	errNoServices = errors.New("kotatsu has no services yet; start kotatsu and let it sync the channels from the tuner server before importing")
 	// errInvalidPoolMapping は、--pool の値が正しくないことを表す。
 	errInvalidPoolMapping = errors.New("invalid --pool")
-	errSourcePassword     = errors.New("invalid source password")
+	// errSourcePassword は、取り込み元の DB のパスワードの渡し方が正しくないことを表す。
+	errSourcePassword = errors.New("invalid source password")
 )
 
 // newImportCommand は kotatsu import を作る。loadConfig は、--config と環境変数から設定を読む。
@@ -127,12 +128,12 @@ func sourceWithPassword(source string, lookupEnv config.LookupEnv) (string, erro
 	}
 	u, err := url.Parse(source)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse the source URL: %w", err)
+		return "", fmt.Errorf("%w: failed to parse the source URL: %w", errSourcePassword, err)
 	}
 	if u.Scheme == "sqlite" {
 		return "", fmt.Errorf("%w: %s is not used for sqlite", errSourcePassword, sourceAuthEnv)
 	}
-	if u.User == nil {
+	if u.User == nil || u.User.Username() == "" {
 		return "", fmt.Errorf("%w: the source URL must have a user name to use %s", errSourcePassword, sourceAuthEnv)
 	}
 	if _, set := u.User.Password(); set {
