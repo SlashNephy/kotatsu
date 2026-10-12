@@ -26,8 +26,10 @@ export function UserMenu() {
   return (
     <Menu position="bottom-end" width={240} withinPortal>
       <Menu.Target>
-        <Button variant="subtle" size="compact-sm" aria-label={t('nav.userMenu')}>
-          {data.viewer.displayName}
+        <Button variant="subtle" size="compact-sm" maw={160}>
+          <Text span size="sm" truncate="end">
+            {data.viewer.displayName}
+          </Text>
         </Button>
       </Menu.Target>
       <Menu.Dropdown>
@@ -52,7 +54,8 @@ export function UserMenu() {
         <Menu.Item
           color="red"
           onClick={() => {
-            void authApi.logout().then(() => window.location.assign('/login'));
+            // ログアウトに失敗しても (セッションが切れているときなど)、ログインの画面へ移す。
+            void authApi.logout().finally(() => window.location.assign('/login'));
           }}
         >
           {t('auth.logout')}

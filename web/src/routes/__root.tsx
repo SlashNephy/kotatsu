@@ -1,12 +1,14 @@
 import { Anchor, AppShell, Burger, Group, Stack, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { createRootRoute, Link, Outlet } from '@tanstack/react-router';
+import { createRootRoute, Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { Suspense, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { graphql, useLazyLoadQuery } from 'react-relay';
 
 import { UserMenu } from '../auth/UserMenu';
 import { ColorSchemeToggle, ErrorBoundary } from '../futon';
 import { NotificationBell } from '../notifications/NotificationBell';
+import type { RootViewerQuery } from './__generated__/RootViewerQuery.graphql';
 import classes from './__root.module.css';
 
 export const Route = createRootRoute({
@@ -86,20 +88,22 @@ function RootLayout() {
         </SignedIn>
       </AppShell.Header>
       <AppShell.Navbar p="md" component="nav" aria-label={t('nav.menu')}>
-        <Stack gap="sm">
-          {navItems.map((item) => (
-            <Anchor
-              key={item.to}
-              component={Link}
-              to={item.to}
-              activeOptions={{ exact: item.to === '/' }}
-              className={classes.navLink}
-              onClick={close}
-            >
-              {t(item.key)}
-            </Anchor>
-          ))}
-        </Stack>
+        <SignedIn fallback={null}>
+          <Stack gap="sm">
+            {navItems.map((item) => (
+              <Anchor
+                key={item.to}
+                component={Link}
+                to={item.to}
+                activeOptions={{ exact: item.to === '/' }}
+                className={classes.navLink}
+                onClick={close}
+              >
+                {t(item.key)}
+              </Anchor>
+            ))}
+          </Stack>
+        </SignedIn>
       </AppShell.Navbar>
       <AppShell.Main>
         <Outlet />
@@ -108,14 +112,37 @@ function RootLayout() {
   );
 }
 
-// SignedIn は、ログインしていれば children を、していなければ (ユーザーのメニューを読めなければ) fallback を出す。
+// SignedIn は、ログインしていれば children を、していなければ (自分のユーザーを読めなければ) fallback を出す。
 // 読み込みの間は、ヘッダーが空にならないよう、fallback を出す。
+// 読み込みに一度失敗しても、画面を移ると読み直すよう、ErrorBoundary をパスごとに作り直す。
 function SignedIn({ children, fallback }: { children: ReactNode; fallback: ReactNode }) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
   return (
-    <ErrorBoundary fallback={() => fallback}>
-      <Suspense fallback={fallback}>{children}</Suspense>
+    <ErrorBoundary key={pathname} fallback={() => fallback}>
+      <Suspense fallback={fallback}>
+        <ViewerGate fetchKey={pathname}>{children}</ViewerGate>
+      </Suspense>
     </ErrorBoundary>
   );
+}
+
+// ViewerGate は、自分のユーザーを読めたときだけ children を出す。読めなければ、読み込みが例外を投げる。
+// 失敗した読み込みは Relay が覚えているので、fetchKey を変えて読み直させる。読めた後は、ストアの値を使う。
+function ViewerGate({ children, fetchKey }: { children: ReactNode; fetchKey: string }) {
+  useLazyLoadQuery<RootViewerQuery>(
+    graphql`
+      query RootViewerQuery {
+        viewer {
+          username
+        }
+      }
+    `,
+    {},
+    { fetchKey, fetchPolicy: 'store-or-network' },
+  );
+
+  return children;
 }
 
 function NotFound() {
