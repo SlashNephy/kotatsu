@@ -44,12 +44,20 @@ describe('moveMedia', () => {
     wrapper.append(deinterlaced);
     const target = document.createElement('div');
 
-    moveMedia(video, target);
+    const restore = moveMedia(video, target);
 
+    expect(wrapper.parentElement).toBe(target);
     expect(deinterlaced.parentElement).toBe(wrapper);
     expect(deinterlaced.style.left).toBe('12px');
     expect(deinterlaced.style.width).toBe('320px');
     expect(deinterlaced.style.height).toBe('180px');
+
+    // 戻しても、yadif の canvas は包みの中に残り、位置と大きさも変わらない。
+    restore();
+
+    expect(deinterlaced.parentElement).toBe(wrapper);
+    expect(deinterlaced.style.left).toBe('12px');
+    expect(deinterlaced.style.width).toBe('320px');
   });
 
   test('戻すと、元の並びと、移す前のスタイルに戻す', () => {
