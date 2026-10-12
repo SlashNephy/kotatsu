@@ -1,0 +1,96 @@
+# 開発のための Docker Compose の構成 (docs/development.md)。手元のソースから Kotatsu をビルドし、偽のチューナーと PostgreSQL と一緒に動かす。
+# 運用の例は deploy/compose/compose.yaml にある。こちらは開発専用で、秘密キーも固定の値を使うので、運用には使わない。
+#
+#   docker compose up --build
+#
+# http://localhost:8080/ で画面を開ける (ポートは KOTATSU_DEV_PORT で変えられる)。最初の管理者は、kotatsu のログに出るセットアップ用のトークンで作る。
+name: kotatsu-dev
+
+services:
+  # DB を使う Go のテストも、ここに向けられる (KOTATSU_TEST_DATABASE_URL)。
+  postgres:
+    image: mirror.gcr.io/library/postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: kotatsu
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      # PostgreSQL 18 のイメージは、/var/lib/postgresql をボリュームにし、データを /var/lib/postgresql/18/docker に置く。
+      # 17 までの /var/lib/postgresql/data ではない。
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # 偽のチューナーサーバー。testdata/ts/test.ts を、すべてのサービスのストリームとして流す。
+  faketuner:
+    image: mirror.gcr.io/library/golang:1.27-trixie@sha256:2f84bc93ecfb2689f782b153fdcd368b5a7ab96c1386c65cdaccf35e726d6a44
+    working_dir: /src
+    command: ["go", "run", "./cmd/faketuner", "-listen", "0.0.0.0:40772", "-ts", "testdata/ts/test.ts"]
+    ports:
+      - "127.0.0.1:40772:40772"
+    volumes:
+      - .:/src:ro
+      - go-mod:/go/pkg/mod
+      - go-build:/root/.cache/go-build
+
+  # 録画を置くボリュームは root の持ち物になるので、Kotatsu が書けるよう、持ち主を Kotatsu の UID にする。
+  recordings-owner:
+    image: mirror.gcr.io/library/postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
+    command: ["chown", "65532:65532", "/recordings"]
+    user: root
+    volumes:
+      - recordings:/recordings
+
+  # 起動の前に、DB のスキーマを最新にする。
+  migrate:
+    build:
+      context: .
+      target: ffmpeg
+    image: kotatsu-dev
+    command: ["migrate"]
+    environment:
+      KOTATSU_DATABASE_URL: postgres://postgres:postgres@postgres:5432/kotatsu?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  kotatsu:
+    image: kotatsu-dev
+    command: ["all"]
+    environment:
+      KOTATSU_DATABASE_URL: postgres://postgres:postgres@postgres:5432/kotatsu?sslmode=disable
+      # 開発専用の固定の秘密キー。運用では、ランダムな値を Secret で渡す。
+      KOTATSU_AUTH_SECRET_KEY: kotatsu-development-only-secret-key-do-not-use
+      KOTATSU_TUNER_URL: http://faketuner:40772/
+      KOTATSU_STORAGE_POOLS: main=/recordings
+      KOTATSU_SERVER_LISTEN: ":8080"
+    ports:
+      # mise run web:dev の Vite の開発サーバーが、API をここに中継する。
+      # ほかのアプリが 8080 を使っていれば、KOTATSU_DEV_PORT で変え、web:dev にも同じ値を渡す。
+      - "127.0.0.1:${KOTATSU_DEV_PORT:-8080}:8080"
+    volumes:
+      - recordings:/recordings
+    tmpfs:
+      - /tmp
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      recordings-owner:
+        condition: service_completed_successfully
+      faketuner:
+        condition: service_started
+    read_only: true
+    user: "65532:65532"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+volumes:
+  postgres:
+  recordings:
+  go-mod:
+  go-build:

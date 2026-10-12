@@ -67,8 +67,12 @@ Docker Composeで1台のマシンに立てる手順と、HelmでKubernetesに立
 - [セットアップ](docs/setup.md)：Docker ComposeとHelmでの起動、最初の管理者の作り方、HTTPSの注意点
 - [設定](docs/configuration.md)：すべての設定項目と、YAMLと環境変数での書き方
 - [運用](docs/operations.md)：バックアップの対象、録画を止めない更新、監視
+- [開発](docs/development.md)：手元でKotatsuを動かす手順と、テストの流し方
 
 ## 開発
+
+手元でKotatsuを動かす手順は、[開発](docs/development.md)にまとめました。
+`docker compose up --build`で、PostgreSQLと偽のチューナーサーバーと一緒に起動できます。
 
 開発に使うツールは、[mise](https://mise.jdx.dev/)でインストールしてください。
 
@@ -85,7 +89,7 @@ mise install
 | `mise run web:test` | 画面のテストを実行する |
 | `mise run db:diff -- <名前>` | `db/schema.sql`の変更からマイグレーションを作る |
 
-DBを使うテストは、`KOTATSU_TEST_DATABASE_URL`にPostgreSQLの接続先を渡したときだけ実行されます。
+DBを使うテストは、`KOTATSU_TEST_DATABASE_URL`にPostgreSQLの接続先を渡したときだけ実行されます（[開発](docs/development.md#テストを流す)）。
 
 ## ライセンス
 
