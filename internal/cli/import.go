@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net/url"
 	"slices"
 	"strings"
 	"text/tabwriter"
@@ -28,6 +29,7 @@ var (
 	errNoServices = errors.New("kotatsu has no services yet; start kotatsu and let it sync the channels from the tuner server before importing")
 	// errInvalidPoolMapping は、--pool の値が正しくないことを表す。
 	errInvalidPoolMapping = errors.New("invalid --pool")
+	errSourcePassword     = errors.New("invalid source password")
 )
 
 // newImportCommand は kotatsu import を作る。loadConfig は、--config と環境変数から設定を読む。
@@ -77,6 +79,10 @@ func newImportCommand(
 			if err != nil {
 				return err
 			}
+			source, err := sourceWithPassword(source, opts.LookupEnv)
+			if err != nil {
+				return err
+			}
 			snapshot, err := readEPGStation(cmd.Context(), source)
 			if err != nil {
 				return err
@@ -96,7 +102,8 @@ func newImportCommand(
 		},
 	}
 	epgstationCmd.Flags().StringVar(&source, "source", "",
-		"EPGStation database URL (mysql://user:password@host:3306/database or sqlite:///path/to/database.db); it is opened read-only")
+		"EPGStation database URL (mysql://user:password@host:3306/database or sqlite:///path/to/database.db); it is opened read-only. "+
+			"The password can be given by "+sourceAuthEnv+" instead")
 	epgstationCmd.Flags().StringArrayVar(&pools, "pool", []string{},
 		"map an EPGStation recorded directory name to a Kotatsu storage pool ID, as NAME=POOL_ID (repeatable)")
 	epgstationCmd.Flags().BoolVar(&dryRun, "dry-run", false, "only show what would be imported")
@@ -105,6 +112,35 @@ func newImportCommand(
 	importCmd.AddCommand(epgstationCmd)
 
 	return importCmd
+}
+
+// sourceAuthEnv は、取り込み元の DB のパスワードを渡す環境変数。
+// パスワードを URL に書くと、記号をエスケープする必要があり、プロセスの一覧にも見えるので、環境変数でも渡せるようにする。
+const sourceAuthEnv = "KOTATSU_IMPORT_SOURCE_PASSWORD"
+
+// sourceWithPassword は、sourceAuthEnv があれば、そのパスワードを source の URL に入れる。
+// URL にもパスワードがあると、どちらを使うか分からないので拒む。
+func sourceWithPassword(source string, lookupEnv config.LookupEnv) (string, error) {
+	password, ok := lookupEnv(sourceAuthEnv)
+	if !ok || password == "" {
+		return source, nil
+	}
+	u, err := url.Parse(source)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse the source URL: %w", err)
+	}
+	if u.Scheme == "sqlite" {
+		return "", fmt.Errorf("%w: %s is not used for sqlite", errSourcePassword, sourceAuthEnv)
+	}
+	if u.User == nil {
+		return "", fmt.Errorf("%w: the source URL must have a user name to use %s", errSourcePassword, sourceAuthEnv)
+	}
+	if _, set := u.User.Password(); set {
+		return "", fmt.Errorf("%w: the source URL already has a password; remove it or unset %s", errSourcePassword, sourceAuthEnv)
+	}
+	u.User = url.UserPassword(u.User.Username(), password)
+
+	return u.String(), nil
 }
 
 // readEPGStation は、EPGStation の DB を読み取り専用で開き、取り込むデータを読む。
