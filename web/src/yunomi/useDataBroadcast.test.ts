@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
+import { deinterlacerCanvas } from './deinterlacer';
 import { moveMedia } from './useDataBroadcast';
 import classes from './TsPlayer.module.css';
 
@@ -32,6 +33,23 @@ describe('moveMedia', () => {
       expect(element.style.height).toBe('100%');
     }
     expect(video.style.objectFit).toBe('contain');
+  });
+
+  test('yadif の canvas は、yadif が決めた位置と大きさのまま移す', () => {
+    const { wrapper, video } = player();
+    // yadif は、video と同じ包みの中に、video に合わせて置いた canvas を足す。
+    const deinterlaced = document.createElement('canvas');
+    deinterlaced.dataset[deinterlacerCanvas] = '';
+    deinterlaced.style.cssText = 'position:absolute;left:12px;top:0px;width:320px;height:180px';
+    wrapper.append(deinterlaced);
+    const target = document.createElement('div');
+
+    moveMedia(video, target);
+
+    expect(deinterlaced.parentElement).toBe(wrapper);
+    expect(deinterlaced.style.left).toBe('12px');
+    expect(deinterlaced.style.width).toBe('320px');
+    expect(deinterlaced.style.height).toBe('180px');
   });
 
   test('戻すと、元の並びと、移す前のスタイルに戻す', () => {
