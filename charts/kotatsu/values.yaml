@@ -8,17 +8,28 @@ image:
   repository: ghcr.io/slashnephy/kotatsu
   # tag が空なら、Chart の appVersion を使う。
   tag: ""
+  # digest は、FFmpeg を含まないイメージの digest (sha256:...)。指定すると、タグに加えて digest で固定する。
+  digest: ""
+  # ffmpegDigest は、-ffmpeg のイメージの digest。digest とは別のイメージなので、別に指定する。
+  ffmpegDigest: ""
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
 
-# secret は、Kotatsu に渡す秘密情報を持つ Secret。Chart は Secret を作らないので、先に作っておく。
-secret:
-  name: kotatsu
-  # databaseURLKey は、PostgreSQL の接続先 (postgres://...) を持つキー。
-  databaseURLKey: database-url
-  # secretKeyKey は、アプリの秘密キー (32 バイト以上) を持つキー。なくすと、TOTP と Web Push の設定し直しが必要になる。
-  secretKeyKey: secret-key
+# secrets は、Kotatsu に渡す秘密情報を持つ Secret とキー。Chart は Secret を作らないので、先に作っておく。
+# 項目ごとに Secret を分けられる。たとえば、接続先は CloudNativePG が作る Secret から、秘密キーは別の Secret から渡せる。
+secrets:
+  # databaseURL は、PostgreSQL の接続先 (postgres://...)。
+  databaseURL:
+    name: kotatsu
+    key: database-url
+  # secretKey は、アプリの秘密キー (32 バイト以上)。なくすと、TOTP と Web Push の設定し直しが必要になる。
+  secretKey:
+    name: kotatsu
+    key: secret-key
+
+# priorityClassName は、すべての Pod に付ける PriorityClass。all や roles の各ロールで priorityClassName を指定すると、そちらを使う。
+priorityClassName: ""
 
 # config は、環境変数で渡す Kotatsu の設定 (KOTATSU_ の後ろの名前と値)。
 # 例: {TUNER_URL: http://mirakurun:40772/, SERVER_ALLOWED_NETWORKS: "10.0.0.0/8,192.168.0.0/16"}

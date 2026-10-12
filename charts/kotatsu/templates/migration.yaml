@@ -29,6 +29,9 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
       containers:
         - name: migrate
           image: {{ include "kotatsu.image" (dict "root" $ "ffmpeg" false) }}
@@ -37,10 +40,7 @@ spec:
             - migrate
           env:
             - name: KOTATSU_DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: {{ .Values.secret.databaseURLKey }}
+              {{- include "kotatsu.secretRef" .Values.secrets.databaseURL | nindent 14 }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           resources:

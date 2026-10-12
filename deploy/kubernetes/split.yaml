@@ -78,6 +78,7 @@ spec:
         runAsUser: 65532
         seccompProfile:
           type: RuntimeDefault
+      priorityClassName: recording
       terminationGracePeriodSeconds: 30
       containers:
         - name: kotatsu
@@ -99,8 +100,8 @@ spec:
             - name: KOTATSU_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: kotatsu
-                  key: database-url
+                  name: kotatsu-db-app
+                  key: uri
             - name: KOTATSU_AUTH_SECRET_KEY
               valueFrom:
                 secretKeyRef:
@@ -191,6 +192,7 @@ spec:
         runAsUser: 65532
         seccompProfile:
           type: RuntimeDefault
+      priorityClassName: recording
       terminationGracePeriodSeconds: 300
       containers:
         - name: kotatsu
@@ -212,8 +214,8 @@ spec:
             - name: KOTATSU_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: kotatsu
-                  key: database-url
+                  name: kotatsu-db-app
+                  key: uri
             - name: KOTATSU_AUTH_SECRET_KEY
               valueFrom:
                 secretKeyRef:
@@ -301,6 +303,7 @@ spec:
         runAsUser: 65532
         seccompProfile:
           type: RuntimeDefault
+      priorityClassName: recording
       terminationGracePeriodSeconds: 30
       containers:
         - name: kotatsu
@@ -322,8 +325,8 @@ spec:
             - name: KOTATSU_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: kotatsu
-                  key: database-url
+                  name: kotatsu-db-app
+                  key: uri
             - name: KOTATSU_AUTH_SECRET_KEY
               valueFrom:
                 secretKeyRef:
@@ -406,6 +409,7 @@ spec:
         runAsUser: 65532
         seccompProfile:
           type: RuntimeDefault
+      priorityClassName: recording
       terminationGracePeriodSeconds: 60
       containers:
         - name: kotatsu
@@ -427,8 +431,8 @@ spec:
             - name: KOTATSU_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: kotatsu
-                  key: database-url
+                  name: kotatsu-db-app
+                  key: uri
             - name: KOTATSU_AUTH_SECRET_KEY
               valueFrom:
                 secretKeyRef:
@@ -516,6 +520,7 @@ spec:
         runAsUser: 65532
         seccompProfile:
           type: RuntimeDefault
+      priorityClassName: recording
       terminationGracePeriodSeconds: 30
       containers:
         - name: kotatsu
@@ -537,8 +542,8 @@ spec:
             - name: KOTATSU_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: kotatsu
-                  key: database-url
+                  name: kotatsu-db-app
+                  key: uri
             - name: KOTATSU_AUTH_SECRET_KEY
               valueFrom:
                 secretKeyRef:
@@ -625,6 +630,7 @@ spec:
         runAsUser: 65532
         seccompProfile:
           type: RuntimeDefault
+      priorityClassName: recording
       containers:
         - name: migrate
           image: ghcr.io/slashnephy/kotatsu:edge
@@ -635,8 +641,8 @@ spec:
             - name: KOTATSU_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: kotatsu
-                  key: database-url
+                  name: kotatsu-db-app
+                  key: uri
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
