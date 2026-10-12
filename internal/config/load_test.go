@@ -24,6 +24,8 @@ const (
 
 	envKeyURL   = "KOTATSU_DATABASE_URL"
 	envKeyPools = "KOTATSU_STORAGE_POOLS"
+	// poolMain は、プールの設定を確かめるテストで使うプール ID。
+	poolMain = "main"
 	// envKeyTunerURL は、チューナーサーバーの URL を渡す環境変数。
 	envKeyTunerURL = "KOTATSU_TUNER_URL"
 	// leakedWord は、エラーに漏れてはいけない、URL に含めた資格情報の一部。
@@ -56,7 +58,7 @@ func defaultOIDC() config.OIDC {
 
 // noPools は、プールを設定していないときの Storage。
 func noPools() config.Storage {
-	return config.Storage{Pools: map[string]string{}}
+	return config.Storage{Pools: map[string]string{}, PoolOrder: []string{}}
 }
 
 func TestLoadPrecedence(t *testing.T) {
@@ -246,14 +248,15 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 		},
 		{
 			name: "storage pools in yaml",
-			yaml: "storage:\n  pools:\n    main: /mnt/main\n    sub-2: /mnt/sub\n",
+			// 書いた順を、ID の昇順ではなく、そのまま PoolOrder に残す。
+			yaml: "storage:\n  pools:\n    sub-2: /mnt/sub\n    main: /mnt/main\n",
 			env:  map[string]string{envKeyURL: envURL},
 			want: &config.Config{
 				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
-				Storage:  config.Storage{Pools: map[string]string{"main": "/mnt/main", "sub-2": "/mnt/sub"}},
+				Storage:  config.Storage{Pools: map[string]string{poolMain: "/mnt/main", "sub-2": "/mnt/sub"}, PoolOrder: []string{"sub-2", poolMain}},
 				Tuner:    config.Tuner{URL: ""},
 			},
 		},
@@ -269,8 +272,9 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
-				Storage:  config.Storage{Pools: map[string]string{"main": "/data/main", "archive": "/data/archive"}},
-				Tuner:    config.Tuner{URL: ""},
+				// 環境変数は設定ファイルの対応を丸ごと置き換えるので、順も環境変数に書いた順になる。
+				Storage: config.Storage{Pools: map[string]string{poolMain: "/data/main", "archive": "/data/archive"}, PoolOrder: []string{poolMain, "archive"}},
+				Tuner:   config.Tuner{URL: ""},
 			},
 		},
 		{

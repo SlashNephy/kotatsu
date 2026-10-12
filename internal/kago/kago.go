@@ -29,7 +29,9 @@ type FreeSpaceFunc func(path string) (uint64, error)
 
 // Store は、このロールから見えるプールのマウント先を持つ。
 type Store struct {
-	mounts    map[string]string
+	mounts map[string]string
+	// order は、設定に書いたプールの順。優先順位が同じプールは、この順に選ぶ。
+	order     []string
 	freeSpace FreeSpaceFunc
 }
 
@@ -43,19 +45,37 @@ var (
 )
 
 // New は Store を作る。mounts はプール ID からマウント先への対応 (config.Storage.Pools)。
+// プールの順は ID の昇順にする。設定に書いた順を使うなら NewOrdered を使う。
 // freeSpace が nil なら、ファイルシステムに問い合わせる FreeSpace を使う。
 func New(mounts map[string]string, freeSpace FreeSpaceFunc) *Store {
+	return NewOrdered(mounts, nil, freeSpace)
+}
+
+// NewOrdered は、プールの順を order (config.Storage.PoolOrder) にした Store を作る。
+// 優先順位が同じプールは、この順に選ぶ。order にないプールは、order にあるものの後に、ID の昇順で並べる。
+func NewOrdered(mounts map[string]string, order []string, freeSpace FreeSpaceFunc) *Store {
 	if freeSpace == nil {
 		freeSpace = FreeSpace
 	}
+	ordered := make([]string, 0, len(mounts))
+	for _, id := range order {
+		if _, ok := mounts[id]; ok && !slices.Contains(ordered, id) {
+			ordered = append(ordered, id)
+		}
+	}
+	for _, id := range slices.Sorted(maps.Keys(mounts)) {
+		if !slices.Contains(ordered, id) {
+			ordered = append(ordered, id)
+		}
+	}
 
 	// 呼び出し側が後から書き換えても影響しないよう、複製して持つ。
-	return &Store{mounts: maps.Clone(mounts), freeSpace: freeSpace}
+	return &Store{mounts: maps.Clone(mounts), order: ordered, freeSpace: freeSpace}
 }
 
-// PoolIDs は、このロールにマウントされているプールの ID を、昇順に返す。
+// PoolIDs は、このロールにマウントされているプールの ID を、プールの順に返す。
 func (s *Store) PoolIDs() []string {
-	return slices.Sorted(maps.Keys(s.mounts))
+	return slices.Clone(s.order)
 }
 
 // Path は、プール ID とプール内の相対パスから、このロールでのパスを返す。
@@ -87,13 +107,13 @@ func (s *Store) Open(poolID, rel string) (*os.File, error) {
 }
 
 // Select は、推定サイズ estimated (バイト) を書いても空き容量が閾値を下回らないプールのうち、
-// 優先順位が最も高いものを選ぶ。優先順位が同じなら ID の昇順で選ぶ。
+// 優先順位が最も高いものを選ぶ。優先順位が同じなら、プールの順 (設定に書いた順) で先のものを選ぶ。
 // このロールにマウントされていないプールと、空き容量を調べられなかったプールは選ばない。
 // どれも選べなければ ErrNoPoolFits を返す。
 func (s *Store) Select(pools []*Pool, estimated uint64) (*Pool, error) {
 	ordered := slices.Clone(pools)
 	slices.SortStableFunc(ordered, func(a, b *Pool) int {
-		return cmp.Or(cmp.Compare(b.Priority, a.Priority), cmp.Compare(a.ID, b.ID))
+		return cmp.Or(cmp.Compare(b.Priority, a.Priority), cmp.Compare(s.rank(a.ID), s.rank(b.ID)), cmp.Compare(a.ID, b.ID))
 	})
 
 	errs := []error{}
@@ -183,4 +203,13 @@ func (s *Store) Remove(poolID, rel string) error {
 	}
 
 	return nil
+}
+
+// rank は、プールの順での位置を返す。マウントされていないプールは、どれよりも後にする。
+func (s *Store) rank(id string) int {
+	if i := slices.Index(s.order, id); i >= 0 {
+		return i
+	}
+
+	return len(s.order)
 }

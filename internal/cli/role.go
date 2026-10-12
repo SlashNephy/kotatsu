@@ -257,7 +257,7 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 
 		return system.Recording, nil
 	}
-	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, kago.New(deps.Config.Storage.Pools, nil), defaults, location,
+	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), defaults, location,
 		logger.With(slog.String("component", "recorder")), nil)
 	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), &recording.WorkerOptions{
 		LeaseTTL: 0, RenewInterval: 0, AcquireInterval: 0, HandoverTimeout: 0, PollOnly: deps.Config.Database.Pooler, PollInterval: 0,
