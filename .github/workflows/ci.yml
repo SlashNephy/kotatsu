@@ -78,6 +78,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      # Go のモジュールとビルドのキャッシュ。変わっていないパッケージは、ビルドもテストも、前の結果を使う。
+      # go.sum が変わったら作り直し、それまでは前のキャッシュから始める。
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ github.job }}-${{ matrix.db }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-${{ github.job }}-${{ matrix.db }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-
+            go-${{ github.job }}-${{ matrix.db }}-${{ runner.os }}-
       - run: mise run build
       - run: mise run test
 
@@ -88,6 +99,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      # Go のモジュールとビルドのキャッシュ。変わっていないパッケージは、ビルドもテストも、前の結果を使う。
+      # go.sum が変わったら作り直し、それまでは前のキャッシュから始める。
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/.cache/golangci-lint
+          key: go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-
+            go-${{ github.job }}-${{ runner.os }}-
       - run: mise run lint
       - run: golangci-lint fmt --diff
       - run: go mod tidy -diff
@@ -128,6 +151,24 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      # Go のモジュールとビルドのキャッシュ。変わっていないパッケージは、ビルドもテストも、前の結果を使う。
+      # go.sum が変わったら作り直し、それまでは前のキャッシュから始める。
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-
+            go-${{ github.job }}-${{ runner.os }}-
+      # pnpm のストア。web/pnpm-lock.yaml が変わったら作り直す。
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
       - run: mise run generate
       # 生成物や未生成のマイグレーションがあれば、新しいファイルも含めて差分として検出する。
       - run: git add -N . && git diff --exit-code
@@ -141,6 +182,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      # pnpm のストア。web/pnpm-lock.yaml が変わったら作り直す。
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
       - run: mise run web:check
       - run: mise run web:test
       - run: mise run web:storybook

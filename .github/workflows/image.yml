@@ -56,8 +56,9 @@ jobs:
           platforms: linux/amd64
           load: true
           tags: kotatsu:smoke
+          # キャッシュは読むだけにする。amd64 だけのこのビルドが書くと、同じ scope の arm64 の層が消え、
+          # 後の amd64 と arm64 のビルドで、QEMU で動く arm64 の層を毎回作り直すことになる。
           cache-from: type=gha,scope=${{ matrix.target }}
-          cache-to: type=gha,scope=${{ matrix.target }},mode=max
       - name: Smoke test
         env:
           TARGET: ${{ matrix.target }}
