@@ -27,9 +27,7 @@ function NotificationSettingsPage() {
       <Anchor component={Link} to="/notifications" size="sm">
         {t('notifications.back')}
       </Anchor>
-      <Title order={2} size="h4">
-        {t('notifications.settingsTitle')}
-      </Title>
+      <Title order={2}>{t('notifications.settingsTitle')}</Title>
       <ErrorBoundary
         fallback={(error) =>
           isUnauthenticated(error) ? (

@@ -1,7 +1,6 @@
 {
   "app": {
-    "name": "Kotatsu",
-    "tagline": "テレビの予約、録画、視聴をまとめるアプリ"
+    "name": "Kotatsu"
   },
   "colorScheme": {
     "label": "テーマ",
@@ -65,9 +64,6 @@
   "viewer": {
     "loading": "読み込んでいます",
     "signedOut": "ログインしていません",
-    "greeting": "{{name}}さん、こんにちは",
-    "connecting": "サーバーにつないでいます",
-    "heartbeat": "サーバーの時刻: {{time}}",
     "error": "読み込めませんでした。時間をおいてやり直してください",
     "offline": "オフラインです。サーバーにつながると表示できます",
     "changePassword": "パスワードの変更"
@@ -243,7 +239,9 @@
     "notifications": "通知",
     "settings": "設定",
     "live": "ライブ",
-    "menu": "メニュー"
+    "menu": "メニュー",
+    "account": "アカウント",
+    "userMenu": "ユーザーのメニュー"
   },
   "guide": {
     "title": "番組表",

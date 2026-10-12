@@ -67,9 +67,7 @@ function AccountPage() {
       <Anchor component={Link} to="/settings" size="sm">
         {t('settings.back')}
       </Anchor>
-      <Title order={2} size="h4">
-        {t('settings.account.title')}
-      </Title>
+      <Title order={2}>{t('settings.account.title')}</Title>
       <ErrorBoundary
         fallback={(error) =>
           isUnauthenticated(error) ? (
@@ -240,9 +238,20 @@ function Account() {
         </Stack>
       </Fieldset>
 
-      <Anchor component={Link} to="/settings/password" size="sm">
-        {t('viewer.changePassword')}
-      </Anchor>
+      <Card withBorder>
+        <Group justify="space-between" wrap="wrap">
+          <Title order={3} size="h5">
+            {t('auth.password')}
+          </Title>
+          <Button
+            variant="default"
+            size="xs"
+            renderRoot={(props) => <Link {...props} to="/settings/password" />}
+          >
+            {t('viewer.changePassword')}
+          </Button>
+        </Group>
+      </Card>
     </Stack>
   );
 }
