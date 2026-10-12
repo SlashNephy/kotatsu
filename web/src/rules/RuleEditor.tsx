@@ -507,9 +507,14 @@ function TimeRangeRows({ rows, onChange }: TimeRangeRowsProps) {
 
   return (
     <Stack gap={6}>
-      <Text size="sm" fw={500}>
-        {t('rules.timeRanges')}
-      </Text>
+      <Stack gap={0}>
+        <Text size="sm" fw={500}>
+          {t('rules.timeRanges')}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {t('rules.timeRangesDescription')}
+        </Text>
+      </Stack>
       {rows.map((row, index) => (
         <Group key={index} gap="xs" wrap="wrap">
           <Chip.Group

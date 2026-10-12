@@ -159,10 +159,10 @@ func TestDeliverWorkerSendsSignedBody(t *testing.T) {
 				"startAt": "2026-10-10T12:30:00Z", "endAt": "2026-10-10T13:00:00Z"}}`
 		}},
 		{name: "Discord", format: webhook.FormatDiscord, want: func(uuid.UUID) string {
-			return `{"content": "予約が競合しています。チューナーが足りないので、録画できない見込みです: 10/10 (土) 21:30 NHK総合 こたつ特集"}`
+			return `{"content": "チューナーが足りず、録画できない見込みの予約があります。10/10（土）21:30 NHK総合「こたつ特集」"}`
 		}},
 		{name: "Slack", format: webhook.FormatSlack, want: func(uuid.UUID) string {
-			return `{"text": "予約が競合しています。チューナーが足りないので、録画できない見込みです: 10/10 (土) 21:30 NHK総合 こたつ特集"}`
+			return `{"text": "チューナーが足りず、録画できない見込みの予約があります。10/10（土）21:30 NHK総合「こたつ特集」"}`
 		}},
 	}
 	for _, tt := range tests {

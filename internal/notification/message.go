@@ -12,12 +12,13 @@ func Message(kind Kind, payload map[string]any, location *time.Location) string 
 		location = time.UTC
 	}
 	name, _ := payload["name"].(string)
+	// withName は、番組名があれば「番組名」の録画を…の形にし、なければ録画を…の形にする。
 	withName := func(text string) string {
 		if name == "" {
 			return text
 		}
 
-		return fmt.Sprintf("%s: %s", text, name)
+		return fmt.Sprintf("「%s」の%s", name, text)
 	}
 
 	switch kind {
@@ -28,9 +29,9 @@ func Message(kind Kind, payload map[string]any, location *time.Location) string 
 	case KindRecordingFailed:
 		return withName("録画に失敗しました")
 	case KindReservationConflict:
-		text := "予約が競合しています。チューナーが足りないので、録画できない見込みです"
+		text := "チューナーが足りず、録画できない見込みの予約があります"
 		if detail := conflictDetail(payload, location); detail != "" {
-			return fmt.Sprintf("%s: %s", text, detail)
+			return fmt.Sprintf("%s。%s", text, detail)
 		}
 
 		return text
@@ -43,22 +44,23 @@ func Message(kind Kind, payload map[string]any, location *time.Location) string 
 	}
 }
 
-// conflictDetail は、競合した予約を「1/2 (金) 21:00 NHK総合 番組名」の形にする。
+// conflictDetail は、競合した予約を「1/2（金）21:00 NHK総合「番組名」」の形にする。
 func conflictDetail(payload map[string]any, location *time.Location) string {
 	detail := ""
 	if raw, ok := payload["startAt"].(string); ok {
 		if startAt, err := time.Parse(time.RFC3339Nano, raw); err == nil {
 			local := startAt.In(location)
-			detail = fmt.Sprintf("%d/%d (%s) %s", local.Month(), local.Day(), weekdayName(local.Weekday()), local.Format("15:04"))
+			detail = fmt.Sprintf("%d/%d（%s）%s", local.Month(), local.Day(), weekdayName(local.Weekday()), local.Format("15:04"))
 		}
 	}
-	for _, key := range []string{"serviceName", "name"} {
-		if value, ok := payload[key].(string); ok && value != "" {
-			if detail != "" {
-				detail += " "
-			}
-			detail += value
+	if service, ok := payload["serviceName"].(string); ok && service != "" {
+		if detail != "" {
+			detail += " "
 		}
+		detail += service
+	}
+	if name, ok := payload["name"].(string); ok && name != "" {
+		detail += "「" + name + "」"
 	}
 
 	return detail

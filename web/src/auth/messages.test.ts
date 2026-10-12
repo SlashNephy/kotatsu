@@ -15,7 +15,7 @@ describe('authErrorMessage', () => {
     {
       name: '試行回数の制限の待ち時間',
       error: new AuthError(429, 'TOO_MANY_ATTEMPTS', undefined, 4),
-      want: '試行が多すぎます。4 秒ほど待ってからやり直してください',
+      want: '試行が多すぎます。4秒ほど待ってからやり直してください',
     },
     {
       name: '知っているエラーコード',
@@ -35,7 +35,7 @@ describe('authErrorMessage', () => {
     {
       name: 'パスキーを使えない接続',
       error: new AuthError(400, 'PASSKEY_UNAVAILABLE', undefined, undefined),
-      want: 'パスキーは、HTTPS か localhost で、IP アドレスではなくドメイン名で接続したときだけ使えます',
+      want: 'パスキーは、HTTPSかlocalhostで、IPアドレスではなくドメイン名で接続したときだけ使えます',
     },
     {
       name: '確かめられなかったパスキー',
@@ -55,12 +55,12 @@ describe('authErrorMessage', () => {
     {
       name: 'IdP に届かず、ログインを始められない',
       error: new AuthError(503, 'OIDC_UNAVAILABLE', undefined, undefined),
-      want: 'IdP に接続できませんでした。時間をおいてやり直してください',
+      want: 'IdPに接続できませんでした。時間をおいてやり直してください',
     },
     {
       name: 'IdP と紐付いていないユーザーの再認証',
       error: new AuthError(409, 'OIDC_NOT_LINKED', undefined, undefined),
-      want: 'このユーザーは IdP と紐付いていないので、IdP では確かめられません',
+      want: 'このユーザーはIdPと紐付いていないので、IdPでは確かめられません',
     },
     {
       name: 'パスキーの確認の取り消し',
@@ -82,7 +82,7 @@ describe('oidcErrorMessage', () => {
     {
       name: '紐付けたユーザーがいない',
       reason: 'oidc_denied',
-      want: 'このアカウントでは Kotatsu にログインできません。管理者にお問い合わせください',
+      want: 'このアカウントではKotatsuにログインできません。管理者にお問い合わせください',
     },
     {
       name: '期限切れ',
@@ -102,12 +102,12 @@ describe('oidcErrorMessage', () => {
     {
       name: 'IdP に届かない',
       reason: 'oidc_unavailable',
-      want: 'IdP に接続できませんでした。時間をおいてやり直してください',
+      want: 'IdPに接続できませんでした。時間をおいてやり直してください',
     },
     {
       name: 'IdP が、もう一度認証させなかった',
       reason: 'oidc_reauth_stale',
-      want: 'IdP で、もう一度認証したことを確かめられませんでした。IdP にもう一度ログインしてから、やり直してください',
+      want: 'IdPで、もう一度認証したことを確かめられませんでした。IdPにもう一度ログインしてから、やり直してください',
     },
     {
       name: 'ログイン中のユーザーと違うアカウントでの再認証',

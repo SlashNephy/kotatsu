@@ -219,6 +219,7 @@ function Search() {
           <Group align="flex-end" wrap="wrap">
             <TextInput
               label={t('search.keyword')}
+              description={t('search.keywordDescription')}
               placeholder={t('search.keywordPlaceholder')}
               value={form.keyword}
               onChange={(e) => update({ keyword: e.currentTarget.value })}
