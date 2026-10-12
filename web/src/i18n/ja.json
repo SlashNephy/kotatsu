@@ -360,11 +360,8 @@
     "disabled": "無効",
     "enabled": "予約を有効にする",
     "delete": "削除",
-    "disable": "無効にする",
     "deleteTitle": "予約を削除",
     "deleteDescription": "この予約を削除します。録画は行いません。",
-    "disableTitle": "ルール予約を無効にする",
-    "disableDescription": "ルール予約は、削除しても次の照合でまた作られるので、無効にします。録画は行いません。有効に戻すこともできます。",
     "deleteError": "操作できませんでした。時間をおいてやり直してください",
     "cancel": "キャンセル",
     "more": "さらに読み込む",
@@ -437,7 +434,13 @@
       "more": "ほかにも一致する番組があります"
     },
     "caseSensitive": "大文字と小文字を区別",
-    "timeRangesDescription": "番組の開始時刻が、どれかの時間帯に入る番組を対象にします"
+    "timeRangesDescription": "番組の開始時刻が、どれかの時間帯に入る番組を対象にします",
+    "section": {
+      "basic": "基本",
+      "keywords": "キーワード",
+      "targets": "対象の番組",
+      "recording": "予約のしかた"
+    }
   },
   "recordings": {
     "title": "録画",
@@ -585,7 +588,7 @@
     "saved": "保存しました",
     "system": {
       "title": "システムの状態",
-      "summary": "インスタンス、チューナー、保存先プール、チャンネル種別の表示を確かめ、変えます",
+      "summary": "チューナーサーバー、チューナー、インスタンスの状態を確かめ、保存先プールを変えます",
       "refresh": "読み直す",
       "tunerServer": "チューナーサーバー",
       "tunerServerUnchecked": "まだ確かめていません",
@@ -730,6 +733,10 @@
       "archiveRetentionHelp": "放送が終わった番組を、番組表と検索に残す日数です。0なら無期限に残します",
       "updatedAt": "最終更新 {{at}}",
       "neverUpdated": "まだ変えていません"
+    },
+    "channels": {
+      "title": "チャンネルの表示",
+      "summary": "チャンネル種別の表示名と、番組表とライブに出すチャンネルと並び順を変えます"
     }
   }
 }

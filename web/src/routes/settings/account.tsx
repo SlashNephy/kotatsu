@@ -25,6 +25,7 @@ import { renderSVG } from 'uqr';
 import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
 import { PasskeyCancelledError, passkeyAvailable, registerPasskey } from '../../auth/passkey';
+import { deviceName } from '../../settings/device';
 import { ErrorBoundary } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { mutate } from '../../settings/mutate';
@@ -192,8 +193,9 @@ function Account() {
                 >
                   <Stack gap={0} miw={0} flex={1}>
                     <Group gap="xs">
-                      <Text size="sm" truncate>
-                        {session.userAgent || t('settings.account.unknownDevice')}
+                      <Text size="sm" truncate title={session.userAgent}>
+                        {deviceName(session.userAgent) ??
+                          (session.userAgent || t('settings.account.unknownDevice'))}
                       </Text>
                       {session.current && (
                         <Badge size="xs" variant="light">

@@ -406,14 +406,6 @@ function Player({ recordingId }: { recordingId: string }) {
       <Text size="sm" c="dimmed">
         {recording.service.name}
       </Text>
-      <Group justify="flex-end" gap="md">
-        <PlayerTools frameRef={playerBoxRef} videoRef={videoRef} name={recording.name} pip={pip} />
-        {audio.menu}
-        <RateSelect value={rate} onChange={setRate} />
-        {channel !== null && <JikkyoToggle checked={jikkyoEnabled} onChange={setJikkyoEnabled} />}
-        <CaptionsToggle checked={captions} onChange={setCaptions} />
-        <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
-      </Group>
       <PlaybackUnavailable route={route} />
       <div ref={frameRef}>
         {pip.container === null ? (
@@ -461,6 +453,15 @@ function Player({ recordingId }: { recordingId: string }) {
         <Text size="sm" ff="monospace" style={{ flexShrink: 0 }}>
           {formatDuration(shown)} / {formatDuration(duration)}
         </Text>
+      </Group>
+      {/* 再生の操作の下に、画質や字幕などの設定をまとめる。狭い画面でも、まず映像が見えるようにする。 */}
+      <Group gap="md">
+        <PlayerTools frameRef={playerBoxRef} videoRef={videoRef} name={recording.name} pip={pip} />
+        {audio.menu}
+        <RateSelect value={rate} onChange={setRate} />
+        {channel !== null && <JikkyoToggle checked={jikkyoEnabled} onChange={setJikkyoEnabled} />}
+        <CaptionsToggle checked={captions} onChange={setCaptions} />
+        <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
       </Group>
       {resumed && (
         <Group gap="xs">

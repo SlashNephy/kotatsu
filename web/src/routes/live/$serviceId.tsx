@@ -363,18 +363,7 @@ function Live({
       <Text size="sm" c="dimmed">
         {data.guide[0]?.programs[0]?.name ?? t('live.noProgram')}
       </Text>
-      <Group justify="flex-end" gap="md">
-        <PlayerTools frameRef={playerBoxRef} videoRef={videoRef} name={service.name} pip={pip} />
-        {audio.menu}
-        {channel !== null && <JikkyoToggle checked={jikkyoEnabled} onChange={setJikkyoEnabled} />}
-        <DataBroadcastToggle checked={dataBroadcastEnabled} onChange={setDataBroadcastEnabled} />
-        <CaptionsToggle checked={captions} onChange={setCaptions} />
-        <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
-      </Group>
       <PlaybackUnavailable route={route} />
-      {dataBroadcastEnabled && (
-        <DataBroadcastRemote state={dataBroadcast.state} onPress={dataBroadcast.press} />
-      )}
       {/* 画面の外に出たときと、タブが隠れたときは、読み込みも止めて、チューナーを手放す (設計書 7.2)。 */}
       <div ref={frameRef}>
         {pip.container === null ? (
@@ -386,9 +375,6 @@ function Live({
         )}
       </div>
       {pip.container !== null && createPortal(playerBox, pip.container)}
-      {channel !== null && jikkyoEnabled && (
-        <JikkyoPanel channelName={channel.name} status={jikkyo.status} onPost={jikkyo.post} />
-      )}
       {!visible && (
         <Text size="sm" c="dimmed">
           {t('live.paused')}
@@ -413,6 +399,21 @@ function Live({
             </Text>
           </Stack>
         </Alert>
+      )}
+      {/* 操作は映像の下にまとめる。狭い画面でも、まず映像が見えるようにする。 */}
+      <Group gap="md">
+        <PlayerTools frameRef={playerBoxRef} videoRef={videoRef} name={service.name} pip={pip} />
+        {audio.menu}
+        {channel !== null && <JikkyoToggle checked={jikkyoEnabled} onChange={setJikkyoEnabled} />}
+        <DataBroadcastToggle checked={dataBroadcastEnabled} onChange={setDataBroadcastEnabled} />
+        <CaptionsToggle checked={captions} onChange={setCaptions} />
+        <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
+      </Group>
+      {dataBroadcastEnabled && (
+        <DataBroadcastRemote state={dataBroadcast.state} onPress={dataBroadcast.press} />
+      )}
+      {channel !== null && jikkyoEnabled && (
+        <JikkyoPanel channelName={channel.name} status={jikkyo.status} onPost={jikkyo.post} />
       )}
     </Stack>
   );
