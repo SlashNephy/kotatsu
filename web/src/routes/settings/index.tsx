@@ -87,6 +87,11 @@ function AdminLinks() {
             body: t('admin.settings.summary'),
           },
           {
+            to: '/admin/channels',
+            title: t('admin.channels.title'),
+            body: t('admin.channels.summary'),
+          },
+          {
             to: '/admin/system',
             title: t('admin.system.title'),
             body: t('admin.system.summary'),

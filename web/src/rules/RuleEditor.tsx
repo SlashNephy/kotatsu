@@ -1,4 +1,6 @@
 import {
+  Title,
+  Box,
   ActionIcon,
   Alert,
   Button,
@@ -24,6 +26,7 @@ import { graphql, useMutation } from 'react-relay';
 
 import { genreKey } from '../guide/genres';
 import { decodeGenre, encodeGenre } from '../guide/guideView';
+import classes from './RuleEditor.module.css';
 import type { RuleEditorCreateMutation } from './__generated__/RuleEditorCreateMutation.graphql';
 import type { RuleEditorDeleteMutation } from './__generated__/RuleEditorDeleteMutation.graphql';
 import type { RuleEditorUpdateMutation } from './__generated__/RuleEditorUpdateMutation.graphql';
@@ -172,6 +175,9 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
             <Stack>
               <Card withBorder>
                 <Stack gap="sm">
+                  <Title order={3} size="h5">
+                    {t('rules.section.basic')}
+                  </Title>
                   <TextInput
                     label={t('rules.name')}
                     value={form.name}
@@ -196,6 +202,9 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
               </Card>
               <Card withBorder>
                 <Stack gap="sm">
+                  <Title order={3} size="h5">
+                    {t('rules.section.keywords')}
+                  </Title>
                   <KeywordRows
                     label={t('rules.keywords')}
                     description={t('rules.keywordsDescription')}
@@ -212,6 +221,9 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
               </Card>
               <Card withBorder>
                 <Stack gap="sm">
+                  <Title order={3} size="h5">
+                    {t('rules.section.targets')}
+                  </Title>
                   <MultiSelect
                     label={t('rules.channelTypes')}
                     description={t('rules.channelTypesDescription')}
@@ -283,6 +295,9 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
               </Card>
               <Card withBorder>
                 <Stack gap="sm">
+                  <Title order={3} size="h5">
+                    {t('rules.section.recording')}
+                  </Title>
                   <Group align="flex-end">
                     <Switch
                       label={t('rules.avoidDuplicates')}
@@ -314,7 +329,7 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
                   <NumberInput
                     label={t('rules.priority')}
                     description={t('rules.priorityDescription')}
-                    w={200}
+                    maw={360}
                     value={form.settings.priority ?? ''}
                     onChange={(value) =>
                       set({
@@ -369,7 +384,10 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
         </form>
       </Grid.Col>
       <Grid.Col span={{ base: 12, md: 5 }}>
-        <RulePreview input={input} enabled={conditionsGiven} />
+        {/* 広い画面では、条件を変えながら結果を見られるよう、プレビューをスクロールしても見える位置に留める。 */}
+        <Box className={classes.preview}>
+          <RulePreview input={input} enabled={conditionsGiven} />
+        </Box>
       </Grid.Col>
       {deleting && ruleId !== undefined && (
         <Modal opened onClose={() => setDeleting(false)} title={t('rules.deleteTitle')}>

@@ -1,0 +1,7 @@
+/* ヘッダー (64px) の下に留める。狭い画面では、フォームの下に並ぶので留めない。 */
+@media (min-width: 62em) {
+  .preview {
+    position: sticky;
+    top: calc(64px + var(--mantine-spacing-md));
+  }
+}

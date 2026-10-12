@@ -187,7 +187,7 @@ function SystemSettings() {
               </Text>
               <Select
                 size="xs"
-                maw={320}
+                maw={480}
                 label={t('admin.settings.pool')}
                 description={t('admin.settings.poolHelp')}
                 allowDeselect={false}
@@ -231,7 +231,7 @@ function SystemSettings() {
               </Group>
               <NumberInput
                 size="xs"
-                maw={320}
+                maw={480}
                 label={t('admin.settings.priority')}
                 description={t('admin.settings.priorityHelp')}
                 min={-10}
@@ -250,7 +250,7 @@ function SystemSettings() {
               </Title>
               <NumberInput
                 size="xs"
-                maw={320}
+                maw={480}
                 label={t('admin.settings.archiveRetentionDays')}
                 description={t('admin.settings.archiveRetentionHelp')}
                 min={0}

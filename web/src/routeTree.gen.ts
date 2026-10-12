@@ -15,6 +15,7 @@ import { Route as ReservationsRouteImport } from './routes/reservations'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as AdminAuditRouteImport } from './routes/admin/audit'
+import { Route as AdminChannelsRouteImport } from './routes/admin/channels'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
 import { Route as AdminSystemRouteImport } from './routes/admin/system'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
@@ -63,6 +64,11 @@ const SetupRoute = SetupRouteImport.update({
 const AdminAuditRoute = AdminAuditRouteImport.update({
   id: '/admin/audit',
   path: '/admin/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminChannelsRoute = AdminChannelsRouteImport.update({
+  id: '/admin/channels',
+  path: '/admin/channels',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
@@ -169,6 +175,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/channels': typeof AdminChannelsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/system': typeof AdminSystemRoute
   '/admin/users': typeof AdminUsersRoute
@@ -196,6 +203,7 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/channels': typeof AdminChannelsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/system': typeof AdminSystemRoute
   '/admin/users': typeof AdminUsersRoute
@@ -224,6 +232,7 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/channels': typeof AdminChannelsRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/system': typeof AdminSystemRoute
   '/admin/users': typeof AdminUsersRoute
@@ -253,6 +262,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/setup'
     | '/admin/audit'
+    | '/admin/channels'
     | '/admin/settings'
     | '/admin/system'
     | '/admin/users'
@@ -280,6 +290,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/setup'
     | '/admin/audit'
+    | '/admin/channels'
     | '/admin/settings'
     | '/admin/system'
     | '/admin/users'
@@ -307,6 +318,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/setup'
     | '/admin/audit'
+    | '/admin/channels'
     | '/admin/settings'
     | '/admin/system'
     | '/admin/users'
@@ -335,6 +347,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SetupRoute: typeof SetupRoute
   AdminAuditRoute: typeof AdminAuditRoute
+  AdminChannelsRoute: typeof AdminChannelsRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
   AdminSystemRoute: typeof AdminSystemRoute
   AdminUsersRoute: typeof AdminUsersRoute
@@ -398,6 +411,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/audit'
       fullPath: '/admin/audit'
       preLoaderRoute: typeof AdminAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/channels': {
+      id: '/admin/channels'
+      path: '/admin/channels'
+      fullPath: '/admin/channels'
+      preLoaderRoute: typeof AdminChannelsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/settings': {
@@ -543,6 +563,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SetupRoute: SetupRoute,
   AdminAuditRoute: AdminAuditRoute,
+  AdminChannelsRoute: AdminChannelsRoute,
   AdminSettingsRoute: AdminSettingsRoute,
   AdminSystemRoute: AdminSystemRoute,
   AdminUsersRoute: AdminUsersRoute,

@@ -386,12 +386,15 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
                 });
               }}
             />
-            {/* ルール予約は、消しても次の照合でまた作られるので、無効にする (設計書 4.3)。 */}
-            {(reservation.kind !== 'RULE' || reservation.enabled) && (
-              <Button size="xs" variant="subtle" color="red" onClick={onDelete}>
-                {reservation.kind === 'RULE' ? t('reservations.disable') : t('reservations.delete')}
-              </Button>
-            )}
+            {/* ルール予約は、消しても次の照合でまた作られるので、消さずに左のスイッチで無効にする (設計書 4.3)。 */}
+            {/* 削除のない行でもスイッチの位置がそろうよう、削除の場所は空けておく。 */}
+            <Box w={56}>
+              {reservation.kind !== 'RULE' && (
+                <Button size="xs" variant="subtle" color="red" onClick={onDelete}>
+                  {t('reservations.delete')}
+                </Button>
+              )}
+            </Box>
           </Group>
         )}
       </Group>
@@ -447,20 +450,14 @@ function DeleteDialog({ reservation, onClose, onDeleted }: DeleteProps) {
       }
     }
   `);
-  const isRule = reservation.kind === 'RULE';
-
   return (
-    <Modal
-      opened
-      onClose={onClose}
-      title={isRule ? t('reservations.disableTitle') : t('reservations.deleteTitle')}
-    >
+    <Modal opened onClose={onClose} title={t('reservations.deleteTitle')}>
       <Stack>
         <Text size="sm">
           {reservation.name === '' ? t('reservations.untitled') : reservation.name}
         </Text>
         <Text size="sm" c="dimmed">
-          {isRule ? t('reservations.disableDescription') : t('reservations.deleteDescription')}
+          {t('reservations.deleteDescription')}
         </Text>
         {error && (
           <Alert color="red" role="alert">
@@ -485,7 +482,7 @@ function DeleteDialog({ reservation, onClose, onDeleted }: DeleteProps) {
               })
             }
           >
-            {isRule ? t('reservations.disable') : t('reservations.delete')}
+            {t('reservations.delete')}
           </Button>
         </Group>
       </Stack>

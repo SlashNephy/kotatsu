@@ -5,12 +5,9 @@ import {
   Card,
   Group,
   NumberInput,
-  ScrollArea,
   Stack,
-  Switch,
   Table,
   Text,
-  TextInput,
   Title,
 } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
@@ -24,9 +21,7 @@ import { settingsErrorMessage } from '../../settings/errors';
 import { formatBytes } from '../../futon';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
-import type { systemChannelTypeMutation } from './__generated__/systemChannelTypeMutation.graphql';
 import type { systemPoolMutation } from './__generated__/systemPoolMutation.graphql';
-import type { systemServiceMutation } from './__generated__/systemServiceMutation.graphql';
 import type { systemQuery } from './__generated__/systemQuery.graphql';
 
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '' };
@@ -50,7 +45,8 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
 
 const formatTime = (time: string) => dateTimeFormat.format(Date.parse(time));
 
-// SystemPage は、システムの状態を見て、保存先プールとチャンネル種別の表示を変える、管理者向けの画面 (設計書 10.3)。
+// SystemPage は、システムの状態を見て、保存先プールを変える、管理者向けの画面 (設計書 10.3)。
+// チャンネル種別とチャンネルの表示は、チャンネルの表示の画面 (/admin/channels) で変える。
 function SystemPage() {
   const { t } = useTranslation();
 
@@ -100,20 +96,6 @@ const query = graphql`
         priority
         minFreeBytes
         freeBytes
-      }
-    }
-    channelTypes {
-      type
-      displayName
-      sortOrder
-    }
-    services(includeHidden: true) {
-      id
-      name
-      hidden
-      sortOrder
-      channelType {
-        displayName
       }
     }
     secondFactors {
@@ -332,67 +314,6 @@ function SystemStatus() {
           ))
         )}
       </Section>
-
-      <Section title={t('admin.system.channelTypes')}>
-        {data.channelTypes.map((channelType) => (
-          <ChannelTypeEditor
-            key={`${channelType.type}/${channelType.displayName}/${channelType.sortOrder}`}
-            channelType={channelType}
-            onSave={(input) =>
-              gate.run(async () => {
-                await mutate<systemChannelTypeMutation>(
-                  environment,
-                  graphql`
-                    mutation systemChannelTypeMutation($type: String!, $input: ChannelTypeInput!) {
-                      updateChannelType(type: $type, input: $input) {
-                        type
-                        displayName
-                        sortOrder
-                      }
-                    }
-                  `,
-                  { type: channelType.type, input },
-                );
-                done();
-              }, fail)
-            }
-          />
-        ))}
-      </Section>
-
-      <Section title={t('admin.system.services')}>
-        <Text size="sm" c="dimmed">
-          {t('admin.system.servicesDescription')}
-        </Text>
-        <ScrollArea.Autosize mah={480}>
-          <Stack gap="xs">
-            {data.services.map((service) => (
-              <ServiceEditor
-                key={`${service.id}/${service.hidden}/${service.sortOrder}`}
-                service={service}
-                onSave={(input) =>
-                  gate.run(async () => {
-                    await mutate<systemServiceMutation>(
-                      environment,
-                      graphql`
-                        mutation systemServiceMutation($id: ID!, $input: ServiceInput!) {
-                          updateService(id: $id, input: $input) {
-                            id
-                            hidden
-                            sortOrder
-                          }
-                        }
-                      `,
-                      { id: service.id, input },
-                    );
-                    done();
-                  }, fail)
-                }
-              />
-            ))}
-          </Stack>
-        </ScrollArea.Autosize>
-      </Section>
     </Stack>
   );
 }
@@ -482,7 +403,7 @@ function PoolEditor({
       <Group gap="xs" align="flex-end">
         <NumberInput
           size="xs"
-          w={140}
+          w={240}
           label={t('admin.system.poolPriority')}
           description={t('admin.system.poolPriorityDescription')}
           min={-1000}
@@ -493,7 +414,7 @@ function PoolEditor({
         />
         <NumberInput
           size="xs"
-          w={200}
+          w={320}
           label={t('admin.system.poolMinFree')}
           description={t('admin.system.poolMinFreeDescription')}
           min={0}
@@ -519,112 +440,3 @@ function PoolEditor({
 }
 
 // ChannelTypeEditor は、チャンネル種別の表示名と並び順を変える。
-// ServiceEditor は、サービスの、番組表に出さない印と並び順の上書きを変える行。
-// 並び順を空にして保存すると、上書きを消して、リモコンのキーの順に戻す。
-function ServiceEditor({
-  service,
-  onSave,
-}: {
-  service: {
-    name: string;
-    hidden: boolean;
-    sortOrder: number | null | undefined;
-    channelType: { displayName: string };
-  };
-  onSave: (input: { hidden: boolean; sortOrder?: number; resetSortOrder: boolean }) => void;
-}) {
-  const { t } = useTranslation();
-  const [hidden, setHidden] = useState(service.hidden);
-  const [sortOrder, setSortOrder] = useState<number | string>(service.sortOrder ?? '');
-  const order = typeof sortOrder === 'number' ? sortOrder : null;
-
-  return (
-    <Group gap="xs" align="flex-end">
-      <Stack gap={0} w={200} pb={4}>
-        <Text size="sm" fw={600} truncate>
-          {service.name}
-        </Text>
-        <Text size="xs" c="dimmed">
-          {service.channelType.displayName}
-        </Text>
-      </Stack>
-      <Switch
-        size="sm"
-        pb={6}
-        label={t('admin.system.serviceHidden')}
-        checked={hidden}
-        onChange={(event) => setHidden(event.currentTarget.checked)}
-      />
-      <NumberInput
-        size="xs"
-        w={120}
-        label={t('admin.system.serviceOrder')}
-        placeholder={t('admin.system.serviceOrderDefault')}
-        min={0}
-        max={10000}
-        allowDecimal={false}
-        value={sortOrder}
-        onChange={setSortOrder}
-      />
-      <Button
-        size="compact-sm"
-        mb={2}
-        onClick={() =>
-          onSave(
-            order === null
-              ? { hidden, resetSortOrder: true }
-              : { hidden, sortOrder: order, resetSortOrder: false },
-          )
-        }
-      >
-        {t('admin.save')}
-      </Button>
-    </Group>
-  );
-}
-
-function ChannelTypeEditor({
-  channelType,
-  onSave,
-}: {
-  channelType: { type: string; displayName: string; sortOrder: number };
-  onSave: (input: { displayName: string; sortOrder: number }) => void;
-}) {
-  const { t } = useTranslation();
-  const [displayName, setDisplayName] = useState(channelType.displayName);
-  const [sortOrder, setSortOrder] = useState<number | string>(channelType.sortOrder);
-  const name = displayName.trim();
-
-  return (
-    <Group gap="xs" align="flex-end" data-channel-type={channelType.type}>
-      <Text fw={600} w={48} pb={4}>
-        {channelType.type}
-      </Text>
-      <TextInput
-        size="xs"
-        w={160}
-        label={t('admin.system.channelTypeName')}
-        maxLength={32}
-        value={displayName}
-        onChange={(event) => setDisplayName(event.currentTarget.value)}
-      />
-      <NumberInput
-        size="xs"
-        w={120}
-        label={t('admin.system.channelTypeOrder')}
-        min={0}
-        max={10000}
-        allowDecimal={false}
-        value={sortOrder}
-        onChange={setSortOrder}
-      />
-      <Button
-        size="compact-sm"
-        disabled={name === '' || typeof sortOrder !== 'number'}
-        onClick={() => onSave({ displayName: name, sortOrder: Number(sortOrder) })}
-      >
-        {t('admin.save')}
-      </Button>
-    </Group>
-  );
-}
