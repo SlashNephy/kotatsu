@@ -168,6 +168,7 @@ overrides:
   vitest: 5.0.3
 
 patchedDependencies:
+  '@zxcvbn-ts/core@4.2.0': 55093b2ff1f30aaf4eb02b38fcb940a02333d1ed2ff7fe41c00c39c3cb8b5849
   css@3.0.0: 91d4ce19635456352d86abdf1516538963987ad42e881a4397501254ebdf4281
   web-bml@1.0.1: 0a0e017dce273418311de4fbba65cad52b478ec7315d19c3835e2ea01f70b7af
 
@@ -204,7 +205,7 @@ importers:
         version: 0.4.1
       '@zxcvbn-ts/core':
         specifier: 4.2.0
-        version: 4.2.0
+        version: 4.2.0(patch_hash=55093b2ff1f30aaf4eb02b38fcb940a02333d1ed2ff7fe41c00c39c3cb8b5849)
       '@zxcvbn-ts/language-common':
         specifier: 4.1.3
         version: 4.1.3
@@ -6497,7 +6498,7 @@ snapshots:
 
   '@yuku-toolchain/types@0.9.5': {}
 
-  '@zxcvbn-ts/core@4.2.0':
+  '@zxcvbn-ts/core@4.2.0(patch_hash=55093b2ff1f30aaf4eb02b38fcb940a02333d1ed2ff7fe41c00c39c3cb8b5849)':
     dependencies:
       fastest-levenshtein: 1.0.16
 

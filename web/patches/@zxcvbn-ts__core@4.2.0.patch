@@ -1,0 +1,210 @@
+diff --git a/dist/matcher/dictionary/matching.cjs b/dist/matcher/dictionary/matching.cjs
+index 04c3b081316b241dc1080be2d68a2f17700bc630..2d8afa47f05855255be88a27b9e9d820cd9303c5 100644
+--- a/dist/matcher/dictionary/matching.cjs
++++ b/dist/matcher/dictionary/matching.cjs
+@@ -30,7 +30,9 @@ class MatchDictionary extends types.MatcherBaseClass {
+   match({
+     password,
+     userInputsOptions,
+-    useLevenshtein = true
++    useLevenshtein = true,
++    changes,
++    rankCache
+   }) {
+     const matches = [];
+     const passwordLength = password.length;
+@@ -41,6 +43,21 @@ class MatchDictionary extends types.MatcherBaseClass {
+     } = this.getRangedDictionaries(userInputsOptions);
+     const dictionaryNames = Object.keys(rankedDictionaries);
+     const maxSearchWidth = Math.max(0, ...Object.values(rankedDictionariesMaxWordSize));
++    // kotatsu: l33t の候補では、読み替えた文字を含まない窓の一致は捨てられるので、走査しない (結果は変わらない)。
++    // changedBefore[k] は、k 文字目より前の読み替えた文字の数。
++    let changedBefore;
++    if (changes) {
++      changedBefore = new Int32Array(passwordLength + 1);
++      const changed = new Uint8Array(passwordLength);
++      changes.forEach(change => {
++        for (let k = change.i; k < change.i + change.letter.length && k < passwordLength; k += 1) {
++          changed[k] = 1;
++        }
++      });
++      for (let k = 0; k < passwordLength; k += 1) {
++        changedBefore[k + 1] = changedBefore[k] + changed[k];
++      }
++    }
+     for (let i = 0; i < passwordLength; i += 1) {
+       for (let j = i; j < passwordLength; j += 1) {
+         const isFullPassword = i === 0 && j === passwordLength - 1;
+@@ -49,7 +66,43 @@ class MatchDictionary extends types.MatcherBaseClass {
+         if (j - i + 1 > maxSearchWidth && !isFullPassword) {
+           break;
+         }
++        if (changedBefore && !isFullPassword && changedBefore[j + 1] === changedBefore[i]) {
++          continue;
++        }
+         const usedPassword = passwordLower.slice(i, j + 1);
++        // kotatsu: l33t の候補の間で、同じ部分文字列の辞書の引き当てを使い回し、一致した辞書だけを見る。
++        // 辞書の語の最大の長さは辞書の語から求めるので、一致した辞書の長さの上限を超えることはない。
++        // レーベンシュタイン距離を調べる場合は、すべての辞書を見る必要があるので、使い回さない。
++        if (rankCache && !(this.options.useLevenshteinDistance && isFullPassword && useLevenshtein)) {
++          let hits = rankCache.get(usedPassword);
++          if (hits === undefined) {
++            hits = [];
++            for (const dictionaryName of dictionaryNames) {
++              const rank = rankedDictionaries[dictionaryName][usedPassword];
++              if (rank !== undefined) {
++                hits.push({
++                  dictionaryName,
++                  rank
++                });
++              }
++            }
++            rankCache.set(usedPassword, hits);
++          }
++          for (const hit of hits) {
++            matches.push({
++              pattern: 'dictionary',
++              i,
++              j,
++              token: password.slice(i, j + 1),
++              matchedWord: usedPassword,
++              rank: hit.rank,
++              dictionaryName: hit.dictionaryName,
++              reversed: false,
++              l33t: false
++            });
++          }
++          continue;
++        }
+         for (const dictionaryName of dictionaryNames) {
+           const rankedDict = rankedDictionaries[dictionaryName];
+           if (j - i + 1 > rankedDictionariesMaxWordSize[dictionaryName] && !isFullPassword) {
+diff --git a/dist/matcher/dictionary/matching.mjs b/dist/matcher/dictionary/matching.mjs
+index 1c65989c60d213b014dea71eadcdb2091366a8aa..8787a3d1283c49755f976b09f7b1d83d42788d74 100644
+--- a/dist/matcher/dictionary/matching.mjs
++++ b/dist/matcher/dictionary/matching.mjs
+@@ -28,7 +28,9 @@ class MatchDictionary extends MatcherBaseClass {
+   match({
+     password,
+     userInputsOptions,
+-    useLevenshtein = true
++    useLevenshtein = true,
++    changes,
++    rankCache
+   }) {
+     const matches = [];
+     const passwordLength = password.length;
+@@ -39,6 +41,21 @@ class MatchDictionary extends MatcherBaseClass {
+     } = this.getRangedDictionaries(userInputsOptions);
+     const dictionaryNames = Object.keys(rankedDictionaries);
+     const maxSearchWidth = Math.max(0, ...Object.values(rankedDictionariesMaxWordSize));
++    // kotatsu: l33t の候補では、読み替えた文字を含まない窓の一致は捨てられるので、走査しない (結果は変わらない)。
++    // changedBefore[k] は、k 文字目より前の読み替えた文字の数。
++    let changedBefore;
++    if (changes) {
++      changedBefore = new Int32Array(passwordLength + 1);
++      const changed = new Uint8Array(passwordLength);
++      changes.forEach(change => {
++        for (let k = change.i; k < change.i + change.letter.length && k < passwordLength; k += 1) {
++          changed[k] = 1;
++        }
++      });
++      for (let k = 0; k < passwordLength; k += 1) {
++        changedBefore[k + 1] = changedBefore[k] + changed[k];
++      }
++    }
+     for (let i = 0; i < passwordLength; i += 1) {
+       for (let j = i; j < passwordLength; j += 1) {
+         const isFullPassword = i === 0 && j === passwordLength - 1;
+@@ -47,7 +64,43 @@ class MatchDictionary extends MatcherBaseClass {
+         if (j - i + 1 > maxSearchWidth && !isFullPassword) {
+           break;
+         }
++        if (changedBefore && !isFullPassword && changedBefore[j + 1] === changedBefore[i]) {
++          continue;
++        }
+         const usedPassword = passwordLower.slice(i, j + 1);
++        // kotatsu: l33t の候補の間で、同じ部分文字列の辞書の引き当てを使い回し、一致した辞書だけを見る。
++        // 辞書の語の最大の長さは辞書の語から求めるので、一致した辞書の長さの上限を超えることはない。
++        // レーベンシュタイン距離を調べる場合は、すべての辞書を見る必要があるので、使い回さない。
++        if (rankCache && !(this.options.useLevenshteinDistance && isFullPassword && useLevenshtein)) {
++          let hits = rankCache.get(usedPassword);
++          if (hits === undefined) {
++            hits = [];
++            for (const dictionaryName of dictionaryNames) {
++              const rank = rankedDictionaries[dictionaryName][usedPassword];
++              if (rank !== undefined) {
++                hits.push({
++                  dictionaryName,
++                  rank
++                });
++              }
++            }
++            rankCache.set(usedPassword, hits);
++          }
++          for (const hit of hits) {
++            matches.push({
++              pattern: 'dictionary',
++              i,
++              j,
++              token: password.slice(i, j + 1),
++              matchedWord: usedPassword,
++              rank: hit.rank,
++              dictionaryName: hit.dictionaryName,
++              reversed: false,
++              l33t: false
++            });
++          }
++          continue;
++        }
+         for (const dictionaryName of dictionaryNames) {
+           const rankedDict = rankedDictionaries[dictionaryName];
+           if (j - i + 1 > rankedDictionariesMaxWordSize[dictionaryName] && !isFullPassword) {
+diff --git a/dist/matcher/dictionary/variants/matching/l33t.cjs b/dist/matcher/dictionary/variants/matching/l33t.cjs
+index 650e50c6316fa02e8ab6534f17ca17e4695c3768..2988f183172ce52136079f76b0de651a282d9501 100644
+--- a/dist/matcher/dictionary/variants/matching/l33t.cjs
++++ b/dist/matcher/dictionary/variants/matching/l33t.cjs
+@@ -49,6 +49,8 @@ class MatchL33t extends matching {
+     const matches = [];
+     const subbedPasswords = getCleanPasswords(matchOptions.password, this.options.l33tMaxSubstitutions, this.options.trieNodeRoot);
+     let hasFullMatch = false;
++    // kotatsu: 候補の間で、辞書の引き当てを使い回す。
++    const rankCache = new Map();
+     subbedPasswords.forEach(subbedPassword => {
+       if (hasFullMatch) {
+         return;
+@@ -56,7 +58,9 @@ class MatchL33t extends matching {
+       const matchedDictionary = super.match({
+         ...matchOptions,
+         password: subbedPassword.password,
+-        useLevenshtein: subbedPassword.isFullSubstitution
++        useLevenshtein: subbedPassword.isFullSubstitution,
++        changes: subbedPassword.changes,
++        rankCache
+       });
+       matchedDictionary.forEach(match => {
+         const extras = getExtras(subbedPassword, match.i, match.j);
+diff --git a/dist/matcher/dictionary/variants/matching/l33t.mjs b/dist/matcher/dictionary/variants/matching/l33t.mjs
+index 25d6e40dd4b40220f1945828107d662e5e40b63f..ba211a3f78de1c7c67a4a4c06f05c1db3eea73ad 100644
+--- a/dist/matcher/dictionary/variants/matching/l33t.mjs
++++ b/dist/matcher/dictionary/variants/matching/l33t.mjs
+@@ -47,6 +47,8 @@ class MatchL33t extends MatchDictionary {
+     const matches = [];
+     const subbedPasswords = getCleanPasswords(matchOptions.password, this.options.l33tMaxSubstitutions, this.options.trieNodeRoot);
+     let hasFullMatch = false;
++    // kotatsu: 候補の間で、辞書の引き当てを使い回す。
++    const rankCache = new Map();
+     subbedPasswords.forEach(subbedPassword => {
+       if (hasFullMatch) {
+         return;
+@@ -54,7 +56,9 @@ class MatchL33t extends MatchDictionary {
+       const matchedDictionary = super.match({
+         ...matchOptions,
+         password: subbedPassword.password,
+-        useLevenshtein: subbedPassword.isFullSubstitution
++        useLevenshtein: subbedPassword.isFullSubstitution,
++        changes: subbedPassword.changes,
++        rankCache
+       });
+       matchedDictionary.forEach(match => {
+         const extras = getExtras(subbedPassword, match.i, match.j);
