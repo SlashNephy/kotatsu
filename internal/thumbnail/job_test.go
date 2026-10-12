@@ -290,5 +290,3 @@ func TestGenerateWorkerCancels(t *testing.T) {
 		})
 	}
 }
-
-// TestEnqueuer は、録画の完了のイベントを配るときだけ、その録画の画像を作るジョブを、重いジョブのキューに投入することを確かめる。

@@ -842,6 +842,8 @@ func (r *Recorder) start(ctx context.Context, reservation *sqlc.GetReservationFo
 // complete は、録画を state で終え、正常に終わってドロップが閾値以下なら録画履歴に記録し (設計書 4.4)、
 // 録画の完了か失敗を通知する (設計書 6.2)。完了の通知には、Webhook のためにセグメントのプール内のパスを載せる。
 func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordingID uuid.UUID, state State, reason FailureReason) error {
+	// 録画設定は、トランザクションの外で先に読む。トランザクションの中でプールから別の接続を借りると、接続が足りないときに詰まる。
+	join := r.joinSegments(ctx, assignment)
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		// 引き継ぎの最中に予定の終わりが来ると、古い mikan と新しい mikan の両方が録画を終えようとする。
@@ -895,7 +897,7 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 			files = append(files, map[string]string{"poolId": segment.PoolID, "path": segment.Path})
 		}
 		payload["files"] = files
-		payload["joinSegments"] = r.joinSegments(ctx, assignment)
+		payload["joinSegments"] = join
 
 		return notification.Emit(ctx, tx, r.clock, notification.KindRecordingCompleted, payload)
 	})

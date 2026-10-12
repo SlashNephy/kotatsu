@@ -60,6 +60,8 @@ type JoinArgs struct {
 	RecordingID uuid.UUID `json:"recordingId"`
 }
 
+var _ river.JobArgsWithInsertOpts = new(JoinArgs)
+
 func (JoinArgs) Kind() string { return "recording_join" }
 
 func (JoinArgs) InsertOpts() river.InsertOpts {
@@ -86,6 +88,8 @@ type File struct {
 	PoolID string `json:"poolId"`
 	Path   string `json:"path"`
 }
+
+var _ river.JobArgsWithInsertOpts = new(FinalizeArgs)
 
 func (FinalizeArgs) Kind() string { return "recording_join_finalize" }
 
