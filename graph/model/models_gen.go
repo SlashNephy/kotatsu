@@ -394,6 +394,8 @@ type RecordingSettings struct {
 	EndMarginSeconds   int    `json:"endMarginSeconds"`
 	// 優先度 (-10〜10)。チューナーが足りないときは、高い予約から割り当てる。
 	Priority int `json:"priority"`
+	// 引き継ぎや再起動で分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか (設計書 5.4)
+	JoinSegments bool `json:"joinSegments"`
 }
 
 // 録画設定の上書き (設計書 4.7)。null の項目は全体の既定値を使う。
@@ -406,6 +408,8 @@ type RecordingSettingsOverrides struct {
 	EndMarginSeconds   *int    `json:"endMarginSeconds,omitempty"`
 	// 優先度 (-10〜10)。チューナーが足りないときは、高い予約から割り当てる。
 	Priority *int `json:"priority,omitempty"`
+	// 分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか
+	JoinSegments *bool `json:"joinSegments,omitempty"`
 }
 
 // 録画設定の上書き。省いた項目は全体の既定値を使う。
@@ -415,6 +419,7 @@ type RecordingSettingsOverridesInput struct {
 	StartMarginSeconds *int    `json:"startMarginSeconds,omitempty"`
 	EndMarginSeconds   *int    `json:"endMarginSeconds,omitempty"`
 	Priority           *int    `json:"priority,omitempty"`
+	JoinSegments       *bool   `json:"joinSegments,omitempty"`
 }
 
 // リカバリーコード。この応答でしか見せないので、ユーザーに控えてもらう。

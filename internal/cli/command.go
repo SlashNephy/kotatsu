@@ -39,6 +39,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/password"
 	"github.com/SlashNephy/kotatsu/internal/registry"
+	"github.com/SlashNephy/kotatsu/internal/segjoin"
 	"github.com/SlashNephy/kotatsu/internal/settings"
 	"github.com/SlashNephy/kotatsu/internal/spa"
 	"github.com/SlashNephy/kotatsu/internal/stream"
@@ -127,7 +128,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 		return nil, nil, err
 	}
 	dispatcher := notification.NewDispatcher(deps.DB, deps.Clock,
-		webhook.NewEnqueuer(inserter), webpush.NewEnqueuer(inserter), thumbnail.NewEnqueuer(inserter))
+		webhook.NewEnqueuer(inserter), webpush.NewEnqueuer(inserter), segjoin.NewEnqueuer(inserter))
 	river.AddWorker(workers, notification.NewDispatchWorker(dispatcher))
 	river.AddWorker(workers, webhook.NewDeliverWorker(deps.DB, webhooks, deps.Clock, location))
 	river.AddWorker(workers, webpush.NewDeliverWorker(deps.DB, webPush, deps.Clock, webPushSubject(deps.Config), location, webpush.NewHTTPClient()))
@@ -141,6 +142,11 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 		!deps.Config.Thumbnail.DisablePreview))
 	// 取り込んだ録画は、録画ファイルを読み直して索引と集計を作ってから、画像を作るジョブに渡す (設計書 6.3)。
 	river.AddWorker(workers, analysis.NewAnalyzeWorker(deps.DB, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), deps.Clock, inserter))
+	// 引き継ぎや再起動で分かれた録画のファイルは、録画が終わったら 1 つにつなぐ (設計書 5.4)。
+	// つないだあとは、索引と集計を作り直すために、解析のジョブに渡す。
+	river.AddWorker(workers, segjoin.NewJoinWorker(deps.DB, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), inserter,
+		logger.With(slog.String("component", "segjoin")), 0))
+	river.AddWorker(workers, segjoin.NewFinalizeWorker(deps.DB, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), inserter))
 
 	return workers, []*river.PeriodicJob{audit.PrunePeriodicJob(), notification.DispatchPeriodicJob(), capacity.CheckPeriodicJob()}, nil
 }

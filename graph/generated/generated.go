@@ -377,6 +377,7 @@ type ComplexityRoot struct {
 	RecordingSettings struct {
 		EndMarginSeconds   func(childComplexity int) int
 		FileNameTemplate   func(childComplexity int) int
+		JoinSegments       func(childComplexity int) int
 		PoolID             func(childComplexity int) int
 		Priority           func(childComplexity int) int
 		StartMarginSeconds func(childComplexity int) int
@@ -385,6 +386,7 @@ type ComplexityRoot struct {
 	RecordingSettingsOverrides struct {
 		EndMarginSeconds   func(childComplexity int) int
 		FileNameTemplate   func(childComplexity int) int
+		JoinSegments       func(childComplexity int) int
 		PoolID             func(childComplexity int) int
 		Priority           func(childComplexity int) int
 		StartMarginSeconds func(childComplexity int) int
@@ -2335,6 +2337,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingSettings.FileNameTemplate(childComplexity), true
+	case "RecordingSettings.joinSegments":
+		if e.ComplexityRoot.RecordingSettings.JoinSegments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettings.JoinSegments(childComplexity), true
 	case "RecordingSettings.poolId":
 		if e.ComplexityRoot.RecordingSettings.PoolID == nil {
 			break
@@ -2366,6 +2374,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingSettingsOverrides.FileNameTemplate(childComplexity), true
+	case "RecordingSettingsOverrides.joinSegments":
+		if e.ComplexityRoot.RecordingSettingsOverrides.JoinSegments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettingsOverrides.JoinSegments(childComplexity), true
 	case "RecordingSettingsOverrides.poolId":
 		if e.ComplexityRoot.RecordingSettingsOverrides.PoolID == nil {
 			break
@@ -4258,6 +4272,8 @@ type RecordingSettingsOverrides {
   endMarginSeconds: Int
   "優先度 (-10〜10)。チューナーが足りないときは、高い予約から割り当てる。"
   priority: Int
+  "分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか"
+  joinSegments: Boolean
 }
 
 """
@@ -4269,6 +4285,7 @@ input RecordingSettingsOverridesInput {
   startMarginSeconds: Int
   endMarginSeconds: Int
   priority: Int
+  joinSegments: Boolean
 }
 
 """
@@ -4491,6 +4508,8 @@ type RecordingSettings {
   endMarginSeconds: Int!
   "優先度 (-10〜10)。チューナーが足りないときは、高い予約から割り当てる。"
   priority: Int!
+  "引き継ぎや再起動で分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか (設計書 5.4)"
+  joinSegments: Boolean!
 }
 
 """
@@ -5374,6 +5393,8 @@ func (ec *executionContext) childFields_RecordingSettings(ctx context.Context, f
 		return ec.fieldContext_RecordingSettings_endMarginSeconds(ctx, field)
 	case "priority":
 		return ec.fieldContext_RecordingSettings_priority(ctx, field)
+	case "joinSegments":
+		return ec.fieldContext_RecordingSettings_joinSegments(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingSettings", field.Name)
 }
@@ -5390,6 +5411,8 @@ func (ec *executionContext) childFields_RecordingSettingsOverrides(ctx context.C
 		return ec.fieldContext_RecordingSettingsOverrides_endMarginSeconds(ctx, field)
 	case "priority":
 		return ec.fieldContext_RecordingSettingsOverrides_priority(ctx, field)
+	case "joinSegments":
+		return ec.fieldContext_RecordingSettingsOverrides_joinSegments(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingSettingsOverrides", field.Name)
 }
@@ -13691,6 +13714,29 @@ func (ec *executionContext) fieldContext_RecordingSettings_priority(_ context.Co
 	return graphql.NewScalarFieldContext("RecordingSettings", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _RecordingSettings_joinSegments(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettings_joinSegments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.JoinSegments, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettings_joinSegments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _RecordingSettingsOverrides_poolId(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettingsOverrides) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -13804,6 +13850,29 @@ func (ec *executionContext) _RecordingSettingsOverrides_priority(ctx context.Con
 }
 func (ec *executionContext) fieldContext_RecordingSettingsOverrides_priority(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingSettingsOverrides_joinSegments(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettingsOverrides) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettingsOverrides_joinSegments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.JoinSegments, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *bool) graphql.Marshaler {
+			return ec.marshalOBoolean2ᚖbool(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettingsOverrides_joinSegments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _RecoveryCodes_codes(ctx context.Context, field graphql.CollectedField, obj *model.RecoveryCodes) (ret graphql.Marshaler) {
@@ -18693,7 +18762,7 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"poolId", "fileNameTemplate", "startMarginSeconds", "endMarginSeconds", "priority"}
+	fieldsInOrder := [...]string{"poolId", "fileNameTemplate", "startMarginSeconds", "endMarginSeconds", "priority", "joinSegments"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -18735,6 +18804,13 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 				return it, err
 			}
 			it.Priority = data
+		case "joinSegments":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("joinSegments"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.JoinSegments = data
 		}
 	}
 	return it, nil
@@ -22438,6 +22514,11 @@ func (ec *executionContext) _RecordingSettings(ctx context.Context, sel ast.Sele
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "joinSegments":
+			out.Values[i] = ec._RecordingSettings_joinSegments(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -22493,6 +22574,11 @@ func (ec *executionContext) _RecordingSettingsOverrides(ctx context.Context, sel
 			}
 		case "priority":
 			out.Values[i] = ec._RecordingSettingsOverrides_priority(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "joinSegments":
+			out.Values[i] = ec._RecordingSettingsOverrides_joinSegments(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}

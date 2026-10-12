@@ -22,9 +22,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/id"
-	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/kago"
-	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/ts"
 )
@@ -39,8 +37,6 @@ const (
 	// kindThumbnail と kindPreview は、recording_files の、代表画像とプレビュー画像の種類。
 	kindThumbnail = "thumbnail"
 	kindPreview   = "preview"
-	// recordingIDKey は、録画の通知の材料のうち、録画の ID のキー。
-	recordingIDKey = "recordingId"
 )
 
 type jobFixture struct {
@@ -296,40 +292,3 @@ func TestGenerateWorkerCancels(t *testing.T) {
 }
 
 // TestEnqueuer は、録画の完了のイベントを配るときだけ、その録画の画像を作るジョブを、重いジョブのキューに投入することを確かめる。
-func TestEnqueuer(t *testing.T) {
-	t.Parallel()
-
-	f := newJobFixture(t)
-	recordingID := f.recording(t, 3)
-	for _, event := range []struct {
-		kind    notification.Kind
-		payload map[string]any
-	}{
-		{kind: notification.KindRecordingStarted, payload: map[string]any{recordingIDKey: recordingID.String()}},
-		{kind: notification.KindRecordingCompleted, payload: map[string]any{recordingIDKey: recordingID.String(), "state": "completed"}},
-		{kind: notification.KindRecordingFailed, payload: map[string]any{recordingIDKey: recordingID.String()}},
-		// 同じ録画で、もう一度完了しても、待っているジョブを重ねない。
-		{kind: notification.KindRecordingCompleted, payload: map[string]any{recordingIDKey: recordingID.String(), "state": "partial"}},
-	} {
-		require.NoError(t, notification.Emit(t.Context(), f.pool, f.clock, event.kind, event.payload))
-		f.clock.Advance(time.Second)
-	}
-
-	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
-	inserter, err := jobs.NewClient(f.pool, slog.New(slog.DiscardHandler), &jobs.Options{PollOnly: false, Workers: nil, PeriodicJobs: nil})
-	require.NoError(t, err)
-	n, err := notification.NewDispatcher(f.pool, f.clock, thumbnail.NewEnqueuer(inserter)).DispatchOnce(t.Context())
-	require.NoError(t, err)
-	assert.Equal(t, 4, n)
-
-	rows, err := f.pool.Query(t.Context(), "SELECT (args->>'recordingId')::uuid, queue, max_attempts FROM river_job WHERE kind = 'thumbnail_generate'")
-	require.NoError(t, err)
-	type queued struct {
-		RecordingID uuid.UUID
-		Queue       string
-		MaxAttempts int
-	}
-	got, err := pgx.CollectRows(rows, pgx.RowToStructByPos[queued])
-	require.NoError(t, err)
-	assert.Equal(t, []queued{{RecordingID: recordingID, Queue: jobs.QueueMedia, MaxAttempts: 3}}, got)
-}

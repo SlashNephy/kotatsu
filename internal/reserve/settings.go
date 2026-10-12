@@ -41,6 +41,8 @@ type Settings struct {
 	EndMarginSeconds   int
 	// Priority は予約の優先度。チューナーが足りないときは、高い予約から割り当てる。
 	Priority int
+	// JoinSegments は、引き継ぎや再起動で分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか (設計書 5.4)。
+	JoinSegments bool
 }
 
 // DefaultSettings は、Go の既定値を返す。
@@ -52,6 +54,7 @@ func DefaultSettings() *Settings {
 		StartMarginSeconds: DefaultMarginSeconds,
 		EndMarginSeconds:   DefaultMarginSeconds,
 		Priority:           DefaultPriority,
+		JoinSegments:       true,
 	}
 }
 
@@ -62,6 +65,7 @@ type Overrides struct {
 	StartMarginSeconds *int    `json:"startMarginSeconds,omitempty"`
 	EndMarginSeconds   *int    `json:"endMarginSeconds,omitempty"`
 	Priority           *int    `json:"priority,omitempty"`
+	JoinSegments       *bool   `json:"joinSegments,omitempty"`
 }
 
 // Resolve は、base に o の上書きを重ねた設定を返す。o は nil でもよい。
@@ -84,6 +88,9 @@ func (s *Settings) Resolve(o *Overrides) *Settings {
 	}
 	if o.Priority != nil {
 		resolved.Priority = *o.Priority
+	}
+	if o.JoinSegments != nil {
+		resolved.JoinSegments = *o.JoinSegments
 	}
 
 	return &resolved

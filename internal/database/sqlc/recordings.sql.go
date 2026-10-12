@@ -53,6 +53,21 @@ func (q *Queries) CloseRecordingFile(ctx context.Context, arg CloseRecordingFile
 	return err
 }
 
+const deleteRecordingFiles = `-- name: DeleteRecordingFiles :exec
+DELETE FROM recording_files WHERE recording_id = $1 AND id = ANY($2::uuid[])
+`
+
+type DeleteRecordingFilesParams struct {
+	RecordingID uuid.UUID
+	Ids         []uuid.UUID
+}
+
+// 録画のファイルの記録を消す。セグメントを 1 つにつないだあとで、つないだ元のセグメントと索引の記録を消すのに使う。
+func (q *Queries) DeleteRecordingFiles(ctx context.Context, arg DeleteRecordingFilesParams) error {
+	_, err := q.db.Exec(ctx, deleteRecordingFiles, arg.RecordingID, arg.Ids)
+	return err
+}
+
 const finishRecording = `-- name: FinishRecording :exec
 UPDATE recordings SET state = $1, failure_reason = $2, recorded_until = $3, updated_at = $3
 WHERE id = $4

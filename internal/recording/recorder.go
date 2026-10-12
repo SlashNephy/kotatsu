@@ -895,6 +895,7 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 			files = append(files, map[string]string{"poolId": segment.PoolID, "path": segment.Path})
 		}
 		payload["files"] = files
+		payload["joinSegments"] = r.joinSegments(ctx, assignment)
 
 		return notification.Emit(ctx, tx, r.clock, notification.KindRecordingCompleted, payload)
 	})
@@ -908,6 +909,26 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 	}
 
 	return nil
+}
+
+// joinSegments は、録画が終わったら、分かれたセグメントを 1 つにつなぐかどうかを、予約の録画設定から求める (設計書 5.4)。
+// 予約が消えていれば、全体の既定値に従う。録画設定を読めなくても、録画の完了は止めない。
+func (r *Recorder) joinSegments(ctx context.Context, assignment *Assignment) bool {
+	reservation, err := sqlc.New(r.pool).GetReservationForRecording(ctx, assignment.ReservationID)
+	if err == nil {
+		settings, err := r.settings(ctx, &reservation)
+		if err == nil {
+			return settings.JoinSegments
+		}
+	}
+	settings, err := r.defaults(ctx, r.pool)
+	if err != nil {
+		r.logger.WarnContext(ctx, "failed to read the recording settings; joining the segments by default", slog.Any("error", err))
+
+		return reserve.DefaultSettings().JoinSegments
+	}
+
+	return settings.JoinSegments
 }
 
 // errSuperseded は、ほかの mikan が割り振りを取ったので、録画を終えないことを表す。

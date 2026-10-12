@@ -48,6 +48,8 @@ type RecordingSettingsOverrides {
   endMarginSeconds: Int
   "優先度 (-10〜10)。チューナーが足りないときは、高い予約から割り当てる。"
   priority: Int
+  "分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか"
+  joinSegments: Boolean
 }
 
 """
@@ -59,6 +61,7 @@ input RecordingSettingsOverridesInput {
   startMarginSeconds: Int
   endMarginSeconds: Int
   priority: Int
+  joinSegments: Boolean
 }
 
 """

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a7cc18624eb01c91c807f9f6a32039ce>>
+ * @generated SignedSource<<c21b64e93518d2c32c25792f4e1fc255>>
  * @lightSyntaxTransform
  */
 
@@ -51,6 +51,7 @@ export type TimeRangeInput = {
 export type RecordingSettingsOverridesInput = {
   endMarginSeconds?: number | null | undefined;
   fileNameTemplate?: string | null | undefined;
+  joinSegments?: boolean | null | undefined;
   poolId?: string | null | undefined;
   priority?: number | null | undefined;
   startMarginSeconds?: number | null | undefined;

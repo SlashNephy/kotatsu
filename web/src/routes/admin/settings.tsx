@@ -6,6 +6,7 @@ import {
   NumberInput,
   Select,
   Stack,
+  Switch,
   Text,
   TextInput,
   Title,
@@ -66,6 +67,7 @@ const query = graphql`
         startMarginSeconds
         endMarginSeconds
         priority
+        joinSegments
       }
       archiveRetentionDays
       updatedAt
@@ -91,6 +93,7 @@ type Form = {
   startMarginSeconds: number | string;
   endMarginSeconds: number | string;
   priority: number | string;
+  joinSegments: boolean;
   archiveRetentionDays: number | string;
 };
 
@@ -115,6 +118,7 @@ function SystemSettings() {
     startMarginSeconds: defaults.startMarginSeconds,
     endMarginSeconds: defaults.endMarginSeconds,
     priority: defaults.priority,
+    joinSegments: defaults.joinSegments,
     archiveRetentionDays: settings.archiveRetentionDays,
   });
   const set = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
@@ -148,6 +152,7 @@ function SystemSettings() {
                 startMarginSeconds: Number(form.startMarginSeconds),
                 endMarginSeconds: Number(form.endMarginSeconds),
                 priority: Number(form.priority),
+                joinSegments: form.joinSegments,
               },
               archiveRetentionDays: Number(form.archiveRetentionDays),
             },
@@ -239,6 +244,13 @@ function SystemSettings() {
                 allowDecimal={false}
                 value={form.priority}
                 onChange={(value) => set({ priority: value })}
+              />
+              <Switch
+                size="sm"
+                label={t('admin.settings.joinSegments')}
+                description={t('admin.settings.joinSegmentsHelp')}
+                checked={form.joinSegments}
+                onChange={(event) => set({ joinSegments: event.currentTarget.checked })}
               />
             </Stack>
           </Card>
