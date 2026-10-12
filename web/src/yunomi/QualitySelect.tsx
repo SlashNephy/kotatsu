@@ -1,5 +1,6 @@
 import { Alert, Select, Switch } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 
 import type { AudioChoice, KyusuAudioChoice } from './audio';
 import { original, type KyusuAudio, type PlaybackRoute } from './route';
@@ -123,16 +124,15 @@ export function DataBroadcastToggle({
   );
 }
 
-// languageNames は、記述子の言語のコード (ISO 639) を、メニューに出す名前にする。知らない言語は、コードのまま出す。
-const languageNames: Record<string, string> = {
-  jpn: '日本語',
-  eng: '英語',
-  kor: '韓国語',
-  zho: '中国語',
-  chi: '中国語',
-  // ARIB STD-B10 で、上の言語に当たらないことを表す。
-  etc: 'その他の言語',
-};
+// languages は、名前を出せる、記述子の言語のコード (ISO 639)。etc は、ARIB STD-B10 で、ほかの言語に当たらないことを表す。
+const languages = ['jpn', 'eng', 'kor', 'zho', 'chi', 'etc'] as const;
+
+// languageName は、言語のコードを、メニューに出す名前にする。知らない言語は、コードのまま出す。
+function languageName(t: TFunction, code: string): string {
+  const known = languages.find((language) => language === code);
+
+  return known === undefined ? code : t(`player.languages.${known}`);
+}
 
 // AudioSelect は、音声のメニュー。二か国語放送の音声や、デュアルモノの主音声と副音声を選ぶ (設計書 7.5)。
 export function AudioSelect({
@@ -154,9 +154,7 @@ export function AudioSelect({
         ? t(choice.sub ? 'player.audioSub' : 'player.audioMain')
         : t('player.audioStream', { number: choice.index + 1 });
 
-    return choice.language === null
-      ? base
-      : `${base} (${languageNames[choice.language] ?? choice.language})`;
+    return choice.language === null ? base : `${base}（${languageName(t, choice.language)}）`;
   };
 
   return (
@@ -201,9 +199,7 @@ export function KyusuAudioSelect({
       base = t(choice.slot === 1 ? 'player.audioMain' : 'player.audioSecond');
     }
 
-    return choice.language === null
-      ? base
-      : `${base} (${languageNames[choice.language] ?? choice.language})`;
+    return choice.language === null ? base : `${base}（${languageName(t, choice.language)}）`;
   };
 
   return (

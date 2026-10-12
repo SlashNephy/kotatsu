@@ -148,11 +148,11 @@ func TestDeliverWorkerSendsEncryptedNotification(t *testing.T) {
 	}{
 		{
 			name: "録画の失敗は、すぐに届ける", kind: notification.KindRecordingFailed, payload: map[string]any{nameKey: "こたつ特集"},
-			wantBody: "録画に失敗しました: こたつ特集", wantUrgency: "high",
+			wantBody: "「こたつ特集」の録画に失敗しました", wantUrgency: "high",
 		},
 		{
 			name: "録画の完了", kind: notification.KindRecordingCompleted, payload: map[string]any{nameKey: "みかん紀行"},
-			wantBody: "録画が終わりました: みかん紀行", wantUrgency: "normal",
+			wantBody: "「みかん紀行」の録画が終わりました", wantUrgency: "normal",
 		},
 	}
 	for _, tt := range tests {

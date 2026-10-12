@@ -218,11 +218,11 @@ func TestNotificationMessage(t *testing.T) {
 		payload map[string]any
 		want    string
 	}{
-		{name: "番組名を添える", kind: notification.KindRecordingStarted, payload: map[string]any{varName: tagKotatsu}, want: "録画を始めました: " + tagKotatsu},
+		{name: "番組名を添える", kind: notification.KindRecordingStarted, payload: map[string]any{varName: tagKotatsu}, want: "「" + tagKotatsu + "」の録画を始めました"},
 		{
 			name: "競合した予約の日時を、表示のタイムゾーンで書く", kind: notification.KindReservationConflict,
 			payload: map[string]any{"startAt": "2026-10-10T12:00:00Z", "serviceName": "NHK総合", varName: tagKotatsu},
-			want:    "予約が競合しています。チューナーが足りないので、録画できない見込みです: 10/10 (土) 21:00 NHK総合 " + tagKotatsu,
+			want:    "チューナーが足りず、録画できない見込みの予約があります。10/10（土）21:00 NHK総合「" + tagKotatsu + "」",
 		},
 	}
 	for _, tt := range tests {

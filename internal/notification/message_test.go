@@ -28,20 +28,20 @@ func TestMessage(t *testing.T) {
 		location *time.Location
 		want     string
 	}{
-		{name: "番組名のある録画の開始", kind: notification.KindRecordingStarted, payload: map[string]any{keyName: programName}, location: tokyo, want: "録画を始めました: こたつ特集"},
+		{name: "番組名のある録画の開始", kind: notification.KindRecordingStarted, payload: map[string]any{keyName: programName}, location: tokyo, want: "「こたつ特集」の録画を始めました"},
 		{name: "番組名のない録画の完了", kind: notification.KindRecordingCompleted, payload: map[string]any{}, location: tokyo, want: "録画が終わりました"},
-		{name: "録画の失敗", kind: notification.KindRecordingFailed, payload: map[string]any{keyName: programName}, location: tokyo, want: "録画に失敗しました: こたつ特集"},
+		{name: "録画の失敗", kind: notification.KindRecordingFailed, payload: map[string]any{keyName: programName}, location: tokyo, want: "「こたつ特集」の録画に失敗しました"},
 		{
 			name: "競合は、表示のタイムゾーンの日時で書く。日付をまたぐ", kind: notification.KindReservationConflict, payload: conflict, location: tokyo,
-			want: "予約が競合しています。チューナーが足りないので、録画できない見込みです: 10/11 (日) 00:00 NHK総合 こたつ特集",
+			want: "チューナーが足りず、録画できない見込みの予約があります。10/11（日）00:00 NHK総合「こたつ特集」",
 		},
 		{
 			name: "材料のない競合", kind: notification.KindReservationConflict, payload: map[string]any{}, location: tokyo,
-			want: "予約が競合しています。チューナーが足りないので、録画できない見込みです",
+			want: "チューナーが足りず、録画できない見込みの予約があります",
 		},
 		{
 			name: "競合は、タイムゾーンがなければ UTC で書く", kind: notification.KindReservationConflict, payload: conflict, location: nil,
-			want: "予約が競合しています。チューナーが足りないので、録画できない見込みです: 10/10 (土) 15:00 NHK総合 こたつ特集",
+			want: "チューナーが足りず、録画できない見込みの予約があります。10/10（土）15:00 NHK総合「こたつ特集」",
 		},
 		{name: "空き容量の不足", kind: notification.KindStorageLow, payload: map[string]any{}, location: tokyo, want: "保存先の空き容量が足りません"},
 		{name: "チューナーサーバーへの接続不可", kind: notification.KindTunerServerUnreachable, payload: map[string]any{}, location: tokyo, want: "チューナーサーバーに接続できません"},
