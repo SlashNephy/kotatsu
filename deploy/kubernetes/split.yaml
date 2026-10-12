@@ -191,7 +191,7 @@ spec:
         runAsUser: 65532
         seccompProfile:
           type: RuntimeDefault
-      priorityClassName: recording
+      priorityClassName: kotatsu-recording
       terminationGracePeriodSeconds: 300
       containers:
         - name: kotatsu
@@ -302,7 +302,7 @@ spec:
         runAsUser: 65532
         seccompProfile:
           type: RuntimeDefault
-      priorityClassName: recording
+      priorityClassName: kotatsu-recording
       terminationGracePeriodSeconds: 30
       containers:
         - name: kotatsu

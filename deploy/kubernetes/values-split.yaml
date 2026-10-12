@@ -20,9 +20,9 @@ storage:
 # 録画を担う mikan と、予約とチューナーの割り当てを担う neko を、ほかの Pod より先に起動させる。
 roles:
   mikan:
-    priorityClassName: recording
+    priorityClassName: kotatsu-recording
   neko:
-    priorityClassName: recording
+    priorityClassName: kotatsu-recording
   kyusu:
     replicas: 1
     ffmpeg: true
