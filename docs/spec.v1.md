@@ -1023,7 +1023,7 @@ Content Security Policyは厳しく設定します。
 |---|---|
 | コンテナイメージ | [2.4](#24-コンテナイメージ)の2種類です。ビルドに使うtsreadexのバージョンは、Renovateで追跡できる形で固定します。 |
 | バイナリ | GoReleaserでGitHub Releasesに置きます。SPAは埋め込み済みです。FFmpegとtsreadexは利用者が別途用意します。 |
-| Helm Chart | `oci://ghcr.io/slashnephy/charts/kotatsu`で配布します。 |
+| Helm Chart | GitHub PagesのHelmリポジトリ（`https://slashnephy.github.io/kotatsu`）で配布します。Chartの本体はリリースに添付します。 |
 | Kubernetesのマニフェスト | Helm Chartから`helm template`で生成します。 |
 | Docker Composeの例 | `-ffmpeg`イメージの`all`構成とPostgreSQLの組み合わせです。 |
 
@@ -1031,6 +1031,8 @@ Helm Chartは次の方針で作ります。
 
 - `all`の構成とロールを分けた構成を、valuesで切り替えられるようにします。
 - ロールごとに、台数、リソース、配置先（kyusuをGPUのあるノードに置く、など）を指定できるようにします。
+- 接続先と秘密キーは、項目ごとに別のSecretから渡せるようにします。CloudNativePGが作るSecretを、そのまま使えるようにするためです。
+- イメージはdigestでも固定でき、PodにはPriorityClassを付けられるようにします。
 - mikanにはPodDisruptionBudgetと、引き継ぎに十分な`terminationGracePeriodSeconds`を設定します。
 - securityContextの既定値を堅くします。`readOnlyRootFilesystem`、全capabilityの削除、非rootでの実行、seccompの`RuntimeDefault`を、そのまま使えるようにします。
 - PostgreSQLはChartに含めず、外部のもの（CloudNativePGなど）を使う前提にします。

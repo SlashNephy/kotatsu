@@ -23,14 +23,32 @@ app.kubernetes.io/instance: {{ .root.Release.Name }}
 app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
-{{/* image は、イメージの名前。引数は (dict "root" $ "ffmpeg" 真偽値)。FFmpeg が要るロールは -ffmpeg のイメージを使う。 */}}
+{{/*
+image は、イメージの名前。引数は (dict "root" $ "ffmpeg" 真偽値)。FFmpeg が要るロールは -ffmpeg のイメージを使う。
+digest を指定していれば、タグに加えて digest で固定する。
+*/}}
 {{- define "kotatsu.image" -}}
-{{- $tag := .root.Values.image.tag | default .root.Chart.AppVersion -}}
+{{- $values := .root.Values.image -}}
+{{- $tag := $values.tag | default .root.Chart.AppVersion -}}
+{{- $name := printf "%s:%s" $values.repository $tag -}}
+{{- $digest := $values.digest -}}
 {{- if .ffmpeg -}}
-{{- printf "%s:%s-ffmpeg" .root.Values.image.repository $tag -}}
-{{- else -}}
-{{- printf "%s:%s" .root.Values.image.repository $tag -}}
+{{- $name = printf "%s:%s-ffmpeg" $values.repository $tag -}}
+{{- $digest = $values.ffmpegDigest -}}
 {{- end -}}
+{{- if $digest -}}
+{{- printf "%s@%s" $name $digest -}}
+{{- else -}}
+{{- $name -}}
+{{- end -}}
+{{- end -}}
+
+{{/* secretRef は、Secret のキーから値を読む環境変数の valueFrom。引数は (dict "name" Secret の名前 "key" キー)。 */}}
+{{- define "kotatsu.secretRef" -}}
+valueFrom:
+  secretKeyRef:
+    name: {{ .name }}
+    key: {{ .key }}
 {{- end -}}
 
 {{/* pools は、KOTATSU_STORAGE_POOLS の値 (プール ID=マウント先 をカンマでつないだもの)。 */}}
@@ -58,15 +76,9 @@ env は、すべてのコンテナに渡す環境変数。
 - name: KOTATSU_METRICS_LISTEN
   value: ":9090"
 - name: KOTATSU_DATABASE_URL
-  valueFrom:
-    secretKeyRef:
-      name: {{ .Values.secret.name }}
-      key: {{ .Values.secret.databaseURLKey }}
+  {{- include "kotatsu.secretRef" .Values.secrets.databaseURL | nindent 2 }}
 - name: KOTATSU_AUTH_SECRET_KEY
-  valueFrom:
-    secretKeyRef:
-      name: {{ .Values.secret.name }}
-      key: {{ .Values.secret.secretKeyKey }}
+  {{- include "kotatsu.secretRef" .Values.secrets.secretKey | nindent 2 }}
 {{- with include "kotatsu.pools" . }}
 - name: KOTATSU_STORAGE_POOLS
   value: {{ . | quote }}
@@ -138,6 +150,9 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml $root.Values.podSecurityContext | nindent 8 }}
+      {{- with .pod.priorityClassName | default $root.Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
       terminationGracePeriodSeconds: {{ .pod.terminationGracePeriodSeconds }}
       containers:
         - name: kotatsu

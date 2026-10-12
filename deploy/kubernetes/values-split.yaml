@@ -1,5 +1,13 @@
 # ロールごとに Pod を分ける構成の例 (split.yaml の生成に使う)。kyusu を GPU のあるノードに置く。
 mode: split
+# 接続先は CloudNativePG が作る Secret から、秘密キーは別の Secret から渡す。
+secrets:
+  databaseURL:
+    name: kotatsu-db-app
+    key: uri
+  secretKey:
+    name: kotatsu
+    key: secret-key
 config:
   TUNER_URL: http://mirakurun:40772/
   KYUSU_ENCODER: vaapi
@@ -9,7 +17,12 @@ storage:
       volume:
         persistentVolumeClaim:
           claimName: kotatsu-recordings
+# 録画を担う mikan と、予約とチューナーの割り当てを担う neko は、ノードの空きが足りないときにも先に置かれ、優先度の低い Pod を追い出して起動できるようにする。
 roles:
+  mikan:
+    priorityClassName: kotatsu-recording
+  neko:
+    priorityClassName: kotatsu-recording
   kyusu:
     replicas: 1
     ffmpeg: true

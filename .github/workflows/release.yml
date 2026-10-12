@@ -60,13 +60,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Helm Chart を、タグの版で oci://ghcr.io/slashnephy/charts に公開する (設計書 11.1)。
+  # Helm Chart を、タグの版で GitHub Pages の Helm リポジトリ (https://slashnephy.github.io/kotatsu) に公開する (設計書 11.1)。
+  # Chart の本体はリリースに添付し、gh-pages ブランチの index.yaml からそれを指す。
   chart:
     if: startsWith(github.ref, 'refs/tags/v')
+    # リリースに添付するので、GoReleaser がリリースを作り終えてから動かす。
+    needs: release
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      packages: write
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -74,12 +76,41 @@ jobs:
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           cache: false
-      - env:
+      - name: Package the chart
+        env:
           REF_NAME: ${{ github.ref_name }}
-          ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: helm package charts/kotatsu --version "${REF_NAME#v}" --app-version "${REF_NAME#v}" --destination "$RUNNER_TEMP/chart"
+      - name: Attach the chart to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF_NAME: ${{ github.ref_name }}
+        run: gh release upload "$REF_NAME" "$RUNNER_TEMP"/chart/*.tgz --clobber
+      - name: Update the Helm repository index
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF_NAME: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        # 生成した index.yaml は apiVersion: で始まるので、Jekyll はそのまま配る。
+        # 先頭に --- を付けると front matter として読まれ、配るファイルから消えるので付けない。
         run: |
-          version="${REF_NAME#v}"
-          helm package charts/kotatsu --version "$version" --app-version "$version"
-          echo "$GITHUB_TOKEN" | helm registry login ghcr.io --username "$ACTOR" --password-stdin
-          helm push "kotatsu-$version.tgz" oci://ghcr.io/slashnephy/charts
+          pages="$RUNNER_TEMP/gh-pages"
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.git"
+          # 最初のリリースでは gh-pages ブランチがないので、空のブランチから始める。
+          if git ls-remote --exit-code --heads "$remote" gh-pages >/dev/null; then
+            git clone --depth 1 --branch gh-pages "$remote" "$pages"
+          else
+            git init --initial-branch gh-pages "$pages"
+            git -C "$pages" remote add origin "$remote"
+          fi
+          merge=()
+          if [ -f "$pages/index.yaml" ]; then
+            merge=(--merge "$pages/index.yaml")
+          fi
+          helm repo index "$RUNNER_TEMP/chart" --url "https://github.com/${REPOSITORY}/releases/download/${REF_NAME}" "${merge[@]}"
+          cp "$RUNNER_TEMP/chart/index.yaml" "$pages/index.yaml"
+          cd "$pages"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.yaml
+          git commit -m "chore: publish the kotatsu chart ${REF_NAME#v}"
+          git push origin HEAD:gh-pages
