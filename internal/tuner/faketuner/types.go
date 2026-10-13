@@ -30,8 +30,12 @@ type Service struct {
 	Name      string `json:"name"`
 	Type      int    `json:"type"`
 	// RemoteControlKeyID はリモコンのキーの番号。0 なら返さない。
-	RemoteControlKeyID int         `json:"remoteControlKeyId,omitempty"`
-	Channel            *ChannelRef `json:"channel,omitempty"`
+	RemoteControlKeyID int `json:"remoteControlKeyId,omitempty"`
+	// LogoID はロゴの番号。nil なら返さない。
+	LogoID  *int        `json:"logoId,omitempty"`
+	Channel *ChannelRef `json:"channel,omitempty"`
+	// Logo は、/api/services/{id}/logo で返す PNG。nil なら、Mirakurun がロゴをまだ受信していないときと同じく 503 を返す。
+	Logo []byte `json:"-"`
 }
 
 // Program は /api/programs の要素。

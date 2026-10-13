@@ -26,6 +26,8 @@ const (
 	defaultDetectInterval = 10 * time.Minute
 	// maxErrorBodySize は、エラーの応答から読む本文の上限。
 	maxErrorBodySize = 64 << 10
+	// maxLogoSize は、ロゴの画像として読む本文の上限。放送のロゴは数 KB に収まる。
+	maxLogoSize = 1 << 20
 )
 
 // Options は Client の設定。
@@ -281,6 +283,36 @@ func (c *Client) OpenServiceStream(ctx context.Context, serviceID int64, opts *S
 	req.Header.Set(PriorityHeader, strconv.Itoa(opts.Priority))
 
 	return c.openStream(req)
+}
+
+// ServiceLogo は、サービス ID (networkId × 100000 + serviceId) のロゴの画像を返す。Mirakurun 互換のサーバーは PNG を返す。
+// サービスがなければ StatusCode が 404、ロゴをまだ受信していなければ 503 の *APIError を返す。
+func (c *Client) ServiceLogo(ctx context.Context, serviceID int64) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.requestTimeout)
+	defer cancel()
+
+	req, err := c.newRequest(ctx, "api/services/"+strconv.FormatInt(serviceID, 10)+"/logo", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to request %s %s: %w", req.Method, req.URL.Redacted(), err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if err := checkResponse(resp); err != nil {
+		return nil, err
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxLogoSize+1))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the response of %s %s: %w", req.Method, req.URL.Redacted(), err)
+	}
+	if len(data) > maxLogoSize {
+		return nil, fmt.Errorf("the logo of %s %s exceeds %d bytes", req.Method, req.URL.Redacted(), maxLogoSize)
+	}
+
+	return data, nil
 }
 
 // openStream は、ストリームのリクエストを送り、2xx なら本文を返す。

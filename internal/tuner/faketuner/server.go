@@ -105,6 +105,7 @@ func New(opts *Options) *Server {
 	s.mux.HandleFunc("GET /api/tuners", s.handleTuners)
 	s.mux.HandleFunc("GET /api/events/stream", s.handleEventsStream)
 	s.mux.HandleFunc("GET /api/services/{id}/stream", s.handleServiceStream)
+	s.mux.HandleFunc("GET /api/services/{id}/logo", s.handleServiceLogo)
 
 	return s
 }
@@ -293,6 +294,38 @@ func (s *Server) handleServices(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, services)
+}
+
+// handleServiceLogo は、サービスのロゴの PNG を返す。Mirakurun と同じく、ロゴの画像がなければ 503 を返す。
+func (s *Server) handleServiceLogo(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid service id")
+
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, channel := range s.channels {
+		for _, service := range channel.Services {
+			if service.ID != id {
+				continue
+			}
+			if service.Logo == nil {
+				writeError(w, http.StatusServiceUnavailable, "logo data is unavailable")
+
+				return
+			}
+			w.Header().Set("Content-Type", "image/png")
+			w.Header().Set("Cache-Control", "public, max-age=86400")
+			_, _ = w.Write(service.Logo)
+
+			return
+		}
+	}
+	writeError(w, http.StatusNotFound, "service not found")
 }
 
 func (s *Server) handlePrograms(w http.ResponseWriter, r *http.Request) {

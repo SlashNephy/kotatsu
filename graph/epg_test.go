@@ -139,6 +139,36 @@ func TestChannelTypesAndServices(t *testing.T) {
 	assert.Len(t, got.All, 5)
 }
 
+func TestServiceLogoURL(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+
+	var got struct {
+		Services []struct {
+			NetworkID int64   `json:"networkId"`
+			ServiceID int64   `json:"serviceId"`
+			LogoURL   *string `json:"logoUrl"`
+		} `json:"services"`
+	}
+	require.Empty(t, f.query(t, `{ services(includeHidden: true) { networkId serviceId logoUrl } }`, nil, &got))
+	logos := map[int64]*string{}
+	for _, service := range got.Services {
+		logos[service.NetworkID*100000+service.ServiceID] = service.LogoURL
+	}
+	// 偽チューナーサーバーは、こたつテスト1 と BS にロゴの番号 0 を、こたつテスト2 に番号 1 を付ける。
+	// 番号が 0 でもロゴはある。こたつテスト2 は、画像をまだ受信していないが、番号はあるので URL を返す。
+	// 番号がなければ、URL も返さない。
+	assert.Equal(t, map[int64]*string{
+		3273601024: new("/media/services/3273601024/logo"),
+		3273601025: nil,
+		3273701032: new("/media/services/3273701032/logo"),
+		3273801040: nil,
+		400101:     new("/media/services/400101/logo"),
+	}, logos)
+}
+
 type guideInput struct {
 	From     string   `json:"from"`
 	To       string   `json:"to"`

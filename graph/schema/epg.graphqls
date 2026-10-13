@@ -27,6 +27,8 @@ type Service implements Node {
   sortOrder: Int
   "ライブ視聴の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。"
   streamUrl: String!
+  "ロゴの画像の URL のパス。ログイン中のセッションで使う。放送がロゴを送っていなければ null。チューナーサーバーがまだ受信していなければ、URL は 404 を返す。"
+  logoUrl: String
   "ニコニコ実況のチャンネル (設計書 7.4)。対応するチャンネルがないか、NX-Jikkyo が扱っていなければ null。"
   jikkyo: JikkyoChannel
 }

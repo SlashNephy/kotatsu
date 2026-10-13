@@ -91,7 +91,9 @@ func toService(row *sqlc.ListGuideServicesRow) *model.Service {
 		RemoteControlKeyID: key,
 		Hidden:             row.Hidden,
 		SortOrder:          order,
-		ChannelTypeKey:     row.ChannelType,
+		// ロゴの番号は 0 もある (NHK など) ので、nil かどうかで見る。
+		HasLogo:        row.LogoID != nil,
+		ChannelTypeKey: row.ChannelType,
 	}
 }
 
