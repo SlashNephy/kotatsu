@@ -92,11 +92,6 @@ export function DataBroadcastRemote({
           />
         ))}
       </Group>
-      {state === 'loading' && (
-        <Text size="xs" c="dimmed">
-          {t('player.dataBroadcastLoading')}
-        </Text>
-      )}
       {state === 'ended' && (
         <Text size="xs" c="dimmed">
           {t('player.dataBroadcastEnded')}

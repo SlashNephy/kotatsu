@@ -18,6 +18,7 @@ import {
   LiveStatus,
   PlayerControls,
   playerControlsClasses,
+  PlayerNotice,
   SettingsButton,
   VolumeControl,
 } from '../../yunomi/PlayerControls';
@@ -384,6 +385,9 @@ function Live({
             <>
               {dataBroadcast.layer}
               {jikkyo.overlay}
+              {dataBroadcast.receiving && (
+                <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
+              )}
             </>
           }
           onState={(state) => {
@@ -415,6 +419,9 @@ function Live({
             <>
               {dataBroadcast.layer}
               {jikkyo.overlay}
+              {dataBroadcast.receiving && (
+                <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
+              )}
             </>
           }
           // チューナーを使われて切れると、hls.js が読み直しを諦めたところで、致命的なエラーになる。

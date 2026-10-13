@@ -51,7 +51,13 @@ export function useDataBroadcast(
   source: DataBroadcastSource | null,
   videoRef: RefObject<HTMLVideoElement | null>,
   shown: boolean,
-): { layer: ReactNode; state: DataBroadcastState; press: (key: RemoteKey) => void } {
+): {
+  layer: ReactNode;
+  state: DataBroadcastState;
+  // receiving は、出すことになったのに、まだデータ放送の画面を出せていないこと (受け取っているか、d ボタンで入っている途中)。
+  receiving: boolean;
+  press: (key: RemoteKey) => void;
+} {
   // layer は、文書を描く層。画質を変えるとプレイヤーごと作り直されるので、要素が変わったら描き直す。
   const [layer, setLayer] = useState<HTMLDivElement | null>(null);
   const browserRef = useRef<BMLBrowser | null>(null);
@@ -63,6 +69,8 @@ export function useDataBroadcast(
   const shownRef = useRef(shown);
   shownRef.current = shown;
   const [state, setState] = useState<DataBroadcastState>('off');
+  // pressing は、データ放送の画面に入るために、d ボタンを押し直している間。
+  const [pressing, setPressing] = useState(false);
   const [resolution, setResolution] = useState<Resolution>(defaultResolution);
   // invisible は、データ放送の文書が、表示しないよう求めていること。映像は全面に戻す。
   const [invisible, setInvisible] = useState(false);
@@ -132,11 +140,13 @@ export function useDataBroadcast(
     const stopEntering = () => {
       clearEnterTimer();
       entering = 'done';
+      setPressing(false);
     };
     stopEnteringRef.current = stopEntering;
     const pressLater = (delay: number) => {
       clearEnterTimer();
       entering = 'pressing';
+      setPressing(true);
       enterTimer = setTimeout(() => {
         enterTimer = null;
         if (tries >= maxEnterTries) {
@@ -272,7 +282,9 @@ export function useDataBroadcast(
     />
   );
 
-  return { layer: element, state, press };
+  const receiving = shown && (state === 'loading' || (state === 'shown' && pressing));
+
+  return { layer: element, state, receiving, press };
 }
 
 // moveMedia は、video を含むプレイヤーの映像の要素 (字幕の canvas などを含む) を target へ移し、戻す関数を返す。

@@ -140,3 +140,19 @@
     display: none;
   }
 }
+
+/* 映像の右下に出す知らせ (データ受信中など)。操作バーのボタンに重ならないよう、バーの上に置く。 */
+.notice {
+  position: absolute;
+  inset-inline-end: 12px;
+  inset-block-end: 64px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--mantine-radius-xl);
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  font-size: var(--mantine-font-size-xs);
+  pointer-events: none;
+}

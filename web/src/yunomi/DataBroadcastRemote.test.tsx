@@ -42,13 +42,17 @@ describe('DataBroadcastRemote', () => {
     expect(onPress).toHaveBeenCalledExactlyOnceWith(want);
   });
 
-  test.each([
-    { state: 'loading' as const, message: 'データ放送を受け取っています' },
-    { state: 'ended' as const, message: 'データ放送を受け取れなくなりました' },
-  ])('$state の間は、ボタンを押せず、理由を出す', ({ state, message }) => {
-    renderRemote(state);
+  // 受け取っている間の知らせは、映像の右下に出すので、リモコンには出さない。
+  test('受け取っている間は、ボタンを押せない', () => {
+    renderRemote('loading');
 
     expect(screen.getByRole<HTMLButtonElement>('button', { name: '決定' }).disabled).toBe(true);
-    expect(screen.queryByText(message)).not.toBeNull();
+  });
+
+  test('受け取れなくなったら、ボタンを押せず、理由を出す', () => {
+    renderRemote('ended');
+
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '決定' }).disabled).toBe(true);
+    expect(screen.queryByText('データ放送を受け取れなくなりました')).not.toBeNull();
   });
 });

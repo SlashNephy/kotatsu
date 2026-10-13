@@ -521,7 +521,7 @@
     "quality": "画質",
     "captions": "字幕",
     "dataBroadcast": "データ放送",
-    "dataBroadcastLoading": "データ放送を受け取っています",
+    "dataBroadcastReceiving": "データ受信中",
     "dataBroadcastEnded": "データ放送を受け取れなくなりました",
     "remote": {
       "title": "リモコン",

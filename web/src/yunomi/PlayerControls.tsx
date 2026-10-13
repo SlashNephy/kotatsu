@@ -1,4 +1,4 @@
-import { ActionIcon, Popover, Slider, Stack, Tooltip } from '@mantine/core';
+import { ActionIcon, Loader, Popover, Slider, Stack, Tooltip } from '@mantine/core';
 import {
   Maximize,
   Minimize,
@@ -175,5 +175,21 @@ export function FullscreenButton({ active, onToggle }: { active: boolean; onTogg
       icon={active ? Minimize : Maximize}
       onClick={onToggle}
     />
+  );
+}
+
+// PlayerNotice は、映像の右下に出す知らせ。操作バーのボタンに重ならないよう、バーの上に置く。
+export function PlayerNotice({
+  children,
+  loading = false,
+}: {
+  children: ReactNode;
+  loading?: boolean;
+}) {
+  return (
+    <div className={classes.notice} role="status">
+      {loading && <Loader size={12} color="white" />}
+      {children}
+    </div>
   );
 }
