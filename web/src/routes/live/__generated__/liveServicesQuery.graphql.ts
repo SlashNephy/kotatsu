@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a14c63a7dc0b5fb380f0bdbbc319904f>>
+ * @generated SignedSource<<31f6a6afd2fef6b225e96f5d4748a54a>>
  * @lightSyntaxTransform
  */
 
@@ -20,6 +20,9 @@ export type liveServicesQuery$data = {
   readonly guide: ReadonlyArray<{
     readonly programs: ReadonlyArray<{
       readonly name: string;
+      readonly sharedFrom: {
+        readonly id: string;
+      } | null | undefined;
     }>;
     readonly service: {
       readonly channelType: {
@@ -132,6 +135,18 @@ v6 = {
     }
   ],
   "storageKey": null
+},
+v7 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "Service",
+  "kind": "LinkedField",
+  "name": "sharedFrom",
+  "plural": false,
+  "selections": [
+    (v4/*:: as any*/)
+  ],
+  "storageKey": null
 };
 return {
   "fragment": {
@@ -158,7 +173,8 @@ return {
             "name": "programs",
             "plural": true,
             "selections": [
-              (v5/*:: as any*/)
+              (v5/*:: as any*/),
+              (v7/*:: as any*/)
             ],
             "storageKey": null
           }
@@ -194,6 +210,7 @@ return {
             "plural": true,
             "selections": [
               (v5/*:: as any*/),
+              (v7/*:: as any*/),
               (v4/*:: as any*/)
             ],
             "storageKey": null
@@ -204,16 +221,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "e224511e9f9fd1a63896ba3985647a79",
+    "cacheID": "4caf05669b8c1c772d20d2c750fdebea",
     "id": null,
     "metadata": {},
     "name": "liveServicesQuery",
     "operationKind": "query",
-    "text": "query liveServicesQuery(\n  $from: Time!\n  $to: Time!\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  guide(from: $from, to: $to) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      name\n      id\n    }\n  }\n}\n"
+    "text": "query liveServicesQuery(\n  $from: Time!\n  $to: Time!\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  guide(from: $from, to: $to) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      name\n      sharedFrom {\n        id\n      }\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "fe6f0aae14b07e5988d3868c1e587396";
+(node as any).hash = "b720338512614e741cce8a51f1cc362d";
 
 export default node;

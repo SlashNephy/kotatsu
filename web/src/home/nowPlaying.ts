@@ -1,5 +1,7 @@
 // ホームに出す、放送中の番組を選ぶ (設計書 10.3)。
 
+import { sharesWithListed } from '../guide/sharedEvent';
+
 export type GuideRowLike = {
   service: { id: string; name: string; logoUrl?: string | null };
   programs: readonly {
@@ -37,8 +39,7 @@ export function nowPlaying(
     const program = row.programs.find(
       (candidate) => Date.parse(candidate.startAt) <= now && now < Date.parse(candidate.endAt),
     );
-    const sharedFrom = program?.sharedFrom;
-    if (program !== undefined && !(sharedFrom != null && serviceIds.has(sharedFrom.id))) {
+    if (program !== undefined && !sharesWithListed(program, serviceIds)) {
       playing.push({
         serviceId: row.service.id,
         serviceName: row.service.name,

@@ -16,6 +16,7 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 import { ErrorBoundary, ProgramTitle } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import type { liveServicesQuery } from './__generated__/liveServicesQuery.graphql';
+import { sharesWithListed } from '../../guide/sharedEvent';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 
 export const Route = createFileRoute('/live/')({
@@ -77,6 +78,9 @@ function Services({ range }: { range: { from: string; to: string } }) {
           }
           programs {
             name
+            sharedFrom {
+              id
+            }
           }
         }
       }
@@ -87,6 +91,9 @@ function Services({ range }: { range: { from: string; to: string } }) {
     data.guide.some((row) => row.service.channelType.type === type.type),
   );
   const [type, setType] = useState(types[0]?.type ?? '');
+  // サブチャンネルがメインチャンネルと同じ番組を流しているときは、メインチャンネルだけを出す (ホームの放送中の番組と同じ)。
+  const listed = new Set(data.guide.map((row) => row.service.id));
+  const rows = data.guide.filter((row) => !sharesWithListed(row.programs[0], listed));
 
   return (
     <Stack>
@@ -104,7 +111,7 @@ function Services({ range }: { range: { from: string; to: string } }) {
       )}
       {types.length === 0 && <Alert color="gray">{t('live.empty')}</Alert>}
       <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
-        {data.guide
+        {rows
           .filter((row) => row.service.channelType.type === type)
           .map((row) => (
             <Card
