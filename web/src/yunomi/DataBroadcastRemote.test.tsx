@@ -10,11 +10,11 @@ import type { DataBroadcastState } from './useDataBroadcast';
 
 afterEach(cleanup);
 
-function renderRemote(state: DataBroadcastState) {
+function renderRemote(state: DataBroadcastState, receiving = false) {
   const onPress = vi.fn();
   render(
     <MantineProvider theme={theme}>
-      <DataBroadcastRemote state={state} onPress={onPress} />
+      <DataBroadcastRemote state={state} receiving={receiving} onPress={onPress} />
     </MantineProvider>,
   );
 
@@ -45,6 +45,12 @@ describe('DataBroadcastRemote', () => {
   // 受け取っている間の知らせは、映像の右下に出すので、リモコンには出さない。
   test('受け取っている間は、ボタンを押せない', () => {
     renderRemote('loading');
+
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '決定' }).disabled).toBe(true);
+  });
+
+  test('文書を読んでいても、d ボタンで入っている途中は、ボタンを押せない', () => {
+    renderRemote('shown', true);
 
     expect(screen.getByRole<HTMLButtonElement>('button', { name: '決定' }).disabled).toBe(true);
   });

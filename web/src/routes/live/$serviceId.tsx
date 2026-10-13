@@ -477,7 +477,11 @@ function Live({
         </Alert>
       )}
       {dataBroadcastEnabled && (
-        <DataBroadcastRemote state={dataBroadcast.state} onPress={dataBroadcast.press} />
+        <DataBroadcastRemote
+          state={dataBroadcast.state}
+          receiving={dataBroadcast.receiving}
+          onPress={dataBroadcast.press}
+        />
       )}
       {channel !== null && jikkyoEnabled && (
         <JikkyoPanel channelName={channel.name} status={jikkyo.status} onPost={jikkyo.post} />
