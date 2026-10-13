@@ -8,7 +8,8 @@ test.describe('テーマ', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kotatsu');
     await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(251, 247, 239)');
 
-    await page.getByText('ダーク', { exact: true }).click();
+    // 選択肢の radio は Mantine が隠しているので、見えているラベル (アイコン) を押す。
+    await page.locator('label').filter({ hasText: 'ダーク' }).click();
     await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(42, 34, 28)');
 
     await page.reload();

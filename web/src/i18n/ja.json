@@ -4,7 +4,7 @@
   },
   "colorScheme": {
     "label": "テーマ",
-    "auto": "自動",
+    "auto": "システムと同期",
     "light": "ライト",
     "dark": "ダーク"
   },
