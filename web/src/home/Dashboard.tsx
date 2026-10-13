@@ -169,7 +169,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
                   {timeFormat.format(Date.parse(item.startAt))}〜
                   {timeFormat.format(Date.parse(item.endAt))}
                 </Text>
-                <Text size="sm" lineClamp={2}>
+                <Text size="sm" lineClamp={2} mt="xs">
                   {item.programName}
                 </Text>
               </Card>
