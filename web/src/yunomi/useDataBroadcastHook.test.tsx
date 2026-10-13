@@ -3,7 +3,7 @@ import { useRef } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import classes from './TsPlayer.module.css';
-import { useDataBroadcast } from './useDataBroadcast';
+import { RemoteKey, useDataBroadcast } from './useDataBroadcast';
 
 // FakeBrowser は、BMLBrowser の代わり。イベントを外から送り、映像の位置の有無を決められる。
 const fake = vi.hoisted(() => {
@@ -12,7 +12,14 @@ const fake = vi.hoisted(() => {
     readonly mediaElement: HTMLElement;
     // videoPlane は、いまのページの映像の位置。null なら、映像の位置がないページ。
     videoPlane: HTMLElement | null = document.createElement('object');
-    readonly content = { processKeyDown: () => {}, processKeyUp: () => {} };
+    // pressed は、押したリモコンのボタン (keydown) の順。
+    readonly pressed: number[] = [];
+    readonly content = {
+      processKeyDown: (key: number) => {
+        this.pressed.push(key);
+      },
+      processKeyUp: () => {},
+    };
 
     constructor(options: { mediaElement: HTMLElement }) {
       super();
@@ -96,6 +103,97 @@ function Harness() {
 const load = new CustomEvent('load', { detail: { resolution: { width: 960, height: 540 } } });
 
 describe('useDataBroadcast', () => {
+  test.each([
+    {
+      name: '見えない文書を読んだら、文書が見えるようになるまで d ボタンを押し直す',
+      steps: (browser: InstanceType<typeof fake.FakeBrowser>) => {
+        browser.dispatchEvent(load);
+        browser.dispatchEvent(new CustomEvent('invisible', { detail: true }));
+        vi.advanceTimersByTime(1500);
+        browser.dispatchEvent(new CustomEvent('invisible', { detail: false }));
+        vi.advanceTimersByTime(5000);
+      },
+      wantPresses: 3,
+    },
+    {
+      name: '押す前に同じ見えない文書を読み直しても、押し直しを続ける',
+      steps: (browser: InstanceType<typeof fake.FakeBrowser>) => {
+        browser.dispatchEvent(load);
+        browser.dispatchEvent(new CustomEvent('invisible', { detail: true }));
+        vi.advanceTimersByTime(300);
+        browser.dispatchEvent(load);
+        browser.dispatchEvent(new CustomEvent('invisible', { detail: true }));
+        vi.advanceTimersByTime(1200);
+      },
+      wantPresses: 3,
+    },
+    {
+      name: '押したあとに文書を読んだら、移り終わるまで押さない',
+      steps: (browser: InstanceType<typeof fake.FakeBrowser>) => {
+        browser.dispatchEvent(load);
+        browser.dispatchEvent(new CustomEvent('invisible', { detail: true }));
+        vi.advanceTimersByTime(1000);
+        // d ボタンが効き、途中の見えない文書を挟んで、見える文書へ移る。
+        browser.dispatchEvent(load);
+        browser.dispatchEvent(new CustomEvent('invisible', { detail: true }));
+        vi.advanceTimersByTime(1500);
+        browser.dispatchEvent(load);
+        browser.dispatchEvent(new CustomEvent('invisible', { detail: false }));
+        vi.advanceTimersByTime(5000);
+      },
+      wantPresses: 2,
+    },
+    {
+      name: '押したあとに読んだ文書が、待っても見えないままなら、押し直す',
+      steps: (browser: InstanceType<typeof fake.FakeBrowser>) => {
+        browser.dispatchEvent(load);
+        browser.dispatchEvent(new CustomEvent('invisible', { detail: true }));
+        vi.advanceTimersByTime(1000);
+        browser.dispatchEvent(load);
+        browser.dispatchEvent(new CustomEvent('invisible', { detail: true }));
+        // 待つ間は押さず、待ち終えたら押し直す。
+        vi.advanceTimersByTime(1900);
+        expect(browser.pressed).toHaveLength(2);
+        vi.advanceTimersByTime(200);
+      },
+      wantPresses: 3,
+    },
+    {
+      name: '最初から見える文書なら、押さない',
+      steps: (browser: InstanceType<typeof fake.FakeBrowser>) => {
+        browser.dispatchEvent(load);
+        browser.dispatchEvent(new CustomEvent('invisible', { detail: false }));
+        vi.advanceTimersByTime(5000);
+      },
+      wantPresses: 0,
+    },
+    {
+      name: '見えるようにならなくても、押し直すのは決まった回数まで',
+      steps: (browser: InstanceType<typeof fake.FakeBrowser>) => {
+        browser.dispatchEvent(load);
+        browser.dispatchEvent(new CustomEvent('invisible', { detail: true }));
+        vi.advanceTimersByTime(60_000);
+      },
+      wantPresses: 40,
+    },
+  ])('$name', ({ steps, wantPresses }) => {
+    vi.useFakeTimers();
+    try {
+      render(<Harness />);
+      const browser = fake.FakeBrowser.instances[0];
+      expect(browser).toBeDefined();
+      act(() => {
+        if (browser !== undefined) {
+          steps(browser);
+        }
+      });
+
+      expect(browser?.pressed).toEqual(Array.from({ length: wantPresses }, () => RemoteKey.d));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test.each([
     {
       name: '文書を表示したら、映像をデータ放送の中へ移す',

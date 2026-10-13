@@ -22,6 +22,10 @@ type Props = {
   onLoaded?: () => void;
   // overlay は、映像の上に重ねるもの (実況のコメント)。
   overlay?: ReactNode;
+  // controls は、映像の上に重ねる操作バー。重ねたもの (overlay) より上に置き、操作を受ける。
+  controls?: ReactNode;
+  // onVideo は、video の要素を作ったときと、取り除いたとき (null) に呼ぶ。
+  onVideo?: (video: HTMLVideoElement | null) => void;
 };
 
 // HlsPlayer は、kyusu がトランスコードした HLS を hls.js で再生する (設計書 7.3)。
@@ -36,6 +40,8 @@ export function HlsPlayer({
   onError,
   onLoaded,
   overlay,
+  controls,
+  onVideo,
 }: Props) {
   const hlsRef = useRef<Hls | null>(null);
   // hls は、作り終えた hls.js。作るのを待つ間に active が変わっても、作り終えてから読み込みを止められるようにする。
@@ -46,8 +52,8 @@ export function HlsPlayer({
   const resume = useRef(true);
   // loading は、hls.js がセグメントを読んでいるかどうか。読み込みを止めたり再開したりするのは、変わったときだけにする。
   const loading = useRef(false);
-  const handlers = useRef({ onError, onLoaded });
-  handlers.current = { onError, onLoaded };
+  const handlers = useRef({ onError, onLoaded, onVideo });
+  handlers.current = { onError, onLoaded, onVideo };
   // 読み始める位置は、読み直すときにだけ使う。位置が変わるたびに読み直さないよう、ref で渡す。
   const start = useRef(startPosition);
   start.current = startPosition;
@@ -68,6 +74,7 @@ export function HlsPlayer({
     video.autoplay = true;
     frame.append(video);
     videoRef.current = video;
+    handlers.current.onVideo?.(video);
     // 字幕は、aribb24.js を読み終えるまで溜めておくので、最初のセグメントの字幕も落とさない。
     const renderer = createCaptions(video, frame);
     renderer.setVisible(showCaptions.current);
@@ -77,6 +84,7 @@ export function HlsPlayer({
       captionsRef.current?.destroy();
       captionsRef.current = null;
       videoRef.current = null;
+      handlers.current.onVideo?.(null);
       frame.replaceChildren();
     };
   }, [videoRef]);
@@ -169,6 +177,7 @@ export function HlsPlayer({
     <div className={classes.frame}>
       <div ref={frameRef} className={classes.media} />
       {overlay !== undefined && <div className={classes.overlay}>{overlay}</div>}
+      {controls}
     </div>
   );
 }

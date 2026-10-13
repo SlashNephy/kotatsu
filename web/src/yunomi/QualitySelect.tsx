@@ -21,9 +21,10 @@ export function QualitySelect({ choices, quality, onChange }: Props) {
 
   return (
     <Select
-      aria-label={t('player.quality')}
+      label={t('player.quality')}
       size="xs"
-      w={200}
+      // 操作バーの設定の中に置く。別のウィンドウに移っても開けるよう、メニューをプレイヤーの中に描く。
+      comboboxProps={{ withinPortal: false }}
       allowDeselect={false}
       data={choices.map((choice) => ({ value: choice, label: qualityLabel(choice, t) }))}
       value={quality}
@@ -159,9 +160,10 @@ export function AudioSelect({
 
   return (
     <Select
-      aria-label={t('player.audio')}
+      label={t('player.audio')}
       size="xs"
-      w={180}
+      // 操作バーの設定の中に置く。別のウィンドウに移っても開けるよう、メニューをプレイヤーの中に描く。
+      comboboxProps={{ withinPortal: false }}
       allowDeselect={false}
       data={choices.map((choice) => ({ value: choice.value, label: label(choice) }))}
       value={value}
@@ -204,9 +206,10 @@ export function KyusuAudioSelect({
 
   return (
     <Select
-      aria-label={t('player.audio')}
+      label={t('player.audio')}
       size="xs"
-      w={180}
+      // 操作バーの設定の中に置く。別のウィンドウに移っても開けるよう、メニューをプレイヤーの中に描く。
+      comboboxProps={{ withinPortal: false }}
       allowDeselect={false}
       data={choices.map((choice) => ({ value: String(choice.slot), label: label(choice) }))}
       value={String(value)}
@@ -234,9 +237,10 @@ export function RateSelect({
 
   return (
     <Select
-      aria-label={t('player.rate')}
+      label={t('player.rate')}
       size="xs"
-      w={90}
+      // 操作バーの設定の中に置く。別のウィンドウに移っても開けるよう、メニューをプレイヤーの中に描く。
+      comboboxProps={{ withinPortal: false }}
       allowDeselect={false}
       data={rates.map((rate) => ({ value: rate, label: `${rate}x` }))}
       value={String(value)}

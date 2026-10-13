@@ -34,6 +34,12 @@ type Resolution = { width: number; height: number };
 
 const defaultResolution: Resolution = { width: 960, height: 540 };
 
+// enterIntervalMs と maxEnterTries は、データ放送の画面に入るために、d ボタンを押し直す間隔と回数。
+// enterSettleMs は、押したあとに文書を読んでから、押し直すかを決めるまで待つ時間。
+const enterIntervalMs = 500;
+const maxEnterTries = 40;
+const enterSettleMs = 2000;
+
 // useDataBroadcast は、web-bml でデータ放送を描き、映像に重ねる層を返す (設計書 7.4)。
 // source が null なら、何もしない。TS は Web Worker で解き、描くのは画面のスレッドの BMLBrowser に任せる。
 //
@@ -47,6 +53,8 @@ export function useDataBroadcast(
   // layer は、文書を描く層。画質を変えるとプレイヤーごと作り直されるので、要素が変わったら描き直す。
   const [layer, setLayer] = useState<HTMLDivElement | null>(null);
   const browserRef = useRef<BMLBrowser | null>(null);
+  // stopEnteringRef は、データ放送の画面に入るために d ボタンを押し直すのを、やめる。
+  const stopEnteringRef = useRef<() => void>(() => {});
   const [state, setState] = useState<DataBroadcastState>('off');
   const [resolution, setResolution] = useState<Resolution>(defaultResolution);
   // invisible は、データ放送の文書が、表示しないよう求めていること。映像は全面に戻す。
@@ -100,13 +108,65 @@ export function useDataBroadcast(
         restore = moveMedia(video, mediaElement);
       }
     };
+    // データ放送を入れたら、リモコンの d ボタンを押したときと同じく、データ放送の画面に入る。
+    // web-bml は、load を知らせてから文書のスクリプトを走らせ、d ボタンを受け取る仕組みを最後に登録する。登録の前に押しても
+    // 何も起きないので、文書が見えるようになる (d ボタンが効く) か、利用者がリモコンを使うまで、間を空けて押し直す。
+    // d ボタンが効くと、途中の見えない文書を挟んで、見える文書へ移ることがある。移っている途中に押すと、局によっては
+    // 戻ってしまうので、押したあとに文書を読んだら、しばらく待ち、見えないままのときだけ押し直す。
+    // 見えない文書は、受け取り直すと同じ文書をもう一度読むので、押す前の load では待たない。
+    let entering: 'idle' | 'pressing' | 'settling' | 'done' = 'idle';
+    let tries = 0;
+    let enterTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearEnterTimer = () => {
+      if (enterTimer !== null) {
+        clearTimeout(enterTimer);
+        enterTimer = null;
+      }
+    };
+    const stopEntering = () => {
+      clearEnterTimer();
+      entering = 'done';
+    };
+    stopEnteringRef.current = stopEntering;
+    const pressLater = (delay: number) => {
+      clearEnterTimer();
+      entering = 'pressing';
+      enterTimer = setTimeout(() => {
+        enterTimer = null;
+        if (tries >= maxEnterTries) {
+          stopEntering();
+
+          return;
+        }
+        tries += 1;
+        browser.content.processKeyDown(RemoteKey.d);
+        browser.content.processKeyUp(RemoteKey.d);
+        pressLater(enterIntervalMs);
+      }, delay);
+    };
     browser.addEventListener('load', (event) => {
       setResolution(event.detail.resolution);
       setState('shown');
       place();
+      // 文書が見えるかは、load の直後の invisible で分かる。見える文書なら、最初に押す前に止まる。
+      if (entering === 'idle') {
+        pressLater(enterIntervalMs);
+      } else if (entering !== 'done' && tries > 0) {
+        clearEnterTimer();
+        entering = 'settling';
+        enterTimer = setTimeout(() => {
+          enterTimer = null;
+          if (hidden) {
+            pressLater(0);
+          }
+        }, enterSettleMs);
+      }
     });
     browser.addEventListener('invisible', (event) => {
       hidden = event.detail;
+      if (!hidden) {
+        stopEntering();
+      }
       setInvisible(event.detail);
       place();
     });
@@ -130,6 +190,7 @@ export function useDataBroadcast(
     worker.postMessage({ url, serviceId } satisfies DataBroadcastRequest);
 
     return () => {
+      stopEntering();
       worker.terminate();
       putBack();
       browser.destroy();
@@ -151,6 +212,8 @@ export function useDataBroadcast(
   }, [layer, resolution.width]);
 
   const press = (key: RemoteKey) => {
+    // 利用者がリモコンを使ったら、d ボタンを押し直すのをやめる。
+    stopEnteringRef.current();
     const browser = browserRef.current;
     if (browser === null) {
       return;
