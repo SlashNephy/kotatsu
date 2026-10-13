@@ -112,14 +112,20 @@ function SecondFactor() {
         <form onSubmit={submit}>
           <Stack>
             {useRecovery ? (
-              <TextInput
-                label={t('auth.secondFactor.recoveryCode')}
-                value={code}
-                onChange={(e) => setCode(e.currentTarget.value)}
-                placeholder="xxxxx-xxxxx"
-                autoComplete="off"
-                required
-              />
+              <Stack gap={4}>
+                <Text size="sm" ta="center">
+                  {t('auth.secondFactor.recoveryDescription')}
+                </Text>
+                <TextInput
+                  label={t('auth.secondFactor.recoveryCode')}
+                  value={code}
+                  onChange={(e) => setCode(e.currentTarget.value)}
+                  placeholder="xxxxx-xxxxx"
+                  autoComplete="off"
+                  required
+                  my="md"
+                />
+              </Stack>
             ) : (
               <Stack gap={4}>
                 <Text size="sm" ta="center">

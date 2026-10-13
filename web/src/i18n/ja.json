@@ -141,6 +141,7 @@
       "totp": "認証アプリのコード",
       "useRecoveryCode": "リカバリーコードを使う",
       "recoveryCode": "リカバリーコード",
+      "recoveryDescription": "あらかじめ控えておいたコードでログインすることができます。",
       "useTOTP": "認証アプリのコードを使う",
       "submit": "ログイン",
       "passkey": "パスキーで確認",
