@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<4284a2567fbfb34c000096d53600d9c3>>
+ * @generated SignedSource<<3113bbd207d115629b2c1bb68f15a70d>>
  * @lightSyntaxTransform
  */
 
@@ -21,6 +21,9 @@ export type DashboardQuery$data = {
       readonly endAt: string;
       readonly id: string;
       readonly name: string;
+      readonly sharedFrom: {
+        readonly id: string;
+      } | null | undefined;
       readonly startAt: string;
     }>;
     readonly service: {
@@ -164,7 +167,10 @@ v7 = {
   "name": "endAt",
   "storageKey": null
 },
-v8 = {
+v8 = [
+  (v3/*:: as any*/)
+],
+v9 = {
   "alias": null,
   "args": [
     (v2/*:: as any*/),
@@ -204,42 +210,52 @@ v8 = {
         (v3/*:: as any*/),
         (v4/*:: as any*/),
         (v6/*:: as any*/),
-        (v7/*:: as any*/)
+        (v7/*:: as any*/),
+        {
+          "alias": null,
+          "args": null,
+          "concreteType": "Service",
+          "kind": "LinkedField",
+          "name": "sharedFrom",
+          "plural": false,
+          "selections": (v8/*:: as any*/),
+          "storageKey": null
+        }
       ],
       "storageKey": null
     }
   ],
   "storageKey": null
 },
-v9 = [
+v10 = [
   {
     "kind": "Literal",
     "name": "first",
     "value": 6
   }
 ],
-v10 = {
+v11 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "state",
   "storageKey": null
 },
-v11 = {
+v12 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "recordedFrom",
   "storageKey": null
 },
-v12 = {
+v13 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "thumbnailUrl",
   "storageKey": null
 },
-v13 = {
+v14 = {
   "alias": null,
   "args": null,
   "concreteType": "Service",
@@ -252,27 +268,27 @@ v13 = {
   ],
   "storageKey": null
 },
-v14 = {
+v15 = {
   "kind": "Literal",
   "name": "enabled",
   "value": true
 },
-v15 = {
+v16 = {
   "kind": "Variable",
   "name": "to",
   "variableName": "to"
 },
-v16 = [
-  (v14/*:: as any*/),
+v17 = [
+  (v15/*:: as any*/),
   {
     "kind": "Literal",
     "name": "first",
     "value": 5
   },
   (v2/*:: as any*/),
-  (v15/*:: as any*/)
+  (v16/*:: as any*/)
 ],
-v17 = {
+v18 = {
   "alias": null,
   "args": null,
   "concreteType": "ReservationAssignment",
@@ -280,14 +296,14 @@ v17 = {
   "name": "assignment",
   "plural": false,
   "selections": [
-    (v10/*:: as any*/)
+    (v11/*:: as any*/)
   ],
   "storageKey": null
 },
-v18 = {
+v19 = {
   "alias": "troubles",
   "args": [
-    (v14/*:: as any*/),
+    (v15/*:: as any*/),
     {
       "kind": "Literal",
       "name": "first",
@@ -302,7 +318,7 @@ v18 = {
         "PARTIAL"
       ]
     },
-    (v15/*:: as any*/)
+    (v16/*:: as any*/)
   ],
   "concreteType": "ReservationConnection",
   "kind": "LinkedField",
@@ -324,9 +340,7 @@ v18 = {
           "kind": "LinkedField",
           "name": "node",
           "plural": false,
-          "selections": [
-            (v3/*:: as any*/)
-          ],
+          "selections": (v8/*:: as any*/),
           "storageKey": null
         }
       ],
@@ -353,7 +367,7 @@ v18 = {
   ],
   "storageKey": null
 },
-v19 = {
+v20 = {
   "alias": null,
   "args": null,
   "concreteType": "Service",
@@ -375,10 +389,10 @@ return {
     "name": "DashboardQuery",
     "selections": [
       (v1/*:: as any*/),
-      (v8/*:: as any*/),
+      (v9/*:: as any*/),
       {
         "alias": null,
-        "args": (v9/*:: as any*/),
+        "args": (v10/*:: as any*/),
         "concreteType": "RecordingConnection",
         "kind": "LinkedField",
         "name": "recordings",
@@ -402,10 +416,10 @@ return {
                 "selections": [
                   (v3/*:: as any*/),
                   (v4/*:: as any*/),
-                  (v10/*:: as any*/),
                   (v11/*:: as any*/),
                   (v12/*:: as any*/),
-                  (v13/*:: as any*/)
+                  (v13/*:: as any*/),
+                  (v14/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -417,7 +431,7 @@ return {
       },
       {
         "alias": "upcoming",
-        "args": (v16/*:: as any*/),
+        "args": (v17/*:: as any*/),
         "concreteType": "ReservationConnection",
         "kind": "LinkedField",
         "name": "reservations",
@@ -443,8 +457,8 @@ return {
                   (v4/*:: as any*/),
                   (v6/*:: as any*/),
                   (v7/*:: as any*/),
-                  (v13/*:: as any*/),
-                  (v17/*:: as any*/)
+                  (v14/*:: as any*/),
+                  (v18/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -454,7 +468,7 @@ return {
         ],
         "storageKey": null
       },
-      (v18/*:: as any*/)
+      (v19/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -466,10 +480,10 @@ return {
     "name": "DashboardQuery",
     "selections": [
       (v1/*:: as any*/),
-      (v8/*:: as any*/),
+      (v9/*:: as any*/),
       {
         "alias": null,
-        "args": (v9/*:: as any*/),
+        "args": (v10/*:: as any*/),
         "concreteType": "RecordingConnection",
         "kind": "LinkedField",
         "name": "recordings",
@@ -493,10 +507,10 @@ return {
                 "selections": [
                   (v3/*:: as any*/),
                   (v4/*:: as any*/),
-                  (v10/*:: as any*/),
                   (v11/*:: as any*/),
                   (v12/*:: as any*/),
-                  (v19/*:: as any*/)
+                  (v13/*:: as any*/),
+                  (v20/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -508,7 +522,7 @@ return {
       },
       {
         "alias": "upcoming",
-        "args": (v16/*:: as any*/),
+        "args": (v17/*:: as any*/),
         "concreteType": "ReservationConnection",
         "kind": "LinkedField",
         "name": "reservations",
@@ -534,8 +548,8 @@ return {
                   (v4/*:: as any*/),
                   (v6/*:: as any*/),
                   (v7/*:: as any*/),
-                  (v19/*:: as any*/),
-                  (v17/*:: as any*/)
+                  (v20/*:: as any*/),
+                  (v18/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -545,20 +559,20 @@ return {
         ],
         "storageKey": null
       },
-      (v18/*:: as any*/)
+      (v19/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "370035079cad37e26060248f223e7db5",
+    "cacheID": "8c026031c72a3077f7cc2144442ba03d",
     "id": null,
     "metadata": {},
     "name": "DashboardQuery",
     "operationKind": "query",
-    "text": "query DashboardQuery(\n  $from: Time!\n  $nowEnd: Time!\n  $to: Time!\n) {\n  tunerServerHealth {\n    degraded\n    degradedSince\n  }\n  guide(from: $from, to: $nowEnd) {\n    service {\n      id\n      name\n      logoUrl\n    }\n    programs {\n      id\n      name\n      startAt\n      endAt\n    }\n  }\n  recordings(first: 6) {\n    edges {\n      node {\n        id\n        name\n        state\n        recordedFrom\n        thumbnailUrl\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n  }\n  upcoming: reservations(from: $from, to: $to, enabled: true, first: 5) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        service {\n          name\n          logoUrl\n          id\n        }\n        assignment {\n          state\n        }\n      }\n    }\n  }\n  troubles: reservations(from: $from, to: $to, states: [CONFLICT, PARTIAL], enabled: true, first: 100) {\n    edges {\n      node {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
+    "text": "query DashboardQuery(\n  $from: Time!\n  $nowEnd: Time!\n  $to: Time!\n) {\n  tunerServerHealth {\n    degraded\n    degradedSince\n  }\n  guide(from: $from, to: $nowEnd) {\n    service {\n      id\n      name\n      logoUrl\n    }\n    programs {\n      id\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n    }\n  }\n  recordings(first: 6) {\n    edges {\n      node {\n        id\n        name\n        state\n        recordedFrom\n        thumbnailUrl\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n  }\n  upcoming: reservations(from: $from, to: $to, enabled: true, first: 5) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        service {\n          name\n          logoUrl\n          id\n        }\n        assignment {\n          state\n        }\n      }\n    }\n  }\n  troubles: reservations(from: $from, to: $to, states: [CONFLICT, PARTIAL], enabled: true, first: 100) {\n    edges {\n      node {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "9dcc7b4e8faf07869668a42719749b09";
+(node as any).hash = "a56bb4518a67f4c134b36f83dd44c542";
 
 export default node;

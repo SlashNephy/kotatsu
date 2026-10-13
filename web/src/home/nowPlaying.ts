@@ -2,7 +2,13 @@
 
 export type GuideRowLike = {
   service: { id: string; name: string; logoUrl?: string | null };
-  programs: readonly { id: string; name: string; startAt: string; endAt: string }[];
+  programs: readonly {
+    id: string;
+    name: string;
+    startAt: string;
+    endAt: string;
+    sharedFrom?: { id: string } | null;
+  }[];
 };
 
 export type NowPlaying = {
@@ -15,12 +21,14 @@ export type NowPlaying = {
 };
 
 // nowPlaying は、サービスごとに、now に放送している番組を返す。番組表の並びのまま、limit 件までにする。
-// 放送中の番組がないサービスは出さない。
+// 放送中の番組がないサービスは出さない。サブチャンネルがメインチャンネルと同じ番組を放送している (イベント共有) ときは、
+// 元のサービスの番組だけを出す。元のサービスが一覧にない (番組表に出さない設定など) ときは、そのまま出す。
 export function nowPlaying(
   rows: readonly GuideRowLike[],
   now: number,
   limit: number,
 ): NowPlaying[] {
+  const serviceIds = new Set(rows.map((row) => row.service.id));
   const playing: NowPlaying[] = [];
   for (const row of rows) {
     if (playing.length >= limit) {
@@ -29,7 +37,8 @@ export function nowPlaying(
     const program = row.programs.find(
       (candidate) => Date.parse(candidate.startAt) <= now && now < Date.parse(candidate.endAt),
     );
-    if (program !== undefined) {
+    const sharedFrom = program?.sharedFrom;
+    if (program !== undefined && !(sharedFrom != null && serviceIds.has(sharedFrom.id))) {
       playing.push({
         serviceId: row.service.id,
         serviceName: row.service.name,

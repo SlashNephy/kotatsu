@@ -52,6 +52,9 @@ export function Dashboard({ range }: { range: DashboardRange }) {
             name
             startAt
             endAt
+            sharedFrom {
+              id
+            }
           }
         }
         recordings(first: 6) {

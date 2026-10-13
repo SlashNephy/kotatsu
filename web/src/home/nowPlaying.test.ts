@@ -27,6 +27,46 @@ describe('nowPlaying', () => {
     ]);
   });
 
+  test.each([
+    {
+      name: '元のサービスが一覧にあれば、イベント共有のサブチャンネルは出さない',
+      services: ['s1', 's2', 's3'],
+      want: ['s1', 's3'],
+    },
+    {
+      name: '元のサービスが一覧になければ、サブチャンネルを出す',
+      services: ['s2', 's3'],
+      want: ['s2', 's3'],
+    },
+  ])('$name', ({ services, want }) => {
+    const shared = program('a', '09:30', '10:30');
+    const all = {
+      s1: { service: { id: 's1', name: 'メイン' }, programs: [shared] },
+      s2: {
+        service: { id: 's2', name: 'サブ' },
+        programs: [{ ...shared, sharedFrom: { id: 's1' } }],
+      },
+      s3: {
+        service: { id: 's3', name: 'ほか' },
+        programs: [{ ...program('b', '09:30', '10:30'), sharedFrom: null }],
+      },
+    } as const;
+    const rows = services.map((id) => all[id as keyof typeof all]);
+
+    expect(nowPlaying(rows, now, 10).map((item) => item.serviceId)).toEqual(want);
+  });
+
+  test('省いたサブチャンネルは、limit に数えない', () => {
+    const shared = program('a', '09:30', '10:30');
+    const rows = [
+      { service: { id: 's1', name: 'メイン' }, programs: [shared] },
+      { service: { id: 's2', name: 'サブ' }, programs: [{ ...shared, sharedFrom: { id: 's1' } }] },
+      { service: { id: 's3', name: 'ほか' }, programs: [program('b', '09:30', '10:30')] },
+    ];
+
+    expect(nowPlaying(rows, now, 2).map((item) => item.serviceId)).toEqual(['s1', 's3']);
+  });
+
   test('limit 件までにする', () => {
     const rows = ['s1', 's2', 's3'].map((id) => ({
       service: { id, name: id },
