@@ -101,10 +101,10 @@ export function PlayButton({ video }: { video: VideoState }) {
   );
 }
 
-// VolumeControl は、消音のボタンと、ホバーで広がる音量のスライダー。
+// VolumeControl は、ミュートのボタンと、ホバーで広がる音量のスライダー。
 export function VolumeControl({ video }: { video: VideoState }) {
   const { t } = useTranslation();
-  // 消音している間に目盛りが残っていると、音が出るように見えるので、0 として見せる。
+  // ミュートしている間に目盛りが残っていると、音が出るように見えるので、0 として見せる。
   const shown = video.muted ? 0 : video.volume;
   const icon = shown < 0.01 ? VolumeX : shown < 0.5 ? Volume1 : Volume2;
 

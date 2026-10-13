@@ -63,7 +63,7 @@ export function useVideoState(video: HTMLVideoElement | null): VideoState {
         return;
       }
       video.volume = next;
-      // 音量を上げたら、消音を解く。
+      // 音量を上げたら、ミュートを解除する。
       if (next > 0) {
         video.muted = false;
       }
