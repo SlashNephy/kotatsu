@@ -1,0 +1,44 @@
+import { useState } from 'react';
+
+type Props = {
+  name: string;
+  // logoUrl は、tenban が返したロゴの URL のパス。放送がロゴを送っていなければ null。
+  logoUrl: string | null | undefined;
+  // logoHeight は、ロゴの高さ。省略すると、文字の大きさに合わせる。
+  logoHeight?: string;
+};
+
+// ServiceLabel は、ロゴを添えたサービス名。Text などの中に置き、文字と同じ行に並べる。
+// ロゴがないか、読めなければ、名前だけを出す。
+export function ServiceLabel({ name, logoUrl, logoHeight = '1.4em' }: Props) {
+  // failedURL は、読み込めなかったロゴの URL。URL が変われば、読み直す。
+  const [failedURL, setFailedURL] = useState<string | null>(null);
+
+  if (logoUrl == null || failedURL === logoUrl) {
+    return <>{name}</>;
+  }
+
+  return (
+    <>
+      <img
+        src={logoUrl}
+        // 名前を隣に書くので、読み上げでは飛ばす。
+        alt=""
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailedURL(logoUrl)}
+        style={{
+          display: 'inline-block',
+          height: logoHeight,
+          // 放送のロゴは 16:9 で送られる。読み込む前から幅を取っておき、名前がずれないようにする。
+          aspectRatio: '16 / 9',
+          objectFit: 'contain',
+          verticalAlign: 'middle',
+          marginInlineEnd: '0.4em',
+          borderRadius: 2,
+        }}
+      />
+      {name}
+    </>
+  );
+}

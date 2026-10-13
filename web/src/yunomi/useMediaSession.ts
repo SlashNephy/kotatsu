@@ -24,7 +24,8 @@ export function useMediaSession(
     navigator.mediaSession.metadata = new MediaMetadata({
       title,
       artist,
-      artwork: artwork === null ? [] : [{ src: artwork, type: 'image/jpeg' }],
+      // 録画の代表画像は JPEG、サービスのロゴは PNG なので、種類は書かずにブラウザに見分けさせる。
+      artwork: artwork === null ? [] : [{ src: artwork }],
     });
 
     return () => {

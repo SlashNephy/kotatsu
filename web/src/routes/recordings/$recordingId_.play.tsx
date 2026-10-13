@@ -40,6 +40,7 @@ import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPi
 import { resumePosition } from '../../yunomi/resume';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
+import { ServiceLabel } from '../../guide/ServiceLabel';
 
 export const Route = createFileRoute('/recordings/$recordingId_/play')({
   component: PlayPage,
@@ -106,6 +107,7 @@ function Player({ recordingId }: { recordingId: string }) {
             }
             service {
               name
+              logoUrl
               jikkyo {
                 id
                 name
@@ -404,7 +406,7 @@ function Player({ recordingId }: { recordingId: string }) {
         {recording.name}
       </Title>
       <Text size="sm" c="dimmed">
-        {recording.service.name}
+        <ServiceLabel name={recording.service.name} logoUrl={recording.service.logoUrl} />
       </Text>
       <PlaybackUnavailable route={route} />
       <div ref={frameRef}>

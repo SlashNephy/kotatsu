@@ -24,6 +24,7 @@ import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import type { channelsChannelTypeMutation } from './__generated__/channelsChannelTypeMutation.graphql';
 import type { channelsQuery } from './__generated__/channelsQuery.graphql';
 import type { channelsServiceMutation } from './__generated__/channelsServiceMutation.graphql';
+import { ServiceLabel } from '../../guide/ServiceLabel';
 
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '' };
 const path = '/admin/channels';
@@ -55,6 +56,7 @@ const query = graphql`
     services(includeHidden: true) {
       id
       name
+      logoUrl
       hidden
       sortOrder
       channelType {
@@ -194,6 +196,7 @@ function ServiceEditor({
 }: {
   service: {
     name: string;
+    logoUrl: string | null | undefined;
     hidden: boolean;
     sortOrder: number | null | undefined;
     channelType: { displayName: string };
@@ -209,7 +212,7 @@ function ServiceEditor({
     <Group gap="xs" align="flex-end">
       <Stack gap={0} w={200} pb={4}>
         <Text size="sm" fw={600} truncate>
-          {service.name}
+          <ServiceLabel name={service.name} logoUrl={service.logoUrl} />
         </Text>
         <Text size="xs" c="dimmed">
           {service.channelType.displayName}

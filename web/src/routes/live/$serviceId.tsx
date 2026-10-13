@@ -32,6 +32,7 @@ import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPi
 import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
 import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordingsQuery.graphql';
+import { ServiceLabel } from '../../guide/ServiceLabel';
 
 export const Route = createFileRoute('/live/$serviceId')({
   component: LiveServicePage,
@@ -46,6 +47,7 @@ const recordingsQuery = graphql`
           recordedFrom
           service {
             name
+            logoUrl
           }
         }
       }
@@ -125,6 +127,7 @@ function Live({
           __typename
           ... on Service {
             name
+            logoUrl
             streamUrl
             jikkyo {
               id
@@ -253,6 +256,7 @@ function Live({
   const audio = usePlayerAudio(route, program?.audios ?? null);
   const programName = program?.name ?? null;
   const serviceName = data.node?.__typename === 'Service' ? data.node.name : '';
+  const serviceLogoUrl = data.node?.__typename === 'Service' ? (data.node.logoUrl ?? null) : null;
   usePlayerShortcuts({
     togglePlay: () => {
       const video = videoRef.current;
@@ -278,7 +282,7 @@ function Live({
     },
   });
   useMediaSession(
-    { title: programName ?? serviceName, artist: serviceName, artwork: null },
+    { title: programName ?? serviceName, artist: serviceName, artwork: serviceLogoUrl },
     {
       play: () => void videoRef.current?.play().catch(() => {}),
       pause: () => videoRef.current?.pause(),
@@ -358,7 +362,7 @@ function Live({
   return (
     <Stack gap="xs">
       <Title order={2} size="h4">
-        {service.name}
+        <ServiceLabel name={service.name} logoUrl={service.logoUrl} />
       </Title>
       <Text size="sm" c="dimmed">
         {data.guide[0]?.programs[0]?.name ?? t('live.noProgram')}

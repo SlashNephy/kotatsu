@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<791d78fa603d91efb374709fb39de12e>>
+ * @generated SignedSource<<954220360d98744a817e98baf81e7557>>
  * @lightSyntaxTransform
  */
 
@@ -16,6 +16,7 @@ export type ServiceIdRecordingsQuery$data = {
         readonly name: string;
         readonly recordedFrom: string;
         readonly service: {
+          readonly logoUrl: string | null | undefined;
           readonly name: string;
         };
       };
@@ -59,6 +60,13 @@ v2 = {
   "storageKey": null
 },
 v3 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v4 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
@@ -106,7 +114,8 @@ return {
                     "name": "service",
                     "plural": false,
                     "selections": [
-                      (v1/*:: as any*/)
+                      (v1/*:: as any*/),
+                      (v3/*:: as any*/)
                     ],
                     "storageKey": null
                   }
@@ -164,11 +173,12 @@ return {
                     "plural": false,
                     "selections": [
                       (v1/*:: as any*/),
-                      (v3/*:: as any*/)
+                      (v3/*:: as any*/),
+                      (v4/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v3/*:: as any*/)
+                  (v4/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -181,16 +191,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "a8e742e824b2cb46d6ddc1249faeb763",
+    "cacheID": "b16bac86c8d05e22b48ed96a97ab52c0",
     "id": null,
     "metadata": {},
     "name": "ServiceIdRecordingsQuery",
     "operationKind": "query",
-    "text": "query ServiceIdRecordingsQuery {\n  recordings(first: 20, filter: {states: [RECORDING]}) {\n    edges {\n      node {\n        name\n        recordedFrom\n        service {\n          name\n          id\n        }\n        id\n      }\n    }\n  }\n}\n"
+    "text": "query ServiceIdRecordingsQuery {\n  recordings(first: 20, filter: {states: [RECORDING]}) {\n    edges {\n      node {\n        name\n        recordedFrom\n        service {\n          name\n          logoUrl\n          id\n        }\n        id\n      }\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "923f6f002e1107c3e3def65e9149cf2d";
+(node as any).hash = "f182171d6184ec2022962bc2cdf41bc3";
 
 export default node;

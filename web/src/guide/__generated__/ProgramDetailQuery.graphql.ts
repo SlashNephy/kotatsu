@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<51aa12ff6c26c3efaf2ba5e440274d71>>
+ * @generated SignedSource<<987576f9f9f0b535dbbc166f1a957479>>
  * @lightSyntaxTransform
  */
 
@@ -30,6 +30,7 @@ export type ProgramDetailQuery$data = {
     readonly isFree: boolean;
     readonly name: string;
     readonly service: {
+      readonly logoUrl: string | null | undefined;
       readonly name: string;
     };
     readonly startAt: string;
@@ -135,6 +136,13 @@ v11 = {
 v12 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v13 = {
+  "alias": null,
+  "args": null,
   "concreteType": "Genre",
   "kind": "LinkedField",
   "name": "genres",
@@ -150,7 +158,7 @@ v12 = {
   ],
   "storageKey": null
 },
-v13 = {
+v14 = {
   "alias": null,
   "args": null,
   "concreteType": "ExtendedItem",
@@ -222,12 +230,13 @@ return {
                 "name": "service",
                 "plural": false,
                 "selections": [
-                  (v5/*:: as any*/)
+                  (v5/*:: as any*/),
+                  (v12/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v12/*:: as any*/),
-              (v13/*:: as any*/)
+              (v13/*:: as any*/),
+              (v14/*:: as any*/)
             ],
             "type": "Program",
             "abstractKey": null
@@ -287,12 +296,13 @@ return {
                 "plural": false,
                 "selections": [
                   (v5/*:: as any*/),
+                  (v12/*:: as any*/),
                   (v4/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v12/*:: as any*/),
-              (v13/*:: as any*/)
+              (v13/*:: as any*/),
+              (v14/*:: as any*/)
             ],
             "type": "Program",
             "abstractKey": null
@@ -303,16 +313,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "6368f95f36ea1ab0cd82f8b6aef914a3",
+    "cacheID": "c466d80c5cc35c4de1f5f91fd476d533",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      service {\n        name\n        id\n      }\n      genres {\n        lv1\n      }\n      extended {\n        heading\n        text\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      service {\n        name\n        logoUrl\n        id\n      }\n      genres {\n        lv1\n      }\n      extended {\n        heading\n        text\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "ac2d617dd059e41a92833f246553ee3d";
+(node as any).hash = "c2d0157767807b7e695f1fe412813370";
 
 export default node;

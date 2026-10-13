@@ -14,6 +14,7 @@ import {
   type ColumnLayout,
   type GuideWindow,
 } from './layout';
+import { ServiceLabel } from './ServiceLabel';
 
 // GuideProgram は、番組表の枠に出す番組。
 export type GuideProgram = {
@@ -29,6 +30,8 @@ export type GuideProgram = {
 export type GuideColumn = {
   id: string;
   name: string;
+  // logoUrl は、サービスのロゴの URL のパス。ロゴがなければ null。
+  logoUrl: string | null;
   programs: GuideProgram[];
 };
 
@@ -179,7 +182,11 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
               borderLeft: '1px solid var(--mantine-color-default-border)',
             }}
           >
-            {columns[item.index]!.name}
+            <ServiceLabel
+              name={columns[item.index]!.name}
+              logoUrl={columns[item.index]!.logoUrl}
+              logoHeight="24px"
+            />
           </Text>
         ))}
       </Box>

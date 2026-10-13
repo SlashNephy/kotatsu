@@ -78,6 +78,7 @@ function Rule({ ruleId }: { ruleId: string }) {
         services {
           id
           name
+          logoUrl
           serviceId
           channelType {
             displayName

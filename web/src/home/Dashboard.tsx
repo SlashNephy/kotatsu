@@ -7,6 +7,7 @@ import { RecordingThumbnail } from '../recordings/RecordingThumbnail';
 import { stateColor, stateKey } from '../recordings/states';
 import type { DashboardQuery } from './__generated__/DashboardQuery.graphql';
 import { nowPlaying } from './nowPlaying';
+import { ServiceLabel } from '../guide/ServiceLabel';
 
 const timeFormat = new Intl.DateTimeFormat('ja-JP', {
   hour: '2-digit',
@@ -44,6 +45,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
           service {
             id
             name
+            logoUrl
           }
           programs {
             id
@@ -62,6 +64,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
               thumbnailUrl
               service {
                 name
+                logoUrl
               }
             }
           }
@@ -75,6 +78,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
               endAt
               service {
                 name
+                logoUrl
               }
               assignment {
                 state
@@ -158,7 +162,8 @@ export function Dashboard({ range }: { range: DashboardRange }) {
                 )}
               >
                 <Text size="xs" c="dimmed">
-                  {item.serviceName}・{timeFormat.format(Date.parse(item.startAt))}〜
+                  <ServiceLabel name={item.serviceName} logoUrl={item.serviceLogoUrl} />・
+                  {timeFormat.format(Date.parse(item.startAt))}〜
                   {timeFormat.format(Date.parse(item.endAt))}
                 </Text>
                 <Text size="sm" lineClamp={2}>
@@ -208,7 +213,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
                       {t(stateKey(node.state))}
                     </Badge>
                     <Text size="xs" c="dimmed">
-                      {node.service.name}
+                      <ServiceLabel name={node.service.name} logoUrl={node.service.logoUrl} />
                     </Text>
                   </Group>
                 </Stack>
@@ -242,7 +247,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
                   {node.name}
                 </Text>
                 <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
-                  {node.service.name}
+                  <ServiceLabel name={node.service.name} logoUrl={node.service.logoUrl} />
                 </Text>
                 {(node.assignment.state === 'CONFLICT' || node.assignment.state === 'PARTIAL') && (
                   <Badge size="xs" color="amber" variant="light">

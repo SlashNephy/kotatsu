@@ -18,6 +18,7 @@ import type { GuideViewEditorDeleteMutation } from './__generated__/GuideViewEdi
 import type { GuideViewEditorUpdateMutation } from './__generated__/GuideViewEditorUpdateMutation.graphql';
 import { genreKey } from './genres';
 import { decodeGenre, encodeGenre, type Genre } from './guideView';
+import { ServiceLabel } from './ServiceLabel';
 
 // EditableGuideView は、編集する番組表ビュー。id がなければ、新しく作る。
 export type EditableGuideView = {
@@ -36,6 +37,7 @@ type Props = {
   services: readonly {
     id: string;
     name: string;
+    logoUrl: string | null | undefined;
     serviceId: number;
     channelType: { displayName: string };
   }[];
@@ -184,6 +186,12 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
               // 同じ名前のサービスが、別のチャンネル種別や、同じ放送局の別のサービスにもあるので、種別とサービス ID を添える。
               label: `${service.name}（${service.channelType.displayName}・${service.serviceId}）`,
             }))}
+            renderOption={({ option }) => (
+              <ServiceLabel
+                name={option.label}
+                logoUrl={services.find((service) => service.id === option.value)?.logoUrl}
+              />
+            )}
             value={serviceOrder}
             onChange={setServiceOrder}
             searchable

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<680ecda90a67ebb0298d8f73804c6fd1>>
+ * @generated SignedSource<<b13ffdaf941d2ad8f86a88c9a2471feb>>
  * @lightSyntaxTransform
  */
 
@@ -30,6 +30,7 @@ export type recordingsListQuery$data = {
         readonly name: string;
         readonly protected: boolean;
         readonly service: {
+          readonly logoUrl: string | null | undefined;
           readonly name: string;
         };
         readonly startAt: string;
@@ -130,6 +131,13 @@ v9 = {
 v10 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v11 = {
+  "alias": null,
+  "args": null,
   "concreteType": "Tag",
   "kind": "LinkedField",
   "name": "tags",
@@ -140,7 +148,7 @@ v10 = {
   ],
   "storageKey": null
 },
-v11 = {
+v12 = {
   "alias": null,
   "args": null,
   "concreteType": "PageInfo",
@@ -214,18 +222,19 @@ return {
                     "name": "service",
                     "plural": false,
                     "selections": [
-                      (v5/*:: as any*/)
+                      (v5/*:: as any*/),
+                      (v10/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v10/*:: as any*/)
+                  (v11/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v11/*:: as any*/)
+          (v12/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -282,34 +291,35 @@ return {
                     "plural": false,
                     "selections": [
                       (v5/*:: as any*/),
+                      (v10/*:: as any*/),
                       (v4/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v10/*:: as any*/)
+                  (v11/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v11/*:: as any*/)
+          (v12/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "d61fba51cb09cd7b832e59223b3df350",
+    "cacheID": "612cba37ed037d271b47392366b3bd9c",
     "id": null,
     "metadata": {},
     "name": "recordingsListQuery",
     "operationKind": "query",
-    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n) {\n  recordings(first: $first, after: $after, filter: $filter) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        state\n        protected\n        thumbnailUrl\n        service {\n          name\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
+    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n) {\n  recordings(first: $first, after: $after, filter: $filter) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        state\n        protected\n        thumbnailUrl\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "284f4972c12e17aaaaac9cad11656d1f";
+(node as any).hash = "d61e6f53340ebdb59d0cf579f909cdca";
 
 export default node;

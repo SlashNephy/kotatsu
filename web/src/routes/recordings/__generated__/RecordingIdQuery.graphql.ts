@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<68cd78ccca2c1796c67697e9746729a3>>
+ * @generated SignedSource<<f93e9bc66e14c36e57fb5daa2b26183a>>
  * @lightSyntaxTransform
  */
 
@@ -41,6 +41,7 @@ export type RecordingIdQuery$data = {
     readonly recordedUntil: string | null | undefined;
     readonly scrambled: number;
     readonly service: {
+      readonly logoUrl: string | null | undefined;
       readonly name: string;
     };
     readonly startAt: string;
@@ -90,93 +91,90 @@ v2 = {
   "storageKey": null
 },
 v3 = [
-  (v2/*:: as any*/)
-],
-v4 = [
   {
     "kind": "Variable",
     "name": "id",
     "variableName": "id"
   }
 ],
-v5 = {
+v4 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "__typename",
   "storageKey": null
 },
-v6 = {
+v5 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "id",
   "storageKey": null
 },
-v7 = {
+v6 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "description",
   "storageKey": null
 },
-v8 = {
+v7 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "startAt",
   "storageKey": null
 },
-v9 = {
+v8 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "endAt",
   "storageKey": null
 },
-v10 = {
+v9 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "state",
   "storageKey": null
 },
-v11 = {
+v10 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "failureReason",
   "storageKey": null
 },
-v12 = {
+v11 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "protected",
   "storageKey": null
 },
-v13 = {
+v12 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "drops",
   "storageKey": null
 },
-v14 = {
+v13 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "errors",
   "storageKey": null
 },
-v15 = {
+v14 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "scrambled",
   "storageKey": null
 },
-v16 = {
+v15 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingGap",
@@ -201,32 +199,39 @@ v16 = {
   ],
   "storageKey": null
 },
-v17 = {
+v16 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "programLost",
   "storageKey": null
 },
-v18 = {
+v17 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "thumbnailUrl",
   "storageKey": null
 },
-v19 = {
+v18 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "recordedFrom",
   "storageKey": null
 },
-v20 = {
+v19 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "recordedUntil",
+  "storageKey": null
+},
+v20 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
   "storageKey": null
 },
 v21 = {
@@ -237,7 +242,7 @@ v21 = {
   "name": "tags",
   "plural": true,
   "selections": [
-    (v6/*:: as any*/),
+    (v5/*:: as any*/),
     (v2/*:: as any*/)
   ],
   "storageKey": null
@@ -280,11 +285,7 @@ v22 = {
     }
   ],
   "storageKey": null
-},
-v23 = [
-  (v2/*:: as any*/),
-  (v6/*:: as any*/)
-];
+};
 return {
   "fragment": {
     "argumentDefinitions": (v0/*:: as any*/),
@@ -311,23 +312,26 @@ return {
         "kind": "LinkedField",
         "name": "tags",
         "plural": true,
-        "selections": (v3/*:: as any*/),
+        "selections": [
+          (v2/*:: as any*/)
+        ],
         "storageKey": null
       },
       {
         "alias": null,
-        "args": (v4/*:: as any*/),
+        "args": (v3/*:: as any*/),
         "concreteType": null,
         "kind": "LinkedField",
         "name": "node",
         "plural": false,
         "selections": [
-          (v5/*:: as any*/),
+          (v4/*:: as any*/),
           {
             "kind": "InlineFragment",
             "selections": [
-              (v6/*:: as any*/),
+              (v5/*:: as any*/),
               (v2/*:: as any*/),
+              (v6/*:: as any*/),
               (v7/*:: as any*/),
               (v8/*:: as any*/),
               (v9/*:: as any*/),
@@ -341,7 +345,6 @@ return {
               (v17/*:: as any*/),
               (v18/*:: as any*/),
               (v19/*:: as any*/),
-              (v20/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -349,7 +352,10 @@ return {
                 "kind": "LinkedField",
                 "name": "service",
                 "plural": false,
-                "selections": (v3/*:: as any*/),
+                "selections": [
+                  (v2/*:: as any*/),
+                  (v20/*:: as any*/)
+                ],
                 "storageKey": null
               },
               (v21/*:: as any*/),
@@ -380,7 +386,7 @@ return {
         "plural": false,
         "selections": [
           (v1/*:: as any*/),
-          (v6/*:: as any*/)
+          (v5/*:: as any*/)
         ],
         "storageKey": null
       },
@@ -391,23 +397,27 @@ return {
         "kind": "LinkedField",
         "name": "tags",
         "plural": true,
-        "selections": (v23/*:: as any*/),
+        "selections": [
+          (v2/*:: as any*/),
+          (v5/*:: as any*/)
+        ],
         "storageKey": null
       },
       {
         "alias": null,
-        "args": (v4/*:: as any*/),
+        "args": (v3/*:: as any*/),
         "concreteType": null,
         "kind": "LinkedField",
         "name": "node",
         "plural": false,
         "selections": [
+          (v4/*:: as any*/),
           (v5/*:: as any*/),
-          (v6/*:: as any*/),
           {
             "kind": "InlineFragment",
             "selections": [
               (v2/*:: as any*/),
+              (v6/*:: as any*/),
               (v7/*:: as any*/),
               (v8/*:: as any*/),
               (v9/*:: as any*/),
@@ -421,7 +431,6 @@ return {
               (v17/*:: as any*/),
               (v18/*:: as any*/),
               (v19/*:: as any*/),
-              (v20/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -429,7 +438,11 @@ return {
                 "kind": "LinkedField",
                 "name": "service",
                 "plural": false,
-                "selections": (v23/*:: as any*/),
+                "selections": [
+                  (v2/*:: as any*/),
+                  (v20/*:: as any*/),
+                  (v5/*:: as any*/)
+                ],
                 "storageKey": null
               },
               (v21/*:: as any*/),
@@ -444,16 +457,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "6c35d3439550a28c7e8df1d565128ef3",
+    "cacheID": "ece06350aaefe9676c75b059fd8c257b",
     "id": null,
     "metadata": {},
     "name": "RecordingIdQuery",
     "operationKind": "query",
-    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      protected\n      drops\n      errors\n      scrambled\n      gaps {\n        from\n        to\n      }\n      programLost\n      thumbnailUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      protected\n      drops\n      errors\n      scrambled\n      gaps {\n        from\n        to\n      }\n      programLost\n      thumbnailUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "4c6e92709f8979adeb0b408baaa1cb85";
+(node as any).hash = "d9ab8fa12678aed7dc870a48a66d4ecf";
 
 export default node;

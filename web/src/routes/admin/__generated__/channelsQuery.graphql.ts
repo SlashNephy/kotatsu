@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<2d208f4a6e907d6e8b361cfd151968e7>>
+ * @generated SignedSource<<9ab84fcfb2992c778f81c922c7e62e8e>>
  * @lightSyntaxTransform
  */
 
@@ -28,6 +28,7 @@ export type channelsQuery$data = {
     };
     readonly hidden: boolean;
     readonly id: string;
+    readonly logoUrl: string | null | undefined;
     readonly name: string;
     readonly sortOrder: number | null | undefined;
   }>;
@@ -100,6 +101,13 @@ v3 = [
         "args": null,
         "kind": "ScalarField",
         "name": "name",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "logoUrl",
         "storageKey": null
       },
       {
@@ -181,16 +189,16 @@ return {
     "selections": (v3/*:: as any*/)
   },
   "params": {
-    "cacheID": "1d1b0e40944d282df27acbf2b22c73df",
+    "cacheID": "a361a95dd54e59d87d267dc6d38730ba",
     "id": null,
     "metadata": {},
     "name": "channelsQuery",
     "operationKind": "query",
-    "text": "query channelsQuery {\n  channelTypes {\n    type\n    displayName\n    sortOrder\n  }\n  services(includeHidden: true) {\n    id\n    name\n    hidden\n    sortOrder\n    channelType {\n      displayName\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query channelsQuery {\n  channelTypes {\n    type\n    displayName\n    sortOrder\n  }\n  services(includeHidden: true) {\n    id\n    name\n    logoUrl\n    hidden\n    sortOrder\n    channelType {\n      displayName\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "1d51d4153f3f304ec8096ae357c1a639";
+(node as any).hash = "1bb937f2c4d4c3027d75f4e097c84ad7";
 
 export default node;
