@@ -3,7 +3,7 @@
 #
 #   docker compose up --build
 #
-# http://localhost:8080/ で画面を開ける (ポートは KOTATSU_DEV_PORT で変えられる)。最初の管理者は、kotatsu のログに出るセットアップ用のトークンで作る。
+# http://localhost:8080/ で画面を開ける (ポートは KOTATSU_DEV_PORT で変えられる)。Dex の admin@example.com (パスワードは password) でログインすると、管理者が作られる。
 name: kotatsu-dev
 
 services:
@@ -38,6 +38,21 @@ services:
       - go-mod:/go/pkg/mod
       - go-build:/root/.cache/go-build
 
+  # 開発用の OIDC の IdP。admin、member、viewer のユーザーで、パスワードだけでログインできる (dev/dex.yaml)。
+  dex:
+    image: ghcr.io/dexidp/dex:v2.45.1@sha256:8499afd690c437f52301efd2b05b2455da5bd2dfc20332cd697dc9937f808462
+    command: ["dex", "serve", "/etc/dex/kotatsu.yaml"]
+    environment:
+      KOTATSU_DEV_PORT: ${KOTATSU_DEV_PORT:-8080}
+    ports:
+      - "127.0.0.1:5556:5556"
+    volumes:
+      - ./dev/dex.yaml:/etc/dex/kotatsu.yaml:ro
+    networks:
+      default:
+        # issuer の dex.localhost を、Kotatsu のコンテナからも引けるようにする。
+        aliases: [dex.localhost]
+
   # 録画を置くボリュームは root の持ち物になるので、Kotatsu が書けるよう、持ち主を Kotatsu の UID にする。
   recordings-owner:
     image: mirror.gcr.io/library/postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
@@ -69,6 +84,17 @@ services:
       KOTATSU_TUNER_URL: http://faketuner:40772/
       KOTATSU_STORAGE_POOLS: main=/recordings
       KOTATSU_SERVER_LISTEN: ":8080"
+      # Dex でログインし、グループからロールを決めてユーザーを作る。パスワードと第二要素の登録を省ける。
+      KOTATSU_AUTH_OIDC_ISSUER: http://dex.localhost:5556/dex
+      KOTATSU_AUTH_OIDC_CLIENT_ID: kotatsu
+      KOTATSU_AUTH_OIDC_CLIENT_SECRET: kotatsu-development-only-client-secret
+      KOTATSU_AUTH_OIDC_SCOPES: openid,profile,email,groups
+      KOTATSU_AUTH_OIDC_DISPLAY_NAME: Dex
+      KOTATSU_AUTH_OIDC_AUTO_CREATE_ENABLED: "true"
+      KOTATSU_AUTH_OIDC_AUTO_CREATE_GROUPS_CLAIM: groups
+      KOTATSU_AUTH_OIDC_AUTO_CREATE_ADMIN_GROUPS: admins
+      KOTATSU_AUTH_OIDC_AUTO_CREATE_MEMBER_GROUPS: members
+      KOTATSU_AUTH_OIDC_AUTO_CREATE_VIEWER_GROUPS: viewers
     ports:
       # mise run web:dev の Vite の開発サーバーが、API をここに中継する。
       # ほかのアプリが 8080 を使っていれば、KOTATSU_DEV_PORT で変え、web:dev にも同じ値を渡す。
@@ -83,6 +109,8 @@ services:
       recordings-owner:
         condition: service_completed_successfully
       faketuner:
+        condition: service_started
+      dex:
         condition: service_started
     read_only: true
     user: "65532:65532"

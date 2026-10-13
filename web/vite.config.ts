@@ -70,9 +70,11 @@ export default defineConfig({
   },
   server: {
     // 開発中は、API を手元の tenban に中継する。compose.yaml と同じく、KOTATSU_DEV_PORT でポートを変えられる。
+    // Host は書き換えない。tenban は、Host から求めたオリジンと Origin を比べて /auth/* の CSRF を防ぎ、
+    // OIDC のリダイレクト URI も Host から作る。文字列で書くと changeOrigin が有効になり、どちらも食い違う。
     proxy: {
-      '/graphql': devAPI,
-      '/auth': devAPI,
+      '/graphql': { target: devAPI, changeOrigin: false },
+      '/auth': { target: devAPI, changeOrigin: false },
     },
   },
   fmt: {
