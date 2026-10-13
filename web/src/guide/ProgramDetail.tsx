@@ -3,7 +3,7 @@ import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
-import { ErrorBoundary } from '../futon';
+import { ErrorBoundary, ProgramTitle } from '../futon';
 import { genreKey } from './genres';
 import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.graphql';
 import type { ProgramDetailReserveMutation } from './__generated__/ProgramDetailReserveMutation.graphql';
@@ -122,7 +122,7 @@ function Detail({ programId }: { programId: string }) {
   return (
     <Stack>
       <Title order={3} size="h4">
-        {program.name}
+        <ProgramTitle name={program.name} />
       </Title>
       <Group gap="xs">
         <Text size="sm">

@@ -21,7 +21,7 @@ import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
-import { ErrorBoundary, formatBytes } from '../../futon';
+import { ErrorBoundary, formatBytes, ProgramTitle } from '../../futon';
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
 import { stateColor, stateKey } from '../../recordings/states';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -280,7 +280,7 @@ function Recording({ recordingId }: { recordingId: string }) {
       <Grid.Col span={{ base: 12, md: 7 }}>
         <Stack>
           <Title order={2} size="h3">
-            {recording.name}
+            <ProgramTitle name={recording.name} />
           </Title>
           <Group gap="xs">
             <Text size="sm">
@@ -455,7 +455,7 @@ function Recording({ recordingId }: { recordingId: string }) {
         <Modal opened onClose={() => setDeleting(false)} title={t('recordings.deleteTitle')}>
           <Stack>
             <Text size="sm" fw={700}>
-              {recording.name}
+              <ProgramTitle name={recording.name} />
             </Text>
             <Text size="sm">{t('recordings.deleteDescription')}</Text>
             <Group justify="flex-end">

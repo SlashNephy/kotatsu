@@ -19,7 +19,7 @@ import { Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, ProgramTitle } from '../../futon';
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
 import { recordingStates, stateColor, stateKey } from '../../recordings/states';
 import { isUnauthenticated } from '../../relay/environment';
@@ -254,7 +254,7 @@ function RecordingGrid({ filter }: { filter: Filter }) {
               </AspectRatio>
               <Stack gap={4} p="xs">
                 <Text size="sm" fw={700} lineClamp={2}>
-                  {recording.name}
+                  <ProgramTitle name={recording.name} />
                 </Text>
                 <Text size="xs" c="dimmed">
                   {dateFormat.format(Date.parse(recording.startAt))}・

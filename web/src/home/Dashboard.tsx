@@ -7,7 +7,7 @@ import { RecordingThumbnail } from '../recordings/RecordingThumbnail';
 import { stateColor, stateKey } from '../recordings/states';
 import type { DashboardQuery } from './__generated__/DashboardQuery.graphql';
 import { nowPlaying } from './nowPlaying';
-import { ProgramMarkBadges, splitProgramMarks } from '../futon';
+import { ProgramTitle } from '../futon';
 import { ServiceLabel } from '../guide/ServiceLabel';
 
 const timeFormat = new Intl.DateTimeFormat('ja-JP', {
@@ -156,40 +156,33 @@ export function Dashboard({ range }: { range: DashboardRange }) {
           </Text>
         ) : (
           <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="xs">
-            {playing.map((item) => {
-              const program = splitProgramMarks(item.programName);
-
-              return (
-                <Card
-                  key={item.serviceId}
-                  withBorder
-                  padding="xs"
-                  renderRoot={(props) => (
-                    <Link {...props} to="/live/$serviceId" params={{ serviceId: item.serviceId }} />
-                  )}
-                >
-                  <Text size="xs" c="dimmed">
-                    <ServiceLabel name={item.serviceName} logoUrl={item.serviceLogoUrl} />
-                  </Text>
-                  <Text size="sm" lineClamp={2} mt="xs">
-                    {program.name}
-                  </Text>
-                  {/* 番組名が 1 行のカードでも、放送時間をカードの下端に揃える。 */}
-                  <Group gap={4} mt="auto" pt={4}>
-                    <Text size="xs" c="dimmed">
-                      {timeFormat.format(Date.parse(item.startAt))} 〜{' '}
-                      {timeFormat.format(Date.parse(item.endAt))}{' '}
-                      {t('home.duration', {
-                        minutes: Math.round(
-                          (Date.parse(item.endAt) - Date.parse(item.startAt)) / 60_000,
-                        ),
-                      })}
-                    </Text>
-                    <ProgramMarkBadges marks={program.marks} />
-                  </Group>
-                </Card>
-              );
-            })}
+            {playing.map((item) => (
+              <Card
+                key={item.serviceId}
+                withBorder
+                padding="xs"
+                renderRoot={(props) => (
+                  <Link {...props} to="/live/$serviceId" params={{ serviceId: item.serviceId }} />
+                )}
+              >
+                <Text size="xs" c="dimmed">
+                  <ServiceLabel name={item.serviceName} logoUrl={item.serviceLogoUrl} />
+                </Text>
+                <Text size="sm" lineClamp={2} mt="xs">
+                  <ProgramTitle name={item.programName} />
+                </Text>
+                {/* 番組名が 1 行のカードでも、放送時間をカードの下端に揃える。 */}
+                <Text size="xs" c="dimmed" mt="auto" pt={4}>
+                  {timeFormat.format(Date.parse(item.startAt))} 〜{' '}
+                  {timeFormat.format(Date.parse(item.endAt))}{' '}
+                  {t('home.duration', {
+                    minutes: Math.round(
+                      (Date.parse(item.endAt) - Date.parse(item.startAt)) / 60_000,
+                    ),
+                  })}
+                </Text>
+              </Card>
+            ))}
           </SimpleGrid>
         )}
       </Stack>
@@ -225,7 +218,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
                 <RecordingThumbnail url={node.thumbnailUrl} />
                 <Stack gap={2} p="xs">
                   <Text size="sm" lineClamp={2}>
-                    {node.name}
+                    <ProgramTitle name={node.name} />
                   </Text>
                   <Group gap={4}>
                     <Badge size="xs" variant="light" color={stateColor(node.state)}>
@@ -263,7 +256,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
                   {dateTimeFormat.format(Date.parse(node.startAt))}
                 </Text>
                 <Text size="sm" truncate style={{ flex: 1, minWidth: 0 }}>
-                  {node.name}
+                  <ProgramTitle name={node.name} />
                 </Text>
                 <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
                   <ServiceLabel name={node.service.name} logoUrl={node.service.logoUrl} />

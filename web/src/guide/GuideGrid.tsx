@@ -15,6 +15,7 @@ import {
   type GuideWindow,
 } from './layout';
 import { ServiceLabel } from './ServiceLabel';
+import { ProgramTitle, splitProgramMarks } from '../futon';
 
 // GuideProgram は、番組表の枠に出す番組。
 export type GuideProgram = {
@@ -283,7 +284,7 @@ function GuideColumnView({
             key={program.id}
             data-program-id={program.id}
             onClick={() => onSelect(program.id)}
-            title={program.name}
+            title={splitProgramMarks(program.name).name}
             style={{
               position: 'absolute',
               top: box.top,
@@ -306,7 +307,7 @@ function GuideColumnView({
               <Text span size="xs" fw={700} mr={4}>
                 {timeFormat.format(program.startAt)}
               </Text>
-              {program.name}
+              <ProgramTitle name={program.name} />
             </span>
           </UnstyledButton>
         );
