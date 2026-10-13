@@ -11,7 +11,8 @@ import (
 )
 
 const getArchivedProgram = `-- name: GetArchivedProgram :one
-SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios
+SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios,
+  related_items
 FROM program_archives
 WHERE service_id = $1 AND event_id = $2 AND start_at = $3
 `
@@ -34,6 +35,7 @@ type GetArchivedProgramRow struct {
 	Extended     []byte
 	Genres       []byte
 	Audios       []byte
+	RelatedItems []byte
 }
 
 func (q *Queries) GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error) {
@@ -51,12 +53,14 @@ func (q *Queries) GetArchivedProgram(ctx context.Context, arg GetArchivedProgram
 		&i.Extended,
 		&i.Genres,
 		&i.Audios,
+		&i.RelatedItems,
 	)
 	return i, err
 }
 
 const getGuideProgram = `-- name: GetGuideProgram :one
-SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios
+SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios,
+  related_items
 FROM programs
 WHERE service_id = $1 AND event_id = $2
 `
@@ -78,6 +82,7 @@ type GetGuideProgramRow struct {
 	Extended     []byte
 	Genres       []byte
 	Audios       []byte
+	RelatedItems []byte
 }
 
 func (q *Queries) GetGuideProgram(ctx context.Context, arg GetGuideProgramParams) (GetGuideProgramRow, error) {
@@ -95,6 +100,7 @@ func (q *Queries) GetGuideProgram(ctx context.Context, arg GetGuideProgramParams
 		&i.Extended,
 		&i.Genres,
 		&i.Audios,
+		&i.RelatedItems,
 	)
 	return i, err
 }
@@ -207,7 +213,8 @@ func (q *Queries) ListGuideServices(ctx context.Context, arg ListGuideServicesPa
 }
 
 const listProgramsInRange = `-- name: ListProgramsInRange :many
-SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios
+SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios,
+  related_items
 FROM programs
 WHERE service_id = ANY($1::bigint[]) AND end_at > $2 AND start_at < $3
 ORDER BY service_id, start_at, event_id
@@ -231,6 +238,7 @@ type ListProgramsInRangeRow struct {
 	Extended     []byte
 	Genres       []byte
 	Audios       []byte
+	RelatedItems []byte
 }
 
 // 時間帯 [from, to) に重なる番組。
@@ -255,6 +263,7 @@ func (q *Queries) ListProgramsInRange(ctx context.Context, arg ListProgramsInRan
 			&i.Extended,
 			&i.Genres,
 			&i.Audios,
+			&i.RelatedItems,
 		); err != nil {
 			return nil, err
 		}

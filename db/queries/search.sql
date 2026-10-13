@@ -3,15 +3,15 @@
 -- ジャンルの中分類とキーワードは、ルールの照合と同じ照合関数で、Go で判定する (設計書 3.5)。
 -- include_archive なら、開始時刻が [archive_from, archive_to) のアーカイブの番組も含める。
 SELECT c.archived, c.service_id, c.event_id, c.start_at, c.end_at, c.end_undecided, c.is_free,
-  c.name, c.description, c.extended, c.genres, c.audios, c.channel_type
+  c.name, c.description, c.extended, c.genres, c.audios, c.related_items, c.channel_type
 FROM (
   SELECT false AS archived, p.service_id, p.event_id, p.start_at, p.end_at, p.end_undecided, p.is_free,
-    p.name, p.description, p.extended, p.genres, p.audios, s.channel_type
+    p.name, p.description, p.extended, p.genres, p.audios, p.related_items, s.channel_type
   FROM programs p
   JOIN services s ON s.id = p.service_id
   UNION ALL
   SELECT true AS archived, a.service_id, a.event_id, a.start_at, a.end_at, a.end_undecided, a.is_free,
-    a.name, a.description, a.extended, a.genres, a.audios, s.channel_type
+    a.name, a.description, a.extended, a.genres, a.audios, a.related_items, s.channel_type
   FROM program_archives a
   JOIN services s ON s.id = a.service_id
   WHERE @include_archive::boolean AND a.start_at >= @archive_from::timestamptz AND a.start_at < @archive_to::timestamptz

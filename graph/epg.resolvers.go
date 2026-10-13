@@ -24,6 +24,24 @@ func (r *programResolver) Service(ctx context.Context, obj *model.Program) (*mod
 	return toService(row), nil
 }
 
+// SharedFrom is the resolver for the sharedFrom field.
+func (r *programResolver) SharedFrom(ctx context.Context, obj *model.Program) (*model.Service, error) {
+	var row *sqlc.ListGuideServicesRow
+	var err error
+	if obj.SharedFromKey != 0 {
+		row, err = loadersFrom(ctx).Services.Load(ctx, obj.SharedFromKey)
+	}
+	// 元のサービスがまだ同期されていなければ、共有していないものとして扱う。
+	if e, ok := errors.AsType[*Error](err); ok && e.Code == CodeNotFound {
+		row, err = nil, nil
+	}
+	if err != nil || row == nil {
+		return nil, err
+	}
+
+	return toService(row), nil
+}
+
 // Node is the resolver for the node field.
 func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error) {
 	typeName, raw, err := ParseGlobalID(id)

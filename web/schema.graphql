@@ -716,6 +716,11 @@ type Program implements Node {
   """
   audios: [ProgramAudio!]!
   """
+  同じイベントを共有して放送している (イベント共有) サービスのうち、元とみなすサービス。この番組が元でなければ、元のサービスを返す。
+  共有していないか、この番組が元なら null。元は、同じネットワークで共有しているサービスのうち、サービス ID が最も小さいもの (地上波のメインチャンネル) にする。
+  """
+  sharedFrom: Service
+  """
   この番組の予約。予約がなければ null。
   """
   reservation: Reservation
