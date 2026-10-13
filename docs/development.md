@@ -27,6 +27,7 @@ docker compose up --build
 | --- | --- | --- |
 | `postgres` | PostgreSQL 18 | `127.0.0.1:55432`（ユーザーとパスワードはどちらも`postgres`） |
 | `faketuner` | 偽のチューナーサーバー（`cmd/faketuner`） | `127.0.0.1:40772` |
+| `dex` | 開発用のOIDCのIdP（[Dex](https://dexidp.io/)） | `http://dex.localhost:5556/dex` |
 | `migrate` | 起動の前に、DBのスキーマを最新にします | なし |
 | `kotatsu` | 全ロールを1つのコンテナで動かします | `127.0.0.1:8080` |
 
@@ -34,7 +35,7 @@ docker compose up --build
 番組表も、テスト用のものを返します。
 実際のチューナーサーバーにつなぐときは、`kotatsu`サービスの`KOTATSU_TUNER_URL`を書き換えてください。
 
-秘密キーは、開発専用の固定の値です。
+秘密キーと、Dexのユーザーのパスワードは、開発専用の固定の値です。
 この構成を運用に使わないでください。運用の例は[deploy/compose/compose.yaml](../deploy/compose/compose.yaml)にあります。
 
 ソースを変えたら、`docker compose up --build`でビルドし直してください。
@@ -51,15 +52,33 @@ KOTATSU_DEV_PORT=18080 docker compose up --build
 
 画面の開発サーバー（後述）にも、同じ値を渡してください。
 
-### 最初の管理者を作る
+### ログインする
 
-起動すると、`kotatsu`のログに、セットアップ用のトークンが出ます。
+`http://localhost:8080/login`を開き、「Dexでログイン」を押してください。
+Dexの画面で、次のどれかのユーザーでログインします。
+パスワードはどれも`password`です。
+
+| メールアドレス | Kotatsuのロール |
+| --- | --- |
+| `admin@example.com` | 管理者 |
+| `member@example.com` | メンバー |
+| `viewer@example.com` | 視聴者 |
+
+初めてログインすると、Kotatsuにユーザーが作られます。
+ロールは、Dexのユーザーのグループで決まります。
+OIDCでのログインには、認証アプリの登録が要りません。
+
+ユーザーとパスワードは、[dev/dex.yaml](../dev/dex.yaml)で変えられます。
+DexのissuerのURLは`dex.localhost`です。
+ブラウザは`*.localhost`を手元のマシンに向けるので、そのまま開けます。
+
+初回セットアップの画面（`/setup`）で、パスワードでログインする管理者を作ることもできます。
+その場合は、`kotatsu`のログに出るセットアップ用のトークンを使ってください。
 
 ```bash
 docker compose logs kotatsu | grep setup_token
 ```
 
-`http://localhost:8080/setup`を開き、トークンを入力して管理者を作ってください。
 パスワードでログインすると、認証アプリ（TOTP）の登録を求められます。
 パスワードでのログインには、第二要素が必須だからです。
 
