@@ -13,7 +13,9 @@ export function AuthCard({ title, description, children }: Props) {
     <Center py="xl">
       <Card withBorder w="100%" maw={440} padding="lg">
         <Stack>
-          <Title order={2}>{title}</Title>
+          <Title order={2} ta="center">
+            {title}
+          </Title>
           {description !== undefined && (
             <Text size="sm" c="dimmed">
               {description}

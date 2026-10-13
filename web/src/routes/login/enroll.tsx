@@ -108,12 +108,15 @@ function Enroll() {
           <form onSubmit={(event) => void submit(event)}>
             <Stack>
               <Stack gap={4}>
-                <Text size="sm">{t('auth.enroll.code')}</Text>
+                <Text size="sm" ta="center">
+                  {t('auth.enroll.code')}
+                </Text>
                 <PinInput
                   aria-label={t('auth.enroll.code')}
                   length={6}
                   type="number"
                   oneTimeCode
+                  styles={{ root: { justifyContent: 'center' } }}
                   value={code}
                   onChange={setCode}
                 />

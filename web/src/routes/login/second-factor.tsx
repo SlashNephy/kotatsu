@@ -122,12 +122,15 @@ function SecondFactor() {
               />
             ) : (
               <Stack gap={4}>
-                <Text size="sm">{t('auth.secondFactor.totpDescription')}</Text>
+                <Text size="sm" ta="center">
+                  {t('auth.secondFactor.totpDescription')}
+                </Text>
                 <PinInput
                   aria-label={t('auth.secondFactor.totp')}
                   length={6}
                   type="number"
                   oneTimeCode
+                  styles={{ root: { justifyContent: 'center' } }}
                   value={code}
                   onChange={setCode}
                   autoFocus={!hasPasskey}
