@@ -90,7 +90,7 @@ docker compose logs kotatsu | grep setup_token
 
 | 変えたもの | 反映のしかた |
 | --- | --- |
-| Goのソース（`cmd/`、`internal/`、`graph/`） | `kotatsu`がビルドし直し、マイグレーションを当ててから起動し直します。数秒かかり、その間は前のプロセスが応答します |
+| Goのソース（`cmd/`、`internal/`、`graph/`） | `kotatsu`がビルドし直し、マイグレーションを当ててから起動し直します。数秒かかり、その間はAPIが502を返します |
 | 画面のソース（`web/src/`） | 開発サーバーが、ページを読み込み直さずに差し替えます |
 
 ビルドに失敗したときは、`docker compose logs -f kotatsu`でエラーを確かめてください。
@@ -106,9 +106,8 @@ docker compose restart web
 `Dockerfile`や`mise.toml`、`mise.dev.toml`を変えたときは、`mise run dev`を実行し直してください。
 開発用のイメージを作り直します。
 
-画面の開発サーバーは、Composeの外でも動かせます。
-`mise run web:dev`は、`http://localhost:5173`で開発サーバーを起動します。
-API、映像、画像は、`KOTATSU_DEV_PORT`のポートに中継します。
+`mise run web:dev`は、Composeの外で画面の開発サーバーを`http://localhost:5173`に起動します。
+Composeを使わずに、手元でKotatsuを`127.0.0.1:8080`に起動しているときに使います。
 
 ## テストを流す
 

@@ -8,8 +8,8 @@ import { defineConfig, lazyPlugins } from 'vite-plus';
 // dist 自体は、未ビルドでも go build が通るように、空の .gitkeep だけを置いてリポジトリに残す。
 // devAPI は、開発サーバーが API を中継する先。
 // 開発用の Compose では、KOTATSU_DEV_API で Kotatsu のコンテナを指す。
-// 手元で mise run web:dev を動かすときは、Compose が公開したポートに中継する。
-// 空の値は、compose.yaml の ${KOTATSU_DEV_PORT:-8080} と同じく、渡していないものとして扱う。
+// Compose の外で mise run web:dev を動かすときは、手元で起動した Kotatsu (既定は 127.0.0.1:8080) に中継する。
+// 空の値は、渡していないものとして扱う。
 const devAPI =
   process.env.KOTATSU_DEV_API || `http://127.0.0.1:${process.env.KOTATSU_DEV_PORT || '8080'}`;
 

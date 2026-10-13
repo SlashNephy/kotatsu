@@ -73,7 +73,7 @@ services:
       - recordings:/recordings
 
   # Go のソースを保存するたびに、ビルドし直し、マイグレーションを当ててから、全ロールを起動し直す (mise.dev.toml の dev:server)。
-  # ビルドの間は、前のプロセスが応答し続ける。
+  # 前のプロセスを止めてからビルドするので、ビルドの間の数秒は応答しない (web は 502 を返す)。
   kotatsu:
     <<: *dev
     command: ["run", "dev:server"]
