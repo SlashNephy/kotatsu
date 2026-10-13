@@ -6,3 +6,5 @@ testdata
 **/*_test.go
 web/node_modules
 web/dist/app
+# 字幕を描くフォントは、イメージのビルドで取得し直す。
+web/vendor/caption-font/*.ttf

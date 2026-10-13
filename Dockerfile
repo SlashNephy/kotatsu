@@ -22,6 +22,8 @@ COPY web/vendor/ ./vendor/
 COPY web/patches/ ./patches/
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
 COPY web/ ./
+# 字幕を描くフォントは npm にないので、web/vendor/caption-font/SOURCE で固定したリリースから取得する。
+RUN node scripts/fetch-caption-font.mjs
 RUN pnpm exec vp build
 
 # Go のバイナリは、ビルドするマシンのアーキテクチャのまま、対象のアーキテクチャへクロスコンパイルする。

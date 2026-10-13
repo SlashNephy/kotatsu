@@ -1,0 +1,7 @@
+# 字幕を描くフォント (Rounded M+ 1m WadaLab mix、Unlicense)。npm に公開されていないので、GitHub のリリースから取得する。
+# 取得は scripts/fetch-caption-font.mjs が行い、sha256 が合わなければ失敗する。取得したフォントは、リポジトリに置かない。
+repository=vivid-lapin/rounded-mplus-wadalab-mix
+file=rounded-mplus-1m-wadalab-mix.ttf
+# renovate: datasource=github-release-attachments depName=vivid-lapin/rounded-mplus-wadalab-mix
+tag=202606272034
+sha256=a35292bbba324d308ac82e81d0adfbf9c03b75698c6b6afec83ce37226a6a37d

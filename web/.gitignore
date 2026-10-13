@@ -5,3 +5,5 @@
 /test-results/
 /playwright-report/
 /zxcvbn/dist/
+/vendor/caption-font/*.ttf
+/vendor/caption-font/*.tmp
