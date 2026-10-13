@@ -1,10 +1,26 @@
-# 開発のための Docker Compose の構成 (docs/development.md)。手元のソースから Kotatsu をビルドし、偽のチューナーと PostgreSQL と一緒に動かす。
+# 開発のための Docker Compose の構成 (docs/development.md)。手元のソースをマウントして Kotatsu と画面の開発サーバーを動かし、
+# 偽のチューナー、PostgreSQL、Dex と一緒に動かす。ソースを保存すると、Go はビルドし直して起動し直し、画面はその場で差し替わる。
 # 運用の例は deploy/compose/compose.yaml にある。こちらは開発専用で、秘密キーも固定の値を使うので、運用には使わない。
 #
-#   docker compose up --build
+#   mise run dev
 #
 # http://localhost:8080/ で画面を開ける (ポートは KOTATSU_DEV_PORT で変えられる)。Dex の admin@example.com (パスワードは password) でログインすると、管理者が作られる。
 name: kotatsu-dev
+
+# ソースをマウントして動かすサービスの共通の設定。
+# コンテナの中で生成したファイルが手元のユーザーの持ち物になるよう、イメージを手元のユーザーの UID と GID で作る (mise run dev が渡す)。
+x-dev: &dev
+  build:
+    context: .
+    target: dev
+    args:
+      UID: ${DEV_UID:-1000}
+      GID: ${DEV_GID:-1000}
+  image: kotatsu-dev
+  volumes:
+    - .:/src
+    - go-mod:/go/pkg/mod
+    - go-build:/go/cache
 
 services:
   # DB を使う Go のテストも、ここに向けられる (KOTATSU_TEST_DATABASE_URL)。
@@ -28,15 +44,10 @@ services:
 
   # 偽のチューナーサーバー。testdata/ts/test.ts を、すべてのサービスのストリームとして流す。
   faketuner:
-    image: mirror.gcr.io/library/golang:1.27-trixie@sha256:2f84bc93ecfb2689f782b153fdcd368b5a7ab96c1386c65cdaccf35e726d6a44
-    working_dir: /src
-    command: ["go", "run", "./cmd/faketuner", "-listen", "0.0.0.0:40772", "-ts", "testdata/ts/test.ts"]
+    <<: *dev
+    command: ["exec", "--", "go", "run", "./cmd/faketuner", "-listen", "0.0.0.0:40772", "-ts", "testdata/ts/test.ts"]
     ports:
       - "127.0.0.1:40772:40772"
-    volumes:
-      - .:/src:ro
-      - go-mod:/go/pkg/mod
-      - go-build:/root/.cache/go-build
 
   # 開発用の OIDC の IdP。admin、member、viewer のユーザーで、パスワードだけでログインできる (dev/dex.yaml)。
   dex:
@@ -53,30 +64,19 @@ services:
         # issuer の dex.localhost を、Kotatsu のコンテナからも引けるようにする。
         aliases: [dex.localhost]
 
-  # 録画を置くボリュームは root の持ち物になるので、Kotatsu が書けるよう、持ち主を Kotatsu の UID にする。
+  # 録画を置くボリュームは root の持ち物になるので、Kotatsu が書けるよう、持ち主を開発用のイメージのユーザーにする。
   recordings-owner:
     image: mirror.gcr.io/library/postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
-    command: ["chown", "65532:65532", "/recordings"]
+    command: ["chown", "${DEV_UID:-1000}:${DEV_GID:-1000}", "/recordings"]
     user: root
     volumes:
       - recordings:/recordings
 
-  # 起動の前に、DB のスキーマを最新にする。
-  migrate:
-    build:
-      context: .
-      target: ffmpeg
-    image: kotatsu-dev
-    command: ["migrate"]
-    environment:
-      KOTATSU_DATABASE_URL: postgres://postgres:postgres@postgres:5432/kotatsu?sslmode=disable
-    depends_on:
-      postgres:
-        condition: service_healthy
-
+  # Go のソースを保存するたびに、ビルドし直し、マイグレーションを当ててから、全ロールを起動し直す (mise.dev.toml の dev:server)。
+  # 前のプロセスを止めてからビルドするので、ビルドの間の数秒は応答しない (web は 502 を返す)。
   kotatsu:
-    image: kotatsu-dev
-    command: ["all"]
+    <<: *dev
+    command: ["run", "dev:server"]
     environment:
       KOTATSU_DATABASE_URL: postgres://postgres:postgres@postgres:5432/kotatsu?sslmode=disable
       # 開発専用の固定の秘密キー。運用では、ランダムな値を Secret で渡す。
@@ -95,30 +95,72 @@ services:
       KOTATSU_AUTH_OIDC_AUTO_CREATE_ADMIN_GROUPS: admins
       KOTATSU_AUTH_OIDC_AUTO_CREATE_MEMBER_GROUPS: members
       KOTATSU_AUTH_OIDC_AUTO_CREATE_VIEWER_GROUPS: viewers
-    ports:
-      # mise run web:dev の Vite の開発サーバーが、API をここに中継する。
-      # ほかのアプリが 8080 を使っていれば、KOTATSU_DEV_PORT で変え、web:dev にも同じ値を渡す。
-      - "127.0.0.1:${KOTATSU_DEV_PORT:-8080}:8080"
     volumes:
+      - .:/src
+      - go-mod:/go/pkg/mod
+      - go-build:/go/cache
       - recordings:/recordings
-    tmpfs:
-      - /tmp
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
       recordings-owner:
         condition: service_completed_successfully
       faketuner:
         condition: service_started
       dex:
         condition: service_started
-    read_only: true
-    user: "65532:65532"
+    # ビルドの成果物とキャッシュを書くので、ルートファイルシステムは読み取り専用にしない。
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+
+  # 画面の依存を、web/node_modules のボリュームに入れる。pnpm-lock.yaml を変えたら、docker compose up web-install で入れ直す。
+  web-install:
+    <<: *dev
+    command: ["run", "web:install"]
+    volumes:
+      - .:/src
+      - web-node-modules:/src/web/node_modules
+
+  # 画面の開発サーバー (Vite)。ブラウザはここを開き、API と映像は Kotatsu に中継される。保存した画面の変更は、その場で差し替わる。
+  web:
+    <<: *dev
+    command: ["run", "dev:web"]
+    environment:
+      KOTATSU_DEV_API: http://kotatsu:8080
+    ports:
+      # ほかのアプリが 8080 を使っていれば、KOTATSU_DEV_PORT で変える。
+      - "127.0.0.1:${KOTATSU_DEV_PORT:-8080}:8080"
+    volumes:
+      - .:/src
+      - web-node-modules:/src/web/node_modules
+    depends_on:
+      web-install:
+        condition: service_completed_successfully
+      kotatsu:
+        condition: service_started
+
+  # SQL のクエリやスキーマ、GraphQL のスキーマを変えたら、sqlc と gqlgen の生成物と、画面が読むスキーマを作り直す (mise.dev.toml の dev:generate)。
+  generate:
+    <<: *dev
+    command: ["run", "dev:generate"]
+
+  # 画面のクエリやスキーマを変えたら、Relay の生成物を作り直す (mise.dev.toml の dev:relay)。
+  relay:
+    <<: *dev
+    command: ["run", "dev:relay"]
+    volumes:
+      - .:/src
+      - web-node-modules:/src/web/node_modules
+    depends_on:
+      web-install:
+        condition: service_completed_successfully
 
 volumes:
   postgres:
   recordings:
+  # 開発用のイメージのユーザーの持ち物にするので、root で使っていた以前のボリュームとは名前を変える。
   go-mod:
+    name: kotatsu-dev_dev-go-mod
   go-build:
+    name: kotatsu-dev_dev-go-build
+  web-node-modules:

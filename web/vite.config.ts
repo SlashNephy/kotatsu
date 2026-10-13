@@ -6,9 +6,12 @@ import { defineConfig, lazyPlugins } from 'vite-plus';
 
 // ビルドした SPA は、Go のバイナリに埋め込む (設計書 2.3)。web/embed.go が dist/app を埋め込む。
 // dist 自体は、未ビルドでも go build が通るように、空の .gitkeep だけを置いてリポジトリに残す。
-// devAPI は、mise run web:dev のときに API を中継する先。
-// 空の値は、compose.yaml の ${KOTATSU_DEV_PORT:-8080} と同じく、渡していないものとして扱う。
-const devAPI = `http://127.0.0.1:${process.env.KOTATSU_DEV_PORT || '8080'}`;
+// devAPI は、開発サーバーが API を中継する先。
+// 開発用の Compose では、KOTATSU_DEV_API で Kotatsu のコンテナを指す。
+// Compose の外で mise run web:dev を動かすときは、手元で起動した Kotatsu (既定は 127.0.0.1:8080) に中継する。
+// 空の値は、渡していないものとして扱う。
+const devAPI =
+  process.env.KOTATSU_DEV_API || `http://127.0.0.1:${process.env.KOTATSU_DEV_PORT || '8080'}`;
 
 export default defineConfig({
   plugins: lazyPlugins(() => [
@@ -75,6 +78,9 @@ export default defineConfig({
     proxy: {
       '/graphql': { target: devAPI, changeOrigin: false },
       '/auth': { target: devAPI, changeOrigin: false },
+      // 映像、録画の画像、ロゴも中継し、開発サーバーだけで画面のすべてを確かめられるようにする。
+      '/streams': { target: devAPI, changeOrigin: false },
+      '/media': { target: devAPI, changeOrigin: false },
     },
   },
   fmt: {

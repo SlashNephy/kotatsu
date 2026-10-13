@@ -58,7 +58,8 @@ COPY --from=build /out/kotatsu /usr/local/bin/kotatsu
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/kotatsu"]
 
-FROM mirror.gcr.io/library/debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f AS ffmpeg
+# FFmpeg と tsreadex を入れた実行環境。ffmpeg と、開発用の dev の土台にする。
+FROM mirror.gcr.io/library/debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f AS runtime
 ARG TARGETARCH
 # FFmpeg は Debian の ffmpeg パッケージ (GPL-2.0-or-later) を使い、non-free のパッケージは入れない (#77)。
 # VAAPI と QSV のドライバは main コンポーネントのものだけを入れる。Intel のものは amd64 にしかない。
@@ -72,6 +73,42 @@ COPY --from=tools /out/doc/ /usr/share/doc/kotatsu/third-party/
 COPY build/container/write-debian-sources.sh /tmp/
 # 入れた Debian のパッケージとソースパッケージの一覧を、ソースの入手先とともに書き出す (付録 B)。
 RUN sh /tmp/write-debian-sources.sh /usr/share/doc/kotatsu/third-party/debian-packages.tsv && rm /tmp/write-debian-sources.sh
+
+# 開発用のイメージ (compose.yaml、docs/development.md)。ソースはマウントして使い、Go と Node.js は mise で入れる。
+# ソースの変更を watchexec で見て、ビルドし直す。生成したファイルが手元のユーザーの持ち物になるよう、UID と GID をそろえる。
+FROM runtime AS dev
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=mirror.gcr.io/jdxcode/mise:2026.9.18@sha256:67514a972b2bddd0eca59b8c4baf4e106fc4e9f9de11233bc2305414bf672ee3 /usr/local/bin/mise /usr/local/bin/mise
+ARG UID=1000
+ARG GID=1000
+# 名前付きボリュームは、最初にマウントしたときに、イメージのディレクトリの持ち主を引き継ぐ。
+# ソースのマウントの中にある web/node_modules も、先に作っておく。
+RUN groupadd -o -g "${GID}" kotatsu \
+    && useradd -o -m -u "${UID}" -g "${GID}" -d /home/kotatsu kotatsu \
+    && mkdir -p /mise /go/pkg/mod /go/cache /src/web/node_modules \
+    && chown -R "${UID}:${GID}" /mise /go /src /home/kotatsu
+USER kotatsu
+ENV MISE_DATA_DIR=/mise \
+    MISE_CACHE_DIR=/mise/cache \
+    MISE_ENV=dev \
+    MISE_TRUSTED_CONFIG_PATHS=/src \
+    PATH=/mise/shims:$PATH \
+    GOMODCACHE=/go/pkg/mod \
+    GOCACHE=/go/cache
+# 足りないツールをその場で入れて mise.lock を書き換えないよう、イメージに入れたツールだけを使う。
+ENV MISE_AUTO_INSTALL=false
+# pnpm のストアは、ハードリンクが効くよう、web/node_modules と同じボリュームに置く。
+# 置き場所を決めないと、マウントしたソースの直下に作ってしまう。
+ENV pnpm_config_store_dir=/src/web/node_modules/.pnpm-store
+WORKDIR /src
+# 開発に使うツールだけを、イメージに入れておく。
+COPY --chown=${UID}:${GID} mise.toml mise.lock mise.dev.toml mise.dev.lock ./
+RUN mise install go node pnpm watchexec sqlc golangci-lint
+ENTRYPOINT ["mise"]
+
+FROM runtime AS ffmpeg
 # distroless の nonroot と同じ UID にそろえる (設計書 2.4)。
 RUN groupadd --gid 65532 nonroot \
     && useradd --uid 65532 --gid 65532 --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin nonroot

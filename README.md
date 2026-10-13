@@ -72,7 +72,7 @@ Docker Composeで1台のマシンに立てる手順と、HelmでKubernetesに立
 ## 開発
 
 手元でKotatsuを動かす手順は、[開発](docs/development.md)にまとめました。
-`docker compose up --build`で、PostgreSQLと偽のチューナーサーバーと一緒に起動できます。
+`mise run dev`で、PostgreSQLと偽のチューナーサーバーと一緒に起動できます。ソースを保存すると、その場で反映されます。
 
 開発に使うツールは、[mise](https://mise.jdx.dev/)でインストールしてください。
 
@@ -82,6 +82,7 @@ mise install
 
 | コマンド | 内容 |
 | --- | --- |
+| `mise run dev` | 開発用のComposeを動かす。ソースを保存すると、その場で反映される |
 | `mise run generate` | sqlc、gqlgen、GraphQLのスキーマなどの生成物を作り直し、マイグレーションを検証する |
 | `mise run test` | Goのテストを`-race`付きで実行する |
 | `mise run lint` | golangci-lintを実行する |
