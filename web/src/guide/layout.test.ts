@@ -5,6 +5,9 @@ import {
   layoutColumn,
   programBox,
   stackedBoxes,
+  timeScale,
+  timeToY,
+  yToTime,
   visibleRange,
   type ProgramTime,
 } from './layout';
@@ -141,6 +144,50 @@ describe('stackedBoxes', () => {
     },
   ])('$name', ({ programs, want }) => {
     expect(stackedBoxes(window, programs, layoutColumn(programs))).toEqual(want);
+  });
+});
+
+describe('timeScale', () => {
+  test('短い番組がかかる分だけ高くし、ほかの時間は一定の高さのままにする', () => {
+    // 59 分からの 1 分の番組。その 1 分だけを、最小の高さ (19px) にする。
+    const programs = [program(0, 59), program(59, 60), program(60, 120)];
+    const scale = timeScale(window, [{ programs, layout: layoutColumn(programs) }]);
+
+    expect(timeToY(scale, dayStart + 59 * minute)).toBe(177);
+    expect(timeToY(scale, dayStart + 60 * minute)).toBe(196);
+    // 1 時間後の正時は、伸ばした 16px の分だけ下がる。
+    expect(timeToY(scale, dayStart + 120 * minute)).toBe(376);
+    expect(yToTime(scale, 196)).toBe(dayStart + 60 * minute);
+  });
+
+  test('短い番組では、どの番組も最小の高さに届き、正時に始まる番組は正時の線から始まる', () => {
+    // 正時の前の 2 分、3 分の番組と、正時に始まる 5 分の番組。
+    const programs = [
+      program(0, 55),
+      program(55, 57),
+      program(57, 60),
+      program(60, 65),
+      program(65, 120),
+    ];
+    const layout = layoutColumn(programs);
+    const scale = timeScale(window, [{ programs, layout }]);
+    const boxes = stackedBoxes(scale, programs, layout);
+
+    expect(boxes.slice(1, 4).every((box) => box.height >= 19)).toBe(true);
+    expect(boxes[3]!.top).toBe(timeToY(scale, dayStart + 60 * minute));
+  });
+
+  test('目盛りは列をまたいで共通にする', () => {
+    const short = [program(0, 1), program(1, 60)];
+    const long = [program(0, 60)];
+    const scale = timeScale(window, [
+      { programs: short, layout: layoutColumn(short) },
+      { programs: long, layout: layoutColumn(long) },
+    ]);
+
+    expect(stackedBoxes(scale, long, layoutColumn(long))[0]!.height).toBe(
+      timeToY(scale, dayStart + 60 * minute),
+    );
   });
 });
 

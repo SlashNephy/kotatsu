@@ -9,6 +9,7 @@ import {
   layoutColumn,
   stackedBoxes,
   minuteHeight,
+  timeScale,
   timeToY,
   visibleRange,
   yToTime,
@@ -75,10 +76,24 @@ const hourFormat = new Intl.DateTimeFormat('ja-JP', {
 
 // GuideGrid は、横にサービス、縦に時刻を並べた番組表。
 // サービスの数と番組の数が多くても滑らかに動くよう、横はサービスの列を、縦は列の中の番組を、見えている範囲だけ描く。
-export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props) {
+export function GuideGrid({ window: day, columns, now, initialTime, onSelect }: Props) {
   const { t } = useTranslation();
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
+  // 列の番組の配置は、番組が変わったときだけ計算し直す。
+  const layouts = useMemo(() => columns.map((column) => layoutColumn(column.programs)), [columns]);
+  // 短い番組がある時間だけ高くした目盛り。番組表の位置は、すべてこれで計算する。
+  const window = useMemo(
+    () =>
+      timeScale(
+        day,
+        columns.map((column, i) => ({ programs: column.programs, layout: layouts[i]! })),
+      ),
+    [day, columns, layouts],
+  );
+  // windowRef は、最新の目盛り。番組を読み直しても、スクロールの位置は動かさないので、効果の依存には入れない。
+  const windowRef = useRef(window);
+  windowRef.current = window;
 
   const virtualizer = useVirtualizer({
     horizontal: true,
@@ -120,9 +135,12 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
   useEffect(() => {
     const element = scroller.current;
     if (element !== null) {
-      element.scrollTop = Math.max(timeToY(window, initialTime) - 60 * minuteHeight * 0.5, 0);
+      element.scrollTop = Math.max(
+        timeToY(windowRef.current, initialTime) - 60 * minuteHeight * 0.5,
+        0,
+      );
     }
-  }, [window, initialTime]);
+  }, [day, initialTime]);
 
   const visibleFrom = yToTime(window, viewport.top - overscanPixels);
   const visibleTo = yToTime(window, viewport.top + viewport.height + overscanPixels);
@@ -135,8 +153,6 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
 
     return list;
   }, [window]);
-  // 列の番組の配置は、番組が変わったときだけ計算し直す。
-  const layouts = useMemo(() => columns.map((column) => layoutColumn(column.programs)), [columns]);
   const columnBoxes = useMemo(
     () => columns.map((column, i) => stackedBoxes(window, column.programs, layouts[i]!)),
     [columns, layouts, window],
