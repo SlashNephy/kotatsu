@@ -40,7 +40,7 @@ mise run dev
 
 偽のチューナーサーバーは、`testdata/ts/test.ts`を、すべてのサービスのストリームとして流します。
 番組表も、テスト用のものを返します。
-実際のチューナーサーバーにつなぐときは、`kotatsu`サービスの`KOTATSU_TUNER_URL`を書き換えてください。
+実際のチューナーサーバーにつなぐ方法は、後述の「実際のチューナーサーバーにつなぐ」を見てください。
 
 秘密キーと、Dexのユーザーのパスワードは、開発専用の固定の値です。
 この構成を運用に使わないでください。運用の例は[deploy/compose/compose.yaml](../deploy/compose/compose.yaml)にあります。
@@ -55,6 +55,27 @@ DBと録画は、Composeのボリュームに残ります。
 ```bash
 KOTATSU_DEV_PORT=18080 mise run dev
 ```
+
+### 実際のチューナーサーバーにつなぐ
+
+`KOTATSU_DEV_TUNER_URL`にチューナーサーバーのURLを渡すと、偽のチューナーサーバーの代わりにつなぎます。
+あわせて`KOTATSU_DEV_DB`に名前を渡し、DBと録画を別のボリュームに分けてください。
+
+```bash
+KOTATSU_DEV_TUNER_URL=http://192.0.2.10:40772/ KOTATSU_DEV_DB=real mise run dev
+```
+
+`KOTATSU_DEV_DB=real`なら、DBは`kotatsu-dev_postgres-real`、録画は`kotatsu-dev_recordings-real`のボリュームに置きます。
+渡さなければ、`kotatsu-dev_postgres`と`kotatsu-dev_recordings`を使います。
+偽のチューナーサーバーの番組表と、実際の番組表が混ざらないようにするためです。
+偽のチューナーサーバーのサービスには、実際のサービスと同じIDのものもあります。
+
+同じ名前を渡せば、前のデータの続きから使えます。
+ボリュームを分けても、ポートは同じなので、2つを同時には動かせません。
+切り替えるときは、`docker compose down`で止めてから起動し直してください。
+
+実際のチューナーサーバーを、ほかのKotatsuやEPGStationと一緒に使っているときは、チューナーを取り合うことに気をつけてください。
+開発環境でライブを見たり、ルールで録画したりすると、そのぶんのチューナーを使います。
 
 ### ログインする
 
