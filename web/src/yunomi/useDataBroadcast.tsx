@@ -221,6 +221,10 @@ export function useDataBroadcast(
 
     return () => {
       stopEntering();
+      // 片付けた文書に、出す・消す・d ボタンの操作が届かないようにする。
+      showRef.current = () => {};
+      hideRef.current = () => {};
+      stopEnteringRef.current = () => {};
       worker.terminate();
       putBack();
       browser.destroy();

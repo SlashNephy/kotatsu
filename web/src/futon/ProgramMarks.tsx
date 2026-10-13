@@ -16,6 +16,8 @@ export function ProgramMarkBadges({ marks }: { marks: readonly string[] }) {
       fw={500}
       tt="none"
       ml={4}
+      // 番組名の文の中 (<p> など) に置くので、インラインの要素にする。
+      component="span"
       style={{ verticalAlign: 'middle' }}
     >
       {mark}

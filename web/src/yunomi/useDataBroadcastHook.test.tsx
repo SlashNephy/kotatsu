@@ -73,10 +73,10 @@ afterEach(() => {
 const players: HTMLVideoElement[] = [];
 
 // Harness は、TsPlayer と同じく、映像の要素 (.media) の中に video を置き、データ放送の層を重ねる。
-function Harness({ shown = true }: { shown?: boolean }) {
+function Harness({ shown = true, receive = true }: { shown?: boolean; receive?: boolean }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { layer, state, receiving } = useDataBroadcast(
-    { url: '/streams/services/3273601024/data-broadcast', serviceId: 1024 },
+    receive ? { url: '/streams/services/3273601024/data-broadcast', serviceId: 1024 } : null,
     videoRef,
     shown,
   );
@@ -105,6 +105,29 @@ function Harness({ shown = true }: { shown?: boolean }) {
 const load = new CustomEvent('load', { detail: { resolution: { width: 960, height: 540 } } });
 
 describe('useDataBroadcast', () => {
+  test('受け取るのをやめたあとは、出したり消したりしても、片付けた文書を操作しない', () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(<Harness shown={false} />);
+      const browser = fake.FakeBrowser.instances[0];
+      act(() => {
+        browser?.dispatchEvent(load);
+        browser?.dispatchEvent(new CustomEvent('invisible', { detail: false }));
+      });
+      // 視聴が切れたときなど、受け取るのをやめる。
+      rerender(<Harness shown={false} receive={false} />);
+      rerender(<Harness shown receive={false} />);
+      rerender(<Harness shown={false} receive={false} />);
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+
+      expect(browser?.pressed).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('出してから、データ放送の画面を出せるまでを、受信中とする', () => {
     vi.useFakeTimers();
     try {
