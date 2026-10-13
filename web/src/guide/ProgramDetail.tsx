@@ -1,10 +1,24 @@
-import { Alert, Badge, Button, Drawer, Group, Stack, Text, Title } from '@mantine/core';
+import {
+  Alert,
+  Badge,
+  Button,
+  Drawer,
+  Group,
+  Modal,
+  Stack,
+  Text,
+  Title,
+  Tooltip,
+} from '@mantine/core';
+import { Link } from '@tanstack/react-router';
+import { CalendarCheck, CalendarPlus, Play } from 'lucide-react';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
 import { ErrorBoundary, ProgramTitle } from '../futon';
 import { genreKey } from './genres';
+import type { ProgramDetailCancelMutation } from './__generated__/ProgramDetailCancelMutation.graphql';
 import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.graphql';
 import type { ProgramDetailReserveMutation } from './__generated__/ProgramDetailReserveMutation.graphql';
 import { ServiceLabel } from './ServiceLabel';
@@ -29,7 +43,7 @@ export function ProgramDetail({ programId, onClose }: Props) {
       {programId !== undefined && (
         <ErrorBoundary fallback={() => <Alert color="amber">{t('guide.detail.error')}</Alert>}>
           <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
-            <Detail key={programId} programId={programId} />
+            <Detail key={programId} programId={programId} onReserved={onClose} />
           </Suspense>
         </ErrorBoundary>
       )}
@@ -55,7 +69,8 @@ const timeFormat = new Intl.DateTimeFormat('ja-JP', {
   timeZone: 'Asia/Tokyo',
 });
 
-function Detail({ programId }: { programId: string }) {
+// onReserved は、録画予約を作れたときに呼ぶ。サイドバーを閉じ、番組表で予約した番組を見せる。
+function Detail({ programId, onReserved }: { programId: string; onReserved: () => void }) {
   const { t } = useTranslation();
   const data = useLazyLoadQuery<ProgramDetailQuery>(
     graphql`
@@ -75,6 +90,7 @@ function Detail({ programId }: { programId: string }) {
             isFree
             archived
             service {
+              id
               name
               logoUrl
             }
@@ -84,6 +100,11 @@ function Detail({ programId }: { programId: string }) {
             extended {
               heading
               text
+            }
+            reservation {
+              id
+              enabled
+              kind
             }
           }
         }
@@ -95,10 +116,13 @@ function Detail({ programId }: { programId: string }) {
     mutation ProgramDetailReserveMutation($program: ID!) {
       createProgramReservation(input: { program: $program }) {
         id
+        enabled
       }
     }
   `);
-  const [result, setResult] = useState<'reserved' | 'error' | null>(null);
+  const [result, setResult] = useState<'error' | null>(null);
+  // cancelling は、録画予約を取り消す確認を出しているかどうか。
+  const [cancelling, setCancelling] = useState(false);
   const program = data.node;
   if (program?.__typename !== 'Program') {
     return <Alert color="amber">{t('guide.detail.error')}</Alert>;
@@ -108,9 +132,23 @@ function Detail({ programId }: { programId: string }) {
     setResult(null);
     commit({
       variables: { program: program.id },
+      // 作った予約を番組に結び付け、番組表の枠と、次に開いたときのボタンに、予約済みを出す。
+      updater: (store) => {
+        const reservation = store.getRootField('createProgramReservation');
+        const record = store.get(program.id);
+        if (reservation !== null && record !== undefined && record !== null) {
+          record.setLinkedRecord(reservation, 'reservation');
+        }
+      },
       // Relay は、data とともに返ったエラーを、onError ではなく onCompleted に渡す。
-      onCompleted: (_response, errors) =>
-        setResult(errors != null && errors.length > 0 ? 'error' : 'reserved'),
+      onCompleted: (_response, errors) => {
+        if (errors != null && errors.length > 0) {
+          setResult('error');
+
+          return;
+        }
+        onReserved();
+      },
       // 予約を作れないロールには、ボタンを出していないので、ここでは理由を出し分けない。
       onError: () => setResult('error'),
     });
@@ -118,6 +156,10 @@ function Detail({ programId }: { programId: string }) {
   const start = Date.parse(program.startAt);
   const ended =
     program.archived || (!program.endUndecided && Date.parse(program.endAt) <= Date.now());
+  // reserved は、この番組の録画予約が (有効なまま) あるかどうか。
+  const reserved = program.reservation?.enabled === true;
+  // 放送中なら、その場でライブ視聴を開けるようにする。
+  const onAir = !program.archived && !ended && start <= Date.now();
 
   return (
     <Stack>
@@ -139,11 +181,46 @@ function Detail({ programId }: { programId: string }) {
           <Badge variant="light">{t(genreKey(program.genres[0].lv1))}</Badge>
         )}
       </Group>
-      {/* 検索から開いた、放送の終わった番組は予約できない。 */}
-      {data.viewer.role !== 'VIEWER' && !ended && (
-        <Button onClick={reserve} loading={inFlight} disabled={result === 'reserved'}>
-          {result === 'reserved' ? t('guide.detail.reserved') : t('guide.detail.reserve')}
+      {onAir && (
+        <Button
+          variant="light"
+          leftSection={<Play size={16} aria-hidden />}
+          renderRoot={(props) => (
+            <Link {...props} to="/live/$serviceId" params={{ serviceId: program.service.id }} />
+          )}
+        >
+          {t('guide.detail.watch')}
         </Button>
+      )}
+      {/* 検索から開いた、放送の終わった番組は予約できない。 */}
+      {data.viewer.role !== 'VIEWER' && !ended && !reserved && (
+        <Button
+          onClick={reserve}
+          loading={inFlight}
+          leftSection={<CalendarPlus size={16} aria-hidden />}
+        >
+          {t('guide.detail.reserve')}
+        </Button>
+      )}
+      {/* 録画予約済みのボタンを押すと、確かめてから取り消す。 */}
+      {data.viewer.role !== 'VIEWER' && !ended && reserved && program.reservation != null && (
+        <Tooltip label={t('guide.detail.cancelReservation')}>
+          <Button
+            variant="outline"
+            onClick={() => setCancelling(true)}
+            leftSection={<CalendarCheck size={16} aria-hidden />}
+          >
+            {t('guide.detail.reserved')}
+          </Button>
+        </Tooltip>
+      )}
+      {cancelling && program.reservation != null && (
+        <CancelDialog
+          reservationId={program.reservation.id}
+          byRule={program.reservation.kind === 'RULE'}
+          programName={program.name}
+          onClose={() => setCancelling(false)}
+        />
       )}
       {result === 'error' && (
         <Alert color="red" role="alert">
@@ -162,5 +239,76 @@ function Detail({ programId }: { programId: string }) {
         </Stack>
       ))}
     </Stack>
+  );
+}
+
+type CancelProps = {
+  reservationId: string;
+  // byRule は、ルールで入った予約かどうか。ルール予約は消さずに無効にするので、ルールは残る。
+  byRule: boolean;
+  programName: string;
+  onClose: () => void;
+};
+
+// CancelDialog は、録画予約を取り消す前に確かめる。番組予約は消し、ルール予約は無効にする (deleteReservation)。
+function CancelDialog({ reservationId, byRule, programName, onClose }: CancelProps) {
+  const { t } = useTranslation();
+  const [error, setError] = useState(false);
+  const [commit, inFlight] = useMutation<ProgramDetailCancelMutation>(graphql`
+    mutation ProgramDetailCancelMutation($id: ID!) {
+      deleteReservation(id: $id) {
+        id
+        reservation {
+          id
+          enabled
+        }
+      }
+    }
+  `);
+
+  return (
+    <Modal opened onClose={onClose} title={t('guide.detail.cancelReservation')}>
+      <Stack>
+        <Text size="sm" fw={700}>
+          <ProgramTitle name={programName} />
+        </Text>
+        <Text size="sm" c="dimmed">
+          {byRule ? t('guide.detail.cancelRuleDescription') : t('guide.detail.cancelDescription')}
+        </Text>
+        {error && (
+          <Alert color="red" role="alert">
+            {t('guide.detail.cancelError')}
+          </Alert>
+        )}
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            {t('reservations.cancel')}
+          </Button>
+          <Button
+            color="red"
+            loading={inFlight}
+            onClick={() => {
+              // 押し直したときは、前の失敗の知らせを消してから取り消す。
+              setError(false);
+              commit({
+                variables: { id: reservationId },
+                // 消した番組予約は、番組から外す。ルール予約は、返った予約 (無効) がそのまま番組に残る。
+                updater: (store) => {
+                  const payload = store.getRootField('deleteReservation');
+                  if (payload?.getLinkedRecord('reservation') == null) {
+                    store.delete(reservationId);
+                  }
+                },
+                onCompleted: (_response, errors) =>
+                  errors != null && errors.length > 0 ? setError(true) : onClose(),
+                onError: () => setError(true),
+              });
+            }}
+          >
+            {t('guide.detail.cancelConfirm')}
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
   );
 }

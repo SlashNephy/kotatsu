@@ -7,6 +7,7 @@ import {
   NumberInput,
   Stack,
   Switch,
+  Text,
   TextInput,
 } from '@mantine/core';
 import { useState, type FormEvent } from 'react';
@@ -146,6 +147,11 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
     >
       <form onSubmit={submit}>
         <Stack>
+          {view.id === undefined && (
+            <Text size="sm" c="dimmed">
+              {t('guide.view.createHint')}
+            </Text>
+          )}
           <TextInput
             label={t('guide.view.name')}
             value={name}
@@ -155,7 +161,6 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
           />
           <MultiSelect
             label={t('guide.view.genres')}
-            description={t('guide.view.genresDescription')}
             data={genreOptions}
             value={genres}
             onChange={setGenres}
@@ -170,7 +175,6 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
           />
           <NumberInput
             label={t('guide.view.minDuration')}
-            description={t('guide.view.minDurationDescription')}
             value={minMinutes}
             onChange={(value) => setMinMinutes(typeof value === 'number' ? value : '')}
             min={1}

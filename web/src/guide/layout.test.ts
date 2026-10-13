@@ -1,6 +1,16 @@
 import { describe, expect, test } from 'vitest';
 
-import { broadcastDay, layoutColumn, programBox, visibleRange, type ProgramTime } from './layout';
+import {
+  broadcastDay,
+  layoutColumn,
+  programBox,
+  stackedBoxes,
+  timeScale,
+  timeToY,
+  yToTime,
+  visibleRange,
+  type ProgramTime,
+} from './layout';
 
 const minute = 60_000;
 // 2026-10-11T04:00:00+09:00
@@ -40,7 +50,7 @@ describe('programBox', () => {
       name: '短い番組も、名前が読める高さにする',
       program: program(0, 1),
       end: 1,
-      want: { top: 0, height: 12 },
+      want: { top: 0, height: 19 },
     },
   ])('$name', ({ program, end, want }) => {
     expect(programBox(window, program, dayStart + end * minute)).toEqual(want);
@@ -90,6 +100,94 @@ describe('layoutColumn', () => {
   ])('$name', ({ programs, want }) => {
     const layout = layoutColumn(programs);
     expect({ ends: layout.ends, lanes: layout.lanes, laneCounts: layout.laneCounts }).toEqual(want);
+  });
+});
+
+describe('stackedBoxes', () => {
+  test.each([
+    {
+      // 1 分の番組 (177〜180px) は、終わりを保って 19px に上へ伸ばし、前の番組の終わりを削る。
+      name: '短い番組は上へ伸ばし、前の番組の終わりを削る',
+      programs: [program(0, 59), program(59, 60), program(60, 120)],
+      want: [
+        { top: 0, height: 161 },
+        { top: 161, height: 19 },
+        { top: 180, height: 180 },
+      ],
+    },
+    {
+      // 17:55 の 2 分、17:57 の 3 分のように、正時の前に短い番組が続くところ。正時 (180px) の線をまたがない。
+      name: '正時の前に短い番組が続いても、正時より前に収める',
+      programs: [program(0, 55), program(55, 57), program(57, 60), program(60, 70)],
+      want: [
+        { top: 0, height: 142 },
+        { top: 142, height: 19 },
+        { top: 161, height: 19 },
+        { top: 180, height: 30 },
+      ],
+    },
+    {
+      name: '番組表の上端では上へ伸ばせないので、後ろの番組を下げる',
+      programs: [program(0, 1), program(1, 30)],
+      want: [
+        { top: 0, height: 19 },
+        { top: 19, height: 71 },
+      ],
+    },
+    {
+      name: '最小の高さより長い番組は、そのまま',
+      programs: [program(0, 30), program(30, 60)],
+      want: [
+        { top: 0, height: 90 },
+        { top: 90, height: 90 },
+      ],
+    },
+  ])('$name', ({ programs, want }) => {
+    expect(stackedBoxes(window, programs, layoutColumn(programs))).toEqual(want);
+  });
+});
+
+describe('timeScale', () => {
+  test('短い番組がかかる分だけ高くし、ほかの時間は一定の高さのままにする', () => {
+    // 59 分からの 1 分の番組。その 1 分だけを、最小の高さ (19px) にする。
+    const programs = [program(0, 59), program(59, 60), program(60, 120)];
+    const scale = timeScale(window, [{ programs, layout: layoutColumn(programs) }]);
+
+    expect(timeToY(scale, dayStart + 59 * minute)).toBe(177);
+    expect(timeToY(scale, dayStart + 60 * minute)).toBe(196);
+    // 1 時間後の正時は、伸ばした 16px の分だけ下がる。
+    expect(timeToY(scale, dayStart + 120 * minute)).toBe(376);
+    expect(yToTime(scale, 196)).toBe(dayStart + 60 * minute);
+  });
+
+  test('短い番組では、どの番組も最小の高さに届き、正時に始まる番組は正時の線から始まる', () => {
+    // 正時の前の 2 分、3 分の番組と、正時に始まる 5 分の番組。
+    const programs = [
+      program(0, 55),
+      program(55, 57),
+      program(57, 60),
+      program(60, 65),
+      program(65, 120),
+    ];
+    const layout = layoutColumn(programs);
+    const scale = timeScale(window, [{ programs, layout }]);
+    const boxes = stackedBoxes(scale, programs, layout);
+
+    expect(boxes.slice(1, 4).every((box) => box.height >= 19)).toBe(true);
+    expect(boxes[3]!.top).toBe(timeToY(scale, dayStart + 60 * minute));
+  });
+
+  test('目盛りは列をまたいで共通にする', () => {
+    const short = [program(0, 1), program(1, 60)];
+    const long = [program(0, 60)];
+    const scale = timeScale(window, [
+      { programs: short, layout: layoutColumn(short) },
+      { programs: long, layout: layoutColumn(long) },
+    ]);
+
+    expect(stackedBoxes(scale, long, layoutColumn(long))[0]!.height).toBe(
+      timeToY(scale, dayStart + 60 * minute),
+    );
   });
 });
 

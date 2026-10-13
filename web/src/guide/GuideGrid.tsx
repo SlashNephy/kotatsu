@@ -1,4 +1,5 @@
-import { Box, Text, UnstyledButton } from '@mantine/core';
+import { Anchor, Box, Text, UnstyledButton } from '@mantine/core';
+import { Link } from '@tanstack/react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -6,15 +7,19 @@ import { genreBackground } from './genres';
 import {
   gridHeight,
   layoutColumn,
+  stackedBoxes,
   minuteHeight,
-  programBox,
+  timeScale,
   timeToY,
   visibleRange,
   yToTime,
   type ColumnLayout,
   type GuideWindow,
+  type Box as ProgramBox,
 } from './layout';
 import { ServiceLabel } from './ServiceLabel';
+import { useTranslation } from 'react-i18next';
+
 import { ProgramTitle, splitProgramMarks } from '../futon';
 
 // GuideProgram は、番組表の枠に出す番組。
@@ -25,6 +30,10 @@ export type GuideProgram = {
   endUndecided: boolean;
   name: string;
   genre: number | undefined;
+  // shared は、サブチャンネルで、元のサービスと同じ番組を流していること。枠を薄くし、番組名を出さない。
+  shared: boolean;
+  // reserved は、有効な録画予約があること。枠を赤で囲む。
+  reserved: boolean;
 };
 
 // GuideColumn は、番組表の 1 列 (1 つのサービス)。programs は開始時刻の順に並べる。
@@ -67,9 +76,24 @@ const hourFormat = new Intl.DateTimeFormat('ja-JP', {
 
 // GuideGrid は、横にサービス、縦に時刻を並べた番組表。
 // サービスの数と番組の数が多くても滑らかに動くよう、横はサービスの列を、縦は列の中の番組を、見えている範囲だけ描く。
-export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props) {
+export function GuideGrid({ window: day, columns, now, initialTime, onSelect }: Props) {
+  const { t } = useTranslation();
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
+  // 列の番組の配置は、番組が変わったときだけ計算し直す。
+  const layouts = useMemo(() => columns.map((column) => layoutColumn(column.programs)), [columns]);
+  // 短い番組がある時間だけ高くした目盛り。番組表の位置は、すべてこれで計算する。
+  const window = useMemo(
+    () =>
+      timeScale(
+        day,
+        columns.map((column, i) => ({ programs: column.programs, layout: layouts[i]! })),
+      ),
+    [day, columns, layouts],
+  );
+  // windowRef は、最新の目盛り。番組を読み直しても、スクロールの位置は動かさないので、効果の依存には入れない。
+  const windowRef = useRef(window);
+  windowRef.current = window;
 
   const virtualizer = useVirtualizer({
     horizontal: true,
@@ -111,9 +135,12 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
   useEffect(() => {
     const element = scroller.current;
     if (element !== null) {
-      element.scrollTop = Math.max(timeToY(window, initialTime) - 60 * minuteHeight * 0.5, 0);
+      element.scrollTop = Math.max(
+        timeToY(windowRef.current, initialTime) - 60 * minuteHeight * 0.5,
+        0,
+      );
     }
-  }, [window, initialTime]);
+  }, [day, initialTime]);
 
   const visibleFrom = yToTime(window, viewport.top - overscanPixels);
   const visibleTo = yToTime(window, viewport.top + viewport.height + overscanPixels);
@@ -126,8 +153,10 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
 
     return list;
   }, [window]);
-  // 列の番組の配置は、番組が変わったときだけ計算し直す。
-  const layouts = useMemo(() => columns.map((column) => layoutColumn(column.programs)), [columns]);
+  const columnBoxes = useMemo(
+    () => columns.map((column, i) => stackedBoxes(window, column.programs, layouts[i]!)),
+    [columns, layouts, window],
+  );
   const totalWidth = axisWidth + virtualizer.getTotalSize();
   const nowY = now >= window.from && now < window.to ? timeToY(window, now) : undefined;
 
@@ -166,13 +195,24 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
           }}
         />
         {virtualizer.getVirtualItems().map((item) => (
-          <Text
+          // サービス名を押すと、そのサービスのライブ視聴を開く。
+          <Anchor
             key={item.key}
             size="sm"
             fw={700}
             truncate
-            title={columns[item.index]!.name}
+            c="inherit"
+            underline="hover"
+            title={t('guide.watchLive', { name: columns[item.index]!.name })}
+            renderRoot={(props) => (
+              <Link
+                {...props}
+                to="/live/$serviceId"
+                params={{ serviceId: columns[item.index]!.id }}
+              />
+            )}
             style={{
+              display: 'block',
               position: 'absolute',
               top: 0,
               left: axisWidth + item.start,
@@ -188,7 +228,7 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
               logoUrl={columns[item.index]!.logoUrl}
               logoHeight="24px"
             />
-          </Text>
+          </Anchor>
         ))}
       </Box>
       <Box style={{ position: 'relative', width: totalWidth, height }}>
@@ -209,7 +249,14 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
               size="xs"
               c="dimmed"
               ta="center"
-              style={{ position: 'absolute', top: timeToY(window, hour), width: axisWidth }}
+              // 正時の位置に線を引き、時刻の数字はその線の下に置く。
+              style={{
+                position: 'absolute',
+                top: timeToY(window, hour),
+                width: axisWidth,
+                paddingTop: 2,
+                borderTop: '1px solid var(--mantine-color-default-border)',
+              }}
             >
               {hourFormat.format(hour).replace('時', '')}
             </Text>
@@ -218,9 +265,9 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
         {virtualizer.getVirtualItems().map((item) => (
           <GuideColumnView
             key={item.key}
-            window={window}
             column={columns[item.index]!}
             layout={layouts[item.index]!}
+            boxes={columnBoxes[item.index]!}
             left={axisWidth + item.start}
             width={item.size}
             visibleFrom={visibleFrom}
@@ -249,9 +296,9 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
 }
 
 type ColumnProps = {
-  window: GuideWindow;
   column: GuideColumn;
   layout: ColumnLayout;
+  boxes: ProgramBox[];
   left: number;
   width: number;
   visibleFrom: number;
@@ -260,22 +307,23 @@ type ColumnProps = {
 };
 
 function GuideColumnView({
-  window,
   column,
   layout,
+  boxes,
   left,
   width,
   visibleFrom,
   visibleTo,
   onSelect,
 }: ColumnProps) {
+  const { t } = useTranslation();
   const { start, end } = visibleRange(column.programs, layout, visibleFrom, visibleTo);
 
   return (
     <>
       {column.programs.slice(start, end).map((program, offset) => {
         const index = start + offset;
-        const box = programBox(window, program, layout.ends[index]!);
+        const box = boxes[index]!;
         // 重なる番組は、列の幅を分けて横に並べる。
         const laneWidth = width / layout.laneCounts[index]!;
 
@@ -284,7 +332,11 @@ function GuideColumnView({
             key={program.id}
             data-program-id={program.id}
             onClick={() => onSelect(program.id)}
-            title={splitProgramMarks(program.name).name}
+            title={
+              program.shared
+                ? t('guide.sharedProgram', { name: splitProgramMarks(program.name).name })
+                : splitProgramMarks(program.name).name
+            }
             style={{
               position: 'absolute',
               top: box.top,
@@ -296,19 +348,25 @@ function GuideColumnView({
               display: 'flex',
               alignItems: 'flex-start',
               padding: '2px 6px',
-              background: genreBackground(program.genre),
+              background: program.shared ? 'transparent' : genreBackground(program.genre),
               borderLeft: '1px solid var(--mantine-color-default-border)',
               borderBottom: '1px solid var(--mantine-color-default-border)',
+              // 録画予約した番組は、枠の内側を赤で囲む。
+              boxShadow: program.reserved
+                ? 'inset 0 0 0 2px var(--mantine-color-red-6)'
+                : undefined,
               fontSize: 'var(--mantine-font-size-xs)',
               lineHeight: 1.35,
             }}
           >
-            <span>
-              <Text span size="xs" fw={700} mr={4}>
-                {timeFormat.format(program.startAt)}
-              </Text>
-              <ProgramTitle name={program.name} />
-            </span>
+            {!program.shared && (
+              <span>
+                <Text span size="xs" fw={700} mr={4}>
+                  {timeFormat.format(program.startAt)}
+                </Text>
+                <ProgramTitle name={program.name} />
+              </span>
+            )}
           </UnstyledButton>
         );
       })}
