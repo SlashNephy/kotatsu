@@ -1,8 +1,10 @@
 import {
   Alert,
   Anchor,
+  Box,
   Button,
   Group,
+  LoadingOverlay,
   SegmentedControl,
   Select,
   Stack,
@@ -11,7 +13,7 @@ import {
 } from '@mantine/core';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useDeferredValue, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
@@ -64,6 +66,11 @@ function dateOf(time: number): string {
   return new Date(time + 9 * 3_600_000).toISOString().slice(0, 10);
 }
 
+// dayFrom は、URL の日付 (なければ今日) の放送日の始まりを返す。
+function dayFrom(date: string | undefined, todayFrom: number): number {
+  return date === undefined ? todayFrom : broadcastDay(Date.parse(`${date}T12:00:00+09:00`)).from;
+}
+
 function GuidePage() {
   const { t } = useTranslation();
   const navigate = useNavigate({ from: '/guide/' });
@@ -114,14 +121,18 @@ function Guide() {
   // now は、画面を開いた時刻。日付の移動の基準と、いまの時刻の線に使う。
   const [now] = useState(() => Date.now());
   const today = broadcastDay(now);
+  // 日付やビューを変えても、新しい番組表を読み終えるまでは前の番組表を出したままにし、番組表の上に読み込み中を出す。
+  // 画面全体を読み込み中にしないよう、読み込みに使う値だけを遅らせる。
+  const date = useDeferredValue(search.date);
+  const view = useDeferredValue(search.view);
+  const loading = date !== search.date || view !== search.view;
+  // window は、出している番組表の日。selectedFrom は、選んだ日 (読み込み中なら、これから出す日)。
   const window = useMemo(() => {
-    const from =
-      search.date === undefined
-        ? today.from
-        : broadcastDay(Date.parse(`${search.date}T12:00:00+09:00`)).from;
+    const from = dayFrom(date, today.from);
 
     return { from, to: from + day };
-  }, [search.date, today.from]);
+  }, [date, today.from]);
+  const selectedFrom = dayFrom(search.date, today.from);
   // fetchKey は、番組表ビューを保存したときに、番組表とビューの一覧を取り直すための合図。
   const [fetchKey, setFetchKey] = useState(0);
   // editing は、編集中の番組表ビュー。
@@ -191,12 +202,12 @@ function Guide() {
     {
       from: new Date(window.from).toISOString(),
       to: new Date(window.to).toISOString(),
-      view: search.view ?? null,
+      view: view ?? null,
     },
     // fetchKey が変わると、Relay は fetchPolicy によらず取り直す。
     { fetchKey, fetchPolicy: 'store-or-network' },
   );
-  const currentView = data.guideViews.find((view) => view.id === search.view);
+  const currentView = data.guideViews.find((candidate) => candidate.id === view);
 
   const types = data.channelTypes.filter((channelType) =>
     data.guide.some((row) => row.service.channelType.type === channelType.type),
@@ -228,7 +239,8 @@ function Guide() {
     [data.guide, type],
   );
 
-  const offset = Math.round((window.from - today.from) / day);
+  // offset は、選んだ日の、今日からの日数。日付の移動のボタンに使う。
+  const offset = Math.round((selectedFrom - today.from) / day);
   const moveTo = (days: number) =>
     void navigate({
       search: (prev) => ({ ...prev, date: dateOf(today.from + days * day), program: undefined }),
@@ -254,7 +266,7 @@ function Guide() {
             {t('guide.previousDay')}
           </Button>
           <Text fw={700} miw={96} ta="center">
-            {dayFormat.format(window.from)}
+            {dayFormat.format(selectedFrom)}
           </Text>
           <Button
             variant="default"
@@ -339,17 +351,21 @@ function Guide() {
           />
         )}
       </Group>
-      {columns.length === 0 ? (
-        <Alert color="gray">{t('guide.empty')}</Alert>
-      ) : (
-        <GuideGrid
-          window={window}
-          columns={columns}
-          now={now}
-          initialTime={offset === 0 ? now : window.from + 15 * 3_600_000}
-          onSelect={(program) => void navigate({ search: (prev) => ({ ...prev, program }) })}
-        />
-      )}
+      {/* 日付やビューを変えたときは、読み終えるまで前の番組表を出し、その上に読み込み中を重ねる。 */}
+      <Box pos="relative">
+        <LoadingOverlay visible={loading} zIndex={5} overlayProps={{ blur: 1 }} />
+        {columns.length === 0 ? (
+          <Alert color="gray">{t('guide.empty')}</Alert>
+        ) : (
+          <GuideGrid
+            window={window}
+            columns={columns}
+            now={now}
+            initialTime={window.from === today.from ? now : window.from + 15 * 3_600_000}
+            onSelect={(program) => void navigate({ search: (prev) => ({ ...prev, program }) })}
+          />
+        )}
+      </Box>
       {editing !== null && (
         <GuideViewEditor
           view={editing}
