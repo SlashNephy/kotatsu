@@ -31,7 +31,7 @@ describe('ColorSchemeToggle', () => {
         </MantineProvider>,
       );
 
-      await userEvent.click(screen.getByText(choice));
+      await userEvent.click(screen.getByRole('radio', { name: choice }));
 
       expect(document.documentElement.dataset.mantineColorScheme).toBe(want);
       expect(localStorage.getItem('test-color-scheme')).toBe(stored);

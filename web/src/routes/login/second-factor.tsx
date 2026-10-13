@@ -1,5 +1,6 @@
 import { Alert, Anchor, Button, Divider, PinInput, Stack, Text, TextInput } from '@mantine/core';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { ScanFace } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -86,7 +87,12 @@ function SecondFactor() {
       {hasPasskey && (
         <Stack gap="xs">
           <Text size="sm">{t('auth.secondFactor.passkeyDescription')}</Text>
-          <Button loading={submitting} disabled={!passkeyAvailable()} onClick={verifyPasskey}>
+          <Button
+            loading={submitting}
+            disabled={!passkeyAvailable()}
+            onClick={verifyPasskey}
+            leftSection={<ScanFace size={16} aria-hidden />}
+          >
             {t('auth.secondFactor.passkey')}
           </Button>
           {!passkeyAvailable() && (
@@ -106,22 +112,33 @@ function SecondFactor() {
         <form onSubmit={submit}>
           <Stack>
             {useRecovery ? (
-              <TextInput
-                label={t('auth.secondFactor.recoveryCode')}
-                value={code}
-                onChange={(e) => setCode(e.currentTarget.value)}
-                placeholder="xxxxx-xxxxx"
-                autoComplete="off"
-                required
-              />
+              <Stack gap={4}>
+                <Text size="sm" ta="center">
+                  {t('auth.secondFactor.recoveryDescription')}
+                </Text>
+                <TextInput
+                  label={t('auth.secondFactor.recoveryCode')}
+                  value={code}
+                  onChange={(e) => setCode(e.currentTarget.value)}
+                  placeholder="xxxxx-xxxxx"
+                  autoComplete="off"
+                  required
+                  my="md"
+                />
+              </Stack>
             ) : (
               <Stack gap={4}>
-                <Text size="sm">{t('auth.secondFactor.totpDescription')}</Text>
+                <Text size="sm" ta="center">
+                  {t('auth.secondFactor.totpDescription')}
+                </Text>
                 <PinInput
                   aria-label={t('auth.secondFactor.totp')}
                   length={6}
                   type="number"
                   oneTimeCode
+                  placeholder=""
+                  my="md"
+                  styles={{ root: { justifyContent: 'center' } }}
                   value={code}
                   onChange={setCode}
                   autoFocus={!hasPasskey}

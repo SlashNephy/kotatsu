@@ -1,4 +1,5 @@
 import { Alert, Button, Divider, PasswordInput, Stack, Text, TextInput } from '@mantine/core';
+import { LogIn, ScanFace } from 'lucide-react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -127,7 +128,7 @@ function Login() {
               {error}
             </Alert>
           )}
-          <Button type="submit" loading={submitting}>
+          <Button type="submit" loading={submitting} leftSection={<LogIn size={16} aria-hidden />}>
             {t('auth.login.submit')}
           </Button>
         </Stack>
@@ -139,6 +140,7 @@ function Login() {
           loading={submitting}
           disabled={!canUsePasskey}
           onClick={() => void loginWithPasskey()}
+          leftSection={<ScanFace size={16} aria-hidden />}
         >
           {t('auth.login.passkey')}
         </Button>
@@ -155,7 +157,12 @@ function Login() {
       </Stack>
       {oidc.enabled && (
         <Stack gap="xs">
-          <Button variant="default" loading={submitting} onClick={() => void loginWithOIDC()}>
+          <Button
+            variant="default"
+            loading={submitting}
+            onClick={() => void loginWithOIDC()}
+            leftSection={<LogIn size={16} aria-hidden />}
+          >
             {t('auth.login.oidc', { name: oidc.displayName })}
           </Button>
           {oidcBeginError !== null && (

@@ -67,8 +67,14 @@ export const cssVariablesResolver = () => ({
   variables: {},
   light: {
     '--mantine-color-body': '#fbf7ef',
+    // 押せない部品の色。Mantine の既定は青みのある灰色で、生成りの背景から浮くので、生成りに寄せた暖かい灰色にする。
+    '--mantine-color-disabled': '#efe8dd',
+    '--mantine-color-disabled-color': '#a89c8f',
+    '--mantine-color-disabled-border': '#ddd3c5',
   },
   dark: {
     '--mantine-color-body': kogecha[7],
+    // Mantine の既定では、押せないボタンの背景が dark[6] で、カードの面と同じ色になり、ボタンに見えない。一段明るくする。
+    '--mantine-color-disabled': kogecha[5],
   },
 });
