@@ -2,8 +2,8 @@
 
 // minuteHeight は、番組表の 1 分の高さ (px)。
 export const minuteHeight = 3;
-// minProgramHeight は、短い番組でも名前が読めるようにする、番組の枠の最小の高さ (px)。
-export const minProgramHeight = 12;
+// minProgramHeight は、短い番組でも名前が読めるようにする、番組の枠の最小の高さ (px)。文字 1 行 (xs の 12px × 行の高さ 1.35) と上下の余白が収まる高さにする。
+export const minProgramHeight = 19;
 // undecidedFallbackMinutes は、終了時刻が未定で、次の番組もないときに見せる長さ (分)。
 export const undecidedFallbackMinutes = 60;
 
@@ -108,6 +108,42 @@ export function layoutColumn(programs: readonly ProgramTime[]): ColumnLayout {
   closeCluster(programs.length);
 
   return { ends, maxEnds, lanes, laneCounts };
+}
+
+// stackedBoxes は、列の番組ごとの枠を返す。短い番組は、名前が読めるよう最小の高さまで伸ばす。
+// 伸ばすときは、終わりの位置を保って上へ伸ばし、その分、同じレーンの前の番組の終わりを削る。正時の直前の短い番組
+// (気象情報など) が、正時の線をまたがないようにするため。番組表の上端で上へ伸ばせないときだけ、後ろの番組を下げる。
+// 1 分の番組が続くところでも、どの番組も読めて押せるようにする。
+export function stackedBoxes(
+  window: GuideWindow,
+  programs: readonly ProgramTime[],
+  layout: ColumnLayout,
+): Box[] {
+  const natural = programs.map((program, i) => ({
+    top: timeToY(window, Math.max(program.startAt, window.from)),
+    bottom: timeToY(window, Math.min(layout.ends[i]!, window.to)),
+  }));
+  // 後ろから見て、終わりを後ろの番組の上端までに抑え、短ければ上へ伸ばす。
+  const nextTop = new Map<number, number>();
+  const raised = natural.map(() => ({ top: 0, bottom: 0 }));
+  for (let i = programs.length - 1; i >= 0; i--) {
+    const lane = layout.lanes[i]!;
+    const bottom = Math.min(natural[i]!.bottom, nextTop.get(lane) ?? Infinity);
+    const top = Math.min(natural[i]!.top, bottom - minProgramHeight);
+    raised[i] = { top, bottom };
+    nextTop.set(lane, top);
+  }
+  // 前から見て、上端より上にはみ出したものと、前の番組と重なるものを下げる。
+  const previousBottom = new Map<number, number>();
+
+  return raised.map((box, i) => {
+    const lane = layout.lanes[i]!;
+    const top = Math.max(box.top, previousBottom.get(lane) ?? 0);
+    const bottom = Math.max(box.bottom, top + minProgramHeight);
+    previousBottom.set(lane, bottom);
+
+    return { top, height: bottom - top };
+  });
 }
 
 // visibleRange は、列の番組のうち、時刻 [from, to) に重なりうる番組の添字の範囲 [start, end) を返す。

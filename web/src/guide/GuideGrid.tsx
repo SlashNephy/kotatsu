@@ -6,13 +6,14 @@ import { genreBackground } from './genres';
 import {
   gridHeight,
   layoutColumn,
+  stackedBoxes,
   minuteHeight,
-  programBox,
   timeToY,
   visibleRange,
   yToTime,
   type ColumnLayout,
   type GuideWindow,
+  type Box as ProgramBox,
 } from './layout';
 import { ServiceLabel } from './ServiceLabel';
 import { useTranslation } from 'react-i18next';
@@ -132,6 +133,10 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
   }, [window]);
   // 列の番組の配置は、番組が変わったときだけ計算し直す。
   const layouts = useMemo(() => columns.map((column) => layoutColumn(column.programs)), [columns]);
+  const columnBoxes = useMemo(
+    () => columns.map((column, i) => stackedBoxes(window, column.programs, layouts[i]!)),
+    [columns, layouts, window],
+  );
   const totalWidth = axisWidth + virtualizer.getTotalSize();
   const nowY = now >= window.from && now < window.to ? timeToY(window, now) : undefined;
 
@@ -213,7 +218,14 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
               size="xs"
               c="dimmed"
               ta="center"
-              style={{ position: 'absolute', top: timeToY(window, hour), width: axisWidth }}
+              // 正時の位置に線を引き、時刻の数字はその線の下に置く。
+              style={{
+                position: 'absolute',
+                top: timeToY(window, hour),
+                width: axisWidth,
+                paddingTop: 2,
+                borderTop: '1px solid var(--mantine-color-default-border)',
+              }}
             >
               {hourFormat.format(hour).replace('時', '')}
             </Text>
@@ -222,9 +234,9 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
         {virtualizer.getVirtualItems().map((item) => (
           <GuideColumnView
             key={item.key}
-            window={window}
             column={columns[item.index]!}
             layout={layouts[item.index]!}
+            boxes={columnBoxes[item.index]!}
             left={axisWidth + item.start}
             width={item.size}
             visibleFrom={visibleFrom}
@@ -253,9 +265,9 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
 }
 
 type ColumnProps = {
-  window: GuideWindow;
   column: GuideColumn;
   layout: ColumnLayout;
+  boxes: ProgramBox[];
   left: number;
   width: number;
   visibleFrom: number;
@@ -264,9 +276,9 @@ type ColumnProps = {
 };
 
 function GuideColumnView({
-  window,
   column,
   layout,
+  boxes,
   left,
   width,
   visibleFrom,
@@ -280,7 +292,7 @@ function GuideColumnView({
     <>
       {column.programs.slice(start, end).map((program, offset) => {
         const index = start + offset;
-        const box = programBox(window, program, layout.ends[index]!);
+        const box = boxes[index]!;
         // 重なる番組は、列の幅を分けて横に並べる。
         const laneWidth = width / layout.laneCounts[index]!;
 

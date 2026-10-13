@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'vitest';
 
-import { broadcastDay, layoutColumn, programBox, visibleRange, type ProgramTime } from './layout';
+import {
+  broadcastDay,
+  layoutColumn,
+  programBox,
+  stackedBoxes,
+  visibleRange,
+  type ProgramTime,
+} from './layout';
 
 const minute = 60_000;
 // 2026-10-11T04:00:00+09:00
@@ -40,7 +47,7 @@ describe('programBox', () => {
       name: '短い番組も、名前が読める高さにする',
       program: program(0, 1),
       end: 1,
-      want: { top: 0, height: 12 },
+      want: { top: 0, height: 19 },
     },
   ])('$name', ({ program, end, want }) => {
     expect(programBox(window, program, dayStart + end * minute)).toEqual(want);
@@ -90,6 +97,50 @@ describe('layoutColumn', () => {
   ])('$name', ({ programs, want }) => {
     const layout = layoutColumn(programs);
     expect({ ends: layout.ends, lanes: layout.lanes, laneCounts: layout.laneCounts }).toEqual(want);
+  });
+});
+
+describe('stackedBoxes', () => {
+  test.each([
+    {
+      // 1 分の番組 (177〜180px) は、終わりを保って 19px に上へ伸ばし、前の番組の終わりを削る。
+      name: '短い番組は上へ伸ばし、前の番組の終わりを削る',
+      programs: [program(0, 59), program(59, 60), program(60, 120)],
+      want: [
+        { top: 0, height: 161 },
+        { top: 161, height: 19 },
+        { top: 180, height: 180 },
+      ],
+    },
+    {
+      // 17:55 の 2 分、17:57 の 3 分のように、正時の前に短い番組が続くところ。正時 (180px) の線をまたがない。
+      name: '正時の前に短い番組が続いても、正時より前に収める',
+      programs: [program(0, 55), program(55, 57), program(57, 60), program(60, 70)],
+      want: [
+        { top: 0, height: 142 },
+        { top: 142, height: 19 },
+        { top: 161, height: 19 },
+        { top: 180, height: 30 },
+      ],
+    },
+    {
+      name: '番組表の上端では上へ伸ばせないので、後ろの番組を下げる',
+      programs: [program(0, 1), program(1, 30)],
+      want: [
+        { top: 0, height: 19 },
+        { top: 19, height: 71 },
+      ],
+    },
+    {
+      name: '最小の高さより長い番組は、そのまま',
+      programs: [program(0, 30), program(30, 60)],
+      want: [
+        { top: 0, height: 90 },
+        { top: 90, height: 90 },
+      ],
+    },
+  ])('$name', ({ programs, want }) => {
+    expect(stackedBoxes(window, programs, layoutColumn(programs))).toEqual(want);
   });
 });
 
