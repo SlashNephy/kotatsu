@@ -9,6 +9,7 @@ import {
   Text,
   Title,
 } from '@mantine/core';
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Suspense, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -248,6 +249,7 @@ function Guide() {
             size="xs"
             disabled={offset <= 0}
             onClick={() => moveTo(offset - 1)}
+            leftSection={<ChevronLeft size={14} aria-hidden />}
           >
             {t('guide.previousDay')}
           </Button>
@@ -259,10 +261,17 @@ function Guide() {
             size="xs"
             disabled={offset >= guideDays - 1}
             onClick={() => moveTo(offset + 1)}
+            rightSection={<ChevronRight size={14} aria-hidden />}
           >
             {t('guide.nextDay')}
           </Button>
-          <Button variant="subtle" size="xs" disabled={offset === 0} onClick={() => moveTo(0)}>
+          <Button
+            variant="default"
+            size="xs"
+            disabled={offset === 0}
+            onClick={() => moveTo(0)}
+            leftSection={<CalendarDays size={14} aria-hidden />}
+          >
             {t('guide.today')}
           </Button>
         </Group>
