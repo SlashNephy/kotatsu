@@ -390,7 +390,7 @@
     "createTitle": "ルールを作成",
     "editTitle": "ルールを編集",
     "notFound": "ルールが見つかりませんでした",
-    "name": "名前",
+    "name": "タイトル",
     "memo": "メモ",
     "keywords": "キーワード",
     "keywordsDescription": "すべてのキーワードに一致する番組を予約します。各キーワードは、選んだ項目のどれかに一致すれば一致とみなします",
@@ -423,7 +423,7 @@
       "6": "土"
     },
     "minDuration": "番組の最低長さ (分)",
-    "maxDuration": "番組の最長の長さ",
+    "maxDuration": "番組の最大長さ (分)",
     "avoidDuplicates": "同じ番組名を録画済みなら予約しない",
     "duplicateWindowDays": "重複を避ける日数",
     "duplicateWindowDaysPlaceholder": "期間を区切らない",
