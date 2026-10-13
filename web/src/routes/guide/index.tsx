@@ -19,6 +19,7 @@ import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
 import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
 import { broadcastDay } from '../../guide/layout';
 import { ProgramDetail } from '../../guide/ProgramDetail';
+import { collapseSharedColumns } from '../../guide/sharedEvent';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { guideQuery } from './__generated__/guideQuery.graphql';
 
@@ -175,6 +176,9 @@ function Guide() {
             genres {
               lv1
             }
+            sharedFrom {
+              id
+            }
           }
         }
       }
@@ -196,9 +200,10 @@ function Guide() {
   const type = types.some((channelType) => channelType.type === search.type)
     ? search.type
     : types[0]?.type;
+  // サブチャンネルは、元のサービスと違う番組を流す時間がある日だけ列を出し、同じ番組の枠は薄くする。
   const columns = useMemo<GuideColumn[]>(
     () =>
-      data.guide
+      collapseSharedColumns(data.guide.map((row) => ({ ...row, id: row.service.id })))
         .filter((row) => row.service.channelType.type === type)
         .map((row) => ({
           id: row.service.id,
@@ -211,6 +216,7 @@ function Guide() {
             endUndecided: program.endUndecided,
             name: program.name,
             genre: program.genres[0]?.lv1,
+            shared: program.shared,
           })),
         })),
     [data.guide, type],

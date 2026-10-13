@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<bae4041e82420a2745ee98d3af37caf0>>
+ * @generated SignedSource<<576311357c4978a71f9c1ae94423c69a>>
  * @lightSyntaxTransform
  */
 
@@ -27,6 +27,9 @@ export type guideQuery$data = {
       }>;
       readonly id: string;
       readonly name: string;
+      readonly sharedFrom: {
+        readonly id: string;
+      } | null | undefined;
       readonly startAt: string;
     }>;
     readonly service: {
@@ -141,6 +144,9 @@ v7 = [
   }
 ],
 v8 = [
+  (v3/*:: as any*/)
+],
+v9 = [
   {
     "alias": null,
     "args": null,
@@ -231,9 +237,7 @@ v8 = [
         "kind": "LinkedField",
         "name": "services",
         "plural": true,
-        "selections": [
-          (v3/*:: as any*/)
-        ],
+        "selections": (v8/*:: as any*/),
         "storageKey": null
       },
       {
@@ -338,6 +342,16 @@ v8 = [
               (v6/*:: as any*/)
             ],
             "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "concreteType": "Service",
+            "kind": "LinkedField",
+            "name": "sharedFrom",
+            "plural": false,
+            "selections": (v8/*:: as any*/),
+            "storageKey": null
           }
         ],
         "storageKey": null
@@ -352,7 +366,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "guideQuery",
-    "selections": (v8/*:: as any*/),
+    "selections": (v9/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -361,19 +375,19 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
     "name": "guideQuery",
-    "selections": (v8/*:: as any*/)
+    "selections": (v9/*:: as any*/)
   },
   "params": {
-    "cacheID": "20035c5232837dbaf8c797cd0d39c206",
+    "cacheID": "6bfb4b7f286d05ac99df90405583da9c",
     "id": null,
     "metadata": {},
     "name": "guideQuery",
     "operationKind": "query",
-    "text": "query guideQuery(\n  $from: Time!\n  $to: Time!\n  $view: ID\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  guideViews {\n    id\n    name\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    minDurationSeconds\n    services {\n      id\n    }\n    hideEmptyServices\n  }\n  guide(from: $from, to: $to, view: $view) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      startAt\n      endAt\n      endUndecided\n      name\n      genres {\n        lv1\n      }\n    }\n  }\n}\n"
+    "text": "query guideQuery(\n  $from: Time!\n  $to: Time!\n  $view: ID\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  guideViews {\n    id\n    name\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    minDurationSeconds\n    services {\n      id\n    }\n    hideEmptyServices\n  }\n  guide(from: $from, to: $to, view: $view) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      startAt\n      endAt\n      endUndecided\n      name\n      genres {\n        lv1\n      }\n      sharedFrom {\n        id\n      }\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "a20102ff155bdc2573691ecac8f3603c";
+(node as any).hash = "6244d2cf92cea995ddf24cff3b311b09";
 
 export default node;

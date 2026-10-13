@@ -248,6 +248,7 @@
     "account": "アカウント"
   },
   "guide": {
+    "sharedProgram": "メインチャンネルと同じ番組（{{name}}）",
     "title": "番組表",
     "previousDay": "前の日",
     "nextDay": "次の日",

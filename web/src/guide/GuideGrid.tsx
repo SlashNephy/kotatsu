@@ -15,6 +15,8 @@ import {
   type GuideWindow,
 } from './layout';
 import { ServiceLabel } from './ServiceLabel';
+import { useTranslation } from 'react-i18next';
+
 import { ProgramTitle, splitProgramMarks } from '../futon';
 
 // GuideProgram は、番組表の枠に出す番組。
@@ -25,6 +27,8 @@ export type GuideProgram = {
   endUndecided: boolean;
   name: string;
   genre: number | undefined;
+  // shared は、サブチャンネルで、元のサービスと同じ番組を流していること。枠を薄くし、番組名を出さない。
+  shared: boolean;
 };
 
 // GuideColumn は、番組表の 1 列 (1 つのサービス)。programs は開始時刻の順に並べる。
@@ -269,6 +273,7 @@ function GuideColumnView({
   visibleTo,
   onSelect,
 }: ColumnProps) {
+  const { t } = useTranslation();
   const { start, end } = visibleRange(column.programs, layout, visibleFrom, visibleTo);
 
   return (
@@ -284,7 +289,11 @@ function GuideColumnView({
             key={program.id}
             data-program-id={program.id}
             onClick={() => onSelect(program.id)}
-            title={splitProgramMarks(program.name).name}
+            title={
+              program.shared
+                ? t('guide.sharedProgram', { name: splitProgramMarks(program.name).name })
+                : splitProgramMarks(program.name).name
+            }
             style={{
               position: 'absolute',
               top: box.top,
@@ -296,19 +305,21 @@ function GuideColumnView({
               display: 'flex',
               alignItems: 'flex-start',
               padding: '2px 6px',
-              background: genreBackground(program.genre),
+              background: program.shared ? 'transparent' : genreBackground(program.genre),
               borderLeft: '1px solid var(--mantine-color-default-border)',
               borderBottom: '1px solid var(--mantine-color-default-border)',
               fontSize: 'var(--mantine-font-size-xs)',
               lineHeight: 1.35,
             }}
           >
-            <span>
-              <Text span size="xs" fw={700} mr={4}>
-                {timeFormat.format(program.startAt)}
-              </Text>
-              <ProgramTitle name={program.name} />
-            </span>
+            {!program.shared && (
+              <span>
+                <Text span size="xs" fw={700} mr={4}>
+                  {timeFormat.format(program.startAt)}
+                </Text>
+                <ProgramTitle name={program.name} />
+              </span>
+            )}
           </UnstyledButton>
         );
       })}
