@@ -17,19 +17,24 @@ mise install
 ## Docker Composeで動かす
 
 リポジトリの直下の[compose.yaml](../compose.yaml)は、開発のための構成です。
-手元のソースからKotatsuをビルドし、PostgreSQLと偽のチューナーサーバーと一緒に動かします。
+手元のソースをコンテナにマウントし、Kotatsuと画面の開発サーバーを動かします。
+PostgreSQL、偽のチューナーサーバー、Dexも一緒に動かします。
 
 ```bash
-docker compose up --build
+mise run dev
 ```
+
+`mise run dev`は、`docker compose up --build`に、手元のユーザーのUIDとGIDを渡して実行します。
+コンテナの中で作ったファイルを、手元のユーザーの持ち物にするためです。
 
 | サービス | 内容 | 手元からの接続先 |
 | --- | --- | --- |
 | `postgres` | PostgreSQL 18 | `127.0.0.1:55432`（ユーザーとパスワードはどちらも`postgres`） |
 | `faketuner` | 偽のチューナーサーバー（`cmd/faketuner`） | `127.0.0.1:40772` |
 | `dex` | 開発用のOIDCのIdP（[Dex](https://dexidp.io/)） | `http://dex.localhost:5556/dex` |
-| `migrate` | 起動の前に、DBのスキーマを最新にします | なし |
-| `kotatsu` | 全ロールを1つのコンテナで動かします | `127.0.0.1:8080` |
+| `kotatsu` | 全ロールを1つのコンテナで動かします | なし（`web`が中継します） |
+| `web-install` | 画面の依存を入れます | なし |
+| `web` | 画面の開発サーバー（Vite）。ブラウザはここを開きます | `http://localhost:8080` |
 
 偽のチューナーサーバーは、`testdata/ts/test.ts`を、すべてのサービスのストリームとして流します。
 番組表も、テスト用のものを返します。
@@ -38,7 +43,6 @@ docker compose up --build
 秘密キーと、Dexのユーザーのパスワードは、開発専用の固定の値です。
 この構成を運用に使わないでください。運用の例は[deploy/compose/compose.yaml](../deploy/compose/compose.yaml)にあります。
 
-ソースを変えたら、`docker compose up --build`でビルドし直してください。
 DBと録画は、Composeのボリュームに残ります。
 消して初めからやり直すときは、`docker compose down --volumes`を実行してください。
 
@@ -47,10 +51,8 @@ DBと録画は、Composeのボリュームに残ります。
 ほかのアプリが8080番を使っていれば、`KOTATSU_DEV_PORT`で変えられます。
 
 ```bash
-KOTATSU_DEV_PORT=18080 docker compose up --build
+KOTATSU_DEV_PORT=18080 mise run dev
 ```
-
-画面の開発サーバー（後述）にも、同じ値を渡してください。
 
 ### ログインする
 
@@ -82,17 +84,31 @@ docker compose logs kotatsu | grep setup_token
 パスワードでログインすると、認証アプリ（TOTP）の登録を求められます。
 パスワードでのログインには、第二要素が必須だからです。
 
-## 画面を開発する
+## ソースの変更を反映する
 
-画面だけを変えるときは、Viteの開発サーバーを使うと、保存した変更がすぐに反映されます。
-Kotatsuを`docker compose up`で動かしたまま、次のコマンドを実行してください。
+`mise run dev`で動かしている間は、ソースを保存すると、次のように反映されます。
+
+| 変えたもの | 反映のしかた |
+| --- | --- |
+| Goのソース（`cmd/`、`internal/`、`graph/`） | `kotatsu`がビルドし直し、マイグレーションを当ててから起動し直します。数秒かかり、その間は前のプロセスが応答します |
+| 画面のソース（`web/src/`） | 開発サーバーが、ページを読み込み直さずに差し替えます |
+
+ビルドに失敗したときは、`docker compose logs -f kotatsu`でエラーを確かめてください。
+直して保存すると、またビルドします。
+
+`web/pnpm-lock.yaml`を変えたときは、依存を入れ直してから、開発サーバーを起動し直してください。
 
 ```bash
-mise run web:dev
+docker compose up web-install
+docker compose restart web
 ```
 
-開発サーバーは、`/graphql`と`/auth`を`127.0.0.1:8080`のKotatsuに中継します。
-ポートを変えたときは、`KOTATSU_DEV_PORT=18080 mise run web:dev`のように、同じ値を渡してください。
+`Dockerfile`や`mise.toml`、`mise.dev.toml`を変えたときは、`mise run dev`を実行し直してください。
+開発用のイメージを作り直します。
+
+画面の開発サーバーは、Composeの外でも動かせます。
+`mise run web:dev`は、`http://localhost:5173`で開発サーバーを起動します。
+API、映像、画像は、`KOTATSU_DEV_PORT`のポートに中継します。
 
 ## テストを流す
 
