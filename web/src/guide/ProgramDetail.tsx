@@ -1,4 +1,15 @@
-import { Alert, Badge, Button, Drawer, Group, Stack, Text, Title } from '@mantine/core';
+import {
+  Alert,
+  Badge,
+  Button,
+  Drawer,
+  Group,
+  Modal,
+  Stack,
+  Text,
+  Title,
+  Tooltip,
+} from '@mantine/core';
 import { Link } from '@tanstack/react-router';
 import { CalendarCheck, CalendarPlus, Play } from 'lucide-react';
 import { Suspense, useState } from 'react';
@@ -7,6 +18,7 @@ import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
 import { ErrorBoundary, ProgramTitle } from '../futon';
 import { genreKey } from './genres';
+import type { ProgramDetailCancelMutation } from './__generated__/ProgramDetailCancelMutation.graphql';
 import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.graphql';
 import type { ProgramDetailReserveMutation } from './__generated__/ProgramDetailReserveMutation.graphql';
 import { ServiceLabel } from './ServiceLabel';
@@ -92,6 +104,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             reservation {
               id
               enabled
+              kind
             }
           }
         }
@@ -108,6 +121,8 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
     }
   `);
   const [result, setResult] = useState<'error' | null>(null);
+  // cancelling は、録画予約を取り消す確認を出しているかどうか。
+  const [cancelling, setCancelling] = useState(false);
   const program = data.node;
   if (program?.__typename !== 'Program') {
     return <Alert color="amber">{t('guide.detail.error')}</Alert>;
@@ -178,21 +193,34 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
         </Button>
       )}
       {/* 検索から開いた、放送の終わった番組は予約できない。 */}
-      {data.viewer.role !== 'VIEWER' && !ended && (
+      {data.viewer.role !== 'VIEWER' && !ended && !reserved && (
         <Button
           onClick={reserve}
           loading={inFlight}
-          disabled={reserved}
-          leftSection={
-            reserved ? (
-              <CalendarCheck size={16} aria-hidden />
-            ) : (
-              <CalendarPlus size={16} aria-hidden />
-            )
-          }
+          leftSection={<CalendarPlus size={16} aria-hidden />}
         >
-          {reserved ? t('guide.detail.reserved') : t('guide.detail.reserve')}
+          {t('guide.detail.reserve')}
         </Button>
+      )}
+      {/* 録画予約済みのボタンを押すと、確かめてから取り消す。 */}
+      {data.viewer.role !== 'VIEWER' && !ended && reserved && program.reservation != null && (
+        <Tooltip label={t('guide.detail.cancelReservation')}>
+          <Button
+            variant="outline"
+            onClick={() => setCancelling(true)}
+            leftSection={<CalendarCheck size={16} aria-hidden />}
+          >
+            {t('guide.detail.reserved')}
+          </Button>
+        </Tooltip>
+      )}
+      {cancelling && program.reservation != null && (
+        <CancelDialog
+          reservationId={program.reservation.id}
+          byRule={program.reservation.kind === 'RULE'}
+          programName={program.name}
+          onClose={() => setCancelling(false)}
+        />
       )}
       {result === 'error' && (
         <Alert color="red" role="alert">
@@ -211,5 +239,74 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
         </Stack>
       ))}
     </Stack>
+  );
+}
+
+type CancelProps = {
+  reservationId: string;
+  // byRule は、ルールで入った予約かどうか。ルール予約は消さずに無効にするので、ルールは残る。
+  byRule: boolean;
+  programName: string;
+  onClose: () => void;
+};
+
+// CancelDialog は、録画予約を取り消す前に確かめる。番組予約は消し、ルール予約は無効にする (deleteReservation)。
+function CancelDialog({ reservationId, byRule, programName, onClose }: CancelProps) {
+  const { t } = useTranslation();
+  const [error, setError] = useState(false);
+  const [commit, inFlight] = useMutation<ProgramDetailCancelMutation>(graphql`
+    mutation ProgramDetailCancelMutation($id: ID!) {
+      deleteReservation(id: $id) {
+        id
+        reservation {
+          id
+          enabled
+        }
+      }
+    }
+  `);
+
+  return (
+    <Modal opened onClose={onClose} title={t('guide.detail.cancelReservation')}>
+      <Stack>
+        <Text size="sm" fw={700}>
+          <ProgramTitle name={programName} />
+        </Text>
+        <Text size="sm" c="dimmed">
+          {byRule ? t('guide.detail.cancelRuleDescription') : t('guide.detail.cancelDescription')}
+        </Text>
+        {error && (
+          <Alert color="red" role="alert">
+            {t('guide.detail.cancelError')}
+          </Alert>
+        )}
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            {t('reservations.cancel')}
+          </Button>
+          <Button
+            color="red"
+            loading={inFlight}
+            onClick={() =>
+              commit({
+                variables: { id: reservationId },
+                // 消した番組予約は、番組から外す。ルール予約は、返った予約 (無効) がそのまま番組に残る。
+                updater: (store) => {
+                  const payload = store.getRootField('deleteReservation');
+                  if (payload?.getLinkedRecord('reservation') == null) {
+                    store.delete(reservationId);
+                  }
+                },
+                onCompleted: (_response, errors) =>
+                  errors != null && errors.length > 0 ? setError(true) : onClose(),
+                onError: () => setError(true),
+              })
+            }
+          >
+            {t('guide.detail.cancelConfirm')}
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
   );
 }

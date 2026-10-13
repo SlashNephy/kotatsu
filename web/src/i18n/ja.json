@@ -264,6 +264,11 @@
       "watch": "ライブ視聴",
       "reserve": "録画予約",
       "reserved": "録画予約済み",
+      "cancelReservation": "録画予約を取り消す",
+      "cancelDescription": "この番組の録画予約を取り消します。録画は行いません。",
+      "cancelRuleDescription": "ルールで入った録画予約なので、この番組の録画だけをやめます。ルールは残ります。",
+      "cancelConfirm": "取り消す",
+      "cancelError": "取り消せませんでした。時間をおいてやり直してください",
       "reserveError": "予約できませんでした。時間をおいてやり直してください"
     },
     "view": {

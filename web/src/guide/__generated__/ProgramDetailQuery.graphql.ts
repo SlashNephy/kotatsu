@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<4755273e5911b0617e3f6b2a14768257>>
+ * @generated SignedSource<<93c9d5944e33f325a56ac755b08ed7a8>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type ReservationKind = "PROGRAM" | "RULE" | "TIME" | "%future added value";
 export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type ProgramDetailQuery$variables = {
   id: string;
@@ -32,6 +33,7 @@ export type ProgramDetailQuery$data = {
     readonly reservation: {
       readonly enabled: boolean;
       readonly id: string;
+      readonly kind: ReservationKind;
     } | null | undefined;
     readonly service: {
       readonly id: string;
@@ -216,6 +218,13 @@ v15 = {
       "kind": "ScalarField",
       "name": "enabled",
       "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "kind",
+      "storageKey": null
     }
   ],
   "storageKey": null
@@ -327,16 +336,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "062982f80c0d380cdaa92fefa21cdbbe",
+    "cacheID": "efa53e8a4ff928aecf82df6ba38b40c8",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      service {\n        id\n        name\n        logoUrl\n      }\n      genres {\n        lv1\n      }\n      extended {\n        heading\n        text\n      }\n      reservation {\n        id\n        enabled\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      service {\n        id\n        name\n        logoUrl\n      }\n      genres {\n        lv1\n      }\n      extended {\n        heading\n        text\n      }\n      reservation {\n        id\n        enabled\n        kind\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "cc61314991f50a921f1b4281b9df1d8c";
+(node as any).hash = "164c9536edf8f0b3970480c6c0f5c7f2";
 
 export default node;
