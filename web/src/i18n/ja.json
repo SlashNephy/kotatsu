@@ -99,7 +99,7 @@
       "LOGIN_REQUIRED": "時間が経ったので、もう一度パスワードを入力してください",
       "INVALID_SETUP_TOKEN": "セットアップトークンが違います",
       "SETUP_DONE": "セットアップは済んでいます。ログインしてください",
-      "SECOND_FACTOR_ENROLLED": "第二要素は登録済みです",
+      "SECOND_FACTOR_ENROLLED": "2段階認証は設定済みです",
       "INVALID_PASSKEY": "パスキーを確かめられませんでした。登録したパスキーで、もう一度お試しください",
       "PASSKEY_CEREMONY_EXPIRED": "時間が経ったので、もう一度パスキーで確かめてください",
       "PASSKEY_UNAVAILABLE": "パスキーは、HTTPSかlocalhostで、IPアドレスではなくドメイン名で接続したときだけ使えます",
@@ -125,7 +125,7 @@
       "description": "最初の管理者を作ります。セットアップトークンは、Kotatsuの起動時のログか、kotatsu admin setup-tokenで確かめられます。",
       "token": "セットアップトークン",
       "submit": "管理者を作る",
-      "done": "管理者を作りました。ログインして、第二要素を登録してください。"
+      "done": "管理者を作りました。ログインして、2段階認証を設定してください。"
     },
     "login": {
       "title": "Kotatsuへログイン",
@@ -136,7 +136,7 @@
       "oidc": "{{name}}でログイン"
     },
     "secondFactor": {
-      "title": "第二要素の確認",
+      "title": "2段階認証",
       "totpDescription": "認証アプリに表示されている6桁のコードを入力してください。",
       "totp": "認証アプリのコード",
       "useRecoveryCode": "リカバリーコードを使う",
@@ -165,7 +165,7 @@
       "description": "この操作の前に、本人であることをもう一度確かめます。",
       "passkey": "パスキーで確認",
       "oidc": "{{name}}で確認",
-      "or": "またはパスワードと第二要素",
+      "or": "またはパスワードと2段階認証",
       "currentPassword": "いまのパスワード",
       "submit": "確認",
       "unavailable": "もう一度確かめる方法が登録されていません。管理者にパスワードを設定し直してもらってください"
@@ -182,11 +182,11 @@
     },
     "account": {
       "title": "アカウント",
-      "summary": "プレイヤー、第二要素、パスキー、ログイン中の端末を管理します",
+      "summary": "プレイヤー、2段階認証、パスキー、ログイン中の端末を管理します",
       "player": "プレイヤー",
       "jikkyo": "実況のコメントを出す",
       "captions": "字幕を出す",
-      "twoFactor": "認証アプリ（第二要素）",
+      "twoFactor": "認証アプリ（2段階認証）",
       "totpEnabled": "認証アプリを登録しています。使っていないリカバリーコードは{{count}}個です",
       "totpDisabled": "認証アプリを登録していません",
       "enrollTotp": "認証アプリを登録する",
