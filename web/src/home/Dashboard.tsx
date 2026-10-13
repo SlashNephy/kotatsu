@@ -8,14 +8,9 @@ import { stateColor, stateKey } from '../recordings/states';
 import type { DashboardQuery } from './__generated__/DashboardQuery.graphql';
 import { nowPlaying } from './nowPlaying';
 import { ProgramTitle } from '../futon';
+import { NowPlayingCard } from '../guide/NowPlayingCard';
 import { ServiceLabel } from '../guide/ServiceLabel';
 
-const timeFormat = new Intl.DateTimeFormat('ja-JP', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
-});
 const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
   month: 'numeric',
   day: 'numeric',
@@ -157,31 +152,13 @@ export function Dashboard({ range }: { range: DashboardRange }) {
         ) : (
           <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="xs">
             {playing.map((item) => (
-              <Card
+              <NowPlayingCard
                 key={item.serviceId}
-                withBorder
-                padding="xs"
-                renderRoot={(props) => (
-                  <Link {...props} to="/live/$serviceId" params={{ serviceId: item.serviceId }} />
-                )}
-              >
-                <Text size="xs" c="dimmed">
-                  <ServiceLabel name={item.serviceName} logoUrl={item.serviceLogoUrl} />
-                </Text>
-                <Text size="sm" lineClamp={2} mt="xs">
-                  <ProgramTitle name={item.programName} />
-                </Text>
-                {/* 番組名が 1 行のカードでも、放送時間をカードの下端に揃える。 */}
-                <Text size="xs" c="dimmed" mt="auto" pt={4}>
-                  {timeFormat.format(Date.parse(item.startAt))} 〜{' '}
-                  {timeFormat.format(Date.parse(item.endAt))}{' '}
-                  {t('home.duration', {
-                    minutes: Math.round(
-                      (Date.parse(item.endAt) - Date.parse(item.startAt)) / 60_000,
-                    ),
-                  })}
-                </Text>
-              </Card>
+                serviceId={item.serviceId}
+                serviceName={item.serviceName}
+                serviceLogoUrl={item.serviceLogoUrl}
+                program={{ name: item.programName, startAt: item.startAt, endAt: item.endAt }}
+              />
             ))}
           </SimpleGrid>
         )}

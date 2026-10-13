@@ -1,23 +1,14 @@
-import {
-  Alert,
-  Anchor,
-  Card,
-  SegmentedControl,
-  SimpleGrid,
-  Stack,
-  Text,
-  Title,
-} from '@mantine/core';
+import { Alert, Anchor, SegmentedControl, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { ErrorBoundary, ProgramTitle } from '../../futon';
+import { ErrorBoundary } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import type { liveServicesQuery } from './__generated__/liveServicesQuery.graphql';
+import { NowPlayingCard } from '../../guide/NowPlayingCard';
 import { sharesWithListed } from '../../guide/sharedEvent';
-import { ServiceLabel } from '../../guide/ServiceLabel';
 
 export const Route = createFileRoute('/live/')({
   component: LivePage,
@@ -78,6 +69,8 @@ function Services({ range }: { range: { from: string; to: string } }) {
           }
           programs {
             name
+            startAt
+            endAt
             sharedFrom {
               id
             }
@@ -110,29 +103,17 @@ function Services({ range }: { range: { from: string; to: string } }) {
         />
       )}
       {types.length === 0 && <Alert color="gray">{t('live.empty')}</Alert>}
-      <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
+      <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="xs">
         {rows
           .filter((row) => row.service.channelType.type === type)
           .map((row) => (
-            <Card
+            <NowPlayingCard
               key={row.service.id}
-              withBorder
-              padding="sm"
-              renderRoot={(props) => (
-                <Link {...props} to="/live/$serviceId" params={{ serviceId: row.service.id }} />
-              )}
-            >
-              <Text fw={700} size="sm" truncate>
-                <ServiceLabel name={row.service.name} logoUrl={row.service.logoUrl} />
-              </Text>
-              <Text size="xs" c="dimmed" lineClamp={2}>
-                {row.programs[0] === undefined ? (
-                  t('live.noProgram')
-                ) : (
-                  <ProgramTitle name={row.programs[0].name} />
-                )}
-              </Text>
-            </Card>
+              serviceId={row.service.id}
+              serviceName={row.service.name}
+              serviceLogoUrl={row.service.logoUrl ?? null}
+              program={row.programs[0] ?? null}
+            />
           ))}
       </SimpleGrid>
     </Stack>
