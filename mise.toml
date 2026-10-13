@@ -9,7 +9,7 @@ goreleaser = "2.18.2"
 helm = "4.3.0"
 # フロントエンド (web/) のツールチェーン。Vite+ は web/package.json の devDependency にする (設計書 10.1)。
 node = "24.21.0"
-pnpm = "12.11.1"
+pnpm = "12.11.2"
 
 # 開発用の Compose を、ソースの変更を見てビルドし直す構成で動かす (docs/development.md)。
 # コンテナの中で生成したファイルが手元のユーザーの持ち物になるよう、UID と GID を渡す。
