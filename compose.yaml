@@ -109,6 +109,15 @@ services:
         condition: service_started
       dex:
         condition: service_started
+    # 初めのビルドとマイグレーションが終わり、DB に届くようになったら、準備ができたとみなす (/readyz)。
+    # イメージに curl がないので、bash で HTTP を話す。
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /readyz HTTP/1.0\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200 '"]
+      interval: 30s
+      timeout: 5s
+      # 新しいボリュームでは、Go の依存の取得と初めのビルドに数分かかる。その間は失敗を数えない。
+      start_period: 10m
+      start_interval: 2s
     # ビルドの成果物とキャッシュを書くので、ルートファイルシステムは読み取り専用にしない。
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
@@ -136,8 +145,9 @@ services:
     depends_on:
       web-install:
         condition: service_completed_successfully
+      # Kotatsu より先に画面を開けると、初めのビルドの間は API が 502 を返し、画面が読み込みに失敗したままになる。
       kotatsu:
-        condition: service_started
+        condition: service_healthy
 
   # SQL のクエリやスキーマ、GraphQL のスキーマを変えたら、sqlc と gqlgen の生成物と、画面が読むスキーマを作り直す (mise.dev.toml の dev:generate)。
   generate:
