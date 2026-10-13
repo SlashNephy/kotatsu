@@ -25,6 +25,7 @@ import { PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
 import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
 import { dataBroadcastSource, hlsURL } from '../../yunomi/route';
 import { useDataBroadcast } from '../../yunomi/useDataBroadcast';
+import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
@@ -189,6 +190,12 @@ function Live({
   const jikkyo = useLiveJikkyo(jikkyoEnabled ? (channel?.id ?? null) : null, videoRef, visible);
   // dataBroadcastEnabled は、データ放送を出すかどうか。映像を覆うので、既定では出さない (設計書 7.4)。
   const [dataBroadcastEnabled, setDataBroadcastEnabled] = useState(false);
+  const [dataBroadcastPreload] = useDataBroadcastPreload();
+  // dataBroadcastUsed は、このページでデータ放送を出したことがあるか。一度出したら、消しても受け取りを続け、次はすぐに出す。
+  const [dataBroadcastUsed, setDataBroadcastUsed] = useState(false);
+  if (dataBroadcastEnabled && !dataBroadcastUsed) {
+    setDataBroadcastUsed(true);
+  }
   // session は、つなぎ直すたびに増やし、URL を変えて読み直させる。
   const [session, setSession] = useState(0);
   const attempt = useRef(0);
@@ -291,10 +298,14 @@ function Live({
   );
 
   const service = data.node?.__typename === 'Service' ? data.node : null;
-  // データ放送は、出していない間も裏で受け取り、出したらすぐに d ボタンで入れるようにする (設計書 7.4)。
+  // データ放送は、プリロードする設定か、一度出したあとは、出していない間も裏で受け取り、出したらすぐに d ボタンで入れるようにする
+  // (設計書 7.4)。
   // 視聴が切れている間と、映像が見えていない間は、データ放送の TS も読まない。
   const dataBroadcast = useDataBroadcast(
-    service !== null && visible && disconnection === null
+    service !== null &&
+      (dataBroadcastPreload || dataBroadcastUsed) &&
+      visible &&
+      disconnection === null
       ? dataBroadcastSource(service.streamUrl)
       : null,
     videoRef,

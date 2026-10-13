@@ -30,6 +30,7 @@ import { ErrorBoundary } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
+import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import type { accountBeginTotpMutation } from './__generated__/accountBeginTotpMutation.graphql';
 import type { accountConfirmTotpMutation } from './__generated__/accountConfirmTotpMutation.graphql';
@@ -124,6 +125,7 @@ function Account() {
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
   const player = usePlayerSettings();
+  const [dataBroadcastPreload, setDataBroadcastPreload] = useDataBroadcastPreload();
   const [error, setError] = useState<string | null>(null);
   const fail = (caught: unknown) => setError(settingsErrorMessage(t, caught));
   // run は、前の操作のエラーを消してから、操作を行う。
@@ -155,6 +157,12 @@ function Account() {
             label={t('settings.account.captions')}
             checked={player.captionsEnabled}
             onChange={(event) => player.setCaptionsEnabled(event.currentTarget.checked)}
+          />
+          <Switch
+            label={t('settings.account.dataBroadcastPreload')}
+            description={t('settings.account.dataBroadcastPreloadHelp')}
+            checked={dataBroadcastPreload}
+            onChange={(event) => setDataBroadcastPreload(event.currentTarget.checked)}
           />
         </Stack>
       </Card>
