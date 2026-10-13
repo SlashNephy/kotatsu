@@ -59,35 +59,37 @@ export function CaptureButton({ frameRef, videoRef, name }: CaptureProps) {
   };
 
   return (
-    <Tooltip label={message} opened={message !== null} withinPortal={false}>
-      <div>
-        <Menu position="top-end" closeOnItemClick withinPortal={false}>
-          <Menu.Target>
-            <ActionIcon
-              variant="transparent"
-              size="lg"
-              aria-label={t('player.capture')}
-              className={playerControlsClasses.button}
-            >
-              <Camera size={20} aria-hidden />
-            </ActionIcon>
-          </Menu.Target>
-          <Menu.Dropdown>
-            <Menu.Item onClick={() => void capture('save')}>{t('player.captureSave')}</Menu.Item>
-            <Menu.Item onClick={() => void capture('copy')}>{t('player.captureCopy')}</Menu.Item>
-            <Menu.Divider />
-            <Menu.Label>
-              <Checkbox
-                size="xs"
-                label={t('player.captureOverlays')}
-                checked={overlays}
-                onChange={(event) => setOverlays(event.currentTarget.checked)}
-              />
-            </Menu.Label>
-          </Menu.Dropdown>
-        </Menu>
-      </div>
-    </Tooltip>
+    <Menu position="top-end" closeOnItemClick withinPortal={false}>
+      <Menu.Target>
+        <Tooltip
+          label={message ?? t('player.capture')}
+          opened={message === null ? undefined : true}
+          withinPortal={false}
+        >
+          <ActionIcon
+            variant="transparent"
+            size="lg"
+            aria-label={t('player.capture')}
+            className={playerControlsClasses.button}
+          >
+            <Camera size={20} aria-hidden />
+          </ActionIcon>
+        </Tooltip>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Item onClick={() => void capture('save')}>{t('player.captureSave')}</Menu.Item>
+        <Menu.Item onClick={() => void capture('copy')}>{t('player.captureCopy')}</Menu.Item>
+        <Menu.Divider />
+        <Menu.Label>
+          <Checkbox
+            size="xs"
+            label={t('player.captureOverlays')}
+            checked={overlays}
+            onChange={(event) => setOverlays(event.currentTarget.checked)}
+          />
+        </Menu.Label>
+      </Menu.Dropdown>
+    </Menu>
   );
 }
 
@@ -100,22 +102,19 @@ export function PipButton({ pip }: { pip: ReturnType<typeof useDocumentPictureIn
   }
 
   return (
-    <Tooltip label={message} opened={message !== null} withinPortal={false}>
-      <div>
-        <ControlButton
-          label={pip.container === null ? t('player.pip') : t('player.pipBack')}
-          icon={PictureInPicture2}
-          active={pip.container !== null}
-          optional
-          onClick={() => {
-            if (pip.container === null) {
-              pip.open(640, 360, classes.pip ?? '').catch(() => notify(t('player.pipError')));
-            } else {
-              pip.close();
-            }
-          }}
-        />
-      </div>
-    </Tooltip>
+    <ControlButton
+      label={pip.container === null ? t('player.pip') : t('player.pipBack')}
+      icon={PictureInPicture2}
+      active={pip.container !== null}
+      optional
+      notice={message}
+      onClick={() => {
+        if (pip.container === null) {
+          pip.open(640, 360, classes.pip ?? '').catch(() => notify(t('player.pipError')));
+        } else {
+          pip.close();
+        }
+      }}
+    />
   );
 }

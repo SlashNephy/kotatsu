@@ -53,6 +53,8 @@ type ButtonProps = {
   active?: boolean;
   // optional は、狭い画面で外してよいかどうか。
   optional?: boolean;
+  // notice は、名前の代わりに、しばらく出しておく知らせ (失敗したことなど)。
+  notice?: string | null;
 };
 
 // ControlButton は、操作バーのアイコンのボタン。名前は、ツールチップと読み上げで示す。
@@ -63,9 +65,14 @@ export function ControlButton({
   onClick,
   active,
   optional = false,
+  notice = null,
 }: ButtonProps) {
   return (
-    <Tooltip label={label} withinPortal={false}>
+    <Tooltip
+      label={notice ?? label}
+      opened={notice === null ? undefined : true}
+      withinPortal={false}
+    >
       <ActionIcon
         variant="transparent"
         size="lg"
@@ -140,14 +147,16 @@ export function SettingsButton({ children }: { children: ReactNode }) {
   return (
     <Popover position="top-end" withinPortal={false} shadow="md" width={240}>
       <Popover.Target>
-        <ActionIcon
-          variant="transparent"
-          size="lg"
-          aria-label={t('player.settings')}
-          className={classes.button}
-        >
-          <Settings size={20} aria-hidden />
-        </ActionIcon>
+        <Tooltip label={t('player.settings')} withinPortal={false}>
+          <ActionIcon
+            variant="transparent"
+            size="lg"
+            aria-label={t('player.settings')}
+            className={classes.button}
+          >
+            <Settings size={20} aria-hidden />
+          </ActionIcon>
+        </Tooltip>
       </Popover.Target>
       <Popover.Dropdown>
         <Stack gap="xs">{children}</Stack>
