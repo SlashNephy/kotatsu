@@ -350,7 +350,9 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
           <Group gap="xs" wrap="nowrap">
             <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
               {timeFormat.format(reservation.startMs)} 〜 {timeFormat.format(end)}{' '}
-              {t('home.duration', { minutes: Math.round((end - reservation.startMs) / 60_000) })}
+              {t('reservations.duration', {
+                minutes: Math.round((end - reservation.startMs) / 60_000),
+              })}
             </Text>
             <Text size="sm" truncate>
               <ServiceLabel name={reservation.service.name} logoUrl={reservation.service.logoUrl} />
