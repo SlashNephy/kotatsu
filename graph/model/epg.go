@@ -25,6 +25,8 @@ type Service struct {
 	RemoteControlKeyID *int   `json:"remoteControlKeyId,omitempty"`
 	Hidden             bool   `json:"hidden"`
 	SortOrder          *int   `json:"sortOrder,omitempty"`
+	// HasLogo は、放送がロゴを送っているかどうか。スキーマには出さない。
+	HasLogo bool `json:"-"`
 	// ChannelTypeKey は、チャンネル種別の文字列。スキーマには出さない。
 	ChannelTypeKey string `json:"-"`
 }
@@ -34,7 +36,22 @@ func (Service) IsNode() {}
 // StreamURL は、ライブ視聴の TS を流す URL のパス。tenban の GET /streams/services/{id} で、Mirakurun のサービス ID を使う。
 // IsNode と揃えて、値のレシーバーにする。
 func (s Service) StreamURL() string {
-	return fmt.Sprintf("/streams/services/%d", int64(s.NetworkID)*mirakurunServiceIDBase+int64(s.ServiceID))
+	return fmt.Sprintf("/streams/services/%d", s.mirakurunID())
+}
+
+// LogoURL は、ロゴの画像の URL のパス。tenban の GET /media/services/{id}/logo で、Mirakurun のサービス ID を使う。
+// 放送がロゴを送っていなければ nil。
+func (s Service) LogoURL() *string {
+	if !s.HasLogo {
+		return nil
+	}
+
+	return new(fmt.Sprintf("/media/services/%d/logo", s.mirakurunID()))
+}
+
+// mirakurunID は、Mirakurun のサービス ID。
+func (s Service) mirakurunID() int64 {
+	return int64(s.NetworkID)*mirakurunServiceIDBase + int64(s.ServiceID)
 }
 
 // mirakurunServiceIDBase は、Mirakurun のサービス ID の、ネットワーク ID の桁の重み (network_id * 100000 + service_id)。

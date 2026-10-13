@@ -1,7 +1,11 @@
 package faketuner
 
 import (
+	"bytes"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"time"
 )
 
@@ -20,6 +24,8 @@ const (
 // 地上波のチャンネルをチューナーより多くしているので、チューナーの奪い合いを再現できる。
 // 番組は、各サービスに 30 分の番組を now の前後に並べる。サービス名と番組名は架空のものである。
 //
+// ロゴは、GR 27 の「こたつテスト1」と BS に持たせる。GR 26 は、ロゴの番号だけあって、画像はまだ受信していない状況にする。
+//
 // testdata/ts/test.ts の SDT と EIT は、GR 27 の「こたつテスト1」(service_id 0x0400) に揃えている。
 func DefaultOptions(now time.Time, ts []byte) *Options {
 	channels := []*Channel{
@@ -28,7 +34,7 @@ func DefaultOptions(now time.Time, ts []byte) *Options {
 			Channel: "27",
 			Name:    "こたつテスト1",
 			Services: []*Service{
-				withRemoteControlKey(newService(grNetworkID, 0x0400, "こたつテスト1"), 1),
+				withLogo(withRemoteControlKey(newService(grNetworkID, 0x0400, "こたつテスト1"), 1), 0, color.RGBA{R: 0xE8, G: 0x5A, B: 0x2C, A: 0xFF}),
 				newService(grNetworkID, 0x0401, "こたつテスト1 サブ"),
 			},
 		},
@@ -36,7 +42,7 @@ func DefaultOptions(now time.Time, ts []byte) *Options {
 			Type:     "GR",
 			Channel:  "26",
 			Name:     "こたつテスト2",
-			Services: []*Service{newService(grNetworkID+1, 0x0408, "こたつテスト2")},
+			Services: []*Service{withLogo(newService(grNetworkID+1, 0x0408, "こたつテスト2"), 1, nil)},
 		},
 		{
 			Type:     "GR",
@@ -48,7 +54,7 @@ func DefaultOptions(now time.Time, ts []byte) *Options {
 			Type:     "BS",
 			Channel:  "BS15_0",
 			Name:     "こたつ BS",
-			Services: []*Service{newService(bsNetworkID, 101, "こたつ BS")},
+			Services: []*Service{withLogo(newService(bsNetworkID, 101, "こたつ BS"), 0, color.RGBA{R: 0x2C, G: 0x6E, B: 0xE8, A: 0xFF})},
 		},
 	}
 
@@ -95,6 +101,33 @@ func withRemoteControlKey(service *Service, key int) *Service {
 	return service
 }
 
+// withLogo は、サービスにロゴの番号を持たせる。fill が nil でなければ、その色で塗った 64×36 の PNG を、ロゴの画像として持たせる。
+func withLogo(service *Service, logoID int, fill color.Color) *Service {
+	service.LogoID = new(logoID)
+	if fill != nil {
+		service.Logo = solidPNG(fill)
+	}
+
+	return service
+}
+
+// solidPNG は、地上波のロゴと同じ 64×36 の、1 色で塗った PNG を返す。
+func solidPNG(fill color.Color) []byte {
+	img := image.NewRGBA(image.Rect(0, 0, 64, 36))
+	for y := range 36 {
+		for x := range 64 {
+			img.Set(x, y, fill)
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		// メモリ上の画像の符号化は失敗しない。
+		panic(err)
+	}
+
+	return buf.Bytes()
+}
+
 func newService(networkID, serviceID int, name string) *Service {
 	return &Service{
 		ID:        ServiceItemID(networkID, serviceID),
@@ -104,6 +137,8 @@ func newService(networkID, serviceID int, name string) *Service {
 		// 0x01 はデジタル TV サービス。
 		Type:               0x01,
 		RemoteControlKeyID: 0,
+		LogoID:             nil,
 		Channel:            nil,
+		Logo:               nil,
 	}
 }

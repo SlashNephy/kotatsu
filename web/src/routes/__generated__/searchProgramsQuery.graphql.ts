@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<3dac8b73715882bf8a081c327ba46294>>
+ * @generated SignedSource<<b71e5f0c1738d7e7666ebb3f56de2eb7>>
  * @lightSyntaxTransform
  */
 
@@ -57,6 +57,7 @@ export type searchProgramsQuery$data = {
         readonly id: string;
         readonly name: string;
         readonly service: {
+          readonly logoUrl: string | null | undefined;
           readonly name: string;
         };
         readonly startAt: string;
@@ -147,6 +148,13 @@ v8 = {
 v9 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v10 = {
+  "alias": null,
+  "args": null,
   "concreteType": "Genre",
   "kind": "LinkedField",
   "name": "genres",
@@ -162,7 +170,7 @@ v9 = {
   ],
   "storageKey": null
 },
-v10 = {
+v11 = {
   "alias": null,
   "args": null,
   "concreteType": "PageInfo",
@@ -235,18 +243,19 @@ return {
                     "name": "service",
                     "plural": false,
                     "selections": [
-                      (v6/*:: as any*/)
+                      (v6/*:: as any*/),
+                      (v9/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v9/*:: as any*/)
+                  (v10/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v10/*:: as any*/)
+          (v11/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -302,34 +311,35 @@ return {
                     "plural": false,
                     "selections": [
                       (v6/*:: as any*/),
+                      (v9/*:: as any*/),
                       (v5/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v9/*:: as any*/)
+                  (v10/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v10/*:: as any*/)
+          (v11/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "7d96dd274f2d2efc9efb64be0fa05ae6",
+    "cacheID": "b134767d4f70d43b6fb34aae0e70201a",
     "id": null,
     "metadata": {},
     "name": "searchProgramsQuery",
     "operationKind": "query",
-    "text": "query searchProgramsQuery(\n  $conditions: ProgramConditionsInput!\n  $archive: ArchiveRangeInput\n  $first: Int!\n  $after: String\n) {\n  searchPrograms(conditions: $conditions, archive: $archive, first: $first, after: $after) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        archived\n        service {\n          name\n          id\n        }\n        genres {\n          lv1\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
+    "text": "query searchProgramsQuery(\n  $conditions: ProgramConditionsInput!\n  $archive: ArchiveRangeInput\n  $first: Int!\n  $after: String\n) {\n  searchPrograms(conditions: $conditions, archive: $archive, first: $first, after: $after) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        archived\n        service {\n          name\n          logoUrl\n          id\n        }\n        genres {\n          lv1\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "e904088132ef358f3c3049d17e031d3e";
+(node as any).hash = "902c58d116246d6e829858565910ecd7";
 
 export default node;

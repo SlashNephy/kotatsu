@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<c21b64e93518d2c32c25792f4e1fc255>>
+ * @generated SignedSource<<71ea7996bf409da60d56ca06b0e41c7b>>
  * @lightSyntaxTransform
  */
 
@@ -66,6 +66,7 @@ export type RulePreviewQuery$data = {
         readonly id: string;
         readonly name: string;
         readonly service: {
+          readonly logoUrl: string | null | undefined;
           readonly name: string;
         };
         readonly startAt: string;
@@ -125,6 +126,13 @@ v4 = {
 v5 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v6 = {
+  "alias": null,
+  "args": null,
   "concreteType": "PageInfo",
   "kind": "LinkedField",
   "name": "pageInfo",
@@ -182,7 +190,8 @@ return {
                     "name": "service",
                     "plural": false,
                     "selections": [
-                      (v3/*:: as any*/)
+                      (v3/*:: as any*/),
+                      (v5/*:: as any*/)
                     ],
                     "storageKey": null
                   }
@@ -192,7 +201,7 @@ return {
             ],
             "storageKey": null
           },
-          (v5/*:: as any*/)
+          (v6/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -242,6 +251,7 @@ return {
                     "plural": false,
                     "selections": [
                       (v3/*:: as any*/),
+                      (v5/*:: as any*/),
                       (v2/*:: as any*/)
                     ],
                     "storageKey": null
@@ -252,23 +262,23 @@ return {
             ],
             "storageKey": null
           },
-          (v5/*:: as any*/)
+          (v6/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "00d03c5a59d75211160a1f0a57e7a425",
+    "cacheID": "56bc9f40e2916a479cea885a7d6f88d9",
     "id": null,
     "metadata": {},
     "name": "RulePreviewQuery",
     "operationKind": "query",
-    "text": "query RulePreviewQuery(\n  $input: RuleInput!\n) {\n  previewRule(input: $input, first: 30) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        service {\n          name\n          id\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
+    "text": "query RulePreviewQuery(\n  $input: RuleInput!\n) {\n  previewRule(input: $input, first: 30) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "2b4d0cdf049d2ae7abbc8b7f1f8244cd";
+(node as any).hash = "97e3fdddfe3d0dd6cd29ead8839582ea";
 
 export default node;

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<1d3b360056e61ab791f501f450a2588f>>
+ * @generated SignedSource<<3ee463728a301a0aab2cfb4cc4f3f381>>
  * @lightSyntaxTransform
  */
 
@@ -32,6 +32,7 @@ export type ServiceIdLiveQuery$data = {
       readonly id: string;
       readonly name: string;
     } | null | undefined;
+    readonly logoUrl: string | null | undefined;
     readonly name: string;
     readonly streamUrl: string;
   } | {
@@ -100,6 +101,13 @@ v7 = {
   "kind": "InlineFragment",
   "selections": [
     (v5/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "logoUrl",
+      "storageKey": null
+    },
     {
       "alias": null,
       "args": null,
@@ -333,16 +341,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "a0e158fd41717c213ab014b9667ca440",
+    "cacheID": "fb69bb273b879b4ba66f05bc68f55049",
     "id": null,
     "metadata": {},
     "name": "ServiceIdLiveQuery",
     "operationKind": "query",
-    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      streamUrl\n      jikkyo {\n        id\n        name\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n      }\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n}\n"
+    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      jikkyo {\n        id\n        name\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n      }\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "47b6c79a5e2f48e7dd93a54ce60f01d4";
+(node as any).hash = "c585a284a19db4240087ac05524750ca";
 
 export default node;

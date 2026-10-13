@@ -33,6 +33,7 @@ import type {
   reservationsQuery,
   reservationsQuery$data,
 } from './__generated__/reservationsQuery.graphql';
+import { ServiceLabel } from '../guide/ServiceLabel';
 
 // query は、時間帯に重なる予約を取る。続きは、同じ時間帯と状態で、カーソルから読む。
 const query = graphql`
@@ -57,6 +58,7 @@ const query = graphql`
           enabled
           service {
             name
+            logoUrl
           }
           assignment {
             state
@@ -347,7 +349,7 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
               {timeFormat.format(reservation.startMs)}〜{timeFormat.format(end)}
             </Text>
             <Text size="sm" truncate>
-              {reservation.service.name}
+              <ServiceLabel name={reservation.service.name} logoUrl={reservation.service.logoUrl} />
             </Text>
           </Group>
           <Text size="sm" fw={700} truncate>

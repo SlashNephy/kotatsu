@@ -635,18 +635,19 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		mux.Handle(pattern, httpserver.RequireSameOrigin(handler))
 	}
 	// 映像の配信 (設計書 7.2、7.6、9.6)。セッションか署名付き URL で認可する。
-	var tuner stream.ServiceOpener
+	var opener stream.ServiceOpener
+	var logos stream.LogoFetcher
 	if deps.Config.Tuner.URL.Value() != "" {
 		client, err := newTunerClient(deps)
 		if err != nil {
 			return nil, err
 		}
-		tuner = client
+		opener, logos = client, client
 	}
 	authorizer := stream.NewAuthorizer(signer, deps.DB, deps.Clock)
 	streamLogger := logger.With(slog.String("component", "stream"))
-	mux.Handle("GET /streams/services/{id}", authorizer.Middleware(stream.NewLiveHandler(tuner, streamLogger)))
-	mux.Handle("GET /streams/services/{id}/data-broadcast", authorizer.Middleware(stream.NewDataBroadcastHandler(tuner, streamLogger)))
+	mux.Handle("GET /streams/services/{id}", authorizer.Middleware(stream.NewLiveHandler(opener, streamLogger)))
+	mux.Handle("GET /streams/services/{id}/data-broadcast", authorizer.Middleware(stream.NewDataBroadcastHandler(opener, streamLogger)))
 	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
 	kyusuToken, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
 	if err != nil {
@@ -663,6 +664,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
 	mux.Handle("GET /streams/recordings/{id}/files/{file}",
 		authorizer.Middleware(stream.NewOtherFileHandler(deps.DB, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), streamLogger)))
+	// サービスのロゴは、チューナーサーバーから取って中継する。
+	mux.Handle("GET /media/services/{id}/logo", authorizer.Middleware(stream.NewLogoHandler(logos, streamLogger)))
 	// 録画の代表画像とプレビュー画像も、このインスタンスにマウントしたプールのものだけ配信できる。
 	mux.Handle("GET /media/recordings/{id}/{file}",
 		authorizer.Middleware(thumbnail.NewImageHandler(deps.DB, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), streamLogger)))

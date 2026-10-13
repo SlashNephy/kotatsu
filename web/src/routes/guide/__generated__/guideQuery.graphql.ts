@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<d8249c62bd92c2849196d23ab3a1597b>>
+ * @generated SignedSource<<bae4041e82420a2745ee98d3af37caf0>>
  * @lightSyntaxTransform
  */
 
@@ -34,6 +34,7 @@ export type guideQuery$data = {
         readonly type: string;
       };
       readonly id: string;
+      readonly logoUrl: string | null | undefined;
       readonly name: string;
     };
   }>;
@@ -59,6 +60,7 @@ export type guideQuery$data = {
       readonly displayName: string;
     };
     readonly id: string;
+    readonly logoUrl: string | null | undefined;
     readonly name: string;
     readonly serviceId: number;
   }>;
@@ -118,11 +120,18 @@ v5 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v6 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
   "name": "lv1",
   "storageKey": null
 },
-v6 = [
-  (v5/*:: as any*/),
+v7 = [
+  (v6/*:: as any*/),
   {
     "alias": null,
     "args": null,
@@ -131,7 +140,7 @@ v6 = [
     "storageKey": null
   }
 ],
-v7 = [
+v8 = [
   {
     "alias": null,
     "args": null,
@@ -155,6 +164,7 @@ v7 = [
     "selections": [
       (v3/*:: as any*/),
       (v4/*:: as any*/),
+      (v5/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -194,7 +204,7 @@ v7 = [
         "kind": "LinkedField",
         "name": "genres",
         "plural": true,
-        "selections": (v6/*:: as any*/),
+        "selections": (v7/*:: as any*/),
         "storageKey": null
       },
       {
@@ -204,7 +214,7 @@ v7 = [
         "kind": "LinkedField",
         "name": "excludeGenres",
         "plural": true,
-        "selections": (v6/*:: as any*/),
+        "selections": (v7/*:: as any*/),
         "storageKey": null
       },
       {
@@ -270,6 +280,7 @@ v7 = [
         "selections": [
           (v3/*:: as any*/),
           (v4/*:: as any*/),
+          (v5/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -324,7 +335,7 @@ v7 = [
             "name": "genres",
             "plural": true,
             "selections": [
-              (v5/*:: as any*/)
+              (v6/*:: as any*/)
             ],
             "storageKey": null
           }
@@ -341,7 +352,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "guideQuery",
-    "selections": (v7/*:: as any*/),
+    "selections": (v8/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -350,19 +361,19 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
     "name": "guideQuery",
-    "selections": (v7/*:: as any*/)
+    "selections": (v8/*:: as any*/)
   },
   "params": {
-    "cacheID": "cda58d00f4616b4e58f411cc41f4859e",
+    "cacheID": "20035c5232837dbaf8c797cd0d39c206",
     "id": null,
     "metadata": {},
     "name": "guideQuery",
     "operationKind": "query",
-    "text": "query guideQuery(\n  $from: Time!\n  $to: Time!\n  $view: ID\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  services {\n    id\n    name\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  guideViews {\n    id\n    name\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    minDurationSeconds\n    services {\n      id\n    }\n    hideEmptyServices\n  }\n  guide(from: $from, to: $to, view: $view) {\n    service {\n      id\n      name\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      startAt\n      endAt\n      endUndecided\n      name\n      genres {\n        lv1\n      }\n    }\n  }\n}\n"
+    "text": "query guideQuery(\n  $from: Time!\n  $to: Time!\n  $view: ID\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  guideViews {\n    id\n    name\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    minDurationSeconds\n    services {\n      id\n    }\n    hideEmptyServices\n  }\n  guide(from: $from, to: $to, view: $view) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      startAt\n      endAt\n      endUndecided\n      name\n      genres {\n        lv1\n      }\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "408ff651491e052eb6215edd2a2cead0";
+(node as any).hash = "a20102ff155bdc2573691ecac8f3603c";
 
 export default node;

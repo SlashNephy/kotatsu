@@ -463,6 +463,7 @@ type ComplexityRoot struct {
 		Hidden             func(childComplexity int) int
 		ID                 func(childComplexity int) int
 		Jikkyo             func(childComplexity int) int
+		LogoURL            func(childComplexity int) int
 		Name               func(childComplexity int) int
 		NetworkID          func(childComplexity int) int
 		RemoteControlKeyID func(childComplexity int) int
@@ -2700,6 +2701,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Service.Jikkyo(childComplexity), true
+	case "Service.logoUrl":
+		if e.ComplexityRoot.Service.LogoURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Service.LogoURL(childComplexity), true
 	case "Service.name":
 		if e.ComplexityRoot.Service.Name == nil {
 			break
@@ -3612,6 +3619,8 @@ type Service implements Node {
   sortOrder: Int
   "ライブ視聴の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。"
   streamUrl: String!
+  "ロゴの画像の URL のパス。ログイン中のセッションで使う。放送がロゴを送っていなければ null。チューナーサーバーがまだ受信していなければ、URL は 404 を返す。"
+  logoUrl: String
   "ニコニコ実況のチャンネル (設計書 7.4)。対応するチャンネルがないか、NX-Jikkyo が扱っていなければ null。"
   jikkyo: JikkyoChannel
 }
@@ -5569,6 +5578,8 @@ func (ec *executionContext) childFields_Service(ctx context.Context, field graph
 		return ec.fieldContext_Service_sortOrder(ctx, field)
 	case "streamUrl":
 		return ec.fieldContext_Service_streamUrl(ctx, field)
+	case "logoUrl":
+		return ec.fieldContext_Service_logoUrl(ctx, field)
 	case "jikkyo":
 		return ec.fieldContext_Service_jikkyo(ctx, field)
 	}
@@ -15252,6 +15263,29 @@ func (ec *executionContext) fieldContext_Service_streamUrl(_ context.Context, fi
 	return graphql.NewScalarFieldContext("Service", field, true, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Service_logoUrl(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Service_logoUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LogoURL(), nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Service_logoUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Service", field, true, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _Service_jikkyo(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -23213,6 +23247,11 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 		case "streamUrl":
 			out.Values[i] = ec._Service_streamUrl(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "logoUrl":
+			out.Values[i] = ec._Service_logoUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "jikkyo":

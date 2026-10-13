@@ -29,6 +29,7 @@ import type {
   recordingsListQuery$variables,
 } from './__generated__/recordingsListQuery.graphql';
 import type { recordingsTagsQuery } from './__generated__/recordingsTagsQuery.graphql';
+import { ServiceLabel } from '../../guide/ServiceLabel';
 
 export const Route = createFileRoute('/recordings/')({
   component: RecordingsPage,
@@ -50,6 +51,7 @@ const query = graphql`
           thumbnailUrl
           service {
             name
+            logoUrl
           }
           tags {
             id
@@ -255,7 +257,8 @@ function RecordingGrid({ filter }: { filter: Filter }) {
                   {recording.name}
                 </Text>
                 <Text size="xs" c="dimmed">
-                  {dateFormat.format(Date.parse(recording.startAt))}・{recording.service.name}
+                  {dateFormat.format(Date.parse(recording.startAt))}・
+                  <ServiceLabel name={recording.service.name} logoUrl={recording.service.logoUrl} />
                 </Text>
                 <Group gap={4}>
                   {recording.state !== 'COMPLETED' && (

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<5e62bd56317d9ebfb515db921de930fb>>
+ * @generated SignedSource<<a14c63a7dc0b5fb380f0bdbbc319904f>>
  * @lightSyntaxTransform
  */
 
@@ -26,6 +26,7 @@ export type liveServicesQuery$data = {
         readonly type: string;
       };
       readonly id: string;
+      readonly logoUrl: string | null | undefined;
       readonly name: string;
     };
   }>;
@@ -113,6 +114,13 @@ v6 = {
     {
       "alias": null,
       "args": null,
+      "kind": "ScalarField",
+      "name": "logoUrl",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
       "concreteType": "ChannelType",
       "kind": "LinkedField",
       "name": "channelType",
@@ -196,16 +204,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "19177a1b68f4292165ad434d5f09368c",
+    "cacheID": "e224511e9f9fd1a63896ba3985647a79",
     "id": null,
     "metadata": {},
     "name": "liveServicesQuery",
     "operationKind": "query",
-    "text": "query liveServicesQuery(\n  $from: Time!\n  $to: Time!\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  guide(from: $from, to: $to) {\n    service {\n      id\n      name\n      channelType {\n        type\n      }\n    }\n    programs {\n      name\n      id\n    }\n  }\n}\n"
+    "text": "query liveServicesQuery(\n  $from: Time!\n  $to: Time!\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  guide(from: $from, to: $to) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      name\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "4796a4d75df27b62df3091cc94455739";
+(node as any).hash = "fe6f0aae14b07e5988d3868c1e587396";
 
 export default node;

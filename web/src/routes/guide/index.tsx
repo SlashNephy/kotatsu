@@ -134,6 +134,7 @@ function Guide() {
         services {
           id
           name
+          logoUrl
           serviceId
           channelType {
             displayName
@@ -160,6 +161,7 @@ function Guide() {
           service {
             id
             name
+            logoUrl
             channelType {
               type
             }
@@ -201,6 +203,7 @@ function Guide() {
         .map((row) => ({
           id: row.service.id,
           name: row.service.name,
+          logoUrl: row.service.logoUrl ?? null,
           programs: row.programs.map((program) => ({
             id: program.id,
             startAt: Date.parse(program.startAt),

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<6a3c234e3ac30f54d7667fb1bf0b61a2>>
+ * @generated SignedSource<<dfd92e79c6742fd84179f6add5fc3ebe>>
  * @lightSyntaxTransform
  */
 
@@ -32,6 +32,7 @@ export type reservationsQuery$data = {
         readonly kind: ReservationKind;
         readonly name: string;
         readonly service: {
+          readonly logoUrl: string | null | undefined;
           readonly name: string;
         };
         readonly startAt: string;
@@ -156,6 +157,13 @@ v12 = {
 v13 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v14 = {
+  "alias": null,
+  "args": null,
   "concreteType": "ReservationAssignment",
   "kind": "LinkedField",
   "name": "assignment",
@@ -178,7 +186,7 @@ v13 = {
   ],
   "storageKey": null
 },
-v14 = {
+v15 = {
   "alias": null,
   "args": null,
   "concreteType": "PageInfo",
@@ -266,18 +274,19 @@ return {
                     "name": "service",
                     "plural": false,
                     "selections": [
-                      (v9/*:: as any*/)
+                      (v9/*:: as any*/),
+                      (v13/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v13/*:: as any*/)
+                  (v14/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v14/*:: as any*/)
+          (v15/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -349,34 +358,35 @@ return {
                     "plural": false,
                     "selections": [
                       (v9/*:: as any*/),
+                      (v13/*:: as any*/),
                       (v7/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v13/*:: as any*/)
+                  (v14/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v14/*:: as any*/)
+          (v15/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "fb8b3bf49861e27ee8afe1d9415a828e",
+    "cacheID": "323f0a20386808bc880de33761fc1a8c",
     "id": null,
     "metadata": {},
     "name": "reservationsQuery",
     "operationKind": "query",
-    "text": "query reservationsQuery(\n  $from: Time!\n  $to: Time!\n  $states: [AssignmentState!]\n  $first: Int!\n  $after: String\n) {\n  viewer {\n    role\n    id\n  }\n  reservations(from: $from, to: $to, states: $states, first: $first, after: $after) {\n    edges {\n      node {\n        id\n        kind\n        name\n        startAt\n        endAt\n        enabled\n        service {\n          name\n          id\n        }\n        assignment {\n          state\n          tuner\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
+    "text": "query reservationsQuery(\n  $from: Time!\n  $to: Time!\n  $states: [AssignmentState!]\n  $first: Int!\n  $after: String\n) {\n  viewer {\n    role\n    id\n  }\n  reservations(from: $from, to: $to, states: $states, first: $first, after: $after) {\n    edges {\n      node {\n        id\n        kind\n        name\n        startAt\n        endAt\n        enabled\n        service {\n          name\n          logoUrl\n          id\n        }\n        assignment {\n          state\n          tuner\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "98f30da6c3b8e0ea2d6ab199590b3bb5";
+(node as any).hash = "f1de1cafc454daf8b3ace09d8d0c8bdf";
 
 export default node;

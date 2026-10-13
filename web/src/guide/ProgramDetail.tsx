@@ -7,6 +7,7 @@ import { ErrorBoundary } from '../futon';
 import { genreKey } from './genres';
 import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.graphql';
 import type { ProgramDetailReserveMutation } from './__generated__/ProgramDetailReserveMutation.graphql';
+import { ServiceLabel } from './ServiceLabel';
 
 type Props = {
   programId: string | undefined;
@@ -75,6 +76,7 @@ function Detail({ programId }: { programId: string }) {
             archived
             service {
               name
+              logoUrl
             }
             genres {
               lv1
@@ -123,7 +125,9 @@ function Detail({ programId }: { programId: string }) {
         {program.name}
       </Title>
       <Group gap="xs">
-        <Text size="sm">{program.service.name}</Text>
+        <Text size="sm">
+          <ServiceLabel name={program.service.name} logoUrl={program.service.logoUrl} />
+        </Text>
         <Text size="sm" c="dimmed">
           {dateTimeFormat.format(start)}〜
           {program.endUndecided

@@ -30,6 +30,7 @@ import type { RecordingIdProtectMutation } from './__generated__/RecordingIdProt
 import type { RecordingIdQuery } from './__generated__/RecordingIdQuery.graphql';
 import type { RecordingIdStreamURLMutation } from './__generated__/RecordingIdStreamURLMutation.graphql';
 import type { RecordingIdTagsMutation } from './__generated__/RecordingIdTagsMutation.graphql';
+import { ServiceLabel } from '../../guide/ServiceLabel';
 
 export const Route = createFileRoute('/recordings/$recordingId')({
   component: RecordingPage,
@@ -149,6 +150,7 @@ function Recording({ recordingId }: { recordingId: string }) {
             recordedUntil
             service {
               name
+              logoUrl
             }
             tags {
               id
@@ -281,7 +283,9 @@ function Recording({ recordingId }: { recordingId: string }) {
             {recording.name}
           </Title>
           <Group gap="xs">
-            <Text size="sm">{recording.service.name}</Text>
+            <Text size="sm">
+              <ServiceLabel name={recording.service.name} logoUrl={recording.service.logoUrl} />
+            </Text>
             <Text size="sm" c="dimmed">
               {dateTimeFormat.format(Date.parse(recording.startAt))}〜
               {minuteFormat.format(Date.parse(recording.endAt))}

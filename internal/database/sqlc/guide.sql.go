@@ -148,7 +148,7 @@ func (q *Queries) ListChannelTypesByTypes(ctx context.Context, types []string) (
 }
 
 const listGuideServices = `-- name: ListGuideServices :many
-SELECT s.id, s.network_id, s.sid, s.name, s.channel_type, s.channel, s.remote_control_key_id, s.hidden, s.sort_order
+SELECT s.id, s.network_id, s.sid, s.name, s.channel_type, s.channel, s.remote_control_key_id, s.logo_id, s.hidden, s.sort_order
 FROM services s
 JOIN channel_types ct ON ct.type = s.channel_type
 WHERE ($1::boolean OR NOT s.hidden)
@@ -169,6 +169,7 @@ type ListGuideServicesRow struct {
 	ChannelType        string
 	Channel            string
 	RemoteControlKeyID *int64
+	LogoID             *int64
 	Hidden             bool
 	SortOrder          *int32
 }
@@ -191,6 +192,7 @@ func (q *Queries) ListGuideServices(ctx context.Context, arg ListGuideServicesPa
 			&i.ChannelType,
 			&i.Channel,
 			&i.RemoteControlKeyID,
+			&i.LogoID,
 			&i.Hidden,
 			&i.SortOrder,
 		); err != nil {

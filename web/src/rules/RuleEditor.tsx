@@ -40,6 +40,7 @@ import {
   type TimeRangeRow,
 } from './form';
 import { RulePreview } from './RulePreview';
+import { ServiceLabel } from '../guide/ServiceLabel';
 
 // joinDefault は、分かれたファイルをつなぐかどうかの選択で、全体の既定値に従うことを表す値。
 const joinDefault = 'default';
@@ -52,6 +53,7 @@ type Props = {
   services: readonly {
     id: string;
     name: string;
+    logoUrl: string | null | undefined;
     serviceId: number;
     channelType: { displayName: string };
   }[];
@@ -245,6 +247,12 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
                       value: service.id,
                       label: `${service.name}（${service.channelType.displayName}・${service.serviceId}）`,
                     }))}
+                    renderOption={({ option }) => (
+                      <ServiceLabel
+                        name={option.label}
+                        logoUrl={services.find((service) => service.id === option.value)?.logoUrl}
+                      />
+                    )}
                     value={form.services}
                     onChange={(selected) => set({ services: selected })}
                     searchable

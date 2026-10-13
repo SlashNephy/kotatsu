@@ -8,6 +8,7 @@ import type {
   RulePreviewQuery$data,
   RulePreviewQuery$variables,
 } from './__generated__/RulePreviewQuery.graphql';
+import { ServiceLabel } from '../guide/ServiceLabel';
 
 type Props = {
   input: RulePreviewQuery$variables['input'];
@@ -25,6 +26,7 @@ const query = graphql`
           startAt
           service {
             name
+            logoUrl
           }
         }
       }
@@ -134,7 +136,7 @@ export function RulePreview({ input, enabled }: Props) {
                   {dateTimeFormat.format(Date.parse(node.startAt))}
                 </Text>
                 <Text size="xs" w={110} truncate style={{ flexShrink: 0 }}>
-                  {node.service.name}
+                  <ServiceLabel name={node.service.name} logoUrl={node.service.logoUrl} />
                 </Text>
                 <Text size="xs" truncate>
                   {node.name}

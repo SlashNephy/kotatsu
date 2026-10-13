@@ -31,6 +31,7 @@ import type {
   searchProgramsQuery$data,
 } from './__generated__/searchProgramsQuery.graphql';
 import type { searchViewerQuery } from './__generated__/searchViewerQuery.graphql';
+import { ServiceLabel } from '../guide/ServiceLabel';
 
 export const Route = createFileRoute('/search')({
   component: SearchPage,
@@ -68,6 +69,7 @@ const query = graphql`
           archived
           service {
             name
+            logoUrl
           }
           genres {
             lv1
@@ -331,7 +333,7 @@ function Search() {
                   {dateTimeFormat.format(Date.parse(program.startAt))}
                 </Text>
                 <Text size="sm" w={140} truncate style={{ flexShrink: 0 }}>
-                  {program.service.name}
+                  <ServiceLabel name={program.service.name} logoUrl={program.service.logoUrl} />
                 </Text>
                 <Text size="sm" fw={700} truncate style={{ flex: 1 }}>
                   {program.name}

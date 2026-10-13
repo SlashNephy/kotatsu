@@ -1,6 +1,8 @@
 package mirakurun_test
 
 import (
+	"bytes"
+	"image/png"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -243,6 +245,44 @@ func TestClientOpenServiceStreamErrors(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, apiErr.StatusCode)
 			assert.NotEmpty(t, apiErr.Reason)
 			assert.True(t, mirakurun.IsStatus(err, tt.wantStatus))
+		})
+	}
+}
+
+func TestClientServiceLogo(t *testing.T) {
+	t.Parallel()
+
+	_, rec, client := newFakeTuner(t)
+
+	tests := []struct {
+		name       string
+		serviceID  int64
+		wantStatus int
+	}{
+		{name: "logo", serviceID: grServiceID, wantStatus: http.StatusOK},
+		// GR 26 のサービスは、ロゴの番号はあるが、画像をまだ受信していない。
+		{name: "logo not received", serviceID: faketuner.ServiceItemID(0x7FE1, 0x0408), wantStatus: http.StatusServiceUnavailable},
+		{name: "unknown service", serviceID: 1, wantStatus: http.StatusNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			logo, err := client.ServiceLogo(t.Context(), tt.serviceID)
+			if tt.wantStatus != http.StatusOK {
+				assert.True(t, mirakurun.IsStatus(err, tt.wantStatus), "error: %v", err)
+				assert.Nil(t, logo)
+
+				return
+			}
+			require.NoError(t, err)
+			config, err := png.DecodeConfig(bytes.NewReader(logo))
+			require.NoError(t, err)
+			assert.Equal(t, 64, config.Width)
+			assert.Equal(t, 36, config.Height)
+			req := rec.last("/api/services/3273601024/logo")
+			require.NotNil(t, req)
+			assert.Equal(t, "kotatsu", req.UserAgent())
 		})
 	}
 }
