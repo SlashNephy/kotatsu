@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<4bc7d03d66d72b53c150413ae655229f>>
+ * @generated SignedSource<<01eb85a2f67723e38005e519a2174711>>
  * @lightSyntaxTransform
  */
 
@@ -11,6 +11,10 @@ import { ConcreteRequest } from 'relay-runtime';
 export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type rulesListQuery$variables = Record<PropertyKey, never>;
 export type rulesListQuery$data = {
+  readonly channelTypes: ReadonlyArray<{
+    readonly displayName: string;
+    readonly type: string;
+  }>;
   readonly rules: ReadonlyArray<{
     readonly conditions: {
       readonly channelTypes: ReadonlyArray<string>;
@@ -44,11 +48,36 @@ var v0 = {
 v1 = {
   "alias": null,
   "args": null,
+  "concreteType": "ChannelType",
+  "kind": "LinkedField",
+  "name": "channelTypes",
+  "plural": true,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "type",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "displayName",
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v2 = {
+  "alias": null,
+  "args": null,
   "kind": "ScalarField",
   "name": "id",
   "storageKey": null
 },
-v2 = {
+v3 = {
   "alias": null,
   "args": null,
   "concreteType": "Rule",
@@ -56,7 +85,7 @@ v2 = {
   "name": "rules",
   "plural": true,
   "selections": [
-    (v1/*:: as any*/),
+    (v2/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -143,7 +172,8 @@ return {
         ],
         "storageKey": null
       },
-      (v2/*:: as any*/)
+      (v1/*:: as any*/),
+      (v3/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -163,24 +193,25 @@ return {
         "plural": false,
         "selections": [
           (v0/*:: as any*/),
-          (v1/*:: as any*/)
+          (v2/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v2/*:: as any*/)
+      (v1/*:: as any*/),
+      (v3/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "eacdec4d8490fdc6b093ac51756ff253",
+    "cacheID": "69c2b3ed476bc5d051abf2e01d3f4915",
     "id": null,
     "metadata": {},
     "name": "rulesListQuery",
     "operationKind": "query",
-    "text": "query rulesListQuery {\n  viewer {\n    role\n    id\n  }\n  rules {\n    id\n    name\n    enabled\n    memo\n    conditions {\n      keywords {\n        text\n      }\n      channelTypes\n    }\n    updatedAt\n  }\n}\n"
+    "text": "query rulesListQuery {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  rules {\n    id\n    name\n    enabled\n    memo\n    conditions {\n      keywords {\n        text\n      }\n      channelTypes\n    }\n    updatedAt\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "a0939daff59c2109d1fc735f583e6169";
+(node as any).hash = "889bb2d9bf4e16d7bde6985d196fcf89";
 
 export default node;

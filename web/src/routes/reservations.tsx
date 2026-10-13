@@ -15,7 +15,7 @@ import {
   Title,
   Tooltip,
 } from '@mantine/core';
-import { Trash2 } from 'lucide-react';
+import { CalendarX, Trash2 } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -262,8 +262,16 @@ function Reservations({ range }: { range: { from: string; to: string } }) {
         )}
       </Group>
       {reservations.length === 0 && (
-        <Alert color="gray">
-          {problems ? t('reservations.noProblems') : t('reservations.empty')}
+        <Alert
+          color="gray"
+          icon={<CalendarX size={20} aria-hidden />}
+          title={problems ? t('reservations.noProblems') : t('reservations.empty')}
+        >
+          {problems ? null : (
+            <Text size="sm" c="dimmed">
+              {t('reservations.emptyHint')}
+            </Text>
+          )}
         </Alert>
       )}
       {groups.map((group) => (
@@ -426,6 +434,21 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
           background: 'var(--mantine-color-default-border)',
         }}
       >
+        {/* 6 時間ごとの目盛り。帯が 1 日のどこにあるかを読み取れるようにする。 */}
+        {[25, 50, 75].map((left) => (
+          <Box
+            key={left}
+            style={{
+              position: 'absolute',
+              left: `${left}%`,
+              top: -2,
+              width: 1,
+              height: 10,
+              background: 'var(--mantine-color-dimmed)',
+              opacity: 0.5,
+            }}
+          />
+        ))}
         <Box
           style={{
             position: 'absolute',
@@ -436,6 +459,26 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
             background: barColor,
           }}
         />
+      </Box>
+      <Box aria-hidden pos="relative" h={12} mt={2}>
+        {[0, 6, 12, 18, 24].map((hour) => (
+          <Text
+            key={hour}
+            span
+            c="dimmed"
+            style={{
+              position: 'absolute',
+              left: `${(hour / 24) * 100}%`,
+              // 両端の数字は、帯の内側に収める。
+              transform:
+                hour === 0 ? 'none' : hour === 24 ? 'translateX(-100%)' : 'translateX(-50%)',
+              fontSize: 10,
+              lineHeight: '12px',
+            }}
+          >
+            {hour}
+          </Text>
+        ))}
       </Box>
       {toggleError && (
         <Text size="xs" c="red" role="alert" mt={4}>
