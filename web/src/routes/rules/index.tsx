@@ -10,7 +10,7 @@ import {
   Text,
   Title,
 } from '@mantine/core';
-import { Plus } from 'lucide-react';
+import { ListChecks, Plus } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -61,6 +61,10 @@ function Rules() {
         viewer {
           role
         }
+        channelTypes {
+          type
+          displayName
+        }
         rules {
           id
           name
@@ -109,7 +113,13 @@ function Rules() {
           {t('reservations.toggleError')}
         </Alert>
       )}
-      {data.rules.length === 0 && <Alert color="gray">{t('rules.empty')}</Alert>}
+      {data.rules.length === 0 && (
+        <Alert color="gray" icon={<ListChecks size={20} aria-hidden />} title={t('rules.empty')}>
+          <Text size="sm" c="dimmed">
+            {t('rules.emptyHint')}
+          </Text>
+        </Alert>
+      )}
       {data.rules.map((rule) => (
         <Card key={rule.id} withBorder padding="sm" style={{ opacity: rule.enabled ? 1 : 0.6 }}>
           <Group justify="space-between" wrap="nowrap">
@@ -130,7 +140,9 @@ function Rules() {
                 ))}
                 {rule.conditions.channelTypes.map((type) => (
                   <Badge key={type} variant="outline" color="gray" size="sm">
-                    {type}
+                    {/* GR などの内部の種別ではなく、番組表と同じ表示名で示す。 */}
+                    {data.channelTypes.find((channelType) => channelType.type === type)
+                      ?.displayName ?? type}
                   </Badge>
                 ))}
                 {!rule.enabled && (
