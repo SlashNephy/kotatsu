@@ -545,7 +545,7 @@
     "capture": "キャプチャ",
     "captureSave": "画像を保存",
     "captureCopy": "画像をコピー",
-    "captureOverlays": "字幕とコメントも写す",
+    "captureOverlays": "字幕とコメントを含める",
     "captureError": "キャプチャできませんでした",
     "copied": "画像をコピーしました",
     "pip": "別のウィンドウで見る",
