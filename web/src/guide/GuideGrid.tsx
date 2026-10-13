@@ -1,4 +1,5 @@
-import { Box, Text, UnstyledButton } from '@mantine/core';
+import { Anchor, Box, Text, UnstyledButton } from '@mantine/core';
+import { Link } from '@tanstack/react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -73,6 +74,7 @@ const hourFormat = new Intl.DateTimeFormat('ja-JP', {
 // GuideGrid は、横にサービス、縦に時刻を並べた番組表。
 // サービスの数と番組の数が多くても滑らかに動くよう、横はサービスの列を、縦は列の中の番組を、見えている範囲だけ描く。
 export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props) {
+  const { t } = useTranslation();
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
 
@@ -175,13 +177,24 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
           }}
         />
         {virtualizer.getVirtualItems().map((item) => (
-          <Text
+          // サービス名を押すと、そのサービスのライブ視聴を開く。
+          <Anchor
             key={item.key}
             size="sm"
             fw={700}
             truncate
-            title={columns[item.index]!.name}
+            c="inherit"
+            underline="hover"
+            title={t('guide.watchLive', { name: columns[item.index]!.name })}
+            renderRoot={(props) => (
+              <Link
+                {...props}
+                to="/live/$serviceId"
+                params={{ serviceId: columns[item.index]!.id }}
+              />
+            )}
             style={{
+              display: 'block',
               position: 'absolute',
               top: 0,
               left: axisWidth + item.start,
@@ -197,7 +210,7 @@ export function GuideGrid({ window, columns, now, initialTime, onSelect }: Props
               logoUrl={columns[item.index]!.logoUrl}
               logoHeight="24px"
             />
-          </Text>
+          </Anchor>
         ))}
       </Box>
       <Box style={{ position: 'relative', width: totalWidth, height }}>

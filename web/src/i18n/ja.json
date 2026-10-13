@@ -248,6 +248,7 @@
     "account": "アカウント"
   },
   "guide": {
+    "watchLive": "{{name}}をライブ視聴する",
     "sharedProgram": "メインチャンネルと同じ番組（{{name}}）",
     "title": "番組表",
     "previousDay": "前の日",
