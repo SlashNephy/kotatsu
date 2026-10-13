@@ -29,6 +29,7 @@ export function usePlayerAudio(
   // kyusuAudio は、kyusu の HLS に入れる音声。
   kyusuAudio: KyusuAudio;
   menu: ReactNode;
+  available: boolean;
 } {
   const [tracks, setTracks] = useState<AudioTracks | null>(null);
   // choice は、ブラウザの中で変換する経路のメニューで選んだもの。kyusu の経路で選び直したら捨てる。
@@ -75,5 +76,11 @@ export function usePlayerAudio(
     );
   }
 
-  return { onAudio: setTracks, convertAudio, kyusuAudio, menu };
+  // available は、選べる音声が 2 つ以上あるかどうか。なければ、メニューは何も出さない。
+  const available =
+    route.kind === 'convert'
+      ? choices.length >= 2
+      : route.kind === 'kyusu' && kyusuChoices.length >= 2;
+
+  return { onAudio: setTracks, convertAudio, kyusuAudio, menu, available };
 }

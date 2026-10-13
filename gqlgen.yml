@@ -45,6 +45,8 @@ models:
     fields:
       service:
         resolver: true
+      sharedFrom:
+        resolver: true
       reservation:
         resolver: true
   GuideRow:

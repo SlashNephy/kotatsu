@@ -1,13 +1,4 @@
-import {
-  Alert,
-  Anchor,
-  Card,
-  SegmentedControl,
-  SimpleGrid,
-  Stack,
-  Text,
-  Title,
-} from '@mantine/core';
+import { Alert, Anchor, SegmentedControl, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -16,7 +7,8 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 import { ErrorBoundary } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import type { liveServicesQuery } from './__generated__/liveServicesQuery.graphql';
-import { ServiceLabel } from '../../guide/ServiceLabel';
+import { NowPlayingCard } from '../../guide/NowPlayingCard';
+import { sharesWithListed } from '../../guide/sharedEvent';
 
 export const Route = createFileRoute('/live/')({
   component: LivePage,
@@ -77,6 +69,11 @@ function Services({ range }: { range: { from: string; to: string } }) {
           }
           programs {
             name
+            startAt
+            endAt
+            sharedFrom {
+              id
+            }
           }
         }
       }
@@ -87,6 +84,9 @@ function Services({ range }: { range: { from: string; to: string } }) {
     data.guide.some((row) => row.service.channelType.type === type.type),
   );
   const [type, setType] = useState(types[0]?.type ?? '');
+  // サブチャンネルがメインチャンネルと同じ番組を流しているときは、メインチャンネルだけを出す (ホームの放送中の番組と同じ)。
+  const listed = new Set(data.guide.map((row) => row.service.id));
+  const rows = data.guide.filter((row) => !sharesWithListed(row.programs[0], listed));
 
   return (
     <Stack>
@@ -103,25 +103,17 @@ function Services({ range }: { range: { from: string; to: string } }) {
         />
       )}
       {types.length === 0 && <Alert color="gray">{t('live.empty')}</Alert>}
-      <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
-        {data.guide
+      <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="xs">
+        {rows
           .filter((row) => row.service.channelType.type === type)
           .map((row) => (
-            <Card
+            <NowPlayingCard
               key={row.service.id}
-              withBorder
-              padding="sm"
-              renderRoot={(props) => (
-                <Link {...props} to="/live/$serviceId" params={{ serviceId: row.service.id }} />
-              )}
-            >
-              <Text fw={700} size="sm" truncate>
-                <ServiceLabel name={row.service.name} logoUrl={row.service.logoUrl} />
-              </Text>
-              <Text size="xs" c="dimmed" lineClamp={2}>
-                {row.programs[0]?.name ?? t('live.noProgram')}
-              </Text>
-            </Card>
+              serviceId={row.service.id}
+              serviceName={row.service.name}
+              serviceLogoUrl={row.service.logoUrl ?? null}
+              program={row.programs[0] ?? null}
+            />
           ))}
       </SimpleGrid>
     </Stack>

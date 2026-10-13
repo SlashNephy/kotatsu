@@ -15,24 +15,20 @@ const colorKeys = [
 // DataBroadcastRemote は、データ放送を操作するリモコンのボタン (設計書 7.4)。
 export function DataBroadcastRemote({
   state,
+  receiving,
   onPress,
 }: {
   state: DataBroadcastState;
+  // receiving は、データ放送の画面を出せるまで、受け取っているか、d ボタンで入っている途中であること。
+  receiving: boolean;
   onPress: (key: RemoteKey) => void;
 }) {
   const { t } = useTranslation();
-  const disabled = state !== 'shown';
+  // データ放送の画面が出て、操作を受けられるようになるまでは押せない。
+  const disabled = state !== 'shown' || receiving;
 
   return (
     <Group gap="xs" wrap="wrap" role="group" aria-label={t('player.remote.title')}>
-      <Button
-        size="compact-sm"
-        variant="default"
-        disabled={disabled}
-        onClick={() => onPress(Keys.d)}
-      >
-        {t('player.remote.d')}
-      </Button>
       <Group gap={4}>
         <Button
           size="compact-sm"
@@ -100,11 +96,6 @@ export function DataBroadcastRemote({
           />
         ))}
       </Group>
-      {state === 'loading' && (
-        <Text size="xs" c="dimmed">
-          {t('player.dataBroadcastLoading')}
-        </Text>
-      )}
       {state === 'ended' && (
         <Text size="xs" c="dimmed">
           {t('player.dataBroadcastEnded')}

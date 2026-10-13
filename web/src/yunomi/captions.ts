@@ -1,5 +1,7 @@
 import type { CanvasMainThreadRenderer, Controller, MPEGTSFeeder } from 'aribb24.js';
 
+import captionFontUrl from '../../vendor/caption-font/rounded-mplus-1m-wadalab-mix.ttf?url';
+
 // Captions は、字幕と文字スーパーを、映像の上に描く (設計書 7.4)。
 // ブラウザの中で変換する経路では、プレイヤーが渡す private PES を、kyusu の経路では、hls.js が取り出す ID3 を渡す。
 // どちらも、時刻は video の時刻 (秒) にそろえて渡す。
@@ -21,8 +23,33 @@ type Feed =
 // maxQueued は、aribb24.js を読み終えるまでに溜めておく字幕の数の上限。1 秒に数個しか届かないので、読み終えるまでには足りる。
 const maxQueued = 256;
 
+// captionFontFamily は、字幕を描くフォント (Rounded M+ 1m WadaLab mix) の名前。
+const captionFontFamily = 'Rounded M+ 1m WadaLab mix';
+// captionFont は、字幕のフォントの並び。読み込めなかったときは、aribb24.js の既定の並びで描く。
+const captionFont = `'${captionFontFamily}', 'Hiragino Maru Gothic Pro', 'BIZ UDGothic', 'Yu Gothic Medium', sans-serif`;
+
+let captionFontLoading: Promise<void> | null = null;
+
+// loadCaptionFont は、字幕のフォントを読み込む。canvas に描くので、描く前に読み終えておく。
+// 7 MB ほどあるので、字幕を描くときに初めて読み、ページの中では 1 回だけ読む。読めなくても失敗にはしない。
+function loadCaptionFont(): Promise<void> {
+  if (captionFontLoading === null) {
+    captionFontLoading =
+      typeof FontFace === 'undefined'
+        ? Promise.resolve()
+        : new FontFace(captionFontFamily, `url(${captionFontUrl})`).load().then(
+            (face) => {
+              document.fonts.add(face);
+            },
+            () => {},
+          );
+  }
+
+  return captionFontLoading;
+}
+
 // createCaptions は、video の上に字幕を描く。描画用の canvas は container に置くので、container は position: relative にする。
-// aribb24.js は大きいので、ここから読み始める。読み終えるまでに届いた字幕は溜めておき、読み終えたら描く。
+// aribb24.js と字幕のフォントは大きいので、ここから読み始める。読み終えるまでに届いた字幕は溜めておき、読み終えたら描く。
 // 読めなかったときは、字幕なしで再生を続ける。
 export function createCaptions(video: HTMLVideoElement, container: HTMLElement): Captions {
   let layers: Layer[] | null = null;
@@ -59,12 +86,14 @@ export function createCaptions(video: HTMLVideoElement, container: HTMLElement):
     }
   };
 
-  void import('aribb24.js').then(
-    ({
-      Controller: ControllerClass,
-      MPEGTSFeeder: FeederClass,
-      CanvasMainThreadRenderer: RendererClass,
-    }) => {
+  void Promise.all([import('aribb24.js'), loadCaptionFont()]).then(
+    ([
+      {
+        Controller: ControllerClass,
+        MPEGTSFeeder: FeederClass,
+        CanvasMainThreadRenderer: RendererClass,
+      },
+    ]) => {
       if (destroyed) {
         return;
       }
@@ -74,6 +103,7 @@ export function createCaptions(video: HTMLVideoElement, container: HTMLElement):
         const feeder = new FeederClass({ receive: { type } });
         // 描画の領域を、映像の枠に合わせる。HTML や SVG で描く方法は、CSP で禁じたインラインの style を使うので選ばない。
         const renderer = new RendererClass({
+          font: { normal: captionFont },
           resize: { target: 'container', objectFit: 'contain' },
         });
         // キャプチャで写す canvas だと分かるよう、印を付ける。

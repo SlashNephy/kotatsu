@@ -10,11 +10,11 @@ import type { DataBroadcastState } from './useDataBroadcast';
 
 afterEach(cleanup);
 
-function renderRemote(state: DataBroadcastState) {
+function renderRemote(state: DataBroadcastState, receiving = false) {
   const onPress = vi.fn();
   render(
     <MantineProvider theme={theme}>
-      <DataBroadcastRemote state={state} onPress={onPress} />
+      <DataBroadcastRemote state={state} receiving={receiving} onPress={onPress} />
     </MantineProvider>,
   );
 
@@ -24,7 +24,6 @@ function renderRemote(state: DataBroadcastState) {
 describe('DataBroadcastRemote', () => {
   // 値は web-bml の AribKeyCode。
   test.each([
-    { button: 'dボタン', want: 20 },
     { button: '上', want: 1 },
     { button: '下', want: 2 },
     { button: '左', want: 3 },
@@ -43,13 +42,23 @@ describe('DataBroadcastRemote', () => {
     expect(onPress).toHaveBeenCalledExactlyOnceWith(want);
   });
 
-  test.each([
-    { state: 'loading' as const, message: 'データ放送を受け取っています' },
-    { state: 'ended' as const, message: 'データ放送を受け取れなくなりました' },
-  ])('$state の間は、ボタンを押せず、理由を出す', ({ state, message }) => {
-    renderRemote(state);
+  // 受け取っている間の知らせは、映像の右下に出すので、リモコンには出さない。
+  test('受け取っている間は、ボタンを押せない', () => {
+    renderRemote('loading');
 
     expect(screen.getByRole<HTMLButtonElement>('button', { name: '決定' }).disabled).toBe(true);
-    expect(screen.queryByText(message)).not.toBeNull();
+  });
+
+  test('文書を読んでいても、d ボタンで入っている途中は、ボタンを押せない', () => {
+    renderRemote('shown', true);
+
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '決定' }).disabled).toBe(true);
+  });
+
+  test('受け取れなくなったら、ボタンを押せず、理由を出す', () => {
+    renderRemote('ended');
+
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '決定' }).disabled).toBe(true);
+    expect(screen.queryByText('データ放送を受け取れなくなりました')).not.toBeNull();
   });
 });

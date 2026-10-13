@@ -12,15 +12,15 @@ import (
 
 const searchProgramCandidates = `-- name: SearchProgramCandidates :many
 SELECT c.archived, c.service_id, c.event_id, c.start_at, c.end_at, c.end_undecided, c.is_free,
-  c.name, c.description, c.extended, c.genres, c.audios, c.channel_type
+  c.name, c.description, c.extended, c.genres, c.audios, c.related_items, c.channel_type
 FROM (
   SELECT false AS archived, p.service_id, p.event_id, p.start_at, p.end_at, p.end_undecided, p.is_free,
-    p.name, p.description, p.extended, p.genres, p.audios, s.channel_type
+    p.name, p.description, p.extended, p.genres, p.audios, p.related_items, s.channel_type
   FROM programs p
   JOIN services s ON s.id = p.service_id
   UNION ALL
   SELECT true AS archived, a.service_id, a.event_id, a.start_at, a.end_at, a.end_undecided, a.is_free,
-    a.name, a.description, a.extended, a.genres, a.audios, s.channel_type
+    a.name, a.description, a.extended, a.genres, a.audios, a.related_items, s.channel_type
   FROM program_archives a
   JOIN services s ON s.id = a.service_id
   WHERE $1::boolean AND a.start_at >= $2::timestamptz AND a.start_at < $3::timestamptz
@@ -69,6 +69,7 @@ type SearchProgramCandidatesRow struct {
 	Extended     []byte
 	Genres       []byte
 	Audios       []byte
+	RelatedItems []byte
 	ChannelType  string
 }
 
@@ -109,6 +110,7 @@ func (q *Queries) SearchProgramCandidates(ctx context.Context, arg SearchProgram
 			&i.Extended,
 			&i.Genres,
 			&i.Audios,
+			&i.RelatedItems,
 			&i.ChannelType,
 		); err != nil {
 			return nil, err

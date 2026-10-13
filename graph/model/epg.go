@@ -73,6 +73,8 @@ type Program struct {
 	Archived     bool            `json:"archived"`
 	// ServiceKey は、Mirakurun のサービス ID。スキーマには出さない。
 	ServiceKey int64 `json:"-"`
+	// SharedFromKey は、イベント共有の元のサービスの Mirakurun のサービス ID。元がなければ 0。スキーマには出さない。
+	SharedFromKey int64 `json:"-"`
 }
 
 func (Program) IsNode() {}

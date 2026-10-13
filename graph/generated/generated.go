@@ -257,6 +257,7 @@ type ComplexityRoot struct {
 		Name         func(childComplexity int) int
 		Reservation  func(childComplexity int) int
 		Service      func(childComplexity int) int
+		SharedFrom   func(childComplexity int) int
 		StartAt      func(childComplexity int) int
 	}
 
@@ -649,6 +650,7 @@ type MutationResolver interface {
 type ProgramResolver interface {
 	Service(ctx context.Context, obj *model.Program) (*model.Service, error)
 
+	SharedFrom(ctx context.Context, obj *model.Program) (*model.Service, error)
 	Reservation(ctx context.Context, obj *model.Program) (*model.Reservation, error)
 }
 type ProgramConditionsResolver interface {
@@ -1759,6 +1761,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Program.Service(childComplexity), true
+	case "Program.sharedFrom":
+		if e.ComplexityRoot.Program.SharedFrom == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.SharedFrom(childComplexity), true
 	case "Program.startAt":
 		if e.ComplexityRoot.Program.StartAt == nil {
 			break
@@ -3679,6 +3687,11 @@ type Program implements Node {
   genres: [Genre!]!
   "音声の構成。主音声を先に並べる。チューナーサーバーが返さなければ空になる。"
   audios: [ProgramAudio!]!
+  """
+  同じイベントを共有して放送している (イベント共有) サービスのうち、元とみなすサービス。この番組が元でなければ、元のサービスを返す。
+  共有していないか、この番組が元なら null。元は、同じネットワークで共有しているサービスのうち、サービス ID が最も小さいもの (地上波のメインチャンネル) にする。
+  """
+  sharedFrom: Service
 }
 
 """
@@ -3697,12 +3710,16 @@ extend type Query {
   "チャンネル種別を、並び順に並べたもの。"
   channelTypes: [ChannelType!]!
 
-  "サービスを、番組表の並び順に並べたもの。"
+  """
+  サービスを、番組表の並び順に並べたもの。映像か音声を流すサービスだけを返し、ワンセグやデータ放送のサービスは返さない。
+  includeHidden が true なら、非表示のサービスと、ワンセグやデータ放送のサービスも返す。
+  """
   services("非表示のサービスも含めるかどうか" includeHidden: Boolean! = false): [Service!]!
 
   """
   番組表。from から to までの時間帯に重なる番組を、サービスごとに返す。時間帯は 7 日まで。
-  services を省くと、非表示でないすべてのサービスを返す。指定すると、非表示のサービスも返す。
+  services を省くと、非表示でない、映像か音声を流すサービスを返す (ワンセグやデータ放送のサービスは返さない)。
+  指定すると、非表示のサービスや、ワンセグやデータ放送のサービスも返す。
   view を指定すると、その番組表ビューの条件で、番組を絞り込み、サービスを並べ替える。
   """
   guide(from: Time!, to: Time!, services: [ID!], view: ID): [GuideRow!]!
@@ -5216,6 +5233,8 @@ func (ec *executionContext) childFields_Program(ctx context.Context, field graph
 		return ec.fieldContext_Program_genres(ctx, field)
 	case "audios":
 		return ec.fieldContext_Program_audios(ctx, field)
+	case "sharedFrom":
+		return ec.fieldContext_Program_sharedFrom(ctx, field)
 	case "reservation":
 		return ec.fieldContext_Program_reservation(ctx, field)
 	case "archived":
@@ -11047,6 +11066,38 @@ func (ec *executionContext) fieldContext_Program_audios(_ context.Context, field
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_ProgramAudio(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Program_sharedFrom(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_sharedFrom(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Program().SharedFrom(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Service) graphql.Marshaler {
+			return ec.marshalOService2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐService(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Program_sharedFrom(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Program",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Service(ctx, field)
 		},
 	}
 	return fc, nil
@@ -21133,6 +21184,44 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "sharedFrom":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Program_sharedFrom(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "reservation":
 			field := field
 
@@ -26624,6 +26713,13 @@ func (ec *executionContext) marshalORole2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu�
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) marshalOService2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐService(ctx context.Context, sel ast.SelectionSet, v *model.Service) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Service(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {

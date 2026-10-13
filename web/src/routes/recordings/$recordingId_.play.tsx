@@ -1,32 +1,17 @@
-import {
-  ActionIcon,
-  Alert,
-  Anchor,
-  Button,
-  Group,
-  Slider,
-  Stack,
-  Text,
-  Title,
-} from '@mantine/core';
+import { Alert, Anchor, Button, Group, Slider, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { Captions, MessageSquareText } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, ProgramTitle } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { formatDuration, playbackPosition } from '../../yunomi/position';
-import {
-  CaptionsToggle,
-  RateSelect,
-  JikkyoToggle,
-  PlaybackUnavailable,
-  QualitySelect,
-} from '../../yunomi/QualitySelect';
+import { RateSelect, PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
 import { hlsURL } from '../../yunomi/route';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
 import { TsPlayer } from '../../yunomi/TsPlayer';
@@ -35,7 +20,19 @@ import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useWatchPositionSaver } from '../../yunomi/useWatchPositionSaver';
 import { useMediaSession } from '../../yunomi/useMediaSession';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
-import { PlayerTools } from '../../yunomi/PlayerTools';
+import { CaptureButton, PipButton } from '../../yunomi/PlayerTools';
+import {
+  ControlButton,
+  FullscreenButton,
+  PlayButton,
+  PlayerControls,
+  playerControlsClasses,
+  SettingsButton,
+  VolumeControl,
+} from '../../yunomi/PlayerControls';
+import { useControlsVisibility } from '../../yunomi/useControlsVisibility';
+import { useFullscreen } from '../../yunomi/useFullscreen';
+import { useVideoState } from '../../yunomi/useVideoState';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { resumePosition } from '../../yunomi/resume';
 import { useVisible } from '../../yunomi/useVisible';
@@ -136,6 +133,11 @@ function Player({ recordingId }: { recordingId: string }) {
   const visible = inPage || pip.container !== null;
   // playerBoxRef は、プレイヤーを包む要素。別のウィンドウに出すと移るので、キャプチャと全画面は、これを使う。
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
+  // video は、今の video の要素。画質を変えたときや、別のウィンドウに移したときに作り直される。
+  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
+  const videoState = useVideoState(video);
+  const fullscreen = useFullscreen(playerBoxRef);
+  const controls = useControlsVisibility({ playing: !videoState.paused });
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
   const {
     captionsEnabled: captions,
@@ -240,12 +242,11 @@ function Player({ recordingId }: { recordingId: string }) {
   // 再生速度は、video の要素を作り直したときにも当て直す。
   const [rate, setRate] = useState(1);
   useEffect(() => {
-    const video = videoRef.current;
     if (video !== null) {
       video.defaultPlaybackRate = rate;
       video.playbackRate = rate;
     }
-  }, [rate, hls, quality, loads, pip.container]);
+  }, [rate, video, loads]);
 
   const togglePlay = () => {
     const video = videoRef.current;
@@ -265,19 +266,8 @@ function Player({ recordingId }: { recordingId: string }) {
     seekBackward: () => skip(-10),
     seekForward: () => skip(10),
     toggleCaptions: () => setCaptions(!captions),
-    toggleMute: () => {
-      const video = videoRef.current;
-      if (video !== null) {
-        video.muted = !video.muted;
-      }
-    },
-    toggleFullscreen: () => {
-      if (document.fullscreenElement === null) {
-        void playerBoxRef.current?.requestFullscreen().catch(() => {});
-      } else {
-        void document.exitFullscreen().catch(() => {});
-      }
-    },
+    toggleMute: videoState.toggleMute,
+    toggleFullscreen: fullscreen.toggle,
   });
   useMediaSession(
     {
@@ -305,7 +295,6 @@ function Player({ recordingId }: { recordingId: string }) {
 
   // 再生位置を、録画の始まりからの秒で追う。
   useEffect(() => {
-    const video = videoRef.current;
     if (video === null) {
       return;
     }
@@ -355,7 +344,7 @@ function Player({ recordingId }: { recordingId: string }) {
       video.removeEventListener('playing', onPlaying);
     };
     // 画質を変えたときと、別のウィンドウに出したり戻したりしたときは、video の要素を作り直すので、付け直す。
-  }, [offset, hls, quality, pip.container]);
+  }, [offset, hls, video]);
 
   if (recording === null) {
     return <Alert color="amber">{t('recordings.notFound')}</Alert>;
@@ -365,12 +354,75 @@ function Player({ recordingId }: { recordingId: string }) {
   const onError = () => setError(t('player.error'));
   const shown = seeking ?? position;
 
+  const controlBar = (
+    <PlayerControls
+      visible={controls.visible}
+      seek={
+        <Slider
+          aria-label={t('player.seek')}
+          size={4}
+          color="mikan"
+          min={0}
+          max={Math.max(duration, 1)}
+          step={1}
+          value={Math.min(shown, duration)}
+          label={(value) => formatDuration(value)}
+          onChange={setSeeking}
+          onChangeEnd={(value) => {
+            setSeeking(null);
+            seek(value);
+          }}
+        />
+      }
+      start={
+        <>
+          <PlayButton video={videoState} />
+          <VolumeControl video={videoState} />
+        </>
+      }
+      status={`${formatDuration(shown)} / ${formatDuration(duration)}`}
+      end={
+        <>
+          <ControlButton
+            label={t('player.captions')}
+            icon={Captions}
+            active={captions}
+            onClick={() => setCaptions(!captions)}
+          />
+          {channel !== null && (
+            <ControlButton
+              label={t('jikkyo.toggle')}
+              icon={MessageSquareText}
+              active={jikkyoEnabled}
+              onClick={() => setJikkyoEnabled(!jikkyoEnabled)}
+            />
+          )}
+          <SettingsButton>
+            <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
+            {audio.menu}
+            <RateSelect value={rate} onChange={setRate} />
+          </SettingsButton>
+          <CaptureButton frameRef={playerBoxRef} videoRef={videoRef} name={recording.name} />
+          <PipButton pip={pip} />
+          <FullscreenButton active={fullscreen.active} onToggle={fullscreen.toggle} />
+        </>
+      }
+    />
+  );
+
   const playerBox = (
-    <div ref={playerBoxRef}>
+    <div
+      ref={playerBoxRef}
+      className={playerControlsClasses.box}
+      data-controls-visible={controls.visible}
+      {...controls.containerProps}
+    >
       {route.kind === 'convert' && (
         <TsPlayer
           url={url}
           videoRef={videoRef}
+          onVideo={setVideo}
+          controls={controlBar}
           active={visible}
           captions={captions}
           onLoaded={() => {
@@ -388,6 +440,8 @@ function Player({ recordingId }: { recordingId: string }) {
         <HlsPlayer
           url={hlsURL(recording.streamUrl, route.preset, audio.kyusuAudio)}
           videoRef={videoRef}
+          onVideo={setVideo}
+          controls={controlBar}
           active={visible}
           captions={captions}
           live={false}
@@ -403,7 +457,7 @@ function Player({ recordingId }: { recordingId: string }) {
   return (
     <Stack gap="xs">
       <Title order={2} size="h4">
-        {recording.name}
+        <ProgramTitle name={recording.name} />
       </Title>
       <Text size="sm" c="dimmed">
         <ServiceLabel name={recording.service.name} logoUrl={recording.service.logoUrl} />
@@ -419,52 +473,6 @@ function Player({ recordingId }: { recordingId: string }) {
         )}
       </div>
       {pip.container !== null && createPortal(playerBox, pip.container)}
-      <Group gap="sm" wrap="nowrap">
-        <ActionIcon
-          variant="default"
-          size="lg"
-          aria-label={paused ? t('player.play') : t('player.pause')}
-          onClick={() => {
-            const video = videoRef.current;
-            if (video === null) {
-              return;
-            }
-            if (video.paused) {
-              void video.play().catch(() => {});
-            } else {
-              video.pause();
-            }
-          }}
-        >
-          {paused ? '▶' : '❚❚'}
-        </ActionIcon>
-        <Slider
-          aria-label={t('player.seek')}
-          style={{ flex: 1 }}
-          min={0}
-          max={Math.max(duration, 1)}
-          step={1}
-          value={Math.min(shown, duration)}
-          label={(value) => formatDuration(value)}
-          onChange={setSeeking}
-          onChangeEnd={(value) => {
-            setSeeking(null);
-            seek(value);
-          }}
-        />
-        <Text size="sm" ff="monospace" style={{ flexShrink: 0 }}>
-          {formatDuration(shown)} / {formatDuration(duration)}
-        </Text>
-      </Group>
-      {/* 再生の操作の下に、画質や字幕などの設定をまとめる。狭い画面でも、まず映像が見えるようにする。 */}
-      <Group gap="md">
-        <PlayerTools frameRef={playerBoxRef} videoRef={videoRef} name={recording.name} pip={pip} />
-        {audio.menu}
-        <RateSelect value={rate} onChange={setRate} />
-        {channel !== null && <JikkyoToggle checked={jikkyoEnabled} onChange={setJikkyoEnabled} />}
-        <CaptionsToggle checked={captions} onChange={setCaptions} />
-        <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
-      </Group>
       {resumed && (
         <Group gap="xs">
           <Text size="sm" c="dimmed">

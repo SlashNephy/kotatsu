@@ -7,6 +7,14 @@
   max-width: min(100%, calc((100dvh - 280px) * 16 / 9));
   min-width: min(100%, 320px);
   background: black;
+  /* 操作バーは、画面の幅ではなく、プレイヤーの幅で詰め方を変える。 */
+  container: player / inline-size;
+}
+
+/* 全画面では、画面いっぱいに、16:9 を保って映す。 */
+:fullscreen > .frame {
+  width: min(100vw, calc(100vh * 16 / 9));
+  max-width: none;
 }
 
 /* 映像と字幕を置く要素。React に持たせずに、video と字幕の canvas を入れる。 */
@@ -52,11 +60,6 @@
   width: min(100vw, calc(100vh * 16 / 9));
   max-width: none;
   min-width: 0;
-}
-
-.toolMessage {
-  font-size: var(--mantine-font-size-xs);
-  color: var(--mantine-color-dimmed);
 }
 
 /* データ放送の層。文書は決まった大きさで描かれるので、層の幅に合わせて拡大する。リモコンの操作を受けるので、操作を通す。 */

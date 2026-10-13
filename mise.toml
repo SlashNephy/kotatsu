@@ -37,7 +37,11 @@ run = "goreleaser release --snapshot --clean"
 # 埋め込んだバイナリを作るときは、mise run web:build の後に mise run build を実行する。
 [tasks."web:install"]
 dir = "web"
-run = "pnpm install --frozen-lockfile"
+run = [
+  "pnpm install --frozen-lockfile",
+  # 字幕を描くフォントは npm にないので、web/vendor/caption-font/SOURCE で固定したリリースから取得する。
+  "node scripts/fetch-caption-font.mjs",
+]
 
 # ブラウザ内での変換に使う mpeg2toh264 のプレイヤーを、web/vendor/mpeg2toh264/SOURCE の commit からビルドし直す (設計書 7.2)。
 # Rust と wasm-bindgen は mise.mpeg2toh264.toml で固定しているので、MISE_ENV=mpeg2toh264 を付けて実行する。

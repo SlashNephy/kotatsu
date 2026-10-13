@@ -7,14 +7,10 @@ import { RecordingThumbnail } from '../recordings/RecordingThumbnail';
 import { stateColor, stateKey } from '../recordings/states';
 import type { DashboardQuery } from './__generated__/DashboardQuery.graphql';
 import { nowPlaying } from './nowPlaying';
+import { ProgramTitle } from '../futon';
+import { NowPlayingCard } from '../guide/NowPlayingCard';
 import { ServiceLabel } from '../guide/ServiceLabel';
 
-const timeFormat = new Intl.DateTimeFormat('ja-JP', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
-});
 const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
   month: 'numeric',
   day: 'numeric',
@@ -52,6 +48,9 @@ export function Dashboard({ range }: { range: DashboardRange }) {
             name
             startAt
             endAt
+            sharedFrom {
+              id
+            }
           }
         }
         recordings(first: 6) {
@@ -153,23 +152,13 @@ export function Dashboard({ range }: { range: DashboardRange }) {
         ) : (
           <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="xs">
             {playing.map((item) => (
-              <Card
+              <NowPlayingCard
                 key={item.serviceId}
-                withBorder
-                padding="xs"
-                renderRoot={(props) => (
-                  <Link {...props} to="/live/$serviceId" params={{ serviceId: item.serviceId }} />
-                )}
-              >
-                <Text size="xs" c="dimmed">
-                  <ServiceLabel name={item.serviceName} logoUrl={item.serviceLogoUrl} />・
-                  {timeFormat.format(Date.parse(item.startAt))}〜
-                  {timeFormat.format(Date.parse(item.endAt))}
-                </Text>
-                <Text size="sm" lineClamp={2}>
-                  {item.programName}
-                </Text>
-              </Card>
+                serviceId={item.serviceId}
+                serviceName={item.serviceName}
+                serviceLogoUrl={item.serviceLogoUrl}
+                program={{ name: item.programName, startAt: item.startAt, endAt: item.endAt }}
+              />
             ))}
           </SimpleGrid>
         )}
@@ -206,7 +195,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
                 <RecordingThumbnail url={node.thumbnailUrl} />
                 <Stack gap={2} p="xs">
                   <Text size="sm" lineClamp={2}>
-                    {node.name}
+                    <ProgramTitle name={node.name} />
                   </Text>
                   <Group gap={4}>
                     <Badge size="xs" variant="light" color={stateColor(node.state)}>
@@ -244,7 +233,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
                   {dateTimeFormat.format(Date.parse(node.startAt))}
                 </Text>
                 <Text size="sm" truncate style={{ flex: 1, minWidth: 0 }}>
-                  {node.name}
+                  <ProgramTitle name={node.name} />
                 </Text>
                 <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
                   <ServiceLabel name={node.service.name} logoUrl={node.service.logoUrl} />

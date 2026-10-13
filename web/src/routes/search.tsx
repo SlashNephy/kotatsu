@@ -20,7 +20,7 @@ import { Suspense, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
-import { ErrorBoundary } from '../futon';
+import { ErrorBoundary, ProgramTitle } from '../futon';
 import { genreKey } from '../guide/genres';
 import { ProgramDetail } from '../guide/ProgramDetail';
 import { isUnauthenticated } from '../relay/environment';
@@ -336,7 +336,7 @@ function Search() {
                   <ServiceLabel name={program.service.name} logoUrl={program.service.logoUrl} />
                 </Text>
                 <Text size="sm" fw={700} truncate style={{ flex: 1 }}>
-                  {program.name}
+                  <ProgramTitle name={program.name} />
                 </Text>
                 {program.archived && <Badge color="gray">{t('search.archived')}</Badge>}
               </Group>

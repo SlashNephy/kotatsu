@@ -1,33 +1,42 @@
-import { Alert, Anchor, Group, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { Captions, MessageSquareText, Tv } from 'lucide-react';
 import { startTransition, Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, ProgramTitle } from '../../futon';
 import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { DataBroadcastRemote } from '../../yunomi/DataBroadcastRemote';
 import {
-  CaptionsToggle,
-  DataBroadcastToggle,
-  JikkyoToggle,
-  PlaybackUnavailable,
-  QualitySelect,
-} from '../../yunomi/QualitySelect';
+  ControlButton,
+  FullscreenButton,
+  LiveStatus,
+  PlayerControls,
+  playerControlsClasses,
+  PlayerNotice,
+  SettingsButton,
+  VolumeControl,
+} from '../../yunomi/PlayerControls';
+import { PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
 import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
 import { dataBroadcastSource, hlsURL } from '../../yunomi/route';
 import { useDataBroadcast } from '../../yunomi/useDataBroadcast';
+import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useMediaSession } from '../../yunomi/useMediaSession';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
-import { PlayerTools } from '../../yunomi/PlayerTools';
+import { CaptureButton, PipButton } from '../../yunomi/PlayerTools';
+import { useControlsVisibility } from '../../yunomi/useControlsVisibility';
+import { useFullscreen } from '../../yunomi/useFullscreen';
+import { useVideoState } from '../../yunomi/useVideoState';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
@@ -166,6 +175,11 @@ function Live({
   const visible = inPage || pip.container !== null;
   // playerBoxRef は、プレイヤーを包む要素。別のウィンドウに出すと移るので、キャプチャと全画面は、これを使う。
   const playerBoxRef = useRef<HTMLDivElement | null>(null);
+  // video は、今の video の要素。画質を変えたときや、別のウィンドウに移したときに作り直される。
+  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
+  const videoState = useVideoState(video);
+  const fullscreen = useFullscreen(playerBoxRef);
+  const controls = useControlsVisibility({ playing: !videoState.paused });
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
   const {
     captionsEnabled: captions,
@@ -175,8 +189,14 @@ function Live({
   } = usePlayerSettings();
   const channel = data.node?.__typename === 'Service' ? (data.node.jikkyo ?? null) : null;
   const jikkyo = useLiveJikkyo(jikkyoEnabled ? (channel?.id ?? null) : null, videoRef, visible);
-  // dataBroadcastEnabled は、データ放送を出すかどうか。TS をもう 1 本読むので、既定では出さない (設計書 7.4)。
+  // dataBroadcastEnabled は、データ放送を出すかどうか。映像を覆うので、既定では出さない (設計書 7.4)。
   const [dataBroadcastEnabled, setDataBroadcastEnabled] = useState(false);
+  const [dataBroadcastPreload] = useDataBroadcastPreload();
+  // dataBroadcastUsed は、このページでデータ放送を出したことがあるか。一度出したら、消しても受け取りを続け、次はすぐに出す。
+  const [dataBroadcastUsed, setDataBroadcastUsed] = useState(false);
+  if (dataBroadcastEnabled && !dataBroadcastUsed) {
+    setDataBroadcastUsed(true);
+  }
   // session は、つなぎ直すたびに増やし、URL を変えて読み直させる。
   const [session, setSession] = useState(0);
   const attempt = useRef(0);
@@ -267,19 +287,8 @@ function Live({
       }
     },
     toggleCaptions: () => setCaptions(!captions),
-    toggleMute: () => {
-      const video = videoRef.current;
-      if (video !== null) {
-        video.muted = !video.muted;
-      }
-    },
-    toggleFullscreen: () => {
-      if (document.fullscreenElement === null) {
-        void playerBoxRef.current?.requestFullscreen().catch(() => {});
-      } else {
-        void document.exitFullscreen().catch(() => {});
-      }
-    },
+    toggleMute: videoState.toggleMute,
+    toggleFullscreen: fullscreen.toggle,
   });
   useMediaSession(
     { title: programName ?? serviceName, artist: serviceName, artwork: serviceLogoUrl },
@@ -290,12 +299,18 @@ function Live({
   );
 
   const service = data.node?.__typename === 'Service' ? data.node : null;
+  // データ放送は、プリロードする設定か、一度出したあとは、出していない間も裏で受け取り、出したらすぐに d ボタンで入れるようにする
+  // (設計書 7.4)。
   // 視聴が切れている間と、映像が見えていない間は、データ放送の TS も読まない。
   const dataBroadcast = useDataBroadcast(
-    dataBroadcastEnabled && service !== null && visible && disconnection === null
+    service !== null &&
+      (dataBroadcastPreload || dataBroadcastUsed) &&
+      visible &&
+      disconnection === null
       ? dataBroadcastSource(service.streamUrl)
       : null,
     videoRef,
+    dataBroadcastEnabled,
   );
   if (service === null) {
     return <Alert color="amber">{t('live.notFound')}</Alert>;
@@ -308,12 +323,61 @@ function Live({
     preempted.current = false;
   };
 
+  const controlBar = (
+    <PlayerControls
+      visible={controls.visible}
+      start={<VolumeControl video={videoState} />}
+      status={<LiveStatus />}
+      end={
+        <>
+          <ControlButton
+            label={t('player.captions')}
+            icon={Captions}
+            active={captions}
+            onClick={() => setCaptions(!captions)}
+          />
+          {channel !== null && (
+            <ControlButton
+              label={t('jikkyo.toggle')}
+              icon={MessageSquareText}
+              active={jikkyoEnabled}
+              onClick={() => setJikkyoEnabled(!jikkyoEnabled)}
+            />
+          )}
+          <ControlButton
+            label={t('player.dataBroadcast')}
+            icon={Tv}
+            active={dataBroadcastEnabled}
+            optional
+            onClick={() => setDataBroadcastEnabled(!dataBroadcastEnabled)}
+          />
+          {(choices.length >= 2 || audio.available) && (
+            <SettingsButton>
+              <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
+              {audio.menu}
+            </SettingsButton>
+          )}
+          <CaptureButton frameRef={playerBoxRef} videoRef={videoRef} name={service.name} />
+          <PipButton pip={pip} />
+          <FullscreenButton active={fullscreen.active} onToggle={fullscreen.toggle} />
+        </>
+      }
+    />
+  );
+
   const playerBox = (
-    <div ref={playerBoxRef}>
+    <div
+      ref={playerBoxRef}
+      className={playerControlsClasses.box}
+      data-controls-visible={controls.visible}
+      {...controls.containerProps}
+    >
       {route.kind === 'convert' && (
         <TsPlayer
           url={disconnection === null ? withSession(service.streamUrl) : null}
           videoRef={videoRef}
+          onVideo={setVideo}
+          controls={controlBar}
           active={visible}
           captions={captions}
           onLoaded={onLoaded}
@@ -321,6 +385,9 @@ function Live({
             <>
               {dataBroadcast.layer}
               {jikkyo.overlay}
+              {dataBroadcast.receiving && (
+                <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
+              )}
             </>
           }
           onState={(state) => {
@@ -342,6 +409,8 @@ function Live({
               : null
           }
           videoRef={videoRef}
+          onVideo={setVideo}
+          controls={controlBar}
           active={visible}
           captions={captions}
           live
@@ -350,6 +419,9 @@ function Live({
             <>
               {dataBroadcast.layer}
               {jikkyo.overlay}
+              {dataBroadcast.receiving && (
+                <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
+              )}
             </>
           }
           // チューナーを使われて切れると、hls.js が読み直しを諦めたところで、致命的なエラーになる。
@@ -365,7 +437,7 @@ function Live({
         <ServiceLabel name={service.name} logoUrl={service.logoUrl} />
       </Title>
       <Text size="sm" c="dimmed">
-        {data.guide[0]?.programs[0]?.name ?? t('live.noProgram')}
+        {programName === null ? t('live.noProgram') : <ProgramTitle name={programName} />}
       </Text>
       <PlaybackUnavailable route={route} />
       {/* 画面の外に出たときと、タブが隠れたときは、読み込みも止めて、チューナーを手放す (設計書 7.2)。 */}
@@ -404,17 +476,12 @@ function Live({
           </Stack>
         </Alert>
       )}
-      {/* 操作は映像の下にまとめる。狭い画面でも、まず映像が見えるようにする。 */}
-      <Group gap="md">
-        <PlayerTools frameRef={playerBoxRef} videoRef={videoRef} name={service.name} pip={pip} />
-        {audio.menu}
-        {channel !== null && <JikkyoToggle checked={jikkyoEnabled} onChange={setJikkyoEnabled} />}
-        <DataBroadcastToggle checked={dataBroadcastEnabled} onChange={setDataBroadcastEnabled} />
-        <CaptionsToggle checked={captions} onChange={setCaptions} />
-        <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
-      </Group>
       {dataBroadcastEnabled && (
-        <DataBroadcastRemote state={dataBroadcast.state} onPress={dataBroadcast.press} />
+        <DataBroadcastRemote
+          state={dataBroadcast.state}
+          receiving={dataBroadcast.receiving}
+          onPress={dataBroadcast.press}
+        />
       )}
       {channel !== null && jikkyoEnabled && (
         <JikkyoPanel channelName={channel.name} status={jikkyo.status} onPost={jikkyo.post} />

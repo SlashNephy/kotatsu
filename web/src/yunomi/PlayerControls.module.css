@@ -1,0 +1,158 @@
+/* プレイヤーを包む要素。全画面にすると、この要素ごと出す。 */
+.box:fullscreen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: black;
+}
+
+/* 操作バーを隠している間は、マウスのカーソルも隠す。 */
+.box[data-controls-visible='false'] {
+  cursor: none;
+}
+
+/* 映像の下端に重ねる操作バー。映像の上なので、テーマによらず白い文字と黒いグラデーションにする。 */
+.bar {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  /* 実況のコメントやデータ放送より上に置く。 */
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 24px 8px 6px;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.75), transparent);
+  color: #fff;
+  transition: opacity 200ms ease;
+}
+
+/* 隠すのは、見た目と操作だけにする。display: none にすると、タブキーで操作バーへ戻れなくなる。 */
+.bar[data-visible='false'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bar:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    transition: none;
+  }
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.status {
+  flex: 1;
+  min-width: 0;
+  padding-inline: 8px;
+  overflow: hidden;
+  font-size: var(--mantine-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ライブの印。赤い点と「ライブ」の文字。 */
+.live {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 700;
+}
+
+.live::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--mantine-color-red-6);
+}
+
+.button {
+  color: #fff;
+}
+
+/* 入れている切り替え (字幕や実況) は、下線で示す。 */
+.button[data-active='true'] {
+  position: relative;
+}
+
+.button[data-active='true']::after {
+  content: '';
+  position: absolute;
+  inset-block-end: 3px;
+  inset-inline: 30%;
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--mantine-primary-color-filled);
+}
+
+.volume {
+  display: flex;
+  align-items: center;
+}
+
+/* 音量のスライダーは、ホバーかフォーカスで横に広げる。DOM からは外さず、タブキーでもたどり着けるようにする。 */
+.volumeSlider {
+  width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    width 150ms ease,
+    opacity 150ms ease;
+}
+
+.volume:hover .volumeSlider,
+.volume:focus-within .volumeSlider {
+  width: 80px;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .volumeSlider {
+    transition: none;
+  }
+}
+
+.volumeSlider > * {
+  width: 72px;
+  margin-inline: 4px;
+}
+
+/* 狭い画面では、たどり着かなくても困らないものから外す。 */
+@container player (max-width: 420px) {
+  .optional {
+    display: none;
+  }
+}
+
+/* 映像の右下に出す知らせ (データ受信中など)。操作バーのボタンに重ならないよう、バーの上に置く。 */
+.notice {
+  position: absolute;
+  inset-inline-end: 12px;
+  inset-block-end: 64px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--mantine-radius-xl);
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  font-size: var(--mantine-font-size-xs);
+  pointer-events: none;
+}

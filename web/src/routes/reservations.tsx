@@ -24,7 +24,7 @@ import {
   useRelayEnvironment,
 } from 'react-relay';
 
-import { ErrorBoundary } from '../futon';
+import { ErrorBoundary, ProgramTitle } from '../futon';
 import { isUnauthenticated } from '../relay/environment';
 import { groupByDay, needsAttention, timelineBar } from '../reservations/timeline';
 import type { reservationsDeleteMutation } from './__generated__/reservationsDeleteMutation.graphql';
@@ -353,7 +353,11 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
             </Text>
           </Group>
           <Text size="sm" fw={700} truncate>
-            {reservation.name === '' ? t('reservations.untitled') : reservation.name}
+            {reservation.name === '' ? (
+              t('reservations.untitled')
+            ) : (
+              <ProgramTitle name={reservation.name} />
+            )}
           </Text>
           <Group gap={4}>
             <Badge size="sm" variant="outline" color="gray">
@@ -454,7 +458,11 @@ function DeleteDialog({ reservation, onClose, onDeleted }: DeleteProps) {
     <Modal opened onClose={onClose} title={t('reservations.deleteTitle')}>
       <Stack>
         <Text size="sm">
-          {reservation.name === '' ? t('reservations.untitled') : reservation.name}
+          {reservation.name === '' ? (
+            t('reservations.untitled')
+          ) : (
+            <ProgramTitle name={reservation.name} />
+          )}
         </Text>
         <Text size="sm" c="dimmed">
           {t('reservations.deleteDescription')}

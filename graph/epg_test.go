@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/graph"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/epg"
@@ -388,6 +390,137 @@ func TestProgramAudios(t *testing.T) {
 			require.NotEmpty(t, got.Guide)
 			require.NotEmpty(t, got.Guide[0].Programs)
 			assert.Equal(t, tt.want, got.Guide[0].Programs[0].Audios)
+		})
+	}
+}
+
+func TestProgramSharedFrom(t *testing.T) {
+	t.Parallel()
+
+	// こたつテスト1 (0x0400) とそのサブチャンネル (0x0401) の、Mirakurun のサービス ID。
+	const (
+		mainKey = 0x7FE0*100000 + 0x0400
+		subKey  = 0x7FE0*100000 + 0x0401
+	)
+	tests := []struct {
+		name string
+		// mainItems と subItems は、メインとサブの番組に入れる関連する番組。
+		mainItems string
+		subItems  string
+		// want は、メインとサブの番組の sharedFrom のサービス名。null なら空。
+		want []string
+	}{
+		{name: "not shared", mainItems: `[]`, subItems: `[]`, want: []string{"", ""}},
+		{
+			// メインは共有する全てのサービスを挙げ、サブはメインだけを挙げる。
+			name:      "sub channel shares the event of the main channel",
+			mainItems: `[{"type":"shared","serviceId":1024,"eventId":3},{"type":"shared","serviceId":1025,"eventId":3}]`,
+			subItems:  `[{"type":"shared","serviceId":1024,"eventId":3}]`,
+			want:      []string{"", "こたつテスト1"},
+		},
+		{
+			name:      "shared with another network",
+			mainItems: `[]`,
+			subItems:  `[{"type":"shared","networkId":4,"serviceId":101,"eventId":3}]`,
+			want:      []string{"", ""},
+		},
+		{
+			name:      "relay is not sharing",
+			mainItems: `[]`,
+			subItems:  `[{"type":"relay","serviceId":1024,"eventId":3}]`,
+			want:      []string{"", ""},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			f.syncEPG(t)
+			for key, items := range map[int64]string{mainKey: tt.mainItems, subKey: tt.subItems} {
+				_, err := f.pool.Exec(t.Context(), `UPDATE programs SET related_items = $1 WHERE service_id = $2`, items, key)
+				require.NoError(t, err)
+			}
+			var got struct {
+				Guide []struct {
+					Programs []struct {
+						SharedFrom *struct {
+							Name string `json:"name"`
+						} `json:"sharedFrom"`
+					} `json:"programs"`
+				} `json:"guide"`
+			}
+			require.Empty(t, f.query(t, `query($services: [ID!]) {
+				guide(from: "2026-10-10T12:00:00Z", to: "2026-10-10T12:30:00Z", services: $services) { programs { sharedFrom { name } } }
+			}`, map[string]any{"services": []string{
+				graph.GlobalID("Service", strconv.FormatInt(mainKey, 10)), graph.GlobalID("Service", strconv.FormatInt(subKey, 10)),
+			}}, &got))
+			names := make([]string, 0, len(got.Guide))
+			for _, row := range got.Guide {
+				require.NotEmpty(t, row.Programs)
+				name := ""
+				if from := row.Programs[0].SharedFrom; from != nil {
+					name = from.Name
+				}
+				names = append(names, name)
+			}
+			assert.Equal(t, tt.want, names)
+		})
+	}
+}
+
+func TestServicesExcludeNonMediaServices(t *testing.T) {
+	t.Parallel()
+
+	// こたつテスト1 サブ (0x0401) を、ワンセグのようなデータ放送のサービス (0xC0) にする。
+	const subKey = 0x7FE0*100000 + 0x0401
+	subID := graph.GlobalID("Service", strconv.FormatInt(subKey, 10))
+	tests := []struct {
+		name      string
+		query     string
+		variables any
+		want      bool
+	}{
+		{name: "services", query: `{ services { id } }`, want: false},
+		{name: "services including hidden ones", query: `{ services(includeHidden: true) { id } }`, want: true},
+		{
+			name:      "guide",
+			query:     `query { services: guide(from: "2026-10-10T12:00:00Z", to: "2026-10-10T12:30:00Z") { service { id } } }`,
+			variables: nil,
+			want:      false,
+		},
+		{
+			name:      "guide of the specified service",
+			query:     `query($ids: [ID!]) { services: guide(from: "2026-10-10T12:00:00Z", to: "2026-10-10T12:30:00Z", services: $ids) { service { id } } }`,
+			variables: map[string]any{"ids": []string{subID}},
+			want:      true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			f.syncEPG(t)
+			_, err := f.pool.Exec(t.Context(), `UPDATE services SET service_type = 192 WHERE id = $1`, subKey)
+			require.NoError(t, err)
+			var got struct {
+				Services []struct {
+					ID      string `json:"id"`
+					Service struct {
+						ID string `json:"id"`
+					} `json:"service"`
+				} `json:"services"`
+			}
+			require.Empty(t, f.query(t, tt.query, tt.variables, &got))
+			require.NotEmpty(t, got.Services)
+			found := false
+			for _, s := range got.Services {
+				if s.ID == subID || s.Service.ID == subID {
+					found = true
+				}
+			}
+			assert.Equal(t, tt.want, found)
 		})
 	}
 }

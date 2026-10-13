@@ -24,6 +24,10 @@ type Props = {
   onLoaded?: () => void;
   // overlay は、映像の上に重ねるもの (実況のコメント)。
   overlay?: ReactNode;
+  // controls は、映像の上に重ねる操作バー。重ねたもの (overlay) より上に置き、操作を受ける。
+  controls?: ReactNode;
+  // onVideo は、video の要素を作ったときと、取り除いたとき (null) に呼ぶ。
+  onVideo?: (video: HTMLVideoElement | null) => void;
   // onAudio は、番組の音声と、今どれを聞いているかが分かったとき、変わったときに呼ぶ。
   onAudio?: (tracks: AudioTracks) => void;
   // audio は、聞く音声 (audioChoices の値)。null なら、プレイヤーに任せる。
@@ -41,6 +45,8 @@ export function TsPlayer({
   onError,
   onLoaded,
   overlay,
+  controls,
+  onVideo,
   onAudio,
   audio = null,
 }: Props) {
@@ -49,8 +55,8 @@ export function TsPlayer({
   const showCaptions = useRef(captions);
   showCaptions.current = captions;
   const [ready, setReady] = useState(false);
-  const handlers = useRef({ onState, onError, onLoaded, onAudio });
-  handlers.current = { onState, onError, onLoaded, onAudio };
+  const handlers = useRef({ onState, onError, onLoaded, onAudio, onVideo });
+  handlers.current = { onState, onError, onLoaded, onAudio, onVideo };
   const audioRef = useRef(audio);
   audioRef.current = audio;
 
@@ -69,6 +75,7 @@ export function TsPlayer({
     video.autoplay = true;
     frame.append(video);
     videoRef.current = video;
+    handlers.current.onVideo?.(video);
     // 字幕は、aribb24.js を読み終えるまで溜めておくので、プレイヤーより先に作る。
     const renderer = createCaptions(video, frame);
     renderer.setVisible(showCaptions.current);
@@ -130,6 +137,7 @@ export function TsPlayer({
       captionsRef.current?.destroy();
       captionsRef.current = null;
       videoRef.current = null;
+      handlers.current.onVideo?.(null);
       // yadif が包んだ要素ごと取り除く。
       frame.replaceChildren();
       setReady(false);
@@ -184,6 +192,7 @@ export function TsPlayer({
     <div className={classes.frame}>
       <div ref={frameRef} className={classes.media} />
       {overlay !== undefined && <div className={classes.overlay}>{overlay}</div>}
+      {controls}
     </div>
   );
 }
