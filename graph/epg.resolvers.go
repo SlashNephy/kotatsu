@@ -127,7 +127,16 @@ func (r *queryResolver) ChannelTypes(ctx context.Context) ([]*model.ChannelType,
 
 // Services is the resolver for the services field.
 func (r *queryResolver) Services(ctx context.Context, includeHidden bool) ([]*model.Service, error) {
-	rows, err := sqlc.New(r.db).ListGuideServices(ctx, sqlc.ListGuideServicesParams{IncludeHidden: includeHidden, Ids: []int64{}})
+	// 番組表やライブ視聴に出す一覧では、ワンセグやデータ放送のサービスを外す。非表示を選ぶ管理の画面では、すべて返す。
+	mediaTypes := mediaServiceTypes()
+	if includeHidden {
+		mediaTypes = []int64{}
+	}
+	rows, err := sqlc.New(r.db).ListGuideServices(ctx, sqlc.ListGuideServicesParams{
+		IncludeHidden:     includeHidden,
+		MediaServiceTypes: mediaTypes,
+		Ids:               []int64{},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list services: %w", err)
 	}
@@ -165,8 +174,16 @@ func (r *queryResolver) Guide(ctx context.Context, from time.Time, to time.Time,
 	}
 
 	q := sqlc.New(r.db)
-	// サービスを指定したときは、非表示のサービスも返す。
-	serviceRows, err := q.ListGuideServices(ctx, sqlc.ListGuideServicesParams{IncludeHidden: len(ids) > 0, Ids: ids})
+	// サービスを指定したときは、非表示のサービスも、ワンセグやデータ放送のサービスも返す。
+	mediaTypes := mediaServiceTypes()
+	if len(ids) > 0 {
+		mediaTypes = []int64{}
+	}
+	serviceRows, err := q.ListGuideServices(ctx, sqlc.ListGuideServicesParams{
+		IncludeHidden:     len(ids) > 0,
+		MediaServiceTypes: mediaTypes,
+		Ids:               ids,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list services: %w", err)
 	}

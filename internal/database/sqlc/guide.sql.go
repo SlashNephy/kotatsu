@@ -158,13 +158,15 @@ SELECT s.id, s.network_id, s.sid, s.name, s.channel_type, s.channel, s.remote_co
 FROM services s
 JOIN channel_types ct ON ct.type = s.channel_type
 WHERE ($1::boolean OR NOT s.hidden)
-  AND (cardinality($2::bigint[]) = 0 OR s.id = ANY($2::bigint[]))
+  AND (cardinality($2::bigint[]) = 0 OR s.service_type = ANY($2::bigint[]))
+  AND (cardinality($3::bigint[]) = 0 OR s.id = ANY($3::bigint[]))
 ORDER BY ct.sort_order, ct.type, s.sort_order NULLS LAST, s.remote_control_key_id NULLS LAST, s.id
 `
 
 type ListGuideServicesParams struct {
-	IncludeHidden bool
-	Ids           []int64
+	IncludeHidden     bool
+	MediaServiceTypes []int64
+	Ids               []int64
 }
 
 type ListGuideServicesRow struct {
@@ -181,8 +183,9 @@ type ListGuideServicesRow struct {
 }
 
 // 番組表の並び順のサービス。チャンネル種別の並び順、管理者の上書き、リモコンのキー、サービス ID の順に並べる。
+// media_service_types を渡すと、その種別 (映像か音声を流すサービス) だけを返す。空なら、種別で絞らない。
 func (q *Queries) ListGuideServices(ctx context.Context, arg ListGuideServicesParams) ([]ListGuideServicesRow, error) {
-	rows, err := q.db.Query(ctx, listGuideServices, arg.IncludeHidden, arg.Ids)
+	rows, err := q.db.Query(ctx, listGuideServices, arg.IncludeHidden, arg.MediaServiceTypes, arg.Ids)
 	if err != nil {
 		return nil, err
 	}

@@ -48,7 +48,7 @@ func newLoaders(db sqlc.DBTX, rules *rule.Rules, reservations *reserve.Reservati
 			return orderBy(ids, byID, "user")
 		}, dataloadgen.WithWait(loaderWait)),
 		Services: dataloadgen.NewLoader(func(ctx context.Context, ids []int64) ([]*sqlc.ListGuideServicesRow, []error) {
-			rows, err := sqlc.New(db).ListGuideServices(ctx, sqlc.ListGuideServicesParams{IncludeHidden: true, Ids: ids})
+			rows, err := sqlc.New(db).ListGuideServices(ctx, sqlc.ListGuideServicesParams{IncludeHidden: true, MediaServiceTypes: []int64{}, Ids: ids})
 			if err != nil {
 				return failAll[*sqlc.ListGuideServicesRow](len(ids), fmt.Errorf("failed to load services: %w", err))
 			}

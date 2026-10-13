@@ -13,7 +13,7 @@ import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, ProgramTitle } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import type { liveServicesQuery } from './__generated__/liveServicesQuery.graphql';
 import { ServiceLabel } from '../../guide/ServiceLabel';
@@ -119,7 +119,11 @@ function Services({ range }: { range: { from: string; to: string } }) {
                 <ServiceLabel name={row.service.name} logoUrl={row.service.logoUrl} />
               </Text>
               <Text size="xs" c="dimmed" lineClamp={2}>
-                {row.programs[0]?.name ?? t('live.noProgram')}
+                {row.programs[0] === undefined ? (
+                  t('live.noProgram')
+                ) : (
+                  <ProgramTitle name={row.programs[0].name} />
+                )}
               </Text>
             </Card>
           ))}

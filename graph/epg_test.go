@@ -468,3 +468,59 @@ func TestProgramSharedFrom(t *testing.T) {
 		})
 	}
 }
+
+func TestServicesExcludeNonMediaServices(t *testing.T) {
+	t.Parallel()
+
+	// こたつテスト1 サブ (0x0401) を、ワンセグのようなデータ放送のサービス (0xC0) にする。
+	const subKey = 0x7FE0*100000 + 0x0401
+	subID := graph.GlobalID("Service", strconv.FormatInt(subKey, 10))
+	tests := []struct {
+		name      string
+		query     string
+		variables any
+		want      bool
+	}{
+		{name: "services", query: `{ services { id } }`, want: false},
+		{name: "services including hidden ones", query: `{ services(includeHidden: true) { id } }`, want: true},
+		{
+			name:      "guide",
+			query:     `query { services: guide(from: "2026-10-10T12:00:00Z", to: "2026-10-10T12:30:00Z") { service { id } } }`,
+			variables: nil,
+			want:      false,
+		},
+		{
+			name:      "guide of the specified service",
+			query:     `query($ids: [ID!]) { services: guide(from: "2026-10-10T12:00:00Z", to: "2026-10-10T12:30:00Z", services: $ids) { service { id } } }`,
+			variables: map[string]any{"ids": []string{subID}},
+			want:      true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			f.syncEPG(t)
+			_, err := f.pool.Exec(t.Context(), `UPDATE services SET service_type = 192 WHERE id = $1`, subKey)
+			require.NoError(t, err)
+			var got struct {
+				Services []struct {
+					ID      string `json:"id"`
+					Service struct {
+						ID string `json:"id"`
+					} `json:"service"`
+				} `json:"services"`
+			}
+			require.Empty(t, f.query(t, tt.query, tt.variables, &got))
+			require.NotEmpty(t, got.Services)
+			found := false
+			for _, s := range got.Services {
+				if s.ID == subID || s.Service.ID == subID {
+					found = true
+				}
+			}
+			assert.Equal(t, tt.want, found)
+		})
+	}
+}

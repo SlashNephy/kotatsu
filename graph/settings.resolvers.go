@@ -59,7 +59,7 @@ func (r *mutationResolver) UpdateService(ctx context.Context, id string, input m
 	if err != nil {
 		return nil, settingsError(err)
 	}
-	rows, err := sqlc.New(r.db).ListGuideServices(ctx, sqlc.ListGuideServicesParams{IncludeHidden: true, Ids: []int64{serviceID}})
+	rows, err := sqlc.New(r.db).ListGuideServices(ctx, sqlc.ListGuideServicesParams{IncludeHidden: true, MediaServiceTypes: []int64{}, Ids: []int64{serviceID}})
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the service: %w", err)
 	}
