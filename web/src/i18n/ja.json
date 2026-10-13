@@ -340,7 +340,7 @@
     "rule": {
       "title": "ルールを作成",
       "description": "いまの検索の条件に一致する番組を、自動で予約するルールを作ります。条件の細かい調整は、ルールの画面でできます。",
-      "name": "ルールの名前",
+      "name": "ルールのタイトル",
       "submit": "作成",
       "created": "ルールを作りました。一致する番組は、次の照合で予約されます",
       "error": "ルールを作れませんでした。時間をおいてやり直してください",
@@ -355,6 +355,7 @@
       "problems": "録画が欠ける見込み"
     },
     "attention": "録画が欠ける見込みの予約が{{count}}件あります",
+    "duration": "({{minutes}}分)",
     "empty": "これからの予約はありません",
     "noProblems": "録画が欠ける見込みの予約はありません",
     "untitled": "（名前なし）",
@@ -390,7 +391,7 @@
     "createTitle": "ルールを作成",
     "editTitle": "ルールを編集",
     "notFound": "ルールが見つかりませんでした",
-    "name": "名前",
+    "name": "タイトル",
     "memo": "メモ",
     "keywords": "キーワード",
     "keywordsDescription": "すべてのキーワードに一致する番組を予約します。各キーワードは、選んだ項目のどれかに一致すれば一致とみなします",
@@ -423,7 +424,7 @@
       "6": "土"
     },
     "minDuration": "番組の最低長さ (分)",
-    "maxDuration": "番組の最長の長さ",
+    "maxDuration": "番組の最大長さ (分)",
     "avoidDuplicates": "同じ番組名を録画済みなら予約しない",
     "duplicateWindowDays": "重複を避ける日数",
     "duplicateWindowDaysPlaceholder": "期間を区切らない",

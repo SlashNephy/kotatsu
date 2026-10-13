@@ -10,6 +10,7 @@ import {
   Text,
   Title,
 } from '@mantine/core';
+import { Plus } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -94,6 +95,7 @@ function Rules() {
       {canEdit && (
         <Group>
           <Button
+            leftSection={<Plus size={16} aria-hidden />}
             renderRoot={(props) => (
               <Link {...props} to="/rules/$ruleId" params={{ ruleId: 'new' }} />
             )}

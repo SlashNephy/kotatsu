@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Alert,
   Anchor,
   Badge,
@@ -12,7 +13,9 @@ import {
   Switch,
   Text,
   Title,
+  Tooltip,
 } from '@mantine/core';
+import { Trash2 } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -346,7 +349,10 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
         <Stack gap={2} style={{ minWidth: 0 }}>
           <Group gap="xs" wrap="nowrap">
             <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
-              {timeFormat.format(reservation.startMs)}〜{timeFormat.format(end)}
+              {timeFormat.format(reservation.startMs)} 〜 {timeFormat.format(end)}{' '}
+              {t('reservations.duration', {
+                minutes: Math.round((end - reservation.startMs) / 60_000),
+              })}
             </Text>
             <Text size="sm" truncate>
               <ServiceLabel name={reservation.service.name} logoUrl={reservation.service.logoUrl} />
@@ -393,11 +399,18 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
             />
             {/* ルール予約は、消しても次の照合でまた作られるので、消さずに左のスイッチで無効にする (設計書 4.3)。 */}
             {/* 削除のない行でもスイッチの位置がそろうよう、削除の場所は空けておく。 */}
-            <Box w={56}>
+            <Box w={28}>
               {reservation.kind !== 'RULE' && (
-                <Button size="xs" variant="subtle" color="red" onClick={onDelete}>
-                  {t('reservations.delete')}
-                </Button>
+                <Tooltip label={t('reservations.delete')}>
+                  <ActionIcon
+                    variant="subtle"
+                    color="red"
+                    aria-label={t('reservations.delete')}
+                    onClick={onDelete}
+                  >
+                    <Trash2 size={16} aria-hidden />
+                  </ActionIcon>
+                </Tooltip>
               )}
             </Box>
           </Group>

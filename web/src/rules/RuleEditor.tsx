@@ -20,6 +20,7 @@ import {
   Textarea,
   TextInput,
 } from '@mantine/core';
+import { Plus, Save, Trash2, X } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -400,6 +401,7 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
                       color="red"
                       variant="subtle"
                       onClick={() => setDeleting(true)}
+                      leftSection={<Trash2 size={16} aria-hidden />}
                     >
                       {t('rules.delete')}
                     </Button>
@@ -410,6 +412,7 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
                     type="submit"
                     loading={creating || updating}
                     disabled={input.name === '' || !conditionsGiven}
+                    leftSection={<Save size={16} aria-hidden />}
                   >
                     {t('rules.save')}
                   </Button>
@@ -528,7 +531,7 @@ function KeywordRows({ label, description, rows, onChange }: KeywordRowsProps) {
             aria-label={t('rules.removeRow')}
             onClick={() => onChange(rows.filter((_, i) => i !== index))}
           >
-            ×
+            <X size={16} aria-hidden />
           </ActionIcon>
         </Group>
       ))}
@@ -537,6 +540,7 @@ function KeywordRows({ label, description, rows, onChange }: KeywordRowsProps) {
           type="button"
           variant="default"
           size="xs"
+          leftSection={<Plus size={14} aria-hidden />}
           onClick={() =>
             onChange([...rows, { text: '', regexp: false, caseSensitive: false, fields: ['NAME'] }])
           }
@@ -613,7 +617,7 @@ function TimeRangeRows({ rows, onChange }: TimeRangeRowsProps) {
             aria-label={t('rules.removeRow')}
             onClick={() => onChange(rows.filter((_, i) => i !== index))}
           >
-            ×
+            <X size={16} aria-hidden />
           </ActionIcon>
         </Group>
       ))}
@@ -622,6 +626,7 @@ function TimeRangeRows({ rows, onChange }: TimeRangeRowsProps) {
           type="button"
           variant="default"
           size="xs"
+          leftSection={<Plus size={14} aria-hidden />}
           onClick={() =>
             onChange([...rows, { weekdays: [], startMinute: 20 * 60, durationMinutes: 60 }])
           }
