@@ -159,7 +159,15 @@ function Account() {
             onChange={(event) => player.setCaptionsEnabled(event.currentTarget.checked)}
           />
           <Switch
-            label={t('settings.account.dataBroadcastPreload')}
+            label={
+              <Group gap={6} component="span">
+                {t('settings.account.dataBroadcastPreload')}
+                {/* アカウントの設定と並ぶので、この端末だけの設定であることを示す。 */}
+                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
+                  {t('settings.account.deviceOnly')}
+                </Badge>
+              </Group>
+            }
             description={t('settings.account.dataBroadcastPreloadHelp')}
             checked={dataBroadcastPreload}
             onChange={(event) => setDataBroadcastPreload(event.currentTarget.checked)}
