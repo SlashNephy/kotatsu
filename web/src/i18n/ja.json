@@ -142,7 +142,7 @@
       "useRecoveryCode": "リカバリーコードを使う",
       "recoveryCode": "リカバリーコード",
       "useTOTP": "認証アプリのコードを使う",
-      "submit": "確認",
+      "submit": "ログイン",
       "passkey": "パスキーで確認",
       "passkeyDescription": "登録したパスキーで確かめられます。",
       "or": "または認証アプリのコード",
