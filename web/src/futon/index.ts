@@ -4,3 +4,4 @@ export { cspNonce } from './nonce';
 export { ErrorBoundary } from './ErrorBoundary';
 export { PasswordStrength } from './PasswordStrength';
 export { formatBytes } from './format';
+export { splitProgramMarks, type ProgramMarks } from './programMarks';
