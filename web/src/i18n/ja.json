@@ -261,8 +261,9 @@
       "error": "番組を読み込めませんでした",
       "endUndecided": "終了未定",
       "paid": "有料",
-      "reserve": "予約する",
-      "reserved": "予約しました",
+      "watch": "ライブ視聴",
+      "reserve": "録画予約",
+      "reserved": "録画予約済み",
       "reserveError": "予約できませんでした。時間をおいてやり直してください"
     },
     "view": {

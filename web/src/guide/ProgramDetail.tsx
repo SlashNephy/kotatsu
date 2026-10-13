@@ -1,4 +1,6 @@
 import { Alert, Badge, Button, Drawer, Group, Stack, Text, Title } from '@mantine/core';
+import { Link } from '@tanstack/react-router';
+import { CalendarCheck, CalendarPlus, Play } from 'lucide-react';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
@@ -75,6 +77,7 @@ function Detail({ programId }: { programId: string }) {
             isFree
             archived
             service {
+              id
               name
               logoUrl
             }
@@ -118,6 +121,8 @@ function Detail({ programId }: { programId: string }) {
   const start = Date.parse(program.startAt);
   const ended =
     program.archived || (!program.endUndecided && Date.parse(program.endAt) <= Date.now());
+  // 放送中なら、その場でライブ視聴を開けるようにする。
+  const onAir = !program.archived && !ended && start <= Date.now();
 
   return (
     <Stack>
@@ -139,9 +144,31 @@ function Detail({ programId }: { programId: string }) {
           <Badge variant="light">{t(genreKey(program.genres[0].lv1))}</Badge>
         )}
       </Group>
+      {onAir && (
+        <Button
+          variant="light"
+          leftSection={<Play size={16} aria-hidden />}
+          renderRoot={(props) => (
+            <Link {...props} to="/live/$serviceId" params={{ serviceId: program.service.id }} />
+          )}
+        >
+          {t('guide.detail.watch')}
+        </Button>
+      )}
       {/* 検索から開いた、放送の終わった番組は予約できない。 */}
       {data.viewer.role !== 'VIEWER' && !ended && (
-        <Button onClick={reserve} loading={inFlight} disabled={result === 'reserved'}>
+        <Button
+          onClick={reserve}
+          loading={inFlight}
+          disabled={result === 'reserved'}
+          leftSection={
+            result === 'reserved' ? (
+              <CalendarCheck size={16} aria-hidden />
+            ) : (
+              <CalendarPlus size={16} aria-hidden />
+            )
+          }
+        >
           {result === 'reserved' ? t('guide.detail.reserved') : t('guide.detail.reserve')}
         </Button>
       )}
