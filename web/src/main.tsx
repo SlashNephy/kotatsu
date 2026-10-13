@@ -1,5 +1,6 @@
 import '@fontsource/zen-maru-gothic/700.css';
 import '@mantine/core/styles.css';
+import './futon/global.css';
 import './i18n';
 
 import { MantineProvider } from '@mantine/core';
