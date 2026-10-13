@@ -81,7 +81,8 @@ services:
       KOTATSU_DATABASE_URL: postgres://postgres:postgres@postgres:5432/kotatsu?sslmode=disable
       # 開発専用の固定の秘密キー。運用では、ランダムな値を Secret で渡す。
       KOTATSU_AUTH_SECRET_KEY: kotatsu-development-only-secret-key-do-not-use
-      KOTATSU_TUNER_URL: http://faketuner:40772/
+      # 実際のチューナーサーバーにつなぐときは、KOTATSU_DEV_TUNER_URL で渡す。渡さなければ、偽のチューナーサーバーにつなぐ。
+      KOTATSU_TUNER_URL: ${KOTATSU_DEV_TUNER_URL:-http://faketuner:40772/}
       KOTATSU_STORAGE_POOLS: main=/recordings
       KOTATSU_SERVER_LISTEN: ":8080"
       # Dex でログインし、グループからロールを決めてユーザーを作る。パスワードと第二要素の登録を省ける。
@@ -166,8 +167,12 @@ services:
         condition: service_completed_successfully
 
 volumes:
+  # DB と録画は、KOTATSU_DEV_DB を渡すと、その名前を付けた別のボリュームを使う (KOTATSU_DEV_DB=real なら kotatsu-dev_postgres-real)。
+  # 偽のチューナーサーバーと実際のチューナーサーバーで、番組表や録画が混ざらないようにする。渡さなければ、これまでのボリュームを使う。
   postgres:
+    name: kotatsu-dev_postgres${KOTATSU_DEV_DB:+-${KOTATSU_DEV_DB}}
   recordings:
+    name: kotatsu-dev_recordings${KOTATSU_DEV_DB:+-${KOTATSU_DEV_DB}}
   # 開発用のイメージのユーザーの持ち物にするので、root で使っていた以前のボリュームとは名前を変える。
   go-mod:
     name: kotatsu-dev_dev-go-mod
