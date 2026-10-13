@@ -34,11 +34,9 @@ type Resolution = { width: number; height: number };
 
 const defaultResolution: Resolution = { width: 960, height: 540 };
 
-// enterIntervalMs と maxEnterTries は、データ放送の画面に入るために、d ボタンを押し直す間隔と回数。
-// enterSettleMs は、押したあとに文書を読んでから、押し直すかを決めるまで待つ時間。
-const enterIntervalMs = 500;
-const maxEnterTries = 40;
-const enterSettleMs = 2000;
+// enterIntervalMs と maxEnterTries は、データ放送の画面に入るために、d ボタンを押し直す間隔と回数 (20 秒まで)。
+const enterIntervalMs = 200;
+const maxEnterTries = 100;
 
 // useDataBroadcast は、web-bml でデータ放送を描き、映像に重ねる層を返す (設計書 7.4)。
 // source が null なら、何もしない。TS は Web Worker で解き、描くのは画面のスレッドの BMLBrowser に任せる。
@@ -46,15 +44,24 @@ const enterSettleMs = 2000;
 // web-bml は、渡した要素 (mediaElement) を、文書の中の映像の位置へ、ページが変わるたびに移す。そこは不透明なので、
 // 映像を下に透かすことはできない。プレイヤーが作った映像の要素 (React は持たない) を mediaElement の中へ移し、
 // 文書を隠すときと、表示をやめるときに、プレイヤーへ戻す。
+//
+// shown が false の間も、source があれば裏で受け取っておく。文書のスクリプトはカルーセルで届くので、受け取り始めてから
+// d ボタンを受け取れるようになるまで、局によっては数秒かかる。出すときには、その待ちを済ませておく。
 export function useDataBroadcast(
   source: DataBroadcastSource | null,
   videoRef: RefObject<HTMLVideoElement | null>,
+  shown: boolean,
 ): { layer: ReactNode; state: DataBroadcastState; press: (key: RemoteKey) => void } {
   // layer は、文書を描く層。画質を変えるとプレイヤーごと作り直されるので、要素が変わったら描き直す。
   const [layer, setLayer] = useState<HTMLDivElement | null>(null);
   const browserRef = useRef<BMLBrowser | null>(null);
   // stopEnteringRef は、データ放送の画面に入るために d ボタンを押し直すのを、やめる。
   const stopEnteringRef = useRef<() => void>(() => {});
+  // showRef と hideRef は、出すかどうかが変わったときに、受け取っている文書へ伝える。
+  const showRef = useRef<() => void>(() => {});
+  const hideRef = useRef<() => void>(() => {});
+  const shownRef = useRef(shown);
+  shownRef.current = shown;
   const [state, setState] = useState<DataBroadcastState>('off');
   const [resolution, setResolution] = useState<Resolution>(defaultResolution);
   // invisible は、データ放送の文書が、表示しないよう求めていること。映像は全面に戻す。
@@ -102,7 +109,7 @@ export function useDataBroadcast(
     // 層を隠している間と、映像の位置がないページでは、mediaElement が見えないか文書の外に出るので、プレイヤーへ戻す。
     const place = () => {
       const video = videoRef.current;
-      if (hidden || video === null || browser.getVideoElement() === null) {
+      if (!shownRef.current || hidden || video === null || browser.getVideoElement() === null) {
         putBack();
       } else if (restore === null) {
         restore = moveMedia(video, mediaElement);
@@ -111,10 +118,9 @@ export function useDataBroadcast(
     // データ放送を入れたら、リモコンの d ボタンを押したときと同じく、データ放送の画面に入る。
     // web-bml は、load を知らせてから文書のスクリプトを走らせ、d ボタンを受け取る仕組みを最後に登録する。登録の前に押しても
     // 何も起きないので、文書が見えるようになる (d ボタンが効く) か、利用者がリモコンを使うまで、間を空けて押し直す。
-    // d ボタンが効くと、途中の見えない文書を挟んで、見える文書へ移ることがある。移っている途中に押すと、局によっては
-    // 戻ってしまうので、押したあとに文書を読んだら、しばらく待ち、見えないままのときだけ押し直す。
-    // 見えない文書は、受け取り直すと同じ文書をもう一度読むので、押す前の load では待たない。
-    let entering: 'idle' | 'pressing' | 'settling' | 'done' = 'idle';
+    // 見えない文書は、受け取り直すと同じ文書をもう一度読む。読み直したあとに d ボタンを受け取れるようになることが多いので、
+    // load では止めずに押し続ける。
+    let entering: 'idle' | 'pressing' | 'done' = 'idle';
     let tries = 0;
     let enterTimer: ReturnType<typeof setTimeout> | null = null;
     const clearEnterTimer = () => {
@@ -144,23 +150,37 @@ export function useDataBroadcast(
         pressLater(enterIntervalMs);
       }, delay);
     };
+    // loaded は、最初の文書を読んだかどうか。読む前に出すことになったら、読んだところで入る。
+    let loaded = false;
+    // enter は、出すことになっていて、まだ入っていなければ、d ボタンを押し始める。
+    // 文書が見えるかは、load の直後の invisible で分かる。見える文書なら、最初に押す前に止まる。
+    const enter = () => {
+      if (shownRef.current && loaded && entering === 'idle') {
+        pressLater(0);
+      }
+    };
+    showRef.current = () => {
+      place();
+      enter();
+    };
+    // 出すのをやめたら、受け取りは続けたまま、受信機で d ボタンを押して消すのと同じく、最初の見えない文書へ戻す。
+    // 受け取り直すと、次に出すときに、また d ボタンを受け取れるまで待つことになる。
+    hideRef.current = () => {
+      stopEntering();
+      if (loaded && !hidden) {
+        browser.content.processKeyDown(RemoteKey.d);
+        browser.content.processKeyUp(RemoteKey.d);
+      }
+      entering = 'idle';
+      tries = 0;
+      place();
+    };
     browser.addEventListener('load', (event) => {
       setResolution(event.detail.resolution);
       setState('shown');
+      loaded = true;
       place();
-      // 文書が見えるかは、load の直後の invisible で分かる。見える文書なら、最初に押す前に止まる。
-      if (entering === 'idle') {
-        pressLater(enterIntervalMs);
-      } else if (entering !== 'done' && tries > 0) {
-        clearEnterTimer();
-        entering = 'settling';
-        enterTimer = setTimeout(() => {
-          enterTimer = null;
-          if (hidden) {
-            pressLater(0);
-          }
-        }, enterSettleMs);
-      }
+      enter();
     });
     browser.addEventListener('invisible', (event) => {
       hidden = event.detail;
@@ -200,6 +220,22 @@ export function useDataBroadcast(
     };
   }, [url, serviceId, layer, videoRef]);
 
+  // 出すことになったら、データ放送の画面に入る。出すのをやめたら、最初の文書へ戻す。
+  // 最初の描画では、まだ文書がないので、何もしない。
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) {
+      firstRun.current = false;
+
+      return;
+    }
+    if (shown) {
+      showRef.current();
+    } else {
+      hideRef.current();
+    }
+  }, [shown]);
+
   // 文書を、層の幅に合わせて拡大する。
   useEffect(() => {
     if (layer === null) {
@@ -226,7 +262,7 @@ export function useDataBroadcast(
     <div
       ref={setLayer}
       className={classes.dataBroadcast}
-      hidden={url === null || invisible}
+      hidden={url === null || !shown || invisible}
       style={{
         // 文書は、決まった大きさで描かれるので、層の大きさに合わせて拡大する。
         ['--data-broadcast-width' as string]: `${resolution.width}px`,

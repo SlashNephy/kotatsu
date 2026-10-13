@@ -25,14 +25,6 @@ export function DataBroadcastRemote({
 
   return (
     <Group gap="xs" wrap="wrap" role="group" aria-label={t('player.remote.title')}>
-      <Button
-        size="compact-sm"
-        variant="default"
-        disabled={disabled}
-        onClick={() => onPress(Keys.d)}
-      >
-        {t('player.remote.d')}
-      </Button>
       <Group gap={4}>
         <Button
           size="compact-sm"

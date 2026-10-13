@@ -24,7 +24,6 @@ function renderRemote(state: DataBroadcastState) {
 describe('DataBroadcastRemote', () => {
   // 値は web-bml の AribKeyCode。
   test.each([
-    { button: 'dボタン', want: 20 },
     { button: '上', want: 1 },
     { button: '下', want: 2 },
     { button: '左', want: 3 },

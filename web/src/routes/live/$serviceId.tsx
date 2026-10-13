@@ -187,7 +187,7 @@ function Live({
   } = usePlayerSettings();
   const channel = data.node?.__typename === 'Service' ? (data.node.jikkyo ?? null) : null;
   const jikkyo = useLiveJikkyo(jikkyoEnabled ? (channel?.id ?? null) : null, videoRef, visible);
-  // dataBroadcastEnabled は、データ放送を出すかどうか。TS をもう 1 本読むので、既定では出さない (設計書 7.4)。
+  // dataBroadcastEnabled は、データ放送を出すかどうか。映像を覆うので、既定では出さない (設計書 7.4)。
   const [dataBroadcastEnabled, setDataBroadcastEnabled] = useState(false);
   // session は、つなぎ直すたびに増やし、URL を変えて読み直させる。
   const [session, setSession] = useState(0);
@@ -291,12 +291,14 @@ function Live({
   );
 
   const service = data.node?.__typename === 'Service' ? data.node : null;
+  // データ放送は、出していない間も裏で受け取り、出したらすぐに d ボタンで入れるようにする (設計書 7.4)。
   // 視聴が切れている間と、映像が見えていない間は、データ放送の TS も読まない。
   const dataBroadcast = useDataBroadcast(
-    dataBroadcastEnabled && service !== null && visible && disconnection === null
+    service !== null && visible && disconnection === null
       ? dataBroadcastSource(service.streamUrl)
       : null,
     videoRef,
+    dataBroadcastEnabled,
   );
   if (service === null) {
     return <Alert color="amber">{t('live.notFound')}</Alert>;

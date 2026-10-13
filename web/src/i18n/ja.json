@@ -522,7 +522,6 @@
     "dataBroadcastEnded": "データ放送を受け取れなくなりました",
     "remote": {
       "title": "リモコン",
-      "d": "dボタン",
       "up": "上",
       "down": "下",
       "left": "左",
