@@ -287,7 +287,9 @@ function CancelDialog({ reservationId, byRule, programName, onClose }: CancelPro
           <Button
             color="red"
             loading={inFlight}
-            onClick={() =>
+            onClick={() => {
+              // 押し直したときは、前の失敗の知らせを消してから取り消す。
+              setError(false);
               commit({
                 variables: { id: reservationId },
                 // 消した番組予約は、番組から外す。ルール予約は、返った予約 (無効) がそのまま番組に残る。
@@ -300,8 +302,8 @@ function CancelDialog({ reservationId, byRule, programName, onClose }: CancelPro
                 onCompleted: (_response, errors) =>
                   errors != null && errors.length > 0 ? setError(true) : onClose(),
                 onError: () => setError(true),
-              })
-            }
+              });
+            }}
           >
             {t('guide.detail.cancelConfirm')}
           </Button>
