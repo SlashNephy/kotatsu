@@ -1,5 +1,6 @@
 import { Alert, Anchor, Button, Divider, PinInput, Stack, Text, TextInput } from '@mantine/core';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { ScanFace } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -86,7 +87,12 @@ function SecondFactor() {
       {hasPasskey && (
         <Stack gap="xs">
           <Text size="sm">{t('auth.secondFactor.passkeyDescription')}</Text>
-          <Button loading={submitting} disabled={!passkeyAvailable()} onClick={verifyPasskey}>
+          <Button
+            loading={submitting}
+            disabled={!passkeyAvailable()}
+            onClick={verifyPasskey}
+            leftSection={<ScanFace size={16} aria-hidden />}
+          >
             {t('auth.secondFactor.passkey')}
           </Button>
           {!passkeyAvailable() && (
