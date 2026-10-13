@@ -139,6 +139,22 @@ services:
       kotatsu:
         condition: service_started
 
+  # SQL のクエリやスキーマ、GraphQL のスキーマを変えたら、sqlc と gqlgen の生成物と、画面が読むスキーマを作り直す (mise.dev.toml の dev:generate)。
+  generate:
+    <<: *dev
+    command: ["run", "dev:generate"]
+
+  # 画面のクエリやスキーマを変えたら、Relay の生成物を作り直す (mise.dev.toml の dev:relay)。
+  relay:
+    <<: *dev
+    command: ["run", "dev:relay"]
+    volumes:
+      - .:/src
+      - web-node-modules:/src/web/node_modules
+    depends_on:
+      web-install:
+        condition: service_completed_successfully
+
 volumes:
   postgres:
   recordings:

@@ -35,6 +35,8 @@ mise run dev
 | `kotatsu` | 全ロールを1つのコンテナで動かします | なし（`web`が中継します） |
 | `web-install` | 画面の依存を入れます | なし |
 | `web` | 画面の開発サーバー（Vite）。ブラウザはここを開きます | `http://localhost:8080` |
+| `generate` | SQLとGraphQLのスキーマの変更から、生成物を作り直します | なし |
+| `relay` | 画面のクエリの変更から、Relayの生成物を作り直します | なし |
 
 偽のチューナーサーバーは、`testdata/ts/test.ts`を、すべてのサービスのストリームとして流します。
 番組表も、テスト用のものを返します。
@@ -92,6 +94,11 @@ docker compose logs kotatsu | grep setup_token
 | --- | --- |
 | Goのソース（`cmd/`、`internal/`、`graph/`） | `kotatsu`がビルドし直し、マイグレーションを当ててから起動し直します。数秒かかり、その間はAPIが502を返します |
 | 画面のソース（`web/src/`） | 開発サーバーが、ページを読み込み直さずに差し替えます |
+| SQLのクエリやスキーマ（`db/queries/`、`db/schema.sql`）、GraphQLのスキーマ（`graph/schema/`） | `generate`が、sqlcとgqlgenの生成物と`web/schema.graphql`を作り直します。続けて、Goのビルドと`relay`が動きます |
+| 画面のGraphQLのクエリ | `relay`が、`__generated__`を作り直します |
+
+マイグレーションは自動では作りません。
+`db/schema.sql`を変えたら、`mise run db:diff -- <名前>`でマイグレーションを作ってください。
 
 ビルドに失敗したときは、`docker compose logs -f kotatsu`でエラーを確かめてください。
 直して保存すると、またビルドします。

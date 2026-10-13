@@ -105,7 +105,7 @@ ENV pnpm_config_store_dir=/src/web/node_modules/.pnpm-store
 WORKDIR /src
 # 開発に使うツールだけを、イメージに入れておく。
 COPY --chown=${UID}:${GID} mise.toml mise.lock mise.dev.toml mise.dev.lock ./
-RUN mise install go node pnpm watchexec
+RUN mise install go node pnpm watchexec sqlc golangci-lint
 ENTRYPOINT ["mise"]
 
 FROM runtime AS ffmpeg
