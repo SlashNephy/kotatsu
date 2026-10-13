@@ -116,6 +116,8 @@ function Enroll() {
                   length={6}
                   type="number"
                   oneTimeCode
+                  placeholder=""
+                  my="md"
                   styles={{ root: { justifyContent: 'center' } }}
                   value={code}
                   onChange={setCode}
