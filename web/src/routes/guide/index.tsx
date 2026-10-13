@@ -179,6 +179,10 @@ function Guide() {
             sharedFrom {
               id
             }
+            reservation {
+              id
+              enabled
+            }
           }
         }
       }
@@ -217,6 +221,7 @@ function Guide() {
             name: program.name,
             genre: program.genres[0]?.lv1,
             shared: program.shared,
+            reserved: program.reservation?.enabled === true,
           })),
         })),
     [data.guide, type],

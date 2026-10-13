@@ -31,7 +31,7 @@ export function ProgramDetail({ programId, onClose }: Props) {
       {programId !== undefined && (
         <ErrorBoundary fallback={() => <Alert color="amber">{t('guide.detail.error')}</Alert>}>
           <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
-            <Detail key={programId} programId={programId} />
+            <Detail key={programId} programId={programId} onReserved={onClose} />
           </Suspense>
         </ErrorBoundary>
       )}
@@ -57,7 +57,8 @@ const timeFormat = new Intl.DateTimeFormat('ja-JP', {
   timeZone: 'Asia/Tokyo',
 });
 
-function Detail({ programId }: { programId: string }) {
+// onReserved は、録画予約を作れたときに呼ぶ。サイドバーを閉じ、番組表で予約した番組を見せる。
+function Detail({ programId, onReserved }: { programId: string; onReserved: () => void }) {
   const { t } = useTranslation();
   const data = useLazyLoadQuery<ProgramDetailQuery>(
     graphql`
@@ -88,6 +89,10 @@ function Detail({ programId }: { programId: string }) {
               heading
               text
             }
+            reservation {
+              id
+              enabled
+            }
           }
         }
       }
@@ -98,10 +103,11 @@ function Detail({ programId }: { programId: string }) {
     mutation ProgramDetailReserveMutation($program: ID!) {
       createProgramReservation(input: { program: $program }) {
         id
+        enabled
       }
     }
   `);
-  const [result, setResult] = useState<'reserved' | 'error' | null>(null);
+  const [result, setResult] = useState<'error' | null>(null);
   const program = data.node;
   if (program?.__typename !== 'Program') {
     return <Alert color="amber">{t('guide.detail.error')}</Alert>;
@@ -111,9 +117,23 @@ function Detail({ programId }: { programId: string }) {
     setResult(null);
     commit({
       variables: { program: program.id },
+      // 作った予約を番組に結び付け、番組表の枠と、次に開いたときのボタンに、予約済みを出す。
+      updater: (store) => {
+        const reservation = store.getRootField('createProgramReservation');
+        const record = store.get(program.id);
+        if (reservation !== null && record !== undefined && record !== null) {
+          record.setLinkedRecord(reservation, 'reservation');
+        }
+      },
       // Relay は、data とともに返ったエラーを、onError ではなく onCompleted に渡す。
-      onCompleted: (_response, errors) =>
-        setResult(errors != null && errors.length > 0 ? 'error' : 'reserved'),
+      onCompleted: (_response, errors) => {
+        if (errors != null && errors.length > 0) {
+          setResult('error');
+
+          return;
+        }
+        onReserved();
+      },
       // 予約を作れないロールには、ボタンを出していないので、ここでは理由を出し分けない。
       onError: () => setResult('error'),
     });
@@ -121,6 +141,8 @@ function Detail({ programId }: { programId: string }) {
   const start = Date.parse(program.startAt);
   const ended =
     program.archived || (!program.endUndecided && Date.parse(program.endAt) <= Date.now());
+  // reserved は、この番組の録画予約が (有効なまま) あるかどうか。
+  const reserved = program.reservation?.enabled === true;
   // 放送中なら、その場でライブ視聴を開けるようにする。
   const onAir = !program.archived && !ended && start <= Date.now();
 
@@ -160,16 +182,16 @@ function Detail({ programId }: { programId: string }) {
         <Button
           onClick={reserve}
           loading={inFlight}
-          disabled={result === 'reserved'}
+          disabled={reserved}
           leftSection={
-            result === 'reserved' ? (
+            reserved ? (
               <CalendarCheck size={16} aria-hidden />
             ) : (
               <CalendarPlus size={16} aria-hidden />
             )
           }
         >
-          {result === 'reserved' ? t('guide.detail.reserved') : t('guide.detail.reserve')}
+          {reserved ? t('guide.detail.reserved') : t('guide.detail.reserve')}
         </Button>
       )}
       {result === 'error' && (

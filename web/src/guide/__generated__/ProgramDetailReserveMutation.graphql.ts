@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<7cd7a8c099b5e30caba5948ceaabf60c>>
+ * @generated SignedSource<<236db3d8385bd63f30d07861f2ee284f>>
  * @lightSyntaxTransform
  */
 
@@ -13,6 +13,7 @@ export type ProgramDetailReserveMutation$variables = {
 };
 export type ProgramDetailReserveMutation$data = {
   readonly createProgramReservation: {
+    readonly enabled: boolean;
     readonly id: string;
   };
 };
@@ -56,6 +57,13 @@ v1 = [
         "kind": "ScalarField",
         "name": "id",
         "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "enabled",
+        "storageKey": null
       }
     ],
     "storageKey": null
@@ -79,16 +87,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "b770ece3a3e964bccdbbaf3cdb8e13e0",
+    "cacheID": "e00e6a06f3d1b944e2a112abd01876af",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailReserveMutation",
     "operationKind": "mutation",
-    "text": "mutation ProgramDetailReserveMutation(\n  $program: ID!\n) {\n  createProgramReservation(input: {program: $program}) {\n    id\n  }\n}\n"
+    "text": "mutation ProgramDetailReserveMutation(\n  $program: ID!\n) {\n  createProgramReservation(input: {program: $program}) {\n    id\n    enabled\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "497bdf449e535f4977d429c22f4c84cb";
+(node as any).hash = "d4415b9190043e1ff1c0bd995b68a877";
 
 export default node;

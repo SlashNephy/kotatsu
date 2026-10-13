@@ -31,6 +31,8 @@ export type GuideProgram = {
   genre: number | undefined;
   // shared は、サブチャンネルで、元のサービスと同じ番組を流していること。枠を薄くし、番組名を出さない。
   shared: boolean;
+  // reserved は、有効な録画予約があること。枠を赤で囲む。
+  reserved: boolean;
 };
 
 // GuideColumn は、番組表の 1 列 (1 つのサービス)。programs は開始時刻の順に並べる。
@@ -333,6 +335,10 @@ function GuideColumnView({
               background: program.shared ? 'transparent' : genreBackground(program.genre),
               borderLeft: '1px solid var(--mantine-color-default-border)',
               borderBottom: '1px solid var(--mantine-color-default-border)',
+              // 録画予約した番組は、枠の内側を赤で囲む。
+              boxShadow: program.reserved
+                ? 'inset 0 0 0 2px var(--mantine-color-red-6)'
+                : undefined,
               fontSize: 'var(--mantine-font-size-xs)',
               lineHeight: 1.35,
             }}
