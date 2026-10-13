@@ -578,7 +578,6 @@
     "post": "投稿",
     "postError": "コメントを投稿できませんでした。時間をおいてやり直してください",
     "connecting": "実況につないでいます",
-    "connected": "{{channel}}の実況のコメントを流しています",
     "disconnected": "実況との接続が切れました。{{seconds}}秒後につなぎ直します",
     "kakologLoading": "実況の過去ログを読み込んでいます",
     "kakologLoaded": "実況の過去ログ{{count}}件を流しています",

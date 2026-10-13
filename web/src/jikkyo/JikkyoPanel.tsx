@@ -69,13 +69,16 @@ export function JikkyoPanel({ channelName, status, onPost }: Props) {
           {t('jikkyo.post')}
         </Button>
       </Group>
-      <Text size="xs" c="dimmed" mt={4} role="status">
-        {status === null || status.kind === 'connecting'
-          ? t('jikkyo.connecting')
-          : status.kind === 'connected'
-            ? t('jikkyo.connected', { channel: channelName })
-            : t('jikkyo.disconnected', { seconds: status.retryIn })}
-      </Text>
+      {/* つながっている間は、コメントが流れるのを見れば分かるので、何も出さない。 */}
+      {!connected && (
+        <Text size="xs" c="dimmed" mt={4} role="status">
+          {status === null || status.kind === 'connecting'
+            ? t('jikkyo.connecting')
+            : t('jikkyo.disconnected', {
+                seconds: status.kind === 'disconnected' ? status.retryIn : 0,
+              })}
+        </Text>
+      )}
     </form>
   );
 }
