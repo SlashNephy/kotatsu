@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, ProgramTitle } from '../../futon';
 import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -437,7 +437,7 @@ function Live({
         <ServiceLabel name={service.name} logoUrl={service.logoUrl} />
       </Title>
       <Text size="sm" c="dimmed">
-        {data.guide[0]?.programs[0]?.name ?? t('live.noProgram')}
+        {programName === null ? t('live.noProgram') : <ProgramTitle name={programName} />}
       </Text>
       <PlaybackUnavailable route={route} />
       {/* 画面の外に出たときと、タブが隠れたときは、読み込みも止めて、チューナーを手放す (設計書 7.2)。 */}

@@ -7,7 +7,7 @@ import { RecordingThumbnail } from '../recordings/RecordingThumbnail';
 import { stateColor, stateKey } from '../recordings/states';
 import type { DashboardQuery } from './__generated__/DashboardQuery.graphql';
 import { nowPlaying } from './nowPlaying';
-import { splitProgramMarks } from '../futon';
+import { ProgramMarkBadges, splitProgramMarks } from '../futon';
 import { ServiceLabel } from '../guide/ServiceLabel';
 
 const timeFormat = new Intl.DateTimeFormat('ja-JP', {
@@ -185,20 +185,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
                         ),
                       })}
                     </Text>
-                    {program.marks.map((mark) => (
-                      <Badge
-                        key={mark}
-                        size="md"
-                        fz="xs"
-                        variant="default"
-                        radius="sm"
-                        px={5}
-                        fw={500}
-                        tt="none"
-                      >
-                        {mark}
-                      </Badge>
-                    ))}
+                    <ProgramMarkBadges marks={program.marks} />
                   </Group>
                 </Card>
               );

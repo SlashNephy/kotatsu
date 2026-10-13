@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, ProgramTitle } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
@@ -457,7 +457,7 @@ function Player({ recordingId }: { recordingId: string }) {
   return (
     <Stack gap="xs">
       <Title order={2} size="h4">
-        {recording.name}
+        <ProgramTitle name={recording.name} />
       </Title>
       <Text size="sm" c="dimmed">
         <ServiceLabel name={recording.service.name} logoUrl={recording.service.logoUrl} />
