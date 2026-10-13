@@ -25,6 +25,7 @@
       "link": "予約を見る"
     },
     "nowPlaying": "放送中の番組",
+    "duration": "({{minutes}}分)",
     "openGuide": "番組表を開く",
     "nothingPlaying": "放送中の番組の情報はありません。チューナーサーバーから番組表を同期したか確かめてください",
     "recentRecordings": "最近の録画",

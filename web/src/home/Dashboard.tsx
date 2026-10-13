@@ -165,12 +165,20 @@ export function Dashboard({ range }: { range: DashboardRange }) {
                 )}
               >
                 <Text size="xs" c="dimmed">
-                  <ServiceLabel name={item.serviceName} logoUrl={item.serviceLogoUrl} />・
-                  {timeFormat.format(Date.parse(item.startAt))}〜
-                  {timeFormat.format(Date.parse(item.endAt))}
+                  <ServiceLabel name={item.serviceName} logoUrl={item.serviceLogoUrl} />
                 </Text>
                 <Text size="sm" lineClamp={2} mt="xs">
                   {item.programName}
+                </Text>
+                {/* 番組名が 1 行のカードでも、放送時間をカードの下端に揃える。 */}
+                <Text size="xs" c="dimmed" mt="auto" pt={4}>
+                  {timeFormat.format(Date.parse(item.startAt))} 〜{' '}
+                  {timeFormat.format(Date.parse(item.endAt))}{' '}
+                  {t('home.duration', {
+                    minutes: Math.round(
+                      (Date.parse(item.endAt) - Date.parse(item.startAt)) / 60_000,
+                    ),
+                  })}
                 </Text>
               </Card>
             ))}
