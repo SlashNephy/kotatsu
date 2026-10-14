@@ -1,0 +1,31 @@
+/* 放送中の番組の見出しの行。広い画面では、見出しの隣に種類の切り替えを、右端に番組表へのリンクを置く。 */
+/* 狭い画面では、切り替えが収まらないので、見出しとリンクの下の行に回す。 */
+.nowPlayingHeader {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: 'title types link';
+  align-items: center;
+  gap: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+}
+
+.title {
+  grid-area: title;
+}
+
+.types {
+  grid-area: types;
+  justify-self: start;
+}
+
+.link {
+  grid-area: link;
+}
+
+@media (max-width: 48em) {
+  .nowPlayingHeader {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'title link'
+      'types types';
+  }
+}

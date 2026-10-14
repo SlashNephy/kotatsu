@@ -1,11 +1,24 @@
-import { Alert, Anchor, Badge, Card, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Badge,
+  Card,
+  Group,
+  SegmentedControl,
+  SimpleGrid,
+  Stack,
+  Text,
+  Title,
+} from '@mantine/core';
 import { Link } from '@tanstack/react-router';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
 import { RecordingThumbnail } from '../recordings/RecordingThumbnail';
 import { stateColor, stateKey } from '../recordings/states';
 import type { DashboardQuery } from './__generated__/DashboardQuery.graphql';
+import classes from './Dashboard.module.css';
 import { nowPlaying } from './nowPlaying';
 import { ProgramTitle } from '../futon';
 import { NowPlayingCard } from '../guide/NowPlayingCard';
@@ -21,9 +34,6 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
   timeZone: 'Asia/Tokyo',
 });
 
-// maxNowPlaying は、ホームに出す放送中の番組の数。続きは番組表で見る。
-const maxNowPlaying = 12;
-
 export type DashboardRange = { now: number; nowEnd: string; from: string; to: string };
 
 // Dashboard は、ホームの中身。縮退と予約の競合の警告、放送中の番組、最近の録画、これからの予約を出す (設計書 10.3)。
@@ -37,11 +47,18 @@ export function Dashboard({ range }: { range: DashboardRange }) {
           degraded
           degradedSince
         }
+        channelTypes {
+          type
+          displayName
+        }
         guide(from: $from, to: $nowEnd) {
           service {
             id
             name
             logoUrl
+            channelType {
+              type
+            }
           }
           programs {
             id
@@ -105,7 +122,20 @@ export function Dashboard({ range }: { range: DashboardRange }) {
     `,
     { from: range.from, nowEnd: range.nowEnd, to: range.to },
   );
-  const playing = nowPlaying(data.guide, range.now, maxNowPlaying);
+  // 放送中の番組を、チャンネルの種類ごとに分ける。番組のない種類は、選べないようにする。
+  const playingByType = data.channelTypes
+    .map((channelType) => ({
+      ...channelType,
+      playing: nowPlaying(
+        data.guide.filter((row) => row.service.channelType.type === channelType.type),
+        range.now,
+      ),
+    }))
+    .filter((channelType) => channelType.playing.length > 0);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
+  const current =
+    playingByType.find((channelType) => channelType.type === selectedType) ?? playingByType[0];
+  const playing = current?.playing ?? [];
   // 100 件を超えたら、「100 件以上」と示す。
   const troubles = data.troubles.edges.length;
   const moreTroubles = data.troubles.pageInfo.hasNextPage;
@@ -137,14 +167,26 @@ export function Dashboard({ range }: { range: DashboardRange }) {
       )}
 
       <Stack gap="xs">
-        <Group justify="space-between">
-          <Title order={3} size="h5">
+        <div className={classes.nowPlayingHeader}>
+          <Title order={3} size="h5" className={classes.title}>
             {t('home.nowPlaying')}
           </Title>
-          <Anchor component={Link} to="/guide" size="sm">
+          {playingByType.length > 1 && (
+            <SegmentedControl
+              className={classes.types}
+              size="xs"
+              value={current?.type ?? ''}
+              onChange={setSelectedType}
+              data={playingByType.map((channelType) => ({
+                value: channelType.type,
+                label: channelType.displayName,
+              }))}
+            />
+          )}
+          <Anchor component={Link} to="/guide" size="sm" className={classes.link}>
             {t('home.openGuide')}
           </Anchor>
-        </Group>
+        </div>
         {playing.length === 0 ? (
           <Text size="sm" c="dimmed">
             {t('home.nothingPlaying')}

@@ -22,20 +22,13 @@ export type NowPlaying = {
   endAt: string;
 };
 
-// nowPlaying は、サービスごとに、now に放送している番組を返す。番組表の並びのまま、limit 件までにする。
+// nowPlaying は、サービスごとに、now に放送している番組を返す。番組表の並びのままにする。
 // 放送中の番組がないサービスは出さない。サブチャンネルがメインチャンネルと同じ番組を放送している (イベント共有) ときは、
 // 元のサービスの番組だけを出す。元のサービスが一覧にない (番組表に出さない設定など) ときは、そのまま出す。
-export function nowPlaying(
-  rows: readonly GuideRowLike[],
-  now: number,
-  limit: number,
-): NowPlaying[] {
+export function nowPlaying(rows: readonly GuideRowLike[], now: number): NowPlaying[] {
   const serviceIds = new Set(rows.map((row) => row.service.id));
   const playing: NowPlaying[] = [];
   for (const row of rows) {
-    if (playing.length >= limit) {
-      break;
-    }
     const program = row.programs.find(
       (candidate) => Date.parse(candidate.startAt) <= now && now < Date.parse(candidate.endAt),
     );
