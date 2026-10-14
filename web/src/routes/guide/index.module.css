@@ -1,0 +1,42 @@
+/* 番組表の上の操作。左に日付、中央にチャンネルの種類、右にビューを置く。 */
+/* 幅に応じて、1 行 (3 列)、2 行 (日付とビューの下に種類)、折り返しの順に切り替える。 */
+/* ブレークポイントは、それぞれの並びが収まる幅 (日付 約 370px、種類 約 350px、ビュー 約 270px) から決めた。 */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mantine-spacing-xs);
+}
+
+.types {
+  order: 1;
+}
+
+@media (min-width: 44em) {
+  .toolbar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+  }
+
+  .types {
+    grid-column: 1 / -1;
+    justify-self: center;
+  }
+
+  .end {
+    justify-self: end;
+  }
+}
+
+/* 左右の列を同じ幅にして、種類を真ん中に置く。足りないときは、中身の幅を優先する。 */
+@media (min-width: 66em) {
+  .toolbar {
+    grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+  }
+
+  .types {
+    grid-column: auto;
+    order: 0;
+  }
+}

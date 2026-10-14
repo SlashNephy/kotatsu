@@ -25,6 +25,7 @@ import { ProgramDetail } from '../../guide/ProgramDetail';
 import { collapseSharedColumns } from '../../guide/sharedEvent';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { guideQuery } from './__generated__/guideQuery.graphql';
+import classes from './index.module.css';
 
 type GuideSearch = {
   // date は、表示する放送日 (YYYY-MM-DD)。省くと、いまの放送日。
@@ -255,7 +256,7 @@ function Guide() {
 
   return (
     <Stack gap="sm">
-      <Group justify="space-between" wrap="wrap" gap="xs">
+      <div className={classes.toolbar}>
         <Group gap="xs">
           <Button
             variant="default"
@@ -288,9 +289,24 @@ function Guide() {
             {t('guide.today')}
           </Button>
         </Group>
-        <Group gap="xs">
+        {types.length > 0 && (
+          <SegmentedControl
+            className={classes.types}
+            size="xs"
+            value={type ?? ''}
+            onChange={(value) =>
+              void navigate({ search: (prev) => ({ ...prev, type: value, program: undefined }) })
+            }
+            data={types.map((channelType) => ({
+              value: channelType.type,
+              label: channelType.displayName,
+            }))}
+          />
+        )}
+        <Group gap="xs" wrap="nowrap" className={classes.end}>
           <Select
             size="xs"
+            w={160}
             aria-label={t('guide.view.label')}
             // URL のビューが消えていても、「すべての番組」を選び直して外せるよう、URL の値をそのまま使う。
             value={search.view ?? ''}
@@ -338,20 +354,7 @@ function Guide() {
             {currentView === undefined ? t('guide.view.create') : t('guide.view.edit')}
           </Button>
         </Group>
-        {types.length > 0 && (
-          <SegmentedControl
-            size="xs"
-            value={type ?? ''}
-            onChange={(value) =>
-              void navigate({ search: (prev) => ({ ...prev, type: value, program: undefined }) })
-            }
-            data={types.map((channelType) => ({
-              value: channelType.type,
-              label: channelType.displayName,
-            }))}
-          />
-        )}
-      </Group>
+      </div>
       {/* 日付やビューを変えたときは、読み終えるまで前の番組表を出し、その上に読み込み中を重ねる。 */}
       <Box pos="relative">
         <LoadingOverlay visible={loading} zIndex={5} overlayProps={{ blur: 1 }} />
