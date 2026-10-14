@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<93c9d5944e33f325a56ac755b08ed7a8>>
+ * @generated SignedSource<<135a46d0aedd6207e47d7bd58347178a>>
  * @lightSyntaxTransform
  */
 
@@ -34,6 +34,10 @@ export type ProgramDetailQuery$data = {
       readonly enabled: boolean;
       readonly id: string;
       readonly kind: ReservationKind;
+      readonly rules: ReadonlyArray<{
+        readonly id: string;
+        readonly name: string;
+      }>;
     } | null | undefined;
     readonly service: {
       readonly id: string;
@@ -225,6 +229,19 @@ v15 = {
       "kind": "ScalarField",
       "name": "kind",
       "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "Rule",
+      "kind": "LinkedField",
+      "name": "rules",
+      "plural": true,
+      "selections": [
+        (v4/*:: as any*/),
+        (v5/*:: as any*/)
+      ],
+      "storageKey": null
     }
   ],
   "storageKey": null
@@ -336,16 +353,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "efa53e8a4ff928aecf82df6ba38b40c8",
+    "cacheID": "3e697b27c03e9e8c58c3d1c58a83092d",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      service {\n        id\n        name\n        logoUrl\n      }\n      genres {\n        lv1\n      }\n      extended {\n        heading\n        text\n      }\n      reservation {\n        id\n        enabled\n        kind\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      service {\n        id\n        name\n        logoUrl\n      }\n      genres {\n        lv1\n      }\n      extended {\n        heading\n        text\n      }\n      reservation {\n        id\n        enabled\n        kind\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "164c9536edf8f0b3970480c6c0f5c7f2";
+(node as any).hash = "e4c4b4baf4aa157183b6ef9f28671e41";
 
 export default node;
