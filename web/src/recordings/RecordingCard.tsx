@@ -1,11 +1,10 @@
-import { AspectRatio, Badge, Card, Group, Stack, Text } from '@mantine/core';
+import { AspectRatio, Card, Group, Stack, Text } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
-import { useTranslation } from 'react-i18next';
 
 import { ProgramTitle } from '../futon';
 import { ServiceLabel } from '../guide/ServiceLabel';
 import { RecordingThumbnail } from './RecordingThumbnail';
-import { stateColor, stateKey } from './states';
+import { RecordingStateBadge } from './RecordingStateBadge';
 
 export type RecordingCardData = {
   id: string;
@@ -50,7 +49,6 @@ const timeFormat = new Intl.DateTimeFormat('ja-JP', {
 // RecordingCard は、サムネイル付きの録画のカード。押すと、録画の詳細を開く。ホームと録画の一覧で使う。
 // 行の間は、放送中の番組のカードと揃える (番組名と放送時間は 4px、サービスとの間は xs)。
 export function RecordingCard({ recording }: { recording: RecordingCardData }) {
-  const { t } = useTranslation();
   const startAt = Date.parse(recording.startAt);
   const sameYear = yearFormat.format(startAt) === yearFormat.format(Date.now());
   const tags = recording.tags ?? [];
@@ -77,9 +75,7 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
           </Text>
           {/* 完了は当たり前なので出さず、録画中や失敗のように目を留めたい状態だけを出す。 */}
           {recording.state !== 'COMPLETED' && (
-            <Badge size="xs" variant="light" color={stateColor(recording.state)}>
-              {t(stateKey(recording.state))}
-            </Badge>
+            <RecordingStateBadge state={recording.state} size="xs" />
           )}
         </Group>
         <Text size="xs" c="dimmed" mt="xs">

@@ -23,7 +23,7 @@ import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
 import { ErrorBoundary, formatBytes, ProgramTitle } from '../../futon';
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
-import { stateColor, stateKey } from '../../recordings/states';
+import { RecordingStateBadge } from '../../recordings/RecordingStateBadge';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { RecordingIdDeleteMutation } from './__generated__/RecordingIdDeleteMutation.graphql';
 import type { RecordingIdProtectMutation } from './__generated__/RecordingIdProtectMutation.graphql';
@@ -290,9 +290,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               {dateTimeFormat.format(Date.parse(recording.startAt))}〜
               {minuteFormat.format(Date.parse(recording.endAt))}
             </Text>
-            <Badge color={stateColor(recording.state)} variant="light">
-              {t(stateKey(recording.state))}
-            </Badge>
+            <RecordingStateBadge state={recording.state} />
             {recording.protected && (
               <Badge color="gray" variant="outline">
                 {t('recordings.protected')}
