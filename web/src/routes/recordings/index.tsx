@@ -53,6 +53,15 @@ const query = graphql`
           watchPositionMs
           thumbnailUrl
           previewUrl
+          watchFrame {
+            url
+            x
+            y
+            width
+            height
+            sheetWidth
+            sheetHeight
+          }
           service {
             name
             logoUrl

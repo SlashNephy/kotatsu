@@ -132,6 +132,11 @@ type Recording implements Node {
   """
   previewUrl: String
   """
+  ログイン中のユーザーが前回見た位置に合う、プレビュー画像のコマ。再生位置より前で、いちばん近いコマを選ぶ (先の場面を見せない)。
+  再生していないか、見終えている (終わりの 10 秒前より後まで見た) か、再生位置より前にコマがないか、プレビュー画像がなければ null。
+  """
+  watchFrame: PreviewFrame
+  """
   録画の時間帯の実況の過去ログを返す URL のパス (設計書 7.4)。tenban が過去ログ API から取って中継する。
   録画したサービスに実況のチャンネルがなければ、空の一覧を返す。
   """
@@ -188,4 +193,19 @@ extend type Mutation {
   setRecordingTags(id: ID!, tags: [String!]!): Recording!
   "ログイン中のユーザーの再生位置 (ミリ秒) を保存する。誰でも使える。"
   saveWatchPosition(id: ID!, positionMs: Int64!): Recording!
+}
+
+"""
+プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
+"""
+type PreviewFrame {
+  "プレビュー画像の URL のパス。"
+  url: String!
+  x: Int!
+  y: Int!
+  width: Int!
+  height: Int!
+  "プレビュー画像全体の大きさ。背景を縮めて描くときに使う。"
+  sheetWidth: Int!
+  sheetHeight: Int!
 }

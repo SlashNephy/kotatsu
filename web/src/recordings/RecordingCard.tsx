@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { ProgramTitle } from '../futon';
 import { ServiceLabel } from '../guide/ServiceLabel';
 import { RecordingThumbnail } from './RecordingThumbnail';
+import { framePosition, type FramePosition } from './previewFrame';
 import { usePreviewSlideshow } from './usePreviewSlideshow';
 import { watchProgress } from './watchProgress';
 import { RecordingStateBadge } from './RecordingStateBadge';
@@ -20,6 +21,8 @@ export type RecordingCardData = {
   thumbnailUrl?: string | null;
   // previewUrl は、シークバー用のプレビュー画像。サムネイルにホバーしている間、そのコマを順に見せる。
   previewUrl?: string | null;
+  // watchFrame は、前回見た位置に合うプレビュー画像のコマ。あれば、代表画像の代わりに出す。
+  watchFrame?: (FramePosition & { url: string }) | null;
   // recordedFrom、recordedUntil、watchPositionMs は、どこまで見たかを出すのに使う。録画中は recordedUntil が null。
   recordedFrom: string;
   recordedUntil?: string | null;
@@ -68,6 +71,14 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
   const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
   const slide = usePreviewSlideshow(recording.previewUrl, hovered);
+  // ホバーしている間はコマを順に見せ、そうでなければ、前回見た位置のコマを見せる。
+  const watchFrame = recording.watchFrame;
+  const overlay =
+    slide !== null && recording.previewUrl != null
+      ? { url: recording.previewUrl, frame: slide }
+      : watchFrame != null
+        ? { url: watchFrame.url, frame: framePosition(watchFrame) }
+        : null;
   const startAt = Date.parse(recording.startAt);
   const sameYear = yearFormat.format(startAt) === yearFormat.format(Date.now());
   const tags = recording.tags ?? [];
@@ -102,17 +113,17 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
         <AspectRatio ratio={16 / 9}>
           <RecordingThumbnail url={recording.thumbnailUrl} />
         </AspectRatio>
-        {/* ホバーしている間は、プレビュー画像のコマを、代表画像の上に重ねて順に見せる。 */}
-        {slide !== null && recording.previewUrl != null && (
+        {/* プレビュー画像のコマは、代表画像の上に重ねて見せる。 */}
+        {overlay !== null && (
           <Box
             aria-hidden
             pos="absolute"
             inset={0}
             style={{
-              backgroundImage: `url(${JSON.stringify(recording.previewUrl)})`,
+              backgroundImage: `url(${JSON.stringify(overlay.url)})`,
               backgroundRepeat: 'no-repeat',
-              backgroundSize: slide.backgroundSize,
-              backgroundPosition: slide.backgroundPosition,
+              backgroundSize: overlay.frame.backgroundSize,
+              backgroundPosition: overlay.frame.backgroundPosition,
             }}
           />
         )}

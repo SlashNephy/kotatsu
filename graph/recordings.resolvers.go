@@ -47,6 +47,11 @@ func (r *recordingResolver) Service(ctx context.Context, obj *model.Recording) (
 	return toService(row), nil
 }
 
+// WatchFrame is the resolver for the watchFrame field.
+func (r *recordingResolver) WatchFrame(ctx context.Context, obj *model.Recording) (*model.PreviewFrame, error) {
+	return r.watchFrame(ctx, obj), nil
+}
+
 // Recording returns generated.RecordingResolver implementation.
 func (r *Resolver) Recording() generated.RecordingResolver { return &recordingResolver{r} }
 

@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -214,6 +217,69 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []sqlc.Recording) (
 	}
 
 	return recordings, nil
+}
+
+// watchEndMargin は、見終えたとみなす、録画の終わりからの時間。
+// 再生画面が、続きから再生せずに最初から再生する判定 (web/src/yunomi/resume.ts の endMargin) と揃える。
+const watchEndMargin = 10 * time.Second
+
+// watchFrame は、ログイン中のユーザーが前回見た位置に合う、プレビュー画像のコマを返す。
+// 再生位置とプレビュー画像のある録画だけ、preview.json を読む。読めなければ、コマなしとして扱い、代表画像を出させる。
+func (r *Resolver) watchFrame(ctx context.Context, recording *model.Recording) *model.PreviewFrame {
+	if recording.WatchPositionMs == nil || recording.PreviewURL == nil {
+		return nil
+	}
+	position := time.Duration(*recording.WatchPositionMs) * time.Millisecond
+	if recording.RecordedUntil != nil && position > recording.RecordedUntil.Sub(recording.RecordedFrom)-watchEndMargin {
+		return nil
+	}
+	var preview *model.RecordingFile
+	for _, file := range recording.Files {
+		if file.Kind == model.RecordingFileKindPreview {
+			preview = file
+		}
+	}
+	if preview == nil {
+		return nil
+	}
+	manifest, err := r.readManifest(preview)
+	if err != nil {
+		r.logger.WarnContext(ctx, "failed to read the preview manifest", slog.String("recording", recording.ID), slog.Any("error", err))
+
+		return nil
+	}
+	index, ok := manifest.FrameBefore(position)
+	if !ok {
+		return nil
+	}
+	frame, ok := manifest.Frame(index)
+	if !ok {
+		return nil
+	}
+
+	return &model.PreviewFrame{
+		URL: *recording.PreviewURL, X: frame.X, Y: frame.Y, Width: frame.Width, Height: frame.Height,
+		SheetWidth: frame.SheetWidth, SheetHeight: frame.SheetHeight,
+	}
+}
+
+// readManifest は、プレビュー画像と同じディレクトリの preview.json を、このインスタンスにマウントしたプールから読む。
+func (r *Resolver) readManifest(preview *model.RecordingFile) (*thumbnail.Manifest, error) {
+	mount, ok := r.pools[preview.PoolID]
+	if !ok {
+		return nil, fmt.Errorf("the pool %s is not mounted", preview.PoolID)
+	}
+	f, err := os.OpenInRoot(mount, path.Join(path.Dir(preview.Path), thumbnail.ManifestFileName))
+	if err != nil {
+		return nil, fmt.Errorf("failed to open the preview manifest: %w", err)
+	}
+	defer f.Close()
+	var manifest thumbnail.Manifest
+	if err := json.NewDecoder(f).Decode(&manifest); err != nil {
+		return nil, fmt.Errorf("failed to decode the preview manifest: %w", err)
+	}
+
+	return &manifest, nil
 }
 
 // imageURLs は、録画の代表画像とプレビュー画像の URL のパスを返す。画像のファイルがなければ nil にする。

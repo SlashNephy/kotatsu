@@ -49,3 +49,25 @@ export function slideshowFrames(count: number, limit: number): number[] {
 
   return Array.from({ length: n }, (_, i) => Math.floor((i * count) / n));
 }
+
+// FramePosition は、tenban が求めた、プレビュー画像の 1 コマの位置 (GraphQL の PreviewFrame、ピクセル)。
+export type FramePosition = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  sheetWidth: number;
+  sheetHeight: number;
+};
+
+// framePosition は、tenban が求めたコマの位置を、1 コマだけを見せる CSS の値にする。
+export function framePosition(frame: FramePosition): PreviewFrame {
+  // 位置の割合は、端のコマが 0% と 100% になる。プレビュー画像がコマ 1 つ分の幅なら 0%。
+  const percent = (at: number, size: number, sheet: number) =>
+    sheet <= size ? 0 : (at / (sheet - size)) * 100;
+
+  return {
+    backgroundSize: `${(frame.sheetWidth / frame.width) * 100}% ${(frame.sheetHeight / frame.height) * 100}%`,
+    backgroundPosition: `${percent(frame.x, frame.width, frame.sheetWidth)}% ${percent(frame.y, frame.height, frame.sheetHeight)}%`,
+  };
+}

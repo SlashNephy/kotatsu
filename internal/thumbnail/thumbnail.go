@@ -89,6 +89,45 @@ type Manifest struct {
 	Times []float64 `json:"times"`
 }
 
+// Frame は、プレビュー画像から切り出す 1 コマの位置と、プレビュー画像全体の大きさ (ピクセル)。
+type Frame struct {
+	X, Y          int
+	Width, Height int
+	// SheetWidth と SheetHeight は、プレビュー画像全体の大きさ。
+	SheetWidth, SheetHeight int
+}
+
+// Frame は、index 番目のコマの位置を返す。そのコマがなければ false を返す。
+// コマは、左上から右へ Columns 個ずつ並ぶ。コマが Columns 個より少なければ、プレビュー画像の幅はその数のコマの幅になる。
+// 画面 (web/src/recordings/previewFrame.ts) も、同じ並べ方で切り出す。
+func (m *Manifest) Frame(index int) (Frame, bool) {
+	count := len(m.Times)
+	if m.Columns <= 0 || index < 0 || index >= count {
+		return Frame{X: 0, Y: 0, Width: 0, Height: 0, SheetWidth: 0, SheetHeight: 0}, false
+	}
+	rows := (count + m.Columns - 1) / m.Columns
+
+	return Frame{
+		X: index % m.Columns * m.Width, Y: index / m.Columns * m.Height,
+		Width: m.Width, Height: m.Height,
+		SheetWidth: min(count, m.Columns) * m.Width, SheetHeight: rows * m.Height,
+	}, true
+}
+
+// FrameBefore は、position 以前で、いちばん近いコマの番号を返す。position より前にコマがなければ false を返す。
+// 後のコマは選ばないので、まだ見ていない場面を見せない。Times は小さい順に並んでいる。
+func (m *Manifest) FrameBefore(position time.Duration) (int, bool) {
+	i, found := slices.BinarySearch(m.Times, position.Seconds())
+	if found {
+		return i, true
+	}
+	if i == 0 {
+		return 0, false
+	}
+
+	return i - 1, true
+}
+
 // Result は、作った画像。
 type Result struct {
 	// Thumbnail は、代表画像の JPEG。
@@ -213,7 +252,7 @@ func (g *Generator) preview(ctx context.Context, segments []Segment, keyframes [
 	if len(frames) == 0 {
 		return nil, nil, fmt.Errorf("%w: %w", ErrNoFrame, errors.Join(errs...))
 	}
-	preview, err := tile(frames)
+	preview, err := tile(frames, manifest)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -263,14 +302,20 @@ func nearest(keyframes []keyframe, target time.Duration) int {
 	return best
 }
 
-// tile は、コマを Columns ずつ並べた、1 枚の JPEG にする。コマは TileWidth × TileHeight に収めてある。
-func tile(frames []image.Image) ([]byte, error) {
-	rows := (len(frames) + Columns - 1) / Columns
-	columns := min(len(frames), Columns)
-	canvas := image.NewRGBA(image.Rect(0, 0, columns*TileWidth, rows*TileHeight))
+// tile は、コマを、manifest の並べ方 (Manifest.Frame) で 1 枚の JPEG にする。コマは TileWidth × TileHeight に収めてある。
+func tile(frames []image.Image, manifest *Manifest) ([]byte, error) {
+	first, ok := manifest.Frame(0)
+	if !ok {
+		return nil, ErrNoFrame
+	}
+	canvas := image.NewRGBA(image.Rect(0, 0, first.SheetWidth, first.SheetHeight))
 	for i, frame := range frames {
-		at := image.Pt(i%Columns*TileWidth, i/Columns*TileHeight)
-		draw.Draw(canvas, image.Rectangle{Min: at, Max: at.Add(image.Pt(TileWidth, TileHeight))}, frame, frame.Bounds().Min, draw.Src)
+		f, ok := manifest.Frame(i)
+		if !ok {
+			return nil, fmt.Errorf("the manifest has no frame %d", i)
+		}
+		at := image.Pt(f.X, f.Y)
+		draw.Draw(canvas, image.Rectangle{Min: at, Max: at.Add(image.Pt(f.Width, f.Height))}, frame, frame.Bounds().Min, draw.Src)
 	}
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, canvas, &jpeg.Options{Quality: jpegQuality}); err != nil {
