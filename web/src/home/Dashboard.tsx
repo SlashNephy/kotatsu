@@ -91,6 +91,9 @@ export function Dashboard({ range }: { range: DashboardRange }) {
               startAt
               endAt
               state
+              drops
+              errors
+              scrambled
               recordedFrom
               recordedUntil
               watchPositionMs

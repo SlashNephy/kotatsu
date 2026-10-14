@@ -26,7 +26,7 @@ export type RecordingCardData = {
   // Int64 は Relay の型では any になるので、受け取ってから数に直す。
   watchPositionMs?: unknown;
   service: { name: string; logoUrl?: string | null };
-  // drops、errors、scrambled は、受信の傷の数。録画の一覧でだけ渡す。Int64 なので、数に直して使う。
+  // drops、errors、scrambled は、受信の傷の数。Int64 なので、数に直して使う。
   drops?: unknown;
   errors?: unknown;
   scrambled?: unknown;
@@ -155,7 +155,7 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
             </Tooltip>
           )}
           {/* 完了は当たり前なので出さず、録画中や失敗のように目を留めたい状態だけを出す。 */}
-          {/* ドロップありは、警告の印を出すときは、印で分かるので出さない。 */}
+          {/* ドロップありは、警告の印で分かるので出さない。 */}
           {recording.state !== 'COMPLETED' &&
             !(recording.state === 'COMPLETED_WITH_ERRORS' && damaged) && (
               <RecordingStateBadge state={recording.state} size="xs" />
