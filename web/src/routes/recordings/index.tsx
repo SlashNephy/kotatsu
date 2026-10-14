@@ -8,10 +8,11 @@ import {
   MultiSelect,
   SimpleGrid,
   Stack,
+  Text,
   TextInput,
   Title,
 } from '@mantine/core';
-import { Info, ListFilter, Search, Tag } from 'lucide-react';
+import { Clapperboard, Info, ListFilter, Search, SearchX, Tag } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -231,7 +232,29 @@ function RecordingGrid({ filter }: { filter: Filter }) {
 
   return (
     <Stack>
-      {recordings.length === 0 && <Alert color="gray">{t('recordings.empty')}</Alert>}
+      {/* 録画がまだないときと、絞り込んで 0 件になったときで、次にすることが違うので、見出しと手がかりを分ける。 */}
+      {recordings.length === 0 &&
+        (Object.keys(filter).length === 0 ? (
+          <Alert
+            color="gray"
+            icon={<Clapperboard size={20} aria-hidden />}
+            title={t('recordings.empty')}
+          >
+            <Text size="sm" c="dimmed">
+              {t('recordings.emptyHint')}
+            </Text>
+          </Alert>
+        ) : (
+          <Alert
+            color="gray"
+            icon={<SearchX size={20} aria-hidden />}
+            title={t('recordings.noMatch')}
+          >
+            <Text size="sm" c="dimmed">
+              {t('recordings.noMatchHint')}
+            </Text>
+          </Alert>
+        ))}
       {recordings.length > 0 && (
         <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
           {recordings.map((recording) => (
