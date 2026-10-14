@@ -30,6 +30,7 @@ import { hasConditions } from '../conditions/form';
 import { ConditionsFields, type ServiceOption } from '../conditions/ConditionsFields';
 import { toInput, type RuleForm } from './form';
 import { RulePreview } from './RulePreview';
+import { InheritedFileNameTemplateField } from '../reservations/FileNameTemplateField';
 import { MarginFields } from '../reservations/MarginFields';
 
 // joinDefault は、分かれたファイルをつなぐかどうかの選択で、全体の既定値に従うことを表す値。
@@ -52,6 +53,8 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
   const [form, setForm] = useState(initial);
   const [result, setResult] = useState<'saved' | 'error' | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // previewPrograms は、プレビューに出ている番組。ファイル名のテンプレートを当てはめる番組の候補にする。
+  const [previewPrograms, setPreviewPrograms] = useState<{ id: string; name: string }[]>([]);
   const [create, creating] = useMutation<RuleEditorCreateMutation>(graphql`
     mutation RuleEditorCreateMutation($input: RuleInput!) {
       createRule(input: $input) {
@@ -183,6 +186,21 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
                     checked={form.followEventRelay}
                     onChange={(e) => set({ followEventRelay: e.currentTarget.checked })}
                   />
+                  <InheritedFileNameTemplateField
+                    label={t('fileNameTemplate.ruleLabel')}
+                    description={t('fileNameTemplate.ruleDescription')}
+                    value={form.settings.fileNameTemplate ?? ''}
+                    onChange={(value) =>
+                      set({
+                        settings: {
+                          ...form.settings,
+                          fileNameTemplate: value === '' ? null : value,
+                        },
+                      })
+                    }
+                    programs={previewPrograms}
+                    disabled={readOnly}
+                  />
                   <MarginFields
                     start={form.settings.startMarginSeconds}
                     end={form.settings.endMarginSeconds}
@@ -282,7 +300,7 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
       <Grid.Col span={{ base: 12, md: 5 }}>
         {/* 広い画面では、条件を変えながら結果を見られるよう、プレビューをスクロールしても見える位置に留める。 */}
         <Box className={classes.preview}>
-          <RulePreview input={input} enabled={conditionsGiven} />
+          <RulePreview input={input} enabled={conditionsGiven} onPrograms={setPreviewPrograms} />
         </Box>
       </Grid.Col>
       {deleting && ruleId !== undefined && (

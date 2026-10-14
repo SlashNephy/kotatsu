@@ -1,6 +1,6 @@
 import { Alert, Badge, Card, Group, Loader, Stack, Text, Title } from '@mantine/core';
 import { SearchX } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 
@@ -17,6 +17,8 @@ type Props = {
   input: RulePreviewQuery$variables['input'];
   // enabled は、プレビューを取るかどうか。条件がなければ、すべての番組に一致してしまうので取らない。
   enabled: boolean;
+  // onPrograms は、プレビューに出した番組を受け取る。ファイル名のテンプレートを当てはめる番組の候補に使う。
+  onPrograms?: (programs: { id: string; name: string }[]) => void;
 };
 
 const query = graphql`
@@ -40,19 +42,31 @@ const query = graphql`
   }
 `;
 
+const programTime = new Intl.DateTimeFormat('ja-JP', {
+  month: 'numeric',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+  timeZone: 'Asia/Tokyo',
+});
+
 // debounceMs は、入力が止まってからプレビューを取るまでの時間。打つたびに問い合わせないようにする。
 const debounceMs = 400;
 
 type Preview = RulePreviewQuery$data['previewRule'];
 
 // RulePreview は、編集中のルールに一致するこれからの番組を、その場で示す (設計書 4.3)。
-export function RulePreview({ input, enabled }: Props) {
+export function RulePreview({ input, enabled, onPrograms }: Props) {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [selected, setSelected] = useState<string | undefined>(undefined);
+  // 渡されるたびに作り直される関数で取り直さないよう、ref で持つ。
+  const onProgramsRef = useRef(onPrograms);
+  onProgramsRef.current = onPrograms;
   // 入力の中身が変わったときだけ取り直す。
   const key = JSON.stringify(input);
 
@@ -62,6 +76,7 @@ export function RulePreview({ input, enabled }: Props) {
       setPreview(null);
       setLoading(false);
       setError(false);
+      onProgramsRef.current?.([]);
 
       return;
     }
@@ -77,6 +92,13 @@ export function RulePreview({ input, enabled }: Props) {
           (data) => {
             if (!cancelled && data !== undefined) {
               setPreview(data.previewRule);
+              onProgramsRef.current?.(
+                // 同じ番組名の回を見分けられるよう、放送の日時も添える。
+                data.previewRule.edges.map(({ node }) => ({
+                  id: node.id,
+                  name: `${programTime.format(Date.parse(node.startAt))} ${node.name}`,
+                })),
+              );
             }
           },
           () => {

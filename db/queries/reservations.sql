@@ -92,3 +92,9 @@ FROM reservation_rules rr
 JOIN rules ru ON ru.id = rr.rule_id
 WHERE rr.reservation_id = ANY(@reservation_ids::uuid[])
 ORDER BY rr.reservation_id, ru.created_at, ru.id;
+
+-- name: GetProgramForFileName :one
+-- ファイル名のテンプレートのプレビューに当てはめる、番組とサービスの情報。
+SELECT p.start_at, p.end_at, p.name, p.event_id, s.name AS service_name, s.channel_type, s.channel
+FROM programs p JOIN services s ON s.id = p.service_id
+WHERE p.service_id = @service_id AND p.event_id = @event_id;

@@ -109,31 +109,27 @@ type FileNameData struct {
 }
 
 // ParseFileNameTemplate は、ファイル名のテンプレートを解釈する。知らない項目を参照するテンプレートはエラーにする。
+// 使える書き方は、checkFileNameNodes の許可リストに限る。
 func ParseFileNameTemplate(text string) (*template.Template, error) {
-	tmpl, err := template.New("file_name").Option("missingkey=error").Parse(text)
+	if len(text) > maxFileNameTemplateB {
+		return nil, fmt.Errorf("%w: fileNameTemplate must be at most %d bytes", ErrInvalidSettings, maxFileNameTemplateB)
+	}
+	tmpl, err := template.New("file_name").Option("missingkey=error").Funcs(fileNameFuncs()).Parse(text)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid file name template: %w", ErrInvalidSettings, err)
 	}
+	if len(tmpl.Templates()) > 1 {
+		return nil, fmt.Errorf("%w: invalid file name template: define and block are not allowed", ErrInvalidSettings)
+	}
+	if err := checkFileNameNodes(tmpl.Root); err != nil {
+		return nil, fmt.Errorf("%w: invalid file name template: %w", ErrInvalidSettings, err)
+	}
 	// 項目の名前の誤りは、実行してみないと分からないので、見本のデータで試す。
-	if err := tmpl.Execute(io.Discard, sampleFileNameData()); err != nil {
+	if err := ExecuteFileNameTemplate(tmpl, io.Discard, SampleFileNameData()); err != nil {
 		return nil, fmt.Errorf("%w: invalid file name template: %w", ErrInvalidSettings, err)
 	}
 
 	return tmpl, nil
-}
-
-func sampleFileNameData() *FileNameData {
-	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-
-	return &FileNameData{
-		StartAt:     start,
-		EndAt:       start.Add(time.Hour),
-		ServiceName: "サービス",
-		ChannelType: "GR",
-		Channel:     "27",
-		Name:        "番組",
-		EventID:     1,
-	}
 }
 
 // Validate は、上書きの値が正しいかを確かめる。プールが設定にあるかどうかは、設定を持つ API の層で確かめる。

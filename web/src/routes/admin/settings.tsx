@@ -8,7 +8,6 @@ import {
   Stack,
   Switch,
   Text,
-  TextInput,
   Title,
 } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
@@ -19,6 +18,7 @@ import { graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import { AdminPage } from '../../admin/AdminPage';
 import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
+import { FileNameTemplateField } from '../../reservations/FileNameTemplateField';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import type { settingsSystemMutation } from './__generated__/settingsSystemMutation.graphql';
@@ -203,14 +203,11 @@ function SystemSettings() {
                 value={form.poolId}
                 onChange={(value) => set({ poolId: value ?? autoPool })}
               />
-              <TextInput
-                size="xs"
+              <FileNameTemplateField
                 label={t('admin.settings.fileNameTemplate')}
                 description={t('admin.settings.fileNameTemplateHelp')}
-                required
-                ff="monospace"
                 value={form.fileNameTemplate}
-                onChange={(event) => set({ fileNameTemplate: event.currentTarget.value })}
+                onChange={(value) => set({ fileNameTemplate: value })}
               />
               <Group gap="xs" align="flex-start">
                 <NumberInput

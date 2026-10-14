@@ -146,6 +146,38 @@ type ExtendedItem struct {
 	Text    string `json:"text"`
 }
 
+// ファイル名のテンプレートを当てはめた結果。
+type FileNamePreview struct {
+	// 当てはめたファイル名 (拡張子を含む)。取り除く文字や切り詰めも、録画と同じにする。テンプレートが誤っていれば null。
+	FileName *string `json:"fileName,omitempty"`
+	// テンプレートの誤り。正しければ null。
+	Error *string `json:"error,omitempty"`
+}
+
+// ファイル名のテンプレートの書き方。Go のテンプレートを書かない利用者向けに、画面で表にして示す。
+type FileNameTemplateHelp struct {
+	Items   []*FileNameTemplateItem   `json:"items"`
+	Presets []*FileNameTemplatePreset `json:"presets"`
+}
+
+// ファイル名のテンプレートの書き方の 1 つ (設計書 4.7)。
+type FileNameTemplateItem struct {
+	// テンプレートに書くもの。
+	Snippet string `json:"snippet"`
+	// 何に置き換わるか。
+	Description string `json:"description"`
+	// 見本の番組を当てはめた結果。
+	Example string `json:"example"`
+}
+
+// よく使うファイル名のテンプレート。
+type FileNameTemplatePreset struct {
+	Name     string `json:"name"`
+	Template string `json:"template"`
+	// 見本の番組を当てはめたファイル名 (拡張子を含む)。
+	Example string `json:"example"`
+}
+
 // 番組のジャンル。ARIB STD-B10 の content_nibble の大分類と中分類。
 type Genre struct {
 	Lv1 int `json:"lv1"`
