@@ -58,10 +58,10 @@ func (e *fakeEncoder) Run(ctx context.Context, _ io.Reader, _ *kyusu.Preset, aud
 			return ctx.Err()
 		}
 	}
-	if err := os.WriteFile(filepath.Join(dir, "segment00000.ts"), []byte{0x47}, 0o600); err != nil {
+	if err := writeFileAtomically(filepath.Join(dir, "segment00000.ts"), []byte{0x47}); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(dir, kyusu.PlaylistName), []byte(fakePlaylist), 0o600); err != nil {
+	if err := writeFileAtomically(filepath.Join(dir, kyusu.PlaylistName), []byte(fakePlaylist)); err != nil {
 		return err
 	}
 	<-ctx.Done()
@@ -71,6 +71,17 @@ func (e *fakeEncoder) Run(ctx context.Context, _ io.Reader, _ *kyusu.Preset, aud
 }
 
 var _ kyusu.Encoder = new(fakeEncoder)
+
+// writeFileAtomically は、一時ファイルに書いてから名前を変える。FFmpeg の hls_flags の temp_file と同じく、
+// 書きかけのファイルを読ませない。os.WriteFile で直接書くと、作ったばかりの空のファイルを返してしまうことがある。
+func writeFileAtomically(path string, data []byte) error {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return err
+	}
+
+	return os.Rename(tmp, path)
+}
 
 // fakeOpener は、空のストリームを開くか、決まったエラーを返す。
 type fakeOpener struct {
