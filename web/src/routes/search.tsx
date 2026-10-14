@@ -1,22 +1,22 @@
 import {
-  Alert,
-  Anchor,
-  Badge,
-  Button,
-  Card,
-  Group,
-  MultiSelect,
-  NumberInput,
-  SegmentedControl,
-  Stack,
-  Switch,
-  Text,
-  TextInput,
-  Title,
-  UnstyledButton,
+    Alert,
+    Anchor,
+    Badge,
+    Button,
+    Card,
+    Group,
+    MultiSelect,
+    NumberInput,
+    SegmentedControl,
+    Stack,
+    Switch,
+    Text,
+    TextInput,
+    Title,
+    UnstyledButton,
 } from '@mantine/core';
-import { History, ListPlus, RadioTower, Search as SearchIcon, SearchX, Shapes } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { History, ListPlus, RadioTower, Search as SearchIcon, SearchX, Shapes } from 'lucide-react';
 import { Suspense, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
@@ -24,15 +24,15 @@ import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'reac
 import { EmptyState, ErrorBoundary, PageLoader, ProgramTitle } from '../futon';
 import { genreKey } from '../guide/genres';
 import { ProgramDetail } from '../guide/ProgramDetail';
+import { ServiceLabel } from '../guide/ServiceLabel';
 import { isUnauthenticated } from '../relay/environment';
 import { isEmpty, toConditions, type KeywordScope, type SearchForm } from '../search/conditions';
 import { CreateRuleDialog } from '../search/CreateRuleDialog';
 import type {
-  searchProgramsQuery,
-  searchProgramsQuery$data,
+    searchProgramsQuery,
+    searchProgramsQuery$data,
 } from './__generated__/searchProgramsQuery.graphql';
 import type { searchViewerQuery } from './__generated__/searchViewerQuery.graphql';
-import { ServiceLabel } from '../guide/ServiceLabel';
 
 export const Route = createFileRoute('/search')({
   component: SearchPage,
@@ -218,7 +218,7 @@ function Search() {
   return (
     <Stack>
       <Card withBorder component="form" onSubmit={submit}>
-        <Stack gap="sm">
+        <Stack gap="md">
           <Group align="flex-end" wrap="wrap">
             <TextInput
               label={t('search.keyword')}
