@@ -20,7 +20,7 @@ import { Suspense, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
-import { ErrorBoundary, ProgramTitle } from '../futon';
+import { ErrorBoundary, PageLoader, ProgramTitle } from '../futon';
 import { genreKey } from '../guide/genres';
 import { ProgramDetail } from '../guide/ProgramDetail';
 import { isUnauthenticated } from '../relay/environment';
@@ -114,7 +114,7 @@ function SearchPage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Search />
         </Suspense>
       </ErrorBoundary>

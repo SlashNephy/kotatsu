@@ -2,6 +2,7 @@ export { cssVariablesResolver, theme } from './theme';
 export { ColorSchemeToggle } from './ColorSchemeToggle';
 export { cspNonce } from './nonce';
 export { ErrorBoundary } from './ErrorBoundary';
+export { PageLoader } from './PageLoader';
 export { PasswordStrength } from './PasswordStrength';
 export { formatBytes } from './format';
 export { toHalfWidth } from './halfWidth';

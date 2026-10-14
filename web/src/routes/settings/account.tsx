@@ -26,7 +26,7 @@ import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
 import { PasskeyCancelledError, passkeyAvailable, registerPasskey } from '../../auth/passkey';
 import { deviceName } from '../../settings/device';
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
@@ -83,7 +83,7 @@ function AccountPage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Account />
         </Suspense>
       </ErrorBoundary>

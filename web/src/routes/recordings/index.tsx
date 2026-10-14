@@ -8,7 +8,6 @@ import {
   MultiSelect,
   SimpleGrid,
   Stack,
-  Text,
   TextInput,
   Title,
 } from '@mantine/core';
@@ -17,7 +16,7 @@ import { Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, PageLoader } from '../../futon';
 import { RecordingCard } from '../../recordings/RecordingCard';
 import { recordingStates, stateKey } from '../../recordings/states';
 import { isUnauthenticated } from '../../relay/environment';
@@ -94,7 +93,7 @@ function RecordingsPage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Recordings />
         </Suspense>
       </ErrorBoundary>
@@ -166,7 +165,7 @@ function Recordings() {
           <Button type="submit">{t('recordings.filter')}</Button>
         </Group>
       </Card>
-      <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+      <Suspense fallback={<PageLoader />}>
         <RecordingGrid key={JSON.stringify(filter)} filter={filter} />
       </Suspense>
     </Stack>

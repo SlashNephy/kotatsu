@@ -27,7 +27,7 @@ import {
   useRelayEnvironment,
 } from 'react-relay';
 
-import { ErrorBoundary, ProgramTitle } from '../futon';
+import { ErrorBoundary, PageLoader, ProgramTitle } from '../futon';
 import { isUnauthenticated } from '../relay/environment';
 import { groupByDay, needsAttention, timelineBar } from '../reservations/timeline';
 import type { reservationsDeleteMutation } from './__generated__/reservationsDeleteMutation.graphql';
@@ -161,7 +161,7 @@ function ReservationsPage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Reservations range={range} />
         </Suspense>
       </ErrorBoundary>

@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { ErrorBoundary, ProgramTitle } from '../../futon';
+import { ErrorBoundary, PageLoader, ProgramTitle } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
@@ -75,7 +75,7 @@ function PlayPage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Player key={recordingId} recordingId={recordingId} />
         </Suspense>
       </ErrorBoundary>

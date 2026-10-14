@@ -6,7 +6,13 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
-import { ErrorBoundary, ProgramTitle, splitProgramMarks, toHalfWidth } from '../../futon';
+import {
+  ErrorBoundary,
+  PageLoader,
+  ProgramTitle,
+  splitProgramMarks,
+  toHalfWidth,
+} from '../../futon';
 import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -95,7 +101,7 @@ function LiveServicePage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Live key={serviceId} serviceId={serviceId} range={range} onProgramEnd={refresh} />
         </Suspense>
       </ErrorBoundary>

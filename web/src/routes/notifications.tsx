@@ -4,7 +4,7 @@ import { Suspense, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
-import { ErrorBoundary, ProgramTitle, splitProgramMarks } from '../futon';
+import { ErrorBoundary, PageLoader, ProgramTitle, splitProgramMarks } from '../futon';
 import { splitMessage } from '../notifications/message';
 import { isUnauthenticated } from '../relay/environment';
 import type { notificationsListQuery } from './__generated__/notificationsListQuery.graphql';
@@ -50,7 +50,7 @@ function NotificationsPage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <NotificationList />
         </Suspense>
       </ErrorBoundary>

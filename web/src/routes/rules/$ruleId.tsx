@@ -1,10 +1,10 @@
-import { Alert, Anchor, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Stack, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, PageLoader } from '../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { emptyRuleForm, fromRule } from '../../rules/form';
 import { RuleEditor } from '../../rules/RuleEditor';
@@ -55,7 +55,7 @@ function RulePage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Rule key={ruleId} ruleId={ruleId} />
         </Suspense>
       </ErrorBoundary>

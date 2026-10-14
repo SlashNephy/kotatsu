@@ -8,7 +8,7 @@ import { authApi, type OIDCStatus } from '../../auth/api';
 import { AuthCard } from '../../auth/AuthCard';
 import { oidcErrorMessage } from '../../auth/messages';
 import { Reauthenticate } from '../../auth/Reauthenticate';
-import { ErrorBoundary, PasswordStrength } from '../../futon';
+import { ErrorBoundary, PageLoader, PasswordStrength } from '../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { passwordChangeMutation } from './__generated__/passwordChangeMutation.graphql';
 import type { passwordViewerQuery } from './__generated__/passwordViewerQuery.graphql';
@@ -52,7 +52,7 @@ function ChangePasswordPage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <ChangePassword />
         </Suspense>
       </ErrorBoundary>

@@ -17,7 +17,7 @@ import { Suspense, useDeferredValue, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, PageLoader } from '../../futon';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
 import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
 import { broadcastDay } from '../../guide/layout';
@@ -119,7 +119,7 @@ function GuidePage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Guide />
         </Suspense>
       </ErrorBoundary>

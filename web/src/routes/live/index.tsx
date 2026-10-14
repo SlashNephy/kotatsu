@@ -1,10 +1,10 @@
-import { Alert, Anchor, SegmentedControl, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, SegmentedControl, SimpleGrid, Stack, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import type { liveServicesQuery } from './__generated__/liveServicesQuery.graphql';
 import { NowPlayingCard } from '../../guide/NowPlayingCard';
@@ -41,7 +41,7 @@ function LivePage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Services range={range} />
         </Suspense>
       </ErrorBoundary>

@@ -16,7 +16,7 @@ import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import type { rulesEnableMutation } from './__generated__/rulesEnableMutation.graphql';
 import type { rulesListQuery } from './__generated__/rulesListQuery.graphql';
@@ -45,7 +45,7 @@ function RulesPage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Rules />
         </Suspense>
       </ErrorBoundary>

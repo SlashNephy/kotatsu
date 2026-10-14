@@ -1,9 +1,9 @@
-import { Alert, Anchor, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Stack, Title } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
 import { Suspense, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ErrorBoundary } from '../futon';
+import { ErrorBoundary, PageLoader } from '../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../relay/environment';
 
 // AdminPage は、管理者向けの画面の枠 (設計書 10.3)。設定に戻るリンクと見出しを出し、
@@ -32,7 +32,7 @@ export function AdminPage({ title, children }: { title: string; children: ReactN
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>{children}</Suspense>
+        <Suspense fallback={<PageLoader />}>{children}</Suspense>
       </ErrorBoundary>
     </Stack>
   );

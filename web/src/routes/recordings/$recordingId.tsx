@@ -21,7 +21,7 @@ import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
-import { ErrorBoundary, formatBytes, ProgramTitle, toHalfWidth } from '../../futon';
+import { ErrorBoundary, formatBytes, PageLoader, ProgramTitle, toHalfWidth } from '../../futon';
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
 import { RecordingStateBadge } from '../../recordings/RecordingStateBadge';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -106,7 +106,7 @@ function RecordingPage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Recording key={recordingId} recordingId={recordingId} />
         </Suspense>
       </ErrorBoundary>
