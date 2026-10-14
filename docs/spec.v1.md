@@ -121,6 +121,10 @@ EDCBは予約エンジンの完成度が高い一方で、状態を単一のプ�
 
 管理用のサブコマンドとして、`kotatsu migrate`、`kotatsu import epgstation`、`kotatsu admin setup-token`を持ちます。
 
+ビルドのときに、版とコミットを`1.2.3+<コミット>`の形でバイナリに埋め込みます（リリースはタグの版、mainのイメージは`edge`）。
+埋め込まないビルドは`dev`とし、コミットはGoが埋め込むVCSの情報から取ります。
+版は`kotatsu --version`、起動時のログ、GraphQLの`version`（ログインしたユーザーだけ）で確かめられ、画面ではユーザーのメニューに出します。
+
 ### 1.2 構成図
 
 ```mermaid

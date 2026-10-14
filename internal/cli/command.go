@@ -24,6 +24,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/analysis"
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/buildinfo"
 	"github.com/SlashNephy/kotatsu/internal/capacity"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/config"
@@ -214,8 +215,9 @@ func advertiseAddress(listen, advertiseHost string) (string, error) {
 // NewCommand は kotatsu のルートコマンドを組み立てる。
 func NewCommand(opts *Options) *cobra.Command {
 	root := &cobra.Command{
-		Use:   "kotatsu",
-		Short: "Kotatsu is a web application to reserve, record, and watch Japanese TV broadcasts",
+		Use:     "kotatsu",
+		Short:   "Kotatsu is a web application to reserve, record, and watch Japanese TV broadcasts",
+		Version: buildinfo.Get().String(),
 		// エラーは main でログに出す。cobra にも出させると二重になる。
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -240,6 +242,9 @@ func NewCommand(opts *Options) *cobra.Command {
 		if err != nil {
 			return nil, fmt.Errorf("failed to load the config: %w", err)
 		}
+		build := buildinfo.Get()
+		opts.Logger.InfoContext(ctx, "kotatsu version",
+			slog.String("version", build.Version), slog.String("revision", build.Revision), slog.Bool("modified", build.Modified))
 		opts.Logger.InfoContext(ctx, "config loaded", slog.String("path", path), slog.Any("config", cfg))
 
 		return cfg, nil

@@ -7,6 +7,7 @@ import (
 	"github.com/SlashNephy/kotatsu/graph/generated"
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/buildinfo"
 )
 
 // Viewer is the resolver for the viewer field.
@@ -21,6 +22,21 @@ func (r *queryResolver) Viewer(ctx context.Context) (*model.User, error) {
 	}
 
 	return toUser(user), nil
+}
+
+// Version is the resolver for the version field.
+func (r *queryResolver) Version(ctx context.Context) (*model.AppVersion, error) {
+	// 版は、古い版の脆弱性を狙う手がかりになるので、Viewer と同じく、ログインしたユーザーにだけ返す。
+	if auth.PrincipalFrom(ctx) == nil {
+		return nil, NewError(CodeUnauthenticated, "login required")
+	}
+	build := buildinfo.Get()
+	var revision *string
+	if build.Revision != "" {
+		revision = new(build.Revision)
+	}
+
+	return &model.AppVersion{Version: build.Version, Revision: revision, Modified: build.Modified}, nil
 }
 
 // Heartbeat is the resolver for the heartbeat field.

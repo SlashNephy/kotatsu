@@ -15,6 +15,16 @@ type Node interface {
 	IsNode()
 }
 
+// Kotatsu の版。
+type AppVersion struct {
+	// リリースのタグの版 (1.2.3)。main のビルドなら edge、版を埋め込まないビルドなら dev。
+	Version string `json:"version"`
+	// ビルドしたコミット。分からなければ null。
+	Revision *string `json:"revision,omitempty"`
+	// コミットしていない変更を含むビルドかどうか。
+	Modified bool `json:"modified"`
+}
+
 // 過去の番組の検索の期間 (設計書 3.4)。開始時刻がこの範囲に入るアーカイブの番組も検索する。
 type ArchiveRangeInput struct {
 	// 期間の始まり。省くと、期間の終わりの 30 日前。

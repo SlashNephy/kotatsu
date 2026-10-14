@@ -1,6 +1,7 @@
 {
   "app": {
-    "name": "Kotatsu"
+    "name": "Kotatsu",
+    "version": "Kotatsu {{version}}"
   },
   "colorScheme": {
     "label": "テーマ",
