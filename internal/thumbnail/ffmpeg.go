@@ -21,7 +21,7 @@ const (
 
 	// 画素の縦横比 (SAR) を戻してから、決めた大きさに収めて縮め、余白は黒で埋める。4:3 や 3:2 の映像でも歪まない。
 	thumbnailFilter = "scale=iw*sar:ih,scale=480:270:force_original_aspect_ratio=decrease,pad=480:270:(ow-iw)/2:(oh-ih)/2,setsar=1"
-	tileFilter      = "scale=iw*sar:ih,scale=160:90:force_original_aspect_ratio=decrease,pad=160:90:(ow-iw)/2:(oh-ih)/2,setsar=1"
+	tileFilter      = "scale=iw*sar:ih,scale=320:180:force_original_aspect_ratio=decrease,pad=320:180:(ow-iw)/2:(oh-ih)/2,setsar=1"
 )
 
 // ErrFFmpegNotFound は、FFmpeg が PATH に見つからないことを表す。FFmpeg の入ったイメージ (-ffmpeg) を使うか、FFmpeg を入れる。
