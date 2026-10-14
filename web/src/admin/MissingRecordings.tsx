@@ -38,6 +38,9 @@ const query = graphql`
 
 type Missing = MissingRecordingsQuery$data['missingRecordings'][number];
 
+// cleanUpBatch は、1 回の cleanUpMissingRecordings で送る録画の数 (サーバーの上限)。
+const cleanUpBatch = 500;
+
 const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
   year: 'numeric',
   month: 'numeric',
@@ -58,7 +61,8 @@ export function MissingRecordings() {
   const [searching, setSearching] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const [cleanUp, cleaning] = useMutation<MissingRecordingsCleanUpMutation>(graphql`
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanUp] = useMutation<MissingRecordingsCleanUpMutation>(graphql`
     mutation MissingRecordingsCleanUpMutation($ids: [ID!]!) {
       cleanUpMissingRecordings(ids: $ids) {
         deletedRecordings
@@ -104,32 +108,39 @@ export function MissingRecordings() {
       return next;
     });
 
-  const run = () => {
-    cleanUp({
-      variables: { ids: [...selected] },
-      onCompleted: (response, errors) => {
-        setConfirming(false);
-        if (errors != null && errors.length > 0) {
-          setMessage({ ok: false, text: t('admin.missing.cleanUpError') });
-
-          return;
-        }
-        const r = response.cleanUpMissingRecordings;
-        setMessage({
-          ok: true,
-          text: t('admin.missing.cleaned', {
-            deleted: r.deletedRecordings,
-            pruned: r.prunedSegments,
-            skipped: r.skipped,
-          }),
+  // run は、選んだ録画を、サーバーの上限 (1 回に 500 件) ごとに分けて消す。
+  const run = async () => {
+    const ids = [...selected];
+    const total = { deleted: 0, pruned: 0, skipped: 0 };
+    setCleaning(true);
+    try {
+      for (let start = 0; start < ids.length; start += cleanUpBatch) {
+        const r = await new Promise<{
+          deletedRecordings: number;
+          prunedSegments: number;
+          skipped: number;
+        }>((resolve, reject) => {
+          cleanUp({
+            variables: { ids: ids.slice(start, start + cleanUpBatch) },
+            onCompleted: (response, errors) =>
+              errors != null && errors.length > 0
+                ? reject(new Error(errors[0]?.message ?? 'GraphQL error'))
+                : resolve(response.cleanUpMissingRecordings),
+            onError: reject,
+          });
         });
-        void search(true);
-      },
-      onError: () => {
-        setConfirming(false);
-        setMessage({ ok: false, text: t('admin.missing.cleanUpError') });
-      },
-    });
+        total.deleted += r.deletedRecordings;
+        total.pruned += r.prunedSegments;
+        total.skipped += r.skipped;
+      }
+      setMessage({ ok: true, text: t('admin.missing.cleaned', total) });
+    } catch {
+      setMessage({ ok: false, text: t('admin.missing.cleanUpError') });
+    } finally {
+      setCleaning(false);
+      setConfirming(false);
+      void search(true);
+    }
   };
 
   return (
@@ -225,7 +236,7 @@ export function MissingRecordings() {
             <Button variant="default" onClick={() => setConfirming(false)}>
               {t('admin.missing.cancel')}
             </Button>
-            <Button color="red" loading={cleaning} onClick={run}>
+            <Button color="red" loading={cleaning} onClick={() => void run()}>
               {t('admin.missing.confirmButton')}
             </Button>
           </Group>

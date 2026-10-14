@@ -33,6 +33,8 @@ func (l *Library) FindMissing(ctx context.Context, db sqlc.DBTX) ([]*MissingReco
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the recording segments: %w", err)
 	}
+	checker := l.store.NewChecker()
+	defer checker.Close()
 	result := []*MissingRecording{}
 	var current *MissingRecording
 	for _, row := range rows {
@@ -43,7 +45,7 @@ func (l *Library) FindMissing(ctx context.Context, db sqlc.DBTX) ([]*MissingReco
 			current = &MissingRecording{RecordingID: row.RecordingID, Segments: 0, MissingSegments: 0}
 		}
 		current.Segments++
-		missing, err := l.missing(row.PoolID, row.Path)
+		missing, err := missingSegment(checker, row.PoolID, row.Path)
 		if err != nil {
 			return nil, err
 		}
@@ -58,9 +60,9 @@ func (l *Library) FindMissing(ctx context.Context, db sqlc.DBTX) ([]*MissingReco
 	return result, nil
 }
 
-// missing は、セグメントのファイルが見つからないかを返す。マウントしていないプールのものは、見つからないとはみなさない。
-func (l *Library) missing(poolID, path string) (bool, error) {
-	exists, err := l.store.Exists(poolID, path)
+// missingSegment は、セグメントのファイルが見つからないかを返す。マウントしていないプールのものは、見つからないとはみなさない。
+func missingSegment(checker *kago.Checker, poolID, path string) (bool, error) {
+	exists, err := checker.Exists(poolID, path)
 	if errors.Is(err, kago.ErrPoolNotMounted) {
 		return false, nil
 	}
@@ -132,6 +134,8 @@ func (l *Library) CleanUpMissing(ctx context.Context, db Database, actor *audit.
 
 // missingFiles は、セグメントの数と、見つからないセグメントの数と、見つからないセグメントとその索引の記録の ID を返す。
 func (l *Library) missingFiles(files []sqlc.RecordingFile) (int, int, []uuid.UUID, error) {
+	checker := l.store.NewChecker()
+	defer checker.Close()
 	segments, missingSegments := 0, 0
 	missing := []uuid.UUID{}
 	for i := range files {
@@ -139,7 +143,7 @@ func (l *Library) missingFiles(files []sqlc.RecordingFile) (int, int, []uuid.UUI
 			continue
 		}
 		segments++
-		gone, err := l.missing(files[i].PoolID, files[i].Path)
+		gone, err := missingSegment(checker, files[i].PoolID, files[i].Path)
 		if err != nil {
 			return 0, 0, nil, err
 		}

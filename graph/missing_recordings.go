@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/library"
 )
 
@@ -36,16 +39,28 @@ func (r *Resolver) missingRecordings(ctx context.Context) ([]*model.MissingRecor
 	if err != nil {
 		return nil, err
 	}
+	ids := make([]uuid.UUID, 0, len(missing))
+	for _, m := range missing {
+		ids = append(ids, m.RecordingID)
+	}
+	rows, err := sqlc.New(r.db).ListRecordingsByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the recordings: %w", err)
+	}
+	recordings, err := r.recordingModels(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]*model.Recording, len(recordings))
+	for _, recording := range recordings {
+		byID[recording.ID] = recording
+	}
 	result := make([]*model.MissingRecording, 0, len(missing))
 	for _, m := range missing {
-		recording, err := r.recording(ctx, m.RecordingID)
-		if err != nil {
-			return nil, err
+		// 探している間に消えた録画は飛ばす。
+		if recording, ok := byID[GlobalID(recordingType, m.RecordingID.String())]; ok {
+			result = append(result, &model.MissingRecording{Recording: recording, Segments: m.Segments, MissingSegments: m.MissingSegments})
 		}
-		if recording == nil {
-			continue
-		}
-		result = append(result, &model.MissingRecording{Recording: recording, Segments: m.Segments, MissingSegments: m.MissingSegments})
 	}
 
 	return result, nil

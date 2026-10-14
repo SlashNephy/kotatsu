@@ -206,21 +206,43 @@ func (s *Store) Remove(poolID, rel string) error {
 }
 
 // Exists は、プールにファイル rel があるかを返す。プールがこのインスタンスにマウントされていなければ ErrPoolNotMounted を返す。
-// プールの中に限って調べるので、シンボリックリンクでもプールの外は調べない。
+// プールの中に限って調べるので、シンボリックリンクでもプールの外は調べない。続けて多くのファイルを調べるときは NewChecker を使う。
 func (s *Store) Exists(poolID, rel string) (bool, error) {
-	mount, ok := s.mounts[poolID]
-	if !ok {
-		return false, fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
-	}
+	checker := s.NewChecker()
+	defer checker.Close()
+
+	return checker.Exists(poolID, rel)
+}
+
+// Checker は、プールを開き直さずに、ファイルの有無を続けて調べる。使い終わったら Close する。
+type Checker struct {
+	store *Store
+	roots map[string]*os.Root
+}
+
+// NewChecker は Checker を返す。
+func (s *Store) NewChecker() *Checker {
+	return &Checker{store: s, roots: map[string]*os.Root{}}
+}
+
+// Exists は、Store.Exists と同じく、プールにファイル rel があるかを返す。
+func (c *Checker) Exists(poolID, rel string) (bool, error) {
 	if !filepath.IsLocal(rel) {
 		return false, fmt.Errorf("%w: %q", ErrInvalidPath, rel)
 	}
-	root, err := os.OpenRoot(mount)
-	if err != nil {
-		return false, fmt.Errorf("failed to open pool %s: %w", poolID, err)
+	root, ok := c.roots[poolID]
+	if !ok {
+		mount, mounted := c.store.mounts[poolID]
+		if !mounted {
+			return false, fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
+		}
+		var err error
+		if root, err = os.OpenRoot(mount); err != nil {
+			return false, fmt.Errorf("failed to open pool %s: %w", poolID, err)
+		}
+		c.roots[poolID] = root
 	}
-	defer root.Close()
-	_, err = root.Stat(rel)
+	_, err := root.Stat(rel)
 	switch {
 	case err == nil:
 		return true, nil
@@ -229,6 +251,14 @@ func (s *Store) Exists(poolID, rel string) (bool, error) {
 	default:
 		return false, fmt.Errorf("failed to inspect a file in pool %s: %w", poolID, err)
 	}
+}
+
+// Close は、開いたプールを閉じる。
+func (c *Checker) Close() {
+	for _, root := range c.roots {
+		_ = root.Close()
+	}
+	c.roots = map[string]*os.Root{}
 }
 
 // rank は、プールの順での位置を返す。マウントされていないプールは、どれよりも後にする。
