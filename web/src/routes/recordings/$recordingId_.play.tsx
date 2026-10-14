@@ -32,7 +32,7 @@ import {
   SettingsButton,
   VolumeControl,
 } from '../../yunomi/PlayerControls';
-import { useControlsVisibility } from '../../yunomi/useControlsVisibility';
+import { controlsAttribute, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoState } from '../../yunomi/useVideoState';
@@ -433,6 +433,19 @@ function Player({ recordingId }: { recordingId: string }) {
       className={playerControlsClasses.box}
       data-controls-visible={controls.visible}
       {...controls.containerProps}
+      // マウスで映像を押すと、再生と一時停止を切り替える。タッチでは、押すと操作バーを出し隠しするので切り替えない。
+      // 操作バーや、映像に重ねたボタンを押したときは、そのボタンの操作だけにする。
+      onClick={(event) => {
+        const pointer =
+          event.nativeEvent instanceof PointerEvent ? event.nativeEvent.pointerType : 'mouse';
+        if (
+          pointer === 'mouse' &&
+          event.target instanceof Element &&
+          event.target.closest(`[${controlsAttribute}], button, a, input, [role="slider"]`) === null
+        ) {
+          togglePlay();
+        }
+      }}
     >
       {route.kind === 'convert' && (
         <TsPlayer
