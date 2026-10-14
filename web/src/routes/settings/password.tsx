@@ -81,8 +81,8 @@ function ChangePassword() {
       }
     `,
     {},
-    // 再認証の後に、登録した第二要素が変わっていることがあるので、毎回取り直す。
-    { fetchPolicy: 'network-only' },
+    // 再認証の後に、登録した第二要素が変わっていることがあるので、毎回取り直す。前に読んだものがあれば、それを出しながら取り直す。
+    { fetchPolicy: 'store-and-network' },
   );
   const [commit, inFlight] = useMutation<passwordChangeMutation>(graphql`
     mutation passwordChangeMutation($password: String!) {

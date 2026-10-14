@@ -121,7 +121,11 @@ function Account() {
   // fetchKey を変えると、読み直す。登録や削除の後に、一覧を新しくするのに使う。
   // 読み直す間も画面を出したままにして、作り直したリカバリーコードなどの表示を消さないよう、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
-  const data = useLazyLoadQuery<accountQuery>(query, {}, { fetchKey, fetchPolicy: 'network-only' });
+  const data = useLazyLoadQuery<accountQuery>(
+    query,
+    {},
+    { fetchKey, fetchPolicy: 'store-and-network' },
+  );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
   const player = usePlayerSettings();

@@ -100,7 +100,7 @@ function AuditLog() {
   const data = useLazyLoadQuery<auditQuery>(
     query,
     { first: pageSize, after: null, filter },
-    { fetchPolicy: 'network-only' },
+    { fetchPolicy: 'store-and-network' },
   );
   // more は、続きの読み込みで足した記録と、その次のカーソル。絞り込みを変えたら捨てる。
   const [more, setMore] = useState<{

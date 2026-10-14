@@ -82,7 +82,7 @@ function ChannelSettings() {
   const data = useLazyLoadQuery<channelsQuery>(
     query,
     {},
-    { fetchKey, fetchPolicy: 'network-only' },
+    { fetchKey, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
