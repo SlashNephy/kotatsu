@@ -83,6 +83,10 @@ env は、すべてのコンテナに渡す環境変数。
 - name: KOTATSU_STORAGE_POOLS
   value: {{ . | quote }}
 {{- end }}
+{{- if .Values.storage.sidecar.volume }}
+- name: KOTATSU_STORAGE_SIDECAR_DIR
+  value: /var/lib/kotatsu/sidecar
+{{- end }}
 - name: KOTATSU_KYUSU_WORK_DIR
   value: /var/lib/kotatsu/work
 {{- range $name, $value := .Values.config }}
@@ -106,6 +110,10 @@ volume の名前は、プール ID に使える _ を含められないので、
 - name: {{ printf "pool-%d" $i }}
   mountPath: {{ printf "/var/lib/kotatsu/pools/%s" $pool.id }}
 {{- end }}
+{{- if .root.Values.storage.sidecar.volume }}
+- name: sidecar
+  mountPath: /var/lib/kotatsu/sidecar
+{{- end }}
 {{- end }}
 {{- end -}}
 
@@ -119,6 +127,10 @@ volume の名前は、プール ID に使える _ を含められないので、
 {{- range $i, $pool := .root.Values.storage.pools }}
 - name: {{ printf "pool-%d" $i }}
   {{- toYaml $pool.volume | nindent 2 }}
+{{- end }}
+{{- with .root.Values.storage.sidecar.volume }}
+- name: sidecar
+  {{- toYaml . | nindent 2 }}
 {{- end }}
 {{- end }}
 {{- end -}}

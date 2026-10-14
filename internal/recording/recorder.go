@@ -49,8 +49,6 @@ const (
 	estimatedBytesPerSecond = 3_000_000
 	// segmentExt は、録画ファイルの拡張子。
 	segmentExt = ".m2ts"
-	// indexFileName は、付属ファイルのディレクトリに置く、索引のファイルの名前。
-	indexFileName = "index"
 	// fileKindSegment と fileKindIndex は、録画のファイルの種類 (recording_files.kind)。
 	fileKindSegment = "segment"
 	fileKindIndex   = "index"
@@ -424,6 +422,8 @@ type segment struct {
 	poolID    string
 	path      string
 	indexPath string
+	// indexPool は、索引を置いたプール。付属ファイルをまとめて置くディレクトリがあれば kago.SidecarPoolID になる。
+	indexPool string
 	fileID    uuid.UUID
 	indexID   uuid.UUID
 	file      *os.File
@@ -476,12 +476,12 @@ func (r *Recorder) createSegment(
 		return nil, FailureStorageUnavailable, err
 	}
 	// 索引は、録画ファイルの横の付属ファイルのディレクトリに置く。作れなくても、録画は続ける。
-	analyzer, indexFile, indexPath, indexErr := r.createIndex(pool.ID, rel)
+	analyzer, indexFile, index, indexErr := r.createIndex(pool.ID, rel)
 	if indexErr != nil {
 		r.logger.WarnContext(ctx, "failed to create the index; recording without it", slog.String("path", rel), slog.Any("error", indexErr))
 	}
 	seg := &segment{
-		poolID: pool.ID, path: rel, indexPath: indexPath, fileID: uuid.Nil, indexID: uuid.Nil, file: file, indexFile: indexFile,
+		poolID: pool.ID, path: rel, indexPath: index.Path, indexPool: index.PoolID, fileID: uuid.Nil, indexID: uuid.Nil, file: file, indexFile: indexFile,
 		buffer: bufio.NewWriterSize(file, writeBufferSize), analyzer: analyzer, startedAt: r.clock.Now(),
 	}
 
@@ -501,7 +501,7 @@ func (r *Recorder) createSegment(
 	if seg.indexFile != nil {
 		seg.indexID = id.New()
 		err = q.InsertRecordingFile(ctx, sqlc.InsertRecordingFileParams{
-			ID: seg.indexID, RecordingID: recording.ID, Kind: fileKindIndex, PoolID: pool.ID, Path: seg.indexPath, StartedAt: seg.startedAt, Now: seg.startedAt,
+			ID: seg.indexID, RecordingID: recording.ID, Kind: fileKindIndex, PoolID: seg.indexPool, Path: seg.indexPath, StartedAt: seg.startedAt, Now: seg.startedAt,
 		})
 		if err != nil {
 			_ = file.Close()
@@ -548,28 +548,28 @@ func (r *Recorder) pools(ctx context.Context, mounted []string, poolID string) (
 
 // createIndex は、録画ファイル rel の付属ファイルのディレクトリに索引を作り、索引を書く解析器を返す。
 // 索引を作れなければ、索引を書かない解析器と、そのエラーを返す。
-func (r *Recorder) createIndex(poolID, rel string) (*ts.Analyzer, *os.File, string, error) {
+func (r *Recorder) createIndex(poolID, rel string) (*ts.Analyzer, *os.File, kago.Location, error) {
 	dir, err := r.store.CreateSidecarDir(poolID, rel)
 	if err != nil {
-		return ts.NewAnalyzer(nil), nil, "", err
+		return ts.NewAnalyzer(nil), nil, kago.Location{}, err
 	}
-	indexRel := dir + "/" + indexFileName
-	path, err := r.store.Path(poolID, indexRel)
+	index := kago.Location{PoolID: dir.PoolID, Path: dir.Path + "/" + kago.IndexFileName}
+	path, err := r.store.Path(index.PoolID, index.Path)
 	if err != nil {
-		return ts.NewAnalyzer(nil), nil, "", err
+		return ts.NewAnalyzer(nil), nil, kago.Location{}, err
 	}
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
-		return ts.NewAnalyzer(nil), nil, "", fmt.Errorf("failed to create the index file: %w", err)
+		return ts.NewAnalyzer(nil), nil, kago.Location{}, fmt.Errorf("failed to create the index file: %w", err)
 	}
 	writer, err := ts.NewIndexWriter(file)
 	if err != nil {
 		_ = file.Close()
 
-		return ts.NewAnalyzer(nil), nil, "", err
+		return ts.NewAnalyzer(nil), nil, kago.Location{}, err
 	}
 
-	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer}), file, indexRel, nil
+	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer}), file, index, nil
 }
 
 // endReason は、録画を止めた理由。

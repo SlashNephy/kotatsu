@@ -98,8 +98,9 @@ func (f *fixture) recording(t *testing.T, segments []segment) (uuid.UUID, []stri
 		path := filepath.Join("録画", []string{"a.m2ts", "b.m2ts", "c.m2ts"}[i])
 		require.NoError(t, os.MkdirAll(filepath.Join(f.dir, "録画"), 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(f.dir, path), seg.data, 0o600))
-		sidecar, err := f.store.CreateSidecarDir(poolID, path)
+		sidecarDir, err := f.store.CreateSidecarDir(poolID, path)
 		require.NoError(t, err)
+		sidecar := sidecarDir.Path
 		require.NoError(t, os.WriteFile(filepath.Join(f.dir, sidecar, "index"), []byte("index"), 0o600))
 		for _, file := range []struct {
 			kind, path string

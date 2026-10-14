@@ -113,6 +113,7 @@ storage:
 
 `config`には、環境変数`KOTATSU_`の後ろの名前と値を書きます。
 `KOTATSU_STORAGE_POOLS`は、`storage.pools`からChartが作るので、`config`には書きません。
+新しい録画の付属ファイル（索引、代表画像、プレビュー画像）を、録画ファイルの横でなく別の場所にまとめたいときは、`storage.sidecar.volume`にvolumeを書きます。Chartが`KOTATSU_STORAGE_SIDECAR_DIR`を渡し、プールと同じロールにマウントします。すでにある付属ファイルは移しません。
 
 `all`と`split`の例は、[deploy/kubernetes](../deploy/kubernetes)にも置いています。
 同じディレクトリにある`all.yaml`と`split.yaml`は、その例から作ったマニフェストです。

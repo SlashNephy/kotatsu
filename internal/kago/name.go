@@ -257,18 +257,16 @@ func (s *Store) Rename(poolID, from, dir, name string, start int) (string, error
 		if rel == filepath.Clean(from) {
 			return rel, nil
 		}
-		if exists(root, rel) || exists(root, rel+sidecarSuffix) {
+		if exists(root, rel) || s.sidecarTaken(poolID, rel) {
 			continue
 		}
 		if err := root.Rename(from, rel); err != nil {
 			return "", fmt.Errorf("failed to rename a file in pool %s: %w", poolID, err)
 		}
-		if exists(root, from+sidecarSuffix) {
-			if err := root.Rename(from+sidecarSuffix, rel+sidecarSuffix); err != nil {
-				_ = root.Rename(rel, from)
+		if err := s.moveSidecars(poolID, from, rel); err != nil {
+			_ = root.Rename(rel, from)
 
-				return "", fmt.Errorf("failed to rename the sidecar directory in pool %s: %w", poolID, err)
-			}
+			return "", err
 		}
 		for parent := filepath.Dir(from); parent != "." && root.Remove(parent) == nil; parent = filepath.Dir(parent) {
 			continue
@@ -285,4 +283,78 @@ func exists(root *os.Root, rel string) bool {
 	_, err := root.Lstat(rel)
 
 	return err == nil
+}
+
+// SidecarMove は、録画ファイルを移したときの、付属ファイルのディレクトリの場所の変わり方。記録のパスを書き換えるのに使う。
+type SidecarMove struct {
+	PoolID string
+	// From と To は、移す前と後の、付属ファイルのディレクトリのプール内の相対パス。
+	From string
+	To   string
+}
+
+// SidecarMoves は、録画ファイル from を to に移したときの、付属ファイルのディレクトリの場所の変わり方を、置き場所の候補ごとに返す。
+func (s *Store) SidecarMoves(poolID, from, to string) []SidecarMove {
+	olds, news := s.sidecarLocations(poolID, from), s.sidecarLocations(poolID, to)
+	moves := make([]SidecarMove, 0, len(olds))
+	for i := range olds {
+		moves = append(moves, SidecarMove{PoolID: olds[i].PoolID, From: olds[i].Path, To: news[i].Path})
+	}
+
+	return moves
+}
+
+// sidecarTaken は、録画ファイル rel の付属ファイルのディレクトリの場所のどれかが、すでにふさがっているかを返す。
+func (s *Store) sidecarTaken(poolID, rel string) bool {
+	for _, location := range s.sidecarLocations(poolID, rel) {
+		root, err := os.OpenRoot(s.mounts[location.PoolID])
+		if err != nil {
+			continue
+		}
+		taken := exists(root, location.Path)
+		_ = root.Close()
+		if taken {
+			return true
+		}
+	}
+
+	return false
+}
+
+// moveSidecars は、録画ファイル from の付属ファイルのディレクトリを、to のものとして移す。どの置き場所のものも移す。
+func (s *Store) moveSidecars(poolID, from, to string) error {
+	for _, move := range s.SidecarMoves(poolID, from, to) {
+		root, err := os.OpenRoot(s.mounts[move.PoolID])
+		if err != nil {
+			return fmt.Errorf("failed to open pool %s: %w", move.PoolID, err)
+		}
+		err = moveInRoot(root, move.From, move.To)
+		_ = root.Close()
+		if err != nil {
+			return fmt.Errorf("failed to rename the sidecar directory in pool %s: %w", move.PoolID, err)
+		}
+	}
+
+	return nil
+}
+
+// moveInRoot は、root の中で from を to に移す。from がなければ何もしない。to のディレクトリがなければ作り、
+// from のあったディレクトリが空になれば消す。
+func moveInRoot(root *os.Root, from, to string) error {
+	if !exists(root, from) {
+		return nil
+	}
+	if parent := filepath.Dir(to); parent != "." {
+		if err := root.MkdirAll(parent, 0o755); err != nil {
+			return err
+		}
+	}
+	if err := root.Rename(from, to); err != nil {
+		return err
+	}
+	for parent := filepath.Dir(from); parent != "." && root.Remove(parent) == nil; parent = filepath.Dir(parent) {
+		continue
+	}
+
+	return nil
 }

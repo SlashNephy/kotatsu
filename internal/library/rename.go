@@ -194,11 +194,13 @@ func (l *Library) Rename(ctx context.Context, db Database, actor *audit.Actor, p
 			if err := q.SetRecordingFilePath(ctx, sqlc.SetRecordingFilePathParams{Path: to, ID: file.FileID}); err != nil {
 				return fmt.Errorf("failed to update the recording file path: %w", err)
 			}
-			err = q.MoveRecordingSidecarPaths(ctx, sqlc.MoveRecordingSidecarPathsParams{
-				NewPrefix: to + ".kotatsu/", OldPrefix: file.From + ".kotatsu/", RecordingID: plan.RecordingID, PoolID: file.PoolID,
-			})
-			if err != nil {
-				return fmt.Errorf("failed to update the sidecar paths: %w", err)
+			for _, move := range l.store.SidecarMoves(file.PoolID, file.From, to) {
+				err = q.MoveRecordingSidecarPaths(ctx, sqlc.MoveRecordingSidecarPathsParams{
+					NewPrefix: move.To + "/", OldPrefix: move.From + "/", RecordingID: plan.RecordingID, PoolID: move.PoolID,
+				})
+				if err != nil {
+					return fmt.Errorf("failed to update the sidecar paths: %w", err)
+				}
 			}
 			renamed = append(renamed, map[string]string{"from": file.From, "to": to})
 		}

@@ -135,19 +135,19 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, webpush.NewDeliverWorker(deps.DB, webPush, deps.Clock, webPushSubject(deps.Config), location, webpush.NewHTTPClient()))
 
 	// 保存先プールの容量は、このインスタンスにマウントされたプールについて調べる (設計書 6.1)。
-	manager := capacity.NewManager(deps.DB, deps.Clock, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), audit.NewRecorder(deps.Clock),
+	manager := capacity.NewManager(deps.DB, deps.Clock, storeOf(deps.Config), audit.NewRecorder(deps.Clock),
 		logger.With(slog.String("component", "capacity")))
 	river.AddWorker(workers, capacity.NewCheckWorker(manager))
 	// 録画を終えたら、代表画像とプレビュー画像を作る (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。
-	river.AddWorker(workers, thumbnail.NewGenerateWorker(deps.DB, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), deps.Clock,
+	river.AddWorker(workers, thumbnail.NewGenerateWorker(deps.DB, storeOf(deps.Config), deps.Clock,
 		!deps.Config.Thumbnail.DisablePreview))
 	// 取り込んだ録画は、録画ファイルを読み直して索引と集計を作ってから、画像を作るジョブに渡す (設計書 6.3)。
-	river.AddWorker(workers, analysis.NewAnalyzeWorker(deps.DB, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), deps.Clock, inserter))
+	river.AddWorker(workers, analysis.NewAnalyzeWorker(deps.DB, storeOf(deps.Config), deps.Clock, inserter))
 	// 引き継ぎや再起動で分かれた録画のファイルは、録画が終わったら 1 つにつなぐ (設計書 5.4)。
 	// つないだあとは、索引と集計を作り直すために、解析のジョブに渡す。
-	river.AddWorker(workers, segjoin.NewJoinWorker(deps.DB, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), inserter,
+	river.AddWorker(workers, segjoin.NewJoinWorker(deps.DB, storeOf(deps.Config), inserter,
 		logger.With(slog.String("component", "segjoin")), 0))
-	river.AddWorker(workers, segjoin.NewFinalizeWorker(deps.DB, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), inserter))
+	river.AddWorker(workers, segjoin.NewFinalizeWorker(deps.DB, storeOf(deps.Config), inserter))
 
 	return workers, []*river.PeriodicJob{audit.PrunePeriodicJob(), notification.DispatchPeriodicJob(), capacity.CheckPeriodicJob()}, nil
 }
@@ -594,6 +594,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		JikkyoClient:      jikkyoClient,
 		Changes:           changes,
 		Pools:             deps.Config.Storage.Pools,
+		SidecarDir:        deps.Config.Storage.SidecarDir,
 		FreeSpace:         nil,
 		Clock:             deps.Clock,
 		Location:          location,
@@ -664,15 +665,15 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		authorizer.Middleware(kyusu.NewRecordingRelay(instances, kyusuToken, streamLogger)))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
 	mux.Handle("GET /streams/recordings/{id}",
-		authorizer.Middleware(stream.NewRecordingHandler(deps.DB, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), streamLogger, 0)))
+		authorizer.Middleware(stream.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
 	mux.Handle("GET /streams/recordings/{id}/files/{file}",
-		authorizer.Middleware(stream.NewOtherFileHandler(deps.DB, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), streamLogger)))
+		authorizer.Middleware(stream.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger)))
 	// サービスのロゴは、チューナーサーバーから取って中継する。
 	mux.Handle("GET /media/services/{id}/logo", authorizer.Middleware(stream.NewLogoHandler(logos, streamLogger)))
 	// 録画の代表画像とプレビュー画像も、このインスタンスにマウントしたプールのものだけ配信できる。
 	mux.Handle("GET /media/recordings/{id}/{file}",
-		authorizer.Middleware(thumbnail.NewImageHandler(deps.DB, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), streamLogger)))
+		authorizer.Middleware(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger)))
 	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
 	mux.Handle("GET /media/recordings/{id}/"+jikkyo.CommentsFileName, authorizer.Middleware(
 		jikkyo.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))))
@@ -731,7 +732,7 @@ func newKyusu(ctx context.Context, logger *slog.Logger, deps *Deps) (*kyusu.Live
 		return nil, nil, nil, err
 	}
 	vod, err := kyusu.NewVOD(&kyusu.VODOptions{
-		Opener:  stream.NewRecordingSource(deps.DB, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), 0),
+		Opener:  stream.NewRecordingSource(deps.DB, storeOf(deps.Config), 0),
 		Encoder: vodEncoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock, Logger: kyusuLogger, IdleTimeout: 0,
 	})
 	if err != nil {
@@ -778,4 +779,9 @@ func closePool(pool *pgxpool.Pool) {
 	if pool != nil {
 		pool.Close()
 	}
+}
+
+// storeOf は、設定のプールと、付属ファイルをまとめて置くディレクトリを使う kago.Store を返す。
+func storeOf(cfg *config.Config) *kago.Store {
+	return kago.NewOrdered(cfg.Storage.Pools, cfg.Storage.PoolOrder, nil).WithSidecarDir(cfg.Storage.SidecarDir)
 }
