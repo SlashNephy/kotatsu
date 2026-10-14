@@ -272,6 +272,46 @@ func (q *Queries) InsertRecordingHistory(ctx context.Context, arg InsertRecordin
 	return err
 }
 
+const listFinishedRecordingSegments = `-- name: ListFinishedRecordingSegments :many
+SELECT r.id AS recording_id, f.id, f.pool_id, f.path
+FROM recordings r JOIN recording_files f ON f.recording_id = r.id AND f.kind = 'segment'
+WHERE r.state <> 'recording'
+ORDER BY r.recorded_from DESC, r.id, f.started_at, f.id
+`
+
+type ListFinishedRecordingSegmentsRow struct {
+	RecordingID uuid.UUID
+	ID          uuid.UUID
+	PoolID      string
+	Path        string
+}
+
+// 録画中でない録画のセグメントの記録を、録画を始めた日時の新しい順に返す。ファイルの見つからない録画を探すのに使う。
+func (q *Queries) ListFinishedRecordingSegments(ctx context.Context) ([]ListFinishedRecordingSegmentsRow, error) {
+	rows, err := q.db.Query(ctx, listFinishedRecordingSegments)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListFinishedRecordingSegmentsRow{}
+	for rows.Next() {
+		var i ListFinishedRecordingSegmentsRow
+		if err := rows.Scan(
+			&i.RecordingID,
+			&i.ID,
+			&i.PoolID,
+			&i.Path,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOpenRecordingFiles = `-- name: ListOpenRecordingFiles :many
 SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
 `

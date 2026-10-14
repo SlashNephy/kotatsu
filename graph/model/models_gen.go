@@ -99,6 +99,16 @@ type ChannelTypeInput struct {
 	SortOrder *int `json:"sortOrder,omitempty"`
 }
 
+// ファイルの見つからない録画を DB から消した結果。
+type CleanUpMissingRecordingsPayload struct {
+	// セグメントのファイルが 1 つも見つからず、DB から消した録画の数。
+	DeletedRecordings int `json:"deletedRecordings"`
+	// 一部のセグメントだけが見つからない録画で、記録を消したセグメントの数。
+	PrunedSegments int `json:"prunedSegments"`
+	// 保護しているか録画中で、消さなかった録画の数。
+	Skipped int `json:"skipped"`
+}
+
 // 管理者が作るユーザー。
 type CreateUserInput struct {
 	Username    string `json:"username"`
@@ -254,6 +264,15 @@ type Lease struct {
 	ExpiresAt        time.Time `json:"expiresAt"`
 	// 期限が切れていないかどうか。
 	Valid bool `json:"valid"`
+}
+
+// セグメントのファイルが見つからない録画 (設計書 5.6)。Kotatsu を通さずにファイルを消すと、録画の一覧に残り続けるので、探して DB から消す。
+type MissingRecording struct {
+	Recording *Recording `json:"recording"`
+	// 録画のセグメントの数。
+	Segments int `json:"segments"`
+	// そのうち、ファイルが見つからないものの数。segments と同じなら、録画ごと消す。
+	MissingSegments int `json:"missingSegments"`
 }
 
 type Mutation struct {

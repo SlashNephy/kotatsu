@@ -55,8 +55,8 @@ func TestPreviewFileName(t *testing.T) {
 		wantCodes []string
 	}{
 		{
-			name: "見本の番組を当てはめ、パス区切りを取り除く", variables: map[string]any{varTemplate: `{{half .Name}}/{{.Channel}}`},
-			wantName: new("こたつでみかんSP #216.m2ts"),
+			name: "見本の番組を当てはめ、テンプレートの / でディレクトリに分ける", variables: map[string]any{varTemplate: `{{half .Name}}/{{.Channel}}`},
+			wantName: new("こたつでみかんSP #2/16.m2ts"),
 		},
 		{
 			name: "番組を当てはめる", variables: map[string]any{varTemplate: `{{.ChannelType}}_{{.Channel}}_{{.Name}}`, varProgram: programID(6)},

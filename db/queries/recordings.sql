@@ -104,3 +104,10 @@ UPDATE recordings SET audios = @audios, updated_at = @now WHERE id = @id AND aud
 -- name: DeleteRecordingFiles :exec
 -- 録画のファイルの記録を消す。セグメントを 1 つにつないだあとで、つないだ元のセグメントと索引の記録を消すのに使う。
 DELETE FROM recording_files WHERE recording_id = @recording_id AND id = ANY(@ids::uuid[]);
+
+-- name: ListFinishedRecordingSegments :many
+-- 録画中でない録画のセグメントの記録を、録画を始めた日時の新しい順に返す。ファイルの見つからない録画を探すのに使う。
+SELECT r.id AS recording_id, f.id, f.pool_id, f.path
+FROM recordings r JOIN recording_files f ON f.recording_id = r.id AND f.kind = 'segment'
+WHERE r.state <> 'recording'
+ORDER BY r.recorded_from DESC, r.id, f.started_at, f.id;

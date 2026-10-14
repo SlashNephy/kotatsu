@@ -190,6 +190,8 @@ type Querier interface {
 	// 割り振りを書く予約。有効で、チューナーの割り当てを計算済みで、予定の開始が due_before までに来て、まだ終わっておらず、割り振りのないもの。
 	ListDueReservations(ctx context.Context, arg ListDueReservationsParams) ([]ListDueReservationsRow, error)
 	ListEPGChangesSince(ctx context.Context, version int64) ([]ListEPGChangesSinceRow, error)
+	// 録画中でない録画のセグメントの記録を、録画を始めた日時の新しい順に返す。ファイルの見つからない録画を探すのに使う。
+	ListFinishedRecordingSegments(ctx context.Context) ([]ListFinishedRecordingSegmentsRow, error)
 	// ルール予約の録画設定に使う、一致したルールのうち最も古いものの上書き。
 	ListFirstRuleSettings(ctx context.Context, reservationIds []uuid.UUID) ([]ListFirstRuleSettingsRow, error)
 	// 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。照合の対象の番組 (ListMatchablePrograms) とそろえる。
