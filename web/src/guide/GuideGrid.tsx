@@ -54,6 +54,8 @@ type Props = {
   receivedUntil?: number;
   // scrollKey を変えると、日付が同じでも、scrollTime へスクロールし直す。
   scrollKey?: number;
+  // scrollProgram は、scrollTime へスクロールするときに、横にも見えるようにする番組の ID。その番組の列を左端に寄せる。
+  scrollProgram?: string | undefined;
   // scrollTime は、日付を変えたとき (と最初) に、上の方に出す時刻。null なら、それまで見ていた時間帯のままにする。
   scrollTime: number | null;
   onSelect: (programId: string) => void;
@@ -86,6 +88,7 @@ export function GuideGrid({
   now,
   receivedUntil,
   scrollKey,
+  scrollProgram,
   scrollTime,
   onSelect,
 }: Props) {
@@ -152,6 +155,10 @@ export function GuideGrid({
   // scrollTimeRef は、最新の scrollTime。日付を変えたときだけ動かすので、効果の依存には入れない。
   const scrollTimeRef = useRef(scrollTime);
   scrollTimeRef.current = scrollTime;
+  const scrollProgramRef = useRef(scrollProgram);
+  scrollProgramRef.current = scrollProgram;
+  const columnsRef = useRef(columns);
+  columnsRef.current = columns;
   useEffect(() => {
     const element = scroller.current;
     if (element === null) {
@@ -161,6 +168,17 @@ export function GuideGrid({
     const time = scrollTimeRef.current;
     if (time !== null) {
       element.scrollTop = Math.max(timeToY(window, time) - 60 * minuteHeight * 0.5, 0);
+      // 列は同じ幅で並ぶので、番組の列の番号から横の位置が決まる。
+      const programId = scrollProgramRef.current;
+      const index =
+        programId === undefined
+          ? -1
+          : columnsRef.current.findIndex((column) =>
+              column.programs.some((program) => program.id === programId),
+            );
+      if (index >= 0) {
+        element.scrollLeft = index * columnWidth;
+      }
     } else if (topOffset.current !== null) {
       element.scrollTop = timeToY(window, window.from + topOffset.current);
     }

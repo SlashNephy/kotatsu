@@ -18,6 +18,7 @@ import { RecordingCard } from '../recordings/RecordingCard';
 import type { DashboardQuery } from './__generated__/DashboardQuery.graphql';
 import classes from './Dashboard.module.css';
 import { nowPlaying } from './nowPlaying';
+import { broadcastDay, dateOf } from '../guide/layout';
 import { ProgramTitle } from '../futon';
 import { NowPlayingCard } from '../guide/NowPlayingCard';
 import { ServiceLabel } from '../guide/ServiceLabel';
@@ -112,6 +113,9 @@ export function Dashboard({ range }: { range: DashboardRange }) {
               service {
                 name
                 logoUrl
+                channelType {
+                  type
+                }
               }
               assignment {
                 state
@@ -209,7 +213,24 @@ export function Dashboard({ range }: { range: DashboardRange }) {
         ) : (
           <Stack gap={4}>
             {upcoming.map(({ node }) => (
-              <Group key={node.id} gap="xs" wrap="nowrap">
+              // 押すと、番組表のその日・その種別を開き、この予約の番組の詳細を開く。
+              <Group
+                key={node.id}
+                gap="xs"
+                wrap="nowrap"
+                className={classes.upcomingRow}
+                renderRoot={(props) => (
+                  <Link
+                    {...props}
+                    to="/guide"
+                    search={{
+                      date: dateOf(broadcastDay(Date.parse(node.startAt)).from),
+                      type: node.service.channelType.type,
+                      reservation: node.id,
+                    }}
+                  />
+                )}
+              >
                 {/* 日時は、番組名の頭が揃うよう、いちばん長い日時 (12/28(月) 00:00) が収まる幅に固定する。本文のフォントは数字の幅が揃う。 */}
                 <Text size="sm" c="dimmed" w="8.5em" style={{ flexShrink: 0 }}>
                   {dateTimeFormat.format(Date.parse(node.startAt))}

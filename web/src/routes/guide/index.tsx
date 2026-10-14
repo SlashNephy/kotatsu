@@ -13,14 +13,14 @@ import {
 } from '@mantine/core';
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { Suspense, useDeferredValue, useMemo, useState } from 'react';
+import { Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
 import { ErrorBoundary, PageLoader } from '../../futon';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
 import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
-import { broadcastDay } from '../../guide/layout';
+import { broadcastDay, dateOf } from '../../guide/layout';
 import { ProgramDetail } from '../../guide/ProgramDetail';
 import { collapseSharedColumns } from '../../guide/sharedEvent';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -36,6 +36,9 @@ type GuideSearch = {
   program?: string;
   // view は、適用する番組表ビューの ID。省くと、絞り込まない。
   view?: string;
+  // reservation は、詳細を開きたい番組の予約の ID。番組表を読んだら、その予約の番組を program にして外す。
+  // ホームのこれからの予約から開くときに使う。予約からは番組の ID が分からないので、番組表の中から探す。
+  reservation?: string;
 };
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -52,12 +55,14 @@ export const Route = createFileRoute('/guide/')({
     const type = text('type');
     const program = text('program');
     const view = text('view');
+    const reservation = text('reservation');
 
     return {
       ...(date !== undefined && datePattern.test(date) ? { date } : {}),
       ...(type !== undefined ? { type } : {}),
       ...(program !== undefined ? { program } : {}),
       ...(view !== undefined ? { view } : {}),
+      ...(reservation !== undefined ? { reservation } : {}),
     };
   },
   component: GuidePage,
@@ -72,11 +77,6 @@ function receivedUntil(columns: readonly GuideColumn[], to: number): number | un
   const until = ends.length === 0 ? undefined : Math.max(...ends);
 
   return until !== undefined && until < to - 3_600_000 ? until : undefined;
-}
-
-// dateOf は、放送日の始まりの時刻を YYYY-MM-DD (日本時間) にする。
-function dateOf(time: number): string {
-  return new Date(time + 9 * 3_600_000).toISOString().slice(0, 10);
 }
 
 // dayFrom は、URL の日付 (なければ今日) の放送日の始まりを返す。
@@ -252,6 +252,25 @@ function Guide() {
     [data.guide, type],
   );
 
+  // focused は、URL で指した番組 (予約から開いたときは、その予約の番組)。開いたときに、その時刻へスクロールする。
+  const focused = useMemo(() => {
+    const programs = data.guide.flatMap((row) => row.programs);
+
+    return search.reservation !== undefined
+      ? programs.find((program) => program.reservation?.id === search.reservation)
+      : programs.find((program) => program.id === search.program);
+  }, [data.guide, search.reservation, search.program]);
+  // 予約から開いたときは、その予約の番組の詳細を開き、URL を番組の ID に置き換える。番組が見つからなければ、予約を外すだけにする。
+  useEffect(() => {
+    if (search.reservation === undefined) {
+      return;
+    }
+    void navigate({
+      search: (prev) => ({ ...prev, reservation: undefined, program: focused?.id ?? prev.program }),
+      replace: true,
+    });
+  }, [navigate, search.reservation, focused]);
+
   // offset は、選んだ日の、今日からの日数。日付の移動のボタンに使う。
   const offset = Math.round((selectedFrom - today.from) / day);
   // keepTime は、日付を移っても、見ていた時間帯のままにするか。前後の日へ移るときは保ち、今日へ戻るときはいまの時刻を出す。
@@ -395,8 +414,15 @@ function Guide() {
             now={now}
             receivedUntil={window.from > today.from ? receivedUntil(columns, window.to) : undefined}
             scrollKey={scrollKey}
+            scrollProgram={keepTime ? undefined : focused?.id}
             scrollTime={
-              keepTime ? null : window.from === today.from ? now : window.from + 15 * 3_600_000
+              keepTime
+                ? null
+                : focused !== undefined
+                  ? Date.parse(focused.startAt)
+                  : window.from === today.from
+                    ? now
+                    : window.from + 15 * 3_600_000
             }
             onSelect={(program) => void navigate({ search: (prev) => ({ ...prev, program }) })}
           />

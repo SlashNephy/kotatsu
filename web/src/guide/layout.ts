@@ -240,6 +240,11 @@ export function visibleRange(
   return { start, end: Math.max(start, lo) };
 }
 
+// dateOf は、放送日の始まりの時刻を YYYY-MM-DD (日本時間) にする。
+export function dateOf(time: number): string {
+  return new Date(time + 9 * 3_600_000).toISOString().slice(0, 10);
+}
+
 // broadcastDay は、時刻を含む放送日 (4 時から翌 4 時まで、日本時間) の時間帯を返す。
 export function broadcastDay(time: number): GuideWindow {
   const jst = 9 * 60 * minute;

@@ -29,3 +29,22 @@
       'types types';
   }
 }
+
+/* これからの予約の行。押すと、番組表でその番組の詳細を開く。押せると分かるよう、ホバーで背景を付ける。 */
+/* 背景を付けても文字の位置が動かないよう、内側の余白の分だけ外へ広げる。 */
+.upcomingRow {
+  margin-inline: calc(-1 * var(--mantine-spacing-xs));
+  padding: 2px var(--mantine-spacing-xs);
+  border-radius: var(--mantine-radius-sm);
+  color: inherit;
+  text-decoration: none;
+}
+
+.upcomingRow:hover {
+  background: var(--mantine-color-default-hover);
+}
+
+.upcomingRow:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}

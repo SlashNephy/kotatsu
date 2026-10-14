@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<37a19a0494bf05a26b2ca0bac6baff71>>
+ * @generated SignedSource<<6b37a05b204ddb2ef7c236cece861695>>
  * @lightSyntaxTransform
  */
 
@@ -85,6 +85,9 @@ export type DashboardQuery$data = {
         readonly id: string;
         readonly name: string;
         readonly service: {
+          readonly channelType: {
+            readonly type: string;
+          };
           readonly logoUrl: string | null | undefined;
           readonly name: string;
         };
@@ -204,21 +207,33 @@ v11 = {
 v12 = {
   "alias": null,
   "args": null,
-  "kind": "ScalarField",
-  "name": "startAt",
+  "concreteType": "ChannelType",
+  "kind": "LinkedField",
+  "name": "channelType",
+  "plural": false,
+  "selections": [
+    (v6/*:: as any*/)
+  ],
   "storageKey": null
 },
 v13 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
+  "name": "startAt",
+  "storageKey": null
+},
+v14 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
   "name": "endAt",
   "storageKey": null
 },
-v14 = [
+v15 = [
   (v9/*:: as any*/)
 ],
-v15 = {
+v16 = {
   "alias": null,
   "args": [
     (v8/*:: as any*/),
@@ -244,18 +259,7 @@ v15 = {
         (v9/*:: as any*/),
         (v10/*:: as any*/),
         (v11/*:: as any*/),
-        {
-          "alias": null,
-          "args": null,
-          "concreteType": "ChannelType",
-          "kind": "LinkedField",
-          "name": "channelType",
-          "plural": false,
-          "selections": [
-            (v6/*:: as any*/)
-          ],
-          "storageKey": null
-        }
+        (v12/*:: as any*/)
       ],
       "storageKey": null
     },
@@ -269,8 +273,8 @@ v15 = {
       "selections": [
         (v9/*:: as any*/),
         (v10/*:: as any*/),
-        (v12/*:: as any*/),
         (v13/*:: as any*/),
+        (v14/*:: as any*/),
         {
           "alias": null,
           "args": null,
@@ -278,7 +282,7 @@ v15 = {
           "kind": "LinkedField",
           "name": "sharedFrom",
           "plural": false,
-          "selections": (v14/*:: as any*/),
+          "selections": (v15/*:: as any*/),
           "storageKey": null
         }
       ],
@@ -287,66 +291,53 @@ v15 = {
   ],
   "storageKey": null
 },
-v16 = [
+v17 = [
   {
     "kind": "Variable",
     "name": "first",
     "variableName": "recordings"
   }
 ],
-v17 = {
+v18 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "state",
   "storageKey": null
 },
-v18 = {
+v19 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "recordedFrom",
   "storageKey": null
 },
-v19 = {
+v20 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "recordedUntil",
   "storageKey": null
 },
-v20 = {
+v21 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "watchPositionMs",
   "storageKey": null
 },
-v21 = {
+v22 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "thumbnailUrl",
   "storageKey": null
 },
-v22 = {
+v23 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "previewUrl",
-  "storageKey": null
-},
-v23 = {
-  "alias": null,
-  "args": null,
-  "concreteType": "Service",
-  "kind": "LinkedField",
-  "name": "service",
-  "plural": false,
-  "selections": [
-    (v10/*:: as any*/),
-    (v11/*:: as any*/)
-  ],
   "storageKey": null
 },
 v24 = {
@@ -377,7 +368,7 @@ v27 = {
   "name": "assignment",
   "plural": false,
   "selections": [
-    (v17/*:: as any*/)
+    (v18/*:: as any*/)
   ],
   "storageKey": null
 },
@@ -421,7 +412,7 @@ v28 = {
           "kind": "LinkedField",
           "name": "node",
           "plural": false,
-          "selections": (v14/*:: as any*/),
+          "selections": (v15/*:: as any*/),
           "storageKey": null
         }
       ],
@@ -447,20 +438,6 @@ v28 = {
     }
   ],
   "storageKey": null
-},
-v29 = {
-  "alias": null,
-  "args": null,
-  "concreteType": "Service",
-  "kind": "LinkedField",
-  "name": "service",
-  "plural": false,
-  "selections": [
-    (v10/*:: as any*/),
-    (v11/*:: as any*/),
-    (v9/*:: as any*/)
-  ],
-  "storageKey": null
 };
 return {
   "fragment": {
@@ -477,10 +454,10 @@ return {
     "selections": [
       (v5/*:: as any*/),
       (v7/*:: as any*/),
-      (v15/*:: as any*/),
+      (v16/*:: as any*/),
       {
         "alias": null,
-        "args": (v16/*:: as any*/),
+        "args": (v17/*:: as any*/),
         "concreteType": "RecordingConnection",
         "kind": "LinkedField",
         "name": "recordings",
@@ -504,15 +481,27 @@ return {
                 "selections": [
                   (v9/*:: as any*/),
                   (v10/*:: as any*/),
-                  (v12/*:: as any*/),
                   (v13/*:: as any*/),
-                  (v17/*:: as any*/),
+                  (v14/*:: as any*/),
                   (v18/*:: as any*/),
                   (v19/*:: as any*/),
                   (v20/*:: as any*/),
                   (v21/*:: as any*/),
                   (v22/*:: as any*/),
-                  (v23/*:: as any*/)
+                  (v23/*:: as any*/),
+                  {
+                    "alias": null,
+                    "args": null,
+                    "concreteType": "Service",
+                    "kind": "LinkedField",
+                    "name": "service",
+                    "plural": false,
+                    "selections": [
+                      (v10/*:: as any*/),
+                      (v11/*:: as any*/)
+                    ],
+                    "storageKey": null
+                  }
                 ],
                 "storageKey": null
               }
@@ -548,9 +537,22 @@ return {
                 "selections": [
                   (v9/*:: as any*/),
                   (v10/*:: as any*/),
-                  (v12/*:: as any*/),
                   (v13/*:: as any*/),
-                  (v23/*:: as any*/),
+                  (v14/*:: as any*/),
+                  {
+                    "alias": null,
+                    "args": null,
+                    "concreteType": "Service",
+                    "kind": "LinkedField",
+                    "name": "service",
+                    "plural": false,
+                    "selections": [
+                      (v10/*:: as any*/),
+                      (v11/*:: as any*/),
+                      (v12/*:: as any*/)
+                    ],
+                    "storageKey": null
+                  },
                   (v27/*:: as any*/)
                 ],
                 "storageKey": null
@@ -580,10 +582,10 @@ return {
     "selections": [
       (v5/*:: as any*/),
       (v7/*:: as any*/),
-      (v15/*:: as any*/),
+      (v16/*:: as any*/),
       {
         "alias": null,
-        "args": (v16/*:: as any*/),
+        "args": (v17/*:: as any*/),
         "concreteType": "RecordingConnection",
         "kind": "LinkedField",
         "name": "recordings",
@@ -607,15 +609,28 @@ return {
                 "selections": [
                   (v9/*:: as any*/),
                   (v10/*:: as any*/),
-                  (v12/*:: as any*/),
                   (v13/*:: as any*/),
-                  (v17/*:: as any*/),
+                  (v14/*:: as any*/),
                   (v18/*:: as any*/),
                   (v19/*:: as any*/),
                   (v20/*:: as any*/),
                   (v21/*:: as any*/),
                   (v22/*:: as any*/),
-                  (v29/*:: as any*/)
+                  (v23/*:: as any*/),
+                  {
+                    "alias": null,
+                    "args": null,
+                    "concreteType": "Service",
+                    "kind": "LinkedField",
+                    "name": "service",
+                    "plural": false,
+                    "selections": [
+                      (v10/*:: as any*/),
+                      (v11/*:: as any*/),
+                      (v9/*:: as any*/)
+                    ],
+                    "storageKey": null
+                  }
                 ],
                 "storageKey": null
               }
@@ -651,9 +666,23 @@ return {
                 "selections": [
                   (v9/*:: as any*/),
                   (v10/*:: as any*/),
-                  (v12/*:: as any*/),
                   (v13/*:: as any*/),
-                  (v29/*:: as any*/),
+                  (v14/*:: as any*/),
+                  {
+                    "alias": null,
+                    "args": null,
+                    "concreteType": "Service",
+                    "kind": "LinkedField",
+                    "name": "service",
+                    "plural": false,
+                    "selections": [
+                      (v10/*:: as any*/),
+                      (v11/*:: as any*/),
+                      (v12/*:: as any*/),
+                      (v9/*:: as any*/)
+                    ],
+                    "storageKey": null
+                  },
                   (v27/*:: as any*/)
                 ],
                 "storageKey": null
@@ -668,16 +697,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "4f538e2b1776b9e5c2745e0303513978",
+    "cacheID": "18ea1acf14bf9d624a9d1381c4fa5fd4",
     "id": null,
     "metadata": {},
     "name": "DashboardQuery",
     "operationKind": "query",
-    "text": "query DashboardQuery(\n  $from: Time!\n  $nowEnd: Time!\n  $to: Time!\n  $recordings: Int!\n  $upcoming: Int!\n) {\n  tunerServerHealth {\n    degraded\n    degradedSince\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  guide(from: $from, to: $nowEnd) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n    }\n  }\n  recordings(first: $recordings) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        recordedFrom\n        recordedUntil\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n  }\n  upcoming: reservations(from: $from, to: $to, enabled: true, first: $upcoming) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        service {\n          name\n          logoUrl\n          id\n        }\n        assignment {\n          state\n        }\n      }\n    }\n  }\n  troubles: reservations(from: $from, to: $to, states: [CONFLICT, PARTIAL], enabled: true, first: 100) {\n    edges {\n      node {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
+    "text": "query DashboardQuery(\n  $from: Time!\n  $nowEnd: Time!\n  $to: Time!\n  $recordings: Int!\n  $upcoming: Int!\n) {\n  tunerServerHealth {\n    degraded\n    degradedSince\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  guide(from: $from, to: $nowEnd) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n    }\n  }\n  recordings(first: $recordings) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        recordedFrom\n        recordedUntil\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n  }\n  upcoming: reservations(from: $from, to: $to, enabled: true, first: $upcoming) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        service {\n          name\n          logoUrl\n          channelType {\n            type\n          }\n          id\n        }\n        assignment {\n          state\n        }\n      }\n    }\n  }\n  troubles: reservations(from: $from, to: $to, states: [CONFLICT, PARTIAL], enabled: true, first: 100) {\n    edges {\n      node {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "b453e05fc8aea04f9f7fd4039f8c5f4f";
+(node as any).hash = "1a714e0da6d392f3b811c0299a443aa4";
 
 export default node;
