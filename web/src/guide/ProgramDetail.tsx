@@ -231,10 +231,10 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
       {program.extended.map((item, index) => (
         <Stack key={index} gap={2}>
           <Text size="sm" fw={700}>
-            {item.heading}
+            {toHalfWidth(item.heading)}
           </Text>
           <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
-            {item.text}
+            {toHalfWidth(item.text)}
           </Text>
         </Stack>
       ))}
