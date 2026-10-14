@@ -60,10 +60,13 @@ func RenderName(tmpl *template.Template, data any, ext string) (string, error) {
 
 // sanitizeDirName は、ディレクトリの名前を、ファイル名と同じく整え、長さの上限に収める。整えて空になれば空を返す。
 func sanitizeDirName(name string) string {
-	name = SanitizeName(name)
-	if name == fallbackName {
-		// SanitizeName は、空になった名前を fallbackName にするので、もとが fallbackName そのものだったかで見分ける。
+	name = stripName(name)
+	if name == "" {
 		return ""
+	}
+	// 付属ファイルのディレクトリ (録画ファイル名 + .kotatsu) と重なると、その録画を消すときに巻き込むので、名前を変える。
+	if strings.HasSuffix(name, sidecarSuffix) {
+		name += "_"
 	}
 	if len(name) > maxNameBytes {
 		cut := maxNameBytes
@@ -83,6 +86,15 @@ func sanitizeDirName(name string) string {
 //   - 前後の空白とドットを取り除く (先頭のドットは隠しファイルになり、末尾のドットは SMB で扱えないため)
 //   - 何も残らなければ "untitled" にする
 func SanitizeName(name string) string {
+	if name = stripName(name); name == "" {
+		return fallbackName
+	}
+
+	return name
+}
+
+// stripName は、SanitizeName と同じく整え、何も残らなければ空を返す。
+func stripName(name string) string {
 	name = strings.ToValidUTF8(name, "")
 	name = strings.Map(func(r rune) rune {
 		if r == '/' || r == '\\' || unicode.IsControl(r) {
@@ -91,12 +103,8 @@ func SanitizeName(name string) string {
 
 		return r
 	}, name)
-	name = strings.Trim(name, trimmedChars)
-	if name == "" {
-		return fallbackName
-	}
 
-	return name
+	return strings.Trim(name, trimmedChars)
 }
 
 // fitName は、base + suffix + ext が maxFileNameBytes 以内に収まるよう、base を文字の境界で切り詰める。

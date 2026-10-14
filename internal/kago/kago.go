@@ -198,7 +198,7 @@ func (s *Store) Remove(poolID, rel string) error {
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to remove a file in pool %s: %w", poolID, err)
 	}
-	if err := os.RemoveAll(path + sidecarSuffix); err != nil {
+	if err := removeSidecarDir(path + sidecarSuffix); err != nil {
 		return fmt.Errorf("failed to remove the sidecar directory in pool %s: %w", poolID, err)
 	}
 	// ファイル名のテンプレートで掘ったディレクトリが空になれば、プールの直下まで遡って消す。
@@ -223,4 +223,31 @@ func (s *Store) rank(id string) int {
 // removedEmptyDir は、空のディレクトリ path を消し、消せたかどうかを返す。空でなければ消さない。
 func removedEmptyDir(path string) bool {
 	return os.Remove(path) == nil
+}
+
+// removeSidecarDir は、付属ファイルのディレクトリと、その中のファイルを消す。中にディレクトリがあれば、付属ファイルの
+// ディレクトリではない (ほかの録画を置いたディレクトリと重なった) とみなし、中身ごとは消さない。
+func removeSidecarDir(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			return fmt.Errorf("%w: %q contains a directory", ErrInvalidPath, dir)
+		}
+	}
+	for _, entry := range entries {
+		if err := os.Remove(filepath.Join(dir, entry.Name())); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	if err := os.Remove(dir); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	return nil
 }

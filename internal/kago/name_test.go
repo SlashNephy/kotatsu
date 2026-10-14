@@ -80,6 +80,17 @@ func TestRenderName(t *testing.T) {
 			want: "20261009-2100 こたつテスト1/a/b/番組.m2ts",
 		},
 		{
+			name: "a directory named untitled is kept",
+			data: data{Date: date, Channel: channel, Title: "untitled/番組"},
+			want: "20261009-2100 こたつテスト1 untitled/番組.m2ts",
+		},
+		{
+			// 付属ファイルのディレクトリと重ならないよう、名前を変える。
+			name: "a directory ending with the sidecar suffix is renamed",
+			data: data{Date: date, Channel: channel, Title: "x.m2ts.kotatsu/番組"},
+			want: "20261009-2100 こたつテスト1 x.m2ts.kotatsu_/番組.m2ts",
+		},
+		{
 			name: "directories deeper than the limit are dropped",
 			data: data{Date: date, Channel: channel, Title: "1/2/3/4/5/6/7/8/9/10/番組"},
 			want: "20261009-2100 こたつテスト1 1/2/3/4/5/6/7/8/番組.m2ts",
@@ -320,4 +331,23 @@ func TestRemoveDeletesEmptyDirectories(t *testing.T) {
 	entries, err := os.ReadDir(mount)
 	require.NoError(t, err)
 	assert.Empty(t, entries)
+}
+
+// TestRemoveKeepsDirectoriesInTheSidecarPath は、付属ファイルのディレクトリの場所に、ほかの録画を置いたディレクトリがあっても、
+// 中身ごと消さないことを確かめる。
+func TestRemoveKeepsDirectoriesInTheSidecarPath(t *testing.T) {
+	t.Parallel()
+
+	mount := t.TempDir()
+	store := kago.New(map[string]string{poolMain: mount}, nil)
+	f, rel, err := store.Create(poolMain, "", fileName)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	other := filepath.Join(mount, rel+".kotatsu", "sub", "other.m2ts")
+	require.NoError(t, os.MkdirAll(filepath.Dir(other), 0o755))
+	require.NoError(t, os.WriteFile(other, []byte("x"), 0o600))
+
+	require.ErrorIs(t, store.Remove(poolMain, rel), kago.ErrInvalidPath)
+	_, err = os.Stat(other)
+	assert.NoError(t, err)
 }

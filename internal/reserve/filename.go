@@ -208,12 +208,13 @@ func ExecuteFileNameTemplate(tmpl *template.Template, w io.Writer, data any) err
 }
 
 // RenderFileName は、テンプレートに data を当てはめた、録画ファイルのプール内の相対パスを返す (kago.RenderName)。
-// ディレクトリの区切りにするのは、テンプレートに書いた / だけにする。番組名などの値に入っている / と \ は取り除き、
+// ディレクトリの区切りにするのは、テンプレートに書いた / だけにする。番組名などの値に入っている / と \ は、half で半角になる
+// 全角のものも含めて取り除き、
 // 「前編/後編」のような番組名でディレクトリを掘らないようにする。
 func RenderFileName(tmpl *template.Template, data *FileNameData, ext string) (string, error) {
 	clean := *data
 	for _, field := range []*string{&clean.ServiceName, &clean.ChannelType, &clean.Channel, &clean.Name} {
-		*field = strings.NewReplacer("/", "", "\\", "").Replace(*field)
+		*field = strings.NewReplacer("/", "", "\\", "", "／", "", "＼", "").Replace(*field)
 	}
 
 	return kago.RenderName(tmpl, &clean, ext)

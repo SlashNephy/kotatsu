@@ -134,3 +134,19 @@ func TestParseFileNameTemplateRejects(t *testing.T) {
 		assert.NoError(t, err, text)
 	}
 }
+
+// TestRenderFileName は、テンプレートに書いた / だけをディレクトリの区切りにし、値に入っている / は、
+// half で半角になる全角のものも含めて取り除くことを確かめる。
+func TestRenderFileName(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, 10, 12, 0, 30, 0, 0, time.UTC)
+	data := &reserve.FileNameData{
+		StartAt: start, EndAt: start.Add(time.Hour), ServiceName: "ＴＶ／１", ChannelType: "GR", Channel: "16", Name: "前編/後編＼完結", EventID: 1,
+	}
+	tmpl, err := reserve.ParseFileNameTemplate(`{{.ChannelType}}/{{half .ServiceName}}/{{half .Name}}`)
+	require.NoError(t, err)
+	got, err := reserve.RenderFileName(tmpl, data, ".m2ts")
+	require.NoError(t, err)
+	assert.Equal(t, "GR/TV1/前編後編完結.m2ts", got)
+}
