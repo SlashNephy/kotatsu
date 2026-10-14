@@ -1,8 +1,8 @@
 diff --git a/dist/Options.cjs b/dist/Options.cjs
-index 598f3b6bfd381df49e6e2e7438451bf46e73273c..d0092f9d080eb5d25417d2068c82cba46e471ed5 100644
+index 598f3b6bfd381df49e6e2e7438451bf46e73273c..5572a98bd9ef0e4b501f1c81da51b81949e6028c 100644
 --- a/dist/Options.cjs
 +++ b/dist/Options.cjs
-@@ -55,6 +55,11 @@ class Options {
+@@ -55,6 +55,15 @@ class Options {
        this.dictionary = options.dictionary;
        this.setRankedDictionaries();
      }
@@ -10,15 +10,19 @@ index 598f3b6bfd381df49e6e2e7438451bf46e73273c..d0092f9d080eb5d25417d2068c82cba4
 +    if (options.precomputedDictionary) {
 +      this.rankedDictionaries = options.precomputedDictionary.rankedDictionaries;
 +      this.rankedDictionariesMaxWordSize = options.precomputedDictionary.rankedDictionariesMaxWordSize;
++      // kotatsu: 辞書の語に現れる 2 文字の組。辞書の照合で、窓の走査を打ち切るのに使う。
++      if (options.precomputedDictionary.wordBigrams) {
++        this.dictionaryBigrams = new Set(options.precomputedDictionary.wordBigrams);
++      }
 +    }
      if (options.translations) {
        this.setTranslations(options.translations);
      }
 diff --git a/dist/Options.mjs b/dist/Options.mjs
-index 7a6cb4047d4c9c2d3426713f4d25fc29f5ec252e..67c366710d52d48b70ee787f6f68eaad39104a51 100644
+index 7a6cb4047d4c9c2d3426713f4d25fc29f5ec252e..b11ede27aebea8822476725cf66bb8a3bf8ed48a 100644
 --- a/dist/Options.mjs
 +++ b/dist/Options.mjs
-@@ -53,6 +53,11 @@ class Options {
+@@ -53,6 +53,15 @@ class Options {
        this.dictionary = options.dictionary;
        this.setRankedDictionaries();
      }
@@ -26,12 +30,16 @@ index 7a6cb4047d4c9c2d3426713f4d25fc29f5ec252e..67c366710d52d48b70ee787f6f68eaad
 +    if (options.precomputedDictionary) {
 +      this.rankedDictionaries = options.precomputedDictionary.rankedDictionaries;
 +      this.rankedDictionariesMaxWordSize = options.precomputedDictionary.rankedDictionariesMaxWordSize;
++      // kotatsu: 辞書の語に現れる 2 文字の組。辞書の照合で、窓の走査を打ち切るのに使う。
++      if (options.precomputedDictionary.wordBigrams) {
++        this.dictionaryBigrams = new Set(options.precomputedDictionary.wordBigrams);
++      }
 +    }
      if (options.translations) {
        this.setTranslations(options.translations);
      }
 diff --git a/dist/matcher/dictionary/matching.cjs b/dist/matcher/dictionary/matching.cjs
-index 04c3b081316b241dc1080be2d68a2f17700bc630..2d8afa47f05855255be88a27b9e9d820cd9303c5 100644
+index 04c3b081316b241dc1080be2d68a2f17700bc630..6435d21174b974d2bbc5330b212fba659e63e156 100644
 --- a/dist/matcher/dictionary/matching.cjs
 +++ b/dist/matcher/dictionary/matching.cjs
 @@ -30,7 +30,9 @@ class MatchDictionary extends types.MatcherBaseClass {
@@ -45,10 +53,24 @@ index 04c3b081316b241dc1080be2d68a2f17700bc630..2d8afa47f05855255be88a27b9e9d820
    }) {
      const matches = [];
      const passwordLength = password.length;
-@@ -41,6 +43,21 @@ class MatchDictionary extends types.MatcherBaseClass {
+@@ -41,6 +43,35 @@ class MatchDictionary extends types.MatcherBaseClass {
      } = this.getRangedDictionaries(userInputsOptions);
      const dictionaryNames = Object.keys(rankedDictionaries);
      const maxSearchWidth = Math.max(0, ...Object.values(rankedDictionariesMaxWordSize));
++    // kotatsu: 辞書の語に現れる 2 文字の組を使い、窓の走査を打ち切る。窓にどの語にも現れない組があれば、
++    // その窓と、それを含む長い窓は、どの語にも一致しない (結果は変わらない)。組は、ビルドのときに求めて渡す。
++    // その場で足されるユーザーの入力の語の組も加える。レーベンシュタイン距離を調べる場合は、一致しない窓も見るので打ち切らない。
++    let wordBigrams;
++    let userInputBigrams;
++    if (this.options.dictionaryBigrams && !(this.options.useLevenshteinDistance && useLevenshtein)) {
++      wordBigrams = this.options.dictionaryBigrams;
++      userInputBigrams = new Set();
++      Object.keys(rankedDictionaries.userInputs || {}).forEach(word => {
++        for (let k = 0; k + 1 < word.length; k += 1) {
++          userInputBigrams.add(word.slice(k, k + 2));
++        }
++      });
++    }
 +    // kotatsu: l33t の候補では、読み替えた文字を含まない窓の一致は捨てられるので、走査しない (結果は変わらない)。
 +    // changedBefore[k] は、k 文字目より前の読み替えた文字の数。
 +    let changedBefore;
@@ -67,10 +89,16 @@ index 04c3b081316b241dc1080be2d68a2f17700bc630..2d8afa47f05855255be88a27b9e9d820
      for (let i = 0; i < passwordLength; i += 1) {
        for (let j = i; j < passwordLength; j += 1) {
          const isFullPassword = i === 0 && j === passwordLength - 1;
-@@ -49,7 +66,43 @@ class MatchDictionary extends types.MatcherBaseClass {
+@@ -49,7 +80,49 @@ class MatchDictionary extends types.MatcherBaseClass {
          if (j - i + 1 > maxSearchWidth && !isFullPassword) {
            break;
          }
++        if (wordBigrams && j > i) {
++          const bigram = passwordLower.slice(j - 1, j + 1);
++          if (!wordBigrams.has(bigram) && !userInputBigrams.has(bigram)) {
++            break;
++          }
++        }
 +        if (changedBefore && !isFullPassword && changedBefore[j + 1] === changedBefore[i]) {
 +          continue;
 +        }
@@ -112,7 +140,7 @@ index 04c3b081316b241dc1080be2d68a2f17700bc630..2d8afa47f05855255be88a27b9e9d820
            const rankedDict = rankedDictionaries[dictionaryName];
            if (j - i + 1 > rankedDictionariesMaxWordSize[dictionaryName] && !isFullPassword) {
 diff --git a/dist/matcher/dictionary/matching.mjs b/dist/matcher/dictionary/matching.mjs
-index 1c65989c60d213b014dea71eadcdb2091366a8aa..8787a3d1283c49755f976b09f7b1d83d42788d74 100644
+index 1c65989c60d213b014dea71eadcdb2091366a8aa..1842fa6c911946ec179c63dbc61f8e46d1574878 100644
 --- a/dist/matcher/dictionary/matching.mjs
 +++ b/dist/matcher/dictionary/matching.mjs
 @@ -28,7 +28,9 @@ class MatchDictionary extends MatcherBaseClass {
@@ -126,10 +154,24 @@ index 1c65989c60d213b014dea71eadcdb2091366a8aa..8787a3d1283c49755f976b09f7b1d83d
    }) {
      const matches = [];
      const passwordLength = password.length;
-@@ -39,6 +41,21 @@ class MatchDictionary extends MatcherBaseClass {
+@@ -39,6 +41,35 @@ class MatchDictionary extends MatcherBaseClass {
      } = this.getRangedDictionaries(userInputsOptions);
      const dictionaryNames = Object.keys(rankedDictionaries);
      const maxSearchWidth = Math.max(0, ...Object.values(rankedDictionariesMaxWordSize));
++    // kotatsu: 辞書の語に現れる 2 文字の組を使い、窓の走査を打ち切る。窓にどの語にも現れない組があれば、
++    // その窓と、それを含む長い窓は、どの語にも一致しない (結果は変わらない)。組は、ビルドのときに求めて渡す。
++    // その場で足されるユーザーの入力の語の組も加える。レーベンシュタイン距離を調べる場合は、一致しない窓も見るので打ち切らない。
++    let wordBigrams;
++    let userInputBigrams;
++    if (this.options.dictionaryBigrams && !(this.options.useLevenshteinDistance && useLevenshtein)) {
++      wordBigrams = this.options.dictionaryBigrams;
++      userInputBigrams = new Set();
++      Object.keys(rankedDictionaries.userInputs || {}).forEach(word => {
++        for (let k = 0; k + 1 < word.length; k += 1) {
++          userInputBigrams.add(word.slice(k, k + 2));
++        }
++      });
++    }
 +    // kotatsu: l33t の候補では、読み替えた文字を含まない窓の一致は捨てられるので、走査しない (結果は変わらない)。
 +    // changedBefore[k] は、k 文字目より前の読み替えた文字の数。
 +    let changedBefore;
@@ -148,10 +190,16 @@ index 1c65989c60d213b014dea71eadcdb2091366a8aa..8787a3d1283c49755f976b09f7b1d83d
      for (let i = 0; i < passwordLength; i += 1) {
        for (let j = i; j < passwordLength; j += 1) {
          const isFullPassword = i === 0 && j === passwordLength - 1;
-@@ -47,7 +64,43 @@ class MatchDictionary extends MatcherBaseClass {
+@@ -47,7 +78,49 @@ class MatchDictionary extends MatcherBaseClass {
          if (j - i + 1 > maxSearchWidth && !isFullPassword) {
            break;
          }
++        if (wordBigrams && j > i) {
++          const bigram = passwordLower.slice(j - 1, j + 1);
++          if (!wordBigrams.has(bigram) && !userInputBigrams.has(bigram)) {
++            break;
++          }
++        }
 +        if (changedBefore && !isFullPassword && changedBefore[j + 1] === changedBefore[i]) {
 +          continue;
 +        }
@@ -241,10 +289,10 @@ index 25d6e40dd4b40220f1945828107d662e5e40b63f..ba211a3f78de1c7c67a4a4c06f05c1db
        matchedDictionary.forEach(match => {
          const extras = getExtras(subbedPassword, match.i, match.j);
 diff --git a/dist/types.d.ts b/dist/types.d.ts
-index 7266f271d530206862ab32d77ba68bcf36f543e2..2ad81351fb17a47313d09229585791302361c710 100644
+index 7266f271d530206862ab32d77ba68bcf36f543e2..889b597ec3b731b9c0185a14ac22aca0d6369980 100644
 --- a/dist/types.d.ts
 +++ b/dist/types.d.ts
-@@ -165,6 +165,13 @@ export interface OptionsType {
+@@ -165,6 +165,14 @@ export interface OptionsType {
       * @description Define dictionary that should be used to check against. The matcher will search the dictionaries for similar password with l33t speak and reversed words. The recommended sets are found in @zxcvbn-ts/language-common and @zxcvbn-ts/language-en.
       */
      dictionary?: OptionsDictionary;
@@ -254,6 +302,7 @@ index 7266f271d530206862ab32d77ba68bcf36f543e2..2ad81351fb17a47313d0922958579130
 +    precomputedDictionary?: {
 +        rankedDictionaries: RankedDictionaries;
 +        rankedDictionariesMaxWordSize: Record<string, number>;
++        wordBigrams?: string[];
 +    };
      /**
       * @description Defines if the levenshtein algorithm should be used. This will be only used on the complete password and not on parts of it. This will decrease the calcTime a bit but will significantly improve the password check. The recommended sets are found in @zxcvbn-ts/language-common and @zxcvbn-ts/language-en.

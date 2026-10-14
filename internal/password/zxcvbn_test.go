@@ -15,6 +15,9 @@ import (
 // testStrengthTimeout は、テストでの判定の時間の上限。-race では goja が 10 倍以上遅くなるので、長くとる。
 const testStrengthTimeout = 10 * time.Minute
 
+// warningUserInputs は、ユーザーの入力に似ているときの警告文。
+const warningUserInputs = "個人情報やページに関する情報は含めるべきではありません"
+
 // TestEstimateMatchesNode は、goja で動かした zxcvbn-ts が、Node.js で動かした同じバンドルと同じ結果を返すことを確かめる。
 // 期待値は、web/zxcvbn/dist/zxcvbn.js を Node.js の vm で読み込んで得た (設計書 2.2)。
 func TestEstimateMatchesNode(t *testing.T) {
@@ -36,7 +39,7 @@ func TestEstimateMatchesNode(t *testing.T) {
 		{phrase: "correcthorsebatterystaple", userInputs: []string{}, score: 4, guessesLog10: 12.79742635911589},
 		{phrase: "Tr0ub4dor&3", userInputs: []string{}, score: 4, guessesLog10: 10.519827993775719},
 		{phrase: "kotatsu2026", userInputs: []string{}, score: 3, guessesLog10: 8.00395572454269},
-		{phrase: "spica1234", userInputs: []string{"spica"}, score: 1, guessesLog10: 4.176091259055681, warning: "個人情報やページに関する情報は含めるべきではありません"},
+		{phrase: "spica1234", userInputs: []string{"spica"}, score: 1, guessesLog10: 4.176091259055681, warning: warningUserInputs},
 		{phrase: "mikan-kotatsu-neko-2026!", userInputs: []string{}, score: 4, guessesLog10: 20.167449670997208},
 		// l33t の照合はパッチで速くしている (web/patches)。期待値は、パッチを当てる前の zxcvbn-ts を Node.js で動かして得た。
 		{phrase: "p4ssw0rd", userInputs: []string{}, score: 0, guessesLog10: 0.9542425094393249, warning: "よく使われるパスワードに似ています"},
@@ -45,6 +48,9 @@ func TestEstimateMatchesNode(t *testing.T) {
 		{phrase: "m1k4n-k0t4t$u-n3k0", userInputs: []string{}, score: 4, guessesLog10: 15.057468306570247},
 		{phrase: "q7#Vt9!mZ2@xLp4$Rk8&Wn3*Hj6^Bd5%Fs1(Gc0)Ya2-Ue7_Io9+Pw4=Ks8;Nm3:", userInputs: []string{}, score: 4, guessesLog10: 64},
 		{phrase: strings.Repeat("k0t4t$u!", 16), userInputs: []string{}, score: 3, guessesLog10: 8.756666531372117},
+		// 辞書の照合は、辞書の語に現れない 2 文字の組を含む部分を引かない (web/patches)。ユーザーの入力の語の組は、その場で加える。
+		{phrase: "zqxjvw2026", userInputs: []string{"zqxjvw"}, score: 1, guessesLog10: 4.176091259055681, warning: warningUserInputs},
+		{phrase: "2qxjvw!2026", userInputs: []string{"zqxjvw"}, score: 2, guessesLog10: 7.000434077479318, warning: warningUserInputs},
 	}
 	for _, tt := range tests {
 		t.Run(tt.phrase, func(t *testing.T) {

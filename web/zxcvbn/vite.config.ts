@@ -5,6 +5,21 @@ import { zxcvbnDictionary } from '../src/password/dictionary';
 
 const rankedDictionaryId = 'virtual:zxcvbn-ranked-dictionary';
 
+// wordBigrams は、辞書の語に現れる 2 文字の組 (UTF-16 の 2 単位) を、重ねずに並べる。
+// 辞書の照合は、どの語にも現れない組を含む部分を引かずに済ませる (設計書 2.2)。
+function wordBigrams(dictionaries: Record<string, Record<string, number>>): string[] {
+  const bigrams = new Set<string>();
+  for (const dictionary of Object.values(dictionaries)) {
+    for (const word of Object.keys(dictionary)) {
+      for (let k = 0; k + 1 < word.length; k += 1) {
+        bigrams.add(word.slice(k, k + 2));
+      }
+    }
+  }
+
+  return [...bigrams].sort();
+}
+
 // rankedDictionary は、辞書に順位を付け終えたものを、JSON の文字列として書き出す。
 // 順位の付け方は zxcvbn-ts の Options に任せるので、クライアントで付ける順位と同じになる。
 // JS のオブジェクトのリテラルではなく文字列にするのは、goja で JSON.parse する方が速いからである。
@@ -22,6 +37,7 @@ function rankedDictionary(): Plugin {
       const json = JSON.stringify({
         rankedDictionaries: options.rankedDictionaries,
         rankedDictionariesMaxWordSize: options.rankedDictionariesMaxWordSize,
+        wordBigrams: wordBigrams(options.rankedDictionaries),
       });
 
       return `export default ${JSON.stringify(json)};`;

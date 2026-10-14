@@ -16,6 +16,7 @@ const zxcvbn = new ZxcvbnFactory({
   precomputedDictionary: JSON.parse(rankedDictionary) as {
     rankedDictionaries: Record<string, Record<string, number>>;
     rankedDictionariesMaxWordSize: Record<string, number>;
+    wordBigrams: string[];
   },
 });
 
