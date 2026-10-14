@@ -49,6 +49,7 @@ const query = graphql`
           recordedUntil
           watchPositionMs
           thumbnailUrl
+          previewUrl
           service {
             name
             logoUrl

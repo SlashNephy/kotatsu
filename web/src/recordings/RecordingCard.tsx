@@ -1,10 +1,12 @@
 import { AspectRatio, Box, Card, Group, Progress, Stack, Text } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ProgramTitle } from '../futon';
 import { ServiceLabel } from '../guide/ServiceLabel';
 import { RecordingThumbnail } from './RecordingThumbnail';
+import { usePreviewSlideshow } from './usePreviewSlideshow';
 import { watchProgress } from './watchProgress';
 import { RecordingStateBadge } from './RecordingStateBadge';
 
@@ -15,6 +17,8 @@ export type RecordingCardData = {
   endAt: string;
   state: string;
   thumbnailUrl?: string | null;
+  // previewUrl は、シークバー用のプレビュー画像。サムネイルにホバーしている間、そのコマを順に見せる。
+  previewUrl?: string | null;
   // recordedFrom、recordedUntil、watchPositionMs は、どこまで見たかを出すのに使う。録画中は recordedUntil が null。
   recordedFrom: string;
   recordedUntil?: string | null;
@@ -57,6 +61,8 @@ const timeFormat = new Intl.DateTimeFormat('ja-JP', {
 // 行の間は、放送中の番組のカードと揃える (番組名と放送時間は 4px、サービスとの間は xs)。
 export function RecordingCard({ recording }: { recording: RecordingCardData }) {
   const { t } = useTranslation();
+  const [hovered, setHovered] = useState(false);
+  const slide = usePreviewSlideshow(recording.previewUrl, hovered);
   const startAt = Date.parse(recording.startAt);
   const sameYear = yearFormat.format(startAt) === yearFormat.format(Date.now());
   const tags = recording.tags ?? [];
@@ -77,10 +83,28 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
         <Link {...props} to="/recordings/$recordingId" params={{ recordingId: recording.id }} />
       )}
     >
-      <Box pos="relative">
+      <Box
+        pos="relative"
+        onPointerEnter={(event) => setHovered(event.pointerType === 'mouse')}
+        onPointerLeave={() => setHovered(false)}
+      >
         <AspectRatio ratio={16 / 9}>
           <RecordingThumbnail url={recording.thumbnailUrl} />
         </AspectRatio>
+        {/* ホバーしている間は、プレビュー画像のコマを、代表画像の上に重ねて順に見せる。 */}
+        {slide !== null && recording.previewUrl != null && (
+          <Box
+            aria-hidden
+            pos="absolute"
+            inset={0}
+            style={{
+              backgroundImage: `url(${JSON.stringify(recording.previewUrl)})`,
+              backgroundRepeat: 'no-repeat',
+              backgroundSize: slide.backgroundSize,
+              backgroundPosition: slide.backgroundPosition,
+            }}
+          />
+        )}
         {/* 再生したことがあれば、どこまで見たかを、サムネイルの下端に細いバーで示す。 */}
         {progress !== null && (
           <Progress

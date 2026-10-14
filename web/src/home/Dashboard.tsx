@@ -83,6 +83,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
               recordedUntil
               watchPositionMs
               thumbnailUrl
+              previewUrl
               service {
                 name
                 logoUrl
