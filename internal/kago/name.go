@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -37,7 +38,7 @@ func RenderName(tmpl *template.Template, data any, ext string) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
+	if err := tmpl.Execute(&cappedWriter{buf: &buf}, data); err != nil {
 		return "", fmt.Errorf("failed to render the file name: %w", err)
 	}
 
@@ -119,4 +120,25 @@ func (s *Store) Create(poolID, dir, name string) (*os.File, string, error) {
 	}
 
 	return nil, "", fmt.Errorf("too many files named %q in pool %s", name, poolID)
+}
+
+// maxRenderedBytes は、テンプレートを当てはめた結果の長さの上限。ファイル名は maxNameBytes までなので、これで足りる。
+const maxRenderedBytes = 4096
+
+// errRenderedTooLong は、テンプレートを当てはめた結果が長すぎることを表す。
+var errRenderedTooLong = errors.New("the rendered file name is too long")
+
+// cappedWriter は、maxRenderedBytes を超えて書こうとしたら、書くのをやめてエラーにする。
+type cappedWriter struct {
+	buf *bytes.Buffer
+}
+
+var _ io.Writer = new(cappedWriter)
+
+func (c *cappedWriter) Write(p []byte) (int, error) {
+	if c.buf.Len()+len(p) > maxRenderedBytes {
+		return 0, errRenderedTooLong
+	}
+
+	return c.buf.Write(p)
 }

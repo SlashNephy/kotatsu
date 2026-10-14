@@ -2,6 +2,7 @@ package reserve
 
 import (
 	"errors"
+	"io"
 	"strings"
 	"text/template"
 	"text/template/parse"
@@ -99,36 +100,107 @@ func FileNameTemplatePresets() []FileNameTemplatePreset {
 	}
 }
 
-// errDisallowedNode は、ファイル名のテンプレートで使えない構文 (range と template) を使ったことを表す。
-var errDisallowedNode = errors.New("range and template are not allowed")
+// errDisallowedSyntax は、ファイル名のテンプレートで使えない書き方を使ったことを表す。
+var errDisallowedSyntax = errors.New("only fields, if, with and the functions half and weekdayJa are allowed")
 
-// checkFileNameNodes は、テンプレートが繰り返しとほかのテンプレートの呼び出しを使っていないかを確かめる。
+// maxFileNameOutputB は、テンプレートを当てはめた結果の長さの上限。ファイル名は 255 バイトまでで、ディレクトリも数段しか掘らない。
+const maxFileNameOutputB = 4096
+
+// checkFileNameNodes は、テンプレートが許した書き方だけを使っているかを確かめる (許可リスト)。
+// 使えるのは、文字列、項目 (.Name や .StartAt.Format "..." のようなメソッドの呼び出し)、if と with、
+// 関数 half と weekdayJa だけにする。printf などの組み込みの関数や、繰り返し、変数、テンプレートの呼び出しは、
+// 当てはめる時間や確保するメモリを際限なく延ばせるので受け付けない。
 func checkFileNameNodes(node parse.Node) error {
-	switch n := node.(type) {
-	case *parse.ListNode:
-		if n == nil {
-			return nil
+	children, ok := allowedChildren(node)
+	if !ok {
+		return errDisallowedSyntax
+	}
+	for _, child := range children {
+		if err := checkFileNameNodes(child); err != nil {
+			return err
 		}
-		for _, child := range n.Nodes {
-			if err := checkFileNameNodes(child); err != nil {
-				return err
-			}
-		}
-	case *parse.RangeNode, *parse.TemplateNode, *parse.BreakNode, *parse.ContinueNode:
-		return errDisallowedNode
-	case *parse.IfNode:
-		return checkBranch(&n.BranchNode)
-	case *parse.WithNode:
-		return checkBranch(&n.BranchNode)
 	}
 
 	return nil
 }
 
-func checkBranch(n *parse.BranchNode) error {
-	if err := checkFileNameNodes(n.List); err != nil {
-		return err
+// allowedChildren は、node が許した書き方なら、その中の確かめるべきノードを返す。許していなければ false を返す。
+func allowedChildren(node parse.Node) ([]parse.Node, bool) {
+	switch n := node.(type) {
+	case *parse.TextNode, *parse.FieldNode, *parse.DotNode, *parse.StringNode, *parse.NumberNode, *parse.BoolNode, *parse.NilNode:
+		return nil, true
+	case *parse.ListNode:
+		return listNodes(n), true
+	case *parse.ActionNode:
+		return []parse.Node{n.Pipe}, true
+	case *parse.IfNode:
+		return branchNodes(&n.BranchNode), true
+	case *parse.WithNode:
+		return branchNodes(&n.BranchNode), true
+	case *parse.PipeNode:
+		return pipeNodes(n)
+	case *parse.CommandNode:
+		return n.Args, true
+	case *parse.ChainNode:
+		return []parse.Node{n.Node}, true
+	case *parse.IdentifierNode:
+		_, ok := fileNameFuncs()[n.Ident]
+
+		return nil, ok
+	default:
+		return nil, false
+	}
+}
+
+func listNodes(n *parse.ListNode) []parse.Node {
+	if n == nil {
+		return nil
 	}
 
-	return checkFileNameNodes(n.ElseList)
+	return n.Nodes
+}
+
+func branchNodes(n *parse.BranchNode) []parse.Node {
+	return append([]parse.Node{n.Pipe}, append(listNodes(n.List), listNodes(n.ElseList)...)...)
+}
+
+// pipeNodes は、パイプラインのコマンドを返す。変数の宣言と代入 ($x := ...) は許さない。
+func pipeNodes(n *parse.PipeNode) ([]parse.Node, bool) {
+	if n == nil {
+		return nil, true
+	}
+	if len(n.Decl) > 0 {
+		return nil, false
+	}
+	nodes := make([]parse.Node, 0, len(n.Cmds))
+	for _, cmd := range n.Cmds {
+		nodes = append(nodes, cmd)
+	}
+
+	return nodes, true
+}
+
+// limitedWriter は、maxFileNameOutputB を超えて書こうとしたら、書くのをやめてエラーにする。
+type limitedWriter struct {
+	w       io.Writer
+	written int
+}
+
+var _ io.Writer = new(limitedWriter)
+
+// errFileNameTooLong は、テンプレートを当てはめた結果が長すぎることを表す。
+var errFileNameTooLong = errors.New("the rendered file name is too long")
+
+func (l *limitedWriter) Write(p []byte) (int, error) {
+	if l.written+len(p) > maxFileNameOutputB {
+		return 0, errFileNameTooLong
+	}
+	l.written += len(p)
+
+	return l.w.Write(p)
+}
+
+// ExecuteFileNameTemplate は、テンプレートに data を当てはめ、結果を w に書く。結果は maxFileNameOutputB までにする。
+func ExecuteFileNameTemplate(tmpl *template.Template, w io.Writer, data any) error {
+	return tmpl.Execute(&limitedWriter{w: w, written: 0}, data)
 }

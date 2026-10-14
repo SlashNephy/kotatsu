@@ -113,6 +113,9 @@ func TestParseFileNameTemplateRejects(t *testing.T) {
 		{name: "条件の中の繰り返し", text: `{{if .Name}}{{range 10}}x{{end}}{{end}}`},
 		{name: "テンプレートの定義と呼び出し", text: `{{define "a"}}x{{end}}{{template "a"}}`},
 		{name: "長すぎる", text: strings.Repeat("x", 1025)},
+		{name: "組み込みの関数", text: `{{printf "%01000000000d" 1}}`},
+		{name: "変数", text: `{{$x := .Name}}{{$x}}`},
+		{name: "知らない関数の呼び出し", text: `{{len .Name}}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -122,6 +125,12 @@ func TestParseFileNameTemplateRejects(t *testing.T) {
 			require.ErrorIs(t, err, reserve.ErrInvalidSettings)
 		})
 	}
-	_, err := reserve.ParseFileNameTemplate(`{{if .Name}}{{half .Name}}{{else}}untitled{{end}}`)
-	assert.NoError(t, err, "if は受け付ける")
+	for _, text := range []string{
+		`{{if .Name}}{{half .Name}}{{else}}untitled{{end}}`,
+		`{{with .ServiceName}}{{half .}}{{end}}`,
+		`{{.StartAt.Format "2006-01-02"}} {{weekdayJa .StartAt}}`,
+	} {
+		_, err := reserve.ParseFileNameTemplate(text)
+		assert.NoError(t, err, text)
+	}
 }

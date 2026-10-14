@@ -64,6 +64,7 @@ func TestPreviewFileName(t *testing.T) {
 		},
 		{name: "知らない項目は誤り", variables: map[string]any{varTemplate: `{{.Title}}`}, wantError: new("知らない項目 .Title があります")},
 		{name: "知らない関数は誤り", variables: map[string]any{varTemplate: `{{upper .Name}}`}, wantError: new("知らない関数 upper があります")},
+		{name: "組み込みの関数は使えない", variables: map[string]any{varTemplate: `{{printf "%d" 1}}`}, wantError: new("使えない書き方があります。使えるのは、項目、if と with、関数 half と weekdayJa です")},
 		{name: "閉じていない括弧は誤り", variables: map[string]any{varTemplate: `{{.Name`}, wantError: new("1: unclosed action")},
 		{name: "ない番組は NOT_FOUND", variables: map[string]any{varTemplate: `{{.Name}}`, varProgram: programID(9999)}, wantCodes: []string{codeNotFound}},
 	}

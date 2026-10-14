@@ -109,8 +109,8 @@ func templateError(err error) string {
 	if m := unknownFuncPattern.FindStringSubmatch(message); m != nil {
 		return "知らない関数 " + m[1] + " があります"
 	}
-	if strings.Contains(message, "are not allowed") {
-		return "繰り返し (range) やテンプレートの定義は使えません"
+	if strings.Contains(message, "are allowed") || strings.Contains(message, "are not allowed") {
+		return "使えない書き方があります。使えるのは、項目、if と with、関数 half と weekdayJa です"
 	}
 	if strings.Contains(message, "must be at most") {
 		return "テンプレートが長すぎます"

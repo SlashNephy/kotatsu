@@ -109,7 +109,7 @@ type FileNameData struct {
 }
 
 // ParseFileNameTemplate は、ファイル名のテンプレートを解釈する。知らない項目を参照するテンプレートはエラーにする。
-// 繰り返し (range) と、ほかのテンプレートの呼び出しは、当てはめる時間と結果の長さを際限なく延ばせるので受け付けない。
+// 使える書き方は、checkFileNameNodes の許可リストに限る。
 func ParseFileNameTemplate(text string) (*template.Template, error) {
 	if len(text) > maxFileNameTemplateB {
 		return nil, fmt.Errorf("%w: fileNameTemplate must be at most %d bytes", ErrInvalidSettings, maxFileNameTemplateB)
@@ -125,7 +125,7 @@ func ParseFileNameTemplate(text string) (*template.Template, error) {
 		return nil, fmt.Errorf("%w: invalid file name template: %w", ErrInvalidSettings, err)
 	}
 	// 項目の名前の誤りは、実行してみないと分からないので、見本のデータで試す。
-	if err := tmpl.Execute(io.Discard, SampleFileNameData()); err != nil {
+	if err := ExecuteFileNameTemplate(tmpl, io.Discard, SampleFileNameData()); err != nil {
 		return nil, fmt.Errorf("%w: invalid file name template: %w", ErrInvalidSettings, err)
 	}
 
