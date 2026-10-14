@@ -15,7 +15,7 @@ import {
   Title,
   Tooltip,
 } from '@mantine/core';
-import { CalendarX, Trash2 } from 'lucide-react';
+import { CalendarX, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -36,6 +36,7 @@ import type {
   reservationsQuery,
   reservationsQuery$data,
 } from './__generated__/reservationsQuery.graphql';
+import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDialog';
 import { ServiceLabel } from '../guide/ServiceLabel';
 
 // query は、時間帯に重なる予約を取る。続きは、同じ時間帯と状態で、カーソルから読む。
@@ -326,6 +327,7 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
     }
   `);
   const [toggleError, setToggleError] = useState(false);
+  const [editing, setEditing] = useState(false);
   const end = Date.parse(reservation.endAt);
   const bar = timelineBar(dayFrom, reservation.startMs, end);
   const state = reservation.assignment.state;
@@ -384,6 +386,16 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
         </Stack>
         {canEdit && (
           <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
+            <Tooltip label={t('reservations.settings.open')}>
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                aria-label={t('reservations.settings.open')}
+                onClick={() => setEditing(true)}
+              >
+                <SlidersHorizontal size={16} aria-hidden />
+              </ActionIcon>
+            </Tooltip>
             <Switch
               aria-label={t('reservations.enabled')}
               checked={reservation.enabled}
@@ -478,6 +490,12 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
         <Text size="xs" c="red" role="alert" mt={4}>
           {t('reservations.toggleError')}
         </Text>
+      )}
+      {editing && (
+        <ReservationSettingsDialog
+          reservationId={reservation.id}
+          onClose={() => setEditing(false)}
+        />
       )}
     </Card>
   );

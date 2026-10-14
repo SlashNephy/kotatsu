@@ -12,7 +12,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
-import { CalendarCheck, CalendarPlus, Play } from 'lucide-react';
+import { CalendarCheck, CalendarPlus, Play, SlidersHorizontal } from 'lucide-react';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
@@ -22,6 +22,7 @@ import { genreKey } from './genres';
 import type { ProgramDetailCancelMutation } from './__generated__/ProgramDetailCancelMutation.graphql';
 import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.graphql';
 import type { ProgramDetailReserveMutation } from './__generated__/ProgramDetailReserveMutation.graphql';
+import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDialog';
 import { ServiceLabel } from './ServiceLabel';
 
 type Props = {
@@ -128,6 +129,8 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
   const [result, setResult] = useState<'error' | null>(null);
   // cancelling は、録画予約を取り消す確認を出しているかどうか。
   const [cancelling, setCancelling] = useState(false);
+  // editing は、予約の録画の設定を変えるダイアログを出しているかどうか。
+  const [editing, setEditing] = useState(false);
   const program = data.node;
   if (program?.__typename !== 'Program') {
     return <Alert color="amber">{t('guide.detail.error')}</Alert>;
@@ -209,15 +212,30 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
       )}
       {/* 録画予約済みのボタンを押すと、確かめてから取り消す。 */}
       {data.viewer.role !== 'VIEWER' && !ended && reserved && program.reservation != null && (
-        <Tooltip label={t('guide.detail.cancelReservation')}>
+        <Group gap="xs" grow>
+          <Tooltip label={t('guide.detail.cancelReservation')}>
+            <Button
+              variant="outline"
+              onClick={() => setCancelling(true)}
+              leftSection={<CalendarCheck size={16} aria-hidden />}
+            >
+              {t('guide.detail.reserved')}
+            </Button>
+          </Tooltip>
           <Button
-            variant="outline"
-            onClick={() => setCancelling(true)}
-            leftSection={<CalendarCheck size={16} aria-hidden />}
+            variant="default"
+            onClick={() => setEditing(true)}
+            leftSection={<SlidersHorizontal size={16} aria-hidden />}
           >
-            {t('guide.detail.reserved')}
+            {t('reservations.settings.open')}
           </Button>
-        </Tooltip>
+        </Group>
+      )}
+      {editing && program.reservation != null && (
+        <ReservationSettingsDialog
+          reservationId={program.reservation.id}
+          onClose={() => setEditing(false)}
+        />
       )}
       {reserved && program.reservation != null && program.reservation.kind === 'RULE' && (
         <ReservedByRules rules={program.reservation.rules} />

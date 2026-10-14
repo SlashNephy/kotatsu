@@ -30,6 +30,7 @@ import { hasConditions } from '../conditions/form';
 import { ConditionsFields, type ServiceOption } from '../conditions/ConditionsFields';
 import { toInput, type RuleForm } from './form';
 import { RulePreview } from './RulePreview';
+import { MarginFields } from '../reservations/MarginFields';
 
 // joinDefault は、分かれたファイルをつなぐかどうかの選択で、全体の既定値に従うことを表す値。
 const joinDefault = 'default';
@@ -181,6 +182,19 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
                     label={t('rules.followEventRelay')}
                     checked={form.followEventRelay}
                     onChange={(e) => set({ followEventRelay: e.currentTarget.checked })}
+                  />
+                  <MarginFields
+                    start={form.settings.startMarginSeconds}
+                    end={form.settings.endMarginSeconds}
+                    onChange={({ start, end }) =>
+                      set({
+                        settings: {
+                          ...form.settings,
+                          startMarginSeconds: start,
+                          endMarginSeconds: end,
+                        },
+                      })
+                    }
                   />
                   <NumberInput
                     label={t('rules.priority')}
