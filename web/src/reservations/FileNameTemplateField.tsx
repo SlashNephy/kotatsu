@@ -99,6 +99,7 @@ export function FileNameTemplateField({
               ...programs.map((p) => ({ value: p.id, label: p.name })),
             ]}
             value={programId ?? sampleProgram}
+            disabled={disabled}
             onChange={(next) => setProgram(next ?? sampleProgram)}
           />
         )}
@@ -165,6 +166,7 @@ function Preview({ template, program }: { template: string; program: string | nu
 
   useEffect(() => {
     if (template.trim() === '') {
+      setLoading(false);
       setResult(null);
 
       return;

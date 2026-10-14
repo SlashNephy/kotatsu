@@ -42,6 +42,15 @@ const query = graphql`
   }
 `;
 
+const programTime = new Intl.DateTimeFormat('ja-JP', {
+  month: 'numeric',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+  timeZone: 'Asia/Tokyo',
+});
+
 // debounceMs は、入力が止まってからプレビューを取るまでの時間。打つたびに問い合わせないようにする。
 const debounceMs = 400;
 
@@ -67,6 +76,7 @@ export function RulePreview({ input, enabled, onPrograms }: Props) {
       setPreview(null);
       setLoading(false);
       setError(false);
+      onProgramsRef.current?.([]);
 
       return;
     }
@@ -83,7 +93,11 @@ export function RulePreview({ input, enabled, onPrograms }: Props) {
             if (!cancelled && data !== undefined) {
               setPreview(data.previewRule);
               onProgramsRef.current?.(
-                data.previewRule.edges.map(({ node }) => ({ id: node.id, name: node.name })),
+                // 同じ番組名の回を見分けられるよう、放送の日時も添える。
+                data.previewRule.edges.map(({ node }) => ({
+                  id: node.id,
+                  name: `${programTime.format(Date.parse(node.startAt))} ${node.name}`,
+                })),
               );
             }
           },

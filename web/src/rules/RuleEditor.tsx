@@ -199,6 +199,7 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
                       })
                     }
                     programs={previewPrograms}
+                    disabled={readOnly}
                   />
                   <MarginFields
                     start={form.settings.startMarginSeconds}
