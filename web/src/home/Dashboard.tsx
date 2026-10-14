@@ -33,6 +33,15 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
   hourCycle: 'h23',
   timeZone: 'Asia/Tokyo',
 });
+const timeFormat = new Intl.DateTimeFormat('ja-JP', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+  timeZone: 'Asia/Tokyo',
+});
+
+// recentRecordings は、ホームに出す最近の録画の数。広い画面で 1 段に並ぶ数にする。
+const recentRecordings = 4;
 
 export type DashboardRange = { now: number; nowEnd: string; from: string; to: string };
 
@@ -42,7 +51,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
   const { t } = useTranslation();
   const data = useLazyLoadQuery<DashboardQuery>(
     graphql`
-      query DashboardQuery($from: Time!, $nowEnd: Time!, $to: Time!) {
+      query DashboardQuery($from: Time!, $nowEnd: Time!, $to: Time!, $recordings: Int!) {
         tunerServerHealth {
           degraded
           degradedSince
@@ -70,11 +79,13 @@ export function Dashboard({ range }: { range: DashboardRange }) {
             }
           }
         }
-        recordings(first: 6) {
+        recordings(first: $recordings) {
           edges {
             node {
               id
               name
+              startAt
+              endAt
               state
               recordedFrom
               thumbnailUrl
@@ -120,7 +131,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
         }
       }
     `,
-    { from: range.from, nowEnd: range.nowEnd, to: range.to },
+    { from: range.from, nowEnd: range.nowEnd, to: range.to, recordings: recentRecordings },
   );
   // 放送中の番組を、チャンネルの種類ごとに分ける。番組のない種類は、選べないようにする。
   const playingByType = data.channelTypes
@@ -221,7 +232,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
             {t('home.noRecordings')}
           </Text>
         ) : (
-          <SimpleGrid cols={{ base: 2, sm: 3, md: 6 }} spacing="xs">
+          <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="xs">
             {data.recordings.edges.map(({ node }) => (
               <Card
                 key={node.id}
@@ -236,14 +247,22 @@ export function Dashboard({ range }: { range: DashboardRange }) {
                 )}
               >
                 <RecordingThumbnail url={node.thumbnailUrl} />
-                <Stack gap={2} p="xs">
+                {/* 行の間は、放送中の番組のカードと揃える (番組名と放送時間は 4px、サービスとの間は xs)。 */}
+                <Stack gap={0} p="xs">
                   <Text size="sm" lineClamp={2}>
                     <ProgramTitle name={node.name} />
                   </Text>
-                  <Group gap={4}>
-                    <Badge size="xs" variant="light" color={stateColor(node.state)}>
-                      {t(stateKey(node.state))}
-                    </Badge>
+                  <Text size="xs" c="dimmed" pt={4}>
+                    {dateTimeFormat.format(Date.parse(node.startAt))} 〜{' '}
+                    {timeFormat.format(Date.parse(node.endAt))}
+                  </Text>
+                  <Group gap={4} mt="xs">
+                    {/* 完了は当たり前なので出さず、録画中や失敗のように目を留めたい状態だけを出す。 */}
+                    {node.state !== 'COMPLETED' && (
+                      <Badge size="xs" variant="light" color={stateColor(node.state)}>
+                        {t(stateKey(node.state))}
+                      </Badge>
+                    )}
                     <Text size="xs" c="dimmed">
                       <ServiceLabel name={node.service.name} logoUrl={node.service.logoUrl} />
                     </Text>
