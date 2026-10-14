@@ -36,8 +36,6 @@ type Resolver struct {
 	clock clock.Clock
 	// location は、番組の曜日と時間帯を判定する、表示のタイムゾーン。
 	location *time.Location
-	// maxSearchCandidates は、番組の検索で 1 回に照合する候補の数の上限。
-	maxSearchCandidates int
 	// heartbeatInterval は、heartbeat の subscription で時刻を送る間隔。
 	heartbeatInterval time.Duration
 	rules             *rule.Rules

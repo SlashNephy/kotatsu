@@ -185,7 +185,6 @@ function Search() {
       setPage({
         variables,
         results: [...previous, ...result.edges.map((edge) => edge.node)],
-        // 照合する番組の数の上限に達すると、first 件に満たなくても続きがある。
         next: result.pageInfo.hasNextPage ? (result.pageInfo.endCursor ?? null) : null,
       });
     } catch {
