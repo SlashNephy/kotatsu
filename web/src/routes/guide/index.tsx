@@ -243,10 +243,14 @@ function Guide() {
 
   // offset は、選んだ日の、今日からの日数。日付の移動のボタンに使う。
   const offset = Math.round((selectedFrom - today.from) / day);
-  const moveTo = (days: number) =>
+  // keepTime は、日付を移っても、見ていた時間帯のままにするか。前後の日へ移るときは保ち、今日へ戻るときはいまの時刻を出す。
+  const [keepTime, setKeepTime] = useState(false);
+  const moveTo = (days: number, keep: boolean) => {
+    setKeepTime(keep);
     void navigate({
       search: (prev) => ({ ...prev, date: dateOf(today.from + days * day), program: undefined }),
     });
+  };
   const dayFormat = new Intl.DateTimeFormat('ja-JP', {
     month: 'numeric',
     day: 'numeric',
@@ -262,7 +266,7 @@ function Guide() {
             variant="default"
             size="xs"
             disabled={offset <= 0}
-            onClick={() => moveTo(offset - 1)}
+            onClick={() => moveTo(offset - 1, true)}
             leftSection={<ChevronLeft size={14} aria-hidden />}
           >
             {t('guide.previousDay')}
@@ -274,7 +278,7 @@ function Guide() {
             variant="default"
             size="xs"
             disabled={offset >= guideDays - 1}
-            onClick={() => moveTo(offset + 1)}
+            onClick={() => moveTo(offset + 1, true)}
             rightSection={<ChevronRight size={14} aria-hidden />}
           >
             {t('guide.nextDay')}
@@ -283,7 +287,7 @@ function Guide() {
             variant="default"
             size="xs"
             disabled={offset === 0}
-            onClick={() => moveTo(0)}
+            onClick={() => moveTo(0, false)}
             leftSection={<CalendarDays size={14} aria-hidden />}
           >
             {t('guide.today')}
@@ -365,7 +369,9 @@ function Guide() {
             window={window}
             columns={columns}
             now={now}
-            initialTime={window.from === today.from ? now : window.from + 15 * 3_600_000}
+            scrollTime={
+              keepTime ? null : window.from === today.from ? now : window.from + 15 * 3_600_000
+            }
             onSelect={(program) => void navigate({ search: (prev) => ({ ...prev, program }) })}
           />
         )}

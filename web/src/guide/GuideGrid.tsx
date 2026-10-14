@@ -50,8 +50,8 @@ type Props = {
   columns: GuideColumn[];
   // now は、いまの時刻。時間帯に入っていれば、線を引く。
   now: number;
-  // initialTime は、最初に表示する時刻。
-  initialTime: number;
+  // scrollTime は、日付を変えたとき (と最初) に、上の方に出す時刻。null なら、それまで見ていた時間帯のままにする。
+  scrollTime: number | null;
   onSelect: (programId: string) => void;
 };
 
@@ -76,7 +76,7 @@ const hourFormat = new Intl.DateTimeFormat('ja-JP', {
 
 // GuideGrid は、横にサービス、縦に時刻を並べた番組表。
 // サービスの数と番組の数が多くても滑らかに動くよう、横はサービスの列を、縦は列の中の番組を、見えている範囲だけ描く。
-export function GuideGrid({ window: day, columns, now, initialTime, onSelect }: Props) {
+export function GuideGrid({ window: day, columns, now, scrollTime, onSelect }: Props) {
   const { t } = useTranslation();
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
@@ -94,6 +94,8 @@ export function GuideGrid({ window: day, columns, now, initialTime, onSelect }: 
   // windowRef は、最新の目盛り。番組を読み直しても、スクロールの位置は動かさないので、効果の依存には入れない。
   const windowRef = useRef(window);
   windowRef.current = window;
+  // topOffset は、スクロールの上端の時刻の、その日の始まりからの経過時間。日付を変えたときに、同じ時間帯を出すのに使う。
+  const topOffset = useRef<number | null>(null);
 
   const virtualizer = useVirtualizer({
     horizontal: true,
@@ -112,6 +114,7 @@ export function GuideGrid({ window: day, columns, now, initialTime, onSelect }: 
     let frame = 0;
     const update = () => {
       frame = 0;
+      topOffset.current = yToTime(windowRef.current, element.scrollTop) - windowRef.current.from;
       setViewport({ top: element.scrollTop, height: element.clientHeight });
     };
     const onScroll = () => {
@@ -131,16 +134,25 @@ export function GuideGrid({ window: day, columns, now, initialTime, onSelect }: 
     };
   }, []);
 
-  // 最初と、日付を変えたときに、指定の時刻が上の方に来るようにスクロールする。
+  // 最初と、日付を変えたときに、scrollTime が上の方に来るようにスクロールする。
+  // scrollTime がなければ、それまで見ていた時間帯 (その日の始まりからの経過時間) を、新しい日でも上端に出す。
+  // 目盛りは日によって伸び方が違うので、位置ではなく時刻で合わせる。
+  // scrollTimeRef は、最新の scrollTime。日付を変えたときだけ動かすので、効果の依存には入れない。
+  const scrollTimeRef = useRef(scrollTime);
+  scrollTimeRef.current = scrollTime;
   useEffect(() => {
     const element = scroller.current;
-    if (element !== null) {
-      element.scrollTop = Math.max(
-        timeToY(windowRef.current, initialTime) - 60 * minuteHeight * 0.5,
-        0,
-      );
+    if (element === null) {
+      return;
     }
-  }, [day, initialTime]);
+    const window = windowRef.current;
+    const time = scrollTimeRef.current;
+    if (time !== null) {
+      element.scrollTop = Math.max(timeToY(window, time) - 60 * minuteHeight * 0.5, 0);
+    } else if (topOffset.current !== null) {
+      element.scrollTop = timeToY(window, window.from + topOffset.current);
+    }
+  }, [day.from]);
 
   const visibleFrom = yToTime(window, viewport.top - overscanPixels);
   const visibleTo = yToTime(window, viewport.top + viewport.height + overscanPixels);
