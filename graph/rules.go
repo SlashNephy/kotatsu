@@ -236,15 +236,18 @@ func (r *Resolver) previewRule(ctx context.Context, in *model.RuleInput, first i
 		return nil, err
 	}
 	// 今より後に始まる番組だけを読む。開始時刻が今と同じ番組も、サービスと eventId を最大にして除く。
+	// そのときは、カーソルの続きではなくなる。
+	resumed := after != nil
 	if now := r.clock.Now(); !params.AfterStartAt.After(now) {
 		params.AfterStartAt, params.AfterServiceID, params.AfterEventID = now, math.MaxInt64, math.MaxInt64
+		resumed = false
 	}
 	accept := func(startAt time.Time, endUndecided bool) bool {
 		return !endUndecided &&
 			(input.ValidFrom == nil || !startAt.Before(*input.ValidFrom)) &&
 			(input.ValidUntil == nil || startAt.Before(*input.ValidUntil))
 	}
-	edges, hasNext, err := r.collect(ctx, matcher, accept, params, first)
+	edges, hasNext, err := r.collect(ctx, matcher, accept, params, first, resumed)
 	if err != nil {
 		return nil, err
 	}
