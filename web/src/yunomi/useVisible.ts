@@ -1,7 +1,7 @@
 import { useEffect, useState, type RefObject } from 'react';
 
 // useVisible は、要素が画面に入っていて、タブも隠れていないかを返す (設計書 7.2)。
-// 画面の外に出たプレイヤーと、隠れたタブのプレイヤーは、再生を止めて、帯域と CPU を使わないようにする。
+// 再生は止めないが、見えていない間は、実況のコメントなどの描画を止めて、CPU を使わないようにする。
 export function useVisible(ref: RefObject<Element | null>): boolean {
   const [intersecting, setIntersecting] = useState(true);
   const [tabVisible, setTabVisible] = useState(() => document.visibilityState !== 'hidden');

@@ -139,7 +139,7 @@ function Player({ recordingId }: { recordingId: string }) {
   // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で調べる。
   const frameRef = useRef<HTMLDivElement | null>(null);
   const inPage = useVisible(frameRef);
-  // pip は、視聴画面を出す別のウィンドウ。出している間は、このページが隠れても再生を続ける (設計書 7.5)。
+  // pip は、視聴画面を出す別のウィンドウ。出している間は、このページが隠れても、実況のコメントなどを描き続ける (設計書 7.5)。
   // 別のウィンドウに移したり戻したりすると、プレイヤーを作り直すので、今の位置から読み直す。
   const pip = useDocumentPictureInPicture(() => startAt(positionRef.current));
   const visible = inPage || pip.container !== null;
@@ -310,15 +310,6 @@ function Player({ recordingId }: { recordingId: string }) {
     },
   );
 
-  // 画面の外に出たら、読み込みも止める。戻ったら、止めた位置から読み直す (設計書 7.2)。
-  useEffect(() => {
-    if (!visible) {
-      phase.current = 'loading';
-      setOffset(positionRef.current);
-      setLoads((n) => n + 1);
-    }
-  }, [visible]);
-
   // 再生位置を、録画の始まりからの秒で追う。
   useEffect(() => {
     if (video === null) {
@@ -464,7 +455,6 @@ function Player({ recordingId }: { recordingId: string }) {
           videoRef={videoRef}
           onVideo={setVideo}
           controls={controlBar}
-          active={visible}
           captions={captions}
           onLoaded={() => {
             // 最初のフレームが出たときの時刻を、base にする。
@@ -488,7 +478,6 @@ function Player({ recordingId }: { recordingId: string }) {
           videoRef={videoRef}
           onVideo={setVideo}
           controls={controlBar}
-          active={visible}
           captions={captions}
           live={false}
           startPosition={offset}
