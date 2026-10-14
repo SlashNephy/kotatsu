@@ -1,8 +1,6 @@
 import {
   Alert,
   Anchor,
-  AspectRatio,
-  Badge,
   Box,
   Button,
   Card,
@@ -19,9 +17,9 @@ import { Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
-import { ErrorBoundary, ProgramTitle } from '../../futon';
-import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
-import { recordingStates, stateColor, stateKey } from '../../recordings/states';
+import { ErrorBoundary } from '../../futon';
+import { RecordingCard } from '../../recordings/RecordingCard';
+import { recordingStates, stateKey } from '../../recordings/states';
 import { isUnauthenticated } from '../../relay/environment';
 import type {
   recordingsListQuery,
@@ -29,7 +27,6 @@ import type {
   recordingsListQuery$variables,
 } from './__generated__/recordingsListQuery.graphql';
 import type { recordingsTagsQuery } from './__generated__/recordingsTagsQuery.graphql';
-import { ServiceLabel } from '../../guide/ServiceLabel';
 
 export const Route = createFileRoute('/recordings/')({
   component: RecordingsPage,
@@ -46,8 +43,8 @@ const query = graphql`
           id
           name
           startAt
+          endAt
           state
-          protected
           thumbnailUrl
           service {
             name
@@ -69,17 +66,6 @@ const query = graphql`
 
 type Recording = recordingsListQuery$data['recordings']['edges'][number]['node'];
 type Filter = NonNullable<recordingsListQuery$variables['filter']>;
-
-const dateFormat = new Intl.DateTimeFormat('ja-JP', {
-  year: 'numeric',
-  month: 'numeric',
-  day: 'numeric',
-  weekday: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
-});
 
 // RecordingsPage は、サムネイル付きの録画のグリッドの画面 (設計書 10.3)。タグと条件で絞り込める。
 function RecordingsPage() {
@@ -237,48 +223,7 @@ function RecordingGrid({ filter }: { filter: Filter }) {
       {recordings.length > 0 && (
         <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
           {recordings.map((recording) => (
-            <Card
-              key={recording.id}
-              withBorder
-              padding={0}
-              renderRoot={(props) => (
-                <Link
-                  {...props}
-                  to="/recordings/$recordingId"
-                  params={{ recordingId: recording.id }}
-                />
-              )}
-            >
-              <AspectRatio ratio={16 / 9}>
-                <RecordingThumbnail url={recording.thumbnailUrl} />
-              </AspectRatio>
-              <Stack gap={4} p="xs">
-                <Text size="sm" fw={700} lineClamp={2}>
-                  <ProgramTitle name={recording.name} />
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {dateFormat.format(Date.parse(recording.startAt))}・
-                  <ServiceLabel name={recording.service.name} logoUrl={recording.service.logoUrl} />
-                </Text>
-                <Group gap={4}>
-                  {recording.state !== 'COMPLETED' && (
-                    <Badge size="xs" color={stateColor(recording.state)} variant="light">
-                      {t(stateKey(recording.state))}
-                    </Badge>
-                  )}
-                  {recording.protected && (
-                    <Badge size="xs" color="gray" variant="outline">
-                      {t('recordings.protected')}
-                    </Badge>
-                  )}
-                  {recording.tags.map((tag) => (
-                    <Badge key={tag.id} size="xs" variant="light" color="gray">
-                      {tag.name}
-                    </Badge>
-                  ))}
-                </Group>
-              </Stack>
-            </Card>
+            <RecordingCard key={recording.id} recording={recording} />
           ))}
         </SimpleGrid>
       )}

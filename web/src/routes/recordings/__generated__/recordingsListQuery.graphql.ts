@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b13ffdaf941d2ad8f86a88c9a2471feb>>
+ * @generated SignedSource<<074ed1948645a851014f842cedc1619f>>
  * @lightSyntaxTransform
  */
 
@@ -26,9 +26,9 @@ export type recordingsListQuery$data = {
   readonly recordings: {
     readonly edges: ReadonlyArray<{
       readonly node: {
+        readonly endAt: string;
         readonly id: string;
         readonly name: string;
-        readonly protected: boolean;
         readonly service: {
           readonly logoUrl: string | null | undefined;
           readonly name: string;
@@ -111,14 +111,14 @@ v7 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "state",
+  "name": "endAt",
   "storageKey": null
 },
 v8 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "protected",
+  "name": "state",
   "storageKey": null
 },
 v9 = {
@@ -310,16 +310,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "612cba37ed037d271b47392366b3bd9c",
+    "cacheID": "999d1b24bbb00685955523f6a2a84a6f",
     "id": null,
     "metadata": {},
     "name": "recordingsListQuery",
     "operationKind": "query",
-    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n) {\n  recordings(first: $first, after: $after, filter: $filter) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        state\n        protected\n        thumbnailUrl\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
+    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n) {\n  recordings(first: $first, after: $after, filter: $filter) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        thumbnailUrl\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "d61e6f53340ebdb59d0cf579f909cdca";
+(node as any).hash = "99fe0ff4f85250d7b37c875f5b0302c4";
 
 export default node;
