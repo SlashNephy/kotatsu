@@ -32,7 +32,13 @@ type RenameFile struct {
 	FileID uuid.UUID
 	PoolID string
 	From   string
-	To     string
+	// To は、付け直した後のプール内の相対パス。Dir、Name、Sequence を合わせたもの。
+	To string
+	// Dir と Name は、移す先のディレクトリと、連番を付ける前のファイル名。Sequence は、付ける連番 (1 なら連番なし)。
+	// 移す先がふさがっていれば、Sequence の次から試す。
+	Dir      string
+	Name     string
+	Sequence int
 }
 
 // RenamePlan は、録画のファイルの付け直し。名前が変わるセグメントだけを持つ。
@@ -41,7 +47,7 @@ type RenamePlan struct {
 	Files       []*RenameFile
 }
 
-// PlanRenames は、録画 ids (nil なら、録画中でないすべての録画) のセグメントのファイルを、今の録画設定のファイル名のテンプレートで
+// PlanRenames は、録画 ids (nil なら、録画中でないすべての録画。空なら、どの録画も選ばない) のセグメントのファイルを、今の録画設定のファイル名のテンプレートで
 // 付け直したときの名前を求め、名前が変わる録画だけを返す (設計書 4.7)。録画設定は、録画のときと同じく、全体の既定値に、
 // ルール予約ならルールの上書き、さらに予約自体の上書きを重ねて求める。予約が消えていれば、全体の既定値を使う。
 // 分かれた録画では、2 つ目以降のセグメントに " (2)" のような連番を付ける。location は、ファイル名に使う表示のタイムゾーン。
@@ -147,7 +153,10 @@ func (l *Library) plan(
 		dir, name := path.Split(rendered)
 		to := path.Join(dir, kago.SequencedName(name, n))
 		if to != files[i].Path {
-			plan.Files = append(plan.Files, &RenameFile{FileID: files[i].ID, PoolID: files[i].PoolID, From: files[i].Path, To: to})
+			plan.Files = append(plan.Files, &RenameFile{
+				FileID: files[i].ID, PoolID: files[i].PoolID, From: files[i].Path, To: to,
+				Dir: strings.TrimSuffix(dir, "/"), Name: name, Sequence: n,
+			})
 		}
 	}
 
@@ -175,12 +184,13 @@ func (l *Library) Rename(ctx context.Context, db Database, actor *audit.Actor, p
 		}
 		renamed := []map[string]string{}
 		for _, file := range plan.Files {
-			dir, name := path.Split(file.To)
-			to, err := l.store.Rename(file.PoolID, file.From, strings.TrimSuffix(dir, "/"), name)
+			to, err := l.store.Rename(file.PoolID, file.From, file.Dir, file.Name, file.Sequence)
 			if err != nil {
 				return err
 			}
-			moved = append(moved, &RenameFile{FileID: file.FileID, PoolID: file.PoolID, From: file.From, To: to})
+			moved = append(moved, &RenameFile{
+				FileID: file.FileID, PoolID: file.PoolID, From: file.From, To: to, Dir: file.Dir, Name: file.Name, Sequence: file.Sequence,
+			})
 			if err := q.SetRecordingFilePath(ctx, sqlc.SetRecordingFilePathParams{Path: to, ID: file.FileID}); err != nil {
 				return fmt.Errorf("failed to update the recording file path: %w", err)
 			}
@@ -199,7 +209,7 @@ func (l *Library) Rename(ctx context.Context, db Database, actor *audit.Actor, p
 		// 記録を書き換えられなかったので、移したファイルを元に戻す。
 		for _, file := range slices.Backward(moved) {
 			dir, name := path.Split(file.From)
-			if _, undoErr := l.store.Rename(file.PoolID, file.To, strings.TrimSuffix(dir, "/"), name); undoErr != nil {
+			if _, undoErr := l.store.Rename(file.PoolID, file.To, strings.TrimSuffix(dir, "/"), name, 1); undoErr != nil {
 				l.logger.ErrorContext(ctx, "failed to undo a renamed recording file",
 					slog.String("from", file.To), slog.String("to", file.From), slog.Any("error", undoErr))
 			}

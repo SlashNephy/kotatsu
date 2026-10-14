@@ -231,9 +231,10 @@ func SequencedName(name string, n int) string {
 }
 
 // Rename は、プールの中で、録画ファイル from (プール内の相対パス) を dir/name に移し、付属ファイルのディレクトリも一緒に移す。
-// 移す先に同じ名前のファイルか付属ファイルのディレクトリがあれば、Create と同じく連番を付ける。from のあったディレクトリが空になれば消す。
+// name には連番を付ける前の名前を渡し、start 番目の連番 (1 なら連番なし) から試す。移す先に同じ名前のファイルか
+// 付属ファイルのディレクトリがあれば、次の連番を試す。from のあったディレクトリが空になれば消す。
 // プールの中に限って移すので、シンボリックリンクでプールの外には移さない。移した先の相対パスを返す。
-func (s *Store) Rename(poolID, from, dir, name string) (string, error) {
+func (s *Store) Rename(poolID, from, dir, name string, start int) (string, error) {
 	if name != SanitizeName(name) || len(name) > maxFileNameBytes || !filepath.IsLocal(from) || (dir != "" && !filepath.IsLocal(dir)) {
 		return "", fmt.Errorf("%w: %q -> %q/%q", ErrInvalidPath, from, dir, name)
 	}
@@ -251,7 +252,7 @@ func (s *Store) Rename(poolID, from, dir, name string) (string, error) {
 			return "", fmt.Errorf("failed to create a directory in pool %s: %w", poolID, err)
 		}
 	}
-	for n := 1; n <= maxSequence; n++ {
+	for n := max(start, 1); n <= maxSequence; n++ {
 		rel := filepath.Join(dir, SequencedName(name, n))
 		if rel == filepath.Clean(from) {
 			return rel, nil

@@ -399,7 +399,7 @@ func TestRename(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(mount, from+".kotatsu", "index"), []byte("i"), 0o600))
 	create("GR", "新しい名前.m2ts")
 
-	got, err := store.Rename(poolMain, from, "GR", "新しい名前.m2ts")
+	got, err := store.Rename(poolMain, from, "GR", "新しい名前.m2ts", 1)
 	require.NoError(t, err)
 	assert.Equal(t, "GR/新しい名前 (2).m2ts", got)
 	_, err = os.Stat(filepath.Join(mount, got+".kotatsu", "index"))
@@ -407,10 +407,10 @@ func TestRename(t *testing.T) {
 	_, err = os.Stat(filepath.Join(mount, "old"))
 	require.ErrorIs(t, err, os.ErrNotExist, "the emptied directory is removed")
 
-	same, err := store.Rename(poolMain, got, "GR", "新しい名前 (2).m2ts")
+	same, err := store.Rename(poolMain, got, "GR", "新しい名前.m2ts", 2)
 	require.NoError(t, err)
 	assert.Equal(t, got, same, "renaming to the same name keeps the file")
 
-	_, err = store.Rename(poolMain, got, "../outside", fileName)
+	_, err = store.Rename(poolMain, got, "../outside", fileName, 1)
 	require.ErrorIs(t, err, kago.ErrInvalidPath)
 }

@@ -75,3 +75,24 @@ func TestRenameSkipsJoining(t *testing.T) {
 	_, err = os.Stat(filepath.Join(f.dir, oldName))
 	assert.NoError(t, err)
 }
+
+// TestRenameAdvancesSequenceOnCollision は、移す先がふさがっているとき、分かれた録画の連番を (2) (2) のように重ねず、
+// 次の番号に進めることを確かめる。
+func TestRenameAdvancesSequenceOnCollision(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	const taken = "2026-10-10 1100 こたつテスト1 録画.m2ts"
+	require.NoError(t, os.WriteFile(filepath.Join(f.dir, taken), []byte("other"), 0o600))
+	f.segmented(t, time.Hour, false,
+		segment{pool: poolID, path: "a1.m2ts", exists: true}, segment{pool: poolID, path: "a2.m2ts", exists: true})
+	plans, err := f.library.PlanRenames(t.Context(), f.pool, nil, time.UTC)
+	require.NoError(t, err)
+	require.Len(t, plans, 1)
+
+	require.NoError(t, f.library.Rename(t.Context(), f.pool, audit.User(f.userID), plans[0]))
+	for _, name := range []string{"2026-10-10 1100 こたつテスト1 録画 (2).m2ts", "2026-10-10 1100 こたつテスト1 録画 (3).m2ts"} {
+		_, err := os.Stat(filepath.Join(f.dir, name))
+		require.NoError(t, err, name)
+	}
+}
