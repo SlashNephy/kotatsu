@@ -1,4 +1,4 @@
-import { Alert, Anchor, Button, Group, Slider, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Slider, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Captions, MessageSquareText } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -197,13 +197,25 @@ function Player({ recordingId }: { recordingId: string }) {
   };
   const channel = recording?.service.jikkyo ?? null;
   useWatchPositionSaver(recordingId, currentPosition, !paused);
-  // resumed は、続きから再生したことを示すかどうか。最初から再生し直したら消す。
-  const [resumed, setResumed] = useState(resumeAt > 0);
   const jikkyo = useRecordedJikkyo(
     channel !== null && jikkyoEnabled && recording !== null ? recording.jikkyoCommentsUrl : null,
     currentPosition,
     visible,
   );
+  // 実況の過去ログの読み込み具合は、実況のボタンのツールチップで示す。
+  const jikkyoLabel =
+    jikkyo.state === null
+      ? t('jikkyo.toggle')
+      : t('jikkyo.toggleWith', {
+          state:
+            jikkyo.state.kind === 'loading'
+              ? t('jikkyo.kakologLoading')
+              : jikkyo.state.kind === 'error'
+                ? t('jikkyo.kakologError')
+                : jikkyo.state.count === 0
+                  ? t('jikkyo.kakologEmpty')
+                  : t('jikkyo.kakologLoaded', { count: jikkyo.state.count }),
+        });
 
   // startAt は、指定の位置から読み直す。
   const startAt = (seconds: number) => {
@@ -392,7 +404,7 @@ function Player({ recordingId }: { recordingId: string }) {
           />
           {channel !== null && (
             <ControlButton
-              label={t('jikkyo.toggle')}
+              label={jikkyoLabel}
               icon={MessageSquareText}
               active={jikkyoEnabled}
               onClick={() => setJikkyoEnabled(!jikkyoEnabled)}
@@ -468,34 +480,6 @@ function Player({ recordingId }: { recordingId: string }) {
         {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
       </div>
       {pip.container !== null && createPortal(playerBox, pip.container)}
-      {resumed && (
-        <Group gap="xs">
-          <Text size="sm" c="dimmed">
-            {t('player.resumed', { time: formatDuration(resumeAt) })}
-          </Text>
-          <Button
-            size="compact-sm"
-            variant="subtle"
-            onClick={() => {
-              setResumed(false);
-              seek(0);
-            }}
-          >
-            {t('player.fromStart')}
-          </Button>
-        </Group>
-      )}
-      {jikkyo.state !== null && (
-        <Text size="xs" c={jikkyo.state.kind === 'error' ? 'red' : 'dimmed'} role="status">
-          {jikkyo.state.kind === 'loading'
-            ? t('jikkyo.kakologLoading')
-            : jikkyo.state.kind === 'error'
-              ? t('jikkyo.kakologError')
-              : jikkyo.state.count === 0
-                ? t('jikkyo.kakologEmpty')
-                : t('jikkyo.kakologLoaded', { count: jikkyo.state.count })}
-        </Text>
-      )}
       {error !== null && (
         <Alert color="red" role="alert">
           {error}
