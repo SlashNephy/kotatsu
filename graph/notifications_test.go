@@ -16,11 +16,15 @@ const (
 	listNotifications = `query($first: Int!, $after: String, $unreadOnly: Boolean!) {
 		notifications(first: $first, after: $after, unreadOnly: $unreadOnly) {
 			edges { node { id kind payload message readAt } } pageInfo { hasNextPage endCursor } } }`
-	unreadCount         = `{ unreadNotificationCount }`
-	markRead            = `mutation($ids: [ID!]!) { markNotificationsRead(ids: $ids) }`
-	markAllRead         = `mutation { markAllNotificationsRead }`
-	listPreferences     = `{ notificationPreferences { kind inApp webPush } }`
-	updatePreference    = `mutation($input: NotificationPreferenceInput!) { updateNotificationPreference(input: $input) { kind inApp webPush } }`
+	unreadCount     = `{ unreadNotificationCount }`
+	markRead        = `mutation($ids: [ID!]!) { markNotificationsRead(ids: $ids) }`
+	markAllRead     = `mutation { markAllNotificationsRead }`
+	listPreferences = `{ notificationPreferences { kind inApp webPush ruleReservations } }`
+	// keyKind、keyInApp、keyWebPush は、通知設定の入力の項目。
+	keyKind             = "kind"
+	keyInApp            = "inApp"
+	keyWebPush          = "webPush"
+	updatePreference    = `mutation($input: NotificationPreferenceInput!) { updateNotificationPreference(input: $input) { kind inApp webPush ruleReservations } }`
 	kindStorageLow      = "STORAGE_LOW"
 	kindRecordingFailed = "RECORDING_FAILED"
 	kindRecordingDone   = "RECORDING_COMPLETED"
@@ -170,9 +174,10 @@ func TestNotificationPreferences(t *testing.T) {
 
 	f := newFixture(t, nil)
 	type preference struct {
-		Kind    string `json:"kind"`
-		InApp   bool   `json:"inApp"`
-		WebPush bool   `json:"webPush"`
+		Kind             string `json:"kind"`
+		InApp            bool   `json:"inApp"`
+		WebPush          bool   `json:"webPush"`
+		RuleReservations bool   `json:"ruleReservations"`
 	}
 	list := func() []preference {
 		var got struct {
@@ -183,22 +188,33 @@ func TestNotificationPreferences(t *testing.T) {
 		return got.NotificationPreferences
 	}
 	want := []preference{
-		{Kind: kindRecordingBegan, InApp: true, WebPush: true},
-		{Kind: kindRecordingDone, InApp: true, WebPush: true},
-		{Kind: kindRecordingFailed, InApp: true, WebPush: true},
-		{Kind: "RESERVATION_CONFLICT", InApp: true, WebPush: true},
-		{Kind: kindStorageLow, InApp: true, WebPush: true},
-		{Kind: "TUNER_SERVER_UNREACHABLE", InApp: true, WebPush: true},
+		{Kind: kindRecordingBegan, InApp: true, WebPush: true, RuleReservations: true},
+		{Kind: kindRecordingDone, InApp: true, WebPush: true, RuleReservations: true},
+		{Kind: kindRecordingFailed, InApp: true, WebPush: true, RuleReservations: true},
+		{Kind: "RESERVATION_CONFLICT", InApp: true, WebPush: true, RuleReservations: true},
+		{Kind: kindStorageLow, InApp: true, WebPush: true, RuleReservations: true},
+		{Kind: "TUNER_SERVER_UNREACHABLE", InApp: true, WebPush: true, RuleReservations: true},
 	}
 	assert.Equal(t, want, list())
 
 	var updated struct {
 		UpdateNotificationPreference preference `json:"updateNotificationPreference"`
 	}
-	input := map[string]any{"kind": kindStorageLow, "inApp": false, "webPush": true}
+	input := map[string]any{keyKind: kindStorageLow, keyInApp: false, keyWebPush: true}
 	require.Empty(t, f.query(t, updatePreference, map[string]any{varInput: input}, &updated))
-	assert.Equal(t, preference{Kind: kindStorageLow, InApp: false, WebPush: true}, updated.UpdateNotificationPreference)
+	assert.Equal(t, preference{Kind: kindStorageLow, InApp: false, WebPush: true, RuleReservations: true}, updated.UpdateNotificationPreference)
 	want[4].InApp = false
+	assert.Equal(t, want, list())
+
+	// ルール予約の分を切ったあと、ruleReservations を省いて変えても、切ったままにする。
+	for _, input := range []map[string]any{
+		{keyKind: kindRecordingBegan, keyWebPush: true, "ruleReservations": false},
+		{keyKind: kindRecordingBegan, keyWebPush: false},
+	} {
+		input[keyInApp] = true
+		require.Empty(t, f.query(t, updatePreference, map[string]any{varInput: input}, &updated))
+	}
+	want[0].WebPush, want[0].RuleReservations = false, false
 	assert.Equal(t, want, list())
 
 	f.notify(t, notification.KindStorageLow, nil)

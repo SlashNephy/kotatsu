@@ -185,13 +185,19 @@ func (r *Runner) emitConflicts(ctx context.Context, tx pgx.Tx, conflicts []uuid.
 		if err != nil {
 			return fmt.Errorf("failed to get the conflicting reservation: %w", err)
 		}
-		err = notification.Emit(ctx, tx, r.clock, notification.KindReservationConflict, map[string]any{
+		target, err := notification.LoadReservationContext(ctx, tx, reservation.ID)
+		if err != nil {
+			return err
+		}
+		payload := map[string]any{
 			"reservationId": reservation.ID.String(),
 			"name":          reservation.Name,
 			"serviceName":   reservation.ServiceName,
 			"startAt":       reservation.StartAt,
 			"endAt":         reservation.EndAt,
-		})
+		}
+		target.AddTo(payload)
+		err = notification.EmitTo(ctx, tx, r.clock, notification.KindReservationConflict, payload, target.Audience)
 		if err != nil {
 			return err
 		}

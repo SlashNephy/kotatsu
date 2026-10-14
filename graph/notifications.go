@@ -140,7 +140,20 @@ func (r *Resolver) updateNotificationPreference(ctx context.Context, input *mode
 	if err != nil {
 		return nil, NewError(CodeBadUserInput, "unknown notification kind")
 	}
-	preference := &notification.Preference{Kind: kind, InApp: input.InApp, WebPush: input.WebPush}
+	preference := &notification.Preference{Kind: kind, InApp: input.InApp, WebPush: input.WebPush, RuleReservations: true}
+	if input.RuleReservations != nil {
+		preference.RuleReservations = *input.RuleReservations
+	} else {
+		current, err := r.inbox.Preferences(ctx, r.db, principal.UserID)
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range current {
+			if p.Kind == kind {
+				preference.RuleReservations = p.RuleReservations
+			}
+		}
+	}
 	if err := r.inbox.SetPreference(ctx, r.db, principal.UserID, preference); err != nil {
 		return nil, err
 	}
@@ -166,7 +179,9 @@ func notificationOf(n *notification.Notification, location *time.Location) (*mod
 }
 
 func preferenceOf(preference *notification.Preference) *model.NotificationPreference {
-	return &model.NotificationPreference{Kind: kindOf(preference.Kind), InApp: preference.InApp, WebPush: preference.WebPush}
+	return &model.NotificationPreference{
+		Kind: kindOf(preference.Kind), InApp: preference.InApp, WebPush: preference.WebPush, RuleReservations: preference.RuleReservations,
+	}
 }
 
 func kindOf(kind notification.Kind) model.NotificationKind {

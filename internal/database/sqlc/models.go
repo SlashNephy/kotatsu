@@ -113,14 +113,17 @@ type NotificationEvent struct {
 	OccurredAt   time.Time
 	Payload      []byte
 	DispatchedAt *time.Time
+	Audience     []uuid.UUID
+	ByRule       bool
 }
 
 type NotificationPreference struct {
-	UserID    uuid.UUID
-	Kind      string
-	InApp     bool
-	WebPush   bool
-	UpdatedAt time.Time
+	UserID           uuid.UUID
+	Kind             string
+	InApp            bool
+	WebPush          bool
+	RuleReservations bool
+	UpdatedAt        time.Time
 }
 
 type OidcLogin struct {

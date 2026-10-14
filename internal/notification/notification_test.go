@@ -146,7 +146,7 @@ func TestDispatchOnce(t *testing.T) {
 	bob := f.user(t, "bob")
 	carol := f.user(t, "carol")
 	require.NoError(t, f.inbox.SetPreference(t.Context(), f.pool, bob, &notification.Preference{
-		Kind: notification.KindReservationConflict, InApp: false, WebPush: true,
+		Kind: notification.KindReservationConflict, InApp: false, WebPush: true, RuleReservations: true,
 	}))
 	_, err := sqlc.New(f.pool).DisableUser(t.Context(), sqlc.DisableUserParams{DisabledAt: new(f.clock.Now()), ID: carol})
 	require.NoError(t, err)
@@ -175,6 +175,65 @@ func TestDispatchOnce(t *testing.T) {
 			got := f.list(t, tt.userID, all)
 			// 同時に配った通知は、作った日時が同じなので、順序は ID で決まる。種類の集合で比べる。
 			assert.ElementsMatch(t, tt.want, kinds(got))
+		})
+	}
+}
+
+// TestDispatchOnceAudience は、受け取るユーザーを絞ったイベントは、その中のユーザーにだけ配り、
+// ルール予約の録画の通知は、受け取らない設定のユーザーには配らないことを確かめる。
+func TestDispatchOnceAudience(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		audience func(alice, bob uuid.UUID) *notification.Audience
+		want     func(alice, bob, carol uuid.UUID) []uuid.UUID
+	}{
+		{
+			name:     "絞らなければ全員に配る",
+			audience: func(_, _ uuid.UUID) *notification.Audience { return nil },
+			want:     func(alice, bob, carol uuid.UUID) []uuid.UUID { return []uuid.UUID{alice, bob, carol} },
+		},
+		{
+			name: "手動の予約は、予約したユーザーにだけ配る",
+			audience: func(alice, _ uuid.UUID) *notification.Audience {
+				return &notification.Audience{UserIDs: []uuid.UUID{alice}, ByRule: false}
+			},
+			want: func(alice, _, _ uuid.UUID) []uuid.UUID { return []uuid.UUID{alice} },
+		},
+		{
+			// bob はルール予約の録画の通知を切っている。
+			name: "ルール予約は、ルールを作ったユーザーのうち、受け取る設定のユーザーにだけ配る",
+			audience: func(alice, bob uuid.UUID) *notification.Audience {
+				return &notification.Audience{UserIDs: []uuid.UUID{alice, bob}, ByRule: true}
+			},
+			want: func(alice, _, _ uuid.UUID) []uuid.UUID { return []uuid.UUID{alice} },
+		},
+		{
+			name:     "ルールを作ったユーザーが分からなければ、受け取る設定の全員に配る",
+			audience: func(_, _ uuid.UUID) *notification.Audience { return &notification.Audience{UserIDs: nil, ByRule: true} },
+			want:     func(alice, _, carol uuid.UUID) []uuid.UUID { return []uuid.UUID{alice, carol} },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			alice, bob, carol := f.user(t, "alice"), f.user(t, "bob"), f.user(t, "carol")
+			require.NoError(t, f.inbox.SetPreference(t.Context(), f.pool, bob, &notification.Preference{
+				Kind: notification.KindRecordingStarted, InApp: true, WebPush: true, RuleReservations: false,
+			}))
+			require.NoError(t, notification.EmitTo(t.Context(), f.pool, f.clock, notification.KindRecordingStarted, nil, tt.audience(alice, bob)))
+			assert.Equal(t, 1, f.dispatch(t))
+
+			got := []uuid.UUID{}
+			for _, user := range []uuid.UUID{alice, bob, carol} {
+				if len(f.list(t, user, &notification.ListQuery{UnreadOnly: false, Before: nil, Limit: 10})) > 0 {
+					got = append(got, user)
+				}
+			}
+			assert.ElementsMatch(t, tt.want(alice, bob, carol), got)
 		})
 	}
 }
@@ -256,7 +315,7 @@ func TestPreferences(t *testing.T) {
 	defaults := func() []*notification.Preference {
 		preferences := make([]*notification.Preference, 0, len(notification.Kinds()))
 		for _, kind := range notification.Kinds() {
-			preferences = append(preferences, &notification.Preference{Kind: kind, InApp: true, WebPush: true})
+			preferences = append(preferences, &notification.Preference{Kind: kind, InApp: true, WebPush: true, RuleReservations: true})
 		}
 
 		return preferences
@@ -271,18 +330,20 @@ func TestPreferences(t *testing.T) {
 		{
 			name: "設定した種類だけを変え、設定し直すと上書きする",
 			set: []*notification.Preference{
-				{Kind: notification.KindStorageLow, InApp: false, WebPush: false},
-				{Kind: notification.KindStorageLow, InApp: true, WebPush: false},
+				{Kind: notification.KindStorageLow, InApp: false, WebPush: false, RuleReservations: true},
+				{Kind: notification.KindStorageLow, InApp: true, WebPush: false, RuleReservations: true},
+				{Kind: notification.KindRecordingStarted, InApp: true, WebPush: true, RuleReservations: false},
 			},
 			want: func() []*notification.Preference {
 				preferences := defaults()
 				preferences[4].WebPush = false
+				preferences[0].RuleReservations = false
 
 				return preferences
 			},
 			wantErr: nil,
 		},
-		{name: "知らない種類は設定できない", set: []*notification.Preference{{Kind: "unknown", InApp: false, WebPush: false}}, want: defaults, wantErr: notification.ErrUnknownKind},
+		{name: "知らない種類は設定できない", set: []*notification.Preference{{Kind: "unknown", InApp: false, WebPush: false, RuleReservations: true}}, want: defaults, wantErr: notification.ErrUnknownKind},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

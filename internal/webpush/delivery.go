@@ -69,7 +69,9 @@ func NewEnqueuer(inserter Inserter) *Enqueuer {
 }
 
 func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.Event) error {
-	subscriptionIDs, err := sqlc.New(tx).ListWebPushSubscriptionsForKind(ctx, string(event.Kind))
+	subscriptionIDs, err := sqlc.New(tx).ListWebPushSubscriptionsForKind(ctx, sqlc.ListWebPushSubscriptionsForKindParams{
+		Kind: string(event.Kind), Audience: event.Audience.UserIDs, ByRule: event.Audience.ByRule,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to list web push subscriptions: %w", err)
 	}

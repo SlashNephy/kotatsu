@@ -1,6 +1,6 @@
 -- name: InsertNotificationEvent :exec
-INSERT INTO notification_events (id, kind, occurred_at, payload, dispatched_at)
-VALUES (@id, @kind, @occurred_at, @payload, NULL);
+INSERT INTO notification_events (id, kind, occurred_at, payload, dispatched_at, audience, by_rule)
+VALUES (@id, @kind, @occurred_at, @payload, NULL, sqlc.narg(audience)::uuid[], @by_rule);
 
 -- name: ListPendingNotificationEvents :many
 -- 配っていないイベントを、古い順に引き、ロックする。ほかの nekonote が同じイベントを配らないよう、ロック中の行は飛ばす。
@@ -14,9 +14,12 @@ UPDATE notification_events SET dispatched_at = @now WHERE id = @id;
 
 -- name: ListNotificationRecipients :many
 -- イベントの種類 kind を画面内の通知で受け取る、有効なユーザーを返す。設定がなければ受け取る。
+-- audience が NULL でなければ、その中のユーザーだけにする。by_rule なら、ルール予約の録画の通知を受け取らないユーザーを除く。
 SELECT users.id FROM users
 LEFT JOIN notification_preferences p ON p.user_id = users.id AND p.kind = @kind
 WHERE users.disabled_at IS NULL AND COALESCE(p.in_app, true)
+  AND (sqlc.narg(audience)::uuid[] IS NULL OR users.id = ANY(sqlc.narg(audience)::uuid[]))
+  AND (NOT @by_rule::boolean OR COALESCE(p.rule_reservations, true))
 ORDER BY users.id;
 
 -- name: InsertNotifications :exec
@@ -51,9 +54,10 @@ UPDATE notifications SET read_at = @now WHERE user_id = @user_id AND read_at IS 
 SELECT * FROM notification_preferences WHERE user_id = @user_id ORDER BY kind;
 
 -- name: UpsertNotificationPreference :exec
-INSERT INTO notification_preferences (user_id, kind, in_app, web_push, updated_at)
-VALUES (@user_id, @kind, @in_app, @web_push, @now)
-ON CONFLICT (user_id, kind) DO UPDATE SET in_app = EXCLUDED.in_app, web_push = EXCLUDED.web_push, updated_at = EXCLUDED.updated_at;
+INSERT INTO notification_preferences (user_id, kind, in_app, web_push, rule_reservations, updated_at)
+VALUES (@user_id, @kind, @in_app, @web_push, @rule_reservations, @now)
+ON CONFLICT (user_id, kind) DO UPDATE SET in_app = EXCLUDED.in_app, web_push = EXCLUDED.web_push,
+  rule_reservations = EXCLUDED.rule_reservations, updated_at = EXCLUDED.updated_at;
 
 -- name: GetReservationForNotification :one
 -- 競合の通知に載せる、予約の番組名とサービス名。
@@ -63,3 +67,16 @@ WHERE reservations.id = @id;
 
 -- name: GetNotificationEvent :one
 SELECT * FROM notification_events WHERE id = @id;
+
+-- name: GetReservationAudience :one
+-- 予約の通知を受け取るユーザーを決める材料。手動の予約なら予約したユーザー、ルール予約なら一致したルールを作ったユーザー。
+-- rule_ids、rule_names、rule_creators は、ルールを作った順に並べる。ルールを作ったユーザーが消えていれば、rule_creators には入れない。
+SELECT r.kind, r.created_by,
+  COALESCE(array_agg(ru.id ORDER BY ru.created_at, ru.id) FILTER (WHERE ru.id IS NOT NULL), '{}')::uuid[] AS rule_ids,
+  COALESCE(array_agg(ru.name ORDER BY ru.created_at, ru.id) FILTER (WHERE ru.id IS NOT NULL), '{}')::text[] AS rule_names,
+  COALESCE(array_agg(DISTINCT ru.created_by) FILTER (WHERE ru.created_by IS NOT NULL), '{}')::uuid[] AS rule_creators
+FROM reservations r
+LEFT JOIN reservation_rules rr ON rr.reservation_id = r.id
+LEFT JOIN rules ru ON ru.id = rr.rule_id
+WHERE r.id = @id
+GROUP BY r.id;

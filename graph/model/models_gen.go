@@ -258,12 +258,17 @@ type NotificationPreference struct {
 	InApp bool `json:"inApp"`
 	// Web Push で受け取るかどうか。購読していなければ届かない。
 	WebPush bool `json:"webPush"`
+	// ルール予約の録画の通知も受け取るかどうか。録画の通知 (開始、完了、失敗) と競合の通知でだけ使う。
+	// 手動の予約の通知は、予約したユーザーだけに届き、ルール予約の通知は、ルールを作ったユーザーに届く (設計書 6.2)。
+	RuleReservations bool `json:"ruleReservations"`
 }
 
 type NotificationPreferenceInput struct {
 	Kind    NotificationKind `json:"kind"`
 	InApp   bool             `json:"inApp"`
 	WebPush bool             `json:"webPush"`
+	// 省けば、今の設定のままにする。
+	RuleReservations *bool `json:"ruleReservations,omitempty"`
 }
 
 // 一覧のページの情報 (Relay の Cursor Connections)。カーソルは中身を解釈せずに、そのまま次のリクエストに渡す。

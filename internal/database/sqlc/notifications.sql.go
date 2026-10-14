@@ -24,7 +24,7 @@ func (q *Queries) CountUnreadNotifications(ctx context.Context, userID uuid.UUID
 }
 
 const getNotificationEvent = `-- name: GetNotificationEvent :one
-SELECT id, kind, occurred_at, payload, dispatched_at FROM notification_events WHERE id = $1
+SELECT id, kind, occurred_at, payload, dispatched_at, audience, by_rule FROM notification_events WHERE id = $1
 `
 
 func (q *Queries) GetNotificationEvent(ctx context.Context, id uuid.UUID) (NotificationEvent, error) {
@@ -36,6 +36,43 @@ func (q *Queries) GetNotificationEvent(ctx context.Context, id uuid.UUID) (Notif
 		&i.OccurredAt,
 		&i.Payload,
 		&i.DispatchedAt,
+		&i.Audience,
+		&i.ByRule,
+	)
+	return i, err
+}
+
+const getReservationAudience = `-- name: GetReservationAudience :one
+SELECT r.kind, r.created_by,
+  COALESCE(array_agg(ru.id ORDER BY ru.created_at, ru.id) FILTER (WHERE ru.id IS NOT NULL), '{}')::uuid[] AS rule_ids,
+  COALESCE(array_agg(ru.name ORDER BY ru.created_at, ru.id) FILTER (WHERE ru.id IS NOT NULL), '{}')::text[] AS rule_names,
+  COALESCE(array_agg(DISTINCT ru.created_by) FILTER (WHERE ru.created_by IS NOT NULL), '{}')::uuid[] AS rule_creators
+FROM reservations r
+LEFT JOIN reservation_rules rr ON rr.reservation_id = r.id
+LEFT JOIN rules ru ON ru.id = rr.rule_id
+WHERE r.id = $1
+GROUP BY r.id
+`
+
+type GetReservationAudienceRow struct {
+	Kind         string
+	CreatedBy    *uuid.UUID
+	RuleIds      []uuid.UUID
+	RuleNames    []string
+	RuleCreators []uuid.UUID
+}
+
+// 予約の通知を受け取るユーザーを決める材料。手動の予約なら予約したユーザー、ルール予約なら一致したルールを作ったユーザー。
+// rule_ids、rule_names、rule_creators は、ルールを作った順に並べる。ルールを作ったユーザーが消えていれば、rule_creators には入れない。
+func (q *Queries) GetReservationAudience(ctx context.Context, id uuid.UUID) (GetReservationAudienceRow, error) {
+	row := q.db.QueryRow(ctx, getReservationAudience, id)
+	var i GetReservationAudienceRow
+	err := row.Scan(
+		&i.Kind,
+		&i.CreatedBy,
+		&i.RuleIds,
+		&i.RuleNames,
+		&i.RuleCreators,
 	)
 	return i, err
 }
@@ -69,8 +106,8 @@ func (q *Queries) GetReservationForNotification(ctx context.Context, id uuid.UUI
 }
 
 const insertNotificationEvent = `-- name: InsertNotificationEvent :exec
-INSERT INTO notification_events (id, kind, occurred_at, payload, dispatched_at)
-VALUES ($1, $2, $3, $4, NULL)
+INSERT INTO notification_events (id, kind, occurred_at, payload, dispatched_at, audience, by_rule)
+VALUES ($1, $2, $3, $4, NULL, $5::uuid[], $6)
 `
 
 type InsertNotificationEventParams struct {
@@ -78,6 +115,8 @@ type InsertNotificationEventParams struct {
 	Kind       string
 	OccurredAt time.Time
 	Payload    []byte
+	Audience   []uuid.UUID
+	ByRule     bool
 }
 
 func (q *Queries) InsertNotificationEvent(ctx context.Context, arg InsertNotificationEventParams) error {
@@ -86,6 +125,8 @@ func (q *Queries) InsertNotificationEvent(ctx context.Context, arg InsertNotific
 		arg.Kind,
 		arg.OccurredAt,
 		arg.Payload,
+		arg.Audience,
+		arg.ByRule,
 	)
 	return err
 }
@@ -115,7 +156,7 @@ func (q *Queries) InsertNotifications(ctx context.Context, arg InsertNotificatio
 }
 
 const listNotificationPreferences = `-- name: ListNotificationPreferences :many
-SELECT user_id, kind, in_app, web_push, updated_at FROM notification_preferences WHERE user_id = $1 ORDER BY kind
+SELECT user_id, kind, in_app, web_push, rule_reservations, updated_at FROM notification_preferences WHERE user_id = $1 ORDER BY kind
 `
 
 func (q *Queries) ListNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error) {
@@ -132,6 +173,7 @@ func (q *Queries) ListNotificationPreferences(ctx context.Context, userID uuid.U
 			&i.Kind,
 			&i.InApp,
 			&i.WebPush,
+			&i.RuleReservations,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -148,12 +190,21 @@ const listNotificationRecipients = `-- name: ListNotificationRecipients :many
 SELECT users.id FROM users
 LEFT JOIN notification_preferences p ON p.user_id = users.id AND p.kind = $1
 WHERE users.disabled_at IS NULL AND COALESCE(p.in_app, true)
+  AND ($2::uuid[] IS NULL OR users.id = ANY($2::uuid[]))
+  AND (NOT $3::boolean OR COALESCE(p.rule_reservations, true))
 ORDER BY users.id
 `
 
+type ListNotificationRecipientsParams struct {
+	Kind     string
+	Audience []uuid.UUID
+	ByRule   bool
+}
+
 // イベントの種類 kind を画面内の通知で受け取る、有効なユーザーを返す。設定がなければ受け取る。
-func (q *Queries) ListNotificationRecipients(ctx context.Context, kind string) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, listNotificationRecipients, kind)
+// audience が NULL でなければ、その中のユーザーだけにする。by_rule なら、ルール予約の録画の通知を受け取らないユーザーを除く。
+func (q *Queries) ListNotificationRecipients(ctx context.Context, arg ListNotificationRecipientsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listNotificationRecipients, arg.Kind, arg.Audience, arg.ByRule)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +224,7 @@ func (q *Queries) ListNotificationRecipients(ctx context.Context, kind string) (
 }
 
 const listNotifications = `-- name: ListNotifications :many
-SELECT notifications.id, notifications.user_id, notifications.event_id, notifications.created_at, notifications.read_at, notification_events.id, notification_events.kind, notification_events.occurred_at, notification_events.payload, notification_events.dispatched_at
+SELECT notifications.id, notifications.user_id, notifications.event_id, notifications.created_at, notifications.read_at, notification_events.id, notification_events.kind, notification_events.occurred_at, notification_events.payload, notification_events.dispatched_at, notification_events.audience, notification_events.by_rule
 FROM notifications
 JOIN notification_events ON notification_events.id = notifications.event_id
 WHERE notifications.user_id = $1
@@ -225,6 +276,8 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 			&i.NotificationEvent.OccurredAt,
 			&i.NotificationEvent.Payload,
 			&i.NotificationEvent.DispatchedAt,
+			&i.NotificationEvent.Audience,
+			&i.NotificationEvent.ByRule,
 		); err != nil {
 			return nil, err
 		}
@@ -237,7 +290,7 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 }
 
 const listPendingNotificationEvents = `-- name: ListPendingNotificationEvents :many
-SELECT id, kind, occurred_at, payload, dispatched_at FROM notification_events WHERE dispatched_at IS NULL
+SELECT id, kind, occurred_at, payload, dispatched_at, audience, by_rule FROM notification_events WHERE dispatched_at IS NULL
 ORDER BY occurred_at, id
 LIMIT $1
 FOR UPDATE SKIP LOCKED
@@ -259,6 +312,8 @@ func (q *Queries) ListPendingNotificationEvents(ctx context.Context, maxCount in
 			&i.OccurredAt,
 			&i.Payload,
 			&i.DispatchedAt,
+			&i.Audience,
+			&i.ByRule,
 		); err != nil {
 			return nil, err
 		}
@@ -320,17 +375,19 @@ func (q *Queries) MarkNotificationsRead(ctx context.Context, arg MarkNotificatio
 }
 
 const upsertNotificationPreference = `-- name: UpsertNotificationPreference :exec
-INSERT INTO notification_preferences (user_id, kind, in_app, web_push, updated_at)
-VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (user_id, kind) DO UPDATE SET in_app = EXCLUDED.in_app, web_push = EXCLUDED.web_push, updated_at = EXCLUDED.updated_at
+INSERT INTO notification_preferences (user_id, kind, in_app, web_push, rule_reservations, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (user_id, kind) DO UPDATE SET in_app = EXCLUDED.in_app, web_push = EXCLUDED.web_push,
+  rule_reservations = EXCLUDED.rule_reservations, updated_at = EXCLUDED.updated_at
 `
 
 type UpsertNotificationPreferenceParams struct {
-	UserID  uuid.UUID
-	Kind    string
-	InApp   bool
-	WebPush bool
-	Now     time.Time
+	UserID           uuid.UUID
+	Kind             string
+	InApp            bool
+	WebPush          bool
+	RuleReservations bool
+	Now              time.Time
 }
 
 func (q *Queries) UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error {
@@ -339,6 +396,7 @@ func (q *Queries) UpsertNotificationPreference(ctx context.Context, arg UpsertNo
 		arg.Kind,
 		arg.InApp,
 		arg.WebPush,
+		arg.RuleReservations,
 		arg.Now,
 	)
 	return err

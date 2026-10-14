@@ -202,7 +202,7 @@ func TestViewerSettingsChanged(t *testing.T) {
 		{name: "通知の設定", change: func(t *testing.T, device *fixture) {
 			t.Helper()
 
-			input := map[string]any{"kind": "STORAGE_LOW", "inApp": false, "webPush": true}
+			input := map[string]any{keyKind: "STORAGE_LOW", keyInApp: false, keyWebPush: true}
 			require.Empty(t, device.query(t, updatePreference, map[string]any{varInput: input}, nil))
 		}},
 		{name: "番組表ビュー", change: func(t *testing.T, device *fixture) {

@@ -268,7 +268,11 @@ CREATE TABLE notification_events (
   -- 画面に出す文の材料 (番組名や理由など)。種類ごとに項目が違う。
   payload jsonb NOT NULL,
   -- ユーザーごとの通知に配った日時。まだ配っていなければ NULL。
-  dispatched_at timestamptz
+  dispatched_at timestamptz,
+  -- 受け取るユーザー。NULL なら、有効なユーザー全員に届ける。手動の予約の録画は、予約したユーザーだけに届ける (設計書 6.2)。
+  audience uuid[],
+  -- ルール予約の録画の通知かどうか。ルール予約の録画の通知を受け取らない設定のユーザーには届けない。
+  by_rule boolean NOT NULL DEFAULT false
 );
 
 -- 配っていないイベントを、古い順に引くのに使う。
@@ -297,6 +301,8 @@ CREATE TABLE notification_preferences (
   in_app boolean NOT NULL,
   -- Web Push で受け取るかどうか。購読していなければ届かない。
   web_push boolean NOT NULL,
+  -- ルール予約の録画の通知も受け取るかどうか。録画の通知でだけ使う。
+  rule_reservations boolean NOT NULL DEFAULT true,
   updated_at timestamptz NOT NULL,
   PRIMARY KEY (user_id, kind)
 );

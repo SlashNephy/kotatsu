@@ -63,6 +63,7 @@ function Settings() {
           kind
           inApp
           webPush
+          ruleReservations
         }
       }
     `,
@@ -75,6 +76,7 @@ function Settings() {
         kind
         inApp
         webPush
+        ruleReservations
       }
     }
   `);
@@ -177,6 +179,7 @@ function Settings() {
             <Table.Th>{t('notifications.kindColumn')}</Table.Th>
             <Table.Th>{t('notifications.inApp')}</Table.Th>
             <Table.Th>{t('notifications.webPush')}</Table.Th>
+            <Table.Th>{t('notifications.ruleReservations')}</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -186,7 +189,15 @@ function Settings() {
               return null;
             }
             // NotificationPreference は ID を持たず、Relay が一覧の行と結び付けられないので、種類で探して書き換える。
-            const set = (input: { inApp: boolean; webPush: boolean }) => {
+            const set = (
+              change: Partial<{ inApp: boolean; webPush: boolean; ruleReservations: boolean }>,
+            ) => {
+              const input = {
+                inApp: preference.inApp,
+                webPush: preference.webPush,
+                ruleReservations: preference.ruleReservations,
+                ...change,
+              };
               const write = (store: RecordSourceSelectorProxy) => {
                 const row = store
                   .getRoot()
@@ -194,6 +205,7 @@ function Settings() {
                   ?.find((record) => record?.getValue('kind') === preference.kind);
                 row?.setValue(input.inApp, 'inApp');
                 row?.setValue(input.webPush, 'webPush');
+                row?.setValue(input.ruleReservations, 'ruleReservations');
               };
               updatePreference({
                 variables: { input: { kind: preference.kind, ...input } },
@@ -218,19 +230,25 @@ function Settings() {
                   <Switch
                     aria-label={`${t(label)} ${t('notifications.inApp')}`}
                     checked={preference.inApp}
-                    onChange={(event) =>
-                      set({ inApp: event.currentTarget.checked, webPush: preference.webPush })
-                    }
+                    onChange={(event) => set({ inApp: event.currentTarget.checked })}
                   />
                 </Table.Td>
                 <Table.Td>
                   <Switch
                     aria-label={`${t(label)} ${t('notifications.webPush')}`}
                     checked={preference.webPush}
-                    onChange={(event) =>
-                      set({ inApp: preference.inApp, webPush: event.currentTarget.checked })
-                    }
+                    onChange={(event) => set({ webPush: event.currentTarget.checked })}
                   />
+                </Table.Td>
+                <Table.Td>
+                  {/* ルール予約の切り替えは、予約にまつわる通知でだけ意味がある。 */}
+                  {reservationKinds.has(preference.kind) && (
+                    <Switch
+                      aria-label={`${t(label)} ${t('notifications.ruleReservations')}`}
+                      checked={preference.ruleReservations}
+                      onChange={(event) => set({ ruleReservations: event.currentTarget.checked })}
+                    />
+                  )}
                 </Table.Td>
               </Table.Tr>
             );
@@ -241,10 +259,22 @@ function Settings() {
         <Text size="xs" c="dimmed">
           {t('notifications.preferenceNote')}
         </Text>
+        <Text size="xs" c="dimmed">
+          {t('notifications.recipientsNote')}
+        </Text>
       </Group>
     </Stack>
   );
 }
+
+// reservationKinds は、予約にまつわる通知の種類。手動の予約は予約したユーザーに、ルール予約はルールを作ったユーザーに届き、
+// ルール予約の分を受け取るかどうかを切り替えられる (設計書 6.2)。
+const reservationKinds = new Set<string>([
+  'RECORDING_STARTED',
+  'RECORDING_COMPLETED',
+  'RECORDING_FAILED',
+  'RESERVATION_CONFLICT',
+]);
 
 // settle は、Relay の mutation の結果を、Promise の成功と失敗にする。Relay は、GraphQL のエラーも onCompleted に渡す。
 function settle(resolve: () => void, reject: (error: Error) => void) {

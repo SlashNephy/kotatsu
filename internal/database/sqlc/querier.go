@@ -108,6 +108,9 @@ type Querier interface {
 	// 通知に載せる、録画とサービス名。
 	GetRecordingWithService(ctx context.Context, id uuid.UUID) (GetRecordingWithServiceRow, error)
 	GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error)
+	// 予約の通知を受け取るユーザーを決める材料。手動の予約なら予約したユーザー、ルール予約なら一致したルールを作ったユーザー。
+	// rule_ids、rule_names、rule_creators は、ルールを作った順に並べる。ルールを作ったユーザーが消えていれば、rule_creators には入れない。
+	GetReservationAudience(ctx context.Context, id uuid.UUID) (GetReservationAudienceRow, error)
 	GetReservationByProgram(ctx context.Context, arg GetReservationByProgramParams) (Reservation, error)
 	// 競合の通知に載せる、予約の番組名とサービス名。
 	GetReservationForNotification(ctx context.Context, id uuid.UUID) (GetReservationForNotificationRow, error)
@@ -205,7 +208,8 @@ type Querier interface {
 	ListMatchablePrograms(ctx context.Context, arg ListMatchableProgramsParams) ([]ListMatchableProgramsRow, error)
 	ListNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
 	// イベントの種類 kind を画面内の通知で受け取る、有効なユーザーを返す。設定がなければ受け取る。
-	ListNotificationRecipients(ctx context.Context, kind string) ([]uuid.UUID, error)
+	// audience が NULL でなければ、その中のユーザーだけにする。by_rule なら、ルール予約の録画の通知を受け取らないユーザーを除く。
+	ListNotificationRecipients(ctx context.Context, arg ListNotificationRecipientsParams) ([]uuid.UUID, error)
 	// ユーザーの通知を、新しい順に返す。before_at と before_id より前 (古い) の通知だけを返し、ページを送る。
 	// before_at と before_id は、両方を渡すか、両方を NULL にする。
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]ListNotificationsRow, error)
@@ -251,7 +255,8 @@ type Querier interface {
 	ListWatchProgress(ctx context.Context, arg ListWatchProgressParams) ([]WatchProgress, error)
 	ListWebPushSubscriptions(ctx context.Context, userID uuid.UUID) ([]WebPushSubscription, error)
 	// イベントの種類 kind を Web Push で受け取る、有効なユーザーの購読の ID を返す。設定がなければ受け取る。
-	ListWebPushSubscriptionsForKind(ctx context.Context, kind string) ([]uuid.UUID, error)
+	// audience と by_rule の扱いは、ListNotificationRecipients と同じ。
+	ListWebPushSubscriptionsForKind(ctx context.Context, arg ListWebPushSubscriptionsForKindParams) ([]uuid.UUID, error)
 	ListWebhooks(ctx context.Context) ([]Webhook, error)
 	// イベントの種類 kind を送る、有効な Webhook の ID を返す。
 	ListWebhooksForKind(ctx context.Context, kind string) ([]uuid.UUID, error)

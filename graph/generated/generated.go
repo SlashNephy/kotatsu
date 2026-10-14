@@ -224,9 +224,10 @@ type ComplexityRoot struct {
 	}
 
 	NotificationPreference struct {
-		InApp   func(childComplexity int) int
-		Kind    func(childComplexity int) int
-		WebPush func(childComplexity int) int
+		InApp            func(childComplexity int) int
+		Kind             func(childComplexity int) int
+		RuleReservations func(childComplexity int) int
+		WebPush          func(childComplexity int) int
 	}
 
 	PageInfo struct {
@@ -1648,6 +1649,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.NotificationPreference.Kind(childComplexity), true
+	case "NotificationPreference.ruleReservations":
+		if e.ComplexityRoot.NotificationPreference.RuleReservations == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NotificationPreference.RuleReservations(childComplexity), true
 	case "NotificationPreference.webPush":
 		if e.ComplexityRoot.NotificationPreference.WebPush == nil {
 			break
@@ -3934,12 +3941,19 @@ type NotificationPreference {
   inApp: Boolean!
   "Web Push で受け取るかどうか。購読していなければ届かない。"
   webPush: Boolean!
+  """
+  ルール予約の録画の通知も受け取るかどうか。録画の通知 (開始、完了、失敗) と競合の通知でだけ使う。
+  手動の予約の通知は、予約したユーザーだけに届き、ルール予約の通知は、ルールを作ったユーザーに届く (設計書 6.2)。
+  """
+  ruleReservations: Boolean!
 }
 
 input NotificationPreferenceInput {
   kind: NotificationKind!
   inApp: Boolean!
   webPush: Boolean!
+  "省けば、今の設定のままにする。"
+  ruleReservations: Boolean
 }
 
 extend type Query {
@@ -5333,6 +5347,8 @@ func (ec *executionContext) childFields_NotificationPreference(ctx context.Conte
 		return ec.fieldContext_NotificationPreference_inApp(ctx, field)
 	case "webPush":
 		return ec.fieldContext_NotificationPreference_webPush(ctx, field)
+	case "ruleReservations":
+		return ec.fieldContext_NotificationPreference_ruleReservations(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type NotificationPreference", field.Name)
 }
@@ -10766,6 +10782,29 @@ func (ec *executionContext) _NotificationPreference_webPush(ctx context.Context,
 	)
 }
 func (ec *executionContext) fieldContext_NotificationPreference_webPush(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NotificationPreference", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _NotificationPreference_ruleReservations(ctx context.Context, field graphql.CollectedField, obj *model.NotificationPreference) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NotificationPreference_ruleReservations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RuleReservations, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NotificationPreference_ruleReservations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("NotificationPreference", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
@@ -19071,7 +19110,7 @@ func (ec *executionContext) unmarshalInputNotificationPreferenceInput(ctx contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"kind", "inApp", "webPush"}
+	fieldsInOrder := [...]string{"kind", "inApp", "webPush", "ruleReservations"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -19099,6 +19138,13 @@ func (ec *executionContext) unmarshalInputNotificationPreferenceInput(ctx contex
 				return it, err
 			}
 			it.WebPush = data
+		case "ruleReservations":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ruleReservations"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RuleReservations = data
 		}
 	}
 	return it, nil
@@ -21471,6 +21517,11 @@ func (ec *executionContext) _NotificationPreference(ctx context.Context, sel ast
 			}
 		case "webPush":
 			out.Values[i] = ec._NotificationPreference_webPush(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ruleReservations":
+			out.Values[i] = ec._NotificationPreference_ruleReservations(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
