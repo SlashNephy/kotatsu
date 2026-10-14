@@ -201,6 +201,12 @@ func (s *Store) Remove(poolID, rel string) error {
 	if err := os.RemoveAll(path + sidecarSuffix); err != nil {
 		return fmt.Errorf("failed to remove the sidecar directory in pool %s: %w", poolID, err)
 	}
+	// ファイル名のテンプレートで掘ったディレクトリが空になれば、プールの直下まで遡って消す。
+	// 消せなければ (空でないか、ほかの理由で)、そこで止める。録画のファイルは消せているので、エラーにはしない。
+	dir := filepath.Dir(rel)
+	for dir != "." && removedEmptyDir(filepath.Join(s.mounts[poolID], dir)) {
+		dir = filepath.Dir(dir)
+	}
 
 	return nil
 }
@@ -212,4 +218,9 @@ func (s *Store) rank(id string) int {
 	}
 
 	return len(s.order)
+}
+
+// removedEmptyDir は、空のディレクトリ path を消し、消せたかどうかを返す。空でなければ消さない。
+func removedEmptyDir(path string) bool {
+	return os.Remove(path) == nil
 }

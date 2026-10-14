@@ -11,7 +11,6 @@ import (
 
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 )
 
@@ -96,7 +95,7 @@ func renderFileName(text string, data *reserve.FileNameData) (string, error) {
 		return "", err
 	}
 
-	return kago.RenderName(tmpl, data, previewExt)
+	return reserve.RenderFileName(tmpl, data, previewExt)
 }
 
 // templateError は、テンプレートの誤りを、利用者に見せる文にする。よくある誤り (知らない項目と関数) は日本語にし、

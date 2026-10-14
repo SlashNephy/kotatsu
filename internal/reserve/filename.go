@@ -7,6 +7,8 @@ import (
 	"text/template"
 	"text/template/parse"
 	"time"
+
+	"github.com/SlashNephy/kotatsu/internal/kago"
 )
 
 // fileNameFuncs は、ファイル名のテンプレートで使える関数 (設計書 4.7)。Go のテンプレートを書かない利用者向けに、
@@ -203,4 +205,16 @@ func (l *limitedWriter) Write(p []byte) (int, error) {
 // ExecuteFileNameTemplate は、テンプレートに data を当てはめ、結果を w に書く。結果は maxFileNameOutputB までにする。
 func ExecuteFileNameTemplate(tmpl *template.Template, w io.Writer, data any) error {
 	return tmpl.Execute(&limitedWriter{w: w, written: 0}, data)
+}
+
+// RenderFileName は、テンプレートに data を当てはめた、録画ファイルのプール内の相対パスを返す (kago.RenderName)。
+// ディレクトリの区切りにするのは、テンプレートに書いた / だけにする。番組名などの値に入っている / と \ は取り除き、
+// 「前編/後編」のような番組名でディレクトリを掘らないようにする。
+func RenderFileName(tmpl *template.Template, data *FileNameData, ext string) (string, error) {
+	clean := *data
+	for _, field := range []*string{&clean.ServiceName, &clean.ChannelType, &clean.Channel, &clean.Name} {
+		*field = strings.NewReplacer("/", "", "\\", "").Replace(*field)
+	}
+
+	return kago.RenderName(tmpl, &clean, ext)
 }

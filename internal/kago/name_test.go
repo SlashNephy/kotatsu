@@ -69,9 +69,20 @@ func TestRenderName(t *testing.T) {
 			want: "20261009-2100 こたつテスト1 番組名.m2ts",
 		},
 		{
-			name: "separators in a title do not create directories",
+			// 値に入っている / を取り除くのは、呼ぶ側 (reserve.RenderFileName) の役目。
+			name: "slashes create directories",
 			data: data{Date: date, Channel: channel, Title: "前編/後編"},
-			want: "20261009-2100 こたつテスト1 前編後編.m2ts",
+			want: "20261009-2100 こたつテスト1 前編/後編.m2ts",
+		},
+		{
+			name: "empty, dot and dot-dot elements are dropped",
+			data: data{Date: date, Channel: channel, Title: "/../a//./b/../番組"},
+			want: "20261009-2100 こたつテスト1/a/b/番組.m2ts",
+		},
+		{
+			name: "directories deeper than the limit are dropped",
+			data: data{Date: date, Channel: channel, Title: "1/2/3/4/5/6/7/8/9/10/番組"},
+			want: "20261009-2100 こたつテスト1 1/2/3/4/5/6/7/8/番組.m2ts",
 		},
 		{
 			// 3 バイトの文字を 200 文字並べ、600 バイトにする。
@@ -141,11 +152,13 @@ func TestCreate(t *testing.T) {
 	require.LessOrEqual(t, len(longName), 255-len(".kotatsu"))
 
 	tests := []struct {
-		name    string
-		dir     string
-		file    string
-		count   int
-		wantRel []string
+		name  string
+		dir   string
+		file  string
+		count int
+		// existingDir は、dir を先に作っておくかどうか。
+		existingDir bool
+		wantRel     []string
 	}{
 		{
 			name:    "sequence numbers for the same name",
@@ -154,11 +167,19 @@ func TestCreate(t *testing.T) {
 			wantRel: []string{fileName, "番組 (2).m2ts", "番組 (3).m2ts"},
 		},
 		{
-			name:    "in a subdirectory",
-			dir:     "anime",
+			name:        "in a subdirectory",
+			dir:         "anime",
+			file:        fileName,
+			count:       2,
+			existingDir: true,
+			wantRel:     []string{"anime/番組.m2ts", "anime/番組 (2).m2ts"},
+		},
+		{
+			name:    "creates missing directories",
+			dir:     "GR/2026-10",
 			file:    fileName,
-			count:   2,
-			wantRel: []string{"anime/番組.m2ts", "anime/番組 (2).m2ts"},
+			count:   1,
+			wantRel: []string{"GR/2026-10/番組.m2ts"},
 		},
 		{
 			name:  "a long name is cut to make room for the sequence number",
@@ -176,7 +197,7 @@ func TestCreate(t *testing.T) {
 			t.Parallel()
 
 			mount := t.TempDir()
-			if tt.dir != "" {
+			if tt.existingDir {
 				require.NoError(t, os.Mkdir(filepath.Join(mount, tt.dir), 0o755))
 			}
 			store := kago.New(map[string]string{poolMain: mount}, nil)
@@ -254,4 +275,49 @@ func TestCreateRejectsUnsanitizedName(t *testing.T) {
 			require.ErrorIs(t, err, kago.ErrInvalidPath)
 		})
 	}
+}
+
+// TestCreateDoesNotEscapeThePool は、プールの中のシンボリックリンクをたどって、プールの外にディレクトリを作らないことを確かめる。
+func TestCreateDoesNotEscapeThePool(t *testing.T) {
+	t.Parallel()
+
+	mount, outside := t.TempDir(), t.TempDir()
+	require.NoError(t, os.Symlink(outside, filepath.Join(mount, "link")))
+	store := kago.New(map[string]string{poolMain: mount}, nil)
+
+	_, _, err := store.Create(poolMain, "link/sub", fileName)
+	require.Error(t, err)
+	_, statErr := os.Stat(filepath.Join(outside, "sub"))
+	assert.ErrorIs(t, statErr, os.ErrNotExist)
+}
+
+// TestRemoveDeletesEmptyDirectories は、録画を消して空になったディレクトリを、プールの直下まで遡って消し、
+// 空でないディレクトリは残すことを確かめる。
+func TestRemoveDeletesEmptyDirectories(t *testing.T) {
+	t.Parallel()
+
+	mount := t.TempDir()
+	store := kago.New(map[string]string{poolMain: mount}, nil)
+	create := func(dir string) string {
+		f, rel, err := store.Create(poolMain, dir, fileName)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		return rel
+	}
+	removed := create("GR/2026-10")
+	kept := create("GR/2026-11")
+	_, err := store.CreateSidecarDir(poolMain, removed)
+	require.NoError(t, err)
+
+	require.NoError(t, store.Remove(poolMain, removed))
+	_, err = os.Stat(filepath.Join(mount, "GR/2026-10"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+	_, err = os.Stat(filepath.Join(mount, kept))
+	require.NoError(t, err)
+
+	require.NoError(t, store.Remove(poolMain, kept))
+	entries, err := os.ReadDir(mount)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
 }
