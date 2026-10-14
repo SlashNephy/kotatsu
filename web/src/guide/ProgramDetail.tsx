@@ -1,5 +1,6 @@
 import {
   Alert,
+  Anchor,
   Badge,
   Button,
   Drawer,
@@ -105,6 +106,10 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
               id
               enabled
               kind
+              rules {
+                id
+                name
+              }
             }
           }
         }
@@ -214,6 +219,9 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           </Button>
         </Tooltip>
       )}
+      {reserved && program.reservation != null && program.reservation.kind === 'RULE' && (
+        <ReservedByRules rules={program.reservation.rules} />
+      )}
       {cancelling && program.reservation != null && (
         <CancelDialog
           reservationId={program.reservation.id}
@@ -238,6 +246,41 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           </Text>
         </Stack>
       ))}
+    </Stack>
+  );
+}
+
+// ReservedByRules は、ルール予約のもとになったルールを並べ、ルールの画面へ移れるようにする。
+// 複数のルールに一致したときは、録画の設定に使うのが最も古いルール (先頭) であることも示す。
+function ReservedByRules({ rules }: { rules: ReadonlyArray<{ id: string; name: string }> }) {
+  const { t } = useTranslation();
+  if (rules.length === 0) {
+    return null;
+  }
+
+  return (
+    <Stack gap={2}>
+      <Text size="sm">
+        {t('guide.detail.reservedByRules')}
+        {rules.map((rule, index) => (
+          <span key={rule.id}>
+            {index > 0 && '、'}
+            <Anchor
+              size="sm"
+              renderRoot={(props) => (
+                <Link {...props} to="/rules/$ruleId" params={{ ruleId: rule.id }} />
+              )}
+            >
+              {rule.name}
+            </Anchor>
+          </span>
+        ))}
+      </Text>
+      {rules.length > 1 && (
+        <Text size="xs" c="dimmed">
+          {t('guide.detail.reservedByRulesSettings', { name: rules[0]?.name })}
+        </Text>
+      )}
     </Stack>
   );
 }

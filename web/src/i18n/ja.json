@@ -267,6 +267,8 @@
       "watch": "ライブ視聴",
       "reserve": "録画予約",
       "reserved": "録画予約済み",
+      "reservedByRules": "ルールで予約: ",
+      "reservedByRulesSettings": "録画の設定は、最も古いルール「{{name}}」に従います",
       "cancelReservation": "録画予約を取り消す",
       "cancelDescription": "この番組の録画予約を取り消します。録画は行いません。",
       "cancelRuleDescription": "ルールで入った録画予約なので、この番組の録画だけをやめます。ルールは残ります。",
