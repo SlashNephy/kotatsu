@@ -49,9 +49,10 @@ func (r *searchResult) names() []string {
 }
 
 type keywordInput struct {
-	Text   string   `json:"text"`
-	Regexp bool     `json:"regexp"`
-	Fields []string `json:"fields"`
+	Text          string   `json:"text"`
+	Regexp        bool     `json:"regexp"`
+	CaseSensitive bool     `json:"caseSensitive"`
+	Fields        []string `json:"fields"`
 }
 
 type genreInput struct {
@@ -89,7 +90,7 @@ func searchVariables(conditions conditionsInput, archive *archiveInput, first in
 }
 
 func keyword(text string, regexp bool) keywordInput {
-	return keywordInput{Text: text, Regexp: regexp, Fields: []string{fieldName}}
+	return keywordInput{Text: text, Regexp: regexp, CaseSensitive: false, Fields: []string{fieldName}}
 }
 
 func TestSearchPrograms(t *testing.T) {
@@ -319,6 +320,43 @@ func TestSearchProgramsByGenre(t *testing.T) {
 			var got searchResult
 			require.Empty(t, f.query(t, searchQuery, searchVariables(tt.conditions, nil, 50, nil), &got))
 			assert.Equal(t, tt.want, got.names())
+		})
+	}
+}
+
+// TestSearchProgramsNarrowsKeywordsInSQL は、SQL でキーワードを粗く絞っても、照合関数と同じ番組が見つかることを確かめる。
+// LIKE の記号は文字どおりに扱い、大文字と小文字は、区別するかどうかの指定に従う。
+func TestSearchProgramsNarrowsKeywordsInSQL(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	const name = `Kotatsu 100%_OFF \ 特番`
+	_, err := f.pool.Exec(t.Context(), `UPDATE programs SET name = $1, name_normalized = $1
+		WHERE (service_id, event_id) = (SELECT service_id, event_id FROM programs ORDER BY start_at, service_id, event_id LIMIT 1)`, name)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		text          string
+		caseSensitive bool
+		want          int
+	}{
+		{name: "パーセントとアンダースコアを文字どおりに含む", text: "100%_OFF", caseSensitive: false, want: 1},
+		{name: "アンダースコアは任意の 1 文字に一致しない", text: "100%xOFF", caseSensitive: false, want: 0},
+		{name: "パーセントは任意の文字列に一致しない", text: "100%OFF", caseSensitive: false, want: 0},
+		{name: "バックスラッシュを文字どおりに含む", text: `\ 特番`, caseSensitive: false, want: 1},
+		{name: "大文字と小文字を区別しない", text: "kotatsu", caseSensitive: false, want: 1},
+		{name: "大文字と小文字を区別する", text: "kotatsu", caseSensitive: true, want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			conditions := conditionsInput{Keywords: []keywordInput{{Text: tt.text, Regexp: false, CaseSensitive: tt.caseSensitive, Fields: []string{fieldName}}}}
+			var got searchResult
+			require.Empty(t, f.query(t, searchQuery, searchVariables(conditions, nil, 50, nil), &got))
+			assert.Len(t, got.names(), tt.want)
 		})
 	}
 }
