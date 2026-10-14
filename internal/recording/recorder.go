@@ -10,7 +10,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -460,14 +462,16 @@ func (r *Recorder) createSegment(
 	if err != nil {
 		return nil, FailureStorageUnavailable, err
 	}
-	name, err := kago.RenderName(tmpl, &reserve.FileNameData{
+	name, err := reserve.RenderFileName(tmpl, &reserve.FileNameData{
 		StartAt: reservation.StartAt.In(r.location), EndAt: reservation.EndAt.In(r.location), ServiceName: reservation.ServiceName,
 		ChannelType: reservation.ChannelType, Channel: reservation.Channel, Name: reservation.Name, EventID: valueOr(reservation.EventID),
 	}, segmentExt)
 	if err != nil {
 		return nil, FailureStorageUnavailable, err
 	}
-	file, rel, err := r.store.Create(pool.ID, "", name)
+	// ファイル名のテンプレートは、/ でディレクトリに分けられる。
+	dir, base := path.Split(name)
+	file, rel, err := r.store.Create(pool.ID, strings.TrimSuffix(dir, "/"), base)
 	if err != nil {
 		return nil, FailureStorageUnavailable, err
 	}
