@@ -109,9 +109,19 @@ type FileNameData struct {
 }
 
 // ParseFileNameTemplate は、ファイル名のテンプレートを解釈する。知らない項目を参照するテンプレートはエラーにする。
+// 繰り返し (range) と、ほかのテンプレートの呼び出しは、当てはめる時間と結果の長さを際限なく延ばせるので受け付けない。
 func ParseFileNameTemplate(text string) (*template.Template, error) {
+	if len(text) > maxFileNameTemplateB {
+		return nil, fmt.Errorf("%w: fileNameTemplate must be at most %d bytes", ErrInvalidSettings, maxFileNameTemplateB)
+	}
 	tmpl, err := template.New("file_name").Option("missingkey=error").Funcs(fileNameFuncs()).Parse(text)
 	if err != nil {
+		return nil, fmt.Errorf("%w: invalid file name template: %w", ErrInvalidSettings, err)
+	}
+	if len(tmpl.Templates()) > 1 {
+		return nil, fmt.Errorf("%w: invalid file name template: define and block are not allowed", ErrInvalidSettings)
+	}
+	if err := checkFileNameNodes(tmpl.Root); err != nil {
 		return nil, fmt.Errorf("%w: invalid file name template: %w", ErrInvalidSettings, err)
 	}
 	// 項目の名前の誤りは、実行してみないと分からないので、見本のデータで試す。

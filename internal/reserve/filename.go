@@ -1,8 +1,10 @@
 package reserve
 
 import (
+	"errors"
 	"strings"
 	"text/template"
+	"text/template/parse"
 	"time"
 )
 
@@ -95,4 +97,38 @@ func FileNameTemplatePresets() []FileNameTemplatePreset {
 			Template: `[{{.StartAt.Format "06-01-02"}}({{weekdayJa .StartAt}})_{{.StartAt.Format "15-04"}}][{{.ChannelType}}_{{half .ServiceName}}]{{half .Name}}`,
 		},
 	}
+}
+
+// errDisallowedNode は、ファイル名のテンプレートで使えない構文 (range と template) を使ったことを表す。
+var errDisallowedNode = errors.New("range and template are not allowed")
+
+// checkFileNameNodes は、テンプレートが繰り返しとほかのテンプレートの呼び出しを使っていないかを確かめる。
+func checkFileNameNodes(node parse.Node) error {
+	switch n := node.(type) {
+	case *parse.ListNode:
+		if n == nil {
+			return nil
+		}
+		for _, child := range n.Nodes {
+			if err := checkFileNameNodes(child); err != nil {
+				return err
+			}
+		}
+	case *parse.RangeNode, *parse.TemplateNode, *parse.BreakNode, *parse.ContinueNode:
+		return errDisallowedNode
+	case *parse.IfNode:
+		return checkBranch(&n.BranchNode)
+	case *parse.WithNode:
+		return checkBranch(&n.BranchNode)
+	}
+
+	return nil
+}
+
+func checkBranch(n *parse.BranchNode) error {
+	if err := checkFileNameNodes(n.List); err != nil {
+		return err
+	}
+
+	return checkFileNameNodes(n.ElseList)
 }

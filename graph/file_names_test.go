@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/SlashNephy/kotatsu/internal/auth"
 )
 
 const (
@@ -86,4 +88,13 @@ func TestPreviewFileName(t *testing.T) {
 			assert.Equal(t, tt.wantError, got.PreviewFileName.Error)
 		})
 	}
+}
+
+// TestPreviewFileNameForbiddenForViewers は、テンプレートを書けない閲覧者には、プレビューも使わせないことを確かめる。
+func TestPreviewFileNameForbiddenForViewers(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil).as(t, "viewer", auth.RoleViewer)
+	var got struct{}
+	assert.Equal(t, []string{codeForbidden}, f.query(t, previewFileNameQuery, map[string]any{varTemplate: `{{.Name}}`}, &got))
 }

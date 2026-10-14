@@ -87,7 +87,10 @@ export function FileNameTemplateField({
         disabled={disabled}
       />
       <Group gap="xs" align="center" wrap="nowrap">
-        <Preview template={value === '' ? (fallback ?? '') : value} program={programId} />
+        {/* 変えられない利用者 (閲覧者) は、プレビューを使えないので出さない。 */}
+        {!disabled && (
+          <Preview template={value === '' ? (fallback ?? '') : value} program={programId} />
+        )}
         {programs.length > 0 && (
           <Select
             size="xs"

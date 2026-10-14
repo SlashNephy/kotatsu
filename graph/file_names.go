@@ -55,8 +55,9 @@ func (r *Resolver) fileNameTemplateHelp(ctx context.Context) (*model.FileNameTem
 
 // previewFileName は、テンプレートに番組 (省けば見本の番組) を当てはめたファイル名を、録画と同じ整え方で返す。
 // テンプレートの誤りは、GraphQL のエラーではなく、結果の error で返す。
+// テンプレートを書けるのは予約を変えられるユーザーだけなので、プレビューもそのユーザーに絞る。
 func (r *Resolver) previewFileName(ctx context.Context, text string, programID *string) (*model.FileNamePreview, error) {
-	if _, err := viewer(ctx); err != nil {
+	if _, err := scheduler(ctx); err != nil {
 		return nil, err
 	}
 	data := reserve.SampleFileNameData()
@@ -107,6 +108,12 @@ func templateError(err error) string {
 	}
 	if m := unknownFuncPattern.FindStringSubmatch(message); m != nil {
 		return "知らない関数 " + m[1] + " があります"
+	}
+	if strings.Contains(message, "are not allowed") {
+		return "繰り返し (range) やテンプレートの定義は使えません"
+	}
+	if strings.Contains(message, "must be at most") {
+		return "テンプレートが長すぎます"
 	}
 	if _, rest, ok := strings.Cut(message, "invalid file name template: "); ok {
 		message = rest

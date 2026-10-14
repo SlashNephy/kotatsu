@@ -1,6 +1,7 @@
 package reserve_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -98,4 +99,29 @@ func TestFileNameTemplateItems(t *testing.T) {
 			assert.NoError(t, err)
 		})
 	}
+}
+
+// TestParseFileNameTemplateRejects は、当てはめる時間や結果の長さを際限なく延ばせる書き方を受け付けないことを確かめる。
+func TestParseFileNameTemplateRejects(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		text string
+	}{
+		{name: "繰り返し", text: `{{range 1000000}}x{{end}}`},
+		{name: "条件の中の繰り返し", text: `{{if .Name}}{{range 10}}x{{end}}{{end}}`},
+		{name: "テンプレートの定義と呼び出し", text: `{{define "a"}}x{{end}}{{template "a"}}`},
+		{name: "長すぎる", text: strings.Repeat("x", 1025)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := reserve.ParseFileNameTemplate(tt.text)
+			require.ErrorIs(t, err, reserve.ErrInvalidSettings)
+		})
+	}
+	_, err := reserve.ParseFileNameTemplate(`{{if .Name}}{{half .Name}}{{else}}untitled{{end}}`)
+	assert.NoError(t, err, "if は受け付ける")
 }
