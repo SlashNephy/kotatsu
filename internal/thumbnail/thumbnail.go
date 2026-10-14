@@ -28,8 +28,8 @@ const (
 	ThumbnailWidth  = 480
 	ThumbnailHeight = 270
 	// TileWidth と TileHeight は、プレビュー画像の 1 コマの大きさ。
-	TileWidth  = 160
-	TileHeight = 90
+	TileWidth  = 320
+	TileHeight = 180
 	// Columns は、プレビュー画像の 1 行のコマの数。
 	Columns = 10
 	// MaxFrames は、プレビュー画像のコマの数の上限。長い録画では、間隔を広げて収める。
