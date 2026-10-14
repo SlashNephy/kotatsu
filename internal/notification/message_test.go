@@ -30,6 +30,15 @@ func TestMessage(t *testing.T) {
 	}{
 		{name: "番組名のある録画の開始", kind: notification.KindRecordingStarted, payload: map[string]any{keyName: programName}, location: tokyo, want: "「こたつ特集」の録画を始めました"},
 		{name: "番組名のない録画の完了", kind: notification.KindRecordingCompleted, payload: map[string]any{}, location: tokyo, want: "録画が終わりました"},
+		{
+			name: "放送されなかった録画の完了", kind: notification.KindRecordingCompleted, location: tokyo,
+			payload: map[string]any{keyName: programName, "notBroadcast": true, "airedName": "ニュース"},
+			want:    "「こたつ特集」は、予定の時間に放送されませんでした。放送されていたのは「ニュース」です",
+		},
+		{
+			name: "放送されていた番組が分からない", kind: notification.KindRecordingCompleted, location: tokyo,
+			payload: map[string]any{"notBroadcast": true}, want: "予約した番組は、予定の時間に放送されませんでした",
+		},
 		{name: "録画の失敗", kind: notification.KindRecordingFailed, payload: map[string]any{keyName: programName}, location: tokyo, want: "「こたつ特集」の録画に失敗しました"},
 		{
 			name: "競合は、表示のタイムゾーンの日時で書く。日付をまたぐ", kind: notification.KindReservationConflict, payload: conflict, location: tokyo,

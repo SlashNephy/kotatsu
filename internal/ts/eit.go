@@ -43,28 +43,58 @@ type EventAudio struct {
 	Seen int
 }
 
-// eitTable は、EIT[p/f] の放送中の番組から、音声の構成を集める。
+// PresentFollowing は、EIT[p/f] (自 TS) が示す、サービスの放送中の番組と次の番組 (設計書 5.1)。
+// 番組表 (EIT[schedule]) に重なった番組があっても、EIT[p/f] の放送中の番組は 1 つだけなので、実際に放送している番組が分かる。
+type PresentFollowing struct {
+	// Present と Following は、放送中と次の番組の eventId。セクションに番組がなければ nil。
+	Present   *uint16
+	Following *uint16
+	// PresentSeen と FollowingSeen は、それぞれのセクションを一度でも読んだかどうか。
+	PresentSeen   bool
+	FollowingSeen bool
+}
+
+// eitTable は、EIT[p/f] の放送中の番組から、音声の構成を集め、サービスごとの放送中と次の番組を追う。
 type eitTable struct {
 	events map[[2]uint16]*EventAudio
+	pf     map[uint16]*PresentFollowing
 }
 
 func newEITTable() *eitTable {
-	return &eitTable{events: map[[2]uint16]*EventAudio{}}
+	return &eitTable{events: map[[2]uint16]*EventAudio{}, pf: map[uint16]*PresentFollowing{}}
 }
 
-// handle は、EIT[p/f] (自 TS) のセクションを読む。放送中の番組 (section_number 0) だけを見る。
+// handle は、EIT[p/f] (自 TS) のセクションを読む。放送中 (section_number 0) と次 (1) の番組を追い、放送中の番組の音声の構成を集める。
 func (t *eitTable) handle(section []byte) {
 	header := parseSectionHeader(section)
 	// section_number はヘッダーの 7 バイト目にある。
-	if header == nil || header.tableID != tableIDEITPresentFollowingActual || !header.currentNext || section[6] != 0 {
+	if header == nil || header.tableID != tableIDEITPresentFollowingActual || !header.currentNext || section[6] > 1 {
 		return
 	}
 	body := header.body
+	sectionNumber := section[6]
+	pf := t.pf[header.tableIDExtension]
+	if pf == nil {
+		pf = &PresentFollowing{Present: nil, Following: nil, PresentSeen: false, FollowingSeen: false}
+		t.pf[header.tableIDExtension] = pf
+	}
 	if len(body) < eitEventsOffset+eitEventHeaderLength {
+		// 番組のないセクション (次の番組が決まっていないなど)。
+		if len(body) >= eitEventsOffset {
+			pf.set(sectionNumber, nil)
+		}
+
+		return
+	}
+	if sectionNumber == 1 {
+		event := body[eitEventsOffset:]
+		pf.set(1, new(uint16(event[0])<<8|uint16(event[1])))
+
 		return
 	}
 	event := body[eitEventsOffset:]
 	eventID := uint16(event[0])<<8 | uint16(event[1])
+	pf.set(0, new(eventID))
 	loopLength := int(event[10]&0x0F)<<8 | int(event[11])
 	if eitEventHeaderLength+loopLength > len(event) {
 		return
@@ -81,6 +111,26 @@ func (t *eitTable) handle(section []byte) {
 		return
 	}
 	t.events[key] = &EventAudio{ServiceID: header.tableIDExtension, EventID: eventID, Audios: audios, Seen: 1}
+}
+
+// set は、section_number の番組を eventID にする。
+func (pf *PresentFollowing) set(sectionNumber uint8, eventID *uint16) {
+	if sectionNumber == 0 {
+		pf.Present, pf.PresentSeen = eventID, true
+	} else {
+		pf.Following, pf.FollowingSeen = eventID, true
+	}
+}
+
+// presentFollowing は、サービス serviceID の放送中と次の番組を返す。まだ EIT[p/f] を読んでいなければ nil を返す。
+func (t *eitTable) presentFollowing(serviceID uint16) *PresentFollowing {
+	pf := t.pf[serviceID]
+	if pf == nil {
+		return nil
+	}
+	copied := *pf
+
+	return &copied
 }
 
 // snapshot は、集めた番組を、サービス ID、eventId の順に返す。
@@ -223,6 +273,16 @@ func EncodeAudios(audios []*AudioComponent) ([]byte, error) {
 
 // serviceIDBase は、Mirakurun のサービス ID (networkId * 100000 + serviceId) から、放送のサービス ID を取り出す基数。
 const serviceIDBase = 100000
+
+// BroadcastServiceID は、Mirakurun のサービス ID serviceKey から、放送のサービス ID (EIT の service_id) を取り出す。範囲の外なら false を返す。
+func BroadcastServiceID(serviceKey int64) (uint16, bool) {
+	sid := serviceKey % serviceIDBase
+	if sid < 0 || sid > 0xFFFF {
+		return 0, false
+	}
+
+	return uint16(sid), true
+}
 
 // RecordingAudios は、Mirakurun のサービス ID serviceKey の録画の、放送中だった番組の音声の構成を、EPG と同じ形の JSON で返す。
 // eventID は、番組予約なら番組の eventId で、時刻予約なら nil。見つからなければ、false を返す。

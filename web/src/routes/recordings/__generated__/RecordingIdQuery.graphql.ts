@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<f93e9bc66e14c36e57fb5daa2b26183a>>
+ * @generated SignedSource<<ad1c974ba37ca7bf86e9c8c414750499>>
  * @lightSyntaxTransform
  */
 
@@ -18,6 +18,8 @@ export type RecordingIdQuery$variables = {
 export type RecordingIdQuery$data = {
   readonly node: {
     readonly __typename: "Recording";
+    readonly broadcastEndedAt: string | null | undefined;
+    readonly broadcastStartedAt: string | null | undefined;
     readonly description: string;
     readonly drops: number;
     readonly endAt: string;
@@ -35,6 +37,7 @@ export type RecordingIdQuery$data = {
     }>;
     readonly id: string;
     readonly name: string;
+    readonly notBroadcast: boolean;
     readonly programLost: boolean;
     readonly protected: boolean;
     readonly recordedFrom: string;
@@ -210,31 +213,52 @@ v17 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "thumbnailUrl",
+  "name": "broadcastStartedAt",
   "storageKey": null
 },
 v18 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedFrom",
+  "name": "broadcastEndedAt",
   "storageKey": null
 },
 v19 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedUntil",
+  "name": "notBroadcast",
   "storageKey": null
 },
 v20 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "logoUrl",
+  "name": "thumbnailUrl",
   "storageKey": null
 },
 v21 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "recordedFrom",
+  "storageKey": null
+},
+v22 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "recordedUntil",
+  "storageKey": null
+},
+v23 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v24 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -247,7 +271,7 @@ v21 = {
   ],
   "storageKey": null
 },
-v22 = {
+v25 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingFile",
@@ -345,6 +369,9 @@ return {
               (v17/*:: as any*/),
               (v18/*:: as any*/),
               (v19/*:: as any*/),
+              (v20/*:: as any*/),
+              (v21/*:: as any*/),
+              (v22/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -354,12 +381,12 @@ return {
                 "plural": false,
                 "selections": [
                   (v2/*:: as any*/),
-                  (v20/*:: as any*/)
+                  (v23/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v21/*:: as any*/),
-              (v22/*:: as any*/)
+              (v24/*:: as any*/),
+              (v25/*:: as any*/)
             ],
             "type": "Recording",
             "abstractKey": null
@@ -431,6 +458,9 @@ return {
               (v17/*:: as any*/),
               (v18/*:: as any*/),
               (v19/*:: as any*/),
+              (v20/*:: as any*/),
+              (v21/*:: as any*/),
+              (v22/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -440,13 +470,13 @@ return {
                 "plural": false,
                 "selections": [
                   (v2/*:: as any*/),
-                  (v20/*:: as any*/),
+                  (v23/*:: as any*/),
                   (v5/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v21/*:: as any*/),
-              (v22/*:: as any*/)
+              (v24/*:: as any*/),
+              (v25/*:: as any*/)
             ],
             "type": "Recording",
             "abstractKey": null
@@ -457,16 +487,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "ece06350aaefe9676c75b059fd8c257b",
+    "cacheID": "57a3028b1feddb4ca8e0855d6dc78c78",
     "id": null,
     "metadata": {},
     "name": "RecordingIdQuery",
     "operationKind": "query",
-    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      protected\n      drops\n      errors\n      scrambled\n      gaps {\n        from\n        to\n      }\n      programLost\n      thumbnailUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      protected\n      drops\n      errors\n      scrambled\n      gaps {\n        from\n        to\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      thumbnailUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "d9ab8fa12678aed7dc870a48a66d4ecf";
+(node as any).hash = "cd00ad1aec4858a63f0c58e4c935ba56";
 
 export default node;

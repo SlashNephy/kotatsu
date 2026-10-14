@@ -25,6 +25,18 @@ func Message(kind Kind, payload map[string]any, location *time.Location) string 
 	case KindRecordingStarted:
 		return withName("録画を始めました")
 	case KindRecordingCompleted:
+		if notBroadcast, _ := payload["notBroadcast"].(bool); notBroadcast {
+			text := "予約した番組は、予定の時間に放送されませんでした"
+			if name != "" {
+				text = fmt.Sprintf("「%s」は、予定の時間に放送されませんでした", name)
+			}
+			if aired, _ := payload["airedName"].(string); aired != "" {
+				text += fmt.Sprintf("。放送されていたのは「%s」です", aired)
+			}
+
+			return text
+		}
+
 		return withName("録画が終わりました")
 	case KindRecordingFailed:
 		return withName("録画に失敗しました")

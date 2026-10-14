@@ -13,6 +13,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -159,7 +160,11 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		}
 	}
 
-	tracker := newEndTracker(r, &recording, &reservation)
+	endMargin := time.Duration(reserve.DefaultMarginSeconds) * time.Second
+	if settings, err := r.settings(ctx, &reservation); err == nil {
+		endMargin = time.Duration(settings.EndMarginSeconds) * time.Second
+	}
+	tracker := newEndTracker(r, &recording, &reservation, endMargin)
 	result := &sessionResult{lastFailure: ""}
 	for {
 		stream, err := r.tuner.OpenServiceStream(ctx, reservation.ServiceID, &mirakurun.StreamOptions{Decode: true, Priority: assignment.Priority})
@@ -587,6 +592,7 @@ const (
 // copyUntilEnd は、予定の終わりが来るか、予約を無効にするまで、ストリームを録画ファイルと解析器に書き、止めた理由を返す。
 // 予定の終わりは、予約を読み直して決める。その前にストリームが切れたら、エラーを返す。
 func (r *Recorder) copyUntilEnd(ctx context.Context, tracker *endTracker, stream io.ReadCloser, seg *segment) (*ts.Stats, endReason, error) {
+	tracker.watch(seg.analyzer)
 	ended := make(chan endReason, 1)
 	watchCtx, stopWatch := context.WithCancel(ctx)
 	watchDone := make(chan struct{})
@@ -630,13 +636,38 @@ type endTracker struct {
 	// limit は、延ばせる終わりの上限。
 	limit time.Time
 	lost  bool
+	// broadcast は、録画中の TS の EIT[p/f] から、予約した番組が実際に放送されているかを追う。番組予約とルール予約だけ (#389)。
+	broadcast *broadcastTracker
+	// analyzer は、今書いているセグメントの解析器。EIT[p/f] を読む。セグメントを作り直すたびに替わる。
+	analyzer atomic.Pointer[ts.Analyzer]
+	// serviceID16 は、EIT[p/f] の service_id (サービスの ID の下 5 桁)。
+	serviceID16 uint16
+	// endMargin は、番組の後ろのマージン。放送が終わってから、これだけ録って止める。
+	endMargin time.Duration
+	// notBroadcast は、放送されなかったことを記録したかどうか。
+	notBroadcast bool
 }
 
-func newEndTracker(r *Recorder, recording *sqlc.Recording, reservation *sqlc.GetReservationForRecordingRow) *endTracker {
-	return &endTracker{
+func newEndTracker(r *Recorder, recording *sqlc.Recording, reservation *sqlc.GetReservationForRecordingRow, endMargin time.Duration) *endTracker {
+	t := &endTracker{
 		recorder: r, recordingID: recording.ID, reservationID: reservation.ID, serviceID: reservation.ServiceID, eventID: reservation.EventID,
 		extendedUntil: time.Time{}, limit: reservation.PlannedEndAt.Add(MaxExtension), lost: false,
+		broadcast: nil, analyzer: atomic.Pointer[ts.Analyzer]{}, serviceID16: 0,
+		endMargin: endMargin, notBroadcast: false,
 	}
+	// 時刻予約や、ID が EIT の範囲に収まらない予約では、EIT[p/f] で追わない。
+	sid, ok := ts.BroadcastServiceID(reservation.ServiceID)
+	if reservation.EventID != nil && ok && *reservation.EventID >= 0 && *reservation.EventID <= 0xFFFF {
+		t.serviceID16 = sid
+		t.broadcast = newBroadcastTracker(uint16(*reservation.EventID))
+	}
+
+	return t
+}
+
+// watch は、EIT[p/f] を読む解析器を、今書いているセグメントのものにする。
+func (t *endTracker) watch(analyzer *ts.Analyzer) {
+	t.analyzer.Store(analyzer)
 }
 
 // wait は、録画を止めるときまで待ち、その理由を返す。ctx が終わったら endNone を返す。
@@ -719,11 +750,62 @@ func (t *endTracker) check(ctx context.Context) endReason {
 			end = maxTime(end, t.extendedUntil)
 		}
 	}
+	end, notBroadcast := t.checkBroadcast(ctx, end, now)
 	if !now.Before(end) {
+		if notBroadcast {
+			t.markNotBroadcast(ctx)
+		}
+
 		return endPlanned
 	}
 
 	return endNone
+}
+
+// checkBroadcast は、録画中の TS の EIT[p/f] で、EPG から決めた終わり end を決め直す (#389)。放送の開始と終了を記録する。
+// 放送されなかったなら、notBroadcast を true にする。
+func (t *endTracker) checkBroadcast(ctx context.Context, end, now time.Time) (time.Time, bool) {
+	analyzer := t.analyzer.Load()
+	if t.broadcast == nil || analyzer == nil {
+		return end, false
+	}
+	r := t.recorder
+	q := sqlc.New(r.pool)
+	change := t.broadcast.update(analyzer.PresentFollowing(t.serviceID16), now)
+	if change.started {
+		if err := q.SetRecordingBroadcastStarted(ctx, sqlc.SetRecordingBroadcastStartedParams{At: &now, ID: t.recordingID}); err != nil {
+			r.logger.WarnContext(ctx, "failed to record the broadcast start", slog.Any("error", err))
+		}
+	}
+	if change.ended {
+		if err := q.SetRecordingBroadcastEnded(ctx, sqlc.SetRecordingBroadcastEndedParams{At: &now, ID: t.recordingID}); err != nil {
+			r.logger.WarnContext(ctx, "failed to record the broadcast end", slog.Any("error", err))
+		}
+		r.logger.InfoContext(ctx, "the program left the air; recording the end margin",
+			slog.String("recording_id", t.recordingID.String()), slog.Duration("margin", t.endMargin))
+	}
+
+	return t.broadcast.end(end, now, t.endMargin, ExtensionStep, t.limit)
+}
+
+// markNotBroadcast は、予約した番組が放送されなかったことと、その時間に放送されていた番組を、録画に一度だけ記録する。
+func (t *endTracker) markNotBroadcast(ctx context.Context) {
+	if t.notBroadcast {
+		return
+	}
+	r := t.recorder
+	var aired *int64
+	if present := t.broadcast.present; present != nil {
+		aired = new(int64(*present))
+	}
+	err := sqlc.New(r.pool).MarkRecordingNotBroadcast(ctx, sqlc.MarkRecordingNotBroadcastParams{AiredEventID: aired, Now: r.clock.Now(), ID: t.recordingID})
+	if err != nil {
+		r.logger.WarnContext(ctx, "failed to record that the program was not broadcast", slog.Any("error", err))
+
+		return
+	}
+	t.notBroadcast = true
+	r.logger.WarnContext(ctx, "the program was not broadcast during the planned time", slog.String("recording_id", t.recordingID.String()))
 }
 
 // markLost は、番組を見失ったことを、録画に一度だけ記録する。
@@ -914,6 +996,7 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 		}
 		payload["files"] = files
 		payload["joinSegments"] = join
+		addNotBroadcast(ctx, q, &recording, payload)
 
 		return notification.EmitTo(ctx, tx, r.clock, notification.KindRecordingCompleted, payload, target.Audience)
 	})
@@ -947,6 +1030,21 @@ func (r *Recorder) joinSegments(ctx context.Context, assignment *Assignment) boo
 	}
 
 	return settings.JoinSegments
+}
+
+// addNotBroadcast は、予約した番組が放送されなかったら、通知に、そのことと、その時間に放送されていた番組の名前を載せる (#389)。
+func addNotBroadcast(ctx context.Context, q *sqlc.Queries, recording *sqlc.Recording, payload map[string]any) {
+	if !recording.NotBroadcast {
+		return
+	}
+	payload["notBroadcast"] = true
+	if recording.AiredEventID == nil {
+		return
+	}
+	aired, err := q.GetAiredProgramName(ctx, sqlc.GetAiredProgramNameParams{ServiceID: recording.ServiceID, EventID: *recording.AiredEventID})
+	if err == nil {
+		payload["airedName"] = aired
+	}
 }
 
 // errSuperseded は、ほかの mikan が割り振りを取ったので、録画を終えないことを表す。

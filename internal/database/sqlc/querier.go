@@ -84,6 +84,8 @@ type Querier interface {
 	FinishRecording(ctx context.Context, arg FinishRecordingParams) error
 	// 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。引き継ぎ待ちの間に予定の終わりが来ても終える。
 	FinishRecordingAssignment(ctx context.Context, arg FinishRecordingAssignmentParams) (int64, error)
+	// 予約した番組が放送されなかったときに、その時間に放送されていた番組の名前。番組表か、アーカイブから引く。
+	GetAiredProgramName(ctx context.Context, arg GetAiredProgramNameParams) (string, error)
 	GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error)
 	GetGuideProgram(ctx context.Context, arg GetGuideProgramParams) (GetGuideProgramRow, error)
 	GetGuideView(ctx context.Context, arg GetGuideViewParams) (GuideView, error)
@@ -297,6 +299,8 @@ type Querier interface {
 	MarkNotificationsRead(ctx context.Context, arg MarkNotificationsReadParams) (int64, error)
 	// 止まる mikan が、割り振りに引き継ぎ待ちの印を付ける (設計書 5.4)。
 	MarkRecordingHandover(ctx context.Context, arg MarkRecordingHandoverParams) (int64, error)
+	// 予約した番組が放送されなかったことと、その時間に放送されていた番組を記録する。
+	MarkRecordingNotBroadcast(ctx context.Context, arg MarkRecordingNotBroadcastParams) error
 	MarkRecordingProgramLost(ctx context.Context, arg MarkRecordingProgramLostParams) error
 	// 割り振りを取った mikan が、ストリームを開いたことを記録する。
 	MarkRecordingStreamOpened(ctx context.Context, arg MarkRecordingStreamOpenedParams) error
@@ -350,6 +354,10 @@ type Querier interface {
 	SetLoginLockedUntil(ctx context.Context, arg SetLoginLockedUntilParams) error
 	// 録画の音声の構成を、TS の EIT[p/f] から読んだもので埋める。EPG から写したものがあれば、それを残す。
 	SetRecordingAudiosIfUnknown(ctx context.Context, arg SetRecordingAudiosIfUnknownParams) error
+	// 予約した番組が放送中でなくなった日時を、最初の一度だけ記録する。
+	SetRecordingBroadcastEnded(ctx context.Context, arg SetRecordingBroadcastEndedParams) error
+	// 予約した番組が放送中になった日時を、最初の一度だけ記録する。
+	SetRecordingBroadcastStarted(ctx context.Context, arg SetRecordingBroadcastStartedParams) error
 	SetRecordingFilePath(ctx context.Context, arg SetRecordingFilePathParams) error
 	// 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
 	SetRecordingGaps(ctx context.Context, arg SetRecordingGapsParams) error

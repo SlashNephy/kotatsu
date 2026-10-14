@@ -194,6 +194,15 @@ func (a *Analyzer) Stats() *Stats {
 	}
 }
 
+// PresentFollowing は、これまでに読んだ EIT[p/f] (自 TS) が示す、サービス serviceID の放送中と次の番組を返す。
+// まだ読んでいなければ nil を返す。書き込みと並行して呼べる。
+func (a *Analyzer) PresentFollowing(serviceID uint16) *PresentFollowing {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return a.eit.presentFollowing(serviceID)
+}
+
 // handle は 1 パケットを処理する。offset は、パケットの先頭の位置 (受け取ったバイト列の先頭からのバイト数)。
 func (a *Analyzer) handle(b []byte, offset int64) {
 	a.packets++
