@@ -133,7 +133,8 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
         )}
       </Box>
       <Stack gap={0} p="xs">
-        <Text size="sm" lineClamp={2}>
+        {/* 番組名は 2 行までにし、1 行でも 2 行分の高さを取って、並んだカードの日時やサービスの行を揃える。 */}
+        <Text size="sm" lineClamp={2} mih="2lh">
           <ProgramTitle name={recording.name} />
         </Text>
         <Group gap={6} pt={4}>
