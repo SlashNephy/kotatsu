@@ -11,13 +11,13 @@ import {
   Text,
   Title,
 } from '@mantine/core';
-import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { CalendarX2, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { ErrorBoundary, PageLoader } from '../../futon';
+import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
 import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
 import { broadcastDay, dateOf } from '../../guide/layout';
@@ -406,7 +406,7 @@ function Guide() {
       <Box pos="relative">
         <LoadingOverlay visible={loading} zIndex={5} overlayProps={{ blur: 1 }} />
         {columns.length === 0 ? (
-          <Alert color="gray">{t('guide.empty')}</Alert>
+          <EmptyState icon={CalendarX2} title={t('guide.empty')} hint={t('guide.emptyHint')} />
         ) : (
           <GuideGrid
             window={window}

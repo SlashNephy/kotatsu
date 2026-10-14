@@ -8,7 +8,6 @@ import {
   MultiSelect,
   SimpleGrid,
   Stack,
-  Text,
   TextInput,
   Title,
 } from '@mantine/core';
@@ -18,7 +17,7 @@ import { Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
-import { ErrorBoundary, PageLoader } from '../../futon';
+import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
 import { RecordingCard } from '../../recordings/RecordingCard';
 import { recordingStates, stateKey } from '../../recordings/states';
 import { isUnauthenticated } from '../../relay/environment';
@@ -235,25 +234,17 @@ function RecordingGrid({ filter }: { filter: Filter }) {
       {/* 録画がまだないときと、絞り込んで 0 件になったときで、次にすることが違うので、見出しと手がかりを分ける。 */}
       {recordings.length === 0 &&
         (Object.keys(filter).length === 0 ? (
-          <Alert
-            color="gray"
-            icon={<Clapperboard size={20} aria-hidden />}
+          <EmptyState
+            icon={Clapperboard}
             title={t('recordings.empty')}
-          >
-            <Text size="sm" c="dimmed">
-              {t('recordings.emptyHint')}
-            </Text>
-          </Alert>
+            hint={t('recordings.emptyHint')}
+          />
         ) : (
-          <Alert
-            color="gray"
-            icon={<SearchX size={20} aria-hidden />}
+          <EmptyState
+            icon={SearchX}
             title={t('recordings.noMatch')}
-          >
-            <Text size="sm" c="dimmed">
-              {t('recordings.noMatchHint')}
-            </Text>
-          </Alert>
+            hint={t('recordings.noMatchHint')}
+          />
         ))}
       {recordings.length > 0 && (
         <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">

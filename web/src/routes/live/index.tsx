@@ -1,10 +1,11 @@
 import { Alert, Anchor, SegmentedControl, SimpleGrid, Stack, Title } from '@mantine/core';
+import { Tv } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { ErrorBoundary, PageLoader } from '../../futon';
+import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import type { liveServicesQuery } from './__generated__/liveServicesQuery.graphql';
 import { NowPlayingCard } from '../../guide/NowPlayingCard';
@@ -102,7 +103,9 @@ function Services({ range }: { range: { from: string; to: string } }) {
           style={{ alignSelf: 'flex-start' }}
         />
       )}
-      {types.length === 0 && <Alert color="gray">{t('live.empty')}</Alert>}
+      {types.length === 0 && (
+        <EmptyState icon={Tv} title={t('live.empty')} hint={t('live.emptyHint')} />
+      )}
       <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="xs">
         {rows
           .filter((row) => row.service.channelType.type === type)

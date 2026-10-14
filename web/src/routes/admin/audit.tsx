@@ -10,8 +10,10 @@ import {
   Text,
   TextInput,
 } from '@mantine/core';
+import { ScrollText } from 'lucide-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { Fragment, startTransition, useState, type FormEvent } from 'react';
+import { EmptyState } from '../../futon';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
@@ -193,12 +195,15 @@ function AuditLog() {
         </form>
       </Card>
 
-      <Card withBorder>
-        {events.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            {t('admin.audit.empty')}
-          </Text>
-        ) : (
+      {/* 空のときは、空の表示だけを出す。カードで囲むと、枠が二重になる。 */}
+      {events.length === 0 ? (
+        <EmptyState
+          icon={ScrollText}
+          title={t('admin.audit.empty')}
+          hint={t('admin.audit.emptyHint')}
+        />
+      ) : (
+        <Card withBorder>
           <Table.ScrollContainer minWidth={720}>
             <Table fz="sm" verticalSpacing={4} styles={{ td: { whiteSpace: 'nowrap' } }}>
               <Table.Thead>
@@ -260,8 +265,8 @@ function AuditLog() {
               </Table.Tbody>
             </Table>
           </Table.ScrollContainer>
-        )}
-      </Card>
+        </Card>
+      )}
 
       {moreError && (
         <Alert color="red" role="alert">

@@ -1,4 +1,5 @@
 import { Alert, Badge, Card, Group, Loader, Stack, Text, Title } from '@mantine/core';
+import { SearchX } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
@@ -8,7 +9,7 @@ import type {
   RulePreviewQuery$data,
   RulePreviewQuery$variables,
 } from './__generated__/RulePreviewQuery.graphql';
-import { ProgramTitle } from '../futon';
+import { EmptyState, ProgramTitle } from '../futon';
 import { ServiceLabel } from '../guide/ServiceLabel';
 
 type Props = {
@@ -125,9 +126,11 @@ export function RulePreview({ input, enabled }: Props) {
           </Alert>
         )}
         {enabled && preview !== null && preview.edges.length === 0 && (
-          <Text size="sm" c="dimmed">
-            {t('rules.preview.empty')}
-          </Text>
+          <EmptyState
+            icon={SearchX}
+            title={t('rules.preview.empty')}
+            hint={t('rules.preview.emptyHint')}
+          />
         )}
         {enabled && preview !== null && preview.edges.length > 0 && (
           <Stack gap={2} data-testid="rule-preview">

@@ -27,7 +27,7 @@ import {
   useRelayEnvironment,
 } from 'react-relay';
 
-import { ErrorBoundary, PageLoader, ProgramTitle } from '../futon';
+import { EmptyState, ErrorBoundary, PageLoader, ProgramTitle } from '../futon';
 import { isUnauthenticated } from '../relay/environment';
 import { groupByDay, needsAttention, timelineBar } from '../reservations/timeline';
 import type { reservationsDeleteMutation } from './__generated__/reservationsDeleteMutation.graphql';
@@ -262,17 +262,11 @@ function Reservations({ range }: { range: { from: string; to: string } }) {
         )}
       </Group>
       {reservations.length === 0 && (
-        <Alert
-          color="gray"
-          icon={<CalendarX size={20} aria-hidden />}
+        <EmptyState
+          icon={CalendarX}
           title={problems ? t('reservations.noProblems') : t('reservations.empty')}
-        >
-          {problems ? null : (
-            <Text size="sm" c="dimmed">
-              {t('reservations.emptyHint')}
-            </Text>
-          )}
-        </Alert>
+          hint={problems ? undefined : t('reservations.emptyHint')}
+        />
       )}
       {groups.map((group) => (
         <Stack key={group.from} gap={4}>

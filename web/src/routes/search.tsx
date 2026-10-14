@@ -21,7 +21,7 @@ import { Suspense, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
-import { ErrorBoundary, PageLoader, ProgramTitle } from '../futon';
+import { EmptyState, ErrorBoundary, PageLoader, ProgramTitle } from '../futon';
 import { genreKey } from '../guide/genres';
 import { ProgramDetail } from '../guide/ProgramDetail';
 import { isUnauthenticated } from '../relay/environment';
@@ -328,7 +328,7 @@ function Search() {
         </Alert>
       )}
       {page !== null && page.results.length === 0 && page.next === null && (
-        <Alert color="gray">{t('search.empty')}</Alert>
+        <EmptyState icon={SearchX} title={t('search.empty')} hint={t('search.emptyHint')} />
       )}
       {page !== null && page.results.length > 0 && (
         <Stack gap={4}>

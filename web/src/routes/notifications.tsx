@@ -1,10 +1,11 @@
 import { Alert, Anchor, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
+import { BellOff } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
-import { ErrorBoundary, PageLoader, ProgramTitle, splitProgramMarks } from '../futon';
+import { EmptyState, ErrorBoundary, PageLoader, ProgramTitle, splitProgramMarks } from '../futon';
 import { splitMessage } from '../notifications/message';
 import { isUnauthenticated } from '../relay/environment';
 import type { notificationsListQuery } from './__generated__/notificationsListQuery.graphql';
@@ -127,7 +128,11 @@ function NotificationList() {
         </Alert>
       )}
       {data.notifications.edges.length === 0 ? (
-        <Text c="dimmed">{t('notifications.empty')}</Text>
+        <EmptyState
+          icon={BellOff}
+          title={t('notifications.empty')}
+          hint={t('notifications.emptyHint')}
+        />
       ) : (
         data.notifications.edges.map(({ node }) => {
           const isUnread = node.readAt == null;

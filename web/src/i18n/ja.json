@@ -45,6 +45,7 @@
     "markAll": "すべて既読にする",
     "markError": "既読にできませんでした。時間をおいてやり直してください",
     "empty": "まだ通知はありません",
+    "emptyHint": "録画の開始や終了、予約の競合などが発生すると、ここに表示されます。",
     "webPush": "Web Push",
     "inApp": "画面内",
     "kindColumn": "通知の種類",
@@ -254,7 +255,8 @@
     "previousDay": "前の日",
     "nextDay": "次の日",
     "now": "現在時刻",
-    "empty": "表示できる番組がありません。チューナーサーバーから番組表を同期したか確かめてください",
+    "empty": "表示できる番組がありません",
+    "emptyHint": "お使いのチューナーサーバーが正しくEPGを受信できているか確認してください。",
     "notReceived": "まだEPGが配信されていません",
     "signedOut": "ログインしていません。ログインしてから開いてください",
     "detail": {
@@ -325,7 +327,7 @@
       "all": "番組名と概要と詳細"
     },
     "excludeKeyword": "除外するキーワード",
-    "channelTypes": "チャンネル種別",
+    "channelTypes": "放送波",
     "genres": "ジャンル",
     "freeOnly": "無料の番組だけ",
     "includeArchive": "過去の放送も探す",
@@ -336,6 +338,7 @@
     "createRule": "この条件でルールを作成",
     "error": "検索できませんでした。条件を確かめてから、やり直してください",
     "empty": "条件に一致する番組はありません",
+    "emptyHint": "検索条件を変えて、もう一度絞り込んでみてください。すでに放送が終わっている番組から探すこともできます。",
     "archived": "放送済み",
     "more": "さらに読み込む",
     "rule": {
@@ -408,8 +411,8 @@
     "regexp": "正規表現",
     "removeRow": "削除",
     "addKeyword": "キーワードを追加",
-    "channelTypes": "チャンネル種別",
-    "channelTypesDescription": "チャンネル種別とチャンネルは、どちらかに含まれていれば対象にします",
+    "channelTypes": "放送波",
+    "channelTypesDescription": "放送波とチャンネルは、どちらかに含まれていれば対象にします",
     "services": "チャンネル",
     "genres": "ジャンル",
     "excludeGenres": "除外するジャンル",
@@ -451,6 +454,7 @@
       "noConditions": "条件を入れると、一致する番組をここに表示します",
       "error": "プレビューを取れませんでした",
       "empty": "一致する番組はありません",
+      "emptyHint": "キーワードやチャンネル、ジャンルの条件を見直してください。",
       "more": "ほかにも一致する番組があります"
     },
     "caseSensitive": "大文字と小文字を区別",
@@ -599,7 +603,8 @@
   },
   "live": {
     "title": "ライブ",
-    "empty": "視聴できるチャンネルがありません。チューナーサーバーから番組表を同期したか確かめてください",
+    "empty": "視聴できるチャンネルがありません",
+    "emptyHint": "お使いのチューナーサーバーが正しく動作しているか確認してください。",
     "noProgram": "番組の情報はありません",
     "back": "チャンネルの一覧に戻る",
     "notFound": "チャンネルが見つかりませんでした",
@@ -629,7 +634,7 @@
       "noTuners": "チューナーの情報がありません",
       "tunerIndex": "番号",
       "tunerName": "名前",
-      "tunerTypes": "チャンネル種別",
+      "tunerTypes": "放送波",
       "tunerState": "状態",
       "tunerAvailable": "使える",
       "tunerUnavailable": "使えない",
@@ -659,11 +664,11 @@
       "poolPriorityDescription": "大きいほど先に選びます",
       "poolMinFree": "容量の閾値（GB）",
       "poolMinFreeDescription": "空き容量がこれを下回ると、保護していない古い録画から消します。0なら消しません",
-      "channelTypes": "チャンネル種別の表示",
+      "channelTypes": "放送波の表示",
       "channelTypeName": "表示名",
       "channelTypeOrder": "並び順",
       "services": "チャンネルの表示",
-      "servicesDescription": "番組表とライブに出さないチャンネルを選び、並び順を変えます。並び順は、同じチャンネル種別の中で、小さいほど前に並びます",
+      "servicesDescription": "番組表とライブに出さないチャンネルを選び、並び順を変えます。並び順は、同じ放送波の中で、小さいほど前に並びます",
       "serviceHidden": "出さない",
       "serviceOrder": "並び順",
       "serviceOrderDefault": "既定"
@@ -699,8 +704,9 @@
       "title": "Webhook",
       "summary": "通知するイベントを、DiscordやSlackなどの外部のサービスに送ります",
       "empty": "Webhookはまだありません",
+      "emptyHint": "Webhook を作成することで、特定のイベントが発生した際にDiscordやSlackなどへ通知を送信することができます。",
       "name": "名前",
-      "url": "送り先のURL",
+      "url": "送信先URL",
       "urlHelp": "DiscordやSlackのURLは、それ自体が秘密のトークンを含みます。人に見せないでください",
       "format": "形式",
       "formats": {
@@ -729,7 +735,8 @@
       "actor": "操作者",
       "anyActor": "すべての操作者",
       "filter": "絞り込む",
-      "empty": "記録はありません",
+      "empty": "一致する監査ログは見つかりませんでした",
+      "emptyHint": "検索条件を変えて、もう一度絞り込んでみてください。",
       "occurredAt": "日時",
       "action": "操作",
       "target": "対象",
@@ -765,7 +772,7 @@
     },
     "channels": {
       "title": "チャンネルの表示",
-      "summary": "チャンネル種別の表示名と、番組表とライブに出すチャンネルと並び順を変えます"
+      "summary": "放送波の表示名と、番組表とライブに出すチャンネルと並び順を変えます"
     }
   }
 }

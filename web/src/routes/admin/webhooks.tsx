@@ -13,8 +13,10 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
+import { Webhook } from 'lucide-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { startTransition, useState, type FormEvent } from 'react';
+import { EmptyState } from '../../futon';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
@@ -135,57 +137,61 @@ function Webhooks() {
         </Alert>
       )}
 
-      <Card withBorder>
-        <Stack gap="sm">
-          {data.webhooks.length === 0 && (
-            <Text size="sm" c="dimmed">
-              {t('admin.webhooks.empty')}
-            </Text>
-          )}
-          {data.webhooks.map((webhook) => (
-            <WebhookRow
-              key={`${webhook.id}/${webhook.name}/${webhook.url}/${webhook.format}/${webhook.kinds.join()}/${String(webhook.enabled)}`}
-              webhook={webhook}
-              onUpdate={(input, onDone) =>
-                gate.run(async () => {
-                  await mutate<webhooksUpdateMutation>(
-                    environment,
-                    graphql`
-                      mutation webhooksUpdateMutation($id: ID!, $input: UpdateWebhookInput!) {
-                        updateWebhook(id: $id, input: $input) {
-                          id
-                          name
-                          url
-                          format
-                          kinds
-                          enabled
+      {/* 空のときは、空の表示だけを出す。カードで囲むと、枠が二重になる。 */}
+      {data.webhooks.length === 0 ? (
+        <EmptyState
+          icon={Webhook}
+          title={t('admin.webhooks.empty')}
+          hint={t('admin.webhooks.emptyHint')}
+        />
+      ) : (
+        <Card withBorder>
+          <Stack gap="sm">
+            {data.webhooks.map((webhook) => (
+              <WebhookRow
+                key={`${webhook.id}/${webhook.name}/${webhook.url}/${webhook.format}/${webhook.kinds.join()}/${String(webhook.enabled)}`}
+                webhook={webhook}
+                onUpdate={(input, onDone) =>
+                  gate.run(async () => {
+                    await mutate<webhooksUpdateMutation>(
+                      environment,
+                      graphql`
+                        mutation webhooksUpdateMutation($id: ID!, $input: UpdateWebhookInput!) {
+                          updateWebhook(id: $id, input: $input) {
+                            id
+                            name
+                            url
+                            format
+                            kinds
+                            enabled
+                          }
                         }
-                      }
-                    `,
-                    { id: webhook.id, input },
-                  );
-                  onDone();
-                  succeed(t('admin.saved'));
-                }, fail)
-              }
-              onDelete={() =>
-                gate.run(async () => {
-                  await mutate<webhooksDeleteMutation>(
-                    environment,
-                    graphql`
-                      mutation webhooksDeleteMutation($id: ID!) {
-                        deleteWebhook(id: $id)
-                      }
-                    `,
-                    { id: webhook.id },
-                  );
-                  succeed(t('admin.webhooks.deleted', { name: webhook.name }));
-                }, fail)
-              }
-            />
-          ))}
-        </Stack>
-      </Card>
+                      `,
+                      { id: webhook.id, input },
+                    );
+                    onDone();
+                    succeed(t('admin.saved'));
+                  }, fail)
+                }
+                onDelete={() =>
+                  gate.run(async () => {
+                    await mutate<webhooksDeleteMutation>(
+                      environment,
+                      graphql`
+                        mutation webhooksDeleteMutation($id: ID!) {
+                          deleteWebhook(id: $id)
+                        }
+                      `,
+                      { id: webhook.id },
+                    );
+                    succeed(t('admin.webhooks.deleted', { name: webhook.name }));
+                  }, fail)
+                }
+              />
+            ))}
+          </Stack>
+        </Card>
+      )}
 
       <Card withBorder>
         <Stack gap="xs">
