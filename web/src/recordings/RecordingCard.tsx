@@ -117,13 +117,14 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
           />
         )}
         {/* 再生したことがあれば、どこまで見たかを、サムネイルの下端に細いバーで示す。 */}
+        {/* 見た目の手がかりなので、読み上げない。読ませると、カードのリンクの名前に割合の数字が混ざる。 */}
         {progress !== null && (
           <Progress
             value={progress * 100}
             size={4}
             radius={0}
             color="mikan"
-            aria-label={t('recordings.watched', { percent: Math.round(progress * 100) })}
+            aria-hidden
             pos="absolute"
             bottom={0}
             left={0}

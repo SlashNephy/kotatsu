@@ -472,7 +472,6 @@
     "empty": "条件に一致する録画はありません",
     "more": "さらに読み込む",
     "damagedWith": "問題あり（ドロップ {{drops}} / エラー {{errors}} / スクランブル {{scrambled}}）",
-    "watched": "{{percent}}%まで見ました",
     "protected": "保護",
     "state": {
       "RECORDING": "録画中",
