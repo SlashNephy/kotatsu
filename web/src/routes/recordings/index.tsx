@@ -45,6 +45,9 @@ const query = graphql`
           startAt
           endAt
           state
+          drops
+          errors
+          scrambled
           recordedFrom
           recordedUntil
           watchPositionMs

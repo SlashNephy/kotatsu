@@ -1,4 +1,5 @@
-import { AspectRatio, Box, Card, Group, Progress, Stack, Text } from '@mantine/core';
+import { AspectRatio, Box, Card, Group, Progress, Stack, Text, Tooltip } from '@mantine/core';
+import { TriangleAlert } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -25,6 +26,10 @@ export type RecordingCardData = {
   // Int64 は Relay の型では any になるので、受け取ってから数に直す。
   watchPositionMs?: unknown;
   service: { name: string; logoUrl?: string | null };
+  // drops、errors、scrambled は、受信の傷の数。録画の一覧でだけ渡す。Int64 なので、数に直して使う。
+  drops?: unknown;
+  errors?: unknown;
+  scrambled?: unknown;
   // tags は、録画の一覧でだけ渡す。
   tags?: readonly { id: string; name: string }[];
 };
@@ -66,6 +71,12 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
   const startAt = Date.parse(recording.startAt);
   const sameYear = yearFormat.format(startAt) === yearFormat.format(Date.now());
   const tags = recording.tags ?? [];
+  const quality = {
+    drops: Number(recording.drops ?? 0),
+    errors: Number(recording.errors ?? 0),
+    scrambled: Number(recording.scrambled ?? 0),
+  };
+  const damaged = quality.drops > 0 || quality.errors > 0 || quality.scrambled > 0;
   const duration =
     ((recording.recordedUntil == null ? Date.now() : Date.parse(recording.recordedUntil)) -
       Date.parse(recording.recordedFrom)) /
@@ -130,6 +141,17 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
             {(sameYear ? dateTimeFormat : yearDateTimeFormat).format(startAt)} 〜{' '}
             {timeFormat.format(Date.parse(recording.endAt))}
           </Text>
+          {/* 受信に傷があれば、警告の印を、日時のすぐ右に出す。数は、ツールチップと読み上げで示す。 */}
+          {damaged && (
+            <Tooltip label={t('recordings.qualityCounts', quality)}>
+              <TriangleAlert
+                size={14}
+                color="var(--mantine-color-amber-6)"
+                role="img"
+                aria-label={t('recordings.damagedWith', quality)}
+              />
+            </Tooltip>
+          )}
           {/* 完了は当たり前なので出さず、録画中や失敗のように目を留めたい状態だけを出す。 */}
           {recording.state !== 'COMPLETED' && (
             <RecordingStateBadge state={recording.state} size="xs" />

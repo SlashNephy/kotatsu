@@ -472,6 +472,7 @@
     "error": "録画を読み込めませんでした。時間をおいてやり直してください",
     "empty": "条件に一致する録画はありません",
     "more": "さらに読み込む",
+    "damagedWith": "問題あり（ドロップ {{drops}} / エラー {{errors}} / スクランブル {{scrambled}}）",
     "watched": "{{percent}}%まで見ました",
     "protected": "保護",
     "state": {
@@ -494,7 +495,7 @@
       "unknown": "録画に失敗しました"
     },
     "quality": "録画の品質",
-    "qualityCounts": "ドロップ {{drops}}・エラー {{errors}}・スクランブル {{scrambled}}",
+    "qualityCounts": "ドロップ {{drops}} / エラー {{errors}} / スクランブル {{scrambled}}",
     "recordedRange": "録画した時刻 {{from}}〜{{until}}",
     "size": "{{size}}（{{count}}ファイル）",
     "gap": "{{from}}〜{{to}}が途切れています",
