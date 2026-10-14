@@ -159,6 +159,9 @@ function Recording({ recordingId }: { recordingId: string }) {
               to
             }
             programLost
+            broadcastStartedAt
+            broadcastEndedAt
+            notBroadcast
             thumbnailUrl
             recordedFrom
             recordedUntil
@@ -371,6 +374,23 @@ function Recording({ recordingId }: { recordingId: string }) {
               {recording.programLost && (
                 <Text size="sm" c="amber.8">
                   {t('recordings.programLost')}
+                </Text>
+              )}
+              {/* 録画中の TS の EIT[p/f] で分かった、実際の放送の時刻 (#389)。 */}
+              {recording.broadcastStartedAt != null && (
+                <Text size="sm" c="dimmed">
+                  {t('recordings.broadcastRange', {
+                    from: timeFormat.format(Date.parse(recording.broadcastStartedAt)),
+                    until:
+                      recording.broadcastEndedAt != null
+                        ? timeFormat.format(Date.parse(recording.broadcastEndedAt))
+                        : t('recordings.broadcastOngoing'),
+                  })}
+                </Text>
+              )}
+              {recording.notBroadcast && (
+                <Text size="sm" c="amber.8">
+                  {t('recordings.notBroadcast')}
                 </Text>
               )}
             </Stack>

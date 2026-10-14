@@ -181,27 +181,31 @@ type ProgramArchive struct {
 }
 
 type Recording struct {
-	ID            uuid.UUID
-	ReservationID *uuid.UUID
-	ServiceID     int64
-	EventID       *int64
-	Name          string
-	Description   string
-	StartAt       time.Time
-	EndAt         time.Time
-	State         string
-	FailureReason *string
-	Protected     bool
-	Drops         int64
-	Errors        int64
-	Scrambled     int64
-	Gaps          []byte
-	Audios        []byte
-	ProgramLost   bool
-	RecordedFrom  time.Time
-	RecordedUntil *time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID                 uuid.UUID
+	ReservationID      *uuid.UUID
+	ServiceID          int64
+	EventID            *int64
+	Name               string
+	Description        string
+	StartAt            time.Time
+	EndAt              time.Time
+	State              string
+	FailureReason      *string
+	Protected          bool
+	Drops              int64
+	Errors             int64
+	Scrambled          int64
+	Gaps               []byte
+	Audios             []byte
+	ProgramLost        bool
+	BroadcastStartedAt *time.Time
+	BroadcastEndedAt   *time.Time
+	NotBroadcast       bool
+	AiredEventID       *int64
+	RecordedFrom       time.Time
+	RecordedUntil      *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 type RecordingAssignment struct {

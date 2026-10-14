@@ -648,6 +648,13 @@ CREATE TABLE recordings (
   audios jsonb NOT NULL DEFAULT '[]',
   -- 録画中に番組が EPG から消えたかどうか (設計書 5.1)。消えたら、予定の終わりまで録り続ける。
   program_lost boolean NOT NULL DEFAULT false,
+  -- 録画中の TS の EIT[p/f] で、予約した番組が放送中になった日時と、放送中でなくなった日時 (設計書 5.1)。分からなければ NULL。
+  broadcast_started_at timestamptz,
+  broadcast_ended_at timestamptz,
+  -- 予約した番組が、予定の終わりまで EIT[p/f] の放送中にも次の番組にも出てこなかったかどうか。録った TS は残す。
+  not_broadcast boolean NOT NULL DEFAULT false,
+  -- not_broadcast のとき、予定の時間に放送されていた番組の eventId。
+  aired_event_id bigint,
   -- 実際に録画を始めた日時と、終えた日時。録画中なら終えた日時は NULL。
   recorded_from timestamptz NOT NULL,
   recorded_until timestamptz,

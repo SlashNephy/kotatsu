@@ -199,3 +199,54 @@ func TestMergeEvents(t *testing.T) {
 	require.True(t, ok)
 	assert.JSONEq(t, `[{"componentType":2,"componentTag":16,"isMain":true,"samplingRate":48000,"langs":["jpn","eng"]}]`, string(audios))
 }
+
+// eitEmptySection は、番組のない EIT[p/f] (自 TS) のセクションを作る。次の番組が決まっていないときなどに送られる。
+func eitEmptySection(sectionNumber byte) []byte {
+	s := section(0x4E, testServiceID, 1, []byte{0x7F, 0xE0, 0x7F, 0xE0, 0x01, 0x4E})
+	s = s[:len(s)-4]
+	s[6] = sectionNumber
+	s[7] = 1
+
+	return binary.BigEndian.AppendUint32(s, crcMPEG(s))
+}
+
+// TestAnalyzerPresentFollowing は、EIT[p/f] から、サービスの放送中と次の番組を、最後に読んだもので追うことを確かめる (#389)。
+func TestAnalyzerPresentFollowing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		sections [][]byte
+		want     *ts.PresentFollowing
+	}{
+		{name: "まだ読んでいない", sections: nil, want: nil},
+		{
+			name:     "放送中と次の番組",
+			sections: [][]byte{eitSection(0, 100), eitSection(1, 101)},
+			want:     &ts.PresentFollowing{Present: new(uint16(100)), Following: new(uint16(101)), PresentSeen: true, FollowingSeen: true},
+		},
+		{
+			name:     "番組が切り替わったら、新しいものにする",
+			sections: [][]byte{eitSection(0, 100), eitSection(1, 101), eitSection(0, 101), eitSection(1, 102)},
+			want:     &ts.PresentFollowing{Present: new(uint16(101)), Following: new(uint16(102)), PresentSeen: true, FollowingSeen: true},
+		},
+		{
+			name:     "次の番組がなければ nil",
+			sections: [][]byte{eitSection(0, 100), eitEmptySection(1)},
+			want:     &ts.PresentFollowing{Present: new(uint16(100)), Following: nil, PresentSeen: true, FollowingSeen: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			analyzer := ts.NewAnalyzer(nil)
+			cc := byte(0)
+			for _, p := range psiPackets(0x12, &cc, tt.sections...) {
+				_, err := analyzer.Write(p)
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tt.want, analyzer.PresentFollowing(testServiceID))
+		})
+	}
+}

@@ -382,32 +382,35 @@ type ComplexityRoot struct {
 	}
 
 	Recording struct {
-		Audios            func(childComplexity int) int
-		Description       func(childComplexity int) int
-		Drops             func(childComplexity int) int
-		EndAt             func(childComplexity int) int
-		Errors            func(childComplexity int) int
-		EventID           func(childComplexity int) int
-		FailureReason     func(childComplexity int) int
-		Files             func(childComplexity int) int
-		Gaps              func(childComplexity int) int
-		ID                func(childComplexity int) int
-		JikkyoCommentsURL func(childComplexity int) int
-		Name              func(childComplexity int) int
-		PreviewURL        func(childComplexity int) int
-		ProgramLost       func(childComplexity int) int
-		Protected         func(childComplexity int) int
-		RecordedFrom      func(childComplexity int) int
-		RecordedUntil     func(childComplexity int) int
-		Scrambled         func(childComplexity int) int
-		Service           func(childComplexity int) int
-		StartAt           func(childComplexity int) int
-		State             func(childComplexity int) int
-		StreamURL         func(childComplexity int) int
-		Tags              func(childComplexity int) int
-		ThumbnailURL      func(childComplexity int) int
-		WatchFrame        func(childComplexity int) int
-		WatchPositionMs   func(childComplexity int) int
+		Audios             func(childComplexity int) int
+		BroadcastEndedAt   func(childComplexity int) int
+		BroadcastStartedAt func(childComplexity int) int
+		Description        func(childComplexity int) int
+		Drops              func(childComplexity int) int
+		EndAt              func(childComplexity int) int
+		Errors             func(childComplexity int) int
+		EventID            func(childComplexity int) int
+		FailureReason      func(childComplexity int) int
+		Files              func(childComplexity int) int
+		Gaps               func(childComplexity int) int
+		ID                 func(childComplexity int) int
+		JikkyoCommentsURL  func(childComplexity int) int
+		Name               func(childComplexity int) int
+		NotBroadcast       func(childComplexity int) int
+		PreviewURL         func(childComplexity int) int
+		ProgramLost        func(childComplexity int) int
+		Protected          func(childComplexity int) int
+		RecordedFrom       func(childComplexity int) int
+		RecordedUntil      func(childComplexity int) int
+		Scrambled          func(childComplexity int) int
+		Service            func(childComplexity int) int
+		StartAt            func(childComplexity int) int
+		State              func(childComplexity int) int
+		StreamURL          func(childComplexity int) int
+		Tags               func(childComplexity int) int
+		ThumbnailURL       func(childComplexity int) int
+		WatchFrame         func(childComplexity int) int
+		WatchPositionMs    func(childComplexity int) int
 	}
 
 	RecordingConnection struct {
@@ -2425,6 +2428,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.Audios(childComplexity), true
+	case "Recording.broadcastEndedAt":
+		if e.ComplexityRoot.Recording.BroadcastEndedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.BroadcastEndedAt(childComplexity), true
+	case "Recording.broadcastStartedAt":
+		if e.ComplexityRoot.Recording.BroadcastStartedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.BroadcastStartedAt(childComplexity), true
 	case "Recording.description":
 		if e.ComplexityRoot.Recording.Description == nil {
 			break
@@ -2491,6 +2506,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.Name(childComplexity), true
+	case "Recording.notBroadcast":
+		if e.ComplexityRoot.Recording.NotBroadcast == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.NotBroadcast(childComplexity), true
 	case "Recording.previewUrl":
 		if e.ComplexityRoot.Recording.PreviewURL == nil {
 			break
@@ -4537,6 +4558,11 @@ type Recording implements Node {
   audios: [ProgramAudio!]!
   "録画中に番組が EPG から消えたかどうか。"
   programLost: Boolean!
+  "録画中の TS の EIT[p/f] で、予約した番組が放送中になった日時と、放送中でなくなった日時 (設計書 5.1)。分からなければ null。"
+  broadcastStartedAt: Time
+  broadcastEndedAt: Time
+  "予約した番組が、予定の時間に放送されなかったかどうか。録った TS は残す。"
+  notBroadcast: Boolean!
   "実際に録画を始めた日時と、終えた日時。録画中なら終えた日時は null。"
   recordedFrom: Time!
   recordedUntil: Time
@@ -6003,6 +6029,12 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_audios(ctx, field)
 	case "programLost":
 		return ec.fieldContext_Recording_programLost(ctx, field)
+	case "broadcastStartedAt":
+		return ec.fieldContext_Recording_broadcastStartedAt(ctx, field)
+	case "broadcastEndedAt":
+		return ec.fieldContext_Recording_broadcastEndedAt(ctx, field)
+	case "notBroadcast":
+		return ec.fieldContext_Recording_notBroadcast(ctx, field)
 	case "recordedFrom":
 		return ec.fieldContext_Recording_recordedFrom(ctx, field)
 	case "recordedUntil":
@@ -14788,6 +14820,75 @@ func (ec *executionContext) _Recording_programLost(ctx context.Context, field gr
 	)
 }
 func (ec *executionContext) fieldContext_Recording_programLost(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Recording_broadcastStartedAt(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_broadcastStartedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BroadcastStartedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_broadcastStartedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Recording_broadcastEndedAt(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_broadcastEndedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BroadcastEndedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_broadcastEndedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Recording_notBroadcast(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_notBroadcast(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NotBroadcast, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_notBroadcast(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
@@ -24772,6 +24873,21 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			}
 		case "programLost":
 			out.Values[i] = ec._Recording_programLost(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "broadcastStartedAt":
+			out.Values[i] = ec._Recording_broadcastStartedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "broadcastEndedAt":
+			out.Values[i] = ec._Recording_broadcastEndedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "notBroadcast":
+			out.Values[i] = ec._Recording_notBroadcast(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

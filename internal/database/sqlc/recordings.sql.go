@@ -90,6 +90,39 @@ func (q *Queries) FinishRecording(ctx context.Context, arg FinishRecordingParams
 	return err
 }
 
+const getAiredProgramName = `-- name: GetAiredProgramName :one
+SELECT name FROM (
+  SELECT p.name, p.start_at FROM programs p
+  WHERE p.service_id = $1 AND p.event_id = $2 AND p.start_at < $3::timestamptz AND p.end_at > $4::timestamptz
+  UNION ALL
+  SELECT a.name, a.start_at FROM program_archives a
+  WHERE a.service_id = $1 AND a.event_id = $2 AND a.start_at < $3::timestamptz AND a.end_at > $4::timestamptz
+) candidates
+ORDER BY abs(extract(epoch FROM start_at - $4::timestamptz))
+LIMIT 1
+`
+
+type GetAiredProgramNameParams struct {
+	ServiceID   int64
+	EventID     int64
+	WindowEnd   time.Time
+	WindowStart time.Time
+}
+
+// 予約した番組が放送されなかったときに、その時間に放送されていた番組の名前。番組表か、アーカイブから引く。
+// eventId は日をまたいで使い回されるので、録画の予定の時間 (window_start〜window_end) に重なる番組に絞る。
+func (q *Queries) GetAiredProgramName(ctx context.Context, arg GetAiredProgramNameParams) (string, error) {
+	row := q.db.QueryRow(ctx, getAiredProgramName,
+		arg.ServiceID,
+		arg.EventID,
+		arg.WindowEnd,
+		arg.WindowStart,
+	)
+	var name string
+	err := row.Scan(&name)
+	return name, err
+}
+
 const getProgramEnd = `-- name: GetProgramEnd :one
 SELECT end_at, end_undecided FROM programs WHERE service_id = $1 AND event_id = $2
 `
@@ -113,7 +146,7 @@ func (q *Queries) GetProgramEnd(ctx context.Context, arg GetProgramEndParams) (G
 }
 
 const getRecording = `-- name: GetRecording :one
-SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, program_lost, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1
+SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, program_lost, broadcast_started_at, broadcast_ended_at, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1
 `
 
 func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, error) {
@@ -137,6 +170,10 @@ func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, er
 		&i.Gaps,
 		&i.Audios,
 		&i.ProgramLost,
+		&i.BroadcastStartedAt,
+		&i.BroadcastEndedAt,
+		&i.NotBroadcast,
+		&i.AiredEventID,
 		&i.RecordedFrom,
 		&i.RecordedUntil,
 		&i.CreatedAt,
@@ -173,7 +210,7 @@ func (q *Queries) GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (G
 }
 
 const getRecordingWithService = `-- name: GetRecordingWithService :one
-SELECT recordings.id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.program_lost, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
+SELECT recordings.id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
 FROM recordings
 JOIN services s ON s.id = recordings.service_id
 WHERE recordings.id = $1
@@ -206,6 +243,10 @@ func (q *Queries) GetRecordingWithService(ctx context.Context, id uuid.UUID) (Ge
 		&i.Recording.Gaps,
 		&i.Recording.Audios,
 		&i.Recording.ProgramLost,
+		&i.Recording.BroadcastStartedAt,
+		&i.Recording.BroadcastEndedAt,
+		&i.Recording.NotBroadcast,
+		&i.Recording.AiredEventID,
 		&i.Recording.RecordedFrom,
 		&i.Recording.RecordedUntil,
 		&i.Recording.CreatedAt,
@@ -471,6 +512,22 @@ func (q *Queries) ListRecordingsForRename(ctx context.Context, ids []uuid.UUID) 
 	return items, nil
 }
 
+const markRecordingNotBroadcast = `-- name: MarkRecordingNotBroadcast :exec
+UPDATE recordings SET not_broadcast = true, aired_event_id = $1, updated_at = $2 WHERE id = $3
+`
+
+type MarkRecordingNotBroadcastParams struct {
+	AiredEventID *int64
+	Now          time.Time
+	ID           uuid.UUID
+}
+
+// 予約した番組が放送されなかったことと、その時間に放送されていた番組を記録する。
+func (q *Queries) MarkRecordingNotBroadcast(ctx context.Context, arg MarkRecordingNotBroadcastParams) error {
+	_, err := q.db.Exec(ctx, markRecordingNotBroadcast, arg.AiredEventID, arg.Now, arg.ID)
+	return err
+}
+
 const markRecordingProgramLost = `-- name: MarkRecordingProgramLost :exec
 UPDATE recordings SET program_lost = true, updated_at = $1 WHERE id = $2 AND NOT program_lost
 `
@@ -522,6 +579,36 @@ type SetRecordingAudiosIfUnknownParams struct {
 // 録画の音声の構成を、TS の EIT[p/f] から読んだもので埋める。EPG から写したものがあれば、それを残す。
 func (q *Queries) SetRecordingAudiosIfUnknown(ctx context.Context, arg SetRecordingAudiosIfUnknownParams) error {
 	_, err := q.db.Exec(ctx, setRecordingAudiosIfUnknown, arg.Audios, arg.Now, arg.ID)
+	return err
+}
+
+const setRecordingBroadcastEnded = `-- name: SetRecordingBroadcastEnded :exec
+UPDATE recordings SET broadcast_ended_at = $1, updated_at = $1 WHERE id = $2 AND broadcast_ended_at IS NULL
+`
+
+type SetRecordingBroadcastEndedParams struct {
+	At *time.Time
+	ID uuid.UUID
+}
+
+// 予約した番組が放送中でなくなった日時を、最初の一度だけ記録する。
+func (q *Queries) SetRecordingBroadcastEnded(ctx context.Context, arg SetRecordingBroadcastEndedParams) error {
+	_, err := q.db.Exec(ctx, setRecordingBroadcastEnded, arg.At, arg.ID)
+	return err
+}
+
+const setRecordingBroadcastStarted = `-- name: SetRecordingBroadcastStarted :exec
+UPDATE recordings SET broadcast_started_at = $1, updated_at = $1 WHERE id = $2 AND broadcast_started_at IS NULL
+`
+
+type SetRecordingBroadcastStartedParams struct {
+	At *time.Time
+	ID uuid.UUID
+}
+
+// 予約した番組が放送中になった日時を、最初の一度だけ記録する。
+func (q *Queries) SetRecordingBroadcastStarted(ctx context.Context, arg SetRecordingBroadcastStartedParams) error {
+	_, err := q.db.Exec(ctx, setRecordingBroadcastStarted, arg.At, arg.ID)
 	return err
 }
 
@@ -593,7 +680,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'recording', NULL,
   COALESCE((SELECT p.audios FROM programs p WHERE p.service_id = $3 AND p.event_id = $4), '[]'::jsonb),
   $9, NULL, $9, $9)
 ON CONFLICT (reservation_id) DO UPDATE SET state = 'recording', failure_reason = NULL, recorded_until = NULL, updated_at = EXCLUDED.updated_at
-RETURNING recordings.id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.program_lost, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, (xmax = 0)::boolean AS inserted
+RETURNING recordings.id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, (xmax = 0)::boolean AS inserted
 `
 
 type StartRecordingParams struct {
@@ -646,6 +733,10 @@ func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) 
 		&i.Recording.Gaps,
 		&i.Recording.Audios,
 		&i.Recording.ProgramLost,
+		&i.Recording.BroadcastStartedAt,
+		&i.Recording.BroadcastEndedAt,
+		&i.Recording.NotBroadcast,
+		&i.Recording.AiredEventID,
 		&i.Recording.RecordedFrom,
 		&i.Recording.RecordedUntil,
 		&i.Recording.CreatedAt,

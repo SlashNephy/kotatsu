@@ -130,3 +130,28 @@ UPDATE recording_files SET path = @path WHERE id = @id;
 UPDATE recording_files SET path = @new_prefix::text || substr(path, length(@old_prefix::text) + 1)
 WHERE recording_id = @recording_id AND pool_id = @pool_id AND kind IN ('index', 'thumbnail', 'preview')
   AND starts_with(path, @old_prefix::text);
+
+-- name: SetRecordingBroadcastStarted :exec
+-- 予約した番組が放送中になった日時を、最初の一度だけ記録する。
+UPDATE recordings SET broadcast_started_at = @at, updated_at = @at WHERE id = @id AND broadcast_started_at IS NULL;
+
+-- name: SetRecordingBroadcastEnded :exec
+-- 予約した番組が放送中でなくなった日時を、最初の一度だけ記録する。
+UPDATE recordings SET broadcast_ended_at = @at, updated_at = @at WHERE id = @id AND broadcast_ended_at IS NULL;
+
+-- name: MarkRecordingNotBroadcast :exec
+-- 予約した番組が放送されなかったことと、その時間に放送されていた番組を記録する。
+UPDATE recordings SET not_broadcast = true, aired_event_id = sqlc.narg(aired_event_id), updated_at = @now WHERE id = @id;
+
+-- name: GetAiredProgramName :one
+-- 予約した番組が放送されなかったときに、その時間に放送されていた番組の名前。番組表か、アーカイブから引く。
+-- eventId は日をまたいで使い回されるので、録画の予定の時間 (window_start〜window_end) に重なる番組に絞る。
+SELECT name FROM (
+  SELECT p.name, p.start_at FROM programs p
+  WHERE p.service_id = @service_id AND p.event_id = @event_id AND p.start_at < @window_end::timestamptz AND p.end_at > @window_start::timestamptz
+  UNION ALL
+  SELECT a.name, a.start_at FROM program_archives a
+  WHERE a.service_id = @service_id AND a.event_id = @event_id AND a.start_at < @window_end::timestamptz AND a.end_at > @window_start::timestamptz
+) candidates
+ORDER BY abs(extract(epoch FROM start_at - @window_start::timestamptz))
+LIMIT 1;
