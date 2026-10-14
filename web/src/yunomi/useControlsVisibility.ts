@@ -12,7 +12,7 @@ export type ControlsVisibility = {
     onPointerMove: (event: PointerEvent<HTMLElement>) => void;
     onPointerDown: (event: PointerEvent<HTMLElement>) => void;
     onPointerLeave: (event: PointerEvent<HTMLElement>) => void;
-    onFocusCapture: () => void;
+    onFocusCapture: (event: FocusEvent<HTMLElement>) => void;
     onBlurCapture: (event: FocusEvent<HTMLElement>) => void;
   };
 };
@@ -85,7 +85,11 @@ export function useControlsVisibility({ playing }: { playing: boolean }): Contro
           setPointerLeft(true);
         }
       },
-      onFocusCapture: () => setFocusWithin(true),
+      // キーボードで操作しているときだけ、出し続ける。マウスでボタンを押したときもフォーカスは残るが、
+      // そのままだと、プレイヤーの外へマウスを出しても隠れなくなる。
+      onFocusCapture: (event) => {
+        setFocusWithin(event.target instanceof Element && event.target.matches(':focus-visible'));
+      },
       onBlurCapture: (event) => {
         // フォーカスがプレイヤーの中で移っただけなら、出したままにする。
         const next = event.relatedTarget;
