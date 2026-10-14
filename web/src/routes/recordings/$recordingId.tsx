@@ -290,7 +290,8 @@ function Recording({ recordingId }: { recordingId: string }) {
               {dateTimeFormat.format(Date.parse(recording.startAt))}〜
               {minuteFormat.format(Date.parse(recording.endAt))}
             </Text>
-            <RecordingStateBadge state={recording.state} />
+            {/* 完了は当たり前なので出さず、録画中や失敗のように目を留めたい状態だけを出す。 */}
+            {recording.state !== 'COMPLETED' && <RecordingStateBadge state={recording.state} />}
             {recording.protected && (
               <Badge color="gray" variant="outline">
                 {t('recordings.protected')}
