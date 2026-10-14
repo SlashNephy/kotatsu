@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { manifestUrl, previewFrame, slideshowFrames } from './previewFrame';
+import { framePosition, manifestUrl, previewFrame, slideshowFrames } from './previewFrame';
 
 describe('previewFrame', () => {
   // 10 列で 25 コマなら、3 行になる。
@@ -60,6 +60,41 @@ describe('manifestUrl', () => {
   test('preview.jpg を preview.json にする', () => {
     expect(manifestUrl('/media/recordings/abc/preview.jpg')).toBe(
       '/media/recordings/abc/preview.json',
+    );
+  });
+});
+
+describe('framePosition', () => {
+  // tenban が求めたコマの位置 (ピクセル) は、preview.json から切り出したコマと同じ CSS の値になる。
+  test.each([
+    {
+      name: '行をまたいだコマ',
+      count: 25,
+      index: 24,
+      x: 640,
+      y: 180,
+      sheetWidth: 1600,
+      sheetHeight: 270,
+    },
+    {
+      name: '1 行に満たないコマ',
+      count: 4,
+      index: 2,
+      x: 320,
+      y: 0,
+      sheetWidth: 640,
+      sheetHeight: 90,
+    },
+    { name: 'コマが 1 つ', count: 1, index: 0, x: 0, y: 0, sheetWidth: 160, sheetHeight: 90 },
+  ])('$name', ({ count, index, x, y, sheetWidth, sheetHeight }) => {
+    const manifest = {
+      width: 160,
+      height: 90,
+      columns: 10,
+      times: Array.from({ length: count }, (_, i) => i * 10),
+    };
+    expect(framePosition({ x, y, width: 160, height: 90, sheetWidth, sheetHeight })).toEqual(
+      previewFrame(manifest, index),
     );
   });
 });

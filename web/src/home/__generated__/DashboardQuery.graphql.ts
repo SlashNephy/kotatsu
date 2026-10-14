@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<96ac8e58f4d95bc1195928cc2ad08b80>>
+ * @generated SignedSource<<4f5864c692e09e6e4d25289cce0b73ad>>
  * @lightSyntaxTransform
  */
 
@@ -60,6 +60,15 @@ export type DashboardQuery$data = {
         readonly startAt: string;
         readonly state: RecordingState;
         readonly thumbnailUrl: string | null | undefined;
+        readonly watchFrame: {
+          readonly height: number;
+          readonly sheetHeight: number;
+          readonly sheetWidth: number;
+          readonly url: string;
+          readonly width: number;
+          readonly x: number;
+          readonly y: number;
+        } | null | undefined;
         readonly watchPositionMs: number | null | undefined;
       };
     }>;
@@ -365,26 +374,86 @@ v26 = {
   "storageKey": null
 },
 v27 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "PreviewFrame",
+  "kind": "LinkedField",
+  "name": "watchFrame",
+  "plural": false,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "url",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "x",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "y",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "width",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "height",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "sheetWidth",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "sheetHeight",
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v28 = {
   "kind": "Literal",
   "name": "enabled",
   "value": true
 },
-v28 = {
+v29 = {
   "kind": "Variable",
   "name": "to",
   "variableName": "to"
 },
-v29 = [
-  (v27/*:: as any*/),
+v30 = [
+  (v28/*:: as any*/),
   {
     "kind": "Variable",
     "name": "first",
     "variableName": "upcoming"
   },
   (v8/*:: as any*/),
-  (v28/*:: as any*/)
+  (v29/*:: as any*/)
 ],
-v30 = {
+v31 = {
   "alias": null,
   "args": null,
   "concreteType": "ReservationAssignment",
@@ -396,10 +465,10 @@ v30 = {
   ],
   "storageKey": null
 },
-v31 = {
+v32 = {
   "alias": "troubles",
   "args": [
-    (v27/*:: as any*/),
+    (v28/*:: as any*/),
     {
       "kind": "Literal",
       "name": "first",
@@ -414,7 +483,7 @@ v31 = {
         "PARTIAL"
       ]
     },
-    (v28/*:: as any*/)
+    (v29/*:: as any*/)
   ],
   "concreteType": "ReservationConnection",
   "kind": "LinkedField",
@@ -516,6 +585,7 @@ return {
                   (v24/*:: as any*/),
                   (v25/*:: as any*/),
                   (v26/*:: as any*/),
+                  (v27/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -540,7 +610,7 @@ return {
       },
       {
         "alias": "upcoming",
-        "args": (v29/*:: as any*/),
+        "args": (v30/*:: as any*/),
         "concreteType": "ReservationConnection",
         "kind": "LinkedField",
         "name": "reservations",
@@ -580,7 +650,7 @@ return {
                     ],
                     "storageKey": null
                   },
-                  (v30/*:: as any*/)
+                  (v31/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -590,7 +660,7 @@ return {
         ],
         "storageKey": null
       },
-      (v31/*:: as any*/)
+      (v32/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -647,6 +717,7 @@ return {
                   (v24/*:: as any*/),
                   (v25/*:: as any*/),
                   (v26/*:: as any*/),
+                  (v27/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -672,7 +743,7 @@ return {
       },
       {
         "alias": "upcoming",
-        "args": (v29/*:: as any*/),
+        "args": (v30/*:: as any*/),
         "concreteType": "ReservationConnection",
         "kind": "LinkedField",
         "name": "reservations",
@@ -713,7 +784,7 @@ return {
                     ],
                     "storageKey": null
                   },
-                  (v30/*:: as any*/)
+                  (v31/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -723,20 +794,20 @@ return {
         ],
         "storageKey": null
       },
-      (v31/*:: as any*/)
+      (v32/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "d841ffe12c056ca81c3af39d93957ba7",
+    "cacheID": "4739e7221efd77ddfd9fcf2f15742489",
     "id": null,
     "metadata": {},
     "name": "DashboardQuery",
     "operationKind": "query",
-    "text": "query DashboardQuery(\n  $from: Time!\n  $nowEnd: Time!\n  $to: Time!\n  $recordings: Int!\n  $upcoming: Int!\n) {\n  tunerServerHealth {\n    degraded\n    degradedSince\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  guide(from: $from, to: $nowEnd) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n    }\n  }\n  recordings(first: $recordings) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        drops\n        errors\n        scrambled\n        recordedFrom\n        recordedUntil\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n  }\n  upcoming: reservations(from: $from, to: $to, enabled: true, first: $upcoming) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        service {\n          name\n          logoUrl\n          channelType {\n            type\n          }\n          id\n        }\n        assignment {\n          state\n        }\n      }\n    }\n  }\n  troubles: reservations(from: $from, to: $to, states: [CONFLICT, PARTIAL], enabled: true, first: 100) {\n    edges {\n      node {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
+    "text": "query DashboardQuery(\n  $from: Time!\n  $nowEnd: Time!\n  $to: Time!\n  $recordings: Int!\n  $upcoming: Int!\n) {\n  tunerServerHealth {\n    degraded\n    degradedSince\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  guide(from: $from, to: $nowEnd) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n    }\n  }\n  recordings(first: $recordings) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        drops\n        errors\n        scrambled\n        recordedFrom\n        recordedUntil\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n  }\n  upcoming: reservations(from: $from, to: $to, enabled: true, first: $upcoming) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        service {\n          name\n          logoUrl\n          channelType {\n            type\n          }\n          id\n        }\n        assignment {\n          state\n        }\n      }\n    }\n  }\n  troubles: reservations(from: $from, to: $to, states: [CONFLICT, PARTIAL], enabled: true, first: 100) {\n    edges {\n      node {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "88b061a87ca9e1040102aca73b75ae80";
+(node as any).hash = "25a51ba7a00f9e6b92750444ac6f513a";
 
 export default node;

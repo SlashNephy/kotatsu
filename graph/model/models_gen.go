@@ -289,6 +289,19 @@ type PlayerSettingsInput struct {
 	CaptionsEnabled *bool `json:"captionsEnabled,omitempty"`
 }
 
+// プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
+type PreviewFrame struct {
+	// プレビュー画像の URL のパス。
+	URL    string `json:"url"`
+	X      int    `json:"x"`
+	Y      int    `json:"y"`
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
+	// プレビュー画像全体の大きさ。背景を縮めて描くときに使う。
+	SheetWidth  int `json:"sheetWidth"`
+	SheetHeight int `json:"sheetHeight"`
+}
+
 // 番組の音声。ARIB STD-B10 の音声コンポーネント記述子の内容。
 type ProgramAudio struct {
 	// component_type。1 はシングルモノ、2 はデュアルモノ、3 はステレオ、9 は 5.1ch など。

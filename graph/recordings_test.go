@@ -21,6 +21,7 @@ const (
 	listRecordings  = `query($first: Int!, $after: String, $filter: RecordingFilter) {
 		recordings(first: $first, after: $after, filter: $filter) { edges { node { ` + recordingFields + ` } } pageInfo { hasNextPage endCursor } } }`
 	deleteRecording    = `mutation($id: ID!) { deleteRecording(id: $id) }`
+	varPositionMs      = "positionMs"
 	protectRecording   = `mutation($id: ID!, $protected: Boolean!) { setRecordingProtected(id: $id, protected: $protected) { ` + recordingFields + ` } }`
 	tagRecording       = `mutation($id: ID!, $tags: [String!]!) { setRecordingTags(id: $id, tags: $tags) { ` + recordingFields + ` } }`
 	saveWatchPosition  = `mutation($id: ID!, $positionMs: Int64!) { saveWatchPosition(id: $id, positionMs: $positionMs) { ` + recordingFields + ` } }`
@@ -239,7 +240,7 @@ func TestRecordingOperations(t *testing.T) {
 	var saved struct {
 		SaveWatchPosition recordingNode `json:"saveWatchPosition"`
 	}
-	require.Empty(t, viewerFixture.query(t, saveWatchPosition, map[string]any{varID: recordingID, "positionMs": 90_000}, &saved))
+	require.Empty(t, viewerFixture.query(t, saveWatchPosition, map[string]any{varID: recordingID, varPositionMs: 90_000}, &saved))
 	assert.Equal(t, new(int64(90_000)), saved.SaveWatchPosition.WatchPositionMs)
 	// 再生位置は、ユーザーごとに持つ。
 	assert.Nil(t, f.recordings(t, 1, nil, nil).Recordings.Edges[0].Node.WatchPositionMs)
@@ -278,5 +279,75 @@ func TestRecordingOperations(t *testing.T) {
 
 	missing := graph.GlobalID("Recording", uuid.New().String())
 	assert.Equal(t, []string{codeNotFound}, f.query(t, deleteRecording, map[string]any{varID: missing}, nil))
-	assert.Equal(t, []string{codeBadUserInput}, f.query(t, saveWatchPosition, map[string]any{varID: recordingID, "positionMs": -1}, nil))
+	assert.Equal(t, []string{codeBadUserInput}, f.query(t, saveWatchPosition, map[string]any{varID: recordingID, varPositionMs: -1}, nil))
+}
+
+// TestRecordingWatchFrame は、前回見た位置に合うプレビュー画像のコマを返すことを確かめる。
+func TestRecordingWatchFrame(t *testing.T) {
+	t.Parallel()
+
+	f, dir := newRecordingFixture(t)
+	recordingID := f.addRecording(t, dir, episode1, "completed", time.Hour)
+	// 録画は 30 分。プレビュー画像は、0 秒、60 秒、120 秒の 3 コマ (1 行に収まる)。
+	_, err := f.pool.Exec(t.Context(), `UPDATE recordings SET recorded_until = recorded_from + interval '30 minutes' WHERE name = $1`, episode1)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+		SELECT gen_random_uuid(), recording_id, 'preview', pool_id, $2, 1, started_at, ended_at, created_at
+		FROM recording_files WHERE path = $1`, episode1+".m2ts", episode1+".kotatsu/preview.jpg")
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, episode1+".kotatsu"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, episode1+".kotatsu", "preview.json"),
+		[]byte(`{"width":160,"height":90,"columns":10,"times":[0,60,120]}`), 0o600))
+
+	type frame struct {
+		URL         string `json:"url"`
+		X           int    `json:"x"`
+		Y           int    `json:"y"`
+		Width       int    `json:"width"`
+		Height      int    `json:"height"`
+		SheetWidth  int    `json:"sheetWidth"`
+		SheetHeight int    `json:"sheetHeight"`
+	}
+	watchFrame := func(t *testing.T) *frame {
+		t.Helper()
+
+		var page struct {
+			Recordings struct {
+				Edges []struct {
+					Node struct {
+						WatchFrame *frame `json:"watchFrame"`
+					} `json:"node"`
+				} `json:"edges"`
+			} `json:"recordings"`
+		}
+		require.Empty(t, f.query(t, `query { recordings(first: 1) { edges { node { watchFrame { url x y width height sheetWidth sheetHeight } } } } }`, nil, &page))
+		require.Len(t, page.Recordings.Edges, 1)
+
+		return page.Recordings.Edges[0].Node.WatchFrame
+	}
+	save := func(t *testing.T, positionMs int64) {
+		t.Helper()
+
+		var saved struct {
+			SaveWatchPosition recordingNode `json:"saveWatchPosition"`
+		}
+		require.Empty(t, f.query(t, saveWatchPosition, map[string]any{varID: recordingID, varPositionMs: positionMs}, &saved))
+	}
+
+	// 再生していなければ、コマを返さない。
+	assert.Nil(t, watchFrame(t))
+
+	// 再生位置より前で、いちばん近いコマを返す。
+	save(t, 119_000)
+	got := watchFrame(t)
+	require.NotNil(t, got)
+	var rawID string
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT id::text FROM recordings WHERE name = $1`, episode1).Scan(&rawID))
+	assert.Equal(t, &frame{
+		URL: "/media/recordings/" + rawID + "/preview.jpg", X: 160, Y: 0, Width: 160, Height: 90, SheetWidth: 480, SheetHeight: 90,
+	}, got)
+
+	// 終わりの近くまで見ていたら、見終えたとみなして返さない。
+	save(t, 30*60*1000-5_000)
+	assert.Nil(t, watchFrame(t))
 }

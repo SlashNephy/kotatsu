@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<717c44cebcc4620e97aa7863a60a270c>>
+ * @generated SignedSource<<2446ad339dec2afd5309600b86f12e46>>
  * @lightSyntaxTransform
  */
 
@@ -46,6 +46,15 @@ export type recordingsListQuery$data = {
           readonly name: string;
         }>;
         readonly thumbnailUrl: string | null | undefined;
+        readonly watchFrame: {
+          readonly height: number;
+          readonly sheetHeight: number;
+          readonly sheetWidth: number;
+          readonly url: string;
+          readonly width: number;
+          readonly x: number;
+          readonly y: number;
+        } | null | undefined;
         readonly watchPositionMs: number | null | undefined;
       };
     }>;
@@ -187,11 +196,71 @@ v16 = {
 v17 = {
   "alias": null,
   "args": null,
+  "concreteType": "PreviewFrame",
+  "kind": "LinkedField",
+  "name": "watchFrame",
+  "plural": false,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "url",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "x",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "y",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "width",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "height",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "sheetWidth",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "sheetHeight",
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v18 = {
+  "alias": null,
+  "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v18 = {
+v19 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -204,7 +273,7 @@ v18 = {
   ],
   "storageKey": null
 },
-v19 = {
+v20 = {
   "alias": null,
   "args": null,
   "concreteType": "PageInfo",
@@ -277,6 +346,7 @@ return {
                   (v14/*:: as any*/),
                   (v15/*:: as any*/),
                   (v16/*:: as any*/),
+                  (v17/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -286,18 +356,18 @@ return {
                     "plural": false,
                     "selections": [
                       (v5/*:: as any*/),
-                      (v17/*:: as any*/)
+                      (v18/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v18/*:: as any*/)
+                  (v19/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v19/*:: as any*/)
+          (v20/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -352,6 +422,7 @@ return {
                   (v14/*:: as any*/),
                   (v15/*:: as any*/),
                   (v16/*:: as any*/),
+                  (v17/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -361,35 +432,35 @@ return {
                     "plural": false,
                     "selections": [
                       (v5/*:: as any*/),
-                      (v17/*:: as any*/),
+                      (v18/*:: as any*/),
                       (v4/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v18/*:: as any*/)
+                  (v19/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v19/*:: as any*/)
+          (v20/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "73ae32c55eec1500a06dc58f526d5c4a",
+    "cacheID": "976124470c934a9f33af287f6296eb62",
     "id": null,
     "metadata": {},
     "name": "recordingsListQuery",
     "operationKind": "query",
-    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n) {\n  recordings(first: $first, after: $after, filter: $filter) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        drops\n        errors\n        scrambled\n        recordedFrom\n        recordedUntil\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
+    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n) {\n  recordings(first: $first, after: $after, filter: $filter) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        drops\n        errors\n        scrambled\n        recordedFrom\n        recordedUntil\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "2ce714f9b1f7e293deb70c1d807ce1a4";
+(node as any).hash = "14e307b3ef0e7edb5f09638ead2df4ca";
 
 export default node;

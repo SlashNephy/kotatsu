@@ -243,6 +243,16 @@ type ComplexityRoot struct {
 		JikkyoEnabled   func(childComplexity int) int
 	}
 
+	PreviewFrame struct {
+		Height      func(childComplexity int) int
+		SheetHeight func(childComplexity int) int
+		SheetWidth  func(childComplexity int) int
+		URL         func(childComplexity int) int
+		Width       func(childComplexity int) int
+		X           func(childComplexity int) int
+		Y           func(childComplexity int) int
+	}
+
 	Program struct {
 		Archived     func(childComplexity int) int
 		Audios       func(childComplexity int) int
@@ -347,6 +357,7 @@ type ComplexityRoot struct {
 		StreamURL         func(childComplexity int) int
 		Tags              func(childComplexity int) int
 		ThumbnailURL      func(childComplexity int) int
+		WatchFrame        func(childComplexity int) int
 		WatchPositionMs   func(childComplexity int) int
 	}
 
@@ -688,6 +699,8 @@ type QueryResolver interface {
 }
 type RecordingResolver interface {
 	Service(ctx context.Context, obj *model.Recording) (*model.Service, error)
+
+	WatchFrame(ctx context.Context, obj *model.Recording) (*model.PreviewFrame, error)
 }
 type ReservationResolver interface {
 	Service(ctx context.Context, obj *model.Reservation) (*model.Service, error)
@@ -1683,6 +1696,49 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.PlayerSettings.JikkyoEnabled(childComplexity), true
 
+	case "PreviewFrame.height":
+		if e.ComplexityRoot.PreviewFrame.Height == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PreviewFrame.Height(childComplexity), true
+	case "PreviewFrame.sheetHeight":
+		if e.ComplexityRoot.PreviewFrame.SheetHeight == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PreviewFrame.SheetHeight(childComplexity), true
+	case "PreviewFrame.sheetWidth":
+		if e.ComplexityRoot.PreviewFrame.SheetWidth == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PreviewFrame.SheetWidth(childComplexity), true
+	case "PreviewFrame.url":
+		if e.ComplexityRoot.PreviewFrame.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PreviewFrame.URL(childComplexity), true
+	case "PreviewFrame.width":
+		if e.ComplexityRoot.PreviewFrame.Width == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PreviewFrame.Width(childComplexity), true
+	case "PreviewFrame.x":
+		if e.ComplexityRoot.PreviewFrame.X == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PreviewFrame.X(childComplexity), true
+	case "PreviewFrame.y":
+		if e.ComplexityRoot.PreviewFrame.Y == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PreviewFrame.Y(childComplexity), true
+
 	case "Program.archived":
 		if e.ComplexityRoot.Program.Archived == nil {
 			break
@@ -2245,6 +2301,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.ThumbnailURL(childComplexity), true
+	case "Recording.watchFrame":
+		if e.ComplexityRoot.Recording.WatchFrame == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.WatchFrame(childComplexity), true
 	case "Recording.watchPositionMs":
 		if e.ComplexityRoot.Recording.WatchPositionMs == nil {
 			break
@@ -4035,6 +4097,11 @@ type Recording implements Node {
   """
   previewUrl: String
   """
+  ログイン中のユーザーが前回見た位置に合う、プレビュー画像のコマ。再生位置より前で、いちばん近いコマを選ぶ (先の場面を見せない)。
+  再生していないか、見終えている (終わりの 10 秒前より後まで見た) か、再生位置より前にコマがないか、プレビュー画像がなければ null。
+  """
+  watchFrame: PreviewFrame
+  """
   録画の時間帯の実況の過去ログを返す URL のパス (設計書 7.4)。tenban が過去ログ API から取って中継する。
   録画したサービスに実況のチャンネルがなければ、空の一覧を返す。
   """
@@ -4091,6 +4158,21 @@ extend type Mutation {
   setRecordingTags(id: ID!, tags: [String!]!): Recording!
   "ログイン中のユーザーの再生位置 (ミリ秒) を保存する。誰でも使える。"
   saveWatchPosition(id: ID!, positionMs: Int64!): Recording!
+}
+
+"""
+プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
+"""
+type PreviewFrame {
+  "プレビュー画像の URL のパス。"
+  url: String!
+  x: Int!
+  y: Int!
+  width: Int!
+  height: Int!
+  "プレビュー画像全体の大きさ。背景を縮めて描くときに使う。"
+  sheetWidth: Int!
+  sheetHeight: Int!
 }
 `, BuiltIn: false},
 	{Name: "../schema/reservations.graphqls", Input: `"""
@@ -5207,6 +5289,26 @@ func (ec *executionContext) childFields_PlayerSettings(ctx context.Context, fiel
 	return nil, fmt.Errorf("no field named %q was found under type PlayerSettings", field.Name)
 }
 
+func (ec *executionContext) childFields_PreviewFrame(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "url":
+		return ec.fieldContext_PreviewFrame_url(ctx, field)
+	case "x":
+		return ec.fieldContext_PreviewFrame_x(ctx, field)
+	case "y":
+		return ec.fieldContext_PreviewFrame_y(ctx, field)
+	case "width":
+		return ec.fieldContext_PreviewFrame_width(ctx, field)
+	case "height":
+		return ec.fieldContext_PreviewFrame_height(ctx, field)
+	case "sheetWidth":
+		return ec.fieldContext_PreviewFrame_sheetWidth(ctx, field)
+	case "sheetHeight":
+		return ec.fieldContext_PreviewFrame_sheetHeight(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PreviewFrame", field.Name)
+}
+
 func (ec *executionContext) childFields_Program(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -5351,6 +5453,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_thumbnailUrl(ctx, field)
 	case "previewUrl":
 		return ec.fieldContext_Recording_previewUrl(ctx, field)
+	case "watchFrame":
+		return ec.fieldContext_Recording_watchFrame(ctx, field)
 	case "jikkyoCommentsUrl":
 		return ec.fieldContext_Recording_jikkyoCommentsUrl(ctx, field)
 	case "streamUrl":
@@ -10759,6 +10863,167 @@ func (ec *executionContext) fieldContext_PlayerSettings_captionsEnabled(_ contex
 	return graphql.NewScalarFieldContext("PlayerSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _PreviewFrame_url(ctx context.Context, field graphql.CollectedField, obj *model.PreviewFrame) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PreviewFrame_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PreviewFrame_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PreviewFrame", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PreviewFrame_x(ctx context.Context, field graphql.CollectedField, obj *model.PreviewFrame) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PreviewFrame_x(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.X, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PreviewFrame_x(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PreviewFrame", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _PreviewFrame_y(ctx context.Context, field graphql.CollectedField, obj *model.PreviewFrame) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PreviewFrame_y(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Y, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PreviewFrame_y(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PreviewFrame", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _PreviewFrame_width(ctx context.Context, field graphql.CollectedField, obj *model.PreviewFrame) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PreviewFrame_width(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Width, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PreviewFrame_width(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PreviewFrame", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _PreviewFrame_height(ctx context.Context, field graphql.CollectedField, obj *model.PreviewFrame) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PreviewFrame_height(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Height, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PreviewFrame_height(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PreviewFrame", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _PreviewFrame_sheetWidth(ctx context.Context, field graphql.CollectedField, obj *model.PreviewFrame) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PreviewFrame_sheetWidth(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SheetWidth, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PreviewFrame_sheetWidth(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PreviewFrame", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _PreviewFrame_sheetHeight(ctx context.Context, field graphql.CollectedField, obj *model.PreviewFrame) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PreviewFrame_sheetHeight(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SheetHeight, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PreviewFrame_sheetHeight(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PreviewFrame", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _Program_id(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -13287,6 +13552,38 @@ func (ec *executionContext) _Recording_previewUrl(ctx context.Context, field gra
 }
 func (ec *executionContext) fieldContext_Recording_previewUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Recording_watchFrame(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_watchFrame(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().WatchFrame(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PreviewFrame) graphql.Marshaler {
+			return ec.marshalOPreviewFrame2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPreviewFrame(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_watchFrame(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PreviewFrame(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Recording_jikkyoCommentsUrl(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
@@ -21079,6 +21376,74 @@ func (ec *executionContext) _PlayerSettings(ctx context.Context, sel ast.Selecti
 	return out
 }
 
+var previewFrameImplementors = []string{"PreviewFrame"}
+
+func (ec *executionContext) _PreviewFrame(ctx context.Context, sel ast.SelectionSet, obj *model.PreviewFrame) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, previewFrameImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PreviewFrame")
+		case "url":
+			out.Values[i] = ec._PreviewFrame_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "x":
+			out.Values[i] = ec._PreviewFrame_x(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "y":
+			out.Values[i] = ec._PreviewFrame_y(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "width":
+			out.Values[i] = ec._PreviewFrame_width(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "height":
+			out.Values[i] = ec._PreviewFrame_height(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sheetWidth":
+			out.Values[i] = ec._PreviewFrame_sheetWidth(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sheetHeight":
+			out.Values[i] = ec._PreviewFrame_sheetHeight(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var programImplementors = []string{"Program", "Node"}
 
 func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, obj *model.Program) graphql.Marshaler {
@@ -22372,6 +22737,44 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "watchFrame":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Recording_watchFrame(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "jikkyoCommentsUrl":
 			out.Values[i] = ec._Recording_jikkyoCommentsUrl(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -26622,6 +27025,13 @@ func (ec *executionContext) marshalONotificationKind2ᚕgithubᚗcomᚋSlashNeph
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalOPreviewFrame2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPreviewFrame(ctx context.Context, sel ast.SelectionSet, v *model.PreviewFrame) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._PreviewFrame(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalORecordingFailureReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingFailureReason(ctx context.Context, v any) (*model.RecordingFailureReason, error) {
