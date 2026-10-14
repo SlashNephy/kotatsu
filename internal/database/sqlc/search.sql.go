@@ -21,45 +21,48 @@ FROM (
   JOIN services s ON s.id = p.service_id
   -- programs には、アーカイブへ移すまでの猶予の間、放送の終わった番組も残る。
   -- 過去の放送を含めないときは、まだ終わっていない番組だけにし、含めるときは、終わった番組も期間で絞る。
-  WHERE p.end_undecided OR p.end_at > $1::timestamptz
-    OR ($2::boolean AND p.start_at >= $3::timestamptz AND p.start_at < $4::timestamptz)
+  WHERE s.service_type = ANY($1::bigint[])
+    AND (p.end_undecided OR p.end_at > $2::timestamptz
+      OR ($3::boolean AND p.start_at >= $4::timestamptz AND p.start_at < $5::timestamptz))
   UNION ALL
   SELECT true AS archived, a.service_id, a.event_id, a.start_at, a.end_at, a.end_undecided, a.is_free,
     a.name, a.description, a.extended, a.genres, a.audios, a.related_items, s.channel_type,
     a.name_normalized, a.description_normalized
   FROM program_archives a
   JOIN services s ON s.id = a.service_id
-  WHERE $2::boolean AND a.start_at >= $3::timestamptz AND a.start_at < $4::timestamptz
+  WHERE $3::boolean AND a.start_at >= $4::timestamptz AND a.start_at < $5::timestamptz
+    AND s.service_type = ANY($1::bigint[])
 ) c
 WHERE (
-    (cardinality($5::text[]) = 0 AND cardinality($6::bigint[]) = 0)
-    OR c.channel_type = ANY($5::text[])
-    OR c.service_id = ANY($6::bigint[])
+    (cardinality($6::text[]) = 0 AND cardinality($7::bigint[]) = 0)
+    OR c.channel_type = ANY($6::text[])
+    OR c.service_id = ANY($7::bigint[])
   )
   AND (
-    cardinality($7::bigint[]) = 0
-    OR EXISTS (SELECT 1 FROM jsonb_array_elements(c.genres) g WHERE (g ->> 'lv1')::bigint = ANY($7::bigint[]))
+    cardinality($8::bigint[]) = 0
+    OR EXISTS (SELECT 1 FROM jsonb_array_elements(c.genres) g WHERE (g ->> 'lv1')::bigint = ANY($8::bigint[]))
   )
   AND NOT EXISTS (
-    SELECT 1 FROM jsonb_array_elements(c.genres) g WHERE (g ->> 'lv1')::bigint = ANY($8::bigint[])
+    SELECT 1 FROM jsonb_array_elements(c.genres) g WHERE (g ->> 'lv1')::bigint = ANY($9::bigint[])
   )
-  AND (NOT $9::boolean OR c.is_free)
+  AND (NOT $10::boolean OR c.is_free)
   AND NOT EXISTS (
     SELECT 1
-    FROM generate_subscripts($10::text[], 1) AS k (i)
+    FROM generate_subscripts($11::text[], 1) AS k (i)
     WHERE NOT (
-      (($11::boolean[])[k.i] AND CASE WHEN ($12::boolean[])[k.i]
-        THEN c.name_normalized LIKE ($10::text[])[k.i] ELSE c.name_normalized ILIKE ($10::text[])[k.i] END)
-      OR (($13::boolean[])[k.i] AND CASE WHEN ($12::boolean[])[k.i]
-        THEN c.description_normalized LIKE ($10::text[])[k.i] ELSE c.description_normalized ILIKE ($10::text[])[k.i] END)
+      (($12::boolean[])[k.i] AND CASE WHEN ($13::boolean[])[k.i]
+        THEN c.name_normalized LIKE ($11::text[])[k.i] ELSE c.name_normalized ILIKE ($11::text[])[k.i] END)
+      OR (($14::boolean[])[k.i] AND CASE WHEN ($13::boolean[])[k.i]
+        THEN c.description_normalized LIKE ($11::text[])[k.i] ELSE c.description_normalized ILIKE ($11::text[])[k.i] END)
     )
   )
-  AND (c.start_at, c.service_id, c.event_id) > ($14::timestamptz, $15::bigint, $16::bigint)
+  AND (c.start_at, c.service_id, c.event_id) > ($15::timestamptz, $16::bigint, $17::bigint)
 ORDER BY c.start_at, c.service_id, c.event_id
-LIMIT $17::integer
+LIMIT $18::integer
 `
 
 type SearchProgramCandidatesParams struct {
+	MediaServiceTypes    []int64
 	Now                  time.Time
 	IncludeArchive       bool
 	ArchiveFrom          time.Time
@@ -96,13 +99,14 @@ type SearchProgramCandidatesRow struct {
 	ChannelType  string
 }
 
-// 番組の検索の候補。チャンネル種別、サービス、ジャンルの大分類で絞り、開始時刻、サービス、eventId の順に、カーソルの後ろから返す。
+// 番組の検索の候補。映像か音声を流すサービス (media_service_types) の番組だけを、チャンネル種別、サービス、ジャンルの大分類で絞り、開始時刻、サービス、eventId の順に、カーソルの後ろから返す。
 // ジャンルの中分類とキーワードは、ルールの照合と同じ照合関数で、Go で判定する (設計書 3.5)。
 // include_archive なら、開始時刻が [archive_from, archive_to) の放送の終わった番組 (アーカイブと、まだ移していない番組) も含める。
 // キーワードのうち、正規表現でなく、番組名と概要だけを見るものは、正規化した列の LIKE で粗く絞る (keyword_*)。
 // 最終的な判定は Go の照合関数で行うので、ここでは一致しうる番組を落とさないことだけを守る。
 func (q *Queries) SearchProgramCandidates(ctx context.Context, arg SearchProgramCandidatesParams) ([]SearchProgramCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, searchProgramCandidates,
+		arg.MediaServiceTypes,
 		arg.Now,
 		arg.IncludeArchive,
 		arg.ArchiveFrom,

@@ -201,7 +201,8 @@ type Querier interface {
 	ListLatestRecordingHistory(ctx context.Context, titleKeys []string) ([]ListLatestRecordingHistoryRow, error)
 	ListLeases(ctx context.Context) ([]Lease, error)
 	// ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
-	ListMatchablePrograms(ctx context.Context, now time.Time) ([]ListMatchableProgramsRow, error)
+	// 映像か音声を流すサービス (media_service_types) の番組だけを対象にする。
+	ListMatchablePrograms(ctx context.Context, arg ListMatchableProgramsParams) ([]ListMatchableProgramsRow, error)
 	ListNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
 	// イベントの種類 kind を画面内の通知で受け取る、有効なユーザーを返す。設定がなければ受け取る。
 	ListNotificationRecipients(ctx context.Context, kind string) ([]uuid.UUID, error)
@@ -321,7 +322,7 @@ type Querier interface {
 	// 監査ログを、新しい順に返す。条件の NULL の項目は絞り込まない。
 	// before_at と before_id より前 (古い) の記録だけを返し、ページを送る。
 	SearchAuditEvents(ctx context.Context, arg SearchAuditEventsParams) ([]AuditEvent, error)
-	// 番組の検索の候補。チャンネル種別、サービス、ジャンルの大分類で絞り、開始時刻、サービス、eventId の順に、カーソルの後ろから返す。
+	// 番組の検索の候補。映像か音声を流すサービス (media_service_types) の番組だけを、チャンネル種別、サービス、ジャンルの大分類で絞り、開始時刻、サービス、eventId の順に、カーソルの後ろから返す。
 	// ジャンルの中分類とキーワードは、ルールの照合と同じ照合関数で、Go で判定する (設計書 3.5)。
 	// include_archive なら、開始時刻が [archive_from, archive_to) の放送の終わった番組 (アーカイブと、まだ移していない番組) も含める。
 	// キーワードのうち、正規表現でなく、番組名と概要だけを見るものは、正規化した列の LIKE で粗く絞る (keyword_*)。

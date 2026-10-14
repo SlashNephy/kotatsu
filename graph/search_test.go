@@ -397,3 +397,27 @@ func TestSearchProgramsExcludesEndedPrograms(t *testing.T) {
 		})
 	}
 }
+
+// TestSearchProgramsSkipsNonMediaServices は、映像も音声も流さないサービス (データ放送など) の番組を返さないことを確かめる。
+func TestSearchProgramsSkipsNonMediaServices(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	// まだ終わっていない番組を 1 つ選び、その番組を、データ放送のサービスと映像のサービスに置いた番組を作る。
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel,
+		remote_control_key_id, logo_id, created_at, updated_at)
+		SELECT 9999901, network_id, 1, 'データ放送', 'データ放送', 192, channel_type, channel, remote_control_key_id, logo_id, created_at, updated_at
+		FROM services LIMIT 1`)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO programs (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
+		name, description, name_normalized, description_normalized, extended, genres, related_items, created_at, updated_at)
+		SELECT 9999901, 1, 0, start_at, end_at, false, true, 'データ放送の番組', '', 'データ放送の番組', '', '{}', '[]', '[]', created_at, updated_at
+		FROM programs ORDER BY start_at DESC LIMIT 1`)
+	require.NoError(t, err)
+
+	var got searchResult
+	conditions := conditionsInput{Keywords: []keywordInput{keyword("データ放送の番組", false)}}
+	require.Empty(t, f.query(t, searchQuery, searchVariables(conditions, nil, 50, nil), &got))
+	assert.Empty(t, got.names())
+}

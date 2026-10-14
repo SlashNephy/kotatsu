@@ -155,9 +155,14 @@ SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.is_free, p.name, p.desc
   p.extended, p.genres, p.related_items, s.channel_type
 FROM programs p
 JOIN services s ON s.id = p.service_id
-WHERE p.start_at > $1 AND NOT p.end_undecided
+WHERE p.start_at > $1 AND NOT p.end_undecided AND s.service_type = ANY($2::bigint[])
 ORDER BY p.service_id, p.event_id
 `
+
+type ListMatchableProgramsParams struct {
+	Now               time.Time
+	MediaServiceTypes []int64
+}
 
 type ListMatchableProgramsRow struct {
 	ServiceID    int64
@@ -174,8 +179,9 @@ type ListMatchableProgramsRow struct {
 }
 
 // ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
-func (q *Queries) ListMatchablePrograms(ctx context.Context, now time.Time) ([]ListMatchableProgramsRow, error) {
-	rows, err := q.db.Query(ctx, listMatchablePrograms, now)
+// 映像か音声を流すサービス (media_service_types) の番組だけを対象にする。
+func (q *Queries) ListMatchablePrograms(ctx context.Context, arg ListMatchableProgramsParams) ([]ListMatchableProgramsRow, error) {
+	rows, err := q.db.Query(ctx, listMatchablePrograms, arg.Now, arg.MediaServiceTypes)
 	if err != nil {
 		return nil, err
 	}

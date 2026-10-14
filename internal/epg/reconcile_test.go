@@ -452,3 +452,65 @@ func TestSyncReflectsOnAirPrograms(t *testing.T) {
 		})
 	}
 }
+
+// dataServiceUpstream は、faketuner のサービスに、映像も音声も流さないデータ放送のサービス (種別 0xC0) を足した上流。
+type dataServiceUpstream struct {
+	*mirakurun.Client
+
+	data *mirakurun.Service
+}
+
+var _ epg.Upstream = new(dataServiceUpstream)
+
+func (u *dataServiceUpstream) Services(ctx context.Context) ([]*mirakurun.Service, error) {
+	services, err := u.Client.Services(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(services, u.data), nil
+}
+
+// TestSyncSkipsNonMediaServices は、映像も音声も流さないサービスとその番組を取り込まず、
+// すでに DB にあるそのようなサービスの番組も、消さずに残すことを確かめる。
+func TestSyncSkipsNonMediaServices(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	services, err := f.client.Services(t.Context())
+	require.NoError(t, err)
+	dataServiceID := grServiceID + 0x40
+	data := &mirakurun.Service{
+		ID: faketuner.ServiceItemID(grNetworkID, dataServiceID), ServiceID: dataServiceID, NetworkID: grNetworkID,
+		Name: "データ放送", Type: 0xC0, LogoID: nil, RemoteControlKeyID: nil, Channel: services[0].Channel,
+	}
+	f.fake.AddProgram(&faketuner.Program{
+		ID: faketuner.ProgramID(grNetworkID, dataServiceID, 500), EventID: 500, ServiceID: dataServiceID, NetworkID: grNetworkID,
+		StartAt: testNow().Add(time.Hour).UnixMilli(), Duration: int64(time.Hour / time.Millisecond),
+		IsFree: true, Name: "データ放送の番組", Description: "",
+	})
+	reconciler := epg.NewReconciler(f.pool, &dataServiceUpstream{Client: f.client, data: data}, clocktest.NewFake(testNow()),
+		func(context.Context, pgx.Tx) error { return nil })
+	_, err = reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM services WHERE id = $1", data.ID))
+	assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1", data.ID))
+
+	// 取り込みをやめる前に入ったサービスと番組は、同期しても消さない。
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel,
+		remote_control_key_id, logo_id, created_at, updated_at)
+		SELECT $1, network_id, $2, 'データ放送', 'データ放送', 192, channel_type, channel, remote_control_key_id, logo_id, created_at, updated_at
+		FROM services LIMIT 1`, data.ID, dataServiceID)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO programs (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
+		name, description, name_normalized, description_normalized, extended, genres, related_items, created_at, updated_at)
+		SELECT $1, 501, 0, start_at, end_at, false, true, 'データ放送の番組', '', 'データ放送の番組', '', '{}', '[]', '[]', created_at, updated_at
+		FROM programs WHERE end_at > $2 LIMIT 1`, data.ID, testNow())
+	require.NoError(t, err)
+	_, err = reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	_, err = reconciler.SyncServices(t.Context(), []int64{data.ID})
+	require.NoError(t, err)
+	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1 AND event_id = 501", data.ID))
+	assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1 AND event_id = 500", data.ID))
+}
