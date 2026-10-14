@@ -168,7 +168,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
   const moreTroubles = data.troubles.pageInfo.hasNextPage;
 
   return (
-    <Stack gap="lg">
+    <Stack gap="xl">
       {data.tunerServerHealth.degraded && (
         <Alert color="amber" role="alert" title={t('home.degraded.title')}>
           {data.tunerServerHealth.degradedSince == null
