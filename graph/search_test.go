@@ -398,26 +398,44 @@ func TestSearchProgramsExcludesEndedPrograms(t *testing.T) {
 	}
 }
 
-// TestSearchProgramsSkipsNonMediaServices は、映像も音声も流さないサービス (データ放送など) の番組を返さないことを確かめる。
+// TestSearchProgramsSkipsNonMediaServices は、映像も音声も流さないサービス (データ放送など) の番組を返さず、
+// 映像のサービスの番組は返すことを確かめる。
 func TestSearchProgramsSkipsNonMediaServices(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
 	f.syncEPG(t)
-	// まだ終わっていない番組を 1 つ選び、その番組を、データ放送のサービスと映像のサービスに置いた番組を作る。
-	_, err := f.pool.Exec(t.Context(), `INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel,
-		remote_control_key_id, logo_id, created_at, updated_at)
-		SELECT 9999901, network_id, 1, 'データ放送', 'データ放送', 192, channel_type, channel, remote_control_key_id, logo_id, created_at, updated_at
-		FROM services LIMIT 1`)
-	require.NoError(t, err)
-	_, err = f.pool.Exec(t.Context(), `INSERT INTO programs (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
-		name, description, name_normalized, description_normalized, extended, genres, related_items, created_at, updated_at)
-		SELECT 9999901, 1, 0, start_at, end_at, false, true, 'データ放送の番組', '', 'データ放送の番組', '', '{}', '[]', '[]', created_at, updated_at
-		FROM programs ORDER BY start_at DESC LIMIT 1`)
-	require.NoError(t, err)
 
-	var got searchResult
-	conditions := conditionsInput{Keywords: []keywordInput{keyword("データ放送の番組", false)}}
-	require.Empty(t, f.query(t, searchQuery, searchVariables(conditions, nil, 50, nil), &got))
-	assert.Empty(t, got.names())
+	tests := []struct {
+		name        string
+		serviceID   int64
+		serviceType int
+		want        int
+	}{
+		{name: "データ放送のサービス", serviceID: 9999901, serviceType: 0xC0, want: 0},
+		{name: "映像のサービス", serviceID: 9999902, serviceType: 0x01, want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// まだ終わっていない番組の時間に、そのサービスの番組を、サービスごとに別の名前で置く。
+			name := "種別を確かめる番組 " + tt.name
+			_, err := f.pool.Exec(t.Context(), `INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel,
+				remote_control_key_id, logo_id, created_at, updated_at)
+				SELECT $1::bigint, network_id, $1::bigint % 100000, $2::text, $2::text, $3::bigint, channel_type, channel, remote_control_key_id, logo_id, created_at, updated_at
+				FROM services LIMIT 1`, tt.serviceID, tt.name, tt.serviceType)
+			require.NoError(t, err)
+			_, err = f.pool.Exec(t.Context(), `INSERT INTO programs (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
+				name, description, name_normalized, description_normalized, extended, genres, related_items, created_at, updated_at)
+				SELECT $1, 1, 0, start_at, end_at, false, true, $2, '', $2, '', '{}', '[]', '[]', created_at, updated_at
+				FROM programs ORDER BY start_at DESC LIMIT 1`, tt.serviceID, name)
+			require.NoError(t, err)
+
+			var got searchResult
+			conditions := conditionsInput{Keywords: []keywordInput{keyword(name, false)}}
+			require.Empty(t, f.query(t, searchQuery, searchVariables(conditions, nil, 50, nil), &got))
+			assert.Len(t, got.names(), tt.want)
+		})
+	}
 }
