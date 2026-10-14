@@ -100,7 +100,7 @@ func (r *Reconciler) SyncAll(ctx context.Context) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	programs, err := diffPrograms(filterPrograms(upstreamPrograms, known), currentPrograms)
+	programs, err := diffPrograms(filterPrograms(upstreamPrograms, known), currentPrograms, r.archiveCutoff())
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 	if err != nil {
 		return nil, err
 	}
-	programs, err := diffPrograms(upstreamPrograms, currentPrograms)
+	programs, err := diffPrograms(upstreamPrograms, currentPrograms, r.archiveCutoff())
 	if err != nil {
 		return nil, err
 	}
@@ -441,13 +441,33 @@ type programDiff struct {
 	previous map[programKey]*program
 }
 
+// archiveCutoff は、アーカイブへ移す番組の境の時刻。これより前に終わった番組は、突き合わせない。
+func (r *Reconciler) archiveCutoff() time.Time {
+	return r.clock.Now().Add(-DefaultArchiveGrace)
+}
+
+// archivable は、番組がアーカイブへ移す時期を過ぎているかどうかを返す。ArchivePrograms の条件と揃える。
+func (p *program) archivable(cutoff time.Time) bool {
+	if p.EndUndecided {
+		return !p.StartAt.After(cutoff)
+	}
+
+	return !p.EndAt.After(cutoff)
+}
+
 // diffPrograms は、上流の番組と DB の番組を突き合わせる。current の範囲に無い番組は消さない。
-func diffPrograms(upstream []*mirakurun.Program, current []sqlc.ListProgramsRow) (*programDiff, error) {
+// アーカイブへ移す時期を過ぎた番組 (cutoff より前に終わった番組) は、突き合わせない。
+// 上流 (Mahiron など) は終わった番組をしばらく返し続けるので、足すと、移したそばから programs に戻ってしまう。
+// DB に残っている番組も、消さずに Archiver に移させる。
+func diffPrograms(upstream []*mirakurun.Program, current []sqlc.ListProgramsRow, cutoff time.Time) (*programDiff, error) {
 	byKey := map[programKey]*program{}
 	for _, row := range current {
 		p, err := fromRow(row)
 		if err != nil {
 			return nil, err
+		}
+		if p.archivable(cutoff) {
+			continue
 		}
 		byKey[p.key()] = p
 	}
@@ -457,6 +477,9 @@ func diffPrograms(upstream []*mirakurun.Program, current []sqlc.ListProgramsRow)
 	for _, up := range upstream {
 		p := fromUpstream(up)
 		seen[p.key()] = true
+		if p.archivable(cutoff) {
+			continue
+		}
 		old, ok := byKey[p.key()]
 		if ok && reflect.DeepEqual(old, p) {
 			continue
