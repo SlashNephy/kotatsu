@@ -479,6 +479,7 @@ func (r *Recorder) createSegment(
 	analyzer, indexFile, index, indexErr := r.createIndex(pool.ID, rel)
 	if indexErr != nil {
 		r.logger.WarnContext(ctx, "failed to create the index; recording without it", slog.String("path", rel), slog.Any("error", indexErr))
+		index = &kago.Location{PoolID: "", Path: ""}
 	}
 	seg := &segment{
 		poolID: pool.ID, path: rel, indexPath: index.Path, indexPool: index.PoolID, fileID: uuid.Nil, indexID: uuid.Nil, file: file, indexFile: indexFile,
@@ -548,25 +549,25 @@ func (r *Recorder) pools(ctx context.Context, mounted []string, poolID string) (
 
 // createIndex は、録画ファイル rel の付属ファイルのディレクトリに索引を作り、索引を書く解析器を返す。
 // 索引を作れなければ、索引を書かない解析器と、そのエラーを返す。
-func (r *Recorder) createIndex(poolID, rel string) (*ts.Analyzer, *os.File, kago.Location, error) {
+func (r *Recorder) createIndex(poolID, rel string) (*ts.Analyzer, *os.File, *kago.Location, error) {
 	dir, err := r.store.CreateSidecarDir(poolID, rel)
 	if err != nil {
-		return ts.NewAnalyzer(nil), nil, kago.Location{}, err
+		return ts.NewAnalyzer(nil), nil, nil, err
 	}
-	index := kago.Location{PoolID: dir.PoolID, Path: dir.Path + "/" + kago.IndexFileName}
+	index := &kago.Location{PoolID: dir.PoolID, Path: dir.Path + "/" + kago.IndexFileName}
 	path, err := r.store.Path(index.PoolID, index.Path)
 	if err != nil {
-		return ts.NewAnalyzer(nil), nil, kago.Location{}, err
+		return ts.NewAnalyzer(nil), nil, nil, err
 	}
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
-		return ts.NewAnalyzer(nil), nil, kago.Location{}, fmt.Errorf("failed to create the index file: %w", err)
+		return ts.NewAnalyzer(nil), nil, nil, fmt.Errorf("failed to create the index file: %w", err)
 	}
 	writer, err := ts.NewIndexWriter(file)
 	if err != nil {
 		_ = file.Close()
 
-		return ts.NewAnalyzer(nil), nil, kago.Location{}, err
+		return ts.NewAnalyzer(nil), nil, nil, err
 	}
 
 	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer}), file, index, nil

@@ -204,7 +204,7 @@ func TestCreateSidecarDir(t *testing.T) {
 		// 2 回目は、作ってあるディレクトリをそのまま使う。
 		dir, err := store.CreateSidecarDir(poolMain, rel)
 		require.NoError(t, err)
-		assert.Equal(t, kago.Location{PoolID: poolMain, Path: "番組.m2ts.kotatsu"}, dir)
+		assert.Equal(t, &kago.Location{PoolID: poolMain, Path: "番組.m2ts.kotatsu"}, dir)
 		info, err := os.Stat(filepath.Join(mount, dir.Path))
 		require.NoError(t, err)
 		assert.True(t, info.IsDir())
@@ -229,10 +229,10 @@ func TestSidecarDir(t *testing.T) {
 	fresh := create("GR", fileName)
 	dir, err := store.CreateSidecarDir(poolMain, fresh)
 	require.NoError(t, err)
-	assert.Equal(t, kago.Location{PoolID: kago.SidecarPoolID, Path: "main/GR/番組.m2ts.kotatsu"}, dir)
+	assert.Equal(t, &kago.Location{PoolID: kago.SidecarPoolID, Path: "main/GR/番組.m2ts.kotatsu"}, dir)
 	_, err = os.Stat(filepath.Join(sidecars, dir.Path))
 	require.NoError(t, err)
-	assert.Equal(t, []kago.Location{
+	assert.Equal(t, []*kago.Location{
 		{PoolID: kago.SidecarPoolID, Path: "main/GR/番組.m2ts.kotatsu/index"}, {PoolID: poolMain, Path: "GR/番組.m2ts.kotatsu/index"},
 	}, store.IndexLocations(poolMain, fresh))
 
@@ -241,7 +241,7 @@ func TestSidecarDir(t *testing.T) {
 	require.NoError(t, os.Mkdir(filepath.Join(mount, legacy+".kotatsu"), 0o755))
 	dir, err = store.CreateSidecarDir(poolMain, legacy)
 	require.NoError(t, err)
-	assert.Equal(t, kago.Location{PoolID: poolMain, Path: "古い録画.m2ts.kotatsu"}, dir)
+	assert.Equal(t, &kago.Location{PoolID: poolMain, Path: "古い録画.m2ts.kotatsu"}, dir)
 
 	require.NoError(t, store.Remove(poolMain, fresh))
 	require.NoError(t, store.Remove(poolMain, legacy))
@@ -332,7 +332,7 @@ func TestRenameWithSidecarDir(t *testing.T) {
 	require.NoError(t, err)
 	_, err = os.Stat(filepath.Join(sidecars, "main/old"))
 	require.ErrorIs(t, err, os.ErrNotExist)
-	assert.Equal(t, []kago.SidecarMove{
+	assert.Equal(t, []*kago.SidecarMove{
 		{PoolID: kago.SidecarPoolID, From: "main/old/番組.m2ts.kotatsu", To: "main/new/番組.m2ts.kotatsu"},
 		{PoolID: poolMain, From: "old/番組.m2ts.kotatsu", To: "new/番組.m2ts.kotatsu"},
 	}, store.SidecarMoves(poolMain, rel, got))

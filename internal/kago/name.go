@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -294,11 +295,11 @@ type SidecarMove struct {
 }
 
 // SidecarMoves は、録画ファイル from を to に移したときの、付属ファイルのディレクトリの場所の変わり方を、置き場所の候補ごとに返す。
-func (s *Store) SidecarMoves(poolID, from, to string) []SidecarMove {
+func (s *Store) SidecarMoves(poolID, from, to string) []*SidecarMove {
 	olds, news := s.sidecarLocations(poolID, from), s.sidecarLocations(poolID, to)
-	moves := make([]SidecarMove, 0, len(olds))
+	moves := make([]*SidecarMove, 0, len(olds))
 	for i := range olds {
-		moves = append(moves, SidecarMove{PoolID: olds[i].PoolID, From: olds[i].Path, To: news[i].Path})
+		moves = append(moves, &SidecarMove{PoolID: olds[i].PoolID, From: olds[i].Path, To: news[i].Path})
 	}
 
 	return moves
@@ -322,20 +323,31 @@ func (s *Store) sidecarTaken(poolID, rel string) bool {
 }
 
 // moveSidecars は、録画ファイル from の付属ファイルのディレクトリを、to のものとして移す。どの置き場所のものも移す。
+// 途中で移せなければ、それまでに移したものを元に戻す。
 func (s *Store) moveSidecars(poolID, from, to string) error {
+	moved := []*SidecarMove{}
 	for _, move := range s.SidecarMoves(poolID, from, to) {
-		root, err := os.OpenRoot(s.mounts[move.PoolID])
-		if err != nil {
-			return fmt.Errorf("failed to open pool %s: %w", move.PoolID, err)
-		}
-		err = moveInRoot(root, move.From, move.To)
-		_ = root.Close()
-		if err != nil {
+		if err := s.moveSidecar(move.PoolID, move.From, move.To); err != nil {
+			for _, done := range slices.Backward(moved) {
+				_ = s.moveSidecar(done.PoolID, done.To, done.From)
+			}
+
 			return fmt.Errorf("failed to rename the sidecar directory in pool %s: %w", move.PoolID, err)
 		}
+		moved = append(moved, move)
 	}
 
 	return nil
+}
+
+func (s *Store) moveSidecar(poolID, from, to string) error {
+	root, err := os.OpenRoot(s.mounts[poolID])
+	if err != nil {
+		return fmt.Errorf("failed to open pool %s: %w", poolID, err)
+	}
+	defer root.Close()
+
+	return moveInRoot(root, from, to)
 }
 
 // moveInRoot は、root の中で from を to に移す。from がなければ何もしない。to のディレクトリがなければ作り、

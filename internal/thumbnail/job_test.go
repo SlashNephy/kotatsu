@@ -296,7 +296,7 @@ func TestGenerateWorkerCancels(t *testing.T) {
 }
 
 // TestGenerateWorkerWithSidecarDir は、付属ファイルをまとめて置くディレクトリがあれば、索引をそこから探し、
-// 画像もそこに置いて、kago.SidecarPoolID のプールのファイルとして記録することを確かめる (設計書 6.1)。
+// 画像もそこに置いて、kago.SidecarPoolID のプールのファイルとして記録することを確かめる (設計書 5.6)。
 func TestGenerateWorkerWithSidecarDir(t *testing.T) {
 	t.Parallel()
 

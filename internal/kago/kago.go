@@ -85,7 +85,7 @@ func NewOrdered(mounts map[string]string, order []string, freeSpace FreeSpaceFun
 	return &Store{mounts: maps.Clone(mounts), order: ordered, freeSpace: freeSpace, sidecarDir: ""}
 }
 
-// WithSidecarDir は、新しい録画の付属ファイルを、dir の中の「プール ID/録画ファイルのパス.kotatsu/」に置く Store を返す (設計書 6.1)。
+// WithSidecarDir は、新しい録画の付属ファイルを、dir の中の「プール ID/録画ファイルのパス.kotatsu/」に置く Store を返す (設計書 5.6)。
 // すでにある録画の付属ファイルは移さず、録画ファイルの横にあれば、そこを使い続ける。dir が空なら、s をそのまま返す。
 func (s *Store) WithSidecarDir(dir string) *Store {
 	if dir == "" {
@@ -98,11 +98,11 @@ func (s *Store) WithSidecarDir(dir string) *Store {
 }
 
 // IndexLocations は、録画ファイル rel の索引の場所の候補を返す。記録から索引を探すときは、どれかに当たるものを使う。
-func (s *Store) IndexLocations(poolID, rel string) []Location {
+func (s *Store) IndexLocations(poolID, rel string) []*Location {
 	dirs := s.sidecarLocations(poolID, rel)
-	locations := make([]Location, 0, len(dirs))
+	locations := make([]*Location, 0, len(dirs))
 	for _, dir := range dirs {
-		locations = append(locations, Location{PoolID: dir.PoolID, Path: dir.Path + "/" + IndexFileName})
+		locations = append(locations, &Location{PoolID: dir.PoolID, Path: dir.Path + "/" + IndexFileName})
 	}
 
 	return locations
@@ -185,7 +185,7 @@ func IndexPath(rel string) string {
 // CreateSidecarDir は、録画ファイル rel の付属ファイル (索引やサムネイル) を置くディレクトリを作り、その場所を返す。
 // 録画ファイルの横 (以前の置き場所) にすでにあれば、そこを使い続ける。なければ、まとめて置くディレクトリがあればそこに、
 // なければ録画ファイルの横 (例: 番組名.m2ts.kotatsu/) に作る。すでにあれば、そのまま使う。
-func (s *Store) CreateSidecarDir(poolID, rel string) (Location, error) {
+func (s *Store) CreateSidecarDir(poolID, rel string) (*Location, error) {
 	candidates := s.sidecarLocations(poolID, rel)
 	legacy := candidates[len(candidates)-1]
 	target := candidates[0]
@@ -198,23 +198,23 @@ func (s *Store) CreateSidecarDir(poolID, rel string) (Location, error) {
 	}
 	mount, ok := s.mounts[target.PoolID]
 	if !ok {
-		return Location{}, fmt.Errorf("%w: %s", ErrPoolNotMounted, target.PoolID)
+		return nil, fmt.Errorf("%w: %s", ErrPoolNotMounted, target.PoolID)
 	}
 	if !filepath.IsLocal(target.Path) {
-		return Location{}, fmt.Errorf("%w: %q", ErrInvalidPath, target.Path)
+		return nil, fmt.Errorf("%w: %q", ErrInvalidPath, target.Path)
 	}
 	root, err := os.OpenRoot(mount)
 	if err != nil {
-		return Location{}, fmt.Errorf("failed to open pool %s: %w", target.PoolID, err)
+		return nil, fmt.Errorf("failed to open pool %s: %w", target.PoolID, err)
 	}
 	defer root.Close()
 	if err := root.MkdirAll(target.Path, 0o755); err != nil {
 		// 同じ名前のディレクトリでないものがあれば、付属ファイルを置けない。
 		if info, statErr := root.Lstat(target.Path); statErr == nil && !info.IsDir() {
-			return Location{}, fmt.Errorf("%w: %q exists and is not a directory", ErrInvalidPath, target.Path)
+			return nil, fmt.Errorf("%w: %q exists and is not a directory", ErrInvalidPath, target.Path)
 		}
 
-		return Location{}, fmt.Errorf("failed to create the sidecar directory: %w", err)
+		return nil, fmt.Errorf("failed to create the sidecar directory: %w", err)
 	}
 
 	return target, nil
@@ -381,11 +381,11 @@ func (s *Store) removeSidecarDir(poolID, dir string) error {
 
 // sidecarLocations は、録画ファイル rel の付属ファイルのディレクトリの場所の候補を、使う順に返す。
 // まとめて置くディレクトリがあれば、そこを先にし、録画ファイルの横 (以前の置き場所) を後にする。
-func (s *Store) sidecarLocations(poolID, rel string) []Location {
-	legacy := Location{PoolID: poolID, Path: rel + sidecarSuffix}
+func (s *Store) sidecarLocations(poolID, rel string) []*Location {
+	legacy := &Location{PoolID: poolID, Path: rel + sidecarSuffix}
 	if s.sidecarDir == "" {
-		return []Location{legacy}
+		return []*Location{legacy}
 	}
 
-	return []Location{{PoolID: SidecarPoolID, Path: filepath.ToSlash(filepath.Join(poolID, rel)) + sidecarSuffix}, legacy}
+	return []*Location{{PoolID: SidecarPoolID, Path: filepath.ToSlash(filepath.Join(poolID, rel)) + sidecarSuffix}, legacy}
 }

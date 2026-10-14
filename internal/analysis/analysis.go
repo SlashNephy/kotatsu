@@ -105,7 +105,7 @@ func (w *AnalyzeWorker) Timeout(*river.Job[AnalyzeArgs]) time.Duration {
 type analyzed struct {
 	segment *sqlc.RecordingFile
 	// index は、作った索引の場所。付属ファイルをまとめて置くディレクトリがあれば、セグメントとは別のプールになる。
-	index     kago.Location
+	index     *kago.Location
 	indexSize int64
 }
 
@@ -206,7 +206,7 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 	if err != nil {
 		return nil, nil, err
 	}
-	index := kago.Location{PoolID: dir.PoolID, Path: dir.Path + "/" + kago.IndexFileName}
+	index := &kago.Location{PoolID: dir.PoolID, Path: dir.Path + "/" + kago.IndexFileName}
 	indexPath, err := w.store.Path(index.PoolID, index.Path)
 	if err != nil {
 		return nil, nil, err
