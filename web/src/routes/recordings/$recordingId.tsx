@@ -21,7 +21,7 @@ import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
-import { ErrorBoundary, formatBytes, ProgramTitle } from '../../futon';
+import { ErrorBoundary, formatBytes, ProgramTitle, toHalfWidth } from '../../futon';
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
 import { RecordingStateBadge } from '../../recordings/RecordingStateBadge';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -305,7 +305,9 @@ function Recording({ recordingId }: { recordingId: string }) {
               )}
             </Alert>
           )}
-          {recording.description !== '' && <Text size="sm">{recording.description}</Text>}
+          {recording.description !== '' && (
+            <Text size="sm">{toHalfWidth(recording.description)}</Text>
+          )}
           <Card withBorder>
             <Stack gap={4}>
               <Text size="sm" fw={700}>

@@ -20,7 +20,7 @@ import {
 import { ServiceLabel } from './ServiceLabel';
 import { useTranslation } from 'react-i18next';
 
-import { ProgramTitle, splitProgramMarks } from '../futon';
+import { ProgramTitle, splitProgramMarks, toHalfWidth } from '../futon';
 
 // GuideProgram は、番組表の枠に出す番組。
 export type GuideProgram = {
@@ -396,8 +396,10 @@ function GuideColumnView({
             onClick={() => onSelect(program.id)}
             title={
               program.shared
-                ? t('guide.sharedProgram', { name: splitProgramMarks(program.name).name })
-                : splitProgramMarks(program.name).name
+                ? t('guide.sharedProgram', {
+                    name: toHalfWidth(splitProgramMarks(program.name).name),
+                  })
+                : toHalfWidth(splitProgramMarks(program.name).name)
             }
             style={{
               position: 'absolute',

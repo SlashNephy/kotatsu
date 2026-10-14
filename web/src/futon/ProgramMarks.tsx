@@ -1,5 +1,6 @@
 import { Badge } from '@mantine/core';
 
+import { toHalfWidth } from './halfWidth';
 import { splitProgramMarks } from './programMarks';
 
 // ProgramMarkBadges は、囲み文字の中身 (字、HV など) を、枠付きの印として並べる。
@@ -26,14 +27,14 @@ export function ProgramMarkBadges({ marks }: { marks: readonly string[] }) {
   ));
 }
 
-// ProgramTitle は、番組名から囲み文字を外し、番組名の後ろに印として並べる。囲み文字は、フォントによっては潰れて読めない。
+// ProgramTitle は、番組名から囲み文字を外し、番組名の後ろに印として並べる。全角の英数字は半角にする。囲み文字は、フォントによっては潰れて読めない。
 // アプリの中で番組名を出すところは、これを使う。
 export function ProgramTitle({ name }: { name: string }) {
   const program = splitProgramMarks(name);
 
   return (
     <>
-      {program.name}
+      {toHalfWidth(program.name)}
       <ProgramMarkBadges marks={program.marks} />
     </>
   );

@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
-import { ErrorBoundary, ProgramTitle } from '../../futon';
+import { ErrorBoundary, ProgramTitle, splitProgramMarks, toHalfWidth } from '../../futon';
 import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -463,7 +463,11 @@ function Live({
               <Text size="sm">
                 {t('live.tunerTaken', {
                   recordings: disconnection.recordings
-                    .map((recording) => `${recording.serviceName}「${recording.name}」`)
+                    .map((recording) =>
+                      toHalfWidth(
+                        `${recording.serviceName}「${splitProgramMarks(recording.name).name}」`,
+                      ),
+                    )
                     .join('、'),
                 })}
               </Text>

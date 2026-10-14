@@ -8,6 +8,7 @@ import type {
   RulePreviewQuery$data,
   RulePreviewQuery$variables,
 } from './__generated__/RulePreviewQuery.graphql';
+import { ProgramTitle } from '../futon';
 import { ServiceLabel } from '../guide/ServiceLabel';
 
 type Props = {
@@ -139,7 +140,7 @@ export function RulePreview({ input, enabled }: Props) {
                   <ServiceLabel name={node.service.name} logoUrl={node.service.logoUrl} />
                 </Text>
                 <Text size="xs" truncate>
-                  {node.name}
+                  <ProgramTitle name={node.name} />
                 </Text>
               </Group>
             ))}
