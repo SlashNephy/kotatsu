@@ -198,7 +198,7 @@ func (s *Store) Remove(poolID, rel string) error {
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to remove a file in pool %s: %w", poolID, err)
 	}
-	if err := removeSidecarDir(path + sidecarSuffix); err != nil {
+	if err := s.removeSidecarDir(poolID, rel+sidecarSuffix); err != nil {
 		return fmt.Errorf("failed to remove the sidecar directory in pool %s: %w", poolID, err)
 	}
 	// ファイル名のテンプレートで掘ったディレクトリが空になれば、プールの直下まで遡って消す。
@@ -225,13 +225,31 @@ func removedEmptyDir(path string) bool {
 	return os.Remove(path) == nil
 }
 
-// removeSidecarDir は、付属ファイルのディレクトリと、その中のファイルを消す。中にディレクトリがあれば、付属ファイルの
-// ディレクトリではない (ほかの録画を置いたディレクトリと重なった) とみなし、中身ごとは消さない。
-func removeSidecarDir(dir string) error {
-	entries, err := os.ReadDir(dir)
+// removeSidecarDir は、付属ファイルのディレクトリ dir (プール内の相対パス) と、その中のファイルを消す。
+// 中にディレクトリがあれば、付属ファイルのディレクトリではない (ほかの録画を置いたディレクトリと重なった) とみなし、中身ごとは消さない。
+// プールの中に限って消すので、シンボリックリンクをたどってプールの外を消すことはない (リンクそのものは消す)。
+func (s *Store) removeSidecarDir(poolID, dir string) error {
+	root, err := os.OpenRoot(s.mounts[poolID])
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	info, err := root.Lstat(dir)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return root.Remove(dir)
+	}
+	f, err := root.Open(dir)
+	if err != nil {
+		return err
+	}
+	entries, err := f.ReadDir(-1)
+	_ = f.Close()
 	if err != nil {
 		return err
 	}
@@ -241,11 +259,11 @@ func removeSidecarDir(dir string) error {
 		}
 	}
 	for _, entry := range entries {
-		if err := os.Remove(filepath.Join(dir, entry.Name())); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := root.Remove(filepath.Join(dir, entry.Name())); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 	}
-	if err := os.Remove(dir); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := root.Remove(dir); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 

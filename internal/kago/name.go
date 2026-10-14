@@ -65,18 +65,30 @@ func sanitizeDirName(name string) string {
 		return ""
 	}
 	// 付属ファイルのディレクトリ (録画ファイル名 + .kotatsu) と重なると、その録画を消すときに巻き込むので、名前を変える。
-	if strings.HasSuffix(name, sidecarSuffix) {
-		name += "_"
+	// 大文字と小文字を区別しないファイルシステムもあるので、区別せずに比べる。切り詰めた後の名前で比べ、_ の分も空ける。
+	limit := maxNameBytes
+	if strings.HasSuffix(strings.ToLower(cutName(name, limit)), sidecarSuffix) {
+		limit--
 	}
-	if len(name) > maxNameBytes {
-		cut := maxNameBytes
-		for cut > 0 && !utf8.RuneStart(name[cut]) {
-			cut--
-		}
-		name = strings.TrimRight(name[:cut], trimmedChars)
+	name = cutName(name, limit)
+	if strings.HasSuffix(strings.ToLower(name), sidecarSuffix) {
+		name += "_"
 	}
 
 	return name
+}
+
+// cutName は、name を limit バイト以内に、文字の境界で切り詰める。切った位置の前の空白とドットも取り除く。
+func cutName(name string, limit int) string {
+	if len(name) <= limit {
+		return name
+	}
+	cut := limit
+	for cut > 0 && !utf8.RuneStart(name[cut]) {
+		cut--
+	}
+
+	return strings.TrimRight(name[:cut], trimmedChars)
 }
 
 // SanitizeName は、ファイル名として使えない文字を取り除く。

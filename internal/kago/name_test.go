@@ -91,6 +91,11 @@ func TestRenderName(t *testing.T) {
 			want: "20261009-2100 こたつテスト1 x.m2ts.kotatsu_/番組.m2ts",
 		},
 		{
+			name: "the sidecar suffix is compared case-insensitively",
+			data: data{Date: date, Channel: channel, Title: "x.m2ts.KOTATSU/番組"},
+			want: "20261009-2100 こたつテスト1 x.m2ts.KOTATSU_/番組.m2ts",
+		},
+		{
 			name: "directories deeper than the limit are dropped",
 			data: data{Date: date, Channel: channel, Title: "1/2/3/4/5/6/7/8/9/10/番組"},
 			want: "20261009-2100 こたつテスト1 1/2/3/4/5/6/7/8/番組.m2ts",
@@ -350,4 +355,26 @@ func TestRemoveKeepsDirectoriesInTheSidecarPath(t *testing.T) {
 	require.ErrorIs(t, store.Remove(poolMain, rel), kago.ErrInvalidPath)
 	_, err = os.Stat(other)
 	assert.NoError(t, err)
+}
+
+// TestRemoveDoesNotFollowSymlinksInTheSidecar は、付属ファイルのディレクトリの中のシンボリックリンクをたどらず、リンクだけを消すことを確かめる。
+func TestRemoveDoesNotFollowSymlinksInTheSidecar(t *testing.T) {
+	t.Parallel()
+
+	mount, outside := t.TempDir(), t.TempDir()
+	target := filepath.Join(outside, "keep.txt")
+	require.NoError(t, os.WriteFile(target, []byte("x"), 0o600))
+	store := kago.New(map[string]string{poolMain: mount}, nil)
+	f, rel, err := store.Create(poolMain, "", fileName)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	sidecar, err := store.CreateSidecarDir(poolMain, rel)
+	require.NoError(t, err)
+	require.NoError(t, os.Symlink(target, filepath.Join(mount, sidecar, "link")))
+
+	require.NoError(t, store.Remove(poolMain, rel))
+	_, err = os.Stat(target)
+	require.NoError(t, err)
+	_, err = os.Lstat(filepath.Join(mount, sidecar))
+	assert.ErrorIs(t, err, os.ErrNotExist)
 }
