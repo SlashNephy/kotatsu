@@ -145,7 +145,13 @@ UPDATE recordings SET not_broadcast = true, aired_event_id = sqlc.narg(aired_eve
 
 -- name: GetAiredProgramName :one
 -- 予約した番組が放送されなかったときに、その時間に放送されていた番組の名前。番組表か、アーカイブから引く。
-SELECT name FROM programs WHERE programs.service_id = @service_id AND programs.event_id = @event_id
-UNION ALL
-SELECT name FROM program_archives WHERE program_archives.service_id = @service_id AND program_archives.event_id = @event_id
+-- eventId は日をまたいで使い回されるので、録画の予定の時間 (window_start〜window_end) に重なる番組に絞る。
+SELECT name FROM (
+  SELECT p.name, p.start_at FROM programs p
+  WHERE p.service_id = @service_id AND p.event_id = @event_id AND p.start_at < @window_end::timestamptz AND p.end_at > @window_start::timestamptz
+  UNION ALL
+  SELECT a.name, a.start_at FROM program_archives a
+  WHERE a.service_id = @service_id AND a.event_id = @event_id AND a.start_at < @window_end::timestamptz AND a.end_at > @window_start::timestamptz
+) candidates
+ORDER BY abs(extract(epoch FROM start_at - @window_start::timestamptz))
 LIMIT 1;

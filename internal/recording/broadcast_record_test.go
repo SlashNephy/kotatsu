@@ -70,6 +70,12 @@ func TestRecorderMarksNotBroadcast(t *testing.T) {
 
 	f := newFixture(t)
 	reservationID := f.reserve(t, 0)
+	// 予約した番組と時間の重なる、実際に放送された番組 (eventId 99) を番組表に入れる。
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO programs (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name,
+		description, name_normalized, description_normalized, extended, genres, related_items, created_at, updated_at)
+		VALUES ($1, 99, 0, $2, $3, false, true, '臨時ニュース', '', '臨時ニュース', '', '{}', '[]', '[]', $2, $2)`,
+		grService(0), programStart(), programStart().Add(30*time.Minute))
+	require.NoError(t, err)
 	stream := newDrainedStream(eitPFPackets(0x0400, 99, 100))
 	recorder, _ := f.newRecorder(t, stream, nil)
 	_, done := f.session(t, recorder, reservationID)
@@ -88,9 +94,12 @@ func TestRecorderMarksNotBroadcast(t *testing.T) {
 	assert.Len(t, f.files(t, reservationID), 2, "the recorded TS is kept")
 	// 完了の通知で、放送されなかったことを知らせる。
 	var flagged bool
+	var airedName *string
 	require.NoError(t, f.pool.QueryRow(t.Context(),
-		"SELECT coalesce((payload->>'notBroadcast')::boolean, false) FROM notification_events WHERE kind = 'recording_completed'").Scan(&flagged))
+		"SELECT coalesce((payload->>'notBroadcast')::boolean, false), payload->>'airedName' FROM notification_events WHERE kind = 'recording_completed'").
+		Scan(&flagged, &airedName))
 	assert.True(t, flagged)
+	assert.Equal(t, new("臨時ニュース"), airedName)
 }
 
 // TestRecorderExtendsWhileOnAir は、予約した番組が EIT[p/f] の放送中になったら、その時刻を記録し、

@@ -91,20 +91,33 @@ func (q *Queries) FinishRecording(ctx context.Context, arg FinishRecordingParams
 }
 
 const getAiredProgramName = `-- name: GetAiredProgramName :one
-SELECT name FROM programs WHERE programs.service_id = $1 AND programs.event_id = $2
-UNION ALL
-SELECT name FROM program_archives WHERE program_archives.service_id = $1 AND program_archives.event_id = $2
+SELECT name FROM (
+  SELECT p.name, p.start_at FROM programs p
+  WHERE p.service_id = $1 AND p.event_id = $2 AND p.start_at < $3::timestamptz AND p.end_at > $4::timestamptz
+  UNION ALL
+  SELECT a.name, a.start_at FROM program_archives a
+  WHERE a.service_id = $1 AND a.event_id = $2 AND a.start_at < $3::timestamptz AND a.end_at > $4::timestamptz
+) candidates
+ORDER BY abs(extract(epoch FROM start_at - $4::timestamptz))
 LIMIT 1
 `
 
 type GetAiredProgramNameParams struct {
-	ServiceID int64
-	EventID   int64
+	ServiceID   int64
+	EventID     int64
+	WindowEnd   time.Time
+	WindowStart time.Time
 }
 
 // 予約した番組が放送されなかったときに、その時間に放送されていた番組の名前。番組表か、アーカイブから引く。
+// eventId は日をまたいで使い回されるので、録画の予定の時間 (window_start〜window_end) に重なる番組に絞る。
 func (q *Queries) GetAiredProgramName(ctx context.Context, arg GetAiredProgramNameParams) (string, error) {
-	row := q.db.QueryRow(ctx, getAiredProgramName, arg.ServiceID, arg.EventID)
+	row := q.db.QueryRow(ctx, getAiredProgramName,
+		arg.ServiceID,
+		arg.EventID,
+		arg.WindowEnd,
+		arg.WindowStart,
+	)
 	var name string
 	err := row.Scan(&name)
 	return name, err

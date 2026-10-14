@@ -85,6 +85,7 @@ type Querier interface {
 	// 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。引き継ぎ待ちの間に予定の終わりが来ても終える。
 	FinishRecordingAssignment(ctx context.Context, arg FinishRecordingAssignmentParams) (int64, error)
 	// 予約した番組が放送されなかったときに、その時間に放送されていた番組の名前。番組表か、アーカイブから引く。
+	// eventId は日をまたいで使い回されるので、録画の予定の時間 (window_start〜window_end) に重なる番組に絞る。
 	GetAiredProgramName(ctx context.Context, arg GetAiredProgramNameParams) (string, error)
 	GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error)
 	GetGuideProgram(ctx context.Context, arg GetGuideProgramParams) (GetGuideProgramRow, error)

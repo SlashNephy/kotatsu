@@ -1041,7 +1041,9 @@ func addNotBroadcast(ctx context.Context, q *sqlc.Queries, recording *sqlc.Recor
 	if recording.AiredEventID == nil {
 		return
 	}
-	aired, err := q.GetAiredProgramName(ctx, sqlc.GetAiredProgramNameParams{ServiceID: recording.ServiceID, EventID: *recording.AiredEventID})
+	aired, err := q.GetAiredProgramName(ctx, sqlc.GetAiredProgramNameParams{
+		ServiceID: recording.ServiceID, EventID: *recording.AiredEventID, WindowStart: recording.StartAt, WindowEnd: recording.EndAt,
+	})
 	if err == nil {
 		payload["airedName"] = aired
 	}
