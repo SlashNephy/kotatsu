@@ -909,7 +909,7 @@ type Query {
   """
   保存する前のルールに一致する番組を、開始時刻の順に返す (設計書 4.3)。
   ルールの照合と同じく、放送が始まった番組、終了時刻が未定の番組、ルールの有効期間の外の番組は含めない。
-  重複の回避は考えない。first、after と hasNextPage の扱いは searchPrograms と同じ。
+  重複の回避は考えない。first、after と hasNextPage、イベント共有の扱いは searchPrograms と同じ。
   """
   previewRule(input: RuleInput!,
     """
@@ -921,6 +921,7 @@ type Query {
   番組の検索 (設計書 3.5)。ルールの照合と同じ照合関数で、開始時刻の順に返す。
   archive を指定したときだけ、その期間の放送が終わった番組も検索する。
   first 件そろうか、候補を照合し終えるまで探す。hasNextPage は、続きの番組が本当にあるときだけ true にする。
+  サブチャンネルが元のサービスと同じ番組を流している (イベント共有) ときは、元の番組も一致していれば、元の番組だけを返す。
   照合に時間がかかりすぎたら (15 秒)、条件を絞ってもらうよう BAD_USER_INPUT を返す。
   """
   searchPrograms(conditions: ProgramConditionsInput!, archive: ArchiveRangeInput,
