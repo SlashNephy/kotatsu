@@ -315,8 +315,10 @@ type ProgramAudio struct {
 
 // 番組の条件 (設計書 4.2)。番組の検索とルールで共通に使う。省いた項目では絞り込まない。
 type ProgramConditionsInput struct {
-	// すべてに一致する番組だけを対象にする。
+	// keywordMatch に従い、すべてか、いずれかに一致する番組だけを対象にする。
 	Keywords []*KeywordInput `json:"keywords,omitempty"`
+	// keywords の照合のしかた。
+	KeywordMatch KeywordMatch `json:"keywordMatch"`
 	// どれか 1 つに一致したら除外する。
 	ExcludeKeywords []*KeywordInput `json:"excludeKeywords,omitempty"`
 	// チャンネル種別とサービスは、どちらかに含まれていれば対象にする。
@@ -929,6 +931,64 @@ func (e *KeywordField) UnmarshalJSON(b []byte) error {
 }
 
 func (e KeywordField) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 含めるキーワードの照合のしかた。
+type KeywordMatch string
+
+const (
+	// すべてのキーワードに一致する番組を対象にする
+	KeywordMatchAll KeywordMatch = "ALL"
+	// いずれかのキーワードに一致する番組を対象にする
+	KeywordMatchAny KeywordMatch = "ANY"
+)
+
+var AllKeywordMatch = []KeywordMatch{
+	KeywordMatchAll,
+	KeywordMatchAny,
+}
+
+func (e KeywordMatch) IsValid() bool {
+	switch e {
+	case KeywordMatchAll, KeywordMatchAny:
+		return true
+	}
+	return false
+}
+
+func (e KeywordMatch) String() string {
+	return string(e)
+}
+
+func (e *KeywordMatch) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = KeywordMatch(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid KeywordMatch", str)
+	}
+	return nil
+}
+
+func (e KeywordMatch) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *KeywordMatch) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e KeywordMatch) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

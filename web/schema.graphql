@@ -365,6 +365,19 @@ input KeywordInput {
   fields: [KeywordField!]!
 }
 """
+含めるキーワードの照合のしかた。
+"""
+enum KeywordMatch {
+  """
+  すべてのキーワードに一致する番組を対象にする
+  """
+  ALL
+  """
+  いずれかのキーワードに一致する番組を対象にする
+  """
+  ANY
+}
+"""
 リーダー選出のリース (設計書 1.4)。neko のリースを持つインスタンスだけがアクティブになる。
 """
 type Lease {
@@ -770,6 +783,7 @@ type ProgramAudio {
 """
 type ProgramConditions {
   keywords: [Keyword!]!
+  keywordMatch: KeywordMatch!
   excludeKeywords: [Keyword!]!
   channelTypes: [String!]!
   services: [Service!]!
@@ -785,9 +799,13 @@ type ProgramConditions {
 """
 input ProgramConditionsInput {
   """
-  すべてに一致する番組だけを対象にする。
+  keywordMatch に従い、すべてか、いずれかに一致する番組だけを対象にする。
   """
   keywords: [KeywordInput!]
+  """
+  keywords の照合のしかた。
+  """
+  keywordMatch: KeywordMatch! = ALL
   """
   どれか 1 つに一致したら除外する。
   """

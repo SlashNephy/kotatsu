@@ -382,6 +382,12 @@
     "memo": "メモ",
     "keywords": "含めるキーワード",
     "keywordsDescription": "すべてのキーワードに一致する番組を対象とします（AND検索）。",
+    "keywordsAnyDescription": "いずれかのキーワードに一致する番組を対象とします（OR検索）。",
+    "keywordMatch": {
+      "label": "キーワードの照合のしかた",
+      "ALL": "すべてに一致",
+      "ANY": "いずれかに一致"
+    },
     "excludeKeywords": "除外するキーワード",
     "excludeKeywordsDescription": "いずれかのキーワードに一致する番組を除外します（OR検索）。",
     "field": {

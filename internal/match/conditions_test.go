@@ -54,6 +54,11 @@ func TestValidateRejectsInvalidConditions(t *testing.T) {
 			wantErr: "keywords[0]: fields must not be empty",
 		},
 		{
+			name:    "unknown keyword match",
+			modify:  func(c *match.Conditions) { c.KeywordMatch = "some" },
+			wantErr: `keywordMatch must be "all" or "any"`,
+		},
+		{
 			name:    "unknown field",
 			modify:  func(c *match.Conditions) { c.Keywords[0].Fields = []match.Field{"title"} },
 			wantErr: `keywords[0]: unknown field "title"`,

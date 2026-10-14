@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<2ccf1c3c65946348fb1fff68109877d7>>
+ * @generated SignedSource<<4798dfdd2fd6fa4002f8d3bf30d51602>>
  * @lightSyntaxTransform
  */
 
@@ -9,12 +9,14 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type KeywordField = "DESCRIPTION" | "EXTENDED" | "NAME" | "%future added value";
+export type KeywordMatch = "ALL" | "ANY" | "%future added value";
 export type ProgramConditionsInput = {
   channelTypes?: ReadonlyArray<string> | null | undefined;
   excludeGenres?: ReadonlyArray<GenreInput> | null | undefined;
   excludeKeywords?: ReadonlyArray<KeywordInput> | null | undefined;
   freeOnly?: boolean | null | undefined;
   genres?: ReadonlyArray<GenreInput> | null | undefined;
+  keywordMatch?: KeywordMatch;
   keywords?: ReadonlyArray<KeywordInput> | null | undefined;
   maxDurationSeconds?: number | null | undefined;
   minDurationSeconds?: number | null | undefined;

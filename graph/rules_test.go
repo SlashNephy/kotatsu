@@ -12,7 +12,7 @@ import (
 
 const (
 	ruleFields = `id name memo enabled validFrom validUntil avoidDuplicates duplicateWindowDays followEventRelay
-		conditions { keywords { text regexp caseSensitive fields } channelTypes services { name } genres { lv1 lv2 } timeRanges { weekdays startMinute durationMinutes } freeOnly }
+		conditions { keywords { text regexp caseSensitive fields } keywordMatch channelTypes services { name } genres { lv1 lv2 } timeRanges { weekdays startMinute durationMinutes } freeOnly }
 		settings { priority startMarginSeconds poolId }
 		createdBy { username } updatedBy { username }`
 	createRule  = `mutation($input: RuleInput!) { createRule(input: $input) { ` + ruleFields + ` } }`
@@ -68,6 +68,7 @@ type ruleResult struct {
 			Text   string   `json:"text"`
 			Fields []string `json:"fields"`
 		} `json:"keywords"`
+		KeywordMatch string   `json:"keywordMatch"`
 		ChannelTypes []string `json:"channelTypes"`
 		Services     []struct {
 			Name string `json:"name"`
@@ -141,6 +142,7 @@ func TestRules(t *testing.T) {
 	input.ValidFrom, input.ValidUntil = noon, "2026-12-31T15:00:00Z"
 	input.DuplicateWindowDays = new(7)
 	input.Conditions.TimeRanges = []timeRangeInput{{Weekdays: []int{6}, StartMinute: 1200, DurationMinutes: 120}}
+	input.Conditions.KeywordMatch = "ANY"
 	var created struct {
 		CreateRule ruleResult `json:"createRule"`
 	}
@@ -150,6 +152,7 @@ func TestRules(t *testing.T) {
 	assert.Equal(t, "毎日", got.Memo)
 	assert.True(t, got.Enabled)
 	assert.Equal(t, []string{fieldName}, got.Conditions.Keywords[0].Fields)
+	assert.Equal(t, "ANY", got.Conditions.KeywordMatch)
 	assert.Equal(t, "こたつテスト1", got.Conditions.Services[0].Name)
 	assert.Equal(t, []timeRangeInput{{Weekdays: []int{6}, StartMinute: 1200, DurationMinutes: 120}}, got.Conditions.TimeRanges)
 	assert.Equal(t, new(3), got.Settings.Priority)

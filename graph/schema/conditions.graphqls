@@ -1,4 +1,14 @@
 """
+含めるキーワードの照合のしかた。
+"""
+enum KeywordMatch {
+  "すべてのキーワードに一致する番組を対象にする"
+  ALL
+  "いずれかのキーワードに一致する番組を対象にする"
+  ANY
+}
+
+"""
 キーワードを照合する番組の項目。
 """
 enum KeywordField {
@@ -54,8 +64,10 @@ input TimeRangeInput {
 番組の条件 (設計書 4.2)。番組の検索とルールで共通に使う。省いた項目では絞り込まない。
 """
 input ProgramConditionsInput {
-  "すべてに一致する番組だけを対象にする。"
+  "keywordMatch に従い、すべてか、いずれかに一致する番組だけを対象にする。"
   keywords: [KeywordInput!]
+  "keywords の照合のしかた。"
+  keywordMatch: KeywordMatch! = ALL
   "どれか 1 つに一致したら除外する。"
   excludeKeywords: [KeywordInput!]
   "チャンネル種別とサービスは、どちらかに含まれていれば対象にする。"

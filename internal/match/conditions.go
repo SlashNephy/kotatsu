@@ -73,10 +73,22 @@ type TimeRange struct {
 	DurationMinutes int `json:"durationMinutes"`
 }
 
+// KeywordMatch は、含めるキーワードの照合のしかた。
+type KeywordMatch string
+
+const (
+	// KeywordMatchAll は、すべてのキーワードに一致する番組を対象にする。保存した条件に項目がなければ、これとみなす。
+	KeywordMatchAll KeywordMatch = "all"
+	// KeywordMatchAny は、いずれかのキーワードに一致する番組を対象にする。
+	KeywordMatchAny KeywordMatch = "any"
+)
+
 // Conditions はルールの条件。空の項目では絞り込まない。
 type Conditions struct {
-	// Keywords は、すべてに一致する番組だけを対象にする。
+	// Keywords は、KeywordMatch に従い、すべてか、いずれかに一致する番組だけを対象にする。
 	Keywords []*Keyword `json:"keywords"`
+	// KeywordMatch は、Keywords の照合のしかた。空なら KeywordMatchAll とみなす (項目を足す前に保存したルール)。
+	KeywordMatch KeywordMatch `json:"keywordMatch,omitempty"`
 	// ExcludeKeywords は、どれか 1 つに一致したら除外する。
 	ExcludeKeywords []*Keyword `json:"excludeKeywords"`
 	// ChannelTypes と ServiceIDs は、番組のチャンネル種別かサービスのどちらかが含まれていれば対象にする。
@@ -104,6 +116,9 @@ func (c *Conditions) Validate() error {
 	errs := []error{}
 	errs = append(errs, validateKeywords("keywords", c.Keywords)...)
 	errs = append(errs, validateKeywords("excludeKeywords", c.ExcludeKeywords)...)
+	if c.KeywordMatch != "" && c.KeywordMatch != KeywordMatchAll && c.KeywordMatch != KeywordMatchAny {
+		errs = append(errs, invalid("keywordMatch must be %q or %q", KeywordMatchAll, KeywordMatchAny))
+	}
 	for _, list := range []struct {
 		name   string
 		length int

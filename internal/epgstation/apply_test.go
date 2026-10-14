@@ -139,7 +139,7 @@ func baseRule() *epgstation.Rule {
 // baseConditions は、baseRule を取り込んだときの条件。
 func baseConditions() *match.Conditions {
 	return &match.Conditions{
-		Keywords: []*match.Keyword{}, ExcludeKeywords: []*match.Keyword{}, ChannelTypes: []string{}, ServiceIDs: []int64{},
+		Keywords: []*match.Keyword{}, KeywordMatch: match.KeywordMatchAll, ExcludeKeywords: []*match.Keyword{}, ChannelTypes: []string{}, ServiceIDs: []int64{},
 		Genres: []*match.Genre{}, ExcludeGenres: []*match.Genre{}, TimeRanges: []*match.TimeRange{},
 		MinDurationSeconds: nil, MaxDurationSeconds: nil, FreeOnly: false,
 	}

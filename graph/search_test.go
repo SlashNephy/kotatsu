@@ -62,6 +62,7 @@ type genreInput struct {
 
 type conditionsInput struct {
 	Keywords        []keywordInput `json:"keywords,omitempty"`
+	KeywordMatch    string         `json:"keywordMatch,omitempty"`
 	ExcludeKeywords []keywordInput `json:"excludeKeywords,omitempty"`
 	ChannelTypes    []string       `json:"channelTypes,omitempty"`
 	Services        []string       `json:"services,omitempty"`
@@ -492,6 +493,36 @@ func TestSearchProgramsOmitsSharedEvents(t *testing.T) {
 				after = got.SearchPrograms.PageInfo.EndCursor
 			}
 			assert.Equal(t, tt.want, found)
+		})
+	}
+}
+
+// TestSearchProgramsKeywordMatch は、含めるキーワードを、すべてに一致か、いずれかに一致かで照合することを確かめる。
+func TestSearchProgramsKeywordMatch(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	// SQL で粗く絞るキーワード (正規表現でないもの) で確かめる。
+	keywords := []keywordInput{keyword(programName(5), false), keyword(programName(6), false)}
+
+	tests := []struct {
+		name         string
+		keywordMatch string
+		want         []string
+	}{
+		{name: "既定はすべてに一致", keywordMatch: "", want: []string{}},
+		{name: "すべてに一致", keywordMatch: "ALL", want: []string{}},
+		{name: "いずれかに一致", keywordMatch: "ANY", want: []string{programName(5), programName(6)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			conditions := conditionsInput{Keywords: keywords, KeywordMatch: tt.keywordMatch, ChannelTypes: []string{"GR"}}
+			var got searchResult
+			require.Empty(t, f.query(t, searchQuery, searchVariables(conditions, nil, 50, nil), &got))
+			assert.Equal(t, tt.want, got.names())
 		})
 	}
 }

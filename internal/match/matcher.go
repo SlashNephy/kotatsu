@@ -162,13 +162,25 @@ func (m *Matcher) Match(p *Program) bool {
 	if len(c.TimeRanges) > 0 && !m.inTimeRanges(p.StartAt) {
 		return false
 	}
-	for _, keyword := range m.keywords {
-		if !keyword.match(p) {
-			return false
-		}
+	if !m.matchKeywords(p) {
+		return false
 	}
 
 	return !slices.ContainsFunc(m.excludeKeywords, func(k *compiledKeyword) bool { return k.match(p) })
+}
+
+// matchKeywords は、番組が含めるキーワードに一致するかどうかを、照合のしかた (KeywordMatch) に従って返す。
+// キーワードがなければ、絞り込まない。
+func (m *Matcher) matchKeywords(p *Program) bool {
+	if len(m.keywords) == 0 {
+		return true
+	}
+	matches := func(k *compiledKeyword) bool { return k.match(p) }
+	if m.conditions.KeywordMatch == KeywordMatchAny {
+		return slices.ContainsFunc(m.keywords, matches)
+	}
+
+	return !slices.ContainsFunc(m.keywords, func(k *compiledKeyword) bool { return !matches(k) })
 }
 
 func (k *compiledKeyword) match(p *Program) bool {

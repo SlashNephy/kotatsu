@@ -7,6 +7,7 @@ import {
   Group,
   MultiSelect,
   NumberInput,
+  SegmentedControl,
   Stack,
   Switch,
   Text,
@@ -25,6 +26,7 @@ import {
   keywordFields,
   type ConditionsForm,
   type KeywordField,
+  type KeywordMatch,
   type KeywordRow,
   type TimeRangeRow,
 } from './form';
@@ -104,7 +106,13 @@ export function ConditionsFields({ value, onChange, channelTypes, services }: Pr
           </Title>
           <KeywordRows
             label={t('rules.keywords')}
-            description={t('rules.keywordsDescription')}
+            description={
+              value.keywordMatch === 'ANY'
+                ? t('rules.keywordsAnyDescription')
+                : t('rules.keywordsDescription')
+            }
+            match={value.keywordMatch}
+            onMatchChange={(keywordMatch) => onChange({ keywordMatch })}
             icon={<Search size={16} aria-hidden />}
             rows={value.keywords}
             onChange={(keywords) => onChange({ keywords })}
@@ -219,13 +227,24 @@ export function ConditionsFields({ value, onChange, channelTypes, services }: Pr
 type KeywordRowsProps = {
   label: string;
   description: string;
+  // match と onMatchChange は、キーワードの照合のしかた。渡したときだけ、見出しの横に切り替えを出す。
+  match?: KeywordMatch;
+  onMatchChange?: (match: KeywordMatch) => void;
   icon: ReactNode;
   rows: KeywordRow[];
   onChange: (rows: KeywordRow[]) => void;
 };
 
 // KeywordRows は、キーワードの行を足し、変え、消す。
-function KeywordRows({ label, description, icon, rows, onChange }: KeywordRowsProps) {
+function KeywordRows({
+  label,
+  description,
+  match,
+  onMatchChange,
+  icon,
+  rows,
+  onChange,
+}: KeywordRowsProps) {
   const { t } = useTranslation();
   const change = (index: number, patch: Partial<KeywordRow>) =>
     onChange(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -233,9 +252,23 @@ function KeywordRows({ label, description, icon, rows, onChange }: KeywordRowsPr
   return (
     <Stack gap={12}>
       <div>
-        <Text size="sm" fw={500}>
-          {label}
-        </Text>
+        <Group justify="space-between" gap="xs" wrap="wrap">
+          <Text size="sm" fw={500}>
+            {label}
+          </Text>
+          {match !== undefined && onMatchChange !== undefined && (
+            <SegmentedControl
+              size="xs"
+              aria-label={t('rules.keywordMatch.label')}
+              value={match}
+              onChange={(next) => onMatchChange(next === 'ANY' ? 'ANY' : 'ALL')}
+              data={[
+                { value: 'ALL', label: t('rules.keywordMatch.ALL') },
+                { value: 'ANY', label: t('rules.keywordMatch.ANY') },
+              ]}
+            />
+          )}
+        </Group>
         <Text size="xs" c="dimmed">
           {description}
         </Text>

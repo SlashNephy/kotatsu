@@ -106,6 +106,31 @@ func TestMatch(t *testing.T) {
 			want:       false,
 		},
 		{
+			name: "any keyword is enough when keywordMatch is any",
+			conditions: &match.Conditions{
+				Keywords:     []*match.Keyword{keyword("ゆるキャン", match.FieldName), keyword("劇場版", match.FieldName)},
+				KeywordMatch: match.KeywordMatchAny,
+			},
+			want: true,
+		},
+		{
+			name: "no keyword matches when keywordMatch is any",
+			conditions: &match.Conditions{
+				Keywords:     []*match.Keyword{keyword("劇場版", match.FieldName), keyword("総集編", match.FieldName)},
+				KeywordMatch: match.KeywordMatchAny,
+			},
+			want: false,
+		},
+		{
+			name: "exclude keywords still exclude when keywordMatch is any",
+			conditions: &match.Conditions{
+				Keywords:        []*match.Keyword{keyword("ゆるキャン", match.FieldName), keyword("劇場版", match.FieldName)},
+				KeywordMatch:    match.KeywordMatchAny,
+				ExcludeKeywords: []*match.Keyword{keyword("SEASON", match.FieldName)},
+			},
+			want: false,
+		},
+		{
 			name:       "regular expression is evaluated against the normalized text",
 			conditions: &match.Conditions{Keywords: []*match.Keyword{{Text: `第\d+話$`, Regexp: true, CaseSensitive: false, Fields: []match.Field{match.FieldName}}}},
 			want:       true,
