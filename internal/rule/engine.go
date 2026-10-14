@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/epg"
 	"github.com/SlashNephy/kotatsu/internal/match"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
@@ -105,7 +106,7 @@ func (e *Engine) desired(ctx context.Context, tx pgx.Tx, now time.Time) (map[pro
 	if err != nil {
 		return nil, err
 	}
-	rows, err := sqlc.New(tx).ListMatchablePrograms(ctx, now)
+	rows, err := sqlc.New(tx).ListMatchablePrograms(ctx, sqlc.ListMatchableProgramsParams{Now: now, MediaServiceTypes: epg.MediaServiceTypes()})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list programs: %w", err)
 	}
