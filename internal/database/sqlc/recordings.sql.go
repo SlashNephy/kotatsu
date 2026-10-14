@@ -413,6 +413,64 @@ func (q *Queries) ListRecordingSegments(ctx context.Context, recordingID uuid.UU
 	return items, nil
 }
 
+const listRecordingsForRename = `-- name: ListRecordingsForRename :many
+SELECT r.id, r.name, r.start_at, r.end_at, r.event_id, s.name AS service_name, s.channel_type, s.channel,
+  res.id AS reservation_id, res.kind AS reservation_kind, res.settings AS reservation_settings
+FROM recordings r
+JOIN services s ON s.id = r.service_id
+LEFT JOIN reservations res ON res.id = r.reservation_id
+WHERE r.state <> 'recording' AND ($1::uuid[] IS NULL OR r.id = ANY($1::uuid[]))
+ORDER BY r.recorded_from DESC, r.id
+`
+
+type ListRecordingsForRenameRow struct {
+	ID                  uuid.UUID
+	Name                string
+	StartAt             time.Time
+	EndAt               time.Time
+	EventID             *int64
+	ServiceName         string
+	ChannelType         string
+	Channel             string
+	ReservationID       *uuid.UUID
+	ReservationKind     *string
+	ReservationSettings []byte
+}
+
+// ファイル名を付け直す録画と、ファイル名のテンプレートに当てはめる番組とサービスと、録画設定を求めるための予約。
+// 録画中の録画は除く。予約が消えていれば、予約の項目は NULL になる。
+func (q *Queries) ListRecordingsForRename(ctx context.Context, ids []uuid.UUID) ([]ListRecordingsForRenameRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingsForRename, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingsForRenameRow{}
+	for rows.Next() {
+		var i ListRecordingsForRenameRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.StartAt,
+			&i.EndAt,
+			&i.EventID,
+			&i.ServiceName,
+			&i.ChannelType,
+			&i.Channel,
+			&i.ReservationID,
+			&i.ReservationKind,
+			&i.ReservationSettings,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markRecordingProgramLost = `-- name: MarkRecordingProgramLost :exec
 UPDATE recordings SET program_lost = true, updated_at = $1 WHERE id = $2 AND NOT program_lost
 `
@@ -424,6 +482,30 @@ type MarkRecordingProgramLostParams struct {
 
 func (q *Queries) MarkRecordingProgramLost(ctx context.Context, arg MarkRecordingProgramLostParams) error {
 	_, err := q.db.Exec(ctx, markRecordingProgramLost, arg.Now, arg.ID)
+	return err
+}
+
+const moveRecordingSidecarPaths = `-- name: MoveRecordingSidecarPaths :exec
+UPDATE recording_files SET path = $1::text || substr(path, length($2::text) + 1)
+WHERE recording_id = $3 AND pool_id = $4 AND kind IN ('index', 'thumbnail', 'preview')
+  AND starts_with(path, $2::text)
+`
+
+type MoveRecordingSidecarPathsParams struct {
+	NewPrefix   string
+	OldPrefix   string
+	RecordingID uuid.UUID
+	PoolID      string
+}
+
+// 付属ファイルのディレクトリを移したとき、その中のファイル (索引、代表画像、プレビュー画像) の記録のパスを書き換える。
+func (q *Queries) MoveRecordingSidecarPaths(ctx context.Context, arg MoveRecordingSidecarPathsParams) error {
+	_, err := q.db.Exec(ctx, moveRecordingSidecarPaths,
+		arg.NewPrefix,
+		arg.OldPrefix,
+		arg.RecordingID,
+		arg.PoolID,
+	)
 	return err
 }
 
@@ -440,6 +522,20 @@ type SetRecordingAudiosIfUnknownParams struct {
 // 録画の音声の構成を、TS の EIT[p/f] から読んだもので埋める。EPG から写したものがあれば、それを残す。
 func (q *Queries) SetRecordingAudiosIfUnknown(ctx context.Context, arg SetRecordingAudiosIfUnknownParams) error {
 	_, err := q.db.Exec(ctx, setRecordingAudiosIfUnknown, arg.Audios, arg.Now, arg.ID)
+	return err
+}
+
+const setRecordingFilePath = `-- name: SetRecordingFilePath :exec
+UPDATE recording_files SET path = $1 WHERE id = $2
+`
+
+type SetRecordingFilePathParams struct {
+	Path string
+	ID   uuid.UUID
+}
+
+func (q *Queries) SetRecordingFilePath(ctx context.Context, arg SetRecordingFilePathParams) error {
+	_, err := q.db.Exec(ctx, setRecordingFilePath, arg.Path, arg.ID)
 	return err
 }
 

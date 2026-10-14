@@ -14,6 +14,18 @@ type Props = {
 // QualitySelect は、画質のメニュー。オリジナルはブラウザの中での変換、それ以外は kyusu の画質 (設計書 7.1)。
 export function QualitySelect({ choices, quality, onChange }: Props) {
   const { t } = useTranslation();
+  // qualityLabel は、画質の名前を、メニューに出す文に変える。kyusu の HEVC の画質は、末尾に -hevc が付く。
+  // t を引数で渡すと、i18next の型の展開が深くなりすぎるので、ここで閉じ込める。
+  const qualityLabel = (name: string): string => {
+    if (name === original) {
+      return t('player.original');
+    }
+    if (name.endsWith('-hevc')) {
+      return t('player.presetHevc', { name: name.slice(0, -'-hevc'.length) });
+    }
+
+    return t('player.preset', { name });
+  };
   // 選べるものが 1 つしかなければ、メニューを出さない。
   if (choices.length < 2) {
     return null;
@@ -26,7 +38,7 @@ export function QualitySelect({ choices, quality, onChange }: Props) {
       // 操作バーの設定の中に置く。別のウィンドウに移っても開けるよう、メニューをプレイヤーの中に描く。
       comboboxProps={{ withinPortal: false }}
       allowDeselect={false}
-      data={choices.map((choice) => ({ value: choice, label: qualityLabel(choice, t) }))}
+      data={choices.map((choice) => ({ value: choice, label: qualityLabel(choice) }))}
       value={quality}
       onChange={(value) => {
         if (value !== null) {
@@ -35,18 +47,6 @@ export function QualitySelect({ choices, quality, onChange }: Props) {
       }}
     />
   );
-}
-
-// qualityLabel は、画質の名前を、メニューに出す文に変える。kyusu の HEVC の画質は、末尾に -hevc が付く。
-function qualityLabel(name: string, t: ReturnType<typeof useTranslation>['t']): string {
-  if (name === original) {
-    return t('player.original');
-  }
-  const hevc = name.endsWith('-hevc');
-
-  return t(hevc ? 'player.presetHevc' : 'player.preset', {
-    name: hevc ? name.slice(0, -'-hevc'.length) : name,
-  });
 }
 
 // PlaybackUnavailable は、この端末では再生できないことと、その理由を示す。

@@ -219,3 +219,70 @@ func (s *Store) mkdirAll(poolID, dir string) error {
 
 	return nil
 }
+
+// SequencedName は、ファイル名 name の拡張子の前に " (n)" を付け、名前の上限に収める。n が 1 以下なら、そのまま返す。
+func SequencedName(name string, n int) string {
+	if n <= 1 {
+		return name
+	}
+	ext := filepath.Ext(name)
+
+	return fitName(strings.TrimSuffix(name, ext), ext, " ("+strconv.Itoa(n)+")")
+}
+
+// Rename は、プールの中で、録画ファイル from (プール内の相対パス) を dir/name に移し、付属ファイルのディレクトリも一緒に移す。
+// name には連番を付ける前の名前を渡し、start 番目の連番 (1 なら連番なし) から試す。移す先に同じ名前のファイルか
+// 付属ファイルのディレクトリがあれば、次の連番を試す。from のあったディレクトリが空になれば消す。
+// プールの中に限って移すので、シンボリックリンクでプールの外には移さない。移した先の相対パスを返す。
+func (s *Store) Rename(poolID, from, dir, name string, start int) (string, error) {
+	if name != SanitizeName(name) || len(name) > maxFileNameBytes || !filepath.IsLocal(from) || (dir != "" && !filepath.IsLocal(dir)) {
+		return "", fmt.Errorf("%w: %q -> %q/%q", ErrInvalidPath, from, dir, name)
+	}
+	mount, ok := s.mounts[poolID]
+	if !ok {
+		return "", fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
+	}
+	root, err := os.OpenRoot(mount)
+	if err != nil {
+		return "", fmt.Errorf("failed to open pool %s: %w", poolID, err)
+	}
+	defer root.Close()
+	if dir != "" {
+		if err := root.MkdirAll(dir, 0o755); err != nil {
+			return "", fmt.Errorf("failed to create a directory in pool %s: %w", poolID, err)
+		}
+	}
+	for n := max(start, 1); n <= maxSequence; n++ {
+		rel := filepath.Join(dir, SequencedName(name, n))
+		if rel == filepath.Clean(from) {
+			return rel, nil
+		}
+		if exists(root, rel) || exists(root, rel+sidecarSuffix) {
+			continue
+		}
+		if err := root.Rename(from, rel); err != nil {
+			return "", fmt.Errorf("failed to rename a file in pool %s: %w", poolID, err)
+		}
+		if exists(root, from+sidecarSuffix) {
+			if err := root.Rename(from+sidecarSuffix, rel+sidecarSuffix); err != nil {
+				_ = root.Rename(rel, from)
+
+				return "", fmt.Errorf("failed to rename the sidecar directory in pool %s: %w", poolID, err)
+			}
+		}
+		for parent := filepath.Dir(from); parent != "." && root.Remove(parent) == nil; parent = filepath.Dir(parent) {
+			continue
+		}
+
+		return rel, nil
+	}
+
+	return "", fmt.Errorf("too many files named %q in pool %s", name, poolID)
+}
+
+// exists は、root の中に rel があるかを返す。シンボリックリンクはたどらない。
+func exists(root *os.Root, rel string) bool {
+	_, err := root.Lstat(rel)
+
+	return err == nil
+}

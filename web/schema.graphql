@@ -528,6 +528,11 @@ type Mutation {
   """
   updatePlayerSettings(input: PlayerSettingsInput!): PlayerSettings!
   """
+  録画 ids のセグメントのファイルと付属ファイルのディレクトリを、今のテンプレートの名前に付け直し、記録のパスを書き換える。
+  管理者だけが使え、一度に 100 件まで。同じプールの中だけで移す。監査ログに残す。
+  """
+  renameRecordingFiles(ids: [ID!]!): RenameRecordingFilesPayload!
+  """
   録画を消し、消した録画の ID を返す。録画ファイルと付属ファイルも消すが、録画履歴は残す。視聴者は使えない (設計書 9.7)。
   保護した録画と、録画中の録画は消さずに CONFLICT を返す。
   """
@@ -1029,6 +1034,11 @@ type Query {
   passkeys: [Passkey!]!
   playerSettings: PlayerSettings!
   """
+  今の録画設定のファイル名のテンプレートで付け直すと、名前が変わる録画を、録画を始めた日時の新しい順に返す。管理者だけが使える。
+  録画設定は、録画のときと同じく、全体の既定値にルールと予約の上書きを重ねて求める。
+  """
+  recordingRenames: [RecordingRename!]!
+  """
   録画を、録画を始めた日時の新しい順に first 件まで返す。
   """
   recordings(first: Int! = 50, after: String, filter: RecordingFilter): RecordingConnection!
@@ -1282,6 +1292,16 @@ enum RecordingFileKind {
   """
   OTHER
 }
+type RecordingFileRename {
+  """
+  今のプール内の相対パス。
+  """
+  from: String!
+  """
+  付け直した後のプール内の相対パス。移す先に同じ名前があれば、移すときに連番を付ける。
+  """
+  to: String!
+}
 """
 録画の絞り込み。省いた条件は絞り込まない。
 """
@@ -1311,6 +1331,16 @@ input RecordingFilter {
 type RecordingGap {
   from: Time!
   to: Time!
+}
+"""
+録画のファイルの付け直し (設計書 4.7)。ファイル名のテンプレートを変えた後に、既存の録画のファイルを今のテンプレートの名前にする。
+"""
+type RecordingRename {
+  recording: Recording!
+  """
+  名前が変わるセグメントのファイル。
+  """
+  files: [RecordingFileRename!]!
 }
 """
 録画設定 (設計書 4.7)。全体の既定値に、ルールや予約の上書きを重ねる。
@@ -1399,6 +1429,23 @@ enum RecordingState {
 """
 type RecoveryCodes {
   codes: [String!]!
+}
+"""
+録画のファイルを付け直した結果。
+"""
+type RenameRecordingFilesPayload {
+  """
+  付け直した録画の数。
+  """
+  renamed: Int!
+  """
+  録画中か、セグメントをつないでいる途中か、名前が変わらなくなったので、付け直さなかった録画の数。
+  """
+  skipped: Int!
+  """
+  付け直せなかった録画の数。ファイルは元のまま残す。
+  """
+  failed: Int!
 }
 """
 予約 (設計書 4.1)。番組予約とルール予約は、作ったときの番組情報のコピーを持つ。予約は家族で共有する (設計書 9.7)。

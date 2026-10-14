@@ -218,6 +218,7 @@ type ComplexityRoot struct {
 		MarkNotificationsRead        func(childComplexity int, ids []string) int
 		RegenerateRecoveryCodes      func(childComplexity int) int
 		RenamePasskey                func(childComplexity int, id string, name string) int
+		RenameRecordingFiles         func(childComplexity int, ids []string) int
 		ResetUserPassword            func(childComplexity int, id string, password string) int
 		RevokeSession                func(childComplexity int, id string) int
 		SaveWatchPosition            func(childComplexity int, id string, positionMs int64) int
@@ -358,6 +359,7 @@ type ComplexityRoot struct {
 		PlayerSettings          func(childComplexity int) int
 		PreviewFileName         func(childComplexity int, template string, program *string) int
 		PreviewRule             func(childComplexity int, input model.RuleInput, first int, after *string) int
+		RecordingRenames        func(childComplexity int) int
 		Recordings              func(childComplexity int, first int, after *string, filter *model.RecordingFilter) int
 		Reservations            func(childComplexity int, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, first int, after *string) int
 		Rules                   func(childComplexity int) int
@@ -428,9 +430,19 @@ type ComplexityRoot struct {
 		URL       func(childComplexity int) int
 	}
 
+	RecordingFileRename struct {
+		From func(childComplexity int) int
+		To   func(childComplexity int) int
+	}
+
 	RecordingGap struct {
 		From func(childComplexity int) int
 		To   func(childComplexity int) int
+	}
+
+	RecordingRename struct {
+		Files     func(childComplexity int) int
+		Recording func(childComplexity int) int
 	}
 
 	RecordingSettings struct {
@@ -453,6 +465,12 @@ type ComplexityRoot struct {
 
 	RecoveryCodes struct {
 		Codes func(childComplexity int) int
+	}
+
+	RenameRecordingFilesPayload struct {
+		Failed  func(childComplexity int) int
+		Renamed func(childComplexity int) int
+		Skipped func(childComplexity int) int
 	}
 
 	Reservation struct {
@@ -672,6 +690,7 @@ type MutationResolver interface {
 	RenamePasskey(ctx context.Context, id string, name string) (*model.Passkey, error)
 	DeletePasskey(ctx context.Context, id string) (string, error)
 	UpdatePlayerSettings(ctx context.Context, input model.PlayerSettingsInput) (*model.PlayerSettings, error)
+	RenameRecordingFiles(ctx context.Context, ids []string) (*model.RenameRecordingFilesPayload, error)
 	DeleteRecording(ctx context.Context, id string) (string, error)
 	SetRecordingProtected(ctx context.Context, id string, protected bool) (*model.Recording, error)
 	SetRecordingTags(ctx context.Context, id string, tags []string) (*model.Recording, error)
@@ -734,6 +753,7 @@ type QueryResolver interface {
 	NotificationPreferences(ctx context.Context) ([]*model.NotificationPreference, error)
 	Passkeys(ctx context.Context) ([]*model.Passkey, error)
 	PlayerSettings(ctx context.Context) (*model.PlayerSettings, error)
+	RecordingRenames(ctx context.Context) ([]*model.RecordingRename, error)
 	Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter) (*model.RecordingConnection, error)
 	Tags(ctx context.Context) ([]*model.Tag, error)
 	Reservations(ctx context.Context, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, first int, after *string) (*model.ReservationConnection, error)
@@ -1519,6 +1539,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RenamePasskey(childComplexity, args["id"].(string), args["name"].(string)), true
+	case "Mutation.renameRecordingFiles":
+		if e.ComplexityRoot.Mutation.RenameRecordingFiles == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_renameRecordingFiles_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RenameRecordingFiles(childComplexity, args["ids"].([]string)), true
 	case "Mutation.resetUserPassword":
 		if e.ComplexityRoot.Mutation.ResetUserPassword == nil {
 			break
@@ -2247,6 +2278,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.PreviewRule(childComplexity, args["input"].(model.RuleInput), args["first"].(int), args["after"].(*string)), true
+	case "Query.recordingRenames":
+		if e.ComplexityRoot.Query.RecordingRenames == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.RecordingRenames(childComplexity), true
 	case "Query.recordings":
 		if e.ComplexityRoot.Query.Recordings == nil {
 			break
@@ -2608,6 +2645,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.RecordingFile.URL(childComplexity), true
 
+	case "RecordingFileRename.from":
+		if e.ComplexityRoot.RecordingFileRename.From == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingFileRename.From(childComplexity), true
+	case "RecordingFileRename.to":
+		if e.ComplexityRoot.RecordingFileRename.To == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingFileRename.To(childComplexity), true
+
 	case "RecordingGap.from":
 		if e.ComplexityRoot.RecordingGap.From == nil {
 			break
@@ -2620,6 +2670,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingGap.To(childComplexity), true
+
+	case "RecordingRename.files":
+		if e.ComplexityRoot.RecordingRename.Files == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingRename.Files(childComplexity), true
+	case "RecordingRename.recording":
+		if e.ComplexityRoot.RecordingRename.Recording == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingRename.Recording(childComplexity), true
 
 	case "RecordingSettings.endMarginSeconds":
 		if e.ComplexityRoot.RecordingSettings.EndMarginSeconds == nil {
@@ -2701,6 +2764,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecoveryCodes.Codes(childComplexity), true
+
+	case "RenameRecordingFilesPayload.failed":
+		if e.ComplexityRoot.RenameRecordingFilesPayload.Failed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RenameRecordingFilesPayload.Failed(childComplexity), true
+	case "RenameRecordingFilesPayload.renamed":
+		if e.ComplexityRoot.RenameRecordingFilesPayload.Renamed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RenameRecordingFilesPayload.Renamed(childComplexity), true
+	case "RenameRecordingFilesPayload.skipped":
+		if e.ComplexityRoot.RenameRecordingFilesPayload.Skipped == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RenameRecordingFilesPayload.Skipped(childComplexity), true
 
 	case "Reservation.assignment":
 		if e.ComplexityRoot.Reservation.Assignment == nil {
@@ -4291,6 +4373,50 @@ extend type Query {
 extend type Mutation {
   "プレイヤーの設定を変え、同じユーザーのほかの端末に viewerSettingsChanged で知らせる。"
   updatePlayerSettings(input: PlayerSettingsInput!): PlayerSettings!
+}
+`, BuiltIn: false},
+	{Name: "../schema/recording_renames.graphqls", Input: `"""
+録画のファイルの付け直し (設計書 4.7)。ファイル名のテンプレートを変えた後に、既存の録画のファイルを今のテンプレートの名前にする。
+"""
+type RecordingRename {
+  recording: Recording!
+  "名前が変わるセグメントのファイル。"
+  files: [RecordingFileRename!]!
+}
+
+type RecordingFileRename {
+  "今のプール内の相対パス。"
+  from: String!
+  "付け直した後のプール内の相対パス。移す先に同じ名前があれば、移すときに連番を付ける。"
+  to: String!
+}
+
+"""
+録画のファイルを付け直した結果。
+"""
+type RenameRecordingFilesPayload {
+  "付け直した録画の数。"
+  renamed: Int!
+  "録画中か、セグメントをつないでいる途中か、名前が変わらなくなったので、付け直さなかった録画の数。"
+  skipped: Int!
+  "付け直せなかった録画の数。ファイルは元のまま残す。"
+  failed: Int!
+}
+
+extend type Query {
+  """
+  今の録画設定のファイル名のテンプレートで付け直すと、名前が変わる録画を、録画を始めた日時の新しい順に返す。管理者だけが使える。
+  録画設定は、録画のときと同じく、全体の既定値にルールと予約の上書きを重ねて求める。
+  """
+  recordingRenames: [RecordingRename!]!
+}
+
+extend type Mutation {
+  """
+  録画 ids のセグメントのファイルと付属ファイルのディレクトリを、今のテンプレートの名前に付け直し、記録のパスを書き換える。
+  管理者だけが使え、一度に 100 件まで。同じプールの中だけで移す。監査ログに残す。
+  """
+  renameRecordingFiles(ids: [ID!]!): RenameRecordingFilesPayload!
 }
 `, BuiltIn: false},
 	{Name: "../schema/recordings.graphqls", Input: `"""
@@ -5941,6 +6067,16 @@ func (ec *executionContext) childFields_RecordingFile(ctx context.Context, field
 	return nil, fmt.Errorf("no field named %q was found under type RecordingFile", field.Name)
 }
 
+func (ec *executionContext) childFields_RecordingFileRename(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "from":
+		return ec.fieldContext_RecordingFileRename_from(ctx, field)
+	case "to":
+		return ec.fieldContext_RecordingFileRename_to(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RecordingFileRename", field.Name)
+}
+
 func (ec *executionContext) childFields_RecordingGap(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "from":
@@ -5949,6 +6085,16 @@ func (ec *executionContext) childFields_RecordingGap(ctx context.Context, field 
 		return ec.fieldContext_RecordingGap_to(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingGap", field.Name)
+}
+
+func (ec *executionContext) childFields_RecordingRename(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "recording":
+		return ec.fieldContext_RecordingRename_recording(ctx, field)
+	case "files":
+		return ec.fieldContext_RecordingRename_files(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RecordingRename", field.Name)
 }
 
 func (ec *executionContext) childFields_RecordingSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -5993,6 +6139,18 @@ func (ec *executionContext) childFields_RecoveryCodes(ctx context.Context, field
 		return ec.fieldContext_RecoveryCodes_codes(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecoveryCodes", field.Name)
+}
+
+func (ec *executionContext) childFields_RenameRecordingFilesPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "renamed":
+		return ec.fieldContext_RenameRecordingFilesPayload_renamed(ctx, field)
+	case "skipped":
+		return ec.fieldContext_RenameRecordingFilesPayload_skipped(ctx, field)
+	case "failed":
+		return ec.fieldContext_RenameRecordingFilesPayload_failed(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RenameRecordingFilesPayload", field.Name)
 }
 
 func (ec *executionContext) childFields_Reservation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -6778,6 +6936,20 @@ func (ec *executionContext) field_Mutation_renamePasskey_args(ctx context.Contex
 		return nil, err
 	}
 	args["name"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_renameRecordingFiles_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ids",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ids"] = arg0
 	return args, nil
 }
 
@@ -9844,6 +10016,50 @@ func (ec *executionContext) fieldContext_Mutation_updatePlayerSettings(ctx conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updatePlayerSettings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_renameRecordingFiles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_renameRecordingFiles(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RenameRecordingFiles(ctx, fc.Args["ids"].([]string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RenameRecordingFilesPayload) graphql.Marshaler {
+			return ec.marshalNRenameRecordingFilesPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRenameRecordingFilesPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_renameRecordingFiles(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RenameRecordingFilesPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_renameRecordingFiles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -13585,6 +13801,38 @@ func (ec *executionContext) fieldContext_Query_playerSettings(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_recordingRenames(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_recordingRenames(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().RecordingRenames(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.RecordingRename) graphql.Marshaler {
+			return ec.marshalNRecordingRename2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingRenameᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_recordingRenames(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingRename(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_recordings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15080,6 +15328,52 @@ func (ec *executionContext) fieldContext_RecordingFile_url(_ context.Context, fi
 	return graphql.NewScalarFieldContext("RecordingFile", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _RecordingFileRename_from(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFileRename) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingFileRename_from(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.From, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingFileRename_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingFileRename", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingFileRename_to(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFileRename) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingFileRename_to(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.To, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingFileRename_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingFileRename", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _RecordingGap_from(ctx context.Context, field graphql.CollectedField, obj *model.RecordingGap) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15124,6 +15418,70 @@ func (ec *executionContext) _RecordingGap_to(ctx context.Context, field graphql.
 }
 func (ec *executionContext) fieldContext_RecordingGap_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RecordingGap", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingRename_recording(ctx context.Context, field graphql.CollectedField, obj *model.RecordingRename) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingRename_recording(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Recording, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Recording) graphql.Marshaler {
+			return ec.marshalNRecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecording(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingRename_recording(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RecordingRename",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Recording(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RecordingRename_files(ctx context.Context, field graphql.CollectedField, obj *model.RecordingRename) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingRename_files(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Files, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.RecordingFileRename) graphql.Marshaler {
+			return ec.marshalNRecordingFileRename2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingFileRenameᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingRename_files(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RecordingRename",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingFileRename(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _RecordingSettings_poolId(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettings) (ret graphql.Marshaler) {
@@ -15423,6 +15781,75 @@ func (ec *executionContext) _RecoveryCodes_codes(ctx context.Context, field grap
 }
 func (ec *executionContext) fieldContext_RecoveryCodes_codes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RecoveryCodes", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _RenameRecordingFilesPayload_renamed(ctx context.Context, field graphql.CollectedField, obj *model.RenameRecordingFilesPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RenameRecordingFilesPayload_renamed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Renamed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RenameRecordingFilesPayload_renamed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RenameRecordingFilesPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _RenameRecordingFilesPayload_skipped(ctx context.Context, field graphql.CollectedField, obj *model.RenameRecordingFilesPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RenameRecordingFilesPayload_skipped(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Skipped, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RenameRecordingFilesPayload_skipped(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RenameRecordingFilesPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _RenameRecordingFilesPayload_failed(ctx context.Context, field graphql.CollectedField, obj *model.RenameRecordingFilesPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RenameRecordingFilesPayload_failed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Failed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RenameRecordingFilesPayload_failed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RenameRecordingFilesPayload", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _Reservation_id(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
@@ -22292,6 +22719,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "renameRecordingFiles":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_renameRecordingFiles(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "deleteRecording":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteRecording(ctx, field)
@@ -23851,6 +24285,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "recordingRenames":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_recordingRenames(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "recordings":
 			field := field
 
@@ -24577,6 +25033,49 @@ func (ec *executionContext) _RecordingFile(ctx context.Context, sel ast.Selectio
 	return out
 }
 
+var recordingFileRenameImplementors = []string{"RecordingFileRename"}
+
+func (ec *executionContext) _RecordingFileRename(ctx context.Context, sel ast.SelectionSet, obj *model.RecordingFileRename) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, recordingFileRenameImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RecordingFileRename")
+		case "from":
+			out.Values[i] = ec._RecordingFileRename_from(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "to":
+			out.Values[i] = ec._RecordingFileRename_to(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var recordingGapImplementors = []string{"RecordingGap"}
 
 func (ec *executionContext) _RecordingGap(ctx context.Context, sel ast.SelectionSet, obj *model.RecordingGap) graphql.Marshaler {
@@ -24596,6 +25095,49 @@ func (ec *executionContext) _RecordingGap(ctx context.Context, sel ast.Selection
 			}
 		case "to":
 			out.Values[i] = ec._RecordingGap_to(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var recordingRenameImplementors = []string{"RecordingRename"}
+
+func (ec *executionContext) _RecordingRename(ctx context.Context, sel ast.SelectionSet, obj *model.RecordingRename) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, recordingRenameImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RecordingRename")
+		case "recording":
+			out.Values[i] = ec._RecordingRename_recording(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "files":
+			out.Values[i] = ec._RecordingRename_files(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -24760,6 +25302,54 @@ func (ec *executionContext) _RecoveryCodes(ctx context.Context, sel ast.Selectio
 			out.Values[i] = graphql.MarshalString("RecoveryCodes")
 		case "codes":
 			out.Values[i] = ec._RecoveryCodes_codes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var renameRecordingFilesPayloadImplementors = []string{"RenameRecordingFilesPayload"}
+
+func (ec *executionContext) _RenameRecordingFilesPayload(ctx context.Context, sel ast.SelectionSet, obj *model.RenameRecordingFilesPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, renameRecordingFilesPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RenameRecordingFilesPayload")
+		case "renamed":
+			out.Values[i] = ec._RenameRecordingFilesPayload_renamed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "skipped":
+			out.Values[i] = ec._RenameRecordingFilesPayload_skipped(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failed":
+			out.Values[i] = ec._RenameRecordingFilesPayload_failed(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -27726,6 +28316,32 @@ func (ec *executionContext) marshalNRecordingFileKind2githubᚗcomᚋSlashNephy�
 	return v
 }
 
+func (ec *executionContext) marshalNRecordingFileRename2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingFileRenameᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RecordingFileRename) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNRecordingFileRename2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingFileRename(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNRecordingFileRename2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingFileRename(ctx context.Context, sel ast.SelectionSet, v *model.RecordingFileRename) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RecordingFileRename(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNRecordingGap2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingGapᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RecordingGap) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -27750,6 +28366,32 @@ func (ec *executionContext) marshalNRecordingGap2ᚖgithubᚗcomᚋSlashNephyᚋ
 		return graphql.Null
 	}
 	return ec._RecordingGap(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNRecordingRename2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingRenameᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RecordingRename) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNRecordingRename2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingRename(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNRecordingRename2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingRename(ctx context.Context, sel ast.SelectionSet, v *model.RecordingRename) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RecordingRename(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNRecordingSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingSettings(ctx context.Context, sel ast.SelectionSet, v *model.RecordingSettings) graphql.Marshaler {
@@ -27790,6 +28432,16 @@ func (ec *executionContext) marshalNRecoveryCodes2ᚖgithubᚗcomᚋSlashNephy�
 		return graphql.Null
 	}
 	return ec._RecoveryCodes(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNRenameRecordingFilesPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRenameRecordingFilesPayload(ctx context.Context, sel ast.SelectionSet, v *model.RenameRecordingFilesPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RenameRecordingFilesPayload(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservation(ctx context.Context, sel ast.SelectionSet, v *model.Reservation) graphql.Marshaler {
