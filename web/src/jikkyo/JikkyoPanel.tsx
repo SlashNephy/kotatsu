@@ -1,4 +1,5 @@
 import { Button, Group, Text, TextInput } from '@mantine/core';
+import { Send } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -65,6 +66,7 @@ export function JikkyoPanel({ channelName, status, onPost }: Props) {
           size="sm"
           loading={posting}
           disabled={!connected || text.trim() === ''}
+          leftSection={<Send size={16} aria-hidden />}
         >
           {t('jikkyo.post')}
         </Button>
