@@ -32,6 +32,11 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
   timeZone: 'Asia/Tokyo',
 });
 
+// maxUpcoming は、ホームに出すこれからの予約の数。
+// 予約は時間帯に重なるものが返り、録画中の予約も含むので、除いても足りるよう多めに取る。
+const maxUpcoming = 5;
+const upcomingFetch = 20;
+
 // recentRecordings は、ホームに出す最近の録画の数。広い画面で 1 段に並ぶ数にする。
 const recentRecordings = 4;
 
@@ -43,7 +48,13 @@ export function Dashboard({ range }: { range: DashboardRange }) {
   const { t } = useTranslation();
   const data = useLazyLoadQuery<DashboardQuery>(
     graphql`
-      query DashboardQuery($from: Time!, $nowEnd: Time!, $to: Time!, $recordings: Int!) {
+      query DashboardQuery(
+        $from: Time!
+        $nowEnd: Time!
+        $to: Time!
+        $recordings: Int!
+        $upcoming: Int!
+      ) {
         tunerServerHealth {
           degraded
           degradedSince
@@ -91,7 +102,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
             }
           }
         }
-        upcoming: reservations(from: $from, to: $to, enabled: true, first: 5) {
+        upcoming: reservations(from: $from, to: $to, enabled: true, first: $upcoming) {
           edges {
             node {
               id
@@ -126,9 +137,19 @@ export function Dashboard({ range }: { range: DashboardRange }) {
         }
       }
     `,
-    { from: range.from, nowEnd: range.nowEnd, to: range.to, recordings: recentRecordings },
+    {
+      from: range.from,
+      nowEnd: range.nowEnd,
+      to: range.to,
+      recordings: recentRecordings,
+      upcoming: upcomingFetch,
+    },
   );
   // 放送中の番組を、チャンネルの種類ごとに分ける。番組のない種類は、選べないようにする。
+  // これからの予約は、まだ始まっていないものだけにする。始まった予約は、録画中として最近の録画に出る。
+  const upcoming = data.upcoming.edges
+    .filter(({ node }) => Date.parse(node.startAt) > range.now)
+    .slice(0, maxUpcoming);
   const playingByType = data.channelTypes
     .map((channelType) => ({
       ...channelType,
@@ -181,13 +202,13 @@ export function Dashboard({ range }: { range: DashboardRange }) {
             {t('home.allReservations')}
           </Anchor>
         </Group>
-        {data.upcoming.edges.length === 0 ? (
+        {upcoming.length === 0 ? (
           <Text size="sm" c="dimmed">
             {t('home.noReservations')}
           </Text>
         ) : (
           <Stack gap={4}>
-            {data.upcoming.edges.map(({ node }) => (
+            {upcoming.map(({ node }) => (
               <Group key={node.id} gap="xs" wrap="nowrap">
                 <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
                   {dateTimeFormat.format(Date.parse(node.startAt))}
