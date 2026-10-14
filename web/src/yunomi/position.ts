@@ -16,3 +16,35 @@ export function formatDuration(seconds: number): string {
 
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
+
+// Gap は、録画の途切れた区間。区間の間は、ファイルに何も書いていない。
+export type Gap = { from: string; to: string };
+
+// broadcastTime は、録画の始まりからの再生位置 (秒) に当たる放送時刻 (Unix ミリ秒) を返す。
+// ファイルには途切れた区間の分の映像がないので、その位置より前に始まった区間の長さを足す。
+export function broadcastTime(recordedFrom: string, gaps: readonly Gap[], seconds: number): number {
+  let at = Date.parse(recordedFrom) + Math.max(seconds, 0) * 1000;
+  const sorted = [...gaps].sort((a, b) => Date.parse(a.from) - Date.parse(b.from));
+  for (const gap of sorted) {
+    const from = Date.parse(gap.from);
+    if (from > at) {
+      break;
+    }
+    at += Math.max(Date.parse(gap.to) - from, 0);
+  }
+
+  return at;
+}
+
+const clockFormat = new Intl.DateTimeFormat('ja-JP', {
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+  timeZone: 'Asia/Tokyo',
+});
+
+// formatClock は、日時を、日本時間の HH:MM:SS で表す。
+export function formatClock(ms: number): string {
+  return clockFormat.format(ms);
+}

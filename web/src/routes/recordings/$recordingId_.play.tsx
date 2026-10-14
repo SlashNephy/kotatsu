@@ -11,7 +11,12 @@ import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
-import { formatDuration, playbackPosition } from '../../yunomi/position';
+import {
+  broadcastTime,
+  formatClock,
+  formatDuration,
+  playbackPosition,
+} from '../../yunomi/position';
 import { RateSelect, PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
 import { hlsURL } from '../../yunomi/route';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
@@ -98,6 +103,10 @@ function Player({ recordingId }: { recordingId: string }) {
             streamUrl
             recordedFrom
             recordedUntil
+            gaps {
+              from
+              to
+            }
             jikkyoCommentsUrl
             watchPositionMs
             thumbnailUrl
@@ -383,7 +392,9 @@ function Player({ recordingId }: { recordingId: string }) {
           max={Math.max(duration, 1)}
           step={1}
           value={Math.min(shown, duration)}
-          label={(value) => formatDuration(value)}
+          label={(value) =>
+            `${formatDuration(value)} (${formatClock(broadcastTime(recording.recordedFrom, recording.gaps, value))})`
+          }
           onChange={setSeeking}
           onChangeEnd={(value) => {
             setSeeking(null);
@@ -397,7 +408,7 @@ function Player({ recordingId }: { recordingId: string }) {
           <VolumeControl video={videoState} />
         </>
       }
-      status={`${formatDuration(shown)} / ${formatDuration(duration)}`}
+      status={`${formatDuration(shown)} / ${formatDuration(duration)} · ${formatClock(broadcastTime(recording.recordedFrom, recording.gaps, shown))}`}
       end={
         <>
           <ControlButton
