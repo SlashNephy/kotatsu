@@ -15,6 +15,7 @@ import {
   Title,
   UnstyledButton,
 } from '@mantine/core';
+import { History, ListPlus, RadioTower, Search as SearchIcon, SearchX, Shapes } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -221,6 +222,7 @@ function Search() {
           <Group align="flex-end" wrap="wrap">
             <TextInput
               label={t('search.keyword')}
+              leftSection={<SearchIcon size={16} aria-hidden />}
               description={t('search.keywordDescription')}
               placeholder={t('search.keywordPlaceholder')}
               value={form.keyword}
@@ -240,12 +242,14 @@ function Search() {
           <Group align="flex-start" wrap="wrap">
             <TextInput
               label={t('search.excludeKeyword')}
+              leftSection={<SearchX size={16} aria-hidden />}
               value={form.excludeKeyword}
               onChange={(e) => update({ excludeKeyword: e.currentTarget.value })}
               style={{ flex: '1 1 200px' }}
             />
             <MultiSelect
               label={t('search.channelTypes')}
+              leftSection={<RadioTower size={16} aria-hidden />}
               data={viewer.channelTypes.map((type) => ({
                 value: type.type,
                 label: type.displayName,
@@ -257,6 +261,7 @@ function Search() {
             />
             <MultiSelect
               label={t('search.genres')}
+              leftSection={<Shapes size={16} aria-hidden />}
               data={selectableGenres.map((lv1) => ({
                 value: String(lv1),
                 label: t(genreKey(lv1)),
@@ -282,7 +287,8 @@ function Search() {
               <NumberInput
                 aria-label={t('search.archiveDays')}
                 size="xs"
-                w={140}
+                w={150}
+                leftSection={<History size={14} aria-hidden />}
                 value={archiveDays}
                 onChange={(value) => setArchiveDays(typeof value === 'number' ? value : 30)}
                 min={1}
@@ -297,6 +303,7 @@ function Search() {
             {canCreateRule ? (
               <Button
                 variant="default"
+                leftSection={<ListPlus size={16} aria-hidden />}
                 disabled={isEmpty(conditions)}
                 onClick={() => setCreatingRule(true)}
               >
@@ -305,7 +312,11 @@ function Search() {
             ) : (
               <span />
             )}
-            <Button type="submit" loading={loading === 'search'}>
+            <Button
+              type="submit"
+              leftSection={<SearchIcon size={16} aria-hidden />}
+              loading={loading === 'search'}
+            >
               {t('search.submit')}
             </Button>
           </Group>

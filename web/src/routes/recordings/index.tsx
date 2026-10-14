@@ -11,6 +11,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
+import { Info, ListFilter, Search, Tag } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -138,12 +139,14 @@ function Recordings() {
         <Group align="flex-end" wrap="wrap">
           <TextInput
             label={t('recordings.keyword')}
+            leftSection={<Search size={16} aria-hidden />}
             value={keyword}
             onChange={(e) => setKeyword(e.currentTarget.value)}
             style={{ flex: '1 1 200px' }}
           />
           <MultiSelect
             label={t('recordings.tags')}
+            leftSection={<Tag size={16} aria-hidden />}
             data={tags.tags.map((tag) => ({
               value: tag.id,
               label: `${tag.name}（${tag.recordings}）`,
@@ -156,13 +159,16 @@ function Recordings() {
           />
           <MultiSelect
             label={t('recordings.states')}
+            leftSection={<Info size={16} aria-hidden />}
             data={recordingStates.map((state) => ({ value: state, label: t(stateKey(state)) }))}
             value={states}
             onChange={setStates}
             clearable
             style={{ flex: '1 1 200px' }}
           />
-          <Button type="submit">{t('recordings.filter')}</Button>
+          <Button type="submit" leftSection={<ListFilter size={16} aria-hidden />}>
+            {t('recordings.filter')}
+          </Button>
         </Group>
       </Card>
       <Suspense fallback={<PageLoader />}>
