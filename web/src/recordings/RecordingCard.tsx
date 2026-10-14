@@ -155,9 +155,11 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
             </Tooltip>
           )}
           {/* 完了は当たり前なので出さず、録画中や失敗のように目を留めたい状態だけを出す。 */}
-          {recording.state !== 'COMPLETED' && (
-            <RecordingStateBadge state={recording.state} size="xs" />
-          )}
+          {/* ドロップありは、警告の印を出すときは、印で分かるので出さない。 */}
+          {recording.state !== 'COMPLETED' &&
+            !(recording.state === 'COMPLETED_WITH_ERRORS' && damaged) && (
+              <RecordingStateBadge state={recording.state} size="xs" />
+            )}
         </Group>
         <Text size="xs" c="dimmed" mt="xs">
           <ServiceLabel name={recording.service.name} logoUrl={recording.service.logoUrl} />
