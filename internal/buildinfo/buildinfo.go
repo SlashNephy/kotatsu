@@ -2,6 +2,7 @@
 package buildinfo
 
 import (
+	"fmt"
 	"runtime/debug"
 	"strings"
 )
@@ -78,3 +79,5 @@ func (i *Info) String() string {
 
 	return i.Version + " (" + short + ")"
 }
+
+var _ fmt.Stringer = new(Info)
