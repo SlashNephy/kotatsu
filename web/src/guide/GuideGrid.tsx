@@ -50,6 +50,8 @@ type Props = {
   columns: GuideColumn[];
   // now は、いまの時刻。時間帯に入っていれば、線を引く。
   now: number;
+  // receivedUntil は、番組表が届いている時刻。これより後は、まだ届いていないと案内する。省くと、案内しない。
+  receivedUntil?: number;
   // scrollTime は、日付を変えたとき (と最初) に、上の方に出す時刻。null なら、それまで見ていた時間帯のままにする。
   scrollTime: number | null;
   onSelect: (programId: string) => void;
@@ -76,7 +78,14 @@ const hourFormat = new Intl.DateTimeFormat('ja-JP', {
 
 // GuideGrid は、横にサービス、縦に時刻を並べた番組表。
 // サービスの数と番組の数が多くても滑らかに動くよう、横はサービスの列を、縦は列の中の番組を、見えている範囲だけ描く。
-export function GuideGrid({ window: day, columns, now, scrollTime, onSelect }: Props) {
+export function GuideGrid({
+  window: day,
+  columns,
+  now,
+  receivedUntil,
+  scrollTime,
+  onSelect,
+}: Props) {
   const { t } = useTranslation();
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
@@ -171,6 +180,10 @@ export function GuideGrid({ window: day, columns, now, scrollTime, onSelect }: P
   );
   const totalWidth = axisWidth + virtualizer.getTotalSize();
   const nowY = now >= window.from && now < window.to ? timeToY(window, now) : undefined;
+  const receivedY =
+    receivedUntil !== undefined && receivedUntil < window.to
+      ? timeToY(window, Math.max(receivedUntil, window.from))
+      : undefined;
 
   return (
     <Box
@@ -287,6 +300,40 @@ export function GuideGrid({ window: day, columns, now, scrollTime, onSelect }: P
             onSelect={onSelect}
           />
         ))}
+        {receivedY !== undefined && (
+          // まだ届いていない時間帯は、斜線で塗り、横にスクロールしても見える位置に案内を出す。
+          <Box
+            style={{
+              position: 'absolute',
+              top: receivedY,
+              left: axisWidth,
+              width: totalWidth - axisWidth,
+              height: height - receivedY,
+              borderTop: '1px dashed var(--mantine-color-default-border)',
+              background:
+                'repeating-linear-gradient(135deg, transparent 0 8px, var(--mantine-color-default-hover) 8px 16px)',
+            }}
+          >
+            <Text
+              size="sm"
+              c="dimmed"
+              style={{
+                position: 'sticky',
+                top: headerHeight + 16,
+                left: axisWidth + 16,
+                display: 'inline-block',
+                marginTop: 16,
+                marginLeft: 16,
+                paddingInline: 8,
+                paddingBlock: 4,
+                borderRadius: 'var(--mantine-radius-sm)',
+                background: 'var(--mantine-color-body)',
+              }}
+            >
+              {t('guide.notReceived')}
+            </Text>
+          </Box>
+        )}
         {nowY !== undefined && (
           <Box
             aria-hidden

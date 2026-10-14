@@ -64,6 +64,16 @@ export const Route = createFileRoute('/guide/')({
   staticData: { fluid: true },
 });
 
+// receivedUntil は、番組表が届いている時刻 (いちばん遅く終わる番組の終わり)。
+// 先の日の番組表は、放送から届いた分しかないので、その先は空になる。
+// 深夜に放送を休むサービスもあるので、日の終わりの 1 時間前までに届いていれば、すべて届いたとみなし、undefined を返す。
+function receivedUntil(columns: readonly GuideColumn[], to: number): number | undefined {
+  const ends = columns.flatMap((column) => column.programs.map((program) => program.endAt));
+  const until = ends.length === 0 ? undefined : Math.max(...ends);
+
+  return until !== undefined && until < to - 3_600_000 ? until : undefined;
+}
+
 // dateOf は、放送日の始まりの時刻を YYYY-MM-DD (日本時間) にする。
 function dateOf(time: number): string {
   return new Date(time + 9 * 3_600_000).toISOString().slice(0, 10);
@@ -370,6 +380,7 @@ function Guide() {
             window={window}
             columns={columns}
             now={now}
+            receivedUntil={window.from > today.from ? receivedUntil(columns, window.to) : undefined}
             scrollTime={
               keepTime ? null : window.from === today.from ? now : window.from + 15 * 3_600_000
             }
