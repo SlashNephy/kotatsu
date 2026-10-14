@@ -18,7 +18,8 @@ export function ProgramMarkBadges({ marks }: { marks: readonly string[] }) {
       ml={4}
       // 番組名の文の中 (<p> など) に置くので、インラインの要素にする。
       component="span"
-      style={{ verticalAlign: 'middle' }}
+      // 印の文字と番組名の文字のベースラインを揃える。middle は x の高さの中央に揃え、和文の字面より下がる。
+      style={{ verticalAlign: 'baseline' }}
     >
       {mark}
     </Badge>
