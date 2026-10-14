@@ -427,8 +427,8 @@
       "5": "金",
       "6": "土"
     },
-    "minDuration": "番組の最低長さ (分)",
-    "maxDuration": "番組の最大長さ (分)",
+    "minDuration": "番組の最低の長さ (分)",
+    "maxDuration": "番組の最大の長さ (分)",
     "avoidDuplicates": "同じ番組名を録画済みなら予約しない",
     "duplicateWindowDays": "重複を避ける日数",
     "duplicateWindowDaysPlaceholder": "期間を区切らない",
