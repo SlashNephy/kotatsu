@@ -1,0 +1,15 @@
+/* PiP で再生している間、元のプレイヤーの場所を埋める枠。プレイヤーの枠 (TsPlayer の .frame) と同じ大きさにする。 */
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mantine-spacing-sm);
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  max-width: min(100%, calc((100dvh - 280px) * 16 / 9));
+  min-width: min(100%, 320px);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-default-hover);
+  color: var(--mantine-color-dimmed);
+}

@@ -17,6 +17,7 @@ import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
+import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import { DataBroadcastRemote } from '../../yunomi/DataBroadcastRemote';
 import {
   ControlButton,
@@ -448,13 +449,7 @@ function Live({
       <PlaybackUnavailable route={route} />
       {/* 画面の外に出たときと、タブが隠れたときは、読み込みも止めて、チューナーを手放す (設計書 7.2)。 */}
       <div ref={frameRef}>
-        {pip.container === null ? (
-          playerBox
-        ) : (
-          <Text size="sm" c="dimmed">
-            {t('player.pipActive')}
-          </Text>
-        )}
+        {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
       </div>
       {pip.container !== null && createPortal(playerBox, pip.container)}
       {!visible && (

@@ -10,6 +10,7 @@ import { ErrorBoundary, PageLoader, ProgramTitle } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
+import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import { formatDuration, playbackPosition } from '../../yunomi/position';
 import { RateSelect, PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
 import { hlsURL } from '../../yunomi/route';
@@ -464,13 +465,7 @@ function Player({ recordingId }: { recordingId: string }) {
       </Text>
       <PlaybackUnavailable route={route} />
       <div ref={frameRef}>
-        {pip.container === null ? (
-          playerBox
-        ) : (
-          <Text size="sm" c="dimmed">
-            {t('player.pipActive')}
-          </Text>
-        )}
+        {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
       </div>
       {pip.container !== null && createPortal(playerBox, pip.container)}
       {resumed && (
