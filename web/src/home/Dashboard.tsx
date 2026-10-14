@@ -210,7 +210,8 @@ export function Dashboard({ range }: { range: DashboardRange }) {
           <Stack gap={4}>
             {upcoming.map(({ node }) => (
               <Group key={node.id} gap="xs" wrap="nowrap">
-                <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
+                {/* 日時は、番組名の頭が揃うよう、いちばん長い日時 (12/28(月) 00:00) が収まる幅に固定する。本文のフォントは数字の幅が揃う。 */}
+                <Text size="sm" c="dimmed" w="8.5em" style={{ flexShrink: 0 }}>
                   {dateTimeFormat.format(Date.parse(node.startAt))}
                 </Text>
                 <Text size="sm" truncate style={{ flex: 1, minWidth: 0 }}>
