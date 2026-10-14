@@ -336,7 +336,24 @@
     "archived": "放送済み",
     "more": "さらに読み込む"
   },
+  "margins": {
+    "start": "開始前のマージン",
+    "end": "終了後のマージン",
+    "seconds": " 秒",
+    "placeholder": "既定値 ({{seconds}} 秒)",
+    "description": "空なら全体の既定値 ({{seconds}} 秒) に従います",
+    "descriptionRule": "空ならルール「{{name}}」の設定 ({{seconds}} 秒) に従います"
+  },
   "reservations": {
+    "settings": {
+      "open": "録画の設定",
+      "title": "この予約の録画の設定",
+      "ruleNote": "空の項目は、ルールの設定か、全体の既定値に従います",
+      "save": "保存",
+      "cancel": "キャンセル",
+      "loadError": "予約を読み込めませんでした",
+      "saveError": "保存できませんでした。時間をおいてやり直してください"
+    },
     "title": "予約",
     "filter": {
       "all": "すべて",
