@@ -205,6 +205,32 @@ func (s *Store) Remove(poolID, rel string) error {
 	return nil
 }
 
+// Exists は、プールにファイル rel があるかを返す。プールがこのインスタンスにマウントされていなければ ErrPoolNotMounted を返す。
+// プールの中に限って調べるので、シンボリックリンクでもプールの外は調べない。
+func (s *Store) Exists(poolID, rel string) (bool, error) {
+	mount, ok := s.mounts[poolID]
+	if !ok {
+		return false, fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
+	}
+	if !filepath.IsLocal(rel) {
+		return false, fmt.Errorf("%w: %q", ErrInvalidPath, rel)
+	}
+	root, err := os.OpenRoot(mount)
+	if err != nil {
+		return false, fmt.Errorf("failed to open pool %s: %w", poolID, err)
+	}
+	defer root.Close()
+	_, err = root.Stat(rel)
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.Is(err, os.ErrNotExist):
+		return false, nil
+	default:
+		return false, fmt.Errorf("failed to inspect a file in pool %s: %w", poolID, err)
+	}
+}
+
 // rank は、プールの順での位置を返す。マウントされていないプールは、どれよりも後にする。
 func (s *Store) rank(id string) int {
 	if i := slices.Index(s.order, id); i >= 0 {

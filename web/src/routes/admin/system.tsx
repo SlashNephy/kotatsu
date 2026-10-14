@@ -21,6 +21,7 @@ import { settingsErrorMessage } from '../../settings/errors';
 import { formatBytes } from '../../futon';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
+import { MissingRecordings } from '../../admin/MissingRecordings';
 import type { systemPoolMutation } from './__generated__/systemPoolMutation.graphql';
 import type { systemQuery } from './__generated__/systemQuery.graphql';
 
@@ -52,7 +53,10 @@ function SystemPage() {
 
   return (
     <AdminPage title={t('admin.system.title')}>
-      <SystemStatus />
+      <Stack gap="md">
+        <SystemStatus />
+        <MissingRecordings />
+      </Stack>
     </AdminPage>
   );
 }

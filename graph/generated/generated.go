@@ -84,6 +84,12 @@ type ComplexityRoot struct {
 		Type        func(childComplexity int) int
 	}
 
+	CleanUpMissingRecordingsPayload struct {
+		DeletedRecordings func(childComplexity int) int
+		PrunedSegments    func(childComplexity int) int
+		Skipped           func(childComplexity int) int
+	}
+
 	CreateWebhookPayload struct {
 		Secret  func(childComplexity int) int
 		Webhook func(childComplexity int) int
@@ -181,9 +187,16 @@ type ComplexityRoot struct {
 		Valid            func(childComplexity int) int
 	}
 
+	MissingRecording struct {
+		MissingSegments func(childComplexity int) int
+		Recording       func(childComplexity int) int
+		Segments        func(childComplexity int) int
+	}
+
 	Mutation struct {
 		BeginTotpEnrollment          func(childComplexity int) int
 		ChangePassword               func(childComplexity int, password string) int
+		CleanUpMissingRecordings     func(childComplexity int, ids []string) int
 		ConfirmTotpEnrollment        func(childComplexity int, code string) int
 		CreateGuideView              func(childComplexity int, input model.GuideViewInput) int
 		CreateProgramReservation     func(childComplexity int, input model.ProgramReservationInput) int
@@ -337,6 +350,7 @@ type ComplexityRoot struct {
 		FileNameTemplateHelp    func(childComplexity int) int
 		Guide                   func(childComplexity int, from time.Time, to time.Time, services []string, view *string) int
 		GuideViews              func(childComplexity int) int
+		MissingRecordings       func(childComplexity int) int
 		Node                    func(childComplexity int, id string) int
 		NotificationPreferences func(childComplexity int) int
 		Notifications           func(childComplexity int, first int, after *string, unreadOnly bool) int
@@ -651,6 +665,7 @@ type MutationResolver interface {
 	CreateGuideView(ctx context.Context, input model.GuideViewInput) (*model.GuideView, error)
 	UpdateGuideView(ctx context.Context, id string, input model.GuideViewInput) (*model.GuideView, error)
 	DeleteGuideView(ctx context.Context, id string) (string, error)
+	CleanUpMissingRecordings(ctx context.Context, ids []string) (*model.CleanUpMissingRecordingsPayload, error)
 	MarkNotificationsRead(ctx context.Context, ids []string) (int, error)
 	MarkAllNotificationsRead(ctx context.Context) (int, error)
 	UpdateNotificationPreference(ctx context.Context, input model.NotificationPreferenceInput) (*model.NotificationPreference, error)
@@ -713,6 +728,7 @@ type QueryResolver interface {
 	FileNameTemplateHelp(ctx context.Context) (*model.FileNameTemplateHelp, error)
 	PreviewFileName(ctx context.Context, template string, program *string) (*model.FileNamePreview, error)
 	GuideViews(ctx context.Context) ([]*model.GuideView, error)
+	MissingRecordings(ctx context.Context) ([]*model.MissingRecording, error)
 	Notifications(ctx context.Context, first int, after *string, unreadOnly bool) (*model.NotificationConnection, error)
 	UnreadNotificationCount(ctx context.Context) (int, error)
 	NotificationPreferences(ctx context.Context) ([]*model.NotificationPreference, error)
@@ -910,6 +926,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ChannelType.Type(childComplexity), true
+
+	case "CleanUpMissingRecordingsPayload.deletedRecordings":
+		if e.ComplexityRoot.CleanUpMissingRecordingsPayload.DeletedRecordings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CleanUpMissingRecordingsPayload.DeletedRecordings(childComplexity), true
+	case "CleanUpMissingRecordingsPayload.prunedSegments":
+		if e.ComplexityRoot.CleanUpMissingRecordingsPayload.PrunedSegments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CleanUpMissingRecordingsPayload.PrunedSegments(childComplexity), true
+	case "CleanUpMissingRecordingsPayload.skipped":
+		if e.ComplexityRoot.CleanUpMissingRecordingsPayload.Skipped == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CleanUpMissingRecordingsPayload.Skipped(childComplexity), true
 
 	case "CreateWebhookPayload.secret":
 		if e.ComplexityRoot.CreateWebhookPayload.Secret == nil {
@@ -1221,6 +1256,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Lease.Valid(childComplexity), true
 
+	case "MissingRecording.missingSegments":
+		if e.ComplexityRoot.MissingRecording.MissingSegments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MissingRecording.MissingSegments(childComplexity), true
+	case "MissingRecording.recording":
+		if e.ComplexityRoot.MissingRecording.Recording == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MissingRecording.Recording(childComplexity), true
+	case "MissingRecording.segments":
+		if e.ComplexityRoot.MissingRecording.Segments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MissingRecording.Segments(childComplexity), true
+
 	case "Mutation.beginTotpEnrollment":
 		if e.ComplexityRoot.Mutation.BeginTotpEnrollment == nil {
 			break
@@ -1238,6 +1292,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ChangePassword(childComplexity, args["password"].(string)), true
+	case "Mutation.cleanUpMissingRecordings":
+		if e.ComplexityRoot.Mutation.CleanUpMissingRecordings == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_cleanUpMissingRecordings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CleanUpMissingRecordings(childComplexity, args["ids"].([]string)), true
 	case "Mutation.confirmTotpEnrollment":
 		if e.ComplexityRoot.Mutation.ConfirmTotpEnrollment == nil {
 			break
@@ -2114,6 +2179,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.GuideViews(childComplexity), true
 
+	case "Query.missingRecordings":
+		if e.ComplexityRoot.Query.MissingRecordings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.MissingRecordings(childComplexity), true
 	case "Query.node":
 		if e.ComplexityRoot.Query.Node == nil {
 			break
@@ -4042,6 +4113,45 @@ type Mutation {
   deleteGuideView(id: ID!): ID!
 }
 `, BuiltIn: false},
+	{Name: "../schema/missing_recordings.graphqls", Input: `"""
+セグメントのファイルが見つからない録画 (設計書 5.6)。Kotatsu を通さずにファイルを消すと、録画の一覧に残り続けるので、探して DB から消す。
+"""
+type MissingRecording {
+  recording: Recording!
+  "録画のセグメントの数。"
+  segments: Int!
+  "そのうち、ファイルが見つからないものの数。segments と同じなら、録画ごと消す。"
+  missingSegments: Int!
+}
+
+"""
+ファイルの見つからない録画を DB から消した結果。
+"""
+type CleanUpMissingRecordingsPayload {
+  "セグメントのファイルが 1 つも見つからず、DB から消した録画の数。"
+  deletedRecordings: Int!
+  "一部のセグメントだけが見つからない録画で、記録を消したセグメントの数。"
+  prunedSegments: Int!
+  "保護しているか録画中で、消さなかった録画の数。"
+  skipped: Int!
+}
+
+extend type Query {
+  """
+  セグメントのファイルが見つからない録画を、録画を始めた日時の新しい順に返す。管理者だけが使える。
+  このインスタンスにマウントしたプールのファイルだけを調べ、マウントしていないプールのファイルは見つからないとはみなさない。
+  """
+  missingRecordings: [MissingRecording!]!
+}
+
+extend type Mutation {
+  """
+  録画 ids のセグメントのファイルを確かめ直し、見つからないものの記録を DB から消す。ファイルは触らない。管理者だけが使える。
+  セグメントが 1 つも見つからなければ録画を消し、一部だけなら、見つからないセグメントの記録だけを消す。監査ログに残す。
+  """
+  cleanUpMissingRecordings(ids: [ID!]!): CleanUpMissingRecordingsPayload!
+}
+`, BuiltIn: false},
 	{Name: "../schema/notifications.graphqls", Input: `"""
 通知するイベントの種類 (設計書 6.2)。
 """
@@ -5305,6 +5415,18 @@ func (ec *executionContext) childFields_ChannelType(ctx context.Context, field g
 	return nil, fmt.Errorf("no field named %q was found under type ChannelType", field.Name)
 }
 
+func (ec *executionContext) childFields_CleanUpMissingRecordingsPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "deletedRecordings":
+		return ec.fieldContext_CleanUpMissingRecordingsPayload_deletedRecordings(ctx, field)
+	case "prunedSegments":
+		return ec.fieldContext_CleanUpMissingRecordingsPayload_prunedSegments(ctx, field)
+	case "skipped":
+		return ec.fieldContext_CleanUpMissingRecordingsPayload_skipped(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CleanUpMissingRecordingsPayload", field.Name)
+}
+
 func (ec *executionContext) childFields_CreateWebhookPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "webhook":
@@ -5497,6 +5619,18 @@ func (ec *executionContext) childFields_Lease(ctx context.Context, field graphql
 		return ec.fieldContext_Lease_valid(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Lease", field.Name)
+}
+
+func (ec *executionContext) childFields_MissingRecording(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "recording":
+		return ec.fieldContext_MissingRecording_recording(ctx, field)
+	case "segments":
+		return ec.fieldContext_MissingRecording_segments(ctx, field)
+	case "missingSegments":
+		return ec.fieldContext_MissingRecording_missingSegments(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MissingRecording", field.Name)
 }
 
 func (ec *executionContext) childFields_Notification(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -6370,6 +6504,20 @@ func (ec *executionContext) field_Mutation_changePassword_args(ctx context.Conte
 		return nil, err
 	}
 	args["password"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_cleanUpMissingRecordings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ids",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ids"] = arg0
 	return args, nil
 }
 
@@ -7928,6 +8076,75 @@ func (ec *executionContext) fieldContext_ChannelType_sortOrder(_ context.Context
 	return graphql.NewScalarFieldContext("ChannelType", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _CleanUpMissingRecordingsPayload_deletedRecordings(ctx context.Context, field graphql.CollectedField, obj *model.CleanUpMissingRecordingsPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CleanUpMissingRecordingsPayload_deletedRecordings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DeletedRecordings, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CleanUpMissingRecordingsPayload_deletedRecordings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CleanUpMissingRecordingsPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CleanUpMissingRecordingsPayload_prunedSegments(ctx context.Context, field graphql.CollectedField, obj *model.CleanUpMissingRecordingsPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CleanUpMissingRecordingsPayload_prunedSegments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PrunedSegments, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CleanUpMissingRecordingsPayload_prunedSegments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CleanUpMissingRecordingsPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CleanUpMissingRecordingsPayload_skipped(ctx context.Context, field graphql.CollectedField, obj *model.CleanUpMissingRecordingsPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CleanUpMissingRecordingsPayload_skipped(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Skipped, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CleanUpMissingRecordingsPayload_skipped(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CleanUpMissingRecordingsPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _CreateWebhookPayload_webhook(ctx context.Context, field graphql.CollectedField, obj *model.CreateWebhookPayload) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -9136,6 +9353,84 @@ func (ec *executionContext) fieldContext_Lease_valid(_ context.Context, field gr
 	return graphql.NewScalarFieldContext("Lease", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _MissingRecording_recording(ctx context.Context, field graphql.CollectedField, obj *model.MissingRecording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MissingRecording_recording(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Recording, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Recording) graphql.Marshaler {
+			return ec.marshalNRecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecording(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MissingRecording_recording(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MissingRecording",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Recording(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MissingRecording_segments(ctx context.Context, field graphql.CollectedField, obj *model.MissingRecording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MissingRecording_segments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Segments, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MissingRecording_segments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MissingRecording", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MissingRecording_missingSegments(ctx context.Context, field graphql.CollectedField, obj *model.MissingRecording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MissingRecording_missingSegments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MissingSegments, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MissingRecording_missingSegments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MissingRecording", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _Mutation_createGuideView(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -9262,6 +9557,50 @@ func (ec *executionContext) fieldContext_Mutation_deleteGuideView(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteGuideView_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_cleanUpMissingRecordings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_cleanUpMissingRecordings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CleanUpMissingRecordings(ctx, fc.Args["ids"].([]string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CleanUpMissingRecordingsPayload) graphql.Marshaler {
+			return ec.marshalNCleanUpMissingRecordingsPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐCleanUpMissingRecordingsPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_cleanUpMissingRecordings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CleanUpMissingRecordingsPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_cleanUpMissingRecordings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -13046,6 +13385,38 @@ func (ec *executionContext) fieldContext_Query_guideViews(_ context.Context, fie
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_GuideView(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_missingRecordings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_missingRecordings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().MissingRecordings(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MissingRecording) graphql.Marshaler {
+			return ec.marshalNMissingRecording2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐMissingRecordingᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_missingRecordings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MissingRecording(ctx, field)
 		},
 	}
 	return fc, nil
@@ -20929,6 +21300,54 @@ func (ec *executionContext) _ChannelType(ctx context.Context, sel ast.SelectionS
 	return out
 }
 
+var cleanUpMissingRecordingsPayloadImplementors = []string{"CleanUpMissingRecordingsPayload"}
+
+func (ec *executionContext) _CleanUpMissingRecordingsPayload(ctx context.Context, sel ast.SelectionSet, obj *model.CleanUpMissingRecordingsPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, cleanUpMissingRecordingsPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CleanUpMissingRecordingsPayload")
+		case "deletedRecordings":
+			out.Values[i] = ec._CleanUpMissingRecordingsPayload_deletedRecordings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "prunedSegments":
+			out.Values[i] = ec._CleanUpMissingRecordingsPayload_prunedSegments(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "skipped":
+			out.Values[i] = ec._CleanUpMissingRecordingsPayload_skipped(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var createWebhookPayloadImplementors = []string{"CreateWebhookPayload"}
 
 func (ec *executionContext) _CreateWebhookPayload(ctx context.Context, sel ast.SelectionSet, obj *model.CreateWebhookPayload) graphql.Marshaler {
@@ -21735,6 +22154,54 @@ func (ec *executionContext) _Lease(ctx context.Context, sel ast.SelectionSet, ob
 	return out
 }
 
+var missingRecordingImplementors = []string{"MissingRecording"}
+
+func (ec *executionContext) _MissingRecording(ctx context.Context, sel ast.SelectionSet, obj *model.MissingRecording) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, missingRecordingImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MissingRecording")
+		case "recording":
+			out.Values[i] = ec._MissingRecording_recording(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "segments":
+			out.Values[i] = ec._MissingRecording_segments(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "missingSegments":
+			out.Values[i] = ec._MissingRecording_missingSegments(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var mutationImplementors = []string{"Mutation"}
 
 func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -21772,6 +22239,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteGuideView":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteGuideView(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cleanUpMissingRecordings":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_cleanUpMissingRecordings(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -23233,6 +23707,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_guideViews(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "missingRecordings":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_missingRecordings(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -26330,6 +26826,16 @@ func (ec *executionContext) unmarshalNChannelTypeInput2githubᚗcomᚋSlashNephy
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNCleanUpMissingRecordingsPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐCleanUpMissingRecordingsPayload(ctx context.Context, sel ast.SelectionSet, v *model.CleanUpMissingRecordingsPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CleanUpMissingRecordingsPayload(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNCreateUserInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐCreateUserInput(ctx context.Context, v any) (model.CreateUserInput, error) {
 	res, err := ec.unmarshalInputCreateUserInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -26829,6 +27335,32 @@ func (ec *executionContext) marshalNLease2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu
 		return graphql.Null
 	}
 	return ec._Lease(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMissingRecording2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐMissingRecordingᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MissingRecording) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMissingRecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐMissingRecording(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMissingRecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐMissingRecording(ctx context.Context, sel ast.SelectionSet, v *model.MissingRecording) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MissingRecording(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNNotification2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotification(ctx context.Context, sel ast.SelectionSet, v *model.Notification) graphql.Marshaler {

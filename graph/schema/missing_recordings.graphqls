@@ -1,0 +1,38 @@
+"""
+セグメントのファイルが見つからない録画 (設計書 5.6)。Kotatsu を通さずにファイルを消すと、録画の一覧に残り続けるので、探して DB から消す。
+"""
+type MissingRecording {
+  recording: Recording!
+  "録画のセグメントの数。"
+  segments: Int!
+  "そのうち、ファイルが見つからないものの数。segments と同じなら、録画ごと消す。"
+  missingSegments: Int!
+}
+
+"""
+ファイルの見つからない録画を DB から消した結果。
+"""
+type CleanUpMissingRecordingsPayload {
+  "セグメントのファイルが 1 つも見つからず、DB から消した録画の数。"
+  deletedRecordings: Int!
+  "一部のセグメントだけが見つからない録画で、記録を消したセグメントの数。"
+  prunedSegments: Int!
+  "保護しているか録画中で、消さなかった録画の数。"
+  skipped: Int!
+}
+
+extend type Query {
+  """
+  セグメントのファイルが見つからない録画を、録画を始めた日時の新しい順に返す。管理者だけが使える。
+  このインスタンスにマウントしたプールのファイルだけを調べ、マウントしていないプールのファイルは見つからないとはみなさない。
+  """
+  missingRecordings: [MissingRecording!]!
+}
+
+extend type Mutation {
+  """
+  録画 ids のセグメントのファイルを確かめ直し、見つからないものの記録を DB から消す。ファイルは触らない。管理者だけが使える。
+  セグメントが 1 つも見つからなければ録画を消し、一部だけなら、見つからないセグメントの記録だけを消す。監査ログに残す。
+  """
+  cleanUpMissingRecordings(ids: [ID!]!): CleanUpMissingRecordingsPayload!
+}
