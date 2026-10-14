@@ -66,7 +66,7 @@ func (r *Resolver) searchPrograms(
 	if err != nil {
 		return nil, err
 	}
-	edges, hasNext, err := r.collect(ctx, matcher, nil, params, first)
+	edges, hasNext, err := r.collect(ctx, matcher, nil, params, first, after != nil)
 	if err != nil {
 		return nil, err
 	}
@@ -77,23 +77,29 @@ func (r *Resolver) searchPrograms(
 // collect は、候補を順に照合し、一致した番組を first 件まで集める。accept が nil でなければ、accept も満たす番組だけを集める。
 // first 件そろうか、候補を照合し終えるまで読む。続きがあるかは、first + 1 件目が一致するかで決めるので、
 // 続きがあると返すのは、本当に続きがあるときだけになる。searchTimeout を過ぎたら、条件を絞ってもらうエラーにする。
+// サブチャンネルが元のサービスと同じ番組を流している (イベント共有) ときは、元の番組も一致していれば、サブチャンネルの番組を省く。
+// resumed は、params がカーソルの続きから読むかどうか。続きから読むときは、カーソルと同じ開始時刻の、前のページの番組も見て省く。
 func (r *Resolver) collect(
 	ctx context.Context,
 	matcher *match.Matcher,
 	accept func(startAt time.Time, endUndecided bool) bool,
 	params *sqlc.SearchProgramCandidatesParams,
 	first int,
+	resumed bool,
 ) ([]*model.ProgramEdge, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, searchTimeout)
 	defer cancel()
+	shared := &sharedEvents{startAt: time.Time{}, services: map[int64]bool{}}
+	if resumed {
+		if err := r.primeSharedEvents(ctx, matcher, accept, *params, shared); err != nil {
+			return nil, false, err
+		}
+	}
 	edges := []*model.ProgramEdge{}
 	for {
-		rows, err := sqlc.New(r.db).SearchProgramCandidates(ctx, *params)
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return nil, false, NewError(CodeBadUserInput, "the search took too long; narrow down the conditions")
-		}
+		rows, err := r.searchCandidates(ctx, params)
 		if err != nil {
-			return nil, false, fmt.Errorf("failed to search programs: %w", err)
+			return nil, false, err
 		}
 		for i := range rows {
 			row := &rows[i]
@@ -101,6 +107,8 @@ func (r *Resolver) collect(
 			if err != nil {
 				return nil, false, err
 			}
+			// 省くサブチャンネルの番組は、件数にも続きの有無にも数えない。
+			matched = matched && !shared.duplicate(edge.Node)
 			if matched && len(edges) == first {
 				return edges, true, nil
 			}
@@ -113,6 +121,79 @@ func (r *Resolver) collect(
 			return edges, false, nil
 		}
 	}
+}
+
+// searchCandidates は、params の位置から、候補を 1 回分読む。
+func (r *Resolver) searchCandidates(ctx context.Context, params *sqlc.SearchProgramCandidatesParams) ([]sqlc.SearchProgramCandidatesRow, error) {
+	rows, err := sqlc.New(r.db).SearchProgramCandidates(ctx, *params)
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return nil, NewError(CodeBadUserInput, "the search took too long; narrow down the conditions")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to search programs: %w", err)
+	}
+
+	return rows, nil
+}
+
+// primeSharedEvents は、カーソルと同じ開始時刻で、カーソルまで (前のページ) に一致した番組を、shared に覚えさせる。
+// 前のページで元の番組を返していれば、このページの同じ番組のサブチャンネルを省ける。
+func (r *Resolver) primeSharedEvents(
+	ctx context.Context,
+	matcher *match.Matcher,
+	accept func(startAt time.Time, endUndecided bool) bool,
+	params sqlc.SearchProgramCandidatesParams,
+	shared *sharedEvents,
+) error {
+	cursor := searchCursor{StartAt: params.AfterStartAt, ServiceID: params.AfterServiceID, EventID: params.AfterEventID}
+	// 開始時刻の精度 (マイクロ秒) の分だけ前から読み、カーソルと同じ開始時刻の番組を先頭から読む。
+	params.AfterStartAt, params.AfterServiceID, params.AfterEventID = cursor.StartAt.Add(-time.Microsecond), 0, 0
+	for {
+		rows, err := r.searchCandidates(ctx, &params)
+		if err != nil {
+			return err
+		}
+		for i := range rows {
+			row := &rows[i]
+			if row.StartAt.After(cursor.StartAt) || (row.StartAt.Equal(cursor.StartAt) &&
+				(row.ServiceID > cursor.ServiceID || (row.ServiceID == cursor.ServiceID && row.EventID > cursor.EventID))) {
+				return nil
+			}
+			edge, matched, err := r.matchCandidate(matcher, accept, row)
+			if err != nil {
+				return err
+			}
+			if matched {
+				shared.duplicate(edge.Node)
+			}
+			params.AfterStartAt, params.AfterServiceID, params.AfterEventID = row.StartAt, row.ServiceID, row.EventID
+		}
+		if len(rows) < int(params.BatchSize) {
+			return nil
+		}
+	}
+}
+
+// sharedEvents は、同じ開始時刻に一致した番組のサービスを覚え、イベント共有でサブチャンネルが元のサービスと同じ番組を流しているのを見分ける。
+// 候補は開始時刻、サービスの順に並び、元のサービスは共有するサービスのうちサービス ID が最も小さいので、同じ開始時刻の中で先に来る。
+// 残すのは、ルールの照合 (rule.pickSharedEvents) と同じく、サービス ID の最も小さい番組になる。
+type sharedEvents struct {
+	startAt  time.Time
+	services map[int64]bool
+}
+
+// duplicate は、program が、すでに一致した元のサービスの番組と同じ番組かどうかを返す。そうでなければ、program を覚える。
+// 元の番組が一致していない (条件で外れたなど) ときは、省くと見られなくなるので、false を返す。
+func (s *sharedEvents) duplicate(program *model.Program) bool {
+	if !program.StartAt.Equal(s.startAt) {
+		s.startAt, s.services = program.StartAt, map[int64]bool{}
+	}
+	if program.SharedFromKey != 0 && s.services[program.SharedFromKey] {
+		return true
+	}
+	s.services[program.ServiceKey] = true
+
+	return false
 }
 
 // archivedProgram は、ProgramArchive の ID の中身 (サービス ID.eventId.開始時刻の UNIX 時間) から、アーカイブの番組を引く。

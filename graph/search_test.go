@@ -441,6 +441,62 @@ func TestSearchProgramsSkipsNonMediaServices(t *testing.T) {
 	}
 }
 
+// TestSearchProgramsOmitsSharedEvents は、サブチャンネルが元のサービスと同じ番組を流している (イベント共有) とき、
+// 元の番組も一致していれば、サブチャンネルの番組を返さないことを確かめる。ページをまたいでも省く。
+func TestSearchProgramsOmitsSharedEvents(t *testing.T) {
+	t.Parallel()
+
+	const (
+		// こたつテスト1 (0x0400) とそのサブチャンネル (0x0401) の、Mirakurun のサービス ID。
+		mainKey = 0x7FE0*100000 + 0x0400
+		subKey  = 0x7FE0*100000 + 0x0401
+	)
+	main5, sub5 := programName(5), "こたつテスト1 サブ テスト番組 5"
+	main6, sub6 := programName(6), "こたつテスト1 サブ テスト番組 6"
+
+	tests := []struct {
+		name    string
+		keyword string
+		first   int
+		want    []string
+	}{
+		{name: "元の番組も一致すれば、サブチャンネルの番組を省く", keyword: "^こたつテスト1 (サブ )?テスト番組 5$", first: 50, want: []string{main5}},
+		{name: "元の番組が一致しなければ、サブチャンネルの番組を残す", keyword: "^こたつテスト1 サブ テスト番組 5$", first: 50, want: []string{sub5}},
+		{name: "共有していない番組は、どちらも返す", keyword: "^こたつテスト1 (サブ )?テスト番組 6$", first: 50, want: []string{main6, sub6}},
+		{name: "ページをまたいでも省く", keyword: "^こたつテスト1 (サブ )?テスト番組 [56]$", first: 1, want: []string{main5, main6, sub6}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			f.syncEPG(t)
+			// eventId 5 の番組だけ、サブチャンネルがメインと同じ番組を流していることにする。
+			for key, items := range map[int64]string{
+				mainKey: `[{"type":"shared","serviceId":1024,"eventId":5},{"type":"shared","serviceId":1025,"eventId":5}]`,
+				subKey:  `[{"type":"shared","serviceId":1024,"eventId":5}]`,
+			} {
+				_, err := f.pool.Exec(t.Context(), `UPDATE programs SET related_items = $1 WHERE service_id = $2 AND event_id = 5`, items, key)
+				require.NoError(t, err)
+			}
+
+			conditions := conditionsInput{Keywords: []keywordInput{keyword(tt.keyword, true)}}
+			found := []string{}
+			var after *string
+			for {
+				var got searchResult
+				require.Empty(t, f.query(t, searchQuery, searchVariables(conditions, nil, tt.first, after), &got))
+				found = append(found, got.names()...)
+				if !got.SearchPrograms.PageInfo.HasNextPage {
+					break
+				}
+				after = got.SearchPrograms.PageInfo.EndCursor
+			}
+			assert.Equal(t, tt.want, found)
+		})
+	}
+}
+
 // TestSearchProgramsKeywordMatch は、含めるキーワードを、すべてに一致か、いずれかに一致かで照合することを確かめる。
 func TestSearchProgramsKeywordMatch(t *testing.T) {
 	t.Parallel()
