@@ -267,6 +267,40 @@ func (s failingStream) OpenServiceStream(context.Context, int64, *mirakurun.Stre
 	return nil, s.err
 }
 
+// attemptedStream は、ほかのストリームを包み、録画が開こうとしたら attempted に送る。
+// 開こうとする前に時計を予定の終わりより後に進めると、録画は予定が過ぎたとみなして何もしないので、その前にこれを待つ (#329)。
+type attemptedStream struct {
+	recording.StreamOpener
+
+	attempted chan struct{}
+}
+
+func newAttemptedStream(stream recording.StreamOpener) *attemptedStream {
+	return &attemptedStream{StreamOpener: stream, attempted: make(chan struct{}, 1)}
+}
+
+func (s *attemptedStream) OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error) {
+	select {
+	case s.attempted <- struct{}{}:
+	default:
+	}
+
+	return s.StreamOpener.OpenServiceStream(ctx, serviceID, opts)
+}
+
+// wait は、録画がストリームを開こうとするまで待つ。
+func (s *attemptedStream) wait(t *testing.T) {
+	t.Helper()
+
+	select {
+	case <-s.attempted:
+	case <-time.After(waitTimeout):
+		require.FailNow(t, "the recorder did not open the stream")
+	}
+}
+
+var _ recording.StreamOpener = new(attemptedStream)
+
 // TestRecorderRecordsFailures は、録画できなかった理由を記録することを確かめる (設計書 5.5)。
 func TestRecorderRecordsFailures(t *testing.T) {
 	t.Parallel()
@@ -304,11 +338,12 @@ func TestRecorderRecordsFailures(t *testing.T) {
 
 			f := newFixture(t)
 			reservationID := f.reserve(t, 0)
-			recorder, _ := f.newRecorder(t, tt.tuner(f), tt.freeSpace)
+			stream := newAttemptedStream(tt.tuner(f))
+			recorder, _ := f.newRecorder(t, stream, tt.freeSpace)
 			_, done := f.session(t, recorder, reservationID)
 			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
-			// ストリームを開けないときは、予定の終わりまで開き直すので、予定の終わりまで進める。
-			time.Sleep(100 * time.Millisecond)
+			// ストリームを開けないときは、予定の終わりまで開き直すので、録画が開こうとしてから、予定の終わりまで進める。
+			stream.wait(t)
 			f.clock.Advance(time.Hour)
 
 			require.NoError(t, wait(t, done))
@@ -841,10 +876,11 @@ func TestRecorderIgnoresEmptyEarlierSegments(t *testing.T) {
 		VALUES ($1, $2, 'segment', 'main', 'empty.m2ts', 0, $3, $3, $3)`, id.New(), recordingID, f.clock.Now())
 	require.NoError(t, err)
 
-	recorder, _ := f.newRecorder(t, failingStream{err: errors.New("connection refused")}, nil)
+	stream := newAttemptedStream(failingStream{err: errors.New("connection refused")})
+	recorder, _ := f.newRecorder(t, stream, nil)
 	_, done := f.session(t, recorder, reservationID)
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
-	time.Sleep(100 * time.Millisecond)
+	stream.wait(t)
 	f.clock.Advance(time.Hour)
 
 	require.NoError(t, wait(t, done))
@@ -891,14 +927,28 @@ func TestRecorderEmitsEvents(t *testing.T) {
 	data, err := os.ReadFile("../../testdata/ts/test.ts")
 	require.NoError(t, err)
 	tests := []struct {
-		name        string
-		tuner       recording.StreamOpener
+		name string
+		// tuner は、ストリームと、録画がそのストリームを使い始めるまで待つ関数を返す。
+		tuner       func() (recording.StreamOpener, func(t *testing.T))
 		wantKinds   []string
 		wantHistory int
 	}{
-		{name: "録画を終えた", tuner: onceStream{data: data}, wantKinds: []string{string(notification.KindRecordingStarted), string(notification.KindRecordingCompleted)}, wantHistory: 1},
 		{
-			name: "チューナーサーバーに接続できず失敗した", tuner: failingStream{err: errors.New("connection refused")},
+			name: "録画を終えた",
+			tuner: func() (recording.StreamOpener, func(t *testing.T)) {
+				stream := newDrainedStream(data)
+
+				return stream, stream.wait
+			},
+			wantKinds: []string{string(notification.KindRecordingStarted), string(notification.KindRecordingCompleted)}, wantHistory: 1,
+		},
+		{
+			name: "チューナーサーバーに接続できず失敗した",
+			tuner: func() (recording.StreamOpener, func(t *testing.T)) {
+				stream := newAttemptedStream(failingStream{err: errors.New("connection refused")})
+
+				return stream, stream.wait
+			},
 			wantKinds: []string{string(notification.KindRecordingStarted), string(notification.KindRecordingFailed)}, wantHistory: 0,
 		},
 	}
@@ -908,10 +958,12 @@ func TestRecorderEmitsEvents(t *testing.T) {
 
 			f := newFixture(t)
 			reservationID := f.reserve(t, 0)
-			recorder, _ := f.newRecorder(t, tt.tuner, nil)
+			stream, started := tt.tuner()
+			recorder, _ := f.newRecorder(t, stream, nil)
 			_, done := f.session(t, recorder, reservationID)
 			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
-			time.Sleep(200 * time.Millisecond)
+			// 録画がストリームを使い始めてから、予定の終わりの後まで進める (#329)。
+			started(t)
 			f.clock.Advance(time.Hour)
 			require.NoError(t, wait(t, done))
 
@@ -1190,24 +1242,36 @@ func TestRecorderHandoverEdgeCases(t *testing.T) {
 		oldFile bool
 		// oldEnded は、古い mikan のセグメントを閉じたことにするかどうか。閉じていなければ、書き込みが 5 分前に止まった (落ちた) ことにする。
 		oldEnded bool
-		// tuner は、新しい mikan のストリーム。
-		tuner     func() recording.StreamOpener
+		// tuner は、新しい mikan のストリームと、録画がそのストリームを使い始めるまで待つ関数を返す。
+		tuner     func() (recording.StreamOpener, func(t *testing.T))
 		wantState recording.State
 		wantGaps  int
 	}{
 		{
 			name: "古い mikan が止まった後、新しい mikan がストリームを開けないまま終わる", oldFile: true, oldEnded: true,
-			tuner:     func() recording.StreamOpener { return failingStream{err: errors.New("connection refused")} },
+			tuner: func() (recording.StreamOpener, func(t *testing.T)) {
+				stream := newAttemptedStream(failingStream{err: errors.New("connection refused")})
+
+				return stream, stream.wait
+			},
 			wantState: recording.StatePartial, wantGaps: 1,
 		},
 		{
 			name: "古い mikan がまだ何も書いていないときに引き継ぎ、開けないまま終わる", oldFile: false, oldEnded: false,
-			tuner:     func() recording.StreamOpener { return failingStream{err: errors.New("connection refused")} },
+			tuner: func() (recording.StreamOpener, func(t *testing.T)) {
+				stream := newAttemptedStream(failingStream{err: errors.New("connection refused")})
+
+				return stream, stream.wait
+			},
 			wantState: recording.StateFailed, wantGaps: 0,
 		},
 		{
 			name: "古い mikan が引き継ぎの最中に落ちた", oldFile: true, oldEnded: false,
-			tuner:     func() recording.StreamOpener { return onceStream{data: data} },
+			tuner: func() (recording.StreamOpener, func(t *testing.T)) {
+				stream := newDrainedStream(data)
+
+				return stream, stream.wait
+			},
 			wantState: recording.StatePartial, wantGaps: 1,
 		},
 	}
@@ -1217,7 +1281,8 @@ func TestRecorderHandoverEdgeCases(t *testing.T) {
 
 			f := newFixture(t)
 			reservationID := f.reserve(t, 0)
-			recorder, dir := f.newRecorder(t, tt.tuner(), nil)
+			stream, started := tt.tuner()
+			recorder, dir := f.newRecorder(t, stream, nil)
 			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 			startedAt := f.clock.Now()
 			if tt.oldFile {
@@ -1244,7 +1309,9 @@ func TestRecorderHandoverEdgeCases(t *testing.T) {
 			_, done := f.sessionWith(t, recorder, &recording.Assignment{
 				ID: id.New(), ReservationID: reservationID, Priority: recording.Priority, Generation: 2, HandedOver: true, PreviousLeaseExpiresAt: nil,
 			})
-			time.Sleep(200 * time.Millisecond)
+			// 録画がストリームを使い始めてから、予定の終わりの後まで進める。決まった時間だけ待つと、混んだ CI では、
+			// 録画が始まる前に時計が進み、録画が予定の過ぎた予約として何もせずに戻ることがある (#329)。
+			started(t)
 			f.clock.Advance(time.Hour)
 			require.NoError(t, wait(t, done))
 
