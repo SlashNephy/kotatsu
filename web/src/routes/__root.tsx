@@ -24,15 +24,14 @@ export const Route = createRootRoute({
 });
 
 // navItems は、ヘッダー (広い画面) とナビゲーションの引き出し (狭い画面) に出すリンク。
+// ホームはアプリ名から、設定はユーザーのメニューから開くので、ここには並べない。
 const navItems = [
-  { to: '/', key: 'nav.home' },
-  { to: '/guide', key: 'nav.guide' },
   { to: '/live', key: 'nav.live' },
+  { to: '/guide', key: 'nav.guide' },
   { to: '/search', key: 'nav.search' },
   { to: '/reservations', key: 'nav.reservations' },
   { to: '/rules', key: 'nav.rules' },
   { to: '/recordings', key: 'nav.recordings' },
-  { to: '/settings', key: 'nav.settings' },
 ] as const;
 
 // RootLayout は、すべての画面の枠。広い画面では、ヘッダーにリンクを並べる。
@@ -44,9 +43,12 @@ function RootLayout() {
   const fluid = useMatches({
     select: (matches) => matches.some((match) => match.staticData.fluid),
   });
+  // アプリ名は、押すとホームを開く。
   const brand = (
     <Title order={1} size="h3">
-      {t('app.name')}
+      <Anchor component={Link} to="/" inherit c="inherit" underline="never" onClick={close}>
+        {t('app.name')}
+      </Anchor>
     </Title>
   );
 
@@ -95,7 +97,6 @@ function RootLayout() {
                     key={item.to}
                     component={Link}
                     to={item.to}
-                    activeOptions={{ exact: item.to === '/' }}
                     className={classes.navLink}
                     size="sm"
                   >
@@ -119,7 +120,6 @@ function RootLayout() {
                 key={item.to}
                 component={Link}
                 to={item.to}
-                activeOptions={{ exact: item.to === '/' }}
                 className={classes.navLink}
                 onClick={close}
               >
