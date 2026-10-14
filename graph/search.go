@@ -170,7 +170,7 @@ func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.Arc
 		AfterEventID:   0,
 		BatchSize:      searchBatchSize,
 	}
-	setKeywordPatterns(params, conditions.Keywords)
+	setKeywordPatterns(params, conditions)
 	if archive != nil {
 		params.ArchiveTo = params.Now
 		if archive.To != nil {
@@ -196,10 +196,15 @@ func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.Arc
 }
 
 // setKeywordPatterns は、SQL で粗く絞るキーワードを、LIKE のパターンにして params に入れる。
+// SQL はすべてのパターンに一致する番組に絞るので、いずれかのキーワードに一致すればよいとき (KeywordMatchAny) は絞らない。
 // 正規表現のキーワードと、詳細も見るキーワードは、正規化した列がないので、Go の照合に任せる。
 // 照合関数と同じく NFKC で正規化した語を、正規化した列 (name_normalized、description_normalized) の部分一致で探す。
 // 大文字と小文字を区別しないときの ILIKE は、Go の (?i) とほぼ同じ範囲を一致とみなす。
-func setKeywordPatterns(params *sqlc.SearchProgramCandidatesParams, keywords []*match.Keyword) {
+func setKeywordPatterns(params *sqlc.SearchProgramCandidatesParams, conditions *match.Conditions) {
+	if conditions.KeywordMatch == match.KeywordMatchAny {
+		return
+	}
+	keywords := conditions.Keywords
 	// LIKE のパターンで特別な意味を持つ文字は、文字どおりに一致させる。
 	likeEscaper := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
 	for _, keyword := range keywords {

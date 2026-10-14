@@ -106,6 +106,7 @@ function Rule({ ruleId }: { ruleId: string }) {
                 caseSensitive
                 fields
               }
+              keywordMatch
               excludeKeywords {
                 text
                 regexp

@@ -9,6 +9,7 @@ const imported: RuleData = {
   enabled: true,
   conditions: {
     keywords: [{ text: '^名探偵', regexp: true, caseSensitive: true, fields: ['NAME'] }],
+    keywordMatch: 'ANY',
     excludeKeywords: [
       { text: '再放送', regexp: false, caseSensitive: false, fields: ['NAME', 'DESCRIPTION'] },
     ],
@@ -44,6 +45,7 @@ describe('fromRule と toInput', () => {
       enabled: true,
       conditions: {
         keywords: [{ text: '^名探偵', regexp: true, caseSensitive: true, fields: ['NAME'] }],
+        keywordMatch: 'ANY',
         excludeKeywords: [
           { text: '再放送', regexp: false, caseSensitive: false, fields: ['NAME', 'DESCRIPTION'] },
         ],

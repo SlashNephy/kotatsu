@@ -174,6 +174,7 @@ func toProgramConditions(c *match.Conditions) *model.ProgramConditions {
 
 	return &model.ProgramConditions{
 		Keywords:           toKeywordModels(c.Keywords),
+		KeywordMatch:       toKeywordMatchModel(c.KeywordMatch),
 		ExcludeKeywords:    toKeywordModels(c.ExcludeKeywords),
 		ChannelTypes:       nonNil(c.ChannelTypes),
 		Genres:             toGenreConditions(c.Genres),

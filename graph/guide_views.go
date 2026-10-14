@@ -43,7 +43,7 @@ type guideViewSettings struct {
 // conditions は、番組の絞り込みに使う照合の条件を返す。
 func (s *guideViewSettings) conditions() *match.Conditions {
 	return &match.Conditions{
-		Keywords: []*match.Keyword{}, ExcludeKeywords: []*match.Keyword{}, ChannelTypes: []string{}, ServiceIDs: []int64{},
+		Keywords: []*match.Keyword{}, KeywordMatch: match.KeywordMatchAll, ExcludeKeywords: []*match.Keyword{}, ChannelTypes: []string{}, ServiceIDs: []int64{},
 		Genres: s.Genres, ExcludeGenres: s.ExcludeGenres, TimeRanges: []*match.TimeRange{},
 		MinDurationSeconds: s.MinDurationSeconds, MaxDurationSeconds: nil, FreeOnly: false,
 	}

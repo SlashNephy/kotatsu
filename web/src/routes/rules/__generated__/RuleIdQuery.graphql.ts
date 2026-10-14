@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<7978df5ae84c714ed4c345a73dfb2244>>
+ * @generated SignedSource<<8495a0ba70e1c8171a0deed4ab24ddfa>>
  * @lightSyntaxTransform
  */
 
@@ -9,6 +9,7 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type KeywordField = "DESCRIPTION" | "EXTENDED" | "NAME" | "%future added value";
+export type KeywordMatch = "ALL" | "ANY" | "%future added value";
 export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type RuleIdQuery$variables = {
   id: string;
@@ -39,6 +40,7 @@ export type RuleIdQuery$data = {
         readonly lv1: number;
         readonly lv2: number | null | undefined;
       }>;
+      readonly keywordMatch: KeywordMatch;
       readonly keywords: ReadonlyArray<{
         readonly caseSensitive: boolean;
         readonly fields: ReadonlyArray<KeywordField>;
@@ -284,6 +286,13 @@ v13 = {
       "name": "keywords",
       "plural": true,
       "selections": (v11/*:: as any*/),
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "keywordMatch",
       "storageKey": null
     },
     {
@@ -602,16 +611,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "26394b2de51563bb3e6210323f219103",
+    "cacheID": "9d99fe61dacfd8e70d6cbe7eccf6e8d4",
     "id": null,
     "metadata": {},
     "name": "RuleIdQuery",
     "operationKind": "query",
-    "text": "query RuleIdQuery(\n  $id: ID!\n  $skip: Boolean!\n) {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  node(id: $id) @skip(if: $skip) {\n    __typename\n    ... on Rule {\n      id\n      name\n      memo\n      enabled\n      conditions {\n        keywords {\n          text\n          regexp\n          caseSensitive\n          fields\n        }\n        excludeKeywords {\n          text\n          regexp\n          caseSensitive\n          fields\n        }\n        channelTypes\n        services {\n          id\n        }\n        genres {\n          lv1\n          lv2\n        }\n        excludeGenres {\n          lv1\n          lv2\n        }\n        timeRanges {\n          weekdays\n          startMinute\n          durationMinutes\n        }\n        minDurationSeconds\n        maxDurationSeconds\n        freeOnly\n      }\n      settings {\n        poolId\n        fileNameTemplate\n        startMarginSeconds\n        endMarginSeconds\n        priority\n        joinSegments\n      }\n      validFrom\n      validUntil\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n    }\n    id\n  }\n}\n"
+    "text": "query RuleIdQuery(\n  $id: ID!\n  $skip: Boolean!\n) {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  node(id: $id) @skip(if: $skip) {\n    __typename\n    ... on Rule {\n      id\n      name\n      memo\n      enabled\n      conditions {\n        keywords {\n          text\n          regexp\n          caseSensitive\n          fields\n        }\n        keywordMatch\n        excludeKeywords {\n          text\n          regexp\n          caseSensitive\n          fields\n        }\n        channelTypes\n        services {\n          id\n        }\n        genres {\n          lv1\n          lv2\n        }\n        excludeGenres {\n          lv1\n          lv2\n        }\n        timeRanges {\n          weekdays\n          startMinute\n          durationMinutes\n        }\n        minDurationSeconds\n        maxDurationSeconds\n        freeOnly\n      }\n      settings {\n        poolId\n        fileNameTemplate\n        startMarginSeconds\n        endMarginSeconds\n        priority\n        joinSegments\n      }\n      validFrom\n      validUntil\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "70ce77ceda44893c225d6d0c6ea72824";
+(node as any).hash = "64dc97a46c55c1b88d050a0fcca19b0d";
 
 export default node;

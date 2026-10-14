@@ -102,6 +102,7 @@ func (GuideView) IsNode() {}
 // ProgramConditions は番組の条件。サービスは、リゾルバが dataloader で引く。
 type ProgramConditions struct {
 	Keywords           []*Keyword        `json:"keywords"`
+	KeywordMatch       KeywordMatch      `json:"keywordMatch"`
 	ExcludeKeywords    []*Keyword        `json:"excludeKeywords"`
 	ChannelTypes       []string          `json:"channelTypes"`
 	Genres             []*GenreCondition `json:"genres"`

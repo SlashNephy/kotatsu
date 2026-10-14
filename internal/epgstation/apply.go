@@ -265,6 +265,7 @@ func (a *applier) ruleInput(r *Rule) *rule.Input {
 	notes := []string{}
 	conditions := &match.Conditions{
 		Keywords:           keywords(&r.Keyword),
+		KeywordMatch:       match.KeywordMatchAll,
 		ExcludeKeywords:    keywords(&r.IgnoreKeyword),
 		ChannelTypes:       []string{},
 		ServiceIDs:         []int64{},

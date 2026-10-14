@@ -22,9 +22,13 @@ export type TimeRangeRow = {
 
 export type Genre = { lv1: number; lv2: number | null };
 
+// KeywordMatch は、含めるキーワードの照合のしかた。ALL はすべてに一致、ANY はいずれかに一致。
+export type KeywordMatch = 'ALL' | 'ANY';
+
 // ConditionsForm は、番組の条件の入力。
 export type ConditionsForm = {
   keywords: KeywordRow[];
+  keywordMatch: KeywordMatch;
   excludeKeywords: KeywordRow[];
   channelTypes: string[];
   services: string[];
@@ -48,6 +52,8 @@ type KeywordData = {
 // ConditionsData は、tenban が返す番組の条件。
 export type ConditionsData = {
   readonly keywords: readonly KeywordData[];
+  // Relay は、知らない値に備えて、列挙型に "%future added value" を足すので、文字列で受ける。
+  readonly keywordMatch: string;
   readonly excludeKeywords: readonly KeywordData[];
   readonly channelTypes: readonly string[];
   readonly services: readonly { readonly id: string }[];
@@ -72,6 +78,7 @@ export function emptyKeyword(): KeywordRow {
 export function emptyConditions(): ConditionsForm {
   return {
     keywords: [],
+    keywordMatch: 'ALL',
     excludeKeywords: [],
     channelTypes: [],
     services: [],
@@ -104,6 +111,8 @@ const copyGenre = (genre: { lv1: number; lv2?: number | null }): Genre => ({
 export function fromConditions(c: ConditionsData): ConditionsForm {
   return {
     keywords: c.keywords.map(copyKeyword),
+    // 知らない照合のしかたは、すべてに一致として扱う。
+    keywordMatch: c.keywordMatch === 'ANY' ? 'ANY' : 'ALL',
     excludeKeywords: c.excludeKeywords.map(copyKeyword),
     channelTypes: [...c.channelTypes],
     services: c.services.map((service) => service.id),
@@ -130,6 +139,7 @@ export function toConditionsInput(form: ConditionsForm) {
 
   return {
     keywords: keywords(form.keywords),
+    keywordMatch: form.keywordMatch,
     excludeKeywords: keywords(form.excludeKeywords),
     channelTypes: form.channelTypes,
     services: form.services,

@@ -284,6 +284,7 @@ type ComplexityRoot struct {
 		ExcludeKeywords    func(childComplexity int) int
 		FreeOnly           func(childComplexity int) int
 		Genres             func(childComplexity int) int
+		KeywordMatch       func(childComplexity int) int
 		Keywords           func(childComplexity int) int
 		MaxDurationSeconds func(childComplexity int) int
 		MinDurationSeconds func(childComplexity int) int
@@ -1885,6 +1886,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProgramConditions.Genres(childComplexity), true
+	case "ProgramConditions.keywordMatch":
+		if e.ComplexityRoot.ProgramConditions.KeywordMatch == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProgramConditions.KeywordMatch(childComplexity), true
 	case "ProgramConditions.keywords":
 		if e.ComplexityRoot.ProgramConditions.Keywords == nil {
 			break
@@ -3590,6 +3597,16 @@ extend type Subscription {
 }
 `, BuiltIn: false},
 	{Name: "../schema/conditions.graphqls", Input: `"""
+含めるキーワードの照合のしかた。
+"""
+enum KeywordMatch {
+  "すべてのキーワードに一致する番組を対象にする"
+  ALL
+  "いずれかのキーワードに一致する番組を対象にする"
+  ANY
+}
+
+"""
 キーワードを照合する番組の項目。
 """
 enum KeywordField {
@@ -3645,8 +3662,10 @@ input TimeRangeInput {
 番組の条件 (設計書 4.2)。番組の検索とルールで共通に使う。省いた項目では絞り込まない。
 """
 input ProgramConditionsInput {
-  "すべてに一致する番組だけを対象にする。"
+  "keywordMatch に従い、すべてか、いずれかに一致する番組だけを対象にする。"
   keywords: [KeywordInput!]
+  "keywords の照合のしかた。"
+  keywordMatch: KeywordMatch! = ALL
   "どれか 1 つに一致したら除外する。"
   excludeKeywords: [KeywordInput!]
   "チャンネル種別とサービスは、どちらかに含まれていれば対象にする。"
@@ -4357,6 +4376,7 @@ type TimeRange {
 """
 type ProgramConditions {
   keywords: [Keyword!]!
+  keywordMatch: KeywordMatch!
   excludeKeywords: [Keyword!]!
   channelTypes: [String!]!
   services: [Service!]!
@@ -5363,6 +5383,8 @@ func (ec *executionContext) childFields_ProgramConditions(ctx context.Context, f
 	switch field.Name {
 	case "keywords":
 		return ec.fieldContext_ProgramConditions_keywords(ctx, field)
+	case "keywordMatch":
+		return ec.fieldContext_ProgramConditions_keywordMatch(ctx, field)
 	case "excludeKeywords":
 		return ec.fieldContext_ProgramConditions_excludeKeywords(ctx, field)
 	case "channelTypes":
@@ -11545,6 +11567,29 @@ func (ec *executionContext) fieldContext_ProgramConditions_keywords(_ context.Co
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _ProgramConditions_keywordMatch(ctx context.Context, field graphql.CollectedField, obj *model.ProgramConditions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProgramConditions_keywordMatch(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.KeywordMatch, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.KeywordMatch) graphql.Marshaler {
+			return ec.marshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordMatch(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProgramConditions_keywordMatch(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProgramConditions", field, false, false, errors.New("field of type KeywordMatch does not have child fields"))
 }
 
 func (ec *executionContext) _ProgramConditions_excludeKeywords(ctx context.Context, field graphql.CollectedField, obj *model.ProgramConditions) (ret graphql.Marshaler) {
@@ -18938,7 +18983,11 @@ func (ec *executionContext) unmarshalInputProgramConditionsInput(ctx context.Con
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"keywords", "excludeKeywords", "channelTypes", "services", "genres", "excludeGenres", "timeRanges", "minDurationSeconds", "maxDurationSeconds", "freeOnly"}
+	if _, present := asMap["keywordMatch"]; !present {
+		asMap["keywordMatch"] = "ALL"
+	}
+
+	fieldsInOrder := [...]string{"keywords", "keywordMatch", "excludeKeywords", "channelTypes", "services", "genres", "excludeGenres", "timeRanges", "minDurationSeconds", "maxDurationSeconds", "freeOnly"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -18952,6 +19001,13 @@ func (ec *executionContext) unmarshalInputProgramConditionsInput(ctx context.Con
 				return it, err
 			}
 			it.Keywords = data
+		case "keywordMatch":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("keywordMatch"))
+			data, err := ec.unmarshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordMatch(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.KeywordMatch = data
 		case "excludeKeywords":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("excludeKeywords"))
 			data, err := ec.unmarshalOKeywordInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordInputᚄ(ctx, v)
@@ -21718,6 +21774,11 @@ func (ec *executionContext) _ProgramConditions(ctx context.Context, sel ast.Sele
 			out.Values[i] = graphql.MarshalString("ProgramConditions")
 		case "keywords":
 			out.Values[i] = ec._ProgramConditions_keywords(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "keywordMatch":
+			out.Values[i] = ec._ProgramConditions_keywordMatch(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
@@ -25590,6 +25651,16 @@ func (ec *executionContext) marshalNKeywordField2ᚕgithubᚗcomᚋSlashNephyᚋ
 func (ec *executionContext) unmarshalNKeywordInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordInput(ctx context.Context, v any) (*model.KeywordInput, error) {
 	res, err := ec.unmarshalInputKeywordInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordMatch(ctx context.Context, v any) (model.KeywordMatch, error) {
+	var res model.KeywordMatch
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordMatch(ctx context.Context, sel ast.SelectionSet, v model.KeywordMatch) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNLease2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐLeaseᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Lease) graphql.Marshaler {

@@ -25,6 +25,7 @@ type TimeRange {
 """
 type ProgramConditions {
   keywords: [Keyword!]!
+  keywordMatch: KeywordMatch!
   excludeKeywords: [Keyword!]!
   channelTypes: [String!]!
   services: [Service!]!

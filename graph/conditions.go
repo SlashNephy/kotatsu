@@ -20,6 +20,7 @@ func toConditions(in *model.ProgramConditionsInput) (*match.Conditions, error) {
 
 	conditions := &match.Conditions{
 		Keywords:           toKeywords(in.Keywords),
+		KeywordMatch:       toKeywordMatch(in.KeywordMatch),
 		ExcludeKeywords:    toKeywords(in.ExcludeKeywords),
 		ChannelTypes:       nonNil(in.ChannelTypes),
 		ServiceIDs:         services,
@@ -35,6 +36,23 @@ func toConditions(in *model.ProgramConditionsInput) (*match.Conditions, error) {
 	}
 
 	return conditions, nil
+}
+
+// toKeywordMatch と toKeywordMatchModel は、含めるキーワードの照合のしかたを、GraphQL と照合の条件で行き来させる。
+func toKeywordMatch(in model.KeywordMatch) match.KeywordMatch {
+	if in == model.KeywordMatchAny {
+		return match.KeywordMatchAny
+	}
+
+	return match.KeywordMatchAll
+}
+
+func toKeywordMatchModel(in match.KeywordMatch) model.KeywordMatch {
+	if in == match.KeywordMatchAny {
+		return model.KeywordMatchAny
+	}
+
+	return model.KeywordMatchAll
 }
 
 func toKeywords(in []*model.KeywordInput) []*match.Keyword {

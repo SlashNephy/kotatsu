@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<71ea7996bf409da60d56ca06b0e41c7b>>
+ * @generated SignedSource<<b0c271116e9f557789ab42a5bff52340>>
  * @lightSyntaxTransform
  */
 
@@ -9,6 +9,7 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type KeywordField = "DESCRIPTION" | "EXTENDED" | "NAME" | "%future added value";
+export type KeywordMatch = "ALL" | "ANY" | "%future added value";
 export type RuleInput = {
   avoidDuplicates?: boolean;
   conditions: ProgramConditionsInput;
@@ -27,6 +28,7 @@ export type ProgramConditionsInput = {
   excludeKeywords?: ReadonlyArray<KeywordInput> | null | undefined;
   freeOnly?: boolean | null | undefined;
   genres?: ReadonlyArray<GenreInput> | null | undefined;
+  keywordMatch?: KeywordMatch;
   keywords?: ReadonlyArray<KeywordInput> | null | undefined;
   maxDurationSeconds?: number | null | undefined;
   minDurationSeconds?: number | null | undefined;
