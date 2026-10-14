@@ -52,6 +52,8 @@ type Props = {
   now: number;
   // receivedUntil は、番組表が届いている時刻。これより後は、まだ届いていないと案内する。省くと、案内しない。
   receivedUntil?: number;
+  // scrollKey を変えると、日付が同じでも、scrollTime へスクロールし直す。
+  scrollKey?: number;
   // scrollTime は、日付を変えたとき (と最初) に、上の方に出す時刻。null なら、それまで見ていた時間帯のままにする。
   scrollTime: number | null;
   onSelect: (programId: string) => void;
@@ -83,6 +85,7 @@ export function GuideGrid({
   columns,
   now,
   receivedUntil,
+  scrollKey,
   scrollTime,
   onSelect,
 }: Props) {
@@ -143,7 +146,7 @@ export function GuideGrid({
     };
   }, []);
 
-  // 最初と、日付を変えたときに、scrollTime が上の方に来るようにスクロールする。
+  // 最初と、日付や scrollKey を変えたときに、scrollTime が上の方に来るようにスクロールする。
   // scrollTime がなければ、それまで見ていた時間帯 (その日の始まりからの経過時間) を、新しい日でも上端に出す。
   // 目盛りは日によって伸び方が違うので、位置ではなく時刻で合わせる。
   // scrollTimeRef は、最新の scrollTime。日付を変えたときだけ動かすので、効果の依存には入れない。
@@ -161,7 +164,7 @@ export function GuideGrid({
     } else if (topOffset.current !== null) {
       element.scrollTop = timeToY(window, window.from + topOffset.current);
     }
-  }, [day.from]);
+  }, [day.from, scrollKey]);
 
   const visibleFrom = yToTime(window, viewport.top - overscanPixels);
   const visibleTo = yToTime(window, viewport.top + viewport.height + overscanPixels);

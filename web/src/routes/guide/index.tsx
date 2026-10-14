@@ -11,7 +11,7 @@ import {
   Text,
   Title,
 } from '@mantine/core';
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Suspense, useDeferredValue, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -131,8 +131,8 @@ function Guide() {
   const { t } = useTranslation();
   const navigate = useNavigate({ from: '/guide/' });
   const search = Route.useSearch();
-  // now は、画面を開いた時刻。日付の移動の基準と、いまの時刻の線に使う。
-  const [now] = useState(() => Date.now());
+  // now は、画面を開いた (「現在時刻」を押した) 時刻。日付の移動の基準と、いまの時刻の線に使う。
+  const [now, setNow] = useState(() => Date.now());
   const today = broadcastDay(now);
   // 日付やビューを変えても、新しい番組表を読み終えるまでは前の番組表を出したままにし、番組表の上に読み込み中を出す。
   // 画面全体を読み込み中にしないよう、読み込みに使う値だけを遅らせる。
@@ -256,10 +256,24 @@ function Guide() {
   const offset = Math.round((selectedFrom - today.from) / day);
   // keepTime は、日付を移っても、見ていた時間帯のままにするか。前後の日へ移るときは保ち、今日へ戻るときはいまの時刻を出す。
   const [keepTime, setKeepTime] = useState(false);
+  // scrollKey は、日付を変えずに、いまの時刻へスクロールし直すための合図。
+  const [scrollKey, setScrollKey] = useState(0);
   const moveTo = (days: number, keep: boolean) => {
     setKeepTime(keep);
     void navigate({
       search: (prev) => ({ ...prev, date: dateOf(today.from + days * day), program: undefined }),
+    });
+  };
+  // moveToNow は、いまの時刻を取り直し、今日のいまの時刻へ移る。すでに今日なら、日付は変わらないので、スクロールだけし直す。
+  const moveToNow = () => {
+    const time = Date.now();
+    setNow(time);
+    setKeepTime(false);
+    if (selectedFrom === broadcastDay(time).from) {
+      setScrollKey((key) => key + 1);
+    }
+    void navigate({
+      search: (prev) => ({ ...prev, date: dateOf(broadcastDay(time).from), program: undefined }),
     });
   };
   const dayFormat = new Intl.DateTimeFormat('ja-JP', {
@@ -297,11 +311,10 @@ function Guide() {
           <Button
             variant="default"
             size="xs"
-            disabled={offset === 0}
-            onClick={() => moveTo(0, false)}
-            leftSection={<CalendarDays size={14} aria-hidden />}
+            onClick={moveToNow}
+            leftSection={<Clock size={14} aria-hidden />}
           >
-            {t('guide.today')}
+            {t('guide.now')}
           </Button>
         </Group>
         {types.length > 0 && (
@@ -381,6 +394,7 @@ function Guide() {
             columns={columns}
             now={now}
             receivedUntil={window.from > today.from ? receivedUntil(columns, window.to) : undefined}
+            scrollKey={scrollKey}
             scrollTime={
               keepTime ? null : window.from === today.from ? now : window.from + 15 * 3_600_000
             }
