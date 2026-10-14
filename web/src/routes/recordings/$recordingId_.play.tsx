@@ -23,6 +23,7 @@ import { useMediaSession } from '../../yunomi/useMediaSession';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { CaptureButton, PipButton } from '../../yunomi/PlayerTools';
 import {
+  BigPlayButton,
   ControlButton,
   FullscreenButton,
   PlayButton,
@@ -33,6 +34,7 @@ import {
 } from '../../yunomi/PlayerControls';
 import { useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
+import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoState } from '../../yunomi/useVideoState';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { resumePosition } from '../../yunomi/resume';
@@ -137,6 +139,8 @@ function Player({ recordingId }: { recordingId: string }) {
   // video は、今の video の要素。画質を変えたときや、別のウィンドウに移したときに作り直される。
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const videoState = useVideoState(video);
+  // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
+  const autoplay = useAutoplayBlocked(video);
   const fullscreen = useFullscreen(playerBoxRef);
   const controls = useControlsVisibility({ playing: !videoState.paused });
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
@@ -444,7 +448,12 @@ function Player({ recordingId }: { recordingId: string }) {
             setError(null);
           }}
           onError={onError}
-          overlay={jikkyo.overlay}
+          overlay={
+            <>
+              {jikkyo.overlay}
+              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
+            </>
+          }
           onAudio={audio.onAudio}
           audio={audio.convertAudio}
         />
@@ -459,7 +468,12 @@ function Player({ recordingId }: { recordingId: string }) {
           captions={captions}
           live={false}
           startPosition={offset}
-          overlay={jikkyo.overlay}
+          overlay={
+            <>
+              {jikkyo.overlay}
+              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
+            </>
+          }
           onLoaded={() => setError(null)}
           onError={onError}
         />

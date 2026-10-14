@@ -20,6 +20,7 @@ import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import { DataBroadcastRemote } from '../../yunomi/DataBroadcastRemote';
 import {
+  BigPlayButton,
   ControlButton,
   FullscreenButton,
   LiveStatus,
@@ -43,6 +44,7 @@ import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { CaptureButton, PipButton } from '../../yunomi/PlayerTools';
 import { useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
+import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoState } from '../../yunomi/useVideoState';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { useVisible } from '../../yunomi/useVisible';
@@ -185,6 +187,8 @@ function Live({
   // video は、今の video の要素。画質を変えたときや、別のウィンドウに移したときに作り直される。
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const videoState = useVideoState(video);
+  // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
+  const autoplay = useAutoplayBlocked(video);
   const fullscreen = useFullscreen(playerBoxRef);
   const controls = useControlsVisibility({ playing: !videoState.paused });
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
@@ -395,6 +399,7 @@ function Live({
               {dataBroadcast.receiving && (
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}
+              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
             </>
           }
           onState={(state) => {
@@ -429,6 +434,7 @@ function Live({
               {dataBroadcast.receiving && (
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}
+              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
             </>
           }
           // チューナーを使われて切れると、hls.js が読み直しを諦めたところで、致命的なエラーになる。

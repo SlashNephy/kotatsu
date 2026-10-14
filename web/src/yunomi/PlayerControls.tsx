@@ -178,6 +178,26 @@ export function FullscreenButton({ active, onToggle }: { active: boolean; onTogg
   );
 }
 
+// BigPlayButton は、ブラウザに自動再生を断られたときに、映像の真ん中に出す再生ボタン。
+// 押すと、ユーザーの操作として再生を始めるので、ブラウザは音ありの再生を許す。
+export function BigPlayButton({ onPlay }: { onPlay: () => void }) {
+  const { t } = useTranslation();
+
+  return (
+    <ActionIcon
+      className={classes.bigPlay}
+      size={72}
+      radius="xl"
+      variant="filled"
+      color="dark"
+      aria-label={t('player.play')}
+      onClick={onPlay}
+    >
+      <Play size={36} fill="currentColor" aria-hidden />
+    </ActionIcon>
+  );
+}
+
 // PlayerNotice は、映像の右下に出す知らせ。操作バーのボタンに重ならないよう、バーの上に置く。
 export function PlayerNotice({
   children,
