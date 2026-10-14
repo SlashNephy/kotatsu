@@ -73,6 +73,10 @@ function Form({ reservationId, onClose }: Props) {
           startMarginSeconds
           endMarginSeconds
         }
+        # マージンが変わると、チューナーの割り当てが変わることがあるので、一覧の状態も取り直す。
+        assignment {
+          state
+        }
       }
     }
   `);
@@ -111,40 +115,47 @@ function Form({ reservationId, onClose }: Props) {
   };
 
   return (
-    <Stack>
-      {reservation.kind === 'RULE' && (
-        <Text size="sm" c="dimmed">
-          {t('reservations.settings.ruleNote')}
-        </Text>
-      )}
-      <MarginFields
-        start={margins.start}
-        end={margins.end}
-        onChange={setMargins}
-        disabled={inFlight}
-        rule={
-          rule === undefined
-            ? undefined
-            : {
-                name: rule.name,
-                start: rule.settings.startMarginSeconds ?? null,
-                end: rule.settings.endMarginSeconds ?? null,
-              }
-        }
-      />
-      {error && (
-        <Alert color="red" role="alert">
-          {t('reservations.settings.saveError')}
-        </Alert>
-      )}
-      <Group justify="flex-end">
-        <Button variant="default" onClick={onClose}>
-          {t('reservations.settings.cancel')}
-        </Button>
-        <Button onClick={save} loading={inFlight}>
-          {t('reservations.settings.save')}
-        </Button>
-      </Group>
-    </Stack>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        save();
+      }}
+    >
+      <Stack>
+        {reservation.kind === 'RULE' && (
+          <Text size="sm" c="dimmed">
+            {t('reservations.settings.ruleNote')}
+          </Text>
+        )}
+        <MarginFields
+          start={margins.start}
+          end={margins.end}
+          onChange={setMargins}
+          disabled={inFlight}
+          rule={
+            rule === undefined
+              ? undefined
+              : {
+                  name: rule.name,
+                  start: rule.settings.startMarginSeconds ?? null,
+                  end: rule.settings.endMarginSeconds ?? null,
+                }
+          }
+        />
+        {error && (
+          <Alert color="red" role="alert">
+            {t('reservations.settings.saveError')}
+          </Alert>
+        )}
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            {t('reservations.settings.cancel')}
+          </Button>
+          <Button type="submit" loading={inFlight}>
+            {t('reservations.settings.save')}
+          </Button>
+        </Group>
+      </Stack>
+    </form>
   );
 }

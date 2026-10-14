@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<4bed718aaec56e5c47e157eb22113e35>>
+ * @generated SignedSource<<e03e93e28b5bf01d7819049071e80a6e>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type AssignmentState = "CONFLICT" | "OK" | "PARTIAL" | "PENDING" | "%future added value";
 export type RecordingSettingsOverridesInput = {
   endMarginSeconds?: number | null | undefined;
   fileNameTemplate?: string | null | undefined;
@@ -22,6 +23,9 @@ export type ReservationSettingsDialogMutation$variables = {
 };
 export type ReservationSettingsDialogMutation$data = {
   readonly updateReservation: {
+    readonly assignment: {
+      readonly state: AssignmentState;
+    };
     readonly id: string;
     readonly settings: {
       readonly endMarginSeconds: number | null | undefined;
@@ -104,6 +108,24 @@ v1 = [
           }
         ],
         "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "ReservationAssignment",
+        "kind": "LinkedField",
+        "name": "assignment",
+        "plural": false,
+        "selections": [
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "state",
+            "storageKey": null
+          }
+        ],
+        "storageKey": null
       }
     ],
     "storageKey": null
@@ -127,16 +149,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "939826699939e04d6e0a14369e995027",
+    "cacheID": "79c3aa8104cbe92fb497d8e4b0e8d5e3",
     "id": null,
     "metadata": {},
     "name": "ReservationSettingsDialogMutation",
     "operationKind": "mutation",
-    "text": "mutation ReservationSettingsDialogMutation(\n  $id: ID!\n  $settings: RecordingSettingsOverridesInput!\n) {\n  updateReservation(id: $id, input: {settings: $settings}) {\n    id\n    settings {\n      startMarginSeconds\n      endMarginSeconds\n    }\n  }\n}\n"
+    "text": "mutation ReservationSettingsDialogMutation(\n  $id: ID!\n  $settings: RecordingSettingsOverridesInput!\n) {\n  updateReservation(id: $id, input: {settings: $settings}) {\n    id\n    settings {\n      startMarginSeconds\n      endMarginSeconds\n    }\n    assignment {\n      state\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "0d22a292c53eb4e8f99942ff8a885057";
+(node as any).hash = "d66578a3c7d0b318fb28516b555bfa8a";
 
 export default node;

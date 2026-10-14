@@ -1,4 +1,5 @@
-import { Group, NumberInput } from '@mantine/core';
+import { Group, Loader, NumberInput } from '@mantine/core';
+import { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
@@ -18,7 +19,16 @@ type Props = {
 
 // MarginFields は、録画の開始前と終了後のマージン (秒) の入力欄。空なら全体の既定値に従うので、
 // 既定値を入力欄の中と説明に示す。ルールの画面と予約の設定で使う。
-export function MarginFields({ start, end, onChange, disabled = false, rule }: Props) {
+// 既定値を読む間は、ここだけを待たせ、まわりのフォームの入力を失わないようにする。
+export function MarginFields(props: Props) {
+  return (
+    <Suspense fallback={<Loader size="xs" />}>
+      <Fields {...props} />
+    </Suspense>
+  );
+}
+
+function Fields({ start, end, onChange, disabled = false, rule }: Props) {
   const { t } = useTranslation();
   const data = useLazyLoadQuery<MarginFieldsQuery>(
     graphql`
