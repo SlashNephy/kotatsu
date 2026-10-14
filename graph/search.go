@@ -150,6 +150,7 @@ func (r *Resolver) archivedProgram(ctx context.Context, raw string) (*model.Prog
 func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.ArchiveRangeInput, after *string) (*sqlc.SearchProgramCandidatesParams, error) {
 	params := &sqlc.SearchProgramCandidatesParams{
 		IncludeArchive:    archive != nil,
+		Now:               r.clock.Now(),
 		ArchiveFrom:       time.Time{},
 		ArchiveTo:         time.Time{},
 		ChannelTypes:      conditions.ChannelTypes,
@@ -170,8 +171,7 @@ func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.Arc
 	}
 	setKeywordPatterns(params, conditions.Keywords)
 	if archive != nil {
-		now := r.clock.Now()
-		params.ArchiveTo = now
+		params.ArchiveTo = params.Now
 		if archive.To != nil {
 			params.ArchiveTo = *archive.To
 		}

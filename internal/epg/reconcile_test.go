@@ -339,6 +339,40 @@ func TestSyncAllMarksUndecidedEnd(t *testing.T) {
 	}
 }
 
+// TestSyncSkipsArchivablePrograms は、アーカイブへ移す時期を過ぎた番組を、上流が返しても programs に足さず、
+// programs に残っていても消さない (Archiver に移させる) ことを確かめる。
+func TestSyncSkipsArchivablePrograms(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	add := func(eventID int, ago time.Duration) {
+		f.fake.AddProgram(&faketuner.Program{
+			ID: programID(eventID), EventID: eventID, ServiceID: grServiceID, NetworkID: grNetworkID,
+			StartAt: testNow().Add(-ago).UnixMilli(), Duration: int64(time.Hour / time.Millisecond),
+			IsFree: true, Name: "終わった番組", Description: "",
+		})
+	}
+	// 3 日前に終わった番組は、上流が返しても足さない。猶予 (24 時間) の内に終わった番組は足す。
+	add(300, 3*24*time.Hour)
+	add(301, 2*time.Hour)
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	countOf := func(eventID int) int {
+		return f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1 AND event_id = $2", serviceID(), eventID)
+	}
+	assert.Equal(t, 0, countOf(300))
+	assert.Equal(t, 1, countOf(301))
+
+	// programs に残っている、移す時期を過ぎた番組は、上流から消えても消さない。
+	_, err = f.pool.Exec(t.Context(), `UPDATE programs SET start_at = start_at - interval '2 days', end_at = end_at - interval '2 days'
+		WHERE service_id = $1 AND event_id = 301`, serviceID())
+	require.NoError(t, err)
+	require.NoError(t, f.fake.ForgetProgram(programID(301)))
+	_, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, countOf(301))
+}
+
 // onAirUpstream は、faketuner の番組表に、mirakc の /api/onair の代わりの放送中と次の番組を足した上流。
 type onAirUpstream struct {
 	*mirakurun.Client

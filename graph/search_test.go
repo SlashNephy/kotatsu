@@ -163,11 +163,12 @@ func TestSearchProgramsPagination(t *testing.T) {
 		after = got.SearchPrograms.PageInfo.EndCursor
 	}
 
-	// こたつテスト1 の番組は 14 件あるので、5 件、5 件、4 件に分かれる。
+	// こたつテスト1 の番組は 14 件あるが、1 と 2 はテストの時刻より前に終わっているので返さない。
+	// 残りの 12 件は、5 件、5 件、2 件に分かれる。
 	require.Len(t, pages, 3)
-	assert.Equal(t, []int{5, 5, 4}, []int{len(pages[0]), len(pages[1]), len(pages[2])})
-	assert.Equal(t, programName(1), pages[0][0])
-	assert.Equal(t, programName(14), pages[2][3])
+	assert.Equal(t, []int{5, 5, 2}, []int{len(pages[0]), len(pages[1]), len(pages[2])})
+	assert.Equal(t, programName(3), pages[0][0])
+	assert.Equal(t, programName(14), pages[2][1])
 }
 
 // TestSearchArchivedPrograms は、過去の番組を、期間を指定したときだけ検索することを確かめる (設計書 3.4)。
@@ -332,8 +333,9 @@ func TestSearchProgramsNarrowsKeywordsInSQL(t *testing.T) {
 	f := newFixture(t, nil)
 	f.syncEPG(t)
 	const name = `Kotatsu 100%_OFF \ 特番`
+	// まだ終わっていない番組の名前にする。いちばん遅く始まる番組を使う。
 	_, err := f.pool.Exec(t.Context(), `UPDATE programs SET name = $1, name_normalized = $1
-		WHERE (service_id, event_id) = (SELECT service_id, event_id FROM programs ORDER BY start_at, service_id, event_id LIMIT 1)`, name)
+		WHERE (service_id, event_id) = (SELECT service_id, event_id FROM programs ORDER BY start_at DESC, service_id, event_id LIMIT 1)`, name)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -356,6 +358,41 @@ func TestSearchProgramsNarrowsKeywordsInSQL(t *testing.T) {
 			conditions := conditionsInput{Keywords: []keywordInput{{Text: tt.text, Regexp: false, CaseSensitive: tt.caseSensitive, Fields: []string{fieldName}}}}
 			var got searchResult
 			require.Empty(t, f.query(t, searchQuery, searchVariables(conditions, nil, 50, nil), &got))
+			assert.Len(t, got.names(), tt.want)
+		})
+	}
+}
+
+// TestSearchProgramsExcludesEndedPrograms は、アーカイブへ移す前の、放送の終わった番組を、
+// 過去の放送を含めないときは返さず、含めるときは期間で絞って返すことを確かめる。
+func TestSearchProgramsExcludesEndedPrograms(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	// 1 つの番組を、2 時間前に終わったことにする。まだ programs に残っている。
+	const name = "終わったばかりの番組"
+	_, err := f.pool.Exec(t.Context(), `UPDATE programs SET name = $1, name_normalized = $1, start_at = $2, end_at = $3
+		WHERE (service_id, event_id) = (SELECT service_id, event_id FROM programs ORDER BY start_at, service_id, event_id LIMIT 1)`,
+		name, testNow().Add(-3*time.Hour), testNow().Add(-2*time.Hour))
+	require.NoError(t, err)
+	conditions := conditionsInput{Keywords: []keywordInput{keyword(name, false)}}
+
+	tests := []struct {
+		name    string
+		archive *archiveInput
+		want    int
+	}{
+		{name: "過去の放送を含めない", archive: nil, want: 0},
+		{name: "過去の放送を含める", archive: &archiveInput{}, want: 1},
+		{name: "期間の外", archive: &archiveInput{From: testNow().Add(-48 * time.Hour).Format(time.RFC3339), To: testNow().Add(-24 * time.Hour).Format(time.RFC3339)}, want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got searchResult
+			require.Empty(t, f.query(t, searchQuery, searchVariables(conditions, tt.archive, 50, nil), &got))
 			assert.Len(t, got.names(), tt.want)
 		})
 	}
