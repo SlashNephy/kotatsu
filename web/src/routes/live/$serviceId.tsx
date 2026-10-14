@@ -179,7 +179,7 @@ function Live({
   // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で調べる。
   const frameRef = useRef<HTMLDivElement | null>(null);
   const inPage = useVisible(frameRef);
-  // pip は、視聴画面を出す別のウィンドウ。出している間は、このページが隠れても再生を続ける (設計書 7.5)。
+  // pip は、視聴画面を出す別のウィンドウ。出している間は、このページが隠れても、実況のコメントなどを描き続ける (設計書 7.5)。
   const pip = useDocumentPictureInPicture();
   const visible = inPage || pip.container !== null;
   // playerBoxRef は、プレイヤーを包む要素。別のウィンドウに出すと移るので、キャプチャと全画面は、これを使う。
@@ -389,7 +389,6 @@ function Live({
           videoRef={videoRef}
           onVideo={setVideo}
           controls={controlBar}
-          active={visible}
           captions={captions}
           onLoaded={onLoaded}
           overlay={
@@ -423,7 +422,6 @@ function Live({
           videoRef={videoRef}
           onVideo={setVideo}
           controls={controlBar}
-          active={visible}
           captions={captions}
           live
           onLoaded={onLoaded}
@@ -453,16 +451,11 @@ function Live({
         {programName === null ? t('live.noProgram') : <ProgramTitle name={programName} />}
       </Text>
       <PlaybackUnavailable route={route} />
-      {/* 画面の外に出たときと、タブが隠れたときは、読み込みも止めて、チューナーを手放す (設計書 7.2)。 */}
+      {/* 画面の外に出たときと、タブが隠れたときも再生は続け、データ放送の受信と、実況のコメントの描画だけを止める (設計書 7.2)。 */}
       <div ref={frameRef}>
         {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
       </div>
       {pip.container !== null && createPortal(playerBox, pip.container)}
-      {!visible && (
-        <Text size="sm" c="dimmed">
-          {t('live.paused')}
-        </Text>
-      )}
       {disconnection !== null && (
         <Alert color="amber" role="alert" title={t('live.disconnected')}>
           <Stack gap={4}>

@@ -14,8 +14,6 @@ type Props = {
   // url は、流す TS の URL。null なら、何も読まない。
   url: string | null;
   videoRef: RefObject<HTMLVideoElement | null>;
-  // active は、再生してよいかどうか。画面の外に出たときや、タブが隠れたときに false にする。
-  active: boolean;
   // captions は、字幕と文字スーパーを出すかどうか。
   captions: boolean;
   onState?: (state: PlayerState) => void;
@@ -39,7 +37,6 @@ type Props = {
 export function TsPlayer({
   url,
   videoRef,
-  active,
   captions,
   onState,
   onError,
@@ -157,13 +154,13 @@ export function TsPlayer({
     }
   }, [ready, audio]);
 
-  // URL が変わったら読み直す。再生してよくないときは、読み込みも止めて、帯域とチューナーを使わない。
+  // URL が変わったら読み直す。URL がなければ、読み込みを止めて、帯域とチューナーを使わない。
   useEffect(() => {
     const player = playerRef.current;
     if (!ready || player === null) {
       return;
     }
-    if (url === null || !active) {
+    if (url === null) {
       player.stop();
 
       return;
@@ -186,7 +183,7 @@ export function TsPlayer({
       // URL が変わるか、外すときは、前の読み込みを止めて、サーバーに無駄な読み込みをさせない。
       player.stop();
     };
-  }, [ready, url, active]);
+  }, [ready, url]);
 
   return (
     <div className={classes.frame}>
