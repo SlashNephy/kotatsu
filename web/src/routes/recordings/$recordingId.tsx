@@ -17,7 +17,21 @@ import {
   Title,
 } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { Suspense, useState } from 'react';
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  Files,
+  Gauge,
+  Lock,
+  LockOpen,
+  Play,
+  Save,
+  Tag,
+  Trash2,
+  type LucideIcon,
+} from 'lucide-react';
+import { Suspense, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
@@ -245,6 +259,7 @@ function Recording({ recordingId }: { recordingId: string }) {
           </Card>
           {segments.length > 0 && (
             <Button
+              leftSection={<Play size={16} fill="currentColor" aria-hidden />}
               renderRoot={(props) => (
                 <Link {...props} to="/recordings/$recordingId/play" params={{ recordingId }} />
               )}
@@ -254,7 +269,12 @@ function Recording({ recordingId }: { recordingId: string }) {
           )}
           {/* 外部プレイヤー用の URL は、TS のセグメントを流す。セグメントのない取り込んだ録画では出さない。 */}
           {segments.length > 0 && (
-            <Button variant="default" onClick={openExternally} loading={creatingURL}>
+            <Button
+              variant="default"
+              leftSection={<ExternalLink size={16} aria-hidden />}
+              onClick={openExternally}
+              loading={creatingURL}
+            >
               {t('recordings.openExternally')}
             </Button>
           )}
@@ -267,7 +287,14 @@ function Recording({ recordingId }: { recordingId: string }) {
                 <TextInput value={streamURL} readOnly style={{ flex: 1 }} size="xs" />
                 <CopyButton value={streamURL}>
                   {({ copied, copy }) => (
-                    <Button size="xs" variant="default" onClick={copy}>
+                    <Button
+                      size="xs"
+                      variant="default"
+                      leftSection={
+                        copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />
+                      }
+                      onClick={copy}
+                    >
                       {copied ? t('recordings.copied') : t('recordings.copy')}
                     </Button>
                   )}
@@ -293,7 +320,7 @@ function Recording({ recordingId }: { recordingId: string }) {
             {/* 完了は当たり前なので出さず、録画中や失敗のように目を留めたい状態だけを出す。 */}
             {recording.state !== 'COMPLETED' && <RecordingStateBadge state={recording.state} />}
             {recording.protected && (
-              <Badge color="gray" variant="outline">
+              <Badge color="gray" variant="outline" leftSection={<Lock size={12} aria-hidden />}>
                 {t('recordings.protected')}
               </Badge>
             )}
@@ -311,9 +338,7 @@ function Recording({ recordingId }: { recordingId: string }) {
           )}
           <Card withBorder>
             <Stack gap={4}>
-              <Text size="sm" fw={700}>
-                {t('recordings.quality')}
-              </Text>
+              <CardHeading icon={Gauge}>{t('recordings.quality')}</CardHeading>
               <Text size="sm">
                 {t('recordings.qualityCounts', {
                   drops: recording.drops,
@@ -353,9 +378,7 @@ function Recording({ recordingId }: { recordingId: string }) {
           {others.length > 0 && (
             <Card withBorder>
               <Stack gap="xs">
-                <Text size="sm" fw={700}>
-                  {t('recordings.otherFiles')}
-                </Text>
+                <CardHeading icon={Files}>{t('recordings.otherFiles')}</CardHeading>
                 <Text size="xs" c="dimmed">
                   {t('recordings.otherFilesDescription')}
                 </Text>
@@ -381,7 +404,7 @@ function Recording({ recordingId }: { recordingId: string }) {
           <Card withBorder>
             <Stack gap="xs">
               <TagsInput
-                label={t('recordings.tags')}
+                label={<CardHeading icon={Tag}>{t('recordings.tags')}</CardHeading>}
                 data={data.tags.map((tag) => tag.name)}
                 value={tags}
                 onChange={setEditedTags}
@@ -393,6 +416,7 @@ function Recording({ recordingId }: { recordingId: string }) {
                   <Button
                     size="xs"
                     variant="default"
+                    leftSection={<Save size={14} aria-hidden />}
                     disabled={!tagsChanged}
                     loading={savingTags}
                     onClick={() =>
@@ -422,6 +446,13 @@ function Recording({ recordingId }: { recordingId: string }) {
             <Group justify="space-between">
               <Switch
                 label={t('recordings.protect')}
+                thumbIcon={
+                  recording.protected ? (
+                    <Lock size={10} color="var(--mantine-primary-color-filled)" aria-hidden />
+                  ) : (
+                    <LockOpen size={10} color="var(--mantine-color-gray-6)" aria-hidden />
+                  )
+                }
                 description={t('recordings.protectDescription')}
                 checked={recording.protected}
                 disabled={protecting}
@@ -437,6 +468,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               <Button
                 color="red"
                 variant="subtle"
+                leftSection={<Trash2 size={16} aria-hidden />}
                 // 保護した録画と、録画中の録画は消せない。
                 disabled={recording.protected || recording.state === 'RECORDING'}
                 onClick={() => setDeleting(true)}
@@ -465,6 +497,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               </Button>
               <Button
                 color="red"
+                leftSection={<Trash2 size={16} aria-hidden />}
                 loading={removing}
                 onClick={() =>
                   remove({
@@ -492,5 +525,17 @@ function Recording({ recordingId }: { recordingId: string }) {
         </Modal>
       )}
     </Grid>
+  );
+}
+
+// CardHeading は、カードの見出し。何のカードか目で追えるよう、アイコンを添える。
+function CardHeading({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
+  return (
+    <Group gap={6} component="span" wrap="nowrap">
+      <Icon size={16} aria-hidden />
+      <Text component="span" size="sm" fw={700}>
+        {children}
+      </Text>
+    </Group>
   );
 }
