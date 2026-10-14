@@ -25,6 +25,43 @@ func (q *Queries) DeleteReservation(ctx context.Context, id uuid.UUID) (int64, e
 	return result.RowsAffected(), nil
 }
 
+const getProgramForFileName = `-- name: GetProgramForFileName :one
+SELECT p.start_at, p.end_at, p.name, p.event_id, s.name AS service_name, s.channel_type, s.channel
+FROM programs p JOIN services s ON s.id = p.service_id
+WHERE p.service_id = $1 AND p.event_id = $2
+`
+
+type GetProgramForFileNameParams struct {
+	ServiceID int64
+	EventID   int64
+}
+
+type GetProgramForFileNameRow struct {
+	StartAt     time.Time
+	EndAt       time.Time
+	Name        string
+	EventID     int64
+	ServiceName string
+	ChannelType string
+	Channel     string
+}
+
+// ファイル名のテンプレートのプレビューに当てはめる、番組とサービスの情報。
+func (q *Queries) GetProgramForFileName(ctx context.Context, arg GetProgramForFileNameParams) (GetProgramForFileNameRow, error) {
+	row := q.db.QueryRow(ctx, getProgramForFileName, arg.ServiceID, arg.EventID)
+	var i GetProgramForFileNameRow
+	err := row.Scan(
+		&i.StartAt,
+		&i.EndAt,
+		&i.Name,
+		&i.EventID,
+		&i.ServiceName,
+		&i.ChannelType,
+		&i.Channel,
+	)
+	return i, err
+}
+
 const getProgramForReservation = `-- name: GetProgramForReservation :one
 SELECT service_id, event_id, start_at, end_at, name, description, extended, genres
 FROM programs

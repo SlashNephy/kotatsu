@@ -110,30 +110,16 @@ type FileNameData struct {
 
 // ParseFileNameTemplate は、ファイル名のテンプレートを解釈する。知らない項目を参照するテンプレートはエラーにする。
 func ParseFileNameTemplate(text string) (*template.Template, error) {
-	tmpl, err := template.New("file_name").Option("missingkey=error").Parse(text)
+	tmpl, err := template.New("file_name").Option("missingkey=error").Funcs(fileNameFuncs()).Parse(text)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid file name template: %w", ErrInvalidSettings, err)
 	}
 	// 項目の名前の誤りは、実行してみないと分からないので、見本のデータで試す。
-	if err := tmpl.Execute(io.Discard, sampleFileNameData()); err != nil {
+	if err := tmpl.Execute(io.Discard, SampleFileNameData()); err != nil {
 		return nil, fmt.Errorf("%w: invalid file name template: %w", ErrInvalidSettings, err)
 	}
 
 	return tmpl, nil
-}
-
-func sampleFileNameData() *FileNameData {
-	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-
-	return &FileNameData{
-		StartAt:     start,
-		EndAt:       start.Add(time.Hour),
-		ServiceName: "サービス",
-		ChannelType: "GR",
-		Channel:     "27",
-		Name:        "番組",
-		EventID:     1,
-	}
 }
 
 // Validate は、上書きの値が正しいかを確かめる。プールが設定にあるかどうかは、設定を持つ API の層で確かめる。

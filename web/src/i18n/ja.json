@@ -336,6 +336,24 @@
     "archived": "放送済み",
     "more": "さらに読み込む"
   },
+  "fileNameTemplate": {
+    "program": "当てはめる番組",
+    "sample": "見本の番組",
+    "preview": "ファイル名の例:",
+    "invalid": "テンプレートが正しくありません: {{error}}",
+    "previewError": "ファイル名の例を求められませんでした",
+    "showHelp": "使える書き方を見る",
+    "hideHelp": "使える書き方を閉じる",
+    "helpNote": "書き方を押すと、入力欄のカーソルの位置に差し込みます。例は、見本の番組を当てはめたものです",
+    "snippet": "書き方",
+    "meaning": "意味",
+    "example": "例",
+    "presets": "よく使うテンプレート (押すと置き換えます)",
+    "insert": "{{snippet}} を差し込む",
+    "usePreset": "「{{name}}」のテンプレートにする",
+    "ruleLabel": "ファイル名のテンプレート",
+    "ruleDescription": "空なら全体の既定値に従います"
+  },
   "margins": {
     "start": "開始前のマージン",
     "end": "終了後のマージン",
@@ -765,7 +783,7 @@
       "poolAuto": "自動で選ぶ",
       "poolHelp": "自動なら、推定サイズが収まるプールを、優先順位の高い順に選びます",
       "fileNameTemplate": "ファイル名のテンプレート",
-      "fileNameTemplateHelp": "Goのtext/templateで書きます。使える項目は .StartAt、.EndAt、.ServiceName、.ChannelType、.Channel、.Name、.EventIDです",
+      "fileNameTemplateHelp": "Goのtext/templateで書きます。使える書き方は、下の「使える書き方を見る」で表にしています",
       "startMargin": "開始前のマージン（秒）",
       "endMargin": "終了後のマージン（秒）",
       "priority": "優先度",

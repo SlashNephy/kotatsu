@@ -238,6 +238,54 @@ type ExtendedItem {
   text: String!
 }
 """
+ファイル名のテンプレートを当てはめた結果。
+"""
+type FileNamePreview {
+  """
+  当てはめたファイル名 (拡張子を含む)。取り除く文字や切り詰めも、録画と同じにする。テンプレートが誤っていれば null。
+  """
+  fileName: String
+  """
+  テンプレートの誤り。正しければ null。
+  """
+  error: String
+}
+"""
+ファイル名のテンプレートの書き方。Go のテンプレートを書かない利用者向けに、画面で表にして示す。
+"""
+type FileNameTemplateHelp {
+  items: [FileNameTemplateItem!]!
+  presets: [FileNameTemplatePreset!]!
+}
+"""
+ファイル名のテンプレートの書き方の 1 つ (設計書 4.7)。
+"""
+type FileNameTemplateItem {
+  """
+  テンプレートに書くもの。
+  """
+  snippet: String!
+  """
+  何に置き換わるか。
+  """
+  description: String!
+  """
+  見本の番組を当てはめた結果。
+  """
+  example: String!
+}
+"""
+よく使うファイル名のテンプレート。
+"""
+type FileNameTemplatePreset {
+  name: String!
+  template: String!
+  """
+  見本の番組を当てはめたファイル名 (拡張子を含む)。
+  """
+  example: String!
+}
+"""
 番組のジャンル。ARIB STD-B10 の content_nibble の大分類と中分類。
 """
 type Genre {
@@ -901,6 +949,14 @@ type Query {
   view を指定すると、その番組表ビューの条件で、番組を絞り込み、サービスを並べ替える。
   """
   guide(from: Time!, to: Time!, services: [ID!], view: ID): [GuideRow!]!
+  """
+  ファイル名のテンプレートの書き方と、よく使うテンプレート。
+  """
+  fileNameTemplateHelp: FileNameTemplateHelp!
+  """
+  テンプレートに番組 program を当てはめたファイル名を返す。program を省けば、見本の番組を当てはめる。
+  """
+  previewFileName(template: String!, program: ID): FileNamePreview!
   """
   ログイン中のユーザーの番組表ビュー。
   """

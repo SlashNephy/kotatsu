@@ -100,6 +100,8 @@ type Querier interface {
 	GetPlayerSettings(ctx context.Context, userID uuid.UUID) (GetPlayerSettingsRow, error)
 	// 録画中の番組の、今の EPG の終了時刻と、未定かどうか。番組が EPG から消えていれば行を返さない。
 	GetProgramEnd(ctx context.Context, arg GetProgramEndParams) (GetProgramEndRow, error)
+	// ファイル名のテンプレートのプレビューに当てはめる、番組とサービスの情報。
+	GetProgramForFileName(ctx context.Context, arg GetProgramForFileNameParams) (GetProgramForFileNameRow, error)
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetRecording(ctx context.Context, id uuid.UUID) (Recording, error)
 	GetRecordingAssignmentStream(ctx context.Context, id uuid.UUID) (GetRecordingAssignmentStreamRow, error)

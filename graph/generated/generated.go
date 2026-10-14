@@ -104,6 +104,28 @@ type ComplexityRoot struct {
 		Text    func(childComplexity int) int
 	}
 
+	FileNamePreview struct {
+		Error    func(childComplexity int) int
+		FileName func(childComplexity int) int
+	}
+
+	FileNameTemplateHelp struct {
+		Items   func(childComplexity int) int
+		Presets func(childComplexity int) int
+	}
+
+	FileNameTemplateItem struct {
+		Description func(childComplexity int) int
+		Example     func(childComplexity int) int
+		Snippet     func(childComplexity int) int
+	}
+
+	FileNameTemplatePreset struct {
+		Example  func(childComplexity int) int
+		Name     func(childComplexity int) int
+		Template func(childComplexity int) int
+	}
+
 	Genre struct {
 		Lv1 func(childComplexity int) int
 		Lv2 func(childComplexity int) int
@@ -311,6 +333,7 @@ type ComplexityRoot struct {
 	Query struct {
 		AuditEvents             func(childComplexity int, first int, after *string, filter *model.AuditEventFilter) int
 		ChannelTypes            func(childComplexity int) int
+		FileNameTemplateHelp    func(childComplexity int) int
 		Guide                   func(childComplexity int, from time.Time, to time.Time, services []string, view *string) int
 		GuideViews              func(childComplexity int) int
 		Node                    func(childComplexity int, id string) int
@@ -318,6 +341,7 @@ type ComplexityRoot struct {
 		Notifications           func(childComplexity int, first int, after *string, unreadOnly bool) int
 		Passkeys                func(childComplexity int) int
 		PlayerSettings          func(childComplexity int) int
+		PreviewFileName         func(childComplexity int, template string, program *string) int
 		PreviewRule             func(childComplexity int, input model.RuleInput, first int, after *string) int
 		Recordings              func(childComplexity int, first int, after *string, filter *model.RecordingFilter) int
 		Reservations            func(childComplexity int, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, first int, after *string) int
@@ -685,6 +709,8 @@ type QueryResolver interface {
 	ChannelTypes(ctx context.Context) ([]*model.ChannelType, error)
 	Services(ctx context.Context, includeHidden bool) ([]*model.Service, error)
 	Guide(ctx context.Context, from time.Time, to time.Time, services []string, view *string) ([]*model.GuideRow, error)
+	FileNameTemplateHelp(ctx context.Context) (*model.FileNameTemplateHelp, error)
+	PreviewFileName(ctx context.Context, template string, program *string) (*model.FileNamePreview, error)
 	GuideViews(ctx context.Context) ([]*model.GuideView, error)
 	Notifications(ctx context.Context, first int, after *string, unreadOnly bool) (*model.NotificationConnection, error)
 	UnreadNotificationCount(ctx context.Context) (int, error)
@@ -935,6 +961,70 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ExtendedItem.Text(childComplexity), true
+
+	case "FileNamePreview.error":
+		if e.ComplexityRoot.FileNamePreview.Error == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileNamePreview.Error(childComplexity), true
+	case "FileNamePreview.fileName":
+		if e.ComplexityRoot.FileNamePreview.FileName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileNamePreview.FileName(childComplexity), true
+
+	case "FileNameTemplateHelp.items":
+		if e.ComplexityRoot.FileNameTemplateHelp.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileNameTemplateHelp.Items(childComplexity), true
+	case "FileNameTemplateHelp.presets":
+		if e.ComplexityRoot.FileNameTemplateHelp.Presets == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileNameTemplateHelp.Presets(childComplexity), true
+
+	case "FileNameTemplateItem.description":
+		if e.ComplexityRoot.FileNameTemplateItem.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileNameTemplateItem.Description(childComplexity), true
+	case "FileNameTemplateItem.example":
+		if e.ComplexityRoot.FileNameTemplateItem.Example == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileNameTemplateItem.Example(childComplexity), true
+	case "FileNameTemplateItem.snippet":
+		if e.ComplexityRoot.FileNameTemplateItem.Snippet == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileNameTemplateItem.Snippet(childComplexity), true
+
+	case "FileNameTemplatePreset.example":
+		if e.ComplexityRoot.FileNameTemplatePreset.Example == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileNameTemplatePreset.Example(childComplexity), true
+	case "FileNameTemplatePreset.name":
+		if e.ComplexityRoot.FileNameTemplatePreset.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileNameTemplatePreset.Name(childComplexity), true
+	case "FileNameTemplatePreset.template":
+		if e.ComplexityRoot.FileNameTemplatePreset.Template == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileNameTemplatePreset.Template(childComplexity), true
 
 	case "Genre.lv1":
 		if e.ComplexityRoot.Genre.Lv1 == nil {
@@ -1993,6 +2083,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ChannelTypes(childComplexity), true
+	case "Query.fileNameTemplateHelp":
+		if e.ComplexityRoot.Query.FileNameTemplateHelp == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.FileNameTemplateHelp(childComplexity), true
 	case "Query.guide":
 		if e.ComplexityRoot.Query.Guide == nil {
 			break
@@ -2051,6 +2147,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.PlayerSettings(childComplexity), true
+	case "Query.previewFileName":
+		if e.ComplexityRoot.Query.PreviewFileName == nil {
+			break
+		}
+
+		args, err := ec.field_Query_previewFileName_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.PreviewFileName(childComplexity, args["template"].(string), args["program"].(*string)), true
 	case "Query.previewRule":
 		if e.ComplexityRoot.Query.PreviewRule == nil {
 			break
@@ -3839,6 +3946,53 @@ extend type Query {
   guide(from: Time!, to: Time!, services: [ID!], view: ID): [GuideRow!]!
 }
 `, BuiltIn: false},
+	{Name: "../schema/file_names.graphqls", Input: `"""
+ファイル名のテンプレートの書き方の 1 つ (設計書 4.7)。
+"""
+type FileNameTemplateItem {
+  "テンプレートに書くもの。"
+  snippet: String!
+  "何に置き換わるか。"
+  description: String!
+  "見本の番組を当てはめた結果。"
+  example: String!
+}
+
+"""
+よく使うファイル名のテンプレート。
+"""
+type FileNameTemplatePreset {
+  name: String!
+  template: String!
+  "見本の番組を当てはめたファイル名 (拡張子を含む)。"
+  example: String!
+}
+
+"""
+ファイル名のテンプレートの書き方。Go のテンプレートを書かない利用者向けに、画面で表にして示す。
+"""
+type FileNameTemplateHelp {
+  items: [FileNameTemplateItem!]!
+  presets: [FileNameTemplatePreset!]!
+}
+
+"""
+ファイル名のテンプレートを当てはめた結果。
+"""
+type FileNamePreview {
+  "当てはめたファイル名 (拡張子を含む)。取り除く文字や切り詰めも、録画と同じにする。テンプレートが誤っていれば null。"
+  fileName: String
+  "テンプレートの誤り。正しければ null。"
+  error: String
+}
+
+extend type Query {
+  "ファイル名のテンプレートの書き方と、よく使うテンプレート。"
+  fileNameTemplateHelp: FileNameTemplateHelp!
+  "テンプレートに番組 program を当てはめたファイル名を返す。program を省けば、見本の番組を当てはめる。"
+  previewFileName(template: String!, program: ID): FileNamePreview!
+}
+`, BuiltIn: false},
 	{Name: "../schema/guide_views.graphqls", Input: `"""
 番組表ビュー (設計書 10.3)。番組表に適用する条件を、ユーザーごとに名前を付けて保存したもの。
 """
@@ -5175,6 +5329,50 @@ func (ec *executionContext) childFields_ExtendedItem(ctx context.Context, field 
 		return ec.fieldContext_ExtendedItem_text(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ExtendedItem", field.Name)
+}
+
+func (ec *executionContext) childFields_FileNamePreview(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "fileName":
+		return ec.fieldContext_FileNamePreview_fileName(ctx, field)
+	case "error":
+		return ec.fieldContext_FileNamePreview_error(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FileNamePreview", field.Name)
+}
+
+func (ec *executionContext) childFields_FileNameTemplateHelp(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "items":
+		return ec.fieldContext_FileNameTemplateHelp_items(ctx, field)
+	case "presets":
+		return ec.fieldContext_FileNameTemplateHelp_presets(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FileNameTemplateHelp", field.Name)
+}
+
+func (ec *executionContext) childFields_FileNameTemplateItem(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "snippet":
+		return ec.fieldContext_FileNameTemplateItem_snippet(ctx, field)
+	case "description":
+		return ec.fieldContext_FileNameTemplateItem_description(ctx, field)
+	case "example":
+		return ec.fieldContext_FileNameTemplateItem_example(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FileNameTemplateItem", field.Name)
+}
+
+func (ec *executionContext) childFields_FileNameTemplatePreset(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "name":
+		return ec.fieldContext_FileNameTemplatePreset_name(ctx, field)
+	case "template":
+		return ec.fieldContext_FileNameTemplatePreset_template(ctx, field)
+	case "example":
+		return ec.fieldContext_FileNameTemplatePreset_example(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FileNameTemplatePreset", field.Name)
 }
 
 func (ec *executionContext) childFields_Genre(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -6915,6 +7113,28 @@ func (ec *executionContext) field_Query_notifications_args(ctx context.Context, 
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_previewFileName_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "template",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["template"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "program",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["program"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_previewRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -7892,6 +8112,254 @@ func (ec *executionContext) _ExtendedItem_text(ctx context.Context, field graphq
 }
 func (ec *executionContext) fieldContext_ExtendedItem_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("ExtendedItem", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FileNamePreview_fileName(ctx context.Context, field graphql.CollectedField, obj *model.FileNamePreview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileNamePreview_fileName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FileName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_FileNamePreview_fileName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileNamePreview", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FileNamePreview_error(ctx context.Context, field graphql.CollectedField, obj *model.FileNamePreview) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileNamePreview_error(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_FileNamePreview_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileNamePreview", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FileNameTemplateHelp_items(ctx context.Context, field graphql.CollectedField, obj *model.FileNameTemplateHelp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileNameTemplateHelp_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.FileNameTemplateItem) graphql.Marshaler {
+			return ec.marshalNFileNameTemplateItem2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐFileNameTemplateItemᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileNameTemplateHelp_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FileNameTemplateHelp",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FileNameTemplateItem(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FileNameTemplateHelp_presets(ctx context.Context, field graphql.CollectedField, obj *model.FileNameTemplateHelp) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileNameTemplateHelp_presets(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Presets, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.FileNameTemplatePreset) graphql.Marshaler {
+			return ec.marshalNFileNameTemplatePreset2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐFileNameTemplatePresetᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileNameTemplateHelp_presets(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FileNameTemplateHelp",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FileNameTemplatePreset(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FileNameTemplateItem_snippet(ctx context.Context, field graphql.CollectedField, obj *model.FileNameTemplateItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileNameTemplateItem_snippet(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Snippet, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileNameTemplateItem_snippet(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileNameTemplateItem", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FileNameTemplateItem_description(ctx context.Context, field graphql.CollectedField, obj *model.FileNameTemplateItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileNameTemplateItem_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileNameTemplateItem_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileNameTemplateItem", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FileNameTemplateItem_example(ctx context.Context, field graphql.CollectedField, obj *model.FileNameTemplateItem) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileNameTemplateItem_example(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Example, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileNameTemplateItem_example(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileNameTemplateItem", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FileNameTemplatePreset_name(ctx context.Context, field graphql.CollectedField, obj *model.FileNameTemplatePreset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileNameTemplatePreset_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileNameTemplatePreset_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileNameTemplatePreset", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FileNameTemplatePreset_template(ctx context.Context, field graphql.CollectedField, obj *model.FileNameTemplatePreset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileNameTemplatePreset_template(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Template, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileNameTemplatePreset_template(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileNameTemplatePreset", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FileNameTemplatePreset_example(ctx context.Context, field graphql.CollectedField, obj *model.FileNameTemplatePreset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileNameTemplatePreset_example(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Example, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileNameTemplatePreset_example(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileNameTemplatePreset", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Genre_lv1(ctx context.Context, field graphql.CollectedField, obj *model.Genre) (ret graphql.Marshaler) {
@@ -12430,6 +12898,82 @@ func (ec *executionContext) fieldContext_Query_guide(ctx context.Context, field 
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_guide_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_fileNameTemplateHelp(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_fileNameTemplateHelp(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().FileNameTemplateHelp(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.FileNameTemplateHelp) graphql.Marshaler {
+			return ec.marshalNFileNameTemplateHelp2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐFileNameTemplateHelp(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_fileNameTemplateHelp(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FileNameTemplateHelp(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_previewFileName(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_previewFileName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().PreviewFileName(ctx, fc.Args["template"].(string), fc.Args["program"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.FileNamePreview) graphql.Marshaler {
+			return ec.marshalNFileNamePreview2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐFileNamePreview(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_previewFileName(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FileNamePreview(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_previewFileName_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -20511,6 +21055,188 @@ func (ec *executionContext) _ExtendedItem(ctx context.Context, sel ast.Selection
 	return out
 }
 
+var fileNamePreviewImplementors = []string{"FileNamePreview"}
+
+func (ec *executionContext) _FileNamePreview(ctx context.Context, sel ast.SelectionSet, obj *model.FileNamePreview) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, fileNamePreviewImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FileNamePreview")
+		case "fileName":
+			out.Values[i] = ec._FileNamePreview_fileName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._FileNamePreview_error(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var fileNameTemplateHelpImplementors = []string{"FileNameTemplateHelp"}
+
+func (ec *executionContext) _FileNameTemplateHelp(ctx context.Context, sel ast.SelectionSet, obj *model.FileNameTemplateHelp) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, fileNameTemplateHelpImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FileNameTemplateHelp")
+		case "items":
+			out.Values[i] = ec._FileNameTemplateHelp_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "presets":
+			out.Values[i] = ec._FileNameTemplateHelp_presets(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var fileNameTemplateItemImplementors = []string{"FileNameTemplateItem"}
+
+func (ec *executionContext) _FileNameTemplateItem(ctx context.Context, sel ast.SelectionSet, obj *model.FileNameTemplateItem) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, fileNameTemplateItemImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FileNameTemplateItem")
+		case "snippet":
+			out.Values[i] = ec._FileNameTemplateItem_snippet(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._FileNameTemplateItem_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "example":
+			out.Values[i] = ec._FileNameTemplateItem_example(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var fileNameTemplatePresetImplementors = []string{"FileNameTemplatePreset"}
+
+func (ec *executionContext) _FileNameTemplatePreset(ctx context.Context, sel ast.SelectionSet, obj *model.FileNameTemplatePreset) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, fileNameTemplatePresetImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FileNameTemplatePreset")
+		case "name":
+			out.Values[i] = ec._FileNameTemplatePreset_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "template":
+			out.Values[i] = ec._FileNameTemplatePreset_template(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "example":
+			out.Values[i] = ec._FileNameTemplatePreset_example(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var genreImplementors = []string{"Genre"}
 
 func (ec *executionContext) _Genre(ctx context.Context, sel ast.SelectionSet, obj *model.Genre) graphql.Marshaler {
@@ -22390,6 +23116,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_guide(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "fileNameTemplateHelp":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_fileNameTemplateHelp(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "previewFileName":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_previewFileName(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -25583,6 +26353,78 @@ func (ec *executionContext) marshalNExtendedItem2ᚖgithubᚗcomᚋSlashNephyᚋ
 		return graphql.Null
 	}
 	return ec._ExtendedItem(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFileNamePreview2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐFileNamePreview(ctx context.Context, sel ast.SelectionSet, v *model.FileNamePreview) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FileNamePreview(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFileNameTemplateHelp2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐFileNameTemplateHelp(ctx context.Context, sel ast.SelectionSet, v *model.FileNameTemplateHelp) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FileNameTemplateHelp(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFileNameTemplateItem2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐFileNameTemplateItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.FileNameTemplateItem) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFileNameTemplateItem2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐFileNameTemplateItem(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFileNameTemplateItem2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐFileNameTemplateItem(ctx context.Context, sel ast.SelectionSet, v *model.FileNameTemplateItem) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FileNameTemplateItem(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFileNameTemplatePreset2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐFileNameTemplatePresetᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.FileNameTemplatePreset) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFileNameTemplatePreset2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐFileNameTemplatePreset(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFileNameTemplatePreset2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐFileNameTemplatePreset(ctx context.Context, sel ast.SelectionSet, v *model.FileNameTemplatePreset) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FileNameTemplatePreset(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNGenre2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Genre) graphql.Marshaler {
