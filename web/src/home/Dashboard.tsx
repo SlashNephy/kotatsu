@@ -1,6 +1,7 @@
 import {
   Alert,
   Anchor,
+  AspectRatio,
   Badge,
   Card,
   Group,
@@ -246,7 +247,9 @@ export function Dashboard({ range }: { range: DashboardRange }) {
                   />
                 )}
               >
-                <RecordingThumbnail url={node.thumbnailUrl} />
+                <AspectRatio ratio={16 / 9}>
+                  <RecordingThumbnail url={node.thumbnailUrl} />
+                </AspectRatio>
                 {/* 行の間は、放送中の番組のカードと揃える (番組名と放送時間は 4px、サービスとの間は xs)。 */}
                 <Stack gap={0} p="xs">
                   <Text size="sm" lineClamp={2}>

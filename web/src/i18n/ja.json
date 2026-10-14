@@ -473,7 +473,6 @@
     "empty": "条件に一致する録画はありません",
     "more": "さらに読み込む",
     "protected": "保護",
-    "noThumbnail": "画像はまだありません",
     "state": {
       "RECORDING": "録画中",
       "COMPLETED": "完了",
