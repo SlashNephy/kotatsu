@@ -44,8 +44,6 @@ const kogecha: MantineColorsTuple = [
   '#18130f',
 ];
 
-export const headingFontFamily = "'Zen Maru Gothic', system-ui, sans-serif";
-
 export const theme = createTheme({
   primaryColor: 'mikan',
   primaryShade: { light: 6, dark: 5 },
@@ -57,7 +55,7 @@ export const theme = createTheme({
   // 本文と見出しは、同梱した丸ゴシック体にする。本文の M PLUS Rounded 1c は、数字の幅が揃うので、日時の桁も揃う。
   fontFamily:
     '"M PLUS Rounded 1c", system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif',
-  headings: { fontFamily: headingFontFamily, fontWeight: '700' },
+  headings: { fontWeight: '700' },
   other: {
     // 生成り色。ライトテーマの背景に使う。
     kinari: '#fbf7ef',
