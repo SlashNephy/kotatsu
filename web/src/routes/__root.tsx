@@ -1,6 +1,6 @@
 import { Anchor, AppShell, Burger, Group, Stack, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { createRootRoute, Link, Outlet, useRouterState } from '@tanstack/react-router';
+import { createRootRoute, Link, Outlet, useMatches, useRouterState } from '@tanstack/react-router';
 import { Suspense, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
@@ -10,6 +10,13 @@ import { ColorSchemeToggle, ErrorBoundary } from '../futon';
 import { NotificationBell } from '../notifications/NotificationBell';
 import type { RootViewerQuery } from './__generated__/RootViewerQuery.graphql';
 import classes from './__root.module.css';
+
+declare module '@tanstack/react-router' {
+  interface StaticDataRouteOption {
+    // fluid は、本文の幅の上限を外す画面に付ける。
+    fluid?: boolean;
+  }
+}
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -34,6 +41,9 @@ const navItems = [
 function RootLayout() {
   const { t } = useTranslation();
   const [opened, { toggle, close }] = useDisclosure(false);
+  const fluid = useMatches({
+    select: (matches) => matches.some((match) => match.staticData.fluid),
+  });
   const brand = (
     <Title order={1} size="h3">
       {t('app.name')}
@@ -49,13 +59,27 @@ function RootLayout() {
       <AppShell.Header>
         <SignedIn
           fallback={
-            <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+            <Group
+              h="100%"
+              px="md"
+              justify="space-between"
+              wrap="nowrap"
+              className={classes.header}
+              data-fluid={fluid || undefined}
+            >
               {brand}
               <ColorSchemeToggle />
             </Group>
           }
         >
-          <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+          <Group
+            h="100%"
+            px="md"
+            justify="space-between"
+            wrap="nowrap"
+            className={classes.header}
+            data-fluid={fluid || undefined}
+          >
             <Group gap="lg" wrap="nowrap">
               <Burger
                 opened={opened}
@@ -106,7 +130,9 @@ function RootLayout() {
         </SignedIn>
       </AppShell.Navbar>
       <AppShell.Main>
-        <Outlet />
+        <div className={classes.content} data-fluid={fluid || undefined}>
+          <Outlet />
+        </div>
       </AppShell.Main>
     </AppShell>
   );

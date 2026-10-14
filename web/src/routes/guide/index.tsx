@@ -59,6 +59,7 @@ export const Route = createFileRoute('/guide/')({
     };
   },
   component: GuidePage,
+  staticData: { fluid: true },
 });
 
 // dateOf は、放送日の始まりの時刻を YYYY-MM-DD (日本時間) にする。
