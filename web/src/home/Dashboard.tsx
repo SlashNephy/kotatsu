@@ -36,7 +36,7 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
 
 export type DashboardRange = { now: number; nowEnd: string; from: string; to: string };
 
-// Dashboard は、ホームの中身。縮退と予約の競合の警告、放送中の番組、最近の録画、これからの予約を出す (設計書 10.3)。
+// Dashboard は、ホームの中身。縮退と予約の競合の警告、これからの予約、最近の録画、放送中の番組を出す (設計書 10.3)。
 // range は、待たない親で決めた時刻。待つ間に決め直すと、読み込みが終わらなくなる。
 export function Dashboard({ range }: { range: DashboardRange }) {
   const { t } = useTranslation();
@@ -167,42 +167,43 @@ export function Dashboard({ range }: { range: DashboardRange }) {
       )}
 
       <Stack gap="xs">
-        <div className={classes.nowPlayingHeader}>
-          <Title order={3} size="h5" className={classes.title}>
-            {t('home.nowPlaying')}
+        <Group justify="space-between">
+          <Title order={3} size="h5">
+            {t('home.upcoming')}
           </Title>
-          {playingByType.length > 1 && (
-            <SegmentedControl
-              className={classes.types}
-              size="xs"
-              value={current?.type ?? ''}
-              onChange={setSelectedType}
-              data={playingByType.map((channelType) => ({
-                value: channelType.type,
-                label: channelType.displayName,
-              }))}
-            />
-          )}
-          <Anchor component={Link} to="/guide" size="sm" className={classes.link}>
-            {t('home.openGuide')}
+          <Anchor component={Link} to="/reservations" size="sm">
+            {t('home.allReservations')}
           </Anchor>
-        </div>
-        {playing.length === 0 ? (
+        </Group>
+        {data.upcoming.edges.length === 0 ? (
           <Text size="sm" c="dimmed">
-            {t('home.nothingPlaying')}
+            {t('home.noReservations')}
           </Text>
         ) : (
-          <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="xs">
-            {playing.map((item) => (
-              <NowPlayingCard
-                key={item.serviceId}
-                serviceId={item.serviceId}
-                serviceName={item.serviceName}
-                serviceLogoUrl={item.serviceLogoUrl}
-                program={{ name: item.programName, startAt: item.startAt, endAt: item.endAt }}
-              />
+          <Stack gap={4}>
+            {data.upcoming.edges.map(({ node }) => (
+              <Group key={node.id} gap="xs" wrap="nowrap">
+                <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
+                  {dateTimeFormat.format(Date.parse(node.startAt))}
+                </Text>
+                <Text size="sm" truncate style={{ flex: 1, minWidth: 0 }}>
+                  <ProgramTitle name={node.name} />
+                </Text>
+                <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
+                  <ServiceLabel name={node.service.name} logoUrl={node.service.logoUrl} />
+                </Text>
+                {(node.assignment.state === 'CONFLICT' || node.assignment.state === 'PARTIAL') && (
+                  <Badge size="xs" color="amber" variant="light">
+                    {t(
+                      node.assignment.state === 'CONFLICT'
+                        ? 'reservations.state.CONFLICT'
+                        : 'reservations.state.PARTIAL',
+                    )}
+                  </Badge>
+                )}
+              </Group>
             ))}
-          </SimpleGrid>
+          </Stack>
         )}
       </Stack>
 
@@ -255,43 +256,42 @@ export function Dashboard({ range }: { range: DashboardRange }) {
       </Stack>
 
       <Stack gap="xs">
-        <Group justify="space-between">
-          <Title order={3} size="h5">
-            {t('home.upcoming')}
+        <div className={classes.nowPlayingHeader}>
+          <Title order={3} size="h5" className={classes.title}>
+            {t('home.nowPlaying')}
           </Title>
-          <Anchor component={Link} to="/reservations" size="sm">
-            {t('home.allReservations')}
+          {playingByType.length > 1 && (
+            <SegmentedControl
+              className={classes.types}
+              size="xs"
+              value={current?.type ?? ''}
+              onChange={setSelectedType}
+              data={playingByType.map((channelType) => ({
+                value: channelType.type,
+                label: channelType.displayName,
+              }))}
+            />
+          )}
+          <Anchor component={Link} to="/guide" size="sm" className={classes.link}>
+            {t('home.openGuide')}
           </Anchor>
-        </Group>
-        {data.upcoming.edges.length === 0 ? (
+        </div>
+        {playing.length === 0 ? (
           <Text size="sm" c="dimmed">
-            {t('home.noReservations')}
+            {t('home.nothingPlaying')}
           </Text>
         ) : (
-          <Stack gap={4}>
-            {data.upcoming.edges.map(({ node }) => (
-              <Group key={node.id} gap="xs" wrap="nowrap">
-                <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
-                  {dateTimeFormat.format(Date.parse(node.startAt))}
-                </Text>
-                <Text size="sm" truncate style={{ flex: 1, minWidth: 0 }}>
-                  <ProgramTitle name={node.name} />
-                </Text>
-                <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
-                  <ServiceLabel name={node.service.name} logoUrl={node.service.logoUrl} />
-                </Text>
-                {(node.assignment.state === 'CONFLICT' || node.assignment.state === 'PARTIAL') && (
-                  <Badge size="xs" color="amber" variant="light">
-                    {t(
-                      node.assignment.state === 'CONFLICT'
-                        ? 'reservations.state.CONFLICT'
-                        : 'reservations.state.PARTIAL',
-                    )}
-                  </Badge>
-                )}
-              </Group>
+          <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="xs">
+            {playing.map((item) => (
+              <NowPlayingCard
+                key={item.serviceId}
+                serviceId={item.serviceId}
+                serviceName={item.serviceName}
+                serviceLogoUrl={item.serviceLogoUrl}
+                program={{ name: item.programName, startAt: item.startAt, endAt: item.endAt }}
+              />
             ))}
-          </Stack>
+          </SimpleGrid>
         )}
       </Stack>
     </Stack>
