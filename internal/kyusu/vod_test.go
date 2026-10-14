@@ -194,7 +194,7 @@ func (e *fakeVODEncoder) RunVOD(ctx context.Context, src io.Reader, _ *kyusu.Pre
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 	for k := opts.StartNumber; ; k++ {
-		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("segment%05d.ts", k)), []byte(strconv.Itoa(k)), 0o600); err != nil {
+		if err := writeFileAtomically(filepath.Join(dir, fmt.Sprintf("segment%05d.ts", k)), []byte(strconv.Itoa(k))); err != nil {
 			return err
 		}
 		select {
