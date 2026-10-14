@@ -153,9 +153,11 @@ func (l *Library) missingFiles(files []sqlc.RecordingFile) (int, int, []uuid.UUI
 		missingSegments++
 		missing = append(missing, files[i].ID)
 		// 索引は、セグメントの付属ファイルのディレクトリにあるので、セグメントと一緒に記録を消す。
-		for j := range files {
-			if files[j].Kind == "index" && files[j].PoolID == files[i].PoolID && files[j].Path == kago.IndexPath(files[i].Path) {
-				missing = append(missing, files[j].ID)
+		for _, index := range l.store.IndexLocations(files[i].PoolID, files[i].Path) {
+			for j := range files {
+				if files[j].Kind == "index" && files[j].PoolID == index.PoolID && files[j].Path == index.Path {
+					missing = append(missing, files[j].ID)
+				}
 			}
 		}
 	}

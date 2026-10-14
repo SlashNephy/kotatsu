@@ -370,12 +370,12 @@ func TestRemoveDoesNotFollowSymlinksInTheSidecar(t *testing.T) {
 	require.NoError(t, f.Close())
 	sidecar, err := store.CreateSidecarDir(poolMain, rel)
 	require.NoError(t, err)
-	require.NoError(t, os.Symlink(target, filepath.Join(mount, sidecar, "link")))
+	require.NoError(t, os.Symlink(target, filepath.Join(mount, sidecar.Path, "link")))
 
 	require.NoError(t, store.Remove(poolMain, rel))
 	_, err = os.Stat(target)
 	require.NoError(t, err)
-	_, err = os.Lstat(filepath.Join(mount, sidecar))
+	_, err = os.Lstat(filepath.Join(mount, sidecar.Path))
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 

@@ -103,8 +103,9 @@ func (w *AnalyzeWorker) Timeout(*river.Job[AnalyzeArgs]) time.Duration {
 
 // analyzed は、解析したセグメントと、その索引。
 type analyzed struct {
-	segment   *sqlc.RecordingFile
-	indexPath string
+	segment *sqlc.RecordingFile
+	// index は、作った索引の場所。付属ファイルをまとめて置くディレクトリがあれば、セグメントとは別のプールになる。
+	index     *kago.Location
 	indexSize int64
 }
 
@@ -201,11 +202,12 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 	defer func() {
 		_ = input.Close()
 	}()
-	if _, err := w.store.CreateSidecarDir(segment.PoolID, segment.Path); err != nil {
+	dir, err := w.store.CreateSidecarDir(segment.PoolID, segment.Path)
+	if err != nil {
 		return nil, nil, err
 	}
-	indexRel := kago.IndexPath(segment.Path)
-	indexPath, err := w.store.Path(segment.PoolID, indexRel)
+	index := &kago.Location{PoolID: dir.PoolID, Path: dir.Path + "/" + kago.IndexFileName}
+	indexPath, err := w.store.Path(index.PoolID, index.Path)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -245,7 +247,7 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 		return nil, nil, fmt.Errorf("failed to inspect the index file: %w", err)
 	}
 
-	return &analyzed{segment: segment, indexPath: indexRel, indexSize: info.Size()}, stats, nil
+	return &analyzed{segment: segment, index: index, indexSize: info.Size()}, stats, nil
 }
 
 // record は、索引と集計を記録し、同じトランザクションで、代表画像とプレビュー画像を作るジョブを投入する。
@@ -256,7 +258,7 @@ func (w *AnalyzeWorker) record(ctx context.Context, recordingID uuid.UUID, resul
 		q := sqlc.New(tx)
 		for _, result := range results {
 			err := q.UpsertRecordingIndex(ctx, sqlc.UpsertRecordingIndexParams{
-				ID: id.New(), RecordingID: recordingID, PoolID: result.segment.PoolID, Path: result.indexPath, Size: result.indexSize,
+				ID: id.New(), RecordingID: recordingID, PoolID: result.index.PoolID, Path: result.index.Path, Size: result.indexSize,
 				StartedAt: result.segment.StartedAt, EndedAt: result.segment.EndedAt, Now: now,
 			})
 			if err != nil {

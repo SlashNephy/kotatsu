@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"path"
 	"strings"
 	"time"
@@ -265,11 +264,8 @@ func (r *Resolver) watchFrame(ctx context.Context, recording *model.Recording) *
 
 // readManifest は、プレビュー画像と同じディレクトリの preview.json を、このインスタンスにマウントしたプールから読む。
 func (r *Resolver) readManifest(preview *model.RecordingFile) (*thumbnail.Manifest, error) {
-	mount, ok := r.pools[preview.PoolID]
-	if !ok {
-		return nil, fmt.Errorf("the pool %s is not mounted", preview.PoolID)
-	}
-	f, err := os.OpenInRoot(mount, path.Join(path.Dir(preview.Path), thumbnail.ManifestFileName))
+	// 付属ファイルをまとめて置くディレクトリ (kago.SidecarPoolID) にあるものも、同じように読む。
+	f, err := r.store.Open(preview.PoolID, path.Join(path.Dir(preview.Path), thumbnail.ManifestFileName))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the preview manifest: %w", err)
 	}

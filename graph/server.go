@@ -70,6 +70,8 @@ type Options struct {
 	Changes Changes
 	// Pools は、保存先プールの ID からマウント先への対応。システムの状態で示す。
 	Pools map[string]string
+	// SidecarDir は、付属ファイルをまとめて置くディレクトリ。空なら、録画ファイルの横に置く。
+	SidecarDir string
 	// FreeSpace は、保存先プールの空き容量を調べる。nil なら、ファイルシステムに問い合わせる。
 	FreeSpace kago.FreeSpaceFunc
 	Clock     clock.Clock
@@ -139,7 +141,8 @@ func NewHandler(opts *Options) http.Handler {
 		changes:      o.Changes,
 		pools:        o.Pools,
 		freeSpace:    o.FreeSpace,
-		library:      library.New(o.Clock, o.Recorder, kago.New(o.Pools, o.FreeSpace), o.Logger),
+		store:        kago.New(o.Pools, o.FreeSpace).WithSidecarDir(o.SidecarDir),
+		library:      library.New(o.Clock, o.Recorder, kago.New(o.Pools, o.FreeSpace).WithSidecarDir(o.SidecarDir), o.Logger),
 	}
 	if resolver.freeSpace == nil {
 		resolver.freeSpace = kago.FreeSpace

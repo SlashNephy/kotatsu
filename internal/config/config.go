@@ -100,6 +100,10 @@ type Storage struct {
 	// PoolOrder は、Pools を書いた順のプール ID。優先順位が同じプールは、この順に選ぶ (設計書 5.6)。
 	// 対応 (map) では順が失われるので、読み込むときに設定ファイルか環境変数から求める。
 	PoolOrder []string `yaml:"-"`
+	// SidecarDir は、新しい録画の付属ファイル (索引、代表画像、プレビュー画像) をまとめて置くディレクトリ (設計書 5.6)。
+	// 空なら、今までどおり録画ファイルの横 (番組名.m2ts.kotatsu/) に置く。すでにある付属ファイルは移さない。
+	// 付属ファイルを読み書きするロール (mikan、nekonote、tenban) で、同じディレクトリをマウントする。
+	SidecarDir string `yaml:"sidecar_dir"`
 }
 
 // Tuner はチューナーサーバーの設定 (設計書 3.1)。
@@ -230,8 +234,9 @@ func Default() *Config {
 			RetentionDays: 365,
 		},
 		Storage: Storage{
-			Pools:     map[string]string{},
-			PoolOrder: []string{},
+			Pools:      map[string]string{},
+			PoolOrder:  []string{},
+			SidecarDir: "",
 		},
 		Tuner: Tuner{
 			URL: "",
@@ -298,6 +303,9 @@ func (c *Config) validate() error {
 		if err := validatePool(id, c.Storage.Pools[id]); err != nil {
 			errs = append(errs, fieldError("storage.pools", err))
 		}
+	}
+	if c.Storage.SidecarDir != "" && !filepath.IsAbs(c.Storage.SidecarDir) {
+		errs = append(errs, fieldError("storage.sidecar_dir", errors.New("must be an absolute path")))
 	}
 
 	return errors.Join(errs...)

@@ -202,12 +202,53 @@ func TestCreateSidecarDir(t *testing.T) {
 
 	for range 2 {
 		// 2 回目は、作ってあるディレクトリをそのまま使う。
-		dirRel, err := store.CreateSidecarDir(poolMain, rel)
+		dir, err := store.CreateSidecarDir(poolMain, rel)
 		require.NoError(t, err)
-		assert.Equal(t, "番組.m2ts.kotatsu", dirRel)
-		info, err := os.Stat(filepath.Join(mount, dirRel))
+		assert.Equal(t, &kago.Location{PoolID: poolMain, Path: "番組.m2ts.kotatsu"}, dir)
+		info, err := os.Stat(filepath.Join(mount, dir.Path))
 		require.NoError(t, err)
 		assert.True(t, info.IsDir())
+	}
+}
+
+// TestSidecarDir は、付属ファイルをまとめて置くディレクトリがあれば、新しい録画の付属ファイルをそこに置き、
+// 録画ファイルの横にすでにある付属ファイルは、そのまま使い続け、録画を消せばどちらも消すことを確かめる。
+func TestSidecarDir(t *testing.T) {
+	t.Parallel()
+
+	mount, sidecars := t.TempDir(), t.TempDir()
+	store := kago.New(map[string]string{poolMain: mount}, nil).WithSidecarDir(sidecars)
+	create := func(dir, name string) string {
+		f, rel, err := store.Create(poolMain, dir, name)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		return rel
+	}
+
+	fresh := create("GR", fileName)
+	dir, err := store.CreateSidecarDir(poolMain, fresh)
+	require.NoError(t, err)
+	assert.Equal(t, &kago.Location{PoolID: kago.SidecarPoolID, Path: "main/GR/番組.m2ts.kotatsu"}, dir)
+	_, err = os.Stat(filepath.Join(sidecars, dir.Path))
+	require.NoError(t, err)
+	assert.Equal(t, []*kago.Location{
+		{PoolID: kago.SidecarPoolID, Path: "main/GR/番組.m2ts.kotatsu/index"}, {PoolID: poolMain, Path: "GR/番組.m2ts.kotatsu/index"},
+	}, store.IndexLocations(poolMain, fresh))
+
+	// 以前から録画ファイルの横にある付属ファイルは、移さずに使い続ける。
+	legacy := create("", "古い録画.m2ts")
+	require.NoError(t, os.Mkdir(filepath.Join(mount, legacy+".kotatsu"), 0o755))
+	dir, err = store.CreateSidecarDir(poolMain, legacy)
+	require.NoError(t, err)
+	assert.Equal(t, &kago.Location{PoolID: poolMain, Path: "古い録画.m2ts.kotatsu"}, dir)
+
+	require.NoError(t, store.Remove(poolMain, fresh))
+	require.NoError(t, store.Remove(poolMain, legacy))
+	for _, root := range []string{mount, sidecars} {
+		entries, err := os.ReadDir(root)
+		require.NoError(t, err)
+		assert.Empty(t, entries, root)
 	}
 }
 
@@ -269,4 +310,30 @@ func TestSelectPrefersConfiguredOrder(t *testing.T) {
 			assert.Equal(t, tt.wantOrder, store.PoolIDs())
 		})
 	}
+}
+
+// TestRenameWithSidecarDir は、付属ファイルをまとめて置くディレクトリにある付属ファイルも、録画ファイルと一緒に移すことを確かめる。
+func TestRenameWithSidecarDir(t *testing.T) {
+	t.Parallel()
+
+	mount, sidecars := t.TempDir(), t.TempDir()
+	store := kago.New(map[string]string{poolMain: mount}, nil).WithSidecarDir(sidecars)
+	f, rel, err := store.Create(poolMain, "old", fileName)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	dir, err := store.CreateSidecarDir(poolMain, rel)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(sidecars, dir.Path, "index"), []byte("i"), 0o600))
+
+	got, err := store.Rename(poolMain, rel, "new", fileName, 1)
+	require.NoError(t, err)
+	assert.Equal(t, "new/番組.m2ts", got)
+	_, err = os.Stat(filepath.Join(sidecars, "main/new/番組.m2ts.kotatsu/index"))
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(sidecars, "main/old"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+	assert.Equal(t, []*kago.SidecarMove{
+		{PoolID: kago.SidecarPoolID, From: "main/old/番組.m2ts.kotatsu", To: "main/new/番組.m2ts.kotatsu"},
+		{PoolID: poolMain, From: "old/番組.m2ts.kotatsu", To: "new/番組.m2ts.kotatsu"},
+	}, store.SidecarMoves(poolMain, rel, got))
 }

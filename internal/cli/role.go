@@ -18,7 +18,6 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/epg"
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
-	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/metrics"
 	"github.com/SlashNephy/kotatsu/internal/neko"
 	"github.com/SlashNephy/kotatsu/internal/recording"
@@ -257,7 +256,7 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 
 		return system.Recording, nil
 	}
-	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, kago.NewOrdered(deps.Config.Storage.Pools, deps.Config.Storage.PoolOrder, nil), defaults, location,
+	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, storeOf(deps.Config), defaults, location,
 		logger.With(slog.String("component", "recorder")), nil)
 	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), &recording.WorkerOptions{
 		LeaseTTL: 0, RenewInterval: 0, AcquireInterval: 0, HandoverTimeout: 0, PollOnly: deps.Config.Database.Pooler, PollInterval: 0,

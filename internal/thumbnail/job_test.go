@@ -37,6 +37,8 @@ const (
 	// kindThumbnail と kindPreview は、recording_files の、代表画像とプレビュー画像の種類。
 	kindThumbnail = "thumbnail"
 	kindPreview   = "preview"
+	// kindSegment は、recording_files の、セグメントの種類。
+	kindSegment = "segment"
 )
 
 type jobFixture struct {
@@ -76,8 +78,9 @@ func (f *jobFixture) recording(t *testing.T, n int) uuid.UUID {
 	require.NoError(t, err)
 
 	seg := segmentAt(t, filepath.Join(f.dir, segmentName), 0, n, time.Second, 0)
-	sidecar, err := f.store.CreateSidecarDir(poolID, segmentName)
+	sidecarDir, err := f.store.CreateSidecarDir(poolID, segmentName)
 	require.NoError(t, err)
+	sidecar := sidecarDir.Path
 	var index bytes.Buffer
 	writer, err := ts.NewIndexWriter(&index)
 	require.NoError(t, err)
@@ -88,7 +91,7 @@ func (f *jobFixture) recording(t *testing.T, n int) uuid.UUID {
 	for _, file := range []struct {
 		kind, path string
 		size       int
-	}{{"segment", segmentName, n * keyframeSize}, {indexName, sidecar + "/" + indexName, index.Len()}} {
+	}{{kindSegment, segmentName, n * keyframeSize}, {indexName, sidecar + "/" + indexName, index.Len()}} {
 		_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7)`, id.New(), recordingID, file.kind, poolID, file.path, file.size, now)
 		require.NoError(t, err)
@@ -202,8 +205,9 @@ func TestGenerateWorkerPairsIndexesByPath(t *testing.T) {
 	// 最初のセグメントの I フレームは 0〜29 秒にあるので、このセグメントの索引を使ったときだけ、30 秒のコマができる。
 	const second = "録画-2.m2ts"
 	seg := segmentAt(t, filepath.Join(f.dir, second), 0, 31, time.Second, 100)
-	sidecar, err := f.store.CreateSidecarDir(poolID, second)
+	sidecarDir, err := f.store.CreateSidecarDir(poolID, second)
 	require.NoError(t, err)
+	sidecar := sidecarDir.Path
 	var index bytes.Buffer
 	writer, err := ts.NewIndexWriter(&index)
 	require.NoError(t, err)
@@ -214,7 +218,7 @@ func TestGenerateWorkerPairsIndexesByPath(t *testing.T) {
 	for _, file := range []struct {
 		kind, path string
 		size       int
-	}{{"segment", second, 31 * keyframeSize}, {indexName, sidecar + "/" + indexName, index.Len()}} {
+	}{{kindSegment, second, 31 * keyframeSize}, {indexName, sidecar + "/" + indexName, index.Len()}} {
 		_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7)`, id.New(), recordingID, file.kind, poolID, file.path, file.size, f.clock.Now())
 		require.NoError(t, err)
@@ -289,4 +293,48 @@ func TestGenerateWorkerCancels(t *testing.T) {
 			assert.Empty(t, f.images(t, target))
 		})
 	}
+}
+
+// TestGenerateWorkerWithSidecarDir は、付属ファイルをまとめて置くディレクトリがあれば、索引をそこから探し、
+// 画像もそこに置いて、kago.SidecarPoolID のプールのファイルとして記録することを確かめる (設計書 5.6)。
+func TestGenerateWorkerWithSidecarDir(t *testing.T) {
+	t.Parallel()
+
+	f := newJobFixture(t)
+	sidecars := t.TempDir()
+	f.store = f.store.WithSidecarDir(sidecars)
+	recordingID := id.New()
+	now := f.clock.Now()
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+		state, protected, recorded_from, created_at, updated_at)
+		VALUES ($1, NULL, $2, NULL, '録画', '', $3, $3, 'completed', false, $3, $3, $3)`, recordingID, serviceID, now)
+	require.NoError(t, err)
+	seg := segmentAt(t, filepath.Join(f.dir, segmentName), 0, 30, time.Second, 0)
+	dir, err := f.store.CreateSidecarDir(poolID, segmentName)
+	require.NoError(t, err)
+	require.Equal(t, kago.SidecarPoolID, dir.PoolID)
+	var index bytes.Buffer
+	writer, err := ts.NewIndexWriter(&index)
+	require.NoError(t, err)
+	for _, entry := range seg.Index {
+		require.NoError(t, writer.Append(entry))
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(sidecars, dir.Path, indexName), index.Bytes(), 0o600))
+	for _, file := range []struct{ kind, pool, path string }{
+		{kindSegment, poolID, segmentName}, {indexName, kago.SidecarPoolID, dir.Path + "/" + indexName},
+	} {
+		_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+			VALUES ($1, $2, $3, $4, $5, 1, $6, $6, $6)`, id.New(), recordingID, file.kind, file.pool, file.path, now)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, f.generate(t, recordingID, false, fake))
+	_, err = os.Stat(filepath.Join(sidecars, dir.Path, "thumbnail.jpg"))
+	require.NoError(t, err)
+	var pool string
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT pool_id FROM recording_files WHERE recording_id = $1 AND kind = 'thumbnail'", recordingID).Scan(&pool))
+	assert.Equal(t, kago.SidecarPoolID, pool)
+	_, err = os.Stat(filepath.Join(f.dir, segmentName+".kotatsu"))
+	assert.ErrorIs(t, err, os.ErrNotExist, "nothing is placed next to the recording")
 }

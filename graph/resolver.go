@@ -53,8 +53,10 @@ type Resolver struct {
 	jikkyoTable       *jikkyo.Table
 	jikkyoClient      *jikkyo.Client
 	logger            *slog.Logger
-	library           *library.Library
-	changes           Changes
-	pools             map[string]string
-	freeSpace         kago.FreeSpaceFunc
+	// store は、録画のファイルと付属ファイルを読むための、このインスタンスにマウントしたプール。
+	store     *kago.Store
+	library   *library.Library
+	changes   Changes
+	pools     map[string]string
+	freeSpace kago.FreeSpaceFunc
 }

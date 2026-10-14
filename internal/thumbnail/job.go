@@ -166,8 +166,18 @@ func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, *sidec
 	var first *sidecar
 	for i := range files {
 		file := &files[i]
-		index, ok := indexes[location{poolID: file.PoolID, path: kago.IndexPath(file.Path)}]
-		if file.Kind != kindSegment || file.Size == 0 || !ok {
+		if file.Kind != kindSegment || file.Size == 0 {
+			continue
+		}
+		var index *sqlc.RecordingFile
+		for _, candidate := range w.store.IndexLocations(file.PoolID, file.Path) {
+			if found, ok := indexes[location{poolID: candidate.PoolID, path: candidate.Path}]; ok {
+				index = found
+
+				break
+			}
+		}
+		if index == nil {
 			continue
 		}
 		segmentPath, err := w.store.Path(file.PoolID, file.Path)
@@ -182,10 +192,12 @@ func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, *sidec
 			return nil, nil, err
 		}
 		if first == nil {
-			first = &sidecar{poolID: file.PoolID, dir: "", startedAt: file.StartedAt}
-			if first.dir, err = w.store.CreateSidecarDir(file.PoolID, file.Path); err != nil {
+			dir, err := w.store.CreateSidecarDir(file.PoolID, file.Path)
+			if err != nil {
 				return nil, nil, fmt.Errorf("failed to create the sidecar directory: %w", err)
 			}
+			// 付属ファイルをまとめて置くディレクトリがあれば、画像はそちらのプール (kago.SidecarPoolID) に置く。
+			first = &sidecar{poolID: dir.PoolID, dir: dir.Path, startedAt: file.StartedAt}
 		}
 		segments = append(segments, Segment{Path: segmentPath, Start: file.StartedAt.Sub(first.startedAt), Index: entries})
 	}
