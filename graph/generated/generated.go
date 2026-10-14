@@ -4456,8 +4456,8 @@ extend type Query {
   """
   番組の検索 (設計書 3.5)。ルールの照合と同じ照合関数で、開始時刻の順に返す。
   archive を指定したときだけ、その期間の放送が終わった番組も検索する。
-  1 回に照合する番組の数には上限があり、上限に達すると、first 件に満たなくても hasNextPage を true にして返す。
-  そのときは、pageInfo.endCursor から続きを検索する。
+  first 件そろうか、候補を照合し終えるまで探す。hasNextPage は、続きの番組が本当にあるときだけ true にする。
+  照合に時間がかかりすぎたら (15 秒)、条件を絞ってもらうよう BAD_USER_INPUT を返す。
   """
   searchPrograms(
     conditions: ProgramConditionsInput!

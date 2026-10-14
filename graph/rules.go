@@ -244,14 +244,10 @@ func (r *Resolver) previewRule(ctx context.Context, in *model.RuleInput, first i
 			(input.ValidFrom == nil || !startAt.Before(*input.ValidFrom)) &&
 			(input.ValidUntil == nil || startAt.Before(*input.ValidUntil))
 	}
-	edges, hasNext, endCursor, err := r.collect(ctx, matcher, accept, params, first)
+	edges, hasNext, err := r.collect(ctx, matcher, accept, params, first)
 	if err != nil {
 		return nil, err
 	}
-	info := pageInfo(edges, hasNext, after != nil)
-	if endCursor != nil {
-		info.EndCursor = endCursor
-	}
 
-	return &model.ProgramConnection{Edges: edges, PageInfo: info}, nil
+	return &model.ProgramConnection{Edges: edges, PageInfo: pageInfo(edges, hasNext, after != nil)}, nil
 }

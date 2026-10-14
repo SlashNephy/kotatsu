@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/graph"
 	"github.com/SlashNephy/kotatsu/internal/id"
 )
 
@@ -245,33 +244,33 @@ func TestSearchProgramsRejectsInvalidInput(t *testing.T) {
 	}
 }
 
-// TestSearchProgramsStopsAtCandidateLimit は、照合する候補が上限に達したら途中で返し、カーソルから続きを検索できることを確かめる。
-func TestSearchProgramsStopsAtCandidateLimit(t *testing.T) {
+// TestSearchProgramsReadsAllCandidates は、一致する番組が少なくても、候補を最後まで照合して 1 回で返し、
+// 続きがないときは hasNextPage を false にすることを確かめる。
+func TestSearchProgramsReadsAllCandidates(t *testing.T) {
 	t.Parallel()
 
-	// 候補を 7 件ずつしか照合しない。地上波のサービスの eventId 14 の番組は 70 件中の最後のほうにある。
-	f := newFixture(t, &graph.Options{MaxSearchCandidates: 7})
+	f := newFixture(t, nil)
 	f.syncEPG(t)
-	conditions := conditionsInput{Keywords: []keywordInput{keyword("テスト番組 14$", true)}}
 
-	found := []string{}
-	requests := 0
-	var after *string
-	for {
-		var got searchResult
-		require.Empty(t, f.query(t, searchQuery, searchVariables(conditions, nil, 50, after), &got))
-		requests++
-		found = append(found, got.names()...)
-		if !got.SearchPrograms.PageInfo.HasNextPage {
-			break
-		}
-		require.NotNil(t, got.SearchPrograms.PageInfo.EndCursor)
-		after = got.SearchPrograms.PageInfo.EndCursor
+	tests := []struct {
+		name       string
+		conditions conditionsInput
+		want       int
+	}{
+		// 地上波のサービスの eventId 14 の番組は、候補の最後のほうにある。
+		{name: "候補の最後のほうに一致する", conditions: conditionsInput{Keywords: []keywordInput{keyword("テスト番組 14$", true)}}, want: 5},
+		{name: "どれにも一致しない", conditions: conditionsInput{Keywords: []keywordInput{keyword("存在しない番組", false)}}, want: 0},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// 上限で区切っても、続きを検索すれば、すべて見つかる。
-	assert.Len(t, found, 5)
-	assert.Greater(t, requests, 5)
+			var got searchResult
+			require.Empty(t, f.query(t, searchQuery, searchVariables(tt.conditions, nil, 50, nil), &got))
+			assert.Len(t, got.names(), tt.want)
+			assert.False(t, got.SearchPrograms.PageInfo.HasNextPage)
+		})
+	}
 }
 
 // TestSearchProgramsByGenre は、ジャンルの包含と除外で絞り込めることを確かめる。
