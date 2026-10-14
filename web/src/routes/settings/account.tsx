@@ -26,7 +26,7 @@ import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
 import { PasskeyCancelledError, passkeyAvailable, registerPasskey } from '../../auth/passkey';
 import { deviceName } from '../../settings/device';
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
@@ -83,7 +83,7 @@ function AccountPage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Account />
         </Suspense>
       </ErrorBoundary>
@@ -121,7 +121,11 @@ function Account() {
   // fetchKey を変えると、読み直す。登録や削除の後に、一覧を新しくするのに使う。
   // 読み直す間も画面を出したままにして、作り直したリカバリーコードなどの表示を消さないよう、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
-  const data = useLazyLoadQuery<accountQuery>(query, {}, { fetchKey, fetchPolicy: 'network-only' });
+  const data = useLazyLoadQuery<accountQuery>(
+    query,
+    {},
+    { fetchKey, fetchPolicy: 'store-and-network' },
+  );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
   const player = usePlayerSettings();

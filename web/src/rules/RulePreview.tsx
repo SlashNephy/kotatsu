@@ -1,4 +1,5 @@
 import { Alert, Badge, Card, Group, Loader, Stack, Text, Title } from '@mantine/core';
+import { SearchX } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
@@ -8,7 +9,9 @@ import type {
   RulePreviewQuery$data,
   RulePreviewQuery$variables,
 } from './__generated__/RulePreviewQuery.graphql';
-import { ServiceLabel } from '../guide/ServiceLabel';
+import { ProgramList } from '../conditions/ProgramList';
+import { EmptyState } from '../futon';
+import { ProgramDetail } from '../guide/ProgramDetail';
 
 type Props = {
   input: RulePreviewQuery$variables['input'];
@@ -40,16 +43,6 @@ const query = graphql`
 // debounceMs は、入力が止まってからプレビューを取るまでの時間。打つたびに問い合わせないようにする。
 const debounceMs = 400;
 
-const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
-  month: 'numeric',
-  day: 'numeric',
-  weekday: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
-});
-
 type Preview = RulePreviewQuery$data['previewRule'];
 
 // RulePreview は、編集中のルールに一致するこれからの番組を、その場で示す (設計書 4.3)。
@@ -59,6 +52,7 @@ export function RulePreview({ input, enabled }: Props) {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [selected, setSelected] = useState<string | undefined>(undefined);
   // 入力の中身が変わったときだけ取り直す。
   const key = JSON.stringify(input);
 
@@ -124,25 +118,15 @@ export function RulePreview({ input, enabled }: Props) {
           </Alert>
         )}
         {enabled && preview !== null && preview.edges.length === 0 && (
-          <Text size="sm" c="dimmed">
-            {t('rules.preview.empty')}
-          </Text>
+          <EmptyState
+            icon={SearchX}
+            title={t('rules.preview.empty')}
+            hint={t('rules.preview.emptyHint')}
+          />
         )}
         {enabled && preview !== null && preview.edges.length > 0 && (
           <Stack gap={2} data-testid="rule-preview">
-            {preview.edges.map(({ node }) => (
-              <Group key={node.id} gap="xs" wrap="nowrap">
-                <Text size="xs" c="dimmed" w={120} style={{ flexShrink: 0 }}>
-                  {dateTimeFormat.format(Date.parse(node.startAt))}
-                </Text>
-                <Text size="xs" w={110} truncate style={{ flexShrink: 0 }}>
-                  <ServiceLabel name={node.service.name} logoUrl={node.service.logoUrl} />
-                </Text>
-                <Text size="xs" truncate>
-                  {node.name}
-                </Text>
-              </Group>
-            ))}
+            <ProgramList programs={preview.edges.map(({ node }) => node)} onSelect={setSelected} />
             {preview.pageInfo.hasNextPage && (
               <Badge variant="light" color="gray">
                 {t('rules.preview.more')}
@@ -151,6 +135,7 @@ export function RulePreview({ input, enabled }: Props) {
           </Stack>
         )}
       </Stack>
+      <ProgramDetail programId={selected} onClose={() => setSelected(undefined)} />
     </Card>
   );
 }

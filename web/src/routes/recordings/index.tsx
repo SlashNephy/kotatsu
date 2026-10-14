@@ -1,8 +1,6 @@
 import {
   Alert,
   Anchor,
-  AspectRatio,
-  Badge,
   Box,
   Button,
   Card,
@@ -10,18 +8,18 @@ import {
   MultiSelect,
   SimpleGrid,
   Stack,
-  Text,
   TextInput,
   Title,
 } from '@mantine/core';
+import { Clapperboard, Info, ListFilter, Search, SearchX, Tag } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
-import { ErrorBoundary, ProgramTitle } from '../../futon';
-import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
-import { recordingStates, stateColor, stateKey } from '../../recordings/states';
+import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
+import { RecordingCard } from '../../recordings/RecordingCard';
+import { recordingStates, stateKey } from '../../recordings/states';
 import { isUnauthenticated } from '../../relay/environment';
 import type {
   recordingsListQuery,
@@ -29,7 +27,6 @@ import type {
   recordingsListQuery$variables,
 } from './__generated__/recordingsListQuery.graphql';
 import type { recordingsTagsQuery } from './__generated__/recordingsTagsQuery.graphql';
-import { ServiceLabel } from '../../guide/ServiceLabel';
 
 export const Route = createFileRoute('/recordings/')({
   component: RecordingsPage,
@@ -46,9 +43,16 @@ const query = graphql`
           id
           name
           startAt
+          endAt
           state
-          protected
+          drops
+          errors
+          scrambled
+          recordedFrom
+          recordedUntil
+          watchPositionMs
           thumbnailUrl
+          previewUrl
           service {
             name
             logoUrl
@@ -70,17 +74,6 @@ const query = graphql`
 type Recording = recordingsListQuery$data['recordings']['edges'][number]['node'];
 type Filter = NonNullable<recordingsListQuery$variables['filter']>;
 
-const dateFormat = new Intl.DateTimeFormat('ja-JP', {
-  year: 'numeric',
-  month: 'numeric',
-  day: 'numeric',
-  weekday: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
-});
-
 // RecordingsPage は、サムネイル付きの録画のグリッドの画面 (設計書 10.3)。タグと条件で絞り込める。
 function RecordingsPage() {
   const { t } = useTranslation();
@@ -101,7 +94,7 @@ function RecordingsPage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Recordings />
         </Suspense>
       </ErrorBoundary>
@@ -146,12 +139,14 @@ function Recordings() {
         <Group align="flex-end" wrap="wrap">
           <TextInput
             label={t('recordings.keyword')}
+            leftSection={<Search size={16} aria-hidden />}
             value={keyword}
             onChange={(e) => setKeyword(e.currentTarget.value)}
             style={{ flex: '1 1 200px' }}
           />
           <MultiSelect
             label={t('recordings.tags')}
+            leftSection={<Tag size={16} aria-hidden />}
             data={tags.tags.map((tag) => ({
               value: tag.id,
               label: `${tag.name}（${tag.recordings}）`,
@@ -164,16 +159,19 @@ function Recordings() {
           />
           <MultiSelect
             label={t('recordings.states')}
+            leftSection={<Info size={16} aria-hidden />}
             data={recordingStates.map((state) => ({ value: state, label: t(stateKey(state)) }))}
             value={states}
             onChange={setStates}
             clearable
             style={{ flex: '1 1 200px' }}
           />
-          <Button type="submit">{t('recordings.filter')}</Button>
+          <Button type="submit" leftSection={<ListFilter size={16} aria-hidden />}>
+            {t('recordings.filter')}
+          </Button>
         </Group>
       </Card>
-      <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+      <Suspense fallback={<PageLoader />}>
         <RecordingGrid key={JSON.stringify(filter)} filter={filter} />
       </Suspense>
     </Stack>
@@ -233,52 +231,25 @@ function RecordingGrid({ filter }: { filter: Filter }) {
 
   return (
     <Stack>
-      {recordings.length === 0 && <Alert color="gray">{t('recordings.empty')}</Alert>}
+      {/* 録画がまだないときと、絞り込んで 0 件になったときで、次にすることが違うので、見出しと手がかりを分ける。 */}
+      {recordings.length === 0 &&
+        (Object.keys(filter).length === 0 ? (
+          <EmptyState
+            icon={Clapperboard}
+            title={t('recordings.empty')}
+            hint={t('recordings.emptyHint')}
+          />
+        ) : (
+          <EmptyState
+            icon={SearchX}
+            title={t('recordings.noMatch')}
+            hint={t('recordings.noMatchHint')}
+          />
+        ))}
       {recordings.length > 0 && (
         <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
           {recordings.map((recording) => (
-            <Card
-              key={recording.id}
-              withBorder
-              padding={0}
-              renderRoot={(props) => (
-                <Link
-                  {...props}
-                  to="/recordings/$recordingId"
-                  params={{ recordingId: recording.id }}
-                />
-              )}
-            >
-              <AspectRatio ratio={16 / 9}>
-                <RecordingThumbnail url={recording.thumbnailUrl} />
-              </AspectRatio>
-              <Stack gap={4} p="xs">
-                <Text size="sm" fw={700} lineClamp={2}>
-                  <ProgramTitle name={recording.name} />
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {dateFormat.format(Date.parse(recording.startAt))}・
-                  <ServiceLabel name={recording.service.name} logoUrl={recording.service.logoUrl} />
-                </Text>
-                <Group gap={4}>
-                  {recording.state !== 'COMPLETED' && (
-                    <Badge size="xs" color={stateColor(recording.state)} variant="light">
-                      {t(stateKey(recording.state))}
-                    </Badge>
-                  )}
-                  {recording.protected && (
-                    <Badge size="xs" color="gray" variant="outline">
-                      {t('recordings.protected')}
-                    </Badge>
-                  )}
-                  {recording.tags.map((tag) => (
-                    <Badge key={tag.id} size="xs" variant="light" color="gray">
-                      {tag.name}
-                    </Badge>
-                  ))}
-                </Group>
-              </Stack>
-            </Card>
+            <RecordingCard key={recording.id} recording={recording} />
           ))}
         </SimpleGrid>
       )}

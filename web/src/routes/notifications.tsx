@@ -1,10 +1,12 @@
 import { Alert, Anchor, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
+import { BellOff } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
-import { ErrorBoundary } from '../futon';
+import { EmptyState, ErrorBoundary, PageLoader, ProgramTitle, splitProgramMarks } from '../futon';
+import { splitMessage } from '../notifications/message';
 import { isUnauthenticated } from '../relay/environment';
 import type { notificationsListQuery } from './__generated__/notificationsListQuery.graphql';
 import type { notificationsMarkAllMutation } from './__generated__/notificationsMarkAllMutation.graphql';
@@ -49,7 +51,7 @@ function NotificationsPage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <NotificationList />
         </Suspense>
       </ErrorBoundary>
@@ -75,6 +77,7 @@ function NotificationList() {
               kind
               occurredAt
               message
+              payload
               readAt
             }
           }
@@ -125,7 +128,11 @@ function NotificationList() {
         </Alert>
       )}
       {data.notifications.edges.length === 0 ? (
-        <Text c="dimmed">{t('notifications.empty')}</Text>
+        <EmptyState
+          icon={BellOff}
+          title={t('notifications.empty')}
+          hint={t('notifications.emptyHint')}
+        />
       ) : (
         data.notifications.edges.map(({ node }) => {
           const isUnread = node.readAt == null;
@@ -158,7 +165,7 @@ function NotificationList() {
                 </Text>
                 <Stack gap={2}>
                   <Text size="sm" fw={isUnread ? 600 : undefined}>
-                    {node.message}
+                    <NotificationMessage message={node.message} payload={node.payload} />
                   </Text>
                   <Text size="xs" c="dimmed">
                     {dateTimeFormat.format(Date.parse(node.occurredAt))}
@@ -170,5 +177,21 @@ function NotificationList() {
         })
       )}
     </Stack>
+  );
+}
+
+// NotificationMessage は、通知の文。番組名は、ほかの画面と同じく、囲み文字を印にして描く。
+function NotificationMessage({ message, payload }: { message: string; payload: string }) {
+  const { before, name, after } = splitMessage(message, payload);
+  // 印の後ろに文が続く (「」の録画が…」など) ときは、詰まって見えないよう、印の左と同じだけ空ける。
+  const spaced = name !== undefined && after !== '' && splitProgramMarks(name).marks.length > 0;
+
+  return (
+    <>
+      {before}
+      {name !== undefined && <ProgramTitle name={name} />}
+      {spaced && <span style={{ display: 'inline-block', width: 4 }} />}
+      {after}
+    </>
   );
 }

@@ -106,7 +106,7 @@ function SystemSettings() {
   const data = useLazyLoadQuery<settingsSystemQuery>(
     query,
     {},
-    { fetchKey, fetchPolicy: 'network-only' },
+    { fetchKey, fetchPolicy: 'store-and-network' },
   );
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);

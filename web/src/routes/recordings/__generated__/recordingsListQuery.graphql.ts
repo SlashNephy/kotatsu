@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b13ffdaf941d2ad8f86a88c9a2471feb>>
+ * @generated SignedSource<<717c44cebcc4620e97aa7863a60a270c>>
  * @lightSyntaxTransform
  */
 
@@ -26,9 +26,15 @@ export type recordingsListQuery$data = {
   readonly recordings: {
     readonly edges: ReadonlyArray<{
       readonly node: {
+        readonly drops: number;
+        readonly endAt: string;
+        readonly errors: number;
         readonly id: string;
         readonly name: string;
-        readonly protected: boolean;
+        readonly previewUrl: string | null | undefined;
+        readonly recordedFrom: string;
+        readonly recordedUntil: string | null | undefined;
+        readonly scrambled: number;
         readonly service: {
           readonly logoUrl: string | null | undefined;
           readonly name: string;
@@ -40,6 +46,7 @@ export type recordingsListQuery$data = {
           readonly name: string;
         }>;
         readonly thumbnailUrl: string | null | undefined;
+        readonly watchPositionMs: number | null | undefined;
       };
     }>;
     readonly pageInfo: {
@@ -111,31 +118,80 @@ v7 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "state",
+  "name": "endAt",
   "storageKey": null
 },
 v8 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "protected",
+  "name": "state",
   "storageKey": null
 },
 v9 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "thumbnailUrl",
+  "name": "drops",
   "storageKey": null
 },
 v10 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "logoUrl",
+  "name": "errors",
   "storageKey": null
 },
 v11 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "scrambled",
+  "storageKey": null
+},
+v12 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "recordedFrom",
+  "storageKey": null
+},
+v13 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "recordedUntil",
+  "storageKey": null
+},
+v14 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "watchPositionMs",
+  "storageKey": null
+},
+v15 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "thumbnailUrl",
+  "storageKey": null
+},
+v16 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "previewUrl",
+  "storageKey": null
+},
+v17 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v18 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -148,7 +204,7 @@ v11 = {
   ],
   "storageKey": null
 },
-v12 = {
+v19 = {
   "alias": null,
   "args": null,
   "concreteType": "PageInfo",
@@ -214,6 +270,13 @@ return {
                   (v7/*:: as any*/),
                   (v8/*:: as any*/),
                   (v9/*:: as any*/),
+                  (v10/*:: as any*/),
+                  (v11/*:: as any*/),
+                  (v12/*:: as any*/),
+                  (v13/*:: as any*/),
+                  (v14/*:: as any*/),
+                  (v15/*:: as any*/),
+                  (v16/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -223,18 +286,18 @@ return {
                     "plural": false,
                     "selections": [
                       (v5/*:: as any*/),
-                      (v10/*:: as any*/)
+                      (v17/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v11/*:: as any*/)
+                  (v18/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v12/*:: as any*/)
+          (v19/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -282,6 +345,13 @@ return {
                   (v7/*:: as any*/),
                   (v8/*:: as any*/),
                   (v9/*:: as any*/),
+                  (v10/*:: as any*/),
+                  (v11/*:: as any*/),
+                  (v12/*:: as any*/),
+                  (v13/*:: as any*/),
+                  (v14/*:: as any*/),
+                  (v15/*:: as any*/),
+                  (v16/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -291,35 +361,35 @@ return {
                     "plural": false,
                     "selections": [
                       (v5/*:: as any*/),
-                      (v10/*:: as any*/),
+                      (v17/*:: as any*/),
                       (v4/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v11/*:: as any*/)
+                  (v18/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v12/*:: as any*/)
+          (v19/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "612cba37ed037d271b47392366b3bd9c",
+    "cacheID": "73ae32c55eec1500a06dc58f526d5c4a",
     "id": null,
     "metadata": {},
     "name": "recordingsListQuery",
     "operationKind": "query",
-    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n) {\n  recordings(first: $first, after: $after, filter: $filter) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        state\n        protected\n        thumbnailUrl\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
+    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n) {\n  recordings(first: $first, after: $after, filter: $filter) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        drops\n        errors\n        scrambled\n        recordedFrom\n        recordedUntil\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "d61e6f53340ebdb59d0cf579f909cdca";
+(node as any).hash = "2ce714f9b1f7e293deb70c1d807ce1a4";
 
 export default node;

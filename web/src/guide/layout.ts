@@ -240,6 +240,11 @@ export function visibleRange(
   return { start, end: Math.max(start, lo) };
 }
 
+// dateOf は、放送日の始まりの時刻を YYYY-MM-DD (日本時間) にする。
+export function dateOf(time: number): string {
+  return new Date(time + 9 * 3_600_000).toISOString().slice(0, 10);
+}
+
 // broadcastDay は、時刻を含む放送日 (4 時から翌 4 時まで、日本時間) の時間帯を返す。
 export function broadcastDay(time: number): GuideWindow {
   const jst = 9 * 60 * minute;
@@ -248,4 +253,13 @@ export function broadcastDay(time: number): GuideWindow {
   const from = Math.floor((time + jst - dayStartHour) / day) * day - jst + dayStartHour;
 
   return { from, to: from + day };
+}
+
+// receivedUntil は、番組表が届いている時刻 (いちばん遅く終わる番組の終わり)。ends は、その日に出す番組の終わりの時刻。
+// 先の日の番組表は、放送から届いた分しかないので、その先は空になる。1 つも届いていなければ、0 を返し、日の全体を届いていないとする。
+// 深夜に放送を休むサービスもあるので、日の終わり (to) の 1 時間前までに届いていれば、すべて届いたとみなし、undefined を返す。
+export function receivedUntil(ends: readonly number[], to: number): number | undefined {
+  const until = Math.max(0, ...ends);
+
+  return until < to - 3_600_000 ? until : undefined;
 }

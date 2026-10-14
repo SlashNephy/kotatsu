@@ -1,0 +1,45 @@
+.row {
+  margin-inline: calc(-1 * var(--mantine-spacing-xs));
+  padding: 4px var(--mantine-spacing-xs);
+  border-radius: var(--mantine-radius-sm);
+}
+
+.row:hover {
+  background: var(--mantine-color-default-hover);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-xs);
+}
+
+.service {
+  flex: 0 0 9em;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 36em) {
+  .line {
+    flex-wrap: wrap;
+    row-gap: 0;
+  }
+
+  .service {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .title {
+    flex-basis: 100%;
+  }
+}

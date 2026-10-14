@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<6d3b68c4a5f0d67ca28d29a881e4d95b>>
+ * @generated SignedSource<<57ed6cb37e37a2458f20a691b2001f73>>
  * @lightSyntaxTransform
  */
 
@@ -14,6 +14,15 @@ export type searchViewerQuery$data = {
   readonly channelTypes: ReadonlyArray<{
     readonly displayName: string;
     readonly type: string;
+  }>;
+  readonly services: ReadonlyArray<{
+    readonly channelType: {
+      readonly displayName: string;
+    };
+    readonly id: string;
+    readonly logoUrl: string | null | undefined;
+    readonly name: string;
+    readonly serviceId: number;
   }>;
   readonly viewer: {
     readonly role: Role;
@@ -35,6 +44,13 @@ var v0 = {
 v1 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "displayName",
+  "storageKey": null
+},
+v2 = {
+  "alias": null,
+  "args": null,
   "concreteType": "ChannelType",
   "kind": "LinkedField",
   "name": "channelTypes",
@@ -47,11 +63,57 @@ v1 = {
       "name": "type",
       "storageKey": null
     },
+    (v1/*:: as any*/)
+  ],
+  "storageKey": null
+},
+v3 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "id",
+  "storageKey": null
+},
+v4 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "Service",
+  "kind": "LinkedField",
+  "name": "services",
+  "plural": true,
+  "selections": [
+    (v3/*:: as any*/),
     {
       "alias": null,
       "args": null,
       "kind": "ScalarField",
-      "name": "displayName",
+      "name": "name",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "logoUrl",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "serviceId",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "ChannelType",
+      "kind": "LinkedField",
+      "name": "channelType",
+      "plural": false,
+      "selections": [
+        (v1/*:: as any*/)
+      ],
       "storageKey": null
     }
   ],
@@ -76,7 +138,8 @@ return {
         ],
         "storageKey": null
       },
-      (v1/*:: as any*/)
+      (v2/*:: as any*/),
+      (v4/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -96,30 +159,25 @@ return {
         "plural": false,
         "selections": [
           (v0/*:: as any*/),
-          {
-            "alias": null,
-            "args": null,
-            "kind": "ScalarField",
-            "name": "id",
-            "storageKey": null
-          }
+          (v3/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v1/*:: as any*/)
+      (v2/*:: as any*/),
+      (v4/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "184ac6259726a76b5299d5d439f6a856",
+    "cacheID": "4357e0e1b009a759f6c35873b2c49fea",
     "id": null,
     "metadata": {},
     "name": "searchViewerQuery",
     "operationKind": "query",
-    "text": "query searchViewerQuery {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n}\n"
+    "text": "query searchViewerQuery {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "99d393b9c5e4a1c6f1060504e9bbce3b";
+(node as any).hash = "14cecf14994d0aa0cda39f05cfda13d8";
 
 export default node;

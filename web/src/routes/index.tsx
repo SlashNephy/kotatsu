@@ -6,7 +6,7 @@ import { Dashboard, type DashboardRange } from '../home/Dashboard';
 import { useTranslation } from 'react-i18next';
 
 import { authApi } from '../auth/api';
-import { ErrorBoundary } from '../futon';
+import { ErrorBoundary, PageLoader } from '../futon';
 import { isUnauthenticated } from '../relay/environment';
 
 export const Route = createFileRoute('/')({
@@ -45,7 +45,7 @@ function Home() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Dashboard range={range} />
         </Suspense>
       </ErrorBoundary>

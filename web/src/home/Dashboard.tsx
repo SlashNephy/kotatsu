@@ -1,12 +1,24 @@
-import { Alert, Anchor, Badge, Card, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Badge,
+  Group,
+  SegmentedControl,
+  SimpleGrid,
+  Stack,
+  Text,
+  Title,
+} from '@mantine/core';
 import { Link } from '@tanstack/react-router';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { RecordingThumbnail } from '../recordings/RecordingThumbnail';
-import { stateColor, stateKey } from '../recordings/states';
+import { RecordingCard } from '../recordings/RecordingCard';
 import type { DashboardQuery } from './__generated__/DashboardQuery.graphql';
+import classes from './Dashboard.module.css';
 import { nowPlaying } from './nowPlaying';
+import { broadcastDay, dateOf } from '../guide/layout';
 import { ProgramTitle } from '../futon';
 import { NowPlayingCard } from '../guide/NowPlayingCard';
 import { ServiceLabel } from '../guide/ServiceLabel';
@@ -21,27 +33,45 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
   timeZone: 'Asia/Tokyo',
 });
 
-// maxNowPlaying は、ホームに出す放送中の番組の数。続きは番組表で見る。
-const maxNowPlaying = 12;
+// maxUpcoming は、ホームに出すこれからの予約の数。
+// 予約は時間帯に重なるものが返り、録画中の予約も含むので、除いても足りるよう多めに取る。
+const maxUpcoming = 5;
+const upcomingFetch = 20;
+
+// recentRecordings は、ホームに出す最近の録画の数。広い画面で 1 段に並ぶ数にする。
+const recentRecordings = 4;
 
 export type DashboardRange = { now: number; nowEnd: string; from: string; to: string };
 
-// Dashboard は、ホームの中身。縮退と予約の競合の警告、放送中の番組、最近の録画、これからの予約を出す (設計書 10.3)。
+// Dashboard は、ホームの中身。縮退と予約の競合の警告、これからの予約、最近の録画、放送中の番組を出す (設計書 10.3)。
 // range は、待たない親で決めた時刻。待つ間に決め直すと、読み込みが終わらなくなる。
 export function Dashboard({ range }: { range: DashboardRange }) {
   const { t } = useTranslation();
   const data = useLazyLoadQuery<DashboardQuery>(
     graphql`
-      query DashboardQuery($from: Time!, $nowEnd: Time!, $to: Time!) {
+      query DashboardQuery(
+        $from: Time!
+        $nowEnd: Time!
+        $to: Time!
+        $recordings: Int!
+        $upcoming: Int!
+      ) {
         tunerServerHealth {
           degraded
           degradedSince
+        }
+        channelTypes {
+          type
+          displayName
         }
         guide(from: $from, to: $nowEnd) {
           service {
             id
             name
             logoUrl
+            channelType {
+              type
+            }
           }
           programs {
             id
@@ -53,14 +83,22 @@ export function Dashboard({ range }: { range: DashboardRange }) {
             }
           }
         }
-        recordings(first: 6) {
+        recordings(first: $recordings) {
           edges {
             node {
               id
               name
+              startAt
+              endAt
               state
+              drops
+              errors
+              scrambled
               recordedFrom
+              recordedUntil
+              watchPositionMs
               thumbnailUrl
+              previewUrl
               service {
                 name
                 logoUrl
@@ -68,7 +106,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
             }
           }
         }
-        upcoming: reservations(from: $from, to: $to, enabled: true, first: 5) {
+        upcoming: reservations(from: $from, to: $to, enabled: true, first: $upcoming) {
           edges {
             node {
               id
@@ -78,6 +116,9 @@ export function Dashboard({ range }: { range: DashboardRange }) {
               service {
                 name
                 logoUrl
+                channelType {
+                  type
+                }
               }
               assignment {
                 state
@@ -103,15 +144,38 @@ export function Dashboard({ range }: { range: DashboardRange }) {
         }
       }
     `,
-    { from: range.from, nowEnd: range.nowEnd, to: range.to },
+    {
+      from: range.from,
+      nowEnd: range.nowEnd,
+      to: range.to,
+      recordings: recentRecordings,
+      upcoming: upcomingFetch,
+    },
   );
-  const playing = nowPlaying(data.guide, range.now, maxNowPlaying);
+  // 放送中の番組を、チャンネルの種類ごとに分ける。番組のない種類は、選べないようにする。
+  // これからの予約は、まだ始まっていないものだけにする。始まった予約は、録画中として最近の録画に出る。
+  const upcoming = data.upcoming.edges
+    .filter(({ node }) => Date.parse(node.startAt) > range.now)
+    .slice(0, maxUpcoming);
+  const playingByType = data.channelTypes
+    .map((channelType) => ({
+      ...channelType,
+      playing: nowPlaying(
+        data.guide.filter((row) => row.service.channelType.type === channelType.type),
+        range.now,
+      ),
+    }))
+    .filter((channelType) => channelType.playing.length > 0);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
+  const current =
+    playingByType.find((channelType) => channelType.type === selectedType) ?? playingByType[0];
+  const playing = current?.playing ?? [];
   // 100 件を超えたら、「100 件以上」と示す。
   const troubles = data.troubles.edges.length;
   const moreTroubles = data.troubles.pageInfo.hasNextPage;
 
   return (
-    <Stack gap="lg">
+    <Stack gap="xl">
       {data.tunerServerHealth.degraded && (
         <Alert color="amber" role="alert" title={t('home.degraded.title')}>
           {data.tunerServerHealth.degradedSince == null
@@ -139,97 +203,39 @@ export function Dashboard({ range }: { range: DashboardRange }) {
       <Stack gap="xs">
         <Group justify="space-between">
           <Title order={3} size="h5">
-            {t('home.nowPlaying')}
-          </Title>
-          <Anchor component={Link} to="/guide" size="sm">
-            {t('home.openGuide')}
-          </Anchor>
-        </Group>
-        {playing.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            {t('home.nothingPlaying')}
-          </Text>
-        ) : (
-          <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="xs">
-            {playing.map((item) => (
-              <NowPlayingCard
-                key={item.serviceId}
-                serviceId={item.serviceId}
-                serviceName={item.serviceName}
-                serviceLogoUrl={item.serviceLogoUrl}
-                program={{ name: item.programName, startAt: item.startAt, endAt: item.endAt }}
-              />
-            ))}
-          </SimpleGrid>
-        )}
-      </Stack>
-
-      <Stack gap="xs">
-        <Group justify="space-between">
-          <Title order={3} size="h5">
-            {t('home.recentRecordings')}
-          </Title>
-          <Anchor component={Link} to="/recordings" size="sm">
-            {t('home.allRecordings')}
-          </Anchor>
-        </Group>
-        {data.recordings.edges.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            {t('home.noRecordings')}
-          </Text>
-        ) : (
-          <SimpleGrid cols={{ base: 2, sm: 3, md: 6 }} spacing="xs">
-            {data.recordings.edges.map(({ node }) => (
-              <Card
-                key={node.id}
-                withBorder
-                padding={0}
-                renderRoot={(props) => (
-                  <Link
-                    {...props}
-                    to="/recordings/$recordingId"
-                    params={{ recordingId: node.id }}
-                  />
-                )}
-              >
-                <RecordingThumbnail url={node.thumbnailUrl} />
-                <Stack gap={2} p="xs">
-                  <Text size="sm" lineClamp={2}>
-                    <ProgramTitle name={node.name} />
-                  </Text>
-                  <Group gap={4}>
-                    <Badge size="xs" variant="light" color={stateColor(node.state)}>
-                      {t(stateKey(node.state))}
-                    </Badge>
-                    <Text size="xs" c="dimmed">
-                      <ServiceLabel name={node.service.name} logoUrl={node.service.logoUrl} />
-                    </Text>
-                  </Group>
-                </Stack>
-              </Card>
-            ))}
-          </SimpleGrid>
-        )}
-      </Stack>
-
-      <Stack gap="xs">
-        <Group justify="space-between">
-          <Title order={3} size="h5">
             {t('home.upcoming')}
           </Title>
           <Anchor component={Link} to="/reservations" size="sm">
             {t('home.allReservations')}
           </Anchor>
         </Group>
-        {data.upcoming.edges.length === 0 ? (
+        {upcoming.length === 0 ? (
           <Text size="sm" c="dimmed">
             {t('home.noReservations')}
           </Text>
         ) : (
           <Stack gap={4}>
-            {data.upcoming.edges.map(({ node }) => (
-              <Group key={node.id} gap="xs" wrap="nowrap">
-                <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
+            {upcoming.map(({ node }) => (
+              // 押すと、番組表のその日・その種別を開き、この予約の番組の詳細を開く。
+              <Group
+                key={node.id}
+                gap="xs"
+                wrap="nowrap"
+                className={classes.upcomingRow}
+                renderRoot={(props) => (
+                  <Link
+                    {...props}
+                    to="/guide"
+                    search={{
+                      date: dateOf(broadcastDay(Date.parse(node.startAt)).from),
+                      type: node.service.channelType.type,
+                      reservation: node.id,
+                    }}
+                  />
+                )}
+              >
+                {/* 日時は、番組名の頭が揃うよう、いちばん長い日時 (12/28(月) 00:00) が収まる幅に固定する。本文のフォントは数字の幅が揃う。 */}
+                <Text size="sm" c="dimmed" w="8.5em" style={{ flexShrink: 0 }}>
                   {dateTimeFormat.format(Date.parse(node.startAt))}
                 </Text>
                 <Text size="sm" truncate style={{ flex: 1, minWidth: 0 }}>
@@ -250,6 +256,68 @@ export function Dashboard({ range }: { range: DashboardRange }) {
               </Group>
             ))}
           </Stack>
+        )}
+      </Stack>
+
+      <Stack gap="xs">
+        <Group justify="space-between">
+          <Title order={3} size="h5">
+            {t('home.recentRecordings')}
+          </Title>
+          <Anchor component={Link} to="/recordings" size="sm">
+            {t('home.allRecordings')}
+          </Anchor>
+        </Group>
+        {data.recordings.edges.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            {t('home.noRecordings')}
+          </Text>
+        ) : (
+          <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="xs">
+            {data.recordings.edges.map(({ node }) => (
+              <RecordingCard key={node.id} recording={node} />
+            ))}
+          </SimpleGrid>
+        )}
+      </Stack>
+
+      <Stack gap="xs">
+        <div className={classes.nowPlayingHeader}>
+          <Title order={3} size="h5" className={classes.title}>
+            {t('home.nowPlaying')}
+          </Title>
+          {playingByType.length > 1 && (
+            <SegmentedControl
+              className={classes.types}
+              size="xs"
+              value={current?.type ?? ''}
+              onChange={setSelectedType}
+              data={playingByType.map((channelType) => ({
+                value: channelType.type,
+                label: channelType.displayName,
+              }))}
+            />
+          )}
+          <Anchor component={Link} to="/guide" size="sm" className={classes.link}>
+            {t('home.openGuide')}
+          </Anchor>
+        </div>
+        {playing.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            {t('home.nothingPlaying')}
+          </Text>
+        ) : (
+          <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="xs">
+            {playing.map((item) => (
+              <NowPlayingCard
+                key={item.serviceId}
+                serviceId={item.serviceId}
+                serviceName={item.serviceName}
+                serviceLogoUrl={item.serviceLogoUrl}
+                program={{ name: item.programName, startAt: item.startAt, endAt: item.endAt }}
+              />
+            ))}
+          </SimpleGrid>
         )}
       </Stack>
     </Stack>

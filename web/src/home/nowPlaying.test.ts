@@ -21,7 +21,7 @@ describe('nowPlaying', () => {
       { service: { id: 's3', name: 'NTV' }, programs: [program('d', '09:55', '10:55')] },
     ];
 
-    expect(nowPlaying(rows, now, 10).map((item) => [item.serviceName, item.programName])).toEqual([
+    expect(nowPlaying(rows, now).map((item) => [item.serviceName, item.programName])).toEqual([
       ['NHK', '番組 b'],
       ['NTV', '番組 d'],
     ]);
@@ -53,27 +53,6 @@ describe('nowPlaying', () => {
     } as const;
     const rows = services.map((id) => all[id as keyof typeof all]);
 
-    expect(nowPlaying(rows, now, 10).map((item) => item.serviceId)).toEqual(want);
-  });
-
-  test('省いたサブチャンネルは、limit に数えない', () => {
-    const shared = program('a', '09:30', '10:30');
-    const rows = [
-      { service: { id: 's1', name: 'メイン' }, programs: [shared] },
-      { service: { id: 's2', name: 'サブ' }, programs: [{ ...shared, sharedFrom: { id: 's1' } }] },
-      { service: { id: 's3', name: 'ほか' }, programs: [program('b', '09:30', '10:30')] },
-    ];
-
-    expect(nowPlaying(rows, now, 2).map((item) => item.serviceId)).toEqual(['s1', 's3']);
-  });
-
-  test('limit 件までにする', () => {
-    const rows = ['s1', 's2', 's3'].map((id) => ({
-      service: { id, name: id },
-      programs: [program(id, '09:00', '11:00')],
-    }));
-
-    expect(nowPlaying(rows, now, 2).map((item) => item.serviceId)).toEqual(['s1', 's2']);
-    expect(nowPlaying(rows, now, 0)).toEqual([]);
+    expect(nowPlaying(rows, now).map((item) => item.serviceId)).toEqual(want);
   });
 });

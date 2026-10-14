@@ -1,0 +1,11 @@
+/* 番組名の後ろに並べる印。1 行分の高さの箱の中で、上下の真ん中に置く。 */
+/* 字面の中央は行の中央とほぼ同じなので、番組名の文字の大きさによらず、印が文字の中央に揃う。 */
+/* 印が行より高くても、行の高さは広げない (箱からはみ出して描く)。 */
+.marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 1lh;
+  margin-inline-start: 4px;
+  vertical-align: top;
+}

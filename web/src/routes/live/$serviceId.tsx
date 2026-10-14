@@ -6,13 +6,21 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
-import { ErrorBoundary, ProgramTitle } from '../../futon';
+import {
+  ErrorBoundary,
+  PageLoader,
+  ProgramTitle,
+  splitProgramMarks,
+  toHalfWidth,
+} from '../../futon';
 import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
+import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import { DataBroadcastRemote } from '../../yunomi/DataBroadcastRemote';
 import {
+  BigPlayButton,
   ControlButton,
   FullscreenButton,
   LiveStatus,
@@ -36,6 +44,7 @@ import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { CaptureButton, PipButton } from '../../yunomi/PlayerTools';
 import { useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
+import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoState } from '../../yunomi/useVideoState';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { useVisible } from '../../yunomi/useVisible';
@@ -95,7 +104,7 @@ function LiveServicePage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Live key={serviceId} serviceId={serviceId} range={range} onProgramEnd={refresh} />
         </Suspense>
       </ErrorBoundary>
@@ -178,6 +187,8 @@ function Live({
   // video は、今の video の要素。画質を変えたときや、別のウィンドウに移したときに作り直される。
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const videoState = useVideoState(video);
+  // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
+  const autoplay = useAutoplayBlocked(video);
   const fullscreen = useFullscreen(playerBoxRef);
   const controls = useControlsVisibility({ playing: !videoState.paused });
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
@@ -388,6 +399,7 @@ function Live({
               {dataBroadcast.receiving && (
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}
+              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
             </>
           }
           onState={(state) => {
@@ -422,6 +434,7 @@ function Live({
               {dataBroadcast.receiving && (
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}
+              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
             </>
           }
           // チューナーを使われて切れると、hls.js が読み直しを諦めたところで、致命的なエラーになる。
@@ -442,13 +455,7 @@ function Live({
       <PlaybackUnavailable route={route} />
       {/* 画面の外に出たときと、タブが隠れたときは、読み込みも止めて、チューナーを手放す (設計書 7.2)。 */}
       <div ref={frameRef}>
-        {pip.container === null ? (
-          playerBox
-        ) : (
-          <Text size="sm" c="dimmed">
-            {t('player.pipActive')}
-          </Text>
-        )}
+        {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
       </div>
       {pip.container !== null && createPortal(playerBox, pip.container)}
       {!visible && (
@@ -463,7 +470,11 @@ function Live({
               <Text size="sm">
                 {t('live.tunerTaken', {
                   recordings: disconnection.recordings
-                    .map((recording) => `${recording.serviceName}「${recording.name}」`)
+                    .map((recording) =>
+                      toHalfWidth(
+                        `${recording.serviceName}「${splitProgramMarks(recording.name).name}」`,
+                      ),
+                    )
                     .join('、'),
                 })}
               </Text>

@@ -20,7 +20,7 @@ import {
 import { ServiceLabel } from './ServiceLabel';
 import { useTranslation } from 'react-i18next';
 
-import { ProgramTitle, splitProgramMarks } from '../futon';
+import { ProgramTitle, splitProgramMarks, toHalfWidth } from '../futon';
 
 // GuideProgram は、番組表の枠に出す番組。
 export type GuideProgram = {
@@ -50,8 +50,14 @@ type Props = {
   columns: GuideColumn[];
   // now は、いまの時刻。時間帯に入っていれば、線を引く。
   now: number;
-  // initialTime は、最初に表示する時刻。
-  initialTime: number;
+  // receivedUntil は、番組表が届いている時刻。これより後は、まだ届いていないと案内する。省くと、案内しない。
+  receivedUntil?: number;
+  // scrollKey を変えると、日付が同じでも、scrollTime へスクロールし直す。
+  scrollKey?: number;
+  // scrollProgram は、scrollTime へスクロールするときに、横にも見えるようにする番組の ID。その番組の列を左端に寄せる。
+  scrollProgram?: string | undefined;
+  // scrollTime は、日付を変えたとき (と最初) に、上の方に出す時刻。null なら、それまで見ていた時間帯のままにする。
+  scrollTime: number | null;
   onSelect: (programId: string) => void;
 };
 
@@ -76,7 +82,16 @@ const hourFormat = new Intl.DateTimeFormat('ja-JP', {
 
 // GuideGrid は、横にサービス、縦に時刻を並べた番組表。
 // サービスの数と番組の数が多くても滑らかに動くよう、横はサービスの列を、縦は列の中の番組を、見えている範囲だけ描く。
-export function GuideGrid({ window: day, columns, now, initialTime, onSelect }: Props) {
+export function GuideGrid({
+  window: day,
+  columns,
+  now,
+  receivedUntil,
+  scrollKey,
+  scrollProgram,
+  scrollTime,
+  onSelect,
+}: Props) {
   const { t } = useTranslation();
   const scroller = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
@@ -94,6 +109,8 @@ export function GuideGrid({ window: day, columns, now, initialTime, onSelect }: 
   // windowRef は、最新の目盛り。番組を読み直しても、スクロールの位置は動かさないので、効果の依存には入れない。
   const windowRef = useRef(window);
   windowRef.current = window;
+  // topOffset は、スクロールの上端の時刻の、その日の始まりからの経過時間。日付を変えたときに、同じ時間帯を出すのに使う。
+  const topOffset = useRef<number | null>(null);
 
   const virtualizer = useVirtualizer({
     horizontal: true,
@@ -112,6 +129,7 @@ export function GuideGrid({ window: day, columns, now, initialTime, onSelect }: 
     let frame = 0;
     const update = () => {
       frame = 0;
+      topOffset.current = yToTime(windowRef.current, element.scrollTop) - windowRef.current.from;
       setViewport({ top: element.scrollTop, height: element.clientHeight });
     };
     const onScroll = () => {
@@ -131,16 +149,40 @@ export function GuideGrid({ window: day, columns, now, initialTime, onSelect }: 
     };
   }, []);
 
-  // 最初と、日付を変えたときに、指定の時刻が上の方に来るようにスクロールする。
+  // 最初と、日付や scrollKey を変えたときに、scrollTime が上の方に来るようにスクロールする。
+  // scrollTime がなければ、それまで見ていた時間帯 (その日の始まりからの経過時間) を、新しい日でも上端に出す。
+  // 目盛りは日によって伸び方が違うので、位置ではなく時刻で合わせる。
+  // scrollTimeRef は、最新の scrollTime。日付を変えたときだけ動かすので、効果の依存には入れない。
+  const scrollTimeRef = useRef(scrollTime);
+  scrollTimeRef.current = scrollTime;
+  const scrollProgramRef = useRef(scrollProgram);
+  scrollProgramRef.current = scrollProgram;
+  const columnsRef = useRef(columns);
+  columnsRef.current = columns;
   useEffect(() => {
     const element = scroller.current;
-    if (element !== null) {
-      element.scrollTop = Math.max(
-        timeToY(windowRef.current, initialTime) - 60 * minuteHeight * 0.5,
-        0,
-      );
+    if (element === null) {
+      return;
     }
-  }, [day, initialTime]);
+    const window = windowRef.current;
+    const time = scrollTimeRef.current;
+    if (time !== null) {
+      element.scrollTop = Math.max(timeToY(window, time) - 60 * minuteHeight * 0.5, 0);
+      // 列は同じ幅で並ぶので、番組の列の番号から横の位置が決まる。
+      const programId = scrollProgramRef.current;
+      const index =
+        programId === undefined
+          ? -1
+          : columnsRef.current.findIndex((column) =>
+              column.programs.some((program) => program.id === programId),
+            );
+      if (index >= 0) {
+        element.scrollLeft = index * columnWidth;
+      }
+    } else if (topOffset.current !== null) {
+      element.scrollTop = timeToY(window, window.from + topOffset.current);
+    }
+  }, [day.from, scrollKey]);
 
   const visibleFrom = yToTime(window, viewport.top - overscanPixels);
   const visibleTo = yToTime(window, viewport.top + viewport.height + overscanPixels);
@@ -159,6 +201,10 @@ export function GuideGrid({ window: day, columns, now, initialTime, onSelect }: 
   );
   const totalWidth = axisWidth + virtualizer.getTotalSize();
   const nowY = now >= window.from && now < window.to ? timeToY(window, now) : undefined;
+  const receivedY =
+    receivedUntil !== undefined && receivedUntil < window.to
+      ? timeToY(window, Math.max(receivedUntil, window.from))
+      : undefined;
 
   return (
     <Box
@@ -275,6 +321,40 @@ export function GuideGrid({ window: day, columns, now, initialTime, onSelect }: 
             onSelect={onSelect}
           />
         ))}
+        {receivedY !== undefined && (
+          // まだ届いていない時間帯は、斜線で塗り、横にスクロールしても見える位置に案内を出す。
+          <Box
+            style={{
+              position: 'absolute',
+              top: receivedY,
+              left: axisWidth,
+              width: totalWidth - axisWidth,
+              height: height - receivedY,
+              borderTop: '1px dashed var(--mantine-color-default-border)',
+              background:
+                'repeating-linear-gradient(135deg, transparent 0 8px, var(--mantine-color-default-hover) 8px 16px)',
+            }}
+          >
+            <Text
+              size="sm"
+              c="dimmed"
+              style={{
+                position: 'sticky',
+                top: headerHeight + 16,
+                left: axisWidth + 16,
+                display: 'inline-block',
+                marginTop: 16,
+                marginLeft: 16,
+                paddingInline: 8,
+                paddingBlock: 4,
+                borderRadius: 'var(--mantine-radius-sm)',
+                background: 'var(--mantine-color-body)',
+              }}
+            >
+              {t('guide.notReceived')}
+            </Text>
+          </Box>
+        )}
         {nowY !== undefined && (
           <Box
             aria-hidden
@@ -334,8 +414,10 @@ function GuideColumnView({
             onClick={() => onSelect(program.id)}
             title={
               program.shared
-                ? t('guide.sharedProgram', { name: splitProgramMarks(program.name).name })
-                : splitProgramMarks(program.name).name
+                ? t('guide.sharedProgram', {
+                    name: toHalfWidth(splitProgramMarks(program.name).name),
+                  })
+                : toHalfWidth(splitProgramMarks(program.name).name)
             }
             style={{
               position: 'absolute',

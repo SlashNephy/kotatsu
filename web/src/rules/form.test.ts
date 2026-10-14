@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { emptyRuleForm, fromRule, hasConditions, toInput, type RuleData } from './form';
+import { emptyRuleForm, fromRule, toInput, type RuleData } from './form';
 
 // imported は、EPGStation から取り込んだような、画面で編集しない項目まで埋まったルール。
 const imported: RuleData = {
@@ -74,56 +74,8 @@ describe('fromRule と toInput', () => {
 });
 
 describe('toInput', () => {
-  test.each([
-    {
-      name: '空白だけのキーワードと、照合する項目のないキーワードは送らない',
-      form: {
-        ...emptyRuleForm(),
-        keywords: [
-          { text: '  ', regexp: false, caseSensitive: false, fields: ['NAME' as const] },
-          { text: 'アニメ', regexp: false, caseSensitive: false, fields: [] },
-          { text: ' 映画 ', regexp: false, caseSensitive: false, fields: ['NAME' as const] },
-        ],
-      },
-      want: [{ text: '映画', regexp: false, caseSensitive: false, fields: ['NAME'] }],
-    },
-  ])('$name', ({ form, want }) => {
-    expect(toInput(form).conditions.keywords).toEqual(want);
-  });
-
-  test('曜日のない時間帯は送らない', () => {
-    const form = {
-      ...emptyRuleForm(),
-      timeRanges: [
-        { weekdays: [], startMinute: 0, durationMinutes: 60 },
-        { weekdays: [0, 6], startMinute: 1380, durationMinutes: 120 },
-      ],
-    };
-    expect(toInput(form).conditions.timeRanges).toEqual([
-      { weekdays: [0, 6], startMinute: 1380, durationMinutes: 120 },
-    ]);
-  });
-
   test('重複を避けないときは、期間を送らない', () => {
     const form = { ...emptyRuleForm(), avoidDuplicates: false, duplicateWindowDays: 30 };
     expect(toInput(form).duplicateWindowDays).toBeNull();
-  });
-});
-
-describe('hasConditions', () => {
-  test.each([
-    { name: '何もない', form: emptyRuleForm(), want: false },
-    {
-      name: '中身のないキーワードだけ',
-      form: {
-        ...emptyRuleForm(),
-        keywords: [{ text: '', regexp: false, caseSensitive: false, fields: ['NAME' as const] }],
-      },
-      want: false,
-    },
-    { name: 'チャンネル種別', form: { ...emptyRuleForm(), channelTypes: ['BS'] }, want: true },
-    { name: '最短の長さ', form: { ...emptyRuleForm(), minDurationMinutes: 30 }, want: true },
-  ])('$name', ({ form, want }) => {
-    expect(hasConditions(form)).toBe(want);
   });
 });

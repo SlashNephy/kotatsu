@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 import type { PayloadError, RecordSourceSelectorProxy } from 'relay-runtime';
 
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, PageLoader } from '../../futon';
 import { currentSubscription, pushSupported, subscribe } from '../../notifications/push';
 import { notificationKinds } from '../../notifications/kinds';
 import { isUnauthenticated } from '../../relay/environment';
@@ -41,7 +41,7 @@ function NotificationSettingsPage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Settings />
         </Suspense>
       </ErrorBoundary>

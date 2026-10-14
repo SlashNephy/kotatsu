@@ -16,7 +16,7 @@ import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
-import { ErrorBoundary } from '../../futon';
+import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import type { rulesEnableMutation } from './__generated__/rulesEnableMutation.graphql';
 import type { rulesListQuery } from './__generated__/rulesListQuery.graphql';
@@ -45,7 +45,7 @@ function RulesPage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Rules />
         </Suspense>
       </ErrorBoundary>
@@ -114,11 +114,7 @@ function Rules() {
         </Alert>
       )}
       {data.rules.length === 0 && (
-        <Alert color="gray" icon={<ListChecks size={20} aria-hidden />} title={t('rules.empty')}>
-          <Text size="sm" c="dimmed">
-            {t('rules.emptyHint')}
-          </Text>
-        </Alert>
+        <EmptyState icon={ListChecks} title={t('rules.empty')} hint={t('rules.emptyHint')} />
       )}
       {data.rules.map((rule) => (
         <Card key={rule.id} withBorder padding="sm" style={{ opacity: rule.enabled ? 1 : 0.6 }}>

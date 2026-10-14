@@ -1,4 +1,4 @@
-import { Alert, Anchor, Button, Group, Slider, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Slider, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Captions, MessageSquareText } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -6,10 +6,11 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { ErrorBoundary, ProgramTitle } from '../../futon';
+import { ErrorBoundary, PageLoader, ProgramTitle } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
+import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import { formatDuration, playbackPosition } from '../../yunomi/position';
 import { RateSelect, PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
 import { hlsURL } from '../../yunomi/route';
@@ -22,6 +23,7 @@ import { useMediaSession } from '../../yunomi/useMediaSession';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { CaptureButton, PipButton } from '../../yunomi/PlayerTools';
 import {
+  BigPlayButton,
   ControlButton,
   FullscreenButton,
   PlayButton,
@@ -30,8 +32,9 @@ import {
   SettingsButton,
   VolumeControl,
 } from '../../yunomi/PlayerControls';
-import { useControlsVisibility } from '../../yunomi/useControlsVisibility';
+import { controlsAttribute, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
+import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoState } from '../../yunomi/useVideoState';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { resumePosition } from '../../yunomi/resume';
@@ -75,7 +78,7 @@ function PlayPage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Player key={recordingId} recordingId={recordingId} />
         </Suspense>
       </ErrorBoundary>
@@ -136,6 +139,8 @@ function Player({ recordingId }: { recordingId: string }) {
   // video は、今の video の要素。画質を変えたときや、別のウィンドウに移したときに作り直される。
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const videoState = useVideoState(video);
+  // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
+  const autoplay = useAutoplayBlocked(video);
   const fullscreen = useFullscreen(playerBoxRef);
   const controls = useControlsVisibility({ playing: !videoState.paused });
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
@@ -196,13 +201,25 @@ function Player({ recordingId }: { recordingId: string }) {
   };
   const channel = recording?.service.jikkyo ?? null;
   useWatchPositionSaver(recordingId, currentPosition, !paused);
-  // resumed は、続きから再生したことを示すかどうか。最初から再生し直したら消す。
-  const [resumed, setResumed] = useState(resumeAt > 0);
   const jikkyo = useRecordedJikkyo(
     channel !== null && jikkyoEnabled && recording !== null ? recording.jikkyoCommentsUrl : null,
     currentPosition,
     visible,
   );
+  // 実況の過去ログの読み込み具合は、実況のボタンのツールチップで示す。
+  const jikkyoLabel =
+    jikkyo.state === null
+      ? t('jikkyo.toggle')
+      : t('jikkyo.toggleWith', {
+          state:
+            jikkyo.state.kind === 'loading'
+              ? t('jikkyo.kakologLoading')
+              : jikkyo.state.kind === 'error'
+                ? t('jikkyo.kakologError')
+                : jikkyo.state.count === 0
+                  ? t('jikkyo.kakologEmpty')
+                  : t('jikkyo.kakologLoaded', { count: jikkyo.state.count }),
+        });
 
   // startAt は、指定の位置から読み直す。
   const startAt = (seconds: number) => {
@@ -391,7 +408,7 @@ function Player({ recordingId }: { recordingId: string }) {
           />
           {channel !== null && (
             <ControlButton
-              label={t('jikkyo.toggle')}
+              label={jikkyoLabel}
               icon={MessageSquareText}
               active={jikkyoEnabled}
               onClick={() => setJikkyoEnabled(!jikkyoEnabled)}
@@ -416,6 +433,19 @@ function Player({ recordingId }: { recordingId: string }) {
       className={playerControlsClasses.box}
       data-controls-visible={controls.visible}
       {...controls.containerProps}
+      // マウスで映像を押すと、再生と一時停止を切り替える。タッチでは、押すと操作バーを出し隠しするので切り替えない。
+      // 操作バーや、映像に重ねたボタンを押したときは、そのボタンの操作だけにする。
+      onClick={(event) => {
+        const pointer =
+          event.nativeEvent instanceof PointerEvent ? event.nativeEvent.pointerType : 'mouse';
+        if (
+          pointer === 'mouse' &&
+          event.target instanceof Element &&
+          event.target.closest(`[${controlsAttribute}], button, a, input, [role="slider"]`) === null
+        ) {
+          togglePlay();
+        }
+      }}
     >
       {route.kind === 'convert' && (
         <TsPlayer
@@ -431,7 +461,12 @@ function Player({ recordingId }: { recordingId: string }) {
             setError(null);
           }}
           onError={onError}
-          overlay={jikkyo.overlay}
+          overlay={
+            <>
+              {jikkyo.overlay}
+              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
+            </>
+          }
           onAudio={audio.onAudio}
           audio={audio.convertAudio}
         />
@@ -446,7 +481,12 @@ function Player({ recordingId }: { recordingId: string }) {
           captions={captions}
           live={false}
           startPosition={offset}
-          overlay={jikkyo.overlay}
+          overlay={
+            <>
+              {jikkyo.overlay}
+              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
+            </>
+          }
           onLoaded={() => setError(null)}
           onError={onError}
         />
@@ -464,43 +504,9 @@ function Player({ recordingId }: { recordingId: string }) {
       </Text>
       <PlaybackUnavailable route={route} />
       <div ref={frameRef}>
-        {pip.container === null ? (
-          playerBox
-        ) : (
-          <Text size="sm" c="dimmed">
-            {t('player.pipActive')}
-          </Text>
-        )}
+        {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
       </div>
       {pip.container !== null && createPortal(playerBox, pip.container)}
-      {resumed && (
-        <Group gap="xs">
-          <Text size="sm" c="dimmed">
-            {t('player.resumed', { time: formatDuration(resumeAt) })}
-          </Text>
-          <Button
-            size="compact-sm"
-            variant="subtle"
-            onClick={() => {
-              setResumed(false);
-              seek(0);
-            }}
-          >
-            {t('player.fromStart')}
-          </Button>
-        </Group>
-      )}
-      {jikkyo.state !== null && (
-        <Text size="xs" c={jikkyo.state.kind === 'error' ? 'red' : 'dimmed'} role="status">
-          {jikkyo.state.kind === 'loading'
-            ? t('jikkyo.kakologLoading')
-            : jikkyo.state.kind === 'error'
-              ? t('jikkyo.kakologError')
-              : jikkyo.state.count === 0
-                ? t('jikkyo.kakologEmpty')
-                : t('jikkyo.kakologLoaded', { count: jikkyo.state.count })}
-        </Text>
-      )}
       {error !== null && (
         <Alert color="red" role="alert">
           {error}

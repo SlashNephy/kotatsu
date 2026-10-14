@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import {
   broadcastDay,
+  receivedUntil,
   layoutColumn,
   programBox,
   stackedBoxes,
@@ -256,5 +257,26 @@ describe('broadcastDay', () => {
     const day = broadcastDay(Date.parse(time));
     expect(day.from).toBe(Date.parse(want));
     expect(day.to - day.from).toBe(24 * 60 * minute);
+  });
+});
+
+describe('receivedUntil', () => {
+  const to = Date.parse('2026-10-21T04:00:00+09:00');
+  const hour = 3_600_000;
+
+  test.each([
+    { name: '1 つも届いていなければ、日の全体を届いていないとする', ends: [], want: 0 },
+    {
+      name: '途中までしか届いていなければ、いちばん遅い終わりを返す',
+      ends: [to - 10 * hour, to - 6 * hour],
+      want: to - 6 * hour,
+    },
+    {
+      name: '日の終わりの 1 時間前まで届いていれば、すべて届いたとみなす',
+      ends: [to - hour],
+      want: undefined,
+    },
+  ])('$name', ({ ends, want }) => {
+    expect(receivedUntil(ends, to)).toBe(want);
   });
 });

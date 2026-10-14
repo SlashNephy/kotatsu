@@ -5,3 +5,25 @@
   text-underline-offset: 6px;
   text-decoration-thickness: 2px;
 }
+
+/* 広い画面で、行が長くなりすぎないよう、ヘッダーと本文の幅に上限を設けて中央に寄せる。 */
+/* ヘッダーは左右に余白 (md) を持つので、その分を足して本文と左端を揃える。 */
+.header {
+  max-width: calc(var(--layout-width) + 2 * var(--mantine-spacing-md));
+  margin-inline: auto;
+}
+
+.content {
+  max-width: var(--layout-width);
+  margin-inline: auto;
+}
+
+/* 番組表のように、広いほど見やすい画面は、幅の上限を外す。ヘッダーも外して、本文と左端を揃える。 */
+.header[data-fluid],
+.content[data-fluid] {
+  max-width: none;
+}
+
+:root {
+  --layout-width: 80rem;
+}

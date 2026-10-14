@@ -11,20 +11,21 @@ import {
   Text,
   Title,
 } from '@mantine/core';
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarX2, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { Suspense, useDeferredValue, useMemo, useState } from 'react';
+import { Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { ErrorBoundary } from '../../futon';
+import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
 import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
-import { broadcastDay } from '../../guide/layout';
+import { broadcastDay, dateOf, receivedUntil } from '../../guide/layout';
 import { ProgramDetail } from '../../guide/ProgramDetail';
 import { collapseSharedColumns } from '../../guide/sharedEvent';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { guideQuery } from './__generated__/guideQuery.graphql';
+import classes from './index.module.css';
 
 type GuideSearch = {
   // date は、表示する放送日 (YYYY-MM-DD)。省くと、いまの放送日。
@@ -35,12 +36,16 @@ type GuideSearch = {
   program?: string;
   // view は、適用する番組表ビューの ID。省くと、絞り込まない。
   view?: string;
+  // reservation は、詳細を開きたい番組の予約の ID。番組表を読んだら、その予約の番組を program にして外す。
+  // ホームのこれからの予約から開くときに使う。予約からは番組の ID が分からないので、番組表の中から探す。
+  reservation?: string;
 };
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const day = 24 * 60 * 60_000;
-// guideDays は、番組表で移れる、いまの放送日からの日数。tenban は 7 日分までの時間帯を受け付ける。
-const guideDays = 7;
+// guideDays は、番組表で移れる、いまの放送日からの日数。
+// 放送の EPG (EIT) は、今日の 0 時から 8 日分が届く。放送日は 4 時に切り替わるので、8 日目の放送日も 4 時から 24 時までは番組がある。
+const guideDays = 8;
 
 export const Route = createFileRoute('/guide/')({
   validateSearch: (search: Record<string, unknown>): GuideSearch => {
@@ -50,21 +55,19 @@ export const Route = createFileRoute('/guide/')({
     const type = text('type');
     const program = text('program');
     const view = text('view');
+    const reservation = text('reservation');
 
     return {
       ...(date !== undefined && datePattern.test(date) ? { date } : {}),
       ...(type !== undefined ? { type } : {}),
       ...(program !== undefined ? { program } : {}),
       ...(view !== undefined ? { view } : {}),
+      ...(reservation !== undefined ? { reservation } : {}),
     };
   },
   component: GuidePage,
+  staticData: { fluid: true },
 });
-
-// dateOf は、放送日の始まりの時刻を YYYY-MM-DD (日本時間) にする。
-function dateOf(time: number): string {
-  return new Date(time + 9 * 3_600_000).toISOString().slice(0, 10);
-}
 
 // dayFrom は、URL の日付 (なければ今日) の放送日の始まりを返す。
 function dayFrom(date: string | undefined, todayFrom: number): number {
@@ -106,7 +109,7 @@ function GuidePage() {
           )
         }
       >
-        <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+        <Suspense fallback={<PageLoader />}>
           <Guide />
         </Suspense>
       </ErrorBoundary>
@@ -118,8 +121,8 @@ function Guide() {
   const { t } = useTranslation();
   const navigate = useNavigate({ from: '/guide/' });
   const search = Route.useSearch();
-  // now は、画面を開いた時刻。日付の移動の基準と、いまの時刻の線に使う。
-  const [now] = useState(() => Date.now());
+  // now は、画面を開いた (「現在時刻」を押した) 時刻。日付の移動の基準と、いまの時刻の線に使う。
+  const [now, setNow] = useState(() => Date.now());
   const today = broadcastDay(now);
   // 日付やビューを変えても、新しい番組表を読み終えるまでは前の番組表を出したままにし、番組表の上に読み込み中を出す。
   // 画面全体を読み込み中にしないよう、読み込みに使う値だけを遅らせる。
@@ -239,12 +242,49 @@ function Guide() {
     [data.guide, type],
   );
 
+  // focused は、URL で指した番組 (予約から開いたときは、その予約の番組)。開いたときに、その時刻へスクロールする。
+  const focused = useMemo(() => {
+    const programs = data.guide.flatMap((row) => row.programs);
+
+    return search.reservation !== undefined
+      ? programs.find((program) => program.reservation?.id === search.reservation)
+      : programs.find((program) => program.id === search.program);
+  }, [data.guide, search.reservation, search.program]);
+  // 予約から開いたときは、その予約の番組の詳細を開き、URL を番組の ID に置き換える。番組が見つからなければ、予約を外すだけにする。
+  useEffect(() => {
+    if (search.reservation === undefined) {
+      return;
+    }
+    void navigate({
+      search: (prev) => ({ ...prev, reservation: undefined, program: focused?.id ?? prev.program }),
+      replace: true,
+    });
+  }, [navigate, search.reservation, focused]);
+
   // offset は、選んだ日の、今日からの日数。日付の移動のボタンに使う。
   const offset = Math.round((selectedFrom - today.from) / day);
-  const moveTo = (days: number) =>
+  // keepTime は、日付を移っても、見ていた時間帯のままにするか。前後の日へ移るときは保ち、今日へ戻るときはいまの時刻を出す。
+  const [keepTime, setKeepTime] = useState(false);
+  // scrollKey は、日付を変えずに、いまの時刻へスクロールし直すための合図。
+  const [scrollKey, setScrollKey] = useState(0);
+  const moveTo = (days: number, keep: boolean) => {
+    setKeepTime(keep);
     void navigate({
       search: (prev) => ({ ...prev, date: dateOf(today.from + days * day), program: undefined }),
     });
+  };
+  // moveToNow は、いまの時刻を取り直し、今日のいまの時刻へ移る。すでに今日なら、日付は変わらないので、スクロールだけし直す。
+  const moveToNow = () => {
+    const time = Date.now();
+    setNow(time);
+    setKeepTime(false);
+    if (selectedFrom === broadcastDay(time).from) {
+      setScrollKey((key) => key + 1);
+    }
+    void navigate({
+      search: (prev) => ({ ...prev, date: dateOf(broadcastDay(time).from), program: undefined }),
+    });
+  };
   const dayFormat = new Intl.DateTimeFormat('ja-JP', {
     month: 'numeric',
     day: 'numeric',
@@ -254,13 +294,13 @@ function Guide() {
 
   return (
     <Stack gap="sm">
-      <Group justify="space-between" wrap="wrap" gap="xs">
+      <div className={classes.toolbar}>
         <Group gap="xs">
           <Button
             variant="default"
             size="xs"
             disabled={offset <= 0}
-            onClick={() => moveTo(offset - 1)}
+            onClick={() => moveTo(offset - 1, true)}
             leftSection={<ChevronLeft size={14} aria-hidden />}
           >
             {t('guide.previousDay')}
@@ -272,7 +312,7 @@ function Guide() {
             variant="default"
             size="xs"
             disabled={offset >= guideDays - 1}
-            onClick={() => moveTo(offset + 1)}
+            onClick={() => moveTo(offset + 1, true)}
             rightSection={<ChevronRight size={14} aria-hidden />}
           >
             {t('guide.nextDay')}
@@ -280,16 +320,30 @@ function Guide() {
           <Button
             variant="default"
             size="xs"
-            disabled={offset === 0}
-            onClick={() => moveTo(0)}
-            leftSection={<CalendarDays size={14} aria-hidden />}
+            onClick={moveToNow}
+            leftSection={<Clock size={14} aria-hidden />}
           >
-            {t('guide.today')}
+            {t('guide.now')}
           </Button>
         </Group>
-        <Group gap="xs">
+        {types.length > 0 && (
+          <SegmentedControl
+            className={classes.types}
+            size="xs"
+            value={type ?? ''}
+            onChange={(value) =>
+              void navigate({ search: (prev) => ({ ...prev, type: value, program: undefined }) })
+            }
+            data={types.map((channelType) => ({
+              value: channelType.type,
+              label: channelType.displayName,
+            }))}
+          />
+        )}
+        <Group gap="xs" wrap="nowrap" className={classes.end}>
           <Select
             size="xs"
+            w={160}
             aria-label={t('guide.view.label')}
             // URL のビューが消えていても、「すべての番組」を選び直して外せるよう、URL の値をそのまま使う。
             value={search.view ?? ''}
@@ -337,31 +391,36 @@ function Guide() {
             {currentView === undefined ? t('guide.view.create') : t('guide.view.edit')}
           </Button>
         </Group>
-        {types.length > 0 && (
-          <SegmentedControl
-            size="xs"
-            value={type ?? ''}
-            onChange={(value) =>
-              void navigate({ search: (prev) => ({ ...prev, type: value, program: undefined }) })
-            }
-            data={types.map((channelType) => ({
-              value: channelType.type,
-              label: channelType.displayName,
-            }))}
-          />
-        )}
-      </Group>
+      </div>
       {/* 日付やビューを変えたときは、読み終えるまで前の番組表を出し、その上に読み込み中を重ねる。 */}
       <Box pos="relative">
         <LoadingOverlay visible={loading} zIndex={5} overlayProps={{ blur: 1 }} />
         {columns.length === 0 ? (
-          <Alert color="gray">{t('guide.empty')}</Alert>
+          <EmptyState icon={CalendarX2} title={t('guide.empty')} hint={t('guide.emptyHint')} />
         ) : (
           <GuideGrid
             window={window}
             columns={columns}
             now={now}
-            initialTime={window.from === today.from ? now : window.from + 15 * 3_600_000}
+            receivedUntil={
+              window.from > today.from
+                ? receivedUntil(
+                    columns.flatMap((column) => column.programs.map((program) => program.endAt)),
+                    window.to,
+                  )
+                : undefined
+            }
+            scrollKey={scrollKey}
+            scrollProgram={keepTime ? undefined : focused?.id}
+            scrollTime={
+              keepTime
+                ? null
+                : focused !== undefined
+                  ? Date.parse(focused.startAt)
+                  : window.from === today.from
+                    ? now
+                    : window.from + 15 * 3_600_000
+            }
             onSelect={(program) => void navigate({ search: (prev) => ({ ...prev, program }) })}
           />
         )}

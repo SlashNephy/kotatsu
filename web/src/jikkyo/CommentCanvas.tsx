@@ -41,7 +41,9 @@ export function CommentCanvas({ clock, drawing, ref }: Props) {
       renderer.addComments(...formatted);
     }
   };
-  useImperativeHandle(ref, () => ({ add }));
+  // ハンドルは作り直さない。作り直すと、受け取った側がコメントを足し直し、同じコメントが重なって流れる。
+  // add は ref だけを使うので、最初のハンドルのままでよい。
+  useImperativeHandle(ref, () => ({ add }), []);
 
   // niconicomments は大きいので、実況を出すときに読む。
   useEffect(() => {

@@ -1,4 +1,7 @@
-import '@fontsource/zen-maru-gothic/700.css';
+// 本文と見出しの丸ゴシック体。アプリで使う太さ (400、500、700。600 は 700 で描く) だけを読む。
+import '@fontsource/m-plus-rounded-1c/400.css';
+import '@fontsource/m-plus-rounded-1c/500.css';
+import '@fontsource/m-plus-rounded-1c/700.css';
 import '@mantine/core/styles.css';
 import './futon/global.css';
 import './i18n';

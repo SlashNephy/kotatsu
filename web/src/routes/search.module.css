@@ -1,0 +1,42 @@
+.layout {
+  display: grid;
+  gap: var(--mantine-spacing-md);
+}
+
+/* 広い画面では、本文を画面の高さ (ヘッダーの 64px と上下の余白を除く) に収め、条件と結果を左右に並べる。
+   ページはスクロールさせず、それぞれの列の中だけをスクロールする。狭い画面では縦に積み、ページをスクロールする。 */
+@media (min-width: 62em) {
+  .page {
+    height: calc(100dvh - 64px - 2 * var(--mantine-spacing-md));
+  }
+
+  .layout {
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  }
+
+  .pane {
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  /* 結果の列は、カードを列の高さに広げ、見出しの下の一覧だけをスクロールする。 */
+  .resultsPane {
+    display: flex;
+    min-height: 0;
+  }
+
+  .results {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .resultsBody {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
