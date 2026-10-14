@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b71e5f0c1738d7e7666ebb3f56de2eb7>>
+ * @generated SignedSource<<2ccf1c3c65946348fb1fff68109877d7>>
  * @lightSyntaxTransform
  */
 
@@ -51,9 +51,6 @@ export type searchProgramsQuery$data = {
     readonly edges: ReadonlyArray<{
       readonly node: {
         readonly archived: boolean;
-        readonly genres: ReadonlyArray<{
-          readonly lv1: number;
-        }>;
         readonly id: string;
         readonly name: string;
         readonly service: {
@@ -155,24 +152,6 @@ v9 = {
 v10 = {
   "alias": null,
   "args": null,
-  "concreteType": "Genre",
-  "kind": "LinkedField",
-  "name": "genres",
-  "plural": true,
-  "selections": [
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "lv1",
-      "storageKey": null
-    }
-  ],
-  "storageKey": null
-},
-v11 = {
-  "alias": null,
-  "args": null,
   "concreteType": "PageInfo",
   "kind": "LinkedField",
   "name": "pageInfo",
@@ -247,15 +226,14 @@ return {
                       (v9/*:: as any*/)
                     ],
                     "storageKey": null
-                  },
-                  (v10/*:: as any*/)
+                  }
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v11/*:: as any*/)
+          (v10/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -315,31 +293,30 @@ return {
                       (v5/*:: as any*/)
                     ],
                     "storageKey": null
-                  },
-                  (v10/*:: as any*/)
+                  }
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v11/*:: as any*/)
+          (v10/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "b134767d4f70d43b6fb34aae0e70201a",
+    "cacheID": "fa15f2ceb4141f59127cd9c28ac10478",
     "id": null,
     "metadata": {},
     "name": "searchProgramsQuery",
     "operationKind": "query",
-    "text": "query searchProgramsQuery(\n  $conditions: ProgramConditionsInput!\n  $archive: ArchiveRangeInput\n  $first: Int!\n  $after: String\n) {\n  searchPrograms(conditions: $conditions, archive: $archive, first: $first, after: $after) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        archived\n        service {\n          name\n          logoUrl\n          id\n        }\n        genres {\n          lv1\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
+    "text": "query searchProgramsQuery(\n  $conditions: ProgramConditionsInput!\n  $archive: ArchiveRangeInput\n  $first: Int!\n  $after: String\n) {\n  searchPrograms(conditions: $conditions, archive: $archive, first: $first, after: $after) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        archived\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "902c58d116246d6e829858565910ecd7";
+(node as any).hash = "325ded2ab9da15e17f5558c2c3bacdea";
 
 export default node;

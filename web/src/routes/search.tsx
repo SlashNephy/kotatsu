@@ -1,38 +1,40 @@
 import {
-    Alert,
-    Anchor,
-    Badge,
-    Button,
-    Card,
-    Group,
-    MultiSelect,
-    NumberInput,
-    SegmentedControl,
-    Stack,
-    Switch,
-    Text,
-    TextInput,
-    Title,
-    UnstyledButton,
+  Alert,
+  Anchor,
+  Button,
+  Card,
+  Group,
+  Loader,
+  NumberInput,
+  Stack,
+  Switch,
+  Text,
+  Title,
 } from '@mantine/core';
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { History, ListPlus, RadioTower, Search as SearchIcon, SearchX, Shapes } from 'lucide-react';
-import { Suspense, useRef, useState, type FormEvent } from 'react';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { History, ListPlus, SearchX } from 'lucide-react';
+import { Suspense, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
-import { EmptyState, ErrorBoundary, PageLoader, ProgramTitle } from '../futon';
-import { genreKey } from '../guide/genres';
+import { ConditionsFields } from '../conditions/ConditionsFields';
+import {
+  emptyConditions,
+  emptyKeyword,
+  hasConditions,
+  toConditionsInput,
+  type ConditionsForm,
+} from '../conditions/form';
+import { ProgramList } from '../conditions/ProgramList';
+import { EmptyState, ErrorBoundary, PageLoader } from '../futon';
 import { ProgramDetail } from '../guide/ProgramDetail';
-import { ServiceLabel } from '../guide/ServiceLabel';
 import { isUnauthenticated } from '../relay/environment';
-import { isEmpty, toConditions, type KeywordScope, type SearchForm } from '../search/conditions';
-import { CreateRuleDialog } from '../search/CreateRuleDialog';
 import type {
-    searchProgramsQuery,
-    searchProgramsQuery$data,
+  searchProgramsQuery,
+  searchProgramsQuery$data,
 } from './__generated__/searchProgramsQuery.graphql';
 import type { searchViewerQuery } from './__generated__/searchViewerQuery.graphql';
+import classes from './search.module.css';
 
 export const Route = createFileRoute('/search')({
   component: SearchPage,
@@ -41,18 +43,8 @@ export const Route = createFileRoute('/search')({
 const day = 24 * 60 * 60_000;
 // pageSize は、1 回に取る件数。
 const pageSize = 50;
-const selectableGenres = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15];
-
-const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
-  year: 'numeric',
-  month: 'numeric',
-  day: 'numeric',
-  weekday: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
-});
+// debounceMs は、入力が止まってから検索するまでの時間。打つたびに問い合わせないようにする。
+const debounceMs = 400;
 
 const query = graphql`
   query searchProgramsQuery(
@@ -71,9 +63,6 @@ const query = graphql`
           service {
             name
             logoUrl
-          }
-          genres {
-            lv1
           }
         }
       }
@@ -96,11 +85,12 @@ type Page = {
 };
 
 // SearchPage は、番組を検索する画面 (設計書 10.3)。過去の放送も検索でき、検索の条件からルールを作れる。
+// 条件の入力欄は、ルールの画面と同じものを使い、左に条件、右に結果を並べる。
 function SearchPage() {
   const { t } = useTranslation();
 
   return (
-    <Stack gap="sm">
+    <Stack gap="sm" className={classes.page}>
       <Title order={2}>{t('search.title')}</Title>
       <ErrorBoundary
         fallback={(error) =>
@@ -126,6 +116,7 @@ function SearchPage() {
 function Search() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
+  const navigate = useNavigate();
   const viewer = useLazyLoadQuery<searchViewerQuery>(
     graphql`
       query searchViewerQuery {
@@ -136,29 +127,39 @@ function Search() {
           type
           displayName
         }
+        services {
+          id
+          name
+          logoUrl
+          serviceId
+          channelType {
+            displayName
+          }
+        }
       }
     `,
     {},
   );
-  const [form, setForm] = useState<SearchForm>({
-    keyword: '',
-    scope: 'name',
-    excludeKeyword: '',
-    channelTypes: [],
-    genres: [],
-    freeOnly: false,
-  });
+  // キーワードの行を 1 つ開けておき、すぐに打ち始められるようにする。
+  const [conditions, setConditions] = useState<ConditionsForm>(() => ({
+    ...emptyConditions(),
+    keywords: [emptyKeyword()],
+  }));
   const [includeArchive, setIncludeArchive] = useState(false);
   const [archiveDays, setArchiveDays] = useState(30);
   const [page, setPage] = useState<Page | null>(null);
-  // loading は、読み込み中の操作。新しい検索と、続きの読み込みで、ボタンの表示を分ける。
+  // loading は、読み込み中の操作。新しい検索と、続きの読み込みで、表示を分ける。
   const [loading, setLoading] = useState<'search' | 'more' | null>(null);
   const [error, setError] = useState(false);
   // request は、最後に始めた読み込みの番号。古い読み込みの応答は捨てる。
   const request = useRef(0);
   const [selected, setSelected] = useState<string | undefined>(undefined);
-  const [creatingRule, setCreatingRule] = useState(false);
-  const conditions = toConditions(form);
+  const enabled = hasConditions(conditions);
+  // 条件の中身が変わったときだけ検索し直す。
+  const key = JSON.stringify({
+    conditions: toConditionsInput(conditions),
+    archiveDays: includeArchive ? archiveDays : null,
+  });
 
   // load は、variables で検索し、previous の後ろに足す。新しい検索では、previous を空にする。
   // 失敗したときは、表示している結果とカーソルの組を変えないので、続きを別の条件で読むことはない。
@@ -198,182 +199,143 @@ function Search() {
     }
   };
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
+  // search は、いまの条件で、新しく検索する。過去の放送の期間は、検索するときの時刻から決める。
+  const search = useEffectEvent(() => {
     const now = Date.now();
-    const variables = {
-      conditions,
-      archive: includeArchive
-        ? { from: new Date(now - archiveDays * day).toISOString(), to: new Date(now).toISOString() }
-        : null,
-      first: pageSize,
-      after: null,
-    };
-    void load(variables, [], 'search');
-  };
+    void load(
+      {
+        conditions: toConditionsInput(conditions),
+        archive: includeArchive
+          ? {
+              from: new Date(now - archiveDays * day).toISOString(),
+              to: new Date(now).toISOString(),
+            }
+          : null,
+        first: pageSize,
+        after: null,
+      },
+      [],
+      'search',
+    );
+  });
 
-  const update = (patch: Partial<SearchForm>) => setForm((prev) => ({ ...prev, ...patch }));
+  // 条件を変えたら、入力が止まるのを待ってから検索する。条件を消したら、結果と読み込み中の表示を消す。
+  useEffect(() => {
+    if (!enabled) {
+      request.current++;
+      setPage(null);
+      setLoading(null);
+      setError(false);
+
+      return;
+    }
+    const timer = setTimeout(search, debounceMs);
+
+    return () => clearTimeout(timer);
+  }, [key, enabled]);
+
+  // createRule は、いまの条件を引き継いで、ルールの作成画面を開く。ルールの名前は、最初のキーワードにしておく。
+  const createRule = () =>
+    void navigate({
+      to: '/rules/$ruleId',
+      params: { ruleId: 'new' },
+      state: { ruleConditions: conditions },
+    });
   const canCreateRule = viewer.viewer.role !== 'VIEWER';
 
   return (
-    <Stack>
-      <Card withBorder component="form" onSubmit={submit}>
-        <Stack gap="md">
-          <Group align="flex-end" wrap="wrap">
-            <TextInput
-              label={t('search.keyword')}
-              leftSection={<SearchIcon size={16} aria-hidden />}
-              description={t('search.keywordDescription')}
-              placeholder={t('search.keywordPlaceholder')}
-              value={form.keyword}
-              onChange={(e) => update({ keyword: e.currentTarget.value })}
-              style={{ flex: '1 1 240px' }}
-            />
-            <SegmentedControl
-              value={form.scope}
-              onChange={(value) => update({ scope: value as KeywordScope })}
-              data={[
-                { value: 'name', label: t('search.scope.name') },
-                { value: 'nameAndDescription', label: t('search.scope.nameAndDescription') },
-                { value: 'all', label: t('search.scope.all') },
-              ]}
-            />
-          </Group>
-          <Group align="flex-start" wrap="wrap">
-            <TextInput
-              label={t('search.excludeKeyword')}
-              leftSection={<SearchX size={16} aria-hidden />}
-              value={form.excludeKeyword}
-              onChange={(e) => update({ excludeKeyword: e.currentTarget.value })}
-              style={{ flex: '1 1 200px' }}
-            />
-            <MultiSelect
-              label={t('search.channelTypes')}
-              leftSection={<RadioTower size={16} aria-hidden />}
-              data={viewer.channelTypes.map((type) => ({
-                value: type.type,
-                label: type.displayName,
-              }))}
-              value={form.channelTypes}
-              onChange={(channelTypes) => update({ channelTypes })}
-              clearable
-              style={{ flex: '1 1 200px' }}
-            />
-            <MultiSelect
-              label={t('search.genres')}
-              leftSection={<Shapes size={16} aria-hidden />}
-              data={selectableGenres.map((lv1) => ({
-                value: String(lv1),
-                label: t(genreKey(lv1)),
-              }))}
-              value={form.genres.map(String)}
-              onChange={(genres) => update({ genres: genres.map(Number) })}
-              clearable
-              style={{ flex: '1 1 200px' }}
-            />
-          </Group>
-          <Group wrap="wrap">
-            <Switch
-              label={t('search.freeOnly')}
-              checked={form.freeOnly}
-              onChange={(e) => update({ freeOnly: e.currentTarget.checked })}
-            />
-            <Switch
-              label={t('search.includeArchive')}
-              checked={includeArchive}
-              onChange={(e) => setIncludeArchive(e.currentTarget.checked)}
-            />
-            {includeArchive && (
-              <NumberInput
-                aria-label={t('search.archiveDays')}
-                size="xs"
-                w={150}
-                leftSection={<History size={14} aria-hidden />}
-                value={archiveDays}
-                onChange={(value) => setArchiveDays(typeof value === 'number' ? value : 30)}
-                min={1}
-                max={3650}
-                allowDecimal={false}
-                prefix={t('search.archiveDaysPrefix')}
-                suffix={t('search.archiveDaysSuffix')}
+    // 広い画面では、画面の高さに収め、条件と結果をそれぞれの列の中でスクロールする。
+    <div className={classes.layout}>
+      <div className={classes.pane}>
+        <Stack>
+          <ConditionsFields
+            value={conditions}
+            onChange={(patch) => setConditions((prev) => ({ ...prev, ...patch }))}
+            channelTypes={viewer.channelTypes}
+            services={viewer.services}
+          />
+          <Card withBorder>
+            <Group gap="sm" wrap="wrap">
+              <Switch
+                label={t('search.includeArchive')}
+                checked={includeArchive}
+                onChange={(e) => setIncludeArchive(e.currentTarget.checked)}
               />
-            )}
-          </Group>
-          <Group justify="space-between">
-            {canCreateRule ? (
+              {includeArchive && (
+                <NumberInput
+                  aria-label={t('search.archiveDays')}
+                  size="xs"
+                  w={150}
+                  leftSection={<History size={14} aria-hidden />}
+                  value={archiveDays}
+                  onChange={(value) => setArchiveDays(typeof value === 'number' ? value : 30)}
+                  min={1}
+                  max={3650}
+                  allowDecimal={false}
+                  prefix={t('search.archiveDaysPrefix')}
+                  suffix={t('search.archiveDaysSuffix')}
+                />
+              )}
+            </Group>
+          </Card>
+        </Stack>
+      </div>
+      {/* 結果は、見出しの行を留め、その下の一覧だけをスクロールする。 */}
+      <div className={classes.resultsPane}>
+        <Card withBorder className={classes.results}>
+          <Group justify="space-between" wrap="nowrap" mb="xs">
+            <Group gap="xs">
+              <Title order={3} size="h5">
+                {t('search.results')}
+              </Title>
+              {loading === 'search' && <Loader size="xs" />}
+            </Group>
+            {canCreateRule && (
               <Button
+                size="xs"
                 variant="default"
                 leftSection={<ListPlus size={16} aria-hidden />}
-                disabled={isEmpty(conditions)}
-                onClick={() => setCreatingRule(true)}
+                disabled={!enabled}
+                onClick={createRule}
               >
                 {t('search.createRule')}
               </Button>
-            ) : (
-              <span />
             )}
-            <Button
-              type="submit"
-              leftSection={<SearchIcon size={16} aria-hidden />}
-              loading={loading === 'search'}
-            >
-              {t('search.submit')}
-            </Button>
           </Group>
-        </Stack>
-      </Card>
-      {error && (
-        <Alert color="red" role="alert">
-          {t('search.error')}
-        </Alert>
-      )}
-      {page !== null && page.results.length === 0 && page.next === null && (
-        <EmptyState icon={SearchX} title={t('search.empty')} hint={t('search.emptyHint')} />
-      )}
-      {page !== null && page.results.length > 0 && (
-        <Stack gap={4}>
-          {page.results.map((program) => (
-            <UnstyledButton
-              key={program.id}
-              onClick={() => setSelected(program.id)}
-              p="xs"
-              style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
-            >
-              <Group gap="xs" wrap="nowrap">
-                <Text size="sm" c="dimmed" w={190} style={{ flexShrink: 0 }}>
-                  {dateTimeFormat.format(Date.parse(program.startAt))}
-                </Text>
-                <Text size="sm" w={140} truncate style={{ flexShrink: 0 }}>
-                  <ServiceLabel name={program.service.name} logoUrl={program.service.logoUrl} />
-                </Text>
-                <Text size="sm" fw={700} truncate style={{ flex: 1 }}>
-                  <ProgramTitle name={program.name} />
-                </Text>
-                {program.archived && <Badge color="gray">{t('search.archived')}</Badge>}
-              </Group>
-            </UnstyledButton>
-          ))}
-        </Stack>
-      )}
-      {page?.next != null && (
-        <Button
-          variant="default"
-          loading={loading === 'more'}
-          // 新しい検索の最中は、前の検索の続きを読まない。
-          disabled={loading === 'search'}
-          onClick={() => void load({ ...page.variables, after: page.next }, page.results, 'more')}
-        >
-          {t('search.more')}
-        </Button>
-      )}
+          <Stack gap="xs" className={classes.resultsBody}>
+            {!enabled && (
+              <Text size="sm" c="dimmed">
+                {t('search.noConditions')}
+              </Text>
+            )}
+            {error && (
+              <Alert color="red" role="alert">
+                {t('search.error')}
+              </Alert>
+            )}
+            {enabled && page !== null && page.results.length === 0 && page.next === null && (
+              <EmptyState icon={SearchX} title={t('search.empty')} hint={t('search.emptyHint')} />
+            )}
+            {enabled && page !== null && page.results.length > 0 && (
+              <ProgramList programs={page.results} onSelect={setSelected} />
+            )}
+            {enabled && page?.next != null && (
+              <Button
+                variant="default"
+                loading={loading === 'more'}
+                // 新しい検索の最中は、前の検索の続きを読まない。
+                disabled={loading === 'search'}
+                onClick={() =>
+                  void load({ ...page.variables, after: page.next }, page.results, 'more')
+                }
+              >
+                {t('search.more')}
+              </Button>
+            )}
+          </Stack>
+        </Card>
+      </div>
       <ProgramDetail programId={selected} onClose={() => setSelected(undefined)} />
-      {creatingRule && (
-        <CreateRuleDialog
-          conditions={conditions}
-          defaultName={form.keyword.trim()}
-          onClose={() => setCreatingRule(false)}
-        />
-      )}
-    </Stack>
+    </div>
   );
 }

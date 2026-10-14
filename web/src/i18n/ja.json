@@ -319,38 +319,19 @@
   },
   "search": {
     "title": "番組検索",
-    "keyword": "キーワード",
-    "keywordPlaceholder": "例: ニュース",
-    "scope": {
-      "name": "番組名",
-      "nameAndDescription": "番組名と概要",
-      "all": "番組名と概要と詳細"
-    },
-    "excludeKeyword": "除外するキーワード",
-    "channelTypes": "放送波",
-    "genres": "ジャンル",
-    "freeOnly": "無料の番組だけ",
-    "includeArchive": "過去の放送も探す",
+    "results": "検索結果",
+    "noConditions": "条件を入れると、一致する番組をここに表示します",
+    "freeOnly": "無料放送のみ",
+    "includeArchive": "過去の放送を含める",
     "archiveDays": "過去の放送を探す日数",
     "archiveDaysPrefix": "直近",
     "archiveDaysSuffix": "日",
-    "submit": "検索",
     "createRule": "この条件でルールを作成",
     "error": "検索できませんでした。条件を確かめてから、やり直してください",
     "empty": "条件に一致する番組はありません",
     "emptyHint": "検索条件を変えて、もう一度絞り込んでみてください。すでに放送が終わっている番組から探すこともできます。",
     "archived": "放送済み",
-    "more": "さらに読み込む",
-    "rule": {
-      "title": "ルールを作成",
-      "description": "いまの検索の条件に一致する番組を、自動で予約するルールを作ります。条件の細かい調整は、ルールの画面でできます。",
-      "name": "ルールのタイトル",
-      "submit": "作成",
-      "created": "ルールを作りました。一致する番組は、次の照合で予約されます",
-      "error": "ルールを作れませんでした。時間をおいてやり直してください",
-      "close": "閉じる"
-    },
-    "keywordDescription": "空白で区切ると、すべての語に一致する番組を探します"
+    "more": "さらに読み込む"
   },
   "reservations": {
     "title": "予約",
@@ -400,9 +381,9 @@
     "name": "タイトル",
     "memo": "メモ",
     "keywords": "含めるキーワード",
-    "keywordsDescription": "すべてのキーワードに一致する番組を予約します。各キーワードは、選んだ項目のどれかに一致すれば一致とみなします",
+    "keywordsDescription": "すべてのキーワードに一致する番組を対象とします（AND検索）。",
     "excludeKeywords": "除外するキーワード",
-    "excludeKeywordsDescription": "どれか1つに一致する番組は予約しません",
+    "excludeKeywordsDescription": "いずれかのキーワードに一致する番組を除外します（OR検索）。",
     "field": {
       "NAME": "番組名",
       "DESCRIPTION": "概要",
@@ -412,13 +393,13 @@
     "removeRow": "削除",
     "addKeyword": "キーワードを追加",
     "channelTypes": "放送波",
-    "channelTypesDescription": "放送波とチャンネルは、どちらかに含まれていれば対象にします",
-    "services": "チャンネル",
-    "genres": "ジャンル",
+    "services": "サービス",
+    "genres": "含めるジャンル",
     "excludeGenres": "除外するジャンル",
-    "timeRanges": "曜日と時間帯",
+    "timeRanges": "時間帯",
     "addTimeRange": "時間帯を追加",
     "startTime": "開始時刻",
+    "rangeFrom": "から",
     "rangeDuration": "時間帯の長さ",
     "weekday": {
       "0": "日",
@@ -458,11 +439,13 @@
       "more": "ほかにも一致する番組があります"
     },
     "caseSensitive": "大文字と小文字を区別",
-    "timeRangesDescription": "番組の開始時刻が、どれかの時間帯に入る番組を対象にします",
+    "timeRangesDescription": "番組の開始時刻がいずれかの時間帯に含まれる番組を対象にします（OR検索）。",
     "section": {
       "basic": "基本",
       "keywords": "キーワード",
-      "targets": "対象の番組",
+      "broadcast": "放送局",
+      "genres": "ジャンル",
+      "schedule": "スケジュール",
       "recording": "予約のしかた"
     }
   },

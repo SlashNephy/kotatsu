@@ -1,14 +1,22 @@
 import { Alert, Anchor, Stack, Title } from '@mantine/core';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useLocation } from '@tanstack/react-router';
 import { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
 import { ErrorBoundary, PageLoader } from '../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
-import { emptyRuleForm, fromRule } from '../../rules/form';
+import type { ConditionsForm } from '../../conditions/form';
+import { emptyRuleForm, fromRule, type RuleForm } from '../../rules/form';
 import { RuleEditor } from '../../rules/RuleEditor';
 import type { RuleIdQuery } from './__generated__/RuleIdQuery.graphql';
+
+declare module '@tanstack/react-router' {
+  interface HistoryState {
+    // ruleConditions は、新しいルールの条件の初期値。番組の検索から、条件を引き継いでルールを作るときに渡す。
+    ruleConditions?: ConditionsForm;
+  }
+}
 
 export const Route = createFileRoute('/rules/$ruleId')({
   component: RulePage,
@@ -144,9 +152,10 @@ function Rule({ ruleId }: { ruleId: string }) {
     `,
     // 新しいルールでは node を引かないので、ID は何でもよい。
     { id: isNew ? '' : ruleId, skip: isNew },
-    { fetchPolicy: 'network-only' },
+    { fetchPolicy: 'store-and-network' },
   );
   const node = data.node;
+  const ruleConditions = useLocation({ select: (location) => location.state.ruleConditions });
   if (!isNew && node?.__typename !== 'Rule') {
     throw new RuleNotFoundError();
   }
@@ -154,10 +163,18 @@ function Rule({ ruleId }: { ruleId: string }) {
   return (
     <RuleEditor
       ruleId={node?.__typename === 'Rule' ? node.id : undefined}
-      initial={node?.__typename === 'Rule' ? fromRule(node) : emptyRuleForm()}
+      initial={node?.__typename === 'Rule' ? fromRule(node) : newRuleForm(ruleConditions)}
       channelTypes={data.channelTypes}
       services={data.services}
       readOnly={data.viewer.role === 'VIEWER'}
     />
   );
+}
+
+// newRuleForm は、新しいルールの入力の初期値。条件を引き継いだときは、最初のキーワードをルールの名前にしておく。
+function newRuleForm(conditions: ConditionsForm | undefined): RuleForm {
+  const form = emptyRuleForm(conditions);
+  const keyword = form.keywords.find((row) => row.text.trim() !== '');
+
+  return { ...form, name: keyword?.text.trim() ?? '' };
 }
