@@ -56,6 +56,8 @@ jobs:
           platforms: linux/amd64
           load: true
           tags: kotatsu:smoke
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}+${{ github.sha }}
           # キャッシュは読むだけにする。amd64 だけのこのビルドが書くと、同じ scope の arm64 の層が消え、
           # 後の amd64 と arm64 のビルドで、QEMU で動く arm64 の層を毎回作り直すことになる。
           cache-from: type=gha,scope=${{ matrix.target }}
@@ -66,6 +68,8 @@ jobs:
           set -eux
           test "$(docker inspect kotatsu:smoke -f '{{.Config.User}}')" = 65532:65532
           docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges kotatsu:smoke --help
+          # 版とコミットを埋め込めているか。
+          docker run --rm --read-only kotatsu:smoke --version | grep -F "($(echo "$GITHUB_SHA" | cut -c1-7))"
           if [ "$TARGET" = ffmpeg ]; then
             docker run --rm --read-only --entrypoint ffmpeg kotatsu:smoke -hide_banner -version
             # tsreadex は、引数がないと使い方のエラーで終わる。起動できればよい。
@@ -89,6 +93,8 @@ jobs:
           # 手動で実行したときなど、付けるタグがなければ公開しない。
           push: ${{ github.event_name != 'pull_request' && steps.meta.outputs.tags != '' }}
           tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}+${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,scope=${{ matrix.target }},mode=max

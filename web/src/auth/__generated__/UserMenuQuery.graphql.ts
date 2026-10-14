@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<bed0ffa1dc44f4aed06815252fd39d9a>>
+ * @generated SignedSource<<f1451dd150ae5e54146c95289648c6e5>>
  * @lightSyntaxTransform
  */
 
@@ -10,6 +10,11 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type UserMenuQuery$variables = Record<PropertyKey, never>;
 export type UserMenuQuery$data = {
+  readonly version: {
+    readonly modified: boolean;
+    readonly revision: string | null | undefined;
+    readonly version: string;
+  };
   readonly viewer: {
     readonly displayName: string;
     readonly username: string;
@@ -34,6 +39,38 @@ v1 = {
   "kind": "ScalarField",
   "name": "username",
   "storageKey": null
+},
+v2 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "AppVersion",
+  "kind": "LinkedField",
+  "name": "version",
+  "plural": false,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "version",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "revision",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "modified",
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
 };
 return {
   "fragment": {
@@ -54,7 +91,8 @@ return {
           (v1/*:: as any*/)
         ],
         "storageKey": null
-      }
+      },
+      (v2/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -84,20 +122,21 @@ return {
           }
         ],
         "storageKey": null
-      }
+      },
+      (v2/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "13a02abb99e3dc73246ca57a7621fb16",
+    "cacheID": "42643c26da12af7d82ed87937a499216",
     "id": null,
     "metadata": {},
     "name": "UserMenuQuery",
     "operationKind": "query",
-    "text": "query UserMenuQuery {\n  viewer {\n    displayName\n    username\n    id\n  }\n}\n"
+    "text": "query UserMenuQuery {\n  viewer {\n    displayName\n    username\n    id\n  }\n  version {\n    version\n    revision\n    modified\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "cc7e8a61120cab9c84a6cb92b219c21b";
+(node as any).hash = "74e37d7c5f1f419e74faa04efa00db8c";
 
 export default node;

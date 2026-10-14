@@ -193,6 +193,9 @@ func (f *fixture) do(t *testing.T, req request) (int, string) {
 	return resp.StatusCode, string(body)
 }
 
+// unauthenticatedBody は、ログインしていないリクエストを拒んだ応答の本文に含まれる文字列。
+const unauthenticatedBody = `"code":"UNAUTHENTICATED"`
+
 func TestHandler(t *testing.T) {
 	t.Parallel()
 
@@ -214,13 +217,26 @@ func TestHandler(t *testing.T) {
 			name:       "unauthenticated request is rejected before GraphQL",
 			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: viewerQuery, loggedIn: false},
 			wantStatus: http.StatusUnauthorized,
-			wantBody:   []string{`"code":"UNAUTHENTICATED"`},
+			wantBody:   []string{unauthenticatedBody},
+		},
+		{
+			// テストのバイナリには版を埋め込まず、VCS の情報もないので dev になる。
+			name:       "logged-in user gets the app version",
+			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: `{"query":"{ version { version revision modified } }"}`, loggedIn: true},
+			wantStatus: http.StatusOK,
+			wantBody:   []string{`"version":{"version":"dev","revision":null,"modified":false}`},
+		},
+		{
+			name:       "unauthenticated version query is rejected",
+			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: `{"query":"{ version { version } }"}`, loggedIn: false},
+			wantStatus: http.StatusUnauthorized,
+			wantBody:   []string{unauthenticatedBody},
 		},
 		{
 			name:       "unauthenticated introspection is rejected",
 			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: `{"query":"{ __schema { queryType { name } } }"}`, loggedIn: false},
 			wantStatus: http.StatusUnauthorized,
-			wantBody:   []string{`"code":"UNAUTHENTICATED"`},
+			wantBody:   []string{unauthenticatedBody},
 		},
 		{
 			name:       "logged-in user can introspect",

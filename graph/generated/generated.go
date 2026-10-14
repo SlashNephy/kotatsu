@@ -44,6 +44,12 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	AppVersion struct {
+		Modified func(childComplexity int) int
+		Revision func(childComplexity int) int
+		Version  func(childComplexity int) int
+	}
+
 	AuditActor struct {
 		Role func(childComplexity int) int
 		Type func(childComplexity int) int
@@ -327,6 +333,7 @@ type ComplexityRoot struct {
 		TunerServerHealth       func(childComplexity int) int
 		UnreadNotificationCount func(childComplexity int) int
 		Users                   func(childComplexity int) int
+		Version                 func(childComplexity int) int
 		Viewer                  func(childComplexity int) int
 		WebPushPublicKey        func(childComplexity int) int
 		WebPushSubscriptions    func(childComplexity int) int
@@ -670,6 +677,7 @@ type ProgramConditionsResolver interface {
 }
 type QueryResolver interface {
 	Viewer(ctx context.Context) (*model.User, error)
+	Version(ctx context.Context) (*model.AppVersion, error)
 	AuditEvents(ctx context.Context, first int, after *string, filter *model.AuditEventFilter) (*model.AuditEventConnection, error)
 	SystemStatus(ctx context.Context) (*model.SystemStatus, error)
 	TunerServerHealth(ctx context.Context) (*model.TunerServerHealth, error)
@@ -737,6 +745,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	ec := newExecutionContext(nil, e, nil)
 	_ = ec
 	switch typeName + "." + field {
+
+	case "AppVersion.modified":
+		if e.ComplexityRoot.AppVersion.Modified == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AppVersion.Modified(childComplexity), true
+	case "AppVersion.revision":
+		if e.ComplexityRoot.AppVersion.Revision == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AppVersion.Revision(childComplexity), true
+	case "AppVersion.version":
+		if e.ComplexityRoot.AppVersion.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AppVersion.Version(childComplexity), true
 
 	case "AuditActor.role":
 		if e.ComplexityRoot.AuditActor.Role == nil {
@@ -2139,6 +2166,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Users(childComplexity), true
+	case "Query.version":
+		if e.ComplexityRoot.Query.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.Version(childComplexity), true
 	case "Query.viewer":
 		if e.ComplexityRoot.Query.Viewer == nil {
 			break
@@ -4520,6 +4553,28 @@ type Query {
   ログイン中のユーザー。
   """
   viewer: User!
+  """
+  動いている Kotatsu の版。
+  """
+  version: AppVersion!
+}
+
+"""
+Kotatsu の版。
+"""
+type AppVersion {
+  """
+  リリースのタグの版 (1.2.3)。main のビルドなら edge、版を埋め込まないビルドなら dev。
+  """
+  version: String!
+  """
+  ビルドしたコミット。分からなければ null。
+  """
+  revision: String
+  """
+  コミットしていない変更を含むビルドかどうか。
+  """
+  modified: Boolean!
 }
 
 type Subscription {
@@ -5001,6 +5056,18 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // childFields_* functions provide shared child field context lookups.
 // Each function is generated once per unique object type, deduplicating the
 // switch statements that were previously inlined in every fieldContext_* function.
+
+func (ec *executionContext) childFields_AppVersion(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_AppVersion_version(ctx, field)
+	case "revision":
+		return ec.fieldContext_AppVersion_revision(ctx, field)
+	case "modified":
+		return ec.fieldContext_AppVersion_modified(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AppVersion", field.Name)
+}
 
 func (ec *executionContext) childFields_AuditActor(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
@@ -7073,6 +7140,75 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ***************************** args.gotpl *****************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _AppVersion_version(ctx context.Context, field graphql.CollectedField, obj *model.AppVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AppVersion_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AppVersion_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AppVersion", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AppVersion_revision(ctx context.Context, field graphql.CollectedField, obj *model.AppVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AppVersion_revision(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Revision, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AppVersion_revision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AppVersion", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AppVersion_modified(ctx context.Context, field graphql.CollectedField, obj *model.AppVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AppVersion_modified(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Modified, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AppVersion_modified(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AppVersion", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
 
 func (ec *executionContext) _AuditActor_type(ctx context.Context, field graphql.CollectedField, obj *model.AuditActor) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
@@ -11991,6 +12127,38 @@ func (ec *executionContext) fieldContext_Query_viewer(_ context.Context, field g
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_User(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_version(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().Version(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AppVersion) graphql.Marshaler {
+			return ec.marshalNAppVersion2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐAppVersion(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AppVersion(ctx, field)
 		},
 	}
 	return fc, nil
@@ -19863,6 +20031,54 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 
 // region    **************************** object.gotpl ****************************
 
+var appVersionImplementors = []string{"AppVersion"}
+
+func (ec *executionContext) _AppVersion(ctx context.Context, sel ast.SelectionSet, obj *model.AppVersion) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, appVersionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AppVersion")
+		case "version":
+			out.Values[i] = ec._AppVersion_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revision":
+			out.Values[i] = ec._AppVersion_revision(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "modified":
+			out.Values[i] = ec._AppVersion_modified(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var auditActorImplementors = []string{"AuditActor"}
 
 func (ec *executionContext) _AuditActor(ctx context.Context, sel ast.SelectionSet, obj *model.AuditActor) graphql.Marshaler {
@@ -21998,6 +22214,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_viewer(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "version":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_version(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -25147,6 +25385,16 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 // endregion **************************** object.gotpl ****************************
 
 // region    ***************************** type.gotpl *****************************
+
+func (ec *executionContext) marshalNAppVersion2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐAppVersion(ctx context.Context, sel ast.SelectionSet, v *model.AppVersion) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AppVersion(ctx, sel, v)
+}
 
 func (ec *executionContext) unmarshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐAssignmentState(ctx context.Context, v any) (model.AssignmentState, error) {
 	var res model.AssignmentState

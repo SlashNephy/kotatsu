@@ -30,6 +30,28 @@ type Query {
   ログイン中のユーザー。
   """
   viewer: User!
+  """
+  動いている Kotatsu の版。
+  """
+  version: AppVersion!
+}
+
+"""
+Kotatsu の版。
+"""
+type AppVersion {
+  """
+  リリースのタグの版 (1.2.3)。main のビルドなら edge、版を埋め込まないビルドなら dev。
+  """
+  version: String!
+  """
+  ビルドしたコミット。分からなければ null。
+  """
+  revision: String
+  """
+  コミットしていない変更を含むビルドかどうか。
+  """
+  modified: Boolean!
 }
 
 type Subscription {

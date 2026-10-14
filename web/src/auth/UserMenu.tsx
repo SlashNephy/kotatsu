@@ -5,6 +5,7 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 
 import { ColorSchemeToggle } from '../futon';
 import { authApi } from './api';
+import { formatVersion } from './version';
 import type { UserMenuQuery } from './__generated__/UserMenuQuery.graphql';
 
 // UserMenu は、ヘッダーに出す、ログイン中のユーザーのメニュー。設定、配色の切り替え、ログアウトをまとめる。
@@ -17,6 +18,11 @@ export function UserMenu() {
         viewer {
           displayName
           username
+        }
+        version {
+          version
+          revision
+          modified
         }
       }
     `,
@@ -60,6 +66,12 @@ export function UserMenu() {
         >
           {t('auth.logout')}
         </Menu.Item>
+        <Menu.Divider />
+        <Menu.Label>
+          <Text size="xs" c="dimmed">
+            {t('app.version', { version: formatVersion(data.version) })}
+          </Text>
+        </Menu.Label>
       </Menu.Dropdown>
     </Menu>
   );
