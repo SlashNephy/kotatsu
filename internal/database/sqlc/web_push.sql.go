@@ -137,12 +137,21 @@ SELECT s.id FROM web_push_subscriptions s
 JOIN users ON users.id = s.user_id
 LEFT JOIN notification_preferences p ON p.user_id = s.user_id AND p.kind = $1
 WHERE users.disabled_at IS NULL AND COALESCE(p.web_push, true)
+  AND ($2::uuid[] IS NULL OR users.id = ANY($2::uuid[]))
+  AND (NOT $3::boolean OR COALESCE(p.rule_reservations, true))
 ORDER BY s.id
 `
 
+type ListWebPushSubscriptionsForKindParams struct {
+	Kind     string
+	Audience []uuid.UUID
+	ByRule   bool
+}
+
 // イベントの種類 kind を Web Push で受け取る、有効なユーザーの購読の ID を返す。設定がなければ受け取る。
-func (q *Queries) ListWebPushSubscriptionsForKind(ctx context.Context, kind string) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, listWebPushSubscriptionsForKind, kind)
+// audience と by_rule の扱いは、ListNotificationRecipients と同じ。
+func (q *Queries) ListWebPushSubscriptionsForKind(ctx context.Context, arg ListWebPushSubscriptionsForKindParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listWebPushSubscriptionsForKind, arg.Kind, arg.Audience, arg.ByRule)
 	if err != nil {
 		return nil, err
 	}

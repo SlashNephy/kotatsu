@@ -830,10 +830,17 @@ func (r *Recorder) start(ctx context.Context, reservation *sqlc.GetReservationFo
 			return nil
 		}
 
-		return notification.Emit(ctx, tx, r.clock, notification.KindRecordingStarted, map[string]any{
+		target, err := notification.LoadReservationContext(ctx, tx, reservation.ID)
+		if err != nil {
+			return err
+		}
+		payload := map[string]any{
 			"recordingId": recording.ID.String(), "name": recording.Name, "serviceName": reservation.ServiceName,
 			"startAt": recording.StartAt, "endAt": recording.EndAt,
-		})
+		}
+		target.AddTo(payload)
+
+		return notification.EmitTo(ctx, tx, r.clock, notification.KindRecordingStarted, payload, target.Audience)
 	})
 
 	return recording, err
@@ -873,10 +880,15 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 			"recordingId": recording.ID.String(), "name": recording.Name, "serviceName": row.ServiceName,
 			"startAt": recording.StartAt, "endAt": recording.EndAt, "state": string(state),
 		}
+		target, err := notification.LoadReservationContext(ctx, tx, assignment.ReservationID)
+		if err != nil {
+			return err
+		}
+		target.AddTo(payload)
 		if state == StateFailed {
 			payload["reason"] = string(reason)
 
-			return notification.Emit(ctx, tx, r.clock, notification.KindRecordingFailed, payload)
+			return notification.EmitTo(ctx, tx, r.clock, notification.KindRecordingFailed, payload, target.Audience)
 		}
 
 		if (state == StateCompleted || state == StateCompletedWithErrors) && recording.Drops <= MaxHistoryDrops {
@@ -899,7 +911,7 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 		payload["files"] = files
 		payload["joinSegments"] = join
 
-		return notification.Emit(ctx, tx, r.clock, notification.KindRecordingCompleted, payload)
+		return notification.EmitTo(ctx, tx, r.clock, notification.KindRecordingCompleted, payload, target.Audience)
 	})
 	if errors.Is(err, errSuperseded) {
 		r.logger.InfoContext(ctx, "another mikan took over the recording; leaving it to finish", slog.String("recording_id", recordingID.String()))

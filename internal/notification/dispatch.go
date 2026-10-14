@@ -31,6 +31,8 @@ type Event struct {
 	OccurredAt time.Time
 	// Payload は、画面に出す文の材料 (番組名や理由など)。
 	Payload map[string]any
+	// Audience は、受け取るユーザーの絞り込み。
+	Audience Audience
 }
 
 // Hook は、イベントを配るトランザクションの中で、イベントごとに呼ぶ処理。Webhook の配信のジョブの投入などに使う。
@@ -76,10 +78,8 @@ func (d *Dispatcher) dispatchBatch(ctx context.Context) (int, error) {
 			return fmt.Errorf("failed to list pending notification events: %w", err)
 		}
 		now := d.clock.Now()
-		// 受け取るユーザーは種類ごとに決まるので、同じ種類のイベントでは引き直さない。
-		recipientsByKind := map[string][]uuid.UUID{}
 		for i := range events {
-			if err := d.dispatchEvent(ctx, tx, &events[i], now, recipientsByKind); err != nil {
+			if err := d.dispatchEvent(ctx, tx, &events[i], now); err != nil {
 				return err
 			}
 		}
@@ -101,17 +101,14 @@ func (d *Dispatcher) dispatchBatch(ctx context.Context) (int, error) {
 }
 
 // dispatchEvent は、1 つのイベントを、受け取るユーザーの通知にし、フックを呼び、配ったことを記録する。
-func (d *Dispatcher) dispatchEvent(
-	ctx context.Context, tx pgx.Tx, row *sqlc.NotificationEvent, now time.Time, recipientsByKind map[string][]uuid.UUID,
-) error {
+// 受け取るユーザーは、種類ごとの設定と、イベントの絞り込み (Audience) で決まる。
+func (d *Dispatcher) dispatchEvent(ctx context.Context, tx pgx.Tx, row *sqlc.NotificationEvent, now time.Time) error {
 	q := sqlc.New(tx)
-	recipients, ok := recipientsByKind[row.Kind]
-	if !ok {
-		var err error
-		if recipients, err = q.ListNotificationRecipients(ctx, row.Kind); err != nil {
-			return fmt.Errorf("failed to list notification recipients: %w", err)
-		}
-		recipientsByKind[row.Kind] = recipients
+	recipients, err := q.ListNotificationRecipients(ctx, sqlc.ListNotificationRecipientsParams{
+		Kind: row.Kind, Audience: row.Audience, ByRule: row.ByRule,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list notification recipients: %w", err)
 	}
 	if len(recipients) > 0 {
 		ids := make([]uuid.UUID, 0, len(recipients))
@@ -147,7 +144,10 @@ func eventOf(row *sqlc.NotificationEvent) (*Event, error) {
 		return nil, fmt.Errorf("failed to decode the notification payload: %w", err)
 	}
 
-	return &Event{ID: row.ID, Kind: Kind(row.Kind), OccurredAt: row.OccurredAt, Payload: payload}, nil
+	return &Event{
+		ID: row.ID, Kind: Kind(row.Kind), OccurredAt: row.OccurredAt, Payload: payload,
+		Audience: Audience{UserIDs: row.Audience, ByRule: row.ByRule},
+	}, nil
 }
 
 // DispatchArgs は、配っていないイベントを配るジョブの引数。

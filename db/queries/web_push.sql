@@ -21,10 +21,13 @@ SELECT * FROM web_push_subscriptions WHERE user_id = @user_id ORDER BY created_a
 
 -- name: ListWebPushSubscriptionsForKind :many
 -- イベントの種類 kind を Web Push で受け取る、有効なユーザーの購読の ID を返す。設定がなければ受け取る。
+-- audience と by_rule の扱いは、ListNotificationRecipients と同じ。
 SELECT s.id FROM web_push_subscriptions s
 JOIN users ON users.id = s.user_id
 LEFT JOIN notification_preferences p ON p.user_id = s.user_id AND p.kind = @kind
 WHERE users.disabled_at IS NULL AND COALESCE(p.web_push, true)
+  AND (sqlc.narg(audience)::uuid[] IS NULL OR users.id = ANY(sqlc.narg(audience)::uuid[]))
+  AND (NOT @by_rule::boolean OR COALESCE(p.rule_reservations, true))
 ORDER BY s.id;
 
 -- name: InsertVAPIDKeys :exec

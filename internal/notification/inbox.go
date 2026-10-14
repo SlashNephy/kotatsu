@@ -126,6 +126,8 @@ type Preference struct {
 	Kind    Kind
 	InApp   bool
 	WebPush bool
+	// RuleReservations は、ルール予約の通知も受け取るかどうか。録画の通知と競合の通知でだけ使う。
+	RuleReservations bool
 }
 
 // Preferences は、ユーザーの通知設定を、すべての種類について返す。設定していない種類は、どの通知先でも受け取る。
@@ -140,9 +142,9 @@ func (b *Inbox) Preferences(ctx context.Context, db sqlc.DBTX, userID uuid.UUID)
 	}
 	preferences := make([]*Preference, 0, len(Kinds()))
 	for _, kind := range Kinds() {
-		preference := &Preference{Kind: kind, InApp: true, WebPush: true}
+		preference := &Preference{Kind: kind, InApp: true, WebPush: true, RuleReservations: true}
 		if row, ok := saved[string(kind)]; ok {
-			preference.InApp, preference.WebPush = row.InApp, row.WebPush
+			preference.InApp, preference.WebPush, preference.RuleReservations = row.InApp, row.WebPush, row.RuleReservations
 		}
 		preferences = append(preferences, preference)
 	}
@@ -158,7 +160,8 @@ func (b *Inbox) SetPreference(ctx context.Context, db Database, userID uuid.UUID
 
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		err := sqlc.New(tx).UpsertNotificationPreference(ctx, sqlc.UpsertNotificationPreferenceParams{
-			UserID: userID, Kind: string(preference.Kind), InApp: preference.InApp, WebPush: preference.WebPush, Now: b.clock.Now(),
+			UserID: userID, Kind: string(preference.Kind), InApp: preference.InApp, WebPush: preference.WebPush,
+			RuleReservations: preference.RuleReservations, Now: b.clock.Now(),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to save the notification preference: %w", err)

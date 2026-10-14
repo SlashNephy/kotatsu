@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<bbb69944326a149aaffe9867e91784b2>>
+ * @generated SignedSource<<1600146b1a3279d25aeaeb9109824afa>>
  * @lightSyntaxTransform
  */
 
@@ -14,6 +14,7 @@ export type notificationsSettingsQuery$data = {
   readonly notificationPreferences: ReadonlyArray<{
     readonly inApp: boolean;
     readonly kind: NotificationKind;
+    readonly ruleReservations: boolean;
     readonly webPush: boolean;
   }>;
   readonly webPushPublicKey: string;
@@ -68,6 +69,13 @@ v2 = {
       "args": null,
       "kind": "ScalarField",
       "name": "webPush",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "ruleReservations",
       "storageKey": null
     }
   ],
@@ -128,16 +136,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "c9b2effd27485f5d51c6716216f8ab69",
+    "cacheID": "bf9d7e733190079764c8e25d2995a5fc",
     "id": null,
     "metadata": {},
     "name": "notificationsSettingsQuery",
     "operationKind": "query",
-    "text": "query notificationsSettingsQuery {\n  webPushPublicKey\n  webPushSubscriptions {\n    endpoint\n    id\n  }\n  notificationPreferences {\n    kind\n    inApp\n    webPush\n  }\n}\n"
+    "text": "query notificationsSettingsQuery {\n  webPushPublicKey\n  webPushSubscriptions {\n    endpoint\n    id\n  }\n  notificationPreferences {\n    kind\n    inApp\n    webPush\n    ruleReservations\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "f92ad9a471e877998dd09e49c9e649d4";
+(node as any).hash = "d3094078f436957c1e9f97feaa1dd860";
 
 export default node;

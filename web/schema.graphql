@@ -672,11 +672,20 @@ type NotificationPreference {
   Web Push で受け取るかどうか。購読していなければ届かない。
   """
   webPush: Boolean!
+  """
+  ルール予約の録画の通知も受け取るかどうか。録画の通知 (開始、完了、失敗) と競合の通知でだけ使う。
+  手動の予約の通知は、予約したユーザーだけに届き、ルール予約の通知は、ルールを作ったユーザーに届く (設計書 6.2)。
+  """
+  ruleReservations: Boolean!
 }
 input NotificationPreferenceInput {
   kind: NotificationKind!
   inApp: Boolean!
   webPush: Boolean!
+  """
+  省けば、今の設定のままにする。
+  """
+  ruleReservations: Boolean
 }
 """
 一覧のページの情報 (Relay の Cursor Connections)。カーソルは中身を解釈せずに、そのまま次のリクエストに渡す。

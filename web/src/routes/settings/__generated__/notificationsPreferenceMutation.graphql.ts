@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<76b105071c73d4dddea461076d18f288>>
+ * @generated SignedSource<<5e8cb422a1c06fd24a84fc44b380b72e>>
  * @lightSyntaxTransform
  */
 
@@ -12,6 +12,7 @@ export type NotificationKind = "RECORDING_COMPLETED" | "RECORDING_FAILED" | "REC
 export type NotificationPreferenceInput = {
   inApp: boolean;
   kind: NotificationKind;
+  ruleReservations?: boolean | null | undefined;
   webPush: boolean;
 };
 export type notificationsPreferenceMutation$variables = {
@@ -21,6 +22,7 @@ export type notificationsPreferenceMutation$data = {
   readonly updateNotificationPreference: {
     readonly inApp: boolean;
     readonly kind: NotificationKind;
+    readonly ruleReservations: boolean;
     readonly webPush: boolean;
   };
 };
@@ -72,6 +74,13 @@ v1 = [
         "kind": "ScalarField",
         "name": "webPush",
         "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "ruleReservations",
+        "storageKey": null
       }
     ],
     "storageKey": null
@@ -95,16 +104,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "0936476cb50b1767b33b94ae30761060",
+    "cacheID": "27a42b324362359ab1e335397d1b61e9",
     "id": null,
     "metadata": {},
     "name": "notificationsPreferenceMutation",
     "operationKind": "mutation",
-    "text": "mutation notificationsPreferenceMutation(\n  $input: NotificationPreferenceInput!\n) {\n  updateNotificationPreference(input: $input) {\n    kind\n    inApp\n    webPush\n  }\n}\n"
+    "text": "mutation notificationsPreferenceMutation(\n  $input: NotificationPreferenceInput!\n) {\n  updateNotificationPreference(input: $input) {\n    kind\n    inApp\n    webPush\n    ruleReservations\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "cf2191844aafab24626bb9ea15b6e0fe";
+(node as any).hash = "474163c9c9d77c5b90d3cd9831aecd39";
 
 export default node;

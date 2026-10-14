@@ -56,6 +56,8 @@
     "unsubscribeError": "Web Pushの購読をやめられませんでした。時間をおいてやり直してください",
     "preferenceError": "通知の設定を変えられませんでした。時間をおいてやり直してください",
     "preferenceNote": "Web Pushは、購読した端末にだけ届きます。受け取りたい端末ごとに購読してください",
+    "ruleReservations": "ルール予約",
+    "recipientsNote": "録画と競合の通知は、手動の予約なら予約した人に、ルール予約ならルールを作った人に届きます。「ルール予約」を切ると、ルール予約の分を受け取りません",
     "kind": {
       "RECORDING_STARTED": "録画を始めた",
       "RECORDING_COMPLETED": "録画が終わった",
