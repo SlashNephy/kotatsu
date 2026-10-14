@@ -41,6 +41,7 @@
     "settingsTitle": "通知の設定",
     "back": "通知の一覧に戻る",
     "unread": "未読 {{count}}件",
+    "bellLabel": "通知（未読 {{count}}件）",
     "markAll": "すべて既読にする",
     "markError": "既読にできませんでした。時間をおいてやり直してください",
     "empty": "まだ通知はありません",
