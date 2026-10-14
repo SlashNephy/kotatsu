@@ -12,6 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/graph/generated"
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/epg"
 )
 
 // Service is the resolver for the service field.
@@ -128,7 +129,7 @@ func (r *queryResolver) ChannelTypes(ctx context.Context) ([]*model.ChannelType,
 // Services is the resolver for the services field.
 func (r *queryResolver) Services(ctx context.Context, includeHidden bool) ([]*model.Service, error) {
 	// 番組表やライブ視聴に出す一覧では、ワンセグやデータ放送のサービスを外す。非表示を選ぶ管理の画面では、すべて返す。
-	mediaTypes := mediaServiceTypes()
+	mediaTypes := epg.MediaServiceTypes()
 	if includeHidden {
 		mediaTypes = []int64{}
 	}
@@ -175,7 +176,7 @@ func (r *queryResolver) Guide(ctx context.Context, from time.Time, to time.Time,
 
 	q := sqlc.New(r.db)
 	// サービスを指定したときは、非表示のサービスも、ワンセグやデータ放送のサービスも返す。
-	mediaTypes := mediaServiceTypes()
+	mediaTypes := epg.MediaServiceTypes()
 	if len(ids) > 0 {
 		mediaTypes = []int64{}
 	}

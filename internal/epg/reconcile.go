@@ -89,13 +89,20 @@ func (r *Reconciler) SyncAll(ctx context.Context) (*Result, error) {
 	}
 
 	services := diffServices(upstreamServices, currentServices)
+	// 番組は、映像か音声を流すサービスの分だけ突き合わせる。
+	// それ以外のサービスの番組は、上流が返しても足さず、DB に残っているものも消さない。
 	known := map[int64]bool{}
 	for _, service := range upstreamServices {
-		known[service.ID] = true
+		if IsMediaService(int64(service.Type)) {
+			known[service.ID] = true
+		}
 	}
 	for _, service := range currentServices {
-		known[service.ID] = true
+		if IsMediaService(service.ServiceType) {
+			known[service.ID] = true
+		}
 	}
+	currentPrograms = slices.DeleteFunc(currentPrograms, func(p sqlc.ListProgramsRow) bool { return !known[p.ServiceID] })
 	upstreamPrograms, err = r.withOnAir(ctx, upstreamPrograms, known)
 	if err != nil {
 		return nil, err
@@ -116,12 +123,19 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 	currentPrograms := []sqlc.ListProgramsRow{}
 	synced := map[int64]bool{}
 	// イベントをまとめると同じサービスが何度も出てくるので、1 回ずつにする。
-	for _, serviceID := range slices.Compact(slices.Sorted(slices.Values(serviceIDs))) {
-		exists, err := q.ServiceExists(ctx, serviceID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to look up service %d: %w", serviceID, err)
+	services, err := q.ListServices(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list services: %w", err)
+	}
+	// 映像か音声を流すサービスだけを突き合わせる。
+	media := map[int64]bool{}
+	for _, service := range services {
+		if IsMediaService(service.ServiceType) {
+			media[service.ID] = true
 		}
-		if !exists {
+	}
+	for _, serviceID := range slices.Compact(slices.Sorted(slices.Values(serviceIDs))) {
+		if !media[serviceID] {
 			continue
 		}
 		synced[serviceID] = true
@@ -145,7 +159,7 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 		}
 	}
 
-	upstreamPrograms, err := r.withOnAir(ctx, upstreamPrograms, synced)
+	upstreamPrograms, err = r.withOnAir(ctx, upstreamPrograms, synced)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +289,8 @@ func diffServices(upstream []*mirakurun.Service, current []sqlc.ListServicesRow)
 
 	diff := &serviceDiff{upserts: []*mirakurun.Service{}}
 	for _, service := range upstream {
-		if service.Channel == nil {
+		// 映像も音声も流さないサービスは、取り込まない。
+		if service.Channel == nil || !IsMediaService(int64(service.Type)) {
 			continue
 		}
 		row, ok := byID[service.ID]

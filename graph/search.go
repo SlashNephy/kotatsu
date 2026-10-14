@@ -232,6 +232,7 @@ func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.Arc
 	params := &sqlc.SearchProgramCandidatesParams{
 		IncludeArchive:    archive != nil,
 		Now:               r.clock.Now(),
+		MediaServiceTypes: epg.MediaServiceTypes(),
 		ArchiveFrom:       time.Time{},
 		ArchiveTo:         time.Time{},
 		ChannelTypes:      conditions.ChannelTypes,
