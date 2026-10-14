@@ -185,7 +185,7 @@ function Player({ recordingId }: { recordingId: string }) {
   // phase は、読み込みの段階。読み直している間に、前の映像の時刻で位置を動かさないよう、base を決めるまで位置を更新しない。
   const phase = useRef<'loading' | 'awaitingBase' | 'playing'>('loading');
   const [position, setPosition] = useState(resumeAt);
-  // positionRef は、画面の外に出たときに、戻ってから続ける位置。
+  // positionRef は、別のウィンドウへの移し替えや、画質と音声の切り替えで、読み直すときに続ける位置。
   const positionRef = useRef(resumeAt);
   const [seeking, setSeeking] = useState<number | null>(null);
   const [paused, setPaused] = useState(true);

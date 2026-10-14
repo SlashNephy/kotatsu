@@ -451,7 +451,7 @@ function Live({
         {programName === null ? t('live.noProgram') : <ProgramTitle name={programName} />}
       </Text>
       <PlaybackUnavailable route={route} />
-      {/* 画面の外に出たときと、タブが隠れたときも再生は続け、実況のコメントとデータ放送の描画だけを止める (設計書 7.2)。 */}
+      {/* 画面の外に出たときと、タブが隠れたときも再生は続け、データ放送の受信と、実況のコメントの描画だけを止める (設計書 7.2)。 */}
       <div ref={frameRef}>
         {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
       </div>
