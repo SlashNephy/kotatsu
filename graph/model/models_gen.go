@@ -445,6 +445,13 @@ type RecordingFile struct {
 	URL *string `json:"url,omitempty"`
 }
 
+type RecordingFileRename struct {
+	// 今のプール内の相対パス。
+	From string `json:"from"`
+	// 付け直した後のプール内の相対パス。移す先に同じ名前があれば、移すときに連番を付ける。
+	To string `json:"to"`
+}
+
 // 録画の絞り込み。省いた条件は絞り込まない。
 type RecordingFilter struct {
 	// どれかのタグが付いた録画。
@@ -463,6 +470,13 @@ type RecordingFilter struct {
 type RecordingGap struct {
 	From time.Time `json:"from"`
 	To   time.Time `json:"to"`
+}
+
+// 録画のファイルの付け直し (設計書 4.7)。ファイル名のテンプレートを変えた後に、既存の録画のファイルを今のテンプレートの名前にする。
+type RecordingRename struct {
+	Recording *Recording `json:"recording"`
+	// 名前が変わるセグメントのファイル。
+	Files []*RecordingFileRename `json:"files"`
 }
 
 // 録画設定 (設計書 4.7)。全体の既定値に、ルールや予約の上書きを重ねる。
@@ -506,6 +520,16 @@ type RecordingSettingsOverridesInput struct {
 // リカバリーコード。この応答でしか見せないので、ユーザーに控えてもらう。
 type RecoveryCodes struct {
 	Codes []string `json:"codes"`
+}
+
+// 録画のファイルを付け直した結果。
+type RenameRecordingFilesPayload struct {
+	// 付け直した録画の数。
+	Renamed int `json:"renamed"`
+	// 録画中か、セグメントをつないでいる途中か、名前が変わらなくなったので、付け直さなかった録画の数。
+	Skipped int `json:"skipped"`
+	// 付け直せなかった録画の数。ファイルは元のまま残す。
+	Failed int `json:"failed"`
 }
 
 // 予約のチューナーの割り当ての結果。neko が計算し直すたびに変わる。

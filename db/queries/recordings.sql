@@ -111,3 +111,22 @@ SELECT r.id AS recording_id, f.id, f.pool_id, f.path
 FROM recordings r JOIN recording_files f ON f.recording_id = r.id AND f.kind = 'segment'
 WHERE r.state <> 'recording'
 ORDER BY r.recorded_from DESC, r.id, f.started_at, f.id;
+-- name: ListRecordingsForRename :many
+-- ファイル名を付け直す録画と、ファイル名のテンプレートに当てはめる番組とサービスと、録画設定を求めるための予約。
+-- 録画中の録画は除く。予約が消えていれば、予約の項目は NULL になる。
+SELECT r.id, r.name, r.start_at, r.end_at, r.event_id, s.name AS service_name, s.channel_type, s.channel,
+  res.id AS reservation_id, res.kind AS reservation_kind, res.settings AS reservation_settings
+FROM recordings r
+JOIN services s ON s.id = r.service_id
+LEFT JOIN reservations res ON res.id = r.reservation_id
+WHERE r.state <> 'recording' AND (sqlc.narg(ids)::uuid[] IS NULL OR r.id = ANY(sqlc.narg(ids)::uuid[]))
+ORDER BY r.recorded_from DESC, r.id;
+
+-- name: SetRecordingFilePath :exec
+UPDATE recording_files SET path = @path WHERE id = @id;
+
+-- name: MoveRecordingSidecarPaths :exec
+-- 付属ファイルのディレクトリを移したとき、その中のファイル (索引、代表画像、プレビュー画像) の記録のパスを書き換える。
+UPDATE recording_files SET path = @new_prefix::text || substr(path, length(@old_prefix::text) + 1)
+WHERE recording_id = @recording_id AND pool_id = @pool_id AND kind IN ('index', 'thumbnail', 'preview')
+  AND starts_with(path, @old_prefix::text);

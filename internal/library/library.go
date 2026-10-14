@@ -34,7 +34,9 @@ const (
 	// auditTarget は、録画の監査ログの対象の種類。
 	auditTarget = "recording"
 	// segmentKind は、録画ファイルのうち、TS のセグメントの種類。
-	segmentKind = "segment"
+	// stateRecording は、録画中の録画の状態。
+	stateRecording = "recording"
+	segmentKind    = "segment"
 	// otherKind は、録画ファイルのうち、取り込んだ MP4 のような TS 以外のファイルの種類。
 	otherKind = "other"
 )
@@ -85,7 +87,7 @@ func (l *Library) Delete(ctx context.Context, db Database, actor *audit.Actor, r
 		switch {
 		case recording.Protected:
 			return ErrProtected
-		case recording.State == "recording":
+		case recording.State == stateRecording:
 			return ErrRecording
 		}
 		if files, err = q.ListRecordingFiles(ctx, recordingID); err != nil {

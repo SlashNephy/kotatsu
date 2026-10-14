@@ -1,0 +1,43 @@
+"""
+録画のファイルの付け直し (設計書 4.7)。ファイル名のテンプレートを変えた後に、既存の録画のファイルを今のテンプレートの名前にする。
+"""
+type RecordingRename {
+  recording: Recording!
+  "名前が変わるセグメントのファイル。"
+  files: [RecordingFileRename!]!
+}
+
+type RecordingFileRename {
+  "今のプール内の相対パス。"
+  from: String!
+  "付け直した後のプール内の相対パス。移す先に同じ名前があれば、移すときに連番を付ける。"
+  to: String!
+}
+
+"""
+録画のファイルを付け直した結果。
+"""
+type RenameRecordingFilesPayload {
+  "付け直した録画の数。"
+  renamed: Int!
+  "録画中か、セグメントをつないでいる途中か、名前が変わらなくなったので、付け直さなかった録画の数。"
+  skipped: Int!
+  "付け直せなかった録画の数。ファイルは元のまま残す。"
+  failed: Int!
+}
+
+extend type Query {
+  """
+  今の録画設定のファイル名のテンプレートで付け直すと、名前が変わる録画を、録画を始めた日時の新しい順に返す。管理者だけが使える。
+  録画設定は、録画のときと同じく、全体の既定値にルールと予約の上書きを重ねて求める。
+  """
+  recordingRenames: [RecordingRename!]!
+}
+
+extend type Mutation {
+  """
+  録画 ids のセグメントのファイルと付属ファイルのディレクトリを、今のテンプレートの名前に付け直し、記録のパスを書き換える。
+  管理者だけが使え、一度に 100 件まで。同じプールの中だけで移す。監査ログに残す。
+  """
+  renameRecordingFiles(ids: [ID!]!): RenameRecordingFilesPayload!
+}

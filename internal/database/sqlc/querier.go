@@ -233,6 +233,9 @@ type Querier interface {
 	// 録画 recording_ids のタグを、録画ごとに名前の順で、タグが付いている録画の数と一緒に返す。
 	ListRecordingTags(ctx context.Context, recordingIds []uuid.UUID) ([]ListRecordingTagsRow, error)
 	ListRecordingsByIDs(ctx context.Context, ids []uuid.UUID) ([]Recording, error)
+	// ファイル名を付け直す録画と、ファイル名のテンプレートに当てはめる番組とサービスと、録画設定を求めるための予約。
+	// 録画中の録画は除く。予約が消えていれば、予約の項目は NULL になる。
+	ListRecordingsForRename(ctx context.Context, ids []uuid.UUID) ([]ListRecordingsForRenameRow, error)
 	// 予約に一致したルール。ルールを作った順に返す。
 	ListReservationRules(ctx context.Context, reservationIds []uuid.UUID) ([]ReservationRule, error)
 	// 時間帯 [from, to) に重なる予約を、開始時刻の順に返す。(after_start_at, after_id) より後ろから limit 件読む。
@@ -299,6 +302,8 @@ type Querier interface {
 	MarkRecordingStreamOpened(ctx context.Context, arg MarkRecordingStreamOpenedParams) error
 	// 空き容量が閾値を下回ったままになったことを記録する。すでに記録していれば何もしない (0 行)。
 	MarkStoragePoolLow(ctx context.Context, arg MarkStoragePoolLowParams) (int64, error)
+	// 付属ファイルのディレクトリを移したとき、その中のファイル (索引、代表画像、プレビュー画像) の記録のパスを書き換える。
+	MoveRecordingSidecarPaths(ctx context.Context, arg MoveRecordingSidecarPathsParams) error
 	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
 	NotifyChange(ctx context.Context, arg NotifyChangeParams) error
 	// ルール予約を、手動の番組予約に切り替え、手動の設定を書き込む (設計書 4.1)。無効にしたルール予約も、有効に戻す。
@@ -345,6 +350,7 @@ type Querier interface {
 	SetLoginLockedUntil(ctx context.Context, arg SetLoginLockedUntilParams) error
 	// 録画の音声の構成を、TS の EIT[p/f] から読んだもので埋める。EPG から写したものがあれば、それを残す。
 	SetRecordingAudiosIfUnknown(ctx context.Context, arg SetRecordingAudiosIfUnknownParams) error
+	SetRecordingFilePath(ctx context.Context, arg SetRecordingFilePathParams) error
 	// 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
 	SetRecordingGaps(ctx context.Context, arg SetRecordingGapsParams) error
 	SetRecordingProtected(ctx context.Context, arg SetRecordingProtectedParams) error

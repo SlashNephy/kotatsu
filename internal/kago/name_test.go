@@ -378,3 +378,39 @@ func TestRemoveDoesNotFollowSymlinksInTheSidecar(t *testing.T) {
 	_, err = os.Lstat(filepath.Join(mount, sidecar))
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
+
+// TestRename は、録画ファイルと付属ファイルのディレクトリを一緒に移し、移す先に同じ名前があれば連番を付け、
+// 元のディレクトリが空になれば消すことを確かめる。
+func TestRename(t *testing.T) {
+	t.Parallel()
+
+	mount := t.TempDir()
+	store := kago.New(map[string]string{poolMain: mount}, nil)
+	create := func(dir, name string) string {
+		f, rel, err := store.Create(poolMain, dir, name)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		return rel
+	}
+	from := create("old", fileName)
+	_, err := store.CreateSidecarDir(poolMain, from)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(mount, from+".kotatsu", "index"), []byte("i"), 0o600))
+	create("GR", "新しい名前.m2ts")
+
+	got, err := store.Rename(poolMain, from, "GR", "新しい名前.m2ts")
+	require.NoError(t, err)
+	assert.Equal(t, "GR/新しい名前 (2).m2ts", got)
+	_, err = os.Stat(filepath.Join(mount, got+".kotatsu", "index"))
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(mount, "old"))
+	require.ErrorIs(t, err, os.ErrNotExist, "the emptied directory is removed")
+
+	same, err := store.Rename(poolMain, got, "GR", "新しい名前 (2).m2ts")
+	require.NoError(t, err)
+	assert.Equal(t, got, same, "renaming to the same name keeps the file")
+
+	_, err = store.Rename(poolMain, got, "../outside", fileName)
+	require.ErrorIs(t, err, kago.ErrInvalidPath)
+}

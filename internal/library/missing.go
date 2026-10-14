@@ -95,7 +95,7 @@ func (l *Library) CleanUpMissing(ctx context.Context, db Database, actor *audit.
 		switch {
 		case recording.Protected:
 			return ErrProtected
-		case recording.State == "recording":
+		case recording.State == stateRecording:
 			return ErrRecording
 		}
 		files, err := q.ListRecordingFiles(ctx, recordingID)
