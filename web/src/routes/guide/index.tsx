@@ -40,8 +40,9 @@ type GuideSearch = {
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const day = 24 * 60 * 60_000;
-// guideDays は、番組表で移れる、いまの放送日からの日数。tenban は 7 日分までの時間帯を受け付ける。
-const guideDays = 7;
+// guideDays は、番組表で移れる、いまの放送日からの日数。
+// 放送の EPG (EIT) は、今日の 0 時から 8 日分が届く。放送日は 4 時に切り替わるので、8 日目の放送日も 4 時から 24 時までは番組がある。
+const guideDays = 8;
 
 export const Route = createFileRoute('/guide/')({
   validateSearch: (search: Record<string, unknown>): GuideSearch => {
