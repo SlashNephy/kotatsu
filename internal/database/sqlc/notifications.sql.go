@@ -63,7 +63,7 @@ type GetReservationAudienceRow struct {
 }
 
 // 予約の通知を受け取るユーザーを決める材料。手動の予約なら予約したユーザー、ルール予約なら一致したルールを作ったユーザー。
-// rule_ids、rule_names、rule_creators は、ルールを作った順に並べる。ルールを作ったユーザーが消えていれば、rule_creators には入れない。
+// rule_ids と rule_names は、ルールを作った順に並べる。rule_creators は順不同で、ルールを作ったユーザーが消えていれば入れない。
 func (q *Queries) GetReservationAudience(ctx context.Context, id uuid.UUID) (GetReservationAudienceRow, error) {
 	row := q.db.QueryRow(ctx, getReservationAudience, id)
 	var i GetReservationAudienceRow

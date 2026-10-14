@@ -126,7 +126,7 @@ type Preference struct {
 	Kind    Kind
 	InApp   bool
 	WebPush bool
-	// RuleReservations は、ルール予約の録画の通知も受け取るかどうか。録画の通知でだけ使う。
+	// RuleReservations は、ルール予約の通知も受け取るかどうか。録画の通知と競合の通知でだけ使う。
 	RuleReservations bool
 }
 

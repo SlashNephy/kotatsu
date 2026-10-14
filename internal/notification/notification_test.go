@@ -210,6 +210,13 @@ func TestDispatchOnceAudience(t *testing.T) {
 			want: func(alice, _, _ uuid.UUID) []uuid.UUID { return []uuid.UUID{alice} },
 		},
 		{
+			name: "空のスライスは、絞らないのと同じに扱う",
+			audience: func(_, _ uuid.UUID) *notification.Audience {
+				return &notification.Audience{UserIDs: []uuid.UUID{}, ByRule: false}
+			},
+			want: func(alice, bob, carol uuid.UUID) []uuid.UUID { return []uuid.UUID{alice, bob, carol} },
+		},
+		{
 			name:     "ルールを作ったユーザーが分からなければ、受け取る設定の全員に配る",
 			audience: func(_, _ uuid.UUID) *notification.Audience { return &notification.Audience{UserIDs: nil, ByRule: true} },
 			want:     func(alice, _, carol uuid.UUID) []uuid.UUID { return []uuid.UUID{alice, carol} },

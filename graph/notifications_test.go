@@ -24,6 +24,7 @@ const (
 	keyKind             = "kind"
 	keyInApp            = "inApp"
 	keyWebPush          = "webPush"
+	keyRuleReservations = "ruleReservations"
 	updatePreference    = `mutation($input: NotificationPreferenceInput!) { updateNotificationPreference(input: $input) { kind inApp webPush ruleReservations } }`
 	kindStorageLow      = "STORAGE_LOW"
 	kindRecordingFailed = "RECORDING_FAILED"
@@ -208,7 +209,7 @@ func TestNotificationPreferences(t *testing.T) {
 
 	// ルール予約の分を切ったあと、ruleReservations を省いて変えても、切ったままにする。
 	for _, input := range []map[string]any{
-		{keyKind: kindRecordingBegan, keyWebPush: true, "ruleReservations": false},
+		{keyKind: kindRecordingBegan, keyWebPush: true, keyRuleReservations: false},
 		{keyKind: kindRecordingBegan, keyWebPush: false},
 	} {
 		input[keyInApp] = true

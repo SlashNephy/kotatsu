@@ -109,7 +109,7 @@ type Querier interface {
 	GetRecordingWithService(ctx context.Context, id uuid.UUID) (GetRecordingWithServiceRow, error)
 	GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error)
 	// 予約の通知を受け取るユーザーを決める材料。手動の予約なら予約したユーザー、ルール予約なら一致したルールを作ったユーザー。
-	// rule_ids、rule_names、rule_creators は、ルールを作った順に並べる。ルールを作ったユーザーが消えていれば、rule_creators には入れない。
+	// rule_ids と rule_names は、ルールを作った順に並べる。rule_creators は順不同で、ルールを作ったユーザーが消えていれば入れない。
 	GetReservationAudience(ctx context.Context, id uuid.UUID) (GetReservationAudienceRow, error)
 	GetReservationByProgram(ctx context.Context, arg GetReservationByProgramParams) (Reservation, error)
 	// 競合の通知に載せる、予約の番組名とサービス名。

@@ -60,7 +60,7 @@ func ParseKind(s string) (Kind, error) {
 
 // Audience は、イベントを受け取るユーザーの絞り込み。
 type Audience struct {
-	// UserIDs は、受け取るユーザー。nil なら、有効なユーザー全員に届ける。
+	// UserIDs は、受け取るユーザー。空なら、有効なユーザー全員に届ける。
 	UserIDs []uuid.UUID
 	// ByRule は、ルール予約の録画の通知かどうか。ルール予約の録画の通知を受け取らない設定のユーザーには届けない。
 	ByRule bool
@@ -88,7 +88,10 @@ func EmitTo(ctx context.Context, db sqlc.DBTX, clk clock.Clock, kind Kind, paylo
 		ID: id.New(), Kind: string(kind), OccurredAt: clk.Now(), Payload: encoded, Audience: nil, ByRule: false,
 	}
 	if audience != nil {
-		params.Audience = audience.UserIDs
+		// 空のスライスは全員に届けるのと同じにする。そのまま渡すと、空の配列として誰にも届かない。
+		if len(audience.UserIDs) > 0 {
+			params.Audience = audience.UserIDs
+		}
 		params.ByRule = audience.ByRule
 	}
 	if err := sqlc.New(db).InsertNotificationEvent(ctx, params); err != nil {

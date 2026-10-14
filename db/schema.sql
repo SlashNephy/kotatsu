@@ -301,7 +301,7 @@ CREATE TABLE notification_preferences (
   in_app boolean NOT NULL,
   -- Web Push で受け取るかどうか。購読していなければ届かない。
   web_push boolean NOT NULL,
-  -- ルール予約の録画の通知も受け取るかどうか。録画の通知でだけ使う。
+  -- ルール予約の通知も受け取るかどうか。録画の通知と競合の通知でだけ使う。
   rule_reservations boolean NOT NULL DEFAULT true,
   updated_at timestamptz NOT NULL,
   PRIMARY KEY (user_id, kind)

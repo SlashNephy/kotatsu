@@ -70,7 +70,7 @@ SELECT * FROM notification_events WHERE id = @id;
 
 -- name: GetReservationAudience :one
 -- 予約の通知を受け取るユーザーを決める材料。手動の予約なら予約したユーザー、ルール予約なら一致したルールを作ったユーザー。
--- rule_ids、rule_names、rule_creators は、ルールを作った順に並べる。ルールを作ったユーザーが消えていれば、rule_creators には入れない。
+-- rule_ids と rule_names は、ルールを作った順に並べる。rule_creators は順不同で、ルールを作ったユーザーが消えていれば入れない。
 SELECT r.kind, r.created_by,
   COALESCE(array_agg(ru.id ORDER BY ru.created_at, ru.id) FILTER (WHERE ru.id IS NOT NULL), '{}')::uuid[] AS rule_ids,
   COALESCE(array_agg(ru.name ORDER BY ru.created_at, ru.id) FILTER (WHERE ru.id IS NOT NULL), '{}')::text[] AS rule_names,
