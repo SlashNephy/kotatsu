@@ -50,6 +50,11 @@ export function usePreviewSlideshow(
         return;
       }
       const frames = slideshowFrames(manifest.times.length, slideCount);
+      // コマがなければ何も出さず、1 コマだけなら切り替えない。
+      if (frames.length <= 1) {
+        setFrame(frames[0] === undefined ? null : previewFrame(manifest, frames[0]));
+        return;
+      }
       let step = 0;
       const show = () => {
         setFrame(previewFrame(manifest, frames[step % frames.length]!));

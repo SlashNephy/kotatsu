@@ -254,3 +254,12 @@ export function broadcastDay(time: number): GuideWindow {
 
   return { from, to: from + day };
 }
+
+// receivedUntil は、番組表が届いている時刻 (いちばん遅く終わる番組の終わり)。ends は、その日に出す番組の終わりの時刻。
+// 先の日の番組表は、放送から届いた分しかないので、その先は空になる。1 つも届いていなければ、0 を返し、日の全体を届いていないとする。
+// 深夜に放送を休むサービスもあるので、日の終わり (to) の 1 時間前までに届いていれば、すべて届いたとみなし、undefined を返す。
+export function receivedUntil(ends: readonly number[], to: number): number | undefined {
+  const until = Math.max(0, ...ends);
+
+  return until < to - 3_600_000 ? until : undefined;
+}

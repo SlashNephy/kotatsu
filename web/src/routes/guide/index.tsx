@@ -20,7 +20,7 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
 import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
-import { broadcastDay, dateOf } from '../../guide/layout';
+import { broadcastDay, dateOf, receivedUntil } from '../../guide/layout';
 import { ProgramDetail } from '../../guide/ProgramDetail';
 import { collapseSharedColumns } from '../../guide/sharedEvent';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -68,16 +68,6 @@ export const Route = createFileRoute('/guide/')({
   component: GuidePage,
   staticData: { fluid: true },
 });
-
-// receivedUntil は、番組表が届いている時刻 (いちばん遅く終わる番組の終わり)。
-// 先の日の番組表は、放送から届いた分しかないので、その先は空になる。
-// 深夜に放送を休むサービスもあるので、日の終わりの 1 時間前までに届いていれば、すべて届いたとみなし、undefined を返す。
-function receivedUntil(columns: readonly GuideColumn[], to: number): number | undefined {
-  const ends = columns.flatMap((column) => column.programs.map((program) => program.endAt));
-  const until = ends.length === 0 ? undefined : Math.max(...ends);
-
-  return until !== undefined && until < to - 3_600_000 ? until : undefined;
-}
 
 // dayFrom は、URL の日付 (なければ今日) の放送日の始まりを返す。
 function dayFrom(date: string | undefined, todayFrom: number): number {
@@ -412,7 +402,14 @@ function Guide() {
             window={window}
             columns={columns}
             now={now}
-            receivedUntil={window.from > today.from ? receivedUntil(columns, window.to) : undefined}
+            receivedUntil={
+              window.from > today.from
+                ? receivedUntil(
+                    columns.flatMap((column) => column.programs.map((program) => program.endAt)),
+                    window.to,
+                  )
+                : undefined
+            }
             scrollKey={scrollKey}
             scrollProgram={keepTime ? undefined : focused?.id}
             scrollTime={
