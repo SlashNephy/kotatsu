@@ -45,6 +45,9 @@ const query = graphql`
           startAt
           endAt
           state
+          recordedFrom
+          recordedUntil
+          watchPositionMs
           thumbnailUrl
           service {
             name

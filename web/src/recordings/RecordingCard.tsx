@@ -1,9 +1,11 @@
-import { AspectRatio, Card, Group, Stack, Text } from '@mantine/core';
+import { AspectRatio, Box, Card, Group, Progress, Stack, Text } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
+import { useTranslation } from 'react-i18next';
 
 import { ProgramTitle } from '../futon';
 import { ServiceLabel } from '../guide/ServiceLabel';
 import { RecordingThumbnail } from './RecordingThumbnail';
+import { watchProgress } from './watchProgress';
 import { RecordingStateBadge } from './RecordingStateBadge';
 
 export type RecordingCardData = {
@@ -13,6 +15,11 @@ export type RecordingCardData = {
   endAt: string;
   state: string;
   thumbnailUrl?: string | null;
+  // recordedFrom、recordedUntil、watchPositionMs は、どこまで見たかを出すのに使う。録画中は recordedUntil が null。
+  recordedFrom: string;
+  recordedUntil?: string | null;
+  // Int64 は Relay の型では any になるので、受け取ってから数に直す。
+  watchPositionMs?: unknown;
   service: { name: string; logoUrl?: string | null };
   // tags は、録画の一覧でだけ渡す。
   tags?: readonly { id: string; name: string }[];
@@ -49,9 +56,18 @@ const timeFormat = new Intl.DateTimeFormat('ja-JP', {
 // RecordingCard は、サムネイル付きの録画のカード。押すと、録画の詳細を開く。ホームと録画の一覧で使う。
 // 行の間は、放送中の番組のカードと揃える (番組名と放送時間は 4px、サービスとの間は xs)。
 export function RecordingCard({ recording }: { recording: RecordingCardData }) {
+  const { t } = useTranslation();
   const startAt = Date.parse(recording.startAt);
   const sameYear = yearFormat.format(startAt) === yearFormat.format(Date.now());
   const tags = recording.tags ?? [];
+  const duration =
+    ((recording.recordedUntil == null ? Date.now() : Date.parse(recording.recordedUntil)) -
+      Date.parse(recording.recordedFrom)) /
+    1000;
+  const progress = watchProgress(
+    recording.watchPositionMs == null ? null : Number(recording.watchPositionMs),
+    duration,
+  );
 
   return (
     <Card
@@ -61,9 +77,26 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
         <Link {...props} to="/recordings/$recordingId" params={{ recordingId: recording.id }} />
       )}
     >
-      <AspectRatio ratio={16 / 9}>
-        <RecordingThumbnail url={recording.thumbnailUrl} />
-      </AspectRatio>
+      <Box pos="relative">
+        <AspectRatio ratio={16 / 9}>
+          <RecordingThumbnail url={recording.thumbnailUrl} />
+        </AspectRatio>
+        {/* 再生したことがあれば、どこまで見たかを、サムネイルの下端に細いバーで示す。 */}
+        {progress !== null && (
+          <Progress
+            value={progress * 100}
+            size={4}
+            radius={0}
+            color="mikan"
+            aria-label={t('recordings.watched', { percent: Math.round(progress * 100) })}
+            pos="absolute"
+            bottom={0}
+            left={0}
+            right={0}
+            styles={{ root: { background: 'rgb(0 0 0 / 0.4)' } }}
+          />
+        )}
+      </Box>
       <Stack gap={0} p="xs">
         <Text size="sm" lineClamp={2}>
           <ProgramTitle name={recording.name} />

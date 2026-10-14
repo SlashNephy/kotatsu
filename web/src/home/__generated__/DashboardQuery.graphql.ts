@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<29d2d503b92e77fe8bd86f51b1ac0571>>
+ * @generated SignedSource<<a5be6022820d1d26ca4b2ee3cea986b9>>
  * @lightSyntaxTransform
  */
 
@@ -47,6 +47,7 @@ export type DashboardQuery$data = {
         readonly id: string;
         readonly name: string;
         readonly recordedFrom: string;
+        readonly recordedUntil: string | null | undefined;
         readonly service: {
           readonly logoUrl: string | null | undefined;
           readonly name: string;
@@ -54,6 +55,7 @@ export type DashboardQuery$data = {
         readonly startAt: string;
         readonly state: RecordingState;
         readonly thumbnailUrl: string | null | undefined;
+        readonly watchPositionMs: number | null | undefined;
       };
     }>;
   };
@@ -303,10 +305,24 @@ v18 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "thumbnailUrl",
+  "name": "recordedUntil",
   "storageKey": null
 },
 v19 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "watchPositionMs",
+  "storageKey": null
+},
+v20 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "thumbnailUrl",
+  "storageKey": null
+},
+v21 = {
   "alias": null,
   "args": null,
   "concreteType": "Service",
@@ -319,27 +335,27 @@ v19 = {
   ],
   "storageKey": null
 },
-v20 = {
+v22 = {
   "kind": "Literal",
   "name": "enabled",
   "value": true
 },
-v21 = {
+v23 = {
   "kind": "Variable",
   "name": "to",
   "variableName": "to"
 },
-v22 = [
-  (v20/*:: as any*/),
+v24 = [
+  (v22/*:: as any*/),
   {
     "kind": "Literal",
     "name": "first",
     "value": 5
   },
   (v7/*:: as any*/),
-  (v21/*:: as any*/)
+  (v23/*:: as any*/)
 ],
-v23 = {
+v25 = {
   "alias": null,
   "args": null,
   "concreteType": "ReservationAssignment",
@@ -351,10 +367,10 @@ v23 = {
   ],
   "storageKey": null
 },
-v24 = {
+v26 = {
   "alias": "troubles",
   "args": [
-    (v20/*:: as any*/),
+    (v22/*:: as any*/),
     {
       "kind": "Literal",
       "name": "first",
@@ -369,7 +385,7 @@ v24 = {
         "PARTIAL"
       ]
     },
-    (v21/*:: as any*/)
+    (v23/*:: as any*/)
   ],
   "concreteType": "ReservationConnection",
   "kind": "LinkedField",
@@ -418,7 +434,7 @@ v24 = {
   ],
   "storageKey": null
 },
-v25 = {
+v27 = {
   "alias": null,
   "args": null,
   "concreteType": "Service",
@@ -478,7 +494,9 @@ return {
                   (v16/*:: as any*/),
                   (v17/*:: as any*/),
                   (v18/*:: as any*/),
-                  (v19/*:: as any*/)
+                  (v19/*:: as any*/),
+                  (v20/*:: as any*/),
+                  (v21/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -490,7 +508,7 @@ return {
       },
       {
         "alias": "upcoming",
-        "args": (v22/*:: as any*/),
+        "args": (v24/*:: as any*/),
         "concreteType": "ReservationConnection",
         "kind": "LinkedField",
         "name": "reservations",
@@ -516,8 +534,8 @@ return {
                   (v9/*:: as any*/),
                   (v11/*:: as any*/),
                   (v12/*:: as any*/),
-                  (v19/*:: as any*/),
-                  (v23/*:: as any*/)
+                  (v21/*:: as any*/),
+                  (v25/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -527,7 +545,7 @@ return {
         ],
         "storageKey": null
       },
-      (v24/*:: as any*/)
+      (v26/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -577,7 +595,9 @@ return {
                   (v16/*:: as any*/),
                   (v17/*:: as any*/),
                   (v18/*:: as any*/),
-                  (v25/*:: as any*/)
+                  (v19/*:: as any*/),
+                  (v20/*:: as any*/),
+                  (v27/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -589,7 +609,7 @@ return {
       },
       {
         "alias": "upcoming",
-        "args": (v22/*:: as any*/),
+        "args": (v24/*:: as any*/),
         "concreteType": "ReservationConnection",
         "kind": "LinkedField",
         "name": "reservations",
@@ -615,8 +635,8 @@ return {
                   (v9/*:: as any*/),
                   (v11/*:: as any*/),
                   (v12/*:: as any*/),
-                  (v25/*:: as any*/),
-                  (v23/*:: as any*/)
+                  (v27/*:: as any*/),
+                  (v25/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -626,20 +646,20 @@ return {
         ],
         "storageKey": null
       },
-      (v24/*:: as any*/)
+      (v26/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "1cee4fa979081d2f99ba6e7a90f3b1ea",
+    "cacheID": "b2195dc28f4757bc09b3994a9269a1f4",
     "id": null,
     "metadata": {},
     "name": "DashboardQuery",
     "operationKind": "query",
-    "text": "query DashboardQuery(\n  $from: Time!\n  $nowEnd: Time!\n  $to: Time!\n  $recordings: Int!\n) {\n  tunerServerHealth {\n    degraded\n    degradedSince\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  guide(from: $from, to: $nowEnd) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n    }\n  }\n  recordings(first: $recordings) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        recordedFrom\n        thumbnailUrl\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n  }\n  upcoming: reservations(from: $from, to: $to, enabled: true, first: 5) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        service {\n          name\n          logoUrl\n          id\n        }\n        assignment {\n          state\n        }\n      }\n    }\n  }\n  troubles: reservations(from: $from, to: $to, states: [CONFLICT, PARTIAL], enabled: true, first: 100) {\n    edges {\n      node {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
+    "text": "query DashboardQuery(\n  $from: Time!\n  $nowEnd: Time!\n  $to: Time!\n  $recordings: Int!\n) {\n  tunerServerHealth {\n    degraded\n    degradedSince\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  guide(from: $from, to: $nowEnd) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n    }\n  }\n  recordings(first: $recordings) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        recordedFrom\n        recordedUntil\n        watchPositionMs\n        thumbnailUrl\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n  }\n  upcoming: reservations(from: $from, to: $to, enabled: true, first: 5) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        service {\n          name\n          logoUrl\n          id\n        }\n        assignment {\n          state\n        }\n      }\n    }\n  }\n  troubles: reservations(from: $from, to: $to, states: [CONFLICT, PARTIAL], enabled: true, first: 100) {\n    edges {\n      node {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "7c7e95768ad7e48b39ee6166c33936fd";
+(node as any).hash = "213f230730e1a88155ff2e63e4e62241";
 
 export default node;

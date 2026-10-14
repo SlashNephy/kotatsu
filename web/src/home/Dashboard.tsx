@@ -80,6 +80,8 @@ export function Dashboard({ range }: { range: DashboardRange }) {
               endAt
               state
               recordedFrom
+              recordedUntil
+              watchPositionMs
               thumbnailUrl
               service {
                 name
