@@ -20,7 +20,7 @@ type Pool struct {
 	ID string
 	// Priority は選ばれる優先順位。大きいほど先に選ぶ。
 	Priority int
-	// MinFreeBytes は容量の閾値。録画を書いた後の空き容量がこれを下回るプールは選ばない。
+	// MinFreeBytes は容量の閾値。録画を書いた後の空き容量がこれを下回らないプールを優先して選ぶ (#511)。
 	MinFreeBytes uint64
 }
 

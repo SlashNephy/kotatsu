@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -28,6 +29,10 @@ const (
 	// QueueMedia は、FFmpeg で動画を読むような重いジョブのキュー。
 	// EPGStation から多くの録画を取り込んだときも、CPU とディスクを使い切らないよう、1 つずつ実行する。
 	QueueMedia = "media"
+	// rescueStuckJobsAfter は、実行中のまま止まったとみなして、ほかのクライアントに渡すまでの時間。
+	// ジョブの時間の上限のうち最も長いもの (セグメントの結合の 2 時間) より長くする。短いと、動いているジョブが救出され、
+	// ほかの nekonote が同じジョブを二重に動かす (#515)。
+	rescueStuckJobsAfter = 3 * time.Hour
 )
 
 // Options は NewClient の設定。
@@ -44,8 +49,9 @@ type Options struct {
 // NewClient は River のクライアントを作る。ジョブを実行するには、Workers を与えて Start を呼ぶ。
 func NewClient(pool *pgxpool.Pool, logger *slog.Logger, opts *Options) (*Client, error) {
 	config := &river.Config{
-		Logger:   logger,
-		PollOnly: opts.PollOnly,
+		Logger:               logger,
+		PollOnly:             opts.PollOnly,
+		RescueStuckJobsAfter: rescueStuckJobsAfter,
 	}
 	if opts.Workers != nil {
 		config.Workers = opts.Workers
