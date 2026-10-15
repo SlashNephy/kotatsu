@@ -3,7 +3,7 @@ import { Camera, PictureInPicture2 } from 'lucide-react';
 import { useEffect, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { captureFrame, copyBlob, overlayCanvases, saveBlob } from './capture';
+import { captureFileName, captureFrame, copyBlob, overlayCanvases, saveBlob } from './capture';
 import { ControlButton, playerControlsClasses } from './PlayerControls';
 import classes from './TsPlayer.module.css';
 import type { useDocumentPictureInPicture } from './useDocumentPictureInPicture';
@@ -26,13 +26,22 @@ function useNotice(): [string | null, (message: string) => void] {
 type CaptureProps = {
   frameRef: RefObject<HTMLElement | null>;
   videoRef: RefObject<HTMLVideoElement | null>;
-  // name は、キャプチャのファイル名に使う、番組名やチャンネル名。
-  name: string;
+  // serviceName と programName は、キャプチャのファイル名に使う。番組が分からなければ programName は null。
+  serviceName: string;
+  programName: string | null;
+  // captureTime は、今の場面の時刻 (Unix ミリ秒) を返す。録画では、再生位置の放送時刻を返す。
+  captureTime: () => number;
 };
 
 // CaptureButton は、今の場面を画像に保存するか、コピーするメニュー (設計書 7.5)。
 // 別のウィンドウに移っても開けるよう、メニューと知らせはプレイヤーの中に描く。
-export function CaptureButton({ frameRef, videoRef, name }: CaptureProps) {
+export function CaptureButton({
+  frameRef,
+  videoRef,
+  serviceName,
+  programName,
+  captureTime,
+}: CaptureProps) {
   const { t } = useTranslation();
   // overlays は、キャプチャに、字幕とコメントを写すかどうか。
   const [overlays, setOverlays] = useState(true);
@@ -44,11 +53,12 @@ export function CaptureButton({ frameRef, videoRef, name }: CaptureProps) {
     if (video === null || frame === null) {
       return;
     }
+    // 画像を作る間に再生が進むので、押した時の時刻を先に取る。
+    const time = captureTime();
     try {
       const blob = await captureFrame(video, overlays ? overlayCanvases(frame) : []);
       if (action === 'save') {
-        const stamp = new Date().toISOString().replaceAll(':', '-').replace(/\..*$/, '');
-        saveBlob(blob, `${name}-${stamp}.png`);
+        saveBlob(blob, captureFileName(time, serviceName, programName));
       } else {
         await copyBlob(blob);
         notify(t('player.copied'));

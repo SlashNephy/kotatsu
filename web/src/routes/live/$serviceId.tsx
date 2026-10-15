@@ -368,7 +368,13 @@ function Live({
               {audio.menu}
             </SettingsButton>
           )}
-          <CaptureButton frameRef={playerBoxRef} videoRef={videoRef} name={service.name} />
+          <CaptureButton
+            frameRef={playerBoxRef}
+            videoRef={videoRef}
+            serviceName={service.name}
+            programName={programName}
+            captureTime={Date.now}
+          />
           <PipButton pip={pip} />
           <FullscreenButton active={fullscreen.active} onToggle={fullscreen.toggle} />
         </>

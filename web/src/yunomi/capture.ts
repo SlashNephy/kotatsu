@@ -1,5 +1,7 @@
 // 再生中の場面を画像にする (設計書 7.5)。
 
+import { splitProgramMarks } from '../futon/programMarks';
+
 // captureSize は、画像の大きさ。放送の映像の表示の比率 (16:9) にそろえる。
 const captureSize = { width: 1920, height: 1080 };
 
@@ -59,6 +61,31 @@ export function overlayCanvases(frame: HTMLElement): HTMLCanvasElement[] {
   return [...frame.querySelectorAll<HTMLCanvasElement>('canvas[data-overlay]')].filter(
     (canvas) => canvas.style.visibility !== 'hidden',
   );
+}
+
+// unsafeFileNameChars は、Windows や macOS でファイル名に使えない文字と、制御文字。
+const unsafeFileNameChars = /[\\/:*?"<>|\p{Cc}]/gu;
+
+const pad2 = (value: number) => String(value).padStart(2, '0');
+
+// captureFileName は、キャプチャのファイル名を返す (設計書 7.5)。
+// time (Unix ミリ秒) を端末のローカル時刻で書き、サービス名と、囲み文字を外した番組名を続ける。
+export function captureFileName(
+  time: number,
+  serviceName: string,
+  programName: string | null,
+): string {
+  const date = new Date(time);
+  const stamp =
+    `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ` +
+    `${pad2(date.getHours())}.${pad2(date.getMinutes())}.${pad2(date.getSeconds())}`;
+  const parts = [stamp, serviceName];
+  const program = programName === null ? '' : splitProgramMarks(programName).name;
+  if (program !== '') {
+    parts.push(program);
+  }
+
+  return `${parts.join(' - ').replace(unsafeFileNameChars, '_')}.png`;
 }
 
 // saveBlob は、画像をファイルとして保存させる。
