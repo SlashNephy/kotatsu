@@ -421,7 +421,13 @@ function Player({ recordingId }: { recordingId: string }) {
             {audio.menu}
             <RateSelect value={rate} onChange={setRate} />
           </SettingsButton>
-          <CaptureButton frameRef={playerBoxRef} videoRef={videoRef} name={recording.name} />
+          <CaptureButton
+            frameRef={playerBoxRef}
+            videoRef={videoRef}
+            serviceName={recording.service.name}
+            programName={recording.name}
+            captureTime={() => broadcastTime(recording.recordedFrom, recording.gaps, shown)}
+          />
           <PipButton pip={pip} />
           <FullscreenButton active={fullscreen.active} onToggle={fullscreen.toggle} />
         </>

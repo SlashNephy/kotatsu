@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { fitContain, overlayCanvases } from './capture';
+import { captureFileName, fitContain, overlayCanvases } from './capture';
 
 describe('fitContain', () => {
   test.each([
@@ -42,5 +42,39 @@ describe('overlayCanvases', () => {
     frame.append(media, comments);
 
     expect(overlayCanvases(frame)).toEqual([captions, comments]);
+  });
+});
+
+describe('captureFileName', () => {
+  // 端末のタイムゾーンによらないよう、ローカル時刻で作る。
+  const time = new Date(2026, 9, 16, 21, 5, 9).getTime();
+
+  test.each([
+    {
+      name: 'ローカル時刻、サービス名、番組名を並べる',
+      service: 'NHK総合1・東京',
+      program: '大河ドラマ「ひかる」',
+      want: '2026-10-16 21.05.09 - NHK総合1・東京 - 大河ドラマ「ひかる」.png',
+    },
+    {
+      name: '番組名の囲み文字を外す',
+      service: 'NHK総合1・東京',
+      program: '🈑ニュース7🈞',
+      want: '2026-10-16 21.05.09 - NHK総合1・東京 - ニュース7.png',
+    },
+    {
+      name: '番組がなければ、サービス名だけ',
+      service: 'BS11',
+      program: null,
+      want: '2026-10-16 21.05.09 - BS11.png',
+    },
+    {
+      name: 'ファイル名に使えない文字を置き換える',
+      service: 'TOKYO MX',
+      program: 'A/B: 前編? <1>|"2"*\\3',
+      want: '2026-10-16 21.05.09 - TOKYO MX - A_B_ 前編_ _1___2___3.png',
+    },
+  ])('$name', ({ service, program, want }) => {
+    expect(captureFileName(time, service, program)).toBe(want);
   });
 });
