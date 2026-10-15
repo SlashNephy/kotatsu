@@ -27,3 +27,14 @@ func (b *BroadcastTracker) Update(pf *ts.PresentFollowing, now time.Time) (bool,
 func (b *BroadcastTracker) End(planned, now time.Time, margin, step time.Duration, limit time.Time) (time.Time, bool) {
 	return b.tracker.end(planned, now, margin, step, limit)
 }
+
+// QualityCounts は、テストから qualityCounts を使うために公開する。
+type QualityCounts = qualityCounts
+
+// QualitySample は、テストから qualitySample を使うために公開する。
+type QualitySample = qualitySample
+
+// CountsAfter は、テストから countsAfter を呼ぶために公開する。
+func CountsAfter(samples []QualitySample, since time.Time, final QualityCounts) QualityCounts {
+	return countsAfter(samples, since, final)
+}

@@ -13,6 +13,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -228,6 +229,9 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 
 		stats, end, copyErr := r.copyUntilEnd(ctx, tracker, stream, segment)
 		_ = stream.Close()
+		if errors.Is(context.Cause(ctx), ErrHandedOver) {
+			r.excludeOverlap(context.WithoutCancel(ctx), logger, &recording, segment, stats)
+		}
 		closeErr := r.closeSegment(context.WithoutCancel(ctx), &recording, segment, stats)
 		switch {
 		case ctx.Err() != nil:
@@ -340,6 +344,32 @@ func (r *Recorder) release(ctx context.Context, recording *sqlc.Recording, reaso
 	}
 
 	return fmt.Errorf("%w: %s", ErrRecorderUnavailable, reason)
+}
+
+// excludeOverlap は、引き継いで止める古い mikan が、新しい mikan のセグメントが始まった後に数えた品質の集計を、
+// 自分のセグメントの集計から差し引くよう記録する (#525)。重なった区間は、新しい mikan のセグメントでも数えるので、
+// 差し引かないと二重に数え、録画履歴の閾値を超えて、再放送をまた録ることがある。
+func (r *Recorder) excludeOverlap(ctx context.Context, logger *slog.Logger, recording *sqlc.Recording, seg *segment, stats *ts.Stats) {
+	files, err := sqlc.New(r.pool).ListRecordingFiles(ctx, recording.ID)
+	if err != nil {
+		logger.WarnContext(ctx, "failed to find the segment that took over; counting the overlap twice", slog.Any("error", err))
+
+		return
+	}
+	var takenOver *time.Time
+	for i := range files {
+		file := &files[i]
+		if file.Kind != fileKindSegment || file.ID == seg.fileID || !file.StartedAt.After(seg.startedAt) {
+			continue
+		}
+		if takenOver == nil || file.StartedAt.Before(*takenOver) {
+			takenOver = &file.StartedAt
+		}
+	}
+	if takenOver == nil {
+		return
+	}
+	seg.excluded = countsAfter(seg.samples.list(), *takenOver, countsOf(stats))
 }
 
 // countSegments は、録画の、書いたものがあるセグメントの数を返す。
@@ -617,6 +647,9 @@ type segment struct {
 	buffer    *bufio.Writer
 	analyzer  *ts.Analyzer
 	startedAt time.Time
+	// samples は、書いている間に控えた品質の集計。excluded は、集計から差し引く、引き継がれた後の区間の分 (#525)。
+	samples  qualitySamples
+	excluded qualityCounts
 }
 
 // createSegment は、保存先を選んで録画ファイルと索引を作り、DB に記録する。失敗したら、録画の失敗の理由も返す。
@@ -672,6 +705,7 @@ func (r *Recorder) createSegment(
 	seg := &segment{
 		poolID: pool.ID, path: rel, indexPath: index.Path, indexPool: index.PoolID, fileID: uuid.Nil, indexID: uuid.Nil, file: file, indexFile: indexFile,
 		buffer: bufio.NewWriterSize(file, writeBufferSize), analyzer: analyzer, startedAt: r.clock.Now(),
+		samples: qualitySamples{mu: sync.Mutex{}, samples: []qualitySample{}}, excluded: qualityCounts{Drops: 0, Errors: 0, Scrambled: 0},
 	}
 
 	q := sqlc.New(r.pool)
@@ -804,9 +838,28 @@ func (r *Recorder) copyUntilEnd(ctx context.Context, tracker *endTracker, stream
 		}
 	}()
 
-	_, err := io.Copy(io.MultiWriter(writeErrorWriter{w: seg.buffer}, seg.analyzer), stream)
+	writer := &flushingWriter{mu: sync.Mutex{}, buffer: seg.buffer, last: time.Now()}
+	sampleDone := make(chan struct{})
+	go func() {
+		defer close(sampleDone)
+		ticker := time.NewTicker(r.opts.Tick)
+		defer ticker.Stop()
+		for {
+			seg.samples.add(r.clock.Now(), countsOf(seg.analyzer.Stats()))
+			// 書き込みが途絶えても、書いた分をファイルに出す。書き出しのエラーは、閉じるときにも返る。
+			_ = writer.flushIfStale()
+			select {
+			case <-watchCtx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	_, err := io.Copy(io.MultiWriter(writeErrorWriter{w: writer}, seg.analyzer), stream)
 	stopWatch()
 	<-watchDone
+	// セグメントを閉じるときにバッファを書き出すので、その前に、書き出すゴルーチンを止める。
+	<-sampleDone
 	stats := seg.analyzer.Stats()
 	select {
 	case reason := <-ended:
@@ -1090,7 +1143,11 @@ func (r *Recorder) closeSegment(ctx context.Context, recording *sqlc.Recording, 
 		errorsCount += pid.Errors
 		scrambled += pid.Scrambled
 	}
-	err := q.AddRecordingStats(ctx, sqlc.AddRecordingStatsParams{Drops: drops(stats), Errors: errorsCount, Scrambled: scrambled, Now: now, ID: recording.ID})
+	// 引き継がれた後の区間は、新しい mikan のセグメントで数えるので、差し引く (#525)。
+	counted := qualityCounts{Drops: drops(stats), Errors: errorsCount, Scrambled: scrambled}.minus(seg.excluded)
+	err := q.AddRecordingStats(ctx, sqlc.AddRecordingStatsParams{
+		Drops: max(counted.Drops, 0), Errors: max(counted.Errors, 0), Scrambled: max(counted.Scrambled, 0), Now: now, ID: recording.ID,
+	})
 	if err != nil {
 		errs = append(errs, fmt.Errorf("failed to save the recording stats: %w", err))
 	}
