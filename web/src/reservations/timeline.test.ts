@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { groupByDay, needsAttention, timelineBar } from './timeline';
+import { groupByDay, needsAttention } from './timeline';
 
 const at = (time: string) => Date.parse(time);
 
@@ -33,41 +33,6 @@ describe('groupByDay', () => {
 
   test('予約がなければ、空', () => {
     expect(groupByDay([])).toEqual([]);
-  });
-});
-
-describe('timelineBar', () => {
-  const dayFrom = at('2026-10-11T00:00:00+09:00');
-
-  test.each([
-    {
-      name: '6 時から 12 時',
-      start: '2026-10-11T06:00:00+09:00',
-      end: '2026-10-11T12:00:00+09:00',
-      want: { left: 25, width: 25 },
-    },
-    {
-      name: '日をまたぐ予約は、その日の終わりで切る',
-      start: '2026-10-11T18:00:00+09:00',
-      end: '2026-10-12T06:00:00+09:00',
-      want: { left: 75, width: 25 },
-    },
-    {
-      name: '短い予約も見えるようにする',
-      start: '2026-10-11T12:00:00+09:00',
-      end: '2026-10-11T12:01:00+09:00',
-      want: { left: 50, width: 0.5 },
-    },
-    {
-      name: '日の終わりの直前の短い予約は、軸からはみ出さない',
-      start: '2026-10-11T23:59:00+09:00',
-      end: '2026-10-12T00:00:00+09:00',
-      want: { left: (1439 / 1440) * 100, width: 100 - (1439 / 1440) * 100 },
-    },
-  ])('$name', ({ start, end, want }) => {
-    const bar = timelineBar(dayFrom, at(start), at(end));
-    expect(bar.left).toBeCloseTo(want.left);
-    expect(bar.width).toBeCloseTo(want.width);
   });
 });
 

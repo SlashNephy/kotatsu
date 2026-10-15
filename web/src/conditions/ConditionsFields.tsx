@@ -18,7 +18,7 @@ import { Plus, RadioTower, Search, SearchX, Shapes, Tv, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { genreKey } from '../guide/genres';
+import { GenreMultiSelect } from '../guide/GenreMultiSelect';
 import { decodeGenre, encodeGenre } from '../guide/guideView';
 import { ServiceLabel } from '../guide/ServiceLabel';
 import {
@@ -31,7 +31,6 @@ import {
   type TimeRangeRow,
 } from './form';
 
-const selectableGenres = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15];
 const weekdays = [0, 1, 2, 3, 4, 5, 6];
 
 const fieldKeys = {
@@ -77,25 +76,6 @@ type Props = {
 // 番組の検索とルールの編集で、同じものを使う。
 export function ConditionsFields({ value, onChange, channelTypes, services }: Props) {
   const { t } = useTranslation();
-
-  // 選べるジャンルは大分類だけにする。取り込んだルールなどにある中分類の指定は、消さずに選択肢に足す。
-  const genreOptions = [
-    ...selectableGenres.map((lv1) => ({ lv1, lv2: null })),
-    ...value.genres,
-    ...value.excludeGenres,
-  ]
-    .map(encodeGenre)
-    .filter((genre, index, all) => all.indexOf(genre) === index)
-    .map((encoded) => {
-      const genre = decodeGenre(encoded);
-      const label = t(genreKey(genre.lv1));
-
-      return {
-        value: encoded,
-        label:
-          genre.lv2 == null ? label : t('guide.view.subGenre', { genre: label, lv2: genre.lv2 }),
-      };
-    });
 
   return (
     <>
@@ -169,21 +149,19 @@ export function ConditionsFields({ value, onChange, channelTypes, services }: Pr
           <Title order={3} size="h5">
             {t('rules.section.genres')}
           </Title>
-          <MultiSelect
+          <GenreMultiSelect
             label={t('rules.genres')}
             leftSection={<Shapes size={16} aria-hidden />}
-            data={genreOptions}
+            keep={[...value.genres, ...value.excludeGenres]}
             value={value.genres.map(encodeGenre)}
             onChange={(selected) => onChange({ genres: selected.map(decodeGenre) })}
-            clearable
           />
-          <MultiSelect
+          <GenreMultiSelect
             label={t('rules.excludeGenres')}
             leftSection={<Shapes size={16} aria-hidden />}
-            data={genreOptions}
+            keep={[...value.genres, ...value.excludeGenres]}
             value={value.excludeGenres.map(encodeGenre)}
             onChange={(selected) => onChange({ excludeGenres: selected.map(decodeGenre) })}
-            clearable
           />
         </Stack>
       </Card>

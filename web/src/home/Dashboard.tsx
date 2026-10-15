@@ -2,6 +2,7 @@ import {
   Alert,
   Anchor,
   Badge,
+  Box,
   Group,
   SegmentedControl,
   SimpleGrid,
@@ -19,7 +20,7 @@ import type { DashboardQuery } from './__generated__/DashboardQuery.graphql';
 import classes from './Dashboard.module.css';
 import { nowPlaying } from './nowPlaying';
 import { broadcastDay, dateOf } from '../guide/layout';
-import { ProgramTitle } from '../futon';
+import { ProgramTitle, toHalfWidth } from '../futon';
 import { NowPlayingCard } from '../guide/NowPlayingCard';
 import { ServiceLabel } from '../guide/ServiceLabel';
 
@@ -38,8 +39,8 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
 const maxUpcoming = 5;
 const upcomingFetch = 20;
 
-// recentRecordings は、ホームに出す最近の録画の数。広い画面で 1 段に並ぶ数にする。
-const recentRecordings = 4;
+// recentRecordings は、ホームのために読む最近の録画の数。並べる列の数によって、出す数を CSS で絞る (recentGrid)。
+const recentRecordings = 6;
 
 export type DashboardRange = { now: number; nowEnd: string; from: string; to: string };
 
@@ -223,13 +224,11 @@ export function Dashboard({ range }: { range: DashboardRange }) {
             {t('home.noReservations')}
           </Text>
         ) : (
-          <Stack gap={4}>
+          <Box className={classes.upcomingList}>
             {upcoming.map(({ node }) => (
               // 押すと、番組表のその日・その種別を開き、この予約の番組の詳細を開く。
-              <Group
+              <Box
                 key={node.id}
-                gap="xs"
-                wrap="nowrap"
                 className={classes.upcomingRow}
                 renderRoot={(props) => (
                   <Link
@@ -243,28 +242,42 @@ export function Dashboard({ range }: { range: DashboardRange }) {
                   />
                 )}
               >
-                {/* 日時は、番組名の頭が揃うよう、いちばん長い日時 (12/28(月) 00:00) が収まる幅に固定する。本文のフォントは数字の幅が揃う。 */}
-                <Text size="sm" c="dimmed" w="8.5em" style={{ flexShrink: 0 }}>
+                <Text size="sm" c="dimmed">
                   {dateTimeFormat.format(Date.parse(node.startAt))}
                 </Text>
-                <Text size="sm" truncate style={{ flex: 1, minWidth: 0 }}>
+                <Text size="sm" truncate>
                   <ProgramTitle name={node.name} />
                 </Text>
-                <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
-                  <ServiceLabel name={node.service.name} logoUrl={node.service.logoUrl} />
+                {/* バッジがない行でも、サービスを右端の列に置くよう、空の枠を残す。 */}
+                <span>
+                  {(node.assignment.state === 'CONFLICT' ||
+                    node.assignment.state === 'PARTIAL') && (
+                    <Badge size="xs" color="amber" variant="light">
+                      {t(
+                        node.assignment.state === 'CONFLICT'
+                          ? 'reservations.state.CONFLICT'
+                          : 'reservations.state.PARTIAL',
+                      )}
+                    </Badge>
+                  )}
+                </span>
+                {/* サービスの列は、長い名前でも番組名を潰さないよう、幅に上限を付けて省く。全部の名前は、ホバーで見せる。 */}
+                <Text
+                  size="xs"
+                  c="dimmed"
+                  truncate
+                  maw="14em"
+                  title={toHalfWidth(node.service.name)}
+                >
+                  <ServiceLabel
+                    name={node.service.name}
+                    logoUrl={node.service.logoUrl}
+                    logoOnlyNarrow
+                  />
                 </Text>
-                {(node.assignment.state === 'CONFLICT' || node.assignment.state === 'PARTIAL') && (
-                  <Badge size="xs" color="amber" variant="light">
-                    {t(
-                      node.assignment.state === 'CONFLICT'
-                        ? 'reservations.state.CONFLICT'
-                        : 'reservations.state.PARTIAL',
-                    )}
-                  </Badge>
-                )}
-              </Group>
+              </Box>
             ))}
-          </Stack>
+          </Box>
         )}
       </Stack>
 
@@ -282,7 +295,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
             {t('home.noRecordings')}
           </Text>
         ) : (
-          <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="xs">
+          <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="xs" className={classes.recentGrid}>
             {data.recordings.edges.map(({ node }) => (
               <RecordingCard key={node.id} recording={node} />
             ))}

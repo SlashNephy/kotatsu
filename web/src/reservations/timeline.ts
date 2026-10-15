@@ -1,4 +1,4 @@
-// 予約の一覧を、日ごとの時間軸に並べるための計算。
+// 予約の一覧を、日ごとに並べるための計算。
 
 const minute = 60_000;
 const day = 24 * 60 * minute;
@@ -21,22 +21,6 @@ export function groupByDay<T extends { startMs: number }>(items: readonly T[]): 
   }
 
   return [...groups.values()].sort((a, b) => a.from - b.from);
-}
-
-// Bar は、24 時間の軸の上の、予約の帯の位置と幅 (%)。
-export type Bar = { left: number; width: number };
-
-// minBarWidth は、短い予約でも見えるようにする、帯の最小の幅 (%)。
-const minBarWidth = 0.5;
-
-// timelineBar は、dayFrom から 24 時間の軸に、予約の帯を置く。日をまたぐ予約は、その日の終わりで切る。
-export function timelineBar(dayFrom: number, startAt: number, endAt: number): Bar {
-  const start = Math.max(startAt, dayFrom);
-  const end = Math.min(endAt, dayFrom + day);
-  const left = ((start - dayFrom) / day) * 100;
-  const width = Math.max(((end - start) / day) * 100, minBarWidth);
-
-  return { left, width: Math.min(width, 100 - left) };
 }
 
 // needsAttention は、録画が欠ける見込みで、利用者に知らせるべき状態かどうかを返す。

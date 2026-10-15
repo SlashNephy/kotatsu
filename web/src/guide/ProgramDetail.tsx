@@ -17,7 +17,7 @@ import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
-import { ErrorBoundary, ProgramTitle, toHalfWidth } from '../futon';
+import { ErrorBoundary, LinkifiedText, ProgramTitle, toHalfWidth } from '../futon';
 import { genreKey } from './genres';
 import type { ProgramDetailCancelMutation } from './__generated__/ProgramDetailCancelMutation.graphql';
 import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.graphql';
@@ -253,14 +253,18 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           {t('guide.detail.reserveError')}
         </Alert>
       )}
-      {program.description !== '' && <Text size="sm">{toHalfWidth(program.description)}</Text>}
+      {program.description !== '' && (
+        <Text size="sm">
+          <LinkifiedText text={toHalfWidth(program.description)} />
+        </Text>
+      )}
       {program.extended.map((item, index) => (
         <Stack key={index} gap={2}>
           <Text size="sm" fw={700}>
             {toHalfWidth(item.heading)}
           </Text>
           <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
-            {toHalfWidth(item.text)}
+            <LinkifiedText text={toHalfWidth(item.text)} />
           </Text>
         </Stack>
       ))}

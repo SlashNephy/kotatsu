@@ -1,7 +1,7 @@
-import { Alert, Anchor, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Card, Group, Stack, Text, Title, VisuallyHidden } from '@mantine/core';
 import { BellOff } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Suspense, useState, type KeyboardEvent } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
@@ -10,7 +10,6 @@ import { splitMessage } from '../notifications/message';
 import { isUnauthenticated } from '../relay/environment';
 import type { notificationsListQuery } from './__generated__/notificationsListQuery.graphql';
 import type { notificationsMarkAllMutation } from './__generated__/notificationsMarkAllMutation.graphql';
-import type { notificationsMarkMutation } from './__generated__/notificationsMarkMutation.graphql';
 
 export const Route = createFileRoute('/notifications')({
   component: NotificationsPage,
@@ -26,7 +25,7 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
   timeZone: 'Asia/Tokyo',
 });
 
-// NotificationsPage は、画面内の通知の一覧 (設計書 6.2)。
+// NotificationsPage は、画面内の通知の一覧 (設計書 6.2)。開くと、その時点の通知をすべて既読にする。
 function NotificationsPage() {
   const { t } = useTranslation();
 
@@ -62,10 +61,10 @@ function NotificationsPage() {
 // pageSize は、一度に出す通知の数。
 const pageSize = 100;
 
+// NotificationList は、通知の一覧。1 件ずつ既読にする手間を省くため、読み込んだら、未読の通知をすべて既読にする。
+// 開いたときに未読だった通知は、既読にした後に一覧を読み直しても、この画面にいる間は新着として示す。
 function NotificationList() {
   const { t } = useTranslation();
-  // fetchKey を変えると、読み直す。既読にした後に、一覧を新しくするのに使う。
-  const [fetchKey, setFetchKey] = useState(0);
   const data = useLazyLoadQuery<notificationsListQuery>(
     graphql`
       query notificationsListQuery($first: Int!) {
@@ -85,43 +84,42 @@ function NotificationList() {
       }
     `,
     { first: pageSize },
-    { fetchKey, fetchPolicy: 'store-and-network' },
+    // 開くたびに既読にするので、前に開いたときの一覧を使い回さず、取り直してから出す。
+    { fetchPolicy: 'network-only' },
   );
-  const [markRead] = useMutation<notificationsMarkMutation>(graphql`
-    mutation notificationsMarkMutation($ids: [ID!]!) {
-      markNotificationsRead(ids: $ids)
-    }
-  `);
-  const [markAll, markingAll] = useMutation<notificationsMarkAllMutation>(graphql`
+  const [markAll] = useMutation<notificationsMarkAllMutation>(graphql`
     mutation notificationsMarkAllMutation {
       markAllNotificationsRead
     }
   `);
   const [error, setError] = useState(false);
-  const refresh = () => setFetchKey((key) => key + 1);
-  const read = (id: string) =>
-    markRead({ variables: { ids: [id] }, onCompleted: refresh, onError: () => setError(true) });
+  // marked は、開いたときの既読の処理を済ませたか。開発中の StrictMode で効果が二度走っても、一度だけ送る。
+  const marked = useRef(false);
   // 未読の数は、読み込んだ分だけでなく、すべての通知について数えたものを使う。
   const unread = data.unreadNotificationCount;
+  // newIds は、開いたときに未読だった通知。既読にすると、変更の通知で一覧が読み直され、readAt が埋まるので、最初の分を覚えておく。
+  const [newIds] = useState(
+    () =>
+      new Set(
+        data.notifications.edges
+          .filter(({ node }) => node.readAt == null)
+          .map(({ node }) => node.id),
+      ),
+  );
+
+  // 既読にするのは、開いたときの 1 回だけにする。開いている間に届いた通知は、次に開くまで未読のまま残す。
+  useEffect(() => {
+    if (marked.current) {
+      return;
+    }
+    marked.current = true;
+    if (unread > 0) {
+      markAll({ variables: {}, onError: () => setError(true) });
+    }
+  }, [markAll, unread]);
 
   return (
     <Stack gap="xs">
-      <Group justify="space-between">
-        <Text size="sm" c="dimmed">
-          {t('notifications.unread', { count: unread })}
-        </Text>
-        <Button
-          size="compact-sm"
-          variant="default"
-          disabled={unread === 0}
-          loading={markingAll}
-          onClick={() =>
-            markAll({ variables: {}, onCompleted: refresh, onError: () => setError(true) })
-          }
-        >
-          {t('notifications.markAll')}
-        </Button>
-      </Group>
       {error && (
         <Alert color="red" role="alert">
           {t('notifications.markError')}
@@ -135,36 +133,23 @@ function NotificationList() {
         />
       ) : (
         data.notifications.edges.map(({ node }) => {
-          const isUnread = node.readAt == null;
+          // 開いている間に届いた通知は、まだ未読なので、新着として示す。
+          const isNew = newIds.has(node.id) || node.readAt == null;
 
           return (
-            <Card
-              key={node.id}
-              withBorder
-              padding="xs"
-              data-unread={isUnread}
-              // 未読の通知は、押すか、Enter かスペースで、既読にする。
-              role={isUnread ? 'button' : undefined}
-              tabIndex={isUnread ? 0 : undefined}
-              onClick={isUnread ? () => read(node.id) : undefined}
-              onKeyDown={
-                isUnread
-                  ? (event: KeyboardEvent<HTMLDivElement>) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        read(node.id);
-                      }
-                    }
-                  : undefined
-              }
-              style={{ cursor: isUnread ? 'pointer' : undefined }}
-            >
+            <Card key={node.id} withBorder padding="xs" data-new={isNew}>
               <Group gap="xs" wrap="nowrap" align="flex-start">
-                <Text size="xs" c={isUnread ? 'mikan' : 'dimmed'} style={{ flexShrink: 0 }}>
-                  {isUnread ? '●' : '○'}
+                <Text
+                  size="xs"
+                  c={isNew ? 'mikan' : 'dimmed'}
+                  aria-hidden
+                  style={{ flexShrink: 0 }}
+                >
+                  {isNew ? '●' : '○'}
                 </Text>
                 <Stack gap={2}>
-                  <Text size="sm" fw={isUnread ? 600 : undefined}>
+                  <Text size="sm" fw={isNew ? 600 : undefined}>
+                    {isNew && <VisuallyHidden>{t('notifications.new')}</VisuallyHidden>}
                     <NotificationMessage message={node.message} payload={node.payload} />
                   </Text>
                   <Text size="xs" c="dimmed">

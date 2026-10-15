@@ -7,5 +7,6 @@ export { PageLoader } from './PageLoader';
 export { PasswordStrength } from './PasswordStrength';
 export { formatBytes } from './format';
 export { toHalfWidth } from './halfWidth';
+export { LinkifiedText } from './LinkifiedText';
 export { splitProgramMarks, type ProgramMarks } from './programMarks';
 export { ProgramMarkBadges, ProgramTitle } from './ProgramMarks';

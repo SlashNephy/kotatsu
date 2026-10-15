@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<dfd92e79c6742fd84179f6add5fc3ebe>>
+ * @generated SignedSource<<3b7326e77e5573e7aee7250f742ffd73>>
  * @lightSyntaxTransform
  */
 
@@ -32,6 +32,9 @@ export type reservationsQuery$data = {
         readonly kind: ReservationKind;
         readonly name: string;
         readonly service: {
+          readonly channelType: {
+            readonly type: string;
+          };
           readonly logoUrl: string | null | undefined;
           readonly name: string;
         };
@@ -164,6 +167,24 @@ v13 = {
 v14 = {
   "alias": null,
   "args": null,
+  "concreteType": "ChannelType",
+  "kind": "LinkedField",
+  "name": "channelType",
+  "plural": false,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "type",
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v15 = {
+  "alias": null,
+  "args": null,
   "concreteType": "ReservationAssignment",
   "kind": "LinkedField",
   "name": "assignment",
@@ -186,7 +207,7 @@ v14 = {
   ],
   "storageKey": null
 },
-v15 = {
+v16 = {
   "alias": null,
   "args": null,
   "concreteType": "PageInfo",
@@ -275,18 +296,19 @@ return {
                     "plural": false,
                     "selections": [
                       (v9/*:: as any*/),
-                      (v13/*:: as any*/)
+                      (v13/*:: as any*/),
+                      (v14/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v14/*:: as any*/)
+                  (v15/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v15/*:: as any*/)
+          (v16/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -359,34 +381,35 @@ return {
                     "selections": [
                       (v9/*:: as any*/),
                       (v13/*:: as any*/),
+                      (v14/*:: as any*/),
                       (v7/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v14/*:: as any*/)
+                  (v15/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v15/*:: as any*/)
+          (v16/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "323f0a20386808bc880de33761fc1a8c",
+    "cacheID": "3a94db4132763a400ae06e9ce8a923ca",
     "id": null,
     "metadata": {},
     "name": "reservationsQuery",
     "operationKind": "query",
-    "text": "query reservationsQuery(\n  $from: Time!\n  $to: Time!\n  $states: [AssignmentState!]\n  $first: Int!\n  $after: String\n) {\n  viewer {\n    role\n    id\n  }\n  reservations(from: $from, to: $to, states: $states, first: $first, after: $after) {\n    edges {\n      node {\n        id\n        kind\n        name\n        startAt\n        endAt\n        enabled\n        service {\n          name\n          logoUrl\n          id\n        }\n        assignment {\n          state\n          tuner\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
+    "text": "query reservationsQuery(\n  $from: Time!\n  $to: Time!\n  $states: [AssignmentState!]\n  $first: Int!\n  $after: String\n) {\n  viewer {\n    role\n    id\n  }\n  reservations(from: $from, to: $to, states: $states, first: $first, after: $after) {\n    edges {\n      node {\n        id\n        kind\n        name\n        startAt\n        endAt\n        enabled\n        service {\n          name\n          logoUrl\n          channelType {\n            type\n          }\n          id\n        }\n        assignment {\n          state\n          tuner\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "f1de1cafc454daf8b3ace09d8d0c8bdf";
+(node as any).hash = "f8c47518c51af398806d7e0be66b8d8d";
 
 export default node;
