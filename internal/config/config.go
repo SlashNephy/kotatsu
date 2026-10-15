@@ -47,11 +47,21 @@ type Server struct {
 	// TrustedProxies は、X-Forwarded-For などを信頼するリバースプロキシのネットワーク (CIDR か IP アドレス)。
 	// ここに含まれない送信元から X-Forwarded-For が届いたら、設定方法を案内するエラーを返す。
 	TrustedProxies []string `yaml:"trusted_proxies"`
+	// ClientIPHeader は、信頼済みのプロキシから届いたリクエストで、送信元を読むヘッダー (X-Forwarded-For か X-Real-IP)。
+	// X-Real-IP にすると、X-Forwarded-For を読まない。プロキシが X-Forwarded-For を設定し直さないと、送信元が書いた値が届くからである。
+	ClientIPHeader string `yaml:"client_ip_header"`
 	// AdvertiseHost は、インスタンスの登録簿に載せる、ほかのインスタンスからこのインスタンスに届くホスト (設計書 1.2)。
 	// 空なら、待ち受けのホストを使い、全アドレスで待ち受けるならホスト名を使う。
 	// Kubernetes では、ホスト名で Pod に届かないので、Pod の IP を渡す。
 	AdvertiseHost string `yaml:"advertise_host"`
 }
+
+const (
+	// ClientIPHeaderXForwardedFor は、X-Forwarded-For から送信元を読む。無ければ X-Real-IP を読む。
+	ClientIPHeaderXForwardedFor = "X-Forwarded-For"
+	// ClientIPHeaderXRealIP は、X-Real-IP だけから送信元を読む。
+	ClientIPHeaderXRealIP = "X-Real-IP"
+)
 
 // DefaultAllowedNetworks は、接続を受け付ける送信元の既定値 (設計書 9.5)。
 // RFC 1918 のアドレス、ループバック、IPv6 のユニークローカルアドレスとリンクローカルアドレス、Tailscale が使う 100.64.0.0/10。
@@ -218,6 +228,7 @@ func Default() *Config {
 			AdvertiseHost:   "",
 			AllowedNetworks: DefaultAllowedNetworks(),
 			TrustedProxies:  []string{},
+			ClientIPHeader:  ClientIPHeaderXForwardedFor,
 		},
 		Metrics: Metrics{
 			Listen: ":9090",
@@ -259,18 +270,28 @@ func Default() *Config {
 	}
 }
 
-// validate は値の形式を検査する。必須の項目の検査は読み込みの段階で済ませている。
-func (c *Config) validate() error {
+// validate は server の値の形式を検査する。
+func (s *Server) validate() []error {
 	errs := []error{}
-	if err := validateListen(c.Server.Listen); err != nil {
+	if err := validateListen(s.Listen); err != nil {
 		errs = append(errs, fieldError("server.listen", err))
 	}
-	if err := validateNetworks(c.Server.AllowedNetworks); err != nil {
+	if err := validateNetworks(s.AllowedNetworks); err != nil {
 		errs = append(errs, fieldError("server.allowed_networks", err))
 	}
-	if err := validateNetworks(c.Server.TrustedProxies); err != nil {
+	if err := validateNetworks(s.TrustedProxies); err != nil {
 		errs = append(errs, fieldError("server.trusted_proxies", err))
 	}
+	if !slices.Contains([]string{ClientIPHeaderXForwardedFor, ClientIPHeaderXRealIP}, s.ClientIPHeader) {
+		errs = append(errs, fieldError("server.client_ip_header", errors.New("must be X-Forwarded-For or X-Real-IP")))
+	}
+
+	return errs
+}
+
+// validate は値の形式を検査する。必須の項目の検査は読み込みの段階で済ませている。
+func (c *Config) validate() error {
+	errs := c.Server.validate()
 	if err := validateListen(c.Metrics.Listen); err != nil {
 		errs = append(errs, fieldError("metrics.listen", err))
 	}

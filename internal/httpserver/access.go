@@ -64,7 +64,9 @@ func forwardingHeaders() []string {
 type AccessPolicy struct {
 	allowed []netip.Prefix
 	trusted []netip.Prefix
-	logger  *slog.Logger
+	// clientIPHeader は、信頼済みのプロキシから届いたリクエストで、送信元を読むヘッダー。
+	clientIPHeader string
+	logger         *slog.Logger
 }
 
 // NewAccessPolicy は、設定から AccessPolicy を作る。
@@ -78,7 +80,7 @@ func NewAccessPolicy(cfg *config.Server, logger *slog.Logger) (*AccessPolicy, er
 		return nil, fmt.Errorf("invalid server.trusted_proxies: %w", err)
 	}
 
-	return &AccessPolicy{allowed: allowed, trusted: trusted, logger: logger}, nil
+	return &AccessPolicy{allowed: allowed, trusted: trusted, clientIPHeader: cfg.ClientIPHeader, logger: logger}, nil
 }
 
 // Middleware は、送信元を判定して context に入れ、許可していない送信元からのリクエストを拒否するミドルウェアを返す。
@@ -135,7 +137,17 @@ func (p *AccessPolicy) isTrusted(addr netip.Addr) bool {
 // 左側は送信元が自由に書けるので、信頼済みのプロキシが足した右側だけを信じる。
 // X-Forwarded-For が無ければ X-Real-IP を使う。どちらも無ければ、送信元が分からないので拒否する。
 // プロキシ自身のアドレスで判定すると、プロキシのプライベートアドレスで接続元の制限をすり抜けてしまうからである。
+// server.client_ip_header が X-Real-IP なら、X-Forwarded-For は読まず、X-Real-IP だけを使う。
 func (p *AccessPolicy) applyForwarded(client *Client, header http.Header) error {
+	if p.clientIPHeader == config.ClientIPHeaderXRealIP {
+		if err := applyRealIP(client, header); err != nil {
+			return err
+		}
+		applyForwardedOrigin(client, header)
+
+		return nil
+	}
+
 	values := header.Values("X-Forwarded-For")
 	if len(values) == 0 {
 		if realIP := header.Get("X-Real-IP"); realIP != "" {
@@ -164,6 +176,29 @@ func (p *AccessPolicy) applyForwarded(client *Client, header http.Header) error 
 		}
 	}
 
+	applyForwardedOrigin(client, header)
+
+	return nil
+}
+
+// applyRealIP は、信頼済みのプロキシが X-Real-IP に書いた送信元を client に反映する。
+func applyRealIP(client *Client, header http.Header) error {
+	realIP := header.Get("X-Real-IP")
+	if realIP == "" {
+		return fmt.Errorf("the request from the trusted proxy %s has no X-Real-IP; "+
+			"configure the proxy to send X-Real-IP, or set server.client_ip_header to X-Forwarded-For", client.IP)
+	}
+	addr, err := parseHop(strings.TrimSpace(realIP))
+	if err != nil {
+		return fmt.Errorf("invalid X-Real-IP: %w", err)
+	}
+	client.IP = addr
+
+	return nil
+}
+
+// applyForwardedOrigin は、信頼済みのプロキシが伝えた scheme とホストを client に反映する。
+func applyForwardedOrigin(client *Client, header http.Header) {
 	// 複数のプロキシを経由すると、プロキシごとの値がカンマで並ぶ。最初の値が、送信元に最も近いプロキシの見たものである。
 	if proto := firstValue(header.Get("X-Forwarded-Proto")); proto != "" {
 		client.Secure = strings.EqualFold(proto, "https")
@@ -171,8 +206,6 @@ func (p *AccessPolicy) applyForwarded(client *Client, header http.Header) error 
 	if host := firstValue(header.Get("X-Forwarded-Host")); host != "" {
 		client.Host = host
 	}
-
-	return nil
 }
 
 // parseHop は、X-Forwarded-For の要素を IP アドレスにする。ポートや角括弧が付いていても読む。

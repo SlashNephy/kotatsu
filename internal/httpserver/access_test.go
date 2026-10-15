@@ -21,6 +21,7 @@ const (
 	hostName   = "kotatsu.local:8080"
 
 	headerXFF   = "X-Forwarded-For"
+	headerXRI   = "X-Real-IP"
 	headerXFH   = "X-Forwarded-Host"
 	headerXFP   = "X-Forwarded-Proto"
 	schemeHTTPS = "https"
@@ -52,6 +53,8 @@ func TestAccessPolicy(t *testing.T) {
 		wantOrigin string
 		// wantBody は、拒否したときの応答に含まれるべき案内。
 		wantBody string
+		// clientIPHeader は、server.client_ip_header。空なら既定値を使う。
+		clientIPHeader string
 	}{
 		{name: "private address", remoteAddr: lanAddr, wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "http://" + hostName},
 		{name: "loopback", remoteAddr: "127.0.0.1", wantStatus: http.StatusOK, wantIP: "127.0.0.1", wantOrigin: "http://" + hostName},
@@ -103,18 +106,54 @@ func TestAccessPolicy(t *testing.T) {
 			wantStatus: http.StatusBadRequest, wantBody: "the request from the trusted proxy 10.0.0.2 has neither X-Forwarded-For nor X-Real-IP",
 		},
 		{
+			name: "X-Forwarded-For wins over X-Real-IP by default", remoteAddr: trustedProxy,
+			headers:    map[string]string{headerXFF: lanAddr, headerXRI: publicAddr},
+			wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "http://" + hostName,
+		},
+		{
+			name: "X-Real-IP mode ignores X-Forwarded-For written by the client", remoteAddr: trustedProxy,
+			clientIPHeader: headerXRI, headers: map[string]string{headerXFF: lanAddr, headerXRI: publicAddr},
+			wantStatus: http.StatusForbidden, wantBody: publicRejected,
+		},
+		{
+			name: "X-Real-IP mode", remoteAddr: trustedProxy,
+			clientIPHeader: headerXRI, headers: map[string]string{headerXFF: publicAddr, headerXRI: lanAddr},
+			wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "http://" + hostName,
+		},
+		{
+			name: "X-Real-IP mode applies the forwarded origin", remoteAddr: trustedProxy,
+			clientIPHeader: headerXRI, headers: map[string]string{headerXRI: lanAddr, headerXFP: schemeHTTPS, headerXFH: proxiedHost},
+			wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "https://" + proxiedHost,
+		},
+		{
+			name: "X-Real-IP mode without X-Real-IP is rejected", remoteAddr: trustedProxy,
+			clientIPHeader: headerXRI, headers: map[string]string{headerXFF: lanAddr},
+			wantStatus: http.StatusBadRequest, wantBody: "the request from the trusted proxy 10.0.0.2 has no X-Real-IP",
+		},
+		{
+			name: "invalid X-Real-IP", remoteAddr: trustedProxy,
+			clientIPHeader: headerXRI, headers: map[string]string{headerXRI: "unknown"},
+			wantStatus: http.StatusBadRequest, wantBody: `invalid X-Real-IP: "unknown" is not an IP address`,
+		},
+		{
 			name: "invalid X-Forwarded-For", remoteAddr: trustedProxy,
 			headers: map[string]string{headerXFF: "unknown"}, wantStatus: http.StatusBadRequest, wantBody: `invalid X-Forwarded-For: "unknown" is not an IP address`,
 		},
 	}
-	policy, err := httpserver.NewAccessPolicy(&config.Server{
-		Listen: ":8080", AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
-	}, slog.New(slog.DiscardHandler))
-	require.NoError(t, err)
-	handler := policy.Middleware(clientEcho())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			clientIPHeader := tt.clientIPHeader
+			if clientIPHeader == "" {
+				clientIPHeader = config.Default().Server.ClientIPHeader
+			}
+			policy, err := httpserver.NewAccessPolicy(&config.Server{
+				Listen: ":8080", AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
+				ClientIPHeader: clientIPHeader,
+			}, slog.New(slog.DiscardHandler))
+			require.NoError(t, err)
+			handler := policy.Middleware(clientEcho())
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+hostName+"/", nil)
 			req.RemoteAddr = tt.remoteAddr + ":51234"
