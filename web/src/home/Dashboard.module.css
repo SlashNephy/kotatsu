@@ -30,9 +30,21 @@
   }
 }
 
+/* これからの予約の一覧。日時、番組名、状態のバッジ、サービスの列を、行をまたいで揃える。 */
+/* 日時とサービスの列は、いちばん長いものに合わせ、番組名の列が残りを使う。 */
+.upcomingList {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 4px var(--mantine-spacing-xs);
+}
+
 /* これからの予約の行。押すと、番組表でその番組の詳細を開く。押せると分かるよう、ホバーで背景を付ける。 */
 /* 背景を付けても文字の位置が動かないよう、内側の余白の分だけ外へ広げる。 */
 .upcomingRow {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
   margin-inline: calc(-1 * var(--mantine-spacing-xs));
   padding: 2px var(--mantine-spacing-xs);
   border-radius: var(--mantine-radius-sm);

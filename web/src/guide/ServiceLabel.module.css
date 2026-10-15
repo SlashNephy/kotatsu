@@ -1,0 +1,17 @@
+/* logoOnlyNarrow のとき、狭い画面では、ロゴだけを見せる。 */
+/* 名前は、見えなくしても読み上げには残す。ロゴの代替テキストは空なので、名前がサービスを伝える。 */
+@media (max-width: 47.99375em) {
+  .narrowHiddenName {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* 名前を隠すので、ロゴの後ろの空きをなくす。 */
+  .narrowLogo {
+    --service-label-gap: 0;
+  }
+}
