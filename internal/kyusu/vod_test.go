@@ -118,6 +118,36 @@ func (f *vodFixture) recording(t *testing.T, state string, data []byte) uuid.UUI
 	return recordingID
 }
 
+// longRecording は、索引だけを作り込んだ、duration の長さの録画を作る。I フレームは 0.5 秒ごとにある。
+// 中身は TS として正しくないので、入力を読み捨てる偽のエンコーダーと使う。
+func (f *vodFixture) longRecording(t *testing.T, duration time.Duration) uuid.UUID {
+	t.Helper()
+
+	recordingID := id.New()
+	startAt := f.clock.Now().Add(-time.Hour)
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+		state, protected, recorded_from, created_at, updated_at)
+		VALUES ($1, NULL, $2, NULL, '録画', '', $3, $3, 'completed', false, $3, $3, $3)`, recordingID, serviceID, startAt)
+	require.NoError(t, err)
+	name := recordingID.String() + ".m2ts"
+	keyframes := int(duration / (500 * time.Millisecond))
+	require.NoError(t, os.WriteFile(filepath.Join(f.dir, name), make([]byte, keyframes*ts.PacketSize), 0o600))
+	var index bytes.Buffer
+	writer, err := ts.NewIndexWriter(&index)
+	require.NoError(t, err)
+	for i := range keyframes {
+		require.NoError(t, writer.Append(ts.IndexEntry{Offset: int64(i * ts.PacketSize), PTS: int64(i * ts.PTSClock / 2)}))
+	}
+	require.NoError(t, os.MkdirAll(filepath.Join(f.dir, name+".kotatsu"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(f.dir, kago.IndexPath(name)), index.Bytes(), 0o600))
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+		VALUES ($1, $2, 'segment', $3, $4, 0, $5, $6, $5), ($7, $2, 'index', $3, $8, 0, $5, $6, $5)`,
+		id.New(), recordingID, poolID, name, startAt, startAt.Add(duration), id.New(), kago.IndexPath(name))
+	require.NoError(t, err)
+
+	return recordingID
+}
+
 // get は、トークンを付けて、録画を 360p にした file を取得する。
 func (f *vodFixture) get(t *testing.T, recordingID uuid.UUID, file string) (int, []byte) {
 	t.Helper()
@@ -175,11 +205,14 @@ func TestVODPlaylist(t *testing.T) {
 }
 
 // fakeVODEncoder は、入力を読み捨てながら、StartNumber 番目から 20 ミリ秒ごとにセグメントを書き、止められるまで続ける。
-// 起動した番号と、動いている数を数える。
+// 起動した番号と、動いている数を数える。startup を与えると、起動してから最初のセグメントを書くまで、その時間だけ待つ。
+// interval を与えると、20 ミリ秒の代わりに、その間隔で書く。
 type fakeVODEncoder struct {
-	starts  atomic.Value
-	runs    atomic.Int32
-	running atomic.Int32
+	startup  time.Duration
+	interval time.Duration
+	starts   atomic.Value
+	runs     atomic.Int32
+	running  atomic.Int32
 }
 
 func (e *fakeVODEncoder) RunVOD(ctx context.Context, src io.Reader, _ *kyusu.Preset, _ kyusu.Audio, dir string, opts *kyusu.RunOptions) error {
@@ -191,7 +224,16 @@ func (e *fakeVODEncoder) RunVOD(ctx context.Context, src io.Reader, _ *kyusu.Pre
 	go func() {
 		_, _ = io.Copy(io.Discard, src)
 	}()
-	ticker := time.NewTicker(20 * time.Millisecond)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(e.startup):
+	}
+	interval := e.interval
+	if interval == 0 {
+		interval = 20 * time.Millisecond
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for k := opts.StartNumber; ; k++ {
 		if err := writeFileAtomically(filepath.Join(dir, fmt.Sprintf("segment%05d.ts", k)), []byte(strconv.Itoa(k))); err != nil {
@@ -208,7 +250,7 @@ func (e *fakeVODEncoder) RunVOD(ctx context.Context, src io.Reader, _ *kyusu.Pre
 var _ kyusu.VODEncoder = new(fakeVODEncoder)
 
 // TestVODRestartsEncoder は、まだ書いていないセグメントを要求されたら、動いているエンコーダーがすぐ後に書くものなら待ち、
-// 手前のものなら、その番号からエンコーダーを起動し直すことを確かめる。エンコーダーは、セッションに 1 つしか動かさない。
+// 手前のものなら、その番号からエンコーダーを起動することを確かめる。後ろのエンコーダーが前のエンコーダーに追いついたら、後ろを止める。
 // 録画の外のセグメントには、エンコーダーを起動し直さずに 404 を返す。
 func TestVODRestartsEncoder(t *testing.T) {
 	t.Parallel()
@@ -241,7 +283,12 @@ func TestVODRestartsEncoder(t *testing.T) {
 		}
 		assert.Equal(t, tt.wantStarts, encoder.starts.Load(), "segment %d", tt.segment)
 	}
-	assert.LessOrEqual(t, encoder.running.Load(), int32(1), "only one encoder runs for a session")
+	// 0 番目から起動したエンコーダーは、2 番目から書いていたエンコーダーに追いつくので、止める。
+	assert.Eventually(t, func() bool {
+		f.vod.Reap(f.clock.Now())
+
+		return encoder.running.Load() == 1
+	}, 5*time.Second, 10*time.Millisecond)
 
 	// セグメントへのリクエストが途絶えたら、止めて消す。
 	f.vod.Reap(f.clock.Now().Add(time.Minute))
@@ -250,6 +297,99 @@ func TestVODRestartsEncoder(t *testing.T) {
 
 		return err == nil && len(entries) == 0 && encoder.running.Load() == 0
 	}, 5*time.Second, 10*time.Millisecond)
+}
+
+// TestVODServesDistantViewers は、同じ録画を同じ画質と音声で、離れた位置で見る 2 人に、それぞれのエンコーダーで
+// セグメントを返すことを確かめる (#531)。1 つのエンコーダーを奪い合うと、互いに起動し直し合って、どちらも書き終わらない。
+func TestVODServesDistantViewers(t *testing.T) {
+	t.Parallel()
+
+	// 実際の FFmpeg のように、起動してから最初のセグメントを書くまでに時間がかかる。
+	encoder := &fakeVODEncoder{startup: 200 * time.Millisecond}
+	f := newVODFixture(t, encoder)
+	recordingID := f.longRecording(t, time.Minute)
+
+	statuses := make(chan int, 6)
+	view := func(from int) {
+		for k := from; k < from+3; k++ {
+			status, _ := f.get(t, recordingID, fmt.Sprintf("segment%05d.ts", k))
+			statuses <- status
+		}
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		view(20)
+	}()
+	view(0)
+	<-done
+	close(statuses)
+	for status := range statuses {
+		assert.Equal(t, http.StatusOK, status)
+	}
+	starts, _ := encoder.starts.Load().([]int)
+	slices.Sort(starts)
+	assert.Equal(t, []int{0, 20}, starts)
+
+	// 前のエンコーダーが書いた位置に、後ろのエンコーダーが追いついたら、後ろを止める。
+	assert.Eventually(t, func() bool {
+		f.vod.Reap(f.clock.Now())
+
+		return encoder.running.Load() == 1
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+// TestVODStopsAbandonedEncoder は、片方の視聴者が離れたら、ほかの視聴者がセッションを使い続けていても、
+// 離れた視聴者のエンコーダーを止めることを確かめる (#531)。
+func TestVODStopsAbandonedEncoder(t *testing.T) {
+	t.Parallel()
+
+	// 後ろのエンコーダーが前に追いつかないよう、セグメントをゆっくり書く。
+	encoder := &fakeVODEncoder{interval: time.Second}
+	f := newVODFixture(t, encoder)
+	recordingID := f.longRecording(t, time.Minute)
+	for _, segment := range []int{0, 20} {
+		status, _ := f.get(t, recordingID, fmt.Sprintf("segment%05d.ts", segment))
+		require.Equal(t, http.StatusOK, status)
+	}
+	require.Equal(t, int32(2), encoder.running.Load())
+
+	// 20 番目から見る視聴者だけが、見続ける。
+	f.clock.Advance(6 * time.Second)
+	status, _ := f.get(t, recordingID, "segment00021.ts")
+	require.Equal(t, http.StatusOK, status)
+	f.clock.Advance(6 * time.Second)
+	f.vod.Reap(f.clock.Now())
+	assert.Eventually(t, func() bool { return encoder.running.Load() == 1 }, 5*time.Second, 10*time.Millisecond)
+	assert.Equal(t, 1, f.vod.Sessions())
+}
+
+// TestVODKeepsEncoderWhileViewerPlaysWrittenSegments は、エンコーダーが先に書いたセグメントを視聴者が見ている間は、
+// そのエンコーダーを止めないことを確かめる (#531)。止めると、書いた分を見終えたところで起動し直し、再生が止まる。
+func TestVODKeepsEncoderWhileViewerPlaysWrittenSegments(t *testing.T) {
+	t.Parallel()
+
+	encoder := new(fakeVODEncoder)
+	f := newVODFixture(t, encoder)
+	recordingID := f.longRecording(t, time.Minute)
+	status, _ := f.get(t, recordingID, "segment00000.ts")
+	require.Equal(t, http.StatusOK, status)
+	// エンコーダーは、視聴者より先に書き進める。
+	require.Eventually(t, func() bool {
+		entries, err := filepath.Glob(filepath.Join(f.workDir, "recordings", "*", "segment00010.ts"))
+
+		return err == nil && len(entries) == 1
+	}, 5*time.Second, 10*time.Millisecond)
+
+	// 視聴者は、書き終えたセグメントを 2 秒ごとに見続ける。
+	for segment := 1; segment <= 6; segment++ {
+		f.clock.Advance(2 * time.Second)
+		status, _ := f.get(t, recordingID, fmt.Sprintf("segment%05d.ts", segment))
+		require.Equal(t, http.StatusOK, status)
+		f.vod.Reap(f.clock.Now())
+	}
+	assert.Equal(t, int32(1), encoder.running.Load())
+	assert.Equal(t, []int{0}, encoder.starts.Load())
 }
 
 // TestVODErrors は、配信できない理由に応じた状態を返すことを確かめる。

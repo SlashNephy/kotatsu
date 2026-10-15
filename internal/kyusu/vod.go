@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,6 +35,9 @@ const (
 	// aheadSegments は、動いているエンコーダーが、次に書くセグメントからいくつ先までなら、起動し直さずに待つか。
 	// プレイヤーが先読みで少し先のセグメントを要求しても、起動し直さないようにする。
 	aheadSegments = 5
+	// maxVODRuns は、1 つのセッションで同時に動かすエンコーダーの数の上限。同じ録画を離れた位置で見る視聴者に、
+	// それぞれエンコーダーを動かす (#531)。超えたら、最も長く使われていないものを止める。
+	maxVODRuns = 2
 )
 
 var (
@@ -69,7 +73,11 @@ type vodRun struct {
 	start int
 	// startedAt は、起動した時刻。これより前に書かれたセグメントは、前の起動が書いたものとみなす。
 	startedAt time.Time
-	cancel    context.CancelFunc
+	// lastUsed は、このエンコーダーに書かせるセグメントを最後に要求された時刻。replaced は、ほかの視聴者のために止めたかどうか。
+	// どちらもセッションの runMu で守る。
+	lastUsed time.Time
+	replaced bool
+	cancel   context.CancelFunc
 	// done は、エンコーダーが止まったら閉じる。err は、閉じる前に書く。
 	done chan struct{}
 	err  error
@@ -79,9 +87,10 @@ type vodRun struct {
 type vodSession struct {
 	key vodKey
 	dir string
-	// runMu は run を守る。エンコーダーを止めて起動し直す間も、ほかのセッションへのリクエストを待たせないよう、セッションごとに持つ。
+	// runMu は runs を守る。エンコーダーを止めて起動し直す間も、ほかのセッションへのリクエストを待たせないよう、セッションごとに持つ。
 	runMu sync.Mutex
-	run   *vodRun
+	// runs は、動いているエンコーダー。離れた位置を見る視聴者ごとに、maxVODRuns まで持つ。
+	runs []*vodRun
 	// lastAccess は、VOD の mu で守る。
 	lastAccess time.Time
 }
@@ -89,9 +98,11 @@ type vodSession struct {
 // VOD は、録画の仮想 HLS を配信する (設計書 7.3)。
 //
 // プレイリストは、索引から、録画の始まりからの時間を 2 秒ずつ区切ったセグメントの一覧として先に作る。
-// まだ書いていないセグメントを要求されたら、その時刻の手前の I フレームからエンコーダーを起動し直す。
-// 動いているエンコーダーがすぐ後に書くセグメントなら、起動し直さずに待つ。
-// 書いたセグメントは消さないので、巻き戻しても書き直さない。セグメントへの要求が 10 秒途絶えたら、エンコーダーを止めて消す。
+// まだ書いていないセグメントを要求されたら、その時刻の手前の I フレームからエンコーダーを起動する。
+// 動いているエンコーダーがすぐ後に書くセグメントなら、起動せずに待つ。1 つのセッションには、離れた位置を見る視聴者のために、
+// エンコーダーを maxVODRuns まで動かす。後ろのエンコーダーが前のエンコーダーの書いた位置に追いついたら、後ろを止める。
+// 書いたセグメントは消さないので、巻き戻しても書き直さない。エンコーダーは、書かせるセグメントへの要求が 10 秒途絶えたら止める。
+// セッションへの要求が 10 秒途絶えたら、セッションを止めて消す。
 type VOD struct {
 	opener      RecordingOpener
 	encoder     VODEncoder
@@ -179,13 +190,27 @@ func (v *VOD) Handler(token *Token) http.Handler {
 func (v *VOD) reap(now time.Time) {
 	v.mu.Lock()
 	idle := []*vodSession{}
+	active := []*vodSession{}
 	for key, s := range v.sessions {
 		if now.Sub(s.lastAccess) > v.idleTimeout {
 			delete(v.sessions, key)
 			idle = append(idle, s)
+		} else {
+			active = append(active, s)
 		}
 	}
 	v.mu.Unlock()
+	// 視聴者が離れたか、ほかの位置へシークしたエンコーダーは、セッションが使われていても止める。
+	for _, s := range active {
+		s.runMu.Lock()
+		s.pruneLocked()
+		for _, run := range slices.Clone(s.runs) {
+			if now.Sub(run.lastUsed) > v.idleTimeout {
+				s.stopLocked(run)
+			}
+		}
+		s.runMu.Unlock()
+	}
 	for _, s := range idle {
 		v.logger.Info("stopping an idle recording session", slog.String("recording_id", s.key.recordingID.String()),
 			slog.String("preset", s.key.preset), slog.String("audio", s.key.audio.String()))
@@ -211,9 +236,10 @@ func (v *VOD) stopAll() {
 // close は、セッションのエンコーダーを止め、止まるのを待ってから、セグメントを消す。
 func (v *VOD) close(s *vodSession) {
 	s.runMu.Lock()
-	run := s.run
+	runs := s.runs
+	s.runs = []*vodRun{}
 	s.runMu.Unlock()
-	if run != nil {
+	for _, run := range runs {
 		run.cancel()
 		<-run.done
 	}
@@ -236,7 +262,7 @@ func (v *VOD) session(key vodKey) (*vodSession, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the session directory: %w", err)
 	}
-	s := &vodSession{key: key, dir: dir, runMu: sync.Mutex{}, run: nil, lastAccess: v.clock.Now()}
+	s := &vodSession{key: key, dir: dir, runMu: sync.Mutex{}, runs: []*vodRun{}, lastAccess: v.clock.Now()}
 	v.sessions[key] = s
 
 	return s, nil
@@ -385,6 +411,13 @@ func (v *VOD) awaitSegment(ctx context.Context, s *vodSession, preset *Preset, n
 	s.lastAccess = v.clock.Now()
 	v.mu.Unlock()
 	if _, err := os.Stat(path); err == nil {
+		// エンコーダーが先に書いたセグメントを見ている間は、そのエンコーダーを使っているとみなす。
+		s.runMu.Lock()
+		if run := s.coveringLocked(number); run != nil {
+			run.lastUsed = v.clock.Now()
+		}
+		s.runMu.Unlock()
+
 		return path, nil
 	}
 	// 録画の外のセグメントのために、エンコーダーを起動し直さない。
@@ -430,7 +463,7 @@ func (v *VOD) waitFor(ctx context.Context, s *vodSession, run *vodRun, path stri
 				return path, nil
 			}
 			s.runMu.Lock()
-			replaced := s.run != run
+			replaced := run.replaced
 			s.runMu.Unlock()
 			if replaced {
 				return "", errReplaced
@@ -447,30 +480,71 @@ func (v *VOD) waitFor(ctx context.Context, s *vodSession, run *vodRun, path stri
 	}
 }
 
-// ensureRun は、number 番目のセグメントを書くエンコーダーを返す。動いているエンコーダーが、次に書くセグメントから
-// aheadSegments 先までに number を書くなら、それを返す。そうでなければ、止めてから、number 番目から起動し直す。
+// ensureRun は、number 番目のセグメントを書くエンコーダーを返す。動いているエンコーダーのどれかが、次に書くセグメントから
+// aheadSegments 先までに number を書くなら、それを返す。そうでなければ、number 番目から起動する。
+// エンコーダーが maxVODRuns だけ動いていたら、最も長く使われていないものを止めてから起動する。
 func (v *VOD) ensureRun(ctx context.Context, s *vodSession, preset *Preset, number int) (*vodRun, error) {
 	s.runMu.Lock()
 	defer s.runMu.Unlock()
-	if run := s.run; run != nil {
-		select {
-		case <-run.done:
-		default:
-			next := nextSegment(s.dir, run.start, run.startedAt)
-			if number >= run.start && number <= next+aheadSegments {
-				return run, nil
-			}
-			run.cancel()
-			<-run.done
-		}
+	s.pruneLocked()
+	now := v.clock.Now()
+	if run := s.coveringLocked(number); run != nil {
+		run.lastUsed = now
+
+		return run, nil
+	}
+	if len(s.runs) >= maxVODRuns {
+		s.stopLocked(slices.MinFunc(s.runs, func(a, b *vodRun) int { return a.lastUsed.Compare(b.lastUsed) }))
 	}
 	run, err := v.start(ctx, s, preset, number)
 	if err != nil {
 		return nil, err
 	}
-	s.run = run
+	run.lastUsed = now
+	s.runs = append(s.runs, run)
 
 	return run, nil
+}
+
+// coveringLocked は、次に書くセグメントから aheadSegments 先までに number を書く (または書いた) エンコーダーのうち、
+// 最も後ろから書き始めたもの、つまり number に最も近いものを返す。なければ nil を返す。runMu を持って呼ぶ。
+func (s *vodSession) coveringLocked(number int) *vodRun {
+	var covering *vodRun
+	for _, run := range s.runs {
+		next := nextSegment(s.dir, run.start, run.startedAt)
+		if number >= run.start && number <= next+aheadSegments && (covering == nil || run.start > covering.start) {
+			covering = run
+		}
+	}
+
+	return covering
+}
+
+// pruneLocked は、止まったエンコーダーを runs から除き、前のエンコーダーが書いた位置に追いついた後ろのエンコーダーを止める。
+// 後ろのエンコーダーは、そこから先も前のエンコーダーと同じセグメントを書くだけだからである。runMu を持って呼ぶ。
+func (s *vodSession) pruneLocked() {
+	s.runs = slices.DeleteFunc(s.runs, func(run *vodRun) bool {
+		select {
+		case <-run.done:
+			return true
+		default:
+			return false
+		}
+	})
+	for _, behind := range slices.Clone(s.runs) {
+		next := nextSegment(s.dir, behind.start, behind.startedAt)
+		if slices.ContainsFunc(s.runs, func(ahead *vodRun) bool { return ahead.start > behind.start && ahead.start <= next }) {
+			s.stopLocked(behind)
+		}
+	}
+}
+
+// stopLocked は、ほかの視聴者のために run を止め、止まるのを待って、runs から除く。待っていた視聴者は、改めて書かせる。runMu を持って呼ぶ。
+func (s *vodSession) stopLocked(run *vodRun) {
+	run.replaced = true
+	run.cancel()
+	<-run.done
+	s.runs = slices.DeleteFunc(s.runs, func(r *vodRun) bool { return r == run })
 }
 
 // nextSegment は、start 番目から書いているエンコーダーが、次に書くセグメントの番号を返す。
@@ -486,6 +560,24 @@ func nextSegment(dir string, start int, since time.Time) int {
 	}
 }
 
+// fileClock は、dir のファイルシステムが今書いたファイルに付ける更新時刻を返す。
+// 更新時刻はカーネルの粗い時計で付くので、time.Now() と比べると、直後に書いたファイルが前に書いたように見えることがある。
+// 測れなければ time.Now() を返す。
+func fileClock(dir string) time.Time {
+	file, err := os.CreateTemp(dir, ".clock-")
+	if err != nil {
+		return time.Now()
+	}
+	defer os.Remove(file.Name())
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return time.Now()
+	}
+
+	return info.ModTime()
+}
+
 // start は、number 番目のセグメントの時刻の手前の I フレームから、録画を流してエンコーダーを起動する。
 // エンコーダーはリクエストより長く動くので、ctx の値だけを引き継ぎ、ctx が終わっても止めない。
 func (v *VOD) start(ctx context.Context, s *vodSession, preset *Preset, number int) (*vodRun, error) {
@@ -496,7 +588,7 @@ func (v *VOD) start(ctx context.Context, s *vodSession, preset *Preset, number i
 	at := time.Duration(number) * VODSegmentDuration
 	pos := recording.Seek(max(at-seekMargin, 0))
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	run := &vodRun{start: number, startedAt: time.Now(), cancel: cancel, done: make(chan struct{}), err: nil}
+	run := &vodRun{start: number, startedAt: fileClock(s.dir), lastUsed: time.Time{}, replaced: false, cancel: cancel, done: make(chan struct{}), err: nil}
 	reader, writer := io.Pipe()
 	go func() {
 		writer.CloseWithError(recording.Write(runCtx, writer, pos))
