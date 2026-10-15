@@ -324,16 +324,13 @@ func marginLoss(r *Reservation, p *placed) time.Duration {
 		return min(max(0, r.fullEnd().Sub(p.start)), r.EndMargin)
 	}
 	// r が後。前の p の終了マージンを先に削り、残りを r の開始マージンから削る。
+	// 録画が始まった予約も、終了マージンは譲る (#520)。
 	pTrimmable := max(0, p.end.Sub(later(p.reservation.EndAt, r.fullStart())))
-	if p.reservation.Recording {
-		// 録画が始まった予約は、マージンも削らない。
-		pTrimmable = 0
-	}
 
 	return min(max(0, p.end.Sub(r.fullStart())-pTrimmable), r.StartMargin)
 }
 
-// trim は、同じチューナーに置いた別のチャンネルの予約の区間が重ならないように削る。録画が始まった予約は削らない。
+// trim は、同じチューナーに置いた別のチャンネルの予約の区間が重ならないように削る。録画が始まった予約は、終了マージンだけを削る (#520)。
 //
 //  1. 本編どうしが重なるときは、後から置いた方 (優先度の低い方) の録画する時間を、相手の本編の手前か後ろまで削る。
 //  2. マージンが重なるときは、前の録画の終了マージンを先に削り、次に後の録画の開始マージンを削る。
@@ -370,9 +367,8 @@ func resolveCores(list []*placed) {
 			}
 			if loserIsB {
 				b.start = later(b.start, a.hardEnd())
-				if !a.reservation.Recording {
-					a.end = earlier(a.end, later(b.start, a.hardEnd()))
-				}
+				// 録画が始まった予約も、終了マージンは、残った相手の本編に譲る (#520)。
+				a.end = earlier(a.end, later(b.start, a.hardEnd()))
 			} else {
 				a.end = earlier(a.end, b.hardStart())
 				if !b.reservation.Recording {

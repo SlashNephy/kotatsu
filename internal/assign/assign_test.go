@@ -56,6 +56,12 @@ func startingLater(r *assign.Reservation, d time.Duration) *assign.Reservation {
 	return r
 }
 
+func endingLater(r *assign.Reservation, d time.Duration) *assign.Reservation {
+	r.EndAt = r.EndAt.Add(d)
+
+	return r
+}
+
 func onBS(r *assign.Reservation) *assign.Reservation {
 	r.ChannelType = typeBS
 
@@ -210,6 +216,23 @@ func TestAssign(t *testing.T) {
 			want: []*assign.Assignment{
 				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30)},
 				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(30), PlannedEnd: at(60).Add(margin)},
+			},
+		},
+		{
+			// チューナーを選ぶときも、録画中の予約が終了マージンを譲れることを見込む (#520)。
+			// チューナー 1 では録画中の A が終了マージンを譲るので、後の録画の開始マージンは削られない。
+			// チューナー 0 では C の終了マージンを譲っても 5 秒足りないので、チューナー 1 を選ぶ。
+			name: "a tuner with a recording reservation that can give its end margin is chosen",
+			reservations: []*assign.Reservation{
+				recordingOn(program(1, "27", 0, 30), 1),
+				endingLater(program(3, "25", 0, 30), 10*time.Second),
+				startingLater(program(2, "26", 30, 30), 20*time.Second),
+			},
+			tuners: grTuners(2),
+			want: []*assign.Assignment{
+				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 1, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(5 * time.Second)},
+				{ReservationID: reservationID(3), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(10*time.Second + margin)},
+				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 1, PlannedStart: at(30).Add(5 * time.Second), PlannedEnd: at(60).Add(margin)},
 			},
 		},
 		{
