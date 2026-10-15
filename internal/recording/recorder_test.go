@@ -728,9 +728,11 @@ func TestRecorderExtendsWhileEndIsUndecided(t *testing.T) {
 
 			// 決まった終わりとマージンの直前までは、録り続ける。
 			f.clock.Advance(stopsAt.Add(-time.Second).Sub(f.clock.Now()))
-			time.Sleep(100 * time.Millisecond)
-			got, _ := f.recording(t, reservationID)
-			require.Equal(t, string(recording.StateRecording), got.state)
+			require.Never(t, func() bool {
+				got, _ := f.recording(t, reservationID)
+
+				return got.state != string(recording.StateRecording)
+			}, time.Second, 10*time.Millisecond)
 
 			return stopsAt
 		}},
