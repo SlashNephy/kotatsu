@@ -23,24 +23,24 @@ func testNow() time.Time {
 	return time.Date(2026, 10, 10, 12, 10, 0, 0, time.UTC)
 }
 
-func migratedPool(t *testing.T) *pgxpool.Pool {
-	t.Helper()
+func migratedPool(tb testing.TB) *pgxpool.Pool {
+	tb.Helper()
 
-	pool, err := database.Open(t.Context(), databasetest.New(t))
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+	pool, err := database.Open(tb.Context(), databasetest.New(tb))
+	require.NoError(tb, err)
+	tb.Cleanup(pool.Close)
+	require.NoError(tb, database.Migrate(tb.Context(), slog.New(slog.DiscardHandler), pool))
 
 	return pool
 }
 
-func newUser(t *testing.T, pool *pgxpool.Pool) *audit.Actor {
-	t.Helper()
+func newUser(tb testing.TB, pool *pgxpool.Pool) *audit.Actor {
+	tb.Helper()
 
-	user, err := auth.NewUsers(clocktest.NewFake(testNow())).Create(t.Context(), pool, &auth.NewUser{
+	user, err := auth.NewUsers(clocktest.NewFake(testNow())).Create(tb.Context(), pool, &auth.NewUser{
 		Username: "kotatsu", DisplayName: "こたつ", Role: auth.RoleMember, PasswordHash: nil,
 	})
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	return audit.User(user.ID)
 }

@@ -31,3 +31,25 @@ func TestNormalize(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizeExtended(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		extended map[string]string
+		want     string
+	}{
+		{name: "no extended", extended: map[string]string{}, want: ""},
+		{name: "one heading", extended: map[string]string{"出演者": "ＡＢＣ　太郎"}, want: "出演者\nABC 太郎\n"},
+		// 見出しの順に並べる。上流の JSON のキーの順には頼らない。
+		{name: "headings in order", extended: map[string]string{"番組内容": "ｘ", "出演者": "ｙ"}, want: "出演者\ny\n番組内容\nx\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, epg.NormalizeExtended(tt.extended))
+		})
+	}
+}

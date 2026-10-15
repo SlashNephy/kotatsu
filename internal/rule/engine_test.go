@@ -47,26 +47,26 @@ type engineFixture struct {
 
 // newEngineFixture は、偽チューナーサーバーの EPG を 12:10 の時点で同期した DB を用意する。
 // こたつテスト1 の番組は、eventId 1 が 11:00 に始まり、30 分ごとに並ぶ。eventId 4 以降が、これから放送される番組である。
-func newEngineFixture(t *testing.T, extra ...*faketuner.Program) *engineFixture {
-	t.Helper()
+func newEngineFixture(tb testing.TB, extra ...*faketuner.Program) *engineFixture {
+	tb.Helper()
 
-	pool := migratedPool(t)
+	pool := migratedPool(tb)
 	options := faketuner.DefaultOptions(testNow(), nil)
 	options.Programs = append(options.Programs, extra...)
 	fake := faketuner.New(options)
 	server := httptest.NewServer(fake)
-	t.Cleanup(server.Close)
+	tb.Cleanup(server.Close)
 	client, err := mirakurun.New(&mirakurun.Options{URL: server.URL})
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	clk := clocktest.NewFake(testNow())
 	noGuard := func(context.Context, pgx.Tx) error { return nil }
 	reconciler := epg.NewReconciler(pool, client, clk, noGuard)
-	_, err = reconciler.SyncAll(t.Context())
-	require.NoError(t, err)
+	_, err = reconciler.SyncAll(tb.Context())
+	require.NoError(tb, err)
 
 	location, err := time.LoadLocation("Asia/Tokyo")
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	recorder := audit.NewRecorder(clk)
 	reservations := reserve.NewReservations(clk, recorder)
 
@@ -78,13 +78,13 @@ func newEngineFixture(t *testing.T, extra ...*faketuner.Program) *engineFixture 
 		rules:        rule.NewRules(clk, recorder),
 		reservations: reservations,
 		engine:       rule.NewEngine(pool, clk, location, func(context.Context, pgx.Tx) error { return nil }, reservations),
-		user:         newUser(t, pool),
+		user:         newUser(tb, pool),
 	}
 }
 
 // createRule は、こたつテスト1 の番組名が pattern に一致する番組を予約するルールを作る。
-func (f *engineFixture) createRule(t *testing.T, pattern string, modify func(in *rule.Input)) *rule.Rule {
-	t.Helper()
+func (f *engineFixture) createRule(tb testing.TB, pattern string, modify func(in *rule.Input)) *rule.Rule {
+	tb.Helper()
 
 	in := &rule.Input{
 		Name:    pattern,
@@ -104,17 +104,17 @@ func (f *engineFixture) createRule(t *testing.T, pattern string, modify func(in 
 	if modify != nil {
 		modify(in)
 	}
-	created, err := f.rules.Create(t.Context(), f.pool, f.user, in)
-	require.NoError(t, err)
+	created, err := f.rules.Create(tb.Context(), f.pool, f.user, in)
+	require.NoError(tb, err)
 
 	return created
 }
 
-func (f *engineFixture) run(t *testing.T) *rule.Result {
-	t.Helper()
+func (f *engineFixture) run(tb testing.TB) *rule.Result {
+	tb.Helper()
 
-	result, err := f.engine.Run(t.Context())
-	require.NoError(t, err)
+	result, err := f.engine.Run(tb.Context())
+	require.NoError(tb, err)
 
 	return result
 }
@@ -564,6 +564,43 @@ func TestEngineSkipsUnreadableRules(t *testing.T) {
 			require.Error(t, result.Skipped[unreadable.ID])
 			assert.Equal(t, map[int64]bool{5: true, 6: true}, f.reserved(t))
 			assert.Equal(t, []uuid.UUID{unreadable.ID}, f.linkedRules(t, 5))
+		})
+	}
+}
+
+// TestEngineMatchesNormalizedExtended は、詳細を、同期で正規化して持った列で照合することを確かめる (#530)。
+// 列を足す前に書いた番組 (NULL) は、上流の詳細から正規化し直して照合する。
+func TestEngineMatchesNormalizedExtended(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// update は、eventId 5 の番組の詳細を書き換える SQL。$1 はサービスの ID。
+		update string
+	}{
+		{
+			name:   "normalized column",
+			update: `UPDATE programs SET extended_normalized = '内容 ABC 特集' WHERE service_id = $1 AND event_id = 5`,
+		},
+		{
+			name:   "written before the column",
+			update: `UPDATE programs SET extended = '{"内容": "ＡＢＣ　特集"}', extended_normalized = NULL WHERE service_id = $1 AND event_id = 5`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newEngineFixture(t)
+			_, err := f.pool.Exec(t.Context(), tt.update, serviceID())
+			require.NoError(t, err)
+			f.createRule(t, "ABC 特集", func(in *rule.Input) {
+				in.Conditions.Keywords[0].Regexp = false
+				in.Conditions.Keywords[0].Fields = []match.Field{match.FieldExtended}
+			})
+
+			f.run(t)
+			assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
 		})
 	}
 }

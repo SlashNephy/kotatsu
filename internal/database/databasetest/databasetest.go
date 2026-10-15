@@ -30,32 +30,32 @@ const (
 )
 
 // New は空のデータベースを作り、その接続先を返す。データベースはテストの終了時に消す。
-func New(t *testing.T) *config.Database {
-	t.Helper()
+func New(tb testing.TB) *config.Database {
+	tb.Helper()
 
 	adminURL, ok := os.LookupEnv(EnvURL)
 	if !ok || adminURL == "" {
 		if _, inCI := os.LookupEnv("CI"); inCI {
-			t.Fatalf("%s must be set in CI", EnvURL)
+			tb.Fatalf("%s must be set in CI", EnvURL)
 		}
-		t.Skipf("%s is not set; skipping a test that needs PostgreSQL", EnvURL)
+		tb.Skipf("%s is not set; skipping a test that needs PostgreSQL", EnvURL)
 	}
 
 	// 管理用の接続は、作るときと消すときだけつなぐ。テストの間つなぎっぱなしにすると、
 	// 並行に走るテストの数だけ接続を使い、PostgreSQL の接続数の上限に当たる。
-	name := "kotatsu_test_" + randomSuffix(t)
-	require.NoError(t, execAdmin(t.Context(), adminURL, "CREATE DATABASE "+pgx.Identifier{name}.Sanitize()))
-	t.Cleanup(func() {
-		// t.Context() はクリーンアップの時点で終わっているので、別の context を使う。
+	name := "kotatsu_test_" + randomSuffix(tb)
+	require.NoError(tb, execAdmin(tb.Context(), adminURL, "CREATE DATABASE "+pgx.Identifier{name}.Sanitize()))
+	tb.Cleanup(func() {
+		// tb.Context() はクリーンアップの時点で終わっているので、別の context を使う。
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := execAdmin(ctx, adminURL, "DROP DATABASE "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)"); err != nil {
-			t.Errorf("failed to drop the test database %s: %v", name, err)
+			tb.Errorf("failed to drop the test database %s: %v", name, err)
 		}
 	})
 
 	u, err := url.Parse(adminURL)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	u.Path = "/" + name
 	// 接続プールの上限の既定値は CPU の数なので、CPU の多いマシンで多くのテストを並べて走らせると、
 	// PostgreSQL の接続数の上限に当たる。テストでは小さく抑える。
@@ -82,12 +82,12 @@ func execAdmin(ctx context.Context, adminURL, sql string) error {
 	return nil
 }
 
-func randomSuffix(t *testing.T) string {
-	t.Helper()
+func randomSuffix(tb testing.TB) string {
+	tb.Helper()
 
 	b := make([]byte, 8)
 	_, err := rand.Read(b)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	return hex.EncodeToString(b)
 }

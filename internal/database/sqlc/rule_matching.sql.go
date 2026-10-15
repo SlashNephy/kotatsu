@@ -156,8 +156,9 @@ func (q *Queries) ListLatestRecordingHistory(ctx context.Context, titleKeys []st
 }
 
 const listMatchablePrograms = `-- name: ListMatchablePrograms :many
-SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.is_free, p.name, p.description,
-  p.extended, p.genres, p.related_items, s.channel_type
+SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.is_free, p.name, p.name_normalized, p.description_normalized,
+  p.extended_normalized, (CASE WHEN p.extended_normalized IS NULL THEN p.extended ELSE '{}' END)::jsonb AS extended,
+  p.genres, p.related_items, s.channel_type
 FROM programs p
 JOIN services s ON s.id = p.service_id
 WHERE p.start_at > $1 AND NOT p.end_undecided AND s.service_type = ANY($2::bigint[])
@@ -170,21 +171,24 @@ type ListMatchableProgramsParams struct {
 }
 
 type ListMatchableProgramsRow struct {
-	ServiceID    int64
-	EventID      int64
-	StartAt      time.Time
-	EndAt        time.Time
-	IsFree       bool
-	Name         string
-	Description  string
-	Extended     []byte
-	Genres       []byte
-	RelatedItems []byte
-	ChannelType  string
+	ServiceID             int64
+	EventID               int64
+	StartAt               time.Time
+	EndAt                 time.Time
+	IsFree                bool
+	Name                  string
+	NameNormalized        string
+	DescriptionNormalized string
+	ExtendedNormalized    *string
+	Extended              []byte
+	Genres                []byte
+	RelatedItems          []byte
+	ChannelType           string
 }
 
 // ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
 // 映像か音声を流すサービス (media_service_types) の番組だけを対象にする。
+// 照合には正規化した列を使う。詳細の正規化した列がない (列を足す前に書いた) 番組だけ、上流の詳細を返す (#530)。
 func (q *Queries) ListMatchablePrograms(ctx context.Context, arg ListMatchableProgramsParams) ([]ListMatchableProgramsRow, error) {
 	rows, err := q.db.Query(ctx, listMatchablePrograms, arg.Now, arg.MediaServiceTypes)
 	if err != nil {
@@ -201,7 +205,9 @@ func (q *Queries) ListMatchablePrograms(ctx context.Context, arg ListMatchablePr
 			&i.EndAt,
 			&i.IsFree,
 			&i.Name,
-			&i.Description,
+			&i.NameNormalized,
+			&i.DescriptionNormalized,
+			&i.ExtendedNormalized,
 			&i.Extended,
 			&i.Genres,
 			&i.RelatedItems,

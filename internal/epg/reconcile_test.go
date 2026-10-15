@@ -107,6 +107,8 @@ func TestSyncAllInsertsEverythingFirst(t *testing.T) {
 	assert.Equal(t, 2, f.count(t, "SELECT count(*) FROM channel_types WHERE (type, display_name, sort_order) IN (('GR', '地上波', 10), ('BS', 'BS', 20))"))
 	// 検索用の列は NFKC で正規化する。
 	assert.Equal(t, fixtureServices, f.count(t, "SELECT count(*) FROM services WHERE name_normalized = normalize(name, NFKC)"))
+	// 詳細も、照合のために正規化して持つ (#530)。
+	assert.Equal(t, fixturePrograms, f.count(t, "SELECT count(*) FROM programs WHERE extended_normalized IS NOT NULL"))
 	// 変更の記録は、変わったサービスごとに 1 行。
 	assert.Equal(t, fixtureServices, f.count(t, "SELECT count(*) FROM epg_changes WHERE version = $1", result.Version))
 }

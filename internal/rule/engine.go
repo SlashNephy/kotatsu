@@ -204,10 +204,6 @@ func (e *Engine) enabledRules(ctx context.Context, tx pgx.Tx, result *Result) ([
 
 // toMatchProgram は、DB の番組を照合する形にする。
 func toMatchProgram(row sqlc.ListMatchableProgramsRow) (*match.Program, error) {
-	extended := map[string]string{}
-	if err := json.Unmarshal(row.Extended, &extended); err != nil {
-		return nil, fmt.Errorf("failed to decode the extended of program %d/%d: %w", row.ServiceID, row.EventID, err)
-	}
 	upstreamGenres := []*mirakurun.Genre{}
 	if err := json.Unmarshal(row.Genres, &upstreamGenres); err != nil {
 		return nil, fmt.Errorf("failed to decode the genres of program %d/%d: %w", row.ServiceID, row.EventID, err)
@@ -216,18 +212,28 @@ func toMatchProgram(row sqlc.ListMatchableProgramsRow) (*match.Program, error) {
 	for _, g := range upstreamGenres {
 		genres = append(genres, &match.Genre{Lv1: g.Lv1, Lv2: new(g.Lv2)})
 	}
+	// 番組ごとに NFKC で正規化し直すと重いので、同期で正規化して持った列を使う (#530)。
+	extended := row.ExtendedNormalized
+	if extended == nil {
+		// 列を足す前に書いた番組は、上流の詳細から正規化する。
+		upstream := map[string]string{}
+		if err := json.Unmarshal(row.Extended, &upstream); err != nil {
+			return nil, fmt.Errorf("failed to decode the extended of program %d/%d: %w", row.ServiceID, row.EventID, err)
+		}
+		extended = new(epg.NormalizeExtended(upstream))
+	}
 
-	return match.NewProgram(&match.ProgramInput{
+	return &match.Program{
 		ServiceID:   row.ServiceID,
 		ChannelType: row.ChannelType,
-		Name:        row.Name,
-		Description: row.Description,
-		Extended:    extended,
+		Name:        row.NameNormalized,
+		Description: row.DescriptionNormalized,
+		Extended:    *extended,
 		Genres:      genres,
 		StartAt:     row.StartAt,
 		Duration:    row.EndAt.Sub(row.StartAt),
 		IsFree:      row.IsFree,
-	}), nil
+	}, nil
 }
 
 // avoidDuplicates は、重複の回避を指定したルールについて、同じ番組名を期間内に録画済みの番組からそのルールを外す (設計書 4.4)。
