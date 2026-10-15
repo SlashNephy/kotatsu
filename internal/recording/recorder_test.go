@@ -1450,3 +1450,42 @@ func TestRecorderWaitsThroughDatabaseErrors(t *testing.T) {
 		return started
 	}, waitTimeout, 10*time.Millisecond)
 }
+
+// TestRecorderRecordsLateStartAsGap は、録画を始めるのが予定の開始より 30 秒を超えて遅れたら、冒頭の欠けを途切れた区間にし、
+// 一部のみ (partial) にすることを確かめる (#517)。完了にすると録画履歴に載り、重複の回避で再放送も録らなくなる。
+func TestRecorderRecordsLateStartAsGap(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	tests := []struct {
+		name string
+		// late は、予定の開始から、mikan が割り振りを取るまでの遅れ。
+		late      time.Duration
+		wantState recording.State
+		wantGaps  int
+	}{
+		{name: "2 分遅れた", late: 2 * time.Minute, wantState: recording.StatePartial, wantGaps: 1},
+		{name: "遅れが 30 秒以内", late: 20 * time.Second, wantState: recording.StateCompleted, wantGaps: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
+			f.clock.Advance(plannedStart().Add(tt.late).Sub(f.clock.Now()))
+			_, done := f.session(t, recorder, reservationID)
+			require.Eventually(t, func() bool {
+				return len(f.files(t, reservationID)) == 2
+			}, waitTimeout, 10*time.Millisecond)
+
+			f.clock.Advance(programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
+			require.NoError(t, wait(t, done))
+			got, _ := f.recording(t, reservationID)
+			assert.Equal(t, string(tt.wantState), got.state)
+			assert.Equal(t, gapsAndLost{gaps: tt.wantGaps, programLost: false}, f.gapsAndLost(t, reservationID))
+		})
+	}
+}

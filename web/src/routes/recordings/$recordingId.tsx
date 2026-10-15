@@ -97,6 +97,7 @@ const failureKeys = {
   STORAGE_FULL: 'recordings.failure.STORAGE_FULL',
   PROGRAM_NOT_FOUND: 'recordings.failure.PROGRAM_NOT_FOUND',
   CANCELLED: 'recordings.failure.CANCELLED',
+  RECORDER_UNAVAILABLE: 'recordings.failure.RECORDER_UNAVAILABLE',
 } as const;
 
 // RecordingPage は、録画の詳細の画面 (設計書 10.3)。保護、タグ付け、削除と、外部プレイヤーでの再生ができる。

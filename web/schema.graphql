@@ -1247,6 +1247,10 @@ enum RecordingFailureReason {
   録画を取り消した
   """
   CANCELLED
+  """
+  録画を始める時刻に、録画できる mikan がいなかった
+  """
+  RECORDER_UNAVAILABLE
 }
 """
 録画のファイル。

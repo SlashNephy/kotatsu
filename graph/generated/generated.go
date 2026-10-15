@@ -4474,6 +4474,8 @@ enum RecordingFailureReason {
   PROGRAM_NOT_FOUND
   "録画を取り消した"
   CANCELLED
+  "録画を始める時刻に、録画できる mikan がいなかった"
+  RECORDER_UNAVAILABLE
 }
 
 """

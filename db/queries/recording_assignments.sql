@@ -100,3 +100,15 @@ WHERE r.id = @id;
 -- name: LockRecordingAssignmentGeneration :one
 -- 録画を終える前に、割り振りをロックして、今の世代番号を読む。ほかの mikan が取っていたら、録画を終えない。
 SELECT generation FROM recording_assignments WHERE id = @id FOR UPDATE;
+
+-- name: ListMissedRecordingAssignments :many
+-- mikan が 1 台も取らないまま、予定の終わりが過ぎた割り振りの予約。録画の行がまだなければ、失敗として記録する (#517)。
+SELECT r.id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.planned_start_at, s.name AS service_name
+FROM recording_assignments a
+JOIN reservations r ON r.id = a.reservation_id
+JOIN services s ON s.id = r.service_id
+WHERE a.state = 'waiting'
+  AND r.enabled
+  AND coalesce(r.planned_end_at, r.end_at) <= @now::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id)
+ORDER BY r.id;

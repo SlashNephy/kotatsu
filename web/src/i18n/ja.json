@@ -674,6 +674,7 @@
       "STORAGE_FULL": "保存先の容量が足りませんでした",
       "PROGRAM_NOT_FOUND": "番組が見つかりませんでした",
       "CANCELLED": "録画を取り消しました",
+      "RECORDER_UNAVAILABLE": "録画を始める時刻に、録画できる mikan がいませんでした",
       "unknown": "録画に失敗しました"
     },
     "quality": "録画の品質",

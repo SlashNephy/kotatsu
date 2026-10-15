@@ -118,11 +118,13 @@ type ScheduleResult struct {
 	Deleted int
 	// Failed は、録画している割り振りがないまま「録画中」で残っていたので、失敗にした録画の数。
 	Failed int
+	// Missed は、mikan が取らないまま予定の終わりが過ぎたので、失敗として記録した録画の数。
+	Missed int
 }
 
 // RunOnce は、割り振りを 1 回見直す。割り振りが変わったら、mikan に知らせる。
 func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
-	result := &ScheduleResult{Created: 0, Deleted: 0, Failed: 0}
+	result := &ScheduleResult{Created: 0, Deleted: 0, Failed: 0, Missed: 0}
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		if err := s.guard(ctx, tx); err != nil {
 			return err
@@ -130,7 +132,12 @@ func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
 		q := sqlc.New(tx)
 		now := s.clock.Now()
 		dueBefore := now.Add(s.opts.Lead)
+		var err error
 
+		// 取られなかった割り振りは、消すと録り逃したことが分からなくなるので、先に失敗として記録する (#517)。
+		if result.Missed, err = s.recordMissed(ctx, tx, now); err != nil {
+			return err
+		}
 		deleted, err := q.DeleteStaleRecordingAssignments(ctx, sqlc.DeleteStaleRecordingAssignmentsParams{DueBefore: dueBefore, Now: now})
 		if err != nil {
 			return fmt.Errorf("failed to delete stale recording assignments: %w", err)
@@ -206,4 +213,48 @@ func (s *Scheduler) failStuck(ctx context.Context, tx pgx.Tx, now time.Time) (in
 	}
 
 	return len(rows), nil
+}
+
+// recordMissed は、mikan が 1 台も取らないまま予定の終わりが過ぎた割り振りの予約について、
+// 録画を失敗 (recorder_unavailable) として記録し、録画の失敗を通知する (#517)。記録した録画の数を返す。
+func (s *Scheduler) recordMissed(ctx context.Context, tx pgx.Tx, now time.Time) (int, error) {
+	q := sqlc.New(tx)
+	rows, err := q.ListMissedRecordingAssignments(ctx, now)
+	if err != nil {
+		return 0, fmt.Errorf("failed to list missed recording assignments: %w", err)
+	}
+	missed := 0
+	for _, row := range rows {
+		s.logger.WarnContext(ctx, "no mikan took the recording assignment before it ended", slog.String("reservation_id", row.ID.String()))
+		recordingID := id.New()
+		recordedFrom := row.StartAt
+		if row.PlannedStartAt != nil {
+			recordedFrom = *row.PlannedStartAt
+		}
+		inserted, err := q.InsertMissedRecording(ctx, sqlc.InsertMissedRecordingParams{
+			ID: recordingID, ReservationID: &row.ID, ServiceID: row.ServiceID, EventID: row.EventID, Name: row.Name, Description: row.Description,
+			StartAt: row.StartAt, EndAt: row.EndAt, RecordedFrom: recordedFrom, Now: now,
+		})
+		if err != nil {
+			return 0, fmt.Errorf("failed to record a missed recording: %w", err)
+		}
+		// 一覧を読んだ後に、ほかで録画の行ができていれば、記録も通知もしない。
+		if inserted == 0 {
+			continue
+		}
+		missed++
+		payload := recordingPayload(recordingID, row.Name, row.ServiceName, row.StartAt, row.EndAt)
+		payload["state"] = string(StateFailed)
+		payload["reason"] = string(FailureRecorderUnavailable)
+		target, err := notification.LoadReservationContext(ctx, tx, row.ID)
+		if err != nil {
+			return 0, err
+		}
+		target.AddTo(payload)
+		if err := notification.EmitTo(ctx, tx, s.clock, notification.KindRecordingFailed, payload, target.Audience); err != nil {
+			return 0, err
+		}
+	}
+
+	return missed, nil
 }

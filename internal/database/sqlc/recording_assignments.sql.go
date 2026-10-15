@@ -244,6 +244,61 @@ func (q *Queries) ListDueReservations(ctx context.Context, arg ListDueReservatio
 	return items, nil
 }
 
+const listMissedRecordingAssignments = `-- name: ListMissedRecordingAssignments :many
+SELECT r.id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.planned_start_at, s.name AS service_name
+FROM recording_assignments a
+JOIN reservations r ON r.id = a.reservation_id
+JOIN services s ON s.id = r.service_id
+WHERE a.state = 'waiting'
+  AND r.enabled
+  AND coalesce(r.planned_end_at, r.end_at) <= $1::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id)
+ORDER BY r.id
+`
+
+type ListMissedRecordingAssignmentsRow struct {
+	ID             uuid.UUID
+	ServiceID      int64
+	EventID        *int64
+	Name           string
+	Description    string
+	StartAt        time.Time
+	EndAt          time.Time
+	PlannedStartAt *time.Time
+	ServiceName    string
+}
+
+// mikan が 1 台も取らないまま、予定の終わりが過ぎた割り振りの予約。録画の行がまだなければ、失敗として記録する (#517)。
+func (q *Queries) ListMissedRecordingAssignments(ctx context.Context, now time.Time) ([]ListMissedRecordingAssignmentsRow, error) {
+	rows, err := q.db.Query(ctx, listMissedRecordingAssignments, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMissedRecordingAssignmentsRow{}
+	for rows.Next() {
+		var i ListMissedRecordingAssignmentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ServiceID,
+			&i.EventID,
+			&i.Name,
+			&i.Description,
+			&i.StartAt,
+			&i.EndAt,
+			&i.PlannedStartAt,
+			&i.ServiceName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecordingAssignments = `-- name: ListRecordingAssignments :many
 SELECT id, reservation_id, priority, state, generation, holder, lease_expires_at, stream_generation, created_at, updated_at FROM recording_assignments ORDER BY created_at, id
 `

@@ -35,6 +35,9 @@ import (
 const (
 	// DefaultTuningTime は、チューニングにかかる時間の見込み (付録 A)。予定の開始よりこれだけ早くストリームを開く。
 	DefaultTuningTime = 5 * time.Second
+	// LateStartTolerance は、録画を始めるのが予定の開始より遅れても、冒頭が欠けたとはみなさない時間 (付録 A)。
+	// チューナーの確保やストリームを開くのにかかる時間の揺らぎを許す。
+	LateStartTolerance = 30 * time.Second
 	// DefaultTick は、予定の時刻が来たかを確かめる間隔。予約の予定の時刻も、この間隔で読み直す。
 	DefaultTick = 500 * time.Millisecond
 	// DefaultRetryInterval は、ストリームを開けなかったときや、切れたときに、開き直すまで待つ時間。
@@ -66,6 +69,8 @@ const (
 	FailureStorageFull            FailureReason = "storage_full"
 	FailureProgramNotFound        FailureReason = "program_not_found"
 	FailureCancelled              FailureReason = "cancelled"
+	// FailureRecorderUnavailable は、録画を始める時刻に、割り振りを取る mikan がいなかったこと (#517)。
+	FailureRecorderUnavailable FailureReason = "recorder_unavailable"
 )
 
 // State は、録画の状態 (設計書 5.5)。
@@ -310,7 +315,15 @@ func (r *Recorder) finish(
 	if err != nil {
 		return fmt.Errorf("failed to list the recording files: %w", err)
 	}
-	gaps, recorded := gapsOf(files, now, disconnected)
+	plannedStart, found, err := r.plannedStart(ctx, assignment)
+	if err != nil {
+		return err
+	}
+	var expectedStart *time.Time
+	if found {
+		expectedStart = &plannedStart
+	}
+	gaps, recorded := gapsOf(files, expectedStart, now, disconnected)
 	if !recorded {
 		reason := result.lastFailure
 		if reason == "" {
@@ -354,9 +367,27 @@ type gap struct {
 	To   time.Time `json:"to"`
 }
 
+// plannedStart は、予約の予定の開始を返す。割り当てが消えていれば、番組の開始を返す。
+// 予約が消えていれば、冒頭の欠けは確かめないので、found を false にする。
+func (r *Recorder) plannedStart(ctx context.Context, assignment *Assignment) (time.Time, bool, error) {
+	reservation, err := sqlc.New(r.pool).GetReservationForRecording(ctx, assignment.ReservationID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return time.Time{}, false, nil
+	}
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("failed to get the reservation: %w", err)
+	}
+	if reservation.PlannedStartAt == nil {
+		return reservation.StartAt, true, nil
+	}
+
+	return *reservation.PlannedStartAt, true, nil
+}
+
 // gapsOf は、書けたセグメントの時間の範囲のすき間を、途切れた区間として返す。書けたセグメントがなければ false を返す。
 // 書いている途中のセグメントは、now まで書いているものとする。trailing なら、最後のセグメントの終わりから now までも途切れた区間にする。
-func gapsOf(files []sqlc.RecordingFile, now time.Time, trailing bool) ([]gap, bool) {
+// 最初のセグメントが、予定の開始 plannedStart より LateStartTolerance を超えて遅れて始まったら、その間も途切れた区間にする (#517)。
+func gapsOf(files []sqlc.RecordingFile, plannedStart *time.Time, now time.Time, trailing bool) ([]gap, bool) {
 	type span struct{ from, to time.Time }
 	spans := []span{}
 	writing := false
@@ -376,6 +407,9 @@ func gapsOf(files []sqlc.RecordingFile, now time.Time, trailing bool) ([]gap, bo
 	}
 	slices.SortFunc(spans, func(a, b span) int { return a.from.Compare(b.from) })
 	gaps := []gap{}
+	if plannedStart != nil && spans[0].from.After(plannedStart.Add(LateStartTolerance)) {
+		gaps = append(gaps, gap{From: *plannedStart, To: spans[0].from})
+	}
 	covered := spans[0].to
 	for _, s := range spans[1:] {
 		if s.from.After(covered) {

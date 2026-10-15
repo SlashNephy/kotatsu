@@ -636,7 +636,7 @@ CREATE TABLE recordings (
   -- 失敗の理由 (設計書 5.5)。失敗していなければ NULL。
   failure_reason text CHECK (failure_reason IN (
     'tuner_unavailable', 'tuner_server_unreachable', 'stream_interrupted', 'storage_unavailable',
-    'storage_full', 'program_not_found', 'cancelled'
+    'storage_full', 'program_not_found', 'cancelled', 'recorder_unavailable'
   )),
   -- 保護の印。容量の管理で消さない (設計書 6.1)。
   protected boolean NOT NULL DEFAULT false,

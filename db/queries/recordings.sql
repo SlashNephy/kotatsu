@@ -197,3 +197,12 @@ WHERE s.id = r.service_id
     SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.reservation_id AND a.state <> 'finished'
   )
 RETURNING r.id, r.reservation_id, r.name, r.start_at, r.end_at, s.name AS service_name;
+
+-- name: InsertMissedRecording :execrows
+-- mikan が取らなかった予約の録画を、失敗として記録する (#517)。録画した時間はないので、始まりと終わりを予定の開始にする。
+-- 同じ予約の録画がすでにあれば何もせず、0 を返す。
+INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
+  recorded_from, recorded_until, created_at, updated_at)
+VALUES (@id, @reservation_id, @service_id, @event_id, @name, @description, @start_at, @end_at, 'failed', 'recorder_unavailable',
+  @recorded_from, @recorded_from, @now, @now)
+ON CONFLICT (reservation_id) DO NOTHING;
