@@ -117,7 +117,7 @@ volume の名前は、プール ID に使える _ を含められないので、
 {{- end }}
 {{- end -}}
 
-{{/* volumes は、volumeMounts に対応する Pod の volume。引数は volumeMounts と同じ。 */}}
+{{/* volumes は、volumeMounts に対応する Pod の volume。引数は volumeMounts と同じものに、作業ディレクトリの容量の上限 "workSizeLimit" (空なら上限なし) を足す。 */}}
 {{- define "kotatsu.volumes" -}}
 - name: tmp
   emptyDir: {}
