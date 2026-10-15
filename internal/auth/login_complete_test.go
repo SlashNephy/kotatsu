@@ -242,6 +242,17 @@ func TestLoginHandlers(t *testing.T) {
 	assert.Equal(t, "second_factor", login.Next)
 	require.Equal(t, http.StatusOK, post("/auth/login/totp", `{"code":"`+f.totpCode(t, secret)+`"}`, &completed))
 	assert.Empty(t, completed.RecoveryCodes)
+
+	// 第二要素の失敗が続いて待たせている間は、429 を返す。
+	f.clock.Advance(totp.Period)
+	for range 2 {
+		require.Equal(t, http.StatusOK, post("/auth/login", `{"username":"Kotatsu","password":"`+loginPhrase+`"}`, &login))
+		for range 3 {
+			require.Equal(t, http.StatusUnauthorized, post("/auth/login/totp", `{"code":"000000"}`, nil))
+		}
+	}
+	require.Equal(t, http.StatusTooManyRequests, post("/auth/login/totp", `{"code":"000000"}`, &failed))
+	assert.Equal(t, "TOO_MANY_ATTEMPTS", failed.Error.Code)
 }
 
 func mustParseURL(t *testing.T, raw string) *url.URL {

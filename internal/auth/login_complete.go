@@ -40,9 +40,11 @@ func (l *Logins) throttledChallenge(ctx context.Context, tx pgx.Tx, token string
 	if err != nil {
 		return nil, nil, err
 	}
-	user, err := sqlc.New(tx).GetUser(ctx, row.UserID)
+	// 同じユーザーの第二要素の確認を、待っているログインをまたいで 1 つずつにする。
+	// 同時に送った試行が、どれも前の失敗を見ずに待ち時間を素通りしないようにするためである。
+	user, err := sqlc.New(tx).LockUser(ctx, row.UserID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get the user: %w", err)
+		return nil, nil, fmt.Errorf("failed to lock the user: %w", err)
 	}
 	attempt := &loginAttempt{username: user.Username, keys: throttleKeys(user.Username, client.SourceIP), now: l.clock.Now()}
 	if err := checkThrottleIn(ctx, tx, attempt.keys, attempt.now); err != nil {
