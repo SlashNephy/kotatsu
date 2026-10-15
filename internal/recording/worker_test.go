@@ -2,6 +2,7 @@ package recording_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync/atomic"
 	"testing"
@@ -34,7 +35,7 @@ func (f *fixture) startWorkerWithHandoverTimeout(t *testing.T, holder uuid.UUID,
 
 	worker := recording.NewWorker(f.pool, f.clock, holder, slog.New(slog.DiscardHandler), session, &recording.WorkerOptions{
 		LeaseTTL: 10 * time.Second, RenewInterval: 20 * time.Millisecond, AcquireInterval: 50 * time.Millisecond,
-		HandoverTimeout: handoverTimeout, PollOnly: true, PollInterval: 50 * time.Millisecond,
+		HandoverTimeout: handoverTimeout, ReleaseCooldown: 0, PollOnly: true, PollInterval: 50 * time.Millisecond,
 	})
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
@@ -500,4 +501,44 @@ func TestWorkerDeletesAssignmentsEndedWithoutRecording(t *testing.T) {
 
 	// 割り振りが消えたので、次の見直しで書き直せる。
 	assert.Equal(t, 1, f.schedule(t).Created)
+}
+
+// TestWorkerReleasesUnrecordableAssignment は、Session が ErrRecorderUnavailable を返したら、割り振りを手放して
+// しばらく取らず、ほかの mikan に録画させることを確かめる (#524)。手放さないと、録画できない mikan が割り振りを抱え込む。
+func TestWorkerReleasesUnrecordableAssignment(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.assignOne(t)
+	broken, healthy := id.New(), id.New()
+	f.register(t, broken)
+	f.register(t, healthy)
+	var brokenSessions atomic.Int32
+	f.startWorker(t, broken, func(context.Context, *recording.Assignment) error {
+		brokenSessions.Add(1)
+
+		return fmt.Errorf("the pool is not mounted: %w", recording.ErrRecorderUnavailable)
+	})
+	require.Eventually(t, func() bool {
+		return brokenSessions.Load() == 1 && f.assignment(t, reservationID).holder == nil
+	}, waitTimeout, 10*time.Millisecond)
+	assert.Equal(t, string(recording.AssignmentWaiting), f.assignment(t, reservationID).state)
+
+	recorded := make(chan struct{})
+	f.startWorker(t, healthy, func(ctx context.Context, assignment *recording.Assignment) error {
+		f.insertRecording(ctx, t, assignment.ReservationID)
+		close(recorded)
+
+		return nil
+	})
+	select {
+	case <-recorded:
+	case <-time.After(waitTimeout):
+		t.Fatal("the healthy mikan did not take the released assignment")
+	}
+	require.Eventually(t, func() bool {
+		return f.assignment(t, reservationID).state == string(recording.AssignmentFinished)
+	}, waitTimeout, 10*time.Millisecond)
+	// 手放した mikan は、しばらく取り直さない。
+	assert.Equal(t, int32(1), brokenSessions.Load())
 }

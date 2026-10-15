@@ -35,6 +35,9 @@ import (
 const (
 	// DefaultTuningTime は、チューニングにかかる時間の見込み (付録 A)。予定の開始よりこれだけ早くストリームを開く。
 	DefaultTuningTime = 5 * time.Second
+	// DefaultReleaseAfter は、チューナーサーバーにつながらないまま、割り振りを手放すまでの時間 (付録 A)。
+	// チューナーサーバーの再起動は、すべての mikan に同時に起きるので、一度つながらないだけでは手放さない。
+	DefaultReleaseAfter = 30 * time.Second
 	// LateStartTolerance は、録画を始めるのが予定の開始より遅れても、冒頭が欠けたとはみなさない時間 (付録 A)。
 	// チューナーの確保やストリームを開くのにかかる時間の揺らぎを許す。
 	LateStartTolerance = 30 * time.Second
@@ -96,7 +99,18 @@ type RecorderOptions struct {
 	TuningTime    time.Duration
 	Tick          time.Duration
 	RetryInterval time.Duration
+	// ReleaseAfter は、チューナーサーバーにつながらないまま、割り振りを手放すまでの時間 (#524)。0 なら DefaultReleaseAfter にする。
+	ReleaseAfter time.Duration
+	// Peers は、ほかに動いている mikan の数を返す。nil なら、ほかの mikan はいないとみなし、割り振りを手放さない。
+	Peers PeersFunc
 }
+
+// PeersFunc は、ほかに動いている mikan の数を返す。
+type PeersFunc func(ctx context.Context) (int, error)
+
+// ErrRecorderUnavailable は、録画できない理由がこの mikan にある (プールがマウントされていない、チューナーサーバーにつながらない) ので、
+// 割り振りを手放して、ほかの mikan に録画させること (#524)。
+var ErrRecorderUnavailable = errors.New("this mikan is unable to record")
 
 // Recorder は、割り振りの録画を行う Session を提供する (設計書 5.1、5.2、5.3)。
 // 予定の開始からチューニングにかかる時間を引いた時刻にサービスストリームを開き、届いたデータをすべて最終的な保存先に書き込む。
@@ -120,8 +134,12 @@ func NewRecorder(
 	if defaults == nil {
 		defaults = assign.FixedDefaults(reserve.DefaultSettings())
 	}
-	o := RecorderOptions{TuningTime: DefaultTuningTime, Tick: DefaultTick, RetryInterval: DefaultRetryInterval}
+	o := RecorderOptions{TuningTime: DefaultTuningTime, Tick: DefaultTick, RetryInterval: DefaultRetryInterval, ReleaseAfter: DefaultReleaseAfter, Peers: nil}
 	if opts != nil {
+		o.Peers = opts.Peers
+		if opts.ReleaseAfter > 0 {
+			o.ReleaseAfter = opts.ReleaseAfter
+		}
 		if opts.RetryInterval > 0 {
 			o.RetryInterval = opts.RetryInterval
 		}
@@ -175,21 +193,18 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	if err != nil {
 		return err
 	}
+	// unreachableSince は、チューナーサーバーにつながらなくなった時刻。つながればゼロ値に戻す。
+	var unreachableSince time.Time
 	for {
 		stream, err := r.tuner.OpenServiceStream(ctx, reservation.ServiceID, &mirakurun.StreamOptions{Decode: true, Priority: assignment.Priority})
 		if err != nil {
-			if ctx.Err() != nil {
-				return context.Cause(ctx)
-			}
-			// チューナーが空くか、チューナーサーバーにつながるまで、予定の終わりまで開き直す。
-			result.lastFailure = streamFailure(err)
-			logger.WarnContext(ctx, "failed to open the service stream; retrying", slog.Any("error", err))
-			if done, err := r.waitToReopen(ctx, logger, assignment, &recording, tracker, result, r.opts.RetryInterval); done {
+			if done, err := r.retryOpen(ctx, logger, assignment, &recording, tracker, result, created, &unreachableSince, err); done {
 				return err
 			}
 
 			continue
 		}
+		unreachableSince = time.Time{}
 		// 引き継ぎ待ちの古い mikan は、ストリームを開いたことを見て、自分のストリームを閉じる (設計書 5.4)。
 		err = sqlc.New(r.pool).MarkRecordingStreamOpened(ctx, sqlc.MarkRecordingStreamOpenedParams{
 			Generation: assignment.Generation, Now: r.clock.Now(), ID: assignment.ID,
@@ -236,6 +251,27 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	}
 }
 
+// retryOpen は、ストリームを開けなかったときに、開き直すか、録画を終えるか、割り振りを手放すかを決める。録画を終えたか手放したら true を返す。
+// チューナーが空くか、チューナーサーバーにつながるまで、予定の終わりまで開き直す。まだ何も録っていないのに、
+// チューナーサーバーにつながらないまま ReleaseAfter が過ぎ、ほかに mikan がいれば、割り振りを手放す (#524)。
+func (r *Recorder) retryOpen(
+	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, tracker *endTracker, result *sessionResult,
+	created int, unreachableSince *time.Time, err error,
+) (bool, error) {
+	if ctx.Err() != nil {
+		return true, context.Cause(ctx)
+	}
+	result.lastFailure = streamFailure(err)
+	if r.unreachableTooLong(ctx, result.lastFailure, created, unreachableSince) {
+		logger.WarnContext(ctx, "the tuner server has been unreachable; releasing the assignment", slog.Any("error", err))
+
+		return true, r.release(ctx, recording, result.lastFailure)
+	}
+	logger.WarnContext(ctx, "failed to open the service stream; retrying", slog.Any("error", err))
+
+	return r.waitToReopen(ctx, logger, assignment, recording, tracker, result, r.opts.RetryInterval)
+}
+
 // retryCreate は、セグメントを作れなかったときに、録画を失敗にするか、やり直すかを決める。録画を終えたら true を返す。
 // まだ何も作っていなければ失敗にする。録画の途中なら、それまでに録れた分を失敗にしないよう、作れるようになるまでやり直す (#519)。
 func (r *Recorder) retryCreate(
@@ -246,6 +282,12 @@ func (r *Recorder) retryCreate(
 		return true, context.Cause(ctx)
 	}
 	if created == 0 {
+		// プールがこの mikan にマウントされていなければ、ほかの mikan に録画させる (#524)。
+		if errors.Is(err, kago.ErrPoolNotMounted) && r.hasPeers(ctx) {
+			logger.WarnContext(ctx, "the storage pool is not mounted on this mikan; releasing the assignment", slog.Any("error", err))
+
+			return true, r.release(ctx, recording, reason)
+		}
 		logger.WarnContext(ctx, "failed to create a recording file", slog.Any("error", err))
 
 		return true, r.fail(ctx, assignment, recording, reason)
@@ -254,6 +296,50 @@ func (r *Recorder) retryCreate(
 	result.lastFailure = reason
 
 	return r.waitToReopen(ctx, logger, assignment, recording, tracker, result, r.opts.RetryInterval)
+}
+
+// hasPeers は、ほかに動いている mikan がいるかを返す。数えられなければ、いないとみなす。
+func (r *Recorder) hasPeers(ctx context.Context) bool {
+	if r.opts.Peers == nil {
+		return false
+	}
+	n, err := r.opts.Peers(ctx)
+	if err != nil {
+		r.logger.WarnContext(ctx, "failed to count other mikan instances", slog.Any("error", err))
+
+		return false
+	}
+
+	return n > 0
+}
+
+// unreachableTooLong は、まだ何も録っていないのに、チューナーサーバーにつながらないまま ReleaseAfter が過ぎ、
+// ほかに mikan がいるかを返す (#524)。チューナーサーバーの再起動はすべての mikan に同時に起きるので、一度つながらないだけでは手放さない。
+func (r *Recorder) unreachableTooLong(ctx context.Context, reason FailureReason, created int, since *time.Time) bool {
+	if reason != FailureTunerServerUnreachable || created > 0 {
+		*since = time.Time{}
+
+		return false
+	}
+	now := r.clock.Now()
+	if since.IsZero() {
+		*since = now
+
+		return false
+	}
+
+	return now.Sub(*since) >= r.opts.ReleaseAfter && r.hasPeers(ctx)
+}
+
+// release は、録画できなかった理由を録画の行に残し、割り振りを手放させるために ErrRecorderUnavailable を返す (#524)。
+// ほかの mikan も録れなければ、neko がこの理由で録画を失敗にする。
+func (r *Recorder) release(ctx context.Context, recording *sqlc.Recording, reason FailureReason) error {
+	err := sqlc.New(r.pool).SetRecordingFailureHint(ctx, sqlc.SetRecordingFailureHintParams{FailureReason: new(string(reason)), Now: r.clock.Now(), ID: recording.ID})
+	if err != nil {
+		return errors.Join(fmt.Errorf("%w: %s", ErrRecorderUnavailable, reason), fmt.Errorf("failed to record the failure reason: %w", err))
+	}
+
+	return fmt.Errorf("%w: %s", ErrRecorderUnavailable, reason)
 }
 
 // countSegments は、録画の、書いたものがあるセグメントの数を返す。

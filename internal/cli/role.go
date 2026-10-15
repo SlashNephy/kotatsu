@@ -257,10 +257,15 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 
 		return system.Recording, nil
 	}
+	// 録画できない理由がこの mikan にあれば、ほかの mikan に回すため、ほかに動いている mikan を数える (#524)。
 	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, storeOf(deps.Config), defaults, location,
-		logger.With(slog.String("component", "recorder")), nil)
+		logger.With(slog.String("component", "recorder")), &recording.RecorderOptions{
+			TuningTime: 0, Tick: 0, RetryInterval: 0, ReleaseAfter: 0,
+			Peers: recording.AlivePeers(deps.DB, deps.Clock, deps.InstanceID),
+		})
 	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), &recording.WorkerOptions{
-		LeaseTTL: 0, RenewInterval: 0, AcquireInterval: 0, HandoverTimeout: 0, PollOnly: deps.Config.Database.Pooler, PollInterval: 0,
+		LeaseTTL: 0, RenewInterval: 0, AcquireInterval: 0, HandoverTimeout: 0, ReleaseCooldown: 0,
+		PollOnly: deps.Config.Database.Pooler, PollInterval: 0,
 	})
 
 	return worker.Run(ctx)

@@ -119,3 +119,9 @@ ORDER BY r.id;
 DELETE FROM recording_assignments a
 WHERE a.id = @id AND a.generation = @generation AND a.holder = @holder AND a.state IN ('recording', 'handover')
   AND NOT EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = a.reservation_id);
+
+-- name: ReleaseUnrecordableRecordingAssignment :exec
+-- 録画できない理由がこの mikan にあるので、割り振りを手放し、まだ取っていない状態に戻す (#524)。ほかの mikan が取る。
+-- まだ何も録っていないので、続きとしてではなく、初めから録る。予定の終わりまで誰も取らなければ、neko が消す。
+UPDATE recording_assignments SET state = 'waiting', holder = NULL, lease_expires_at = NULL, updated_at = @now
+WHERE id = @id AND generation = @generation AND holder = @holder AND state = 'recording';

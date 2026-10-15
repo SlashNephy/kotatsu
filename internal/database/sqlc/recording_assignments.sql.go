@@ -446,6 +446,30 @@ func (q *Queries) ReleaseRecordingAssignment(ctx context.Context, arg ReleaseRec
 	return err
 }
 
+const releaseUnrecordableRecordingAssignment = `-- name: ReleaseUnrecordableRecordingAssignment :exec
+UPDATE recording_assignments SET state = 'waiting', holder = NULL, lease_expires_at = NULL, updated_at = $1
+WHERE id = $2 AND generation = $3 AND holder = $4 AND state = 'recording'
+`
+
+type ReleaseUnrecordableRecordingAssignmentParams struct {
+	Now        time.Time
+	ID         uuid.UUID
+	Generation int64
+	Holder     *uuid.UUID
+}
+
+// 録画できない理由がこの mikan にあるので、割り振りを手放し、まだ取っていない状態に戻す (#524)。ほかの mikan が取る。
+// まだ何も録っていないので、続きとしてではなく、初めから録る。予定の終わりまで誰も取らなければ、neko が消す。
+func (q *Queries) ReleaseUnrecordableRecordingAssignment(ctx context.Context, arg ReleaseUnrecordableRecordingAssignmentParams) error {
+	_, err := q.db.Exec(ctx, releaseUnrecordableRecordingAssignment,
+		arg.Now,
+		arg.ID,
+		arg.Generation,
+		arg.Holder,
+	)
+	return err
+}
+
 const renewRecordingAssignment = `-- name: RenewRecordingAssignment :execrows
 UPDATE recording_assignments SET lease_expires_at = $1, updated_at = $2
 WHERE id = $3 AND generation = $4 AND holder = $5 AND state IN ('recording', 'handover') AND lease_expires_at > $2::timestamptz

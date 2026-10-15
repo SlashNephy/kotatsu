@@ -94,7 +94,8 @@ func (q *Queries) DeleteRecordingFiles(ctx context.Context, arg DeleteRecordingF
 const failStuckRecordings = `-- name: FailStuckRecordings :many
 UPDATE recordings r SET
   state = 'failed',
-  failure_reason = 'stream_interrupted',
+  -- 録画できずに割り振りを手放した mikan が理由を残していれば、それを使う (#524)。
+  failure_reason = coalesce(r.failure_reason, 'stream_interrupted'),
   recorded_until = coalesce(
     (SELECT max(coalesce(f.ended_at, f.started_at)) FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment'),
     r.recorded_from
@@ -769,6 +770,22 @@ type SetRecordingBroadcastStartedParams struct {
 // 予約した番組が放送中になった日時を、最初の一度だけ記録する。
 func (q *Queries) SetRecordingBroadcastStarted(ctx context.Context, arg SetRecordingBroadcastStartedParams) error {
 	_, err := q.db.Exec(ctx, setRecordingBroadcastStarted, arg.At, arg.ID)
+	return err
+}
+
+const setRecordingFailureHint = `-- name: SetRecordingFailureHint :exec
+UPDATE recordings SET failure_reason = $1, updated_at = $2 WHERE id = $3 AND state = 'recording'
+`
+
+type SetRecordingFailureHintParams struct {
+	FailureReason *string
+	Now           time.Time
+	ID            uuid.UUID
+}
+
+// 録画中の録画に、録画できなかった理由を残す。割り振りを手放した後、ほかの mikan も録れなければ、この理由で失敗にする (#524)。
+func (q *Queries) SetRecordingFailureHint(ctx context.Context, arg SetRecordingFailureHintParams) error {
+	_, err := q.db.Exec(ctx, setRecordingFailureHint, arg.FailureReason, arg.Now, arg.ID)
 	return err
 }
 
