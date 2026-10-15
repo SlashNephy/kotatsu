@@ -407,7 +407,7 @@ func (w *FinalizeWorker) Work(ctx context.Context, job *river.Job[FinalizeArgs])
 	if !exists {
 		// つないだ後に録画が消された。録画の削除は、DB にある最初のセグメントしか消さないので、
 		// つないだファイルと元のセグメントを消す。置き換えると、消した録画のファイルを作り直してしまう (#514)。
-		return w.removeAll(job.Args, path)
+		return w.removeAll(&job.Args, path)
 	}
 	// やり直したときは、一時ファイルはもう置き換えてある。
 	if err := os.Rename(path+tempSuffix, path); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -450,7 +450,7 @@ func (w *FinalizeWorker) recordingExists(ctx context.Context, recordingID uuid.U
 }
 
 // removeAll は、消された録画の、つないだファイルと、つないだ元のセグメントを消す。
-func (w *FinalizeWorker) removeAll(args FinalizeArgs, path string) error {
+func (w *FinalizeWorker) removeAll(args *FinalizeArgs, path string) error {
 	if err := os.Remove(path + tempSuffix); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to remove the joined file of a deleted recording: %w", err)
 	}
