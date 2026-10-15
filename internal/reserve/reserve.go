@@ -163,7 +163,7 @@ func (r *Reservations) CreateProgram(ctx context.Context, db Beginner, actor *au
 			ServiceID:        program.ServiceID,
 			EventID:          &program.EventID,
 			StartAt:          program.StartAt,
-			EndAt:            program.EndAt,
+			EndAt:            endOf(program.StartAt, program.EndAt, program.EndUndecided),
 			Name:             program.Name,
 			Description:      program.Description,
 			Extended:         program.Extended,
@@ -715,4 +715,17 @@ func optionalBool(v *bool) pgtype.Bool {
 	}
 
 	return pgtype.Bool{Bool: *v, Valid: true}
+}
+
+// UndecidedLength は、終了時刻が未定の番組から予約を作るときの、予約の長さ。終了時刻が決まったら、追従で直す (#521)。
+// 未定の長さを、Mahiron は 0、Mirakurun は 1 ミリ秒で返すので、そのまま写すと予約にならない。
+const UndecidedLength = time.Hour
+
+// endOf は、番組から作る予約の終わりを返す。終了時刻が未定なら、始まりから UndecidedLength 後にする。
+func endOf(startAt, endAt time.Time, undecided bool) time.Time {
+	if undecided || !endAt.After(startAt) {
+		return startAt.Add(UndecidedLength)
+	}
+
+	return endAt
 }

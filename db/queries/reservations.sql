@@ -1,5 +1,5 @@
 -- name: GetProgramForReservation :one
-SELECT service_id, event_id, start_at, end_at, name, description, extended, genres
+SELECT service_id, event_id, start_at, end_at, end_undecided, name, description, extended, genres
 FROM programs
 WHERE service_id = @service_id AND event_id = @event_id;
 

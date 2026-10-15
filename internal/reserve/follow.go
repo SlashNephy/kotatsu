@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -233,20 +234,24 @@ func (f *Follower) relay(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservati
 			networkID = row.ServiceID / serviceIDBase
 		}
 		serviceID := networkID*serviceIDBase + int64(item.ServiceID)
-		reservationID, err := q.InsertRelayedReservation(ctx, sqlc.InsertRelayedReservationParams{
-			ID:          id.New(),
-			Settings:    settings,
-			Now:         now,
-			RelayedFrom: &row.ID,
-			ServiceID:   serviceID,
-			EventID:     int64(item.EventID),
+		reservationID, err := insertRelayed(ctx, tx, &sqlc.InsertRelayedReservationParams{
+			ID:               id.New(),
+			Settings:         settings,
+			Now:              now,
+			UndecidedSeconds: UndecidedLength.Seconds(),
+			RelayedFrom:      &row.ID,
+			ServiceID:        serviceID,
+			EventID:          int64(item.EventID),
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			// 引き継ぎ先の予約がすでにあるか、引き継ぎ先の番組が EPG にまだ無い。
 			continue
 		}
 		if err != nil {
-			return relayed, fmt.Errorf("failed to create the relayed reservation of %s: %w", row.ID, err)
+			// 1 件の引き継ぎ先を作れなくても、ほかの予約の追従は止めない (#521)。
+			f.logger.WarnContext(ctx, "failed to create a relayed reservation", slog.String("reservation_id", row.ID.String()), slog.Any("error", err))
+
+			continue
 		}
 		reservation, err := get(ctx, q, reservationID)
 		if err != nil {
@@ -293,4 +298,17 @@ func (f *Follower) removeFinished(ctx context.Context, tx pgx.Tx, now time.Time)
 	}
 
 	return removed, nil
+}
+
+// insertRelayed は、引き継ぎ先の予約を、セーブポイントの中で作る。失敗しても、追従のトランザクションは続けられる。
+func insertRelayed(ctx context.Context, tx pgx.Tx, params *sqlc.InsertRelayedReservationParams) (uuid.UUID, error) {
+	var reservationID uuid.UUID
+	err := pgx.BeginFunc(ctx, tx, func(sp pgx.Tx) error {
+		var err error
+		reservationID, err = sqlc.New(sp).InsertRelayedReservation(ctx, *params)
+
+		return err
+	})
+
+	return reservationID, err
 }

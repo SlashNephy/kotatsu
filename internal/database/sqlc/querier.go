@@ -175,6 +175,7 @@ type Querier interface {
 	InsertRecordingTag(ctx context.Context, arg InsertRecordingTagParams) error
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
 	// イベントリレーの引き継ぎ先の番組予約を、番組情報をコピーして作る。引き継ぎ先の予約がすでにあれば何もせず、行を返さない。
+	// 番組の終了時刻が未定なら、予約の終わりを、始まりから undecided_seconds 秒後にしておく。決まったら追従で直す (#521)。
 	InsertRelayedReservation(ctx context.Context, arg InsertRelayedReservationParams) (uuid.UUID, error)
 	InsertReservationRule(ctx context.Context, arg InsertReservationRuleParams) error
 	InsertRule(ctx context.Context, arg InsertRuleParams) error
