@@ -308,6 +308,10 @@ function Player({ recordingId }: { recordingId: string }) {
       seekForward: () => skip(10),
       seekTo: (seconds) => seek(seconds),
     },
+    {
+      playing: !videoState.paused,
+      position: { duration, position: seeking ?? position, playbackRate: rate },
+    },
   );
 
   // 再生位置を、録画の始まりからの秒で追う。

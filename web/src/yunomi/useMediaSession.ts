@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 
+import { splitProgramMarks } from '../futon/programMarks';
+
 type Actions = Partial<{
   play: () => void;
   pause: () => void;
@@ -8,14 +10,73 @@ type Actions = Partial<{
   seekTo: (seconds: number) => void;
 }>;
 
-// useMediaSession は、OS のメディア操作 (ロック画面やメディアキー) に、番組名と操作を知らせる (設計書 7.5)。
+// Playback は、OS に知らせる再生の状態。position は、録画のようにシークできるときの再生位置 (秒)。ライブでは null。
+export type Playback = {
+  playing: boolean;
+  position: { duration: number; position: number; playbackRate: number } | null;
+};
+
+// positionState は、OS に渡す再生位置を返す。渡せない値 (長さが分からない、位置が範囲の外) は直すか、null にする。
+// 再生位置は秒の単位に丸める。OS は再生速度から位置を進めるので、細かく知らせ直さなくてよい。
+export function positionState(position: Playback['position']): MediaPositionState | null {
+  if (position === null || !Number.isFinite(position.duration) || position.duration <= 0) {
+    return null;
+  }
+  const duration = Math.floor(position.duration);
+
+  return {
+    duration,
+    position: Math.min(Math.max(Math.floor(position.position), 0), duration),
+    playbackRate: position.playbackRate > 0 ? position.playbackRate : 1,
+  };
+}
+
+// useMediaSession は、OS のメディア操作 (ロック画面やメディアキー) に、番組名、再生の状態と位置、操作を知らせる (設計書 7.5)。
+// 番組名の囲み文字は、OS の表示で潰れないよう外す。
 export function useMediaSession(
   metadata: { title: string; artist: string; artwork: string | null },
   actions: Actions,
+  playback: Playback,
 ): void {
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
-  const { title, artist, artwork } = metadata;
+  const { artist, artwork } = metadata;
+  const title = splitProgramMarks(metadata.title).name;
+  const state = positionState(playback.position);
+  const { playing } = playback;
+  const duration = state?.duration;
+  const position = state?.position;
+  const playbackRate = state?.playbackRate;
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) {
+      return;
+    }
+    navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+
+    return () => {
+      navigator.mediaSession.playbackState = 'none';
+    };
+  }, [playing]);
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !('setPositionState' in navigator.mediaSession)) {
+      return;
+    }
+    navigator.mediaSession.setPositionState(
+      duration === undefined || position === undefined || playbackRate === undefined
+        ? undefined
+        : { duration, position, playbackRate },
+    );
+  }, [duration, position, playbackRate]);
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !('setPositionState' in navigator.mediaSession)) {
+      return;
+    }
+
+    return () => navigator.mediaSession.setPositionState(undefined);
+  }, []);
 
   useEffect(() => {
     if (!('mediaSession' in navigator)) {

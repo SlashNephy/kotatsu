@@ -307,6 +307,8 @@ function Live({
       play: () => void videoRef.current?.play().catch(() => {}),
       pause: () => videoRef.current?.pause(),
     },
+    // ライブはシークできないので、再生位置は知らせない。
+    { playing: !videoState.paused, position: null },
   );
 
   const service = data.node?.__typename === 'Service' ? data.node : null;
