@@ -454,3 +454,53 @@ func TestFinalizeCleansUpDeletedRecording(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(f.dir, paths[1]))
 	assert.NotContains(t, f.jobs(t), kindAnalyze)
 }
+
+// TestJoinSnoozesWhileAnotherJoinRuns は、同じ録画をほかでつないでいる間は、つながずに後でやり直すことを確かめる (#515)。
+// 時間の上限を超えたジョブが救出され、ほかの nekonote が同じ一時ファイルを開き直して壊さないようにする。
+func TestJoinSnoozesWhileAnotherJoinRuns(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID, paths := f.recording(t, overlapping(f.original))
+	conn, err := f.pool.Acquire(t.Context())
+	require.NoError(t, err)
+	defer conn.Release()
+	_, err = conn.Exec(t.Context(), "SELECT pg_advisory_lock(hashtext('kotatsu.segjoin'), hashtext($1::text))", recordingID.String())
+	require.NoError(t, err)
+
+	err = f.join(t, recordingID)
+	var snooze *river.JobSnoozeError
+	require.ErrorAs(t, err, &snooze)
+	assert.NoFileExists(t, filepath.Join(f.dir, paths[0]+".joining"))
+	assert.NotContains(t, f.jobs(t), kindFinalize)
+
+	// ほかのつなぐ処理が終われば、つなげる。
+	_, err = conn.Exec(t.Context(), "SELECT pg_advisory_unlock(hashtext('kotatsu.segjoin'), hashtext($1::text))", recordingID.String())
+	require.NoError(t, err)
+	require.NoError(t, f.join(t, recordingID))
+	assert.Contains(t, f.jobs(t), kindFinalize)
+}
+
+// TestJoinKeepsSplitWithoutRoom は、つないだファイルを書く空きがなければ、つながずに分けたまま残すことを確かめる (#515)。
+// つないでいる間は全長分をもう 1 本使うので、容量の管理に古い録画を消させたり、並行する録画を失敗させたりしないようにする。
+func TestJoinKeepsSplitWithoutRoom(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID, paths := f.recording(t, overlapping(f.original))
+	before := f.files(t, recordingID)
+	_, err := f.pool.Exec(t.Context(), "INSERT INTO storage_pools (id, priority, min_free_bytes, updated_at) VALUES ($1, 0, $2, $3)",
+		poolID, len(f.original), f.clock.Now())
+	require.NoError(t, err)
+	// 空きは全長の 1.5 倍あるが、書いた後に閾値 (全長) を下回る。
+	room := uint64(len(f.original)) * 3 / 2
+	store := kago.New(map[string]string{poolID: f.dir}, func(string) (uint64, error) { return room, nil })
+	worker := segjoin.NewJoinWorker(f.pool, store, f.inserter, slog.New(slog.DiscardHandler), window)
+
+	require.NoError(t, worker.Work(t.Context(), &river.Job[segjoin.JoinArgs]{JobRow: new(rivertype.JobRow), Args: segjoin.JoinArgs{RecordingID: recordingID}}))
+	assert.Equal(t, before, f.files(t, recordingID))
+	assert.NoFileExists(t, filepath.Join(f.dir, paths[0]+".joining"))
+	queued := f.jobs(t)
+	assert.Contains(t, queued, kindThumbnail)
+	assert.NotContains(t, queued, kindFinalize)
+}
