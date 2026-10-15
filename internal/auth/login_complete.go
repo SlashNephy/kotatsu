@@ -244,13 +244,10 @@ func (l *Logins) CompleteEnrollment(ctx context.Context, db Database, token, cod
 	var result *LoginResult
 	var verifyErr error
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		// throttledChallenge がユーザーの行をロックするので、同じユーザーの登録を同時に完了させない。
 		row, attempt, err := l.throttledChallenge(ctx, tx, token, client)
 		if err != nil {
 			return err
-		}
-		// 同じユーザーの登録を同時に完了させない。
-		if _, err := sqlc.New(tx).LockUser(ctx, row.UserID); err != nil {
-			return fmt.Errorf("failed to lock the user: %w", err)
 		}
 		if err := l.requireNoSecondFactor(ctx, tx, row); err != nil {
 			return err
