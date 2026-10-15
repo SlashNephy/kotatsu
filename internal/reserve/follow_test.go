@@ -22,6 +22,16 @@ func (f *fixture) follower() *reserve.Follower {
 	return reserve.NewFollower(f.pool, func(context.Context, pgx.Tx) error { return nil }, slog.New(slog.DiscardHandler), f.reservations, nil)
 }
 
+// addRelayingProgram は、こたつテスト1 の番組 (eventId 6) を、start から 30 分、サブチャンネルの eventId 7 に引き継ぐ番組にする。
+func (f *fixture) addRelayingProgram(start time.Time) {
+	f.fake.AddProgram(&faketuner.Program{
+		ID: faketuner.ProgramID(grNetworkID, grServiceID, futureEvent), EventID: futureEvent, ServiceID: grServiceID, NetworkID: grNetworkID,
+		StartAt: start.UnixMilli(), Duration: (30 * time.Minute).Milliseconds(), IsFree: true,
+		Name: "こたつテスト1 テスト番組 6", Description: "偽のチューナーサーバーが合成した番組です。",
+		RelatedItems: []*faketuner.RelatedItem{{Type: "relay", NetworkID: 0, ServiceID: subServiceID, EventID: 7}},
+	})
+}
+
 func (f *fixture) follow(t *testing.T) *reserve.FollowResult {
 	t.Helper()
 
@@ -149,12 +159,7 @@ func TestFollowerCreatesRelayedReservations(t *testing.T) {
 
 			// こたつテスト1 の eventId 6 が、サブチャンネルの eventId 7 に引き継がれる。
 			start := time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC)
-			f.fake.AddProgram(&faketuner.Program{
-				ID: faketuner.ProgramID(grNetworkID, grServiceID, futureEvent), EventID: futureEvent, ServiceID: grServiceID, NetworkID: grNetworkID,
-				StartAt: start.UnixMilli(), Duration: (30 * time.Minute).Milliseconds(), IsFree: true,
-				Name: "こたつテスト1 テスト番組 6", Description: "偽のチューナーサーバーが合成した番組です。",
-				RelatedItems: []*faketuner.RelatedItem{{Type: "relay", NetworkID: 0, ServiceID: subServiceID, EventID: 7}},
-			})
+			f.addRelayingProgram(start)
 			f.syncEPG(t)
 
 			assert.Equal(t, tt.wantRelayed, f.follow(t).Relayed)
@@ -194,12 +199,7 @@ func TestFollowerRelaysRuleSettings(t *testing.T) {
 	require.NoError(t, err)
 
 	start := time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC)
-	f.fake.AddProgram(&faketuner.Program{
-		ID: faketuner.ProgramID(grNetworkID, grServiceID, futureEvent), EventID: futureEvent, ServiceID: grServiceID, NetworkID: grNetworkID,
-		StartAt: start.UnixMilli(), Duration: (30 * time.Minute).Milliseconds(), IsFree: true,
-		Name: "こたつテスト1 テスト番組 6", Description: "偽のチューナーサーバーが合成した番組です。",
-		RelatedItems: []*faketuner.RelatedItem{{Type: "relay", NetworkID: 0, ServiceID: subServiceID, EventID: 7}},
-	})
+	f.addRelayingProgram(start)
 	f.syncEPG(t)
 
 	assert.Equal(t, 1, f.follow(t).Relayed)
@@ -375,4 +375,60 @@ func TestFollowerKeepsExtendedReservations(t *testing.T) {
 	assert.Zero(t, f.follow(t).Removed)
 	_, err = f.reservations.Get(t.Context(), f.pool, reservation.ID)
 	require.NoError(t, err)
+}
+
+// TestReservationsOfUndecidedPrograms は、終了時刻が未定の番組からも、引き継ぎと手動で予約を作れることを確かめる (#521)。
+// Mahiron は未定の長さを 0 で返すので、番組の終わりを写すと、予約の始まりと終わりが同じになり、制約に違反していた。
+// 予約の終わりは、始まりから 1 時間にしておき、終了時刻が決まったら追従で直す。
+func TestReservationsOfUndecidedPrograms(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// duration は、チューナーサーバーが返す未定の番組の長さ。Mahiron は 0、Mirakurun は 1 ミリ秒。
+		duration time.Duration
+	}{
+		{name: "Mahiron", duration: 0},
+		{name: "Mirakurun", duration: time.Millisecond},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			original, _, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, programInput())
+			require.NoError(t, err)
+			// 引き継ぎ先 (サブチャンネルの eventId 7) は、終了時刻が未定。
+			start := time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC)
+			relayedStart := time.Date(2026, 10, 10, 14, 0, 0, 0, time.UTC)
+			f.addRelayingProgram(start)
+			require.NoError(t, f.fake.RescheduleProgram(faketuner.ProgramID(grNetworkID, subServiceID, 7), relayedStart, tt.duration))
+			f.syncEPG(t)
+
+			assert.Equal(t, 1, f.follow(t).Relayed)
+			var startAt, endAt time.Time
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT start_at, end_at FROM reservations WHERE relayed_from = $1", original.ID).
+				Scan(&startAt, &endAt))
+			assert.Equal(t, relayedStart, startAt)
+			assert.Equal(t, relayedStart.Add(time.Hour), endAt)
+
+			// 手動でも予約できる。
+			_, err = f.pool.Exec(t.Context(), "DELETE FROM reservations WHERE relayed_from = $1", original.ID)
+			require.NoError(t, err)
+			reservation, created, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, &reserve.ProgramInput{
+				ServiceID: faketuner.ServiceItemID(grNetworkID, subServiceID), EventID: 7, FollowEventRelay: true, Overrides: nil,
+			})
+			require.NoError(t, err)
+			assert.True(t, created)
+			assert.Equal(t, relayedStart.Add(time.Hour), reservation.EndAt)
+
+			// 終了時刻が決まったら、追従で予約の終わりを直す。
+			require.NoError(t, f.fake.RescheduleProgram(faketuner.ProgramID(grNetworkID, subServiceID, 7), relayedStart, 30*time.Minute))
+			f.syncEPG(t)
+			f.follow(t)
+			got, err := f.reservations.Get(t.Context(), f.pool, reservation.ID)
+			require.NoError(t, err)
+			assert.Equal(t, relayedStart.Add(30*time.Minute), got.EndAt)
+		})
+	}
 }

@@ -17,27 +17,34 @@ INSERT INTO reservations (
   id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres,
   enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, relayed_from
 )
-SELECT $1, 'program', p.service_id, p.event_id, p.start_at, p.end_at, p.name, p.description, p.extended, p.genres,
-  true, true, $2, $3, NULL, $3, NULL, $4
+SELECT $1, 'program', p.service_id, p.event_id, p.start_at,
+  CASE WHEN p.end_undecided OR p.end_at <= p.start_at
+    THEN p.start_at + make_interval(secs => $2::double precision)
+    ELSE p.end_at END,
+  p.name, p.description, p.extended, p.genres,
+  true, true, $3, $4, NULL, $4, NULL, $5
 FROM programs p
-WHERE p.service_id = $5 AND p.event_id = $6
+WHERE p.service_id = $6 AND p.event_id = $7
 ON CONFLICT (service_id, event_id) WHERE event_id IS NOT NULL DO NOTHING
 RETURNING id
 `
 
 type InsertRelayedReservationParams struct {
-	ID          uuid.UUID
-	Settings    []byte
-	Now         time.Time
-	RelayedFrom *uuid.UUID
-	ServiceID   int64
-	EventID     int64
+	ID               uuid.UUID
+	UndecidedSeconds float64
+	Settings         []byte
+	Now              time.Time
+	RelayedFrom      *uuid.UUID
+	ServiceID        int64
+	EventID          int64
 }
 
 // イベントリレーの引き継ぎ先の番組予約を、番組情報をコピーして作る。引き継ぎ先の予約がすでにあれば何もせず、行を返さない。
+// 番組の終了時刻が未定なら、予約の終わりを、始まりから undecided_seconds 秒後にしておく。決まったら追従で直す (#521)。
 func (q *Queries) InsertRelayedReservation(ctx context.Context, arg InsertRelayedReservationParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, insertRelayedReservation,
 		arg.ID,
+		arg.UndecidedSeconds,
 		arg.Settings,
 		arg.Now,
 		arg.RelayedFrom,

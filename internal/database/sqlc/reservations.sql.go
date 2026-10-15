@@ -63,7 +63,7 @@ func (q *Queries) GetProgramForFileName(ctx context.Context, arg GetProgramForFi
 }
 
 const getProgramForReservation = `-- name: GetProgramForReservation :one
-SELECT service_id, event_id, start_at, end_at, name, description, extended, genres
+SELECT service_id, event_id, start_at, end_at, end_undecided, name, description, extended, genres
 FROM programs
 WHERE service_id = $1 AND event_id = $2
 `
@@ -74,14 +74,15 @@ type GetProgramForReservationParams struct {
 }
 
 type GetProgramForReservationRow struct {
-	ServiceID   int64
-	EventID     int64
-	StartAt     time.Time
-	EndAt       time.Time
-	Name        string
-	Description string
-	Extended    []byte
-	Genres      []byte
+	ServiceID    int64
+	EventID      int64
+	StartAt      time.Time
+	EndAt        time.Time
+	EndUndecided bool
+	Name         string
+	Description  string
+	Extended     []byte
+	Genres       []byte
 }
 
 func (q *Queries) GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error) {
@@ -92,6 +93,7 @@ func (q *Queries) GetProgramForReservation(ctx context.Context, arg GetProgramFo
 		&i.EventID,
 		&i.StartAt,
 		&i.EndAt,
+		&i.EndUndecided,
 		&i.Name,
 		&i.Description,
 		&i.Extended,
