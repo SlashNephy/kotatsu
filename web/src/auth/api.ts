@@ -85,8 +85,8 @@ export type Completed = { recoveryCodes: string[] };
 // Reauthenticated は、再認証を終えたときの応答。authenticatedAt から 10 分の間、重要な操作ができる。
 export type Reauthenticated = { authenticatedAt: string };
 
-// OIDCStatus は、OIDC でのログインを受け付けるかと、ボタンに出す IdP の名前。
-export type OIDCStatus = { enabled: boolean; displayName: string };
+// OIDCStatus は、OIDC でのログインを受け付けるかと、ボタンに出す IdP の名前、ログイン中のユーザーが IdP と紐付いているか。
+export type OIDCStatus = { enabled: boolean; displayName: string; linked: boolean };
 
 // PasskeyAssertion は、パスキーでの確認の開始。options を、そのまま navigator.credentials.get に渡す。
 export type PasskeyAssertion = {
@@ -138,6 +138,10 @@ export const authApi = {
   // IdP で再認証する。終えると、returnTo のパスに戻る。失敗したときは、returnTo に error=<理由> が付く。
   beginOIDCReauthentication: (returnTo: string) =>
     post<{ authorizationUrl: string }>('/auth/reauth/oidc', { returnTo }),
+  // ログイン中のユーザーを IdP のユーザーと紐付ける (設計書 9.4)。終えると、returnTo のパスに linked=oidc を付けて戻る。
+  // 失敗したときは、returnTo に error=<理由> が付く。直前に再認証していなければ、REAUTHENTICATION_REQUIRED を返す。
+  beginOIDCLink: (returnTo: string) =>
+    post<{ authorizationUrl: string }>('/auth/oidc/link', { returnTo }),
   logout: async () => {
     await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
   },

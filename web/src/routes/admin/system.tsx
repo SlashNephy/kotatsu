@@ -26,7 +26,7 @@ import { RecordingRenames } from '../../admin/RecordingRenames';
 import type { systemPoolMutation } from './__generated__/systemPoolMutation.graphql';
 import type { systemQuery } from './__generated__/systemQuery.graphql';
 
-const oidcDisabled: OIDCStatus = { enabled: false, displayName: '' };
+const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
 const path = '/admin/system';
 
 export const Route = createFileRoute('/admin/system')({

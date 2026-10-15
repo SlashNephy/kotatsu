@@ -135,6 +135,7 @@ type OidcLogin struct {
 	RedirectUri  string
 	SessionID    *uuid.UUID
 	ReturnTo     *string
+	Link         bool
 	CreatedAt    time.Time
 	ExpiresAt    time.Time
 }

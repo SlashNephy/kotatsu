@@ -115,6 +115,7 @@
       "OIDC_UNAVAILABLE": "IdPに接続できませんでした。時間をおいてやり直してください",
       "OIDC_NOT_LINKED": "このユーザーはIdPと紐付いていないので、IdPでは確かめられません",
       "OIDC_DISABLED": "IdPでのログインは設定されていません",
+      "OIDC_ALREADY_LINKED": "このユーザーは、既にIdPのアカウントと紐付いています",
       "UNAUTHENTICATED": "ログインしていません。もう一度ログインしてください"
     },
     "oidcErrors": {
@@ -124,7 +125,10 @@
       "oidc_username_taken": "同じユーザー名のユーザーがいるので、アカウントを作れませんでした。管理者にお問い合わせください",
       "oidc_unavailable": "IdPに接続できませんでした。時間をおいてやり直してください",
       "oidc_reauth_stale": "IdPで、もう一度認証したことを確かめられませんでした。IdPにもう一度ログインしてから、やり直してください",
-      "oidc_reauth_mismatch": "ログイン中のユーザーとは違うアカウントで認証されました。同じアカウントで、やり直してください"
+      "oidc_reauth_mismatch": "ログイン中のユーザーとは違うアカウントで認証されました。同じアカウントで、やり直してください",
+      "oidc_link_taken": "このIdPのアカウントは、ほかのユーザーと紐付いています。別のアカウントでやり直すか、管理者にお問い合わせください",
+      "oidc_link_already": "このユーザーは、既にIdPのアカウントと紐付いています",
+      "oidc_link_mismatch": "紐付けを始めた画面とは違うセッションで戻ってきました。もう一度やり直してください"
     },
     "setup": {
       "title": "初回セットアップ",
@@ -220,7 +224,11 @@
       "thisSession": "この端末",
       "unknownDevice": "不明な端末",
       "sessionTimes": "最終利用 {{lastSeen}}・送信元 {{source}}",
-      "revoke": "ログアウトさせる"
+      "revoke": "ログアウトさせる",
+      "oidc": "{{name}}との紐付け",
+      "oidcDescription": "{{name}}のアカウントと紐付けると、{{name}}でこのユーザーとしてログインできます",
+      "oidcLink": "{{name}}と紐付ける",
+      "oidcLinked": "{{name}}のアカウントと紐付けました"
     },
     "password": {
       "title": "パスワードの変更",

@@ -26,7 +26,7 @@ import type { channelsQuery } from './__generated__/channelsQuery.graphql';
 import type { channelsServiceMutation } from './__generated__/channelsServiceMutation.graphql';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 
-const oidcDisabled: OIDCStatus = { enabled: false, displayName: '' };
+const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
 const path = '/admin/channels';
 
 export const Route = createFileRoute('/admin/channels')({

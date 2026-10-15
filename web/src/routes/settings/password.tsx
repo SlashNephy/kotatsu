@@ -18,7 +18,7 @@ type PasswordSearch = {
   error?: string;
 };
 
-const oidcDisabled: OIDCStatus = { enabled: false, displayName: '' };
+const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
 
 const passwordReasons = ['too_short', 'too_long', 'blocklisted', 'breached', 'too_weak'] as const;
 

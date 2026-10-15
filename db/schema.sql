@@ -190,10 +190,12 @@ CREATE TABLE oidc_logins (
   code_verifier text NOT NULL,
   -- IdP に渡したリダイレクト URI。トークンと引き換えるときに、同じ値を渡す。
   redirect_uri text NOT NULL,
-  -- IdP での再認証 (設計書 9.5) なら、認証の日時を更新するセッション。ログインなら NULL。
+  -- IdP での再認証 (設計書 9.5) なら、認証の日時を更新するセッション。紐付けなら、始めたセッション。ログインなら NULL。
   session_id uuid REFERENCES sessions (id) ON DELETE CASCADE,
-  -- 再認証を終えたときに戻す、画面のパス。ログインなら NULL。
+  -- 再認証か紐付けを終えたときに戻す、画面のパス。ログインなら NULL。
   return_to text,
+  -- ログイン中のユーザーを IdP のユーザーと紐付ける (設計書 9.4) なら true。session_id も、紐付けを始めたセッションにする。
+  link boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL,
   expires_at timestamptz NOT NULL
 );

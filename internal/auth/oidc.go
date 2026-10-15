@@ -255,14 +255,16 @@ func (o *OIDC) Link(ctx context.Context, db Database, actor *audit.Actor, userna
 	})
 }
 
-// oidcReauthRequest は、IdP での再認証を始めるときの、認証の日時を更新するセッションと、終えたときに戻すパス。
-type oidcReauthRequest struct {
+// oidcSessionRequest は、ログイン中のセッションで、IdP での再認証か紐付けを始めるときの、始めたセッションと、終えたときに戻すパス。
+type oidcSessionRequest struct {
 	sessionID uuid.UUID
 	returnTo  string
+	// link は、再認証ではなく、ログイン中のユーザーを IdP のユーザーと紐付けるかどうか。
+	link bool
 }
 
-// begin は、IdP へ送り出すログインを始める。reauth があれば、IdP にもう一度認証させる再認証にする。
-func (o *OIDC) begin(ctx context.Context, db Database, client *ClientInfo, reauth *oidcReauthRequest) (*OIDCLogin, error) {
+// begin は、IdP へ送り出すログインを始める。request があれば、ログイン中のセッションでの再認証か紐付けにする。
+func (o *OIDC) begin(ctx context.Context, db Database, client *ClientInfo, request *oidcSessionRequest) (*OIDCLogin, error) {
 	provider, err := o.loadProvider(ctx)
 	if err != nil {
 		return nil, err
@@ -288,10 +290,13 @@ func (o *OIDC) begin(ctx context.Context, db Database, client *ClientInfo, reaut
 	options := []oauth2.AuthCodeOption{oidc.Nonce(nonce), oauth2.S256ChallengeOption(verifier)}
 	var sessionID *uuid.UUID
 	var returnTo *string
-	if reauth != nil {
-		// IdP に、ログイン中でも、もう一度認証させる (OpenID Connect Core 1.0 3.1.2.1)。
-		options = append(options, oauth2.SetAuthURLParam("prompt", "login"), oauth2.SetAuthURLParam("max_age", "0"))
-		sessionID, returnTo = &reauth.sessionID, &reauth.returnTo
+	link := false
+	if request != nil {
+		if !request.link {
+			// IdP に、ログイン中でも、もう一度認証させる (OpenID Connect Core 1.0 3.1.2.1)。
+			options = append(options, oauth2.SetAuthURLParam("prompt", "login"), oauth2.SetAuthURLParam("max_age", "0"))
+		}
+		sessionID, returnTo, link = &request.sessionID, &request.returnTo, request.link
 	}
 	login := &OIDCLogin{
 		AuthorizationURL: o.oauth2Config(provider, redirectURI).AuthCodeURL(state, options...),
@@ -305,7 +310,7 @@ func (o *OIDC) begin(ctx context.Context, db Database, client *ClientInfo, reaut
 		}
 		err := q.InsertOIDCLogin(ctx, sqlc.InsertOIDCLoginParams{
 			ID: id.New(), TokenHash: hashToken(token), State: state, Nonce: nonce, CodeVerifier: verifier,
-			RedirectUri: redirectURI, SessionID: sessionID, ReturnTo: returnTo, Now: now, ExpiresAt: login.ExpiresAt,
+			RedirectUri: redirectURI, SessionID: sessionID, ReturnTo: returnTo, Link: link, Now: now, ExpiresAt: login.ExpiresAt,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to save the OIDC login: %w", err)
@@ -320,18 +325,20 @@ func (o *OIDC) begin(ctx context.Context, db Database, client *ClientInfo, reaut
 	return login, nil
 }
 
-// oidcOutcome は、IdP から戻ってきたログインか再認証の結果。
+// oidcOutcome は、IdP から戻ってきたログイン、再認証、紐付けの結果。
 type oidcOutcome struct {
-	// login は、ログインで作ったセッション。再認証なら nil。
+	// login は、ログインで作ったセッション。再認証か紐付けなら nil。
 	login *LoginResult
-	// reauth は、再認証の結果。ログインなら nil。
+	// reauth は、再認証の結果。ログインか紐付けなら nil。
 	reauth *OIDCReauthentication
-	// returnTo は、再認証を終えたときに戻すパス。再認証に失敗しても、途中の状態を引けたら入れる。
+	// linked は、紐付けを終えたかどうか。
+	linked bool
+	// returnTo は、再認証か紐付けを終えたときに戻すパス。失敗しても、途中の状態を引けたら入れる。
 	returnTo string
 }
 
-// complete は、IdP から戻ってきたログインか再認証を確かめる。principal は、戻ってきたリクエストのログイン中のユーザー。
-// 再認証に失敗しても、途中の状態を引けたら、戻すパスを入れた結果を、エラーと一緒に返す。
+// complete は、IdP から戻ってきたログイン、再認証、紐付けを確かめる。principal は、戻ってきたリクエストのログイン中のユーザー。
+// 再認証か紐付けに失敗しても、途中の状態を引けたら、戻すパスを入れた結果を、エラーと一緒に返す。
 func (o *OIDC) complete(
 	ctx context.Context, db Database, token string, callback *OIDCCallback, client *ClientInfo, principal *Principal,
 ) (*oidcOutcome, error) {
@@ -354,7 +361,7 @@ func (o *OIDC) complete(
 	if err != nil {
 		return nil, err
 	}
-	outcome := &oidcOutcome{login: nil, reauth: nil, returnTo: ""}
+	outcome := &oidcOutcome{login: nil, reauth: nil, linked: false, returnTo: ""}
 	if row.ReturnTo != nil {
 		outcome.returnTo = *row.ReturnTo
 	}
@@ -366,6 +373,12 @@ func (o *OIDC) complete(
 	}
 	claims, err := o.verify(ctx, provider, &row, callback.Code)
 	if err != nil {
+		return outcome, err
+	}
+	if row.Link {
+		err = o.linkSession(ctx, db, &row, claims, principal, client)
+		outcome.linked = err == nil
+
 		return outcome, err
 	}
 	if row.SessionID != nil {

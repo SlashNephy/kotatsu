@@ -29,7 +29,7 @@ import type { usersQuery } from './__generated__/usersQuery.graphql';
 import type { usersResetPasswordMutation } from './__generated__/usersResetPasswordMutation.graphql';
 import type { usersUpdateMutation } from './__generated__/usersUpdateMutation.graphql';
 
-const oidcDisabled: OIDCStatus = { enabled: false, displayName: '' };
+const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
 const path = '/admin/users';
 
 export const Route = createFileRoute('/admin/users')({

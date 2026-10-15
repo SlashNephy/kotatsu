@@ -370,7 +370,7 @@ func TestOIDCHandlers(t *testing.T) {
 	f.clock.Advance(time.Since(f.clock.Now()))
 	client := func(*http.Request) *auth.ClientInfo { return f.client }
 	mux := http.NewServeMux()
-	mux.Handle("GET /auth/oidc", f.oidc.StatusHandler())
+	mux.Handle("GET /auth/oidc", f.oidc.StatusHandler(f.db))
 	mux.Handle("POST /auth/oidc", f.oidc.BeginHandler(f.db, client))
 	mux.Handle("GET "+auth.OIDCCallbackPath, f.oidc.CallbackHandler(f.db, client))
 	server := httptest.NewServer(mux)
@@ -471,7 +471,7 @@ func TestOIDCHandlersUnavailable(t *testing.T) {
 		wantStatus int
 		want       string
 	}{
-		{name: "status when disabled", handler: disabled.StatusHandler(), method: http.MethodGet, wantStatus: http.StatusOK, want: `{"enabled":false,"displayName":""}`},
+		{name: "status when disabled", handler: disabled.StatusHandler(f.db), method: http.MethodGet, wantStatus: http.StatusOK, want: `{"enabled":false,"displayName":"","linked":false}`},
 		{name: "begin when disabled", handler: disabled.BeginHandler(f.db, client), method: http.MethodPost, wantStatus: http.StatusNotFound, want: `"code":"OIDC_DISABLED"`},
 		{name: "begin when the provider is down", handler: f.oidc.BeginHandler(f.db, client), method: http.MethodPost, wantStatus: http.StatusServiceUnavailable, want: `"code":"OIDC_UNAVAILABLE"`},
 	}

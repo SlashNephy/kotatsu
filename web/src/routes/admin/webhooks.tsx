@@ -34,7 +34,7 @@ import type { webhooksDeleteMutation } from './__generated__/webhooksDeleteMutat
 import type { webhooksQuery } from './__generated__/webhooksQuery.graphql';
 import type { webhooksUpdateMutation } from './__generated__/webhooksUpdateMutation.graphql';
 
-const oidcDisabled: OIDCStatus = { enabled: false, displayName: '' };
+const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
 const path = '/admin/webhooks';
 
 export const Route = createFileRoute('/admin/webhooks')({
