@@ -1673,3 +1673,34 @@ func TestRecorderReleasesWhenUnableToRecord(t *testing.T) {
 		})
 	}
 }
+
+// TestRecorderFlushesLowBitrateStreams は、ビットレートが低くても、書き込みのバッファを一定の時間ごとに書き出し、
+// 録画ファイルの更新時刻を遅らせないことを確かめる (#525)。遅れると、落ちた mikan のものとみなして早すぎる時刻で閉じ、
+// 実際にはない途切れを記録していた。
+func TestRecorderFlushesLowBitrateStreams(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	stream := &endingStream{data: data[:188*50], close: make(chan struct{}), opened: new(atomic.Int32)}
+	recorder, dir := f.newRecorder(t, stream, nil)
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return len(f.files(t, reservationID)) == 2
+	}, waitTimeout, 10*time.Millisecond)
+
+	// ストリームを閉じる前に、書いた分がファイルに出る。
+	segmentPath := f.files(t, reservationID)[1].path
+	require.Eventually(t, func() bool {
+		info, err := os.Stat(filepath.Join(dir, segmentPath))
+
+		return err == nil && info.Size() == int64(188*50)
+	}, waitTimeout, 10*time.Millisecond)
+
+	close(stream.close)
+	f.clock.Advance(time.Hour)
+	require.NoError(t, wait(t, done))
+}
