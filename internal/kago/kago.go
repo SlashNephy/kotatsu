@@ -143,6 +143,8 @@ func (s *Store) Open(poolID, rel string) (*os.File, error) {
 
 // Select は、推定サイズ estimated (バイト) を書いても空き容量が閾値を下回らないプールのうち、
 // 優先順位が最も高いものを選ぶ。優先順位が同じなら、プールの順 (設定に書いた順) で先のものを選ぶ。
+// どのプールも閾値を下回るなら、推定サイズが入るプールのうち、優先順位が最も高いものを選ぶ。
+// 閾値は録画を始めるかどうかの条件ではなく、容量の管理が古い録画を消して保つ空き容量なので、録画を失敗させない (#511)。
 // このロールにマウントされていないプールと、空き容量を調べられなかったプールは選ばない。
 // どれも選べなければ ErrNoPoolFits を返す。
 func (s *Store) Select(pools []*Pool, estimated uint64) (*Pool, error) {
@@ -152,6 +154,7 @@ func (s *Store) Select(pools []*Pool, estimated uint64) (*Pool, error) {
 	})
 
 	errs := []error{}
+	var fallback *Pool
 	for _, pool := range ordered {
 		mount, ok := s.mounts[pool.ID]
 		if !ok {
@@ -163,9 +166,18 @@ func (s *Store) Select(pools []*Pool, estimated uint64) (*Pool, error) {
 
 			continue
 		}
-		if free >= estimated && free-estimated >= pool.MinFreeBytes {
+		if free < estimated {
+			continue
+		}
+		if free-estimated >= pool.MinFreeBytes {
 			return pool, nil
 		}
+		if fallback == nil {
+			fallback = pool
+		}
+	}
+	if fallback != nil {
+		return fallback, nil
 	}
 
 	return nil, errors.Join(append([]error{fmt.Errorf("%w: estimated %d bytes", ErrNoPoolFits, estimated)}, errs...)...)
