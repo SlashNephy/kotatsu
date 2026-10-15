@@ -43,7 +43,7 @@ func NewElector(manager *Manager, logger *slog.Logger, renewInterval time.Durati
 }
 
 // Run は、ctx が終わるまでリースを取り合い、リーダーになっている間は lead を動かす。
-// lead がエラーを返したときは、リースを手放してそのエラーを返す。
+// lead がエラーを返したときは、リースを手放し、次の間隔で取り直す。ctx が終わるまで返らない (#528)。
 func (e *Elector) Run(ctx context.Context, lead Lead) error {
 	ticker := time.NewTicker(e.renewInterval)
 	defer ticker.Stop()
@@ -54,8 +54,10 @@ func (e *Elector) Run(ctx context.Context, lead Lead) error {
 		case err != nil && ctx.Err() == nil:
 			e.logger.WarnContext(ctx, "failed to acquire the lease", slog.Any("error", err))
 		case acquired:
+			// リーダーの処理が失敗しても、Run は終えずにリーダーを降り、次の間隔で取り直す (#528)。
+			// 終えると、全ロールを 1 つのプロセスで動かす構成では、一時的な失敗で、録画中の mikan ごと止まる。
 			if err := e.lead(ctx, generation, lead, ticker); err != nil {
-				return err
+				e.logger.ErrorContext(ctx, "the leader failed; stepping down and retrying", slog.Any("error", err))
 			}
 		}
 

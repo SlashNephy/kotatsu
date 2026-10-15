@@ -2,6 +2,7 @@ package lease_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -292,4 +293,44 @@ func migratedPool(t *testing.T) *pgxpool.Pool {
 	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 
 	return pool
+}
+
+// TestElectorSurvivesLeaderErrors は、リーダーの処理がエラーを返しても、Run を終えずにリーダーを降り、取り直すことを確かめる (#528)。
+// 終えると、全ロールを 1 つのプロセスで動かす構成では、DB の瞬断などの一時的な失敗で、録画中の mikan ごと止まる。
+func TestElectorSurvivesLeaderErrors(t *testing.T) {
+	t.Parallel()
+
+	pool := migratedPool(t)
+	elector, err := lease.NewElector(
+		lease.NewManager(pool, new(clock.Real), leaseName, id.New(), 2*time.Second),
+		slog.New(slog.DiscardHandler),
+		300*time.Millisecond,
+	)
+	require.NoError(t, err)
+
+	var leads atomic.Int32
+	elected := make(chan struct{}, 1)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		done <- elector.Run(ctx, func(ctx context.Context, _ int64) error {
+			if leads.Add(1) == 1 {
+				return errors.New("a transient failure")
+			}
+			elected <- struct{}{}
+			<-ctx.Done()
+
+			return nil
+		})
+	}()
+
+	select {
+	case <-elected:
+	case err := <-done:
+		t.Fatalf("the elector stopped on a leader error: %v", err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("the elector did not lead again")
+	}
+	cancel()
+	require.NoError(t, <-done)
 }
