@@ -223,6 +223,7 @@ func (s *Scheduler) recordMissed(ctx context.Context, tx pgx.Tx, now time.Time) 
 	if err != nil {
 		return 0, fmt.Errorf("failed to list missed recording assignments: %w", err)
 	}
+	missed := 0
 	for _, row := range rows {
 		s.logger.WarnContext(ctx, "no mikan took the recording assignment before it ended", slog.String("reservation_id", row.ID.String()))
 		recordingID := id.New()
@@ -230,13 +231,18 @@ func (s *Scheduler) recordMissed(ctx context.Context, tx pgx.Tx, now time.Time) 
 		if row.PlannedStartAt != nil {
 			recordedFrom = *row.PlannedStartAt
 		}
-		err := q.InsertMissedRecording(ctx, sqlc.InsertMissedRecordingParams{
+		inserted, err := q.InsertMissedRecording(ctx, sqlc.InsertMissedRecordingParams{
 			ID: recordingID, ReservationID: &row.ID, ServiceID: row.ServiceID, EventID: row.EventID, Name: row.Name, Description: row.Description,
 			StartAt: row.StartAt, EndAt: row.EndAt, RecordedFrom: recordedFrom, Now: now,
 		})
 		if err != nil {
 			return 0, fmt.Errorf("failed to record a missed recording: %w", err)
 		}
+		// 一覧を読んだ後に、ほかで録画の行ができていれば、記録も通知もしない。
+		if inserted == 0 {
+			continue
+		}
+		missed++
 		payload := recordingPayload(recordingID, row.Name, row.ServiceName, row.StartAt, row.EndAt)
 		payload["state"] = string(StateFailed)
 		payload["reason"] = string(FailureRecorderUnavailable)
@@ -250,5 +256,5 @@ func (s *Scheduler) recordMissed(ctx context.Context, tx pgx.Tx, now time.Time) 
 		}
 	}
 
-	return len(rows), nil
+	return missed, nil
 }

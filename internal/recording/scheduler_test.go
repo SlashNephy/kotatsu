@@ -306,29 +306,58 @@ func TestSchedulerFailsStuckRecordings(t *testing.T) {
 func TestSchedulerRecordsMissedRecordings(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t)
-	reservationID := f.reserve(t, 0)
-	f.clock.Advance(programStart().Add(-time.Minute).Sub(f.clock.Now()))
-	require.Equal(t, 1, f.schedule(t).Created)
+	tests := []struct {
+		name string
+		// prepare は、予定の終わりが過ぎる前に、予約や録画の状態を変える。
+		prepare    func(t *testing.T, f *fixture, reservationID uuid.UUID)
+		wantMissed int
+	}{
+		{name: "mikan が取らなかった", prepare: func(*testing.T, *fixture, uuid.UUID) {}, wantMissed: 1},
+		{name: "予約を無効にした", prepare: func(t *testing.T, f *fixture, reservationID uuid.UUID) {
+			t.Helper()
 
-	f.clock.Advance(time.Hour)
-	assert.Equal(t, &recording.ScheduleResult{Created: 0, Deleted: 1, Failed: 0, Missed: 1}, f.schedule(t))
+			_, err := f.reservations.Update(t.Context(), f.pool, audit.System("test"), reservationID, &reserve.Update{Enabled: new(false)})
+			require.NoError(t, err)
+		}, wantMissed: 0},
+		{name: "録画の行がすでにある", prepare: func(t *testing.T, f *fixture, reservationID uuid.UUID) {
+			t.Helper()
 
-	var state, name string
-	var reason *string
-	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT state, failure_reason, name FROM recordings WHERE reservation_id = $1", reservationID).
-		Scan(&state, &reason, &name))
-	assert.Equal(t, "failed", state)
-	require.NotNil(t, reason)
-	assert.Equal(t, "recorder_unavailable", *reason)
-	assert.NotEmpty(t, name)
-	var payload map[string]any
-	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT payload FROM notification_events WHERE kind = 'recording_failed'").Scan(&payload))
-	assert.Equal(t, "recorder_unavailable", payload["reason"])
+			_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+				state, failure_reason, recorded_from, protected, created_at, updated_at)
+				VALUES ($1, $2, $3, 6, '録画', '', $4, $4, 'failed', 'tuner_unavailable', $4, false, $4, $4)`, id.New(), reservationID, grService(0), programStart())
+			require.NoError(t, err)
+		}, wantMissed: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// 何度見直しても、記録と通知は 1 回だけ。
-	assert.Equal(t, &recording.ScheduleResult{Created: 0, Deleted: 0, Failed: 0, Missed: 0}, f.schedule(t))
-	var events int
-	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM notification_events WHERE kind = 'recording_failed'").Scan(&events))
-	assert.Equal(t, 1, events)
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			f.clock.Advance(programStart().Add(-time.Minute).Sub(f.clock.Now()))
+			require.Equal(t, 1, f.schedule(t).Created)
+			tt.prepare(t, f, reservationID)
+
+			f.clock.Advance(time.Hour)
+			assert.Equal(t, tt.wantMissed, f.schedule(t).Missed)
+			var events int
+			require.NoError(t, f.pool.QueryRow(t.Context(),
+				"SELECT count(*) FROM notification_events WHERE kind = 'recording_failed' AND payload->>'reason' = 'recorder_unavailable'").Scan(&events))
+			assert.Equal(t, tt.wantMissed, events)
+			if tt.wantMissed == 0 {
+				return
+			}
+			var state, reason, recordingID string
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT state, failure_reason, id FROM recordings WHERE reservation_id = $1", reservationID).
+				Scan(&state, &reason, &recordingID))
+			assert.Equal(t, "failed", state)
+			assert.Equal(t, "recorder_unavailable", reason)
+			var notified string
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT payload->>'recordingId' FROM notification_events WHERE kind = 'recording_failed'").Scan(&notified))
+			assert.Equal(t, recordingID, notified)
+
+			// 何度見直しても、記録と通知は 1 回だけ。
+			assert.Zero(t, f.schedule(t).Missed)
+		})
+	}
 }

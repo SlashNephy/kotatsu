@@ -354,7 +354,7 @@ func (q *Queries) GetStoragePoolThreshold(ctx context.Context, id string) (int64
 	return min_free_bytes, err
 }
 
-const insertMissedRecording = `-- name: InsertMissedRecording :exec
+const insertMissedRecording = `-- name: InsertMissedRecording :execrows
 INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
   recorded_from, recorded_until, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'failed', 'recorder_unavailable',
@@ -376,8 +376,9 @@ type InsertMissedRecordingParams struct {
 }
 
 // mikan が取らなかった予約の録画を、失敗として記録する (#517)。録画した時間はないので、始まりと終わりを予定の開始にする。
-func (q *Queries) InsertMissedRecording(ctx context.Context, arg InsertMissedRecordingParams) error {
-	_, err := q.db.Exec(ctx, insertMissedRecording,
+// 同じ予約の録画がすでにあれば何もせず、0 を返す。
+func (q *Queries) InsertMissedRecording(ctx context.Context, arg InsertMissedRecordingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertMissedRecording,
 		arg.ID,
 		arg.ReservationID,
 		arg.ServiceID,
@@ -389,7 +390,10 @@ func (q *Queries) InsertMissedRecording(ctx context.Context, arg InsertMissedRec
 		arg.RecordedFrom,
 		arg.Now,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const insertRecordingFile = `-- name: InsertRecordingFile :exec

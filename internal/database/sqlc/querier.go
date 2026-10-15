@@ -159,7 +159,8 @@ type Querier interface {
 	InsertImportedRecordingFile(ctx context.Context, arg InsertImportedRecordingFileParams) error
 	InsertLoginChallenge(ctx context.Context, arg InsertLoginChallengeParams) error
 	// mikan が取らなかった予約の録画を、失敗として記録する (#517)。録画した時間はないので、始まりと終わりを予定の開始にする。
-	InsertMissedRecording(ctx context.Context, arg InsertMissedRecordingParams) error
+	// 同じ予約の録画がすでにあれば何もせず、0 を返す。
+	InsertMissedRecording(ctx context.Context, arg InsertMissedRecordingParams) (int64, error)
 	InsertNotificationEvent(ctx context.Context, arg InsertNotificationEventParams) error
 	// イベント event_id を、ユーザー user_ids に配る。ids と user_ids は同じ順に並べる。
 	InsertNotifications(ctx context.Context, arg InsertNotificationsParams) error

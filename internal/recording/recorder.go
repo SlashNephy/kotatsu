@@ -315,7 +315,15 @@ func (r *Recorder) finish(
 	if err != nil {
 		return fmt.Errorf("failed to list the recording files: %w", err)
 	}
-	gaps, recorded := gapsOf(files, r.plannedStart(ctx, assignment), now, disconnected)
+	plannedStart, found, err := r.plannedStart(ctx, assignment)
+	if err != nil {
+		return err
+	}
+	var expectedStart *time.Time
+	if found {
+		expectedStart = &plannedStart
+	}
+	gaps, recorded := gapsOf(files, expectedStart, now, disconnected)
 	if !recorded {
 		reason := result.lastFailure
 		if reason == "" {
@@ -359,14 +367,21 @@ type gap struct {
 	To   time.Time `json:"to"`
 }
 
-// plannedStart は、予約の予定の開始を返す。予約が消えたか、読めなければ nil を返す。
-func (r *Recorder) plannedStart(ctx context.Context, assignment *Assignment) *time.Time {
+// plannedStart は、予約の予定の開始を返す。割り当てが消えていれば、番組の開始を返す。
+// 予約が消えていれば、冒頭の欠けは確かめないので、found を false にする。
+func (r *Recorder) plannedStart(ctx context.Context, assignment *Assignment) (time.Time, bool, error) {
 	reservation, err := sqlc.New(r.pool).GetReservationForRecording(ctx, assignment.ReservationID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return time.Time{}, false, nil
+	}
 	if err != nil {
-		return nil
+		return time.Time{}, false, fmt.Errorf("failed to get the reservation: %w", err)
+	}
+	if reservation.PlannedStartAt == nil {
+		return reservation.StartAt, true, nil
 	}
 
-	return reservation.PlannedStartAt
+	return *reservation.PlannedStartAt, true, nil
 }
 
 // gapsOf は、書けたセグメントの時間の範囲のすき間を、途切れた区間として返す。書けたセグメントがなければ false を返す。
