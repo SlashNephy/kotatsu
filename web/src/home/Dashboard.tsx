@@ -38,7 +38,7 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
 const maxUpcoming = 5;
 const upcomingFetch = 20;
 
-// recentRecordings は、ホームに出す最近の録画の数。広い画面で 1 段に並ぶ数にする。
+// recentRecordings は、ホームに出す最近の録画の数。広い画面で 1 段、狭い画面で 2 段に並ぶ数にする。
 const recentRecordings = 4;
 
 export type DashboardRange = { now: number; nowEnd: string; from: string; to: string };
@@ -282,7 +282,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
             {t('home.noRecordings')}
           </Text>
         ) : (
-          <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="xs">
+          <SimpleGrid cols={{ base: 2, md: 4 }} spacing="xs">
             {data.recordings.edges.map(({ node }) => (
               <RecordingCard key={node.id} recording={node} />
             ))}
