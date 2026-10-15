@@ -87,6 +87,20 @@ func TestSelect(t *testing.T) {
 			wantID:    poolSpare,
 		},
 		{
+			name:      "every pool falls below its threshold",
+			free:      map[string]uint64{mountFast: 15 * gib, mountBig: 55 * gib, mountSpare: 5 * gib},
+			estimated: 8 * gib,
+			// どのプールも書いた後に閾値を下回る。録画を失敗させず、推定サイズが入るうちで優先順位が最も高い fast を選ぶ (#511)。
+			// 閾値まで空けるのは、容量の管理が録画の間に古い録画を消して行う。
+			wantID: poolFast,
+		},
+		{
+			name:      "below the threshold, a pool smaller than the estimate is skipped",
+			free:      map[string]uint64{mountFast: 5 * gib, mountBig: 55 * gib, mountSpare: 5 * gib},
+			estimated: 8 * gib,
+			wantID:    poolBig,
+		},
+		{
 			name:      "no pool fits",
 			free:      map[string]uint64{mountFast: 1 * gib, mountBig: 1 * gib, mountSpare: 1 * gib},
 			estimated: 8 * gib,
