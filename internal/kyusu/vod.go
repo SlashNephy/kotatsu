@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,6 +39,9 @@ const (
 	// maxVODRuns は、1 つのセッションで同時に動かすエンコーダーの数の上限。同じ録画を離れた位置で見る視聴者に、
 	// それぞれエンコーダーを動かす (#531)。超えたら、最も長く使われていないものを止める。
 	maxVODRuns = 2
+	// lookaheadSegments は、エンコーダーが、視聴者の要求した最も先のセグメントから、いくつ先まで書くか (#532)。
+	// 超えたら、録画を流すのを止めて待たせる。見ない部分のために CPU を使い、セグメントをためないようにする。
+	lookaheadSegments = 30
 )
 
 var (
@@ -59,6 +63,7 @@ type VODEncoder interface {
 var (
 	_ RecordingOpener = new(stream.RecordingSource)
 	_ VODEncoder      = new(Transcoder)
+	_ io.Writer       = new(lookaheadWriter)
 )
 
 // vodKey は、録画の仮想 HLS のセッションを見分けるもの。同じ録画を同じ画質と音声で見る視聴者は、1 つのセッションを共有する。
@@ -77,7 +82,13 @@ type vodRun struct {
 	// どちらもセッションの runMu で守る。
 	lastUsed time.Time
 	replaced bool
-	cancel   context.CancelFunc
+	// wanted は、このエンコーダーに書かせるセグメントのうち、視聴者が要求した最も先の番号。
+	// 録画を流す goroutine が読むので、runMu でなく atomic で持つ。
+	wanted atomic.Int64
+	// nextMu は next を守る。next は、次に書くセグメントの番号。毎回 start から数え直さないよう、前に数えたところから進める。
+	nextMu sync.Mutex
+	next   int
+	cancel context.CancelFunc
 	// done は、エンコーダーが止まったら閉じる。err は、閉じる前に書く。
 	done chan struct{}
 	err  error
@@ -101,6 +112,7 @@ type vodSession struct {
 // まだ書いていないセグメントを要求されたら、その時刻の手前の I フレームからエンコーダーを起動する。
 // 動いているエンコーダーがすぐ後に書くセグメントなら、起動せずに待つ。1 つのセッションには、離れた位置を見る視聴者のために、
 // エンコーダーを maxVODRuns まで動かす。後ろのエンコーダーが前のエンコーダーの書いた位置に追いついたら、後ろを止める。
+// エンコーダーは、視聴者の要求した最も先のセグメントから lookaheadSegments 先まで書いたら、見進められるまで待つ。
 // 書いたセグメントは消さないので、巻き戻しても書き直さない。エンコーダーは、書かせるセグメントへの要求が 10 秒途絶えたら止める。
 // セッションへの要求が 10 秒途絶えたら、セッションを止めて消す。
 type VOD struct {
@@ -415,6 +427,7 @@ func (v *VOD) awaitSegment(ctx context.Context, s *vodSession, preset *Preset, n
 		s.runMu.Lock()
 		if run := s.coveringLocked(number); run != nil {
 			run.lastUsed = v.clock.Now()
+			run.want(number)
 		}
 		s.runMu.Unlock()
 
@@ -490,6 +503,7 @@ func (v *VOD) ensureRun(ctx context.Context, s *vodSession, preset *Preset, numb
 	now := v.clock.Now()
 	if run := s.coveringLocked(number); run != nil {
 		run.lastUsed = now
+		run.want(number)
 
 		return run, nil
 	}
@@ -511,7 +525,7 @@ func (v *VOD) ensureRun(ctx context.Context, s *vodSession, preset *Preset, numb
 func (s *vodSession) coveringLocked(number int) *vodRun {
 	var covering *vodRun
 	for _, run := range s.runs {
-		next := nextSegment(s.dir, run.start, run.startedAt)
+		next := run.nextSegment(s.dir)
 		if number >= run.start && number <= next+aheadSegments && (covering == nil || run.start > covering.start) {
 			covering = run
 		}
@@ -532,7 +546,7 @@ func (s *vodSession) pruneLocked() {
 		}
 	})
 	for _, behind := range slices.Clone(s.runs) {
-		next := nextSegment(s.dir, behind.start, behind.startedAt)
+		next := behind.nextSegment(s.dir)
 		if slices.ContainsFunc(s.runs, func(ahead *vodRun) bool { return ahead.start > behind.start && ahead.start <= next }) {
 			s.stopLocked(behind)
 		}
@@ -547,17 +561,49 @@ func (s *vodSession) stopLocked(run *vodRun) {
 	s.runs = slices.DeleteFunc(s.runs, func(r *vodRun) bool { return r == run })
 }
 
-// nextSegment は、start 番目から書いているエンコーダーが、次に書くセグメントの番号を返す。
-// since より前に書かれたセグメントは、前の起動が書いたものなので、数えない。
-func nextSegment(dir string, start int, since time.Time) int {
-	next := start
+// nextSegment は、dir に書いているエンコーダーが、次に書くセグメントの番号を返す。
+// startedAt より前に書かれたセグメントは、前の起動が書いたものなので、数えない。
+func (run *vodRun) nextSegment(dir string) int {
+	run.nextMu.Lock()
+	defer run.nextMu.Unlock()
 	for {
-		info, err := os.Stat(filepath.Join(dir, fmt.Sprintf(segmentPattern, next)))
-		if err != nil || info.ModTime().Before(since) {
-			return next
+		info, err := os.Stat(filepath.Join(dir, fmt.Sprintf(segmentPattern, run.next)))
+		if err != nil || info.ModTime().Before(run.startedAt) {
+			return run.next
 		}
-		next++
+		run.next++
 	}
+}
+
+// want は、視聴者が、このエンコーダーに書かせる number 番目のセグメントを要求したことを記録する。
+func (run *vodRun) want(number int) {
+	for {
+		wanted := run.wanted.Load()
+		if int64(number) <= wanted || run.wanted.CompareAndSwap(wanted, int64(number)) {
+			return
+		}
+	}
+}
+
+// lookaheadWriter は、エンコーダーが視聴者の要求より lookaheadSegments 先まで書いたら、追いつかれるまで書き込みを待たせる。
+// 待たせている間に、エンコーダーが止められたら (stopped が閉じたら) 抜ける。
+type lookaheadWriter struct {
+	w       io.Writer
+	run     *vodRun
+	dir     string
+	stopped <-chan struct{}
+}
+
+func (l *lookaheadWriter) Write(p []byte) (int, error) {
+	for int64(l.run.nextSegment(l.dir)) > l.run.wanted.Load()+lookaheadSegments {
+		select {
+		case <-l.stopped:
+			return 0, errEnded
+		case <-time.After(pollInterval):
+		}
+	}
+
+	return l.w.Write(p)
 }
 
 // fileClock は、dir のファイルシステムが今書いたファイルに付ける更新時刻を返す。
@@ -588,10 +634,14 @@ func (v *VOD) start(ctx context.Context, s *vodSession, preset *Preset, number i
 	at := time.Duration(number) * VODSegmentDuration
 	pos := recording.Seek(max(at-seekMargin, 0))
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	run := &vodRun{start: number, startedAt: fileClock(s.dir), lastUsed: time.Time{}, replaced: false, cancel: cancel, done: make(chan struct{}), err: nil}
+	run := &vodRun{
+		start: number, startedAt: fileClock(s.dir), lastUsed: time.Time{}, replaced: false, wanted: atomic.Int64{},
+		nextMu: sync.Mutex{}, next: number, cancel: cancel, done: make(chan struct{}), err: nil,
+	}
+	run.wanted.Store(int64(number))
 	reader, writer := io.Pipe()
 	go func() {
-		writer.CloseWithError(recording.Write(runCtx, writer, pos))
+		writer.CloseWithError(recording.Write(runCtx, &lookaheadWriter{w: writer, run: run, dir: s.dir, stopped: runCtx.Done()}, pos))
 	}()
 	go func() {
 		err := v.encoder.RunVOD(runCtx, reader, preset, s.key.audio, s.dir, &RunOptions{StartNumber: number, Trim: max(at-pos.At, 0)})
