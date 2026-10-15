@@ -256,7 +256,7 @@ function RecordingGrid({ filter }: { filter: Filter }) {
           />
         ))}
       {recordings.length > 0 && (
-        <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="sm">
+        <SimpleGrid cols={{ base: 2, md: 3, lg: 4 }} spacing="sm">
           {recordings.map((recording) => (
             <RecordingCard key={recording.id} recording={recording} />
           ))}
