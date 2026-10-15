@@ -3,6 +3,7 @@ package kyusu_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -118,6 +119,10 @@ func (f *vodFixture) recording(t *testing.T, state string, data []byte) uuid.UUI
 	return recordingID
 }
 
+// keyframeBytes は、longRecording の I フレームの間隔のバイト数。録画を流す 1 回の書き込み (32 KiB) より、
+// 1 セグメント (I フレーム 4 つ) を大きくし、先読みの上限で流すのを止められるようにする。
+const keyframeBytes = 100 * ts.PacketSize
+
 // longRecording は、索引だけを作り込んだ、duration の長さの録画を作る。I フレームは 0.5 秒ごとにある。
 // 中身は TS として正しくないので、入力を読み捨てる偽のエンコーダーと使う。
 func (f *vodFixture) longRecording(t *testing.T, duration time.Duration) uuid.UUID {
@@ -131,12 +136,12 @@ func (f *vodFixture) longRecording(t *testing.T, duration time.Duration) uuid.UU
 	require.NoError(t, err)
 	name := recordingID.String() + ".m2ts"
 	keyframes := int(duration / (500 * time.Millisecond))
-	require.NoError(t, os.WriteFile(filepath.Join(f.dir, name), make([]byte, keyframes*ts.PacketSize), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(f.dir, name), make([]byte, keyframes*keyframeBytes), 0o600))
 	var index bytes.Buffer
 	writer, err := ts.NewIndexWriter(&index)
 	require.NoError(t, err)
 	for i := range keyframes {
-		require.NoError(t, writer.Append(ts.IndexEntry{Offset: int64(i * ts.PacketSize), PTS: int64(i * ts.PTSClock / 2)}))
+		require.NoError(t, writer.Append(ts.IndexEntry{Offset: int64(i * keyframeBytes), PTS: int64(i * ts.PTSClock / 2)}))
 	}
 	require.NoError(t, os.MkdirAll(filepath.Join(f.dir, name+".kotatsu"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(f.dir, kago.IndexPath(name)), index.Bytes(), 0o600))
@@ -207,9 +212,11 @@ func TestVODPlaylist(t *testing.T) {
 // fakeVODEncoder は、入力を読み捨てながら、StartNumber 番目から 20 ミリ秒ごとにセグメントを書き、止められるまで続ける。
 // 起動した番号と、動いている数を数える。startup を与えると、起動してから最初のセグメントを書くまで、その時間だけ待つ。
 // interval を与えると、20 ミリ秒の代わりに、その間隔で書く。
+// paced なら、時間でなく入力に合わせて、longRecording の 1 セグメントぶん (I フレーム 4 つ) を読むごとに書く。
 type fakeVODEncoder struct {
 	startup  time.Duration
 	interval time.Duration
+	paced    bool
 	starts   atomic.Value
 	runs     atomic.Int32
 	running  atomic.Int32
@@ -221,6 +228,20 @@ func (e *fakeVODEncoder) RunVOD(ctx context.Context, src io.Reader, _ *kyusu.Pre
 	defer e.running.Add(-1)
 	starts, _ := e.starts.Load().([]int)
 	e.starts.Store(append(append([]int{}, starts...), opts.StartNumber))
+	if e.paced {
+		buf := make([]byte, 4*keyframeBytes)
+		for k := opts.StartNumber; ; k++ {
+			if _, err := io.ReadFull(src, buf); errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+				// 入力を読み終えたら、書き終える。
+				return nil
+			} else if err != nil {
+				return err
+			}
+			if err := writeFileAtomically(filepath.Join(dir, fmt.Sprintf("segment%05d.ts", k)), []byte(strconv.Itoa(k))); err != nil {
+				return err
+			}
+		}
+	}
 	go func() {
 		_, _ = io.Copy(io.Discard, src)
 	}()
@@ -389,6 +410,36 @@ func TestVODKeepsEncoderWhileViewerPlaysWrittenSegments(t *testing.T) {
 		f.vod.Reap(f.clock.Now())
 	}
 	assert.Equal(t, int32(1), encoder.running.Load())
+	assert.Equal(t, []int{0}, encoder.starts.Load())
+}
+
+// TestVODLimitsLookahead は、エンコーダーが、視聴者の要求したセグメントより先を書きすぎないことを確かめる (#532)。
+// 見ない部分のために、CPU を使ったり、作業ディレクトリにセグメントをためたりしない。
+func TestVODLimitsLookahead(t *testing.T) {
+	t.Parallel()
+
+	encoder := &fakeVODEncoder{paced: true}
+	f := newVODFixture(t, encoder)
+	// 録画は 5 分なので、セグメントは 150。
+	recordingID := f.longRecording(t, 5*time.Minute)
+	written := func() int {
+		entries, err := filepath.Glob(filepath.Join(f.workDir, "recordings", "*", "segment*.ts"))
+		require.NoError(t, err)
+
+		return len(entries)
+	}
+	status, _ := f.get(t, recordingID, "segment00000.ts")
+	require.Equal(t, http.StatusOK, status)
+
+	// 書く量は、要求したセグメントから先読みの上限 (30) ほどで止まる。
+	time.Sleep(500 * time.Millisecond)
+	assert.InDelta(t, 31, written(), 2)
+	// 見進めると、その先を書く。
+	status, _ = f.get(t, recordingID, "segment00030.ts")
+	require.Equal(t, http.StatusOK, status)
+	require.Eventually(t, func() bool { return written() >= 60 }, 5*time.Second, 10*time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
+	assert.InDelta(t, 61, written(), 2)
 	assert.Equal(t, []int{0}, encoder.starts.Load())
 }
 
