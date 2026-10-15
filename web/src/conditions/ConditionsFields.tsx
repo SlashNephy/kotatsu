@@ -177,9 +177,11 @@ export function ConditionsFields({ value, onChange, channelTypes, services }: Pr
           <Group grow>
             <NumberInput
               label={t('rules.minDuration')}
-              value={value.minDurationMinutes ?? ''}
+              value={
+                value.minDurationSeconds == null ? '' : Math.round(value.minDurationSeconds / 60)
+              }
               onChange={(minutes) =>
-                onChange({ minDurationMinutes: typeof minutes === 'number' ? minutes : null })
+                onChange({ minDurationSeconds: typeof minutes === 'number' ? minutes * 60 : null })
               }
               min={1}
               allowDecimal={false}
@@ -187,9 +189,11 @@ export function ConditionsFields({ value, onChange, channelTypes, services }: Pr
             />
             <NumberInput
               label={t('rules.maxDuration')}
-              value={value.maxDurationMinutes ?? ''}
+              value={
+                value.maxDurationSeconds == null ? '' : Math.round(value.maxDurationSeconds / 60)
+              }
               onChange={(minutes) =>
-                onChange({ maxDurationMinutes: typeof minutes === 'number' ? minutes : null })
+                onChange({ maxDurationSeconds: typeof minutes === 'number' ? minutes * 60 : null })
               }
               min={1}
               allowDecimal={false}
