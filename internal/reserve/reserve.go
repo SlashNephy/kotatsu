@@ -427,7 +427,7 @@ func valueOr[T any](v *T, fallback T) T {
 }
 
 // Delete は、ユーザーの操作で予約を消す。
-// ルール予約は消さずに無効にする (設計書 4.3)。消すと、次の照合でまた作られてしまうからである。
+// ルール予約と、イベントリレーで引き継いだ予約は、消さずに無効にする (設計書 4.3、4.6)。消すと、次の照合や追従でまた作られてしまうからである。
 func (r *Reservations) Delete(ctx context.Context, db Beginner, actor *audit.Actor, reservationID uuid.UUID) error {
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
@@ -435,7 +435,8 @@ func (r *Reservations) Delete(ctx context.Context, db Beginner, actor *audit.Act
 		if err != nil {
 			return err
 		}
-		if reservation.Kind != KindRule {
+		// ルール予約と、イベントリレーで引き継いだ予約は、消すと次の照合や追従でまた作られるので、消さずに無効にする (#522)。
+		if reservation.Kind != KindRule && reservation.RelayedFrom == nil {
 			return r.remove(ctx, tx, actor, reservationID)
 		}
 
