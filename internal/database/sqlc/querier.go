@@ -37,6 +37,8 @@ type Querier interface {
 	CountRecordingAssignmentsByState(ctx context.Context) ([]CountRecordingAssignmentsByStateRow, error)
 	// /metrics に出す、失敗の理由ごとの録画の数。
 	CountRecordingFailures(ctx context.Context) ([]CountRecordingFailuresRow, error)
+	// 録画のセグメントの記録の数と、そのうち最初のもの first_id の大きさ。つないだ結果が確定したかを確かめるのに使う。
+	CountRecordingSegments(ctx context.Context, arg CountRecordingSegmentsParams) (CountRecordingSegmentsRow, error)
 	// /metrics に出す、状態ごとの録画の数 (設計書 11.3)。
 	CountRecordingsByState(ctx context.Context) ([]CountRecordingsByStateRow, error)
 	// /metrics に出す、状態ごとのチューナーの数。故障は、使えるかどうかより先に数える。
@@ -357,6 +359,9 @@ type Querier interface {
 	// before_at と before_id より前 (古い) の録画だけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
 	SearchRecordings(ctx context.Context, arg SearchRecordingsParams) ([]Recording, error)
 	ServiceExists(ctx context.Context, id int64) (bool, error)
+	// セグメントを 1 つにつないだあとで、最初のセグメントの大きさと、表す時間の終わりを、つないだものにする。
+	// 録画が消されて行がなければ 0 を返す。
+	SetJoinedRecordingFile(ctx context.Context, arg SetJoinedRecordingFileParams) (int64, error)
 	SetLoginChallengeWebAuthnSession(ctx context.Context, arg SetLoginChallengeWebAuthnSessionParams) error
 	SetLoginLockedUntil(ctx context.Context, arg SetLoginLockedUntilParams) error
 	// 録画の音声の構成を、TS の EIT[p/f] から読んだもので埋める。EPG から写したものがあれば、それを残す。
