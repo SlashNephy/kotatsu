@@ -89,6 +89,9 @@ export function HlsPlayer({
       return;
     }
     let destroyed = false;
+    // parsed は、この hls.js がプレイリストを読み終えたかどうか。それまでの pause は、前の hls.js を video から外したときに
+    // ブラウザが出すものなので、一時停止とみなさない。
+    let parsed = false;
     void import('hls.js').then(({ default: HlsClass }) => {
       if (destroyed) {
         return;
@@ -110,6 +113,7 @@ export function HlsPlayer({
         }
       });
       instance.on(HlsClass.Events.MANIFEST_PARSED, () => {
+        parsed = true;
         handlers.current.onLoaded?.();
         void video.play().catch(() => {});
       });
@@ -131,7 +135,7 @@ export function HlsPlayer({
     // すぐに再開したら続きから読み、長く止めていたら、kyusu がセッションを止めているので、最新の位置から読み直す。
     let pausedAt: number | null = null;
     const pause = () => {
-      if (!live) {
+      if (!live || !parsed) {
         return;
       }
       pausedAt = Date.now();
