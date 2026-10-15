@@ -514,3 +514,39 @@ func TestSyncSkipsNonMediaServices(t *testing.T) {
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1 AND event_id = 501", data.ID))
 	assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1 AND event_id = 500", data.ID))
 }
+
+// TestSyncAllKeepsProgramsWhenUpstreamReturnsNone は、上流がサービスの番組を 1 つも返さなかったときは、
+// そのサービスの番組を消さないことを確かめる (#518)。チューナーサーバーが一時的に空の一覧を返すと、未来の番組とルール予約が全部消えていた。
+func TestSyncAllKeepsProgramsWhenUpstreamReturnsNone(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	before := f.count(t, "SELECT count(*) FROM programs")
+	require.Positive(t, before)
+
+	programs, err := f.client.Programs(t.Context(), nil)
+	require.NoError(t, err)
+	for _, program := range programs {
+		require.NoError(t, f.fake.ForgetProgram(program.ID))
+	}
+	_, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, before, f.count(t, "SELECT count(*) FROM programs"))
+}
+
+// TestSyncAllDeletesSomeVanishedPrograms は、サービスの番組の一部だけが上流から消えたときは、今までどおり消すことを確かめる。
+func TestSyncAllDeletesSomeVanishedPrograms(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	before := f.count(t, "SELECT count(*) FROM programs")
+
+	require.NoError(t, f.fake.ForgetProgram(programID(6)))
+	_, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, before-1, f.count(t, "SELECT count(*) FROM programs"))
+}

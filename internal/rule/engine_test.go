@@ -434,3 +434,72 @@ func TestEnginePicksOneOfSharedEvents(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []int64{serviceID()}, serviceIDs)
 }
+
+// TestEngineKeepsReservationsWhileProgramIsUncertain は、番組の終了時刻が未定になったときや、番組が EPG から消えたときに、
+// ルール予約を消さないことを確かめる (#518)。どちらも一時的なことがあり、消すと録り逃す。
+func TestEngineKeepsReservationsWhileProgramIsUncertain(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		change func(t *testing.T, f *engineFixture)
+	}{
+		{name: "終了時刻が未定になった", change: func(t *testing.T, f *engineFixture) {
+			t.Helper()
+
+			program := f.reservationOf(t, 6)
+			// 延長で終了時刻が未定になると、Mirakurun は長さを 1 ミリ秒にして返す。
+			require.NoError(t, f.fake.RescheduleProgram(faketuner.ProgramID(grNetworkID, grServiceID, 6), program.StartAt, time.Millisecond))
+		}},
+		{name: "番組が EPG から消えた", change: func(t *testing.T, f *engineFixture) {
+			t.Helper()
+
+			require.NoError(t, f.fake.ForgetProgram(faketuner.ProgramID(grNetworkID, grServiceID, 6)))
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newEngineFixture(t)
+			f.createRule(t, `テスト番組 6$`, nil)
+			f.run(t)
+			reservation := f.reservationOf(t, 6)
+
+			tt.change(t, f)
+			_, err := f.reconciler.SyncAll(t.Context())
+			require.NoError(t, err)
+
+			assert.Zero(t, f.run(t).Deleted)
+			got := f.reservationOf(t, 6)
+			assert.Equal(t, reservation.ID, got.ID)
+		})
+	}
+}
+
+// TestEngineKeepsDisabledReservationsOfExistingRules は、ユーザーが無効にしたルール予約を、ルールがある間は、
+// 一時的にルールに一致しなくなっても消さないことを確かめる (#518)。消すと、また一致したときに、有効な予約として作り直してしまう。
+func TestEngineKeepsDisabledReservationsOfExistingRules(t *testing.T) {
+	t.Parallel()
+
+	f := newEngineFixture(t)
+	r := f.createRule(t, `テスト番組 5$`, nil)
+	f.run(t)
+	require.NoError(t, f.reservations.Delete(t.Context(), f.pool, f.user, f.reservationOf(t, 5).ID))
+
+	// ルールを変えて一致しなくなっても、無効にした予約は残す。
+	_, err := f.rules.Update(t.Context(), f.pool, f.user, r.ID, unmatchedInput(r))
+	require.NoError(t, err)
+	assert.Zero(t, f.run(t).Deleted)
+	assert.Equal(t, map[int64]bool{5: false}, f.reserved(t))
+
+	// ルールを戻しても、無効のまま。
+	in := unmatchedInput(r)
+	in.Conditions.Keywords[0].Text = `テスト番組 5$`
+	in.Conditions.Keywords[0].Regexp = true
+	in.Conditions.ServiceIDs = []int64{serviceID()}
+	_, err = f.rules.Update(t.Context(), f.pool, f.user, r.ID, in)
+	require.NoError(t, err)
+	assert.Zero(t, f.run(t).Created)
+	assert.Equal(t, map[int64]bool{5: false}, f.reserved(t))
+}

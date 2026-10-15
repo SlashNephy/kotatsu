@@ -107,12 +107,25 @@ func (r *Reconciler) SyncAll(ctx context.Context) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	programs, err := diffPrograms(filterPrograms(upstreamPrograms, known), currentPrograms, r.archiveCutoff())
+	upstreamPrograms = filterPrograms(upstreamPrograms, known)
+	programs, err := diffPrograms(upstreamPrograms, currentPrograms, r.archiveCutoff())
 	if err != nil {
 		return nil, err
 	}
+	programs.deletes = keepSilentServices(programs.deletes, upstreamPrograms)
 
 	return r.apply(ctx, services, programs)
+}
+
+// keepSilentServices は、上流が番組を 1 つも返さなかったサービスの番組を、消すものから除く (#518)。
+// チューナーサーバーが一時的に空の一覧を返すと、未来の番組と、そこから作ったルール予約が全部消えてしまう。
+func keepSilentServices(deletes []*program, upstream []*mirakurun.Program) []*program {
+	returned := map[int64]bool{}
+	for _, p := range upstream {
+		returned[fromUpstream(p).key().serviceID] = true
+	}
+
+	return slices.DeleteFunc(deletes, func(p *program) bool { return !returned[p.key().serviceID] })
 }
 
 // SyncServices は、指定したサービスの番組だけを突き合わせる。イベントで変化が分かったサービスに使う。
