@@ -426,7 +426,9 @@ function Player({ recordingId }: { recordingId: string }) {
             videoRef={videoRef}
             serviceName={recording.service.name}
             programName={recording.name}
-            captureTime={() => broadcastTime(recording.recordedFrom, recording.gaps, shown)}
+            captureTime={() =>
+              broadcastTime(recording.recordedFrom, recording.gaps, currentPosition())
+            }
           />
           <PipButton pip={pip} />
           <FullscreenButton active={fullscreen.active} onToggle={fullscreen.toggle} />

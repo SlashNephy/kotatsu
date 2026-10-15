@@ -69,6 +69,18 @@ describe('captureFileName', () => {
       want: '2026-10-16 21.05.09 - BS11.png',
     },
     {
+      name: '囲み文字だけの番組名は、ないものとして扱う',
+      service: 'BS11',
+      program: '🈑🈞',
+      want: '2026-10-16 21.05.09 - BS11.png',
+    },
+    {
+      name: 'サービス名の使えない文字も置き換える',
+      service: 'A/B',
+      program: null,
+      want: '2026-10-16 21.05.09 - A_B.png',
+    },
+    {
       name: 'ファイル名に使えない文字を置き換える',
       service: 'TOKYO MX',
       program: 'A/B: 前編? <1>|"2"*\\3',
