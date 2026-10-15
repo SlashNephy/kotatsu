@@ -421,6 +421,14 @@ func TestReservationsOfUndecidedPrograms(t *testing.T) {
 			require.NoError(t, err)
 			assert.True(t, created)
 			assert.Equal(t, relayedStart.Add(time.Hour), reservation.EndAt)
+
+			// 終了時刻が決まったら、追従で予約の終わりを直す。
+			require.NoError(t, f.fake.RescheduleProgram(faketuner.ProgramID(grNetworkID, subServiceID, 7), relayedStart, 30*time.Minute))
+			f.syncEPG(t)
+			f.follow(t)
+			got, err := f.reservations.Get(t.Context(), f.pool, reservation.ID)
+			require.NoError(t, err)
+			assert.Equal(t, relayedStart.Add(30*time.Minute), got.EndAt)
 		})
 	}
 }
