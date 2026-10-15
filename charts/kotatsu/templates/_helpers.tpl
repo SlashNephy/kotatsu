@@ -122,7 +122,12 @@ volume の名前は、プール ID に使える _ を含められないので、
 - name: tmp
   emptyDir: {}
 - name: work
+  {{- with .workSizeLimit }}
+  emptyDir:
+    sizeLimit: {{ . }}
+  {{- else }}
   emptyDir: {}
+  {{- end }}
 {{- if .pools }}
 {{- range $i, $pool := .root.Values.storage.pools }}
 - name: {{ printf "pool-%d" $i }}
@@ -194,7 +199,7 @@ spec:
           volumeMounts:
             {{- include "kotatsu.volumeMounts" (dict "root" $root "pools" .pools) | nindent 12 }}
       volumes:
-        {{- include "kotatsu.volumes" (dict "root" $root "pools" .pools) | nindent 8 }}
+        {{- include "kotatsu.volumes" (dict "root" $root "pools" .pools "workSizeLimit" .pod.workSizeLimit) | nindent 8 }}
       {{- with .pod.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

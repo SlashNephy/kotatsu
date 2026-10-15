@@ -1,10 +1,12 @@
 package kyusu
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"math"
 	"net/http"
@@ -42,12 +44,18 @@ const (
 	// lookaheadSegments は、エンコーダーが、視聴者の要求した最も先のセグメントから、いくつ先まで書くか (#532)。
 	// 超えたら、録画を流すのを止めて待たせる。見ない部分のために CPU を使い、セグメントをためないようにする。
 	lookaheadSegments = 30
+	// keepBehindSegments は、視聴者の位置からいくつ前までのセグメントを残すか (#532)。それより前は消し、巻き戻したら書き直す。
+	// 長い録画を見続けても、作業ディレクトリにセグメントをためないようにする。
+	keepBehindSegments = 150
+	// DefaultMaxVODSessions は、同時に開く録画の再生のセッションの数の上限の既定値 (#532)。
+	DefaultMaxVODSessions = 4
 )
 
 var (
-	errNotIndexed     = errors.New("the recording is not indexed yet; try again after the analysis")
-	errSegmentTimeout = errors.New("the encoder did not write the segment in time")
-	errOutOfRange     = errors.New("the segment is out of the recording")
+	errNotIndexed      = errors.New("the recording is not indexed yet; try again after the analysis")
+	errSegmentTimeout  = errors.New("the encoder did not write the segment in time")
+	errOutOfRange      = errors.New("the segment is out of the recording")
+	errTooManySessions = errors.New("too many recording sessions")
 )
 
 // RecordingOpener は、録画を開く。*stream.RecordingSource が満たす。
@@ -113,7 +121,8 @@ type vodSession struct {
 // 動いているエンコーダーがすぐ後に書くセグメントなら、起動せずに待つ。1 つのセッションには、離れた位置を見る視聴者のために、
 // エンコーダーを maxVODRuns まで動かす。後ろのエンコーダーが前のエンコーダーの書いた位置に追いついたら、後ろを止める。
 // エンコーダーは、視聴者の要求した最も先のセグメントから lookaheadSegments 先まで書いたら、見進められるまで待つ。
-// 書いたセグメントは消さないので、巻き戻しても書き直さない。エンコーダーは、書かせるセグメントへの要求が 10 秒途絶えたら止める。
+// 書いたセグメントは、視聴者の位置から keepBehindSegments より前になるまで消さないので、少しの巻き戻しなら書き直さない。
+// エンコーダーは、書かせるセグメントへの要求が 10 秒途絶えたら止める。同時に開くセッションの数には上限を設ける。
 // セッションへの要求が 10 秒途絶えたら、セッションを止めて消す。
 type VOD struct {
 	opener      RecordingOpener
@@ -122,6 +131,7 @@ type VOD struct {
 	clock       clock.Clock
 	logger      *slog.Logger
 	idleTimeout time.Duration
+	maxSessions int
 
 	mu       sync.Mutex
 	sessions map[vodKey]*vodSession
@@ -140,6 +150,8 @@ type VODOptions struct {
 	Logger  *slog.Logger
 	// IdleTimeout は、セグメントへのリクエストが途絶えてから、エンコーダーを止めるまでの時間。0 なら 10 秒。
 	IdleTimeout time.Duration
+	// MaxSessions は、同時に開くセッションの数の上限。0 なら DefaultMaxVODSessions。
+	MaxSessions int
 }
 
 // NewVOD は VOD を返す。前に動いていたときの HLS が作業ディレクトリに残っていれば消す。
@@ -159,9 +171,13 @@ func NewVOD(opts *VODOptions) (*VOD, error) {
 	if idle == 0 {
 		idle = DefaultIdleTimeout
 	}
+	maxSessions := opts.MaxSessions
+	if maxSessions == 0 {
+		maxSessions = DefaultMaxVODSessions
+	}
 
 	return &VOD{
-		opener: opts.Opener, encoder: opts.Encoder, dir: dir, clock: opts.Clock, logger: opts.Logger, idleTimeout: idle,
+		opener: opts.Opener, encoder: opts.Encoder, dir: dir, clock: opts.Clock, logger: opts.Logger, idleTimeout: idle, maxSessions: maxSessions,
 		mu: sync.Mutex{}, sessions: map[vodKey]*vodSession{}, stopped: false,
 	}, nil
 }
@@ -221,6 +237,7 @@ func (v *VOD) reap(now time.Time) {
 				s.stopLocked(run)
 			}
 		}
+		s.removeFarBehindLocked(v.logger)
 		s.runMu.Unlock()
 	}
 	for _, s := range idle {
@@ -269,6 +286,9 @@ func (v *VOD) session(key vodKey) (*vodSession, error) {
 	}
 	if s, ok := v.sessions[key]; ok {
 		return s, nil
+	}
+	if len(v.sessions) >= v.maxSessions {
+		return nil, errTooManySessions
 	}
 	dir, err := os.MkdirTemp(v.dir, key.recordingID.String()+"-"+key.preset+"-a"+key.audio.String()+"-")
 	if err != nil {
@@ -425,7 +445,7 @@ func (v *VOD) awaitSegment(ctx context.Context, s *vodSession, preset *Preset, n
 	if _, err := os.Stat(path); err == nil {
 		// エンコーダーが先に書いたセグメントを見ている間は、そのエンコーダーを使っているとみなす。
 		s.runMu.Lock()
-		if run := s.coveringLocked(number); run != nil {
+		if run := s.coveringLocked(number, true); run != nil {
 			run.lastUsed = v.clock.Now()
 			run.want(number)
 		}
@@ -501,7 +521,9 @@ func (v *VOD) ensureRun(ctx context.Context, s *vodSession, preset *Preset, numb
 	defer s.runMu.Unlock()
 	s.pruneLocked()
 	now := v.clock.Now()
-	if run := s.coveringLocked(number); run != nil {
+	// 要求を受けてからここまでに、書き終えたかもしれない。
+	_, err := os.Stat(filepath.Join(s.dir, fmt.Sprintf(segmentPattern, number)))
+	if run := s.coveringLocked(number, err == nil); run != nil {
 		run.lastUsed = now
 		run.want(number)
 
@@ -520,13 +542,18 @@ func (v *VOD) ensureRun(ctx context.Context, s *vodSession, preset *Preset, numb
 	return run, nil
 }
 
-// coveringLocked は、次に書くセグメントから aheadSegments 先までに number を書く (または書いた) エンコーダーのうち、
+// coveringLocked は、次に書くセグメントから aheadSegments 先までに number を書く (written なら、書いた) エンコーダーのうち、
 // 最も後ろから書き始めたもの、つまり number に最も近いものを返す。なければ nil を返す。runMu を持って呼ぶ。
-func (s *vodSession) coveringLocked(number int) *vodRun {
+// まだない number は、エンコーダーが書いた後に消したものかもしれないので、次に書くセグメントより前なら、書くとはみなさない。
+func (s *vodSession) coveringLocked(number int, written bool) *vodRun {
 	var covering *vodRun
 	for _, run := range s.runs {
 		next := run.nextSegment(s.dir)
-		if number >= run.start && number <= next+aheadSegments && (covering == nil || run.start > covering.start) {
+		from := next
+		if written {
+			from = run.start
+		}
+		if number >= from && number <= next+aheadSegments && (covering == nil || run.start > covering.start) {
 			covering = run
 		}
 	}
@@ -549,6 +576,33 @@ func (s *vodSession) pruneLocked() {
 		next := behind.nextSegment(s.dir)
 		if slices.ContainsFunc(s.runs, func(ahead *vodRun) bool { return ahead.start > behind.start && ahead.start <= next }) {
 			s.stopLocked(behind)
+		}
+	}
+}
+
+// removeFarBehindLocked は、動いているエンコーダーに書かせている視聴者のうち、最も後ろの位置から、
+// keepBehindSegments より前のセグメントを消す。runMu を持って呼ぶ。
+func (s *vodSession) removeFarBehindLocked(logger *slog.Logger) {
+	if len(s.runs) == 0 {
+		return
+	}
+	behind := slices.MinFunc(s.runs, func(a, b *vodRun) int { return cmp.Compare(a.wanted.Load(), b.wanted.Load()) }).wanted.Load()
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		logger.Warn("failed to list the session directory", slog.Any("error", err))
+
+		return
+	}
+	for _, entry := range entries {
+		if !segmentName.MatchString(entry.Name()) {
+			continue
+		}
+		number, err := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(entry.Name(), "segment"), ".ts"))
+		if err != nil || int64(number) >= behind-keepBehindSegments {
+			continue
+		}
+		if err := os.Remove(filepath.Join(s.dir, entry.Name())); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			logger.Warn("failed to remove a segment", slog.String("segment", entry.Name()), slog.Any("error", err))
 		}
 	}
 }
@@ -667,7 +721,7 @@ func (v *VOD) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, stream.ErrRecordingNotFound), errors.Is(err, stream.ErrNoSegment), errors.Is(err, errOutOfRange):
 		http.Error(w, err.Error(), http.StatusNotFound)
 	case errors.Is(err, stream.ErrNotMounted), errors.Is(err, errNotIndexed), errors.Is(err, errNoEncoder),
-		errors.Is(err, errEnded), errors.Is(err, errSegmentTimeout):
+		errors.Is(err, errEnded), errors.Is(err, errSegmentTimeout), errors.Is(err, errTooManySessions):
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 	default:
 		v.logger.ErrorContext(r.Context(), "failed to serve the recording", slog.Any("error", err))
