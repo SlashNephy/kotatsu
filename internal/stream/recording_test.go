@@ -2,6 +2,7 @@ package stream_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -354,6 +355,56 @@ func TestRecordingHandlerFollowsGrowingFile(t *testing.T) {
 	rest, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, data[half:], rest)
+}
+
+// TestRecordingHandlerEndsWhenSegmentClosesShort は、索引が指す位置までファイルが伸びないまま、
+// 書いている途中のセグメントを閉じたら、待ち続けずに流し終えることを確かめる。
+func TestRecordingHandlerEndsWhenSegmentClosesShort(t *testing.T) {
+	t.Parallel()
+
+	data := loadTestTS(t)
+	f := newRecordingFixture(t, nil)
+	recordingID := f.recording(t, "recording")
+	segmentID := f.segment(t, recordingID, "a.m2ts", data, 0, true)
+	// 索引は 386340 バイト目の I フレームを指すが、ファイルはその手前までしか書いていない。
+	require.NoError(t, os.Truncate(filepath.Join(f.dir, "a.m2ts"), int64(packetAligned(386340/2))))
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String()+"?start=2.01", nil)
+	require.NoError(t, err)
+	// 応答のヘッダーは、流し始めるまで返らないので、待っている間にセグメントを閉じる。
+	type result struct {
+		status int
+		body   []byte
+		err    error
+	}
+	done := make(chan result, 1)
+	go func() {
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			done <- result{err: err}
+
+			return
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		done <- result{status: resp.StatusCode, body: body, err: err}
+	}()
+	// ファイルが伸びるのを待ち始めるまで待つ。
+	time.Sleep(20 * pollInterval)
+
+	// 書き込みに失敗するなどして、伸びないままセグメントを閉じ、録画を終える。
+	_, err = f.pool.Exec(t.Context(), "UPDATE recording_files SET ended_at = $1 WHERE id = $2", f.clock.Now(), segmentID)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), "UPDATE recordings SET state = 'completed' WHERE id = $1", recordingID)
+	require.NoError(t, err)
+
+	got := <-done
+	require.NoError(t, got.err, "the stream should end instead of waiting for the file to grow")
+	assert.Equal(t, http.StatusOK, got.status)
+	rest := got.body
+	assert.Empty(t, rest)
 }
 
 // TestRecordingHandlerErrors は、録画を流せない理由に応じた状態を返すことを確かめる。

@@ -311,14 +311,23 @@ func (s *RecordingSource) servePiece(ctx context.Context, w io.Writer, recording
 // serveGrowing は、書いている途中のセグメントを、書き終えるまで、伸びるのを待ちながら流す。
 func (s *RecordingSource) serveGrowing(ctx context.Context, w io.Writer, recordingID uuid.UUID, p *piece, file *os.File) error {
 	// 録画は TS をまとめて書くので、索引が指す位置を、まだファイルに書いていないことがある。書くまで待つ。
+	// 書き込みのエラーなどで、その位置まで書かないままセグメントを閉じたら、流すものがないので終える。
 	offset := p.from
 	for {
+		// 閉じたかを確かめてからファイルの大きさを見るので、確かめた後に書かれた分も見落とさない。
+		closed, err := s.segmentClosed(ctx, recordingID, p.segment.id)
+		if err != nil {
+			return err
+		}
 		info, err := file.Stat()
 		if err != nil {
 			return fmt.Errorf("failed to inspect the segment: %w", err)
 		}
 		if info.Size() >= offset {
 			break
+		}
+		if closed {
+			return nil
 		}
 		if err := sleep(ctx, s.pollInterval); err != nil {
 			return err
