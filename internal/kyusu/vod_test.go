@@ -432,6 +432,7 @@ func TestVODLimitsLookahead(t *testing.T) {
 	require.Equal(t, http.StatusOK, status)
 
 	// 書く量は、要求したセグメントから先読みの上限 (30) ほどで止まる。
+	require.Eventually(t, func() bool { return written() >= 30 }, 5*time.Second, 10*time.Millisecond)
 	time.Sleep(500 * time.Millisecond)
 	assert.InDelta(t, 31, written(), 2)
 	// 見進めると、その先を書く。

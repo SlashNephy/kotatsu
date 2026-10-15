@@ -63,6 +63,7 @@ type VODEncoder interface {
 var (
 	_ RecordingOpener = new(stream.RecordingSource)
 	_ VODEncoder      = new(Transcoder)
+	_ io.Writer       = new(lookaheadWriter)
 )
 
 // vodKey は、録画の仮想 HLS のセッションを見分けるもの。同じ録画を同じ画質と音声で見る視聴者は、1 つのセッションを共有する。
