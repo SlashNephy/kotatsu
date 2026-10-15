@@ -15,6 +15,7 @@ import (
 )
 
 // RecordingHandler は、録画を配信する (GET /streams/recordings/{id}?start=秒)。
+// 録画を終えた録画を start なしで要求されたら、長さを返し、HTTP の Range に答える。外部プレイヤーは Range でシークする。
 //
 // 索引を使って、録画の始まりから start 秒の位置を GOP の先頭のバイト位置に変換し、そこからセグメントを連結して流す。
 // 引き継ぎで重なった区間は切り詰める。録画中の録画は、ファイルの末尾まで読んだら、ファイルが伸びるのを待ちながら流し続ける。
@@ -60,6 +61,11 @@ func (h *RecordingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !recording.InProgress && r.URL.Query().Get("start") == "" {
+		h.serveContent(w, r, recording)
+
+		return
+	}
 	writeStreamHeader(w)
 	if r.Method == http.MethodHead {
 		return
@@ -67,6 +73,20 @@ func (h *RecordingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := recording.Write(r.Context(), w, recording.Seek(start)); err != nil && r.Context().Err() == nil {
 		h.logger.WarnContext(r.Context(), "failed to stream the recording", slog.String("recording_id", recordingID.String()), slog.Any("error", err))
 	}
+}
+
+// serveContent は、録画を終えた録画を、長さの決まった 1 本のファイルとして返す。Range に答えるので、外部プレイヤーがシークできる (#535)。
+func (h *RecordingHandler) serveContent(w http.ResponseWriter, r *http.Request, recording *Recording) {
+	content, err := recording.Content()
+	if err != nil {
+		h.internalError(w, r, err)
+
+		return
+	}
+	defer content.Close()
+	w.Header().Set("Content-Type", contentTypeTS)
+	w.Header().Set("Cache-Control", "no-store")
+	http.ServeContent(w, r, "", time.Time{}, content)
 }
 
 // parseStart は、開始位置の秒を読む。空なら 0 にする。
