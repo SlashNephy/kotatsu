@@ -20,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/epg"
+	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/recording"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/tuner/faketuner"
@@ -231,4 +232,69 @@ func TestSchedulerSkipsFinishedReservations(t *testing.T) {
 	f.reserve(t, 0)
 	f.clock.Advance(programStart().Add(2 * time.Hour).Sub(f.clock.Now()))
 	assert.Equal(t, &recording.ScheduleResult{Created: 0, Deleted: 0}, f.schedule(t))
+}
+
+// TestSchedulerFailsStuckRecordings は、予定の終わりから 10 分が過ぎても「録画中」のままで、録画している割り振りもない録画を、
+// 失敗にして通知することを確かめる (#516)。録画している mikan がいなければ、ほかに録画を終える人がいない。
+func TestSchedulerFailsStuckRecordings(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// assignment は、録画の割り振りの状態。空なら割り振りがない (予約を消して CASCADE で消えたとき)。
+		assignment string
+		// elapsed は、番組の終わり (14:00) からの時間。
+		elapsed  time.Duration
+		wantFail bool
+	}{
+		{name: "no assignment", assignment: "", elapsed: 11 * time.Minute, wantFail: true},
+		{name: "finished assignment", assignment: "finished", elapsed: 11 * time.Minute, wantFail: true},
+		{name: "still recording", assignment: "recording", elapsed: 11 * time.Minute, wantFail: false},
+		{name: "waiting for a handover", assignment: "handover", elapsed: 11 * time.Minute, wantFail: false},
+		{name: "within the grace", assignment: "", elapsed: 9 * time.Minute, wantFail: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			recordingID := id.New()
+			start := programStart()
+			end := start.Add(30 * time.Minute)
+			_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+				state, recorded_from, protected, created_at, updated_at)
+				VALUES ($1, $2, $3, 6, '録画', '', $4, $5, 'recording', $4, false, $4, $4)`, recordingID, reservationID, grService(0), start, end)
+			require.NoError(t, err)
+			if tt.assignment != "" {
+				_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_assignments (id, reservation_id, priority, state, generation, created_at, updated_at)
+					VALUES ($1, $2, 0, $3, 1, $4, $4)`, id.New(), reservationID, tt.assignment, start)
+				require.NoError(t, err)
+			}
+			f.clock.Advance(end.Add(tt.elapsed).Sub(f.clock.Now()))
+
+			f.schedule(t)
+
+			var state string
+			var reason *string
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT state, failure_reason FROM recordings WHERE id = $1", recordingID).Scan(&state, &reason))
+			var events int
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM notification_events WHERE kind = 'recording_failed'").Scan(&events))
+			if !tt.wantFail {
+				assert.Equal(t, "recording", state)
+				assert.Zero(t, events)
+
+				return
+			}
+			assert.Equal(t, "failed", state)
+			require.NotNil(t, reason)
+			assert.Equal(t, "stream_interrupted", *reason)
+			assert.Equal(t, 1, events)
+
+			// 何度見直しても、通知は 1 回だけ。
+			f.schedule(t)
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM notification_events WHERE kind = 'recording_failed'").Scan(&events))
+			assert.Equal(t, 1, events)
+		})
+	}
 }
