@@ -17,7 +17,7 @@ import { graphql, useMutation } from 'react-relay';
 import type { GuideViewEditorCreateMutation } from './__generated__/GuideViewEditorCreateMutation.graphql';
 import type { GuideViewEditorDeleteMutation } from './__generated__/GuideViewEditorDeleteMutation.graphql';
 import type { GuideViewEditorUpdateMutation } from './__generated__/GuideViewEditorUpdateMutation.graphql';
-import { genreKey } from './genres';
+import { GenreMultiSelect } from './GenreMultiSelect';
 import { decodeGenre, encodeGenre, type Genre } from './guideView';
 import { ServiceLabel } from './ServiceLabel';
 
@@ -46,12 +46,6 @@ type Props = {
   // onSaved は、保存したビューの ID を受け取る。消したときは undefined を受け取る。
   onSaved: (id: string | undefined) => void;
 };
-
-// selectableGenres は、画面で選べる大分類。中分類は、API で作ったビューにあれば、そのまま残す。
-const selectableGenres: Genre[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15].map((lv1) => ({
-  lv1,
-  lv2: null,
-}));
 
 // GuideViewEditor は、番組表ビューを作り、変え、消すダイアログ。
 export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
@@ -85,20 +79,8 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
     }
   `);
 
-  // 選べるジャンルに、ビューにある中分類の条件を足す。消すまで、そのまま残す。
-  const genreOptions = [...selectableGenres, ...view.genres, ...view.excludeGenres]
-    .map(encodeGenre)
-    .filter((value, index, all) => all.indexOf(value) === index)
-    .map((value) => {
-      const genre = decodeGenre(value);
-      const label = t(genreKey(genre.lv1));
-
-      return {
-        value,
-        label:
-          genre.lv2 == null ? label : t('guide.view.subGenre', { genre: label, lv2: genre.lv2 }),
-      };
-    });
+  // 名前のない中分類の条件 (API で作ったビューにあるものなど) は、消すまで選択肢に残す。
+  const keep = [...view.genres, ...view.excludeGenres];
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -159,19 +141,17 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
             required
             maxLength={100}
           />
-          <MultiSelect
+          <GenreMultiSelect
             label={t('guide.view.genres')}
-            data={genreOptions}
+            keep={keep}
             value={genres}
             onChange={setGenres}
-            clearable
           />
-          <MultiSelect
+          <GenreMultiSelect
             label={t('guide.view.excludeGenres')}
-            data={genreOptions}
+            keep={keep}
             value={excludeGenres}
             onChange={setExcludeGenres}
-            clearable
           />
           <NumberInput
             label={t('guide.view.minDuration')}
