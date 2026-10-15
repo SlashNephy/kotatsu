@@ -35,7 +35,7 @@ func (f *fixture) startWorkerWithHandoverTimeout(t *testing.T, holder uuid.UUID,
 
 	worker := recording.NewWorker(f.pool, f.clock, holder, slog.New(slog.DiscardHandler), session, &recording.WorkerOptions{
 		LeaseTTL: 10 * time.Second, RenewInterval: 20 * time.Millisecond, AcquireInterval: 50 * time.Millisecond,
-		HandoverTimeout: handoverTimeout, ReleaseCooldown: 0, PollOnly: true, PollInterval: 50 * time.Millisecond,
+		HandoverTimeout: handoverTimeout, ReleaseCooldown: 0, DatabaseClock: false, PollOnly: true, PollInterval: 50 * time.Millisecond,
 	})
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
@@ -541,4 +541,57 @@ func TestWorkerReleasesUnrecordableAssignment(t *testing.T) {
 	}, waitTimeout, 10*time.Millisecond)
 	// 手放した mikan は、しばらく取り直さない。
 	assert.Equal(t, int32(1), brokenSessions.Load())
+}
+
+// TestWorkerUsesDatabaseClockForLeases は、リースが切れたかを DB の時刻で決めることを確かめる (#526)。
+// mikan の時計で決めると、時計の進んだ mikan が、ほかの mikan の録画中の割り振りを、リースが切れたとみなして取る。
+func TestWorkerUsesDatabaseClockForLeases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		databaseClock bool
+		wantTaken     bool
+	}{
+		{name: "database clock", databaseClock: true, wantTaken: false},
+		// mikan の時計を使うと、取ってしまう (テストで時計を動かすときの経路)。
+		{name: "local clock", databaseClock: false, wantTaken: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.assignOne(t)
+			// ほかの mikan が、DB の時刻で 1 分後まで有効なリースで録画している。
+			_, err := f.pool.Exec(t.Context(),
+				"UPDATE recording_assignments SET state = 'recording', generation = 1, holder = $1, lease_expires_at = now() + interval '1 minute' WHERE reservation_id = $2",
+				id.New(), reservationID)
+			require.NoError(t, err)
+			// この mikan の時計は、DB より 1 日進んでいる。
+			f.clock.Advance(time.Now().Add(24 * time.Hour).Sub(f.clock.Now()))
+
+			taken := make(chan struct{}, 1)
+			worker := recording.NewWorker(f.pool, f.clock, id.New(), slog.New(slog.DiscardHandler), func(ctx context.Context, _ *recording.Assignment) error {
+				taken <- struct{}{}
+				<-ctx.Done()
+
+				return nil
+			}, &recording.WorkerOptions{
+				LeaseTTL: 10 * time.Second, RenewInterval: 20 * time.Millisecond, AcquireInterval: 50 * time.Millisecond,
+				HandoverTimeout: shortHandoverTimeout, ReleaseCooldown: 0, DatabaseClock: tt.databaseClock, PollOnly: true, PollInterval: 50 * time.Millisecond,
+			})
+			ctx, cancel := context.WithCancel(t.Context())
+			done := make(chan error, 1)
+			go func() { done <- worker.Run(ctx) }()
+			t.Cleanup(func() { cancel(); <-done })
+
+			select {
+			case <-taken:
+				assert.True(t, tt.wantTaken, "the mikan took an assignment whose lease had not expired")
+			case <-time.After(500 * time.Millisecond):
+				assert.False(t, tt.wantTaken, "the mikan did not take the assignment")
+			}
+		})
+	}
 }

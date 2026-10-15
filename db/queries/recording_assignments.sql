@@ -125,3 +125,7 @@ WHERE a.id = @id AND a.generation = @generation AND a.holder = @holder AND a.sta
 -- まだ何も録っていないので、続きとしてではなく、初めから録る。予定の終わりまで誰も取らなければ、neko が消す。
 UPDATE recording_assignments SET state = 'waiting', holder = NULL, lease_expires_at = NULL, updated_at = @now
 WHERE id = @id AND generation = @generation AND holder = @holder AND state = 'recording';
+
+-- name: GetDatabaseNow :one
+-- DB の今の時刻。mikan の時計がずれていても、割り振りのリースの期限を同じ時刻で比べるのに使う (#526)。
+SELECT clock_timestamp()::timestamptz AS now;

@@ -136,6 +136,18 @@ func (q *Queries) FinishRecordingAssignment(ctx context.Context, arg FinishRecor
 	return result.RowsAffected(), nil
 }
 
+const getDatabaseNow = `-- name: GetDatabaseNow :one
+SELECT clock_timestamp()::timestamptz AS now
+`
+
+// DB の今の時刻。mikan の時計がずれていても、割り振りのリースの期限を同じ時刻で比べるのに使う (#526)。
+func (q *Queries) GetDatabaseNow(ctx context.Context) (time.Time, error) {
+	row := q.db.QueryRow(ctx, getDatabaseNow)
+	var now time.Time
+	err := row.Scan(&now)
+	return now, err
+}
+
 const getRecordingAssignmentStream = `-- name: GetRecordingAssignmentStream :one
 SELECT generation, stream_generation FROM recording_assignments WHERE id = $1
 `

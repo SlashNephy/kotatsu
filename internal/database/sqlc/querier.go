@@ -97,6 +97,8 @@ type Querier interface {
 	// eventId は日をまたいで使い回されるので、録画の予定の時間 (window_start〜window_end) に重なる番組に絞る。
 	GetAiredProgramName(ctx context.Context, arg GetAiredProgramNameParams) (string, error)
 	GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error)
+	// DB の今の時刻。mikan の時計がずれていても、割り振りのリースの期限を同じ時刻で比べるのに使う (#526)。
+	GetDatabaseNow(ctx context.Context) (time.Time, error)
 	GetGuideProgram(ctx context.Context, arg GetGuideProgramParams) (GetGuideProgramRow, error)
 	GetGuideView(ctx context.Context, arg GetGuideViewParams) (GuideView, error)
 	// 取り込み元のデータを、既に取り込んだかどうか。取り込んでいれば、作った行の ID を返す。

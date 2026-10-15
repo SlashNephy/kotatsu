@@ -52,6 +52,8 @@ var (
 	ErrPoolNotMounted = errors.New("pool is not mounted on this instance")
 	// ErrNoPoolFits は、推定サイズを収められるプールがないことを表す。
 	ErrNoPoolFits = errors.New("no pool has enough free space")
+	// ErrPoolUnavailable は、空き容量を調べられたプールが 1 つもないことを表す (#526)。
+	ErrPoolUnavailable = errors.New("no pool could be measured")
 	// ErrInvalidPath は、プール内の相対パスとして使えないパスであることを表す。
 	ErrInvalidPath = errors.New("invalid path in a pool")
 )
@@ -146,7 +148,7 @@ func (s *Store) Open(poolID, rel string) (*os.File, error) {
 // どのプールも閾値を下回るなら、推定サイズが入るプールのうち、優先順位が最も高いものを選ぶ。
 // 閾値は録画を始めるかどうかの条件ではなく、容量の管理が古い録画を消して保つ空き容量なので、録画を失敗させない (#511)。
 // このロールにマウントされていないプールと、空き容量を調べられなかったプールは選ばない。
-// どれも選べなければ ErrNoPoolFits を返す。
+// どれも選べなければ ErrNoPoolFits を返す。空き容量を調べられたプールが 1 つもなければ、ErrPoolUnavailable を返す。
 func (s *Store) Select(pools []*Pool, estimated uint64) (*Pool, error) {
 	ordered := slices.Clone(pools)
 	slices.SortStableFunc(ordered, func(a, b *Pool) int {
@@ -154,6 +156,7 @@ func (s *Store) Select(pools []*Pool, estimated uint64) (*Pool, error) {
 	})
 
 	errs := []error{}
+	measured := 0
 	var fallback *Pool
 	for _, pool := range ordered {
 		mount, ok := s.mounts[pool.ID]
@@ -166,6 +169,7 @@ func (s *Store) Select(pools []*Pool, estimated uint64) (*Pool, error) {
 
 			continue
 		}
+		measured++
 		if free < estimated {
 			continue
 		}
@@ -178,6 +182,10 @@ func (s *Store) Select(pools []*Pool, estimated uint64) (*Pool, error) {
 	}
 	if fallback != nil {
 		return fallback, nil
+	}
+	// 空き容量を調べられたプールがなければ、容量が足りないのではない。調べられなかった理由を返す (#526)。
+	if measured == 0 && len(errs) > 0 {
+		return nil, errors.Join(append([]error{ErrPoolUnavailable}, errs...)...)
 	}
 
 	return nil, errors.Join(append([]error{fmt.Errorf("%w: estimated %d bytes", ErrNoPoolFits, estimated)}, errs...)...)
