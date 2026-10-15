@@ -51,7 +51,8 @@ type vodFixture struct {
 	workDir string
 }
 
-func newVODFixture(t *testing.T, encoder kyusu.VODEncoder) *vodFixture {
+// newVODFixture は、VOD を動かす。modify で、VOD の設定を変えられる。
+func newVODFixture(t *testing.T, encoder kyusu.VODEncoder, modify ...func(opts *kyusu.VODOptions)) *vodFixture {
 	t.Helper()
 
 	pool, err := database.Open(t.Context(), databasetest.New(t))
@@ -66,9 +67,13 @@ func newVODFixture(t *testing.T, encoder kyusu.VODEncoder) *vodFixture {
 	require.NoError(t, err)
 	dir, workDir := t.TempDir(), t.TempDir()
 	source := stream.NewRecordingSource(pool, kago.New(map[string]string{poolID: dir}, nil), 10*time.Millisecond)
-	vod, err := kyusu.NewVOD(&kyusu.VODOptions{
-		Opener: source, Encoder: encoder, WorkDir: workDir, Clock: clk, Logger: slog.New(slog.DiscardHandler), IdleTimeout: 0,
-	})
+	opts := &kyusu.VODOptions{
+		Opener: source, Encoder: encoder, WorkDir: workDir, Clock: clk, Logger: slog.New(slog.DiscardHandler), IdleTimeout: 0, MaxSessions: 0,
+	}
+	for _, m := range modify {
+		m(opts)
+	}
+	vod, err := kyusu.NewVOD(opts)
 	require.NoError(t, err)
 	token, err := kyusu.NewToken(keyMaterial)
 	require.NoError(t, err)
@@ -442,6 +447,60 @@ func TestVODLimitsLookahead(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 	assert.InDelta(t, 61, written(), 2)
 	assert.Equal(t, []int{0}, encoder.starts.Load())
+}
+
+// TestVODLimitsSessions は、セッションの数が上限に達したら、新しいセッションを作らずに 503 を返すことを確かめる (#532)。
+// 多くの録画や画質を開いても、CPU と作業ディレクトリを使い切らないようにする。
+func TestVODLimitsSessions(t *testing.T) {
+	t.Parallel()
+
+	f := newVODFixture(t, new(fakeVODEncoder), func(opts *kyusu.VODOptions) { opts.MaxSessions = 1 })
+	first := f.longRecording(t, time.Minute)
+	second := f.longRecording(t, time.Minute)
+	status, _ := f.get(t, first, "segment00000.ts")
+	require.Equal(t, http.StatusOK, status)
+
+	status, body := f.get(t, second, "segment00000.ts")
+	assert.Equal(t, http.StatusServiceUnavailable, status)
+	assert.Equal(t, "too many recording sessions", strings.TrimSpace(string(body)))
+	assert.Equal(t, 1, f.vod.Sessions())
+
+	// 使われなくなったセッションを止めたら、新しいセッションを作れる。
+	f.vod.Reap(f.clock.Now().Add(time.Minute))
+	status, _ = f.get(t, second, "segment00000.ts")
+	assert.Equal(t, http.StatusOK, status)
+}
+
+// TestVODRemovesSegmentsFarBehind は、視聴者の位置から 150 セグメント (5 分) より前のセグメントを消し、
+// そこへ巻き戻したら書き直すことを確かめる (#532)。長い録画を見続けても、作業ディレクトリにセグメントをためない。
+func TestVODRemovesSegmentsFarBehind(t *testing.T) {
+	t.Parallel()
+
+	encoder := &fakeVODEncoder{paced: true}
+	f := newVODFixture(t, encoder)
+	recordingID := f.longRecording(t, 10*time.Minute)
+	segment := func(number int) string {
+		return filepath.Join(f.workDir, "recordings", "*", fmt.Sprintf("segment%05d.ts", number))
+	}
+	exists := func(number int) bool {
+		matches, err := filepath.Glob(segment(number))
+		require.NoError(t, err)
+
+		return len(matches) == 1
+	}
+	for number := 0; number <= 200; number += 5 {
+		status, _ := f.get(t, recordingID, fmt.Sprintf("segment%05d.ts", number))
+		require.Equal(t, http.StatusOK, status, "segment %d", number)
+	}
+
+	f.vod.Reap(f.clock.Now())
+	assert.False(t, exists(49), "segment 49 is far behind the viewer")
+	assert.True(t, exists(50), "segment 50 is within 150 segments behind the viewer")
+	// 消したセグメントへ巻き戻したら、そこから書き直す。
+	status, body := f.get(t, recordingID, "segment00010.ts")
+	require.Equal(t, http.StatusOK, status)
+	assert.Equal(t, "10", string(body))
+	assert.Equal(t, []int{0, 10}, encoder.starts.Load())
 }
 
 // TestVODErrors は、配信できない理由に応じた状態を返すことを確かめる。

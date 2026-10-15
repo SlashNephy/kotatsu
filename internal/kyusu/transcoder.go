@@ -78,7 +78,7 @@ func (t *Transcoder) Run(ctx context.Context, src io.Reader, preset *Preset, aud
 }
 
 // RunVOD は、録画の仮想 HLS のセグメントを、opts.StartNumber 番目から書く。src は、k 番目のセグメントの手前の I フレームから流す。
-// 書いたセグメントは消さないので、視聴者は巻き戻せる。セグメントの時刻は、k 番目のセグメントの始まりを k × セグメントの長さにする。
+// FFmpeg は書いたセグメントを消さないので、視聴者は巻き戻せる。古いセグメントは VOD が消す。セグメントの時刻は、k 番目のセグメントの始まりを k × セグメントの長さにする。
 func (t *Transcoder) RunVOD(ctx context.Context, src io.Reader, preset *Preset, audio Audio, dir string, opts *RunOptions) error {
 	return t.run(ctx, src, ffmpegArgs(t.cfg, preset, audio, dir, opts))
 }

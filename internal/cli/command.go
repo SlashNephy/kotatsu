@@ -734,7 +734,7 @@ func newKyusu(ctx context.Context, logger *slog.Logger, deps *Deps) (*kyusu.Live
 	}
 	vod, err := kyusu.NewVOD(&kyusu.VODOptions{
 		Opener:  stream.NewRecordingSource(deps.DB, storeOf(deps.Config), 0),
-		Encoder: vodEncoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock, Logger: kyusuLogger, IdleTimeout: 0,
+		Encoder: vodEncoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock, Logger: kyusuLogger, IdleTimeout: 0, MaxSessions: 0,
 	})
 	if err != nil {
 		return nil, nil, nil, err

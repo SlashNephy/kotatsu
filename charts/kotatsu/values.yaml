@@ -91,6 +91,9 @@ all:
   affinity: {}
   # terminationGracePeriodSeconds は、mikan が録画を引き継ぐまで待つ時間を含める。
   terminationGracePeriodSeconds: 300
+  # workSizeLimit は、kyusu が HLS のセグメントを置く作業ディレクトリ (emptyDir) の容量の上限。空なら上限を付けない。
+  # 超えると kubelet が Pod を退避させるので、同時に開くセッションの数と画質に見合う量にする。
+  workSizeLimit: ""
 
 # roles は、mode が split のときの、ロールごとの Pod の設定。
 # ffmpeg が true のロールは、-ffmpeg のイメージを使う。pools が true のロールには、録画の保存先プールをマウントする。
@@ -139,6 +142,9 @@ roles:
   kyusu:
     # kyusu はサーバー側でのトランスコードで、なくても動く。GPU のあるノードに置くときは nodeSelector と resources を使う。
     replicas: 0
+    # workSizeLimit は、HLS のセグメントを置く作業ディレクトリ (emptyDir) の容量の上限。空なら上限を付けない。
+    # 超えると kubelet が Pod を退避させるので、同時に開くセッションの数と画質に見合う量にする。
+    workSizeLimit: ""
     ffmpeg: true
     pools: true
     resources: {}

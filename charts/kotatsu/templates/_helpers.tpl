@@ -117,12 +117,17 @@ volume の名前は、プール ID に使える _ を含められないので、
 {{- end }}
 {{- end -}}
 
-{{/* volumes は、volumeMounts に対応する Pod の volume。引数は volumeMounts と同じ。 */}}
+{{/* volumes は、volumeMounts に対応する Pod の volume。引数は volumeMounts と同じものに、作業ディレクトリの容量の上限 "workSizeLimit" (空なら上限なし) を足す。 */}}
 {{- define "kotatsu.volumes" -}}
 - name: tmp
   emptyDir: {}
 - name: work
+  {{- with .workSizeLimit }}
+  emptyDir:
+    sizeLimit: {{ . }}
+  {{- else }}
   emptyDir: {}
+  {{- end }}
 {{- if .pools }}
 {{- range $i, $pool := .root.Values.storage.pools }}
 - name: {{ printf "pool-%d" $i }}
@@ -194,7 +199,7 @@ spec:
           volumeMounts:
             {{- include "kotatsu.volumeMounts" (dict "root" $root "pools" .pools) | nindent 12 }}
       volumes:
-        {{- include "kotatsu.volumes" (dict "root" $root "pools" .pools) | nindent 8 }}
+        {{- include "kotatsu.volumes" (dict "root" $root "pools" .pools "workSizeLimit" .pod.workSizeLimit) | nindent 8 }}
       {{- with .pod.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
