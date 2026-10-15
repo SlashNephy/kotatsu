@@ -349,6 +349,16 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 	case err != nil:
 		logger.WarnContext(ctx, "recording session failed", slog.Any("error", err))
 	}
+	deleted, err := sqlc.New(w.pool).DeleteUnrecordedRecordingAssignment(ctx, sqlc.DeleteUnrecordedRecordingAssignmentParams{
+		ID: assignment.ID, Generation: assignment.Generation, Holder: &w.holder,
+	})
+	if err != nil {
+		logger.WarnContext(ctx, "failed to delete the unrecorded recording assignment", slog.Any("error", err))
+	}
+	if deleted > 0 {
+		// 録画を始めずに終えた。有効に戻せば、次の見直しで書き直せるよう、消す (#523)。
+		return
+	}
 	n, err := sqlc.New(w.pool).FinishRecordingAssignment(ctx, sqlc.FinishRecordingAssignmentParams{
 		Now: w.clock.Now(), ID: assignment.ID, Generation: assignment.Generation, Holder: &w.holder,
 	})
