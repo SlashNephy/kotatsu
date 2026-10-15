@@ -144,34 +144,37 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
           />
         )}
       </Box>
-      <Stack gap={0} p="xs">
+      {/* カードは並びの行の高さまで伸びる。伸びた分は日時の行に足し、隣で日時とバッジが 2 行に折り返しても、サービスの行を揃える。 */}
+      <Stack gap={0} p="xs" flex={1}>
         {/* 番組名は 2 行までにし、1 行でも 2 行分の高さを取って、並んだカードの日時やサービスの行を揃える。 */}
         <Text size="sm" lineClamp={2} mih="2lh">
           <ProgramTitle name={recording.name} />
         </Text>
-        <Group gap={6} pt={4}>
-          <Text size="xs" c="dimmed">
-            {(sameYear ? dateTimeFormat : yearDateTimeFormat).format(startAt)} 〜{' '}
-            {timeFormat.format(Date.parse(recording.endAt))}
-          </Text>
-          {/* 受信に傷があれば、警告の印を、日時のすぐ右に出す。数は、ツールチップと読み上げで示す。 */}
-          {damaged && (
-            <Tooltip label={t('recordings.qualityCounts', quality)}>
-              <TriangleAlert
-                size={14}
-                color="var(--mantine-color-amber-6)"
-                role="img"
-                aria-label={t('recordings.damagedWith', quality)}
-              />
-            </Tooltip>
-          )}
-          {/* 完了は当たり前なので出さず、録画中や失敗のように目を留めたい状態だけを出す。 */}
-          {/* ドロップありは、警告の印で分かるので出さない。 */}
-          {recording.state !== 'COMPLETED' &&
-            !(recording.state === 'COMPLETED_WITH_ERRORS' && damaged) && (
-              <RecordingStateBadge state={recording.state} size="xs" />
+        <Box flex={1}>
+          <Group gap={6} pt={4}>
+            <Text size="xs" c="dimmed">
+              {(sameYear ? dateTimeFormat : yearDateTimeFormat).format(startAt)} 〜{' '}
+              {timeFormat.format(Date.parse(recording.endAt))}
+            </Text>
+            {/* 受信に傷があれば、警告の印を、日時のすぐ右に出す。数は、ツールチップと読み上げで示す。 */}
+            {damaged && (
+              <Tooltip label={t('recordings.qualityCounts', quality)}>
+                <TriangleAlert
+                  size={14}
+                  color="var(--mantine-color-amber-6)"
+                  role="img"
+                  aria-label={t('recordings.damagedWith', quality)}
+                />
+              </Tooltip>
             )}
-        </Group>
+            {/* 完了は当たり前なので出さず、録画中や失敗のように目を留めたい状態だけを出す。 */}
+            {/* ドロップありは、警告の印で分かるので出さない。 */}
+            {recording.state !== 'COMPLETED' &&
+              !(recording.state === 'COMPLETED_WITH_ERRORS' && damaged) && (
+                <RecordingStateBadge state={recording.state} size="xs" />
+              )}
+          </Group>
+        </Box>
         <Text size="xs" c="dimmed" mt="xs">
           <ServiceLabel name={recording.service.name} logoUrl={recording.service.logoUrl} />
         </Text>
