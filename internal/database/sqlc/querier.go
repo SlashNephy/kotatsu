@@ -188,7 +188,7 @@ type Querier interface {
 	ListChannelTypes(ctx context.Context) ([]ChannelType, error)
 	ListChannelTypesByTypes(ctx context.Context, types []string) ([]ChannelType, error)
 	// 容量の管理で消せる録画を、古い順に返す。プール pool_id にファイルを持ち、保護されておらず、録画中でなく、
-	// すべてのファイルがこのインスタンスにマウントされたプール mounted にあるもの。
+	// すべてのファイルがこのインスタンスにマウントされたプール mounted にあるもの。古いほうから skip 件を飛ばす。
 	ListDeletableRecordings(ctx context.Context, arg ListDeletableRecordingsParams) ([]ListDeletableRecordingsRow, error)
 	// 割り振りを書く予約。有効で、チューナーの割り当てを計算済みで、予定の開始が due_before までに来て、まだ終わっておらず、割り振りのないもの。
 	ListDueReservations(ctx context.Context, arg ListDueReservationsParams) ([]ListDueReservationsRow, error)
