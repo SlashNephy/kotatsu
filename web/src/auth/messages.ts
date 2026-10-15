@@ -18,6 +18,7 @@ const knownCodes = [
   'OIDC_UNAVAILABLE',
   'OIDC_NOT_LINKED',
   'OIDC_DISABLED',
+  'OIDC_ALREADY_LINKED',
   'UNAUTHENTICATED',
 ] as const;
 
@@ -57,6 +58,9 @@ const oidcReasons = [
   'oidc_unavailable',
   'oidc_reauth_stale',
   'oidc_reauth_mismatch',
+  'oidc_link_taken',
+  'oidc_link_already',
+  'oidc_link_mismatch',
 ] as const;
 
 // oidcErrorMessage は、OIDC でのログインに失敗して戻ってきた理由を、画面に出す文に直す。

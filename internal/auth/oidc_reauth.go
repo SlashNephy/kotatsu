@@ -54,21 +54,15 @@ func (o *OIDC) BeginReauthentication(
 	if err != nil {
 		return nil, err
 	}
-	identities, err := sqlc.New(db).ListUserOIDCIdentities(ctx, principal.UserID)
+	linked, err := o.linkedToIssuer(ctx, db, principal.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list the OIDC identities: %w", err)
-	}
-	linked := false
-	for i := range identities {
-		if identities[i].Issuer == o.settings.Issuer {
-			linked = true
-		}
+		return nil, err
 	}
 	if !linked {
 		return nil, ErrOIDCNotLinked
 	}
 
-	return o.begin(ctx, db, client, &oidcReauthRequest{sessionID: principal.SessionID, returnTo: returnTo})
+	return o.begin(ctx, db, client, &oidcSessionRequest{sessionID: principal.SessionID, returnTo: returnTo, link: false})
 }
 
 // reauthenticate は、IdP で認証し直したユーザーが、再認証を始めたセッションのユーザーであることを確かめ、セッションの認証の日時を更新する。

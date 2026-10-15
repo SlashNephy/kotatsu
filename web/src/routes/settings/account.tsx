@@ -23,6 +23,7 @@ import { graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import { renderSVG } from 'uqr';
 
 import { authApi, type OIDCStatus } from '../../auth/api';
+import { oidcErrorMessage } from '../../auth/messages';
 import { settingsErrorMessage } from '../../settings/errors';
 import { PasskeyCancelledError, passkeyAvailable, registerPasskey } from '../../auth/passkey';
 import { deviceName } from '../../settings/device';
@@ -41,11 +42,24 @@ import type { accountRegenerateMutation } from './__generated__/accountRegenerat
 import type { accountRenamePasskeyMutation } from './__generated__/accountRenamePasskeyMutation.graphql';
 import type { accountRevokeSessionMutation } from './__generated__/accountRevokeSessionMutation.graphql';
 
-const oidcDisabled: OIDCStatus = { enabled: false, displayName: '' };
+type AccountSearch = {
+  // error は、IdP での再認証か紐付けに失敗して戻ってきたときの理由 (oidc_link_taken など)。
+  error?: string;
+  // linked は、IdP との紐付けを終えて戻ってきたときに oidc になる。
+  linked?: 'oidc';
+};
+
+const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
 const path = '/settings/account';
 
 export const Route = createFileRoute('/settings/account')({
-  // IdP での再認証を出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
+  validateSearch: (search: Record<string, unknown>): AccountSearch => ({
+    ...(typeof search['error'] === 'string' && search['error'] !== ''
+      ? { error: search['error'] }
+      : {}),
+    ...(search['linked'] === 'oidc' ? { linked: 'oidc' as const } : {}),
+  }),
+  // IdP での再認証と紐付けを出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
   loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: AccountPage,
 });
@@ -118,6 +132,7 @@ function Account() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const oidc = Route.useLoaderData();
+  const search = Route.useSearch();
   // fetchKey を変えると、読み直す。登録や削除の後に、一覧を新しくするのに使う。
   // 読み直す間も画面を出したままにして、作り直したリカバリーコードなどの表示を消さないよう、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
@@ -130,7 +145,10 @@ function Account() {
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
   const player = usePlayerSettings();
   const [dataBroadcastPreload, setDataBroadcastPreload] = useDataBroadcastPreload();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    search.error === undefined ? null : oidcErrorMessage(t, search.error),
+  );
+  const [linked, setLinked] = useState(search.linked === 'oidc');
   const fail = (caught: unknown) => setError(settingsErrorMessage(t, caught));
   // run は、前の操作のエラーを消してから、操作を行う。
   const run: Run = (operation, onError) => {
@@ -144,6 +162,11 @@ function Account() {
       {error !== null && (
         <Alert color="red" role="alert" withCloseButton onClose={() => setError(null)}>
           {error}
+        </Alert>
+      )}
+      {linked && (
+        <Alert color="green" role="status" withCloseButton onClose={() => setLinked(false)}>
+          {t('settings.account.oidcLinked', { name: oidc.displayName })}
         </Alert>
       )}
 
@@ -198,6 +221,11 @@ function Account() {
             fail={fail}
             environment={environment}
           />
+
+          {/* 紐付いていないときだけ出す。紐付けを外す操作は、パスワードもパスキーもないユーザーを締め出しかねないので設けない。 */}
+          {oidc.enabled && !oidc.linked && (
+            <OIDCLink displayName={oidc.displayName} run={run} fail={fail} />
+          )}
 
           <Card withBorder>
             <Stack gap="xs">
@@ -279,6 +307,44 @@ function Account() {
 }
 
 type Run = ReturnType<typeof useReauthGate>['run'];
+
+// OIDCLink は、ログイン中のユーザーを IdP のユーザーと紐付ける (設計書 9.4)。再認証してから、IdP へ送り出す。
+// IdP から戻ると、この画面に linked=oidc か error=<理由> が付く。
+function OIDCLink({
+  displayName,
+  run,
+  fail,
+}: {
+  displayName: string;
+  run: Run;
+  fail: (error: unknown) => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Card withBorder>
+      <Stack gap="xs">
+        <Title order={3} size="h5">
+          {t('settings.account.oidc', { name: displayName })}
+        </Title>
+        <Text size="sm">{t('settings.account.oidcDescription', { name: displayName })}</Text>
+        <Group gap="xs">
+          <Button
+            size="compact-sm"
+            onClick={() =>
+              run(async () => {
+                const { authorizationUrl } = await authApi.beginOIDCLink(path);
+                window.location.assign(authorizationUrl);
+              }, fail)
+            }
+          >
+            {t('settings.account.oidcLink', { name: displayName })}
+          </Button>
+        </Group>
+      </Stack>
+    </Card>
+  );
+}
 
 type SectionProps = {
   onChanged: () => void;

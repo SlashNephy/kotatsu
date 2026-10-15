@@ -24,7 +24,7 @@ import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import type { settingsSystemMutation } from './__generated__/settingsSystemMutation.graphql';
 import type { settingsSystemQuery } from './__generated__/settingsSystemQuery.graphql';
 
-const oidcDisabled: OIDCStatus = { enabled: false, displayName: '' };
+const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
 const path = '/admin/settings';
 
 export const Route = createFileRoute('/admin/settings')({

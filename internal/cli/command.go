@@ -616,7 +616,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	mux.Handle("GET /auth/setup", setup.StatusHandler(deps.DB))
 	// OIDC でのログイン (設計書 9.4)。IdP からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
 	oidc := newOIDC(deps.Clock, logger, deps.Config, sessions)
-	mux.Handle("GET /auth/oidc", oidc.StatusHandler())
+	mux.Handle("GET /auth/oidc", oidc.StatusHandler(deps.DB))
 	mux.Handle("GET "+auth.OIDCCallbackPath, oidc.CallbackHandler(deps.DB, clientInfo))
 	for pattern, handler := range map[string]http.Handler{
 		"POST /auth/setup":                         setup.CreateHandler(deps.DB, clientInfo),
@@ -636,6 +636,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		"POST /auth/reauth/passkey":                logins.PasskeyReauthenticationHandler(deps.DB, clientInfo),
 		"POST /auth/reauth/passkey/confirm":        logins.PasskeyReauthenticationConfirmHandler(deps.DB, clientInfo),
 		"POST /auth/reauth/oidc":                   oidc.ReauthenticationHandler(deps.DB, clientInfo),
+		"POST /auth/oidc/link":                     oidc.LinkHandler(deps.DB, clientInfo),
 	} {
 		mux.Handle(pattern, httpserver.RequireSameOrigin(handler))
 	}

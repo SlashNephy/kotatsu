@@ -38,6 +38,8 @@ type Props = {
 export function Reauthenticate({ methods, returnTo, onDone }: Props) {
   const { t } = useTranslation();
   const hasCode = methods.totp || methods.recoveryCode;
+  // IdP で再認証できるのは、IdP のユーザーと紐付いているときだけ。
+  const oidc = methods.oidc.enabled && methods.oidc.linked;
   const [useRecovery, setUseRecovery] = useState(!methods.totp);
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -99,7 +101,7 @@ export function Reauthenticate({ methods, returnTo, onDone }: Props) {
     }
   };
 
-  if (!hasCode && !methods.passkey && !methods.oidc.enabled) {
+  if (!hasCode && !methods.passkey && !oidc) {
     return (
       <Alert color="amber" role="alert">
         {t('auth.reauth.unavailable')}
@@ -127,7 +129,7 @@ export function Reauthenticate({ methods, returnTo, onDone }: Props) {
           )}
         </Stack>
       )}
-      {methods.oidc.enabled && (
+      {oidc && (
         <Stack gap="xs">
           <Button variant="default" loading={submitting} onClick={() => void verifyWithOIDC()}>
             {t('auth.reauth.oidc', { name: methods.oidc.displayName })}
@@ -139,9 +141,7 @@ export function Reauthenticate({ methods, returnTo, onDone }: Props) {
           )}
         </Stack>
       )}
-      {hasCode && (methods.passkey || methods.oidc.enabled) && (
-        <Divider label={t('auth.reauth.or')} />
-      )}
+      {hasCode && (methods.passkey || oidc) && <Divider label={t('auth.reauth.or')} />}
       {hasCode && (
         <form onSubmit={submit}>
           <Stack>

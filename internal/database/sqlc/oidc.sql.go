@@ -74,8 +74,8 @@ func (q *Queries) InsertOIDCIdentity(ctx context.Context, arg InsertOIDCIdentity
 }
 
 const insertOIDCLogin = `-- name: InsertOIDCLogin :exec
-INSERT INTO oidc_logins (id, token_hash, state, nonce, code_verifier, redirect_uri, session_id, return_to, created_at, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+INSERT INTO oidc_logins (id, token_hash, state, nonce, code_verifier, redirect_uri, session_id, return_to, link, created_at, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 
 type InsertOIDCLoginParams struct {
@@ -87,6 +87,7 @@ type InsertOIDCLoginParams struct {
 	RedirectUri  string
 	SessionID    *uuid.UUID
 	ReturnTo     *string
+	Link         bool
 	Now          time.Time
 	ExpiresAt    time.Time
 }
@@ -101,6 +102,7 @@ func (q *Queries) InsertOIDCLogin(ctx context.Context, arg InsertOIDCLoginParams
 		arg.RedirectUri,
 		arg.SessionID,
 		arg.ReturnTo,
+		arg.Link,
 		arg.Now,
 		arg.ExpiresAt,
 	)
@@ -154,7 +156,7 @@ func (q *Queries) RecordOIDCIdentityUse(ctx context.Context, arg RecordOIDCIdent
 
 const takeOIDCLogin = `-- name: TakeOIDCLogin :one
 DELETE FROM oidc_logins WHERE token_hash = $1 AND expires_at > $2
-RETURNING id, token_hash, state, nonce, code_verifier, redirect_uri, session_id, return_to, created_at, expires_at
+RETURNING id, token_hash, state, nonce, code_verifier, redirect_uri, session_id, return_to, link, created_at, expires_at
 `
 
 type TakeOIDCLoginParams struct {
@@ -175,6 +177,7 @@ func (q *Queries) TakeOIDCLogin(ctx context.Context, arg TakeOIDCLoginParams) (O
 		&i.RedirectUri,
 		&i.SessionID,
 		&i.ReturnTo,
+		&i.Link,
 		&i.CreatedAt,
 		&i.ExpiresAt,
 	)
