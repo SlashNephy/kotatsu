@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest';
 
-import { emptyConditions, hasConditions, toConditionsInput } from './form';
+import {
+  type ConditionsData,
+  emptyConditions,
+  fromConditions,
+  hasConditions,
+  toConditionsInput,
+} from './form';
 
 describe('toConditionsInput', () => {
   test.each([
@@ -46,8 +52,33 @@ describe('hasConditions', () => {
       want: false,
     },
     { name: 'チャンネル種別', form: { ...emptyConditions(), channelTypes: ['BS'] }, want: true },
-    { name: '最短の長さ', form: { ...emptyConditions(), minDurationMinutes: 30 }, want: true },
+    { name: '最短の長さ', form: { ...emptyConditions(), minDurationSeconds: 1800 }, want: true },
   ])('$name', ({ form, want }) => {
     expect(hasConditions(form)).toBe(want);
+  });
+});
+
+describe('fromConditions と toConditionsInput', () => {
+  const data = (min: number | null, max: number | null): ConditionsData => ({
+    keywords: [],
+    keywordMatch: 'ALL',
+    excludeKeywords: [],
+    channelTypes: [],
+    services: [],
+    genres: [],
+    excludeGenres: [],
+    timeRanges: [],
+    minDurationSeconds: min,
+    maxDurationSeconds: max,
+    freeOnly: false,
+  });
+
+  test.each([
+    { name: '分で割り切れない長さ', min: 90, max: 5430 },
+    { name: '分で割り切れる長さ', min: 1200, max: 7200 },
+    { name: '長さの条件がない', min: null, max: null },
+  ])('$name は、読んでそのまま書き戻しても変わらない', ({ min, max }) => {
+    const input = toConditionsInput(fromConditions(data(min, max)));
+    expect([input.minDurationSeconds, input.maxDurationSeconds]).toEqual([min, max]);
   });
 });

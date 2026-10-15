@@ -53,9 +53,8 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
   const [name, setName] = useState(view.name);
   const [genres, setGenres] = useState(view.genres.map(encodeGenre));
   const [excludeGenres, setExcludeGenres] = useState(view.excludeGenres.map(encodeGenre));
-  const [minMinutes, setMinMinutes] = useState<number | ''>(
-    view.minDurationSeconds == null ? '' : Math.round(view.minDurationSeconds / 60),
-  );
+  // 最短の長さは秒で持ち、画面では分で見せる。入力を変えていなければ、秒の値をそのまま送る。
+  const [minSeconds, setMinSeconds] = useState(view.minDurationSeconds ?? null);
   const [serviceOrder, setServiceOrder] = useState([...view.services]);
   const [hideEmpty, setHideEmpty] = useState(view.hideEmptyServices);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +92,7 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
       name: name.trim(),
       genres: genres.map(decodeGenre),
       excludeGenres: excludeGenres.map(decodeGenre),
-      minDurationSeconds: minMinutes === '' ? null : minMinutes * 60,
+      minDurationSeconds: minSeconds,
       services: serviceOrder,
       hideEmptyServices: hideEmpty,
     };
@@ -155,8 +154,8 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
           />
           <NumberInput
             label={t('guide.view.minDuration')}
-            value={minMinutes}
-            onChange={(value) => setMinMinutes(typeof value === 'number' ? value : '')}
+            value={minSeconds == null ? '' : Math.round(minSeconds / 60)}
+            onChange={(value) => setMinSeconds(typeof value === 'number' ? value * 60 : null)}
             min={1}
             max={24 * 60}
             allowDecimal={false}

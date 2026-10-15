@@ -35,8 +35,9 @@ export type ConditionsForm = {
   genres: Genre[];
   excludeGenres: Genre[];
   timeRanges: TimeRangeRow[];
-  minDurationMinutes: number | null;
-  maxDurationMinutes: number | null;
+  // 番組の長さは、tenban と同じく秒で持つ。画面では分で見せるが、入力を変えていなければ秒の値をそのまま送る。
+  minDurationSeconds: number | null;
+  maxDurationSeconds: number | null;
   freeOnly: boolean;
 };
 
@@ -85,14 +86,11 @@ export function emptyConditions(): ConditionsForm {
     genres: [],
     excludeGenres: [],
     timeRanges: [],
-    minDurationMinutes: null,
-    maxDurationMinutes: null,
+    minDurationSeconds: null,
+    maxDurationSeconds: null,
     freeOnly: false,
   };
 }
-
-const toMinutes = (seconds: number | null | undefined) =>
-  seconds == null ? null : Math.round(seconds / 60);
 
 const copyKeyword = (keyword: KeywordData): KeywordRow => ({
   text: keyword.text,
@@ -123,8 +121,8 @@ export function fromConditions(c: ConditionsData): ConditionsForm {
       startMinute: range.startMinute,
       durationMinutes: range.durationMinutes,
     })),
-    minDurationMinutes: toMinutes(c.minDurationSeconds),
-    maxDurationMinutes: toMinutes(c.maxDurationSeconds),
+    minDurationSeconds: c.minDurationSeconds ?? null,
+    maxDurationSeconds: c.maxDurationSeconds ?? null,
     freeOnly: c.freeOnly,
   };
 }
@@ -146,8 +144,8 @@ export function toConditionsInput(form: ConditionsForm) {
     genres: form.genres,
     excludeGenres: form.excludeGenres,
     timeRanges: form.timeRanges.filter((range) => range.weekdays.length > 0),
-    minDurationSeconds: form.minDurationMinutes == null ? null : form.minDurationMinutes * 60,
-    maxDurationSeconds: form.maxDurationMinutes == null ? null : form.maxDurationMinutes * 60,
+    minDurationSeconds: form.minDurationSeconds,
+    maxDurationSeconds: form.maxDurationSeconds,
     freeOnly: form.freeOnly,
   };
 }
