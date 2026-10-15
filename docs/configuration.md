@@ -63,6 +63,7 @@ tenbanのHTTPサーバーの設定です。
 | `server.listen` | `KOTATSU_SERVER_LISTEN` | `:8080` | 待ち受けアドレス |
 | `server.allowed_networks` | `KOTATSU_SERVER_ALLOWED_NETWORKS` | プライベートアドレス | 接続を受け付ける送信元のネットワーク |
 | `server.trusted_proxies` | `KOTATSU_SERVER_TRUSTED_PROXIES` | なし | `X-Forwarded-For`を信頼するリバースプロキシのネットワーク |
+| `server.client_ip_header` | `KOTATSU_SERVER_CLIENT_IP_HEADER` | `X-Forwarded-For` | 信頼済みのプロキシから届いたリクエストで、送信元を読むヘッダー（`X-Forwarded-For`か`X-Real-IP`） |
 | `server.advertise_host` | `KOTATSU_SERVER_ADVERTISE_HOST` | なし | ほかのインスタンスからこのインスタンスに届くホスト |
 
 `server.allowed_networks`と`server.trusted_proxies`には、CIDRかIPアドレスを書きます。
@@ -78,6 +79,20 @@ tenbanのHTTPサーバーの設定です。
 
 `server.trusted_proxies`に含まれない送信元から`X-Forwarded-For`が届くと、Kotatsuはエラーを返します。
 リバースプロキシを通すときは、そのアドレスを足してください。
+
+`server.client_ip_header`が`X-Forwarded-For`のときは、`X-Forwarded-For`を右から読み、信頼済みのプロキシを飛ばした最初のアドレスを送信元にします。
+`X-Forwarded-For`が無いときだけ、`X-Real-IP`を読みます。
+プロキシが`X-Forwarded-For`を設定し直さないと、送信元が書いた値がそのまま届き、接続元の制限をすり抜けられます。
+nginxでは、`X-Real-IP`だけでなく`X-Forwarded-For`も設定してください。
+
+```nginx
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Forwarded-Host $host;
+```
+
+プロキシが`X-Real-IP`だけを設定するなら、`server.client_ip_header`を`X-Real-IP`にします。
+このときは`X-Forwarded-For`を読まず、`X-Real-IP`の値を送信元にします。
 
 `server.advertise_host`は、ロールを別のプロセスに分けたときに使います。
 tenbanは、ライブ視聴と録画の配信を、別のプロセスのkyusuに中継します。
