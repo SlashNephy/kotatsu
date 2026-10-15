@@ -229,3 +229,36 @@ func raiseMinBinaryVersion(t *testing.T, pool *pgxpool.Pool, version int64) {
 		UpdatedAt:        time.Now(),
 	}))
 }
+
+// TestOpenLimitsIdleTransactionsAndStatements は、接続に、トランザクションの中で何もしない時間と、1 つの問い合わせの時間の
+// 上限を設けることを確かめる (#527)。固まったトランザクションが、neko のリースを取れないまま残らないようにする。
+// トランザクションプーリングを経由するときは、接続の開始のパラメーターを渡せないので、設けない。
+func TestOpenLimitsIdleTransactionsAndStatements(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		pooler        bool
+		wantIdle      string
+		wantStatement string
+	}{
+		{name: "direct", pooler: false, wantIdle: "1min", wantStatement: "5min"},
+		{name: "pooler", pooler: true, wantIdle: "0", wantStatement: "0"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := databasetest.New(t)
+			cfg.Pooler = tt.pooler
+			pool, err := database.Open(t.Context(), cfg)
+			require.NoError(t, err)
+			t.Cleanup(pool.Close)
+
+			var idle, statement string
+			require.NoError(t, pool.QueryRow(t.Context(), "SELECT current_setting('idle_in_transaction_session_timeout'), current_setting('statement_timeout')").Scan(&idle, &statement))
+			assert.Equal(t, tt.wantIdle, idle)
+			assert.Equal(t, tt.wantStatement, statement)
+		})
+	}
+}

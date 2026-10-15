@@ -38,7 +38,15 @@ var (
 // Migrate は、埋め込んだマイグレーションのうち未適用のものを適用する。
 // 適用済みなら何もしない。
 func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
-	provider, err := newProvider(pool)
+	// マイグレーションは、大きな表の書き換えで長くかかることがあるので、問い合わせの時間の上限を外した接続で流す (#527)。
+	migrationPool, err := withoutStatementTimeout(ctx, pool)
+	if err != nil {
+		return err
+	}
+	if migrationPool != pool {
+		defer migrationPool.Close()
+	}
+	provider, err := newProvider(migrationPool)
 	if err != nil {
 		return err
 	}
@@ -157,4 +165,19 @@ func migrationsFS() fs.FS {
 	}
 
 	return fsys
+}
+
+// withoutStatementTimeout は、pool に問い合わせの時間の上限があれば、上限を外した別のプールを返す。なければ pool をそのまま返す。
+func withoutStatementTimeout(ctx context.Context, pool *pgxpool.Pool) (*pgxpool.Pool, error) {
+	cfg := pool.Config()
+	if _, ok := cfg.ConnConfig.RuntimeParams["statement_timeout"]; !ok {
+		return pool, nil
+	}
+	cfg.ConnConfig.RuntimeParams["statement_timeout"] = "0"
+	migrationPool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the database pool for migrations: %w", err)
+	}
+
+	return migrationPool, nil
 }

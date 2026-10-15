@@ -13,6 +13,13 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/config"
 )
 
+const (
+	// IdleInTransactionTimeout は、トランザクションの中で何もしない時間の上限 (付録 A)。
+	IdleInTransactionTimeout = "1min"
+	// StatementTimeout は、1 つの問い合わせの時間の上限 (付録 A)。マイグレーションには付けない。
+	StatementTimeout = "5min"
+)
+
 // Open は PostgreSQL に接続する。接続できることを確かめてから返す。
 func Open(ctx context.Context, cfg *config.Database) (*pgxpool.Pool, error) {
 	poolConfig, err := pgxpool.ParseConfig(cfg.URL.Value())
@@ -25,6 +32,11 @@ func Open(ctx context.Context, cfg *config.Database) (*pgxpool.Pool, error) {
 		// トランザクションプーリングでは、トランザクションごとに別のサーバー接続に割り当てられる。
 		// pgx の既定はサーバー側の名前付きプリペアドステートメントを使い回すので、使わない方式に変える。
 		poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeExec
+	} else {
+		// 固まったトランザクションや問い合わせが、neko のリースを取れないまま残らないよう、上限を設ける (付録 A、#527)。
+		// トランザクションプーリングを経由するときは、接続の開始のパラメーターを渡せないので、プーラーの側で設定する。
+		poolConfig.ConnConfig.RuntimeParams["idle_in_transaction_session_timeout"] = IdleInTransactionTimeout
+		poolConfig.ConnConfig.RuntimeParams["statement_timeout"] = StatementTimeout
 	}
 
 	// 時刻は内部では UTC で扱う (設計書 8.1)。pgx の既定はローカルのタイムゾーンで返す。
