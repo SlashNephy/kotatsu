@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
@@ -46,6 +47,8 @@ const (
 	finalizeMaxAttempts = 25
 	// unmountedSnooze は、プールがマウントされていないときに、置き換えをやり直すまで待つ時間。
 	unmountedSnooze = 5 * time.Minute
+	// lockedSnooze は、同じ録画をほかでつないでいるときに、やり直すまで待つ時間。
+	lockedSnooze = 10 * time.Minute
 	// foreignKeyViolation は、外部キーの制約に反したときの PostgreSQL のエラーコード。
 	foreignKeyViolation = "23503"
 )
@@ -161,6 +164,7 @@ type JoinWorker struct {
 
 	db       sqlc.DBTX
 	pool     txBeginner
+	conns    connAcquirer
 	store    *kago.Store
 	inserter Inserter
 	logger   *slog.Logger
@@ -172,6 +176,11 @@ type txBeginner interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
+// connAcquirer は、接続を借りられる DB。*pgxpool.Pool が満たす。セッションの advisory lock を持つのに使う。
+type connAcquirer interface {
+	Acquire(ctx context.Context) (*pgxpool.Conn, error)
+}
+
 var _ river.Worker[JoinArgs] = new(JoinWorker)
 
 // NewJoinWorker は JoinWorker を返す。store は、このインスタンスにマウントされたプール。
@@ -179,11 +188,12 @@ var _ river.Worker[JoinArgs] = new(JoinWorker)
 func NewJoinWorker(db interface {
 	sqlc.DBTX
 	txBeginner
+	connAcquirer
 }, store *kago.Store, inserter Inserter, logger *slog.Logger, window int,
 ) *JoinWorker {
 	return &JoinWorker{
 		WorkerDefaults: river.WorkerDefaults[JoinArgs]{},
-		db:             db, pool: db, store: store, inserter: inserter, logger: logger, window: window,
+		db:             db, pool: db, conns: db, store: store, inserter: inserter, logger: logger, window: window,
 	}
 }
 
@@ -191,7 +201,34 @@ func (w *JoinWorker) Timeout(*river.Job[JoinArgs]) time.Duration {
 	return joinTimeout
 }
 
+// Work は、録画ごとの advisory lock を取ってから、録画のセグメントをつなぐ。
+// 時間の上限を超えたジョブが救出され、ほかの nekonote が同じ録画をつなぎ始めても、同じ一時ファイルを開き直して壊さないよう、
+// ロックが取れなければ、つながずに後でやり直す (#515)。
 func (w *JoinWorker) Work(ctx context.Context, job *river.Job[JoinArgs]) error {
+	conn, err := w.conns.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire a connection: %w", err)
+	}
+	defer conn.Release()
+	key := job.Args.RecordingID.String()
+	locked, err := sqlc.New(conn).TryLockRecordingJoin(ctx, key)
+	if err != nil {
+		return fmt.Errorf("failed to lock the recording: %w", err)
+	}
+	if !locked {
+		return river.JobSnooze(lockedSnooze)
+	}
+	defer func() {
+		if _, err := sqlc.New(conn).UnlockRecordingJoin(context.WithoutCancel(ctx), key); err != nil {
+			// 接続を閉じれば、ロックも外れる。
+			_ = conn.Conn().Close(context.WithoutCancel(ctx))
+		}
+	}()
+
+	return w.work(ctx, job)
+}
+
+func (w *JoinWorker) work(ctx context.Context, job *river.Job[JoinArgs]) error {
 	q := sqlc.New(w.db)
 	recording, err := q.GetRecording(ctx, job.Args.RecordingID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -215,6 +252,17 @@ func (w *JoinWorker) Work(ctx context.Context, job *river.Job[JoinArgs]) error {
 	}
 
 	first := segments[0]
+	room, err := w.hasRoom(ctx, first.PoolID, segments)
+	if err != nil {
+		return err
+	}
+	if !room {
+		// つないでいる間は、全長分をもう 1 本使う。容量の管理に古い録画を消させたり、並行する録画を失敗させたりしないよう、
+		// 書いても閾値を下回らない空きがなければ、分けたまま残す (#515)。
+		logger.WarnContext(ctx, "kept the recording split; the storage pool does not have room for the joined file", slog.String("pool_id", first.PoolID))
+
+		return w.enqueue(ctx, thumbnail.GenerateArgs{RecordingID: recording.ID})
+	}
 	outPath, err := w.store.Path(first.PoolID, first.Path+tempSuffix)
 	if err != nil {
 		return river.JobCancel(fmt.Errorf("failed to locate the joined file: %w", err))
@@ -233,6 +281,19 @@ func (w *JoinWorker) Work(ctx context.Context, job *river.Job[JoinArgs]) error {
 		return err
 	}
 
+	if err := w.commit(ctx, logger, recording.ID, segments, indexes, size, outPath); err != nil {
+		return err
+	}
+	logger.InfoContext(ctx, "joined the recording segments", slog.Int("segments", len(segments)), slog.Int64("size", size))
+
+	return nil
+}
+
+// commit は、DB のファイルの記録を、つないだ後の内容に置き換え、同じトランザクションで置き換えのジョブを投入する。
+func (w *JoinWorker) commit(
+	ctx context.Context, logger *slog.Logger, recordingID uuid.UUID, segments, indexes []*sqlc.RecordingFile, size int64, outPath string,
+) error {
+	first := segments[0]
 	removed := make([]File, 0, len(segments)-1)
 	ids := make([]uuid.UUID, 0, len(segments)-1+len(indexes))
 	for _, segment := range segments[1:] {
@@ -243,7 +304,7 @@ func (w *JoinWorker) Work(ctx context.Context, job *river.Job[JoinArgs]) error {
 		ids = append(ids, index.ID)
 	}
 	last := segments[len(segments)-1]
-	err = pgx.BeginFunc(ctx, w.pool, func(tx pgx.Tx) error {
+	err := pgx.BeginFunc(ctx, w.pool, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		n, err := q.SetJoinedRecordingFile(ctx, sqlc.SetJoinedRecordingFileParams{Size: size, EndedAt: last.EndedAt, ID: first.ID})
 		if err != nil {
@@ -253,10 +314,10 @@ func (w *JoinWorker) Work(ctx context.Context, job *river.Job[JoinArgs]) error {
 		if n == 0 {
 			return errRecordingNotFound
 		}
-		if err := q.DeleteRecordingFiles(ctx, sqlc.DeleteRecordingFilesParams{RecordingID: recording.ID, Ids: ids}); err != nil {
+		if err := q.DeleteRecordingFiles(ctx, sqlc.DeleteRecordingFilesParams{RecordingID: recordingID, Ids: ids}); err != nil {
 			return fmt.Errorf("failed to delete the joined segments: %w", err)
 		}
-		args := FinalizeArgs{RecordingID: recording.ID, PoolID: first.PoolID, Path: first.Path, Removed: removed}
+		args := FinalizeArgs{RecordingID: recordingID, PoolID: first.PoolID, Path: first.Path, Removed: removed}
 		if _, err := w.inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: args, InsertOpts: nil}}); err != nil {
 			return fmt.Errorf("failed to enqueue the finalization: %w", err)
 		}
@@ -269,9 +330,8 @@ func (w *JoinWorker) Work(ctx context.Context, job *river.Job[JoinArgs]) error {
 		return river.JobCancel(errRecordingNotFound)
 	}
 	if err != nil {
-		return w.recoverCommit(ctx, logger, err, recording.ID, first.ID, size, outPath)
+		return w.recoverCommit(ctx, logger, err, recordingID, first.ID, size, outPath)
 	}
-	logger.InfoContext(ctx, "joined the recording segments", slog.Int("segments", len(segments)), slog.Int64("size", size))
 
 	return nil
 }
@@ -299,6 +359,24 @@ func (w *JoinWorker) recoverCommit(ctx context.Context, logger *slog.Logger, cau
 	_ = os.Remove(outPath)
 
 	return cause
+}
+
+// hasRoom は、セグメントの大きさの合計を書いても、プール poolID の空き容量が閾値を下回らないかを返す。
+func (w *JoinWorker) hasRoom(ctx context.Context, poolID string, segments []*sqlc.RecordingFile) (bool, error) {
+	total := uint64(0)
+	for _, segment := range segments {
+		total += uint64(max(segment.Size, 0))
+	}
+	free, err := w.store.PoolFreeSpace(poolID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get the free space of pool %s: %w", poolID, err)
+	}
+	threshold, err := sqlc.New(w.db).GetStoragePoolThreshold(ctx, poolID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get the threshold of pool %s: %w", poolID, err)
+	}
+
+	return free >= total && free-total >= uint64(max(threshold, 0)), nil
 }
 
 // join は、segments を順につないで outPath に書き、書いた大きさを返す。

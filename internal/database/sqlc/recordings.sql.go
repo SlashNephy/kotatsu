@@ -342,6 +342,18 @@ func (q *Queries) GetRecordingWithService(ctx context.Context, id uuid.UUID) (Ge
 	return i, err
 }
 
+const getStoragePoolThreshold = `-- name: GetStoragePoolThreshold :one
+SELECT coalesce((SELECT min_free_bytes FROM storage_pools WHERE id = $1), 0)::bigint AS min_free_bytes
+`
+
+// プールの容量の閾値。設定していなければ 0 を返す。
+func (q *Queries) GetStoragePoolThreshold(ctx context.Context, id string) (int64, error) {
+	row := q.db.QueryRow(ctx, getStoragePoolThreshold, id)
+	var min_free_bytes int64
+	err := row.Scan(&min_free_bytes)
+	return min_free_bytes, err
+}
+
 const insertRecordingFile = `-- name: InsertRecordingFile :exec
 INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
 VALUES ($1, $2, $3, $4, $5, 0, $6, NULL, $7)
@@ -850,6 +862,29 @@ func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) 
 		&i.Inserted,
 	)
 	return i, err
+}
+
+const tryLockRecordingJoin = `-- name: TryLockRecordingJoin :one
+SELECT pg_try_advisory_lock(hashtext('kotatsu.segjoin'), hashtext($1::text)) AS locked
+`
+
+// 録画のセグメントをつなぐ間、ほかの nekonote が同じ録画をつながないよう、セッションの advisory lock を取る。取れなければ false を返す。
+func (q *Queries) TryLockRecordingJoin(ctx context.Context, recordingID string) (bool, error) {
+	row := q.db.QueryRow(ctx, tryLockRecordingJoin, recordingID)
+	var locked bool
+	err := row.Scan(&locked)
+	return locked, err
+}
+
+const unlockRecordingJoin = `-- name: UnlockRecordingJoin :one
+SELECT pg_advisory_unlock(hashtext('kotatsu.segjoin'), hashtext($1::text)) AS unlocked
+`
+
+func (q *Queries) UnlockRecordingJoin(ctx context.Context, recordingID string) (bool, error) {
+	row := q.db.QueryRow(ctx, unlockRecordingJoin, recordingID)
+	var unlocked bool
+	err := row.Scan(&unlocked)
+	return unlocked, err
 }
 
 const upsertRecordingImage = `-- name: UpsertRecordingImage :exec

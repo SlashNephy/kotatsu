@@ -129,6 +129,8 @@ type Querier interface {
 	GetReservationForRecording(ctx context.Context, id uuid.UUID) (GetReservationForRecordingRow, error)
 	GetRule(ctx context.Context, id uuid.UUID) (Rule, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
+	// プールの容量の閾値。設定していなければ 0 を返す。
+	GetStoragePoolThreshold(ctx context.Context, id string) (int64, error)
 	GetSystemSettings(ctx context.Context) (SystemSetting, error)
 	GetTOTPEnrollmentForUpdate(ctx context.Context, arg GetTOTPEnrollmentForUpdateParams) (TotpEnrollment, error)
 	GetTunerServerStatus(ctx context.Context) (GetTunerServerStatusRow, error)
@@ -398,6 +400,9 @@ type Querier interface {
 	TakeWebAuthnCeremony(ctx context.Context, arg TakeWebAuthnCeremonyParams) (WebauthnCeremony, error)
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
+	// 録画のセグメントをつなぐ間、ほかの nekonote が同じ録画をつながないよう、セッションの advisory lock を取る。取れなければ false を返す。
+	TryLockRecordingJoin(ctx context.Context, recordingID string) (bool, error)
+	UnlockRecordingJoin(ctx context.Context, recordingID string) (bool, error)
 	UpdateAssignment(ctx context.Context, arg UpdateAssignmentParams) error
 	UpdateChannelType(ctx context.Context, arg UpdateChannelTypeParams) (ChannelType, error)
 	UpdateGuideView(ctx context.Context, arg UpdateGuideViewParams) (int64, error)

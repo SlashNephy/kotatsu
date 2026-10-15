@@ -166,6 +166,17 @@ SELECT name FROM (
 ORDER BY abs(extract(epoch FROM start_at - @window_start::timestamptz))
 LIMIT 1;
 
+-- name: TryLockRecordingJoin :one
+-- 録画のセグメントをつなぐ間、ほかの nekonote が同じ録画をつながないよう、セッションの advisory lock を取る。取れなければ false を返す。
+SELECT pg_try_advisory_lock(hashtext('kotatsu.segjoin'), hashtext(@recording_id::text)) AS locked;
+
+-- name: UnlockRecordingJoin :one
+SELECT pg_advisory_unlock(hashtext('kotatsu.segjoin'), hashtext(@recording_id::text)) AS unlocked;
+
+-- name: GetStoragePoolThreshold :one
+-- プールの容量の閾値。設定していなければ 0 を返す。
+SELECT coalesce((SELECT min_free_bytes FROM storage_pools WHERE id = @id), 0)::bigint AS min_free_bytes;
+
 -- name: FailStuckRecordings :many
 -- 番組の終わりが before より前に過ぎても「録画中」のままで、録画している割り振り (終わっていないもの) もない録画を、失敗にする。
 -- 録画していた mikan がいなくなったか、予約を消して割り振りが消えたもので、ほかに録画を終える人がいない (#516)。
