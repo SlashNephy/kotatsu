@@ -1,0 +1,124 @@
+/* 予約の一覧。日時、番組名、状態のバッジ、サービス、操作の列を、見出しと日をまたいで揃える。 */
+/* 日時とサービスの列は、いちばん長いものに合わせ、番組名の列が残りを使う。 */
+.list {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  gap: 2px var(--mantine-spacing-xs);
+  align-items: center;
+}
+
+/* 日ごとのまとまりは、列を親のグリッドに預ける。 */
+.group {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  row-gap: 2px;
+  align-items: center;
+}
+
+.heading {
+  grid-column: 1 / -1;
+  margin-top: var(--mantine-spacing-sm);
+}
+
+.list > .heading:first-child,
+.list > .group:first-child > .heading {
+  margin-top: 0;
+}
+
+/* 予約の行。押せると分かるよう、ホバーで背景を付ける。番組名のリンクを、行の全体に広げる。 */
+/* 背景を付けても文字の位置が動かないよう、内側の余白の分だけ外へ広げる。 */
+.row {
+  position: relative;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  margin-inline: calc(-1 * var(--mantine-spacing-xs));
+  padding: 4px var(--mantine-spacing-xs);
+  border-radius: var(--mantine-radius-sm);
+}
+
+.row:hover {
+  background: var(--mantine-color-default-hover);
+}
+
+/* 録画が欠ける見込みの予約は、左の線でも示す。 */
+.row[data-attention] {
+  box-shadow: inset 3px 0 0 var(--mantine-color-amber-5);
+}
+
+.row[data-disabled] {
+  opacity: 0.6;
+}
+
+.link {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* 番組名のリンクの押せる範囲を、行の全体に広げる。操作のメニューは、その上に重ねる。 */
+.link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.link:focus-visible {
+  outline: none;
+}
+
+.link:focus-visible::after {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}
+
+.actions {
+  position: relative;
+  z-index: 1;
+  /* 操作のない行 (視聴者) でも、列の幅を揃える。 */
+  min-width: 28px;
+}
+
+.error {
+  grid-column: 2 / -1;
+}
+
+/* 狭い画面では、番組名に幅を回すため、1 段目に日時、バッジ、サービスを、2 段目に番組名を置く。 */
+/* 番組名の長さが行ごとに違っても、日時とサービスの列は揃える。 */
+@media (max-width: 47.99375em) {
+  .list {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    row-gap: 4px;
+  }
+
+  .time {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .badges {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .service {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .actions {
+    grid-column: 4;
+    grid-row: 1 / span 2;
+  }
+
+  .title {
+    grid-column: 1 / 4;
+    grid-row: 2;
+  }
+
+  .error {
+    grid-column: 1 / -1;
+  }
+}

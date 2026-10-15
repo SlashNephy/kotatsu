@@ -5,17 +5,22 @@ import {
   Badge,
   Box,
   Button,
-  Card,
   Group,
+  Menu,
   Modal,
   SegmentedControl,
   Stack,
-  Switch,
   Text,
   Title,
-  Tooltip,
 } from '@mantine/core';
-import { CalendarX, SlidersHorizontal, Trash2 } from 'lucide-react';
+import {
+  CalendarX,
+  CirclePause,
+  CirclePlay,
+  EllipsisVertical,
+  SlidersHorizontal,
+  Trash2,
+} from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -28,8 +33,10 @@ import {
 } from 'react-relay';
 
 import { EmptyState, ErrorBoundary, PageLoader, ProgramTitle } from '../futon';
+import { broadcastDay, dateOf } from '../guide/layout';
 import { isUnauthenticated } from '../relay/environment';
-import { groupByDay, needsAttention, timelineBar } from '../reservations/timeline';
+import { RecordingStateBadge } from '../recordings/RecordingStateBadge';
+import { groupByDay, needsAttention } from '../reservations/timeline';
 import type { reservationsDeleteMutation } from './__generated__/reservationsDeleteMutation.graphql';
 import type { reservationsEnableMutation } from './__generated__/reservationsEnableMutation.graphql';
 import type {
@@ -38,6 +45,7 @@ import type {
 } from './__generated__/reservationsQuery.graphql';
 import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDialog';
 import { ServiceLabel } from '../guide/ServiceLabel';
+import classes from './reservations.module.css';
 
 // query は、時間帯に重なる予約を取る。続きは、同じ時間帯と状態で、カーソルから読む。
 const query = graphql`
@@ -63,6 +71,9 @@ const query = graphql`
           service {
             name
             logoUrl
+            channelType {
+              type
+            }
           }
           assignment {
             state
@@ -108,40 +119,21 @@ const timeFormat = new Intl.DateTimeFormat('ja-JP', {
   timeZone: 'Asia/Tokyo',
 });
 
-const kindKeys: Record<
-  string,
-  'reservations.kind.PROGRAM' | 'reservations.kind.TIME' | 'reservations.kind.RULE'
-> = {
-  PROGRAM: 'reservations.kind.PROGRAM',
-  TIME: 'reservations.kind.TIME',
-  RULE: 'reservations.kind.RULE',
-};
-const stateKeys: Record<
-  string,
-  | 'reservations.state.PENDING'
-  | 'reservations.state.OK'
-  | 'reservations.state.PARTIAL'
-  | 'reservations.state.CONFLICT'
-> = {
-  PENDING: 'reservations.state.PENDING',
-  OK: 'reservations.state.OK',
-  PARTIAL: 'reservations.state.PARTIAL',
-  CONFLICT: 'reservations.state.CONFLICT',
-};
-
 type Node = reservationsQuery$data['reservations']['edges'][number]['node'];
-type Reservation = Node & { readonly startMs: number };
+type Reservation = Node & { readonly startMs: number; readonly endMs: number };
 
-// ReservationsPage は、これからの予約を、日ごとの時間軸に並べる画面 (設計書 10.3)。
+// ReservationsPage は、終わっていない予約の一覧 (設計書 10.3)。放送中の予約を先頭に、続けて日ごとに並べる。
+// 終わった予約は出さない。録画の結果は、録画の画面で見る。
 function ReservationsPage() {
   const { t } = useTranslation();
-  // 画面を開いた時刻から数える。放送中の予約も出すよう、少し前から取る。
+  // 画面を開いた時刻から数える。放送中の予約も、終わる前なので時間帯に重なって入る。
   // 読み込みの間に子は描き直されて state を失うので、時間帯は、待たない親で決める。
   const [range] = useState(() => {
     const now = Date.now();
 
     return {
-      from: new Date(now - 6 * hour).toISOString(),
+      now,
+      from: new Date(now).toISOString(),
       to: new Date(now + rangeDays * 24 * hour).toISOString(),
     };
   });
@@ -170,7 +162,7 @@ function ReservationsPage() {
   );
 }
 
-function Reservations({ range }: { range: { from: string; to: string } }) {
+function Reservations({ range }: { range: { now: number; from: string; to: string } }) {
   const { t } = useTranslation();
   const navigate = Route.useNavigate();
   const { problems = false } = Route.useSearch();
@@ -180,14 +172,14 @@ function Reservations({ range }: { range: { from: string; to: string } }) {
   );
   const patch = (id: string, change: { enabled?: boolean; removed?: boolean }) =>
     setPatches((prev) => ({ ...prev, [id]: { ...prev[id], ...change } }));
+  const variables = {
+    from: range.from,
+    to: range.to,
+    states: problems ? (['PARTIAL', 'CONFLICT'] as const) : null,
+  };
   const data = useLazyLoadQuery<reservationsQuery>(
     query,
-    {
-      ...range,
-      states: problems ? ['PARTIAL', 'CONFLICT'] : null,
-      first: pageSize,
-      after: null,
-    },
+    { ...variables, first: pageSize, after: null },
     { fetchPolicy: 'store-and-network' },
   );
   const environment = useRelayEnvironment();
@@ -205,8 +197,7 @@ function Reservations({ range }: { range: { from: string; to: string } }) {
     setMoreError(false);
     try {
       const page = await fetchQuery<reservationsQuery>(environment, query, {
-        ...range,
-        states: problems ? ['PARTIAL', 'CONFLICT'] : null,
+        ...variables,
         first: pageSize,
         after: next,
       }).toPromise();
@@ -236,11 +227,24 @@ function Reservations({ range }: { range: { from: string; to: string } }) {
       ...node,
       enabled: patches[node.id]?.enabled ?? node.enabled,
       startMs: Date.parse(node.startAt),
+      endMs: Date.parse(node.endAt),
     }));
-  const groups = groupByDay(reservations);
+  // 放送中の予約は、日付の見出しの前にまとめる。始まった日が前の日でも、いま録っていると分かるようにする。
+  const onAir = reservations.filter((reservation) => reservation.startMs <= range.now);
+  const groups = groupByDay(reservations.filter((reservation) => reservation.startMs > range.now));
   const attention = reservations.filter((reservation) =>
     needsAttention(reservation.assignment.state, reservation.enabled),
   ).length;
+  const row = (reservation: Reservation) => (
+    <ReservationRow
+      key={reservation.id}
+      reservation={reservation}
+      onAir={reservation.startMs <= range.now}
+      canEdit={canEdit}
+      onChanged={(enabled) => patch(reservation.id, { enabled })}
+      onDelete={() => setDeleting(reservation)}
+    />
+  );
 
   return (
     <Stack>
@@ -269,21 +273,27 @@ function Reservations({ range }: { range: { from: string; to: string } }) {
           hint={problems ? undefined : t('reservations.emptyHint')}
         />
       )}
-      {groups.map((group) => (
-        <Stack key={group.from} gap={4}>
-          <Text fw={700}>{dayFormat.format(group.from)}</Text>
-          {group.items.map((reservation) => (
-            <ReservationRow
-              key={reservation.id}
-              reservation={reservation}
-              dayFrom={group.from}
-              canEdit={canEdit}
-              onChanged={(enabled) => patch(reservation.id, { enabled })}
-              onDelete={() => setDeleting(reservation)}
-            />
+      {reservations.length > 0 && (
+        // 行をまたいで列を揃えるため、見出しも行も 1 つのグリッドに並べる。
+        <Box className={classes.list}>
+          {onAir.length > 0 && (
+            <>
+              <Text fw={700} className={classes.heading}>
+                {t('reservations.onAir')}
+              </Text>
+              {onAir.map(row)}
+            </>
+          )}
+          {groups.map((group) => (
+            <Box key={group.from} className={classes.group}>
+              <Text fw={700} className={classes.heading}>
+                {dayFormat.format(group.from)}
+              </Text>
+              {group.items.map(row)}
+            </Box>
           ))}
-        </Stack>
-      ))}
+        </Box>
+      )}
       {moreError && (
         <Alert color="red" role="alert">
           {t('reservations.moreError')}
@@ -310,13 +320,15 @@ function Reservations({ range }: { range: { from: string; to: string } }) {
 
 type RowProps = {
   reservation: Reservation;
-  dayFrom: number;
+  onAir: boolean;
   canEdit: boolean;
   onChanged: (enabled: boolean) => void;
   onDelete: () => void;
 };
 
-function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: RowProps) {
+// ReservationRow は、予約の 1 行。番組名を押すと、番組表でその番組の詳細を開く。
+// 状態は、目を留めたいもの (録画中、競合、一部のみ、無効) だけをバッジで出す。録画できる見込みは当たり前なので出さない。
+function ReservationRow({ reservation, onAir, canEdit, onChanged, onDelete }: RowProps) {
   const { t } = useTranslation();
   const [commit, inFlight] = useMutation<reservationsEnableMutation>(graphql`
     mutation reservationsEnableMutation($id: ID!, $enabled: Boolean!) {
@@ -328,166 +340,134 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
   `);
   const [toggleError, setToggleError] = useState(false);
   const [editing, setEditing] = useState(false);
-  const end = Date.parse(reservation.endAt);
-  const bar = timelineBar(dayFrom, reservation.startMs, end);
   const state = reservation.assignment.state;
   const attention = needsAttention(state, reservation.enabled);
-  const barColor = !reservation.enabled
-    ? 'var(--mantine-color-gray-4)'
-    : attention
-      ? 'var(--mantine-color-amber-5)'
-      : 'var(--mantine-color-mikan-4)';
+  const recording = onAir && reservation.enabled && state !== 'CONFLICT';
+  const toggle = () => {
+    const enabled = !reservation.enabled;
+    setToggleError(false);
+    commit({
+      variables: { id: reservation.id, enabled },
+      onCompleted: (_response, errors) =>
+        errors != null && errors.length > 0 ? setToggleError(true) : onChanged(enabled),
+      onError: () => setToggleError(true),
+    });
+  };
 
   return (
-    <Card
-      withBorder
-      padding="xs"
+    <Box
+      className={classes.row}
       data-state={state}
-      style={{
-        opacity: reservation.enabled ? 1 : 0.6,
-        // 録画が欠ける見込みの予約は、左の線でも示す。
-        borderLeft: attention ? '4px solid var(--mantine-color-amber-5)' : undefined,
-      }}
+      data-attention={attention || undefined}
+      data-disabled={!reservation.enabled || undefined}
     >
-      <Group justify="space-between" wrap="nowrap" gap="xs">
-        <Stack gap={2} style={{ minWidth: 0 }}>
-          <Group gap="xs" wrap="nowrap">
-            <Text size="sm" c="dimmed" style={{ flexShrink: 0 }}>
-              {timeFormat.format(reservation.startMs)} 〜 {timeFormat.format(end)}{' '}
-              {t('reservations.duration', {
-                minutes: Math.round((end - reservation.startMs) / 60_000),
-              })}
-            </Text>
-            <Text size="sm" truncate>
-              <ServiceLabel name={reservation.service.name} logoUrl={reservation.service.logoUrl} />
-            </Text>
-          </Group>
-          <Text size="sm" fw={700} truncate>
-            {reservation.name === '' ? (
-              t('reservations.untitled')
-            ) : (
-              <ProgramTitle name={reservation.name} />
-            )}
-          </Text>
-          <Group gap={4}>
-            <Badge size="sm" variant="outline" color="gray">
-              {t(kindKeys[reservation.kind] ?? 'reservations.kind.PROGRAM')}
+      <Text size="sm" c="dimmed" className={classes.time}>
+        {timeFormat.format(reservation.startMs)}〜{timeFormat.format(reservation.endMs)}
+      </Text>
+      <Text size="sm" truncate className={classes.title}>
+        <Link
+          className={classes.link}
+          to="/guide"
+          search={{
+            date: dateOf(broadcastDay(reservation.startMs).from),
+            type: reservation.service.channelType.type,
+            reservation: reservation.id,
+          }}
+        >
+          {reservation.name === '' ? (
+            t('reservations.untitled')
+          ) : (
+            <ProgramTitle name={reservation.name} />
+          )}
+        </Link>
+      </Text>
+      {/* バッジのない行でも、サービスを同じ列に置くよう、空の枠を残す。 */}
+      <Group gap={4} wrap="nowrap" className={classes.badges}>
+        {recording && <RecordingStateBadge state="RECORDING" size="xs" />}
+        {!reservation.enabled ? (
+          <Badge size="xs" color="gray">
+            {t('reservations.disabled')}
+          </Badge>
+        ) : (
+          attention && (
+            // 行では短く出し、詳しい状態は、ホバーで見せる。
+            <Badge
+              size="xs"
+              color="amber"
+              variant="light"
+              title={t(
+                state === 'CONFLICT' ? 'reservations.state.CONFLICT' : 'reservations.state.PARTIAL',
+              )}
+            >
+              {t(
+                state === 'CONFLICT' ? 'reservations.badge.CONFLICT' : 'reservations.badge.PARTIAL',
+              )}
             </Badge>
-            {!reservation.enabled ? (
-              <Badge size="sm" color="gray">
-                {t('reservations.disabled')}
-              </Badge>
-            ) : (
-              <Badge size="sm" color={attention ? 'amber' : 'gray'} variant="light">
-                {t(stateKeys[state] ?? 'reservations.state.PENDING')}
-              </Badge>
-            )}
-          </Group>
-        </Stack>
+          )
+        )}
+      </Group>
+      <Text
+        size="xs"
+        c="dimmed"
+        truncate
+        maw="14em"
+        title={reservation.service.name}
+        className={classes.service}
+      >
+        <ServiceLabel
+          name={reservation.service.name}
+          logoUrl={reservation.service.logoUrl}
+          logoOnlyNarrow
+        />
+      </Text>
+      <Box className={classes.actions}>
         {canEdit && (
-          <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
-            <Tooltip label={t('reservations.settings.open')}>
+          <Menu position="bottom-end" withinPortal>
+            <Menu.Target>
               <ActionIcon
                 variant="subtle"
                 color="gray"
-                aria-label={t('reservations.settings.open')}
+                aria-label={t('reservations.actions')}
+                loading={inFlight}
+              >
+                <EllipsisVertical size={16} aria-hidden />
+              </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item
+                leftSection={<SlidersHorizontal size={14} aria-hidden />}
                 onClick={() => setEditing(true)}
               >
-                <SlidersHorizontal size={16} aria-hidden />
-              </ActionIcon>
-            </Tooltip>
-            <Switch
-              aria-label={t('reservations.enabled')}
-              checked={reservation.enabled}
-              disabled={inFlight}
-              onChange={(e) => {
-                const enabled = e.currentTarget.checked;
-                setToggleError(false);
-                commit({
-                  variables: { id: reservation.id, enabled },
-                  onCompleted: (_response, errors) =>
-                    errors != null && errors.length > 0 ? setToggleError(true) : onChanged(enabled),
-                  onError: () => setToggleError(true),
-                });
-              }}
-            />
-            {/* ルール予約は、消しても次の照合でまた作られるので、消さずに左のスイッチで無効にする (設計書 4.3)。 */}
-            {/* 削除のない行でもスイッチの位置がそろうよう、削除の場所は空けておく。 */}
-            <Box w={28}>
+                {t('reservations.settings.open')}
+              </Menu.Item>
+              <Menu.Item
+                leftSection={
+                  reservation.enabled ? (
+                    <CirclePause size={14} aria-hidden />
+                  ) : (
+                    <CirclePlay size={14} aria-hidden />
+                  )
+                }
+                onClick={toggle}
+              >
+                {t(reservation.enabled ? 'reservations.disable' : 'reservations.enable')}
+              </Menu.Item>
+              {/* ルール予約は、消しても次の照合でまた作られるので、消さずに無効にする (設計書 4.3)。 */}
               {reservation.kind !== 'RULE' && (
-                <Tooltip label={t('reservations.delete')}>
-                  <ActionIcon
-                    variant="subtle"
-                    color="red"
-                    aria-label={t('reservations.delete')}
-                    onClick={onDelete}
-                  >
-                    <Trash2 size={16} aria-hidden />
-                  </ActionIcon>
-                </Tooltip>
+                <Menu.Item
+                  color="red"
+                  leftSection={<Trash2 size={14} aria-hidden />}
+                  onClick={onDelete}
+                >
+                  {t('reservations.delete')}
+                </Menu.Item>
               )}
-            </Box>
-          </Group>
+            </Menu.Dropdown>
+          </Menu>
         )}
-      </Group>
-      <Box
-        aria-hidden
-        mt={6}
-        style={{
-          position: 'relative',
-          height: 6,
-          borderRadius: 3,
-          background: 'var(--mantine-color-default-border)',
-        }}
-      >
-        {/* 6 時間ごとの目盛り。帯が 1 日のどこにあるかを読み取れるようにする。 */}
-        {[25, 50, 75].map((left) => (
-          <Box
-            key={left}
-            style={{
-              position: 'absolute',
-              left: `${left}%`,
-              top: -2,
-              width: 1,
-              height: 10,
-              background: 'var(--mantine-color-dimmed)',
-              opacity: 0.5,
-            }}
-          />
-        ))}
-        <Box
-          style={{
-            position: 'absolute',
-            left: `${bar.left}%`,
-            width: `${bar.width}%`,
-            height: '100%',
-            borderRadius: 3,
-            background: barColor,
-          }}
-        />
-      </Box>
-      <Box aria-hidden pos="relative" h={12} mt={2}>
-        {[0, 6, 12, 18, 24].map((hour) => (
-          <Text
-            key={hour}
-            span
-            c="dimmed"
-            style={{
-              position: 'absolute',
-              left: `${(hour / 24) * 100}%`,
-              // 両端の数字は、帯の内側に収める。
-              transform:
-                hour === 0 ? 'none' : hour === 24 ? 'translateX(-100%)' : 'translateX(-50%)',
-              fontSize: 10,
-              lineHeight: '12px',
-            }}
-          >
-            {hour}
-          </Text>
-        ))}
       </Box>
       {toggleError && (
-        <Text size="xs" c="red" role="alert" mt={4}>
+        <Text size="xs" c="red" role="alert" className={classes.error}>
           {t('reservations.toggleError')}
         </Text>
       )}
@@ -497,7 +477,7 @@ function ReservationRow({ reservation, dayFrom, canEdit, onChanged, onDelete }: 
           onClose={() => setEditing(false)}
         />
       )}
-    </Card>
+    </Box>
   );
 }
 

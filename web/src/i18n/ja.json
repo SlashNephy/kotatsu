@@ -520,7 +520,6 @@
       "problems": "録画が欠ける見込み"
     },
     "attention": "録画が欠ける見込みの予約が{{count}}件あります",
-    "duration": "({{minutes}}分)",
     "empty": "これからの予約はありません",
     "emptyHint": "番組表の番組から録画予約するか、ルールを作ると、ここに並びます。",
     "noProblems": "録画が欠ける見込みの予約はありません",
@@ -536,8 +535,15 @@
       "PARTIAL": "一部のみ録画",
       "CONFLICT": "チューナー不足で録画できない"
     },
+    "badge": {
+      "PARTIAL": "一部のみ",
+      "CONFLICT": "競合"
+    },
     "disabled": "無効",
-    "enabled": "予約を有効にする",
+    "enable": "有効にする",
+    "disable": "無効にする",
+    "actions": "予約の操作",
+    "onAir": "放送中",
     "delete": "削除",
     "deleteTitle": "予約を削除",
     "deleteDescription": "この予約を削除します。録画は行いません。",
