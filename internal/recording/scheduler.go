@@ -17,6 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 )
@@ -26,6 +27,8 @@ const (
 	NotifyChannel = "recording_assignments"
 	// DefaultLead は、録画の予定の開始の何分前に割り振りを書くか (付録 A)。
 	DefaultLead = 2 * time.Minute
+	// StuckGrace は、番組の終わりが過ぎてから、録画している割り振りのない「録画中」の録画を失敗にするまでの猶予 (#516)。
+	StuckGrace = 10 * time.Minute
 	// DefaultInterval は、変化がなくても割り振りを見直す間隔。時間が経って割り振りを書く時刻になった予約に気づくのに使う。
 	DefaultInterval = 10 * time.Second
 	// DefaultDebounce は、予約の変化を受けてから見直すまで待つ時間。
@@ -113,11 +116,13 @@ type ScheduleResult struct {
 	// Created と Deleted は、書いた割り振りと消した割り振りの数。
 	Created int
 	Deleted int
+	// Failed は、録画している割り振りがないまま「録画中」で残っていたので、失敗にした録画の数。
+	Failed int
 }
 
 // RunOnce は、割り振りを 1 回見直す。割り振りが変わったら、mikan に知らせる。
 func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
-	result := &ScheduleResult{Created: 0, Deleted: 0}
+	result := &ScheduleResult{Created: 0, Deleted: 0, Failed: 0}
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		if err := s.guard(ctx, tx); err != nil {
 			return err
@@ -131,6 +136,9 @@ func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
 			return fmt.Errorf("failed to delete stale recording assignments: %w", err)
 		}
 		result.Deleted = int(deleted)
+		if result.Failed, err = s.failStuck(ctx, tx, now); err != nil {
+			return err
+		}
 		reprioritized, err := q.UpdateWaitingRecordingPriorities(ctx, sqlc.UpdateWaitingRecordingPrioritiesParams{
 			ConflictPriority: ConflictPriority, Priority: Priority, Now: now,
 		})
@@ -168,4 +176,34 @@ func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
 	}
 
 	return result, nil
+}
+
+// failStuck は、番組の終わりから StuckGrace が過ぎても「録画中」のままで、録画している割り振りもない録画を失敗にし、
+// 録画の失敗を通知する (#516)。録画していた mikan がいなくなったか、予約を消して割り振りが消えたもので、ほかに録画を終える人がいない。
+// 失敗にした録画の数を返す。
+func (s *Scheduler) failStuck(ctx context.Context, tx pgx.Tx, now time.Time) (int, error) {
+	rows, err := sqlc.New(tx).FailStuckRecordings(ctx, sqlc.FailStuckRecordingsParams{Now: now, Before: now.Add(-StuckGrace)})
+	if err != nil {
+		return 0, fmt.Errorf("failed to fail stuck recordings: %w", err)
+	}
+	for _, row := range rows {
+		s.logger.WarnContext(ctx, "failed a recording left recording without a mikan", slog.String("recording_id", row.ID.String()))
+		payload := recordingPayload(row.ID, row.Name, row.ServiceName, row.StartAt, row.EndAt)
+		payload["state"] = string(StateFailed)
+		payload["reason"] = string(FailureStreamInterrupted)
+		var audience *notification.Audience
+		if row.ReservationID != nil {
+			target, err := notification.LoadReservationContext(ctx, tx, *row.ReservationID)
+			if err != nil {
+				return 0, err
+			}
+			target.AddTo(payload)
+			audience = target.Audience
+		}
+		if err := notification.EmitTo(ctx, tx, s.clock, notification.KindRecordingFailed, payload, audience); err != nil {
+			return 0, err
+		}
+	}
+
+	return len(rows), nil
 }

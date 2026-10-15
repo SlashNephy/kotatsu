@@ -1421,3 +1421,32 @@ func (s cutThenFail) OpenServiceStream(ctx context.Context, serviceID int64, opt
 
 	return nil, errors.New("connection refused")
 }
+
+// TestRecorderWaitsThroughDatabaseErrors は、録画を始めるのを待つ間に、予約を一時的に読めなくても、録画を諦めないことを確かめる (#516)。
+// 諦めると、割り振りが終わったことになり、録画されない。
+func TestRecorderWaitsThroughDatabaseErrors(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	recorder, _ := f.newRecorder(t, f.tuner, nil)
+	// 予約を読むクエリが失敗するよう、サービスの表の名前を一時的に変える。
+	_, err := f.pool.Exec(t.Context(), "ALTER TABLE services RENAME TO services_unavailable")
+	require.NoError(t, err)
+	_, done := f.session(t, recorder, reservationID)
+
+	select {
+	case err := <-done:
+		t.Fatalf("the recording session gave up on a database error: %v", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	_, err = f.pool.Exec(t.Context(), "ALTER TABLE services_unavailable RENAME TO services")
+	require.NoError(t, err)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		_, started := f.recording(t, reservationID)
+
+		return started
+	}, waitTimeout, 10*time.Millisecond)
+}

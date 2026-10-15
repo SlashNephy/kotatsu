@@ -91,6 +91,69 @@ func (q *Queries) DeleteRecordingFiles(ctx context.Context, arg DeleteRecordingF
 	return err
 }
 
+const failStuckRecordings = `-- name: FailStuckRecordings :many
+UPDATE recordings r SET
+  state = 'failed',
+  failure_reason = 'stream_interrupted',
+  recorded_until = coalesce(
+    (SELECT max(coalesce(f.ended_at, f.started_at)) FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment'),
+    r.recorded_from
+  ),
+  updated_at = $1
+FROM services s
+WHERE s.id = r.service_id
+  AND r.state = 'recording'
+  AND r.end_at < $2::timestamptz
+  AND NOT EXISTS (
+    SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.reservation_id AND a.state <> 'finished'
+  )
+RETURNING r.id, r.reservation_id, r.name, r.start_at, r.end_at, s.name AS service_name
+`
+
+type FailStuckRecordingsParams struct {
+	Now    time.Time
+	Before time.Time
+}
+
+type FailStuckRecordingsRow struct {
+	ID            uuid.UUID
+	ReservationID *uuid.UUID
+	Name          string
+	StartAt       time.Time
+	EndAt         time.Time
+	ServiceName   string
+}
+
+// 番組の終わりが before より前に過ぎても「録画中」のままで、録画している割り振り (終わっていないもの) もない録画を、失敗にする。
+// 録画していた mikan がいなくなったか、予約を消して割り振りが消えたもので、ほかに録画を終える人がいない (#516)。
+// 録画した時間の終わりは、書いたセグメントの終わりにする。
+func (q *Queries) FailStuckRecordings(ctx context.Context, arg FailStuckRecordingsParams) ([]FailStuckRecordingsRow, error) {
+	rows, err := q.db.Query(ctx, failStuckRecordings, arg.Now, arg.Before)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FailStuckRecordingsRow{}
+	for rows.Next() {
+		var i FailStuckRecordingsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ReservationID,
+			&i.Name,
+			&i.StartAt,
+			&i.EndAt,
+			&i.ServiceName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const finishRecording = `-- name: FinishRecording :exec
 UPDATE recordings SET state = $1, failure_reason = $2, recorded_until = $3, updated_at = $3
 WHERE id = $4

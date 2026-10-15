@@ -176,3 +176,24 @@ SELECT pg_advisory_unlock(hashtext('kotatsu.segjoin'), hashtext(@recording_id::t
 -- name: GetStoragePoolThreshold :one
 -- プールの容量の閾値。設定していなければ 0 を返す。
 SELECT coalesce((SELECT min_free_bytes FROM storage_pools WHERE id = @id), 0)::bigint AS min_free_bytes;
+
+-- name: FailStuckRecordings :many
+-- 番組の終わりが before より前に過ぎても「録画中」のままで、録画している割り振り (終わっていないもの) もない録画を、失敗にする。
+-- 録画していた mikan がいなくなったか、予約を消して割り振りが消えたもので、ほかに録画を終える人がいない (#516)。
+-- 録画した時間の終わりは、書いたセグメントの終わりにする。
+UPDATE recordings r SET
+  state = 'failed',
+  failure_reason = 'stream_interrupted',
+  recorded_until = coalesce(
+    (SELECT max(coalesce(f.ended_at, f.started_at)) FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment'),
+    r.recorded_from
+  ),
+  updated_at = @now
+FROM services s
+WHERE s.id = r.service_id
+  AND r.state = 'recording'
+  AND r.end_at < @before::timestamptz
+  AND NOT EXISTS (
+    SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.reservation_id AND a.state <> 'finished'
+  )
+RETURNING r.id, r.reservation_id, r.name, r.start_at, r.end_at, s.name AS service_name;

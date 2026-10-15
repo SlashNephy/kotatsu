@@ -391,7 +391,7 @@ func gapsOf(files []sqlc.RecordingFile, now time.Time, trailing bool) ([]gap, bo
 }
 
 // waitUntilOpen は、予定の開始からチューニングにかかる時間を引いた時刻まで待ち、そのときの予約を返す。
-// 待つ間に予約を無効にしたか、予定の終わりが過ぎたら、録画しないので false を返す。
+// 待つ間に予約を無効にしたか、予定の終わりが過ぎたら、録画しないので false を返す。予約を読めなければ、読めるまでやり直す。
 func (r *Recorder) waitUntilOpen(ctx context.Context, assignment *Assignment) (sqlc.GetReservationForRecordingRow, bool, error) {
 	ticker := time.NewTicker(r.opts.Tick)
 	defer ticker.Stop()
@@ -402,7 +402,17 @@ func (r *Recorder) waitUntilOpen(ctx context.Context, assignment *Assignment) (s
 			return reservation, false, nil
 		}
 		if err != nil {
-			return reservation, false, fmt.Errorf("failed to get the reservation: %w", err)
+			// 一時的に読めなくても諦めない。諦めると割り振りが終わったことになり、録画されない (#516)。
+			if ctx.Err() == nil {
+				r.logger.WarnContext(ctx, "failed to get the reservation; retrying", slog.Any("error", err))
+			}
+			select {
+			case <-ctx.Done():
+				return reservation, false, context.Cause(ctx)
+			case <-ticker.C:
+			}
+
+			continue
 		}
 		if !reservation.Enabled || reservation.PlannedStartAt == nil || reservation.PlannedEndAt == nil {
 			return reservation, false, nil
@@ -925,16 +935,20 @@ func (r *Recorder) start(ctx context.Context, reservation *sqlc.GetReservationFo
 		if err != nil {
 			return err
 		}
-		payload := map[string]any{
-			"recordingId": recording.ID.String(), "name": recording.Name, "serviceName": reservation.ServiceName,
-			"startAt": recording.StartAt, "endAt": recording.EndAt,
-		}
+		payload := recordingPayload(recording.ID, recording.Name, reservation.ServiceName, recording.StartAt, recording.EndAt)
 		target.AddTo(payload)
 
 		return notification.EmitTo(ctx, tx, r.clock, notification.KindRecordingStarted, payload, target.Audience)
 	})
 
 	return recording, err
+}
+
+// recordingPayload は、録画の開始、完了、失敗の通知に載せる、録画の項目を返す。
+func recordingPayload(recordingID uuid.UUID, name, serviceName string, startAt, endAt time.Time) map[string]any {
+	return map[string]any{
+		"recordingId": recordingID.String(), "name": name, "serviceName": serviceName, "startAt": startAt, "endAt": endAt,
+	}
 }
 
 // complete は、録画を state で終え、正常に終わってドロップが閾値以下なら録画履歴に記録し (設計書 4.4)、
@@ -967,10 +981,8 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 			return fmt.Errorf("failed to get the recording: %w", err)
 		}
 		recording := row.Recording
-		payload := map[string]any{
-			"recordingId": recording.ID.String(), "name": recording.Name, "serviceName": row.ServiceName,
-			"startAt": recording.StartAt, "endAt": recording.EndAt, "state": string(state),
-		}
+		payload := recordingPayload(recording.ID, recording.Name, row.ServiceName, recording.StartAt, recording.EndAt)
+		payload["state"] = string(state)
 		target, err := notification.LoadReservationContext(ctx, tx, assignment.ReservationID)
 		if err != nil {
 			return err
