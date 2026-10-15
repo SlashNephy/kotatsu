@@ -1172,6 +1172,8 @@ const (
 	RecordingFailureReasonProgramNotFound RecordingFailureReason = "PROGRAM_NOT_FOUND"
 	// 録画を取り消した
 	RecordingFailureReasonCancelled RecordingFailureReason = "CANCELLED"
+	// 録画を始める時刻に、録画できる mikan がいなかった
+	RecordingFailureReasonRecorderUnavailable RecordingFailureReason = "RECORDER_UNAVAILABLE"
 )
 
 var AllRecordingFailureReason = []RecordingFailureReason{
@@ -1182,11 +1184,12 @@ var AllRecordingFailureReason = []RecordingFailureReason{
 	RecordingFailureReasonStorageFull,
 	RecordingFailureReasonProgramNotFound,
 	RecordingFailureReasonCancelled,
+	RecordingFailureReasonRecorderUnavailable,
 }
 
 func (e RecordingFailureReason) IsValid() bool {
 	switch e {
-	case RecordingFailureReasonTunerUnavailable, RecordingFailureReasonTunerServerUnreachable, RecordingFailureReasonStreamInterrupted, RecordingFailureReasonStorageUnavailable, RecordingFailureReasonStorageFull, RecordingFailureReasonProgramNotFound, RecordingFailureReasonCancelled:
+	case RecordingFailureReasonTunerUnavailable, RecordingFailureReasonTunerServerUnreachable, RecordingFailureReasonStreamInterrupted, RecordingFailureReasonStorageUnavailable, RecordingFailureReasonStorageFull, RecordingFailureReasonProgramNotFound, RecordingFailureReasonCancelled, RecordingFailureReasonRecorderUnavailable:
 		return true
 	}
 	return false

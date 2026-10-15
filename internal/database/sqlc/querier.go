@@ -158,6 +158,8 @@ type Querier interface {
 	// 取り込んだ録画のファイルを記録する。書き終えたファイルなので、大きさと終わりも記録する。
 	InsertImportedRecordingFile(ctx context.Context, arg InsertImportedRecordingFileParams) error
 	InsertLoginChallenge(ctx context.Context, arg InsertLoginChallengeParams) error
+	// mikan が取らなかった予約の録画を、失敗として記録する (#517)。録画した時間はないので、始まりと終わりを予定の開始にする。
+	InsertMissedRecording(ctx context.Context, arg InsertMissedRecordingParams) error
 	InsertNotificationEvent(ctx context.Context, arg InsertNotificationEventParams) error
 	// イベント event_id を、ユーザー user_ids に配る。ids と user_ids は同じ順に並べる。
 	InsertNotifications(ctx context.Context, arg InsertNotificationsParams) error
@@ -225,6 +227,8 @@ type Querier interface {
 	// ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
 	// 映像か音声を流すサービス (media_service_types) の番組だけを対象にする。
 	ListMatchablePrograms(ctx context.Context, arg ListMatchableProgramsParams) ([]ListMatchableProgramsRow, error)
+	// mikan が 1 台も取らないまま、予定の終わりが過ぎた割り振りの予約。録画の行がまだなければ、失敗として記録する (#517)。
+	ListMissedRecordingAssignments(ctx context.Context, now time.Time) ([]ListMissedRecordingAssignmentsRow, error)
 	ListNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
 	// イベントの種類 kind を画面内の通知で受け取る、有効なユーザーを返す。設定がなければ受け取る。
 	// audience が NULL でなければ、その中のユーザーだけにする。by_rule なら、ルール予約の録画の通知を受け取らないユーザーを除く。

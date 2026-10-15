@@ -180,20 +180,22 @@ func TestSchedulerDeletesStaleAssignments(t *testing.T) {
 	tests := []struct {
 		name   string
 		change func(t *testing.T, f *fixture, reservationID uuid.UUID)
+		// wantMissed は、mikan が取らなかったので、失敗として記録する録画の数。
+		wantMissed int
 	}{
-		{name: "予約を無効にした", change: func(t *testing.T, f *fixture, reservationID uuid.UUID) {
+		{name: "予約を無効にした", wantMissed: 0, change: func(t *testing.T, f *fixture, reservationID uuid.UUID) {
 			t.Helper()
 
 			_, err := f.reservations.Update(t.Context(), f.pool, audit.System("test"), reservationID, &reserve.Update{Enabled: new(false)})
 			require.NoError(t, err)
 		}},
-		{name: "予定の開始が後に動いた", change: func(t *testing.T, f *fixture, reservationID uuid.UUID) {
+		{name: "予定の開始が後に動いた", wantMissed: 0, change: func(t *testing.T, f *fixture, reservationID uuid.UUID) {
 			t.Helper()
 
 			_, err := f.pool.Exec(t.Context(), "UPDATE reservations SET planned_start_at = planned_start_at + interval '1 hour' WHERE id = $1", reservationID)
 			require.NoError(t, err)
 		}},
-		{name: "mikan が取らないまま予定の終わりが過ぎた", change: func(t *testing.T, f *fixture, _ uuid.UUID) {
+		{name: "mikan が取らないまま予定の終わりが過ぎた", wantMissed: 1, change: func(t *testing.T, f *fixture, _ uuid.UUID) {
 			t.Helper()
 
 			f.clock.Advance(time.Hour)
@@ -213,7 +215,7 @@ func TestSchedulerDeletesStaleAssignments(t *testing.T) {
 
 			tt.change(t, f, waiting)
 			tt.change(t, f, taken)
-			assert.Equal(t, &recording.ScheduleResult{Created: 0, Deleted: 1}, f.schedule(t))
+			assert.Equal(t, &recording.ScheduleResult{Created: 0, Deleted: 1, Failed: 0, Missed: tt.wantMissed}, f.schedule(t))
 			var left []uuid.UUID
 			rows, err := f.pool.Query(t.Context(), "SELECT reservation_id FROM recording_assignments")
 			require.NoError(t, err)
@@ -231,7 +233,7 @@ func TestSchedulerSkipsFinishedReservations(t *testing.T) {
 	f := newFixture(t)
 	f.reserve(t, 0)
 	f.clock.Advance(programStart().Add(2 * time.Hour).Sub(f.clock.Now()))
-	assert.Equal(t, &recording.ScheduleResult{Created: 0, Deleted: 0}, f.schedule(t))
+	assert.Equal(t, &recording.ScheduleResult{Created: 0, Deleted: 0, Failed: 0, Missed: 0}, f.schedule(t))
 }
 
 // TestSchedulerFailsStuckRecordings は、予定の終わりから 10 分が過ぎても「録画中」のままで、録画している割り振りもない録画を、
@@ -297,4 +299,36 @@ func TestSchedulerFailsStuckRecordings(t *testing.T) {
 			assert.Equal(t, 1, events)
 		})
 	}
+}
+
+// TestSchedulerRecordsMissedRecordings は、mikan が 1 台も取らないまま予定の終わりが過ぎた割り振りを、消す前に、
+// 録画の失敗 (recorder_unavailable) として記録し、通知することを確かめる (#517)。記録しないと、録り逃したことに気づけない。
+func TestSchedulerRecordsMissedRecordings(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	f.clock.Advance(programStart().Add(-time.Minute).Sub(f.clock.Now()))
+	require.Equal(t, 1, f.schedule(t).Created)
+
+	f.clock.Advance(time.Hour)
+	assert.Equal(t, &recording.ScheduleResult{Created: 0, Deleted: 1, Failed: 0, Missed: 1}, f.schedule(t))
+
+	var state, name string
+	var reason *string
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT state, failure_reason, name FROM recordings WHERE reservation_id = $1", reservationID).
+		Scan(&state, &reason, &name))
+	assert.Equal(t, "failed", state)
+	require.NotNil(t, reason)
+	assert.Equal(t, "recorder_unavailable", *reason)
+	assert.NotEmpty(t, name)
+	var payload map[string]any
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT payload FROM notification_events WHERE kind = 'recording_failed'").Scan(&payload))
+	assert.Equal(t, "recorder_unavailable", payload["reason"])
+
+	// 何度見直しても、記録と通知は 1 回だけ。
+	assert.Equal(t, &recording.ScheduleResult{Created: 0, Deleted: 0, Failed: 0, Missed: 0}, f.schedule(t))
+	var events int
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM notification_events WHERE kind = 'recording_failed'").Scan(&events))
+	assert.Equal(t, 1, events)
 }

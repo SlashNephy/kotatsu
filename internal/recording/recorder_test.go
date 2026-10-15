@@ -1450,3 +1450,27 @@ func TestRecorderWaitsThroughDatabaseErrors(t *testing.T) {
 		return started
 	}, waitTimeout, 10*time.Millisecond)
 }
+
+// TestRecorderRecordsLateStartAsGap は、録画を始めるのが予定の開始より遅れたら、冒頭の欠けを途切れた区間にし、
+// 一部のみ (partial) にすることを確かめる (#517)。完了にすると録画履歴に載り、重複の回避で再放送も録らなくなる。
+func TestRecorderRecordsLateStartAsGap(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
+	// mikan が落ちていて、予定の開始から 2 分遅れて割り振りを取った。
+	f.clock.Advance(plannedStart().Add(2 * time.Minute).Sub(f.clock.Now()))
+	_, done := f.session(t, recorder, reservationID)
+	require.Eventually(t, func() bool {
+		return len(f.files(t, reservationID)) == 2
+	}, waitTimeout, 10*time.Millisecond)
+
+	f.clock.Advance(programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
+	require.NoError(t, wait(t, done))
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StatePartial), got.state)
+	assert.Equal(t, gapsAndLost{gaps: 1, programLost: false}, f.gapsAndLost(t, reservationID))
+}
