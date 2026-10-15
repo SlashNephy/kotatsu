@@ -1,5 +1,5 @@
 import type Hls from 'hls.js';
-import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import { createCaptions, type Captions } from './captions';
 import classes from './TsPlayer.module.css';
@@ -25,6 +25,10 @@ type Props = {
   onVideo?: (video: HTMLVideoElement | null) => void;
 };
 
+// liveResumeLimitMs は、ライブを一時停止してから、続きから読めるとみなす時間。
+// kyusu は、セグメントの要求が 10 秒途絶えたらセッションを止める (設計書 7.3) ので、それより短くする。
+const liveResumeLimitMs = 8_000;
+
 // HlsPlayer は、kyusu がトランスコードした HLS を hls.js で再生する (設計書 7.3)。
 // iPhone の Safari では、ManagedMediaSource の上で hls.js が動く。
 export function HlsPlayer({
@@ -49,6 +53,8 @@ export function HlsPlayer({
   const captionsRef = useRef<Captions | null>(null);
   const showCaptions = useRef(captions);
   showCaptions.current = captions;
+  // generation を変えると、hls.js を作り直して読み直す。ライブを長く一時停止してから再開したときに使う。
+  const [generation, setGeneration] = useState(0);
 
   // video の要素は、TsPlayer と同じく React に持たせずに作り、どちらの経路でも同じ見た目にする。
   useEffect(() => {
@@ -83,6 +89,9 @@ export function HlsPlayer({
       return;
     }
     let destroyed = false;
+    // parsed は、この hls.js がプレイリストを読み終えたかどうか。それまでの pause は、前の hls.js を video から外したときに
+    // ブラウザが出すものなので、一時停止とみなさない。
+    let parsed = false;
     void import('hls.js').then(({ default: HlsClass }) => {
       if (destroyed) {
         return;
@@ -104,6 +113,7 @@ export function HlsPlayer({
         }
       });
       instance.on(HlsClass.Events.MANIFEST_PARSED, () => {
+        parsed = true;
         handlers.current.onLoaded?.();
         void video.play().catch(() => {});
       });
@@ -120,12 +130,40 @@ export function HlsPlayer({
       hlsRef.current = instance;
     });
 
+    // ライブを一時停止したら、プレイリストもセグメントも読まない (#534)。読み続けると、kyusu はセグメントを要求されないので
+    // セッションを止め、プレイリストの要求でまたチューナーと FFmpeg を起動する、を繰り返す。
+    // すぐに再開したら続きから読み、長く止めていたら、kyusu がセッションを止めているので、最新の位置から読み直す。
+    let pausedAt: number | null = null;
+    const pause = () => {
+      if (!live || !parsed) {
+        return;
+      }
+      pausedAt = Date.now();
+      hlsRef.current?.stopLoad();
+    };
+    const play = () => {
+      if (pausedAt === null) {
+        return;
+      }
+      const paused = Date.now() - pausedAt;
+      pausedAt = null;
+      if (paused < liveResumeLimitMs) {
+        hlsRef.current?.startLoad();
+      } else {
+        setGeneration((n) => n + 1);
+      }
+    };
+    video.addEventListener('pause', pause);
+    video.addEventListener('play', play);
+
     return () => {
       destroyed = true;
+      video.removeEventListener('pause', pause);
+      video.removeEventListener('play', play);
       hlsRef.current?.destroy();
       hlsRef.current = null;
     };
-  }, [videoRef, url, live]);
+  }, [videoRef, url, live, generation]);
 
   useEffect(() => {
     captionsRef.current?.setVisible(captions);
