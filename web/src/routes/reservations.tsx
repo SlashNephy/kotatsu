@@ -36,7 +36,7 @@ import {
   useRelayEnvironment,
 } from 'react-relay';
 
-import { EmptyState, ErrorBoundary, PageLoader, ProgramTitle } from '../futon';
+import { EmptyState, ErrorBoundary, PageLoader, ProgramTitle, toHalfWidth } from '../futon';
 import { broadcastDay, dateOf } from '../guide/layout';
 import { isUnauthenticated } from '../relay/environment';
 import { RecordingStateBadge } from '../recordings/RecordingStateBadge';
@@ -434,7 +434,7 @@ function ReservationRow({ reservation, onAir, canEdit, onChanged, onDelete }: Ro
         c="dimmed"
         truncate
         maw="14em"
-        title={reservation.service.name}
+        title={toHalfWidth(reservation.service.name)}
         className={classes.service}
       >
         <ServiceLabel

@@ -93,7 +93,7 @@ function NotificationList() {
     }
   `);
   const [error, setError] = useState(false);
-  // marked は、この一覧を既読にしたか。開発中の StrictMode で効果が二度走っても、一度だけ送る。
+  // marked は、開いたときの既読の処理を済ませたか。開発中の StrictMode で効果が二度走っても、一度だけ送る。
   const marked = useRef(false);
   // 未読の数は、読み込んだ分だけでなく、すべての通知について数えたものを使う。
   const unread = data.unreadNotificationCount;
@@ -107,12 +107,15 @@ function NotificationList() {
       ),
   );
 
+  // 既読にするのは、開いたときの 1 回だけにする。開いている間に届いた通知は、次に開くまで未読のまま残す。
   useEffect(() => {
-    if (marked.current || unread === 0) {
+    if (marked.current) {
       return;
     }
     marked.current = true;
-    markAll({ variables: {}, onError: () => setError(true) });
+    if (unread > 0) {
+      markAll({ variables: {}, onError: () => setError(true) });
+    }
   }, [markAll, unread]);
 
   return (
@@ -130,7 +133,8 @@ function NotificationList() {
         />
       ) : (
         data.notifications.edges.map(({ node }) => {
-          const isNew = newIds.has(node.id);
+          // 開いている間に届いた通知は、まだ未読なので、新着として示す。
+          const isNew = newIds.has(node.id) || node.readAt == null;
 
           return (
             <Card key={node.id} withBorder padding="xs" data-new={isNew}>
