@@ -121,6 +121,11 @@ func TestAccessPolicy(t *testing.T) {
 			wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "http://" + hostName,
 		},
 		{
+			name: "X-Real-IP mode applies the forwarded origin", remoteAddr: trustedProxy,
+			clientIPHeader: headerXRI, headers: map[string]string{headerXRI: lanAddr, headerXFP: schemeHTTPS, headerXFH: proxiedHost},
+			wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "https://" + proxiedHost,
+		},
+		{
 			name: "X-Real-IP mode without X-Real-IP is rejected", remoteAddr: trustedProxy,
 			clientIPHeader: headerXRI, headers: map[string]string{headerXFF: lanAddr},
 			wantStatus: http.StatusBadRequest, wantBody: "the request from the trusted proxy 10.0.0.2 has no X-Real-IP",
