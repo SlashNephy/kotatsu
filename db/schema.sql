@@ -538,7 +538,7 @@ CREATE TABLE recording_assignments (
 
 -- 1 つの番組に対する予約は、常に 1 件だけにする (設計書 4.1)。
 -- 番組は programs と同じく (サービス, eventId) で識別するので、放送時間が変わっても同じ予約のままになる。
--- 放送が終わった番組の予約は、録画の状態遷移 (#28) で片付け、EID の再利用で新しい番組を予約できなくならないようにする。
+-- 放送が終わって録画も終わった予約は、neko の追従 (設計書 4.6) が猶予の後に消し、EID の再利用で新しい番組を予約できなくならないようにする (#510)。
 CREATE UNIQUE INDEX reservations_program_idx ON reservations (service_id, event_id) WHERE event_id IS NOT NULL;
 CREATE INDEX reservations_start_at_idx ON reservations (start_at);
 -- 引き継ぎ元の予約を消すときに、引き継いだ予約を探すのに使う。

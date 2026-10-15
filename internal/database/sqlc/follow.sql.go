@@ -49,6 +49,37 @@ func (q *Queries) InsertRelayedReservation(ctx context.Context, arg InsertRelaye
 	return id, err
 }
 
+const listFinishedReservations = `-- name: ListFinishedReservations :many
+SELECT r.id
+FROM reservations r
+WHERE coalesce(r.planned_end_at, r.end_at) <= $1::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.id AND a.state <> 'finished')
+  AND NOT EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id AND rec.state = 'recording')
+ORDER BY r.id
+`
+
+// 放送が終わって before より前に録画の予定の終わりが過ぎ、録画も終わった予約。
+// 割り振りが終わっていないか、録画中の録画があれば、引き継ぎや延長の途中なので含めない。
+func (q *Queries) ListFinishedReservations(ctx context.Context, before time.Time) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listFinishedReservations, before)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listReservationsToFollow = `-- name: ListReservationsToFollow :many
 SELECT r.id, r.kind, r.enabled, r.service_id, r.event_id, r.start_at, r.end_at, r.name, r.description, r.extended, r.genres,
   r.follow_event_relay, r.settings,
@@ -64,7 +95,10 @@ SELECT r.id, r.kind, r.enabled, r.service_id, r.event_id, r.start_at, r.end_at, 
 FROM reservations r
 JOIN programs p ON p.service_id = r.service_id AND p.event_id = r.event_id
 WHERE r.event_id IS NOT NULL
-  AND (coalesce(r.planned_end_at, r.end_at) > $1::timestamptz OR p.end_at > $1::timestamptz)
+  AND (
+    coalesce(r.planned_end_at, r.end_at) > $1::timestamptz
+    OR (p.end_at > $1::timestamptz AND p.start_at < coalesce(r.planned_end_at, r.end_at))
+  )
 ORDER BY r.id
 `
 
@@ -94,6 +128,8 @@ type ListReservationsToFollowRow struct {
 }
 
 // 番組を指定した予約のうち、予約か番組の終わりがまだ来ていないものと、その番組の今の EPG。
+// 予約の終わりが過ぎた後は、同じ放送の終わりが延びたとき (番組が予約の終わりより前に始まる) だけ追従する。
+// 番組が予約の終わりより後に始まるなら、EID が別の番組に再利用されたものとみなし、古い予約を書き換えない (#510)。
 // ルール予約の録画設定は、一致したルールのうち最も古いものの上書きを使う。
 func (q *Queries) ListReservationsToFollow(ctx context.Context, now time.Time) ([]ListReservationsToFollowRow, error) {
 	rows, err := q.db.Query(ctx, listReservationsToFollow, now)
