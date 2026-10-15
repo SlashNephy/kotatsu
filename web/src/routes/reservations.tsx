@@ -107,8 +107,8 @@ export const Route = createFileRoute('/reservations')({
 const hour = 3_600_000;
 // rangeDays は、一覧に出す、いまからの日数。
 const rangeDays = 8;
-// pageSize は、1 回に取る件数。tenban は 100 件まで返す。
-const pageSize = 100;
+// pageSize は、1 回に取る件数。一度に並べすぎないよう、続きは「さらに読み込む」で足す。
+const pageSize = 25;
 
 const dayFormat = new Intl.DateTimeFormat('ja-JP', {
   month: 'numeric',
