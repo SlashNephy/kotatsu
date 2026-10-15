@@ -66,6 +66,25 @@ func (f *fixture) assignOne(t *testing.T) uuid.UUID {
 	return reservationID
 }
 
+// insertRecording は、予約の録画の行を、完了したものとして作る。
+func (f *fixture) insertRecording(ctx context.Context, t *testing.T, reservationID uuid.UUID) {
+	t.Helper()
+
+	_, err := f.pool.Exec(context.WithoutCancel(ctx), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+		state, recorded_from, protected, created_at, updated_at)
+		VALUES ($1, $2, $3, 6, '録画', '', $4, $4, 'completed', $4, false, $4, $4)`, id.New(), reservationID, grService(0), programStart())
+	assert.NoError(t, err)
+}
+
+func (f *fixture) count(t *testing.T, query string, args ...any) int {
+	t.Helper()
+
+	var n int
+	require.NoError(t, f.pool.QueryRow(t.Context(), query, args...).Scan(&n))
+
+	return n
+}
+
 type assignmentRow struct {
 	state      string
 	generation int64
@@ -97,6 +116,8 @@ func TestWorkersShareAssignment(t *testing.T) {
 		select {
 		case <-ctx.Done():
 		case <-finish:
+			// 録画したものとして、録画の行を作る。
+			f.insertRecording(ctx, t, assignment.ReservationID)
 		}
 
 		return nil
@@ -424,11 +445,13 @@ func TestWorkerFinishesDuringHandover(t *testing.T) {
 	finish := make(chan struct{})
 	// 引き継ぎを待つ時間を長くし、待ちきれずにやめたのではなく、録画を終えたからやめたことを確かめる。
 	// 短いと、引き継ぎ待ちの印がすぐに外れ、遅い環境では、印を見る前に外れることもある。
-	stop := f.startWorkerWithHandoverTimeout(t, holder, waitTimeout, func(ctx context.Context, _ *recording.Assignment) error {
+	stop := f.startWorkerWithHandoverTimeout(t, holder, waitTimeout, func(ctx context.Context, assignment *recording.Assignment) error {
 		close(started)
 		select {
 		case <-ctx.Done():
 		case <-finish:
+			// 録画したものとして、録画の行を作る。
+			f.insertRecording(ctx, t, assignment.ReservationID)
 		}
 
 		return nil
@@ -451,4 +474,30 @@ func TestWorkerFinishesDuringHandover(t *testing.T) {
 		t.Fatal("the mikan kept waiting for a successor after finishing the recording")
 	}
 	assert.Equal(t, assignmentRow{state: string(recording.AssignmentFinished), generation: 1, holder: nil}, f.assignment(t, reservationID))
+}
+
+// TestWorkerDeletesAssignmentsEndedWithoutRecording は、録画の行を作らずに終えた割り振り (録画を始める前に予約を無効にした、など) を、
+// 終わったことにせず消すことを確かめる (#523)。終わった割り振りが残ると、予約を有効に戻しても、割り振りを書き直せなかった。
+func TestWorkerDeletesAssignmentsEndedWithoutRecording(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.assignOne(t)
+	ended := make(chan struct{})
+	f.startWorker(t, id.New(), func(context.Context, *recording.Assignment) error {
+		close(ended)
+
+		return nil
+	})
+	select {
+	case <-ended:
+	case <-time.After(waitTimeout):
+		t.Fatal("no mikan acquired the assignment")
+	}
+	require.Eventually(t, func() bool {
+		return f.count(t, "SELECT count(*) FROM recording_assignments WHERE reservation_id = $1", reservationID) == 0
+	}, waitTimeout, 20*time.Millisecond)
+
+	// 割り振りが消えたので、次の見直しで書き直せる。
+	assert.Equal(t, 1, f.schedule(t).Created)
 }

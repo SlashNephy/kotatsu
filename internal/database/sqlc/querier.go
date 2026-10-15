@@ -75,6 +75,9 @@ type Querier interface {
 	DeleteStaleRecordingAssignments(ctx context.Context, arg DeleteStaleRecordingAssignmentsParams) (int64, error)
 	DeleteTOTPEnrollment(ctx context.Context, userID uuid.UUID) error
 	DeleteTuners(ctx context.Context) error
+	// 録画の行を作らずに終えた割り振り (録画を始める前に予約を無効にした、など) を消す。世代番号が進んでいたら、何もしない。
+	// 終わったことにして残すと、予約を有効に戻しても、割り振りを書き直せない (#523)。
+	DeleteUnrecordedRecordingAssignment(ctx context.Context, arg DeleteUnrecordedRecordingAssignmentParams) (int64, error)
 	DeleteUserPasskey(ctx context.Context, arg DeleteUserPasskeyParams) (int64, error)
 	DeleteUserTOTP(ctx context.Context, userID uuid.UUID) (int64, error)
 	DeleteWebPushSubscription(ctx context.Context, arg DeleteWebPushSubscriptionParams) (int64, error)

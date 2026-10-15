@@ -112,3 +112,10 @@ WHERE a.state = 'waiting'
   AND coalesce(r.planned_end_at, r.end_at) <= @now::timestamptz
   AND NOT EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id)
 ORDER BY r.id;
+
+-- name: DeleteUnrecordedRecordingAssignment :execrows
+-- 録画の行を作らずに終えた割り振り (録画を始める前に予約を無効にした、など) を消す。世代番号が進んでいたら、何もしない。
+-- 終わったことにして残すと、予約を有効に戻しても、割り振りを書き直せない (#523)。
+DELETE FROM recording_assignments a
+WHERE a.id = @id AND a.generation = @generation AND a.holder = @holder AND a.state IN ('recording', 'handover')
+  AND NOT EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = a.reservation_id);

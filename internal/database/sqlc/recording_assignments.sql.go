@@ -88,6 +88,28 @@ func (q *Queries) DeleteStaleRecordingAssignments(ctx context.Context, arg Delet
 	return result.RowsAffected(), nil
 }
 
+const deleteUnrecordedRecordingAssignment = `-- name: DeleteUnrecordedRecordingAssignment :execrows
+DELETE FROM recording_assignments a
+WHERE a.id = $1 AND a.generation = $2 AND a.holder = $3 AND a.state IN ('recording', 'handover')
+  AND NOT EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = a.reservation_id)
+`
+
+type DeleteUnrecordedRecordingAssignmentParams struct {
+	ID         uuid.UUID
+	Generation int64
+	Holder     *uuid.UUID
+}
+
+// 録画の行を作らずに終えた割り振り (録画を始める前に予約を無効にした、など) を消す。世代番号が進んでいたら、何もしない。
+// 終わったことにして残すと、予約を有効に戻しても、割り振りを書き直せない (#523)。
+func (q *Queries) DeleteUnrecordedRecordingAssignment(ctx context.Context, arg DeleteUnrecordedRecordingAssignmentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUnrecordedRecordingAssignment, arg.ID, arg.Generation, arg.Holder)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const finishRecordingAssignment = `-- name: FinishRecordingAssignment :execrows
 UPDATE recording_assignments SET state = 'finished', holder = NULL, lease_expires_at = NULL, updated_at = $1
 WHERE id = $2 AND generation = $3 AND holder = $4 AND state IN ('recording', 'handover')
