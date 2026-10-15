@@ -315,3 +315,25 @@ func TestRunOnceStopsWhenFreeSpaceDoesNotGrow(t *testing.T) {
 	assert.Equal(t, &capacity.PoolResult{PoolID: poolID, FreeBytes: 1 << 20, Deleted: 1, Low: true}, results[0])
 	assert.Equal(t, []string{"次の録画", "後の録画"}, f.names(t))
 }
+
+// TestRunOnceSkipsRecordingsWithoutFilesAndDeletesNext は、録画ファイルが見つからない録画を飛ばし、その次に古い録画から消すことを確かめる。
+// 取り込んだ MP4 のような「その他のファイル」も、録画ファイルとして数える。
+func TestRunOnceSkipsRecordingsWithoutFilesAndDeletesNext(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	f.recording(t, "見つからない録画", "completed", false)
+	require.NoError(t, os.Remove(filepath.Join(f.dir, "見つからない録画.m2ts")))
+	imported := f.recording(t, "取り込んだ録画", "completed", false)
+	_, err := f.pool.Exec(t.Context(), "UPDATE recording_files SET kind = 'other' WHERE recording_id = $1 AND kind = 'segment'", imported)
+	require.NoError(t, err)
+	f.recording(t, "次の録画", "completed", false)
+	f.recording(t, "最後の録画", "completed", false)
+	// 録画ファイルは 3 つで、空き容量は 7 MiB。閾値を 8.5 MiB にすると、見つかる録画を古い順に 2 つ消せば足りる。
+	f.setThreshold(t, 8<<20+512<<10)
+
+	results := f.runOnce(t)
+	require.Len(t, results, 1)
+	assert.Equal(t, &capacity.PoolResult{PoolID: poolID, FreeBytes: 9 << 20, Deleted: 2, Low: false}, results[0])
+	assert.Equal(t, []string{"見つからない録画", "最後の録画"}, f.names(t))
+}
