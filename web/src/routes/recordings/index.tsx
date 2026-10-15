@@ -1,10 +1,13 @@
 import {
+  ActionIcon,
   Alert,
   Anchor,
   Box,
   Button,
   Card,
+  Drawer,
   Group,
+  Indicator,
   MultiSelect,
   SimpleGrid,
   Stack,
@@ -84,12 +87,34 @@ type Recording = recordingsListQuery$data['recordings']['edges'][number]['node']
 type Filter = NonNullable<recordingsListQuery$variables['filter']>;
 
 // RecordingsPage は、サムネイル付きの録画のグリッドの画面 (設計書 10.3)。タグと条件で絞り込める。
+// 狭い画面では、絞り込みのフォームを一覧の上に置かず、見出しの右のボタンから、下から出るシートで開く。
 function RecordingsPage() {
   const { t } = useTranslation();
+  // filter は、結果に適用している絞り込み。最初は絞り込まずに、新しい録画から出す。
+  const [filter, setFilter] = useState<Filter>({});
+  const [filtersOpened, setFiltersOpened] = useState(false);
+  // 閉じていても絞り込み中だと分かるよう、ボタンに、使っている条件の数を出す。
+  const activeFilters = Object.keys(filter).length;
 
   return (
     <Stack gap="sm">
-      <Title order={2}>{t('recordings.title')}</Title>
+      <Group justify="space-between">
+        <Title order={2}>{t('recordings.title')}</Title>
+        <Indicator label={activeFilters} size={16} disabled={activeFilters === 0} hiddenFrom="sm">
+          <ActionIcon
+            variant="default"
+            size="lg"
+            aria-label={
+              activeFilters === 0
+                ? t('recordings.filters')
+                : t('recordings.filtersActive', { count: activeFilters })
+            }
+            onClick={() => setFiltersOpened(true)}
+          >
+            <ListFilter size={18} aria-hidden />
+          </ActionIcon>
+        </Indicator>
+      </Group>
       <ErrorBoundary
         fallback={(error) =>
           isUnauthenticated(error) ? (
@@ -104,7 +129,12 @@ function RecordingsPage() {
         }
       >
         <Suspense fallback={<PageLoader />}>
-          <Recordings />
+          <Recordings
+            filter={filter}
+            onFilter={setFilter}
+            filtersOpened={filtersOpened}
+            onFiltersClose={() => setFiltersOpened(false)}
+          />
         </Suspense>
       </ErrorBoundary>
     </Stack>
@@ -112,7 +142,18 @@ function RecordingsPage() {
 }
 
 // Recordings は、絞り込みのフォーム。結果は、絞り込みを決めてから RecordingGrid で読む。
-function Recordings() {
+// フォームは、広い画面では一覧の上のカードに、狭い画面では下から出るシートに出す。入力中の値は両方で共有する。
+function Recordings({
+  filter,
+  onFilter,
+  filtersOpened,
+  onFiltersClose,
+}: {
+  filter: Filter;
+  onFilter: (filter: Filter) => void;
+  filtersOpened: boolean;
+  onFiltersClose: () => void;
+}) {
   const { t } = useTranslation();
   const tags = useLazyLoadQuery<recordingsTagsQuery>(
     graphql`
@@ -130,56 +171,83 @@ function Recordings() {
   const [keyword, setKeyword] = useState('');
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
-  // filter は、結果に適用している絞り込み。最初は絞り込まずに、新しい録画から出す。
-  const [filter, setFilter] = useState<Filter>({});
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    setFilter({
+    onFilter({
       ...(keyword.trim() !== '' ? { keyword: keyword.trim() } : {}),
       ...(tagIds.length > 0 ? { tagIds } : {}),
       ...(states.length > 0 ? { states: states as Filter['states'] } : {}),
     });
+    onFiltersClose();
+  };
+
+  // fields は、絞り込みの欄。横に並べるときだけ、欄の幅を伸び縮みさせる。
+  const fields = (inline: boolean) => {
+    const style = inline ? { flex: '1 1 200px' } : undefined;
+    return (
+      <>
+        <TextInput
+          label={t('recordings.keyword')}
+          leftSection={<Search size={16} aria-hidden />}
+          value={keyword}
+          onChange={(e) => setKeyword(e.currentTarget.value)}
+          style={style}
+        />
+        <MultiSelect
+          label={t('recordings.tags')}
+          leftSection={<Tag size={16} aria-hidden />}
+          data={tags.tags.map((tag) => ({
+            value: tag.id,
+            label: `${tag.name}（${tag.recordings}）`,
+          }))}
+          value={tagIds}
+          onChange={setTagIds}
+          searchable
+          clearable
+          style={style}
+        />
+        <MultiSelect
+          label={t('recordings.states')}
+          leftSection={<Info size={16} aria-hidden />}
+          data={recordingStates.map((state) => ({ value: state, label: t(stateKey(state)) }))}
+          value={states}
+          onChange={setStates}
+          clearable
+          style={style}
+        />
+        <Button type="submit" leftSection={<ListFilter size={16} aria-hidden />}>
+          {t('recordings.filter')}
+        </Button>
+      </>
+    );
   };
 
   return (
     <Stack>
-      <Card withBorder component="form" onSubmit={submit}>
+      <Card withBorder component="form" onSubmit={submit} visibleFrom="sm">
         <Group align="flex-end" wrap="wrap">
-          <TextInput
-            label={t('recordings.keyword')}
-            leftSection={<Search size={16} aria-hidden />}
-            value={keyword}
-            onChange={(e) => setKeyword(e.currentTarget.value)}
-            style={{ flex: '1 1 200px' }}
-          />
-          <MultiSelect
-            label={t('recordings.tags')}
-            leftSection={<Tag size={16} aria-hidden />}
-            data={tags.tags.map((tag) => ({
-              value: tag.id,
-              label: `${tag.name}（${tag.recordings}）`,
-            }))}
-            value={tagIds}
-            onChange={setTagIds}
-            searchable
-            clearable
-            style={{ flex: '1 1 200px' }}
-          />
-          <MultiSelect
-            label={t('recordings.states')}
-            leftSection={<Info size={16} aria-hidden />}
-            data={recordingStates.map((state) => ({ value: state, label: t(stateKey(state)) }))}
-            value={states}
-            onChange={setStates}
-            clearable
-            style={{ flex: '1 1 200px' }}
-          />
-          <Button type="submit" leftSection={<ListFilter size={16} aria-hidden />}>
-            {t('recordings.filter')}
-          </Button>
+          {fields(true)}
         </Group>
       </Card>
+      <Drawer
+        opened={filtersOpened}
+        onClose={onFiltersClose}
+        position="bottom"
+        title={t('recordings.filters')}
+        styles={{
+          // シートの高さは中身に合わせ、一覧が後ろに見えるようにする。
+          content: {
+            height: 'auto',
+            maxHeight: '85dvh',
+            borderRadius: 'var(--mantine-radius-md) var(--mantine-radius-md) 0 0',
+          },
+        }}
+      >
+        <Stack component="form" onSubmit={submit}>
+          {fields(false)}
+        </Stack>
+      </Drawer>
       <Suspense fallback={<PageLoader />}>
         <RecordingGrid key={JSON.stringify(filter)} filter={filter} />
       </Suspense>
