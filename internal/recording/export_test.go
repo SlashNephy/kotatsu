@@ -35,6 +35,6 @@ type QualityCounts = qualityCounts
 type QualitySample = qualitySample
 
 // CountsAfter は、テストから countsAfter を呼ぶために公開する。
-func CountsAfter(samples []QualitySample, since time.Time, final QualityCounts) QualityCounts {
-	return countsAfter(samples, since, final)
+func CountsAfter(samples []QualitySample, since, end time.Time, final QualityCounts) QualityCounts {
+	return countsAfter(samples, since, end, final)
 }

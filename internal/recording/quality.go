@@ -2,6 +2,7 @@ package recording
 
 import (
 	"bufio"
+	"io"
 	"sync"
 	"time"
 
@@ -40,9 +41,12 @@ type qualitySample struct {
 	Counts qualityCounts
 }
 
-// countsAfter は、セグメントの最後の集計 final のうち、since より後に数えた分を、控えた集計 samples から求める。
-// since より前に控えたものがなければ、セグメントの全体を since より後とみなす。
-func countsAfter(samples []qualitySample, since time.Time, final qualityCounts) qualityCounts {
+// countsAfter は、end に書き終えたセグメントの最後の集計 final のうち、since より後に数えた分を、控えた集計 samples から求める。
+// since より前に控えたものがなければ、セグメントの全体を since より後とみなす。書き終えた後なら、重なっていない。
+func countsAfter(samples []qualitySample, since, end time.Time, final qualityCounts) qualityCounts {
+	if !since.Before(end) {
+		return qualityCounts{Drops: 0, Errors: 0, Scrambled: 0}
+	}
 	var before *qualitySample
 	for i := range samples {
 		if samples[i].At.After(since) {
@@ -76,6 +80,8 @@ func (s *qualitySamples) list() []qualitySample {
 
 	return append([]qualitySample{}, s.samples...)
 }
+
+var _ io.Writer = new(flushingWriter)
 
 // flushingWriter は、書き込みのバッファを、flushInterval ごとに書き出す。書き込みが途絶えても、flushIfStale で書き出す。
 type flushingWriter struct {

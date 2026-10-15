@@ -39,6 +39,9 @@ const (
 	// DefaultReleaseAfter は、チューナーサーバーにつながらないまま、割り振りを手放すまでの時間 (付録 A)。
 	// チューナーサーバーの再起動は、すべての mikan に同時に起きるので、一度つながらないだけでは手放さない。
 	DefaultReleaseAfter = 30 * time.Second
+	// successorWait と successorPoll は、引き継いで止める古い mikan が、新しい mikan のセグメントができるのを待つ時間と、確かめる間隔 (#525)。
+	successorWait = 5 * time.Second
+	successorPoll = 100 * time.Millisecond
 	// LateStartTolerance は、録画を始めるのが予定の開始より遅れても、冒頭が欠けたとはみなさない時間 (付録 A)。
 	// チューナーの確保やストリームを開くのにかかる時間の揺らぎを許す。
 	LateStartTolerance = 30 * time.Second
@@ -350,26 +353,46 @@ func (r *Recorder) release(ctx context.Context, recording *sqlc.Recording, reaso
 // 自分のセグメントの集計から差し引くよう記録する (#525)。重なった区間は、新しい mikan のセグメントでも数えるので、
 // 差し引かないと二重に数え、録画履歴の閾値を超えて、再放送をまた録ることがある。
 func (r *Recorder) excludeOverlap(ctx context.Context, logger *slog.Logger, recording *sqlc.Recording, seg *segment, stats *ts.Stats) {
+	end := r.clock.Now()
+	// 新しい mikan は、ストリームを開いたと記録してから、セグメントを作る。その間に止められたときのために、少し待つ。
+	deadline := time.Now().Add(successorWait)
+	for {
+		takenOver, err := r.successorStart(ctx, recording, seg)
+		if err != nil {
+			logger.WarnContext(ctx, "failed to find the segment that took over; counting the overlap twice", slog.Any("error", err))
+
+			return
+		}
+		if takenOver != nil {
+			seg.excluded = countsAfter(seg.samples.list(), *takenOver, end, countsOf(stats))
+
+			return
+		}
+		if time.Now().After(deadline) {
+			return
+		}
+		time.Sleep(successorPoll)
+	}
+}
+
+// successorStart は、引き継いだ新しい mikan のセグメントが始まった時刻を返す。まだなければ nil を返す。
+func (r *Recorder) successorStart(ctx context.Context, recording *sqlc.Recording, seg *segment) (*time.Time, error) {
 	files, err := sqlc.New(r.pool).ListRecordingFiles(ctx, recording.ID)
 	if err != nil {
-		logger.WarnContext(ctx, "failed to find the segment that took over; counting the overlap twice", slog.Any("error", err))
-
-		return
+		return nil, fmt.Errorf("failed to list the recording files: %w", err)
 	}
-	var takenOver *time.Time
+	var started *time.Time
 	for i := range files {
 		file := &files[i]
 		if file.Kind != fileKindSegment || file.ID == seg.fileID || !file.StartedAt.After(seg.startedAt) {
 			continue
 		}
-		if takenOver == nil || file.StartedAt.Before(*takenOver) {
-			takenOver = &file.StartedAt
+		if started == nil || file.StartedAt.Before(*started) {
+			started = &file.StartedAt
 		}
 	}
-	if takenOver == nil {
-		return
-	}
-	seg.excluded = countsAfter(seg.samples.list(), *takenOver, countsOf(stats))
+
+	return started, nil
 }
 
 // countSegments は、録画の、書いたものがあるセグメントの数を返す。
