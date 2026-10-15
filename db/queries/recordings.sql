@@ -101,6 +101,16 @@ WHERE r.id = @id;
 -- 録画の音声の構成を、TS の EIT[p/f] から読んだもので埋める。EPG から写したものがあれば、それを残す。
 UPDATE recordings SET audios = @audios, updated_at = @now WHERE id = @id AND audios = '[]'::jsonb;
 
+-- name: SetJoinedRecordingFile :execrows
+-- セグメントを 1 つにつないだあとで、最初のセグメントの大きさと、表す時間の終わりを、つないだものにする。
+-- 録画が消されて行がなければ 0 を返す。
+UPDATE recording_files SET size = @size, ended_at = @ended_at WHERE id = @id;
+
+-- name: CountRecordingSegments :one
+-- 録画のセグメントの記録の数と、そのうち最初のもの first_id の大きさ。つないだ結果が確定したかを確かめるのに使う。
+SELECT count(*) AS segments, coalesce(max(size) FILTER (WHERE id = @first_id), 0)::bigint AS first_size
+FROM recording_files WHERE recording_id = @recording_id AND kind = 'segment' AND size > 0;
+
 -- name: DeleteRecordingFiles :exec
 -- 録画のファイルの記録を消す。セグメントを 1 つにつないだあとで、つないだ元のセグメントと索引の記録を消すのに使う。
 DELETE FROM recording_files WHERE recording_id = @recording_id AND id = ANY(@ids::uuid[]);

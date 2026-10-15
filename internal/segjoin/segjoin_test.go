@@ -2,7 +2,9 @@ package segjoin_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -323,4 +325,132 @@ func TestEnqueuer(t *testing.T) {
 			assert.Equal(t, recordingID, args.RecordingID)
 		})
 	}
+}
+
+// hookDB は、トランザクションを始める前に hook を呼び、コミットに成功しても commitErr を返す DB。
+// 結合の途中で録画が消されたときと、コミットの結果があいまいなときを作るのに使う。
+type hookDB struct {
+	*pgxpool.Pool
+
+	hook      func(ctx context.Context)
+	commitErr error
+}
+
+func (db *hookDB) Begin(ctx context.Context) (pgx.Tx, error) {
+	if db.hook != nil {
+		db.hook(ctx)
+	}
+	tx, err := db.Pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &hookTx{Tx: tx, commitErr: db.commitErr}, nil
+}
+
+type hookTx struct {
+	pgx.Tx
+
+	commitErr error
+}
+
+func (tx *hookTx) Commit(ctx context.Context) error {
+	if err := tx.Tx.Commit(ctx); err != nil {
+		return err
+	}
+
+	return tx.commitErr
+}
+
+// overlapping は、引き継ぎで重なった 2 つのセグメント。つなぐと、元の TS と同じになる。
+func overlapping(o []byte) []segment {
+	at := int(float64(len(o)/ts.PacketSize)*2.0/3) * ts.PacketSize
+	from := int(float64(len(o)/ts.PacketSize)*1.0/3) * ts.PacketSize
+
+	return []segment{
+		{data: o[:at], start: 0, end: 40 * time.Second},
+		{data: shiftPATCC(o[from:], 7), start: 20 * time.Second, end: 60 * time.Second},
+	}
+}
+
+// TestJoinKeepsJoinedFileWhenCommitIsAmbiguous は、コミットの結果があいまい (実際には確定したのに、エラーが返った) でも、
+// つないだファイルを消さず、後の置き換えで録画の後半を失わないことを確かめる (#514)。
+func TestJoinKeepsJoinedFileWhenCommitIsAmbiguous(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID, paths := f.recording(t, overlapping(f.original))
+	db := &hookDB{Pool: f.pool, hook: nil, commitErr: errors.New("connection reset by peer")}
+	worker := segjoin.NewJoinWorker(db, f.store, f.inserter, slog.New(slog.DiscardHandler), window)
+
+	require.NoError(t, worker.Work(t.Context(), &river.Job[segjoin.JoinArgs]{JobRow: new(rivertype.JobRow), Args: segjoin.JoinArgs{RecordingID: recordingID}}))
+	assert.FileExists(t, filepath.Join(f.dir, paths[0]+".joining"))
+
+	queued := f.jobs(t)
+	require.Contains(t, queued, kindFinalize)
+	require.NoError(t, f.finalize(t, queued[kindFinalize]))
+	got, err := os.ReadFile(filepath.Join(f.dir, paths[0]))
+	require.NoError(t, err)
+	assert.True(t, bytes.Equal(f.original, got), "the joined file differs from the original stream")
+}
+
+// TestJoinCancelsWhenRecordingIsDeleted は、つないでいる間に録画が消されたら、つないだファイルを消して取りやめることを確かめる (#514)。
+func TestJoinCancelsWhenRecordingIsDeleted(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID, paths := f.recording(t, overlapping(f.original))
+	db := &hookDB{Pool: f.pool, hook: func(ctx context.Context) {
+		_, err := f.pool.Exec(ctx, "DELETE FROM recordings WHERE id = $1", recordingID)
+		require.NoError(t, err)
+	}, commitErr: nil}
+	worker := segjoin.NewJoinWorker(db, f.store, f.inserter, slog.New(slog.DiscardHandler), window)
+
+	err := worker.Work(t.Context(), &river.Job[segjoin.JoinArgs]{JobRow: new(rivertype.JobRow), Args: segjoin.JoinArgs{RecordingID: recordingID}})
+	var cancel *river.JobCancelError
+	require.ErrorAs(t, err, &cancel)
+	assert.NoFileExists(t, filepath.Join(f.dir, paths[0]+".joining"))
+	assert.NotContains(t, f.jobs(t), kindFinalize)
+}
+
+// TestFinalizeWaitsForUnmountedPool は、プールがマウントされていなければ、取りやめずに後でやり直すことを確かめる (#514)。
+func TestFinalizeWaitsForUnmountedPool(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID, paths := f.recording(t, overlapping(f.original))
+	require.NoError(t, f.join(t, recordingID))
+	queued := f.jobs(t)
+	require.Contains(t, queued, kindFinalize)
+	var args segjoin.FinalizeArgs
+	require.NoError(t, json.Unmarshal(queued[kindFinalize], &args))
+
+	unmounted := segjoin.NewFinalizeWorker(f.pool, kago.New(map[string]string{}, nil), f.inserter)
+	err := unmounted.Work(t.Context(), &river.Job[segjoin.FinalizeArgs]{JobRow: new(rivertype.JobRow), Args: args})
+	var snooze *river.JobSnoozeError
+	require.ErrorAs(t, err, &snooze)
+	// 置き換えていないので、元のセグメントは残る。
+	assert.FileExists(t, filepath.Join(f.dir, paths[1]))
+	assert.FileExists(t, filepath.Join(f.dir, paths[0]+".joining"))
+}
+
+// TestFinalizeCleansUpDeletedRecording は、つないだ後に録画が消されていたら、置き換えずに、つないだファイルと元のセグメントを消すことを確かめる (#514)。
+func TestFinalizeCleansUpDeletedRecording(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID, paths := f.recording(t, overlapping(f.original))
+	require.NoError(t, f.join(t, recordingID))
+	queued := f.jobs(t)
+	require.Contains(t, queued, kindFinalize)
+	// 録画を消すと、DB にある最初のセグメントのファイルだけが消える。
+	_, err := f.pool.Exec(t.Context(), "DELETE FROM recordings WHERE id = $1", recordingID)
+	require.NoError(t, err)
+	require.NoError(t, os.Remove(filepath.Join(f.dir, paths[0])))
+
+	require.NoError(t, f.finalize(t, queued[kindFinalize]))
+	assert.NoFileExists(t, filepath.Join(f.dir, paths[0]))
+	assert.NoFileExists(t, filepath.Join(f.dir, paths[0]+".joining"))
+	assert.NoFileExists(t, filepath.Join(f.dir, paths[1]))
+	assert.NotContains(t, f.jobs(t), kindAnalyze)
 }

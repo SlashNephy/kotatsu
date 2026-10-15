@@ -41,6 +41,11 @@ const (
 	joinTimeout = 2 * time.Hour
 	// maxAttempts は、ジョブを試す回数。
 	maxAttempts = 3
+	// finalizeMaxAttempts は、つないだファイルに置き換えるジョブを試す回数。DB はつないだ後の内容で確定しているので、
+	// ファイルを置き換えるまで、NFS などが止まっていても諦めずにやり直す (#514)。River の既定の間隔では、2 週間ほどにわたる。
+	finalizeMaxAttempts = 25
+	// unmountedSnooze は、プールがマウントされていないときに、置き換えをやり直すまで待つ時間。
+	unmountedSnooze = 5 * time.Minute
 	// foreignKeyViolation は、外部キーの制約に反したときの PostgreSQL のエラーコード。
 	foreignKeyViolation = "23503"
 )
@@ -94,7 +99,7 @@ var _ river.JobArgsWithInsertOpts = new(FinalizeArgs)
 func (FinalizeArgs) Kind() string { return "recording_join_finalize" }
 
 func (FinalizeArgs) InsertOpts() river.InsertOpts {
-	return river.InsertOpts{Queue: jobs.QueueMedia, MaxAttempts: maxAttempts}
+	return river.InsertOpts{Queue: jobs.QueueMedia, MaxAttempts: finalizeMaxAttempts}
 }
 
 // Enqueuer は、録画の完了のイベントを配るときに、録画のファイルを 1 つにつなぐジョブか、画像を作るジョブを投入する。
@@ -240,8 +245,13 @@ func (w *JoinWorker) Work(ctx context.Context, job *river.Job[JoinArgs]) error {
 	last := segments[len(segments)-1]
 	err = pgx.BeginFunc(ctx, w.pool, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
-		if err := q.CloseRecordingFile(ctx, sqlc.CloseRecordingFileParams{Size: size, EndedAt: last.EndedAt, ID: first.ID}); err != nil {
+		n, err := q.SetJoinedRecordingFile(ctx, sqlc.SetJoinedRecordingFileParams{Size: size, EndedAt: last.EndedAt, ID: first.ID})
+		if err != nil {
 			return fmt.Errorf("failed to update the joined segment: %w", err)
+		}
+		// つないでいる間に録画が消された。外部キーの違反にはならないので、行の数で確かめる (#514)。
+		if n == 0 {
+			return errRecordingNotFound
 		}
 		if err := q.DeleteRecordingFiles(ctx, sqlc.DeleteRecordingFilesParams{RecordingID: recording.ID, Ids: ids}); err != nil {
 			return fmt.Errorf("failed to delete the joined segments: %w", err)
@@ -253,19 +263,42 @@ func (w *JoinWorker) Work(ctx context.Context, job *river.Job[JoinArgs]) error {
 
 		return nil
 	})
-	if pgErr := (*pgconn.PgError)(nil); errors.As(err, &pgErr) && pgErr.Code == foreignKeyViolation {
+	if pgErr := (*pgconn.PgError)(nil); errors.Is(err, errRecordingNotFound) || errors.As(err, &pgErr) && pgErr.Code == foreignKeyViolation {
 		_ = os.Remove(outPath)
 
 		return river.JobCancel(errRecordingNotFound)
 	}
 	if err != nil {
-		_ = os.Remove(outPath)
-
-		return err
+		return w.recoverCommit(ctx, logger, err, recording.ID, first.ID, size, outPath)
 	}
 	logger.InfoContext(ctx, "joined the recording segments", slog.Int("segments", len(segments)), slog.Int64("size", size))
 
 	return nil
+}
+
+// recoverCommit は、つないだ結果を確定するトランザクションが失敗したときに、確定したかどうかを DB で確かめる。
+// コミットの結果があいまい (実際には確定したのに、エラーが返った) なら、置き換えのジョブも確定しているので、
+// つないだファイルを残す。消すと、置き換えで元のセグメントを消して、録画の後半を失う (#514)。
+// 確定していなければ、つないだファイルを消して、やり直す。確かめられなければ、残してやり直す。
+func (w *JoinWorker) recoverCommit(ctx context.Context, logger *slog.Logger, cause error, recordingID, firstID uuid.UUID, size int64, outPath string) error {
+	if pgErr := (*pgconn.PgError)(nil); errors.As(cause, &pgErr) {
+		// PostgreSQL が返したエラーなら、確定していない。
+		_ = os.Remove(outPath)
+
+		return cause
+	}
+	row, err := sqlc.New(w.db).CountRecordingSegments(ctx, sqlc.CountRecordingSegmentsParams{FirstID: firstID, RecordingID: recordingID})
+	if err != nil {
+		return errors.Join(cause, fmt.Errorf("failed to check whether the join was committed: %w", err))
+	}
+	if row.Segments == 1 && row.FirstSize == size {
+		logger.WarnContext(ctx, "the join was committed although the commit returned an error", slog.Any("error", cause))
+
+		return nil
+	}
+	_ = os.Remove(outPath)
+
+	return cause
 }
 
 // join は、segments を順につないで outPath に書き、書いた大きさを返す。
@@ -360,8 +393,21 @@ func NewFinalizeWorker(pool txBeginner, store *kago.Store, inserter Inserter) *F
 
 func (w *FinalizeWorker) Work(ctx context.Context, job *river.Job[FinalizeArgs]) error {
 	path, err := w.store.Path(job.Args.PoolID, job.Args.Path)
+	if errors.Is(err, kago.ErrPoolNotMounted) {
+		// DB はつないだ後の内容で確定しているので、取りやめずに、マウントされるのを待つ (#514)。
+		return river.JobSnooze(unmountedSnooze)
+	}
 	if err != nil {
 		return river.JobCancel(fmt.Errorf("failed to locate the joined file: %w", err))
+	}
+	exists, err := w.recordingExists(ctx, job.Args.RecordingID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		// つないだ後に録画が消された。録画の削除は、DB にある最初のセグメントしか消さないので、
+		// つないだファイルと元のセグメントを消す。置き換えると、消した録画のファイルを作り直してしまう (#514)。
+		return w.removeAll(&job.Args, path)
 	}
 	// やり直したときは、一時ファイルはもう置き換えてある。
 	if err := os.Rename(path+tempSuffix, path); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -382,4 +428,37 @@ func (w *FinalizeWorker) Work(ctx context.Context, job *river.Job[FinalizeArgs])
 
 		return nil
 	})
+}
+
+// recordingExists は、録画がまだあるかを返す。
+func (w *FinalizeWorker) recordingExists(ctx context.Context, recordingID uuid.UUID) (bool, error) {
+	exists := false
+	err := pgx.BeginFunc(ctx, w.pool, func(tx pgx.Tx) error {
+		_, err := sqlc.New(tx).GetRecording(ctx, recordingID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("failed to get the recording: %w", err)
+		}
+		exists = true
+
+		return nil
+	})
+
+	return exists, err
+}
+
+// removeAll は、消された録画の、つないだファイルと、つないだ元のセグメントを消す。
+func (w *FinalizeWorker) removeAll(args *FinalizeArgs, path string) error {
+	if err := os.Remove(path + tempSuffix); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to remove the joined file of a deleted recording: %w", err)
+	}
+	for _, file := range args.Removed {
+		if err := w.store.Remove(file.PoolID, file.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("failed to remove a segment of a deleted recording %s: %w", file.Path, err)
+		}
+	}
+
+	return nil
 }

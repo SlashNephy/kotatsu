@@ -53,6 +53,29 @@ func (q *Queries) CloseRecordingFile(ctx context.Context, arg CloseRecordingFile
 	return err
 }
 
+const countRecordingSegments = `-- name: CountRecordingSegments :one
+SELECT count(*) AS segments, coalesce(max(size) FILTER (WHERE id = $1), 0)::bigint AS first_size
+FROM recording_files WHERE recording_id = $2 AND kind = 'segment' AND size > 0
+`
+
+type CountRecordingSegmentsParams struct {
+	FirstID     uuid.UUID
+	RecordingID uuid.UUID
+}
+
+type CountRecordingSegmentsRow struct {
+	Segments  int64
+	FirstSize int64
+}
+
+// 録画のセグメントの記録の数と、そのうち最初のもの first_id の大きさ。つないだ結果が確定したかを確かめるのに使う。
+func (q *Queries) CountRecordingSegments(ctx context.Context, arg CountRecordingSegmentsParams) (CountRecordingSegmentsRow, error) {
+	row := q.db.QueryRow(ctx, countRecordingSegments, arg.FirstID, arg.RecordingID)
+	var i CountRecordingSegmentsRow
+	err := row.Scan(&i.Segments, &i.FirstSize)
+	return i, err
+}
+
 const deleteRecordingFiles = `-- name: DeleteRecordingFiles :exec
 DELETE FROM recording_files WHERE recording_id = $1 AND id = ANY($2::uuid[])
 `
@@ -564,6 +587,26 @@ func (q *Queries) MoveRecordingSidecarPaths(ctx context.Context, arg MoveRecordi
 		arg.PoolID,
 	)
 	return err
+}
+
+const setJoinedRecordingFile = `-- name: SetJoinedRecordingFile :execrows
+UPDATE recording_files SET size = $1, ended_at = $2 WHERE id = $3
+`
+
+type SetJoinedRecordingFileParams struct {
+	Size    int64
+	EndedAt *time.Time
+	ID      uuid.UUID
+}
+
+// セグメントを 1 つにつないだあとで、最初のセグメントの大きさと、表す時間の終わりを、つないだものにする。
+// 録画が消されて行がなければ 0 を返す。
+func (q *Queries) SetJoinedRecordingFile(ctx context.Context, arg SetJoinedRecordingFileParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setJoinedRecordingFile, arg.Size, arg.EndedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setRecordingAudiosIfUnknown = `-- name: SetRecordingAudiosIfUnknown :exec
