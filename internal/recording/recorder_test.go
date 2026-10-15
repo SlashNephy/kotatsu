@@ -696,7 +696,7 @@ func TestRecorderReconnects(t *testing.T) {
 }
 
 // TestRecorderExtendsWhileEndIsUndecided は、番組の終了時刻が未定 (延長中) の間は、終わりが来るたびに録画を 5 分ずつ延ばし、
-// 終了時刻が決まったら止めることを確かめる (設計書 5.1)。
+// 終了時刻が決まったら、決まった終わりと後ろのマージンまで録って止めることを確かめる (設計書 5.1)。
 func TestRecorderExtendsWhileEndIsUndecided(t *testing.T) {
 	t.Parallel()
 
@@ -706,9 +706,9 @@ func TestRecorderExtendsWhileEndIsUndecided(t *testing.T) {
 	tests := []struct {
 		name string
 		// stop は、延長を始めた後に、録画を止める出来事を起こし、止まる時刻を返す。
-		stop func(t *testing.T, f *fixture) time.Time
+		stop func(t *testing.T, f *fixture, reservationID uuid.UUID) time.Time
 	}{
-		{name: "終了時刻が決まったら止める", stop: func(t *testing.T, f *fixture) time.Time {
+		{name: "決まった終わりが過ぎていれば止める", stop: func(t *testing.T, f *fixture, _ uuid.UUID) time.Time {
 			t.Helper()
 
 			_, err := f.pool.Exec(t.Context(), "UPDATE programs SET end_undecided = false WHERE service_id = $1 AND event_id = 6", grService(0))
@@ -716,7 +716,25 @@ func TestRecorderExtendsWhileEndIsUndecided(t *testing.T) {
 
 			return f.clock.Now()
 		}},
-		{name: "未定のままでも、予定の終わりから 3 時間で止める", stop: func(*testing.T, *fixture) time.Time {
+		{name: "決まった終わりが先なら、そこまで録る", stop: func(t *testing.T, f *fixture, reservationID uuid.UUID) time.Time {
+			t.Helper()
+
+			// 延長を始めた後に、終了時刻が 25 分後に決まった (#512)。
+			decided := f.clock.Now().Add(25 * time.Minute)
+			_, err := f.pool.Exec(t.Context(), "UPDATE programs SET end_undecided = false, end_at = $2 WHERE service_id = $1 AND event_id = 6",
+				grService(0), decided)
+			require.NoError(t, err)
+			stopsAt := decided.Add(reserve.DefaultMarginSeconds * time.Second)
+
+			// 決まった終わりとマージンの直前までは、録り続ける。
+			f.clock.Advance(stopsAt.Add(-time.Second).Sub(f.clock.Now()))
+			time.Sleep(100 * time.Millisecond)
+			got, _ := f.recording(t, reservationID)
+			require.Equal(t, string(recording.StateRecording), got.state)
+
+			return stopsAt
+		}},
+		{name: "未定のままでも、予定の終わりから 3 時間で止める", stop: func(*testing.T, *fixture, uuid.UUID) time.Time {
 			return plannedEnd.Add(recording.MaxExtension)
 		}},
 	}
@@ -743,7 +761,7 @@ func TestRecorderExtendsWhileEndIsUndecided(t *testing.T) {
 				require.Equal(t, string(recording.StateRecording), got.state, at)
 			}
 
-			stopsAt := tt.stop(t, f)
+			stopsAt := tt.stop(t, f, reservationID)
 			f.clock.Advance(max(stopsAt.Sub(f.clock.Now()), 0))
 			require.NoError(t, wait(t, done))
 			got, _ := f.recording(t, reservationID)

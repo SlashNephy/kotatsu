@@ -749,6 +749,10 @@ func (t *endTracker) check(ctx context.Context) endReason {
 					slog.String("recording_id", t.recordingID.String()), slog.Time("until", t.extendedUntil))
 			}
 			end = maxTime(end, t.extendedUntil)
+		case !t.extendedUntil.IsZero():
+			// 延長の後に終了時刻が決まったら、決まった終わりと後ろのマージンまで録る (#512)。
+			// 予定の終わりは、過ぎると割り当ての対象から外れて更新されないので、番組の終わりから求める。
+			end = maxTime(end, minTime(program.EndAt.Add(t.endMargin), t.limit))
 		}
 	}
 	end, notBroadcast := t.checkBroadcast(ctx, end, now)
