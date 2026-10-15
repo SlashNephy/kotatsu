@@ -23,15 +23,25 @@ var ErrLost = errors.New("lease lost")
 
 // Manager は、名前の付いた 1 つのリースを、holder として取ったり延長したりする。
 type Manager struct {
-	db     sqlc.DBTX
+	db     Database
 	clock  clock.Clock
 	name   string
 	holder uuid.UUID
 	ttl    time.Duration
 }
 
+// Database は、リースを読み書きする DB。*pgxpool.Pool が満たす。
+type Database interface {
+	sqlc.DBTX
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
+// lockTimeout は、リースを取る、延ばす、手放すときに、行のロックを待つ時間の上限 (付録 A、#527)。
+// リーダーの書き込みのトランザクションは、リースの行をロックしている。固まったまま残っても、待ち続けずにあきらめ、後でやり直す。
+const lockTimeout = "2s"
+
 // NewManager は Manager を作る。ttl はリースの有効期間。
-func NewManager(db sqlc.DBTX, clk clock.Clock, name string, holder uuid.UUID, ttl time.Duration) *Manager {
+func NewManager(db Database, clk clock.Clock, name string, holder uuid.UUID, ttl time.Duration) *Manager {
 	return &Manager{db: db, clock: clk, name: name, holder: holder, ttl: ttl}
 }
 
@@ -40,11 +50,17 @@ func NewManager(db sqlc.DBTX, clk clock.Clock, name string, holder uuid.UUID, tt
 // その場合は Renew を使う。
 func (m *Manager) TryAcquire(ctx context.Context) (int64, bool, error) {
 	now := m.clock.Now()
-	generation, err := sqlc.New(m.db).AcquireLease(ctx, sqlc.AcquireLeaseParams{
-		Name:      m.name,
-		Holder:    m.holder,
-		Now:       now,
-		ExpiresAt: now.Add(m.ttl),
+	var generation int64
+	err := m.withLockTimeout(ctx, func(q *sqlc.Queries) error {
+		var err error
+		generation, err = q.AcquireLease(ctx, sqlc.AcquireLeaseParams{
+			Name:      m.name,
+			Holder:    m.holder,
+			Now:       now,
+			ExpiresAt: now.Add(m.ttl),
+		})
+
+		return err
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, false, nil
@@ -60,12 +76,18 @@ func (m *Manager) TryAcquire(ctx context.Context) (int64, bool, error) {
 // 期限が切れていたり、他のインスタンスに取られていたりすれば ErrLost を返す。
 func (m *Manager) Renew(ctx context.Context, generation int64) (time.Time, error) {
 	now := m.clock.Now()
-	updated, err := sqlc.New(m.db).RenewLease(ctx, sqlc.RenewLeaseParams{
-		Now:        now,
-		ExpiresAt:  now.Add(m.ttl),
-		Name:       m.name,
-		Holder:     m.holder,
-		Generation: generation,
+	var updated int64
+	err := m.withLockTimeout(ctx, func(q *sqlc.Queries) error {
+		var err error
+		updated, err = q.RenewLease(ctx, sqlc.RenewLeaseParams{
+			Now:        now,
+			ExpiresAt:  now.Add(m.ttl),
+			Name:       m.name,
+			Holder:     m.holder,
+			Generation: generation,
+		})
+
+		return err
 	})
 	if err != nil {
 		return time.Time{}, fmt.Errorf("failed to renew the lease %s: %w", m.name, err)
@@ -80,11 +102,13 @@ func (m *Manager) Renew(ctx context.Context, generation int64) (time.Time, error
 // Release は、generation の世代のリースの期限をすぐに切れさせ、他のインスタンスがすぐに取れるようにする。
 // すでに失っていれば何もしない。
 func (m *Manager) Release(ctx context.Context, generation int64) error {
-	if err := sqlc.New(m.db).ReleaseLease(ctx, sqlc.ReleaseLeaseParams{
-		Now:        m.clock.Now(),
-		Name:       m.name,
-		Holder:     m.holder,
-		Generation: generation,
+	if err := m.withLockTimeout(ctx, func(q *sqlc.Queries) error {
+		return q.ReleaseLease(ctx, sqlc.ReleaseLeaseParams{
+			Now:        m.clock.Now(),
+			Name:       m.name,
+			Holder:     m.holder,
+			Generation: generation,
+		})
 	}); err != nil {
 		return fmt.Errorf("failed to release the lease %s: %w", m.name, err)
 	}
@@ -112,4 +136,15 @@ func (m *Manager) Guard(ctx context.Context, tx pgx.Tx, generation int64) error 
 	}
 
 	return nil
+}
+
+// withLockTimeout は、行のロックを待つ時間に lockTimeout の上限を付けたトランザクションの中で、fn を実行する。
+func (m *Manager) withLockTimeout(ctx context.Context, fn func(q *sqlc.Queries) error) error {
+	return pgx.BeginFunc(ctx, m.db, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, "SET LOCAL lock_timeout = '"+lockTimeout+"'"); err != nil {
+			return fmt.Errorf("failed to set the lock timeout: %w", err)
+		}
+
+		return fn(sqlc.New(tx))
+	})
 }
