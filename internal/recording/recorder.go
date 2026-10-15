@@ -169,6 +169,8 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	}
 	tracker := newEndTracker(r, &recording, &reservation, endMargin)
 	result := &sessionResult{lastFailure: ""}
+	// created は、このセッションで作ったセグメントの数。録画の途中で保存先に書けなくなっても、録画を失敗にせず、やり直す (#519)。
+	created := 0
 	for {
 		stream, err := r.tuner.OpenServiceStream(ctx, reservation.ServiceID, &mirakurun.StreamOptions{Decode: true, Priority: assignment.Priority})
 		if err != nil {
@@ -195,13 +197,13 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		segment, reason, err := r.createSegment(ctx, &recording, &reservation)
 		if err != nil {
 			_ = stream.Close()
-			if ctx.Err() != nil {
-				return context.Cause(ctx)
+			if done, err := r.retryCreate(ctx, logger, assignment, &recording, tracker, result, created, reason, err); done {
+				return err
 			}
-			logger.WarnContext(ctx, "failed to create a recording file", slog.Any("error", err))
 
-			return r.fail(ctx, assignment, &recording, reason)
+			continue
 		}
+		created++
 		logger.InfoContext(ctx, "started recording", slog.String("pool_id", segment.poolID), slog.String("path", segment.path))
 		openedAt := r.clock.Now()
 
@@ -212,14 +214,10 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		case ctx.Err() != nil:
 			// リースを失ったか、止めるときは、録画を録画中のまま残し、続きを録る mikan に任せる。
 			return errors.Join(context.Cause(ctx), closeErr)
-		case closeErr != nil:
-			logger.WarnContext(ctx, "failed to close the recording file", slog.Any("error", closeErr))
-
-			return r.fail(ctx, assignment, &recording, FailureStorageUnavailable)
-		case copyErr != nil:
+		case closeErr != nil || copyErr != nil:
 			// ストリームが切れたら、開き直して、新しいセグメントに書く (設計書 5.2)。
-			logger.WarnContext(ctx, "the stream was interrupted; reconnecting", slog.Any("error", copyErr))
-			result.lastFailure = FailureStreamInterrupted
+			// 書き込みのエラー (ディスクが一杯、I/O エラー) でも、録画全体を失敗にせず、新しいセグメントに書き直す (#519)。
+			result.lastFailure = interruption(ctx, logger, closeErr, copyErr)
 			// 開いてすぐに切れ続けると、セグメントを作り続けるので、開き直すのは RetryInterval に 1 回までにする。
 			// 長く録れていたなら、待たずに開き直し、途切れる区間を短くする。
 			wait := r.opts.RetryInterval - r.clock.Now().Sub(openedAt)
@@ -232,6 +230,39 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 
 		return r.finish(ctx, logger, assignment, &recording, end, result, false)
 	}
+}
+
+// retryCreate は、セグメントを作れなかったときに、録画を失敗にするか、やり直すかを決める。録画を終えたら true を返す。
+// まだ何も作っていなければ失敗にする。録画の途中なら、それまでに録れた分を失敗にしないよう、作れるようになるまでやり直す (#519)。
+func (r *Recorder) retryCreate(
+	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, tracker *endTracker, result *sessionResult,
+	created int, reason FailureReason, err error,
+) (bool, error) {
+	if ctx.Err() != nil {
+		return true, context.Cause(ctx)
+	}
+	if created == 0 {
+		logger.WarnContext(ctx, "failed to create a recording file", slog.Any("error", err))
+
+		return true, r.fail(ctx, assignment, recording, reason)
+	}
+	logger.WarnContext(ctx, "failed to create a recording file; retrying", slog.Any("error", err))
+	result.lastFailure = reason
+
+	return r.waitToReopen(ctx, logger, assignment, recording, tracker, result, r.opts.RetryInterval)
+}
+
+// interruption は、セグメントへの書き込みが途中で止まった理由をログに残し、録画が失敗したときに記録する理由を返す。
+// 閉じられなかった (書き込みのエラー) なら保存先、そうでなければストリームの中断とする。
+func interruption(ctx context.Context, logger *slog.Logger, closeErr, copyErr error) FailureReason {
+	if closeErr != nil {
+		logger.WarnContext(ctx, "failed to write the recording file; starting a new one", slog.Any("error", closeErr))
+
+		return FailureStorageUnavailable
+	}
+	logger.WarnContext(ctx, "the stream was interrupted; reconnecting", slog.Any("error", copyErr))
+
+	return FailureStreamInterrupted
 }
 
 // waitToReopen は、ストリームを開き直す前に d だけ待つ。d が 0 以下なら待たない。
@@ -498,7 +529,9 @@ func (r *Recorder) createSegment(
 	if err != nil {
 		return nil, FailureStorageUnavailable, err
 	}
-	estimated := uint64(max(reservation.PlannedEndAt.Sub(*reservation.PlannedStartAt), 0)/time.Second) * estimatedBytesPerSecond
+	// 推定サイズは、これから録る残りの時間から求める。途中で開き直すときに、全長で選ぶと終盤ほど選べなくなる (#519)。
+	from := maxTime(r.clock.Now(), *reservation.PlannedStartAt)
+	estimated := uint64(max(reservation.PlannedEndAt.Sub(from), 0)/time.Second) * estimatedBytesPerSecond
 	pool, err := r.store.Select(pools, estimated)
 	if errors.Is(err, kago.ErrNoPoolFits) {
 		return nil, FailureStorageFull, err
