@@ -2,13 +2,14 @@ import { Alert, Anchor, Stack, Title } from '@mantine/core';
 import { createFileRoute, Link, useLocation } from '@tanstack/react-router';
 import { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery } from 'react-relay';
+import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 
 import { ErrorBoundary, PageLoader } from '../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { ConditionsForm } from '../../conditions/form';
 import { emptyRuleForm, fromRule, type RuleForm } from '../../rules/form';
-import { RuleEditor } from '../../rules/RuleEditor';
+import { RuleEditor, ruleEditorRuleFragment } from '../../rules/RuleEditor';
+import type { RuleEditor_rule$key } from '../../rules/__generated__/RuleEditor_rule.graphql';
 import type { RuleIdQuery } from './__generated__/RuleIdQuery.graphql';
 
 declare module '@tanstack/react-router' {
@@ -96,66 +97,21 @@ function Rule({ ruleId }: { ruleId: string }) {
           __typename
           ... on Rule {
             id
-            name
-            memo
-            enabled
-            conditions {
-              keywords {
-                text
-                regexp
-                caseSensitive
-                fields
-              }
-              keywordMatch
-              excludeKeywords {
-                text
-                regexp
-                caseSensitive
-                fields
-              }
-              channelTypes
-              services {
-                id
-              }
-              genres {
-                lv1
-                lv2
-              }
-              excludeGenres {
-                lv1
-                lv2
-              }
-              timeRanges {
-                weekdays
-                startMinute
-                durationMinutes
-              }
-              minDurationSeconds
-              maxDurationSeconds
-              freeOnly
-            }
-            settings {
-              poolId
-              fileNameTemplate
-              startMarginSeconds
-              endMarginSeconds
-              priority
-              joinSegments
-            }
-            validFrom
-            validUntil
-            avoidDuplicates
-            duplicateWindowDays
-            followEventRelay
+            ...RuleEditor_rule @alias(as: "rule")
           }
         }
       }
     `,
     // 新しいルールでは node を引かないので、ID は何でもよい。
     { id: isNew ? '' : ruleId, skip: isNew },
+    // ストアにある値ですぐに描き、裏で読み直す。読み直した値は、RuleEditor が入力を触っていなければ入れ直す (#533)。
     { fetchPolicy: 'store-and-network' },
   );
   const node = data.node;
+  const rule = useFragment<RuleEditor_rule$key>(
+    ruleEditorRuleFragment,
+    node?.__typename === 'Rule' ? node.rule : null,
+  );
   const ruleConditions = useLocation({ select: (location) => location.state.ruleConditions });
   if (!isNew && node?.__typename !== 'Rule') {
     throw new RuleNotFoundError();
@@ -164,7 +120,7 @@ function Rule({ ruleId }: { ruleId: string }) {
   return (
     <RuleEditor
       ruleId={node?.__typename === 'Rule' ? node.id : undefined}
-      initial={node?.__typename === 'Rule' ? fromRule(node) : newRuleForm(ruleConditions)}
+      initial={rule != null ? fromRule(rule) : newRuleForm(ruleConditions)}
       channelTypes={data.channelTypes}
       services={data.services}
       readOnly={data.viewer.role === 'VIEWER'}
