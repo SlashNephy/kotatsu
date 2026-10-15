@@ -1,4 +1,3 @@
-# mpeg2toh264 のプレイヤーは npm に公開されていないので、ソースからビルドしたものを置き、ワークスペースのパッケージとして使う (設計書 7.2)。
 packages:
   - vendor/mpeg2toh264/*
 
@@ -16,7 +15,7 @@ overrides:
   # npm の css に差し替え、tarball との差分 (パーサーの修正と、ブラウザで使えない source map の処理の削除) をパッチで当てる。
   css: 3.0.0
   vite: npm:@voidzero-dev/vite-plus-core@1.1.0
-  vitest: 5.0.3
+  vitest: 5.0.4
 
 patchedDependencies:
   # zxcvbn-ts の l33t の照合は、読み替えの候補 (最大 100 通り) ごとに辞書を全部引き直すので、数字や記号の多い長いパスワードで遅い。
