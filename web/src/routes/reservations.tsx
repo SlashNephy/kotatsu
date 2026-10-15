@@ -14,12 +14,16 @@ import {
   Title,
 } from '@mantine/core';
 import {
+  CalendarCheck,
   CalendarX,
   CirclePause,
   CirclePlay,
+  Clock,
   EllipsisVertical,
+  ListChecks,
   SlidersHorizontal,
   Trash2,
+  type LucideIcon,
 } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState } from 'react';
@@ -118,6 +122,20 @@ const timeFormat = new Intl.DateTimeFormat('ja-JP', {
   hourCycle: 'h23',
   timeZone: 'Asia/Tokyo',
 });
+
+// kinds は、予約の種類ごとの、行の先頭のアイコンと名前。ルール予約と手動の予約を見分けられるようにする。
+// ルール予約は、ルールの画面と同じアイコンにする。
+const kinds: Record<
+  string,
+  {
+    icon: LucideIcon;
+    key: 'reservations.kind.PROGRAM' | 'reservations.kind.TIME' | 'reservations.kind.RULE';
+  }
+> = {
+  PROGRAM: { icon: CalendarCheck, key: 'reservations.kind.PROGRAM' },
+  TIME: { icon: Clock, key: 'reservations.kind.TIME' },
+  RULE: { icon: ListChecks, key: 'reservations.kind.RULE' },
+};
 
 type Node = reservationsQuery$data['reservations']['edges'][number]['node'];
 type Reservation = Node & { readonly startMs: number; readonly endMs: number };
@@ -343,6 +361,8 @@ function ReservationRow({ reservation, onAir, canEdit, onChanged, onDelete }: Ro
   const state = reservation.assignment.state;
   const attention = needsAttention(state, reservation.enabled);
   const recording = onAir && reservation.enabled && state !== 'CONFLICT';
+  const kind = kinds[reservation.kind] ?? kinds['PROGRAM']!;
+  const KindIcon = kind.icon;
   const toggle = () => {
     const enabled = !reservation.enabled;
     setToggleError(false);
@@ -361,6 +381,9 @@ function ReservationRow({ reservation, onAir, canEdit, onChanged, onDelete }: Ro
       data-attention={attention || undefined}
       data-disabled={!reservation.enabled || undefined}
     >
+      <Box className={classes.kind} title={t(kind.key)}>
+        <KindIcon size={16} role="img" aria-label={t(kind.key)} />
+      </Box>
       <Text size="sm" c="dimmed" className={classes.time}>
         {timeFormat.format(reservation.startMs)}〜{timeFormat.format(reservation.endMs)}
       </Text>

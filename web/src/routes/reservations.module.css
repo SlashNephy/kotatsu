@@ -1,8 +1,8 @@
-/* 予約の一覧。日時、番組名、状態のバッジ、サービス、操作の列を、見出しと日をまたいで揃える。 */
+/* 予約の一覧。種類、日時、番組名、状態のバッジ、サービス、操作の列を、見出しと日をまたいで揃える。 */
 /* 日時とサービスの列は、いちばん長いものに合わせ、番組名の列が残りを使う。 */
 .list {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
   gap: 2px var(--mantine-spacing-xs);
   align-items: center;
 }
@@ -52,6 +52,12 @@
   opacity: 0.6;
 }
 
+/* 予約の種類のアイコン。文字より控えめな色にする。 */
+.kind {
+  display: flex;
+  color: var(--mantine-color-dimmed);
+}
+
 .link {
   color: inherit;
   text-decoration: none;
@@ -82,39 +88,44 @@
 }
 
 .error {
-  grid-column: 2 / -1;
+  grid-column: 3 / -1;
 }
 
 /* 狭い画面では、番組名に幅を回すため、1 段目に日時、バッジ、サービスを、2 段目に番組名を置く。 */
 /* 番組名の長さが行ごとに違っても、日時とサービスの列は揃える。 */
 @media (max-width: 47.99375em) {
   .list {
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto;
     row-gap: 4px;
   }
 
-  .time {
+  .kind {
     grid-column: 1;
     grid-row: 1;
   }
 
-  .badges {
+  .time {
     grid-column: 2;
     grid-row: 1;
   }
 
-  .service {
+  .badges {
     grid-column: 3;
     grid-row: 1;
   }
 
-  .actions {
+  .service {
     grid-column: 4;
+    grid-row: 1;
+  }
+
+  .actions {
+    grid-column: 5;
     grid-row: 1 / span 2;
   }
 
   .title {
-    grid-column: 1 / 4;
+    grid-column: 2 / 5;
     grid-row: 2;
   }
 
