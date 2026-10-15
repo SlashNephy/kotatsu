@@ -351,3 +351,32 @@ func TestRenameWithSidecarDir(t *testing.T) {
 		{PoolID: poolMain, From: "old/番組.m2ts.kotatsu", To: "new/番組.m2ts.kotatsu"},
 	}, store.SidecarMoves(poolMain, rel, got))
 }
+
+// TestSelectWithoutMeasurablePools は、空き容量を調べられたプールが 1 つもなければ、容量が足りない (ErrNoPoolFits) とせず、
+// ErrPoolUnavailable を返すことを確かめる (#526)。容量が足りないと記録すると、調べる方向を誤る。
+func TestSelectWithoutMeasurablePools(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		mounts map[string]string
+		// wantStatfs は、調べられなかった理由 (statfs の失敗) を返すかどうか。
+		wantStatfs bool
+	}{
+		{name: "statfs fails", mounts: map[string]string{poolBroken: "/mnt/broken"}, wantStatfs: true},
+		{name: "not mounted", mounts: map[string]string{}, wantStatfs: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := kago.New(tt.mounts, fakeFreeSpace(map[string]uint64{}))
+			_, err := store.Select([]*kago.Pool{{ID: poolBroken, Priority: 0, MinFreeBytes: 0}}, 8*gib)
+			require.ErrorIs(t, err, kago.ErrPoolUnavailable)
+			require.NotErrorIs(t, err, kago.ErrNoPoolFits)
+			if tt.wantStatfs {
+				require.ErrorIs(t, err, errStatfs)
+			}
+		})
+	}
+}

@@ -265,7 +265,9 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 		})
 	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), &recording.WorkerOptions{
 		LeaseTTL: 0, RenewInterval: 0, AcquireInterval: 0, HandoverTimeout: 0, ReleaseCooldown: 0,
-		PollOnly: deps.Config.Database.Pooler, PollInterval: 0,
+		// mikan を複数のマシンで動かしても、時計のずれでリースを取り違えないよう、DB の時刻で決める (#526)。
+		DatabaseClock: true,
+		PollOnly:      deps.Config.Database.Pooler, PollInterval: 0,
 	})
 
 	return worker.Run(ctx)

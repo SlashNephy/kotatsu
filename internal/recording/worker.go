@@ -70,6 +70,9 @@ type WorkerOptions struct {
 	HandoverTimeout time.Duration
 	// ReleaseCooldown は、録画できずに割り振りを手放した後、割り振りを取らずに待つ時間。
 	ReleaseCooldown time.Duration
+	// DatabaseClock は、リースの期限を、mikan の時計ではなく DB の時刻で決めるかどうか (#526)。
+	// mikan を複数のマシンで動かすと、時計がずれる。テストで時計を動かすときは false にする。
+	DatabaseClock bool
 	// PollOnly は、変更の通知を LISTEN で受けずに、ポーリングだけで知るかどうか。
 	PollOnly     bool
 	PollInterval time.Duration
@@ -95,7 +98,7 @@ type Worker struct {
 func NewWorker(pool *pgxpool.Pool, clk clock.Clock, holder uuid.UUID, logger *slog.Logger, session Session, opts *WorkerOptions) *Worker {
 	o := WorkerOptions{
 		LeaseTTL: DefaultLeaseTTL, RenewInterval: DefaultRenewInterval, AcquireInterval: DefaultAcquireInterval,
-		HandoverTimeout: DefaultHandoverTimeout, ReleaseCooldown: DefaultReleaseCooldown, PollOnly: false, PollInterval: notify.DefaultPollInterval,
+		HandoverTimeout: DefaultHandoverTimeout, ReleaseCooldown: DefaultReleaseCooldown, DatabaseClock: false, PollOnly: false, PollInterval: notify.DefaultPollInterval,
 	}
 	if opts != nil {
 		o = WorkerOptions{
@@ -104,6 +107,7 @@ func NewWorker(pool *pgxpool.Pool, clk clock.Clock, holder uuid.UUID, logger *sl
 			AcquireInterval: orDefault(opts.AcquireInterval, o.AcquireInterval),
 			HandoverTimeout: orDefault(opts.HandoverTimeout, o.HandoverTimeout),
 			ReleaseCooldown: orDefault(opts.ReleaseCooldown, o.ReleaseCooldown),
+			DatabaseClock:   opts.DatabaseClock,
 			PollOnly:        opts.PollOnly,
 			PollInterval:    orDefault(opts.PollInterval, o.PollInterval),
 		}
@@ -303,9 +307,37 @@ func (w *Worker) waitForSuccessor(ctx context.Context, active *activeSession) bo
 	}
 }
 
+// leaseNow は、割り振りのリースの期限を決める時刻を返す。DatabaseClock なら DB の時刻、そうでなければこの mikan の時計 (#526)。
+func (w *Worker) leaseNow(ctx context.Context) (time.Time, error) {
+	if !w.opts.DatabaseClock {
+		return w.clock.Now(), nil
+	}
+	now, err := sqlc.New(w.pool).GetDatabaseNow(ctx)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to get the database time: %w", err)
+	}
+
+	return now, nil
+}
+
+// renewLease は、割り振りのリースを、leaseNow から LeaseTTL 後まで延ばす。延ばせた行の数を返す。
+func (w *Worker) renewLease(ctx context.Context, assignment *Assignment) (int64, error) {
+	now, err := w.leaseNow(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return sqlc.New(w.pool).RenewRecordingAssignment(ctx, sqlc.RenewRecordingAssignmentParams{
+		ExpiresAt: new(now.Add(w.opts.LeaseTTL)), Now: now, ID: assignment.ID, Generation: assignment.Generation, Holder: &w.holder,
+	})
+}
+
 // acquire は、取れる割り振りを 1 つ取る。なければ false を返す。
 func (w *Worker) acquire(ctx context.Context) (*Assignment, bool, error) {
-	now := w.clock.Now()
+	now, err := w.leaseNow(ctx)
+	if err != nil {
+		return nil, false, err
+	}
 	row, err := sqlc.New(w.pool).AcquireRecordingAssignment(ctx, sqlc.AcquireRecordingAssignmentParams{
 		Now: now, Holder: &w.holder, ExpiresAt: new(now.Add(w.opts.LeaseTTL)),
 	})
@@ -428,10 +460,9 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 			return
 		case <-ticker.C:
 		}
+		// 書き続けてよいかは、この mikan の時計で決める。DB の期限は、DB の時刻で決める (#526)。
 		now := w.clock.Now()
-		n, err := sqlc.New(w.pool).RenewRecordingAssignment(ctx, sqlc.RenewRecordingAssignmentParams{
-			ExpiresAt: new(now.Add(w.opts.LeaseTTL)), Now: now, ID: assignment.ID, Generation: assignment.Generation, Holder: &w.holder,
-		})
+		n, err := w.renewLease(ctx, assignment)
 		switch {
 		case err != nil && ctx.Err() != nil:
 			return
