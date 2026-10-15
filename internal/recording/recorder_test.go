@@ -1625,27 +1625,29 @@ func TestRecorderReleasesWhenUnableToRecord(t *testing.T) {
 	onePeer := func(context.Context) (int, error) { return 1, nil }
 	tests := []struct {
 		name string
-		// prepare は、録画できない状態にし、Recorder を作る。
-		prepare func(t *testing.T, f *fixture, reservationID uuid.UUID) *recording.Recorder
+		// prepare は、録画できない状態にし、Recorder と、録画が開こうとするのを待つストリームを作る。
+		prepare func(t *testing.T, f *fixture, reservationID uuid.UUID) (*recording.Recorder, *attemptedStream)
 		reason  recording.FailureReason
 		// advance は、録画が開こうとしてから進める時間。
 		advance time.Duration
 	}{
-		{name: "プールがマウントされていない", prepare: func(t *testing.T, f *fixture, reservationID uuid.UUID) *recording.Recorder {
+		{name: "プールがマウントされていない", prepare: func(t *testing.T, f *fixture, reservationID uuid.UUID) (*recording.Recorder, *attemptedStream) {
 			t.Helper()
 
 			_, err := f.pool.Exec(t.Context(), `UPDATE reservations SET settings = '{"poolId": "elsewhere"}' WHERE id = $1`, reservationID)
 			require.NoError(t, err)
-			recorder, _ := f.newRecorderWithPeers(t, f.tuner, nil, onePeer)
+			stream := newAttemptedStream(f.tuner)
+			recorder, _ := f.newRecorderWithPeers(t, stream, nil, onePeer)
 
-			return recorder
+			return recorder, stream
 		}, reason: recording.FailureStorageUnavailable, advance: 0},
-		{name: "チューナーサーバーにつながらないまま 30 秒が過ぎた", prepare: func(t *testing.T, f *fixture, _ uuid.UUID) *recording.Recorder {
+		{name: "チューナーサーバーにつながらないまま 30 秒が過ぎた", prepare: func(t *testing.T, f *fixture, _ uuid.UUID) (*recording.Recorder, *attemptedStream) {
 			t.Helper()
 
-			recorder, _ := f.newRecorderWithPeers(t, failingStream{err: errors.New("connection refused")}, nil, onePeer)
+			stream := newAttemptedStream(failingStream{err: errors.New("connection refused")})
+			recorder, _ := f.newRecorderWithPeers(t, stream, nil, onePeer)
 
-			return recorder
+			return recorder, stream
 		}, reason: recording.FailureTunerServerUnreachable, advance: 31 * time.Second},
 	}
 	for _, tt := range tests {
@@ -1654,11 +1656,14 @@ func TestRecorderReleasesWhenUnableToRecord(t *testing.T) {
 
 			f := newFixture(t)
 			reservationID := f.reserve(t, 0)
-			recorder := tt.prepare(t, f, reservationID)
+			recorder, stream := tt.prepare(t, f, reservationID)
 			_, done := f.session(t, recorder, reservationID)
 			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 			if tt.advance > 0 {
-				time.Sleep(100 * time.Millisecond)
+				// つながらなくなった時刻を覚えてから、時計を進める。開こうとした合図は、つながらなかったと分かる前に出るので、
+				// 2 回目に開こうとするまで待つ。
+				stream.wait(t)
+				stream.wait(t)
 				f.clock.Advance(tt.advance)
 			}
 
