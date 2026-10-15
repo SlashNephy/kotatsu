@@ -110,7 +110,8 @@ type placed struct {
 	rank int
 }
 
-// hardStart と hardEnd は、他の予約に譲れない区間。録画が始まった予約はマージンも削らないので、録画する時間の全体になる。
+// hardStart と hardEnd は、他の予約に譲れない区間。録画が始まった予約は、すでに録った開始マージンを含めて、録画の始まりから本編の終わりまでになる。
+// 終了マージンは、録画の前と同じく、後の録画に譲る。録画が始まったときに戻すと、後の録画の冒頭が欠ける (#520)。
 func (p *placed) hardStart() time.Time {
 	if p.reservation.Recording {
 		return p.start
@@ -120,10 +121,6 @@ func (p *placed) hardStart() time.Time {
 }
 
 func (p *placed) hardEnd() time.Time {
-	if p.reservation.Recording {
-		return p.end
-	}
-
 	return p.reservation.EndAt
 }
 
@@ -398,9 +395,8 @@ func trimMargins(list []*placed) {
 			if !conflicting(a, b) {
 				continue
 			}
-			if !a.reservation.Recording {
-				a.end = later(earlier(a.reservation.EndAt, a.end), b.start)
-			}
+			// 録画が始まった予約も、終了マージンは削る (#520)。
+			a.end = later(earlier(a.reservation.EndAt, a.end), b.start)
 			if b.start.Before(a.end) && !b.reservation.Recording {
 				b.start = earlier(later(b.reservation.StartAt, b.start), a.end)
 			}

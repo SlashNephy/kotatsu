@@ -202,6 +202,29 @@ func TestAssign(t *testing.T) {
 				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(margin)},
 			},
 		},
+		{
+			// 録画が始まった後も、録画の前と同じく、前の録画の終了マージンを削る。戻すと、後の録画の冒頭が欠ける (#520)。
+			name:         "recording reservation still gives its end margin to the next one",
+			reservations: []*assign.Reservation{recordingOn(program(1, "27", 0, 30), 0), program(2, "26", 30, 30)},
+			tuners:       grTuners(1),
+			want: []*assign.Assignment{
+				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30)},
+				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(30), PlannedEnd: at(60).Add(margin)},
+			},
+		},
+		{
+			// 本編は、録画中の予約のものを優先する。後の録画の本編を削る。
+			name: "recording reservation keeps its core against a later higher priority one",
+			reservations: []*assign.Reservation{
+				recordingOn(program(1, "27", 0, 60), 0),
+				withPriority(program(2, "26", 30, 60), 10),
+			},
+			tuners: grTuners(1),
+			want: []*assign.Assignment{
+				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(60)},
+				{ReservationID: reservationID(2), State: assign.StatePartial, Tuner: 0, PlannedStart: at(60), PlannedEnd: at(90).Add(margin)},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
