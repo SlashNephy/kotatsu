@@ -169,8 +169,12 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	}
 	tracker := newEndTracker(r, &recording, &reservation, endMargin)
 	result := &sessionResult{lastFailure: ""}
-	// created は、このセッションで作ったセグメントの数。録画の途中で保存先に書けなくなっても、録画を失敗にせず、やり直す (#519)。
-	created := 0
+	// created は、録画のセグメントの数。前の mikan が録った分も数える。録画の途中で保存先に書けなくなっても、
+	// 録画を失敗にせず、やり直す (#519)。
+	created, err := r.countSegments(ctx, recording.ID)
+	if err != nil {
+		return err
+	}
 	for {
 		stream, err := r.tuner.OpenServiceStream(ctx, reservation.ServiceID, &mirakurun.StreamOptions{Decode: true, Priority: assignment.Priority})
 		if err != nil {
@@ -252,11 +256,27 @@ func (r *Recorder) retryCreate(
 	return r.waitToReopen(ctx, logger, assignment, recording, tracker, result, r.opts.RetryInterval)
 }
 
+// countSegments は、録画の、書いたものがあるセグメントの数を返す。
+func (r *Recorder) countSegments(ctx context.Context, recordingID uuid.UUID) (int, error) {
+	files, err := sqlc.New(r.pool).ListRecordingFiles(ctx, recordingID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to list the recording files: %w", err)
+	}
+	n := 0
+	for i := range files {
+		if files[i].Kind == fileKindSegment && files[i].Size > 0 {
+			n++
+		}
+	}
+
+	return n, nil
+}
+
 // interruption は、セグメントへの書き込みが途中で止まった理由をログに残し、録画が失敗したときに記録する理由を返す。
-// 閉じられなかった (書き込みのエラー) なら保存先、そうでなければストリームの中断とする。
+// 書き込めなかったか、閉じられなかったなら保存先、そうでなければストリームの中断とする。
 func interruption(ctx context.Context, logger *slog.Logger, closeErr, copyErr error) FailureReason {
-	if closeErr != nil {
-		logger.WarnContext(ctx, "failed to write the recording file; starting a new one", slog.Any("error", closeErr))
+	if closeErr != nil || errors.Is(copyErr, errWrite) {
+		logger.WarnContext(ctx, "failed to write the recording file; starting a new one", slog.Any("error", errors.Join(copyErr, closeErr)))
 
 		return FailureStorageUnavailable
 	}
@@ -669,6 +689,21 @@ const (
 
 // copyUntilEnd は、予定の終わりが来るか、予約を無効にするまで、ストリームを録画ファイルと解析器に書き、止めた理由を返す。
 // 予定の終わりは、予約を読み直して決める。その前にストリームが切れたら、エラーを返す。
+// errWrite は、録画ファイルへの書き込みに失敗したこと。ストリームの中断と分けて、失敗の理由を保存先にする (#519)。
+var errWrite = errors.New("failed to write the recording file")
+
+// writeErrorWriter は、書き込みのエラーに errWrite を付ける。
+type writeErrorWriter struct{ w io.Writer }
+
+func (w writeErrorWriter) Write(p []byte) (int, error) {
+	n, err := w.w.Write(p)
+	if err != nil {
+		return n, fmt.Errorf("%w: %w", errWrite, err)
+	}
+
+	return n, nil
+}
+
 func (r *Recorder) copyUntilEnd(ctx context.Context, tracker *endTracker, stream io.ReadCloser, seg *segment) (*ts.Stats, endReason, error) {
 	tracker.watch(seg.analyzer)
 	ended := make(chan endReason, 1)
@@ -683,7 +718,7 @@ func (r *Recorder) copyUntilEnd(ctx context.Context, tracker *endTracker, stream
 		}
 	}()
 
-	_, err := io.Copy(io.MultiWriter(seg.buffer, seg.analyzer), stream)
+	_, err := io.Copy(io.MultiWriter(writeErrorWriter{w: seg.buffer}, seg.analyzer), stream)
 	stopWatch()
 	<-watchDone
 	stats := seg.analyzer.Stats()
