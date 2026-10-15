@@ -76,9 +76,9 @@ func (r *Runner) runOnce(ctx context.Context) {
 
 		return
 	}
-	if len(result.Skipped) > 0 {
-		r.logger.WarnContext(ctx, "skipped rules whose conditions could not be read; their reservations are kept",
-			slog.Any("rule_ids", result.Skipped))
+	for ruleID, err := range result.Skipped {
+		r.logger.WarnContext(ctx, "skipped a rule whose conditions could not be read; its reservations are kept",
+			slog.String("rule_id", ruleID.String()), slog.Any("error", err))
 	}
 	if result.Created > 0 || result.Deleted > 0 || result.Linked > 0 || result.Unlinked > 0 {
 		r.logger.InfoContext(ctx, "matched rules",

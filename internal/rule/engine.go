@@ -66,8 +66,8 @@ type Result struct {
 	// Linked と Unlinked は、予約と一致したルールの関係を足した数と除いた数。
 	Linked   int
 	Unlinked int
-	// Skipped は、条件を読めずに照合から外したルール。そのルールの予約は、消さずに残す (#529)。
-	Skipped []uuid.UUID
+	// Skipped は、条件を読めずに照合から外したルールと、読めなかった理由。そのルールの予約は、消さずに残す (#529)。
+	Skipped map[uuid.UUID]error
 }
 
 // programKey は番組の識別子 (サービスと eventId の組)。
@@ -82,7 +82,7 @@ func compareKeys(a, b programKey) int {
 
 // Run は、ルールの照合を 1 回行う。すべて 1 つのトランザクションで読み書きする。
 func (e *Engine) Run(ctx context.Context) (*Result, error) {
-	result := &Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: []uuid.UUID{}}
+	result := &Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: map[uuid.UUID]error{}}
 	err := pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
 		if err := e.guard(ctx, tx); err != nil {
 			return err
@@ -186,13 +186,13 @@ func (e *Engine) enabledRules(ctx context.Context, tx pgx.Tx, result *Result) ([
 		// 条件を読めないルール (ローリング更新の途中で、新しい版が足した条件など) は飛ばし、ほかのルールの照合を続ける (#529)。
 		r, err := fromRow(row)
 		if err != nil {
-			result.Skipped = append(result.Skipped, row.ID)
+			result.Skipped[row.ID] = err
 
 			continue
 		}
 		matcher, err := match.Compile(r.Conditions, e.location)
 		if err != nil {
-			result.Skipped = append(result.Skipped, row.ID)
+			result.Skipped[row.ID] = err
 
 			continue
 		}
@@ -413,7 +413,7 @@ func (e *Engine) link(ctx context.Context, q *sqlc.Queries, reservationID uuid.U
 	}
 	for _, ruleID := range slices.SortedFunc(maps.Keys(have), compareUUIDs) {
 		// 照合から外したルールとの関係は、外さない (#529)。
-		if want[ruleID] || slices.Contains(result.Skipped, ruleID) {
+		if _, skipped := result.Skipped[ruleID]; want[ruleID] || skipped {
 			continue
 		}
 		if err := q.DeleteReservationRule(ctx, sqlc.DeleteReservationRuleParams{ReservationID: reservationID, RuleID: ruleID}); err != nil {
@@ -430,8 +430,14 @@ func compareUUIDs(a, b uuid.UUID) int {
 }
 
 // linksAny は、予約が、ruleIDs のどれかと結び付いているかを返す。
-func linksAny(have map[uuid.UUID]bool, ruleIDs []uuid.UUID) bool {
-	return slices.ContainsFunc(ruleIDs, func(id uuid.UUID) bool { return have[id] })
+func linksAny[V any](have map[uuid.UUID]bool, ruleIDs map[uuid.UUID]V) bool {
+	for id := range ruleIDs {
+		if have[id] {
+			return true
+		}
+	}
+
+	return false
 }
 
 // keepsUnmatched は、どのルールにも一致しなくなったルール予約を、消さずに残すかどうかを返す。
