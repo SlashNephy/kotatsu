@@ -195,6 +195,10 @@ type Querier interface {
 	ListEPGChangesSince(ctx context.Context, version int64) ([]ListEPGChangesSinceRow, error)
 	// 録画中でない録画のセグメントの記録を、録画を始めた日時の新しい順に返す。ファイルの見つからない録画を探すのに使う。
 	ListFinishedRecordingSegments(ctx context.Context) ([]ListFinishedRecordingSegmentsRow, error)
+	// 放送が終わって before より前に録画の予定の終わりが過ぎ、録画も終わった予約。
+	// 割り振りが終わっていないか、録画中の録画があれば、引き継ぎや延長の途中なので含めない。
+	// 割り当ての後に放送が延びると、予定の終わりより番組の終わりが後になるので、遅いほうで比べる。
+	ListFinishedReservations(ctx context.Context, before time.Time) ([]uuid.UUID, error)
 	// ルール予約の録画設定に使う、一致したルールのうち最も古いものの上書き。
 	ListFirstRuleSettings(ctx context.Context, reservationIds []uuid.UUID) ([]ListFirstRuleSettingsRow, error)
 	// 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。照合の対象の番組 (ListMatchablePrograms) とそろえる。
@@ -246,6 +250,8 @@ type Querier interface {
 	// 番組 (サービス, eventId) の予約。番組の予約は 1 件だけなので、番組ごとに高々 1 行になる。
 	ListReservationsByPrograms(ctx context.Context, arg ListReservationsByProgramsParams) ([]Reservation, error)
 	// 番組を指定した予約のうち、予約か番組の終わりがまだ来ていないものと、その番組の今の EPG。
+	// 予約の終わりが過ぎた後は、同じ放送の終わりが延びたとき (番組が予約の終わりより前に始まる) だけ追従する。
+	// 番組が予約の終わりより後に始まるなら、EID が別の番組に再利用されたものとみなし、古い予約を書き換えない (#510)。
 	// ルール予約の録画設定は、一致したルールのうち最も古いものの上書きを使う。
 	ListReservationsToFollow(ctx context.Context, now time.Time) ([]ListReservationsToFollowRow, error)
 	ListRules(ctx context.Context) ([]Rule, error)

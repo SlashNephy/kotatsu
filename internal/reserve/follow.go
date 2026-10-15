@@ -28,6 +28,8 @@ const (
 	// DefaultFollowDebounce と DefaultFollowInterval は、EPG が変わってから追従するまで待つ時間と、変化がなくても追従する間隔。
 	DefaultFollowDebounce = 2 * time.Second
 	DefaultFollowInterval = 5 * time.Minute
+	// DefaultFinishedGrace は、録画の予定の終わりが過ぎてから、終わった予約を消すまでの猶予。
+	DefaultFinishedGrace = time.Hour
 )
 
 // Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確かめる。
@@ -37,6 +39,8 @@ type Guard func(ctx context.Context, tx pgx.Tx) error
 type FollowerOptions struct {
 	Debounce time.Duration
 	Interval time.Duration
+	// FinishedGrace は、録画の予定の終わりが過ぎてから、終わった予約を消すまでの猶予。
+	FinishedGrace time.Duration
 	// PollOnly は、変更の通知を LISTEN で受けずに、ポーリングだけで知るかどうか。
 	PollOnly     bool
 	PollInterval time.Duration
@@ -46,6 +50,7 @@ type FollowerOptions struct {
 //
 //   - EPG で放送時間や番組情報が変わったら、予約の番組情報と時刻を更新する。予約が変わると、割り当ても計算し直される。
 //   - イベントリレーで別のサービスに引き継がれる番組では、予約で追従が有効なら、引き継ぎ先の番組予約を作る。
+//   - 放送が終わって猶予が過ぎ、録画も終わった予約を消す。EID が別の番組に再利用されても、その番組を予約できるようにする (#510)。
 type Follower struct {
 	pool         *pgxpool.Pool
 	guard        Guard
@@ -56,7 +61,10 @@ type Follower struct {
 
 // NewFollower は Follower を作る。opts は nil でもよい。
 func NewFollower(pool *pgxpool.Pool, guard Guard, logger *slog.Logger, reservations *Reservations, opts *FollowerOptions) *Follower {
-	o := FollowerOptions{Debounce: DefaultFollowDebounce, Interval: DefaultFollowInterval, PollOnly: false, PollInterval: notify.DefaultPollInterval}
+	o := FollowerOptions{
+		Debounce: DefaultFollowDebounce, Interval: DefaultFollowInterval, FinishedGrace: DefaultFinishedGrace,
+		PollOnly: false, PollInterval: notify.DefaultPollInterval,
+	}
 	if opts != nil {
 		o.PollOnly = opts.PollOnly
 		if opts.Debounce > 0 {
@@ -64,6 +72,9 @@ func NewFollower(pool *pgxpool.Pool, guard Guard, logger *slog.Logger, reservati
 		}
 		if opts.Interval > 0 {
 			o.Interval = opts.Interval
+		}
+		if opts.FinishedGrace > 0 {
+			o.FinishedGrace = opts.FinishedGrace
 		}
 		if opts.PollInterval > 0 {
 			o.PollInterval = opts.PollInterval
@@ -89,8 +100,9 @@ func (f *Follower) Run(ctx context.Context) error {
 
 			return
 		}
-		if result.Updated > 0 || result.Relayed > 0 {
-			f.logger.InfoContext(ctx, "followed program changes", slog.Int("updated", result.Updated), slog.Int("relayed", result.Relayed))
+		if result.Updated > 0 || result.Relayed > 0 || result.Removed > 0 {
+			f.logger.InfoContext(ctx, "followed program changes",
+				slog.Int("updated", result.Updated), slog.Int("relayed", result.Relayed), slog.Int("removed", result.Removed))
 		}
 	})
 }
@@ -101,6 +113,8 @@ type FollowResult struct {
 	Updated int
 	// Relayed は、イベントリレーの引き継ぎ先に作った予約の数。
 	Relayed int
+	// Removed は、放送が終わったので消した予約の数。
+	Removed int
 }
 
 // followerActor は、追従で予約を変えたときの、監査ログの操作者。
@@ -110,13 +124,18 @@ func followerActor() *audit.Actor {
 
 // RunOnce は、予約を今の EPG に 1 回追従させる。
 func (f *Follower) RunOnce(ctx context.Context) (*FollowResult, error) {
-	result := &FollowResult{Updated: 0, Relayed: 0}
+	result := &FollowResult{Updated: 0, Relayed: 0, Removed: 0}
 	err := pgx.BeginFunc(ctx, f.pool, func(tx pgx.Tx) error {
 		if err := f.guard(ctx, tx); err != nil {
 			return err
 		}
 		q := sqlc.New(tx)
 		now := f.reservations.clock.Now()
+		removed, err := f.removeFinished(ctx, tx, now)
+		if err != nil {
+			return err
+		}
+		result.Removed = removed
 		rows, err := q.ListReservationsToFollow(ctx, now)
 		if err != nil {
 			return fmt.Errorf("failed to list reservations: %w", err)
@@ -250,4 +269,28 @@ func later(a, b time.Time) time.Time {
 	}
 
 	return b
+}
+
+// removeFinished は、放送が終わって猶予が過ぎ、録画も終わった予約を消す。消した予約の数を返す。
+// 番組の予約は (サービス, EID) で一意なので、残すと EID が再利用されたときに新しい番組を予約できない (#510)。
+// 録画と録画履歴は予約を消しても残る。
+func (f *Follower) removeFinished(ctx context.Context, tx pgx.Tx, now time.Time) (int, error) {
+	ids, err := sqlc.New(tx).ListFinishedReservations(ctx, now.Add(-f.opts.FinishedGrace))
+	if err != nil {
+		return 0, fmt.Errorf("failed to list finished reservations: %w", err)
+	}
+	removed := 0
+	for _, reservationID := range ids {
+		err := f.reservations.remove(ctx, tx, followerActor(), reservationID)
+		// 一覧を読んだ後に、ユーザーが先に消していれば飛ばす。
+		if errors.Is(err, ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return 0, err
+		}
+		removed++
+	}
+
+	return removed, nil
 }

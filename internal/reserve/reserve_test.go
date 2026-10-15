@@ -47,6 +47,7 @@ type fixture struct {
 	reconciler   *epg.Reconciler
 	reservations *reserve.Reservations
 	user         *audit.Actor
+	clock        *clocktest.Fake
 }
 
 // newFixture は、偽チューナーサーバーの EPG を同期した DB と、予約を作るユーザーを用意する。
@@ -79,6 +80,7 @@ func newFixture(t *testing.T) *fixture {
 		reconciler:   reconciler,
 		reservations: reserve.NewReservations(clk, audit.NewRecorder(clk)),
 		user:         audit.User(user.ID),
+		clock:        clk,
 	}
 }
 

@@ -161,10 +161,11 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 			PollInterval: 0,
 		},
 		Follow: &reserve.FollowerOptions{
-			Debounce:     0,
-			Interval:     0,
-			PollOnly:     deps.Config.Database.Pooler,
-			PollInterval: 0,
+			Debounce:      0,
+			Interval:      0,
+			FinishedGrace: 0,
+			PollOnly:      deps.Config.Database.Pooler,
+			PollInterval:  0,
 		},
 		Recording: &recording.SchedulerOptions{
 			Lead:         0,
