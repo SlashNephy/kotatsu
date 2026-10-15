@@ -310,6 +310,9 @@ func TestRecorderRecordsFailures(t *testing.T) {
 		tuner     func(f *fixture) recording.StreamOpener
 		freeSpace kago.FreeSpaceFunc
 		want      recording.FailureReason
+		// retries は、予定の終わりまで開き直すかどうか。開き直すなら、開こうとしてから予定の終わりまで進める。
+		// 保存先がなければ、その場で失敗にする。時計を進めると、残りの時間の推定サイズが 0 になって入ってしまう。
+		retries bool
 	}{
 		{
 			name: "チューナーを確保できない",
@@ -318,18 +321,21 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			},
 			freeSpace: nil,
 			want:      recording.FailureTunerUnavailable,
+			retries:   true,
 		},
 		{
 			name:      "チューナーサーバーに接続できない",
 			tuner:     func(*fixture) recording.StreamOpener { return failingStream{err: errors.New("connection refused")} },
 			freeSpace: nil,
 			want:      recording.FailureTunerServerUnreachable,
+			retries:   true,
 		},
 		{
 			name:      "保存先の容量が足りない",
 			tuner:     func(f *fixture) recording.StreamOpener { return f.tuner },
 			freeSpace: func(string) (uint64, error) { return 1 << 20, nil },
 			want:      recording.FailureStorageFull,
+			retries:   false,
 		},
 	}
 	for _, tt := range tests {
@@ -344,7 +350,9 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 			// ストリームを開けないときは、予定の終わりまで開き直すので、録画が開こうとしてから、予定の終わりまで進める。
 			stream.wait(t)
-			f.clock.Advance(time.Hour)
+			if tt.retries {
+				f.clock.Advance(time.Hour)
+			}
 
 			require.NoError(t, wait(t, done))
 			got, ok := f.recording(t, reservationID)
@@ -1488,4 +1496,113 @@ func TestRecorderRecordsLateStartAsGap(t *testing.T) {
 			assert.Equal(t, gapsAndLost{gaps: tt.wantGaps, programLost: false}, f.gapsAndLost(t, reservationID))
 		})
 	}
+}
+
+// TestRecorderReselectsPoolForRemainingTime は、録画の途中で開き直すときに、保存先を、番組の全長ではなく残りの時間の
+// 推定サイズで選び直すことを確かめる (#519)。全長で選ぶと、終盤ほど選べるプールがなくなり、それまで録れていても失敗していた。
+func TestRecorderReselectsPoolForRemainingTime(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	// 始めは十分に空いているが、終わりの 5 分前に切れて開き直すときには、残りの 5 分の分 (約 0.9 GB) しか空いていない。
+	free := new(atomic.Uint64)
+	free.Store(1 << 40)
+	opened := new(atomic.Int32)
+	stream := flakyStream{head: data[:188*1000], data: data, opened: opened, reopen: func() {
+		free.Store(2 << 30)
+		f.clock.Advance(programStart().Add(25 * time.Minute).Sub(f.clock.Now()))
+	}}
+	recorder, _ := f.newRecorder(t, stream, func(string) (uint64, error) { return free.Load(), nil })
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return f.segments(t, reservationID) == 2
+	}, waitTimeout, 10*time.Millisecond)
+	f.clock.Advance(time.Hour)
+
+	require.NoError(t, wait(t, done))
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StatePartial), got.state)
+}
+
+// TestRecorderRetriesSegmentAfterStorageError は、録画の途中で新しいセグメントを作れなくても、録画を失敗にせず、
+// 作れるようになるまでやり直して続きを録り、途切れた区間を記録することを確かめる (#519)。
+func TestRecorderRetriesSegmentAfterStorageError(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	// 開き直すときに、一時的に空きがなくなる。
+	free := new(atomic.Uint64)
+	free.Store(1 << 40)
+	opened := new(atomic.Int32)
+	stream := flakyStream{head: data[:188*1000], data: data, opened: opened, reopen: func() {
+		if opened.Load() == 2 {
+			free.Store(0)
+		}
+		f.clock.Advance(time.Second)
+	}}
+	recorder, _ := f.newRecorder(t, stream, func(string) (uint64, error) { return free.Load(), nil })
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return opened.Load() >= 2
+	}, waitTimeout, 10*time.Millisecond)
+
+	// 録画を失敗にせず、やり直している間に空きができる。
+	time.Sleep(100 * time.Millisecond)
+	got, _ := f.recording(t, reservationID)
+	require.Equal(t, string(recording.StateRecording), got.state)
+	free.Store(1 << 40)
+	require.Eventually(t, func() bool {
+		return f.segments(t, reservationID) == 2
+	}, waitTimeout, 10*time.Millisecond)
+	f.clock.Advance(time.Hour)
+
+	require.NoError(t, wait(t, done))
+	got, _ = f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StatePartial), got.state)
+}
+
+// TestRecorderRetriesSegmentOnResume は、続きを録る mikan が、最初のセグメントを作れなくても、前の mikan が録った分があれば、
+// 録画を失敗にせず、作れるようになるまでやり直すことを確かめる (#519)。
+func TestRecorderRetriesSegmentOnResume(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	free := new(atomic.Uint64)
+	free.Store(1 << 40)
+	stream := newDrainedStream(data)
+	recorder, _ := f.newRecorder(t, stream, func(string) (uint64, error) { return free.Load(), nil })
+	stop, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	stream.wait(t)
+	stop(recording.ErrLeaseLost)
+	require.ErrorIs(t, wait(t, done), recording.ErrLeaseLost)
+
+	// 続きを録る mikan が始めるときに、保存先に空きがない。
+	free.Store(0)
+	f.clock.Advance(time.Minute)
+	_, done = f.session(t, recorder, reservationID)
+	time.Sleep(200 * time.Millisecond)
+	got, _ := f.recording(t, reservationID)
+	require.Equal(t, string(recording.StateRecording), got.state)
+
+	free.Store(1 << 40)
+	require.Eventually(t, func() bool {
+		return f.segments(t, reservationID) == 2
+	}, waitTimeout, 10*time.Millisecond)
+	stream.wait(t)
+	f.clock.Advance(time.Hour)
+	require.NoError(t, wait(t, done))
+	got, _ = f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StatePartial), got.state)
 }
