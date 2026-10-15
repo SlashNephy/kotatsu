@@ -293,3 +293,32 @@ func migratedPool(t *testing.T) *pgxpool.Pool {
 
 	return pool
 }
+
+// TestTryAcquireGivesUpOnStuckLeader は、リーダーの書き込みのトランザクションが固まっていても、ほかのインスタンスが
+// リースを取ろうとして待ち続けず、短い時間であきらめて後でやり直すことを確かめる (#527)。
+func TestTryAcquireGivesUpOnStuckLeader(t *testing.T) {
+	t.Parallel()
+
+	pool := migratedPool(t)
+	clk := clocktest.NewFake(time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC))
+	a := lease.NewManager(pool, clk, leaseName, id.New(), ttl)
+	b := lease.NewManager(pool, clk, leaseName, id.New(), ttl)
+	genA, ok, err := a.TryAcquire(t.Context())
+	require.NoError(t, err)
+	require.True(t, ok)
+	// A の書き込みのトランザクションが、固まったまま残る。
+	txA, err := pool.Begin(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = txA.Rollback(context.WithoutCancel(t.Context())) })
+	require.NoError(t, a.Guard(t.Context(), txA, genA))
+	clk.Advance(ttl + time.Second)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	started := time.Now()
+	_, ok, err = b.TryAcquire(ctx)
+	require.Error(t, err)
+	assert.False(t, ok)
+	require.NotErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(started), 5*time.Second)
+}
