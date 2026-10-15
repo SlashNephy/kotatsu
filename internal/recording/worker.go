@@ -353,7 +353,10 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 		ID: assignment.ID, Generation: assignment.Generation, Holder: &w.holder,
 	})
 	if err != nil {
+		// 終わったことにすると、予約を有効に戻しても書き直せないので、そのままにする。リースが切れれば、ほかの mikan が取り直す。
 		logger.WarnContext(ctx, "failed to delete the unrecorded recording assignment", slog.Any("error", err))
+
+		return
 	}
 	if deleted > 0 {
 		// 録画を始めずに終えた。有効に戻せば、次の見直しで書き直せるよう、消す (#523)。
