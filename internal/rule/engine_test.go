@@ -170,14 +170,14 @@ func TestEngineIsIdempotent(t *testing.T) {
 	f := newEngineFixture(t)
 	f.createRule(t, `テスト番組 (5|6)$`, nil)
 
-	assert.Equal(t, &rule.Result{Created: 2, Deleted: 0, Linked: 2, Unlinked: 0}, f.run(t))
+	assert.Equal(t, &rule.Result{Created: 2, Deleted: 0, Linked: 2, Unlinked: 0, Skipped: []uuid.UUID{}}, f.run(t))
 	want := map[int64]bool{5: true, 6: true}
 	assert.Equal(t, want, f.reserved(t))
 	assert.Equal(t, reserve.KindRule, f.reservationOf(t, 5).Kind)
 
 	// 同じ EPG とルールで何度照合しても、予約の集合は変わらない。
 	for range 3 {
-		assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0}, f.run(t))
+		assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: []uuid.UUID{}}, f.run(t))
 		assert.Equal(t, want, f.reserved(t))
 	}
 }
@@ -242,7 +242,7 @@ func TestEngineKeepsReservationsWhoseRecordingStarted(t *testing.T) {
 		VALUES ($1, $2, $3, 5, '', '', $4, $4, 'recording', $5, $5, $5)`, id.New(), reservation.ID, serviceID(), reservation.StartAt, f.clock.Now())
 	require.NoError(t, err)
 	// ルールに一致したままなら、何も変えない。録画中の予約を作り直そうとしない。
-	assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0}, f.run(t))
+	assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: []uuid.UUID{}}, f.run(t))
 
 	in := unmatchedInput(r)
 	_, err = f.rules.Update(t.Context(), f.pool, f.user, r.ID, in)
@@ -290,7 +290,7 @@ func TestManualReservationOverridesRuleReservation(t *testing.T) {
 			assert.Equal(t, &reserve.Overrides{EndMarginSeconds: new(120)}, got.Overrides)
 
 			// ルールに一致したまま照合しても、手動の予約のまま変えない。
-			assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0}, f.run(t))
+			assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: []uuid.UUID{}}, f.run(t))
 			assert.Equal(t, reserve.KindProgram, f.reservationOf(t, 5).Kind)
 
 			// ルールに一致しなくなっても、手動の予約は残る。
@@ -314,7 +314,7 @@ func TestEngineDoesNotRecreateDisabledReservations(t *testing.T) {
 	require.NoError(t, f.reservations.Delete(t.Context(), f.pool, f.user, f.reservationOf(t, 5).ID))
 	assert.Equal(t, map[int64]bool{5: false}, f.reserved(t))
 
-	assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0}, f.run(t))
+	assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: []uuid.UUID{}}, f.run(t))
 	assert.Equal(t, map[int64]bool{5: false}, f.reserved(t))
 
 	// ルールを消すと、無効にした予約も消える。
@@ -520,4 +520,25 @@ func TestEngineDeletesUncertainReservationsOfDeletedRules(t *testing.T) {
 	require.NoError(t, f.rules.Delete(t.Context(), f.pool, f.user, r.ID))
 	assert.Equal(t, 1, f.run(t).Deleted)
 	assert.Empty(t, f.reserved(t))
+}
+
+// TestEngineSkipsUnreadableRules は、条件を読めないルールがあっても、ほかのルールの照合を続け、読めないルールの予約は
+// 消さずに残すことを確かめる (#529)。ローリング更新の途中で、新しい版が足した条件を古い版が読めなくても、照合が止まらないようにする。
+func TestEngineSkipsUnreadableRules(t *testing.T) {
+	t.Parallel()
+
+	f := newEngineFixture(t)
+	unreadable := f.createRule(t, `テスト番組 5$`, nil)
+	f.run(t)
+	require.Equal(t, map[int64]bool{5: true}, f.reserved(t))
+	// 新しい版が、古い版の知らない条件を書いた。
+	_, err := f.pool.Exec(t.Context(), `UPDATE rules SET conditions = '{"version": 1, "conditions": {"unknownField": true}}' WHERE id = $1`, unreadable.ID)
+	require.NoError(t, err)
+	f.createRule(t, `テスト番組 6$`, nil)
+
+	result := f.run(t)
+	assert.Equal(t, 1, result.Created)
+	assert.Zero(t, result.Deleted)
+	assert.Equal(t, map[int64]bool{5: true, 6: true}, f.reserved(t))
+	assert.Equal(t, []uuid.UUID{unreadable.ID}, f.linkedRules(t, 5))
 }

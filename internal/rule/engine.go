@@ -66,6 +66,8 @@ type Result struct {
 	// Linked と Unlinked は、予約と一致したルールの関係を足した数と除いた数。
 	Linked   int
 	Unlinked int
+	// Skipped は、条件を読めずに照合から外したルール。そのルールの予約は、消さずに残す (#529)。
+	Skipped []uuid.UUID
 }
 
 // programKey は番組の識別子 (サービスと eventId の組)。
@@ -80,13 +82,13 @@ func compareKeys(a, b programKey) int {
 
 // Run は、ルールの照合を 1 回行う。すべて 1 つのトランザクションで読み書きする。
 func (e *Engine) Run(ctx context.Context) (*Result, error) {
-	result := &Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0}
+	result := &Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: []uuid.UUID{}}
 	err := pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
 		if err := e.guard(ctx, tx); err != nil {
 			return err
 		}
 		now := e.clock.Now()
-		desired, err := e.desired(ctx, tx, now)
+		desired, err := e.desired(ctx, tx, now, result)
 		if err != nil {
 			return err
 		}
@@ -101,8 +103,8 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 }
 
 // desired は、予約すべき番組と、それぞれに一致したルールを返す。
-func (e *Engine) desired(ctx context.Context, tx pgx.Tx, now time.Time) (map[programKey]*desiredProgram, error) {
-	rules, err := e.enabledRules(ctx, tx)
+func (e *Engine) desired(ctx context.Context, tx pgx.Tx, now time.Time, result *Result) (map[programKey]*desiredProgram, error) {
+	rules, err := e.enabledRules(ctx, tx, result)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +172,7 @@ func (r *compiledRule) covers(start time.Time) bool {
 	return (r.ValidFrom == nil || !start.Before(*r.ValidFrom)) && (r.ValidUntil == nil || start.Before(*r.ValidUntil))
 }
 
-func (e *Engine) enabledRules(ctx context.Context, tx pgx.Tx) ([]*compiledRule, error) {
+func (e *Engine) enabledRules(ctx context.Context, tx pgx.Tx, result *Result) ([]*compiledRule, error) {
 	rows, err := sqlc.New(tx).ListRules(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list rules: %w", err)
@@ -181,13 +183,18 @@ func (e *Engine) enabledRules(ctx context.Context, tx pgx.Tx) ([]*compiledRule, 
 		if !row.Enabled {
 			continue
 		}
+		// 条件を読めないルール (ローリング更新の途中で、新しい版が足した条件など) は飛ばし、ほかのルールの照合を続ける (#529)。
 		r, err := fromRow(row)
 		if err != nil {
-			return nil, err
+			result.Skipped = append(result.Skipped, row.ID)
+
+			continue
 		}
 		matcher, err := match.Compile(r.Conditions, e.location)
 		if err != nil {
-			return nil, fmt.Errorf("rule %s: %w", r.ID, err)
+			result.Skipped = append(result.Skipped, row.ID)
+
+			continue
 		}
 		rules = append(rules, &compiledRule{Rule: r, matcher: matcher})
 	}
@@ -361,16 +368,7 @@ func (e *Engine) reconcile(
 	q := sqlc.New(tx)
 	isRule := reserve.Kind(row.Kind) == reserve.KindRule
 	switch {
-	case d == nil && isRule && row.Recording:
-		// 録画が始まった予約は、どのルールにも一致しなくなっても消さない。消すと録画を取り消してしまう (#304)。
-		return nil
-	case d == nil && isRule && !row.Decided && len(have) > 0:
-		// 番組が EPG から消えたか、終了時刻が未定になった。どちらも一時的なことがあり、消すと録り逃すので、残す (#518)。
-		// ルールを消して関係もなくなったときは、消したルールの予約で録画しないよう、消す。
-		return nil
-	case d == nil && isRule && !row.Enabled && len(have) > 0:
-		// ユーザーが無効にした予約は、ルールがある間は残す。消すと、また一致したときに有効な予約として作り直してしまう (#518)。
-		// ルールを消すと関係も消えるので、そのときは消す。
+	case d == nil && isRule && keepsUnmatched(&row, have, result):
 		return nil
 	case d == nil && isRule:
 		// どのルールにも一致しなくなった。
@@ -414,7 +412,8 @@ func (e *Engine) link(ctx context.Context, q *sqlc.Queries, reservationID uuid.U
 		result.Linked++
 	}
 	for _, ruleID := range slices.SortedFunc(maps.Keys(have), compareUUIDs) {
-		if want[ruleID] {
+		// 照合から外したルールとの関係は、外さない (#529)。
+		if want[ruleID] || slices.Contains(result.Skipped, ruleID) {
 			continue
 		}
 		if err := q.DeleteReservationRule(ctx, sqlc.DeleteReservationRuleParams{ReservationID: reservationID, RuleID: ruleID}); err != nil {
@@ -428,4 +427,31 @@ func (e *Engine) link(ctx context.Context, q *sqlc.Queries, reservationID uuid.U
 
 func compareUUIDs(a, b uuid.UUID) int {
 	return slices.Compare(a[:], b[:])
+}
+
+// linksAny は、予約が、ruleIDs のどれかと結び付いているかを返す。
+func linksAny(have map[uuid.UUID]bool, ruleIDs []uuid.UUID) bool {
+	return slices.ContainsFunc(ruleIDs, func(id uuid.UUID) bool { return have[id] })
+}
+
+// keepsUnmatched は、どのルールにも一致しなくなったルール予約を、消さずに残すかどうかを返す。
+func keepsUnmatched(row *sqlc.ListFutureProgramReservationsRow, have map[uuid.UUID]bool, result *Result) bool {
+	switch {
+	case row.Recording:
+		// 録画が始まった予約は、消すと録画を取り消してしまう (#304)。
+		return true
+	case linksAny(have, result.Skipped):
+		// 照合から外したルールに結び付いた予約は、一致しなくなったとはみなさない (#529)。
+		return true
+	case !row.Decided && len(have) > 0:
+		// 番組が EPG から消えたか、終了時刻が未定になった。どちらも一時的なことがあり、消すと録り逃す (#518)。
+		// ルールを消して関係もなくなったときは、消したルールの予約で録画しないよう、消す。
+		return true
+	case !row.Enabled && len(have) > 0:
+		// ユーザーが無効にした予約は、ルールがある間は残す。消すと、また一致したときに有効な予約として作り直してしまう (#518)。
+		// ルールを消すと関係も消えるので、そのときは消す。
+		return true
+	default:
+		return false
+	}
 }
