@@ -184,7 +184,7 @@ func (s *Store) Select(pools []*Pool, estimated uint64) (*Pool, error) {
 		return fallback, nil
 	}
 	// 空き容量を調べられたプールがなければ、容量が足りないのではない。調べられなかった理由を返す (#526)。
-	if measured == 0 && len(errs) > 0 {
+	if measured == 0 {
 		return nil, errors.Join(append([]error{ErrPoolUnavailable}, errs...)...)
 	}
 
