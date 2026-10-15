@@ -503,3 +503,21 @@ func TestEngineKeepsDisabledReservationsOfExistingRules(t *testing.T) {
 	assert.Zero(t, f.run(t).Created)
 	assert.Equal(t, map[int64]bool{5: false}, f.reserved(t))
 }
+
+// TestEngineDeletesUncertainReservationsOfDeletedRules は、番組の終了時刻が未定でも、ルールを消したら、そのルール予約を消すことを確かめる。
+// 残すと、消したルールの予約で録画してしまう。
+func TestEngineDeletesUncertainReservationsOfDeletedRules(t *testing.T) {
+	t.Parallel()
+
+	f := newEngineFixture(t)
+	r := f.createRule(t, `テスト番組 6$`, nil)
+	f.run(t)
+	program := f.reservationOf(t, 6)
+	require.NoError(t, f.fake.RescheduleProgram(faketuner.ProgramID(grNetworkID, grServiceID, 6), program.StartAt, time.Millisecond))
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+
+	require.NoError(t, f.rules.Delete(t.Context(), f.pool, f.user, r.ID))
+	assert.Equal(t, 1, f.run(t).Deleted)
+	assert.Empty(t, f.reserved(t))
+}

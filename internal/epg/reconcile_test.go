@@ -550,3 +550,26 @@ func TestSyncAllDeletesSomeVanishedPrograms(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, before-1, f.count(t, "SELECT count(*) FROM programs"))
 }
+
+// TestSyncServicesKeepsProgramsWhenUpstreamReturnsNone は、イベントでサービスの番組を突き合わせるときも、
+// 上流がその番組を 1 つも返さなければ消さないことを確かめる (#518)。
+func TestSyncServicesKeepsProgramsWhenUpstreamReturnsNone(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	before := f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1", serviceID())
+	require.Positive(t, before)
+
+	programs, err := f.client.Programs(t.Context(), nil)
+	require.NoError(t, err)
+	for _, program := range programs {
+		if program.ServiceID == grServiceID && program.NetworkID == grNetworkID {
+			require.NoError(t, f.fake.ForgetProgram(program.ID))
+		}
+	}
+	_, err = f.reconciler.SyncServices(t.Context(), []int64{serviceID()})
+	require.NoError(t, err)
+	assert.Equal(t, before, f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1", serviceID()))
+}

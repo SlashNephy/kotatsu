@@ -364,8 +364,9 @@ func (e *Engine) reconcile(
 	case d == nil && isRule && row.Recording:
 		// 録画が始まった予約は、どのルールにも一致しなくなっても消さない。消すと録画を取り消してしまう (#304)。
 		return nil
-	case d == nil && isRule && !row.Decided:
+	case d == nil && isRule && !row.Decided && len(have) > 0:
 		// 番組が EPG から消えたか、終了時刻が未定になった。どちらも一時的なことがあり、消すと録り逃すので、残す (#518)。
+		// ルールを消して関係もなくなったときは、消したルールの予約で録画しないよう、消す。
 		return nil
 	case d == nil && isRule && !row.Enabled && len(have) > 0:
 		// ユーザーが無効にした予約は、ルールがある間は残す。消すと、また一致したときに有効な予約として作り直してしまう (#518)。

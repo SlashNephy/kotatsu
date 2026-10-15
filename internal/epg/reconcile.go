@@ -180,6 +180,7 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 	if err != nil {
 		return nil, err
 	}
+	programs.deletes = keepSilentServices(programs.deletes, upstreamPrograms)
 
 	return r.apply(ctx, &serviceDiff{upserts: []*mirakurun.Service{}}, programs)
 }
