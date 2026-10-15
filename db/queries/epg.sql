@@ -47,12 +47,12 @@ ORDER BY event_id;
 -- name: UpsertPrograms :batchexec
 INSERT INTO programs (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
-  name, description, name_normalized, description_normalized, extended, genres, related_items, audios,
+  name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
   created_at, updated_at
 )
 VALUES (
   @service_id, @event_id, @mirakurun_id, @start_at, @end_at, @end_undecided, @is_free,
-  @name, @description, @name_normalized, @description_normalized, @extended, @genres, @related_items, @audios,
+  @name, @description, @name_normalized, @description_normalized, @extended_normalized, @extended, @genres, @related_items, @audios,
   @now, @now
 )
 ON CONFLICT (service_id, event_id) DO UPDATE SET
@@ -65,6 +65,7 @@ ON CONFLICT (service_id, event_id) DO UPDATE SET
   description = excluded.description,
   name_normalized = excluded.name_normalized,
   description_normalized = excluded.description_normalized,
+  extended_normalized = excluded.extended_normalized,
   extended = excluded.extended,
   genres = excluded.genres,
   related_items = excluded.related_items,

@@ -1,8 +1,10 @@
 -- name: ListMatchablePrograms :many
 -- ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
 -- 映像か音声を流すサービス (media_service_types) の番組だけを対象にする。
-SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.is_free, p.name, p.description,
-  p.extended, p.genres, p.related_items, s.channel_type
+-- 照合には正規化した列を使う。詳細の正規化した列がない (列を足す前に書いた) 番組だけ、上流の詳細を返す (#530)。
+SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.is_free, p.name, p.name_normalized, p.description_normalized,
+  p.extended_normalized, (CASE WHEN p.extended_normalized IS NULL THEN p.extended ELSE '{}' END)::jsonb AS extended,
+  p.genres, p.related_items, s.channel_type
 FROM programs p
 JOIN services s ON s.id = p.service_id
 WHERE p.start_at > @now AND NOT p.end_undecided AND s.service_type = ANY(@media_service_types::bigint[])

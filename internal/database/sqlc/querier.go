@@ -235,6 +235,7 @@ type Querier interface {
 	ListLeases(ctx context.Context) ([]Lease, error)
 	// ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
 	// 映像か音声を流すサービス (media_service_types) の番組だけを対象にする。
+	// 照合には正規化した列を使う。詳細の正規化した列がない (列を足す前に書いた) 番組だけ、上流の詳細を返す (#530)。
 	ListMatchablePrograms(ctx context.Context, arg ListMatchableProgramsParams) ([]ListMatchableProgramsRow, error)
 	// mikan が 1 台も取らないまま、予定の終わりが過ぎた割り振りの予約。録画の行がまだなければ、失敗として記録する (#517)。
 	ListMissedRecordingAssignments(ctx context.Context, now time.Time) ([]ListMissedRecordingAssignmentsRow, error)

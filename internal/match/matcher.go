@@ -3,16 +3,14 @@ package match
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"regexp"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/epg"
 )
 
-// Program は、照合する番組。文字列の項目は、NewProgram で NFKC で正規化しておく。
+// Program は、照合する番組。文字列の項目は、NewProgram で NFKC で正規化しておくか、DB の正規化した列から入れる。
 type Program struct {
 	ServiceID   int64
 	ChannelType string
@@ -43,20 +41,12 @@ type ProgramInput struct {
 // NewProgram は、照合する番組を作る。文字列を NFKC で正規化する (設計書 3.5)。
 // 詳細は、見出しの順に「見出し\n本文」を改行でつなぐ。
 func NewProgram(in *ProgramInput) *Program {
-	var extended strings.Builder
-	for _, heading := range slices.Sorted(maps.Keys(in.Extended)) {
-		extended.WriteString(heading)
-		extended.WriteString("\n")
-		extended.WriteString(in.Extended[heading])
-		extended.WriteString("\n")
-	}
-
 	return &Program{
 		ServiceID:   in.ServiceID,
 		ChannelType: in.ChannelType,
 		Name:        epg.Normalize(in.Name),
 		Description: epg.Normalize(in.Description),
-		Extended:    epg.Normalize(extended.String()),
+		Extended:    epg.NormalizeExtended(in.Extended),
 		Genres:      in.Genres,
 		StartAt:     in.StartAt,
 		Duration:    in.Duration,

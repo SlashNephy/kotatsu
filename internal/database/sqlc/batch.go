@@ -72,13 +72,13 @@ func (b *DeleteProgramsBatchResults) Close() error {
 const upsertPrograms = `-- name: UpsertPrograms :batchexec
 INSERT INTO programs (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
-  name, description, name_normalized, description_normalized, extended, genres, related_items, audios,
+  name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
   created_at, updated_at
 )
 VALUES (
   $1, $2, $3, $4, $5, $6, $7,
-  $8, $9, $10, $11, $12, $13, $14, $15,
-  $16, $16
+  $8, $9, $10, $11, $12, $13, $14, $15, $16,
+  $17, $17
 )
 ON CONFLICT (service_id, event_id) DO UPDATE SET
   mirakurun_id = excluded.mirakurun_id,
@@ -90,6 +90,7 @@ ON CONFLICT (service_id, event_id) DO UPDATE SET
   description = excluded.description,
   name_normalized = excluded.name_normalized,
   description_normalized = excluded.description_normalized,
+  extended_normalized = excluded.extended_normalized,
   extended = excluded.extended,
   genres = excluded.genres,
   related_items = excluded.related_items,
@@ -115,6 +116,7 @@ type UpsertProgramsParams struct {
 	Description           string
 	NameNormalized        string
 	DescriptionNormalized string
+	ExtendedNormalized    *string
 	Extended              []byte
 	Genres                []byte
 	RelatedItems          []byte
@@ -137,6 +139,7 @@ func (q *Queries) UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams
 			a.Description,
 			a.NameNormalized,
 			a.DescriptionNormalized,
+			a.ExtendedNormalized,
 			a.Extended,
 			a.Genres,
 			a.RelatedItems,

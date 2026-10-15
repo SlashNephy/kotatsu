@@ -561,6 +561,7 @@ func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, no
 			Description:           p.Description,
 			NameNormalized:        Normalize(p.Name),
 			DescriptionNormalized: Normalize(p.Description),
+			ExtendedNormalized:    new(NormalizeExtended(p.Extended)),
 			Extended:              columns.extended,
 			Genres:                columns.genres,
 			RelatedItems:          columns.related,
