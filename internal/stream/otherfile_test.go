@@ -44,6 +44,8 @@ func TestOtherFileHandler(t *testing.T) {
 	mp4 := f.otherFile(t, recordingID, "other", "encoded.MP4", "0123456789")
 	segment := f.otherFile(t, recordingID, "segment", "recorded.m2ts", "ts")
 	another := f.otherFile(t, f.recording(t, "completed"), "other", "another.mp4", "another")
+	html := f.otherFile(t, recordingID, "other", "番組.html", "<script>alert(1)</script>")
+	svg := f.otherFile(t, recordingID, "other", "logo.SVG", "<svg></svg>")
 
 	tests := []struct {
 		name       string
@@ -53,12 +55,23 @@ func TestOtherFileHandler(t *testing.T) {
 		wantStatus int
 		wantType   string
 		wantBody   string
+		// wantDisposition は、Content-Disposition。空なら付けないことを確かめる。
+		wantDisposition string
 	}{
 		{name: "全体", pools: nil, fileID: mp4, rangeValue: "", wantStatus: http.StatusOK, wantType: "video/mp4", wantBody: "0123456789"},
 		{name: "Range", pools: nil, fileID: mp4, rangeValue: "bytes=2-5", wantStatus: http.StatusPartialContent, wantType: "video/mp4", wantBody: "2345"},
 		{name: "セグメントは流さない", pools: nil, fileID: segment, rangeValue: "", wantStatus: http.StatusNotFound, wantType: "", wantBody: ""},
 		{name: "ほかの録画のファイル", pools: nil, fileID: another, rangeValue: "", wantStatus: http.StatusNotFound, wantType: "", wantBody: ""},
 		{name: "ないファイル", pools: nil, fileID: id.New(), rangeValue: "", wantStatus: http.StatusNotFound, wantType: "", wantBody: ""},
+		{
+			name: "HTML はダウンロードさせる", pools: nil, fileID: html, rangeValue: "", wantStatus: http.StatusOK,
+			wantType: "application/octet-stream", wantBody: "<script>alert(1)</script>",
+			wantDisposition: "attachment; filename*=utf-8''%E7%95%AA%E7%B5%84.html",
+		},
+		{
+			name: "SVG はダウンロードさせる", pools: nil, fileID: svg, rangeValue: "", wantStatus: http.StatusOK,
+			wantType: "application/octet-stream", wantBody: "<svg></svg>", wantDisposition: `attachment; filename=logo.SVG`,
+		},
 		{
 			name: "プールをマウントしていない", pools: map[string]string{}, fileID: mp4, rangeValue: "",
 			wantStatus: http.StatusServiceUnavailable, wantType: "", wantBody: "",
@@ -93,6 +106,9 @@ func TestOtherFileHandler(t *testing.T) {
 			}
 			assert.Equal(t, tt.wantType, res.Header.Get("Content-Type"))
 			assert.Equal(t, tt.wantBody, string(body))
+			assert.Equal(t, tt.wantDisposition, res.Header.Get("Content-Disposition"))
+			assert.Equal(t, "sandbox", res.Header.Get("Content-Security-Policy"))
+			assert.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"))
 		})
 	}
 }
