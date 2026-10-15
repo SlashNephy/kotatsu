@@ -364,6 +364,34 @@ func TestVODStopsAbandonedEncoder(t *testing.T) {
 	assert.Equal(t, 1, f.vod.Sessions())
 }
 
+// TestVODKeepsEncoderWhileViewerPlaysWrittenSegments は、エンコーダーが先に書いたセグメントを視聴者が見ている間は、
+// そのエンコーダーを止めないことを確かめる (#531)。止めると、書いた分を見終えたところで起動し直し、再生が止まる。
+func TestVODKeepsEncoderWhileViewerPlaysWrittenSegments(t *testing.T) {
+	t.Parallel()
+
+	encoder := new(fakeVODEncoder)
+	f := newVODFixture(t, encoder)
+	recordingID := f.longRecording(t, time.Minute)
+	status, _ := f.get(t, recordingID, "segment00000.ts")
+	require.Equal(t, http.StatusOK, status)
+	// エンコーダーは、視聴者より先に書き進める。
+	require.Eventually(t, func() bool {
+		entries, err := filepath.Glob(filepath.Join(f.workDir, "recordings", "*", "segment00010.ts"))
+
+		return err == nil && len(entries) == 1
+	}, 5*time.Second, 10*time.Millisecond)
+
+	// 視聴者は、書き終えたセグメントを 2 秒ごとに見続ける。
+	for segment := 1; segment <= 6; segment++ {
+		f.clock.Advance(2 * time.Second)
+		status, _ := f.get(t, recordingID, fmt.Sprintf("segment%05d.ts", segment))
+		require.Equal(t, http.StatusOK, status)
+		f.vod.Reap(f.clock.Now())
+	}
+	assert.Equal(t, int32(1), encoder.running.Load())
+	assert.Equal(t, []int{0}, encoder.starts.Load())
+}
+
 // TestVODErrors は、配信できない理由に応じた状態を返すことを確かめる。
 func TestVODErrors(t *testing.T) {
 	t.Parallel()

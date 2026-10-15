@@ -237,7 +237,7 @@ func (v *VOD) stopAll() {
 func (v *VOD) close(s *vodSession) {
 	s.runMu.Lock()
 	runs := s.runs
-	s.runs = nil
+	s.runs = []*vodRun{}
 	s.runMu.Unlock()
 	for _, run := range runs {
 		run.cancel()
@@ -411,6 +411,13 @@ func (v *VOD) awaitSegment(ctx context.Context, s *vodSession, preset *Preset, n
 	s.lastAccess = v.clock.Now()
 	v.mu.Unlock()
 	if _, err := os.Stat(path); err == nil {
+		// エンコーダーが先に書いたセグメントを見ている間は、そのエンコーダーを使っているとみなす。
+		s.runMu.Lock()
+		if run := s.coveringLocked(number); run != nil {
+			run.lastUsed = v.clock.Now()
+		}
+		s.runMu.Unlock()
+
 		return path, nil
 	}
 	// 録画の外のセグメントのために、エンコーダーを起動し直さない。
@@ -481,13 +488,10 @@ func (v *VOD) ensureRun(ctx context.Context, s *vodSession, preset *Preset, numb
 	defer s.runMu.Unlock()
 	s.pruneLocked()
 	now := v.clock.Now()
-	for _, run := range s.runs {
-		next := nextSegment(s.dir, run.start, run.startedAt)
-		if number >= run.start && number <= next+aheadSegments {
-			run.lastUsed = now
+	if run := s.coveringLocked(number); run != nil {
+		run.lastUsed = now
 
-			return run, nil
-		}
+		return run, nil
 	}
 	if len(s.runs) >= maxVODRuns {
 		s.stopLocked(slices.MinFunc(s.runs, func(a, b *vodRun) int { return a.lastUsed.Compare(b.lastUsed) }))
@@ -500,6 +504,20 @@ func (v *VOD) ensureRun(ctx context.Context, s *vodSession, preset *Preset, numb
 	s.runs = append(s.runs, run)
 
 	return run, nil
+}
+
+// coveringLocked は、次に書くセグメントから aheadSegments 先までに number を書く (または書いた) エンコーダーのうち、
+// 最も後ろから書き始めたもの、つまり number に最も近いものを返す。なければ nil を返す。runMu を持って呼ぶ。
+func (s *vodSession) coveringLocked(number int) *vodRun {
+	var covering *vodRun
+	for _, run := range s.runs {
+		next := nextSegment(s.dir, run.start, run.startedAt)
+		if number >= run.start && number <= next+aheadSegments && (covering == nil || run.start > covering.start) {
+			covering = run
+		}
+	}
+
+	return covering
 }
 
 // pruneLocked は、止まったエンコーダーを runs から除き、前のエンコーダーが書いた位置に追いついた後ろのエンコーダーを止める。
