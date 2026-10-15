@@ -235,3 +235,44 @@ func waitWake(t *testing.T, wake <-chan struct{}) {
 		t.Fatal("the subscriber was not woken")
 	}
 }
+
+// TestLoopRetriesFirstPoll は、変更の知らせを見張り始めるときの最初の問い合わせが失敗しても、Loop を終えずにやり直すことを確かめる (#528)。
+// 終えると、neko のリーダーの処理がエラーで終わり、リーダーを降りることになる。
+func TestLoopRetriesFirstPoll(t *testing.T) {
+	t.Parallel()
+
+	// マイグレーションの前の DB では、版数の表がないので、最初の問い合わせが失敗する。
+	pool, err := database.Open(t.Context(), databasetest.New(t))
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	ran := make(chan struct{}, 1)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		done <- notify.Loop(ctx, pool, slog.New(slog.DiscardHandler), &notify.LoopOptions{
+			Channels: []string{channel}, Debounce: 0, Interval: time.Hour,
+			Watcher: notify.WatcherOptions{UseListen: false, PollInterval: 100 * time.Millisecond},
+		}, func(context.Context) {
+			select {
+			case ran <- struct{}{}:
+			default:
+			}
+		})
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("the loop stopped on the first poll: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	// DB が使えるようになれば、見張り始める。
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+	select {
+	case <-ran:
+	case <-time.After(waitTimeout):
+		t.Fatal("the loop did not start after the database became available")
+	}
+	cancel()
+	require.NoError(t, <-done)
+}

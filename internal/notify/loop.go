@@ -24,15 +24,22 @@ type LoopOptions struct {
 	Watcher  WatcherOptions
 }
 
+const (
+	// firstPollBackoff と maxFirstPollBackoff は、見張り始めるときの最初の問い合わせをやり直すまでの間隔と、その上限。
+	firstPollBackoff    = 500 * time.Millisecond
+	maxFirstPollBackoff = 30 * time.Second
+)
+
 // Loop は、ctx が終わるまで、始めたとき、Channels のどれかが変わったとき、Interval ごとに run を呼ぶ。
 // 立て続けの変更は、Debounce の間待ってから 1 回にまとめる。
 func Loop(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, opts *LoopOptions, run func(ctx context.Context)) error {
 	if opts.Interval <= 0 {
 		return fmt.Errorf("%w: interval must be positive: %s", errInvalidLoop, opts.Interval)
 	}
-	watcher, err := NewWatcher(ctx, pool, logger, opts.Channels, opts.Watcher)
-	if err != nil {
-		return fmt.Errorf("failed to watch %v: %w", opts.Channels, err)
+	watcher, ok := watch(ctx, pool, logger, opts)
+	if !ok {
+		// 見張り始める前に止められた。
+		return nil
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -64,5 +71,26 @@ func Loop(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, opts *Lo
 			default:
 			}
 		}
+	}
+}
+
+// watch は、変更の知らせを見張り始める。最初の問い合わせが失敗しても、ctx が終わるまで、間を空けてやり直す (#528)。
+// 見張り始める前に ctx が終わったら、false を返す。
+func watch(ctx context.Context, pool *pgxpool.Pool, logger *slog.Logger, opts *LoopOptions) (*Watcher, bool) {
+	backoff := firstPollBackoff
+	for {
+		watcher, err := NewWatcher(ctx, pool, logger, opts.Channels, opts.Watcher)
+		if err == nil {
+			return watcher, true
+		}
+		if ctx.Err() == nil {
+			logger.WarnContext(ctx, "failed to start watching changes; retrying", slog.Any("channels", opts.Channels), slog.Any("error", err))
+		}
+		select {
+		case <-ctx.Done():
+			return nil, false
+		case <-time.After(backoff):
+		}
+		backoff = min(backoff*2, maxFirstPollBackoff)
 	}
 }
