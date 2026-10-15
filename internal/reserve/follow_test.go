@@ -213,23 +213,26 @@ func TestFollowerRelaysRuleSettings(t *testing.T) {
 func TestFollowerRemovesFinishedReservations(t *testing.T) {
 	t.Parallel()
 
+	// recording は、録画中の割り振りと録画の状態。
+	const recording = "recording"
+
 	tests := []struct {
 		name string
 		// elapsed は、予約を作ってから追従するまでに進める時間。予約の番組は 13:30〜14:00 で、今は 12:10。
 		elapsed time.Duration
 		// assignment は、録画の割り振りの状態。空なら割り振りを作らない。
 		assignment string
-		// recording は、録画中の録画の行を作るかどうか。
-		recording   bool
+		// recording は、録画の行の状態。空なら録画の行を作らない。
+		recording   string
 		wantRemoved int
 	}{
-		{name: "after the grace", elapsed: 3 * time.Hour, assignment: "", recording: false, wantRemoved: 1},
-		{name: "after the grace with a finished assignment", elapsed: 3 * time.Hour, assignment: "finished", recording: false, wantRemoved: 1},
-		{name: "within the grace", elapsed: 2 * time.Hour, assignment: "", recording: false, wantRemoved: 0},
-		{name: "not ended", elapsed: 0, assignment: "", recording: false, wantRemoved: 0},
-		{name: "still recording", elapsed: 3 * time.Hour, assignment: "recording", recording: true, wantRemoved: 0},
-		{name: "waiting for a handover", elapsed: 3 * time.Hour, assignment: "handover", recording: true, wantRemoved: 0},
-		{name: "recording without an assignment", elapsed: 3 * time.Hour, assignment: "", recording: true, wantRemoved: 0},
+		{name: "after the grace", elapsed: 3 * time.Hour, assignment: "", recording: "", wantRemoved: 1},
+		{name: "after the grace with a completed recording", elapsed: 3 * time.Hour, assignment: "finished", recording: "completed", wantRemoved: 1},
+		{name: "within the grace", elapsed: 2 * time.Hour, assignment: "", recording: "", wantRemoved: 0},
+		{name: "not ended", elapsed: 0, assignment: "", recording: "", wantRemoved: 0},
+		{name: "still recording", elapsed: 3 * time.Hour, assignment: recording, recording: recording, wantRemoved: 0},
+		{name: "waiting for a handover", elapsed: 3 * time.Hour, assignment: "handover", recording: recording, wantRemoved: 0},
+		{name: "recording without an assignment", elapsed: 3 * time.Hour, assignment: "", recording: recording, wantRemoved: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -243,11 +246,11 @@ func TestFollowerRemovesFinishedReservations(t *testing.T) {
 					VALUES ($1, $2, 0, $3, 1, $4, $4)`, id.New(), reservation.ID, tt.assignment, testNow())
 				require.NoError(t, err)
 			}
-			if tt.recording {
+			if tt.recording != "" {
 				_, err = f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
 					state, recorded_from, protected, created_at, updated_at)
-					VALUES ($1, $2, $3, $4, '録画', '', $5, $6, 'recording', $5, false, $5, $5)`,
-					id.New(), reservation.ID, serviceID(), futureEvent, reservation.StartAt, reservation.EndAt)
+					VALUES ($1, $2, $3, $4, '録画', '', $5, $6, $7, $5, false, $5, $5)`,
+					id.New(), reservation.ID, serviceID(), futureEvent, reservation.StartAt, reservation.EndAt, tt.recording)
 				require.NoError(t, err)
 			}
 			f.clock.Advance(tt.elapsed)
@@ -256,8 +259,11 @@ func TestFollowerRemovesFinishedReservations(t *testing.T) {
 			_, err = f.reservations.Get(t.Context(), f.pool, reservation.ID)
 			if tt.wantRemoved > 0 {
 				require.ErrorIs(t, err, reserve.ErrNotFound)
-				// 消したことを監査ログに残す。
+				// 消したことを監査ログに残す。録画は残る。
 				assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM audit_events WHERE action = 'reservation.delete' AND target_id = $1", reservation.ID.String()))
+				if tt.recording != "" {
+					assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM recordings WHERE event_id = $1 AND reservation_id IS NULL", futureEvent))
+				}
 			} else {
 				require.NoError(t, err)
 			}
@@ -346,4 +352,27 @@ func TestFollowerDoesNotRewriteEndedReservations(t *testing.T) {
 			assert.Equal(t, tt.wantEnd, got.EndAt)
 		})
 	}
+}
+
+// TestFollowerKeepsExtendedReservations は、割り当ての予定の終わりより後まで放送が延びた予約を、延びた終わりまで消さないことを確かめる。
+func TestFollowerKeepsExtendedReservations(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservation, _, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, programInput())
+	require.NoError(t, err)
+	// 割り当ては、番組 (13:30〜14:00) の終わりにマージンを足した時刻を予定の終わりにした。
+	_, err = f.pool.Exec(t.Context(), "UPDATE reservations SET assignment_state = 'ok', planned_start_at = $2, planned_end_at = $3 WHERE id = $1",
+		reservation.ID, time.Date(2026, 10, 10, 13, 29, 45, 0, time.UTC), time.Date(2026, 10, 10, 14, 0, 15, 0, time.UTC))
+	require.NoError(t, err)
+	// 放送が 15:30 まで延びた。
+	require.NoError(t, f.fake.ExtendProgram(faketuner.ProgramID(grNetworkID, grServiceID, futureEvent), 90*time.Minute))
+	f.syncEPG(t)
+	assert.Equal(t, 1, f.follow(t).Updated)
+
+	// 割り当ての予定の終わりからは 1 時間が過ぎたが、延びた終わりからは過ぎていない。
+	f.clock.Advance(3 * time.Hour)
+	assert.Zero(t, f.follow(t).Removed)
+	_, err = f.reservations.Get(t.Context(), f.pool, reservation.ID)
+	require.NoError(t, err)
 }

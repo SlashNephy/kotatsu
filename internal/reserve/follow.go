@@ -279,11 +279,18 @@ func (f *Follower) removeFinished(ctx context.Context, tx pgx.Tx, now time.Time)
 	if err != nil {
 		return 0, fmt.Errorf("failed to list finished reservations: %w", err)
 	}
+	removed := 0
 	for _, reservationID := range ids {
-		if err := f.reservations.remove(ctx, tx, followerActor(), reservationID); err != nil {
+		err := f.reservations.remove(ctx, tx, followerActor(), reservationID)
+		// 一覧を読んだ後に、ユーザーが先に消していれば飛ばす。
+		if errors.Is(err, ErrNotFound) {
+			continue
+		}
+		if err != nil {
 			return 0, err
 		}
+		removed++
 	}
 
-	return len(ids), nil
+	return removed, nil
 }

@@ -50,9 +50,10 @@ RETURNING id;
 -- name: ListFinishedReservations :many
 -- 放送が終わって before より前に録画の予定の終わりが過ぎ、録画も終わった予約。
 -- 割り振りが終わっていないか、録画中の録画があれば、引き継ぎや延長の途中なので含めない。
+-- 割り当ての後に放送が延びると、予定の終わりより番組の終わりが後になるので、遅いほうで比べる。
 SELECT r.id
 FROM reservations r
-WHERE coalesce(r.planned_end_at, r.end_at) <= @before::timestamptz
+WHERE greatest(r.planned_end_at, r.end_at) <= @before::timestamptz
   AND NOT EXISTS (SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.id AND a.state <> 'finished')
   AND NOT EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id AND rec.state = 'recording')
 ORDER BY r.id;

@@ -197,6 +197,7 @@ type Querier interface {
 	ListFinishedRecordingSegments(ctx context.Context) ([]ListFinishedRecordingSegmentsRow, error)
 	// 放送が終わって before より前に録画の予定の終わりが過ぎ、録画も終わった予約。
 	// 割り振りが終わっていないか、録画中の録画があれば、引き継ぎや延長の途中なので含めない。
+	// 割り当ての後に放送が延びると、予定の終わりより番組の終わりが後になるので、遅いほうで比べる。
 	ListFinishedReservations(ctx context.Context, before time.Time) ([]uuid.UUID, error)
 	// ルール予約の録画設定に使う、一致したルールのうち最も古いものの上書き。
 	ListFirstRuleSettings(ctx context.Context, reservationIds []uuid.UUID) ([]ListFirstRuleSettingsRow, error)

@@ -52,7 +52,7 @@ func (q *Queries) InsertRelayedReservation(ctx context.Context, arg InsertRelaye
 const listFinishedReservations = `-- name: ListFinishedReservations :many
 SELECT r.id
 FROM reservations r
-WHERE coalesce(r.planned_end_at, r.end_at) <= $1::timestamptz
+WHERE greatest(r.planned_end_at, r.end_at) <= $1::timestamptz
   AND NOT EXISTS (SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.id AND a.state <> 'finished')
   AND NOT EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id AND rec.state = 'recording')
 ORDER BY r.id
@@ -60,6 +60,7 @@ ORDER BY r.id
 
 // 放送が終わって before より前に録画の予定の終わりが過ぎ、録画も終わった予約。
 // 割り振りが終わっていないか、録画中の録画があれば、引き継ぎや延長の途中なので含めない。
+// 割り当ての後に放送が延びると、予定の終わりより番組の終わりが後になるので、遅いほうで比べる。
 func (q *Queries) ListFinishedReservations(ctx context.Context, before time.Time) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listFinishedReservations, before)
 	if err != nil {
