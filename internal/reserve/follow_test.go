@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -431,4 +432,26 @@ func TestReservationsOfUndecidedPrograms(t *testing.T) {
 			assert.Equal(t, relayedStart.Add(30*time.Minute), got.EndAt)
 		})
 	}
+}
+
+// TestDeletingRelayedReservationDisablesIt は、イベントリレーで引き継いだ予約を消す操作では、予約を消さずに無効にし、
+// 追従で作り直さないことを確かめる (#522)。消すと、引き継ぎ元がある限り、次の追従でまた作られていた。
+func TestDeletingRelayedReservationDisablesIt(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	original, _, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, programInput())
+	require.NoError(t, err)
+	f.addRelayingProgram(time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC))
+	f.syncEPG(t)
+	require.Equal(t, 1, f.follow(t).Relayed)
+	var relayedID uuid.UUID
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT id FROM reservations WHERE relayed_from = $1", original.ID).Scan(&relayedID))
+
+	require.NoError(t, f.reservations.Delete(t.Context(), f.pool, f.user, relayedID))
+	assert.Zero(t, f.follow(t).Relayed)
+	got, err := f.reservations.Get(t.Context(), f.pool, relayedID)
+	require.NoError(t, err)
+	assert.False(t, got.Enabled)
+	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM reservations WHERE relayed_from = $1", original.ID))
 }
