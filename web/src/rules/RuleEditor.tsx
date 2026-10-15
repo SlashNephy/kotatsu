@@ -30,6 +30,7 @@ import { hasConditions } from '../conditions/form';
 import { ConditionsFields, type ServiceOption } from '../conditions/ConditionsFields';
 import { toInput, type RuleForm } from './form';
 import { RulePreview } from './RulePreview';
+import { useSyncedForm } from './useSyncedForm';
 import { InheritedFileNameTemplateField } from '../reservations/FileNameTemplateField';
 import { MarginFields } from '../reservations/MarginFields';
 
@@ -46,11 +47,74 @@ type Props = {
   readOnly: boolean;
 };
 
+// ruleEditorRuleFragment は、編集の画面が読むルールの項目。保存の結果でも同じ項目を受け取り、ストアに古い値を残さない (#533)。
+export const ruleEditorRuleFragment = graphql`
+  fragment RuleEditor_rule on Rule {
+    id
+    name
+    memo
+    enabled
+    conditions {
+      keywords {
+        text
+        regexp
+        caseSensitive
+        fields
+      }
+      keywordMatch
+      excludeKeywords {
+        text
+        regexp
+        caseSensitive
+        fields
+      }
+      channelTypes
+      services {
+        id
+      }
+      genres {
+        lv1
+        lv2
+      }
+      excludeGenres {
+        lv1
+        lv2
+      }
+      timeRanges {
+        weekdays
+        startMinute
+        durationMinutes
+      }
+      minDurationSeconds
+      maxDurationSeconds
+      freeOnly
+    }
+    settings {
+      poolId
+      fileNameTemplate
+      startMarginSeconds
+      endMarginSeconds
+      priority
+      joinSegments
+    }
+    validFrom
+    validUntil
+    avoidDuplicates
+    duplicateWindowDays
+    followEventRelay
+  }
+`;
+
+// sameRule は、2 つの入力が、保存すると同じルールになるかどうかを返す。
+function sameRule(a: RuleForm, b: RuleForm) {
+  return JSON.stringify(toInput(a)) === JSON.stringify(toInput(b));
+}
+
 // RuleEditor は、ルールを編集するフォームと、条件に一致する番組のプレビュー (設計書 4.3)。
 export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [form, setForm] = useState(initial);
+  const { form, outdated, set: setFields, reload } = useSyncedForm(initial, sameRule);
   const [result, setResult] = useState<'saved' | 'error' | null>(null);
   const [deleting, setDeleting] = useState(false);
   // previewPrograms は、プレビューに出ている番組。ファイル名のテンプレートを当てはめる番組の候補にする。
@@ -65,9 +129,7 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
   const [update, updating] = useMutation<RuleEditorUpdateMutation>(graphql`
     mutation RuleEditorUpdateMutation($id: ID!, $input: RuleInput!) {
       updateRule(id: $id, input: $input) {
-        id
-        name
-        enabled
+        ...RuleEditor_rule
       }
     }
   `);
@@ -80,7 +142,7 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
   const conditionsGiven = hasConditions(form);
   const set = (patch: Partial<RuleForm>) => {
     setResult(null);
-    setForm((prev) => ({ ...prev, ...patch }));
+    setFields(patch);
   };
 
   const submit = (event: FormEvent) => {
@@ -258,6 +320,23 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
                 </Stack>
               </Card>
               {!conditionsGiven && <Alert color="amber">{t('rules.noConditions')}</Alert>}
+              {outdated && (
+                <Alert color="amber" role="status">
+                  <Group justify="space-between" gap="xs">
+                    <Text size="sm">{t('rules.outdated')}</Text>
+                    <Button
+                      size="compact-sm"
+                      variant="light"
+                      onClick={() => {
+                        setResult(null);
+                        reload();
+                      }}
+                    >
+                      {t('rules.reload')}
+                    </Button>
+                  </Group>
+                </Alert>
+              )}
               {result === 'saved' && (
                 <Alert color="green" role="status">
                   {t('rules.saved')}
