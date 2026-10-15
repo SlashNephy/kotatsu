@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -13,8 +14,8 @@ import (
 )
 
 // maxSecondFactorAttempts は、1 回のパスワードの確認で、第二要素の確認に失敗してよい回数 (付録 A)。
-// 超えたら、パスワードの確認からやり直させる。パスワードの確認は試行回数を制限しているので、
-// 第二要素のコードを総当たりで当てられない。
+// 超えたら、パスワードの確認からやり直させる。第二要素の失敗も、パスワードの失敗と同じく、
+// アカウント単位と IP 単位の試行回数の制限に数えるので、やり直しても第二要素のコードを総当たりで当てられない。
 const maxSecondFactorAttempts = 5
 
 var (
@@ -30,6 +31,32 @@ type LoginResult struct {
 	Session *Session
 	// RecoveryCodes は、ログインの途中で TOTP を登録したときのリカバリーコード。ここでしか見せない。
 	RecoveryCodes []string
+}
+
+// throttledChallenge は、challenge で待っているログインを引き、そのユーザーとアドレスの試行回数の制限の
+// キーを返す。待ち時間の中なら ThrottledError を返す。
+func (l *Logins) throttledChallenge(ctx context.Context, tx pgx.Tx, token string, client *ClientInfo) (*sqlc.LoginChallenge, *loginAttempt, error) {
+	row, err := l.challenge(ctx, tx, token)
+	if err != nil {
+		return nil, nil, err
+	}
+	user, err := sqlc.New(tx).GetUser(ctx, row.UserID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get the user: %w", err)
+	}
+	attempt := &loginAttempt{username: user.Username, keys: throttleKeys(user.Username, client.SourceIP), now: l.clock.Now()}
+	if err := checkThrottleIn(ctx, tx, attempt.keys, attempt.now); err != nil {
+		return nil, nil, err
+	}
+
+	return row, attempt, nil
+}
+
+// loginAttempt は、第二要素の確認の試行。失敗を数えるキーを持つ。
+type loginAttempt struct {
+	username string
+	keys     []string
+	now      time.Time
 }
 
 // challenge は、トークンの指す、第二要素の確認を待つログインを引き、ロックする。
@@ -78,19 +105,19 @@ func (l *Logins) complete(
 	var result *LoginResult
 	var verifyErr error
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		row, err := l.challenge(ctx, tx, token)
+		row, attempt, err := l.throttledChallenge(ctx, tx, token, client)
 		if err != nil {
 			return err
 		}
 		verifyErr = verify(tx, row)
 		if errors.Is(verifyErr, ErrInvalidSecondFactor) {
 			// 失敗は、ロールバックせずに数えて残す。
-			return l.recordSecondFactorFailure(ctx, tx, row, method, client)
+			return l.recordSecondFactorFailure(ctx, tx, row, attempt, method, client)
 		}
 		if verifyErr != nil {
 			return verifyErr
 		}
-		result, err = l.finish(ctx, tx, row, method, client)
+		result, err = l.finish(ctx, tx, row, attempt, method, client)
 
 		return err
 	})
@@ -104,7 +131,15 @@ func (l *Logins) complete(
 	return result, nil
 }
 
-func (l *Logins) recordSecondFactorFailure(ctx context.Context, tx pgx.Tx, row *sqlc.LoginChallenge, method SecondFactor, client *ClientInfo) error {
+// recordSecondFactorFailure は、第二要素の失敗を、待っているログインと、アカウント単位と IP 単位の試行回数の制限に数える。
+func (l *Logins) recordSecondFactorFailure(
+	ctx context.Context,
+	tx pgx.Tx,
+	row *sqlc.LoginChallenge,
+	attempt *loginAttempt,
+	method SecondFactor,
+	client *ClientInfo,
+) error {
 	q := sqlc.New(tx)
 	failures, err := q.IncrementLoginChallengeFailures(ctx, row.ID)
 	if err != nil {
@@ -116,21 +151,24 @@ func (l *Logins) recordSecondFactorFailure(ctx context.Context, tx pgx.Tx, row *
 		}
 	}
 
-	return l.recorder.Record(ctx, tx, &audit.Event{
-		Actor:      audit.User(row.UserID),
-		Action:     actionLoginFailed,
-		TargetType: loginAuditTarget,
-		TargetID:   row.UserID.String(),
-		Summary:    map[string]any{summaryMethod: string(method)},
-		SourceIP:   client.SourceIP,
-		UserAgent:  client.UserAgent,
-	})
+	return l.recordFailure(ctx, tx, attempt.keys, &row.UserID, attempt.username, client, attempt.now, actionLoginFailed, string(method))
 }
 
-// finish は、待っているログインを消し、セッションを作る。
-func (l *Logins) finish(ctx context.Context, tx pgx.Tx, row *sqlc.LoginChallenge, method SecondFactor, client *ClientInfo) (*LoginResult, error) {
-	if err := sqlc.New(tx).DeleteLoginChallenge(ctx, row.ID); err != nil {
+// finish は、待っているログインを消し、アカウント単位の失敗の回数を消して、セッションを作る。
+func (l *Logins) finish(
+	ctx context.Context,
+	tx pgx.Tx,
+	row *sqlc.LoginChallenge,
+	attempt *loginAttempt,
+	method SecondFactor,
+	client *ClientInfo,
+) (*LoginResult, error) {
+	q := sqlc.New(tx)
+	if err := q.DeleteLoginChallenge(ctx, row.ID); err != nil {
 		return nil, fmt.Errorf("failed to delete the login challenge: %w", err)
+	}
+	if err := q.ResetLoginThrottle(ctx, attempt.keys[0]); err != nil {
+		return nil, fmt.Errorf("failed to reset the login throttle: %w", err)
 	}
 
 	return l.startSession(ctx, tx, row.UserID, method, client)
@@ -204,7 +242,7 @@ func (l *Logins) CompleteEnrollment(ctx context.Context, db Database, token, cod
 	var result *LoginResult
 	var verifyErr error
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		row, err := l.challenge(ctx, tx, token)
+		row, attempt, err := l.throttledChallenge(ctx, tx, token, client)
 		if err != nil {
 			return err
 		}
@@ -218,12 +256,12 @@ func (l *Logins) CompleteEnrollment(ctx context.Context, db Database, token, cod
 		codes, err := l.factors.ConfirmTOTP(ctx, tx, audit.UserFrom(row.UserID, client.SourceIP, client.UserAgent), row.UserID, code)
 		verifyErr = err
 		if errors.Is(err, ErrInvalidSecondFactor) {
-			return l.recordSecondFactorFailure(ctx, tx, row, SecondFactorTOTP, client)
+			return l.recordSecondFactorFailure(ctx, tx, row, attempt, SecondFactorTOTP, client)
 		}
 		if err != nil {
 			return err
 		}
-		result, err = l.finish(ctx, tx, row, SecondFactorTOTP, client)
+		result, err = l.finish(ctx, tx, row, attempt, SecondFactorTOTP, client)
 		if err != nil {
 			return err
 		}
