@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"slices"
 	"time"
 
@@ -32,6 +33,8 @@ const (
 	maxDeletionsPerPool = 50
 	// auditRole は、容量の管理で録画を消す操作者のロール。
 	auditRole = "nekonote"
+	// segmentKind は、録画ファイル (セグメント) の種類。
+	segmentKind = "segment"
 )
 
 // Manager は、保存先プールの容量を管理する。
@@ -93,23 +96,46 @@ func (m *Manager) check(ctx context.Context, row *sqlc.StoragePool, mounted []st
 		return nil, err
 	}
 	result := &PoolResult{PoolID: row.ID, FreeBytes: free, Deleted: 0, Low: false}
-	for attempts := 0; free < threshold && attempts < maxDeletionsPerPool; attempts++ {
-		candidates, err := sqlc.New(m.pool).ListDeletableRecordings(ctx, sqlc.ListDeletableRecordingsParams{PoolID: row.ID, Mounted: mounted, MaxCount: 1})
-		if err != nil {
-			return nil, fmt.Errorf("failed to list deletable recordings: %w", err)
-		}
-		if len(candidates) == 0 {
-			break
-		}
-		deleted, err := m.delete(ctx, candidates[0].ID, row.ID)
+	if free >= threshold {
+		return result, m.report(ctx, row, result)
+	}
+	candidates, err := sqlc.New(m.pool).ListDeletableRecordings(ctx, sqlc.ListDeletableRecordingsParams{
+		PoolID: row.ID, Mounted: mounted, MaxCount: maxDeletionsPerPool,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list deletable recordings: %w", err)
+	}
+	for i := 0; i < len(candidates) && free < threshold; i++ {
+		// 録画ファイルが 1 つも見つからない録画は、消しても空きが増えない。プールの実体がマウントされず、
+		// 空のディレクトリを測っているときに、録画の記録を消し続けないよう、消さない (#513)。
+		found, err := m.hasFiles(ctx, candidates[i].ID)
 		if err != nil {
 			return nil, err
 		}
-		if deleted {
-			result.Deleted++
+		if !found {
+			m.logger.WarnContext(ctx, "skipped a recording whose files are not found in the storage pool; the pool may not be mounted",
+				slog.String("recording_id", candidates[i].ID.String()), slog.String("pool_id", row.ID))
+
+			continue
 		}
+		deleted, err := m.delete(ctx, candidates[i].ID, row.ID)
+		if err != nil {
+			return nil, err
+		}
+		if !deleted {
+			continue
+		}
+		result.Deleted++
+		before := free
 		if free, err = m.store.PoolFreeSpace(row.ID); err != nil {
 			return nil, err
+		}
+		// 消しても空きが増えなければ (スナップショットや、ファイルを開いたままの視聴者)、録画を次々に消さないよう、この回はやめる (#513)。
+		if free <= before {
+			m.logger.WarnContext(ctx, "the free space did not grow after deleting a recording; stopped deleting for now",
+				slog.String("pool_id", row.ID), slog.Uint64("free_bytes", free))
+
+			break
 		}
 	}
 	result.FreeBytes = free
@@ -202,4 +228,26 @@ func CheckPeriodicJob() *river.PeriodicJob {
 		},
 		&river.PeriodicJobOpts{ID: "storage_capacity_check", RunOnStart: true},
 	)
+}
+
+// hasFiles は、録画の録画ファイル (セグメント) のうち、マウントしたプールに見つかるものがあるかを返す。
+func (m *Manager) hasFiles(ctx context.Context, recordingID uuid.UUID) (bool, error) {
+	files, err := sqlc.New(m.pool).ListRecordingFiles(ctx, recordingID)
+	if err != nil {
+		return false, fmt.Errorf("failed to list the recording files: %w", err)
+	}
+	for i := range files {
+		if files[i].Kind != segmentKind {
+			continue
+		}
+		path, err := m.store.Path(files[i].PoolID, files[i].Path)
+		if err != nil {
+			continue
+		}
+		if _, err := os.Stat(path); err == nil {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }

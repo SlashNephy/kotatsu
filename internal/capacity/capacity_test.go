@@ -43,6 +43,13 @@ type fixture struct {
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
 
+	return newFixtureWithFreeSpace(t, nil)
+}
+
+// newFixtureWithFreeSpace は、空き容量を freeSpace で測るフィクスチャを作る。nil なら、ディスクの大きさから録画ファイルの大きさを引く。
+func newFixtureWithFreeSpace(t *testing.T, freeSpace kago.FreeSpaceFunc) *fixture {
+	t.Helper()
+
 	pool, err := database.Open(t.Context(), databasetest.New(t))
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
@@ -56,7 +63,7 @@ func newFixture(t *testing.T) *fixture {
 
 	dir := t.TempDir()
 	// 空き容量は、ディスクの大きさから、プールにある録画ファイルの大きさの合計を引いたものとする。索引は小さいので数えない。
-	freeSpace := func(path string) (uint64, error) {
+	usedSpace := func(path string) (uint64, error) {
 		var used int64
 		err := filepath.WalkDir(path, func(name string, d fs.DirEntry, err error) error {
 			if err != nil || d.IsDir() || filepath.Ext(name) != ".m2ts" {
@@ -72,6 +79,9 @@ func newFixture(t *testing.T) *fixture {
 		})
 
 		return uint64(max(diskSize-used, 0)), err
+	}
+	if freeSpace == nil {
+		freeSpace = usedSpace
 	}
 	store := kago.New(map[string]string{poolID: dir}, freeSpace)
 
@@ -265,4 +275,43 @@ func TestDeleteSkipsRecordingsProtectedMeanwhile(t *testing.T) {
 			require.NoError(t, err, "the file is kept")
 		})
 	}
+}
+
+// TestRunOnceKeepsRecordingsWithoutFiles は、録画ファイルが見つからない録画を、消しても空きが増えないので消さないことを確かめる。
+// プールの実体がマウントされず、空のディレクトリを測っているときに、録画の記録を消し続けないようにする (#513)。
+func TestRunOnceKeepsRecordingsWithoutFiles(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	f.recording(t, "古い録画", "completed", false)
+	f.recording(t, "後の録画", "completed", false)
+	// マウントに失敗して、プールのディレクトリが空になった。
+	entries, err := os.ReadDir(f.dir)
+	require.NoError(t, err)
+	for _, entry := range entries {
+		require.NoError(t, os.RemoveAll(filepath.Join(f.dir, entry.Name())))
+	}
+	f.setThreshold(t, diskSize+1)
+
+	results := f.runOnce(t)
+	require.Len(t, results, 1)
+	assert.Equal(t, &capacity.PoolResult{PoolID: poolID, FreeBytes: diskSize, Deleted: 0, Low: true}, results[0])
+	assert.Equal(t, []string{"古い録画", "後の録画"}, f.names(t))
+}
+
+// TestRunOnceStopsWhenFreeSpaceDoesNotGrow は、録画を消しても空き容量が増えなければ、その回は消すのをやめることを確かめる。
+// スナップショットがあるときや、ファイルを開いたままの視聴者がいるときに、録画を次々に消さないようにする (#513)。
+func TestRunOnceStopsWhenFreeSpaceDoesNotGrow(t *testing.T) {
+	t.Parallel()
+
+	f := newFixtureWithFreeSpace(t, func(string) (uint64, error) { return 1 << 20, nil })
+	f.recording(t, "古い録画", "completed", false)
+	f.recording(t, "次の録画", "completed", false)
+	f.recording(t, "後の録画", "completed", false)
+	f.setThreshold(t, 2<<20)
+
+	results := f.runOnce(t)
+	require.Len(t, results, 1)
+	assert.Equal(t, &capacity.PoolResult{PoolID: poolID, FreeBytes: 1 << 20, Deleted: 1, Low: true}, results[0])
+	assert.Equal(t, []string{"次の録画", "後の録画"}, f.names(t))
 }
