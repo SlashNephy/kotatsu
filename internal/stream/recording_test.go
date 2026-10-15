@@ -2,12 +2,14 @@ package stream_test
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -211,6 +213,92 @@ func TestRecordingHandler(t *testing.T) {
 			assert.Equal(t, tt.want, iframes(t, got.body))
 		})
 	}
+}
+
+// getRange は、録画を、Range ヘッダー rangeHeader を付けて取得する。応答のヘッダーも返す。
+func (f *recordingFixture) getRange(t *testing.T, recordingID uuid.UUID, rangeHeader string) (*fetched, http.Header) {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String(), nil)
+	require.NoError(t, err)
+	if rangeHeader != "" {
+		req.Header.Set("Range", rangeHeader)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	return &fetched{status: resp.StatusCode, contentType: resp.Header.Get("Content-Type"), body: body}, resp.Header
+}
+
+// TestRecordingHandlerServesRanges は、録画を終えた録画に、長さを返し、Range に 206 で答えることを確かめる (#535)。
+// 外部プレイヤーは ?start= を知らず、HTTP の Range でシークする。範囲は、引き継ぎで切り詰めた後の流れの中のバイト位置とする。
+func TestRecordingHandlerServesRanges(t *testing.T) {
+	t.Parallel()
+
+	data := loadTestTS(t)
+	f := newRecordingFixture(t, nil)
+	recordingID := f.recording(t, "completed")
+	// 3 つのセグメントが、前後のセグメントと重なる。
+	f.segment(t, recordingID, "a.m2ts", data[:packetAligned(500000)], 0, false)
+	f.segment(t, recordingID, "b.m2ts", data[packetAligned(200000):packetAligned(800000)], time.Second, false)
+	f.segment(t, recordingID, "c.m2ts", data[packetAligned(600000):], 2*time.Second, false)
+
+	whole, header := f.getRange(t, recordingID, "")
+	require.Equal(t, http.StatusOK, whole.status)
+	assert.Equal(t, wantIFramePTS(), iframes(t, whole.body))
+	assert.Equal(t, "bytes", header.Get("Accept-Ranges"))
+	assert.Equal(t, strconv.Itoa(len(whole.body)), header.Get("Content-Length"))
+	assert.Equal(t, "video/mp2t", whole.contentType)
+	// ?start= を付けて流したときと、同じバイト列になる。
+	assert.Equal(t, f.get(t, recordingID, "?start=0").body, whole.body)
+
+	tests := []struct {
+		name     string
+		header   string
+		from, to int
+	}{
+		{name: "セグメントの境目をまたぐ範囲", header: "bytes=400000-650000", from: 400000, to: 650001},
+		{name: "終わりからの範囲", header: "bytes=-188", from: len(whole.body) - 188, to: len(whole.body)},
+		{name: "途中から終わりまで", header: "bytes=700000-", from: 700000, to: len(whole.body)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, header := f.getRange(t, recordingID, tt.header)
+			require.Equal(t, http.StatusPartialContent, got.status)
+			assert.Equal(t, fmt.Sprintf("bytes %d-%d/%d", tt.from, tt.to-1, len(whole.body)), header.Get("Content-Range"))
+			assert.Equal(t, whole.body[tt.from:tt.to], got.body)
+		})
+	}
+}
+
+// TestRecordingHandlerStreamsRecordingInProgress は、録画中の録画には、長さが決まらないので Range に答えず、
+// 今までどおり 200 で流し続けることを確かめる (#535)。
+func TestRecordingHandlerStreamsRecordingInProgress(t *testing.T) {
+	t.Parallel()
+
+	data := loadTestTS(t)
+	f := newRecordingFixture(t, nil)
+	recordingID := f.recording(t, "recording")
+	f.segment(t, recordingID, "a.m2ts", data, 0, false)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String(), nil)
+	require.NoError(t, err)
+	req.Header.Set("Range", "bytes=1000-1999")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get("Accept-Ranges"))
+	// 録画が終わるまで流し続けるので、先頭だけ読んで閉じる。
+	head := make([]byte, ts.PacketSize)
+	_, err = io.ReadFull(resp.Body, head)
+	require.NoError(t, err)
+	assert.Equal(t, data[:ts.PacketSize], head)
 }
 
 // TestRecordingHandlerStartsAtIndexedOffset は、指定した位置から流すとき、索引が指す I フレームのパケットから流すことを確かめる。
