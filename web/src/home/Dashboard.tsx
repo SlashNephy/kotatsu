@@ -38,8 +38,8 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
 const maxUpcoming = 5;
 const upcomingFetch = 20;
 
-// recentRecordings は、ホームに出す最近の録画の数。広い画面で 1 段、狭い画面で 2 段に並ぶ数にする。
-const recentRecordings = 4;
+// recentRecordings は、ホームのために読む最近の録画の数。並べる列の数によって、出す数を CSS で絞る (recentGrid)。
+const recentRecordings = 6;
 
 export type DashboardRange = { now: number; nowEnd: string; from: string; to: string };
 
@@ -282,7 +282,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
             {t('home.noRecordings')}
           </Text>
         ) : (
-          <SimpleGrid cols={{ base: 2, md: 4 }} spacing="xs">
+          <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="xs" className={classes.recentGrid}>
             {data.recordings.edges.map(({ node }) => (
               <RecordingCard key={node.id} recording={node} />
             ))}

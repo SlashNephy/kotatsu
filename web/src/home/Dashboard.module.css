@@ -48,3 +48,12 @@
   outline: 2px solid var(--mantine-primary-color-filled);
   outline-offset: -2px;
 }
+
+/* 最近の録画は、余りが出ないよう、列の数に合わせて出す数を変える。 */
+/* スマホ幅は 2 列 × 2 段で 4 件、タブレット幅は 3 列 × 2 段で 6 件、広い画面は 4 列 × 1 段で 4 件。 */
+/* 隠したカードの代表画像は遅延読み込みなので、読み込まれない。 */
+@media (max-width: 47.99375em), (min-width: 62em) {
+  .recentGrid > :nth-child(n + 5) {
+    display: none;
+  }
+}
