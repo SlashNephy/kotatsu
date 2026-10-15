@@ -33,6 +33,13 @@ const poolID = "main"
 func (f *fixture) newRecorder(t *testing.T, tuner recording.StreamOpener, freeSpace kago.FreeSpaceFunc) (*recording.Recorder, string) {
 	t.Helper()
 
+	return f.newRecorderWithPeers(t, tuner, freeSpace, nil)
+}
+
+// newRecorderWithPeers は、ほかに動いている mikan の数を peers で数える Recorder を作る。nil なら、ほかの mikan はいない。
+func (f *fixture) newRecorderWithPeers(t *testing.T, tuner recording.StreamOpener, freeSpace kago.FreeSpaceFunc, peers recording.PeersFunc) (*recording.Recorder, string) {
+	t.Helper()
+
 	dir := t.TempDir()
 	tokyo, err := time.LoadLocation("Asia/Tokyo")
 	require.NoError(t, err)
@@ -40,7 +47,9 @@ func (f *fixture) newRecorder(t *testing.T, tuner recording.StreamOpener, freeSp
 		freeSpace = func(string) (uint64, error) { return 1 << 40, nil }
 	}
 	recorder := recording.NewRecorder(f.pool, f.clock, tuner, kago.New(map[string]string{poolID: dir}, freeSpace), nil, tokyo,
-		slog.New(slog.DiscardHandler), &recording.RecorderOptions{TuningTime: 0, Tick: 10 * time.Millisecond, RetryInterval: 20 * time.Millisecond})
+		slog.New(slog.DiscardHandler), &recording.RecorderOptions{
+			TuningTime: 0, Tick: 10 * time.Millisecond, RetryInterval: 20 * time.Millisecond, ReleaseAfter: 0, Peers: peers,
+		})
 
 	return recorder, dir
 }
@@ -1605,4 +1614,57 @@ func TestRecorderRetriesSegmentOnResume(t *testing.T) {
 	require.NoError(t, wait(t, done))
 	got, _ = f.recording(t, reservationID)
 	assert.Equal(t, string(recording.StatePartial), got.state)
+}
+
+// TestRecorderReleasesWhenUnableToRecord は、録画できない理由がこの mikan にあり、ほかに mikan が動いていれば、
+// 録画を失敗にせず、ErrRecorderUnavailable を返して割り振りを手放させることを確かめる (#524)。
+// 理由は、ほかの mikan も録れなかったときのために、録画の行に残す。ほかに mikan がいなければ、今までどおり自分で扱う。
+func TestRecorderReleasesWhenUnableToRecord(t *testing.T) {
+	t.Parallel()
+
+	onePeer := func(context.Context) (int, error) { return 1, nil }
+	tests := []struct {
+		name string
+		// prepare は、録画できない状態にし、Recorder を作る。
+		prepare func(t *testing.T, f *fixture, reservationID uuid.UUID) *recording.Recorder
+		reason  recording.FailureReason
+		// advance は、録画が開こうとしてから進める時間。
+		advance time.Duration
+	}{
+		{name: "プールがマウントされていない", prepare: func(t *testing.T, f *fixture, reservationID uuid.UUID) *recording.Recorder {
+			t.Helper()
+
+			_, err := f.pool.Exec(t.Context(), `UPDATE reservations SET settings = '{"poolId": "elsewhere"}' WHERE id = $1`, reservationID)
+			require.NoError(t, err)
+			recorder, _ := f.newRecorderWithPeers(t, f.tuner, nil, onePeer)
+
+			return recorder
+		}, reason: recording.FailureStorageUnavailable, advance: 0},
+		{name: "チューナーサーバーにつながらないまま 30 秒が過ぎた", prepare: func(t *testing.T, f *fixture, _ uuid.UUID) *recording.Recorder {
+			t.Helper()
+
+			recorder, _ := f.newRecorderWithPeers(t, failingStream{err: errors.New("connection refused")}, nil, onePeer)
+
+			return recorder
+		}, reason: recording.FailureTunerServerUnreachable, advance: 31 * time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			recorder := tt.prepare(t, f, reservationID)
+			_, done := f.session(t, recorder, reservationID)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			if tt.advance > 0 {
+				time.Sleep(100 * time.Millisecond)
+				f.clock.Advance(tt.advance)
+			}
+
+			require.ErrorIs(t, wait(t, done), recording.ErrRecorderUnavailable)
+			got, _ := f.recording(t, reservationID)
+			assert.Equal(t, recorded{state: string(recording.StateRecording), failureReason: new(string(tt.reason)), drops: 0}, got)
+		})
+	}
 }

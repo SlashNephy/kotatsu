@@ -28,6 +28,9 @@ const (
 	// DefaultHandoverTimeout は、止まる mikan が、ほかの mikan がストリームを開くのを待つ時間の上限 (設計書 5.4)。
 	// Kubernetes の既定の猶予 (30 秒) に収まるようにする。
 	DefaultHandoverTimeout = 20 * time.Second
+	// DefaultReleaseCooldown は、録画できずに割り振りを手放した mikan が、割り振りを取らずに待つ時間 (付録 A、#524)。
+	// 待たないと、手放した割り振りを、自分ですぐに取り直してしまう。
+	DefaultReleaseCooldown = time.Minute
 	// mikanRole は、録画のロールの名前。引き継ぐ mikan がいるかを、インスタンスの登録簿で調べるのに使う。
 	mikanRole = "mikan"
 )
@@ -65,6 +68,8 @@ type WorkerOptions struct {
 	RenewInterval   time.Duration
 	AcquireInterval time.Duration
 	HandoverTimeout time.Duration
+	// ReleaseCooldown は、録画できずに割り振りを手放した後、割り振りを取らずに待つ時間。
+	ReleaseCooldown time.Duration
 	// PollOnly は、変更の通知を LISTEN で受けずに、ポーリングだけで知るかどうか。
 	PollOnly     bool
 	PollInterval time.Duration
@@ -82,13 +87,15 @@ type Worker struct {
 
 	mu     sync.Mutex
 	active map[uuid.UUID]*activeSession
+	// cooldownUntil は、録画できずに割り振りを手放したので、割り振りを取らない期限 (#524)。
+	cooldownUntil atomic.Pointer[time.Time]
 }
 
 // NewWorker は Worker を返す。holder は、この mikan のインスタンスの ID。opts は nil でもよい。
 func NewWorker(pool *pgxpool.Pool, clk clock.Clock, holder uuid.UUID, logger *slog.Logger, session Session, opts *WorkerOptions) *Worker {
 	o := WorkerOptions{
 		LeaseTTL: DefaultLeaseTTL, RenewInterval: DefaultRenewInterval, AcquireInterval: DefaultAcquireInterval,
-		HandoverTimeout: DefaultHandoverTimeout, PollOnly: false, PollInterval: notify.DefaultPollInterval,
+		HandoverTimeout: DefaultHandoverTimeout, ReleaseCooldown: DefaultReleaseCooldown, PollOnly: false, PollInterval: notify.DefaultPollInterval,
 	}
 	if opts != nil {
 		o = WorkerOptions{
@@ -96,12 +103,16 @@ func NewWorker(pool *pgxpool.Pool, clk clock.Clock, holder uuid.UUID, logger *sl
 			RenewInterval:   orDefault(opts.RenewInterval, o.RenewInterval),
 			AcquireInterval: orDefault(opts.AcquireInterval, o.AcquireInterval),
 			HandoverTimeout: orDefault(opts.HandoverTimeout, o.HandoverTimeout),
+			ReleaseCooldown: orDefault(opts.ReleaseCooldown, o.ReleaseCooldown),
 			PollOnly:        opts.PollOnly,
 			PollInterval:    orDefault(opts.PollInterval, o.PollInterval),
 		}
 	}
 
-	return &Worker{pool: pool, clock: clk, holder: holder, logger: logger, session: session, opts: o, mu: sync.Mutex{}, active: map[uuid.UUID]*activeSession{}}
+	return &Worker{
+		pool: pool, clock: clk, holder: holder, logger: logger, session: session, opts: o,
+		mu: sync.Mutex{}, active: map[uuid.UUID]*activeSession{}, cooldownUntil: atomic.Pointer[time.Time]{},
+	}
 }
 
 // activeSession は、録画している割り振りと、その Session を止める関数。
@@ -132,6 +143,10 @@ func (w *Worker) Run(ctx context.Context) error {
 		Watcher:  notify.WatcherOptions{UseListen: !w.opts.PollOnly, PollInterval: w.opts.PollInterval},
 	}, func(ctx context.Context) {
 		for {
+			// 録画できずに割り振りを手放した後は、しばらく取らず、ほかの mikan に回す (#524)。
+			if until := w.cooldownUntil.Load(); until != nil && w.clock.Now().Before(*until) {
+				return
+			}
 			assignment, ok, err := w.acquire(ctx)
 			if err != nil {
 				if ctx.Err() == nil {
@@ -180,20 +195,27 @@ func (w *Worker) handOverAll(ctx context.Context, wg *sync.WaitGroup) {
 
 // peers は、動いているほかの mikan の数を返す。
 func (w *Worker) peers(ctx context.Context) (int, error) {
-	instances, err := sqlc.New(w.pool).ListAliveInstances(ctx, sqlc.ListAliveInstancesParams{
-		Role: mikanRole, AliveSince: w.clock.Now().Add(-registry.AliveTTL),
-	})
-	if err != nil {
-		return 0, fmt.Errorf("failed to list alive mikan instances: %w", err)
-	}
-	n := 0
-	for i := range instances {
-		if instances[i].ID != w.holder {
-			n++
-		}
-	}
+	return AlivePeers(w.pool, w.clock, w.holder)(ctx)
+}
 
-	return n, nil
+// AlivePeers は、インスタンスの登録簿から、holder のほかに動いている mikan の数を返す PeersFunc を返す。
+func AlivePeers(pool *pgxpool.Pool, clk clock.Clock, holder uuid.UUID) PeersFunc {
+	return func(ctx context.Context) (int, error) {
+		instances, err := sqlc.New(pool).ListAliveInstances(ctx, sqlc.ListAliveInstancesParams{
+			Role: mikanRole, AliveSince: clk.Now().Add(-registry.AliveTTL),
+		})
+		if err != nil {
+			return 0, fmt.Errorf("failed to list alive mikan instances: %w", err)
+		}
+		n := 0
+		for i := range instances {
+			if instances[i].ID != holder {
+				n++
+			}
+		}
+
+		return n, nil
+	}
 }
 
 // handOver は、1 つの割り振りを、ほかの mikan に引き継ぐ。引き継げなければ、割り振りを手放して止める。
@@ -346,6 +368,10 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 	case errors.Is(cause, ErrHandedOver), errors.Is(cause, ErrStopped):
 		// 止めるときは、割り振りを残し、ほかの mikan か、再起動した mikan に続きを任せる (設計書 5.4)。
 		return
+	case errors.Is(err, ErrRecorderUnavailable):
+		w.release(ctx, assignment, logger, err)
+
+		return
 	case err != nil:
 		logger.WarnContext(ctx, "recording session failed", slog.Any("error", err))
 	}
@@ -372,6 +398,20 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 	}
 	if n == 0 && !w.assignmentDeleted(ctx, assignment.ID, logger) {
 		logger.WarnContext(ctx, "the recording assignment was taken over before it finished")
+	}
+}
+
+// release は、録画できない理由がこの mikan にあるので、割り振りを手放し、しばらく割り振りを取らない (#524)。
+// ほかの mikan が取って録画する。ほかの mikan がいなければ、待った後に自分で取り直す。
+func (w *Worker) release(ctx context.Context, assignment *Assignment, logger *slog.Logger, cause error) {
+	logger.WarnContext(ctx, "released the recording assignment; this mikan is unable to record", slog.Any("error", cause))
+	until := w.clock.Now().Add(w.opts.ReleaseCooldown)
+	w.cooldownUntil.Store(&until)
+	err := sqlc.New(w.pool).ReleaseUnrecordableRecordingAssignment(ctx, sqlc.ReleaseUnrecordableRecordingAssignmentParams{
+		Now: w.clock.Now(), ID: assignment.ID, Generation: assignment.Generation, Holder: &w.holder,
+	})
+	if err != nil {
+		logger.WarnContext(ctx, "failed to release the recording assignment", slog.Any("error", err))
 	}
 }
 

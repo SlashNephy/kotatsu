@@ -356,6 +356,9 @@ type Querier interface {
 	ReleaseLease(ctx context.Context, arg ReleaseLeaseParams) error
 	// 止まる mikan が、引き継ぐ mikan がいないときに、割り振りを手放す。再起動した mikan が、リースが切れるのを待たずに取れる。
 	ReleaseRecordingAssignment(ctx context.Context, arg ReleaseRecordingAssignmentParams) error
+	// 録画できない理由がこの mikan にあるので、割り振りを手放し、まだ取っていない状態に戻す (#524)。ほかの mikan が取る。
+	// まだ何も録っていないので、続きとしてではなく、初めから録る。予定の終わりまで誰も取らなければ、neko が消す。
+	ReleaseUnrecordableRecordingAssignment(ctx context.Context, arg ReleaseUnrecordableRecordingAssignmentParams) error
 	RenameUserPasskey(ctx context.Context, arg RenameUserPasskeyParams) (int64, error)
 	// 同じ世代のリースを期限内に延長する。期限が切れていたり、他のインスタンスに取られていたりすれば、行を更新しない。
 	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
@@ -387,6 +390,8 @@ type Querier interface {
 	SetRecordingBroadcastEnded(ctx context.Context, arg SetRecordingBroadcastEndedParams) error
 	// 予約した番組が放送中になった日時を、最初の一度だけ記録する。
 	SetRecordingBroadcastStarted(ctx context.Context, arg SetRecordingBroadcastStartedParams) error
+	// 録画中の録画に、録画できなかった理由を残す。割り振りを手放した後、ほかの mikan も録れなければ、この理由で失敗にする (#524)。
+	SetRecordingFailureHint(ctx context.Context, arg SetRecordingFailureHintParams) error
 	SetRecordingFilePath(ctx context.Context, arg SetRecordingFilePathParams) error
 	// 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
 	SetRecordingGaps(ctx context.Context, arg SetRecordingGapsParams) error

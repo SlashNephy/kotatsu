@@ -183,7 +183,8 @@ SELECT coalesce((SELECT min_free_bytes FROM storage_pools WHERE id = @id), 0)::b
 -- 録画した時間の終わりは、書いたセグメントの終わりにする。
 UPDATE recordings r SET
   state = 'failed',
-  failure_reason = 'stream_interrupted',
+  -- 録画できずに割り振りを手放した mikan が理由を残していれば、それを使う (#524)。
+  failure_reason = coalesce(r.failure_reason, 'stream_interrupted'),
   recorded_until = coalesce(
     (SELECT max(coalesce(f.ended_at, f.started_at)) FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment'),
     r.recorded_from
@@ -206,3 +207,7 @@ INSERT INTO recordings (id, reservation_id, service_id, event_id, name, descript
 VALUES (@id, @reservation_id, @service_id, @event_id, @name, @description, @start_at, @end_at, 'failed', 'recorder_unavailable',
   @recorded_from, @recorded_from, @now, @now)
 ON CONFLICT (reservation_id) DO NOTHING;
+
+-- name: SetRecordingFailureHint :exec
+-- 録画中の録画に、録画できなかった理由を残す。割り振りを手放した後、ほかの mikan も録れなければ、この理由で失敗にする (#524)。
+UPDATE recordings SET failure_reason = @failure_reason, updated_at = @now WHERE id = @id AND state = 'recording';
