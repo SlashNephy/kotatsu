@@ -773,6 +773,16 @@
     "play": "再生"
   },
   "player": {
+    "stats": {
+      "title": "統計情報",
+      "toggle": "統計情報を出す",
+      "quality": "画質",
+      "resolution": "解像度",
+      "droppedFrames": "捨てたフレーム",
+      "buffered": "バッファ",
+      "seconds": "{{seconds}} 秒",
+      "rate": "再生速度"
+    },
     "shortcuts": {
       "title": "キーボードショートカット",
       "togglePlay": "再生と一時停止",
@@ -785,6 +795,8 @@
       "volumeDown": "音量を下げる",
       "toggleDataBroadcast": "データ放送を出し入れする",
       "capture": "今の場面を画像に保存する",
+      "restart": "プレイヤーを読み直す",
+      "toggleStats": "統計情報を出し入れする",
       "showShortcuts": "この一覧を出す"
     },
     "flash": {
@@ -795,7 +807,8 @@
       "seekForward": "+10 秒",
       "dataBroadcastOn": "データ放送を表示",
       "dataBroadcastOff": "データ放送を隠す",
-      "captured": "画像を保存しました"
+      "captured": "画像を保存しました",
+      "restarted": "プレイヤーを読み直しました"
     },
     "backToRecording": "録画の詳細に戻る",
     "loading": "映像を読み込んでいます",
