@@ -22,6 +22,21 @@ describe('splitProgramMarks', () => {
     },
     { name: '同じ囲み文字は 1 つにする', input: '🈑番組🈑', want: { name: '番組', marks: ['字'] } },
     {
+      name: '4K や 5.1 などの囲み文字も取り出す',
+      input: '世界遺産🆞🆠🆧',
+      want: { name: '世界遺産', marks: ['4K', '5.1', 'HDR'] },
+    },
+    {
+      name: '鍵の囲み文字を取り出す',
+      input: '映画⚿',
+      want: { name: '映画', marks: ['鍵'] },
+    },
+    {
+      name: '🈀 (ほか) は、番組名に「ほか」として残す',
+      input: '出演：山田🈀🈑',
+      want: { name: '出演：山田ほか', marks: ['字'] },
+    },
+    {
       name: '丸数字は番組名の一部として残す',
       input: '講座①',
       want: { name: '講座①', marks: [] },
