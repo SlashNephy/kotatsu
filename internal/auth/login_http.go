@@ -77,8 +77,7 @@ func (l *Logins) PasswordHandler(db Database, client func(*http.Request) *Client
 
 		token, challenge, err := l.Password(r.Context(), db, req.Username, req.Password, client(r))
 		if throttled, ok := errors.AsType[*ThrottledError](err); ok {
-			w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(throttled.RetryAfter.Seconds()))))
-			writeLoginError(w, http.StatusTooManyRequests, "TOO_MANY_ATTEMPTS", "too many login attempts; try again later")
+			writeThrottled(w, throttled)
 
 			return
 		}
@@ -190,6 +189,11 @@ func (l *Logins) challengeToken(w http.ResponseWriter, r *http.Request) (string,
 
 // writeSecondFactorError は、第二要素の確認のエラーを書く。エラーがなければ false を返す。
 func (l *Logins) writeSecondFactorError(w http.ResponseWriter, r *http.Request, err error) bool {
+	if throttled, ok := errors.AsType[*ThrottledError](err); ok {
+		writeThrottled(w, throttled)
+
+		return true
+	}
 	switch {
 	case err == nil:
 		return false
@@ -207,6 +211,12 @@ func (l *Logins) writeSecondFactorError(w http.ResponseWriter, r *http.Request, 
 	}
 
 	return true
+}
+
+// writeThrottled は、試行回数の制限で待たせていることを、Retry-After とともに書く。
+func writeThrottled(w http.ResponseWriter, throttled *ThrottledError) {
+	w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(throttled.RetryAfter.Seconds()))))
+	writeLoginError(w, http.StatusTooManyRequests, "TOO_MANY_ATTEMPTS", "too many login attempts; try again later")
 }
 
 func (l *Logins) internalError(w http.ResponseWriter, r *http.Request, err error) {

@@ -205,7 +205,7 @@ func (l *Logins) Password(ctx context.Context, db Database, username, secret str
 		challenge *Challenge
 	)
 	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		token, challenge, err = l.succeed(ctx, tx, &user, rehashed, keys[0], client, now)
+		token, challenge, err = l.succeed(ctx, tx, &user, rehashed, client, now)
 
 		return err
 	})
@@ -225,6 +225,12 @@ func (l *Logins) checkThrottle(ctx context.Context, db Beginner, keys []string, 
 	defer func() {
 		_ = tx.Rollback(ctx)
 	}()
+
+	return checkThrottleIn(ctx, tx, keys, now)
+}
+
+// checkThrottleIn は、トランザクション tx の中で、待ち時間の中なら ThrottledError を返す。
+func checkThrottleIn(ctx context.Context, tx pgx.Tx, keys []string, now time.Time) error {
 	throttles, err := sqlc.New(tx).GetLoginThrottles(ctx, keys)
 	if err != nil {
 		return fmt.Errorf("failed to get the login throttles: %w", err)
@@ -287,21 +293,19 @@ func (l *Logins) recordFailure(
 	})
 }
 
-// succeed は、アカウント単位の失敗の回数を消し、第二要素の確認を待つ Challenge を作る。
+// succeed は、第二要素の確認を待つ Challenge を作る。
+// アカウント単位の失敗の回数は、第二要素まで確かめ終えてから消す (finish)。ここで消すと、パスワードの確認から
+// やり直すたびに、第二要素を試せる回数が戻り、第二要素のコードを総当たりできてしまう。
 // rehashed が nil でなければ、今のパラメーターで作り直したハッシュに置き換える。
 func (l *Logins) succeed(
 	ctx context.Context,
 	tx pgx.Tx,
 	user *sqlc.User,
 	rehashed *string,
-	accountKey string,
 	client *ClientInfo,
 	now time.Time,
 ) (string, *Challenge, error) {
 	q := sqlc.New(tx)
-	if err := q.ResetLoginThrottle(ctx, accountKey); err != nil {
-		return "", nil, fmt.Errorf("failed to reset the login throttle: %w", err)
-	}
 	if rehashed != nil {
 		if _, err := q.SetUserPassword(ctx, sqlc.SetUserPasswordParams{ID: user.ID, PasswordHash: rehashed, Now: now}); err != nil {
 			return "", nil, fmt.Errorf("failed to rehash the password: %w", err)
