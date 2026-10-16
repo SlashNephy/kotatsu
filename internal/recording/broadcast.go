@@ -27,6 +27,8 @@ type broadcastChange struct {
 	// started と ended は、予約した番組が放送中になったか、放送中でなくなったか。
 	started bool
 	ended   bool
+	// resumed は、放送中でなくなった後、後ろのマージンを録り終える前に、予約した番組が放送中に戻ったか (#636)。
+	resumed bool
 }
 
 func newBroadcastTracker(eventID uint16) *broadcastTracker {
@@ -35,7 +37,7 @@ func newBroadcastTracker(eventID uint16) *broadcastTracker {
 
 // update は、今読んだ EIT[p/f] pf (nil ならまだ読んでいない) で、放送の状態を進める。
 func (b *broadcastTracker) update(pf *ts.PresentFollowing, now time.Time) broadcastChange {
-	change := broadcastChange{started: false, ended: false}
+	change := broadcastChange{started: false, ended: false, resumed: false}
 	if pf == nil || !pf.PresentSeen {
 		return change
 	}
@@ -47,7 +49,12 @@ func (b *broadcastTracker) update(pf *ts.PresentFollowing, now time.Time) broadc
 	case onAir && b.startedAt == nil:
 		b.startedAt = new(now)
 		change.started = true
-	case !onAir && b.startedAt != nil && b.endedAt == nil:
+	case onAir && b.endedAt != nil:
+		// 割り込まれた番組が、同じ eventId で再開した (#636)。録画はまだ止まっていないので、終わりを取り消して録り続ける。
+		b.endedAt = nil
+		change.resumed = true
+	case !onAir && b.startedAt != nil && b.endedAt == nil && !b.following:
+		// 放送中が別の番組に切り替わっても、次の番組が予約した番組なら、割り込まれただけなので、終わったとはしない (#636)。
 		b.endedAt = new(now)
 		change.ended = true
 	}
