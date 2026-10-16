@@ -1,6 +1,7 @@
 package jikkyo
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -87,7 +88,7 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp.Channel = &channelJSON{ID: id}
-	from, err := h.origin(r, recordingID, source.RecordedFrom)
+	from, err := h.origin(r.Context(), recordingID, source.RecordedFrom)
 	if err != nil {
 		h.internalError(w, r, err)
 
@@ -127,8 +128,8 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // origin は、コメントの時刻の基準を返す。録画の配信は、最初のセグメントを書き始めた時刻を 0 秒にするので、それに合わせる。
 // 録画の行を作ってから、チューナーを開いて書き始めるまでには時間がかかるので、recorded_from とはずれる。
 // セグメントがまだなければ、recorded_from を使う。
-func (h *CommentsHandler) origin(r *http.Request, recordingID uuid.UUID, recordedFrom time.Time) (time.Time, error) {
-	files, err := sqlc.New(h.db).ListRecordingFiles(r.Context(), recordingID)
+func (h *CommentsHandler) origin(ctx context.Context, recordingID uuid.UUID, recordedFrom time.Time) (time.Time, error) {
+	files, err := sqlc.New(h.db).ListRecordingFiles(ctx, recordingID)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("failed to list the recording files: %w", err)
 	}

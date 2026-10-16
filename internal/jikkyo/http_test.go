@@ -119,7 +119,7 @@ func TestCommentsHandler(t *testing.T) {
 		serviceID int64
 		// from は、録画を始めた時刻。ゼロなら recordedFrom。
 		from time.Time
-		// segmentDelay は、録画を始めてから、最初のセグメントを書き始めるまでの時間。負ならセグメントを作らない。
+		// segmentDelay は、録画を始めてから、最初のセグメントを書き始めるまでの時間。0 ならセグメントを作らない。
 		segmentDelay time.Duration
 		until        *time.Time
 		wantChannel  string
