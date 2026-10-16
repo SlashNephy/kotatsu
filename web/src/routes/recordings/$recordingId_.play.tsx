@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { ErrorBoundary, PageLoader, ProgramTitle } from '../../futon';
+import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
@@ -298,6 +298,7 @@ function Player({ recordingId }: { recordingId: string }) {
     toggleMute: videoState.toggleMute,
     toggleFullscreen: fullscreen.toggle,
   });
+  useDocumentTitle([recording?.name ?? null]);
   useMediaSession(
     {
       title: recording?.name ?? '',
