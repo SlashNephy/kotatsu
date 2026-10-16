@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   fetchQuery,
   graphql,
@@ -43,11 +43,14 @@ export function usePlayerSettings(): Settings & {
     }
   `);
   // ほかの端末で変えたら、読み直す。購読はヘッダーの DataChangesSubscriber が 1 本だけ持つ (#503)。
+  // 開いたときは useLazyLoadQuery が読むので、開いた後に変わったときだけ読み直す。
   const changes = useDataChanges(['VIEWER_SETTINGS']);
+  const seen = useRef(changes);
   useEffect(() => {
-    if (changes === 0) {
+    if (changes === seen.current) {
       return;
     }
+    seen.current = changes;
     void fetchQuery<usePlayerSettingsQuery>(
       environment,
       settingsQuery,
