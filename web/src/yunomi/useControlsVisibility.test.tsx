@@ -4,7 +4,16 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { controlsHideDelayMs } from './controlsVisibility';
 import { controlsAttribute, useControlsVisibility } from './useControlsVisibility';
 
-function Harness({ playing, menuOpened = false }: { playing: boolean; menuOpened?: boolean }) {
+// popupOpened は、設定のポップアップ (Mantine の Popover は role="dialog") を開いていること。
+function Harness({
+  playing,
+  menuOpened = false,
+  popupOpened = false,
+}: {
+  playing: boolean;
+  menuOpened?: boolean;
+  popupOpened?: boolean;
+}) {
   const { visible, containerProps } = useControlsVisibility({ playing });
 
   return (
@@ -16,6 +25,7 @@ function Harness({ playing, menuOpened = false }: { playing: boolean; menuOpened
           settings
         </button>
         {menuOpened && <div role="menu" />}
+        {popupOpened && <div role="dialog" />}
       </div>
     </div>
   );
@@ -56,6 +66,19 @@ describe('useControlsVisibility', () => {
     fireEvent.pointerMove(screen.getByTestId('container'), { pointerType: 'mouse' });
     advance(controlsHideDelayMs - 100);
     expect(visible()).toBe(true);
+  });
+
+  test('設定やキャプチャのポップアップを開いたまま外へ出ても隠さず、閉じたら待ってから隠す', () => {
+    const { rerender } = render(<Harness playing popupOpened />);
+    fireEvent.pointerMove(screen.getByTestId('video'), { pointerType: 'mouse' });
+    fireEvent.pointerLeave(screen.getByTestId('container'), { pointerType: 'mouse' });
+    expect(visible()).toBe(true);
+    advance(controlsHideDelayMs * 2);
+    expect(visible()).toBe(true);
+
+    rerender(<Harness playing />);
+    advance(controlsHideDelayMs + 100);
+    expect(visible()).toBe(false);
   });
 
   test('マウスがプレイヤーの外へ出たら、待たずに隠す', () => {
