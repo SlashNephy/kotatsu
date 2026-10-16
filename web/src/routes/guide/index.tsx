@@ -5,13 +5,13 @@ import {
   Button,
   Group,
   LoadingOverlay,
+  Menu,
   SegmentedControl,
   Select,
   Stack,
-  Text,
   Title,
 } from '@mantine/core';
-import { CalendarX2, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { CalendarDays, CalendarX2, ChevronLeft, ChevronRight, Clock, Sunrise } from 'lucide-react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -46,6 +46,8 @@ const day = 24 * 60 * 60_000;
 // guideDays は、番組表で移れる、いまの放送日からの日数。
 // 放送の EPG (EIT) は、今日の 0 時から 8 日分が届く。放送日は 4 時に切り替わるので、8 日目の放送日も 4 時から 24 時までは番組がある。
 const guideDays = 8;
+// jumpHours は、番組表で移れる時間帯の始まり (時)。放送日は 4 時に始まるので、24 時以降は翌日の深夜を表す。
+const jumpHours = [5, 12, 17, 20, 24] as const;
 
 export const Route = createFileRoute('/guide/')({
   validateSearch: (search: Record<string, unknown>): GuideSearch => {
@@ -208,8 +210,10 @@ function Guide() {
       to: new Date(window.to).toISOString(),
       view: view ?? null,
     },
-    // fetchKey が変わると、Relay は fetchPolicy によらず取り直す。
-    { fetchKey, fetchPolicy: 'store-or-network' },
+    // store-or-network は、fetchKey を変えても、ストアにある番組表を取り直さない (#614)。保存した後は、
+    // ストアの値を出しながら取り直す。ストアに残るほかの日の番組表も、保存する前の条件で絞ったものなので、
+    // その日へ移ったときにも取り直す。
+    { fetchKey, fetchPolicy: fetchKey === 0 ? 'store-or-network' : 'store-and-network' },
   );
   const currentView = data.guideViews.find((candidate) => candidate.id === view);
 
@@ -268,7 +272,10 @@ function Guide() {
   const [keepTime, setKeepTime] = useState(false);
   // scrollKey は、日付を変えずに、いまの時刻へスクロールし直すための合図。
   const [scrollKey, setScrollKey] = useState(0);
+  // jumpHour は、時間帯のメニューで選んだ時刻 (時)。選んでいなければ null。日付を移ったら取り消す。
+  const [jumpHour, setJumpHour] = useState<number | null>(null);
   const moveTo = (days: number, keep: boolean) => {
+    setJumpHour(null);
     setKeepTime(keep);
     void navigate({
       search: (prev) => ({ ...prev, date: dateOf(today.from + days * day), program: undefined }),
@@ -276,6 +283,7 @@ function Guide() {
   };
   // moveToNow は、いまの時刻を取り直し、今日のいまの時刻へ移る。すでに今日なら、日付は変わらないので、スクロールだけし直す。
   const moveToNow = () => {
+    setJumpHour(null);
     const time = Date.now();
     setNow(time);
     setKeepTime(false);
@@ -285,6 +293,12 @@ function Guide() {
     void navigate({
       search: (prev) => ({ ...prev, date: dateOf(broadcastDay(time).from), program: undefined }),
     });
+  };
+  // jumpTo は、出している日の、hour 時の位置へスクロールする。
+  const jumpTo = (hour: number) => {
+    setKeepTime(false);
+    setJumpHour(hour);
+    setScrollKey((key) => key + 1);
   };
   const dayFormat = new Intl.DateTimeFormat('ja-JP', {
     month: 'numeric',
@@ -306,9 +320,32 @@ function Guide() {
           >
             {t('guide.previousDay')}
           </Button>
-          <Text fw={700} miw={96} ta="center">
-            {dayFormat.format(selectedFrom)}
-          </Text>
+          {/* 日付を押すと、移れる日の一覧から選べる。 */}
+          <Menu position="bottom" withinPortal>
+            <Menu.Target>
+              <Button
+                variant="subtle"
+                size="xs"
+                fw={700}
+                miw={96}
+                leftSection={<CalendarDays size={14} aria-hidden />}
+                aria-label={t('guide.pickDate', { date: dayFormat.format(selectedFrom) })}
+              >
+                {dayFormat.format(selectedFrom)}
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              {Array.from({ length: guideDays }, (_, days) => (
+                <Menu.Item
+                  key={days}
+                  onClick={() => moveTo(days, true)}
+                  fw={days === offset ? 700 : undefined}
+                >
+                  {dayFormat.format(today.from + days * day)}
+                </Menu.Item>
+              ))}
+            </Menu.Dropdown>
+          </Menu>
           <Button
             variant="default"
             size="xs"
@@ -326,6 +363,20 @@ function Guide() {
           >
             {t('guide.now')}
           </Button>
+          <Menu position="bottom" withinPortal>
+            <Menu.Target>
+              <Button variant="default" size="xs" leftSection={<Sunrise size={14} aria-hidden />}>
+                {t('guide.jump')}
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              {jumpHours.map((hour) => (
+                <Menu.Item key={hour} onClick={() => jumpTo(hour)}>
+                  {t(`guide.jumpTo.${hour}`)}
+                </Menu.Item>
+              ))}
+            </Menu.Dropdown>
+          </Menu>
         </Group>
         {types.length > 0 && (
           <SegmentedControl
@@ -416,13 +467,15 @@ function Guide() {
             scrollKey={scrollKey}
             scrollProgram={keepTime ? undefined : focused?.id}
             scrollTime={
-              keepTime
-                ? null
-                : focused !== undefined
-                  ? Date.parse(focused.startAt)
-                  : window.from === today.from
-                    ? now
-                    : window.from + 15 * 3_600_000
+              jumpHour !== null
+                ? window.from + (jumpHour - 4) * 3_600_000
+                : keepTime
+                  ? null
+                  : focused !== undefined
+                    ? Date.parse(focused.startAt)
+                    : window.from === today.from
+                      ? now
+                      : window.from + 15 * 3_600_000
             }
             onSelect={(program) => void navigate({ search: (prev) => ({ ...prev, program }) })}
           />
