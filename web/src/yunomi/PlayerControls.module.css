@@ -244,9 +244,10 @@
   opacity: 0;
 }
 
-/* 再生の統計情報。番組の情報 (左上) と重ならないよう、右上に出す。 */
+/* 再生の統計情報。番組の情報 (左上) と重ならないよう、右上に出す。番組の情報の帯が長くても、その上に描く。 */
 .stats {
   position: absolute;
+  z-index: 1;
   inset-block-start: 12px;
   inset-inline-end: 12px;
   display: grid;

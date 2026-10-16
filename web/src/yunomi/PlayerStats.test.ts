@@ -46,7 +46,7 @@ describe('readVideoStats', () => {
     expect(stats.buffered).toBe(want);
   });
 
-  test('フレームを数えられれば、捨てた数と描いた数を返す', () => {
+  test('フレームを数えられれば、捨てた数と全体の数を返す', () => {
     const stats = readVideoStats({
       videoWidth: 1920,
       videoHeight: 1080,
