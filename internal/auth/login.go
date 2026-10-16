@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/netip"
+	"runtime"
 	"strings"
 	"time"
 
@@ -110,7 +111,14 @@ type LoginsOptions struct {
 	SecondFactors *SecondFactors
 	// ChallengeTTL は、パスワードの確認から第二要素の確認までに許す時間。0 なら DefaultChallengeTTL にする。
 	ChallengeTTL time.Duration
+	// MaxConcurrentVerifications は、パスワードを同時に確かめる数の上限。0 なら CPU の数にする。
+	MaxConcurrentVerifications int
+	// VerificationWait は、確かめる順番を待つ時間の上限。過ぎたら試行を待たせる。0 なら DefaultVerificationWait にする。
+	VerificationWait time.Duration
 }
+
+// DefaultVerificationWait は、パスワードを確かめる順番を待つ時間の上限の既定値。
+const DefaultVerificationWait = 3 * time.Second
 
 // Logins は、パスワードでのログインを扱う (設計書 9.3、9.5)。
 type Logins struct {
@@ -120,16 +128,27 @@ type Logins struct {
 	sessions     *Sessions
 	factors      *SecondFactors
 	challengeTTL time.Duration
+	// verifications は、パスワードを確かめている数。Argon2id は 1 回で約 19 MiB のメモリと CPU を使うので、上限を設ける (#542)。
+	verifications    chan struct{}
+	verificationWait time.Duration
 }
 
 // NewLogins は Logins を返す。
 func NewLogins(opts *LoginsOptions) *Logins {
+	limit := opts.MaxConcurrentVerifications
+	if limit <= 0 {
+		limit = runtime.NumCPU()
+	}
 	l := &Logins{
 		clock: opts.Clock, recorder: opts.Recorder, logger: opts.Logger,
 		sessions: opts.Sessions, factors: opts.SecondFactors, challengeTTL: opts.ChallengeTTL,
+		verifications: make(chan struct{}, limit), verificationWait: opts.VerificationWait,
 	}
 	if l.challengeTTL <= 0 {
 		l.challengeTTL = DefaultChallengeTTL
+	}
+	if l.verificationWait <= 0 {
+		l.verificationWait = DefaultVerificationWait
 	}
 
 	return l
@@ -180,12 +199,12 @@ func (l *Logins) Password(ctx context.Context, db Database, username, secret str
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("failed to get the user: %w", err)
 		}
-		verification := &password.Verification{OK: false, NeedsRehash: false}
+		var hash *string
 		if usable {
-			if verification, err = password.Verify(secret, *user.PasswordHash); err != nil {
-				return err
-			}
-		} else if err := password.VerifyDummy(secret); err != nil {
+			hash = user.PasswordHash
+		}
+		verification, err := l.verifyPassword(ctx, secret, hash)
+		if err != nil {
 			return err
 		}
 
@@ -220,6 +239,31 @@ func (l *Logins) Password(ctx context.Context, db Database, username, secret str
 	}
 
 	return token, challenge, nil
+}
+
+// verifyPassword は、パスワードがハッシュに一致するかを確かめる。encoded が nil なら、同じだけ時間をかけて一致しないとする。
+// 同時に確かめる数を抑え、順番を待ちきれなければ ThrottledError を返す (#542)。
+func (l *Logins) verifyPassword(ctx context.Context, secret string, encoded *string) (*password.Verification, error) {
+	timer := time.NewTimer(l.verificationWait)
+	defer timer.Stop()
+	select {
+	case l.verifications <- struct{}{}:
+	case <-timer.C:
+		return nil, &ThrottledError{RetryAfter: concurrentAttemptWait}
+	case <-ctx.Done():
+		return nil, fmt.Errorf("failed to wait for a password verification: %w", ctx.Err())
+	}
+	defer func() { <-l.verifications }()
+
+	if encoded == nil {
+		if err := password.VerifyDummy(secret); err != nil {
+			return nil, err
+		}
+
+		return &password.Verification{OK: false, NeedsRehash: false}, nil
+	}
+
+	return password.Verify(secret, *encoded)
 }
 
 // lockThrottleKeys は、試行回数の制限のキーを、トランザクションの終わりまでロックする。

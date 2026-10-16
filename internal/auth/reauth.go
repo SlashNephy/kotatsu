@@ -12,7 +12,6 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/password"
 )
 
 const (
@@ -59,12 +58,12 @@ func (l *Logins) Reauthenticate(
 		if err := checkThrottleIn(ctx, tx, keys, now); err != nil {
 			return err
 		}
-		verification := &password.Verification{OK: false, NeedsRehash: false}
-		if user.DisabledAt == nil && user.PasswordHash != nil {
-			if verification, err = password.Verify(secret, *user.PasswordHash); err != nil {
-				return err
-			}
-		} else if err := password.VerifyDummy(secret); err != nil {
+		var hash *string
+		if user.DisabledAt == nil {
+			hash = user.PasswordHash
+		}
+		verification, err := l.verifyPassword(ctx, secret, hash)
+		if err != nil {
 			return err
 		}
 

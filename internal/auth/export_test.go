@@ -14,3 +14,17 @@ func (o *OIDC) CompleteAs(
 
 	return outcome.reauth, outcome.returnTo, err
 }
+
+// OccupyVerifications は、パスワードを確かめる順番を n 個ふさぎ、ふさいだ分を空ける関数を返す。
+// 同時に確かめる数の上限を確かめるのに使う。
+func (l *Logins) OccupyVerifications(n int) func() {
+	for range n {
+		l.verifications <- struct{}{}
+	}
+
+	return func() {
+		for range n {
+			<-l.verifications
+		}
+	}
+}

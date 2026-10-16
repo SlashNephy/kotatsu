@@ -620,6 +620,9 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Sessions:      sessions,
 		SecondFactors: factors,
 		ChallengeTTL:  0,
+		// パスワードを同時に確かめる数は、CPU の数までにする (#542)。
+		MaxConcurrentVerifications: 0,
+		VerificationWait:           0,
 	})
 	setup := auth.NewSetup(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy, logger.With(slog.String("component", "setup")))
 	mux.Handle("GET /auth/setup", setup.StatusHandler(deps.DB))

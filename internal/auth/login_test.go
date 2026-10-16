@@ -232,6 +232,28 @@ func TestConcurrentPasswordLoginsAreThrottled(t *testing.T) {
 	assert.Equal(t, verified, f.count(t, `SELECT failures FROM login_throttles WHERE key = $1`, "account:kotatsu"))
 }
 
+// TestPasswordVerificationsAreLimited は、パスワードを同時に確かめる数に上限があり、順番を待ちきれない試行は、
+// 確かめずに待たせることを確かめる (#542)。順番が空けば、また確かめる。
+func TestPasswordVerificationsAreLimited(t *testing.T) {
+	t.Parallel()
+
+	f := newLoginFixture(t)
+	limited := auth.NewLogins(&auth.LoginsOptions{
+		Clock: f.clock, Recorder: audit.NewRecorder(f.clock), Logger: slog.New(slog.DiscardHandler),
+		Sessions: nil, SecondFactors: nil, ChallengeTTL: 0,
+		MaxConcurrentVerifications: 1, VerificationWait: 50 * time.Millisecond,
+	})
+	release := limited.OccupyVerifications(1)
+	_, _, err := limited.Password(t.Context(), f.db, loginName, "wrong-password", f.client)
+	require.ErrorIs(t, err, auth.ErrThrottled)
+	// 確かめていないので、失敗として数えない。
+	assert.Zero(t, f.count(t, `SELECT count(*) FROM login_throttles`))
+
+	release()
+	_, _, err = limited.Password(t.Context(), f.db, loginName, "wrong-password", f.client)
+	require.ErrorIs(t, err, auth.ErrInvalidCredentials)
+}
+
 // TestPasswordLoginThrottlesByIP は、ユーザー名を変えながら試しても、IP 単位で待たせることを確かめる。
 func TestPasswordLoginThrottlesByIP(t *testing.T) {
 	t.Parallel()
