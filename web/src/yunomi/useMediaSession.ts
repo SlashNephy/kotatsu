@@ -8,6 +8,9 @@ type Actions = Partial<{
   seekBackward: () => void;
   seekForward: () => void;
   seekTo: (seconds: number) => void;
+  // previousTrack と nextTrack は、ライブで、前と次の局へ移る (#493)。
+  previousTrack: () => void;
+  nextTrack: () => void;
 }>;
 
 // Playback は、OS に知らせる再生の状態。position は、録画のようにシークできるときの再生位置 (秒)。ライブでは null。
@@ -113,6 +116,8 @@ export function useMediaSession(
       ['pause', 'pause', () => actionsRef.current.pause?.()],
       ['seekbackward', 'seekBackward', () => actionsRef.current.seekBackward?.()],
       ['seekforward', 'seekForward', () => actionsRef.current.seekForward?.()],
+      ['previoustrack', 'previousTrack', () => actionsRef.current.previousTrack?.()],
+      ['nexttrack', 'nextTrack', () => actionsRef.current.nextTrack?.()],
       [
         'seekto',
         'seekTo',

@@ -1,5 +1,5 @@
-import { Alert, Anchor, Stack, Text, Title } from '@mantine/core';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { Alert, Anchor, Group, Select, Stack, Text, Title } from '@mantine/core';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Captions, Keyboard, MessageSquareText, Tv } from 'lucide-react';
 import { startTransition, Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -60,10 +60,32 @@ import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
 import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordingsQuery.graphql';
 import { ProgramOverlay } from '../../yunomi/ProgramOverlay';
+import { neighborServices } from '../../yunomi/channels';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
+
+// channelGroups は、選局の欄の選択肢を、チャンネル種別ごとにまとめて返す。
+function channelGroups(
+  services: readonly {
+    id: string;
+    name: string;
+    channelType: { type: string; displayName: string };
+  }[],
+) {
+  const groups: { group: string; items: { value: string; label: string }[] }[] = [];
+  for (const service of services) {
+    let group = groups.find((candidate) => candidate.group === service.channelType.displayName);
+    if (group === undefined) {
+      group = { group: service.channelType.displayName, items: [] };
+      groups.push(group);
+    }
+    group.items.push({ value: service.id, label: toHalfWidth(service.name) });
+  }
+
+  return groups;
+}
 
 export const Route = createFileRoute('/live/$serviceId')({
   component: LiveServicePage,
@@ -192,10 +214,22 @@ function Live({
             codec
           }
         }
+        # 視聴画面の中で選局するための、番組表と同じ並びのサービス (#493)。
+        services {
+          id
+          name
+          channelType {
+            type
+            displayName
+          }
+        }
       }
     `,
     { id: serviceId, from: range.from, to: range.to },
   );
+  const navigate = useNavigate();
+  const neighbors = neighborServices(data.services, serviceId);
+  const tune = (id: string) => void navigate({ to: '/live/$serviceId', params: { serviceId: id } });
   const videoRef = useRef<HTMLVideoElement | null>(null);
   // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で調べる。
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -388,6 +422,9 @@ function Live({
     {
       play: () => void videoRef.current?.play().catch(() => {}),
       pause: () => videoRef.current?.pause(),
+      // OS の前と次のボタンで、同じ種別の前後の局へ移る (#493)。移る先がなければ、OS にボタンを出さない。
+      ...(neighbors.previous === null ? {} : { previousTrack: () => tune(neighbors.previous!.id) }),
+      ...(neighbors.next === null ? {} : { nextTrack: () => tune(neighbors.next!.id) }),
     },
     // ライブはシークできないので、再生位置は知らせない。
     { playing: !videoState.paused, position: null },
@@ -562,9 +599,27 @@ function Live({
 
   return (
     <Stack gap="xs">
-      <Title order={2} size="h4">
-        <ServiceLabel name={service.name} logoUrl={service.logoUrl} />
-      </Title>
+      <Group justify="space-between" wrap="wrap" gap="xs">
+        <Title order={2} size="h4">
+          <ServiceLabel name={service.name} logoUrl={service.logoUrl} />
+        </Title>
+        {/* 一覧に戻らずに、ほかの局へ移る (#493)。種別ごとにまとめ、番組表と同じ順に並べる。 */}
+        <Select
+          size="xs"
+          w={240}
+          aria-label={t('live.switchChannel')}
+          placeholder={t('live.switchChannel')}
+          data={channelGroups(data.services)}
+          value={serviceId}
+          onChange={(id) => {
+            if (id !== null && id !== serviceId) {
+              tune(id);
+            }
+          }}
+          searchable
+          allowDeselect={false}
+        />
+      </Group>
       <Text size="sm" c="dimmed">
         {programName === null ? t('live.noProgram') : <ProgramTitle name={programName} />}
       </Text>
