@@ -27,6 +27,7 @@ import {
   Lock,
   LockOpen,
   Play,
+  RefreshCw,
   Save,
   Tag,
   Trash2,
@@ -50,6 +51,7 @@ import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment'
 import type { RecordingIdDeleteMutation } from './__generated__/RecordingIdDeleteMutation.graphql';
 import type { RecordingIdProtectMutation } from './__generated__/RecordingIdProtectMutation.graphql';
 import type { RecordingIdQuery } from './__generated__/RecordingIdQuery.graphql';
+import type { RecordingIdRegenerateMutation } from './__generated__/RecordingIdRegenerateMutation.graphql';
 import type { RecordingIdStreamURLMutation } from './__generated__/RecordingIdStreamURLMutation.graphql';
 import type { RecordingIdTagsMutation } from './__generated__/RecordingIdTagsMutation.graphql';
 import { ServiceLabel } from '../../guide/ServiceLabel';
@@ -220,6 +222,13 @@ function Recording({ recordingId }: { recordingId: string }) {
       deleteRecording(id: $id)
     }
   `);
+  const [regenerate, regenerating] = useMutation<RecordingIdRegenerateMutation>(graphql`
+    mutation RecordingIdRegenerateMutation($id: ID!) {
+      regenerateRecordingImages(id: $id)
+    }
+  `);
+  // regenerated は、画像の作り直しを頼んだ結果。queued は入れた、waiting は前に頼んだものを待っている。
+  const [regenerated, setRegenerated] = useState<'queued' | 'waiting' | null>(null);
   const [createURL, creatingURL] = useMutation<RecordingIdStreamURLMutation>(graphql`
     mutation RecordingIdStreamURLMutation($target: ID!) {
       createStreamURL(target: $target) {
@@ -270,6 +279,42 @@ function Recording({ recordingId }: { recordingId: string }) {
               <RecordingThumbnail url={recording.thumbnailUrl} />
             </AspectRatio>
           </Card>
+          {/* 画像の不具合を直したときなどに、代表画像とプレビュー画像を作り直す (#476)。作り直すまでは、今の画像を出す。 */}
+          {canEdit && segments.length > 0 && recording.state !== 'RECORDING' && (
+            <Group gap="xs">
+              <Button
+                size="xs"
+                variant="subtle"
+                leftSection={<RefreshCw size={14} aria-hidden />}
+                loading={regenerating}
+                onClick={() =>
+                  regenerate({
+                    variables: { id: recording.id },
+                    onCompleted: (response, errors) => {
+                      if (failed(errors)) {
+                        setError(t('recordings.actionError'));
+
+                        return;
+                      }
+                      setRegenerated(response.regenerateRecordingImages ? 'queued' : 'waiting');
+                    },
+                    onError: () => setError(t('recordings.actionError')),
+                  })
+                }
+              >
+                {t('recordings.regenerateImages')}
+              </Button>
+              {regenerated !== null && (
+                <Text size="xs" c="dimmed" role="status">
+                  {t(
+                    regenerated === 'queued'
+                      ? 'recordings.regenerateQueued'
+                      : 'recordings.regenerateWaiting',
+                  )}
+                </Text>
+              )}
+            </Group>
+          )}
           {segments.length > 0 && (
             <Button
               leftSection={<Play size={16} fill="currentColor" aria-hidden />}

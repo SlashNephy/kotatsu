@@ -555,6 +555,11 @@ type Mutation {
   """
   saveWatchPosition(id: ID!, positionMs: Int64!): Recording!
   """
+  録画の代表画像とプレビュー画像を作り直すジョブを入れる (設計書 6.1)。視聴者は使えない。
+  作り直すまでは、今の画像を出す。同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
+  """
+  regenerateRecordingImages(id: ID!): Boolean!
+  """
   番組予約を作る。同じ番組の予約がすでにあれば、作らずにその予約を返す。視聴者は使えない。
   """
   createProgramReservation(input: ProgramReservationInput!): Reservation!
