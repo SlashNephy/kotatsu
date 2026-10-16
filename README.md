@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="web/public/icons/icon.svg" alt="Kotatsu のアイコン" width="128" height="128">
+</p>
+
 # Kotatsu
 
 Kotatsuは、日本のテレビ放送を予約、録画、視聴するためのWebアプリケーションです。
