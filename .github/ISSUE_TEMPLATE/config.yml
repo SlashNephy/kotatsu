@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 質問
+    url: https://github.com/SlashNephy/kotatsu/discussions
+    about: 使い方の質問は、Discussions へお願いします。
+  - name: 脆弱性の報告
+    url: https://github.com/SlashNephy/kotatsu/security/advisories/new
+    about: 脆弱性は、公開の Issue ではなく、非公開で知らせてください。

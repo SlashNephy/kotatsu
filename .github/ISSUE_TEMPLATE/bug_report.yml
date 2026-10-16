@@ -1,0 +1,36 @@
+name: 不具合の報告
+description: 期待どおりに動かないことを知らせる
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 起きていること
+      description: 何が起きたか、何を期待していたかを書いてください。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現の手順
+      placeholder: |
+        1. 番組表を開く
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版
+      description: Kotatsu のイメージのタグか、コミットを書いてください。
+  - type: textarea
+    id: environment
+    attributes:
+      label: 環境
+      description: ブラウザ、OS、チューナーサーバー (Mirakurun、mirakc、Mahiron など)、動かし方 (Docker Compose、Helm など)
+  - type: textarea
+    id: logs
+    attributes:
+      label: ログ
+      description: 関係するログがあれば貼ってください。秘密の値は伏せてください。
+      render: text
