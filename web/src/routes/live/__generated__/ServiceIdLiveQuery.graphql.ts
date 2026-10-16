@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<3ee463728a301a0aab2cfb4cc4f3f381>>
+ * @generated SignedSource<<aac0f0f3cebddfd25f7e4d835acdff41>>
  * @lightSyntaxTransform
  */
 
@@ -40,6 +40,14 @@ export type ServiceIdLiveQuery$data = {
     // value in case none of the concrete values match.
     readonly __typename: "%other";
   } | null | undefined;
+  readonly services: ReadonlyArray<{
+    readonly channelType: {
+      readonly displayName: string;
+      readonly type: string;
+    };
+    readonly id: string;
+    readonly name: string;
+  }>;
   readonly transcoding: {
     readonly available: boolean;
     readonly presets: ReadonlyArray<{
@@ -230,6 +238,44 @@ v12 = {
     }
   ],
   "storageKey": null
+},
+v13 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "Service",
+  "kind": "LinkedField",
+  "name": "services",
+  "plural": true,
+  "selections": [
+    (v6/*:: as any*/),
+    (v5/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "ChannelType",
+      "kind": "LinkedField",
+      "name": "channelType",
+      "plural": false,
+      "selections": [
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "type",
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "displayName",
+          "storageKey": null
+        }
+      ],
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
 };
 return {
   "fragment": {
@@ -281,7 +327,8 @@ return {
         ],
         "storageKey": null
       },
-      (v12/*:: as any*/)
+      (v12/*:: as any*/),
+      (v13/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -337,20 +384,21 @@ return {
         ],
         "storageKey": null
       },
-      (v12/*:: as any*/)
+      (v12/*:: as any*/),
+      (v13/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "fb69bb273b879b4ba66f05bc68f55049",
+    "cacheID": "0879f187ac7e1cc6d62a59223cfa6c36",
     "id": null,
     "metadata": {},
     "name": "ServiceIdLiveQuery",
     "operationKind": "query",
-    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      jikkyo {\n        id\n        name\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n      }\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n}\n"
+    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      jikkyo {\n        id\n        name\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n      }\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n  services {\n    id\n    name\n    channelType {\n      type\n      displayName\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "c585a284a19db4240087ac05524750ca";
+(node as any).hash = "7e1132d44e31a93a7863e3fe0f9f129e";
 
 export default node;
