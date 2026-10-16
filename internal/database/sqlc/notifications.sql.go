@@ -78,7 +78,8 @@ func (q *Queries) GetReservationAudience(ctx context.Context, id uuid.UUID) (Get
 }
 
 const getReservationForNotification = `-- name: GetReservationForNotification :one
-SELECT reservations.id, reservations.name, reservations.start_at, reservations.end_at, services.name AS service_name
+SELECT reservations.id, reservations.name, reservations.start_at, reservations.end_at, reservations.updated_at,
+  services.name AS service_name
 FROM reservations JOIN services ON services.id = reservations.service_id
 WHERE reservations.id = $1
 `
@@ -88,6 +89,7 @@ type GetReservationForNotificationRow struct {
 	Name        string
 	StartAt     time.Time
 	EndAt       time.Time
+	UpdatedAt   time.Time
 	ServiceName string
 }
 
@@ -100,9 +102,30 @@ func (q *Queries) GetReservationForNotification(ctx context.Context, id uuid.UUI
 		&i.Name,
 		&i.StartAt,
 		&i.EndAt,
+		&i.UpdatedAt,
 		&i.ServiceName,
 	)
 	return i, err
+}
+
+const hasConflictNotificationSince = `-- name: HasConflictNotificationSince :one
+SELECT EXISTS (
+  SELECT 1 FROM notification_events
+  WHERE kind = 'reservation_conflict' AND payload->>'reservationId' = $1::text AND occurred_at >= $2
+)
+`
+
+type HasConflictNotificationSinceParams struct {
+	ReservationID string
+	Since         time.Time
+}
+
+// 予約の競合を、since 以降に通知したかどうか。同じ予約の競合を繰り返し通知しないために使う (#430)。
+func (q *Queries) HasConflictNotificationSince(ctx context.Context, arg HasConflictNotificationSinceParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasConflictNotificationSince, arg.ReservationID, arg.Since)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const insertNotificationEvent = `-- name: InsertNotificationEvent :exec

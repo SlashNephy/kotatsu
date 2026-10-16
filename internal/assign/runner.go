@@ -177,6 +177,9 @@ func (r *Runner) RunOnce(ctx context.Context) (*Result, error) {
 	return result, nil
 }
 
+// conflictRenotifyAfter は、同じ予約の競合を、もう一度通知するまでの時間 (付録 A)。
+const conflictRenotifyAfter = 24 * time.Hour
+
 // emitConflicts は、新たに競合になった予約を、通知するイベントとして記録する (設計書 6.2)。
 func (r *Runner) emitConflicts(ctx context.Context, tx pgx.Tx, conflicts []uuid.UUID) error {
 	q := sqlc.New(tx)
@@ -184,6 +187,21 @@ func (r *Runner) emitConflicts(ctx context.Context, tx pgx.Tx, conflicts []uuid.
 		reservation, err := q.GetReservationForNotification(ctx, reservationID)
 		if err != nil {
 			return fmt.Errorf("failed to get the conflicting reservation: %w", err)
+		}
+		// 同じ予約の競合は、通知してから conflictRenotifyAfter が過ぎるか、予約を変えるまで、もう一度は通知しない。
+		// チューナーの一覧が一時的に変わると、境目の予約が競合と競合でない状態を行き来し、そのたびに通知してしまうからである (#430)。
+		since := r.clock.Now().Add(-conflictRenotifyAfter)
+		if reservation.UpdatedAt.After(since) {
+			since = reservation.UpdatedAt
+		}
+		notified, err := q.HasConflictNotificationSince(ctx, sqlc.HasConflictNotificationSinceParams{
+			ReservationID: reservation.ID.String(), Since: since,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to check the conflict notifications: %w", err)
+		}
+		if notified {
+			continue
 		}
 		target, err := notification.LoadReservationContext(ctx, tx, reservation.ID)
 		if err != nil {
