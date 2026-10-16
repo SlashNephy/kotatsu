@@ -216,6 +216,12 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
   );
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState(false);
+  // reload は、一覧を読み直す。時刻予約を作ったり時刻を変えたりすると、並びと割り当てが変わる。
+  // 読み込んだ続きは、読み直しで並びが変わるので捨てる。
+  const reload = () => {
+    setMore(null);
+    startTransition(() => setFetchKey((key) => key + 1));
+  };
   const extra = more?.key === problems ? more : null;
   const next = extra !== null ? extra.next : (data.reservations.pageInfo.endCursor ?? null);
   const hasMore = extra !== null ? extra.next !== null : data.reservations.pageInfo.hasNextPage;
@@ -269,6 +275,7 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
       onAir={reservation.startMs <= range.now}
       canEdit={canEdit}
       onChanged={(enabled) => patch(reservation.id, { enabled })}
+      onRescheduled={reload}
       onDelete={() => setDeleting(reservation)}
     />
   );
@@ -308,9 +315,7 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
           onClose={() => setCreatingTime(false)}
           onSaved={() => {
             setCreatingTime(false);
-            // 作った予約は、まだ一覧にないので、読み直して足す。続きは読み直しで並びが変わるので捨てる。
-            setMore(null);
-            startTransition(() => setFetchKey((key) => key + 1));
+            reload();
           }}
         />
       )}
@@ -371,6 +376,8 @@ type RowProps = {
   onAir: boolean;
   canEdit: boolean;
   onChanged: (enabled: boolean) => void;
+  // onRescheduled は、時刻予約の時刻を変えたときに呼ぶ。並びと割り当てが変わるので、一覧を読み直す。
+  onRescheduled: () => void;
   onDelete: () => void;
 };
 
@@ -392,7 +399,14 @@ function plannedRange(reservation: Reservation): { start: number; end: number } 
 
 // ReservationRow は、予約の 1 行。番組名を押すと、番組表でその番組の詳細を開く。
 // 状態は、目を留めたいもの (録画中、競合、一部のみ、無効) だけをバッジで出す。録画できる見込みは当たり前なので出さない。
-function ReservationRow({ reservation, onAir, canEdit, onChanged, onDelete }: RowProps) {
+function ReservationRow({
+  reservation,
+  onAir,
+  canEdit,
+  onChanged,
+  onRescheduled,
+  onDelete,
+}: RowProps) {
   const { t } = useTranslation();
   const [commit, inFlight] = useMutation<reservationsEnableMutation>(graphql`
     mutation reservationsEnableMutation($id: ID!, $enabled: Boolean!) {
@@ -572,7 +586,10 @@ function ReservationRow({ reservation, onAir, canEdit, onChanged, onDelete }: Ro
         <TimeReservationDialog
           reservation={reservation}
           onClose={() => setEditingTime(false)}
-          onSaved={() => setEditingTime(false)}
+          onSaved={() => {
+            setEditingTime(false);
+            onRescheduled();
+          }}
         />
       )}
     </Box>

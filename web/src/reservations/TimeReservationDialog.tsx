@@ -62,22 +62,6 @@ const rangeErrorKeys = {
 
 function Form({ reservation, onClose, onSaved }: Props) {
   const { t } = useTranslation();
-  const data = useLazyLoadQuery<TimeReservationDialogQuery>(
-    graphql`
-      query TimeReservationDialogQuery {
-        services {
-          id
-          name
-          logoUrl
-          serviceId
-          channelType {
-            displayName
-          }
-        }
-      }
-    `,
-    {},
-  );
   const [create, creating] = useMutation<TimeReservationDialogCreateMutation>(graphql`
     mutation TimeReservationDialogCreateMutation($input: TimeReservationInput!) {
       createTimeReservation(input: $input) {
@@ -155,24 +139,10 @@ function Form({ reservation, onClose, onSaved }: Props) {
     <form onSubmit={submit}>
       <Stack>
         {reservation === undefined && (
-          <Select
-            label={t('reservations.time.service')}
-            data={data.services.map((s) => ({
-              value: s.id,
-              // 同じ名前のサービスが、別のチャンネル種別や、同じ放送局の別のサービスにもあるので、種別とサービス ID を添える。
-              label: `${s.name}（${s.channelType.displayName}・${s.serviceId}）`,
-            }))}
-            renderOption={({ option }) => (
-              <ServiceLabel
-                name={option.label}
-                logoUrl={data.services.find((s) => s.id === option.value)?.logoUrl}
-              />
-            )}
-            value={service}
-            onChange={setService}
-            searchable
-            required
-          />
+          // 編集ではサービスを変えられないので、サービスの一覧は、作るときだけ読む。
+          <Suspense fallback={<Text c="dimmed">{t('viewer.loading')}</Text>}>
+            <ServiceSelect value={service} onChange={setService} />
+          </Suspense>
         )}
         <TextInput
           type="datetime-local"
@@ -215,5 +185,53 @@ function Form({ reservation, onClose, onSaved }: Props) {
         </Group>
       </Stack>
     </form>
+  );
+}
+
+// ServiceSelect は、時刻予約を作るサービスを選ぶ欄。
+function ServiceSelect({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (value: string | null) => void;
+}) {
+  const { t } = useTranslation();
+  const data = useLazyLoadQuery<TimeReservationDialogQuery>(
+    graphql`
+      query TimeReservationDialogQuery {
+        services {
+          id
+          name
+          logoUrl
+          serviceId
+          channelType {
+            displayName
+          }
+        }
+      }
+    `,
+    {},
+  );
+
+  return (
+    <Select
+      label={t('reservations.time.service')}
+      data={data.services.map((s) => ({
+        value: s.id,
+        // 同じ名前のサービスが、別のチャンネル種別や、同じ放送局の別のサービスにもあるので、種別とサービス ID を添える。
+        label: `${s.name}（${s.channelType.displayName}・${s.serviceId}）`,
+      }))}
+      renderOption={({ option }) => (
+        <ServiceLabel
+          name={option.label}
+          logoUrl={data.services.find((s) => s.id === option.value)?.logoUrl}
+        />
+      )}
+      value={value}
+      onChange={onChange}
+      searchable
+      required
+    />
   );
 }
