@@ -9,13 +9,13 @@ import (
 
 // toConditions は、GraphQL の番組の条件を、照合の条件にする。条件の検証は match が行う。
 func toConditions(in *model.ProgramConditionsInput) (*match.Conditions, error) {
-	services := make([]int64, 0, len(in.Services))
-	for _, globalID := range in.Services {
-		id, err := parseServiceGlobalID(globalID)
-		if err != nil {
-			return nil, err
-		}
-		services = append(services, id)
+	services, err := parseServiceGlobalIDs(in.Services)
+	if err != nil {
+		return nil, err
+	}
+	excludeServices, err := parseServiceGlobalIDs(in.ExcludeServices)
+	if err != nil {
+		return nil, err
 	}
 
 	conditions := &match.Conditions{
@@ -24,6 +24,7 @@ func toConditions(in *model.ProgramConditionsInput) (*match.Conditions, error) {
 		ExcludeKeywords:    toKeywords(in.ExcludeKeywords),
 		ChannelTypes:       nonNil(in.ChannelTypes),
 		ServiceIDs:         services,
+		ExcludeServiceIDs:  excludeServices,
 		Genres:             toGenres(in.Genres),
 		ExcludeGenres:      toGenres(in.ExcludeGenres),
 		TimeRanges:         toTimeRanges(in.TimeRanges),
@@ -36,6 +37,20 @@ func toConditions(in *model.ProgramConditionsInput) (*match.Conditions, error) {
 	}
 
 	return conditions, nil
+}
+
+// parseServiceGlobalIDs は、サービスのグローバル ID の並びを、Mirakurun のサービス ID の並びにする。
+func parseServiceGlobalIDs(globalIDs []string) ([]int64, error) {
+	ids := make([]int64, 0, len(globalIDs))
+	for _, globalID := range globalIDs {
+		id, err := parseServiceGlobalID(globalID)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+
+	return ids, nil
 }
 
 // toKeywordMatch と toKeywordMatchModel は、含めるキーワードの照合のしかたを、GraphQL と照合の条件で行き来させる。

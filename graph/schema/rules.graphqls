@@ -29,6 +29,8 @@ type ProgramConditions {
   excludeKeywords: [Keyword!]!
   channelTypes: [String!]!
   services: [Service!]!
+  "チャンネル種別やサービスで対象になっても、含まれていれば除外するサービス"
+  excludeServices: [Service!]!
   genres: [GenreCondition!]!
   excludeGenres: [GenreCondition!]!
   timeRanges: [TimeRange!]!

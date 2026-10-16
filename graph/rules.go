@@ -185,6 +185,7 @@ func toProgramConditions(c *match.Conditions) *model.ProgramConditions {
 		MaxDurationSeconds: c.MaxDurationSeconds,
 		FreeOnly:           c.FreeOnly,
 		ServiceKeys:        nonNil(c.ServiceIDs),
+		ExcludeServiceKeys: nonNil(c.ExcludeServiceIDs),
 	}
 }
 

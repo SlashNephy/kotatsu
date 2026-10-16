@@ -31,6 +31,7 @@ WHERE (
     OR c.channel_type = ANY(@channel_types::text[])
     OR c.service_id = ANY(@service_ids::bigint[])
   )
+  AND NOT c.service_id = ANY(@excluded_service_ids::bigint[])
   AND (
     cardinality(@genre_lv1s::bigint[]) = 0
     OR EXISTS (SELECT 1 FROM jsonb_array_elements(c.genres) g WHERE (g ->> 'lv1')::bigint = ANY(@genre_lv1s::bigint[]))

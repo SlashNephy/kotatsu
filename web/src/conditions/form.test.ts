@@ -54,6 +54,11 @@ describe('hasConditions', () => {
     },
     { name: 'チャンネル種別', form: { ...emptyConditions(), channelTypes: ['BS'] }, want: true },
     { name: '最短の長さ', form: { ...emptyConditions(), minDurationSeconds: 1800 }, want: true },
+    {
+      name: '除外するサービス',
+      form: { ...emptyConditions(), excludeServices: ['U2VydmljZTox'] },
+      want: true,
+    },
   ])('$name', ({ form, want }) => {
     expect(hasConditions(form)).toBe(want);
   });
@@ -66,6 +71,7 @@ describe('fromConditions と toConditionsInput', () => {
     excludeKeywords: [],
     channelTypes: [],
     services: [],
+    excludeServices: [],
     genres: [],
     excludeGenres: [],
     timeRanges: [],

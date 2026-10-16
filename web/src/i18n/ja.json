@@ -604,6 +604,8 @@
     "addKeyword": "キーワードを追加",
     "channelTypes": "放送波",
     "services": "サービス",
+    "excludeServices": "除外するサービス",
+    "excludeServicesDescription": "放送波やサービスで対象になっても、ここで選んだサービスの番組は除きます",
     "genres": "含めるジャンル",
     "excludeGenres": "除外するジャンル",
     "timeRanges": "時間帯",
