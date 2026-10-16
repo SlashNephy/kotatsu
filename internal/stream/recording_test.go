@@ -290,13 +290,33 @@ func TestRecordingHandlerDownloads(t *testing.T) {
 	recording := f.recording(t, "recording")
 	f.segment(t, recording, "録画中.m2ts", data, 0, true)
 
-	got := f.get(t, finished, "?download=1")
-	assert.Equal(t, http.StatusOK, got.status)
-	assert.Equal(t, data, got.body)
-	assert.Equal(t, "attachment; filename*=utf-8''%E3%81%93%E3%81%9F%E3%81%A4%E7%89%B9%E9%9B%86.m2ts", got.disposition)
+	tests := []struct {
+		name            string
+		recordingID     uuid.UUID
+		query           string
+		wantStatus      int
+		wantDisposition string
+	}{
+		{
+			name: "録画を終えた録画を、録画ファイルの名前で保存させる", recordingID: finished, query: "?download=1",
+			wantStatus: http.StatusOK, wantDisposition: "attachment; filename*=utf-8''%E3%81%93%E3%81%9F%E3%81%A4%E7%89%B9%E9%9B%86.m2ts",
+		},
+		{name: "録画中の録画は保存させない", recordingID: recording, query: "?download=1", wantStatus: http.StatusConflict},
+		{name: "開始位置とは併せられない", recordingID: finished, query: "?download=1&start=10", wantStatus: http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	inProgress := f.get(t, recording, "?download=1")
-	assert.Equal(t, http.StatusConflict, inProgress.status)
+			got := f.get(t, tt.recordingID, tt.query)
+			assert.Equal(t, tt.wantStatus, got.status)
+			if tt.wantStatus != http.StatusOK {
+				return
+			}
+			assert.Equal(t, data, got.body)
+			assert.Equal(t, tt.wantDisposition, got.disposition)
+		})
+	}
 }
 
 // TestRecordingHandlerStreamsRecordingInProgress は、録画中の録画には、長さが決まらないので Range に答えず、

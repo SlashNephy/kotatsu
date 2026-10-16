@@ -64,6 +64,11 @@ func (h *RecordingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// download を付けたら、録画ファイルの名前で保存させる (#474)。録画中の録画は、長さが決まらないので保存させない。
 	download := r.URL.Query().Has("download")
+	if download && r.URL.Query().Has("start") {
+		http.Error(w, "start cannot be combined with download; the whole recording is downloaded", http.StatusBadRequest)
+
+		return
+	}
 	if download && recording.InProgress {
 		http.Error(w, "the recording is still in progress; download it after it finishes", http.StatusConflict)
 
