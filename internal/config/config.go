@@ -50,6 +50,10 @@ type Server struct {
 	// ClientIPHeader は、信頼済みのプロキシから届いたリクエストで、送信元を読むヘッダー (X-Forwarded-For か X-Real-IP)。
 	// X-Real-IP にすると、X-Forwarded-For を読まない。プロキシが X-Forwarded-For を設定し直さないと、送信元が書いた値が届くからである。
 	ClientIPHeader string `yaml:"client_ip_header"`
+	// AllowedHosts は、受け付ける Host のホスト名 (ポートを除く) (設計書 9.5)。DNS リバインディングで、外部のサイトの
+	// オリジンから届いたリクエストを拒むのに使う。IP アドレスと localhost は、いつも受け付ける。
+	// 空なら、どの Host も受け付ける。環境変数では、カンマで区切って渡す。
+	AllowedHosts []string `yaml:"allowed_hosts"`
 	// AdvertiseHost は、インスタンスの登録簿に載せる、ほかのインスタンスからこのインスタンスに届くホスト (設計書 1.2)。
 	// 空なら、待ち受けのホストを使い、全アドレスで待ち受けるならホスト名を使う。
 	// Kubernetes では、ホスト名で Pod に届かないので、Pod の IP を渡す。
@@ -229,6 +233,7 @@ func Default() *Config {
 			AllowedNetworks: DefaultAllowedNetworks(),
 			TrustedProxies:  []string{},
 			ClientIPHeader:  ClientIPHeaderXForwardedFor,
+			AllowedHosts:    []string{},
 		},
 		Metrics: Metrics{
 			Listen: ":9090",
@@ -284,6 +289,11 @@ func (s *Server) validate() []error {
 	}
 	if !slices.Contains([]string{ClientIPHeaderXForwardedFor, ClientIPHeaderXRealIP}, s.ClientIPHeader) {
 		errs = append(errs, fieldError("server.client_ip_header", errors.New("must be X-Forwarded-For or X-Real-IP")))
+	}
+	for _, host := range s.AllowedHosts {
+		if host == "" || strings.ContainsAny(host, ":/ ") {
+			errs = append(errs, fieldError("server.allowed_hosts", fmt.Errorf("%q must be a host name without a scheme, port, or path", host)))
+		}
 	}
 
 	return errs
