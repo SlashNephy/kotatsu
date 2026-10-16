@@ -182,6 +182,51 @@ func TestRunOnceStoresAssignments(t *testing.T) {
 	assert.Equal(t, stored{state: "pending", tuner: nil, plannedStart: nil}, f.stored(t, disabled))
 }
 
+// TestRunOnceNotifiesConflictOnce は、競合と競合でない状態を行き来しても、同じ予約の競合は 1 回だけ通知することを確かめる (#430)。
+// チューナーの一覧が一時的に変わると、ちょうど足りるかどうかの境目の予約が行き来し、そのたびに通知していた。
+// 通知してから一定の時間 (conflictRenotifyAfter) が過ぎたか、予約を変えたら、また通知する。
+func TestRunOnceNotifiesConflictOnce(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	ids := []uuid.UUID{f.reserve(t, 0, nil), f.reserve(t, 1, nil), f.reserve(t, 2, nil)}
+	f.runOnce(t)
+	notified := f.notifiedConflicts(t)
+	require.Len(t, notified, 1)
+	conflicted := notified[0]
+	other := ids[0]
+	if other == conflicted {
+		other = ids[1]
+	}
+	flap := func() []uuid.UUID {
+		t.Helper()
+
+		// 1 件を無効にして競合を解き、有効に戻してまた競合にする。
+		for _, enabled := range []bool{false, true} {
+			_, err := f.reservations.Update(t.Context(), f.pool, audit.System("test"), other, &reserve.Update{Enabled: new(enabled)})
+			require.NoError(t, err)
+			f.runOnce(t)
+		}
+		require.Equal(t, string(assign.StateConflict), f.stored(t, conflicted).state)
+
+		return f.notifiedConflicts(t)
+	}
+
+	assert.Len(t, flap(), 1, "the same conflict must not be notified again")
+
+	// 通知してから時間が過ぎたことにする。時計を進めると、予約した番組が始まってしまうので、通知の時刻を戻す。
+	_, err := f.pool.Exec(t.Context(), "UPDATE notification_events SET occurred_at = occurred_at - interval '25 hours' WHERE kind = 'reservation_conflict'")
+	require.NoError(t, err)
+	assert.Len(t, flap(), 2, "the conflict is notified again after a while")
+
+	// 競合している予約を変えたら、また通知する。
+	f.clock.Advance(time.Minute)
+	_, err = f.reservations.Update(t.Context(), f.pool, audit.System("test"), conflicted,
+		&reserve.Update{Overrides: &reserve.Overrides{EndMarginSeconds: new(30)}})
+	require.NoError(t, err)
+	assert.Len(t, flap(), 3, "the conflict is notified again after the reservation changes")
+}
+
 // TestRunOnceUsesRecordingSettings は、録画設定のマージンを、全体の既定値に予約の上書きを重ねて使うことを確かめる。
 func TestRunOnceUsesRecordingSettings(t *testing.T) {
 	t.Parallel()

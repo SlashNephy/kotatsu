@@ -61,9 +61,17 @@ ON CONFLICT (user_id, kind) DO UPDATE SET in_app = EXCLUDED.in_app, web_push = E
 
 -- name: GetReservationForNotification :one
 -- 競合の通知に載せる、予約の番組名とサービス名。
-SELECT reservations.id, reservations.name, reservations.start_at, reservations.end_at, services.name AS service_name
+SELECT reservations.id, reservations.name, reservations.start_at, reservations.end_at, reservations.updated_at,
+  services.name AS service_name
 FROM reservations JOIN services ON services.id = reservations.service_id
 WHERE reservations.id = @id;
+
+-- name: HasConflictNotificationSince :one
+-- 予約の競合を、since 以降に通知したかどうか。同じ予約の競合を繰り返し通知しないために使う (#430)。
+SELECT EXISTS (
+  SELECT 1 FROM notification_events
+  WHERE kind = 'reservation_conflict' AND payload->>'reservationId' = @reservation_id::text AND occurred_at >= @since
+);
 
 -- name: GetNotificationEvent :one
 SELECT * FROM notification_events WHERE id = @id;

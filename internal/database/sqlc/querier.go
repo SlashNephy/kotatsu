@@ -156,6 +156,8 @@ type Querier interface {
 	GetWebhook(ctx context.Context, id uuid.UUID) (Webhook, error)
 	// 無効にした管理者も数える。管理者を作った後は、初回セットアップを開き直さない (設計書 9.2)。
 	HasAdmin(ctx context.Context) (bool, error)
+	// 予約の競合を、since 以降に通知したかどうか。同じ予約の競合を繰り返し通知しないために使う (#430)。
+	HasConflictNotificationSince(ctx context.Context, arg HasConflictNotificationSinceParams) (bool, error)
 	HasUserTOTP(ctx context.Context, userID uuid.UUID) (bool, error)
 	HeartbeatInstance(ctx context.Context, arg HeartbeatInstanceParams) (int64, error)
 	// リース name を、holder が今持っているかどうか。
