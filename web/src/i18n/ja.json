@@ -288,6 +288,7 @@
       "reserve": "録画予約",
       "createRule": "この番組からルールを作成",
       "reserved": "録画予約済み",
+      "partial": "本編の一部が欠ける見込みです。{{start}}〜{{end}} を録画する予定です",
       "reservedByRules": "ルールで予約: ",
       "reservedByRulesSettings": "録画の設定は、最も古いルール「{{name}}」に従います",
       "cancelReservation": "録画予約を取り消す",
@@ -551,6 +552,7 @@
       "PARTIAL": "一部のみ",
       "CONFLICT": "競合"
     },
+    "planned": "録画 {{start}}〜{{end}}",
     "disabled": "無効",
     "enable": "有効にする",
     "disable": "無効にする",

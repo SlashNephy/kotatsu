@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<135a46d0aedd6207e47d7bd58347178a>>
+ * @generated SignedSource<<f3e269b5d9d6bb3a19db8f34e274f7ff>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type AssignmentState = "CONFLICT" | "OK" | "PARTIAL" | "PENDING" | "%future added value";
 export type ReservationKind = "PROGRAM" | "RULE" | "TIME" | "%future added value";
 export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type ProgramDetailQuery$variables = {
@@ -31,6 +32,11 @@ export type ProgramDetailQuery$data = {
     readonly isFree: boolean;
     readonly name: string;
     readonly reservation: {
+      readonly assignment: {
+        readonly plannedEndAt: string | null | undefined;
+        readonly plannedStartAt: string | null | undefined;
+        readonly state: AssignmentState;
+      };
       readonly enabled: boolean;
       readonly id: string;
       readonly kind: ReservationKind;
@@ -233,6 +239,38 @@ v15 = {
     {
       "alias": null,
       "args": null,
+      "concreteType": "ReservationAssignment",
+      "kind": "LinkedField",
+      "name": "assignment",
+      "plural": false,
+      "selections": [
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "state",
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "plannedStartAt",
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "plannedEndAt",
+          "storageKey": null
+        }
+      ],
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
       "concreteType": "Rule",
       "kind": "LinkedField",
       "name": "rules",
@@ -353,16 +391,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "3e697b27c03e9e8c58c3d1c58a83092d",
+    "cacheID": "9720a8da321cbf888f58c5ddc9707dd7",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      service {\n        id\n        name\n        logoUrl\n      }\n      genres {\n        lv1\n      }\n      extended {\n        heading\n        text\n      }\n      reservation {\n        id\n        enabled\n        kind\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      service {\n        id\n        name\n        logoUrl\n      }\n      genres {\n        lv1\n      }\n      extended {\n        heading\n        text\n      }\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "e4c4b4baf4aa157183b6ef9f28671e41";
+(node as any).hash = "cc03cd01b1fef42b96207fbe92ad44e1";
 
 export default node;

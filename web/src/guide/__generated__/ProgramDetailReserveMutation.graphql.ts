@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<236db3d8385bd63f30d07861f2ee284f>>
+ * @generated SignedSource<<bb934231f8c00dedbfc157b2d834e8ae>>
  * @lightSyntaxTransform
  */
 
@@ -8,13 +8,21 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type AssignmentState = "CONFLICT" | "OK" | "PARTIAL" | "PENDING" | "%future added value";
+export type ReservationKind = "PROGRAM" | "RULE" | "TIME" | "%future added value";
 export type ProgramDetailReserveMutation$variables = {
   program: string;
 };
 export type ProgramDetailReserveMutation$data = {
   readonly createProgramReservation: {
+    readonly assignment: {
+      readonly plannedEndAt: string | null | undefined;
+      readonly plannedStartAt: string | null | undefined;
+      readonly state: AssignmentState;
+    };
     readonly enabled: boolean;
     readonly id: string;
+    readonly kind: ReservationKind;
   };
 };
 export type ProgramDetailReserveMutation = {
@@ -64,6 +72,45 @@ v1 = [
         "kind": "ScalarField",
         "name": "enabled",
         "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "kind",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "ReservationAssignment",
+        "kind": "LinkedField",
+        "name": "assignment",
+        "plural": false,
+        "selections": [
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "state",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "plannedStartAt",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "plannedEndAt",
+            "storageKey": null
+          }
+        ],
+        "storageKey": null
       }
     ],
     "storageKey": null
@@ -87,16 +134,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "e00e6a06f3d1b944e2a112abd01876af",
+    "cacheID": "89d18b36a8c7c97cfe9714e09c1c7076",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailReserveMutation",
     "operationKind": "mutation",
-    "text": "mutation ProgramDetailReserveMutation(\n  $program: ID!\n) {\n  createProgramReservation(input: {program: $program}) {\n    id\n    enabled\n  }\n}\n"
+    "text": "mutation ProgramDetailReserveMutation(\n  $program: ID!\n) {\n  createProgramReservation(input: {program: $program}) {\n    id\n    enabled\n    kind\n    assignment {\n      state\n      plannedStartAt\n      plannedEndAt\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "d4415b9190043e1ff1c0bd995b68a877";
+(node as any).hash = "2e45091f890faa5692443dbe2252d4bd";
 
 export default node;
