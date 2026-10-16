@@ -1150,6 +1150,7 @@
     "save": "保存",
     "copy": "コピー",
     "delete": "削除",
-    "openRecording": "録画を開く"
+    "openRecording": "録画を開く",
+    "playFrom": "撮った場面から再生"
   }
 }
