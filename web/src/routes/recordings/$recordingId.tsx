@@ -50,6 +50,7 @@ import type { RecordingIdRegenerateMutation } from './__generated__/RecordingIdR
 import type { RecordingIdTagsMutation } from './__generated__/RecordingIdTagsMutation.graphql';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { ServiceLabel } from '../../guide/ServiceLabel';
+import { zonedFormat } from '../../futon';
 
 export const Route = createFileRoute('/recordings/$recordingId')({
   component: RecordingPage,
@@ -63,7 +64,7 @@ class RecordingNotFoundError extends Error {
   }
 }
 
-const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+const dateTimeFormat = zonedFormat({
   year: 'numeric',
   month: 'numeric',
   day: 'numeric',
@@ -71,20 +72,17 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
-const minuteFormat = new Intl.DateTimeFormat('ja-JP', {
+const minuteFormat = zonedFormat({
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
-const timeFormat = new Intl.DateTimeFormat('ja-JP', {
+const timeFormat = zonedFormat({
   hour: '2-digit',
   minute: '2-digit',
   second: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 const failureKeys = {

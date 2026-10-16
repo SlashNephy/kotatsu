@@ -1,17 +1,18 @@
 // 予約の一覧を、日ごとに並べるための計算。
 
+import { fromWallClock, zoneOffset } from '../futon/timeZone';
+
 const minute = 60_000;
 const day = 24 * 60 * minute;
-const jst = 9 * 60 * minute;
 
-// DayGroup は、1 日分の予約。from は、その日の 0 時 (日本時間)。
+// DayGroup は、1 日分の予約。from は、その日の 0 時 (表示のタイムゾーン)。
 export type DayGroup<T> = { from: number; items: T[] };
 
-// groupByDay は、予約を、開始した日 (日本時間) ごとにまとめる。日は早い順に、日の中の予約は渡された順に並べる。
+// groupByDay は、予約を、開始した日 (表示のタイムゾーン) ごとにまとめる。日は早い順に、日の中の予約は渡された順に並べる。
 export function groupByDay<T extends { startMs: number }>(items: readonly T[]): DayGroup<T>[] {
   const groups = new Map<number, DayGroup<T>>();
   for (const item of items) {
-    const from = Math.floor((item.startMs + jst) / day) * day - jst;
+    const from = fromWallClock(Math.floor((item.startMs + zoneOffset(item.startMs)) / day) * day);
     const group = groups.get(from);
     if (group === undefined) {
       groups.set(from, { from, items: [item] });

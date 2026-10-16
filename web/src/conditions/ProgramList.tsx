@@ -4,15 +4,15 @@ import { useTranslation } from 'react-i18next';
 import { ProgramTitle } from '../futon';
 import { ServiceLabel } from '../guide/ServiceLabel';
 import classes from './ProgramList.module.css';
+import { zonedFormat } from '../futon';
 
-const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+const dateTimeFormat = zonedFormat({
   month: 'numeric',
   day: 'numeric',
   weekday: 'short',
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 export type ProgramListItem = {

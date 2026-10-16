@@ -45,6 +45,7 @@ import type { accountQuery } from './__generated__/accountQuery.graphql';
 import type { accountRegenerateMutation } from './__generated__/accountRegenerateMutation.graphql';
 import type { accountRenamePasskeyMutation } from './__generated__/accountRenamePasskeyMutation.graphql';
 import type { accountRevokeSessionMutation } from './__generated__/accountRevokeSessionMutation.graphql';
+import { zonedFormat } from '../../futon';
 
 type AccountSearch = {
   // error は、IdP での再認証か紐付けに失敗して戻ってきたときの理由 (oidc_link_taken など)。
@@ -68,14 +69,13 @@ export const Route = createFileRoute('/settings/account')({
   component: AccountPage,
 });
 
-const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+const dateTimeFormat = zonedFormat({
   year: 'numeric',
   month: 'numeric',
   day: 'numeric',
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 // AccountPage は、ログイン中のユーザーの個人の設定 (設計書 10.3)。プレイヤー、セッション、パスキー、第二要素を扱う。

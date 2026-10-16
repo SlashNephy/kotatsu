@@ -4,12 +4,12 @@ import { useTranslation } from 'react-i18next';
 
 import { ProgramTitle } from '../futon';
 import { ServiceLabel } from './ServiceLabel';
+import { zonedFormat } from '../futon';
 
-const timeFormat = new Intl.DateTimeFormat('ja-JP', {
+const timeFormat = zonedFormat({
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 type Props = {

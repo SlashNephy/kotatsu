@@ -28,6 +28,7 @@ import { MissingRecordings } from '../../admin/MissingRecordings';
 import { RecordingRenames } from '../../admin/RecordingRenames';
 import type { systemPoolMutation } from './__generated__/systemPoolMutation.graphql';
 import type { systemQuery } from './__generated__/systemQuery.graphql';
+import { zonedFormat } from '../../futon';
 
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
 const path = '/admin/system';
@@ -38,14 +39,13 @@ export const Route = createFileRoute('/admin/system')({
   component: SystemPage,
 });
 
-const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+const dateTimeFormat = zonedFormat({
   month: 'numeric',
   day: 'numeric',
   hour: '2-digit',
   minute: '2-digit',
   second: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 const formatTime = (time: string) => dateTimeFormat.format(Date.parse(time));

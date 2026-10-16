@@ -23,6 +23,7 @@ import type {
   auditQuery,
   auditQuery$data,
 } from './__generated__/auditQuery.graphql';
+import { zonedFormat } from '../../futon';
 
 export const Route = createFileRoute('/admin/audit')({
   component: AuditPage,
@@ -30,7 +31,7 @@ export const Route = createFileRoute('/admin/audit')({
 
 const pageSize = 50;
 
-const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+const dateTimeFormat = zonedFormat({
   year: 'numeric',
   month: 'numeric',
   day: 'numeric',
@@ -38,7 +39,6 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
   minute: '2-digit',
   second: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 // AuditPage は、監査ログを新しい順に見る、管理者向けの画面 (設計書 8.5、10.3)。

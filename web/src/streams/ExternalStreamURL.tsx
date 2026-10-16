@@ -5,14 +5,14 @@ import { useTranslation } from 'react-i18next';
 import { graphql, useMutation } from 'react-relay';
 
 import type { ExternalStreamURLMutation } from './__generated__/ExternalStreamURLMutation.graphql';
+import { zonedFormat } from '../futon';
 
-const timeFormat = new Intl.DateTimeFormat('ja-JP', {
+const timeFormat = zonedFormat({
   month: 'numeric',
   day: 'numeric',
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 type Props = {
