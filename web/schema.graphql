@@ -1044,9 +1044,9 @@ type Query {
   """
   recordingRenames: [RecordingRename!]!
   """
-  録画を、録画を始めた日時の新しい順に first 件まで返す。
+  録画を、録画を始めた日時の順 (既定は新しい順) に first 件まで返す。
   """
-  recordings(first: Int! = 50, after: String, filter: RecordingFilter): RecordingConnection!
+  recordings(first: Int! = 50, after: String, filter: RecordingFilter, order: RecordingOrder! = NEWEST_FIRST): RecordingConnection!
   """
   タグを、名前の順に返す。
   """
@@ -1349,6 +1349,13 @@ input RecordingFilter {
 type RecordingGap {
   from: Time!
   to: Time!
+}
+"""
+録画の並び順。どちらも、録画を始めた日時で並べる。
+"""
+enum RecordingOrder {
+  NEWEST_FIRST
+  OLDEST_FIRST
 }
 """
 録画のファイルの付け直し (設計書 4.7)。ファイル名のテンプレートを変えた後に、既存の録画のファイルを今のテンプレートの名前にする。

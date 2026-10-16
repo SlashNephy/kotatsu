@@ -49,8 +49,10 @@ func librarian(ctx context.Context) (*audit.Actor, error) {
 	return actorOf(ctx, principal), nil
 }
 
-// listRecordings は、録画を、録画を始めた日時の新しい順に first 件まで返す。
-func (r *Resolver) listRecordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter) (*model.RecordingConnection, error) {
+// listRecordings は、録画を、録画を始めた日時の order の順に first 件まで返す。
+func (r *Resolver) listRecordings(
+	ctx context.Context, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder,
+) (*model.RecordingConnection, error) {
 	if _, err := viewer(ctx); err != nil {
 		return nil, err
 	}
@@ -71,7 +73,15 @@ func (r *Resolver) listRecordings(ctx context.Context, first int, after *string,
 		params.BeforeAt, params.BeforeID = &cursor.RecordedFrom, &cursor.ID
 	}
 
-	rows, err := sqlc.New(r.db).SearchRecordings(ctx, *params)
+	var rows []sqlc.Recording
+	if order == model.RecordingOrderOldestFirst {
+		rows, err = sqlc.New(r.db).SearchRecordingsOldest(ctx, sqlc.SearchRecordingsOldestParams{
+			States: params.States, ServiceIds: params.ServiceIds, TagIds: params.TagIds, Keyword: params.Keyword,
+			Since: params.Since, Until: params.Until, AfterAt: params.BeforeAt, AfterID: params.BeforeID, MaxCount: params.MaxCount,
+		})
+	} else {
+		rows, err = sqlc.New(r.db).SearchRecordings(ctx, *params)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to search recordings: %w", err)
 	}

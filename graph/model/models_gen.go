@@ -1298,6 +1298,62 @@ func (e RecordingFileKind) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// 録画の並び順。どちらも、録画を始めた日時で並べる。
+type RecordingOrder string
+
+const (
+	RecordingOrderNewestFirst RecordingOrder = "NEWEST_FIRST"
+	RecordingOrderOldestFirst RecordingOrder = "OLDEST_FIRST"
+)
+
+var AllRecordingOrder = []RecordingOrder{
+	RecordingOrderNewestFirst,
+	RecordingOrderOldestFirst,
+}
+
+func (e RecordingOrder) IsValid() bool {
+	switch e {
+	case RecordingOrderNewestFirst, RecordingOrderOldestFirst:
+		return true
+	}
+	return false
+}
+
+func (e RecordingOrder) String() string {
+	return string(e)
+}
+
+func (e *RecordingOrder) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = RecordingOrder(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid RecordingOrder", str)
+	}
+	return nil
+}
+
+func (e RecordingOrder) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *RecordingOrder) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e RecordingOrder) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 // 録画の状態 (設計書 5.5)。
 type RecordingState string
 

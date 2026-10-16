@@ -391,7 +391,10 @@ type Querier interface {
 	SearchProgramCandidates(ctx context.Context, arg SearchProgramCandidatesParams) ([]SearchProgramCandidatesRow, error)
 	// 録画を、録画を始めた日時の新しい順に返す。絞り込まない条件は NULL か空にする。
 	// before_at と before_id より前 (古い) の録画だけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
+	// 並び順をパラメーターで切り替えると、インデックスの順に読めなくなるので、古い順は SearchRecordingsOldest に分ける。
 	SearchRecordings(ctx context.Context, arg SearchRecordingsParams) ([]Recording, error)
+	// SearchRecordings の古い順。after_at と after_id より後 (新しい) の録画だけを返し、ページを送る。
+	SearchRecordingsOldest(ctx context.Context, arg SearchRecordingsOldestParams) ([]Recording, error)
 	ServiceExists(ctx context.Context, id int64) (bool, error)
 	// セグメントを 1 つにつないだあとで、最初のセグメントの大きさと、表す時間の終わりを、つないだものにする。
 	// 録画が消されて行がなければ 0 を返す。

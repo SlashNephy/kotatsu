@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<73657291fe4026e78fa55a8f844f06bb>>
+ * @generated SignedSource<<99a10f3ee84ad4255c1a22750a648667>>
  * @lightSyntaxTransform
  */
 
@@ -10,6 +10,10 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type recordingsTagsQuery$variables = Record<PropertyKey, never>;
 export type recordingsTagsQuery$data = {
+  readonly services: ReadonlyArray<{
+    readonly id: string;
+    readonly name: string;
+  }>;
   readonly tags: ReadonlyArray<{
     readonly id: string;
     readonly name: string;
@@ -22,7 +26,21 @@ export type recordingsTagsQuery = {
 };
 
 const node: ConcreteRequest = (function(){
-var v0 = [
+var v0 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "id",
+  "storageKey": null
+},
+v1 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "name",
+  "storageKey": null
+},
+v2 = [
   {
     "alias": null,
     "args": null,
@@ -31,20 +49,8 @@ var v0 = [
     "name": "tags",
     "plural": true,
     "selections": [
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "id",
-        "storageKey": null
-      },
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "name",
-        "storageKey": null
-      },
+      (v0/*:: as any*/),
+      (v1/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -52,6 +58,19 @@ var v0 = [
         "name": "recordings",
         "storageKey": null
       }
+    ],
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "Service",
+    "kind": "LinkedField",
+    "name": "services",
+    "plural": true,
+    "selections": [
+      (v0/*:: as any*/),
+      (v1/*:: as any*/)
     ],
     "storageKey": null
   }
@@ -62,7 +81,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "recordingsTagsQuery",
-    "selections": (v0/*:: as any*/),
+    "selections": (v2/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -71,19 +90,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "recordingsTagsQuery",
-    "selections": (v0/*:: as any*/)
+    "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "a0da77e1043475760b7d5ec58b426fa9",
+    "cacheID": "bfe5a16aac30023060289c5530e11a6b",
     "id": null,
     "metadata": {},
     "name": "recordingsTagsQuery",
     "operationKind": "query",
-    "text": "query recordingsTagsQuery {\n  tags {\n    id\n    name\n    recordings\n  }\n}\n"
+    "text": "query recordingsTagsQuery {\n  tags {\n    id\n    name\n    recordings\n  }\n  services {\n    id\n    name\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "90df20aaa3f0f4b86bf6a4dc13aac4e1";
+(node as any).hash = "67fc8857ea541fc60e00b29469244de6";
 
 export default node;

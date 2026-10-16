@@ -129,13 +129,14 @@ func (f *fixture) recordings(t *testing.T, first int, after *string, filter map[
 func TestRecordings(t *testing.T) {
 	t.Parallel()
 
+	const travelogue = "みかん紀行"
 	f, dir := newRecordingFixture(t)
 	oldest := f.addRecording(t, dir, episode1, "completed", 3*time.Hour)
-	f.addRecording(t, dir, "みかん紀行", "failed", 2*time.Hour)
+	f.addRecording(t, dir, travelogue, "failed", 2*time.Hour)
 	newest := f.addRecording(t, dir, episode2, "partial", time.Hour)
 
 	all := f.recordings(t, 10, nil, nil)
-	assert.Equal(t, []string{episode2, "みかん紀行", episode1}, all.names())
+	assert.Equal(t, []string{episode2, travelogue, episode1}, all.names())
 	first := all.Recordings.Edges[0].Node
 	assert.Equal(t, "PARTIAL", first.State)
 	assert.Equal(t, "こたつテスト1", first.Service.Name)
@@ -167,6 +168,20 @@ func TestRecordings(t *testing.T) {
 	assert.True(t, page.Recordings.PageInfo.HasNextPage)
 	next := f.recordings(t, 2, page.Recordings.PageInfo.EndCursor, nil)
 	assert.Equal(t, []string{episode1}, next.names())
+
+	// 古い順でも、ページを送って読める。
+	oldestFirst := func(first int, after *string) *recordingPage {
+		var page recordingPage
+		require.Empty(t, f.query(t, `query($first: Int!, $after: String) {
+			recordings(first: $first, after: $after, order: OLDEST_FIRST) { edges { node { `+recordingFields+` } } pageInfo { hasNextPage endCursor } } }`,
+			map[string]any{varFirst: first, varAfter: after}, &page))
+
+		return &page
+	}
+	oldPage := oldestFirst(2, nil)
+	assert.Equal(t, []string{episode1, travelogue}, oldPage.names())
+	assert.True(t, oldPage.Recordings.PageInfo.HasNextPage)
+	assert.Equal(t, []string{episode2}, oldestFirst(2, oldPage.Recordings.PageInfo.EndCursor).names())
 
 	var tagged struct {
 		SetRecordingTags recordingNode `json:"setRecordingTags"`
@@ -207,7 +222,7 @@ func TestRecordings(t *testing.T) {
 		{name: "状態", filter: map[string]any{"states": []string{"COMPLETED", "PARTIAL"}}, want: []string{episode2, episode1}},
 		{name: "番組名", filter: map[string]any{"keyword": "こたつ特集 第"}, want: []string{episode2, episode1}},
 		{name: "LIKE の特別な文字は文字そのもの", filter: map[string]any{"keyword": "%"}, want: []string{}},
-		{name: "放送の期間", filter: map[string]any{"since": testNow().Add(-150 * time.Minute)}, want: []string{episode2, "みかん紀行"}},
+		{name: "放送の期間", filter: map[string]any{"since": testNow().Add(-150 * time.Minute)}, want: []string{episode2, travelogue}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
