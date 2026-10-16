@@ -26,6 +26,8 @@ type Loaders struct {
 	Rules        *dataloadgen.Loader[uuid.UUID, *rule.Rule]
 	// RuleIDs は、予約に一致したルールの ID。ルールに一致していない予約では空にする。
 	RuleIDs *dataloadgen.Loader[uuid.UUID, []uuid.UUID]
+	// UpcomingReservationCounts は、ルールに一致した予約のうち、終わっていないものの件数。
+	UpcomingReservationCounts *dataloadgen.Loader[uuid.UUID, int]
 	// ProgramReservations は、番組の予約。予約のない番組では nil にする。
 	ProgramReservations *dataloadgen.Loader[reserve.ProgramKey, *reserve.Reservation]
 }
@@ -90,6 +92,19 @@ func newLoaders(db sqlc.DBTX, rules *rule.Rules, reservations *reserve.Reservati
 			}
 
 			return ruleIDs, make([]error, len(ids))
+		}, dataloadgen.WithWait(loaderWait)),
+		UpcomingReservationCounts: dataloadgen.NewLoader(func(ctx context.Context, ids []uuid.UUID) ([]int, []error) {
+			byID, err := reservations.CountUpcomingByRules(ctx, db, ids)
+			if err != nil {
+				return failAll[int](len(ids), err)
+			}
+			counts := make([]int, 0, len(ids))
+			for _, ruleID := range ids {
+				// 予約のないルールは、結果にないので 0 になる。
+				counts = append(counts, byID[ruleID])
+			}
+
+			return counts, make([]error, len(ids))
 		}, dataloadgen.WithWait(loaderWait)),
 		ProgramReservations: dataloadgen.NewLoader(func(ctx context.Context, keys []reserve.ProgramKey) ([]*reserve.Reservation, []error) {
 			byKey, err := reservations.ListByPrograms(ctx, db, keys)

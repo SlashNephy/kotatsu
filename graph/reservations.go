@@ -140,6 +140,7 @@ func (r *Resolver) listReservations(
 	from, to time.Time,
 	states []model.AssignmentState,
 	enabled *bool,
+	ruleGlobalID *string,
 	first int,
 	after *string,
 ) (*model.ReservationConnection, error) {
@@ -147,12 +148,19 @@ func (r *Resolver) listReservations(
 		return nil, NewError(CodeBadUserInput, fmt.Sprintf("first must be between 1 and %d", maxReservations))
 	}
 	query := &reserve.ListQuery{
-		From: from, To: to, States: make([]reserve.AssignmentState, 0, len(states)), Enabled: enabled, AfterStartAt: nil, AfterID: nil,
+		From: from, To: to, States: make([]reserve.AssignmentState, 0, len(states)), Enabled: enabled, RuleID: nil, AfterStartAt: nil, AfterID: nil,
 		// 次のページがあるかを知るため、1 件多く読む。
 		Limit: first + 1,
 	}
 	for _, state := range states {
 		query.States = append(query.States, reserve.AssignmentState(strings.ToLower(string(state))))
+	}
+	if ruleGlobalID != nil {
+		ruleID, err := parseRuleID(*ruleGlobalID)
+		if err != nil {
+			return nil, err
+		}
+		query.RuleID = &ruleID
 	}
 	if after != nil {
 		var cursor reservationCursor

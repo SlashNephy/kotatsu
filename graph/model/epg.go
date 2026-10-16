@@ -133,6 +133,8 @@ type Rule struct {
 	CreatedBy           *User                       `json:"createdBy,omitempty"`
 	UpdatedAt           time.Time                   `json:"updatedAt"`
 	UpdatedBy           *User                       `json:"updatedBy,omitempty"`
+	// Key は、ルールの ID。スキーマには出さない。
+	Key uuid.UUID `json:"-"`
 }
 
 func (Rule) IsNode() {}

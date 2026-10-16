@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<01eb85a2f67723e38005e519a2174711>>
+ * @generated SignedSource<<0001210e7ca4777e14febe3b140d05c2>>
  * @lightSyntaxTransform
  */
 
@@ -26,6 +26,7 @@ export type rulesListQuery$data = {
     readonly id: string;
     readonly memo: string;
     readonly name: string;
+    readonly upcomingReservationCount: number;
     readonly updatedAt: string;
   }>;
   readonly viewer: {
@@ -149,6 +150,13 @@ v3 = {
       "kind": "ScalarField",
       "name": "updatedAt",
       "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "upcomingReservationCount",
+      "storageKey": null
     }
   ],
   "storageKey": null
@@ -202,16 +210,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "69c2b3ed476bc5d051abf2e01d3f4915",
+    "cacheID": "5bd752d5a74d333ae85384fb1d194c20",
     "id": null,
     "metadata": {},
     "name": "rulesListQuery",
     "operationKind": "query",
-    "text": "query rulesListQuery {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  rules {\n    id\n    name\n    enabled\n    memo\n    conditions {\n      keywords {\n        text\n      }\n      channelTypes\n    }\n    updatedAt\n  }\n}\n"
+    "text": "query rulesListQuery {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  rules {\n    id\n    name\n    enabled\n    memo\n    conditions {\n      keywords {\n        text\n      }\n      channelTypes\n    }\n    updatedAt\n    upcomingReservationCount\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "889bb2d9bf4e16d7bde6985d196fcf89";
+(node as any).hash = "63634284a155085d40ec0e6b32ac7de5";
 
 export default node;

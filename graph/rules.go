@@ -149,6 +149,7 @@ func toRuleModel(ctx context.Context, r *rule.Rule) (*model.Rule, error) {
 func toRule(r *rule.Rule) *model.Rule {
 	return &model.Rule{
 		ID:                  GlobalID(ruleType, r.ID.String()),
+		Key:                 r.ID,
 		Name:                r.Name,
 		Memo:                r.Memo,
 		Enabled:             r.Enabled,

@@ -530,7 +530,10 @@
     "title": "予約",
     "filter": {
       "all": "すべて",
-      "problems": "録画が欠ける見込み"
+      "problems": "録画が欠ける見込み",
+      "rule": "ルール: {{name}}",
+      "unknownRule": "見つからないルール",
+      "clearRule": "ルールでの絞り込みを外す"
     },
     "attention": "録画が欠ける見込みの予約が{{count}}件あります",
     "empty": "これからの予約はありません",
@@ -572,6 +575,7 @@
     "create": "ルールを作成",
     "empty": "ルールはまだありません",
     "emptyHint": "「ルールを作成」から作るか、番組検索の条件から作れます。条件に一致する番組を、自動で録画予約します。",
+    "upcomingReservations": "これからの予約 {{count}} 件",
     "disabled": "無効",
     "enabled": "有効",
     "back": "ルールの一覧に戻る",
