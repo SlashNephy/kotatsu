@@ -43,6 +43,7 @@ import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useMediaSession } from '../../yunomi/useMediaSession';
 import type { ShortcutAction } from '../../yunomi/shortcuts';
+import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { CaptureButton, PipButton } from '../../yunomi/PlayerTools';
@@ -527,6 +528,8 @@ function Live({
       {channel !== null && jikkyoEnabled && (
         <JikkyoPanel channelName={channel.name} status={jikkyo.status} onPost={jikkyo.post} />
       )}
+      {/* VLC や mpv で開く URL。開いている間は、ブラウザの視聴とは別にチューナーを使う (#487)。 */}
+      <ExternalStreamURL target={serviceId} live />
     </Stack>
   );
 }
