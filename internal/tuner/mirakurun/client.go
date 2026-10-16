@@ -339,14 +339,16 @@ func (c *Client) openStream(req *http.Request) (io.ReadCloser, error) {
 	ctx, cancel := context.WithCancelCause(req.Context())
 	timer := time.AfterFunc(c.openTimeout, func() { cancel(ErrStreamOpenTimeout) })
 	resp, err := c.httpClient.Do(req.WithContext(ctx))
-	// 応答が届いた直後に上限が来たら、ストリームは使えないので、届かなかったときと同じく扱う。
-	if !timer.Stop() && err == nil {
+	// Stop が false なら、上限が来て、要求をやめ始めている。やめる処理が走り終えるのを待たずに、時間切れとして扱う。
+	// 応答が届いた直後に上限が来たときも、ストリームは使えないので、届かなかったときと同じく扱う。
+	timedOut := !timer.Stop()
+	if timedOut && err == nil {
 		_ = resp.Body.Close()
-		err = context.Cause(ctx)
+		err = ErrStreamOpenTimeout
 	}
 	if err != nil {
 		cancel(nil)
-		if errors.Is(context.Cause(ctx), ErrStreamOpenTimeout) {
+		if timedOut {
 			return nil, fmt.Errorf("failed to request %s %s: %w", req.Method, req.URL.Redacted(), ErrStreamOpenTimeout)
 		}
 
