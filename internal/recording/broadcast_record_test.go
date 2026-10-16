@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -198,6 +199,7 @@ var _ recording.StreamOpener = new(steppedStream)
 // TestRecorderStopsWhenLeftAirWhileEndIsUndecided は、EPG で終了時刻が未定のままでも、EIT[p/f] の放送中が次の番組に
 // 切り替わったら、延長せずに後ろのマージンを録って止めることを確かめる。2026-10-16 の緊急地震速報で、放送局が放送中の番組の
 // 長さを未定に、次の番組を開始も長さも未定の臨時の番組 (eventId 65522) にした後、予定どおりに次の番組へ切り替えた事例を再現する。
+// 延長しないのに延長のログを出さないことも確かめる (#643)。
 func TestRecorderStopsWhenLeftAirWhileEndIsUndecided(t *testing.T) {
 	t.Parallel()
 
@@ -205,7 +207,8 @@ func TestRecorderStopsWhenLeftAirWhileEndIsUndecided(t *testing.T) {
 	f := newFixture(t)
 	reservationID := f.reserve(t, 0)
 	stream := newSteppedStream()
-	recorder, _ := f.newRecorder(t, stream, nil)
+	logs := new(messageRecorder)
+	recorder, _ := f.newRecorderWithLogger(t, stream, nil, nil, slog.New(logs))
 	_, done := f.session(t, recorder, reservationID)
 	broadcast := func() (*time.Time, *time.Time) {
 		var started, ended *time.Time
@@ -251,4 +254,6 @@ func TestRecorderStopsWhenLeftAirWhileEndIsUndecided(t *testing.T) {
 	_, ended := broadcast()
 	require.NotNil(t, ended)
 	assert.True(t, ended.Equal(programEnd), "the broadcast ended at %v", ended)
+	assert.Contains(t, logs.list(), "the program left the air; recording the end margin")
+	assert.NotContains(t, logs.list(), "the program end is undecided; extending the recording")
 }

@@ -1006,6 +1006,7 @@ func (t *endTracker) check(ctx context.Context) endReason {
 	}
 	now := r.clock.Now()
 	end := *reservation.PlannedEndAt
+	t.observeBroadcast(ctx, now)
 	if t.eventID != nil {
 		program, err := q.GetProgramEnd(ctx, sqlc.GetProgramEndParams{ServiceID: t.serviceID, EventID: *t.eventID})
 		switch {
@@ -1015,6 +1016,8 @@ func (t *endTracker) check(ctx context.Context) endReason {
 			if ctx.Err() == nil {
 				r.logger.WarnContext(ctx, "failed to reload the program", slog.Any("error", err))
 			}
+		case t.broadcast.leftAir():
+			// EIT[p/f] で放送の終わりを検知したら、終わりは broadcastEnd で決める。EPG で終了時刻が未定のままでも延ばさない (#643)。
 		case program.EndUndecided:
 			// 延長中は、終わりが来るたびに延ばす。
 			if !now.Before(end) && !now.Before(t.extendedUntil) {
@@ -1029,7 +1032,7 @@ func (t *endTracker) check(ctx context.Context) endReason {
 			end = maxTime(end, minTime(program.EndAt.Add(t.endMargin), t.limit))
 		}
 	}
-	end, notBroadcast := t.checkBroadcast(ctx, end, now)
+	end, notBroadcast := t.broadcastEnd(end, now)
 	if !now.Before(end) {
 		if notBroadcast {
 			t.markNotBroadcast(ctx)
@@ -1041,12 +1044,11 @@ func (t *endTracker) check(ctx context.Context) endReason {
 	return endNone
 }
 
-// checkBroadcast は、録画中の TS の EIT[p/f] で、EPG から決めた終わり end を決め直す (#389)。放送の開始と終了を記録する。
-// 放送されなかったなら、notBroadcast を true にする。
-func (t *endTracker) checkBroadcast(ctx context.Context, end, now time.Time) (time.Time, bool) {
+// observeBroadcast は、録画中の TS の EIT[p/f] を読み、放送の開始と終了を記録する (#389)。
+func (t *endTracker) observeBroadcast(ctx context.Context, now time.Time) {
 	analyzer := t.analyzer.Load()
 	if t.broadcast == nil || analyzer == nil {
-		return end, false
+		return
 	}
 	r := t.recorder
 	q := sqlc.New(r.pool)
@@ -1062,6 +1064,14 @@ func (t *endTracker) checkBroadcast(ctx context.Context, end, now time.Time) (ti
 		}
 		r.logger.InfoContext(ctx, "the program left the air; recording the end margin",
 			slog.String("recording_id", t.recordingID.String()), slog.Duration("margin", t.endMargin))
+	}
+}
+
+// broadcastEnd は、observeBroadcast で読んだ放送の状態で、EPG から決めた終わり end を決め直す (#389)。
+// 放送されなかったなら、notBroadcast を true にする。
+func (t *endTracker) broadcastEnd(end, now time.Time) (time.Time, bool) {
+	if t.broadcast == nil {
+		return end, false
 	}
 
 	return t.broadcast.end(end, now, t.endMargin, ExtensionStep, t.limit)
