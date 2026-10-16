@@ -58,7 +58,7 @@ function CapturesPage() {
     [entries, query],
   );
 
-  const remove = async (id: string) => {
+  const remove = async (id: number) => {
     await deleteCapture(id);
     setEntries((list) => list?.filter((entry) => entry.id !== id) ?? null);
   };

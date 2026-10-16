@@ -9,10 +9,10 @@ describe('entriesToPrune', () => {
       name: '上限を超えた分を、古いものから消す',
       takenAt: [5, 1, 4, 2, 3],
       max: 3,
-      want: ['t1', 't2'],
+      want: [101, 102],
     },
   ])('$name', ({ takenAt, max, want }) => {
-    const entries = takenAt.map((at) => ({ id: `t${at}`, takenAt: at }));
+    const entries = takenAt.map((at) => ({ id: 100 + at, takenAt: at }));
 
     expect(entriesToPrune(entries, max)).toEqual(want);
   });

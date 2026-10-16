@@ -7,7 +7,8 @@ export const maxCaptures = 100;
 // CaptureEntry は、残したキャプチャ。takenAt は撮った時刻、time は撮った場面の放送時刻 (どちらも Unix ミリ秒)。
 // recordingId は、録画で撮ったときの録画の ID。ライブなら null。
 export type CaptureEntry = {
-  id: string;
+  // id は、IndexedDB が振る番号。crypto.randomUUID は、HTTPS でない LAN の中では使えないので使わない。
+  id: number;
   takenAt: number;
   time: number;
   serviceName: string;
@@ -20,7 +21,7 @@ export type CaptureEntry = {
 export function entriesToPrune(
   entries: readonly Pick<CaptureEntry, 'id' | 'takenAt'>[],
   max = maxCaptures,
-): string[] {
+): number[] {
   if (entries.length <= max) {
     return [];
   }
@@ -62,7 +63,7 @@ function request<T>(req: IDBRequest<T>): Promise<T> {
 function openDatabase(): Promise<IDBDatabase> {
   const req = indexedDB.open(databaseName, 1);
   req.addEventListener('upgradeneeded', () => {
-    req.result.createObjectStore(storeName, { keyPath: 'id' });
+    req.result.createObjectStore(storeName, { keyPath: 'id', autoIncrement: true });
   });
 
   return request(req);
@@ -91,15 +92,15 @@ export async function listCaptures(): Promise<CaptureEntry[]> {
 
 // addCapture は、キャプチャを残し、上限を超えた分を古いものから消す。
 export async function addCapture(entry: Omit<CaptureEntry, 'id' | 'takenAt'>): Promise<void> {
-  const record: CaptureEntry = { ...entry, id: crypto.randomUUID(), takenAt: Date.now() };
+  const record: Omit<CaptureEntry, 'id'> = { ...entry, takenAt: Date.now() };
   await withStore('readwrite', async (store) => {
-    await request(store.put(record));
+    await request(store.add(record));
     const entries = await request(store.getAll() as IDBRequest<CaptureEntry[]>);
     await Promise.all(entriesToPrune(entries).map((id) => request(store.delete(id))));
   });
 }
 
 // deleteCapture は、キャプチャを消す。
-export async function deleteCapture(id: string): Promise<void> {
+export async function deleteCapture(id: number): Promise<void> {
   await withStore('readwrite', (store) => request(store.delete(id)));
 }
