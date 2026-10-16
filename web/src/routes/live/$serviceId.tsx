@@ -308,8 +308,13 @@ function Live({
   const serviceLogoUrl = data.node?.__typename === 'Service' ? (data.node.logoUrl ?? null) : null;
   // flash は、キーで操作した結果。映像の上に短く出す (#448)。
   const [flash, showFlash] = usePlayerFlash();
+  // 押し続けると、描き直す前に次のキーが来るので、今の音量は video の要素から読む。映像がなければ何もしない。
   const changeVolume = (delta: number) => {
-    const next = Math.min(1, Math.max(0, Math.round((videoState.volume + delta) * 100) / 100));
+    const video = videoRef.current;
+    if (video === null) {
+      return;
+    }
+    const next = Math.min(1, Math.max(0, Math.round((video.volume + delta) * 100) / 100));
     videoState.setVolume(next);
     showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
   };
@@ -324,8 +329,12 @@ function Live({
     },
     toggleCaptions: () => setCaptions(!captions),
     toggleMute: () => {
+      const video = videoRef.current;
+      if (video === null) {
+        return;
+      }
       videoState.toggleMute();
-      showFlash(t(videoState.muted ? 'player.flash.unmuted' : 'player.flash.muted'));
+      showFlash(t(video.muted ? 'player.flash.muted' : 'player.flash.unmuted'));
     },
     toggleFullscreen: fullscreen.toggle,
     volumeUp: () => changeVolume(volumeStep),
