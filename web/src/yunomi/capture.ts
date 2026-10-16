@@ -1,6 +1,7 @@
 // 再生中の場面を画像にする (設計書 7.5)。
 
 import { splitProgramMarks } from '../futon/programMarks';
+import { withPNGText, type PNGText } from './pngText';
 
 // captureSize は、画像の大きさ。放送の映像の表示の比率 (16:9) にそろえる。
 const captureSize = { width: 1920, height: 1080 };
@@ -86,6 +87,27 @@ export function captureFileName(
   }
 
   return `${parts.join(' - ').replace(unsafeFileNameChars, '_')}.png`;
+}
+
+// captureTexts は、キャプチャの PNG に書き込む文字の情報を返す (#458)。
+// 番組名は、ファイル名と同じく囲み文字を外す。放送時刻は、PNG の仕様に従い RFC 1123 の形で書く。
+export function captureTexts(
+  time: number,
+  serviceName: string,
+  programName: string | null,
+): PNGText[] {
+  return [
+    { keyword: 'Title', text: programName === null ? '' : splitProgramMarks(programName).name },
+    { keyword: 'Source', text: serviceName },
+    { keyword: 'Creation Time', text: new Date(time).toUTCString() },
+  ];
+}
+
+// withCaptureTexts は、PNG の画像に、captureTexts の文字の情報を書き込む。
+export async function withCaptureTexts(blob: Blob, texts: readonly PNGText[]): Promise<Blob> {
+  const png = new Uint8Array(await blob.arrayBuffer());
+
+  return new Blob([withPNGText(png, texts)], { type: blob.type });
 }
 
 // saveBlob は、画像をファイルとして保存させる。

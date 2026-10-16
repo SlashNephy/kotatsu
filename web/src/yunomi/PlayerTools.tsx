@@ -3,7 +3,15 @@ import { Camera, PictureInPicture2 } from 'lucide-react';
 import { useEffect, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { captureFileName, captureFrame, copyBlob, overlayCanvases, saveBlob } from './capture';
+import {
+  captureFileName,
+  captureFrame,
+  captureTexts,
+  copyBlob,
+  overlayCanvases,
+  saveBlob,
+  withCaptureTexts,
+} from './capture';
 import { ControlButton, playerControlsClasses } from './PlayerControls';
 import classes from './TsPlayer.module.css';
 import type { useDocumentPictureInPicture } from './useDocumentPictureInPicture';
@@ -68,7 +76,9 @@ export function useCapture({
     try {
       const blob = await captureFrame(video, overlays ? overlayCanvases(frame) : []);
       if (action === 'save') {
-        saveBlob(blob, captureFileName(time, serviceName, programName));
+        // クリップボードでは、ブラウザが文字の情報を落とすことがあるので、保存するときだけ書き込む。
+        const named = await withCaptureTexts(blob, captureTexts(time, serviceName, programName));
+        saveBlob(named, captureFileName(time, serviceName, programName));
 
         return 'saved';
       }
