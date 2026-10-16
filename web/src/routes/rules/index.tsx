@@ -16,6 +16,8 @@ import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
+import { useDataChanges } from '../../changes/DataChanges';
+import type { DataChannel } from '../../changes/dataChanges';
 import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import type { rulesEnableMutation } from './__generated__/rulesEnableMutation.graphql';
@@ -53,8 +55,13 @@ function RulesPage() {
   );
 }
 
+// ruleChannels は、ルールの一覧に関わるデータの種類。
+const ruleChannels: readonly DataChannel[] = ['RULES', 'RESERVATIONS'];
+
 function Rules() {
   const { t } = useTranslation();
+  // ルールと予約の件数は、ほかの端末や neko で変わるので、変わったら読み直す (#503)。
+  const changes = useDataChanges(ruleChannels);
   const data = useLazyLoadQuery<rulesListQuery>(
     graphql`
       query rulesListQuery {
@@ -82,7 +89,7 @@ function Rules() {
       }
     `,
     {},
-    { fetchPolicy: 'store-and-network' },
+    { fetchKey: changes, fetchPolicy: 'store-and-network' },
   );
   const [commit] = useMutation<rulesEnableMutation>(graphql`
     mutation rulesEnableMutation($id: ID!, $enabled: Boolean!) {
