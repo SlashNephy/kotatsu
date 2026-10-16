@@ -9,6 +9,8 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
+import { CommentListToggle } from '../../jikkyo/CommentList';
+import { commentsUntil } from '../../jikkyo/commentList';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import {
@@ -605,6 +607,20 @@ function Player({ recordingId }: { recordingId: string }) {
         <Alert color="red" role="alert">
           {error}
         </Alert>
+      )}
+      {/* 実況の過去ログのうち、再生位置までに流れたもの (#489)。 */}
+      {jikkyo.comments !== null && jikkyo.comments.length > 0 && (
+        <CommentListToggle
+          rows={() =>
+            commentsUntil(jikkyo.comments ?? [], position).map((comment, i) => ({
+              key: `${comment.time}:${i}`,
+              label: formatClock(
+                broadcastTime(recording.recordedFrom, recording.gaps, comment.time),
+              ),
+              content: comment.content,
+            }))
+          }
+        />
       )}
     </Stack>
   );

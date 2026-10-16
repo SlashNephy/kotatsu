@@ -20,11 +20,17 @@ export function useRecordedJikkyo(
   url: string | null,
   clock: () => number,
   drawing: boolean,
-): { overlay: ReactNode; state: RecordedJikkyoState | null } {
+): {
+  overlay: ReactNode;
+  state: RecordedJikkyoState | null;
+  // comments は、取った過去ログ (流す時刻の順)。取れていなければ null (#489)。
+  comments: readonly JikkyoComment[] | null;
+} {
   // cache は、取った過去ログ。画質を変えて描く canvas が作り直されても、実況を切って入れ直しても、取り直さずに渡す。
   const cache = useRef(new Map<string, JikkyoComment[]>());
   const canvas = useRef<CommentCanvasHandle | null>(null);
   const [state, setState] = useState<RecordedJikkyoState | null>(null);
+  const [comments, setComments] = useState<readonly JikkyoComment[] | null>(null);
 
   // canvas ができるたびに、取ってある過去ログを渡す。
   const attach = useCallback(
@@ -41,15 +47,18 @@ export function useRecordedJikkyo(
   useEffect(() => {
     if (url === null) {
       setState(null);
+      setComments(null);
 
       return;
     }
     const cached = cache.current.get(url);
     if (cached !== undefined) {
       setState({ kind: 'loaded', count: cached.length });
+      setComments(cached);
 
       return;
     }
+    setComments(null);
     const controller = new AbortController();
     setState({ kind: 'loading' });
     void fetch(url, { signal: controller.signal, credentials: 'same-origin' })
@@ -64,6 +73,7 @@ export function useRecordedJikkyo(
         cache.current.set(url, body.comments);
         canvas.current?.add(body.comments);
         setState({ kind: 'loaded', count: body.comments.length });
+        setComments(body.comments);
       })
       .catch(() => {
         if (!controller.signal.aborted) {
@@ -80,5 +90,6 @@ export function useRecordedJikkyo(
         <CommentCanvas key={url} ref={attach} clock={clock} drawing={drawing} />
       ),
     state,
+    comments,
   };
 }
