@@ -276,6 +276,7 @@
       "paid": "有料",
       "watch": "ライブ視聴",
       "reserve": "録画予約",
+      "createRule": "この番組からルールを作成",
       "reserved": "録画予約済み",
       "reservedByRules": "ルールで予約: ",
       "reservedByRulesSettings": "録画の設定は、最も古いルール「{{name}}」に従います",

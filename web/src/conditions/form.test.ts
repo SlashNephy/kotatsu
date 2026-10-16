@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import {
+  conditionsFromProgram,
   type ConditionsData,
   emptyConditions,
   fromConditions,
@@ -80,5 +81,19 @@ describe('fromConditions と toConditionsInput', () => {
   ])('$name は、読んでそのまま書き戻しても変わらない', ({ min, max }) => {
     const input = toConditionsInput(fromConditions(data(min, max)));
     expect([input.minDurationSeconds, input.maxDurationSeconds]).toEqual([min, max]);
+  });
+});
+
+describe('conditionsFromProgram', () => {
+  test('番組名の囲み文字を外してキーワードにし、サービスで絞る', () => {
+    expect(conditionsFromProgram('🈑ニュース7🈞', 'U2VydmljZToxMjM')).toEqual({
+      ...emptyConditions(),
+      keywords: [{ text: 'ニュース7', regexp: false, caseSensitive: false, fields: ['NAME'] }],
+      services: ['U2VydmljZToxMjM'],
+    });
+  });
+
+  test('囲み文字だけの番組名では、キーワードを入れない', () => {
+    expect(conditionsFromProgram('🈑', 'U2VydmljZToxMjM').keywords).toEqual([]);
   });
 });
