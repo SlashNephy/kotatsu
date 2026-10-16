@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/SlashNephy/kotatsu/internal/clock"
 )
 
@@ -68,6 +70,9 @@ type Client struct {
 	http        *http.Client
 	clock       clock.Clock
 
+	// refreshes は、チャンネルの一覧の取得を、同時に 1 つにまとめる。
+	refreshes singleflight.Group
+
 	mu sync.Mutex
 	// channels は、取得したチャンネルの一覧。fetchedAt は、一覧を取得できた時刻。
 	channels  map[string]*Channel
@@ -98,35 +103,45 @@ func NewClient(opts *ClientOptions) *Client {
 
 	return &Client{
 		nxJikkyoURL: o.NXJikkyoURL, kakologURL: o.KakologURL, http: o.HTTPClient, clock: o.Clock,
-		mu: sync.Mutex{}, channels: nil, fetchedAt: time.Time{}, attemptedAt: time.Time{}, fetchErr: nil,
+		refreshes: singleflight.Group{}, mu: sync.Mutex{}, channels: nil, fetchedAt: time.Time{}, attemptedAt: time.Time{}, fetchErr: nil,
 	}
 }
 
 // Channel は、NX-Jikkyo が今扱っているチャンネルのうち、ID が id のものを返す。扱っていなければ nil を返す。
 // チャンネルの一覧は、しばらく使い回す。
+//
+// 一覧を取り直す間は、前に取った一覧を返して待たせない。一覧を一度も取れていなければ、取れるまで待つ。
+// 取得はロックの外で行い、同時の取得は 1 つにまとめる。NX-Jikkyo が応答しなくても、ほかの要求を止めない。
 func (c *Client) Channel(ctx context.Context, id string) (*Channel, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	now := c.clock.Now()
 	stale := c.channels == nil || now.Sub(c.fetchedAt) >= channelsTTL
 	retry := c.fetchErr == nil || now.Sub(c.attemptedAt) >= channelsRetryAfter
-	if stale && retry {
-		channels, err := c.fetchChannels(ctx)
-		// 要求を取りやめたせいで取れなかったときは、NX-Jikkyo が落ちているとはみなさず、次の要求で取り直す。
-		if err != nil && ctx.Err() != nil {
-			return nil, err
-		}
-		c.attemptedAt, c.fetchErr = now, err
-		if err == nil {
-			c.channels, c.fetchedAt = channels, now
-		}
-	}
-	// 取り直せなくても、前に取った一覧があれば使う。
-	if c.channels == nil {
-		return nil, c.fetchErr
-	}
+	channels, fetchErr := c.channels, c.fetchErr
+	c.mu.Unlock()
 
-	return c.channels[id], nil
+	var refreshed <-chan singleflight.Result
+	if stale && retry {
+		refreshed = c.refreshChannels(ctx, now)
+	}
+	if channels != nil {
+		return channels[id], nil
+	}
+	if refreshed == nil {
+		return nil, fetchErr
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case result := <-refreshed:
+		if result.Err != nil {
+			return nil, result.Err
+		}
+
+		refreshedChannels, _ := result.Val.(map[string]*Channel)
+
+		return refreshedChannels[id], nil
+	}
 }
 
 // Comments は、実況のチャンネル id の、from から to までの過去ログを、投稿した時刻の順に返す。
@@ -169,6 +184,25 @@ func (c *Client) Comments(ctx context.Context, id string, from, to time.Time) ([
 	slices.SortStableFunc(comments, func(a, b *Comment) int { return a.At.Compare(b.At) })
 
 	return comments, nil
+}
+
+// refreshChannels は、チャンネルの一覧を取り直し始め、その結果を受け取るチャネルを返す。取り直している最中なら、それに相乗りする。
+// 取得は、呼び出した要求を取りやめても続ける。ほかの要求も、その結果を待っているからである。
+func (c *Client) refreshChannels(ctx context.Context, now time.Time) <-chan singleflight.Result {
+	return c.refreshes.DoChan("channels", func() (any, error) {
+		fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), requestTimeout)
+		defer cancel()
+		channels, err := c.fetchChannels(fetchCtx)
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		c.attemptedAt, c.fetchErr = now, err
+		if err != nil {
+			return nil, err
+		}
+		c.channels, c.fetchedAt = channels, now
+
+		return channels, nil
+	})
 }
 
 func (c *Client) fetchChannels(ctx context.Context) (map[string]*Channel, error) {
