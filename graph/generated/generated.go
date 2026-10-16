@@ -349,6 +349,7 @@ type ComplexityRoot struct {
 	Query struct {
 		AuditEvents             func(childComplexity int, first int, after *string, filter *model.AuditEventFilter) int
 		ChannelTypes            func(childComplexity int) int
+		ContinueWatching        func(childComplexity int, first int) int
 		FileNameTemplateHelp    func(childComplexity int) int
 		Guide                   func(childComplexity int, from time.Time, to time.Time, services []string, view *string) int
 		GuideViews              func(childComplexity int) int
@@ -759,6 +760,7 @@ type QueryResolver interface {
 	PlayerSettings(ctx context.Context) (*model.PlayerSettings, error)
 	RecordingRenames(ctx context.Context) ([]*model.RecordingRename, error)
 	Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) (*model.RecordingConnection, error)
+	ContinueWatching(ctx context.Context, first int) ([]*model.Recording, error)
 	Tags(ctx context.Context) ([]*model.Tag, error)
 	Reservations(ctx context.Context, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, first int, after *string) (*model.ReservationConnection, error)
 	Rules(ctx context.Context) ([]*model.Rule, error)
@@ -2196,6 +2198,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ChannelTypes(childComplexity), true
+	case "Query.continueWatching":
+		if e.ComplexityRoot.Query.ContinueWatching == nil {
+			break
+		}
+
+		args, err := ec.field_Query_continueWatching_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.ContinueWatching(childComplexity, args["first"].(int)), true
 	case "Query.fileNameTemplateHelp":
 		if e.ComplexityRoot.Query.FileNameTemplateHelp == nil {
 			break
@@ -4644,6 +4657,11 @@ enum RecordingOrder {
 extend type Query {
   "録画を、録画を始めた日時の順 (既定は新しい順) に first 件まで返す。"
   recordings(first: Int! = 50, after: String, filter: RecordingFilter, order: RecordingOrder! = NEWEST_FIRST): RecordingConnection!
+  """
+  ログイン中のユーザーが途中まで見た録画を、最後に見た新しい順に first 件まで返す (続きから見る)。
+  少しだけ見た録画 (10 秒より前) と、終わりの 10 秒以内まで見た録画は、見終えたものとして含めない。
+  """
+  continueWatching(first: Int! = 12): [Recording!]!
   "タグを、名前の順に返す。"
   tags: [Tag!]!
 }
@@ -7418,6 +7436,20 @@ func (ec *executionContext) field_Query_auditEvents_args(ctx context.Context, ra
 		return nil, err
 	}
 	args["filter"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_continueWatching_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg0
 	return args, nil
 }
 
@@ -13956,6 +13988,50 @@ func (ec *executionContext) fieldContext_Query_recordings(ctx context.Context, f
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_recordings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_continueWatching(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_continueWatching(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().ContinueWatching(ctx, fc.Args["first"].(int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Recording) graphql.Marshaler {
+			return ec.marshalNRecording2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_continueWatching(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Recording(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_continueWatching_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -24498,6 +24574,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "continueWatching":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_continueWatching(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "tags":
 			field := field
 
@@ -28416,6 +28514,22 @@ func (ec *executionContext) marshalNProgramEdge2ᚖgithubᚗcomᚋSlashNephyᚋk
 func (ec *executionContext) unmarshalNProgramReservationInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgramReservationInput(ctx context.Context, v any) (model.ProgramReservationInput, error) {
 	res, err := ec.unmarshalInputProgramReservationInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRecording2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Recording) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNRecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecording(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNRecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecording(ctx context.Context, sel ast.SelectionSet, v *model.Recording) graphql.Marshaler {

@@ -107,6 +107,37 @@ func (r *Resolver) listRecordings(
 	return &model.RecordingConnection{Edges: edges, PageInfo: info}, nil
 }
 
+const (
+	// continueMinPositionMs は、続きから見る録画に含める、再生位置の下限 (ミリ秒)。少し見ただけの録画は含めない。
+	// これより前は、続きから再生しても最初から始まる (web/src/yunomi/resume.ts の minResume に、戻す長さ rewind を足したもの) のでそろえる。
+	continueMinPositionMs = 10000
+	// continueEndMarginMs は、見終えたとみなす、終わりからの長さ (ミリ秒)。resume.ts の endMargin とそろえる。
+	continueEndMarginMs = 10000
+)
+
+// continueWatching は、ログイン中のユーザーが途中まで見た録画を、最後に見た新しい順に first 件まで返す。
+func (r *Resolver) continueWatching(ctx context.Context, first int) ([]*model.Recording, error) {
+	principal, err := viewer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if first < 1 || first > maxRecordings {
+		return nil, NewError(CodeBadUserInput, fmt.Sprintf("first must be between 1 and %d", maxRecordings))
+	}
+	found, err := sqlc.New(r.db).ListContinueWatching(ctx, sqlc.ListContinueWatchingParams{
+		UserID: principal.UserID, MinPositionMs: continueMinPositionMs, EndMarginMs: continueEndMarginMs, MaxCount: int32(first),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the recordings to continue: %w", err)
+	}
+	rows := make([]sqlc.Recording, 0, len(found))
+	for _, row := range found {
+		rows = append(rows, row.Recording)
+	}
+
+	return r.recordingModels(ctx, rows)
+}
+
 // searchParams は、録画の絞り込みを、検索のクエリの引数にする。
 func searchParams(filter *model.RecordingFilter) (*sqlc.SearchRecordingsParams, error) {
 	params := &sqlc.SearchRecordingsParams{
