@@ -762,6 +762,10 @@ type TunerServerHealth struct {
 	Degraded bool `json:"degraded"`
 	// 縮退が始まった日時。縮退中でなければ null。
 	DegradedSince *time.Time `json:"degradedSince,omitempty"`
+	// チューナーサーバーの時計の差が、警告する閾値を超えているかどうか。録画の開始と終了がずれうる。
+	ClockSkewed bool `json:"clockSkewed"`
+	// チューナーサーバーの時計と OS の時計の差 (ミリ秒)。分からなければ null。
+	ClockSkewMs *int `json:"clockSkewMs,omitempty"`
 }
 
 // チューナーサーバーの状態 (設計書 3.7)。
@@ -772,8 +776,12 @@ type TunerServerStatus struct {
 	// 最後に接続に失敗した理由。
 	LastError string `json:"lastError"`
 	// チューナーサーバーの時計と OS の時計の差 (ミリ秒)。分からなければ null。
-	ClockSkewMs *int      `json:"clockSkewMs,omitempty"`
-	CheckedAt   time.Time `json:"checkedAt"`
+	ClockSkewMs *int `json:"clockSkewMs,omitempty"`
+	// 時計の差が、警告する閾値を超えているかどうか。
+	ClockSkewed bool `json:"clockSkewed"`
+	// 時計の差を警告する閾値 (ミリ秒)。
+	ClockSkewThresholdMs int       `json:"clockSkewThresholdMs"`
+	CheckedAt            time.Time `json:"checkedAt"`
 }
 
 // ユーザーの変える項目。省いた項目は変えない。

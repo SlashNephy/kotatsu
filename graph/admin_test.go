@@ -25,7 +25,7 @@ const (
 	systemStatusQuery = `{ systemStatus {
 		instances { role address alive }
 		leases { name holderInstanceId generation valid }
-		tunerServer { degraded lastError clockSkewMs }
+		tunerServer { degraded lastError clockSkewMs clockSkewed clockSkewThresholdMs }
 		tuners { index name types available remote fault }
 		pools { id path }
 	} }`
@@ -208,6 +208,9 @@ func TestSystemStatus(t *testing.T) {
 				Degraded    bool   `json:"degraded"`
 				LastError   string `json:"lastError"`
 				ClockSkewMs *int   `json:"clockSkewMs"`
+				// ClockSkewed と ClockSkewThresholdMs は、時計の差が閾値を超えたかと、その閾値 (#505)。
+				ClockSkewed          bool `json:"clockSkewed"`
+				ClockSkewThresholdMs int  `json:"clockSkewThresholdMs"`
 			} `json:"tunerServer"`
 			Tuners []struct {
 				Index int      `json:"index"`
@@ -235,6 +238,8 @@ func TestSystemStatus(t *testing.T) {
 	assert.Equal(t, "connection refused", status.TunerServer.LastError)
 	require.NotNil(t, status.TunerServer.ClockSkewMs)
 	assert.Equal(t, 120, *status.TunerServer.ClockSkewMs)
+	assert.False(t, status.TunerServer.ClockSkewed)
+	assert.Equal(t, 10_000, status.TunerServer.ClockSkewThresholdMs)
 	require.Len(t, status.Tuners, 1)
 	assert.Equal(t, []string{"GR", "BS"}, status.Tuners[0].Types)
 	require.Len(t, status.Pools, 2)

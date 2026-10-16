@@ -642,16 +642,20 @@ type ComplexityRoot struct {
 	}
 
 	TunerServerHealth struct {
+		ClockSkewMs   func(childComplexity int) int
+		ClockSkewed   func(childComplexity int) int
 		Degraded      func(childComplexity int) int
 		DegradedSince func(childComplexity int) int
 	}
 
 	TunerServerStatus struct {
-		CheckedAt     func(childComplexity int) int
-		ClockSkewMs   func(childComplexity int) int
-		Degraded      func(childComplexity int) int
-		DegradedSince func(childComplexity int) int
-		LastError     func(childComplexity int) int
+		CheckedAt            func(childComplexity int) int
+		ClockSkewMs          func(childComplexity int) int
+		ClockSkewThresholdMs func(childComplexity int) int
+		ClockSkewed          func(childComplexity int) int
+		Degraded             func(childComplexity int) int
+		DegradedSince        func(childComplexity int) int
+		LastError            func(childComplexity int) int
 	}
 
 	User struct {
@@ -3489,6 +3493,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Tuner.Types(childComplexity), true
 
+	case "TunerServerHealth.clockSkewMs":
+		if e.ComplexityRoot.TunerServerHealth.ClockSkewMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerHealth.ClockSkewMs(childComplexity), true
+	case "TunerServerHealth.clockSkewed":
+		if e.ComplexityRoot.TunerServerHealth.ClockSkewed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerHealth.ClockSkewed(childComplexity), true
 	case "TunerServerHealth.degraded":
 		if e.ComplexityRoot.TunerServerHealth.Degraded == nil {
 			break
@@ -3514,6 +3530,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TunerServerStatus.ClockSkewMs(childComplexity), true
+	case "TunerServerStatus.clockSkewThresholdMs":
+		if e.ComplexityRoot.TunerServerStatus.ClockSkewThresholdMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerStatus.ClockSkewThresholdMs(childComplexity), true
+	case "TunerServerStatus.clockSkewed":
+		if e.ComplexityRoot.TunerServerStatus.ClockSkewed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerStatus.ClockSkewed(childComplexity), true
 	case "TunerServerStatus.degraded":
 		if e.ComplexityRoot.TunerServerStatus.Degraded == nil {
 			break
@@ -3865,6 +3893,10 @@ type TunerServerStatus {
   lastError: String!
   "チューナーサーバーの時計と OS の時計の差 (ミリ秒)。分からなければ null。"
   clockSkewMs: Int
+  "時計の差が、警告する閾値を超えているかどうか。"
+  clockSkewed: Boolean!
+  "時計の差を警告する閾値 (ミリ秒)。"
+  clockSkewThresholdMs: Int!
   checkedAt: Time!
 }
 
@@ -3926,6 +3958,10 @@ type TunerServerHealth {
   degraded: Boolean!
   "縮退が始まった日時。縮退中でなければ null。"
   degradedSince: Time
+  "チューナーサーバーの時計の差が、警告する閾値を超えているかどうか。録画の開始と終了がずれうる。"
+  clockSkewed: Boolean!
+  "チューナーサーバーの時計と OS の時計の差 (ミリ秒)。分からなければ null。"
+  clockSkewMs: Int
 }
 
 extend type Query {
@@ -6593,6 +6629,10 @@ func (ec *executionContext) childFields_TunerServerHealth(ctx context.Context, f
 		return ec.fieldContext_TunerServerHealth_degraded(ctx, field)
 	case "degradedSince":
 		return ec.fieldContext_TunerServerHealth_degradedSince(ctx, field)
+	case "clockSkewed":
+		return ec.fieldContext_TunerServerHealth_clockSkewed(ctx, field)
+	case "clockSkewMs":
+		return ec.fieldContext_TunerServerHealth_clockSkewMs(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TunerServerHealth", field.Name)
 }
@@ -6607,6 +6647,10 @@ func (ec *executionContext) childFields_TunerServerStatus(ctx context.Context, f
 		return ec.fieldContext_TunerServerStatus_lastError(ctx, field)
 	case "clockSkewMs":
 		return ec.fieldContext_TunerServerStatus_clockSkewMs(ctx, field)
+	case "clockSkewed":
+		return ec.fieldContext_TunerServerStatus_clockSkewed(ctx, field)
+	case "clockSkewThresholdMs":
+		return ec.fieldContext_TunerServerStatus_clockSkewThresholdMs(ctx, field)
 	case "checkedAt":
 		return ec.fieldContext_TunerServerStatus_checkedAt(ctx, field)
 	}
@@ -18871,6 +18915,52 @@ func (ec *executionContext) fieldContext_TunerServerHealth_degradedSince(_ conte
 	return graphql.NewScalarFieldContext("TunerServerHealth", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _TunerServerHealth_clockSkewed(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerHealth) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerHealth_clockSkewed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClockSkewed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerHealth_clockSkewed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerHealth", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _TunerServerHealth_clockSkewMs(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerHealth) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerHealth_clockSkewMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClockSkewMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerHealth_clockSkewMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerHealth", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _TunerServerStatus_degraded(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerStatus) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -18960,6 +19050,52 @@ func (ec *executionContext) _TunerServerStatus_clockSkewMs(ctx context.Context, 
 	)
 }
 func (ec *executionContext) fieldContext_TunerServerStatus_clockSkewMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerStatus", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TunerServerStatus_clockSkewed(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerStatus_clockSkewed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClockSkewed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerStatus_clockSkewed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerStatus", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _TunerServerStatus_clockSkewThresholdMs(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerStatus_clockSkewThresholdMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClockSkewThresholdMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerStatus_clockSkewThresholdMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TunerServerStatus", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
@@ -27214,6 +27350,16 @@ func (ec *executionContext) _TunerServerHealth(ctx context.Context, sel ast.Sele
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "clockSkewed":
+			out.Values[i] = ec._TunerServerHealth_clockSkewed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clockSkewMs":
+			out.Values[i] = ec._TunerServerHealth_clockSkewMs(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -27265,6 +27411,16 @@ func (ec *executionContext) _TunerServerStatus(ctx context.Context, sel ast.Sele
 		case "clockSkewMs":
 			out.Values[i] = ec._TunerServerStatus_clockSkewMs(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "clockSkewed":
+			out.Values[i] = ec._TunerServerStatus_clockSkewed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clockSkewThresholdMs":
+			out.Values[i] = ec._TunerServerStatus_clockSkewThresholdMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		case "checkedAt":
