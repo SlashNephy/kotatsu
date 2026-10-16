@@ -32,8 +32,10 @@ type Database interface {
 
 // Resolver は、リゾルバが使う依存。
 type Resolver struct {
-	db    Database
-	clock clock.Clock
+	// searchSlots は、同時に照合する検索の数を maxConcurrentSearches までに抑える。
+	searchSlots chan struct{}
+	db          Database
+	clock       clock.Clock
 	// location は、番組の曜日と時間帯を判定する、表示のタイムゾーン。
 	location *time.Location
 	// heartbeatInterval は、heartbeat の subscription で時刻を送る間隔。
