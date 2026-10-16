@@ -391,9 +391,14 @@ func TestSetPasswordRevokesSessions(t *testing.T) {
 
 	current, session := login()
 	other, _ := login()
+	// 前のパスワードで確かめ、第二要素の確認を待っているログイン。
+	pending, _, err := f.logins.Password(t.Context(), f.db, loginName, loginPhrase, f.client)
+	require.NoError(t, err)
 	require.NoError(t, passwords.Set(t.Context(), f.db, audit.User(f.user.ID), f.user.ID, "neko-to-mikan-no-fuyu-2026", &session.ID))
 	assert.True(t, usable(current), "the session that changed the password must stay")
 	assert.False(t, usable(other), "the other sessions must be revoked")
+	_, err = f.logins.BeginEnrollment(t.Context(), f.db, pending)
+	require.ErrorIs(t, err, auth.ErrLoginChallengeInvalid, "the login waiting for the second factor must be discarded")
 
 	// 管理者が設定し直したときと、CLI で設定したときは、すべて失効させる。
 	require.NoError(t, passwords.Set(t.Context(), f.db, audit.System("cli"), f.user.ID, "yuki-no-yoru-ni-hanabi-2027", nil))

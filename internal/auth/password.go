@@ -95,10 +95,16 @@ func UserIDByUsername(ctx context.Context, db sqlc.DBTX, username string) (uuid.
 	return user.ID, nil
 }
 
-// revokeUserSessions は、ユーザーのセッションをまとめて失効させる。keep が nil でなければ、そのセッションは残す。
+// revokeUserSessions は、ユーザーのセッションをまとめて失効させ、第二要素の確認を待つログインも消す。
+// keep が nil でなければ、そのセッションは残す。
+// 待っているログインを残すと、前のパスワードで確かめたログインを、第二要素を通して完了させられてしまう。
 func revokeUserSessions(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, keep *uuid.UUID, now time.Time) error {
-	if _, err := sqlc.New(db).RevokeUserSessions(ctx, sqlc.RevokeUserSessionsParams{Now: now, UserID: userID, KeepID: keep}); err != nil {
+	q := sqlc.New(db)
+	if _, err := q.RevokeUserSessions(ctx, sqlc.RevokeUserSessionsParams{Now: now, UserID: userID, KeepID: keep}); err != nil {
 		return fmt.Errorf("failed to revoke the sessions of the user: %w", err)
+	}
+	if err := q.DeleteUserLoginChallenges(ctx, userID); err != nil {
+		return fmt.Errorf("failed to delete the login challenges of the user: %w", err)
 	}
 
 	return nil

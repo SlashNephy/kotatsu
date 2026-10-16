@@ -78,6 +78,8 @@ type Querier interface {
 	// 録画の行を作らずに終えた割り振り (録画を始める前に予約を無効にした、など) を消す。世代番号が進んでいたら、何もしない。
 	// 終わったことにして残すと、予約を有効に戻しても、割り振りを書き直せない (#523)。
 	DeleteUnrecordedRecordingAssignment(ctx context.Context, arg DeleteUnrecordedRecordingAssignmentParams) (int64, error)
+	// ユーザーの、第二要素の確認を待つログインをすべて消す。パスワードを設定したときと、無効にしたときに使う。
+	DeleteUserLoginChallenges(ctx context.Context, userID uuid.UUID) error
 	DeleteUserPasskey(ctx context.Context, arg DeleteUserPasskeyParams) (int64, error)
 	DeleteUserTOTP(ctx context.Context, userID uuid.UUID) (int64, error)
 	DeleteWebPushSubscription(ctx context.Context, arg DeleteWebPushSubscriptionParams) (int64, error)
