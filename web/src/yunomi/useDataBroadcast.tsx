@@ -218,7 +218,8 @@ export function useDataBroadcast(
     worker.addEventListener('message', (event: MessageEvent) => {
       const message = event.data as Parameters<BMLBrowser['emitMessage']>[0] | DataBroadcastEnd;
       if (message.type === 'kotatsu:end') {
-        // 文書は更新されなくなるので、層を隠し、映像をプレイヤーへ戻す。
+        // 文書は更新されなくなるので、d ボタンを押し直すのをやめ、層を隠し、映像をプレイヤーへ戻す。
+        stopEntering();
         hidden = true;
         setInvisible(true);
         setState('ended');

@@ -426,5 +426,50 @@ describe('useDataBroadcast', () => {
         vi.useRealTimers();
       }
     });
+
+    test('出していなければ、つなぎ直しても d ボタンを押さない', () => {
+      vi.useFakeTimers();
+      try {
+        render(<Harness shown={false} />);
+        act(() => {
+          FakeWorker.last?.send({ type: 'kotatsu:end', error: true });
+        });
+        act(() => {
+          vi.advanceTimersByTime(5000);
+        });
+        const browser = fake.FakeBrowser.instances[1];
+        act(() => {
+          browser?.dispatchEvent(load);
+          vi.advanceTimersByTime(1000);
+        });
+
+        expect(browser?.pressed).toEqual([]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    test('切れたら、d ボタンを押し直すのをやめる', () => {
+      vi.useFakeTimers();
+      try {
+        render(<Harness shown />);
+        const browser = fake.FakeBrowser.instances[0];
+        act(() => {
+          browser?.dispatchEvent(load);
+          vi.advanceTimersByTime(0);
+        });
+        act(() => {
+          FakeWorker.last?.send({ type: 'kotatsu:end', error: true, status: 404 });
+        });
+        const pressed = browser?.pressed.length;
+        act(() => {
+          vi.advanceTimersByTime(3000);
+        });
+
+        expect(browser?.pressed).toHaveLength(pressed ?? 0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });
