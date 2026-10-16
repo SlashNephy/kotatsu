@@ -814,6 +814,7 @@
     "backToRecording": "録画の詳細に戻る",
     "loading": "映像を読み込んでいます",
     "error": "再生できませんでした。時間をおいてやり直してください",
+    "retry": "やり直す",
     "play": "再生",
     "pause": "一時停止",
     "seek": "再生位置",
@@ -832,6 +833,8 @@
     "dataBroadcastEnded": "データ放送を受け取れなくなりました",
     "remote": {
       "title": "リモコン",
+      "open": "リモコンを出す",
+      "close": "リモコンを隠す",
       "up": "上",
       "down": "下",
       "left": "左",
@@ -914,7 +917,8 @@
     "disconnected": "視聴が止まりました",
     "tunerTaken": "録画のためにチューナーを使っているので、視聴が止まりました。録画中: {{recordings}}",
     "streamEnded": "チューナーサーバーとの接続が切れました",
-    "retryIn": "{{seconds}}秒後につなぎ直します"
+    "retryIn": "{{seconds}}秒後につなぎ直します",
+    "reconnectNow": "今すぐつなぎ直す"
   },
   "admin": {
     "forbidden": "この画面は管理者だけが使えます",

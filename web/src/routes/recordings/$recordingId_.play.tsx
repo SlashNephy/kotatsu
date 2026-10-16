@@ -1,4 +1,4 @@
-import { Alert, Anchor, Slider, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Slider, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Captions, Keyboard, MessageSquareText } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
@@ -40,6 +40,7 @@ import {
 } from '../../yunomi/PlayerTools';
 import { PlayerStats, StatsToggle } from '../../yunomi/PlayerStats';
 import {
+  PlayerAlert,
   BigPlayButton,
   PlayerLoading,
   ControlButton,
@@ -186,6 +187,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const autoplay = useAutoplayBlocked(video);
   const videoLoading = useVideoLoading(video);
   const fullscreen = useFullscreen(playerBoxRef);
+  // overlaid は、プレイヤーだけを出していて、ページの知らせが見えないかどうか。そのときは、映像に重ねて出す (#435)。
+  const overlaid = fullscreen.active || pip.container !== null;
   // shortcutsOpen は、キーボードショートカットの一覧を出しているかどうか。
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   // ショートカットの一覧を見ている間は、操作バーとカーソルを隠さない。
@@ -352,6 +355,11 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     setOffset(seconds);
     setLoads((n) => n + 1);
   };
+  // retry は、今の位置から読み直す。エラーの知らせも消し、読み込めたら出さないままにする。
+  const retry = () => {
+    setError(null);
+    startAt(positionRef.current);
+  };
 
   // seek は、指定の位置に移る。kyusu の HLS は、プレイリストの中を移るだけで、読み直さない。
   const seek = (target: number) => {
@@ -462,7 +470,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     capture: () => void saveCapture(),
     // r で、今の位置から読み直す。映像が止まったり乱れたりしたときに、ページを読み直さずに直す (#499)。
     restart: () => {
-      startAt(positionRef.current);
+      retry();
       showFlash(t('player.flash.restarted'));
     },
     toggleStats: () => setStatsShown(!statsShown),
@@ -559,6 +567,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // フラグメントはサーバーに送られないので、読み込みを始め直すためだけに使う。
   const url = `${recording.streamUrl}?start=${offset.toFixed(1)}#${loads}`;
   const onError = () => setError(t('player.error'));
+  // errorAlert は、全画面と別のウィンドウで、再生のエラーを映像に重ねて出す (#435)。
+  const errorAlert = overlaid && error !== null && (
+    <PlayerAlert title={error} action={{ label: t('player.retry'), onClick: retry }} />
+  );
   const shown = seeking ?? position;
 
   const controlBar = (
@@ -675,7 +687,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {statsShown && <PlayerStats video={video} quality={quality} />}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
-              {videoLoading && !autoplay.blocked && <PlayerLoading />}
+              {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
+              {errorAlert}
             </>
           }
           onAudio={audio.onAudio}
@@ -698,7 +711,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {statsShown && <PlayerStats video={video} quality={quality} />}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
-              {videoLoading && !autoplay.blocked && <PlayerLoading />}
+              {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
+              {errorAlert}
             </>
           }
           onLoaded={() => setError(null)}
@@ -723,7 +737,12 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       {pip.container !== null && createPortal(playerBox, pip.container)}
       {error !== null && (
         <Alert color="red" role="alert">
-          {error}
+          <Group justify="space-between" gap="xs">
+            <Text size="sm">{error}</Text>
+            <Button size="compact-sm" variant="light" color="red" onClick={retry}>
+              {t('player.retry')}
+            </Button>
+          </Group>
         </Alert>
       )}
       {/* 実況の過去ログのうち、再生位置までに流れたもの (#489)。 */}

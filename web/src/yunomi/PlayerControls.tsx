@@ -1,4 +1,4 @@
-import { ActionIcon, Loader, Popover, Slider, Stack, Tooltip } from '@mantine/core';
+import { ActionIcon, Button, Loader, Popover, Slider, Stack, Text, Tooltip } from '@mantine/core';
 import {
   Maximize,
   Minimize,
@@ -229,6 +229,32 @@ export function PlayerNotice({
     <div className={classes.notice} role="status">
       {loading && <Loader size={12} color="white" />}
       {children}
+    </div>
+  );
+}
+
+// PlayerAlert は、切断や再生のエラーを、映像の真ん中に重ねて知らせる (#435)。全画面と別のウィンドウでは、映像の外の知らせが
+// 見えないので、そのときに使う。action を渡すと、その操作 (つなぎ直す、やり直す) のボタンを添える。
+export function PlayerAlert({
+  title,
+  children,
+  action,
+}: {
+  title: ReactNode;
+  children?: ReactNode;
+  action?: { label: string; onClick: () => void };
+}) {
+  return (
+    <div className={classes.alert} role="alert" {...{ [controlsAttribute]: '' }}>
+      <Text size="sm" fw={600}>
+        {title}
+      </Text>
+      {children}
+      {action !== undefined && (
+        <Button size="compact-xs" variant="white" color="dark" onClick={action.onClick}>
+          {action.label}
+        </Button>
+      )}
     </div>
   );
 }
