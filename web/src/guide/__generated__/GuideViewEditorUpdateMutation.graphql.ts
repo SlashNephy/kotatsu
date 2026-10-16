@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<d89a6f5b75715d4a645fc42170ed8b08>>
+ * @generated SignedSource<<16a4b49ea29e2c4b2091c05c318920af>>
  * @lightSyntaxTransform
  */
 
@@ -27,7 +27,22 @@ export type GuideViewEditorUpdateMutation$variables = {
 };
 export type GuideViewEditorUpdateMutation$data = {
   readonly updateGuideView: {
+    readonly excludeGenres: ReadonlyArray<{
+      readonly lv1: number;
+      readonly lv2: number | null | undefined;
+    }>;
+    readonly freeOnly: boolean;
+    readonly genres: ReadonlyArray<{
+      readonly lv1: number;
+      readonly lv2: number | null | undefined;
+    }>;
+    readonly hideEmptyServices: boolean;
     readonly id: string;
+    readonly minDurationSeconds: number | null | undefined;
+    readonly name: string;
+    readonly services: ReadonlyArray<{
+      readonly id: string;
+    }>;
   };
 };
 export type GuideViewEditorUpdateMutation = {
@@ -48,7 +63,30 @@ var v0 = [
     "name": "input"
   }
 ],
-v1 = [
+v1 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "id",
+  "storageKey": null
+},
+v2 = [
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "lv1",
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "lv2",
+    "storageKey": null
+  }
+],
+v3 = [
   {
     "alias": null,
     "args": [
@@ -68,11 +106,65 @@ v1 = [
     "name": "updateGuideView",
     "plural": false,
     "selections": [
+      (v1/*:: as any*/),
       {
         "alias": null,
         "args": null,
         "kind": "ScalarField",
-        "name": "id",
+        "name": "name",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "GenreCondition",
+        "kind": "LinkedField",
+        "name": "genres",
+        "plural": true,
+        "selections": (v2/*:: as any*/),
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "GenreCondition",
+        "kind": "LinkedField",
+        "name": "excludeGenres",
+        "plural": true,
+        "selections": (v2/*:: as any*/),
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "minDurationSeconds",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "Service",
+        "kind": "LinkedField",
+        "name": "services",
+        "plural": true,
+        "selections": [
+          (v1/*:: as any*/)
+        ],
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "hideEmptyServices",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "freeOnly",
         "storageKey": null
       }
     ],
@@ -85,7 +177,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "GuideViewEditorUpdateMutation",
-    "selections": (v1/*:: as any*/),
+    "selections": (v3/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
   },
@@ -94,19 +186,19 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
     "name": "GuideViewEditorUpdateMutation",
-    "selections": (v1/*:: as any*/)
+    "selections": (v3/*:: as any*/)
   },
   "params": {
-    "cacheID": "2a37b12cb92fa0f77f2dcc344806cad1",
+    "cacheID": "198c5a497340abba366778f8ec630845",
     "id": null,
     "metadata": {},
     "name": "GuideViewEditorUpdateMutation",
     "operationKind": "mutation",
-    "text": "mutation GuideViewEditorUpdateMutation(\n  $id: ID!\n  $input: GuideViewInput!\n) {\n  updateGuideView(id: $id, input: $input) {\n    id\n  }\n}\n"
+    "text": "mutation GuideViewEditorUpdateMutation(\n  $id: ID!\n  $input: GuideViewInput!\n) {\n  updateGuideView(id: $id, input: $input) {\n    id\n    name\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    minDurationSeconds\n    services {\n      id\n    }\n    hideEmptyServices\n    freeOnly\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "aa0d8df0bbdcd78e1ccb732ae6cc04aa";
+(node as any).hash = "f2363300d676262eb4429183734cbaf3";
 
 export default node;

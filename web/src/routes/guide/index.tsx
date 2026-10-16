@@ -210,8 +210,10 @@ function Guide() {
       to: new Date(window.to).toISOString(),
       view: view ?? null,
     },
-    // fetchKey が変わると、Relay は fetchPolicy によらず取り直す。
-    { fetchKey, fetchPolicy: 'store-or-network' },
+    // store-or-network は、fetchKey を変えても、ストアにある番組表を取り直さない (#614)。保存した後は、
+    // ストアの値を出しながら取り直す。ストアに残るほかの日の番組表も、保存する前の条件で絞ったものなので、
+    // その日へ移ったときにも取り直す。
+    { fetchKey, fetchPolicy: fetchKey === 0 ? 'store-or-network' : 'store-and-network' },
   );
   const currentView = data.guideViews.find((candidate) => candidate.id === view);
 

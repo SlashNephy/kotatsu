@@ -60,10 +60,26 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
   const [hideEmpty, setHideEmpty] = useState(view.hideEmptyServices);
   const [freeOnly, setFreeOnly] = useState(view.freeOnly);
   const [error, setError] = useState<string | null>(null);
+  // 作成と更新の応答で、ビューの全項目を返し、Relay のストアを新しくする。番組表を取り直す前に編集を開いても、保存した値で開く (#614)。
   const [create, creating] = useMutation<GuideViewEditorCreateMutation>(graphql`
     mutation GuideViewEditorCreateMutation($input: GuideViewInput!) {
       createGuideView(input: $input) {
         id
+        name
+        genres {
+          lv1
+          lv2
+        }
+        excludeGenres {
+          lv1
+          lv2
+        }
+        minDurationSeconds
+        services {
+          id
+        }
+        hideEmptyServices
+        freeOnly
       }
     }
   `);
@@ -71,6 +87,21 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
     mutation GuideViewEditorUpdateMutation($id: ID!, $input: GuideViewInput!) {
       updateGuideView(id: $id, input: $input) {
         id
+        name
+        genres {
+          lv1
+          lv2
+        }
+        excludeGenres {
+          lv1
+          lv2
+        }
+        minDurationSeconds
+        services {
+          id
+        }
+        hideEmptyServices
+        freeOnly
       }
     }
   `);
