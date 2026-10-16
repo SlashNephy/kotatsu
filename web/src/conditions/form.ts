@@ -1,6 +1,8 @@
 // 番組の条件の入力と、tenban の番組の条件 (ProgramConditions と ProgramConditionsInput) を行き来させる。
 // 番組の検索とルールの編集で、同じ入力を使う。
 
+import { splitProgramMarks } from '../futon/programMarks';
+
 export type KeywordField = 'NAME' | 'DESCRIPTION' | 'EXTENDED';
 
 export const keywordFields: KeywordField[] = ['NAME', 'DESCRIPTION', 'EXTENDED'];
@@ -104,6 +106,18 @@ const copyGenre = (genre: { lv1: number; lv2?: number | null }): Genre => ({
   lv1: genre.lv1,
   lv2: genre.lv2 ?? null,
 });
+
+// conditionsFromProgram は、番組から、ルールを作るときの条件の初期値を作る (設計書 10.3)。
+// 番組名 (囲み文字を外したもの) をキーワードに、番組のサービスをチャンネルにする。
+export function conditionsFromProgram(name: string, serviceId: string): ConditionsForm {
+  const title = splitProgramMarks(name).name;
+
+  return {
+    ...emptyConditions(),
+    keywords: title === '' ? [] : [{ ...emptyKeyword(), text: title }],
+    services: [serviceId],
+  };
+}
 
 // fromConditions は、tenban の番組の条件を、入力にする。
 export function fromConditions(c: ConditionsData): ConditionsForm {
