@@ -292,6 +292,17 @@ func TestHandler(t *testing.T) {
 			wantBody:   []string{`"code":"DEPTH_LIMIT_EXCEEDED"`},
 		},
 		{
+			// 重い検索を、エイリアスで並べて多数実行させない (#541)。
+			name: "many heavy searches with aliases are rejected before running",
+			opts: nil,
+			req: request{
+				method: http.MethodPost, contentType: contentTypeJSON, loggedIn: true,
+				body: `{"query":"{ a: searchPrograms(conditions: {}) { pageInfo { hasNextPage } } b: searchPrograms(conditions: {}) { pageInfo { hasNextPage } } c: searchPrograms(conditions: {}) { pageInfo { hasNextPage } } d: searchPrograms(conditions: {}) { pageInfo { hasNextPage } } }"}`,
+			},
+			wantStatus: http.StatusOK,
+			wantBody:   []string{`"code":"COMPLEXITY_LIMIT_EXCEEDED"`},
+		},
+		{
 			name:       "too complex query is rejected",
 			opts:       &graph.Options{MaxComplexity: 2},
 			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: viewerQuery, loggedIn: true},
