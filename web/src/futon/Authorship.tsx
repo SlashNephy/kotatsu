@@ -1,14 +1,14 @@
 import { Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
+import { zonedFormat } from './timeZone';
 
-const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+const dateTimeFormat = zonedFormat({
   year: 'numeric',
   month: '2-digit',
   day: '2-digit',
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 type Props = {

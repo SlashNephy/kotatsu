@@ -15,6 +15,7 @@ import { RelayEnvironmentProvider } from 'react-relay';
 import { registerSW } from 'virtual:pwa-register';
 
 import { cspNonce, cssVariablesResolver, theme } from './futon';
+import { loadTimeZone } from './futon/timeZone';
 import { createEnvironment } from './relay/environment';
 import { routeTree } from './routeTree.gen';
 
@@ -38,6 +39,9 @@ const root = document.getElementById('root');
 if (root === null) {
   throw new Error('the root element is missing');
 }
+
+// 日時をサーバーのタイムゾーンで表すため、読み込んでから画面を出す (#504)。
+await loadTimeZone();
 
 createRoot(root).render(
   <StrictMode>

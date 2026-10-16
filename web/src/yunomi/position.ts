@@ -1,5 +1,7 @@
 // 録画の再生位置の計算。シークは、新しい開始位置で読み直すので、video の時刻だけでは録画の中の位置が分からない。
 
+import { zonedFormat } from '../futon';
+
 // playbackPosition は、録画の始まりからの再生位置 (秒) を返す。
 // offset は今の読み込みを始めた位置、base は読み込み直後の video の時刻、current は今の video の時刻。
 export function playbackPosition(offset: number, base: number, current: number): number {
@@ -36,15 +38,14 @@ export function broadcastTime(recordedFrom: string, gaps: readonly Gap[], second
   return at;
 }
 
-const clockFormat = new Intl.DateTimeFormat('ja-JP', {
+const clockFormat = zonedFormat({
   hour: '2-digit',
   minute: '2-digit',
   second: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
-// formatClock は、日時を、日本時間の HH:MM:SS で表す。
+// formatClock は、日時を、表示のタイムゾーンの HH:MM:SS で表す。
 export function formatClock(ms: number): string {
   return clockFormat.format(ms);
 }

@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next';
 
 import { ProgramTitle, toHalfWidth } from '../futon';
 import classes from './PlayerControls.module.css';
+import { zonedFormat } from '../futon';
 
-const timeFormat = new Intl.DateTimeFormat('ja-JP', {
+const timeFormat = zonedFormat({
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 type Program = {

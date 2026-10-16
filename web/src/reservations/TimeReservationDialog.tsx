@@ -1,4 +1,5 @@
 import { Alert, Button, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core';
+import { useTimeZoneLabel } from '../futon/timeZone';
 import { Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
@@ -62,6 +63,8 @@ const rangeErrorKeys = {
 
 function Form({ reservation, onClose, onSaved }: Props) {
   const { t } = useTranslation();
+  // zoneLabel は、時刻を入れるタイムゾーンの呼び方。
+  const zoneLabel = useTimeZoneLabel();
   const [create, creating] = useMutation<TimeReservationDialogCreateMutation>(graphql`
     mutation TimeReservationDialogCreateMutation($input: TimeReservationInput!) {
       createTimeReservation(input: $input) {
@@ -154,7 +157,7 @@ function Form({ reservation, onClose, onSaved }: Props) {
         <TextInput
           type="datetime-local"
           label={t('reservations.time.endAt')}
-          description={t('reservations.time.endAtDescription')}
+          description={t('reservations.time.endAtDescription', { zone: zoneLabel })}
           value={end}
           onChange={(e) => setEnd(e.currentTarget.value)}
           error={

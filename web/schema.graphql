@@ -981,6 +981,10 @@ type Query {
   """
   version: AppVersion!
   """
+  表示のタイムゾーン (設計書 8.1)。IANA の名前 (Asia/Tokyo など)。画面は、日時をこのタイムゾーンで表す。
+  """
+  timeZone: String!
+  """
   監査ログを、新しい順に first 件まで返す。管理者だけが使える (設計書 9.7)。
   """
   auditEvents(first: Int! = 50, after: String, filter: AuditEventFilter): AuditEventConnection!
