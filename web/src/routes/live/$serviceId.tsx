@@ -49,6 +49,7 @@ import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoLoading } from '../../yunomi/useVideoLoading';
 import { useVideoState } from '../../yunomi/useVideoState';
+import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
@@ -195,6 +196,8 @@ function Live({
   const videoLoading = useVideoLoading(video);
   const fullscreen = useFullscreen(playerBoxRef);
   const controls = useControlsVisibility({ playing: !videoState.paused });
+  // 再生している間は、画面を消さない。
+  useWakeLock(!videoState.paused);
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
   const {
     captionsEnabled: captions,
