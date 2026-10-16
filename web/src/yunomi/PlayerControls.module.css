@@ -223,3 +223,23 @@
   font-size: var(--mantine-font-size-sm);
   pointer-events: none;
 }
+
+/* ライブ視聴で、映像の上端に重ねる番組の情報。操作バーと一緒に出し隠しする。 */
+.programInfo {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px 28px;
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.75), transparent);
+  color: #fff;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+.programInfo[data-visible='false'] {
+  opacity: 0;
+}

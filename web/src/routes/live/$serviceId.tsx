@@ -60,6 +60,7 @@ import { useLiveLag } from '../../yunomi/useLiveLag';
 import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
 import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordingsQuery.graphql';
+import { ProgramOverlay } from '../../yunomi/ProgramOverlay';
 import { neighborServices } from '../../yunomi/channels';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 
@@ -147,10 +148,17 @@ function LiveServicePage() {
   );
 }
 
-// liveRange は、now から 1 分の時間帯。ここに重なる番組を、放送中の番組とみなす。
-function liveRange(now: number): { from: string; to: string } {
-  return { from: new Date(now).toISOString(), to: new Date(now + 60_000).toISOString() };
+// liveRange は、now から、次の番組まで読める時間帯。放送中の番組と、その次の番組を引くのに使う (#438)。
+function liveRange(now: number): { now: number; from: string; to: string } {
+  return {
+    now,
+    from: new Date(now).toISOString(),
+    to: new Date(now + liveLookahead).toISOString(),
+  };
 }
+
+// liveLookahead は、次の番組を探す、いまからの時間。
+const liveLookahead = 6 * 3_600_000;
 
 // undecidedRecheckMs は、終了時刻が未定の番組や、番組がないときに、放送中の番組を読み直す間隔。
 const undecidedRecheckMs = 60_000;
@@ -168,7 +176,7 @@ function Live({
   onProgramEnd,
 }: {
   serviceId: string;
-  range: { from: string; to: string };
+  range: { now: number; from: string; to: string };
   onProgramEnd: () => void;
 }) {
   const { t } = useTranslation();
@@ -191,6 +199,7 @@ function Live({
         guide(from: $from, to: $to, services: [$id]) {
           programs {
             name
+            startAt
             endAt
             endUndecided
             audios {
@@ -217,7 +226,7 @@ function Live({
         }
       }
     `,
-    { id: serviceId, ...range },
+    { id: serviceId, from: range.from, to: range.to },
   );
   const navigate = useNavigate();
   const neighbors = neighborServices(data.services, serviceId);
@@ -331,7 +340,19 @@ function Live({
   // kyusu の経路は、プレイヤーが読み直す (設計書 7.3)。どちらの経路でも、遅れている間は「ライブに戻る」で読み直せる (#449)。
   const reload = () => setSession((n) => n + 1);
   const behind = useLiveLag(video, { reloadOnResume: route.kind === 'convert', onReload: reload });
-  const program = data.guide[0]?.programs[0] ?? null;
+  // 時間帯に重なる番組のうち、読み直した時刻に放送中のものと、その次のもの。
+  const programs = data.guide[0]?.programs ?? [];
+  const program =
+    programs.find(
+      (candidate) =>
+        Date.parse(candidate.startAt) <= range.now &&
+        (candidate.endUndecided || Date.parse(candidate.endAt) > range.now),
+    ) ?? null;
+  const nextProgram =
+    program === null || program.endUndecided
+      ? null
+      : (programs.find((candidate) => Date.parse(candidate.startAt) >= Date.parse(program.endAt)) ??
+        null);
   // 番組が終わる時刻に、放送中の番組を読み直す。終了時刻が未定か、番組がなければ、1 分ごとに読み直す。
   const programEnd = program === null || program.endUndecided ? null : program.endAt;
   useEffect(() => {
@@ -518,6 +539,12 @@ function Live({
             <>
               {dataBroadcast.layer}
               {jikkyo.overlay}
+              <ProgramOverlay
+                visible={controls.visible}
+                serviceName={serviceName}
+                current={program}
+                next={nextProgram}
+              />
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {dataBroadcast.receiving && (
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
@@ -554,6 +581,12 @@ function Live({
             <>
               {dataBroadcast.layer}
               {jikkyo.overlay}
+              <ProgramOverlay
+                visible={controls.visible}
+                serviceName={serviceName}
+                current={program}
+                next={nextProgram}
+              />
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {dataBroadcast.receiving && (
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
