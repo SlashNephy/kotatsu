@@ -112,6 +112,20 @@ storage:
 ```
 
 `config`には、環境変数`KOTATSU_`の後ろの名前と値を書きます。
+`config`の値は、Deploymentの環境変数にそのまま載ります。
+資格情報を含むチューナーサーバーのURLと、OIDCのクライアントシークレットは、`secrets.tunerURL`と`secrets.oidcClientSecret`にSecretの名前とキーを書いて渡してください。
+ほかの設定をSecretから渡すときは、`extraEnv`と`extraEnvFrom`に、Kubernetesの`env`と`envFrom`の形で書きます。
+
+```yaml
+secrets:
+  tunerURL:
+    name: kotatsu
+    key: tuner-url
+  oidcClientSecret:
+    name: kotatsu
+    key: oidc-client-secret
+```
+
 `KOTATSU_STORAGE_POOLS`は、`storage.pools`からChartが作るので、`config`には書きません。
 新しい録画の付属ファイル（索引、代表画像、プレビュー画像）を、録画ファイルの横でなく別の場所にまとめたいときは、`storage.sidecar.volume`にvolumeを書きます。Chartが`KOTATSU_STORAGE_SIDECAR_DIR`を渡し、プールと同じロールにマウントします。すでにある付属ファイルは移しません。
 

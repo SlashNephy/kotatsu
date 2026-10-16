@@ -27,9 +27,31 @@ secrets:
   secretKey:
     name: kotatsu
     key: secret-key
+  # tunerURL は、チューナーサーバーの URL。BASIC 認証の資格情報を URL に含めるときは、こちらで渡す。
+  # name が空なら渡さない。config.TUNER_URL と両方には書けない。
+  tunerURL:
+    name: ""
+    key: tuner-url
+  # oidcClientSecret は、OIDC のクライアントシークレット。name が空なら渡さない。
+  # config.AUTH_OIDC_CLIENT_SECRET と両方には書けない。
+  oidcClientSecret:
+    name: ""
+    key: oidc-client-secret
 
 # priorityClassName は、すべての Pod に付ける PriorityClass。all や roles の各ロールで priorityClassName を指定すると、そちらを使う。
 priorityClassName: ""
+
+# extraEnv と extraEnvFrom は、すべてのコンテナに足す環境変数 (Kubernetes の env と envFrom の形)。
+# secrets にない秘密の設定を、Secret から渡すのに使う。
+# 例:
+#   extraEnv:
+#     - name: KOTATSU_WEBPUSH_SUBJECT
+#       valueFrom:
+#         secretKeyRef:
+#           name: kotatsu
+#           key: webpush-subject
+extraEnv: []
+extraEnvFrom: []
 
 # config は、環境変数で渡す Kotatsu の設定 (KOTATSU_ の後ろの名前と値)。
 # 例: {TUNER_URL: http://mirakurun:40772/, SERVER_ALLOWED_NETWORKS: "10.0.0.0/8,192.168.0.0/16"}

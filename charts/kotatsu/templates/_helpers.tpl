@@ -43,6 +43,21 @@ digest を指定していれば、タグに加えて digest で固定する。
 {{- end -}}
 {{- end -}}
 
+{{/*
+optionalSecretEnv は、ref (Secret の名前とキー) の name があれば、KOTATSU_<env> を Secret から渡す環境変数。
+引数は (dict "root" $ "env" 環境変数の KOTATSU_ の後ろ "ref" Secret の名前とキー "value" values のキーの名前)。
+config に同じ設定があると、同じ環境変数が 2 つになるので、描画を止める。
+*/}}
+{{- define "kotatsu.optionalSecretEnv" -}}
+{{- if and .ref .ref.name }}
+{{- if hasKey .root.Values.config .env }}
+{{- fail (printf "set either %s or config.%s, not both" .value .env) }}
+{{- end }}
+- name: {{ printf "KOTATSU_%s" .env }}
+  {{- include "kotatsu.secretRef" .ref | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{/* secretRef は、Secret のキーから値を読む環境変数の valueFrom。引数は (dict "name" Secret の名前 "key" キー)。 */}}
 {{- define "kotatsu.secretRef" -}}
 valueFrom:
@@ -99,6 +114,8 @@ env は、すべてのコンテナに渡す環境変数。
   {{- include "kotatsu.secretRef" .Values.secrets.databaseURL | nindent 2 }}
 - name: KOTATSU_AUTH_SECRET_KEY
   {{- include "kotatsu.secretRef" .Values.secrets.secretKey | nindent 2 }}
+{{- include "kotatsu.optionalSecretEnv" (dict "root" . "env" "TUNER_URL" "ref" .Values.secrets.tunerURL "value" "secrets.tunerURL") }}
+{{- include "kotatsu.optionalSecretEnv" (dict "root" . "env" "AUTH_OIDC_CLIENT_SECRET" "ref" .Values.secrets.oidcClientSecret "value" "secrets.oidcClientSecret") }}
 {{- with include "kotatsu.pools" . }}
 - name: KOTATSU_STORAGE_POOLS
   value: {{ . | quote }}
@@ -112,6 +129,9 @@ env は、すべてのコンテナに渡す環境変数。
 {{- range $name, $value := .Values.config }}
 - name: {{ printf "KOTATSU_%s" $name }}
   value: {{ $value | toString | quote }}
+{{- end }}
+{{- with .Values.extraEnv }}
+{{ toYaml . }}
 {{- end }}
 {{- end -}}
 
@@ -199,6 +219,10 @@ spec:
             {{- toYaml .args | nindent 12 }}
           env:
             {{- include "kotatsu.env" $root | nindent 12 }}
+          {{- with $root.Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: 8080
