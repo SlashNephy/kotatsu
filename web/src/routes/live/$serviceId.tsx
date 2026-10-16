@@ -1,4 +1,4 @@
-import { Alert, Anchor, Group, Select, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Select, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Captions, Keyboard, MessageSquareText, Tv } from 'lucide-react';
 import { startTransition, Suspense, useEffect, useRef, useState } from 'react';
@@ -21,13 +21,14 @@ import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
-import { DataBroadcastRemote } from '../../yunomi/DataBroadcastRemote';
+import { DataBroadcastRemote, DataBroadcastRemoteOverlay } from '../../yunomi/DataBroadcastRemote';
 import {
   BigPlayButton,
   PlayerLoading,
   ControlButton,
   FullscreenButton,
   LiveStatus,
+  PlayerAlert,
   PlayerControls,
   playerControlsClasses,
   PlayerNotice,
@@ -179,6 +180,34 @@ type Disconnection = {
   recordings: { name: string; serviceName: string }[];
 };
 
+// DisconnectionReason は、視聴が切れた理由と、つなぎ直すまでの秒を示す。ページの知らせと、映像に重ねる知らせで使う。
+function DisconnectionReason({ disconnection }: { disconnection: Disconnection }) {
+  const { t } = useTranslation();
+
+  return (
+    <Stack gap={4}>
+      {disconnection.recordings.length > 0 ? (
+        <Text size="sm">
+          {t('live.tunerTaken', {
+            recordings: disconnection.recordings
+              .map((recording) =>
+                toHalfWidth(
+                  `${recording.serviceName}「${splitProgramMarks(recording.name).name}」`,
+                ),
+              )
+              .join('、'),
+          })}
+        </Text>
+      ) : (
+        <Text size="sm">{t('live.streamEnded')}</Text>
+      )}
+      <Text size="sm" opacity={0.75}>
+        {t('live.retryIn', { seconds: disconnection.retryIn })}
+      </Text>
+    </Stack>
+  );
+}
+
 function Live({
   serviceId,
   range,
@@ -256,6 +285,8 @@ function Live({
   const autoplay = useAutoplayBlocked(video);
   const videoLoading = useVideoLoading(video);
   const fullscreen = useFullscreen(playerBoxRef);
+  // overlaid は、プレイヤーだけを出していて、ページの知らせやリモコンが見えないかどうか。そのときは、映像に重ねて出す (#435)。
+  const overlaid = fullscreen.active || pip.container !== null;
   // shortcutsOpen は、キーボードショートカットの一覧を出しているかどうか。
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   // ショートカットの一覧を見ている間は、操作バーとカーソルを隠さない。
@@ -323,6 +354,10 @@ function Live({
       // 理由を調べられなくても、つなぎ直しは続ける。
       .catch(() => {});
   };
+
+  // reconnectNow は、数え終わるのを待たずに、すぐにつなぎ直す。
+  const reconnectNow = () =>
+    setDisconnection((prev) => (prev === null ? null : { ...prev, retryIn: 0 }));
 
   // つなぎ直すまでを数える。
   useEffect(() => {
@@ -541,6 +576,28 @@ function Live({
     />
   );
 
+  // overlays は、全画面と別のウィンドウで、映像に重ねる切断の知らせとデータ放送のリモコン (#435)。
+  const overlays = overlaid && (
+    <>
+      {disconnection !== null && (
+        <PlayerAlert
+          title={t('live.disconnected')}
+          action={{ label: t('live.reconnectNow'), onClick: reconnectNow }}
+        >
+          <DisconnectionReason disconnection={disconnection} />
+        </PlayerAlert>
+      )}
+      {dataBroadcastEnabled && (
+        <DataBroadcastRemoteOverlay
+          state={dataBroadcast.state}
+          receiving={dataBroadcast.receiving}
+          keyGroups={dataBroadcast.keyGroups}
+          onPress={dataBroadcast.press}
+        />
+      )}
+    </>
+  );
+
   const playerBox = (
     <div
       ref={playerBoxRef}
@@ -578,7 +635,8 @@ function Live({
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
-              {videoLoading && !autoplay.blocked && <PlayerLoading />}
+              {videoLoading && !autoplay.blocked && disconnection === null && <PlayerLoading />}
+              {overlays}
             </>
           }
           onState={(state) => {
@@ -621,7 +679,8 @@ function Live({
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
-              {videoLoading && !autoplay.blocked && <PlayerLoading />}
+              {videoLoading && !autoplay.blocked && disconnection === null && <PlayerLoading />}
+              {overlays}
             </>
           }
           // チューナーを使われて切れると、hls.js が読み直しを諦めたところで、致命的なエラーになる。
@@ -665,25 +724,11 @@ function Live({
       {pip.container !== null && createPortal(playerBox, pip.container)}
       {disconnection !== null && (
         <Alert color="amber" role="alert" title={t('live.disconnected')}>
-          <Stack gap={4}>
-            {disconnection.recordings.length > 0 ? (
-              <Text size="sm">
-                {t('live.tunerTaken', {
-                  recordings: disconnection.recordings
-                    .map((recording) =>
-                      toHalfWidth(
-                        `${recording.serviceName}「${splitProgramMarks(recording.name).name}」`,
-                      ),
-                    )
-                    .join('、'),
-                })}
-              </Text>
-            ) : (
-              <Text size="sm">{t('live.streamEnded')}</Text>
-            )}
-            <Text size="sm" c="dimmed">
-              {t('live.retryIn', { seconds: disconnection.retryIn })}
-            </Text>
+          <Stack gap="xs" align="flex-start">
+            <DisconnectionReason disconnection={disconnection} />
+            <Button size="compact-sm" variant="light" color="amber" onClick={reconnectNow}>
+              {t('live.reconnectNow')}
+            </Button>
           </Stack>
         </Alert>
       )}

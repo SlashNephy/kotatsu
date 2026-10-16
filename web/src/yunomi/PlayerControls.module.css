@@ -209,6 +209,47 @@
   }
 }
 
+/* 切断や再生のエラーの知らせ (#435)。全画面と別のウィンドウで、映像の真ん中に重ねる。ボタンを押せるよう、操作を受ける。 */
+.alert {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  translate: -50% -50%;
+  /* 実況のコメントや、番組の情報より上に置く。 */
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  max-width: min(90%, 32rem);
+  padding: 12px 16px;
+  border-radius: var(--mantine-radius-md);
+  background: rgb(0 0 0 / 0.75);
+  color: #fff;
+  text-align: center;
+  pointer-events: auto;
+}
+
+/* 全画面と別のウィンドウで、映像の左下に重ねるデータ放送のリモコン (#435)。操作バーの上に出す。 */
+.remote {
+  position: absolute;
+  inset-inline-start: 12px;
+  inset-block-end: 64px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  max-width: calc(100% - 24px);
+  pointer-events: auto;
+}
+
+.remotePanel {
+  padding: 8px;
+  border-radius: var(--mantine-radius-md);
+  background: rgb(0 0 0 / 0.75);
+}
+
 /* キーで操作した結果の短い知らせ。受信中などの知らせ (.notice) と重ならないよう、上の中央に出す。 */
 .flash {
   position: absolute;

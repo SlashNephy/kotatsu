@@ -2,6 +2,8 @@ import { ActionIcon, Button, Group, SimpleGrid, Text } from '@mantine/core';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { playerControlsClasses } from './PlayerControls';
+import { controlsAttribute } from './useControlsVisibility';
 import type { DataBroadcastState, KeyGroup, RemoteKey } from './useDataBroadcast';
 import { keyGroup, RemoteKey as Keys } from './useDataBroadcast';
 
@@ -153,5 +155,31 @@ export function DataBroadcastRemote({
         </Text>
       )}
     </Group>
+  );
+}
+
+// DataBroadcastRemoteOverlay は、全画面と別のウィンドウで、映像の左下に重ねるデータ放送のリモコン (#435)。
+// 映像を隠さないよう、既定では閉じ、開くボタンだけを出す。
+export function DataBroadcastRemoteOverlay(props: Parameters<typeof DataBroadcastRemote>[0]) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className={playerControlsClasses.remote} {...{ [controlsAttribute]: '' }}>
+      {open && (
+        <div className={playerControlsClasses.remotePanel}>
+          <DataBroadcastRemote {...props} />
+        </div>
+      )}
+      <Button
+        size="compact-sm"
+        variant={open ? 'white' : 'default'}
+        color="dark"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        {t(open ? 'player.remote.close' : 'player.remote.open')}
+      </Button>
+    </div>
   );
 }
