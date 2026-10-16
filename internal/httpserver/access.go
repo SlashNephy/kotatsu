@@ -66,7 +66,9 @@ type AccessPolicy struct {
 	trusted []netip.Prefix
 	// clientIPHeader は、信頼済みのプロキシから届いたリクエストで、送信元を読むヘッダー。
 	clientIPHeader string
-	logger         *slog.Logger
+	// allowedHosts は、受け付ける Host のホスト名 (小文字)。空なら、どの Host も受け付ける。
+	allowedHosts []string
+	logger       *slog.Logger
 }
 
 // NewAccessPolicy は、設定から AccessPolicy を作る。
@@ -80,7 +82,12 @@ func NewAccessPolicy(cfg *config.Server, logger *slog.Logger) (*AccessPolicy, er
 		return nil, fmt.Errorf("invalid server.trusted_proxies: %w", err)
 	}
 
-	return &AccessPolicy{allowed: allowed, trusted: trusted, clientIPHeader: cfg.ClientIPHeader, logger: logger}, nil
+	hosts := make([]string, 0, len(cfg.AllowedHosts))
+	for _, host := range cfg.AllowedHosts {
+		hosts = append(hosts, strings.ToLower(strings.TrimSuffix(host, ".")))
+	}
+
+	return &AccessPolicy{allowed: allowed, trusted: trusted, clientIPHeader: cfg.ClientIPHeader, allowedHosts: hosts, logger: logger}, nil
 }
 
 // Middleware は、送信元を判定して context に入れ、許可していない送信元からのリクエストを拒否するミドルウェアを返す。
@@ -124,8 +131,37 @@ func (p *AccessPolicy) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
+		if !p.hostAllowed(client.Host) {
+			p.logger.WarnContext(r.Context(), "rejected a request for a disallowed host", slog.String("host", client.Host))
+			http.Error(w, fmt.Sprintf(
+				"the host %s is not allowed. To allow it, add it to server.allowed_hosts (KOTATSU_SERVER_ALLOWED_HOSTS).",
+				client.Host), http.StatusForbidden)
+
+			return
+		}
+
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), clientKey{}, client)))
 	})
+}
+
+// hostAllowed は、送信元が接続したホスト (Host か、信頼済みのプロキシが伝えた X-Forwarded-Host) を受け付けるかを返す (#546)。
+// DNS リバインディングでは、Host が攻撃者のホスト名になるので、許したホスト名の一覧で拒む。
+// IP アドレスと localhost は、外部のサイトのホスト名から向け直されたものではないので、いつも受け付ける。
+// ヘルスチェックのように、IP アドレスで直接つなぐ要求も通すためでもある。
+func (p *AccessPolicy) hostAllowed(hostport string) bool {
+	if len(p.allowedHosts) == 0 {
+		return true
+	}
+	host := hostport
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		host = h
+	}
+	host = strings.ToLower(strings.TrimSuffix(strings.Trim(host, "[]"), "."))
+	if _, err := netip.ParseAddr(host); err == nil || host == "localhost" {
+		return true
+	}
+
+	return slices.Contains(p.allowedHosts, host)
 }
 
 func (p *AccessPolicy) isTrusted(addr netip.Addr) bool {
