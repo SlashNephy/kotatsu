@@ -390,7 +390,8 @@ function PoolUsage({ free, total, minFree }: { free: number; total: number; minF
   const used = Math.max(0, total - free);
   const percent = (used / total) * 100;
   // 空き容量がこれを下回ると、古い録画から消す。バーの上では、使用量がこの位置を超えたところ。
-  const threshold = minFree > 0 ? Math.min(100, ((total - minFree) / total) * 100) : null;
+  const threshold =
+    minFree > 0 ? Math.max(0, Math.min(100, ((total - minFree) / total) * 100)) : null;
   const color = free < minFree ? 'red' : percent >= 90 ? 'orange' : 'blue';
 
   return (
