@@ -240,6 +240,10 @@ function Player({ recordingId }: { recordingId: string }) {
     channel !== null && jikkyoEnabled && recording !== null ? recording.jikkyoCommentsUrl : null,
     currentPosition,
     visible,
+    // 録画中の録画を追っかけ再生している間は、リアルタイムのコメントも流す (#667)。
+    channel !== null && recording !== null && recording.recordedUntil == null
+      ? { channelId: channel.id, recordedFrom: recording.recordedFrom, gaps: recording.gaps }
+      : null,
   );
   // recordedRows は、コメントの一覧に出す、再生位置までに流れた過去ログ (#489)。再生位置は 1 秒に何度も変わるので、
   // 流れたコメントの数が変わったときだけ作り直し、時刻の文字は、コメントごとに一度だけ作る。

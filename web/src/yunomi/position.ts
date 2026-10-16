@@ -38,6 +38,21 @@ export function broadcastTime(recordedFrom: string, gaps: readonly Gap[], second
   return at;
 }
 
+// recordingPosition は、放送時刻 at (Unix ミリ秒) に当たる、録画の始まりからの再生位置 (秒) を返す。broadcastTime の逆。
+// 途切れた区間の分の映像はファイルにないので、それより前に終わった区間の長さを引く。区間の中の時刻は、区間の始まりの位置にする。
+export function recordingPosition(recordedFrom: string, gaps: readonly Gap[], at: number): number {
+  let missing = 0;
+  for (const gap of gaps) {
+    const from = Date.parse(gap.from);
+    const to = Date.parse(gap.to);
+    if (from < at) {
+      missing += Math.max(Math.min(to, at) - from, 0);
+    }
+  }
+
+  return Math.max((at - Date.parse(recordedFrom) - missing) / 1000, 0);
+}
+
 const clockFormat = zonedFormat({
   hour: '2-digit',
   minute: '2-digit',

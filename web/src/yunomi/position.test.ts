@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest';
 
-import { broadcastTime, formatClock, formatDuration, playbackPosition } from './position';
+import {
+  broadcastTime,
+  formatClock,
+  formatDuration,
+  playbackPosition,
+  recordingPosition,
+} from './position';
 
 describe('playbackPosition', () => {
   test.each([
@@ -68,5 +74,40 @@ describe('broadcastTime', () => {
 describe('formatClock', () => {
   test('日本時間の HH:MM:SS で表す', () => {
     expect(formatClock(Date.parse('2026-10-14T12:01:30Z'))).toBe('21:01:30');
+  });
+});
+
+describe('recordingPosition', () => {
+  const from = '2026-10-14T12:00:00Z';
+  const gap = { from: '2026-10-14T12:10:00Z', to: '2026-10-14T12:12:00Z' };
+  test.each([
+    {
+      name: '途切れがなければ、始めた時刻からの秒',
+      gaps: [],
+      at: '2026-10-14T12:01:30Z',
+      want: 90,
+    },
+    { name: '途切れる前の時刻', gaps: [gap], at: '2026-10-14T12:09:00Z', want: 9 * 60 },
+    {
+      name: '途切れた後の時刻は、区間の長さを引く',
+      gaps: [gap],
+      at: '2026-10-14T12:13:00Z',
+      want: 11 * 60,
+    },
+    {
+      name: '区間の中の時刻は、区間の始まりの位置',
+      gaps: [gap],
+      at: '2026-10-14T12:11:00Z',
+      want: 10 * 60,
+    },
+    { name: '始めるより前は 0', gaps: [], at: '2026-10-14T11:59:00Z', want: 0 },
+  ])('$name', ({ gaps, at, want }) => {
+    expect(recordingPosition(from, gaps, Date.parse(at))).toBe(want);
+  });
+
+  test('broadcastTime の逆になる', () => {
+    const gaps = [gap, { from: '2026-10-14T12:20:00Z', to: '2026-10-14T12:21:00Z' }];
+
+    expect(recordingPosition(from, gaps, broadcastTime(from, gaps, 25 * 60))).toBe(25 * 60);
   });
 });

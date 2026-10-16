@@ -46,7 +46,10 @@ func NewCommentsHandler(db sqlc.DBTX, table *Table, client *Client, clk clock.Cl
 
 type commentsResponse struct {
 	// Channel は、録画したサービスの実況のチャンネル。対応するチャンネルがなければ null。
-	Channel  *channelJSON   `json:"channel"`
+	Channel *channelJSON `json:"channel"`
+	// Origin は、コメントの時刻 (Time) の基準の時刻 (最初のセグメントを書き始めた時刻)。チャンネルがなければ null。
+	// 録画中の追っかけ再生で、リアルタイムのコメントを同じ基準の位置に流すのに使う (#667)。
+	Origin   *time.Time     `json:"origin"`
 	Comments []*commentJSON `json:"comments"`
 }
 
@@ -80,7 +83,7 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := &commentsResponse{Channel: nil, Comments: []*commentJSON{}}
+	resp := &commentsResponse{Channel: nil, Origin: nil, Comments: []*commentJSON{}}
 	id, ok := h.table.Lookup(source.NetworkID, source.Sid)
 	if !ok {
 		h.write(w, r, resp, source.RecordedUntil != nil)
@@ -94,6 +97,7 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+	resp.Origin = &from
 	// 過去ログ API は、終わりが未来の時刻だと取得できないので、録画中なら今までにする。
 	to := h.clock.Now()
 	if source.RecordedUntil != nil && source.RecordedUntil.Before(to) {
