@@ -108,6 +108,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	workers := river.NewWorkers()
 	retention := time.Duration(deps.Config.Audit.RetentionDays) * 24 * time.Hour
 	river.AddWorker(workers, audit.NewPruneWorker(deps.DB, deps.Clock, retention))
+	river.AddWorker(workers, auth.NewPruneSessionsWorker(deps.DB, deps.Clock))
 
 	// Webhook の配信のジョブは、イベントを配るトランザクションの中で投入する。
 	// 投入に使う River のクライアントは、ここで作る Worker を必要とするので、投入だけを行うクライアントを別に作る。
@@ -149,7 +150,9 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 		logger.With(slog.String("component", "segjoin")), 0))
 	river.AddWorker(workers, segjoin.NewFinalizeWorker(deps.DB, storeOf(deps.Config), inserter))
 
-	return workers, []*river.PeriodicJob{audit.PrunePeriodicJob(), notification.DispatchPeriodicJob(), capacity.CheckPeriodicJob()}, nil
+	return workers, []*river.PeriodicJob{
+		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), capacity.CheckPeriodicJob(),
+	}, nil
 }
 
 // defaultWebPushSubject は、Web Push の送り手の連絡先を設定していないときに、プッシュサービスに示す URI。
@@ -165,12 +168,15 @@ func webPushSubject(cfg *config.Config) string {
 }
 
 // migrate は、Kotatsu のスキーマと River のテーブルのマイグレーションを適用する。
+// 同時に実行されても安全なよう、両方をマイグレーションのロックの中で行う。
 func migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
-	if err := database.Migrate(ctx, logger, pool); err != nil {
-		return err
-	}
+	return database.WithMigrationLock(ctx, logger, pool, func(ctx context.Context) error {
+		if err := database.Migrate(ctx, logger, pool); err != nil {
+			return err
+		}
 
-	return jobs.Migrate(ctx, logger, pool)
+		return jobs.Migrate(ctx, logger, pool)
+	})
 }
 
 // checkSchema は、Kotatsu のスキーマと River のテーブルで、このバイナリが動けるかを確かめる。
@@ -578,7 +584,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	}
 	jikkyoClient := jikkyo.NewClient(&jikkyo.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: nil, Clock: deps.Clock})
 	mux := http.NewServeMux()
-	mux.Handle("/graphql", graph.NewHandler(&graph.Options{
+	// 変更の購読 (SSE) は終わらないので、停止を始めたら打ち切る。
+	mux.Handle("/graphql", httpserver.StopEventStreamsOnShutdown(graph.NewHandler(&graph.Options{
 		DB:                deps.DB,
 		Recorder:          audit.NewRecorder(deps.Clock),
 		SecondFactors:     factors,
@@ -602,7 +609,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		MaxDepth:          0,
 		MaxComplexity:     0,
 		HeartbeatInterval: 0,
-	}))
+	})))
 	mux.Handle("POST /auth/logout", httpserver.RequireSameOrigin(sessions.LogoutHandler(deps.DB)))
 	logins := auth.NewLogins(&auth.LoginsOptions{
 		Clock:         deps.Clock,
@@ -652,8 +659,11 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	}
 	authorizer := stream.NewAuthorizer(signer, deps.DB, deps.Clock)
 	streamLogger := logger.With(slog.String("component", "stream"))
-	mux.Handle("GET /streams/services/{id}", authorizer.Middleware(stream.NewLiveHandler(opener, streamLogger)))
-	mux.Handle("GET /streams/services/{id}/data-broadcast", authorizer.Middleware(stream.NewDataBroadcastHandler(opener, streamLogger)))
+	// ライブ視聴と録画の配信は終わらないので、停止を始めたら打ち切り、待たない。
+	mux.Handle("GET /streams/services/{id}",
+		httpserver.StopOnShutdown(authorizer.Middleware(stream.NewLiveHandler(opener, streamLogger))))
+	mux.Handle("GET /streams/services/{id}/data-broadcast",
+		httpserver.StopOnShutdown(authorizer.Middleware(stream.NewDataBroadcastHandler(opener, streamLogger))))
 	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
 	kyusuToken, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
 	if err != nil {
@@ -666,10 +676,10 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		authorizer.Middleware(kyusu.NewRecordingRelay(instances, kyusuToken, streamLogger)))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
 	mux.Handle("GET /streams/recordings/{id}",
-		authorizer.Middleware(stream.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))
+		httpserver.StopOnShutdown(authorizer.Middleware(stream.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
 	mux.Handle("GET /streams/recordings/{id}/files/{file}",
-		authorizer.Middleware(stream.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger)))
+		httpserver.StopOnShutdown(authorizer.Middleware(stream.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger))))
 	// サービスのロゴは、チューナーサーバーから取って中継する。
 	mux.Handle("GET /media/services/{id}/logo", authorizer.Middleware(stream.NewLogoHandler(logos, streamLogger)))
 	// 録画の代表画像とプレビュー画像も、このインスタンスにマウントしたプールのものだけ配信できる。

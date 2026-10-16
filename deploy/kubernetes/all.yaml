@@ -177,6 +177,8 @@ spec:
                 secretKeyRef:
                   name: kotatsu
                   key: database-url
+            - name: KOTATSU_TUNER_URL
+              value: "http://mirakurun:40772/"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

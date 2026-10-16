@@ -1,9 +1,16 @@
-import { useEffect, useState, type FocusEvent, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type FocusEvent, type PointerEvent } from 'react';
 
-import { controlsHideDelayMs, shouldForceControlsVisible } from './controlsVisibility';
+import {
+  controlsHideDelayMs,
+  shouldForceControlsVisible,
+  shouldHoldControls,
+} from './controlsVisibility';
 
 // controlsAttribute は、操作バーの要素に付ける印。タップが操作バーの中かどうかを見分けるのに使う。
 export const controlsAttribute = 'data-player-controls';
+
+const inControls = (target: EventTarget | null) =>
+  target instanceof Element && target.closest(`[${controlsAttribute}]`) !== null;
 
 export type ControlsVisibility = {
   visible: boolean;
@@ -25,6 +32,14 @@ export function useControlsVisibility({ playing }: { playing: boolean }): Contro
   const [focusWithin, setFocusWithin] = useState(false);
   const [pointerLeft, setPointerLeft] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
+  // container は、プレイヤーを包む要素。開いている選択肢を探すのに使う。
+  // pointerOverControls と pressingControls は、マウスが操作バーの上にあるか、操作バーの中を押したままか。
+  const container = useRef<HTMLElement | null>(null);
+  const pointerOverControls = useRef(false);
+  const pressingControls = useRef(false);
+  // pointerLeftRef は、pointerLeft を、隠す時間の判定から読むための写し。
+  const pointerLeftRef = useRef(false);
+  pointerLeftRef.current = pointerLeft;
   const forceVisible = shouldForceControlsVisible({ playing, focusWithin });
 
   // 動いたときと、出し続ける条件が変わったときは、隠したことを取り消す。effect の中で毎回 setState すると
@@ -39,10 +54,41 @@ export function useControlsVisibility({ playing }: { playing: boolean }): Contro
     if (forceVisible) {
       return;
     }
-    const timer = setTimeout(() => setTimedOut(true), controlsHideDelayMs);
+    const timer = setTimeout(() => {
+      // 操作バーのメニューと選択肢は、操作バーの中に描く (withinPortal={false})。開いている間だけ、その要素がある。
+      const menuOpened =
+        container.current?.querySelector(
+          `[${controlsAttribute}] :is([aria-expanded="true"], [role="menu"], [role="listbox"])`,
+        ) != null;
+      const hold = shouldHoldControls({
+        pointerOverControls: pointerOverControls.current,
+        pressingControls: pressingControls.current,
+        menuOpened,
+      });
+      // 使っている最中なら、隠さずに数え直す。プレイヤーの外へ出て隠しているなら、数え直さない。
+      if (hold && !pointerLeftRef.current) {
+        setGeneration((n) => n + 1);
+      } else {
+        setTimedOut(true);
+      }
+    }, controlsHideDelayMs);
 
     return () => clearTimeout(timer);
   }, [generation, forceVisible]);
+
+  // 押したまま操作バーの外で離しても、押していないことにする。
+  useEffect(() => {
+    const onPointerUp = () => {
+      pressingControls.current = false;
+    };
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+
+    return () => {
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+    };
+  }, []);
 
   const visible = forceVisible || (!timedOut && !pointerLeft);
   const activate = () => {
@@ -54,21 +100,23 @@ export function useControlsVisibility({ playing }: { playing: boolean }): Contro
     visible,
     containerProps: {
       onPointerMove: (event) => {
+        container.current = event.currentTarget;
         if (event.pointerType === 'mouse') {
+          pointerOverControls.current = inControls(event.target);
           activate();
         }
       },
       onPointerDown: (event) => {
+        container.current = event.currentTarget;
+        // タッチでシークバーを動かしている間も、隠さない。
+        pressingControls.current = inControls(event.target);
         if (event.pointerType === 'mouse') {
           activate();
 
           return;
         }
         // 操作バーの中のタップは、ボタンの操作なので、出したままにする。
-        if (
-          event.target instanceof Element &&
-          event.target.closest(`[${controlsAttribute}]`) !== null
-        ) {
+        if (inControls(event.target)) {
           activate();
 
           return;
@@ -81,13 +129,17 @@ export function useControlsVisibility({ playing }: { playing: boolean }): Contro
       },
       // プレイヤーの外へ出たら、待たずに隠す。タッチでは、指を離しても pointerleave が届くので、隠さない。
       onPointerLeave: (event) => {
-        if (event.pointerType === 'mouse') {
+        // シークバーを掴んだまま外へ出ても、離すまでは隠さない。
+        if (event.pointerType === 'mouse' && !pressingControls.current) {
+          pointerOverControls.current = false;
           setPointerLeft(true);
         }
       },
       // キーボードで操作しているときだけ、出し続ける。マウスでボタンを押したときもフォーカスは残るが、
       // そのままだと、プレイヤーの外へマウスを出しても隠れなくなる。
       onFocusCapture: (event) => {
+        // キーボードだけで操作したときも、開いているメニューを探せるようにする。
+        container.current = event.currentTarget;
         setFocusWithin(event.target instanceof Element && event.target.matches(':focus-visible'));
       },
       onBlurCapture: (event) => {

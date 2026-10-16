@@ -14,14 +14,24 @@ import (
 // pruneInterval は、保持期間を過ぎた記録を消す間隔。
 const pruneInterval = 24 * time.Hour
 
-// Prune は、保持期間 retention を過ぎた記録を消し、消した数を返す。
-func Prune(ctx context.Context, db sqlc.DBTX, clk clock.Clock, retention time.Duration) (int64, error) {
-	deleted, err := sqlc.New(db).DeleteAuditEventsBefore(ctx, clk.Now().Add(-retention))
-	if err != nil {
-		return 0, fmt.Errorf("failed to prune audit events: %w", err)
-	}
+// pruneBatchSize は、1 回の DELETE で消す記録の数の上限。
+// 長く溜まった後に保持期間を短くしても、1 回のトランザクションで大量の行を消して、ほかの書き込みを待たせないようにする。
+const pruneBatchSize = 1000
 
-	return deleted, nil
+// Prune は、保持期間 retention を過ぎた記録を、pruneBatchSize 件ずつ区切って消し、消した数を返す。
+func Prune(ctx context.Context, db sqlc.DBTX, clk clock.Clock, retention time.Duration) (int64, error) {
+	before := clk.Now().Add(-retention)
+	var total int64
+	for {
+		deleted, err := sqlc.New(db).DeleteAuditEventsBefore(ctx, sqlc.DeleteAuditEventsBeforeParams{Before: before, MaxCount: pruneBatchSize})
+		if err != nil {
+			return total, fmt.Errorf("failed to prune audit events: %w", err)
+		}
+		total += deleted
+		if deleted < pruneBatchSize {
+			return total, nil
+		}
+	}
 }
 
 // PruneArgs は、保持期間を過ぎた記録を消すジョブの引数。
