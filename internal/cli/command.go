@@ -165,12 +165,15 @@ func webPushSubject(cfg *config.Config) string {
 }
 
 // migrate は、Kotatsu のスキーマと River のテーブルのマイグレーションを適用する。
+// 同時に実行されても安全なよう、両方をマイグレーションのロックの中で行う。
 func migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
-	if err := database.Migrate(ctx, logger, pool); err != nil {
-		return err
-	}
+	return database.WithMigrationLock(ctx, logger, pool, func(ctx context.Context) error {
+		if err := database.Migrate(ctx, logger, pool); err != nil {
+			return err
+		}
 
-	return jobs.Migrate(ctx, logger, pool)
+		return jobs.Migrate(ctx, logger, pool)
+	})
 }
 
 // checkSchema は、Kotatsu のスキーマと River のテーブルで、このバイナリが動けるかを確かめる。
