@@ -36,6 +36,7 @@ type ResolverRoot interface {
 	Query() QueryResolver
 	Recording() RecordingResolver
 	Reservation() ReservationResolver
+	Rule() RuleResolver
 	Service() ServiceResolver
 	Subscription() SubscriptionResolver
 }
@@ -364,7 +365,7 @@ type ComplexityRoot struct {
 		PreviewRule             func(childComplexity int, input model.RuleInput, first int, after *string) int
 		RecordingRenames        func(childComplexity int) int
 		Recordings              func(childComplexity int, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) int
-		Reservations            func(childComplexity int, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, first int, after *string) int
+		Reservations            func(childComplexity int, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, rule *string, first int, after *string) int
 		Rules                   func(childComplexity int) int
 		SearchPrograms          func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
 		SecondFactors           func(childComplexity int) int
@@ -518,21 +519,22 @@ type ComplexityRoot struct {
 	}
 
 	Rule struct {
-		AvoidDuplicates     func(childComplexity int) int
-		Conditions          func(childComplexity int) int
-		CreatedAt           func(childComplexity int) int
-		CreatedBy           func(childComplexity int) int
-		DuplicateWindowDays func(childComplexity int) int
-		Enabled             func(childComplexity int) int
-		FollowEventRelay    func(childComplexity int) int
-		ID                  func(childComplexity int) int
-		Memo                func(childComplexity int) int
-		Name                func(childComplexity int) int
-		Settings            func(childComplexity int) int
-		UpdatedAt           func(childComplexity int) int
-		UpdatedBy           func(childComplexity int) int
-		ValidFrom           func(childComplexity int) int
-		ValidUntil          func(childComplexity int) int
+		AvoidDuplicates          func(childComplexity int) int
+		Conditions               func(childComplexity int) int
+		CreatedAt                func(childComplexity int) int
+		CreatedBy                func(childComplexity int) int
+		DuplicateWindowDays      func(childComplexity int) int
+		Enabled                  func(childComplexity int) int
+		FollowEventRelay         func(childComplexity int) int
+		ID                       func(childComplexity int) int
+		Memo                     func(childComplexity int) int
+		Name                     func(childComplexity int) int
+		Settings                 func(childComplexity int) int
+		UpcomingReservationCount func(childComplexity int) int
+		UpdatedAt                func(childComplexity int) int
+		UpdatedBy                func(childComplexity int) int
+		ValidFrom                func(childComplexity int) int
+		ValidUntil               func(childComplexity int) int
 	}
 
 	SecondFactorStatus struct {
@@ -764,7 +766,7 @@ type QueryResolver interface {
 	Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) (*model.RecordingConnection, error)
 	ContinueWatching(ctx context.Context, first int) ([]*model.Recording, error)
 	Tags(ctx context.Context) ([]*model.Tag, error)
-	Reservations(ctx context.Context, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, first int, after *string) (*model.ReservationConnection, error)
+	Reservations(ctx context.Context, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, rule *string, first int, after *string) (*model.ReservationConnection, error)
 	Rules(ctx context.Context) ([]*model.Rule, error)
 	PreviewRule(ctx context.Context, input model.RuleInput, first int, after *string) (*model.ProgramConnection, error)
 	SearchPrograms(ctx context.Context, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) (*model.ProgramConnection, error)
@@ -786,6 +788,9 @@ type ReservationResolver interface {
 	Service(ctx context.Context, obj *model.Reservation) (*model.Service, error)
 
 	Rules(ctx context.Context, obj *model.Reservation) ([]*model.Rule, error)
+}
+type RuleResolver interface {
+	UpcomingReservationCount(ctx context.Context, obj *model.Rule) (int, error)
 }
 type ServiceResolver interface {
 	ChannelType(ctx context.Context, obj *model.Service) (*model.ChannelType, error)
@@ -2336,7 +2341,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Reservations(childComplexity, args["from"].(time.Time), args["to"].(time.Time), args["states"].([]model.AssignmentState), args["enabled"].(*bool), args["first"].(int), args["after"].(*string)), true
+		return e.ComplexityRoot.Query.Reservations(childComplexity, args["from"].(time.Time), args["to"].(time.Time), args["states"].([]model.AssignmentState), args["enabled"].(*bool), args["rule"].(*string), args["first"].(int), args["after"].(*string)), true
 	case "Query.rules":
 		if e.ComplexityRoot.Query.Rules == nil {
 			break
@@ -3059,6 +3064,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Rule.Settings(childComplexity), true
+	case "Rule.upcomingReservationCount":
+		if e.ComplexityRoot.Rule.UpcomingReservationCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Rule.UpcomingReservationCount(childComplexity), true
 	case "Rule.updatedAt":
 		if e.ComplexityRoot.Rule.UpdatedAt == nil {
 			break
@@ -4837,12 +4848,14 @@ extend type Query {
   時間帯 [from, to) に重なる予約を、開始時刻の順に返す。
   states を指定すると、その割り当ての状態の予約だけを返す。
   enabled を指定すると、有効な予約だけ (true) か、無効な予約だけ (false) を返す。
+  rule を指定すると、そのルールに一致した予約だけを返す。
   """
   reservations(
     from: Time!
     to: Time!
     states: [AssignmentState!]
     enabled: Boolean
+    rule: ID
     "返す件数 (1〜100)"
     first: Int! = 50
     after: String
@@ -4953,6 +4966,8 @@ type Rule implements Node {
   createdBy: User
   updatedAt: Time!
   updatedBy: User
+  "このルールに一致した予約のうち、終わっていないものの件数。無効にした予約も数える。"
+  upcomingReservationCount: Int!
 }
 
 """
@@ -6347,6 +6362,8 @@ func (ec *executionContext) childFields_Rule(ctx context.Context, field graphql.
 		return ec.fieldContext_Rule_updatedAt(ctx, field)
 	case "updatedBy":
 		return ec.fieldContext_Rule_updatedBy(ctx, field)
+	case "upcomingReservationCount":
+		return ec.fieldContext_Rule_upcomingReservationCount(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Rule", field.Name)
 }
@@ -7674,22 +7691,30 @@ func (ec *executionContext) field_Query_reservations_args(ctx context.Context, r
 		return nil, err
 	}
 	args["enabled"] = arg3
-	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "first",
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "rule",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["rule"] = arg4
+	arg5, err := graphql.ProcessArgField(ctx, rawArgs, "first",
 		func(ctx context.Context, v any) (int, error) {
 			return ec.unmarshalNInt2int(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["first"] = arg4
-	arg5, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+	args["first"] = arg5
+	arg6, err := graphql.ProcessArgField(ctx, rawArgs, "after",
 		func(ctx context.Context, v any) (*string, error) {
 			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["after"] = arg5
+	args["after"] = arg6
 	return args, nil
 }
 
@@ -14126,7 +14151,7 @@ func (ec *executionContext) _Query_reservations(ctx context.Context, field graph
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Reservations(ctx, fc.Args["from"].(time.Time), fc.Args["to"].(time.Time), fc.Args["states"].([]model.AssignmentState), fc.Args["enabled"].(*bool), fc.Args["first"].(int), fc.Args["after"].(*string))
+			return ec.Resolvers.Query().Reservations(ctx, fc.Args["from"].(time.Time), fc.Args["to"].(time.Time), fc.Args["states"].([]model.AssignmentState), fc.Args["enabled"].(*bool), fc.Args["rule"].(*string), fc.Args["first"].(int), fc.Args["after"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ReservationConnection) graphql.Marshaler {
@@ -17195,6 +17220,29 @@ func (ec *executionContext) fieldContext_Rule_updatedBy(_ context.Context, field
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Rule_upcomingReservationCount(ctx context.Context, field graphql.CollectedField, obj *model.Rule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rule_upcomingReservationCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Rule().UpcomingReservationCount(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Rule_upcomingReservationCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Rule", field, true, true, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _SecondFactorStatus_totp(ctx context.Context, field graphql.CollectedField, obj *model.SecondFactorStatus) (ret graphql.Marshaler) {
@@ -26090,78 +26138,116 @@ func (ec *executionContext) _Rule(ctx context.Context, sel ast.SelectionSet, obj
 		case "id":
 			out.Values[i] = ec._Rule_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._Rule_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "memo":
 			out.Values[i] = ec._Rule_memo(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "enabled":
 			out.Values[i] = ec._Rule_enabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "conditions":
 			out.Values[i] = ec._Rule_conditions(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "settings":
 			out.Values[i] = ec._Rule_settings(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "validFrom":
 			out.Values[i] = ec._Rule_validFrom(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "validUntil":
 			out.Values[i] = ec._Rule_validUntil(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "avoidDuplicates":
 			out.Values[i] = ec._Rule_avoidDuplicates(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "duplicateWindowDays":
 			out.Values[i] = ec._Rule_duplicateWindowDays(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "followEventRelay":
 			out.Values[i] = ec._Rule_followEventRelay(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdAt":
 			out.Values[i] = ec._Rule_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdBy":
 			out.Values[i] = ec._Rule_createdBy(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "updatedAt":
 			out.Values[i] = ec._Rule_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "updatedBy":
 			out.Values[i] = ec._Rule_updatedBy(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "upcomingReservationCount":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Rule_upcomingReservationCount(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

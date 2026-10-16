@@ -91,6 +91,8 @@ type Rule implements Node {
   createdBy: User
   updatedAt: Time!
   updatedBy: User
+  "このルールに一致した予約のうち、終わっていないものの件数。無効にした予約も数える。"
+  upcomingReservationCount: Int!
 }
 
 """

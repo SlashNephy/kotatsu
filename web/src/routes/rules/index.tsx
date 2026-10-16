@@ -77,6 +77,7 @@ function Rules() {
             channelTypes
           }
           updatedAt
+          upcomingReservationCount
         }
       }
     `,
@@ -152,6 +153,16 @@ function Rules() {
                   {rule.memo}
                 </Text>
               )}
+              {/* このルールの予約へ移れるようにする (#468)。 */}
+              <Anchor
+                size="xs"
+                c="dimmed"
+                renderRoot={(props) => (
+                  <Link {...props} to="/reservations" search={{ rule: rule.id }} />
+                )}
+              >
+                {t('rules.upcomingReservations', { count: rule.upcomingReservationCount })}
+              </Anchor>
             </Stack>
             {canEdit && (
               <Switch

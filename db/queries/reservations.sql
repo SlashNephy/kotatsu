@@ -72,10 +72,15 @@ UPDATE reservations SET enabled = @enabled, updated_at = @now, updated_by = @upd
 
 -- name: ListReservations :many
 -- 時間帯 [from, to) に重なる予約を、開始時刻の順に返す。(after_start_at, after_id) より後ろから limit 件読む。
+-- rule_id を指定すると、そのルールに一致した予約だけを返す。
 SELECT * FROM reservations
 WHERE end_at > @from_at AND start_at < @to_at
   AND (cardinality(@states::text[]) = 0 OR assignment_state = ANY(@states::text[]))
   AND (sqlc.narg(enabled)::boolean IS NULL OR enabled = sqlc.narg(enabled)::boolean)
+  AND (
+    sqlc.narg(rule_id)::uuid IS NULL
+    OR EXISTS (SELECT 1 FROM reservation_rules rr WHERE rr.reservation_id = reservations.id AND rr.rule_id = sqlc.narg(rule_id)::uuid)
+  )
   AND (start_at, id) > (@after_start_at::timestamptz, @after_id::uuid)
 ORDER BY start_at, id
 LIMIT @row_limit;
@@ -84,6 +89,14 @@ LIMIT @row_limit;
 -- 番組 (サービス, eventId) の予約。番組の予約は 1 件だけなので、番組ごとに高々 1 行になる。
 SELECT * FROM reservations
 WHERE (service_id, event_id) IN (SELECT unnest(@service_ids::bigint[]), unnest(@event_ids::bigint[]));
+
+-- name: CountUpcomingReservationsByRules :many
+-- ルールごとに、一致した予約のうち、終わっていないものの件数を数える。無効な予約も数える。予約のないルールは返さない。
+SELECT rr.rule_id, count(*) AS reservations
+FROM reservation_rules rr
+JOIN reservations r ON r.id = rr.reservation_id
+WHERE rr.rule_id = ANY(@rule_ids::uuid[]) AND r.end_at > @now::timestamptz
+GROUP BY rr.rule_id;
 
 -- name: ListReservationRules :many
 -- 予約に一致したルール。ルールを作った順に返す。

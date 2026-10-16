@@ -13,6 +13,45 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countUpcomingReservationsByRules = `-- name: CountUpcomingReservationsByRules :many
+SELECT rr.rule_id, count(*) AS reservations
+FROM reservation_rules rr
+JOIN reservations r ON r.id = rr.reservation_id
+WHERE rr.rule_id = ANY($1::uuid[]) AND r.end_at > $2::timestamptz
+GROUP BY rr.rule_id
+`
+
+type CountUpcomingReservationsByRulesParams struct {
+	RuleIds []uuid.UUID
+	Now     time.Time
+}
+
+type CountUpcomingReservationsByRulesRow struct {
+	RuleID       uuid.UUID
+	Reservations int64
+}
+
+// ルールごとに、一致した予約のうち、終わっていないものの件数を数える。無効な予約も数える。予約のないルールは返さない。
+func (q *Queries) CountUpcomingReservationsByRules(ctx context.Context, arg CountUpcomingReservationsByRulesParams) ([]CountUpcomingReservationsByRulesRow, error) {
+	rows, err := q.db.Query(ctx, countUpcomingReservationsByRules, arg.RuleIds, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountUpcomingReservationsByRulesRow{}
+	for rows.Next() {
+		var i CountUpcomingReservationsByRulesRow
+		if err := rows.Scan(&i.RuleID, &i.Reservations); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteReservation = `-- name: DeleteReservation :execrows
 DELETE FROM reservations WHERE id = $1
 `
@@ -331,9 +370,13 @@ SELECT id, kind, service_id, event_id, start_at, end_at, name, description, exte
 WHERE end_at > $1 AND start_at < $2
   AND (cardinality($3::text[]) = 0 OR assignment_state = ANY($3::text[]))
   AND ($4::boolean IS NULL OR enabled = $4::boolean)
-  AND (start_at, id) > ($5::timestamptz, $6::uuid)
+  AND (
+    $5::uuid IS NULL
+    OR EXISTS (SELECT 1 FROM reservation_rules rr WHERE rr.reservation_id = reservations.id AND rr.rule_id = $5::uuid)
+  )
+  AND (start_at, id) > ($6::timestamptz, $7::uuid)
 ORDER BY start_at, id
-LIMIT $7
+LIMIT $8
 `
 
 type ListReservationsParams struct {
@@ -341,18 +384,21 @@ type ListReservationsParams struct {
 	ToAt         time.Time
 	States       []string
 	Enabled      pgtype.Bool
+	RuleID       *uuid.UUID
 	AfterStartAt time.Time
 	AfterID      uuid.UUID
 	RowLimit     int32
 }
 
 // 時間帯 [from, to) に重なる予約を、開始時刻の順に返す。(after_start_at, after_id) より後ろから limit 件読む。
+// rule_id を指定すると、そのルールに一致した予約だけを返す。
 func (q *Queries) ListReservations(ctx context.Context, arg ListReservationsParams) ([]Reservation, error) {
 	rows, err := q.db.Query(ctx, listReservations,
 		arg.FromAt,
 		arg.ToAt,
 		arg.States,
 		arg.Enabled,
+		arg.RuleID,
 		arg.AfterStartAt,
 		arg.AfterID,
 		arg.RowLimit,
