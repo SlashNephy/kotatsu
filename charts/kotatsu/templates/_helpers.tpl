@@ -49,7 +49,7 @@ optionalSecretEnv は、ref (Secret の名前とキー) の name があれば、
 config に同じ設定があると、同じ環境変数が 2 つになるので、描画を止める。
 */}}
 {{- define "kotatsu.optionalSecretEnv" -}}
-{{- if .ref.name }}
+{{- if and .ref .ref.name }}
 {{- if hasKey .root.Values.config .env }}
 {{- fail (printf "set either %s or config.%s, not both" .value .env) }}
 {{- end }}
