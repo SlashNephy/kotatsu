@@ -3,6 +3,7 @@ import {
   Anchor,
   Box,
   Button,
+  Checkbox,
   Group,
   LoadingOverlay,
   Menu,
@@ -18,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
 import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
+import { loadExtendedHours, saveExtendedHours } from '../../guide/hourNotation';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
 import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
 import { broadcastDay, dateOf, receivedUntil } from '../../guide/layout';
@@ -273,6 +275,8 @@ function Guide() {
   // scrollKey は、日付を変えずに、いまの時刻へスクロールし直すための合図。
   const [scrollKey, setScrollKey] = useState(0);
   // jumpHour は、時間帯のメニューで選んだ時刻 (時)。選んでいなければ null。日付を移ったら取り消す。
+  // extendedHours は、深夜を 24 時以降 (28 時間表記) で表すかどうか。
+  const [extendedHours, setExtendedHours] = useState(loadExtendedHours);
   const [jumpHour, setJumpHour] = useState<number | null>(null);
   const moveTo = (days: number, keep: boolean) => {
     setJumpHour(null);
@@ -375,6 +379,19 @@ function Guide() {
                   {t(`guide.jumpTo.${hour}`)}
                 </Menu.Item>
               ))}
+              <Menu.Divider />
+              {/* 深夜を 24 時以降で表すかどうか。端末ごとに覚える (#486)。 */}
+              <Menu.Label>
+                <Checkbox
+                  size="xs"
+                  label={t('guide.extendedHours')}
+                  checked={extendedHours}
+                  onChange={(event) => {
+                    saveExtendedHours(event.currentTarget.checked);
+                    setExtendedHours(event.currentTarget.checked);
+                  }}
+                />
+              </Menu.Label>
             </Menu.Dropdown>
           </Menu>
         </Group>
@@ -477,6 +494,7 @@ function Guide() {
                       ? now
                       : window.from + 15 * 3_600_000
             }
+            extendedHours={extendedHours}
             onSelect={(program) => void navigate({ search: (prev) => ({ ...prev, program }) })}
           />
         )}

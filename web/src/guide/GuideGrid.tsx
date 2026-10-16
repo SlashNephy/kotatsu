@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { genreBackground } from './genres';
 import {
+  broadcastDay,
   gridHeight,
   layoutColumn,
   stackedBoxes,
@@ -17,6 +18,7 @@ import {
   type GuideWindow,
   type Box as ProgramBox,
 } from './layout';
+import { guideHour, guideTime } from './hourNotation';
 import { ServiceLabel } from './ServiceLabel';
 import { useTranslation } from 'react-i18next';
 
@@ -58,6 +60,8 @@ type Props = {
   scrollProgram?: string | undefined;
   // scrollTime は、日付を変えたとき (と最初) に、上の方に出す時刻。null なら、それまで見ていた時間帯のままにする。
   scrollTime: number | null;
+  // extendedHours は、深夜を 24 時以降 (28 時間表記) で表すかどうか (#486)。
+  extendedHours?: boolean;
   onSelect: (programId: string) => void;
 };
 
@@ -66,19 +70,6 @@ const axisWidth = 44;
 const headerHeight = 36;
 // overscanPixels は、見えている範囲の上下に、余分に描く高さ。速くスクロールしても、空白が見えにくくする。
 const overscanPixels = 600;
-
-// 端末の設定によらず、24 時間制で表す。
-const timeFormat = new Intl.DateTimeFormat('ja-JP', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
-});
-const hourFormat = new Intl.DateTimeFormat('ja-JP', {
-  hour: '2-digit',
-  hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
-});
 
 // GuideGrid は、横にサービス、縦に時刻を並べた番組表。
 // サービスの数と番組の数が多くても滑らかに動くよう、横はサービスの列を、縦は列の中の番組を、見えている範囲だけ描く。
@@ -90,6 +81,7 @@ export function GuideGrid({
   scrollKey,
   scrollProgram,
   scrollTime,
+  extendedHours = false,
   onSelect,
 }: Props) {
   const { t } = useTranslation();
@@ -304,7 +296,7 @@ export function GuideGrid({
                 borderTop: '1px solid var(--mantine-color-default-border)',
               }}
             >
-              {hourFormat.format(hour).replace('時', '')}
+              {String(guideHour(hour, day.from, extendedHours)).padStart(2, '0')}
             </Text>
           ))}
         </Box>
@@ -318,6 +310,7 @@ export function GuideGrid({
             width={item.size}
             visibleFrom={visibleFrom}
             visibleTo={visibleTo}
+            extendedHours={extendedHours}
             onSelect={onSelect}
           />
         ))}
@@ -383,6 +376,7 @@ type ColumnProps = {
   width: number;
   visibleFrom: number;
   visibleTo: number;
+  extendedHours: boolean;
   onSelect: (programId: string) => void;
 };
 
@@ -394,6 +388,7 @@ function GuideColumnView({
   width,
   visibleFrom,
   visibleTo,
+  extendedHours,
   onSelect,
 }: ColumnProps) {
   const { t } = useTranslation();
@@ -444,7 +439,7 @@ function GuideColumnView({
             {!program.shared && (
               <span>
                 <Text span size="xs" fw={700} mr={4}>
-                  {timeFormat.format(program.startAt)}
+                  {guideTime(program.startAt, broadcastDay(program.startAt).from, extendedHours)}
                 </Text>
                 <ProgramTitle name={program.name} />
               </span>
