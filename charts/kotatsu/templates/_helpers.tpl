@@ -89,6 +89,14 @@ env は、すべてのコンテナに渡す環境変数。
 {{- end }}
 - name: KOTATSU_KYUSU_WORK_DIR
   value: /var/lib/kotatsu/work
+{{- include "kotatsu.configEnv" . }}
+{{- end -}}
+
+{{/*
+configEnv は、values の config から作る環境変数 (KOTATSU_ の後ろの名前と値)。
+マイグレーションの Job にも渡す。DATABASE_POOLER などを渡さないと、マイグレーションが失敗することがある。
+*/}}
+{{- define "kotatsu.configEnv" -}}
 {{- range $name, $value := .Values.config }}
 - name: {{ printf "KOTATSU_%s" $name }}
   value: {{ $value | toString | quote }}

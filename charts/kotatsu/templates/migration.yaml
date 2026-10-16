@@ -41,6 +41,9 @@ spec:
           env:
             - name: KOTATSU_DATABASE_URL
               {{- include "kotatsu.secretRef" .Values.secrets.databaseURL | nindent 14 }}
+            {{- with include "kotatsu.configEnv" . | trim }}
+            {{- . | nindent 12 }}
+            {{- end }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           resources:

@@ -48,6 +48,33 @@ func TestMigrateAppliesToEmptyDatabase(t *testing.T) {
 	assert.Equal(t, len(database.MigrationVersions()), applied)
 }
 
+// TestMigrateConcurrently は、kotatsu migrate を同時に実行しても、どれも失敗せず、マイグレーションを一度ずつ適用することを確かめる。
+// Helm のフックの Job と手で実行した migrate、2 つの helm upgrade などで重なりうる。
+func TestMigrateConcurrently(t *testing.T) {
+	t.Parallel()
+
+	cfg := databasetest.New(t)
+	const runs = 4
+	errs := make(chan error, runs)
+	for range runs {
+		pool := open(t, cfg)
+		go func() {
+			errs <- database.WithMigrationLock(t.Context(), slog.New(slog.DiscardHandler), pool, func(ctx context.Context) error {
+				return database.Migrate(ctx, slog.New(slog.DiscardHandler), pool)
+			})
+		}()
+	}
+	for range runs {
+		require.NoError(t, <-errs)
+	}
+
+	pool := open(t, cfg)
+	require.NoError(t, database.CheckSchema(t.Context(), pool))
+	var applied int
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT count(*) FROM goose_db_version WHERE version_id > 0").Scan(&applied))
+	assert.Equal(t, len(database.MigrationVersions()), applied)
+}
+
 func TestCheckSchema(t *testing.T) {
 	t.Parallel()
 
