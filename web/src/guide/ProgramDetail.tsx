@@ -134,9 +134,16 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
   );
   const [commit, inFlight] = useMutation<ProgramDetailReserveMutation>(graphql`
     mutation ProgramDetailReserveMutation($program: ID!) {
+      # 番組に結び付けた後に詳細が読む項目を、すべて返す。返さないと、ストアにない項目を読んで落ちる。
       createProgramReservation(input: { program: $program }) {
         id
         enabled
+        kind
+        assignment {
+          state
+          plannedStartAt
+          plannedEndAt
+        }
       }
     }
   `);
