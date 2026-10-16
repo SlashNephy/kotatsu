@@ -46,7 +46,8 @@ type guideViewSettings struct {
 func (s *guideViewSettings) conditions() *match.Conditions {
 	return &match.Conditions{
 		Keywords: []*match.Keyword{}, KeywordMatch: match.KeywordMatchAll, ExcludeKeywords: []*match.Keyword{}, ChannelTypes: []string{}, ServiceIDs: []int64{},
-		Genres: s.Genres, ExcludeGenres: s.ExcludeGenres, TimeRanges: []*match.TimeRange{},
+		ExcludeServiceIDs: []int64{},
+		Genres:            s.Genres, ExcludeGenres: s.ExcludeGenres, TimeRanges: []*match.TimeRange{},
 		MinDurationSeconds: s.MinDurationSeconds, MaxDurationSeconds: nil, FreeOnly: s.FreeOnly,
 	}
 }

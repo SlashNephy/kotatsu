@@ -907,6 +907,10 @@ type ProgramConditions {
   excludeKeywords: [Keyword!]!
   channelTypes: [String!]!
   services: [Service!]!
+  """
+  チャンネル種別やサービスで対象になっても、含まれていれば除外するサービス
+  """
+  excludeServices: [Service!]!
   genres: [GenreCondition!]!
   excludeGenres: [GenreCondition!]!
   timeRanges: [TimeRange!]!
@@ -935,6 +939,10 @@ input ProgramConditionsInput {
   """
   channelTypes: [String!]
   services: [ID!]
+  """
+  チャンネル種別やサービスで対象になっても、含まれていれば除外する。
+  """
+  excludeServices: [ID!]
   genres: [GenreInput!]
   excludeGenres: [GenreInput!]
   timeRanges: [TimeRangeInput!]

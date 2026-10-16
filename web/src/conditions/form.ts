@@ -34,6 +34,8 @@ export type ConditionsForm = {
   excludeKeywords: KeywordRow[];
   channelTypes: string[];
   services: string[];
+  // excludeServices は、チャンネル種別やサービスで対象になっても除外するサービス。
+  excludeServices: string[];
   genres: Genre[];
   excludeGenres: Genre[];
   timeRanges: TimeRangeRow[];
@@ -60,6 +62,7 @@ export type ConditionsData = {
   readonly excludeKeywords: readonly KeywordData[];
   readonly channelTypes: readonly string[];
   readonly services: readonly { readonly id: string }[];
+  readonly excludeServices: readonly { readonly id: string }[];
   readonly genres: readonly { readonly lv1: number; readonly lv2?: number | null }[];
   readonly excludeGenres: readonly { readonly lv1: number; readonly lv2?: number | null }[];
   readonly timeRanges: readonly {
@@ -85,6 +88,7 @@ export function emptyConditions(): ConditionsForm {
     excludeKeywords: [],
     channelTypes: [],
     services: [],
+    excludeServices: [],
     genres: [],
     excludeGenres: [],
     timeRanges: [],
@@ -128,6 +132,7 @@ export function fromConditions(c: ConditionsData): ConditionsForm {
     excludeKeywords: c.excludeKeywords.map(copyKeyword),
     channelTypes: [...c.channelTypes],
     services: c.services.map((service) => service.id),
+    excludeServices: c.excludeServices.map((service) => service.id),
     genres: c.genres.map(copyGenre),
     excludeGenres: c.excludeGenres.map(copyGenre),
     timeRanges: c.timeRanges.map((range) => ({
@@ -155,6 +160,7 @@ export function toConditionsInput(form: ConditionsForm) {
     excludeKeywords: keywords(form.excludeKeywords),
     channelTypes: form.channelTypes,
     services: form.services,
+    excludeServices: form.excludeServices,
     genres: form.genres,
     excludeGenres: form.excludeGenres,
     timeRanges: form.timeRanges.filter((range) => range.weekdays.length > 0),
@@ -173,6 +179,7 @@ export function hasConditions(form: ConditionsForm): boolean {
     c.excludeKeywords.length > 0 ||
     c.channelTypes.length > 0 ||
     c.services.length > 0 ||
+    c.excludeServices.length > 0 ||
     c.genres.length > 0 ||
     c.excludeGenres.length > 0 ||
     c.timeRanges.length > 0 ||

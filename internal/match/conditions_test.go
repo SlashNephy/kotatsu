@@ -21,6 +21,7 @@ func fullConditions() *match.Conditions {
 		ExcludeKeywords:    []*match.Keyword{{Text: "再放送", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldName}}},
 		ChannelTypes:       []string{channelGR, "BS4K"},
 		ServiceIDs:         []int64{serviceBS},
+		ExcludeServiceIDs:  []int64{serviceGR},
 		Genres:             []*match.Genre{{Lv1: 7, Lv2: nil}},
 		ExcludeGenres:      []*match.Genre{{Lv1: 0, Lv2: new(1)}},
 		TimeRanges:         []*match.TimeRange{{Weekdays: []int{0, 6}, StartMinute: 1380, DurationMinutes: 180}},

@@ -95,6 +95,9 @@ type Conditions struct {
 	// 例えば、種別に BS を、サービスに地上波の 1 局を指定すると、BS の全局とその 1 局が対象になる。
 	ChannelTypes []string `json:"channelTypes"`
 	ServiceIDs   []int64  `json:"serviceIds"`
+	// ExcludeServiceIDs は、チャンネル種別やサービスで対象になっても、含まれていれば除外する。
+	// 項目を足す前のバイナリも条件を読めるよう、空なら保存しない。
+	ExcludeServiceIDs []int64 `json:"excludeServiceIds,omitempty"`
 	// Genres は、どれか 1 つに一致する番組を対象にする。ExcludeGenres は、どれか 1 つに一致したら除外する。
 	Genres        []*Genre `json:"genres"`
 	ExcludeGenres []*Genre `json:"excludeGenres"`
@@ -125,6 +128,7 @@ func (c *Conditions) Validate() error {
 	}{
 		{"channelTypes", len(c.ChannelTypes)},
 		{"serviceIds", len(c.ServiceIDs)},
+		{"excludeServiceIds", len(c.ExcludeServiceIDs)},
 		{"genres", len(c.Genres)},
 		{"excludeGenres", len(c.ExcludeGenres)},
 		{"timeRanges", len(c.TimeRanges)},
