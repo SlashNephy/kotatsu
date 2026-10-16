@@ -149,6 +149,7 @@ type ComplexityRoot struct {
 
 	GuideView struct {
 		ExcludeGenres      func(childComplexity int) int
+		FreeOnly           func(childComplexity int) int
 		Genres             func(childComplexity int) int
 		HideEmptyServices  func(childComplexity int) int
 		ID                 func(childComplexity int) int
@@ -1130,6 +1131,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.GuideView.ExcludeGenres(childComplexity), true
+	case "GuideView.freeOnly":
+		if e.ComplexityRoot.GuideView.FreeOnly == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GuideView.FreeOnly(childComplexity), true
 	case "GuideView.genres":
 		if e.ComplexityRoot.GuideView.Genres == nil {
 			break
@@ -4190,6 +4197,8 @@ type GuideView implements Node {
   services: [Service!]!
   "番組のないチャンネルを隠すかどうか。"
   hideEmptyServices: Boolean!
+  "無料放送の番組だけを出すかどうか。"
+  freeOnly: Boolean!
 }
 
 """
@@ -4202,6 +4211,7 @@ input GuideViewInput {
   minDurationSeconds: Int
   services: [ID!]
   hideEmptyServices: Boolean! = false
+  freeOnly: Boolean! = false
 }
 
 extend type Query {
@@ -5711,6 +5721,8 @@ func (ec *executionContext) childFields_GuideView(ctx context.Context, field gra
 		return ec.fieldContext_GuideView_services(ctx, field)
 	case "hideEmptyServices":
 		return ec.fieldContext_GuideView_hideEmptyServices(ctx, field)
+	case "freeOnly":
+		return ec.fieldContext_GuideView_freeOnly(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type GuideView", field.Name)
 }
@@ -9142,6 +9154,29 @@ func (ec *executionContext) _GuideView_hideEmptyServices(ctx context.Context, fi
 	)
 }
 func (ec *executionContext) fieldContext_GuideView_hideEmptyServices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GuideView", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _GuideView_freeOnly(ctx context.Context, field graphql.CollectedField, obj *model.GuideView) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GuideView_freeOnly(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FreeOnly, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GuideView_freeOnly(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("GuideView", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
@@ -20431,8 +20466,11 @@ func (ec *executionContext) unmarshalInputGuideViewInput(ctx context.Context, ob
 	if _, present := asMap["hideEmptyServices"]; !present {
 		asMap["hideEmptyServices"] = false
 	}
+	if _, present := asMap["freeOnly"]; !present {
+		asMap["freeOnly"] = false
+	}
 
-	fieldsInOrder := [...]string{"name", "genres", "excludeGenres", "minDurationSeconds", "services", "hideEmptyServices"}
+	fieldsInOrder := [...]string{"name", "genres", "excludeGenres", "minDurationSeconds", "services", "hideEmptyServices", "freeOnly"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -20481,6 +20519,13 @@ func (ec *executionContext) unmarshalInputGuideViewInput(ctx context.Context, ob
 				return it, err
 			}
 			it.HideEmptyServices = data
+		case "freeOnly":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("freeOnly"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FreeOnly = data
 		}
 	}
 	return it, nil
@@ -22438,6 +22483,11 @@ func (ec *executionContext) _GuideView(ctx context.Context, sel ast.SelectionSet
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "hideEmptyServices":
 			out.Values[i] = ec._GuideView_hideEmptyServices(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "freeOnly":
+			out.Values[i] = ec._GuideView_freeOnly(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

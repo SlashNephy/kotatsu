@@ -359,6 +359,10 @@ type GuideView implements Node {
   番組のないチャンネルを隠すかどうか。
   """
   hideEmptyServices: Boolean!
+  """
+  無料放送の番組だけを出すかどうか。
+  """
+  freeOnly: Boolean!
 }
 """
 番組表ビューの内容。ジャンルで lv2 を省くと、大分類のすべてを表す。
@@ -370,6 +374,7 @@ input GuideViewInput {
   minDurationSeconds: Int
   services: [ID!]
   hideEmptyServices: Boolean! = false
+  freeOnly: Boolean! = false
 }
 """
 各ロールのインスタンス (設計書 1.4)。

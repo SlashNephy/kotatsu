@@ -20,6 +20,7 @@ type guideViewInput struct {
 	MinDurationSeconds *int         `json:"minDurationSeconds,omitempty"`
 	Services           []string     `json:"services,omitempty"`
 	HideEmptyServices  bool         `json:"hideEmptyServices"`
+	FreeOnly           bool         `json:"freeOnly"`
 }
 
 type guideView struct {
@@ -212,6 +213,10 @@ func TestGuideViewFilters(t *testing.T) {
 	_, err := f.pool.Exec(t.Context(), `UPDATE programs SET genres = '[{"lv1":7,"lv2":0,"un1":15,"un2":15}]'
 		WHERE event_id = 4 AND service_id IN (SELECT id FROM services WHERE name = 'こたつテスト2')`)
 	require.NoError(t, err)
+	// 同じ番組を有料放送にする。
+	_, err = f.pool.Exec(t.Context(), `UPDATE programs SET is_free = false
+		WHERE event_id = 4 AND service_id IN (SELECT id FROM services WHERE name = 'こたつテスト2')`)
+	require.NoError(t, err)
 
 	type guideRows struct {
 		Guide []struct {
@@ -245,6 +250,10 @@ func TestGuideViewFilters(t *testing.T) {
 	}{
 		{
 			name: "excluded genre", input: guideViewInput{Name: "アニメ以外", ExcludeGenres: []genreInput{{Lv1: 7}}},
+			wantServices: allServices, wantPrograms: allPrograms - 1,
+		},
+		{
+			name: "free programs only", input: guideViewInput{Name: "無料放送だけ", FreeOnly: true},
 			wantServices: allServices, wantPrograms: allPrograms - 1,
 		},
 		{

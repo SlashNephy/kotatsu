@@ -14,6 +14,8 @@ type GuideView implements Node {
   services: [Service!]!
   "番組のないチャンネルを隠すかどうか。"
   hideEmptyServices: Boolean!
+  "無料放送の番組だけを出すかどうか。"
+  freeOnly: Boolean!
 }
 
 """
@@ -26,6 +28,7 @@ input GuideViewInput {
   minDurationSeconds: Int
   services: [ID!]
   hideEmptyServices: Boolean! = false
+  freeOnly: Boolean! = false
 }
 
 extend type Query {

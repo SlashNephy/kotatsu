@@ -172,6 +172,7 @@ function Guide() {
             id
           }
           hideEmptyServices
+          freeOnly
         }
         guide(from: $from, to: $to, view: $view) {
           service {
@@ -375,6 +376,7 @@ function Guide() {
                       minDurationSeconds: null,
                       services: [],
                       hideEmptyServices: false,
+                      freeOnly: false,
                     }
                   : {
                       id: currentView.id,
@@ -384,6 +386,7 @@ function Guide() {
                       minDurationSeconds: currentView.minDurationSeconds,
                       services: currentView.services.map((service) => service.id),
                       hideEmptyServices: currentView.hideEmptyServices,
+                      freeOnly: currentView.freeOnly,
                     },
               )
             }

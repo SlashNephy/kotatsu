@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<fe72017941e3a3a1d7394b96b5ddf149>>
+ * @generated SignedSource<<41a808f1f531028589256eea3bace5f9>>
  * @lightSyntaxTransform
  */
 
@@ -10,6 +10,7 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type GuideViewInput = {
   excludeGenres?: ReadonlyArray<GenreInput> | null | undefined;
+  freeOnly?: boolean;
   genres?: ReadonlyArray<GenreInput> | null | undefined;
   hideEmptyServices?: boolean;
   minDurationSeconds?: number | null | undefined;
