@@ -52,6 +52,16 @@ func (q *Queries) DeleteStaleLoginThrottles(ctx context.Context, arg DeleteStale
 	return result.RowsAffected(), nil
 }
 
+const deleteUserLoginChallenges = `-- name: DeleteUserLoginChallenges :exec
+DELETE FROM login_challenges WHERE user_id = $1
+`
+
+// ユーザーの、第二要素の確認を待つログインをすべて消す。パスワードを設定したときと、無効にしたときに使う。
+func (q *Queries) DeleteUserLoginChallenges(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserLoginChallenges, userID)
+	return err
+}
+
 const getLoginChallengeForUpdate = `-- name: GetLoginChallengeForUpdate :one
 SELECT id, token_hash, user_id, created_at, expires_at, failed_attempts, webauthn_session, user_agent, source_ip FROM login_challenges WHERE token_hash = $1 AND expires_at > $2 FOR UPDATE
 `

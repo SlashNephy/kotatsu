@@ -187,10 +187,13 @@ func TestPasswordLoginThrottles(t *testing.T) {
 		64 * time.Second, 128 * time.Second, 256 * time.Second, 512 * time.Second, 15 * time.Minute, 15 * time.Minute,
 	}, waits)
 
-	// 待ち時間が過ぎれば、正しいパスワードでログインでき、アカウントの失敗の回数は消える。
+	// 待ち時間が過ぎれば、正しいパスワードで第二要素の確認に進める。
+	// アカウントの失敗の回数は、第二要素まで確かめ終えるまで消さないので、次の失敗でまた待たせる。
 	_, _, err := f.logins.Password(t.Context(), f.db, loginName, loginPhrase, f.client)
 	require.NoError(t, err)
 	require.ErrorIs(t, wrong(), auth.ErrInvalidCredentials)
+	_, throttled := errors.AsType[*auth.ThrottledError](wrong())
+	assert.True(t, throttled, "the account failures should not be reset by the password alone")
 }
 
 // TestPasswordLoginThrottlesByIP は、ユーザー名を変えながら試しても、IP 単位で待たせることを確かめる。
@@ -337,7 +340,7 @@ func TestSetPassword(t *testing.T) {
 			f := newLoginFixture(t)
 			passwords := auth.NewPasswords(f.clock, audit.NewRecorder(f.clock), newTestPolicy(t))
 
-			err := passwords.Set(t.Context(), f.db, audit.System("cli"), f.user.ID, tt.phrase)
+			err := passwords.Set(t.Context(), f.db, audit.System("cli"), f.user.ID, tt.phrase, nil)
 			if tt.want != "" {
 				rejected, ok := errors.AsType[*password.RejectedError](err)
 				require.True(t, ok, "got %v", err)
@@ -359,6 +362,45 @@ func TestSetPassword(t *testing.T) {
 	policy := newTestPolicy(t)
 	_, err := auth.UserIDByUsername(t.Context(), f.db, "nobody")
 	require.ErrorIs(t, err, auth.ErrUserNotFound)
-	err = auth.NewPasswords(f.clock, audit.NewRecorder(f.clock), policy).Set(t.Context(), f.db, audit.System("cli"), id.New(), loginPhrase)
+	err = auth.NewPasswords(f.clock, audit.NewRecorder(f.clock), policy).Set(t.Context(), f.db, audit.System("cli"), id.New(), loginPhrase, nil)
 	require.ErrorIs(t, err, auth.ErrUserNotFound)
+}
+
+// TestSetPasswordRevokesSessions は、パスワードを設定したら、ほかのセッションを失効させることを確かめる。
+// 本人が変えたときは、今のセッションだけを残す。漏れた先のセッションを切れるようにするためである。
+func TestSetPasswordRevokesSessions(t *testing.T) {
+	t.Parallel()
+
+	f := newLoginFixture(t)
+	passwords := auth.NewPasswords(f.clock, audit.NewRecorder(f.clock), newTestPolicy(t))
+	login := func() (string, *auth.Session) {
+		token, session, err := f.sessions.Create(t.Context(), f.db, f.user.ID, f.client)
+		require.NoError(t, err)
+
+		return token, session
+	}
+	usable := func(token string) bool {
+		_, err := f.sessions.Authenticate(t.Context(), f.db, token)
+		if errors.Is(err, auth.ErrSessionInvalid) {
+			return false
+		}
+		require.NoError(t, err)
+
+		return true
+	}
+
+	current, session := login()
+	other, _ := login()
+	// 前のパスワードで確かめ、第二要素の確認を待っているログイン。
+	pending, _, err := f.logins.Password(t.Context(), f.db, loginName, loginPhrase, f.client)
+	require.NoError(t, err)
+	require.NoError(t, passwords.Set(t.Context(), f.db, audit.User(f.user.ID), f.user.ID, "neko-to-mikan-no-fuyu-2026", &session.ID))
+	assert.True(t, usable(current), "the session that changed the password must stay")
+	assert.False(t, usable(other), "the other sessions must be revoked")
+	_, err = f.logins.BeginEnrollment(t.Context(), f.db, pending)
+	require.ErrorIs(t, err, auth.ErrLoginChallengeInvalid, "the login waiting for the second factor must be discarded")
+
+	// 管理者が設定し直したときと、CLI で設定したときは、すべて失効させる。
+	require.NoError(t, passwords.Set(t.Context(), f.db, audit.System("cli"), f.user.ID, "yuki-no-yoru-ni-hanabi-2027", nil))
+	assert.False(t, usable(current))
 }

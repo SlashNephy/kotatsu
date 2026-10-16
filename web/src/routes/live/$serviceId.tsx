@@ -12,6 +12,7 @@ import {
   ProgramTitle,
   splitProgramMarks,
   toHalfWidth,
+  useDocumentTitle,
 } from '../../futon';
 import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
@@ -21,6 +22,7 @@ import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import { DataBroadcastRemote } from '../../yunomi/DataBroadcastRemote';
 import {
   BigPlayButton,
+  PlayerLoading,
   ControlButton,
   FullscreenButton,
   LiveStatus,
@@ -45,7 +47,9 @@ import { CaptureButton, PipButton } from '../../yunomi/PlayerTools';
 import { useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
+import { useVideoLoading } from '../../yunomi/useVideoLoading';
 import { useVideoState } from '../../yunomi/useVideoState';
+import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
@@ -189,8 +193,11 @@ function Live({
   const videoState = useVideoState(video);
   // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
   const autoplay = useAutoplayBlocked(video);
+  const videoLoading = useVideoLoading(video);
   const fullscreen = useFullscreen(playerBoxRef);
   const controls = useControlsVisibility({ playing: !videoState.paused });
+  // 再生している間は、画面を消さない。
+  useWakeLock(!videoState.paused);
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
   const {
     captionsEnabled: captions,
@@ -301,12 +308,15 @@ function Live({
     toggleMute: videoState.toggleMute,
     toggleFullscreen: fullscreen.toggle,
   });
+  useDocumentTitle([programName, serviceName]);
   useMediaSession(
     { title: programName ?? serviceName, artist: serviceName, artwork: serviceLogoUrl },
     {
       play: () => void videoRef.current?.play().catch(() => {}),
       pause: () => videoRef.current?.pause(),
     },
+    // ライブはシークできないので、再生位置は知らせない。
+    { playing: !videoState.paused, position: null },
   );
 
   const service = data.node?.__typename === 'Service' ? data.node : null;
@@ -368,7 +378,13 @@ function Live({
               {audio.menu}
             </SettingsButton>
           )}
-          <CaptureButton frameRef={playerBoxRef} videoRef={videoRef} name={service.name} />
+          <CaptureButton
+            frameRef={playerBoxRef}
+            videoRef={videoRef}
+            serviceName={service.name}
+            programName={programName}
+            captureTime={Date.now}
+          />
           <PipButton pip={pip} />
           <FullscreenButton active={fullscreen.active} onToggle={fullscreen.toggle} />
         </>
@@ -399,6 +415,7 @@ function Live({
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
+              {videoLoading && !autoplay.blocked && <PlayerLoading />}
             </>
           }
           onState={(state) => {
@@ -433,6 +450,7 @@ function Live({
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
+              {videoLoading && !autoplay.blocked && <PlayerLoading />}
             </>
           }
           // チューナーを使われて切れると、hls.js が読み直しを諦めたところで、致命的なエラーになる。
