@@ -66,6 +66,7 @@ type conditionsInput struct {
 	ExcludeKeywords []keywordInput `json:"excludeKeywords,omitempty"`
 	ChannelTypes    []string       `json:"channelTypes,omitempty"`
 	Services        []string       `json:"services,omitempty"`
+	ExcludeServices []string       `json:"excludeServices,omitempty"`
 	Genres          []genreInput   `json:"genres,omitempty"`
 	ExcludeGenres   []genreInput   `json:"excludeGenres,omitempty"`
 }
@@ -73,6 +74,11 @@ type conditionsInput struct {
 // programName は、こたつテスト1 の eventId の番組の名前を返す。
 func programName(eventID int) string {
 	return fmt.Sprintf("こたつテスト1 テスト番組 %d", eventID)
+}
+
+// subProgramName は、こたつテスト1 のサブチャンネルの eventId の番組の名前を返す。
+func subProgramName(eventID int) string {
+	return fmt.Sprintf("こたつテスト1 サブ テスト番組 %d", eventID)
 }
 
 type archiveInput struct {
@@ -99,6 +105,9 @@ func TestSearchPrograms(t *testing.T) {
 
 	f := newFixture(t, nil)
 	f.syncEPG(t)
+	services := f.serviceIDs(t)
+	// other5 は、こたつテスト2 と こたつテスト3 の、eventId 5 の番組の名前。
+	other5 := []string{"こたつテスト2 テスト番組 5", "こたつテスト3 テスト番組 5"}
 
 	tests := []struct {
 		name       string
@@ -110,7 +119,7 @@ func TestSearchPrograms(t *testing.T) {
 			name:       "regular expression across services in start time order",
 			conditions: conditionsInput{Keywords: []keywordInput{keyword("テスト番組 5$", true)}},
 			want: []string{
-				"こたつ BS テスト番組 5", programName(5), "こたつテスト1 サブ テスト番組 5", "こたつテスト2 テスト番組 5", "こたつテスト3 テスト番組 5",
+				"こたつ BS テスト番組 5", programName(5), subProgramName(5), other5[0], other5[1],
 			},
 		},
 		{
@@ -128,7 +137,15 @@ func TestSearchPrograms(t *testing.T) {
 			conditions: conditionsInput{
 				Keywords: []keywordInput{keyword("テスト番組 5$", true)}, ExcludeKeywords: []keywordInput{keyword("サブ|BS", true)},
 			},
-			want: []string{programName(5), "こたつテスト2 テスト番組 5", "こたつテスト3 テスト番組 5"},
+			want: []string{programName(5), other5[0], other5[1]},
+		},
+		{
+			name: "exclude service within the channel type",
+			conditions: conditionsInput{
+				Keywords: []keywordInput{keyword("テスト番組 5$", true)}, ChannelTypes: []string{"GR"},
+				ExcludeServices: []string{services["こたつテスト2"]},
+			},
+			want: []string{programName(5), subProgramName(5), other5[1]},
 		},
 	}
 	for _, tt := range tests {
@@ -451,7 +468,7 @@ func TestSearchProgramsOmitsSharedEvents(t *testing.T) {
 		mainKey = 0x7FE0*100000 + 0x0400
 		subKey  = 0x7FE0*100000 + 0x0401
 	)
-	main5, sub5 := programName(5), "こたつテスト1 サブ テスト番組 5"
+	main5, sub5 := programName(5), subProgramName(5)
 	main6, sub6 := programName(6), "こたつテスト1 サブ テスト番組 6"
 
 	tests := []struct {

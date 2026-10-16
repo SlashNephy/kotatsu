@@ -83,6 +83,9 @@ export const ruleEditorRuleFragment = graphql`
       services {
         id
       }
+      excludeServices {
+        id
+      }
       genres {
         lv1
         lv2

@@ -167,6 +167,21 @@ func TestMatch(t *testing.T) {
 			want:       false,
 		},
 		{
+			name:       "excluded service is excluded even if its channel type is in the set",
+			conditions: &match.Conditions{ChannelTypes: []string{channelGR}, ExcludeServiceIDs: []int64{serviceGR}},
+			want:       false,
+		},
+		{
+			name:       "excluded service wins over the same service in the set",
+			conditions: &match.Conditions{ServiceIDs: []int64{serviceGR}, ExcludeServiceIDs: []int64{serviceGR}},
+			want:       false,
+		},
+		{
+			name:       "excluding another service keeps the program",
+			conditions: &match.Conditions{ChannelTypes: []string{channelGR}, ExcludeServiceIDs: []int64{serviceBS}},
+			want:       true,
+		},
+		{
 			name:       "major genre matches every minor genre",
 			conditions: &match.Conditions{Genres: []*match.Genre{{Lv1: 7, Lv2: nil}}},
 			want:       true,

@@ -56,12 +56,13 @@ func NewProgram(in *ProgramInput) *Program {
 
 // Matcher は、検証してコンパイルした条件。複数の goroutine から使ってよい。
 type Matcher struct {
-	conditions      *Conditions
-	keywords        []*compiledKeyword
-	excludeKeywords []*compiledKeyword
-	channelTypes    map[string]bool
-	serviceIDs      map[int64]bool
-	location        *time.Location
+	conditions        *Conditions
+	keywords          []*compiledKeyword
+	excludeKeywords   []*compiledKeyword
+	channelTypes      map[string]bool
+	serviceIDs        map[int64]bool
+	excludeServiceIDs map[int64]bool
+	location          *time.Location
 }
 
 type compiledKeyword struct {
@@ -79,12 +80,13 @@ func Compile(c *Conditions, location *time.Location) (*Matcher, error) {
 	}
 
 	m := &Matcher{
-		conditions:      c,
-		keywords:        make([]*compiledKeyword, 0, len(c.Keywords)),
-		excludeKeywords: make([]*compiledKeyword, 0, len(c.ExcludeKeywords)),
-		channelTypes:    map[string]bool{},
-		serviceIDs:      map[int64]bool{},
-		location:        location,
+		conditions:        c,
+		keywords:          make([]*compiledKeyword, 0, len(c.Keywords)),
+		excludeKeywords:   make([]*compiledKeyword, 0, len(c.ExcludeKeywords)),
+		channelTypes:      map[string]bool{},
+		serviceIDs:        map[int64]bool{},
+		excludeServiceIDs: map[int64]bool{},
+		location:          location,
 	}
 	for _, keyword := range c.Keywords {
 		compiled, err := compileKeyword(keyword)
@@ -105,6 +107,9 @@ func Compile(c *Conditions, location *time.Location) (*Matcher, error) {
 	}
 	for _, serviceID := range c.ServiceIDs {
 		m.serviceIDs[serviceID] = true
+	}
+	for _, serviceID := range c.ExcludeServiceIDs {
+		m.excludeServiceIDs[serviceID] = true
 	}
 
 	return m, nil
@@ -141,6 +146,9 @@ func (m *Matcher) Match(p *Program) bool {
 		return false
 	}
 	if (len(m.channelTypes) > 0 || len(m.serviceIDs) > 0) && !m.channelTypes[p.ChannelType] && !m.serviceIDs[p.ServiceID] {
+		return false
+	}
+	if m.excludeServiceIDs[p.ServiceID] {
 		return false
 	}
 	if len(c.Genres) > 0 && !anyGenre(c.Genres, p.Genres) {

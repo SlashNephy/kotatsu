@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<bf8efd2d4599cd854b5686a5659a3690>>
+ * @generated SignedSource<<cb37c5628f2336a2a763f007bc079ea8>>
  * @lightSyntaxTransform
  */
 
@@ -24,6 +24,9 @@ export type RuleEditor_rule$data = {
       readonly fields: ReadonlyArray<KeywordField>;
       readonly regexp: boolean;
       readonly text: string;
+    }>;
+    readonly excludeServices: ReadonlyArray<{
+      readonly id: string;
     }>;
     readonly freeOnly: boolean;
     readonly genres: ReadonlyArray<{
@@ -127,6 +130,9 @@ v2 = [
   }
 ],
 v3 = [
+  (v0/*:: as any*/)
+],
+v4 = [
   {
     "alias": null,
     "args": null,
@@ -253,9 +259,17 @@ return {
           "kind": "LinkedField",
           "name": "services",
           "plural": true,
-          "selections": [
-            (v0/*:: as any*/)
-          ],
+          "selections": (v3/*:: as any*/),
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "concreteType": "Service",
+          "kind": "LinkedField",
+          "name": "excludeServices",
+          "plural": true,
+          "selections": (v3/*:: as any*/),
           "storageKey": null
         },
         {
@@ -265,7 +279,7 @@ return {
           "kind": "LinkedField",
           "name": "genres",
           "plural": true,
-          "selections": (v3/*:: as any*/),
+          "selections": (v4/*:: as any*/),
           "storageKey": null
         },
         {
@@ -275,7 +289,7 @@ return {
           "kind": "LinkedField",
           "name": "excludeGenres",
           "plural": true,
-          "selections": (v3/*:: as any*/),
+          "selections": (v4/*:: as any*/),
           "storageKey": null
         },
         {
@@ -428,6 +442,6 @@ return {
 };
 })();
 
-(node as any).hash = "a5c126c939d172cd30874487f1aa1d01";
+(node as any).hash = "f8b3bc083368746e4b682e7818cb83ab";
 
 export default node;

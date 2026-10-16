@@ -114,6 +114,8 @@ type ProgramConditions struct {
 	FreeOnly           bool              `json:"freeOnly"`
 	// ServiceKeys は、サービス (Mirakurun のサービス ID)。スキーマには出さない。
 	ServiceKeys []int64 `json:"-"`
+	// ExcludeServiceKeys は、除外するサービス (Mirakurun のサービス ID)。スキーマには出さない。
+	ExcludeServiceKeys []int64 `json:"-"`
 }
 
 // Rule はルール。
