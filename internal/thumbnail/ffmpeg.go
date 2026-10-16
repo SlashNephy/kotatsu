@@ -42,7 +42,9 @@ func NewFFmpeg() (*FFmpeg, error) {
 }
 
 // Extract は、r から読む TS の最初のキーフレームを、size の大きさの JPEG にする。
-// キーフレームのほかはデコードしないので、TS の途中から渡しても、すぐに 1 枚を返す。
+// B フレームはデコードしないので、TS の途中から渡しても、すぐに 1 枚を返す。
+// P フレームまで捨てる (nokey) と、I フレームをフィールド単位で符号化した MPEG-2 (I フィールドと P フィールドの対) では、
+// 片方のフィールドの行が未初期化のまま出て、1 行おきに緑の縞になる (#424)。
 func (f *FFmpeg) Extract(ctx context.Context, r io.Reader, size Size) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, extractTimeout)
 	defer cancel()
@@ -50,11 +52,11 @@ func (f *FFmpeg) Extract(ctx context.Context, r io.Reader, size Size) ([]byte, e
 	switch size {
 	case SizeThumbnail:
 		cmd = exec.CommandContext(ctx, ffmpegCommand, "-hide_banner", "-loglevel", "error",
-			"-skip_frame", "nokey", "-f", "mpegts", "-i", "pipe:0", "-map", "0:v:0", "-an", "-sn", "-frames:v", "1",
+			"-skip_frame", "bidir", "-f", "mpegts", "-i", "pipe:0", "-map", "0:v:0", "-an", "-sn", "-frames:v", "1",
 			"-vf", thumbnailFilter, "-f", "image2pipe", "-c:v", "mjpeg", "-q:v", "3", "pipe:1")
 	case SizeTile:
 		cmd = exec.CommandContext(ctx, ffmpegCommand, "-hide_banner", "-loglevel", "error",
-			"-skip_frame", "nokey", "-f", "mpegts", "-i", "pipe:0", "-map", "0:v:0", "-an", "-sn", "-frames:v", "1",
+			"-skip_frame", "bidir", "-f", "mpegts", "-i", "pipe:0", "-map", "0:v:0", "-an", "-sn", "-frames:v", "1",
 			"-vf", tileFilter, "-f", "image2pipe", "-c:v", "mjpeg", "-q:v", "3", "pipe:1")
 	default:
 		return nil, fmt.Errorf("unknown frame size: %d", size)
