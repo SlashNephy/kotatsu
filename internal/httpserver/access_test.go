@@ -30,6 +30,11 @@ const (
 	// publicRejected は、インターネットの送信元を拒否したときの応答。
 	publicRejected = "access from 203.0.113.5 is not allowed"
 	headerOrigin   = "Origin"
+	// allowedHost は、server.allowed_hosts に載せるホスト名。reboundHost は、DNS リバインディングで攻撃者が使うホスト名。
+	allowedHost = "kotatsu.local"
+	// listenAddr は、server.listen。
+	listenAddr  = ":8080"
+	reboundHost = "attacker.example"
 )
 
 // clientEcho は、判定した送信元を応答のヘッダーに書く。
@@ -149,7 +154,7 @@ func TestAccessPolicy(t *testing.T) {
 				clientIPHeader = config.Default().Server.ClientIPHeader
 			}
 			policy, err := httpserver.NewAccessPolicy(&config.Server{
-				Listen: ":8080", AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
+				Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
 				ClientIPHeader: clientIPHeader,
 			}, slog.New(slog.DiscardHandler))
 			require.NoError(t, err)
@@ -171,6 +176,61 @@ func TestAccessPolicy(t *testing.T) {
 			}
 			assert.Equal(t, tt.wantIP, rec.Header().Get("X-Client-IP"))
 			assert.Equal(t, tt.wantOrigin, rec.Header().Get("X-Client-Origin"))
+		})
+	}
+}
+
+// TestAccessPolicyAllowedHosts は、server.allowed_hosts を設定したとき、一覧にない Host のリクエストを拒むことを確かめる (#546)。
+// DNS リバインディングでは、Host が攻撃者のホスト名になる。
+func TestAccessPolicyAllowedHosts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		allowedHosts []string
+		host         string
+		remoteAddr   string
+		headers      map[string]string
+		wantStatus   int
+	}{
+		{name: "no list allows any host", allowedHosts: []string{}, host: reboundHost, remoteAddr: lanAddr, wantStatus: http.StatusOK},
+		{name: "listed host with a port", allowedHosts: []string{allowedHost}, host: hostName, remoteAddr: lanAddr, wantStatus: http.StatusOK},
+		{name: "host names are compared case-insensitively", allowedHosts: []string{"Kotatsu.Local"}, host: "KOTATSU.local", remoteAddr: lanAddr, wantStatus: http.StatusOK},
+		{name: "rebound host is rejected", allowedHosts: []string{allowedHost}, host: reboundHost + listenAddr, remoteAddr: lanAddr, wantStatus: http.StatusForbidden},
+		{name: "IPv4 literal is always allowed", allowedHosts: []string{allowedHost}, host: "192.168.1.2" + listenAddr, remoteAddr: lanAddr, wantStatus: http.StatusOK},
+		{name: "IPv6 literal is always allowed", allowedHosts: []string{allowedHost}, host: "[fd00::2]" + listenAddr, remoteAddr: lanAddr, wantStatus: http.StatusOK},
+		{name: "localhost is always allowed", allowedHosts: []string{allowedHost}, host: "localhost" + listenAddr, remoteAddr: lanAddr, wantStatus: http.StatusOK},
+		{
+			name: "forwarded host from a trusted proxy is checked", allowedHosts: []string{proxiedHost}, host: trustedProxy + listenAddr, remoteAddr: trustedProxy,
+			headers: map[string]string{headerXFF: lanAddr, headerXFH: proxiedHost}, wantStatus: http.StatusOK,
+		},
+		{
+			name: "rebound forwarded host is rejected", allowedHosts: []string{proxiedHost}, host: proxiedHost, remoteAddr: trustedProxy,
+			headers: map[string]string{headerXFF: lanAddr, headerXFH: reboundHost}, wantStatus: http.StatusForbidden,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			policy, err := httpserver.NewAccessPolicy(&config.Server{
+				Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
+				ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: tt.allowedHosts,
+			}, slog.New(slog.DiscardHandler))
+			require.NoError(t, err)
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+tt.host+"/", nil)
+			req.RemoteAddr = tt.remoteAddr + ":51234"
+			for key, value := range tt.headers {
+				req.Header.Set(key, value)
+			}
+			rec := httptest.NewRecorder()
+			policy.Middleware(clientEcho()).ServeHTTP(rec, req)
+
+			assert.Equal(t, tt.wantStatus, rec.Code, rec.Body.String())
+			if tt.wantStatus == http.StatusForbidden {
+				assert.Contains(t, rec.Body.String(), "To allow it, add it to server.allowed_hosts (KOTATSU_SERVER_ALLOWED_HOSTS).")
+			}
 		})
 	}
 }
@@ -207,7 +267,7 @@ func TestRequireSameOrigin(t *testing.T) {
 		},
 	}
 	policy, err := httpserver.NewAccessPolicy(&config.Server{
-		Listen: ":8080", AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
+		Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
 	}, slog.New(slog.DiscardHandler))
 	require.NoError(t, err)
 	handler := policy.Middleware(httpserver.RequireSameOrigin(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))

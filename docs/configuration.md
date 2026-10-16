@@ -64,6 +64,7 @@ tenbanのHTTPサーバーの設定です。
 | `server.allowed_networks` | `KOTATSU_SERVER_ALLOWED_NETWORKS` | プライベートアドレス | 接続を受け付ける送信元のネットワーク |
 | `server.trusted_proxies` | `KOTATSU_SERVER_TRUSTED_PROXIES` | なし | `X-Forwarded-For`を信頼するリバースプロキシのネットワーク |
 | `server.client_ip_header` | `KOTATSU_SERVER_CLIENT_IP_HEADER` | `X-Forwarded-For` | 信頼済みのプロキシから届いたリクエストで、送信元を読むヘッダー（`X-Forwarded-For`か`X-Real-IP`） |
+| `server.allowed_hosts` | `KOTATSU_SERVER_ALLOWED_HOSTS` | なし | 受け付ける`Host`のホスト名。空ならどれも受け付ける |
 | `server.advertise_host` | `KOTATSU_SERVER_ADVERTISE_HOST` | なし | ほかのインスタンスからこのインスタンスに届くホスト |
 
 `server.allowed_networks`と`server.trusted_proxies`には、CIDRかIPアドレスを書きます。
@@ -76,6 +77,11 @@ tenbanのHTTPサーバーの設定です。
 - IPv6のユニークローカルアドレス（`fc00::/7`）とリンクローカルアドレス（`fe80::/10`）
 
 インターネットからの接続を受け付けるときは、`0.0.0.0/0`と`::/0`を明示してください。
+
+`server.allowed_hosts`には、ブラウザでKotatsuを開くときのホスト名を、ポートを付けずに書きます（例：`tv.example.com,kotatsu.local`）。
+DNSリバインディングで、外部のサイトのホスト名から届いたリクエストを拒みます。
+IPアドレスと`localhost`は、書かなくてもいつも受け付けます。
+空なら、どのホスト名も受け付けます。
 
 `server.trusted_proxies`に含まれない送信元から`X-Forwarded-For`が届くと、Kotatsuはエラーを返します。
 リバースプロキシを通すときは、そのアドレスを足してください。
