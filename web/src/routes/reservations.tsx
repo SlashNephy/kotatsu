@@ -39,6 +39,8 @@ import {
   useRelayEnvironment,
 } from 'react-relay';
 
+import { useDataChanges } from '../changes/DataChanges';
+import type { DataChannel } from '../changes/dataChanges';
 import { EmptyState, ErrorBoundary, PageLoader, ProgramTitle, toHalfWidth } from '../futon';
 import { broadcastDay, dateOf } from '../guide/layout';
 import { isUnauthenticated } from '../relay/environment';
@@ -132,6 +134,13 @@ const rangeDays = 8;
 // pageSize は、1 回に取る件数。一度に並べすぎないよう、続きは「さらに読み込む」で足す。
 const pageSize = 25;
 
+// reservationChannels は、予約の一覧に関わるデータの種類。変わったら、一覧を読み直す。
+const reservationChannels: readonly DataChannel[] = [
+  'RESERVATIONS',
+  'ASSIGNMENTS',
+  'RESERVATION_CONFLICTS',
+];
+
 const dayFormat = new Intl.DateTimeFormat('ja-JP', {
   month: 'numeric',
   day: 'numeric',
@@ -220,8 +229,10 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
     ruleId: rule ?? '',
     withRule: rule !== undefined,
   };
-  // filterKey は、絞り込みの組。変わったら、読み込んだ続きを捨てる。
-  const filterKey = `${problems}:${rule ?? ''}`;
+  // changes は、予約、割り当て、競合が、ほかの端末や neko で変わるたびに変わる (#503)。変わったら読み直す。
+  const changes = useDataChanges(reservationChannels);
+  // filterKey は、絞り込みの組。変わったら、読み込んだ続きを捨てる。データが変わったときも、続きは古くなるので捨てる。
+  const filterKey = `${problems}:${rule ?? ''}:${changes}`;
   // fetchKey を変えると、読み直す。時刻予約を作った後に、一覧に足すのに使う。読み直す間も一覧を出したままにするため、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
   // creatingTime は、時刻予約を作るダイアログを出しているかどうか。
@@ -229,7 +240,7 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
   const data = useLazyLoadQuery<reservationsQuery>(
     query,
     { ...variables, first: pageSize, after: null },
-    { fetchKey, fetchPolicy: 'store-and-network' },
+    { fetchKey: `${fetchKey}:${changes}`, fetchPolicy: 'store-and-network' },
   );
   const environment = useRelayEnvironment();
   // more は、続きの読み込みで足した予約と、その次のカーソル。絞り込みを変えたら捨てる。

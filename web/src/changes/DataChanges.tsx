@@ -1,0 +1,90 @@
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useState,
+  type ReactNode,
+} from 'react';
+import { graphql, useSubscription } from 'react-relay';
+
+import type { DataChangesSubscription } from './__generated__/DataChangesSubscription.graphql';
+import {
+  applyChange,
+  changeKey,
+  initialChangeState,
+  type ChangeState,
+  type DataChannel,
+} from './dataChanges';
+
+type Context = {
+  state: ChangeState;
+  dispatch: (change: { channel: DataChannel; version: number }) => void;
+};
+
+const DataChangesContext = createContext<Context>({
+  state: initialChangeState,
+  dispatch: () => {},
+});
+
+// DataChangesProvider は、データの変更を、画面に配る (#503)。購読は DataChangesSubscriber が行う。
+// ログインしてから購読するので、購読とは分けて、画面全体を包む。
+export function DataChangesProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(applyChange, initialChangeState);
+  const value = useMemo(() => ({ state, dispatch }), [state]);
+
+  return <DataChangesContext.Provider value={value}>{children}</DataChangesContext.Provider>;
+}
+
+// DataChangesSubscriber は、dataChanged を購読し、届いた変更を DataChangesProvider に渡す。ログインしている間だけ置く。
+export function DataChangesSubscriber() {
+  const { dispatch } = useContext(DataChangesContext);
+  const config = useMemo(
+    () => ({
+      subscription: graphql`
+        subscription DataChangesSubscription {
+          dataChanged {
+            channel
+            version
+          }
+        }
+      `,
+      variables: {},
+      onNext: (response: DataChangesSubscription['response'] | null | undefined) => {
+        const change = response?.dataChanged;
+        // 新しい種類がサーバーに足されても、知らない種類は無視する。
+        if (change && change.channel !== '%future added value') {
+          dispatch({ channel: change.channel, version: change.version });
+        }
+      },
+      // 切れても、画面は今の内容のまま使える。つなぎ直したときに、切れている間の変更を数える。
+      onError: () => {},
+    }),
+    [dispatch],
+  );
+  useSubscription<DataChangesSubscription>(config);
+
+  return null;
+}
+
+// settleMs は、変更が続けて届いたときに、読み直すのを待つ時間。EPG の同期などで続けて届いても、まとめて 1 回だけ読み直す。
+export const settleMs = 2000;
+
+// useDataChanges は、channels のどれかが変わるたびに変わる値を返す。useLazyLoadQuery の fetchKey に混ぜて、画面を読み直す。
+// 変わってから settleMs の間、次の変更が届かなくなってから値を変える。
+export function useDataChanges(channels: readonly DataChannel[]): number {
+  const { state } = useContext(DataChangesContext);
+  const key = changeKey(state, channels);
+  const [settled, setSettled] = useState(key);
+  useEffect(() => {
+    if (key === settled) {
+      return;
+    }
+    const timer = setTimeout(() => setSettled(key), settleMs);
+
+    return () => clearTimeout(timer);
+  }, [key, settled]);
+
+  return settled;
+}
