@@ -335,4 +335,96 @@ describe('useDataBroadcast', () => {
     expect(getByTestId('media').contains(video)).toBe(!wantInBroadcast);
     expect(getByTestId('state').textContent).toBe(wantState);
   });
+
+  describe('データ放送の接続だけが切れたら', () => {
+    test.each([
+      {
+        name: '理由が分からなければ、5 秒後につなぎ直す',
+        end: { error: true },
+        after: 5000,
+        browsers: 2,
+      },
+      { name: '5 秒たつまでは、つなぎ直さない', end: { error: true }, after: 4999, browsers: 1 },
+      { name: '読み終えただけでも、つなぎ直す', end: { error: false }, after: 5000, browsers: 2 },
+      { name: '5xx なら、つなぎ直す', end: { error: true, status: 503 }, after: 5000, browsers: 2 },
+      {
+        name: '4xx なら、つなぎ直さない',
+        end: { error: true, status: 404 },
+        after: 120_000,
+        browsers: 1,
+      },
+    ])('$name', ({ end, after, browsers }) => {
+      vi.useFakeTimers();
+      try {
+        render(<Harness shown />);
+        act(() => {
+          fake.FakeBrowser.instances[0]?.dispatchEvent(load);
+          FakeWorker.last?.send({ type: 'kotatsu:end', ...end });
+        });
+        act(() => {
+          vi.advanceTimersByTime(after);
+        });
+
+        expect(fake.FakeBrowser.instances).toHaveLength(browsers);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    test('つなぎ直せないうちは間隔を延ばし、文書を読めたら最初の間隔に戻す', () => {
+      vi.useFakeTimers();
+      try {
+        render(<Harness shown />);
+        const fail = () =>
+          act(() => {
+            FakeWorker.last?.send({ type: 'kotatsu:end', error: true });
+          });
+        const wait = (ms: number) =>
+          act(() => {
+            vi.advanceTimersByTime(ms);
+          });
+
+        fail();
+        wait(5000);
+        expect(fake.FakeBrowser.instances).toHaveLength(2);
+        // 文書を読めないまま、また切れたら、10 秒待つ。
+        fail();
+        wait(9999);
+        expect(fake.FakeBrowser.instances).toHaveLength(2);
+        wait(1);
+        expect(fake.FakeBrowser.instances).toHaveLength(3);
+        // 文書を読めてから切れたら、また 5 秒で試す。
+        act(() => {
+          fake.FakeBrowser.instances[2]?.dispatchEvent(load);
+        });
+        fail();
+        wait(5000);
+        expect(fake.FakeBrowser.instances).toHaveLength(4);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    test('つなぎ直したら、出していれば、また d ボタンでデータ放送の画面に入る', () => {
+      vi.useFakeTimers();
+      try {
+        render(<Harness shown />);
+        act(() => {
+          FakeWorker.last?.send({ type: 'kotatsu:end', error: true });
+        });
+        act(() => {
+          vi.advanceTimersByTime(5000);
+        });
+        const browser = fake.FakeBrowser.instances[1];
+        act(() => {
+          browser?.dispatchEvent(load);
+          vi.advanceTimersByTime(0);
+        });
+
+        expect(browser?.pressed).toContain(RemoteKey.d);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
 });

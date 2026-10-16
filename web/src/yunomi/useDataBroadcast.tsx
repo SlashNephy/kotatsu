@@ -4,6 +4,7 @@ import { BMLBrowser } from 'web-bml';
 import { cspNonce } from '../futon';
 import type { DataBroadcastEnd, DataBroadcastRequest } from './dataBroadcastWorker';
 import { deinterlacerCanvas } from './deinterlacer';
+import { reconnectDelay } from './reconnect';
 import type { DataBroadcastSource } from './route';
 import classes from './TsPlayer.module.css';
 
@@ -77,6 +78,14 @@ export function useDataBroadcast(
   const [scale, setScale] = useState(1);
   const url = source?.url ?? null;
   const serviceId = source?.serviceId ?? null;
+  // generation は、データ放送の接続だけが切れたときに、つなぎ直すたびに増やす (#446)。
+  const [generation, setGeneration] = useState(0);
+  // attempt は、続けてつなぎ直した回数。文書を読めたら 0 に戻す。
+  const attempt = useRef(0);
+  // 映像をつなぎ直して受け取る先が変わったら、データ放送も最初の間隔から数え直す。
+  useEffect(() => {
+    attempt.current = 0;
+  }, [url, serviceId]);
 
   useEffect(() => {
     if (url === null || serviceId === null || layer === null) {
@@ -186,6 +195,7 @@ export function useDataBroadcast(
       place();
     };
     browser.addEventListener('load', (event) => {
+      attempt.current = 0;
       setResolution(event.detail.resolution);
       setState('shown');
       loaded = true;
@@ -201,6 +211,7 @@ export function useDataBroadcast(
       place();
     });
 
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     const worker = new Worker(new URL('./dataBroadcastWorker.ts', import.meta.url), {
       type: 'module',
     });
@@ -212,6 +223,17 @@ export function useDataBroadcast(
         setInvisible(true);
         setState('ended');
         place();
+        // 映像は流れているのに、データ放送の接続だけが切れたら、映像と同じ間隔でつなぎ直す。
+        // 4xx は、つなぎ直しても同じなので、やめる。つなぎ直したら、出していれば、文書を読んだところでまた d ボタンで入る。
+        if (message.status === undefined || message.status < 400 || message.status >= 500) {
+          retryTimer = setTimeout(
+            () => {
+              attempt.current += 1;
+              setGeneration((n) => n + 1);
+            },
+            reconnectDelay(attempt.current) * 1000,
+          );
+        }
 
         return;
       }
@@ -220,6 +242,9 @@ export function useDataBroadcast(
     worker.postMessage({ url, serviceId } satisfies DataBroadcastRequest);
 
     return () => {
+      if (retryTimer !== null) {
+        clearTimeout(retryTimer);
+      }
       stopEntering();
       // 片付けた文書に、出す・消す・d ボタンの操作が届かないようにする。
       showRef.current = () => {};
@@ -232,7 +257,7 @@ export function useDataBroadcast(
       container.remove();
       setInvisible(false);
     };
-  }, [url, serviceId, layer, videoRef]);
+  }, [url, serviceId, layer, videoRef, generation]);
 
   // 出すことになったら、データ放送の画面に入る。出すのをやめたら、最初の文書へ戻す。
   // 最初の描画では、まだ文書がないので、何もしない。
