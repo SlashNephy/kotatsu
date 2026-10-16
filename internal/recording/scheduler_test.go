@@ -92,8 +92,15 @@ func newFixture(t *testing.T) *fixture {
 func (f *fixture) reserve(t *testing.T, service int) uuid.UUID {
 	t.Helper()
 
+	return f.reserveEvent(t, service, 6)
+}
+
+// reserveEvent は、地上波の i 番目のサービスの、eventId の番組を予約し、チューナーを割り当てる。番組は 30 分ごとに並び、eventId 6 が 13:30 に始まる。
+func (f *fixture) reserveEvent(t *testing.T, service int, eventID int64) uuid.UUID {
+	t.Helper()
+
 	reservation, _, err := f.reservations.CreateProgram(t.Context(), f.pool, audit.System("test"), &reserve.ProgramInput{
-		ServiceID: grService(service), EventID: 6, FollowEventRelay: true, Overrides: nil,
+		ServiceID: grService(service), EventID: eventID, FollowEventRelay: true, Overrides: nil,
 	})
 	require.NoError(t, err)
 	_, err = f.assigner.RunOnce(t.Context())

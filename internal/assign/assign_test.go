@@ -120,6 +120,16 @@ func TestAssign(t *testing.T) {
 			},
 		},
 		{
+			// 同じチャンネルで続く番組は、マージンが重なっても 1 本のチューナーを共有するので、1 本しかなくてもマージンを削らない (#641)。
+			name:         "back-to-back programs on the same channel share one tuner without trimming",
+			reservations: []*assign.Reservation{program(1, "27", 0, 30), program(2, "27", 30, 30)},
+			tuners:       grTuners(1),
+			want: []*assign.Assignment{
+				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(margin)},
+				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(30).Add(-margin), PlannedEnd: at(60).Add(margin)},
+			},
+		},
+		{
 			name:         "same channel shares one tuner",
 			reservations: []*assign.Reservation{program(1, "27", 0, 60), program(2, "27", 30, 60)},
 			tuners:       grTuners(1),
