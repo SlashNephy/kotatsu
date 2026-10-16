@@ -51,6 +51,22 @@ valueFrom:
     key: {{ .key }}
 {{- end -}}
 
+{{/*
+trustedProxies は、KOTATSU_SERVER_TRUSTED_PROXIES の値 (ingress.trustedProxies をカンマでつないだもの)。
+Ingress を使うのに、信頼するプロキシをどこにも設定していなければ、全リクエストが 400 になるので、描画を止める。
+config.SERVER_TRUSTED_PROXIES でも渡せるが、両方に書くと同じ環境変数が 2 つになるので、どちらか一方にさせる。
+*/}}
+{{- define "kotatsu.trustedProxies" -}}
+{{- $fromConfig := hasKey .Values.config "SERVER_TRUSTED_PROXIES" -}}
+{{- if and .Values.ingress.trustedProxies $fromConfig -}}
+{{- fail "set either ingress.trustedProxies or config.SERVER_TRUSTED_PROXIES, not both" -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.trustedProxies) (not $fromConfig) -}}
+{{- fail "ingress.trustedProxies is required when ingress.enabled is true; set the CIDR of the ingress controller's Pods (e.g. the Pod network), or every request through the ingress is rejected with 400" -}}
+{{- end -}}
+{{- join "," .Values.ingress.trustedProxies -}}
+{{- end -}}
+
 {{/* pools は、KOTATSU_STORAGE_POOLS の値 (プール ID=マウント先 をカンマでつないだもの)。 */}}
 {{- define "kotatsu.pools" -}}
 {{- $pools := list -}}
@@ -75,6 +91,10 @@ env は、すべてのコンテナに渡す環境変数。
   value: "$(POD_IP)"
 - name: KOTATSU_METRICS_LISTEN
   value: ":9090"
+{{- with include "kotatsu.trustedProxies" . }}
+- name: KOTATSU_SERVER_TRUSTED_PROXIES
+  value: {{ . | quote }}
+{{- end }}
 - name: KOTATSU_DATABASE_URL
   {{- include "kotatsu.secretRef" .Values.secrets.databaseURL | nindent 2 }}
 - name: KOTATSU_AUTH_SECRET_KEY

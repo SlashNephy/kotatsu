@@ -115,6 +115,24 @@ storage:
 `KOTATSU_STORAGE_POOLS`は、`storage.pools`からChartが作るので、`config`には書きません。
 新しい録画の付属ファイル（索引、代表画像、プレビュー画像）を、録画ファイルの横でなく別の場所にまとめたいときは、`storage.sidecar.volume`にvolumeを書きます。Chartが`KOTATSU_STORAGE_SIDECAR_DIR`を渡し、プールと同じロールにマウントします。すでにある付属ファイルは移しません。
 
+Ingressを使うときは、`ingress.enabled`と一緒に`ingress.trustedProxies`を書きます。
+Kotatsuは、ここに書いたネットワークから届いた`X-Forwarded-For`だけを信頼します。
+普通は、Ingressのコントローラーが動くPodのネットワークのCIDRを書きます。
+書かないと、Ingressを通る全リクエストが400になるので、Chartは描画を止めます。
+
+```yaml
+ingress:
+  enabled: true
+  className: nginx
+  host: kotatsu.example.com
+  trustedProxies:
+    - 10.244.0.0/16
+```
+
+コントローラーの前で送信元のアドレスが書き換わる（SNAT）構成では、送信元がノードのアドレスに見え、接続元の制限（`server.allowed_networks`）が効きません。
+たとえば、コントローラーのServiceが`externalTrafficPolicy: Cluster`だと、こうなります。
+`externalTrafficPolicy: Local`にするなどして、送信元を保ってください。
+
 `all`と`split`の例は、[deploy/kubernetes](../deploy/kubernetes)にも置いています。
 同じディレクトリにある`all.yaml`と`split.yaml`は、その例から作ったマニフェストです。
 Helmを使わずに、マニフェストを手で直して使うこともできます。

@@ -77,6 +77,12 @@ ingress:
   annotations: {}
   host: kotatsu.example.com
   tls: []
+  # trustedProxies は、X-Forwarded-For を信頼する Ingress のコントローラーのネットワーク (CIDR か IP アドレス)。
+  # KOTATSU_SERVER_TRUSTED_PROXIES として渡す。Ingress を使うなら必須で、空だと Ingress を通る全リクエストが 400 になる。
+  # 普通は、コントローラーの Pod が使う Pod のネットワークの CIDR を書く。例: ["10.244.0.0/16"]
+  # コントローラーの前で送信元のアドレスが書き換わる (SNAT) と、送信元がノードのアドレスに見え、接続元の制限が効かない。
+  # コントローラーの Service を externalTrafficPolicy: Local にするなどして、送信元を保つ。
+  trustedProxies: []
 
 # migration は、install と upgrade の前に kotatsu migrate を実行する Job (設計書 11.4)。
 migration:
