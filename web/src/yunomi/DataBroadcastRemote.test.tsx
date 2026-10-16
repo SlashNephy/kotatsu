@@ -5,7 +5,8 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import '../i18n';
 import { theme } from '../futon/theme';
-import { DataBroadcastRemote } from './DataBroadcastRemote';
+import { DataBroadcastRemote, DataBroadcastRemoteOverlay } from './DataBroadcastRemote';
+import { onVideoSurface } from './useControlsVisibility';
 import type { DataBroadcastState, KeyGroup } from './useDataBroadcast';
 
 afterEach(cleanup);
@@ -116,4 +117,46 @@ describe('DataBroadcastRemote', () => {
       }
     },
   );
+});
+
+describe('DataBroadcastRemoteOverlay', () => {
+  test('閉じた状態で始まり、開くとリモコンを出し、押したキーを渡す', async () => {
+    const onPress = vi.fn();
+    render(
+      <MantineProvider theme={theme}>
+        <DataBroadcastRemoteOverlay
+          state="shown"
+          receiving={false}
+          keyGroups={allGroups}
+          onPress={onPress}
+        />
+      </MantineProvider>,
+    );
+
+    expect(screen.queryByRole('group', { name: 'リモコン' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'リモコンを出す' }));
+    await userEvent.click(screen.getByRole('button', { name: '決定' }));
+    expect(onPress).toHaveBeenCalledWith(18);
+
+    await userEvent.click(screen.getByRole('button', { name: 'リモコンを隠す' }));
+    expect(screen.queryByRole('group', { name: 'リモコン' })).toBeNull();
+  });
+
+  test('リモコンの中を押しても、映像を押したことにはしない', async () => {
+    render(
+      <MantineProvider theme={theme}>
+        <DataBroadcastRemoteOverlay
+          state="shown"
+          receiving={false}
+          keyGroups={allGroups}
+          onPress={vi.fn()}
+        />
+      </MantineProvider>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'リモコンを出す' }));
+
+    // ボタンの間の余白 (パネル) を押しても、再生や全画面を切り替えない。
+    const panel = screen.getByRole('group', { name: 'リモコン' }).parentElement;
+    expect(onVideoSurface(panel)).toBe(false);
+  });
 });
