@@ -29,6 +29,7 @@ import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { CaptureButton, PipButton } from '../../yunomi/PlayerTools';
 import {
   BigPlayButton,
+  PlayerLoading,
   ControlButton,
   FullscreenButton,
   PlayButton,
@@ -40,6 +41,7 @@ import {
 import { controlsAttribute, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
+import { useVideoLoading } from '../../yunomi/useVideoLoading';
 import { useVideoState } from '../../yunomi/useVideoState';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
@@ -151,6 +153,7 @@ function Player({ recordingId }: { recordingId: string }) {
   const videoState = useVideoState(video);
   // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
   const autoplay = useAutoplayBlocked(video);
+  const videoLoading = useVideoLoading(video);
   const fullscreen = useFullscreen(playerBoxRef);
   const controls = useControlsVisibility({ playing: !videoState.paused });
   // 再生している間は、画面を消さない。
@@ -482,6 +485,7 @@ function Player({ recordingId }: { recordingId: string }) {
             <>
               {jikkyo.overlay}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
+              {videoLoading && !autoplay.blocked && <PlayerLoading />}
             </>
           }
           onAudio={audio.onAudio}
@@ -501,6 +505,7 @@ function Player({ recordingId }: { recordingId: string }) {
             <>
               {jikkyo.overlay}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
+              {videoLoading && !autoplay.blocked && <PlayerLoading />}
             </>
           }
           onLoaded={() => setError(null)}

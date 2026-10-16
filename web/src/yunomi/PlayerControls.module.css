@@ -168,3 +168,24 @@
   /* 実況のコメントやデータ放送より上に置く。 */
   z-index: 1;
 }
+
+.loading {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  translate: -50% -50%;
+  pointer-events: none;
+  animation: loading-fade-in 0.18s ease-out;
+}
+
+@keyframes loading-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading {
+    animation: none;
+  }
+}

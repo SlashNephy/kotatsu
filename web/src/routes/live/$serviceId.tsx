@@ -22,6 +22,7 @@ import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import { DataBroadcastRemote } from '../../yunomi/DataBroadcastRemote';
 import {
   BigPlayButton,
+  PlayerLoading,
   ControlButton,
   FullscreenButton,
   LiveStatus,
@@ -46,6 +47,7 @@ import { CaptureButton, PipButton } from '../../yunomi/PlayerTools';
 import { useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
+import { useVideoLoading } from '../../yunomi/useVideoLoading';
 import { useVideoState } from '../../yunomi/useVideoState';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
@@ -191,6 +193,7 @@ function Live({
   const videoState = useVideoState(video);
   // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
   const autoplay = useAutoplayBlocked(video);
+  const videoLoading = useVideoLoading(video);
   const fullscreen = useFullscreen(playerBoxRef);
   const controls = useControlsVisibility({ playing: !videoState.paused });
   // 再生している間は、画面を消さない。
@@ -412,6 +415,7 @@ function Live({
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
+              {videoLoading && !autoplay.blocked && <PlayerLoading />}
             </>
           }
           onState={(state) => {
@@ -446,6 +450,7 @@ function Live({
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
+              {videoLoading && !autoplay.blocked && <PlayerLoading />}
             </>
           }
           // チューナーを使われて切れると、hls.js が読み直しを諦めたところで、致命的なエラーになる。
