@@ -244,6 +244,10 @@ func (l *Logins) Password(ctx context.Context, db Database, username, secret str
 // verifyPassword は、パスワードがハッシュに一致するかを確かめる。encoded が nil なら、同じだけ時間をかけて一致しないとする。
 // 同時に確かめる数を抑え、順番を待ちきれなければ ThrottledError を返す (#542)。
 func (l *Logins) verifyPassword(ctx context.Context, secret string, encoded *string) (*password.Verification, error) {
+	// 空きがあると、select は取り消した要求でも順番を取りうるので、先に確かめる。
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("failed to wait for a password verification: %w", err)
+	}
 	timer := time.NewTimer(l.verificationWait)
 	defer timer.Stop()
 	select {
