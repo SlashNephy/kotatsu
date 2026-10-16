@@ -56,6 +56,7 @@ import { useVideoLoading } from '../../yunomi/useVideoLoading';
 import { useVideoState } from '../../yunomi/useVideoState';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
+import { useLiveLag } from '../../yunomi/useLiveLag';
 import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
 import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordingsQuery.graphql';
@@ -335,6 +336,10 @@ function Live({
     return () => clearTimeout(timer);
   }, [disconnection]);
 
+  // 一時停止したら、放送から遅れる。ブラウザ内での変換では、長く止めていたら再開するときに読み直す。
+  // kyusu の経路は、プレイヤーが読み直す (設計書 7.3)。どちらの経路でも、遅れている間は「ライブに戻る」で読み直せる (#449)。
+  const reload = () => setSession((n) => n + 1);
+  const behind = useLiveLag(video, { reloadOnResume: route.kind === 'convert', onReload: reload });
   // 時間帯に重なる番組のうち、読み直した時刻に放送中のものと、その次のもの。
   const programs = data.guide[0]?.programs ?? [];
   const program =
@@ -459,7 +464,7 @@ function Live({
     <PlayerControls
       visible={controls.visible}
       start={<VolumeControl video={videoState} />}
-      status={<LiveStatus />}
+      status={<LiveStatus onCatchUp={behind ? reload : undefined} />}
       end={
         <>
           <ControlButton

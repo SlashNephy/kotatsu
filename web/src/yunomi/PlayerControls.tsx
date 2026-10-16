@@ -133,9 +133,17 @@ export function VolumeControl({ video }: { video: VideoState }) {
   );
 }
 
-// LiveStatus は、ライブで再生していることの印。
-export function LiveStatus() {
+// LiveStatus は、ライブで再生していることの印。放送から遅れているときは、押すと放送中の位置へ戻るボタンにする (#449)。
+export function LiveStatus({ onCatchUp }: { onCatchUp?: (() => void) | undefined }) {
   const { t } = useTranslation();
+
+  if (onCatchUp !== undefined) {
+    return (
+      <button type="button" className={`${classes.live} ${classes.behind}`} onClick={onCatchUp}>
+        {t('player.catchUp')}
+      </button>
+    );
+  }
 
   return <span className={classes.live}>{t('player.live')}</span>;
 }

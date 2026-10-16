@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { deinterlacerCanvas } from './deinterlacer';
-import { moveMedia } from './useDataBroadcast';
+import { fitDocument, moveMedia } from './useDataBroadcast';
 import classes from './TsPlayer.module.css';
 
 // player は、TsPlayer と同じく、映像の要素 (.media) の中に、yadif の包みと video と字幕の canvas を置いたものを作る。
@@ -71,5 +71,36 @@ describe('moveMedia', () => {
     expect(target.childNodes).toHaveLength(0);
     expect(video.style.cssText).toBe('filter: blur(1px);');
     expect(wrapper.style.cssText).toBe('');
+  });
+});
+
+describe('fitDocument', () => {
+  test.each([
+    {
+      name: '16:9 の層に 960x540 の文書は、ちょうど収まる',
+      layer: { width: 1920, height: 1080 },
+      resolution: { width: 960, height: 540 },
+      want: { scale: 2, x: 0, y: 0 },
+    },
+    {
+      name: '16:9 の層に 720x480 の文書は、高さに合わせ、左右を空ける',
+      layer: { width: 1920, height: 1080 },
+      resolution: { width: 720, height: 480 },
+      want: { scale: 2.25, x: 150, y: 0 },
+    },
+    {
+      name: '縦に長い全画面では、幅に合わせ、上下を空ける',
+      layer: { width: 960, height: 720 },
+      resolution: { width: 960, height: 540 },
+      want: { scale: 1, x: 0, y: 90 },
+    },
+    {
+      name: '大きさがまだ決まっていない層では、拡大しない',
+      layer: { width: 0, height: 0 },
+      resolution: { width: 960, height: 540 },
+      want: { scale: 1, x: 0, y: 0 },
+    },
+  ])('$name', ({ layer, resolution, want }) => {
+    expect(fitDocument(layer, resolution)).toEqual(want);
   });
 });
