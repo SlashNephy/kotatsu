@@ -26,7 +26,13 @@ export function useDoubleTap(
   const last = useRef<{ time: number; x: number; y: number } | null>(null);
 
   return (event) => {
-    if (event.pointerType !== 'touch' || !onVideoSurface(event.target)) {
+    if (event.pointerType !== 'touch') {
+      return;
+    }
+    // 間に操作バーやボタンを押したら、前のタップとはつなげない。
+    if (!onVideoSurface(event.target)) {
+      last.current = null;
+
       return;
     }
     const prev = last.current;
