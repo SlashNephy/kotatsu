@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"log/slog"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
 
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/audit"
@@ -319,6 +322,17 @@ func (r *Resolver) readManifest(preview *model.RecordingFile) (*thumbnail.Manife
 	return &manifest, nil
 }
 
+// imageURL は、録画の画像の URL のパス。画像はブラウザにしばらく使い回させるので、作り直したら URL が変わるよう、
+// 作った日時 (ended_at) を添える (#476)。配信する側は、クエリを見ない。
+func imageURL(recordingID uuid.UUID, name string, file *model.RecordingFile) string {
+	path := "/media/recordings/" + recordingID.String() + "/" + name
+	if file.EndedAt == nil {
+		return path
+	}
+
+	return path + "?v=" + strconv.FormatInt(file.EndedAt.Unix(), 10)
+}
+
 // imageURLs は、録画の代表画像とプレビュー画像の URL のパスを返す。画像のファイルがなければ nil にする。
 // 画像は、GET /media/recordings/{id}/{file} で配信する (thumbnail.ImageHandler)。
 func imageURLs(recordingID uuid.UUID, files []*model.RecordingFile) (*string, *string) {
@@ -326,9 +340,9 @@ func imageURLs(recordingID uuid.UUID, files []*model.RecordingFile) (*string, *s
 	for _, file := range files {
 		switch file.Kind {
 		case model.RecordingFileKindThumbnail:
-			thumbnailURL = new("/media/recordings/" + recordingID.String() + "/" + thumbnail.ThumbnailFileName)
+			thumbnailURL = new(imageURL(recordingID, thumbnail.ThumbnailFileName, file))
 		case model.RecordingFileKindPreview:
-			previewURL = new("/media/recordings/" + recordingID.String() + "/" + thumbnail.PreviewFileName)
+			previewURL = new(imageURL(recordingID, thumbnail.PreviewFileName, file))
 		case model.RecordingFileKindSegment, model.RecordingFileKindIndex, model.RecordingFileKindOther:
 		}
 	}
@@ -422,6 +436,42 @@ func (r *Resolver) setRecordingProtected(ctx context.Context, globalID string, p
 	}
 
 	return r.recording(ctx, recordingID)
+}
+
+// regenerateRecordingImages は、録画の代表画像とプレビュー画像を作り直すジョブを入れる。
+// 同じ録画のジョブを待っていれば、入れずに false を返す。
+func (r *Resolver) regenerateRecordingImages(ctx context.Context, globalID string) (bool, error) {
+	if _, err := librarian(ctx); err != nil {
+		return false, err
+	}
+	recordingID, err := parseRecordingID(globalID)
+	if err != nil {
+		return false, err
+	}
+	if r.jobs == nil {
+		return false, errors.New("the job client is not configured")
+	}
+	if _, err := sqlc.New(r.db).GetRecording(ctx, recordingID); errors.Is(err, pgx.ErrNoRows) {
+		return false, NewError(CodeNotFound, "recording not found")
+	} else if err != nil {
+		return false, fmt.Errorf("failed to get the recording: %w", err)
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to begin a transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	// 待っているジョブにだけ重ねない (GenerateArgs.InsertOpts)。作り終えた録画は、また作り直せる。
+	results, err := r.jobs.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: thumbnail.GenerateArgs{RecordingID: recordingID}, InsertOpts: nil}})
+	if err != nil {
+		return false, fmt.Errorf("failed to insert the thumbnail job: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("failed to commit the thumbnail job: %w", err)
+	}
+
+	return len(results) == 1 && !results[0].UniqueSkippedAsDuplicate, nil
 }
 
 func (r *Resolver) setRecordingTags(ctx context.Context, globalID string, tags []string) (*model.Recording, error) {

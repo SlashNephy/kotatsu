@@ -1,19 +1,27 @@
 package graph_test
 
 import (
+	"context"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/graph"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/jobs"
+	"github.com/SlashNephy/kotatsu/internal/thumbnail"
 )
 
 const (
@@ -152,10 +160,14 @@ func TestRecordings(t *testing.T) {
 	withImages := f.recordings(t, 10, nil, nil).Recordings.Edges[2].Node
 	files := withImages.Files
 	// 画像は /media で配信するので、その URL のパスを返す。画像のない録画では null にする。
+	// 作り直したら URL が変わるよう、画像を作った日時 (ended_at) を添える (#476)。
 	var rawID string
-	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT recording_id::text FROM recording_files WHERE path = $1`, episode1+".m2ts").Scan(&rawID))
-	assert.Equal(t, new("/media/recordings/"+rawID+"/thumbnail.jpg"), withImages.ThumbnailURL)
-	assert.Equal(t, new("/media/recordings/"+rawID+"/preview.jpg"), withImages.PreviewURL)
+	var version int64
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT recording_id::text, extract(epoch FROM ended_at)::bigint FROM recording_files WHERE path = $1`,
+		episode1+".m2ts.kotatsu/thumbnail.jpg").Scan(&rawID, &version))
+	suffix := "?v=" + strconv.FormatInt(version, 10)
+	assert.Equal(t, new("/media/recordings/"+rawID+"/thumbnail.jpg"+suffix), withImages.ThumbnailURL)
+	assert.Equal(t, new("/media/recordings/"+rawID+"/preview.jpg"+suffix), withImages.PreviewURL)
 	assert.Equal(t, "/streams/recordings/"+rawID, withImages.StreamURL)
 	assert.Nil(t, f.recordings(t, 10, nil, nil).Recordings.Edges[0].Node.ThumbnailURL)
 	kinds := make([]string, 0, len(files))
@@ -297,6 +309,66 @@ func TestRecordingOperations(t *testing.T) {
 	assert.Equal(t, []string{codeBadUserInput}, f.query(t, saveWatchPosition, map[string]any{varID: recordingID, varPositionMs: -1}, nil))
 }
 
+// lateInserter は、フィクスチャの DB ができてから River のクライアントを差し込む Inserter。
+type lateInserter struct {
+	client *jobs.Client
+}
+
+var _ thumbnail.Inserter = new(lateInserter)
+
+func (l *lateInserter) InsertManyTx(ctx context.Context, tx pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error) {
+	return l.client.InsertManyTx(ctx, tx, params)
+}
+
+// TestRegenerateRecordingImages は、録画の画像を作り直すジョブを入れ、待っているジョブには重ねず、
+// 終わったジョブがあっても、また入れられることを確かめる (#476)。
+func TestRegenerateRecordingImages(t *testing.T) {
+	t.Parallel()
+
+	inserter := &lateInserter{client: nil}
+	dir := t.TempDir()
+	f := newFixture(t, &graph.Options{Pools: map[string]string{poolMain: dir}, Jobs: inserter})
+	f.syncEPG(t)
+	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
+	client, err := jobs.NewClient(f.pool, slog.New(slog.DiscardHandler), &jobs.Options{PollOnly: false, Workers: nil, PeriodicJobs: nil})
+	require.NoError(t, err)
+	inserter.client = client
+	recordingID := f.addRecording(t, dir, "こたつ特集", "completed", time.Hour)
+	_, rawID, err := graph.ParseGlobalID(recordingID)
+	require.NoError(t, err)
+	const regenerate = `mutation($id: ID!) { regenerateRecordingImages(id: $id) }`
+	queued := func() int {
+		var n int
+		require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT count(*) FROM river_job WHERE kind = 'thumbnail_generate' AND args->>'recordingId' = $1`,
+			rawID).Scan(&n))
+
+		return n
+	}
+	var got struct {
+		RegenerateRecordingImages bool `json:"regenerateRecordingImages"`
+	}
+
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", auth.RoleViewer).query(t, regenerate, map[string]any{varID: recordingID}, nil))
+	missing := graph.GlobalID("Recording", uuid.New().String())
+	assert.Equal(t, []string{codeNotFound}, f.query(t, regenerate, map[string]any{varID: missing}, nil))
+
+	require.Empty(t, f.query(t, regenerate, map[string]any{varID: recordingID}, &got))
+	assert.True(t, got.RegenerateRecordingImages)
+	assert.Equal(t, 1, queued())
+
+	// 待っているジョブがあれば、重ねて入れない。
+	require.Empty(t, f.query(t, regenerate, map[string]any{varID: recordingID}, &got))
+	assert.False(t, got.RegenerateRecordingImages)
+	assert.Equal(t, 1, queued())
+
+	// 作り終えた録画は、また作り直せる。
+	_, err = f.pool.Exec(t.Context(), `UPDATE river_job SET state = 'completed', finalized_at = now() WHERE kind = 'thumbnail_generate'`)
+	require.NoError(t, err)
+	require.Empty(t, f.query(t, regenerate, map[string]any{varID: recordingID}, &got))
+	assert.True(t, got.RegenerateRecordingImages)
+	assert.Equal(t, 2, queued())
+}
+
 // TestRecordingWatchFrame は、前回見た位置に合うプレビュー画像のコマを返すことを確かめる。
 func TestRecordingWatchFrame(t *testing.T) {
 	t.Parallel()
@@ -357,9 +429,11 @@ func TestRecordingWatchFrame(t *testing.T) {
 	got := watchFrame(t)
 	require.NotNil(t, got)
 	var rawID string
-	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT id::text FROM recordings WHERE name = $1`, episode1).Scan(&rawID))
+	var version int64
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT r.id::text, extract(epoch FROM f.ended_at)::bigint FROM recordings r
+		JOIN recording_files f ON f.recording_id = r.id AND f.kind = 'preview' WHERE r.name = $1`, episode1).Scan(&rawID, &version))
 	assert.Equal(t, &frame{
-		URL: "/media/recordings/" + rawID + "/preview.jpg", X: 160, Y: 0, Width: 160, Height: 90, SheetWidth: 480, SheetHeight: 90,
+		URL: "/media/recordings/" + rawID + "/preview.jpg?v=" + strconv.FormatInt(version, 10), X: 160, Y: 0, Width: 160, Height: 90, SheetWidth: 480, SheetHeight: 90,
 	}, got)
 
 	// 終わりの近くまで見ていたら、見終えたとみなして返さない。

@@ -26,6 +26,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/settings"
 	"github.com/SlashNephy/kotatsu/internal/stream"
+	"github.com/SlashNephy/kotatsu/internal/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/webhook"
 	"github.com/SlashNephy/kotatsu/internal/webpush"
 )
@@ -78,6 +79,8 @@ type Options struct {
 	SidecarDir string
 	// FreeSpace は、保存先プールの空き容量を調べる。nil なら、ファイルシステムに問い合わせる。
 	FreeSpace kago.FreeSpaceFunc
+	// Jobs は、ジョブを入れる River のクライアント。録画の画像を作り直すのに使う。nil なら、作り直せない。
+	Jobs thumbnail.Inserter
 	// TotalSpace は、保存先プールのファイルシステムの容量を調べる。nil なら、ファイルシステムに問い合わせる。
 	TotalSpace kago.TotalSpaceFunc
 	Clock      clock.Clock
@@ -148,6 +151,7 @@ func NewHandler(opts *Options) http.Handler {
 		changes:      o.Changes,
 		pools:        o.Pools,
 		freeSpace:    o.FreeSpace,
+		jobs:         o.Jobs,
 		totalSpace:   o.TotalSpace,
 		store:        kago.New(o.Pools, o.FreeSpace).WithSidecarDir(o.SidecarDir),
 		library:      library.New(o.Clock, o.Recorder, kago.New(o.Pools, o.FreeSpace).WithSidecarDir(o.SidecarDir), o.Logger),
