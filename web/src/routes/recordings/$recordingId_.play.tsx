@@ -4,7 +4,7 @@ import { Captions, Keyboard, MessageSquareText } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery } from 'react-relay';
+import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
 import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
@@ -121,50 +121,54 @@ function PlayPage() {
   );
 }
 
-function Player({ recordingId, start }: { recordingId: string; start: number | undefined }) {
-  const { t } = useTranslation();
-  const data = useLazyLoadQuery<RecordingIdPlayQuery>(
-    graphql`
-      query RecordingIdPlayQuery($id: ID!) {
-        node(id: $id) {
-          __typename
-          ... on Recording {
-            name
-            streamUrl
-            recordedFrom
-            recordedUntil
-            gaps {
-              from
-              to
-            }
-            jikkyoCommentsUrl
-            watchPositionMs
-            thumbnailUrl
-            audios {
-              componentType
-              languages
-            }
-            service {
-              name
-              logoUrl
-              jikkyo {
-                id
-                name
-              }
-            }
-          }
+// playQuery は、再生する録画。録画中は、録画を終えた時刻 (recordedUntil) を知るために読み直す。
+const playQuery = graphql`
+  query RecordingIdPlayQuery($id: ID!) {
+    node(id: $id) {
+      __typename
+      ... on Recording {
+        name
+        streamUrl
+        recordedFrom
+        recordedUntil
+        gaps {
+          from
+          to
         }
-        transcoding {
-          available
-          presets {
+        jikkyoCommentsUrl
+        watchPositionMs
+        thumbnailUrl
+        audios {
+          componentType
+          languages
+        }
+        service {
+          name
+          logoUrl
+          jikkyo {
+            id
             name
-            codec
           }
         }
       }
-    `,
-    { id: recordingId },
-  );
+    }
+    transcoding {
+      available
+      presets {
+        name
+        codec
+      }
+    }
+  }
+`;
+
+// recordingRefreshMs は、録画中の録画を追っかけ再生している間に、録画を読み直す間隔 (#671)。
+// 録画を終えた時刻が分かるまでは、録画の長さを今の時刻まで伸ばして扱うので、終えたら読み直して止める。
+const recordingRefreshMs = 30_000;
+
+function Player({ recordingId, start }: { recordingId: string; start: number | undefined }) {
+  const { t } = useTranslation();
+  const data = useLazyLoadQuery<RecordingIdPlayQuery>(playQuery, { id: recordingId });
   const videoRef = useRef<HTMLVideoElement | null>(null);
   // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で調べる。
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -196,6 +200,26 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     setJikkyoEnabled,
   } = usePlayerSettings();
   const recording = data.node?.__typename === 'Recording' ? data.node : null;
+  // 録画中なら、録画を終えるまで読み直し、終えた時刻を受け取ったら、録画の長さを伸ばすのをやめる (#671)。
+  const environment = useRelayEnvironment();
+  const stillRecording = recording !== null && recording.recordedUntil == null;
+  useEffect(() => {
+    if (!stillRecording) {
+      return;
+    }
+    const timer = setInterval(() => {
+      fetchQuery<RecordingIdPlayQuery>(
+        environment,
+        playQuery,
+        { id: recordingId },
+        { fetchPolicy: 'network-only' },
+      )
+        .toPromise()
+        .catch(() => {});
+    }, recordingRefreshMs);
+
+    return () => clearInterval(timer);
+  }, [environment, stillRecording, recordingId]);
   const duration =
     recording === null
       ? 0
@@ -279,6 +303,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     channel !== null && jikkyoEnabled && recording !== null ? recording.jikkyoCommentsUrl : null,
     currentPosition,
     visible,
+    // 録画中の録画を追っかけ再生している間は、リアルタイムのコメントも流す (#667)。
+    channel !== null && recording !== null && recording.recordedUntil == null
+      ? { channelId: channel.id, recordedFrom: recording.recordedFrom, gaps: recording.gaps }
+      : null,
   );
   // recordedRows は、コメントの一覧に出す、再生位置までに流れた過去ログ (#489)。再生位置は 1 秒に何度も変わるので、
   // 流れたコメントの数が変わったときだけ作り直し、時刻の文字は、コメントごとに一度だけ作る。
