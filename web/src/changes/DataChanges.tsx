@@ -37,9 +37,14 @@ export function DataChangesProvider({ children }: { children: ReactNode }) {
   return <DataChangesContext.Provider value={value}>{children}</DataChangesContext.Provider>;
 }
 
+// useDataChangeDispatch は、届いた変更を DataChangesProvider に渡す関数を返す。
+export function useDataChangeDispatch(): Context['dispatch'] {
+  return useContext(DataChangesContext).dispatch;
+}
+
 // DataChangesSubscriber は、dataChanged を購読し、届いた変更を DataChangesProvider に渡す。ログインしている間だけ置く。
 export function DataChangesSubscriber() {
-  const { dispatch } = useContext(DataChangesContext);
+  const dispatch = useDataChangeDispatch();
   const config = useMemo(
     () => ({
       subscription: graphql`
