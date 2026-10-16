@@ -43,10 +43,19 @@ function RootLayout() {
   const fluid = useMatches({
     select: (matches) => matches.some((match) => match.staticData.fluid),
   });
-  // アプリ名は、押すとホームを開く。
+  // アプリのアイコンと名前は、押すとホームを開く。アイコンは飾りなので、読み上げない。
   const brand = (
     <Title order={1} size="h3">
-      <Anchor component={Link} to="/" inherit c="inherit" underline="never" onClick={close}>
+      <Anchor
+        component={Link}
+        to="/"
+        inherit
+        c="inherit"
+        underline="never"
+        onClick={close}
+        className={classes.brand}
+      >
+        <img src="/icons/icon.svg" alt="" width={28} height={28} className={classes.brandIcon} />
         {t('app.name')}
       </Anchor>
     </Title>

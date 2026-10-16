@@ -27,3 +27,15 @@
 :root {
   --layout-width: 80rem;
 }
+
+/* アプリのアイコンと名前を、1 行に並べる。 */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brandIcon {
+  display: block;
+  border-radius: 6px;
+}
