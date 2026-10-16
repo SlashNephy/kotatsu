@@ -63,6 +63,8 @@ func (AnalyzeArgs) InsertOpts() river.InsertOpts {
 		// 録画ファイルを読み通すので、FFmpeg を動かすジョブと同じく、同時に 1 つだけ動かす。
 		Queue:       jobs.QueueMedia,
 		MaxAttempts: analyzeMaxAttempts,
+		// 解析するのは取り込んだ録画だけなので、新しく録った録画のジョブより後に回す。
+		Priority: jobs.PriorityImported,
 		// 同じ録画を解析するジョブは、待っている間に重ねて投入しない。
 		UniqueOpts: river.UniqueOpts{ByArgs: true},
 	}
@@ -276,7 +278,11 @@ func (w *AnalyzeWorker) record(ctx context.Context, recordingID uuid.UUID, resul
 				return fmt.Errorf("failed to record the audio components: %w", err)
 			}
 		}
-		params := []river.InsertManyParams{{Args: thumbnail.GenerateArgs{RecordingID: recordingID}, InsertOpts: nil}}
+		// 取り込んだ録画の画像なので、新しく録った録画の画像より後に回す。キューと一意性は、GenerateArgs に従う。
+		params := []river.InsertManyParams{{
+			Args:       thumbnail.GenerateArgs{RecordingID: recordingID},
+			InsertOpts: &river.InsertOpts{Priority: jobs.PriorityImported},
+		}}
 		if _, err := w.inserter.InsertManyTx(ctx, tx, params); err != nil {
 			return fmt.Errorf("failed to enqueue the thumbnail generation: %w", err)
 		}
