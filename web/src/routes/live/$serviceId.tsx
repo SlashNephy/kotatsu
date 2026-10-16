@@ -1,6 +1,6 @@
 import { Alert, Anchor, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Captions, MessageSquareText, Tv } from 'lucide-react';
+import { Captions, Keyboard, MessageSquareText, Tv } from 'lucide-react';
 import { startTransition, Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -42,6 +42,8 @@ import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useMediaSession } from '../../yunomi/useMediaSession';
+import type { ShortcutAction } from '../../yunomi/shortcuts';
+import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { CaptureButton, PipButton } from '../../yunomi/PlayerTools';
 import { useControlsVisibility } from '../../yunomi/useControlsVisibility';
@@ -195,7 +197,10 @@ function Live({
   const autoplay = useAutoplayBlocked(video);
   const videoLoading = useVideoLoading(video);
   const fullscreen = useFullscreen(playerBoxRef);
-  const controls = useControlsVisibility({ playing: !videoState.paused });
+  // shortcutsOpen は、キーボードショートカットの一覧を出しているかどうか。
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // ショートカットの一覧を見ている間は、操作バーとカーソルを隠さない。
+  const controls = useControlsVisibility({ playing: !videoState.paused && !shortcutsOpen });
   // 再生している間は、画面を消さない。
   useWakeLock(!videoState.paused);
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
@@ -295,7 +300,7 @@ function Live({
   const programName = program?.name ?? null;
   const serviceName = data.node?.__typename === 'Service' ? data.node.name : '';
   const serviceLogoUrl = data.node?.__typename === 'Service' ? (data.node.logoUrl ?? null) : null;
-  usePlayerShortcuts({
+  const shortcuts = {
     togglePlay: () => {
       const video = videoRef.current;
       if (video?.paused === true) {
@@ -307,7 +312,9 @@ function Live({
     toggleCaptions: () => setCaptions(!captions),
     toggleMute: videoState.toggleMute,
     toggleFullscreen: fullscreen.toggle,
-  });
+    showShortcuts: () => setShortcutsOpen(true),
+  } satisfies Partial<Record<ShortcutAction, () => void>>;
+  usePlayerShortcuts(shortcuts);
   useDocumentTitle([programName, serviceName]);
   useMediaSession(
     { title: programName ?? serviceName, artist: serviceName, artwork: serviceLogoUrl },
@@ -384,6 +391,18 @@ function Live({
             serviceName={service.name}
             programName={programName}
             captureTime={Date.now}
+          />
+          <ControlButton
+            label={t('player.shortcuts.title')}
+            icon={Keyboard}
+            optional
+            onClick={() => setShortcutsOpen(true)}
+          />
+          <ShortcutsHelp
+            opened={shortcutsOpen}
+            onClose={() => setShortcutsOpen(false)}
+            actions={Object.keys(shortcuts) as ShortcutAction[]}
+            target={playerBoxRef}
           />
           <PipButton pip={pip} />
           <FullscreenButton active={fullscreen.active} onToggle={fullscreen.toggle} />

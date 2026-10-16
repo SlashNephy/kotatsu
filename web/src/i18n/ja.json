@@ -755,6 +755,16 @@
     "play": "再生"
   },
   "player": {
+    "shortcuts": {
+      "title": "キーボードショートカット",
+      "togglePlay": "再生と一時停止",
+      "seekBackward": "10 秒戻る",
+      "seekForward": "10 秒進む",
+      "toggleCaptions": "字幕の表示を切り替える",
+      "toggleMute": "ミュートを切り替える",
+      "toggleFullscreen": "全画面を切り替える",
+      "showShortcuts": "この一覧を出す"
+    },
     "backToRecording": "録画の詳細に戻る",
     "loading": "映像を読み込んでいます",
     "error": "再生できませんでした。時間をおいてやり直してください",
