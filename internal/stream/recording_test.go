@@ -123,6 +123,7 @@ func (f *recordingFixture) segment(t *testing.T, recordingID uuid.UUID, name str
 type fetched struct {
 	status      int
 	contentType string
+	disposition string
 	body        []byte
 }
 
@@ -138,7 +139,7 @@ func (f *recordingFixture) get(t *testing.T, recordingID uuid.UUID, query string
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	return &fetched{status: resp.StatusCode, contentType: resp.Header.Get("Content-Type"), body: body}
+	return &fetched{status: resp.StatusCode, contentType: resp.Header.Get("Content-Type"), disposition: resp.Header.Get("Content-Disposition"), body: body}
 }
 
 // iframes は、TS を解析し、I フレームの PTS を順に返す。
@@ -231,7 +232,7 @@ func (f *recordingFixture) getRange(t *testing.T, recordingID uuid.UUID, rangeHe
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	return &fetched{status: resp.StatusCode, contentType: resp.Header.Get("Content-Type"), body: body}, resp.Header
+	return &fetched{status: resp.StatusCode, contentType: resp.Header.Get("Content-Type"), disposition: resp.Header.Get("Content-Disposition"), body: body}, resp.Header
 }
 
 // TestRecordingHandlerServesRanges は、録画を終えた録画に、長さを返し、Range に 206 で答えることを確かめる (#535)。
@@ -273,6 +274,47 @@ func TestRecordingHandlerServesRanges(t *testing.T) {
 			require.Equal(t, http.StatusPartialContent, got.status)
 			assert.Equal(t, fmt.Sprintf("bytes %d-%d/%d", tt.from, tt.to-1, len(whole.body)), header.Get("Content-Range"))
 			assert.Equal(t, whole.body[tt.from:tt.to], got.body)
+		})
+	}
+}
+
+// TestRecordingHandlerDownloads は、download を付けたら、録画を終えた録画を、録画ファイルの名前で保存させることを確かめる (#474)。
+// 録画中の録画は、長さが決まらないので、保存させない。
+func TestRecordingHandlerDownloads(t *testing.T) {
+	t.Parallel()
+
+	data := loadTestTS(t)
+	f := newRecordingFixture(t, nil)
+	finished := f.recording(t, "completed")
+	f.segment(t, finished, "こたつ特集.m2ts", data, 0, false)
+	recording := f.recording(t, "recording")
+	f.segment(t, recording, "録画中.m2ts", data, 0, true)
+
+	tests := []struct {
+		name            string
+		recordingID     uuid.UUID
+		query           string
+		wantStatus      int
+		wantDisposition string
+	}{
+		{
+			name: "録画を終えた録画を、録画ファイルの名前で保存させる", recordingID: finished, query: "?download=1",
+			wantStatus: http.StatusOK, wantDisposition: "attachment; filename*=utf-8''%E3%81%93%E3%81%9F%E3%81%A4%E7%89%B9%E9%9B%86.m2ts",
+		},
+		{name: "録画中の録画は保存させない", recordingID: recording, query: "?download=1", wantStatus: http.StatusConflict},
+		{name: "開始位置とは併せられない", recordingID: finished, query: "?download=1&start=10", wantStatus: http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := f.get(t, tt.recordingID, tt.query)
+			assert.Equal(t, tt.wantStatus, got.status)
+			if tt.wantStatus != http.StatusOK {
+				return
+			}
+			assert.Equal(t, data, got.body)
+			assert.Equal(t, tt.wantDisposition, got.disposition)
 		})
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"math"
+	"mime"
 	"net/http"
 	"strconv"
 	"time"
@@ -14,7 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/kago"
 )
 
-// RecordingHandler は、録画を配信する (GET /streams/recordings/{id}?start=秒)。
+// RecordingHandler は、録画を配信する (GET /streams/recordings/{id}?start=秒)。download を付けると、録画ファイルの名前で保存させる。
 // 録画を終えた録画を start なしで要求されたら、長さを返し、HTTP の Range に答える。外部プレイヤーは Range でシークする。
 //
 // 索引を使って、録画の始まりから start 秒の位置を GOP の先頭のバイト位置に変換し、そこからセグメントを連結して流す。
@@ -61,7 +62,22 @@ func (h *RecordingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// download を付けたら、録画ファイルの名前で保存させる (#474)。録画中の録画は、長さが決まらないので保存させない。
+	download := r.URL.Query().Has("download")
+	if download && r.URL.Query().Has("start") {
+		http.Error(w, "start cannot be combined with download; the whole recording is downloaded", http.StatusBadRequest)
+
+		return
+	}
+	if download && recording.InProgress {
+		http.Error(w, "the recording is still in progress; download it after it finishes", http.StatusConflict)
+
+		return
+	}
 	if !recording.InProgress && r.URL.Query().Get("start") == "" {
+		if download {
+			w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": recording.FileName()}))
+		}
 		h.serveContent(w, r, recording)
 
 		return

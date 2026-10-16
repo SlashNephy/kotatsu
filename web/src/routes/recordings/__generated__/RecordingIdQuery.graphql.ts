@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<910457ad134a2486525429ca621dbf23>>
+ * @generated SignedSource<<632b495afdad3faee1161e7f04703fe8>>
  * @lightSyntaxTransform
  */
 
@@ -49,6 +49,7 @@ export type RecordingIdQuery$data = {
     };
     readonly startAt: string;
     readonly state: RecordingState;
+    readonly streamUrl: string;
     readonly tags: ReadonlyArray<{
       readonly id: string;
       readonly name: string;
@@ -241,24 +242,31 @@ v21 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedFrom",
+  "name": "streamUrl",
   "storageKey": null
 },
 v22 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedUntil",
+  "name": "recordedFrom",
   "storageKey": null
 },
 v23 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "logoUrl",
+  "name": "recordedUntil",
   "storageKey": null
 },
 v24 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v25 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -271,7 +279,7 @@ v24 = {
   ],
   "storageKey": null
 },
-v25 = {
+v26 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingFile",
@@ -372,6 +380,7 @@ return {
               (v20/*:: as any*/),
               (v21/*:: as any*/),
               (v22/*:: as any*/),
+              (v23/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -381,12 +390,12 @@ return {
                 "plural": false,
                 "selections": [
                   (v2/*:: as any*/),
-                  (v23/*:: as any*/)
+                  (v24/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v24/*:: as any*/),
-              (v25/*:: as any*/)
+              (v25/*:: as any*/),
+              (v26/*:: as any*/)
             ],
             "type": "Recording",
             "abstractKey": null
@@ -461,6 +470,7 @@ return {
               (v20/*:: as any*/),
               (v21/*:: as any*/),
               (v22/*:: as any*/),
+              (v23/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -470,13 +480,13 @@ return {
                 "plural": false,
                 "selections": [
                   (v2/*:: as any*/),
-                  (v23/*:: as any*/),
+                  (v24/*:: as any*/),
                   (v5/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v24/*:: as any*/),
-              (v25/*:: as any*/)
+              (v25/*:: as any*/),
+              (v26/*:: as any*/)
             ],
             "type": "Recording",
             "abstractKey": null
@@ -487,16 +497,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "57a3028b1feddb4ca8e0855d6dc78c78",
+    "cacheID": "298b5d2c80d7882fc7d5786ccc9ba1da",
     "id": null,
     "metadata": {},
     "name": "RecordingIdQuery",
     "operationKind": "query",
-    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      protected\n      drops\n      errors\n      scrambled\n      gaps {\n        from\n        to\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      thumbnailUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      protected\n      drops\n      errors\n      scrambled\n      gaps {\n        from\n        to\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      thumbnailUrl\n      streamUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "cd00ad1aec4858a63f0c58e4c935ba56";
+(node as any).hash = "24bf2a296abd295d0762444c6fe72212";
 
 export default node;

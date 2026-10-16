@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"slices"
 	"time"
 
@@ -63,6 +64,11 @@ type Recording struct {
 	// InProgress は、開いた時点で録画中だったかどうか。
 	InProgress bool
 	segments   []*segment
+}
+
+// FileName は、保存させるときのファイル名。最初のセグメントのファイルの名前にする。
+func (r *Recording) FileName() string {
+	return path.Base(r.segments[0].path)
 }
 
 // Position は、録画を流し始める位置。
