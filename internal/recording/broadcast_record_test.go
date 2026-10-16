@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -145,23 +146,36 @@ func TestRecorderExtendsWhileOnAir(t *testing.T) {
 	<-done
 }
 
+// errStreamOffline は、steppedStream がつながらない間に、開こうとしたときのエラー。
+var errStreamOffline = errors.New("the stream is offline")
+
 // steppedStream は、chunks を 1 つずつ、next で送るたびに書くストリーム。録画の途中で EIT[p/f] を変えるときに使う。
+// cut でストリームを切り、online で開けるようにするまで、開き直せなくする。
 type steppedStream struct {
 	chunks  chan []byte
 	written chan struct{}
+	cuts    chan struct{}
+	offline atomic.Bool
 }
 
 func newSteppedStream() *steppedStream {
-	return &steppedStream{chunks: make(chan []byte), written: make(chan struct{})}
+	return &steppedStream{chunks: make(chan []byte), written: make(chan struct{}), cuts: make(chan struct{}), offline: atomic.Bool{}}
 }
 
 func (s *steppedStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
+	if s.offline.Load() {
+		return nil, errStreamOffline
+	}
 	reader, writer := io.Pipe()
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				_ = writer.CloseWithError(ctx.Err())
+
+				return
+			case <-s.cuts:
+				_ = writer.Close()
 
 				return
 			case chunk := <-s.chunks:
@@ -193,7 +207,138 @@ func (s *steppedStream) next(t *testing.T, chunk []byte) {
 	}
 }
 
+// cut は、今のストリームを切り、online を呼ぶまで開き直せなくする。
+func (s *steppedStream) cut(t *testing.T) {
+	t.Helper()
+
+	s.offline.Store(true)
+	select {
+	case s.cuts <- struct{}{}:
+	case <-time.After(waitTimeout):
+		require.FailNow(t, "the recorder did not open the stream")
+	}
+}
+
+// online は、ストリームを開き直せるようにする。
+func (s *steppedStream) online() {
+	s.offline.Store(false)
+}
+
 var _ recording.StreamOpener = new(steppedStream)
+
+// nullPacket は、中身のない TS のパケット (PID 0x1FFF) を返す。
+func nullPacket() []byte {
+	packet := make([]byte, 188)
+	for i := range packet {
+		packet[i] = 0xFF
+	}
+	packet[0], packet[1], packet[2], packet[3] = 0x47, 0x1F, 0xFF, 0x10
+
+	return packet
+}
+
+// TestRecorderFollowsBroadcastAcrossReconnect は、ストリームが切れている間に放送中の番組が変わっても、つなぎ直した後の
+// EIT[p/f] で正しく判断することを確かめる (#638)。つなぎ直すと解析器は作り直すが、放送の状態は引き継ぐ。
+func TestRecorderFollowsBroadcastAcrossReconnect(t *testing.T) {
+	t.Parallel()
+
+	programEnd := programStart().Add(30 * time.Minute)
+	tests := []struct {
+		name string
+		// afterReconnect は、つなぎ直した後に流す EIT[p/f] の放送中と次の番組。nil なら、EIT[p/f] を流さない。
+		afterReconnect *[2]uint16
+		wantEnded      bool
+	}{
+		{name: "切断中に予約した番組が終わり、つなぎ直した後に次の番組が放送中なら、後ろのマージンを録って止める", afterReconnect: &[2]uint16{7, 8}, wantEnded: true},
+		{name: "切断中に延長が始まり、つなぎ直した後も予約した番組が放送中なら、録り続ける", afterReconnect: &[2]uint16{6, 7}, wantEnded: false},
+		{name: "つなぎ直した直後で、EIT[p/f] をまだ読んでいなければ、終わったとはしない", afterReconnect: nil, wantEnded: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			stream := newSteppedStream()
+			recorder, _ := f.newRecorder(t, stream, nil)
+			stop, done := f.session(t, recorder, reservationID)
+			broadcast := func() (*time.Time, *time.Time) {
+				var started, ended *time.Time
+				err := f.pool.QueryRow(t.Context(), "SELECT broadcast_started_at, broadcast_ended_at FROM recordings WHERE reservation_id = $1",
+					reservationID).Scan(&started, &ended)
+				if err != nil {
+					return nil, nil
+				}
+
+				return started, ended
+			}
+
+			cc := byte(0)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 6, 7))
+			require.Eventually(t, func() bool {
+				started, _ := broadcast()
+
+				return started != nil
+			}, waitTimeout, 10*time.Millisecond)
+
+			// 予定の終わりの前に切れ、終わりを過ぎるまでつながらない。最後に読んだ EIT[p/f] では予約した番組が放送中なので、止めずに延ばす。
+			stream.cut(t)
+			require.Eventually(t, func() bool {
+				for _, file := range f.files(t, reservationID) {
+					if !file.closed {
+						return false
+					}
+				}
+
+				return true
+			}, waitTimeout, 10*time.Millisecond)
+			f.clock.Advance(programEnd.Add(3 * time.Minute).Sub(f.clock.Now()))
+			select {
+			case err := <-done:
+				require.FailNow(t, "the recording stopped while the stream was cut", "%v", err)
+			case <-time.After(200 * time.Millisecond):
+			}
+
+			stream.online()
+			reconnectedAt := f.clock.Now()
+			if tt.afterReconnect != nil {
+				stream.next(t, eitPFPacketsFrom(&cc, 0x0400, tt.afterReconnect[0], tt.afterReconnect[1]))
+			} else {
+				stream.next(t, nullPacket())
+			}
+			require.Equal(t, 2, f.segments(t, reservationID))
+
+			if tt.wantEnded {
+				require.Eventually(t, func() bool {
+					_, ended := broadcast()
+
+					return ended != nil
+				}, waitTimeout, 10*time.Millisecond)
+				_, ended := broadcast()
+				assert.True(t, ended.Equal(reconnectedAt), "the broadcast ended at %v", ended)
+				f.clock.Advance(reserve.DefaultMarginSeconds * time.Second)
+				require.NoError(t, wait(t, done))
+				got, _ := f.recording(t, reservationID)
+				assert.Equal(t, string(recording.StatePartial), got.state, "the cut is recorded as a gap")
+
+				return
+			}
+
+			select {
+			case err := <-done:
+				require.FailNow(t, "the recording stopped after reconnecting", "%v", err)
+			case <-time.After(200 * time.Millisecond):
+			}
+			_, ended := broadcast()
+			assert.Nil(t, ended)
+			got, _ := f.recording(t, reservationID)
+			assert.Equal(t, string(recording.StateRecording), got.state)
+			stop(errStopForTest)
+			<-done
+		})
+	}
+}
 
 // TestRecorderStopsWhenLeftAirWhileEndIsUndecided は、EPG で終了時刻が未定のままでも、EIT[p/f] の放送中が次の番組に
 // 切り替わったら、延長せずに後ろのマージンを録って止めることを確かめる。2026-10-16 の緊急地震速報で、放送局が放送中の番組の
