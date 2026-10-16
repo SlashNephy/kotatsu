@@ -62,7 +62,7 @@
   min-width: 0;
 }
 
-/* データ放送の層。文書は決まった大きさで描かれるので、層の幅に合わせて拡大する。リモコンの操作を受けるので、操作を通す。 */
+/* データ放送の層。文書は決まった大きさで描かれるので、縦横の比を保って層に収まるよう拡大し、中央に寄せる。リモコンの操作を受けるので、操作を通す。 */
 .dataBroadcast {
   position: absolute;
   inset: 0;
@@ -73,6 +73,7 @@
 .dataBroadcast > div {
   width: var(--data-broadcast-width);
   height: var(--data-broadcast-height);
-  transform: scale(var(--data-broadcast-scale));
+  transform: translate(var(--data-broadcast-x), var(--data-broadcast-y))
+    scale(var(--data-broadcast-scale));
   transform-origin: 0 0;
 }
