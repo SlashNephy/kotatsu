@@ -19,7 +19,7 @@ Kotatsuは、独自のバックアップ機能を持ちません。
 録画のファイルと一緒にコピーしてください。
 
 アプリの秘密キーをなくすと、DBを戻しても、暗号化して保存した値を読めません。
-その場合は、全員のTOTPとWeb Pushの設定し直しが必要です。
+その場合は、全員のTOTPとWeb Pushの設定し直しと、Webhookの作り直しが必要です。
 
 DBを戻すときは、プール上のファイルも同じ時点のものに戻すと、録画の一覧とファイルが食い違いません。
 
@@ -38,7 +38,8 @@ docker compose up -d
 Helm Chartでは、`helm upgrade`の前に、フックのJobがスキーマを更新します。
 
 ```bash
-helm upgrade kotatsu oci://ghcr.io/slashnephy/charts/kotatsu --version <バージョン> -f values.yaml
+helm repo update
+helm upgrade kotatsu kotatsu/kotatsu --version <バージョン> -f values.yaml
 ```
 
 マイグレーションは、更新の間に新旧のバイナリが同時に動いても壊れない作りです。

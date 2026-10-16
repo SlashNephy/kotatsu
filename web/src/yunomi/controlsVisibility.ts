@@ -15,3 +15,18 @@ export function shouldForceControlsVisible({
 }): boolean {
   return !playing || focusWithin;
 }
+
+// shouldHoldControls は、操作がなくなって隠す時間になっても、操作バーを出したままにするかどうか。
+// マウスが操作バーの上にある間、操作バーの中を押したまま動かしている間 (シークバーを掴んでいる間)、
+// 設定や選択肢を開いている間は、使っている最中なので隠さない。
+export function shouldHoldControls({
+  pointerOverControls,
+  pressingControls,
+  menuOpened,
+}: {
+  pointerOverControls: boolean;
+  pressingControls: boolean;
+  menuOpened: boolean;
+}): boolean {
+  return pointerOverControls || pressingControls || menuOpened;
+}

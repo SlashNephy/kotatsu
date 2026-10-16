@@ -46,7 +46,8 @@ type Querier interface {
 	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUnusedRecoveryCodes(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
-	DeleteAuditEventsBefore(ctx context.Context, before time.Time) (int64, error)
+	// before より前の記録を、古い順に max_count 件まで消す。1 回のトランザクションで大量の行を消さないよう、件数を区切る。
+	DeleteAuditEventsBefore(ctx context.Context, arg DeleteAuditEventsBeforeParams) (int64, error)
 	DeleteExpiredLoginChallenges(ctx context.Context, now time.Time) (int64, error)
 	DeleteExpiredOIDCLogins(ctx context.Context, now time.Time) (int64, error)
 	DeleteExpiredWebAuthnCeremonies(ctx context.Context, now time.Time) (int64, error)
@@ -73,6 +74,8 @@ type Querier interface {
 	// 予約を無効にしたか、割り当てを計算し直す前の状態に戻ったか、予定の開始が due_before より後に動いたか、
 	// mikan が取らないまま予定の終わりが過ぎたもの。
 	DeleteStaleRecordingAssignments(ctx context.Context, arg DeleteStaleRecordingAssignmentsParams) (int64, error)
+	// 使えなくなったセッション (失効させた、絶対的な期限を過ぎた、無操作の期限を過ぎた) を、max_count 件まで消す。
+	DeleteStaleSessions(ctx context.Context, arg DeleteStaleSessionsParams) (int64, error)
 	DeleteTOTPEnrollment(ctx context.Context, userID uuid.UUID) error
 	DeleteTuners(ctx context.Context) error
 	// 録画の行を作らずに終えた割り振り (録画を始める前に予約を無効にした、など) を消す。世代番号が進んでいたら、何もしない。

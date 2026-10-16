@@ -31,3 +31,11 @@ UPDATE sessions SET authenticated_at = @now WHERE id = @id AND user_id = @user_i
 -- ユーザーのセッションをまとめて失効させる。keep_id のセッション (パスワードを変えた本人の今のセッション) は残す。
 UPDATE sessions SET revoked_at = @now::timestamptz
 WHERE user_id = @user_id AND revoked_at IS NULL AND (sqlc.narg(keep_id)::uuid IS NULL OR id <> sqlc.narg(keep_id)::uuid);
+
+-- name: DeleteStaleSessions :execrows
+-- 使えなくなったセッション (失効させた、絶対的な期限を過ぎた、無操作の期限を過ぎた) を、max_count 件まで消す。
+DELETE FROM sessions WHERE id IN (
+  SELECT s.id FROM sessions s
+  WHERE s.revoked_at IS NOT NULL OR s.expires_at <= @now OR s.last_seen_at <= @idle_since
+  LIMIT @max_count
+);

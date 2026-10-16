@@ -639,6 +639,10 @@ spec:
                 secretKeyRef:
                   name: kotatsu-db-app
                   key: uri
+            - name: KOTATSU_KYUSU_ENCODER
+              value: "vaapi"
+            - name: KOTATSU_TUNER_URL
+              value: "http://mirakurun:40772/"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
