@@ -18,24 +18,23 @@ import (
 // kindOther は、EPGStation から取り込んだ、TS 以外のファイルの種類 (設計書 6.3)。
 const kindOther = "other"
 
-// contentTypeOf は、拡張子 ext のファイルの種類を返す。分からなければ application/octet-stream にする。
-// 取り込むことの多い動画は、自分で持つ。コンテナイメージには、拡張子から種類を引く mime.types がないからである。
-func contentTypeOf(ext string) string {
+// videoContentTypeOf は、拡張子 ext の動画の種類を返す。動画でなければ false を返す。
+// 動画だけを、その種類で返してブラウザで再生させる。HTML や SVG などをそのまま返すと、
+// Kotatsu と同じオリジンで表示され、中のスクリプトが動きうるので、動画以外はダウンロードさせる。
+// 拡張子から種類を引く mime.types はコンテナイメージにないので、種類は自分で持つ。
+func videoContentTypeOf(ext string) (string, bool) {
 	switch strings.ToLower(ext) {
 	case ".mp4", ".m4v":
-		return "video/mp4"
+		return "video/mp4", true
 	case ".webm":
-		return "video/webm"
+		return "video/webm", true
 	case ".mkv":
-		return "video/x-matroska"
+		return "video/x-matroska", true
 	case ".ts", ".m2ts":
-		return "video/mp2t"
-	}
-	if t := mime.TypeByExtension(ext); t != "" {
-		return t
+		return "video/mp2t", true
 	}
 
-	return "application/octet-stream"
+	return "", false
 }
 
 // OtherFileURL は、録画のその他のファイルを流す URL のパスを返す。
@@ -113,8 +112,15 @@ func (h *OtherFileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", contentTypeOf(path.Ext(file.Path)))
+	if contentType, ok := videoContentTypeOf(path.Ext(file.Path)); ok {
+		w.Header().Set("Content-Type", contentType)
+	} else {
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": path.Base(file.Path)}))
+	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	// 直に開かれても、スクリプトを動かさず、Kotatsu のオリジンとして扱わせない。
+	w.Header().Set("Content-Security-Policy", "sandbox")
 	// ServeContent は、Range に答えるので、シークできる。
 	http.ServeContent(w, r, "", info.ModTime(), f)
 }

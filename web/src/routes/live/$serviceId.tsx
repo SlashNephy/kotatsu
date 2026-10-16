@@ -12,6 +12,7 @@ import {
   ProgramTitle,
   splitProgramMarks,
   toHalfWidth,
+  useDocumentTitle,
 } from '../../futon';
 import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
@@ -301,6 +302,7 @@ function Live({
     toggleMute: videoState.toggleMute,
     toggleFullscreen: fullscreen.toggle,
   });
+  useDocumentTitle([programName, serviceName]);
   useMediaSession(
     { title: programName ?? serviceName, artist: serviceName, artwork: serviceLogoUrl },
     {

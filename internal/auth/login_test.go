@@ -187,10 +187,13 @@ func TestPasswordLoginThrottles(t *testing.T) {
 		64 * time.Second, 128 * time.Second, 256 * time.Second, 512 * time.Second, 15 * time.Minute, 15 * time.Minute,
 	}, waits)
 
-	// 待ち時間が過ぎれば、正しいパスワードでログインでき、アカウントの失敗の回数は消える。
+	// 待ち時間が過ぎれば、正しいパスワードで第二要素の確認に進める。
+	// アカウントの失敗の回数は、第二要素まで確かめ終えるまで消さないので、次の失敗でまた待たせる。
 	_, _, err := f.logins.Password(t.Context(), f.db, loginName, loginPhrase, f.client)
 	require.NoError(t, err)
 	require.ErrorIs(t, wrong(), auth.ErrInvalidCredentials)
+	_, throttled := errors.AsType[*auth.ThrottledError](wrong())
+	assert.True(t, throttled, "the account failures should not be reset by the password alone")
 }
 
 // TestPasswordLoginThrottlesByIP は、ユーザー名を変えながら試しても、IP 単位で待たせることを確かめる。

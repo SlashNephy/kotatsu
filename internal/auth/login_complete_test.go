@@ -3,6 +3,7 @@ package auth_test
 import (
 	"encoding/base32"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -95,6 +96,40 @@ func TestLoginWithTOTP(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, result.RecoveryCodes)
 	assert.Equal(t, 2, f.count(t, "SELECT count(*) FROM sessions WHERE user_id = $1", f.user.ID))
+}
+
+// TestSecondFactorFailuresThrottle は、パスワードの確認からやり直しても、第二要素の失敗を数え続け、
+// 続けば待たせることを確かめる。パスワードを知っている人に、第二要素のコードを総当たりさせない。
+func TestSecondFactorFailuresThrottle(t *testing.T) {
+	t.Parallel()
+
+	f := newLoginFixture(t)
+	secret, _ := f.enrollAtLogin(t)
+	f.clock.Advance(totp.Period)
+
+	// 5 回までは待たせない。待っているログインは 5 回の失敗で消えるので、パスワードの確認からやり直す。
+	token := f.passwordStep(t)
+	for range 5 {
+		_, err := f.logins.CompleteWithTOTP(t.Context(), f.db, token, "000000", f.client)
+		require.ErrorIs(t, err, auth.ErrInvalidSecondFactor)
+	}
+	token = f.passwordStep(t)
+	_, err := f.logins.CompleteWithTOTP(t.Context(), f.db, token, "000000", f.client)
+	require.ErrorIs(t, err, auth.ErrInvalidSecondFactor)
+
+	// 6 回目の失敗で待たせる。待っている間は、第二要素もパスワードも試させない。
+	_, err = f.logins.CompleteWithTOTP(t.Context(), f.db, token, f.totpCode(t, secret), f.client)
+	throttled, ok := errors.AsType[*auth.ThrottledError](err)
+	require.True(t, ok, "got %v", err)
+	assert.Equal(t, time.Second, throttled.RetryAfter)
+	_, _, err = f.logins.Password(t.Context(), f.db, loginName, loginPhrase, f.client)
+	require.ErrorIs(t, err, auth.ErrThrottled)
+
+	// 待ち時間が過ぎれば、第二要素まで確かめてログインでき、アカウントの失敗の回数は消える。
+	f.clock.Advance(throttled.RetryAfter)
+	_, err = f.logins.CompleteWithTOTP(t.Context(), f.db, token, f.totpCode(t, secret), f.client)
+	require.NoError(t, err)
+	assert.Zero(t, f.count(t, "SELECT count(*) FROM login_throttles WHERE key LIKE 'account:%' AND failures > 0"))
 }
 
 func TestLoginWithRecoveryCode(t *testing.T) {
@@ -207,6 +242,17 @@ func TestLoginHandlers(t *testing.T) {
 	assert.Equal(t, "second_factor", login.Next)
 	require.Equal(t, http.StatusOK, post("/auth/login/totp", `{"code":"`+f.totpCode(t, secret)+`"}`, &completed))
 	assert.Empty(t, completed.RecoveryCodes)
+
+	// 第二要素の失敗が続いて待たせている間は、429 を返す。
+	f.clock.Advance(totp.Period)
+	for range 2 {
+		require.Equal(t, http.StatusOK, post("/auth/login", `{"username":"Kotatsu","password":"`+loginPhrase+`"}`, &login))
+		for range 3 {
+			require.Equal(t, http.StatusUnauthorized, post("/auth/login/totp", `{"code":"000000"}`, nil))
+		}
+	}
+	require.Equal(t, http.StatusTooManyRequests, post("/auth/login/totp", `{"code":"000000"}`, &failed))
+	assert.Equal(t, "TOO_MANY_ATTEMPTS", failed.Error.Code)
 }
 
 func mustParseURL(t *testing.T, raw string) *url.URL {
