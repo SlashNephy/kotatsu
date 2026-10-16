@@ -43,9 +43,6 @@ type Deps struct {
 	JobWorkers *river.Workers
 }
 
-// defaultTimeZone は、表示のタイムゾーンの既定値 (設計書 8.1)。
-const defaultTimeZone = "Asia/Tokyo"
-
 // tenbanRoleName は、API を受け持つロールの名前。
 const tenbanRoleName = "tenban"
 
@@ -123,10 +120,10 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 		}
 	}
 
-	// 表示のタイムゾーンは設定で決める (設計書 8.1) が、設定の項目はまだないので、既定の Asia/Tokyo を使う。
-	location, err := time.LoadLocation(defaultTimeZone)
+	// 表示のタイムゾーンは設定で決める (設計書 8.1)。
+	location, err := deps.Config.Location()
 	if err != nil {
-		return fmt.Errorf("failed to load the time zone %s: %w", defaultTimeZone, err)
+		return err
 	}
 
 	// EPG の同期の遅れは、最後に全量を突き合わせた時刻から求める (設計書 11.3)。リーダーになるまでは 0 で、リーダーでなくなった後は最後の値を残す。
@@ -257,10 +254,10 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	if err != nil {
 		return err
 	}
-	// 表示のタイムゾーンは設定で決める (設計書 8.1) が、設定の項目はまだないので、既定の Asia/Tokyo を使う。
-	location, err := time.LoadLocation(defaultTimeZone)
+	// 表示のタイムゾーンは設定で決める (設計書 8.1)。
+	location, err := deps.Config.Location()
 	if err != nil {
-		return fmt.Errorf("failed to load the time zone %s: %w", defaultTimeZone, err)
+		return err
 	}
 	// 録画設定の全体の既定値は、画面から変えられる (設計書 11.2) ので、録画のたびに引く。
 	defaults := func(ctx context.Context, db sqlc.DBTX) (*reserve.Settings, error) {

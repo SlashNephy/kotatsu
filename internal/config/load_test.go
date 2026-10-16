@@ -159,6 +159,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				"KOTATSU_TELEMETRY_OTLP_ENDPOINT": "http://collector:4318",
 			},
 			want: &config.Config{
+				TimeZone:  config.DefaultTimeZone,
 				Server:    config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:   config.Metrics{Listen: defaultMetricsListen},
 				Database:  config.Database{URL: envURL, Pooler: false},
@@ -350,7 +351,10 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			tt.want.Kyusu = config.Kyusu{Encoder: config.EncoderX264, VAAPIDevice: defaultVAAPIDevice, WorkDir: ""}
 			// jikkyo の設定は TestLoadJikkyo で確かめる。
 			tt.want.Jikkyo = config.Jikkyo{Channels: map[string]string{}}
-			assert.Equal(t, tt.want, cfg)
+			// タイムゾーンは、この表では変えないので、既定値になる。読み込みは TestLoadTimeZone で確かめる。
+			want := *tt.want
+			want.TimeZone = config.DefaultTimeZone
+			assert.Equal(t, &want, cfg)
 		})
 	}
 }
@@ -447,6 +451,51 @@ func TestLoadKyusu(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, cfg.Kyusu)
+		})
+	}
+}
+
+func TestLoadTimeZone(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		yaml    string
+		env     map[string]string
+		want    string
+		wantErr string
+	}{
+		{name: "default time zone", env: map[string]string{envKeyURL: envURL}, want: "Asia/Tokyo"},
+		{name: "time zone in yaml", yaml: "time_zone: Europe/London\n", env: map[string]string{envKeyURL: envURL}, want: "Europe/London"},
+		{name: "time zone in env", env: map[string]string{envKeyURL: envURL, "KOTATSU_TIME_ZONE": "America/New_York"}, want: "America/New_York"},
+		{
+			name: "unknown", env: map[string]string{envKeyURL: envURL, "KOTATSU_TIME_ZONE": "Asia/Edo"},
+			wantErr: "time_zone (KOTATSU_TIME_ZONE): must be an IANA time zone name such as Asia/Tokyo",
+		},
+		{
+			// time.LoadLocation は空を UTC とみなすが、書き忘れと見分けられないので誤りにする。
+			name: "empty", yaml: "time_zone: \"\"\n", env: map[string]string{envKeyURL: envURL},
+			wantErr: "time_zone (KOTATSU_TIME_ZONE): must be an IANA time zone name such as Asia/Tokyo",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := ""
+			if tt.yaml != "" {
+				path = writeFile(t, t.TempDir(), "config.yaml", tt.yaml)
+			}
+			cfg, err := config.Load(path, lookup(tt.env))
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+
+				return
+			}
+			require.NoError(t, err)
+			location, err := cfg.Location()
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, location.String())
 		})
 	}
 }
