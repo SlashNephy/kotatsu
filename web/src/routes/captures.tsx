@@ -141,7 +141,9 @@ function CaptureCard({ entry, onDelete }: { entry: CaptureEntry; onDelete: () =>
           <Button size="compact-sm" variant="default" onClick={() => void copy()}>
             {t('captures.copy')}
           </Button>
-          {entry.recordingId !== null && <RecordingLink recordingId={entry.recordingId} />}
+          {entry.recordingId !== null && (
+            <RecordingLink recordingId={entry.recordingId} position={entry.position ?? null} />
+          )}
           <Button size="compact-sm" variant="subtle" color="red" onClick={onDelete}>
             {t('captures.delete')}
           </Button>
@@ -156,18 +158,33 @@ function CaptureCard({ entry, onDelete }: { entry: CaptureEntry; onDelete: () =>
   );
 }
 
-// RecordingLink は、キャプチャを撮った録画の詳細へのリンク。
-function RecordingLink({ recordingId }: { recordingId: string }) {
+// RecordingLink は、キャプチャを撮った録画へのリンク。撮った位置が分かれば、その場面から再生する。分からなければ、録画の詳細を開く。
+function RecordingLink({
+  recordingId,
+  position,
+}: {
+  recordingId: string;
+  position: number | null;
+}) {
   const { t } = useTranslation();
 
   return (
     <Anchor
       size="sm"
-      renderRoot={(props) => (
-        <Link {...props} to="/recordings/$recordingId" params={{ recordingId }} />
-      )}
+      renderRoot={(props) =>
+        position === null ? (
+          <Link {...props} to="/recordings/$recordingId" params={{ recordingId }} />
+        ) : (
+          <Link
+            {...props}
+            to="/recordings/$recordingId/play"
+            params={{ recordingId }}
+            search={{ t: Math.floor(position) }}
+          />
+        )
+      }
     >
-      {t('captures.openRecording')}
+      {position === null ? t('captures.openRecording') : t('captures.playFrom')}
     </Anchor>
   );
 }
