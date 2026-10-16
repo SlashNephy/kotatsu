@@ -84,10 +84,25 @@ describe('useVideoLoading', () => {
     expect(result.current).toBe(false);
   });
 
-  test('自動再生を断られて止まったら消す', () => {
+  test('止めたまま読み込み終えたら消す (自動再生を断られたときなど)', () => {
     const { video, fire } = fakeVideo();
     const { result } = renderHook(() => useVideoLoading(video));
-    fire('pause');
+    expect(result.current).toBe(true);
+    fire('canplay');
+    expect(result.current).toBe(false);
+  });
+
+  test('読み込みに失敗したら消す', () => {
+    const { video, fire } = fakeVideo();
+    const { result } = renderHook(() => useVideoLoading(video));
+    fire('error');
+    expect(result.current).toBe(false);
+  });
+
+  test('読み込み終えて止まっている要素では、出さない', () => {
+    const { video } = fakeVideo();
+    Object.defineProperty(video, 'readyState', { configurable: true, get: () => 4 });
+    const { result } = renderHook(() => useVideoLoading(video));
     expect(result.current).toBe(false);
   });
 });

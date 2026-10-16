@@ -37,8 +37,14 @@ export function useVideoLoading(video: HTMLVideoElement | null): boolean {
         done();
       }
     };
-    // HAVE_FUTURE_DATA (3) 以上で動いていれば、もう映せている。
-    setLoading(video.paused || video.readyState < 3);
+    const onCanPlay = () => {
+      // 止めたまま読み込み終えたら (自動再生を断られたときなど)、待っていることにはしない。
+      if (video.paused) {
+        done();
+      }
+    };
+    // HAVE_FUTURE_DATA (3) 以上なら、もう映せる。
+    setLoading(video.readyState < 3);
     video.addEventListener('loadstart', start);
     video.addEventListener('seeking', start);
     video.addEventListener('waiting', onWaiting);
@@ -46,6 +52,9 @@ export function useVideoLoading(video: HTMLVideoElement | null): boolean {
     video.addEventListener('seeked', onSeeked);
     // 止めたら、待っていることにはしない。自動再生を断られて止まったときは、再生ボタンを出す。
     video.addEventListener('pause', done);
+    video.addEventListener('canplay', onCanPlay);
+    // 読み込みに失敗したら、エラーの知らせに任せて、出し続けない。
+    video.addEventListener('error', done);
 
     return () => {
       clearWaiting();
@@ -55,6 +64,8 @@ export function useVideoLoading(video: HTMLVideoElement | null): boolean {
       video.removeEventListener('playing', done);
       video.removeEventListener('seeked', onSeeked);
       video.removeEventListener('pause', done);
+      video.removeEventListener('canplay', onCanPlay);
+      video.removeEventListener('error', done);
     };
   }, [video]);
 
