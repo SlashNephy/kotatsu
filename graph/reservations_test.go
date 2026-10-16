@@ -24,8 +24,8 @@ const (
 	createTimeReservation    = `mutation($input: TimeReservationInput!) { createTimeReservation(input: $input) { ` + reservationFields + ` } }`
 	updateReservation        = `mutation($id: ID!, $input: ReservationUpdateInput!) { updateReservation(id: $id, input: $input) { ` + reservationFields + ` } }`
 	deleteReservation        = `mutation($id: ID!) { deleteReservation(id: $id) { id reservation { ` + reservationFields + ` } } }`
-	listReservations         = `query($from: Time!, $to: Time!, $states: [AssignmentState!], $first: Int!, $after: String) {
-		reservations(from: $from, to: $to, states: $states, first: $first, after: $after) {
+	listReservations         = `query($from: Time!, $to: Time!, $states: [AssignmentState!], $rule: ID, $first: Int!, $after: String) {
+		reservations(from: $from, to: $to, states: $states, rule: $rule, first: $first, after: $after) {
 			edges { node { ` + reservationFields + ` } } pageInfo { hasNextPage endCursor }
 		}
 	}`
@@ -41,6 +41,7 @@ const (
 	varFrom             = "from"
 	varTo               = "to"
 	varStates           = "states"
+	varRule             = "rule"
 	varAfter            = "after"
 	varID               = "id"
 	varSettings         = "settings"
@@ -253,6 +254,25 @@ func TestRuleReservations(t *testing.T) {
 	assert.Equal(t, "CONFLICT", got.Assignment.State)
 	assert.Equal(t, "テスト番組", got.Rules[0].Name)
 	assert.Nil(t, got.CreatedBy)
+
+	// ルールで絞ると、番組予約を除いて、ルールに一致した予約だけを引く。
+	var byRule reservationList
+	require.Empty(t, f.query(t, listReservations, map[string]any{
+		varFrom: noon, varTo: tomorrow, varRule: createdRule.CreateRule.ID, varFirst: 10,
+	}, &byRule))
+	require.Len(t, byRule.Reservations.Edges, 1)
+	assert.Equal(t, reservationID, byRule.Reservations.Edges[0].Node.ID)
+
+	// ルールに、一致した予約の件数を出す。
+	var counted struct {
+		Rules []struct {
+			ID                       string `json:"id"`
+			UpcomingReservationCount int    `json:"upcomingReservationCount"`
+		} `json:"rules"`
+	}
+	require.Empty(t, f.query(t, `{ rules { id upcomingReservationCount } }`, nil, &counted))
+	require.Len(t, counted.Rules, 1)
+	assert.Equal(t, 1, counted.Rules[0].UpcomingReservationCount)
 
 	// ルール予約を消すと、無効になって残る。
 	var deleted struct {

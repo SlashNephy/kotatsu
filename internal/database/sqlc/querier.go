@@ -45,6 +45,8 @@ type Querier interface {
 	CountTunersByState(ctx context.Context) (CountTunersByStateRow, error)
 	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUnusedRecoveryCodes(ctx context.Context, userID uuid.UUID) (int64, error)
+	// ルールごとに、一致した予約のうち、終わっていないものの件数を数える。無効な予約も数える。予約のないルールは返さない。
+	CountUpcomingReservationsByRules(ctx context.Context, arg CountUpcomingReservationsByRulesParams) ([]CountUpcomingReservationsByRulesRow, error)
 	CountUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
 	// before より前の記録を、古い順に max_count 件まで消す。1 回のトランザクションで大量の行を消さないよう、件数を区切る。
 	DeleteAuditEventsBefore(ctx context.Context, arg DeleteAuditEventsBeforeParams) (int64, error)
@@ -281,6 +283,7 @@ type Querier interface {
 	// 予約に一致したルール。ルールを作った順に返す。
 	ListReservationRules(ctx context.Context, reservationIds []uuid.UUID) ([]ReservationRule, error)
 	// 時間帯 [from, to) に重なる予約を、開始時刻の順に返す。(after_start_at, after_id) より後ろから limit 件読む。
+	// rule_id を指定すると、そのルールに一致した予約だけを返す。
 	ListReservations(ctx context.Context, arg ListReservationsParams) ([]Reservation, error)
 	// 番組 (サービス, eventId) の予約。番組の予約は 1 件だけなので、番組ごとに高々 1 行になる。
 	ListReservationsByPrograms(ctx context.Context, arg ListReservationsByProgramsParams) ([]Reservation, error)

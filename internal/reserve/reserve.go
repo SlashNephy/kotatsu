@@ -469,6 +469,8 @@ type ListQuery struct {
 	States []AssignmentState
 	// Enabled は、有効な予約だけ (true) か、無効な予約だけ (false) を返す。nil ならどちらも。
 	Enabled *bool
+	// RuleID は、このルールに一致した予約だけを返す。nil なら絞らない。
+	RuleID *uuid.UUID
 	// AfterStartAt と AfterID は、この位置より後ろから返す (開始時刻、ID の順)。最初から返すなら nil。
 	AfterStartAt *time.Time
 	AfterID      *uuid.UUID
@@ -504,6 +506,7 @@ func (r *Reservations) List(ctx context.Context, db sqlc.DBTX, query *ListQuery)
 		ToAt:         query.To,
 		States:       states,
 		Enabled:      optionalBool(query.Enabled),
+		RuleID:       query.RuleID,
 		AfterStartAt: afterStartAt,
 		AfterID:      afterID,
 		RowLimit:     int32(query.Limit),
@@ -547,6 +550,26 @@ func (r *Reservations) ListByPrograms(ctx context.Context, db sqlc.DBTX, keys []
 	}
 
 	return byProgram, nil
+}
+
+// CountUpcomingByRules は、ルールごとに、一致した予約のうち終わっていないものの件数を返す。無効な予約も数える。
+// 予約のないルールは、結果に含めない。
+func (r *Reservations) CountUpcomingByRules(ctx context.Context, db sqlc.DBTX, ruleIDs []uuid.UUID) (map[uuid.UUID]int, error) {
+	if len(ruleIDs) == 0 {
+		return map[uuid.UUID]int{}, nil
+	}
+	rows, err := sqlc.New(db).CountUpcomingReservationsByRules(ctx, sqlc.CountUpcomingReservationsByRulesParams{
+		RuleIds: ruleIDs, Now: r.clock.Now(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to count the reservations of the rules: %w", err)
+	}
+	counts := make(map[uuid.UUID]int, len(rows))
+	for _, row := range rows {
+		counts[row.RuleID] = int(row.Reservations)
+	}
+
+	return counts, nil
 }
 
 // RuleIDs は、予約に一致したルールの ID を、ルールを作った順に返す。ルールに一致していない予約は結果に含めない。

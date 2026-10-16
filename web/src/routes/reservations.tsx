@@ -5,6 +5,7 @@ import {
   Badge,
   Box,
   Button,
+  CloseButton,
   Group,
   Menu,
   Modal,
@@ -60,13 +61,23 @@ const query = graphql`
     $from: Time!
     $to: Time!
     $states: [AssignmentState!]
+    $rule: ID
+    $ruleId: ID!
+    $withRule: Boolean!
     $first: Int!
     $after: String
   ) {
     viewer {
       role
     }
-    reservations(from: $from, to: $to, states: $states, first: $first, after: $after) {
+    # 絞り込んでいるルールの名前を出す。
+    ruleFilter: node(id: $ruleId) @include(if: $withRule) {
+      __typename
+      ... on Rule {
+        name
+      }
+    }
+    reservations(from: $from, to: $to, states: $states, rule: $rule, first: $first, after: $after) {
       edges {
         node {
           id
@@ -101,11 +112,17 @@ const query = graphql`
 type ReservationsSearch = {
   // problems は、録画が欠ける見込みの予約だけを出すかどうか。
   problems?: boolean;
+  // rule は、このルールに一致した予約だけを出すときの、ルールの ID (#468)。
+  rule?: string;
 };
 
 export const Route = createFileRoute('/reservations')({
-  validateSearch: (search: Record<string, unknown>): ReservationsSearch =>
-    search['problems'] === true ? { problems: true } : {},
+  validateSearch: (search: Record<string, unknown>): ReservationsSearch => ({
+    ...(search['problems'] === true ? { problems: true } : {}),
+    ...(typeof search['rule'] === 'string' && search['rule'] !== ''
+      ? { rule: search['rule'] }
+      : {}),
+  }),
   component: ReservationsPage,
 });
 
@@ -188,7 +205,7 @@ function ReservationsPage() {
 function Reservations({ range }: { range: { now: number; from: string; to: string } }) {
   const { t } = useTranslation();
   const navigate = Route.useNavigate();
-  const { problems = false } = Route.useSearch();
+  const { problems = false, rule } = Route.useSearch();
   // patches は、この画面で変えた予約。一覧を取り直さずに反映し、読み込んだ続きを捨てない。
   const [patches, setPatches] = useState<Record<string, { enabled?: boolean; removed?: boolean }>>(
     {},
@@ -199,7 +216,12 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
     from: range.from,
     to: range.to,
     states: problems ? (['PARTIAL', 'CONFLICT'] as const) : null,
+    rule: rule ?? null,
+    ruleId: rule ?? '',
+    withRule: rule !== undefined,
   };
+  // filterKey は、絞り込みの組。変わったら、読み込んだ続きを捨てる。
+  const filterKey = `${problems}:${rule ?? ''}`;
   // fetchKey を変えると、読み直す。時刻予約を作った後に、一覧に足すのに使う。読み直す間も一覧を出したままにするため、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
   // creatingTime は、時刻予約を作るダイアログを出しているかどうか。
@@ -211,7 +233,7 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
   );
   const environment = useRelayEnvironment();
   // more は、続きの読み込みで足した予約と、その次のカーソル。絞り込みを変えたら捨てる。
-  const [more, setMore] = useState<{ key: boolean; nodes: Node[]; next: string | null } | null>(
+  const [more, setMore] = useState<{ key: string; nodes: Node[]; next: string | null } | null>(
     null,
   );
   const [loadingMore, setLoadingMore] = useState(false);
@@ -222,7 +244,7 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
     setMore(null);
     startTransition(() => setFetchKey((key) => key + 1));
   };
-  const extra = more?.key === problems ? more : null;
+  const extra = more?.key === filterKey ? more : null;
   const next = extra !== null ? extra.next : (data.reservations.pageInfo.endCursor ?? null);
   const hasMore = extra !== null ? extra.next !== null : data.reservations.pageInfo.hasNextPage;
   const loadMore = async () => {
@@ -236,7 +258,7 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
       }).toPromise();
       if (page !== undefined) {
         setMore({
-          key: problems,
+          key: filterKey,
           nodes: [...(extra?.nodes ?? []), ...page.reservations.edges.map((edge) => edge.node)],
           next: page.reservations.pageInfo.hasNextPage
             ? (page.reservations.pageInfo.endCursor ?? null)
@@ -287,13 +309,38 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
           size="xs"
           value={problems ? 'problems' : 'all'}
           onChange={(value) =>
-            void navigate({ search: value === 'problems' ? { problems: true } : {} })
+            void navigate({
+              search: (prev) => ({ ...prev, problems: value === 'problems' ? true : undefined }),
+            })
           }
           data={[
             { value: 'all', label: t('reservations.filter.all') },
             { value: 'problems', label: t('reservations.filter.problems') },
           ]}
         />
+        {rule !== undefined && (
+          // Pill の消すボタンは、キーボードと読み上げから隠れるので、CloseButton を添える。
+          <Badge
+            size="lg"
+            variant="light"
+            color="gray"
+            tt="none"
+            rightSection={
+              <CloseButton
+                size="xs"
+                aria-label={t('reservations.filter.clearRule')}
+                onClick={() => void navigate({ search: (prev) => ({ ...prev, rule: undefined }) })}
+              />
+            }
+          >
+            {t('reservations.filter.rule', {
+              name:
+                data.ruleFilter?.__typename === 'Rule'
+                  ? data.ruleFilter.name
+                  : t('reservations.filter.unknownRule'),
+            })}
+          </Badge>
+        )}
         {!problems && attention > 0 && (
           <Badge color="amber" size="lg" variant="light">
             {t('reservations.attention', { count: attention })}
