@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<dbd1bb24e3ade1659e761484145280e2>>
+ * @generated SignedSource<<cb37c5628f2336a2a763f007bc079ea8>>
  * @lightSyntaxTransform
  */
 
@@ -51,6 +51,10 @@ export type RuleEditor_rule$data = {
       readonly weekdays: ReadonlyArray<number>;
     }>;
   };
+  readonly createdAt: string;
+  readonly createdBy: {
+    readonly displayName: string;
+  } | null | undefined;
   readonly duplicateWindowDays: number | null | undefined;
   readonly enabled: boolean;
   readonly followEventRelay: boolean;
@@ -65,6 +69,10 @@ export type RuleEditor_rule$data = {
     readonly priority: number | null | undefined;
     readonly startMarginSeconds: number | null | undefined;
   };
+  readonly updatedAt: string;
+  readonly updatedBy: {
+    readonly displayName: string;
+  } | null | undefined;
   readonly validFrom: string | null | undefined;
   readonly validUntil: string | null | undefined;
   readonly " $fragmentType": "RuleEditor_rule";
@@ -83,6 +91,15 @@ var v0 = {
   "storageKey": null
 },
 v1 = [
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "displayName",
+    "storageKey": null
+  }
+],
+v2 = [
   {
     "alias": null,
     "args": null,
@@ -112,10 +129,10 @@ v1 = [
     "storageKey": null
   }
 ],
-v2 = [
+v3 = [
   (v0/*:: as any*/)
 ],
-v3 = [
+v4 = [
   {
     "alias": null,
     "args": null,
@@ -138,6 +155,40 @@ return {
   "name": "RuleEditor_rule",
   "selections": [
     (v0/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "createdAt",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "User",
+      "kind": "LinkedField",
+      "name": "createdBy",
+      "plural": false,
+      "selections": (v1/*:: as any*/),
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "updatedAt",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "User",
+      "kind": "LinkedField",
+      "name": "updatedBy",
+      "plural": false,
+      "selections": (v1/*:: as any*/),
+      "storageKey": null
+    },
     {
       "alias": null,
       "args": null,
@@ -174,7 +225,7 @@ return {
           "kind": "LinkedField",
           "name": "keywords",
           "plural": true,
-          "selections": (v1/*:: as any*/),
+          "selections": (v2/*:: as any*/),
           "storageKey": null
         },
         {
@@ -191,7 +242,7 @@ return {
           "kind": "LinkedField",
           "name": "excludeKeywords",
           "plural": true,
-          "selections": (v1/*:: as any*/),
+          "selections": (v2/*:: as any*/),
           "storageKey": null
         },
         {
@@ -208,7 +259,7 @@ return {
           "kind": "LinkedField",
           "name": "services",
           "plural": true,
-          "selections": (v2/*:: as any*/),
+          "selections": (v3/*:: as any*/),
           "storageKey": null
         },
         {
@@ -218,7 +269,7 @@ return {
           "kind": "LinkedField",
           "name": "excludeServices",
           "plural": true,
-          "selections": (v2/*:: as any*/),
+          "selections": (v3/*:: as any*/),
           "storageKey": null
         },
         {
@@ -228,7 +279,7 @@ return {
           "kind": "LinkedField",
           "name": "genres",
           "plural": true,
-          "selections": (v3/*:: as any*/),
+          "selections": (v4/*:: as any*/),
           "storageKey": null
         },
         {
@@ -238,7 +289,7 @@ return {
           "kind": "LinkedField",
           "name": "excludeGenres",
           "plural": true,
-          "selections": (v3/*:: as any*/),
+          "selections": (v4/*:: as any*/),
           "storageKey": null
         },
         {
@@ -391,6 +442,6 @@ return {
 };
 })();
 
-(node as any).hash = "05aa60ac07afe9ddb1794932e8df1a44";
+(node as any).hash = "f8b3bc083368746e4b682e7818cb83ab";
 
 export default node;

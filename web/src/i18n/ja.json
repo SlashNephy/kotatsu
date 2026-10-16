@@ -1040,5 +1040,11 @@
       "title": "チャンネルの表示",
       "summary": "放送波の表示名と、番組表とライブに出すチャンネルと並び順を変えます"
     }
+  },
+  "authorship": {
+    "created": "作成: {{name}}・{{at}}",
+    "updated": "更新: {{name}}・{{at}}",
+    "automatic": "自動",
+    "deleted": "削除されたユーザー"
   }
 }

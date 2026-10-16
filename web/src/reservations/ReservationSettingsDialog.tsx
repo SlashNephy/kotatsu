@@ -3,7 +3,7 @@ import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
-import { ErrorBoundary } from '../futon';
+import { Authorship, ErrorBoundary } from '../futon';
 import { MarginFields } from './MarginFields';
 import type { ReservationSettingsDialogMutation } from './__generated__/ReservationSettingsDialogMutation.graphql';
 import type { ReservationSettingsDialogQuery } from './__generated__/ReservationSettingsDialogQuery.graphql';
@@ -40,6 +40,14 @@ function Form({ reservationId, onClose }: Props) {
           __typename
           ... on Reservation {
             kind
+            createdAt
+            createdBy {
+              displayName
+            }
+            updatedAt
+            updatedBy {
+              displayName
+            }
             rules {
               name
               settings {
@@ -141,6 +149,14 @@ function Form({ reservationId, onClose }: Props) {
                   end: rule.settings.endMarginSeconds ?? null,
                 }
           }
+        />
+        {/* ルール予約は neko が作り、変えるので、ユーザーがいなければ「自動」と出す。 */}
+        <Authorship
+          createdAt={reservation.createdAt}
+          createdBy={reservation.createdBy}
+          updatedAt={reservation.updatedAt}
+          updatedBy={reservation.updatedBy}
+          automatic={reservation.kind === 'RULE'}
         />
         {error && (
           <Alert color="red" role="alert">
