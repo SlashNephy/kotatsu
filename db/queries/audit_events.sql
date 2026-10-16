@@ -6,7 +6,10 @@ INSERT INTO audit_events (
 );
 
 -- name: DeleteAuditEventsBefore :execrows
-DELETE FROM audit_events WHERE occurred_at < @before;
+-- before より前の記録を、古い順に max_count 件まで消す。1 回のトランザクションで大量の行を消さないよう、件数を区切る。
+DELETE FROM audit_events WHERE id IN (
+  SELECT e.id FROM audit_events e WHERE e.occurred_at < @before ORDER BY e.occurred_at LIMIT @max_count
+);
 
 -- name: ListAuditEvents :many
 SELECT * FROM audit_events ORDER BY occurred_at DESC, id DESC LIMIT @max_count;
