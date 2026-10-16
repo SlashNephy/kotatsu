@@ -21,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
+	"github.com/SlashNephy/kotatsu/internal/thumbnail"
 )
 
 const (
@@ -163,7 +164,7 @@ func TestRecordings(t *testing.T) {
 	var rawID string
 	var version int64
 	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT recording_id::text, extract(epoch FROM ended_at)::bigint FROM recording_files WHERE path = $1`,
-		episode1+".m2ts").Scan(&rawID, &version))
+		episode1+".m2ts.kotatsu/thumbnail.jpg").Scan(&rawID, &version))
 	suffix := "?v=" + strconv.FormatInt(version, 10)
 	assert.Equal(t, new("/media/recordings/"+rawID+"/thumbnail.jpg"+suffix), withImages.ThumbnailURL)
 	assert.Equal(t, new("/media/recordings/"+rawID+"/preview.jpg"+suffix), withImages.PreviewURL)
@@ -312,6 +313,8 @@ func TestRecordingOperations(t *testing.T) {
 type lateInserter struct {
 	client *jobs.Client
 }
+
+var _ thumbnail.Inserter = new(lateInserter)
 
 func (l *lateInserter) InsertManyTx(ctx context.Context, tx pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error) {
 	return l.client.InsertManyTx(ctx, tx, params)
