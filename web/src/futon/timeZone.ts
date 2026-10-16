@@ -45,29 +45,42 @@ export function zonedFormat(
   return { format: (date) => current().format(date) };
 }
 
-const offsetParts = zonedFormat(
-  {
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric',
-    hourCycle: 'h23',
-  },
-  'en-US',
-);
+// partsFormat は、時差を求めるのに使う、今のタイムゾーンの日付と時刻の書式。タイムゾーンが変わったら作り直す。
+let partsFormat: { zone: string; format: Intl.DateTimeFormat } | null = null;
 
 // wallClock は、時刻 time の、今のタイムゾーンでの日付と時刻を、UTC の時刻として表した値を返す。
 // 例えば日本時間の 2026-10-16 21:00 は、Date.UTC(2026, 9, 16, 21, 0) を返す。
 function wallClock(time: number): number {
-  // en-US の h23 では「10/16/2026, 21:00:00」の形になる。
-  const text = offsetParts.format(time);
-  const [month, day, year, hour, minute, second] = text.split(/\D+/).map(Number);
-
-  return (
-    Date.UTC(year!, month! - 1, day!, hour!, minute!, second!) + (((time % 1000) + 1000) % 1000)
+  if (partsFormat?.zone !== zone) {
+    partsFormat = {
+      zone,
+      format: new Intl.DateTimeFormat('en-US', {
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        hourCycle: 'h23',
+        timeZone: zone,
+      }),
+    };
+  }
+  // 書いた文字列を区切って読むと、ブラウザが足す見えない文字で崩れるので、部分ごとに受け取る。
+  const parts: Partial<Record<Intl.DateTimeFormatPartTypes, number>> = {};
+  for (const part of partsFormat.format.formatToParts(time)) {
+    parts[part.type] = Number(part.value);
+  }
+  const utc = new Date(0);
+  utc.setUTCFullYear(parts.year ?? 1970, (parts.month ?? 1) - 1, parts.day ?? 1);
+  utc.setUTCHours(
+    parts.hour ?? 0,
+    parts.minute ?? 0,
+    parts.second ?? 0,
+    ((time % 1000) + 1000) % 1000,
   );
+
+  return utc.getTime();
 }
 
 // zoneOffset は、時刻 time での、今のタイムゾーンの UTC からの差 (ミリ秒) を返す。夏時間のある地域では、時刻で変わる。
@@ -75,12 +88,20 @@ export function zoneOffset(time: number): number {
   return wallClock(time) - time;
 }
 
-// fromWallClock は、今のタイムゾーンでの日付と時刻 (UTC の時刻として表した値) から、その時刻を返す。
-// 夏時間の切り替えで、ない時刻や 2 回ある時刻は、切り替える前の差で決める。
-export function fromWallClock(local: number): number {
-  const guess = local - zoneOffset(local);
+const day = 24 * 3_600_000;
 
-  return local - zoneOffset(guess);
+// fromWallClock は、今のタイムゾーンでの日付と時刻 (UTC の時刻として表した値) から、その時刻を返す。
+// 夏時間の切り替えで、2 回ある時刻は早いほうにし、ない時刻 (時計を進めて飛ばした時刻) は、切り替える前の差で読む
+// (2:30 が飛ばされたら 3:30 になる)。時差が 1 日のうちに 2 回変わることはないとみなす。
+export function fromWallClock(local: number): number {
+  const before = local - zoneOffset(local - day);
+  const after = local - zoneOffset(local + day);
+  const candidates = [before, after].filter((time) => wallClock(time) === local);
+  if (candidates.length > 0) {
+    return Math.min(...candidates);
+  }
+
+  return before;
 }
 
 // useTimeZoneLabel は、入力の説明に添える、今のタイムゾーンの呼び方 (日本時間、Europe/London の時刻など) を返す。

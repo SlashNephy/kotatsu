@@ -35,6 +35,10 @@ describe('fromWallClock', () => {
     { zone: 'Asia/Tokyo', local: '2026-10-16T21:00:00Z', want: '2026-10-16T12:00:00.000Z' },
     { zone: 'America/New_York', local: '2026-07-01T08:00:00Z', want: '2026-07-01T12:00:00.000Z' },
     { zone: 'America/New_York', local: '2026-12-01T07:00:00Z', want: '2026-12-01T12:00:00.000Z' },
+    // 2026-03-08 の 2 時に時計を 3 時へ進めるので、2:30 はない。切り替える前の差 (UTC-5) で読み、3:30 (UTC-4) になる。
+    { zone: 'America/New_York', local: '2026-03-08T02:30:00Z', want: '2026-03-08T07:30:00.000Z' },
+    // 2026-11-01 の 2 時に時計を 1 時へ戻すので、1:30 は 2 回ある。早いほう (UTC-4) にする。
+    { zone: 'America/New_York', local: '2026-11-01T01:30:00Z', want: '2026-11-01T05:30:00.000Z' },
   ])('$zone の壁時計 $local は $want', ({ zone, local, want }) => {
     setTimeZone(zone);
 
