@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<f5d3702a87905cb8214b066b18af44dc>>
+ * @generated SignedSource<<d8e5033b41a3694a8df527b09ce1f686>>
  * @lightSyntaxTransform
  */
 
@@ -27,6 +27,7 @@ export type ProgramConditionsInput = {
   channelTypes?: ReadonlyArray<string> | null | undefined;
   excludeGenres?: ReadonlyArray<GenreInput> | null | undefined;
   excludeKeywords?: ReadonlyArray<KeywordInput> | null | undefined;
+  excludeServices?: ReadonlyArray<string> | null | undefined;
   freeOnly?: boolean | null | undefined;
   genres?: ReadonlyArray<GenreInput> | null | undefined;
   keywordMatch?: KeywordMatch;
@@ -136,6 +137,9 @@ v3 = [
   }
 ],
 v4 = [
+  (v2/*:: as any*/)
+],
+v5 = [
   {
     "alias": null,
     "args": null,
@@ -263,9 +267,17 @@ return {
                 "kind": "LinkedField",
                 "name": "services",
                 "plural": true,
-                "selections": [
-                  (v2/*:: as any*/)
-                ],
+                "selections": (v4/*:: as any*/),
+                "storageKey": null
+              },
+              {
+                "alias": null,
+                "args": null,
+                "concreteType": "Service",
+                "kind": "LinkedField",
+                "name": "excludeServices",
+                "plural": true,
+                "selections": (v4/*:: as any*/),
                 "storageKey": null
               },
               {
@@ -275,7 +287,7 @@ return {
                 "kind": "LinkedField",
                 "name": "genres",
                 "plural": true,
-                "selections": (v4/*:: as any*/),
+                "selections": (v5/*:: as any*/),
                 "storageKey": null
               },
               {
@@ -285,7 +297,7 @@ return {
                 "kind": "LinkedField",
                 "name": "excludeGenres",
                 "plural": true,
-                "selections": (v4/*:: as any*/),
+                "selections": (v5/*:: as any*/),
                 "storageKey": null
               },
               {
@@ -438,12 +450,12 @@ return {
     ]
   },
   "params": {
-    "cacheID": "6681b4c4e392d894ef5b22363f8f664b",
+    "cacheID": "e1dad13aae90568e65f805b03c668317",
     "id": null,
     "metadata": {},
     "name": "RuleEditorUpdateMutation",
     "operationKind": "mutation",
-    "text": "mutation RuleEditorUpdateMutation(\n  $id: ID!\n  $input: RuleInput!\n) {\n  updateRule(id: $id, input: $input) {\n    ...RuleEditor_rule\n    id\n  }\n}\n\nfragment RuleEditor_rule on Rule {\n  id\n  name\n  memo\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n  }\n  settings {\n    poolId\n    fileNameTemplate\n    startMarginSeconds\n    endMarginSeconds\n    priority\n    joinSegments\n  }\n  validFrom\n  validUntil\n  avoidDuplicates\n  duplicateWindowDays\n  followEventRelay\n}\n"
+    "text": "mutation RuleEditorUpdateMutation(\n  $id: ID!\n  $input: RuleInput!\n) {\n  updateRule(id: $id, input: $input) {\n    ...RuleEditor_rule\n    id\n  }\n}\n\nfragment RuleEditor_rule on Rule {\n  id\n  name\n  memo\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n    }\n    excludeServices {\n      id\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n  }\n  settings {\n    poolId\n    fileNameTemplate\n    startMarginSeconds\n    endMarginSeconds\n    priority\n    joinSegments\n  }\n  validFrom\n  validUntil\n  avoidDuplicates\n  duplicateWindowDays\n  followEventRelay\n}\n"
   }
 };
 })();

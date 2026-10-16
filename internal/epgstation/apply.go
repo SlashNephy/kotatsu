@@ -269,6 +269,7 @@ func (a *applier) ruleInput(r *Rule) *rule.Input {
 		ExcludeKeywords:    keywords(&r.IgnoreKeyword),
 		ChannelTypes:       []string{},
 		ServiceIDs:         []int64{},
+		ExcludeServiceIDs:  []int64{},
 		Genres:             []*match.Genre{},
 		ExcludeGenres:      []*match.Genre{},
 		TimeRanges:         []*match.TimeRange{},

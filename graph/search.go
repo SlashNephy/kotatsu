@@ -243,16 +243,17 @@ func (r *Resolver) archivedProgram(ctx context.Context, raw string) (*model.Prog
 // searchParams は、候補を引くクエリの引数を作る。
 func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.ArchiveRangeInput, after *string) (*sqlc.SearchProgramCandidatesParams, error) {
 	params := &sqlc.SearchProgramCandidatesParams{
-		IncludeArchive:    archive != nil,
-		Now:               r.clock.Now(),
-		MediaServiceTypes: epg.MediaServiceTypes(),
-		ArchiveFrom:       time.Time{},
-		ArchiveTo:         time.Time{},
-		ChannelTypes:      conditions.ChannelTypes,
-		ServiceIds:        conditions.ServiceIDs,
-		GenreLv1s:         genreLv1s(conditions.Genres, false),
-		ExcludedGenreLv1s: genreLv1s(conditions.ExcludeGenres, true),
-		FreeOnly:          conditions.FreeOnly,
+		IncludeArchive:     archive != nil,
+		Now:                r.clock.Now(),
+		MediaServiceTypes:  epg.MediaServiceTypes(),
+		ArchiveFrom:        time.Time{},
+		ArchiveTo:          time.Time{},
+		ChannelTypes:       conditions.ChannelTypes,
+		ServiceIds:         conditions.ServiceIDs,
+		ExcludedServiceIds: nonNil(conditions.ExcludeServiceIDs),
+		GenreLv1s:          genreLv1s(conditions.Genres, false),
+		ExcludedGenreLv1s:  genreLv1s(conditions.ExcludeGenres, true),
+		FreeOnly:           conditions.FreeOnly,
 		// キーワードの絞り込みは、setKeywordPatterns で入れる。
 		KeywordPatterns:      []string{},
 		KeywordInName:        []bool{},

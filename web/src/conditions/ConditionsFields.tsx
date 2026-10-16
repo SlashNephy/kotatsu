@@ -14,7 +14,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { Plus, RadioTower, Search, SearchX, Shapes, Tv, X } from 'lucide-react';
+import { MonitorX, Plus, RadioTower, Search, SearchX, Shapes, Tv, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -119,23 +119,20 @@ export function ConditionsFields({ value, onChange, channelTypes, services }: Pr
             onChange={(selected) => onChange({ channelTypes: selected })}
             clearable
           />
-          <MultiSelect
+          <ServiceMultiSelect
             label={t('rules.services')}
-            leftSection={<Tv size={16} aria-hidden />}
-            data={services.map((service) => ({
-              value: service.id,
-              label: `${service.name}（${service.channelType.displayName}・${service.serviceId}）`,
-            }))}
-            renderOption={({ option }) => (
-              <ServiceLabel
-                name={option.label}
-                logoUrl={services.find((service) => service.id === option.value)?.logoUrl}
-              />
-            )}
+            icon={<Tv size={16} aria-hidden />}
+            services={services}
             value={value.services}
             onChange={(selected) => onChange({ services: selected })}
-            searchable
-            clearable
+          />
+          <ServiceMultiSelect
+            label={t('rules.excludeServices')}
+            description={t('rules.excludeServicesDescription')}
+            icon={<MonitorX size={16} aria-hidden />}
+            services={services}
+            value={value.excludeServices}
+            onChange={(selected) => onChange({ excludeServices: selected })}
           />
           <Switch
             label={t('search.freeOnly')}
@@ -216,6 +213,45 @@ type KeywordRowsProps = {
   rows: KeywordRow[];
   onChange: (rows: KeywordRow[]) => void;
 };
+
+// ServiceMultiSelect は、サービスを選ぶ欄。同じ名前のサービスが別の種別にもあるので、種別とサービス ID を添える。
+function ServiceMultiSelect({
+  label,
+  description,
+  icon,
+  services,
+  value,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  icon: ReactNode;
+  services: readonly ServiceOption[];
+  value: string[];
+  onChange: (selected: string[]) => void;
+}) {
+  return (
+    <MultiSelect
+      label={label}
+      description={description}
+      leftSection={icon}
+      data={services.map((service) => ({
+        value: service.id,
+        label: `${service.name}（${service.channelType.displayName}・${service.serviceId}）`,
+      }))}
+      renderOption={({ option }) => (
+        <ServiceLabel
+          name={option.label}
+          logoUrl={services.find((service) => service.id === option.value)?.logoUrl}
+        />
+      )}
+      value={value}
+      onChange={onChange}
+      searchable
+      clearable
+    />
+  );
+}
 
 // KeywordRows は、キーワードの行を足し、変え、消す。
 function KeywordRows({

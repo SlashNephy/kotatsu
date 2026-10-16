@@ -87,6 +87,11 @@ func (r *programConditionsResolver) Services(ctx context.Context, obj *model.Pro
 	return r.loadServices(ctx, obj.ServiceKeys)
 }
 
+// ExcludeServices is the resolver for the excludeServices field.
+func (r *programConditionsResolver) ExcludeServices(ctx context.Context, obj *model.ProgramConditions) ([]*model.Service, error) {
+	return r.loadServices(ctx, obj.ExcludeServiceKeys)
+}
+
 // Rules is the resolver for the rules field.
 func (r *queryResolver) Rules(ctx context.Context) ([]*model.Rule, error) {
 	rules, err := r.rules.List(ctx, r.db)

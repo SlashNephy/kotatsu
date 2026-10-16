@@ -38,27 +38,28 @@ WHERE (
     OR c.channel_type = ANY($6::text[])
     OR c.service_id = ANY($7::bigint[])
   )
+  AND NOT c.service_id = ANY($8::bigint[])
   AND (
-    cardinality($8::bigint[]) = 0
-    OR EXISTS (SELECT 1 FROM jsonb_array_elements(c.genres) g WHERE (g ->> 'lv1')::bigint = ANY($8::bigint[]))
+    cardinality($9::bigint[]) = 0
+    OR EXISTS (SELECT 1 FROM jsonb_array_elements(c.genres) g WHERE (g ->> 'lv1')::bigint = ANY($9::bigint[]))
   )
   AND NOT EXISTS (
-    SELECT 1 FROM jsonb_array_elements(c.genres) g WHERE (g ->> 'lv1')::bigint = ANY($9::bigint[])
+    SELECT 1 FROM jsonb_array_elements(c.genres) g WHERE (g ->> 'lv1')::bigint = ANY($10::bigint[])
   )
-  AND (NOT $10::boolean OR c.is_free)
+  AND (NOT $11::boolean OR c.is_free)
   AND NOT EXISTS (
     SELECT 1
-    FROM generate_subscripts($11::text[], 1) AS k (i)
+    FROM generate_subscripts($12::text[], 1) AS k (i)
     WHERE NOT (
-      (($12::boolean[])[k.i] AND CASE WHEN ($13::boolean[])[k.i]
-        THEN c.name_normalized LIKE ($11::text[])[k.i] ELSE c.name_normalized ILIKE ($11::text[])[k.i] END)
-      OR (($14::boolean[])[k.i] AND CASE WHEN ($13::boolean[])[k.i]
-        THEN c.description_normalized LIKE ($11::text[])[k.i] ELSE c.description_normalized ILIKE ($11::text[])[k.i] END)
+      (($13::boolean[])[k.i] AND CASE WHEN ($14::boolean[])[k.i]
+        THEN c.name_normalized LIKE ($12::text[])[k.i] ELSE c.name_normalized ILIKE ($12::text[])[k.i] END)
+      OR (($15::boolean[])[k.i] AND CASE WHEN ($14::boolean[])[k.i]
+        THEN c.description_normalized LIKE ($12::text[])[k.i] ELSE c.description_normalized ILIKE ($12::text[])[k.i] END)
     )
   )
-  AND (c.start_at, c.service_id, c.event_id) > ($15::timestamptz, $16::bigint, $17::bigint)
+  AND (c.start_at, c.service_id, c.event_id) > ($16::timestamptz, $17::bigint, $18::bigint)
 ORDER BY c.start_at, c.service_id, c.event_id
-LIMIT $18::integer
+LIMIT $19::integer
 `
 
 type SearchProgramCandidatesParams struct {
@@ -69,6 +70,7 @@ type SearchProgramCandidatesParams struct {
 	ArchiveTo            time.Time
 	ChannelTypes         []string
 	ServiceIds           []int64
+	ExcludedServiceIds   []int64
 	GenreLv1s            []int64
 	ExcludedGenreLv1s    []int64
 	FreeOnly             bool
@@ -113,6 +115,7 @@ func (q *Queries) SearchProgramCandidates(ctx context.Context, arg SearchProgram
 		arg.ArchiveTo,
 		arg.ChannelTypes,
 		arg.ServiceIds,
+		arg.ExcludedServiceIds,
 		arg.GenreLv1s,
 		arg.ExcludedGenreLv1s,
 		arg.FreeOnly,

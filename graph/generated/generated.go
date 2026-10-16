@@ -326,6 +326,7 @@ type ComplexityRoot struct {
 		ChannelTypes       func(childComplexity int) int
 		ExcludeGenres      func(childComplexity int) int
 		ExcludeKeywords    func(childComplexity int) int
+		ExcludeServices    func(childComplexity int) int
 		FreeOnly           func(childComplexity int) int
 		Genres             func(childComplexity int) int
 		KeywordMatch       func(childComplexity int) int
@@ -738,6 +739,7 @@ type ProgramResolver interface {
 }
 type ProgramConditionsResolver interface {
 	Services(ctx context.Context, obj *model.ProgramConditions) ([]*model.Service, error)
+	ExcludeServices(ctx context.Context, obj *model.ProgramConditions) ([]*model.Service, error)
 }
 type QueryResolver interface {
 	Viewer(ctx context.Context) (*model.User, error)
@@ -2106,6 +2108,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProgramConditions.ExcludeKeywords(childComplexity), true
+	case "ProgramConditions.excludeServices":
+		if e.ComplexityRoot.ProgramConditions.ExcludeServices == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProgramConditions.ExcludeServices(childComplexity), true
 	case "ProgramConditions.freeOnly":
 		if e.ComplexityRoot.ProgramConditions.FreeOnly == nil {
 			break
@@ -4012,6 +4020,8 @@ input ProgramConditionsInput {
   "チャンネル種別とサービスは、どちらかに含まれていれば対象にする。"
   channelTypes: [String!]
   services: [ID!]
+  "チャンネル種別やサービスで対象になっても、含まれていれば除外する。"
+  excludeServices: [ID!]
   genres: [GenreInput!]
   excludeGenres: [GenreInput!]
   timeRanges: [TimeRangeInput!]
@@ -4881,6 +4891,8 @@ type ProgramConditions {
   excludeKeywords: [Keyword!]!
   channelTypes: [String!]!
   services: [Service!]!
+  "チャンネル種別やサービスで対象になっても、含まれていれば除外するサービス"
+  excludeServices: [Service!]!
   genres: [GenreCondition!]!
   excludeGenres: [GenreCondition!]!
   timeRanges: [TimeRange!]!
@@ -5999,6 +6011,8 @@ func (ec *executionContext) childFields_ProgramConditions(ctx context.Context, f
 		return ec.fieldContext_ProgramConditions_channelTypes(ctx, field)
 	case "services":
 		return ec.fieldContext_ProgramConditions_services(ctx, field)
+	case "excludeServices":
+		return ec.fieldContext_ProgramConditions_excludeServices(ctx, field)
 	case "genres":
 		return ec.fieldContext_ProgramConditions_genres(ctx, field)
 	case "excludeGenres":
@@ -12983,6 +12997,38 @@ func (ec *executionContext) _ProgramConditions_services(ctx context.Context, fie
 	)
 }
 func (ec *executionContext) fieldContext_ProgramConditions_services(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProgramConditions",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Service(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProgramConditions_excludeServices(ctx context.Context, field graphql.CollectedField, obj *model.ProgramConditions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProgramConditions_excludeServices(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.ProgramConditions().ExcludeServices(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Service) graphql.Marshaler {
+			return ec.marshalNService2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐServiceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProgramConditions_excludeServices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ProgramConditions",
 		Field:      field,
@@ -20784,7 +20830,7 @@ func (ec *executionContext) unmarshalInputProgramConditionsInput(ctx context.Con
 		asMap["keywordMatch"] = "ALL"
 	}
 
-	fieldsInOrder := [...]string{"keywords", "keywordMatch", "excludeKeywords", "channelTypes", "services", "genres", "excludeGenres", "timeRanges", "minDurationSeconds", "maxDurationSeconds", "freeOnly"}
+	fieldsInOrder := [...]string{"keywords", "keywordMatch", "excludeKeywords", "channelTypes", "services", "excludeServices", "genres", "excludeGenres", "timeRanges", "minDurationSeconds", "maxDurationSeconds", "freeOnly"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -20826,6 +20872,13 @@ func (ec *executionContext) unmarshalInputProgramConditionsInput(ctx context.Con
 				return it, err
 			}
 			it.Services = data
+		case "excludeServices":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("excludeServices"))
+			data, err := ec.unmarshalOID2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExcludeServices = data
 		case "genres":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("genres"))
 			data, err := ec.unmarshalOGenreInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreInputᚄ(ctx, v)
@@ -23949,6 +24002,44 @@ func (ec *executionContext) _ProgramConditions(ctx context.Context, sel ast.Sele
 					}
 				}()
 				res = ec._ProgramConditions_services(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "excludeServices":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._ProgramConditions_excludeServices(ctx, field, obj)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

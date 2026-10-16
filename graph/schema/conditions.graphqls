@@ -73,6 +73,8 @@ input ProgramConditionsInput {
   "チャンネル種別とサービスは、どちらかに含まれていれば対象にする。"
   channelTypes: [String!]
   services: [ID!]
+  "チャンネル種別やサービスで対象になっても、含まれていれば除外する。"
+  excludeServices: [ID!]
   genres: [GenreInput!]
   excludeGenres: [GenreInput!]
   timeRanges: [TimeRangeInput!]

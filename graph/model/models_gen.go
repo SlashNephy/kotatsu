@@ -389,8 +389,10 @@ type ProgramConditionsInput struct {
 	// どれか 1 つに一致したら除外する。
 	ExcludeKeywords []*KeywordInput `json:"excludeKeywords,omitempty"`
 	// チャンネル種別とサービスは、どちらかに含まれていれば対象にする。
-	ChannelTypes       []string          `json:"channelTypes,omitempty"`
-	Services           []string          `json:"services,omitempty"`
+	ChannelTypes []string `json:"channelTypes,omitempty"`
+	Services     []string `json:"services,omitempty"`
+	// チャンネル種別やサービスで対象になっても、含まれていれば除外する。
+	ExcludeServices    []string          `json:"excludeServices,omitempty"`
 	Genres             []*GenreInput     `json:"genres,omitempty"`
 	ExcludeGenres      []*GenreInput     `json:"excludeGenres,omitempty"`
 	TimeRanges         []*TimeRangeInput `json:"timeRanges,omitempty"`
