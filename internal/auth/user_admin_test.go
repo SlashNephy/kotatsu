@@ -290,3 +290,20 @@ func TestUserAdminKeepsAnAdministratorConcurrently(t *testing.T) {
 	}
 	assert.Equal(t, 1, succeeded)
 }
+
+// TestUserAdminDisableRevokesSessions は、無効にしたユーザーのセッションを失効させ、有効に戻しても使えないことを確かめる。
+func TestUserAdminDisableRevokesSessions(t *testing.T) {
+	t.Parallel()
+
+	f := newUserAdminFixture(t)
+	member := f.create(t, "member", auth.RoleMember)
+	sessions := auth.NewSessions(&auth.SessionsOptions{Clock: f.clock})
+	token, _, err := sessions.Create(t.Context(), f.db, member.ID, &auth.ClientInfo{})
+	require.NoError(t, err)
+
+	require.NoError(t, f.admin.Disable(t.Context(), f.db, f.actor(), f.root.ID, member.ID))
+	require.NoError(t, f.admin.Enable(t.Context(), f.db, f.actor(), member.ID))
+
+	_, err = sessions.Authenticate(t.Context(), f.db, token)
+	require.ErrorIs(t, err, auth.ErrSessionInvalid)
+}

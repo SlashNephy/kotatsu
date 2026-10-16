@@ -369,6 +369,8 @@ type Querier interface {
 	RenewRecordingAssignment(ctx context.Context, arg RenewRecordingAssignmentParams) (int64, error)
 	ResetLoginThrottle(ctx context.Context, key string) error
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
+	// ユーザーのセッションをまとめて失効させる。keep_id のセッション (パスワードを変えた本人の今のセッション) は残す。
+	RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error)
 	// 監査ログを、新しい順に返す。条件の NULL の項目は絞り込まない。
 	// before_at と before_id より前 (古い) の記録だけを返し、ページを送る。
 	SearchAuditEvents(ctx context.Context, arg SearchAuditEventsParams) ([]AuditEvent, error)

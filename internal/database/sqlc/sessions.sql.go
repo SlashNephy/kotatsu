@@ -157,6 +157,26 @@ func (q *Queries) RevokeSession(ctx context.Context, arg RevokeSessionParams) (i
 	return result.RowsAffected(), nil
 }
 
+const revokeUserSessions = `-- name: RevokeUserSessions :execrows
+UPDATE sessions SET revoked_at = $1::timestamptz
+WHERE user_id = $2 AND revoked_at IS NULL AND ($3::uuid IS NULL OR id <> $3::uuid)
+`
+
+type RevokeUserSessionsParams struct {
+	Now    time.Time
+	UserID uuid.UUID
+	KeepID *uuid.UUID
+}
+
+// ユーザーのセッションをまとめて失効させる。keep_id のセッション (パスワードを変えた本人の今のセッション) は残す。
+func (q *Queries) RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeUserSessions, arg.Now, arg.UserID, arg.KeepID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const touchSession = `-- name: TouchSession :exec
 UPDATE sessions SET last_seen_at = $1 WHERE id = $2 AND last_seen_at < $3
 `
