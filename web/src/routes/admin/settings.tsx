@@ -23,6 +23,7 @@ import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import type { settingsSystemMutation } from './__generated__/settingsSystemMutation.graphql';
 import type { settingsSystemQuery } from './__generated__/settingsSystemQuery.graphql';
+import { zonedFormat } from '../../futon';
 
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
 const path = '/admin/settings';
@@ -33,14 +34,13 @@ export const Route = createFileRoute('/admin/settings')({
   component: SettingsPage,
 });
 
-const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+const dateTimeFormat = zonedFormat({
   year: 'numeric',
   month: 'numeric',
   day: 'numeric',
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 // autoPool は、保存先プールのメニューで「自動で選ぶ」を表す値。保存するときも空文字のまま送る。

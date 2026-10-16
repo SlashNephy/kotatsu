@@ -39,6 +39,15 @@ func (r *queryResolver) Version(ctx context.Context) (*model.AppVersion, error) 
 	return &model.AppVersion{Version: build.Version, Revision: revision, Modified: build.Modified}, nil
 }
 
+// TimeZone is the resolver for the timeZone field.
+func (r *queryResolver) TimeZone(ctx context.Context) (string, error) {
+	if auth.PrincipalFrom(ctx) == nil {
+		return "", NewError(CodeUnauthenticated, "login required")
+	}
+
+	return r.location.String(), nil
+}
+
 // Heartbeat is the resolver for the heartbeat field.
 func (r *subscriptionResolver) Heartbeat(ctx context.Context) (<-chan *time.Time, error) {
 	ch := make(chan *time.Time, 1)

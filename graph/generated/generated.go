@@ -375,6 +375,7 @@ type ComplexityRoot struct {
 		SystemSettings          func(childComplexity int) int
 		SystemStatus            func(childComplexity int) int
 		Tags                    func(childComplexity int) int
+		TimeZone                func(childComplexity int) int
 		Transcoding             func(childComplexity int) int
 		TunerServerHealth       func(childComplexity int) int
 		UnreadNotificationCount func(childComplexity int) int
@@ -753,6 +754,7 @@ type ProgramConditionsResolver interface {
 type QueryResolver interface {
 	Viewer(ctx context.Context) (*model.User, error)
 	Version(ctx context.Context) (*model.AppVersion, error)
+	TimeZone(ctx context.Context) (string, error)
 	AuditEvents(ctx context.Context, first int, after *string, filter *model.AuditEventFilter) (*model.AuditEventConnection, error)
 	SystemStatus(ctx context.Context) (*model.SystemStatus, error)
 	TunerServerHealth(ctx context.Context) (*model.TunerServerHealth, error)
@@ -2418,6 +2420,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Tags(childComplexity), true
+	case "Query.timeZone":
+		if e.ComplexityRoot.Query.TimeZone == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.TimeZone(childComplexity), true
 	case "Query.transcoding":
 		if e.ComplexityRoot.Query.Transcoding == nil {
 			break
@@ -5115,6 +5123,10 @@ type Query {
   動いている Kotatsu の版。
   """
   version: AppVersion!
+  """
+  表示のタイムゾーン (設計書 8.1)。IANA の名前 (Asia/Tokyo など)。画面は、日時をこのタイムゾーンで表す。
+  """
+  timeZone: String!
 }
 
 """
@@ -13543,6 +13555,29 @@ func (ec *executionContext) fieldContext_Query_version(_ context.Context, field 
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Query_timeZone(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_timeZone(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().TimeZone(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_timeZone(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Query_auditEvents(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -24558,6 +24593,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_version(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "timeZone":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_timeZone(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

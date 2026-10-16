@@ -12,6 +12,7 @@ import type {
 import { ProgramList } from '../conditions/ProgramList';
 import { EmptyState } from '../futon';
 import { ProgramDetail } from '../guide/ProgramDetail';
+import { zonedFormat } from '../futon';
 
 type Props = {
   input: RulePreviewQuery$variables['input'];
@@ -42,13 +43,12 @@ const query = graphql`
   }
 `;
 
-const programTime = new Intl.DateTimeFormat('ja-JP', {
+const programTime = zonedFormat({
   month: 'numeric',
   day: 'numeric',
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 // debounceMs は、入力が止まってからプレビューを取るまでの時間。打つたびに問い合わせないようにする。

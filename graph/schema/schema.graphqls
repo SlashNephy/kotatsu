@@ -34,6 +34,10 @@ type Query {
   動いている Kotatsu の版。
   """
   version: AppVersion!
+  """
+  表示のタイムゾーン (設計書 8.1)。IANA の名前 (Asia/Tokyo など)。画面は、日時をこのタイムゾーンで表す。
+  """
+  timeZone: String!
 }
 
 """

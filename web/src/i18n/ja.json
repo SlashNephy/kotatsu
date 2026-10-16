@@ -549,7 +549,7 @@
       "service": "サービス",
       "startAt": "開始",
       "endAt": "終了",
-      "endAtDescription": "日本時間で入れます。長さは 24 時間までです。",
+      "endAtDescription": "{{zone}}で入れます。長さは 24 時間までです。",
       "name": "名前",
       "create": "作成",
       "save": "保存",
@@ -611,7 +611,7 @@
     "emptyHint": "「ルールを作成」から作るか、番組検索の条件から作れます。条件に一致する番組を、自動で録画予約します。",
     "validFrom": "有効期間の開始",
     "validUntil": "有効期間の終了",
-    "validityDescription": "開始時刻がこの期間に入る番組だけを予約します。日本時間で入れます。空なら区切りません",
+    "validityDescription": "開始時刻がこの期間に入る番組だけを予約します。{{zone}}で入れます。空なら区切りません",
     "validityOrder": "終了は開始より後にしてください",
     "upcomingReservations": "これからの予約 {{count}} 件",
     "disabled": "無効",
@@ -1111,5 +1111,9 @@
     "copy": "コピー",
     "copied": "コピーしました",
     "error": "URLを発行できませんでした"
+  },
+  "timeZone": {
+    "tokyo": "日本時間",
+    "other": "{{zone}} の時刻"
   }
 }

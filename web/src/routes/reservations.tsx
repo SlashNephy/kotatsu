@@ -54,6 +54,7 @@ import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDi
 import { ServiceLabel } from '../guide/ServiceLabel';
 import { TimeReservationDialog } from '../reservations/TimeReservationDialog';
 import classes from './reservations.module.css';
+import { zonedFormat } from '../futon';
 
 // query は、時間帯に重なる予約を取る。続きは、同じ時間帯と状態で、カーソルから読む。
 const query = graphql`
@@ -132,17 +133,15 @@ const rangeDays = 8;
 // pageSize は、1 回に取る件数。一度に並べすぎないよう、続きは「さらに読み込む」で足す。
 const pageSize = 25;
 
-const dayFormat = new Intl.DateTimeFormat('ja-JP', {
+const dayFormat = zonedFormat({
   month: 'numeric',
   day: 'numeric',
   weekday: 'short',
-  timeZone: 'Asia/Tokyo',
 });
-const timeFormat = new Intl.DateTimeFormat('ja-JP', {
+const timeFormat = zonedFormat({
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 // kinds は、予約の種類ごとの、行の先頭のアイコンと名前。ルール予約と手動の予約を見分けられるようにする。

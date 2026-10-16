@@ -28,6 +28,7 @@ import type { usersEnableMutation } from './__generated__/usersEnableMutation.gr
 import type { usersQuery } from './__generated__/usersQuery.graphql';
 import type { usersResetPasswordMutation } from './__generated__/usersResetPasswordMutation.graphql';
 import type { usersUpdateMutation } from './__generated__/usersUpdateMutation.graphql';
+import { zonedFormat } from '../../futon';
 
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
 const path = '/admin/users';
@@ -38,11 +39,10 @@ export const Route = createFileRoute('/admin/users')({
   component: UsersPage,
 });
 
-const dateFormat = new Intl.DateTimeFormat('ja-JP', {
+const dateFormat = zonedFormat({
   year: 'numeric',
   month: 'numeric',
   day: 'numeric',
-  timeZone: 'Asia/Tokyo',
 });
 
 const roles = ['ADMIN', 'MEMBER', 'VIEWER'] as const satisfies readonly Role[];

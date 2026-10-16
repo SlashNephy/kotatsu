@@ -1,5 +1,7 @@
 // 番組表の配置を計算する。描画から切り離し、時刻と画素の対応と、見えている番組の切り出しを扱う。
 
+import { fromWallClock, zoneOffset } from '../futon/timeZone';
+
 // minuteHeight は、番組表の 1 分の高さ (px)。
 export const minuteHeight = 3;
 // minProgramHeight は、短い番組でも名前が読めるようにする、番組の枠の最小の高さ (px)。文字 1 行 (xs の 12px × 行の高さ 1.35) と上下の余白が収まる高さにする。
@@ -240,19 +242,22 @@ export function visibleRange(
   return { start, end: Math.max(start, lo) };
 }
 
-// dateOf は、放送日の始まりの時刻を YYYY-MM-DD (日本時間) にする。
+// dateOf は、放送日の始まりの時刻を YYYY-MM-DD (表示のタイムゾーン) にする。
 export function dateOf(time: number): string {
-  return new Date(time + 9 * 3_600_000).toISOString().slice(0, 10);
+  return new Date(time + zoneOffset(time)).toISOString().slice(0, 10);
 }
 
-// broadcastDay は、時刻を含む放送日 (4 時から翌 4 時まで、日本時間) の時間帯を返す。
+// broadcastDay は、時刻を含む放送日 (4 時から翌 4 時まで、表示のタイムゾーン) の時間帯を返す。
+// 夏時間の切り替えの日は、24 時間より長いか短い。
 export function broadcastDay(time: number): GuideWindow {
-  const jst = 9 * 60 * minute;
   const dayStartHour = 4 * 60 * minute;
   const day = 24 * 60 * minute;
-  const from = Math.floor((time + jst - dayStartHour) / day) * day - jst + dayStartHour;
+  // 壁時計で 4 時を引いた日付の 4 時が、放送日の始まり。
+  const local = time + zoneOffset(time) - dayStartHour;
+  const start = Math.floor(local / day) * day + dayStartHour;
+  const from = fromWallClock(start);
 
-  return { from, to: from + day };
+  return { from, to: fromWallClock(start + day) };
 }
 
 // receivedUntil は、番組表が届いている時刻 (いちばん遅く終わる番組の終わり)。ends は、その日に出す番組の終わりの時刻。

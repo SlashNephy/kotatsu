@@ -18,7 +18,7 @@ import { Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
+import { EmptyState, ErrorBoundary, fromWallClock, PageLoader } from '../../futon';
 import { loadExtendedHours, saveExtendedHours } from '../../guide/hourNotation';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
 import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
@@ -28,6 +28,7 @@ import { collapseSharedColumns } from '../../guide/sharedEvent';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { guideQuery } from './__generated__/guideQuery.graphql';
 import classes from './index.module.css';
+import { zonedFormat } from '../../futon';
 
 type GuideSearch = {
   // date は、表示する放送日 (YYYY-MM-DD)。省くと、いまの放送日。
@@ -75,7 +76,10 @@ export const Route = createFileRoute('/guide/')({
 
 // dayFrom は、URL の日付 (なければ今日) の放送日の始まりを返す。
 function dayFrom(date: string | undefined, todayFrom: number): number {
-  return date === undefined ? todayFrom : broadcastDay(Date.parse(`${date}T12:00:00+09:00`)).from;
+  // その日の正午 (表示のタイムゾーン) を含む放送日にする。
+  return date === undefined
+    ? todayFrom
+    : broadcastDay(fromWallClock(Date.parse(`${date}T12:00:00Z`))).from;
 }
 
 function GuidePage() {
@@ -304,11 +308,10 @@ function Guide() {
     setJumpHour(hour);
     setScrollKey((key) => key + 1);
   };
-  const dayFormat = new Intl.DateTimeFormat('ja-JP', {
+  const dayFormat = zonedFormat({
     month: 'numeric',
     day: 'numeric',
     weekday: 'short',
-    timeZone: 'Asia/Tokyo',
   });
 
   return (

@@ -1,8 +1,8 @@
 // 番組表の時刻の表し方 (#486)。放送日は 4 時に始まるので、28 時間表記では、深夜の 0 時〜3 時を 24 時〜27 時と表す。
 
+import { zoneOffset } from '../futon/timeZone';
+
 const hour = 3_600_000;
-// jstOffset は、日本時間の UTC からの差。表示の時刻は、日本時間で表す。
-const jstOffset = 9 * hour;
 // dayStartHour は、放送日が始まる時。
 const dayStartHour = 4;
 
@@ -13,12 +13,12 @@ export function guideHour(time: number, day: number, extended: boolean): number 
     return Math.floor((time - (day - dayStartHour * hour)) / hour);
   }
 
-  return new Date(time + jstOffset).getUTCHours();
+  return new Date(time + zoneOffset(time)).getUTCHours();
 }
 
 // guideTime は、時刻 time を「HH:MM」で表す。extended なら、28 時間表記にする。
 export function guideTime(time: number, day: number, extended: boolean): string {
-  const minutes = new Date(time + jstOffset).getUTCMinutes();
+  const minutes = new Date(time + zoneOffset(time)).getUTCMinutes();
 
   return `${String(guideHour(time, day, extended)).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }

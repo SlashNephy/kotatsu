@@ -32,6 +32,7 @@ import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.grap
 import type { ProgramDetailReserveMutation } from './__generated__/ProgramDetailReserveMutation.graphql';
 import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDialog';
 import { ServiceLabel } from './ServiceLabel';
+import { zonedFormat } from '../futon';
 
 type Props = {
   programId: string | undefined;
@@ -62,7 +63,7 @@ export function ProgramDetail({ programId, onClose }: Props) {
 }
 
 // 検索から過去の番組も開くので、年も出す。
-const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+const dateTimeFormat = zonedFormat({
   year: 'numeric',
   month: 'numeric',
   day: 'numeric',
@@ -70,13 +71,11 @@ const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
-const timeFormat = new Intl.DateTimeFormat('ja-JP', {
+const timeFormat = zonedFormat({
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 // onReserved は、録画予約を作れたときに呼ぶ。サイドバーを閉じ、番組表で予約した番組を見せる。

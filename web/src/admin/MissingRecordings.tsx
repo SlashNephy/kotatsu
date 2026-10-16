@@ -20,6 +20,7 @@ import type {
   MissingRecordingsQuery$data,
 } from './__generated__/MissingRecordingsQuery.graphql';
 import type { MissingRecordingsCleanUpMutation } from './__generated__/MissingRecordingsCleanUpMutation.graphql';
+import { zonedFormat } from '../futon';
 
 const query = graphql`
   query MissingRecordingsQuery {
@@ -41,14 +42,13 @@ type Missing = MissingRecordingsQuery$data['missingRecordings'][number];
 // cleanUpBatch は、1 回の cleanUpMissingRecordings で送る録画の数 (サーバーの上限)。
 const cleanUpBatch = 500;
 
-const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+const dateTimeFormat = zonedFormat({
   year: 'numeric',
   month: 'numeric',
   day: 'numeric',
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 // MissingRecordings は、セグメントのファイルが見つからない録画を探し、確かめてから DB から消す (設計書 5.6)。

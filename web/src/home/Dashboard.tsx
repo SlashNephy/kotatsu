@@ -23,15 +23,15 @@ import { broadcastDay, dateOf } from '../guide/layout';
 import { ProgramTitle, toHalfWidth } from '../futon';
 import { NowPlayingCard } from '../guide/NowPlayingCard';
 import { ServiceLabel } from '../guide/ServiceLabel';
+import { zonedFormat } from '../futon';
 
-const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+const dateTimeFormat = zonedFormat({
   month: 'numeric',
   day: 'numeric',
   weekday: 'short',
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 // maxUpcoming は、ホームに出すこれからの予約の数。
