@@ -55,6 +55,11 @@ func (b *broadcastTracker) update(pf *ts.PresentFollowing, now time.Time) broadc
 	return change
 }
 
+// leftAir は、予約した番組が放送中でなくなったことを検知したかどうか。b が nil (EIT[p/f] で追わない録画) なら false。
+func (b *broadcastTracker) leftAir() bool {
+	return b != nil && b.endedAt != nil
+}
+
 // end は、EPG から決めた録画の終わり planned を、放送の状態で決め直す。notBroadcast は、予約した番組が放送されなかったかどうか。
 //   - 放送が終わったら (放送中が別の番組に切り替わったら)、後ろのマージン margin を録って止める
 //   - 予定の終わりを過ぎても、予約した番組が放送中か、次の番組 (繰り下げ) なら、step ずつ延ばす。延ばすのは limit まで

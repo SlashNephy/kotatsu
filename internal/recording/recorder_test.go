@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -41,6 +43,15 @@ func (f *fixture) newRecorder(t *testing.T, tuner recording.StreamOpener, freeSp
 func (f *fixture) newRecorderWithPeers(t *testing.T, tuner recording.StreamOpener, freeSpace kago.FreeSpaceFunc, peers recording.PeersFunc) (*recording.Recorder, string) {
 	t.Helper()
 
+	return f.newRecorderWithLogger(t, tuner, freeSpace, peers, slog.New(slog.DiscardHandler))
+}
+
+// newRecorderWithLogger は、logger にログを書く Recorder を作る。
+func (f *fixture) newRecorderWithLogger(t *testing.T, tuner recording.StreamOpener, freeSpace kago.FreeSpaceFunc, peers recording.PeersFunc,
+	logger *slog.Logger,
+) (*recording.Recorder, string) {
+	t.Helper()
+
 	dir := t.TempDir()
 	tokyo, err := time.LoadLocation("Asia/Tokyo")
 	require.NoError(t, err)
@@ -48,12 +59,42 @@ func (f *fixture) newRecorderWithPeers(t *testing.T, tuner recording.StreamOpene
 		freeSpace = func(string) (uint64, error) { return 1 << 40, nil }
 	}
 	recorder := recording.NewRecorder(f.pool, f.clock, tuner, kago.New(map[string]string{poolID: dir}, freeSpace), nil, tokyo,
-		slog.New(slog.DiscardHandler), &recording.RecorderOptions{
+		logger, &recording.RecorderOptions{
 			TuningTime: 0, Tick: 10 * time.Millisecond, RetryInterval: 20 * time.Millisecond, ReleaseAfter: 0, Peers: peers,
 		})
 
 	return recorder, dir
 }
+
+// messageRecorder は、ログのメッセージを順に記録する slog.Handler。録画は別の goroutine からログを書くので、ロックで守る。
+type messageRecorder struct {
+	mu       sync.Mutex
+	messages []string
+}
+
+func (m *messageRecorder) Enabled(context.Context, slog.Level) bool { return true }
+
+func (m *messageRecorder) Handle(_ context.Context, record slog.Record) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.messages = append(m.messages, record.Message)
+
+	return nil
+}
+
+func (m *messageRecorder) WithAttrs([]slog.Attr) slog.Handler { return m }
+
+func (m *messageRecorder) WithGroup(string) slog.Handler { return m }
+
+// list は、これまでに記録したメッセージを返す。
+func (m *messageRecorder) list() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return slices.Clone(m.messages)
+}
+
+var _ slog.Handler = new(messageRecorder)
 
 type recorded struct {
 	state         string
