@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { captureFileName, fitContain, overlayCanvases } from './capture';
+import { captureFileName, captureTexts, fitContain, overlayCanvases } from './capture';
 
 describe('fitContain', () => {
   test.each([
@@ -88,5 +88,33 @@ describe('captureFileName', () => {
     },
   ])('$name', ({ service, program, want }) => {
     expect(captureFileName(time, service, program)).toBe(want);
+  });
+});
+
+describe('captureTexts', () => {
+  // 2026-10-16 21:00:05 (日本時間)。
+  const time = Date.UTC(2026, 9, 16, 12, 0, 5);
+
+  test.each([
+    {
+      name: '番組名は囲み文字を外し、放送時刻は RFC 1123 で書く',
+      programName: 'ニュース７🈑🈞',
+      want: [
+        { keyword: 'Title', text: 'ニュース７' },
+        { keyword: 'Source', text: 'NHK総合1・東京' },
+        { keyword: 'Creation Time', text: 'Fri, 16 Oct 2026 12:00:05 GMT' },
+      ],
+    },
+    {
+      name: '番組がなければ、番組名は空にする',
+      programName: null,
+      want: [
+        { keyword: 'Title', text: '' },
+        { keyword: 'Source', text: 'NHK総合1・東京' },
+        { keyword: 'Creation Time', text: 'Fri, 16 Oct 2026 12:00:05 GMT' },
+      ],
+    },
+  ])('$name', ({ programName, want }) => {
+    expect(captureTexts(time, 'NHK総合1・東京', programName)).toEqual(want);
   });
 });
