@@ -62,11 +62,12 @@ func TestClientOpenServiceStreamIdle(t *testing.T) {
 			server := stallingStream(t, tt.chunks, tt.interval)
 			client, err := mirakurun.New(&mirakurun.Options{URL: server.URL, StreamIdleTimeout: idle})
 			require.NoError(t, err)
+			// 見張りは、ストリームを開いたときに始まるので、その前から測る。
+			started := time.Now()
 			stream, err := client.OpenServiceStream(t.Context(), 3273601024, nil)
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = stream.Close() })
 
-			started := time.Now()
 			data, err := io.ReadAll(stream)
 
 			require.ErrorIs(t, err, mirakurun.ErrStreamStalled)
@@ -95,5 +96,10 @@ func TestClientOpenServiceStreamEnds(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Len(t, data, 188)
+	// 閉じるのが上限より遅れても、読み終えたストリームを、止まったことにしない。
+	time.Sleep(300 * time.Millisecond)
+	n, err := stream.Read(make([]byte, 188))
+	assert.Zero(t, n)
+	require.ErrorIs(t, err, io.EOF)
 	require.NoError(t, stream.Close())
 }

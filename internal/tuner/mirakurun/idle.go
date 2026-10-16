@@ -40,8 +40,12 @@ func (r *idleReader) Read(p []byte) (int, error) {
 	if n > 0 && !r.stalled.Load() {
 		r.timer.Reset(r.timeout)
 	}
-	if err != nil && r.stalled.Load() {
-		return n, ErrStreamStalled
+	if err != nil {
+		if r.stalled.Load() {
+			return n, ErrStreamStalled
+		}
+		// 読み終えたか、ほかの理由で切れたら、見張るのをやめる。閉じるのが遅れても、止まったことにしない。
+		r.timer.Stop()
 	}
 
 	return n, err
