@@ -360,7 +360,7 @@ type ComplexityRoot struct {
 		PreviewFileName         func(childComplexity int, template string, program *string) int
 		PreviewRule             func(childComplexity int, input model.RuleInput, first int, after *string) int
 		RecordingRenames        func(childComplexity int) int
-		Recordings              func(childComplexity int, first int, after *string, filter *model.RecordingFilter) int
+		Recordings              func(childComplexity int, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) int
 		Reservations            func(childComplexity int, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, first int, after *string) int
 		Rules                   func(childComplexity int) int
 		SearchPrograms          func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
@@ -757,7 +757,7 @@ type QueryResolver interface {
 	Passkeys(ctx context.Context) ([]*model.Passkey, error)
 	PlayerSettings(ctx context.Context) (*model.PlayerSettings, error)
 	RecordingRenames(ctx context.Context) ([]*model.RecordingRename, error)
-	Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter) (*model.RecordingConnection, error)
+	Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) (*model.RecordingConnection, error)
 	Tags(ctx context.Context) ([]*model.Tag, error)
 	Reservations(ctx context.Context, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, first int, after *string) (*model.ReservationConnection, error)
 	Rules(ctx context.Context) ([]*model.Rule, error)
@@ -2297,7 +2297,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Recordings(childComplexity, args["first"].(int), args["after"].(*string), args["filter"].(*model.RecordingFilter)), true
+		return e.ComplexityRoot.Query.Recordings(childComplexity, args["first"].(int), args["after"].(*string), args["filter"].(*model.RecordingFilter), args["order"].(model.RecordingOrder)), true
 	case "Query.reservations":
 		if e.ComplexityRoot.Query.Reservations == nil {
 			break
@@ -4623,9 +4623,17 @@ input RecordingFilter {
   until: Time
 }
 
+"""
+録画の並び順。どちらも、録画を始めた日時で並べる。
+"""
+enum RecordingOrder {
+  NEWEST_FIRST
+  OLDEST_FIRST
+}
+
 extend type Query {
-  "録画を、録画を始めた日時の新しい順に first 件まで返す。"
-  recordings(first: Int! = 50, after: String, filter: RecordingFilter): RecordingConnection!
+  "録画を、録画を始めた日時の順 (既定は新しい順) に first 件まで返す。"
+  recordings(first: Int! = 50, after: String, filter: RecordingFilter, order: RecordingOrder! = NEWEST_FIRST): RecordingConnection!
   "タグを、名前の順に返す。"
   tags: [Tag!]!
 }
@@ -7562,6 +7570,14 @@ func (ec *executionContext) field_Query_recordings_args(ctx context.Context, raw
 		return nil, err
 	}
 	args["filter"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "order",
+		func(ctx context.Context, v any) (model.RecordingOrder, error) {
+			return ec.unmarshalNRecordingOrder2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingOrder(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["order"] = arg3
 	return args, nil
 }
 
@@ -13877,7 +13893,7 @@ func (ec *executionContext) _Query_recordings(ctx context.Context, field graphql
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Recordings(ctx, fc.Args["first"].(int), fc.Args["after"].(*string), fc.Args["filter"].(*model.RecordingFilter))
+			return ec.Resolvers.Query().Recordings(ctx, fc.Args["first"].(int), fc.Args["after"].(*string), fc.Args["filter"].(*model.RecordingFilter), fc.Args["order"].(model.RecordingOrder))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.RecordingConnection) graphql.Marshaler {
@@ -28484,6 +28500,16 @@ func (ec *executionContext) marshalNRecordingGap2ᚖgithubᚗcomᚋSlashNephyᚋ
 		return graphql.Null
 	}
 	return ec._RecordingGap(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRecordingOrder2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingOrder(ctx context.Context, v any) (model.RecordingOrder, error) {
+	var res model.RecordingOrder
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRecordingOrder2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingOrder(ctx context.Context, sel ast.SelectionSet, v model.RecordingOrder) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNRecordingRename2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRecordingRenameᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RecordingRename) graphql.Marshaler {

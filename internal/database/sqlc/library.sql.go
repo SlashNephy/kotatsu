@@ -277,25 +277,31 @@ WHERE (cardinality($1::text[]) = 0 OR r.state = ANY($1::text[]))
   AND ($5::timestamptz IS NULL OR r.start_at >= $5::timestamptz)
   AND ($6::timestamptz IS NULL OR r.start_at < $6::timestamptz)
   AND ($7::timestamptz IS NULL
-    OR (r.recorded_from, r.id) < ($7::timestamptz, $8::uuid))
-ORDER BY r.recorded_from DESC, r.id DESC
-LIMIT $9
+    OR (NOT $8::boolean AND (r.recorded_from, r.id) < ($7::timestamptz, $9::uuid))
+    OR ($8::boolean AND (r.recorded_from, r.id) > ($7::timestamptz, $9::uuid)))
+ORDER BY
+  CASE WHEN $8::boolean THEN r.recorded_from END ASC,
+  CASE WHEN $8::boolean THEN r.id END ASC,
+  r.recorded_from DESC, r.id DESC
+LIMIT $10
 `
 
 type SearchRecordingsParams struct {
-	States     []string
-	ServiceIds []int64
-	TagIds     []uuid.UUID
-	Keyword    *string
-	Since      *time.Time
-	Until      *time.Time
-	BeforeAt   *time.Time
-	BeforeID   *uuid.UUID
-	MaxCount   int32
+	States      []string
+	ServiceIds  []int64
+	TagIds      []uuid.UUID
+	Keyword     *string
+	Since       *time.Time
+	Until       *time.Time
+	BeforeAt    *time.Time
+	OldestFirst bool
+	BeforeID    *uuid.UUID
+	MaxCount    int32
 }
 
-// 録画を、録画を始めた日時の新しい順に返す。絞り込まない条件は NULL か空にする。
-// before_at と before_id より前 (古い) の録画だけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
+// 録画を、録画を始めた日時の新しい順 (oldest_first なら古い順) に返す。絞り込まない条件は NULL か空にする。
+// before_at と before_id のカーソルより後ろ (新しい順なら古い、古い順なら新しい) の録画だけを返し、ページを送る。
+// 2 つは、両方を渡すか、両方を NULL にする。
 func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsParams) ([]Recording, error) {
 	rows, err := q.db.Query(ctx, searchRecordings,
 		arg.States,
@@ -305,6 +311,7 @@ func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsPara
 		arg.Since,
 		arg.Until,
 		arg.BeforeAt,
+		arg.OldestFirst,
 		arg.BeforeID,
 		arg.MaxCount,
 	)

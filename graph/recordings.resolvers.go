@@ -28,8 +28,8 @@ func (r *mutationResolver) SaveWatchPosition(ctx context.Context, id string, pos
 }
 
 // Recordings is the resolver for the recordings field.
-func (r *queryResolver) Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter) (*model.RecordingConnection, error) {
-	return r.listRecordings(ctx, first, after, filter)
+func (r *queryResolver) Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) (*model.RecordingConnection, error) {
+	return r.listRecordings(ctx, first, after, filter, order)
 }
 
 // Tags is the resolver for the tags field.

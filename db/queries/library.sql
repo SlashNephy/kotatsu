@@ -40,8 +40,9 @@ ON CONFLICT (user_id, recording_id) DO UPDATE SET position_ms = EXCLUDED.positio
 SELECT * FROM watch_progress WHERE user_id = @user_id AND recording_id = ANY(@recording_ids::uuid[]);
 
 -- name: SearchRecordings :many
--- 録画を、録画を始めた日時の新しい順に返す。絞り込まない条件は NULL か空にする。
--- before_at と before_id より前 (古い) の録画だけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
+-- 録画を、録画を始めた日時の新しい順 (oldest_first なら古い順) に返す。絞り込まない条件は NULL か空にする。
+-- before_at と before_id のカーソルより後ろ (新しい順なら古い、古い順なら新しい) の録画だけを返し、ページを送る。
+-- 2 つは、両方を渡すか、両方を NULL にする。
 SELECT r.* FROM recordings r
 WHERE (cardinality(@states::text[]) = 0 OR r.state = ANY(@states::text[]))
   AND (cardinality(@service_ids::bigint[]) = 0 OR r.service_id = ANY(@service_ids::bigint[]))
@@ -52,8 +53,12 @@ WHERE (cardinality(@states::text[]) = 0 OR r.state = ANY(@states::text[]))
   AND (sqlc.narg(since)::timestamptz IS NULL OR r.start_at >= sqlc.narg(since)::timestamptz)
   AND (sqlc.narg(until)::timestamptz IS NULL OR r.start_at < sqlc.narg(until)::timestamptz)
   AND (sqlc.narg(before_at)::timestamptz IS NULL
-    OR (r.recorded_from, r.id) < (sqlc.narg(before_at)::timestamptz, sqlc.narg(before_id)::uuid))
-ORDER BY r.recorded_from DESC, r.id DESC
+    OR (NOT @oldest_first::boolean AND (r.recorded_from, r.id) < (sqlc.narg(before_at)::timestamptz, sqlc.narg(before_id)::uuid))
+    OR (@oldest_first::boolean AND (r.recorded_from, r.id) > (sqlc.narg(before_at)::timestamptz, sqlc.narg(before_id)::uuid)))
+ORDER BY
+  CASE WHEN @oldest_first::boolean THEN r.recorded_from END ASC,
+  CASE WHEN @oldest_first::boolean THEN r.id END ASC,
+  r.recorded_from DESC, r.id DESC
 LIMIT @max_count;
 
 -- name: ListRecordingsByIDs :many

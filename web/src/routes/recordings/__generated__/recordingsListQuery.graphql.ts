@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<2446ad339dec2afd5309600b86f12e46>>
+ * @generated SignedSource<<15015929c9b700225ffb04127f9e6e8d>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type RecordingOrder = "NEWEST_FIRST" | "OLDEST_FIRST" | "%future added value";
 export type RecordingState = "COMPLETED" | "COMPLETED_WITH_ERRORS" | "FAILED" | "PARTIAL" | "RECORDING" | "%future added value";
 export type RecordingFilter = {
   keyword?: string | null | undefined;
@@ -21,6 +22,7 @@ export type recordingsListQuery$variables = {
   after?: string | null | undefined;
   filter?: RecordingFilter | null | undefined;
   first: number;
+  order: RecordingOrder;
 };
 export type recordingsListQuery$data = {
   readonly recordings: {
@@ -85,7 +87,12 @@ v2 = {
   "kind": "LocalArgument",
   "name": "first"
 },
-v3 = [
+v3 = {
+  "defaultValue": null,
+  "kind": "LocalArgument",
+  "name": "order"
+},
+v4 = [
   {
     "kind": "Variable",
     "name": "after",
@@ -100,100 +107,105 @@ v3 = [
     "kind": "Variable",
     "name": "first",
     "variableName": "first"
+  },
+  {
+    "kind": "Variable",
+    "name": "order",
+    "variableName": "order"
   }
 ],
-v4 = {
+v5 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "id",
   "storageKey": null
 },
-v5 = {
+v6 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "name",
   "storageKey": null
 },
-v6 = {
+v7 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "startAt",
   "storageKey": null
 },
-v7 = {
+v8 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "endAt",
   "storageKey": null
 },
-v8 = {
+v9 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "state",
   "storageKey": null
 },
-v9 = {
+v10 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "drops",
   "storageKey": null
 },
-v10 = {
+v11 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "errors",
   "storageKey": null
 },
-v11 = {
+v12 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "scrambled",
   "storageKey": null
 },
-v12 = {
+v13 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "recordedFrom",
   "storageKey": null
 },
-v13 = {
+v14 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "recordedUntil",
   "storageKey": null
 },
-v14 = {
+v15 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "watchPositionMs",
   "storageKey": null
 },
-v15 = {
+v16 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "thumbnailUrl",
   "storageKey": null
 },
-v16 = {
+v17 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "previewUrl",
   "storageKey": null
 },
-v17 = {
+v18 = {
   "alias": null,
   "args": null,
   "concreteType": "PreviewFrame",
@@ -253,14 +265,14 @@ v17 = {
   ],
   "storageKey": null
 },
-v18 = {
+v19 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v19 = {
+v20 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -268,12 +280,12 @@ v19 = {
   "name": "tags",
   "plural": true,
   "selections": [
-    (v4/*:: as any*/),
-    (v5/*:: as any*/)
+    (v5/*:: as any*/),
+    (v6/*:: as any*/)
   ],
   "storageKey": null
 },
-v20 = {
+v21 = {
   "alias": null,
   "args": null,
   "concreteType": "PageInfo",
@@ -303,7 +315,8 @@ return {
     "argumentDefinitions": [
       (v0/*:: as any*/),
       (v1/*:: as any*/),
-      (v2/*:: as any*/)
+      (v2/*:: as any*/),
+      (v3/*:: as any*/)
     ],
     "kind": "Fragment",
     "metadata": null,
@@ -311,7 +324,7 @@ return {
     "selections": [
       {
         "alias": null,
-        "args": (v3/*:: as any*/),
+        "args": (v4/*:: as any*/),
         "concreteType": "RecordingConnection",
         "kind": "LinkedField",
         "name": "recordings",
@@ -333,7 +346,6 @@ return {
                 "name": "node",
                 "plural": false,
                 "selections": [
-                  (v4/*:: as any*/),
                   (v5/*:: as any*/),
                   (v6/*:: as any*/),
                   (v7/*:: as any*/),
@@ -347,6 +359,7 @@ return {
                   (v15/*:: as any*/),
                   (v16/*:: as any*/),
                   (v17/*:: as any*/),
+                  (v18/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -355,19 +368,19 @@ return {
                     "name": "service",
                     "plural": false,
                     "selections": [
-                      (v5/*:: as any*/),
-                      (v18/*:: as any*/)
+                      (v6/*:: as any*/),
+                      (v19/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v19/*:: as any*/)
+                  (v20/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v20/*:: as any*/)
+          (v21/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -380,14 +393,15 @@ return {
     "argumentDefinitions": [
       (v2/*:: as any*/),
       (v0/*:: as any*/),
-      (v1/*:: as any*/)
+      (v1/*:: as any*/),
+      (v3/*:: as any*/)
     ],
     "kind": "Operation",
     "name": "recordingsListQuery",
     "selections": [
       {
         "alias": null,
-        "args": (v3/*:: as any*/),
+        "args": (v4/*:: as any*/),
         "concreteType": "RecordingConnection",
         "kind": "LinkedField",
         "name": "recordings",
@@ -409,7 +423,6 @@ return {
                 "name": "node",
                 "plural": false,
                 "selections": [
-                  (v4/*:: as any*/),
                   (v5/*:: as any*/),
                   (v6/*:: as any*/),
                   (v7/*:: as any*/),
@@ -423,6 +436,7 @@ return {
                   (v15/*:: as any*/),
                   (v16/*:: as any*/),
                   (v17/*:: as any*/),
+                  (v18/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -431,36 +445,36 @@ return {
                     "name": "service",
                     "plural": false,
                     "selections": [
-                      (v5/*:: as any*/),
-                      (v18/*:: as any*/),
-                      (v4/*:: as any*/)
+                      (v6/*:: as any*/),
+                      (v19/*:: as any*/),
+                      (v5/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v19/*:: as any*/)
+                  (v20/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v20/*:: as any*/)
+          (v21/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "976124470c934a9f33af287f6296eb62",
+    "cacheID": "e8fea4e632094318ca12b0a9d00c5190",
     "id": null,
     "metadata": {},
     "name": "recordingsListQuery",
     "operationKind": "query",
-    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n) {\n  recordings(first: $first, after: $after, filter: $filter) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        drops\n        errors\n        scrambled\n        recordedFrom\n        recordedUntil\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
+    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n  $order: RecordingOrder!\n) {\n  recordings(first: $first, after: $after, filter: $filter, order: $order) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        drops\n        errors\n        scrambled\n        recordedFrom\n        recordedUntil\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "14e307b3ef0e7edb5f09638ead2df4ca";
+(node as any).hash = "8edd8e95eb50760bff0da83c7c4ce2ba";
 
 export default node;

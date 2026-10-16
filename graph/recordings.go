@@ -49,8 +49,10 @@ func librarian(ctx context.Context) (*audit.Actor, error) {
 	return actorOf(ctx, principal), nil
 }
 
-// listRecordings は、録画を、録画を始めた日時の新しい順に first 件まで返す。
-func (r *Resolver) listRecordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter) (*model.RecordingConnection, error) {
+// listRecordings は、録画を、録画を始めた日時の order の順に first 件まで返す。
+func (r *Resolver) listRecordings(
+	ctx context.Context, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder,
+) (*model.RecordingConnection, error) {
 	if _, err := viewer(ctx); err != nil {
 		return nil, err
 	}
@@ -63,6 +65,7 @@ func (r *Resolver) listRecordings(ctx context.Context, first int, after *string,
 	}
 	// 次のページがあるかを知るため、1 件多く読む。
 	params.MaxCount = int32(first + 1)
+	params.OldestFirst = order == model.RecordingOrderOldestFirst
 	if after != nil {
 		var cursor recordingCursor
 		if err := DecodeCursor(*after, &cursor); err != nil {
@@ -100,7 +103,7 @@ func (r *Resolver) listRecordings(ctx context.Context, first int, after *string,
 // searchParams は、録画の絞り込みを、検索のクエリの引数にする。
 func searchParams(filter *model.RecordingFilter) (*sqlc.SearchRecordingsParams, error) {
 	params := &sqlc.SearchRecordingsParams{
-		States: []string{}, ServiceIds: []int64{}, TagIds: []uuid.UUID{}, Keyword: nil, Since: nil, Until: nil, BeforeAt: nil, BeforeID: nil, MaxCount: 0,
+		States: []string{}, ServiceIds: []int64{}, TagIds: []uuid.UUID{}, Keyword: nil, Since: nil, Until: nil, BeforeAt: nil, BeforeID: nil, MaxCount: 0, OldestFirst: false,
 	}
 	if filter == nil {
 		return params, nil

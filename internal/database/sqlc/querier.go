@@ -387,8 +387,9 @@ type Querier interface {
 	// キーワードのうち、正規表現でなく、番組名と概要だけを見るものは、正規化した列の LIKE で粗く絞る (keyword_*)。
 	// 最終的な判定は Go の照合関数で行うので、ここでは一致しうる番組を落とさないことだけを守る。
 	SearchProgramCandidates(ctx context.Context, arg SearchProgramCandidatesParams) ([]SearchProgramCandidatesRow, error)
-	// 録画を、録画を始めた日時の新しい順に返す。絞り込まない条件は NULL か空にする。
-	// before_at と before_id より前 (古い) の録画だけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
+	// 録画を、録画を始めた日時の新しい順 (oldest_first なら古い順) に返す。絞り込まない条件は NULL か空にする。
+	// before_at と before_id のカーソルより後ろ (新しい順なら古い、古い順なら新しい) の録画だけを返し、ページを送る。
+	// 2 つは、両方を渡すか、両方を NULL にする。
 	SearchRecordings(ctx context.Context, arg SearchRecordingsParams) ([]Recording, error)
 	ServiceExists(ctx context.Context, id int64) (bool, error)
 	// セグメントを 1 つにつないだあとで、最初のセグメントの大きさと、表す時間の終わりを、つないだものにする。

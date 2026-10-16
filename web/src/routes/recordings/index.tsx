@@ -9,18 +9,29 @@ import {
   Group,
   Indicator,
   MultiSelect,
+  SegmentedControl,
   SimpleGrid,
   Stack,
   TextInput,
   Title,
 } from '@mantine/core';
-import { Clapperboard, Info, ListFilter, Search, SearchX, Tag } from 'lucide-react';
+import {
+  CalendarDays,
+  Clapperboard,
+  Info,
+  ListFilter,
+  Search,
+  SearchX,
+  Tag,
+  Tv,
+} from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
 import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
+import { broadcastRange } from '../../recordings/filterRange';
 import { RecordingCard } from '../../recordings/RecordingCard';
 import { recordingStates, stateKey } from '../../recordings/states';
 import { isUnauthenticated } from '../../relay/environment';
@@ -39,8 +50,13 @@ export const Route = createFileRoute('/recordings/')({
 const pageSize = 48;
 
 const query = graphql`
-  query recordingsListQuery($first: Int!, $after: String, $filter: RecordingFilter) {
-    recordings(first: $first, after: $after, filter: $filter) {
+  query recordingsListQuery(
+    $first: Int!
+    $after: String
+    $filter: RecordingFilter
+    $order: RecordingOrder!
+  ) {
+    recordings(first: $first, after: $after, filter: $filter, order: $order) {
       edges {
         node {
           id
@@ -85,6 +101,7 @@ const query = graphql`
 
 type Recording = recordingsListQuery$data['recordings']['edges'][number]['node'];
 type Filter = NonNullable<recordingsListQuery$variables['filter']>;
+type Order = recordingsListQuery$variables['order'];
 
 // RecordingsPage は、サムネイル付きの録画のグリッドの画面 (設計書 10.3)。タグと条件で絞り込める。
 // 狭い画面では、絞り込みのフォームを一覧の上に置かず、見出しの右のボタンから、下から出るシートで開く。
@@ -92,6 +109,8 @@ function RecordingsPage() {
   const { t } = useTranslation();
   // filter は、結果に適用している絞り込み。最初は絞り込まずに、新しい録画から出す。
   const [filter, setFilter] = useState<Filter>({});
+  // order は、並び順。絞り込みではないので、選んだらすぐに並べ替える。
+  const [order, setOrder] = useState<Order>('NEWEST_FIRST');
   const [filtersOpened, setFiltersOpened] = useState(false);
   // 閉じていても絞り込み中だと分かるよう、ボタンに、使っている条件の数を出す。
   const activeFilters = Object.keys(filter).length;
@@ -132,6 +151,8 @@ function RecordingsPage() {
           <Recordings
             filter={filter}
             onFilter={setFilter}
+            order={order}
+            onOrder={setOrder}
             filtersOpened={filtersOpened}
             onFiltersClose={() => setFiltersOpened(false)}
           />
@@ -146,11 +167,15 @@ function RecordingsPage() {
 function Recordings({
   filter,
   onFilter,
+  order,
+  onOrder,
   filtersOpened,
   onFiltersClose,
 }: {
   filter: Filter;
   onFilter: (filter: Filter) => void;
+  order: Order;
+  onOrder: (order: Order) => void;
   filtersOpened: boolean;
   onFiltersClose: () => void;
 }) {
@@ -163,6 +188,10 @@ function Recordings({
           name
           recordings
         }
+        services {
+          id
+          name
+        }
       }
     `,
     {},
@@ -171,6 +200,10 @@ function Recordings({
   const [keyword, setKeyword] = useState('');
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
+  const [serviceIds, setServiceIds] = useState<string[]>([]);
+  // from と to は、放送日の期間 (YYYY-MM-DD)。両端を含む。
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -178,6 +211,8 @@ function Recordings({
       ...(keyword.trim() !== '' ? { keyword: keyword.trim() } : {}),
       ...(tagIds.length > 0 ? { tagIds } : {}),
       ...(states.length > 0 ? { states: states as Filter['states'] } : {}),
+      ...(serviceIds.length > 0 ? { serviceIds } : {}),
+      ...broadcastRange(from, to),
     });
     onFiltersClose();
   };
@@ -216,6 +251,32 @@ function Recordings({
           clearable
           style={style}
         />
+        <MultiSelect
+          label={t('recordings.services')}
+          leftSection={<Tv size={16} aria-hidden />}
+          data={tags.services.map((service) => ({ value: service.id, label: service.name }))}
+          value={serviceIds}
+          onChange={setServiceIds}
+          searchable
+          clearable
+          style={style}
+        />
+        <TextInput
+          type="date"
+          label={t('recordings.from')}
+          leftSection={<CalendarDays size={16} aria-hidden />}
+          value={from}
+          onChange={(e) => setFrom(e.currentTarget.value)}
+          style={style}
+        />
+        <TextInput
+          type="date"
+          label={t('recordings.to')}
+          leftSection={<CalendarDays size={16} aria-hidden />}
+          value={to}
+          onChange={(e) => setTo(e.currentTarget.value)}
+          style={style}
+        />
         <Button type="submit" leftSection={<ListFilter size={16} aria-hidden />}>
           {t('recordings.filter')}
         </Button>
@@ -248,20 +309,32 @@ function Recordings({
           {fields(false)}
         </Stack>
       </Drawer>
+      <Group justify="flex-end">
+        <SegmentedControl
+          aria-label={t('recordings.order')}
+          size="xs"
+          value={order}
+          onChange={(value) => onOrder(value as Order)}
+          data={[
+            { value: 'NEWEST_FIRST', label: t('recordings.newestFirst') },
+            { value: 'OLDEST_FIRST', label: t('recordings.oldestFirst') },
+          ]}
+        />
+      </Group>
       <Suspense fallback={<PageLoader />}>
-        <RecordingGrid key={JSON.stringify(filter)} filter={filter} />
+        <RecordingGrid key={`${order}:${JSON.stringify(filter)}`} filter={filter} order={order} />
       </Suspense>
     </Stack>
   );
 }
 
 // RecordingGrid は、絞り込んだ録画のグリッド。続きは、同じ絞り込みで、カーソルから読む。
-function RecordingGrid({ filter }: { filter: Filter }) {
+function RecordingGrid({ filter, order }: { filter: Filter; order: Order }) {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const data = useLazyLoadQuery<recordingsListQuery>(
     query,
-    { first: pageSize, after: null, filter },
+    { first: pageSize, after: null, filter, order },
     { fetchPolicy: 'store-and-network' },
   );
   // more は、続きの読み込みで足した録画と、その次のカーソル。
@@ -287,6 +360,7 @@ function RecordingGrid({ filter }: { filter: Filter }) {
         first: pageSize,
         after: next,
         filter,
+        order,
       }).toPromise();
       if (page !== undefined) {
         setMore({
