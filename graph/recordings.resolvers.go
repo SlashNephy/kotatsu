@@ -27,6 +27,11 @@ func (r *mutationResolver) SaveWatchPosition(ctx context.Context, id string, pos
 	return r.saveWatchPosition(ctx, id, positionMs)
 }
 
+// RegenerateRecordingImages is the resolver for the regenerateRecordingImages field.
+func (r *mutationResolver) RegenerateRecordingImages(ctx context.Context, id string) (bool, error) {
+	return r.regenerateRecordingImages(ctx, id)
+}
+
 // Recordings is the resolver for the recordings field.
 func (r *queryResolver) Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) (*model.RecordingConnection, error) {
 	return r.listRecordings(ctx, first, after, filter, order)

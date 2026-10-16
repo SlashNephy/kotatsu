@@ -57,10 +57,19 @@ describe('slideshowFrames', () => {
 });
 
 describe('manifestUrl', () => {
-  test('preview.jpg を preview.json にする', () => {
-    expect(manifestUrl('/media/recordings/abc/preview.jpg')).toBe(
-      '/media/recordings/abc/preview.json',
-    );
+  test.each([
+    {
+      name: 'preview.jpg を preview.json にする',
+      url: '/media/recordings/abc/preview.jpg',
+      want: '/media/recordings/abc/preview.json',
+    },
+    {
+      name: '版 (?v=) を引き継ぐ',
+      url: '/media/recordings/abc/preview.jpg?v=1791630600',
+      want: '/media/recordings/abc/preview.json?v=1791630600',
+    },
+  ])('$name', ({ url, want }) => {
+    expect(manifestUrl(url)).toBe(want);
   });
 });
 

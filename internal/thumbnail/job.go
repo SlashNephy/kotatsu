@@ -63,8 +63,12 @@ func (GenerateArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
 		Queue:       jobs.QueueMedia,
 		MaxAttempts: generateMaxAttempts,
-		// 同じ録画の画像を作るジョブは、待っている間に重ねて投入しない。
-		UniqueOpts: river.UniqueOpts{ByArgs: true},
+		// 同じ録画の画像を作るジョブは、待っている間に重ねて投入しない。River の既定は、終えたジョブ (completed) にも重ねないので、
+		// 待っている状態だけにする。終えたジョブに重ねないと、セグメントをつないだ後や、手で頼んだときに作り直せない (#476)。
+		UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{
+			rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRetryable,
+			rivertype.JobStateRunning, rivertype.JobStateScheduled,
+		}},
 	}
 }
 

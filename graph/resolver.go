@@ -19,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/settings"
 	"github.com/SlashNephy/kotatsu/internal/stream"
+	"github.com/SlashNephy/kotatsu/internal/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/webhook"
 	"github.com/SlashNephy/kotatsu/internal/webpush"
 )
@@ -61,6 +62,8 @@ type Resolver struct {
 	changes   Changes
 	pools     map[string]string
 	freeSpace kago.FreeSpaceFunc
+	// jobs は、ジョブを入れる River のクライアント。
+	jobs thumbnail.Inserter
 	// totalSpace は、保存先プールのファイルシステムの容量を調べる。
 	totalSpace kago.TotalSpaceFunc
 }
