@@ -1,4 +1,5 @@
 export { cssVariablesResolver, theme } from './theme';
+export { Authorship } from './Authorship';
 export { ColorSchemeToggle } from './ColorSchemeToggle';
 export { cspNonce } from './nonce';
 export { EmptyState } from './EmptyState';

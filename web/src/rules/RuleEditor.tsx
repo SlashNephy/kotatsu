@@ -18,7 +18,7 @@ import {
 } from '@mantine/core';
 import { Save, Trash2 } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
-import { useState, type FormEvent } from 'react';
+import { useState, type ComponentProps, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useMutation } from 'react-relay';
 
@@ -27,6 +27,7 @@ import type { RuleEditorCreateMutation } from './__generated__/RuleEditorCreateM
 import type { RuleEditorDeleteMutation } from './__generated__/RuleEditorDeleteMutation.graphql';
 import type { RuleEditorUpdateMutation } from './__generated__/RuleEditorUpdateMutation.graphql';
 import { hasConditions } from '../conditions/form';
+import { Authorship } from '../futon';
 import { ConditionsFields, type ServiceOption } from '../conditions/ConditionsFields';
 import { toInput, type RuleForm } from './form';
 import { RulePreview } from './RulePreview';
@@ -45,12 +46,22 @@ type Props = {
   services: readonly ServiceOption[];
   // readOnly は、視聴者のように、ルールを変えられないかどうか。
   readOnly: boolean;
+  // authorship は、ルールを誰がいつ作り、変えたか。新しいルールなら undefined。
+  authorship?: ComponentProps<typeof Authorship>;
 };
 
 // ruleEditorRuleFragment は、編集の画面が読むルールの項目。保存の結果でも同じ項目を受け取り、ストアに古い値を残さない (#533)。
 export const ruleEditorRuleFragment = graphql`
   fragment RuleEditor_rule on Rule {
     id
+    createdAt
+    createdBy {
+      displayName
+    }
+    updatedAt
+    updatedBy {
+      displayName
+    }
     name
     memo
     enabled
@@ -111,7 +122,14 @@ function sameRule(a: RuleForm, b: RuleForm) {
 }
 
 // RuleEditor は、ルールを編集するフォームと、条件に一致する番組のプレビュー (設計書 4.3)。
-export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }: Props) {
+export function RuleEditor({
+  ruleId,
+  initial,
+  channelTypes,
+  services,
+  readOnly,
+  authorship,
+}: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { form, outdated, set: setFields, reload } = useSyncedForm(initial, sameRule);
@@ -207,6 +225,7 @@ export function RuleEditor({ ruleId, initial, channelTypes, services, readOnly }
                     checked={form.enabled}
                     onChange={(e) => set({ enabled: e.currentTarget.checked })}
                   />
+                  {authorship !== undefined && <Authorship {...authorship} />}
                 </Stack>
               </Card>
               <ConditionsFields

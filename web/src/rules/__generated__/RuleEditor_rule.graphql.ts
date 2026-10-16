@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<e36209b17d0d931bf950e9041c3466ec>>
+ * @generated SignedSource<<bf8efd2d4599cd854b5686a5659a3690>>
  * @lightSyntaxTransform
  */
 
@@ -48,6 +48,10 @@ export type RuleEditor_rule$data = {
       readonly weekdays: ReadonlyArray<number>;
     }>;
   };
+  readonly createdAt: string;
+  readonly createdBy: {
+    readonly displayName: string;
+  } | null | undefined;
   readonly duplicateWindowDays: number | null | undefined;
   readonly enabled: boolean;
   readonly followEventRelay: boolean;
@@ -62,6 +66,10 @@ export type RuleEditor_rule$data = {
     readonly priority: number | null | undefined;
     readonly startMarginSeconds: number | null | undefined;
   };
+  readonly updatedAt: string;
+  readonly updatedBy: {
+    readonly displayName: string;
+  } | null | undefined;
   readonly validFrom: string | null | undefined;
   readonly validUntil: string | null | undefined;
   readonly " $fragmentType": "RuleEditor_rule";
@@ -80,6 +88,15 @@ var v0 = {
   "storageKey": null
 },
 v1 = [
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "displayName",
+    "storageKey": null
+  }
+],
+v2 = [
   {
     "alias": null,
     "args": null,
@@ -109,7 +126,7 @@ v1 = [
     "storageKey": null
   }
 ],
-v2 = [
+v3 = [
   {
     "alias": null,
     "args": null,
@@ -132,6 +149,40 @@ return {
   "name": "RuleEditor_rule",
   "selections": [
     (v0/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "createdAt",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "User",
+      "kind": "LinkedField",
+      "name": "createdBy",
+      "plural": false,
+      "selections": (v1/*:: as any*/),
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "updatedAt",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "User",
+      "kind": "LinkedField",
+      "name": "updatedBy",
+      "plural": false,
+      "selections": (v1/*:: as any*/),
+      "storageKey": null
+    },
     {
       "alias": null,
       "args": null,
@@ -168,7 +219,7 @@ return {
           "kind": "LinkedField",
           "name": "keywords",
           "plural": true,
-          "selections": (v1/*:: as any*/),
+          "selections": (v2/*:: as any*/),
           "storageKey": null
         },
         {
@@ -185,7 +236,7 @@ return {
           "kind": "LinkedField",
           "name": "excludeKeywords",
           "plural": true,
-          "selections": (v1/*:: as any*/),
+          "selections": (v2/*:: as any*/),
           "storageKey": null
         },
         {
@@ -214,7 +265,7 @@ return {
           "kind": "LinkedField",
           "name": "genres",
           "plural": true,
-          "selections": (v2/*:: as any*/),
+          "selections": (v3/*:: as any*/),
           "storageKey": null
         },
         {
@@ -224,7 +275,7 @@ return {
           "kind": "LinkedField",
           "name": "excludeGenres",
           "plural": true,
-          "selections": (v2/*:: as any*/),
+          "selections": (v3/*:: as any*/),
           "storageKey": null
         },
         {
@@ -377,6 +428,6 @@ return {
 };
 })();
 
-(node as any).hash = "5b8642d708564605c04a42608baef451";
+(node as any).hash = "a5c126c939d172cd30874487f1aa1d01";
 
 export default node;

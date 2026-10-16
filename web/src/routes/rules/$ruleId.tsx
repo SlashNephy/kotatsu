@@ -124,6 +124,16 @@ function Rule({ ruleId }: { ruleId: string }) {
       channelTypes={data.channelTypes}
       services={data.services}
       readOnly={data.viewer.role === 'VIEWER'}
+      authorship={
+        rule != null
+          ? {
+              createdAt: rule.createdAt,
+              createdBy: rule.createdBy,
+              updatedAt: rule.updatedAt,
+              updatedBy: rule.updatedBy,
+            }
+          : undefined
+      }
     />
   );
 }
