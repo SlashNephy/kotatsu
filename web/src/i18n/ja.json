@@ -528,6 +528,27 @@
       "saveError": "保存できませんでした。時間をおいてやり直してください"
     },
     "title": "予約",
+    "time": {
+      "open": "時刻予約を作成",
+      "createTitle": "時刻予約を作成",
+      "editTitle": "時刻予約の時刻と名前を変える",
+      "edit": "時刻と名前を変える",
+      "service": "サービス",
+      "startAt": "開始",
+      "endAt": "終了",
+      "endAtDescription": "日本時間で入れます。長さは 24 時間までです。",
+      "name": "名前",
+      "create": "作成",
+      "save": "保存",
+      "cancel": "キャンセル",
+      "loadError": "サービスを読み込めませんでした",
+      "saveError": "時刻予約を保存できませんでした",
+      "error": {
+        "missing": "開始と終了を入れてください",
+        "order": "終了は開始より後にしてください",
+        "tooLong": "長さは 24 時間までです"
+      }
+    },
     "filter": {
       "all": "すべて",
       "problems": "録画が欠ける見込み"

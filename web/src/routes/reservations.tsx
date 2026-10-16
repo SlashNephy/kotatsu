@@ -21,12 +21,14 @@ import {
   Clock,
   EllipsisVertical,
   ListChecks,
+  PencilLine,
+  Plus,
   SlidersHorizontal,
   Trash2,
   type LucideIcon,
 } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Suspense, useState } from 'react';
+import { startTransition, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   fetchQuery,
@@ -49,6 +51,7 @@ import type {
 } from './__generated__/reservationsQuery.graphql';
 import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDialog';
 import { ServiceLabel } from '../guide/ServiceLabel';
+import { TimeReservationDialog } from '../reservations/TimeReservationDialog';
 import classes from './reservations.module.css';
 
 // query は、時間帯に重なる予約を取る。続きは、同じ時間帯と状態で、カーソルから読む。
@@ -197,10 +200,14 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
     to: range.to,
     states: problems ? (['PARTIAL', 'CONFLICT'] as const) : null,
   };
+  // fetchKey を変えると、読み直す。時刻予約を作った後に、一覧に足すのに使う。読み直す間も一覧を出したままにするため、transition の中で変える。
+  const [fetchKey, setFetchKey] = useState(0);
+  // creatingTime は、時刻予約を作るダイアログを出しているかどうか。
+  const [creatingTime, setCreatingTime] = useState(false);
   const data = useLazyLoadQuery<reservationsQuery>(
     query,
     { ...variables, first: pageSize, after: null },
-    { fetchPolicy: 'store-and-network' },
+    { fetchKey, fetchPolicy: 'store-and-network' },
   );
   const environment = useRelayEnvironment();
   // more は、続きの読み込みで足した予約と、その次のカーソル。絞り込みを変えたら捨てる。
@@ -285,7 +292,28 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
             {t('reservations.attention', { count: attention })}
           </Badge>
         )}
+        {canEdit && (
+          <Button
+            size="xs"
+            variant="default"
+            leftSection={<Plus size={14} aria-hidden />}
+            onClick={() => setCreatingTime(true)}
+          >
+            {t('reservations.time.open')}
+          </Button>
+        )}
       </Group>
+      {creatingTime && (
+        <TimeReservationDialog
+          onClose={() => setCreatingTime(false)}
+          onSaved={() => {
+            setCreatingTime(false);
+            // 作った予約は、まだ一覧にないので、読み直して足す。続きは読み直しで並びが変わるので捨てる。
+            setMore(null);
+            startTransition(() => setFetchKey((key) => key + 1));
+          }}
+        />
+      )}
       {reservations.length === 0 && (
         <EmptyState
           icon={CalendarX}
@@ -376,6 +404,8 @@ function ReservationRow({ reservation, onAir, canEdit, onChanged, onDelete }: Ro
   `);
   const [toggleError, setToggleError] = useState(false);
   const [editing, setEditing] = useState(false);
+  // editingTime は、時刻予約の時刻と名前を変えるダイアログを出しているかどうか。
+  const [editingTime, setEditingTime] = useState(false);
   const state = reservation.assignment.state;
   const attention = needsAttention(state, reservation.enabled);
   const planned = plannedRange(reservation);
@@ -492,6 +522,15 @@ function ReservationRow({ reservation, onAir, canEdit, onChanged, onDelete }: Ro
               >
                 {t('reservations.settings.open')}
               </Menu.Item>
+              {/* 番組予約とルール予約の時刻と名前は、EPG に従うので変えられない。 */}
+              {reservation.kind === 'TIME' && (
+                <Menu.Item
+                  leftSection={<PencilLine size={14} aria-hidden />}
+                  onClick={() => setEditingTime(true)}
+                >
+                  {t('reservations.time.edit')}
+                </Menu.Item>
+              )}
               <Menu.Item
                 leftSection={
                   reservation.enabled ? (
@@ -527,6 +566,13 @@ function ReservationRow({ reservation, onAir, canEdit, onChanged, onDelete }: Ro
         <ReservationSettingsDialog
           reservationId={reservation.id}
           onClose={() => setEditing(false)}
+        />
+      )}
+      {editingTime && (
+        <TimeReservationDialog
+          reservation={reservation}
+          onClose={() => setEditingTime(false)}
+          onSaved={() => setEditingTime(false)}
         />
       )}
     </Box>
