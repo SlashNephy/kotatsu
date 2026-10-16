@@ -140,6 +140,13 @@ export function CaptureButton({
   );
 }
 
+// openPictureInPicture は、視聴画面を別のウィンドウに出す。
+export function openPictureInPicture(
+  pip: ReturnType<typeof useDocumentPictureInPicture>,
+): Promise<void> {
+  return pip.open(640, 360, classes.pip ?? '');
+}
+
 // PipButton は、プレイヤーを別のウィンドウに出す操作と、このページに戻す操作 (設計書 7.5)。
 export function PipButton({ pip }: { pip: ReturnType<typeof useDocumentPictureInPicture> }) {
   const { t } = useTranslation();
@@ -157,7 +164,7 @@ export function PipButton({ pip }: { pip: ReturnType<typeof useDocumentPictureIn
       notice={message}
       onClick={() => {
         if (pip.container === null) {
-          pip.open(640, 360, classes.pip ?? '').catch(() => notify(t('player.pipError')));
+          openPictureInPicture(pip).catch(() => notify(t('player.pipError')));
         } else {
           pip.close();
         }

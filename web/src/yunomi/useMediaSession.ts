@@ -11,6 +11,8 @@ type Actions = Partial<{
   // previousTrack と nextTrack は、ライブで、前と次の局へ移る (#493)。
   previousTrack: () => void;
   nextTrack: () => void;
+  // enterPictureInPicture は、タブを切り替えたときに、ブラウザが呼ぶ。視聴画面を別のウィンドウに出す (#492)。
+  enterPictureInPicture: () => void;
 }>;
 
 // Playback は、OS に知らせる再生の状態。position は、録画のようにシークできるときの再生位置 (秒)。ライブでは null。
@@ -140,4 +142,22 @@ export function useMediaSession(
       }
     };
   }, []);
+  // 自動で別のウィンドウに出す設定は、ほかのタブで変えても追うので、変わったら登録し直す。
+  // 知らない操作を渡すと例外を投げるブラウザがあるので、受け付けなければ何もしない。
+  const autoPictureInPicture = actions.enterPictureInPicture !== undefined;
+  useEffect(() => {
+    if (!autoPictureInPicture || !('mediaSession' in navigator)) {
+      return;
+    }
+    const action = 'enterpictureinpicture' as MediaSessionAction;
+    try {
+      navigator.mediaSession.setActionHandler(action, () =>
+        actionsRef.current.enterPictureInPicture?.(),
+      );
+    } catch {
+      return;
+    }
+
+    return () => navigator.mediaSession.setActionHandler(action, null);
+  }, [autoPictureInPicture]);
 }
