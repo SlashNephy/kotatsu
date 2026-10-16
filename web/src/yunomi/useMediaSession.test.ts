@@ -20,6 +20,11 @@ describe('positionState', () => {
       position: { duration: 1800, position: 1800.9, playbackRate: 1 },
       want: { duration: 1800, position: 1800, playbackRate: 1 },
     },
+    {
+      name: '位置が分からなければ、始まりにする',
+      position: { duration: 1800, position: Number.NaN, playbackRate: 1 },
+      want: { duration: 1800, position: 0, playbackRate: 1 },
+    },
   ])('$name', ({ position, want }) => {
     expect(positionState(position)).toEqual(want);
   });

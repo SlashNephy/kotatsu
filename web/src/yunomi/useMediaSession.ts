@@ -26,7 +26,9 @@ export function positionState(position: Playback['position']): MediaPositionStat
 
   return {
     duration,
-    position: Math.min(Math.max(Math.floor(position.position), 0), duration),
+    position: Number.isFinite(position.position)
+      ? Math.min(Math.max(Math.floor(position.position), 0), duration)
+      : 0,
     playbackRate: position.playbackRate > 0 ? position.playbackRate : 1,
   };
 }
@@ -53,11 +55,18 @@ export function useMediaSession(
       return;
     }
     navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+  }, [playing]);
+
+  // 止めたり再開したりするたびに none を挟むと、OS のメディアの操作が出たり消えたりするので、離れたときだけ none にする。
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) {
+      return;
+    }
 
     return () => {
       navigator.mediaSession.playbackState = 'none';
     };
-  }, [playing]);
+  }, []);
 
   useEffect(() => {
     if (!('mediaSession' in navigator) || !('setPositionState' in navigator.mediaSession)) {
