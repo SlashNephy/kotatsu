@@ -82,6 +82,8 @@ const query = graphql`
           assignment {
             state
             tuner
+            plannedStartAt
+            plannedEndAt
           }
         }
       }
@@ -344,6 +346,22 @@ type RowProps = {
   onDelete: () => void;
 };
 
+// plannedRange は、一部のみ録画する予約の、マージンを削った後に録画する予定の時刻を返す (#466)。
+// 録れない範囲が分かるよう、一部のみの有効な予約でだけ返す。
+function plannedRange(reservation: Reservation): { start: number; end: number } | null {
+  const { state, plannedStartAt, plannedEndAt } = reservation.assignment;
+  if (
+    state !== 'PARTIAL' ||
+    !reservation.enabled ||
+    plannedStartAt == null ||
+    plannedEndAt == null
+  ) {
+    return null;
+  }
+
+  return { start: Date.parse(plannedStartAt), end: Date.parse(plannedEndAt) };
+}
+
 // ReservationRow は、予約の 1 行。番組名を押すと、番組表でその番組の詳細を開く。
 // 状態は、目を留めたいもの (録画中、競合、一部のみ、無効) だけをバッジで出す。録画できる見込みは当たり前なので出さない。
 function ReservationRow({ reservation, onAir, canEdit, onChanged, onDelete }: RowProps) {
@@ -360,6 +378,7 @@ function ReservationRow({ reservation, onAir, canEdit, onChanged, onDelete }: Ro
   const [editing, setEditing] = useState(false);
   const state = reservation.assignment.state;
   const attention = needsAttention(state, reservation.enabled);
+  const planned = plannedRange(reservation);
   const recording = onAir && reservation.enabled && state !== 'CONFLICT';
   const kind = kinds[reservation.kind] ?? kinds['PROGRAM']!;
   const KindIcon = kind.icon;
@@ -384,9 +403,19 @@ function ReservationRow({ reservation, onAir, canEdit, onChanged, onDelete }: Ro
       <Box className={classes.kind} title={t(kind.key)}>
         <KindIcon size={16} role="img" aria-label={t(kind.key)} />
       </Box>
-      <Text size="sm" c="dimmed" className={classes.time}>
-        {timeFormat.format(reservation.startMs)}〜{timeFormat.format(reservation.endMs)}
-      </Text>
+      <Box className={classes.time}>
+        <Text size="sm" c="dimmed">
+          {timeFormat.format(reservation.startMs)}〜{timeFormat.format(reservation.endMs)}
+        </Text>
+        {planned !== null && (
+          <Text size="xs" c="amber.8">
+            {t('reservations.planned', {
+              start: timeFormat.format(planned.start),
+              end: timeFormat.format(planned.end),
+            })}
+          </Text>
+        )}
+      </Box>
       <Text size="sm" truncate className={classes.title}>
         <Link
           className={classes.link}
