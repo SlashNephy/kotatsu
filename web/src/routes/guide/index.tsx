@@ -19,7 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
 import { useDataChanges } from '../../changes/DataChanges';
-import type { DataChannel } from '../../changes/dataChanges';
+import type { ChangeChannel } from '../../changes/dataChanges';
 import { EmptyState, ErrorBoundary, fromWallClock, PageLoader } from '../../futon';
 import { loadExtendedHours, saveExtendedHours } from '../../guide/hourNotation';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
@@ -53,7 +53,8 @@ const day = 24 * 60 * 60_000;
 const guideDays = 8;
 
 // guideChannels は、番組表に関わるデータの種類。番組と、番組に付ける予約の印。
-const guideChannels: readonly DataChannel[] = ['EPG', 'RESERVATIONS'];
+// 番組表ビューは、ログイン中のユーザーの設定なので、ほかの端末で保存したら読み直す。
+const guideChannels: readonly ChangeChannel[] = ['EPG', 'RESERVATIONS', 'VIEWER_SETTINGS'];
 // jumpHours は、番組表で移れる時間帯の始まり (時)。放送日は 4 時に始まるので、24 時以降は翌日の深夜を表す。
 const jumpHours = [5, 12, 17, 20, 24] as const;
 

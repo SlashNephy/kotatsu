@@ -9,6 +9,7 @@ import { ErrorBoundary, PageLoader } from '../../futon';
 import { currentSubscription, pushSupported, subscribe } from '../../notifications/push';
 import { notificationKinds } from '../../notifications/kinds';
 import { isUnauthenticated } from '../../relay/environment';
+import { useDataChanges } from '../../changes/DataChanges';
 import type { notificationsPreferenceMutation } from './__generated__/notificationsPreferenceMutation.graphql';
 import type { notificationsSettingsQuery } from './__generated__/notificationsSettingsQuery.graphql';
 import type { notificationsSubscribeMutation } from './__generated__/notificationsSubscribeMutation.graphql';
@@ -52,6 +53,8 @@ function NotificationSettingsPage() {
 function Settings() {
   const { t } = useTranslation();
   const [fetchKey, setFetchKey] = useState(0);
+  // ほかの端末で設定を変えたら、読み直す (#503)。
+  const viewerChanges = useDataChanges(['VIEWER_SETTINGS']);
   const data = useLazyLoadQuery<notificationsSettingsQuery>(
     graphql`
       query notificationsSettingsQuery {
@@ -68,7 +71,7 @@ function Settings() {
       }
     `,
     {},
-    { fetchKey, fetchPolicy: 'store-and-network' },
+    { fetchKey: `${fetchKey}:${viewerChanges}`, fetchPolicy: 'store-and-network' },
   );
   const [updatePreference] = useMutation<notificationsPreferenceMutation>(graphql`
     mutation notificationsPreferenceMutation($input: NotificationPreferenceInput!) {

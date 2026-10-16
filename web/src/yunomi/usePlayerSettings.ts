@@ -1,16 +1,15 @@
-import { useMemo, useRef } from 'react';
+import { useEffect } from 'react';
 import {
   fetchQuery,
   graphql,
   useLazyLoadQuery,
   useMutation,
   useRelayEnvironment,
-  useSubscription,
 } from 'react-relay';
 
+import { useDataChanges } from '../changes/DataChanges';
 import type { usePlayerSettingsMutation } from './__generated__/usePlayerSettingsMutation.graphql';
 import type { usePlayerSettingsQuery } from './__generated__/usePlayerSettingsQuery.graphql';
-import type { usePlayerSettingsSubscription } from './__generated__/usePlayerSettingsSubscription.graphql';
 
 const settingsQuery = graphql`
   query usePlayerSettingsQuery {
@@ -43,39 +42,21 @@ export function usePlayerSettings(): Settings & {
       }
     }
   `);
-  // version は、最後に知らされた設定の版数。購読を始めたときに届く今の版数では読み直さない。
-  const version = useRef<number | null>(null);
-  const subscription = useMemo(
-    () => ({
-      subscription: graphql`
-        subscription usePlayerSettingsSubscription {
-          viewerSettingsChanged
-        }
-      `,
-      variables: {},
-      onNext: (response: usePlayerSettingsSubscription['response'] | null | undefined) => {
-        const next = response?.viewerSettingsChanged;
-        if (next === undefined) {
-          return;
-        }
-        const previous = version.current;
-        version.current = next;
-        if (previous === null || next <= previous) {
-          return;
-        }
-        void fetchQuery<usePlayerSettingsQuery>(
-          environment,
-          settingsQuery,
-          {},
-          { fetchPolicy: 'network-only' },
-        )
-          .toPromise()
-          .catch(() => {});
-      },
-    }),
-    [environment],
-  );
-  useSubscription<usePlayerSettingsSubscription>(subscription);
+  // ほかの端末で変えたら、読み直す。購読はヘッダーの DataChangesSubscriber が 1 本だけ持つ (#503)。
+  const changes = useDataChanges(['VIEWER_SETTINGS']);
+  useEffect(() => {
+    if (changes === 0) {
+      return;
+    }
+    void fetchQuery<usePlayerSettingsQuery>(
+      environment,
+      settingsQuery,
+      {},
+      { fetchPolicy: 'network-only' },
+    )
+      .toPromise()
+      .catch(() => {});
+  }, [environment, changes]);
 
   const settings = data.playerSettings;
   const update = (input: Partial<Settings>) => {

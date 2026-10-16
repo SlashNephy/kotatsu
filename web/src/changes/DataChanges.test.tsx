@@ -7,18 +7,18 @@ import {
   useDataChangeDispatch,
   useDataChanges,
 } from './DataChanges';
-import type { DataChannel } from './dataChanges';
+import type { ChangeChannel } from './dataChanges';
 
 let dispatch: ReturnType<typeof useDataChangeDispatch> = () => {};
 
-function Probe() {
+function Probe({ channels = ['RULES'] }: { channels?: readonly ChangeChannel[] }) {
   dispatch = useDataChangeDispatch();
-  const key = useDataChanges(['RULES']);
+  const key = useDataChanges(channels);
 
   return <span data-testid="key">{key}</span>;
 }
 
-function send(channel: DataChannel, version: number) {
+function send(channel: ChangeChannel, version: number) {
   act(() => dispatch({ channel, version }));
 }
 
@@ -70,5 +70,23 @@ describe('useDataChanges', () => {
     wait(settleMs);
 
     expect(screen.getByTestId('key').textContent).toBe('0');
+  });
+
+  test('ログイン中のユーザーの設定の変更も、データの変更と同じく数える', () => {
+    render(
+      <DataChangesProvider>
+        <Probe channels={['VIEWER_SETTINGS']} />
+      </DataChangesProvider>,
+    );
+    // 購読を始めたときに届く今の版数では、読み直さない。
+    send('VIEWER_SETTINGS', 7);
+    wait(settleMs);
+    expect(screen.getByTestId('key').textContent).toBe('0');
+
+    send('VIEWER_SETTINGS', 8);
+    send('RULES', 1);
+    send('RULES', 2);
+    wait(settleMs);
+    expect(screen.getByTestId('key').textContent).toBe('1');
   });
 });
