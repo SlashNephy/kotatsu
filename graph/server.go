@@ -14,6 +14,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 
 	"github.com/SlashNephy/kotatsu/graph/generated"
+	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/clock"
@@ -37,6 +38,8 @@ const (
 	// DefaultHeartbeatInterval は、heartbeat の subscription で時刻を送る間隔。
 	// リバースプロキシの無通信のタイムアウト (60 秒が多い) より短くする。
 	DefaultHeartbeatInterval = 30 * time.Second
+	// heavyFieldComplexity は、番組の検索のような重いフィールドの複雑度。DefaultMaxComplexity の中に 3 つまでしか並べられない。
+	heavyFieldComplexity = 300
 	// maxBodyBytes は、リクエストの本文の大きさの上限。
 	maxBodyBytes = 1 << 20
 )
@@ -123,7 +126,8 @@ func NewHandler(opts *Options) http.Handler {
 
 	var config generated.Config
 	resolver := &Resolver{
-		db: o.DB, clock: o.Clock, location: o.Location, heartbeatInterval: o.HeartbeatInterval,
+		searchSlots: make(chan struct{}, maxConcurrentSearches),
+		db:          o.DB, clock: o.Clock, location: o.Location, heartbeatInterval: o.HeartbeatInterval,
 		rules:        rule.NewRules(o.Clock, o.Recorder),
 		reservations: reserve.NewReservations(o.Clock, o.Recorder),
 		factors:      o.SecondFactors,
@@ -152,6 +156,14 @@ func NewHandler(opts *Options) http.Handler {
 		resolver.settings = settings.NewStore(o.Clock, o.Recorder)
 	}
 	config.Resolvers = resolver
+	// 番組の検索とルールのプレビューは、候補を照合し終えるまで最長 15 秒動くので、重く数える。
+	// どのフィールドも 1 と数えると、エイリアスで並べて、1 回のリクエストで多数実行させられる (#541)。
+	config.Complexity.Query.SearchPrograms = func(childComplexity int, _ model.ProgramConditionsInput, _ *model.ArchiveRangeInput, _ int, _ *string) int {
+		return heavyFieldComplexity + childComplexity
+	}
+	config.Complexity.Query.PreviewRule = func(childComplexity int, _ model.RuleInput, _ int, _ *string) int {
+		return heavyFieldComplexity + childComplexity
+	}
 	server := handler.New(generated.NewExecutableSchema(config))
 	// SSE は Accept で POST と見分けるので、POST より先に置く。
 	server.AddTransport(transport.SSE{})

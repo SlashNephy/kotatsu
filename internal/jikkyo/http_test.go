@@ -81,6 +81,15 @@ func (f *commentsFixture) recording(t *testing.T, serviceID int64, from time.Tim
 	return recordingID
 }
 
+// segment は、録画に、startedAt に書き始めたセグメントの行を作る。
+func (f *commentsFixture) segment(t *testing.T, recordingID uuid.UUID, startedAt time.Time) {
+	t.Helper()
+
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+		VALUES ($1, $2, 'segment', 'main', $3, 0, $4, NULL, $4)`, id.New(), recordingID, recordingID.String()+".m2ts", startedAt)
+	require.NoError(t, err)
+}
+
 type commentsBody struct {
 	Channel *struct {
 		ID string `json:"id"`
@@ -101,11 +110,17 @@ func TestCommentsHandler(t *testing.T) {
 		{"chat":{"date":"1791633601","date_usec":"250000","mail":"184 shita","user_id":"a:y","content":"始まった"}},
 		{"chat":{"date":"1791635460","date_usec":"0","mail":"184","user_id":"a:z","content":"終わった後"}}]}`
 	finished := recordedFrom().Add(30 * time.Minute)
+	const (
+		started       = "始まった"
+		finishedCache = "private, max-age=600"
+	)
 	tests := []struct {
 		name      string
 		serviceID int64
 		// from は、録画を始めた時刻。ゼロなら recordedFrom。
-		from         time.Time
+		from time.Time
+		// segmentDelay は、録画を始めてから、最初のセグメントを書き始めるまでの時間。0 ならセグメントを作らない。
+		segmentDelay time.Duration
 		until        *time.Time
 		wantChannel  string
 		wantContents []string
@@ -115,12 +130,17 @@ func TestCommentsHandler(t *testing.T) {
 	}{
 		{
 			name: "録画した時間帯のコメントを、録画の始まりからの秒で返す", serviceID: grServiceID, until: &finished,
-			wantChannel: jkNHK, wantContents: []string{"始まった"}, wantTimes: []float64{1.25},
-			wantQuery: "jk1?endtime=1791635400&format=json&starttime=1791633600", wantCache: "private, max-age=600",
+			wantChannel: jkNHK, wantContents: []string{started}, wantTimes: []float64{1.25},
+			wantQuery: "jk1?endtime=1791635400&format=json&starttime=1791633600", wantCache: finishedCache,
+		},
+		{
+			name: "コメントの時刻は、最初のセグメントを書き始めた時刻からの秒にする", serviceID: grServiceID, until: &finished, segmentDelay: time.Second,
+			wantChannel: jkNHK, wantContents: []string{started}, wantTimes: []float64{0.25},
+			wantQuery: "jk1?endtime=1791635400&format=json&starttime=1791633601", wantCache: finishedCache,
 		},
 		{
 			name: "録画中なら、今までのコメントを引き、使い回させない", serviceID: grServiceID, until: nil,
-			wantChannel: jkNHK, wantContents: []string{"始まった", "終わった後"}, wantTimes: []float64{1.25, 1860},
+			wantChannel: jkNHK, wantContents: []string{started, "終わった後"}, wantTimes: []float64{1.25, 1860},
 			wantQuery: "jk1?endtime=1791636000&format=json&starttime=1791633600", wantCache: "no-store",
 		},
 		{
@@ -129,7 +149,7 @@ func TestCommentsHandler(t *testing.T) {
 		},
 		{
 			name: "実況のチャンネルがないサービスは、過去ログ API に問い合わせず空の一覧を返す", serviceID: bsServiceID, until: &finished,
-			wantChannel: "", wantContents: []string{}, wantTimes: []float64{}, wantQuery: "", wantCache: "private, max-age=600",
+			wantChannel: "", wantContents: []string{}, wantTimes: []float64{}, wantQuery: "", wantCache: finishedCache,
 		},
 	}
 	for _, tt := range tests {
@@ -142,6 +162,9 @@ func TestCommentsHandler(t *testing.T) {
 				from = recordedFrom()
 			}
 			recordingID := f.recording(t, tt.serviceID, from, tt.until)
+			if tt.segmentDelay > 0 {
+				f.segment(t, recordingID, from.Add(tt.segmentDelay))
+			}
 			rec := httptest.NewRecorder()
 			f.handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet,
 				"/media/recordings/"+recordingID.String()+"/"+jikkyo.CommentsFileName, http.NoBody))
