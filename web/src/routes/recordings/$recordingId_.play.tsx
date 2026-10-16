@@ -29,6 +29,7 @@ import type { ShortcutAction } from '../../yunomi/shortcuts';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { CaptureButton, PipButton, useCapture } from '../../yunomi/PlayerTools';
+import { PlayerStats, StatsToggle } from '../../yunomi/PlayerStats';
 import {
   BigPlayButton,
   PlayerLoading,
@@ -247,6 +248,8 @@ function Player({ recordingId }: { recordingId: string }) {
                   : t('jikkyo.kakologLoaded', { count: jikkyo.state.count }),
         });
 
+  // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
+  const [statsShown, setStatsShown] = useState(false);
   // startAt は、指定の位置から読み直す。
   const startAt = (seconds: number) => {
     phase.current = 'loading';
@@ -361,6 +364,12 @@ function Player({ recordingId }: { recordingId: string }) {
     volumeUp: () => changeVolume(volumeStep),
     volumeDown: () => changeVolume(-volumeStep),
     capture: () => void saveCapture(),
+    // r で、今の位置から読み直す。映像が止まったり乱れたりしたときに、ページを読み直さずに直す (#499)。
+    restart: () => {
+      startAt(positionRef.current);
+      showFlash(t('player.flash.restarted'));
+    },
+    toggleStats: () => setStatsShown(!statsShown),
     showShortcuts: () => setShortcutsOpen(true),
   } satisfies Partial<Record<ShortcutAction, () => void>>;
   usePlayerShortcuts(shortcuts);
@@ -494,6 +503,7 @@ function Player({ recordingId }: { recordingId: string }) {
             <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
             {audio.menu}
             <RateSelect value={rate} onChange={setRate} />
+            <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
           <CaptureButton capture={capture} />
           <ControlButton
@@ -556,6 +566,7 @@ function Player({ recordingId }: { recordingId: string }) {
             <>
               {jikkyo.overlay}
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
+              {statsShown && <PlayerStats video={video} quality={quality} />}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && <PlayerLoading />}
             </>
@@ -566,7 +577,8 @@ function Player({ recordingId }: { recordingId: string }) {
       )}
       {route.kind === 'kyusu' && (
         <HlsPlayer
-          url={hlsURL(recording.streamUrl, route.preset, audio.kyusuAudio)}
+          // 読み直すたびに URL を変え、hls.js を作り直す。fragment は、サーバーへは送られない。
+          url={`${hlsURL(recording.streamUrl, route.preset, audio.kyusuAudio)}#${loads}`}
           videoRef={videoRef}
           onVideo={setVideo}
           controls={controlBar}
@@ -577,6 +589,7 @@ function Player({ recordingId }: { recordingId: string }) {
             <>
               {jikkyo.overlay}
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
+              {statsShown && <PlayerStats video={video} quality={quality} />}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && <PlayerLoading />}
             </>

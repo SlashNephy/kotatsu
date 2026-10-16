@@ -243,3 +243,25 @@
 .programInfo[data-visible='false'] {
   opacity: 0;
 }
+
+/* 再生の統計情報。番組の情報 (左上) と重ならないよう、右上に出す。 */
+.stats {
+  position: absolute;
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 12px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--mantine-radius-sm);
+  background: rgb(0 0 0 / 0.7);
+  color: #fff;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-xs);
+  pointer-events: none;
+}
+
+.stats dd {
+  margin: 0;
+}

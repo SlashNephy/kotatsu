@@ -49,6 +49,7 @@ import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { CaptureButton, PipButton, useCapture } from '../../yunomi/PlayerTools';
+import { PlayerStats, StatsToggle } from '../../yunomi/PlayerStats';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
@@ -339,6 +340,8 @@ function Live({
   // 一時停止したら、放送から遅れる。ブラウザ内での変換では、長く止めていたら再開するときに読み直す。
   // kyusu の経路は、プレイヤーが読み直す (設計書 7.3)。どちらの経路でも、遅れている間は「ライブに戻る」で読み直せる (#449)。
   const reload = () => setSession((n) => n + 1);
+  // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
+  const [statsShown, setStatsShown] = useState(false);
   const behind = useLiveLag(video, { reloadOnResume: route.kind === 'convert', onReload: reload });
   // 時間帯に重なる番組のうち、読み直した時刻に放送中のものと、その次のもの。
   const programs = data.guide[0]?.programs ?? [];
@@ -418,6 +421,12 @@ function Live({
         t(dataBroadcastEnabled ? 'player.flash.dataBroadcastOff' : 'player.flash.dataBroadcastOn'),
       );
     },
+    // r で読み直す。映像が止まったり乱れたりしたときに、ページを読み直さずに直す (#499)。
+    restart: () => {
+      reload();
+      showFlash(t('player.flash.restarted'));
+    },
+    toggleStats: () => setStatsShown(!statsShown),
     showShortcuts: () => setShortcutsOpen(true),
   } satisfies Partial<Record<ShortcutAction, () => void>>;
   usePlayerShortcuts(shortcuts);
@@ -488,12 +497,11 @@ function Live({
             optional
             onClick={() => setDataBroadcastEnabled(!dataBroadcastEnabled)}
           />
-          {(choices.length >= 2 || audio.available) && (
-            <SettingsButton>
-              <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
-              {audio.menu}
-            </SettingsButton>
-          )}
+          <SettingsButton>
+            <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
+            {audio.menu}
+            <StatsToggle shown={statsShown} onChange={setStatsShown} />
+          </SettingsButton>
           <CaptureButton capture={capture} />
           <ControlButton
             label={t('player.shortcuts.title')}
@@ -546,6 +554,7 @@ function Live({
                 next={nextProgram}
               />
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
+              {statsShown && <PlayerStats video={video} quality={quality} />}
               {dataBroadcast.receiving && (
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}
@@ -588,6 +597,7 @@ function Live({
                 next={nextProgram}
               />
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
+              {statsShown && <PlayerStats video={video} quality={quality} />}
               {dataBroadcast.receiving && (
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}
