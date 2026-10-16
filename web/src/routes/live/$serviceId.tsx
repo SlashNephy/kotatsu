@@ -14,6 +14,8 @@ import {
   toHalfWidth,
   useDocumentTitle,
 } from '../../futon';
+import { CommentListToggle } from '../../jikkyo/CommentList';
+import { formatClock } from '../../yunomi/position';
 import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -684,7 +686,18 @@ function Live({
         />
       )}
       {channel !== null && jikkyoEnabled && (
-        <JikkyoPanel channelName={channel.name} status={jikkyo.status} onPost={jikkyo.post} />
+        <>
+          <JikkyoPanel channelName={channel.name} status={jikkyo.status} onPost={jikkyo.post} />
+          <CommentListToggle
+            rows={() =>
+              jikkyo.comments.map((comment) => ({
+                key: comment.key,
+                label: formatClock(comment.at),
+                content: comment.content,
+              }))
+            }
+          />
+        </>
       )}
       {/* VLC や mpv で開く URL。開いている間は、ブラウザの視聴とは別にチューナーを使う (#487)。 */}
       <ExternalStreamURL target={serviceId} live />

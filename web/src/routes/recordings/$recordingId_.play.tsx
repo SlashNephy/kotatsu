@@ -1,7 +1,7 @@
 import { Alert, Anchor, Slider, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Captions, Keyboard, MessageSquareText } from 'lucide-react';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
@@ -9,6 +9,8 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
+import { CommentListToggle } from '../../jikkyo/CommentList';
+import { countUntil, listedUntil } from '../../jikkyo/commentList';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import {
@@ -238,6 +240,25 @@ function Player({ recordingId }: { recordingId: string }) {
     currentPosition,
     visible,
   );
+  // recordedRows は、コメントの一覧に出す、再生位置までに流れた過去ログ (#489)。再生位置は 1 秒に何度も変わるので、
+  // 流れたコメントの数が変わったときだけ作り直し、時刻の文字は、コメントごとに一度だけ作る。
+  const listedCount = jikkyo.comments === null ? 0 : countUntil(jikkyo.comments, position);
+  const commentLabels = useMemo(() => new Map<number, string>(), [jikkyo.comments, recording]);
+  const recordedRows = useMemo(() => {
+    if (jikkyo.comments === null || recording === null) {
+      return [];
+    }
+
+    return listedUntil(jikkyo.comments, listedCount).map(({ index, comment }) => {
+      let label = commentLabels.get(index);
+      if (label === undefined) {
+        label = formatClock(broadcastTime(recording.recordedFrom, recording.gaps, comment.time));
+        commentLabels.set(index, label);
+      }
+
+      return { key: index, label, content: comment.content };
+    });
+  }, [jikkyo.comments, listedCount, recording, commentLabels]);
   // 実況の過去ログの読み込み具合は、実況のボタンのツールチップで示す。
   const jikkyoLabel =
     jikkyo.state === null
@@ -622,6 +643,10 @@ function Player({ recordingId }: { recordingId: string }) {
         <Alert color="red" role="alert">
           {error}
         </Alert>
+      )}
+      {/* 実況の過去ログのうち、再生位置までに流れたもの (#489)。 */}
+      {jikkyo.comments !== null && jikkyo.comments.length > 0 && (
+        <CommentListToggle rows={() => recordedRows} />
       )}
     </Stack>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
+import { appendComment, type ListedComment } from './commentList';
 import { CommentCanvas, type CommentCanvasHandle } from './CommentCanvas';
 import { NXJikkyoSession, type SessionStatus } from './session';
 
@@ -28,6 +29,8 @@ export function useLiveJikkyo(
 ): {
   overlay: ReactNode;
   status: SessionStatus | null;
+  // comments は、届いたコメントの一覧 (#489)。新しいものが末尾。
+  comments: readonly ListedComment[];
   post: (text: string) => Promise<void>;
 } {
   const canvas = useRef<CommentCanvasHandle | null>(null);
@@ -36,6 +39,7 @@ export function useLiveJikkyo(
   const clock = () => (performance.now() - origin.current) / 1000;
   const sessionRef = useRef<NXJikkyoSession | null>(null);
   const [status, setStatus] = useState<SessionStatus | null>(null);
+  const [comments, setComments] = useState<readonly ListedComment[]>([]);
 
   useEffect(() => {
     if (channelId === null || !active) {
@@ -45,6 +49,10 @@ export function useLiveJikkyo(
       onComment: (comment) => {
         const time = (comment.at - origin.current) / 1000 + playbackDelay(videoRef.current);
         canvas.current?.add([{ time, content: comment.content, mail: comment.mail }]);
+        // 一覧には、受け取った時刻を壁時計 (Unix ミリ秒) で残す。comment.at は performance.now の時計。
+        setComments((list) =>
+          appendComment(list, { ...comment, at: performance.timeOrigin + comment.at }),
+        );
       },
       onStatus: setStatus,
     });
@@ -57,6 +65,11 @@ export function useLiveJikkyo(
     };
   }, [channelId, active, videoRef]);
 
+  // 局を変えたら、前の局のコメントは捨てる。見えなくなって接続を閉じている間は、読み返せるよう残す。
+  useEffect(() => {
+    setComments([]);
+  }, [channelId]);
+
   const post = async (text: string) => {
     const session = sessionRef.current;
     if (session === null) {
@@ -65,6 +78,7 @@ export function useLiveJikkyo(
     await session.post(text);
     // 自分の投稿は、届くのを待たずに、今の場面に流す。
     canvas.current?.add([{ time: clock(), content: text, mail: '184' }]);
+    setComments((list) => appendComment(list, { at: Date.now(), content: text, mail: '184' }));
   };
 
   return {
@@ -73,6 +87,7 @@ export function useLiveJikkyo(
         <CommentCanvas key={channelId} ref={canvas} clock={clock} drawing={active} />
       ),
     status,
+    comments,
     post,
   };
 }
