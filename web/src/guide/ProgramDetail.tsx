@@ -11,12 +11,13 @@ import {
   Title,
   Tooltip,
 } from '@mantine/core';
-import { Link } from '@tanstack/react-router';
-import { CalendarCheck, CalendarPlus, Play, SlidersHorizontal } from 'lucide-react';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { CalendarCheck, CalendarPlus, ListPlus, Play, SlidersHorizontal } from 'lucide-react';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
+import { conditionsFromProgram } from '../conditions/form';
 import { ErrorBoundary, LinkifiedText, ProgramTitle, toHalfWidth } from '../futon';
 import { genreKey } from './genres';
 import type { ProgramDetailCancelMutation } from './__generated__/ProgramDetailCancelMutation.graphql';
@@ -74,6 +75,7 @@ const timeFormat = new Intl.DateTimeFormat('ja-JP', {
 // onReserved は、録画予約を作れたときに呼ぶ。サイドバーを閉じ、番組表で予約した番組を見せる。
 function Detail({ programId, onReserved }: { programId: string; onReserved: () => void }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const data = useLazyLoadQuery<ProgramDetailQuery>(
     graphql`
       query ProgramDetailQuery($id: ID!) {
@@ -230,6 +232,22 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             {t('reservations.settings.open')}
           </Button>
         </Group>
+      )}
+      {/* 番組名とサービスを条件に引き継いで、ルールの作成画面を開く。番組検索の「この条件でルールを作成」と同じ画面。 */}
+      {data.viewer.role !== 'VIEWER' && (
+        <Button
+          variant="default"
+          leftSection={<ListPlus size={16} aria-hidden />}
+          onClick={() =>
+            void navigate({
+              to: '/rules/$ruleId',
+              params: { ruleId: 'new' },
+              state: { ruleConditions: conditionsFromProgram(program.name, program.service.id) },
+            })
+          }
+        >
+          {t('guide.detail.createRule')}
+        </Button>
       )}
       {editing && program.reservation != null && (
         <ReservationSettingsDialog
