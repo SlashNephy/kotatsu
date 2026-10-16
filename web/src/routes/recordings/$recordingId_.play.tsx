@@ -30,7 +30,13 @@ import { useMediaSession } from '../../yunomi/useMediaSession';
 import type { ShortcutAction } from '../../yunomi/shortcuts';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
-import { CaptureButton, PipButton, useCapture } from '../../yunomi/PlayerTools';
+import { useAutoPictureInPicture } from '../../yunomi/autoPictureInPicture';
+import {
+  CaptureButton,
+  openPictureInPicture,
+  PipButton,
+  useCapture,
+} from '../../yunomi/PlayerTools';
 import {
   BigPlayButton,
   PlayerLoading,
@@ -386,6 +392,7 @@ function Player({ recordingId }: { recordingId: string }) {
   } satisfies Partial<Record<ShortcutAction, () => void>>;
   usePlayerShortcuts(shortcuts);
   useDocumentTitle([recording?.name ?? null]);
+  const [autoPictureInPicture] = useAutoPictureInPicture();
   useMediaSession(
     {
       title: recording?.name ?? '',
@@ -398,6 +405,16 @@ function Player({ recordingId }: { recordingId: string }) {
       seekBackward: () => skip(-10),
       seekForward: () => skip(10),
       seekTo: (seconds) => seek(seconds),
+      // 設定で選んでいれば、タブを切り替えたときに、別のウィンドウに出す (#492)。
+      ...(autoPictureInPicture && pip.supported
+        ? {
+            enterPictureInPicture: () => {
+              if (pip.container === null) {
+                openPictureInPicture(pip).catch(() => {});
+              }
+            },
+          }
+        : {}),
     },
     {
       playing: !videoState.paused,

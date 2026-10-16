@@ -1,4 +1,6 @@
-import { describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test } from 'vitest';
+
+import { defaultTimeZone, setTimeZone } from '../futon/timeZone';
 
 import {
   broadcastDay,
@@ -257,6 +259,37 @@ describe('broadcastDay', () => {
     const day = broadcastDay(Date.parse(time));
     expect(day.from).toBe(Date.parse(want));
     expect(day.to - day.from).toBe(24 * 60 * minute);
+  });
+});
+
+describe('broadcastDay in other time zones', () => {
+  afterEach(() => {
+    setTimeZone(defaultTimeZone);
+  });
+
+  test.each([
+    {
+      name: 'ロンドンでは、ロンドンの 4 時から始まる',
+      zone: 'Europe/London',
+      time: '2026-10-11T13:50:00+01:00',
+      want: { from: '2026-10-11T04:00:00+01:00', to: '2026-10-12T04:00:00+01:00' },
+    },
+    {
+      // 2026-10-25 の 2 時に夏時間が終わるので、その日は 25 時間ある。
+      name: '夏時間が終わる日は、25 時間ある',
+      zone: 'Europe/London',
+      time: '2026-10-24T20:00:00+01:00',
+      want: { from: '2026-10-24T04:00:00+01:00', to: '2026-10-25T04:00:00+00:00' },
+    },
+  ])('$name', ({ zone, time, want }) => {
+    setTimeZone(zone);
+
+    const day = broadcastDay(Date.parse(time));
+
+    expect({ from: day.from, to: day.to }).toEqual({
+      from: Date.parse(want.from),
+      to: Date.parse(want.to),
+    });
   });
 });
 

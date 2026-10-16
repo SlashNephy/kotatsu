@@ -11,6 +11,7 @@ import { framePosition, type FramePosition } from './previewFrame';
 import { usePreviewSlideshow } from './usePreviewSlideshow';
 import { watchProgress } from './watchProgress';
 import { RecordingStateBadge } from './RecordingStateBadge';
+import { zonedFormat } from '../futon';
 
 export type RecordingCardData = {
   id: string;
@@ -37,17 +38,16 @@ export type RecordingCardData = {
   tags?: readonly { id: string; name: string }[];
 };
 
-const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+const dateTimeFormat = zonedFormat({
   month: 'numeric',
   day: 'numeric',
   weekday: 'short',
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 // 今年でない録画は、年も書く。
-const yearDateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+const yearDateTimeFormat = zonedFormat({
   year: 'numeric',
   month: 'numeric',
   day: 'numeric',
@@ -55,14 +55,12 @@ const yearDateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
-const yearFormat = new Intl.DateTimeFormat('ja-JP', { year: 'numeric', timeZone: 'Asia/Tokyo' });
-const timeFormat = new Intl.DateTimeFormat('ja-JP', {
+const yearFormat = zonedFormat({ year: 'numeric' });
+const timeFormat = zonedFormat({
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 // RecordingCard は、サムネイル付きの録画のカード。押すと、録画の詳細を開く。ホームと録画の一覧で使う。

@@ -16,6 +16,7 @@ import {
   Textarea,
   TextInput,
 } from '@mantine/core';
+import { useTimeZoneLabel } from '../futon/timeZone';
 import { Save, Trash2 } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { useState, type ComponentProps, type FormEvent } from 'react';
@@ -125,7 +126,7 @@ function sameRule(a: RuleForm, b: RuleForm) {
   return JSON.stringify(toInput(a)) === JSON.stringify(toInput(b));
 }
 
-// toValidity は、有効期間の入力 (日本時間) を、保存する時刻にする。空か、読めなければ、期間を区切らない。
+// toValidity は、有効期間の入力 (表示のタイムゾーン) を、保存する時刻にする。空か、読めなければ、期間を区切らない。
 function toValidity(value: string): string | null {
   const ms = fromInputValue(value);
 
@@ -142,6 +143,8 @@ export function RuleEditor({
   authorship,
 }: Props) {
   const { t } = useTranslation();
+  // zoneLabel は、有効期間を入れるタイムゾーンの呼び方。
+  const zoneLabel = useTimeZoneLabel();
   const navigate = useNavigate();
   const { form, outdated, set: setFields, reload } = useSyncedForm(initial, sameRule);
   const [result, setResult] = useState<'saved' | 'error' | null>(null);
@@ -269,7 +272,7 @@ export function RuleEditor({
                     />
                   </Group>
                   <Text size="xs" c="dimmed" mt={-8}>
-                    {t('rules.validityDescription')}
+                    {t('rules.validityDescription', { zone: zoneLabel })}
                   </Text>
                   {authorship !== undefined && <Authorship {...authorship} />}
                 </Stack>

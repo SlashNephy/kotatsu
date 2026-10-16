@@ -10,19 +10,19 @@ import { splitMessage } from '../notifications/message';
 import { isUnauthenticated } from '../relay/environment';
 import type { notificationsListQuery } from './__generated__/notificationsListQuery.graphql';
 import type { notificationsMarkAllMutation } from './__generated__/notificationsMarkAllMutation.graphql';
+import { zonedFormat } from '../futon';
 
 export const Route = createFileRoute('/notifications')({
   component: NotificationsPage,
 });
 
-const dateTimeFormat = new Intl.DateTimeFormat('ja-JP', {
+const dateTimeFormat = zonedFormat({
   month: 'numeric',
   day: 'numeric',
   weekday: 'short',
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-  timeZone: 'Asia/Tokyo',
 });
 
 // NotificationsPage は、画面内の通知の一覧 (設計書 6.2)。開くと、その時点の通知をすべて既読にする。

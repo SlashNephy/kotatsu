@@ -199,6 +199,9 @@ const unauthenticatedBody = `"code":"UNAUTHENTICATED"`
 func TestHandler(t *testing.T) {
 	t.Parallel()
 
+	london, err := time.LoadLocation("Europe/London")
+	require.NoError(t, err)
+
 	tests := []struct {
 		name       string
 		opts       *graph.Options
@@ -225,6 +228,13 @@ func TestHandler(t *testing.T) {
 			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: `{"query":"{ version { version revision modified } }"}`, loggedIn: true},
 			wantStatus: http.StatusOK,
 			wantBody:   []string{`"version":{"version":"dev","revision":null,"modified":false}`},
+		},
+		{
+			name:       "logged-in user gets the time zone",
+			opts:       &graph.Options{Location: london},
+			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: `{"query":"{ timeZone }"}`, loggedIn: true},
+			wantStatus: http.StatusOK,
+			wantBody:   []string{`"timeZone":"Europe/London"`},
 		},
 		{
 			name:       "unauthenticated version query is rejected",
