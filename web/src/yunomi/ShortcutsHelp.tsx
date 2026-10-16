@@ -24,29 +24,33 @@ type Props = {
 export function ShortcutsHelp({ opened, onClose, actions, target }: Props) {
   const { t } = useTranslation();
 
+  // 一覧はプレイヤーの中に描くので、一覧のクリックが、映像のクリック (再生と一時停止) に伝わらないよう止める。
+  // React のイベントは、ポータルの中からも、React の親へ伝わる。
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title={t('player.shortcuts.title')}
-      portalProps={{ target: target.current ?? undefined }}
-    >
-      <Table>
-        <Table.Tbody>
-          {actions.map((action) => (
-            <Table.Tr key={action}>
-              <Table.Td>{t(`player.shortcuts.${action}`)}</Table.Td>
-              <Table.Td>
-                <Group gap={4} wrap="nowrap">
-                  {shortcutKeys[action].map((key) => (
-                    <Kbd key={key}>{keyLabels[key] ?? key}</Kbd>
-                  ))}
-                </Group>
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </Modal>
+    <div style={{ display: 'contents' }} onClick={(event) => event.stopPropagation()}>
+      <Modal
+        opened={opened}
+        onClose={onClose}
+        title={t('player.shortcuts.title')}
+        portalProps={{ target: target.current ?? undefined }}
+      >
+        <Table>
+          <Table.Tbody>
+            {actions.map((action) => (
+              <Table.Tr key={action}>
+                <Table.Td>{t(`player.shortcuts.${action}`)}</Table.Td>
+                <Table.Td>
+                  <Group gap={4} wrap="nowrap">
+                    {shortcutKeys[action].map((key) => (
+                      <Kbd key={key}>{keyLabels[key] ?? key}</Kbd>
+                    ))}
+                  </Group>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Modal>
+    </div>
   );
 }

@@ -199,7 +199,8 @@ function Live({
   const fullscreen = useFullscreen(playerBoxRef);
   // shortcutsOpen は、キーボードショートカットの一覧を出しているかどうか。
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const controls = useControlsVisibility({ playing: !videoState.paused });
+  // ショートカットの一覧を見ている間は、操作バーとカーソルを隠さない。
+  const controls = useControlsVisibility({ playing: !videoState.paused && !shortcutsOpen });
   // 再生している間は、画面を消さない。
   useWakeLock(!videoState.paused);
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
