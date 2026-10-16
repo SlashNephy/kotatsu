@@ -1,0 +1,21 @@
+name: 機能の提案
+description: 新しい機能や、今の機能の改善を提案する
+labels: [enhancement]
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: やりたいこと
+      description: 何ができるとよいか、なぜ必要かを書いてください。
+    validations:
+      required: true
+  - type: textarea
+    id: now
+    attributes:
+      label: 今のやり方
+      description: 今はどうしているか、何が困るかを書いてください。
+  - type: textarea
+    id: idea
+    attributes:
+      label: 案
+      description: 実現のしかたの案があれば書いてください。

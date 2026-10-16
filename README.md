@@ -75,6 +75,7 @@ Docker Composeで1台のマシンに立てる手順と、HelmでKubernetesに立
 `mise run dev`で、PostgreSQLと偽のチューナーサーバーと一緒に起動できます。ソースを保存すると、その場で反映されます。
 
 開発に使うツールは、[mise](https://mise.jdx.dev/)でインストールしてください。
+変更を送るときの約束は、[貢献のしかた](.github/CONTRIBUTING.md)にまとめました。
 
 ```bash
 mise install
