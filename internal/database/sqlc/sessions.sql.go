@@ -13,6 +13,29 @@ import (
 	"github.com/google/uuid"
 )
 
+const deleteStaleSessions = `-- name: DeleteStaleSessions :execrows
+DELETE FROM sessions WHERE id IN (
+  SELECT s.id FROM sessions s
+  WHERE s.revoked_at IS NOT NULL OR s.expires_at <= $1 OR s.last_seen_at <= $2
+  LIMIT $3
+)
+`
+
+type DeleteStaleSessionsParams struct {
+	Now       time.Time
+	IdleSince time.Time
+	MaxCount  int32
+}
+
+// 使えなくなったセッション (失効させた、絶対的な期限を過ぎた、無操作の期限を過ぎた) を、max_count 件まで消す。
+func (q *Queries) DeleteStaleSessions(ctx context.Context, arg DeleteStaleSessionsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteStaleSessions, arg.Now, arg.IdleSince, arg.MaxCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
 SELECT sessions.id, sessions.token_hash, sessions.user_id, sessions.created_at, sessions.authenticated_at, sessions.last_seen_at, sessions.expires_at, sessions.revoked_at, sessions.user_agent, sessions.source_ip, users.role, users.disabled_at AS user_disabled_at
 FROM sessions

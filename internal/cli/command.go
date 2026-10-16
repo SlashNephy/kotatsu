@@ -108,6 +108,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	workers := river.NewWorkers()
 	retention := time.Duration(deps.Config.Audit.RetentionDays) * 24 * time.Hour
 	river.AddWorker(workers, audit.NewPruneWorker(deps.DB, deps.Clock, retention))
+	river.AddWorker(workers, auth.NewPruneSessionsWorker(deps.DB, deps.Clock))
 
 	// Webhook の配信のジョブは、イベントを配るトランザクションの中で投入する。
 	// 投入に使う River のクライアントは、ここで作る Worker を必要とするので、投入だけを行うクライアントを別に作る。
@@ -149,7 +150,9 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 		logger.With(slog.String("component", "segjoin")), 0))
 	river.AddWorker(workers, segjoin.NewFinalizeWorker(deps.DB, storeOf(deps.Config), inserter))
 
-	return workers, []*river.PeriodicJob{audit.PrunePeriodicJob(), notification.DispatchPeriodicJob(), capacity.CheckPeriodicJob()}, nil
+	return workers, []*river.PeriodicJob{
+		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), capacity.CheckPeriodicJob(),
+	}, nil
 }
 
 // defaultWebPushSubject は、Web Push の送り手の連絡先を設定していないときに、プッシュサービスに示す URI。
