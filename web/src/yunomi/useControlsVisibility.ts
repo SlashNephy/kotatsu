@@ -12,6 +12,15 @@ export const controlsAttribute = 'data-player-controls';
 const inControls = (target: EventTarget | null) =>
   target instanceof Element && target.closest(`[${controlsAttribute}]`) !== null;
 
+// onVideoSurface は、押した所が、操作バーや映像に重ねたボタンでなく、映像そのものかどうかを返す。
+// 映像のクリックやダブルタップを、操作バーやボタンの操作と取り違えないために使う。
+export function onVideoSurface(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest(`[${controlsAttribute}], button, a, input, [role="slider"]`) === null
+  );
+}
+
 export type ControlsVisibility = {
   visible: boolean;
   // containerProps は、プレイヤーを包む要素に渡す。
