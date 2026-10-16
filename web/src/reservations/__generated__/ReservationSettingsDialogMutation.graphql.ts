@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<e03e93e28b5bf01d7819049071e80a6e>>
+ * @generated SignedSource<<d4b22970e628e2245d6513bd841aec8c>>
  * @lightSyntaxTransform
  */
 
@@ -18,6 +18,7 @@ export type RecordingSettingsOverridesInput = {
   startMarginSeconds?: number | null | undefined;
 };
 export type ReservationSettingsDialogMutation$variables = {
+  followEventRelay?: boolean | null | undefined;
   id: string;
   settings: RecordingSettingsOverridesInput;
 };
@@ -26,9 +27,14 @@ export type ReservationSettingsDialogMutation$data = {
     readonly assignment: {
       readonly state: AssignmentState;
     };
+    readonly followEventRelay: boolean;
     readonly id: string;
     readonly settings: {
       readonly endMarginSeconds: number | null | undefined;
+      readonly fileNameTemplate: string | null | undefined;
+      readonly joinSegments: boolean | null | undefined;
+      readonly poolId: string | null | undefined;
+      readonly priority: number | null | undefined;
       readonly startMarginSeconds: number | null | undefined;
     };
   };
@@ -39,19 +45,22 @@ export type ReservationSettingsDialogMutation = {
 };
 
 const node: ConcreteRequest = (function(){
-var v0 = [
-  {
-    "defaultValue": null,
-    "kind": "LocalArgument",
-    "name": "id"
-  },
-  {
-    "defaultValue": null,
-    "kind": "LocalArgument",
-    "name": "settings"
-  }
-],
-v1 = [
+var v0 = {
+  "defaultValue": null,
+  "kind": "LocalArgument",
+  "name": "followEventRelay"
+},
+v1 = {
+  "defaultValue": null,
+  "kind": "LocalArgument",
+  "name": "id"
+},
+v2 = {
+  "defaultValue": null,
+  "kind": "LocalArgument",
+  "name": "settings"
+},
+v3 = [
   {
     "alias": null,
     "args": [
@@ -62,6 +71,11 @@ v1 = [
       },
       {
         "fields": [
+          {
+            "kind": "Variable",
+            "name": "followEventRelay",
+            "variableName": "followEventRelay"
+          },
           {
             "kind": "Variable",
             "name": "settings",
@@ -87,11 +101,32 @@ v1 = [
       {
         "alias": null,
         "args": null,
+        "kind": "ScalarField",
+        "name": "followEventRelay",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
         "concreteType": "RecordingSettingsOverrides",
         "kind": "LinkedField",
         "name": "settings",
         "plural": false,
         "selections": [
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "poolId",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "fileNameTemplate",
+            "storageKey": null
+          },
           {
             "alias": null,
             "args": null,
@@ -104,6 +139,20 @@ v1 = [
             "args": null,
             "kind": "ScalarField",
             "name": "endMarginSeconds",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "priority",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "joinSegments",
             "storageKey": null
           }
         ],
@@ -133,32 +182,40 @@ v1 = [
 ];
 return {
   "fragment": {
-    "argumentDefinitions": (v0/*:: as any*/),
+    "argumentDefinitions": [
+      (v0/*:: as any*/),
+      (v1/*:: as any*/),
+      (v2/*:: as any*/)
+    ],
     "kind": "Fragment",
     "metadata": null,
     "name": "ReservationSettingsDialogMutation",
-    "selections": (v1/*:: as any*/),
+    "selections": (v3/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
   },
   "kind": "Request",
   "operation": {
-    "argumentDefinitions": (v0/*:: as any*/),
+    "argumentDefinitions": [
+      (v1/*:: as any*/),
+      (v2/*:: as any*/),
+      (v0/*:: as any*/)
+    ],
     "kind": "Operation",
     "name": "ReservationSettingsDialogMutation",
-    "selections": (v1/*:: as any*/)
+    "selections": (v3/*:: as any*/)
   },
   "params": {
-    "cacheID": "79c3aa8104cbe92fb497d8e4b0e8d5e3",
+    "cacheID": "5eeaadd1f5518fd4fcbd7b069e975b3c",
     "id": null,
     "metadata": {},
     "name": "ReservationSettingsDialogMutation",
     "operationKind": "mutation",
-    "text": "mutation ReservationSettingsDialogMutation(\n  $id: ID!\n  $settings: RecordingSettingsOverridesInput!\n) {\n  updateReservation(id: $id, input: {settings: $settings}) {\n    id\n    settings {\n      startMarginSeconds\n      endMarginSeconds\n    }\n    assignment {\n      state\n    }\n  }\n}\n"
+    "text": "mutation ReservationSettingsDialogMutation(\n  $id: ID!\n  $settings: RecordingSettingsOverridesInput!\n  $followEventRelay: Boolean\n) {\n  updateReservation(id: $id, input: {settings: $settings, followEventRelay: $followEventRelay}) {\n    id\n    followEventRelay\n    settings {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n    }\n    assignment {\n      state\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "d66578a3c7d0b318fb28516b555bfa8a";
+(node as any).hash = "948f5b7b656ad9d3b486959a6996f85c";
 
 export default node;

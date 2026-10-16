@@ -1,12 +1,26 @@
-import { Alert, Button, Group, Modal, Stack, Text } from '@mantine/core';
+import {
+  Alert,
+  Button,
+  Group,
+  Modal,
+  NumberInput,
+  Select,
+  Stack,
+  Switch,
+  Text,
+} from '@mantine/core';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
 import { Authorship, ErrorBoundary } from '../futon';
+import { FileNameTemplateField, InheritedFileNameTemplateField } from './FileNameTemplateField';
 import { MarginFields } from './MarginFields';
 import type { ReservationSettingsDialogMutation } from './__generated__/ReservationSettingsDialogMutation.graphql';
 import type { ReservationSettingsDialogQuery } from './__generated__/ReservationSettingsDialogQuery.graphql';
+
+// joinDefault は、分かれたファイルをつなぐかどうかを上書きしない選択肢の値。
+const joinDefault = 'default';
 
 type Props = {
   reservationId: string;
@@ -40,6 +54,7 @@ function Form({ reservationId, onClose }: Props) {
           __typename
           ... on Reservation {
             kind
+            followEventRelay
             createdAt
             createdBy {
               displayName
@@ -53,6 +68,7 @@ function Form({ reservationId, onClose }: Props) {
               settings {
                 startMarginSeconds
                 endMarginSeconds
+                fileNameTemplate
               }
             }
             settings {
@@ -74,12 +90,21 @@ function Form({ reservationId, onClose }: Props) {
     mutation ReservationSettingsDialogMutation(
       $id: ID!
       $settings: RecordingSettingsOverridesInput!
+      $followEventRelay: Boolean
     ) {
-      updateReservation(id: $id, input: { settings: $settings }) {
+      updateReservation(
+        id: $id
+        input: { settings: $settings, followEventRelay: $followEventRelay }
+      ) {
         id
+        followEventRelay
         settings {
+          poolId
+          fileNameTemplate
           startMarginSeconds
           endMarginSeconds
+          priority
+          joinSegments
         }
         # マージンが変わると、チューナーの割り当てが変わることがあるので、一覧の状態も取り直す。
         assignment {
@@ -93,6 +118,14 @@ function Form({ reservationId, onClose }: Props) {
     start: reservation?.settings.startMarginSeconds ?? null,
     end: reservation?.settings.endMarginSeconds ?? null,
   });
+  const [fileNameTemplate, setFileNameTemplate] = useState(
+    reservation?.settings.fileNameTemplate ?? '',
+  );
+  const [priority, setPriority] = useState<number | null>(reservation?.settings.priority ?? null);
+  const [joinSegments, setJoinSegments] = useState<boolean | null>(
+    reservation?.settings.joinSegments ?? null,
+  );
+  const [followEventRelay, setFollowEventRelay] = useState(reservation?.followEventRelay ?? true);
   const [error, setError] = useState(false);
   if (reservation === null) {
     return <Alert color="amber">{t('reservations.settings.loadError')}</Alert>;
@@ -104,17 +137,19 @@ function Form({ reservationId, onClose }: Props) {
     setError(false);
     const s = reservation.settings;
     commit({
-      // 上書きは丸ごと置き換わるので、ここで変えない項目もそのまま送る。
+      // 上書きは丸ごと置き換わるので、ここで変えない項目 (保存先プール) もそのまま送る。
       variables: {
         id: reservationId,
         settings: {
           poolId: s.poolId ?? null,
-          fileNameTemplate: s.fileNameTemplate ?? null,
+          fileNameTemplate: fileNameTemplate === '' ? null : fileNameTemplate,
           startMarginSeconds: margins.start,
           endMarginSeconds: margins.end,
-          priority: s.priority ?? null,
-          joinSegments: s.joinSegments ?? null,
+          priority,
+          joinSegments,
         },
+        // イベントリレーへの追従は、番組予約でだけ変える。ルール予約はルールに従い、時刻予約には番組がない。
+        followEventRelay: reservation.kind === 'PROGRAM' ? followEventRelay : null,
       },
       onCompleted: (_response, errors) =>
         errors != null && errors.length > 0 ? setError(true) : onClose(),
@@ -150,6 +185,57 @@ function Form({ reservationId, onClose }: Props) {
                 }
           }
         />
+        {rule?.settings.fileNameTemplate != null ? (
+          // ルールのテンプレートがあれば、空のときはそれに従う。
+          <FileNameTemplateField
+            label={t('fileNameTemplate.reservationLabel')}
+            description={t('fileNameTemplate.reservationDescription')}
+            value={fileNameTemplate}
+            onChange={setFileNameTemplate}
+            fallback={rule.settings.fileNameTemplate}
+            disabled={inFlight}
+          />
+        ) : (
+          <InheritedFileNameTemplateField
+            label={t('fileNameTemplate.reservationLabel')}
+            description={t('fileNameTemplate.reservationDescription')}
+            value={fileNameTemplate}
+            onChange={setFileNameTemplate}
+            disabled={inFlight}
+          />
+        )}
+        <NumberInput
+          label={t('rules.priority')}
+          description={t('reservations.settings.priorityDescription')}
+          value={priority ?? ''}
+          onChange={(value) => setPriority(typeof value === 'number' ? value : null)}
+          min={-10}
+          max={10}
+          allowDecimal={false}
+          disabled={inFlight}
+        />
+        <Select
+          label={t('rules.joinSegments')}
+          data={[
+            { value: joinDefault, label: t('reservations.settings.joinSegmentsDefault') },
+            { value: 'true', label: t('rules.joinSegmentsOn') },
+            { value: 'false', label: t('rules.joinSegmentsOff') },
+          ]}
+          value={joinSegments === null ? joinDefault : String(joinSegments)}
+          onChange={(value) =>
+            setJoinSegments(value === null || value === joinDefault ? null : value === 'true')
+          }
+          allowDeselect={false}
+          disabled={inFlight}
+        />
+        {reservation.kind === 'PROGRAM' && (
+          <Switch
+            label={t('rules.followEventRelay')}
+            checked={followEventRelay}
+            onChange={(e) => setFollowEventRelay(e.currentTarget.checked)}
+            disabled={inFlight}
+          />
+        )}
         {/* ルール予約は neko が作り、変えるので、ユーザーがいなければ「自動」と出す。 */}
         <Authorship
           createdAt={reservation.createdAt}
