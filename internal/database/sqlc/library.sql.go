@@ -35,6 +35,81 @@ func (q *Queries) InsertRecordingTag(ctx context.Context, arg InsertRecordingTag
 	return err
 }
 
+const listContinueWatching = `-- name: ListContinueWatching :many
+SELECT r.id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM watch_progress w
+JOIN recordings r ON r.id = w.recording_id
+WHERE w.user_id = $1 AND w.position_ms >= $2::bigint
+  AND (r.recorded_until IS NULL
+    OR w.position_ms < extract(epoch FROM (r.recorded_until - r.recorded_from)) * 1000 - $3::bigint)
+ORDER BY w.updated_at DESC, r.id DESC
+LIMIT $4
+`
+
+type ListContinueWatchingParams struct {
+	UserID        uuid.UUID
+	MinPositionMs int64
+	EndMarginMs   int64
+	MaxCount      int32
+}
+
+type ListContinueWatchingRow struct {
+	Recording Recording
+}
+
+// ユーザーが途中まで見た録画を、最後に見た新しい順に返す (続きから見る)。
+// 少しだけ見た録画 (min_position_ms より前) と、終わりの end_margin_ms 以内まで見た録画は、見終えたものとして外す。
+// 録画中の録画は、終わりが決まっていないので外さない。
+func (q *Queries) ListContinueWatching(ctx context.Context, arg ListContinueWatchingParams) ([]ListContinueWatchingRow, error) {
+	rows, err := q.db.Query(ctx, listContinueWatching,
+		arg.UserID,
+		arg.MinPositionMs,
+		arg.EndMarginMs,
+		arg.MaxCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListContinueWatchingRow{}
+	for rows.Next() {
+		var i ListContinueWatchingRow
+		if err := rows.Scan(
+			&i.Recording.ID,
+			&i.Recording.ReservationID,
+			&i.Recording.ServiceID,
+			&i.Recording.EventID,
+			&i.Recording.Name,
+			&i.Recording.Description,
+			&i.Recording.StartAt,
+			&i.Recording.EndAt,
+			&i.Recording.State,
+			&i.Recording.FailureReason,
+			&i.Recording.Protected,
+			&i.Recording.Drops,
+			&i.Recording.Errors,
+			&i.Recording.Scrambled,
+			&i.Recording.Gaps,
+			&i.Recording.Audios,
+			&i.Recording.ProgramLost,
+			&i.Recording.BroadcastStartedAt,
+			&i.Recording.BroadcastEndedAt,
+			&i.Recording.NotBroadcast,
+			&i.Recording.AiredEventID,
+			&i.Recording.RecordedFrom,
+			&i.Recording.RecordedUntil,
+			&i.Recording.CreatedAt,
+			&i.Recording.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecordingFilesByRecordings = `-- name: ListRecordingFilesByRecordings :many
 SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at FROM recording_files WHERE recording_id = ANY($1::uuid[]) ORDER BY recording_id, started_at, kind, id
 `

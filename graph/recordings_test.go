@@ -366,3 +366,52 @@ func TestRecordingWatchFrame(t *testing.T) {
 	save(t, 30*60*1000-5_000)
 	assert.Nil(t, watchFrame(t))
 }
+
+// TestContinueWatching は、途中まで見た録画を、最後に見た新しい順に返し、少しだけ見た録画と見終えた録画を外すことを確かめる (#478)。
+func TestContinueWatching(t *testing.T) {
+	t.Parallel()
+
+	f, dir := newRecordingFixture(t)
+	ids := map[string]string{}
+	for _, name := range []string{"前半", "後半", "冒頭だけ", "見終えた"} {
+		ids[name] = f.addRecording(t, dir, name, "completed", 2*time.Hour)
+	}
+	// 録画中の録画は、終わり (recorded_until) が決まっていない。
+	ids["録画中"] = f.addRecording(t, dir, "録画中", "recording", 2*time.Hour)
+	// 録画中のほかは、30 分の録画にする。
+	_, err := f.pool.Exec(t.Context(), `UPDATE recordings SET recorded_until = recorded_from + interval '30 minutes' WHERE name <> '録画中'`)
+	require.NoError(t, err)
+	save := func(name string, positionMs int) {
+		t.Helper()
+
+		require.Empty(t, f.query(t, saveWatchPosition, map[string]any{varID: ids[name], varPositionMs: positionMs}, nil))
+		f.clock.Advance(time.Minute)
+	}
+	save("前半", 60_000)
+	// 続きから再生しても最初から始まる位置 (10 秒より前) は、含めない。
+	save("冒頭だけ", 9_000)
+	save("見終えた", 30*60_000-5_000)
+	save("録画中", 60_000)
+	save("後半", 20*60_000)
+
+	var got struct {
+		ContinueWatching []struct {
+			Name string `json:"name"`
+		} `json:"continueWatching"`
+	}
+	require.Empty(t, f.query(t, `{ continueWatching { name } }`, nil, &got))
+	names := make([]string, 0, len(got.ContinueWatching))
+	for _, recording := range got.ContinueWatching {
+		names = append(names, recording.Name)
+	}
+	assert.Equal(t, []string{"後半", "録画中", "前半"}, names)
+
+	// ほかのユーザーの再生位置は含めない。
+	var other struct {
+		ContinueWatching []struct {
+			Name string `json:"name"`
+		} `json:"continueWatching"`
+	}
+	require.Empty(t, f.as(t, "other", auth.RoleMember).query(t, `{ continueWatching { name } }`, nil, &other))
+	assert.Empty(t, other.ContinueWatching)
+}

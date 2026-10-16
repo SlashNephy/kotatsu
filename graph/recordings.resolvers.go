@@ -32,6 +32,11 @@ func (r *queryResolver) Recordings(ctx context.Context, first int, after *string
 	return r.listRecordings(ctx, first, after, filter, order)
 }
 
+// ContinueWatching is the resolver for the continueWatching field.
+func (r *queryResolver) ContinueWatching(ctx context.Context, first int) ([]*model.Recording, error) {
+	return r.continueWatching(ctx, first)
+}
+
 // Tags is the resolver for the tags field.
 func (r *queryResolver) Tags(ctx context.Context) ([]*model.Tag, error) {
 	return r.listTags(ctx)

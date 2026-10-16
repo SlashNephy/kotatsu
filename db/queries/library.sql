@@ -36,6 +36,18 @@ ORDER BY t.name;
 INSERT INTO watch_progress (user_id, recording_id, position_ms, updated_at) VALUES (@user_id, @recording_id, @position_ms, @now)
 ON CONFLICT (user_id, recording_id) DO UPDATE SET position_ms = EXCLUDED.position_ms, updated_at = EXCLUDED.updated_at;
 
+-- name: ListContinueWatching :many
+-- ユーザーが途中まで見た録画を、最後に見た新しい順に返す (続きから見る)。
+-- 少しだけ見た録画 (min_position_ms より前) と、終わりの end_margin_ms 以内まで見た録画は、見終えたものとして外す。
+-- 録画中の録画は、終わりが決まっていないので外さない。
+SELECT sqlc.embed(r) FROM watch_progress w
+JOIN recordings r ON r.id = w.recording_id
+WHERE w.user_id = @user_id AND w.position_ms >= @min_position_ms::bigint
+  AND (r.recorded_until IS NULL
+    OR w.position_ms < extract(epoch FROM (r.recorded_until - r.recorded_from)) * 1000 - @end_margin_ms::bigint)
+ORDER BY w.updated_at DESC, r.id DESC
+LIMIT @max_count;
+
 -- name: ListWatchProgress :many
 SELECT * FROM watch_progress WHERE user_id = @user_id AND recording_id = ANY(@recording_ids::uuid[]);
 
