@@ -101,6 +101,13 @@ describe('recordingPosition', () => {
       want: 10 * 60,
     },
     { name: '始めるより前は 0', gaps: [], at: '2026-10-14T11:59:00Z', want: 0 },
+    {
+      // 遅れて録り始めたときの冒頭の欠けは、基準 (書き始めた時刻) より前なので引かない。
+      name: '基準より前の区間は引かない',
+      gaps: [{ from: '2026-10-14T11:59:50Z', to: '2026-10-14T12:00:00Z' }],
+      at: '2026-10-14T12:01:00Z',
+      want: 60,
+    },
   ])('$name', ({ gaps, at, want }) => {
     expect(recordingPosition(from, gaps, Date.parse(at))).toBe(want);
   });

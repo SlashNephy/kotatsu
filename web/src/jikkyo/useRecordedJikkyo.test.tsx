@@ -2,7 +2,7 @@ import { act, render, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import type { JikkyoComment } from './comments';
-import { useRecordedJikkyo } from './useRecordedJikkyo';
+import { insertByTime, useRecordedJikkyo } from './useRecordedJikkyo';
 
 // added は、偽の CommentCanvas に渡った過去ログ。canvas を作るたびに、別の配列にする。
 const added: JikkyoComment[][] = [];
@@ -155,5 +155,49 @@ describe('useRecordedJikkyo', () => {
     rerender({ recording: false });
 
     expect(sessions[0]!.closed).toBe(true);
+  });
+
+  test('過去ログが届く前に届いたリアルタイムのコメントも、過去ログといっしょに残す', async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>((resolve) => (resolveFetch = resolve))),
+    );
+    const origin = '2026-10-16T10:00:02Z';
+    const live = { channelId: 'jk1', recordedFrom: '2026-10-16T10:00:00Z', gaps: [] };
+    const { result } = renderHook(() =>
+      useRecordedJikkyo('/media/recordings/r/jikkyo.json', () => 0, true, live),
+    );
+    act(() =>
+      sessions[0]!.onComment({
+        content: '先に届いた',
+        mail: '',
+        at: Date.parse(origin) + 90_000 - performance.timeOrigin,
+      }),
+    );
+    resolveFetch(new Response(JSON.stringify({ channel: { id: 'jk1' }, origin, comments })));
+
+    await waitFor(() => expect(result.current.state).toEqual({ kind: 'loaded', count: 1 }));
+    expect(result.current.comments?.map((comment) => comment.content)).toEqual([
+      'わこつ',
+      '先に届いた',
+    ]);
+  });
+});
+
+describe('insertByTime', () => {
+  test.each([
+    { name: '末尾より後なら、末尾に足す', time: 5, want: ['a', 'b', 'x'] },
+    { name: '途中の時刻なら、順を崩さずに挟む', time: 1.5, want: ['a', 'x', 'b'] },
+    { name: '同じ時刻なら、後ろに足す', time: 2, want: ['a', 'b', 'x'] },
+  ])('$name', ({ time, want }) => {
+    const list = [
+      { time: 1, content: 'a', mail: '' },
+      { time: 2, content: 'b', mail: '' },
+    ];
+
+    expect(insertByTime(list, { time, content: 'x', mail: '' }).map((c) => c.content)).toEqual(
+      want,
+    );
   });
 });

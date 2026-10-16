@@ -24,6 +24,20 @@ export type RecordedJikkyoState =
   | { kind: 'loaded'; count: number }
   | { kind: 'error' };
 
+// insertByTime は、流す時刻の順に並んだ comments に、comment を順を崩さずに足した配列を返す。
+// リアルタイムのコメントは、過去ログの最後のコメントより前の位置に当たることがある。
+export function insertByTime(
+  comments: readonly JikkyoComment[],
+  comment: JikkyoComment,
+): JikkyoComment[] {
+  let i = comments.length;
+  while (i > 0 && comments[i - 1]!.time > comment.time) {
+    i--;
+  }
+
+  return [...comments.slice(0, i), comment, ...comments.slice(i)];
+}
+
 // useRecordedJikkyo は、録画の再生で、録画の時間帯の実況の過去ログを流す (設計書 7.4)。
 // 過去ログは、tenban が過去ログ API から取って中継する。url が null なら、何もしない。
 // clock は、録画の始まりからの再生位置 (秒) を返す。過去ログの時刻も、録画の始まりからの秒。
@@ -84,13 +98,16 @@ export function useRecordedJikkyo(
         return (await response.json()) as RecordedComments;
       })
       .then((body) => {
-        cache.current.set(url, body.comments);
+        // 過去ログが届く前に、リアルタイムのコメントが届いていることがある。上書きせず、流す時刻の順に合わせる。
+        const received = cache.current.get(url) ?? [];
+        const merged = [...body.comments, ...received].sort((a, b) => a.time - b.time);
+        cache.current.set(url, merged);
         if (body.origin !== null) {
           origin.current.set(url, body.origin);
         }
         canvas.current?.add(body.comments);
         setState({ kind: 'loaded', count: body.comments.length });
-        setComments(body.comments);
+        setComments(merged);
       })
       .catch(() => {
         if (!controller.signal.aborted) {
@@ -125,10 +142,10 @@ export function useRecordedJikkyo(
           mail: received.mail,
         };
         canvas.current?.add([comment]);
-        // 描く canvas を作り直しても、一覧からも、受け取った分を読めるようにする。
-        const cached = cache.current.get(url) ?? [];
-        cache.current.set(url, [...cached, comment]);
-        setComments((list) => [...(list ?? []), comment]);
+        // 描く canvas を作り直しても、一覧からも、受け取った分を読めるようにする。一覧は、流す時刻の順に並べる。
+        const merged = insertByTime(cache.current.get(url) ?? [], comment);
+        cache.current.set(url, merged);
+        setComments(merged);
       },
       onStatus: () => {},
     });
