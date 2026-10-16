@@ -78,8 +78,10 @@ type Options struct {
 	SidecarDir string
 	// FreeSpace は、保存先プールの空き容量を調べる。nil なら、ファイルシステムに問い合わせる。
 	FreeSpace kago.FreeSpaceFunc
-	Clock     clock.Clock
-	Logger    *slog.Logger
+	// TotalSpace は、保存先プールのファイルシステムの容量を調べる。nil なら、ファイルシステムに問い合わせる。
+	TotalSpace kago.TotalSpaceFunc
+	Clock      clock.Clock
+	Logger     *slog.Logger
 	// Location は、番組の曜日と時間帯を判定する、表示のタイムゾーン。nil なら UTC。
 	Location          *time.Location
 	MaxDepth          int
@@ -146,11 +148,15 @@ func NewHandler(opts *Options) http.Handler {
 		changes:      o.Changes,
 		pools:        o.Pools,
 		freeSpace:    o.FreeSpace,
+		totalSpace:   o.TotalSpace,
 		store:        kago.New(o.Pools, o.FreeSpace).WithSidecarDir(o.SidecarDir),
 		library:      library.New(o.Clock, o.Recorder, kago.New(o.Pools, o.FreeSpace).WithSidecarDir(o.SidecarDir), o.Logger),
 	}
 	if resolver.freeSpace == nil {
 		resolver.freeSpace = kago.FreeSpace
+	}
+	if resolver.totalSpace == nil {
+		resolver.totalSpace = kago.TotalSpace
 	}
 	if resolver.settings == nil {
 		resolver.settings = settings.NewStore(o.Clock, o.Recorder)

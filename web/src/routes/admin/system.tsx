@@ -1,10 +1,12 @@
 import {
   Alert,
   Badge,
+  Box,
   Button,
   Card,
   Group,
   NumberInput,
+  Progress,
   Stack,
   Table,
   Text,
@@ -19,6 +21,7 @@ import { AdminPage } from '../../admin/AdminPage';
 import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
 import { formatBytes } from '../../futon';
+import classes from './system.module.css';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import { MissingRecordings } from '../../admin/MissingRecordings';
@@ -102,6 +105,7 @@ const query = graphql`
         priority
         minFreeBytes
         freeBytes
+        totalBytes
       }
     }
     secondFactors {
@@ -379,6 +383,46 @@ function DataTable({
 
 const bytesPerGB = 1e9;
 
+// PoolUsage は、保存先プールの使用率のバーと、容量の閾値の位置 (#477)。
+// 使用量は、ファイルシステムの容量から、使える空き容量を引いたもの。root のために取っておく分も、使用量に含む。
+function PoolUsage({ free, total, minFree }: { free: number; total: number; minFree: number }) {
+  const { t } = useTranslation();
+  const used = Math.max(0, total - free);
+  const percent = (used / total) * 100;
+  // 空き容量がこれを下回ると、古い録画から消す。バーの上では、使用量がこの位置を超えたところ。
+  const threshold = minFree > 0 ? Math.min(100, ((total - minFree) / total) * 100) : null;
+  const color = free < minFree ? 'red' : percent >= 90 ? 'orange' : 'blue';
+
+  return (
+    <Stack gap={2} maw={560}>
+      <Box pos="relative">
+        <Progress
+          value={percent}
+          color={color}
+          size="lg"
+          aria-label={t('admin.system.poolUsageLabel')}
+        />
+        {threshold !== null && (
+          <Box
+            className={classes.threshold}
+            style={{ left: `${threshold}%` }}
+            title={t('admin.system.poolThreshold', { free: formatBytes(minFree) })}
+          />
+        )}
+      </Box>
+      <Text size="xs" c="dimmed">
+        {t('admin.system.poolUsage', {
+          used: formatBytes(used),
+          total: formatBytes(total),
+          percent: percent.toFixed(1),
+        })}
+        {threshold !== null &&
+          ` ${t('admin.system.poolThreshold', { free: formatBytes(minFree) })}`}
+      </Text>
+    </Stack>
+  );
+}
+
 // PoolEditor は、保存先プールの優先順位と容量の閾値を変える。閾値は GB で入力する。
 function PoolEditor({
   pool,
@@ -390,6 +434,7 @@ function PoolEditor({
     priority: number;
     minFreeBytes: number;
     freeBytes: number | null | undefined;
+    totalBytes: number | null | undefined;
   };
   onSave: (input: { priority: number; minFreeBytes: number }) => void;
 }) {
@@ -410,6 +455,9 @@ function PoolEditor({
             : t('admin.system.poolFree', { free: formatBytes(pool.freeBytes) })}
         </Text>
       </Group>
+      {pool.freeBytes != null && pool.totalBytes != null && pool.totalBytes > 0 && (
+        <PoolUsage free={pool.freeBytes} total={pool.totalBytes} minFree={pool.minFreeBytes} />
+      )}
       <Group gap="xs" align="flex-end">
         <NumberInput
           size="xs"

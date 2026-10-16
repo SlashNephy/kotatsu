@@ -603,6 +603,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Pools:             deps.Config.Storage.Pools,
 		SidecarDir:        deps.Config.Storage.SidecarDir,
 		FreeSpace:         nil,
+		TotalSpace:        nil,
 		Clock:             deps.Clock,
 		Location:          location,
 		Logger:            logger.With(slog.String("component", "graphql")),

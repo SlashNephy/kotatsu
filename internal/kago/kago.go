@@ -27,6 +27,9 @@ type Pool struct {
 // FreeSpaceFunc は、path を含むファイルシステムの、使える空き容量 (バイト) を返す。
 type FreeSpaceFunc func(path string) (uint64, error)
 
+// TotalSpaceFunc は、path を含むファイルシステムの容量 (バイト) を返す。
+type TotalSpaceFunc func(path string) (uint64, error)
+
 // Store は、このロールから見えるプールのマウント先を持つ。
 type Store struct {
 	mounts map[string]string

@@ -61,4 +61,6 @@ type Resolver struct {
 	changes   Changes
 	pools     map[string]string
 	freeSpace kago.FreeSpaceFunc
+	// totalSpace は、保存先プールのファイルシステムの容量を調べる。
+	totalSpace kago.TotalSpaceFunc
 }
