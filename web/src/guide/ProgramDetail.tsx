@@ -12,7 +12,14 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { CalendarCheck, CalendarPlus, ListPlus, Play, SlidersHorizontal } from 'lucide-react';
+import {
+  CalendarCheck,
+  CalendarPlus,
+  ListPlus,
+  Play,
+  SlidersHorizontal,
+  TriangleAlert,
+} from 'lucide-react';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
@@ -109,6 +116,11 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
               id
               enabled
               kind
+              assignment {
+                state
+                plannedStartAt
+                plannedEndAt
+              }
               rules {
                 id
                 name
@@ -249,6 +261,18 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           {t('guide.detail.createRule')}
         </Button>
       )}
+      {/* 一部のみ録画する予約は、録れない範囲が分かるよう、マージンを削った後の予定時刻を出す (#466)。 */}
+      {reserved &&
+        program.reservation?.assignment.state === 'PARTIAL' &&
+        program.reservation.assignment.plannedStartAt != null &&
+        program.reservation.assignment.plannedEndAt != null && (
+          <Alert color="amber" variant="light" icon={<TriangleAlert size={16} aria-hidden />}>
+            {t('guide.detail.partial', {
+              start: timeFormat.format(Date.parse(program.reservation.assignment.plannedStartAt)),
+              end: timeFormat.format(Date.parse(program.reservation.assignment.plannedEndAt)),
+            })}
+          </Alert>
+        )}
       {editing && program.reservation != null && (
         <ReservationSettingsDialog
           reservationId={program.reservation.id}

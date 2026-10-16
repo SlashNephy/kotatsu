@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<3b7326e77e5573e7aee7250f742ffd73>>
+ * @generated SignedSource<<726f1e18cfe857bff7fd04155254834e>>
  * @lightSyntaxTransform
  */
 
@@ -23,6 +23,8 @@ export type reservationsQuery$data = {
     readonly edges: ReadonlyArray<{
       readonly node: {
         readonly assignment: {
+          readonly plannedEndAt: string | null | undefined;
+          readonly plannedStartAt: string | null | undefined;
           readonly state: AssignmentState;
           readonly tuner: number | null | undefined;
         };
@@ -202,6 +204,20 @@ v15 = {
       "args": null,
       "kind": "ScalarField",
       "name": "tuner",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "plannedStartAt",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "plannedEndAt",
       "storageKey": null
     }
   ],
@@ -400,16 +416,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "3a94db4132763a400ae06e9ce8a923ca",
+    "cacheID": "166c281a5af40edf4d09b6ae0d5a57a1",
     "id": null,
     "metadata": {},
     "name": "reservationsQuery",
     "operationKind": "query",
-    "text": "query reservationsQuery(\n  $from: Time!\n  $to: Time!\n  $states: [AssignmentState!]\n  $first: Int!\n  $after: String\n) {\n  viewer {\n    role\n    id\n  }\n  reservations(from: $from, to: $to, states: $states, first: $first, after: $after) {\n    edges {\n      node {\n        id\n        kind\n        name\n        startAt\n        endAt\n        enabled\n        service {\n          name\n          logoUrl\n          channelType {\n            type\n          }\n          id\n        }\n        assignment {\n          state\n          tuner\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
+    "text": "query reservationsQuery(\n  $from: Time!\n  $to: Time!\n  $states: [AssignmentState!]\n  $first: Int!\n  $after: String\n) {\n  viewer {\n    role\n    id\n  }\n  reservations(from: $from, to: $to, states: $states, first: $first, after: $after) {\n    edges {\n      node {\n        id\n        kind\n        name\n        startAt\n        endAt\n        enabled\n        service {\n          name\n          logoUrl\n          channelType {\n            type\n          }\n          id\n        }\n        assignment {\n          state\n          tuner\n          plannedStartAt\n          plannedEndAt\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "f8c47518c51af398806d7e0be66b8d8d";
+(node as any).hash = "1ef27ef51f188f58eeef69fbacd2559b";
 
 export default node;
