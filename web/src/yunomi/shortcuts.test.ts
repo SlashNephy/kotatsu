@@ -23,6 +23,13 @@ describe('shortcutFor', () => {
     },
     { name: 'l で進む', key: 'l', target: body, ctrlKey: false, want: 'seekForward' },
     { name: 'c で字幕', key: 'c', target: body, ctrlKey: false, want: 'toggleCaptions' },
+    {
+      name: '? でショートカットの一覧',
+      key: '?',
+      target: body,
+      ctrlKey: false,
+      want: 'showShortcuts',
+    },
     { name: '入力欄の中では使わない', key: ' ', target: input, ctrlKey: false, want: null },
     { name: '修飾キーと一緒なら使わない', key: 'c', target: body, ctrlKey: true, want: null },
     { name: '割り当てのないキー', key: 'x', target: body, ctrlKey: false, want: null },

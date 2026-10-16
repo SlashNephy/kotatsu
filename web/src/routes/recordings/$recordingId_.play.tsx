@@ -1,6 +1,6 @@
 import { Alert, Anchor, Slider, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Captions, MessageSquareText } from 'lucide-react';
+import { Captions, Keyboard, MessageSquareText } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -25,6 +25,8 @@ import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useWatchPositionSaver } from '../../yunomi/useWatchPositionSaver';
 import { useMediaSession } from '../../yunomi/useMediaSession';
+import type { ShortcutAction } from '../../yunomi/shortcuts';
+import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { CaptureButton, PipButton } from '../../yunomi/PlayerTools';
 import {
@@ -155,6 +157,8 @@ function Player({ recordingId }: { recordingId: string }) {
   const autoplay = useAutoplayBlocked(video);
   const videoLoading = useVideoLoading(video);
   const fullscreen = useFullscreen(playerBoxRef);
+  // shortcutsOpen は、キーボードショートカットの一覧を出しているかどうか。
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const controls = useControlsVisibility({ playing: !videoState.paused });
   // 再生している間は、画面を消さない。
   useWakeLock(!videoState.paused);
@@ -293,14 +297,16 @@ function Player({ recordingId }: { recordingId: string }) {
   };
   // skip は、今の位置から seconds 秒だけ進むか戻る。
   const skip = (seconds: number) => seek(currentPosition() + seconds);
-  usePlayerShortcuts({
+  const shortcuts = {
     togglePlay,
     seekBackward: () => skip(-10),
     seekForward: () => skip(10),
     toggleCaptions: () => setCaptions(!captions),
     toggleMute: videoState.toggleMute,
     toggleFullscreen: fullscreen.toggle,
-  });
+    showShortcuts: () => setShortcutsOpen(true),
+  } satisfies Partial<Record<ShortcutAction, () => void>>;
+  usePlayerShortcuts(shortcuts);
   useDocumentTitle([recording?.name ?? null]);
   useMediaSession(
     {
@@ -440,6 +446,18 @@ function Player({ recordingId }: { recordingId: string }) {
             captureTime={() =>
               broadcastTime(recording.recordedFrom, recording.gaps, currentPosition())
             }
+          />
+          <ControlButton
+            label={t('player.shortcuts.title')}
+            icon={Keyboard}
+            optional
+            onClick={() => setShortcutsOpen(true)}
+          />
+          <ShortcutsHelp
+            opened={shortcutsOpen}
+            onClose={() => setShortcutsOpen(false)}
+            actions={Object.keys(shortcuts) as ShortcutAction[]}
+            target={playerBoxRef}
           />
           <PipButton pip={pip} />
           <FullscreenButton active={fullscreen.active} onToggle={fullscreen.toggle} />

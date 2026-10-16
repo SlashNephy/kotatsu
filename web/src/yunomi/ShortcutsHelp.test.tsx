@@ -1,0 +1,35 @@
+import { MantineProvider } from '@mantine/core';
+import { cleanup, render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, test } from 'vitest';
+
+import '../i18n';
+import { ShortcutsHelp } from './ShortcutsHelp';
+
+afterEach(() => {
+  cleanup();
+});
+
+describe('ShortcutsHelp', () => {
+  test('渡した操作だけを、割り当てたキーとともに並べる', () => {
+    render(
+      <MantineProvider>
+        <ShortcutsHelp
+          opened
+          onClose={() => {}}
+          actions={['togglePlay', 'seekBackward']}
+          target={{ current: null }}
+        />
+      </MantineProvider>,
+    );
+
+    const rows = screen.getAllByRole('row').map((row) =>
+      within(row)
+        .getAllByRole('cell')
+        .map((cell) => cell.textContent),
+    );
+    expect(rows).toEqual([
+      ['再生と一時停止', 'Spacek'],
+      ['10 秒戻る', '←j'],
+    ]);
+  });
+});

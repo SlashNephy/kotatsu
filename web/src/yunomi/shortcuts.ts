@@ -6,7 +6,25 @@ export type ShortcutAction =
   | 'seekForward'
   | 'toggleCaptions'
   | 'toggleMute'
-  | 'toggleFullscreen';
+  | 'toggleFullscreen'
+  | 'showShortcuts';
+
+// shortcutKeys は、操作ごとに割り当てたキー (KeyboardEvent.key)。ショートカットの一覧も、これから作る。
+export const shortcutKeys: Readonly<Record<ShortcutAction, readonly string[]>> = {
+  togglePlay: [' ', 'k'],
+  seekBackward: ['ArrowLeft', 'j'],
+  seekForward: ['ArrowRight', 'l'],
+  toggleCaptions: ['c'],
+  toggleMute: ['m'],
+  toggleFullscreen: ['f'],
+  showShortcuts: ['?'],
+};
+
+const actionsByKey: ReadonlyMap<string, ShortcutAction> = new Map(
+  (Object.entries(shortcutKeys) as [ShortcutAction, readonly string[]][]).flatMap(
+    ([action, keys]) => keys.map((key) => [key, action] as const),
+  ),
+);
 
 type KeyLike = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'repeat'> & {
   target: EventTarget | null;
@@ -33,23 +51,5 @@ function actionFor(event: KeyLike): ShortcutAction | null {
   ) {
     return null;
   }
-  switch (event.key) {
-    case ' ':
-    case 'k':
-      return 'togglePlay';
-    case 'ArrowLeft':
-    case 'j':
-      return 'seekBackward';
-    case 'ArrowRight':
-    case 'l':
-      return 'seekForward';
-    case 'c':
-      return 'toggleCaptions';
-    case 'm':
-      return 'toggleMute';
-    case 'f':
-      return 'toggleFullscreen';
-    default:
-      return null;
-  }
+  return actionsByKey.get(event.key) ?? null;
 }
