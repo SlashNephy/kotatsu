@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
 import { UserMenu } from '../auth/UserMenu';
+import { DataChangesProvider, DataChangesSubscriber } from '../changes/DataChanges';
 import { ColorSchemeToggle, ErrorBoundary } from '../futon';
 import { NotificationBell } from '../notifications/NotificationBell';
 import type { RootViewerQuery } from './__generated__/RootViewerQuery.graphql';
@@ -61,15 +62,30 @@ function RootLayout() {
     </Title>
   );
 
+  // データの変更は、ヘッダーで購読し、画面全体に配る (#503)。
   return (
-    <AppShell
-      header={{ height: 64 }}
-      navbar={{ width: 240, breakpoint: 'sm', collapsed: { mobile: !opened, desktop: true } }}
-      padding="md"
-    >
-      <AppShell.Header>
-        <SignedIn
-          fallback={
+    <DataChangesProvider>
+      <AppShell
+        header={{ height: 64 }}
+        navbar={{ width: 240, breakpoint: 'sm', collapsed: { mobile: !opened, desktop: true } }}
+        padding="md"
+      >
+        <AppShell.Header>
+          <SignedIn
+            fallback={
+              <Group
+                h="100%"
+                px="md"
+                justify="space-between"
+                wrap="nowrap"
+                className={classes.header}
+                data-fluid={fluid || undefined}
+              >
+                {brand}
+                <ColorSchemeToggle />
+              </Group>
+            }
+          >
             <Group
               h="100%"
               px="md"
@@ -78,72 +94,61 @@ function RootLayout() {
               className={classes.header}
               data-fluid={fluid || undefined}
             >
-              {brand}
-              <ColorSchemeToggle />
-            </Group>
-          }
-        >
-          <Group
-            h="100%"
-            px="md"
-            justify="space-between"
-            wrap="nowrap"
-            className={classes.header}
-            data-fluid={fluid || undefined}
-          >
-            <Group gap="lg" wrap="nowrap">
-              <Burger
-                opened={opened}
-                onClick={toggle}
-                hiddenFrom="sm"
-                size="sm"
-                aria-label={t('nav.menu')}
-              />
-              {brand}
-              <Group gap="md" component="nav" visibleFrom="sm">
-                {navItems.map((item) => (
-                  <Anchor
-                    key={item.to}
-                    component={Link}
-                    to={item.to}
-                    className={classes.navLink}
-                    size="sm"
-                  >
-                    {t(item.key)}
-                  </Anchor>
-                ))}
+              <Group gap="lg" wrap="nowrap">
+                <Burger
+                  opened={opened}
+                  onClick={toggle}
+                  hiddenFrom="sm"
+                  size="sm"
+                  aria-label={t('nav.menu')}
+                />
+                {brand}
+                <Group gap="md" component="nav" visibleFrom="sm">
+                  {navItems.map((item) => (
+                    <Anchor
+                      key={item.to}
+                      component={Link}
+                      to={item.to}
+                      className={classes.navLink}
+                      size="sm"
+                    >
+                      {t(item.key)}
+                    </Anchor>
+                  ))}
+                </Group>
+              </Group>
+              <Group gap="md" wrap="nowrap">
+                <DataChangesSubscriber />
+                <NotificationBell />
+                <UserMenu />
               </Group>
             </Group>
-            <Group gap="md" wrap="nowrap">
-              <NotificationBell />
-              <UserMenu />
-            </Group>
-          </Group>
-        </SignedIn>
-      </AppShell.Header>
-      <AppShell.Navbar p="md" component="nav" aria-label={t('nav.menu')}>
-        <SignedIn fallback={null}>
-          <Stack gap="sm">
-            {navItems.map((item) => (
-              <Anchor
-                key={item.to}
-                component={Link}
-                to={item.to}
-                className={classes.navLink}
-                onClick={close}
-              >
-                {t(item.key)}
-              </Anchor>
-            ))}
-          </Stack>
-        </SignedIn>
-      </AppShell.Navbar>
-      <AppShell.Main>
-        <div className={classes.content} data-fluid={fluid || undefined}>
-          <Outlet />
-        </div>
-      </AppShell.Main>
-    </AppShell>
+          </SignedIn>
+        </AppShell.Header>
+        <AppShell.Navbar p="md" component="nav" aria-label={t('nav.menu')}>
+          <SignedIn fallback={null}>
+            <Stack gap="sm">
+              {navItems.map((item) => (
+                <Anchor
+                  key={item.to}
+                  component={Link}
+                  to={item.to}
+                  className={classes.navLink}
+                  onClick={close}
+                >
+                  {t(item.key)}
+                </Anchor>
+              ))}
+            </Stack>
+          </SignedIn>
+        </AppShell.Navbar>
+        <AppShell.Main>
+          <div className={classes.content} data-fluid={fluid || undefined}>
+            <Outlet />
+          </div>
+        </AppShell.Main>
+      </AppShell>
+    </DataChangesProvider>
   );
 }
 

@@ -18,6 +18,8 @@ import { Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
+import { useDataChanges } from '../../changes/DataChanges';
+import type { DataChannel } from '../../changes/dataChanges';
 import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
 import { loadExtendedHours, saveExtendedHours } from '../../guide/hourNotation';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
@@ -48,6 +50,9 @@ const day = 24 * 60 * 60_000;
 // guideDays は、番組表で移れる、いまの放送日からの日数。
 // 放送の EPG (EIT) は、今日の 0 時から 8 日分が届く。放送日は 4 時に切り替わるので、8 日目の放送日も 4 時から 24 時までは番組がある。
 const guideDays = 8;
+
+// guideChannels は、番組表に関わるデータの種類。番組と、番組に付ける予約の印。
+const guideChannels: readonly DataChannel[] = ['EPG', 'RESERVATIONS'];
 // jumpHours は、番組表で移れる時間帯の始まり (時)。放送日は 4 時に始まるので、24 時以降は翌日の深夜を表す。
 const jumpHours = [5, 12, 17, 20, 24] as const;
 
@@ -142,6 +147,8 @@ function Guide() {
   const selectedFrom = dayFrom(search.date, today.from);
   // fetchKey は、番組表ビューを保存したときに、番組表とビューの一覧を取り直すための合図。
   const [fetchKey, setFetchKey] = useState(0);
+  // changes は、番組表と予約が、EPG の同期やほかの端末で変わるたびに変わる (#503)。変わったら取り直す。
+  const changes = useDataChanges(guideChannels);
   // editing は、編集中の番組表ビュー。
   const [editing, setEditing] = useState<EditableGuideView | null>(null);
   const data = useLazyLoadQuery<guideQuery>(
@@ -215,7 +222,10 @@ function Guide() {
     // store-or-network は、fetchKey を変えても、ストアにある番組表を取り直さない (#614)。保存した後は、
     // ストアの値を出しながら取り直す。ストアに残るほかの日の番組表も、保存する前の条件で絞ったものなので、
     // その日へ移ったときにも取り直す。
-    { fetchKey, fetchPolicy: fetchKey === 0 ? 'store-or-network' : 'store-and-network' },
+    {
+      fetchKey: `${fetchKey}:${changes}`,
+      fetchPolicy: fetchKey === 0 && changes === 0 ? 'store-or-network' : 'store-and-network',
+    },
   );
   const currentView = data.guideViews.find((candidate) => candidate.id === view);
 
