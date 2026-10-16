@@ -232,9 +232,10 @@ func newTunerClient(deps *Deps) (*mirakurun.Client, error) {
 		Password:       "",
 		UserAgent:      "",
 		HTTPClient:     nil,
-		RequestTimeout: 0,
-		DetectInterval: 0,
-		Clock:          deps.Clock,
+		RequestTimeout:    0,
+		DetectInterval:    0,
+		StreamIdleTimeout: 0,
+		Clock:             deps.Clock,
 	})
 }
 
