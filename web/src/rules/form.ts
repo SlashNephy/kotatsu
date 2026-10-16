@@ -27,7 +27,7 @@ export type RuleForm = ConditionsForm & {
   avoidDuplicates: boolean;
   duplicateWindowDays: number | null;
   followEventRelay: boolean;
-  // settings と validFrom、validUntil は、画面では優先度と、分かれたファイルをつなぐかどうかだけを変え、ほかはそのまま保存し直す。
+  // settings は、画面で変えない項目 (保存先プール) も、そのまま保存し直す。
   settings: Settings;
   validFrom: string | null;
   validUntil: string | null;
