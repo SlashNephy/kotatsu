@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -485,8 +486,10 @@ func TestWorkerDeletesAssignmentsEndedWithoutRecording(t *testing.T) {
 	f := newFixture(t)
 	reservationID := f.assignOne(t)
 	ended := make(chan struct{})
+	// 最後の見直しで書き直した割り振りも、同じ mikan が取って Session を始めることがある (#613)。
+	endOnce := sync.OnceFunc(func() { close(ended) })
 	f.startWorker(t, id.New(), func(context.Context, *recording.Assignment) error {
-		close(ended)
+		endOnce()
 
 		return nil
 	})
