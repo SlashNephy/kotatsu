@@ -45,3 +45,7 @@ DELETE FROM login_challenges WHERE id = @id;
 -- name: LockUser :one
 -- ユーザーの行を、トランザクションが終わるまで書き込みからロックする。同じユーザーの登録を同時に行わせない。
 SELECT id, username FROM users WHERE id = @id FOR UPDATE;
+
+-- name: DeleteUserLoginChallenges :exec
+-- ユーザーの、第二要素の確認を待つログインをすべて消す。パスワードを設定したときと、無効にしたときに使う。
+DELETE FROM login_challenges WHERE user_id = @user_id;

@@ -27,6 +27,11 @@ UPDATE sessions SET revoked_at = @now::timestamptz WHERE id = @id AND user_id = 
 -- 再認証した日時を記録する (設計書 9.5)。失効したセッションは更新しない。
 UPDATE sessions SET authenticated_at = @now WHERE id = @id AND user_id = @user_id AND revoked_at IS NULL;
 
+-- name: RevokeUserSessions :execrows
+-- ユーザーのセッションをまとめて失効させる。keep_id のセッション (パスワードを変えた本人の今のセッション) は残す。
+UPDATE sessions SET revoked_at = @now::timestamptz
+WHERE user_id = @user_id AND revoked_at IS NULL AND (sqlc.narg(keep_id)::uuid IS NULL OR id <> sqlc.narg(keep_id)::uuid);
+
 -- name: DeleteStaleSessions :execrows
 -- 使えなくなったセッション (失効させた、絶対的な期限を過ぎた、無操作の期限を過ぎた) を、max_count 件まで消す。
 DELETE FROM sessions WHERE id IN (
