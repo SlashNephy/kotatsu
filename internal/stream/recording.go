@@ -82,11 +82,15 @@ func (h *RecordingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+	// 流し始めるのは、指定した位置の手前の I フレームから。実際に流し始めた位置を返し、画面はそれを再生位置の起点にする (#536)。
+	// 索引のないセグメントは、その始まりから流すので、指定した位置と大きくずれる。HEAD でも返すので、先に位置だけを引ける。
+	pos := recording.Seek(start)
+	w.Header().Set(StartHeader, strconv.FormatFloat(pos.At.Seconds(), 'f', 3, 64))
 	writeStreamHeader(w)
 	if r.Method == http.MethodHead {
 		return
 	}
-	if err := recording.Write(r.Context(), w, recording.Seek(start)); err != nil && r.Context().Err() == nil {
+	if err := recording.Write(r.Context(), w, pos); err != nil && r.Context().Err() == nil {
 		h.logger.WarnContext(r.Context(), "failed to stream the recording", slog.String("recording_id", recordingID.String()), slog.Any("error", err))
 	}
 }
@@ -104,6 +108,9 @@ func (h *RecordingHandler) serveContent(w http.ResponseWriter, r *http.Request, 
 	w.Header().Set("Cache-Control", "no-store")
 	http.ServeContent(w, r, "", time.Time{}, content)
 }
+
+// StartHeader は、録画を流し始めた位置 (録画の始まりからの秒) を返す応答のヘッダー。
+const StartHeader = "X-Kotatsu-Start"
 
 // parseStart は、開始位置の秒を読む。空なら 0 にする。
 func parseStart(raw string) (time.Duration, bool) {

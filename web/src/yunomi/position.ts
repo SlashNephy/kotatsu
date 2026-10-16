@@ -8,6 +8,16 @@ export function playbackPosition(offset: number, base: number, current: number):
   return offset + Math.max(current - base, 0);
 }
 
+// parseStreamStart は、録画の配信が返す、流し始めた位置のヘッダー (X-Kotatsu-Start、秒) を読む。読めなければ null。
+export function parseStreamStart(value: string | null): number | null {
+  if (value === null || value.trim() === '') {
+    return null;
+  }
+  const seconds = Number(value);
+
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
+}
+
 // formatDuration は、秒を H:MM:SS か M:SS で表す。
 export function formatDuration(seconds: number): string {
   const total = Math.max(Math.floor(seconds), 0);

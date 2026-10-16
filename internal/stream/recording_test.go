@@ -124,7 +124,9 @@ type fetched struct {
 	status      int
 	contentType string
 	disposition string
-	body        []byte
+	// start は、流し始めた位置を返すヘッダー (X-Kotatsu-Start)。
+	start string
+	body  []byte
 }
 
 // get は、録画を、クエリ query の位置から最後まで取得する。
@@ -139,7 +141,10 @@ func (f *recordingFixture) get(t *testing.T, recordingID uuid.UUID, query string
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	return &fetched{status: resp.StatusCode, contentType: resp.Header.Get("Content-Type"), disposition: resp.Header.Get("Content-Disposition"), body: body}
+	return &fetched{
+		status: resp.StatusCode, contentType: resp.Header.Get("Content-Type"), disposition: resp.Header.Get("Content-Disposition"),
+		start: resp.Header.Get(stream.StartHeader), body: body,
+	}
 }
 
 // iframes は、TS を解析し、I フレームの PTS を順に返す。
@@ -187,12 +192,14 @@ func TestRecordingHandler(t *testing.T) {
 		handover bool
 		query    string
 		want     []int64
+		// wantStart は、流し始めた位置として返す秒。開始位置を指定しなければ、1 本のファイルとして返すので、返さない。
+		wantStart string
 	}{
-		{name: "最初から流す", handover: false, query: "", want: wantIFramePTS()},
-		{name: "2.01 秒の位置は、2.002 秒の I フレームから流す", handover: false, query: "?start=2.01", want: wantIFramePTS()[4:]},
-		{name: "I フレームの間の位置は、手前の I フレームに丸める", handover: false, query: "?start=2", want: wantIFramePTS()[3:]},
-		{name: "引き継ぎで重なった区間を切り詰める", handover: true, query: "", want: wantIFramePTS()},
-		{name: "後のセグメントの位置から流す", handover: true, query: "?start=1", want: wantIFramePTS()[2:]},
+		{name: "最初から流す", handover: false, query: "", want: wantIFramePTS(), wantStart: ""},
+		{name: "2.01 秒の位置は、2.002 秒の I フレームから流す", handover: false, query: "?start=2.01", want: wantIFramePTS()[4:], wantStart: "2.002"},
+		{name: "I フレームの間の位置は、手前の I フレームに丸める", handover: false, query: "?start=2", want: wantIFramePTS()[3:], wantStart: "1.502"},
+		{name: "引き継ぎで重なった区間を切り詰める", handover: true, query: "", want: wantIFramePTS(), wantStart: ""},
+		{name: "後のセグメントの位置から流す", handover: true, query: "?start=1", want: wantIFramePTS()[2:], wantStart: "1.000"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -213,6 +220,7 @@ func TestRecordingHandler(t *testing.T) {
 			assert.Equal(t, "video/mp2t", got.contentType)
 			assert.Zero(t, len(got.body)%ts.PacketSize, "the body must consist of whole packets")
 			assert.Equal(t, tt.want, iframes(t, got.body))
+			assert.Equal(t, tt.wantStart, got.start)
 		})
 	}
 }
@@ -359,6 +367,28 @@ func TestRecordingHandlerStartsAtIndexedOffset(t *testing.T) {
 	assert.Equal(t, data[386340:], body[2*ts.PacketSize:])
 	prelude := body[:2*ts.PacketSize]
 	assert.Equal(t, []uint16{0x0000, 0x01F0}, []uint16{pidOf(prelude[:ts.PacketSize]), pidOf(prelude[ts.PacketSize:])}, "PAT and PMT")
+}
+
+// TestRecordingHandlerReportsStartOnHead は、HEAD でも、流し始める位置を返すことを確かめる (#536)。
+// 画面は、先に HEAD で位置を引いて、再生位置の起点にできる。
+func TestRecordingHandlerReportsStartOnHead(t *testing.T) {
+	t.Parallel()
+
+	f := newRecordingFixture(t, nil)
+	recordingID := f.recording(t, "completed")
+	f.segment(t, recordingID, "a.m2ts", loadTestTS(t), 0, false)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodHead, f.server.URL+"/streams/recordings/"+recordingID.String()+"?start=2.01", nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "2.002", resp.Header.Get(stream.StartHeader))
+	assert.Empty(t, body)
 }
 
 // TestRecordingHandlerFollowsGrowingFile は、録画中のファイルの末尾まで流した後も、ファイルが伸びるのを待って流し続け、

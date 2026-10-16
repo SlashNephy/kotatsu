@@ -4,6 +4,7 @@ import {
   broadcastTime,
   formatClock,
   formatDuration,
+  parseStreamStart,
   playbackPosition,
   recordingPosition,
 } from './position';
@@ -116,5 +117,18 @@ describe('recordingPosition', () => {
     const gaps = [gap, { from: '2026-10-14T12:20:00Z', to: '2026-10-14T12:21:00Z' }];
 
     expect(recordingPosition(from, gaps, broadcastTime(from, gaps, 25 * 60))).toBe(25 * 60);
+  });
+});
+
+describe('parseStreamStart', () => {
+  test.each([
+    { value: '2.002', want: 2.002 },
+    { value: '0.000', want: 0 },
+    { value: null, want: null },
+    { value: '', want: null },
+    { value: 'abc', want: null },
+    { value: '-1', want: null },
+  ])('$value は $want', ({ value, want }) => {
+    expect(parseStreamStart(value)).toBe(want);
   });
 });
