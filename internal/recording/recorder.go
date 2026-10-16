@@ -1367,6 +1367,10 @@ func (r *Recorder) settings(ctx context.Context, reservation *sqlc.GetReservatio
 
 // streamFailure は、ストリームを開けなかったエラーを、録画の失敗の理由にする。
 func streamFailure(err error) FailureReason {
+	// チューナーサーバーは、チューナーの空きを待つ間、応答を返さないことがある。つながってはいるので、チューナーが空いていないとみなす。
+	if errors.Is(err, mirakurun.ErrStreamOpenTimeout) {
+		return FailureTunerUnavailable
+	}
 	if apiErr, ok := errors.AsType[*mirakurun.APIError](err); ok {
 		if apiErr.StatusCode == http.StatusServiceUnavailable {
 			return FailureTunerUnavailable

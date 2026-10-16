@@ -48,6 +48,8 @@ type Options struct {
 	DetectInterval time.Duration
 	// StreamIdleTimeout は、ストリームのデータが届かないまま待つ時間の上限。0 なら DefaultStreamIdleTimeout。
 	StreamIdleTimeout time.Duration
+	// StreamOpenTimeout は、ストリームを開くときに、応答の頭を待つ時間の上限。0 なら DefaultStreamOpenTimeout。
+	StreamOpenTimeout time.Duration
 	Clock             clock.Clock
 }
 
@@ -61,6 +63,7 @@ type Client struct {
 	requestTimeout time.Duration
 	detectInterval time.Duration
 	idleTimeout    time.Duration
+	openTimeout    time.Duration
 	clock          clock.Clock
 
 	mu sync.Mutex
@@ -130,6 +133,10 @@ func New(opts *Options) (*Client, error) {
 	if idleTimeout == 0 {
 		idleTimeout = DefaultStreamIdleTimeout
 	}
+	openTimeout := opts.StreamOpenTimeout
+	if openTimeout == 0 {
+		openTimeout = DefaultStreamOpenTimeout
+	}
 	clk := opts.Clock
 	if clk == nil {
 		clk = new(clock.Real)
@@ -144,6 +151,7 @@ func New(opts *Options) (*Client, error) {
 		requestTimeout: requestTimeout,
 		detectInterval: detectInterval,
 		idleTimeout:    idleTimeout,
+		openTimeout:    openTimeout,
 		clock:          clk,
 		mu:             sync.Mutex{},
 		server:         nil,
@@ -325,18 +333,35 @@ func (c *Client) ServiceLogo(ctx context.Context, serviceID int64) ([]byte, erro
 
 // openStream は、ストリームのリクエストを送り、2xx なら本文を返す。
 // 本文は、データが idleTimeout の間届かなければ閉じ、ErrStreamStalled を返す。接続を保ったまま送らなくなったことに気づくため (#537)。
+// 応答の頭が openTimeout までに届かなければ、要求をやめて ErrStreamOpenTimeout を返す (#412)。
+// ストリームは何時間も続くので、要求全体には期限を付けず、応答の頭を待つ間だけ見張る。
 func (c *Client) openStream(req *http.Request) (io.ReadCloser, error) {
-	resp, err := c.httpClient.Do(req)
+	ctx, cancel := context.WithCancelCause(req.Context())
+	timer := time.AfterFunc(c.openTimeout, func() { cancel(ErrStreamOpenTimeout) })
+	resp, err := c.httpClient.Do(req.WithContext(ctx))
+	// Stop が false なら、上限が来て、要求をやめ始めている。やめる処理が走り終えるのを待たずに、時間切れとして扱う。
+	// 応答が届いた直後に上限が来たときも、ストリームは使えないので、届かなかったときと同じく扱う。
+	timedOut := !timer.Stop()
+	if timedOut && err == nil {
+		_ = resp.Body.Close()
+		err = ErrStreamOpenTimeout
+	}
 	if err != nil {
+		cancel(nil)
+		if timedOut {
+			return nil, fmt.Errorf("failed to request %s %s: %w", req.Method, req.URL.Redacted(), ErrStreamOpenTimeout)
+		}
+
 		return nil, fmt.Errorf("failed to request %s %s: %w", req.Method, req.URL.Redacted(), err)
 	}
 	if err := checkResponse(resp); err != nil {
 		_ = resp.Body.Close()
+		cancel(nil)
 
 		return nil, err
 	}
 
-	return newIdleReader(resp.Body, c.idleTimeout), nil
+	return newIdleReader(resp.Body, c.idleTimeout, func() { cancel(nil) }), nil
 }
 
 func (c *Client) getJSON(ctx context.Context, path string, query url.Values, v any) error {
