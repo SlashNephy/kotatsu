@@ -28,7 +28,7 @@ import { useMediaSession } from '../../yunomi/useMediaSession';
 import type { ShortcutAction } from '../../yunomi/shortcuts';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
-import { CaptureButton, PipButton } from '../../yunomi/PlayerTools';
+import { CaptureButton, PipButton, useCapture } from '../../yunomi/PlayerTools';
 import {
   BigPlayButton,
   PlayerLoading,
@@ -305,6 +305,21 @@ function Player({ recordingId }: { recordingId: string }) {
   const skip = (seconds: number) => seek(currentPosition() + seconds);
   // flash は、キーで操作した結果。映像の上に短く出す (#448)。
   const [flash, showFlash] = usePlayerFlash();
+  const capture = useCapture({
+    frameRef: playerBoxRef,
+    videoRef,
+    serviceName: recording?.service.name ?? '',
+    programName: recording?.name ?? null,
+    captureTime: () =>
+      recording == null
+        ? Date.now()
+        : broadcastTime(recording.recordedFrom, recording.gaps, currentPosition()),
+  });
+  const saveCapture = async () => {
+    if ((await capture.capture('save')) === 'saved') {
+      showFlash(t('player.flash.captured'));
+    }
+  };
   // 押し続けると、描き直す前に次のキーが来るので、今の音量は video の要素から読む。映像がなければ何もしない。
   const changeVolume = (delta: number) => {
     const video = videoRef.current;
@@ -337,6 +352,7 @@ function Player({ recordingId }: { recordingId: string }) {
     toggleFullscreen: fullscreen.toggle,
     volumeUp: () => changeVolume(volumeStep),
     volumeDown: () => changeVolume(-volumeStep),
+    capture: () => void saveCapture(),
     showShortcuts: () => setShortcutsOpen(true),
   } satisfies Partial<Record<ShortcutAction, () => void>>;
   usePlayerShortcuts(shortcuts);
@@ -471,15 +487,7 @@ function Player({ recordingId }: { recordingId: string }) {
             {audio.menu}
             <RateSelect value={rate} onChange={setRate} />
           </SettingsButton>
-          <CaptureButton
-            frameRef={playerBoxRef}
-            videoRef={videoRef}
-            serviceName={recording.service.name}
-            programName={recording.name}
-            captureTime={() =>
-              broadcastTime(recording.recordedFrom, recording.gaps, currentPosition())
-            }
-          />
+          <CaptureButton capture={capture} />
           <ControlButton
             label={t('player.shortcuts.title')}
             icon={Keyboard}
