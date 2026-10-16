@@ -3,8 +3,10 @@ package jikkyo
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -12,6 +14,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 )
+
+// segmentKind は、録画のファイルのうち、TS のセグメントの種類。
+const segmentKind = "segment"
 
 // CommentsFileName は、過去ログの URL の末尾のファイル名。
 const CommentsFileName = "jikkyo.json"
@@ -22,7 +27,7 @@ const finishedCacheControl = "private, max-age=600"
 
 // CommentsHandler は、録画の時間帯の実況の過去ログを、過去ログ API から取って中継する
 // (GET /media/recordings/{id}/jikkyo.json、設計書 7.4)。
-// 描画に使う項目だけを、録画の始まりからの秒とともに返す。ユーザー ID は返さない。
+// 描画に使う項目だけを、録画の始まり (最初のセグメントを書き始めた時刻) からの秒とともに返す。ユーザー ID は返さない。
 type CommentsHandler struct {
 	db     sqlc.DBTX
 	table  *Table
@@ -82,7 +87,12 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp.Channel = &channelJSON{ID: id}
-	from := source.RecordedFrom
+	from, err := h.origin(r, recordingID, source.RecordedFrom)
+	if err != nil {
+		h.internalError(w, r, err)
+
+		return
+	}
 	// 過去ログ API は、終わりが未来の時刻だと取得できないので、録画中なら今までにする。
 	to := h.clock.Now()
 	if source.RecordedUntil != nil && source.RecordedUntil.Before(to) {
@@ -112,6 +122,27 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	h.write(w, r, resp, source.RecordedUntil != nil)
+}
+
+// origin は、コメントの時刻の基準を返す。録画の配信は、最初のセグメントを書き始めた時刻を 0 秒にするので、それに合わせる。
+// 録画の行を作ってから、チューナーを開いて書き始めるまでには時間がかかるので、recorded_from とはずれる。
+// セグメントがまだなければ、recorded_from を使う。
+func (h *CommentsHandler) origin(r *http.Request, recordingID uuid.UUID, recordedFrom time.Time) (time.Time, error) {
+	files, err := sqlc.New(h.db).ListRecordingFiles(r.Context(), recordingID)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to list the recording files: %w", err)
+	}
+	origin := time.Time{}
+	for _, file := range files {
+		if file.Kind == segmentKind && (origin.IsZero() || file.StartedAt.Before(origin)) {
+			origin = file.StartedAt
+		}
+	}
+	if origin.IsZero() {
+		return recordedFrom, nil
+	}
+
+	return origin, nil
 }
 
 func (h *CommentsHandler) write(w http.ResponseWriter, r *http.Request, resp *commentsResponse, finished bool) {
