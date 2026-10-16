@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/registry"
+	"github.com/SlashNephy/kotatsu/internal/tunerstate"
 )
 
 const (
@@ -158,12 +159,26 @@ func (r *Resolver) tunerServerHealth(ctx context.Context) (*model.TunerServerHea
 	server, err := sqlc.New(r.db).GetTunerServerStatus(ctx)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		return &model.TunerServerHealth{Degraded: false, DegradedSince: nil}, nil
+		return &model.TunerServerHealth{Degraded: false, DegradedSince: nil, ClockSkewed: false, ClockSkewMs: nil}, nil
 	case err != nil:
 		return nil, fmt.Errorf("failed to get the tuner server status: %w", err)
 	}
+	skewMs, skewed := clockSkew(server.ClockSkewMs)
 
-	return &model.TunerServerHealth{Degraded: server.DegradedSince != nil, DegradedSince: server.DegradedSince}, nil
+	return &model.TunerServerHealth{
+		Degraded: server.DegradedSince != nil, DegradedSince: server.DegradedSince, ClockSkewed: skewed, ClockSkewMs: skewMs,
+	}, nil
+}
+
+// clockSkew は、記録したチューナーサーバーの時計の差と、それが警告する閾値を超えているかどうかを返す (#505)。
+// 閾値は、neko がログに警告するもの (tunerstate.DefaultSkewThreshold) と同じにする。
+func clockSkew(recorded *int64) (*int, bool) {
+	if recorded == nil {
+		return nil, false
+	}
+	skew := time.Duration(*recorded) * time.Millisecond
+
+	return new(int(*recorded)), skew.Abs() > tunerstate.DefaultSkewThreshold
 }
 
 // systemStatus は、インスタンス、リース、チューナー、保存先プールの状態を返す。
@@ -204,12 +219,11 @@ func (r *Resolver) systemStatus(ctx context.Context) (*model.SystemStatus, error
 	case err != nil:
 		return nil, fmt.Errorf("failed to get the tuner server status: %w", err)
 	default:
+		skewMs, skewed := clockSkew(server.ClockSkewMs)
 		status.TunerServer = &model.TunerServerStatus{
 			Degraded: server.DegradedSince != nil, DegradedSince: server.DegradedSince, LastError: server.LastError,
-			ClockSkewMs: nil, CheckedAt: server.CheckedAt,
-		}
-		if server.ClockSkewMs != nil {
-			status.TunerServer.ClockSkewMs = new(int(*server.ClockSkewMs))
+			ClockSkewMs: skewMs, ClockSkewed: skewed, ClockSkewThresholdMs: int(tunerstate.DefaultSkewThreshold.Milliseconds()),
+			CheckedAt: server.CheckedAt,
 		}
 	}
 	tuners, err := q.ListTuners(ctx)

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<7a7d131491c73aade46af2574a272a90>>
+ * @generated SignedSource<<e187dc953e54925aee9463510f64e6d1>>
  * @lightSyntaxTransform
  */
 
@@ -44,6 +44,8 @@ export type systemQuery$data = {
     readonly tunerServer: {
       readonly checkedAt: string;
       readonly clockSkewMs: number | null | undefined;
+      readonly clockSkewThresholdMs: number;
+      readonly clockSkewed: boolean;
       readonly degraded: boolean;
       readonly degradedSince: string | null | undefined;
       readonly lastError: string;
@@ -220,6 +222,20 @@ v2 = [
             "alias": null,
             "args": null,
             "kind": "ScalarField",
+            "name": "clockSkewed",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "clockSkewThresholdMs",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
             "name": "checkedAt",
             "storageKey": null
           }
@@ -379,16 +395,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "fed8fec8cea213841f1f127a81e75912",
+    "cacheID": "5abca7cda5315f338a1b12ba8c1efcd1",
     "id": null,
     "metadata": {},
     "name": "systemQuery",
     "operationKind": "query",
-    "text": "query systemQuery {\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      checkedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n    pools {\n      id\n      path\n      priority\n      minFreeBytes\n      freeBytes\n      totalBytes\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query systemQuery {\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      clockSkewed\n      clockSkewThresholdMs\n      checkedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n    pools {\n      id\n      path\n      priority\n      minFreeBytes\n      freeBytes\n      totalBytes\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "bd0a73cd3b11fc9958fa53310f77ecef";
+(node as any).hash = "495a1d2257e6249a736782551629414d";
 
 export default node;

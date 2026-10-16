@@ -89,6 +89,8 @@ const query = graphql`
         degradedSince
         lastError
         clockSkewMs
+        clockSkewed
+        clockSkewThresholdMs
         checkedAt
       }
       tuners {
@@ -189,8 +191,21 @@ function SystemStatus() {
               </Text>
             )}
             {status.tunerServer.clockSkewMs != null && (
-              <Text size="sm">
-                {t('admin.system.clockSkew', { ms: status.tunerServer.clockSkewMs })}
+              // 閾値を超えたら、警告の色で、閾値とともに示す (#505)。
+              <Text
+                size="sm"
+                c={status.tunerServer.clockSkewed ? 'amber.8' : undefined}
+                fw={status.tunerServer.clockSkewed ? 700 : undefined}
+              >
+                {t(
+                  status.tunerServer.clockSkewed
+                    ? 'admin.system.clockSkewExceeded'
+                    : 'admin.system.clockSkew',
+                  {
+                    ms: status.tunerServer.clockSkewMs,
+                    threshold: status.tunerServer.clockSkewThresholdMs,
+                  },
+                )}
               </Text>
             )}
             <Text size="xs" c="dimmed">

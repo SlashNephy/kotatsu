@@ -60,6 +60,8 @@ export function Dashboard({ range }: { range: DashboardRange }) {
         tunerServerHealth {
           degraded
           degradedSince
+          clockSkewed
+          clockSkewMs
         }
         channelTypes {
           type
@@ -223,6 +225,19 @@ export function Dashboard({ range }: { range: DashboardRange }) {
               })}
         </Alert>
       )}
+      {/* チューナーサーバーの時計がずれていると、録画の開始と終了がずれる (#505)。縮退中は、時計のずれより縮退を知らせる。 */}
+      {!data.tunerServerHealth.degraded &&
+        data.tunerServerHealth.clockSkewed &&
+        data.tunerServerHealth.clockSkewMs != null && (
+          <Alert color="amber" role="alert" title={t('home.clockSkew.title')}>
+            {t(
+              data.tunerServerHealth.clockSkewMs > 0
+                ? 'home.clockSkew.ahead'
+                : 'home.clockSkew.behind',
+              { seconds: Math.round(Math.abs(data.tunerServerHealth.clockSkewMs) / 1000) },
+            )}
+          </Alert>
+        )}
       {troubles > 0 && (
         <Alert color="amber" role="alert" title={t('home.conflicts.title')}>
           <Group gap="xs">
