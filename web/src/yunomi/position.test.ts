@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest';
 
-import { broadcastTime, formatClock, formatDuration, playbackPosition } from './position';
+import {
+  broadcastTime,
+  formatClock,
+  formatDuration,
+  parseStreamStart,
+  playbackPosition,
+} from './position';
 
 describe('playbackPosition', () => {
   test.each([
@@ -68,5 +74,18 @@ describe('broadcastTime', () => {
 describe('formatClock', () => {
   test('日本時間の HH:MM:SS で表す', () => {
     expect(formatClock(Date.parse('2026-10-14T12:01:30Z'))).toBe('21:01:30');
+  });
+});
+
+describe('parseStreamStart', () => {
+  test.each([
+    { value: '2.002', want: 2.002 },
+    { value: '0.000', want: 0 },
+    { value: null, want: null },
+    { value: '', want: null },
+    { value: 'abc', want: null },
+    { value: '-1', want: null },
+  ])('$value は $want', ({ value, want }) => {
+    expect(parseStreamStart(value)).toBe(want);
   });
 });

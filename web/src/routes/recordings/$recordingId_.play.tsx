@@ -15,6 +15,7 @@ import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import {
   broadcastTime,
+  parseStreamStart,
   formatClock,
   formatDuration,
   playbackPosition,
@@ -217,6 +218,33 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const [offset, setOffset] = useState(resumeAt);
   // loads は、読み込みを始め直した回数。同じ位置へシークし直したときも、URL を変えて読み直させる。
   const [loads, setLoads] = useState(0);
+  // startedAt は、ブラウザの中で変換するときに、配信が実際に流し始めた位置 (録画の始まりからの秒)。配信は、指定した位置の
+  // 手前の I フレームから流すので、再生位置は、指定した位置 (offset) ではなく、ここから数える (#536)。分かるまでは offset を使う。
+  const [streamStart, setStreamStart] = useState<{ key: string; at: number } | null>(null);
+  const streamKey = `${offset}:${loads}`;
+  const startedAt = !hls && streamStart?.key === streamKey ? streamStart.at : offset;
+  const streamUrl = recording?.streamUrl ?? null;
+  useEffect(() => {
+    if (hls || streamUrl === null) {
+      return;
+    }
+    // 配信は、HEAD でも、流し始める位置を返す。
+    const controller = new AbortController();
+    fetch(`${streamUrl}?start=${offset.toFixed(1)}`, {
+      method: 'HEAD',
+      credentials: 'same-origin',
+      signal: controller.signal,
+    })
+      .then((response) => {
+        const at = response.ok ? parseStreamStart(response.headers.get('X-Kotatsu-Start')) : null;
+        if (at !== null) {
+          setStreamStart({ key: `${offset}:${loads}`, at });
+        }
+      })
+      .catch(() => {});
+
+    return () => controller.abort();
+  }, [hls, streamUrl, offset, loads]);
   // base は、読み込んだ映像の最初のフレームの、video の時刻。変換した映像の時刻は 0 から始まるとは限らない。
   const base = useRef(0);
   // phase は、読み込みの段階。読み直している間に、前の映像の時刻で位置を動かさないよう、base を決めるまで位置を更新しない。
@@ -243,7 +271,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       return video.currentTime;
     }
 
-    return playbackPosition(offset, base.current, video.currentTime);
+    return playbackPosition(startedAt, base.current, video.currentTime);
   };
   const channel = recording?.service.jikkyo ?? null;
   useWatchPositionSaver(recordingId, currentPosition, !paused);
@@ -470,7 +498,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
         base.current = video.currentTime;
         phase.current = 'playing';
       }
-      const next = playbackPosition(offset, base.current, video.currentTime);
+      const next = playbackPosition(startedAt, base.current, video.currentTime);
       positionRef.current = next;
       setPosition(next);
     };
@@ -495,7 +523,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       video.removeEventListener('playing', onPlaying);
     };
     // 画質を変えたときと、別のウィンドウに出したり戻したりしたときは、video の要素を作り直すので、付け直す。
-  }, [offset, hls, video]);
+  }, [startedAt, hls, video]);
 
   if (recording === null) {
     return <Alert color="amber">{t('recordings.notFound')}</Alert>;
