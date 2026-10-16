@@ -119,6 +119,33 @@ describe('useControlsVisibility', () => {
     expect(visible()).toBe(false);
   });
 
+  test('タッチでシークバーを動かしている間は隠さない', () => {
+    render(<Harness playing />);
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'play' }), { pointerType: 'touch' });
+    advance(controlsHideDelayMs * 2);
+    expect(visible()).toBe(true);
+
+    fireEvent.pointerUp(window, { pointerType: 'touch' });
+    advance(controlsHideDelayMs + 100);
+    expect(visible()).toBe(false);
+  });
+
+  test('シークバーを掴んだまま外へ出ても、離すまでは隠さない', () => {
+    render(<Harness playing />);
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'play' }), { pointerType: 'mouse' });
+    fireEvent.pointerLeave(screen.getByTestId('container'), { pointerType: 'mouse' });
+    expect(visible()).toBe(true);
+  });
+
+  test('キーボードで開いたメニューも、開いている間は隠さない', () => {
+    render(<Harness playing menuOpened />);
+    // フォーカスを移して外す (ポインタは使わない)。
+    act(() => screen.getByRole('button', { name: 'settings' }).focus());
+    act(() => screen.getByRole('button', { name: 'settings' }).blur());
+    advance(controlsHideDelayMs * 2);
+    expect(visible()).toBe(true);
+  });
+
   test('操作バーにフォーカスがある間は隠さない', () => {
     render(<Harness playing />);
     act(() => screen.getByRole('button', { name: 'play' }).focus());

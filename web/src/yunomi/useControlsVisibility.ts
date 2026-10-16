@@ -37,6 +37,9 @@ export function useControlsVisibility({ playing }: { playing: boolean }): Contro
   const container = useRef<HTMLElement | null>(null);
   const pointerOverControls = useRef(false);
   const pressingControls = useRef(false);
+  // pointerLeftRef は、pointerLeft を、隠す時間の判定から読むための写し。
+  const pointerLeftRef = useRef(false);
+  pointerLeftRef.current = pointerLeft;
   const forceVisible = shouldForceControlsVisible({ playing, focusWithin });
 
   // 動いたときと、出し続ける条件が変わったときは、隠したことを取り消す。effect の中で毎回 setState すると
@@ -62,8 +65,8 @@ export function useControlsVisibility({ playing }: { playing: boolean }): Contro
         pressingControls: pressingControls.current,
         menuOpened,
       });
-      // 使っている最中なら、隠さずに数え直す。
-      if (hold) {
+      // 使っている最中なら、隠さずに数え直す。プレイヤーの外へ出て隠しているなら、数え直さない。
+      if (hold && !pointerLeftRef.current) {
         setGeneration((n) => n + 1);
       } else {
         setTimedOut(true);
@@ -105,8 +108,9 @@ export function useControlsVisibility({ playing }: { playing: boolean }): Contro
       },
       onPointerDown: (event) => {
         container.current = event.currentTarget;
+        // タッチでシークバーを動かしている間も、隠さない。
+        pressingControls.current = inControls(event.target);
         if (event.pointerType === 'mouse') {
-          pressingControls.current = inControls(event.target);
           activate();
 
           return;
@@ -125,7 +129,8 @@ export function useControlsVisibility({ playing }: { playing: boolean }): Contro
       },
       // プレイヤーの外へ出たら、待たずに隠す。タッチでは、指を離しても pointerleave が届くので、隠さない。
       onPointerLeave: (event) => {
-        if (event.pointerType === 'mouse') {
+        // シークバーを掴んだまま外へ出ても、離すまでは隠さない。
+        if (event.pointerType === 'mouse' && !pressingControls.current) {
           pointerOverControls.current = false;
           setPointerLeft(true);
         }
@@ -133,6 +138,8 @@ export function useControlsVisibility({ playing }: { playing: boolean }): Contro
       // キーボードで操作しているときだけ、出し続ける。マウスでボタンを押したときもフォーカスは残るが、
       // そのままだと、プレイヤーの外へマウスを出しても隠れなくなる。
       onFocusCapture: (event) => {
+        // キーボードだけで操作したときも、開いているメニューを探せるようにする。
+        container.current = event.currentTarget;
         setFocusWithin(event.target instanceof Element && event.target.matches(':focus-visible'));
       },
       onBlurCapture: (event) => {
