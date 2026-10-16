@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { controlsHideDelayMs } from './controlsVisibility';
 import { controlsAttribute, useControlsVisibility } from './useControlsVisibility';
 
-function Harness({ playing }: { playing: boolean }) {
+function Harness({ playing, menuOpened = false }: { playing: boolean; menuOpened?: boolean }) {
   const { visible, containerProps } = useControlsVisibility({ playing });
 
   return (
@@ -12,6 +12,10 @@ function Harness({ playing }: { playing: boolean }) {
       <div data-testid="video" />
       <div data-testid="controls" data-visible={visible} {...{ [controlsAttribute]: '' }}>
         <button type="button">play</button>
+        <button type="button" aria-expanded={menuOpened}>
+          settings
+        </button>
+        {menuOpened && <div role="menu" />}
       </div>
     </div>
   );
@@ -76,6 +80,43 @@ describe('useControlsVisibility', () => {
     fireEvent.pointerDown(screen.getByRole('button', { name: 'play' }), { pointerType: 'touch' });
 
     expect(visible()).toBe(true);
+  });
+
+  test('マウスが操作バーの上にある間は隠さない', () => {
+    render(<Harness playing />);
+    fireEvent.pointerMove(screen.getByRole('button', { name: 'play' }), { pointerType: 'mouse' });
+    advance(controlsHideDelayMs * 2);
+    expect(visible()).toBe(true);
+
+    // 映像の上へ戻ったら、また数えて隠す。
+    fireEvent.pointerMove(screen.getByTestId('video'), { pointerType: 'mouse' });
+    advance(controlsHideDelayMs + 100);
+    expect(visible()).toBe(false);
+  });
+
+  test('設定や選択肢を開いている間は隠さない', () => {
+    const { rerender } = render(<Harness playing menuOpened />);
+    // 開いた印がボタンから外れても、メニューがあれば開いているとみなす。
+    screen.getByRole('button', { name: 'settings' }).removeAttribute('aria-expanded');
+    fireEvent.pointerMove(screen.getByTestId('video'), { pointerType: 'mouse' });
+    advance(controlsHideDelayMs * 2);
+    expect(visible()).toBe(true);
+
+    rerender(<Harness playing menuOpened={false} />);
+    advance(controlsHideDelayMs + 100);
+    expect(visible()).toBe(false);
+  });
+
+  test('操作バーの中を押したまま動かしている間 (シークバーを掴んでいる間) は隠さない', () => {
+    render(<Harness playing />);
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'play' }), { pointerType: 'mouse' });
+    fireEvent.pointerMove(screen.getByTestId('video'), { pointerType: 'mouse' });
+    advance(controlsHideDelayMs * 2);
+    expect(visible()).toBe(true);
+
+    fireEvent.pointerUp(window, { pointerType: 'mouse' });
+    advance(controlsHideDelayMs + 100);
+    expect(visible()).toBe(false);
   });
 
   test('操作バーにフォーカスがある間は隠さない', () => {
