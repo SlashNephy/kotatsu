@@ -31,6 +31,10 @@ import { ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
+import {
+  autoPictureInPictureSupported,
+  useAutoPictureInPicture,
+} from '../../yunomi/autoPictureInPicture';
 import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import type { accountBeginTotpMutation } from './__generated__/accountBeginTotpMutation.graphql';
@@ -145,6 +149,9 @@ function Account() {
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
   const player = usePlayerSettings();
   const [dataBroadcastPreload, setDataBroadcastPreload] = useDataBroadcastPreload();
+  const [autoPictureInPicture, setAutoPictureInPicture] = useAutoPictureInPicture();
+  // 自動で別のウィンドウに出せないブラウザでは、設定の項目を出さない (#492)。
+  const [autoPictureInPictureAvailable] = useState(autoPictureInPictureSupported);
   const [error, setError] = useState<string | null>(
     search.error === undefined ? null : oidcErrorMessage(t, search.error),
   );
@@ -199,6 +206,21 @@ function Account() {
             checked={dataBroadcastPreload}
             onChange={(event) => setDataBroadcastPreload(event.currentTarget.checked)}
           />
+          {autoPictureInPictureAvailable && (
+            <Switch
+              label={
+                <Group gap={6} component="span">
+                  {t('settings.account.autoPictureInPicture')}
+                  <Badge size="sm" variant="light" color="gray" tt="none" component="span">
+                    {t('settings.account.deviceOnly')}
+                  </Badge>
+                </Group>
+              }
+              description={t('settings.account.autoPictureInPictureHelp')}
+              checked={autoPictureInPicture}
+              onChange={(event) => setAutoPictureInPicture(event.currentTarget.checked)}
+            />
+          )}
         </Stack>
       </Card>
 

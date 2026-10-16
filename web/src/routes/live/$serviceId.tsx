@@ -48,7 +48,13 @@ import type { ShortcutAction } from '../../yunomi/shortcuts';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
-import { CaptureButton, PipButton, useCapture } from '../../yunomi/PlayerTools';
+import { useAutoPictureInPicture } from '../../yunomi/autoPictureInPicture';
+import {
+  CaptureButton,
+  openPictureInPicture,
+  PipButton,
+  useCapture,
+} from '../../yunomi/PlayerTools';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
@@ -422,6 +428,7 @@ function Live({
   } satisfies Partial<Record<ShortcutAction, () => void>>;
   usePlayerShortcuts(shortcuts);
   useDocumentTitle([programName, serviceName]);
+  const [autoPictureInPicture] = useAutoPictureInPicture();
   useMediaSession(
     { title: programName ?? serviceName, artist: serviceName, artwork: serviceLogoUrl },
     {
@@ -430,6 +437,16 @@ function Live({
       // OS の前と次のボタンで、同じ種別の前後の局へ移る (#493)。移る先がなければ、OS にボタンを出さない。
       ...(neighbors.previous === null ? {} : { previousTrack: () => tune(neighbors.previous!.id) }),
       ...(neighbors.next === null ? {} : { nextTrack: () => tune(neighbors.next!.id) }),
+      // 設定で選んでいれば、タブを切り替えたときに、別のウィンドウに出す (#492)。
+      ...(autoPictureInPicture && pip.supported
+        ? {
+            enterPictureInPicture: () => {
+              if (pip.container === null) {
+                openPictureInPicture(pip).catch(() => {});
+              }
+            },
+          }
+        : {}),
     },
     // ライブはシークできないので、再生位置は知らせない。
     { playing: !videoState.paused, position: null },
