@@ -321,6 +321,7 @@ function Player({ recordingId }: { recordingId: string }) {
       recording == null
         ? Date.now()
         : broadcastTime(recording.recordedFrom, recording.gaps, currentPosition()),
+    recordingId,
   });
   const doubleTap = useDoubleTap((side) => {
     if (side === 'center') {

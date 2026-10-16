@@ -12,6 +12,7 @@ import {
   saveBlob,
   withCaptureTexts,
 } from './capture';
+import { addCapture } from '../captures/history';
 import { ControlButton, playerControlsClasses } from './PlayerControls';
 import classes from './TsPlayer.module.css';
 import type { useDocumentPictureInPicture } from './useDocumentPictureInPicture';
@@ -39,6 +40,8 @@ type CaptureOptions = {
   programName: string | null;
   // captureTime は、今の場面の時刻 (Unix ミリ秒) を返す。録画では、再生位置の放送時刻を返す。
   captureTime: () => number;
+  // recordingId は、録画で撮るときの録画の ID。キャプチャの履歴から、その録画を開けるようにする (#457)。
+  recordingId?: string | null;
 };
 
 // CaptureResult は、キャプチャの結果。映像がなければ null。
@@ -59,6 +62,7 @@ export function useCapture({
   serviceName,
   programName,
   captureTime,
+  recordingId = null,
 }: CaptureOptions): Capture {
   const { t } = useTranslation();
   // overlays は、キャプチャに、字幕とコメントを写すかどうか。
@@ -75,6 +79,8 @@ export function useCapture({
     const time = captureTime();
     try {
       const blob = await captureFrame(video, overlays ? overlayCanvases(frame) : []);
+      // 保存してもコピーしても、端末の履歴に残す (#457)。残せなくても、保存とコピーは続ける。
+      addCapture({ time, serviceName, programName, recordingId, image: blob }).catch(() => {});
       if (action === 'save') {
         // クリップボードでは、ブラウザが文字の情報を落とすことがあるので、保存するときだけ書き込む。
         const named = await withCaptureTexts(blob, captureTexts(time, serviceName, programName));

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CapturesRouteImport } from './routes/captures'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as ReservationsRouteImport } from './routes/reservations'
 import { Route as SearchRouteImport } from './routes/search'
@@ -39,6 +40,11 @@ import { Route as RecordingsRecordingIdPlayRouteImport } from './routes/recordin
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CapturesRoute = CapturesRouteImport.update({
+  id: '/captures',
+  path: '/captures',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -170,6 +176,7 @@ const RecordingsRecordingIdPlayRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/captures': typeof CapturesRoute
   '/notifications': typeof NotificationsRoute
   '/reservations': typeof ReservationsRoute
   '/search': typeof SearchRoute
@@ -198,6 +205,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/captures': typeof CapturesRoute
   '/notifications': typeof NotificationsRoute
   '/reservations': typeof ReservationsRoute
   '/search': typeof SearchRoute
@@ -227,6 +235,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/captures': typeof CapturesRoute
   '/notifications': typeof NotificationsRoute
   '/reservations': typeof ReservationsRoute
   '/search': typeof SearchRoute
@@ -257,6 +266,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/captures'
     | '/notifications'
     | '/reservations'
     | '/search'
@@ -285,6 +295,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/captures'
     | '/notifications'
     | '/reservations'
     | '/search'
@@ -313,6 +324,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/captures'
     | '/notifications'
     | '/reservations'
     | '/search'
@@ -342,6 +354,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CapturesRoute: typeof CapturesRoute
   NotificationsRoute: typeof NotificationsRoute
   ReservationsRoute: typeof ReservationsRoute
   SearchRoute: typeof SearchRoute
@@ -376,6 +389,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/captures': {
+      id: '/captures'
+      path: '/captures'
+      fullPath: '/captures'
+      preLoaderRoute: typeof CapturesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -558,6 +578,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CapturesRoute: CapturesRoute,
   NotificationsRoute: NotificationsRoute,
   ReservationsRoute: ReservationsRoute,
   SearchRoute: SearchRoute,
