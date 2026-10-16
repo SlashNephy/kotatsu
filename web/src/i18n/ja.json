@@ -506,6 +506,8 @@
     "presets": "よく使うテンプレート (押すと置き換えます)",
     "insert": "{{snippet}} を差し込む",
     "usePreset": "「{{name}}」のテンプレートにする",
+    "reservationLabel": "この予約のファイル名のテンプレート",
+    "reservationDescriptionRule": "空ならルール「{{name}}」の設定に従います",
     "ruleLabel": "ファイル名のテンプレート",
     "ruleDescription": "空なら全体の既定値に従います"
   },
@@ -521,6 +523,11 @@
     "settings": {
       "open": "録画の設定",
       "title": "この予約の録画の設定",
+      "priorityRange": "-10 〜 10。",
+      "inheritedDefault": "空なら全体の既定値 ({{value}}) に従います",
+      "inheritedRule": "空ならルール「{{name}}」の設定 ({{value}}) に従います",
+      "joinInheritedDefault": "全体の既定値に従う ({{value}})",
+      "joinInheritedRule": "ルール「{{name}}」の設定に従う ({{value}})",
       "ruleNote": "空の項目は、ルールの設定か、全体の既定値に従います",
       "save": "保存",
       "cancel": "キャンセル",
