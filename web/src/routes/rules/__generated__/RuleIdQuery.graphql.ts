@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<9172b743f3edae79ca9521a4d7facfa4>>
+ * @generated SignedSource<<1be76a4984a5385d945e699ae63db381>>
  * @lightSyntaxTransform
  */
 
@@ -162,6 +162,10 @@ v8 = {
   "storageKey": null
 },
 v9 = [
+  (v2/*:: as any*/),
+  (v4/*:: as any*/)
+],
+v10 = [
   {
     "alias": null,
     "args": null,
@@ -191,10 +195,10 @@ v9 = [
     "storageKey": null
   }
 ],
-v10 = [
+v11 = [
   (v4/*:: as any*/)
 ],
-v11 = [
+v12 = [
   {
     "alias": null,
     "args": null,
@@ -317,6 +321,40 @@ return {
               {
                 "kind": "InlineFragment",
                 "selections": [
+                  {
+                    "alias": null,
+                    "args": null,
+                    "kind": "ScalarField",
+                    "name": "createdAt",
+                    "storageKey": null
+                  },
+                  {
+                    "alias": null,
+                    "args": null,
+                    "concreteType": "User",
+                    "kind": "LinkedField",
+                    "name": "createdBy",
+                    "plural": false,
+                    "selections": (v9/*:: as any*/),
+                    "storageKey": null
+                  },
+                  {
+                    "alias": null,
+                    "args": null,
+                    "kind": "ScalarField",
+                    "name": "updatedAt",
+                    "storageKey": null
+                  },
+                  {
+                    "alias": null,
+                    "args": null,
+                    "concreteType": "User",
+                    "kind": "LinkedField",
+                    "name": "updatedBy",
+                    "plural": false,
+                    "selections": (v9/*:: as any*/),
+                    "storageKey": null
+                  },
                   (v5/*:: as any*/),
                   {
                     "alias": null,
@@ -347,7 +385,7 @@ return {
                         "kind": "LinkedField",
                         "name": "keywords",
                         "plural": true,
-                        "selections": (v9/*:: as any*/),
+                        "selections": (v10/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -364,7 +402,7 @@ return {
                         "kind": "LinkedField",
                         "name": "excludeKeywords",
                         "plural": true,
-                        "selections": (v9/*:: as any*/),
+                        "selections": (v10/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -381,7 +419,7 @@ return {
                         "kind": "LinkedField",
                         "name": "services",
                         "plural": true,
-                        "selections": (v10/*:: as any*/),
+                        "selections": (v11/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -391,7 +429,7 @@ return {
                         "kind": "LinkedField",
                         "name": "excludeServices",
                         "plural": true,
-                        "selections": (v10/*:: as any*/),
+                        "selections": (v11/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -401,7 +439,7 @@ return {
                         "kind": "LinkedField",
                         "name": "genres",
                         "plural": true,
-                        "selections": (v11/*:: as any*/),
+                        "selections": (v12/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -411,7 +449,7 @@ return {
                         "kind": "LinkedField",
                         "name": "excludeGenres",
                         "plural": true,
-                        "selections": (v11/*:: as any*/),
+                        "selections": (v12/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -570,12 +608,12 @@ return {
     ]
   },
   "params": {
-    "cacheID": "7a07d83dacfe522c2d63941b66a2ed56",
+    "cacheID": "a3a4d46796e2b17fab7d12f91647d9c5",
     "id": null,
     "metadata": {},
     "name": "RuleIdQuery",
     "operationKind": "query",
-    "text": "query RuleIdQuery(\n  $id: ID!\n  $skip: Boolean!\n) {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  node(id: $id) @skip(if: $skip) {\n    __typename\n    ... on Rule {\n      id\n      ...RuleEditor_rule\n    }\n    id\n  }\n}\n\nfragment RuleEditor_rule on Rule {\n  id\n  name\n  memo\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n    }\n    excludeServices {\n      id\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n  }\n  settings {\n    poolId\n    fileNameTemplate\n    startMarginSeconds\n    endMarginSeconds\n    priority\n    joinSegments\n  }\n  validFrom\n  validUntil\n  avoidDuplicates\n  duplicateWindowDays\n  followEventRelay\n}\n"
+    "text": "query RuleIdQuery(\n  $id: ID!\n  $skip: Boolean!\n) {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  node(id: $id) @skip(if: $skip) {\n    __typename\n    ... on Rule {\n      id\n      ...RuleEditor_rule\n    }\n    id\n  }\n}\n\nfragment RuleEditor_rule on Rule {\n  id\n  createdAt\n  createdBy {\n    displayName\n    id\n  }\n  updatedAt\n  updatedBy {\n    displayName\n    id\n  }\n  name\n  memo\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n    }\n    excludeServices {\n      id\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n  }\n  settings {\n    poolId\n    fileNameTemplate\n    startMarginSeconds\n    endMarginSeconds\n    priority\n    joinSegments\n  }\n  validFrom\n  validUntil\n  avoidDuplicates\n  duplicateWindowDays\n  followEventRelay\n}\n"
   }
 };
 })();
