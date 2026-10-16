@@ -41,6 +41,7 @@ import { controlsAttribute, useControlsVisibility } from '../../yunomi/useContro
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoState } from '../../yunomi/useVideoState';
+import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { resumePosition } from '../../yunomi/resume';
 import { useVisible } from '../../yunomi/useVisible';
@@ -152,6 +153,8 @@ function Player({ recordingId }: { recordingId: string }) {
   const autoplay = useAutoplayBlocked(video);
   const fullscreen = useFullscreen(playerBoxRef);
   const controls = useControlsVisibility({ playing: !videoState.paused });
+  // 再生している間は、画面を消さない。
+  useWakeLock(!videoState.paused);
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
   const {
     captionsEnabled: captions,
