@@ -1,8 +1,9 @@
-import { ActionIcon, Button, Group, Text } from '@mantine/core';
+import { ActionIcon, Button, Group, SimpleGrid, Text } from '@mantine/core';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { DataBroadcastState, RemoteKey } from './useDataBroadcast';
-import { RemoteKey as Keys } from './useDataBroadcast';
+import type { DataBroadcastState, KeyGroup, RemoteKey } from './useDataBroadcast';
+import { keyGroup, RemoteKey as Keys } from './useDataBroadcast';
 
 // colorKeys は、リモコンの色のボタン。並びは、受信機のリモコンと同じ青、赤、緑、黄にする。
 const colorKeys = [
@@ -12,20 +13,46 @@ const colorKeys = [
   { key: Keys.yellow, color: 'yellow', label: 'player.remote.yellow' },
 ] as const;
 
+// digitKeys は、リモコンの数字のボタン。受信機のリモコンと同じく 1〜12 を並べ、最後に 0 を置く。
+const digitKeys = [
+  { key: Keys.digit1, label: '1' },
+  { key: Keys.digit2, label: '2' },
+  { key: Keys.digit3, label: '3' },
+  { key: Keys.digit4, label: '4' },
+  { key: Keys.digit5, label: '5' },
+  { key: Keys.digit6, label: '6' },
+  { key: Keys.digit7, label: '7' },
+  { key: Keys.digit8, label: '8' },
+  { key: Keys.digit9, label: '9' },
+  { key: Keys.digit10, label: '10' },
+  { key: Keys.digit11, label: '11' },
+  { key: Keys.digit12, label: '12' },
+  { key: Keys.digit0, label: '0' },
+] as const;
+
 // DataBroadcastRemote は、データ放送を操作するリモコンのボタン (設計書 7.4)。
 export function DataBroadcastRemote({
   state,
   receiving,
+  keyGroups,
   onPress,
 }: {
   state: DataBroadcastState;
   // receiving は、データ放送の画面を出せるまで、受け取っているか、d ボタンで入っている途中であること。
   receiving: boolean;
+  // keyGroups は、いまの文書が使うキーのグループ。使わないグループのボタンは押せなくする (#441)。
+  keyGroups: ReadonlySet<KeyGroup>;
   onPress: (key: RemoteKey) => void;
 }) {
   const { t } = useTranslation();
+  // digitsOpen は、数字のボタンを開いているか。使う文書は少なく、場所を取るので、既定では閉じる。
+  const [digitsOpen, setDigitsOpen] = useState(false);
   // データ放送の画面が出て、操作を受けられるようになるまでは押せない。
-  const disabled = state !== 'shown' || receiving;
+  const ready = state === 'shown' && !receiving;
+  const disabledFor = (group: KeyGroup) => !ready || !keyGroups.has(group);
+  const disabled = disabledFor(keyGroup(Keys.enter));
+  const colorDisabled = disabledFor(keyGroup(Keys.blue));
+  const digitsDisabled = disabledFor(keyGroup(Keys.digit0));
 
   return (
     <Group gap="xs" wrap="wrap" role="group" aria-label={t('player.remote.title')}>
@@ -90,12 +117,36 @@ export function DataBroadcastRemote({
             size="sm"
             variant="filled"
             color={color}
-            disabled={disabled}
+            disabled={colorDisabled}
             aria-label={t(label)}
             onClick={() => onPress(key)}
           />
         ))}
       </Group>
+      <Button
+        size="compact-sm"
+        variant={digitsOpen ? 'light' : 'default'}
+        aria-expanded={digitsOpen}
+        onClick={() => setDigitsOpen(!digitsOpen)}
+      >
+        {t('player.remote.digits')}
+      </Button>
+      {digitsOpen && (
+        <SimpleGrid cols={{ base: 7, sm: 13 }} spacing={4} verticalSpacing={4} maw={560}>
+          {digitKeys.map(({ key, label }) => (
+            <Button
+              key={key}
+              size="compact-sm"
+              variant="default"
+              disabled={digitsDisabled}
+              aria-label={t('player.remote.digit', { digit: label })}
+              onClick={() => onPress(key)}
+            >
+              {label}
+            </Button>
+          ))}
+        </SimpleGrid>
+      )}
       {state === 'ended' && (
         <Text size="xs" c="dimmed">
           {t('player.dataBroadcastEnded')}

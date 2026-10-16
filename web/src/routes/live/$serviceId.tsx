@@ -662,6 +662,7 @@ function Live({
         <DataBroadcastRemote
           state={dataBroadcast.state}
           receiving={dataBroadcast.receiving}
+          keyGroups={dataBroadcast.keyGroups}
           onPress={dataBroadcast.press}
         />
       )}

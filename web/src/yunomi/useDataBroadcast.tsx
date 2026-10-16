@@ -14,6 +14,19 @@ export const RemoteKey = {
   down: 2,
   left: 3,
   right: 4,
+  digit0: 5,
+  digit1: 6,
+  digit2: 7,
+  digit3: 8,
+  digit4: 9,
+  digit5: 10,
+  digit6: 11,
+  digit7: 12,
+  digit8: 13,
+  digit9: 14,
+  digit10: 15,
+  digit11: 16,
+  digit12: 17,
   enter: 18,
   back: 19,
   d: 20,
@@ -24,6 +37,37 @@ export const RemoteKey = {
 } as const;
 
 export type RemoteKey = (typeof RemoteKey)[keyof typeof RemoteKey];
+
+// KeyGroup は、文書が使うと宣言するキーのグループ (ARIB STD-B24 の used-key-list)。
+export type KeyGroup = 'basic' | 'data-button' | 'numeric-tuning';
+
+// defaultKeyGroups は、文書が使うキーを宣言していないときに使えるとみなすグループ。
+const defaultKeyGroups: ReadonlySet<KeyGroup> = new Set(['basic', 'data-button']);
+
+// usedKeyGroups は、web-bml が知らせた used-key-list から、リモコンのボタンを押せるグループを返す (#441)。
+// 宣言がなければ、basic と data-button とみなす。
+export function usedKeyGroups(list: ReadonlySet<string>): ReadonlySet<KeyGroup> {
+  const groups = new Set<KeyGroup>();
+  for (const group of list) {
+    if (group === 'basic' || group === 'data-button' || group === 'numeric-tuning') {
+      groups.add(group);
+    }
+  }
+
+  return list.size === 0 ? defaultKeyGroups : groups;
+}
+
+// keyGroup は、リモコンのボタンが属するグループを返す。
+export function keyGroup(key: RemoteKey): KeyGroup {
+  if (key >= RemoteKey.digit0 && key <= RemoteKey.digit12) {
+    return 'numeric-tuning';
+  }
+  if (key >= RemoteKey.blue && key <= RemoteKey.yellow) {
+    return 'data-button';
+  }
+
+  return 'basic';
+}
 
 // DataBroadcastState は、データ放送の表示の状態。
 // loading は、データ放送のモジュールを受け取るまで。shown は、文書を表示したあと。
@@ -75,6 +119,8 @@ export function useDataBroadcast(
   state: DataBroadcastState;
   // receiving は、出すことになったのに、まだデータ放送の画面を出せていないこと (受け取っているか、d ボタンで入っている途中)。
   receiving: boolean;
+  // keyGroups は、いまの文書が使うキーのグループ。
+  keyGroups: ReadonlySet<KeyGroup>;
   press: (key: RemoteKey) => void;
 } {
   // layer は、文書を描く層。画質を変えるとプレイヤーごと作り直されるので、要素が変わったら描き直す。
@@ -93,6 +139,7 @@ export function useDataBroadcast(
   const [resolution, setResolution] = useState<Resolution>(defaultResolution);
   // invisible は、データ放送の文書が、表示しないよう求めていること。映像は全面に戻す。
   const [invisible, setInvisible] = useState(false);
+  const [keyGroups, setKeyGroups] = useState<ReadonlySet<KeyGroup>>(defaultKeyGroups);
   const [fit, setFit] = useState<Fit>({ scale: 1, x: 0, y: 0 });
   const url = source?.url ?? null;
   const serviceId = source?.serviceId ?? null;
@@ -220,6 +267,9 @@ export function useDataBroadcast(
       place();
       enter();
     });
+    browser.addEventListener('usedkeylistchanged', (event) => {
+      setKeyGroups(usedKeyGroups(event.detail.usedKeyList));
+    });
     browser.addEventListener('invisible', (event) => {
       hidden = event.detail;
       if (!hidden) {
@@ -275,6 +325,7 @@ export function useDataBroadcast(
       browserRef.current = null;
       container.remove();
       setInvisible(false);
+      setKeyGroups(defaultKeyGroups);
     };
   }, [url, serviceId, layer, videoRef, generation]);
 
@@ -339,7 +390,7 @@ export function useDataBroadcast(
 
   const receiving = shown && (state === 'loading' || (state === 'shown' && pressing));
 
-  return { layer: element, state, receiving, press };
+  return { layer: element, state, receiving, keyGroups, press };
 }
 
 // moveMedia は、video を含むプレイヤーの映像の要素 (字幕の canvas などを含む) を target へ移し、戻す関数を返す。
