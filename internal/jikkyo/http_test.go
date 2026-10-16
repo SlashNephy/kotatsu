@@ -94,6 +94,7 @@ type commentsBody struct {
 	Channel *struct {
 		ID string `json:"id"`
 	} `json:"channel"`
+	Origin   *time.Time `json:"origin"`
 	Comments []struct {
 		Time    float64 `json:"time"`
 		Mail    string  `json:"mail"`
@@ -175,9 +176,13 @@ func TestCommentsHandler(t *testing.T) {
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 			if tt.wantChannel == "" {
 				assert.Nil(t, body.Channel)
+				assert.Nil(t, body.Origin)
 			} else {
 				require.NotNil(t, body.Channel)
 				assert.Equal(t, tt.wantChannel, body.Channel.ID)
+				// 時刻の基準は、最初のセグメントを書き始めた時刻。セグメントがまだなければ、録画を始めた時刻。
+				require.NotNil(t, body.Origin)
+				assert.True(t, from.Add(tt.segmentDelay).Equal(*body.Origin), "origin = %s", body.Origin)
 			}
 			contents, times := make([]string, 0, len(body.Comments)), make([]float64, 0, len(body.Comments))
 			for _, comment := range body.Comments {
