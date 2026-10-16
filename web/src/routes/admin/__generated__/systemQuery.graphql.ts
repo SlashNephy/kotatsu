@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<dee42c18cd5d656866da3ac04f8985a8>>
+ * @generated SignedSource<<7a7d131491c73aade46af2574a272a90>>
  * @lightSyntaxTransform
  */
 
@@ -39,6 +39,7 @@ export type systemQuery$data = {
       readonly minFreeBytes: number;
       readonly path: string;
       readonly priority: number;
+      readonly totalBytes: number | null | undefined;
     }>;
     readonly tunerServer: {
       readonly checkedAt: string;
@@ -308,6 +309,13 @@ v2 = [
             "kind": "ScalarField",
             "name": "freeBytes",
             "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "totalBytes",
+            "storageKey": null
           }
         ],
         "storageKey": null
@@ -371,16 +379,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "4346e6db8f1b59f4f86540e24b47da1c",
+    "cacheID": "fed8fec8cea213841f1f127a81e75912",
     "id": null,
     "metadata": {},
     "name": "systemQuery",
     "operationKind": "query",
-    "text": "query systemQuery {\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      checkedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n    pools {\n      id\n      path\n      priority\n      minFreeBytes\n      freeBytes\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query systemQuery {\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      checkedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n    pools {\n      id\n      path\n      priority\n      minFreeBytes\n      freeBytes\n      totalBytes\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "d0427bb76ab824f8a4b831d1726db739";
+(node as any).hash = "bd0a73cd3b11fc9958fa53310f77ecef";
 
 export default node;

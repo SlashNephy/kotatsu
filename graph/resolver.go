@@ -64,4 +64,6 @@ type Resolver struct {
 	freeSpace kago.FreeSpaceFunc
 	// jobs は、ジョブを入れる River のクライアント。
 	jobs thumbnail.Inserter
+	// totalSpace は、保存先プールのファイルシステムの容量を調べる。
+	totalSpace kago.TotalSpaceFunc
 }

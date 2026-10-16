@@ -34,6 +34,7 @@ import { RulePreview } from './RulePreview';
 import { useSyncedForm } from './useSyncedForm';
 import { InheritedFileNameTemplateField } from '../reservations/FileNameTemplateField';
 import { MarginFields } from '../reservations/MarginFields';
+import { fromInputValue, toInputValue } from '../reservations/timeReservation';
 
 // joinDefault は、分かれたファイルをつなぐかどうかの選択で、全体の既定値に従うことを表す値。
 const joinDefault = 'default';
@@ -124,6 +125,13 @@ function sameRule(a: RuleForm, b: RuleForm) {
   return JSON.stringify(toInput(a)) === JSON.stringify(toInput(b));
 }
 
+// toValidity は、有効期間の入力 (日本時間) を、保存する時刻にする。空か、読めなければ、期間を区切らない。
+function toValidity(value: string): string | null {
+  const ms = fromInputValue(value);
+
+  return ms === null ? null : new Date(ms).toISOString();
+}
+
 // RuleEditor は、ルールを編集するフォームと、条件に一致する番組のプレビュー (設計書 4.3)。
 export function RuleEditor({
   ruleId,
@@ -161,6 +169,11 @@ export function RuleEditor({
   `);
   const input = toInput(form);
   const conditionsGiven = hasConditions(form);
+  // 有効期間は、開始が終了より前でなければ保存できない。tenban も同じ条件で拒む。
+  const validityInvalid =
+    form.validFrom !== null &&
+    form.validUntil !== null &&
+    Date.parse(form.validFrom) >= Date.parse(form.validUntil);
   const set = (patch: Partial<RuleForm>) => {
     setResult(null);
     setFields(patch);
@@ -168,7 +181,14 @@ export function RuleEditor({
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (readOnly || input.name === '' || !conditionsGiven || creating || updating) {
+    if (
+      readOnly ||
+      input.name === '' ||
+      !conditionsGiven ||
+      validityInvalid ||
+      creating ||
+      updating
+    ) {
       return;
     }
     setResult(null);
@@ -228,6 +248,29 @@ export function RuleEditor({
                     checked={form.enabled}
                     onChange={(e) => set({ enabled: e.currentTarget.checked })}
                   />
+                  {/* 番組の開始時刻が、この期間に入る番組だけを予約する (設計書 4.2)。空なら区切らない。 */}
+                  <Group grow align="flex-start">
+                    <TextInput
+                      type="datetime-local"
+                      label={t('rules.validFrom')}
+                      value={
+                        form.validFrom === null ? '' : toInputValue(Date.parse(form.validFrom))
+                      }
+                      onChange={(e) => set({ validFrom: toValidity(e.currentTarget.value) })}
+                    />
+                    <TextInput
+                      type="datetime-local"
+                      label={t('rules.validUntil')}
+                      value={
+                        form.validUntil === null ? '' : toInputValue(Date.parse(form.validUntil))
+                      }
+                      onChange={(e) => set({ validUntil: toValidity(e.currentTarget.value) })}
+                      error={validityInvalid ? t('rules.validityOrder') : undefined}
+                    />
+                  </Group>
+                  <Text size="xs" c="dimmed" mt={-8}>
+                    {t('rules.validityDescription')}
+                  </Text>
                   {authorship !== undefined && <Authorship {...authorship} />}
                 </Stack>
               </Card>
@@ -387,7 +430,7 @@ export function RuleEditor({
                   <Button
                     type="submit"
                     loading={creating || updating}
-                    disabled={input.name === '' || !conditionsGiven}
+                    disabled={input.name === '' || !conditionsGiven || validityInvalid}
                     leftSection={<Save size={16} aria-hidden />}
                   >
                     {t('rules.save')}

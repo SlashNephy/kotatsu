@@ -573,6 +573,7 @@ type ComplexityRoot struct {
 		MinFreeBytes func(childComplexity int) int
 		Path         func(childComplexity int) int
 		Priority     func(childComplexity int) int
+		TotalBytes   func(childComplexity int) int
 	}
 
 	StreamPreset struct {
@@ -3261,6 +3262,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.StoragePool.Priority(childComplexity), true
+	case "StoragePool.totalBytes":
+		if e.ComplexityRoot.StoragePool.TotalBytes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StoragePool.TotalBytes(childComplexity), true
 
 	case "StreamPreset.codec":
 		if e.ComplexityRoot.StreamPreset.Codec == nil {
@@ -3887,6 +3894,8 @@ type StoragePool {
   minFreeBytes: Int64!
   "このインスタンスから見た空き容量 (バイト)。調べられなければ null。"
   freeBytes: Int64
+  "このインスタンスから見た、ファイルシステムの容量 (バイト)。root のために取っておく分も含む。調べられなければ null。"
+  totalBytes: Int64
 }
 
 """
@@ -6456,6 +6465,8 @@ func (ec *executionContext) childFields_StoragePool(ctx context.Context, field g
 		return ec.fieldContext_StoragePool_minFreeBytes(ctx, field)
 	case "freeBytes":
 		return ec.fieldContext_StoragePool_freeBytes(ctx, field)
+	case "totalBytes":
+		return ec.fieldContext_StoragePool_totalBytes(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type StoragePool", field.Name)
 }
@@ -17914,6 +17925,29 @@ func (ec *executionContext) fieldContext_StoragePool_freeBytes(_ context.Context
 	return graphql.NewScalarFieldContext("StoragePool", field, false, false, errors.New("field of type Int64 does not have child fields"))
 }
 
+func (ec *executionContext) _StoragePool_totalBytes(ctx context.Context, field graphql.CollectedField, obj *model.StoragePool) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StoragePool_totalBytes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalBytes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int64) graphql.Marshaler {
+			return ec.marshalOInt642ᚖint64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_StoragePool_totalBytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StoragePool", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
 func (ec *executionContext) _StreamPreset_name(ctx context.Context, field graphql.CollectedField, obj *model.StreamPreset) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -26651,6 +26685,11 @@ func (ec *executionContext) _StoragePool(ctx context.Context, sel ast.SelectionS
 			}
 		case "freeBytes":
 			out.Values[i] = ec._StoragePool_freeBytes(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "totalBytes":
+			out.Values[i] = ec._StoragePool_totalBytes(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
