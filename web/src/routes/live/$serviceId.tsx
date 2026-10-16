@@ -401,17 +401,9 @@ function Live({
     {
       play: () => void videoRef.current?.play().catch(() => {}),
       pause: () => videoRef.current?.pause(),
-      // OS の前と次のボタンで、同じ種別の前後の局へ移る (#493)。
-      previousTrack: () => {
-        if (neighbors.previous !== null) {
-          tune(neighbors.previous.id);
-        }
-      },
-      nextTrack: () => {
-        if (neighbors.next !== null) {
-          tune(neighbors.next.id);
-        }
-      },
+      // OS の前と次のボタンで、同じ種別の前後の局へ移る (#493)。移る先がなければ、OS にボタンを出さない。
+      ...(neighbors.previous === null ? {} : { previousTrack: () => tune(neighbors.previous!.id) }),
+      ...(neighbors.next === null ? {} : { nextTrack: () => tune(neighbors.next!.id) }),
     },
     // ライブはシークできないので、再生位置は知らせない。
     { playing: !videoState.paused, position: null },
