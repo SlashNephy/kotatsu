@@ -38,6 +38,8 @@ type guideViewSettings struct {
 	MinDurationSeconds *int           `json:"minDurationSeconds,omitempty"`
 	// Services は、チャンネルの並び (Mirakurun のサービス ID)。
 	Services []int64 `json:"services"`
+	// FreeOnly は、無料放送の番組だけを出すかどうか。項目を足す前に保存したビューは、区切らない (false) として読む。
+	FreeOnly bool `json:"freeOnly,omitempty"`
 }
 
 // conditions は、番組の絞り込みに使う照合の条件を返す。
@@ -45,7 +47,7 @@ func (s *guideViewSettings) conditions() *match.Conditions {
 	return &match.Conditions{
 		Keywords: []*match.Keyword{}, KeywordMatch: match.KeywordMatchAll, ExcludeKeywords: []*match.Keyword{}, ChannelTypes: []string{}, ServiceIDs: []int64{},
 		Genres: s.Genres, ExcludeGenres: s.ExcludeGenres, TimeRanges: []*match.TimeRange{},
-		MinDurationSeconds: s.MinDurationSeconds, MaxDurationSeconds: nil, FreeOnly: false,
+		MinDurationSeconds: s.MinDurationSeconds, MaxDurationSeconds: nil, FreeOnly: s.FreeOnly,
 	}
 }
 
@@ -74,6 +76,7 @@ func guideViewFromInput(in *model.GuideViewInput) (*guideViewSettings, error) {
 		ExcludeGenres:      toGenres(in.ExcludeGenres),
 		MinDurationSeconds: in.MinDurationSeconds,
 		Services:           services,
+		FreeOnly:           in.FreeOnly,
 	}
 	if err := settings.conditions().Validate(); err != nil {
 		return nil, NewError(CodeBadUserInput, err.Error())
@@ -95,6 +98,7 @@ func toGuideView(row *sqlc.GuideView) (*model.GuideView, error) {
 		ExcludeGenres:      toGenreConditions(settings.ExcludeGenres),
 		MinDurationSeconds: settings.MinDurationSeconds,
 		HideEmptyServices:  row.HideEmptyServices,
+		FreeOnly:           settings.FreeOnly,
 		ServiceKeys:        nonNil(settings.Services),
 	}, nil
 }

@@ -93,6 +93,7 @@ type GuideView struct {
 	ExcludeGenres      []*GenreCondition `json:"excludeGenres"`
 	MinDurationSeconds *int              `json:"minDurationSeconds,omitempty"`
 	HideEmptyServices  bool              `json:"hideEmptyServices"`
+	FreeOnly           bool              `json:"freeOnly"`
 	// ServiceKeys は、チャンネルの並び (Mirakurun のサービス ID)。スキーマには出さない。
 	ServiceKeys []int64 `json:"-"`
 }

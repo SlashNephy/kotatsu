@@ -30,6 +30,7 @@ export type EditableGuideView = {
   minDurationSeconds: number | null | undefined;
   services: readonly string[];
   hideEmptyServices: boolean;
+  freeOnly: boolean;
 };
 
 type Props = {
@@ -57,6 +58,7 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
   const [minSeconds, setMinSeconds] = useState(view.minDurationSeconds ?? null);
   const [serviceOrder, setServiceOrder] = useState([...view.services]);
   const [hideEmpty, setHideEmpty] = useState(view.hideEmptyServices);
+  const [freeOnly, setFreeOnly] = useState(view.freeOnly);
   const [error, setError] = useState<string | null>(null);
   const [create, creating] = useMutation<GuideViewEditorCreateMutation>(graphql`
     mutation GuideViewEditorCreateMutation($input: GuideViewInput!) {
@@ -95,6 +97,7 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
       minDurationSeconds: minSeconds,
       services: serviceOrder,
       hideEmptyServices: hideEmpty,
+      freeOnly,
     };
     const onError = () => setError(t('guide.view.saveError'));
     if (view.id === undefined) {
@@ -179,6 +182,11 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
             onChange={setServiceOrder}
             searchable
             clearable
+          />
+          <Switch
+            label={t('guide.view.freeOnly')}
+            checked={freeOnly}
+            onChange={(e) => setFreeOnly(e.currentTarget.checked)}
           />
           <Switch
             label={t('guide.view.hideEmpty')}

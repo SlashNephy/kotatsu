@@ -738,12 +738,12 @@ CREATE TABLE recording_history (
 CREATE INDEX recording_history_title_key_service_id_end_at_idx ON recording_history (title_key, service_id, end_at);
 
 -- 番組表ビュー (設計書 10.3)。番組表に適用する条件を、ユーザーごとに名前を付けて保存する。
--- 条件は、ジャンルの包含と除外、番組の最短の長さ、チャンネルの並び、番組のないチャンネルを隠すかどうか。
+-- 条件は、ジャンルの包含と除外、番組の最短の長さ、無料放送だけかどうか、チャンネルの並び、番組のないチャンネルを隠すかどうか。
 CREATE TABLE guide_views (
   id uuid PRIMARY KEY,
   user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
   name text NOT NULL,
-  -- 条件。ジャンルの包含と除外、最短の長さ、チャンネルの並びを持つ。
+  -- 条件。ジャンルの包含と除外、最短の長さ、無料放送だけかどうか、チャンネルの並びを持つ。
   settings jsonb NOT NULL,
   hide_empty_services boolean NOT NULL,
   created_at timestamptz NOT NULL,

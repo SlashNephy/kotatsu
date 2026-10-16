@@ -214,6 +214,7 @@ type GuideViewInput struct {
 	MinDurationSeconds *int          `json:"minDurationSeconds,omitempty"`
 	Services           []string      `json:"services,omitempty"`
 	HideEmptyServices  bool          `json:"hideEmptyServices"`
+	FreeOnly           bool          `json:"freeOnly"`
 }
 
 // 各ロールのインスタンス (設計書 1.4)。
