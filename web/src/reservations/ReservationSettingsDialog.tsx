@@ -50,6 +50,12 @@ function Form({ reservationId, onClose }: Props) {
   const data = useLazyLoadQuery<ReservationSettingsDialogQuery>(
     graphql`
       query ReservationSettingsDialogQuery($id: ID!) {
+        systemSettings {
+          recordingDefaults {
+            priority
+            joinSegments
+          }
+        }
         node(id: $id) {
           __typename
           ... on Reservation {
@@ -69,6 +75,8 @@ function Form({ reservationId, onClose }: Props) {
                 startMarginSeconds
                 endMarginSeconds
                 fileNameTemplate
+                priority
+                joinSegments
               }
             }
             settings {
@@ -133,6 +141,15 @@ function Form({ reservationId, onClose }: Props) {
 
   // 録画の設定に使うのは、一致したルールのうち最も古いもの (先頭) の上書き。
   const rule = reservation.kind === 'RULE' ? reservation.rules[0] : undefined;
+  // 空の項目が従う値と、その出どころ。ルールに上書きがあればルール、なければ全体の既定値。
+  const defaults = data.systemSettings.recordingDefaults;
+  const rulePriority = rule?.settings.priority ?? null;
+  const ruleJoin = rule?.settings.joinSegments ?? null;
+  const inherited = (fromRule: boolean, value: string) =>
+    fromRule && rule !== undefined
+      ? t('reservations.settings.inheritedRule', { name: rule.name, value })
+      : t('reservations.settings.inheritedDefault', { value });
+  const joinLabel = (join: boolean) => t(join ? 'rules.joinSegmentsOn' : 'rules.joinSegmentsOff');
   const save = () => {
     setError(false);
     const s = reservation.settings;
@@ -189,7 +206,7 @@ function Form({ reservationId, onClose }: Props) {
           // ルールのテンプレートがあれば、空のときはそれに従う。
           <FileNameTemplateField
             label={t('fileNameTemplate.reservationLabel')}
-            description={t('fileNameTemplate.reservationDescription')}
+            description={t('fileNameTemplate.reservationDescriptionRule', { name: rule.name })}
             value={fileNameTemplate}
             onChange={setFileNameTemplate}
             fallback={rule.settings.fileNameTemplate}
@@ -198,7 +215,7 @@ function Form({ reservationId, onClose }: Props) {
         ) : (
           <InheritedFileNameTemplateField
             label={t('fileNameTemplate.reservationLabel')}
-            description={t('fileNameTemplate.reservationDescription')}
+            description={t('fileNameTemplate.ruleDescription')}
             value={fileNameTemplate}
             onChange={setFileNameTemplate}
             disabled={inFlight}
@@ -206,7 +223,10 @@ function Form({ reservationId, onClose }: Props) {
         )}
         <NumberInput
           label={t('rules.priority')}
-          description={t('reservations.settings.priorityDescription')}
+          description={`${t('reservations.settings.priorityRange')}${inherited(
+            rulePriority !== null,
+            String(rulePriority ?? defaults.priority),
+          )}`}
           value={priority ?? ''}
           onChange={(value) => setPriority(typeof value === 'number' ? value : null)}
           min={-10}
@@ -217,7 +237,18 @@ function Form({ reservationId, onClose }: Props) {
         <Select
           label={t('rules.joinSegments')}
           data={[
-            { value: joinDefault, label: t('reservations.settings.joinSegmentsDefault') },
+            {
+              value: joinDefault,
+              label:
+                ruleJoin !== null && rule !== undefined
+                  ? t('reservations.settings.joinInheritedRule', {
+                      name: rule.name,
+                      value: joinLabel(ruleJoin),
+                    })
+                  : t('reservations.settings.joinInheritedDefault', {
+                      value: joinLabel(defaults.joinSegments),
+                    }),
+            },
             { value: 'true', label: t('rules.joinSegmentsOn') },
             { value: 'false', label: t('rules.joinSegmentsOff') },
           ]}
