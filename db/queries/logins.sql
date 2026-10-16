@@ -49,3 +49,8 @@ SELECT id, username FROM users WHERE id = @id FOR UPDATE;
 -- name: DeleteUserLoginChallenges :exec
 -- ユーザーの、第二要素の確認を待つログインをすべて消す。パスワードを設定したときと、無効にしたときに使う。
 DELETE FROM login_challenges WHERE user_id = @user_id;
+
+-- name: TryLockLoginKey :one
+-- 試行回数の制限のキーを、トランザクションの終わりまでロックする。ほかの試行がロックしていれば、待たずに false を返す。
+-- 同じアカウントか IP の試行を 1 つずつ確かめ、同時に送った試行が、前の失敗を見ずに待ち時間を素通りしないようにする。
+SELECT pg_try_advisory_xact_lock(hashtext('kotatsu.login'), hashtext(@key::text))::boolean AS locked;

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -194,6 +195,41 @@ func TestPasswordLoginThrottles(t *testing.T) {
 	require.ErrorIs(t, wrong(), auth.ErrInvalidCredentials)
 	_, throttled := errors.AsType[*auth.ThrottledError](wrong())
 	assert.True(t, throttled, "the account failures should not be reset by the password alone")
+}
+
+// TestConcurrentPasswordLoginsAreThrottled は、同時に送った試行も、試行回数の制限を素通りしないことを確かめる (#542)。
+// 同じアカウントか IP の試行は 1 つずつ確かめるので、パスワードを確かめるのは、待たせない回数と、待たせ始める 1 回までになる。
+func TestConcurrentPasswordLoginsAreThrottled(t *testing.T) {
+	t.Parallel()
+
+	f := newLoginFixture(t)
+	const attempts = 30
+	var wg sync.WaitGroup
+	results := make(chan error, attempts)
+	start := make(chan struct{})
+	for range attempts {
+		wg.Go(func() {
+			<-start
+			_, _, err := f.logins.Password(t.Context(), f.db, loginName, "wrong-password", f.client)
+			results <- err
+		})
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	verified := 0
+	for err := range results {
+		if errors.Is(err, auth.ErrInvalidCredentials) {
+			verified++
+
+			continue
+		}
+		require.ErrorIs(t, err, auth.ErrThrottled)
+	}
+	// 待たせない 5 回と、待たせ始める 6 回目まで。
+	assert.LessOrEqual(t, verified, 6)
+	assert.Equal(t, verified, f.count(t, `SELECT failures FROM login_throttles WHERE key = $1`, "account:kotatsu"))
 }
 
 // TestPasswordLoginThrottlesByIP は、ユーザー名を変えながら試しても、IP 単位で待たせることを確かめる。
