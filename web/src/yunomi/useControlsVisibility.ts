@@ -12,6 +12,13 @@ export const controlsAttribute = 'data-player-controls';
 const inControls = (target: EventTarget | null) =>
   target instanceof Element && target.closest(`[${controlsAttribute}]`) !== null;
 
+// menuOpenedIn は、プレイヤーの操作バーで、設定のポップアップやメニュー、選択肢を開いているかを返す。
+// 操作バーのメニューと選択肢は、操作バーの中に描く (withinPortal={false})。開いている間だけ、その要素がある。
+const menuOpenedIn = (container: HTMLElement | null) =>
+  container?.querySelector(
+    `[${controlsAttribute}] :is([aria-expanded="true"], [role="menu"], [role="listbox"], [role="dialog"])`,
+  ) != null;
+
 // onVideoSurface は、押した所が、操作バーや映像に重ねたボタンでなく、映像そのものかどうかを返す。
 // 映像のクリックやダブルタップを、操作バーやボタンの操作と取り違えないために使う。
 export function onVideoSurface(target: EventTarget | null): boolean {
@@ -64,11 +71,7 @@ export function useControlsVisibility({ playing }: { playing: boolean }): Contro
       return;
     }
     const timer = setTimeout(() => {
-      // 操作バーのメニューと選択肢は、操作バーの中に描く (withinPortal={false})。開いている間だけ、その要素がある。
-      const menuOpened =
-        container.current?.querySelector(
-          `[${controlsAttribute}] :is([aria-expanded="true"], [role="menu"], [role="listbox"])`,
-        ) != null;
+      const menuOpened = menuOpenedIn(container.current);
       const hold = shouldHoldControls({
         pointerOverControls: pointerOverControls.current,
         pressingControls: pressingControls.current,
@@ -138,9 +141,13 @@ export function useControlsVisibility({ playing }: { playing: boolean }): Contro
       },
       // プレイヤーの外へ出たら、待たずに隠す。タッチでは、指を離しても pointerleave が届くので、隠さない。
       onPointerLeave: (event) => {
-        // シークバーを掴んだまま外へ出ても、離すまでは隠さない。
-        if (event.pointerType === 'mouse' && !pressingControls.current) {
-          pointerOverControls.current = false;
+        if (event.pointerType !== 'mouse') {
+          return;
+        }
+        pointerOverControls.current = false;
+        // シークバーを掴んだまま外へ出ても、離すまでは隠さない。設定やキャプチャのポップアップを開いたまま外へ出ても、
+        // 使っている最中なので隠さない (#662)。閉じたら、ほかの操作がなくなったときと同じく、待ってから隠す。
+        if (!pressingControls.current && !menuOpenedIn(event.currentTarget)) {
           setPointerLeft(true);
         }
       },
