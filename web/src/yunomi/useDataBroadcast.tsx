@@ -34,6 +34,24 @@ type Resolution = { width: number; height: number };
 
 const defaultResolution: Resolution = { width: 960, height: 540 };
 
+// Fit は、文書を層に収める拡大率と、中央に寄せるための左上の位置 (px)。
+export type Fit = { scale: number; x: number; y: number };
+
+// fitDocument は、文書を、縦横の比を保って層に収める拡大率と位置を返す (#444)。
+// 縦と横の小さいほうの比率で拡大し、余りは中央に寄せる。層の比が 16:9 でない (720x480 の文書や、16:9 でない画面の全画面) ときも、はみ出さない。
+export function fitDocument(layer: { width: number; height: number }, resolution: Resolution): Fit {
+  const scale = Math.min(layer.width / resolution.width, layer.height / resolution.height);
+  if (!Number.isFinite(scale) || scale <= 0) {
+    return { scale: 1, x: 0, y: 0 };
+  }
+
+  return {
+    scale,
+    x: (layer.width - resolution.width * scale) / 2,
+    y: (layer.height - resolution.height * scale) / 2,
+  };
+}
+
 // enterIntervalMs と maxEnterTries は、データ放送の画面に入るために、d ボタンを押し直す間隔と回数 (20 秒まで)。
 const enterIntervalMs = 200;
 const maxEnterTries = 100;
@@ -74,7 +92,7 @@ export function useDataBroadcast(
   const [resolution, setResolution] = useState<Resolution>(defaultResolution);
   // invisible は、データ放送の文書が、表示しないよう求めていること。映像は全面に戻す。
   const [invisible, setInvisible] = useState(false);
-  const [scale, setScale] = useState(1);
+  const [fit, setFit] = useState<Fit>({ scale: 1, x: 0, y: 0 });
   const url = source?.url ?? null;
   const serviceId = source?.serviceId ?? null;
 
@@ -250,16 +268,21 @@ export function useDataBroadcast(
     }
   }, [shown]);
 
-  // 文書を、層の幅に合わせて拡大する。
+  // 文書を、層に収まるよう拡大する。
+  const { width, height } = resolution;
   useEffect(() => {
     if (layer === null) {
       return;
     }
-    const observer = new ResizeObserver(() => setScale(layer.clientWidth / resolution.width));
+    const observer = new ResizeObserver(() =>
+      setFit(
+        fitDocument({ width: layer.clientWidth, height: layer.clientHeight }, { width, height }),
+      ),
+    );
     observer.observe(layer);
 
     return () => observer.disconnect();
-  }, [layer, resolution.width]);
+  }, [layer, width, height]);
 
   const press = (key: RemoteKey) => {
     // 利用者がリモコンを使ったら、d ボタンを押し直すのをやめる。
@@ -281,7 +304,9 @@ export function useDataBroadcast(
         // 文書は、決まった大きさで描かれるので、層の大きさに合わせて拡大する。
         ['--data-broadcast-width' as string]: `${resolution.width}px`,
         ['--data-broadcast-height' as string]: `${resolution.height}px`,
-        ['--data-broadcast-scale' as string]: String(scale),
+        ['--data-broadcast-scale' as string]: String(fit.scale),
+        ['--data-broadcast-x' as string]: `${fit.x}px`,
+        ['--data-broadcast-y' as string]: `${fit.y}px`,
       }}
     />
   );

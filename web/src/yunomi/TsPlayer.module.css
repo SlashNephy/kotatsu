@@ -73,6 +73,7 @@
 .dataBroadcast > div {
   width: var(--data-broadcast-width);
   height: var(--data-broadcast-height);
-  transform: scale(var(--data-broadcast-scale));
+  transform: translate(var(--data-broadcast-x), var(--data-broadcast-y))
+    scale(var(--data-broadcast-scale));
   transform-origin: 0 0;
 }
