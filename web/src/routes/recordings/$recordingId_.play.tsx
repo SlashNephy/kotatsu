@@ -42,7 +42,8 @@ import {
   PlayerFlash,
   usePlayerFlash,
 } from '../../yunomi/PlayerControls';
-import { controlsAttribute, useControlsVisibility } from '../../yunomi/useControlsVisibility';
+import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
+import { useDoubleTap } from '../../yunomi/useDoubleTap';
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoLoading } from '../../yunomi/useVideoLoading';
@@ -315,6 +316,13 @@ function Player({ recordingId }: { recordingId: string }) {
         ? Date.now()
         : broadcastTime(recording.recordedFrom, recording.gaps, currentPosition()),
   });
+  const doubleTap = useDoubleTap((side) => {
+    if (side === 'center') {
+      return;
+    }
+    skip(side === 'left' ? -10 : 10);
+    showFlash(t(side === 'left' ? 'player.flash.seekBackward' : 'player.flash.seekForward'));
+  });
   const saveCapture = async () => {
     if ((await capture.capture('save')) === 'saved') {
       showFlash(t('player.flash.captured'));
@@ -518,14 +526,18 @@ function Player({ recordingId }: { recordingId: string }) {
       onClick={(event) => {
         const pointer =
           event.nativeEvent instanceof PointerEvent ? event.nativeEvent.pointerType : 'mouse';
-        if (
-          pointer === 'mouse' &&
-          event.target instanceof Element &&
-          event.target.closest(`[${controlsAttribute}], button, a, input, [role="slider"]`) === null
-        ) {
+        if (pointer === 'mouse' && onVideoSurface(event.target)) {
           togglePlay();
         }
       }}
+      // マウスで映像をダブルクリックすると、全画面を切り替える (#452)。1 回目と 2 回目のクリックで、再生と一時停止は元に戻る。
+      onDoubleClick={(event) => {
+        if (onVideoSurface(event.target)) {
+          fullscreen.toggle();
+        }
+      }}
+      // タッチで映像の左右の 3 分の 1 をダブルタップすると、10 秒戻るか進む (#452)。
+      onPointerUp={doubleTap}
     >
       {route.kind === 'convert' && (
         <TsPlayer

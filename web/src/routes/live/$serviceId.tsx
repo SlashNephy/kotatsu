@@ -49,7 +49,7 @@ import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { CaptureButton, PipButton, useCapture } from '../../yunomi/PlayerTools';
-import { useControlsVisibility } from '../../yunomi/useControlsVisibility';
+import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoLoading } from '../../yunomi/useVideoLoading';
@@ -494,6 +494,12 @@ function Live({
       className={playerControlsClasses.box}
       data-controls-visible={controls.visible}
       {...controls.containerProps}
+      // マウスで映像をダブルクリックすると、全画面を切り替える (#452)。データ放送を出している間は、データ放送の操作に譲る。
+      onDoubleClick={(event) => {
+        if (!dataBroadcastEnabled && onVideoSurface(event.target)) {
+          fullscreen.toggle();
+        }
+      }}
     >
       {route.kind === 'convert' && (
         <TsPlayer
