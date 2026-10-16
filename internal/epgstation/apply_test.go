@@ -590,10 +590,12 @@ func TestApplyRecordings(t *testing.T) {
 	assert.Contains(t, reasons[6], "duplicate key value violates unique constraint")
 
 	// TS のある録画だけ、索引と集計を作るジョブを、重いジョブのキューに投入する。飛ばした録画のジョブは、巻き戻して残さない。
-	rows, err := f.pool.Query(t.Context(), "SELECT queue, (args->>'recordingId')::uuid FROM river_job WHERE kind = 'recording_analyze'")
+	// 新しく録った録画のジョブより後に回すよう、優先度を下げる (#551)。
+	rows, err := f.pool.Query(t.Context(), "SELECT queue, priority, (args->>'recordingId')::uuid FROM river_job WHERE kind = 'recording_analyze'")
 	require.NoError(t, err)
 	type queuedJob struct {
 		Queue       string
+		Priority    int16
 		RecordingID uuid.UUID
 	}
 	queued, err := pgx.CollectRows(rows, pgx.RowToStructByPos[queuedJob])
@@ -601,7 +603,7 @@ func TestApplyRecordings(t *testing.T) {
 	sourceIDs := []int64{1, 2, 7}
 	want := make([]queuedJob, 0, len(sourceIDs))
 	for _, sourceID := range sourceIDs {
-		want = append(want, queuedJob{Queue: jobs.QueueMedia, RecordingID: f.targetOf(t, epgstation.KindRecorded, sourceID)})
+		want = append(want, queuedJob{Queue: jobs.QueueMedia, Priority: jobs.PriorityImported, RecordingID: f.targetOf(t, epgstation.KindRecorded, sourceID)})
 	}
 	assert.ElementsMatch(t, want, queued)
 

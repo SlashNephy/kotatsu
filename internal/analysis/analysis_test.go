@@ -293,11 +293,13 @@ func TestAnalyzeWorker(t *testing.T) {
 			assert.ElementsMatch(t, wantIndexes, indexes)
 
 			// 代表画像とプレビュー画像を作るジョブを、重いジョブのキューに 1 つだけ投入する。
-			rows, err = f.pool.Query(t.Context(), "SELECT queue || ' ' || (args->>'recordingId') FROM river_job WHERE kind = 'thumbnail_generate'")
+			// 取り込んだ録画の画像なので、優先度を下げる (#551)。
+			rows, err = f.pool.Query(t.Context(),
+				"SELECT queue || ' ' || priority || ' ' || (args->>'recordingId') FROM river_job WHERE kind = 'thumbnail_generate'")
 			require.NoError(t, err)
 			queued, err := pgx.CollectRows(rows, pgx.RowTo[string])
 			require.NoError(t, err)
-			assert.Equal(t, []string{jobs.QueueMedia + " " + recordingID.String()}, queued)
+			assert.Equal(t, []string{jobs.QueueMedia + " 4 " + recordingID.String()}, queued)
 		})
 	}
 }
