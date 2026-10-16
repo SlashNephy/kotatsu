@@ -10,7 +10,7 @@ import {
   VolumeX,
   type LucideIcon,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import classes from './PlayerControls.module.css';
@@ -223,4 +223,35 @@ export function PlayerNotice({
       {children}
     </div>
   );
+}
+
+// PlayerFlash は、キーで操作した結果 (音量、ミュート、シークなど) を、映像の上の中央に短く出す (#448)。
+export function PlayerFlash({ children }: { children: ReactNode }) {
+  return (
+    <div className={classes.flash} role="status">
+      {children}
+    </div>
+  );
+}
+
+// flashDuration は、キーで操作した結果を映像の上に出しておく時間。
+const flashDuration = 800;
+
+// usePlayerFlash は、キーで操作した結果 (音量、ミュート、シークなど) を、映像の上に短く出すための状態を返す (#448)。
+// 続けて操作したら、最後の結果に置き換え、出しておく時間を数え直す。
+export function usePlayerFlash(): [string | null, (message: string) => void] {
+  const [flash, setFlash] = useState<{ message: string; key: number } | null>(null);
+  useEffect(() => {
+    if (flash === null) {
+      return;
+    }
+    const timer = setTimeout(() => setFlash(null), flashDuration);
+
+    return () => clearTimeout(timer);
+  }, [flash]);
+
+  return [
+    flash?.message ?? null,
+    (message) => setFlash((prev) => ({ message, key: (prev?.key ?? 0) + 1 })),
+  ];
 }

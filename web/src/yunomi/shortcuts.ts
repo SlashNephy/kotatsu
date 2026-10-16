@@ -7,6 +7,9 @@ export type ShortcutAction =
   | 'toggleCaptions'
   | 'toggleMute'
   | 'toggleFullscreen'
+  | 'volumeUp'
+  | 'volumeDown'
+  | 'toggleDataBroadcast'
   | 'showShortcuts';
 
 // shortcutKeys は、操作ごとに割り当てたキー (KeyboardEvent.key)。ショートカットの一覧も、これから作る。
@@ -17,6 +20,9 @@ export const shortcutKeys: Readonly<Record<ShortcutAction, readonly string[]>> =
   toggleCaptions: ['c'],
   toggleMute: ['m'],
   toggleFullscreen: ['f'],
+  volumeUp: ['ArrowUp'],
+  volumeDown: ['ArrowDown'],
+  toggleDataBroadcast: ['d'],
   showShortcuts: ['?'],
 };
 
@@ -31,7 +37,12 @@ type KeyLike = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'r
 };
 
 // repeatable は、キーを押し続けたときに、繰り返してよい操作。切り替える操作は、押すたびに 1 回だけにする。
-const repeatable: ReadonlySet<ShortcutAction> = new Set(['seekBackward', 'seekForward']);
+const repeatable: ReadonlySet<ShortcutAction> = new Set([
+  'seekBackward',
+  'seekForward',
+  'volumeUp',
+  'volumeDown',
+]);
 
 // shortcutFor は、押したキーに割り当てた操作を返す。文字を入力している欄では、ショートカットにしない。
 export function shortcutFor(event: KeyLike): ShortcutAction | null {

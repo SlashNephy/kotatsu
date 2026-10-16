@@ -189,3 +189,18 @@
     animation: none;
   }
 }
+
+/* キーで操作した結果の短い知らせ。受信中などの知らせ (.notice) と重ならないよう、上の中央に出す。 */
+.flash {
+  position: absolute;
+  inset-block-start: 16px;
+  inset-inline: 0;
+  width: fit-content;
+  margin-inline: auto;
+  padding: 6px 14px;
+  border-radius: var(--mantine-radius-xl);
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  font-size: var(--mantine-font-size-sm);
+  pointer-events: none;
+}
