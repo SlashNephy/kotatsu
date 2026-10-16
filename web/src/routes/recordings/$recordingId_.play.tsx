@@ -39,6 +39,8 @@ import {
   playerControlsClasses,
   SettingsButton,
   VolumeControl,
+  PlayerFlash,
+  usePlayerFlash,
 } from '../../yunomi/PlayerControls';
 import { controlsAttribute, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
@@ -51,6 +53,9 @@ import { resumePosition } from '../../yunomi/resume';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
 import { ServiceLabel } from '../../guide/ServiceLabel';
+
+// volumeStep は、↑ と ↓ で音量を上げ下げする幅。
+const volumeStep = 0.05;
 
 export const Route = createFileRoute('/recordings/$recordingId_/play')({
   component: PlayPage,
@@ -298,13 +303,40 @@ function Player({ recordingId }: { recordingId: string }) {
   };
   // skip は、今の位置から seconds 秒だけ進むか戻る。
   const skip = (seconds: number) => seek(currentPosition() + seconds);
+  // flash は、キーで操作した結果。映像の上に短く出す (#448)。
+  const [flash, showFlash] = usePlayerFlash();
+  // 押し続けると、描き直す前に次のキーが来るので、今の音量は video の要素から読む。映像がなければ何もしない。
+  const changeVolume = (delta: number) => {
+    const video = videoRef.current;
+    if (video === null) {
+      return;
+    }
+    const next = Math.min(1, Math.max(0, Math.round((video.volume + delta) * 100) / 100));
+    videoState.setVolume(next);
+    showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
+  };
   const shortcuts = {
     togglePlay,
-    seekBackward: () => skip(-10),
-    seekForward: () => skip(10),
+    seekBackward: () => {
+      skip(-10);
+      showFlash(t('player.flash.seekBackward'));
+    },
+    seekForward: () => {
+      skip(10);
+      showFlash(t('player.flash.seekForward'));
+    },
     toggleCaptions: () => setCaptions(!captions),
-    toggleMute: videoState.toggleMute,
+    toggleMute: () => {
+      const video = videoRef.current;
+      if (video === null) {
+        return;
+      }
+      videoState.toggleMute();
+      showFlash(t(video.muted ? 'player.flash.muted' : 'player.flash.unmuted'));
+    },
     toggleFullscreen: fullscreen.toggle,
+    volumeUp: () => changeVolume(volumeStep),
+    volumeDown: () => changeVolume(-volumeStep),
     showShortcuts: () => setShortcutsOpen(true),
   } satisfies Partial<Record<ShortcutAction, () => void>>;
   usePlayerShortcuts(shortcuts);
@@ -503,6 +535,7 @@ function Player({ recordingId }: { recordingId: string }) {
           overlay={
             <>
               {jikkyo.overlay}
+              {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && <PlayerLoading />}
             </>
@@ -523,6 +556,7 @@ function Player({ recordingId }: { recordingId: string }) {
           overlay={
             <>
               {jikkyo.overlay}
+              {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && <PlayerLoading />}
             </>

@@ -31,6 +31,8 @@ import {
   PlayerNotice,
   SettingsButton,
   VolumeControl,
+  PlayerFlash,
+  usePlayerFlash,
 } from '../../yunomi/PlayerControls';
 import { PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
 import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
@@ -58,6 +60,9 @@ import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
 import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordingsQuery.graphql';
 import { ServiceLabel } from '../../guide/ServiceLabel';
+
+// volumeStep は、↑ と ↓ で音量を上げ下げする幅。
+const volumeStep = 0.05;
 
 export const Route = createFileRoute('/live/$serviceId')({
   component: LiveServicePage,
@@ -301,6 +306,18 @@ function Live({
   const programName = program?.name ?? null;
   const serviceName = data.node?.__typename === 'Service' ? data.node.name : '';
   const serviceLogoUrl = data.node?.__typename === 'Service' ? (data.node.logoUrl ?? null) : null;
+  // flash は、キーで操作した結果。映像の上に短く出す (#448)。
+  const [flash, showFlash] = usePlayerFlash();
+  // 押し続けると、描き直す前に次のキーが来るので、今の音量は video の要素から読む。映像がなければ何もしない。
+  const changeVolume = (delta: number) => {
+    const video = videoRef.current;
+    if (video === null) {
+      return;
+    }
+    const next = Math.min(1, Math.max(0, Math.round((video.volume + delta) * 100) / 100));
+    videoState.setVolume(next);
+    showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
+  };
   const shortcuts = {
     togglePlay: () => {
       const video = videoRef.current;
@@ -311,8 +328,23 @@ function Live({
       }
     },
     toggleCaptions: () => setCaptions(!captions),
-    toggleMute: videoState.toggleMute,
+    toggleMute: () => {
+      const video = videoRef.current;
+      if (video === null) {
+        return;
+      }
+      videoState.toggleMute();
+      showFlash(t(video.muted ? 'player.flash.muted' : 'player.flash.unmuted'));
+    },
     toggleFullscreen: fullscreen.toggle,
+    volumeUp: () => changeVolume(volumeStep),
+    volumeDown: () => changeVolume(-volumeStep),
+    toggleDataBroadcast: () => {
+      setDataBroadcastEnabled(!dataBroadcastEnabled);
+      showFlash(
+        t(dataBroadcastEnabled ? 'player.flash.dataBroadcastOff' : 'player.flash.dataBroadcastOn'),
+      );
+    },
     showShortcuts: () => setShortcutsOpen(true),
   } satisfies Partial<Record<ShortcutAction, () => void>>;
   usePlayerShortcuts(shortcuts);
@@ -431,6 +463,7 @@ function Live({
             <>
               {dataBroadcast.layer}
               {jikkyo.overlay}
+              {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {dataBroadcast.receiving && (
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}
@@ -466,6 +499,7 @@ function Live({
             <>
               {dataBroadcast.layer}
               {jikkyo.overlay}
+              {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {dataBroadcast.receiving && (
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}

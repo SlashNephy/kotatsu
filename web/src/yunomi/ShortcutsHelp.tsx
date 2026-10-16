@@ -9,6 +9,8 @@ const keyLabels: Readonly<Record<string, string>> = {
   ' ': 'Space',
   ArrowLeft: '←',
   ArrowRight: '→',
+  ArrowUp: '↑',
+  ArrowDown: '↓',
 };
 
 type Props = {
