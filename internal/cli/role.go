@@ -227,14 +227,15 @@ func waitUntilDone(ctx context.Context, logger *slog.Logger, _ *Deps) error {
 // newTunerClient は、設定したチューナーサーバーのクライアントを返す。
 func newTunerClient(deps *Deps) (*mirakurun.Client, error) {
 	return mirakurun.New(&mirakurun.Options{
-		URL:            deps.Config.Tuner.URL.Value(),
-		Username:       "",
-		Password:       "",
-		UserAgent:      "",
-		HTTPClient:     nil,
-		RequestTimeout: 0,
-		DetectInterval: 0,
-		Clock:          deps.Clock,
+		URL:               deps.Config.Tuner.URL.Value(),
+		Username:          "",
+		Password:          "",
+		UserAgent:         "",
+		HTTPClient:        nil,
+		RequestTimeout:    0,
+		DetectInterval:    0,
+		StreamIdleTimeout: 0,
+		Clock:             deps.Clock,
 	})
 }
 
