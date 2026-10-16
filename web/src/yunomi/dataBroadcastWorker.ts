@@ -11,7 +11,8 @@ export type DataBroadcastRequest = {
 };
 
 // DataBroadcastEnd は、TS を読み終えたか、読めなかったことを、画面のスレッドに知らせるメッセージ。
-export type DataBroadcastEnd = { type: 'kotatsu:end'; error: boolean };
+// status は、tenban が成功でない応答を返したときの HTTP のステータス。
+export type DataBroadcastEnd = { type: 'kotatsu:end'; error: boolean; status?: number };
 
 self.addEventListener('message', (event: MessageEvent<DataBroadcastRequest>) => {
   void read(event.data);
@@ -23,12 +24,12 @@ async function read({ url, serviceId }: DataBroadcastRequest): Promise<void> {
     serviceId,
     parsePES: false,
   });
-  const end = (error: boolean) =>
-    self.postMessage({ type: 'kotatsu:end', error } satisfies DataBroadcastEnd);
+  const end = (error: boolean, status?: number) =>
+    self.postMessage({ type: 'kotatsu:end', error, status } satisfies DataBroadcastEnd);
   try {
     const response = await fetch(url, { credentials: 'same-origin' });
     if (!response.ok || response.body === null) {
-      end(true);
+      end(true, response.status);
 
       return;
     }
