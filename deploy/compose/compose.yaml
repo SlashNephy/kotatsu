@@ -44,6 +44,9 @@ services:
   kotatsu:
     image: ghcr.io/slashnephy/kotatsu:edge-ffmpeg
     command: ["all"]
+    # 止めるときは、実行中のジョブと、録画を引き継ぐまでを待つ。既定の 10 秒では、待つ間に強制終了される。
+    # Helm Chart の terminationGracePeriodSeconds と同じにする。
+    stop_grace_period: 5m
     environment:
       KOTATSU_DATABASE_URL: postgres://kotatsu:kotatsu@postgres:5432/kotatsu?sslmode=disable
       KOTATSU_AUTH_SECRET_KEY_FILE: /run/secrets/secret_key
