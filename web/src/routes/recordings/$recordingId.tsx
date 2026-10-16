@@ -20,6 +20,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
   Check,
   Copy,
+  Download,
   ExternalLink,
   Files,
   Gauge,
@@ -171,6 +172,7 @@ function Recording({ recordingId }: { recordingId: string }) {
             broadcastEndedAt
             notBroadcast
             thumbnailUrl
+            streamUrl
             recordedFrom
             recordedUntil
             service {
@@ -287,6 +289,18 @@ function Recording({ recordingId }: { recordingId: string }) {
               loading={creatingURL}
             >
               {t('recordings.openExternally')}
+            </Button>
+          )}
+          {/* 録画を終えた録画を、セグメントをつないだ 1 つのファイルとして保存させる。録画中は長さが決まらないので出さない。 */}
+          {segments.length > 0 && recording.state !== 'RECORDING' && (
+            <Button
+              variant="default"
+              leftSection={<Download size={16} aria-hidden />}
+              component="a"
+              href={`${recording.streamUrl}?download=1`}
+              download
+            >
+              {t('recordings.download')}
             </Button>
           )}
           {streamURL !== null && (

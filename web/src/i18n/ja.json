@@ -706,6 +706,7 @@
     "actionError": "操作できませんでした。時間をおいてやり直してください。",
     "otherFiles": "その他のファイル",
     "otherFilesDescription": "EPGStationから取り込んだファイルです。ブラウザが対応している形式なら、そのまま再生できます",
+    "download": "ダウンロード",
     "openExternally": "外部プレイヤー用のURLを発行",
     "streamURLDescription": "VLCやmpvなどで開けます。URLは6時間で使えなくなります。",
     "unknownEnd": "不明",
