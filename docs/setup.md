@@ -37,7 +37,7 @@ curl -fsSLO https://raw.githubusercontent.com/SlashNephy/kotatsu/main/deploy/com
 ```
 
 次は、アプリの秘密キーの作成です。
-秘密キーをなくすと、TOTPとWeb Pushの設定し直しが必要になります。
+秘密キーをなくすと、TOTPとWeb Pushの設定し直しと、Webhookの作り直しが必要になります。
 作ったファイルは、必ずバックアップしてください。
 
 ```bash
@@ -83,7 +83,7 @@ kubectl create secret generic kotatsu \
   --from-literal=secret-key="$(openssl rand -base64 48)"
 ```
 
-Secretの名前とキーは、values.yamlの`secret`で変えられます。
+Secretの名前とキーは、values.yamlの`secrets`で変えられます。
 
 ### values.yamlを書く
 
@@ -121,10 +121,12 @@ Helmを使わずに、マニフェストを手で直して使うこともでき�
 
 ### インストールする
 
-リリースした版のChartは、`oci://ghcr.io/slashnephy/charts/kotatsu`で配布しています。
+リリースした版のChartは、GitHub PagesのHelmリポジトリ（`https://slashnephy.github.io/kotatsu`）で配布しています。
 
 ```bash
-helm install kotatsu oci://ghcr.io/slashnephy/charts/kotatsu --version <バージョン> -f values.yaml
+helm repo add kotatsu https://slashnephy.github.io/kotatsu
+helm repo update
+helm install kotatsu kotatsu/kotatsu --version <バージョン> -f values.yaml
 ```
 
 リリースしていないmainの版を使うときは、リポジトリのChartをそのまま指定してください。

@@ -2,7 +2,7 @@
 #
 #   1. secret_key.txt に、32 バイト以上のランダムな文字列を書く (例: openssl rand -base64 48 > secret_key.txt)。
 #      コンテナは UID 65532 で動くので、読めるようにしておく (例: chmod 644 secret_key.txt)。
-#      なくすと、TOTP と Web Push の設定し直しが必要になるので、バックアップする。
+#      なくすと、TOTP と Web Push の設定し直しと、Webhook の作り直しが必要になるので、バックアップする。
 #      録画を置く ./recordings も、UID 65532 が書けるようにしておく (例: mkdir recordings && sudo chown 65532:65532 recordings)。
 #   2. KOTATSU_TUNER_URL を、チューナーサーバー (Mirakurun、mirakc、Mahiron) の URL にする。
 #   3. docker compose up -d で起動し、http://localhost:8080/ を開く。

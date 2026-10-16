@@ -23,7 +23,7 @@ secrets:
   databaseURL:
     name: kotatsu
     key: database-url
-  # secretKey は、アプリの秘密キー (32 バイト以上)。なくすと、TOTP と Web Push の設定し直しが必要になる。
+  # secretKey は、アプリの秘密キー (32 バイト以上)。なくすと、TOTP と Web Push の設定し直しと、Webhook の作り直しが必要になる。
   secretKey:
     name: kotatsu
     key: secret-key
