@@ -46,7 +46,9 @@ type Options struct {
 	RequestTimeout time.Duration
 	// DetectInterval は、サーバーの種類を判定し直す間隔。0 なら 10 分。
 	DetectInterval time.Duration
-	Clock          clock.Clock
+	// StreamIdleTimeout は、ストリームのデータが届かないまま待つ時間の上限。0 なら DefaultStreamIdleTimeout。
+	StreamIdleTimeout time.Duration
+	Clock             clock.Clock
 }
 
 // Client は Mirakurun 互換のチューナーサーバーのクライアント。複数の goroutine から使ってよい。
@@ -58,6 +60,7 @@ type Client struct {
 	httpClient     *http.Client
 	requestTimeout time.Duration
 	detectInterval time.Duration
+	idleTimeout    time.Duration
 	clock          clock.Clock
 
 	mu sync.Mutex
@@ -123,6 +126,10 @@ func New(opts *Options) (*Client, error) {
 	if detectInterval == 0 {
 		detectInterval = defaultDetectInterval
 	}
+	idleTimeout := opts.StreamIdleTimeout
+	if idleTimeout == 0 {
+		idleTimeout = DefaultStreamIdleTimeout
+	}
 	clk := opts.Clock
 	if clk == nil {
 		clk = new(clock.Real)
@@ -136,6 +143,7 @@ func New(opts *Options) (*Client, error) {
 		httpClient:     httpClient,
 		requestTimeout: requestTimeout,
 		detectInterval: detectInterval,
+		idleTimeout:    idleTimeout,
 		clock:          clk,
 		mu:             sync.Mutex{},
 		server:         nil,
@@ -316,6 +324,7 @@ func (c *Client) ServiceLogo(ctx context.Context, serviceID int64) ([]byte, erro
 }
 
 // openStream は、ストリームのリクエストを送り、2xx なら本文を返す。
+// 本文は、データが idleTimeout の間届かなければ閉じ、ErrStreamStalled を返す。接続を保ったまま送らなくなったことに気づくため (#537)。
 func (c *Client) openStream(req *http.Request) (io.ReadCloser, error) {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -327,7 +336,7 @@ func (c *Client) openStream(req *http.Request) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	return resp.Body, nil
+	return newIdleReader(resp.Body, c.idleTimeout), nil
 }
 
 func (c *Client) getJSON(ctx context.Context, path string, query url.Values, v any) error {
