@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { ErrorBoundary, PageLoader, ProgramTitle } from '../../futon';
+import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
@@ -41,6 +41,7 @@ import { controlsAttribute, useControlsVisibility } from '../../yunomi/useContro
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoState } from '../../yunomi/useVideoState';
+import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { resumePosition } from '../../yunomi/resume';
 import { useVisible } from '../../yunomi/useVisible';
@@ -152,6 +153,8 @@ function Player({ recordingId }: { recordingId: string }) {
   const autoplay = useAutoplayBlocked(video);
   const fullscreen = useFullscreen(playerBoxRef);
   const controls = useControlsVisibility({ playing: !videoState.paused });
+  // 再生している間は、画面を消さない。
+  useWakeLock(!videoState.paused);
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
   const {
     captionsEnabled: captions,
@@ -295,6 +298,7 @@ function Player({ recordingId }: { recordingId: string }) {
     toggleMute: videoState.toggleMute,
     toggleFullscreen: fullscreen.toggle,
   });
+  useDocumentTitle([recording?.name ?? null]);
   useMediaSession(
     {
       title: recording?.name ?? '',
@@ -307,6 +311,10 @@ function Player({ recordingId }: { recordingId: string }) {
       seekBackward: () => skip(-10),
       seekForward: () => skip(10),
       seekTo: (seconds) => seek(seconds),
+    },
+    {
+      playing: !videoState.paused,
+      position: { duration, position: seeking ?? position, playbackRate: rate },
     },
   );
 

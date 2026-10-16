@@ -12,6 +12,7 @@ import {
   ProgramTitle,
   splitProgramMarks,
   toHalfWidth,
+  useDocumentTitle,
 } from '../../futon';
 import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
@@ -46,6 +47,7 @@ import { useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoState } from '../../yunomi/useVideoState';
+import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
@@ -191,6 +193,8 @@ function Live({
   const autoplay = useAutoplayBlocked(video);
   const fullscreen = useFullscreen(playerBoxRef);
   const controls = useControlsVisibility({ playing: !videoState.paused });
+  // 再生している間は、画面を消さない。
+  useWakeLock(!videoState.paused);
   const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
   const {
     captionsEnabled: captions,
@@ -301,12 +305,15 @@ function Live({
     toggleMute: videoState.toggleMute,
     toggleFullscreen: fullscreen.toggle,
   });
+  useDocumentTitle([programName, serviceName]);
   useMediaSession(
     { title: programName ?? serviceName, artist: serviceName, artwork: serviceLogoUrl },
     {
       play: () => void videoRef.current?.play().catch(() => {}),
       pause: () => videoRef.current?.pause(),
     },
+    // ライブはシークできないので、再生位置は知らせない。
+    { playing: !videoState.paused, position: null },
   );
 
   const service = data.node?.__typename === 'Service' ? data.node : null;

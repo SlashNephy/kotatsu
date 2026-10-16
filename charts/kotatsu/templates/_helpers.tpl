@@ -43,12 +43,43 @@ digest を指定していれば、タグに加えて digest で固定する。
 {{- end -}}
 {{- end -}}
 
+{{/*
+optionalSecretEnv は、ref (Secret の名前とキー) の name があれば、KOTATSU_<env> を Secret から渡す環境変数。
+引数は (dict "root" $ "env" 環境変数の KOTATSU_ の後ろ "ref" Secret の名前とキー "value" values のキーの名前)。
+config に同じ設定があると、同じ環境変数が 2 つになるので、描画を止める。
+*/}}
+{{- define "kotatsu.optionalSecretEnv" -}}
+{{- if and .ref .ref.name }}
+{{- if hasKey .root.Values.config .env }}
+{{- fail (printf "set either %s or config.%s, not both" .value .env) }}
+{{- end }}
+- name: {{ printf "KOTATSU_%s" .env }}
+  {{- include "kotatsu.secretRef" .ref | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{/* secretRef は、Secret のキーから値を読む環境変数の valueFrom。引数は (dict "name" Secret の名前 "key" キー)。 */}}
 {{- define "kotatsu.secretRef" -}}
 valueFrom:
   secretKeyRef:
     name: {{ .name }}
     key: {{ .key }}
+{{- end -}}
+
+{{/*
+trustedProxies は、KOTATSU_SERVER_TRUSTED_PROXIES の値 (ingress.trustedProxies をカンマでつないだもの)。
+Ingress を使うのに、信頼するプロキシをどこにも設定していなければ、全リクエストが 400 になるので、描画を止める。
+config.SERVER_TRUSTED_PROXIES でも渡せるが、両方に書くと同じ環境変数が 2 つになるので、どちらか一方にさせる。
+*/}}
+{{- define "kotatsu.trustedProxies" -}}
+{{- $fromConfig := hasKey .Values.config "SERVER_TRUSTED_PROXIES" -}}
+{{- if and .Values.ingress.trustedProxies $fromConfig -}}
+{{- fail "set either ingress.trustedProxies or config.SERVER_TRUSTED_PROXIES, not both" -}}
+{{- end -}}
+{{- if and .Values.ingress.enabled (not .Values.ingress.trustedProxies) (not $fromConfig) -}}
+{{- fail "ingress.trustedProxies is required when ingress.enabled is true; set the CIDR of the ingress controller's Pods (e.g. the Pod network), or every request through the ingress is rejected with 400" -}}
+{{- end -}}
+{{- join "," .Values.ingress.trustedProxies -}}
 {{- end -}}
 
 {{/* pools は、KOTATSU_STORAGE_POOLS の値 (プール ID=マウント先 をカンマでつないだもの)。 */}}
@@ -75,10 +106,16 @@ env は、すべてのコンテナに渡す環境変数。
   value: "$(POD_IP)"
 - name: KOTATSU_METRICS_LISTEN
   value: ":9090"
+{{- with include "kotatsu.trustedProxies" . }}
+- name: KOTATSU_SERVER_TRUSTED_PROXIES
+  value: {{ . | quote }}
+{{- end }}
 - name: KOTATSU_DATABASE_URL
   {{- include "kotatsu.secretRef" .Values.secrets.databaseURL | nindent 2 }}
 - name: KOTATSU_AUTH_SECRET_KEY
   {{- include "kotatsu.secretRef" .Values.secrets.secretKey | nindent 2 }}
+{{- include "kotatsu.optionalSecretEnv" (dict "root" . "env" "TUNER_URL" "ref" .Values.secrets.tunerURL "value" "secrets.tunerURL") }}
+{{- include "kotatsu.optionalSecretEnv" (dict "root" . "env" "AUTH_OIDC_CLIENT_SECRET" "ref" .Values.secrets.oidcClientSecret "value" "secrets.oidcClientSecret") }}
 {{- with include "kotatsu.pools" . }}
 - name: KOTATSU_STORAGE_POOLS
   value: {{ . | quote }}
@@ -90,6 +127,9 @@ env は、すべてのコンテナに渡す環境変数。
 - name: KOTATSU_KYUSU_WORK_DIR
   value: /var/lib/kotatsu/work
 {{- include "kotatsu.configEnv" . }}
+{{- with .Values.extraEnv }}
+{{ toYaml . }}
+{{- end }}
 {{- end -}}
 
 {{/*
@@ -187,6 +227,10 @@ spec:
             {{- toYaml .args | nindent 12 }}
           env:
             {{- include "kotatsu.env" $root | nindent 12 }}
+          {{- with $root.Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: 8080
