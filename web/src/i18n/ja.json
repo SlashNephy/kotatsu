@@ -29,6 +29,7 @@
     "duration": "({{minutes}}分)",
     "openGuide": "番組表を開く",
     "nothingPlaying": "放送中の番組の情報はありません。チューナーサーバーから番組表を同期したか確かめてください",
+    "continueWatching": "続きから見る",
     "recentRecordings": "最近の録画",
     "allRecordings": "すべての録画",
     "noRecordings": "まだ録画はありません",

@@ -84,6 +84,34 @@ export function Dashboard({ range }: { range: DashboardRange }) {
             }
           }
         }
+        continueWatching(first: $recordings) {
+          id
+          name
+          startAt
+          endAt
+          state
+          drops
+          errors
+          scrambled
+          recordedFrom
+          recordedUntil
+          watchPositionMs
+          thumbnailUrl
+          previewUrl
+          watchFrame {
+            url
+            x
+            y
+            width
+            height
+            sheetWidth
+            sheetHeight
+          }
+          service {
+            name
+            logoUrl
+          }
+        }
         recordings(first: $recordings) {
           edges {
             node {
@@ -280,6 +308,20 @@ export function Dashboard({ range }: { range: DashboardRange }) {
           </Box>
         )}
       </Stack>
+
+      {/* 途中まで見た録画があるときだけ、最近の録画の前に出す。 */}
+      {data.continueWatching.length > 0 && (
+        <Stack gap="xs">
+          <Title order={3} size="h5">
+            {t('home.continueWatching')}
+          </Title>
+          <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="xs" className={classes.recentGrid}>
+            {data.continueWatching.map((recording) => (
+              <RecordingCard key={recording.id} recording={recording} />
+            ))}
+          </SimpleGrid>
+        </Stack>
+      )}
 
       <Stack gap="xs">
         <Group justify="space-between">
