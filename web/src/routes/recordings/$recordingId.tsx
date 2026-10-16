@@ -5,7 +5,6 @@ import {
   Badge,
   Button,
   Card,
-  CopyButton,
   Grid,
   Group,
   Modal,
@@ -13,15 +12,11 @@ import {
   Switch,
   TagsInput,
   Text,
-  TextInput,
   Title,
 } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
-  Check,
-  Copy,
   Download,
-  ExternalLink,
   Files,
   Gauge,
   Lock,
@@ -52,8 +47,8 @@ import type { RecordingIdDeleteMutation } from './__generated__/RecordingIdDelet
 import type { RecordingIdProtectMutation } from './__generated__/RecordingIdProtectMutation.graphql';
 import type { RecordingIdQuery } from './__generated__/RecordingIdQuery.graphql';
 import type { RecordingIdRegenerateMutation } from './__generated__/RecordingIdRegenerateMutation.graphql';
-import type { RecordingIdStreamURLMutation } from './__generated__/RecordingIdStreamURLMutation.graphql';
 import type { RecordingIdTagsMutation } from './__generated__/RecordingIdTagsMutation.graphql';
+import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 
 export const Route = createFileRoute('/recordings/$recordingId')({
@@ -229,19 +224,10 @@ function Recording({ recordingId }: { recordingId: string }) {
   `);
   // regenerated は、画像の作り直しを頼んだ結果。queued は入れた、waiting は前に頼んだものを待っている。
   const [regenerated, setRegenerated] = useState<'queued' | 'waiting' | null>(null);
-  const [createURL, creatingURL] = useMutation<RecordingIdStreamURLMutation>(graphql`
-    mutation RecordingIdStreamURLMutation($target: ID!) {
-      createStreamURL(target: $target) {
-        url
-        expiresAt
-      }
-    }
-  `);
   const node = data.node;
   // editedTags は、編集中のタグ。編集していなければ null で、サーバーのタグをそのまま出す。
   const [editedTags, setEditedTags] = useState<string[] | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [streamURL, setStreamURL] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   if (node?.__typename !== 'Recording') {
     throw new RecordingNotFoundError();
@@ -257,18 +243,6 @@ function Recording({ recordingId }: { recordingId: string }) {
   const others = recording.files.filter((file) => file.kind === 'OTHER' && file.url != null);
   const failed = (errors: readonly unknown[] | null | undefined) =>
     errors != null && errors.length > 0;
-
-  const openExternally = () => {
-    setError(null);
-    createURL({
-      variables: { target: recording.id },
-      onCompleted: (response, errors) =>
-        failed(errors)
-          ? setError(t('recordings.actionError'))
-          : setStreamURL(new URL(response.createStreamURL.url, window.location.origin).href),
-      onError: () => setError(t('recordings.actionError')),
-    });
-  };
 
   return (
     <Grid>
@@ -326,16 +300,7 @@ function Recording({ recordingId }: { recordingId: string }) {
             </Button>
           )}
           {/* 外部プレイヤー用の URL は、TS のセグメントを流す。セグメントのない取り込んだ録画では出さない。 */}
-          {segments.length > 0 && (
-            <Button
-              variant="default"
-              leftSection={<ExternalLink size={16} aria-hidden />}
-              onClick={openExternally}
-              loading={creatingURL}
-            >
-              {t('recordings.openExternally')}
-            </Button>
-          )}
+          {segments.length > 0 && <ExternalStreamURL target={recording.id} />}
           {/* 録画を終えた録画を、セグメントをつないだ 1 つのファイルとして保存させる。録画中は長さが決まらないので出さない。 */}
           {segments.length > 0 && recording.state !== 'RECORDING' && (
             <Button
@@ -347,30 +312,6 @@ function Recording({ recordingId }: { recordingId: string }) {
             >
               {t('recordings.download')}
             </Button>
-          )}
-          {streamURL !== null && (
-            <Stack gap={4}>
-              <Text size="xs" c="dimmed">
-                {t('recordings.streamURLDescription')}
-              </Text>
-              <Group gap="xs" wrap="nowrap">
-                <TextInput value={streamURL} readOnly style={{ flex: 1 }} size="xs" />
-                <CopyButton value={streamURL}>
-                  {({ copied, copy }) => (
-                    <Button
-                      size="xs"
-                      variant="default"
-                      leftSection={
-                        copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />
-                      }
-                      onClick={copy}
-                    >
-                      {copied ? t('recordings.copied') : t('recordings.copy')}
-                    </Button>
-                  )}
-                </CopyButton>
-              </Group>
-            </Stack>
           )}
         </Stack>
       </Grid.Col>
