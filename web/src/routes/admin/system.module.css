@@ -1,0 +1,10 @@
+/* 保存先プールの容量の閾値の位置。使用率のバーの上に、縦の線で示す。 */
+.threshold {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--mantine-color-red-filled);
+  border-radius: 1px;
+}

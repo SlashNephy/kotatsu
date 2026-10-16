@@ -625,6 +625,8 @@ type StoragePool struct {
 	MinFreeBytes int64 `json:"minFreeBytes"`
 	// このインスタンスから見た空き容量 (バイト)。調べられなければ null。
 	FreeBytes *int64 `json:"freeBytes,omitempty"`
+	// このインスタンスから見た、ファイルシステムの容量 (バイト)。root のために取っておく分も含む。調べられなければ null。
+	TotalBytes *int64 `json:"totalBytes,omitempty"`
 }
 
 // 保存先プールの設定の変える項目。省いた項目は変えない。

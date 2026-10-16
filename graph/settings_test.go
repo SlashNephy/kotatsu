@@ -1,6 +1,7 @@
 package graph_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -228,7 +229,7 @@ const (
 )
 
 const updateStoragePool = `mutation($id: String!, $input: StoragePoolInput!) {
-	updateStoragePool(id: $id, input: $input) { id path priority minFreeBytes freeBytes } }`
+	updateStoragePool(id: $id, input: $input) { id path priority minFreeBytes freeBytes totalBytes } }`
 
 type storagePool struct {
 	ID           string `json:"id"`
@@ -236,6 +237,7 @@ type storagePool struct {
 	Priority     int    `json:"priority"`
 	MinFreeBytes int    `json:"minFreeBytes"`
 	FreeBytes    *int   `json:"freeBytes"`
+	TotalBytes   *int   `json:"totalBytes"`
 }
 
 // TestUpdateStoragePool は、管理者だけが保存先プールの優先順位と容量の閾値を変えられ、システムの状態で読めることを確かめる (設計書 5.6、6.1)。
@@ -245,6 +247,14 @@ func TestUpdateStoragePool(t *testing.T) {
 	f := newFixture(t, &graph.Options{
 		Pools:     map[string]string{poolMain: mountMain, poolSub: mountSub},
 		FreeSpace: func(path string) (uint64, error) { return map[string]uint64{mountMain: 100 << 30}[path], nil },
+		// sub の容量は調べられない。
+		TotalSpace: func(path string) (uint64, error) {
+			if path != mountMain {
+				return 0, errors.ErrUnsupported
+			}
+
+			return 400 << 30, nil
+		},
 	})
 	pools := func(user *fixture) []storagePool {
 		var got struct {
@@ -252,15 +262,15 @@ func TestUpdateStoragePool(t *testing.T) {
 				Pools []storagePool `json:"pools"`
 			} `json:"systemStatus"`
 		}
-		require.Empty(t, user.query(t, `{ systemStatus { pools { id path priority minFreeBytes freeBytes } } }`, nil, &got))
+		require.Empty(t, user.query(t, `{ systemStatus { pools { id path priority minFreeBytes freeBytes totalBytes } } }`, nil, &got))
 
 		return got.SystemStatus.Pools
 	}
 	admin := f.as(t, adminName, auth.RoleAdmin)
 	// 設定していないプールは、優先順位 0、容量の閾値 0 で、録画を消さない。
 	assert.Equal(t, []storagePool{
-		{ID: poolMain, Path: mountMain, Priority: 0, MinFreeBytes: 0, FreeBytes: new(100 << 30)},
-		{ID: poolSub, Path: mountSub, Priority: 0, MinFreeBytes: 0, FreeBytes: new(0)},
+		{ID: poolMain, Path: mountMain, Priority: 0, MinFreeBytes: 0, FreeBytes: new(100 << 30), TotalBytes: new(400 << 30)},
+		{ID: poolSub, Path: mountSub, Priority: 0, MinFreeBytes: 0, FreeBytes: new(0), TotalBytes: nil},
 	}, pools(admin))
 
 	change := map[string]any{"id": poolMain, varInput: map[string]any{varPriority: 10, fieldMinFree: 50 << 30}}
@@ -269,7 +279,7 @@ func TestUpdateStoragePool(t *testing.T) {
 		UpdateStoragePool storagePool `json:"updateStoragePool"`
 	}
 	require.Empty(t, admin.query(t, updateStoragePool, change, &updated))
-	want := storagePool{ID: poolMain, Path: mountMain, Priority: 10, MinFreeBytes: 50 << 30, FreeBytes: new(100 << 30)}
+	want := storagePool{ID: poolMain, Path: mountMain, Priority: 10, MinFreeBytes: 50 << 30, FreeBytes: new(100 << 30), TotalBytes: new(400 << 30)}
 	assert.Equal(t, want, updated.UpdateStoragePool)
 	assert.Equal(t, want, pools(admin)[0])
 

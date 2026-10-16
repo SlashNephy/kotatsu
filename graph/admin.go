@@ -250,12 +250,15 @@ func (r *Resolver) storagePools(ctx context.Context) ([]*model.StoragePool, erro
 
 // storagePoolOf は、保存先プールを GraphQL の形にする。設定がなければ、優先順位 0、容量の閾値 0 とする。
 func (r *Resolver) storagePoolOf(id string, setting *sqlc.StoragePool) *model.StoragePool {
-	pool := &model.StoragePool{ID: id, Path: r.pools[id], Priority: 0, MinFreeBytes: 0, FreeBytes: nil}
+	pool := &model.StoragePool{ID: id, Path: r.pools[id], Priority: 0, MinFreeBytes: 0, FreeBytes: nil, TotalBytes: nil}
 	if setting != nil {
 		pool.Priority, pool.MinFreeBytes = int(setting.Priority), setting.MinFreeBytes
 	}
 	if free, err := r.freeSpace(r.pools[id]); err == nil {
 		pool.FreeBytes = new(int64(min(free, math.MaxInt64)))
+	}
+	if total, err := r.totalSpace(r.pools[id]); err == nil {
+		pool.TotalBytes = new(int64(min(total, math.MaxInt64)))
 	}
 
 	return pool

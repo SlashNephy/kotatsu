@@ -288,6 +288,21 @@ func TestFreeSpace(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestTotalSpace(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	total, err := kago.TotalSpace(dir)
+	require.NoError(t, err)
+	free, err := kago.FreeSpace(dir)
+	require.NoError(t, err)
+	// 容量は、root のために取っておく分を含むので、使える空き容量より小さくならない。
+	assert.GreaterOrEqual(t, total, free)
+
+	_, err = kago.TotalSpace(filepath.Join(t.TempDir(), "missing"))
+	require.Error(t, err)
+}
+
 // TestSelectPrefersConfiguredOrder は、優先順位が同じプールを、設定に書いた順で選ぶことを確かめる。
 func TestSelectPrefersConfiguredOrder(t *testing.T) {
 	t.Parallel()

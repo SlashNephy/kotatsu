@@ -124,6 +124,8 @@ type StoragePool {
   minFreeBytes: Int64!
   "このインスタンスから見た空き容量 (バイト)。調べられなければ null。"
   freeBytes: Int64
+  "このインスタンスから見た、ファイルシステムの容量 (バイト)。root のために取っておく分も含む。調べられなければ null。"
+  totalBytes: Int64
 }
 
 """
