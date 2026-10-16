@@ -165,7 +165,7 @@ func (a *UserAdmin) Update(ctx context.Context, db Database, actor *audit.Actor,
 	return updated, nil
 }
 
-// Disable は、ユーザーを無効にする。無効にしたユーザーのセッションは、その時点から使えなくなる。
+// Disable は、ユーザーを無効にし、そのセッションを失効させる。有効に戻しても、前のセッションは使えない。
 // 自分自身と、最後の有効な管理者は無効にできない。by は、操作するユーザー。
 func (a *UserAdmin) Disable(ctx context.Context, db Database, actor *audit.Actor, by, userID uuid.UUID) error {
 	if by == userID {
@@ -185,6 +185,9 @@ func (a *UserAdmin) Disable(ctx context.Context, db Database, actor *audit.Actor
 			return ErrLastAdmin
 		}
 		if err := NewUsers(a.clock).Disable(ctx, tx, userID); err != nil {
+			return err
+		}
+		if err := revokeUserSessions(ctx, tx, userID, nil, a.clock.Now()); err != nil {
 			return err
 		}
 
@@ -217,7 +220,7 @@ func (a *UserAdmin) Enable(ctx context.Context, db Database, actor *audit.Actor,
 
 // ResetPassword は、管理者がユーザーのパスワードを設定し直す。規定を満たさなければ、*password.RejectedError を返す。
 func (a *UserAdmin) ResetPassword(ctx context.Context, db Database, actor *audit.Actor, userID uuid.UUID, secret string) error {
-	return a.passwords.Set(ctx, db, actor, userID, secret)
+	return a.passwords.Set(ctx, db, actor, userID, secret, nil)
 }
 
 // lockUser は、有効な管理者の行と、対象のユーザーの行をロックし、対象のユーザーと、有効な管理者の数を返す。

@@ -177,6 +177,9 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	})
 }
 
+// jobCancelTimeout は、実行中のジョブを待ちきれずに取りやめを伝えた後、ジョブが抜けるのを待つ時間の上限。
+const jobCancelTimeout = 5 * time.Second
+
 // runNekonote は、ctx が終わるまで River のジョブを実行する。止まるときは、実行中のジョブが終わるのを待つ。
 func runNekonote(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	logger.InfoContext(ctx, "role started")
@@ -197,8 +200,17 @@ func runNekonote(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	// 終了のシグナルで ctx は終わっているので、実行中のジョブを待つための context を別に作る。
 	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), httpserver.ShutdownTimeout)
 	defer cancel()
-	if err := deps.Jobs.Stop(stopCtx); err != nil {
-		return fmt.Errorf("failed to stop the River client gracefully: %w", err)
+	err := deps.Jobs.Stop(stopCtx)
+	if err == nil {
+		return nil
+	}
+	// 待ちきれなければ、実行中のジョブに取りやめを伝え、終わったことを記録させてから止まる。
+	// 伝えずに止まると、ジョブは DB に実行中のまま残り、River が救い出すまで実行し直されない。
+	logger.WarnContext(ctx, "jobs did not finish in time; cancelling them", slog.Any("error", err))
+	cancelCtx, cancelJobs := context.WithTimeout(context.WithoutCancel(ctx), jobCancelTimeout)
+	defer cancelJobs()
+	if err := deps.Jobs.StopAndCancel(cancelCtx); err != nil {
+		return fmt.Errorf("failed to stop the River client: %w", err)
 	}
 
 	return nil

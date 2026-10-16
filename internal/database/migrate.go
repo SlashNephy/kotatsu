@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/lock"
 
 	"github.com/SlashNephy/kotatsu/db"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
@@ -79,6 +80,39 @@ func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
 	logger.InfoContext(ctx, "database schema is up to date", slog.Int64("version", current), slog.Int("applied", len(results)))
 
 	return nil
+}
+
+// migrationLockID は、マイグレーションのロックの ID。goose の既定の ID と同じものを使う。
+const migrationLockID = lock.DefaultLockID
+
+// WithMigrationLock は、マイグレーションのロックを取ってから fn を実行し、終わったら手放す (設計書 11.4)。
+// kotatsu migrate を同時に実行しても、1 つずつ順に適用するので、どれも失敗しない。
+//
+// ロックは、PostgreSQL の advisory lock ではなく、表 (goose_lock) の行で取る。トランザクションプーリングを経由すると、
+// セッションの advisory lock は、取った接続と手放す接続が違うことがあり、手放せずに残るからである。
+// 行には期限があり、取った側が落ちても、期限が過ぎれば取り直せる。
+func WithMigrationLock(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool, fn func(ctx context.Context) error) error {
+	locker, err := lock.NewPostgresTableLocker(
+		lock.WithTableLockID(migrationLockID),
+		// ほかの migrate が終わるのを、1 秒ごとに確かめ、5 分まで待つ。
+		lock.WithTableLockTimeout(time.Second, 300),
+		lock.WithTableLogger(logger),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create the migration lock: %w", err)
+	}
+	db := stdlib.OpenDBFromPool(pool)
+	defer db.Close()
+	if err := locker.Lock(ctx, db); err != nil {
+		return fmt.Errorf("failed to acquire the migration lock: %w", err)
+	}
+	fnErr := fn(ctx)
+	// fn が失敗しても、ロックは手放す。
+	if err := locker.Unlock(context.WithoutCancel(ctx), db); err != nil {
+		return errors.Join(fnErr, fmt.Errorf("failed to release the migration lock: %w", err))
+	}
+
+	return fnErr
 }
 
 // CheckSchema は、このバイナリが DB のスキーマで動けるかを確かめる。

@@ -14,11 +14,19 @@ import (
 )
 
 const deleteAuditEventsBefore = `-- name: DeleteAuditEventsBefore :execrows
-DELETE FROM audit_events WHERE occurred_at < $1
+DELETE FROM audit_events WHERE id IN (
+  SELECT e.id FROM audit_events e WHERE e.occurred_at < $1 ORDER BY e.occurred_at LIMIT $2
+)
 `
 
-func (q *Queries) DeleteAuditEventsBefore(ctx context.Context, before time.Time) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteAuditEventsBefore, before)
+type DeleteAuditEventsBeforeParams struct {
+	Before   time.Time
+	MaxCount int32
+}
+
+// before より前の記録を、古い順に max_count 件まで消す。1 回のトランザクションで大量の行を消さないよう、件数を区切る。
+func (q *Queries) DeleteAuditEventsBefore(ctx context.Context, arg DeleteAuditEventsBeforeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAuditEventsBefore, arg.Before, arg.MaxCount)
 	if err != nil {
 		return 0, err
 	}

@@ -228,6 +228,25 @@ func TestPruneDeletesEventsPastRetention(t *testing.T) {
 	assert.Equal(t, []string{"recent"}, actions(t, pool))
 }
 
+// TestPruneDeletesInBatches は、保持期間を過ぎた記録が、1 回で消す件数の上限より多くても、すべて消すことを確かめる。
+func TestPruneDeletesInBatches(t *testing.T) {
+	t.Parallel()
+
+	pool := migratedPool(t)
+	const recentAction = "recent"
+	const retention = 365 * 24 * time.Hour
+	_, err := pool.Exec(t.Context(), `INSERT INTO audit_events (id, occurred_at, actor_type, actor_user_id, actor_role, action, target_type, target_id, summary)
+		SELECT gen_random_uuid(), $1, 'system', NULL, 'neko', 'old', 'test', '', '{}'::jsonb FROM generate_series(1, 2500)`,
+		testNow().Add(-retention-time.Hour))
+	require.NoError(t, err)
+	record(t, pool, testNow(), recentAction)
+
+	deleted, err := audit.Prune(t.Context(), pool, clocktest.NewFake(testNow()), retention)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2500), deleted)
+	assert.Equal(t, []string{recentAction}, actions(t, pool))
+}
+
 func TestPruneWorkerRunsPeriodically(t *testing.T) {
 	t.Parallel()
 

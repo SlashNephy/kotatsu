@@ -198,6 +198,17 @@ export function BigPlayButton({ onPlay }: { onPlay: () => void }) {
   );
 }
 
+// PlayerLoading は、映像を読み込んでいる間、映像の中央に出すスピナー。操作の邪魔をしないよう、ポインタを通す。
+export function PlayerLoading() {
+  const { t } = useTranslation();
+
+  return (
+    <div className={classes.loading} role="status" aria-label={t('player.loading')}>
+      <Loader size="lg" color="white" />
+    </div>
+  );
+}
+
 // PlayerNotice は、映像の右下に出す知らせ。操作バーのボタンに重ならないよう、バーの上に置く。
 export function PlayerNotice({
   children,

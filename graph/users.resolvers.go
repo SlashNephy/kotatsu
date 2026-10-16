@@ -111,7 +111,8 @@ func (r *mutationResolver) ChangePassword(ctx context.Context, password string) 
 	if err := auth.RequireRecentAuthentication(ctx, r.clock); err != nil {
 		return false, err
 	}
-	if err := r.passwords.Set(ctx, r.db, actorOf(ctx, principal), principal.UserID, password); err != nil {
+	// 今のセッションは残し、ほかの端末のセッションを失効させる。
+	if err := r.passwords.Set(ctx, r.db, actorOf(ctx, principal), principal.UserID, password, &principal.SessionID); err != nil {
 		return false, err
 	}
 

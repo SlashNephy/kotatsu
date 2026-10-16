@@ -72,7 +72,7 @@ func newUserCommand(opts *Options, connect func(ctx context.Context) (*config.Co
 				return err
 			}
 
-			err = auth.NewPasswords(opts.Clock, audit.NewRecorder(opts.Clock), policy).Set(cmd.Context(), pool, audit.System("cli"), userID, secret)
+			err = auth.NewPasswords(opts.Clock, audit.NewRecorder(opts.Clock), policy).Set(cmd.Context(), pool, audit.System("cli"), userID, secret, nil)
 			if rejected, ok := errors.AsType[*password.RejectedError](err); ok {
 				return fmt.Errorf("the password was rejected: %s", rejected.Reason)
 			}

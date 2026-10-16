@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -36,7 +37,10 @@ func NewPasswords(clk clock.Clock, recorder audit.Recorder, policy *password.Pol
 // Set は、パスワードが規定を満たすかを確かめ、Argon2id でハッシュ化して保存する。
 // 規定を満たさなければ、*password.RejectedError を返す。
 // ユーザー名と表示名は、パスワードに含まれると推測しやすい語として、強度の判定に渡す。
-func (p *Passwords) Set(ctx context.Context, db Database, actor *audit.Actor, userID uuid.UUID, secret string) error {
+//
+// 設定したら、ユーザーのほかのセッションを失効させる (設計書 9.5)。パスワードが漏れたと思って変えたときに、漏れた先のセッションを切るためである。
+// keepSession が nil でなければ、そのセッション (本人が変えたときの今のセッション) は残す。
+func (p *Passwords) Set(ctx context.Context, db Database, actor *audit.Actor, userID uuid.UUID, secret string, keepSession *uuid.UUID) error {
 	// 強度の判定、Have I Been Pwned への照会、ハッシュ化は時間がかかるので、トランザクションの外で行う。
 	user, err := sqlc.New(db).GetUser(ctx, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -60,6 +64,9 @@ func (p *Passwords) Set(ctx context.Context, db Database, actor *audit.Actor, us
 		}
 		if n == 0 {
 			return fmt.Errorf("%w: %s", ErrUserNotFound, userID)
+		}
+		if err := revokeUserSessions(ctx, tx, userID, keepSession, p.clock.Now()); err != nil {
+			return err
 		}
 
 		return p.recorder.Record(ctx, tx, &audit.Event{
@@ -86,4 +93,19 @@ func UserIDByUsername(ctx context.Context, db sqlc.DBTX, username string) (uuid.
 	}
 
 	return user.ID, nil
+}
+
+// revokeUserSessions は、ユーザーのセッションをまとめて失効させ、第二要素の確認を待つログインも消す。
+// keep が nil でなければ、そのセッションは残す。
+// 待っているログインを残すと、前のパスワードで確かめたログインを、第二要素を通して完了させられてしまう。
+func revokeUserSessions(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, keep *uuid.UUID, now time.Time) error {
+	q := sqlc.New(db)
+	if _, err := q.RevokeUserSessions(ctx, sqlc.RevokeUserSessionsParams{Now: now, UserID: userID, KeepID: keep}); err != nil {
+		return fmt.Errorf("failed to revoke the sessions of the user: %w", err)
+	}
+	if err := q.DeleteUserLoginChallenges(ctx, userID); err != nil {
+		return fmt.Errorf("failed to delete the login challenges of the user: %w", err)
+	}
+
+	return nil
 }

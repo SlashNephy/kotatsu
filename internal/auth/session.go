@@ -197,6 +197,23 @@ func (s *Sessions) Authenticate(ctx context.Context, db sqlc.DBTX, token string)
 	return &Principal{UserID: session.UserID, Role: role, SessionID: session.ID, AuthenticatedAt: session.AuthenticatedAt.UTC()}, nil
 }
 
+// Usable は、セッションが今も使えるかを返す。失効させた、期限を過ぎた、ユーザーを無効にした、消したなら false を返す。
+// 接続中の subscription (SSE) を、一定の間隔で確かめ直すのに使う (設計書 9.5)。
+func (s *Sessions) Usable(ctx context.Context, db sqlc.DBTX, sessionID uuid.UUID) (bool, error) {
+	now := s.clock.Now()
+	usable, err := sqlc.New(db).GetSessionUsable(ctx, sqlc.GetSessionUsableParams{
+		Now: now, IdleSince: now.Add(-s.idleTimeout), ID: sessionID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to check the session: %w", err)
+	}
+
+	return usable, nil
+}
+
 // List は、ユーザーの使えるセッションを、最後に使われた順に返す。
 func (s *Sessions) List(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) ([]*Session, error) {
 	now := s.clock.Now()

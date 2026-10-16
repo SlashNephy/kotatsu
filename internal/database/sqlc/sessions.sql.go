@@ -13,6 +13,29 @@ import (
 	"github.com/google/uuid"
 )
 
+const deleteStaleSessions = `-- name: DeleteStaleSessions :execrows
+DELETE FROM sessions WHERE id IN (
+  SELECT s.id FROM sessions s
+  WHERE s.revoked_at IS NOT NULL OR s.expires_at <= $1 OR s.last_seen_at <= $2
+  LIMIT $3
+)
+`
+
+type DeleteStaleSessionsParams struct {
+	Now       time.Time
+	IdleSince time.Time
+	MaxCount  int32
+}
+
+// 使えなくなったセッション (失効させた、絶対的な期限を過ぎた、無操作の期限を過ぎた) を、max_count 件まで消す。
+func (q *Queries) DeleteStaleSessions(ctx context.Context, arg DeleteStaleSessionsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteStaleSessions, arg.Now, arg.IdleSince, arg.MaxCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
 SELECT sessions.id, sessions.token_hash, sessions.user_id, sessions.created_at, sessions.authenticated_at, sessions.last_seen_at, sessions.expires_at, sessions.revoked_at, sessions.user_agent, sessions.source_ip, users.role, users.disabled_at AS user_disabled_at
 FROM sessions
@@ -44,6 +67,27 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (
 		&i.UserDisabledAt,
 	)
 	return i, err
+}
+
+const getSessionUsable = `-- name: GetSessionUsable :one
+SELECT (s.revoked_at IS NULL AND s.expires_at > $1 AND s.last_seen_at > $2 AND u.disabled_at IS NULL)::boolean AS usable
+FROM sessions s
+JOIN users u ON u.id = s.user_id
+WHERE s.id = $3
+`
+
+type GetSessionUsableParams struct {
+	Now       time.Time
+	IdleSince time.Time
+	ID        uuid.UUID
+}
+
+// セッションが今も使えるか (失効させていない、期限の中、ユーザーが有効) を返す。接続中の subscription を確かめ直すのに使う。
+func (q *Queries) GetSessionUsable(ctx context.Context, arg GetSessionUsableParams) (bool, error) {
+	row := q.db.QueryRow(ctx, getSessionUsable, arg.Now, arg.IdleSince, arg.ID)
+	var usable bool
+	err := row.Scan(&usable)
+	return usable, err
 }
 
 const insertSession = `-- name: InsertSession :exec
@@ -151,6 +195,26 @@ type RevokeSessionParams struct {
 
 func (q *Queries) RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error) {
 	result, err := q.db.Exec(ctx, revokeSession, arg.Now, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const revokeUserSessions = `-- name: RevokeUserSessions :execrows
+UPDATE sessions SET revoked_at = $1::timestamptz
+WHERE user_id = $2 AND revoked_at IS NULL AND ($3::uuid IS NULL OR id <> $3::uuid)
+`
+
+type RevokeUserSessionsParams struct {
+	Now    time.Time
+	UserID uuid.UUID
+	KeepID *uuid.UUID
+}
+
+// ユーザーのセッションをまとめて失効させる。keep_id のセッション (パスワードを変えた本人の今のセッション) は残す。
+func (q *Queries) RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeUserSessions, arg.Now, arg.UserID, arg.KeepID)
 	if err != nil {
 		return 0, err
 	}
