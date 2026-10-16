@@ -48,7 +48,7 @@ import type { ShortcutAction } from '../../yunomi/shortcuts';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
-import { CaptureButton, PipButton } from '../../yunomi/PlayerTools';
+import { CaptureButton, PipButton, useCapture } from '../../yunomi/PlayerTools';
 import { useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
@@ -308,6 +308,18 @@ function Live({
   const serviceLogoUrl = data.node?.__typename === 'Service' ? (data.node.logoUrl ?? null) : null;
   // flash は、キーで操作した結果。映像の上に短く出す (#448)。
   const [flash, showFlash] = usePlayerFlash();
+  const capture = useCapture({
+    frameRef: playerBoxRef,
+    videoRef,
+    serviceName,
+    programName,
+    captureTime: Date.now,
+  });
+  const saveCapture = async () => {
+    if ((await capture.capture('save')) === 'saved') {
+      showFlash(t('player.flash.captured'));
+    }
+  };
   // 押し続けると、描き直す前に次のキーが来るので、今の音量は video の要素から読む。映像がなければ何もしない。
   const changeVolume = (delta: number) => {
     const video = videoRef.current;
@@ -339,6 +351,7 @@ function Live({
     toggleFullscreen: fullscreen.toggle,
     volumeUp: () => changeVolume(volumeStep),
     volumeDown: () => changeVolume(-volumeStep),
+    capture: () => void saveCapture(),
     toggleDataBroadcast: () => {
       setDataBroadcastEnabled(!dataBroadcastEnabled);
       showFlash(
@@ -418,13 +431,7 @@ function Live({
               {audio.menu}
             </SettingsButton>
           )}
-          <CaptureButton
-            frameRef={playerBoxRef}
-            videoRef={videoRef}
-            serviceName={service.name}
-            programName={programName}
-            captureTime={Date.now}
-          />
+          <CaptureButton capture={capture} />
           <ControlButton
             label={t('player.shortcuts.title')}
             icon={Keyboard}

@@ -23,7 +23,7 @@ function useNotice(): [string | null, (message: string) => void] {
   return [message, setMessage];
 }
 
-type CaptureProps = {
+type CaptureOptions = {
   frameRef: RefObject<HTMLElement | null>;
   videoRef: RefObject<HTMLVideoElement | null>;
   // serviceName と programName は、キャプチャのファイル名に使う。番組が分からなければ programName は null。
@@ -33,25 +33,35 @@ type CaptureProps = {
   captureTime: () => number;
 };
 
-// CaptureButton は、今の場面を画像に保存するか、コピーするメニュー (設計書 7.5)。
-// 別のウィンドウに移っても開けるよう、メニューと知らせはプレイヤーの中に描く。
-export function CaptureButton({
+// CaptureResult は、キャプチャの結果。映像がなければ null。
+export type CaptureResult = 'saved' | 'copied' | 'failed' | null;
+
+// Capture は、キャプチャの操作と、その設定と知らせ。メニュー (CaptureButton) とキー (s) で使う。
+export type Capture = {
+  overlays: boolean;
+  setOverlays: (overlays: boolean) => void;
+  message: string | null;
+  capture: (action: 'save' | 'copy') => Promise<CaptureResult>;
+};
+
+// useCapture は、今の場面を画像に保存するか、コピーする操作を返す (設計書 7.5)。
+export function useCapture({
   frameRef,
   videoRef,
   serviceName,
   programName,
   captureTime,
-}: CaptureProps) {
+}: CaptureOptions): Capture {
   const { t } = useTranslation();
   // overlays は、キャプチャに、字幕とコメントを写すかどうか。
   const [overlays, setOverlays] = useState(true);
   const [message, notify] = useNotice();
 
-  const capture = async (action: 'save' | 'copy') => {
+  const capture = async (action: 'save' | 'copy'): Promise<CaptureResult> => {
     const video = videoRef.current;
     const frame = frameRef.current;
     if (video === null || frame === null) {
-      return;
+      return null;
     }
     // 画像を作る間に再生が進むので、押した時の時刻を先に取る。
     const time = captureTime();
@@ -59,14 +69,31 @@ export function CaptureButton({
       const blob = await captureFrame(video, overlays ? overlayCanvases(frame) : []);
       if (action === 'save') {
         saveBlob(blob, captureFileName(time, serviceName, programName));
-      } else {
-        await copyBlob(blob);
-        notify(t('player.copied'));
+
+        return 'saved';
       }
+      await copyBlob(blob);
+      notify(t('player.copied'));
+
+      return 'copied';
     } catch {
       notify(t('player.captureError'));
+
+      return 'failed';
     }
   };
+
+  return { overlays, setOverlays, message, capture };
+}
+
+// CaptureButton は、今の場面を画像に保存するか、コピーするメニュー (設計書 7.5)。
+// 別のウィンドウに移っても開けるよう、メニューと知らせはプレイヤーの中に描く。
+export function CaptureButton({
+  capture: { overlays, setOverlays, message, capture },
+}: {
+  capture: Capture;
+}) {
+  const { t } = useTranslation();
 
   return (
     <Menu position="top-end" closeOnItemClick withinPortal={false}>

@@ -776,6 +776,7 @@
       "volumeUp": "音量を上げる",
       "volumeDown": "音量を下げる",
       "toggleDataBroadcast": "データ放送を出し入れする",
+      "capture": "今の場面を画像に保存する",
       "showShortcuts": "この一覧を出す"
     },
     "flash": {
@@ -785,7 +786,8 @@
       "seekBackward": "-10 秒",
       "seekForward": "+10 秒",
       "dataBroadcastOn": "データ放送を表示",
-      "dataBroadcastOff": "データ放送を隠す"
+      "dataBroadcastOff": "データ放送を隠す",
+      "captured": "画像を保存しました"
     },
     "backToRecording": "録画の詳細に戻る",
     "loading": "映像を読み込んでいます",

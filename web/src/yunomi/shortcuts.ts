@@ -10,6 +10,7 @@ export type ShortcutAction =
   | 'volumeUp'
   | 'volumeDown'
   | 'toggleDataBroadcast'
+  | 'capture'
   | 'showShortcuts';
 
 // shortcutKeys は、操作ごとに割り当てたキー (KeyboardEvent.key)。ショートカットの一覧も、これから作る。
@@ -23,6 +24,7 @@ export const shortcutKeys: Readonly<Record<ShortcutAction, readonly string[]>> =
   volumeUp: ['ArrowUp'],
   volumeDown: ['ArrowDown'],
   toggleDataBroadcast: ['d'],
+  capture: ['s'],
   showShortcuts: ['?'],
 };
 
