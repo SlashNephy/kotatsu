@@ -277,31 +277,26 @@ WHERE (cardinality($1::text[]) = 0 OR r.state = ANY($1::text[]))
   AND ($5::timestamptz IS NULL OR r.start_at >= $5::timestamptz)
   AND ($6::timestamptz IS NULL OR r.start_at < $6::timestamptz)
   AND ($7::timestamptz IS NULL
-    OR (NOT $8::boolean AND (r.recorded_from, r.id) < ($7::timestamptz, $9::uuid))
-    OR ($8::boolean AND (r.recorded_from, r.id) > ($7::timestamptz, $9::uuid)))
-ORDER BY
-  CASE WHEN $8::boolean THEN r.recorded_from END ASC,
-  CASE WHEN $8::boolean THEN r.id END ASC,
-  r.recorded_from DESC, r.id DESC
-LIMIT $10
+    OR (r.recorded_from, r.id) < ($7::timestamptz, $8::uuid))
+ORDER BY r.recorded_from DESC, r.id DESC
+LIMIT $9
 `
 
 type SearchRecordingsParams struct {
-	States      []string
-	ServiceIds  []int64
-	TagIds      []uuid.UUID
-	Keyword     *string
-	Since       *time.Time
-	Until       *time.Time
-	BeforeAt    *time.Time
-	OldestFirst bool
-	BeforeID    *uuid.UUID
-	MaxCount    int32
+	States     []string
+	ServiceIds []int64
+	TagIds     []uuid.UUID
+	Keyword    *string
+	Since      *time.Time
+	Until      *time.Time
+	BeforeAt   *time.Time
+	BeforeID   *uuid.UUID
+	MaxCount   int32
 }
 
-// 録画を、録画を始めた日時の新しい順 (oldest_first なら古い順) に返す。絞り込まない条件は NULL か空にする。
-// before_at と before_id のカーソルより後ろ (新しい順なら古い、古い順なら新しい) の録画だけを返し、ページを送る。
-// 2 つは、両方を渡すか、両方を NULL にする。
+// 録画を、録画を始めた日時の新しい順に返す。絞り込まない条件は NULL か空にする。
+// before_at と before_id より前 (古い) の録画だけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
+// 並び順をパラメーターで切り替えると、インデックスの順に読めなくなるので、古い順は SearchRecordingsOldest に分ける。
 func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsParams) ([]Recording, error) {
 	rows, err := q.db.Query(ctx, searchRecordings,
 		arg.States,
@@ -311,8 +306,92 @@ func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsPara
 		arg.Since,
 		arg.Until,
 		arg.BeforeAt,
-		arg.OldestFirst,
 		arg.BeforeID,
+		arg.MaxCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Recording{}
+	for rows.Next() {
+		var i Recording
+		if err := rows.Scan(
+			&i.ID,
+			&i.ReservationID,
+			&i.ServiceID,
+			&i.EventID,
+			&i.Name,
+			&i.Description,
+			&i.StartAt,
+			&i.EndAt,
+			&i.State,
+			&i.FailureReason,
+			&i.Protected,
+			&i.Drops,
+			&i.Errors,
+			&i.Scrambled,
+			&i.Gaps,
+			&i.Audios,
+			&i.ProgramLost,
+			&i.BroadcastStartedAt,
+			&i.BroadcastEndedAt,
+			&i.NotBroadcast,
+			&i.AiredEventID,
+			&i.RecordedFrom,
+			&i.RecordedUntil,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchRecordingsOldest = `-- name: SearchRecordingsOldest :many
+SELECT r.id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM recordings r
+WHERE (cardinality($1::text[]) = 0 OR r.state = ANY($1::text[]))
+  AND (cardinality($2::bigint[]) = 0 OR r.service_id = ANY($2::bigint[]))
+  AND (cardinality($3::uuid[]) = 0 OR EXISTS (
+    SELECT 1 FROM recording_tags rt WHERE rt.recording_id = r.id AND rt.tag_id = ANY($3::uuid[])
+  ))
+  AND ($4::text IS NULL OR r.name ILIKE '%' || $4::text || '%')
+  AND ($5::timestamptz IS NULL OR r.start_at >= $5::timestamptz)
+  AND ($6::timestamptz IS NULL OR r.start_at < $6::timestamptz)
+  AND ($7::timestamptz IS NULL
+    OR (r.recorded_from, r.id) > ($7::timestamptz, $8::uuid))
+ORDER BY r.recorded_from ASC, r.id ASC
+LIMIT $9
+`
+
+type SearchRecordingsOldestParams struct {
+	States     []string
+	ServiceIds []int64
+	TagIds     []uuid.UUID
+	Keyword    *string
+	Since      *time.Time
+	Until      *time.Time
+	AfterAt    *time.Time
+	AfterID    *uuid.UUID
+	MaxCount   int32
+}
+
+// SearchRecordings の古い順。after_at と after_id より後 (新しい) の録画だけを返し、ページを送る。
+func (q *Queries) SearchRecordingsOldest(ctx context.Context, arg SearchRecordingsOldestParams) ([]Recording, error) {
+	rows, err := q.db.Query(ctx, searchRecordingsOldest,
+		arg.States,
+		arg.ServiceIds,
+		arg.TagIds,
+		arg.Keyword,
+		arg.Since,
+		arg.Until,
+		arg.AfterAt,
+		arg.AfterID,
 		arg.MaxCount,
 	)
 	if err != nil {

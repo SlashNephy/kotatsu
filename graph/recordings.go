@@ -65,7 +65,6 @@ func (r *Resolver) listRecordings(
 	}
 	// 次のページがあるかを知るため、1 件多く読む。
 	params.MaxCount = int32(first + 1)
-	params.OldestFirst = order == model.RecordingOrderOldestFirst
 	if after != nil {
 		var cursor recordingCursor
 		if err := DecodeCursor(*after, &cursor); err != nil {
@@ -74,7 +73,15 @@ func (r *Resolver) listRecordings(
 		params.BeforeAt, params.BeforeID = &cursor.RecordedFrom, &cursor.ID
 	}
 
-	rows, err := sqlc.New(r.db).SearchRecordings(ctx, *params)
+	var rows []sqlc.Recording
+	if order == model.RecordingOrderOldestFirst {
+		rows, err = sqlc.New(r.db).SearchRecordingsOldest(ctx, sqlc.SearchRecordingsOldestParams{
+			States: params.States, ServiceIds: params.ServiceIds, TagIds: params.TagIds, Keyword: params.Keyword,
+			Since: params.Since, Until: params.Until, AfterAt: params.BeforeAt, AfterID: params.BeforeID, MaxCount: params.MaxCount,
+		})
+	} else {
+		rows, err = sqlc.New(r.db).SearchRecordings(ctx, *params)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to search recordings: %w", err)
 	}
@@ -103,7 +110,7 @@ func (r *Resolver) listRecordings(
 // searchParams は、録画の絞り込みを、検索のクエリの引数にする。
 func searchParams(filter *model.RecordingFilter) (*sqlc.SearchRecordingsParams, error) {
 	params := &sqlc.SearchRecordingsParams{
-		States: []string{}, ServiceIds: []int64{}, TagIds: []uuid.UUID{}, Keyword: nil, Since: nil, Until: nil, BeforeAt: nil, BeforeID: nil, MaxCount: 0, OldestFirst: false,
+		States: []string{}, ServiceIds: []int64{}, TagIds: []uuid.UUID{}, Keyword: nil, Since: nil, Until: nil, BeforeAt: nil, BeforeID: nil, MaxCount: 0,
 	}
 	if filter == nil {
 		return params, nil
