@@ -62,10 +62,13 @@ export function useLiveJikkyo(
       session.close();
       sessionRef.current = null;
       setStatus(null);
-      // 局を変えたら、前の局のコメントは捨てる。
-      setComments([]);
     };
   }, [channelId, active, videoRef]);
+
+  // 局を変えたら、前の局のコメントは捨てる。見えなくなって接続を閉じている間は、読み返せるよう残す。
+  useEffect(() => {
+    setComments([]);
+  }, [channelId]);
 
   const post = async (text: string) => {
     const session = sessionRef.current;

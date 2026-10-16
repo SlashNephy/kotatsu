@@ -22,12 +22,8 @@ export function appendComment(
   return next.length > maxListed ? next.slice(next.length - maxListed) : next;
 }
 
-// commentsUntil は、録画の過去ログ (time の順に並ぶ) のうち、再生位置 position (秒) までに流れたものを、新しいほうから maxListed 件返す。
-// 流さないコメントは除く。返す順は、古いものから。
-export function commentsUntil(
-  comments: readonly JikkyoComment[],
-  position: number,
-): JikkyoComment[] {
+// countUntil は、録画の過去ログ (time の順に並ぶ) のうち、再生位置 position (秒) までに流れたものの数を返す。
+export function countUntil(comments: readonly JikkyoComment[], position: number): number {
   // position より後に流れる最初のコメントを、二分探索で探す。
   let lo = 0;
   let hi = comments.length;
@@ -39,10 +35,20 @@ export function commentsUntil(
       hi = mid;
     }
   }
-  const shown: JikkyoComment[] = [];
-  for (let i = lo - 1; i >= 0 && shown.length < maxListed; i--) {
+
+  return lo;
+}
+
+// listedUntil は、過去ログの先頭から count 件のうち、流すものを新しいほうから maxListed 件、古いものから順に返す。
+// index は、過去ログの中の位置。一覧の行を見分けるのに使う。
+export function listedUntil(
+  comments: readonly JikkyoComment[],
+  count: number,
+): { index: number; comment: JikkyoComment }[] {
+  const shown: { index: number; comment: JikkyoComment }[] = [];
+  for (let i = Math.min(count, comments.length) - 1; i >= 0 && shown.length < maxListed; i--) {
     if (shouldDraw(comments[i]!)) {
-      shown.push(comments[i]!);
+      shown.push({ index: i, comment: comments[i]! });
     }
   }
 

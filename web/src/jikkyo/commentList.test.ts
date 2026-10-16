@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest';
 
-import { appendComment, commentsUntil, maxListed, type ListedComment } from './commentList';
+import {
+  appendComment,
+  countUntil,
+  listedUntil,
+  maxListed,
+  type ListedComment,
+} from './commentList';
 import type { JikkyoComment } from './comments';
 
 describe('appendComment', () => {
@@ -38,7 +44,7 @@ describe('appendComment', () => {
   });
 });
 
-describe('commentsUntil', () => {
+describe('countUntil と listedUntil', () => {
   const comments: JikkyoComment[] = [
     { time: 1, content: 'a', mail: '' },
     { time: 2, content: '/cmd', mail: '' },
@@ -47,11 +53,28 @@ describe('commentsUntil', () => {
   ];
 
   test.each([
-    { name: '再生位置までに流れたものだけを返す', position: 3, want: ['a', 'b'] },
-    { name: 'ちょうどの時刻のものも含める', position: 5, want: ['a', 'b', 'c'] },
+    {
+      name: '再生位置までに流れたものだけを返す',
+      position: 3,
+      want: [
+        { index: 0, content: 'a' },
+        { index: 2, content: 'b' },
+      ],
+    },
+    {
+      name: 'ちょうどの時刻のものも含める',
+      position: 5,
+      want: [
+        { index: 0, content: 'a' },
+        { index: 2, content: 'b' },
+        { index: 3, content: 'c' },
+      ],
+    },
     { name: '始まる前なら空', position: 0.5, want: [] },
   ])('$name', ({ position, want }) => {
-    expect(commentsUntil(comments, position).map((comment) => comment.content)).toEqual(want);
+    const listed = listedUntil(comments, countUntil(comments, position));
+
+    expect(listed.map(({ index, comment }) => ({ index, content: comment.content }))).toEqual(want);
   });
 
   test('多すぎるときは、新しいほうから上限まで返す', () => {
@@ -61,9 +84,9 @@ describe('commentsUntil', () => {
       mail: '',
     }));
 
-    const shown = commentsUntil(many, maxListed + 10);
+    const listed = listedUntil(many, countUntil(many, maxListed + 10));
 
-    expect(shown).toHaveLength(maxListed);
-    expect(shown[0]!.content).toBe('c10');
+    expect(listed).toHaveLength(maxListed);
+    expect(listed[0]).toEqual({ index: 10, comment: many[10] });
   });
 });
