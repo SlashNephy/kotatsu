@@ -112,6 +112,42 @@ func TestRecorderMarksNotBroadcast(t *testing.T) {
 	assert.Equal(t, new("臨時ニュース"), airedName)
 }
 
+// TestRecorderMarksNotBroadcastWhenFollowingUntilLimit は、予約した番組 (eventId 6) が EIT[p/f] の次の番組のまま
+// 放送中にならなければ、延長の上限まで待って止め、放送されなかったことを記録することを確かめる (#640)。
+// 野球中継の延長で大幅に繰り下がり、そのまま放送されなかった場合に当たる。
+func TestRecorderMarksNotBroadcastWhenFollowingUntilLimit(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	stream := newDrainedStream(eitPFPackets(0x0400, 99, 6))
+	recorder, _ := f.newRecorder(t, stream, nil)
+	_, done := f.session(t, recorder, reservationID)
+
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	stream.wait(t)
+
+	// 予定の終わりを過ぎても、次の番組にいるので待つ (繰り下げ)。
+	plannedEnd := programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second)
+	f.clock.Advance(plannedEnd.Add(time.Hour).Sub(f.clock.Now()))
+	select {
+	case err := <-done:
+		require.FailNow(t, "the recording stopped while the program was following", "%v", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	// 上限まで次の番組のままなら、上限で止め、放送されなかったと記録する。
+	f.clock.Advance(plannedEnd.Add(recording.MaxExtension).Sub(f.clock.Now()))
+	require.NoError(t, wait(t, done))
+	var notBroadcast bool
+	var aired *int64
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT not_broadcast, aired_event_id FROM recordings WHERE reservation_id = $1", reservationID).
+		Scan(&notBroadcast, &aired))
+	assert.True(t, notBroadcast)
+	assert.Equal(t, new(int64(99)), aired)
+	assert.Len(t, f.files(t, reservationID), 2, "the recorded TS is kept")
+}
+
 // TestRecorderExtendsWhileOnAir は、予約した番組が EIT[p/f] の放送中になったら、その時刻を記録し、
 // 予定の終わりを過ぎても放送中のあいだは録り続けることを確かめる (#389)。
 func TestRecorderExtendsWhileOnAir(t *testing.T) {

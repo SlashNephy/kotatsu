@@ -65,6 +65,21 @@ func TestBroadcastTracker(t *testing.T) {
 			now:   at(12, 30), wantEnd: at(12, 35),
 		},
 		{
+			name:  "次の番組のまま待ち続けても、延ばすのは上限まで",
+			steps: []step{{now: new(at(12, 0)), pf: pf(other, ours)}},
+			now:   at(15, 28), wantEnd: limit,
+		},
+		{
+			name:  "次の番組のまま上限に来たら、上限で止め、放送されなかったとする",
+			steps: []step{{now: new(at(12, 0)), pf: pf(other, ours)}},
+			now:   limit, wantEnd: limit, wantNotBroadcast: true,
+		},
+		{
+			name:  "延長して放送中のまま上限に来ても、放送されなかったとはしない",
+			steps: []step{{now: new(at(12, 0)), pf: pf(ours, next)}},
+			now:   limit, wantEnd: limit, wantStarted: true,
+		},
+		{
 			name:  "予定の終わりまで放送中にも次の番組にも出てこなければ、放送されなかった",
 			steps: []step{{now: new(at(12, 0)), pf: pf(other, next)}},
 			now:   at(12, 30), wantEnd: planned, wantNotBroadcast: true,
