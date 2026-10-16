@@ -578,7 +578,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	}
 	jikkyoClient := jikkyo.NewClient(&jikkyo.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: nil, Clock: deps.Clock})
 	mux := http.NewServeMux()
-	mux.Handle("/graphql", graph.NewHandler(&graph.Options{
+	// 変更の購読 (SSE) は終わらないので、停止を始めたら打ち切る。
+	mux.Handle("/graphql", httpserver.StopEventStreamsOnShutdown(graph.NewHandler(&graph.Options{
 		DB:                deps.DB,
 		Recorder:          audit.NewRecorder(deps.Clock),
 		SecondFactors:     factors,
@@ -602,7 +603,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		MaxDepth:          0,
 		MaxComplexity:     0,
 		HeartbeatInterval: 0,
-	}))
+	})))
 	mux.Handle("POST /auth/logout", httpserver.RequireSameOrigin(sessions.LogoutHandler(deps.DB)))
 	logins := auth.NewLogins(&auth.LoginsOptions{
 		Clock:         deps.Clock,
@@ -652,8 +653,11 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	}
 	authorizer := stream.NewAuthorizer(signer, deps.DB, deps.Clock)
 	streamLogger := logger.With(slog.String("component", "stream"))
-	mux.Handle("GET /streams/services/{id}", authorizer.Middleware(stream.NewLiveHandler(opener, streamLogger)))
-	mux.Handle("GET /streams/services/{id}/data-broadcast", authorizer.Middleware(stream.NewDataBroadcastHandler(opener, streamLogger)))
+	// ライブ視聴と録画の配信は終わらないので、停止を始めたら打ち切り、待たない。
+	mux.Handle("GET /streams/services/{id}",
+		httpserver.StopOnShutdown(authorizer.Middleware(stream.NewLiveHandler(opener, streamLogger))))
+	mux.Handle("GET /streams/services/{id}/data-broadcast",
+		httpserver.StopOnShutdown(authorizer.Middleware(stream.NewDataBroadcastHandler(opener, streamLogger))))
 	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
 	kyusuToken, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
 	if err != nil {
@@ -666,10 +670,10 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		authorizer.Middleware(kyusu.NewRecordingRelay(instances, kyusuToken, streamLogger)))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
 	mux.Handle("GET /streams/recordings/{id}",
-		authorizer.Middleware(stream.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))
+		httpserver.StopOnShutdown(authorizer.Middleware(stream.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
 	mux.Handle("GET /streams/recordings/{id}/files/{file}",
-		authorizer.Middleware(stream.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger)))
+		httpserver.StopOnShutdown(authorizer.Middleware(stream.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger))))
 	// サービスのロゴは、チューナーサーバーから取って中継する。
 	mux.Handle("GET /media/services/{id}/logo", authorizer.Middleware(stream.NewLogoHandler(logos, streamLogger)))
 	// 録画の代表画像とプレビュー画像も、このインスタンスにマウントしたプールのものだけ配信できる。

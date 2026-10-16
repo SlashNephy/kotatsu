@@ -137,6 +137,65 @@ func TestServeWaitsForInFlightRequests(t *testing.T) {
 	require.NoError(t, <-served)
 }
 
+// TestServeStopsStreamsOnShutdown は、停止を始めたら、StopOnShutdown で包んだ終わらないストリームを打ち切り、
+// ShutdownTimeout まで待たずに止まることを確かめる。
+func TestServeStopsStreamsOnShutdown(t *testing.T) {
+	t.Parallel()
+
+	streaming := make(chan struct{})
+	handler := httpserver.StopOnShutdown(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		flusher, _ := w.(http.Flusher)
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		once := false
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-ticker.C:
+			}
+			if _, err := io.WriteString(w, "chunk"); err != nil {
+				return
+			}
+			flusher.Flush()
+			if !once {
+				once = true
+				close(streaming)
+			}
+		}
+	}))
+
+	ln, err := httpserver.Listen(t.Context(), "127.0.0.1:0")
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(t.Context())
+	served := make(chan error, 1)
+	go func() {
+		served <- httpserver.Serve(ctx, slog.New(slog.DiscardHandler), ln, handler)
+	}()
+
+	go func() {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+ln.Addr().String()+"/", nil)
+		if err != nil {
+			return
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return
+		}
+		defer res.Body.Close()
+		_, _ = io.Copy(io.Discard, res.Body)
+	}()
+
+	<-streaming
+	cancel()
+	select {
+	case err := <-served:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the server kept waiting for the stream")
+	}
+}
+
 func TestListenFailsWhenAddressIsInUse(t *testing.T) {
 	t.Parallel()
 
