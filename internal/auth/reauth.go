@@ -49,22 +49,25 @@ func (l *Logins) Reauthenticate(
 	}
 	now := l.clock.Now()
 	keys := throttleKeys(user.Username, client.SourceIP)
-	if err := l.checkThrottle(ctx, db, keys, now); err != nil {
-		return time.Time{}, err
-	}
-
-	// パスワードの検証は CPU を使うので、トランザクションの外で行う。
-	verification := &password.Verification{OK: false, NeedsRehash: false}
-	if user.DisabledAt == nil && user.PasswordHash != nil {
-		if verification, err = password.Verify(secret, *user.PasswordHash); err != nil {
-			return time.Time{}, err
-		}
-	} else if err := password.VerifyDummy(secret); err != nil {
-		return time.Time{}, err
-	}
 
 	var verifyErr error
+	// パスワードでのログインと同じく、制限のキーをロックしてから、待ち時間を確かめて検証する (#542)。
 	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		if err := lockThrottleKeys(ctx, tx, keys); err != nil {
+			return err
+		}
+		if err := checkThrottleIn(ctx, tx, keys, now); err != nil {
+			return err
+		}
+		verification := &password.Verification{OK: false, NeedsRehash: false}
+		if user.DisabledAt == nil && user.PasswordHash != nil {
+			if verification, err = password.Verify(secret, *user.PasswordHash); err != nil {
+				return err
+			}
+		} else if err := password.VerifyDummy(secret); err != nil {
+			return err
+		}
+
 		failed := "password"
 		switch {
 		case !verification.OK:

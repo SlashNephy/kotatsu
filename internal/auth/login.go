@@ -35,7 +35,9 @@ const (
 	accountFreeFailures = 5
 	ipFreeFailures      = 20
 	throttleBase        = time.Second
-	throttleMax         = 15 * time.Minute
+	// concurrentAttemptWait は、同じアカウントか IP の試行を確かめている間に来た試行を、待たせる時間。
+	concurrentAttemptWait = time.Second
+	throttleMax           = 15 * time.Minute
 	// throttleReset は、最後の失敗からこれだけ経つと、失敗の回数を数え直す時間。
 	throttleReset = 24 * time.Hour
 
@@ -158,53 +160,54 @@ func throttleKeys(username string, sourceIP netip.Addr) []string {
 func (l *Logins) Password(ctx context.Context, db Database, username, secret string, client *ClientInfo) (string, *Challenge, error) {
 	now := l.clock.Now()
 	keys := throttleKeys(username, client.SourceIP)
-	if err := l.checkThrottle(ctx, db, keys, now); err != nil {
-		return "", nil, err
-	}
-
-	// パスワードの検証は CPU を使うので、トランザクションの外で行い、接続を長く占有しない。
-	user, err := sqlc.New(db).GetUserByUsername(ctx, username)
-	usable := err == nil && user.DisabledAt == nil && user.PasswordHash != nil
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return "", nil, fmt.Errorf("failed to get the user: %w", err)
-	}
-	verification := &password.Verification{OK: false, NeedsRehash: false}
-	if usable {
-		if verification, err = password.Verify(secret, *user.PasswordHash); err != nil {
-			return "", nil, err
-		}
-	} else if err := password.VerifyDummy(secret); err != nil {
-		return "", nil, err
-	}
-
-	if !verification.OK {
-		var userID *uuid.UUID
-		if usable {
-			userID = &user.ID
-		}
-		if err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-			return l.recordFailure(ctx, tx, keys, userID, username, client, now, actionLoginFailed, "password")
-		}); err != nil {
-			return "", nil, err
-		}
-
-		return "", nil, ErrInvalidCredentials
-	}
-
-	// ハッシュの作り直しも、トランザクションの外で計算しておく。
-	var rehashed *string
-	if verification.NeedsRehash {
-		encoded, err := password.Hash(secret)
-		if err != nil {
-			return "", nil, err
-		}
-		rehashed = &encoded
-	}
 	var (
 		token     string
 		challenge *Challenge
+		invalid   bool
 	)
-	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+	// 制限のキーのロック、待ち時間の確認、パスワードの検証、失敗の記録を、1 つのトランザクションで行う (#542)。
+	// 検証の間はロックを持つので、同じアカウントか IP の次の試行は、この試行の失敗を見てから判定される。
+	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		if err := lockThrottleKeys(ctx, tx, keys); err != nil {
+			return err
+		}
+		if err := checkThrottleIn(ctx, tx, keys, now); err != nil {
+			return err
+		}
+
+		user, err := sqlc.New(tx).GetUserByUsername(ctx, username)
+		usable := err == nil && user.DisabledAt == nil && user.PasswordHash != nil
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("failed to get the user: %w", err)
+		}
+		verification := &password.Verification{OK: false, NeedsRehash: false}
+		if usable {
+			if verification, err = password.Verify(secret, *user.PasswordHash); err != nil {
+				return err
+			}
+		} else if err := password.VerifyDummy(secret); err != nil {
+			return err
+		}
+
+		if !verification.OK {
+			var userID *uuid.UUID
+			if usable {
+				userID = &user.ID
+			}
+			invalid = true
+
+			// 失敗は、ロールバックせずに数えて残す。
+			return l.recordFailure(ctx, tx, keys, userID, username, client, now, actionLoginFailed, "password")
+		}
+
+		var rehashed *string
+		if verification.NeedsRehash {
+			encoded, err := password.Hash(secret)
+			if err != nil {
+				return err
+			}
+			rehashed = &encoded
+		}
 		token, challenge, err = l.succeed(ctx, tx, &user, rehashed, client, now)
 
 		return err
@@ -212,21 +215,27 @@ func (l *Logins) Password(ctx context.Context, db Database, username, secret str
 	if err != nil {
 		return "", nil, err
 	}
+	if invalid {
+		return "", nil, ErrInvalidCredentials
+	}
 
 	return token, challenge, nil
 }
 
-// checkThrottle は、待ち時間の中なら ThrottledError を返す。待たせている間の試行は、失敗として数えない。
-func (l *Logins) checkThrottle(ctx context.Context, db Beginner, keys []string, now time.Time) error {
-	tx, err := db.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin a transaction: %w", err)
+// lockThrottleKeys は、試行回数の制限のキーを、トランザクションの終わりまでロックする。
+// ほかの試行がロックしていれば、待たずに ThrottledError を返す。待たせると、同時の試行が DB の接続を抱えたまま並ぶからである。
+func lockThrottleKeys(ctx context.Context, tx pgx.Tx, keys []string) error {
+	for _, key := range keys {
+		locked, err := sqlc.New(tx).TryLockLoginKey(ctx, key)
+		if err != nil {
+			return fmt.Errorf("failed to lock the login throttle: %w", err)
+		}
+		if !locked {
+			return &ThrottledError{RetryAfter: concurrentAttemptWait}
+		}
 	}
-	defer func() {
-		_ = tx.Rollback(ctx)
-	}()
 
-	return checkThrottleIn(ctx, tx, keys, now)
+	return nil
 }
 
 // checkThrottleIn は、トランザクション tx の中で、待ち時間の中なら ThrottledError を返す。
