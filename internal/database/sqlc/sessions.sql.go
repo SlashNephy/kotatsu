@@ -69,6 +69,27 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (
 	return i, err
 }
 
+const getSessionUsable = `-- name: GetSessionUsable :one
+SELECT (s.revoked_at IS NULL AND s.expires_at > $1 AND s.last_seen_at > $2 AND u.disabled_at IS NULL)::boolean AS usable
+FROM sessions s
+JOIN users u ON u.id = s.user_id
+WHERE s.id = $3
+`
+
+type GetSessionUsableParams struct {
+	Now       time.Time
+	IdleSince time.Time
+	ID        uuid.UUID
+}
+
+// セッションが今も使えるか (失効させていない、期限の中、ユーザーが有効) を返す。接続中の subscription を確かめ直すのに使う。
+func (q *Queries) GetSessionUsable(ctx context.Context, arg GetSessionUsableParams) (bool, error) {
+	row := q.db.QueryRow(ctx, getSessionUsable, arg.Now, arg.IdleSince, arg.ID)
+	var usable bool
+	err := row.Scan(&usable)
+	return usable, err
+}
+
 const insertSession = `-- name: InsertSession :exec
 INSERT INTO sessions (
   id, token_hash, user_id, created_at, authenticated_at, last_seen_at, expires_at, revoked_at, user_agent, source_ip

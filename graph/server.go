@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
@@ -162,7 +163,54 @@ func NewHandler(opts *Options) http.Handler {
 	server.SetErrorPresenter(errorPresenter(o.Logger))
 	server.SetRecoverFunc(recoverFunc(o.Logger))
 
-	return guard(withLoaders(o.DB, resolver.rules, resolver.reservations)(server))
+	handler := withLoaders(o.DB, resolver.rules, resolver.reservations)(server)
+	if o.Sessions != nil {
+		handler = revalidateSubscriptions(handler, o.Sessions, o.DB, o.HeartbeatInterval, o.Logger)
+	}
+
+	return guard(handler)
+}
+
+// revalidateSubscriptions は、接続中の subscription (SSE) のセッションを、interval ごとに確かめ直し、
+// 使えなくなっていたら (失効させた、ユーザーを無効にした、など) 切る。
+// 接続を始めたときに一度確かめるだけだと、失効させた後も、接続が続く間は届き続けるからである。
+func revalidateSubscriptions(next http.Handler, sessions *auth.Sessions, db Database, interval time.Duration, logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		principal := auth.PrincipalFrom(r.Context())
+		if principal == nil || !strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
+			next.ServeHTTP(w, r)
+
+			return
+		}
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		go func() {
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+				usable, err := sessions.Usable(ctx, db, principal.SessionID)
+				if err != nil {
+					// 一時的に確かめられなくても、切らない。
+					if ctx.Err() == nil {
+						logger.WarnContext(ctx, "failed to revalidate the session of a subscription", slog.Any("error", err))
+					}
+
+					continue
+				}
+				if !usable {
+					cancel()
+
+					return
+				}
+			}
+		}()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // guard は、GraphQL の処理に入る前に、ログインしていないリクエストと、POST の JSON でないリクエストを拒否する。

@@ -341,3 +341,33 @@ func TestSubscriptionOverSSE(t *testing.T) {
 	}
 	assert.Equal(t, 2, events)
 }
+
+// TestSubscriptionEndsWhenSessionIsRevoked は、接続中の subscription (SSE) が、セッションを失効させたら切れることを確かめる。
+func TestSubscriptionEndsWhenSessionIsRevoked(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, &graph.Options{HeartbeatInterval: 10 * time.Millisecond})
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	r, err := http.NewRequestWithContext(ctx, http.MethodPost, f.server.URL+"/graphql", strings.NewReader(`{"query":"subscription { heartbeat }"}`))
+	require.NoError(t, err)
+	r.Header.Set("Content-Type", contentTypeJSON)
+	r.Header.Set("Accept", "text/event-stream")
+	r.Header.Set("Cookie", auth.CookieName+"="+f.token)
+	resp, err := http.DefaultClient.Do(r)
+	require.NoError(t, err)
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	reader := bufio.NewReader(resp.Body)
+	_, err = reader.ReadString('\n')
+	require.NoError(t, err)
+
+	_, err = f.pool.Exec(t.Context(), "UPDATE sessions SET revoked_at = $1 WHERE user_id = $2", f.clock.Now(), f.userID)
+	require.NoError(t, err)
+
+	// 失効させた後は、応答が終わる。終わらなければ、期限で読み込みが失敗する。
+	_, err = io.Copy(io.Discard, reader)
+	require.NoError(t, err, "the subscription must end after the session is revoked")
+}

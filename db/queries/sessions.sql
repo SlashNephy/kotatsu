@@ -32,6 +32,13 @@ UPDATE sessions SET authenticated_at = @now WHERE id = @id AND user_id = @user_i
 UPDATE sessions SET revoked_at = @now::timestamptz
 WHERE user_id = @user_id AND revoked_at IS NULL AND (sqlc.narg(keep_id)::uuid IS NULL OR id <> sqlc.narg(keep_id)::uuid);
 
+-- name: GetSessionUsable :one
+-- セッションが今も使えるか (失効させていない、期限の中、ユーザーが有効) を返す。接続中の subscription を確かめ直すのに使う。
+SELECT (s.revoked_at IS NULL AND s.expires_at > @now AND s.last_seen_at > @idle_since AND u.disabled_at IS NULL)::boolean AS usable
+FROM sessions s
+JOIN users u ON u.id = s.user_id
+WHERE s.id = @id;
+
 -- name: DeleteStaleSessions :execrows
 -- 使えなくなったセッション (失効させた、絶対的な期限を過ぎた、無操作の期限を過ぎた) を、max_count 件まで消す。
 DELETE FROM sessions WHERE id IN (
