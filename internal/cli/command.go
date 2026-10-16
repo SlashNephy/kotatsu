@@ -120,10 +120,10 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	if err != nil {
 		return nil, nil, err
 	}
-	// 表示のタイムゾーンは設定で決める (設計書 8.1) が、設定の項目はまだないので、既定の Asia/Tokyo を使う。
-	location, err := time.LoadLocation(defaultTimeZone)
+	// 表示のタイムゾーンは設定で決める (設計書 8.1)。
+	location, err := deps.Config.Location()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to load the time zone %s: %w", defaultTimeZone, err)
+		return nil, nil, err
 	}
 	webPush, err := webpush.NewService(deps.Clock, deps.Config.Auth.SecretKey.Value())
 	if err != nil {
@@ -534,10 +534,10 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Clock: deps.Clock,
 	})
 
-	// 表示のタイムゾーンは設定で決める (設計書 8.1) が、設定の項目はまだないので、既定の Asia/Tokyo を使う。
-	location, err := time.LoadLocation(defaultTimeZone)
+	// 表示のタイムゾーンは設定で決める (設計書 8.1)。
+	location, err := deps.Config.Location()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load the time zone %s: %w", defaultTimeZone, err)
+		return nil, err
 	}
 
 	// TOTP の秘密キーは、アプリの秘密キーで暗号化して保存する (設計書 8.4)。秘密キーがなければ、ログインを受け付けられない。

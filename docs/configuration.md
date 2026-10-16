@@ -54,6 +54,16 @@ KOTATSU_AUTH_SECRET_KEY_FILE=/run/secrets/secret_key
 
 ## 項目
 
+### time_zone
+
+| YAML | 環境変数 | 既定値 | 内容 |
+| --- | --- | --- | --- |
+| `time_zone` | `KOTATSU_TIME_ZONE` | `Asia/Tokyo` | 表示のタイムゾーン |
+
+IANAのタイムゾーンの名前（`Asia/Tokyo`など）で書きます。
+番組表の放送日、ルールの曜日と時間帯、録画のファイル名、通知の文の時刻を、このタイムゾーンで決めます。
+すべてのロールに、同じ値を渡してください。
+
 ### server
 
 tenbanのHTTPサーバーの設定です。

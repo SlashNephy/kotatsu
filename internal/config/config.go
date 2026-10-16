@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 )
 
 // Config は起動に必要な設定。
@@ -22,6 +23,9 @@ import (
 //
 // required:"true" を付けた項目は、どこからも値が与えられなければ起動を止める。
 type Config struct {
+	// TimeZone は、表示のタイムゾーン (設計書 8.1)。IANA の名前 (Asia/Tokyo など) で書く。
+	// 番組表の放送日、ルールの曜日と時間帯、録画のファイル名、通知の文の時刻を、このタイムゾーンで決める。
+	TimeZone  string    `yaml:"time_zone"`
 	Server    Server    `yaml:"server"`
 	Metrics   Metrics   `yaml:"metrics"`
 	Database  Database  `yaml:"database"`
@@ -224,9 +228,23 @@ type HIBP struct {
 // MinSecretKeyLength は、アプリの秘密キーの長さ (バイト) の下限。
 const MinSecretKeyLength = 32
 
+// DefaultTimeZone は、表示のタイムゾーンの既定値 (設計書の付録 A)。
+const DefaultTimeZone = "Asia/Tokyo"
+
+// Location は、表示のタイムゾーンを返す。タイムゾーンのデータは、バイナリに埋め込む (time/tzdata)。
+func (c *Config) Location() (*time.Location, error) {
+	location, err := time.LoadLocation(c.TimeZone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load the time zone %s: %w", c.TimeZone, err)
+	}
+
+	return location, nil
+}
+
 // Default は既定値を入れた設定を返す。
 func Default() *Config {
 	return &Config{
+		TimeZone: DefaultTimeZone,
 		Server: Server{
 			Listen:          ":8080",
 			AdvertiseHost:   "",
@@ -302,6 +320,10 @@ func (s *Server) validate() []error {
 // validate は値の形式を検査する。必須の項目の検査は読み込みの段階で済ませている。
 func (c *Config) validate() error {
 	errs := c.Server.validate()
+	// time.LoadLocation は、空の名前を UTC とみなすので、空も誤りにする。
+	if _, err := time.LoadLocation(c.TimeZone); c.TimeZone == "" || err != nil {
+		errs = append(errs, fieldError("time_zone", errors.New("must be an IANA time zone name such as Asia/Tokyo")))
+	}
 	if err := validateListen(c.Metrics.Listen); err != nil {
 		errs = append(errs, fieldError("metrics.listen", err))
 	}
