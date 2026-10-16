@@ -46,6 +46,7 @@ import type { accountRegenerateMutation } from './__generated__/accountRegenerat
 import type { accountRenamePasskeyMutation } from './__generated__/accountRenamePasskeyMutation.graphql';
 import type { accountRevokeSessionMutation } from './__generated__/accountRevokeSessionMutation.graphql';
 import { zonedFormat } from '../../futon';
+import { useDataChanges } from '../../changes/DataChanges';
 
 type AccountSearch = {
   // error は、IdP での再認証か紐付けに失敗して戻ってきたときの理由 (oidc_link_taken など)。
@@ -140,10 +141,12 @@ function Account() {
   // fetchKey を変えると、読み直す。登録や削除の後に、一覧を新しくするのに使う。
   // 読み直す間も画面を出したままにして、作り直したリカバリーコードなどの表示を消さないよう、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
+  // ほかの端末で設定を変えたら、読み直す (#503)。
+  const viewerChanges = useDataChanges(['VIEWER_SETTINGS']);
   const data = useLazyLoadQuery<accountQuery>(
     query,
     {},
-    { fetchKey, fetchPolicy: 'store-and-network' },
+    { fetchKey: `${fetchKey}:${viewerChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);

@@ -9,11 +9,15 @@ export type DataChannel =
   | 'RESERVATION_CONFLICTS'
   | 'TUNERS';
 
+// ChangeChannel は、画面が読み直す合図にする変更の種類。dataChanged で知らされる DataChannel と、
+// viewerSettingsChanged で知らされる、ログイン中のユーザーの設定 (VIEWER_SETTINGS)。
+export type ChangeChannel = DataChannel | 'VIEWER_SETTINGS';
+
 // ChangeState は、種類ごとの、届いた版数 (known) と、購読を始めてから変わった回数 (bumps)。
 // 画面は bumps を読み直しの合図に使う。最初に届く版数は、今の版数を知らせるだけなので、数えない。
 export type ChangeState = {
-  known: Partial<Record<DataChannel, number>>;
-  bumps: Partial<Record<DataChannel, number>>;
+  known: Partial<Record<ChangeChannel, number>>;
+  bumps: Partial<Record<ChangeChannel, number>>;
 };
 
 export const initialChangeState: ChangeState = { known: {}, bumps: {} };
@@ -22,7 +26,7 @@ export const initialChangeState: ChangeState = { known: {}, bumps: {} };
 // 購読をつなぎ直すと、すべての種類の今の版数がまた届く。切れている間に変わっていれば、版数が上がっているので数える。
 export function applyChange(
   state: ChangeState,
-  change: { channel: DataChannel; version: number },
+  change: { channel: ChangeChannel; version: number },
 ): ChangeState {
   const known = state.known[change.channel];
   if (known !== undefined && change.version <= known) {
@@ -37,6 +41,6 @@ export function applyChange(
 }
 
 // changeKey は、channels のどれかが変わるたびに変わる値を返す。useLazyLoadQuery の fetchKey に混ぜて使う。
-export function changeKey(state: ChangeState, channels: readonly DataChannel[]): number {
+export function changeKey(state: ChangeState, channels: readonly ChangeChannel[]): number {
   return channels.reduce((sum, channel) => sum + (state.bumps[channel] ?? 0), 0);
 }

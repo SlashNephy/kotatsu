@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<25991984b7357f1e1d994bc5f86b369a>>
+ * @generated SignedSource<<64519061baf88bd0a8d4a11f8d079e44>>
  * @lightSyntaxTransform
  */
 
@@ -8,13 +8,13 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type usePlayerSettingsSubscription$variables = Record<PropertyKey, never>;
-export type usePlayerSettingsSubscription$data = {
+export type DataChangesViewerSettingsSubscription$variables = Record<PropertyKey, never>;
+export type DataChangesViewerSettingsSubscription$data = {
   readonly viewerSettingsChanged: number;
 };
-export type usePlayerSettingsSubscription = {
-  response: usePlayerSettingsSubscription$data;
-  variables: usePlayerSettingsSubscription$variables;
+export type DataChangesViewerSettingsSubscription = {
+  response: DataChangesViewerSettingsSubscription$data;
+  variables: DataChangesViewerSettingsSubscription$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -32,7 +32,7 @@ return {
     "argumentDefinitions": [],
     "kind": "Fragment",
     "metadata": null,
-    "name": "usePlayerSettingsSubscription",
+    "name": "DataChangesViewerSettingsSubscription",
     "selections": (v0/*:: as any*/),
     "type": "Subscription",
     "abstractKey": null
@@ -41,20 +41,20 @@ return {
   "operation": {
     "argumentDefinitions": [],
     "kind": "Operation",
-    "name": "usePlayerSettingsSubscription",
+    "name": "DataChangesViewerSettingsSubscription",
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "6b74f427c1ddf156bb45b2b7bc95f914",
+    "cacheID": "e58d8fdee1a9ab78e13f69a9d9cdc699",
     "id": null,
     "metadata": {},
-    "name": "usePlayerSettingsSubscription",
+    "name": "DataChangesViewerSettingsSubscription",
     "operationKind": "subscription",
-    "text": "subscription usePlayerSettingsSubscription {\n  viewerSettingsChanged\n}\n"
+    "text": "subscription DataChangesViewerSettingsSubscription {\n  viewerSettingsChanged\n}\n"
   }
 };
 })();
 
-(node as any).hash = "07dd2931047b7fcb346c5d7f38f1b33e";
+(node as any).hash = "2dff61d7558275190ef29dc1e9e840af";
 
 export default node;

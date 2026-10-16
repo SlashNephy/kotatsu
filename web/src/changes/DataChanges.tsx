@@ -10,17 +10,18 @@ import {
 import { graphql, useSubscription } from 'react-relay';
 
 import type { DataChangesSubscription } from './__generated__/DataChangesSubscription.graphql';
+import type { DataChangesViewerSettingsSubscription } from './__generated__/DataChangesViewerSettingsSubscription.graphql';
 import {
   applyChange,
   changeKey,
   initialChangeState,
+  type ChangeChannel,
   type ChangeState,
-  type DataChannel,
 } from './dataChanges';
 
 type Context = {
   state: ChangeState;
-  dispatch: (change: { channel: DataChannel; version: number }) => void;
+  dispatch: (change: { channel: ChangeChannel; version: number }) => void;
 };
 
 const DataChangesContext = createContext<Context>({
@@ -69,6 +70,27 @@ export function DataChangesSubscriber() {
     [dispatch],
   );
   useSubscription<DataChangesSubscription>(config);
+  // ログイン中のユーザーの設定 (通知の設定、番組表ビュー、プレイヤーの設定、第二要素、パスキー、セッション) も、
+  // ほかの端末で変えたら読み直す。
+  const viewerConfig = useMemo(
+    () => ({
+      subscription: graphql`
+        subscription DataChangesViewerSettingsSubscription {
+          viewerSettingsChanged
+        }
+      `,
+      variables: {},
+      onNext: (response: DataChangesViewerSettingsSubscription['response'] | null | undefined) => {
+        const version = response?.viewerSettingsChanged;
+        if (version !== undefined) {
+          dispatch({ channel: 'VIEWER_SETTINGS', version });
+        }
+      },
+      onError: () => {},
+    }),
+    [dispatch],
+  );
+  useSubscription<DataChangesViewerSettingsSubscription>(viewerConfig);
 
   return null;
 }
@@ -78,7 +100,7 @@ export const settleMs = 2000;
 
 // useDataChanges は、channels のどれかが変わるたびに変わる値を返す。useLazyLoadQuery の fetchKey に混ぜて、画面を読み直す。
 // 変わってから settleMs の間、次の変更が届かなくなってから値を変える。
-export function useDataChanges(channels: readonly DataChannel[]): number {
+export function useDataChanges(channels: readonly ChangeChannel[]): number {
   const { state } = useContext(DataChangesContext);
   const key = changeKey(state, channels);
   const [settled, setSettled] = useState(key);
