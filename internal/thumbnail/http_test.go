@@ -149,6 +149,9 @@ func TestImageHandler(t *testing.T) {
 			res := serveImage(t, tt.store, f, tt.path, nil)
 			assert.Equal(t, tt.wantStatus, res.status)
 			if tt.wantStatus != http.StatusOK {
+				// 「ない」という応答を、ブラウザにも前段のプロキシにも覚えさせない (#426)。ファイルを戻したら、すぐに出るようにする。
+				assert.Equal(t, "no-store", res.header.Get("Cache-Control"))
+
 				return
 			}
 			assert.Equal(t, tt.wantBody, res.body)

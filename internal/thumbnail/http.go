@@ -34,6 +34,9 @@ func NewImageHandler(db sqlc.DBTX, store *kago.Store, logger *slog.Logger) *Imag
 }
 
 func (h *ImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// 見つからない、マウントしていない、などの失敗の応答は、ブラウザにも前段のプロキシにも覚えさせない (#426)。
+	// 覚えられると、ファイルを戻した後も、キャッシュを無効にして読み直すまで画像が出ない。返せたときは、下で上書きする。
+	w.Header().Set("Cache-Control", "no-store")
 	recordingID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		http.Error(w, "invalid recording ID", http.StatusBadRequest)
