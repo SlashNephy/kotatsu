@@ -65,7 +65,7 @@ func StopEventStreamsOnShutdown(next http.Handler) http.Handler {
 	stoppable := StopOnShutdown(next)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
+		if strings.Contains(strings.ToLower(r.Header.Get("Accept")), "text/event-stream") {
 			stoppable.ServeHTTP(w, r)
 
 			return
