@@ -109,8 +109,8 @@ func (r *Resolver) listRecordings(
 
 const (
 	// continueMinPositionMs は、続きから見る録画に含める、再生位置の下限 (ミリ秒)。少し見ただけの録画は含めない。
-	// 続きから再生する位置の下限 (web/src/yunomi/resume.ts の minResume) とそろえる。
-	continueMinPositionMs = 5000
+	// これより前は、続きから再生しても最初から始まる (web/src/yunomi/resume.ts の minResume に、戻す長さ rewind を足したもの) のでそろえる。
+	continueMinPositionMs = 10000
 	// continueEndMarginMs は、見終えたとみなす、終わりからの長さ (ミリ秒)。resume.ts の endMargin とそろえる。
 	continueEndMarginMs = 10000
 )

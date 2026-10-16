@@ -373,9 +373,11 @@ func TestContinueWatching(t *testing.T) {
 
 	f, dir := newRecordingFixture(t)
 	ids := map[string]string{}
-	for _, name := range []string{"前半", "後半", "冒頭だけ", "見終えた", "録画中"} {
+	for _, name := range []string{"前半", "後半", "冒頭だけ", "見終えた"} {
 		ids[name] = f.addRecording(t, dir, name, "completed", 2*time.Hour)
 	}
+	// 録画中の録画は、終わり (recorded_until) が決まっていない。
+	ids["録画中"] = f.addRecording(t, dir, "録画中", "recording", 2*time.Hour)
 	// 録画中のほかは、30 分の録画にする。
 	_, err := f.pool.Exec(t.Context(), `UPDATE recordings SET recorded_until = recorded_from + interval '30 minutes' WHERE name <> '録画中'`)
 	require.NoError(t, err)
@@ -386,7 +388,8 @@ func TestContinueWatching(t *testing.T) {
 		f.clock.Advance(time.Minute)
 	}
 	save("前半", 60_000)
-	save("冒頭だけ", 3_000)
+	// 続きから再生しても最初から始まる位置 (10 秒より前) は、含めない。
+	save("冒頭だけ", 9_000)
 	save("見終えた", 30*60_000-5_000)
 	save("録画中", 60_000)
 	save("後半", 20*60_000)

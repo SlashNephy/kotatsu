@@ -1049,7 +1049,7 @@ type Query {
   recordings(first: Int! = 50, after: String, filter: RecordingFilter, order: RecordingOrder! = NEWEST_FIRST): RecordingConnection!
   """
   ログイン中のユーザーが途中まで見た録画を、最後に見た新しい順に first 件まで返す (続きから見る)。
-  少しだけ見た録画 (5 秒より前) と、終わりの 10 秒以内まで見た録画は、見終えたものとして含めない。
+  少しだけ見た録画 (10 秒より前) と、終わりの 10 秒以内まで見た録画は、見終えたものとして含めない。
   """
   continueWatching(first: Int! = 12): [Recording!]!
   """
