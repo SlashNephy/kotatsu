@@ -874,6 +874,10 @@
     "kakologError": "過去ログを読み込めませんでした"
   },
   "live": {
+    "overlay": {
+      "endUndecided": "終了時刻未定",
+      "next": "次 › {{range}}"
+    },
     "switchChannel": "ほかのチャンネルを見る",
     "title": "ライブ",
     "empty": "視聴できるチャンネルがありません",

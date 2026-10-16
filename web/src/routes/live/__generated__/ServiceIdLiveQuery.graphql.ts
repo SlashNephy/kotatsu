@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<aac0f0f3cebddfd25f7e4d835acdff41>>
+ * @generated SignedSource<<5c4d4989d05e61df89fadc9f7984188f>>
  * @lightSyntaxTransform
  */
 
@@ -24,6 +24,7 @@ export type ServiceIdLiveQuery$data = {
       readonly endAt: string;
       readonly endUndecided: boolean;
       readonly name: string;
+      readonly startAt: string;
     }>;
   }>;
   readonly node: {
@@ -167,17 +168,24 @@ v9 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "endAt",
+  "name": "startAt",
   "storageKey": null
 },
 v10 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "endUndecided",
+  "name": "endAt",
   "storageKey": null
 },
 v11 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "endUndecided",
+  "storageKey": null
+},
+v12 = {
   "alias": null,
   "args": null,
   "concreteType": "ProgramAudio",
@@ -202,7 +210,7 @@ v11 = {
   ],
   "storageKey": null
 },
-v12 = {
+v13 = {
   "alias": null,
   "args": null,
   "concreteType": "Transcoding",
@@ -239,7 +247,7 @@ v12 = {
   ],
   "storageKey": null
 },
-v13 = {
+v14 = {
   "alias": null,
   "args": null,
   "concreteType": "Service",
@@ -320,15 +328,16 @@ return {
               (v5/*:: as any*/),
               (v9/*:: as any*/),
               (v10/*:: as any*/),
-              (v11/*:: as any*/)
+              (v11/*:: as any*/),
+              (v12/*:: as any*/)
             ],
             "storageKey": null
           }
         ],
         "storageKey": null
       },
-      (v12/*:: as any*/),
-      (v13/*:: as any*/)
+      (v13/*:: as any*/),
+      (v14/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -377,6 +386,7 @@ return {
               (v9/*:: as any*/),
               (v10/*:: as any*/),
               (v11/*:: as any*/),
+              (v12/*:: as any*/),
               (v6/*:: as any*/)
             ],
             "storageKey": null
@@ -384,21 +394,21 @@ return {
         ],
         "storageKey": null
       },
-      (v12/*:: as any*/),
-      (v13/*:: as any*/)
+      (v13/*:: as any*/),
+      (v14/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "0879f187ac7e1cc6d62a59223cfa6c36",
+    "cacheID": "beedba31c8763314f484b65770a8fbe0",
     "id": null,
     "metadata": {},
     "name": "ServiceIdLiveQuery",
     "operationKind": "query",
-    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      jikkyo {\n        id\n        name\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n      }\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n  services {\n    id\n    name\n    channelType {\n      type\n      displayName\n    }\n  }\n}\n"
+    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      jikkyo {\n        id\n        name\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      startAt\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n      }\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n  services {\n    id\n    name\n    channelType {\n      type\n      displayName\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "7e1132d44e31a93a7863e3fe0f9f129e";
+(node as any).hash = "16a868ec6d18228ec819d60d1988270c";
 
 export default node;
