@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { deinterlacerCanvas } from './deinterlacer';
-import { fitDocument, moveMedia } from './useDataBroadcast';
+import { fitDocument, keyGroup, moveMedia, RemoteKey, usedKeyGroups } from './useDataBroadcast';
 import classes from './TsPlayer.module.css';
 
 // player は、TsPlayer と同じく、映像の要素 (.media) の中に、yadif の包みと video と字幕の canvas を置いたものを作る。
@@ -102,5 +102,33 @@ describe('fitDocument', () => {
     },
   ])('$name', ({ layer, resolution, want }) => {
     expect(fitDocument(layer, resolution)).toEqual(want);
+  });
+});
+
+describe('usedKeyGroups', () => {
+  test.each([
+    { name: '宣言がなければ、basic と data-button', list: [], want: ['basic', 'data-button'] },
+    { name: '宣言したグループだけ', list: ['numeric-tuning'], want: ['numeric-tuning'] },
+    {
+      name: 'リモコンにないグループは除く',
+      list: ['basic', 'special-1'],
+      want: ['basic'],
+    },
+  ])('$name', ({ list, want }) => {
+    expect([...usedKeyGroups(new Set(list))].sort()).toEqual([...want].sort());
+  });
+});
+
+describe('keyGroup', () => {
+  test.each([
+    { key: RemoteKey.up, want: 'basic' },
+    { key: RemoteKey.enter, want: 'basic' },
+    { key: RemoteKey.back, want: 'basic' },
+    { key: RemoteKey.blue, want: 'data-button' },
+    { key: RemoteKey.yellow, want: 'data-button' },
+    { key: RemoteKey.digit0, want: 'numeric-tuning' },
+    { key: RemoteKey.digit12, want: 'numeric-tuning' },
+  ])('キー $key は $want', ({ key, want }) => {
+    expect(keyGroup(key)).toBe(want);
   });
 });
