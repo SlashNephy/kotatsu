@@ -70,4 +70,15 @@ describe('useLiveLag', () => {
     fire(video, 'play');
     expect(onReload).not.toHaveBeenCalled();
   });
+
+  test('ストリームが終わって止まったのは、遅れとみなさない', () => {
+    const video = document.createElement('video');
+    Object.defineProperty(video, 'ended', { configurable: true, get: () => true });
+    const { result } = renderHook(() =>
+      useLiveLag(video, { reloadOnResume: true, onReload: vi.fn() }),
+    );
+
+    fire(video, 'pause');
+    expect(result.current).toBe(false);
+  });
 });
