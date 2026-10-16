@@ -14,6 +14,9 @@ export type CaptureEntry = {
   serviceName: string;
   programName: string | null;
   recordingId: string | null;
+  // position は、録画で撮ったときの再生位置 (録画の始まりからの秒)。ライブなら null。
+  // 履歴を残し始めたときの版では持たないので、ないこともある。
+  position?: number | null;
   image: Blob;
 };
 

@@ -64,7 +64,15 @@ import { ServiceLabel } from '../../guide/ServiceLabel';
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
 
+// PlaySearch は、再生の画面の URL のクエリ。t は、再生を始める位置 (録画の始まりからの秒)。キャプチャの履歴から、撮った場面を開くのに使う (#457)。
+type PlaySearch = { t?: number };
+
 export const Route = createFileRoute('/recordings/$recordingId_/play')({
+  validateSearch: (search: Record<string, unknown>): PlaySearch => {
+    const t = typeof search.t === 'number' ? search.t : Number(search.t);
+
+    return Number.isFinite(t) && t >= 0 ? { t } : {};
+  },
   component: PlayPage,
 });
 
@@ -72,6 +80,7 @@ export const Route = createFileRoute('/recordings/$recordingId_/play')({
 function PlayPage() {
   const { t } = useTranslation();
   const { recordingId } = Route.useParams();
+  const { t: start } = Route.useSearch();
 
   return (
     <Stack gap="sm">
@@ -101,14 +110,14 @@ function PlayPage() {
         }
       >
         <Suspense fallback={<PageLoader />}>
-          <Player key={recordingId} recordingId={recordingId} />
+          <Player key={recordingId} recordingId={recordingId} start={start} />
         </Suspense>
       </ErrorBoundary>
     </Stack>
   );
 }
 
-function Player({ recordingId }: { recordingId: string }) {
+function Player({ recordingId, start }: { recordingId: string; start: number | undefined }) {
   const { t } = useTranslation();
   const data = useLazyLoadQuery<RecordingIdPlayQuery>(
     graphql`
@@ -192,10 +201,12 @@ function Player({ recordingId }: { recordingId: string }) {
             1000,
           0,
         );
-  // resumeAt は、前回の続きから再生する位置 (秒)。続きがなければ 0 (設計書 7.5)。
+  // resumeAt は、再生を始める位置 (秒)。URL で位置を渡されたらそこから、なければ前回の続きから、続きもなければ 0 (設計書 7.5)。
   // Int64 は Relay の型では any になるので、数に直す。
   const savedMs = recording?.watchPositionMs == null ? null : Number(recording.watchPositionMs);
-  const [resumeAt] = useState(() => resumePosition(savedMs, duration));
+  const [resumeAt] = useState(() =>
+    start === undefined ? resumePosition(savedMs, duration) : Math.min(start, duration),
+  );
   // kyusu の HLS は、録画の全体を 1 つのプレイリストで表すので、video の時刻がそのまま録画の中の位置になる。
   const hls = route.kind === 'kyusu';
   // offset は、今の読み込みを始めた、録画の始まりからの秒。ブラウザの中で変換するときは、シークすると、
@@ -322,6 +333,7 @@ function Player({ recordingId }: { recordingId: string }) {
         ? Date.now()
         : broadcastTime(recording.recordedFrom, recording.gaps, currentPosition()),
     recordingId,
+    position: currentPosition,
   });
   const doubleTap = useDoubleTap((side) => {
     if (side === 'center') {
