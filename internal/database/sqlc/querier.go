@@ -30,6 +30,8 @@ type Querier interface {
 	BumpUserSettingsVersion(ctx context.Context, arg BumpUserSettingsVersionParams) (int64, error)
 	// 無効にした予約の割り当ての結果を消す。
 	ClearDisabledAssignments(ctx context.Context) (int64, error)
+	// 割り込みから予約した番組に戻ったので、記録した放送の終了を取り消す (#636)。
+	ClearRecordingBroadcastEnded(ctx context.Context, arg ClearRecordingBroadcastEndedParams) error
 	ClearStoragePoolLow(ctx context.Context, id string) error
 	// 書き終えたファイルの大きさと、表す時間の終わりを記録する。
 	CloseRecordingFile(ctx context.Context, arg CloseRecordingFileParams) error

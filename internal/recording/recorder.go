@@ -1065,6 +1065,12 @@ func (t *endTracker) observeBroadcast(ctx context.Context, now time.Time) {
 		r.logger.InfoContext(ctx, "the program left the air; recording the end margin",
 			slog.String("recording_id", t.recordingID.String()), slog.Duration("margin", t.endMargin))
 	}
+	if change.resumed {
+		if err := q.ClearRecordingBroadcastEnded(ctx, sqlc.ClearRecordingBroadcastEndedParams{Now: now, ID: t.recordingID}); err != nil {
+			r.logger.WarnContext(ctx, "failed to clear the broadcast end", slog.Any("error", err))
+		}
+		r.logger.InfoContext(ctx, "the program is back on the air; continuing the recording", slog.String("recording_id", t.recordingID.String()))
+	}
 }
 
 // broadcastEnd は、observeBroadcast で読んだ放送の状態で、EPG から決めた終わり end を決め直す (#389)。

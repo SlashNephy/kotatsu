@@ -37,6 +37,21 @@ func (q *Queries) AddRecordingStats(ctx context.Context, arg AddRecordingStatsPa
 	return err
 }
 
+const clearRecordingBroadcastEnded = `-- name: ClearRecordingBroadcastEnded :exec
+UPDATE recordings SET broadcast_ended_at = NULL, updated_at = $1 WHERE id = $2
+`
+
+type ClearRecordingBroadcastEndedParams struct {
+	Now time.Time
+	ID  uuid.UUID
+}
+
+// 割り込みから予約した番組に戻ったので、記録した放送の終了を取り消す (#636)。
+func (q *Queries) ClearRecordingBroadcastEnded(ctx context.Context, arg ClearRecordingBroadcastEndedParams) error {
+	_, err := q.db.Exec(ctx, clearRecordingBroadcastEnded, arg.Now, arg.ID)
+	return err
+}
+
 const closeRecordingFile = `-- name: CloseRecordingFile :exec
 UPDATE recording_files SET size = $1, ended_at = $2 WHERE id = $3
 `

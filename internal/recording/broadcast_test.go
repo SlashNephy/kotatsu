@@ -50,6 +50,32 @@ func TestBroadcastTracker(t *testing.T) {
 			now:   at(12, 20), wantEnd: at(12, 20).Add(margin), wantStarted: true, wantEnded: true,
 		},
 		{
+			name: "割り込まれても、次の番組が予約した番組なら、終わったとはしない",
+			steps: []step{
+				{now: new(at(12, 0)), pf: pf(ours, next)},
+				{now: new(at(12, 10)), pf: pf(other, ours)},
+			},
+			now: at(12, 15), wantEnd: planned, wantStarted: true,
+		},
+		{
+			name: "割り込みの間に、次の番組が予約した番組でなくなったら、そのときに終わったとする",
+			steps: []step{
+				{now: new(at(12, 0)), pf: pf(ours, next)},
+				{now: new(at(12, 10)), pf: pf(other, ours)},
+				{now: new(at(12, 12)), pf: pf(other, next)},
+			},
+			now: at(12, 12), wantEnd: at(12, 12).Add(margin), wantStarted: true, wantEnded: true,
+		},
+		{
+			name: "割り込みの後、後ろのマージンを録り終える前に予約した番組に戻ったら、録り続ける",
+			steps: []step{
+				{now: new(at(12, 0)), pf: pf(ours, next)},
+				{now: new(at(12, 10)), pf: pf(other, next)},
+				{now: new(at(12, 10).Add(10 * time.Second)), pf: pf(ours, next)},
+			},
+			now: at(12, 11), wantEnd: planned, wantStarted: true, wantEnded: true,
+		},
+		{
 			name:  "予定の終わりを過ぎても放送中なら、延ばす (延長)",
 			steps: []step{{now: new(at(12, 0)), pf: pf(ours, next)}},
 			now:   at(12, 31), wantEnd: at(12, 36), wantStarted: true,

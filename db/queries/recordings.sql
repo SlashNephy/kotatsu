@@ -149,6 +149,10 @@ UPDATE recordings SET broadcast_started_at = @at, updated_at = @at WHERE id = @i
 -- 予約した番組が放送中でなくなった日時を、最初の一度だけ記録する。
 UPDATE recordings SET broadcast_ended_at = @at, updated_at = @at WHERE id = @id AND broadcast_ended_at IS NULL;
 
+-- name: ClearRecordingBroadcastEnded :exec
+-- 割り込みから予約した番組に戻ったので、記録した放送の終了を取り消す (#636)。
+UPDATE recordings SET broadcast_ended_at = NULL, updated_at = @now WHERE id = @id;
+
 -- name: MarkRecordingNotBroadcast :exec
 -- 予約した番組が放送されなかったことと、その時間に放送されていた番組を記録する。
 UPDATE recordings SET not_broadcast = true, aired_event_id = sqlc.narg(aired_event_id), updated_at = @now WHERE id = @id;
