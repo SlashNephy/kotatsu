@@ -103,3 +103,62 @@ func TestClientOpenServiceStreamEnds(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 	require.NoError(t, stream.Close())
 }
+
+func TestClientOpenServiceStreamOpenTimeout(t *testing.T) {
+	t.Parallel()
+
+	const openTimeout = 200 * time.Millisecond
+	tests := []struct {
+		name string
+		// delay は、チューナーサーバーが応答の頭を返すまでの時間。
+		delay   time.Duration
+		wantErr error
+	}{
+		{name: "responds in time", delay: 0, wantErr: nil},
+		// チューナーの空きを待つなどして、応答しないまま上限が過ぎた。
+		{name: "does not respond", delay: time.Hour, wantErr: mirakurun.ErrStreamOpenTimeout},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				select {
+				case <-r.Context().Done():
+					return
+				case <-time.After(tt.delay):
+				}
+				flusher, ok := w.(http.Flusher)
+				if !ok {
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+				flusher.Flush()
+				// 応答した後は、上限より長くデータを送り続ける。開く時間の上限は、ストリームを止めない。
+				packet := make([]byte, 188)
+				for range 6 {
+					_, _ = w.Write(packet)
+					flusher.Flush()
+					time.Sleep(openTimeout / 2)
+				}
+			}))
+			t.Cleanup(server.Close)
+			client, err := mirakurun.New(&mirakurun.Options{URL: server.URL, StreamOpenTimeout: openTimeout})
+			require.NoError(t, err)
+
+			started := time.Now()
+			stream, err := client.OpenServiceStream(t.Context(), 3273601024, nil)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.Less(t, time.Since(started), 5*time.Second)
+
+				return
+			}
+			require.NoError(t, err)
+			data, err := io.ReadAll(stream)
+			require.NoError(t, err)
+			assert.Len(t, data, 6*188)
+			require.NoError(t, stream.Close())
+		})
+	}
+}

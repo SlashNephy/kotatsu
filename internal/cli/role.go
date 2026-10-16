@@ -235,6 +235,7 @@ func newTunerClient(deps *Deps) (*mirakurun.Client, error) {
 		RequestTimeout:    0,
 		DetectInterval:    0,
 		StreamIdleTimeout: 0,
+		StreamOpenTimeout: 0,
 		Clock:             deps.Clock,
 	})
 }

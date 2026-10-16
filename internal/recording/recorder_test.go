@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -327,6 +328,16 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			name: "チューナーを確保できない",
 			tuner: func(*fixture) recording.StreamOpener {
 				return failingStream{err: &mirakurun.APIError{StatusCode: http.StatusServiceUnavailable}}
+			},
+			freeSpace: nil,
+			want:      recording.FailureTunerUnavailable,
+			retries:   true,
+		},
+		{
+			// チューナーの空きを待って応答しないまま、開く時間の上限が過ぎた (#412)。
+			name: "チューナーサーバーが応答を返さない",
+			tuner: func(*fixture) recording.StreamOpener {
+				return failingStream{err: fmt.Errorf("failed to request: %w", mirakurun.ErrStreamOpenTimeout)}
 			},
 			freeSpace: nil,
 			want:      recording.FailureTunerUnavailable,
