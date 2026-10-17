@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<4d9a7332db4be8ed627f7f230c18f3b1>>
+ * @generated SignedSource<<fa0cd769f558d93cb3b89382902eebf9>>
  * @lightSyntaxTransform
  */
 
@@ -52,7 +52,7 @@ export type ReservationSettingsDialogQuery$data = {
     // value in case none of the concrete values match.
     readonly __typename: "%other";
   } | null | undefined;
-  readonly storagePoolIds: ReadonlyArray<string>;
+  readonly storagePoolNames: ReadonlyArray<string>;
   readonly systemSettings: {
     readonly recordingDefaults: {
       readonly joinSegments: boolean;
@@ -124,7 +124,7 @@ v5 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "storagePoolIds",
+  "name": "storagePoolNames",
   "storageKey": null
 },
 v6 = [
@@ -400,16 +400,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "5e967c88cd7bab1d03942b621653ce0d",
+    "cacheID": "917dcfa1a7f8eab8954fd4b3e692db4b",
     "id": null,
     "metadata": {},
     "name": "ReservationSettingsDialogQuery",
     "operationKind": "query",
-    "text": "query ReservationSettingsDialogQuery(\n  $id: ID!\n) {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      priority\n      joinSegments\n    }\n  }\n  storagePoolIds\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n    }\n    ... on Reservation {\n      kind\n      followEventRelay\n      createdAt\n      createdBy {\n        displayName\n        id\n      }\n      updatedAt\n      updatedBy {\n        displayName\n        id\n      }\n      rules {\n        name\n        settings {\n          poolId\n          startMarginSeconds\n          endMarginSeconds\n          fileNameTemplate\n          priority\n          joinSegments\n        }\n        id\n      }\n      settings {\n        poolId\n        fileNameTemplate\n        startMarginSeconds\n        endMarginSeconds\n        priority\n        joinSegments\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ReservationSettingsDialogQuery(\n  $id: ID!\n) {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      priority\n      joinSegments\n    }\n  }\n  storagePoolNames\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n    }\n    ... on Reservation {\n      kind\n      followEventRelay\n      createdAt\n      createdBy {\n        displayName\n        id\n      }\n      updatedAt\n      updatedBy {\n        displayName\n        id\n      }\n      rules {\n        name\n        settings {\n          poolId\n          startMarginSeconds\n          endMarginSeconds\n          fileNameTemplate\n          priority\n          joinSegments\n        }\n        id\n      }\n      settings {\n        poolId\n        fileNameTemplate\n        startMarginSeconds\n        endMarginSeconds\n        priority\n        joinSegments\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "05b90d38dd1ad1e06efd88f0e7596a88";
+(node as any).hash = "2c8f3a42344bc436dedf38cf70056548";
 
 export default node;

@@ -376,7 +376,7 @@ type ComplexityRoot struct {
 		SecondFactors           func(childComplexity int) int
 		Services                func(childComplexity int, includeHidden bool) int
 		Sessions                func(childComplexity int) int
-		StoragePoolIds          func(childComplexity int) int
+		StoragePoolNames        func(childComplexity int) int
 		SystemSettings          func(childComplexity int) int
 		SystemStatus            func(childComplexity int) int
 		Tags                    func(childComplexity int) int
@@ -780,7 +780,7 @@ type QueryResolver interface {
 	AuditEvents(ctx context.Context, first int, after *string, filter *model.AuditEventFilter) (*model.AuditEventConnection, error)
 	SystemStatus(ctx context.Context) (*model.SystemStatus, error)
 	TunerServerHealth(ctx context.Context) (*model.TunerServerHealth, error)
-	StoragePoolIds(ctx context.Context) ([]string, error)
+	StoragePoolNames(ctx context.Context) ([]string, error)
 	Node(ctx context.Context, id string) (model.Node, error)
 	ChannelTypes(ctx context.Context) ([]*model.ChannelType, error)
 	Services(ctx context.Context, includeHidden bool) ([]*model.Service, error)
@@ -2461,12 +2461,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Sessions(childComplexity), true
-	case "Query.storagePoolIds":
-		if e.ComplexityRoot.Query.StoragePoolIds == nil {
+	case "Query.storagePoolNames":
+		if e.ComplexityRoot.Query.StoragePoolNames == nil {
 			break
 		}
 
-		return e.ComplexityRoot.Query.StoragePoolIds(childComplexity), true
+		return e.ComplexityRoot.Query.StoragePoolNames(childComplexity), true
 	case "Query.systemSettings":
 		if e.ComplexityRoot.Query.SystemSettings == nil {
 			break
@@ -4088,10 +4088,10 @@ extend type Query {
 
 extend type Query {
   """
-  保存先プールの ID を、昇順に返す。ログイン中の誰でも読め、予約とルールで保存先を選ぶのに使う (設計書 5.6、#463)。
+  保存先プールの名前 (ID) を、昇順に返す。ログイン中の誰でも読め、予約とルールで保存先を選ぶのに使う (設計書 5.6、#463)。
   マウント先や空き容量は、管理者向けの systemStatus で返す。
   """
-  storagePoolIds: [String!]!
+  storagePoolNames: [String!]!
 }
 `, BuiltIn: false},
 	{Name: "../schema/changes.graphqls", Input: `"""
@@ -14048,16 +14048,16 @@ func (ec *executionContext) fieldContext_Query_tunerServerHealth(_ context.Conte
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_storagePoolIds(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Query_storagePoolNames(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_storagePoolIds(ctx, field)
+			return ec.fieldContext_Query_storagePoolNames(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Query().StoragePoolIds(ctx)
+			return ec.Resolvers.Query().StoragePoolNames(ctx)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
@@ -14067,7 +14067,7 @@ func (ec *executionContext) _Query_storagePoolIds(ctx context.Context, field gra
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Query_storagePoolIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_storagePoolNames(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
 }
 
@@ -25328,7 +25328,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
-		case "storagePoolIds":
+		case "storagePoolNames":
 			field := field
 
 			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
@@ -25337,7 +25337,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_storagePoolIds(ctx, field)
+				res = ec._Query_storagePoolNames(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

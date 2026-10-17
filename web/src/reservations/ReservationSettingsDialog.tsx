@@ -71,7 +71,7 @@ function Form({ id, onClose, onReserved }: Props) {
             joinSegments
           }
         }
-        storagePoolIds
+        storagePoolNames
         node(id: $id) {
           __typename
           ... on Program {
@@ -266,7 +266,7 @@ function Form({ id, onClose, onReserved }: Props) {
           </Text>
         )}
         <PoolSelect
-          pools={data.storagePoolIds}
+          pools={data.storagePoolNames}
           value={poolId}
           onChange={setPoolId}
           inheritedLabel={

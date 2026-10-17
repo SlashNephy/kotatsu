@@ -21,7 +21,7 @@ func (r *queryResolver) TunerServerHealth(ctx context.Context) (*model.TunerServ
 	return r.tunerServerHealth(ctx)
 }
 
-// StoragePoolIds is the resolver for the storagePoolIds field.
-func (r *queryResolver) StoragePoolIds(ctx context.Context) ([]string, error) {
-	return r.storagePoolIDs(ctx)
+// StoragePoolNames is the resolver for the storagePoolNames field.
+func (r *queryResolver) StoragePoolNames(ctx context.Context) ([]string, error) {
+	return r.storagePoolNames(ctx)
 }

@@ -244,9 +244,9 @@ func (r *Resolver) systemStatus(ctx context.Context) (*model.SystemStatus, error
 	return status, nil
 }
 
-// storagePoolIDs は、保存先プールの ID を昇順に返す。このインスタンスにマウントしたプールと、設定を保存したプールを合わせる。
+// storagePoolNames は、保存先プールの名前 (ID) を昇順に返す。このインスタンスにマウントしたプールと、設定を保存したプールを合わせる。
 // ロールを分けた構成で、このインスタンスがマウントしていないプールも選べるようにするためである。
-func (r *Resolver) storagePoolIDs(ctx context.Context) ([]string, error) {
+func (r *Resolver) storagePoolNames(ctx context.Context) ([]string, error) {
 	if _, err := viewer(ctx); err != nil {
 		return nil, err
 	}
@@ -262,7 +262,11 @@ func (r *Resolver) storagePoolIDs(ctx context.Context) ([]string, error) {
 		ids[row.ID] = true
 	}
 
-	return slices.Sorted(maps.Keys(ids)), nil
+	// プールがなくても、null ではなく空の一覧を返す。
+	sorted := slices.AppendSeq(make([]string, 0, len(ids)), maps.Keys(ids))
+	slices.Sort(sorted)
+
+	return sorted, nil
 }
 
 // storagePools は、このインスタンスにマウントされた保存先プールを、設定と空き容量と一緒に返す。

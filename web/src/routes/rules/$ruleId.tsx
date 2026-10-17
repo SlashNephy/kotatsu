@@ -84,7 +84,7 @@ function Rule({ ruleId }: { ruleId: string }) {
           type
           displayName
         }
-        storagePoolIds
+        storagePoolNames
         systemSettings {
           recordingDefaults {
             poolId
@@ -129,7 +129,7 @@ function Rule({ ruleId }: { ruleId: string }) {
       initial={rule != null ? fromRule(rule) : newRuleForm(ruleConditions)}
       channelTypes={data.channelTypes}
       services={data.services}
-      pools={data.storagePoolIds}
+      pools={data.storagePoolNames}
       defaultPoolId={data.systemSettings.recordingDefaults.poolId ?? null}
       readOnly={data.viewer.role === 'VIEWER'}
       authorship={
