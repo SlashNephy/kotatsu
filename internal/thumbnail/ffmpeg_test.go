@@ -61,6 +61,41 @@ func TestFFmpeg(t *testing.T) {
 	assert.Less(t, max(r, g, b)>>8, uint32(16), "the pillarbox is black")
 }
 
+// TestFFmpegCodecs は、本物の FFmpeg で、H.264 と HEVC の TS からも、索引を使って代表画像とプレビュー画像を作れることを確かめる。
+// どちらも 320×180 の約 4 秒の TS で、I フレームは約 1 秒ごとにある。FFmpeg のない環境 (CI など) では飛ばす。
+func TestFFmpegCodecs(t *testing.T) {
+	t.Parallel()
+
+	ffmpeg, err := thumbnail.NewFFmpeg()
+	if errors.Is(err, thumbnail.ErrFFmpegNotFound) {
+		t.Skip("FFmpeg is not installed")
+	}
+	require.NoError(t, err)
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{name: "H.264", path: "../../testdata/ts/test-h264.ts"},
+		{name: "HEVC", path: "../../testdata/ts/test-hevc.ts"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			index := indexOf(t, tt.path)
+			require.Len(t, index, 4)
+
+			result, err := thumbnail.NewGenerator(ffmpeg, &thumbnail.Options{Preview: true, Interval: time.Second}).
+				Generate(t.Context(), []thumbnail.Segment{{Path: tt.path, Start: 0, Index: index}})
+			require.NoError(t, err)
+			assert.Equal(t, image.Pt(thumbnail.ThumbnailWidth, thumbnail.ThumbnailHeight), decode(t, result.Thumbnail).Bounds().Size())
+			assert.Equal(t, []float64{0, 1.001, 2.002, 3.003}, result.Manifest.Times)
+			assert.Equal(t, image.Pt(4*thumbnail.TileWidth, thumbnail.TileHeight), decode(t, result.Preview).Bounds().Size())
+		})
+	}
+}
+
 // TestNewFFmpegNotFound は、FFmpeg が PATH に見つからなければ、ErrFFmpegNotFound を返すことを確かめる。
 // 環境変数を変えるので、ほかのテストと並べて動かさない。
 func TestNewFFmpegNotFound(t *testing.T) {

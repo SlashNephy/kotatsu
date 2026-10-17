@@ -35,7 +35,7 @@ type Analyzer struct {
 	// 録画の書き込みを止めないよう、Write からは返さない。
 	indexErr error
 	iframes  int64
-	// video は、I フレームを探す映像の PID の状態。MPEG-2 の映像がまだ見つかっていなければ nil。
+	// video は、I フレームを探す映像の PID の状態。I フレームの探し方を知っている映像がまだ見つかっていなければ nil。
 	video *iframeDetector
 	// programsGeneration は、video を選んだときの番組の構成の世代。
 	programsGeneration int
@@ -265,12 +265,12 @@ func (a *Analyzer) discardPayload(pid uint16) {
 func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 	if a.programsGeneration != a.programs.generation {
 		a.programsGeneration = a.programs.generation
-		pid, ok := a.programs.mpeg2VideoPID()
+		video, ok := a.programs.firstVideo()
 		switch {
 		case !ok:
 			a.video = nil
-		case a.video == nil || a.video.pid != pid:
-			a.video = newIFrameDetector(pid)
+		case a.video == nil || a.video.pid != video.PID || a.video.streamType != video.StreamType:
+			a.video, _ = newIFrameDetector(video.PID, video.StreamType)
 		}
 	}
 	if a.video == nil || a.video.pid != pkt.pid {

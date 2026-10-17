@@ -20,7 +20,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends /tmp/tsduck.deb \
   && rm -rf /tmp/tsduck.deb /var/lib/apt/lists/*
 
-COPY generate.sh /work/
+COPY generate.sh generate-codecs.sh /work/
 COPY tables/ /work/tables/
 WORKDIR /work
 ENTRYPOINT ["/work/generate.sh"]
