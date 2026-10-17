@@ -1,5 +1,6 @@
 import {
   Alert,
+  Anchor,
   Badge,
   Box,
   Button,
@@ -70,6 +71,14 @@ function SystemPage() {
 
 const query = graphql`
   query systemQuery {
+    version {
+      version
+      latestRelease {
+        version
+        url
+        publishedAt
+      }
+    }
     systemStatus {
       instances {
         instanceId
@@ -165,6 +174,24 @@ function SystemStatus() {
           {t('admin.system.refresh')}
         </Button>
       </Group>
+
+      {/* 新しいリリースを確かめる設定を入れていれば、新しい版を知らせる (#506)。 */}
+      {data.version.latestRelease != null && (
+        <Alert
+          color="teal"
+          title={t('admin.system.newRelease', { version: data.version.latestRelease.version })}
+        >
+          <Text size="sm">
+            {t('admin.system.newReleaseBody', {
+              current: data.version.version,
+              published: formatTime(data.version.latestRelease.publishedAt),
+            })}{' '}
+            <Anchor href={data.version.latestRelease.url} target="_blank" rel="noopener noreferrer">
+              {t('admin.system.newReleaseLink')}
+            </Anchor>
+          </Text>
+        </Alert>
+      )}
 
       <Section title={t('admin.system.tunerServer')}>
         {status.tunerServer == null ? (

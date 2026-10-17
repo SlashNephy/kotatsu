@@ -46,9 +46,10 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	AppVersion struct {
-		Modified func(childComplexity int) int
-		Revision func(childComplexity int) int
-		Version  func(childComplexity int) int
+		LatestRelease func(childComplexity int) int
+		Modified      func(childComplexity int) int
+		Revision      func(childComplexity int) int
+		Version       func(childComplexity int) int
 	}
 
 	AuditActor struct {
@@ -516,6 +517,12 @@ type ComplexityRoot struct {
 		Codes func(childComplexity int) int
 	}
 
+	Release struct {
+		PublishedAt func(childComplexity int) int
+		URL         func(childComplexity int) int
+		Version     func(childComplexity int) int
+	}
+
 	RenameRecordingFilesPayload struct {
 		Failed  func(childComplexity int) int
 		Renamed func(childComplexity int) int
@@ -931,6 +938,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	_ = ec
 	switch typeName + "." + field {
 
+	case "AppVersion.latestRelease":
+		if e.ComplexityRoot.AppVersion.LatestRelease == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AppVersion.LatestRelease(childComplexity), true
 	case "AppVersion.modified":
 		if e.ComplexityRoot.AppVersion.Modified == nil {
 			break
@@ -3183,6 +3196,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecoveryCodes.Codes(childComplexity), true
+
+	case "Release.publishedAt":
+		if e.ComplexityRoot.Release.PublishedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Release.PublishedAt(childComplexity), true
+	case "Release.url":
+		if e.ComplexityRoot.Release.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Release.URL(childComplexity), true
+	case "Release.version":
+		if e.ComplexityRoot.Release.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Release.Version(childComplexity), true
 
 	case "RenameRecordingFilesPayload.failed":
 		if e.ComplexityRoot.RenameRecordingFilesPayload.Failed == nil {
@@ -5769,6 +5801,22 @@ type AppVersion {
   コミットしていない変更を含むビルドかどうか。
   """
   modified: Boolean!
+  """
+  動いている版より新しいリリース (#506)。管理者にだけ返す。新しいリリースを確かめる設定 (update_check.enabled) を入れていないか、
+  新しいリリースがないか、まだ確かめていなければ null。
+  """
+  latestRelease: Release
+}
+
+"""
+Kotatsu のリリース。
+"""
+type Release {
+  "リリースの版 (1.2.3)。"
+  version: String!
+  "GitHub のリリースのページの URL。"
+  url: String!
+  publishedAt: Time!
 }
 
 type Subscription {
@@ -6358,6 +6406,8 @@ func (ec *executionContext) childFields_AppVersion(ctx context.Context, field gr
 		return ec.fieldContext_AppVersion_revision(ctx, field)
 	case "modified":
 		return ec.fieldContext_AppVersion_modified(ctx, field)
+	case "latestRelease":
+		return ec.fieldContext_AppVersion_latestRelease(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AppVersion", field.Name)
 }
@@ -7086,6 +7136,18 @@ func (ec *executionContext) childFields_RecoveryCodes(ctx context.Context, field
 		return ec.fieldContext_RecoveryCodes_codes(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecoveryCodes", field.Name)
+}
+
+func (ec *executionContext) childFields_Release(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "version":
+		return ec.fieldContext_Release_version(ctx, field)
+	case "url":
+		return ec.fieldContext_Release_url(ctx, field)
+	case "publishedAt":
+		return ec.fieldContext_Release_publishedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Release", field.Name)
 }
 
 func (ec *executionContext) childFields_RenameRecordingFilesPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -9015,6 +9077,38 @@ func (ec *executionContext) _AppVersion_modified(ctx context.Context, field grap
 }
 func (ec *executionContext) fieldContext_AppVersion_modified(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AppVersion", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AppVersion_latestRelease(ctx context.Context, field graphql.CollectedField, obj *model.AppVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AppVersion_latestRelease(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LatestRelease, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Release) graphql.Marshaler {
+			return ec.marshalORelease2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRelease(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AppVersion_latestRelease(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AppVersion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Release(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _AuditActor_type(ctx context.Context, field graphql.CollectedField, obj *model.AuditActor) (ret graphql.Marshaler) {
@@ -18264,6 +18358,75 @@ func (ec *executionContext) fieldContext_RecoveryCodes_codes(_ context.Context, 
 	return graphql.NewScalarFieldContext("RecoveryCodes", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Release_version(ctx context.Context, field graphql.CollectedField, obj *model.Release) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Release_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Release_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Release", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Release_url(ctx context.Context, field graphql.CollectedField, obj *model.Release) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Release_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Release_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Release", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Release_publishedAt(ctx context.Context, field graphql.CollectedField, obj *model.Release) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Release_publishedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PublishedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Release_publishedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Release", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
 func (ec *executionContext) _RenameRecordingFilesPayload_renamed(ctx context.Context, field graphql.CollectedField, obj *model.RenameRecordingFilesPayload) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -24705,6 +24868,11 @@ func (ec *executionContext) _AppVersion(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "latestRelease":
+			out.Values[i] = ec._AppVersion_latestRelease(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -29145,6 +29313,54 @@ func (ec *executionContext) _RecoveryCodes(ctx context.Context, sel ast.Selectio
 			out.Values[i] = graphql.MarshalString("RecoveryCodes")
 		case "codes":
 			out.Values[i] = ec._RecoveryCodes_codes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var releaseImplementors = []string{"Release"}
+
+func (ec *executionContext) _Release(ctx context.Context, sel ast.SelectionSet, obj *model.Release) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, releaseImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Release")
+		case "version":
+			out.Values[i] = ec._Release_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._Release_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "publishedAt":
+			out.Values[i] = ec._Release_publishedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -33961,6 +34177,13 @@ func (ec *executionContext) marshalORecordingState2ᚕgithubᚗcomᚋSlashNephy�
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalORelease2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRelease(ctx context.Context, sel ast.SelectionSet, v *model.Release) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Release(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐReservation(ctx context.Context, sel ast.SelectionSet, v *model.Reservation) graphql.Marshaler {

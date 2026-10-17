@@ -36,7 +36,7 @@ func (r *queryResolver) Version(ctx context.Context) (*model.AppVersion, error) 
 		revision = new(build.Revision)
 	}
 
-	return &model.AppVersion{Version: build.Version, Revision: revision, Modified: build.Modified}, nil
+	return &model.AppVersion{Version: build.Version, Revision: revision, Modified: build.Modified, LatestRelease: r.latestRelease(ctx)}, nil
 }
 
 // TimeZone is the resolver for the timeZone field.

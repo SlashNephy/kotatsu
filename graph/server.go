@@ -27,6 +27,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/settings"
 	"github.com/SlashNephy/kotatsu/internal/stream"
 	"github.com/SlashNephy/kotatsu/internal/thumbnail"
+	"github.com/SlashNephy/kotatsu/internal/update"
 	"github.com/SlashNephy/kotatsu/internal/webhook"
 	"github.com/SlashNephy/kotatsu/internal/webpush"
 )
@@ -90,6 +91,13 @@ type Options struct {
 	MaxDepth          int
 	MaxComplexity     int
 	HeartbeatInterval time.Duration
+	// Updates は、新しいリリースを確かめた結果 (#506)。確かめない設定なら nil。
+	Updates Updates
+}
+
+// Updates は、動いている版より新しいリリースを返す。
+type Updates interface {
+	Latest() *update.Release
 }
 
 // NewHandler は、POST /graphql のハンドラーを返す (設計書 9.1)。
@@ -155,6 +163,7 @@ func NewHandler(opts *Options) http.Handler {
 		totalSpace:   o.TotalSpace,
 		store:        kago.New(o.Pools, o.FreeSpace).WithSidecarDir(o.SidecarDir),
 		library:      library.New(o.Clock, o.Recorder, kago.New(o.Pools, o.FreeSpace).WithSidecarDir(o.SidecarDir), o.Logger),
+		updates:      o.Updates,
 	}
 	if resolver.freeSpace == nil {
 		resolver.freeSpace = kago.FreeSpace
