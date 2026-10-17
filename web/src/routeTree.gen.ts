@@ -35,6 +35,7 @@ import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsAccountRouteImport } from './routes/settings/account'
 import { Route as SettingsNotificationsRouteImport } from './routes/settings/notifications'
 import { Route as SettingsPasswordRouteImport } from './routes/settings/password'
+import { Route as GuideChannelServiceIdRouteImport } from './routes/guide/channel.$serviceId'
 import { Route as RecordingsRecordingIdPlayRouteImport } from './routes/recordings/$recordingId_.play'
 
 const IndexRoute = IndexRouteImport.update({
@@ -167,6 +168,11 @@ const SettingsPasswordRoute = SettingsPasswordRouteImport.update({
   path: '/settings/password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuideChannelServiceIdRoute = GuideChannelServiceIdRouteImport.update({
+  id: '/guide/channel/$serviceId',
+  path: '/guide/channel/$serviceId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RecordingsRecordingIdPlayRoute =
   RecordingsRecordingIdPlayRouteImport.update({
     id: '/recordings/$recordingId_/play',
@@ -201,6 +207,7 @@ export interface FileRoutesByFullPath {
   '/recordings/': typeof RecordingsIndexRoute
   '/rules/': typeof RulesIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/guide/channel/$serviceId': typeof GuideChannelServiceIdRoute
   '/recordings/$recordingId/play': typeof RecordingsRecordingIdPlayRoute
 }
 export interface FileRoutesByTo {
@@ -230,6 +237,7 @@ export interface FileRoutesByTo {
   '/recordings': typeof RecordingsIndexRoute
   '/rules': typeof RulesIndexRoute
   '/settings': typeof SettingsIndexRoute
+  '/guide/channel/$serviceId': typeof GuideChannelServiceIdRoute
   '/recordings/$recordingId/play': typeof RecordingsRecordingIdPlayRoute
 }
 export interface FileRoutesById {
@@ -260,6 +268,7 @@ export interface FileRoutesById {
   '/recordings/': typeof RecordingsIndexRoute
   '/rules/': typeof RulesIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/guide/channel/$serviceId': typeof GuideChannelServiceIdRoute
   '/recordings/$recordingId_/play': typeof RecordingsRecordingIdPlayRoute
 }
 export interface FileRouteTypes {
@@ -291,6 +300,7 @@ export interface FileRouteTypes {
     | '/recordings/'
     | '/rules/'
     | '/settings/'
+    | '/guide/channel/$serviceId'
     | '/recordings/$recordingId/play'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -320,6 +330,7 @@ export interface FileRouteTypes {
     | '/recordings'
     | '/rules'
     | '/settings'
+    | '/guide/channel/$serviceId'
     | '/recordings/$recordingId/play'
   id:
     | '__root__'
@@ -349,6 +360,7 @@ export interface FileRouteTypes {
     | '/recordings/'
     | '/rules/'
     | '/settings/'
+    | '/guide/channel/$serviceId'
     | '/recordings/$recordingId_/play'
   fileRoutesById: FileRoutesById
 }
@@ -379,6 +391,7 @@ export interface RootRouteChildren {
   RecordingsIndexRoute: typeof RecordingsIndexRoute
   RulesIndexRoute: typeof RulesIndexRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
+  GuideChannelServiceIdRoute: typeof GuideChannelServiceIdRoute
   RecordingsRecordingIdPlayRoute: typeof RecordingsRecordingIdPlayRoute
 }
 
@@ -566,6 +579,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/guide/channel/$serviceId': {
+      id: '/guide/channel/$serviceId'
+      path: '/guide/channel/$serviceId'
+      fullPath: '/guide/channel/$serviceId'
+      preLoaderRoute: typeof GuideChannelServiceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/recordings/$recordingId_/play': {
       id: '/recordings/$recordingId_/play'
       path: '/recordings/$recordingId/play'
@@ -603,6 +623,7 @@ const rootRouteChildren: RootRouteChildren = {
   RecordingsIndexRoute: RecordingsIndexRoute,
   RulesIndexRoute: RulesIndexRoute,
   SettingsIndexRoute: SettingsIndexRoute,
+  GuideChannelServiceIdRoute: GuideChannelServiceIdRoute,
   RecordingsRecordingIdPlayRoute: RecordingsRecordingIdPlayRoute,
 }
 export const routeTree = rootRouteImport
