@@ -72,7 +72,7 @@ describe('DataBroadcastRemote', () => {
       vi.advanceTimersByTime(1 + repeatIntervalMs * 2);
       expect(onPress).toHaveBeenCalledTimes(4);
       fireEvent.pointerUp(down, { button: 0 });
-      fireEvent.click(down);
+      fireEvent.click(down, { detail: 1 });
       vi.advanceTimersByTime(repeatIntervalMs * 5);
       expect(onPress).toHaveBeenCalledTimes(4);
       expect(onPress).toHaveBeenLastCalledWith(2);
@@ -81,10 +81,22 @@ describe('DataBroadcastRemote', () => {
     }
   });
 
-  test('キーボードで矢印のボタンを押すと (click だけが届く)、1 回押す', () => {
+  test('キーボードで矢印のボタンを押すと (detail が 0 の click だけが届く)、1 回押す', () => {
     const onPress = renderRemote('shown');
 
-    fireEvent.click(screen.getByRole('button', { name: '上' }));
+    fireEvent.click(screen.getByRole('button', { name: '上' }), { detail: 0 });
+
+    expect(onPress).toHaveBeenCalledExactlyOnceWith(1);
+  });
+
+  test('タッチで矢印のボタンを叩くと (pointerleave が click より先に届く)、1 回だけ押す', () => {
+    const onPress = renderRemote('shown');
+    const up = screen.getByRole('button', { name: '上' });
+
+    fireEvent.pointerDown(up, { button: 0 });
+    fireEvent.pointerUp(up, { button: 0 });
+    fireEvent.pointerLeave(up);
+    fireEvent.click(up, { detail: 1 });
 
     expect(onPress).toHaveBeenCalledExactlyOnceWith(1);
   });

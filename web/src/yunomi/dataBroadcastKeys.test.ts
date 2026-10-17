@@ -1,7 +1,8 @@
-import { describe, expect, test } from 'vitest';
+import { renderHook } from '@testing-library/react';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { dataBroadcastKeyFor } from './dataBroadcastKeys';
-import { RemoteKey } from './useDataBroadcast';
+import { dataBroadcastKeyFor, useDataBroadcastKeys } from './dataBroadcastKeys';
+import { RemoteKey, type KeyGroup } from './useDataBroadcast';
 
 type Init = Partial<{
   key: string;
@@ -77,5 +78,60 @@ describe('dataBroadcastKeyFor', () => {
     },
   ])('$name', ({ event, want }) => {
     expect(dataBroadcastKeyFor(event)).toBe(want);
+  });
+});
+
+describe('useDataBroadcastKeys', () => {
+  const keyDown = (init: KeyboardEventInit) => {
+    const event = new KeyboardEvent('keydown', { cancelable: true, ...init });
+    window.dispatchEvent(event);
+
+    return event;
+  };
+  let unmount: (() => void) | null = null;
+  afterEach(() => {
+    unmount?.();
+    unmount = null;
+  });
+
+  test.each([
+    {
+      name: '文書が使うグループのキーは押し、既定の動きを止める',
+      groups: ['basic'],
+      init: { key: 'Enter' },
+      want: RemoteKey.enter,
+    },
+    {
+      name: '文書が使わないグループのキーは押さない',
+      groups: ['basic', 'data-button'],
+      init: { key: '1' },
+      want: null,
+    },
+  ] as { name: string; groups: KeyGroup[]; init: KeyboardEventInit; want: number | null }[])(
+    '$name',
+    ({ groups, init, want }) => {
+      const press = vi.fn();
+      ({ unmount } = renderHook(() => useDataBroadcastKeys(true, new Set(groups), press)));
+
+      const event = keyDown(init);
+
+      expect(press.mock.calls).toEqual(want === null ? [] : [[want]]);
+      expect(event.defaultPrevented).toBe(want !== null);
+    },
+  );
+
+  test('操作できない間と、外した後は押さない', () => {
+    const press = vi.fn();
+    const { rerender, unmount: dispose } = renderHook(
+      ({ enabled }) => useDataBroadcastKeys(enabled, new Set<KeyGroup>(['basic']), press),
+      { initialProps: { enabled: false } },
+    );
+    keyDown({ key: 'Enter' });
+    rerender({ enabled: true });
+    keyDown({ key: 'Enter' });
+    dispose();
+    keyDown({ key: 'Enter' });
+
+    expect(press).toHaveBeenCalledExactlyOnceWith(RemoteKey.enter);
   });
 });

@@ -190,12 +190,11 @@ export function DataBroadcastRemoteOverlay(props: Parameters<typeof DataBroadcas
 export const repeatDelayMs = 400;
 export const repeatIntervalMs = 120;
 
-// useRepeatPress は、押し続けると繰り返すボタンのハンドラーを返す。押したときに 1 回押し、押し続けると繰り返す。
-// キーボードでボタンを押したとき (click だけが届く) も、1 回押す。押し続けた後に届く click では、もう押さない。
+// useRepeatPress は、押し続けると繰り返すボタンのハンドラーを返す。ポインターで押したときに 1 回押し、押し続けると繰り返す。
+// キーボードでボタンを押したときは click だけが届くので、そのときに 1 回押す。キーボードの click は detail が 0 になる。
+// ポインターの後に届く click (detail が 1 以上) では押さない。タッチでは pointerleave が click より先に届くので、印では見分けない。
 function useRepeatPress(onPress: (key: RemoteKey) => void) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // pointerPressed は、ポインターで押したこと。後に届く click では押さない。
-  const pointerPressed = useRef(false);
   const stop = () => {
     if (timer.current !== null) {
       clearTimeout(timer.current);
@@ -211,7 +210,6 @@ function useRepeatPress(onPress: (key: RemoteKey) => void) {
           return;
         }
         stop();
-        pointerPressed.current = true;
         onPress(key);
         const again = (delay: number) => {
           timer.current = setTimeout(() => {
@@ -222,22 +220,12 @@ function useRepeatPress(onPress: (key: RemoteKey) => void) {
         again(repeatDelayMs);
       },
       onPointerUp: stop,
-      // 押したまま離れたときは、click が届かないので、次のキーボードの操作を飛ばさないようにする。
-      onPointerLeave: () => {
-        stop();
-        pointerPressed.current = false;
-      },
-      onPointerCancel: () => {
-        stop();
-        pointerPressed.current = false;
-      },
-      onClick: () => {
-        if (pointerPressed.current) {
-          pointerPressed.current = false;
-
-          return;
+      onPointerLeave: stop,
+      onPointerCancel: stop,
+      onClick: (event: { detail: number }) => {
+        if (event.detail === 0) {
+          onPress(key);
         }
-        onPress(key);
       },
     }),
   };
