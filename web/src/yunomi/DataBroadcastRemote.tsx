@@ -1,5 +1,5 @@
 import { ActionIcon, Button, Group, SimpleGrid, Text } from '@mantine/core';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { playerControlsClasses } from './PlayerControls';
@@ -47,6 +47,8 @@ export function DataBroadcastRemote({
   onPress: (key: RemoteKey) => void;
 }) {
   const { t } = useTranslation();
+  // 矢印は、押し続けると繰り返す (#441)。
+  const repeat = useRepeatPress(onPress);
   // digitsOpen は、数字のボタンを開いているか。使う文書は少なく、場所を取るので、既定では閉じる。
   const [digitsOpen, setDigitsOpen] = useState(false);
   // データ放送の画面が出て、操作を受けられるようになるまでは押せない。
@@ -64,7 +66,7 @@ export function DataBroadcastRemote({
           variant="default"
           disabled={disabled}
           aria-label={t('player.remote.left')}
-          onClick={() => onPress(Keys.left)}
+          {...repeat.handlers(Keys.left)}
         >
           ←
         </Button>
@@ -73,7 +75,7 @@ export function DataBroadcastRemote({
           variant="default"
           disabled={disabled}
           aria-label={t('player.remote.up')}
-          onClick={() => onPress(Keys.up)}
+          {...repeat.handlers(Keys.up)}
         >
           ↑
         </Button>
@@ -82,7 +84,7 @@ export function DataBroadcastRemote({
           variant="default"
           disabled={disabled}
           aria-label={t('player.remote.down')}
-          onClick={() => onPress(Keys.down)}
+          {...repeat.handlers(Keys.down)}
         >
           ↓
         </Button>
@@ -91,7 +93,7 @@ export function DataBroadcastRemote({
           variant="default"
           disabled={disabled}
           aria-label={t('player.remote.right')}
-          onClick={() => onPress(Keys.right)}
+          {...repeat.handlers(Keys.right)}
         >
           →
         </Button>
@@ -182,4 +184,49 @@ export function DataBroadcastRemoteOverlay(props: Parameters<typeof DataBroadcas
       </Button>
     </div>
   );
+}
+
+// repeatDelayMs と repeatIntervalMs は、矢印を押し続けたときに、繰り返し始めるまでの時間と、繰り返す間隔。
+export const repeatDelayMs = 400;
+export const repeatIntervalMs = 120;
+
+// useRepeatPress は、押し続けると繰り返すボタンのハンドラーを返す。ポインターで押したときに 1 回押し、押し続けると繰り返す。
+// キーボードでボタンを押したときは click だけが届くので、そのときに 1 回押す。キーボードの click は detail が 0 になる。
+// ポインターの後に届く click (detail が 1 以上) では押さない。タッチでは pointerleave が click より先に届くので、印では見分けない。
+function useRepeatPress(onPress: (key: RemoteKey) => void) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stop = () => {
+    if (timer.current !== null) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+  };
+  useEffect(() => stop, []);
+
+  return {
+    handlers: (key: RemoteKey) => ({
+      onPointerDown: (event: { button: number }) => {
+        if (event.button !== 0) {
+          return;
+        }
+        stop();
+        onPress(key);
+        const again = (delay: number) => {
+          timer.current = setTimeout(() => {
+            onPress(key);
+            again(repeatIntervalMs);
+          }, delay);
+        };
+        again(repeatDelayMs);
+      },
+      onPointerUp: stop,
+      onPointerLeave: stop,
+      onPointerCancel: stop,
+      onClick: (event: { detail: number }) => {
+        if (event.detail === 0) {
+          onPress(key);
+        }
+      },
+    }),
+  };
 }
