@@ -23,6 +23,7 @@ import {
   LockOpen,
   Play,
   RefreshCw,
+  ScanSearch,
   Save,
   Tag,
   Trash2,
@@ -46,6 +47,7 @@ import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment'
 import type { RecordingIdDeleteMutation } from './__generated__/RecordingIdDeleteMutation.graphql';
 import type { RecordingIdProtectMutation } from './__generated__/RecordingIdProtectMutation.graphql';
 import type { RecordingIdQuery } from './__generated__/RecordingIdQuery.graphql';
+import type { RecordingIdReanalyzeMutation } from './__generated__/RecordingIdReanalyzeMutation.graphql';
 import type { RecordingIdRegenerateMutation } from './__generated__/RecordingIdRegenerateMutation.graphql';
 import type { RecordingIdTagsMutation } from './__generated__/RecordingIdTagsMutation.graphql';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
@@ -220,8 +222,16 @@ function Recording({ recordingId }: { recordingId: string }) {
       regenerateRecordingImages(id: $id)
     }
   `);
-  // regenerated は、画像の作り直しを頼んだ結果。queued は入れた、waiting は前に頼んだものを待っている。
-  const [regenerated, setRegenerated] = useState<'queued' | 'waiting' | null>(null);
+  const [reanalyze, reanalyzing] = useMutation<RecordingIdReanalyzeMutation>(graphql`
+    mutation RecordingIdReanalyzeMutation($id: ID!) {
+      reanalyzeRecording(id: $id)
+    }
+  `);
+  // regenerated は、画像の作り直しか解析のやり直しを頼んだ結果。queued は入れた、waiting は前に頼んだものを待っている。
+  const [regenerated, setRegenerated] = useState<{
+    kind: 'images' | 'analysis';
+    result: 'queued' | 'waiting';
+  } | null>(null);
   const node = data.node;
   // editedTags は、編集中のタグ。編集していなければ null で、サーバーのタグをそのまま出す。
   const [editedTags, setEditedTags] = useState<string[] | null>(null);
@@ -268,7 +278,10 @@ function Recording({ recordingId }: { recordingId: string }) {
 
                         return;
                       }
-                      setRegenerated(response.regenerateRecordingImages ? 'queued' : 'waiting');
+                      setRegenerated({
+                        kind: 'images',
+                        result: response.regenerateRecordingImages ? 'queued' : 'waiting',
+                      });
                     },
                     onError: () => setError(t('recordings.actionError')),
                   })
@@ -276,12 +289,42 @@ function Recording({ recordingId }: { recordingId: string }) {
               >
                 {t('recordings.regenerateImages')}
               </Button>
+              {/* 索引とドロップなどの集計を、録画のファイルから作り直す。終われば画像も作り直す (#476)。 */}
+              <Button
+                size="xs"
+                variant="subtle"
+                leftSection={<ScanSearch size={14} aria-hidden />}
+                loading={reanalyzing}
+                onClick={() =>
+                  reanalyze({
+                    variables: { id: recording.id },
+                    onCompleted: (response, errors) => {
+                      if (failed(errors)) {
+                        setError(t('recordings.actionError'));
+
+                        return;
+                      }
+                      setRegenerated({
+                        kind: 'analysis',
+                        result: response.reanalyzeRecording ? 'queued' : 'waiting',
+                      });
+                    },
+                    onError: () => setError(t('recordings.actionError')),
+                  })
+                }
+              >
+                {t('recordings.reanalyze')}
+              </Button>
               {regenerated !== null && (
                 <Text size="xs" c="dimmed" role="status">
                   {t(
-                    regenerated === 'queued'
-                      ? 'recordings.regenerateQueued'
-                      : 'recordings.regenerateWaiting',
+                    regenerated.kind === 'images'
+                      ? regenerated.result === 'queued'
+                        ? 'recordings.regenerateQueued'
+                        : 'recordings.regenerateWaiting'
+                      : regenerated.result === 'queued'
+                        ? 'recordings.reanalyzeQueued'
+                        : 'recordings.reanalyzeWaiting',
                   )}
                 </Text>
               )}

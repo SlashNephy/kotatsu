@@ -218,6 +218,7 @@ type ComplexityRoot struct {
 		EnableUser                   func(childComplexity int, id string) int
 		MarkAllNotificationsRead     func(childComplexity int) int
 		MarkNotificationsRead        func(childComplexity int, ids []string) int
+		ReanalyzeRecording           func(childComplexity int, id string) int
 		RegenerateRecordingImages    func(childComplexity int, id string) int
 		RegenerateRecoveryCodes      func(childComplexity int) int
 		RenamePasskey                func(childComplexity int, id string, name string) int
@@ -729,6 +730,7 @@ type MutationResolver interface {
 	SetRecordingTags(ctx context.Context, id string, tags []string) (*model.Recording, error)
 	SaveWatchPosition(ctx context.Context, id string, positionMs int64) (*model.Recording, error)
 	RegenerateRecordingImages(ctx context.Context, id string) (bool, error)
+	ReanalyzeRecording(ctx context.Context, id string) (bool, error)
 	CreateProgramReservation(ctx context.Context, input model.ProgramReservationInput) (*model.Reservation, error)
 	CreateTimeReservation(ctx context.Context, input model.TimeReservationInput) (*model.Reservation, error)
 	UpdateReservation(ctx context.Context, id string, input model.ReservationUpdateInput) (*model.Reservation, error)
@@ -1575,6 +1577,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.MarkNotificationsRead(childComplexity, args["ids"].([]string)), true
+	case "Mutation.reanalyzeRecording":
+		if e.ComplexityRoot.Mutation.ReanalyzeRecording == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_reanalyzeRecording_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ReanalyzeRecording(childComplexity, args["id"].(string)), true
 	case "Mutation.regenerateRecordingImages":
 		if e.ComplexityRoot.Mutation.RegenerateRecordingImages == nil {
 			break
@@ -4891,6 +4904,12 @@ extend type Mutation {
   作り直すまでは、今の画像を出す。同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
   """
   regenerateRecordingImages(id: ID!): Boolean!
+  """
+  録画のファイルを読み直し、索引とドロップなどの集計を作り直すジョブを入れる (設計書 6.1、#476)。視聴者は使えない。
+  終われば、代表画像とプレビュー画像も作り直す。録画中の録画は CONFLICT にする。
+  同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
+  """
+  reanalyzeRecording(id: ID!): Boolean!
 }
 
 """
@@ -7292,6 +7311,20 @@ func (ec *executionContext) field_Mutation_markNotificationsRead_args(ctx contex
 		return nil, err
 	}
 	args["ids"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_reanalyzeRecording_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -10761,6 +10794,50 @@ func (ec *executionContext) fieldContext_Mutation_regenerateRecordingImages(ctx 
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_regenerateRecordingImages_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_reanalyzeRecording(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_reanalyzeRecording(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ReanalyzeRecording(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_reanalyzeRecording(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_reanalyzeRecording_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -23962,6 +24039,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "regenerateRecordingImages":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_regenerateRecordingImages(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reanalyzeRecording":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_reanalyzeRecording(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

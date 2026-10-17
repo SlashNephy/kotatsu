@@ -16,10 +16,12 @@ import (
 	"github.com/riverqueue/river"
 
 	"github.com/SlashNephy/kotatsu/graph/model"
+	"github.com/SlashNephy/kotatsu/internal/analysis"
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/jikkyo"
+	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/library"
 	"github.com/SlashNephy/kotatsu/internal/stream"
 	"github.com/SlashNephy/kotatsu/internal/thumbnail"
@@ -469,6 +471,51 @@ func (r *Resolver) regenerateRecordingImages(ctx context.Context, globalID strin
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return false, fmt.Errorf("failed to commit the thumbnail job: %w", err)
+	}
+
+	return len(results) == 1 && !results[0].UniqueSkippedAsDuplicate, nil
+}
+
+// dbStateRecording は、DB に記録する録画中の状態。
+const dbStateRecording = "recording"
+
+// reanalyzeRecording は、録画の索引と集計を作り直すジョブを入れる。同じ録画のジョブを待っていれば、入れずに false を返す。
+func (r *Resolver) reanalyzeRecording(ctx context.Context, globalID string) (bool, error) {
+	if _, err := librarian(ctx); err != nil {
+		return false, err
+	}
+	recordingID, err := parseRecordingID(globalID)
+	if err != nil {
+		return false, err
+	}
+	if r.jobs == nil {
+		return false, errors.New("the job client is not configured")
+	}
+	recording, err := sqlc.New(r.db).GetRecording(ctx, recordingID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, NewError(CodeNotFound, "recording not found")
+	} else if err != nil {
+		return false, fmt.Errorf("failed to get the recording: %w", err)
+	}
+	// 録画中は、録画が索引と集計を作っている。
+	if recording.State == dbStateRecording {
+		return false, NewError(CodeConflict, "the recording is still being recorded")
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to begin a transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	// 頼まれてやり直すので、取り込んだ録画の解析より先に回す。
+	results, err := r.jobs.InsertManyTx(ctx, tx, []river.InsertManyParams{{
+		Args: analysis.AnalyzeArgs{RecordingID: recordingID}, InsertOpts: &river.InsertOpts{Priority: jobs.PriorityDefault},
+	}})
+	if err != nil {
+		return false, fmt.Errorf("failed to insert the analysis job: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("failed to commit the analysis job: %w", err)
 	}
 
 	return len(results) == 1 && !results[0].UniqueSkippedAsDuplicate, nil

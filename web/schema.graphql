@@ -560,6 +560,12 @@ type Mutation {
   """
   regenerateRecordingImages(id: ID!): Boolean!
   """
+  録画のファイルを読み直し、索引とドロップなどの集計を作り直すジョブを入れる (設計書 6.1、#476)。視聴者は使えない。
+  終われば、代表画像とプレビュー画像も作り直す。録画中の録画は CONFLICT にする。
+  同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
+  """
+  reanalyzeRecording(id: ID!): Boolean!
+  """
   番組予約を作る。同じ番組の予約がすでにあれば、作らずにその予約を返す。視聴者は使えない。
   """
   createProgramReservation(input: ProgramReservationInput!): Reservation!
