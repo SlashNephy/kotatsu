@@ -239,6 +239,7 @@ type ComplexityRoot struct {
 		SetReservationsEnabled       func(childComplexity int, ids []string, enabled bool) int
 		SetRuleEnabled               func(childComplexity int, id string, enabled bool) int
 		SetRulesEnabled              func(childComplexity int, ids []string, enabled bool) int
+		SetServicePinned             func(childComplexity int, id string, pinned bool) int
 		SetWatchReservation          func(childComplexity int, program string, reserved bool) int
 		SubscribeWebPush             func(childComplexity int, input model.WebPushSubscriptionInput) int
 		UnsubscribeWebPush           func(childComplexity int, endpoint string) int
@@ -376,6 +377,7 @@ type ComplexityRoot struct {
 		NotificationPreferences func(childComplexity int) int
 		Notifications           func(childComplexity int, first int, after *string, unreadOnly bool) int
 		Passkeys                func(childComplexity int) int
+		PinnedServices          func(childComplexity int) int
 		PlayerSettings          func(childComplexity int) int
 		PreviewFileName         func(childComplexity int, template string, program *string) int
 		PreviewRule             func(childComplexity int, input model.RuleInput, first int, after *string) int
@@ -743,6 +745,7 @@ type MutationResolver interface {
 	UpdateNotificationPreference(ctx context.Context, input model.NotificationPreferenceInput) (*model.NotificationPreference, error)
 	RenamePasskey(ctx context.Context, id string, name string) (*model.Passkey, error)
 	DeletePasskey(ctx context.Context, id string) (string, error)
+	SetServicePinned(ctx context.Context, id string, pinned bool) ([]*model.Service, error)
 	UpdatePlayerSettings(ctx context.Context, input model.PlayerSettingsInput) (*model.PlayerSettings, error)
 	RenameRecordingFiles(ctx context.Context, ids []string) (*model.RenameRecordingFilesPayload, error)
 	DeleteRecording(ctx context.Context, id string) (string, error)
@@ -820,6 +823,7 @@ type QueryResolver interface {
 	UnreadNotificationCount(ctx context.Context) (int, error)
 	NotificationPreferences(ctx context.Context) ([]*model.NotificationPreference, error)
 	Passkeys(ctx context.Context) ([]*model.Passkey, error)
+	PinnedServices(ctx context.Context) ([]*model.Service, error)
 	PlayerSettings(ctx context.Context) (*model.PlayerSettings, error)
 	RecordingRenames(ctx context.Context) ([]*model.RecordingRename, error)
 	Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) (*model.RecordingConnection, error)
@@ -1788,6 +1792,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetRulesEnabled(childComplexity, args["ids"].([]string), args["enabled"].(bool)), true
+	case "Mutation.setServicePinned":
+		if e.ComplexityRoot.Mutation.SetServicePinned == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setServicePinned_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetServicePinned(childComplexity, args["id"].(string), args["pinned"].(bool)), true
 	case "Mutation.setWatchReservation":
 		if e.ComplexityRoot.Mutation.SetWatchReservation == nil {
 			break
@@ -2473,6 +2488,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Passkeys(childComplexity), true
+	case "Query.pinnedServices":
+		if e.ComplexityRoot.Query.PinnedServices == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.PinnedServices(childComplexity), true
 	case "Query.playerSettings":
 		if e.ComplexityRoot.Query.PlayerSettings == nil {
 			break
@@ -4750,6 +4771,19 @@ extend type Mutation {
   パスワードを持たないユーザーの最後のパスキーは、ログインする手段がなくなるので消せない (BAD_USER_INPUT)。
   """
   deletePasskey(id: ID!): ID!
+}
+`, BuiltIn: false},
+	{Name: "../schema/pinned_services.graphqls", Input: `extend type Query {
+  "ログイン中のユーザーがピン留めしたサービスを、ピン留めした順に返す (#485)。端末をまたいで同期する。"
+  pinnedServices: [Service!]!
+}
+
+extend type Mutation {
+  """
+  サービスをピン留めするか、外す (#485)。ピン留めした後のサービスを、ピン留めした順に返す。
+  同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
+  """
+  setServicePinned(id: ID!, pinned: Boolean!): [Service!]!
 }
 `, BuiltIn: false},
 	{Name: "../schema/player_settings.graphqls", Input: `"""
@@ -7831,6 +7865,28 @@ func (ec *executionContext) field_Mutation_setRulesEnabled_args(ctx context.Cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_setServicePinned_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "pinned",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["pinned"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_setWatchReservation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -10861,6 +10917,50 @@ func (ec *executionContext) fieldContext_Mutation_deletePasskey(ctx context.Cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deletePasskey_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setServicePinned(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setServicePinned(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetServicePinned(ctx, fc.Args["id"].(string), fc.Args["pinned"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Service) graphql.Marshaler {
+			return ec.marshalNService2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐServiceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setServicePinned(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Service(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setServicePinned_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -15173,6 +15273,38 @@ func (ec *executionContext) fieldContext_Query_passkeys(_ context.Context, field
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Passkey(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_pinnedServices(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_pinnedServices(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().PinnedServices(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Service) graphql.Marshaler {
+			return ec.marshalNService2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐServiceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_pinnedServices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Service(ctx, field)
 		},
 	}
 	return fc, nil
@@ -24896,6 +25028,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setServicePinned":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setServicePinned(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "updatePlayerSettings":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updatePlayerSettings(ctx, field)
@@ -26623,6 +26762,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_passkeys(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "pinnedServices":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_pinnedServices(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

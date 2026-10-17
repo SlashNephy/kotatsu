@@ -140,6 +140,12 @@ type OidcLogin struct {
 	ExpiresAt    time.Time
 }
 
+type PinnedService struct {
+	UserID    uuid.UUID
+	ServiceID int64
+	CreatedAt time.Time
+}
+
 type Program struct {
 	ServiceID             int64
 	EventID               int64

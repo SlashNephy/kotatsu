@@ -635,6 +635,17 @@ CREATE TABLE storage_pools (
   updated_at timestamptz NOT NULL
 );
 
+-- ユーザーがピン留めしたサービス (#485)。端末をまたいで同期し、ライブの一覧と番組表の「ピン留め」のタブに出す。
+CREATE TABLE pinned_services (
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, service_id)
+);
+
+-- サービスを消したときに、ピン留めを消すのに使う。
+CREATE INDEX pinned_services_service_id_idx ON pinned_services (service_id);
+
 -- 録画 (設計書 5.5、8.2)。1 つの予約の録画は、引き継ぎや再接続でファイルが分かれても、1 つの録画にまとめる。
 CREATE TABLE recordings (
   id uuid PRIMARY KEY,

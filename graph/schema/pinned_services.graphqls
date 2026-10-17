@@ -1,0 +1,12 @@
+extend type Query {
+  "ログイン中のユーザーがピン留めしたサービスを、ピン留めした順に返す (#485)。端末をまたいで同期する。"
+  pinnedServices: [Service!]!
+}
+
+extend type Mutation {
+  """
+  サービスをピン留めするか、外す (#485)。ピン留めした後のサービスを、ピン留めした順に返す。
+  同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
+  """
+  setServicePinned(id: ID!, pinned: Boolean!): [Service!]!
+}
