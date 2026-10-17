@@ -4920,7 +4920,7 @@ type RecordingFile {
   poolId: String!
   "プール内の相対パス。"
   path: String!
-  "大きさ (バイト)。"
+  "大きさ (バイト)。書いている間は、このインスタンスから読めれば、ファイルの今の大きさ。"
   size: Int64!
   startedAt: Time!
   "書き終えた日時。書いている間は null。"

@@ -448,7 +448,7 @@ type RecordingFile struct {
 	PoolID string `json:"poolId"`
 	// プール内の相対パス。
 	Path string `json:"path"`
-	// 大きさ (バイト)。
+	// 大きさ (バイト)。書いている間は、このインスタンスから読めれば、ファイルの今の大きさ。
 	Size      int64     `json:"size"`
 	StartedAt time.Time `json:"startedAt"`
 	// 書き終えた日時。書いている間は null。
