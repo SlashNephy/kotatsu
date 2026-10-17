@@ -21,6 +21,7 @@ import {
 } from './layout';
 import { guideHour, guideTime } from './hourNotation';
 import { ServiceLabel } from './ServiceLabel';
+import { useDragScroll } from './useDragScroll';
 import { useTranslation } from 'react-i18next';
 
 import { ProgramTitle, splitProgramMarks, toHalfWidth } from '../futon';
@@ -89,6 +90,8 @@ export function GuideGrid({
 }: Props) {
   const { t } = useTranslation();
   const scroller = useRef<HTMLDivElement>(null);
+  // マウスでドラッグして、番組表を動かせるようにする (#698)。
+  useDragScroll(scroller);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
   // 列の番組の配置は、番組が変わったときだけ計算し直す。
   const layouts = useMemo(() => columns.map((column) => layoutColumn(column.programs)), [columns]);
