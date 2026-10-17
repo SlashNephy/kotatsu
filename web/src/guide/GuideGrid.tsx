@@ -4,7 +4,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BellRing, CalendarRange } from 'lucide-react';
 
-import { densities, genreBackground, useGuideAppearance } from './appearance';
+import { densities, genreBackground, useGuideAppearance, type GuideAppearance } from './appearance';
 import {
   broadcastDay,
   gridHeight,
@@ -316,6 +316,7 @@ export function GuideGrid({
             visibleFrom={visibleFrom}
             visibleTo={visibleTo}
             extendedHours={extendedHours}
+            appearance={appearance}
             onSelect={onSelect}
           />
         ))}
@@ -382,6 +383,7 @@ type ColumnProps = {
   visibleFrom: number;
   visibleTo: number;
   extendedHours: boolean;
+  appearance: GuideAppearance;
   onSelect: (programId: string) => void;
 };
 
@@ -394,10 +396,10 @@ function GuideColumnView({
   visibleFrom,
   visibleTo,
   extendedHours,
+  appearance,
   onSelect,
 }: ColumnProps) {
   const { t } = useTranslation();
-  const [appearance] = useGuideAppearance();
   const { start, end } = visibleRange(column.programs, layout, visibleFrom, visibleTo);
 
   return (
