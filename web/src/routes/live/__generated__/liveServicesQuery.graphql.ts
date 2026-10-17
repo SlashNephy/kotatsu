@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<db608cecc8e82bc5f5bfe854ebf1dac0>>
+ * @generated SignedSource<<f3a98d392cb0ebd7f4c7e63192a3ad8c>>
  * @lightSyntaxTransform
  */
 
@@ -34,6 +34,9 @@ export type liveServicesQuery$data = {
       readonly logoUrl: string | null | undefined;
       readonly name: string;
     };
+  }>;
+  readonly pinnedServices: ReadonlyArray<{
+    readonly id: string;
   }>;
 };
 export type liveServicesQuery = {
@@ -80,7 +83,27 @@ v2 = {
   ],
   "storageKey": null
 },
-v3 = [
+v3 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "id",
+  "storageKey": null
+},
+v4 = [
+  (v3/*:: as any*/)
+],
+v5 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "Service",
+  "kind": "LinkedField",
+  "name": "pinnedServices",
+  "plural": true,
+  "selections": (v4/*:: as any*/),
+  "storageKey": null
+},
+v6 = [
   {
     "kind": "Variable",
     "name": "from",
@@ -92,21 +115,14 @@ v3 = [
     "variableName": "to"
   }
 ],
-v4 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "id",
-  "storageKey": null
-},
-v5 = {
+v7 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "name",
   "storageKey": null
 },
-v6 = {
+v8 = {
   "alias": null,
   "args": null,
   "concreteType": "Service",
@@ -114,8 +130,8 @@ v6 = {
   "name": "service",
   "plural": false,
   "selections": [
-    (v4/*:: as any*/),
-    (v5/*:: as any*/),
+    (v3/*:: as any*/),
+    (v7/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -138,30 +154,28 @@ v6 = {
   ],
   "storageKey": null
 },
-v7 = {
+v9 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "startAt",
   "storageKey": null
 },
-v8 = {
+v10 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "endAt",
   "storageKey": null
 },
-v9 = {
+v11 = {
   "alias": null,
   "args": null,
   "concreteType": "Service",
   "kind": "LinkedField",
   "name": "sharedFrom",
   "plural": false,
-  "selections": [
-    (v4/*:: as any*/)
-  ],
+  "selections": (v4/*:: as any*/),
   "storageKey": null
 };
 return {
@@ -172,15 +186,16 @@ return {
     "name": "liveServicesQuery",
     "selections": [
       (v2/*:: as any*/),
+      (v5/*:: as any*/),
       {
         "alias": null,
-        "args": (v3/*:: as any*/),
+        "args": (v6/*:: as any*/),
         "concreteType": "GuideRow",
         "kind": "LinkedField",
         "name": "guide",
         "plural": true,
         "selections": [
-          (v6/*:: as any*/),
+          (v8/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -189,10 +204,10 @@ return {
             "name": "programs",
             "plural": true,
             "selections": [
-              (v5/*:: as any*/),
               (v7/*:: as any*/),
-              (v8/*:: as any*/),
-              (v9/*:: as any*/)
+              (v9/*:: as any*/),
+              (v10/*:: as any*/),
+              (v11/*:: as any*/)
             ],
             "storageKey": null
           }
@@ -210,15 +225,16 @@ return {
     "name": "liveServicesQuery",
     "selections": [
       (v2/*:: as any*/),
+      (v5/*:: as any*/),
       {
         "alias": null,
-        "args": (v3/*:: as any*/),
+        "args": (v6/*:: as any*/),
         "concreteType": "GuideRow",
         "kind": "LinkedField",
         "name": "guide",
         "plural": true,
         "selections": [
-          (v6/*:: as any*/),
+          (v8/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -227,11 +243,11 @@ return {
             "name": "programs",
             "plural": true,
             "selections": [
-              (v5/*:: as any*/),
               (v7/*:: as any*/),
-              (v8/*:: as any*/),
               (v9/*:: as any*/),
-              (v4/*:: as any*/)
+              (v10/*:: as any*/),
+              (v11/*:: as any*/),
+              (v3/*:: as any*/)
             ],
             "storageKey": null
           }
@@ -241,16 +257,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "ec500fd0097f264efe55684754e64097",
+    "cacheID": "714607be4282cb044ed59a7063899a97",
     "id": null,
     "metadata": {},
     "name": "liveServicesQuery",
     "operationKind": "query",
-    "text": "query liveServicesQuery(\n  $from: Time!\n  $to: Time!\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  guide(from: $from, to: $to) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n      id\n    }\n  }\n}\n"
+    "text": "query liveServicesQuery(\n  $from: Time!\n  $to: Time!\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  pinnedServices {\n    id\n  }\n  guide(from: $from, to: $to) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "1467992d36a735a3192dd8b0425e7420";
+(node as any).hash = "05538ae0ef8bc33eaf299ce708cf03d9";
 
 export default node;

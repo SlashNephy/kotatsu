@@ -24,3 +24,14 @@ ON CONFLICT (user_id) DO UPDATE SET
   captions_enabled = coalesce(sqlc.narg(captions_enabled)::boolean, user_settings.captions_enabled),
   updated_at = EXCLUDED.updated_at
 RETURNING jikkyo_enabled, captions_enabled;
+
+-- name: ListPinnedServiceIDs :many
+-- ユーザーがピン留めしたサービスを、ピン留めした順に返す (#485)。
+SELECT service_id FROM pinned_services WHERE user_id = @user_id ORDER BY created_at, service_id;
+
+-- name: PinService :exec
+INSERT INTO pinned_services (user_id, service_id, created_at) VALUES (@user_id, @service_id, @now)
+ON CONFLICT DO NOTHING;
+
+-- name: UnpinService :exec
+DELETE FROM pinned_services WHERE user_id = @user_id AND service_id = @service_id;

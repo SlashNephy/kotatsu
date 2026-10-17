@@ -277,6 +277,8 @@ type Querier interface {
 	ListOpenRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error)
 	// 配っていないイベントを、古い順に引き、ロックする。ほかの nekonote が同じイベントを配らないよう、ロック中の行は飛ばす。
 	ListPendingNotificationEvents(ctx context.Context, maxCount int32) ([]NotificationEvent, error)
+	// ユーザーがピン留めしたサービスを、ピン留めした順に返す (#485)。
+	ListPinnedServiceIDs(ctx context.Context, userID uuid.UUID) ([]int64, error)
 	ListPrograms(ctx context.Context) ([]ListProgramsRow, error)
 	// 時間帯 [from, to) に重なる番組。
 	ListProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]ListProgramsInRangeRow, error)
@@ -375,6 +377,7 @@ type Querier interface {
 	MoveRecordingSidecarPaths(ctx context.Context, arg MoveRecordingSidecarPathsParams) error
 	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
 	NotifyChange(ctx context.Context, arg NotifyChangeParams) error
+	PinService(ctx context.Context, arg PinServiceParams) error
 	// ルール予約を、手動の番組予約に切り替え、手動の設定を書き込む (設計書 4.1)。無効にしたルール予約も、有効に戻す。
 	// 一致したルールとの関連は残す。
 	PromoteRuleReservation(ctx context.Context, arg PromoteRuleReservationParams) (int64, error)
@@ -473,6 +476,7 @@ type Querier interface {
 	// 録画のセグメントをつなぐ間、ほかの nekonote が同じ録画をつながないよう、セッションの advisory lock を取る。取れなければ false を返す。
 	TryLockRecordingJoin(ctx context.Context, recordingID string) (bool, error)
 	UnlockRecordingJoin(ctx context.Context, recordingID string) (bool, error)
+	UnpinService(ctx context.Context, arg UnpinServiceParams) error
 	UpdateAssignment(ctx context.Context, arg UpdateAssignmentParams) error
 	UpdateChannelType(ctx context.Context, arg UpdateChannelTypeParams) (ChannelType, error)
 	UpdateGuideView(ctx context.Context, arg UpdateGuideViewParams) (int64, error)

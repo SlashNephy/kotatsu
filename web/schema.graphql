@@ -542,6 +542,11 @@ type Mutation {
   """
   deletePasskey(id: ID!): ID!
   """
+  サービスをピン留めするか、外す (#485)。ピン留めした後のサービスを、ピン留めした順に返す。
+  同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
+  """
+  setServicePinned(id: ID!, pinned: Boolean!): [Service!]!
+  """
   プレイヤーの設定を変え、同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
   """
   updatePlayerSettings(input: PlayerSettingsInput!): PlayerSettings!
@@ -1126,6 +1131,10 @@ type Query {
   ログイン中のユーザーのパスキー。登録した順に並べる。
   """
   passkeys: [Passkey!]!
+  """
+  ログイン中のユーザーがピン留めしたサービスを、ピン留めした順に返す (#485)。端末をまたいで同期する。
+  """
+  pinnedServices: [Service!]!
   playerSettings: PlayerSettings!
   """
   今の録画設定のファイル名のテンプレートで付け直すと、名前が変わる録画を、録画を始めた日時の新しい順に返す。管理者だけが使える。

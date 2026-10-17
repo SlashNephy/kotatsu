@@ -64,6 +64,61 @@ func (q *Queries) GetUserSettingsVersion(ctx context.Context, userID uuid.UUID) 
 	return version, err
 }
 
+const listPinnedServiceIDs = `-- name: ListPinnedServiceIDs :many
+SELECT service_id FROM pinned_services WHERE user_id = $1 ORDER BY created_at, service_id
+`
+
+// ユーザーがピン留めしたサービスを、ピン留めした順に返す (#485)。
+func (q *Queries) ListPinnedServiceIDs(ctx context.Context, userID uuid.UUID) ([]int64, error) {
+	rows, err := q.db.Query(ctx, listPinnedServiceIDs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var service_id int64
+		if err := rows.Scan(&service_id); err != nil {
+			return nil, err
+		}
+		items = append(items, service_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pinService = `-- name: PinService :exec
+INSERT INTO pinned_services (user_id, service_id, created_at) VALUES ($1, $2, $3)
+ON CONFLICT DO NOTHING
+`
+
+type PinServiceParams struct {
+	UserID    uuid.UUID
+	ServiceID int64
+	Now       time.Time
+}
+
+func (q *Queries) PinService(ctx context.Context, arg PinServiceParams) error {
+	_, err := q.db.Exec(ctx, pinService, arg.UserID, arg.ServiceID, arg.Now)
+	return err
+}
+
+const unpinService = `-- name: UnpinService :exec
+DELETE FROM pinned_services WHERE user_id = $1 AND service_id = $2
+`
+
+type UnpinServiceParams struct {
+	UserID    uuid.UUID
+	ServiceID int64
+}
+
+func (q *Queries) UnpinService(ctx context.Context, arg UnpinServiceParams) error {
+	_, err := q.db.Exec(ctx, unpinService, arg.UserID, arg.ServiceID)
+	return err
+}
+
 const upsertPlayerSettings = `-- name: UpsertPlayerSettings :one
 INSERT INTO user_settings (user_id, jikkyo_enabled, captions_enabled, updated_at)
 VALUES ($1, coalesce($2::boolean, true), coalesce($3::boolean, true), $4)
