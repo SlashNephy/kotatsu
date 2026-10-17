@@ -1,12 +1,22 @@
 -- name: StartRecording :one
 -- 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。新しく始めたかどうかを inserted で返す。
 -- 番組の音声の構成は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
+-- ジャンルと、一致したルール (最も古いもの) とその名前も、予約から写す。予約やルールを消しても、録画を絞れるようにする (#468)。
 INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
-  protected, drops, errors, scrambled, audios, recorded_from, recorded_until, created_at, updated_at)
-VALUES (@id, @reservation_id, @service_id, @event_id, @name, @description, @start_at, @end_at, 'recording', NULL,
+  protected, drops, errors, scrambled, audios, genres, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
+SELECT @id, @reservation_id, @service_id, @event_id, @name, @description, @start_at, @end_at, 'recording', NULL,
   false, 0, 0, 0,
   COALESCE((SELECT p.audios FROM programs p WHERE p.service_id = @service_id AND p.event_id = sqlc.narg(event_id)), '[]'::jsonb),
-  @now, NULL, @now, @now)
+  COALESCE((SELECT r.genres FROM reservations r WHERE r.id = @reservation_id), '[]'::jsonb),
+  m.id, m.name,
+  @now, NULL, @now, @now
+FROM (SELECT 1) AS one
+LEFT JOIN LATERAL (
+  SELECT ru.id, ru.name FROM reservation_rules rr JOIN rules ru ON ru.id = rr.rule_id
+  WHERE rr.reservation_id = @reservation_id
+  ORDER BY ru.created_at, ru.id
+  LIMIT 1
+) AS m ON true
 ON CONFLICT (reservation_id) DO UPDATE SET state = 'recording', failure_reason = NULL, recorded_until = NULL, updated_at = EXCLUDED.updated_at
 RETURNING sqlc.embed(recordings), (xmax = 0)::boolean AS inserted;
 

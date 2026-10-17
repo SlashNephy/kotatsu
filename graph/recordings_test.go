@@ -34,6 +34,7 @@ const (
 	tagRecording       = `mutation($id: ID!, $tags: [String!]!) { setRecordingTags(id: $id, tags: $tags) { ` + recordingFields + ` } }`
 	saveWatchPosition  = `mutation($id: ID!, $positionMs: Int64!) { saveWatchPosition(id: $id, positionMs: $positionMs) { ` + recordingFields + ` } }`
 	codeConflict       = "CONFLICT"
+	fieldGenres        = "genres"
 	varProtected       = "protected"
 	episode1           = "こたつ特集 第1話"
 	episode2           = "こたつ特集 第2話"
@@ -367,6 +368,60 @@ func TestRegenerateRecordingImages(t *testing.T) {
 	require.Empty(t, f.query(t, regenerate, map[string]any{varID: recordingID}, &got))
 	assert.True(t, got.RegenerateRecordingImages)
 	assert.Equal(t, 2, queued())
+}
+
+// TestRecordingsByRuleAndGenre は、録画を、録ったルールとジャンルで絞れることと、
+// ルールを消しても、録画にはルールの名前が残ることを確かめる (#468)。
+func TestRecordingsByRuleAndGenre(t *testing.T) {
+	t.Parallel()
+
+	f, dir := newRecordingFixture(t)
+	ruleID := id.New()
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO rules (id, name, memo, enabled, conditions, settings, avoid_duplicates, follow_event_relay, created_at, updated_at)
+		VALUES ($1, 'アニメのルール', '', true, '{"version":1,"conditions":{}}', '{}', false, true, $2, $2)`, ruleID, testNow())
+	require.NoError(t, err)
+	byRule := f.addRecording(t, dir, "ルールの録画", "completed", 2*time.Hour)
+	f.addRecording(t, dir, "手動の録画", "completed", time.Hour)
+	_, rawID, err := graph.ParseGlobalID(byRule)
+	require.NoError(t, err)
+	// ルールで録った録画は、ルールとジャンル (アニメ・特撮、lv1 = 7) を写してある。
+	_, err = f.pool.Exec(t.Context(), `UPDATE recordings SET rule_id = $2, rule_name = 'アニメのルール', genres = '[{"lv1":7,"lv2":0}]' WHERE id = $1`,
+		rawID, ruleID)
+	require.NoError(t, err)
+
+	ruleGlobalID := graph.GlobalID("Rule", ruleID.String())
+	assert.Equal(t, []string{"ルールの録画"}, f.recordings(t, 10, nil, map[string]any{"ruleId": ruleGlobalID}).names())
+	assert.Equal(t, []string{"ルールの録画"}, f.recordings(t, 10, nil, map[string]any{fieldGenres: []int{7}}).names())
+	assert.Empty(t, f.recordings(t, 10, nil, map[string]any{fieldGenres: []int{0}}).names())
+	assert.Equal(t, []string{codeBadUserInput}, f.query(t, listRecordings, map[string]any{varFirst: 10, "filter": map[string]any{fieldGenres: []int{16}}}, nil))
+
+	const ruleOf = `query($id: ID!) { node(id: $id) { ... on Recording { ruleName genres { lv1 lv2 } rule { name } } } }`
+	type result struct {
+		Node struct {
+			RuleName *string `json:"ruleName"`
+			Genres   []struct {
+				Lv1 int `json:"lv1"`
+			} `json:"genres"`
+			Rule *struct {
+				Name string `json:"name"`
+			} `json:"rule"`
+		} `json:"node"`
+	}
+	var got result
+	require.Empty(t, f.query(t, ruleOf, map[string]any{varID: byRule}, &got))
+	require.NotNil(t, got.Node.Rule)
+	assert.Equal(t, "アニメのルール", got.Node.Rule.Name)
+	require.Len(t, got.Node.Genres, 1)
+	assert.Equal(t, 7, got.Node.Genres[0].Lv1)
+
+	// ルールを消すと、録画からルールは引けなくなるが、名前は残る。
+	_, err = f.pool.Exec(t.Context(), "DELETE FROM rules WHERE id = $1", ruleID)
+	require.NoError(t, err)
+	got = result{}
+	require.Empty(t, f.query(t, ruleOf, map[string]any{varID: byRule}, &got))
+	assert.Nil(t, got.Node.Rule)
+	require.NotNil(t, got.Node.RuleName)
+	assert.Equal(t, "アニメのルール", *got.Node.RuleName)
 }
 
 // TestReanalyzeRecording は、録画の解析をやり直すジョブを、視聴者でなければ入れられることを確かめる (#476)。

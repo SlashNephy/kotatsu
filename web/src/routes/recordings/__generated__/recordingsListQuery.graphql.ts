@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<15015929c9b700225ffb04127f9e6e8d>>
+ * @generated SignedSource<<d801f1c34e9e7ae3cffca880a4bb51b7>>
  * @lightSyntaxTransform
  */
 
@@ -11,7 +11,9 @@ import { ConcreteRequest } from 'relay-runtime';
 export type RecordingOrder = "NEWEST_FIRST" | "OLDEST_FIRST" | "%future added value";
 export type RecordingState = "COMPLETED" | "COMPLETED_WITH_ERRORS" | "FAILED" | "PARTIAL" | "RECORDING" | "%future added value";
 export type RecordingFilter = {
+  genres?: ReadonlyArray<number> | null | undefined;
   keyword?: string | null | undefined;
+  ruleId?: string | null | undefined;
   serviceIds?: ReadonlyArray<string> | null | undefined;
   since?: string | null | undefined;
   states?: ReadonlyArray<RecordingState> | null | undefined;

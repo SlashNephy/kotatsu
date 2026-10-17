@@ -1222,6 +1222,18 @@ type Recording implements Node {
   """
   audios: [ProgramAudio!]!
   """
+  録画を始めたときの予約のジャンル。時刻予約の録画や、取り込んだ録画では空になる (#468)。
+  """
+  genres: [Genre!]!
+  """
+  録画を始めたときに予約に一致していたルール (最も古いもの)。番組予約と時刻予約の録画や、ルールを消したときは null。
+  """
+  rule: Rule
+  """
+  録画を始めたときに一致していたルールの名前。ルールを消しても残る。ルールで録っていなければ null。
+  """
+  ruleName: String
+  """
   録画中に番組が EPG から消えたかどうか。
   """
   programLost: Boolean!
@@ -1403,6 +1415,14 @@ input RecordingFilter {
   放送の開始がこの日時より前の録画。
   """
   until: Time
+  """
+  このルールで録った録画 (#468)。
+  """
+  ruleId: ID
+  """
+  ジャンルの大分類 (lv1) のどれかに当たる録画。
+  """
+  genres: [Int!]
 }
 """
 途切れた区間。

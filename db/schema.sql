@@ -665,6 +665,12 @@ CREATE TABLE recordings (
   gaps jsonb NOT NULL DEFAULT '[]',
   -- 録画を始めたときの番組の音声の構成 (programs.audios の写し)。時刻予約や、番組がないときは空にする。
   audios jsonb NOT NULL DEFAULT '[]',
+  -- 録画を始めたときの予約のジャンル (reservations.genres の写し)。予約を消しても、ジャンルで絞れるようにする (#468)。
+  genres jsonb NOT NULL DEFAULT '[]',
+  -- 録画を始めたときに予約に一致していたルール (最も古いもの) と、その名前 (#468)。ルールを消すと ID は NULL になり、名前は残る。
+  -- 番組予約と時刻予約の録画は、どちらも NULL。
+  rule_id uuid REFERENCES rules (id) ON DELETE SET NULL,
+  rule_name text,
   -- 録画中に番組が EPG から消えたかどうか (設計書 5.1)。消えたら、予定の終わりまで録り続ける。
   program_lost boolean NOT NULL DEFAULT false,
   -- 録画中の TS の EIT[p/f] で、予約した番組が放送中になった日時と、放送中でなくなった日時 (設計書 5.1)。分からなければ NULL。
@@ -704,6 +710,9 @@ CREATE INDEX recording_files_recording_id_idx ON recording_files (recording_id, 
 
 -- 録画を一覧で新しい順に並べ、ページを送るのに使う。
 CREATE INDEX recordings_recorded_from_id_idx ON recordings (recorded_from DESC, id DESC);
+
+-- ルールで録画を絞るのと、ルールを消したときに録画の rule_id を NULL にするのに使う (#468)。
+CREATE INDEX recordings_rule_id_idx ON recordings (rule_id) WHERE rule_id IS NOT NULL;
 
 -- 録画のタグ (設計書 8.2)。名前は、前後の空白を落として重ならないようにする。
 CREATE TABLE tags (

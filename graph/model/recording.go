@@ -2,6 +2,8 @@ package model
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // Recording は録画 (設計書 5.5、8.2)。サービスは、リゾルバで dataloader から引く。
@@ -20,6 +22,8 @@ type Recording struct {
 	Scrambled          int64                   `json:"scrambled"`
 	Gaps               []*RecordingGap         `json:"gaps"`
 	Audios             []*ProgramAudio         `json:"audios"`
+	Genres             []*Genre                `json:"genres"`
+	RuleName           *string                 `json:"ruleName,omitempty"`
 	ProgramLost        bool                    `json:"programLost"`
 	BroadcastStartedAt *time.Time              `json:"broadcastStartedAt,omitempty"`
 	BroadcastEndedAt   *time.Time              `json:"broadcastEndedAt,omitempty"`
@@ -35,6 +39,8 @@ type Recording struct {
 	JikkyoCommentsURL  string                  `json:"jikkyoCommentsUrl"`
 	// ServiceKey は、Mirakurun のサービス ID。スキーマには出さない。
 	ServiceKey int64 `json:"-"`
+	// RuleKey は、録画を始めたときに一致していたルールの ID。スキーマには出さず、rule のリゾルバーで引く。
+	RuleKey *uuid.UUID `json:"-"`
 }
 
 var _ Node = new(Recording)
