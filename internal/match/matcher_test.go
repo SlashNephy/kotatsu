@@ -272,3 +272,49 @@ func TestMatch(t *testing.T) {
 		})
 	}
 }
+
+// TestMatchFoldsCase は、正規表現でないキーワードを文字列で探すときも、大文字と小文字の扱いが正規表現の (?i) と同じであることを確かめる (#530)。
+func TestMatchFoldsCase(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		conditions *match.Conditions
+		modify     func(p *match.ProgramInput)
+		want       bool
+	}{
+		{
+			// 正規表現の (?i) と同じく、大文字と小文字の組をたどって同じ文字とみなす (#530)。ς と σ は、どちらも Σ の小文字。
+			name:       "case-insensitive keyword treats letters folding to the same letter as equal",
+			conditions: &match.Conditions{Keywords: []*match.Keyword{keyword("ΚΑΛΟς", match.FieldName)}},
+			modify:     func(p *match.ProgramInput) { p.Name = "καλοσ" },
+			want:       true,
+		},
+		{
+			name: "case-sensitive keyword does not fold letters",
+			conditions: &match.Conditions{Keywords: []*match.Keyword{
+				{Text: "ΚΑΛΟς", Regexp: false, CaseSensitive: true, Fields: []match.Field{match.FieldName}},
+			}},
+			modify: func(p *match.ProgramInput) { p.Name = "καλοσ" },
+			want:   false,
+		},
+		{
+			name:       "case-insensitive exclude keyword excludes different case",
+			conditions: &match.Conditions{ExcludeKeywords: []*match.Keyword{keyword("season3", match.FieldName)}},
+			want:       false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			in := program(t)
+			if tt.modify != nil {
+				tt.modify(in)
+			}
+			matcher, err := match.Compile(tt.conditions, tokyo(t))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, matcher.Match(match.NewProgram(in)))
+		})
+	}
+}
