@@ -36,6 +36,7 @@ import {
   useAutoPictureInPicture,
 } from '../../yunomi/autoPictureInPicture';
 import { GuideAppearanceSettings } from '../../guide/GuideAppearanceSettings';
+import { CommentSettingsCard } from '../../jikkyo/CommentSettingsCard';
 import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
 import { DataBroadcastStorageReset } from '../../yunomi/DataBroadcastStorageReset';
 import { DataBroadcastZipcodeInput } from '../../yunomi/DataBroadcastZipcodeInput';
@@ -231,6 +232,8 @@ function Account() {
           )}
         </Stack>
       </Card>
+
+      <CommentSettingsCard />
 
       <GuideAppearanceSettings />
 

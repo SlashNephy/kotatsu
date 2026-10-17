@@ -5,7 +5,7 @@
 export const nxJikkyoOrigin = 'wss://nx-jikkyo.tsukumijima.net';
 
 // LiveComment は、届いたコメント。at は、受け取った時刻 (ミリ秒、performance.now の時計)。
-export type LiveComment = { content: string; mail: string; at: number };
+export type LiveComment = { content: string; mail: string; at: number; userId?: string };
 
 export type SessionStatus =
   | { kind: 'connecting' }
@@ -250,6 +250,7 @@ export class NXJikkyoSession {
         content: chat.content ?? '',
         mail: chat.mail ?? '',
         at: this.now(),
+        ...(chat.user_id === undefined || chat.user_id === '' ? {} : { userId: chat.user_id }),
       });
     });
     const lost = () => {
@@ -307,5 +308,5 @@ type WatchMessage =
 
 type CommentMessage = {
   ping?: { content: string };
-  chat?: { content?: string; mail?: string; yourpost?: number };
+  chat?: { content?: string; mail?: string; user_id?: string; yourpost?: number };
 };

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<ebdb5e6ae70f8d58f8a61a8b5af224e5>>
+ * @generated SignedSource<<5f1db94e4654bb271fbc753b9aa1591a>>
  * @lightSyntaxTransform
  */
 
@@ -32,6 +32,17 @@ export type usePlayerSettingsMutation$variables = {
 export type usePlayerSettingsMutation$data = {
   readonly updatePlayerSettings: {
     readonly captionsEnabled: boolean;
+    readonly comments: {
+      readonly mutedKeywords: ReadonlyArray<{
+        readonly match: KeywordMuteMatch;
+        readonly text: string;
+      }>;
+      readonly mutedUsers: ReadonlyArray<string>;
+      readonly opacity: number;
+      readonly scale: number;
+      readonly showAll: boolean;
+      readonly speed: number;
+    };
     readonly jikkyoEnabled: boolean;
   };
 };
@@ -76,6 +87,77 @@ v1 = [
         "kind": "ScalarField",
         "name": "captionsEnabled",
         "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "CommentSettings",
+        "kind": "LinkedField",
+        "name": "comments",
+        "plural": false,
+        "selections": [
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "opacity",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "speed",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "scale",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "showAll",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "concreteType": "MutedKeyword",
+            "kind": "LinkedField",
+            "name": "mutedKeywords",
+            "plural": true,
+            "selections": [
+              {
+                "alias": null,
+                "args": null,
+                "kind": "ScalarField",
+                "name": "text",
+                "storageKey": null
+              },
+              {
+                "alias": null,
+                "args": null,
+                "kind": "ScalarField",
+                "name": "match",
+                "storageKey": null
+              }
+            ],
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "mutedUsers",
+            "storageKey": null
+          }
+        ],
+        "storageKey": null
       }
     ],
     "storageKey": null
@@ -99,16 +181,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "b5d09e3b50f6d083a635f475c4240424",
+    "cacheID": "dc5125ba338e42fac14f25731aaa742b",
     "id": null,
     "metadata": {},
     "name": "usePlayerSettingsMutation",
     "operationKind": "mutation",
-    "text": "mutation usePlayerSettingsMutation(\n  $input: PlayerSettingsInput!\n) {\n  updatePlayerSettings(input: $input) {\n    jikkyoEnabled\n    captionsEnabled\n  }\n}\n"
+    "text": "mutation usePlayerSettingsMutation(\n  $input: PlayerSettingsInput!\n) {\n  updatePlayerSettings(input: $input) {\n    jikkyoEnabled\n    captionsEnabled\n    comments {\n      opacity\n      speed\n      scale\n      showAll\n      mutedKeywords {\n        text\n        match\n      }\n      mutedUsers\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "e981da65c92209fef7f9a21f4ee4d1cc";
+(node as any).hash = "62ef392d1dadf6d7a152ca9ce2560dc9";
 
 export default node;
