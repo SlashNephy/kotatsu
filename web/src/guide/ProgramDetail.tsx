@@ -192,6 +192,8 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
   const onAir = !program.archived && !ended && start <= Date.now();
   // 視聴予約は、放送が始まる前の番組にだけ付けられる。付けてある番組では、外せるようにボタンを出し続ける。
   const canWatchReserve = !program.archived && (start > Date.now() || program.watchReserved);
+  // canRecord は、録画予約のボタンを出すかどうか。検索から開いた、放送の終わった番組は予約できない。
+  const canRecord = data.viewer.role !== 'VIEWER' && !ended;
 
   return (
     <Stack>
@@ -225,41 +227,43 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
         </Button>
       )}
       {/* 録画予約のボタンの横に、視聴予約のベルを置く。視聴予約は、放送が始まる前の番組にだけ付けられる (設計書 4.8)。 */}
-      {(canWatchReserve || (data.viewer.role !== 'VIEWER' && !ended)) && (
+      {(canWatchReserve || canRecord) && (
         <Group gap="xs" wrap="nowrap" align="stretch">
-          <Stack gap="xs" style={{ flex: 1 }}>
-            {/* 検索から開いた、放送の終わった番組は予約できない。 */}
-            {data.viewer.role !== 'VIEWER' && !ended && !reserved && (
-              <Button
-                onClick={reserve}
-                loading={inFlight}
-                leftSection={<CalendarPlus size={16} aria-hidden />}
-              >
-                {t('guide.detail.reserve')}
-              </Button>
-            )}
-            {/* 録画予約済みのボタンを押すと、確かめてから取り消す。 */}
-            {data.viewer.role !== 'VIEWER' && !ended && reserved && program.reservation != null && (
-              <Group gap="xs" grow>
-                <Tooltip label={t('guide.detail.cancelReservation')}>
-                  <Button
-                    variant="outline"
-                    onClick={() => setCancelling(true)}
-                    leftSection={<CalendarCheck size={16} aria-hidden />}
-                  >
-                    {t('guide.detail.reserved')}
-                  </Button>
-                </Tooltip>
+          {/* 閲覧だけのユーザーには録画予約のボタンがないので、ベルだけを左に寄せる。 */}
+          {canRecord && (
+            <Stack gap="xs" style={{ flex: 1 }}>
+              {!reserved && (
                 <Button
-                  variant="default"
-                  onClick={() => setEditing(true)}
-                  leftSection={<SlidersHorizontal size={16} aria-hidden />}
+                  onClick={reserve}
+                  loading={inFlight}
+                  leftSection={<CalendarPlus size={16} aria-hidden />}
                 >
-                  {t('reservations.settings.open')}
+                  {t('guide.detail.reserve')}
                 </Button>
-              </Group>
-            )}
-          </Stack>
+              )}
+              {/* 録画予約済みのボタンを押すと、確かめてから取り消す。 */}
+              {reserved && program.reservation != null && (
+                <Group gap="xs" grow>
+                  <Tooltip label={t('guide.detail.cancelReservation')}>
+                    <Button
+                      variant="outline"
+                      onClick={() => setCancelling(true)}
+                      leftSection={<CalendarCheck size={16} aria-hidden />}
+                    >
+                      {t('guide.detail.reserved')}
+                    </Button>
+                  </Tooltip>
+                  <Button
+                    variant="default"
+                    onClick={() => setEditing(true)}
+                    leftSection={<SlidersHorizontal size={16} aria-hidden />}
+                  >
+                    {t('reservations.settings.open')}
+                  </Button>
+                </Group>
+              )}
+            </Stack>
+          )}
           {canWatchReserve && (
             <WatchReserveButton programId={program.id} reserved={program.watchReserved} />
           )}

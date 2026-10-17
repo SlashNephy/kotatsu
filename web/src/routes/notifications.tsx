@@ -184,6 +184,16 @@ function NotificationLink({ url, kind }: { url: string | null | undefined; kind:
       href={path}
       size="xs"
       onClick={(event) => {
+        // 修飾キーを押したときや中クリックは、ブラウザに任せて新しいタブなどで開かせる。
+        if (
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey
+        ) {
+          return;
+        }
         event.preventDefault();
         void navigate({ href: path });
       }}

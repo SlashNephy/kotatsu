@@ -8,6 +8,18 @@ import type { WatchReminderSettingsMutation } from './__generated__/WatchReminde
 // maxMinutes は、視聴予約の通知を、放送の何分前に送るかの上限 (設計書 4.8、付録 A)。
 const maxMinutes = 60;
 
+// parseReminderMinutes は、入力欄の値を、放送の何分前かにする。0 から maxMinutes の整数でなければ null を返す。
+// Mantine の NumberInput は、数として読めれば数を、空や読めない途中の入力なら文字列を渡す。
+export function parseReminderMinutes(value: number | string): number | null {
+  const minutes =
+    typeof value === 'number' ? value : value.trim() === '' ? Number.NaN : Number(value);
+  if (!Number.isInteger(minutes) || minutes < 0 || minutes > maxMinutes) {
+    return null;
+  }
+
+  return minutes;
+}
+
 // WatchReminderSettings は、視聴予約の通知を、放送の何分前に送るかの設定 (設計書 4.8)。入力欄を離れたときに保存する。
 export function WatchReminderSettings({ minutesBefore }: { minutesBefore: number }) {
   const { t } = useTranslation();
@@ -23,12 +35,14 @@ export function WatchReminderSettings({ minutesBefore }: { minutesBefore: number
     }
   `);
   const save = () => {
-    const minutes = typeof value === 'number' ? value : Number.NaN;
-    if (minutes === minutesBefore) {
+    const minutes = parseReminderMinutes(value);
+    if (minutes === null) {
+      setError(true);
+
       return;
     }
-    if (!Number.isInteger(minutes) || minutes < 0 || minutes > maxMinutes) {
-      setError(true);
+    if (minutes === minutesBefore) {
+      setError(false);
 
       return;
     }
