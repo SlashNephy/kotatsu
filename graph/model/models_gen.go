@@ -84,6 +84,14 @@ type AuditEventFilter struct {
 	Until *time.Time `json:"until,omitempty"`
 }
 
+// まとめて行った操作の結果 (#471)。
+type BulkOperationPayload struct {
+	// 操作した数。
+	Processed int `json:"processed"`
+	// 保護しているか、録画中か、見つからないなどで、操作しなかった数。
+	Skipped int `json:"skipped"`
+}
+
 // チャンネル種別 (設計書 3.1)。種別の文字列はチューナーサーバーが返すものをそのまま使い、表示名と並び順は管理者が変えられる。
 type ChannelType struct {
 	Type        string `json:"type"`

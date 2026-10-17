@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<99a10f3ee84ad4255c1a22750a648667>>
+ * @generated SignedSource<<590c1504fb164a0f78916140179eca87>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type recordingsTagsQuery$variables = Record<PropertyKey, never>;
 export type recordingsTagsQuery$data = {
   readonly services: ReadonlyArray<{
@@ -19,6 +20,9 @@ export type recordingsTagsQuery$data = {
     readonly name: string;
     readonly recordings: number;
   }>;
+  readonly viewer: {
+    readonly role: Role;
+  };
 };
 export type recordingsTagsQuery = {
   response: recordingsTagsQuery$data;
@@ -30,58 +34,78 @@ var v0 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "id",
+  "name": "role",
   "storageKey": null
 },
 v1 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
+  "name": "id",
+  "storageKey": null
+},
+v2 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
   "name": "name",
   "storageKey": null
 },
-v2 = [
-  {
-    "alias": null,
-    "args": null,
-    "concreteType": "Tag",
-    "kind": "LinkedField",
-    "name": "tags",
-    "plural": true,
-    "selections": [
-      (v0/*:: as any*/),
-      (v1/*:: as any*/),
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "recordings",
-        "storageKey": null
-      }
-    ],
-    "storageKey": null
-  },
-  {
-    "alias": null,
-    "args": null,
-    "concreteType": "Service",
-    "kind": "LinkedField",
-    "name": "services",
-    "plural": true,
-    "selections": [
-      (v0/*:: as any*/),
-      (v1/*:: as any*/)
-    ],
-    "storageKey": null
-  }
-];
+v3 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "Tag",
+  "kind": "LinkedField",
+  "name": "tags",
+  "plural": true,
+  "selections": [
+    (v1/*:: as any*/),
+    (v2/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "recordings",
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v4 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "Service",
+  "kind": "LinkedField",
+  "name": "services",
+  "plural": true,
+  "selections": [
+    (v1/*:: as any*/),
+    (v2/*:: as any*/)
+  ],
+  "storageKey": null
+};
 return {
   "fragment": {
     "argumentDefinitions": [],
     "kind": "Fragment",
     "metadata": null,
     "name": "recordingsTagsQuery",
-    "selections": (v2/*:: as any*/),
+    "selections": [
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "User",
+        "kind": "LinkedField",
+        "name": "viewer",
+        "plural": false,
+        "selections": [
+          (v0/*:: as any*/)
+        ],
+        "storageKey": null
+      },
+      (v3/*:: as any*/),
+      (v4/*:: as any*/)
+    ],
     "type": "Query",
     "abstractKey": null
   },
@@ -90,19 +114,35 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "recordingsTagsQuery",
-    "selections": (v2/*:: as any*/)
+    "selections": [
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "User",
+        "kind": "LinkedField",
+        "name": "viewer",
+        "plural": false,
+        "selections": [
+          (v0/*:: as any*/),
+          (v1/*:: as any*/)
+        ],
+        "storageKey": null
+      },
+      (v3/*:: as any*/),
+      (v4/*:: as any*/)
+    ]
   },
   "params": {
-    "cacheID": "bfe5a16aac30023060289c5530e11a6b",
+    "cacheID": "410875bbbd0967f7abd6da3eca75fbb6",
     "id": null,
     "metadata": {},
     "name": "recordingsTagsQuery",
     "operationKind": "query",
-    "text": "query recordingsTagsQuery {\n  tags {\n    id\n    name\n    recordings\n  }\n  services {\n    id\n    name\n  }\n}\n"
+    "text": "query recordingsTagsQuery {\n  viewer {\n    role\n    id\n  }\n  tags {\n    id\n    name\n    recordings\n  }\n  services {\n    id\n    name\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "67fc8857ea541fc60e00b29469244de6";
+(node as any).hash = "0c92c5e9b45e5746ec4cbc9c02578402";
 
 export default node;

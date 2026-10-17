@@ -412,6 +412,47 @@ func TestReanalyzeRecording(t *testing.T) {
 	assert.Len(t, queued(), 1)
 }
 
+// TestDeleteRecordings は、録画をまとめて消し、保護した録画、録画中の録画、見つからない録画は飛ばして数えることを確かめる (#471)。
+func TestDeleteRecordings(t *testing.T) {
+	t.Parallel()
+
+	f, dir := newRecordingFixture(t)
+	first := f.addRecording(t, dir, "消す録画 1", "completed", 4*time.Hour)
+	second := f.addRecording(t, dir, "消す録画 2", "failed", 3*time.Hour)
+	protected := f.addRecording(t, dir, "保護した録画", "completed", 2*time.Hour)
+	recordingNow := f.addRecording(t, dir, "録画中の録画", "recording", time.Hour)
+	_, rawProtected, err := graph.ParseGlobalID(protected)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), "UPDATE recordings SET protected = true WHERE id = $1", rawProtected)
+	require.NoError(t, err)
+	missing := graph.GlobalID("Recording", uuid.New().String())
+	const deleteMany = `mutation($ids: [ID!]!) { deleteRecordings(ids: $ids) { processed skipped } }`
+	ids := []string{first, second, protected, recordingNow, missing}
+
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", auth.RoleViewer).query(t, deleteMany, map[string]any{varIDs: ids}, nil))
+	tooMany := make([]string, 501)
+	for i := range tooMany {
+		tooMany[i] = missing
+	}
+	assert.Equal(t, []string{codeBadUserInput}, f.query(t, deleteMany, map[string]any{varIDs: tooMany}, nil))
+
+	var got struct {
+		DeleteRecordings struct {
+			Processed int `json:"processed"`
+			Skipped   int `json:"skipped"`
+		} `json:"deleteRecordings"`
+	}
+	require.Empty(t, f.query(t, deleteMany, map[string]any{varIDs: ids}, &got))
+	assert.Equal(t, 2, got.DeleteRecordings.Processed)
+	assert.Equal(t, 3, got.DeleteRecordings.Skipped)
+	assert.ElementsMatch(t, []string{"保護した録画", "録画中の録画"}, f.recordings(t, 10, nil, nil).names())
+	assert.NoFileExists(t, filepath.Join(dir, "消す録画 1.m2ts"))
+	assert.FileExists(t, filepath.Join(dir, "保護した録画.m2ts"))
+	var audited int
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM audit_events WHERE action = 'recording.deleted'").Scan(&audited))
+	assert.Equal(t, 2, audited, "each deletion is audited")
+}
+
 // TestRecordingWatchFrame は、前回見た位置に合うプレビュー画像のコマを返すことを確かめる。
 func TestRecordingWatchFrame(t *testing.T) {
 	t.Parallel()

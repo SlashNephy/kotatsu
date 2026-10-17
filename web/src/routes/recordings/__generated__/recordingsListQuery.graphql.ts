@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<15015929c9b700225ffb04127f9e6e8d>>
+ * @generated SignedSource<<7673ebc0ff3a069c2bae610339fa7896>>
  * @lightSyntaxTransform
  */
 
@@ -34,6 +34,7 @@ export type recordingsListQuery$data = {
         readonly id: string;
         readonly name: string;
         readonly previewUrl: string | null | undefined;
+        readonly protected: boolean;
         readonly recordedFrom: string;
         readonly recordedUntil: string | null | undefined;
         readonly scrambled: number;
@@ -153,59 +154,66 @@ v10 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "drops",
+  "name": "protected",
   "storageKey": null
 },
 v11 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "errors",
+  "name": "drops",
   "storageKey": null
 },
 v12 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "scrambled",
+  "name": "errors",
   "storageKey": null
 },
 v13 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedFrom",
+  "name": "scrambled",
   "storageKey": null
 },
 v14 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedUntil",
+  "name": "recordedFrom",
   "storageKey": null
 },
 v15 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "watchPositionMs",
+  "name": "recordedUntil",
   "storageKey": null
 },
 v16 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "thumbnailUrl",
+  "name": "watchPositionMs",
   "storageKey": null
 },
 v17 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "previewUrl",
+  "name": "thumbnailUrl",
   "storageKey": null
 },
 v18 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "previewUrl",
+  "storageKey": null
+},
+v19 = {
   "alias": null,
   "args": null,
   "concreteType": "PreviewFrame",
@@ -265,14 +273,14 @@ v18 = {
   ],
   "storageKey": null
 },
-v19 = {
+v20 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v20 = {
+v21 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -285,7 +293,7 @@ v20 = {
   ],
   "storageKey": null
 },
-v21 = {
+v22 = {
   "alias": null,
   "args": null,
   "concreteType": "PageInfo",
@@ -360,6 +368,7 @@ return {
                   (v16/*:: as any*/),
                   (v17/*:: as any*/),
                   (v18/*:: as any*/),
+                  (v19/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -369,18 +378,18 @@ return {
                     "plural": false,
                     "selections": [
                       (v6/*:: as any*/),
-                      (v19/*:: as any*/)
+                      (v20/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v20/*:: as any*/)
+                  (v21/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v21/*:: as any*/)
+          (v22/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -437,6 +446,7 @@ return {
                   (v16/*:: as any*/),
                   (v17/*:: as any*/),
                   (v18/*:: as any*/),
+                  (v19/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -446,35 +456,35 @@ return {
                     "plural": false,
                     "selections": [
                       (v6/*:: as any*/),
-                      (v19/*:: as any*/),
+                      (v20/*:: as any*/),
                       (v5/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v20/*:: as any*/)
+                  (v21/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v21/*:: as any*/)
+          (v22/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "e8fea4e632094318ca12b0a9d00c5190",
+    "cacheID": "7c3ebe9a859a448e1e23799a158d9f5a",
     "id": null,
     "metadata": {},
     "name": "recordingsListQuery",
     "operationKind": "query",
-    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n  $order: RecordingOrder!\n) {\n  recordings(first: $first, after: $after, filter: $filter, order: $order) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        drops\n        errors\n        scrambled\n        recordedFrom\n        recordedUntil\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
+    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n  $order: RecordingOrder!\n) {\n  recordings(first: $first, after: $after, filter: $filter, order: $order) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        protected\n        drops\n        errors\n        scrambled\n        recordedFrom\n        recordedUntil\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "8edd8e95eb50760bff0da83c7c4ce2ba";
+(node as any).hash = "e464ff360ddb498af5bc5b16b77375ee";
 
 export default node;

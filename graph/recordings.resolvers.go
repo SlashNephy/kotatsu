@@ -12,6 +12,11 @@ func (r *mutationResolver) DeleteRecording(ctx context.Context, id string) (stri
 	return r.deleteRecording(ctx, id)
 }
 
+// DeleteRecordings is the resolver for the deleteRecordings field.
+func (r *mutationResolver) DeleteRecordings(ctx context.Context, ids []string) (*model.BulkOperationPayload, error) {
+	return r.deleteRecordings(ctx, ids)
+}
+
 // SetRecordingProtected is the resolver for the setRecordingProtected field.
 func (r *mutationResolver) SetRecordingProtected(ctx context.Context, id string, protected bool) (*model.Recording, error) {
 	return r.setRecordingProtected(ctx, id, protected)

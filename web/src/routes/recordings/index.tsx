@@ -1,6 +1,7 @@
 import {
   ActionIcon,
   Alert,
+  Checkbox,
   Anchor,
   Box,
   Button,
@@ -8,27 +9,39 @@ import {
   Drawer,
   Group,
   Indicator,
+  Modal,
   MultiSelect,
   SegmentedControl,
   SimpleGrid,
   Stack,
+  Text,
   TextInput,
   Title,
+  Tooltip,
+  UnstyledButton,
 } from '@mantine/core';
 import {
   CalendarDays,
   Clapperboard,
   Info,
+  ListChecks,
   ListFilter,
   Search,
   SearchX,
   Tag,
+  Trash2,
   Tv,
 } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
+import {
+  fetchQuery,
+  graphql,
+  useLazyLoadQuery,
+  useMutation,
+  useRelayEnvironment,
+} from 'react-relay';
 
 import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
 import { broadcastRange } from '../../recordings/filterRange';
@@ -40,6 +53,7 @@ import type {
   recordingsListQuery$data,
   recordingsListQuery$variables,
 } from './__generated__/recordingsListQuery.graphql';
+import type { recordingsDeleteMutation } from './__generated__/recordingsDeleteMutation.graphql';
 import type { recordingsTagsQuery } from './__generated__/recordingsTagsQuery.graphql';
 
 export const Route = createFileRoute('/recordings/')({
@@ -64,6 +78,7 @@ const query = graphql`
           startAt
           endAt
           state
+          protected
           drops
           errors
           scrambled
@@ -183,6 +198,9 @@ function Recordings({
   const tags = useLazyLoadQuery<recordingsTagsQuery>(
     graphql`
       query recordingsTagsQuery {
+        viewer {
+          role
+        }
         tags {
           id
           name
@@ -197,6 +215,10 @@ function Recordings({
     {},
     { fetchPolicy: 'store-and-network' },
   );
+  // version を変えると、一覧を読み直す。まとめて消した後に使う (#471)。
+  const [version, setVersion] = useState(0);
+  // deleted は、まとめて消した結果。読み直しても消えないよう、一覧の外に持つ。
+  const [deleted, setDeleted] = useState<{ processed: number; skipped: number } | null>(null);
   const [keyword, setKeyword] = useState('');
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
@@ -321,17 +343,84 @@ function Recordings({
           ]}
         />
       </Group>
+      {deleted !== null && (
+        <Alert color="teal" role="status" withCloseButton onClose={() => setDeleted(null)}>
+          {deleted.skipped === 0
+            ? t('recordings.bulkDeleted', { count: deleted.processed })
+            : t('recordings.bulkDeletedSkipped', {
+                count: deleted.processed,
+                skipped: deleted.skipped,
+              })}
+        </Alert>
+      )}
       <Suspense fallback={<PageLoader />}>
-        <RecordingGrid key={`${order}:${JSON.stringify(filter)}`} filter={filter} order={order} />
+        <RecordingGrid
+          key={`${order}:${JSON.stringify(filter)}:${version}`}
+          filter={filter}
+          order={order}
+          canEdit={tags.viewer.role !== 'VIEWER'}
+          onDeleted={(result) => {
+            setDeleted(result);
+            setVersion((n) => n + 1);
+          }}
+        />
       </Suspense>
     </Stack>
   );
 }
 
 // RecordingGrid は、絞り込んだ録画のグリッド。続きは、同じ絞り込みで、カーソルから読む。
-function RecordingGrid({ filter, order }: { filter: Filter; order: Order }) {
+function RecordingGrid({
+  filter,
+  order,
+  canEdit,
+  onDeleted,
+}: {
+  filter: Filter;
+  order: Order;
+  canEdit: boolean;
+  onDeleted: (result: { processed: number; skipped: number }) => void;
+}) {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
+  // selecting は、まとめて消す録画を選んでいるかどうか。selected は、選んだ録画の ID (#471)。
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [confirming, setConfirming] = useState(false);
+  const [deleteMany, deleting] = useMutation<recordingsDeleteMutation>(graphql`
+    mutation recordingsDeleteMutation($ids: [ID!]!) {
+      deleteRecordings(ids: $ids) {
+        processed
+        skipped
+      }
+    }
+  `);
+  const toggle = (id: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) {
+        next.add(id);
+      }
+
+      return next;
+    });
+  const remove = () =>
+    deleteMany({
+      variables: { ids: [...selected] },
+      onCompleted: (response, errors) => {
+        setConfirming(false);
+        if (errors != null && errors.length > 0) {
+          setError(true);
+
+          return;
+        }
+        onDeleted(response.deleteRecordings);
+      },
+      onError: () => {
+        setConfirming(false);
+        setError(true);
+      },
+    });
   const data = useLazyLoadQuery<recordingsListQuery>(
     query,
     { first: pageSize, after: null, filter, order },
@@ -397,13 +486,80 @@ function RecordingGrid({ filter, order }: { filter: Filter; order: Order }) {
             hint={t('recordings.noMatchHint')}
           />
         ))}
+      {/* 視聴者でなければ、録画を選んでまとめて消せる。保護した録画と録画中の録画は選べない (#471)。 */}
+      {canEdit && recordings.length > 0 && (
+        <Group gap="xs">
+          <Button
+            size="xs"
+            variant={selecting ? 'light' : 'default'}
+            leftSection={<ListChecks size={14} aria-hidden />}
+            onClick={() => {
+              setSelecting(!selecting);
+              setSelected(new Set());
+            }}
+          >
+            {t(selecting ? 'recordings.selectDone' : 'recordings.select')}
+          </Button>
+          {selecting && (
+            <Button
+              size="xs"
+              color="red"
+              variant="light"
+              leftSection={<Trash2 size={14} aria-hidden />}
+              disabled={selected.size === 0}
+              onClick={() => setConfirming(true)}
+            >
+              {t('recordings.deleteSelected', { count: selected.size })}
+            </Button>
+          )}
+        </Group>
+      )}
       {recordings.length > 0 && (
         <SimpleGrid cols={{ base: 2, sm: 3, lg: 4 }} spacing="sm">
-          {recordings.map((recording) => (
-            <RecordingCard key={recording.id} recording={recording} />
-          ))}
+          {recordings.map((recording) => {
+            const locked = recording.protected || recording.state === 'RECORDING';
+
+            return (
+              <Box key={recording.id} pos="relative">
+                <RecordingCard recording={recording} />
+                {selecting && (
+                  <SelectionOverlay
+                    label={recording.name}
+                    checked={selected.has(recording.id)}
+                    disabledReason={
+                      locked
+                        ? t(
+                            recording.protected
+                              ? 'recordings.selectProtected'
+                              : 'recordings.selectRecording',
+                          )
+                        : null
+                    }
+                    onToggle={() => toggle(recording.id)}
+                  />
+                )}
+              </Box>
+            );
+          })}
         </SimpleGrid>
       )}
+      <Modal
+        opened={confirming}
+        onClose={() => setConfirming(false)}
+        title={t('recordings.deleteSelectedTitle')}
+      >
+        <Stack>
+          <Text size="sm">{t('recordings.deleteSelectedConfirm', { count: selected.size })}</Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setConfirming(false)}>
+              {t('recordings.cancel')}
+            </Button>
+            <Button color="red" loading={deleting} onClick={remove}>
+              {t('recordings.deleteSelected', { count: selected.size })}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
       {error && (
         <Alert color="red" role="alert">
           {t('recordings.error')}
@@ -417,5 +573,56 @@ function RecordingGrid({ filter, order }: { filter: Filter; order: Order }) {
         </Box>
       )}
     </Stack>
+  );
+}
+
+// SelectionOverlay は、録画を選ぶときに、カードの上に重ねる選択の印。カードを押しても、詳細へ移らずに選ぶ。
+// 選べない録画は、理由を出して押せないようにする (#471)。
+function SelectionOverlay({
+  label,
+  checked,
+  disabledReason,
+  onToggle,
+}: {
+  label: string;
+  checked: boolean;
+  disabledReason: string | null;
+  onToggle: () => void;
+}) {
+  const disabled = disabledReason !== null;
+
+  return (
+    <Tooltip label={disabledReason} disabled={!disabled} withinPortal>
+      <UnstyledButton
+        pos="absolute"
+        inset={0}
+        role="checkbox"
+        aria-checked={checked}
+        aria-label={label}
+        aria-disabled={disabled}
+        onClick={disabled ? undefined : onToggle}
+        style={{
+          borderRadius: 'var(--mantine-radius-default)',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          background: disabled
+            ? 'color-mix(in srgb, var(--mantine-color-body) 60%, transparent)'
+            : checked
+              ? 'color-mix(in srgb, var(--mantine-primary-color-filled) 18%, transparent)'
+              : undefined,
+          outline: checked ? '2px solid var(--mantine-primary-color-filled)' : undefined,
+        }}
+      >
+        <Checkbox
+          checked={checked}
+          disabled={disabled}
+          readOnly
+          tabIndex={-1}
+          aria-hidden
+          pos="absolute"
+          top={8}
+          left={8}
+        />
+      </UnstyledButton>
+    </Tooltip>
   );
 }
