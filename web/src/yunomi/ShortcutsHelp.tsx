@@ -1,7 +1,8 @@
-import { Group, Kbd, Modal, Table } from '@mantine/core';
+import { Group, Kbd, Modal, Table, Text } from '@mantine/core';
 import type { RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { dataBroadcastKeyHelp } from './dataBroadcastKeys';
 import { shortcutKeys, type ShortcutAction } from './shortcuts';
 
 // keyLabels は、記号で見せるキーの名前。ほかのキーは、そのまま見せる。
@@ -20,10 +21,12 @@ type Props = {
   actions: readonly ShortcutAction[];
   // target は、一覧を描く要素。全画面や別のウィンドウでも見えるよう、プレイヤーの中に描く。
   target: RefObject<HTMLElement | null>;
+  // dataBroadcast は、データ放送を出している間に使えるキーも並べるかどうか。ライブ視聴だけで使う (#441)。
+  dataBroadcast?: boolean;
 };
 
 // ShortcutsHelp は、キーボードショートカットの一覧 (設計書 7.5)。割り当ては shortcuts.ts から作る。
-export function ShortcutsHelp({ opened, onClose, actions, target }: Props) {
+export function ShortcutsHelp({ opened, onClose, actions, target, dataBroadcast = false }: Props) {
   const { t } = useTranslation();
 
   // 一覧はプレイヤーの中に描くので、一覧のクリックが、映像のクリック (再生と一時停止) に伝わらないよう止める。
@@ -52,6 +55,29 @@ export function ShortcutsHelp({ opened, onClose, actions, target }: Props) {
             ))}
           </Table.Tbody>
         </Table>
+        {dataBroadcast && (
+          <>
+            <Text fw={600} size="sm" mt="md">
+              {t('player.shortcuts.dataBroadcastTitle')}
+            </Text>
+            <Table>
+              <Table.Tbody>
+                {dataBroadcastKeyHelp.map(({ label, keys }) => (
+                  <Table.Tr key={label}>
+                    <Table.Td>{t(`player.shortcuts.dataBroadcast.${label}`)}</Table.Td>
+                    <Table.Td>
+                      <Group gap={4} wrap="nowrap">
+                        {keys.map((key) => (
+                          <Kbd key={key}>{key}</Kbd>
+                        ))}
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </>
+        )}
       </Modal>
     </div>
   );

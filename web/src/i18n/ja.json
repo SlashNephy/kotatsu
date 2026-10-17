@@ -824,7 +824,15 @@
       "capture": "今の場面を画像に保存する",
       "restart": "プレイヤーを読み直す",
       "toggleStats": "統計情報を出し入れする",
-      "showShortcuts": "この一覧を出す"
+      "showShortcuts": "この一覧を出す",
+      "dataBroadcastTitle": "データ放送を出している間",
+      "dataBroadcast": {
+        "arrows": "矢印",
+        "enter": "決定",
+        "back": "戻る",
+        "colors": "青・赤・緑・黄",
+        "digits": "数字"
+      }
     },
     "flash": {
       "volume": "音量 {{percent}}%",
