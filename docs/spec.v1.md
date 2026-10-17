@@ -121,7 +121,7 @@ EDCBは予約エンジンの完成度が高い一方で、状態を単一のプ�
 
 管理用のサブコマンドとして、`kotatsu migrate`、`kotatsu import epgstation`、`kotatsu admin setup-token`を持ちます。
 
-ビルドのときに、版とコミットを`1.2.3+<コミット>`の形でバイナリに埋め込みます（リリースはタグの版、mainのイメージは`edge`）。
+ビルドのときに、版とコミットを`2026.10.0+<コミット>`の形でバイナリに埋め込みます（リリースはタグの版、mainのイメージは`edge`）。
 埋め込まないビルドは`dev`とし、コミットはGoが埋め込むVCSの情報から取ります。
 版は`kotatsu --version`、起動時のログ、GraphQLの`version`（ログインしたユーザーだけ）で確かめられ、画面ではユーザーのメニューに出します。
 
@@ -1202,6 +1202,13 @@ Content Security Policyは厳しく設定します。
 | Helm Chart | GitHub PagesのHelmリポジトリ（`https://slashnephy.github.io/kotatsu`）で配布します。Chartの本体はリリースに添付します。 |
 | Kubernetesのマニフェスト | Helm Chartから`helm template`で生成します。 |
 | Docker Composeの例 | `-ffmpeg`イメージの`all`構成とPostgreSQLの組み合わせです。 |
+
+版はCalVerで`YYYY.M.N`（年、月、その月の何回目のリリースか。0から数えます）とし、タグは`v2026.10.0`の形にします。
+HelmのChartの版とイメージのタグはSemVerの形を求めるので、月に0を付けず、数字を3つにします。
+「v1」は機能の区切り（マイルストーン）の名前で、版とは結び付けません。
+
+リリースは、Actionsの「Tag a release」をmainで手で動かして作ります。
+このworkflowが、mainの今のコミットに次の版のタグを打ち、配布物を作るworkflowをそのタグで動かします。
 
 Helm Chartは次の方針で作ります。
 
