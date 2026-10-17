@@ -4,6 +4,8 @@ export type ShortcutAction =
   | 'togglePlay'
   | 'seekBackward'
   | 'seekForward'
+  | 'seekBackwardLong'
+  | 'seekForwardLong'
   | 'toggleCaptions'
   | 'toggleMute'
   | 'toggleFullscreen'
@@ -16,10 +18,14 @@ export type ShortcutAction =
   | 'showShortcuts';
 
 // shortcutKeys は、操作ごとに割り当てたキー (KeyboardEvent.key)。ショートカットの一覧も、これから作る。
+// 文字でないキーを Shift と一緒に押すときは、`Shift+` を前に付けて書く。文字のキーは、Shift で変わった文字 (? など) で書く。
 export const shortcutKeys: Readonly<Record<ShortcutAction, readonly string[]>> = {
   togglePlay: [' ', 'k'],
   seekBackward: ['ArrowLeft', 'j'],
   seekForward: ['ArrowRight', 'l'],
+  // Alt+← (戻る) や Ctrl+← (単語の移動) は、ブラウザや OS とぶつかるので、Shift で大きく動かす (#498)。
+  seekBackwardLong: ['Shift+ArrowLeft'],
+  seekForwardLong: ['Shift+ArrowRight'],
   toggleCaptions: ['c'],
   toggleMute: ['m'],
   toggleFullscreen: ['f'],
@@ -38,7 +44,10 @@ const actionsByKey: ReadonlyMap<string, ShortcutAction> = new Map(
   ),
 );
 
-type KeyLike = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'repeat'> & {
+type KeyLike = Pick<
+  KeyboardEvent,
+  'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey' | 'repeat'
+> & {
   target: EventTarget | null;
 };
 
@@ -46,6 +55,8 @@ type KeyLike = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'r
 const repeatable: ReadonlySet<ShortcutAction> = new Set([
   'seekBackward',
   'seekForward',
+  'seekBackwardLong',
+  'seekForwardLong',
   'volumeUp',
   'volumeDown',
 ]);
@@ -68,5 +79,13 @@ function actionFor(event: KeyLike): ShortcutAction | null {
   ) {
     return null;
   }
+  // 文字でないキーは、Shift の割り当てがあればそれを、なければ Shift のないキーの割り当てを使う。
+  if (event.shiftKey && event.key.length > 1) {
+    const action = actionsByKey.get(`Shift+${event.key}`);
+    if (action !== undefined) {
+      return action;
+    }
+  }
+
   return actionsByKey.get(event.key) ?? null;
 }

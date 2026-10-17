@@ -457,6 +457,14 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       skip(10);
       showFlash(t('player.flash.seekForward'));
     },
+    seekBackwardLong: () => {
+      skip(-30);
+      showFlash(t('player.flash.seekBackwardLong'));
+    },
+    seekForwardLong: () => {
+      skip(30);
+      showFlash(t('player.flash.seekForwardLong'));
+    },
     toggleCaptions: () => setCaptions(!captions),
     toggleMute: () => {
       const video = videoRef.current;

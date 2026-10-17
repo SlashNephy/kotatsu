@@ -14,6 +14,11 @@ const keyLabels: Readonly<Record<string, string>> = {
   ArrowDown: '↓',
 };
 
+// splitKey は、`Shift+ArrowLeft` を、Shift と ArrowLeft に分ける。`+` のキーそのものは分けない。
+function splitKey(key: string): string[] {
+  return key.length > 1 && key.startsWith('Shift+') ? ['Shift', key.slice('Shift+'.length)] : [key];
+}
+
 type Props = {
   opened: boolean;
   onClose: () => void;
@@ -47,7 +52,12 @@ export function ShortcutsHelp({ opened, onClose, actions, target, dataBroadcast 
                 <Table.Td>
                   <Group gap={4} wrap="nowrap">
                     {shortcutKeys[action].map((key) => (
-                      <Kbd key={key}>{keyLabels[key] ?? key}</Kbd>
+                      // Shift+← などは、キーを 1 つずつ並べる。
+                      <Group key={key} gap={2} wrap="nowrap">
+                        {splitKey(key).map((part, i) => (
+                          <Kbd key={i}>{keyLabels[part] ?? part}</Kbd>
+                        ))}
+                      </Group>
                     ))}
                   </Group>
                 </Table.Td>
