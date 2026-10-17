@@ -7,15 +7,18 @@
 set -euo pipefail
 
 month="${1:-$(TZ=Asia/Tokyo date +%Y.%-m)}"
-if ! [[ "$month" =~ ^[0-9]{4}\.[1-9][0-9]?$ ]]; then
+if ! [[ "$month" =~ ^[0-9]{4}\.([1-9]|1[0-2])$ ]]; then
   echo "invalid month: $month (expected YYYY.M)" >&2
   exit 1
 fi
 
+pattern="^v${month//./\\.}\\.([0-9]+)$"
 next=0
-while IFS= read -r tag; do
-  if [[ "$tag" =~ ^v${month//./\\.}\.([0-9]+)$ ]]; then
-    n="${BASH_REMATCH[1]}"
+# 最後の行に改行がなくても読む。
+while IFS= read -r tag || [[ -n "$tag" ]]; do
+  if [[ "$tag" =~ $pattern ]]; then
+    # 0 で始まる数字を 8 進数として読まないように、10 進数と明示する。
+    n=$(( 10#${BASH_REMATCH[1]} ))
     if (( n + 1 > next )); then
       next=$(( n + 1 ))
     fi
