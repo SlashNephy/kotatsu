@@ -713,6 +713,9 @@ CREATE TABLE recording_files (
   -- ファイルが表す時間の範囲。書いている間は、終わりを NULL にする。
   started_at timestamptz NOT NULL,
   ended_at timestamptz,
+  -- セグメントの PID ごとの品質の集計 (#473)。[{pid, kind, packets, drops, errors, scrambled}] の形で、セグメントを閉じるときに書く。
+  -- セグメント以外と、書き終えていないセグメントと、これを足す前に閉じたセグメントは NULL。
+  pid_stats jsonb,
   created_at timestamptz NOT NULL,
   UNIQUE (pool_id, path)
 );

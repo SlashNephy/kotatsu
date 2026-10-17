@@ -516,7 +516,7 @@ func (q *Queries) ListFinishedRecordingSegments(ctx context.Context) ([]ListFini
 }
 
 const listOpenRecordingFiles = `-- name: ListOpenRecordingFiles :many
-SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
 `
 
 // 録画の、書き終えていないファイル。落ちた mikan が書きかけたまま残したものを、引き継ぐ mikan が閉じる。
@@ -538,6 +538,7 @@ func (q *Queries) ListOpenRecordingFiles(ctx context.Context, recordingID uuid.U
 			&i.Size,
 			&i.StartedAt,
 			&i.EndedAt,
+			&i.PIDStats,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -581,7 +582,7 @@ func (q *Queries) ListRecordingFileLocations(ctx context.Context) ([]ListRecordi
 }
 
 const listRecordingFiles = `-- name: ListRecordingFiles :many
-SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind, id
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, created_at FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind, id
 `
 
 func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error) {
@@ -602,6 +603,7 @@ func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID)
 			&i.Size,
 			&i.StartedAt,
 			&i.EndedAt,
+			&i.PIDStats,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -837,6 +839,21 @@ type SetRecordingFailureHintParams struct {
 // 録画中の録画に、録画できなかった理由を残す。割り振りを手放した後、ほかの mikan も録れなければ、この理由で失敗にする (#524)。
 func (q *Queries) SetRecordingFailureHint(ctx context.Context, arg SetRecordingFailureHintParams) error {
 	_, err := q.db.Exec(ctx, setRecordingFailureHint, arg.FailureReason, arg.Now, arg.ID)
+	return err
+}
+
+const setRecordingFilePIDStats = `-- name: SetRecordingFilePIDStats :exec
+UPDATE recording_files SET pid_stats = $1 WHERE id = $2
+`
+
+type SetRecordingFilePIDStatsParams struct {
+	PIDStats []byte
+	ID       uuid.UUID
+}
+
+// セグメントの PID ごとの品質の集計を書く (#473)。
+func (q *Queries) SetRecordingFilePIDStats(ctx context.Context, arg SetRecordingFilePIDStatsParams) error {
+	_, err := q.db.Exec(ctx, setRecordingFilePIDStats, arg.PIDStats, arg.ID)
 	return err
 }
 

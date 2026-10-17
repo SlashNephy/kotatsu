@@ -16,6 +16,7 @@ sql:
           url: URL
           vapid_key: VAPIDKey
           p256dh: P256DH
+          pid_stats: PIDStats
         overrides:
           - db_type: uuid
             go_type: github.com/google/uuid.UUID

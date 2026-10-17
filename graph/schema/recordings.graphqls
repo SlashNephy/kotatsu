@@ -113,6 +113,11 @@ type Recording implements Node {
   drops: Int64!
   errors: Int64!
   scrambled: Int64!
+  """
+  PID ごとの、パケット、ドロップ、エラー、スクランブルの数 (#473)。セグメントを足し合わせ、PID の昇順に並べる。
+  集計を記録する前に閉じたセグメントは含めない。引き継ぎで重なった区間は、drops などと違って二重に数える。
+  """
+  streamQuality: [StreamQuality!]!
   gaps: [RecordingGap!]!
   "録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。"
   audios: [ProgramAudio!]!
@@ -264,4 +269,27 @@ type PreviewFrame {
   "プレビュー画像全体の大きさ。背景を縮めて描くときに使う。"
   sheetWidth: Int!
   sheetHeight: Int!
+}
+
+"""
+PID の種類。PMT に書かれたストリーム (映像、音声、そのほか) と、PSI と SI の表。PMT にも決まった PID にもなければ UNKNOWN。
+"""
+enum StreamKind {
+  VIDEO
+  AUDIO
+  OTHER
+  PSI
+  UNKNOWN
+}
+
+"""
+PID ごとの品質の集計 (#473)。
+"""
+type StreamQuality {
+  pid: Int!
+  kind: StreamKind!
+  packets: Int64!
+  drops: Int64!
+  errors: Int64!
+  scrambled: Int64!
 }

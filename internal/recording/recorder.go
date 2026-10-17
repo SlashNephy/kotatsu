@@ -1178,6 +1178,12 @@ func (r *Recorder) closeSegment(ctx context.Context, recording *sqlc.Recording, 
 			r.logger.WarnContext(ctx, "failed to save the index file size", slog.Any("error", err))
 		}
 	}
+	// PID ごとの内訳は、どの PID のドロップかを見るためだけなので、書けなくても録画の失敗にしない (#473)。
+	if pidStats, err := json.Marshal(ts.PIDQualities(stats, stats.PIDs)); err != nil {
+		r.logger.WarnContext(ctx, "failed to encode the PID stats", slog.Any("error", err))
+	} else if err := q.SetRecordingFilePIDStats(ctx, sqlc.SetRecordingFilePIDStatsParams{PIDStats: pidStats, ID: seg.fileID}); err != nil {
+		r.logger.WarnContext(ctx, "failed to save the PID stats", slog.Any("error", err))
+	}
 	var errorsCount, scrambled int64
 	for _, pid := range stats.PIDs {
 		errorsCount += pid.Errors

@@ -342,6 +342,14 @@ func TestAnalyzeWorkerExcludesHandoverOverlap(t *testing.T) {
 			var drops int64
 			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT drops FROM recordings WHERE id = $1", recordingID).Scan(&drops))
 			assert.Equal(t, tt.wantDrops, drops)
+			// PID ごとの内訳も、重なった区間を除いて記録し直す。ドロップは映像の PID のものだけになる (#473)。
+			var pidDrops int64
+			var kinds []string
+			require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT coalesce(sum((e->>'drops')::bigint), 0),
+				coalesce(array_agg(DISTINCT e->>'kind') FILTER (WHERE (e->>'drops')::bigint > 0), '{}')
+				FROM recording_files f, jsonb_array_elements(f.pid_stats) e WHERE f.recording_id = $1`, recordingID).Scan(&pidDrops, &kinds))
+			assert.Equal(t, tt.wantDrops, pidDrops)
+			assert.Equal(t, []string{ts.PIDKindVideo}, kinds)
 		})
 	}
 }

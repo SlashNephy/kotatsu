@@ -67,6 +67,11 @@ func (r *recordingResolver) Service(ctx context.Context, obj *model.Recording) (
 	return toService(row), nil
 }
 
+// StreamQuality is the resolver for the streamQuality field.
+func (r *recordingResolver) StreamQuality(ctx context.Context, obj *model.Recording) ([]*model.StreamQuality, error) {
+	return r.streamQuality(ctx, obj)
+}
+
 // Rule is the resolver for the rule field.
 func (r *recordingResolver) Rule(ctx context.Context, obj *model.Recording) (*model.Rule, error) {
 	return r.recordingRule(ctx, obj)

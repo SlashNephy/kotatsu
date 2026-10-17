@@ -7,6 +7,7 @@ package analysis
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -115,6 +116,8 @@ type analyzed struct {
 	// index は、作った索引の場所。付属ファイルをまとめて置くディレクトリがあれば、セグメントとは別のプールになる。
 	index     *kago.Location
 	indexSize int64
+	// pidStats は、PID ごとの品質の集計の JSON (#473)。
+	pidStats []byte
 }
 
 // Work は、録画ごとの advisory lock を取ってから、録画を解析する。
@@ -185,6 +188,10 @@ func (w *AnalyzeWorker) work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 		counted := stats.PIDs
 		if stats.PIDsBeforeCutoff != nil {
 			counted = stats.PIDsBeforeCutoff
+		}
+		// PID ごとの内訳も、重なった区間を除いた集計で記録し直す (#473)。
+		if result.pidStats, err = json.Marshal(ts.PIDQualities(stats, counted)); err != nil {
+			return fmt.Errorf("failed to encode the PID stats: %w", err)
 		}
 		for _, pid := range counted {
 			total.Drops += pid.Drops
@@ -298,7 +305,7 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 		return nil, nil, fmt.Errorf("failed to inspect the index file: %w", err)
 	}
 
-	return &analyzed{segment: segment, index: index, indexSize: info.Size()}, stats, nil
+	return &analyzed{segment: segment, index: index, indexSize: info.Size(), pidStats: nil}, stats, nil
 }
 
 // record は、索引と集計を記録し、同じトランザクションで、代表画像とプレビュー画像を作るジョブを投入する。
@@ -314,6 +321,9 @@ func (w *AnalyzeWorker) record(ctx context.Context, recordingID uuid.UUID, resul
 			})
 			if err != nil {
 				return fmt.Errorf("failed to record the index: %w", err)
+			}
+			if err := q.SetRecordingFilePIDStats(ctx, sqlc.SetRecordingFilePIDStatsParams{PIDStats: result.pidStats, ID: result.segment.ID}); err != nil {
+				return fmt.Errorf("failed to record the PID stats: %w", err)
 			}
 		}
 		err := q.SetRecordingStats(ctx, sqlc.SetRecordingStatsParams{

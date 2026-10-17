@@ -1326,6 +1326,11 @@ type Recording implements Node {
   drops: Int64!
   errors: Int64!
   scrambled: Int64!
+  """
+  PID ごとの、パケット、ドロップ、エラー、スクランブルの数 (#473)。セグメントを足し合わせ、PID の昇順に並べる。
+  集計を記録する前に閉じたセグメントは含めない。引き継ぎで重なった区間は、drops などと違って二重に数える。
+  """
+  streamQuality: [StreamQuality!]!
   gaps: [RecordingGap!]!
   """
   録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。
@@ -2022,6 +2027,16 @@ input StoragePoolInput {
   minFreeBytes: Int64
 }
 """
+PID の種類。PMT に書かれたストリーム (映像、音声、そのほか) と、PSI と SI の表。PMT にも決まった PID にもなければ UNKNOWN。
+"""
+enum StreamKind {
+  VIDEO
+  AUDIO
+  OTHER
+  PSI
+  UNKNOWN
+}
+"""
 サーバー側でのトランスコードの画質 (設計書 7.3)。
 """
 type StreamPreset {
@@ -2036,6 +2051,17 @@ type StreamPreset {
   """
   videoBitrate: Int!
   codec: VideoCodec!
+}
+"""
+PID ごとの品質の集計 (#473)。
+"""
+type StreamQuality {
+  pid: Int!
+  kind: StreamKind!
+  packets: Int64!
+  drops: Int64!
+  errors: Int64!
+  scrambled: Int64!
 }
 """
 外部プレイヤー (VLC や mpv) で開くための、署名付きの映像の URL (設計書 7.6、9.6)。
