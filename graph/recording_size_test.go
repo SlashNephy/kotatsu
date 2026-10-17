@@ -16,12 +16,14 @@ func TestWritingFileSize(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		ended bool
-		want  int64
+		name    string
+		ended   bool
+		missing bool
+		want    int64
 	}{
-		{name: "書いている間はファイルの大きさ", ended: false, want: 6},
-		{name: "書き終えたら DB の大きさ", ended: true, want: 2},
+		{name: "書いている間はファイルの大きさ", ended: false, missing: false, want: 6},
+		{name: "書き終えたら DB の大きさ", ended: true, missing: false, want: 2},
+		{name: "書いている間でも、ファイルを読めなければ DB の大きさ", ended: false, missing: true, want: 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -30,6 +32,9 @@ func TestWritingFileSize(t *testing.T) {
 			f, dir := newRecordingFixture(t)
 			f.addRecording(t, dir, remainingRecordingName, "recording", time.Hour)
 			require.NoError(t, os.WriteFile(filepath.Join(dir, remainingRecordingName+".m2ts"), []byte("tstsTS"), 0o600))
+			if tt.missing {
+				require.NoError(t, os.Remove(filepath.Join(dir, remainingRecordingName+".m2ts")))
+			}
 			if !tt.ended {
 				_, err := f.pool.Exec(t.Context(), "UPDATE recording_files SET ended_at = NULL")
 				require.NoError(t, err)
