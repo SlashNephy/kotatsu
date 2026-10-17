@@ -1059,7 +1059,8 @@ func (t *endTracker) observeBroadcast(ctx context.Context, now time.Time) {
 		}
 	}
 	if change.ended {
-		if err := q.SetRecordingBroadcastEnded(ctx, sqlc.SetRecordingBroadcastEndedParams{At: &now, ID: t.recordingID}); err != nil {
+		// 放送中が空のまま続いて終わったとみなしたときは、空になった時刻を記録する (#637)。
+		if err := q.SetRecordingBroadcastEnded(ctx, sqlc.SetRecordingBroadcastEndedParams{At: t.broadcast.endedAt, ID: t.recordingID}); err != nil {
 			r.logger.WarnContext(ctx, "failed to record the broadcast end", slog.Any("error", err))
 		}
 		r.logger.InfoContext(ctx, "the program left the air; recording the end margin",

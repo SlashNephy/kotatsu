@@ -6,6 +6,11 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/ts"
 )
 
+// emptyPresentGrace は、EIT[p/f] の放送中のセクションに番組がないまま、判断を保留する時間 (#637)。
+// 番組の切り替わりなどで一瞬だけ空のセクションを送る局があっても、放送が終わったとはしない。
+// 空のまま続くとき (放送の休止など) は、空になった時刻に終わったとみなす。EIT[p/f] は数秒ごとに届くので、十分に長い。
+const emptyPresentGrace = time.Minute
+
 // broadcastTracker は、録画中の TS の EIT[p/f] から、予約した番組が実際に放送されているかを追う (設計書 5.1、#389)。
 // 番組表 (EIT[schedule]) に時間の重なった番組があっても、EIT[p/f] の放送中の番組は 1 つだけなので、実際に放送されている番組が分かる。
 // 番組は eventId で見分ける。eventId が同じなら、番組名が変わっても同じ番組として追う。
@@ -20,6 +25,8 @@ type broadcastTracker struct {
 	following bool
 	// present は、最後に読んだ放送中の番組の eventId。
 	present *uint16
+	// emptySince は、放送中のセクションに番組がなくなった時刻。番組があれば nil。
+	emptySince *time.Time
 }
 
 // broadcastChange は、update で変わったこと。
@@ -32,7 +39,7 @@ type broadcastChange struct {
 }
 
 func newBroadcastTracker(eventID uint16) *broadcastTracker {
-	return &broadcastTracker{eventID: eventID, observed: false, startedAt: nil, endedAt: nil, following: false, present: nil}
+	return &broadcastTracker{eventID: eventID, observed: false, startedAt: nil, endedAt: nil, following: false, present: nil, emptySince: nil}
 }
 
 // update は、今読んだ EIT[p/f] pf (nil ならまだ読んでいない) で、放送の状態を進める。
@@ -40,6 +47,19 @@ func (b *broadcastTracker) update(pf *ts.PresentFollowing, now time.Time) broadc
 	change := broadcastChange{started: false, ended: false, resumed: false}
 	if pf == nil || !pf.PresentSeen {
 		return change
+	}
+	// 放送中が空になったら、emptyPresentGrace の間は、前に読んだ状態のまま保留する (#637)。
+	changedAt := now
+	if pf.Present == nil {
+		if b.emptySince == nil {
+			b.emptySince = new(now)
+		}
+		if now.Sub(*b.emptySince) < emptyPresentGrace {
+			return change
+		}
+		changedAt = *b.emptySince
+	} else {
+		b.emptySince = nil
 	}
 	b.observed = true
 	b.present = pf.Present
@@ -55,7 +75,7 @@ func (b *broadcastTracker) update(pf *ts.PresentFollowing, now time.Time) broadc
 		change.resumed = true
 	case !onAir && b.startedAt != nil && b.endedAt == nil && !b.following:
 		// 放送中が別の番組に切り替わっても、次の番組が予約した番組なら、割り込まれただけなので、終わったとはしない (#636)。
-		b.endedAt = new(now)
+		b.endedAt = new(changedAt)
 		change.ended = true
 	}
 

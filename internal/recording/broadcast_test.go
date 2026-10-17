@@ -85,6 +85,35 @@ func TestBroadcastTracker(t *testing.T) {
 			now: at(12, 11), wantEnd: planned, wantStarted: true, wantEnded: true,
 		},
 		{
+			// 番組の切り替わりなどで、放送中のセクションが一瞬だけ空で届くことがある (#637)。
+			name: "延長中に放送中が一瞬だけ空になっても、終わったとはせず延ばし続ける",
+			steps: []step{
+				{now: new(at(12, 0)), pf: pf(ours, next)},
+				{now: new(at(12, 40)), pf: pf(nil, next)},
+				{now: new(at(12, 40).Add(5 * time.Second)), pf: pf(ours, next)},
+			},
+			now: at(12, 41), wantEnd: at(12, 46), wantStarted: true,
+		},
+		{
+			name: "延長中に放送中が空のままなら、保留する間は延ばし続ける",
+			steps: []step{
+				{now: new(at(12, 0)), pf: pf(ours, next)},
+				{now: new(at(12, 40)), pf: pf(nil, nil)},
+				{now: new(at(12, 40).Add(50 * time.Second)), pf: pf(nil, nil)},
+			},
+			now: at(12, 40).Add(50 * time.Second), wantEnd: at(12, 45).Add(50 * time.Second), wantStarted: true,
+		},
+		{
+			// 放送の休止などで空のまま続くときは、空になった時刻に終わったとみなし、後ろのマージンを録って止める。
+			name: "延長中に放送中が 1 分を超えて空のままなら、空になった時刻に終わったとする",
+			steps: []step{
+				{now: new(at(12, 0)), pf: pf(ours, next)},
+				{now: new(at(12, 40)), pf: pf(nil, nil)},
+				{now: new(at(12, 41)), pf: pf(nil, nil)},
+			},
+			now: at(12, 41), wantEnd: at(12, 40).Add(margin), wantStarted: true, wantEnded: true,
+		},
+		{
 			name:  "予定の終わりを過ぎても放送中なら、延ばす (延長)",
 			steps: []step{{now: new(at(12, 0)), pf: pf(ours, next)}},
 			now:   at(12, 31), wantEnd: at(12, 36), wantStarted: true,
