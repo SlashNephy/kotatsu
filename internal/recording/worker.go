@@ -92,6 +92,9 @@ type Worker struct {
 	active map[uuid.UUID]*activeSession
 	// cooldownUntil は、録画できずに割り振りを手放したので、割り振りを取らない期限 (#524)。
 	cooldownUntil atomic.Pointer[time.Time]
+	// cooldownMu は、期限を確かめて割り振りを取る間と、期限を決めて割り振りを手放す間を、互いに待たせる。
+	// 取る側が期限を確かめた後に手放されると、手放したばかりの割り振りを、期限の前に取り直してしまう。
+	cooldownMu sync.Mutex
 }
 
 // NewWorker は Worker を返す。holder は、この mikan のインスタンスの ID。opts は nil でもよい。
@@ -115,7 +118,7 @@ func NewWorker(pool *pgxpool.Pool, clk clock.Clock, holder uuid.UUID, logger *sl
 
 	return &Worker{
 		pool: pool, clock: clk, holder: holder, logger: logger, session: session, opts: o,
-		mu: sync.Mutex{}, active: map[uuid.UUID]*activeSession{}, cooldownUntil: atomic.Pointer[time.Time]{},
+		mu: sync.Mutex{}, active: map[uuid.UUID]*activeSession{}, cooldownUntil: atomic.Pointer[time.Time]{}, cooldownMu: sync.Mutex{},
 	}
 }
 
@@ -147,11 +150,7 @@ func (w *Worker) Run(ctx context.Context) error {
 		Watcher:  notify.WatcherOptions{UseListen: !w.opts.PollOnly, PollInterval: w.opts.PollInterval},
 	}, func(ctx context.Context) {
 		for {
-			// 録画できずに割り振りを手放した後は、しばらく取らず、ほかの mikan に回す (#524)。
-			if until := w.cooldownUntil.Load(); until != nil && w.clock.Now().Before(*until) {
-				return
-			}
-			assignment, ok, err := w.acquire(ctx)
+			assignment, ok, err := w.acquireUnlessCoolingDown(ctx)
 			if err != nil {
 				if ctx.Err() == nil {
 					w.logger.WarnContext(ctx, "failed to acquire a recording assignment", slog.Any("error", err))
@@ -173,6 +172,18 @@ func (w *Worker) Run(ctx context.Context) error {
 	wg.Wait()
 
 	return err
+}
+
+// acquireUnlessCoolingDown は、録画できずに割り振りを手放した後のしばらくの間でなければ、割り振りを取る (#524)。
+// 手放している途中に取らないよう、期限を確かめてから取り終えるまで、手放す側を待たせる。
+func (w *Worker) acquireUnlessCoolingDown(ctx context.Context) (*Assignment, bool, error) {
+	w.cooldownMu.Lock()
+	defer w.cooldownMu.Unlock()
+	if until := w.cooldownUntil.Load(); until != nil && w.clock.Now().Before(*until) {
+		return nil, false, nil
+	}
+
+	return w.acquire(ctx)
 }
 
 // handOverAll は、録画しているすべての割り振りを、ほかの mikan に引き継ぐか、手放す。
@@ -437,6 +448,8 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 // ほかの mikan が取って録画する。ほかの mikan がいなければ、待った後に自分で取り直す。
 func (w *Worker) release(ctx context.Context, assignment *Assignment, logger *slog.Logger, cause error) {
 	logger.WarnContext(ctx, "released the recording assignment; this mikan is unable to record", slog.Any("error", cause))
+	w.cooldownMu.Lock()
+	defer w.cooldownMu.Unlock()
 	until := w.clock.Now().Add(w.opts.ReleaseCooldown)
 	w.cooldownUntil.Store(&until)
 	err := sqlc.New(w.pool).ReleaseUnrecordableRecordingAssignment(ctx, sqlc.ReleaseUnrecordableRecordingAssignmentParams{
