@@ -255,6 +255,10 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []sqlc.Recording) (
 		if file.Kind == model.RecordingFileKindOther {
 			file.URL = new(stream.OtherFileURL(row.RecordingID, row.ID))
 		}
+		// 書いている間のファイルは、閉じるまで DB に大きさを書かないので、ファイルから読む (#736)。
+		if file.EndedAt == nil {
+			file.Size = r.writingFileSize(row.PoolID, row.Path, row.Size)
+		}
 		files[row.RecordingID] = append(files[row.RecordingID], file)
 	}
 	progressRows, err := q.ListWatchProgress(ctx, sqlc.ListWatchProgressParams{UserID: principal.UserID, RecordingIds: ids})
@@ -635,4 +639,19 @@ func libraryError(err error) error {
 	default:
 		return err
 	}
+}
+
+// writingFileSize は、書いている間のファイルの、今の大きさを返す。このインスタンスにマウントしていないなど、読めなければ recorded を返す。
+func (r *Resolver) writingFileSize(poolID, path string, recorded int64) int64 {
+	file, err := r.store.Open(poolID, path)
+	if err != nil {
+		return recorded
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return recorded
+	}
+
+	return info.Size()
 }

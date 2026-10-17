@@ -1392,7 +1392,7 @@ type RecordingFile {
   """
   path: String!
   """
-  大きさ (バイト)。
+  大きさ (バイト)。書いている間は、このインスタンスから読めれば、ファイルの今の大きさ。
   """
   size: Int64!
   startedAt: Time!
