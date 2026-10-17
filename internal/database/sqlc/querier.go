@@ -300,8 +300,12 @@ type Querier interface {
 	// 番組を指定した予約のうち、予約か番組の終わりがまだ来ていないものと、その番組の今の EPG。
 	// 予約の終わりが過ぎた後は、同じ放送の終わりが延びたとき (番組が予約の終わりより前に始まる) だけ追従する。
 	// 番組が予約の終わりより後に始まるなら、EID が別の番組に再利用されたものとみなし、古い予約を書き換えない (#510)。
-	// ルール予約の録画設定は、一致したルールのうち最も古いものの上書きを使う。
+	// イベントリレーの引き継ぎは、ListReservationsToRelay で別に追う。
 	ListReservationsToFollow(ctx context.Context, now time.Time) ([]ListReservationsToFollowRow, error)
+	// イベントリレーで別のサービスに引き継ぐ番組の、有効で追従する予約と、その番組の関連。
+	// 延長で臨時のサブチャンネルへ移るときは、移る先の番組が、移った時点で初めて EPG に出ることがあるので、
+	// 予約の終わりが過ぎても、終わりが since より後の予約は追う (#639)。EID が再利用された番組 (予約の終わりより後に始まる) は除く。
+	ListReservationsToRelay(ctx context.Context, since time.Time) ([]ListReservationsToRelayRow, error)
 	ListRules(ctx context.Context) ([]Rule, error)
 	ListRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rule, error)
 	// 取り込むデータが参照するサービスが、Kotatsu にあるかを確かめるのに使う。
