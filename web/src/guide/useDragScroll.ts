@@ -40,6 +40,12 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
       if (start === null) {
         return;
       }
+      // ウィンドウの外でボタンを離すと pointerup が届かないので、戻ってきたときにボタンを見て終える。
+      if ((event.buttons & 1) === 0) {
+        finish();
+
+        return;
+      }
       const pointer = { x: event.clientX, y: event.clientY };
       if (
         !dragging &&
@@ -56,7 +62,8 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
       element.scrollLeft = position.x;
       element.scrollTop = position.y;
     };
-    const onPointerUp = () => {
+    // finish は、ドラッグを終える。ドラッグしていたら、その後に届くクリックを捨てる。
+    const finish = () => {
       if (start === null) {
         return;
       }
@@ -74,20 +81,26 @@ export function useDragScroll(ref: RefObject<HTMLElement | null>): void {
       element.addEventListener('click', swallow, { capture: true, once: true });
       setTimeout(() => element.removeEventListener('click', swallow, { capture: true }), 0);
     };
+    // 押していたボタン (主ボタン) を離したときだけ終える。ドラッグの途中でほかのボタンを離しても続ける。
+    const onPointerUp = (event: PointerEvent) => {
+      if (event.button === 0) {
+        finish();
+      }
+    };
     // リンクなどをブラウザがドラッグアンドドロップとして持ち上げると、ポインターの動きが届かなくなるので止める。
     const onDragStart = (event: DragEvent) => event.preventDefault();
 
     element.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
-    window.addEventListener('pointercancel', onPointerUp);
+    window.addEventListener('pointercancel', finish);
     element.addEventListener('dragstart', onDragStart);
 
     return () => {
       element.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
-      window.removeEventListener('pointercancel', onPointerUp);
+      window.removeEventListener('pointercancel', finish);
       element.removeEventListener('dragstart', onDragStart);
     };
   }, [ref]);

@@ -22,16 +22,20 @@ describe('useDragScroll', () => {
   const pointer = (
     type: string,
     target: EventTarget,
-    init: { x: number; y: number; pointerType?: string },
+    init: { x: number; y: number; pointerType?: string; button?: number; buttons?: number },
   ) => {
     const event = new MouseEvent(type, {
       bubbles: true,
       cancelable: true,
       clientX: init.x,
       clientY: init.y,
-      button: 0,
+      button: init.button ?? 0,
     });
     Object.defineProperty(event, 'pointerType', { value: init.pointerType ?? 'mouse' });
+    // 押しているボタン。離したとき (pointerup) のほかは、主ボタンを押しているとする。
+    Object.defineProperty(event, 'buttons', {
+      value: init.buttons ?? (type === 'pointerup' ? 0 : 1),
+    });
     target.dispatchEvent(event);
   };
 
@@ -87,5 +91,39 @@ describe('useDragScroll', () => {
 
     expect([element.scrollLeft, element.scrollTop]).toEqual([0, 0]);
     expect(onClick).toHaveBeenCalledTimes(2);
+  });
+
+  test('ウィンドウの外でボタンを離して戻ってきたら、ドラッグを終える', () => {
+    setup();
+    let left = 0;
+    Object.defineProperty(element, 'scrollLeft', {
+      get: () => left,
+      set: (v: number) => (left = v),
+    });
+
+    pointer('pointerdown', element, { x: 100, y: 100 });
+    pointer('pointermove', window, { x: 50, y: 100 });
+    // ボタンを押していない動きは、ドラッグを終えたことにして、スクロールしない。
+    pointer('pointermove', window, { x: 0, y: 100, buttons: 0 });
+    pointer('pointermove', window, { x: -100, y: 100, buttons: 1 });
+
+    expect(left).toBe(50);
+    expect(element.style.cursor).toBe('');
+  });
+
+  test('ドラッグの途中でほかのボタンを離しても、ドラッグを続ける', () => {
+    setup();
+    let left = 0;
+    Object.defineProperty(element, 'scrollLeft', {
+      get: () => left,
+      set: (v: number) => (left = v),
+    });
+
+    pointer('pointerdown', element, { x: 100, y: 100 });
+    pointer('pointermove', window, { x: 50, y: 100 });
+    pointer('pointerup', window, { x: 50, y: 100, button: 2, buttons: 1 });
+    pointer('pointermove', window, { x: 0, y: 100 });
+
+    expect(left).toBe(100);
   });
 });
