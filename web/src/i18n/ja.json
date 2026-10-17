@@ -1160,6 +1160,8 @@
       "recordingDefaultsNote": "ルールや予約で上書きしていない項目に使います",
       "pool": "保存先プール",
       "poolAuto": "自動で選ぶ",
+      "ruleDefaults": "ルールを作るときの既定値",
+      "ruleDefaultsNote": "新しいルールの入力に、最初から入れておく値です。作ったルールは変わりません",
       "poolHelp": "自動なら、推定サイズが収まるプールを、優先順位の高い順に選びます",
       "fileNameTemplate": "ファイル名のテンプレート",
       "fileNameTemplateHelp": "Goのtext/templateで書きます。使える書き方は、下の「使える書き方を見る」で表にしています",

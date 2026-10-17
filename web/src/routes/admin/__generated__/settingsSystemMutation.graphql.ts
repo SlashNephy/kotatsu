@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<043ce2ab54b22589ff48c2636c61976c>>
+ * @generated SignedSource<<fa6c2fc9434604e6bf6a311c4abf92d0>>
  * @lightSyntaxTransform
  */
 
@@ -12,6 +12,7 @@ export type SystemSettingsInput = {
   archiveRetentionDays?: number | null | undefined;
   notificationRetentionDays?: number | null | undefined;
   recordingDefaults?: RecordingSettingsOverridesInput | null | undefined;
+  ruleDefaults?: RuleDefaultsInput | null | undefined;
 };
 export type RecordingSettingsOverridesInput = {
   endMarginSeconds?: number | null | undefined;
@@ -20,6 +21,12 @@ export type RecordingSettingsOverridesInput = {
   poolId?: string | null | undefined;
   priority?: number | null | undefined;
   startMarginSeconds?: number | null | undefined;
+};
+export type RuleDefaultsInput = {
+  avoidDuplicates?: boolean | null | undefined;
+  clearDuplicateWindowDays?: boolean;
+  duplicateWindowDays?: number | null | undefined;
+  followEventRelay?: boolean | null | undefined;
 };
 export type settingsSystemMutation$variables = {
   input: SystemSettingsInput;

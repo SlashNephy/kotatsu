@@ -25,7 +25,26 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 		RecordingDefaults:         recording,
 		ArchiveRetentionDays:      system.ArchiveRetentionDays,
 		NotificationRetentionDays: system.NotificationRetentionDays,
-		UpdatedAt:                 system.UpdatedAt,
+		RuleDefaults: &model.RuleDefaults{
+			AvoidDuplicates:     system.Rule.AvoidDuplicates,
+			DuplicateWindowDays: system.Rule.DuplicateWindowDays,
+			FollowEventRelay:    system.Rule.FollowEventRelay,
+		},
+		UpdatedAt: system.UpdatedAt,
+	}
+}
+
+// toRuleChanges は、ルールの既定値の入力を、変える項目にする。
+func toRuleChanges(input *model.RuleDefaultsInput) *settings.RuleChanges {
+	if input == nil {
+		return nil
+	}
+
+	return &settings.RuleChanges{
+		AvoidDuplicates:          input.AvoidDuplicates,
+		DuplicateWindowDays:      input.DuplicateWindowDays,
+		ClearDuplicateWindowDays: input.ClearDuplicateWindowDays,
+		FollowEventRelay:         input.FollowEventRelay,
 	}
 }
 

@@ -569,6 +569,26 @@ type ReservationUpdateInput struct {
 	Name    *string    `json:"name,omitempty"`
 }
 
+// ルールを作るときの既定値 (設計書 4.2、#470)。ルールの作成の画面の初期値に使う。
+type RuleDefaults struct {
+	// 同じ番組名を録画済みなら予約しないかどうか (設計書 4.4)。
+	AvoidDuplicates bool `json:"avoidDuplicates"`
+	// 重複を避ける期間 (日)。null なら期間を区切らない。
+	DuplicateWindowDays *int `json:"duplicateWindowDays,omitempty"`
+	// イベントリレーで続く番組も予約するかどうか (設計書 4.6)。
+	FollowEventRelay bool `json:"followEventRelay"`
+}
+
+// ルールを作るときの既定値の変える項目。省いた項目は変えない。
+type RuleDefaultsInput struct {
+	AvoidDuplicates *bool `json:"avoidDuplicates,omitempty"`
+	// 重複を避ける期間 (1〜3650 日)。
+	DuplicateWindowDays *int `json:"duplicateWindowDays,omitempty"`
+	// 重複を避ける期間を区切らないようにする。duplicateWindowDays と一緒には使えない。
+	ClearDuplicateWindowDays bool  `json:"clearDuplicateWindowDays"`
+	FollowEventRelay         *bool `json:"followEventRelay,omitempty"`
+}
+
 // ルールの内容。
 type RuleInput struct {
 	// 1〜200 文字
@@ -671,6 +691,8 @@ type SystemSettings struct {
 	ArchiveRetentionDays int `json:"archiveRetentionDays"`
 	// 配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限。
 	NotificationRetentionDays int `json:"notificationRetentionDays"`
+	// ルールを作るときの既定値。
+	RuleDefaults *RuleDefaults `json:"ruleDefaults"`
 	// 最後に変えた日時。一度も変えていなければ null。
 	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 }
@@ -681,6 +703,8 @@ type SystemSettingsInput struct {
 	RecordingDefaults         *RecordingSettingsOverridesInput `json:"recordingDefaults,omitempty"`
 	ArchiveRetentionDays      *int                             `json:"archiveRetentionDays,omitempty"`
 	NotificationRetentionDays *int                             `json:"notificationRetentionDays,omitempty"`
+	// ルールを作るときの既定値の変える項目。省いた項目は変えない。
+	RuleDefaults *RuleDefaultsInput `json:"ruleDefaults,omitempty"`
 }
 
 // システムの状態。
