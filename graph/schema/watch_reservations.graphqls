@@ -1,0 +1,39 @@
+"""
+視聴予約 (設計書 4.8)。録画はせず、放送の少し前に、予約したユーザーだけに通知する。
+"""
+type WatchReservation {
+  program: Program!
+  "通知を送る日時。番組の放送時間が変わると、付いていく。"
+  notifyAt: Time!
+  createdAt: Time!
+}
+
+"""
+視聴予約の通知の設定。端末をまたいで同期する。
+"""
+type WatchReminderSettings {
+  "放送の何分前に通知を送るか。0 から 60 まで。"
+  minutesBefore: Int!
+}
+
+extend type Program {
+  "ログイン中のユーザーが、この番組を視聴予約しているかどうか。過去の番組では false。"
+  watchReserved: Boolean!
+}
+
+extend type Query {
+  "ログイン中のユーザーの視聴予約を、放送の早い順に返す。EPG から消えた番組の視聴予約は返さない。"
+  watchReservations: [WatchReservation!]!
+  watchReminderSettings: WatchReminderSettings!
+}
+
+extend type Mutation {
+  """
+  ログイン中のユーザーの、番組の視聴予約を付け外しする。付けてある番組に付けても、付けていない番組から外しても、そのまま返す。
+  放送が始まった番組と、過去の番組には付けられない。閲覧だけのユーザーも使える。
+  同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
+  """
+  setWatchReservation(program: ID!, reserved: Boolean!): Program!
+  "視聴予約の通知を、放送の何分前に送るかを変え、同じユーザーのほかの端末に viewerSettingsChanged で知らせる。"
+  updateWatchReminderSettings(minutesBefore: Int!): WatchReminderSettings!
+}

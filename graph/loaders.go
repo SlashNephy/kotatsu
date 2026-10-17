@@ -12,6 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
+	"github.com/SlashNephy/kotatsu/internal/watch"
 )
 
 // loaderWait は、同じリクエストの中で、まとめて引くまで待つ時間。
@@ -30,6 +31,14 @@ type Loaders struct {
 	UpcomingReservationCounts *dataloadgen.Loader[uuid.UUID, int]
 	// ProgramReservations は、番組の予約。予約のない番組では nil にする。
 	ProgramReservations *dataloadgen.Loader[reserve.ProgramKey, *reserve.Reservation]
+	// WatchReserved は、ユーザーが番組を視聴予約しているかどうか。
+	WatchReserved *dataloadgen.Loader[watchReservedKey, bool]
+}
+
+// watchReservedKey は、視聴予約を引くキー。ユーザーと番組の組。
+type watchReservedKey struct {
+	UserID  uuid.UUID
+	Program watch.ProgramKey
 }
 
 type loadersKey struct{}
@@ -118,7 +127,33 @@ func newLoaders(db sqlc.DBTX, rules *rule.Rules, reservations *reserve.Reservati
 
 			return found, make([]error, len(keys))
 		}, dataloadgen.WithWait(loaderWait)),
+		WatchReserved: dataloadgen.NewLoader(func(ctx context.Context, keys []watchReservedKey) ([]bool, []error) {
+			return loadWatchReserved(ctx, db, keys)
+		}, dataloadgen.WithWait(loaderWait)),
 	}
+}
+
+// loadWatchReserved は、keys の番組を、それぞれのユーザーが視聴予約しているかどうかを返す。
+// 1 つのリクエストはログイン中のユーザー 1 人のものなので、ユーザーごとにまとめて引く。
+func loadWatchReserved(ctx context.Context, db sqlc.DBTX, keys []watchReservedKey) ([]bool, []error) {
+	programsByUser := map[uuid.UUID][]watch.ProgramKey{}
+	for _, key := range keys {
+		programsByUser[key.UserID] = append(programsByUser[key.UserID], key.Program)
+	}
+	reservedByUser := make(map[uuid.UUID]map[watch.ProgramKey]bool, len(programsByUser))
+	for userID, programs := range programsByUser {
+		reserved, err := watch.Reserved(ctx, db, userID, programs)
+		if err != nil {
+			return failAll[bool](len(keys), err)
+		}
+		reservedByUser[userID] = reserved
+	}
+	found := make([]bool, 0, len(keys))
+	for _, key := range keys {
+		found = append(found, reservedByUser[key.UserID][key.Program])
+	}
+
+	return found, make([]error, len(keys))
 }
 
 // failAll は、まとめて引いたすべてのキーに、同じエラーを返す。

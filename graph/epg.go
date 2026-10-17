@@ -29,6 +29,11 @@ func serviceGlobalID(id int64) string {
 	return GlobalID(serviceType, strconv.FormatInt(id, 10))
 }
 
+// ServiceLiveURL は、サービスのライブ視聴の画面のパスを返す。視聴予約の通知を押したときに開く (設計書 4.8)。
+func ServiceLiveURL(serviceID int64) string {
+	return "/live/" + serviceGlobalID(serviceID)
+}
+
 func programGlobalID(serviceID, eventID int64) string {
 	return GlobalID(programType, strconv.FormatInt(serviceID, 10)+"."+strconv.FormatInt(eventID, 10))
 }

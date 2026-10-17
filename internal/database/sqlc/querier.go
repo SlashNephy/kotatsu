@@ -89,6 +89,7 @@ type Querier interface {
 	DeleteUserLoginChallenges(ctx context.Context, userID uuid.UUID) error
 	DeleteUserPasskey(ctx context.Context, arg DeleteUserPasskeyParams) (int64, error)
 	DeleteUserTOTP(ctx context.Context, userID uuid.UUID) (int64, error)
+	DeleteWatchReservation(ctx context.Context, arg DeleteWatchReservationParams) (int64, error)
 	DeleteWebPushSubscription(ctx context.Context, arg DeleteWebPushSubscriptionParams) (int64, error)
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (int64, error)
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
@@ -156,6 +157,8 @@ type Querier interface {
 	GetUserSettingsVersion(ctx context.Context, userID uuid.UUID) (int64, error)
 	GetUserTOTPForUpdate(ctx context.Context, userID uuid.UUID) (UserTotp, error)
 	GetVAPIDKeys(ctx context.Context) (VAPIDKey, error)
+	// 視聴予約の通知を、放送の何分前に送るか。一度も変えていなければ、既定値を返す。
+	GetWatchReminderMinutes(ctx context.Context, userID uuid.UUID) (int32, error)
 	GetWebPushSubscription(ctx context.Context, id uuid.UUID) (WebPushSubscription, error)
 	GetWebhook(ctx context.Context, id uuid.UUID) (Webhook, error)
 	// 無効にした管理者も数える。管理者を作った後は、初回セットアップを開き直さない (設計書 9.2)。
@@ -207,6 +210,8 @@ type Querier interface {
 	InsertUserPasskey(ctx context.Context, arg InsertUserPasskeyParams) error
 	// VAPID の鍵を保存する。ほかのインスタンスが先に作っていたら、そちらを使うので、何もしない。
 	InsertVAPIDKeys(ctx context.Context, arg InsertVAPIDKeysParams) error
+	// 視聴予約を付ける。付けてあれば何もしない。放送が始まった番組と、EPG にない番組には付けない (設計書 4.8)。
+	InsertWatchReservation(ctx context.Context, arg InsertWatchReservationParams) (int64, error)
 	InsertWebAuthnCeremony(ctx context.Context, arg InsertWebAuthnCeremonyParams) error
 	InsertWebhook(ctx context.Context, arg InsertWebhookParams) (Webhook, error)
 	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
@@ -309,6 +314,10 @@ type Querier interface {
 	ListUsers(ctx context.Context) ([]User, error)
 	ListUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	ListWatchProgress(ctx context.Context, arg ListWatchProgressParams) ([]WatchProgress, error)
+	// user_id のユーザーの視聴予約を、番組の放送の早い順に返す。EPG にない番組の視聴予約は返さない。
+	ListWatchReservations(ctx context.Context, userID uuid.UUID) ([]ListWatchReservationsRow, error)
+	// user_id のユーザーが視聴予約した番組のうち、(service_ids[i], event_ids[i]) の組にあるもの。
+	ListWatchReservedPrograms(ctx context.Context, arg ListWatchReservedProgramsParams) ([]ListWatchReservedProgramsRow, error)
 	ListWebPushSubscriptions(ctx context.Context, userID uuid.UUID) ([]WebPushSubscription, error)
 	// イベントの種類 kind を Web Push で受け取る、有効なユーザーの購読の ID を返す。設定がなければ受け取る。
 	// audience と by_rule の扱いは、ListNotificationRecipients と同じ。
@@ -363,6 +372,8 @@ type Querier interface {
 	PruneEPGChanges(ctx context.Context, before time.Time) (int64, error)
 	// 放送の終わりが before より前のアーカイブを、最大 batch_size 件だけ消す。一度に大量の行をロックしないよう、少しずつ消す。
 	PruneProgramArchives(ctx context.Context, arg PruneProgramArchivesParams) (int64, error)
+	// 放送が終わった番組と、EPG から消えた番組の視聴予約を消す。
+	PruneWatchReservations(ctx context.Context, now time.Time) (int64, error)
 	// 下限は上げるだけで、下げない。古いバイナリで migrate を実行しても、新しいバイナリが記録した下限は残る。
 	RaiseMinBinaryVersion(ctx context.Context, arg RaiseMinBinaryVersionParams) error
 	// 再認証した日時を記録する (設計書 9.5)。失効したセッションは更新しない。
@@ -436,6 +447,9 @@ type Querier interface {
 	StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error)
 	// /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。
 	SumActiveRecordingPackets(ctx context.Context) (SumActiveRecordingPacketsRow, error)
+	// 通知を送る時刻 (放送の開始からユーザーの設定の分だけ前) を過ぎ、放送が終わっていない視聴予約を消して返す。
+	// 消した行を返すので、nekonote が何台あっても、同じ視聴予約を二度は通知しない。
+	TakeDueWatchReservations(ctx context.Context, now time.Time) ([]TakeDueWatchReservationsRow, error)
 	// ログインの途中の状態は 1 回しか使わせないので、引くと同時に消す。
 	TakeOIDCLogin(ctx context.Context, arg TakeOIDCLoginParams) (OidcLogin, error)
 	// 手続きは 1 回しか使わせないので、引くと同時に消す。
@@ -479,6 +493,7 @@ type Querier interface {
 	UpsertTunerServerStatus(ctx context.Context, arg UpsertTunerServerStatusParams) error
 	UpsertUserTOTP(ctx context.Context, arg UpsertUserTOTPParams) error
 	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) error
+	UpsertWatchReminderMinutes(ctx context.Context, arg UpsertWatchReminderMinutesParams) (int32, error)
 	// 購読を保存する。同じ端末 (endpoint) を別のユーザーが購読し直したら、そのユーザーの購読に移す。
 	UpsertWebPushSubscription(ctx context.Context, arg UpsertWebPushSubscriptionParams) error
 	UseRecoveryCode(ctx context.Context, arg UseRecoveryCodeParams) (int64, error)

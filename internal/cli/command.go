@@ -46,6 +46,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/stream"
 	"github.com/SlashNephy/kotatsu/internal/telemetry"
 	"github.com/SlashNephy/kotatsu/internal/thumbnail"
+	"github.com/SlashNephy/kotatsu/internal/watch"
 	"github.com/SlashNephy/kotatsu/internal/webhook"
 	"github.com/SlashNephy/kotatsu/internal/webpush"
 	"github.com/SlashNephy/kotatsu/web"
@@ -149,9 +150,12 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, segjoin.NewJoinWorker(deps.DB, storeOf(deps.Config), inserter,
 		logger.With(slog.String("component", "segjoin")), 0))
 	river.AddWorker(workers, segjoin.NewFinalizeWorker(deps.DB, storeOf(deps.Config), inserter))
+	// 視聴予約は、放送の少し前に、予約したユーザーに通知する。通知を押すと、そのサービスのライブ視聴を開く (設計書 4.8)。
+	river.AddWorker(workers, watch.NewNotifyWorker(watch.NewNotifier(deps.DB, deps.Clock, graph.ServiceLiveURL)))
 
 	return workers, []*river.PeriodicJob{
 		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), capacity.CheckPeriodicJob(),
+		watch.NotifyPeriodicJob(),
 	}, nil
 }
 

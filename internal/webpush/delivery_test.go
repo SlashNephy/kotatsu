@@ -145,6 +145,8 @@ func TestDeliverWorkerSendsEncryptedNotification(t *testing.T) {
 		payload     map[string]any
 		wantBody    string
 		wantUrgency string
+		// wantURL は、通知を押したときに開く画面のパス。空なら payload に入れない。
+		wantURL string
 	}{
 		{
 			name: "録画の失敗は、すぐに届ける", kind: notification.KindRecordingFailed, payload: map[string]any{nameKey: "こたつ特集"},
@@ -153,6 +155,13 @@ func TestDeliverWorkerSendsEncryptedNotification(t *testing.T) {
 		{
 			name: "録画の完了", kind: notification.KindRecordingCompleted, payload: map[string]any{nameKey: "みかん紀行"},
 			wantBody: "「みかん紀行」の録画が終わりました", wantUrgency: "normal",
+		},
+		{
+			name: "視聴予約の通知は、押すとライブ視聴を開く", kind: notification.KindWatchReminder,
+			payload: map[string]any{
+				nameKey: "こたつの時間", "serviceName": "NHK総合", "startAt": "2026-10-10T12:05:00Z", "url": "/live/U2VydmljZToxMDI0",
+			},
+			wantBody: "21:05 から NHK総合で「こたつの時間」が始まります", wantUrgency: "normal", wantURL: "/live/U2VydmljZToxMDI0",
 		},
 	}
 	for _, tt := range tests {
@@ -181,9 +190,13 @@ func TestDeliverWorkerSendsEncryptedNotification(t *testing.T) {
 
 			var payload map[string]any
 			require.NoError(t, json.Unmarshal(b.decrypt(t, request.body), &payload))
-			assert.Equal(t, map[string]any{
+			want := map[string]any{
 				"title": "Kotatsu", "body": tt.wantBody, "eventId": eventID.String(), "kind": string(tt.kind), "occurredAt": "2026-10-10T12:00:00Z",
-			}, payload)
+			}
+			if tt.wantURL != "" {
+				want["url"] = tt.wantURL
+			}
+			assert.Equal(t, want, payload)
 		})
 	}
 }

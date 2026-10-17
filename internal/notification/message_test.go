@@ -54,6 +54,12 @@ func TestMessage(t *testing.T) {
 		},
 		{name: "空き容量の不足", kind: notification.KindStorageLow, payload: map[string]any{}, location: tokyo, want: "保存先の空き容量が足りません"},
 		{name: "チューナーサーバーへの接続不可", kind: notification.KindTunerServerUnreachable, payload: map[string]any{}, location: tokyo, want: "チューナーサーバーに接続できません"},
+		{
+			name: "視聴予約は、表示のタイムゾーンの時刻で書く", kind: notification.KindWatchReminder,
+			payload: map[string]any{keyName: programName, "serviceName": "NHK総合", "startAt": "2026-10-10T12:00:00Z"}, location: tokyo,
+			want: "21:00 から NHK総合で「こたつ特集」が始まります",
+		},
+		{name: "材料のない視聴予約", kind: notification.KindWatchReminder, payload: map[string]any{}, location: tokyo, want: "視聴予約した番組が始まります"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

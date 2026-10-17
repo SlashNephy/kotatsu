@@ -138,6 +138,8 @@ func TestCreateRejectsInvalidInput(t *testing.T) {
 		{name: "知らない形式", modify: func(in *webhook.Input) { in.Format = "teams" }},
 		{name: "種類がない", modify: func(in *webhook.Input) { in.Kinds = []notification.Kind{} }},
 		{name: "知らない種類", modify: func(in *webhook.Input) { in.Kinds = []notification.Kind{"unknown"} }},
+		// 視聴予約の通知は個人に届けるものなので、全体向けの Webhook では送らない (設計書 4.8)。
+		{name: "視聴予約の通知", modify: func(in *webhook.Input) { in.Kinds = []notification.Kind{notification.KindWatchReminder} }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

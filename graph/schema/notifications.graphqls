@@ -14,6 +14,8 @@ enum NotificationKind {
   STORAGE_LOW
   "チューナーサーバーへの接続不可"
   TUNER_SERVER_UNREACHABLE
+  "視聴予約した番組の放送が近い (設計書 4.8)。予約したユーザーだけに届き、Webhook では送らない。"
+  WATCH_REMINDER
 }
 
 """
@@ -28,6 +30,8 @@ type Notification {
   payload: String!
   "画面に出す文。Web Push で送る本文と同じもの。時刻は、表示のタイムゾーンで書く。"
   message: String!
+  "通知を押したときに開く画面のパス (視聴予約の通知では、そのサービスのライブ視聴)。なければ null。"
+  url: String
   "既読にした日時。未読なら null。"
   readAt: Time
 }

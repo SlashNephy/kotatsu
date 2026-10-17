@@ -668,6 +668,16 @@ type Mutation {
   """
   revokeSession(id: ID!): ID!
   """
+  ログイン中のユーザーの、番組の視聴予約を付け外しする。付けてある番組に付けても、付けていない番組から外しても、そのまま返す。
+  放送が始まった番組と、過去の番組には付けられない。閲覧だけのユーザーも使える。
+  同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
+  """
+  setWatchReservation(program: ID!, reserved: Boolean!): Program!
+  """
+  視聴予約の通知を、放送の何分前に送るかを変え、同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
+  """
+  updateWatchReminderSettings(minutesBefore: Int!): WatchReminderSettings!
+  """
   ログイン中のユーザーの端末で、Web Push を購読する。送り先は https の URL に限る。
   同じ端末をほかのユーザーが購読していたら、このユーザーの購読に移す。
   """
@@ -717,6 +727,10 @@ type Notification {
   """
   message: String!
   """
+  通知を押したときに開く画面のパス (視聴予約の通知では、そのサービスのライブ視聴)。なければ null。
+  """
+  url: String
+  """
   既読にした日時。未読なら null。
   """
   readAt: Time
@@ -757,6 +771,10 @@ enum NotificationKind {
   チューナーサーバーへの接続不可
   """
   TUNER_SERVER_UNREACHABLE
+  """
+  視聴予約した番組の放送が近い (設計書 4.8)。予約したユーザーだけに届き、Webhook では送らない。
+  """
+  WATCH_REMINDER
 }
 """
 イベントの種類ごとの通知設定。
@@ -884,6 +902,10 @@ type Program implements Node {
   放送が終わり、アーカイブに移した番組かどうか。
   """
   archived: Boolean!
+  """
+  ログイン中のユーザーが、この番組を視聴予約しているかどうか。過去の番組では false。
+  """
+  watchReserved: Boolean!
 }
 """
 番組の音声。ARIB STD-B10 の音声コンポーネント記述子の内容。
@@ -1133,6 +1155,11 @@ type Query {
   ログイン中のユーザーの、使えるセッションを、最後に使われた順に返す。
   """
   sessions: [Session!]!
+  """
+  ログイン中のユーザーの視聴予約を、放送の早い順に返す。EPG から消えた番組の視聴予約は返さない。
+  """
+  watchReservations: [WatchReservation!]!
+  watchReminderSettings: WatchReminderSettings!
   """
   ブラウザが購読するときに applicationServerKey に渡す、VAPID の公開鍵を base64url にしたもの。
   """
@@ -1845,7 +1872,7 @@ type Subscription {
   unreadNotificationCount: Int!
   """
   ログイン中のユーザーの設定の版数 (設計書 9.1)。購読を始めたときに今の版数を送り、その後は、同じユーザーが、どの端末からでも設定を変えたときに送る。
-  クライアントは、届いたら設定を読み直す。対象の設定は、通知の設定、番組表ビュー、プレイヤーの設定、第二要素、パスキー、セッションの失効。
+  クライアントは、届いたら設定を読み直す。対象の設定は、通知の設定、番組表ビュー、プレイヤーの設定、視聴予約とその通知の設定、第二要素、パスキー、セッションの失効。
   """
   viewerSettingsChanged: Int!
 }
@@ -2078,6 +2105,26 @@ type User implements Node {
 enum VideoCodec {
   H264
   HEVC
+}
+"""
+視聴予約の通知の設定。端末をまたいで同期する。
+"""
+type WatchReminderSettings {
+  """
+  放送の何分前に通知を送るか。0 から 60 まで。
+  """
+  minutesBefore: Int!
+}
+"""
+視聴予約 (設計書 4.8)。録画はせず、放送の少し前に、予約したユーザーだけに通知する。
+"""
+type WatchReservation {
+  program: Program!
+  """
+  通知を送る日時。番組の放送時間が変わると、付いていく。
+  """
+  notifyAt: Time!
+  createdAt: Time!
 }
 """
 Web Push の購読 (設計書 6.2)。端末とブラウザごとに 1 つある。

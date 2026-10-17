@@ -425,10 +425,11 @@ type UserRecoveryCode struct {
 }
 
 type UserSetting struct {
-	UserID          uuid.UUID
-	JikkyoEnabled   bool
-	CaptionsEnabled bool
-	UpdatedAt       time.Time
+	UserID               uuid.UUID
+	JikkyoEnabled        bool
+	CaptionsEnabled      bool
+	WatchReminderMinutes int32
+	UpdatedAt            time.Time
 }
 
 type UserSettingVersion struct {
@@ -456,6 +457,13 @@ type WatchProgress struct {
 	RecordingID uuid.UUID
 	PositionMs  int64
 	UpdatedAt   time.Time
+}
+
+type WatchReservation struct {
+	UserID    uuid.UUID
+	ServiceID int64
+	EventID   int64
+	CreatedAt time.Time
 }
 
 type WebPushSubscription struct {

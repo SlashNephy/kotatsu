@@ -264,7 +264,8 @@ CREATE TABLE notification_events (
   id uuid PRIMARY KEY,
   kind text NOT NULL CHECK (kind IN (
     'recording_started', 'recording_completed', 'recording_failed',
-    'reservation_conflict', 'storage_low', 'tuner_server_unreachable'
+    'reservation_conflict', 'storage_low', 'tuner_server_unreachable',
+    'watch_reminder'
   )),
   occurred_at timestamptz NOT NULL,
   -- 画面に出す文の材料 (番組名や理由など)。種類ごとに項目が違う。
@@ -297,7 +298,8 @@ CREATE TABLE notification_preferences (
   user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
   kind text NOT NULL CHECK (kind IN (
     'recording_started', 'recording_completed', 'recording_failed',
-    'reservation_conflict', 'storage_low', 'tuner_server_unreachable'
+    'reservation_conflict', 'storage_low', 'tuner_server_unreachable',
+    'watch_reminder'
   )),
   -- 画面内の通知で受け取るかどうか。
   in_app boolean NOT NULL,
@@ -323,6 +325,8 @@ CREATE TABLE user_settings (
   jikkyo_enabled boolean NOT NULL DEFAULT true,
   -- 字幕と文字スーパーを出すかどうか。
   captions_enabled boolean NOT NULL DEFAULT true,
+  -- 視聴予約の通知を、放送の何分前に送るか (設計書 4.8)。
+  watch_reminder_minutes integer NOT NULL DEFAULT 5 CHECK (watch_reminder_minutes BETWEEN 0 AND 60),
   updated_at timestamptz NOT NULL
 );
 
@@ -751,6 +755,20 @@ CREATE TABLE guide_views (
 );
 
 CREATE UNIQUE INDEX guide_views_user_id_name_idx ON guide_views (user_id, name);
+
+-- 視聴予約 (設計書 4.8)。録画はせず、放送の少し前に、予約したユーザーだけに通知する。
+-- 録画の予約と違ってチューナーを使わない個人のものなので、reservations とは分ける。
+-- 番組は (サービス, eventId) で持ち、放送時間が変わっても通知の時刻が付いていく。番組が EPG から消えたら消す。
+CREATE TABLE watch_reservations (
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
+  event_id bigint NOT NULL,
+  created_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, service_id, event_id)
+);
+
+-- 番組ごとに引く (通知のジョブと、番組が消えたときの片付け) のに使う。
+CREATE INDEX watch_reservations_service_id_event_id_idx ON watch_reservations (service_id, event_id);
 
 -- ほかの録画ソフトから取り込んだデータの、取り込み元の ID と、取り込んで作った行の対応 (設計書 6.3)。
 -- 取り込みを何度実行しても、同じデータを二重に取り込まないために使う。
