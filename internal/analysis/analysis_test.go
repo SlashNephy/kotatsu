@@ -304,6 +304,47 @@ func TestAnalyzeWorker(t *testing.T) {
 	}
 }
 
+// TestAnalyzeWorkerExcludesHandoverOverlap は、引き継ぎで重ねて録ったセグメントでは、重なった区間のドロップを、
+// 後のセグメントだけで数えることを確かめる (#525)。前のセグメントは test.ts の全体、後のセグメントは 6 つ目の I フレーム
+// (映像の 2168 番目のパケット、PTS 354228) からで、前のセグメントの重なった区間のドロップは、後のセグメントでも録っている。
+func TestAnalyzeWorkerExcludesHandoverOverlap(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// handover は、後のセグメントを、前のセグメントを書いている間に始めたかどうか。
+		handover  bool
+		wantDrops int64
+	}{
+		// 前のセグメントの 100 番目 (重なりの前) と、後のセグメントの 300 番目のドロップだけを数える。
+		{name: "引き継ぎで重なった区間は、前のセグメントでは数えない", handover: true, wantDrops: 2},
+		// 取り込んだ録画のように、どのセグメントも同じ時刻に始まったなら、重なりとはせず、すべて数える。
+		{name: "同じ時刻に始まったセグメントは、重なりとしない", handover: false, wantDrops: 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			data := loadTestTS(t)
+			const successorOffset = 468308
+			earlier := withoutVideoPackets(t, data, 100, 3000)
+			later := withoutVideoPackets(t, data[successorOffset:], 300)
+			recordingID := f.recording(t, completed, earlier, later)
+			if tt.handover {
+				_, err := f.pool.Exec(t.Context(), "UPDATE recording_files SET started_at = started_at + interval '1 minute' WHERE recording_id = $1 AND path = $2",
+					recordingID, segmentNames()[1])
+				require.NoError(t, err)
+			}
+			require.NoError(t, f.analyze(t, recordingID))
+
+			var drops int64
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT drops FROM recordings WHERE id = $1", recordingID).Scan(&drops))
+			assert.Equal(t, tt.wantDrops, drops)
+		})
+	}
+}
+
 // TestAnalyzeWorkerCancels は、録画が消されたか、録画中か、読めるセグメントがなければ、送り直さずに取りやめることを確かめる。
 func TestAnalyzeWorkerCancels(t *testing.T) {
 	t.Parallel()

@@ -815,7 +815,7 @@ func (r *Recorder) createIndex(poolID, rel string) (*ts.Analyzer, *os.File, *kag
 		return ts.NewAnalyzer(nil), nil, nil, err
 	}
 
-	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer}), file, index, nil
+	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: nil}), file, index, nil
 }
 
 // endReason は、録画を止めた理由。

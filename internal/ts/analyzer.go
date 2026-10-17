@@ -39,12 +39,20 @@ type Analyzer struct {
 	video *iframeDetector
 	// programsGeneration は、video を選んだときの番組の構成の世代。
 	programsGeneration int
+	// firstPTS は、最初に見つけた I フレームの PTS。まだなければ nil。
+	firstPTS *int64
+	// cutoffPTS と beforeCutoff は、AnalyzerOptions.CutoffPTS と、そこに届いたときの PID ごとの統計。届いていなければ nil。
+	cutoffPTS    *int64
+	beforeCutoff []*PIDStats
 }
 
 // AnalyzerOptions は Analyzer の設定。
 type AnalyzerOptions struct {
 	// Index は索引の書き込み先。nil なら索引を作らない。
 	Index *IndexWriter
+	// CutoffPTS は、PID ごとの統計を控えておく位置。PTS がこの値に届いた I フレームを見つけたときの統計を、
+	// Stats.PIDsBeforeCutoff に返す。引き継ぎで重なった区間を、古いセグメントの集計から除くのに使う (#525)。nil なら控えない。
+	CutoffPTS *int64
 }
 
 var _ io.Writer = new(Analyzer)
@@ -88,13 +96,18 @@ type Stats struct {
 	IndexError error
 	// Events は、EIT[p/f] で放送中とされた番組と、その音声の構成。サービス ID、eventId の順に並べる。
 	Events []*EventAudio
+	// FirstPTS は、最初に見つけた I フレームの PTS。見つからなければ nil。
+	FirstPTS *int64
+	// PIDsBeforeCutoff は、AnalyzerOptions.CutoffPTS に届いたときの、PID ごとの統計。届かなければ nil。
+	PIDsBeforeCutoff []*PIDStats
 }
 
 // NewAnalyzer は Analyzer を作る。opts は nil でもよい。
 func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
 	var index *IndexWriter
+	var cutoff *int64
 	if opts != nil {
-		index = opts.Index
+		index, cutoff = opts.Index, opts.CutoffPTS
 	}
 
 	return &Analyzer{
@@ -115,6 +128,9 @@ func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
 		iframes:            0,
 		video:              nil,
 		programsGeneration: -1,
+		firstPTS:           nil,
+		cutoffPTS:          cutoff,
+		beforeCutoff:       nil,
 	}
 }
 
@@ -176,21 +192,18 @@ func (a *Analyzer) Stats() *Stats {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	pids := make([]*PIDStats, 0, len(a.pids))
-	for _, pid := range slices.Sorted(maps.Keys(a.pids)) {
-		copied := a.pids[pid].stats
-		pids = append(pids, &copied)
-	}
-
 	return &Stats{
 		Bytes:      a.offset,
 		Packets:    a.packets,
 		SyncLosses: a.syncLosses,
-		PIDs:       pids,
+		PIDs:       a.pidStats(),
 		Programs:   a.programs.snapshot(),
 		IFrames:    a.iframes,
 		IndexError: a.indexErr,
 		Events:     a.eit.snapshot(),
+
+		FirstPTS:         a.firstPTS,
+		PIDsBeforeCutoff: a.beforeCutoff,
 	}
 }
 
@@ -201,6 +214,17 @@ func (a *Analyzer) PresentFollowing(serviceID uint16) *PresentFollowing {
 	defer a.mu.Unlock()
 
 	return a.eit.presentFollowing(serviceID)
+}
+
+// pidStats は、PID ごとの統計を、PID の昇順に写して返す。
+func (a *Analyzer) pidStats() []*PIDStats {
+	pids := make([]*PIDStats, 0, len(a.pids))
+	for _, pid := range slices.Sorted(maps.Keys(a.pids)) {
+		copied := a.pids[pid].stats
+		pids = append(pids, &copied)
+	}
+
+	return pids
 }
 
 // handle は 1 パケットを処理する。offset は、パケットの先頭の位置 (受け取ったバイト列の先頭からのバイト数)。
@@ -285,6 +309,12 @@ func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 		return
 	}
 	a.iframes++
+	if a.firstPTS == nil {
+		a.firstPTS = new(entry.PTS)
+	}
+	if a.cutoffPTS != nil && a.beforeCutoff == nil && PTSDiff(*a.cutoffPTS, entry.PTS) >= 0 {
+		a.beforeCutoff = a.pidStats()
+	}
 	if a.index != nil && a.indexErr == nil {
 		a.indexErr = a.index.Append(entry)
 	}
