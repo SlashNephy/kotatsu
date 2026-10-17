@@ -1416,4 +1416,5 @@ Kotatsu本体はApache License 2.0で公開します。
 | [rokoucha/Mahiron](https://github.com/rokoucha/Mahiron) | 任意の文字列のチャンネル種別、データ放送のAPI |
 | [otya128/mpeg2toh264](https://github.com/otya128/mpeg2toh264) | ブラウザ内でのMPEG-2からH.264への変換 |
 | [tsukumijima/NX-Jikkyo](https://github.com/tsukumijima/NX-Jikkyo) | ニコニコ実況のコメントのWebSocket API |
+| [ci7lus/kiririn](https://github.com/ci7lus/kiririn) | プレイヤーの状態の見せ方（読み込み中、エラー、番組情報、操作の結果の知らせ）、データ放送の細かい扱い（dボタンの渡し方、効果音、選局、受信機の情報）、番組名やファイル名の細部（#432）。MPL-2.0なので、考え方だけを参考にし、コードや表は写しません。 |
 | [tsukumijima/jikkyo-api](https://github.com/tsukumijima/jikkyo-api) | ニコニコ実況とNX-Jikkyoの過去ログのAPI |
