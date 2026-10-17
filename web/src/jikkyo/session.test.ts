@@ -70,7 +70,7 @@ function connect(env: ReturnType<typeof setup>) {
   watch?.emit('message', {
     type: 'room',
     data: {
-      messageServer: { uri: 'wss://nx-jikkyo.example/comment' },
+      messageServer: { uri: 'wss://nx-jikkyo.tsukumijima.net/api/v1/channels/jk1/ws/comment' },
       threadId: '27359',
       yourPostKey: 'key',
       vposBaseTime: '2026-10-11T04:00:00+09:00',
@@ -89,7 +89,7 @@ describe('NXJikkyoSession', () => {
 
     expect(watch?.url).toBe('wss://nx-jikkyo.tsukumijima.net/api/v1/channels/jk1/ws/watch');
     expect(watch?.sent).toEqual([{ type: 'startWatching', data: { reconnect: false } }]);
-    expect(comment?.url).toBe('wss://nx-jikkyo.example/comment');
+    expect(comment?.url).toBe('wss://nx-jikkyo.tsukumijima.net/api/v1/channels/jk1/ws/comment');
     expect(comment?.sent[0]).toContainEqual({
       thread: {
         version: '20061206',
@@ -189,7 +189,7 @@ describe('NXJikkyoSession の座席とスレッド', () => {
     watch?.emit('message', {
       type: 'room',
       data: {
-        messageServer: { uri: 'wss://nx-jikkyo.example/comment2' },
+        messageServer: { uri: 'wss://nx-jikkyo.tsukumijima.net/api/v1/channels/jk1/ws/comment2' },
         threadId: '27360',
         vposBaseTime: '2026-10-12T04:00:00+09:00',
       },
@@ -197,7 +197,36 @@ describe('NXJikkyoSession の座席とスレッド', () => {
     comment?.emit('close');
 
     expect(comment?.closed).toBe(true);
-    expect(env.sockets[2]?.url).toBe('wss://nx-jikkyo.example/comment2');
+    expect(env.sockets[2]?.url).toBe(
+      'wss://nx-jikkyo.tsukumijima.net/api/v1/channels/jk1/ws/comment2',
+    );
     expect(env.statuses.at(-1)).not.toMatchObject({ kind: 'disconnected' });
+  });
+
+  test.each([
+    ['別のホスト', 'wss://evil.example/comment'],
+    ['ホスト名の続き', 'wss://nx-jikkyo.tsukumijima.net.evil.example/comment'],
+    ['別のポート', 'wss://nx-jikkyo.tsukumijima.net:8443/comment'],
+    ['暗号化しない接続', 'ws://nx-jikkyo.tsukumijima.net/comment'],
+  ])('room の接続先が NX-Jikkyo でなければ (%s)、接続せずにつなぎ直す', (_, uri) => {
+    const env = setup();
+    const [watch] = env.sockets;
+    watch?.emit('open');
+    watch?.emit('message', {
+      type: 'room',
+      data: {
+        messageServer: { uri },
+        threadId: '27359',
+        vposBaseTime: '2026-10-11T04:00:00+09:00',
+      },
+    });
+
+    expect(env.sockets.map((socket) => socket.url)).not.toContain(uri);
+    expect(watch?.closed).toBe(true);
+    expect(env.statuses.at(-1)).toEqual({
+      kind: 'disconnected',
+      reason: 'INVALID_MESSAGE_SERVER',
+      retryIn: 3,
+    });
   });
 });

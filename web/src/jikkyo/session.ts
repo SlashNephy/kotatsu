@@ -50,6 +50,11 @@ export function commentSessionHandshake(threadId: string, threadKey: string): un
   ];
 }
 
+// isNXJikkyoURL は、uri が NX-Jikkyo の WebSocket の接続先かどうかを返す。
+function isNXJikkyoURL(uri: string): boolean {
+  return uri.startsWith(`${nxJikkyoOrigin}/`);
+}
+
 // isPostError は、エラーのコードが、投稿の失敗を表すかどうかを返す。
 function isPostError(code: string): boolean {
   return code.startsWith('COMMENT_') || code === 'INVALID_MESSAGE';
@@ -206,6 +211,13 @@ export class NXJikkyoSession {
     const previous = this.comment;
     this.comment = null;
     previous?.close();
+    // コメントセッションの接続先は、視聴セッションから届く。NX-Jikkyo 以外を指していたら、接続せずにつなぎ直す。
+    // CSP でも止まるが、止まったことが分かるよう、ここで断る。
+    if (!isNXJikkyoURL(uri)) {
+      this.reconnect('INVALID_MESSAGE_SERVER');
+
+      return;
+    }
     const comment = this.createSocket(uri);
     this.comment = comment;
     const current = () =>
