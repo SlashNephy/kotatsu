@@ -14,7 +14,7 @@ import {
   Title,
 } from '@mantine/core';
 import { X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { usePlayerSettings, type CommentSettingsInput } from '../yunomi/usePlayerSettings';
@@ -44,8 +44,21 @@ export function CommentSettingsCard() {
   const [keyword, setKeyword] = useState('');
   const [match, setMatch] = useState<KeywordMuteMatch>('PARTIAL');
   const [user, setUser] = useState('');
-  // スライダーは、動かしている間は手元の値を出し、離したときに保存する。
+  // スライダーは、動かしている間は手元の値を出し、離したときに保存する。保存した値が届くまでは、手元の値を出し続ける。
+  // すぐに保存前の値へ戻すと、キーボードで続けて動かしたときに、戻った値から数え直して、動かした分が消える。
   const [draft, setDraft] = useState<{ opacity?: number; speed?: number; scale?: number }>({});
+  useEffect(() => {
+    setDraft((d) => {
+      const next = { ...d };
+      for (const key of ['opacity', 'speed', 'scale'] as const) {
+        if (next[key] !== undefined && Math.abs(next[key] - comments[key]) < 1e-9) {
+          delete next[key];
+        }
+      }
+
+      return next;
+    });
+  }, [comments]);
 
   const current = (): CommentSettingsInput => ({
     opacity: comments.opacity,
@@ -59,7 +72,10 @@ export function CommentSettingsCard() {
   });
   const save = (change: Partial<CommentSettingsInput>) => {
     setFailed(false);
-    setComments({ ...current(), ...change }, () => setFailed(true));
+    setComments({ ...current(), ...change }, () => {
+      setFailed(true);
+      setDraft({});
+    });
   };
 
   const keywordText = keyword.trim();
@@ -102,8 +118,9 @@ export function CommentSettingsCard() {
         label={null}
         onChange={(value) => setDraft((d) => ({ ...d, [key]: value }))}
         onChangeEnd={(value) => {
-          setDraft((d) => ({ ...d, [key]: undefined }));
-          save({ [key]: Math.round(value * 100) / 100 });
+          const rounded = Math.round(value * 100) / 100;
+          setDraft((d) => ({ ...d, [key]: rounded }));
+          save({ [key]: rounded });
         }}
       />
     </Stack>
