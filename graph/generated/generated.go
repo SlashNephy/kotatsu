@@ -79,6 +79,11 @@ type ComplexityRoot struct {
 		Node   func(childComplexity int) int
 	}
 
+	BulkOperationPayload struct {
+		Processed func(childComplexity int) int
+		Skipped   func(childComplexity int) int
+	}
+
 	ChannelType struct {
 		DisplayName func(childComplexity int) int
 		SortOrder   func(childComplexity int) int
@@ -210,6 +215,7 @@ type ComplexityRoot struct {
 		DeleteGuideView              func(childComplexity int, id string) int
 		DeletePasskey                func(childComplexity int, id string) int
 		DeleteRecording              func(childComplexity int, id string) int
+		DeleteRecordings             func(childComplexity int, ids []string) int
 		DeleteReservation            func(childComplexity int, id string) int
 		DeleteRule                   func(childComplexity int, id string) int
 		DeleteTotp                   func(childComplexity int) int
@@ -736,6 +742,7 @@ type MutationResolver interface {
 	UpdatePlayerSettings(ctx context.Context, input model.PlayerSettingsInput) (*model.PlayerSettings, error)
 	RenameRecordingFiles(ctx context.Context, ids []string) (*model.RenameRecordingFilesPayload, error)
 	DeleteRecording(ctx context.Context, id string) (string, error)
+	DeleteRecordings(ctx context.Context, ids []string) (*model.BulkOperationPayload, error)
 	SetRecordingProtected(ctx context.Context, id string, protected bool) (*model.Recording, error)
 	SetRecordingTags(ctx context.Context, id string, tags []string) (*model.Recording, error)
 	SaveWatchPosition(ctx context.Context, id string, positionMs int64) (*model.Recording, error)
@@ -988,6 +995,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AuditEventEdge.Node(childComplexity), true
+
+	case "BulkOperationPayload.processed":
+		if e.ComplexityRoot.BulkOperationPayload.Processed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BulkOperationPayload.Processed(childComplexity), true
+	case "BulkOperationPayload.skipped":
+		if e.ComplexityRoot.BulkOperationPayload.Skipped == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BulkOperationPayload.Skipped(childComplexity), true
 
 	case "ChannelType.displayName":
 		if e.ComplexityRoot.ChannelType.DisplayName == nil {
@@ -1511,6 +1531,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteRecording(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteRecordings":
+		if e.ComplexityRoot.Mutation.DeleteRecordings == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteRecordings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteRecordings(childComplexity, args["ids"].([]string)), true
 	case "Mutation.deleteReservation":
 		if e.ComplexityRoot.Mutation.DeleteReservation == nil {
 			break
@@ -4914,6 +4945,16 @@ type RecordingConnection {
 }
 
 """
+まとめて行った操作の結果 (#471)。
+"""
+type BulkOperationPayload {
+  "操作した数。"
+  processed: Int!
+  "保護しているか、録画中か、見つからないなどで、操作しなかった数。"
+  skipped: Int!
+}
+
+"""
 録画の絞り込み。省いた条件は絞り込まない。
 """
 input RecordingFilter {
@@ -4959,6 +5000,11 @@ extend type Mutation {
   保護した録画と、録画中の録画は消さずに CONFLICT を返す。
   """
   deleteRecording(id: ID!): ID!
+  """
+  録画 ids をまとめて消す (#471)。視聴者は使えない。1 件ずつ deleteRecording と同じく消し、監査ログも 1 件ずつ残す。
+  保護した録画、録画中の録画、見つからない録画は、消さずに飛ばした数に数える。一度に 500 件まで。
+  """
+  deleteRecordings(ids: [ID!]!): BulkOperationPayload!
   "録画に保護の印を付けるか、外す。視聴者は使えない。"
   setRecordingProtected(id: ID!, protected: Boolean!): Recording!
   "録画のタグを置き換える。ないタグは作る。視聴者は使えない。"
@@ -5970,6 +6016,16 @@ func (ec *executionContext) childFields_AuditEventEdge(ctx context.Context, fiel
 		return ec.fieldContext_AuditEventEdge_node(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AuditEventEdge", field.Name)
+}
+
+func (ec *executionContext) childFields_BulkOperationPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "processed":
+		return ec.fieldContext_BulkOperationPayload_processed(ctx, field)
+	case "skipped":
+		return ec.fieldContext_BulkOperationPayload_skipped(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BulkOperationPayload", field.Name)
 }
 
 func (ec *executionContext) childFields_ChannelType(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -7341,6 +7397,20 @@ func (ec *executionContext) field_Mutation_deleteRecording_args(ctx context.Cont
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteRecordings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ids",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ids"] = arg0
 	return args, nil
 }
 
@@ -8782,6 +8852,52 @@ func (ec *executionContext) fieldContext_AuditEventEdge_node(_ context.Context, 
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _BulkOperationPayload_processed(ctx context.Context, field graphql.CollectedField, obj *model.BulkOperationPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BulkOperationPayload_processed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Processed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BulkOperationPayload_processed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BulkOperationPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _BulkOperationPayload_skipped(ctx context.Context, field graphql.CollectedField, obj *model.BulkOperationPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BulkOperationPayload_skipped(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Skipped, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BulkOperationPayload_skipped(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BulkOperationPayload", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _ChannelType_type(ctx context.Context, field graphql.CollectedField, obj *model.ChannelType) (ret graphql.Marshaler) {
@@ -10732,6 +10848,50 @@ func (ec *executionContext) fieldContext_Mutation_deleteRecording(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteRecording_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteRecordings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteRecordings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteRecordings(ctx, fc.Args["ids"].([]string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BulkOperationPayload) graphql.Marshaler {
+			return ec.marshalNBulkOperationPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐBulkOperationPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteRecordings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BulkOperationPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteRecordings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -23334,6 +23494,49 @@ func (ec *executionContext) _AuditEventEdge(ctx context.Context, sel ast.Selecti
 	return out
 }
 
+var bulkOperationPayloadImplementors = []string{"BulkOperationPayload"}
+
+func (ec *executionContext) _BulkOperationPayload(ctx context.Context, sel ast.SelectionSet, obj *model.BulkOperationPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, bulkOperationPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BulkOperationPayload")
+		case "processed":
+			out.Values[i] = ec._BulkOperationPayload_processed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "skipped":
+			out.Values[i] = ec._BulkOperationPayload_skipped(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var channelTypeImplementors = []string{"ChannelType"}
 
 func (ec *executionContext) _ChannelType(ctx context.Context, sel ast.SelectionSet, obj *model.ChannelType) graphql.Marshaler {
@@ -24389,6 +24592,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteRecording":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteRecording(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteRecordings":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteRecordings(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -29532,6 +29742,16 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNBulkOperationPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐBulkOperationPayload(ctx context.Context, sel ast.SelectionSet, v *model.BulkOperationPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BulkOperationPayload(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNChannelType2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐChannelTypeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ChannelType) graphql.Marshaler {

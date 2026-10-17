@@ -452,6 +452,42 @@ func (r *Resolver) deleteRecording(ctx context.Context, globalID string) (string
 	return globalID, nil
 }
 
+// maxBulkOperations は、一度にまとめて操作する数の上限 (#471)。
+const maxBulkOperations = 500
+
+// deleteRecordings は、録画 ids をまとめて消す。保護した録画、録画中の録画、見つからない録画は飛ばして数える。
+func (r *Resolver) deleteRecordings(ctx context.Context, ids []string) (*model.BulkOperationPayload, error) {
+	actor, err := librarian(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) > maxBulkOperations {
+		return nil, NewError(CodeBadUserInput, fmt.Sprintf("ids must be at most %d", maxBulkOperations))
+	}
+	recordingIDs := make([]uuid.UUID, 0, len(ids))
+	for _, globalID := range ids {
+		recordingID, err := parseRecordingID(globalID)
+		if err != nil {
+			return nil, err
+		}
+		recordingIDs = append(recordingIDs, recordingID)
+	}
+	payload := &model.BulkOperationPayload{Processed: 0, Skipped: 0}
+	for _, recordingID := range recordingIDs {
+		err := r.library.Delete(ctx, r.db, actor, recordingID, "user")
+		switch {
+		case errors.Is(err, library.ErrProtected), errors.Is(err, library.ErrRecording), errors.Is(err, library.ErrNotFound):
+			payload.Skipped++
+		case err != nil:
+			return nil, err
+		default:
+			payload.Processed++
+		}
+	}
+
+	return payload, nil
+}
+
 func (r *Resolver) setRecordingProtected(ctx context.Context, globalID string, protected bool) (*model.Recording, error) {
 	actor, err := librarian(ctx)
 	if err != nil {

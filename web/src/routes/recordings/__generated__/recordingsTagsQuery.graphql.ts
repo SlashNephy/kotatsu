@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a61f93aa8c7a2d2e3a14046a76057a33>>
+ * @generated SignedSource<<aeea14c86a2437b56d060c283a2f6412>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type recordingsTagsQuery$variables = {
   ruleId: string;
   withRule: boolean;
@@ -30,6 +31,9 @@ export type recordingsTagsQuery$data = {
     readonly name: string;
     readonly recordings: number;
   }>;
+  readonly viewer: {
+    readonly role: Role;
+  };
 };
 export type recordingsTagsQuery = {
   response: recordingsTagsQuery$data;
@@ -49,43 +53,50 @@ var v0 = [
     "name": "withRule"
   }
 ],
-v1 = [
+v1 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "role",
+  "storageKey": null
+},
+v2 = [
   {
     "kind": "Variable",
     "name": "id",
     "variableName": "ruleId"
   }
 ],
-v2 = {
+v3 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "__typename",
   "storageKey": null
 },
-v3 = {
+v4 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "name",
   "storageKey": null
 },
-v4 = {
+v5 = {
   "kind": "InlineFragment",
   "selections": [
-    (v3/*:: as any*/)
+    (v4/*:: as any*/)
   ],
   "type": "Rule",
   "abstractKey": null
 },
-v5 = {
+v6 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "id",
   "storageKey": null
 },
-v6 = {
+v7 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -93,8 +104,8 @@ v6 = {
   "name": "tags",
   "plural": true,
   "selections": [
-    (v5/*:: as any*/),
-    (v3/*:: as any*/),
+    (v6/*:: as any*/),
+    (v4/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -105,7 +116,7 @@ v6 = {
   ],
   "storageKey": null
 },
-v7 = {
+v8 = {
   "alias": null,
   "args": null,
   "concreteType": "Service",
@@ -113,8 +124,8 @@ v7 = {
   "name": "services",
   "plural": true,
   "selections": [
-    (v5/*:: as any*/),
-    (v3/*:: as any*/)
+    (v6/*:: as any*/),
+    (v4/*:: as any*/)
   ],
   "storageKey": null
 };
@@ -126,27 +137,39 @@ return {
     "name": "recordingsTagsQuery",
     "selections": [
       {
+        "alias": null,
+        "args": null,
+        "concreteType": "User",
+        "kind": "LinkedField",
+        "name": "viewer",
+        "plural": false,
+        "selections": [
+          (v1/*:: as any*/)
+        ],
+        "storageKey": null
+      },
+      {
         "condition": "withRule",
         "kind": "Condition",
         "passingValue": true,
         "selections": [
           {
             "alias": "ruleFilter",
-            "args": (v1/*:: as any*/),
+            "args": (v2/*:: as any*/),
             "concreteType": null,
             "kind": "LinkedField",
             "name": "node",
             "plural": false,
             "selections": [
-              (v2/*:: as any*/),
-              (v4/*:: as any*/)
+              (v3/*:: as any*/),
+              (v5/*:: as any*/)
             ],
             "storageKey": null
           }
         ]
       },
-      (v6/*:: as any*/),
-      (v7/*:: as any*/)
+      (v7/*:: as any*/),
+      (v8/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -158,41 +181,54 @@ return {
     "name": "recordingsTagsQuery",
     "selections": [
       {
+        "alias": null,
+        "args": null,
+        "concreteType": "User",
+        "kind": "LinkedField",
+        "name": "viewer",
+        "plural": false,
+        "selections": [
+          (v1/*:: as any*/),
+          (v6/*:: as any*/)
+        ],
+        "storageKey": null
+      },
+      {
         "condition": "withRule",
         "kind": "Condition",
         "passingValue": true,
         "selections": [
           {
             "alias": "ruleFilter",
-            "args": (v1/*:: as any*/),
+            "args": (v2/*:: as any*/),
             "concreteType": null,
             "kind": "LinkedField",
             "name": "node",
             "plural": false,
             "selections": [
-              (v2/*:: as any*/),
-              (v4/*:: as any*/),
-              (v5/*:: as any*/)
+              (v3/*:: as any*/),
+              (v5/*:: as any*/),
+              (v6/*:: as any*/)
             ],
             "storageKey": null
           }
         ]
       },
-      (v6/*:: as any*/),
-      (v7/*:: as any*/)
+      (v7/*:: as any*/),
+      (v8/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "040ad15c3fb393eba222f56cf86af0ea",
+    "cacheID": "bf1a5b532f1f8be1a506166e4e79a283",
     "id": null,
     "metadata": {},
     "name": "recordingsTagsQuery",
     "operationKind": "query",
-    "text": "query recordingsTagsQuery(\n  $ruleId: ID!\n  $withRule: Boolean!\n) {\n  ruleFilter: node(id: $ruleId) @include(if: $withRule) {\n    __typename\n    ... on Rule {\n      name\n    }\n    id\n  }\n  tags {\n    id\n    name\n    recordings\n  }\n  services {\n    id\n    name\n  }\n}\n"
+    "text": "query recordingsTagsQuery(\n  $ruleId: ID!\n  $withRule: Boolean!\n) {\n  viewer {\n    role\n    id\n  }\n  ruleFilter: node(id: $ruleId) @include(if: $withRule) {\n    __typename\n    ... on Rule {\n      name\n    }\n    id\n  }\n  tags {\n    id\n    name\n    recordings\n  }\n  services {\n    id\n    name\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "7b7c8404a3e1c26bd5962d305fe2f391";
+(node as any).hash = "c94668e20ca2109d8b09b4a419133df6";
 
 export default node;

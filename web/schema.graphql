@@ -123,6 +123,19 @@ input AuditEventFilter {
   until: Time
 }
 """
+まとめて行った操作の結果 (#471)。
+"""
+type BulkOperationPayload {
+  """
+  操作した数。
+  """
+  processed: Int!
+  """
+  保護しているか、録画中か、見つからないなどで、操作しなかった数。
+  """
+  skipped: Int!
+}
+"""
 チャンネル種別 (設計書 3.1)。種別の文字列はチューナーサーバーが返すものをそのまま使い、表示名と並び順は管理者が変えられる。
 """
 type ChannelType {
@@ -542,6 +555,11 @@ type Mutation {
   保護した録画と、録画中の録画は消さずに CONFLICT を返す。
   """
   deleteRecording(id: ID!): ID!
+  """
+  録画 ids をまとめて消す (#471)。視聴者は使えない。1 件ずつ deleteRecording と同じく消し、監査ログも 1 件ずつ残す。
+  保護した録画、録画中の録画、見つからない録画は、消さずに飛ばした数に数える。一度に 500 件まで。
+  """
+  deleteRecordings(ids: [ID!]!): BulkOperationPayload!
   """
   録画に保護の印を付けるか、外す。視聴者は使えない。
   """
