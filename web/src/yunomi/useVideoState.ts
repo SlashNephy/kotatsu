@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 
 import { browserStorage, loadVolume, saveVolume, type Volume } from './volume';
-import { applyVolume, currentVolume, lowerBoost, resumePendingBoost } from './volumeBoost';
+import {
+  applyVolume,
+  currentVolume,
+  lowerBoost,
+  releaseBoost,
+  resumePendingBoost,
+} from './volumeBoost';
 
 export type VideoState = Volume & {
   paused: boolean;
@@ -51,6 +57,8 @@ export function useVideoState(video: HTMLVideoElement | null): VideoState {
       video.removeEventListener('play', sync);
       video.removeEventListener('pause', sync);
       video.removeEventListener('volumechange', onVolume);
+      // 画質を変えたときなどに作り直された video は、AudioContext から外す。
+      releaseBoost(video);
     };
   }, [video]);
 

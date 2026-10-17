@@ -4,9 +4,15 @@ import { maxVolume } from './volume';
 // WebAudio を通すと、iOS の Safari、別のウィンドウ (PiP)、バックグラウンドの再生で動きが変わるおそれがあるので、
 // 初めて 100% を超えたときにだけ GainNode を挟む。一度挟んだら、その video の音は WebAudio を通り続ける。
 
-type Booster = { context: AudioContext; gain: GainNode };
+type Booster = { source: MediaElementAudioSourceNode; gain: GainNode };
 
+// sharedContext は、すべての video で使う AudioContext。画質を変えたり選局したりするたびに video は作り直されるが、
+// AudioContext は同時に作れる数に限りがあるので、1 つを使い回す。
+let sharedContext: AudioContext | null = null;
 const boosters = new WeakMap<HTMLMediaElement, Booster>();
+// sources は、video ごとの MediaElementAudioSourceNode。1 つの video からは 1 度しか作れないので、外した後も持っておき、
+// 同じ video でまた上げるときは繋ぎ直す。
+const sources = new WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>();
 // pending は、まだ GainNode を挟めていない video の、上げたい倍率。ユーザーが操作するまで、AudioContext を動かせないため。
 const pending = new WeakMap<HTMLMediaElement, number>();
 
@@ -27,10 +33,31 @@ export function currentVolume(video: HTMLMediaElement): number {
   return video.volume < 1 ? video.volume : video.volume * boostOf(video);
 }
 
+// activated は、ユーザーがページを操作したか。navigator.userActivation のないブラウザのために、自分でも数える。
+let activated = false;
+if (typeof window !== 'undefined') {
+  const onActivate = () => {
+    activated = true;
+    window.removeEventListener('pointerdown', onActivate, true);
+    window.removeEventListener('keydown', onActivate, true);
+  };
+  window.addEventListener('pointerdown', onActivate, true);
+  window.addEventListener('keydown', onActivate, true);
+}
+
 // canStartAudio は、いま AudioContext を動かせるか。ユーザーが一度も操作していないと、AudioContext は止まったままで、
 // WebAudio を通した video の音が出なくなるので、そのときは GainNode を挟まない。
 function canStartAudio(): boolean {
-  return typeof AudioContext !== 'undefined' && (navigator.userActivation?.hasBeenActive ?? true);
+  return (
+    typeof AudioContext !== 'undefined' && (navigator.userActivation?.hasBeenActive ?? activated)
+  );
+}
+
+// resumeContext は、止まっている AudioContext を動かす。ユーザーの操作の後に呼ぶ。
+function resumeContext(): void {
+  if (sharedContext?.state === 'suspended') {
+    void sharedContext.resume().catch(() => {});
+  }
 }
 
 function boosterOf(video: HTMLMediaElement): Booster | null {
@@ -42,10 +69,12 @@ function boosterOf(video: HTMLMediaElement): Booster | null {
     return null;
   }
   try {
-    const context = new AudioContext();
-    const gain = context.createGain();
-    context.createMediaElementSource(video).connect(gain).connect(context.destination);
-    const booster = { context, gain };
+    sharedContext ??= new AudioContext();
+    const gain = sharedContext.createGain();
+    const source = sources.get(video) ?? sharedContext.createMediaElementSource(video);
+    sources.set(video, source);
+    source.connect(gain).connect(sharedContext.destination);
+    const booster = { source, gain };
     boosters.set(video, booster);
 
     return booster;
@@ -59,7 +88,8 @@ function boosterOf(video: HTMLMediaElement): Booster | null {
 // まだ GainNode を挟めないときは、100% で鳴らし、ユーザーが操作したら挟む (resumePendingBoost)。
 export function applyVolume(video: HTMLMediaElement, volume: number): void {
   const { element, gain } = splitVolume(volume);
-  const booster = gain > 1 || boosters.has(video) ? boosterOf(video) : null;
+  // 一度 WebAudio を通した video は、AudioContext に繋がないと音が出ないので、100% 以下でも繋ぐ。
+  const booster = gain > 1 || sources.has(video) ? boosterOf(video) : null;
   if (booster === null) {
     if (gain > 1) {
       pending.set(video, gain);
@@ -69,18 +99,30 @@ export function applyVolume(video: HTMLMediaElement, volume: number): void {
   } else {
     pending.delete(video);
     booster.gain.gain.value = gain;
-    if (booster.context.state === 'suspended') {
-      void booster.context.resume().catch(() => {});
-    }
+    resumeContext();
   }
   video.volume = element;
 }
 
-// resumePendingBoost は、ユーザーが操作した後に、保留していた倍率で GainNode を挟む。
+// resumePendingBoost は、ユーザーが操作した後に、保留していた倍率で GainNode を挟み、止まっている AudioContext を動かす。
+// 保留するのは 100% を超えるときだけで、そのとき video.volume は 1 なので、倍率がそのまま音量になる。
 export function resumePendingBoost(video: HTMLMediaElement): void {
   const gain = pending.get(video);
   if (gain !== undefined) {
-    applyVolume(video, video.volume * gain);
+    applyVolume(video, gain);
+  }
+  resumeContext();
+}
+
+// releaseBoost は、作り直されて使わなくなった video を、AudioContext から外す。
+// 同じ video でまた上げるときは、boosterOf が繋ぎ直す。
+export function releaseBoost(video: HTMLMediaElement): void {
+  pending.delete(video);
+  const booster = boosters.get(video);
+  if (booster !== undefined) {
+    booster.source.disconnect();
+    booster.gain.disconnect();
+    boosters.delete(video);
   }
 }
 
