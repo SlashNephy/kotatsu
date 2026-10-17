@@ -43,6 +43,15 @@ const plainKeys: ReadonlyMap<string, RemoteKey> = new Map([
   ['9', RemoteKey.digit9],
 ]);
 
+// dataBroadcastKeyHelp は、ショートカットの一覧に出す、データ放送のキーの割り当て (#441)。並びは、リモコンのボタンと同じにする。
+export const dataBroadcastKeyHelp = [
+  { label: 'arrows', keys: ['Alt', '↑↓←→'] },
+  { label: 'enter', keys: ['Enter'] },
+  { label: 'back', keys: ['Backspace'] },
+  { label: 'colors', keys: ['Alt', 'B', 'R', 'G', 'Y'] },
+  { label: 'digits', keys: ['0〜9'] },
+] as const;
+
 // dataBroadcastKeyFor は、データ放送を出している間に押したキーを、リモコンのボタンにする (#441)。割り当てがなければ null。
 // 文字を入力している欄と、データ放送の文書がすでに受け取ったキー (defaultPrevented) は横取りしない。
 // 押し続けたときに繰り返すのは、矢印だけにする。

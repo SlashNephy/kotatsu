@@ -575,6 +575,7 @@ function Live({
             onClose={() => setShortcutsOpen(false)}
             actions={Object.keys(shortcuts) as ShortcutAction[]}
             target={playerBoxRef}
+            dataBroadcast
           />
           <PipButton pip={pip} />
           <FullscreenButton active={fullscreen.active} onToggle={fullscreen.toggle} />
