@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<8329709fd3d23dde34f44fc74212f6c1>>
+ * @generated SignedSource<<043ce2ab54b22589ff48c2636c61976c>>
  * @lightSyntaxTransform
  */
 
@@ -10,6 +10,7 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type SystemSettingsInput = {
   archiveRetentionDays?: number | null | undefined;
+  notificationRetentionDays?: number | null | undefined;
   recordingDefaults?: RecordingSettingsOverridesInput | null | undefined;
 };
 export type RecordingSettingsOverridesInput = {

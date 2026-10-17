@@ -11,7 +11,7 @@ import (
 )
 
 const getSystemSettings = `-- name: GetSystemSettings :one
-SELECT id, recording_defaults, archive_retention_days, updated_at FROM system_settings WHERE id = 1
+SELECT id, recording_defaults, archive_retention_days, notification_retention_days, updated_at FROM system_settings WHERE id = 1
 `
 
 func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) {
@@ -21,6 +21,7 @@ func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) 
 		&i.ID,
 		&i.RecordingDefaults,
 		&i.ArchiveRetentionDays,
+		&i.NotificationRetentionDays,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -60,7 +61,7 @@ const lockSystemSettings = `-- name: LockSystemSettings :one
 INSERT INTO system_settings (id, recording_defaults, archive_retention_days, updated_at)
 VALUES (1, '{}', $1, $2)
 ON CONFLICT (id) DO UPDATE SET id = system_settings.id
-RETURNING id, recording_defaults, archive_retention_days, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, updated_at
 `
 
 type LockSystemSettingsParams struct {
@@ -76,6 +77,7 @@ func (q *Queries) LockSystemSettings(ctx context.Context, arg LockSystemSettings
 		&i.ID,
 		&i.RecordingDefaults,
 		&i.ArchiveRetentionDays,
+		&i.NotificationRetentionDays,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -122,24 +124,32 @@ func (q *Queries) UpdateServiceDisplay(ctx context.Context, arg UpdateServiceDis
 }
 
 const updateSystemSettings = `-- name: UpdateSystemSettings :one
-UPDATE system_settings SET recording_defaults = $1, archive_retention_days = $2, updated_at = $3
+UPDATE system_settings SET recording_defaults = $1, archive_retention_days = $2,
+  notification_retention_days = $3, updated_at = $4
 WHERE id = 1
-RETURNING id, recording_defaults, archive_retention_days, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, updated_at
 `
 
 type UpdateSystemSettingsParams struct {
-	RecordingDefaults    []byte
-	ArchiveRetentionDays int32
-	Now                  time.Time
+	RecordingDefaults         []byte
+	ArchiveRetentionDays      int32
+	NotificationRetentionDays int32
+	Now                       time.Time
 }
 
 func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSettingsParams) (SystemSetting, error) {
-	row := q.db.QueryRow(ctx, updateSystemSettings, arg.RecordingDefaults, arg.ArchiveRetentionDays, arg.Now)
+	row := q.db.QueryRow(ctx, updateSystemSettings,
+		arg.RecordingDefaults,
+		arg.ArchiveRetentionDays,
+		arg.NotificationRetentionDays,
+		arg.Now,
+	)
 	var i SystemSetting
 	err := row.Scan(
 		&i.ID,
 		&i.RecordingDefaults,
 		&i.ArchiveRetentionDays,
+		&i.NotificationRetentionDays,
 		&i.UpdatedAt,
 	)
 	return i, err

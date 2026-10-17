@@ -22,9 +22,10 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 	}
 
 	return &model.SystemSettings{
-		RecordingDefaults:    recording,
-		ArchiveRetentionDays: system.ArchiveRetentionDays,
-		UpdatedAt:            system.UpdatedAt,
+		RecordingDefaults:         recording,
+		ArchiveRetentionDays:      system.ArchiveRetentionDays,
+		NotificationRetentionDays: system.NotificationRetentionDays,
+		UpdatedAt:                 system.UpdatedAt,
 	}
 }
 

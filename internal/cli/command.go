@@ -110,6 +110,15 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	retention := time.Duration(deps.Config.Audit.RetentionDays) * 24 * time.Hour
 	river.AddWorker(workers, audit.NewPruneWorker(deps.DB, deps.Clock, retention))
 	river.AddWorker(workers, auth.NewPruneSessionsWorker(deps.DB, deps.Clock))
+	// 配り終えた通知は、画面から変えられる保持期間を過ぎたら消す (#551)。
+	river.AddWorker(workers, notification.NewPruneWorker(deps.DB, deps.Clock, func(ctx context.Context) (time.Duration, error) {
+		system, err := settings.Load(ctx, deps.DB)
+		if err != nil {
+			return 0, err
+		}
+
+		return system.NotificationRetention(), nil
+	}))
 
 	// Webhook の配信のジョブは、イベントを配るトランザクションの中で投入する。
 	// 投入に使う River のクライアントは、ここで作る Worker を必要とするので、投入だけを行うクライアントを別に作る。
@@ -154,7 +163,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, watch.NewNotifyWorker(watch.NewNotifier(deps.DB, deps.Clock, graph.ServiceLiveURL)))
 
 	return workers, []*river.PeriodicJob{
-		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), capacity.CheckPeriodicJob(),
+		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
 		watch.NotifyPeriodicJob(),
 	}, nil
 }

@@ -1,7 +1,7 @@
 // Package settings は、画面から変える全体の設定を扱う (設計書 11.2)。
 //
 // 起動に要るものや秘密情報は YAML と環境変数に置き、家族が日常的に変えたいものを DB に置く。
-// ここでは、録画設定の全体の既定値、過去の番組の保持期間、チャンネル種別の表示を扱う。
+// ここでは、録画設定の全体の既定値、過去の番組と通知の保持期間、チャンネル種別の表示を扱う。
 package settings
 
 import (
@@ -22,7 +22,9 @@ import (
 const (
 	// DefaultArchiveRetentionDays は、過去の番組の保持期間の既定値 (付録 A)。
 	DefaultArchiveRetentionDays = 90
-	// maxArchiveRetentionDays は、保持期間の上限。無期限にするなら 0 にする。
+	// DefaultNotificationRetentionDays は、配り終えた通知の保持期間の既定値 (付録 A、#551)。
+	DefaultNotificationRetentionDays = 90
+	// maxArchiveRetentionDays は、過去の番組と通知の保持期間の上限。無期限にするなら 0 にする。
 	maxArchiveRetentionDays = 3650
 	// auditTarget は、設定の監査ログの対象の種類。
 	auditTarget = "system_settings"
@@ -39,6 +41,8 @@ type System struct {
 	RecordingOverrides *reserve.Overrides
 	// ArchiveRetentionDays は、過去の番組の保持期間 (日)。0 なら無期限。
 	ArchiveRetentionDays int
+	// NotificationRetentionDays は、配り終えた通知の保持期間 (日)。既読か未読かにかかわらず消す。0 なら無期限。
+	NotificationRetentionDays int
 	// UpdatedAt は、最後に変えた日時。一度も変えていなければ nil。
 	UpdatedAt *time.Time
 }
@@ -52,11 +56,21 @@ func (s *System) ArchiveRetention() time.Duration {
 	return time.Duration(s.ArchiveRetentionDays) * 24 * time.Hour
 }
 
+// NotificationRetention は、配り終えた通知の保持期間を返す。無期限なら負の値を返す。
+func (s *System) NotificationRetention() time.Duration {
+	if s.NotificationRetentionDays == 0 {
+		return -1
+	}
+
+	return time.Duration(s.NotificationRetentionDays) * 24 * time.Hour
+}
+
 // Changes は、変える項目。nil の項目は変えない。
 type Changes struct {
 	// Recording は、録画設定の既定値の変える項目。項目を既定値に戻すときは、既定値と同じ値を渡す。
-	Recording            *reserve.Overrides
-	ArchiveRetentionDays *int
+	Recording                 *reserve.Overrides
+	ArchiveRetentionDays      *int
+	NotificationRetentionDays *int
 }
 
 // Load は、全体の設定を返す。一度も変えていなければ、既定値を返す。
@@ -95,7 +109,12 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 		return nil, fmt.Errorf("%w: changes is nil", ErrInvalidSettings)
 	}
 	if days := changes.ArchiveRetentionDays; days != nil {
-		if _, err := retentionDays(*days); err != nil {
+		if _, err := retentionDays("archiveRetentionDays", *days); err != nil {
+			return nil, err
+		}
+	}
+	if days := changes.NotificationRetentionDays; days != nil {
+		if _, err := retentionDays("notificationRetentionDays", *days); err != nil {
 			return nil, err
 		}
 	}
@@ -117,15 +136,18 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 		if err != nil {
 			return fmt.Errorf("%w: %w", ErrInvalidSettings, err)
 		}
-		days := current.ArchiveRetentionDays
-		if changes.ArchiveRetentionDays != nil {
-			days = *changes.ArchiveRetentionDays
-		}
-		stored, err := retentionDays(days)
+		archiveDays, err := retentionDays("archiveRetentionDays", valueOr(changes.ArchiveRetentionDays, current.ArchiveRetentionDays))
 		if err != nil {
 			return err
 		}
-		saved, err := q.UpdateSystemSettings(ctx, sqlc.UpdateSystemSettingsParams{RecordingDefaults: encoded, ArchiveRetentionDays: stored, Now: now})
+		notificationDays, err := retentionDays(
+			"notificationRetentionDays", valueOr(changes.NotificationRetentionDays, current.NotificationRetentionDays))
+		if err != nil {
+			return err
+		}
+		saved, err := q.UpdateSystemSettings(ctx, sqlc.UpdateSystemSettingsParams{
+			RecordingDefaults: encoded, ArchiveRetentionDays: archiveDays, NotificationRetentionDays: notificationDays, Now: now,
+		})
 		if err != nil {
 			return fmt.Errorf("failed to update the system settings: %w", err)
 		}
@@ -139,8 +161,9 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			TargetType: auditTarget,
 			TargetID:   "system",
 			Summary: map[string]any{
-				"recording":            change(current.RecordingOverrides, updated.RecordingOverrides),
-				"archiveRetentionDays": change(current.ArchiveRetentionDays, updated.ArchiveRetentionDays),
+				"recording":                 change(current.RecordingOverrides, updated.RecordingOverrides),
+				"archiveRetentionDays":      change(current.ArchiveRetentionDays, updated.ArchiveRetentionDays),
+				"notificationRetentionDays": change(current.NotificationRetentionDays, updated.NotificationRetentionDays),
 			},
 			// 送信元は、操作者 (actor) に持たせる。
 			SourceIP:  netip.Addr{},
@@ -159,13 +182,22 @@ func change(from, to any) map[string]any {
 	return map[string]any{"from": from, "to": to}
 }
 
-// retentionDays は、保持期間の日数が範囲にあるかを確かめ、DB に保存する形にする。
-func retentionDays(days int) (int32, error) {
+// retentionDays は、保持期間 name の日数が範囲にあるかを確かめ、DB に保存する形にする。
+func retentionDays(name string, days int) (int32, error) {
 	if days < 0 || days > maxArchiveRetentionDays {
-		return 0, fmt.Errorf("%w: archiveRetentionDays must be between 0 and %d", ErrInvalidSettings, maxArchiveRetentionDays)
+		return 0, fmt.Errorf("%w: %s must be between 0 and %d", ErrInvalidSettings, name, maxArchiveRetentionDays)
 	}
 
 	return int32(days), nil
+}
+
+// valueOr は、変える値 change があればそれを、なければ今の値 current を返す。
+func valueOr(change *int, current int) int {
+	if change != nil {
+		return *change
+	}
+
+	return current
 }
 
 // merge は、base に changes の nil でない項目を重ねる。
@@ -198,10 +230,11 @@ func merge(base, changes *reserve.Overrides) *reserve.Overrides {
 
 func defaults() *System {
 	return &System{
-		Recording:            reserve.DefaultSettings(),
-		RecordingOverrides:   new(reserve.Overrides),
-		ArchiveRetentionDays: DefaultArchiveRetentionDays,
-		UpdatedAt:            nil,
+		Recording:                 reserve.DefaultSettings(),
+		RecordingOverrides:        new(reserve.Overrides),
+		ArchiveRetentionDays:      DefaultArchiveRetentionDays,
+		NotificationRetentionDays: DefaultNotificationRetentionDays,
+		UpdatedAt:                 nil,
 	}
 }
 
@@ -212,9 +245,10 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 	}
 
 	return &System{
-		Recording:            reserve.DefaultSettings().Resolve(overrides),
-		RecordingOverrides:   overrides,
-		ArchiveRetentionDays: int(row.ArchiveRetentionDays),
-		UpdatedAt:            &row.UpdatedAt,
+		Recording:                 reserve.DefaultSettings().Resolve(overrides),
+		RecordingOverrides:        overrides,
+		ArchiveRetentionDays:      int(row.ArchiveRetentionDays),
+		NotificationRetentionDays: int(row.NotificationRetentionDays),
+		UpdatedAt:                 &row.UpdatedAt,
 	}, nil
 }

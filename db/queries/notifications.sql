@@ -88,3 +88,14 @@ LEFT JOIN reservation_rules rr ON rr.reservation_id = r.id
 LEFT JOIN rules ru ON ru.id = rr.rule_id
 WHERE r.id = @id
 GROUP BY r.id;
+
+-- name: DeleteNotificationEventsBefore :execrows
+-- 配り終えた通知のイベントのうち、before より前に起きたものを、max_count 件まで消す。ユーザーごとの通知も一緒に消える。
+-- まだ配っていないイベントは消さない。
+DELETE FROM notification_events
+WHERE id IN (
+  SELECT e.id FROM notification_events e
+  WHERE e.dispatched_at IS NOT NULL AND e.occurred_at < @before
+  ORDER BY e.occurred_at
+  LIMIT @max_count
+);

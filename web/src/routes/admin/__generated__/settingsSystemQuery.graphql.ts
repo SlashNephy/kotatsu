@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<282d2ea1c704e4e4310ea7aaf6bc2180>>
+ * @generated SignedSource<<8a630602bc96c0d23fe028eb4451a5bd>>
  * @lightSyntaxTransform
  */
 
@@ -19,6 +19,7 @@ export type settingsSystemQuery$data = {
   };
   readonly systemSettings: {
     readonly archiveRetentionDays: number;
+    readonly notificationRetentionDays: number;
     readonly recordingDefaults: {
       readonly endMarginSeconds: number;
       readonly fileNameTemplate: string;
@@ -123,6 +124,13 @@ v1 = [
         "alias": null,
         "args": null,
         "kind": "ScalarField",
+        "name": "notificationRetentionDays",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
         "name": "updatedAt",
         "storageKey": null
       }
@@ -204,16 +212,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "60734fc47bc4622932be33d4a0c41a8a",
+    "cacheID": "64ce483e75ad43cda63d93c323dfa2f2",
     "id": null,
     "metadata": {},
     "name": "settingsSystemQuery",
     "operationKind": "query",
-    "text": "query settingsSystemQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n    }\n    archiveRetentionDays\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query settingsSystemQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n    }\n    archiveRetentionDays\n    notificationRetentionDays\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "6dfa42d12247d931e2022571021b7472";
+(node as any).hash = "ea7d1921ae81388669b68b49b75e77ab";
 
 export default node;

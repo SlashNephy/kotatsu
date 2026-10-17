@@ -1889,6 +1889,10 @@ type SystemSettings {
   """
   archiveRetentionDays: Int!
   """
+  配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限。
+  """
+  notificationRetentionDays: Int!
+  """
   最後に変えた日時。一度も変えていなければ null。
   """
   updatedAt: Time
@@ -1902,6 +1906,7 @@ input SystemSettingsInput {
   """
   recordingDefaults: RecordingSettingsOverridesInput
   archiveRetentionDays: Int
+  notificationRetentionDays: Int
 }
 """
 システムの状態。

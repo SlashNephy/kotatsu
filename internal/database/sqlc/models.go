@@ -348,10 +348,11 @@ type StoragePool struct {
 }
 
 type SystemSetting struct {
-	ID                   int16
-	RecordingDefaults    []byte
-	ArchiveRetentionDays int32
-	UpdatedAt            time.Time
+	ID                        int16
+	RecordingDefaults         []byte
+	ArchiveRetentionDays      int32
+	NotificationRetentionDays int32
+	UpdatedAt                 time.Time
 }
 
 type Tag struct {
