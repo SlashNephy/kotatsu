@@ -56,6 +56,22 @@ type AppVersion {
   コミットしていない変更を含むビルドかどうか。
   """
   modified: Boolean!
+  """
+  動いている版より新しいリリース (#506)。管理者にだけ返す。新しいリリースを確かめる設定 (update_check.enabled) を入れていないか、
+  新しいリリースがないか、まだ確かめていなければ null。
+  """
+  latestRelease: Release
+}
+
+"""
+Kotatsu のリリース。
+"""
+type Release {
+  "リリースの版 (1.2.3)。"
+  version: String!
+  "GitHub のリリースのページの URL。"
+  url: String!
+  publishedAt: Time!
 }
 
 type Subscription {

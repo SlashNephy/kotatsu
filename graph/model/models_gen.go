@@ -23,6 +23,9 @@ type AppVersion struct {
 	Revision *string `json:"revision,omitempty"`
 	// コミットしていない変更を含むビルドかどうか。
 	Modified bool `json:"modified"`
+	// 動いている版より新しいリリース (#506)。管理者にだけ返す。新しいリリースを確かめる設定 (update_check.enabled) を入れていないか、
+	// 新しいリリースがないか、まだ確かめていなければ null。
+	LatestRelease *Release `json:"latestRelease,omitempty"`
 }
 
 // 過去の番組の検索の期間 (設計書 3.4)。開始時刻がこの範囲に入るアーカイブの番組も検索する。
@@ -567,6 +570,15 @@ type RecordingSettingsOverridesInput struct {
 // リカバリーコード。この応答でしか見せないので、ユーザーに控えてもらう。
 type RecoveryCodes struct {
 	Codes []string `json:"codes"`
+}
+
+// Kotatsu のリリース。
+type Release struct {
+	// リリースの版 (1.2.3)。
+	Version string `json:"version"`
+	// GitHub のリリースのページの URL。
+	URL         string    `json:"url"`
+	PublishedAt time.Time `json:"publishedAt"`
 }
 
 // 録画のファイルを付け直した結果。

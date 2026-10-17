@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<f1451dd150ae5e54146c95289648c6e5>>
+ * @generated SignedSource<<0816460ae2f5405c0bd455425669c211>>
  * @lightSyntaxTransform
  */
 
@@ -11,6 +11,10 @@ import { ConcreteRequest } from 'relay-runtime';
 export type UserMenuQuery$variables = Record<PropertyKey, never>;
 export type UserMenuQuery$data = {
   readonly version: {
+    readonly latestRelease: {
+      readonly url: string;
+      readonly version: string;
+    } | null | undefined;
     readonly modified: boolean;
     readonly revision: string | null | undefined;
     readonly version: string;
@@ -43,18 +47,19 @@ v1 = {
 v2 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "version",
+  "storageKey": null
+},
+v3 = {
+  "alias": null,
+  "args": null,
   "concreteType": "AppVersion",
   "kind": "LinkedField",
   "name": "version",
   "plural": false,
   "selections": [
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "version",
-      "storageKey": null
-    },
+    (v2/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -67,6 +72,25 @@ v2 = {
       "args": null,
       "kind": "ScalarField",
       "name": "modified",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "Release",
+      "kind": "LinkedField",
+      "name": "latestRelease",
+      "plural": false,
+      "selections": [
+        (v2/*:: as any*/),
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "url",
+          "storageKey": null
+        }
+      ],
       "storageKey": null
     }
   ],
@@ -92,7 +116,7 @@ return {
         ],
         "storageKey": null
       },
-      (v2/*:: as any*/)
+      (v3/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -123,20 +147,20 @@ return {
         ],
         "storageKey": null
       },
-      (v2/*:: as any*/)
+      (v3/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "42643c26da12af7d82ed87937a499216",
+    "cacheID": "5ad73480f2e438b98e335b46fc98ee1c",
     "id": null,
     "metadata": {},
     "name": "UserMenuQuery",
     "operationKind": "query",
-    "text": "query UserMenuQuery {\n  viewer {\n    displayName\n    username\n    id\n  }\n  version {\n    version\n    revision\n    modified\n  }\n}\n"
+    "text": "query UserMenuQuery {\n  viewer {\n    displayName\n    username\n    id\n  }\n  version {\n    version\n    revision\n    modified\n    latestRelease {\n      version\n      url\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "74e37d7c5f1f419e74faa04efa00db8c";
+(node as any).hash = "e21d5be91cd61877ed1fd0192759233c";
 
 export default node;

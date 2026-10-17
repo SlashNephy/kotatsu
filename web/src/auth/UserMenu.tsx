@@ -1,4 +1,4 @@
-import { Box, Button, Menu, Text } from '@mantine/core';
+import { Box, Button, Indicator, Menu, Text } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
@@ -23,20 +23,28 @@ export function UserMenu() {
           version
           revision
           modified
+          latestRelease {
+            version
+            url
+          }
         }
       }
     `,
     {},
   );
+  // 新しい版は、管理者にだけ届く (#506)。
+  const latest = data.version.latestRelease;
 
   return (
     <Menu position="bottom-end" width={240} withinPortal>
       <Menu.Target>
-        <Button variant="subtle" size="compact-sm" maw={160}>
-          <Text span size="sm" truncate="end">
-            {data.viewer.displayName}
-          </Text>
-        </Button>
+        <Indicator disabled={latest == null} color="teal" size={8} offset={4}>
+          <Button variant="subtle" size="compact-sm" maw={160}>
+            <Text span size="sm" truncate="end">
+              {data.viewer.displayName}
+            </Text>
+          </Button>
+        </Indicator>
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Label>
@@ -70,6 +78,17 @@ export function UserMenu() {
           {t('auth.logout')}
         </Menu.Item>
         <Menu.Divider />
+        {latest != null && (
+          <Menu.Item
+            component="a"
+            href={latest.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            c="teal"
+          >
+            {t('app.newRelease', { version: latest.version })}
+          </Menu.Item>
+        )}
         <Menu.Label>
           <Text size="xs" c="dimmed">
             {t('app.version', { version: formatVersion(data.version) })}

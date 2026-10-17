@@ -66,4 +66,6 @@ type Resolver struct {
 	jobs thumbnail.Inserter
 	// totalSpace は、保存先プールのファイルシステムの容量を調べる。
 	totalSpace kago.TotalSpaceFunc
+	// updates は、新しいリリースを確かめた結果。確かめない設定なら nil。
+	updates Updates
 }

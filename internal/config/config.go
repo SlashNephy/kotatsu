@@ -38,6 +38,15 @@ type Config struct {
 	Thumbnail Thumbnail `yaml:"thumbnail"`
 	Kyusu     Kyusu     `yaml:"kyusu"`
 	Jikkyo    Jikkyo    `yaml:"jikkyo"`
+	// UpdateCheck は、新しいリリースを確かめるかどうかの設定 (#506)。
+	UpdateCheck UpdateCheck `yaml:"update_check"`
+}
+
+// UpdateCheck は、新しいリリースを確かめる設定 (設計書 11.1)。
+type UpdateCheck struct {
+	// Enabled は、tenban が GitHub のリリースを 1 日に 1 回確かめ、新しい版を管理者に知らせるかどうか。
+	// 外部への通信になるので、既定では確かめない。
+	Enabled bool `yaml:"enabled"`
 }
 
 // Server は tenban の HTTP サーバーの設定。
@@ -262,6 +271,9 @@ func Default() *Config {
 		},
 		Telemetry: Telemetry{
 			OTLPEndpoint: "",
+		},
+		UpdateCheck: UpdateCheck{
+			Enabled: false,
 		},
 		Audit: Audit{
 			// 設計書の付録 A の初期値。

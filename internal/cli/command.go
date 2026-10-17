@@ -46,6 +46,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/stream"
 	"github.com/SlashNephy/kotatsu/internal/telemetry"
 	"github.com/SlashNephy/kotatsu/internal/thumbnail"
+	"github.com/SlashNephy/kotatsu/internal/update"
 	"github.com/SlashNephy/kotatsu/internal/watch"
 	"github.com/SlashNephy/kotatsu/internal/webhook"
 	"github.com/SlashNephy/kotatsu/internal/webpush"
@@ -470,6 +471,11 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 		eg.Go(func() error {
 			return api.changes.Run(ctx)
 		})
+		if api.updates != nil {
+			eg.Go(func() error {
+				return api.updates.Run(ctx)
+			})
+		}
 	}
 	if live != nil {
 		eg.Go(func() error {
@@ -516,6 +522,22 @@ var _ ChangeFeed = new(notify.Broadcaster)
 type apiHandler struct {
 	handler http.Handler
 	changes ChangeFeed
+	// updates は、新しいリリースを確かめる。確かめない設定なら nil。
+	updates *update.Checker
+}
+
+// newUpdates は、新しいリリースを確かめる Checker と、GraphQL に渡すそれを返す。
+// 外部への通信になるので、設定で入れたときだけ確かめる (設計書 11.1、#506)。入れていなければ、どちらも nil。
+// GraphQL には、nil の *update.Checker でなく nil のインターフェースを渡す。
+func newUpdates(logger *slog.Logger, deps *Deps) (*update.Checker, graph.Updates) {
+	if !deps.Config.UpdateCheck.Enabled {
+		return nil, nil
+	}
+	checker := update.NewChecker(&update.Options{
+		Current: buildinfo.Get().Version, URL: "", Interval: 0, HTTPClient: nil, Logger: logger.With(slog.String("component", "update")),
+	})
+
+	return checker, checker
 }
 
 // watchChanges は、subscription で知らせるデータの変更の通知を見張る。
@@ -596,6 +618,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		return nil, err
 	}
 	jikkyoClient := jikkyo.NewClient(&jikkyo.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: nil, Clock: deps.Clock})
+	updates, graphUpdates := newUpdates(logger, deps)
 	mux := http.NewServeMux()
 	// 変更の購読 (SSE) は終わらないので、停止を始めたら打ち切る。
 	mux.Handle("/graphql", httpserver.StopEventStreamsOnShutdown(graph.NewHandler(&graph.Options{
@@ -624,6 +647,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		MaxDepth:          0,
 		MaxComplexity:     0,
 		HeartbeatInterval: 0,
+		Updates:           graphUpdates,
 	})))
 	mux.Handle("POST /auth/logout", httpserver.RequireSameOrigin(sessions.LogoutHandler(deps.DB)))
 	logins := auth.NewLogins(&auth.LoginsOptions{
@@ -719,7 +743,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	root.Handle("/media/", api)
 	root.Handle("/", app)
 
-	return &apiHandler{handler: policy.Middleware(root), changes: changes}, nil
+	return &apiHandler{handler: policy.Middleware(root), changes: changes, updates: updates}, nil
 }
 
 // newKyusu は、kyusu のライブ視聴と録画の仮想 HLS のセッションと、tenban からのリクエストを確かめるトークンを返す。

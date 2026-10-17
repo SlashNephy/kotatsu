@@ -1,5 +1,6 @@
 {
   "app": {
+    "newRelease": "新しい版 {{version}} があります",
     "name": "Kotatsu",
     "version": "Kotatsu {{version}}"
   },
@@ -1153,6 +1154,9 @@
       "error": "付け直せませんでした。時間をおいてやり直してください"
     },
     "system": {
+      "newRelease": "新しい版 {{version}} があります",
+      "newReleaseBody": "動いている版は {{current}} です。{{published}} に公開されました。",
+      "newReleaseLink": "リリースのページを開く",
       "title": "システムの状態",
       "summary": "チューナーサーバー、チューナー、インスタンスの状態を確かめ、保存先プールを変えます",
       "refresh": "読み直す",
