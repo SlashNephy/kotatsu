@@ -244,6 +244,27 @@ func (r *Resolver) systemStatus(ctx context.Context) (*model.SystemStatus, error
 	return status, nil
 }
 
+// storagePoolIDs は、保存先プールの ID を昇順に返す。このインスタンスにマウントしたプールと、設定を保存したプールを合わせる。
+// ロールを分けた構成で、このインスタンスがマウントしていないプールも選べるようにするためである。
+func (r *Resolver) storagePoolIDs(ctx context.Context) ([]string, error) {
+	if _, err := viewer(ctx); err != nil {
+		return nil, err
+	}
+	rows, err := sqlc.New(r.db).ListStoragePools(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list storage pools: %w", err)
+	}
+	ids := map[string]bool{}
+	for id := range r.pools {
+		ids[id] = true
+	}
+	for _, row := range rows {
+		ids[row.ID] = true
+	}
+
+	return slices.Sorted(maps.Keys(ids)), nil
+}
+
 // storagePools は、このインスタンスにマウントされた保存先プールを、設定と空き容量と一緒に返す。
 func (r *Resolver) storagePools(ctx context.Context) ([]*model.StoragePool, error) {
 	rows, err := sqlc.New(r.db).ListStoragePools(ctx)

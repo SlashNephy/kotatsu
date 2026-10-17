@@ -20,3 +20,8 @@ func (r *queryResolver) SystemStatus(ctx context.Context) (*model.SystemStatus, 
 func (r *queryResolver) TunerServerHealth(ctx context.Context) (*model.TunerServerHealth, error) {
 	return r.tunerServerHealth(ctx)
 }
+
+// StoragePoolIds is the resolver for the storagePoolIds field.
+func (r *queryResolver) StoragePoolIds(ctx context.Context) ([]string, error) {
+	return r.storagePoolIDs(ctx)
+}

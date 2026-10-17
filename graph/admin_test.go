@@ -270,3 +270,20 @@ func TestSystemStatusBeforeChecks(t *testing.T) {
 	assert.NotNil(t, got.SystemStatus.Pools)
 	assert.Empty(t, got.SystemStatus.Pools)
 }
+
+// TestStoragePoolIDs は、保存先プールの ID を、閲覧だけのユーザーも読めることと、
+// このインスタンスにマウントしたプールと、設定を保存したプールを合わせて返すことを確かめる (#463)。
+func TestStoragePoolIDs(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, &graph.Options{Pools: map[string]string{poolSub: mountSub, poolMain: mountMain}})
+	// ほかのインスタンスだけがマウントしているプールは、設定を保存した行だけがある。
+	_, err := f.pool.Exec(t.Context(), "INSERT INTO storage_pools (id, priority, min_free_bytes, updated_at) VALUES ('archive', 0, 0, $1)", f.clock.Now())
+	require.NoError(t, err)
+
+	var got struct {
+		StoragePoolIDs []string `json:"storagePoolIds"`
+	}
+	require.Empty(t, f.as(t, "viewer", auth.RoleViewer).query(t, `{ storagePoolIds }`, nil, &got))
+	assert.Equal(t, []string{"archive", poolMain, poolSub}, got.StoragePoolIDs)
+}

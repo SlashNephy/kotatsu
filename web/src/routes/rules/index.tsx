@@ -20,6 +20,7 @@ import { useDataChanges } from '../../changes/DataChanges';
 import type { DataChannel } from '../../changes/dataChanges';
 import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
+import { outOfValidity } from '../../rules/validity';
 import type { rulesEnableMutation } from './__generated__/rulesEnableMutation.graphql';
 import type { rulesListQuery } from './__generated__/rulesListQuery.graphql';
 
@@ -62,6 +63,7 @@ function Rules() {
   const { t } = useTranslation();
   // ルールと予約の件数は、ほかの端末や neko で変わるので、変わったら読み直す (#503)。
   const changes = useDataChanges(ruleChannels);
+  const [now] = useState(Date.now);
   const data = useLazyLoadQuery<rulesListQuery>(
     graphql`
       query rulesListQuery {
@@ -83,6 +85,8 @@ function Rules() {
             }
             channelTypes
           }
+          validFrom
+          validUntil
           updatedAt
           upcomingReservationCount
         }
@@ -152,6 +156,12 @@ function Rules() {
                 {!rule.enabled && (
                   <Badge color="gray" size="sm">
                     {t('rules.disabled')}
+                  </Badge>
+                )}
+                {/* 有効でも、有効期間の外なら予約しないので、そのことを示す (#464)。 */}
+                {rule.enabled && outOfValidity(rule.validFrom, rule.validUntil, now) && (
+                  <Badge color="amber" variant="light" size="sm">
+                    {t('rules.outOfValidity')}
                   </Badge>
                 )}
               </Group>

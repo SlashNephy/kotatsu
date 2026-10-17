@@ -1,5 +1,4 @@
 // ルールの編集の画面の入力と、tenban のルール (Rule と RuleInput) を行き来させる。
-// 画面で編集しない項目 (保存先プールやファイル名の規則、有効期間など) は、そのまま保存し直して失わない。
 
 import {
   emptyConditions,
@@ -27,7 +26,6 @@ export type RuleForm = ConditionsForm & {
   avoidDuplicates: boolean;
   duplicateWindowDays: number | null;
   followEventRelay: boolean;
-  // settings は、画面で変えない項目 (保存先プール) も、そのまま保存し直す。
   settings: Settings;
   validFrom: string | null;
   validUntil: string | null;

@@ -84,6 +84,12 @@ function Rule({ ruleId }: { ruleId: string }) {
           type
           displayName
         }
+        storagePoolIds
+        systemSettings {
+          recordingDefaults {
+            poolId
+          }
+        }
         services {
           id
           name
@@ -123,6 +129,8 @@ function Rule({ ruleId }: { ruleId: string }) {
       initial={rule != null ? fromRule(rule) : newRuleForm(ruleConditions)}
       channelTypes={data.channelTypes}
       services={data.services}
+      pools={data.storagePoolIds}
+      defaultPoolId={data.systemSettings.recordingDefaults.poolId ?? null}
       readOnly={data.viewer.role === 'VIEWER'}
       authorship={
         rule != null
