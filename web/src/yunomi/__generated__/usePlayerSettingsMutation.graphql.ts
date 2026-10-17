@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<1e5ff6a4333a5fe50676865fa8a97734>>
+ * @generated SignedSource<<ebdb5e6ae70f8d58f8a61a8b5af224e5>>
  * @lightSyntaxTransform
  */
 
@@ -8,9 +8,23 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type KeywordMuteMatch = "EXACT" | "PARTIAL" | "PREFIX" | "REGEX" | "SUFFIX" | "%future added value";
 export type PlayerSettingsInput = {
   captionsEnabled?: boolean | null | undefined;
+  comments?: CommentSettingsInput | null | undefined;
   jikkyoEnabled?: boolean | null | undefined;
+};
+export type CommentSettingsInput = {
+  mutedKeywords: ReadonlyArray<MutedKeywordInput>;
+  mutedUsers: ReadonlyArray<string>;
+  opacity: number;
+  scale: number;
+  showAll: boolean;
+  speed: number;
+};
+export type MutedKeywordInput = {
+  match: KeywordMuteMatch;
+  text: string;
 };
 export type usePlayerSettingsMutation$variables = {
   input: PlayerSettingsInput;

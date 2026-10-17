@@ -190,8 +190,8 @@ func TestCommentsHandler(t *testing.T) {
 			}
 			assert.Equal(t, tt.wantContents, contents)
 			assert.InDeltaSlice(t, tt.wantTimes, times, 1e-6)
-			// ユーザー ID は返さない。
-			assert.NotContains(t, rec.Body.String(), "user_id")
+			// ミュートに使うので、ユーザー ID も返す (#488)。
+			assert.Contains(t, rec.Body.String(), `"userId":"a:y"`)
 			query := ""
 			if q := f.fake.query.Load(); q != nil {
 				query = *q

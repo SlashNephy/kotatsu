@@ -438,6 +438,8 @@ type Querier interface {
 	// SearchRecordings の古い順。after_at と after_id より後 (新しい) の録画だけを返し、ページを送る。
 	SearchRecordingsOldest(ctx context.Context, arg SearchRecordingsOldestParams) ([]Recording, error)
 	ServiceExists(ctx context.Context, id int64) (bool, error)
+	// 実況のコメントの表示とミュートの設定を、まるごと置き換える (#488)。
+	SetCommentSettings(ctx context.Context, arg SetCommentSettingsParams) error
 	// セグメントを 1 つにつないだあとで、最初のセグメントの大きさと、表す時間の終わりを、つないだものにする。
 	// 録画が消されて行がなければ 0 を返す。
 	SetJoinedRecordingFile(ctx context.Context, arg SetJoinedRecordingFileParams) (int64, error)

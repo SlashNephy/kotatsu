@@ -97,6 +97,15 @@ type ComplexityRoot struct {
 		Skipped           func(childComplexity int) int
 	}
 
+	CommentSettings struct {
+		MutedKeywords func(childComplexity int) int
+		MutedUsers    func(childComplexity int) int
+		Opacity       func(childComplexity int) int
+		Scale         func(childComplexity int) int
+		ShowAll       func(childComplexity int) int
+		Speed         func(childComplexity int) int
+	}
+
 	CreateWebhookPayload struct {
 		Secret  func(childComplexity int) int
 		Webhook func(childComplexity int) int
@@ -264,6 +273,11 @@ type ComplexityRoot struct {
 		UpdateWebhook                func(childComplexity int, id string, input model.UpdateWebhookInput) int
 	}
 
+	MutedKeyword struct {
+		Match func(childComplexity int) int
+		Text  func(childComplexity int) int
+	}
+
 	Notification struct {
 		ID         func(childComplexity int) int
 		Kind       func(childComplexity int) int
@@ -316,6 +330,7 @@ type ComplexityRoot struct {
 
 	PlayerSettings struct {
 		CaptionsEnabled func(childComplexity int) int
+		Comments        func(childComplexity int) int
 		JikkyoEnabled   func(childComplexity int) int
 	}
 
@@ -1113,6 +1128,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CleanUpMissingRecordingsPayload.Skipped(childComplexity), true
+
+	case "CommentSettings.mutedKeywords":
+		if e.ComplexityRoot.CommentSettings.MutedKeywords == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CommentSettings.MutedKeywords(childComplexity), true
+	case "CommentSettings.mutedUsers":
+		if e.ComplexityRoot.CommentSettings.MutedUsers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CommentSettings.MutedUsers(childComplexity), true
+	case "CommentSettings.opacity":
+		if e.ComplexityRoot.CommentSettings.Opacity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CommentSettings.Opacity(childComplexity), true
+	case "CommentSettings.scale":
+		if e.ComplexityRoot.CommentSettings.Scale == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CommentSettings.Scale(childComplexity), true
+	case "CommentSettings.showAll":
+		if e.ComplexityRoot.CommentSettings.ShowAll == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CommentSettings.ShowAll(childComplexity), true
+	case "CommentSettings.speed":
+		if e.ComplexityRoot.CommentSettings.Speed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CommentSettings.Speed(childComplexity), true
 
 	case "CreateWebhookPayload.secret":
 		if e.ComplexityRoot.CreateWebhookPayload.Secret == nil {
@@ -2048,6 +2100,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Mutation.UpdateWebhook(childComplexity, args["id"].(string), args["input"].(model.UpdateWebhookInput)), true
 
+	case "MutedKeyword.match":
+		if e.ComplexityRoot.MutedKeyword.Match == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MutedKeyword.Match(childComplexity), true
+	case "MutedKeyword.text":
+		if e.ComplexityRoot.MutedKeyword.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MutedKeyword.Text(childComplexity), true
+
 	case "Notification.id":
 		if e.ComplexityRoot.Notification.ID == nil {
 			break
@@ -2235,6 +2300,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.PlayerSettings.CaptionsEnabled(childComplexity), true
+	case "PlayerSettings.comments":
+		if e.ComplexityRoot.PlayerSettings.Comments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerSettings.Comments(childComplexity), true
 	case "PlayerSettings.jikkyoEnabled":
 		if e.ComplexityRoot.PlayerSettings.JikkyoEnabled == nil {
 			break
@@ -4188,11 +4259,13 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputArchiveRangeInput,
 		ec.unmarshalInputAuditEventFilter,
 		ec.unmarshalInputChannelTypeInput,
+		ec.unmarshalInputCommentSettingsInput,
 		ec.unmarshalInputCreateUserInput,
 		ec.unmarshalInputCreateWebhookInput,
 		ec.unmarshalInputGenreInput,
 		ec.unmarshalInputGuideViewInput,
 		ec.unmarshalInputKeywordInput,
+		ec.unmarshalInputMutedKeywordInput,
 		ec.unmarshalInputNotificationPreferenceInput,
 		ec.unmarshalInputOrphanFileInput,
 		ec.unmarshalInputPlayerSettingsInput,
@@ -5063,6 +5136,51 @@ type PlayerSettings {
   jikkyoEnabled: Boolean!
   "字幕と文字スーパーを出すかどうか。"
   captionsEnabled: Boolean!
+  "実況のコメントの表示とミュートの設定 (#488)。"
+  comments: CommentSettings!
+}
+
+"""
+実況のコメントの表示とミュートの設定 (#488)。
+"""
+type CommentSettings {
+  "不透明度 (0.1〜1)。"
+  opacity: Float!
+  "流れる速さの倍率 (0.5〜2)。2 なら、1 つのコメントを 1.5 秒で流す。"
+  speed: Float!
+  "文字の大きさの倍率 (0.5〜1.5)。"
+  scale: Float!
+  "重なっても、すべてのコメントを出すかどうか。出さなければ、画面に同時に出すのを 40 件までにし、古いものから隠す。"
+  showAll: Boolean!
+  "ミュートするキーワード。"
+  mutedKeywords: [MutedKeyword!]!
+  "ミュートするユーザーの ID (NX-Jikkyo と過去ログの user_id)。"
+  mutedUsers: [String!]!
+}
+
+"""
+ミュートするキーワード。
+"""
+type MutedKeyword {
+  "1〜100 文字"
+  text: String!
+  match: KeywordMuteMatch!
+}
+
+"""
+ミュートするキーワードの照らし方。大文字と小文字、全角と半角は区別しない (正規表現は大文字と小文字だけ区別しない)。
+"""
+enum KeywordMuteMatch {
+  "どこかに含む"
+  PARTIAL
+  "で始まる"
+  PREFIX
+  "で終わる"
+  SUFFIX
+  "と一致する"
+  EXACT
+  "正規表現 (JavaScript の RegExp) に一致する"
+  REGEX
 }
 
 """
@@ -5071,6 +5189,24 @@ type PlayerSettings {
 input PlayerSettingsInput {
   jikkyoEnabled: Boolean
   captionsEnabled: Boolean
+  "渡したら、コメントの設定をまるごと置き換える。"
+  comments: CommentSettingsInput
+}
+
+input CommentSettingsInput {
+  opacity: Float!
+  speed: Float!
+  scale: Float!
+  showAll: Boolean!
+  "100 件まで"
+  mutedKeywords: [MutedKeywordInput!]!
+  "500 件まで。1 つ 64 文字まで"
+  mutedUsers: [String!]!
+}
+
+input MutedKeywordInput {
+  text: String!
+  match: KeywordMuteMatch!
 }
 
 extend type Query {
@@ -6502,6 +6638,24 @@ func (ec *executionContext) childFields_CleanUpMissingRecordingsPayload(ctx cont
 	return nil, fmt.Errorf("no field named %q was found under type CleanUpMissingRecordingsPayload", field.Name)
 }
 
+func (ec *executionContext) childFields_CommentSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "opacity":
+		return ec.fieldContext_CommentSettings_opacity(ctx, field)
+	case "speed":
+		return ec.fieldContext_CommentSettings_speed(ctx, field)
+	case "scale":
+		return ec.fieldContext_CommentSettings_scale(ctx, field)
+	case "showAll":
+		return ec.fieldContext_CommentSettings_showAll(ctx, field)
+	case "mutedKeywords":
+		return ec.fieldContext_CommentSettings_mutedKeywords(ctx, field)
+	case "mutedUsers":
+		return ec.fieldContext_CommentSettings_mutedUsers(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CommentSettings", field.Name)
+}
+
 func (ec *executionContext) childFields_CreateWebhookPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "webhook":
@@ -6720,6 +6874,16 @@ func (ec *executionContext) childFields_MissingRecording(ctx context.Context, fi
 	return nil, fmt.Errorf("no field named %q was found under type MissingRecording", field.Name)
 }
 
+func (ec *executionContext) childFields_MutedKeyword(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "text":
+		return ec.fieldContext_MutedKeyword_text(ctx, field)
+	case "match":
+		return ec.fieldContext_MutedKeyword_match(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MutedKeyword", field.Name)
+}
+
 func (ec *executionContext) childFields_Notification(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -6826,6 +6990,8 @@ func (ec *executionContext) childFields_PlayerSettings(ctx context.Context, fiel
 		return ec.fieldContext_PlayerSettings_jikkyoEnabled(ctx, field)
 	case "captionsEnabled":
 		return ec.fieldContext_PlayerSettings_captionsEnabled(ctx, field)
+	case "comments":
+		return ec.fieldContext_PlayerSettings_comments(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type PlayerSettings", field.Name)
 }
@@ -9706,6 +9872,153 @@ func (ec *executionContext) _CleanUpMissingRecordingsPayload_skipped(ctx context
 }
 func (ec *executionContext) fieldContext_CleanUpMissingRecordingsPayload_skipped(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CleanUpMissingRecordingsPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CommentSettings_opacity(ctx context.Context, field graphql.CollectedField, obj *model.CommentSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CommentSettings_opacity(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Opacity, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CommentSettings_opacity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CommentSettings", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _CommentSettings_speed(ctx context.Context, field graphql.CollectedField, obj *model.CommentSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CommentSettings_speed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Speed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CommentSettings_speed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CommentSettings", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _CommentSettings_scale(ctx context.Context, field graphql.CollectedField, obj *model.CommentSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CommentSettings_scale(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Scale, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CommentSettings_scale(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CommentSettings", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _CommentSettings_showAll(ctx context.Context, field graphql.CollectedField, obj *model.CommentSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CommentSettings_showAll(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ShowAll, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CommentSettings_showAll(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CommentSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CommentSettings_mutedKeywords(ctx context.Context, field graphql.CollectedField, obj *model.CommentSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CommentSettings_mutedKeywords(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MutedKeywords, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MutedKeyword) graphql.Marshaler {
+			return ec.marshalNMutedKeyword2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐMutedKeywordᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CommentSettings_mutedKeywords(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CommentSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MutedKeyword(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CommentSettings_mutedUsers(ctx context.Context, field graphql.CollectedField, obj *model.CommentSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CommentSettings_mutedUsers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MutedUsers, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CommentSettings_mutedUsers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CommentSettings", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _CreateWebhookPayload_webhook(ctx context.Context, field graphql.CollectedField, obj *model.CreateWebhookPayload) (ret graphql.Marshaler) {
@@ -13426,6 +13739,52 @@ func (ec *executionContext) fieldContext_Mutation_deleteWebhook(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _MutedKeyword_text(ctx context.Context, field graphql.CollectedField, obj *model.MutedKeyword) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MutedKeyword_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MutedKeyword_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MutedKeyword", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MutedKeyword_match(ctx context.Context, field graphql.CollectedField, obj *model.MutedKeyword) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MutedKeyword_match(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Match, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.KeywordMuteMatch) graphql.Marshaler {
+			return ec.marshalNKeywordMuteMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordMuteMatch(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MutedKeyword_match(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MutedKeyword", field, false, false, errors.New("field of type KeywordMuteMatch does not have child fields"))
+}
+
 func (ec *executionContext) _Notification_id(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -14164,6 +14523,38 @@ func (ec *executionContext) _PlayerSettings_captionsEnabled(ctx context.Context,
 }
 func (ec *executionContext) fieldContext_PlayerSettings_captionsEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("PlayerSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerSettings_comments(ctx context.Context, field graphql.CollectedField, obj *model.PlayerSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerSettings_comments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Comments, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CommentSettings) graphql.Marshaler {
+			return ec.marshalNCommentSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐCommentSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerSettings_comments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlayerSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CommentSettings(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _PreviewFrame_url(ctx context.Context, field graphql.CollectedField, obj *model.PreviewFrame) (ret graphql.Marshaler) {
@@ -23442,6 +23833,71 @@ func (ec *executionContext) unmarshalInputChannelTypeInput(ctx context.Context, 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCommentSettingsInput(ctx context.Context, obj any) (model.CommentSettingsInput, error) {
+	var it model.CommentSettingsInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"opacity", "speed", "scale", "showAll", "mutedKeywords", "mutedUsers"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "opacity":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("opacity"))
+			data, err := ec.unmarshalNFloat2float64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Opacity = data
+		case "speed":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("speed"))
+			data, err := ec.unmarshalNFloat2float64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Speed = data
+		case "scale":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scale"))
+			data, err := ec.unmarshalNFloat2float64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Scale = data
+		case "showAll":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("showAll"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ShowAll = data
+		case "mutedKeywords":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mutedKeywords"))
+			data, err := ec.unmarshalNMutedKeywordInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐMutedKeywordInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MutedKeywords = data
+		case "mutedUsers":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mutedUsers"))
+			data, err := ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MutedUsers = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateUserInput(ctx context.Context, obj any) (model.CreateUserInput, error) {
 	var it model.CreateUserInput
 	if obj == nil {
@@ -23729,6 +24185,43 @@ func (ec *executionContext) unmarshalInputKeywordInput(ctx context.Context, obj 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputMutedKeywordInput(ctx context.Context, obj any) (model.MutedKeywordInput, error) {
+	var it model.MutedKeywordInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"text", "match"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "text":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("text"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Text = data
+		case "match":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("match"))
+			data, err := ec.unmarshalNKeywordMuteMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordMuteMatch(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Match = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputNotificationPreferenceInput(ctx context.Context, obj any) (model.NotificationPreferenceInput, error) {
 	var it model.NotificationPreferenceInput
 	if obj == nil {
@@ -23835,7 +24328,7 @@ func (ec *executionContext) unmarshalInputPlayerSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"jikkyoEnabled", "captionsEnabled"}
+	fieldsInOrder := [...]string{"jikkyoEnabled", "captionsEnabled", "comments"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -23856,6 +24349,13 @@ func (ec *executionContext) unmarshalInputPlayerSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.CaptionsEnabled = data
+		case "comments":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("comments"))
+			data, err := ec.unmarshalOCommentSettingsInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐCommentSettingsInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Comments = data
 		}
 	}
 	return it, nil
@@ -25245,6 +25745,69 @@ func (ec *executionContext) _CleanUpMissingRecordingsPayload(ctx context.Context
 	return out
 }
 
+var commentSettingsImplementors = []string{"CommentSettings"}
+
+func (ec *executionContext) _CommentSettings(ctx context.Context, sel ast.SelectionSet, obj *model.CommentSettings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, commentSettingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CommentSettings")
+		case "opacity":
+			out.Values[i] = ec._CommentSettings_opacity(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "speed":
+			out.Values[i] = ec._CommentSettings_speed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scale":
+			out.Values[i] = ec._CommentSettings_scale(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "showAll":
+			out.Values[i] = ec._CommentSettings_showAll(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mutedKeywords":
+			out.Values[i] = ec._CommentSettings_mutedKeywords(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mutedUsers":
+			out.Values[i] = ec._CommentSettings_mutedUsers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var createWebhookPayloadImplementors = []string{"CreateWebhookPayload"}
 
 func (ec *executionContext) _CreateWebhookPayload(ctx context.Context, sel ast.SelectionSet, obj *model.CreateWebhookPayload) graphql.Marshaler {
@@ -26573,6 +27136,49 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 	return out
 }
 
+var mutedKeywordImplementors = []string{"MutedKeyword"}
+
+func (ec *executionContext) _MutedKeyword(ctx context.Context, sel ast.SelectionSet, obj *model.MutedKeyword) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mutedKeywordImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MutedKeyword")
+		case "text":
+			out.Values[i] = ec._MutedKeyword_text(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "match":
+			out.Values[i] = ec._MutedKeyword_match(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var notificationImplementors = []string{"Notification"}
 
 func (ec *executionContext) _Notification(ctx context.Context, sel ast.SelectionSet, obj *model.Notification) graphql.Marshaler {
@@ -26968,6 +27574,11 @@ func (ec *executionContext) _PlayerSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "captionsEnabled":
 			out.Values[i] = ec._PlayerSettings_captionsEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "comments":
+			out.Values[i] = ec._PlayerSettings_comments(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -31856,6 +32467,16 @@ func (ec *executionContext) marshalNCleanUpMissingRecordingsPayload2ᚖgithubᚗ
 	return ec._CleanUpMissingRecordingsPayload(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNCommentSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐCommentSettings(ctx context.Context, sel ast.SelectionSet, v *model.CommentSettings) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CommentSettings(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNCreateUserInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐCreateUserInput(ctx context.Context, v any) (model.CreateUserInput, error) {
 	res, err := ec.unmarshalInputCreateUserInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -32012,6 +32633,22 @@ func (ec *executionContext) marshalNFileNameTemplatePreset2ᚖgithubᚗcomᚋSla
 		return graphql.Null
 	}
 	return ec._FileNameTemplatePreset(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v any) (float64, error) {
+	res, err := graphql.UnmarshalFloatContext(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.SelectionSet, v float64) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalFloatContext(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return graphql.WrapContextMarshaler(ctx, res)
 }
 
 func (ec *executionContext) marshalNGenre2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Genre) graphql.Marshaler {
@@ -32341,6 +32978,16 @@ func (ec *executionContext) marshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkot
 	return v
 }
 
+func (ec *executionContext) unmarshalNKeywordMuteMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordMuteMatch(ctx context.Context, v any) (model.KeywordMuteMatch, error) {
+	var res model.KeywordMuteMatch
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNKeywordMuteMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐKeywordMuteMatch(ctx context.Context, sel ast.SelectionSet, v model.KeywordMuteMatch) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNLease2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐLeaseᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Lease) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -32391,6 +33038,51 @@ func (ec *executionContext) marshalNMissingRecording2ᚖgithubᚗcomᚋSlashNeph
 		return graphql.Null
 	}
 	return ec._MissingRecording(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMutedKeyword2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐMutedKeywordᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MutedKeyword) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMutedKeyword2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐMutedKeyword(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMutedKeyword2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐMutedKeyword(ctx context.Context, sel ast.SelectionSet, v *model.MutedKeyword) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MutedKeyword(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMutedKeywordInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐMutedKeywordInputᚄ(ctx context.Context, v any) ([]*model.MutedKeywordInput, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.MutedKeywordInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNMutedKeywordInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐMutedKeywordInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNMutedKeywordInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐMutedKeywordInput(ctx context.Context, v any) (*model.MutedKeywordInput, error) {
+	res, err := ec.unmarshalInputMutedKeywordInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNNotification2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotification(ctx context.Context, sel ast.SelectionSet, v *model.Notification) graphql.Marshaler {
@@ -33894,6 +34586,14 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	_ = ctx
 	res := graphql.MarshalBoolean(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOCommentSettingsInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐCommentSettingsInput(ctx context.Context, v any) (*model.CommentSettingsInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputCommentSettingsInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalOGenreInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreInputᚄ(ctx context.Context, v any) ([]*model.GenreInput, error) {

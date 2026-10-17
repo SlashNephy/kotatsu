@@ -35,7 +35,8 @@ func (q *Queries) BumpUserSettingsVersion(ctx context.Context, arg BumpUserSetti
 const getPlayerSettings = `-- name: GetPlayerSettings :one
 SELECT
   coalesce(s.jikkyo_enabled, true)::boolean AS jikkyo_enabled,
-  coalesce(s.captions_enabled, true)::boolean AS captions_enabled
+  coalesce(s.captions_enabled, true)::boolean AS captions_enabled,
+  s.comment_settings
 FROM (SELECT $1::uuid AS id) AS u
 LEFT JOIN user_settings s ON s.user_id = u.id
 `
@@ -43,13 +44,14 @@ LEFT JOIN user_settings s ON s.user_id = u.id
 type GetPlayerSettingsRow struct {
 	JikkyoEnabled   bool
 	CaptionsEnabled bool
+	CommentSettings []byte
 }
 
 // プレイヤーの設定。一度も変えていなければ、既定値を返す。
 func (q *Queries) GetPlayerSettings(ctx context.Context, userID uuid.UUID) (GetPlayerSettingsRow, error) {
 	row := q.db.QueryRow(ctx, getPlayerSettings, userID)
 	var i GetPlayerSettingsRow
-	err := row.Scan(&i.JikkyoEnabled, &i.CaptionsEnabled)
+	err := row.Scan(&i.JikkyoEnabled, &i.CaptionsEnabled, &i.CommentSettings)
 	return i, err
 }
 
@@ -105,6 +107,24 @@ func (q *Queries) PinService(ctx context.Context, arg PinServiceParams) error {
 	return err
 }
 
+const setCommentSettings = `-- name: SetCommentSettings :exec
+INSERT INTO user_settings (user_id, comment_settings, updated_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (user_id) DO UPDATE SET comment_settings = EXCLUDED.comment_settings, updated_at = EXCLUDED.updated_at
+`
+
+type SetCommentSettingsParams struct {
+	UserID          uuid.UUID
+	CommentSettings []byte
+	Now             time.Time
+}
+
+// 実況のコメントの表示とミュートの設定を、まるごと置き換える (#488)。
+func (q *Queries) SetCommentSettings(ctx context.Context, arg SetCommentSettingsParams) error {
+	_, err := q.db.Exec(ctx, setCommentSettings, arg.UserID, arg.CommentSettings, arg.Now)
+	return err
+}
+
 const unpinService = `-- name: UnpinService :exec
 DELETE FROM pinned_services WHERE user_id = $1 AND service_id = $2
 `
@@ -126,7 +146,7 @@ ON CONFLICT (user_id) DO UPDATE SET
   jikkyo_enabled = coalesce($2::boolean, user_settings.jikkyo_enabled),
   captions_enabled = coalesce($3::boolean, user_settings.captions_enabled),
   updated_at = EXCLUDED.updated_at
-RETURNING jikkyo_enabled, captions_enabled
+RETURNING jikkyo_enabled, captions_enabled, comment_settings
 `
 
 type UpsertPlayerSettingsParams struct {
@@ -139,6 +159,7 @@ type UpsertPlayerSettingsParams struct {
 type UpsertPlayerSettingsRow struct {
 	JikkyoEnabled   bool
 	CaptionsEnabled bool
+	CommentSettings []byte
 }
 
 // プレイヤーの設定を変える。null の項目は変えない。
@@ -150,6 +171,6 @@ func (q *Queries) UpsertPlayerSettings(ctx context.Context, arg UpsertPlayerSett
 		arg.Now,
 	)
 	var i UpsertPlayerSettingsRow
-	err := row.Scan(&i.JikkyoEnabled, &i.CaptionsEnabled)
+	err := row.Scan(&i.JikkyoEnabled, &i.CaptionsEnabled, &i.CommentSettings)
 	return i, err
 }

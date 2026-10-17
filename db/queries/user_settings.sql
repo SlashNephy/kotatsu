@@ -11,7 +11,8 @@ SELECT coalesce((SELECT version FROM user_setting_versions WHERE user_id = @user
 -- プレイヤーの設定。一度も変えていなければ、既定値を返す。
 SELECT
   coalesce(s.jikkyo_enabled, true)::boolean AS jikkyo_enabled,
-  coalesce(s.captions_enabled, true)::boolean AS captions_enabled
+  coalesce(s.captions_enabled, true)::boolean AS captions_enabled,
+  s.comment_settings
 FROM (SELECT @user_id::uuid AS id) AS u
 LEFT JOIN user_settings s ON s.user_id = u.id;
 
@@ -23,7 +24,13 @@ ON CONFLICT (user_id) DO UPDATE SET
   jikkyo_enabled = coalesce(sqlc.narg(jikkyo_enabled)::boolean, user_settings.jikkyo_enabled),
   captions_enabled = coalesce(sqlc.narg(captions_enabled)::boolean, user_settings.captions_enabled),
   updated_at = EXCLUDED.updated_at
-RETURNING jikkyo_enabled, captions_enabled;
+RETURNING jikkyo_enabled, captions_enabled, comment_settings;
+
+-- name: SetCommentSettings :exec
+-- 実況のコメントの表示とミュートの設定を、まるごと置き換える (#488)。
+INSERT INTO user_settings (user_id, comment_settings, updated_at)
+VALUES (@user_id, @comment_settings, @now)
+ON CONFLICT (user_id) DO UPDATE SET comment_settings = EXCLUDED.comment_settings, updated_at = EXCLUDED.updated_at;
 
 -- name: ListPinnedServiceIDs :many
 -- ユーザーがピン留めしたサービスを、ピン留めした順に返す (#485)。

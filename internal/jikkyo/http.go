@@ -28,7 +28,8 @@ const finishedCacheControl = "private, max-age=600"
 
 // CommentsHandler は、録画の時間帯の実況の過去ログを、過去ログ API から取って中継する
 // (GET /media/recordings/{id}/jikkyo.json、設計書 7.4)。
-// 描画に使う項目だけを、録画の始まり (最初のセグメントを書き始めた時刻) からの秒とともに返す。ユーザー ID は返さない。
+// 描画とミュートに使う項目だけを、録画の始まり (最初のセグメントを書き始めた時刻) からの秒とともに返す。
+// ユーザー ID は、過去ログ API が公開している匿名の ID で、ID でのミュートに使う (#488)。
 type CommentsHandler struct {
 	db     sqlc.DBTX
 	table  *Table
@@ -62,6 +63,7 @@ type commentJSON struct {
 	Time    float64 `json:"time"`
 	Mail    string  `json:"mail"`
 	Content string  `json:"content"`
+	UserID  string  `json:"userId"`
 }
 
 func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -123,7 +125,7 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		resp.Comments = append(resp.Comments, &commentJSON{
-			Time: comment.At.Sub(from).Seconds(), Mail: comment.Mail, Content: comment.Content,
+			Time: comment.At.Sub(from).Seconds(), Mail: comment.Mail, Content: comment.Content, UserID: comment.UserID,
 		})
 	}
 	h.write(w, r, resp, source.RecordedUntil != nil)

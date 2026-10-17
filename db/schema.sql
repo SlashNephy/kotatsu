@@ -337,6 +337,8 @@ CREATE TABLE user_settings (
   captions_enabled boolean NOT NULL DEFAULT true,
   -- 視聴予約の通知を、放送の何分前に送るか (設計書 4.8)。
   watch_reminder_minutes integer NOT NULL DEFAULT 5 CHECK (watch_reminder_minutes BETWEEN 0 AND 60),
+  -- 実況のコメントの表示とミュートの設定 (#488)。{opacity, speed, scale, showAll, mutedKeywords, mutedUsers} の形。NULL なら既定値。
+  comment_settings jsonb,
   updated_at timestamptz NOT NULL
 );
 

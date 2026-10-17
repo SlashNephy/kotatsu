@@ -179,6 +179,49 @@ type CleanUpMissingRecordingsPayload {
   skipped: Int!
 }
 """
+実況のコメントの表示とミュートの設定 (#488)。
+"""
+type CommentSettings {
+  """
+  不透明度 (0.1〜1)。
+  """
+  opacity: Float!
+  """
+  流れる速さの倍率 (0.5〜2)。2 なら、1 つのコメントを 1.5 秒で流す。
+  """
+  speed: Float!
+  """
+  文字の大きさの倍率 (0.5〜1.5)。
+  """
+  scale: Float!
+  """
+  重なっても、すべてのコメントを出すかどうか。出さなければ、画面に同時に出すのを 40 件までにし、古いものから隠す。
+  """
+  showAll: Boolean!
+  """
+  ミュートするキーワード。
+  """
+  mutedKeywords: [MutedKeyword!]!
+  """
+  ミュートするユーザーの ID (NX-Jikkyo と過去ログの user_id)。
+  """
+  mutedUsers: [String!]!
+}
+input CommentSettingsInput {
+  opacity: Float!
+  speed: Float!
+  scale: Float!
+  showAll: Boolean!
+  """
+  100 件まで
+  """
+  mutedKeywords: [MutedKeywordInput!]!
+  """
+  500 件まで。1 つ 64 文字まで
+  """
+  mutedUsers: [String!]!
+}
+"""
 管理者が作るユーザー。
 """
 input CreateUserInput {
@@ -496,6 +539,31 @@ enum KeywordMatch {
   ANY
 }
 """
+ミュートするキーワードの照らし方。大文字と小文字、全角と半角は区別しない (正規表現は大文字と小文字だけ区別しない)。
+"""
+enum KeywordMuteMatch {
+  """
+  どこかに含む
+  """
+  PARTIAL
+  """
+  で始まる
+  """
+  PREFIX
+  """
+  で終わる
+  """
+  SUFFIX
+  """
+  と一致する
+  """
+  EXACT
+  """
+  正規表現 (JavaScript の RegExp) に一致する
+  """
+  REGEX
+}
+"""
 リーダー選出のリース (設計書 1.4)。neko のリースを持つインスタンスだけがアクティブになる。
 """
 type Lease {
@@ -775,6 +843,20 @@ type Mutation {
   deleteWebhook(id: ID!): ID!
 }
 """
+ミュートするキーワード。
+"""
+type MutedKeyword {
+  """
+  1〜100 文字
+  """
+  text: String!
+  match: KeywordMuteMatch!
+}
+input MutedKeywordInput {
+  text: String!
+  match: KeywordMuteMatch!
+}
+"""
 ID で引けるもの (Relay の Global Object Identification)。
 """
 interface Node {
@@ -947,6 +1029,10 @@ type PlayerSettings {
   字幕と文字スーパーを出すかどうか。
   """
   captionsEnabled: Boolean!
+  """
+  実況のコメントの表示とミュートの設定 (#488)。
+  """
+  comments: CommentSettings!
 }
 """
 プレイヤーの設定の変更。省いた項目は変えない。
@@ -954,6 +1040,10 @@ type PlayerSettings {
 input PlayerSettingsInput {
   jikkyoEnabled: Boolean
   captionsEnabled: Boolean
+  """
+  渡したら、コメントの設定をまるごと置き換える。
+  """
+  comments: CommentSettingsInput
 }
 """
 プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
