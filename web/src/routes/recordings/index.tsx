@@ -521,7 +521,10 @@ function RecordingGrid({
 
             return (
               <Box key={recording.id} pos="relative">
-                <RecordingCard recording={recording} />
+                {/* 選んでいる間は、カードのリンクにキーボードでも移れないようにし、選ぶ操作だけを受ける。 */}
+                <Box inert={selecting}>
+                  <RecordingCard recording={recording} />
+                </Box>
                 {selecting && (
                   <SelectionOverlay
                     label={recording.name}
@@ -612,11 +615,10 @@ function SelectionOverlay({
           outline: checked ? '2px solid var(--mantine-primary-color-filled)' : undefined,
         }}
       >
-        <Checkbox
+        {/* ボタンの中に入力欄を入れないよう、見た目だけの印にする。 */}
+        <Checkbox.Indicator
           checked={checked}
           disabled={disabled}
-          readOnly
-          tabIndex={-1}
           aria-hidden
           pos="absolute"
           top={8}
