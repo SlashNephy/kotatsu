@@ -3,6 +3,7 @@ import { BMLBrowser } from 'web-bml';
 
 import { cspNonce } from '../futon';
 import { broadcastFontUrl } from './broadcastFont';
+import { createDataBroadcastAudio, type DataBroadcastAudio } from './dataBroadcastAudio';
 import type { DataBroadcastEnd, DataBroadcastRequest } from './dataBroadcastWorker';
 import { deinterlacerCanvas } from './deinterlacer';
 import { reconnectDelay } from './reconnect';
@@ -127,6 +128,8 @@ export function useDataBroadcast(
   // layer は、文書を描く層。画質を変えるとプレイヤーごと作り直されるので、要素が変わったら描き直す。
   const [layer, setLayer] = useState<HTMLDivElement | null>(null);
   const browserRef = useRef<BMLBrowser | null>(null);
+  // audioRef は、データ放送の効果音の出口。ユーザーの操作の中で、止まっている AudioContext を動かす (#439)。
+  const audioRef = useRef<DataBroadcastAudio | null>(null);
   // stopEnteringRef は、データ放送の画面に入るために d ボタンを押し直すのを、やめる。
   const stopEnteringRef = useRef<() => void>(() => {});
   // showRef と hideRef は、出すかどうかが変わったときに、受け取っている文書へ伝える。
@@ -168,7 +171,11 @@ export function useDataBroadcast(
     mediaElement.style.height = '100%';
     // 字幕の canvas は、aribb24.js が絶対位置で映像に重ねるので、その基準にする。
     mediaElement.style.position = 'relative';
+    // 効果音は、プレイヤーの音量とミュートに合わせて鳴らす (#439)。
+    const audio = createDataBroadcastAudio(() => videoRef.current);
+    audioRef.current = audio;
     const browser = new BMLBrowser({
+      ...(audio !== null ? { audioNodeProvider: audio } : {}),
       containerElement: container,
       mediaElement,
       videoPlaneModeEnabled: true,
@@ -252,6 +259,8 @@ export function useDataBroadcast(
       }
     };
     showRef.current = () => {
+      // 出すのは、d ボタンなどのユーザーの操作なので、ここで効果音を鳴らせるようにする。
+      audio?.resume();
       place();
       enter();
     };
@@ -331,6 +340,8 @@ export function useDataBroadcast(
       putBack();
       browser.destroy();
       browserRef.current = null;
+      audio?.close();
+      audioRef.current = null;
       container.remove();
       setInvisible(false);
       setKeyGroups(defaultKeyGroups);
@@ -376,6 +387,7 @@ export function useDataBroadcast(
     if (browser === null) {
       return;
     }
+    audioRef.current?.resume();
     browser.content.processKeyDown(key);
     browser.content.processKeyUp(key);
   };
