@@ -90,16 +90,9 @@ func (q *Queries) ListFinishedReservations(ctx context.Context, before time.Time
 
 const listReservationsToFollow = `-- name: ListReservationsToFollow :many
 SELECT r.id, r.kind, r.enabled, r.service_id, r.event_id, r.start_at, r.end_at, r.name, r.description, r.extended, r.genres,
-  r.follow_event_relay, r.settings,
-  (
-    SELECT ru.settings FROM reservation_rules rr JOIN rules ru ON ru.id = rr.rule_id
-    WHERE rr.reservation_id = r.id
-    ORDER BY ru.created_at, ru.id
-    LIMIT 1
-  )::jsonb AS rule_settings,
   p.start_at AS program_start_at, p.end_at AS program_end_at, p.end_undecided AS program_end_undecided,
   p.name AS program_name, p.description AS program_description, p.extended AS program_extended,
-  p.genres AS program_genres, p.related_items AS program_related_items
+  p.genres AS program_genres
 FROM reservations r
 JOIN programs p ON p.service_id = r.service_id AND p.event_id = r.event_id
 WHERE r.event_id IS NOT NULL
@@ -122,9 +115,6 @@ type ListReservationsToFollowRow struct {
 	Description         string
 	Extended            []byte
 	Genres              []byte
-	FollowEventRelay    bool
-	Settings            []byte
-	RuleSettings        []byte
 	ProgramStartAt      time.Time
 	ProgramEndAt        time.Time
 	ProgramEndUndecided bool
@@ -132,13 +122,12 @@ type ListReservationsToFollowRow struct {
 	ProgramDescription  string
 	ProgramExtended     []byte
 	ProgramGenres       []byte
-	ProgramRelatedItems []byte
 }
 
 // 番組を指定した予約のうち、予約か番組の終わりがまだ来ていないものと、その番組の今の EPG。
 // 予約の終わりが過ぎた後は、同じ放送の終わりが延びたとき (番組が予約の終わりより前に始まる) だけ追従する。
 // 番組が予約の終わりより後に始まるなら、EID が別の番組に再利用されたものとみなし、古い予約を書き換えない (#510)。
-// ルール予約の録画設定は、一致したルールのうち最も古いものの上書きを使う。
+// イベントリレーの引き継ぎは、ListReservationsToRelay で別に追う。
 func (q *Queries) ListReservationsToFollow(ctx context.Context, now time.Time) ([]ListReservationsToFollowRow, error) {
 	rows, err := q.db.Query(ctx, listReservationsToFollow, now)
 	if err != nil {
@@ -160,9 +149,6 @@ func (q *Queries) ListReservationsToFollow(ctx context.Context, now time.Time) (
 			&i.Description,
 			&i.Extended,
 			&i.Genres,
-			&i.FollowEventRelay,
-			&i.Settings,
-			&i.RuleSettings,
 			&i.ProgramStartAt,
 			&i.ProgramEndAt,
 			&i.ProgramEndUndecided,
@@ -170,7 +156,6 @@ func (q *Queries) ListReservationsToFollow(ctx context.Context, now time.Time) (
 			&i.ProgramDescription,
 			&i.ProgramExtended,
 			&i.ProgramGenres,
-			&i.ProgramRelatedItems,
 		); err != nil {
 			return nil, err
 		}
@@ -211,7 +196,7 @@ type ListReservationsToRelayRow struct {
 
 // イベントリレーで別のサービスに引き継ぐ番組の、有効で追従する予約と、その番組の関連。
 // 延長で臨時のサブチャンネルへ移るときは、移る先の番組が、移った時点で初めて EPG に出ることがあるので、
-// 予約の終わりが過ぎても、since までに終わった予約は追う (#639)。EID が再利用された番組 (予約の終わりより後に始まる) は除く。
+// 予約の終わりが過ぎても、終わりが since より後の予約は追う (#639)。EID が再利用された番組 (予約の終わりより後に始まる) は除く。
 func (q *Queries) ListReservationsToRelay(ctx context.Context, since time.Time) ([]ListReservationsToRelayRow, error) {
 	rows, err := q.db.Query(ctx, listReservationsToRelay, since)
 	if err != nil {
