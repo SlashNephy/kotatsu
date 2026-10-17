@@ -48,22 +48,55 @@ func ptsOf(entries []ts.IndexEntry) []int64 {
 func TestAnalyzerIndex(t *testing.T) {
 	t.Parallel()
 
-	input := loadTestTS(t)
-	entries, stats := analyzeWithIndex(t, input)
-	assert.Equal(t, wantIFramePTS(), ptsOf(entries))
-	assert.Equal(t, int64(len(entries)), stats.IFrames)
-	require.NoError(t, stats.IndexError)
-
-	for _, e := range entries {
-		require.Zero(t, e.Offset%ts.PacketSize, "the offset must point to a packet boundary")
-		p := input[e.Offset : e.Offset+ts.PacketSize]
-		assert.Equal(t, uint16(videoPID), pidOf(p), "the offset must point to a video packet")
-		assert.NotZero(t, p[1]&0x40, "the offset must point to the start of a PES")
+	tests := []struct {
+		name string
+		file string
+		// wantPTS は、ffprobe -select_streams v:0 -show_entries frame=pict_type,pts で数えた I フレームの PTS。
+		wantPTS []int64
+	}{
+		{
+			name:    "MPEG-2",
+			file:    "test.ts",
+			wantPTS: wantIFramePTS(),
+		},
+		{
+			// IDR と、IDR でない I スライスのピクチャ (開いた GOP) を含む。
+			name:    "H.264",
+			file:    "test-h264.ts",
+			wantPTS: []int64{132006, 222096, 312186, 402276},
+		},
+		{
+			// IDR と CRA を含む。IRAP でない TRAIL_N の NAL ユニットのヘッダーは 0x00 で始まり、MPEG-2 の picture_start_code と同じ値になる。
+			name:    "HEVC",
+			file:    "test-hevc.ts",
+			wantPTS: []int64{132006, 222096, 312186, 402276},
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// 書き込みの区切り方によらず、同じ索引ができる。
-	chunked, _ := analyzeWithIndex(t, slices.Collect(slices.Chunk(input, 1000))...)
-	assert.Equal(t, entries, chunked)
+			input := loadTestTSFile(t, tt.file)
+			entries, stats := analyzeWithIndex(t, input)
+			assert.Equal(t, tt.wantPTS, ptsOf(entries))
+			assert.Equal(t, int64(len(entries)), stats.IFrames)
+			require.NoError(t, stats.IndexError)
+
+			for _, e := range entries {
+				require.Zero(t, e.Offset%ts.PacketSize, "the offset must point to a packet boundary")
+				p := input[e.Offset : e.Offset+ts.PacketSize]
+				assert.Equal(t, uint16(videoPID), pidOf(p), "the offset must point to a video packet")
+				assert.NotZero(t, p[1]&0x40, "the offset must point to the start of a PES")
+			}
+
+			// 書き込みの区切り方によらず、同じ索引ができる。
+			chunked, _ := analyzeWithIndex(t, slices.Collect(slices.Chunk(input, 1000))...)
+			assert.Equal(t, entries, chunked)
+			// start code が 1 バイトずつ分かれても、同じ索引ができる。
+			bytewise, _ := analyzeWithIndex(t, slices.Collect(slices.Chunk(input, 1))...)
+			assert.Equal(t, entries, bytewise)
+		})
+	}
 }
 
 func TestAnalyzerIndexGrowsWhileWriting(t *testing.T) {

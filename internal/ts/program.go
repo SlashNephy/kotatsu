@@ -42,7 +42,7 @@ type Program struct {
 // Stream はエレメンタリーストリーム。
 type Stream struct {
 	PID uint16
-	// StreamType は stream_type。0x02 は MPEG-2 映像、0x0F は AAC (ADTS) を表す。
+	// StreamType は stream_type。0x02 は MPEG-2 映像、0x1B は H.264、0x24 は HEVC、0x0F は AAC (ADTS) を表す。
 	StreamType uint8
 	Kind       StreamKind
 }
@@ -164,17 +164,17 @@ func (t *programTable) handlePMT(pid uint16, section []byte) {
 	t.generation++
 }
 
-// mpeg2VideoPID は、program_number が最も小さい番組の、最初の MPEG-2 (MPEG-1 を含む) 映像の PID を返す。
-func (t *programTable) mpeg2VideoPID() (uint16, bool) {
+// firstVideo は、program_number が最も小さい番組の、最初の映像のストリームを返す。
+func (t *programTable) firstVideo() (*Stream, bool) {
 	for _, number := range slices.Sorted(maps.Keys(t.programs)) {
 		for _, s := range t.programs[number].Streams {
-			if s.StreamType == streamTypeMPEG2Video || s.StreamType == streamTypeMPEG1Video {
-				return s.PID, true
+			if s.Kind == StreamVideo {
+				return s, true
 			}
 		}
 	}
 
-	return 0, false
+	return nil, false
 }
 
 // snapshot は、番組の構成を program_number の昇順に並べて複製する。

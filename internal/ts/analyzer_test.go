@@ -19,11 +19,18 @@ const (
 	audioPID = 0x0112
 )
 
-// loadTestTS は、scripts/generate-test-ts.sh で作ったテスト用の TS を読む。
+// loadTestTS は、scripts/generate-test-ts.sh で作ったテスト用の TS (test.ts) を読む。
 func loadTestTS(t *testing.T) []byte {
 	t.Helper()
 
-	b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "ts", "test.ts"))
+	return loadTestTSFile(t, "test.ts")
+}
+
+// loadTestTSFile は、scripts/generate-test-ts.sh で作ったテスト用の TS のうち、name のファイルを読む。
+func loadTestTSFile(t *testing.T, name string) []byte {
+	t.Helper()
+
+	b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "ts", name))
 	require.NoError(t, err)
 	require.Zero(t, len(b)%ts.PacketSize)
 
