@@ -191,8 +191,8 @@ func TestClientComments(t *testing.T) {
 				{"chat":{"thread":"27325","no":"2","date":"1791633602","date_usec":"500000","user_id":"a:x","mail":"184 shita","content":"二つ目"}},
 				{"chat":{"thread":"lv1","no":"1","date":"1791633601","user_id":"a:y","content":"一つ目"}}]}`,
 			want: []*jikkyo.Comment{
-				{At: time.Unix(1791633601, 0), Mail: "", Content: "一つ目"},
-				{At: time.Unix(1791633602, 500000000), Mail: "184 shita", Content: "二つ目"},
+				{At: time.Unix(1791633601, 0), Mail: "", Content: "一つ目", UserID: "a:y"},
+				{At: time.Unix(1791633602, 500000000), Mail: "184 shita", Content: "二つ目", UserID: "a:x"},
 			},
 		},
 		{name: "コメントがない", kakolog: `{"packet":[]}`, want: []*jikkyo.Comment{}},

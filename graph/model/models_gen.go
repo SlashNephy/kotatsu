@@ -120,6 +120,33 @@ type CleanUpMissingRecordingsPayload struct {
 	Skipped int `json:"skipped"`
 }
 
+// 実況のコメントの表示とミュートの設定 (#488)。
+type CommentSettings struct {
+	// 不透明度 (0.1〜1)。
+	Opacity float64 `json:"opacity"`
+	// 流れる速さの倍率 (0.5〜2)。2 なら、1 つのコメントを 1.5 秒で流す。
+	Speed float64 `json:"speed"`
+	// 文字の大きさの倍率 (0.5〜1.5)。
+	Scale float64 `json:"scale"`
+	// 重なっても、すべてのコメントを出すかどうか。出さなければ、画面に同時に出すのを 40 件までにし、古いものから隠す。
+	ShowAll bool `json:"showAll"`
+	// ミュートするキーワード。
+	MutedKeywords []*MutedKeyword `json:"mutedKeywords"`
+	// ミュートするユーザーの ID (NX-Jikkyo と過去ログの user_id)。
+	MutedUsers []string `json:"mutedUsers"`
+}
+
+type CommentSettingsInput struct {
+	Opacity float64 `json:"opacity"`
+	Speed   float64 `json:"speed"`
+	Scale   float64 `json:"scale"`
+	ShowAll bool    `json:"showAll"`
+	// 100 件まで
+	MutedKeywords []*MutedKeywordInput `json:"mutedKeywords"`
+	// 500 件まで。1 つ 64 文字まで
+	MutedUsers []string `json:"mutedUsers"`
+}
+
 // 管理者が作るユーザー。
 type CreateUserInput struct {
 	Username    string `json:"username"`
@@ -298,6 +325,18 @@ type MissingRecording struct {
 type Mutation struct {
 }
 
+// ミュートするキーワード。
+type MutedKeyword struct {
+	// 1〜100 文字
+	Text  string           `json:"text"`
+	Match KeywordMuteMatch `json:"match"`
+}
+
+type MutedKeywordInput struct {
+	Text  string           `json:"text"`
+	Match KeywordMuteMatch `json:"match"`
+}
+
 // ログイン中のユーザーに届いた、画面内の通知 (設計書 6.2)。
 type Notification struct {
 	ID   string           `json:"id"`
@@ -391,12 +430,16 @@ type PlayerSettings struct {
 	JikkyoEnabled bool `json:"jikkyoEnabled"`
 	// 字幕と文字スーパーを出すかどうか。
 	CaptionsEnabled bool `json:"captionsEnabled"`
+	// 実況のコメントの表示とミュートの設定 (#488)。
+	Comments *CommentSettings `json:"comments"`
 }
 
 // プレイヤーの設定の変更。省いた項目は変えない。
 type PlayerSettingsInput struct {
 	JikkyoEnabled   *bool `json:"jikkyoEnabled,omitempty"`
 	CaptionsEnabled *bool `json:"captionsEnabled,omitempty"`
+	// 渡したら、コメントの設定をまるごと置き換える。
+	Comments *CommentSettingsInput `json:"comments,omitempty"`
 }
 
 // プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
@@ -1215,6 +1258,73 @@ func (e *KeywordMatch) UnmarshalJSON(b []byte) error {
 }
 
 func (e KeywordMatch) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// ミュートするキーワードの照らし方。大文字と小文字、全角と半角は区別しない (正規表現は大文字と小文字だけ区別しない)。
+type KeywordMuteMatch string
+
+const (
+	// どこかに含む
+	KeywordMuteMatchPartial KeywordMuteMatch = "PARTIAL"
+	// で始まる
+	KeywordMuteMatchPrefix KeywordMuteMatch = "PREFIX"
+	// で終わる
+	KeywordMuteMatchSuffix KeywordMuteMatch = "SUFFIX"
+	// と一致する
+	KeywordMuteMatchExact KeywordMuteMatch = "EXACT"
+	// 正規表現 (JavaScript の RegExp) に一致する
+	KeywordMuteMatchRegex KeywordMuteMatch = "REGEX"
+)
+
+var AllKeywordMuteMatch = []KeywordMuteMatch{
+	KeywordMuteMatchPartial,
+	KeywordMuteMatchPrefix,
+	KeywordMuteMatchSuffix,
+	KeywordMuteMatchExact,
+	KeywordMuteMatchRegex,
+}
+
+func (e KeywordMuteMatch) IsValid() bool {
+	switch e {
+	case KeywordMuteMatchPartial, KeywordMuteMatchPrefix, KeywordMuteMatchSuffix, KeywordMuteMatchExact, KeywordMuteMatchRegex:
+		return true
+	}
+	return false
+}
+
+func (e KeywordMuteMatch) String() string {
+	return string(e)
+}
+
+func (e *KeywordMuteMatch) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = KeywordMuteMatch(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid KeywordMuteMatch", str)
+	}
+	return nil
+}
+
+func (e KeywordMuteMatch) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *KeywordMuteMatch) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e KeywordMuteMatch) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

@@ -2,7 +2,11 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 
 import { appendComment, type ListedComment } from './commentList';
 import { CommentCanvas, type CommentCanvasHandle } from './CommentCanvas';
+import { compileMute, defaultCommentSettings, type CommentSettings } from './comments';
 import { NXJikkyoSession, type SessionStatus } from './session';
+
+// liveRetainSeconds は、ライブで、設定を変えて描き直すときに足し直すコメントの秒数。流れている間のコメントが収まればよい。
+const liveRetainSeconds = 30;
 
 // maxDelay は、コメントを遅らせる上限 (秒)。読み込みが止まって先読みが大きくなっても、コメントを待たせすぎない。
 const maxDelay = 10;
@@ -22,10 +26,12 @@ export function playbackDelay(video: HTMLVideoElement | null): number {
 
 // useLiveJikkyo は、ライブ視聴で実況のコメントを受け取って流し、投稿できるようにする (設計書 7.4)。
 // channelId が null なら、何もしない。active が false の間は、接続を閉じる。
+// settings は、コメントの表示とミュートの設定 (#488)。ミュートしたコメントは、流さず、一覧にも出さない。
 export function useLiveJikkyo(
   channelId: string | null,
   videoRef: RefObject<HTMLVideoElement | null>,
   active: boolean,
+  settings: CommentSettings = defaultCommentSettings,
 ): {
   overlay: ReactNode;
   status: SessionStatus | null;
@@ -40,6 +46,9 @@ export function useLiveJikkyo(
   const sessionRef = useRef<NXJikkyoSession | null>(null);
   const [status, setStatus] = useState<SessionStatus | null>(null);
   const [comments, setComments] = useState<readonly ListedComment[]>([]);
+  // ミュートは、届いたときの設定で決める。接続し直さないよう、ref で読む。
+  const muted = useRef(compileMute(settings));
+  muted.current = compileMute(settings);
 
   useEffect(() => {
     if (channelId === null || !active) {
@@ -48,7 +57,16 @@ export function useLiveJikkyo(
     const session = new NXJikkyoSession(channelId, {
       onComment: (comment) => {
         const time = (comment.at - origin.current) / 1000 + playbackDelay(videoRef.current);
-        canvas.current?.add([{ time, content: comment.content, mail: comment.mail }]);
+        const drawn = {
+          time,
+          content: comment.content,
+          mail: comment.mail,
+          ...(comment.userId === undefined ? {} : { userId: comment.userId }),
+        };
+        canvas.current?.add([drawn]);
+        if (muted.current(drawn)) {
+          return;
+        }
         // 一覧には、受け取った時刻を壁時計 (Unix ミリ秒) で残す。comment.at は performance.now の時計。
         setComments((list) =>
           appendComment(list, { ...comment, at: performance.timeOrigin + comment.at }),
@@ -84,7 +102,14 @@ export function useLiveJikkyo(
   return {
     overlay:
       channelId === null ? undefined : (
-        <CommentCanvas key={channelId} ref={canvas} clock={clock} drawing={active} />
+        <CommentCanvas
+          key={channelId}
+          ref={canvas}
+          clock={clock}
+          drawing={active}
+          settings={settings}
+          retainSeconds={liveRetainSeconds}
+        />
       ),
     status,
     comments,

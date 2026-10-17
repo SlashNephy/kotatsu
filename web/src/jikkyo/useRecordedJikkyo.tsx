@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { CommentCanvas, type CommentCanvasHandle } from './CommentCanvas';
-import type { JikkyoComment } from './comments';
+import {
+  compileMute,
+  defaultCommentSettings,
+  type CommentSettings,
+  type JikkyoComment,
+} from './comments';
 import { recordingPosition, type Gap } from '../yunomi/position';
 import { NXJikkyoSession } from './session';
 
@@ -43,11 +48,13 @@ export function insertByTime(
 // clock は、録画の始まりからの再生位置 (秒) を返す。過去ログの時刻も、録画の始まりからの秒。
 // live は、録画中の録画を追っかけ再生しているときの、実況のチャンネルと、放送時刻を再生位置に直す関数。
 // 過去ログには、取った後のコメントがないので、録画中の間は、リアルタイムのコメントも受け取り、録画の中の位置に流す (#667)。
+// settings は、コメントの表示とミュートの設定 (#488)。ミュートしたコメントは、流さず、一覧にも出さない。
 export function useRecordedJikkyo(
   url: string | null,
   clock: () => number,
   drawing: boolean,
   live: RecordedJikkyoLive | null = null,
+  settings: CommentSettings = defaultCommentSettings,
 ): {
   overlay: ReactNode;
   state: RecordedJikkyoState | null;
@@ -140,6 +147,7 @@ export function useRecordedJikkyo(
           time: recordingPosition(base, current.gaps, performance.timeOrigin + received.at),
           content: received.content,
           mail: received.mail,
+          ...(received.userId === undefined ? {} : { userId: received.userId }),
         };
         canvas.current?.add([comment]);
         // 描く canvas を作り直しても、一覧からも、受け取った分を読めるようにする。一覧は、流す時刻の順に並べる。
@@ -153,12 +161,26 @@ export function useRecordedJikkyo(
     return () => session.close();
   }, [url, liveChannel, drawing]);
 
+  // 一覧には、ミュートしたコメントを出さない。
+  // ミュートの一覧は、ほかの設定を変えただけでも新しい配列で届くので、中身で比べる。
+  const muteKey = JSON.stringify([settings.mutedKeywords, settings.mutedUsers]);
+  const listed = useMemo(() => {
+    const [keywords, users] = JSON.parse(muteKey) as [CommentSettings['mutedKeywords'], string[]];
+    const muted = compileMute({
+      ...defaultCommentSettings,
+      mutedKeywords: keywords,
+      mutedUsers: users,
+    });
+
+    return comments?.filter((comment) => !muted(comment)) ?? null;
+  }, [comments, muteKey]);
+
   return {
     overlay:
       url === null ? undefined : (
-        <CommentCanvas key={url} ref={attach} clock={clock} drawing={drawing} />
+        <CommentCanvas key={url} ref={attach} clock={clock} drawing={drawing} settings={settings} />
       ),
     state,
-    comments,
+    comments: listed,
   };
 }

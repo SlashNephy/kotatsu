@@ -1,6 +1,7 @@
 package graph_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,4 +64,83 @@ func TestPlayerSettings(t *testing.T) {
 		// ほかの端末に viewerSettingsChanged で知らせるよう、設定の版数を上げる。
 		assert.Greater(t, version(), before, tt.name)
 	}
+}
+
+type mutedKeyword struct {
+	Text  string `json:"text"`
+	Match string `json:"match"`
+}
+
+type commentSettings struct {
+	Opacity       float64        `json:"opacity"`
+	Speed         float64        `json:"speed"`
+	Scale         float64        `json:"scale"`
+	ShowAll       bool           `json:"showAll"`
+	MutedKeywords []mutedKeyword `json:"mutedKeywords"`
+	MutedUsers    []string       `json:"mutedUsers"`
+}
+
+const commentSettingsFields = `comments { opacity speed scale showAll mutedKeywords { text match } mutedUsers }`
+
+// TestCommentSettings は、実況のコメントの設定を、既定値から置き換えられ、ほかの項目を変えず、範囲の外は断ることを確かめる (#488)。
+func TestCommentSettings(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	get := func() commentSettings {
+		var got struct {
+			PlayerSettings struct {
+				Comments commentSettings `json:"comments"`
+			} `json:"playerSettings"`
+		}
+		require.Empty(t, f.query(t, `{ playerSettings { `+commentSettingsFields+` } }`, nil, &got))
+
+		return got.PlayerSettings.Comments
+	}
+	type updated struct {
+		UpdatePlayerSettings struct {
+			CaptionsEnabled bool            `json:"captionsEnabled"`
+			Comments        commentSettings `json:"comments"`
+		} `json:"updatePlayerSettings"`
+	}
+	const mutation = `mutation($input: PlayerSettingsInput!) { updatePlayerSettings(input: $input) { captionsEnabled ` + commentSettingsFields + ` } }`
+	valid := commentSettings{
+		Opacity: 0.5, Speed: 1.5, Scale: 1.2, ShowAll: false,
+		MutedKeywords: []mutedKeyword{{Text: "ネタバレ", Match: "PARTIAL"}, {Text: "^w+$", Match: "REGEX"}},
+		MutedUsers:    []string{"a:x"},
+	}
+
+	// 一度も変えていなければ、既定値を返す。
+	assert.Equal(t, commentSettings{Opacity: 1, Speed: 1, Scale: 1, ShowAll: true, MutedKeywords: []mutedKeyword{}, MutedUsers: []string{}}, get())
+
+	var got updated
+	require.Empty(t, f.query(t, mutation, map[string]any{varInput: map[string]any{"comments": valid}}, &got))
+	assert.True(t, got.UpdatePlayerSettings.CaptionsEnabled, "the other settings are kept")
+	assert.Equal(t, valid, got.UpdatePlayerSettings.Comments)
+	assert.Equal(t, valid, get())
+
+	// コメントの設定を省いて変えても、コメントの設定は残す。
+	require.Empty(t, f.query(t, mutation, map[string]any{varInput: struct {
+		CaptionsEnabled bool `json:"captionsEnabled"`
+	}{CaptionsEnabled: true}}, &got))
+	assert.Equal(t, valid, got.UpdatePlayerSettings.Comments)
+
+	tests := []struct {
+		name   string
+		change func(s *commentSettings)
+	}{
+		{name: "不透明度が範囲の外", change: func(s *commentSettings) { s.Opacity = 0 }},
+		{name: "速さが範囲の外", change: func(s *commentSettings) { s.Speed = 3 }},
+		{name: "大きさが範囲の外", change: func(s *commentSettings) { s.Scale = 0.1 }},
+		{name: "空のキーワード", change: func(s *commentSettings) { s.MutedKeywords = []mutedKeyword{{Text: "", Match: "EXACT"}} }},
+		{name: "長すぎるユーザー ID", change: func(s *commentSettings) { s.MutedUsers = []string{strings.Repeat("a", 65)} }},
+	}
+	// 同じユーザーの設定を順に変えるので、並行に動かさない。
+	for _, tt := range tests {
+		input := valid
+		tt.change(&input)
+		var ignored struct{}
+		assert.Equal(t, []string{codeBadUserInput}, f.query(t, mutation, map[string]any{varInput: map[string]any{"comments": input}}, &ignored), tt.name)
+	}
+	assert.Equal(t, valid, get(), "rejected changes are not saved")
 }

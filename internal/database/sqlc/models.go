@@ -441,6 +441,7 @@ type UserSetting struct {
 	JikkyoEnabled        bool
 	CaptionsEnabled      bool
 	WatchReminderMinutes int32
+	CommentSettings      []byte
 	UpdatedAt            time.Time
 }
 

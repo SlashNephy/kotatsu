@@ -323,9 +323,15 @@ function Live({
     setCaptionsEnabled: setCaptions,
     jikkyoEnabled,
     setJikkyoEnabled,
+    comments: commentSettings,
   } = usePlayerSettings();
   const channel = data.node?.__typename === 'Service' ? (data.node.jikkyo ?? null) : null;
-  const jikkyo = useLiveJikkyo(jikkyoEnabled ? (channel?.id ?? null) : null, videoRef, visible);
+  const jikkyo = useLiveJikkyo(
+    jikkyoEnabled ? (channel?.id ?? null) : null,
+    videoRef,
+    visible,
+    commentSettings,
+  );
   // dataBroadcastEnabled は、データ放送を出すかどうか。映像を覆うので、既定では出さない (設計書 7.4)。
   const [dataBroadcastEnabled, setDataBroadcastEnabled] = useState(false);
   const [dataBroadcastPreload] = useDataBroadcastPreload();

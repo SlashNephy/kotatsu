@@ -10,23 +10,48 @@ import {
 import { useDataChanges } from '../changes/DataChanges';
 import type { usePlayerSettingsMutation } from './__generated__/usePlayerSettingsMutation.graphql';
 import type { usePlayerSettingsQuery } from './__generated__/usePlayerSettingsQuery.graphql';
+import type { CommentSettings, KeywordMuteMatch } from '../jikkyo/comments';
 
 const settingsQuery = graphql`
   query usePlayerSettingsQuery {
     playerSettings {
       jikkyoEnabled
       captionsEnabled
+      comments {
+        opacity
+        speed
+        scale
+        showAll
+        mutedKeywords {
+          text
+          match
+        }
+        mutedUsers
+      }
     }
   }
 `;
 
 type Settings = { jikkyoEnabled: boolean; captionsEnabled: boolean };
 
+// CommentSettingsInput は、実況のコメントの設定の変更。まるごと置き換える (#488)。
+export type CommentSettingsInput = {
+  opacity: number;
+  speed: number;
+  scale: number;
+  showAll: boolean;
+  mutedKeywords: { text: string; match: KeywordMuteMatch }[];
+  mutedUsers: string[];
+};
+
 // usePlayerSettings は、端末をまたいで同期するプレイヤーの設定を返す (設計書 9.1)。
 // ほかの端末で変えたら、viewerSettingsChanged で知らされて読み直す。
 export function usePlayerSettings(): Settings & {
   setJikkyoEnabled: (enabled: boolean) => void;
   setCaptionsEnabled: (enabled: boolean) => void;
+  comments: CommentSettings;
+  // setComments は、実況のコメントの設定を置き換える。失敗したら onError を呼ぶ。
+  setComments: (comments: CommentSettingsInput, onError?: () => void) => void;
 } {
   const environment = useRelayEnvironment();
   const data = useLazyLoadQuery<usePlayerSettingsQuery>(
@@ -39,6 +64,17 @@ export function usePlayerSettings(): Settings & {
       updatePlayerSettings(input: $input) {
         jikkyoEnabled
         captionsEnabled
+        comments {
+          opacity
+          speed
+          scale
+          showAll
+          mutedKeywords {
+            text
+            match
+          }
+          mutedUsers
+        }
       }
     }
   `);
@@ -63,7 +99,7 @@ export function usePlayerSettings(): Settings & {
 
   const settings = data.playerSettings;
   const update = (input: Partial<Settings>) => {
-    const next = { ...settings, ...input };
+    const next = { ...settings, ...input, comments: settings.comments };
     commit({
       variables: { input },
       // 切り替えはすぐに画面に出し、失敗したら元に戻す。
@@ -87,10 +123,27 @@ export function usePlayerSettings(): Settings & {
     });
   };
 
+  const setComments = (comments: CommentSettingsInput, onError?: () => void) => {
+    commit({
+      variables: { input: { comments } },
+      // 変えた設定はすぐに画面に出し、失敗したら元に戻す。
+      optimisticResponse: { updatePlayerSettings: { ...settings, comments } },
+      onError: () => onError?.(),
+      updater: (store) => {
+        const updated = store.getRootField('updatePlayerSettings');
+        if (updated !== null) {
+          store.getRoot().setLinkedRecord(updated, 'playerSettings');
+        }
+      },
+    });
+  };
+
   return {
     jikkyoEnabled: settings.jikkyoEnabled,
     captionsEnabled: settings.captionsEnabled,
     setJikkyoEnabled: (enabled) => update({ jikkyoEnabled: enabled }),
     setCaptionsEnabled: (enabled) => update({ captionsEnabled: enabled }),
+    comments: settings.comments,
+    setComments,
   };
 }

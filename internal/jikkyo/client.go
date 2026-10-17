@@ -52,6 +52,8 @@ type Comment struct {
 	// Mail は、コメントの色や位置などのコマンド (184 shita big yellow など)。
 	Mail    string
 	Content string
+	// UserID は、投稿したユーザーの匿名の ID。ミュートに使う (#488)。
+	UserID string
 }
 
 // ClientOptions は、Client の設定。
@@ -159,6 +161,7 @@ func (c *Client) Comments(ctx context.Context, id string, from, to time.Time) ([
 				DateUsec string `json:"date_usec"`
 				Mail     string `json:"mail"`
 				Content  string `json:"content"`
+				UserID   string `json:"user_id"`
 			} `json:"chat"`
 		} `json:"packet"`
 	}
@@ -178,7 +181,7 @@ func (c *Client) Comments(ctx context.Context, id string, from, to time.Time) ([
 		// date_usec がないコメントもあるので、そのときは秒の単位で扱う。
 		micros, _ := strconv.ParseInt(packet.Chat.DateUsec, 10, 64)
 		comments = append(comments, &Comment{
-			At: time.Unix(seconds, micros*int64(time.Microsecond)), Mail: packet.Chat.Mail, Content: packet.Chat.Content,
+			At: time.Unix(seconds, micros*int64(time.Microsecond)), Mail: packet.Chat.Mail, Content: packet.Chat.Content, UserID: packet.Chat.UserID,
 		})
 	}
 	slices.SortStableFunc(comments, func(a, b *Comment) int { return a.At.Compare(b.At) })

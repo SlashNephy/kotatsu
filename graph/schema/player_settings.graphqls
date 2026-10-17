@@ -6,6 +6,51 @@ type PlayerSettings {
   jikkyoEnabled: Boolean!
   "字幕と文字スーパーを出すかどうか。"
   captionsEnabled: Boolean!
+  "実況のコメントの表示とミュートの設定 (#488)。"
+  comments: CommentSettings!
+}
+
+"""
+実況のコメントの表示とミュートの設定 (#488)。
+"""
+type CommentSettings {
+  "不透明度 (0.1〜1)。"
+  opacity: Float!
+  "流れる速さの倍率 (0.5〜2)。2 なら、1 つのコメントを 1.5 秒で流す。"
+  speed: Float!
+  "文字の大きさの倍率 (0.5〜1.5)。"
+  scale: Float!
+  "重なっても、すべてのコメントを出すかどうか。出さなければ、画面に同時に出すのを 40 件までにし、古いものから隠す。"
+  showAll: Boolean!
+  "ミュートするキーワード。"
+  mutedKeywords: [MutedKeyword!]!
+  "ミュートするユーザーの ID (NX-Jikkyo と過去ログの user_id)。"
+  mutedUsers: [String!]!
+}
+
+"""
+ミュートするキーワード。
+"""
+type MutedKeyword {
+  "1〜100 文字"
+  text: String!
+  match: KeywordMuteMatch!
+}
+
+"""
+ミュートするキーワードの照らし方。大文字と小文字、全角と半角は区別しない (正規表現は大文字と小文字だけ区別しない)。
+"""
+enum KeywordMuteMatch {
+  "どこかに含む"
+  PARTIAL
+  "で始まる"
+  PREFIX
+  "で終わる"
+  SUFFIX
+  "と一致する"
+  EXACT
+  "正規表現 (JavaScript の RegExp) に一致する"
+  REGEX
 }
 
 """
@@ -14,6 +59,24 @@ type PlayerSettings {
 input PlayerSettingsInput {
   jikkyoEnabled: Boolean
   captionsEnabled: Boolean
+  "渡したら、コメントの設定をまるごと置き換える。"
+  comments: CommentSettingsInput
+}
+
+input CommentSettingsInput {
+  opacity: Float!
+  speed: Float!
+  scale: Float!
+  showAll: Boolean!
+  "100 件まで"
+  mutedKeywords: [MutedKeywordInput!]!
+  "500 件まで。1 つ 64 文字まで"
+  mutedUsers: [String!]!
+}
+
+input MutedKeywordInput {
+  text: String!
+  match: KeywordMuteMatch!
 }
 
 extend type Query {

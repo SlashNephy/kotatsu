@@ -208,6 +208,31 @@
     }
   },
   "settings": {
+    "comments": {
+      "title": "実況のコメント",
+      "saveError": "保存できませんでした。時間をおいてやり直してください",
+      "opacity": "不透明度",
+      "speed": "流れる速さ",
+      "scale": "文字の大きさ",
+      "showAll": "重なってもすべて出す",
+      "showAllHelp": "切ると、画面に同時に出すコメントを 40 件までにし、古いものから隠します",
+      "mutedKeywords": "ミュートするキーワード",
+      "keyword": "キーワード",
+      "match": "照らし方",
+      "matches": {
+        "PARTIAL": "含む",
+        "PREFIX": "で始まる",
+        "SUFFIX": "で終わる",
+        "EXACT": "一致",
+        "REGEX": "正規表現"
+      },
+      "invalidRegex": "正規表現として読めません",
+      "add": "足す",
+      "remove": "{{name}} を外す",
+      "mutedUsers": "ミュートするユーザー",
+      "mutedUsersHelp": "実況と過去ログのユーザー ID で、コメントを流さず、一覧にも出しません",
+      "userId": "ユーザー ID"
+    },
     "guide": {
       "title": "番組表の見た目",
       "density": "密度",
