@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import classes from './PlayerControls.module.css';
 import { controlsAttribute } from './useControlsVisibility';
 import type { VideoState } from './useVideoState';
+import { maxVolume } from './volume';
 
 export { classes as playerControlsClasses };
 
@@ -120,8 +121,10 @@ export function VolumeControl({ video }: { video: VideoState }) {
           aria-label={t('player.volume')}
           thumbLabel={t('player.volume')}
           min={0}
-          max={1}
+          max={maxVolume}
           step={0.01}
+          // 100% より上は、WebAudio で上げる (#453)。100% の位置に目盛りを付ける。
+          marks={[{ value: 1 }]}
           size={4}
           color="white"
           label={null}
