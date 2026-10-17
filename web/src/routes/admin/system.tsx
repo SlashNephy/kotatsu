@@ -25,6 +25,7 @@ import classes from './system.module.css';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import { MissingRecordings } from '../../admin/MissingRecordings';
+import { OrphanFiles } from '../../admin/OrphanFiles';
 import { RecordingRenames } from '../../admin/RecordingRenames';
 import type { systemPoolMutation } from './__generated__/systemPoolMutation.graphql';
 import type { systemQuery } from './__generated__/systemQuery.graphql';
@@ -60,6 +61,7 @@ function SystemPage() {
       <Stack gap="md">
         <SystemStatus />
         <MissingRecordings />
+        <OrphanFiles />
         <RecordingRenames />
       </Stack>
     </AdminPage>

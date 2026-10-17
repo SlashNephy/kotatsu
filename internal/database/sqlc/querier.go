@@ -284,6 +284,8 @@ type Querier interface {
 	ListProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]ListProgramsInRangeRow, error)
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
 	ListRecordingAssignments(ctx context.Context) ([]RecordingAssignment, error)
+	// すべての録画ファイルの置き場所を返す。録画中のものも含む。DB にないファイルを探すのに使う。
+	ListRecordingFileLocations(ctx context.Context) ([]ListRecordingFileLocationsRow, error)
 	ListRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error)
 	ListRecordingFilesByRecordings(ctx context.Context, recordingIds []uuid.UUID) ([]RecordingFile, error)
 	// 通知に載せる、録画のセグメントの保存先プールとプール内の相対パス。何も書けなかったセグメントは含めない。

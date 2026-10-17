@@ -1,0 +1,51 @@
+"""
+プールにあるのに DB に記録のないファイルか、持ち主の録画ファイルが DB にない付属ファイルのディレクトリ (設計書 5.6)。
+録画を消すのに失敗したときや、取り込みをやり直したときに残る。
+"""
+type OrphanFile {
+  "プールの ID。付属ファイルをまとめて置くディレクトリなら _sidecar。"
+  poolId: String!
+  "プール内の相対パス。"
+  path: String!
+  "付属ファイルのディレクトリかどうか。"
+  sidecar: Boolean!
+  "大きさ (バイト)。付属ファイルのディレクトリでは、中のファイルの合計。"
+  size: Int64!
+  "最後に書いた日時。付属ファイルのディレクトリでは、中のファイルのうち最も新しいもの。"
+  modifiedAt: Time!
+}
+
+"""
+消す、DB にないファイル。orphanFiles が返した poolId、path、sidecar をそのまま渡す。
+"""
+input OrphanFileInput {
+  poolId: String!
+  path: String!
+  sidecar: Boolean!
+}
+
+"""
+DB にないファイルを消した結果。
+"""
+type DeleteOrphanFilesPayload {
+  "消したファイルとディレクトリの数。"
+  deleted: Int!
+  "確かめ直すと、DB にあるか、使っているか、書いたばかりか、もうなかったので、消さなかった数。"
+  skipped: Int!
+}
+
+extend type Query {
+  """
+  DB にないファイルを、プールとパスの順に返す。管理者だけが使える。
+  このインスタンスにマウントしたプールと、付属ファイルをまとめて置くディレクトリだけを調べる。
+  録画中のファイル、セグメントをつないでいる途中のファイルとつなぐ元のファイル、書いて 1 時間以内のファイル、隠しファイルと lost+found は返さない。
+  """
+  orphanFiles: [OrphanFile!]!
+}
+
+extend type Mutation {
+  """
+  DB にないファイルを確かめ直して消す。ファイルなら、その付属ファイルのディレクトリも消す。管理者だけが使える。監査ログに残す。
+  """
+  deleteOrphanFiles(files: [OrphanFileInput!]!): DeleteOrphanFilesPayload!
+}

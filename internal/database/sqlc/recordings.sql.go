@@ -550,6 +550,36 @@ func (q *Queries) ListOpenRecordingFiles(ctx context.Context, recordingID uuid.U
 	return items, nil
 }
 
+const listRecordingFileLocations = `-- name: ListRecordingFileLocations :many
+SELECT pool_id, path FROM recording_files
+`
+
+type ListRecordingFileLocationsRow struct {
+	PoolID string
+	Path   string
+}
+
+// すべての録画ファイルの置き場所を返す。録画中のものも含む。DB にないファイルを探すのに使う。
+func (q *Queries) ListRecordingFileLocations(ctx context.Context) ([]ListRecordingFileLocationsRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingFileLocations)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingFileLocationsRow{}
+	for rows.Next() {
+		var i ListRecordingFileLocationsRow
+		if err := rows.Scan(&i.PoolID, &i.Path); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecordingFiles = `-- name: ListRecordingFiles :many
 SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind, id
 `

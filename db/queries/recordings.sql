@@ -131,6 +131,9 @@ SELECT r.id AS recording_id, f.id, f.pool_id, f.path
 FROM recordings r JOIN recording_files f ON f.recording_id = r.id AND f.kind = 'segment'
 WHERE r.state <> 'recording'
 ORDER BY r.recorded_from DESC, r.id, f.started_at, f.id;
+-- name: ListRecordingFileLocations :many
+-- すべての録画ファイルの置き場所を返す。録画中のものも含む。DB にないファイルを探すのに使う。
+SELECT pool_id, path FROM recording_files;
 -- name: ListRecordingsForRename :many
 -- ファイル名を付け直す録画と、ファイル名のテンプレートに当てはめる番組とサービスと、録画設定を求めるための予約。
 -- 録画中の録画は除く。予約が消えていれば、予約の項目は NULL になる。
