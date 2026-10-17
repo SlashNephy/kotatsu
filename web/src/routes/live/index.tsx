@@ -1,4 +1,4 @@
-import { Alert, Anchor, SegmentedControl, SimpleGrid, Stack, Title } from '@mantine/core';
+import { Alert, Anchor, Box, SegmentedControl, SimpleGrid, Stack, Title } from '@mantine/core';
 import { Tv } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState } from 'react';
@@ -9,6 +9,7 @@ import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import type { liveServicesQuery } from './__generated__/liveServicesQuery.graphql';
 import { NowPlayingCard } from '../../guide/NowPlayingCard';
+import { PinButton } from '../../guide/PinButton';
 import { sharesWithListed } from '../../guide/sharedEvent';
 
 export const Route = createFileRoute('/live/')({
@@ -50,6 +51,9 @@ function LivePage() {
   );
 }
 
+// pinnedTab は、ピン留めしたサービスを出すタブの値。チャンネル種別とぶつからないよう、小文字にする。
+const pinnedTab = 'pinned';
+
 function Services({ range }: { range: { from: string; to: string } }) {
   const { t } = useTranslation();
   const data = useLazyLoadQuery<liveServicesQuery>(
@@ -58,6 +62,9 @@ function Services({ range }: { range: { from: string; to: string } }) {
         channelTypes {
           type
           displayName
+        }
+        pinnedServices {
+          id
         }
         guide(from: $from, to: $to) {
           service {
@@ -84,22 +91,39 @@ function Services({ range }: { range: { from: string; to: string } }) {
   const types = data.channelTypes.filter((type) =>
     data.guide.some((row) => row.service.channelType.type === type.type),
   );
-  const [type, setType] = useState(types[0]?.type ?? '');
+  // pinned は、ピン留めしたサービスの ID を、ピン留めした順に並べたもの (#485)。
+  const pinned = data.pinnedServices.map((service) => service.id);
+  const pinnedSet = new Set(pinned);
+  // ピン留めしたサービスがあれば、ピン留めのタブから出す。
+  const [selectedType, setType] = useState(pinned.length > 0 ? pinnedTab : (types[0]?.type ?? ''));
+  // ピン留めをすべて外したら、ピン留めのタブはなくなるので、最初の種別に戻す。
+  const type =
+    selectedType === pinnedTab && pinned.length === 0 ? (types[0]?.type ?? '') : selectedType;
   // サブチャンネルがメインチャンネルと同じ番組を流しているときは、メインチャンネルだけを出す (ホームの放送中の番組と同じ)。
+  // ピン留めのタブでは、ピン留めしたサービスをそのまま出す。
   const listed = new Set(data.guide.map((row) => row.service.id));
-  const rows = data.guide.filter((row) => !sharesWithListed(row.programs[0], listed));
+  const rows = data.guide.filter(
+    (row) => pinnedSet.has(row.service.id) || !sharesWithListed(row.programs[0], listed),
+  );
+  const shown =
+    type === pinnedTab
+      ? pinned.flatMap((id) => rows.filter((row) => row.service.id === id))
+      : rows.filter((row) => row.service.channelType.type === type);
 
   return (
     <Stack>
-      {types.length > 1 && (
+      {(types.length > 1 || pinned.length > 0) && (
         <SegmentedControl
           size="xs"
           value={type}
           onChange={setType}
-          data={types.map((channelType) => ({
-            value: channelType.type,
-            label: channelType.displayName,
-          }))}
+          data={[
+            ...(pinned.length > 0 ? [{ value: pinnedTab, label: t('pin.tab') }] : []),
+            ...types.map((channelType) => ({
+              value: channelType.type,
+              label: channelType.displayName,
+            })),
+          ]}
           style={{ alignSelf: 'flex-start' }}
         />
       )}
@@ -107,17 +131,25 @@ function Services({ range }: { range: { from: string; to: string } }) {
         <EmptyState icon={Tv} title={t('live.empty')} hint={t('live.emptyHint')} />
       )}
       <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="xs">
-        {rows
-          .filter((row) => row.service.channelType.type === type)
-          .map((row) => (
+        {shown.map((row) => (
+          // カードはリンクなので、ピン留めのボタンは、カードの中ではなく上に重ねる。
+          <Box key={row.service.id} pos="relative">
             <NowPlayingCard
-              key={row.service.id}
               serviceId={row.service.id}
               serviceName={row.service.name}
               serviceLogoUrl={row.service.logoUrl ?? null}
               program={row.programs[0] ?? null}
             />
-          ))}
+            <Box pos="absolute" top={6} right={6}>
+              <PinButton
+                serviceId={row.service.id}
+                serviceName={row.service.name}
+                pinned={pinnedSet.has(row.service.id)}
+                size="xs"
+              />
+            </Box>
+          </Box>
+        ))}
       </SimpleGrid>
     </Stack>
   );

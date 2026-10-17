@@ -563,6 +563,12 @@
     "description": "空なら全体の既定値 ({{seconds}} 秒) に従います",
     "descriptionRule": "空ならルール「{{name}}」の設定 ({{seconds}} 秒) に従います"
   },
+  "pin": {
+    "pin": "{{name}}をピン留めする",
+    "unpin": "{{name}}のピン留めを外す",
+    "tab": "ピン留め",
+    "empty": "ピン留めしたチャンネルはありません"
+  },
   "reservations": {
     "tab": "録画予約",
     "select": "選ぶ",

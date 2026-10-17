@@ -25,6 +25,7 @@ import { loadExtendedHours, saveExtendedHours } from '../../guide/hourNotation';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
 import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
 import { broadcastDay, dateOf, receivedUntil } from '../../guide/layout';
+import { PinButton } from '../../guide/PinButton';
 import { ProgramDetail } from '../../guide/ProgramDetail';
 import { collapseSharedColumns } from '../../guide/sharedEvent';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -48,6 +49,8 @@ type GuideSearch = {
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const day = 24 * 60 * 60_000;
+// pinnedTab は、ピン留めしたサービスを出すタブの値 (#485)。チャンネル種別とぶつからないよう、小文字にする。
+const pinnedTab = 'pinned';
 // guideDays は、番組表で移れる、いまの放送日からの日数。
 // 放送の EPG (EIT) は、今日の 0 時から 8 日分が届く。放送日は 4 時に切り替わるので、8 日目の放送日も 4 時から 24 時までは番組がある。
 const guideDays = 8;
@@ -163,6 +166,9 @@ function Guide() {
           type
           displayName
         }
+        pinnedServices {
+          id
+        }
         services {
           id
           name
@@ -238,32 +244,52 @@ function Guide() {
   const types = data.channelTypes.filter((channelType) =>
     data.guide.some((row) => row.service.channelType.type === channelType.type),
   );
-  // URL の種別が、この日の番組表にないときは、最初の種別にする。
-  const type = types.some((channelType) => channelType.type === search.type)
-    ? search.type
-    : types[0]?.type;
+  // pinned は、ピン留めしたサービスの ID を、ピン留めした順に並べたもの (#485)。
+  const pinned = useMemo(
+    () => data.pinnedServices.map((service) => service.id),
+    [data.pinnedServices],
+  );
+  // URL の種別が、この日の番組表にないときは、最初の種別にする。ピン留めのタブは、ピン留めがあるときだけ選べる。
+  const type =
+    (search.type === pinnedTab && pinned.length > 0) ||
+    types.some((channelType) => channelType.type === search.type)
+      ? search.type
+      : types[0]?.type;
   // サブチャンネルは、元のサービスと違う番組を流す時間がある日だけ列を出し、同じ番組の枠は薄くする。
   const columns = useMemo<GuideColumn[]>(
     () =>
-      collapseSharedColumns(data.guide.map((row) => ({ ...row, id: row.service.id })))
-        .filter((row) => row.service.channelType.type === type)
-        .map((row) => ({
-          id: row.service.id,
-          name: row.service.name,
-          logoUrl: row.service.logoUrl ?? null,
-          programs: row.programs.map((program) => ({
-            id: program.id,
-            startAt: Date.parse(program.startAt),
-            endAt: Date.parse(program.endAt),
-            endUndecided: program.endUndecided,
-            name: program.name,
-            genre: program.genres[0]?.lv1,
-            shared: program.shared,
-            reserved: program.reservation?.enabled === true,
-            watchReserved: program.watchReserved,
-          })),
+      (type === pinnedTab
+        ? // ピン留めのタブでは、ピン留めしたサービスを、ピン留めした順にそのまま並べる。
+          pinned.flatMap((id) =>
+            data.guide
+              .filter((row) => row.service.id === id)
+              // ピン留めしたサブチャンネルは、元のサービスと同じ番組の枠も、薄くせずに出す。
+              .map((row) => ({
+                ...row,
+                id,
+                programs: row.programs.map((program) => ({ ...program, shared: false })),
+              })),
+          )
+        : collapseSharedColumns(data.guide.map((row) => ({ ...row, id: row.service.id }))).filter(
+            (row) => row.service.channelType.type === type,
+          )
+      ).map((row) => ({
+        id: row.service.id,
+        name: row.service.name,
+        logoUrl: row.service.logoUrl ?? null,
+        programs: row.programs.map((program) => ({
+          id: program.id,
+          startAt: Date.parse(program.startAt),
+          endAt: Date.parse(program.endAt),
+          endUndecided: program.endUndecided,
+          name: program.name,
+          genre: program.genres[0]?.lv1,
+          shared: program.shared,
+          reserved: program.reservation?.enabled === true,
+          watchReserved: program.watchReserved,
         })),
-    [data.guide, type],
+      })),
+    [data.guide, type, pinned],
   );
 
   // focused は、URL で指した番組 (予約から開いたときは、その予約の番組)。開いたときに、その時刻へスクロールする。
@@ -419,10 +445,13 @@ function Guide() {
             onChange={(value) =>
               void navigate({ search: (prev) => ({ ...prev, type: value, program: undefined }) })
             }
-            data={types.map((channelType) => ({
-              value: channelType.type,
-              label: channelType.displayName,
-            }))}
+            data={[
+              ...(pinned.length > 0 ? [{ value: pinnedTab, label: t('pin.tab') }] : []),
+              ...types.map((channelType) => ({
+                value: channelType.type,
+                label: channelType.displayName,
+              })),
+            ]}
           />
         )}
         <Group gap="xs" wrap="nowrap" className={classes.end}>
@@ -488,6 +517,14 @@ function Guide() {
           <GuideGrid
             window={window}
             columns={columns}
+            headerAction={(column) => (
+              <PinButton
+                serviceId={column.id}
+                serviceName={column.name}
+                pinned={pinned.includes(column.id)}
+                size="sm"
+              />
+            )}
             now={now}
             receivedUntil={
               window.from > today.from

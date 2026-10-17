@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<eee9b825018ce28d3fc5758a7652eb23>>
+ * @generated SignedSource<<487d280b29ecaeba859953f326ca0a49>>
  * @lightSyntaxTransform
  */
 
@@ -64,6 +64,9 @@ export type guideQuery$data = {
       readonly id: string;
     }>;
   }>;
+  readonly pinnedServices: ReadonlyArray<{
+    readonly id: string;
+  }>;
   readonly services: ReadonlyArray<{
     readonly channelType: {
       readonly displayName: string;
@@ -118,29 +121,32 @@ v3 = {
   "name": "id",
   "storageKey": null
 },
-v4 = {
+v4 = [
+  (v3/*:: as any*/)
+],
+v5 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "name",
   "storageKey": null
 },
-v5 = {
+v6 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v6 = {
+v7 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "lv1",
   "storageKey": null
 },
-v7 = [
-  (v6/*:: as any*/),
+v8 = [
+  (v7/*:: as any*/),
   {
     "alias": null,
     "args": null,
@@ -148,9 +154,6 @@ v7 = [
     "name": "lv2",
     "storageKey": null
   }
-],
-v8 = [
-  (v3/*:: as any*/)
 ],
 v9 = [
   {
@@ -171,12 +174,22 @@ v9 = [
     "args": null,
     "concreteType": "Service",
     "kind": "LinkedField",
+    "name": "pinnedServices",
+    "plural": true,
+    "selections": (v4/*:: as any*/),
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "Service",
+    "kind": "LinkedField",
     "name": "services",
     "plural": true,
     "selections": [
       (v3/*:: as any*/),
-      (v4/*:: as any*/),
       (v5/*:: as any*/),
+      (v6/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -208,7 +221,7 @@ v9 = [
     "plural": true,
     "selections": [
       (v3/*:: as any*/),
-      (v4/*:: as any*/),
+      (v5/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -216,7 +229,7 @@ v9 = [
         "kind": "LinkedField",
         "name": "genres",
         "plural": true,
-        "selections": (v7/*:: as any*/),
+        "selections": (v8/*:: as any*/),
         "storageKey": null
       },
       {
@@ -226,7 +239,7 @@ v9 = [
         "kind": "LinkedField",
         "name": "excludeGenres",
         "plural": true,
-        "selections": (v7/*:: as any*/),
+        "selections": (v8/*:: as any*/),
         "storageKey": null
       },
       {
@@ -243,7 +256,7 @@ v9 = [
         "kind": "LinkedField",
         "name": "services",
         "plural": true,
-        "selections": (v8/*:: as any*/),
+        "selections": (v4/*:: as any*/),
         "storageKey": null
       },
       {
@@ -296,8 +309,8 @@ v9 = [
         "plural": false,
         "selections": [
           (v3/*:: as any*/),
-          (v4/*:: as any*/),
           (v5/*:: as any*/),
+          (v6/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -343,7 +356,7 @@ v9 = [
             "name": "endUndecided",
             "storageKey": null
           },
-          (v4/*:: as any*/),
+          (v5/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -352,7 +365,7 @@ v9 = [
             "name": "genres",
             "plural": true,
             "selections": [
-              (v6/*:: as any*/)
+              (v7/*:: as any*/)
             ],
             "storageKey": null
           },
@@ -363,7 +376,7 @@ v9 = [
             "kind": "LinkedField",
             "name": "sharedFrom",
             "plural": false,
-            "selections": (v8/*:: as any*/),
+            "selections": (v4/*:: as any*/),
             "storageKey": null
           },
           {
@@ -417,16 +430,16 @@ return {
     "selections": (v9/*:: as any*/)
   },
   "params": {
-    "cacheID": "e7ff83b6e7c8bcd37d04a013f4cf2616",
+    "cacheID": "6b4688a88ff08302bc7a5e0e6387e66d",
     "id": null,
     "metadata": {},
     "name": "guideQuery",
     "operationKind": "query",
-    "text": "query guideQuery(\n  $from: Time!\n  $to: Time!\n  $view: ID\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  guideViews {\n    id\n    name\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    minDurationSeconds\n    services {\n      id\n    }\n    hideEmptyServices\n    freeOnly\n  }\n  guide(from: $from, to: $to, view: $view) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      startAt\n      endAt\n      endUndecided\n      name\n      genres {\n        lv1\n      }\n      sharedFrom {\n        id\n      }\n      reservation {\n        id\n        enabled\n      }\n      watchReserved\n    }\n  }\n}\n"
+    "text": "query guideQuery(\n  $from: Time!\n  $to: Time!\n  $view: ID\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  pinnedServices {\n    id\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  guideViews {\n    id\n    name\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    minDurationSeconds\n    services {\n      id\n    }\n    hideEmptyServices\n    freeOnly\n  }\n  guide(from: $from, to: $to, view: $view) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      startAt\n      endAt\n      endUndecided\n      name\n      genres {\n        lv1\n      }\n      sharedFrom {\n        id\n      }\n      reservation {\n        id\n        enabled\n      }\n      watchReserved\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "b09a5ecefba0ac89f2f07584331657c1";
+(node as any).hash = "4a70b4e63f5c4c6ea62f7ec47bb169cc";
 
 export default node;
