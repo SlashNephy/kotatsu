@@ -22,7 +22,8 @@ const (
 	serviceType = "Service"
 	programType = "Program"
 	// maxGuideRange は、番組表で一度に取得できる時間帯の長さの上限。EPG が届く 8 日分を、1 つのチャンネルの番組表で一度に引けるようにする (#482)。
-	maxGuideRange = 8 * 24 * time.Hour
+	// 夏時間のある地域では、切り替えの日の放送日が 25 時間になるので、1 時間の余裕を持たせる。
+	maxGuideRange = 8*24*time.Hour + time.Hour
 )
 
 func serviceGlobalID(id int64) string {

@@ -25,6 +25,8 @@ function program(id: string, startAt: number, minutes: number): GuideProgram {
 describe('channelWeekColumns', () => {
   test('放送日ごとの列に分け、各列の番組の時刻を今日の放送日へずらす', () => {
     const programs = [
+      // 今日の放送日の前 (3 時半) に始まった番組は、前の放送日のものなので出さない。
+      program('昨日の 27 時半', dayStart - hour / 2, 60),
       program('今日の 21 時', dayStart + 17 * hour, 60),
       program('今日の 27 時 (翌日の 3 時)', dayStart + 23 * hour, 30),
       program('明日の 4 時', dayStart + 24 * hour, 60),

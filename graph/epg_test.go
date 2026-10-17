@@ -243,8 +243,8 @@ func TestGuide(t *testing.T) {
 			wantPrograms: bsProgramNames(14),
 		},
 		{
-			name:      "range longer than 8 days",
-			variables: guideVariables("2026-10-10T00:00:00Z", "2026-10-18T00:00:01Z", nil),
+			name:      "range longer than 8 days and 1 hour",
+			variables: guideVariables("2026-10-10T00:00:00Z", "2026-10-18T01:00:01Z", nil),
 			wantCodes: []string{codeBadUserInput},
 		},
 		{
