@@ -29,6 +29,13 @@ SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, des
 FROM programs
 WHERE service_id = @service_id AND event_id = @event_id;
 
+-- name: ListGuideProgramsByKeys :many
+-- 番組 (サービス, eventId) をまとめて引く。GetGuideProgram と同じ列を返す。ない番組は返さない。
+SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios,
+  related_items
+FROM programs
+WHERE (service_id, event_id) IN (SELECT unnest(@service_ids::bigint[]), unnest(@event_ids::bigint[]));
+
 -- name: GetArchivedProgram :one
 SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios,
   related_items

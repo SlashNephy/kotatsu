@@ -678,6 +678,22 @@ type Session struct {
 	SourceIP *string `json:"sourceIp,omitempty"`
 }
 
+// ルールに一致したが、同じ番組名を録画済みなので、重複の回避で予約しなかった番組 (設計書 4.4)。
+type SkippedDuplicate struct {
+	Program *Program `json:"program"`
+	// 一致したが、重複の回避で外したルール。
+	Rules []*SkippedRule `json:"rules"`
+	// 同じ番組名を、同じサービスで最後に録った録画の終わり。
+	LastRecordedAt time.Time `json:"lastRecordedAt"`
+}
+
+// 重複の回避で外したルール。
+type SkippedRule struct {
+	// ルールの ID (Rule の ID)。
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 // 保存先プール (設計書 5.6)。
 type StoragePool struct {
 	ID string `json:"id"`
