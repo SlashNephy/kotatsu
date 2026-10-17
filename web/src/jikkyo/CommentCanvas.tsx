@@ -27,49 +27,69 @@ type Props = {
   drawing: boolean;
   // settings は、コメントの表示とミュートの設定 (#488)。省けば既定値。
   settings?: CommentSettings;
+  // retainSeconds を渡すと、今より retainSeconds 秒より前のコメントは、設定を変えて描き直すときに足し直さない。
+  // ライブ視聴では、流れ終わったコメントを、見ている間ずっと持ち続けないようにする。録画では、戻って見るので省く。
+  retainSeconds?: number;
   ref?: Ref<CommentCanvasHandle>;
 };
 
 // CommentCanvas は、実況のコメントを niconicomments で映像の上に流す (設計書 7.4)。
-export function CommentCanvas({ clock, drawing, settings = defaultCommentSettings, ref }: Props) {
+export function CommentCanvas({
+  clock,
+  drawing,
+  settings = defaultCommentSettings,
+  retainSeconds,
+  ref,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<NiconiComments | null>(null);
-  // received は、受け取ったすべてのコメント。設定を変えたときに、作り直した描画に足し直す。
-  const received = useRef<JikkyoComment[]>([]);
+  // received は、受け取ったコメントと、niconicomments に渡す ID。設定を変えたときに、作り直した描画に足し直す。
+  const received = useRef<{ comment: JikkyoComment; id: number }[]>([]);
+  const nextID = useRef(0);
+  const retainRef = useRef(retainSeconds);
+  retainRef.current = retainSeconds;
   const clockRef = useRef(clock);
   clockRef.current = clock;
   // 描画を作り直すのは、描き方とミュートが変わったときだけにする。不透明度は canvas の style で変える。
-  // Relay の設定は、中身が変わらなければ同じ配列を返すので、配列のまま依存に入れられる。
+  // ミュートの一覧は、ほかの設定を変えただけでも新しい配列で届くので、中身で比べる。
   const { speed, scale, showAll, mutedKeywords, mutedUsers } = settings;
-  const view = useMemo(
-    () => ({
+  const muteKey = JSON.stringify([mutedKeywords, mutedUsers]);
+  const view = useMemo(() => {
+    const [keywords, users] = JSON.parse(muteKey) as [CommentSettings['mutedKeywords'], string[]];
+
+    return {
       speed,
       scale,
       showAll,
-      muted: compileMute({ ...defaultCommentSettings, mutedKeywords, mutedUsers }),
-    }),
-    [speed, scale, showAll, mutedKeywords, mutedUsers],
-  );
+      muted: compileMute({ ...defaultCommentSettings, mutedKeywords: keywords, mutedUsers: users }),
+    };
+  }, [speed, scale, showAll, muteKey]);
   const viewRef = useRef(view);
   viewRef.current = view;
 
-  const draw = (renderer: NiconiComments, comments: readonly JikkyoComment[], firstID: number) => {
+  const draw = (
+    renderer: NiconiComments,
+    entries: readonly { comment: JikkyoComment; id: number }[],
+  ) => {
     const { speed: currentSpeed, muted } = viewRef.current;
-    const formatted = comments.flatMap((comment, i) =>
-      shouldDraw(comment) && !muted(comment)
-        ? [toFormatted(comment, firstID + i, currentSpeed)]
-        : [],
+    const formatted = entries.flatMap(({ comment, id }) =>
+      shouldDraw(comment) && !muted(comment) ? [toFormatted(comment, id, currentSpeed)] : [],
     );
     if (formatted.length > 0) {
       renderer.addComments(...formatted);
     }
   };
   const add = (comments: JikkyoComment[]) => {
-    const firstID = received.current.length;
-    received.current.push(...comments);
+    const entries = comments.map((comment) => ({ comment, id: nextID.current++ }));
+    const retain = retainRef.current;
+    if (retain !== undefined) {
+      const since = clockRef.current() - retain;
+      received.current = received.current.filter(({ comment }) => comment.time >= since);
+    }
+    received.current.push(...entries);
     const renderer = rendererRef.current;
     if (renderer !== null) {
-      draw(renderer, comments, firstID);
+      draw(renderer, entries);
     }
   };
   // ハンドルは作り直さない。作り直すと、受け取った側がコメントを足し直し、同じコメントが重なって流れる。
@@ -100,7 +120,7 @@ export function CommentCanvas({ clock, drawing, settings = defaultCommentSetting
           ...(view.showAll ? {} : { commentLimit: limitedComments }),
         },
       });
-      draw(rendererRef.current, received.current, 0);
+      draw(rendererRef.current, received.current);
     });
 
     return () => {

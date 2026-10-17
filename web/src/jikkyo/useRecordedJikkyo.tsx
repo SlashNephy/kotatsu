@@ -162,12 +162,18 @@ export function useRecordedJikkyo(
   }, [url, liveChannel, drawing]);
 
   // 一覧には、ミュートしたコメントを出さない。
-  const { mutedKeywords, mutedUsers } = settings;
+  // ミュートの一覧は、ほかの設定を変えただけでも新しい配列で届くので、中身で比べる。
+  const muteKey = JSON.stringify([settings.mutedKeywords, settings.mutedUsers]);
   const listed = useMemo(() => {
-    const muted = compileMute({ ...defaultCommentSettings, mutedKeywords, mutedUsers });
+    const [keywords, users] = JSON.parse(muteKey) as [CommentSettings['mutedKeywords'], string[]];
+    const muted = compileMute({
+      ...defaultCommentSettings,
+      mutedKeywords: keywords,
+      mutedUsers: users,
+    });
 
     return comments?.filter((comment) => !muted(comment)) ?? null;
-  }, [comments, mutedKeywords, mutedUsers]);
+  }, [comments, muteKey]);
 
   return {
     overlay:

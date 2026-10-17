@@ -5,6 +5,9 @@ import { CommentCanvas, type CommentCanvasHandle } from './CommentCanvas';
 import { compileMute, defaultCommentSettings, type CommentSettings } from './comments';
 import { NXJikkyoSession, type SessionStatus } from './session';
 
+// liveRetainSeconds は、ライブで、設定を変えて描き直すときに足し直すコメントの秒数。流れている間のコメントが収まればよい。
+const liveRetainSeconds = 30;
+
 // maxDelay は、コメントを遅らせる上限 (秒)。読み込みが止まって先読みが大きくなっても、コメントを待たせすぎない。
 const maxDelay = 10;
 
@@ -105,6 +108,7 @@ export function useLiveJikkyo(
           clock={clock}
           drawing={active}
           settings={settings}
+          retainSeconds={liveRetainSeconds}
         />
       ),
     status,
