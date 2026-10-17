@@ -68,7 +68,8 @@ func (b *broadcastTracker) leftAir() bool {
 }
 
 // end は、EPG から決めた録画の終わり planned を、放送の状態で決め直す。notBroadcast は、予約した番組が放送されなかったかどうか。
-//   - 放送が終わったら (放送中が別の番組に切り替わったら)、後ろのマージン margin を録って止める
+//   - 放送が終わったら (放送中が別の番組に切り替わったら)、後ろのマージン margin を録って止める。ただし、予定の終わり planned までは録る。
+//     割り込みの間に予約した番組が次の番組にも出ず、戻ってくるかが分からないときも、予定の終わりまでに戻れば続きを録れるようにする (#636)
 //   - 予定の終わりを過ぎても、予約した番組が放送中か、次の番組 (繰り下げ) なら、step ずつ延ばす。延ばすのは limit まで
 //   - 次の番組のまま limit に来たら、放送されなかったとして、limit で止める (#640)
 //   - 予定の終わりまでに、放送中にも次の番組にも出てこなければ、放送されなかったとして、予定の終わりで止める
@@ -77,7 +78,7 @@ func (b *broadcastTracker) end(planned, now time.Time, margin, step time.Duratio
 		return planned, false
 	}
 	if b.endedAt != nil {
-		return b.endedAt.Add(margin), false
+		return maxTime(b.endedAt.Add(margin), planned), false
 	}
 	onAir := b.startedAt != nil
 	if (onAir || b.following) && !now.Before(planned) {

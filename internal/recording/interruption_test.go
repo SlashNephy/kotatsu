@@ -32,8 +32,12 @@ func TestRecorderFollowsInterruption(t *testing.T) {
 	}{
 		{name: "割り込みの間、次の番組が予約した番組なら、終わったとせず、再開した後も録り続ける", following: 6, resumeAfter: 5 * time.Minute, wantStopped: false},
 		{name: "後ろのマージンを録り終える前に予約した番組に戻ったら、終わりを取り消して録り続ける", following: 7, resumeAfter: margin / 3, wantStopped: false},
-		// 割り込みの間に、予約した番組が放送中にも次の番組にも出なければ、再開するかは分からないので、猶予を置かずに止める。
-		{name: "次の番組にも出ないまま割り込まれたら、後ろのマージンを録って止める", following: 7, resumeAfter: 5 * time.Minute, wantStopped: true},
+		// 割り込みの間に、予約した番組が放送中にも次の番組にも出なくても、再開するかは分からないので、予定の終わりまでは録る。
+		{name: "次の番組にも出ないまま割り込まれても、予定の終わりまでに戻れば録り続ける", following: 7, resumeAfter: 5 * time.Minute, wantStopped: false},
+		{
+			name: "次の番組にも出ないまま割り込まれ、予定の終わりまで戻らなければ、予定の終わりで止める", following: 7,
+			resumeAfter: programStart().Add(30*time.Minute + margin).Sub(interruptAt), wantStopped: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

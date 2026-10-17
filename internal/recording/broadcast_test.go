@@ -45,9 +45,18 @@ func TestBroadcastTracker(t *testing.T) {
 			now:   at(12, 10), wantEnd: planned, wantStarted: true,
 		},
 		{
-			name:  "早く終わったら、後ろのマージンを録って止める",
+			// 割り込まれたのか早く終わったのかは見分けられないので、予定の終わりまでは録る (#636)。
+			name:  "予定の終わりより早く放送中でなくなっても、予定の終わりまで録る",
 			steps: []step{{now: new(at(12, 0)), pf: pf(ours, next)}, {now: new(at(12, 20)), pf: pf(next, nil)}},
-			now:   at(12, 20), wantEnd: at(12, 20).Add(margin), wantStarted: true, wantEnded: true,
+			now:   at(12, 20), wantEnd: planned, wantStarted: true, wantEnded: true,
+		},
+		{
+			name: "延長して予定の終わりの後に終わったら、後ろのマージンを録って止める",
+			steps: []step{
+				{now: new(at(12, 0)), pf: pf(ours, next)},
+				{now: new(at(12, 40)), pf: pf(next, nil)},
+			},
+			now: at(12, 40), wantEnd: at(12, 40).Add(margin), wantStarted: true, wantEnded: true,
 		},
 		{
 			name: "割り込まれても、次の番組が予約した番組なら、終わったとはしない",
@@ -58,13 +67,13 @@ func TestBroadcastTracker(t *testing.T) {
 			now: at(12, 15), wantEnd: planned, wantStarted: true,
 		},
 		{
-			name: "割り込みの間に、次の番組が予約した番組でなくなったら、そのときに終わったとする",
+			name: "割り込みの間に、次の番組が予約した番組でなくなったら、そのときに終わったとし、予定の終わりまで録る",
 			steps: []step{
 				{now: new(at(12, 0)), pf: pf(ours, next)},
 				{now: new(at(12, 10)), pf: pf(other, ours)},
 				{now: new(at(12, 12)), pf: pf(other, next)},
 			},
-			now: at(12, 12), wantEnd: at(12, 12).Add(margin), wantStarted: true, wantEnded: true,
+			now: at(12, 12), wantEnd: planned, wantStarted: true, wantEnded: true,
 		},
 		{
 			name: "割り込みの後、後ろのマージンを録り終える前に予約した番組に戻ったら、録り続ける",
