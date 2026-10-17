@@ -118,10 +118,20 @@ const maxEnterTries = 100;
 //
 // shown が false の間も、source があれば裏で受け取っておく。文書のスクリプトはカルーセルで届くので、受け取り始めてから
 // d ボタンを受け取れるようになるまで、局によっては数秒かかる。出すときには、その待ちを済ませておく。
+// DataBroadcastHandlers は、文書が選局したり、音声を切り替えたりしようとしたときに呼ぶもの (#440)。
+// 文書が呼ぶ API は、その場で受け付けたかどうかを返すので、どちらも真偽値を返す。
+export type DataBroadcastHandlers = {
+  // onTune は、文書が (original_network_id, service_id) のサービスへ選局しようとしたときに呼ぶ。移れなければ false を返す。
+  onTune?: (networkId: number, serviceId: number) => boolean;
+  // onSelectAudio は、文書が component_tag の音声 (デュアルモノなら channelId の音声) を選ぼうとしたときに呼ぶ。
+  onSelectAudio?: (componentTag: number, channelId?: number) => boolean;
+};
+
 export function useDataBroadcast(
   source: DataBroadcastSource | null,
   videoRef: RefObject<HTMLVideoElement | null>,
   shown: boolean,
+  handlers: DataBroadcastHandlers = {},
 ): {
   layer: ReactNode;
   state: DataBroadcastState;
@@ -131,6 +141,11 @@ export function useDataBroadcast(
   keyGroups: ReadonlySet<KeyGroup>;
   press: (key: RemoteKey) => void;
 } {
+  // handlersRef は、最新の handlers。BMLBrowser は作り直さないので、呼ぶときに今のものを読む。
+  const handlersRef = useRef(handlers);
+  useEffect(() => {
+    handlersRef.current = handlers;
+  });
   // layer は、文書を描く層。画質を変えるとプレイヤーごと作り直されるので、要素が変わったら描き直す。
   const [layer, setLayer] = useState<HTMLDivElement | null>(null);
   const browserRef = useRef<BMLBrowser | null>(null);
@@ -202,6 +217,15 @@ export function useDataBroadcast(
         roundGothic: { source: `url(${broadcastFontUrl})` },
         squareGothic: { source: `url(${broadcastFontUrl})` },
       },
+      // 文書からの選局と音声の切り替えを、視聴の画面に任せる (#440)。transport_stream_id とコンポーネントは使わない。
+      epg: {
+        tune: (networkId, _transportStreamId, serviceId) =>
+          handlersRef.current.onTune?.(networkId, serviceId) ?? false,
+        tuneToComponent: (networkId, _transportStreamId, serviceId) =>
+          handlersRef.current.onTune?.(networkId, serviceId) ?? false,
+      },
+      setMainAudioStreamCallback: (componentId, channelId) =>
+        handlersRef.current.onSelectAudio?.(componentId, channelId) ?? false,
     });
     browserRef.current = browser;
     // restore は、データ放送の中へ移した映像を、プレイヤーへ戻す。移していなければ null。

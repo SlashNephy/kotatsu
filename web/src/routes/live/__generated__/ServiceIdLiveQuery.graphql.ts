@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<5c4d4989d05e61df89fadc9f7984188f>>
+ * @generated SignedSource<<1269934d01d701914b5d88aa2c603acb>>
  * @lightSyntaxTransform
  */
 
@@ -48,6 +48,8 @@ export type ServiceIdLiveQuery$data = {
     };
     readonly id: string;
     readonly name: string;
+    readonly networkId: number;
+    readonly serviceId: number;
   }>;
   readonly transcoding: {
     readonly available: boolean;
@@ -260,6 +262,20 @@ v14 = {
     {
       "alias": null,
       "args": null,
+      "kind": "ScalarField",
+      "name": "networkId",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "serviceId",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
       "concreteType": "ChannelType",
       "kind": "LinkedField",
       "name": "channelType",
@@ -399,16 +415,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "beedba31c8763314f484b65770a8fbe0",
+    "cacheID": "27612447b55f7875dea7a07fedd033aa",
     "id": null,
     "metadata": {},
     "name": "ServiceIdLiveQuery",
     "operationKind": "query",
-    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      jikkyo {\n        id\n        name\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      startAt\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n      }\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n  services {\n    id\n    name\n    channelType {\n      type\n      displayName\n    }\n  }\n}\n"
+    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      jikkyo {\n        id\n        name\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      startAt\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n      }\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n  services {\n    id\n    name\n    networkId\n    serviceId\n    channelType {\n      type\n      displayName\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "16a868ec6d18228ec819d60d1988270c";
+(node as any).hash = "cd64edf342e5ee944185021fc0ecfe6c";
 
 export default node;

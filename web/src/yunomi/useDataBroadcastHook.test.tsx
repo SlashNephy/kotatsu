@@ -21,8 +21,16 @@ const fake = vi.hoisted(() => {
       processKeyUp: () => {},
     };
 
-    constructor(options: { mediaElement: HTMLElement }) {
+    // options は、作るときに渡された設定。文書から呼ばれる API (選局など) を、テストから呼ぶのに使う。
+    readonly options: {
+      mediaElement: HTMLElement;
+      epg?: { tune?: (networkId: number, transportStreamId: number, serviceId: number) => boolean };
+      setMainAudioStreamCallback?: (componentId: number, channelId?: number) => boolean;
+    };
+
+    constructor(options: FakeBrowser['options']) {
       super();
+      this.options = options;
       this.mediaElement = options.mediaElement;
       FakeBrowser.instances.push(this);
     }
@@ -471,5 +479,52 @@ describe('useDataBroadcast', () => {
         vi.useRealTimers();
       }
     });
+  });
+});
+
+// TuneHarness は、データ放送の文書からの選局と音声の切り替えを受け取る。
+function TuneHarness({
+  onTune,
+  onSelectAudio,
+}: {
+  onTune: (networkId: number, serviceId: number) => boolean;
+  onSelectAudio: (componentTag: number, channelId?: number) => boolean;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const { layer } = useDataBroadcast(
+    { url: '/streams/services/3273601024/data-broadcast', serviceId: 1024 },
+    videoRef,
+    true,
+    { onTune, onSelectAudio },
+  );
+
+  return (
+    <div className={classes.media}>
+      <video ref={videoRef} />
+      {layer}
+    </div>
+  );
+}
+
+describe('データ放送の文書からの選局と音声の切り替え', () => {
+  test('今の視聴の画面の処理に渡す。BMLBrowser を作り直さずに、新しい処理に切り替える', () => {
+    const first = vi.fn(() => true);
+    const second = vi.fn(() => false);
+    const selectAudio = vi.fn(() => true);
+    const { rerender } = render(<TuneHarness onTune={first} onSelectAudio={selectAudio} />);
+    const [browser] = fake.FakeBrowser.instances;
+    if (browser === undefined) {
+      throw new Error('BMLBrowser is not created');
+    }
+
+    expect(browser.options.epg?.tune?.(32736, 32736, 1025)).toBe(true);
+    expect(first).toHaveBeenCalledWith(32736, 1025);
+    expect(browser.options.setMainAudioStreamCallback?.(0x11, 2)).toBe(true);
+    expect(selectAudio).toHaveBeenCalledWith(0x11, 2);
+
+    rerender(<TuneHarness onTune={second} onSelectAudio={selectAudio} />);
+    expect(fake.FakeBrowser.instances).toHaveLength(1);
+    expect(browser.options.epg?.tune?.(32736, 32736, 1024)).toBe(false);
+    expect(second).toHaveBeenCalledWith(32736, 1024);
   });
 });

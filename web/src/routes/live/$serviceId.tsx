@@ -279,6 +279,8 @@ function Live({
         services {
           id
           name
+          networkId
+          serviceId
           channelType {
             type
             displayName
@@ -409,6 +411,8 @@ function Live({
   const [statsShown, setStatsShown] = useState(false);
   // externalOpen は、外部プレイヤー用の URL を発行するダイアログを出しているかどうか (#487)。
   const [externalOpen, setExternalOpen] = useState(false);
+  // tuneRequest は、データ放送の文書が選局しようとしたサービス。確かめてから移る (#440)。
+  const [tuneRequest, setTuneRequest] = useState<{ id: string; name: string } | null>(null);
   const behind = useLiveLag(video, { reloadOnResume: route.kind === 'convert', onReload: reload });
   // 時間帯に重なる番組のうち、読み直した時刻に放送中のものと、その次のもの。
   const programs = data.guide[0]?.programs ?? [];
@@ -535,6 +539,24 @@ function Live({
       : null,
     videoRef,
     dataBroadcastEnabled,
+    {
+      // 文書が勝手に局を変えないよう、移る先を出して確かめてから移る (#440)。
+      onTune: (networkId, sid) => {
+        const target = data.services.find(
+          (candidate) => candidate.networkId === networkId && candidate.serviceId === sid,
+        );
+        if (target === undefined) {
+          return false;
+        }
+        if (target.id !== serviceId) {
+          setTuneRequest({ id: target.id, name: target.name });
+        }
+
+        return true;
+      },
+      // 音声の切り替えは、確かめずに従う。
+      onSelectAudio: audio.selectComponent,
+    },
   );
   // データ放送を出している間は、⌥+矢印、Enter、Backspace、数字、⌥+b/r/g/y でリモコンを押せる (#441)。
   useDataBroadcastKeys(
@@ -762,6 +784,30 @@ function Live({
           </Menu>
         </Group>
       </Group>
+      <Modal
+        opened={tuneRequest !== null}
+        onClose={() => setTuneRequest(null)}
+        title={t('live.tuneRequest.title')}
+      >
+        <Stack>
+          <Text size="sm">{t('live.tuneRequest.body', { name: tuneRequest?.name ?? '' })}</Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setTuneRequest(null)}>
+              {t('live.tuneRequest.stay')}
+            </Button>
+            <Button
+              onClick={() => {
+                if (tuneRequest !== null) {
+                  tune(tuneRequest.id);
+                }
+                setTuneRequest(null);
+              }}
+            >
+              {t('live.tuneRequest.go')}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
       {/* VLC や mpv で開く URL。開いている間は、ブラウザの視聴とは別にチューナーを使う (#487)。 */}
       <Modal
         opened={externalOpen}

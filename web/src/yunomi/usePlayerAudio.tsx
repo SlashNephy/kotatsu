@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import {
   audioChoices,
   audioSlot,
+  choiceForComponent,
   choiceForSlot,
   currentAudioChoice,
   kyusuAudioChoices,
@@ -30,6 +31,9 @@ export function usePlayerAudio(
   kyusuAudio: KyusuAudio;
   menu: ReactNode;
   available: boolean;
+  // selectComponent は、データ放送の文書が選んだ音声に切り替える (#440)。ブラウザの中で変換する経路でだけ選べる。
+  // 選べたら true を返す。
+  selectComponent: (componentTag: number, channelId?: number) => boolean;
 } {
   const [tracks, setTracks] = useState<AudioTracks | null>(null);
   // choice は、ブラウザの中で変換する経路のメニューで選んだもの。kyusu の経路で選び直したら捨てる。
@@ -82,5 +86,19 @@ export function usePlayerAudio(
       ? choices.length >= 2
       : route.kind === 'kyusu' && kyusuChoices.length >= 2;
 
-  return { onAudio: setTracks, convertAudio, kyusuAudio, menu, available };
+  const selectComponent = (componentTag: number, channelId?: number) => {
+    const value = choiceForComponent(convertTracks, componentTag, channelId);
+    if (value === null) {
+      return false;
+    }
+    setChoice(value);
+    const selected = choices.find((candidate) => candidate.value === value);
+    if (selected !== undefined) {
+      setSlot(audioSlot(selected));
+    }
+
+    return true;
+  };
+
+  return { onAudio: setTracks, convertAudio, kyusuAudio, menu, available, selectComponent };
 }
