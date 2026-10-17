@@ -59,6 +59,8 @@ import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoLoading } from '../../yunomi/useVideoLoading';
 import { useVideoState } from '../../yunomi/useVideoState';
+import { stepVolume } from '../../yunomi/volume';
+import { currentVolume } from '../../yunomi/volumeBoost';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { resumePosition } from '../../yunomi/resume';
@@ -441,7 +443,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     if (video === null) {
       return;
     }
-    const next = Math.min(1, Math.max(0, Math.round((video.volume + delta) * 100) / 100));
+    const next = stepVolume(currentVolume(video), delta);
     videoState.setVolume(next);
     showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
   };

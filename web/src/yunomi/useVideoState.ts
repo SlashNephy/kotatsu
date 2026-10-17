@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { browserStorage, loadVolume, saveVolume, type Volume } from './volume';
+import { applyVolume, currentVolume, lowerBoost, resumePendingBoost } from './volumeBoost';
 
 export type VideoState = Volume & {
   paused: boolean;
@@ -21,24 +22,32 @@ export function useVideoState(video: HTMLVideoElement | null): VideoState {
       return;
     }
     const stored = loadVolume(browserStorage());
-    video.volume = stored.volume;
+    applyVolume(video, stored.volume);
     video.muted = stored.muted;
     const sync = () => {
       setPaused(video.paused);
-      setVolumeState({ volume: video.volume, muted: video.muted });
+      setVolumeState({ volume: currentVolume(video), muted: video.muted });
     };
     // キーボードの m や、OS のメディア操作で変えたときも、ここで拾って覚える。
+    // ほかの経路で 1 より下げたときは、100% を超えて上げていた分を戻す。
     const onVolume = () => {
-      const next = { volume: video.volume, muted: video.muted };
+      lowerBoost(video);
+      const next = { volume: currentVolume(video), muted: video.muted };
       setVolumeState(next);
       saveVolume(browserStorage(), next);
     };
+    // 100% を超える音量を覚えていても、ユーザーが操作するまでは WebAudio を動かせないので、最初の操作で上げる (#453)。
+    const onActivate = () => resumePendingBoost(video);
     sync();
     video.addEventListener('play', sync);
     video.addEventListener('pause', sync);
     video.addEventListener('volumechange', onVolume);
+    window.addEventListener('pointerdown', onActivate, { once: true });
+    window.addEventListener('keydown', onActivate, { once: true });
 
     return () => {
+      window.removeEventListener('pointerdown', onActivate);
+      window.removeEventListener('keydown', onActivate);
       video.removeEventListener('play', sync);
       video.removeEventListener('pause', sync);
       video.removeEventListener('volumechange', onVolume);
@@ -62,11 +71,15 @@ export function useVideoState(video: HTMLVideoElement | null): VideoState {
       if (video === null) {
         return;
       }
-      video.volume = next;
+      applyVolume(video, next);
       // 音量を上げたら、ミュートを解除する。
       if (next > 0) {
         video.muted = false;
       }
+      // 100% を超えたところで変えても、video.volume は 1 のままで volumechange が届かないので、ここで覚える。
+      const state = { volume: currentVolume(video), muted: video.muted };
+      setVolumeState(state);
+      saveVolume(browserStorage(), state);
     },
     toggleMute: () => {
       if (video !== null) {
