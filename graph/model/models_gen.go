@@ -289,6 +289,8 @@ type Notification struct {
 	Payload string `json:"payload"`
 	// 画面に出す文。Web Push で送る本文と同じもの。時刻は、表示のタイムゾーンで書く。
 	Message string `json:"message"`
+	// 通知を押したときに開く画面のパス (視聴予約の通知では、そのサービスのライブ視聴)。なければ null。
+	URL *string `json:"url,omitempty"`
 	// 既読にした日時。未読なら null。
 	ReadAt *time.Time `json:"readAt,omitempty"`
 }
@@ -811,6 +813,20 @@ type User struct {
 
 func (User) IsNode() {}
 
+// 視聴予約の通知の設定。端末をまたいで同期する。
+type WatchReminderSettings struct {
+	// 放送の何分前に通知を送るか。0 から 60 まで。
+	MinutesBefore int `json:"minutesBefore"`
+}
+
+// 視聴予約 (設計書 4.8)。録画はせず、放送の少し前に、予約したユーザーだけに通知する。
+type WatchReservation struct {
+	Program *Program `json:"program"`
+	// 通知を送る日時。番組の放送時間が変わると、付いていく。
+	NotifyAt  time.Time `json:"notifyAt"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
 // Web Push の購読 (設計書 6.2)。端末とブラウザごとに 1 つある。
 type WebPushSubscription struct {
 	ID string `json:"id"`
@@ -1113,6 +1129,8 @@ const (
 	NotificationKindStorageLow NotificationKind = "STORAGE_LOW"
 	// チューナーサーバーへの接続不可
 	NotificationKindTunerServerUnreachable NotificationKind = "TUNER_SERVER_UNREACHABLE"
+	// 視聴予約した番組の放送が近い (設計書 4.8)。予約したユーザーだけに届き、Webhook では送らない。
+	NotificationKindWatchReminder NotificationKind = "WATCH_REMINDER"
 )
 
 var AllNotificationKind = []NotificationKind{
@@ -1122,11 +1140,12 @@ var AllNotificationKind = []NotificationKind{
 	NotificationKindReservationConflict,
 	NotificationKindStorageLow,
 	NotificationKindTunerServerUnreachable,
+	NotificationKindWatchReminder,
 }
 
 func (e NotificationKind) IsValid() bool {
 	switch e {
-	case NotificationKindRecordingStarted, NotificationKindRecordingCompleted, NotificationKindRecordingFailed, NotificationKindReservationConflict, NotificationKindStorageLow, NotificationKindTunerServerUnreachable:
+	case NotificationKindRecordingStarted, NotificationKindRecordingCompleted, NotificationKindRecordingFailed, NotificationKindReservationConflict, NotificationKindStorageLow, NotificationKindTunerServerUnreachable, NotificationKindWatchReminder:
 		return true
 	}
 	return false

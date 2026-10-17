@@ -96,6 +96,8 @@ type Payload struct {
 	EventID    uuid.UUID         `json:"eventId"`
 	Kind       notification.Kind `json:"kind"`
 	OccurredAt time.Time         `json:"occurredAt"`
+	// URL は、通知を押したときに開く画面のパス。なければ省き、Service Worker は通知の一覧を開く。
+	URL string `json:"url,omitempty"`
 }
 
 // DeliverWorker は、イベントを購読した端末に送る。
@@ -168,6 +170,7 @@ func (w *DeliverWorker) payload(event *sqlc.NotificationEvent) ([]byte, error) {
 	kind := notification.Kind(event.Kind)
 	plaintext, err := json.Marshal(&Payload{
 		Title: title, Body: notification.Message(kind, payload, w.location), EventID: event.ID, Kind: kind, OccurredAt: event.OccurredAt,
+		URL: notification.URL(payload),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the web push payload: %w", err)
@@ -236,7 +239,8 @@ func urgency(kind notification.Kind) string {
 	switch kind {
 	case notification.KindRecordingFailed, notification.KindStorageLow, notification.KindTunerServerUnreachable:
 		return "high"
-	case notification.KindRecordingStarted, notification.KindRecordingCompleted, notification.KindReservationConflict:
+	case notification.KindRecordingStarted, notification.KindRecordingCompleted, notification.KindReservationConflict,
+		notification.KindWatchReminder:
 		return "normal"
 	default:
 		return "normal"

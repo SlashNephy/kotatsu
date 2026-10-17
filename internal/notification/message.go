@@ -51,6 +51,8 @@ func Message(kind Kind, payload map[string]any, location *time.Location) string 
 		return "保存先の空き容量が足りません"
 	case KindTunerServerUnreachable:
 		return "チューナーサーバーに接続できません"
+	case KindWatchReminder:
+		return watchReminderMessage(name, payload, location)
 	default:
 		return string(kind)
 	}
@@ -81,4 +83,23 @@ func conflictDetail(payload map[string]any, location *time.Location) string {
 // weekdayName は、曜日の日本語の略称を返す。
 func weekdayName(weekday time.Weekday) string {
 	return [...]string{"日", "月", "火", "水", "木", "金", "土"}[weekday]
+}
+
+// watchReminderMessage は、視聴予約した番組を「21:00 から NHK総合で「番組名」が始まります」の形にする。
+// 放送の数分前に送るので、日付は書かない。
+func watchReminderMessage(name string, payload map[string]any, location *time.Location) string {
+	if name == "" {
+		return "視聴予約した番組が始まります"
+	}
+	text := fmt.Sprintf("「%s」が始まります", name)
+	if service, _ := payload["serviceName"].(string); service != "" {
+		text = fmt.Sprintf("%sで%s", service, text)
+	}
+	if raw, _ := payload["startAt"].(string); raw != "" {
+		if startAt, err := time.Parse(time.RFC3339Nano, raw); err == nil {
+			text = fmt.Sprintf("%s から %s", startAt.In(location).Format("15:04"), text)
+		}
+	}
+
+	return text
 }

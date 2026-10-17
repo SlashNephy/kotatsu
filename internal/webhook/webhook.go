@@ -322,13 +322,16 @@ func normalize(input *Input) (*Input, error) {
 		if _, err := notification.ParseKind(string(kind)); err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrInvalidWebhook, err)
 		}
+		if !slices.Contains(notification.WebhookKinds(), kind) {
+			return nil, fmt.Errorf("%w: %q cannot be sent to webhooks", ErrInvalidWebhook, kind)
+		}
 		if !slices.Contains(kinds, kind) {
 			kinds = append(kinds, kind)
 		}
 	}
 	// 画面に並べる順にそろえる。
 	slices.SortFunc(kinds, func(a, b notification.Kind) int {
-		return slices.Index(notification.Kinds(), a) - slices.Index(notification.Kinds(), b)
+		return slices.Index(notification.WebhookKinds(), a) - slices.Index(notification.WebhookKinds(), b)
 	})
 
 	return &Input{Name: name, URL: rawURL, Format: input.Format, Kinds: kinds, Enabled: input.Enabled}, nil

@@ -32,6 +32,8 @@ const (
 	KindReservationConflict    Kind = "reservation_conflict"
 	KindStorageLow             Kind = "storage_low"
 	KindTunerServerUnreachable Kind = "tuner_server_unreachable"
+	// KindWatchReminder は、視聴予約した番組の放送が近いことを知らせる (設計書 4.8)。予約したユーザーだけに届け、Webhook では送らない。
+	KindWatchReminder Kind = "watch_reminder"
 )
 
 // NotifyChannel は、ユーザーの画面内の通知が増えたか、既読にしたときに、変更を通知するチャンネル (設計書 1.4)。
@@ -44,8 +46,21 @@ var ErrUnknownKind = errors.New("unknown notification kind")
 func Kinds() []Kind {
 	return []Kind{
 		KindRecordingStarted, KindRecordingCompleted, KindRecordingFailed,
-		KindReservationConflict, KindStorageLow, KindTunerServerUnreachable,
+		KindReservationConflict, KindStorageLow, KindTunerServerUnreachable, KindWatchReminder,
 	}
+}
+
+// WebhookKinds は、Webhook で送れるイベントの種類を、画面に並べる順に返す。
+// 視聴予約の通知は個人に届けるものなので、管理者が設定する全体向けの Webhook では送らない。
+func WebhookKinds() []Kind {
+	return slices.DeleteFunc(Kinds(), func(kind Kind) bool { return kind == KindWatchReminder })
+}
+
+// URL は、イベントを押したときに開く画面のパスを返す。payload に url がなければ空文字列を返す。
+func URL(payload map[string]any) string {
+	url, _ := payload["url"].(string)
+
+	return url
 }
 
 // ParseKind は、文字列をイベントの種類にする。

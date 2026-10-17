@@ -174,6 +174,7 @@ func notificationOf(n *notification.Notification, location *time.Location) (*mod
 		OccurredAt: n.OccurredAt,
 		Payload:    string(payload),
 		Message:    notification.Message(n.Kind, n.Payload, location),
+		URL:        nonEmpty(notification.URL(n.Payload)),
 		ReadAt:     n.ReadAt,
 	}, nil
 }
@@ -186,4 +187,13 @@ func preferenceOf(preference *notification.Preference) *model.NotificationPrefer
 
 func kindOf(kind notification.Kind) model.NotificationKind {
 	return model.NotificationKind(strings.ToUpper(string(kind)))
+}
+
+// nonEmpty は、空文字列を nil にする。
+func nonEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+
+	return &s
 }

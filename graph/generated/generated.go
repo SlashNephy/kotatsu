@@ -228,6 +228,7 @@ type ComplexityRoot struct {
 		SetRecordingProtected        func(childComplexity int, id string, protected bool) int
 		SetRecordingTags             func(childComplexity int, id string, tags []string) int
 		SetRuleEnabled               func(childComplexity int, id string, enabled bool) int
+		SetWatchReservation          func(childComplexity int, program string, reserved bool) int
 		SubscribeWebPush             func(childComplexity int, input model.WebPushSubscriptionInput) int
 		UnsubscribeWebPush           func(childComplexity int, endpoint string) int
 		UpdateChannelType            func(childComplexity int, typeArg string, input model.ChannelTypeInput) int
@@ -240,6 +241,7 @@ type ComplexityRoot struct {
 		UpdateStoragePool            func(childComplexity int, id string, input model.StoragePoolInput) int
 		UpdateSystemSettings         func(childComplexity int, input model.SystemSettingsInput) int
 		UpdateUser                   func(childComplexity int, id string, input model.UpdateUserInput) int
+		UpdateWatchReminderSettings  func(childComplexity int, minutesBefore int) int
 		UpdateWebhook                func(childComplexity int, id string, input model.UpdateWebhookInput) int
 	}
 
@@ -250,6 +252,7 @@ type ComplexityRoot struct {
 		OccurredAt func(childComplexity int) int
 		Payload    func(childComplexity int) int
 		ReadAt     func(childComplexity int) int
+		URL        func(childComplexity int) int
 	}
 
 	NotificationConnection struct {
@@ -300,21 +303,22 @@ type ComplexityRoot struct {
 	}
 
 	Program struct {
-		Archived     func(childComplexity int) int
-		Audios       func(childComplexity int) int
-		Description  func(childComplexity int) int
-		EndAt        func(childComplexity int) int
-		EndUndecided func(childComplexity int) int
-		EventID      func(childComplexity int) int
-		Extended     func(childComplexity int) int
-		Genres       func(childComplexity int) int
-		ID           func(childComplexity int) int
-		IsFree       func(childComplexity int) int
-		Name         func(childComplexity int) int
-		Reservation  func(childComplexity int) int
-		Service      func(childComplexity int) int
-		SharedFrom   func(childComplexity int) int
-		StartAt      func(childComplexity int) int
+		Archived      func(childComplexity int) int
+		Audios        func(childComplexity int) int
+		Description   func(childComplexity int) int
+		EndAt         func(childComplexity int) int
+		EndUndecided  func(childComplexity int) int
+		EventID       func(childComplexity int) int
+		Extended      func(childComplexity int) int
+		Genres        func(childComplexity int) int
+		ID            func(childComplexity int) int
+		IsFree        func(childComplexity int) int
+		Name          func(childComplexity int) int
+		Reservation   func(childComplexity int) int
+		Service       func(childComplexity int) int
+		SharedFrom    func(childComplexity int) int
+		StartAt       func(childComplexity int) int
+		WatchReserved func(childComplexity int) int
 	}
 
 	ProgramAudio struct {
@@ -382,6 +386,8 @@ type ComplexityRoot struct {
 		Users                   func(childComplexity int) int
 		Version                 func(childComplexity int) int
 		Viewer                  func(childComplexity int) int
+		WatchReminderSettings   func(childComplexity int) int
+		WatchReservations       func(childComplexity int) int
 		WebPushPublicKey        func(childComplexity int) int
 		WebPushSubscriptions    func(childComplexity int) int
 		Webhooks                func(childComplexity int) int
@@ -668,6 +674,16 @@ type ComplexityRoot struct {
 		Username    func(childComplexity int) int
 	}
 
+	WatchReminderSettings struct {
+		MinutesBefore func(childComplexity int) int
+	}
+
+	WatchReservation struct {
+		CreatedAt func(childComplexity int) int
+		NotifyAt  func(childComplexity int) int
+		Program   func(childComplexity int) int
+	}
+
 	WebPushSubscription struct {
 		CreatedAt func(childComplexity int) int
 		Endpoint  func(childComplexity int) int
@@ -735,6 +751,8 @@ type MutationResolver interface {
 	ResetUserPassword(ctx context.Context, id string, password string) (*model.User, error)
 	ChangePassword(ctx context.Context, password string) (bool, error)
 	RevokeSession(ctx context.Context, id string) (string, error)
+	SetWatchReservation(ctx context.Context, program string, reserved bool) (*model.Program, error)
+	UpdateWatchReminderSettings(ctx context.Context, minutesBefore int) (*model.WatchReminderSettings, error)
 	SubscribeWebPush(ctx context.Context, input model.WebPushSubscriptionInput) (*model.WebPushSubscription, error)
 	UnsubscribeWebPush(ctx context.Context, endpoint string) (bool, error)
 	CreateWebhook(ctx context.Context, input model.CreateWebhookInput) (*model.CreateWebhookPayload, error)
@@ -746,6 +764,8 @@ type ProgramResolver interface {
 
 	SharedFrom(ctx context.Context, obj *model.Program) (*model.Service, error)
 	Reservation(ctx context.Context, obj *model.Program) (*model.Reservation, error)
+
+	WatchReserved(ctx context.Context, obj *model.Program) (bool, error)
 }
 type ProgramConditionsResolver interface {
 	Services(ctx context.Context, obj *model.ProgramConditions) ([]*model.Service, error)
@@ -784,6 +804,8 @@ type QueryResolver interface {
 	Transcoding(ctx context.Context) (*model.Transcoding, error)
 	Users(ctx context.Context) ([]*model.User, error)
 	Sessions(ctx context.Context) ([]*model.Session, error)
+	WatchReservations(ctx context.Context) ([]*model.WatchReservation, error)
+	WatchReminderSettings(ctx context.Context) (*model.WatchReminderSettings, error)
 	WebPushPublicKey(ctx context.Context) (string, error)
 	WebPushSubscriptions(ctx context.Context) ([]*model.WebPushSubscription, error)
 	Webhooks(ctx context.Context) ([]*model.Webhook, error)
@@ -1655,6 +1677,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetRuleEnabled(childComplexity, args["id"].(string), args["enabled"].(bool)), true
+	case "Mutation.setWatchReservation":
+		if e.ComplexityRoot.Mutation.SetWatchReservation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setWatchReservation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetWatchReservation(childComplexity, args["program"].(string), args["reserved"].(bool)), true
 	case "Mutation.subscribeWebPush":
 		if e.ComplexityRoot.Mutation.SubscribeWebPush == nil {
 			break
@@ -1787,6 +1820,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateUser(childComplexity, args["id"].(string), args["input"].(model.UpdateUserInput)), true
+	case "Mutation.updateWatchReminderSettings":
+		if e.ComplexityRoot.Mutation.UpdateWatchReminderSettings == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateWatchReminderSettings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateWatchReminderSettings(childComplexity, args["minutesBefore"].(int)), true
 	case "Mutation.updateWebhook":
 		if e.ComplexityRoot.Mutation.UpdateWebhook == nil {
 			break
@@ -1835,6 +1879,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Notification.ReadAt(childComplexity), true
+	case "Notification.url":
+		if e.ComplexityRoot.Notification.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Notification.URL(childComplexity), true
 
 	case "NotificationConnection.edges":
 		if e.ComplexityRoot.NotificationConnection.Edges == nil {
@@ -2089,6 +2139,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Program.StartAt(childComplexity), true
+	case "Program.watchReserved":
+		if e.ComplexityRoot.Program.WatchReserved == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.WatchReserved(childComplexity), true
 
 	case "ProgramAudio.componentType":
 		if e.ComplexityRoot.ProgramAudio.ComponentType == nil {
@@ -2462,6 +2518,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Viewer(childComplexity), true
+	case "Query.watchReminderSettings":
+		if e.ComplexityRoot.Query.WatchReminderSettings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.WatchReminderSettings(childComplexity), true
+	case "Query.watchReservations":
+		if e.ComplexityRoot.Query.WatchReservations == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.WatchReservations(childComplexity), true
 	case "Query.webPushPublicKey":
 		if e.ComplexityRoot.Query.WebPushPublicKey == nil {
 			break
@@ -3606,6 +3674,32 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.User.Username(childComplexity), true
 
+	case "WatchReminderSettings.minutesBefore":
+		if e.ComplexityRoot.WatchReminderSettings.MinutesBefore == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WatchReminderSettings.MinutesBefore(childComplexity), true
+
+	case "WatchReservation.createdAt":
+		if e.ComplexityRoot.WatchReservation.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WatchReservation.CreatedAt(childComplexity), true
+	case "WatchReservation.notifyAt":
+		if e.ComplexityRoot.WatchReservation.NotifyAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WatchReservation.NotifyAt(childComplexity), true
+	case "WatchReservation.program":
+		if e.ComplexityRoot.WatchReservation.Program == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WatchReservation.Program(childComplexity), true
+
 	case "WebPushSubscription.createdAt":
 		if e.ComplexityRoot.WebPushSubscription.CreatedAt == nil {
 			break
@@ -4017,7 +4111,7 @@ extend type Subscription {
   unreadNotificationCount: Int!
   """
   ログイン中のユーザーの設定の版数 (設計書 9.1)。購読を始めたときに今の版数を送り、その後は、同じユーザーが、どの端末からでも設定を変えたときに送る。
-  クライアントは、届いたら設定を読み直す。対象の設定は、通知の設定、番組表ビュー、プレイヤーの設定、第二要素、パスキー、セッションの失効。
+  クライアントは、届いたら設定を読み直す。対象の設定は、通知の設定、番組表ビュー、プレイヤーの設定、視聴予約とその通知の設定、第二要素、パスキー、セッションの失効。
   """
   viewerSettingsChanged: Int!
 }
@@ -4381,6 +4475,8 @@ enum NotificationKind {
   STORAGE_LOW
   "チューナーサーバーへの接続不可"
   TUNER_SERVER_UNREACHABLE
+  "視聴予約した番組の放送が近い (設計書 4.8)。予約したユーザーだけに届き、Webhook では送らない。"
+  WATCH_REMINDER
 }
 
 """
@@ -4395,6 +4491,8 @@ type Notification {
   payload: String!
   "画面に出す文。Web Push で送る本文と同じもの。時刻は、表示のタイムゾーンで書く。"
   message: String!
+  "通知を押したときに開く画面のパス (視聴予約の通知では、そのサービスのライブ視聴)。なければ null。"
+  url: String
   "既読にした日時。未読なら null。"
   readAt: Time
 }
@@ -5501,6 +5599,46 @@ extend type Mutation {
   revokeSession(id: ID!): ID!
 }
 `, BuiltIn: false},
+	{Name: "../schema/watch_reservations.graphqls", Input: `"""
+視聴予約 (設計書 4.8)。録画はせず、放送の少し前に、予約したユーザーだけに通知する。
+"""
+type WatchReservation {
+  program: Program!
+  "通知を送る日時。番組の放送時間が変わると、付いていく。"
+  notifyAt: Time!
+  createdAt: Time!
+}
+
+"""
+視聴予約の通知の設定。端末をまたいで同期する。
+"""
+type WatchReminderSettings {
+  "放送の何分前に通知を送るか。0 から 60 まで。"
+  minutesBefore: Int!
+}
+
+extend type Program {
+  "ログイン中のユーザーが、この番組を視聴予約しているかどうか。過去の番組では false。"
+  watchReserved: Boolean!
+}
+
+extend type Query {
+  "ログイン中のユーザーの視聴予約を、放送の早い順に返す。EPG から消えた番組の視聴予約は返さない。"
+  watchReservations: [WatchReservation!]!
+  watchReminderSettings: WatchReminderSettings!
+}
+
+extend type Mutation {
+  """
+  ログイン中のユーザーの、番組の視聴予約を付け外しする。付けてある番組に付けても、付けていない番組から外しても、そのまま返す。
+  放送が始まった番組と、過去の番組には付けられない。閲覧だけのユーザーも使える。
+  同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
+  """
+  setWatchReservation(program: ID!, reserved: Boolean!): Program!
+  "視聴予約の通知を、放送の何分前に送るかを変え、同じユーザーのほかの端末に viewerSettingsChanged で知らせる。"
+  updateWatchReminderSettings(minutesBefore: Int!): WatchReminderSettings!
+}
+`, BuiltIn: false},
 	{Name: "../schema/web_push.graphqls", Input: `"""
 Web Push の購読 (設計書 6.2)。端末とブラウザごとに 1 つある。
 """
@@ -5939,6 +6077,8 @@ func (ec *executionContext) childFields_Notification(ctx context.Context, field 
 		return ec.fieldContext_Notification_payload(ctx, field)
 	case "message":
 		return ec.fieldContext_Notification_message(ctx, field)
+	case "url":
+		return ec.fieldContext_Notification_url(ctx, field)
 	case "readAt":
 		return ec.fieldContext_Notification_readAt(ctx, field)
 	}
@@ -6071,6 +6211,8 @@ func (ec *executionContext) childFields_Program(ctx context.Context, field graph
 		return ec.fieldContext_Program_reservation(ctx, field)
 	case "archived":
 		return ec.fieldContext_Program_archived(ctx, field)
+	case "watchReserved":
+		return ec.fieldContext_Program_watchReserved(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Program", field.Name)
 }
@@ -6687,6 +6829,26 @@ func (ec *executionContext) childFields_User(ctx context.Context, field graphql.
 	return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 }
 
+func (ec *executionContext) childFields_WatchReminderSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "minutesBefore":
+		return ec.fieldContext_WatchReminderSettings_minutesBefore(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type WatchReminderSettings", field.Name)
+}
+
+func (ec *executionContext) childFields_WatchReservation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "program":
+		return ec.fieldContext_WatchReservation_program(ctx, field)
+	case "notifyAt":
+		return ec.fieldContext_WatchReservation_notifyAt(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_WatchReservation_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type WatchReservation", field.Name)
+}
+
 func (ec *executionContext) childFields_WebPushSubscription(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -7279,6 +7441,28 @@ func (ec *executionContext) field_Mutation_setRuleEnabled_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_setWatchReservation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "program",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["program"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "reserved",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["reserved"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_subscribeWebPush_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -7500,6 +7684,20 @@ func (ec *executionContext) field_Mutation_updateUser_args(ctx context.Context, 
 		return nil, err
 	}
 	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateWatchReminderSettings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "minutesBefore",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["minutesBefore"] = arg0
 	return args, nil
 }
 
@@ -11561,6 +11759,94 @@ func (ec *executionContext) fieldContext_Mutation_revokeSession(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_setWatchReservation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setWatchReservation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetWatchReservation(ctx, fc.Args["program"].(string), fc.Args["reserved"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Program) graphql.Marshaler {
+			return ec.marshalNProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgram(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setWatchReservation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setWatchReservation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateWatchReminderSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateWatchReminderSettings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateWatchReminderSettings(ctx, fc.Args["minutesBefore"].(int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.WatchReminderSettings) graphql.Marshaler {
+			return ec.marshalNWatchReminderSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWatchReminderSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateWatchReminderSettings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WatchReminderSettings(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateWatchReminderSettings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_subscribeWebPush(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -11893,6 +12179,29 @@ func (ec *executionContext) _Notification_message(ctx context.Context, field gra
 	)
 }
 func (ec *executionContext) fieldContext_Notification_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Notification", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Notification_url(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Notification_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Notification_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Notification", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -12941,6 +13250,29 @@ func (ec *executionContext) _Program_archived(ctx context.Context, field graphql
 }
 func (ec *executionContext) fieldContext_Program_archived(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Program", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Program_watchReserved(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_watchReserved(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Program().WatchReserved(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_watchReserved(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Program", field, true, true, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _ProgramAudio_componentType(ctx context.Context, field graphql.CollectedField, obj *model.ProgramAudio) (ret graphql.Marshaler) {
@@ -14626,6 +14958,70 @@ func (ec *executionContext) fieldContext_Query_sessions(_ context.Context, field
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Session(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_watchReservations(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_watchReservations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().WatchReservations(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.WatchReservation) graphql.Marshaler {
+			return ec.marshalNWatchReservation2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWatchReservationᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_watchReservations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WatchReservation(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_watchReminderSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_watchReminderSettings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().WatchReminderSettings(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.WatchReminderSettings) graphql.Marshaler {
+			return ec.marshalNWatchReminderSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWatchReminderSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_watchReminderSettings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WatchReminderSettings(ctx, field)
 		},
 	}
 	return fc, nil
@@ -19295,6 +19691,107 @@ func (ec *executionContext) fieldContext_User_createdAt(_ context.Context, field
 	return graphql.NewScalarFieldContext("User", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _WatchReminderSettings_minutesBefore(ctx context.Context, field graphql.CollectedField, obj *model.WatchReminderSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WatchReminderSettings_minutesBefore(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MinutesBefore, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WatchReminderSettings_minutesBefore(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WatchReminderSettings", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _WatchReservation_program(ctx context.Context, field graphql.CollectedField, obj *model.WatchReservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WatchReservation_program(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Program, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Program) graphql.Marshaler {
+			return ec.marshalNProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐProgram(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WatchReservation_program(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WatchReservation",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WatchReservation_notifyAt(ctx context.Context, field graphql.CollectedField, obj *model.WatchReservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WatchReservation_notifyAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NotifyAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WatchReservation_notifyAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WatchReservation", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _WatchReservation_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.WatchReservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WatchReservation_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WatchReservation_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WatchReservation", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
 func (ec *executionContext) _WebPushSubscription_id(ctx context.Context, field graphql.CollectedField, obj *model.WebPushSubscription) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -23556,6 +24053,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setWatchReservation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setWatchReservation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateWatchReminderSettings":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateWatchReminderSettings(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "subscribeWebPush":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_subscribeWebPush(ctx, field)
@@ -23647,6 +24158,11 @@ func (ec *executionContext) _Notification(ctx context.Context, sel ast.Selection
 		case "message":
 			out.Values[i] = ec._Notification_message(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._Notification_url(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "readAt":
@@ -24222,6 +24738,44 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "watchReserved":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Program_watchReserved(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -25253,6 +25807,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_sessions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "watchReservations":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_watchReservations(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "watchReminderSettings":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_watchReminderSettings(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -27569,6 +28167,92 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
+var watchReminderSettingsImplementors = []string{"WatchReminderSettings"}
+
+func (ec *executionContext) _WatchReminderSettings(ctx context.Context, sel ast.SelectionSet, obj *model.WatchReminderSettings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, watchReminderSettingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WatchReminderSettings")
+		case "minutesBefore":
+			out.Values[i] = ec._WatchReminderSettings_minutesBefore(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var watchReservationImplementors = []string{"WatchReservation"}
+
+func (ec *executionContext) _WatchReservation(ctx context.Context, sel ast.SelectionSet, obj *model.WatchReservation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, watchReservationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WatchReservation")
+		case "program":
+			out.Values[i] = ec._WatchReservation_program(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "notifyAt":
+			out.Values[i] = ec._WatchReservation_notifyAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._WatchReservation_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var webPushSubscriptionImplementors = []string{"WebPushSubscription"}
 
 func (ec *executionContext) _WebPushSubscription(ctx context.Context, sel ast.SelectionSet, obj *model.WebPushSubscription) graphql.Marshaler {
@@ -29780,6 +30464,42 @@ func (ec *executionContext) unmarshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkot
 
 func (ec *executionContext) marshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐVideoCodec(ctx context.Context, sel ast.SelectionSet, v model.VideoCodec) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNWatchReminderSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWatchReminderSettings(ctx context.Context, sel ast.SelectionSet, v *model.WatchReminderSettings) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WatchReminderSettings(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWatchReservation2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWatchReservationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.WatchReservation) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNWatchReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWatchReservation(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNWatchReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWatchReservation(ctx context.Context, sel ast.SelectionSet, v *model.WatchReservation) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WatchReservation(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNWebPushSubscription2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWebPushSubscriptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.WebPushSubscription) graphql.Marshaler {
