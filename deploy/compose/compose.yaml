@@ -18,7 +18,9 @@ services:
       POSTGRES_PASSWORD: kotatsu
       POSTGRES_DB: kotatsu
     volumes:
-      - ./postgres:/var/lib/postgresql/data
+      # PostgreSQL 18 のイメージは、/var/lib/postgresql をボリュームにし、データを /var/lib/postgresql/18/docker に置く。
+      # 17 までの /var/lib/postgresql/data に置くと、起動しない。
+      - ./postgres:/var/lib/postgresql
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "kotatsu"]
       interval: 2s
