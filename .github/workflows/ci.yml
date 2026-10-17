@@ -15,7 +15,37 @@ concurrency:
 permissions: {}
 
 jobs:
+  # PR で変わったファイルから、走らせるジョブを決める (#700)。関係のないジョブを飛ばし、ランナーの空きを待つ時間を短くする。
+  # 飛ばしたジョブも、チェックとしては「スキップ」で残る。main への push と手で動かしたときは、すべて走らせる。
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      go: ${{ steps.changes.outputs.go }}
+      generate: ${{ steps.changes.outputs.generate }}
+      web: ${{ steps.changes.outputs.web }}
+      deploy: ${{ steps.changes.outputs.deploy }}
+      mpeg2toh264: ${{ steps.changes.outputs.mpeg2toh264 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # PR では、main とのマージコミットを取り出すので、1 つ前の親 (main) との差分が PR の変更になる。
+          fetch-depth: 2
+          persist-credentials: false
+      - id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = pull_request ]; then
+            git diff --name-only HEAD^1 HEAD | scripts/ci-changes.sh | tee -a "$GITHUB_OUTPUT"
+          else
+            printf 'go=true\ngenerate=true\nweb=true\ndeploy=true\nmpeg2toh264=true\n' | tee -a "$GITHUB_OUTPUT"
+          fi
+
   test:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     name: test (${{ matrix.db }})
     runs-on: ubuntu-latest
     permissions:
@@ -93,6 +123,8 @@ jobs:
       - run: mise run test
 
   lint:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -117,6 +149,8 @@ jobs:
 
   # Helm Chart から生成したマニフェストと、リポジトリの内容に差分がないことを確かめる (設計書 11.1)。
   deploy:
+    needs: changes
+    if: needs.changes.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -131,6 +165,8 @@ jobs:
   # ブラウザ内での変換に使う mpeg2toh264 のプレイヤーを、固定した commit とツールチェーンでビルドし直し、
   # リポジトリに置いたものと差分がないことを確かめる (設計書 7.2)。
   mpeg2toh264:
+    needs: changes
+    if: needs.changes.outputs.mpeg2toh264 == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -145,6 +181,8 @@ jobs:
       - run: git add -N web/vendor web/public && git diff --exit-code web/vendor web/public
 
   generate:
+    needs: changes
+    if: needs.changes.outputs.generate == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -176,6 +214,8 @@ jobs:
   # フロントエンド (設計書 10.1)。整形、lint、型検査、Vitest、Storybook のビルド、E2E テストを行う。
   # ルーティングと Relay の定義はビルドで生成するので、コミットしたものと食い違っていないかも確かめる。
   web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
