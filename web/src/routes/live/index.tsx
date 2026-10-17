@@ -1,7 +1,7 @@
 import { Alert, Anchor, Box, SegmentedControl, SimpleGrid, Stack, Title } from '@mantine/core';
 import { Tv } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
@@ -96,19 +96,24 @@ function Services({ range }: { range: { from: string; to: string } }) {
   const pinnedSet = new Set(pinned);
   // ピン留めしたサービスがあれば、ピン留めのタブから出す。
   const [selectedType, setType] = useState(pinned.length > 0 ? pinnedTab : (types[0]?.type ?? ''));
-  // ピン留めをすべて外したら、ピン留めのタブはなくなるので、最初の種別に戻す。
-  const type =
-    selectedType === pinnedTab && pinned.length === 0 ? (types[0]?.type ?? '') : selectedType;
+  // ピン留めをすべて外したら、ピン留めのタブはなくなるので、最初の種別に戻す。後でまたピン留めしても、ピン留めのタブへは戻さない。
+  const fallBack = selectedType === pinnedTab && pinned.length === 0;
+  useEffect(() => {
+    if (fallBack) {
+      setType(types[0]?.type ?? '');
+    }
+  }, [fallBack, types]);
+  const type = fallBack ? (types[0]?.type ?? '') : selectedType;
   // サブチャンネルがメインチャンネルと同じ番組を流しているときは、メインチャンネルだけを出す (ホームの放送中の番組と同じ)。
   // ピン留めのタブでは、ピン留めしたサービスをそのまま出す。
   const listed = new Set(data.guide.map((row) => row.service.id));
-  const rows = data.guide.filter(
-    (row) => pinnedSet.has(row.service.id) || !sharesWithListed(row.programs[0], listed),
-  );
   const shown =
     type === pinnedTab
-      ? pinned.flatMap((id) => rows.filter((row) => row.service.id === id))
-      : rows.filter((row) => row.service.channelType.type === type);
+      ? pinned.flatMap((id) => data.guide.filter((row) => row.service.id === id))
+      : data.guide.filter(
+          (row) =>
+            row.service.channelType.type === type && !sharesWithListed(row.programs[0], listed),
+        );
 
   return (
     <Stack>

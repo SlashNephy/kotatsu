@@ -437,7 +437,7 @@ function Guide() {
             </Menu.Dropdown>
           </Menu>
         </Group>
-        {types.length > 0 && (
+        {(types.length > 0 || pinned.length > 0) && (
           <SegmentedControl
             className={classes.types}
             size="xs"

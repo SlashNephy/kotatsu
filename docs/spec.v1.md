@@ -977,6 +977,7 @@ EPGStationをシングルサインオンの背後に置いた運用では、外�
 | | `user_settings`、`user_setting_versions` | 端末をまたいで同期するプレイヤーなどの設定です。変更はsubscriptionで配信するので、定期的なポーリングは要りません。 |
 | | `guide_views` | ユーザーごとの番組表ビュー（[10.3](#103-画面の構成)） |
 | | `watch_reservations` | ユーザーごとの視聴予約です。番組のキーだけを持ちます（[4.8](#48-視聴予約)）。何分前に通知するかは`user_settings`に持ちます。 |
+| | `pinned_services` | ユーザーごとにピン留めしたサービスと、ピン留めした日時です（#485）。 |
 | 通知 | `notification_events` | 通知のもとになる出来事です。出来事を書くトランザクションの中で記録し、後から配ります（[6.2](#62-通知)）。 |
 | | `notifications` | 画面内の通知です。ユーザーごとに既読を管理します。 |
 | | `web_push_subscriptions`、`notification_preferences` | Web Pushの購読と、イベントごとの通知設定 |
