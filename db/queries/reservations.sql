@@ -111,3 +111,7 @@ ORDER BY rr.reservation_id, ru.created_at, ru.id;
 SELECT p.start_at, p.end_at, p.name, p.event_id, s.name AS service_name, s.channel_type, s.channel
 FROM programs p JOIN services s ON s.id = p.service_id
 WHERE p.service_id = @service_id AND p.event_id = @event_id;
+
+-- name: IsReservationRecording :one
+-- 予約の録画が録画中かどうか。まとめて消すか無効にするとき、録画中の予約を飛ばすのに使う (#471)。
+SELECT EXISTS (SELECT 1 FROM recordings WHERE reservation_id = @reservation_id AND state = 'recording')::boolean AS recording;

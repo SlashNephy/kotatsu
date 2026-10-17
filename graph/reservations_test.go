@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -359,4 +360,66 @@ func TestReservationErrors(t *testing.T) {
 		require.Empty(t, viewer.query(t, listReservations, map[string]any{varFrom: noon, varTo: tomorrow, varFirst: 10}, &listed))
 		assert.Len(t, listed.Reservations.Edges, 1)
 	})
+}
+
+// TestBulkReservations は、予約をまとめて無効、有効にし、まとめて消せることと、録画中の予約は無効にも削除にもせず、
+// 見つからない予約と一緒に飛ばして数えることを確かめる (#471)。
+func TestBulkReservations(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	first, second, recordingNow := f.createProgramReservation(t, 6), f.createProgramReservation(t, 7), f.createProgramReservation(t, 8)
+	_, rawRecording, err := graph.ParseGlobalID(recordingNow.ID)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+		state, recorded_from, created_at, updated_at)
+		SELECT gen_random_uuid(), id, service_id, event_id, name, '', start_at, end_at, 'recording', now(), now(), now() FROM reservations WHERE id = $1`,
+		rawRecording)
+	require.NoError(t, err)
+	ids := []string{first.ID, second.ID, recordingNow.ID, graph.GlobalID("Reservation", uuid.New().String())}
+	type payload struct {
+		Processed int `json:"processed"`
+		Skipped   int `json:"skipped"`
+	}
+	const (
+		setEnabled = `mutation($ids: [ID!]!, $enabled: Boolean!) { setReservationsEnabled(ids: $ids, enabled: $enabled) { processed skipped } }`
+		deleteMany = `mutation($ids: [ID!]!) { deleteReservations(ids: $ids) { processed skipped } }`
+	)
+	enabledOf := func() map[string]bool {
+		rows, err := f.pool.Query(t.Context(), "SELECT name, enabled FROM reservations")
+		require.NoError(t, err)
+		defer rows.Close()
+		got := map[string]bool{}
+		for rows.Next() {
+			var name string
+			var enabled bool
+			require.NoError(t, rows.Scan(&name, &enabled))
+			got[name] = enabled
+		}
+
+		return got
+	}
+
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", auth.RoleViewer).query(t, deleteMany, map[string]any{varIDs: ids}, nil))
+
+	var disabled struct {
+		SetReservationsEnabled payload `json:"setReservationsEnabled"`
+	}
+	require.Empty(t, f.query(t, setEnabled, map[string]any{varIDs: ids, "enabled": false}, &disabled))
+	assert.Equal(t, payload{Processed: 2, Skipped: 2}, disabled.SetReservationsEnabled, "the recording one and the missing one are skipped")
+	assert.Equal(t, map[string]bool{first.Name: false, second.Name: false, recordingNow.Name: true}, enabledOf())
+
+	var enabled struct {
+		SetReservationsEnabled payload `json:"setReservationsEnabled"`
+	}
+	require.Empty(t, f.query(t, setEnabled, map[string]any{varIDs: ids[:2], "enabled": true}, &enabled))
+	assert.Equal(t, payload{Processed: 2, Skipped: 0}, enabled.SetReservationsEnabled)
+
+	var deleted struct {
+		DeleteReservations payload `json:"deleteReservations"`
+	}
+	require.Empty(t, f.query(t, deleteMany, map[string]any{varIDs: ids}, &deleted))
+	assert.Equal(t, payload{Processed: 2, Skipped: 2}, deleted.DeleteReservations)
+	assert.Equal(t, map[string]bool{recordingNow.Name: true}, enabledOf(), "only the recording one is left")
 }

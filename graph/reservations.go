@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/SlashNephy/kotatsu/graph/model"
+	"github.com/SlashNephy/kotatsu/internal/audit"
+	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
@@ -195,6 +197,71 @@ func (r *Resolver) listReservations(
 	}
 
 	return &model.ReservationConnection{Edges: edges, PageInfo: info}, nil
+}
+
+// bulkReservations は、予約 ids のそれぞれに apply を行う (#471)。skipRecording なら、録画中の予約は飛ばす。
+// 見つからない予約も、飛ばした数に数える。
+func (r *Resolver) bulkReservations(
+	ctx context.Context, ids []string, skipRecording bool, apply func(actor *audit.Actor, reservationID uuid.UUID) error,
+) (*model.BulkOperationPayload, error) {
+	actor, err := scheduler(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) > maxBulkOperations {
+		return nil, NewError(CodeBadUserInput, fmt.Sprintf("ids must be at most %d", maxBulkOperations))
+	}
+	reservationIDs := make([]uuid.UUID, 0, len(ids))
+	for _, globalID := range ids {
+		reservationID, err := parseReservationID(globalID)
+		if err != nil {
+			return nil, err
+		}
+		reservationIDs = append(reservationIDs, reservationID)
+	}
+	payload := &model.BulkOperationPayload{Processed: 0, Skipped: 0}
+	for _, reservationID := range reservationIDs {
+		if skipRecording {
+			recording, err := sqlc.New(r.db).IsReservationRecording(ctx, &reservationID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to check the recording of the reservation: %w", err)
+			}
+			if recording {
+				payload.Skipped++
+
+				continue
+			}
+		}
+		err := apply(actor, reservationID)
+		switch {
+		case errors.Is(err, reserve.ErrNotFound):
+			payload.Skipped++
+		case err != nil:
+			return nil, err
+		default:
+			payload.Processed++
+		}
+	}
+
+	return payload, nil
+}
+
+// setReservationsEnabled は、予約 ids をまとめて有効か無効にする。無効にするときは、録画中の予約を飛ばす。
+func (r *Resolver) setReservationsEnabled(ctx context.Context, ids []string, enabled bool) (*model.BulkOperationPayload, error) {
+	return r.bulkReservations(ctx, ids, !enabled, func(actor *audit.Actor, reservationID uuid.UUID) error {
+		_, err := r.reservations.Update(ctx, r.db, actor, reservationID, &reserve.Update{
+			Enabled: &enabled, FollowEventRelay: nil, Overrides: nil, StartAt: nil, EndAt: nil, Name: nil,
+		})
+
+		return err
+	})
+}
+
+// deleteReservations は、予約 ids をまとめて消す。ルール予約は消さずに無効にし、録画中の予約は飛ばす。
+func (r *Resolver) deleteReservations(ctx context.Context, ids []string) (*model.BulkOperationPayload, error) {
+	return r.bulkReservations(ctx, ids, true, func(actor *audit.Actor, reservationID uuid.UUID) error {
+		return r.reservations.Delete(ctx, r.db, actor, reservationID)
+	})
 }
 
 // deleteReservation は、予約を消す。ルール予約は消さずに無効にし、その予約を返す。

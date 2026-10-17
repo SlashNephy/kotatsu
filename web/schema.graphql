@@ -600,6 +600,16 @@ type Mutation {
   """
   deleteReservation(id: ID!): DeleteReservationPayload!
   """
+  予約 ids をまとめて有効か無効にする (#471)。視聴者は使えない。監査ログは 1 件ずつ残す。
+  無効にするときは、録画中の予約を飛ばし、録画を最後まで録らせる。見つからない予約も、飛ばした数に数える。一度に 500 件まで。
+  """
+  setReservationsEnabled(ids: [ID!]!, enabled: Boolean!): BulkOperationPayload!
+  """
+  予約 ids をまとめて消す (#471)。ルール予約は消さずに無効にする。視聴者は使えない。監査ログは 1 件ずつ残す。
+  録画中の予約と、見つからない予約は、飛ばした数に数える。一度に 500 件まで。
+  """
+  deleteReservations(ids: [ID!]!): BulkOperationPayload!
+  """
   ルールを作る。視聴者は使えない。
   """
   createRule(input: RuleInput!): Rule!

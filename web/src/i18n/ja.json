@@ -565,6 +565,20 @@
   },
   "reservations": {
     "tab": "録画予約",
+    "select": "選ぶ",
+    "selectDone": "選ぶのをやめる",
+    "selectRecording": "録画中の予約は選べません",
+    "enableSelected": "選んだ{{count}}件を有効にする",
+    "disableSelected": "選んだ{{count}}件を無効にする",
+    "deleteSelected": "選んだ{{count}}件を削除",
+    "deleteSelectedTitle": "予約をまとめて削除",
+    "deleteSelectedConfirm": "選んだ{{count}}件の予約を削除します。ルール予約は、消さずに無効にします",
+    "bulk": {
+      "enabled": "{{count}}件の予約を有効にしました",
+      "disabled": "{{count}}件の予約を無効にしました",
+      "deleted": "{{count}}件の予約を削除しました",
+      "skipped": "（{{count}}件は、録画中か見つからなかったため飛ばしました）"
+    },
     "settings": {
       "open": "録画の設定",
       "title": "この予約の録画の設定",
