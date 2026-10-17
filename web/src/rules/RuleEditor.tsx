@@ -35,7 +35,8 @@ import { RulePreview } from './RulePreview';
 import { useSyncedForm } from './useSyncedForm';
 import { InheritedFileNameTemplateField } from '../reservations/FileNameTemplateField';
 import { MarginFields } from '../reservations/MarginFields';
-import { fromInputValue, toInputValue } from '../reservations/timeReservation';
+import { PoolSelect } from '../reservations/PoolSelect';
+import { fromValidFromDate, fromValidUntilDate, validFromDate, validUntilDate } from './validity';
 
 // joinDefault は、分かれたファイルをつなぐかどうかの選択で、全体の既定値に従うことを表す値。
 const joinDefault = 'default';
@@ -46,6 +47,9 @@ type Props = {
   initial: RuleForm;
   channelTypes: readonly { type: string; displayName: string }[];
   services: readonly ServiceOption[];
+  // pools は、選べる保存先プールの ID。defaultPoolId は、全体の既定値の保存先プール (null なら自動で選ぶ)。
+  pools: readonly string[];
+  defaultPoolId: string | null;
   // readOnly は、視聴者のように、ルールを変えられないかどうか。
   readOnly: boolean;
   // authorship は、ルールを誰がいつ作り、変えたか。新しいルールなら undefined。
@@ -126,19 +130,14 @@ function sameRule(a: RuleForm, b: RuleForm) {
   return JSON.stringify(toInput(a)) === JSON.stringify(toInput(b));
 }
 
-// toValidity は、有効期間の入力 (表示のタイムゾーン) を、保存する時刻にする。空か、読めなければ、期間を区切らない。
-function toValidity(value: string): string | null {
-  const ms = fromInputValue(value);
-
-  return ms === null ? null : new Date(ms).toISOString();
-}
-
 // RuleEditor は、ルールを編集するフォームと、条件に一致する番組のプレビュー (設計書 4.3)。
 export function RuleEditor({
   ruleId,
   initial,
   channelTypes,
   services,
+  pools,
+  defaultPoolId,
   readOnly,
   authorship,
 }: Props) {
@@ -254,20 +253,18 @@ export function RuleEditor({
                   {/* 番組の開始時刻が、この期間に入る番組だけを予約する (設計書 4.2)。空なら区切らない。 */}
                   <Group grow align="flex-start">
                     <TextInput
-                      type="datetime-local"
+                      type="date"
                       label={t('rules.validFrom')}
-                      value={
-                        form.validFrom === null ? '' : toInputValue(Date.parse(form.validFrom))
-                      }
-                      onChange={(e) => set({ validFrom: toValidity(e.currentTarget.value) })}
+                      value={validFromDate(form.validFrom)}
+                      onChange={(e) => set({ validFrom: fromValidFromDate(e.currentTarget.value) })}
                     />
                     <TextInput
-                      type="datetime-local"
+                      type="date"
                       label={t('rules.validUntil')}
-                      value={
-                        form.validUntil === null ? '' : toInputValue(Date.parse(form.validUntil))
+                      value={validUntilDate(form.validUntil)}
+                      onChange={(e) =>
+                        set({ validUntil: fromValidUntilDate(e.currentTarget.value) })
                       }
-                      onChange={(e) => set({ validUntil: toValidity(e.currentTarget.value) })}
                       error={validityInvalid ? t('rules.validityOrder') : undefined}
                     />
                   </Group>
@@ -315,6 +312,14 @@ export function RuleEditor({
                     label={t('rules.followEventRelay')}
                     checked={form.followEventRelay}
                     onChange={(e) => set({ followEventRelay: e.currentTarget.checked })}
+                  />
+                  <PoolSelect
+                    pools={pools}
+                    value={form.settings.poolId}
+                    onChange={(poolId) => set({ settings: { ...form.settings, poolId } })}
+                    inheritedLabel={t('reservations.settings.poolInheritedDefault', {
+                      value: defaultPoolId ?? t('admin.settings.poolAuto'),
+                    })}
                   />
                   <InheritedFileNameTemplateField
                     label={t('fileNameTemplate.ruleLabel')}

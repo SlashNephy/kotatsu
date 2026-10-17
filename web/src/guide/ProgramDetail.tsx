@@ -153,6 +153,8 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
   const [cancelling, setCancelling] = useState(false);
   // editing は、予約の録画の設定を変えるダイアログを出しているかどうか。
   const [editing, setEditing] = useState(false);
+  // configuring は、録画の設定をしてから予約するダイアログを出しているかどうか。
+  const [configuring, setConfiguring] = useState(false);
   const program = data.node;
   if (program?.__typename !== 'Program') {
     return <Alert color="amber">{t('guide.detail.error')}</Alert>;
@@ -232,14 +234,25 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           {/* 閲覧だけのユーザーには録画予約のボタンがないので、ベルだけを左に寄せる。 */}
           {canRecord && (
             <Stack gap="xs" style={{ flex: 1 }}>
+              {/* ワンクリックの予約の横に、録画の設定をしてから予約するボタンを置く (#463)。 */}
               {!reserved && (
-                <Button
-                  onClick={reserve}
-                  loading={inFlight}
-                  leftSection={<CalendarPlus size={16} aria-hidden />}
-                >
-                  {t('guide.detail.reserve')}
-                </Button>
+                <Group gap="xs" grow>
+                  <Button
+                    onClick={reserve}
+                    loading={inFlight}
+                    leftSection={<CalendarPlus size={16} aria-hidden />}
+                  >
+                    {t('guide.detail.reserve')}
+                  </Button>
+                  <Button
+                    variant="default"
+                    onClick={() => setConfiguring(true)}
+                    disabled={inFlight}
+                    leftSection={<SlidersHorizontal size={16} aria-hidden />}
+                  >
+                    {t('reservations.settings.openCreate')}
+                  </Button>
+                </Group>
               )}
               {/* 録画予約済みのボタンを押すと、確かめてから取り消す。 */}
               {reserved && program.reservation != null && (
@@ -297,11 +310,15 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             })}
           </Alert>
         )}
-      {editing && program.reservation != null && (
+      {configuring && !reserved && (
         <ReservationSettingsDialog
-          reservationId={program.reservation.id}
-          onClose={() => setEditing(false)}
+          id={program.id}
+          onClose={() => setConfiguring(false)}
+          onReserved={onReserved}
         />
+      )}
+      {editing && program.reservation != null && (
+        <ReservationSettingsDialog id={program.reservation.id} onClose={() => setEditing(false)} />
       )}
       {reserved && program.reservation != null && program.reservation.kind === 'RULE' && (
         <ReservedByRules rules={program.reservation.rules} />

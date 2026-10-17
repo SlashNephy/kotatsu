@@ -270,3 +270,42 @@ func TestSystemStatusBeforeChecks(t *testing.T) {
 	assert.NotNil(t, got.SystemStatus.Pools)
 	assert.Empty(t, got.SystemStatus.Pools)
 }
+
+// TestStoragePoolNames は、保存先プールの名前を、閲覧だけのユーザーも読めることと、
+// このインスタンスにマウントしたプールと、設定を保存したプールを合わせて返すことを確かめる (#463)。
+func TestStoragePoolNames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		pools map[string]string
+		// saved は、設定を保存したプール。ほかのインスタンスだけがマウントしているプールは、この行だけがある。
+		saved []string
+		want  []string
+	}{
+		{
+			name:  "マウントしたプールと、設定を保存したプールを合わせる",
+			pools: map[string]string{poolSub: mountSub, poolMain: mountMain},
+			saved: []string{"archive", poolMain},
+			want:  []string{"archive", poolMain, poolSub},
+		},
+		{name: "プールがなければ、空の一覧を返す", pools: map[string]string{}, saved: []string{}, want: []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, &graph.Options{Pools: tt.pools})
+			for _, id := range tt.saved {
+				_, err := f.pool.Exec(t.Context(), "INSERT INTO storage_pools (id, priority, min_free_bytes, updated_at) VALUES ($1, 0, 0, $2)", id, f.clock.Now())
+				require.NoError(t, err)
+			}
+
+			var got struct {
+				StoragePoolNames []string `json:"storagePoolNames"`
+			}
+			require.Empty(t, f.as(t, "viewer", auth.RoleViewer).query(t, `{ storagePoolNames }`, nil, &got))
+			assert.Equal(t, tt.want, got.StoragePoolNames)
+		})
+	}
+}

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<ad36f2e1265340f4a17a0b6da4f7cb7b>>
+ * @generated SignedSource<<fa0cd769f558d93cb3b89382902eebf9>>
  * @lightSyntaxTransform
  */
 
@@ -14,6 +14,9 @@ export type ReservationSettingsDialogQuery$variables = {
 };
 export type ReservationSettingsDialogQuery$data = {
   readonly node: {
+    readonly __typename: "Program";
+    readonly id: string;
+  } | {
     readonly __typename: "Reservation";
     readonly createdAt: string;
     readonly createdBy: {
@@ -27,6 +30,7 @@ export type ReservationSettingsDialogQuery$data = {
         readonly endMarginSeconds: number | null | undefined;
         readonly fileNameTemplate: string | null | undefined;
         readonly joinSegments: boolean | null | undefined;
+        readonly poolId: string | null | undefined;
         readonly priority: number | null | undefined;
         readonly startMarginSeconds: number | null | undefined;
       };
@@ -48,9 +52,11 @@ export type ReservationSettingsDialogQuery$data = {
     // value in case none of the concrete values match.
     readonly __typename: "%other";
   } | null | undefined;
+  readonly storagePoolNames: ReadonlyArray<string>;
   readonly systemSettings: {
     readonly recordingDefaults: {
       readonly joinSegments: boolean;
+      readonly poolId: string | null | undefined;
       readonly priority: number;
     };
   };
@@ -72,17 +78,24 @@ v1 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "priority",
+  "name": "poolId",
   "storageKey": null
 },
 v2 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "joinSegments",
+  "name": "priority",
   "storageKey": null
 },
 v3 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "joinSegments",
+  "storageKey": null
+},
+v4 = {
   "alias": null,
   "args": null,
   "concreteType": "SystemSettings",
@@ -99,142 +112,145 @@ v3 = {
       "plural": false,
       "selections": [
         (v1/*:: as any*/),
-        (v2/*:: as any*/)
+        (v2/*:: as any*/),
+        (v3/*:: as any*/)
       ],
       "storageKey": null
     }
   ],
   "storageKey": null
 },
-v4 = [
+v5 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "storagePoolNames",
+  "storageKey": null
+},
+v6 = [
   {
     "kind": "Variable",
     "name": "id",
     "variableName": "id"
   }
 ],
-v5 = {
+v7 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "__typename",
   "storageKey": null
 },
-v6 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "kind",
-  "storageKey": null
-},
-v7 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "followEventRelay",
-  "storageKey": null
-},
 v8 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "createdAt",
-  "storageKey": null
-},
-v9 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "displayName",
-  "storageKey": null
-},
-v10 = [
-  (v9/*:: as any*/)
-],
-v11 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "updatedAt",
-  "storageKey": null
-},
-v12 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "name",
-  "storageKey": null
-},
-v13 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "startMarginSeconds",
-  "storageKey": null
-},
-v14 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "endMarginSeconds",
-  "storageKey": null
-},
-v15 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "fileNameTemplate",
-  "storageKey": null
-},
-v16 = {
-  "alias": null,
-  "args": null,
-  "concreteType": "RecordingSettingsOverrides",
-  "kind": "LinkedField",
-  "name": "settings",
-  "plural": false,
-  "selections": [
-    (v13/*:: as any*/),
-    (v14/*:: as any*/),
-    (v15/*:: as any*/),
-    (v1/*:: as any*/),
-    (v2/*:: as any*/)
-  ],
-  "storageKey": null
-},
-v17 = {
-  "alias": null,
-  "args": null,
-  "concreteType": "RecordingSettingsOverrides",
-  "kind": "LinkedField",
-  "name": "settings",
-  "plural": false,
-  "selections": [
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "poolId",
-      "storageKey": null
-    },
-    (v15/*:: as any*/),
-    (v13/*:: as any*/),
-    (v14/*:: as any*/),
-    (v1/*:: as any*/),
-    (v2/*:: as any*/)
-  ],
-  "storageKey": null
-},
-v18 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "id",
   "storageKey": null
 },
-v19 = [
-  (v9/*:: as any*/),
-  (v18/*:: as any*/)
+v9 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "kind",
+  "storageKey": null
+},
+v10 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "followEventRelay",
+  "storageKey": null
+},
+v11 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "createdAt",
+  "storageKey": null
+},
+v12 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "displayName",
+  "storageKey": null
+},
+v13 = [
+  (v12/*:: as any*/)
+],
+v14 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "updatedAt",
+  "storageKey": null
+},
+v15 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "name",
+  "storageKey": null
+},
+v16 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "startMarginSeconds",
+  "storageKey": null
+},
+v17 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "endMarginSeconds",
+  "storageKey": null
+},
+v18 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "fileNameTemplate",
+  "storageKey": null
+},
+v19 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "RecordingSettingsOverrides",
+  "kind": "LinkedField",
+  "name": "settings",
+  "plural": false,
+  "selections": [
+    (v1/*:: as any*/),
+    (v16/*:: as any*/),
+    (v17/*:: as any*/),
+    (v18/*:: as any*/),
+    (v2/*:: as any*/),
+    (v3/*:: as any*/)
+  ],
+  "storageKey": null
+},
+v20 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "RecordingSettingsOverrides",
+  "kind": "LinkedField",
+  "name": "settings",
+  "plural": false,
+  "selections": [
+    (v1/*:: as any*/),
+    (v18/*:: as any*/),
+    (v16/*:: as any*/),
+    (v17/*:: as any*/),
+    (v2/*:: as any*/),
+    (v3/*:: as any*/)
+  ],
+  "storageKey": null
+},
+v21 = [
+  (v12/*:: as any*/),
+  (v8/*:: as any*/)
 ];
 return {
   "fragment": {
@@ -243,22 +259,31 @@ return {
     "metadata": null,
     "name": "ReservationSettingsDialogQuery",
     "selections": [
-      (v3/*:: as any*/),
+      (v4/*:: as any*/),
+      (v5/*:: as any*/),
       {
         "alias": null,
-        "args": (v4/*:: as any*/),
+        "args": (v6/*:: as any*/),
         "concreteType": null,
         "kind": "LinkedField",
         "name": "node",
         "plural": false,
         "selections": [
-          (v5/*:: as any*/),
+          (v7/*:: as any*/),
           {
             "kind": "InlineFragment",
             "selections": [
-              (v6/*:: as any*/),
-              (v7/*:: as any*/),
-              (v8/*:: as any*/),
+              (v8/*:: as any*/)
+            ],
+            "type": "Program",
+            "abstractKey": null
+          },
+          {
+            "kind": "InlineFragment",
+            "selections": [
+              (v9/*:: as any*/),
+              (v10/*:: as any*/),
+              (v11/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -266,10 +291,10 @@ return {
                 "kind": "LinkedField",
                 "name": "createdBy",
                 "plural": false,
-                "selections": (v10/*:: as any*/),
+                "selections": (v13/*:: as any*/),
                 "storageKey": null
               },
-              (v11/*:: as any*/),
+              (v14/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -277,7 +302,7 @@ return {
                 "kind": "LinkedField",
                 "name": "updatedBy",
                 "plural": false,
-                "selections": (v10/*:: as any*/),
+                "selections": (v13/*:: as any*/),
                 "storageKey": null
               },
               {
@@ -288,12 +313,12 @@ return {
                 "name": "rules",
                 "plural": true,
                 "selections": [
-                  (v12/*:: as any*/),
-                  (v16/*:: as any*/)
+                  (v15/*:: as any*/),
+                  (v19/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v17/*:: as any*/)
+              (v20/*:: as any*/)
             ],
             "type": "Reservation",
             "abstractKey": null
@@ -311,22 +336,24 @@ return {
     "kind": "Operation",
     "name": "ReservationSettingsDialogQuery",
     "selections": [
-      (v3/*:: as any*/),
+      (v4/*:: as any*/),
+      (v5/*:: as any*/),
       {
         "alias": null,
-        "args": (v4/*:: as any*/),
+        "args": (v6/*:: as any*/),
         "concreteType": null,
         "kind": "LinkedField",
         "name": "node",
         "plural": false,
         "selections": [
-          (v5/*:: as any*/),
+          (v7/*:: as any*/),
+          (v8/*:: as any*/),
           {
             "kind": "InlineFragment",
             "selections": [
-              (v6/*:: as any*/),
-              (v7/*:: as any*/),
-              (v8/*:: as any*/),
+              (v9/*:: as any*/),
+              (v10/*:: as any*/),
+              (v11/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -334,10 +361,10 @@ return {
                 "kind": "LinkedField",
                 "name": "createdBy",
                 "plural": false,
-                "selections": (v19/*:: as any*/),
+                "selections": (v21/*:: as any*/),
                 "storageKey": null
               },
-              (v11/*:: as any*/),
+              (v14/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -345,7 +372,7 @@ return {
                 "kind": "LinkedField",
                 "name": "updatedBy",
                 "plural": false,
-                "selections": (v19/*:: as any*/),
+                "selections": (v21/*:: as any*/),
                 "storageKey": null
               },
               {
@@ -356,34 +383,33 @@ return {
                 "name": "rules",
                 "plural": true,
                 "selections": [
-                  (v12/*:: as any*/),
-                  (v16/*:: as any*/),
-                  (v18/*:: as any*/)
+                  (v15/*:: as any*/),
+                  (v19/*:: as any*/),
+                  (v8/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v17/*:: as any*/)
+              (v20/*:: as any*/)
             ],
             "type": "Reservation",
             "abstractKey": null
-          },
-          (v18/*:: as any*/)
+          }
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "05cd037437ee4d6a93f49c1201e8eb2e",
+    "cacheID": "917dcfa1a7f8eab8954fd4b3e692db4b",
     "id": null,
     "metadata": {},
     "name": "ReservationSettingsDialogQuery",
     "operationKind": "query",
-    "text": "query ReservationSettingsDialogQuery(\n  $id: ID!\n) {\n  systemSettings {\n    recordingDefaults {\n      priority\n      joinSegments\n    }\n  }\n  node(id: $id) {\n    __typename\n    ... on Reservation {\n      kind\n      followEventRelay\n      createdAt\n      createdBy {\n        displayName\n        id\n      }\n      updatedAt\n      updatedBy {\n        displayName\n        id\n      }\n      rules {\n        name\n        settings {\n          startMarginSeconds\n          endMarginSeconds\n          fileNameTemplate\n          priority\n          joinSegments\n        }\n        id\n      }\n      settings {\n        poolId\n        fileNameTemplate\n        startMarginSeconds\n        endMarginSeconds\n        priority\n        joinSegments\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ReservationSettingsDialogQuery(\n  $id: ID!\n) {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      priority\n      joinSegments\n    }\n  }\n  storagePoolNames\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n    }\n    ... on Reservation {\n      kind\n      followEventRelay\n      createdAt\n      createdBy {\n        displayName\n        id\n      }\n      updatedAt\n      updatedBy {\n        displayName\n        id\n      }\n      rules {\n        name\n        settings {\n          poolId\n          startMarginSeconds\n          endMarginSeconds\n          fileNameTemplate\n          priority\n          joinSegments\n        }\n        id\n      }\n      settings {\n        poolId\n        fileNameTemplate\n        startMarginSeconds\n        endMarginSeconds\n        priority\n        joinSegments\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "364f509924d03ada7041053091b1c92e";
+(node as any).hash = "2c8f3a42344bc436dedf38cf70056548";
 
 export default node;

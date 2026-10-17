@@ -652,10 +652,7 @@ function ReservationRow({
         </Text>
       )}
       {editing && (
-        <ReservationSettingsDialog
-          reservationId={reservation.id}
-          onClose={() => setEditing(false)}
-        />
+        <ReservationSettingsDialog id={reservation.id} onClose={() => setEditing(false)} />
       )}
       {editingTime && (
         <TimeReservationDialog
