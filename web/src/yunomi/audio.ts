@@ -50,7 +50,7 @@ export function currentAudioChoice(tracks: AudioTracks | null): string | null {
 
 // choiceForComponent は、データ放送の文書が選んだ音声 (component_tag と、デュアルモノの channel_id) を、
 // 音声のメニューの選択肢の値にする (#440)。その音声がなければ null を返す。
-// channel_id は、デュアルモノの 1 つ目 (主音声) を 1、2 つ目 (副音声) を 2 とみなす。今聞いている ES のデュアルモノでだけ使う。
+// channel_id は、デュアルモノの 2 つ目 (副音声) を 2 とみなし、それ以外 (省いたときも) は主音声にする。今聞いている ES のデュアルモノでだけ使う。
 export function choiceForComponent(
   tracks: AudioTracks | null,
   componentTag: number,
@@ -60,7 +60,7 @@ export function choiceForComponent(
   if (tracks === null || stream === undefined) {
     return null;
   }
-  if (stream.pid === tracks.current && tracks.dualMono && channelId !== undefined) {
+  if (stream.pid === tracks.current && tracks.dualMono) {
     return channelId === 2 ? 'dualMono:sub' : 'dualMono:main';
   }
 

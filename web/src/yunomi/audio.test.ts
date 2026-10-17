@@ -173,6 +173,13 @@ describe('choiceForComponent', () => {
       want: 'dualMono:main',
     },
     {
+      name: '聞いている ES のデュアルモノでは、channel_id がなければ主音声に戻す',
+      tracks: { available: [bilingual], current: 0x110, dualMono: true, dualMonoSub: true },
+      componentTag: 0x10,
+      channelId: undefined,
+      want: 'dualMono:main',
+    },
+    {
       name: 'ない component_tag は選べない',
       tracks: { available: [mono], current: 0x110, dualMono: false, dualMonoSub: false },
       componentTag: 0x12,
