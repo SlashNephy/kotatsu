@@ -12,6 +12,8 @@ export function DataBroadcastStorageReset() {
 
   return (
     <Input.Wrapper
+      // 入力欄を持たないので、label 要素にしない。
+      labelElement="div"
       label={
         <Group gap={6} component="span">
           {t('settings.account.dataBroadcastStorage')}
