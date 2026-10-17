@@ -121,9 +121,10 @@ type Order = recordingsListQuery$variables['order'];
 function RecordingsPage() {
   const { t } = useTranslation();
   const { rule } = Route.useSearch();
-  // filter は、結果に適用している絞り込み。最初は絞り込まずに、新しい録画から出す。
-  // ルールの画面から来たときは、そのルールで録った録画に絞る。
-  const [filter, setFilter] = useState<Filter>(rule === undefined ? {} : { ruleId: rule });
+  // formFilter は、フォームで決めた絞り込み。最初は絞り込まずに、新しい録画から出す。
+  const [formFilter, setFilter] = useState<Filter>({});
+  // ルールでの絞り込みは URL の rule から決め、ルールの画面から来たときや、戻ったときにも、URL に合わせる (#468)。
+  const filter: Filter = rule === undefined ? formFilter : { ...formFilter, ruleId: rule };
   // order は、並び順。絞り込みではないので、選んだらすぐに並べ替える。
   const [order, setOrder] = useState<Order>('NEWEST_FIRST');
   const [filtersOpened, setFiltersOpened] = useState(false);
@@ -238,8 +239,6 @@ function Recordings({
       ...(serviceIds.length > 0 ? { serviceIds } : {}),
       ...(genres.length > 0 ? { genres: genres.map(Number) } : {}),
       ...broadcastRange(from, to),
-      // ルールでの絞り込みは、外すまで続ける。
-      ...(filter.ruleId != null ? { ruleId: filter.ruleId } : {}),
     });
     onFiltersClose();
   };
@@ -351,11 +350,7 @@ function Recordings({
           <Pill
             withRemoveButton
             removeButtonProps={{ 'aria-label': t('recordings.ruleFilterClear') }}
-            onRemove={() => {
-              const { ruleId: _, ...rest } = filter;
-              onFilter(rest);
-              void navigate({ search: {} });
-            }}
+            onRemove={() => void navigate({ search: {} })}
           >
             {t('recordings.ruleFilter', { name: ruleName ?? t('recordings.deletedRule') })}
           </Pill>
