@@ -1,6 +1,25 @@
-import { Alert, Anchor, Button, Group, Select, Stack, Text, Title } from '@mantine/core';
+import {
+  ActionIcon,
+  Alert,
+  Anchor,
+  Button,
+  Group,
+  Menu,
+  Modal,
+  Select,
+  Stack,
+  Text,
+  Title,
+} from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { Captions, Keyboard, MessageSquareText, Tv } from 'lucide-react';
+import {
+  Captions,
+  EllipsisVertical,
+  ExternalLink,
+  Keyboard,
+  MessageSquareText,
+  Tv,
+} from 'lucide-react';
 import { startTransition, Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -388,6 +407,8 @@ function Live({
   const reload = () => setSession((n) => n + 1);
   // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
   const [statsShown, setStatsShown] = useState(false);
+  // externalOpen は、外部プレイヤー用の URL を発行するダイアログを出しているかどうか (#487)。
+  const [externalOpen, setExternalOpen] = useState(false);
   const behind = useLiveLag(video, { reloadOnResume: route.kind === 'convert', onReload: reload });
   // 時間帯に重なる番組のうち、読み直した時刻に放送中のものと、その次のもの。
   const programs = data.guide[0]?.programs ?? [];
@@ -707,22 +728,48 @@ function Live({
           <ServiceLabel name={service.name} logoUrl={service.logoUrl} />
         </Title>
         {/* 一覧に戻らずに、ほかの局へ移る (#493)。種別ごとにまとめ、番組表と同じ順に並べる。 */}
-        <Select
-          size="xs"
-          w={240}
-          aria-label={t('live.switchChannel')}
-          placeholder={t('live.switchChannel')}
-          data={channelGroups(data.services)}
-          value={serviceId}
-          onChange={(id) => {
-            if (id !== null && id !== serviceId) {
-              tune(id);
-            }
-          }}
-          searchable
-          allowDeselect={false}
-        />
+        <Group gap="xs" wrap="nowrap">
+          <Select
+            size="xs"
+            w={240}
+            aria-label={t('live.switchChannel')}
+            placeholder={t('live.switchChannel')}
+            data={channelGroups(data.services)}
+            value={serviceId}
+            onChange={(id) => {
+              if (id !== null && id !== serviceId) {
+                tune(id);
+              }
+            }}
+            searchable
+            allowDeselect={false}
+          />
+          {/* 使うことの少ない操作は、メニューにまとめる (#487)。 */}
+          <Menu position="bottom-end">
+            <Menu.Target>
+              <ActionIcon variant="default" size="md" aria-label={t('live.moreActions')}>
+                <EllipsisVertical size={16} aria-hidden />
+              </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item
+                leftSection={<ExternalLink size={14} aria-hidden />}
+                onClick={() => setExternalOpen(true)}
+              >
+                {t('streamURL.open')}
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+        </Group>
       </Group>
+      {/* VLC や mpv で開く URL。開いている間は、ブラウザの視聴とは別にチューナーを使う (#487)。 */}
+      <Modal
+        opened={externalOpen}
+        onClose={() => setExternalOpen(false)}
+        title={t('streamURL.open')}
+      >
+        <ExternalStreamURL target={serviceId} live />
+      </Modal>
       <Text size="sm" c="dimmed">
         {programName === null ? t('live.noProgram') : <ProgramTitle name={programName} />}
       </Text>
@@ -764,8 +811,6 @@ function Live({
           />
         </>
       )}
-      {/* VLC や mpv で開く URL。開いている間は、ブラウザの視聴とは別にチューナーを使う (#487)。 */}
-      <ExternalStreamURL target={serviceId} live />
     </Stack>
   );
 }
