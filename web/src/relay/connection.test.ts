@@ -31,6 +31,9 @@ describe('createConnectionTracker', () => {
     a.release();
     a.connected();
     expect(tracker.isReconnecting()).toBe(false);
+    // やめた後に、つなぎ直しの知らせが遅れて届いても、つなぎ直している状態に戻さない。
+    a.reconnecting();
+    expect(tracker.isReconnecting()).toBe(false);
   });
 
   test('知らせるのをやめた listener には知らせない', () => {

@@ -39,11 +39,24 @@ export function createConnectionTracker(): ConnectionTracker {
   return {
     track: () => {
       const id = Symbol('subscription');
+      // released は、subscription をやめたかどうか。やめた後に届いた知らせで、つなぎ直している状態に戻さない。
+      let released = false;
 
       return {
-        reconnecting: () => update(id, true),
-        connected: () => update(id, false),
-        release: () => update(id, false),
+        reconnecting: () => {
+          if (!released) {
+            update(id, true);
+          }
+        },
+        connected: () => {
+          if (!released) {
+            update(id, false);
+          }
+        },
+        release: () => {
+          released = true;
+          update(id, false);
+        },
       };
     },
     isReconnecting: () => reconnecting.size > 0,
