@@ -10,6 +10,8 @@ import {
   type SubscribeFunction,
 } from 'relay-runtime';
 
+import { retryDelayMs, subscriptionConnections } from './connection';
+
 // GraphQL のエンドポイント (設計書 9.1)。tenban と同じオリジンに置く。
 const endpoint = '/graphql';
 
@@ -100,12 +102,22 @@ export const fetchQuery: FetchFunction = async (
 let sseClient: Client | undefined;
 
 // subscribe は、subscription を graphql-sse で受け取る。tenban は、同じエンドポイントで SSE を返す。
+// 接続が切れたら、上限なしにつなぎ直す。graphql-sse の既定 (5 回、約 30 秒) で諦めると、
+// サーバーの再起動などの後、ページを読み込み直すまで変更が届かなくなるため (#503)。
+// つなぎ直している間は、subscriptionConnections に知らせ、ヘッダーに印を出す。
 const subscribe: SubscribeFunction = (operation, variables) => {
-  sseClient ??= createClient({ url: endpoint, credentials: 'same-origin' });
+  sseClient ??= createClient({
+    url: endpoint,
+    credentials: 'same-origin',
+    retryAttempts: Infinity,
+    retry: (retries) =>
+      new Promise((resolve) => setTimeout(resolve, retryDelayMs(retries, Math.random()))),
+  });
   const client = sseClient;
 
-  return Observable.create<GraphQLResponse>((sink) =>
-    client.subscribe(
+  return Observable.create<GraphQLResponse>((sink) => {
+    const connection = subscriptionConnections.track();
+    const dispose = client.subscribe(
       { query: operation.text ?? '', variables },
       {
         next: (value) => {
@@ -118,8 +130,21 @@ const subscribe: SubscribeFunction = (operation, variables) => {
           sink.complete();
         },
       },
-    ),
-  );
+      {
+        connecting: (reconnecting) => {
+          if (reconnecting) {
+            connection.reconnecting();
+          }
+        },
+        connected: () => connection.connected(),
+      },
+    );
+
+    return () => {
+      connection.release();
+      dispose();
+    };
+  });
 };
 
 export function createEnvironment(): Environment {

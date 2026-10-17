@@ -9,6 +9,7 @@ import { UserMenu } from '../auth/UserMenu';
 import { DataChangesProvider, DataChangesSubscriber } from '../changes/DataChanges';
 import { ColorSchemeToggle, ErrorBoundary } from '../futon';
 import { NotificationBell } from '../notifications/NotificationBell';
+import { ConnectionStatus } from '../relay/ConnectionStatus';
 import type { RootViewerQuery } from './__generated__/RootViewerQuery.graphql';
 import classes from './__root.module.css';
 
@@ -119,6 +120,7 @@ function RootLayout() {
               </Group>
               <Group gap="md" wrap="nowrap">
                 <DataChangesSubscriber />
+                <ConnectionStatus />
                 <NotificationBell />
                 <UserMenu />
               </Group>
