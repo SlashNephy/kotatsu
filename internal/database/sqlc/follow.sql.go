@@ -182,6 +182,63 @@ func (q *Queries) ListReservationsToFollow(ctx context.Context, now time.Time) (
 	return items, nil
 }
 
+const listReservationsToRelay = `-- name: ListReservationsToRelay :many
+SELECT r.id, r.kind, r.service_id, r.settings,
+  (
+    SELECT ru.settings FROM reservation_rules rr JOIN rules ru ON ru.id = rr.rule_id
+    WHERE rr.reservation_id = r.id
+    ORDER BY ru.created_at, ru.id
+    LIMIT 1
+  )::jsonb AS rule_settings,
+  p.related_items AS program_related_items
+FROM reservations r
+JOIN programs p ON p.service_id = r.service_id AND p.event_id = r.event_id
+WHERE r.event_id IS NOT NULL AND r.enabled AND r.follow_event_relay
+  AND coalesce(r.planned_end_at, r.end_at) > $1::timestamptz
+  AND p.start_at < coalesce(r.planned_end_at, r.end_at)
+  AND p.related_items @> '[{"type": "relay"}]'::jsonb
+ORDER BY r.id
+`
+
+type ListReservationsToRelayRow struct {
+	ID                  uuid.UUID
+	Kind                string
+	ServiceID           int64
+	Settings            []byte
+	RuleSettings        []byte
+	ProgramRelatedItems []byte
+}
+
+// イベントリレーで別のサービスに引き継ぐ番組の、有効で追従する予約と、その番組の関連。
+// 延長で臨時のサブチャンネルへ移るときは、移る先の番組が、移った時点で初めて EPG に出ることがあるので、
+// 予約の終わりが過ぎても、since までに終わった予約は追う (#639)。EID が再利用された番組 (予約の終わりより後に始まる) は除く。
+func (q *Queries) ListReservationsToRelay(ctx context.Context, since time.Time) ([]ListReservationsToRelayRow, error) {
+	rows, err := q.db.Query(ctx, listReservationsToRelay, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReservationsToRelayRow{}
+	for rows.Next() {
+		var i ListReservationsToRelayRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.ServiceID,
+			&i.Settings,
+			&i.RuleSettings,
+			&i.ProgramRelatedItems,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateReservationProgram = `-- name: UpdateReservationProgram :exec
 UPDATE reservations SET
   start_at = $1,

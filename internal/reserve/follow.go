@@ -31,6 +31,9 @@ const (
 	DefaultFollowInterval = 5 * time.Minute
 	// DefaultFinishedGrace は、録画の予定の終わりが過ぎてから、終わった予約を消すまでの猶予。
 	DefaultFinishedGrace = time.Hour
+	// RelayWindow は、予約の終わりが過ぎてからも、イベントリレーの引き継ぎ先が EPG に出るのを待つ時間 (#639)。
+	// 終わった予約は DefaultFinishedGrace で消えるので、それより長くしない。
+	RelayWindow = DefaultFinishedGrace
 )
 
 // Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確かめる。
@@ -143,19 +146,22 @@ func (f *Follower) RunOnce(ctx context.Context) (*FollowResult, error) {
 		}
 
 		for i := range rows {
-			row := &rows[i]
-			updated, err := f.update(ctx, tx, row, now)
+			updated, err := f.update(ctx, tx, &rows[i], now)
 			if err != nil {
 				return err
 			}
 			if updated {
 				result.Updated++
 			}
-			// 無効にした予約は、引き継ぎ先に予約を作って録り直さない。
-			if !row.Enabled || !row.FollowEventRelay {
-				continue
-			}
-			relayed, err := f.relay(ctx, tx, row, now)
+		}
+
+		// 無効にした予約と、追従しない予約は、引き継ぎ先に予約を作って録り直さない。
+		relaying, err := q.ListReservationsToRelay(ctx, now.Add(-RelayWindow))
+		if err != nil {
+			return fmt.Errorf("failed to list reservations to relay: %w", err)
+		}
+		for i := range relaying {
+			relayed, err := f.relay(ctx, tx, &relaying[i], now)
 			if err != nil {
 				return err
 			}
@@ -212,7 +218,7 @@ func (f *Follower) update(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservat
 // relay は、番組のイベントリレーの引き継ぎ先に、番組予約を作る。引き継ぎ先の番組が EPG にまだ無ければ、次の追従を待つ。
 // 引き継ぎ先の予約は、元の予約の録画設定を引き継ぎ、元の予約と関連付ける。
 // ルール予約の録画設定はルールにあるので、一致したルールの上書きを引き継ぐ。
-func (f *Follower) relay(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservationsToFollowRow, now time.Time) (int, error) {
+func (f *Follower) relay(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservationsToRelayRow, now time.Time) (int, error) {
 	var related []*mirakurun.RelatedItem
 	if err := json.Unmarshal(row.ProgramRelatedItems, &related); err != nil {
 		return 0, fmt.Errorf("failed to decode the related items of reservation %s: %w", row.ID, err)

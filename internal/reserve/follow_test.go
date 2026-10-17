@@ -184,6 +184,56 @@ func TestFollowerCreatesRelayedReservations(t *testing.T) {
 	}
 }
 
+// TestFollowerRelaysAfterTheEnd は、引き継ぎ先の番組が、元の番組の終わりの後に EPG に出ても、引き継ぎ先の予約を作ることを確かめる (#639)。
+// 延長で臨時のサブチャンネルへ移るときは、移る先の番組が、移った時点で初めて EPG に出ることがある。
+func TestFollowerRelaysAfterTheEnd(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// after は、元の番組 (13:30〜14:00) の予定の終わりから、引き継ぎ先の番組が EPG に出るまでの時間。
+		after       time.Duration
+		wantRelayed int
+	}{
+		{name: "終わりの直後に出たら、引き継ぐ", after: 10 * time.Minute, wantRelayed: 1},
+		{name: "終わってから 1 時間を過ぎて出たら、引き継がない", after: 90 * time.Minute, wantRelayed: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			original, _, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, programInput())
+			require.NoError(t, err)
+			plannedEnd := time.Date(2026, 10, 10, 14, 0, 15, 0, time.UTC)
+			_, err = f.pool.Exec(t.Context(), "UPDATE reservations SET assignment_state = 'ok', planned_start_at = $2, planned_end_at = $3 WHERE id = $1",
+				original.ID, time.Date(2026, 10, 10, 13, 29, 45, 0, time.UTC), plannedEnd)
+			require.NoError(t, err)
+			// 引き継ぎ先の番組は、まだ EPG にない。
+			f.addRelayingProgram(time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC))
+			relayedID := faketuner.ProgramID(grNetworkID, subServiceID, 7)
+			require.NoError(t, f.fake.ForgetProgram(relayedID))
+			f.syncEPG(t)
+			assert.Zero(t, f.follow(t).Relayed)
+
+			// 予定の終わりを過ぎてから、サブチャンネルで放送が始まり、引き継ぎ先の番組が EPG に出た。
+			f.clock.Advance(plannedEnd.Add(tt.after).Sub(f.clock.Now()))
+			f.fake.AddProgram(&faketuner.Program{
+				ID: relayedID, EventID: 7, ServiceID: subServiceID, NetworkID: grNetworkID,
+				StartAt: time.Date(2026, 10, 10, 14, 0, 0, 0, time.UTC).UnixMilli(), Duration: 0, IsFree: true,
+				Name: "こたつテスト1 テスト番組 6", Description: "偽のチューナーサーバーが合成した番組です。",
+			})
+			f.syncEPG(t)
+
+			assert.Equal(t, tt.wantRelayed, f.follow(t).Relayed)
+			var count int
+			require.NoError(t, f.pool.QueryRow(t.Context(),
+				"SELECT count(*) FROM reservations WHERE relayed_from = $1", original.ID).Scan(&count))
+			assert.Equal(t, tt.wantRelayed, count)
+		})
+	}
+}
+
 // TestFollowerRelaysRuleSettings は、ルール予約を引き継ぐとき、一致したルールの録画設定を引き継ぐことを確かめる。
 func TestFollowerRelaysRuleSettings(t *testing.T) {
 	t.Parallel()
