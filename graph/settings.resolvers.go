@@ -19,6 +19,7 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		Recording:                 toOverrides(input.RecordingDefaults),
 		ArchiveRetentionDays:      input.ArchiveRetentionDays,
 		NotificationRetentionDays: input.NotificationRetentionDays,
+		Rule:                      toRuleChanges(input.RuleDefaults),
 	})
 	if err != nil {
 		return nil, settingsError(err)

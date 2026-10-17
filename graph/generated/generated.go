@@ -218,6 +218,7 @@ type ComplexityRoot struct {
 		EnableUser                   func(childComplexity int, id string) int
 		MarkAllNotificationsRead     func(childComplexity int) int
 		MarkNotificationsRead        func(childComplexity int, ids []string) int
+		ReanalyzeRecording           func(childComplexity int, id string) int
 		RegenerateRecordingImages    func(childComplexity int, id string) int
 		RegenerateRecoveryCodes      func(childComplexity int) int
 		RenamePasskey                func(childComplexity int, id string, name string) int
@@ -549,6 +550,12 @@ type ComplexityRoot struct {
 		ValidUntil               func(childComplexity int) int
 	}
 
+	RuleDefaults struct {
+		AvoidDuplicates     func(childComplexity int) int
+		DuplicateWindowDays func(childComplexity int) int
+		FollowEventRelay    func(childComplexity int) int
+	}
+
 	SecondFactorStatus struct {
 		RemainingRecoveryCodes func(childComplexity int) int
 		Totp                   func(childComplexity int) int
@@ -610,6 +617,7 @@ type ComplexityRoot struct {
 		ArchiveRetentionDays      func(childComplexity int) int
 		NotificationRetentionDays func(childComplexity int) int
 		RecordingDefaults         func(childComplexity int) int
+		RuleDefaults              func(childComplexity int) int
 		UpdatedAt                 func(childComplexity int) int
 	}
 
@@ -732,6 +740,7 @@ type MutationResolver interface {
 	SetRecordingTags(ctx context.Context, id string, tags []string) (*model.Recording, error)
 	SaveWatchPosition(ctx context.Context, id string, positionMs int64) (*model.Recording, error)
 	RegenerateRecordingImages(ctx context.Context, id string) (bool, error)
+	ReanalyzeRecording(ctx context.Context, id string) (bool, error)
 	CreateProgramReservation(ctx context.Context, input model.ProgramReservationInput) (*model.Reservation, error)
 	CreateTimeReservation(ctx context.Context, input model.TimeReservationInput) (*model.Reservation, error)
 	UpdateReservation(ctx context.Context, id string, input model.ReservationUpdateInput) (*model.Reservation, error)
@@ -1580,6 +1589,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.MarkNotificationsRead(childComplexity, args["ids"].([]string)), true
+	case "Mutation.reanalyzeRecording":
+		if e.ComplexityRoot.Mutation.ReanalyzeRecording == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_reanalyzeRecording_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ReanalyzeRecording(childComplexity, args["id"].(string)), true
 	case "Mutation.regenerateRecordingImages":
 		if e.ComplexityRoot.Mutation.RegenerateRecordingImages == nil {
 			break
@@ -3221,6 +3241,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Rule.ValidUntil(childComplexity), true
 
+	case "RuleDefaults.avoidDuplicates":
+		if e.ComplexityRoot.RuleDefaults.AvoidDuplicates == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleDefaults.AvoidDuplicates(childComplexity), true
+	case "RuleDefaults.duplicateWindowDays":
+		if e.ComplexityRoot.RuleDefaults.DuplicateWindowDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleDefaults.DuplicateWindowDays(childComplexity), true
+	case "RuleDefaults.followEventRelay":
+		if e.ComplexityRoot.RuleDefaults.FollowEventRelay == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleDefaults.FollowEventRelay(childComplexity), true
+
 	case "SecondFactorStatus.remainingRecoveryCodes":
 		if e.ComplexityRoot.SecondFactorStatus.RemainingRecoveryCodes == nil {
 			break
@@ -3462,6 +3501,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.RecordingDefaults(childComplexity), true
+	case "SystemSettings.ruleDefaults":
+		if e.ComplexityRoot.SystemSettings.RuleDefaults == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.RuleDefaults(childComplexity), true
 	case "SystemSettings.updatedAt":
 		if e.ComplexityRoot.SystemSettings.UpdatedAt == nil {
 			break
@@ -3835,6 +3880,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputRecordingFilter,
 		ec.unmarshalInputRecordingSettingsOverridesInput,
 		ec.unmarshalInputReservationUpdateInput,
+		ec.unmarshalInputRuleDefaultsInput,
 		ec.unmarshalInputRuleInput,
 		ec.unmarshalInputServiceInput,
 		ec.unmarshalInputStoragePoolInput,
@@ -4924,6 +4970,12 @@ extend type Mutation {
   作り直すまでは、今の画像を出す。同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
   """
   regenerateRecordingImages(id: ID!): Boolean!
+  """
+  録画のファイルを読み直し、索引とドロップなどの集計を作り直すジョブを入れる (設計書 6.1、#476)。視聴者は使えない。
+  終われば、代表画像とプレビュー画像も作り直す。録画中の録画は CONFLICT にする。
+  同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
+  """
+  reanalyzeRecording(id: ID!): Boolean!
 }
 
 """
@@ -5421,6 +5473,30 @@ type RecordingSettings {
 }
 
 """
+ルールを作るときの既定値 (設計書 4.2、#470)。ルールの作成の画面の初期値に使う。
+"""
+type RuleDefaults {
+  "同じ番組名を録画済みなら予約しないかどうか (設計書 4.4)。"
+  avoidDuplicates: Boolean!
+  "重複を避ける期間 (日)。null なら期間を区切らない。"
+  duplicateWindowDays: Int
+  "イベントリレーで続く番組も予約するかどうか (設計書 4.6)。"
+  followEventRelay: Boolean!
+}
+
+"""
+ルールを作るときの既定値の変える項目。省いた項目は変えない。
+"""
+input RuleDefaultsInput {
+  avoidDuplicates: Boolean
+  "重複を避ける期間 (1〜3650 日)。"
+  duplicateWindowDays: Int
+  "重複を避ける期間を区切らないようにする。duplicateWindowDays と一緒には使えない。"
+  clearDuplicateWindowDays: Boolean! = false
+  followEventRelay: Boolean
+}
+
+"""
 画面から変える、全体の設定 (設計書 11.2)。
 """
 type SystemSettings {
@@ -5430,6 +5506,8 @@ type SystemSettings {
   archiveRetentionDays: Int!
   "配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限。"
   notificationRetentionDays: Int!
+  "ルールを作るときの既定値。"
+  ruleDefaults: RuleDefaults!
   "最後に変えた日時。一度も変えていなければ null。"
   updatedAt: Time
 }
@@ -5442,6 +5520,8 @@ input SystemSettingsInput {
   recordingDefaults: RecordingSettingsOverridesInput
   archiveRetentionDays: Int
   notificationRetentionDays: Int
+  "ルールを作るときの既定値の変える項目。省いた項目は変えない。"
+  ruleDefaults: RuleDefaultsInput
 }
 
 """
@@ -6650,6 +6730,18 @@ func (ec *executionContext) childFields_Rule(ctx context.Context, field graphql.
 	return nil, fmt.Errorf("no field named %q was found under type Rule", field.Name)
 }
 
+func (ec *executionContext) childFields_RuleDefaults(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "avoidDuplicates":
+		return ec.fieldContext_RuleDefaults_avoidDuplicates(ctx, field)
+	case "duplicateWindowDays":
+		return ec.fieldContext_RuleDefaults_duplicateWindowDays(ctx, field)
+	case "followEventRelay":
+		return ec.fieldContext_RuleDefaults_followEventRelay(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RuleDefaults", field.Name)
+}
+
 func (ec *executionContext) childFields_SecondFactorStatus(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "totp":
@@ -6758,6 +6850,8 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_archiveRetentionDays(ctx, field)
 	case "notificationRetentionDays":
 		return ec.fieldContext_SystemSettings_notificationRetentionDays(ctx, field)
+	case "ruleDefaults":
+		return ec.fieldContext_SystemSettings_ruleDefaults(ctx, field)
 	case "updatedAt":
 		return ec.fieldContext_SystemSettings_updatedAt(ctx, field)
 	}
@@ -7331,6 +7425,20 @@ func (ec *executionContext) field_Mutation_markNotificationsRead_args(ctx contex
 		return nil, err
 	}
 	args["ids"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_reanalyzeRecording_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -10800,6 +10908,50 @@ func (ec *executionContext) fieldContext_Mutation_regenerateRecordingImages(ctx 
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_regenerateRecordingImages_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_reanalyzeRecording(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_reanalyzeRecording(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ReanalyzeRecording(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_reanalyzeRecording(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_reanalyzeRecording_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -17984,6 +18136,75 @@ func (ec *executionContext) fieldContext_Rule_upcomingReservationCount(_ context
 	return graphql.NewScalarFieldContext("Rule", field, true, true, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _RuleDefaults_avoidDuplicates(ctx context.Context, field graphql.CollectedField, obj *model.RuleDefaults) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleDefaults_avoidDuplicates(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AvoidDuplicates, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleDefaults_avoidDuplicates(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleDefaults", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _RuleDefaults_duplicateWindowDays(ctx context.Context, field graphql.CollectedField, obj *model.RuleDefaults) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleDefaults_duplicateWindowDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DuplicateWindowDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RuleDefaults_duplicateWindowDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleDefaults", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _RuleDefaults_followEventRelay(ctx context.Context, field graphql.CollectedField, obj *model.RuleDefaults) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleDefaults_followEventRelay(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FollowEventRelay, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleDefaults_followEventRelay(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleDefaults", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _SecondFactorStatus_totp(ctx context.Context, field graphql.CollectedField, obj *model.SecondFactorStatus) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -18915,6 +19136,38 @@ func (ec *executionContext) _SystemSettings_notificationRetentionDays(ctx contex
 }
 func (ec *executionContext) fieldContext_SystemSettings_notificationRetentionDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _SystemSettings_ruleDefaults(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_ruleDefaults(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RuleDefaults, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RuleDefaults) graphql.Marshaler {
+			return ec.marshalNRuleDefaults2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRuleDefaults(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_ruleDefaults(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SystemSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RuleDefaults(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _SystemSettings_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
@@ -22209,6 +22462,61 @@ func (ec *executionContext) unmarshalInputReservationUpdateInput(ctx context.Con
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputRuleDefaultsInput(ctx context.Context, obj any) (model.RuleDefaultsInput, error) {
+	var it model.RuleDefaultsInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["clearDuplicateWindowDays"]; !present {
+		asMap["clearDuplicateWindowDays"] = false
+	}
+
+	fieldsInOrder := [...]string{"avoidDuplicates", "duplicateWindowDays", "clearDuplicateWindowDays", "followEventRelay"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "avoidDuplicates":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("avoidDuplicates"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AvoidDuplicates = data
+		case "duplicateWindowDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("duplicateWindowDays"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DuplicateWindowDays = data
+		case "clearDuplicateWindowDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("clearDuplicateWindowDays"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ClearDuplicateWindowDays = data
+		case "followEventRelay":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("followEventRelay"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.FollowEventRelay = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputRuleInput(ctx context.Context, obj any) (model.RuleInput, error) {
 	var it model.RuleInput
 	if obj == nil {
@@ -22411,7 +22719,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "ruleDefaults"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -22439,6 +22747,13 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.NotificationRetentionDays = data
+		case "ruleDefaults":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ruleDefaults"))
+			data, err := ec.unmarshalORuleDefaultsInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRuleDefaultsInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RuleDefaults = data
 		}
 	}
 	return it, nil
@@ -24102,6 +24417,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "regenerateRecordingImages":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_regenerateRecordingImages(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reanalyzeRecording":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_reanalyzeRecording(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -27468,6 +27790,54 @@ func (ec *executionContext) _Rule(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
+var ruleDefaultsImplementors = []string{"RuleDefaults"}
+
+func (ec *executionContext) _RuleDefaults(ctx context.Context, sel ast.SelectionSet, obj *model.RuleDefaults) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, ruleDefaultsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RuleDefaults")
+		case "avoidDuplicates":
+			out.Values[i] = ec._RuleDefaults_avoidDuplicates(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "duplicateWindowDays":
+			out.Values[i] = ec._RuleDefaults_duplicateWindowDays(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "followEventRelay":
+			out.Values[i] = ec._RuleDefaults_followEventRelay(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var secondFactorStatusImplementors = []string{"SecondFactorStatus"}
 
 func (ec *executionContext) _SecondFactorStatus(ctx context.Context, sel ast.SelectionSet, obj *model.SecondFactorStatus) graphql.Marshaler {
@@ -27942,6 +28312,11 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "notificationRetentionDays":
 			out.Values[i] = ec._SystemSettings_notificationRetentionDays(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "ruleDefaults":
+			out.Values[i] = ec._SystemSettings_ruleDefaults(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -30351,6 +30726,16 @@ func (ec *executionContext) marshalNRule2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu�
 	return ec._Rule(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNRuleDefaults2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRuleDefaults(ctx context.Context, sel ast.SelectionSet, v *model.RuleDefaults) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RuleDefaults(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNRuleInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRuleInput(ctx context.Context, v any) (model.RuleInput, error) {
 	res, err := ec.unmarshalInputRuleInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -31398,6 +31783,14 @@ func (ec *executionContext) marshalORule2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu�
 		return graphql.Null
 	}
 	return ec._Rule(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalORuleDefaultsInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRuleDefaultsInput(ctx context.Context, v any) (*model.RuleDefaultsInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputRuleDefaultsInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalOService2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐService(ctx context.Context, sel ast.SelectionSet, v *model.Service) graphql.Marshaler {

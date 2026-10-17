@@ -257,6 +257,8 @@ CREATE TABLE system_settings (
   archive_retention_days integer NOT NULL CHECK (archive_retention_days >= 0),
   -- 配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限 (#551)。
   notification_retention_days integer NOT NULL DEFAULT 90 CHECK (notification_retention_days >= 0),
+  -- ルールを作るときの既定値 (重複の回避と期間、イベントリレーへの追従。#470)。変えた項目だけを持ち、Go の既定値に重ねる。
+  rule_defaults jsonb NOT NULL DEFAULT '{}',
   updated_at timestamptz NOT NULL
 );
 

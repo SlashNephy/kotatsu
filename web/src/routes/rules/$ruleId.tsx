@@ -89,6 +89,11 @@ function Rule({ ruleId }: { ruleId: string }) {
           recordingDefaults {
             poolId
           }
+          ruleDefaults {
+            avoidDuplicates
+            duplicateWindowDays
+            followEventRelay
+          }
         }
         services {
           id
@@ -126,7 +131,11 @@ function Rule({ ruleId }: { ruleId: string }) {
   return (
     <RuleEditor
       ruleId={node?.__typename === 'Rule' ? node.id : undefined}
-      initial={rule != null ? fromRule(rule) : newRuleForm(ruleConditions)}
+      initial={
+        rule != null
+          ? fromRule(rule)
+          : newRuleForm(ruleConditions, data.systemSettings.ruleDefaults)
+      }
       channelTypes={data.channelTypes}
       services={data.services}
       pools={data.storagePoolNames}
@@ -146,10 +155,24 @@ function Rule({ ruleId }: { ruleId: string }) {
   );
 }
 
-// newRuleForm は、新しいルールの入力の初期値。条件を引き継いだときは、最初のキーワードをルールの名前にしておく。
-function newRuleForm(conditions: ConditionsForm | undefined): RuleForm {
+// newRuleForm は、新しいルールの入力の初期値。全体の設定の、ルールを作るときの既定値から始める (#470)。
+// 条件を引き継いだときは、最初のキーワードをルールの名前にしておく。
+function newRuleForm(
+  conditions: ConditionsForm | undefined,
+  defaults: {
+    readonly avoidDuplicates: boolean;
+    readonly duplicateWindowDays?: number | null;
+    readonly followEventRelay: boolean;
+  },
+): RuleForm {
   const form = emptyRuleForm(conditions);
   const keyword = form.keywords.find((row) => row.text.trim() !== '');
 
-  return { ...form, name: keyword?.text.trim() ?? '' };
+  return {
+    ...form,
+    name: keyword?.text.trim() ?? '',
+    avoidDuplicates: defaults.avoidDuplicates,
+    duplicateWindowDays: defaults.duplicateWindowDays ?? null,
+    followEventRelay: defaults.followEventRelay,
+  };
 }

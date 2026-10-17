@@ -32,6 +32,11 @@ func (r *mutationResolver) RegenerateRecordingImages(ctx context.Context, id str
 	return r.regenerateRecordingImages(ctx, id)
 }
 
+// ReanalyzeRecording is the resolver for the reanalyzeRecording field.
+func (r *mutationResolver) ReanalyzeRecording(ctx context.Context, id string) (bool, error) {
+	return r.reanalyzeRecording(ctx, id)
+}
+
 // Recordings is the resolver for the recordings field.
 func (r *queryResolver) Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) (*model.RecordingConnection, error) {
 	return r.listRecordings(ctx, first, after, filter, order)

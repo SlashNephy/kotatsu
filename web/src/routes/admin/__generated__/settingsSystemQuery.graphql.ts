@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<8a630602bc96c0d23fe028eb4451a5bd>>
+ * @generated SignedSource<<d9797492cd01daa3ef29519d549a5c49>>
  * @lightSyntaxTransform
  */
 
@@ -27,6 +27,11 @@ export type settingsSystemQuery$data = {
       readonly poolId: string | null | undefined;
       readonly priority: number;
       readonly startMarginSeconds: number;
+    };
+    readonly ruleDefaults: {
+      readonly avoidDuplicates: boolean;
+      readonly duplicateWindowDays: number | null | undefined;
+      readonly followEventRelay: boolean;
     };
     readonly updatedAt: string | null | undefined;
   };
@@ -130,6 +135,38 @@ v1 = [
       {
         "alias": null,
         "args": null,
+        "concreteType": "RuleDefaults",
+        "kind": "LinkedField",
+        "name": "ruleDefaults",
+        "plural": false,
+        "selections": [
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "avoidDuplicates",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "duplicateWindowDays",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "followEventRelay",
+            "storageKey": null
+          }
+        ],
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
         "kind": "ScalarField",
         "name": "updatedAt",
         "storageKey": null
@@ -212,16 +249,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "64ce483e75ad43cda63d93c323dfa2f2",
+    "cacheID": "653ca00771f8d67132ec2f18c0c8fdce",
     "id": null,
     "metadata": {},
     "name": "settingsSystemQuery",
     "operationKind": "query",
-    "text": "query settingsSystemQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n    }\n    archiveRetentionDays\n    notificationRetentionDays\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query settingsSystemQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n    }\n    archiveRetentionDays\n    notificationRetentionDays\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n    }\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "ea7d1921ae81388669b68b49b75e77ab";
+(node as any).hash = "ef1150644660e4ba3150a0a774271599";
 
 export default node;
