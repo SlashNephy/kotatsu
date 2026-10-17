@@ -683,7 +683,7 @@ function ReservationRow({
     >
       {/* 選んでいる間は、種類の印の代わりに、選ぶ欄を出す。録画中の予約は、録画を止めないよう選べない (#471)。 */}
       {selection !== undefined ? (
-        <Box className={classes.kind}>
+        <Box className={`${classes.kind} ${classes.select}`}>
           <Tooltip label={t('reservations.selectRecording')} disabled={!recording}>
             <Checkbox
               aria-label={reservation.name === '' ? t('reservations.untitled') : reservation.name}
