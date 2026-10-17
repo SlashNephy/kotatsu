@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a0f4c85a7ba2be4a3a5ae96b0b4c7061>>
+ * @generated SignedSource<<b968bc518dee86b88e293c7d73ec48b1>>
  * @lightSyntaxTransform
  */
 
@@ -22,6 +22,7 @@ export type notificationsListQuery$data = {
         readonly occurredAt: string;
         readonly payload: string;
         readonly readAt: string | null | undefined;
+        readonly url: string | null | undefined;
       };
     }>;
   };
@@ -117,6 +118,13 @@ v1 = [
                 "alias": null,
                 "args": null,
                 "kind": "ScalarField",
+                "name": "url",
+                "storageKey": null
+              },
+              {
+                "alias": null,
+                "args": null,
+                "kind": "ScalarField",
                 "name": "readAt",
                 "storageKey": null
               }
@@ -148,16 +156,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "c4559c16a15973198099437881c8a5e6",
+    "cacheID": "51de236db988bc27cc0b3fd2cfab7041",
     "id": null,
     "metadata": {},
     "name": "notificationsListQuery",
     "operationKind": "query",
-    "text": "query notificationsListQuery(\n  $first: Int!\n) {\n  unreadNotificationCount\n  notifications(first: $first) {\n    edges {\n      node {\n        id\n        kind\n        occurredAt\n        message\n        payload\n        readAt\n      }\n    }\n  }\n}\n"
+    "text": "query notificationsListQuery(\n  $first: Int!\n) {\n  unreadNotificationCount\n  notifications(first: $first) {\n    edges {\n      node {\n        id\n        kind\n        occurredAt\n        message\n        payload\n        url\n        readAt\n      }\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "9eba0c0a38bc2d5ea78bd862d441a239";
+(node as any).hash = "2324c106163037658e35cda11f1429a3";
 
 export default node;

@@ -44,7 +44,10 @@ export const Route = createFileRoute('/admin/webhooks')({
 });
 
 const formats = ['JSON', 'DISCORD', 'SLACK'] as const satisfies readonly WebhookFormat[];
-const kinds = Object.keys(notificationKinds) as NotificationKindName[];
+// 視聴予約の通知は個人に届けるものなので、全体向けの Webhook では送らない (設計書 4.8)。
+const kinds = (Object.keys(notificationKinds) as NotificationKindName[]).filter(
+  (kind) => kind !== 'WATCH_REMINDER',
+);
 
 // WebhooksPage は、通知を外部のサービスに送る Webhook を作り、変え、消す、管理者向けの画面 (設計書 6.2、10.3)。
 function WebhooksPage() {

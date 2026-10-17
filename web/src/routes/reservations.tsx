@@ -11,6 +11,7 @@ import {
   Modal,
   SegmentedControl,
   Stack,
+  Tabs,
   Text,
   Title,
 } from '@mantine/core';
@@ -54,6 +55,7 @@ import type {
 } from './__generated__/reservationsQuery.graphql';
 import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDialog';
 import { ServiceLabel } from '../guide/ServiceLabel';
+import { WatchReservationList } from '../watch/WatchReservationList';
 import { TimeReservationDialog } from '../reservations/TimeReservationDialog';
 import classes from './reservations.module.css';
 import { zonedFormat } from '../futon';
@@ -113,6 +115,8 @@ const query = graphql`
 `;
 
 type ReservationsSearch = {
+  // watch は、録画の予約の代わりに、視聴予約の一覧を出すかどうか (設計書 4.8)。
+  watch?: boolean;
   // problems は、録画が欠ける見込みの予約だけを出すかどうか。
   problems?: boolean;
   // rule は、このルールに一致した予約だけを出すときの、ルールの ID (#468)。
@@ -121,6 +125,7 @@ type ReservationsSearch = {
 
 export const Route = createFileRoute('/reservations')({
   validateSearch: (search: Record<string, unknown>): ReservationsSearch => ({
+    ...(search['watch'] === true ? { watch: true } : {}),
     ...(search['problems'] === true ? { problems: true } : {}),
     ...(typeof search['rule'] === 'string' && search['rule'] !== ''
       ? { rule: search['rule'] }
@@ -186,9 +191,22 @@ function ReservationsPage() {
     };
   });
 
+  const { watch } = Route.useSearch();
+  const navigate = Route.useNavigate();
+
   return (
     <Stack gap="sm">
       <Title order={2}>{t('reservations.title')}</Title>
+      {/* 録画の予約は家族で共有し、視聴予約はユーザーごとのものなので、タブで分ける (設計書 4.8)。 */}
+      <Tabs
+        value={watch === true ? 'watch' : 'recording'}
+        onChange={(value) => void navigate({ search: value === 'watch' ? { watch: true } : {} })}
+      >
+        <Tabs.List>
+          <Tabs.Tab value="recording">{t('reservations.tab')}</Tabs.Tab>
+          <Tabs.Tab value="watch">{t('watch.tab')}</Tabs.Tab>
+        </Tabs.List>
+      </Tabs>
       <ErrorBoundary
         fallback={(error) =>
           isUnauthenticated(error) ? (
@@ -203,7 +221,7 @@ function ReservationsPage() {
         }
       >
         <Suspense fallback={<PageLoader />}>
-          <Reservations range={range} />
+          {watch === true ? <WatchReservationList /> : <Reservations range={range} />}
         </Suspense>
       </ErrorBoundary>
     </Stack>

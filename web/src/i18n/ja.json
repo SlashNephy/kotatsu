@@ -52,6 +52,13 @@
     "markError": "既読にできませんでした。時間をおいてやり直してください",
     "empty": "まだ通知はありません",
     "emptyHint": "録画の開始や終了、予約の競合などが発生すると、ここに表示されます。",
+    "open": "開く",
+    "watchLive": "ライブで見る",
+    "watchReminder": "視聴予約の通知",
+    "watchReminderMinutes": "放送の何分前に知らせるか",
+    "watchReminderHint": "0から60分まで。0にすると、放送の始まりに知らせます",
+    "watchReminderUnit": "分前",
+    "watchReminderError": "視聴予約の通知の設定を変えられませんでした。0から60分の間で入れてください",
     "webPush": "Web Push",
     "inApp": "画面内",
     "kindColumn": "通知の種類",
@@ -69,8 +76,20 @@
       "RECORDING_FAILED": "録画に失敗した",
       "RESERVATION_CONFLICT": "予約が競合した",
       "STORAGE_LOW": "保存先の空き容量が足りない",
-      "TUNER_SERVER_UNREACHABLE": "チューナーサーバーにつながらない"
+      "TUNER_SERVER_UNREACHABLE": "チューナーサーバーにつながらない",
+      "WATCH_REMINDER": "視聴予約した番組が始まる"
     }
+  },
+  "watch": {
+    "reserve": "視聴予約（放送の少し前に知らせます）",
+    "cancel": "視聴予約を外す",
+    "error": "視聴予約を変えられませんでした。放送が始まった番組には付けられません",
+    "reserved": "視聴予約",
+    "tab": "視聴予約",
+    "empty": "視聴予約した番組はありません",
+    "emptyHint": "番組表で番組を開き、ベルのボタンを押すと、放送の少し前に知らせます。",
+    "notifyAt": "{{time}} に知らせます",
+    "settingsLink": "何分前に知らせるかを変える"
   },
   "viewer": {
     "loading": "読み込んでいます",
@@ -532,6 +551,7 @@
     "descriptionRule": "空ならルール「{{name}}」の設定 ({{seconds}} 秒) に従います"
   },
   "reservations": {
+    "tab": "録画予約",
     "settings": {
       "open": "録画の設定",
       "title": "この予約の録画の設定",

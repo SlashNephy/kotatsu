@@ -2,6 +2,7 @@ import { Anchor, Box, Text, UnstyledButton } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { BellRing } from 'lucide-react';
 
 import { genreBackground } from './genres';
 import {
@@ -36,6 +37,8 @@ export type GuideProgram = {
   shared: boolean;
   // reserved は、有効な録画予約があること。枠を赤で囲む。
   reserved: boolean;
+  // watchReserved は、ログイン中のユーザーが視聴予約したこと。時刻の前にベルの印を出す (設計書 4.8)。
+  watchReserved: boolean;
 };
 
 // GuideColumn は、番組表の 1 列 (1 つのサービス)。programs は開始時刻の順に並べる。
@@ -438,6 +441,18 @@ function GuideColumnView({
           >
             {!program.shared && (
               <span>
+                {program.watchReserved && (
+                  <BellRing
+                    size={11}
+                    role="img"
+                    aria-label={t('watch.reserved')}
+                    style={{
+                      marginRight: 2,
+                      verticalAlign: '-1px',
+                      color: 'var(--mantine-color-mikan-7)',
+                    }}
+                  />
+                )}
                 <Text span size="xs" fw={700} mr={4}>
                   {guideTime(program.startAt, broadcastDay(program.startAt).from, extendedHours)}
                 </Text>

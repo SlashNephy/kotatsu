@@ -3,6 +3,8 @@ import { cleanupOutdatedCaches, matchPrecache, precacheAndRoute } from 'workbox-
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { NetworkOnly } from 'workbox-strategies';
 
+import { notificationPath } from './notifications/link';
+
 declare const self: ServiceWorkerGlobalScope;
 
 // Service Worker は、アプリの外枠 (HTML、JS、CSS、アイコン) だけをキャッシュする (設計書 10.1)。
@@ -38,7 +40,8 @@ precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
 // Web Push の通知を出す (設計書 6.2)。本文は、tenban が組み立てて送る (webpush.Payload)。
-type PushPayload = { title: string; body: string; eventId: string; kind: string };
+// url は、通知を押したときに開く画面のパス (視聴予約の通知では、そのサービスのライブ視聴)。
+type PushPayload = { title: string; body: string; eventId: string; kind: string; url?: string };
 
 self.addEventListener('push', (event) => {
   const payload = parsePush(event.data);
@@ -51,25 +54,29 @@ self.addEventListener('push', (event) => {
       body: payload.body,
       tag: payload.eventId,
       icon: '/icons/icon-192.png',
-      data: { kind: payload.kind },
+      data: { kind: payload.kind, url: notificationPath(payload.url) },
     }),
   );
 });
 
-// 通知を押したら、開いているタブがあればそこで、なければ新しいタブで、通知の一覧を開く。
+// 通知を押したら、開いているタブがあればそこで、なければ新しいタブで、通知が示す画面を開く。
+// 示す画面がなければ、通知の一覧を開く。
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const data = event.notification.data as { url?: unknown } | null;
+  const target =
+    notificationPath(typeof data?.url === 'string' ? data.url : null) ?? '/notifications';
   event.waitUntil(
     (async () => {
       const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       const opened = windows[0];
       if (opened !== undefined) {
         await opened.focus();
-        await opened.navigate('/notifications');
+        await opened.navigate(target);
 
         return;
       }
-      await self.clients.openWindow('/notifications');
+      await self.clients.openWindow(target);
     })(),
   );
 });

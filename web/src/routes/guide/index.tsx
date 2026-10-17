@@ -215,6 +215,7 @@ function Guide() {
               id
               enabled
             }
+            watchReserved
           }
         }
       }
@@ -259,6 +260,7 @@ function Guide() {
             genre: program.genres[0]?.lv1,
             shared: program.shared,
             reserved: program.reservation?.enabled === true,
+            watchReserved: program.watchReserved,
           })),
         })),
     [data.guide, type],

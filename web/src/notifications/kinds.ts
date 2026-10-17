@@ -6,6 +6,7 @@ export const notificationKinds = {
   RESERVATION_CONFLICT: 'notifications.kind.RESERVATION_CONFLICT',
   STORAGE_LOW: 'notifications.kind.STORAGE_LOW',
   TUNER_SERVER_UNREACHABLE: 'notifications.kind.TUNER_SERVER_UNREACHABLE',
+  WATCH_REMINDER: 'notifications.kind.WATCH_REMINDER',
 } as const;
 
 export type NotificationKindName = keyof typeof notificationKinds;
