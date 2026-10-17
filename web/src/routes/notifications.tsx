@@ -1,11 +1,12 @@
 import { Alert, Anchor, Card, Group, Stack, Text, Title, VisuallyHidden } from '@mantine/core';
 import { BellOff } from 'lucide-react';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
 import { EmptyState, ErrorBoundary, PageLoader, ProgramTitle, splitProgramMarks } from '../futon';
+import { notificationPath } from '../notifications/link';
 import { splitMessage } from '../notifications/message';
 import { isUnauthenticated } from '../relay/environment';
 import type { notificationsListQuery } from './__generated__/notificationsListQuery.graphql';
@@ -77,6 +78,7 @@ function NotificationList() {
               occurredAt
               message
               payload
+              url
               readAt
             }
           }
@@ -152,9 +154,12 @@ function NotificationList() {
                     {isNew && <VisuallyHidden>{t('notifications.new')}</VisuallyHidden>}
                     <NotificationMessage message={node.message} payload={node.payload} />
                   </Text>
-                  <Text size="xs" c="dimmed">
-                    {dateTimeFormat.format(Date.parse(node.occurredAt))}
-                  </Text>
+                  <Group gap="xs">
+                    <Text size="xs" c="dimmed">
+                      {dateTimeFormat.format(Date.parse(node.occurredAt))}
+                    </Text>
+                    <NotificationLink url={node.url} kind={node.kind} />
+                  </Group>
                 </Stack>
               </Group>
             </Card>
@@ -162,6 +167,39 @@ function NotificationList() {
         })
       )}
     </Stack>
+  );
+}
+
+// NotificationLink は、通知が示す画面 (視聴予約の通知では、そのサービスのライブ視聴) への入り口。示す画面がなければ出さない。
+function NotificationLink({ url, kind }: { url: string | null | undefined; kind: string }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const path = notificationPath(url);
+  if (path === null) {
+    return null;
+  }
+
+  return (
+    <Anchor
+      href={path}
+      size="xs"
+      onClick={(event) => {
+        // 修飾キーを押したときや中クリックは、ブラウザに任せて新しいタブなどで開かせる。
+        if (
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey
+        ) {
+          return;
+        }
+        event.preventDefault();
+        void navigate({ href: path });
+      }}
+    >
+      {kind === 'WATCH_REMINDER' ? t('notifications.watchLive') : t('notifications.open')}
+    </Anchor>
   );
 }
 

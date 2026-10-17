@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b7bf66401b71377f9ed836bfa355488b>>
+ * @generated SignedSource<<16646719afac0a8c47d3b0ab2c31d935>>
  * @lightSyntaxTransform
  */
 
@@ -17,6 +17,9 @@ export type notificationsSettingsQuery$data = {
     readonly ruleReservations: boolean;
     readonly webPush: boolean;
   }>;
+  readonly watchReminderSettings: {
+    readonly minutesBefore: number;
+  };
   readonly webPushPublicKey: string;
   readonly webPushSubscriptions: ReadonlyArray<{
     readonly endpoint: string;
@@ -80,6 +83,24 @@ v2 = {
     }
   ],
   "storageKey": null
+},
+v3 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "WatchReminderSettings",
+  "kind": "LinkedField",
+  "name": "watchReminderSettings",
+  "plural": false,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "minutesBefore",
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
 };
 return {
   "fragment": {
@@ -101,7 +122,8 @@ return {
         ],
         "storageKey": null
       },
-      (v2/*:: as any*/)
+      (v2/*:: as any*/),
+      (v3/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -132,20 +154,21 @@ return {
         ],
         "storageKey": null
       },
-      (v2/*:: as any*/)
+      (v2/*:: as any*/),
+      (v3/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "bf9d7e733190079764c8e25d2995a5fc",
+    "cacheID": "e33b4c0946520be0075ce6de8aea66fd",
     "id": null,
     "metadata": {},
     "name": "notificationsSettingsQuery",
     "operationKind": "query",
-    "text": "query notificationsSettingsQuery {\n  webPushPublicKey\n  webPushSubscriptions {\n    endpoint\n    id\n  }\n  notificationPreferences {\n    kind\n    inApp\n    webPush\n    ruleReservations\n  }\n}\n"
+    "text": "query notificationsSettingsQuery {\n  webPushPublicKey\n  webPushSubscriptions {\n    endpoint\n    id\n  }\n  notificationPreferences {\n    kind\n    inApp\n    webPush\n    ruleReservations\n  }\n  watchReminderSettings {\n    minutesBefore\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "d3094078f436957c1e9f97feaa1dd860";
+(node as any).hash = "3d5f9561c9bc73b318c938e73de085be";
 
 export default node;

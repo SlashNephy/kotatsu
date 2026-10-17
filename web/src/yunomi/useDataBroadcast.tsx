@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { BMLBrowser } from 'web-bml';
 
 import { cspNonce } from '../futon';
+import { broadcastFontUrl } from './broadcastFont';
 import { createDataBroadcastAudio, type DataBroadcastAudio } from './dataBroadcastAudio';
 import type { DataBroadcastEnd, DataBroadcastRequest } from './dataBroadcastWorker';
 import { deinterlacerCanvas } from './deinterlacer';
@@ -184,6 +185,13 @@ export function useDataBroadcast(
       showErrorMessage: (title, message) => console.warn(`data broadcast: ${title}: ${message}`),
       // 既定では、受け取ったモジュールや API の呼び出しを、すべてコンソールに出す。
       log: { level: 'warn' },
+      // 文書は受信機の字幅を前提に作られているので、OS のフォントで描くと、はみ出したり折り返したりする (#443)。
+      // 字幕と同じ等幅の丸ゴシックで描く。角ゴシックの字形は同梱しないので、角ゴシックも同じフォントで描き、字幅をそろえる。
+      // FontFace は、文書が使うまで読み込まないので、データ放送を出すときにだけ読む。
+      fonts: {
+        roundGothic: { source: `url(${broadcastFontUrl})` },
+        squareGothic: { source: `url(${broadcastFontUrl})` },
+      },
     });
     browserRef.current = browser;
     // restore は、データ放送の中へ移した映像を、プレイヤーへ戻す。移していなければ null。
