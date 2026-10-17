@@ -49,6 +49,7 @@ import type { RecordingIdQuery } from './__generated__/RecordingIdQuery.graphql'
 import type { RecordingIdRegenerateMutation } from './__generated__/RecordingIdRegenerateMutation.graphql';
 import type { RecordingIdTagsMutation } from './__generated__/RecordingIdTagsMutation.graphql';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
+import { genreKey } from '../../guide/genres';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 import { zonedFormat } from '../../futon';
 
@@ -166,6 +167,13 @@ function Recording({ recordingId }: { recordingId: string }) {
             broadcastStartedAt
             broadcastEndedAt
             notBroadcast
+            genres {
+              lv1
+            }
+            rule {
+              id
+            }
+            ruleName
             thumbnailUrl
             streamUrl
             recordedFrom
@@ -333,7 +341,30 @@ function Recording({ recordingId }: { recordingId: string }) {
                 {t('recordings.protected')}
               </Badge>
             )}
+            {recording.genres[0] !== undefined && (
+              <Badge variant="light">{t(genreKey(recording.genres[0].lv1))}</Badge>
+            )}
           </Group>
+          {/* ルールで録った録画は、そのルールへ移れるようにする。ルールを消していても、名前は出す (#468)。 */}
+          {recording.ruleName != null &&
+            (recording.rule != null ? (
+              <Anchor
+                size="sm"
+                renderRoot={(props) => (
+                  <Link
+                    {...props}
+                    to="/rules/$ruleId"
+                    params={{ ruleId: recording.rule?.id ?? '' }}
+                  />
+                )}
+              >
+                {t('recordings.recordedByRule', { name: recording.ruleName })}
+              </Anchor>
+            ) : (
+              <Text size="sm" c="dimmed">
+                {t('recordings.recordedByDeletedRule', { name: recording.ruleName })}
+              </Text>
+            ))}
           {recording.failureReason != null && (
             <Alert color="red">
               {t(

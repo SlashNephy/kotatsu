@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -210,6 +211,24 @@ func (r *Resolver) rule(ctx context.Context, globalID string) (*model.Rule, erro
 	}
 	found, err := r.rules.Get(ctx, r.db, ruleID)
 	if err != nil {
+		return nil, err
+	}
+
+	return toRuleModel(ctx, found)
+}
+
+// recordingRule は、録画を始めたときに一致していたルールを引く。ルールを消していれば null を返す (#468)。
+func (r *Resolver) recordingRule(ctx context.Context, recording *model.Recording) (*model.Rule, error) {
+	var found *rule.Rule
+	var err error
+	if recording.RuleKey != nil {
+		found, err = r.rules.Get(ctx, r.db, *recording.RuleKey)
+		if errors.Is(err, rule.ErrNotFound) {
+			// 消したルールは null で返し、名前は ruleName で出す。
+			found, err = nil, nil
+		}
+	}
+	if err != nil || found == nil {
 		return nil, err
 	}
 

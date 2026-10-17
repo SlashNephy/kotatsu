@@ -57,6 +57,11 @@ func (r *recordingResolver) Service(ctx context.Context, obj *model.Recording) (
 	return toService(row), nil
 }
 
+// Rule is the resolver for the rule field.
+func (r *recordingResolver) Rule(ctx context.Context, obj *model.Recording) (*model.Rule, error) {
+	return r.recordingRule(ctx, obj)
+}
+
 // WatchFrame is the resolver for the watchFrame field.
 func (r *recordingResolver) WatchFrame(ctx context.Context, obj *model.Recording) (*model.PreviewFrame, error) {
 	return r.watchFrame(ctx, obj), nil

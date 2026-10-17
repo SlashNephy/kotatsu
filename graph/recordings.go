@@ -23,6 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/library"
 	"github.com/SlashNephy/kotatsu/internal/stream"
 	"github.com/SlashNephy/kotatsu/internal/thumbnail"
+	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
 
 const (
@@ -80,7 +81,8 @@ func (r *Resolver) listRecordings(
 	if order == model.RecordingOrderOldestFirst {
 		rows, err = sqlc.New(r.db).SearchRecordingsOldest(ctx, sqlc.SearchRecordingsOldestParams{
 			States: params.States, ServiceIds: params.ServiceIds, TagIds: params.TagIds, Keyword: params.Keyword,
-			Since: params.Since, Until: params.Until, AfterAt: params.BeforeAt, AfterID: params.BeforeID, MaxCount: params.MaxCount,
+			Since: params.Since, Until: params.Until, RuleID: params.RuleID, Genres: params.Genres,
+			AfterAt: params.BeforeAt, AfterID: params.BeforeID, MaxCount: params.MaxCount,
 		})
 	} else {
 		rows, err = sqlc.New(r.db).SearchRecordings(ctx, *params)
@@ -141,10 +143,14 @@ func (r *Resolver) continueWatching(ctx context.Context, first int) ([]*model.Re
 	return r.recordingModels(ctx, rows)
 }
 
+// maxGenreLv1 は、ジャンルの大分類の最大値。
+const maxGenreLv1 = 0xF
+
 // searchParams は、録画の絞り込みを、検索のクエリの引数にする。
 func searchParams(filter *model.RecordingFilter) (*sqlc.SearchRecordingsParams, error) {
 	params := &sqlc.SearchRecordingsParams{
-		States: []string{}, ServiceIds: []int64{}, TagIds: []uuid.UUID{}, Keyword: nil, Since: nil, Until: nil, BeforeAt: nil, BeforeID: nil, MaxCount: 0,
+		States: []string{}, ServiceIds: []int64{}, TagIds: []uuid.UUID{}, Keyword: nil, Since: nil, Until: nil,
+		RuleID: nil, Genres: []int32{}, BeforeAt: nil, BeforeID: nil, MaxCount: 0,
 	}
 	if filter == nil {
 		return params, nil
@@ -174,6 +180,20 @@ func searchParams(filter *model.RecordingFilter) (*sqlc.SearchRecordingsParams, 
 		params.Keyword = new(escapeLike(strings.TrimSpace(*filter.Keyword)))
 	}
 	params.Since, params.Until = filter.Since, filter.Until
+	if filter.RuleID != nil {
+		ruleID, err := parseTypedID(*filter.RuleID, ruleType, "invalid rule ID")
+		if err != nil {
+			return nil, err
+		}
+		params.RuleID = &ruleID
+	}
+	for _, lv1 := range filter.Genres {
+		// ジャンルの大分類は 4 ビット (0〜15)。
+		if lv1 < 0 || lv1 > maxGenreLv1 {
+			return nil, NewError(CodeBadUserInput, fmt.Sprintf("genres must be between 0 and %d", maxGenreLv1))
+		}
+		params.Genres = append(params.Genres, int32(lv1))
+	}
 
 	return params, nil
 }
@@ -359,11 +379,19 @@ func recordingModel(row *sqlc.Recording) (*model.Recording, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode the recording audios: %w", err)
 	}
+	upstreamGenres := []*mirakurun.Genre{}
+	if err := json.Unmarshal(row.Genres, &upstreamGenres); err != nil {
+		return nil, fmt.Errorf("failed to decode the recording genres: %w", err)
+	}
+	genres := make([]*model.Genre, 0, len(upstreamGenres))
+	for _, g := range upstreamGenres {
+		genres = append(genres, &model.Genre{Lv1: g.Lv1, Lv2: g.Lv2})
+	}
 	recording := &model.Recording{
 		ID: GlobalID(recordingType, row.ID.String()), EventID: nil, Name: row.Name, Description: row.Description,
 		StartAt: row.StartAt, EndAt: row.EndAt, State: model.RecordingState(strings.ToUpper(row.State)), FailureReason: nil,
 		Protected: row.Protected, Drops: row.Drops, Errors: row.Errors, Scrambled: row.Scrambled, Gaps: orEmpty(gaps),
-		Audios:      audios,
+		Audios: audios, Genres: genres, RuleName: row.RuleName, RuleKey: row.RuleID,
 		ProgramLost: row.ProgramLost, RecordedFrom: row.RecordedFrom, RecordedUntil: row.RecordedUntil,
 		BroadcastStartedAt: row.BroadcastStartedAt, BroadcastEndedAt: row.BroadcastEndedAt, NotBroadcast: row.NotBroadcast,
 		Tags: []*model.Tag{}, Files: []*model.RecordingFile{}, WatchPositionMs: nil, ThumbnailURL: nil, PreviewURL: nil,

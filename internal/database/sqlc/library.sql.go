@@ -36,7 +36,7 @@ func (q *Queries) InsertRecordingTag(ctx context.Context, arg InsertRecordingTag
 }
 
 const listContinueWatching = `-- name: ListContinueWatching :many
-SELECT r.id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM watch_progress w
+SELECT r.id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.genres, r.rule_id, r.rule_name, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM watch_progress w
 JOIN recordings r ON r.id = w.recording_id
 WHERE w.user_id = $1 AND w.position_ms >= $2::bigint
   AND (r.recorded_until IS NULL
@@ -90,6 +90,9 @@ func (q *Queries) ListContinueWatching(ctx context.Context, arg ListContinueWatc
 			&i.Recording.Scrambled,
 			&i.Recording.Gaps,
 			&i.Recording.Audios,
+			&i.Recording.Genres,
+			&i.Recording.RuleID,
+			&i.Recording.RuleName,
 			&i.Recording.ProgramLost,
 			&i.Recording.BroadcastStartedAt,
 			&i.Recording.BroadcastEndedAt,
@@ -186,7 +189,7 @@ func (q *Queries) ListRecordingTags(ctx context.Context, recordingIds []uuid.UUI
 }
 
 const listRecordingsByIDs = `-- name: ListRecordingsByIDs :many
-SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, program_lost, broadcast_started_at, broadcast_ended_at, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = ANY($1::uuid[])
+SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = ANY($1::uuid[])
 `
 
 func (q *Queries) ListRecordingsByIDs(ctx context.Context, ids []uuid.UUID) ([]Recording, error) {
@@ -215,6 +218,9 @@ func (q *Queries) ListRecordingsByIDs(ctx context.Context, ids []uuid.UUID) ([]R
 			&i.Scrambled,
 			&i.Gaps,
 			&i.Audios,
+			&i.Genres,
+			&i.RuleID,
+			&i.RuleName,
 			&i.ProgramLost,
 			&i.BroadcastStartedAt,
 			&i.BroadcastEndedAt,
@@ -304,7 +310,7 @@ func (q *Queries) ListWatchProgress(ctx context.Context, arg ListWatchProgressPa
 }
 
 const lockRecording = `-- name: LockRecording :one
-SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, program_lost, broadcast_started_at, broadcast_ended_at, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1 FOR UPDATE
+SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1 FOR UPDATE
 `
 
 // 録画を変える前に、ロックして読む。
@@ -328,6 +334,9 @@ func (q *Queries) LockRecording(ctx context.Context, id uuid.UUID) (Recording, e
 		&i.Scrambled,
 		&i.Gaps,
 		&i.Audios,
+		&i.Genres,
+		&i.RuleID,
+		&i.RuleName,
 		&i.ProgramLost,
 		&i.BroadcastStartedAt,
 		&i.BroadcastEndedAt,
@@ -342,19 +351,23 @@ func (q *Queries) LockRecording(ctx context.Context, id uuid.UUID) (Recording, e
 }
 
 const searchRecordings = `-- name: SearchRecordings :many
-SELECT r.id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM recordings r
+SELECT r.id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.genres, r.rule_id, r.rule_name, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM recordings r
 WHERE (cardinality($1::text[]) = 0 OR r.state = ANY($1::text[]))
   AND (cardinality($2::bigint[]) = 0 OR r.service_id = ANY($2::bigint[]))
   AND (cardinality($3::uuid[]) = 0 OR EXISTS (
     SELECT 1 FROM recording_tags rt WHERE rt.recording_id = r.id AND rt.tag_id = ANY($3::uuid[])
   ))
   AND ($4::text IS NULL OR r.name ILIKE '%' || $4::text || '%')
-  AND ($5::timestamptz IS NULL OR r.start_at >= $5::timestamptz)
-  AND ($6::timestamptz IS NULL OR r.start_at < $6::timestamptz)
-  AND ($7::timestamptz IS NULL
-    OR (r.recorded_from, r.id) < ($7::timestamptz, $8::uuid))
+  AND ($5::uuid IS NULL OR r.rule_id = $5::uuid)
+  AND (cardinality($6::int[]) = 0 OR EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r.genres) g WHERE (g ->> 'lv1')::int = ANY($6::int[])
+  ))
+  AND ($7::timestamptz IS NULL OR r.start_at >= $7::timestamptz)
+  AND ($8::timestamptz IS NULL OR r.start_at < $8::timestamptz)
+  AND ($9::timestamptz IS NULL
+    OR (r.recorded_from, r.id) < ($9::timestamptz, $10::uuid))
 ORDER BY r.recorded_from DESC, r.id DESC
-LIMIT $9
+LIMIT $11
 `
 
 type SearchRecordingsParams struct {
@@ -362,6 +375,8 @@ type SearchRecordingsParams struct {
 	ServiceIds []int64
 	TagIds     []uuid.UUID
 	Keyword    *string
+	RuleID     *uuid.UUID
+	Genres     []int32
 	Since      *time.Time
 	Until      *time.Time
 	BeforeAt   *time.Time
@@ -370,6 +385,7 @@ type SearchRecordingsParams struct {
 }
 
 // 録画を、録画を始めた日時の新しい順に返す。絞り込まない条件は NULL か空にする。
+// ジャンルは、大分類 (lv1) のどれかに当たる録画を返す (#468)。
 // before_at と before_id より前 (古い) の録画だけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
 // 並び順をパラメーターで切り替えると、インデックスの順に読めなくなるので、古い順は SearchRecordingsOldest に分ける。
 func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsParams) ([]Recording, error) {
@@ -378,6 +394,8 @@ func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsPara
 		arg.ServiceIds,
 		arg.TagIds,
 		arg.Keyword,
+		arg.RuleID,
+		arg.Genres,
 		arg.Since,
 		arg.Until,
 		arg.BeforeAt,
@@ -408,6 +426,9 @@ func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsPara
 			&i.Scrambled,
 			&i.Gaps,
 			&i.Audios,
+			&i.Genres,
+			&i.RuleID,
+			&i.RuleName,
 			&i.ProgramLost,
 			&i.BroadcastStartedAt,
 			&i.BroadcastEndedAt,
@@ -429,19 +450,23 @@ func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsPara
 }
 
 const searchRecordingsOldest = `-- name: SearchRecordingsOldest :many
-SELECT r.id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM recordings r
+SELECT r.id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.genres, r.rule_id, r.rule_name, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM recordings r
 WHERE (cardinality($1::text[]) = 0 OR r.state = ANY($1::text[]))
   AND (cardinality($2::bigint[]) = 0 OR r.service_id = ANY($2::bigint[]))
   AND (cardinality($3::uuid[]) = 0 OR EXISTS (
     SELECT 1 FROM recording_tags rt WHERE rt.recording_id = r.id AND rt.tag_id = ANY($3::uuid[])
   ))
   AND ($4::text IS NULL OR r.name ILIKE '%' || $4::text || '%')
-  AND ($5::timestamptz IS NULL OR r.start_at >= $5::timestamptz)
-  AND ($6::timestamptz IS NULL OR r.start_at < $6::timestamptz)
-  AND ($7::timestamptz IS NULL
-    OR (r.recorded_from, r.id) > ($7::timestamptz, $8::uuid))
+  AND ($5::uuid IS NULL OR r.rule_id = $5::uuid)
+  AND (cardinality($6::int[]) = 0 OR EXISTS (
+    SELECT 1 FROM jsonb_array_elements(r.genres) g WHERE (g ->> 'lv1')::int = ANY($6::int[])
+  ))
+  AND ($7::timestamptz IS NULL OR r.start_at >= $7::timestamptz)
+  AND ($8::timestamptz IS NULL OR r.start_at < $8::timestamptz)
+  AND ($9::timestamptz IS NULL
+    OR (r.recorded_from, r.id) > ($9::timestamptz, $10::uuid))
 ORDER BY r.recorded_from ASC, r.id ASC
-LIMIT $9
+LIMIT $11
 `
 
 type SearchRecordingsOldestParams struct {
@@ -449,6 +474,8 @@ type SearchRecordingsOldestParams struct {
 	ServiceIds []int64
 	TagIds     []uuid.UUID
 	Keyword    *string
+	RuleID     *uuid.UUID
+	Genres     []int32
 	Since      *time.Time
 	Until      *time.Time
 	AfterAt    *time.Time
@@ -463,6 +490,8 @@ func (q *Queries) SearchRecordingsOldest(ctx context.Context, arg SearchRecordin
 		arg.ServiceIds,
 		arg.TagIds,
 		arg.Keyword,
+		arg.RuleID,
+		arg.Genres,
 		arg.Since,
 		arg.Until,
 		arg.AfterAt,
@@ -493,6 +522,9 @@ func (q *Queries) SearchRecordingsOldest(ctx context.Context, arg SearchRecordin
 			&i.Scrambled,
 			&i.Gaps,
 			&i.Audios,
+			&i.Genres,
+			&i.RuleID,
+			&i.RuleName,
 			&i.ProgramLost,
 			&i.BroadcastStartedAt,
 			&i.BroadcastEndedAt,

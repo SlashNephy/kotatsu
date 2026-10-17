@@ -469,6 +469,10 @@ type RecordingFilter struct {
 	Since *time.Time `json:"since,omitempty"`
 	// 放送の開始がこの日時より前の録画。
 	Until *time.Time `json:"until,omitempty"`
+	// このルールで録った録画 (#468)。
+	RuleID *string `json:"ruleId,omitempty"`
+	// ジャンルの大分類 (lv1) のどれかに当たる録画。
+	Genres []int `json:"genres,omitempty"`
 }
 
 // 途切れた区間。

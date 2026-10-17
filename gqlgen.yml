@@ -72,6 +72,8 @@ models:
         resolver: true
       watchFrame:
         resolver: true
+      rule:
+        resolver: true
   Reservation:
     model: github.com/SlashNephy/kotatsu/graph/model.Reservation
     fields:
