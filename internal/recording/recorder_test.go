@@ -906,6 +906,48 @@ func TestRecorderCopiesProgramAudios(t *testing.T) {
 	assert.True(t, same)
 }
 
+// TestRecorderCopiesRuleAndGenres は、録画を始めたときに、予約のジャンルと、一致したルールのうち最も古いものとその名前を、
+// 録画に残すことを確かめる (#468)。予約やルールを消しても、録画をルールとジャンルで絞れるようにするため。
+func TestRecorderCopiesRuleAndGenres(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	_, err = f.pool.Exec(t.Context(), `UPDATE reservations SET genres = '[{"lv1":7,"lv2":0}]' WHERE id = $1`, reservationID)
+	require.NoError(t, err)
+	older, newer := id.New(), id.New()
+	for _, r := range []struct {
+		id        uuid.UUID
+		name      string
+		createdAt time.Time
+	}{{newer, "新しいルール", testNow()}, {older, "古いルール", testNow().Add(-time.Hour)}} {
+		_, err := f.pool.Exec(t.Context(), `INSERT INTO rules (id, name, memo, enabled, conditions, settings, avoid_duplicates, follow_event_relay, created_at, updated_at)
+			VALUES ($1, $2, '', true, '{"version":1,"conditions":{}}', '{}', false, true, $3, $3)`, r.id, r.name, r.createdAt)
+		require.NoError(t, err)
+		_, err = f.pool.Exec(t.Context(), "INSERT INTO reservation_rules (reservation_id, rule_id) VALUES ($1, $2)", reservationID, r.id)
+		require.NoError(t, err)
+	}
+	recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return len(f.files(t, reservationID)) == 2
+	}, waitTimeout, 10*time.Millisecond)
+	f.clock.Advance(programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
+	require.NoError(t, wait(t, done))
+
+	var ruleID *uuid.UUID
+	var ruleName *string
+	var genres string
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT rule_id, rule_name, genres::text FROM recordings WHERE reservation_id = $1",
+		reservationID).Scan(&ruleID, &ruleName, &genres))
+	assert.Equal(t, &older, ruleID)
+	assert.Equal(t, new("古いルール"), ruleName)
+	assert.JSONEq(t, `[{"lv1":7,"lv2":0}]`, genres)
+}
+
 // TestRecorderRecordsGapOnResume は、引き継ぎや再開で続きを録るとき、前のセグメントを書き終えてからの間を、途切れた区間として記録することを確かめる。
 func TestRecorderRecordsGapOnResume(t *testing.T) {
 	t.Parallel()

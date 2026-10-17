@@ -413,7 +413,7 @@ func TestBulkRules(t *testing.T) {
 	var disabled struct {
 		SetRulesEnabled payload `json:"setRulesEnabled"`
 	}
-	require.Empty(t, f.query(t, setEnabled, map[string]any{varIDs: ids, "enabled": false}, &disabled))
+	require.Empty(t, f.query(t, setEnabled, map[string]any{varIDs: ids, varEnabled: false}, &disabled))
 	assert.Equal(t, payload{Processed: 2, Skipped: 1}, disabled.SetRulesEnabled)
 	assert.Equal(t, []bool{false, false}, enabled())
 

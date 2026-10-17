@@ -329,16 +329,27 @@ function Rules() {
                   {rule.memo}
                 </Text>
               )}
-              {/* このルールの予約へ移れるようにする (#468)。 */}
-              <Anchor
-                size="xs"
-                c="dimmed"
-                renderRoot={(props) => (
-                  <Link {...props} to="/reservations" search={{ rule: rule.id }} />
-                )}
-              >
-                {t('rules.upcomingReservations', { count: rule.upcomingReservationCount })}
-              </Anchor>
+              {/* このルールの予約と、このルールで録った録画へ移れるようにする (#468)。 */}
+              <Group gap="sm">
+                <Anchor
+                  size="xs"
+                  c="dimmed"
+                  renderRoot={(props) => (
+                    <Link {...props} to="/reservations" search={{ rule: rule.id }} />
+                  )}
+                >
+                  {t('rules.upcomingReservations', { count: rule.upcomingReservationCount })}
+                </Anchor>
+                <Anchor
+                  size="xs"
+                  c="dimmed"
+                  renderRoot={(props) => (
+                    <Link {...props} to="/recordings" search={{ rule: rule.id }} />
+                  )}
+                >
+                  {t('rules.recordings')}
+                </Anchor>
+              </Group>
             </Stack>
             {canEdit && (
               <Switch

@@ -417,6 +417,7 @@ type ComplexityRoot struct {
 		FailureReason      func(childComplexity int) int
 		Files              func(childComplexity int) int
 		Gaps               func(childComplexity int) int
+		Genres             func(childComplexity int) int
 		ID                 func(childComplexity int) int
 		JikkyoCommentsURL  func(childComplexity int) int
 		Name               func(childComplexity int) int
@@ -426,6 +427,8 @@ type ComplexityRoot struct {
 		Protected          func(childComplexity int) int
 		RecordedFrom       func(childComplexity int) int
 		RecordedUntil      func(childComplexity int) int
+		Rule               func(childComplexity int) int
+		RuleName           func(childComplexity int) int
 		Scrambled          func(childComplexity int) int
 		Service            func(childComplexity int) int
 		StartAt            func(childComplexity int) int
@@ -839,6 +842,8 @@ type QueryResolver interface {
 }
 type RecordingResolver interface {
 	Service(ctx context.Context, obj *model.Recording) (*model.Service, error)
+
+	Rule(ctx context.Context, obj *model.Recording) (*model.Rule, error)
 
 	WatchFrame(ctx context.Context, obj *model.Recording) (*model.PreviewFrame, error)
 }
@@ -2727,6 +2732,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.Gaps(childComplexity), true
+	case "Recording.genres":
+		if e.ComplexityRoot.Recording.Genres == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.Genres(childComplexity), true
 	case "Recording.id":
 		if e.ComplexityRoot.Recording.ID == nil {
 			break
@@ -2781,6 +2792,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.RecordedUntil(childComplexity), true
+	case "Recording.rule":
+		if e.ComplexityRoot.Recording.Rule == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.Rule(childComplexity), true
+	case "Recording.ruleName":
+		if e.ComplexityRoot.Recording.RuleName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.RuleName(childComplexity), true
 	case "Recording.scrambled":
 		if e.ComplexityRoot.Recording.Scrambled == nil {
 			break
@@ -4918,6 +4941,12 @@ type Recording implements Node {
   gaps: [RecordingGap!]!
   "録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。"
   audios: [ProgramAudio!]!
+  "録画を始めたときの予約のジャンル。時刻予約の録画や、取り込んだ録画では空になる (#468)。"
+  genres: [Genre!]!
+  "録画を始めたときに予約に一致していたルール (最も古いもの)。番組予約と時刻予約の録画や、ルールを消したときは null。"
+  rule: Rule
+  "録画を始めたときに一致していたルールの名前。ルールを消しても残る。ルールで録っていなければ null。"
+  ruleName: String
   "録画中に番組が EPG から消えたかどうか。"
   programLost: Boolean!
   "録画中の TS の EIT[p/f] で、予約した番組が放送中になった日時と、放送中でなくなった日時 (設計書 5.1)。分からなければ null。"
@@ -4991,6 +5020,10 @@ input RecordingFilter {
   since: Time
   "放送の開始がこの日時より前の録画。"
   until: Time
+  "このルールで録った録画 (#468)。"
+  ruleId: ID
+  "ジャンルの大分類 (lv1) のどれかに当たる録画。"
+  genres: [Int!]
 }
 
 """
@@ -6548,6 +6581,12 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_gaps(ctx, field)
 	case "audios":
 		return ec.fieldContext_Recording_audios(ctx, field)
+	case "genres":
+		return ec.fieldContext_Recording_genres(ctx, field)
+	case "rule":
+		return ec.fieldContext_Recording_rule(ctx, field)
+	case "ruleName":
+		return ec.fieldContext_Recording_ruleName(ctx, field)
 	case "programLost":
 		return ec.fieldContext_Recording_programLost(ctx, field)
 	case "broadcastStartedAt":
@@ -16246,6 +16285,93 @@ func (ec *executionContext) fieldContext_Recording_audios(_ context.Context, fie
 	return fc, nil
 }
 
+func (ec *executionContext) _Recording_genres(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_genres(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Genres, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Genre) graphql.Marshaler {
+			return ec.marshalNGenre2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_genres(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Genre(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Recording_rule(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_rule(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().Rule(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Rule) graphql.Marshaler {
+			return ec.marshalORule2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRule(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_rule(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Rule(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Recording_ruleName(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_ruleName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RuleName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_ruleName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _Recording_programLost(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -22619,7 +22745,7 @@ func (ec *executionContext) unmarshalInputRecordingFilter(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"tagIds", "states", "serviceIds", "keyword", "since", "until"}
+	fieldsInOrder := [...]string{"tagIds", "states", "serviceIds", "keyword", "since", "until", "ruleId", "genres"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -22668,6 +22794,20 @@ func (ec *executionContext) unmarshalInputRecordingFilter(ctx context.Context, o
 				return it, err
 			}
 			it.Until = data
+		case "ruleId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ruleId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RuleID = data
+		case "genres":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("genres"))
+			data, err := ec.unmarshalOInt2ᚕintᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Genres = data
 		}
 	}
 	return it, nil
@@ -27066,6 +27206,54 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 		case "audios":
 			out.Values[i] = ec._Recording_audios(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "genres":
+			out.Values[i] = ec._Recording_genres(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "rule":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Recording_rule(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "ruleName":
+			out.Values[i] = ec._Recording_ruleName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "programLost":
@@ -31923,6 +32111,41 @@ func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) unmarshalOInt2ᚕintᚄ(ctx context.Context, v any) ([]int, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]int, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNInt2int(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOInt2ᚕintᚄ(ctx context.Context, sel ast.SelectionSet, v []int) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNInt2int(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v any) (*int, error) {
 	if v == nil {
 		return nil, nil
@@ -32122,6 +32345,13 @@ func (ec *executionContext) marshalORole2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu�
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) marshalORule2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRule(ctx context.Context, sel ast.SelectionSet, v *model.Rule) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Rule(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalORuleDefaultsInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐRuleDefaultsInput(ctx context.Context, v any) (*model.RuleDefaultsInput, error) {

@@ -266,6 +266,24 @@ func (r *Resolver) deleteRules(ctx context.Context, ids []string) (*model.BulkOp
 	})
 }
 
+// recordingRule は、録画を始めたときに一致していたルールを引く。ルールを消していれば null を返す (#468)。
+func (r *Resolver) recordingRule(ctx context.Context, recording *model.Recording) (*model.Rule, error) {
+	var found *rule.Rule
+	var err error
+	if recording.RuleKey != nil {
+		found, err = r.rules.Get(ctx, r.db, *recording.RuleKey)
+		if errors.Is(err, rule.ErrNotFound) {
+			// 消したルールは null で返し、名前は ruleName で出す。
+			found, err = nil, nil
+		}
+	}
+	if err != nil || found == nil {
+		return nil, err
+	}
+
+	return toRuleModel(ctx, found)
+}
+
 // previewRule は、保存する前のルールに一致する番組を、開始時刻の順に返す。
 // ルールの照合 (rule.Engine) と同じく、放送が始まった番組、終了時刻が未定の番組、ルールの有効期間の外の番組は含めない。
 func (r *Resolver) previewRule(ctx context.Context, in *model.RuleInput, first int, after *string) (*model.ProgramConnection, error) {

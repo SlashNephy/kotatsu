@@ -11,6 +11,7 @@ import {
   Indicator,
   Modal,
   MultiSelect,
+  Pill,
   SegmentedControl,
   SimpleGrid,
   Stack,
@@ -28,11 +29,12 @@ import {
   ListFilter,
   Search,
   SearchX,
+  Shapes,
   Tag,
   Trash2,
   Tv,
 } from 'lucide-react';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -44,6 +46,7 @@ import {
 } from 'react-relay';
 
 import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
+import { genreKey } from '../../guide/genres';
 import { broadcastRange } from '../../recordings/filterRange';
 import { RecordingCard } from '../../recordings/RecordingCard';
 import { recordingStates, stateKey } from '../../recordings/states';
@@ -56,9 +59,19 @@ import type {
 import type { recordingsDeleteMutation } from './__generated__/recordingsDeleteMutation.graphql';
 import type { recordingsTagsQuery } from './__generated__/recordingsTagsQuery.graphql';
 
+type RecordingsSearch = {
+  // rule は、このルールで録った録画だけを出すときの、ルールの ID (#468)。
+  rule?: string;
+};
+
 export const Route = createFileRoute('/recordings/')({
+  validateSearch: (search: Record<string, unknown>): RecordingsSearch =>
+    typeof search['rule'] === 'string' && search['rule'] !== '' ? { rule: search['rule'] } : {},
   component: RecordingsPage,
 });
+
+// genreOptions は、絞り込みで選べるジャンルの大分類 (ニュース・報道〜福祉と、その他)。
+const genreOptions = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15];
 
 // pageSize は、1 回に取る録画の数。
 const pageSize = 48;
@@ -122,8 +135,11 @@ type Order = recordingsListQuery$variables['order'];
 // 狭い画面では、絞り込みのフォームを一覧の上に置かず、見出しの右のボタンから、下から出るシートで開く。
 function RecordingsPage() {
   const { t } = useTranslation();
-  // filter は、結果に適用している絞り込み。最初は絞り込まずに、新しい録画から出す。
-  const [filter, setFilter] = useState<Filter>({});
+  const { rule } = Route.useSearch();
+  // formFilter は、フォームで決めた絞り込み。最初は絞り込まずに、新しい録画から出す。
+  const [formFilter, setFilter] = useState<Filter>({});
+  // ルールでの絞り込みは URL の rule から決め、ルールの画面から来たときや、戻ったときにも、URL に合わせる (#468)。
+  const filter: Filter = rule === undefined ? formFilter : { ...formFilter, ruleId: rule };
   // order は、並び順。絞り込みではないので、選んだらすぐに並べ替える。
   const [order, setOrder] = useState<Order>('NEWEST_FIRST');
   const [filtersOpened, setFiltersOpened] = useState(false);
@@ -197,9 +213,15 @@ function Recordings({
   const { t } = useTranslation();
   const tags = useLazyLoadQuery<recordingsTagsQuery>(
     graphql`
-      query recordingsTagsQuery {
+      query recordingsTagsQuery($ruleId: ID!, $withRule: Boolean!) {
         viewer {
           role
+        }
+        ruleFilter: node(id: $ruleId) @include(if: $withRule) {
+          __typename
+          ... on Rule {
+            name
+          }
         }
         tags {
           id
@@ -212,9 +234,11 @@ function Recordings({
         }
       }
     `,
-    {},
+    { ruleId: filter.ruleId ?? '', withRule: filter.ruleId != null },
     { fetchPolicy: 'store-and-network' },
   );
+  const navigate = useNavigate({ from: '/recordings/' });
+  const ruleName = tags.ruleFilter?.__typename === 'Rule' ? tags.ruleFilter.name : null;
   // version を変えると、一覧を読み直す。まとめて消した後に使う (#471)。
   const [version, setVersion] = useState(0);
   // deleted は、まとめて消した結果。読み直しても消えないよう、一覧の外に持つ。
@@ -223,6 +247,7 @@ function Recordings({
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
   const [serviceIds, setServiceIds] = useState<string[]>([]);
+  const [genres, setGenres] = useState<string[]>([]);
   // from と to は、放送日の期間 (YYYY-MM-DD)。両端を含む。
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -234,6 +259,7 @@ function Recordings({
       ...(tagIds.length > 0 ? { tagIds } : {}),
       ...(states.length > 0 ? { states: states as Filter['states'] } : {}),
       ...(serviceIds.length > 0 ? { serviceIds } : {}),
+      ...(genres.length > 0 ? { genres: genres.map(Number) } : {}),
       ...broadcastRange(from, to),
     });
     onFiltersClose();
@@ -280,6 +306,15 @@ function Recordings({
           value={serviceIds}
           onChange={setServiceIds}
           searchable
+          clearable
+          style={style}
+        />
+        <MultiSelect
+          label={t('recordings.genres')}
+          leftSection={<Shapes size={16} aria-hidden />}
+          data={genreOptions.map((lv1) => ({ value: String(lv1), label: t(genreKey(lv1)) }))}
+          value={genres}
+          onChange={setGenres}
           clearable
           style={style}
         />
@@ -331,7 +366,17 @@ function Recordings({
           {fields(false)}
         </Stack>
       </Drawer>
-      <Group justify="flex-end">
+      <Group justify={filter.ruleId != null ? 'space-between' : 'flex-end'}>
+        {/* ルールの画面から来たときは、どのルールで絞っているかを出し、外せるようにする (#468)。 */}
+        {filter.ruleId != null && (
+          <Pill
+            withRemoveButton
+            removeButtonProps={{ 'aria-label': t('recordings.ruleFilterClear') }}
+            onRemove={() => void navigate({ search: {} })}
+          >
+            {t('recordings.ruleFilter', { name: ruleName ?? t('recordings.deletedRule') })}
+          </Pill>
+        )}
         <SegmentedControl
           aria-label={t('recordings.order')}
           size="xs"

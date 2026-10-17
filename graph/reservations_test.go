@@ -374,7 +374,8 @@ func TestBulkReservations(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
 		state, recorded_from, created_at, updated_at)
-		SELECT gen_random_uuid(), id, service_id, event_id, name, '', start_at, end_at, 'recording', now(), now(), now() FROM reservations WHERE id = $1`,
+		SELECT gen_random_uuid(), id, service_id, event_id, name, '', start_at, end_at, 'recording', now(), created_at, updated_at
+		FROM reservations WHERE id = $1`,
 		rawRecording)
 	require.NoError(t, err)
 	ids := []string{first.ID, second.ID, recordingNow.ID, graph.GlobalID("Reservation", uuid.New().String())}
@@ -406,14 +407,14 @@ func TestBulkReservations(t *testing.T) {
 	var disabled struct {
 		SetReservationsEnabled payload `json:"setReservationsEnabled"`
 	}
-	require.Empty(t, f.query(t, setEnabled, map[string]any{varIDs: ids, "enabled": false}, &disabled))
+	require.Empty(t, f.query(t, setEnabled, map[string]any{varIDs: ids, varEnabled: false}, &disabled))
 	assert.Equal(t, payload{Processed: 2, Skipped: 2}, disabled.SetReservationsEnabled, "the recording one and the missing one are skipped")
 	assert.Equal(t, map[string]bool{first.Name: false, second.Name: false, recordingNow.Name: true}, enabledOf())
 
 	var enabled struct {
 		SetReservationsEnabled payload `json:"setReservationsEnabled"`
 	}
-	require.Empty(t, f.query(t, setEnabled, map[string]any{varIDs: ids[:2], "enabled": true}, &enabled))
+	require.Empty(t, f.query(t, setEnabled, map[string]any{varIDs: ids[:2], varEnabled: true}, &enabled))
 	assert.Equal(t, payload{Processed: 2, Skipped: 0}, enabled.SetReservationsEnabled)
 
 	var deleted struct {

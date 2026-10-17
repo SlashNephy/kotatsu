@@ -199,6 +199,9 @@ type Recording struct {
 	Scrambled          int64
 	Gaps               []byte
 	Audios             []byte
+	Genres             []byte
+	RuleID             *uuid.UUID
+	RuleName           *string
 	ProgramLost        bool
 	BroadcastStartedAt *time.Time
 	BroadcastEndedAt   *time.Time
