@@ -194,3 +194,42 @@ func TestWatchReminderSettings(t *testing.T) {
 		assert.Equal(t, tt.wantNotifyAt, list[0].NotifyAt, tt.name)
 	}
 }
+
+// TestWatchReservedInGuide は、番組表で多くの番組をまとめて引いても、ログイン中のユーザーが視聴予約した番組だけが印付きになることを確かめる。
+func TestWatchReservedInGuide(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	for _, eventID := range []int{5, 7} {
+		_, codes := f.setWatch(t, eventID, true)
+		require.Empty(t, codes)
+	}
+	// ほかのユーザーの視聴予約は、印にしない。
+	_, codes := f.as(t, "other", auth.RoleMember).setWatch(t, 6, true)
+	require.Empty(t, codes)
+
+	var guide struct {
+		Guide []struct {
+			Service struct {
+				Name string `json:"name"`
+			} `json:"service"`
+			Programs []watchReservedProgram `json:"programs"`
+		} `json:"guide"`
+	}
+	require.Empty(t, f.query(t, `{ guide(from: "2026-10-10T12:00:00Z", to: "2026-10-10T15:00:00Z") {
+		service { name } programs { eventId watchReserved }
+	} }`, nil, &guide))
+	reserved := map[string][]int{}
+	programs := 0
+	for _, row := range guide.Guide {
+		for _, p := range row.Programs {
+			programs++
+			if p.WatchReserved {
+				reserved[row.Service.Name] = append(reserved[row.Service.Name], p.EventID)
+			}
+		}
+	}
+	assert.Greater(t, programs, 10, "the guide loads many programs at once")
+	assert.Equal(t, map[string][]int{"こたつテスト1": {5, 7}}, reserved)
+}
