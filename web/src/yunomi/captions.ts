@@ -1,6 +1,6 @@
 import type { CanvasMainThreadRenderer, Controller, MPEGTSFeeder } from 'aribb24.js';
 
-import captionFontUrl from '../../vendor/caption-font/rounded-mplus-1m-wadalab-mix.ttf?url';
+import { broadcastFontUrl } from './broadcastFont';
 
 // Captions は、字幕と文字スーパーを、映像の上に描く (設計書 7.4)。
 // ブラウザの中で変換する経路では、プレイヤーが渡す private PES を、kyusu の経路では、hls.js が取り出す ID3 を渡す。
@@ -37,7 +37,7 @@ function loadCaptionFont(): Promise<void> {
     captionFontLoading =
       typeof FontFace === 'undefined'
         ? Promise.resolve()
-        : new FontFace(captionFontFamily, `url(${captionFontUrl})`).load().then(
+        : new FontFace(captionFontFamily, `url(${broadcastFontUrl})`).load().then(
             (face) => {
               document.fonts.add(face);
             },
