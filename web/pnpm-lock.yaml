@@ -216,8 +216,8 @@ importers:
         specifier: 4.1.1
         version: 4.1.1
       aribb24.js:
-        specifier: 2.0.31
-        version: 2.0.31
+        specifier: 2.0.32
+        version: 2.0.32
       get-nonce:
         specifier: 1.0.1
         version: 1.0.1
@@ -2742,8 +2742,8 @@ packages:
   arib-mmt-tlv-ts@2.0.2:
     resolution: {integrity: sha512-IRzUz4uYrGenWqdjkjR8t8GORJpsNVA3noE0+hRU718GGsmOplwvtxiYH2kk9Z42xAoNSN8btp9H19aR3oztmA==}
 
-  aribb24.js@2.0.31:
-    resolution: {integrity: sha512-sgCCiE2vVVjKwxryLaK1BeJMShf00Fs/ORSmkbCGffmP2E6N2JV4a32wEqnh22vVJZrDbE6VrmfHorIW6ygwcw==}
+  aribb24.js@2.0.32:
+    resolution: {integrity: sha512-/mNvrVrhKM/NcVnlWNsPg8QwMDal2l09Q90MhkPkPi9NxHWt1nWE40GanCJ7rwkEO9dtxUepKMjH0KPwZ90udQ==}
     hasBin: true
 
   array-buffer-byte-length@1.0.2:
@@ -6580,7 +6580,7 @@ snapshots:
 
   arib-mmt-tlv-ts@2.0.2: {}
 
-  aribb24.js@2.0.31: {}
+  aribb24.js@2.0.32: {}
 
   array-buffer-byte-length@1.0.2:
     dependencies:
