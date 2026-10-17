@@ -27,6 +27,8 @@ const (
 	requestTimeout = 30 * time.Second
 	// maxResponseBytes は、読むレスポンスの大きさの上限。リリースのノートが長くても足りる。
 	maxResponseBytes = 1 << 20
+	// userAgent は、問い合わせに付ける User-Agent。GitHub の API は、User-Agent のない問い合わせを断る。
+	userAgent = "Kotatsu (+https://github.com/SlashNephy/kotatsu)"
 )
 
 // Release は、新しいリリース。
@@ -72,6 +74,9 @@ func NewChecker(opts *Options) *Checker {
 	if c.interval <= 0 {
 		c.interval = DefaultInterval
 	}
+	if c.logger == nil {
+		c.logger = slog.New(slog.DiscardHandler)
+	}
 
 	return c
 }
@@ -112,6 +117,7 @@ func (c *Checker) Check(ctx context.Context) error {
 		return fmt.Errorf("failed to build the request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", userAgent)
 	res, err := c.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to get the latest release: %w", err)

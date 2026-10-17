@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,7 +59,13 @@ func TestCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// GitHub の API は、User-Agent のない問い合わせを断る。
+				if !strings.HasPrefix(r.Header.Get("User-Agent"), "Kotatsu") {
+					w.WriteHeader(http.StatusForbidden)
+
+					return
+				}
 				w.WriteHeader(tt.status)
 				_, _ = w.Write([]byte(tt.body))
 			}))
