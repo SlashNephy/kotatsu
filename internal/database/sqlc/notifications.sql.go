@@ -23,6 +23,31 @@ func (q *Queries) CountUnreadNotifications(ctx context.Context, userID uuid.UUID
 	return count, err
 }
 
+const deleteNotificationEventsBefore = `-- name: DeleteNotificationEventsBefore :execrows
+DELETE FROM notification_events
+WHERE id IN (
+  SELECT e.id FROM notification_events e
+  WHERE e.dispatched_at IS NOT NULL AND e.occurred_at < $1
+  ORDER BY e.occurred_at
+  LIMIT $2
+)
+`
+
+type DeleteNotificationEventsBeforeParams struct {
+	Before   time.Time
+	MaxCount int32
+}
+
+// 配り終えた通知のイベントのうち、before より前に起きたものを、max_count 件まで消す。ユーザーごとの通知も一緒に消える。
+// まだ配っていないイベントは消さない。
+func (q *Queries) DeleteNotificationEventsBefore(ctx context.Context, arg DeleteNotificationEventsBeforeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteNotificationEventsBefore, arg.Before, arg.MaxCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getNotificationEvent = `-- name: GetNotificationEvent :one
 SELECT id, kind, occurred_at, payload, dispatched_at, audience, by_rule FROM notification_events WHERE id = $1
 `

@@ -255,6 +255,8 @@ CREATE TABLE system_settings (
   recording_defaults jsonb NOT NULL,
   -- 過去の番組の保持期間 (日)。0 なら無期限 (設計書 3.4)。
   archive_retention_days integer NOT NULL CHECK (archive_retention_days >= 0),
+  -- 配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限 (#551)。
+  notification_retention_days integer NOT NULL DEFAULT 90 CHECK (notification_retention_days >= 0),
   updated_at timestamptz NOT NULL
 );
 
@@ -281,6 +283,9 @@ CREATE TABLE notification_events (
 -- 配っていないイベントを、古い順に引くのに使う。
 CREATE INDEX notification_events_pending_idx ON notification_events (occurred_at) WHERE dispatched_at IS NULL;
 
+-- 配り終えたイベントを、保持期間を過ぎたものから消すのに使う (#551)。
+CREATE INDEX notification_events_dispatched_idx ON notification_events (occurred_at) WHERE dispatched_at IS NOT NULL;
+
 -- 画面内の通知 (設計書 6.2)。既読はユーザーごとに管理する。
 CREATE TABLE notifications (
   id uuid PRIMARY KEY,
@@ -292,6 +297,9 @@ CREATE TABLE notifications (
 );
 
 CREATE INDEX notifications_user_id_created_at_idx ON notifications (user_id, created_at DESC, id DESC);
+
+-- 通知のイベントを消すと、ユーザーごとの通知も消える (ON DELETE CASCADE)。そのときにイベントで引く (#551)。
+CREATE INDEX notifications_event_id_idx ON notifications (event_id);
 
 -- イベントの種類ごとの通知設定 (設計書 6.2)。行がなければ、どの通知先でも受け取る。
 CREATE TABLE notification_preferences (

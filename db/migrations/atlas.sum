@@ -1,4 +1,4 @@
-h1:FBKCbd8b4LaLL2oCNMiRtsqWxvf3siDTa/47U9YBlOI=
+h1:lxgcE9is4923aUK3YzSTUVi6Ze9H5i2Uy+Yy/ifGZsM=
 20261009102215_init.sql h1:djnv0wCljjLLAM5B5hIIhKRznUe+i3cP9cxgvQGM8xc=
 20261009105537_coordination.sql h1:4kuzfKBnc3dZixraSK3FOFkkX25e2X59okkh0iXnETo=
 20261009114515_audit_events.sql h1:5zL6ffLkLETRIkZis+kRS1SdjTlgdvLW4NNecIsxWQE=
@@ -40,4 +40,5 @@ h1:FBKCbd8b4LaLL2oCNMiRtsqWxvf3siDTa/47U9YBlOI=
 20261015014428_add_oidc_link.sql h1:z2eJ+33D8GboF89uU5cvLzJy7brTnl3Ktcar5wNkpvk=
 20261015102002_add_recorder_unavailable.sql h1:RI1U0hYl4yHdGgdLfRGfKN3ys1eiYjygKkLJ0za2bB8=
 20261015125552_add_programs_extended_normalized.sql h1:3Go1u9BZkTP/w/2mzQl1lf/qVD0rfTiHZ5wQSxAGOj8=
-20261017015122_add_watch_reservations.sql h1:dxO/N0PQYrLk6oNsviMsV0iJUNktu5J4UuQMyRTzJMs=
+20261017015122_add_watch_reservations.sql h1:oahyyZZcdvPXNjkyXJClBhF7TQbPWa72D5baVfjhvtg=
+20261017050956_add_notification_retention.sql h1:aQeoqf6VzEpll8VEFQzRiUQJAZO5ocpkal+azp8/4dI=

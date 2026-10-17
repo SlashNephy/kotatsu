@@ -603,9 +603,10 @@ type ComplexityRoot struct {
 	}
 
 	SystemSettings struct {
-		ArchiveRetentionDays func(childComplexity int) int
-		RecordingDefaults    func(childComplexity int) int
-		UpdatedAt            func(childComplexity int) int
+		ArchiveRetentionDays      func(childComplexity int) int
+		NotificationRetentionDays func(childComplexity int) int
+		RecordingDefaults         func(childComplexity int) int
+		UpdatedAt                 func(childComplexity int) int
 	}
 
 	SystemStatus struct {
@@ -3418,6 +3419,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.ArchiveRetentionDays(childComplexity), true
+	case "SystemSettings.notificationRetentionDays":
+		if e.ComplexityRoot.SystemSettings.NotificationRetentionDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.NotificationRetentionDays(childComplexity), true
 	case "SystemSettings.recordingDefaults":
 		if e.ComplexityRoot.SystemSettings.RecordingDefaults == nil {
 			break
@@ -5372,6 +5379,8 @@ type SystemSettings {
   recordingDefaults: RecordingSettings!
   "過去の番組の保持期間 (日)。0 なら無期限。"
   archiveRetentionDays: Int!
+  "配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限。"
+  notificationRetentionDays: Int!
   "最後に変えた日時。一度も変えていなければ null。"
   updatedAt: Time
 }
@@ -5383,6 +5392,7 @@ input SystemSettingsInput {
   "録画設定の既定値の変える項目。省いた項目は変えない。"
   recordingDefaults: RecordingSettingsOverridesInput
   archiveRetentionDays: Int
+  notificationRetentionDays: Int
 }
 
 """
@@ -6691,6 +6701,8 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_recordingDefaults(ctx, field)
 	case "archiveRetentionDays":
 		return ec.fieldContext_SystemSettings_archiveRetentionDays(ctx, field)
+	case "notificationRetentionDays":
+		return ec.fieldContext_SystemSettings_notificationRetentionDays(ctx, field)
 	case "updatedAt":
 		return ec.fieldContext_SystemSettings_updatedAt(ctx, field)
 	}
@@ -18717,6 +18729,29 @@ func (ec *executionContext) fieldContext_SystemSettings_archiveRetentionDays(_ c
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _SystemSettings_notificationRetentionDays(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_notificationRetentionDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NotificationRetentionDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_notificationRetentionDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _SystemSettings_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -22197,7 +22232,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -22218,6 +22253,13 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.ArchiveRetentionDays = data
+		case "notificationRetentionDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notificationRetentionDays"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NotificationRetentionDays = data
 		}
 	}
 	return it, nil
@@ -27646,6 +27688,11 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "archiveRetentionDays":
 			out.Values[i] = ec._SystemSettings_archiveRetentionDays(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "notificationRetentionDays":
+			out.Values[i] = ec._SystemSettings_notificationRetentionDays(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

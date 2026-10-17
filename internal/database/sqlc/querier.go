@@ -60,6 +60,9 @@ type Querier interface {
 	DeleteGuideView(ctx context.Context, arg DeleteGuideViewParams) (int64, error)
 	DeleteInstance(ctx context.Context, arg DeleteInstanceParams) error
 	DeleteLoginChallenge(ctx context.Context, id uuid.UUID) error
+	// 配り終えた通知のイベントのうち、before より前に起きたものを、max_count 件まで消す。ユーザーごとの通知も一緒に消える。
+	// まだ配っていないイベントは消さない。
+	DeleteNotificationEventsBefore(ctx context.Context, arg DeleteNotificationEventsBeforeParams) (int64, error)
 	// 放送が始まった番組は、アーカイブに移すまで残す (設計書 3.3、3.4)。
 	DeletePrograms(ctx context.Context, arg []DeleteProgramsParams) *DeleteProgramsBatchResults
 	DeleteRecording(ctx context.Context, id uuid.UUID) (int64, error)

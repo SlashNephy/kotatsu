@@ -669,6 +669,8 @@ type SystemSettings struct {
 	RecordingDefaults *RecordingSettings `json:"recordingDefaults"`
 	// 過去の番組の保持期間 (日)。0 なら無期限。
 	ArchiveRetentionDays int `json:"archiveRetentionDays"`
+	// 配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限。
+	NotificationRetentionDays int `json:"notificationRetentionDays"`
 	// 最後に変えた日時。一度も変えていなければ null。
 	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 }
@@ -676,8 +678,9 @@ type SystemSettings struct {
 // 全体の設定の変える項目。省いた項目は変えない。
 type SystemSettingsInput struct {
 	// 録画設定の既定値の変える項目。省いた項目は変えない。
-	RecordingDefaults    *RecordingSettingsOverridesInput `json:"recordingDefaults,omitempty"`
-	ArchiveRetentionDays *int                             `json:"archiveRetentionDays,omitempty"`
+	RecordingDefaults         *RecordingSettingsOverridesInput `json:"recordingDefaults,omitempty"`
+	ArchiveRetentionDays      *int                             `json:"archiveRetentionDays,omitempty"`
+	NotificationRetentionDays *int                             `json:"notificationRetentionDays,omitempty"`
 }
 
 // システムの状態。

@@ -16,8 +16,9 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		return nil, err
 	}
 	updated, err := r.settings.Update(ctx, r.db, actor, &settings.Changes{
-		Recording:            toOverrides(input.RecordingDefaults),
-		ArchiveRetentionDays: input.ArchiveRetentionDays,
+		Recording:                 toOverrides(input.RecordingDefaults),
+		ArchiveRetentionDays:      input.ArchiveRetentionDays,
+		NotificationRetentionDays: input.NotificationRetentionDays,
 	})
 	if err != nil {
 		return nil, settingsError(err)

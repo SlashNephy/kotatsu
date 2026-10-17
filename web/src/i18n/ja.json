@@ -1157,6 +1157,9 @@
       "archive": "過去の番組",
       "archiveRetentionDays": "保持期間（日）",
       "archiveRetentionHelp": "放送が終わった番組を、番組表と検索に残す日数です。0なら無期限に残します",
+      "notifications": "通知",
+      "notificationRetentionDays": "保持期間（日）",
+      "notificationRetentionHelp": "画面内の通知を残す日数です。既読か未読かにかかわらず、これより古い通知は1日ごとに消します。0なら無期限に残します",
       "updatedAt": "最終更新 {{at}}",
       "neverUpdated": "まだ変えていません"
     },

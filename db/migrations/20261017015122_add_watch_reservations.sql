@@ -16,7 +16,7 @@ DROP INDEX "watch_reservations_service_id_event_id_idx";
 -- reverse: create "watch_reservations" table
 DROP TABLE "watch_reservations";
 -- reverse: modify "user_settings" table
-ALTER TABLE "user_settings" DROP COLUMN "watch_reminder_minutes", DROP CONSTRAINT "user_settings_watch_reminder_minutes_check";
+ALTER TABLE "user_settings" DROP CONSTRAINT "user_settings_watch_reminder_minutes_check", DROP COLUMN "watch_reminder_minutes";
 -- reverse: modify "notification_preferences" table
 ALTER TABLE "notification_preferences" DROP CONSTRAINT "notification_preferences_kind_check", ADD CONSTRAINT "notification_preferences_kind_check" CHECK (kind = ANY (ARRAY['recording_started'::text, 'recording_completed'::text, 'recording_failed'::text, 'reservation_conflict'::text, 'storage_low'::text, 'tuner_server_unreachable'::text]));
 -- reverse: modify "notification_events" table

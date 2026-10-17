@@ -15,11 +15,13 @@ import (
 )
 
 const (
-	fieldDefaults  = "recordingDefaults"
-	fieldDays      = "archiveRetentionDays"
-	settingsQuery  = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays } }`
-	updateSettings = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
-		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays } }`
+	fieldDefaults = "recordingDefaults"
+	fieldDays     = "archiveRetentionDays"
+	// fieldNotificationDays は、通知の保持期間の項目 (#551)。
+	fieldNotificationDays = "notificationRetentionDays"
+	settingsQuery         = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays } }`
+	updateSettings        = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
+		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays } }`
 )
 
 type recordingSettings struct {
@@ -31,8 +33,9 @@ type recordingSettings struct {
 }
 
 type systemSettings struct {
-	RecordingDefaults    recordingSettings `json:"recordingDefaults"`
-	ArchiveRetentionDays int               `json:"archiveRetentionDays"`
+	RecordingDefaults         recordingSettings `json:"recordingDefaults"`
+	ArchiveRetentionDays      int               `json:"archiveRetentionDays"`
+	NotificationRetentionDays int               `json:"notificationRetentionDays"`
 }
 
 func defaultSystemSettings() systemSettings {
@@ -41,7 +44,8 @@ func defaultSystemSettings() systemSettings {
 			PoolID: nil, FileNameTemplate: reserve.DefaultFileNameTemplate,
 			StartMarginSeconds: reserve.DefaultMarginSeconds, EndMarginSeconds: reserve.DefaultMarginSeconds, Priority: reserve.DefaultPriority,
 		},
-		ArchiveRetentionDays: 90,
+		ArchiveRetentionDays:      90,
+		NotificationRetentionDays: 90,
 	}
 }
 
@@ -85,6 +89,8 @@ func TestSystemSettings(t *testing.T) {
 	// 正しくない値は、BAD_USER_INPUT を返し、保存しない。
 	for _, input := range []map[string]any{
 		{fieldDays: -1},
+		{fieldNotificationDays: -1},
+		{fieldNotificationDays: 3651},
 		{fieldDefaults: map[string]any{"fileNameTemplate": "{{.Unknown}}"}},
 		{fieldDefaults: map[string]any{"priority": 11}},
 	} {
@@ -102,6 +108,10 @@ func TestSystemSettings(t *testing.T) {
 	assert.Equal(t, want, partial.UpdateSystemSettings)
 	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldDays: 30}}, &partial))
 	want.ArchiveRetentionDays = 30
+	assert.Equal(t, want, partial.UpdateSystemSettings)
+	// 通知の保持期間も変えられ、ほかの項目は変えない (#551)。
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldNotificationDays: 30}}, &partial))
+	want.NotificationRetentionDays = 30
 	assert.Equal(t, want, partial.UpdateSystemSettings)
 
 	var stamped struct {

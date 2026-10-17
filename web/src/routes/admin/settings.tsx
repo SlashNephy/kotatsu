@@ -70,6 +70,7 @@ const query = graphql`
         joinSegments
       }
       archiveRetentionDays
+      notificationRetentionDays
       updatedAt
     }
     systemStatus {
@@ -95,6 +96,7 @@ type Form = {
   priority: number | string;
   joinSegments: boolean;
   archiveRetentionDays: number | string;
+  notificationRetentionDays: number | string;
 };
 
 function SystemSettings() {
@@ -120,6 +122,7 @@ function SystemSettings() {
     priority: defaults.priority,
     joinSegments: defaults.joinSegments,
     archiveRetentionDays: settings.archiveRetentionDays,
+    notificationRetentionDays: settings.notificationRetentionDays,
   });
   const set = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
   const numbers = [
@@ -127,6 +130,7 @@ function SystemSettings() {
     form.endMarginSeconds,
     form.priority,
     form.archiveRetentionDays,
+    form.notificationRetentionDays,
   ];
   const valid = form.fileNameTemplate.trim() !== '' && numbers.every((n) => typeof n === 'number');
 
@@ -155,6 +159,7 @@ function SystemSettings() {
                 joinSegments: form.joinSegments,
               },
               archiveRetentionDays: Number(form.archiveRetentionDays),
+              notificationRetentionDays: Number(form.notificationRetentionDays),
             },
           },
         );
@@ -266,6 +271,24 @@ function SystemSettings() {
                 allowDecimal={false}
                 value={form.archiveRetentionDays}
                 onChange={(value) => set({ archiveRetentionDays: value })}
+              />
+            </Stack>
+          </Card>
+
+          <Card withBorder>
+            <Stack gap="xs">
+              <Title order={3} size="h5">
+                {t('admin.settings.notifications')}
+              </Title>
+              <NumberInput
+                size="xs"
+                maw={480}
+                label={t('admin.settings.notificationRetentionDays')}
+                description={t('admin.settings.notificationRetentionHelp')}
+                min={0}
+                allowDecimal={false}
+                value={form.notificationRetentionDays}
+                onChange={(value) => set({ notificationRetentionDays: value })}
               />
             </Stack>
           </Card>
