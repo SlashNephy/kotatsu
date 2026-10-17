@@ -417,6 +417,7 @@ type Querier interface {
 	// 最終的な判定は Go の照合関数で行うので、ここでは一致しうる番組を落とさないことだけを守る。
 	SearchProgramCandidates(ctx context.Context, arg SearchProgramCandidatesParams) ([]SearchProgramCandidatesRow, error)
 	// 録画を、録画を始めた日時の新しい順に返す。絞り込まない条件は NULL か空にする。
+	// ジャンルは、大分類 (lv1) のどれかに当たる録画を返す (#468)。
 	// before_at と before_id より前 (古い) の録画だけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
 	// 並び順をパラメーターで切り替えると、インデックスの順に読めなくなるので、古い順は SearchRecordingsOldest に分ける。
 	SearchRecordings(ctx context.Context, arg SearchRecordingsParams) ([]Recording, error)
@@ -451,6 +452,7 @@ type Querier interface {
 	SetupTokenExists(ctx context.Context, tokenHash []byte) (bool, error)
 	// 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。新しく始めたかどうかを inserted で返す。
 	// 番組の音声の構成は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
+	// ジャンルと、一致したルール (最も古いもの) とその名前も、予約から写す。予約やルールを消しても、録画を絞れるようにする (#468)。
 	StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error)
 	// /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。
 	SumActiveRecordingPackets(ctx context.Context) (SumActiveRecordingPacketsRow, error)

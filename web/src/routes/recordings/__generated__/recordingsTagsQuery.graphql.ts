@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<590c1504fb164a0f78916140179eca87>>
+ * @generated SignedSource<<aeea14c86a2437b56d060c283a2f6412>>
  * @lightSyntaxTransform
  */
 
@@ -9,8 +9,19 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
-export type recordingsTagsQuery$variables = Record<PropertyKey, never>;
+export type recordingsTagsQuery$variables = {
+  ruleId: string;
+  withRule: boolean;
+};
 export type recordingsTagsQuery$data = {
+  readonly ruleFilter?: {
+    readonly __typename: "Rule";
+    readonly name: string;
+  } | {
+    // This will never be '%other', but we need some
+    // value in case none of the concrete values match.
+    readonly __typename: "%other";
+  } | null | undefined;
   readonly services: ReadonlyArray<{
     readonly id: string;
     readonly name: string;
@@ -30,28 +41,62 @@ export type recordingsTagsQuery = {
 };
 
 const node: ConcreteRequest = (function(){
-var v0 = {
+var v0 = [
+  {
+    "defaultValue": null,
+    "kind": "LocalArgument",
+    "name": "ruleId"
+  },
+  {
+    "defaultValue": null,
+    "kind": "LocalArgument",
+    "name": "withRule"
+  }
+],
+v1 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "role",
   "storageKey": null
 },
-v1 = {
+v2 = [
+  {
+    "kind": "Variable",
+    "name": "id",
+    "variableName": "ruleId"
+  }
+],
+v3 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "id",
+  "name": "__typename",
   "storageKey": null
 },
-v2 = {
+v4 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "name",
   "storageKey": null
 },
-v3 = {
+v5 = {
+  "kind": "InlineFragment",
+  "selections": [
+    (v4/*:: as any*/)
+  ],
+  "type": "Rule",
+  "abstractKey": null
+},
+v6 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "id",
+  "storageKey": null
+},
+v7 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -59,8 +104,8 @@ v3 = {
   "name": "tags",
   "plural": true,
   "selections": [
-    (v1/*:: as any*/),
-    (v2/*:: as any*/),
+    (v6/*:: as any*/),
+    (v4/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -71,7 +116,7 @@ v3 = {
   ],
   "storageKey": null
 },
-v4 = {
+v8 = {
   "alias": null,
   "args": null,
   "concreteType": "Service",
@@ -79,14 +124,14 @@ v4 = {
   "name": "services",
   "plural": true,
   "selections": [
-    (v1/*:: as any*/),
-    (v2/*:: as any*/)
+    (v6/*:: as any*/),
+    (v4/*:: as any*/)
   ],
   "storageKey": null
 };
 return {
   "fragment": {
-    "argumentDefinitions": [],
+    "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Fragment",
     "metadata": null,
     "name": "recordingsTagsQuery",
@@ -99,19 +144,39 @@ return {
         "name": "viewer",
         "plural": false,
         "selections": [
-          (v0/*:: as any*/)
+          (v1/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v3/*:: as any*/),
-      (v4/*:: as any*/)
+      {
+        "condition": "withRule",
+        "kind": "Condition",
+        "passingValue": true,
+        "selections": [
+          {
+            "alias": "ruleFilter",
+            "args": (v2/*:: as any*/),
+            "concreteType": null,
+            "kind": "LinkedField",
+            "name": "node",
+            "plural": false,
+            "selections": [
+              (v3/*:: as any*/),
+              (v5/*:: as any*/)
+            ],
+            "storageKey": null
+          }
+        ]
+      },
+      (v7/*:: as any*/),
+      (v8/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
   },
   "kind": "Request",
   "operation": {
-    "argumentDefinitions": [],
+    "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
     "name": "recordingsTagsQuery",
     "selections": [
@@ -123,26 +188,47 @@ return {
         "name": "viewer",
         "plural": false,
         "selections": [
-          (v0/*:: as any*/),
-          (v1/*:: as any*/)
+          (v1/*:: as any*/),
+          (v6/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v3/*:: as any*/),
-      (v4/*:: as any*/)
+      {
+        "condition": "withRule",
+        "kind": "Condition",
+        "passingValue": true,
+        "selections": [
+          {
+            "alias": "ruleFilter",
+            "args": (v2/*:: as any*/),
+            "concreteType": null,
+            "kind": "LinkedField",
+            "name": "node",
+            "plural": false,
+            "selections": [
+              (v3/*:: as any*/),
+              (v5/*:: as any*/),
+              (v6/*:: as any*/)
+            ],
+            "storageKey": null
+          }
+        ]
+      },
+      (v7/*:: as any*/),
+      (v8/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "410875bbbd0967f7abd6da3eca75fbb6",
+    "cacheID": "bf1a5b532f1f8be1a506166e4e79a283",
     "id": null,
     "metadata": {},
     "name": "recordingsTagsQuery",
     "operationKind": "query",
-    "text": "query recordingsTagsQuery {\n  viewer {\n    role\n    id\n  }\n  tags {\n    id\n    name\n    recordings\n  }\n  services {\n    id\n    name\n  }\n}\n"
+    "text": "query recordingsTagsQuery(\n  $ruleId: ID!\n  $withRule: Boolean!\n) {\n  viewer {\n    role\n    id\n  }\n  ruleFilter: node(id: $ruleId) @include(if: $withRule) {\n    __typename\n    ... on Rule {\n      name\n    }\n    id\n  }\n  tags {\n    id\n    name\n    recordings\n  }\n  services {\n    id\n    name\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "0c92c5e9b45e5746ec4cbc9c02578402";
+(node as any).hash = "c94668e20ca2109d8b09b4a419133df6";
 
 export default node;
