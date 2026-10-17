@@ -1,13 +1,16 @@
 package graph_test
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/graph"
 	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/tuner/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/usersettings"
 )
 
@@ -212,24 +215,26 @@ func TestWatchReservedInGuide(t *testing.T) {
 	var guide struct {
 		Guide []struct {
 			Service struct {
-				Name string `json:"name"`
+				ID string `json:"id"`
 			} `json:"service"`
 			Programs []watchReservedProgram `json:"programs"`
 		} `json:"guide"`
 	}
 	require.Empty(t, f.query(t, `{ guide(from: "2026-10-10T12:00:00Z", to: "2026-10-10T15:00:00Z") {
-		service { name } programs { eventId watchReserved }
+		service { id } programs { eventId watchReserved }
 	} }`, nil, &guide))
+	// 視聴予約した番組は、どれも同じサービス (こたつテスト1) のもの。
 	reserved := map[string][]int{}
 	programs := 0
 	for _, row := range guide.Guide {
 		for _, p := range row.Programs {
 			programs++
 			if p.WatchReserved {
-				reserved[row.Service.Name] = append(reserved[row.Service.Name], p.EventID)
+				reserved[row.Service.ID] = append(reserved[row.Service.ID], p.EventID)
 			}
 		}
 	}
 	assert.Greater(t, programs, 10, "the guide loads many programs at once")
-	assert.Equal(t, map[string][]int{"こたつテスト1": {5, 7}}, reserved)
+	serviceID := graph.GlobalID("Service", strconv.FormatInt(faketuner.ServiceItemID(grNetworkID, grServiceID), 10))
+	assert.Equal(t, map[string][]int{serviceID: {5, 7}}, reserved)
 }
