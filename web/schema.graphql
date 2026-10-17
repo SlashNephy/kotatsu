@@ -1260,6 +1260,11 @@ type Query {
   """
   systemSettings: SystemSettings!
   """
+  重複の回避で予約しなかった、これから放送する番組を、放送の早い順に返す。照合と同じ計算で、その場で求める。
+  予約のある番組 (手動で予約したものなど) は返さない。手動の予約は重複の回避の対象にならないので、手動で予約すれば録れる。
+  """
+  skippedDuplicates: [SkippedDuplicate!]!
+  """
   サーバー側でのトランスコードを使えるかと、選べる画質。
   """
   transcoding: Transcoding!
@@ -1952,6 +1957,30 @@ type Session {
   ログインしたときの送信元。分からなければ null。
   """
   sourceIp: String
+}
+"""
+ルールに一致したが、同じ番組名を録画済みなので、重複の回避で予約しなかった番組 (設計書 4.4)。
+"""
+type SkippedDuplicate {
+  program: Program!
+  """
+  一致したが、重複の回避で外したルール。
+  """
+  rules: [SkippedRule!]!
+  """
+  同じ番組名を、同じサービスで最後に録った録画の終わり。
+  """
+  lastRecordedAt: Time!
+}
+"""
+重複の回避で外したルール。
+"""
+type SkippedRule {
+  """
+  ルールの ID (Rule の ID)。
+  """
+  id: ID!
+  name: String!
 }
 """
 保存先プール (設計書 5.6)。

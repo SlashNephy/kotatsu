@@ -88,7 +88,7 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 			return err
 		}
 		now := e.clock.Now()
-		desired, err := e.desired(ctx, tx, now, result)
+		desired, err := e.desired(ctx, tx, now, result, nil)
 		if err != nil {
 			return err
 		}
@@ -103,7 +103,10 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 }
 
 // desired は、予約すべき番組と、それぞれに一致したルールを返す。
-func (e *Engine) desired(ctx context.Context, tx pgx.Tx, now time.Time, result *Result) (map[programKey]*desiredProgram, error) {
+// skipped を渡せば、重複の回避で予約すべき集合から外した番組を、そこに入れる。
+func (e *Engine) desired(
+	ctx context.Context, tx pgx.Tx, now time.Time, result *Result, skipped map[programKey]*skippedProgram,
+) (map[programKey]*desiredProgram, error) {
 	rules, err := e.enabledRules(ctx, tx, result)
 	if err != nil {
 		return nil, err
@@ -133,7 +136,7 @@ func (e *Engine) desired(ctx context.Context, tx pgx.Tx, now time.Time, result *
 		}
 	}
 
-	if err := e.avoidDuplicates(ctx, tx, now, matched); err != nil {
+	if err := e.avoidDuplicates(ctx, tx, now, matched, skipped); err != nil {
 		return nil, err
 	}
 	pickSharedEvents(matched)
@@ -237,8 +240,10 @@ func toMatchProgram(row sqlc.ListMatchableProgramsRow) (*match.Program, error) {
 }
 
 // avoidDuplicates は、重複の回避を指定したルールについて、同じ番組名を期間内に録画済みの番組からそのルールを外す (設計書 4.4)。
-// どのルールにも一致しなくなった番組は、予約すべき集合から除く。
-func (e *Engine) avoidDuplicates(ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram) error {
+// どのルールにも一致しなくなった番組は、予約すべき集合から除き、skipped が nil でなければ、外したルールと一緒に入れる。
+func (e *Engine) avoidDuplicates(
+	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, skipped map[programKey]*skippedProgram,
+) error {
 	titleKeys := map[programKey]string{}
 	for key, d := range matched {
 		if slices.ContainsFunc(d.rules, func(r *compiledRule) bool { return r.AvoidDuplicates }) {
@@ -268,15 +273,24 @@ func (e *Engine) avoidDuplicates(ctx context.Context, tx pgx.Tx, now time.Time, 
 			continue
 		}
 		d := matched[key]
+		removed := []*compiledRule{}
 		d.rules = slices.DeleteFunc(d.rules, func(r *compiledRule) bool {
 			if !r.AvoidDuplicates {
 				return false
 			}
+			if r.DuplicateWindowDays == nil || !last.Before(now.Add(-time.Duration(*r.DuplicateWindowDays)*day)) {
+				removed = append(removed, r)
 
-			return r.DuplicateWindowDays == nil || !last.Before(now.Add(-time.Duration(*r.DuplicateWindowDays)*day))
+				return true
+			}
+
+			return false
 		})
 		if len(d.rules) == 0 {
 			delete(matched, key)
+			if skipped != nil {
+				skipped[key] = &skippedProgram{row: d.row, rules: removed, lastRecorded: last}
+			}
 		}
 	}
 
