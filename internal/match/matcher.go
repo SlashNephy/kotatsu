@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/SlashNephy/kotatsu/internal/epg"
 )
@@ -22,6 +25,9 @@ type Program struct {
 	StartAt  time.Time
 	Duration time.Duration
 	IsFree   bool
+
+	// folded は、大文字と小文字を区別しないキーワードで探すために、項目ごとに畳んだ文字列。照合のときに初めて作る。
+	folded map[Field]string
 }
 
 // ProgramInput は、NewProgram に渡す番組の情報。文字列は正規化する前のものでよい。
@@ -51,7 +57,37 @@ func NewProgram(in *ProgramInput) *Program {
 		StartAt:     in.StartAt,
 		Duration:    in.Duration,
 		IsFree:      in.IsFree,
+		folded:      nil,
 	}
+}
+
+// foldedText は、項目 field の文字列を、大文字と小文字を区別しない形に畳んで返す。
+// 番組 1 つを多くのルールと照合するので、項目ごとに 1 度だけ畳む。
+func (p *Program) foldedText(field Field) string {
+	if text, ok := p.folded[field]; ok {
+		return text
+	}
+	if p.folded == nil {
+		p.folded = map[Field]string{}
+	}
+	text := foldCase(p.text(field))
+	p.folded[field] = text
+
+	return text
+}
+
+// text は、項目 field の文字列を返す。
+func (p *Program) text(field Field) string {
+	switch field {
+	case FieldName:
+		return p.Name
+	case FieldDescription:
+		return p.Description
+	case FieldExtended:
+		return p.Extended
+	}
+
+	return ""
 }
 
 // Matcher は、検証してコンパイルした条件。複数の goroutine から使ってよい。
@@ -65,9 +101,14 @@ type Matcher struct {
 	location          *time.Location
 }
 
+// compiledKeyword は、照合できる形にしたキーワード。正規表現なら pattern を、文字どおりのキーワードなら literal を使う。
+// 文字どおりのキーワードを正規表現で探すと、照合の時間の大半を占めるので、文字列の検索にする (#530)。
 type compiledKeyword struct {
 	pattern *regexp.Regexp
-	fields  []Field
+	literal string
+	// fold は、literal を、大文字と小文字を区別せずに探すかどうか。literal は畳んで持つ。
+	fold   bool
+	fields []Field
 }
 
 // Compile は、条件を検証し、照合できる形にする。location は、曜日と時間帯を判定するタイムゾーン。
@@ -115,13 +156,20 @@ func Compile(c *Conditions, location *time.Location) (*Matcher, error) {
 	return m, nil
 }
 
-// compileKeyword は、キーワードを正規表現にする。
-// 正規表現でないキーワードは、NFKC で正規化してから、文字どおりに一致するパターンにする。
+// compileKeyword は、キーワードを照合できる形にする。
+// 正規表現でないキーワードは、NFKC で正規化してから、文字どおりに探す。
 func compileKeyword(k *Keyword) (*compiledKeyword, error) {
-	pattern := k.Text
 	if !k.Regexp {
-		pattern = regexp.QuoteMeta(epg.Normalize(k.Text))
+		literal := epg.Normalize(k.Text)
+		// 大文字と小文字の区別がない文字 (かなや漢字、数字) だけのキーワードは、区別してもしなくても同じなので、番組の文字列を畳まずに探す。
+		fold := !k.CaseSensitive && hasCase(literal)
+		if fold {
+			literal = foldCase(literal)
+		}
+
+		return &compiledKeyword{pattern: nil, literal: literal, fold: fold, fields: k.Fields}, nil
 	}
+	pattern := k.Text
 	if !k.CaseSensitive {
 		pattern = "(?i)" + pattern
 	}
@@ -130,7 +178,33 @@ func compileKeyword(k *Keyword) (*compiledKeyword, error) {
 		return nil, fmt.Errorf("%w: invalid regular expression: %w", ErrInvalidConditions, err)
 	}
 
-	return &compiledKeyword{pattern: compiled, fields: k.Fields}, nil
+	return &compiledKeyword{pattern: compiled, literal: "", fold: false, fields: k.Fields}, nil
+}
+
+// hasCase は、s に、大文字と小文字で別の形を持つ文字があるかどうか。
+func hasCase(s string) bool {
+	return strings.ContainsFunc(s, func(r rune) bool { return unicode.SimpleFold(r) != r })
+}
+
+// foldCase は、大文字と小文字を区別しない比較のために、文字ごとに、正規表現の (?i) と同じく同じ文字とみなす組
+// (unicode.SimpleFold でたどれる文字) の中で最も小さい文字にそろえる。
+func foldCase(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r < utf8.RuneSelf {
+			// ASCII の小文字の組で最も小さいのは、大文字。k と s の組の ASCII でない文字 (K と ſ) も、ASCII の大文字にそろう。
+			if 'a' <= r && r <= 'z' {
+				return r - 'a' + 'A'
+			}
+
+			return r
+		}
+		smallest := r
+		for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+			smallest = min(smallest, f)
+		}
+
+		return smallest
+	}, s)
 }
 
 // Match は、番組が条件に一致するかどうかを返す。安い条件から順に調べる。
@@ -183,16 +257,16 @@ func (m *Matcher) matchKeywords(p *Program) bool {
 
 func (k *compiledKeyword) match(p *Program) bool {
 	for _, field := range k.fields {
-		var text string
-		switch field {
-		case FieldName:
-			text = p.Name
-		case FieldDescription:
-			text = p.Description
-		case FieldExtended:
-			text = p.Extended
+		var found bool
+		switch {
+		case k.pattern != nil:
+			found = k.pattern.MatchString(p.text(field))
+		case k.fold:
+			found = strings.Contains(p.foldedText(field), k.literal)
+		default:
+			found = strings.Contains(p.text(field), k.literal)
 		}
-		if k.pattern.MatchString(text) {
+		if found {
 			return true
 		}
 	}
