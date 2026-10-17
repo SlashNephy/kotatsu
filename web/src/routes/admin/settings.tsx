@@ -71,6 +71,11 @@ const query = graphql`
       }
       archiveRetentionDays
       notificationRetentionDays
+      ruleDefaults {
+        avoidDuplicates
+        duplicateWindowDays
+        followEventRelay
+      }
       updatedAt
     }
     systemStatus {
@@ -97,6 +102,10 @@ type Form = {
   joinSegments: boolean;
   archiveRetentionDays: number | string;
   notificationRetentionDays: number | string;
+  // ルールを作るときの既定値 (#470)。重複を避ける日数は、空なら期間を区切らない。
+  ruleAvoidDuplicates: boolean;
+  ruleDuplicateWindowDays: number | string;
+  ruleFollowEventRelay: boolean;
 };
 
 function SystemSettings() {
@@ -123,6 +132,9 @@ function SystemSettings() {
     joinSegments: defaults.joinSegments,
     archiveRetentionDays: settings.archiveRetentionDays,
     notificationRetentionDays: settings.notificationRetentionDays,
+    ruleAvoidDuplicates: settings.ruleDefaults.avoidDuplicates,
+    ruleDuplicateWindowDays: settings.ruleDefaults.duplicateWindowDays ?? '',
+    ruleFollowEventRelay: settings.ruleDefaults.followEventRelay,
   });
   const set = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
   const numbers = [
@@ -160,6 +172,13 @@ function SystemSettings() {
               },
               archiveRetentionDays: Number(form.archiveRetentionDays),
               notificationRetentionDays: Number(form.notificationRetentionDays),
+              ruleDefaults: {
+                avoidDuplicates: form.ruleAvoidDuplicates,
+                ...(typeof form.ruleDuplicateWindowDays === 'number'
+                  ? { duplicateWindowDays: form.ruleDuplicateWindowDays }
+                  : { clearDuplicateWindowDays: true }),
+                followEventRelay: form.ruleFollowEventRelay,
+              },
             },
           },
         );
@@ -253,6 +272,45 @@ function SystemSettings() {
                 description={t('admin.settings.joinSegmentsHelp')}
                 checked={form.joinSegments}
                 onChange={(event) => set({ joinSegments: event.currentTarget.checked })}
+              />
+            </Stack>
+          </Card>
+
+          <Card withBorder>
+            <Stack gap="xs">
+              <Title order={3} size="h5">
+                {t('admin.settings.ruleDefaults')}
+              </Title>
+              <Text size="xs" c="dimmed">
+                {t('admin.settings.ruleDefaultsNote')}
+              </Text>
+              <Group gap="xs" align="flex-end">
+                <Switch
+                  size="sm"
+                  label={t('rules.avoidDuplicates')}
+                  checked={form.ruleAvoidDuplicates}
+                  onChange={(event) => set({ ruleAvoidDuplicates: event.currentTarget.checked })}
+                />
+                {form.ruleAvoidDuplicates && (
+                  <NumberInput
+                    size="xs"
+                    w={160}
+                    aria-label={t('rules.duplicateWindowDays')}
+                    placeholder={t('rules.duplicateWindowDaysPlaceholder')}
+                    min={1}
+                    max={3650}
+                    allowDecimal={false}
+                    suffix={t('rules.days')}
+                    value={form.ruleDuplicateWindowDays}
+                    onChange={(value) => set({ ruleDuplicateWindowDays: value })}
+                  />
+                )}
+              </Group>
+              <Switch
+                size="sm"
+                label={t('rules.followEventRelay')}
+                checked={form.ruleFollowEventRelay}
+                onChange={(event) => set({ ruleFollowEventRelay: event.currentTarget.checked })}
               />
             </Stack>
           </Card>

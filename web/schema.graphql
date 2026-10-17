@@ -1685,6 +1685,38 @@ type Rule implements Node {
   upcomingReservationCount: Int!
 }
 """
+ルールを作るときの既定値 (設計書 4.2、#470)。ルールの作成の画面の初期値に使う。
+"""
+type RuleDefaults {
+  """
+  同じ番組名を録画済みなら予約しないかどうか (設計書 4.4)。
+  """
+  avoidDuplicates: Boolean!
+  """
+  重複を避ける期間 (日)。null なら期間を区切らない。
+  """
+  duplicateWindowDays: Int
+  """
+  イベントリレーで続く番組も予約するかどうか (設計書 4.6)。
+  """
+  followEventRelay: Boolean!
+}
+"""
+ルールを作るときの既定値の変える項目。省いた項目は変えない。
+"""
+input RuleDefaultsInput {
+  avoidDuplicates: Boolean
+  """
+  重複を避ける期間 (1〜3650 日)。
+  """
+  duplicateWindowDays: Int
+  """
+  重複を避ける期間を区切らないようにする。duplicateWindowDays と一緒には使えない。
+  """
+  clearDuplicateWindowDays: Boolean! = false
+  followEventRelay: Boolean
+}
+"""
 ルールの内容。
 """
 input RuleInput {
@@ -1904,6 +1936,10 @@ type SystemSettings {
   """
   notificationRetentionDays: Int!
   """
+  ルールを作るときの既定値。
+  """
+  ruleDefaults: RuleDefaults!
+  """
   最後に変えた日時。一度も変えていなければ null。
   """
   updatedAt: Time
@@ -1918,6 +1954,10 @@ input SystemSettingsInput {
   recordingDefaults: RecordingSettingsOverridesInput
   archiveRetentionDays: Int
   notificationRetentionDays: Int
+  """
+  ルールを作るときの既定値の変える項目。省いた項目は変えない。
+  """
+  ruleDefaults: RuleDefaultsInput
 }
 """
 システムの状態。

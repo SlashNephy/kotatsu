@@ -352,6 +352,7 @@ type SystemSetting struct {
 	RecordingDefaults         []byte
 	ArchiveRetentionDays      int32
 	NotificationRetentionDays int32
+	RuleDefaults              []byte
 	UpdatedAt                 time.Time
 }
 

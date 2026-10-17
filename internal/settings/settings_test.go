@@ -172,3 +172,75 @@ func TestUpdateConcurrently(t *testing.T) {
 	assert.Equal(t, start, loaded.Recording.StartMarginSeconds)
 	assert.Equal(t, end, loaded.Recording.EndMarginSeconds)
 }
+
+// TestUpdateRuleDefaults は、ルールを作るときの既定値を、変えた項目だけ重ねて保存することを確かめる (#470)。
+func TestUpdateRuleDefaults(t *testing.T) {
+	t.Parallel()
+
+	days, zero, tooLong := 30, 0, 3651
+	tests := []struct {
+		name    string
+		changes []*settings.RuleChanges
+		want    *settings.RuleDefaults
+		wantErr bool
+	}{
+		{
+			name:    "変えていなければ、イベントリレーへの追従だけが有効",
+			changes: nil,
+			want:    &settings.RuleDefaults{AvoidDuplicates: false, DuplicateWindowDays: nil, FollowEventRelay: true},
+		},
+		{
+			name: "変えた項目だけを重ねる",
+			changes: []*settings.RuleChanges{
+				{AvoidDuplicates: new(true), DuplicateWindowDays: &days, ClearDuplicateWindowDays: false, FollowEventRelay: nil},
+				{AvoidDuplicates: nil, DuplicateWindowDays: nil, ClearDuplicateWindowDays: false, FollowEventRelay: new(false)},
+			},
+			want: &settings.RuleDefaults{AvoidDuplicates: true, DuplicateWindowDays: &days, FollowEventRelay: false},
+		},
+		{
+			name: "期間を区切らないように戻せる",
+			changes: []*settings.RuleChanges{
+				{AvoidDuplicates: new(true), DuplicateWindowDays: &days, ClearDuplicateWindowDays: false, FollowEventRelay: nil},
+				{AvoidDuplicates: nil, DuplicateWindowDays: nil, ClearDuplicateWindowDays: true, FollowEventRelay: nil},
+			},
+			want: &settings.RuleDefaults{AvoidDuplicates: true, DuplicateWindowDays: nil, FollowEventRelay: true},
+		},
+		{
+			name:    "期間は 1 日から",
+			changes: []*settings.RuleChanges{{AvoidDuplicates: nil, DuplicateWindowDays: &zero, ClearDuplicateWindowDays: false, FollowEventRelay: nil}},
+			wantErr: true,
+		},
+		{
+			name:    "期間は 3650 日まで",
+			changes: []*settings.RuleChanges{{AvoidDuplicates: nil, DuplicateWindowDays: &tooLong, ClearDuplicateWindowDays: false, FollowEventRelay: nil}},
+			wantErr: true,
+		},
+		{
+			name:    "期間を入れながら区切らないようにはできない",
+			changes: []*settings.RuleChanges{{AvoidDuplicates: nil, DuplicateWindowDays: &days, ClearDuplicateWindowDays: true, FollowEventRelay: nil}},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db := newDB(t)
+			store := newStore()
+			for _, changes := range tt.changes {
+				_, err := store.Update(t.Context(), db, audit.System("test"), &settings.Changes{
+					Recording: nil, ArchiveRetentionDays: nil, NotificationRetentionDays: nil, Rule: changes,
+				})
+				if tt.wantErr {
+					require.ErrorIs(t, err, settings.ErrInvalidSettings)
+
+					return
+				}
+				require.NoError(t, err)
+			}
+			loaded, err := settings.Load(t.Context(), db)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, loaded.Rule)
+		})
+	}
+}

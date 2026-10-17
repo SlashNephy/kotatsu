@@ -6,6 +6,7 @@ package settings
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -28,6 +29,8 @@ const (
 	maxArchiveRetentionDays = 3650
 	// auditTarget は、設定の監査ログの対象の種類。
 	auditTarget = "system_settings"
+	// maxDuplicateWindowDays は、重複を避ける期間の上限 (10 年)。ルールと同じ。
+	maxDuplicateWindowDays = 3650
 )
 
 // ErrInvalidSettings は、設定の値が正しくないことを表す。
@@ -43,6 +46,8 @@ type System struct {
 	ArchiveRetentionDays int
 	// NotificationRetentionDays は、配り終えた通知の保持期間 (日)。既読か未読かにかかわらず消す。0 なら無期限。
 	NotificationRetentionDays int
+	// Rule は、ルールを作るときの既定値 (#470)。
+	Rule *RuleDefaults
 	// UpdatedAt は、最後に変えた日時。一度も変えていなければ nil。
 	UpdatedAt *time.Time
 }
@@ -65,12 +70,44 @@ func (s *System) NotificationRetention() time.Duration {
 	return time.Duration(s.NotificationRetentionDays) * 24 * time.Hour
 }
 
+// RuleDefaults は、ルールを作るときの既定値 (#470)。ルールは家族で共有するので、全体の設定に持つ。
+type RuleDefaults struct {
+	// AvoidDuplicates は、同じ番組名を録画済みなら予約しないかどうか (設計書 4.4)。既定は false。
+	AvoidDuplicates bool
+	// DuplicateWindowDays は、重複を避ける期間 (日)。nil なら期間を区切らない。
+	DuplicateWindowDays *int
+	// FollowEventRelay は、イベントリレーで続く番組も予約するかどうか。既定は true。
+	FollowEventRelay bool
+}
+
+// ruleDefaultsJSON は、DB に保存する、ルールの既定値のうち変えた項目。変えていない項目は nil。
+type ruleDefaultsJSON struct {
+	AvoidDuplicates     *bool `json:"avoidDuplicates,omitempty"`
+	DuplicateWindowDays *int  `json:"duplicateWindowDays,omitempty"`
+	FollowEventRelay    *bool `json:"followEventRelay,omitempty"`
+}
+
+// RuleChanges は、ルールの既定値の変える項目。nil の項目は変えない。
+type RuleChanges struct {
+	AvoidDuplicates *bool
+	// DuplicateWindowDays は、重複を避ける期間 (1〜3650 日)。ClearDuplicateWindowDays なら、期間を区切らないようにする。
+	DuplicateWindowDays      *int
+	ClearDuplicateWindowDays bool
+	FollowEventRelay         *bool
+}
+
+// defaultRuleDefaults は、ルールの既定値の既定値。ルールの入力の既定値 (設計書 4.2) と同じ。
+func defaultRuleDefaults() *RuleDefaults {
+	return &RuleDefaults{AvoidDuplicates: false, DuplicateWindowDays: nil, FollowEventRelay: true}
+}
+
 // Changes は、変える項目。nil の項目は変えない。
 type Changes struct {
 	// Recording は、録画設定の既定値の変える項目。項目を既定値に戻すときは、既定値と同じ値を渡す。
 	Recording                 *reserve.Overrides
 	ArchiveRetentionDays      *int
 	NotificationRetentionDays *int
+	Rule                      *RuleChanges
 }
 
 // Load は、全体の設定を返す。一度も変えていなければ、既定値を返す。
@@ -118,6 +155,9 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			return nil, err
 		}
 	}
+	if err := validateRuleChanges(changes.Rule); err != nil {
+		return nil, err
+	}
 
 	var updated *System
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
@@ -145,8 +185,17 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 		if err != nil {
 			return err
 		}
+		ruleDefaults, err := decodeRuleDefaults(row.RuleDefaults)
+		if err != nil {
+			return err
+		}
+		ruleEncoded, err := json.Marshal(mergeRule(ruleDefaults, changes.Rule))
+		if err != nil {
+			return fmt.Errorf("failed to encode the rule defaults: %w", err)
+		}
 		saved, err := q.UpdateSystemSettings(ctx, sqlc.UpdateSystemSettingsParams{
-			RecordingDefaults: encoded, ArchiveRetentionDays: archiveDays, NotificationRetentionDays: notificationDays, Now: now,
+			RecordingDefaults: encoded, ArchiveRetentionDays: archiveDays, NotificationRetentionDays: notificationDays,
+			RuleDefaults: ruleEncoded, Now: now,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to update the system settings: %w", err)
@@ -164,6 +213,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"recording":                 change(current.RecordingOverrides, updated.RecordingOverrides),
 				"archiveRetentionDays":      change(current.ArchiveRetentionDays, updated.ArchiveRetentionDays),
 				"notificationRetentionDays": change(current.NotificationRetentionDays, updated.NotificationRetentionDays),
+				"rule":                      change(current.Rule, updated.Rule),
 			},
 			// 送信元は、操作者 (actor) に持たせる。
 			SourceIP:  netip.Addr{},
@@ -228,12 +278,74 @@ func merge(base, changes *reserve.Overrides) *reserve.Overrides {
 	return &merged
 }
 
+// validateRuleChanges は、ルールの既定値の変える項目が正しいかを確かめる。
+func validateRuleChanges(changes *RuleChanges) error {
+	if changes == nil {
+		return nil
+	}
+	if changes.ClearDuplicateWindowDays && changes.DuplicateWindowDays != nil {
+		return fmt.Errorf("%w: duplicateWindowDays and clearDuplicateWindowDays cannot be used together", ErrInvalidSettings)
+	}
+	if days := changes.DuplicateWindowDays; days != nil && (*days < 1 || *days > maxDuplicateWindowDays) {
+		return fmt.Errorf("%w: duplicateWindowDays must be between 1 and %d", ErrInvalidSettings, maxDuplicateWindowDays)
+	}
+
+	return nil
+}
+
+// mergeRule は、保存しているルールの既定値の変えた項目に、changes を重ねる。
+func mergeRule(base *ruleDefaultsJSON, changes *RuleChanges) *ruleDefaultsJSON {
+	merged := *base
+	if changes == nil {
+		return &merged
+	}
+	if changes.AvoidDuplicates != nil {
+		merged.AvoidDuplicates = changes.AvoidDuplicates
+	}
+	if changes.DuplicateWindowDays != nil {
+		merged.DuplicateWindowDays = changes.DuplicateWindowDays
+	}
+	if changes.ClearDuplicateWindowDays {
+		merged.DuplicateWindowDays = nil
+	}
+	if changes.FollowEventRelay != nil {
+		merged.FollowEventRelay = changes.FollowEventRelay
+	}
+
+	return &merged
+}
+
+// decodeRuleDefaults は、DB に保存したルールの既定値を読む。
+func decodeRuleDefaults(raw []byte) (*ruleDefaultsJSON, error) {
+	var stored ruleDefaultsJSON
+	if err := json.Unmarshal(raw, &stored); err != nil {
+		return nil, fmt.Errorf("failed to decode the rule defaults: %w", err)
+	}
+
+	return &stored, nil
+}
+
+// resolveRule は、ルールの既定値の既定値に、保存した項目を重ねる。
+func resolveRule(stored *ruleDefaultsJSON) *RuleDefaults {
+	resolved := defaultRuleDefaults()
+	if stored.AvoidDuplicates != nil {
+		resolved.AvoidDuplicates = *stored.AvoidDuplicates
+	}
+	resolved.DuplicateWindowDays = stored.DuplicateWindowDays
+	if stored.FollowEventRelay != nil {
+		resolved.FollowEventRelay = *stored.FollowEventRelay
+	}
+
+	return resolved
+}
+
 func defaults() *System {
 	return &System{
 		Recording:                 reserve.DefaultSettings(),
 		RecordingOverrides:        new(reserve.Overrides),
 		ArchiveRetentionDays:      DefaultArchiveRetentionDays,
 		NotificationRetentionDays: DefaultNotificationRetentionDays,
+		Rule:                      defaultRuleDefaults(),
 		UpdatedAt:                 nil,
 	}
 }
@@ -243,12 +355,17 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 	if err != nil {
 		return nil, err
 	}
+	rule, err := decodeRuleDefaults(row.RuleDefaults)
+	if err != nil {
+		return nil, err
+	}
 
 	return &System{
 		Recording:                 reserve.DefaultSettings().Resolve(overrides),
 		RecordingOverrides:        overrides,
 		ArchiveRetentionDays:      int(row.ArchiveRetentionDays),
 		NotificationRetentionDays: int(row.NotificationRetentionDays),
+		Rule:                      resolveRule(rule),
 		UpdatedAt:                 &row.UpdatedAt,
 	}, nil
 }
