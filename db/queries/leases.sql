@@ -27,11 +27,18 @@ WHERE name = @name AND holder = @holder AND generation = @generation AND expires
 
 -- name: LockLeaseForWrite :one
 -- 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
--- FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。
+-- FOR KEY SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない (取る前に FOR UPDATE で待つ)。
+-- 延長 (RenewLease) の UPDATE とはぶつからないので、長い書き込みの間もリースを延ばせる (#729)。
 SELECT generation
 FROM leases
 WHERE name = @name AND holder = @holder AND generation = @generation AND expires_at > @now
-FOR SHARE;
+FOR KEY SHARE;
+
+-- name: LockLeaseForAcquire :exec
+-- 期限の切れたリースを取る前に、行を FOR UPDATE でロックする。リーダーの書き込みのトランザクション (FOR KEY SHARE) が終わるまで待つ。
+-- AcquireLease の ON CONFLICT DO UPDATE は、キーを変えないので FOR KEY SHARE とぶつからず、これがないと書き込みの最中に取れてしまう。
+-- 期限内のリースは取れないので、ロックせず、書き込みを待たない。
+SELECT name FROM leases WHERE name = @name AND expires_at <= @now FOR UPDATE;
 
 -- name: GetLease :one
 SELECT * FROM leases WHERE name = @name;

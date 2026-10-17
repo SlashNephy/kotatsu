@@ -363,3 +363,42 @@ func TestTryAcquireGivesUpOnStuckLeader(t *testing.T) {
 	require.NotErrorIs(t, err, context.DeadlineExceeded)
 	assert.Less(t, time.Since(started), 5*time.Second)
 }
+
+// TestRenewDuringGuardedWrite は、リーダーの書き込みのトランザクションが長く続いても、その間にリースを延ばせ、
+// 延ばした後も、ほかのインスタンスは書き込みが終わるまでリースを取れないことを確かめる (#729)。
+func TestRenewDuringGuardedWrite(t *testing.T) {
+	t.Parallel()
+
+	pool := migratedPool(t)
+	clk := clocktest.NewFake(time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC))
+	a := lease.NewManager(pool, clk, leaseName, id.New(), ttl)
+	b := lease.NewManager(pool, clk, leaseName, id.New(), ttl)
+	genA, ok, err := a.TryAcquire(t.Context())
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	txA, err := pool.Begin(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = txA.Rollback(context.WithoutCancel(t.Context())) })
+	require.NoError(t, a.Guard(t.Context(), txA, genA))
+
+	// 書き込みの途中で、延長の時刻が来る。ロックを待たずに延ばせる。
+	clk.Advance(ttl / 2)
+	renewed, err := a.Renew(t.Context(), genA)
+	require.NoError(t, err)
+	assert.Equal(t, clk.Now(), renewed)
+
+	// 延ばす前の期限を過ぎても、A はリースを持ち続け、B は取れない。
+	clk.Advance(ttl/2 + time.Second)
+	_, ok, err = b.TryAcquire(t.Context())
+	require.NoError(t, err)
+	assert.False(t, ok)
+	require.NoError(t, txA.Commit(t.Context()))
+
+	// A が延長をやめて期限が切れると、B が取れる。
+	clk.Advance(ttl)
+	genB, ok, err := b.TryAcquire(t.Context())
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, genA+1, genB)
+}

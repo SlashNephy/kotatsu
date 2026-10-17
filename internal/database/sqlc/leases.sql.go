@@ -96,11 +96,28 @@ func (q *Queries) ListLeases(ctx context.Context) ([]Lease, error) {
 	return items, nil
 }
 
+const lockLeaseForAcquire = `-- name: LockLeaseForAcquire :exec
+SELECT name FROM leases WHERE name = $1 AND expires_at <= $2 FOR UPDATE
+`
+
+type LockLeaseForAcquireParams struct {
+	Name string
+	Now  time.Time
+}
+
+// 期限の切れたリースを取る前に、行を FOR UPDATE でロックする。リーダーの書き込みのトランザクション (FOR KEY SHARE) が終わるまで待つ。
+// AcquireLease の ON CONFLICT DO UPDATE は、キーを変えないので FOR KEY SHARE とぶつからず、これがないと書き込みの最中に取れてしまう。
+// 期限内のリースは取れないので、ロックせず、書き込みを待たない。
+func (q *Queries) LockLeaseForAcquire(ctx context.Context, arg LockLeaseForAcquireParams) error {
+	_, err := q.db.Exec(ctx, lockLeaseForAcquire, arg.Name, arg.Now)
+	return err
+}
+
 const lockLeaseForWrite = `-- name: LockLeaseForWrite :one
 SELECT generation
 FROM leases
 WHERE name = $1 AND holder = $2 AND generation = $3 AND expires_at > $4
-FOR SHARE
+FOR KEY SHARE
 `
 
 type LockLeaseForWriteParams struct {
@@ -111,7 +128,8 @@ type LockLeaseForWriteParams struct {
 }
 
 // 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
-// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。
+// FOR KEY SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない (取る前に FOR UPDATE で待つ)。
+// 延長 (RenewLease) の UPDATE とはぶつからないので、長い書き込みの間もリースを延ばせる (#729)。
 func (q *Queries) LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error) {
 	row := q.db.QueryRow(ctx, lockLeaseForWrite,
 		arg.Name,

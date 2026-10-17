@@ -52,6 +52,10 @@ func (m *Manager) TryAcquire(ctx context.Context) (int64, bool, error) {
 	now := m.clock.Now()
 	var generation int64
 	err := m.withLockTimeout(ctx, func(q *sqlc.Queries) error {
+		// リーダーの書き込みのトランザクションが終わるまで待ってから取る。
+		if err := q.LockLeaseForAcquire(ctx, sqlc.LockLeaseForAcquireParams{Name: m.name, Now: now}); err != nil {
+			return err
+		}
 		var err error
 		generation, err = q.AcquireLease(ctx, sqlc.AcquireLeaseParams{
 			Name:      m.name,
@@ -119,8 +123,9 @@ func (m *Manager) Release(ctx context.Context, generation int64) error {
 // Guard は、リーダーの書き込みのトランザクション tx の中で、まだ generation の世代のリースを持っていることを確かめる。
 // 持っていなければ ErrLost を返すので、呼び出し側はトランザクションをロールバックする。
 //
-// リースの行を FOR SHARE でロックするので、tx が終わるまで他のインスタンスはリースを取れない。
+// リースの行を FOR KEY SHARE でロックし、TryAcquire は取る前に FOR UPDATE で待つので、tx が終わるまで他のインスタンスはリースを取れない。
 // 確かめてからコミットするまでの間にリーダーが入れ替わり、古いリーダーの書き込みが通ってしまうことはない。
+// 延長の UPDATE とはぶつからないので、長い書き込みの間もリースを延ばせる (#729)。
 func (m *Manager) Guard(ctx context.Context, tx pgx.Tx, generation int64) error {
 	_, err := sqlc.New(tx).LockLeaseForWrite(ctx, sqlc.LockLeaseForWriteParams{
 		Name:       m.name,

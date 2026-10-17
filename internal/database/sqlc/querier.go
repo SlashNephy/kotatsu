@@ -342,8 +342,13 @@ type Querier interface {
 	LockChannelType(ctx context.Context, type_ string) (ChannelType, error)
 	// 消す直前に、録画をロックして、まだ消せることを確かめる。
 	LockDeletableRecording(ctx context.Context, id uuid.UUID) (LockDeletableRecordingRow, error)
+	// 期限の切れたリースを取る前に、行を FOR UPDATE でロックする。リーダーの書き込みのトランザクション (FOR KEY SHARE) が終わるまで待つ。
+	// AcquireLease の ON CONFLICT DO UPDATE は、キーを変えないので FOR KEY SHARE とぶつからず、これがないと書き込みの最中に取れてしまう。
+	// 期限内のリースは取れないので、ロックせず、書き込みを待たない。
+	LockLeaseForAcquire(ctx context.Context, arg LockLeaseForAcquireParams) error
 	// 書き込みのトランザクションの中で、まだ同じ世代のリースを持っていることを確かめる。
-	// FOR SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない。
+	// FOR KEY SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない (取る前に FOR UPDATE で待つ)。
+	// 延長 (RenewLease) の UPDATE とはぶつからないので、長い書き込みの間もリースを延ばせる (#729)。
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
 	// 録画を変える前に、ロックして読む。
 	LockRecording(ctx context.Context, id uuid.UUID) (Recording, error)
