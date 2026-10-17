@@ -14,7 +14,7 @@
     "@mpeg2toh264/yadif": "workspace:*",
     "@simplewebauthn/browser": "14.0.0",
     "@tanstack/react-router": "1.170.42",
-    "@tanstack/react-virtual": "3.14.17",
+    "@tanstack/react-virtual": "3.14.19",
     "@xpadev-net/niconicomments": "0.4.1",
     "@zxcvbn-ts/core": "4.2.0",
     "@zxcvbn-ts/language-common": "4.1.3",
