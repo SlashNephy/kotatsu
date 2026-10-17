@@ -36,6 +36,7 @@ import {
   useAutoPictureInPicture,
 } from '../../yunomi/autoPictureInPicture';
 import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
+import { DataBroadcastStorageReset } from '../../yunomi/DataBroadcastStorageReset';
 import { DataBroadcastZipcodeInput } from '../../yunomi/DataBroadcastZipcodeInput';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import type { accountBeginTotpMutation } from './__generated__/accountBeginTotpMutation.graphql';
@@ -211,6 +212,7 @@ function Account() {
             onChange={(event) => setDataBroadcastPreload(event.currentTarget.checked)}
           />
           <DataBroadcastZipcodeInput />
+          <DataBroadcastStorageReset />
           {autoPictureInPictureAvailable && (
             <Switch
               label={
