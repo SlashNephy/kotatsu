@@ -114,6 +114,16 @@ export function DataBroadcastRemote({
       >
         {t('player.remote.back')}
       </Button>
+      {/* d ボタンは、文書に渡す (#433)。データ放送の出し入れは、操作バーのボタンと d キーで行う。 */}
+      <Button
+        size="compact-sm"
+        variant="default"
+        disabled={disabled}
+        aria-label={t('player.remote.dLabel')}
+        onClick={() => onPress(Keys.d)}
+      >
+        d
+      </Button>
       <Group gap={4}>
         {colorKeys.map(({ key, color, label }) => (
           <ActionIcon

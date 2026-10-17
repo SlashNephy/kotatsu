@@ -47,6 +47,7 @@ describe('DataBroadcastRemote', () => {
     { button: '右', want: 4 },
     { button: '決定', want: 18 },
     { button: '戻る', want: 19 },
+    { button: 'dボタン', want: 20 },
     { button: '青', want: 21 },
     { button: '赤', want: 22 },
     { button: '緑', want: 23 },
