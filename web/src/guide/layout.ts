@@ -2,8 +2,8 @@
 
 import { fromWallClock, zoneOffset } from '../futon/timeZone';
 
-// minuteHeight は、番組表の 1 分の高さ (px)。
-export const minuteHeight = 3;
+// defaultMinuteHeight は、番組表の 1 分の高さ (px) の既定値。密度の設定 (appearance.ts) で変わる。
+export const defaultMinuteHeight = 3;
 // minProgramHeight は、短い番組でも名前が読めるようにする、番組の枠の最小の高さ (px)。文字 1 行 (xs の 12px × 行の高さ 1.35) と上下の余白が収まる高さにする。
 export const minProgramHeight = 19;
 // undecidedFallbackMinutes は、終了時刻が未定で、次の番組もないときに見せる長さ (分)。
@@ -13,8 +13,18 @@ const minute = 60_000;
 
 // GuideWindow は、番組表に出す時間帯。
 // ys を持つときは、分ごとの高さが違う目盛り (timeScale) で、ys[i] は、時間帯の始まりから i 分の位置 (px)。
-// 持たないときは、1 分を minuteHeight とする一定の目盛り。
-export type GuideWindow = { from: number; to: number; ys?: readonly number[] };
+// 持たないときは、1 分を minuteHeight (省けば defaultMinuteHeight) とする一定の目盛り。
+export type GuideWindow = {
+  from: number;
+  to: number;
+  ys?: readonly number[];
+  minuteHeight?: number;
+};
+
+// minuteHeightOf は、時間帯の 1 分の高さ (px) を返す。
+export function minuteHeightOf(window: GuideWindow): number {
+  return window.minuteHeight ?? defaultMinuteHeight;
+}
 
 // ProgramTime は、配置に使う番組の時刻 (エポックからのミリ秒)。
 export type ProgramTime = { startAt: number; endAt: number; endUndecided: boolean };
@@ -26,11 +36,11 @@ export function timeToY(window: GuideWindow, time: number): number {
   const minutes = (time - window.from) / minute;
   const ys = window.ys;
   if (ys === undefined) {
-    return minutes * minuteHeight;
+    return minutes * minuteHeightOf(window);
   }
   const index = Math.min(Math.max(Math.floor(minutes), 0), ys.length - 2);
   if (index < 0) {
-    return minutes * minuteHeight;
+    return minutes * minuteHeightOf(window);
   }
 
   return ys[index]! + (minutes - index) * (ys[index + 1]! - ys[index]!);
@@ -40,7 +50,7 @@ export function timeToY(window: GuideWindow, time: number): number {
 export function yToTime(window: GuideWindow, y: number): number {
   const ys = window.ys;
   if (ys === undefined || ys.length < 2) {
-    return window.from + (y / minuteHeight) * minute;
+    return window.from + (y / minuteHeightOf(window)) * minute;
   }
   // y を含む 1 分を、二分探索で探す。
   let lo = 0;
@@ -71,6 +81,7 @@ export function timeScale(
   columns: readonly { programs: readonly ProgramTime[]; layout: ColumnLayout }[],
 ): GuideWindow {
   const count = Math.max(Math.round((window.to - window.from) / minute), 0);
+  const minuteHeight = minuteHeightOf(window);
   const heights = Array.from({ length: count }, () => minuteHeight);
   for (const { programs, layout } of columns) {
     programs.forEach((program, i) => {

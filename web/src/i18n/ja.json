@@ -207,6 +207,34 @@
     }
   },
   "settings": {
+    "guide": {
+      "title": "番組表の見た目",
+      "density": "密度",
+      "densities": {
+        "compact": "狭い",
+        "normal": "標準",
+        "wide": "広い"
+      },
+      "grayShopping": "通販番組を灰色で出す",
+      "grayShoppingHelp": "情報・ワイドショーのうち、ショッピング・通販の番組を、ジャンルの色でなく灰色で出します",
+      "genreColors": "ジャンルの色",
+      "colors": {
+        "blue": "青",
+        "cyan": "水色",
+        "teal": "青緑",
+        "green": "緑",
+        "lime": "黄緑",
+        "yellow": "黄",
+        "orange": "橙",
+        "red": "赤",
+        "pink": "桃",
+        "grape": "赤紫",
+        "violet": "紫",
+        "indigo": "藍",
+        "gray": "灰"
+      },
+      "reset": "既定に戻す"
+    },
     "title": "設定",
     "back": "設定に戻る",
     "notificationsSummary": "画面内の通知とWeb Pushで、何を受け取るかを選びます",
