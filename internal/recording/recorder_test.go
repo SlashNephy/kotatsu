@@ -726,12 +726,15 @@ func TestRecorderWaitsBeforeReopeningShortStreams(t *testing.T) {
 	}, waitTimeout, 10*time.Millisecond)
 
 	// 開き直すのは、RetryInterval (20 ミリ秒) に 1 回までである。実際に待った時間から、開く回数の上限を求める。
+	// 開き直しはセグメントを作り直すので、混んだ CI では 1 回に時間がかかる。決まった時間だけ眠らず、開き直すまで待つ (#712)。
 	started := time.Now()
-	time.Sleep(500 * time.Millisecond)
+	require.Eventually(t, func() bool {
+		return opened.Load() >= 2
+	}, waitTimeout, 10*time.Millisecond, "it keeps reopening")
+	time.Sleep(200 * time.Millisecond)
 	cancel(nil)
 	_ = wait(t, done)
 	limit := int64(time.Since(started)/(20*time.Millisecond)) + 2
-	assert.GreaterOrEqual(t, opened.Load(), int32(2), "it keeps reopening")
 	assert.LessOrEqual(t, int64(opened.Load()), limit)
 	assert.LessOrEqual(t, int64(f.segments(t, reservationID)), limit)
 }
