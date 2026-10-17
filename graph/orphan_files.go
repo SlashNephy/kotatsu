@@ -2,7 +2,6 @@ package graph
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/SlashNephy/kotatsu/graph/model"
@@ -37,18 +36,14 @@ func (r *Resolver) deleteOrphanFiles(ctx context.Context, files []*model.OrphanF
 	if len(files) > maxCleanUpRecordings {
 		return nil, NewError(CodeBadUserInput, fmt.Sprintf("files must be at most %d", maxCleanUpRecordings))
 	}
-	payload := &model.DeleteOrphanFilesPayload{Deleted: 0, Skipped: 0}
+	targets := make([]*library.OrphanTarget, 0, len(files))
 	for _, file := range files {
-		err := r.library.DeleteOrphan(ctx, r.db, actor, file.PoolID, file.Path, file.Sidecar)
-		switch {
-		case errors.Is(err, library.ErrNotOrphan), errors.Is(err, library.ErrNotFound):
-			payload.Skipped++
-		case err != nil:
-			return nil, err
-		default:
-			payload.Deleted++
-		}
+		targets = append(targets, &library.OrphanTarget{PoolID: file.PoolID, Path: file.Path, Sidecar: file.Sidecar})
+	}
+	result, err := r.library.DeleteOrphans(ctx, r.db, actor, targets)
+	if err != nil {
+		return nil, err
 	}
 
-	return payload, nil
+	return &model.DeleteOrphanFilesPayload{Deleted: result.Deleted, Skipped: result.Skipped}, nil
 }

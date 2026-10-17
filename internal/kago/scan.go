@@ -1,6 +1,7 @@
 package kago
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -23,6 +24,22 @@ type Entry struct {
 	Size int64
 	// ModifiedAt は、ファイルを最後に書いた日時。付属ファイルのディレクトリでは、中のファイルのうち最も新しいもの。
 	ModifiedAt time.Time
+	// ChangedAt は、書いたか、名前を変えたかで、ファイルを最後に変えた日時。付属ファイルのディレクトリでは、中のものも含めて最も新しいもの。
+	// 名前を変えても更新日時は変わらないので、移したばかりのファイルを見分けるのに使う。
+	ChangedAt time.Time
+}
+
+// newEntry は、ファイル rel の Entry を返す。
+func newEntry(rel string, info fs.FileInfo) *Entry {
+	return &Entry{Path: rel, Sidecar: false, Size: info.Size(), ModifiedAt: info.ModTime(), ChangedAt: latest(info.ModTime(), changeTime(info))}
+}
+
+func latest(a, b time.Time) time.Time {
+	if b.After(a) {
+		return b
+	}
+
+	return a
 }
 
 // ScanPoolIDs は、Scan で調べるプールの ID を返す。設定の順のプールの後に、付属ファイルをまとめて置くディレクトリを続ける。
@@ -67,6 +84,10 @@ func (s *Store) Scan(poolID string) ([]*Entry, error) {
 		switch {
 		case d.IsDir() && IsSidecarDir(rel):
 			entry, err := sidecarEntry(root, rel)
+			// 中にディレクトリのあるものは、付属ファイルのディレクトリとしては消せないので、返さない。
+			if errors.Is(err, ErrInvalidPath) {
+				return fs.SkipDir
+			}
 			if err != nil {
 				return err
 			}
@@ -78,7 +99,7 @@ func (s *Store) Scan(poolID string) ([]*Entry, error) {
 			if err != nil {
 				return err
 			}
-			entries = append(entries, &Entry{Path: rel, Sidecar: false, Size: info.Size(), ModifiedAt: info.ModTime()})
+			entries = append(entries, newEntry(rel, info))
 		}
 
 		return nil
@@ -90,12 +111,16 @@ func (s *Store) Scan(poolID string) ([]*Entry, error) {
 	return entries, nil
 }
 
-// sidecarEntry は、付属ファイルのディレクトリ dir の中のファイルの大きさの合計と、最も新しい更新日時を返す。
+// sidecarEntry は、付属ファイルのディレクトリ dir の中のファイルの大きさの合計と、最も新しい日時を返す。
+// 中にディレクトリがあれば、付属ファイルのディレクトリではない (removeSidecarDir で消せない) ので、ErrInvalidPath を返す。
 func sidecarEntry(root *os.Root, dir string) (*Entry, error) {
-	entry := &Entry{Path: dir, Sidecar: true, Size: 0, ModifiedAt: time.Time{}}
-	err := fs.WalkDir(root.FS(), dir, func(_ string, d fs.DirEntry, err error) error {
+	entry := &Entry{Path: dir, Sidecar: true, Size: 0, ModifiedAt: time.Time{}, ChangedAt: time.Time{}}
+	err := fs.WalkDir(root.FS(), dir, func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if d.IsDir() && rel != dir {
+			return fmt.Errorf("%w: %q contains a directory", ErrInvalidPath, dir)
 		}
 		info, err := d.Info()
 		if err != nil {
@@ -104,9 +129,8 @@ func sidecarEntry(root *os.Root, dir string) (*Entry, error) {
 		if d.Type().IsRegular() {
 			entry.Size += info.Size()
 		}
-		if info.ModTime().After(entry.ModifiedAt) {
-			entry.ModifiedAt = info.ModTime()
-		}
+		entry.ModifiedAt = latest(entry.ModifiedAt, info.ModTime())
+		entry.ChangedAt = latest(entry.ChangedAt, latest(info.ModTime(), changeTime(info)))
 
 		return nil
 	})
@@ -170,9 +194,14 @@ func (s *Store) Inspect(poolID, rel string, sidecar bool) (*Entry, error) {
 		return nil, err
 	}
 	rel = filepath.ToSlash(filepath.Clean(rel))
-	for part := range strings.SplitSeq(rel, "/") {
+	// Scan が返すものだけを受け付ける。隠しファイルと、付属ファイルのディレクトリの中は返さない。
+	parts := strings.Split(rel, "/")
+	for i, part := range parts {
 		if strings.HasPrefix(part, ".") {
 			return nil, fmt.Errorf("%w: %q is hidden", ErrInvalidPath, rel)
+		}
+		if i < len(parts)-1 && IsSidecarDir(part) {
+			return nil, fmt.Errorf("%w: %q is in a sidecar directory", ErrInvalidPath, rel)
 		}
 	}
 	if rel == lostAndFound || strings.HasPrefix(rel, lostAndFound+"/") {
@@ -191,7 +220,7 @@ func (s *Store) Inspect(poolID, rel string, sidecar bool) (*Entry, error) {
 	case sidecar && info.IsDir() && IsSidecarDir(rel):
 		return sidecarEntry(root, rel)
 	case !sidecar && info.Mode().IsRegular():
-		return &Entry{Path: rel, Sidecar: false, Size: info.Size(), ModifiedAt: info.ModTime()}, nil
+		return newEntry(rel, info), nil
 	default:
 		return nil, fmt.Errorf("%w: %q is not a file of the expected kind", ErrInvalidPath, rel)
 	}

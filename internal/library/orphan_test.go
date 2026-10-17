@@ -2,7 +2,6 @@ package library_test
 
 import (
 	"encoding/json"
-	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
+	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/library"
 	"github.com/SlashNephy/kotatsu/internal/segjoin"
 )
@@ -46,18 +46,8 @@ func orphanFixture(t *testing.T) *fixture {
 	} {
 		write(rel)
 	}
-	// 録画のファイルと、上のファイルは、書いてから時間が経ったものにする。
-	old := f.clock.Now().Add(-2 * time.Hour)
-	root, err := os.OpenRoot(f.dir)
-	require.NoError(t, err)
-	defer root.Close()
-	require.NoError(t, fs.WalkDir(root.FS(), ".", func(path string, _ fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		return root.Chtimes(path, old, old)
-	}))
+	// 名前を変えた日時 (ctime) は戻せないので、時計を進めて、ここまでに書いたファイルを、書いてから時間が経ったものにする。
+	f.clock.Advance(time.Since(f.clock.Now()) + 2*time.Hour)
 	// 書いたばかりのファイルは、録画を始めたところで、まだ DB にないことがある。
 	write("録画中.m2ts")
 	recent := f.clock.Now().Add(-time.Minute)
@@ -104,45 +94,48 @@ func TestFindOrphans(t *testing.T) {
 	assert.ElementsMatch(t, []orphan{{path: orphanName, sidecar: false}, {path: orphanSidecar, sidecar: true}}, f.orphans(t))
 }
 
-// TestDeleteOrphan は、DB にないファイルを確かめ直して消し、監査ログに残すことと、使っているファイルやプールの外は消さないことを確かめる。
-func TestDeleteOrphan(t *testing.T) {
+// TestDeleteOrphans は、DB にないファイルを確かめ直して消し、監査ログに残すことと、使っているファイルやプールの外は消さないことを確かめる。
+func TestDeleteOrphans(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name    string
 		path    string
 		sidecar bool
-		wantErr error
+		deleted bool
 	}{
-		{name: "DB にないファイルを消す", path: orphanName, sidecar: false, wantErr: nil},
-		{name: "持ち主のない付属ファイルのディレクトリを消す", path: orphanSidecar, sidecar: true, wantErr: nil},
-		{name: "録画のファイルは消さない", path: recordingName + ".m2ts", sidecar: false, wantErr: library.ErrNotOrphan},
-		{name: "録画の付属ファイルのディレクトリは消さない", path: recordingName + ".m2ts.kotatsu", sidecar: true, wantErr: library.ErrNotOrphan},
-		{name: "つないでいる途中のファイルは消さない", path: recordingName + ".m2ts.joining", sidecar: false, wantErr: library.ErrNotOrphan},
-		{name: "つなぐ元のファイルは消さない", path: removedByJoin, sidecar: false, wantErr: library.ErrNotOrphan},
-		{name: "書いたばかりのファイルは消さない", path: "録画中.m2ts", sidecar: false, wantErr: library.ErrNotOrphan},
-		{name: "隠しファイルは消さない", path: ".DS_Store", sidecar: false, wantErr: library.ErrNotOrphan},
-		{name: "ファイルを付属ファイルのディレクトリとしては消さない", path: orphanName, sidecar: true, wantErr: library.ErrNotOrphan},
-		{name: "プールの外は消さない", path: "../" + orphanName, sidecar: false, wantErr: library.ErrNotOrphan},
-		{name: "ないファイル", path: "ない.m2ts", sidecar: false, wantErr: library.ErrNotFound},
+		{name: "DB にないファイルを消す", path: orphanName, sidecar: false, deleted: true},
+		{name: "持ち主のない付属ファイルのディレクトリを消す", path: orphanSidecar, sidecar: true, deleted: true},
+		{name: "録画のファイルは消さない", path: recordingName + ".m2ts", sidecar: false, deleted: false},
+		{name: "録画の付属ファイルのディレクトリは消さない", path: recordingName + ".m2ts.kotatsu", sidecar: true, deleted: false},
+		{name: "付属ファイルのディレクトリの中は消さない", path: orphanSidecar + "/thumbnail.jpg", sidecar: false, deleted: false},
+		{name: "つないでいる途中のファイルは消さない", path: recordingName + ".m2ts.joining", sidecar: false, deleted: false},
+		{name: "つなぐ元のファイルは消さない", path: removedByJoin, sidecar: false, deleted: false},
+		{name: "書いたばかりのファイルは消さない", path: "録画中.m2ts", sidecar: false, deleted: false},
+		{name: "隠しファイルは消さない", path: ".DS_Store", sidecar: false, deleted: false},
+		{name: "ファイルを付属ファイルのディレクトリとしては消さない", path: orphanName, sidecar: true, deleted: false},
+		{name: "プールの外は消さない", path: "../" + orphanName, sidecar: false, deleted: false},
+		{name: "ないファイル", path: "ない.m2ts", sidecar: false, deleted: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			f := orphanFixture(t)
-			err := f.library.DeleteOrphan(t.Context(), f.pool, audit.User(f.userID), poolID, tt.path, tt.sidecar)
+			result, err := f.library.DeleteOrphans(t.Context(), f.pool, audit.User(f.userID),
+				[]*library.OrphanTarget{{PoolID: poolID, Path: tt.path, Sidecar: tt.sidecar}})
+			require.NoError(t, err)
 			var events int
 			require.NoError(t, f.pool.QueryRow(t.Context(),
 				"SELECT count(*) FROM audit_events WHERE action = 'storage_file.deleted' AND target_id = $1 AND summary->>'path' = $2",
 				poolID, tt.path).Scan(&events))
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
+			if !tt.deleted {
+				assert.Equal(t, &library.DeleteOrphansResult{Deleted: 0, Skipped: 1}, result)
 				assert.Zero(t, events)
 
 				return
 			}
-			require.NoError(t, err)
+			assert.Equal(t, &library.DeleteOrphansResult{Deleted: 1, Skipped: 0}, result)
 			assert.NoFileExists(t, filepath.Join(f.dir, tt.path))
 			assert.NoDirExists(t, filepath.Join(f.dir, tt.path))
 			assert.Equal(t, 1, events)
@@ -150,4 +143,41 @@ func TestDeleteOrphan(t *testing.T) {
 			assert.FileExists(t, filepath.Join(f.dir, recordingName+".m2ts"))
 		})
 	}
+}
+
+// TestOrphansInSidecarDir は、付属ファイルをまとめて置くディレクトリでも、持ち主の録画ファイルが DB にないディレクトリだけを探して消せることを確かめる。
+func TestOrphansInSidecarDir(t *testing.T) {
+	t.Parallel()
+
+	f := orphanFixture(t)
+	sidecarDir := t.TempDir()
+	lib := library.New(f.clock, audit.NewRecorder(f.clock), kago.New(map[string]string{poolID: f.dir}, nil).WithSidecarDir(sidecarDir),
+		slog.New(slog.DiscardHandler))
+	owned := filepath.Join(poolID, recordingName+".m2ts.kotatsu")
+	gone := filepath.Join(poolID, "番組", "消えた録画.m2ts.kotatsu")
+	for _, dir := range []string{owned, gone} {
+		require.NoError(t, os.MkdirAll(filepath.Join(sidecarDir, dir), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(sidecarDir, dir, "thumbnail.jpg"), []byte("jpeg"), 0o600))
+	}
+	f.clock.Advance(2 * time.Hour)
+
+	found, err := lib.FindOrphans(t.Context(), f.pool)
+	require.NoError(t, err)
+	inSidecarDir := []string{}
+	for _, file := range found {
+		if file.PoolID == kago.SidecarPoolID {
+			inSidecarDir = append(inSidecarDir, file.Entry.Path)
+		}
+	}
+	assert.Equal(t, []string{filepath.ToSlash(gone)}, inSidecarDir)
+
+	result, err := lib.DeleteOrphans(t.Context(), f.pool, audit.User(f.userID), []*library.OrphanTarget{
+		{PoolID: kago.SidecarPoolID, Path: filepath.ToSlash(gone), Sidecar: true},
+		{PoolID: kago.SidecarPoolID, Path: filepath.ToSlash(owned), Sidecar: true},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, &library.DeleteOrphansResult{Deleted: 1, Skipped: 1}, result)
+	// 空になったディレクトリも消し、持ち主のいるディレクトリは残す。
+	assert.NoDirExists(t, filepath.Join(sidecarDir, poolID, "番組"))
+	assert.DirExists(t, filepath.Join(sidecarDir, owned))
 }

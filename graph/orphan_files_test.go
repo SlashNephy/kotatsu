@@ -29,11 +29,8 @@ func TestOrphanFiles(t *testing.T) {
 	admin := f.as(t, adminName, auth.RoleAdmin)
 	f.addRecording(t, dir, remainingRecordingName, "completed", time.Hour)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, orphanFileName), []byte("orphan"), 0o600))
-	// 書いてから時間が経ったファイルだけを、DB にないとみなす。
-	old := f.clock.Now().Add(-2 * time.Hour)
-	for _, name := range []string{orphanFileName, remainingRecordingName + ".m2ts"} {
-		require.NoError(t, os.Chtimes(filepath.Join(dir, name), old, old))
-	}
+	// 書くか名前を変えてから時間が経ったファイルだけを、DB にないとみなす。
+	f.clock.Advance(time.Since(f.clock.Now()) + 2*time.Hour)
 
 	type orphanFile struct {
 		PoolID  string `json:"poolId"`

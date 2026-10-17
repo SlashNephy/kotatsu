@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	// orphanGrace は、DB にないファイルとみなすまでに、最後に書いてから空ける時間。
+	// orphanGrace は、DB にないファイルとみなすまでに、最後に書くか名前を変えてから空ける時間。
 	// 録画はファイルを作ってから DB に記録し、サムネイルは一時ファイルに書いてから名前を変えるので、書いたばかりのファイルは DB にないことがある。
 	orphanGrace = time.Hour
 	// orphanAuditTarget は、DB にないファイルを消したときの監査ログの対象の種類。
@@ -60,10 +60,46 @@ func (l *Library) FindOrphans(ctx context.Context, db sqlc.DBTX) ([]*OrphanFile,
 	return result, nil
 }
 
-// DeleteOrphan は、FindOrphans が返したファイルか付属ファイルのディレクトリを確かめ直して消し、監査ログに残す。
-// DB にあるか、使っているか、書いたばかりなら ErrNotOrphan を、なければ ErrNotFound を返す。
-func (l *Library) DeleteOrphan(ctx context.Context, db Database, actor *audit.Actor, poolID, path string, sidecar bool) error {
-	entry, err := l.store.Inspect(poolID, path, sidecar)
+// OrphanTarget は、消す、DB にないファイルか付属ファイルのディレクトリ。FindOrphans が返したものを渡す。
+type OrphanTarget struct {
+	PoolID  string
+	Path    string
+	Sidecar bool
+}
+
+// DeleteOrphansResult は、DeleteOrphans の結果。
+type DeleteOrphansResult struct {
+	// Deleted は、消したファイルとディレクトリの数。
+	Deleted int
+	// Skipped は、確かめ直すと、DB にあるか、使っているか、書いたばかりか、もうなかったので、消さなかった数。
+	Skipped int
+}
+
+// DeleteOrphans は、FindOrphans が返したファイルか付属ファイルのディレクトリを、確かめ直して消し、1 つずつ監査ログに残す。
+func (l *Library) DeleteOrphans(ctx context.Context, db Database, actor *audit.Actor, targets []*OrphanTarget) (*DeleteOrphansResult, error) {
+	result := &DeleteOrphansResult{Deleted: 0, Skipped: 0}
+	used, err := l.usedFiles(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	for _, target := range targets {
+		err := l.deleteOrphan(ctx, db, actor, used, target)
+		switch {
+		case errors.Is(err, ErrNotOrphan), errors.Is(err, ErrNotFound):
+			result.Skipped++
+		case err != nil:
+			return nil, err
+		default:
+			result.Deleted++
+		}
+	}
+
+	return result, nil
+}
+
+// deleteOrphan は、target を確かめ直して消す。DB にあるか、使っているか、書いたばかりなら ErrNotOrphan を、なければ ErrNotFound を返す。
+func (l *Library) deleteOrphan(ctx context.Context, db Database, actor *audit.Actor, used usedFiles, target *OrphanTarget) error {
+	entry, err := l.store.Inspect(target.PoolID, target.Path, target.Sidecar)
 	switch {
 	case errors.Is(err, kago.ErrInvalidPath), errors.Is(err, kago.ErrPoolNotMounted):
 		return fmt.Errorf("%w: %w", ErrNotOrphan, err)
@@ -72,11 +108,7 @@ func (l *Library) DeleteOrphan(ctx context.Context, db Database, actor *audit.Ac
 	case err != nil:
 		return err
 	}
-	used, err := l.usedFiles(ctx, db)
-	if err != nil {
-		return err
-	}
-	if !used.orphan(poolID, entry, l.clock.Now()) {
+	if !used.orphan(target.PoolID, entry, l.clock.Now()) {
 		return ErrNotOrphan
 	}
 
@@ -86,7 +118,7 @@ func (l *Library) DeleteOrphan(ctx context.Context, db Database, actor *audit.Ac
 			Actor:      actor,
 			Action:     "storage_file.deleted",
 			TargetType: orphanAuditTarget,
-			TargetID:   poolID,
+			TargetID:   target.PoolID,
 			Summary:    map[string]any{"path": entry.Path, "sidecar": entry.Sidecar, "size": entry.Size},
 			SourceIP:   netip.Addr{},
 			UserAgent:  "",
@@ -94,7 +126,7 @@ func (l *Library) DeleteOrphan(ctx context.Context, db Database, actor *audit.Ac
 		if err != nil {
 			return err
 		}
-		if err := l.store.RemoveEntry(poolID, entry.Path, entry.Sidecar); err != nil {
+		if err := l.store.RemoveEntry(target.PoolID, entry.Path, entry.Sidecar); err != nil {
 			return fmt.Errorf("failed to remove an orphan file: %w", err)
 		}
 
@@ -144,9 +176,10 @@ func (l *Library) usedFiles(ctx context.Context, db sqlc.DBTX) (usedFiles, error
 	return used, nil
 }
 
-// orphan は、プール poolID の entry が、DB にも、つなぐ処理にもなく、書いてから orphanGrace が過ぎたかを返す。
+// orphan は、プール poolID の entry が、DB にも、つなぐ処理にもなく、書くか名前を変えてから orphanGrace が過ぎたかを返す。
+// 録画のファイル名を付け直すときは、ファイルを移してから記録を書き換えるので、移したばかりのファイルは DB にないことがある。
 func (u usedFiles) orphan(poolID string, entry *kago.Entry, now time.Time) bool {
-	if now.Sub(entry.ModifiedAt) < orphanGrace {
+	if now.Sub(entry.ChangedAt) < orphanGrace {
 		return false
 	}
 	owner := &kago.Location{PoolID: poolID, Path: entry.Path}
