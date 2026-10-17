@@ -4,9 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/graph"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 )
 
@@ -365,4 +367,63 @@ func TestPreviewRulePages(t *testing.T) {
 		variables["after"] = *page.PreviewRule.PageInfo.EndCursor
 	}
 	assert.Equal(t, []string{programName(4), programName(5), programName(6), programName(7)}, got)
+}
+
+// TestBulkRules は、ルールをまとめて有効、無効にし、まとめて消せることと、見つからないルールは飛ばして数えることを確かめる (#471)。
+func TestBulkRules(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	services := f.serviceIDs(t)
+	ids := make([]string, 0, 3)
+	for range 2 {
+		var created struct {
+			CreateRule ruleResult `json:"createRule"`
+		}
+		require.Empty(t, f.query(t, createRule, ruleVariables("", testProgramRule(services)), &created))
+		ids = append(ids, created.CreateRule.ID)
+	}
+	ids = append(ids, graph.GlobalID("Rule", uuid.New().String()))
+	type payload struct {
+		Processed int `json:"processed"`
+		Skipped   int `json:"skipped"`
+	}
+	const (
+		setEnabled = `mutation($ids: [ID!]!, $enabled: Boolean!) { setRulesEnabled(ids: $ids, enabled: $enabled) { processed skipped } }`
+		deleteMany = `mutation($ids: [ID!]!) { deleteRules(ids: $ids) { processed skipped } }`
+	)
+	enabled := func() []bool {
+		var got struct {
+			Rules []struct {
+				Enabled bool `json:"enabled"`
+			} `json:"rules"`
+		}
+		require.Empty(t, f.query(t, `{ rules { enabled } }`, nil, &got))
+		flags := make([]bool, 0, len(got.Rules))
+		for _, r := range got.Rules {
+			flags = append(flags, r.Enabled)
+		}
+
+		return flags
+	}
+
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", auth.RoleViewer).query(t, deleteMany, map[string]any{varIDs: ids}, nil))
+
+	var disabled struct {
+		SetRulesEnabled payload `json:"setRulesEnabled"`
+	}
+	require.Empty(t, f.query(t, setEnabled, map[string]any{varIDs: ids, varEnabled: false}, &disabled))
+	assert.Equal(t, payload{Processed: 2, Skipped: 1}, disabled.SetRulesEnabled)
+	assert.Equal(t, []bool{false, false}, enabled())
+
+	var deleted struct {
+		DeleteRules payload `json:"deleteRules"`
+	}
+	require.Empty(t, f.query(t, deleteMany, map[string]any{varIDs: ids}, &deleted))
+	assert.Equal(t, payload{Processed: 2, Skipped: 1}, deleted.DeleteRules)
+	assert.Empty(t, enabled())
+	var audited int
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM audit_events WHERE action = 'rule.delete'").Scan(&audited))
+	assert.Equal(t, 2, audited, "each deletion is audited")
 }

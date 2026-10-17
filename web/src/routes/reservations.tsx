@@ -5,6 +5,7 @@ import {
   Badge,
   Box,
   Button,
+  Checkbox,
   CloseButton,
   Group,
   Menu,
@@ -14,6 +15,7 @@ import {
   Tabs,
   Text,
   Title,
+  Tooltip,
 } from '@mantine/core';
 import {
   CalendarCheck,
@@ -47,8 +49,10 @@ import { broadcastDay, dateOf } from '../guide/layout';
 import { isUnauthenticated } from '../relay/environment';
 import { RecordingStateBadge } from '../recordings/RecordingStateBadge';
 import { groupByDay, needsAttention } from '../reservations/timeline';
+import type { reservationsDeleteManyMutation } from './__generated__/reservationsDeleteManyMutation.graphql';
 import type { reservationsDeleteMutation } from './__generated__/reservationsDeleteMutation.graphql';
 import type { reservationsEnableMutation } from './__generated__/reservationsEnableMutation.graphql';
+import type { reservationsSetManyEnabledMutation } from './__generated__/reservationsSetManyEnabledMutation.graphql';
 import type {
   reservationsQuery,
   reservationsQuery$data,
@@ -301,6 +305,78 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
   };
   const [deleting, setDeleting] = useState<Reservation | null>(null);
   const canEdit = data.viewer.role !== 'VIEWER';
+  // selecting は、まとめて操作する予約を選んでいるかどうか。selected は、選んだ予約の ID (#471)。
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{
+    action: 'enabled' | 'disabled' | 'deleted';
+    processed: number;
+    skipped: number;
+  } | null>(null);
+  const [bulkError, setBulkError] = useState(false);
+  const [setManyEnabled, settingMany] = useMutation<reservationsSetManyEnabledMutation>(graphql`
+    mutation reservationsSetManyEnabledMutation($ids: [ID!]!, $enabled: Boolean!) {
+      setReservationsEnabled(ids: $ids, enabled: $enabled) {
+        processed
+        skipped
+      }
+    }
+  `);
+  const [deleteMany, deletingMany] = useMutation<reservationsDeleteManyMutation>(graphql`
+    mutation reservationsDeleteManyMutation($ids: [ID!]!) {
+      deleteReservations(ids: $ids) {
+        processed
+        skipped
+      }
+    }
+  `);
+  const toggleSelected = (id: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) {
+        next.add(id);
+      }
+
+      return next;
+    });
+  // finishBulk は、まとめて行った操作を終える。ルール予約は消さずに無効にし、録画中の予約は飛ばすので、一覧は読み直す。
+  const finishBulk = (
+    action: 'enabled' | 'disabled' | 'deleted',
+    result: { processed: number; skipped: number },
+  ) => {
+    setBulkResult({ action, ...result });
+    setSelecting(false);
+    setSelected(new Set());
+    setConfirmingDelete(false);
+    reload();
+  };
+  const bulkFailed = () => {
+    setConfirmingDelete(false);
+    setBulkError(true);
+  };
+  const setEnabledMany = (enabled: boolean) => {
+    setBulkError(false);
+    setManyEnabled({
+      variables: { ids: [...selected], enabled },
+      onCompleted: (response, errors) =>
+        errors != null && errors.length > 0
+          ? bulkFailed()
+          : finishBulk(enabled ? 'enabled' : 'disabled', response.setReservationsEnabled),
+      onError: bulkFailed,
+    });
+  };
+  const removeMany = () => {
+    setBulkError(false);
+    deleteMany({
+      variables: { ids: [...selected] },
+      onCompleted: (response, errors) =>
+        errors != null && errors.length > 0
+          ? bulkFailed()
+          : finishBulk('deleted', response.deleteReservations),
+      onError: bulkFailed,
+    });
+  };
   const reservations: Reservation[] = [
     ...data.reservations.edges.map((edge) => edge.node),
     ...(extra?.nodes ?? []),
@@ -327,6 +403,14 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
       onChanged={(enabled) => patch(reservation.id, { enabled })}
       onRescheduled={reload}
       onDelete={() => setDeleting(reservation)}
+      selection={
+        selecting
+          ? {
+              checked: selected.has(reservation.id),
+              onToggle: () => toggleSelected(reservation.id),
+            }
+          : undefined
+      }
     />
   );
 
@@ -375,16 +459,91 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
           </Badge>
         )}
         {canEdit && (
+          <Group gap="xs">
+            {reservations.length > 0 && (
+              <Button
+                size="xs"
+                variant={selecting ? 'light' : 'default'}
+                leftSection={<ListChecks size={14} aria-hidden />}
+                onClick={() => {
+                  setSelecting(!selecting);
+                  setSelected(new Set());
+                }}
+              >
+                {t(selecting ? 'reservations.selectDone' : 'reservations.select')}
+              </Button>
+            )}
+            <Button
+              size="xs"
+              variant="default"
+              leftSection={<Plus size={14} aria-hidden />}
+              onClick={() => setCreatingTime(true)}
+            >
+              {t('reservations.time.open')}
+            </Button>
+          </Group>
+        )}
+      </Group>
+      {selecting && (
+        <Group gap="xs">
           <Button
             size="xs"
             variant="default"
-            leftSection={<Plus size={14} aria-hidden />}
-            onClick={() => setCreatingTime(true)}
+            disabled={selected.size === 0}
+            loading={settingMany}
+            onClick={() => setEnabledMany(true)}
           >
-            {t('reservations.time.open')}
+            {t('reservations.enableSelected', { count: selected.size })}
           </Button>
-        )}
-      </Group>
+          <Button
+            size="xs"
+            variant="default"
+            disabled={selected.size === 0}
+            loading={settingMany}
+            onClick={() => setEnabledMany(false)}
+          >
+            {t('reservations.disableSelected', { count: selected.size })}
+          </Button>
+          <Button
+            size="xs"
+            color="red"
+            variant="light"
+            leftSection={<Trash2 size={14} aria-hidden />}
+            disabled={selected.size === 0}
+            onClick={() => setConfirmingDelete(true)}
+          >
+            {t('reservations.deleteSelected', { count: selected.size })}
+          </Button>
+        </Group>
+      )}
+      {bulkResult !== null && (
+        <Alert color="teal" role="status" withCloseButton onClose={() => setBulkResult(null)}>
+          {t(`reservations.bulk.${bulkResult.action}`, { count: bulkResult.processed })}
+          {bulkResult.skipped > 0 && t('reservations.bulk.skipped', { count: bulkResult.skipped })}
+        </Alert>
+      )}
+      {bulkError && (
+        <Alert color="red" role="alert">
+          {t('reservations.toggleError')}
+        </Alert>
+      )}
+      <Modal
+        opened={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        title={t('reservations.deleteSelectedTitle')}
+      >
+        <Stack>
+          <Text size="sm">{t('reservations.deleteSelectedConfirm', { count: selected.size })}</Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setConfirmingDelete(false)}>
+              {t('reservations.settings.cancel')}
+            </Button>
+            <Button color="red" loading={deletingMany} onClick={removeMany}>
+              {t('reservations.deleteSelected', { count: selected.size })}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
       {creatingTime && (
         <TimeReservationDialog
           onClose={() => setCreatingTime(false)}
@@ -454,6 +613,8 @@ type RowProps = {
   // onRescheduled は、時刻予約の時刻を変えたときに呼ぶ。並びと割り当てが変わるので、一覧を読み直す。
   onRescheduled: () => void;
   onDelete: () => void;
+  // selection は、まとめて操作する予約を選んでいるときの、この行の選択 (#471)。選んでいなければ undefined。
+  selection?: { checked: boolean; onToggle: () => void };
 };
 
 // plannedRange は、一部のみ録画する予約の、マージンを削った後に録画する予定の時刻を返す (#466)。
@@ -481,6 +642,7 @@ function ReservationRow({
   onChanged,
   onRescheduled,
   onDelete,
+  selection,
 }: RowProps) {
   const { t } = useTranslation();
   const [commit, inFlight] = useMutation<reservationsEnableMutation>(graphql`
@@ -519,9 +681,23 @@ function ReservationRow({
       data-attention={attention || undefined}
       data-disabled={!reservation.enabled || undefined}
     >
-      <Box className={classes.kind} title={t(kind.key)}>
-        <KindIcon size={16} role="img" aria-label={t(kind.key)} />
-      </Box>
+      {/* 選んでいる間は、種類の印の代わりに、選ぶ欄を出す。録画中の予約は、録画を止めないよう選べない (#471)。 */}
+      {selection !== undefined ? (
+        <Box className={`${classes.kind} ${classes.select}`}>
+          <Tooltip label={t('reservations.selectRecording')} disabled={!recording}>
+            <Checkbox
+              aria-label={reservation.name === '' ? t('reservations.untitled') : reservation.name}
+              checked={selection.checked}
+              disabled={recording}
+              onChange={selection.onToggle}
+            />
+          </Tooltip>
+        </Box>
+      ) : (
+        <Box className={classes.kind} title={t(kind.key)}>
+          <KindIcon size={16} role="img" aria-label={t(kind.key)} />
+        </Box>
+      )}
       <Box className={classes.time}>
         <Text size="sm" c="dimmed">
           {timeFormat.format(reservation.startMs)}〜{timeFormat.format(reservation.endMs)}

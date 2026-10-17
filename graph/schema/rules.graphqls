@@ -139,4 +139,15 @@ extend type Mutation {
   setRuleEnabled(id: ID!, enabled: Boolean!): Rule!
   "ルールを消し、消したルールの ID を返す。このルールだけに一致していた予約は、次の照合で消える。視聴者は使えない。"
   deleteRule(id: ID!): ID!
+  """
+  ルール ids をまとめて有効か無効にする (#471)。視聴者は使えない。監査ログは 1 件ずつ残す。
+  見つからないルールは飛ばした数に数える。一度に 500 件まで。
+  """
+  setRulesEnabled(ids: [ID!]!, enabled: Boolean!): BulkOperationPayload!
+  """
+  ルール ids をまとめて消す (#471)。視聴者は使えない。監査ログは 1 件ずつ残す。
+  そのルールだけに一致していた予約は、次の照合で消える。ただし、録画中の予約は消さず、最後まで録る。
+  見つからないルールは飛ばした数に数える。一度に 500 件まで。
+  """
+  deleteRules(ids: [ID!]!): BulkOperationPayload!
 }

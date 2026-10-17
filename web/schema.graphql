@@ -600,6 +600,16 @@ type Mutation {
   """
   deleteReservation(id: ID!): DeleteReservationPayload!
   """
+  予約 ids をまとめて有効か無効にする (#471)。視聴者は使えない。監査ログは 1 件ずつ残す。
+  無効にするときは、録画中の予約を飛ばし、録画を最後まで録らせる。見つからない予約も、飛ばした数に数える。一度に 500 件まで。
+  """
+  setReservationsEnabled(ids: [ID!]!, enabled: Boolean!): BulkOperationPayload!
+  """
+  予約 ids をまとめて消す (#471)。ルール予約は消さずに無効にする。視聴者は使えない。監査ログは 1 件ずつ残す。
+  録画中の予約と、見つからない予約は、飛ばした数に数える。一度に 500 件まで。
+  """
+  deleteReservations(ids: [ID!]!): BulkOperationPayload!
+  """
   ルールを作る。視聴者は使えない。
   """
   createRule(input: RuleInput!): Rule!
@@ -615,6 +625,17 @@ type Mutation {
   ルールを消し、消したルールの ID を返す。このルールだけに一致していた予約は、次の照合で消える。視聴者は使えない。
   """
   deleteRule(id: ID!): ID!
+  """
+  ルール ids をまとめて有効か無効にする (#471)。視聴者は使えない。監査ログは 1 件ずつ残す。
+  見つからないルールは飛ばした数に数える。一度に 500 件まで。
+  """
+  setRulesEnabled(ids: [ID!]!, enabled: Boolean!): BulkOperationPayload!
+  """
+  ルール ids をまとめて消す (#471)。視聴者は使えない。監査ログは 1 件ずつ残す。
+  そのルールだけに一致していた予約は、次の照合で消える。ただし、録画中の予約は消さず、最後まで録る。
+  見つからないルールは飛ばした数に数える。一度に 500 件まで。
+  """
+  deleteRules(ids: [ID!]!): BulkOperationPayload!
   """
   TOTP の登録を始める。登録済みの TOTP を置き換えるときも使う。confirmTotpEnrollment で確かめるまでは、今の TOTP がそのまま使える。
   直近 10 分以内に認証していなければ、REAUTHENTICATION_REQUIRED を返す (設計書 9.5)。

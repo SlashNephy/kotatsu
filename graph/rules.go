@@ -217,6 +217,55 @@ func (r *Resolver) rule(ctx context.Context, globalID string) (*model.Rule, erro
 	return toRuleModel(ctx, found)
 }
 
+// bulkRules は、ルール ids のそれぞれに apply を行い、見つからないルールは飛ばして数える (#471)。
+func (r *Resolver) bulkRules(ctx context.Context, ids []string, apply func(actor *audit.Actor, ruleID uuid.UUID) error) (*model.BulkOperationPayload, error) {
+	actor, err := scheduler(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) > maxBulkOperations {
+		return nil, NewError(CodeBadUserInput, fmt.Sprintf("ids must be at most %d", maxBulkOperations))
+	}
+	ruleIDs := make([]uuid.UUID, 0, len(ids))
+	for _, globalID := range ids {
+		ruleID, err := parseRuleID(globalID)
+		if err != nil {
+			return nil, err
+		}
+		ruleIDs = append(ruleIDs, ruleID)
+	}
+	payload := &model.BulkOperationPayload{Processed: 0, Skipped: 0}
+	for _, ruleID := range ruleIDs {
+		err := apply(actor, ruleID)
+		switch {
+		case errors.Is(err, rule.ErrNotFound):
+			payload.Skipped++
+		case err != nil:
+			return nil, err
+		default:
+			payload.Processed++
+		}
+	}
+
+	return payload, nil
+}
+
+// setRulesEnabled は、ルール ids をまとめて有効か無効にする。
+func (r *Resolver) setRulesEnabled(ctx context.Context, ids []string, enabled bool) (*model.BulkOperationPayload, error) {
+	return r.bulkRules(ctx, ids, func(actor *audit.Actor, ruleID uuid.UUID) error {
+		_, err := r.rules.SetEnabled(ctx, r.db, actor, ruleID, enabled)
+
+		return err
+	})
+}
+
+// deleteRules は、ルール ids をまとめて消す。
+func (r *Resolver) deleteRules(ctx context.Context, ids []string) (*model.BulkOperationPayload, error) {
+	return r.bulkRules(ctx, ids, func(actor *audit.Actor, ruleID uuid.UUID) error {
+		return r.rules.Delete(ctx, r.db, actor, ruleID)
+	})
+}
+
 // recordingRule は、録画を始めたときに一致していたルールを引く。ルールを消していれば null を返す (#468)。
 func (r *Resolver) recordingRule(ctx context.Context, recording *model.Recording) (*model.Rule, error) {
 	var found *rule.Rule

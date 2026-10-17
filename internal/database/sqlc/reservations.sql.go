@@ -336,6 +336,18 @@ func (q *Queries) InsertTimeReservation(ctx context.Context, arg InsertTimeReser
 	return err
 }
 
+const isReservationRecording = `-- name: IsReservationRecording :one
+SELECT EXISTS (SELECT 1 FROM recordings WHERE reservation_id = $1 AND state = 'recording')::boolean AS recording
+`
+
+// 予約の録画が録画中かどうか。まとめて消すか無効にするとき、録画中の予約を飛ばすのに使う (#471)。
+func (q *Queries) IsReservationRecording(ctx context.Context, reservationID *uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, isReservationRecording, reservationID)
+	var recording bool
+	err := row.Scan(&recording)
+	return recording, err
+}
+
 const listReservationRules = `-- name: ListReservationRules :many
 SELECT rr.reservation_id, rr.rule_id
 FROM reservation_rules rr

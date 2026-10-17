@@ -217,6 +217,8 @@ type Querier interface {
 	InsertWatchReservation(ctx context.Context, arg InsertWatchReservationParams) (int64, error)
 	InsertWebAuthnCeremony(ctx context.Context, arg InsertWebAuthnCeremonyParams) error
 	InsertWebhook(ctx context.Context, arg InsertWebhookParams) (Webhook, error)
+	// 予約の録画が録画中かどうか。まとめて消すか無効にするとき、録画中の予約を飛ばすのに使う (#471)。
+	IsReservationRecording(ctx context.Context, reservationID *uuid.UUID) (bool, error)
 	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
 	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
 	// 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。

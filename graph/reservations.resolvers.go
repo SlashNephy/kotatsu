@@ -83,6 +83,16 @@ func (r *mutationResolver) DeleteReservation(ctx context.Context, id string) (*m
 	return r.deleteReservation(ctx, id)
 }
 
+// SetReservationsEnabled is the resolver for the setReservationsEnabled field.
+func (r *mutationResolver) SetReservationsEnabled(ctx context.Context, ids []string, enabled bool) (*model.BulkOperationPayload, error) {
+	return r.setReservationsEnabled(ctx, ids, enabled)
+}
+
+// DeleteReservations is the resolver for the deleteReservations field.
+func (r *mutationResolver) DeleteReservations(ctx context.Context, ids []string) (*model.BulkOperationPayload, error) {
+	return r.deleteReservations(ctx, ids)
+}
+
 // Reservation is the resolver for the reservation field.
 func (r *programResolver) Reservation(ctx context.Context, obj *model.Program) (*model.Reservation, error) {
 	found, err := loadersFrom(ctx).ProgramReservations.Load(ctx, reserve.ProgramKey{ServiceID: obj.ServiceKey, EventID: int64(obj.EventID)})

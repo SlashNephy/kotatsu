@@ -217,7 +217,9 @@ type ComplexityRoot struct {
 		DeleteRecording              func(childComplexity int, id string) int
 		DeleteRecordings             func(childComplexity int, ids []string) int
 		DeleteReservation            func(childComplexity int, id string) int
+		DeleteReservations           func(childComplexity int, ids []string) int
 		DeleteRule                   func(childComplexity int, id string) int
+		DeleteRules                  func(childComplexity int, ids []string) int
 		DeleteTotp                   func(childComplexity int) int
 		DeleteWebhook                func(childComplexity int, id string) int
 		DisableUser                  func(childComplexity int, id string) int
@@ -234,7 +236,9 @@ type ComplexityRoot struct {
 		SaveWatchPosition            func(childComplexity int, id string, positionMs int64) int
 		SetRecordingProtected        func(childComplexity int, id string, protected bool) int
 		SetRecordingTags             func(childComplexity int, id string, tags []string) int
+		SetReservationsEnabled       func(childComplexity int, ids []string, enabled bool) int
 		SetRuleEnabled               func(childComplexity int, id string, enabled bool) int
+		SetRulesEnabled              func(childComplexity int, ids []string, enabled bool) int
 		SetWatchReservation          func(childComplexity int, program string, reserved bool) int
 		SubscribeWebPush             func(childComplexity int, input model.WebPushSubscriptionInput) int
 		UnsubscribeWebPush           func(childComplexity int, endpoint string) int
@@ -752,10 +756,14 @@ type MutationResolver interface {
 	CreateTimeReservation(ctx context.Context, input model.TimeReservationInput) (*model.Reservation, error)
 	UpdateReservation(ctx context.Context, id string, input model.ReservationUpdateInput) (*model.Reservation, error)
 	DeleteReservation(ctx context.Context, id string) (*model.DeleteReservationPayload, error)
+	SetReservationsEnabled(ctx context.Context, ids []string, enabled bool) (*model.BulkOperationPayload, error)
+	DeleteReservations(ctx context.Context, ids []string) (*model.BulkOperationPayload, error)
 	CreateRule(ctx context.Context, input model.RuleInput) (*model.Rule, error)
 	UpdateRule(ctx context.Context, id string, input model.RuleInput) (*model.Rule, error)
 	SetRuleEnabled(ctx context.Context, id string, enabled bool) (*model.Rule, error)
 	DeleteRule(ctx context.Context, id string) (string, error)
+	SetRulesEnabled(ctx context.Context, ids []string, enabled bool) (*model.BulkOperationPayload, error)
+	DeleteRules(ctx context.Context, ids []string) (*model.BulkOperationPayload, error)
 	BeginTotpEnrollment(ctx context.Context) (*model.TOTPEnrollment, error)
 	ConfirmTotpEnrollment(ctx context.Context, code string) (*model.RecoveryCodes, error)
 	DeleteTotp(ctx context.Context) (*model.SecondFactorStatus, error)
@@ -1553,6 +1561,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteReservation(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteReservations":
+		if e.ComplexityRoot.Mutation.DeleteReservations == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteReservations_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteReservations(childComplexity, args["ids"].([]string)), true
 	case "Mutation.deleteRule":
 		if e.ComplexityRoot.Mutation.DeleteRule == nil {
 			break
@@ -1564,6 +1583,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteRule(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteRules":
+		if e.ComplexityRoot.Mutation.DeleteRules == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteRules_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteRules(childComplexity, args["ids"].([]string)), true
 	case "Mutation.deleteTotp":
 		if e.ComplexityRoot.Mutation.DeleteTotp == nil {
 			break
@@ -1725,6 +1755,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetRecordingTags(childComplexity, args["id"].(string), args["tags"].([]string)), true
+	case "Mutation.setReservationsEnabled":
+		if e.ComplexityRoot.Mutation.SetReservationsEnabled == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setReservationsEnabled_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetReservationsEnabled(childComplexity, args["ids"].([]string), args["enabled"].(bool)), true
 	case "Mutation.setRuleEnabled":
 		if e.ComplexityRoot.Mutation.SetRuleEnabled == nil {
 			break
@@ -1736,6 +1777,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetRuleEnabled(childComplexity, args["id"].(string), args["enabled"].(bool)), true
+	case "Mutation.setRulesEnabled":
+		if e.ComplexityRoot.Mutation.SetRulesEnabled == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setRulesEnabled_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetRulesEnabled(childComplexity, args["ids"].([]string), args["enabled"].(bool)), true
 	case "Mutation.setWatchReservation":
 		if e.ComplexityRoot.Mutation.SetWatchReservation == nil {
 			break
@@ -5194,6 +5246,16 @@ extend type Mutation {
   updateReservation(id: ID!, input: ReservationUpdateInput!): Reservation!
   "予約を消す。ルール予約は消さずに無効にする。視聴者は使えない。"
   deleteReservation(id: ID!): DeleteReservationPayload!
+  """
+  予約 ids をまとめて有効か無効にする (#471)。視聴者は使えない。監査ログは 1 件ずつ残す。
+  無効にするときは、録画中の予約を飛ばし、録画を最後まで録らせる。見つからない予約も、飛ばした数に数える。一度に 500 件まで。
+  """
+  setReservationsEnabled(ids: [ID!]!, enabled: Boolean!): BulkOperationPayload!
+  """
+  予約 ids をまとめて消す (#471)。ルール予約は消さずに無効にする。視聴者は使えない。監査ログは 1 件ずつ残す。
+  録画中の予約と、見つからない予約は、飛ばした数に数える。一度に 500 件まで。
+  """
+  deleteReservations(ids: [ID!]!): BulkOperationPayload!
 }
 `, BuiltIn: false},
 	{Name: "../schema/rules.graphqls", Input: `"""
@@ -5337,6 +5399,17 @@ extend type Mutation {
   setRuleEnabled(id: ID!, enabled: Boolean!): Rule!
   "ルールを消し、消したルールの ID を返す。このルールだけに一致していた予約は、次の照合で消える。視聴者は使えない。"
   deleteRule(id: ID!): ID!
+  """
+  ルール ids をまとめて有効か無効にする (#471)。視聴者は使えない。監査ログは 1 件ずつ残す。
+  見つからないルールは飛ばした数に数える。一度に 500 件まで。
+  """
+  setRulesEnabled(ids: [ID!]!, enabled: Boolean!): BulkOperationPayload!
+  """
+  ルール ids をまとめて消す (#471)。視聴者は使えない。監査ログは 1 件ずつ残す。
+  そのルールだけに一致していた予約は、次の照合で消える。ただし、録画中の予約は消さず、最後まで録る。
+  見つからないルールは飛ばした数に数える。一度に 500 件まで。
+  """
+  deleteRules(ids: [ID!]!): BulkOperationPayload!
 }
 `, BuiltIn: false},
 	{Name: "../schema/schema.graphqls", Input: `"""
@@ -7428,6 +7501,20 @@ func (ec *executionContext) field_Mutation_deleteReservation_args(ctx context.Co
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteReservations_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ids",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ids"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -7439,6 +7526,20 @@ func (ec *executionContext) field_Mutation_deleteRule_args(ctx context.Context, 
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteRules_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ids",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ids"] = arg0
 	return args, nil
 }
 
@@ -7664,6 +7765,28 @@ func (ec *executionContext) field_Mutation_setRecordingTags_args(ctx context.Con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_setReservationsEnabled_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ids",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ids"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "enabled",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["enabled"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_setRuleEnabled_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -7675,6 +7798,28 @@ func (ec *executionContext) field_Mutation_setRuleEnabled_args(ctx context.Conte
 		return nil, err
 	}
 	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "enabled",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["enabled"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setRulesEnabled_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ids",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ids"] = arg0
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "enabled",
 		func(ctx context.Context, v any) (bool, error) {
 			return ec.unmarshalNBoolean2bool(ctx, v)
@@ -11294,6 +11439,94 @@ func (ec *executionContext) fieldContext_Mutation_deleteReservation(ctx context.
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_setReservationsEnabled(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setReservationsEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetReservationsEnabled(ctx, fc.Args["ids"].([]string), fc.Args["enabled"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BulkOperationPayload) graphql.Marshaler {
+			return ec.marshalNBulkOperationPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐBulkOperationPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setReservationsEnabled(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BulkOperationPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setReservationsEnabled_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteReservations(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteReservations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteReservations(ctx, fc.Args["ids"].([]string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BulkOperationPayload) graphql.Marshaler {
+			return ec.marshalNBulkOperationPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐBulkOperationPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteReservations(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BulkOperationPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteReservations_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createRule(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -11464,6 +11697,94 @@ func (ec *executionContext) fieldContext_Mutation_deleteRule(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteRule_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setRulesEnabled(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setRulesEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetRulesEnabled(ctx, fc.Args["ids"].([]string), fc.Args["enabled"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BulkOperationPayload) graphql.Marshaler {
+			return ec.marshalNBulkOperationPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐBulkOperationPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setRulesEnabled(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BulkOperationPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setRulesEnabled_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteRules(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteRules(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteRules(ctx, fc.Args["ids"].([]string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BulkOperationPayload) graphql.Marshaler {
+			return ec.marshalNBulkOperationPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐBulkOperationPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteRules(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BulkOperationPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteRules_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -24666,6 +24987,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setReservationsEnabled":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setReservationsEnabled(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteReservations":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteReservations(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createRule":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createRule(ctx, field)
@@ -24690,6 +25025,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteRule":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteRule(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setRulesEnabled":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setRulesEnabled(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteRules":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteRules(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
