@@ -2,6 +2,12 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { BMLBrowser } from 'web-bml';
 
 import { cspNonce } from '../futon';
+import {
+  bmlStoragePrefix,
+  loadDataBroadcastZipcode,
+  writeZipcodeNVRAM,
+} from './dataBroadcastZipcode';
+import { browserStorage } from './volume';
 import { broadcastFontUrl } from './broadcastFont';
 import type { DataBroadcastEnd, DataBroadcastRequest } from './dataBroadcastWorker';
 import { deinterlacerCanvas } from './deinterlacer';
@@ -168,7 +174,11 @@ export function useDataBroadcast(
     mediaElement.style.height = '100%';
     // 字幕の canvas は、aribb24.js が絶対位置で映像に重ねるので、その基準にする。
     mediaElement.style.position = 'relative';
+    // 受信機の郵便番号を、文書が読む NVRAM に書いておく (#442)。
+    writeZipcodeNVRAM(browserStorage(), loadDataBroadcastZipcode(browserStorage()));
     const browser = new BMLBrowser({
+      // web-bml が localStorage に書くキーを、Kotatsu 自身のキーと分ける。
+      storagePrefix: bmlStoragePrefix,
       containerElement: container,
       mediaElement,
       videoPlaneModeEnabled: true,
