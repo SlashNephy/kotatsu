@@ -42,7 +42,7 @@ export function DataBroadcastZipcodeInput() {
       onChange={(event) => setValue(event.currentTarget.value)}
       onBlur={save}
       error={invalid ? t('settings.account.dataBroadcastZipcodeInvalid') : undefined}
-      w={280}
+      styles={{ input: { maxWidth: 280 } }}
     />
   );
 }
