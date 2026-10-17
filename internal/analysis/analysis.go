@@ -133,17 +133,28 @@ func (w *AnalyzeWorker) Work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 	if err != nil {
 		return err
 	}
-	results := make([]*analyzed, 0, len(segments))
+	results := make([]*analyzed, len(segments))
 	total := new(ts.PIDStats)
-	events := [][]*ts.EventAudio{}
-	for _, segment := range segments {
-		result, stats, err := w.analyze(ctx, segment)
+	events := make([][]*ts.EventAudio, len(segments))
+	// 引き継ぎで重なった区間は、後のセグメントでも録っているので、前のセグメントの集計からは除く (#525)。
+	// 重なりの始まりは、後のセグメントの最初の I フレームの PTS で決めるので、後ろのセグメントから読む。
+	var nextFirstPTS *int64
+	for i := len(segments) - 1; i >= 0; i-- {
+		segment := segments[i]
+		var cutoff *int64
+		if i+1 < len(segments) && overlaps(segment, segments[i+1]) {
+			cutoff = nextFirstPTS
+		}
+		result, stats, err := w.analyze(ctx, segment, cutoff)
 		if err != nil {
 			return err
 		}
-		results = append(results, result)
-		events = append(events, stats.Events)
-		for _, pid := range stats.PIDs {
+		results[i], events[i], nextFirstPTS = result, stats.Events, stats.FirstPTS
+		counted := stats.PIDs
+		if stats.PIDsBeforeCutoff != nil {
+			counted = stats.PIDsBeforeCutoff
+		}
+		for _, pid := range counted {
 			total.Drops += pid.Drops
 			total.Errors += pid.Errors
 			total.Scrambled += pid.Scrambled
@@ -190,9 +201,15 @@ func (w *AnalyzeWorker) segments(files []sqlc.RecordingFile) ([]*sqlc.RecordingF
 	return segments, nil
 }
 
+// overlaps は、後のセグメント next が、segment を書き始めた後、書き終える前に始まったかどうか。引き継ぎで重ねて録ったときに起きる。
+// EPGStation から取り込んだ録画は、どのセグメントも番組の始まりを始まりとするので、重なりとはしない。
+func overlaps(segment, next *sqlc.RecordingFile) bool {
+	return segment.EndedAt != nil && next.StartedAt.After(segment.StartedAt) && next.StartedAt.Before(*segment.EndedAt)
+}
+
 // analyze は、セグメントを読み通して、付属ファイルのディレクトリに索引を書き、統計を返す。
-// 索引は作り直すたびに切り詰めて書くので、何度実行しても同じ索引になる。
-func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile) (*analyzed, *ts.Stats, error) {
+// cutoff を渡せば、PTS がそこに届いたときの統計も返す。索引は作り直すたびに切り詰めて書くので、何度実行しても同じ索引になる。
+func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile, cutoff *int64) (*analyzed, *ts.Stats, error) {
 	segmentPath, err := w.store.Path(segment.PoolID, segment.Path)
 	if err != nil {
 		return nil, nil, err
@@ -224,7 +241,7 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 	if err != nil {
 		return nil, nil, err
 	}
-	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer})
+	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: cutoff})
 	// 数 GB のセグメントを読む間でも、nekonote を止めたら読むのをやめる。
 	reader := readerFunc(func(p []byte) (int, error) {
 		if err := ctx.Err(); err != nil {

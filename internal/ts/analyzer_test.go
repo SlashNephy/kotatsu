@@ -377,3 +377,47 @@ func TestAnalyzerContinuityRules(t *testing.T) {
 		})
 	}
 }
+
+// TestAnalyzerCutoff は、PTS が CutoffPTS に届いた I フレームの時点の統計を控えることを確かめる (#525)。
+// test.ts の I フレームの PTS は 129003 から 45045 ずつ増え、6 つ目 (354228) は映像の 2168 番目のパケットから始まる。
+func TestAnalyzerCutoff(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		cutoff     *int64
+		wantBefore *int64
+	}{
+		{name: "届いた I フレームより前のドロップだけを控える", cutoff: new(int64(354228)), wantBefore: new(int64(1))},
+		{name: "I フレームの間の PTS なら、次の I フレームで控える", cutoff: new(int64(354228 - 1000)), wantBefore: new(int64(1))},
+		{name: "届かなければ控えない", cutoff: new(int64(624498 + 45045)), wantBefore: nil},
+		{name: "渡さなければ控えない", cutoff: nil, wantBefore: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			pkts := packets(loadTestTS(t))
+			// 後ろから消して、前の位置をずらさない。
+			for _, n := range []int{3000, 100} {
+				i := nthOfPID(t, pkts, videoPID, n)
+				pkts = slices.Delete(pkts, i, i+1)
+			}
+			analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: nil, CutoffPTS: tt.cutoff})
+			_, err := analyzer.Write(join(pkts))
+			require.NoError(t, err)
+			stats := analyzer.Stats()
+
+			assert.Equal(t, new(int64(129003)), stats.FirstPTS)
+			assert.Equal(t, int64(2), statsOf(stats, videoPID).Drops)
+			if tt.wantBefore == nil {
+				assert.Nil(t, stats.PIDsBeforeCutoff)
+
+				return
+			}
+			idx := slices.IndexFunc(stats.PIDsBeforeCutoff, func(s *ts.PIDStats) bool { return s.PID == videoPID })
+			require.NotEqual(t, -1, idx)
+			assert.Equal(t, *tt.wantBefore, stats.PIDsBeforeCutoff[idx].Drops)
+		})
+	}
+}
