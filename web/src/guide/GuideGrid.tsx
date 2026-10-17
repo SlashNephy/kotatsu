@@ -4,13 +4,13 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BellRing, CalendarRange } from 'lucide-react';
 
-import { genreBackground } from './genres';
+import { densities, genreBackground, useGuideAppearance, type GuideAppearance } from './appearance';
 import {
   broadcastDay,
   gridHeight,
   layoutColumn,
   stackedBoxes,
-  minuteHeight,
+  minuteHeightOf,
   timeScale,
   timeToY,
   visibleRange,
@@ -33,7 +33,8 @@ export type GuideProgram = {
   endAt: number;
   endUndecided: boolean;
   name: string;
-  genre: number | undefined;
+  // genre は、番組の最初のジャンル。枠の色を決める。
+  genre: GuideGenre | undefined;
   // shared は、サブチャンネルで、元のサービスと同じ番組を流していること。枠を薄くし、番組名を出さない。
   shared: boolean;
   // reserved は、有効な録画予約があること。枠を赤で囲む。
@@ -41,6 +42,9 @@ export type GuideProgram = {
   // watchReserved は、ログイン中のユーザーが視聴予約したこと。時刻の前にベルの印を出す (設計書 4.8)。
   watchReserved: boolean;
 };
+
+// GuideGenre は、番組のジャンルの大分類と中分類。
+export type GuideGenre = { readonly lv1: number; readonly lv2: number };
 
 // GuideColumn は、番組表の 1 列 (1 つのサービス)。programs は開始時刻の順に並べる。
 export type GuideColumn = {
@@ -73,7 +77,6 @@ type Props = {
   onSelect: (programId: string) => void;
 };
 
-const columnWidth = 168;
 const axisWidth = 44;
 const headerHeight = 36;
 // overscanPixels は、見えている範囲の上下に、余分に描く高さ。速くスクロールしても、空白が見えにくくする。
@@ -95,6 +98,9 @@ export function GuideGrid({
   onSelect,
 }: Props) {
   const { t } = useTranslation();
+  // チャンネルの幅と 1 分の高さは、端末ごとの密度の設定に従う (#483)。
+  const [appearance] = useGuideAppearance();
+  const { columnWidth, minuteHeight } = densities[appearance.density];
   const scroller = useRef<HTMLDivElement>(null);
   // マウスでドラッグして、番組表を動かせるようにする (#698)。
   useDragScroll(scroller);
@@ -105,10 +111,10 @@ export function GuideGrid({
   const window = useMemo(
     () =>
       timeScale(
-        day,
+        { ...day, minuteHeight },
         columns.map((column, i) => ({ programs: column.programs, layout: layouts[i]! })),
       ),
-    [day, columns, layouts],
+    [day, columns, layouts, minuteHeight],
   );
   // windowRef は、最新の目盛り。番組を読み直しても、スクロールの位置は動かさないので、効果の依存には入れない。
   const windowRef = useRef(window);
@@ -123,6 +129,10 @@ export function GuideGrid({
     estimateSize: () => columnWidth,
     overscan: 2,
   });
+  // 密度を変えたら、列の幅を測り直す。
+  useEffect(() => {
+    virtualizer.measure();
+  }, [virtualizer, columnWidth]);
 
   // 縦のスクロールの位置を、描く番組を決めるために追う。描画は、フレームごとに 1 回にまとめる。
   useEffect(() => {
@@ -171,7 +181,7 @@ export function GuideGrid({
     const window = windowRef.current;
     const time = scrollTimeRef.current;
     if (time !== null) {
-      element.scrollTop = Math.max(timeToY(window, time) - 60 * minuteHeight * 0.5, 0);
+      element.scrollTop = Math.max(timeToY(window, time) - 60 * minuteHeightOf(window) * 0.5, 0);
       // 列は同じ幅で並ぶので、番組の列の番号から横の位置が決まる。
       const programId = scrollProgramRef.current;
       const index =
@@ -306,6 +316,7 @@ export function GuideGrid({
             visibleFrom={visibleFrom}
             visibleTo={visibleTo}
             extendedHours={extendedHours}
+            appearance={appearance}
             onSelect={onSelect}
           />
         ))}
@@ -372,6 +383,7 @@ type ColumnProps = {
   visibleFrom: number;
   visibleTo: number;
   extendedHours: boolean;
+  appearance: GuideAppearance;
   onSelect: (programId: string) => void;
 };
 
@@ -384,6 +396,7 @@ function GuideColumnView({
   visibleFrom,
   visibleTo,
   extendedHours,
+  appearance,
   onSelect,
 }: ColumnProps) {
   const { t } = useTranslation();
@@ -420,7 +433,9 @@ function GuideColumnView({
               display: 'flex',
               alignItems: 'flex-start',
               padding: '2px 6px',
-              background: program.shared ? 'transparent' : genreBackground(program.genre),
+              background: program.shared
+                ? 'transparent'
+                : genreBackground(appearance, program.genre),
               borderLeft: '1px solid var(--mantine-color-default-border)',
               borderBottom: '1px solid var(--mantine-color-default-border)',
               // 録画予約した番組は、枠の内側を赤で囲む。

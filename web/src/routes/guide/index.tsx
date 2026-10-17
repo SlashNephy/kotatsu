@@ -213,6 +213,7 @@ function Guide() {
             name
             genres {
               lv1
+              lv2
             }
             sharedFrom {
               id
@@ -283,7 +284,7 @@ function Guide() {
           endAt: Date.parse(program.endAt),
           endUndecided: program.endUndecided,
           name: program.name,
-          genre: program.genres[0]?.lv1,
+          genre: program.genres[0],
           shared: program.shared,
           reserved: program.reservation?.enabled === true,
           watchReserved: program.watchReserved,

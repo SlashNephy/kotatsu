@@ -35,6 +35,7 @@ import {
   autoPictureInPictureSupported,
   useAutoPictureInPicture,
 } from '../../yunomi/autoPictureInPicture';
+import { GuideAppearanceSettings } from '../../guide/GuideAppearanceSettings';
 import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
 import { DataBroadcastStorageReset } from '../../yunomi/DataBroadcastStorageReset';
 import { DataBroadcastZipcodeInput } from '../../yunomi/DataBroadcastZipcodeInput';
@@ -230,6 +231,8 @@ function Account() {
           )}
         </Stack>
       </Card>
+
+      <GuideAppearanceSettings />
 
       {/* 操作の途中は、ほかのボタンを押せないようにする。 */}
       <Fieldset variant="unstyled" disabled={gate.busy} p={0} m={0} miw={0}>

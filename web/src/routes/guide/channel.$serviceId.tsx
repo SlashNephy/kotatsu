@@ -102,6 +102,7 @@ function ChannelGuide() {
             name
             genres {
               lv1
+              lv2
             }
             reservation {
               id
@@ -134,7 +135,7 @@ function ChannelGuide() {
               endAt: Date.parse(program.endAt),
               endUndecided: program.endUndecided,
               name: program.name,
-              genre: program.genres[0]?.lv1,
+              genre: program.genres[0],
               // サブチャンネルでも、1 つのチャンネルだけを出すので、番組名を出す。
               shared: false,
               reserved: program.reservation?.enabled === true,
