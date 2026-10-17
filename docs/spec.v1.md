@@ -1314,7 +1314,7 @@ Kotatsuは公開リポジトリなので、実際の放送のTSをテスト用�
 - Goのテストはtable-drivenで書き、testifyで検証します。時刻はclockのinterfaceで差し替えます。
 - チューナー割り当てのアルゴリズムには、性質ベースのテストも加えます（同じ入力から常に同じ結果が出ること、録画が始まった予約を動かさないこと、など）。
 - DBを使うテストは、本物のPostgreSQLで実行します。
-- CIはGitHub Actionsで回します。golangci-lintと`vp check`、Goのテスト、Vitest、Helmのlintと生成物の差分の検査、PlaywrightによるE2Eテストを実行します。
+- CIはGitHub Actionsで回します。golangci-lintと`vp check`、Goのテスト、Vitest、Helmのlintと生成物の差分の検査、PlaywrightによるE2Eテストを実行します。PRでは、変わったファイルから関係するジョブだけを走らせます（文書だけならどれも走らせず、画面だけならGoのテストとlintを飛ばす、など）。同時に走るジョブを減らし、ランナーの空きを待つ時間を短くするためです。迷うファイルは走らせる側に倒し、ツールの版やCI自体を変えたときと、mainへのpushでは、すべて走らせます（#700）。
 
 ## 12. 要検証事項
 
