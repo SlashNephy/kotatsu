@@ -544,3 +544,58 @@ func bsProgramNames(n int) []string {
 
 	return names
 }
+
+const (
+	serviceName1 = "こたつテスト1"
+	serviceName2 = "こたつテスト2"
+	varPinned    = "pinned"
+)
+
+// TestPinnedServices は、サービスのピン留めを、ユーザーごとに、ピン留めした順に覚えることを確かめる (#485)。
+func TestPinnedServices(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	services := f.serviceIDs(t)
+	first, second := services[serviceName2], services[serviceName1]
+	const (
+		setPinned  = `mutation($id: ID!, $pinned: Boolean!) { setServicePinned(id: $id, pinned: $pinned) { name } }`
+		listPinned = `{ pinnedServices { name } }`
+	)
+	type service struct {
+		Name string `json:"name"`
+	}
+	names := func(services []service) []string {
+		out := make([]string, 0, len(services))
+		for _, s := range services {
+			out = append(out, s.Name)
+		}
+
+		return out
+	}
+	var set struct {
+		SetServicePinned []service `json:"setServicePinned"`
+	}
+	for _, id := range []string{first, second, first} {
+		require.Empty(t, f.query(t, setPinned, map[string]any{varID: id, varPinned: true}, &set))
+		f.clock.Advance(time.Second)
+	}
+	assert.Equal(t, []string{serviceName2, serviceName1}, names(set.SetServicePinned), "pinning twice keeps the first position")
+
+	// ほかのユーザーのピン留めは、別に持つ。
+	var other struct {
+		PinnedServices []service `json:"pinnedServices"`
+	}
+	require.Empty(t, f.as(t, "other", auth.RoleViewer).query(t, listPinned, nil, &other))
+	assert.Empty(t, other.PinnedServices)
+
+	require.Empty(t, f.query(t, setPinned, map[string]any{varID: first, varPinned: false}, &set))
+	var got struct {
+		PinnedServices []service `json:"pinnedServices"`
+	}
+	require.Empty(t, f.query(t, listPinned, nil, &got))
+	assert.Equal(t, []string{serviceName1}, names(got.PinnedServices))
+
+	assert.Equal(t, []string{codeNotFound}, f.query(t, setPinned, map[string]any{varID: graph.GlobalID("Service", "999"), varPinned: true}, nil))
+}
