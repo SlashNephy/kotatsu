@@ -21,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/kago"
@@ -343,6 +344,34 @@ func TestAnalyzeWorkerExcludesHandoverOverlap(t *testing.T) {
 			assert.Equal(t, tt.wantDrops, drops)
 		})
 	}
+}
+
+// TestAnalyzeWorkerWaitsForJoin は、同じ録画のセグメントをほかでつないでいる間は、読まずに後でやり直すことを確かめる (#476)。
+func TestAnalyzeWorkerWaitsForJoin(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID := f.recording(t, completedWithErrors, singleTestTS(t)...)
+	// セグメントをつなぐジョブが、録画のロックを持っている。
+	conn, err := f.pool.Acquire(t.Context())
+	require.NoError(t, err)
+	defer conn.Release()
+	locked, err := sqlc.New(conn).TryLockRecordingJoin(t.Context(), recordingID.String())
+	require.NoError(t, err)
+	require.True(t, locked)
+
+	var snooze *river.JobSnoozeError
+	require.ErrorAs(t, f.analyze(t, recordingID), &snooze)
+	var drops int64
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT drops FROM recordings WHERE id = $1", recordingID).Scan(&drops))
+	assert.Equal(t, int64(2), drops, "the stats stay as imported")
+
+	// つなぎ終えたら、解析できる。
+	_, err = sqlc.New(conn).UnlockRecordingJoin(t.Context(), recordingID.String())
+	require.NoError(t, err)
+	require.NoError(t, f.analyze(t, recordingID))
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT drops FROM recordings WHERE id = $1", recordingID).Scan(&drops))
+	assert.Zero(t, drops)
 }
 
 // TestAnalyzeWorkerCancels は、録画が消されたか、録画中か、読めるセグメントがなければ、送り直さずに取りやめることを確かめる。

@@ -369,6 +369,49 @@ func TestRegenerateRecordingImages(t *testing.T) {
 	assert.Equal(t, 2, queued())
 }
 
+// TestReanalyzeRecording は、録画の解析をやり直すジョブを、視聴者でなければ入れられることを確かめる (#476)。
+// 取り込んだ録画の解析より先に回し、録画中の録画は断り、待っているジョブには重ねない。
+func TestReanalyzeRecording(t *testing.T) {
+	t.Parallel()
+
+	inserter := &lateInserter{client: nil}
+	dir := t.TempDir()
+	f := newFixture(t, &graph.Options{Pools: map[string]string{poolMain: dir}, Jobs: inserter})
+	f.syncEPG(t)
+	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
+	client, err := jobs.NewClient(f.pool, slog.New(slog.DiscardHandler), &jobs.Options{PollOnly: false, Workers: nil, PeriodicJobs: nil})
+	require.NoError(t, err)
+	inserter.client = client
+	recordingID := f.addRecording(t, dir, "こたつ特集", "completed", time.Hour)
+	recordingNow := f.addRecording(t, dir, "こたつ中継", "recording", time.Hour)
+	_, rawID, err := graph.ParseGlobalID(recordingID)
+	require.NoError(t, err)
+	const reanalyze = `mutation($id: ID!) { reanalyzeRecording(id: $id) }`
+	queued := func() []int {
+		rows, err := f.pool.Query(t.Context(), `SELECT priority FROM river_job WHERE kind = 'recording_analyze' AND args->>'recordingId' = $1`, rawID)
+		require.NoError(t, err)
+		priorities, err := pgx.CollectRows(rows, pgx.RowTo[int])
+		require.NoError(t, err)
+
+		return priorities
+	}
+	var got struct {
+		ReanalyzeRecording bool `json:"reanalyzeRecording"`
+	}
+
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", auth.RoleViewer).query(t, reanalyze, map[string]any{varID: recordingID}, nil))
+	assert.Equal(t, []string{codeConflict}, f.query(t, reanalyze, map[string]any{varID: recordingNow}, nil), "a recording in progress")
+
+	require.Empty(t, f.query(t, reanalyze, map[string]any{varID: recordingID}, &got))
+	assert.True(t, got.ReanalyzeRecording)
+	assert.Equal(t, []int{jobs.PriorityDefault}, queued(), "requested jobs run before those of imported recordings")
+
+	// 待っているジョブがあれば、重ねて入れない。
+	require.Empty(t, f.query(t, reanalyze, map[string]any{varID: recordingID}, &got))
+	assert.False(t, got.ReanalyzeRecording)
+	assert.Len(t, queued(), 1)
+}
+
 // TestRecordingWatchFrame は、前回見た位置に合うプレビュー画像のコマを返すことを確かめる。
 func TestRecordingWatchFrame(t *testing.T) {
 	t.Parallel()

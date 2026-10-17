@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
@@ -38,6 +39,8 @@ const (
 	analyzeMaxAttempts = 3
 	// analyzeTimeout は、解析するジョブの時間の上限。数 GB の TS を読み通すので、長めにとる。
 	analyzeTimeout = 30 * time.Minute
+	// lockedSnooze は、同じ録画のファイルをほかでつないでいるときに、やり直すまで待つ時間。
+	lockedSnooze = 10 * time.Minute
 	// foreignKeyViolation は、PostgreSQL の外部キーの違反のエラーコード。解析している間に録画が消されたときに返る。
 	foreignKeyViolation = "23503"
 )
@@ -63,7 +66,8 @@ func (AnalyzeArgs) InsertOpts() river.InsertOpts {
 		// 録画ファイルを読み通すので、FFmpeg を動かすジョブと同じく、同時に 1 つだけ動かす。
 		Queue:       jobs.QueueMedia,
 		MaxAttempts: analyzeMaxAttempts,
-		// 解析するのは取り込んだ録画だけなので、新しく録った録画のジョブより後に回す。
+		// 解析するのは、取り込んだ録画と、頼まれてやり直す録画 (#476)。取り込んだ分は、新しく録った録画のジョブより後に回す。
+		// 頼まれてやり直すときは、投入するときに優先度を上げる。
 		Priority: jobs.PriorityImported,
 		// 同じ録画を解析するジョブは、待っている間に重ねて投入しない。
 		UniqueOpts: river.UniqueOpts{ByArgs: true},
@@ -76,9 +80,11 @@ type Inserter interface {
 }
 
 // Database は、解析に使う DB。*pgxpool.Pool が満たす。
+// 録画ごとの advisory lock を持つのに、接続を借りる。
 type Database interface {
 	sqlc.DBTX
 	Begin(ctx context.Context) (pgx.Tx, error)
+	Acquire(ctx context.Context) (*pgxpool.Conn, error)
 }
 
 // AnalyzeWorker は、録画のセグメントを読み、索引を作り、ドロップ、エラー、スクランブルを数え直す。
@@ -111,7 +117,33 @@ type analyzed struct {
 	indexSize int64
 }
 
+// Work は、録画ごとの advisory lock を取ってから、録画を解析する。
+// セグメントをつなぐジョブと同じロックを使い、ほかの nekonote がファイルをつないだり消したりしている間は読まず、後でやり直す (#476)。
 func (w *AnalyzeWorker) Work(ctx context.Context, job *river.Job[AnalyzeArgs]) error {
+	conn, err := w.db.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire a connection: %w", err)
+	}
+	defer conn.Release()
+	key := job.Args.RecordingID.String()
+	locked, err := sqlc.New(conn).TryLockRecordingJoin(ctx, key)
+	if err != nil {
+		return fmt.Errorf("failed to lock the recording: %w", err)
+	}
+	if !locked {
+		return river.JobSnooze(lockedSnooze)
+	}
+	defer func() {
+		if _, err := sqlc.New(conn).UnlockRecordingJoin(context.WithoutCancel(ctx), key); err != nil {
+			// 接続を閉じれば、ロックも外れる。
+			_ = conn.Conn().Close(context.WithoutCancel(ctx))
+		}
+	}()
+
+	return w.work(ctx, job)
+}
+
+func (w *AnalyzeWorker) work(ctx context.Context, job *river.Job[AnalyzeArgs]) error {
 	q := sqlc.New(w.db)
 	recording, err := q.GetRecording(ctx, job.Args.RecordingID)
 	if errors.Is(err, pgx.ErrNoRows) {
