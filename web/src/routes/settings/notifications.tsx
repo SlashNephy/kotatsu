@@ -10,6 +10,7 @@ import { currentSubscription, pushSupported, subscribe } from '../../notificatio
 import { notificationKinds } from '../../notifications/kinds';
 import { isUnauthenticated } from '../../relay/environment';
 import { useDataChanges } from '../../changes/DataChanges';
+import { WatchReminderSettings } from '../../watch/WatchReminderSettings';
 import type { notificationsPreferenceMutation } from './__generated__/notificationsPreferenceMutation.graphql';
 import type { notificationsSettingsQuery } from './__generated__/notificationsSettingsQuery.graphql';
 import type { notificationsSubscribeMutation } from './__generated__/notificationsSubscribeMutation.graphql';
@@ -67,6 +68,9 @@ function Settings() {
           inApp
           webPush
           ruleReservations
+        }
+        watchReminderSettings {
+          minutesBefore
         }
       }
     `,
@@ -176,6 +180,7 @@ function Settings() {
           )}
         </Stack>
       </Card>
+      <WatchReminderSettings minutesBefore={data.watchReminderSettings.minutesBefore} />
       <Table>
         <Table.Thead>
           <Table.Tr>

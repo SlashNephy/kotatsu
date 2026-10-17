@@ -32,6 +32,7 @@ import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.grap
 import type { ProgramDetailReserveMutation } from './__generated__/ProgramDetailReserveMutation.graphql';
 import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDialog';
 import { ServiceLabel } from './ServiceLabel';
+import { WatchReserveButton } from '../watch/WatchReserveButton';
 import { zonedFormat } from '../futon';
 
 type Props = {
@@ -111,6 +112,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
               heading
               text
             }
+            watchReserved
             reservation {
               id
               enabled
@@ -188,6 +190,8 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
   const reserved = program.reservation?.enabled === true;
   // 放送中なら、その場でライブ視聴を開けるようにする。
   const onAir = !program.archived && !ended && start <= Date.now();
+  // 視聴予約は、放送が始まる前の番組にだけ付けられる。付けてある番組では、外せるようにボタンを出し続ける。
+  const canWatchReserve = !program.archived && (start > Date.now() || program.watchReserved);
 
   return (
     <Stack>
@@ -220,35 +224,45 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           {t('guide.detail.watch')}
         </Button>
       )}
-      {/* 検索から開いた、放送の終わった番組は予約できない。 */}
-      {data.viewer.role !== 'VIEWER' && !ended && !reserved && (
-        <Button
-          onClick={reserve}
-          loading={inFlight}
-          leftSection={<CalendarPlus size={16} aria-hidden />}
-        >
-          {t('guide.detail.reserve')}
-        </Button>
-      )}
-      {/* 録画予約済みのボタンを押すと、確かめてから取り消す。 */}
-      {data.viewer.role !== 'VIEWER' && !ended && reserved && program.reservation != null && (
-        <Group gap="xs" grow>
-          <Tooltip label={t('guide.detail.cancelReservation')}>
-            <Button
-              variant="outline"
-              onClick={() => setCancelling(true)}
-              leftSection={<CalendarCheck size={16} aria-hidden />}
-            >
-              {t('guide.detail.reserved')}
-            </Button>
-          </Tooltip>
-          <Button
-            variant="default"
-            onClick={() => setEditing(true)}
-            leftSection={<SlidersHorizontal size={16} aria-hidden />}
-          >
-            {t('reservations.settings.open')}
-          </Button>
+      {/* 録画予約のボタンの横に、視聴予約のベルを置く。視聴予約は、放送が始まる前の番組にだけ付けられる (設計書 4.8)。 */}
+      {(canWatchReserve || (data.viewer.role !== 'VIEWER' && !ended)) && (
+        <Group gap="xs" wrap="nowrap" align="stretch">
+          <Stack gap="xs" style={{ flex: 1 }}>
+            {/* 検索から開いた、放送の終わった番組は予約できない。 */}
+            {data.viewer.role !== 'VIEWER' && !ended && !reserved && (
+              <Button
+                onClick={reserve}
+                loading={inFlight}
+                leftSection={<CalendarPlus size={16} aria-hidden />}
+              >
+                {t('guide.detail.reserve')}
+              </Button>
+            )}
+            {/* 録画予約済みのボタンを押すと、確かめてから取り消す。 */}
+            {data.viewer.role !== 'VIEWER' && !ended && reserved && program.reservation != null && (
+              <Group gap="xs" grow>
+                <Tooltip label={t('guide.detail.cancelReservation')}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setCancelling(true)}
+                    leftSection={<CalendarCheck size={16} aria-hidden />}
+                  >
+                    {t('guide.detail.reserved')}
+                  </Button>
+                </Tooltip>
+                <Button
+                  variant="default"
+                  onClick={() => setEditing(true)}
+                  leftSection={<SlidersHorizontal size={16} aria-hidden />}
+                >
+                  {t('reservations.settings.open')}
+                </Button>
+              </Group>
+            )}
+          </Stack>
+          {canWatchReserve && (
+            <WatchReserveButton programId={program.id} reserved={program.watchReserved} />
+          )}
         </Group>
       )}
       {/* 番組名とサービスを条件に引き継いで、ルールの作成画面を開く。番組検索の「この条件でルールを作成」と同じ画面。 */}

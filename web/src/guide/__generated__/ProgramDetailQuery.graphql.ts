@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<f3e269b5d9d6bb3a19db8f34e274f7ff>>
+ * @generated SignedSource<<92bc7c355a30b319c483b0d0088c2b46>>
  * @lightSyntaxTransform
  */
 
@@ -51,6 +51,7 @@ export type ProgramDetailQuery$data = {
       readonly name: string;
     };
     readonly startAt: string;
+    readonly watchReserved: boolean;
   } | {
     // This will never be '%other', but we need some
     // value in case none of the concrete values match.
@@ -216,6 +217,13 @@ v14 = {
 v15 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "watchReserved",
+  "storageKey": null
+},
+v16 = {
+  "alias": null,
+  "args": null,
   "concreteType": "Reservation",
   "kind": "LinkedField",
   "name": "reservation",
@@ -326,7 +334,8 @@ return {
               (v12/*:: as any*/),
               (v13/*:: as any*/),
               (v14/*:: as any*/),
-              (v15/*:: as any*/)
+              (v15/*:: as any*/),
+              (v16/*:: as any*/)
             ],
             "type": "Program",
             "abstractKey": null
@@ -380,7 +389,8 @@ return {
               (v12/*:: as any*/),
               (v13/*:: as any*/),
               (v14/*:: as any*/),
-              (v15/*:: as any*/)
+              (v15/*:: as any*/),
+              (v16/*:: as any*/)
             ],
             "type": "Program",
             "abstractKey": null
@@ -391,16 +401,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "9720a8da321cbf888f58c5ddc9707dd7",
+    "cacheID": "ce2844e45df01e7b3120c012bb59e631",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      service {\n        id\n        name\n        logoUrl\n      }\n      genres {\n        lv1\n      }\n      extended {\n        heading\n        text\n      }\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      service {\n        id\n        name\n        logoUrl\n      }\n      genres {\n        lv1\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "cc03cd01b1fef42b96207fbe92ad44e1";
+(node as any).hash = "d21e98487661afd6655a933dde6dd6b6";
 
 export default node;
