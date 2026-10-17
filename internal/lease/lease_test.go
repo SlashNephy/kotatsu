@@ -365,7 +365,8 @@ func TestTryAcquireGivesUpOnStuckLeader(t *testing.T) {
 }
 
 // TestRenewDuringGuardedWrite は、リーダーの書き込みのトランザクションが長く続いても、その間にリースを延ばせ、
-// 延ばした後も、ほかのインスタンスは書き込みが終わるまでリースを取れないことを確かめる (#729)。
+// 延ばす前の期限を過ぎても、ほかのインスタンスに取られないことを確かめる (#729)。
+// 期限が切れた後に、書き込みが終わるまで取るのを待つことは、TestGuardRejectsWritesFromOldGeneration で確かめる。
 func TestRenewDuringGuardedWrite(t *testing.T) {
 	t.Parallel()
 
@@ -388,7 +389,7 @@ func TestRenewDuringGuardedWrite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, clk.Now(), renewed)
 
-	// 延ばす前の期限を過ぎても、A はリースを持ち続け、B は取れない。
+	// 延ばす前の期限を過ぎても、A はリースを持ち続けるので、B は (書き込みを待たずに) 取れない。
 	clk.Advance(ttl/2 + time.Second)
 	_, ok, err = b.TryAcquire(t.Context())
 	require.NoError(t, err)
