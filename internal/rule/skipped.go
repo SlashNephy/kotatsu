@@ -42,10 +42,10 @@ type SkippedRule struct {
 func FindSkippedDuplicates(ctx context.Context, db Beginner, clk clock.Clock, location *time.Location) ([]*SkippedDuplicate, error) {
 	e := &Engine{pool: nil, clock: clk, location: location, guard: nil, reservations: nil}
 	result := []*SkippedDuplicate{}
-	// 照合と同じ時点の番組、ルール、録画履歴で計算するよう、1 つのトランザクションで読む。
+	// 番組、ルール、録画履歴、予約を同じ時点で読むよう、REPEATABLE READ の 1 つのトランザクションで読む。
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, "SET TRANSACTION READ ONLY"); err != nil {
-			return fmt.Errorf("failed to make the transaction read-only: %w", err)
+		if _, err := tx.Exec(ctx, "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"); err != nil {
+			return fmt.Errorf("failed to start a read-only snapshot: %w", err)
 		}
 		skipped := map[programKey]*skippedProgram{}
 		if _, err := e.desired(ctx, tx, clk.Now(), &Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: map[uuid.UUID]error{}}, skipped); err != nil {
@@ -85,6 +85,9 @@ func FindSkippedDuplicates(ctx context.Context, db Beginner, clk clock.Clock, lo
 
 // reservedPrograms は、skipped の番組のうち、予約のあるものを返す。
 func reservedPrograms(ctx context.Context, tx pgx.Tx, skipped map[programKey]*skippedProgram) (map[programKey]bool, error) {
+	if len(skipped) == 0 {
+		return map[programKey]bool{}, nil
+	}
 	serviceIDs := make([]int64, 0, len(skipped))
 	eventIDs := make([]int64, 0, len(skipped))
 	for key := range skipped {

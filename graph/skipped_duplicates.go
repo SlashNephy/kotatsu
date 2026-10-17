@@ -2,10 +2,7 @@ package graph
 
 import (
 	"context"
-	"errors"
 	"fmt"
-
-	pgx "github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
@@ -21,20 +18,31 @@ func (r *Resolver) skippedDuplicates(ctx context.Context) ([]*model.SkippedDupli
 	if err != nil {
 		return nil, err
 	}
-	q := sqlc.New(r.db)
-	result := make([]*model.SkippedDuplicate, 0, len(skipped))
+	serviceIDs := make([]int64, 0, len(skipped))
+	eventIDs := make([]int64, 0, len(skipped))
 	for _, s := range skipped {
-		row, err := q.GetGuideProgram(ctx, sqlc.GetGuideProgramParams{ServiceID: s.ServiceID, EventID: s.EventID})
-		// 計算した後に番組が消えていれば、飛ばす。
-		if errors.Is(err, pgx.ErrNoRows) {
-			continue
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to get the program: %w", err)
-		}
-		program, err := toProgram((*programRow)(&row))
+		serviceIDs = append(serviceIDs, s.ServiceID)
+		eventIDs = append(eventIDs, s.EventID)
+	}
+	rows, err := sqlc.New(r.db).ListGuideProgramsByKeys(ctx, sqlc.ListGuideProgramsByKeysParams{ServiceIds: serviceIDs, EventIds: eventIDs})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the programs: %w", err)
+	}
+	type key struct{ serviceID, eventID int64 }
+	programs := make(map[key]*model.Program, len(rows))
+	for i := range rows {
+		program, err := toProgram((*programRow)(&rows[i]))
 		if err != nil {
 			return nil, err
+		}
+		programs[key{serviceID: rows[i].ServiceID, eventID: rows[i].EventID}] = program
+	}
+	result := make([]*model.SkippedDuplicate, 0, len(skipped))
+	for _, s := range skipped {
+		program, ok := programs[key{serviceID: s.ServiceID, eventID: s.EventID}]
+		// 計算した後に番組が消えていれば、飛ばす。
+		if !ok {
+			continue
 		}
 		rules := make([]*model.SkippedRule, 0, len(s.Rules))
 		for _, skippedRule := range s.Rules {

@@ -251,6 +251,8 @@ type Querier interface {
 	// ルールに一致しなくなったとはみなさない (#518)。
 	ListFutureProgramReservations(ctx context.Context, now time.Time) ([]ListFutureProgramReservationsRow, error)
 	ListFutureReservationRules(ctx context.Context, now time.Time) ([]ReservationRule, error)
+	// 番組 (サービス, eventId) をまとめて引く。GetGuideProgram と同じ列を返す。ない番組は返さない。
+	ListGuideProgramsByKeys(ctx context.Context, arg ListGuideProgramsByKeysParams) ([]ListGuideProgramsByKeysRow, error)
 	// 番組表の並び順のサービス。チャンネル種別の並び順、管理者の上書き、リモコンのキー、サービス ID の順に並べる。
 	// media_service_types を渡すと、その種別 (映像か音声を流すサービス) だけを返す。空なら、種別で絞らない。
 	ListGuideServices(ctx context.Context, arg ListGuideServicesParams) ([]ListGuideServicesRow, error)

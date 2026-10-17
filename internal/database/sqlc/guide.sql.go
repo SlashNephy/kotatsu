@@ -153,6 +153,67 @@ func (q *Queries) ListChannelTypesByTypes(ctx context.Context, types []string) (
 	return items, nil
 }
 
+const listGuideProgramsByKeys = `-- name: ListGuideProgramsByKeys :many
+SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios,
+  related_items
+FROM programs
+WHERE (service_id, event_id) IN (SELECT unnest($1::bigint[]), unnest($2::bigint[]))
+`
+
+type ListGuideProgramsByKeysParams struct {
+	ServiceIds []int64
+	EventIds   []int64
+}
+
+type ListGuideProgramsByKeysRow struct {
+	ServiceID    int64
+	EventID      int64
+	StartAt      time.Time
+	EndAt        time.Time
+	EndUndecided bool
+	IsFree       bool
+	Name         string
+	Description  string
+	Extended     []byte
+	Genres       []byte
+	Audios       []byte
+	RelatedItems []byte
+}
+
+// 番組 (サービス, eventId) をまとめて引く。GetGuideProgram と同じ列を返す。ない番組は返さない。
+func (q *Queries) ListGuideProgramsByKeys(ctx context.Context, arg ListGuideProgramsByKeysParams) ([]ListGuideProgramsByKeysRow, error) {
+	rows, err := q.db.Query(ctx, listGuideProgramsByKeys, arg.ServiceIds, arg.EventIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListGuideProgramsByKeysRow{}
+	for rows.Next() {
+		var i ListGuideProgramsByKeysRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.EventID,
+			&i.StartAt,
+			&i.EndAt,
+			&i.EndUndecided,
+			&i.IsFree,
+			&i.Name,
+			&i.Description,
+			&i.Extended,
+			&i.Genres,
+			&i.Audios,
+			&i.RelatedItems,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGuideServices = `-- name: ListGuideServices :many
 SELECT s.id, s.network_id, s.sid, s.name, s.channel_type, s.channel, s.remote_control_key_id, s.logo_id, s.hidden, s.sort_order
 FROM services s
