@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<7e5ba4df7cbc24dfe9dbaac9f584fff1>>
+ * @generated SignedSource<<932162c73b38822853bcafe11a472a3b>>
  * @lightSyntaxTransform
  */
 
@@ -12,6 +12,7 @@ export type RecordingFailureReason = "CANCELLED" | "PROGRAM_NOT_FOUND" | "RECORD
 export type RecordingFileKind = "INDEX" | "OTHER" | "PREVIEW" | "SEGMENT" | "THUMBNAIL" | "%future added value";
 export type RecordingState = "COMPLETED" | "COMPLETED_WITH_ERRORS" | "FAILED" | "PARTIAL" | "RECORDING" | "%future added value";
 export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
+export type StreamKind = "AUDIO" | "OTHER" | "PSI" | "UNKNOWN" | "VIDEO" | "%future added value";
 export type RecordingIdQuery$variables = {
   id: string;
 };
@@ -56,6 +57,14 @@ export type RecordingIdQuery$data = {
     };
     readonly startAt: string;
     readonly state: RecordingState;
+    readonly streamQuality: ReadonlyArray<{
+      readonly drops: number;
+      readonly errors: number;
+      readonly kind: StreamKind;
+      readonly packets: number;
+      readonly pid: number;
+      readonly scrambled: number;
+    }>;
     readonly streamUrl: string;
     readonly tags: ReadonlyArray<{
       readonly id: string;
@@ -188,6 +197,42 @@ v14 = {
 v15 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "kind",
+  "storageKey": null
+},
+v16 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "StreamQuality",
+  "kind": "LinkedField",
+  "name": "streamQuality",
+  "plural": true,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "pid",
+      "storageKey": null
+    },
+    (v15/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "packets",
+      "storageKey": null
+    },
+    (v12/*:: as any*/),
+    (v13/*:: as any*/),
+    (v14/*:: as any*/)
+  ],
+  "storageKey": null
+},
+v17 = {
+  "alias": null,
+  "args": null,
   "concreteType": "RecordingGap",
   "kind": "LinkedField",
   "name": "gaps",
@@ -210,35 +255,35 @@ v15 = {
   ],
   "storageKey": null
 },
-v16 = {
+v18 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "programLost",
   "storageKey": null
 },
-v17 = {
+v19 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "broadcastStartedAt",
   "storageKey": null
 },
-v18 = {
+v20 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "broadcastEndedAt",
   "storageKey": null
 },
-v19 = {
+v21 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "notBroadcast",
   "storageKey": null
 },
-v20 = {
+v22 = {
   "alias": null,
   "args": null,
   "concreteType": "Genre",
@@ -256,7 +301,7 @@ v20 = {
   ],
   "storageKey": null
 },
-v21 = {
+v23 = {
   "alias": null,
   "args": null,
   "concreteType": "Rule",
@@ -268,49 +313,49 @@ v21 = {
   ],
   "storageKey": null
 },
-v22 = {
+v24 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "ruleName",
   "storageKey": null
 },
-v23 = {
+v25 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "thumbnailUrl",
   "storageKey": null
 },
-v24 = {
+v26 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "streamUrl",
   "storageKey": null
 },
-v25 = {
+v27 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "recordedFrom",
   "storageKey": null
 },
-v26 = {
+v28 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "recordedUntil",
   "storageKey": null
 },
-v27 = {
+v29 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v28 = {
+v30 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -323,7 +368,7 @@ v28 = {
   ],
   "storageKey": null
 },
-v29 = {
+v31 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingFile",
@@ -331,13 +376,7 @@ v29 = {
   "name": "files",
   "plural": true,
   "selections": [
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "kind",
-      "storageKey": null
-    },
+    (v15/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -416,7 +455,6 @@ return {
               (v12/*:: as any*/),
               (v13/*:: as any*/),
               (v14/*:: as any*/),
-              (v15/*:: as any*/),
               (v16/*:: as any*/),
               (v17/*:: as any*/),
               (v18/*:: as any*/),
@@ -428,6 +466,8 @@ return {
               (v24/*:: as any*/),
               (v25/*:: as any*/),
               (v26/*:: as any*/),
+              (v27/*:: as any*/),
+              (v28/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -437,12 +477,12 @@ return {
                 "plural": false,
                 "selections": [
                   (v2/*:: as any*/),
-                  (v27/*:: as any*/)
+                  (v29/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v28/*:: as any*/),
-              (v29/*:: as any*/)
+              (v30/*:: as any*/),
+              (v31/*:: as any*/)
             ],
             "type": "Recording",
             "abstractKey": null
@@ -509,7 +549,6 @@ return {
               (v12/*:: as any*/),
               (v13/*:: as any*/),
               (v14/*:: as any*/),
-              (v15/*:: as any*/),
               (v16/*:: as any*/),
               (v17/*:: as any*/),
               (v18/*:: as any*/),
@@ -521,6 +560,8 @@ return {
               (v24/*:: as any*/),
               (v25/*:: as any*/),
               (v26/*:: as any*/),
+              (v27/*:: as any*/),
+              (v28/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -530,13 +571,13 @@ return {
                 "plural": false,
                 "selections": [
                   (v2/*:: as any*/),
-                  (v27/*:: as any*/),
+                  (v29/*:: as any*/),
                   (v5/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v28/*:: as any*/),
-              (v29/*:: as any*/)
+              (v30/*:: as any*/),
+              (v31/*:: as any*/)
             ],
             "type": "Recording",
             "abstractKey": null
@@ -547,16 +588,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "0b0c03f2830a273ab570918187354b25",
+    "cacheID": "4f1311128cd129c8138a3fab11e2c119",
     "id": null,
     "metadata": {},
     "name": "RecordingIdQuery",
     "operationKind": "query",
-    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      protected\n      drops\n      errors\n      scrambled\n      gaps {\n        from\n        to\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      genres {\n        lv1\n      }\n      rule {\n        id\n      }\n      ruleName\n      thumbnailUrl\n      streamUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      protected\n      drops\n      errors\n      scrambled\n      streamQuality {\n        pid\n        kind\n        packets\n        drops\n        errors\n        scrambled\n      }\n      gaps {\n        from\n        to\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      genres {\n        lv1\n      }\n      rule {\n        id\n      }\n      ruleName\n      thumbnailUrl\n      streamUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "f6b8a1d4cf442874aa3c77615af05e36";
+(node as any).hash = "df5935c0d4b5800cbdecc0e827cfe5cf";
 
 export default node;

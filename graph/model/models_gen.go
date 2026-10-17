@@ -728,6 +728,16 @@ type StreamPreset struct {
 	Codec        VideoCodec `json:"codec"`
 }
 
+// PID ごとの品質の集計 (#473)。
+type StreamQuality struct {
+	Pid       int        `json:"pid"`
+	Kind      StreamKind `json:"kind"`
+	Packets   int64      `json:"packets"`
+	Drops     int64      `json:"drops"`
+	Errors    int64      `json:"errors"`
+	Scrambled int64      `json:"scrambled"`
+}
+
 // 外部プレイヤー (VLC や mpv) で開くための、署名付きの映像の URL (設計書 7.6、9.6)。
 // URL には、リソース、URL を発行したユーザー、有効期限に対する署名が付く。中身は TS をそのまま流す。
 type StreamURL struct {
@@ -1654,6 +1664,68 @@ func (e *Role) UnmarshalJSON(b []byte) error {
 }
 
 func (e Role) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// PID の種類。PMT に書かれたストリーム (映像、音声、そのほか) と、PSI と SI の表。PMT にも決まった PID にもなければ UNKNOWN。
+type StreamKind string
+
+const (
+	StreamKindVideo   StreamKind = "VIDEO"
+	StreamKindAudio   StreamKind = "AUDIO"
+	StreamKindOther   StreamKind = "OTHER"
+	StreamKindPsi     StreamKind = "PSI"
+	StreamKindUnknown StreamKind = "UNKNOWN"
+)
+
+var AllStreamKind = []StreamKind{
+	StreamKindVideo,
+	StreamKindAudio,
+	StreamKindOther,
+	StreamKindPsi,
+	StreamKindUnknown,
+}
+
+func (e StreamKind) IsValid() bool {
+	switch e {
+	case StreamKindVideo, StreamKindAudio, StreamKindOther, StreamKindPsi, StreamKindUnknown:
+		return true
+	}
+	return false
+}
+
+func (e StreamKind) String() string {
+	return string(e)
+}
+
+func (e *StreamKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = StreamKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid StreamKind", str)
+	}
+	return nil
+}
+
+func (e StreamKind) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *StreamKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e StreamKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

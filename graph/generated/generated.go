@@ -451,6 +451,7 @@ type ComplexityRoot struct {
 		Service            func(childComplexity int) int
 		StartAt            func(childComplexity int) int
 		State              func(childComplexity int) int
+		StreamQuality      func(childComplexity int) int
 		StreamURL          func(childComplexity int) int
 		Tags               func(childComplexity int) int
 		ThumbnailURL       func(childComplexity int) int
@@ -638,6 +639,15 @@ type ComplexityRoot struct {
 		Height       func(childComplexity int) int
 		Name         func(childComplexity int) int
 		VideoBitrate func(childComplexity int) int
+	}
+
+	StreamQuality struct {
+		Drops     func(childComplexity int) int
+		Errors    func(childComplexity int) int
+		Kind      func(childComplexity int) int
+		Packets   func(childComplexity int) int
+		Pid       func(childComplexity int) int
+		Scrambled func(childComplexity int) int
 	}
 
 	StreamURL struct {
@@ -876,6 +886,8 @@ type QueryResolver interface {
 }
 type RecordingResolver interface {
 	Service(ctx context.Context, obj *model.Recording) (*model.Service, error)
+
+	StreamQuality(ctx context.Context, obj *model.Recording) ([]*model.StreamQuality, error)
 
 	Rule(ctx context.Context, obj *model.Recording) (*model.Rule, error)
 
@@ -2946,6 +2958,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.State(childComplexity), true
+	case "Recording.streamQuality":
+		if e.ComplexityRoot.Recording.StreamQuality == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.StreamQuality(childComplexity), true
 	case "Recording.streamUrl":
 		if e.ComplexityRoot.Recording.StreamURL == nil {
 			break
@@ -3677,6 +3695,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.StreamPreset.VideoBitrate(childComplexity), true
+
+	case "StreamQuality.drops":
+		if e.ComplexityRoot.StreamQuality.Drops == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamQuality.Drops(childComplexity), true
+	case "StreamQuality.errors":
+		if e.ComplexityRoot.StreamQuality.Errors == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamQuality.Errors(childComplexity), true
+	case "StreamQuality.kind":
+		if e.ComplexityRoot.StreamQuality.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamQuality.Kind(childComplexity), true
+	case "StreamQuality.packets":
+		if e.ComplexityRoot.StreamQuality.Packets == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamQuality.Packets(childComplexity), true
+	case "StreamQuality.pid":
+		if e.ComplexityRoot.StreamQuality.Pid == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamQuality.Pid(childComplexity), true
+	case "StreamQuality.scrambled":
+		if e.ComplexityRoot.StreamQuality.Scrambled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamQuality.Scrambled(childComplexity), true
 
 	case "StreamURL.expiresAt":
 		if e.ComplexityRoot.StreamURL.ExpiresAt == nil {
@@ -5154,6 +5209,11 @@ type Recording implements Node {
   drops: Int64!
   errors: Int64!
   scrambled: Int64!
+  """
+  PID ごとの、パケット、ドロップ、エラー、スクランブルの数 (#473)。セグメントを足し合わせ、PID の昇順に並べる。
+  集計を記録する前に閉じたセグメントは含めない。引き継ぎで重なった区間は、drops などと違って二重に数える。
+  """
+  streamQuality: [StreamQuality!]!
   gaps: [RecordingGap!]!
   "録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。"
   audios: [ProgramAudio!]!
@@ -5305,6 +5365,29 @@ type PreviewFrame {
   "プレビュー画像全体の大きさ。背景を縮めて描くときに使う。"
   sheetWidth: Int!
   sheetHeight: Int!
+}
+
+"""
+PID の種類。PMT に書かれたストリーム (映像、音声、そのほか) と、PSI と SI の表。PMT にも決まった PID にもなければ UNKNOWN。
+"""
+enum StreamKind {
+  VIDEO
+  AUDIO
+  OTHER
+  PSI
+  UNKNOWN
+}
+
+"""
+PID ごとの品質の集計 (#473)。
+"""
+type StreamQuality {
+  pid: Int!
+  kind: StreamKind!
+  packets: Int64!
+  drops: Int64!
+  errors: Int64!
+  scrambled: Int64!
 }
 `, BuiltIn: false},
 	{Name: "../schema/reservations.graphqls", Input: `"""
@@ -6847,6 +6930,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_errors(ctx, field)
 	case "scrambled":
 		return ec.fieldContext_Recording_scrambled(ctx, field)
+	case "streamQuality":
+		return ec.fieldContext_Recording_streamQuality(ctx, field)
 	case "gaps":
 		return ec.fieldContext_Recording_gaps(ctx, field)
 	case "audios":
@@ -7251,6 +7336,24 @@ func (ec *executionContext) childFields_StreamPreset(ctx context.Context, field 
 		return ec.fieldContext_StreamPreset_codec(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type StreamPreset", field.Name)
+}
+
+func (ec *executionContext) childFields_StreamQuality(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "pid":
+		return ec.fieldContext_StreamQuality_pid(ctx, field)
+	case "kind":
+		return ec.fieldContext_StreamQuality_kind(ctx, field)
+	case "packets":
+		return ec.fieldContext_StreamQuality_packets(ctx, field)
+	case "drops":
+		return ec.fieldContext_StreamQuality_drops(ctx, field)
+	case "errors":
+		return ec.fieldContext_StreamQuality_errors(ctx, field)
+	case "scrambled":
+		return ec.fieldContext_StreamQuality_scrambled(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type StreamQuality", field.Name)
 }
 
 func (ec *executionContext) childFields_StreamURL(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -16894,6 +16997,38 @@ func (ec *executionContext) fieldContext_Recording_scrambled(_ context.Context, 
 	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type Int64 does not have child fields"))
 }
 
+func (ec *executionContext) _Recording_streamQuality(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_streamQuality(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().StreamQuality(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.StreamQuality) graphql.Marshaler {
+			return ec.marshalNStreamQuality2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamQualityᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_streamQuality(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_StreamQuality(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Recording_gaps(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -20198,6 +20333,144 @@ func (ec *executionContext) _StreamPreset_codec(ctx context.Context, field graph
 }
 func (ec *executionContext) fieldContext_StreamPreset_codec(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("StreamPreset", field, false, false, errors.New("field of type VideoCodec does not have child fields"))
+}
+
+func (ec *executionContext) _StreamQuality_pid(ctx context.Context, field graphql.CollectedField, obj *model.StreamQuality) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StreamQuality_pid(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Pid, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StreamQuality_pid(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StreamQuality", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _StreamQuality_kind(ctx context.Context, field graphql.CollectedField, obj *model.StreamQuality) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StreamQuality_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.StreamKind) graphql.Marshaler {
+			return ec.marshalNStreamKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StreamQuality_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StreamQuality", field, false, false, errors.New("field of type StreamKind does not have child fields"))
+}
+
+func (ec *executionContext) _StreamQuality_packets(ctx context.Context, field graphql.CollectedField, obj *model.StreamQuality) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StreamQuality_packets(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Packets, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StreamQuality_packets(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StreamQuality", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _StreamQuality_drops(ctx context.Context, field graphql.CollectedField, obj *model.StreamQuality) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StreamQuality_drops(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Drops, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StreamQuality_drops(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StreamQuality", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _StreamQuality_errors(ctx context.Context, field graphql.CollectedField, obj *model.StreamQuality) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StreamQuality_errors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Errors, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StreamQuality_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StreamQuality", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _StreamQuality_scrambled(ctx context.Context, field graphql.CollectedField, obj *model.StreamQuality) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StreamQuality_scrambled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Scrambled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StreamQuality_scrambled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StreamQuality", field, false, false, errors.New("field of type Int64 does not have child fields"))
 }
 
 func (ec *executionContext) _StreamURL_url(ctx context.Context, field graphql.CollectedField, obj *model.StreamURL) (ret graphql.Marshaler) {
@@ -28229,6 +28502,44 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "streamQuality":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Recording_streamQuality(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "gaps":
 			out.Values[i] = ec._Recording_gaps(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -29876,6 +30187,69 @@ func (ec *executionContext) _StreamPreset(ctx context.Context, sel ast.Selection
 			}
 		case "codec":
 			out.Values[i] = ec._StreamPreset_codec(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var streamQualityImplementors = []string{"StreamQuality"}
+
+func (ec *executionContext) _StreamQuality(ctx context.Context, sel ast.SelectionSet, obj *model.StreamQuality) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, streamQualityImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("StreamQuality")
+		case "pid":
+			out.Values[i] = ec._StreamQuality_pid(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._StreamQuality_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "packets":
+			out.Values[i] = ec._StreamQuality_packets(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "drops":
+			out.Values[i] = ec._StreamQuality_drops(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errors":
+			out.Values[i] = ec._StreamQuality_errors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scrambled":
+			out.Values[i] = ec._StreamQuality_scrambled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -32637,6 +33011,16 @@ func (ec *executionContext) unmarshalNStoragePoolInput2githubᚗcomᚋSlashNephy
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNStreamKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamKind(ctx context.Context, v any) (model.StreamKind, error) {
+	var res model.StreamKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNStreamKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamKind(ctx context.Context, sel ast.SelectionSet, v model.StreamKind) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNStreamPreset2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamPresetᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.StreamPreset) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -32661,6 +33045,32 @@ func (ec *executionContext) marshalNStreamPreset2ᚖgithubᚗcomᚋSlashNephyᚋ
 		return graphql.Null
 	}
 	return ec._StreamPreset(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNStreamQuality2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamQualityᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.StreamQuality) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNStreamQuality2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamQuality(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNStreamQuality2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamQuality(ctx context.Context, sel ast.SelectionSet, v *model.StreamQuality) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._StreamQuality(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNStreamURL2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐStreamURL(ctx context.Context, sel ast.SelectionSet, v *model.StreamURL) graphql.Marshaler {

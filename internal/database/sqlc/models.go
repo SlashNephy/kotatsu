@@ -241,6 +241,7 @@ type RecordingFile struct {
 	Size        int64
 	StartedAt   time.Time
 	EndedAt     *time.Time
+	PIDStats    []byte
 	CreatedAt   time.Time
 }
 

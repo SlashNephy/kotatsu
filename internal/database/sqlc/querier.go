@@ -451,6 +451,8 @@ type Querier interface {
 	SetRecordingBroadcastStarted(ctx context.Context, arg SetRecordingBroadcastStartedParams) error
 	// 録画中の録画に、録画できなかった理由を残す。割り振りを手放した後、ほかの mikan も録れなければ、この理由で失敗にする (#524)。
 	SetRecordingFailureHint(ctx context.Context, arg SetRecordingFailureHintParams) error
+	// セグメントの PID ごとの品質の集計を書く (#473)。
+	SetRecordingFilePIDStats(ctx context.Context, arg SetRecordingFilePIDStatsParams) error
 	SetRecordingFilePath(ctx context.Context, arg SetRecordingFilePathParams) error
 	// 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
 	SetRecordingGaps(ctx context.Context, arg SetRecordingGapsParams) error

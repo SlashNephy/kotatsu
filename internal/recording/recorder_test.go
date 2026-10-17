@@ -237,6 +237,14 @@ func TestRecorderRecordsUntilPlannedEnd(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, file.size, info.Size(), "the size in the DB matches the file")
 	}
+	// セグメントには、PID ごとの内訳を残す。全 PID のドロップの合計は、録画のドロップと同じになる (#473)。
+	var pidDrops, videoPackets int64
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT coalesce(sum((e->>'drops')::bigint), 0),
+		coalesce(sum((e->>'packets')::bigint) FILTER (WHERE e->>'kind' = 'video'), 0)
+		FROM recording_files rf JOIN recordings r ON r.id = rf.recording_id, jsonb_array_elements(rf.pid_stats) e
+		WHERE r.reservation_id = $1`, reservationID).Scan(&pidDrops, &videoPackets))
+	assert.Equal(t, got.drops, pidDrops)
+	assert.Positive(t, videoPackets)
 	// 索引には、書きながら見つけた I フレームが入る。
 	indexFile, err := os.Open(filepath.Join(dir, index.path))
 	require.NoError(t, err)

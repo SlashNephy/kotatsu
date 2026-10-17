@@ -43,6 +43,7 @@ import {
 } from '../../futon';
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
 import { RecordingStateBadge } from '../../recordings/RecordingStateBadge';
+import { StreamQualityButton } from '../../recordings/StreamQualityButton';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { RecordingIdDeleteMutation } from './__generated__/RecordingIdDeleteMutation.graphql';
 import type { RecordingIdProtectMutation } from './__generated__/RecordingIdProtectMutation.graphql';
@@ -161,6 +162,14 @@ function Recording({ recordingId }: { recordingId: string }) {
             drops
             errors
             scrambled
+            streamQuality {
+              pid
+              kind
+              packets
+              drops
+              errors
+              scrambled
+            }
             gaps {
               from
               to
@@ -431,6 +440,7 @@ function Recording({ recordingId }: { recordingId: string }) {
                   scrambled: recording.scrambled,
                 })}
               </Text>
+              <StreamQualityButton streams={recording.streamQuality} />
               <Text size="sm" c="dimmed">
                 {t('recordings.recordedRange', {
                   from: timeFormat.format(Date.parse(recording.recordedFrom)),

@@ -818,6 +818,23 @@
     }
   },
   "recordings": {
+    "streamQuality": {
+      "open": "PID ごとの内訳",
+      "title": "PID ごとの品質",
+      "description": "セグメントを足し合わせた、PID ごとのパケット、ドロップ、エラー、スクランブルの数です。引き継ぎで重なった区間は二重に数えます",
+      "kindHeader": "種類",
+      "packets": "パケット",
+      "drops": "ドロップ",
+      "errors": "エラー",
+      "scrambled": "スクランブル",
+      "kind": {
+        "VIDEO": "映像",
+        "AUDIO": "音声",
+        "OTHER": "字幕・データ",
+        "PSI": "番組情報",
+        "UNKNOWN": "不明"
+      }
+    },
     "title": "録画",
     "keyword": "番組名",
     "tags": "タグ",

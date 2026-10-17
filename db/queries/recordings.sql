@@ -125,6 +125,10 @@ FROM recording_files WHERE recording_id = @recording_id AND kind = 'segment' AND
 -- 録画のファイルの記録を消す。セグメントを 1 つにつないだあとで、つないだ元のセグメントと索引の記録を消すのに使う。
 DELETE FROM recording_files WHERE recording_id = @recording_id AND id = ANY(@ids::uuid[]);
 
+-- name: SetRecordingFilePIDStats :exec
+-- セグメントの PID ごとの品質の集計を書く (#473)。
+UPDATE recording_files SET pid_stats = @pid_stats WHERE id = @id;
+
 -- name: ListFinishedRecordingSegments :many
 -- 録画中でない録画のセグメントの記録を、録画を始めた日時の新しい順に返す。ファイルの見つからない録画を探すのに使う。
 SELECT r.id AS recording_id, f.id, f.pool_id, f.path
