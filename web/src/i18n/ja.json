@@ -957,6 +957,7 @@
       "next": "次 › {{range}}"
     },
     "switchChannel": "ほかのチャンネルを見る",
+    "moreActions": "そのほかの操作",
     "title": "ライブ",
     "empty": "視聴できるチャンネルがありません",
     "emptyHint": "お使いのチューナーサーバーが正しく動作しているか確認してください。",
@@ -1183,6 +1184,7 @@
     "deleted": "削除されたユーザー"
   },
   "streamURL": {
+    "open": "外部プレイヤーで開く",
     "issue": "外部プレイヤー用のURLを発行",
     "label": "外部プレイヤー用のURL",
     "description": "VLCやmpvなどで開けます。{{until}}まで、何度でも開けます。",
