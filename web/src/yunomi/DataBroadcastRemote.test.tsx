@@ -1,11 +1,16 @@
 import { MantineProvider } from '@mantine/core';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import '../i18n';
 import { theme } from '../futon/theme';
-import { DataBroadcastRemote, DataBroadcastRemoteOverlay } from './DataBroadcastRemote';
+import {
+  DataBroadcastRemote,
+  DataBroadcastRemoteOverlay,
+  repeatDelayMs,
+  repeatIntervalMs,
+} from './DataBroadcastRemote';
 import { onVideoSurface } from './useControlsVisibility';
 import type { DataBroadcastState, KeyGroup } from './useDataBroadcast';
 
@@ -52,6 +57,36 @@ describe('DataBroadcastRemote', () => {
     await userEvent.click(screen.getByRole('button', { name: button }));
 
     expect(onPress).toHaveBeenCalledExactlyOnceWith(want);
+  });
+
+  test('矢印を押し続けると繰り返し、離したら止まる。離した後の click では、もう押さない', () => {
+    vi.useFakeTimers();
+    try {
+      const onPress = renderRemote('shown');
+      const down = screen.getByRole('button', { name: '下' });
+
+      fireEvent.pointerDown(down, { button: 0 });
+      expect(onPress).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(repeatDelayMs - 1);
+      expect(onPress).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(1 + repeatIntervalMs * 2);
+      expect(onPress).toHaveBeenCalledTimes(4);
+      fireEvent.pointerUp(down, { button: 0 });
+      fireEvent.click(down);
+      vi.advanceTimersByTime(repeatIntervalMs * 5);
+      expect(onPress).toHaveBeenCalledTimes(4);
+      expect(onPress).toHaveBeenLastCalledWith(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('キーボードで矢印のボタンを押すと (click だけが届く)、1 回押す', () => {
+    const onPress = renderRemote('shown');
+
+    fireEvent.click(screen.getByRole('button', { name: '上' }));
+
+    expect(onPress).toHaveBeenCalledExactlyOnceWith(1);
   });
 
   // 受け取っている間の知らせは、映像の右下に出すので、リモコンには出さない。

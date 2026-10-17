@@ -22,6 +22,7 @@ import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment'
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import { DataBroadcastRemote, DataBroadcastRemoteOverlay } from '../../yunomi/DataBroadcastRemote';
+import { useDataBroadcastKeys } from '../../yunomi/dataBroadcastKeys';
 import {
   BigPlayButton,
   PlayerLoading,
@@ -511,6 +512,12 @@ function Live({
       : null,
     videoRef,
     dataBroadcastEnabled,
+  );
+  // データ放送を出している間は、⌥+矢印、Enter、Backspace、数字、⌥+b/r/g/y でリモコンを押せる (#441)。
+  useDataBroadcastKeys(
+    dataBroadcastEnabled && dataBroadcast.state === 'shown' && !dataBroadcast.receiving,
+    dataBroadcast.keyGroups,
+    dataBroadcast.press,
   );
   if (service === null) {
     return <Alert color="amber">{t('live.notFound')}</Alert>;
