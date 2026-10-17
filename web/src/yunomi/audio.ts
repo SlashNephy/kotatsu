@@ -48,6 +48,25 @@ export function currentAudioChoice(tracks: AudioTracks | null): string | null {
   return tracks.current === null ? null : `stream:${tracks.current}`;
 }
 
+// choiceForComponent は、データ放送の文書が選んだ音声 (component_tag と、デュアルモノの channel_id) を、
+// 音声のメニューの選択肢の値にする (#440)。その音声がなければ null を返す。
+// channel_id は、デュアルモノの 2 つ目 (副音声) を 2 とみなし、それ以外 (省いたときも) は主音声にする。今聞いている ES のデュアルモノでだけ使う。
+export function choiceForComponent(
+  tracks: AudioTracks | null,
+  componentTag: number,
+  channelId?: number,
+): string | null {
+  const stream = tracks?.available.find((candidate) => candidate.componentTag === componentTag);
+  if (tracks === null || stream === undefined) {
+    return null;
+  }
+  if (stream.pid === tracks.current && tracks.dualMono) {
+    return channelId === 2 ? 'dualMono:sub' : 'dualMono:main';
+  }
+
+  return `stream:${stream.pid}`;
+}
+
 // audioSlot は、ブラウザの中で変換する経路の音声の選択肢を、kyusu の音声の番号にする。
 // kyusu では、tsreadex がデュアルモノの副音声と 2 つ目以降の音声の ES を、第 2 音声にする。
 export function audioSlot(choice: AudioChoice): KyusuAudio {

@@ -4,6 +4,7 @@ import { describe, expect, test } from 'vitest';
 import {
   audioChoices,
   audioSlot,
+  choiceForComponent,
   choiceForSlot,
   currentAudioChoice,
   kyusuAudioChoices,
@@ -140,5 +141,59 @@ describe('kyusuAudioChoices', () => {
     },
   ])('$name', ({ audios, want }) => {
     expect(kyusuAudioChoices(audios)).toEqual(want);
+  });
+});
+
+describe('choiceForComponent', () => {
+  test.each([
+    {
+      name: 'ES が 2 つあれば、component_tag の ES を選ぶ',
+      tracks: {
+        available: [mono, commentary],
+        current: 0x110,
+        dualMono: false,
+        dualMonoSub: false,
+      },
+      componentTag: 0x11,
+      channelId: undefined,
+      want: 'stream:273',
+    },
+    {
+      name: '聞いている ES のデュアルモノでは、channel_id 2 で副音声を選ぶ',
+      tracks: { available: [bilingual], current: 0x110, dualMono: true, dualMonoSub: false },
+      componentTag: 0x10,
+      channelId: 2,
+      want: 'dualMono:sub',
+    },
+    {
+      name: '聞いている ES のデュアルモノでは、channel_id 1 で主音声を選ぶ',
+      tracks: { available: [bilingual], current: 0x110, dualMono: true, dualMonoSub: true },
+      componentTag: 0x10,
+      channelId: 1,
+      want: 'dualMono:main',
+    },
+    {
+      name: '聞いている ES のデュアルモノでは、channel_id がなければ主音声に戻す',
+      tracks: { available: [bilingual], current: 0x110, dualMono: true, dualMonoSub: true },
+      componentTag: 0x10,
+      channelId: undefined,
+      want: 'dualMono:main',
+    },
+    {
+      name: 'ない component_tag は選べない',
+      tracks: { available: [mono], current: 0x110, dualMono: false, dualMonoSub: false },
+      componentTag: 0x12,
+      channelId: undefined,
+      want: null,
+    },
+    {
+      name: '音声を読む前は選べない',
+      tracks: null,
+      componentTag: 0x10,
+      channelId: undefined,
+      want: null,
+    },
+  ])('$name', ({ tracks, componentTag, channelId, want }) => {
+    expect(choiceForComponent(tracks as AudioTracks | null, componentTag, channelId)).toBe(want);
   });
 });
