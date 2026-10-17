@@ -28,7 +28,7 @@ const (
 	// maxResponseBytes は、読むレスポンスの大きさの上限。リリースのノートが長くても足りる。
 	maxResponseBytes = 1 << 20
 	// userAgent は、問い合わせに付ける User-Agent。GitHub の API は、User-Agent のない問い合わせを断る。
-	userAgent = "Kotatsu (+https://github.com/SlashNephy/kotatsu)"
+	userAgent = "Kotatsu-UpdateCheck/1"
 )
 
 // Release は、新しいリリース。
@@ -123,6 +123,14 @@ func (c *Checker) Check(ctx context.Context) error {
 		return fmt.Errorf("failed to get the latest release: %w", err)
 	}
 	defer res.Body.Close()
+	// リリースを 1 つも公開していなければ、404 が返る。新しい版はないものとする。
+	if res.StatusCode == http.StatusNotFound {
+		c.mu.Lock()
+		c.latest = nil
+		c.mu.Unlock()
+
+		return nil
+	}
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to get the latest release: unexpected status %s", res.Status)
 	}

@@ -53,7 +53,8 @@ func TestCheck(t *testing.T) {
 			want: nil,
 		},
 		{name: "版でないタグ", current: runningVersion, status: http.StatusOK, body: `{"tag_name": "nightly"}`, want: nil, wantErr: true},
-		{name: "リリースがない", current: runningVersion, status: http.StatusNotFound, body: `{}`, want: nil, wantErr: true},
+		{name: "リリースがなければ、新しい版もない", current: runningVersion, status: http.StatusNotFound, body: `{}`, want: nil, wantErr: false},
+		{name: "API が失敗した", current: runningVersion, status: http.StatusInternalServerError, body: `{}`, want: nil, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
