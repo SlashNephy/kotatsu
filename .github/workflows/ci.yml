@@ -61,7 +61,7 @@ jobs:
           - db: oldest
             postgres: mirror.gcr.io/library/postgres:17@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3 # renovate: oldest
             mysql: mirror.gcr.io/library/mysql:8.4@sha256:24989179f58856db763f418010c1169fecc944e3ec1ea7e921572d83eb070f70 # renovate: oldest
-            mariadb: mirror.gcr.io/library/mariadb:11.8@sha256:6422478cb8e159f080fb1d8ccf65101e26fe51385787fde7d16c3b165a331f15 # renovate: oldest
+            mariadb: mirror.gcr.io/library/mariadb:11.8@sha256:f16d7a344413e519dff518f27bdb221388f84b0d274c97c4fb5f2cb0dc1b34fa # renovate: oldest
           - db: latest
             postgres: mirror.gcr.io/library/postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336 # renovate: latest
             mysql: mirror.gcr.io/library/mysql:26.7@sha256:893418c8a7a34c60d2d961cc30ef136095da141478562ed2101ae3f5faba9c3f # renovate: latest
