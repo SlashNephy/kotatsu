@@ -1,0 +1,49 @@
+name: Tag a release
+
+# Actions の画面の Run workflow で、main の今のコミットに次の版のタグを打ち、リリースを始める (設計書 11.1、#699)。
+# 版は CalVer の YYYY.M.N (年.月.その月の何回目、0 から) にする。
+on:
+  workflow_dispatch:
+
+concurrency:
+  # 同時に 2 つ走らせると、同じ版を 2 回決めてしまうので、1 つずつにする。
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  tag:
+    # リリースは main からだけ作る。
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      # タグを打つ。
+      contents: write
+      # GITHUB_TOKEN で打ったタグでは、ほかの workflow が動かないので、リリースとイメージの workflow を、そのタグで手で動かす。
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # 既にある版を数えるので、タグを含めて取得する。
+          fetch-depth: 0
+          persist-credentials: false
+      - id: version
+        name: Decide the next version
+        run: echo "version=$(git tag --list 'v*' | scripts/next-version.sh)" >> "$GITHUB_OUTPUT"
+      - name: Push the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          git tag "v${VERSION}" "$GITHUB_SHA"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.git" "refs/tags/v${VERSION}"
+      - name: Start the release and the images
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh workflow run release.yml --ref "v${VERSION}"
+          gh workflow run image.yml --ref "v${VERSION}"
+          echo "### Released v${VERSION}" >> "$GITHUB_STEP_SUMMARY"
