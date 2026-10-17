@@ -82,6 +82,16 @@ func (r *mutationResolver) DeleteRule(ctx context.Context, id string) (string, e
 	return id, nil
 }
 
+// SetRulesEnabled is the resolver for the setRulesEnabled field.
+func (r *mutationResolver) SetRulesEnabled(ctx context.Context, ids []string, enabled bool) (*model.BulkOperationPayload, error) {
+	return r.setRulesEnabled(ctx, ids, enabled)
+}
+
+// DeleteRules is the resolver for the deleteRules field.
+func (r *mutationResolver) DeleteRules(ctx context.Context, ids []string) (*model.BulkOperationPayload, error) {
+	return r.deleteRules(ctx, ids)
+}
+
 // Services is the resolver for the services field.
 func (r *programConditionsResolver) Services(ctx context.Context, obj *model.ProgramConditions) ([]*model.Service, error) {
 	return r.loadServices(ctx, obj.ServiceKeys)

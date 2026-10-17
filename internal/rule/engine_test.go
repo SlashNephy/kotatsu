@@ -252,6 +252,27 @@ func TestEngineKeepsReservationsWhoseRecordingStarted(t *testing.T) {
 	assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
 }
 
+// TestEngineKeepsRecordingReservationsOfDeletedRules は、ルールを消しても、そのルールで録画中の予約は消さず、録画を最後まで録らせることを確かめる (#471)。
+func TestEngineKeepsRecordingReservationsOfDeletedRules(t *testing.T) {
+	t.Parallel()
+
+	f := newEngineFixture(t)
+	r := f.createRule(t, `テスト番組 (5|6)$`, nil)
+	f.run(t)
+	reservation := f.reservationOf(t, 5)
+	f.clock.Advance(reservation.StartAt.Add(-20 * time.Second).Sub(f.clock.Now()))
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+		state, recorded_from, created_at, updated_at)
+		VALUES ($1, $2, $3, 5, '', '', $4, $4, 'recording', $5, $5, $5)`, id.New(), reservation.ID, serviceID(), reservation.StartAt, f.clock.Now())
+	require.NoError(t, err)
+
+	require.NoError(t, f.rules.Delete(t.Context(), f.pool, f.user, r.ID))
+
+	// 録画していない予約 (eventId 6) だけを消す。
+	assert.Equal(t, 1, f.run(t).Deleted)
+	assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
+}
+
 // TestManualReservationOverridesRuleReservation は、ルール予約がある番組を手動で予約すると、手動の番組予約に切り替わり、
 // 手動の設定が残ることと、ルールに一致しなくなっても消えないことを確かめる (設計書 4.1、#306)。
 func TestManualReservationOverridesRuleReservation(t *testing.T) {
