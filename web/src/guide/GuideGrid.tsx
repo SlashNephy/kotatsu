@@ -1,8 +1,8 @@
-import { Anchor, Box, Text, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Anchor, Box, Group, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { BellRing } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { BellRing, CalendarRange } from 'lucide-react';
 
 import { genreBackground } from './genres';
 import {
@@ -66,6 +66,8 @@ type Props = {
   scrollTime: number | null;
   // extendedHours は、深夜を 24 時以降 (28 時間表記) で表すかどうか (#486)。
   extendedHours?: boolean;
+  // renderHeader は、列の見出し。省くと、サービス名 (押すとライブ視聴) と、そのチャンネルの数日分の番組表への入り口を出す。
+  renderHeader?: (column: GuideColumn) => ReactNode;
   onSelect: (programId: string) => void;
 };
 
@@ -86,6 +88,7 @@ export function GuideGrid({
   scrollProgram,
   scrollTime,
   extendedHours = false,
+  renderHeader,
   onSelect,
 }: Props) {
   const { t } = useTranslation();
@@ -239,40 +242,23 @@ export function GuideGrid({
           }}
         />
         {virtualizer.getVirtualItems().map((item) => (
-          // サービス名を押すと、そのサービスのライブ視聴を開く。
-          <Anchor
+          <Box
             key={item.key}
-            size="sm"
-            fw={700}
-            truncate
-            c="inherit"
-            underline="hover"
-            title={t('guide.watchLive', { name: columns[item.index]!.name })}
-            renderRoot={(props) => (
-              <Link
-                {...props}
-                to="/live/$serviceId"
-                params={{ serviceId: columns[item.index]!.id }}
-              />
-            )}
             style={{
-              display: 'block',
               position: 'absolute',
               top: 0,
               left: axisWidth + item.start,
               width: item.size,
               height: headerHeight,
-              lineHeight: `${headerHeight}px`,
-              paddingInline: 6,
               borderLeft: '1px solid var(--mantine-color-default-border)',
             }}
           >
-            <ServiceLabel
-              name={columns[item.index]!.name}
-              logoUrl={columns[item.index]!.logoUrl}
-              logoHeight="24px"
-            />
-          </Anchor>
+            {renderHeader === undefined ? (
+              <ServiceHeader column={columns[item.index]!} />
+            ) : (
+              renderHeader(columns[item.index]!)
+            )}
+          </Box>
         ))}
       </Box>
       <Box style={{ position: 'relative', width: totalWidth, height }}>
@@ -466,5 +452,43 @@ function GuideColumnView({
         );
       })}
     </>
+  );
+}
+
+// ServiceHeader は、サービスの列の見出し。サービス名を押すとライブ視聴を開き、右のボタンでそのチャンネルの数日分の番組表を開く (#482)。
+function ServiceHeader({ column }: { column: GuideColumn }) {
+  const { t } = useTranslation();
+
+  return (
+    <Group gap={0} wrap="nowrap" h={headerHeight}>
+      <Anchor
+        size="sm"
+        fw={700}
+        truncate
+        c="inherit"
+        underline="hover"
+        title={t('guide.watchLive', { name: column.name })}
+        renderRoot={(props) => (
+          <Link {...props} to="/live/$serviceId" params={{ serviceId: column.id }} />
+        )}
+        style={{ flex: 1, minWidth: 0, lineHeight: `${headerHeight}px`, paddingInline: 6 }}
+      >
+        <ServiceLabel name={column.name} logoUrl={column.logoUrl} logoHeight="24px" />
+      </Anchor>
+      <Tooltip label={t('guide.channelWeek', { name: column.name })}>
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          size="sm"
+          mr={4}
+          aria-label={t('guide.channelWeek', { name: column.name })}
+          renderRoot={(props) => (
+            <Link {...props} to="/guide/channel/$serviceId" params={{ serviceId: column.id }} />
+          )}
+        >
+          <CalendarRange size={14} aria-hidden />
+        </ActionIcon>
+      </Tooltip>
+    </Group>
   );
 }

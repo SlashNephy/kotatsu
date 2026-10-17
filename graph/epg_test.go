@@ -221,13 +221,13 @@ func TestGuide(t *testing.T) {
 		{
 			name:         "all services between 12:00 and 13:00",
 			variables:    guideVariables(noon, onePM, nil),
-			wantRows:     []string{"こたつテスト1", "こたつテスト1 サブ", "こたつテスト2", "こたつテスト3", "こたつ BS"},
+			wantRows:     []string{"こたつテスト1", "こたつテスト1 サブ", "こたつテスト2", "こたつテスト3", bsServiceName},
 			wantPrograms: []string{programName(3), programName(4)},
 		},
 		{
 			name:         "a program overlapping the start is included",
 			variables:    guideVariables("2026-10-10T12:15:00Z", "2026-10-10T12:20:00Z", []string{services.Services[4].ID}),
-			wantRows:     []string{"こたつ BS"},
+			wantRows:     []string{bsServiceName},
 			wantPrograms: []string{"こたつ BS テスト番組 3"},
 		},
 		{
@@ -236,8 +236,15 @@ func TestGuide(t *testing.T) {
 			wantRows:  []string{},
 		},
 		{
-			name:      "range longer than 7 days",
-			variables: guideVariables("2026-10-10T00:00:00Z", "2026-10-17T00:00:01Z", nil),
+			// 1 つのチャンネルの番組表で、EPG が届く 8 日分を一度に引く (#482)。
+			name:         "8 days of one service",
+			variables:    guideVariables("2026-10-10T00:00:00Z", "2026-10-18T00:00:00Z", []string{services.Services[4].ID}),
+			wantRows:     []string{bsServiceName},
+			wantPrograms: bsProgramNames(14),
+		},
+		{
+			name:      "range longer than 8 days and 1 hour",
+			variables: guideVariables("2026-10-10T00:00:00Z", "2026-10-18T01:00:01Z", nil),
 			wantCodes: []string{codeBadUserInput},
 		},
 		{
@@ -523,4 +530,17 @@ func TestServicesExcludeNonMediaServices(t *testing.T) {
 			assert.Equal(t, tt.want, found)
 		})
 	}
+}
+
+// bsServiceName は、偽チューナーの BS のサービスの名前。
+const bsServiceName = "こたつ BS"
+
+// bsProgramNames は、偽チューナーの こたつ BS の、eventId 1 から n までの番組名を返す。
+func bsProgramNames(n int) []string {
+	names := make([]string, 0, n)
+	for i := 1; i <= n; i++ {
+		names = append(names, fmt.Sprintf("%s テスト番組 %d", bsServiceName, i))
+	}
+
+	return names
 }
