@@ -150,6 +150,14 @@ type DataChange struct {
 	Version int `json:"version"`
 }
 
+// DB にないファイルを消した結果。
+type DeleteOrphanFilesPayload struct {
+	// 消したファイルとディレクトリの数。
+	Deleted int `json:"deleted"`
+	// 確かめ直すと、DB にあるか、使っているか、書いたばかりか、もうなかったので、消さなかった数。
+	Skipped int `json:"skipped"`
+}
+
 // 予約の削除の結果。
 type DeleteReservationPayload struct {
 	// 削除の操作をした予約の ID。
@@ -331,6 +339,28 @@ type NotificationPreferenceInput struct {
 	WebPush bool             `json:"webPush"`
 	// 省けば、今の設定のままにする。
 	RuleReservations *bool `json:"ruleReservations,omitempty"`
+}
+
+// プールにあるのに DB に記録のないファイルか、持ち主の録画ファイルが DB にない付属ファイルのディレクトリ (設計書 5.6)。
+// 録画を消すのに失敗したときや、取り込みをやり直したときに残る。
+type OrphanFile struct {
+	// プールの ID。付属ファイルをまとめて置くディレクトリなら _sidecar。
+	PoolID string `json:"poolId"`
+	// プール内の相対パス。
+	Path string `json:"path"`
+	// 付属ファイルのディレクトリかどうか。
+	Sidecar bool `json:"sidecar"`
+	// 大きさ (バイト)。付属ファイルのディレクトリでは、中のファイルの合計。
+	Size int64 `json:"size"`
+	// 最後に書いた日時。付属ファイルのディレクトリでは、中のファイルのうち最も新しいもの。
+	ModifiedAt time.Time `json:"modifiedAt"`
+}
+
+// 消す、DB にないファイル。orphanFiles が返した poolId、path、sidecar をそのまま渡す。
+type OrphanFileInput struct {
+	PoolID  string `json:"poolId"`
+	Path    string `json:"path"`
+	Sidecar bool   `json:"sidecar"`
 }
 
 // 一覧のページの情報 (Relay の Cursor Connections)。カーソルは中身を解釈せずに、そのまま次のリクエストに渡す。

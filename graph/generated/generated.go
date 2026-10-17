@@ -106,6 +106,11 @@ type ComplexityRoot struct {
 		Version func(childComplexity int) int
 	}
 
+	DeleteOrphanFilesPayload struct {
+		Deleted func(childComplexity int) int
+		Skipped func(childComplexity int) int
+	}
+
 	DeleteReservationPayload struct {
 		ID          func(childComplexity int) int
 		Reservation func(childComplexity int) int
@@ -213,6 +218,7 @@ type ComplexityRoot struct {
 		CreateUser                   func(childComplexity int, input model.CreateUserInput) int
 		CreateWebhook                func(childComplexity int, input model.CreateWebhookInput) int
 		DeleteGuideView              func(childComplexity int, id string) int
+		DeleteOrphanFiles            func(childComplexity int, files []*model.OrphanFileInput) int
 		DeletePasskey                func(childComplexity int, id string) int
 		DeleteRecording              func(childComplexity int, id string) int
 		DeleteRecordings             func(childComplexity int, ids []string) int
@@ -282,6 +288,14 @@ type ComplexityRoot struct {
 		Kind             func(childComplexity int) int
 		RuleReservations func(childComplexity int) int
 		WebPush          func(childComplexity int) int
+	}
+
+	OrphanFile struct {
+		ModifiedAt func(childComplexity int) int
+		Path       func(childComplexity int) int
+		PoolID     func(childComplexity int) int
+		Sidecar    func(childComplexity int) int
+		Size       func(childComplexity int) int
 	}
 
 	PageInfo struct {
@@ -376,6 +390,7 @@ type ComplexityRoot struct {
 		Node                    func(childComplexity int, id string) int
 		NotificationPreferences func(childComplexity int) int
 		Notifications           func(childComplexity int, first int, after *string, unreadOnly bool) int
+		OrphanFiles             func(childComplexity int) int
 		Passkeys                func(childComplexity int) int
 		PinnedServices          func(childComplexity int) int
 		PlayerSettings          func(childComplexity int) int
@@ -743,6 +758,7 @@ type MutationResolver interface {
 	MarkNotificationsRead(ctx context.Context, ids []string) (int, error)
 	MarkAllNotificationsRead(ctx context.Context) (int, error)
 	UpdateNotificationPreference(ctx context.Context, input model.NotificationPreferenceInput) (*model.NotificationPreference, error)
+	DeleteOrphanFiles(ctx context.Context, files []*model.OrphanFileInput) (*model.DeleteOrphanFilesPayload, error)
 	RenamePasskey(ctx context.Context, id string, name string) (*model.Passkey, error)
 	DeletePasskey(ctx context.Context, id string) (string, error)
 	SetServicePinned(ctx context.Context, id string, pinned bool) ([]*model.Service, error)
@@ -822,6 +838,7 @@ type QueryResolver interface {
 	Notifications(ctx context.Context, first int, after *string, unreadOnly bool) (*model.NotificationConnection, error)
 	UnreadNotificationCount(ctx context.Context) (int, error)
 	NotificationPreferences(ctx context.Context) ([]*model.NotificationPreference, error)
+	OrphanFiles(ctx context.Context) ([]*model.OrphanFile, error)
 	Passkeys(ctx context.Context) ([]*model.Passkey, error)
 	PinnedServices(ctx context.Context) ([]*model.Service, error)
 	PlayerSettings(ctx context.Context) (*model.PlayerSettings, error)
@@ -1084,6 +1101,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DataChange.Version(childComplexity), true
+
+	case "DeleteOrphanFilesPayload.deleted":
+		if e.ComplexityRoot.DeleteOrphanFilesPayload.Deleted == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeleteOrphanFilesPayload.Deleted(childComplexity), true
+	case "DeleteOrphanFilesPayload.skipped":
+		if e.ComplexityRoot.DeleteOrphanFilesPayload.Skipped == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeleteOrphanFilesPayload.Skipped(childComplexity), true
 
 	case "DeleteReservationPayload.id":
 		if e.ComplexityRoot.DeleteReservationPayload.ID == nil {
@@ -1521,6 +1551,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteGuideView(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteOrphanFiles":
+		if e.ComplexityRoot.Mutation.DeleteOrphanFiles == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteOrphanFiles_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteOrphanFiles(childComplexity, args["files"].([]*model.OrphanFileInput)), true
 	case "Mutation.deletePasskey":
 		if e.ComplexityRoot.Mutation.DeletePasskey == nil {
 			break
@@ -2063,6 +2104,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.NotificationPreference.WebPush(childComplexity), true
 
+	case "OrphanFile.modifiedAt":
+		if e.ComplexityRoot.OrphanFile.ModifiedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrphanFile.ModifiedAt(childComplexity), true
+	case "OrphanFile.path":
+		if e.ComplexityRoot.OrphanFile.Path == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrphanFile.Path(childComplexity), true
+	case "OrphanFile.poolId":
+		if e.ComplexityRoot.OrphanFile.PoolID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrphanFile.PoolID(childComplexity), true
+	case "OrphanFile.sidecar":
+		if e.ComplexityRoot.OrphanFile.Sidecar == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrphanFile.Sidecar(childComplexity), true
+	case "OrphanFile.size":
+		if e.ComplexityRoot.OrphanFile.Size == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OrphanFile.Size(childComplexity), true
+
 	case "PageInfo.endCursor":
 		if e.ComplexityRoot.PageInfo.EndCursor == nil {
 			break
@@ -2482,6 +2554,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Notifications(childComplexity, args["first"].(int), args["after"].(*string), args["unreadOnly"].(bool)), true
+	case "Query.orphanFiles":
+		if e.ComplexityRoot.Query.OrphanFiles == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.OrphanFiles(childComplexity), true
 	case "Query.passkeys":
 		if e.ComplexityRoot.Query.Passkeys == nil {
 			break
@@ -3978,6 +4056,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputGuideViewInput,
 		ec.unmarshalInputKeywordInput,
 		ec.unmarshalInputNotificationPreferenceInput,
+		ec.unmarshalInputOrphanFileInput,
 		ec.unmarshalInputPlayerSettingsInput,
 		ec.unmarshalInputProgramConditionsInput,
 		ec.unmarshalInputProgramReservationInput,
@@ -4743,6 +4822,58 @@ extend type Mutation {
   markAllNotificationsRead: Int!
   "ログイン中のユーザーの、イベントの種類ごとの通知設定を変える。"
   updateNotificationPreference(input: NotificationPreferenceInput!): NotificationPreference!
+}
+`, BuiltIn: false},
+	{Name: "../schema/orphan_files.graphqls", Input: `"""
+プールにあるのに DB に記録のないファイルか、持ち主の録画ファイルが DB にない付属ファイルのディレクトリ (設計書 5.6)。
+録画を消すのに失敗したときや、取り込みをやり直したときに残る。
+"""
+type OrphanFile {
+  "プールの ID。付属ファイルをまとめて置くディレクトリなら _sidecar。"
+  poolId: String!
+  "プール内の相対パス。"
+  path: String!
+  "付属ファイルのディレクトリかどうか。"
+  sidecar: Boolean!
+  "大きさ (バイト)。付属ファイルのディレクトリでは、中のファイルの合計。"
+  size: Int64!
+  "最後に書いた日時。付属ファイルのディレクトリでは、中のファイルのうち最も新しいもの。"
+  modifiedAt: Time!
+}
+
+"""
+消す、DB にないファイル。orphanFiles が返した poolId、path、sidecar をそのまま渡す。
+"""
+input OrphanFileInput {
+  poolId: String!
+  path: String!
+  sidecar: Boolean!
+}
+
+"""
+DB にないファイルを消した結果。
+"""
+type DeleteOrphanFilesPayload {
+  "消したファイルとディレクトリの数。"
+  deleted: Int!
+  "確かめ直すと、DB にあるか、使っているか、書いたばかりか、もうなかったので、消さなかった数。"
+  skipped: Int!
+}
+
+extend type Query {
+  """
+  DB にないファイルを、プールとパスの順に返す。管理者だけが使える。
+  このインスタンスにマウントしたプールと、付属ファイルをまとめて置くディレクトリだけを調べる。
+  録画中のファイル、セグメントをつないでいる途中のファイルとつなぐ元のファイル、書くか名前を変えて 1 時間以内のファイル、隠しファイルと lost+found は返さない。
+  """
+  orphanFiles: [OrphanFile!]!
+}
+
+extend type Mutation {
+  """
+  DB にないファイルを確かめ直して消す。ファイルなら、その付属ファイルのディレクトリも消す。管理者だけが使える。監査ログに残す。
+  """
+  deleteOrphanFiles(files: [OrphanFileInput!]!): DeleteOrphanFilesPayload!
 }
 `, BuiltIn: false},
 	{Name: "../schema/passkeys.graphqls", Input: `"""
@@ -6179,6 +6310,16 @@ func (ec *executionContext) childFields_DataChange(ctx context.Context, field gr
 	return nil, fmt.Errorf("no field named %q was found under type DataChange", field.Name)
 }
 
+func (ec *executionContext) childFields_DeleteOrphanFilesPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "deleted":
+		return ec.fieldContext_DeleteOrphanFilesPayload_deleted(ctx, field)
+	case "skipped":
+		return ec.fieldContext_DeleteOrphanFilesPayload_skipped(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DeleteOrphanFilesPayload", field.Name)
+}
+
 func (ec *executionContext) childFields_DeleteReservationPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -6419,6 +6560,22 @@ func (ec *executionContext) childFields_NotificationPreference(ctx context.Conte
 		return ec.fieldContext_NotificationPreference_ruleReservations(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type NotificationPreference", field.Name)
+}
+
+func (ec *executionContext) childFields_OrphanFile(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "poolId":
+		return ec.fieldContext_OrphanFile_poolId(ctx, field)
+	case "path":
+		return ec.fieldContext_OrphanFile_path(ctx, field)
+	case "sidecar":
+		return ec.fieldContext_OrphanFile_sidecar(ctx, field)
+	case "size":
+		return ec.fieldContext_OrphanFile_size(ctx, field)
+	case "modifiedAt":
+		return ec.fieldContext_OrphanFile_modifiedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OrphanFile", field.Name)
 }
 
 func (ec *executionContext) childFields_PageInfo(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -7476,6 +7633,20 @@ func (ec *executionContext) field_Mutation_deleteGuideView_args(ctx context.Cont
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteOrphanFiles_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "files",
+		func(ctx context.Context, v any) ([]*model.OrphanFileInput, error) {
+			return ec.unmarshalNOrphanFileInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐOrphanFileInputᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["files"] = arg0
 	return args, nil
 }
 
@@ -9340,6 +9511,52 @@ func (ec *executionContext) fieldContext_DataChange_version(_ context.Context, f
 	return graphql.NewScalarFieldContext("DataChange", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _DeleteOrphanFilesPayload_deleted(ctx context.Context, field graphql.CollectedField, obj *model.DeleteOrphanFilesPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeleteOrphanFilesPayload_deleted(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Deleted, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeleteOrphanFilesPayload_deleted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeleteOrphanFilesPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _DeleteOrphanFilesPayload_skipped(ctx context.Context, field graphql.CollectedField, obj *model.DeleteOrphanFilesPayload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeleteOrphanFilesPayload_skipped(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Skipped, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeleteOrphanFilesPayload_skipped(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeleteOrphanFilesPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _DeleteReservationPayload_id(ctx context.Context, field graphql.CollectedField, obj *model.DeleteReservationPayload) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -10829,6 +11046,50 @@ func (ec *executionContext) fieldContext_Mutation_updateNotificationPreference(c
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateNotificationPreference_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteOrphanFiles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteOrphanFiles(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteOrphanFiles(ctx, fc.Args["files"].([]*model.OrphanFileInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DeleteOrphanFilesPayload) graphql.Marshaler {
+			return ec.marshalNDeleteOrphanFilesPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐDeleteOrphanFilesPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteOrphanFiles(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeleteOrphanFilesPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteOrphanFiles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -13239,6 +13500,121 @@ func (ec *executionContext) fieldContext_NotificationPreference_ruleReservations
 	return graphql.NewScalarFieldContext("NotificationPreference", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _OrphanFile_poolId(ctx context.Context, field graphql.CollectedField, obj *model.OrphanFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrphanFile_poolId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PoolID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrphanFile_poolId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrphanFile", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrphanFile_path(ctx context.Context, field graphql.CollectedField, obj *model.OrphanFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrphanFile_path(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Path, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrphanFile_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrphanFile", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OrphanFile_sidecar(ctx context.Context, field graphql.CollectedField, obj *model.OrphanFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrphanFile_sidecar(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Sidecar, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrphanFile_sidecar(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrphanFile", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _OrphanFile_size(ctx context.Context, field graphql.CollectedField, obj *model.OrphanFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrphanFile_size(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Size, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrphanFile_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrphanFile", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _OrphanFile_modifiedAt(ctx context.Context, field graphql.CollectedField, obj *model.OrphanFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OrphanFile_modifiedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ModifiedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OrphanFile_modifiedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OrphanFile", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
 func (ec *executionContext) _PageInfo_hasNextPage(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15241,6 +15617,38 @@ func (ec *executionContext) fieldContext_Query_notificationPreferences(_ context
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_NotificationPreference(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_orphanFiles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_orphanFiles(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().OrphanFiles(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.OrphanFile) graphql.Marshaler {
+			return ec.marshalNOrphanFile2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐOrphanFileᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_orphanFiles(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OrphanFile(ctx, field)
 		},
 	}
 	return fc, nil
@@ -22670,6 +23078,50 @@ func (ec *executionContext) unmarshalInputNotificationPreferenceInput(ctx contex
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputOrphanFileInput(ctx context.Context, obj any) (model.OrphanFileInput, error) {
+	var it model.OrphanFileInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"poolId", "path", "sidecar"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "poolId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("poolId"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PoolID = data
+		case "path":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("path"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Path = data
+		case "sidecar":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sidecar"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Sidecar = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputPlayerSettingsInput(ctx context.Context, obj any) (model.PlayerSettingsInput, error) {
 	var it model.PlayerSettingsInput
 	if obj == nil {
@@ -24172,6 +24624,49 @@ func (ec *executionContext) _DataChange(ctx context.Context, sel ast.SelectionSe
 	return out
 }
 
+var deleteOrphanFilesPayloadImplementors = []string{"DeleteOrphanFilesPayload"}
+
+func (ec *executionContext) _DeleteOrphanFilesPayload(ctx context.Context, sel ast.SelectionSet, obj *model.DeleteOrphanFilesPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, deleteOrphanFilesPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DeleteOrphanFilesPayload")
+		case "deleted":
+			out.Values[i] = ec._DeleteOrphanFilesPayload_deleted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "skipped":
+			out.Values[i] = ec._DeleteOrphanFilesPayload_skipped(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var deleteReservationPayloadImplementors = []string{"DeleteReservationPayload"}
 
 func (ec *executionContext) _DeleteReservationPayload(ctx context.Context, sel ast.SelectionSet, obj *model.DeleteReservationPayload) graphql.Marshaler {
@@ -25014,6 +25509,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "deleteOrphanFiles":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteOrphanFiles(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "renamePasskey":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_renamePasskey(ctx, field)
@@ -25547,6 +26049,64 @@ func (ec *executionContext) _NotificationPreference(ctx context.Context, sel ast
 			}
 		case "ruleReservations":
 			out.Values[i] = ec._NotificationPreference_ruleReservations(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var orphanFileImplementors = []string{"OrphanFile"}
+
+func (ec *executionContext) _OrphanFile(ctx context.Context, sel ast.SelectionSet, obj *model.OrphanFile) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, orphanFileImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OrphanFile")
+		case "poolId":
+			out.Values[i] = ec._OrphanFile_poolId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "path":
+			out.Values[i] = ec._OrphanFile_path(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sidecar":
+			out.Values[i] = ec._OrphanFile_sidecar(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "size":
+			out.Values[i] = ec._OrphanFile_size(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "modifiedAt":
+			out.Values[i] = ec._OrphanFile_modifiedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -26740,6 +27300,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_notificationPreferences(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "orphanFiles":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_orphanFiles(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -30345,6 +30927,16 @@ func (ec *executionContext) marshalNDataChannel2githubᚗcomᚋSlashNephyᚋkota
 	return v
 }
 
+func (ec *executionContext) marshalNDeleteOrphanFilesPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐDeleteOrphanFilesPayload(ctx context.Context, sel ast.SelectionSet, v *model.DeleteOrphanFilesPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DeleteOrphanFilesPayload(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNDeleteReservationPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐDeleteReservationPayload(ctx context.Context, sel ast.SelectionSet, v *model.DeleteReservationPayload) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -30947,6 +31539,51 @@ func (ec *executionContext) marshalNNotificationPreference2ᚖgithubᚗcomᚋSla
 func (ec *executionContext) unmarshalNNotificationPreferenceInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐNotificationPreferenceInput(ctx context.Context, v any) (model.NotificationPreferenceInput, error) {
 	res, err := ec.unmarshalInputNotificationPreferenceInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNOrphanFile2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐOrphanFileᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrphanFile) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNOrphanFile2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐOrphanFile(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNOrphanFile2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐOrphanFile(ctx context.Context, sel ast.SelectionSet, v *model.OrphanFile) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OrphanFile(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNOrphanFileInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐOrphanFileInputᚄ(ctx context.Context, v any) ([]*model.OrphanFileInput, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.OrphanFileInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNOrphanFileInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐOrphanFileInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNOrphanFileInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐOrphanFileInput(ctx context.Context, v any) (*model.OrphanFileInput, error) {
+	res, err := ec.unmarshalInputOrphanFileInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
