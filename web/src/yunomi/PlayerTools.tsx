@@ -13,6 +13,7 @@ import {
   withCaptureTexts,
 } from './capture';
 import { noCrop, type Crop } from './crop';
+import { useCaptureFileNameTemplate } from './captureFileNameTemplate';
 import { addCapture } from '../captures/history';
 import { ControlButton, playerControlsClasses } from './PlayerControls';
 import classes from './TsPlayer.module.css';
@@ -77,6 +78,7 @@ export function useCapture({
   const { t } = useTranslation();
   // overlays は、キャプチャに、字幕とコメントを写すかどうか。
   const [overlays, setOverlays] = useState(true);
+  const [template] = useCaptureFileNameTemplate();
   const [message, notify] = useNotice();
 
   const capture = async (action: 'save' | 'copy'): Promise<CaptureResult> => {
@@ -107,7 +109,7 @@ export function useCapture({
           blob,
           captureTexts(time, serviceName, programName, text),
         );
-        saveBlob(named, captureFileName(time, serviceName, programName));
+        saveBlob(named, captureFileName(time, serviceName, programName, template));
 
         return 'saved';
       }

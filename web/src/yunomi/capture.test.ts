@@ -51,6 +51,36 @@ describe('captureFileName', () => {
 
   test.each([
     {
+      name: 'テンプレートの書き方を、日時、サービス名、囲み文字を外した番組名にする',
+      template: '%title%_%year%%month%%day%-%hour%%minute%%second% (%service%)',
+      want: 'ニュース７_20261016-210509 (NHK総合1・東京).png',
+    },
+    {
+      name: '日付と時刻をまとめた書き方',
+      template: '%date% %time%',
+      want: '2026-10-16 21.05.09.png',
+    },
+    {
+      name: 'ファイル名に使えない文字は _ にする',
+      template: '%service%/%title%',
+      want: 'NHK総合1・東京_ニュース７.png',
+    },
+    {
+      name: '知らない書き方は、そのまま残す',
+      template: '%unknown%-%title%',
+      want: '%unknown%-ニュース７.png',
+    },
+    {
+      name: '空なら、既定の形',
+      template: '  ',
+      want: '2026-10-16 21.05.09 - NHK総合1・東京 - ニュース７.png',
+    },
+  ])('$name', ({ template, want }) => {
+    expect(captureFileName(time, 'NHK総合1・東京', 'ニュース７🈑', template)).toBe(want);
+  });
+
+  test.each([
+    {
       name: 'ローカル時刻、サービス名、番組名を並べる',
       service: 'NHK総合1・東京',
       program: '大河ドラマ「ひかる」',

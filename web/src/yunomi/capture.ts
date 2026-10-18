@@ -104,19 +104,61 @@ const unsafeFileNameChars = /[\\/:*?"<>|\p{Cc}]/gu;
 
 const pad2 = (value: number) => String(value).padStart(2, '0');
 
+// captureFileNameMacros は、キャプチャのファイル名のテンプレートで使える書き方 (#500)。
+// 時刻は、端末のローカル時刻で書く。番組名は、囲み文字を外す。
+export const captureFileNameMacros = [
+  '%date%',
+  '%time%',
+  '%year%',
+  '%month%',
+  '%day%',
+  '%hour%',
+  '%minute%',
+  '%second%',
+  '%service%',
+  '%title%',
+] as const;
+
 // captureFileName は、キャプチャのファイル名を返す (設計書 7.5)。
+// template を渡せば、その書き方 (captureFileNameMacros) で作る (#500)。空か null なら、
 // time (Unix ミリ秒) を端末のローカル時刻で書き、サービス名と、囲み文字を外した番組名を続ける。
 export function captureFileName(
   time: number,
   serviceName: string,
   programName: string | null,
+  template: string | null = null,
 ): string {
   const date = new Date(time);
+  const program = programName === null ? '' : splitProgramMarks(programName).name;
+  if (template !== null && template.trim() !== '') {
+    const values: Record<(typeof captureFileNameMacros)[number], string> = {
+      '%date%': `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`,
+      '%time%': `${pad2(date.getHours())}.${pad2(date.getMinutes())}.${pad2(date.getSeconds())}`,
+      '%year%': String(date.getFullYear()),
+      '%month%': pad2(date.getMonth() + 1),
+      '%day%': pad2(date.getDate()),
+      '%hour%': pad2(date.getHours()),
+      '%minute%': pad2(date.getMinutes()),
+      '%second%': pad2(date.getSeconds()),
+      '%service%': serviceName,
+      '%title%': program,
+    };
+    const name = template
+      .trim()
+      .replace(/%[a-z]+%/g, (macro) =>
+        macro in values ? values[macro as keyof typeof values] : macro,
+      )
+      .replace(unsafeFileNameChars, '_')
+      .trim();
+    // 書き方の結果が空なら、既定の形にする。
+    if (name !== '') {
+      return `${name}.png`;
+    }
+  }
   const stamp =
     `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ` +
     `${pad2(date.getHours())}.${pad2(date.getMinutes())}.${pad2(date.getSeconds())}`;
   const parts = [stamp, serviceName];
-  const program = programName === null ? '' : splitProgramMarks(programName).name;
   if (program !== '') {
     parts.push(program);
   }

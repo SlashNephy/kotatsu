@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next';
 
 import { deleteCapture, listCaptures, matchesQuery, type CaptureEntry } from '../captures/history';
 import { EmptyState, ProgramTitle, toHalfWidth, useDocumentTitle, zonedFormat } from '../futon';
+import { useCaptureFileNameTemplate } from '../yunomi/captureFileNameTemplate';
 import {
   captureFileName,
   captureTexts,
@@ -97,6 +98,7 @@ function CapturesPage() {
 
 function CaptureCard({ entry, onDelete }: { entry: CaptureEntry; onDelete: () => void }) {
   const { t } = useTranslation();
+  const [template] = useCaptureFileNameTemplate();
   const [url, setUrl] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
@@ -115,7 +117,7 @@ function CaptureCard({ entry, onDelete }: { entry: CaptureEntry; onDelete: () =>
     );
     saveBlob(
       await withCaptureTexts(entry.image, texts),
-      captureFileName(entry.time, entry.serviceName, entry.programName),
+      captureFileName(entry.time, entry.serviceName, entry.programName, template),
     );
   };
   const copy = async () => {
