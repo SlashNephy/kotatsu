@@ -1,6 +1,28 @@
 import { describe, expect, test } from 'vitest';
 
-import { framePosition, manifestUrl, previewFrame, slideshowFrames } from './previewFrame';
+import {
+  frameBefore,
+  framePosition,
+  manifestUrl,
+  previewFrame,
+  slideshowFrames,
+} from './previewFrame';
+
+describe('frameBefore', () => {
+  const times = [0, 10, 20, 30];
+  test.each([
+    { name: 'コマの時刻ちょうど', seconds: 20, want: 2 },
+    { name: 'コマの間は前のコマ', seconds: 29.9, want: 2 },
+    { name: '最後のコマより後', seconds: 999, want: 3 },
+    { name: '最初のコマより前', seconds: -1, want: null },
+  ])('$name', ({ seconds, want }) => {
+    expect(frameBefore(times, seconds)).toBe(want);
+  });
+
+  test('コマがなければ null', () => {
+    expect(frameBefore([], 10)).toBeNull();
+  });
+});
 
 describe('previewFrame', () => {
   // 10 列で 25 コマなら、3 行になる。

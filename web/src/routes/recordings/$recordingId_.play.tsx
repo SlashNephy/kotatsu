@@ -1,4 +1,4 @@
-import { Alert, Anchor, Button, Group, Slider, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Captions, Keyboard, MessageSquareText } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
@@ -25,6 +25,7 @@ import {
 import { RateSelect, PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
 import { hlsURL } from '../../yunomi/route';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
+import { SeekBar } from '../../yunomi/SeekBar';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
@@ -143,6 +144,7 @@ const playQuery = graphql`
         jikkyoCommentsUrl
         watchPositionMs
         thumbnailUrl
+        previewUrl
         audios {
           componentType
           languages
@@ -601,14 +603,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     <PlayerControls
       visible={controls.visible}
       seek={
-        <Slider
-          aria-label={t('player.seek')}
-          size={4}
-          color="mikan"
-          min={0}
-          max={Math.max(duration, 1)}
-          step={1}
-          value={Math.min(shown, duration)}
+        <SeekBar
+          duration={duration}
+          value={shown}
+          previewUrl={recording.previewUrl}
           label={(value) =>
             `${formatDuration(value)} (${formatClock(broadcastTime(recording.recordedFrom, recording.gaps, value))})`
           }

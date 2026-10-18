@@ -41,6 +41,20 @@ export function previewFrame(manifest: PreviewManifest, index: number): PreviewF
   };
 }
 
+// frameBefore は、録画の始まりから seconds 秒以前で、いちばん近いコマの番号を返す。それより前にコマがなければ null。
+// 後のコマは選ばないので、その位置より先の場面を見せない (tenban の thumbnail.Manifest.FrameBefore と同じ)。times は小さい順に並んでいる。
+export function frameBefore(times: readonly number[], seconds: number): number | null {
+  let found: number | null = null;
+  for (const [index, time] of times.entries()) {
+    if (time > seconds) {
+      break;
+    }
+    found = index;
+  }
+
+  return found;
+}
+
 // slideshowFrames は、count 個のコマから、録画全体にわたって等間隔に、多くても limit 個を選んだ番号を返す。
 export function slideshowFrames(count: number, limit: number): number[] {
   if (count <= 0 || limit <= 0) {

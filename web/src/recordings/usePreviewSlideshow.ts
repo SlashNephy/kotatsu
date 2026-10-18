@@ -17,7 +17,7 @@ const slideInterval = 1200;
 // manifests は、読んだ preview.json。同じ録画に何度ホバーしても、取り直さない。読めなければ null。
 const manifests = new Map<string, Promise<PreviewManifest | null>>();
 
-function loadManifest(previewUrl: string): Promise<PreviewManifest | null> {
+export function loadManifest(previewUrl: string): Promise<PreviewManifest | null> {
   let manifest = manifests.get(previewUrl);
   if (manifest === undefined) {
     manifest = fetch(manifestUrl(previewUrl), { credentials: 'same-origin' })
