@@ -3,6 +3,7 @@ import { useRef } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import classes from './TsPlayer.module.css';
+import { settleMs } from './settleDelay';
 import { RemoteKey, useDataBroadcast } from './useDataBroadcast';
 
 // FakeBrowser は、BMLBrowser の代わり。イベントを外から送り、映像の位置の有無を決められる。
@@ -151,10 +152,23 @@ describe('useDataBroadcast', () => {
       act(() => {
         browser?.dispatchEvent(new CustomEvent('invisible', { detail: false }));
       });
+      // 受信中の知らせは、消すのを少し遅らせる (#445)。
+      expect(getByTestId('receiving').textContent).toBe('true');
+      act(() => {
+        vi.advanceTimersByTime(settleMs);
+      });
       expect(getByTestId('receiving').textContent).toBe('false');
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  test('データ放送を閉じたら、受信中の知らせをすぐに消す', () => {
+    const { getByTestId, rerender } = render(<Harness shown />);
+    expect(getByTestId('receiving').textContent).toBe('true');
+
+    rerender(<Harness shown={false} />);
+    expect(getByTestId('receiving').textContent).toBe('false');
   });
 
   test('出していない間は、裏で受け取っていても受信中としない', () => {
@@ -291,6 +305,16 @@ describe('useDataBroadcast', () => {
       wantState: 'shown',
     },
     {
+      // web-bml は、読んだ文書が見えるかを load の直後に知らせる。隠れた文書なら、待たずに映像をプレイヤーへ戻す (#445)。
+      name: '読んだ直後に隠れた文書と分かったら、待たずに映像をプレイヤーへ戻す',
+      steps: (browser: InstanceType<typeof fake.FakeBrowser>) => {
+        browser.dispatchEvent(load);
+        browser.dispatchEvent(new CustomEvent('invisible', { detail: true }));
+      },
+      wantInBroadcast: false,
+      wantState: 'shown',
+    },
+    {
       name: '文書が隠れている間に読み込んでも、映像はプレイヤーに残す',
       steps: (browser: InstanceType<typeof fake.FakeBrowser>) => {
         browser.dispatchEvent(new CustomEvent('invisible', { detail: true }));
@@ -330,18 +354,27 @@ describe('useDataBroadcast', () => {
       wantState: 'ended',
     },
   ])('$name', ({ steps, wantInBroadcast, wantState }) => {
-    const { getByTestId } = render(<Harness />);
-    const [browser] = fake.FakeBrowser.instances;
-    if (browser === undefined) {
-      throw new Error('BMLBrowser is not created');
+    vi.useFakeTimers();
+    try {
+      const { getByTestId } = render(<Harness />);
+      const [browser] = fake.FakeBrowser.instances;
+      if (browser === undefined) {
+        throw new Error('BMLBrowser is not created');
+      }
+
+      // 見えるか隠れるかの変化は、落ち着いてから反映するので、その分を進める (#445)。
+      act(() => {
+        steps(browser);
+        vi.advanceTimersByTime(settleMs);
+      });
+
+      const video = players.at(-1) ?? null;
+      expect(browser.mediaElement.contains(video)).toBe(wantInBroadcast);
+      expect(getByTestId('media').contains(video)).toBe(!wantInBroadcast);
+      expect(getByTestId('state').textContent).toBe(wantState);
+    } finally {
+      vi.useRealTimers();
     }
-
-    act(() => steps(browser));
-
-    const video = players.at(-1) ?? null;
-    expect(browser.mediaElement.contains(video)).toBe(wantInBroadcast);
-    expect(getByTestId('media').contains(video)).toBe(!wantInBroadcast);
-    expect(getByTestId('state').textContent).toBe(wantState);
   });
 
   describe('データ放送の接続だけが切れたら', () => {

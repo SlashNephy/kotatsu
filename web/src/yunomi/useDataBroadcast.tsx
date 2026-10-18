@@ -14,6 +14,7 @@ import type { DataBroadcastEnd, DataBroadcastRequest } from './dataBroadcastWork
 import { deinterlacerCanvas } from './deinterlacer';
 import { reconnectDelay } from './reconnect';
 import type { DataBroadcastSource } from './route';
+import { createSettler, useSettledFalse } from './settleDelay';
 import classes from './TsPlayer.module.css';
 
 // RemoteKey は、リモコンのボタン。値は web-bml の AribKeyCode (content.ts) と同じにする。
@@ -234,13 +235,20 @@ export function useDataBroadcast(
       restore?.();
       restore = null;
     };
-    // hidden は、文書が隠れているか、TS を読めなくなって層を隠したこと。
+    // hidden は、文書が隠れているか、TS を読めなくなって層を隠したこと。d ボタンを押すかの判断に使う。
     let hidden = false;
+    // shownHidden は、画面に反映した hidden。文書が移る途中のちらつきを抑えるため、hidden の変化を少し遅らせて反映する (#445)。
+    let shownHidden = false;
     // place は、映像をデータ放送の中へ移すか、プレイヤーへ戻す。どのイベントでも、同じ条件で決める。
     // 層を隠している間と、映像の位置がないページでは、mediaElement が見えないか文書の外に出るので、プレイヤーへ戻す。
     const place = () => {
       const video = videoRef.current;
-      if (!shownRef.current || hidden || video === null || browser.getVideoElement() === null) {
+      if (
+        !shownRef.current ||
+        shownHidden ||
+        video === null ||
+        browser.getVideoElement() === null
+      ) {
         putBack();
       } else if (restore === null) {
         restore = moveMedia(video, mediaElement);
@@ -285,6 +293,8 @@ export function useDataBroadcast(
     };
     // loaded は、最初の文書を読んだかどうか。読む前に出すことになったら、読んだところで入る。
     let loaded = false;
+    // justLoaded は、文書を読んでから、まだ見えるか隠れるかの知らせを受けていないこと。
+    let justLoaded = false;
     // enter は、出すことになっていて、まだ入っていなければ、d ボタンを押し始める。
     // 文書が見えるかは、load の直後の invisible で分かる。見える文書なら、最初に押す前に止まる。
     const enter = () => {
@@ -315,19 +325,31 @@ export function useDataBroadcast(
       setResolution(event.detail.resolution);
       setState('shown');
       loaded = true;
+      justLoaded = true;
       place();
       enter();
     });
     browser.addEventListener('usedkeylistchanged', (event) => {
       setKeyGroups(usedKeyGroups(event.detail.usedKeyList));
     });
+    const invisibility = createSettler<boolean>(false, (value) => {
+      shownHidden = value;
+      setInvisible(value);
+      place();
+    });
     browser.addEventListener('invisible', (event) => {
       hidden = event.detail;
       if (!hidden) {
         stopEntering();
       }
-      setInvisible(event.detail);
-      place();
+      // 最初の文書を読む前と、文書を読んだ直後の最初の知らせは、待たずに反映する。web-bml は、読んだ文書が見えるかを
+      // load の直後に知らせるので、待つと、隠れた文書のときに、一度データ放送の中へ移してから戻すことになり、かえってちらつく。
+      if (loaded && !justLoaded) {
+        invisibility.set(event.detail);
+      } else {
+        invisibility.now(event.detail);
+      }
+      justLoaded = false;
     });
 
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -340,9 +362,8 @@ export function useDataBroadcast(
         // 文書は更新されなくなるので、d ボタンを押し直すのをやめ、層を隠し、映像をプレイヤーへ戻す。
         stopEntering();
         hidden = true;
-        setInvisible(true);
+        invisibility.now(true);
         setState('ended');
-        place();
         // 映像は流れているのに、データ放送の接続だけが切れたら、映像と同じ間隔でつなぎ直す。
         // 4xx は、つなぎ直しても同じなので、やめる。つなぎ直したら、出していれば、文書を読んだところでまた d ボタンで入る。
         if (message.status === undefined || message.status < 400 || message.status >= 500) {
@@ -366,6 +387,8 @@ export function useDataBroadcast(
         clearTimeout(retryTimer);
       }
       stopEntering();
+      // 待っていた見える・隠れるの反映は、片付けた後には届けない。
+      invisibility.cancel();
       // 片付けた文書に、出す・消す・d ボタンの操作が届かないようにする。
       showRef.current = () => {};
       hideRef.current = () => {};
@@ -442,7 +465,10 @@ export function useDataBroadcast(
     />
   );
 
-  const receiving = shown && (state === 'loading' || (state === 'shown' && pressing));
+  // 受信中の知らせは、消すのを少し遅らせる。文書が移る途中で、消えては出る、を繰り返さないようにする (#445)。
+  // データ放送を閉じたときは、すぐに消す。
+  const receiving =
+    useSettledFalse(shown && (state === 'loading' || (state === 'shown' && pressing))) && shown;
 
   return { layer: element, state, receiving, keyGroups, press };
 }
