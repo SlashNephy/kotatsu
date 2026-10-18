@@ -30,6 +30,11 @@ export function bandAt(
   tolerance: number,
 ): SeekBand | null {
   return (
-    bands.find((band) => seconds >= band.from - tolerance && seconds <= band.to + tolerance) ?? null
+    bands.find((band) => {
+      // 区間は、バーの上で幅があるので、その中だけで当たったとみなす。
+      const margin = band.to > band.from ? 0 : tolerance;
+
+      return seconds >= band.from - margin && seconds <= band.to + margin;
+    }) ?? null
   );
 }

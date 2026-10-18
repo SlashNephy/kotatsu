@@ -39,6 +39,7 @@ describe('bandAt', () => {
     { name: '印の前後の許す範囲の内', seconds: 104, want: '途切れ' },
     { name: '印から離れた位置', seconds: 110, want: null },
     { name: '区間の中', seconds: 230, want: 'CM' },
+    { name: '区間の外は、近くても当たらない', seconds: 197, want: null },
   ])('$name', ({ seconds, want }) => {
     expect(bandAt(bands, seconds, 5)?.label ?? null).toBe(want);
   });

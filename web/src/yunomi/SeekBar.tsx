@@ -135,9 +135,10 @@ export function SeekBar({
       )}
       {/* 区間と印は、バーの上に重ねる。操作は、下のスライダーに通す。 */}
       <div className={classes.bands} aria-hidden>
-        {bands.map((item) => (
+        {bands.map((item, index) => (
           <div
-            key={`${item.from}-${item.to}`}
+            // 同じ位置に印が重なることもあるので (冒頭の欠けと、始まってすぐの途切れなど)、並びの番号で見分ける。
+            key={index}
             className={item.to > item.from ? classes.band : classes.mark}
             style={{
               left: `${(Math.min(item.from, max) / max) * 100}%`,
