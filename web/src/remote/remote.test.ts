@@ -38,10 +38,24 @@ describe('estimatedPosition', () => {
   });
 });
 
+describe('estimatedPosition の時計のずれ', () => {
+  test('端末の時計が送った時刻より遅れていても、位置を戻さない', () => {
+    const lastSeenAt = '2026-10-18T12:00:00Z';
+    expect(
+      estimatedPosition(
+        { position: 100, duration: 1800, paused: false },
+        lastSeenAt,
+        Date.parse(lastSeenAt) - 5000,
+      ),
+    ).toBe(100);
+  });
+});
+
 describe('remoteKeyName', () => {
   test('ボタンを、操作で送る名前にする', () => {
     expect(remoteKeyName(RemoteKey.d)).toBe('d');
     expect(remoteKeyName(RemoteKey.digit10)).toBe('digit10');
     expect(remoteKeyName(RemoteKey.blue)).toBe('blue');
+    expect(remoteKeyName(999 as RemoteKey)).toBeNull();
   });
 });

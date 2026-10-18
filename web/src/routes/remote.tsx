@@ -186,9 +186,16 @@ function PlayerRemote({ player }: { player: Player }) {
     ).catch((caught: unknown) => setError(settingsErrorMessage(t, caught)));
   };
   const position = estimatedPosition(state, player.lastSeenAt, now);
-  // seeking は、シークバーを動かしている間の位置。離したところで送る。
+  // seeking と volume は、スライダーを動かしている間の値。離したところで送り、ほかの端末から新しい状態が届くまで保つ。
+  // すぐに捨てると、届くまでの間、スライダーが前の値に戻って見える。
   const [seeking, setSeeking] = useState<number | null>(null);
   const [volume, setVolume] = useState<number | null>(null);
+  useEffect(() => {
+    setSeeking(null);
+  }, [player.lastSeenAt]);
+  useEffect(() => {
+    setVolume(null);
+  }, [state.volume]);
   const keyGroups = new Set(state.keyGroups as KeyGroup[]);
 
   return (
@@ -218,17 +225,14 @@ function PlayerRemote({ player }: { player: Player }) {
         {state.kind === 'RECORDING' && position !== null && state.duration != null && (
           <Stack gap={4}>
             <Slider
-              aria-label={t('remote.position')}
+              thumbLabel={t('remote.position')}
               min={0}
               max={state.duration}
               step={1}
               value={seeking ?? position}
               label={(value) => formatDuration(value)}
               onChange={setSeeking}
-              onChangeEnd={(value) => {
-                setSeeking(null);
-                send({ type: 'SEEK', position: value });
-              }}
+              onChangeEnd={(value) => send({ type: 'SEEK', position: value })}
             />
             <Group justify="space-between">
               <Text size="xs" c="dimmed">
@@ -267,7 +271,12 @@ function PlayerRemote({ player }: { player: Player }) {
               size="xl"
               radius="xl"
               aria-label={t('remote.forward', { seconds: skipSeconds })}
-              onClick={() => send({ type: 'SEEK', position: position + skipSeconds })}
+              onClick={() =>
+                send({
+                  type: 'SEEK',
+                  position: Math.min(position + skipSeconds, state.duration ?? Infinity),
+                })
+              }
             >
               <FastForward size={22} aria-hidden />
             </ActionIcon>
@@ -286,17 +295,14 @@ function PlayerRemote({ player }: { player: Player }) {
           </ActionIcon>
           <Slider
             flex={1}
-            aria-label={t('remote.volume')}
+            thumbLabel={t('remote.volume')}
             min={0}
             max={2}
             step={0.05}
             value={volume ?? state.volume}
             label={(value) => `${Math.round(value * 100)}%`}
             onChange={setVolume}
-            onChangeEnd={(value) => {
-              setVolume(null);
-              send({ type: 'SET_VOLUME', volume: value });
-            }}
+            onChangeEnd={(value) => send({ type: 'SET_VOLUME', volume: value })}
           />
         </Group>
 
