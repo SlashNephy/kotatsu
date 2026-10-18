@@ -10,6 +10,7 @@ import {
 import { browserStorage } from './volume';
 import { broadcastFontUrl } from './broadcastFont';
 import { createDataBroadcastAudio, type DataBroadcastAudio } from './dataBroadcastAudio';
+import { isStandbyDocument, renderedRoot } from './dataBroadcastStandby';
 import type { DataBroadcastEnd, DataBroadcastRequest } from './dataBroadcastWorker';
 import { deinterlacerCanvas } from './deinterlacer';
 import { reconnectDelay } from './reconnect';
@@ -109,6 +110,11 @@ export function fitDocument(layer: { width: number; height: number }, resolution
 // enterIntervalMs と maxEnterTries は、データ放送の画面に入るために、d ボタンを押し直す間隔と回数 (20 秒まで)。
 const enterIntervalMs = 200;
 const maxEnterTries = 100;
+// standbyCheckMs は、文書を読んでから、待機文書 (#717) かを確かめるまでの間。文書のスクリプトが d ボタンを受け取る仕組みを
+// 登録するのを待つ。standbyIntervalMs は、待機文書で d ボタンを押し直す間隔。押すと、局の文書は通信の確かめなどをしてから
+// 移るので、見えない文書より間を空ける。
+const standbyCheckMs = 1000;
+const standbyIntervalMs = 3000;
 
 // useDataBroadcast は、web-bml でデータ放送を描き、映像に重ねる層を返す (設計書 7.4)。
 // source が null なら、何もしない。TS は Web Worker で解き、描くのは画面のスレッドの BMLBrowser に任せる。
@@ -264,6 +270,8 @@ export function useDataBroadcast(
     // テレビ東京の共通の起動文書は、初めての受信機では、NVRAM に印を書くまで 1 分ほど待ってから局の文書へ移る (#718)。
     // 諦めた後に次の文書を読んだら、もう一度押し直す。
     let gaveUp = false;
+    // userStopped は、利用者がリモコンを使って、押し直しを止めたこと。待機文書でも押さない。
+    let userStopped = false;
     let tries = 0;
     let enterTimer: ReturnType<typeof setTimeout> | null = null;
     const clearEnterTimer = () => {
@@ -278,13 +286,25 @@ export function useDataBroadcast(
       gaveUp = false;
       setPressing(false);
     };
-    stopEnteringRef.current = stopEntering;
+    stopEnteringRef.current = () => {
+      userStopped = true;
+      stopEntering();
+    };
+    // standby は、今の文書が待機文書 (#717) かどうか。
+    const standby = () => isStandbyDocument(renderedRoot(browser.content));
     const pressLater = (delay: number) => {
       clearEnterTimer();
       entering = 'pressing';
       setPressing(true);
       enterTimer = setTimeout(() => {
         enterTimer = null;
+        // 見えている文書は、待機文書のときだけ押す。中身のある文書に渡すと、最初の文書へ戻ってしまう。
+        // 読んだ文書が見えるかをまだ知らされていなければ、これまでどおり押す。
+        if (!hidden && !justLoaded && !standby()) {
+          stopEntering();
+
+          return;
+        }
         if (tries >= maxEnterTries) {
           stopEntering();
           gaveUp = true;
@@ -294,8 +314,26 @@ export function useDataBroadcast(
         tries += 1;
         browser.content.processKeyDown(RemoteKey.d);
         browser.content.processKeyUp(RemoteKey.d);
-        pressLater(enterIntervalMs);
+        pressLater(hidden ? enterIntervalMs : standbyIntervalMs);
       }, delay);
+    };
+    // 待機文書は見える文書なので、見えたところで押すのを止めてしまう。文書を読んで少し待ってから確かめ、待機文書なら押し直す。
+    // 出している間に、見えた待機文書なら押し始める。裏で受け取っている間に読んだ待機文書は、出したときに確かめる。
+    const pressIfStandby = () => {
+      if (shownRef.current && !userStopped && entering !== 'pressing' && !hidden && standby()) {
+        tries = 0;
+        pressLater(0);
+      }
+    };
+    let standbyTimer: ReturnType<typeof setTimeout> | null = null;
+    const checkStandbyLater = () => {
+      if (standbyTimer !== null) {
+        clearTimeout(standbyTimer);
+      }
+      standbyTimer = setTimeout(() => {
+        standbyTimer = null;
+        pressIfStandby();
+      }, standbyCheckMs);
     };
     // loaded は、最初の文書を読んだかどうか。読む前に出すことになったら、読んだところで入る。
     let loaded = false;
@@ -309,10 +347,14 @@ export function useDataBroadcast(
       }
     };
     showRef.current = () => {
+      userStopped = false;
       // 出すのは、d ボタンなどのユーザーの操作なので、ここで効果音を鳴らせるようにする。
       audio?.resume();
       place();
       enter();
+      if (loaded) {
+        pressIfStandby();
+      }
     };
     // 出すのをやめたら、受け取りは続けたまま、受信機で d ボタンを押して消すのと同じく、最初の見えない文書へ戻す。
     // 受け取り直すと、次に出すときに、また d ボタンを受け取れるまで待つことになる。
@@ -339,6 +381,7 @@ export function useDataBroadcast(
       }
       place();
       enter();
+      checkStandbyLater();
     });
     browser.addEventListener('usedkeylistchanged', (event) => {
       setKeyGroups(usedKeyGroups(event.detail.usedKeyList));
@@ -396,6 +439,9 @@ export function useDataBroadcast(
     return () => {
       if (retryTimer !== null) {
         clearTimeout(retryTimer);
+      }
+      if (standbyTimer !== null) {
+        clearTimeout(standbyTimer);
       }
       stopEntering();
       // 待っていた見える・隠れるの反映は、片付けた後には届けない。

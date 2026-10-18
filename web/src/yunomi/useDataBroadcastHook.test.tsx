@@ -20,6 +20,8 @@ const fake = vi.hoisted(() => {
         this.pressed.push(key);
       },
       processKeyUp: () => {},
+      // bmlDocument は、今の文書。node に、web-bml が描いた要素の根を入れる。null なら、待機文書とみなさない。
+      bmlDocument: { documentElement: { node: null as Element | null } },
     };
 
     // options は、作るときに渡された設定。文書から呼ばれる API (選局など) を、テストから呼ぶのに使う。
@@ -84,7 +86,7 @@ const players: HTMLVideoElement[] = [];
 // Harness は、TsPlayer と同じく、映像の要素 (.media) の中に video を置き、データ放送の層を重ねる。
 function Harness({ shown = true, receive = true }: { shown?: boolean; receive?: boolean }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const { layer, state, receiving } = useDataBroadcast(
+  const { layer, state, receiving, press } = useDataBroadcast(
     receive ? { url: '/streams/services/3273601024/data-broadcast', serviceId: 1024 } : null,
     videoRef,
     shown,
@@ -107,8 +109,23 @@ function Harness({ shown = true, receive = true }: { shown?: boolean; receive?: 
       {layer}
       <span data-testid="state">{state}</span>
       <span data-testid="receiving">{String(receiving)}</span>
+      <button type="button" data-testid="up" onClick={() => press(RemoteKey.up)} />
     </div>
   );
+}
+
+// standbyRoot は、映像だけを描き、d ボタンを待つ待機文書の根を返す。
+function standbyRoot(): Element {
+  const root = document.createElement('bml');
+  const head = document.createElement('head');
+  head.innerHTML =
+    '<bevent><beitem type="DataButtonPressed" subscribe="subscribe"></beitem></bevent>';
+  const body = document.createElement('body');
+  body.innerHTML = '<object arib-type="video/X-arib-mpeg2"></object>';
+  root.append(head, body);
+  document.body.append(root);
+
+  return root;
 }
 
 const load = new CustomEvent('load', { detail: { resolution: { width: 960, height: 540 } } });
@@ -197,6 +214,95 @@ describe('useDataBroadcast', () => {
         vi.advanceTimersByTime(0);
       });
       expect(browser?.pressed).toEqual([RemoteKey.d]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('見えても、待機文書なら押し続け、中身のある文書に移ったら止める (#717)', () => {
+    vi.useFakeTimers();
+    try {
+      render(<Harness shown />);
+      const browser = fake.FakeBrowser.instances[0];
+      act(() => {
+        browser?.dispatchEvent(load);
+        browser?.dispatchEvent(new CustomEvent('invisible', { detail: false }));
+      });
+      if (browser !== undefined) {
+        browser.content.bmlDocument.documentElement.node = standbyRoot();
+      }
+      // 読んで 1 秒たったら確かめ、待機文書なら押す。
+      act(() => {
+        vi.advanceTimersByTime(1100);
+      });
+      expect(browser?.pressed).toEqual([RemoteKey.d]);
+      // 待機文書のままなら、間を空けて押し直す。
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(browser?.pressed).toEqual([RemoteKey.d, RemoteKey.d]);
+
+      // 中身のある文書へ移ったら、もう押さない。
+      if (browser !== undefined) {
+        browser.content.bmlDocument.documentElement.node = document.createElement('bml');
+      }
+      act(() => {
+        browser?.dispatchEvent(load);
+        browser?.dispatchEvent(new CustomEvent('invisible', { detail: false }));
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(browser?.pressed).toEqual([RemoteKey.d, RemoteKey.d]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('裏で受け取っている間に読んだ待機文書は、出したときに押す', () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(<Harness shown={false} />);
+      const browser = fake.FakeBrowser.instances[0];
+      if (browser !== undefined) {
+        browser.content.bmlDocument.documentElement.node = standbyRoot();
+      }
+      act(() => {
+        browser?.dispatchEvent(load);
+        browser?.dispatchEvent(new CustomEvent('invisible', { detail: false }));
+        vi.advanceTimersByTime(5000);
+      });
+      expect(browser?.pressed).toEqual([]);
+
+      rerender(<Harness shown />);
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(browser?.pressed).toEqual([RemoteKey.d]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('利用者がリモコンを使ったら、待機文書でも押さない', () => {
+    vi.useFakeTimers();
+    try {
+      const { getByTestId } = render(<Harness shown />);
+      const browser = fake.FakeBrowser.instances[0];
+      act(() => {
+        browser?.dispatchEvent(load);
+        browser?.dispatchEvent(new CustomEvent('invisible', { detail: false }));
+      });
+      act(() => {
+        getByTestId('up').click();
+      });
+      if (browser !== undefined) {
+        browser.content.bmlDocument.documentElement.node = standbyRoot();
+      }
+      act(() => {
+        browser?.dispatchEvent(load);
+        browser?.dispatchEvent(new CustomEvent('invisible', { detail: false }));
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(browser?.pressed).toEqual([RemoteKey.up]);
     } finally {
       vi.useRealTimers();
     }
