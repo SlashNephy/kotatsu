@@ -63,9 +63,9 @@ func TestRecorded(t *testing.T) {
 	h, pool := newHandler(t)
 	now := testNow()
 	_, oldest := addRecording(t, pool, "こたつ特集", "completed", now.Add(-3*time.Hour), 1, false)
-	_, middle := addRecording(t, pool, "ねこの番組", "completed", now.Add(-2*time.Hour), 2, true)
+	_, middle := addRecording(t, pool, "ねこの番組２", "completed", now.Add(-2*time.Hour), 2, true)
 	_, newest := addRecording(t, pool, "こたつとねこ", "recording", now.Add(-time.Hour), 1, false)
-	addRecording(t, pool, "失敗した録画", "failed", now, 0, false)
+	_, failed := addRecording(t, pool, "失敗した録画", "failed", now, 0, false)
 
 	tests := []struct {
 		name      string
@@ -103,6 +103,14 @@ func TestRecorded(t *testing.T) {
 	assert.Equal(t, int64(2000), item.VideoFiles[0].Size)
 	assert.Equal(t, []int64{middle}, item.Thumbnails)
 	assert.Equal(t, http.StatusNotFound, getItem(t, h.RecordedItem, 999999, nil))
+	// セグメントのない録画は、再生できないので返さない。
+	assert.Equal(t, http.StatusNotFound, getItem(t, h.RecordedItem, failed, nil))
+
+	// isHalfWidth なら、番組名の全角の英数字を半角にする。
+	var half recordedList
+	require.Equal(t, http.StatusOK, get(t, h.Recorded, "/api/recorded?keyword=ねこの&isHalfWidth=true", &half))
+	require.Len(t, half.Records, 1)
+	assert.Equal(t, "ねこの番組2", half.Records[0].Name)
 }
 
 func getItem(t *testing.T, handler http.HandlerFunc, id int64, out any) int {

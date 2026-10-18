@@ -81,6 +81,8 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 		{name: "どちらもない", path: "/api/channels", cookie: false, bearer: false, want: http.StatusUnauthorized},
 		{name: "ロゴ", path: "/api/channels/3273601024/logo", cookie: false, bearer: true, want: http.StatusServiceUnavailable},
 		{name: "ライブ視聴", path: "/api/streams/live/3273601024/m2ts?mode=0", cookie: false, bearer: true, want: http.StatusServiceUnavailable},
+		{name: "ない録画の動画", path: "/api/videos/999999", cookie: false, bearer: true, want: http.StatusNotFound},
+		{name: "ない録画のサムネイル", path: "/api/thumbnails/999999", cookie: false, bearer: true, want: http.StatusNotFound},
 		{name: "用意していない API", path: "/api/reserves", cookie: false, bearer: true, want: http.StatusNotFound},
 	}
 	for _, tt := range tests {
