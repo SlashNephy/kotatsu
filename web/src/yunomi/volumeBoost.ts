@@ -4,7 +4,15 @@ import { maxVolume } from './volume';
 // WebAudio を通すと、iOS の Safari、別のウィンドウ (PiP)、バックグラウンドの再生で動きが変わるおそれがあるので、
 // 初めて 100% を超えたときにだけ GainNode を挟む。一度挟んだら、その video の音は WebAudio を通り続ける。
 
-type Booster = { source: MediaElementAudioSourceNode; gain: GainNode };
+// Booster は、video の音の WebAudio のグラフ。source → (音量の補正: compressor → makeup) → gain → 出力。
+// 音量の補正 (#499) を切っているときは、source を直に gain へ繋ぐ。
+type Booster = {
+  source: MediaElementAudioSourceNode;
+  compressor: DynamicsCompressorNode;
+  makeup: GainNode;
+  gain: GainNode;
+  normalized: boolean;
+};
 
 // sharedContext は、すべての video で使う AudioContext。画質を変えたり選局したりするたびに video は作り直されるが、
 // AudioContext は同時に作れる数に限りがあるので、1 つを使い回す。
@@ -15,6 +23,14 @@ const boosters = new WeakMap<HTMLMediaElement, Booster>();
 const sources = new WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>();
 // pending は、まだ GainNode を挟めていない video の、上げたい倍率。ユーザーが操作するまで、AudioContext を動かせないため。
 const pending = new WeakMap<HTMLMediaElement, number>();
+// normalizing は、音量の補正を入れた video。まだ WebAudio を通せていなくても、通せたら補正する。
+const normalizing = new WeakSet<HTMLMediaElement>();
+
+// 音量の補正 (#499) のコンプレッサーの設定。大きな音を抑え、抑えた分を makeupGain で全体に足して、
+// 番組と CM、局どうしの音量の差を縮める。音が割れないよう、比は控えめにする。
+const compressorSettings = { threshold: -30, knee: 20, ratio: 4, attack: 0.01, release: 0.3 };
+// makeupGain は、コンプレッサーで抑えた分を戻す倍率 (約 +4 dB)。
+const makeupGain = 1.6;
 
 // splitVolume は、0 から maxVolume の音量を、video.volume (0〜1) と GainNode の倍率 (1 以上) に分ける。
 export function splitVolume(volume: number): { element: number; gain: number } {
@@ -71,10 +87,20 @@ function boosterOf(video: HTMLMediaElement): Booster | null {
   try {
     sharedContext ??= new AudioContext();
     const gain = sharedContext.createGain();
+    const compressor = sharedContext.createDynamicsCompressor();
+    compressor.threshold.value = compressorSettings.threshold;
+    compressor.knee.value = compressorSettings.knee;
+    compressor.ratio.value = compressorSettings.ratio;
+    compressor.attack.value = compressorSettings.attack;
+    compressor.release.value = compressorSettings.release;
+    const makeup = sharedContext.createGain();
+    makeup.gain.value = makeupGain;
+    compressor.connect(makeup).connect(gain);
     const source = sources.get(video) ?? sharedContext.createMediaElementSource(video);
     sources.set(video, source);
-    source.connect(gain).connect(sharedContext.destination);
-    const booster = { source, gain };
+    gain.connect(sharedContext.destination);
+    const booster = { source, compressor, makeup, gain, normalized: false };
+    connectSource(booster, normalizing.has(video));
     boosters.set(video, booster);
 
     return booster;
@@ -82,6 +108,33 @@ function boosterOf(video: HTMLMediaElement): Booster | null {
     // 別の AudioContext に繋いだ video などで、挟めなければ、100% までで鳴らす。
     return null;
   }
+}
+
+// connectSource は、source を、音量の補正を通すか、直に gain へ繋ぐ。
+function connectSource(booster: Booster, normalized: boolean): void {
+  booster.source.disconnect();
+  booster.source.connect(normalized ? booster.compressor : booster.gain);
+  booster.normalized = normalized;
+}
+
+// setNormalize は、video の音量の補正 (#499) を入れるか切る。入れるときは、WebAudio を通す。
+// ユーザーがまだ操作しておらず AudioContext を動かせなければ、覚えておき、操作した後 (resumePendingBoost) に入れる。
+export function setNormalize(video: HTMLMediaElement, enabled: boolean): void {
+  if (enabled) {
+    normalizing.add(video);
+  } else {
+    normalizing.delete(video);
+  }
+  const booster = enabled || sources.has(video) ? boosterOf(video) : null;
+  if (booster !== null && booster.normalized !== enabled) {
+    connectSource(booster, enabled);
+    resumeContext();
+  }
+}
+
+// isNormalized は、video の音を、今、補正しているかを返す。
+export function isNormalized(video: HTMLMediaElement): boolean {
+  return boosters.get(video)?.normalized ?? false;
 }
 
 // applyVolume は、video に音量 (0 から maxVolume) を当てる。100% を超える分は GainNode で上げる。
@@ -111,6 +164,9 @@ export function resumePendingBoost(video: HTMLMediaElement): void {
   if (gain !== undefined) {
     applyVolume(video, gain);
   }
+  if (normalizing.has(video) && !isNormalized(video)) {
+    setNormalize(video, true);
+  }
   resumeContext();
 }
 
@@ -121,6 +177,8 @@ export function releaseBoost(video: HTMLMediaElement): void {
   const booster = boosters.get(video);
   if (booster !== undefined) {
     booster.source.disconnect();
+    booster.compressor.disconnect();
+    booster.makeup.disconnect();
     booster.gain.disconnect();
     boosters.delete(video);
   }

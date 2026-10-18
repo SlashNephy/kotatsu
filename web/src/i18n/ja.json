@@ -959,6 +959,7 @@
     "play": "再生"
   },
   "player": {
+    "normalizeVolume": "音量を補正する",
     "gapMark": "ここで {{duration}} 途切れています",
     "crop": {
       "scale": "L字の切り抜き",
