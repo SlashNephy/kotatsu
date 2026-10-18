@@ -78,6 +78,8 @@ func TestTranscoderWritesHLS(t *testing.T) {
 	t.Parallel()
 
 	transcoder := newTranscoder(t)
+	// frames30 と frames60 は、ffprobe が返すフレームレート (29.97fps と 59.94fps)。
+	const frames30, frames60 = "30000/1001", "60000/1001"
 	tests := []struct {
 		preset     string
 		wantCodec  string
@@ -85,10 +87,10 @@ func TestTranscoderWritesHLS(t *testing.T) {
 		// wantFrameRate は、映像のフレームレート。test.ts は 29.97fps のインターレースなので、60fps のプリセットでは倍になる。
 		wantFrameRate string
 	}{
-		{preset: "360p", wantCodec: "h264", wantHeight: 360, wantFrameRate: "30000/1001"},
-		{preset: "720p", wantCodec: "h264", wantHeight: 720, wantFrameRate: "30000/1001"},
-		{preset: "360p-hevc", wantCodec: "hevc", wantHeight: 360, wantFrameRate: "30000/1001"},
-		{preset: "720p60", wantCodec: "h264", wantHeight: 720, wantFrameRate: "60000/1001"},
+		{preset: "360p", wantCodec: "h264", wantHeight: 360, wantFrameRate: frames30},
+		{preset: "720p", wantCodec: "h264", wantHeight: 720, wantFrameRate: frames30},
+		{preset: "360p-hevc", wantCodec: "hevc", wantHeight: 360, wantFrameRate: frames30},
+		{preset: "720p60", wantCodec: "h264", wantHeight: 720, wantFrameRate: frames60},
 	}
 	for _, tt := range tests {
 		t.Run(tt.preset, func(t *testing.T) {
