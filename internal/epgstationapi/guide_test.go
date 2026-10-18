@@ -69,7 +69,7 @@ func newHandler(t *testing.T) *epgstationapi.Handler {
 		extended  string
 		genres    string
 	}{
-		{serviceID: grService, eventID: 100, start: now, name: newsName, extended: `{"出演者":"こたつ\nねこ"}`, genres: `[{"lv1":0,"lv2":1,"un1":15,"un2":15}]`},
+		{serviceID: grService, eventID: 100, start: now, name: newsName, extended: `{"出演者":"こたつ\nねこ　と\r\nいぬ"}`, genres: `[{"lv1":0,"lv2":1,"un1":15,"un2":15}]`},
 		{serviceID: grService, eventID: 101, start: now.Add(2 * time.Hour), name: "あとの番組", extended: `{}`, genres: `[]`},
 		{serviceID: bsService, eventID: 200, start: now, name: bsName, extended: `{}`, genres: `[]`},
 	}
@@ -162,7 +162,7 @@ func TestSchedules(t *testing.T) {
 	sec := func(v time.Time) string { return strconv.FormatInt(v.Unix(), 10) }
 	news := program{
 		ID: grService*100000 + 100, ChannelID: grService, StartAt: now.UnixMilli(), EndAt: now.Add(time.Hour).UnixMilli(),
-		Duration: time.Hour.Milliseconds(), Name: newsName, Extended: "出演者\nこたつ ねこ",
+		Duration: time.Hour.Milliseconds(), Name: newsName, Extended: "出演者\nこたつ ねこ　と いぬ",
 		Genres: []struct {
 			Lv1 int `json:"lv1"`
 			Lv2 int `json:"lv2"`

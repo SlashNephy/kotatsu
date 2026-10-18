@@ -244,8 +244,9 @@ func halfWidth(s string) string {
 	}, s)
 }
 
+// oneLine は、改行を空白に置き換える。ほかの空白 (全角の空白を含む) は、そのまま残す。
 func oneLine(s string) string {
-	return strings.Join(strings.Fields(strings.ReplaceAll(s, "\r\n", "\n")), " ")
+	return strings.NewReplacer("\r\n", " ", "\r", " ", "\n", " ").Replace(s)
 }
 
 // parseTime は、UNIX 時刻を読む。EPGStation はミリ秒で受け取るが、秒で渡すクライアントもあるので、小さい値は秒とみなす。
