@@ -11,6 +11,7 @@ import { framePosition, type FramePosition } from './previewFrame';
 import { usePreviewSlideshow } from './usePreviewSlideshow';
 import { watchProgress } from './watchProgress';
 import { RecordingStateBadge } from './RecordingStateBadge';
+import { recordingPosition, type Gap } from '../yunomi/position';
 import { zonedFormat } from '../futon';
 
 export type RecordingCardData = {
@@ -24,9 +25,10 @@ export type RecordingCardData = {
   previewUrl?: string | null;
   // watchFrame は、前回見た位置に合うプレビュー画像のコマ。あれば、代表画像の代わりに出す。
   watchFrame?: (FramePosition & { url: string }) | null;
-  // recordedFrom、recordedUntil、watchPositionMs は、どこまで見たかを出すのに使う。録画中は recordedUntil が null。
+  // recordedFrom、recordedUntil、gaps、watchPositionMs は、どこまで見たかを出すのに使う。録画中は recordedUntil が null。
   recordedFrom: string;
   recordedUntil?: string | null;
+  gaps?: readonly Gap[];
   // Int64 は Relay の型では any になるので、受け取ってから数に直す。
   watchPositionMs?: unknown;
   service: { name: string; logoUrl?: string | null };
@@ -86,10 +88,12 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
     scrambled: Number(recording.scrambled ?? 0),
   };
   const damaged = quality.drops > 0 || quality.errors > 0 || quality.scrambled > 0;
-  const duration =
-    ((recording.recordedUntil == null ? Date.now() : Date.parse(recording.recordedUntil)) -
-      Date.parse(recording.recordedFrom)) /
-    1000;
+  // 再生位置は途切れた区間を含めないので、長さからも引く。
+  const duration = recordingPosition(
+    recording.recordedFrom,
+    recording.gaps ?? [],
+    recording.recordedUntil == null ? Date.now() : Date.parse(recording.recordedUntil),
+  );
   const progress = watchProgress(
     recording.watchPositionMs == null ? null : Number(recording.watchPositionMs),
     duration,

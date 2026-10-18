@@ -97,6 +97,10 @@ export function Dashboard({ range }: { range: DashboardRange }) {
           scrambled
           recordedFrom
           recordedUntil
+          gaps {
+            from
+            to
+          }
           watchPositionMs
           thumbnailUrl
           previewUrl
@@ -127,6 +131,10 @@ export function Dashboard({ range }: { range: DashboardRange }) {
               scrambled
               recordedFrom
               recordedUntil
+              gaps {
+                from
+                to
+              }
               watchPositionMs
               thumbnailUrl
               previewUrl

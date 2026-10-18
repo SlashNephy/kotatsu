@@ -145,7 +145,10 @@ func (s *RecordingSource) load(ctx context.Context, recordingID uuid.UUID) ([]*s
 		} else if err != nil {
 			return nil, err
 		}
-		seg := &segment{id: file.ID, poolID: file.PoolID, path: file.Path, startedAt: file.StartedAt, open: file.EndedAt == nil, index: []ts.IndexEntry{}}
+		seg := &segment{
+			id: file.ID, poolID: file.PoolID, path: file.Path, startedAt: file.StartedAt, endedAt: file.EndedAt, open: file.EndedAt == nil,
+			index: []ts.IndexEntry{},
+		}
 		for _, candidate := range s.store.IndexLocations(file.PoolID, file.Path) {
 			if index, ok := indexes[candidate.PoolID+"/"+candidate.Path]; ok {
 				if seg.index, err = s.readIndex(index); err != nil {

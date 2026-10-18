@@ -35,13 +35,10 @@ func TestRecordingKeyframesAndSeek(t *testing.T) {
 		},
 		{
 			// 後のセグメントは、前のセグメントの 1 秒後に始まり、最初の I フレームは前のセグメントの 3 個目と同じ。
-			// 3 個目からは後のセグメントの時間 (1 秒 + セグメントの中の時間) で並ぶ。
+			// 重なった区間は後のセグメントで流すので、時間は、1 本のセグメントと同じく PTS の差で並ぶ。
 			name: "引き継ぎ", handover: true, start: 1500 * time.Millisecond,
-			want: []time.Duration{
-				0, frame, time.Second, time.Second + frame, time.Second + 2*frame, time.Second + 3*frame, time.Second + 4*frame,
-				time.Second + 5*frame, time.Second + 6*frame, time.Second + 7*frame, time.Second + 8*frame, time.Second + 9*frame,
-			},
-			wantAt: time.Second,
+			want:   []time.Duration{0, frame, 2 * frame, 3 * frame, 4 * frame, 5 * frame, 6 * frame, 7 * frame, 8 * frame, 9 * frame, 10 * frame, 11 * frame},
+			wantAt: 2 * frame,
 		},
 	}
 	for _, tt := range tests {

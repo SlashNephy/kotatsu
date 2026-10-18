@@ -15,6 +15,7 @@ import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import {
   broadcastTime,
+  recordingPosition,
   parseStreamStart,
   formatClock,
   formatDuration,
@@ -226,14 +227,14 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
 
     return () => clearInterval(timer);
   }, [environment, stillRecording, recordingId]);
+  // duration は、録画の長さ (秒)。ファイルには途切れた区間の分の映像がないので、その分を引く。
   const duration =
     recording === null
       ? 0
-      : Math.max(
-          ((recording.recordedUntil == null ? Date.now() : Date.parse(recording.recordedUntil)) -
-            Date.parse(recording.recordedFrom)) /
-            1000,
-          0,
+      : recordingPosition(
+          recording.recordedFrom,
+          recording.gaps,
+          recording.recordedUntil == null ? Date.now() : Date.parse(recording.recordedUntil),
         );
   // resumeAt は、再生を始める位置 (秒)。URL で位置を渡されたらそこから、なければ前回の続きから、続きもなければ 0 (設計書 7.5)。
   // Int64 は Relay の型では any になるので、数に直す。

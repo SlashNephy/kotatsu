@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 )
 
 // 索引ファイルの形式 (設計書 5.3)。
@@ -103,6 +104,14 @@ func ReadIndex(r io.Reader) ([]IndexEntry, error) {
 
 	return entries, nil
 }
+
+const (
+	// MaxKeyframeInterval は、続く I フレームの間隔として認める最も長い時間。PTS がこれより空くか戻ったら、間で録画が途切れたとみなす。
+	// 放送の I フレームは 0.5 秒ほどおきに入るので、十分に長くとる。
+	MaxKeyframeInterval = 5 * time.Second
+	// DefaultKeyframeInterval は、I フレームの間隔をまだ測れていないときに使う間隔。
+	DefaultKeyframeInterval = 500 * time.Millisecond
+)
 
 // PTSDiff は、PTS の from から to までの刻みの数を返す。PTS が一周していても、差が半周より小さければ正しく求まる。
 func PTSDiff(from, to int64) int64 {
