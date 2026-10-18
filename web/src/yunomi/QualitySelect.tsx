@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next';
 import type { AudioChoice, KyusuAudioChoice } from './audio';
 import { cropOrigins, cropScales, type Crop } from './crop';
 import { useNormalizeVolume } from './volumeNormalize';
+import { useVirtualSurroundSetting } from './useVirtualSurround';
 import { original, type KyusuAudio, type PlaybackRoute } from './route';
 
 type Props = {
@@ -309,6 +310,21 @@ export function NormalizeVolumeToggle() {
     <Switch
       size="xs"
       label={t('player.normalizeVolume')}
+      checked={enabled}
+      onChange={(event) => setEnabled(event.currentTarget.checked)}
+    />
+  );
+}
+
+// VirtualSurroundToggle は、設定のメニューに置く、仮想サラウンド (#454) の切り替え。5.1ch の番組でだけ出す。
+export function VirtualSurroundToggle() {
+  const { t } = useTranslation();
+  const [enabled, setEnabled] = useVirtualSurroundSetting();
+
+  return (
+    <Switch
+      size="xs"
+      label={t('player.virtualSurround')}
       checked={enabled}
       onChange={(event) => setEnabled(event.currentTarget.checked)}
     />

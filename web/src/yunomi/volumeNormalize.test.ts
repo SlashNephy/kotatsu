@@ -9,6 +9,12 @@ class FakeNode {
   readonly ratio = { value: 0 };
   readonly attack = { value: 0 };
   readonly release = { value: 0 };
+  readonly positionX = { value: 0 };
+  readonly positionY = { value: 0 };
+  readonly positionZ = { value: 0 };
+  channelCount = 2;
+  channelCountMode = 'max';
+  channelInterpretation = 'speakers';
   constructor(readonly kind: string) {}
   connect(target: FakeNode): FakeNode {
     this.targets.push(target);
@@ -33,6 +39,9 @@ class FakeAudioContext {
   }
   createMediaElementSource() {
     return new FakeNode('source');
+  }
+  createChannelSplitter() {
+    return new FakeNode('splitter');
   }
   resume() {
     this.resumed += 1;
@@ -114,5 +123,57 @@ describe('setNormalize', () => {
     setNormalize(document.createElement('video'), true);
 
     expect(contexts[0]?.resumed).toBe(1);
+  });
+
+  test('仮想サラウンドを入れると、音量の補正の手前に挟む (#454)', async () => {
+    vi.stubGlobal('AudioContext', FakeAudioContext);
+    vi.stubGlobal(
+      'PannerNode',
+      class extends FakeNode {
+        constructor() {
+          super('panner');
+        }
+      },
+    );
+    const sources: FakeNode[] = [];
+    const original = FakeAudioContext.prototype.createMediaElementSource;
+    FakeAudioContext.prototype.createMediaElementSource = function () {
+      const node = original.call(this);
+      sources.push(node);
+
+      return node;
+    };
+    const { setNormalize, setSurround } = await import('./volumeBoost');
+    window.dispatchEvent(new Event('pointerdown'));
+    const video = document.createElement('video');
+
+    setSurround(video, true);
+    // L のチャンネルは、倍率、HRTF の PannerNode、2ch に混ぜる GainNode を通って、音量の GainNode へ届く。
+    expect(path(sources[0]!)).toEqual([
+      'source',
+      'splitter',
+      'gain',
+      'panner',
+      'gain',
+      'gain',
+      'destination',
+    ]);
+
+    setNormalize(video, true);
+    expect(path(sources[0]!)).toEqual([
+      'source',
+      'splitter',
+      'gain',
+      'panner',
+      'gain',
+      'compressor',
+      'gain',
+      'gain',
+      'destination',
+    ]);
+
+    setSurround(video, false);
+    expect(path(sources[0]!)).toEqual(['source', 'compressor', 'gain', 'gain', 'destination']);
+    FakeAudioContext.prototype.createMediaElementSource = original;
   });
 });

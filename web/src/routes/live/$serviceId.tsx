@@ -34,6 +34,7 @@ import {
   useDocumentTitle,
 } from '../../futon';
 import { CommentListToggle } from '../../jikkyo/CommentList';
+import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
 import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistoryToggle } from '../../yunomi/CaptionHistory';
@@ -70,6 +71,7 @@ import {
   QualitySelect,
   CropSelect,
   NormalizeVolumeToggle,
+  VirtualSurroundToggle,
 } from '../../yunomi/QualitySelect';
 import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
 import { dataBroadcastSource, hlsURL } from '../../yunomi/route';
@@ -476,6 +478,9 @@ function Live({
   }, [programEnd, range, onProgramEnd]);
   // 音声は、経路ごとのメニューで選び、画質を変えても同じ音声を保つ。kyusu の経路では、番組の音声の構成から選ぶ。
   const audio = usePlayerAudio(route, program?.audios ?? null);
+  // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
+  const surroundAvailable = route.kind === 'convert' && isSurroundAudio(program?.audios ?? null);
+  useVirtualSurround(video, surroundAvailable);
   const programName = program?.name ?? null;
   const serviceName = data.node?.__typename === 'Service' ? data.node.name : '';
   const serviceLogoUrl = data.node?.__typename === 'Service' ? (data.node.logoUrl ?? null) : null;
@@ -649,6 +654,7 @@ function Live({
             {audio.menu}
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
+            {surroundAvailable && <VirtualSurroundToggle />}
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
           <CaptureButton capture={capture} />

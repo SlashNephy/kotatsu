@@ -10,6 +10,7 @@ import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../..
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { CommentListToggle } from '../../jikkyo/CommentList';
+import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
 import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistoryToggle } from '../../yunomi/CaptionHistory';
@@ -36,6 +37,7 @@ import {
   QualitySelect,
   CropSelect,
   NormalizeVolumeToggle,
+  VirtualSurroundToggle,
 } from '../../yunomi/QualitySelect';
 import { hlsURL } from '../../yunomi/route';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
@@ -387,6 +389,9 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const [statsShown, setStatsShown] = useState(false);
   // 音量の補正 (#499)。端末ごとの設定に合わせる。
   useVolumeNormalizer(video);
+  // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
+  const surroundAvailable = route.kind === 'convert' && isSurroundAudio(recording?.audios ?? null);
+  useVirtualSurround(video, surroundAvailable);
   // crop は、L 字放送の切り抜き (#496)。その場限りで、画面を開き直したら戻す。
   const [crop, setCrop] = useState<Crop>(noCrop);
   // startAt は、指定の位置から読み直す。
@@ -692,6 +697,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             <RateSelect value={rate} onChange={setRate} />
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
+            {surroundAvailable && <VirtualSurroundToggle />}
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
           <CaptureButton capture={capture} />
