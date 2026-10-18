@@ -8,6 +8,19 @@ export function playbackPosition(offset: number, base: number, current: number):
   return offset + Math.max(current - base, 0);
 }
 
+// maxVideoJump は、変換した映像の時刻が、続く timeupdate の間に進む最も長い秒。これより飛んだら、録画の途切れた区間を越えたとみなす。
+// サーバーが再生の時間で途切れた区間を詰めるときの、I フレームの間隔の上限 (5 秒) とそろえる (設計書 7.2)。
+const maxVideoJump = 5;
+
+// skipJump は、変換した映像の時刻が、前に見た時刻 last から current へ飛んでいたら、飛んだ分を base に足して返す。
+// ブラウザの中で変換するプレイヤーは、途切れた区間の前後で PTS が飛ぶと、video の時刻も飛ばす。
+// 再生位置は途切れた区間を含めないので、飛んだ分を位置に数えないようにする。
+export function skipJump(base: number, last: number, current: number): number {
+  const delta = current - last;
+
+  return Math.abs(delta) > maxVideoJump ? base + delta : base;
+}
+
 // parseStreamStart は、録画の配信が返す、流し始めた位置のヘッダー (X-Kotatsu-Start、秒) を読む。読めなければ null。
 export function parseStreamStart(value: string | null): number | null {
   if (value === null || value.trim() === '') {
