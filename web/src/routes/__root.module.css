@@ -29,8 +29,9 @@
 }
 
 /* アプリのアイコンと名前を、1 行に並べる。 */
+/* inline-flex だと、見出しの行の下側の余白の分だけ見出しが高くなり、ヘッダーの中央より上にずれるので、flex にする。 */
 .brand {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
 }
