@@ -145,6 +145,58 @@ describe('useRemotePlayer', () => {
     expect(fake.updates.at(-1)).toEqual({ state: paused, announce: true });
   });
 
+  test('登録の返事を待つ間に状態が変わったら、返事が来たところで知らせる', async () => {
+    const fake = fakeApi();
+    let resolve: (id: string) => void = () => {};
+    fake.api.register = () =>
+      new Promise((done) => {
+        resolve = done;
+      });
+    const { rerender } = renderHook(
+      ({ current }) => useRemotePlayer(current, handlers(), fake.api),
+      {
+        wrapper,
+        initialProps: { current: state },
+      },
+    );
+    // 音声の構成が分かった。
+    const withAudios = {
+      ...state,
+      audios: [
+        { id: '1', label: '主音声' },
+        { id: '2', label: '副音声' },
+      ],
+    };
+    rerender({ current: withAudios });
+    await act(async () => {
+      resolve('player-1');
+    });
+    act(() => {
+      vi.advanceTimersByTime(announceDelayMs);
+    });
+    expect(fake.updates).toEqual([{ state: withAudios, announce: true }]);
+  });
+
+  test('追っかけ再生で長さが延びただけなら、知らせない', async () => {
+    const fake = fakeApi();
+    const recording: RemoteState = { ...state, kind: 'RECORDING', position: 10, duration: 100 };
+    const { rerender } = renderHook(
+      ({ current }) => useRemotePlayer(current, handlers(), fake.api),
+      {
+        wrapper,
+        initialProps: { current: recording },
+      },
+    );
+    await act(async () => {});
+    for (const duration of [100.25, 100.5, 100.75]) {
+      rerender({ current: { ...recording, position: duration - 90, duration } });
+      act(() => {
+        vi.advanceTimersByTime(announceDelayMs);
+      });
+    }
+    expect(fake.updates).toEqual([]);
+  });
+
   test('届いた操作を、届いた順に一度ずつ渡す。つなぎ直して同じ操作が届いても、もう一度は渡さない', async () => {
     const fake = fakeApi();
     const remote = handlers();

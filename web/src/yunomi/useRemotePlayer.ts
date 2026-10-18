@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { graphql, useRelayEnvironment } from 'react-relay';
 import { requestSubscription, type Environment } from 'relay-runtime';
 
@@ -75,9 +75,10 @@ export function remoteKey(name: string): RemoteKey | null {
   return Object.hasOwn(RemoteKey, name) ? RemoteKey[name as keyof typeof RemoteKey] : null;
 }
 
-// announced は、ほかの端末に知らせる部分 (再生位置のほかすべて)。再生位置が進んだだけなら、知らせない。
+// announced は、ほかの端末に知らせる部分。再生位置と長さが変わっただけなら、知らせない。追っかけ再生では、長さも
+// 描くたびに延びるので、知らせると、ほかの端末に一覧を読み直させ続けることになる。どちらも、10 秒ごとに送る状態で伝わる。
 function announced(state: RemoteState): string {
-  return JSON.stringify({ ...state, position: null });
+  return JSON.stringify({ ...state, position: null, duration: null });
 }
 
 // dispatch は、届いた操作を、プレイヤーの操作に渡す。
@@ -131,11 +132,15 @@ export function useRemotePlayer(
   api?: RemoteApi,
 ): void {
   const environment = useRelayEnvironment();
-  const apiRef = useRef(api ?? relayRemoteApi(environment));
+  // remote は、最初に描いたときの API を使い続ける。
+  const [remoteApi] = useState(() => api ?? relayRemoteApi(environment));
+  const apiRef = useRef(remoteApi);
   const stateRef = useRef(state);
   stateRef.current = state;
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
+  // id は、登録したプレイヤーの ID。登録の返事を待つ間に状態が変わったら、返事が来たところで知らせられるよう、state に持つ。
+  const [id, setId] = useState<string | null>(null);
   const idRef = useRef<string | null>(null);
   // lastAnnounced は、最後にほかの端末に知らせた状態 (再生位置のほか)。
   const lastAnnounced = useRef<string | null>(null);
@@ -166,6 +171,7 @@ export function useRemotePlayer(
         }
         idRef.current = id;
         lastAnnounced.current = announced(initial);
+        setId(id);
         unsubscribe = remote.subscribe(id, (command) => {
           const commandId = Number(command.id);
           if (commandId <= handled) {
@@ -193,13 +199,13 @@ export function useRemotePlayer(
         remote.unregister(idRef.current);
         idRef.current = null;
       }
+      setId(null);
     };
   }, [active]);
 
   // 再生位置のほかが変わったら、少し待ってから、ほかの端末に知らせる。
   const key = state === null ? null : announced(state);
   useEffect(() => {
-    const id = idRef.current;
     if (key === null || id === null || key === lastAnnounced.current) {
       return;
     }
@@ -213,7 +219,7 @@ export function useRemotePlayer(
     }, announceDelayMs);
 
     return () => clearTimeout(timer);
-  }, [key]);
+  }, [id, key]);
 }
 
 // relayRemoteApi は、GraphQL でサーバーとやり取りする RemoteApi を返す。
@@ -263,7 +269,8 @@ function relayRemoteApi(environment: Environment): RemoteApi {
       ).catch(() => {});
     },
     subscribe: (id, onCommand) => {
-      // after に 0 を渡し、つなぎ直したときも、プレイヤーを登録した後に届いた操作をすべて受け取る。渡し終えたものは呼ぶ側で飛ばす。
+      // after に 0 を渡し、つなぎ直したときも、プレイヤーを登録した後に届いた操作をすべて受け取る (操作は 1 分残る)。
+      // graphql-sse は、つなぎ直すときも最初の変数のまま購読し直すので、最後に受け取った ID は渡せない。渡し終えたものは呼ぶ側で飛ばす。
       const disposable = requestSubscription<useRemotePlayerCommandsSubscription>(environment, {
         subscription: graphql`
           subscription useRemotePlayerCommandsSubscription($id: ID!, $after: ID) {
