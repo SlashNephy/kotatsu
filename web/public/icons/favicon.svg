@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- タブの小さい favicon でも見分けられるよう、icon.svg の夕焼け色の背景にみかんだけを載せる (#759)。 -->
+  <rect width="64" height="64" rx="14" fill="#f3b97a"/>
+  <circle cx="33.5" cy="37.6" r="18" fill="#c9844a"/>
+  <circle cx="32" cy="35.6" r="18" fill="#ec7f12"/>
+  <ellipse cx="25.16" cy="28.76" rx="4.32" ry="3.06" fill="#ffc57a" transform="rotate(-30 25.16 28.76)"/>
+  <path d="M32 17.6v-3.4" stroke="#6b4a2a" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M33 14.2q6-7.7 15.5-4.3q-4.3 8.6-15.5 4.3z" fill="#5b8a2e"/>
+</svg>
