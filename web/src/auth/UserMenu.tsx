@@ -74,6 +74,9 @@ export function UserMenu() {
         <Menu.Item component={Link} to="/captures">
           {t('nav.captures')}
         </Menu.Item>
+        <Menu.Item component={Link} to="/remote">
+          {t('nav.remote')}
+        </Menu.Item>
         <Menu.Item component={Link} to="/settings">
           {t('nav.settings')}
         </Menu.Item>
