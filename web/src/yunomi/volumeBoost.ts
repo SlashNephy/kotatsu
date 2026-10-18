@@ -126,10 +126,14 @@ export function setNormalize(video: HTMLMediaElement, enabled: boolean): void {
     normalizing.delete(video);
   }
   const booster = enabled || sources.has(video) ? boosterOf(video) : null;
-  if (booster !== null && booster.normalized !== enabled) {
-    connectSource(booster, enabled);
-    resumeContext();
+  if (booster === null) {
+    return;
   }
+  if (booster.normalized !== enabled) {
+    connectSource(booster, enabled);
+  }
+  // 作ったばかりの AudioContext は止まっていることがあるので、動かす。動かさないと、WebAudio を通した音が出ない。
+  resumeContext();
 }
 
 // isNormalized は、video の音を、今、補正しているかを返す。

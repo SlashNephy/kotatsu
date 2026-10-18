@@ -23,6 +23,7 @@ class FakeNode {
 // FakeAudioContext は、jsdom にない AudioContext の代わり。
 class FakeAudioContext {
   state = 'running';
+  resumed = 0;
   readonly destination = new FakeNode('destination');
   createGain() {
     return new FakeNode('gain');
@@ -34,6 +35,9 @@ class FakeAudioContext {
     return new FakeNode('source');
   }
   resume() {
+    this.resumed += 1;
+    this.state = 'running';
+
     return Promise.resolve();
   }
 }
@@ -92,5 +96,23 @@ describe('setNormalize', () => {
     window.dispatchEvent(new Event('pointerdown'));
     resumePendingBoost(video);
     expect(isNormalized(video)).toBe(true);
+  });
+
+  test('入れたときに、止まっている AudioContext を動かす', async () => {
+    const contexts: FakeAudioContext[] = [];
+    class SuspendedContext extends FakeAudioContext {
+      constructor() {
+        super();
+        this.state = 'suspended';
+        contexts.push(this);
+      }
+    }
+    vi.stubGlobal('AudioContext', SuspendedContext);
+    const { setNormalize } = await import('./volumeBoost');
+    window.dispatchEvent(new Event('pointerdown'));
+
+    setNormalize(document.createElement('video'), true);
+
+    expect(contexts[0]?.resumed).toBe(1);
   });
 });
