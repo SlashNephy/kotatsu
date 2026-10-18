@@ -219,3 +219,61 @@ func (r *Resolver) subscribeViewerSettings(ctx context.Context) (<-chan int, err
 
 	return out, nil
 }
+
+// subscribeViewerEvents は、データの変更、設定の版数、未読の通知の数を、1 つの購読にまとめて送る。
+// どれかの購読が終わったら、まとめた購読も終え、クライアントにつなぎ直させる。
+func (r *Resolver) subscribeViewerEvents(ctx context.Context) (<-chan *model.ViewerEvent, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	data, err := r.subscribeDataChanges(ctx)
+	if err != nil {
+		cancel()
+
+		return nil, err
+	}
+	settings, err := r.subscribeViewerSettings(ctx)
+	if err != nil {
+		cancel()
+
+		return nil, err
+	}
+	unread, err := r.subscribeUnreadNotificationCount(ctx)
+	if err != nil {
+		cancel()
+
+		return nil, err
+	}
+	out := make(chan *model.ViewerEvent, cap(data)+2)
+	go func() {
+		defer close(out)
+		defer cancel()
+		for {
+			var event *model.ViewerEvent
+			select {
+			case <-ctx.Done():
+				return
+			case change, ok := <-data:
+				if !ok {
+					return
+				}
+				event = &model.ViewerEvent{DataChange: change, ViewerSettingsVersion: nil, UnreadNotificationCount: nil}
+			case version, ok := <-settings:
+				if !ok {
+					return
+				}
+				event = &model.ViewerEvent{DataChange: nil, ViewerSettingsVersion: &version, UnreadNotificationCount: nil}
+			case count, ok := <-unread:
+				if !ok {
+					return
+				}
+				event = &model.ViewerEvent{DataChange: nil, ViewerSettingsVersion: nil, UnreadNotificationCount: &count}
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case out <- event:
+			}
+		}
+	}()
+
+	return out, nil
+}

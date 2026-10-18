@@ -10,7 +10,6 @@ import {
 import { graphql, useSubscription } from 'react-relay';
 
 import type { DataChangesSubscription } from './__generated__/DataChangesSubscription.graphql';
-import type { DataChangesViewerSettingsSubscription } from './__generated__/DataChangesViewerSettingsSubscription.graphql';
 import {
   applyChange,
   changeKey,
@@ -22,18 +21,24 @@ import {
 type Context = {
   state: ChangeState;
   dispatch: (change: { channel: ChangeChannel; version: number }) => void;
+  // unread は、未読の通知の数 (設計書 6.2)。分からない間 (つなぐ前や切れたとき) は null。
+  unread: number | null;
+  setUnread: (unread: number | null) => void;
 };
 
 const DataChangesContext = createContext<Context>({
   state: initialChangeState,
   dispatch: () => {},
+  unread: null,
+  setUnread: () => {},
 });
 
 // DataChangesProvider は、データの変更を、画面に配る (#503)。購読は DataChangesSubscriber が行う。
 // ログインしてから購読するので、購読とは分けて、画面全体を包む。
 export function DataChangesProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(applyChange, initialChangeState);
-  const value = useMemo(() => ({ state, dispatch }), [state]);
+  const [unread, setUnread] = useState<number | null>(null);
+  const value = useMemo(() => ({ state, dispatch, unread, setUnread }), [state, unread]);
 
   return <DataChangesContext.Provider value={value}>{children}</DataChangesContext.Provider>;
 }
@@ -43,54 +48,55 @@ export function useDataChangeDispatch(): Context['dispatch'] {
   return useContext(DataChangesContext).dispatch;
 }
 
-// DataChangesSubscriber は、dataChanged を購読し、届いた変更を DataChangesProvider に渡す。ログインしている間だけ置く。
+// useUnreadNotificationCount は、未読の通知の数を返す。分からない間は null。
+export function useUnreadNotificationCount(): number | null {
+  return useContext(DataChangesContext).unread;
+}
+
+// DataChangesSubscriber は、ログイン中のユーザーへの知らせを購読し、DataChangesProvider に渡す。ログインしている間だけ置く。
+// データの変更、ログイン中のユーザーの設定 (通知の設定、番組表ビュー、プレイヤーの設定、第二要素、パスキー、セッション) の版数、
+// 未読の通知の数を、1 つの接続でまとめて受け取る。HTTP/1.1 では、ブラウザが同じホストに同時に開く接続は 6 本までなので、
+// 映像やデータ放送の接続のために、購読の接続の数を抑える。
 export function DataChangesSubscriber() {
-  const dispatch = useDataChangeDispatch();
+  const { dispatch, setUnread } = useContext(DataChangesContext);
   const config = useMemo(
     () => ({
       subscription: graphql`
         subscription DataChangesSubscription {
-          dataChanged {
-            channel
-            version
+          viewerEvents {
+            dataChange {
+              channel
+              version
+            }
+            viewerSettingsVersion
+            unreadNotificationCount
           }
         }
       `,
       variables: {},
       onNext: (response: DataChangesSubscription['response'] | null | undefined) => {
-        const change = response?.dataChanged;
+        const event = response?.viewerEvents;
+        if (!event) {
+          return;
+        }
+        const change = event.dataChange;
         // 新しい種類がサーバーに足されても、知らない種類は無視する。
         if (change && change.channel !== '%future added value') {
           dispatch({ channel: change.channel, version: change.version });
         }
+        if (event.viewerSettingsVersion != null) {
+          dispatch({ channel: 'VIEWER_SETTINGS', version: event.viewerSettingsVersion });
+        }
+        if (event.unreadNotificationCount != null) {
+          setUnread(event.unreadNotificationCount);
+        }
       },
-      // 切れても、画面は今の内容のまま使える。つなぎ直したときに、切れている間の変更を数える。
-      onError: () => {},
+      // 切れても、画面は今の内容のまま使える。つなぎ直したときに、切れている間の変更を数える。未読の数は分からなくなる。
+      onError: () => setUnread(null),
     }),
-    [dispatch],
+    [dispatch, setUnread],
   );
   useSubscription<DataChangesSubscription>(config);
-  // ログイン中のユーザーの設定 (通知の設定、番組表ビュー、プレイヤーの設定、第二要素、パスキー、セッション) も、
-  // ほかの端末で変えたら読み直す。
-  const viewerConfig = useMemo(
-    () => ({
-      subscription: graphql`
-        subscription DataChangesViewerSettingsSubscription {
-          viewerSettingsChanged
-        }
-      `,
-      variables: {},
-      onNext: (response: DataChangesViewerSettingsSubscription['response'] | null | undefined) => {
-        const version = response?.viewerSettingsChanged;
-        if (version !== undefined) {
-          dispatch({ channel: 'VIEWER_SETTINGS', version });
-        }
-      },
-      onError: () => {},
-    }),
-    [dispatch],
-  );
-  useSubscription<DataChangesViewerSettingsSubscription>(viewerConfig);
 
   return null;
 }

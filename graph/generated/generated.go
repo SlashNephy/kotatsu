@@ -753,6 +753,7 @@ type ComplexityRoot struct {
 		PlayerCommands          func(childComplexity int, id string, after *string) int
 		PlayersChanged          func(childComplexity int) int
 		UnreadNotificationCount func(childComplexity int) int
+		ViewerEvents            func(childComplexity int) int
 		ViewerSettingsChanged   func(childComplexity int) int
 	}
 
@@ -829,6 +830,12 @@ type ComplexityRoot struct {
 		ID          func(childComplexity int) int
 		Role        func(childComplexity int) int
 		Username    func(childComplexity int) int
+	}
+
+	ViewerEvent struct {
+		DataChange              func(childComplexity int) int
+		UnreadNotificationCount func(childComplexity int) int
+		ViewerSettingsVersion   func(childComplexity int) int
 	}
 
 	WatchReminderSettings struct {
@@ -1011,6 +1018,7 @@ type ServiceResolver interface {
 }
 type SubscriptionResolver interface {
 	Heartbeat(ctx context.Context) (<-chan *time.Time, error)
+	ViewerEvents(ctx context.Context) (<-chan *model.ViewerEvent, error)
 	DataChanged(ctx context.Context) (<-chan *model.DataChange, error)
 	UnreadNotificationCount(ctx context.Context) (<-chan int, error)
 	ViewerSettingsChanged(ctx context.Context) (<-chan int, error)
@@ -4295,6 +4303,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Subscription.UnreadNotificationCount(childComplexity), true
+	case "Subscription.viewerEvents":
+		if e.ComplexityRoot.Subscription.ViewerEvents == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Subscription.ViewerEvents(childComplexity), true
 	case "Subscription.viewerSettingsChanged":
 		if e.ComplexityRoot.Subscription.ViewerSettingsChanged == nil {
 			break
@@ -4581,6 +4595,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.User.Username(childComplexity), true
+
+	case "ViewerEvent.dataChange":
+		if e.ComplexityRoot.ViewerEvent.DataChange == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ViewerEvent.DataChange(childComplexity), true
+	case "ViewerEvent.unreadNotificationCount":
+		if e.ComplexityRoot.ViewerEvent.UnreadNotificationCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ViewerEvent.UnreadNotificationCount(childComplexity), true
+	case "ViewerEvent.viewerSettingsVersion":
+		if e.ComplexityRoot.ViewerEvent.ViewerSettingsVersion == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ViewerEvent.ViewerSettingsVersion(childComplexity), true
 
 	case "WatchReminderSettings.minutesBefore":
 		if e.ComplexityRoot.WatchReminderSettings.MinutesBefore == nil {
@@ -5057,7 +5090,22 @@ type DataChange {
   version: Int!
 }
 
+"""
+ヘッダーで購読する、ログイン中のユーザーへの知らせ (設計書 9.1)。1 つの知らせには、どれか 1 つだけが入る。
+dataChanged、viewerSettingsChanged、unreadNotificationCount を、1 つの接続でまとめて送る。
+"""
+type ViewerEvent {
+  dataChange: DataChange
+  viewerSettingsVersion: Int
+  unreadNotificationCount: Int
+}
+
 extend type Subscription {
+  """
+  dataChanged、viewerSettingsChanged、unreadNotificationCount を、1 つの接続でまとめて購読する (設計書 9.1)。
+  HTTP/1.1 では、ブラウザが同じホストに同時に開く接続は 6 本までなので、画面が開く SSE の数を抑える。
+  """
+  viewerEvents: ViewerEvent!
   """
   データの変更 (設計書 9.1)。購読を始めたときに、すべての種類の今の版数を送り、その後は版数が上がった種類を送る。
   どの tenban で起きた変更も届く。
@@ -8509,6 +8557,18 @@ func (ec *executionContext) childFields_User(ctx context.Context, field graphql.
 		return ec.fieldContext_User_avatarUrl(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
+}
+
+func (ec *executionContext) childFields_ViewerEvent(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "dataChange":
+		return ec.fieldContext_ViewerEvent_dataChange(ctx, field)
+	case "viewerSettingsVersion":
+		return ec.fieldContext_ViewerEvent_viewerSettingsVersion(ctx, field)
+	case "unreadNotificationCount":
+		return ec.fieldContext_ViewerEvent_unreadNotificationCount(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ViewerEvent", field.Name)
 }
 
 func (ec *executionContext) childFields_WatchReminderSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -23279,6 +23339,38 @@ func (ec *executionContext) fieldContext_Subscription_heartbeat(_ context.Contex
 	return graphql.NewScalarFieldContext("Subscription", field, true, true, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _Subscription_viewerEvents(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_viewerEvents(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Subscription().ViewerEvents(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ViewerEvent) graphql.Marshaler {
+			return ec.marshalNViewerEvent2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐViewerEvent(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_viewerEvents(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ViewerEvent(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Subscription_dataChanged(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
 	return graphql.ResolveFieldStream(
 		ctx,
@@ -24529,6 +24621,84 @@ func (ec *executionContext) _User_avatarUrl(ctx context.Context, field graphql.C
 }
 func (ec *executionContext) fieldContext_User_avatarUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("User", field, true, true, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ViewerEvent_dataChange(ctx context.Context, field graphql.CollectedField, obj *model.ViewerEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ViewerEvent_dataChange(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DataChange, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DataChange) graphql.Marshaler {
+			return ec.marshalODataChange2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐDataChange(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ViewerEvent_dataChange(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ViewerEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DataChange(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ViewerEvent_viewerSettingsVersion(ctx context.Context, field graphql.CollectedField, obj *model.ViewerEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ViewerEvent_viewerSettingsVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ViewerSettingsVersion, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ViewerEvent_viewerSettingsVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ViewerEvent", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ViewerEvent_unreadNotificationCount(ctx context.Context, field graphql.CollectedField, obj *model.ViewerEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ViewerEvent_unreadNotificationCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UnreadNotificationCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ViewerEvent_unreadNotificationCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ViewerEvent", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _WatchReminderSettings_minutesBefore(ctx context.Context, field graphql.CollectedField, obj *model.WatchReminderSettings) (ret graphql.Marshaler) {
@@ -34216,6 +34386,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	switch fields[0].Name {
 	case "heartbeat":
 		return ec._Subscription_heartbeat(ctx, fields[0])
+	case "viewerEvents":
+		return ec._Subscription_viewerEvents(ctx, fields[0])
 	case "dataChanged":
 		return ec._Subscription_dataChanged(ctx, fields[0])
 	case "unreadNotificationCount":
@@ -34798,6 +34970,54 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var viewerEventImplementors = []string{"ViewerEvent"}
+
+func (ec *executionContext) _ViewerEvent(ctx context.Context, sel ast.SelectionSet, obj *model.ViewerEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, viewerEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ViewerEvent")
+		case "dataChange":
+			out.Values[i] = ec._ViewerEvent_dataChange(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "viewerSettingsVersion":
+			out.Values[i] = ec._ViewerEvent_viewerSettingsVersion(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "unreadNotificationCount":
+			out.Values[i] = ec._ViewerEvent_unreadNotificationCount(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -37529,6 +37749,16 @@ func (ec *executionContext) marshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotat
 	return v
 }
 
+func (ec *executionContext) marshalNViewerEvent2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐViewerEvent(ctx context.Context, sel ast.SelectionSet, v *model.ViewerEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ViewerEvent(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNWatchReminderSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐWatchReminderSettings(ctx context.Context, sel ast.SelectionSet, v *model.WatchReminderSettings) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -37868,6 +38098,13 @@ func (ec *executionContext) unmarshalOCommentSettingsInput2ᚖgithubᚗcomᚋSla
 	}
 	res, err := ec.unmarshalInputCommentSettingsInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalODataChange2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐDataChange(ctx context.Context, sel ast.SelectionSet, v *model.DataChange) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._DataChange(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOFloat2ᚖfloat64(ctx context.Context, v any) (*float64, error) {
