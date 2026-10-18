@@ -27,5 +27,10 @@ func (r *Resolver) serviceJikkyo(ctx context.Context, service *model.Service) *m
 		return nil
 	}
 
-	return &model.JikkyoChannel{ID: channel.ID, Name: channel.Name}
+	result := &model.JikkyoChannel{ID: channel.ID, Name: channel.Name, Force: nil, Viewers: nil}
+	if channel.Activity != nil {
+		result.Force, result.Viewers = new(channel.Activity.Force), new(channel.Activity.Viewers)
+	}
+
+	return result
 }

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import {
   appendComment,
+  liveForce,
   countUntil,
   listedUntil,
   maxListed,
@@ -89,5 +90,25 @@ describe('countUntil と listedUntil', () => {
 
     expect(listed).toHaveLength(maxListed);
     expect(listed[0]).toEqual({ index: 10, comment: many[10] });
+  });
+});
+
+describe('liveForce', () => {
+  test.each([
+    {
+      name: 'つないで 1 分を過ぎたら、直近 1 分の数',
+      arrivals: [1_000, 55_000, 70_000, 100_000],
+      now: 110_000,
+      want: 3,
+    },
+    {
+      name: '1 分たたない間は、1 分あたりに直す',
+      arrivals: [1_000, 5_000, 20_000],
+      now: 30_000,
+      want: 6,
+    },
+    { name: 'つないで 10 秒たたない間は出さない', arrivals: [1_000], now: 9_000, want: null },
+  ])('$name', ({ arrivals, now, want }) => {
+    expect(liveForce(arrivals, now, 0)).toBe(want);
   });
 });

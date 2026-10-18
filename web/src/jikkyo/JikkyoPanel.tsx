@@ -9,13 +9,15 @@ type Props = {
   channelName: string;
   status: SessionStatus | null;
   onPost: (text: string) => Promise<void>;
+  // force は、実況の勢い (1 分あたりのコメントの数。#490)。まだ数えていなければ null。
+  force?: number | null;
 };
 
 // maxLength は、投稿できるコメントの長さの上限。ニコニコ実況と同じにする。
 const maxLength = 75;
 
 // JikkyoPanel は、実況のつながり具合と、コメントを投稿する欄 (設計書 7.4)。
-export function JikkyoPanel({ channelName, status, onPost }: Props) {
+export function JikkyoPanel({ channelName, status, onPost, force = null }: Props) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
   const [posting, setPosting] = useState(false);
@@ -79,6 +81,11 @@ export function JikkyoPanel({ channelName, status, onPost }: Props) {
             : t('jikkyo.disconnected', {
                 seconds: status.kind === 'disconnected' ? status.retryIn : 0,
               })}
+        </Text>
+      )}
+      {connected && force !== null && (
+        <Text size="xs" c="dimmed" mt={4} title={t('jikkyo.forceHelp')}>
+          {t('jikkyo.force', { count: force })}
         </Text>
       )}
     </form>

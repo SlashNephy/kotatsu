@@ -63,3 +63,20 @@ export function listedUntil(
 
   return shown.reverse();
 }
+
+// forceWindow は、勢いを数える時間 (ミリ秒)。勢いは、1 分あたりのコメントの数。
+const forceWindow = 60_000;
+// minForceWindow は、勢いを出すまでに数える最も短い時間 (ミリ秒)。つないだ直後は、少ないコメントから大きく外れた値を出さない。
+const minForceWindow = 10_000;
+
+// liveForce は、ライブで届いたコメントの時刻 arrivals (ミリ秒、古い順) から、今 now の勢いを返す (#490)。
+// つないでから (since) 1 分たたない間は、それまでに届いた数を 1 分あたりに直す。10 秒たたない間は null を返す。
+export function liveForce(arrivals: readonly number[], now: number, since: number): number | null {
+  const span = Math.min(now - since, forceWindow);
+  if (span < minForceWindow) {
+    return null;
+  }
+  const count = arrivals.filter((at) => at > now - forceWindow && at <= now).length;
+
+  return Math.round((count * forceWindow) / span);
+}

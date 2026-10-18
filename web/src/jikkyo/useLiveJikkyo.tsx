@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
-import { appendComment, type ListedComment } from './commentList';
+import { appendComment, liveForce, type ListedComment } from './commentList';
 import { CommentCanvas, type CommentCanvasHandle } from './CommentCanvas';
 import { compileMute, defaultCommentSettings, type CommentSettings } from './comments';
 import { NXJikkyoSession, type SessionStatus } from './session';
@@ -37,6 +37,8 @@ export function useLiveJikkyo(
   status: SessionStatus | null;
   // comments は、届いたコメントの一覧 (#489)。新しいものが末尾。
   comments: readonly ListedComment[];
+  // force は、届いたコメントから数えた勢い (1 分あたりのコメントの数。#490)。つないだ直後と、つないでいない間は null。
+  force: number | null;
   post: (text: string) => Promise<void>;
 } {
   const canvas = useRef<CommentCanvasHandle | null>(null);
@@ -46,6 +48,9 @@ export function useLiveJikkyo(
   const sessionRef = useRef<NXJikkyoSession | null>(null);
   const [status, setStatus] = useState<SessionStatus | null>(null);
   const [comments, setComments] = useState<readonly ListedComment[]>([]);
+  // arrivals は、直近に届いたコメントの時刻 (performance.now)。ミュートしたものも数える。勢いは、局の盛り上がりを表すからである。
+  const arrivals = useRef<number[]>([]);
+  const [force, setForce] = useState<number | null>(null);
   // ミュートは、届いたときの設定で決める。接続し直さないよう、ref で読む。
   const muted = useRef(compileMute(settings));
   muted.current = compileMute(settings);
@@ -56,6 +61,7 @@ export function useLiveJikkyo(
     }
     const session = new NXJikkyoSession(channelId, {
       onComment: (comment) => {
+        arrivals.current.push(comment.at);
         const time = (comment.at - origin.current) / 1000 + playbackDelay(videoRef.current);
         const drawn = {
           time,
@@ -75,11 +81,21 @@ export function useLiveJikkyo(
       onStatus: setStatus,
     });
     sessionRef.current = session;
+    // 勢いは、5 秒ごとに数え直す。コメントが届かなくなっても、下がっていくようにする。
+    const since = performance.now();
+    arrivals.current = [];
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      arrivals.current = arrivals.current.filter((at) => at > now - 60_000);
+      setForce(liveForce(arrivals.current, now, since));
+    }, 5_000);
 
     return () => {
       session.close();
       sessionRef.current = null;
+      window.clearInterval(timer);
       setStatus(null);
+      setForce(null);
     };
   }, [channelId, active, videoRef]);
 
@@ -127,6 +143,7 @@ export function useLiveJikkyo(
       ),
     status,
     comments: listed,
+    force,
     post,
   };
 }

@@ -852,7 +852,12 @@ function Live({
       )}
       {channel !== null && jikkyoEnabled && (
         <>
-          <JikkyoPanel channelName={channel.name} status={jikkyo.status} onPost={jikkyo.post} />
+          <JikkyoPanel
+            channelName={channel.name}
+            status={jikkyo.status}
+            onPost={jikkyo.post}
+            force={jikkyo.force}
+          />
           <CommentListToggle
             rows={() =>
               jikkyo.comments.map((comment) => ({

@@ -189,8 +189,10 @@ type ComplexityRoot struct {
 	}
 
 	JikkyoChannel struct {
-		ID   func(childComplexity int) int
-		Name func(childComplexity int) int
+		Force   func(childComplexity int) int
+		ID      func(childComplexity int) int
+		Name    func(childComplexity int) int
+		Viewers func(childComplexity int) int
 	}
 
 	Keyword struct {
@@ -1420,6 +1422,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Instance.StartedAt(childComplexity), true
 
+	case "JikkyoChannel.force":
+		if e.ComplexityRoot.JikkyoChannel.Force == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JikkyoChannel.Force(childComplexity), true
 	case "JikkyoChannel.id":
 		if e.ComplexityRoot.JikkyoChannel.ID == nil {
 			break
@@ -1432,6 +1440,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.JikkyoChannel.Name(childComplexity), true
+	case "JikkyoChannel.viewers":
+		if e.ComplexityRoot.JikkyoChannel.Viewers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JikkyoChannel.Viewers(childComplexity), true
 
 	case "Keyword.caseSensitive":
 		if e.ComplexityRoot.Keyword.CaseSensitive == nil {
@@ -4727,6 +4741,10 @@ type JikkyoChannel {
   "jk1 などの ID。NX-Jikkyo の WebSocket の URL に使う。"
   id: String!
   name: String!
+  "勢い (1 分あたりのコメントの数。#490)。NX-Jikkyo の値を 1 分ほど使い回す。放送中のスレッドがなければ null。"
+  force: Int
+  "放送中のスレッドを見ている人の数。放送中のスレッドがなければ null。"
+  viewers: Int
 }
 
 """
@@ -6826,6 +6844,10 @@ func (ec *executionContext) childFields_JikkyoChannel(ctx context.Context, field
 		return ec.fieldContext_JikkyoChannel_id(ctx, field)
 	case "name":
 		return ec.fieldContext_JikkyoChannel_name(ctx, field)
+	case "force":
+		return ec.fieldContext_JikkyoChannel_force(ctx, field)
+	case "viewers":
+		return ec.fieldContext_JikkyoChannel_viewers(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type JikkyoChannel", field.Name)
 }
@@ -11066,6 +11088,52 @@ func (ec *executionContext) _JikkyoChannel_name(ctx context.Context, field graph
 }
 func (ec *executionContext) fieldContext_JikkyoChannel_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("JikkyoChannel", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _JikkyoChannel_force(ctx context.Context, field graphql.CollectedField, obj *model.JikkyoChannel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JikkyoChannel_force(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Force, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_JikkyoChannel_force(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JikkyoChannel", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _JikkyoChannel_viewers(ctx context.Context, field graphql.CollectedField, obj *model.JikkyoChannel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JikkyoChannel_viewers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Viewers, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_JikkyoChannel_viewers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JikkyoChannel", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _Keyword_text(ctx context.Context, field graphql.CollectedField, obj *model.Keyword) (ret graphql.Marshaler) {
@@ -26523,6 +26591,16 @@ func (ec *executionContext) _JikkyoChannel(ctx context.Context, sel ast.Selectio
 		case "name":
 			out.Values[i] = ec._JikkyoChannel_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "force":
+			out.Values[i] = ec._JikkyoChannel_force(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "viewers":
+			out.Values[i] = ec._JikkyoChannel_viewers(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:

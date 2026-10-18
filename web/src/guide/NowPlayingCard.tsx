@@ -18,10 +18,18 @@ type Props = {
   serviceLogoUrl: string | null;
   // program は、放送中の番組。番組がなければ null。
   program: { name: string; startAt: string; endAt: string } | null;
+  // force は、実況の勢い (1 分あたりのコメントの数。#490)。出さないか、分からなければ null。
+  force?: number | null;
 };
 
 // NowPlayingCard は、サービスと放送中の番組のカード。押すと、そのサービスのライブ視聴を開く。ホームとライブ視聴の一覧で使う。
-export function NowPlayingCard({ serviceId, serviceName, serviceLogoUrl, program }: Props) {
+export function NowPlayingCard({
+  serviceId,
+  serviceName,
+  serviceLogoUrl,
+  program,
+  force = null,
+}: Props) {
   const { t } = useTranslation();
 
   return (
@@ -44,6 +52,7 @@ export function NowPlayingCard({ serviceId, serviceName, serviceLogoUrl, program
           {t('home.duration', {
             minutes: Math.round((Date.parse(program.endAt) - Date.parse(program.startAt)) / 60_000),
           })}
+          {force !== null && <> · {t('jikkyo.force', { count: force })}</>}
         </Text>
       )}
     </Card>
