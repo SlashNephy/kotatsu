@@ -155,6 +155,28 @@ type PinnedService struct {
 	CreatedAt time.Time
 }
 
+type Player struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	SessionID  uuid.UUID
+	State      []byte
+	StartedAt  time.Time
+	LastSeenAt time.Time
+}
+
+type PlayerCommand struct {
+	ID        int64
+	PlayerID  uuid.UUID
+	Command   []byte
+	CreatedAt time.Time
+}
+
+type PlayerVersion struct {
+	UserID    uuid.UUID
+	Version   int64
+	UpdatedAt time.Time
+}
+
 type Program struct {
 	ServiceID             int64
 	EventID               int64

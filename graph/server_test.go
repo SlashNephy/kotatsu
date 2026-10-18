@@ -25,6 +25,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/password"
 	"github.com/SlashNephy/kotatsu/internal/password/passwordtest"
+	"github.com/SlashNephy/kotatsu/internal/player"
 	"github.com/SlashNephy/kotatsu/internal/webhook"
 	"github.com/SlashNephy/kotatsu/internal/webpush"
 )
@@ -147,6 +148,7 @@ func newFixtureWith(t *testing.T, opts *graph.Options, watchChanges bool) *fixtu
 	opts.WebPush, err = webpush.NewService(clk, "kotatsu-graph-test-application-key-0123456789")
 	require.NoError(t, err)
 	opts.APITokens = auth.NewAPITokens(pool, clk, audit.NewRecorder(clk))
+	opts.Players = player.NewService(pool, clk)
 	opts.Passkeys = auth.NewPasskeys(&auth.PasskeysOptions{
 		Clock: clk, Recorder: audit.NewRecorder(clk), Logger: slog.New(slog.DiscardHandler), Sessions: sessions,
 	})
