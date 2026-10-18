@@ -18,3 +18,23 @@ export function bubbleLeft(offset: number, width: number, bubble: number): numbe
 
   return Math.min(Math.max(offset, bubble / 2), width - bubble / 2);
 }
+
+// SeekBand は、シークバーに示す区間 (#479)。from と to は、録画の始まりからの秒。同じなら、その位置の印にする。
+// label は、カーソルを乗せたときに、吹き出しに添える文。
+export type SeekBand = { from: number; to: number; label: string };
+
+// bandAt は、seconds の位置にある区間を返す。印 (長さのない区間) は、前後 tolerance 秒の内なら当たったとみなす。なければ null。
+export function bandAt(
+  bands: readonly SeekBand[],
+  seconds: number,
+  tolerance: number,
+): SeekBand | null {
+  return (
+    bands.find((band) => {
+      // 区間は、バーの上で幅があるので、その中だけで当たったとみなす。
+      const margin = band.to > band.from ? 0 : tolerance;
+
+      return seconds >= band.from - margin && seconds <= band.to + margin;
+    }) ?? null
+  );
+}

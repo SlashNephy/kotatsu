@@ -956,6 +956,7 @@
     "play": "再生"
   },
   "player": {
+    "gapMark": "ここで {{duration}} 途切れています",
     "crop": {
       "scale": "L字の切り抜き",
       "none": "切り抜かない",

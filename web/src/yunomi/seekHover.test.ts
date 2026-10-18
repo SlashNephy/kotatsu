@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { bubbleLeft, hoverSeconds } from './seekHover';
+import { bandAt, bubbleLeft, hoverSeconds } from './seekHover';
 
 describe('hoverSeconds', () => {
   test.each([
@@ -25,5 +25,22 @@ describe('bubbleLeft', () => {
     { name: '吹き出しより狭いバーでは真ん中', offset: 10, width: 100, want: 50 },
   ])('$name', ({ offset, width, want }) => {
     expect(bubbleLeft(offset, width, 160)).toBe(want);
+  });
+});
+
+describe('bandAt', () => {
+  const bands = [
+    { from: 100, to: 100, label: '途切れ' },
+    { from: 200, to: 260, label: 'CM' },
+  ];
+
+  test.each([
+    { name: '印のちょうどの位置', seconds: 100, want: '途切れ' },
+    { name: '印の前後の許す範囲の内', seconds: 104, want: '途切れ' },
+    { name: '印から離れた位置', seconds: 110, want: null },
+    { name: '区間の中', seconds: 230, want: 'CM' },
+    { name: '区間の外は、近くても当たらない', seconds: 197, want: null },
+  ])('$name', ({ seconds, want }) => {
+    expect(bandAt(bands, seconds, 5)?.label ?? null).toBe(want);
   });
 });
