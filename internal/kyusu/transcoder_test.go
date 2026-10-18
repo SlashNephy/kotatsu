@@ -55,6 +55,7 @@ type probedStream struct {
 	CodecType string `json:"codec_type"`
 	CodecName string `json:"codec_name"`
 	Height    int    `json:"height"`
+	FrameRate string `json:"r_frame_rate"`
 }
 
 func probe(t *testing.T, path string) []probedStream {
@@ -77,14 +78,19 @@ func TestTranscoderWritesHLS(t *testing.T) {
 	t.Parallel()
 
 	transcoder := newTranscoder(t)
+	// frames30 と frames60 は、ffprobe が返すフレームレート (29.97fps と 59.94fps)。
+	const frames30, frames60 = "30000/1001", "60000/1001"
 	tests := []struct {
 		preset     string
 		wantCodec  string
 		wantHeight int
+		// wantFrameRate は、映像のフレームレート。test.ts は 29.97fps のインターレースなので、60fps のプリセットでは倍になる。
+		wantFrameRate string
 	}{
-		{preset: "360p", wantCodec: "h264", wantHeight: 360},
-		{preset: "720p", wantCodec: "h264", wantHeight: 720},
-		{preset: "360p-hevc", wantCodec: "hevc", wantHeight: 360},
+		{preset: "360p", wantCodec: string(kyusu.CodecH264), wantHeight: 360, wantFrameRate: frames30},
+		{preset: "720p", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames30},
+		{preset: "360p-hevc", wantCodec: string(kyusu.CodecHEVC), wantHeight: 360, wantFrameRate: frames30},
+		{preset: "720p60", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60},
 	}
 	for _, tt := range tests {
 		t.Run(tt.preset, func(t *testing.T) {
@@ -114,6 +120,7 @@ func TestTranscoderWritesHLS(t *testing.T) {
 			}
 			assert.Equal(t, tt.wantCodec, got["video"].CodecName)
 			assert.Equal(t, tt.wantHeight, got["video"].Height)
+			assert.Equal(t, tt.wantFrameRate, got["video"].FrameRate)
 			assert.Equal(t, "aac", got["audio"].CodecName)
 			assert.Equal(t, "timed_id3", got["data"].CodecName, "subtitles are carried as ID3 timed metadata")
 		})

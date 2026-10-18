@@ -177,17 +177,22 @@ func tsreadexArgs() []string {
 func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod *RunOptions) []string {
 	height := strconv.Itoa(preset.Height)
 	device := []string{}
-	filter := "yadif=0:-1:1,scale=-2:" + height
+	// yadif の mode は、フィールドごとに 1 フレームにするなら 1、フレームごとなら 0。
+	yadif := "yadif=0:-1:1"
+	if preset.Fields {
+		yadif = "yadif=1:-1:1"
+	}
+	filter := yadif + ",scale=-2:" + height
 	var encoder string
 	options := []string{}
 	switch cfg.Encoder {
 	case config.EncoderVAAPI:
 		device = []string{"-vaapi_device", cfg.VAAPIDevice}
-		filter = "yadif=0:-1:1,format=nv12,hwupload,scale_vaapi=w=-2:h=" + height
+		filter = yadif + ",format=nv12,hwupload,scale_vaapi=w=-2:h=" + height
 		encoder = map[Codec]string{CodecH264: "h264_vaapi", CodecHEVC: "hevc_vaapi"}[preset.Codec]
 	case config.EncoderQSV:
 		device = []string{"-init_hw_device", "qsv=hw", "-filter_hw_device", "hw"}
-		filter = "yadif=0:-1:1,format=nv12,hwupload=extra_hw_frames=64,scale_qsv=w=-2:h=" + height
+		filter = yadif + ",format=nv12,hwupload=extra_hw_frames=64,scale_qsv=w=-2:h=" + height
 		encoder = map[Codec]string{CodecH264: "h264_qsv", CodecHEVC: "hevc_qsv"}[preset.Codec]
 	case config.EncoderNVENC:
 		encoder = map[Codec]string{CodecH264: "h264_nvenc", CodecHEVC: "hevc_nvenc"}[preset.Codec]
