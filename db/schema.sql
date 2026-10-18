@@ -90,7 +90,7 @@ CREATE TABLE users (
 -- ユーザー名は大文字と小文字を区別せずに一意にする。citext は拡張を要するので使わない。
 CREATE UNIQUE INDEX users_lower_username_idx ON users (lower(username));
 
--- 読み取り専用の API トークン (#431、設計書 9.2)。EPGStation 互換の読み取り API (/api/*) を、外のクライアントから使うのに発行する。
+-- 読み取り専用の API トークン (#431、設計書 9.8)。EPGStation 互換の読み取り API (/api/*) を、外のクライアントから使うのに発行する。
 -- トークンは発行したときにだけ見せ、DB には SHA-256 だけを保存する。トークンは、発行したユーザーのロールのまま動く。
 CREATE TABLE api_tokens (
   id uuid PRIMARY KEY,

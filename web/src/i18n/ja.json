@@ -327,6 +327,7 @@
       "copy": "コピー",
       "copied": "コピーしました",
       "revokeApiToken": "取り消す",
+      "apiTokenTimes": "発行 {{created}}・最終利用 {{lastUsed}}",
       "sessions": "ログイン中の端末",
       "thisSession": "この端末",
       "unknownDevice": "不明な端末",

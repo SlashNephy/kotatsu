@@ -118,7 +118,7 @@ export function ApiTokens({ tokens, onChanged, run, fail, environment }: Props) 
                 {token.name}
               </Text>
               <Text size="xs" c="dimmed">
-                {t('settings.account.passkeyTimes', {
+                {t('settings.account.apiTokenTimes', {
                   created: dateTimeFormat.format(Date.parse(token.createdAt)),
                   lastUsed:
                     token.lastUsedAt == null

@@ -52,6 +52,21 @@ func TestAPITokens(t *testing.T) {
 	listed, err = tokens.List(t.Context(), viewer.ID)
 	require.NoError(t, err)
 	assert.Equal(t, testNow(), listed[0].LastUsedAt.UTC())
+	clk.Advance(30 * time.Second)
+	_, err = tokens.Authenticate(t.Context(), token)
+	require.NoError(t, err)
+	listed, err = tokens.List(t.Context(), viewer.ID)
+	require.NoError(t, err)
+	assert.Equal(t, testNow().Add(time.Minute), listed[0].LastUsedAt.UTC())
+
+	// 新しい順に並べる。
+	_, newer, err := tokens.Create(t.Context(), actor, viewer.ID, "iPhone の kiririn")
+	require.NoError(t, err)
+	listed, err = tokens.List(t.Context(), viewer.ID)
+	require.NoError(t, err)
+	require.Len(t, listed, 2)
+	assert.Equal(t, []uuid.UUID{newer.ID, record.ID}, []uuid.UUID{listed[0].ID, listed[1].ID})
+	require.NoError(t, tokens.Delete(t.Context(), actor, viewer.ID, newer.ID))
 
 	// DB にはトークンそのものを残さない。
 	var stored int
