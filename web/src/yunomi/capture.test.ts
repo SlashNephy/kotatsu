@@ -117,4 +117,18 @@ describe('captureTexts', () => {
   ])('$name', ({ programName, want }) => {
     expect(captureTexts(time, 'NHK総合1・東京', programName)).toEqual(want);
   });
+
+  test.each([
+    {
+      name: '字幕が出ていれば、Description に書く',
+      caption: 'こんにちは\n元気？',
+      want: 'こんにちは\n元気？',
+    },
+    { name: '字幕が出ていなければ、Description は書かない', caption: null, want: undefined },
+    { name: '空の字幕も書かない', caption: '', want: undefined },
+  ])('$name', ({ caption, want }) => {
+    const texts = captureTexts(time, 'NHK総合1・東京', 'ニュース７', caption);
+
+    expect(texts.find((text) => text.keyword === 'Description')?.text).toBe(want);
+  });
 });

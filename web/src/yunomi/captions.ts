@@ -24,12 +24,17 @@ type Layer = {
 
 // textRecorder は、aribb24.js の TextRenderer を広げ、字幕を描くたびに、その文を onText に渡す描画器を作る。
 // aribb24.js は、字幕の時刻 (PTS) に合わせて、付けた描画器すべての render を呼ぶので、時刻を自前で合わせなくてよい。
-// 消すとき (clear) は渡さない。履歴には、出た字幕だけを残すためである。
+// 消すとき (clear) は、空の文を渡す。今出ている字幕をキャプチャに書き込むときに、消えたことを知るためである (#458)。
 function textRecorder(Base: typeof TextRenderer, onText: (text: string) => void): TextRenderer {
   class Recorder extends Base {
     override render(...args: Parameters<TextRenderer['render']>): void {
       super.render(...args);
       onText(this.getText());
+    }
+
+    override clear(): void {
+      super.clear();
+      onText('');
     }
   }
 
@@ -71,7 +76,7 @@ function loadCaptionFont(): Promise<void> {
 // createCaptions は、video の上に字幕を描く。描画用の canvas は container に置くので、container は position: relative にする。
 // aribb24.js と字幕のフォントは大きいので、ここから読み始める。読み終えるまでに届いた字幕は溜めておき、読み終えたら描く。
 // 読めなかったときは、字幕なしで再生を続ける。
-// onText は、字幕 (文字スーパーは除く) が出るたびに、その文を受け取る (#450)。
+// onText は、字幕 (文字スーパーは除く) が出るたびに、その文を受け取る (#450)。字幕が消えたら、空の文を受け取る。
 export function createCaptions(
   video: HTMLVideoElement,
   container: HTMLElement,

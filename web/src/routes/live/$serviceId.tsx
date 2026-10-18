@@ -35,7 +35,11 @@ import {
 } from '../../futon';
 import { CommentListToggle } from '../../jikkyo/CommentList';
 import { CaptionHistoryToggle } from '../../yunomi/CaptionHistory';
-import { appendLiveCaption, type CaptionEntry } from '../../yunomi/captionHistory';
+import {
+  appendLiveCaption,
+  normalizeCaption,
+  type CaptionEntry,
+} from '../../yunomi/captionHistory';
 import { formatClock } from '../../yunomi/position';
 import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
@@ -420,8 +424,13 @@ function Live({
   const [statsShown, setStatsShown] = useState(false);
   // captionEntries は、字幕の履歴 (#450)。局を変えたら、画面ごと作り直すので捨てる。
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
-  const onCaptionText = (text: string) =>
+  // currentCaption は、今出ている字幕の文。キャプチャに書き込む (#458)。
+  const currentCaption = useRef<string | null>(null);
+  const onCaptionText = (text: string) => {
+    const normalized = normalizeCaption(text);
+    currentCaption.current = normalized === '' ? null : normalized;
     setCaptionEntries((list) => appendLiveCaption(list, Date.now(), text));
+  };
   // externalOpen は、外部プレイヤー用の URL を発行するダイアログを出しているかどうか (#487)。
   const [externalOpen, setExternalOpen] = useState(false);
   // tuneRequest は、データ放送の文書が選局しようとしたサービス。確かめてから移る (#440)。
@@ -461,6 +470,7 @@ function Live({
     serviceName,
     programName,
     captureTime: Date.now,
+    caption: () => currentCaption.current,
   });
   const saveCapture = async () => {
     if ((await capture.capture('save')) === 'saved') {

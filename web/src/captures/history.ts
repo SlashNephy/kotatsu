@@ -17,6 +17,9 @@ export type CaptureEntry = {
   // position は、録画で撮ったときの再生位置 (録画の始まりからの秒)。ライブなら null。
   // 履歴を残し始めたときの版では持たないので、ないこともある。
   position?: number | null;
+  // caption は、撮ったときに出ていた字幕の文 (#458)。保存し直すときに、画像に書き込む。出ていなければ null。
+  // 書き込むようになる前の版では持たないので、ないこともある。
+  caption?: string | null;
   image: Blob;
 };
 

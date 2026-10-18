@@ -91,16 +91,23 @@ export function captureFileName(
 
 // captureTexts は、キャプチャの PNG に書き込む文字の情報を返す (#458)。
 // 番組名は、ファイル名と同じく囲み文字を外す。放送時刻は、PNG の仕様に従い RFC 1123 の形で書く。
+// caption は、撮ったときに出ていた字幕の文。出ていなければ null で、Description は書かない。
 export function captureTexts(
   time: number,
   serviceName: string,
   programName: string | null,
+  caption: string | null = null,
 ): PNGText[] {
-  return [
+  const texts: PNGText[] = [
     { keyword: 'Title', text: programName === null ? '' : splitProgramMarks(programName).name },
     { keyword: 'Source', text: serviceName },
     { keyword: 'Creation Time', text: new Date(time).toUTCString() },
   ];
+  if (caption !== null && caption !== '') {
+    texts.push({ keyword: 'Description', text: caption });
+  }
+
+  return texts;
 }
 
 // withCaptureTexts は、PNG の画像に、captureTexts の文字の情報を書き込む。
