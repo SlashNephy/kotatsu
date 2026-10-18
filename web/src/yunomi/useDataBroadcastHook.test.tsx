@@ -202,6 +202,64 @@ describe('useDataBroadcast', () => {
     }
   });
 
+  test('押し直しを回数で諦めた後に、次の文書を読んだら、また押し直す (#718)', () => {
+    vi.useFakeTimers();
+    try {
+      render(<Harness shown />);
+      const browser = fake.FakeBrowser.instances[0];
+      act(() => {
+        browser?.dispatchEvent(load);
+        browser?.dispatchEvent(new CustomEvent('invisible', { detail: true }));
+        vi.advanceTimersByTime(60_000);
+      });
+      // 共通の起動文書が、1 分ほど待っている間に、押し直しを諦める。
+      const gaveUpAt = browser?.pressed.length ?? 0;
+      expect(gaveUpAt).toBeGreaterThan(0);
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(browser?.pressed.length).toBe(gaveUpAt);
+
+      // 局の文書を読んだら、また押し、見えたら止める。
+      act(() => {
+        browser?.dispatchEvent(load);
+        browser?.dispatchEvent(new CustomEvent('invisible', { detail: true }));
+        vi.advanceTimersByTime(0);
+      });
+      expect(browser?.pressed.length).toBe(gaveUpAt + 1);
+      act(() => {
+        browser?.dispatchEvent(new CustomEvent('invisible', { detail: false }));
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(browser?.pressed.length).toBe(gaveUpAt + 1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('文書が見えて押すのを止めた後は、次の文書を読んでも押さない', () => {
+    vi.useFakeTimers();
+    try {
+      render(<Harness shown />);
+      const browser = fake.FakeBrowser.instances[0];
+      act(() => {
+        browser?.dispatchEvent(load);
+        browser?.dispatchEvent(new CustomEvent('invisible', { detail: false }));
+        vi.advanceTimersByTime(5000);
+      });
+      expect(browser?.pressed).toEqual([]);
+      // 見えている文書から、文書の中の操作で、隠れた文書へ移っても、勝手に押さない。
+      act(() => {
+        browser?.dispatchEvent(load);
+        browser?.dispatchEvent(new CustomEvent('invisible', { detail: true }));
+        vi.advanceTimersByTime(5000);
+      });
+      expect(browser?.pressed).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('出すのをやめても受け取りは続け、見えている文書なら d ボタンで最初の文書へ戻す', () => {
     vi.useFakeTimers();
     try {

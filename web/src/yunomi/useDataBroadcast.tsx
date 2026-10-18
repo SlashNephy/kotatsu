@@ -260,6 +260,10 @@ export function useDataBroadcast(
     // 見えない文書は、受け取り直すと同じ文書をもう一度読む。読み直したあとに d ボタンを受け取れるようになることが多いので、
     // load では止めずに押し続ける。
     let entering: 'idle' | 'pressing' | 'done' = 'idle';
+    // gaveUp は、押し直しを回数で諦めたこと。文書が見えた、利用者が操作した、などで止めたときは false のまま。
+    // テレビ東京の共通の起動文書は、初めての受信機では、NVRAM に印を書くまで 1 分ほど待ってから局の文書へ移る (#718)。
+    // 諦めた後に次の文書を読んだら、もう一度押し直す。
+    let gaveUp = false;
     let tries = 0;
     let enterTimer: ReturnType<typeof setTimeout> | null = null;
     const clearEnterTimer = () => {
@@ -271,6 +275,7 @@ export function useDataBroadcast(
     const stopEntering = () => {
       clearEnterTimer();
       entering = 'done';
+      gaveUp = false;
       setPressing(false);
     };
     stopEnteringRef.current = stopEntering;
@@ -282,6 +287,7 @@ export function useDataBroadcast(
         enterTimer = null;
         if (tries >= maxEnterTries) {
           stopEntering();
+          gaveUp = true;
 
           return;
         }
@@ -326,6 +332,11 @@ export function useDataBroadcast(
       setState('shown');
       loaded = true;
       justLoaded = true;
+      if (gaveUp) {
+        gaveUp = false;
+        entering = 'idle';
+        tries = 0;
+      }
       place();
       enter();
     });
