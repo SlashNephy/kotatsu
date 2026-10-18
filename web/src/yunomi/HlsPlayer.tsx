@@ -3,7 +3,8 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 
 import { cropStyle, noCrop, type Crop } from './crop';
 import { catchUpRate } from './liveCatchUp';
-import { createCaptions, defaultCaptionStyle, type Captions, type CaptionStyle } from './captions';
+import { createCaptions, type Captions } from './captions';
+import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import classes from './TsPlayer.module.css';
 
 type Props = {

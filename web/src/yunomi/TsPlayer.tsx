@@ -3,7 +3,8 @@ import { useEffect, useRef, type ReactNode, useState, type RefObject } from 'rea
 
 import { audioChoices, currentAudioChoice } from './audio';
 import { cropStyle, noCrop, type Crop } from './crop';
-import { createCaptions, defaultCaptionStyle, type Captions, type CaptionStyle } from './captions';
+import { createCaptions, type Captions } from './captions';
+import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import { deinterlacerCanvas } from './deinterlacer';
 import classes from './TsPlayer.module.css';
 

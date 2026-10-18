@@ -1,6 +1,9 @@
 import type { CanvasMainThreadRenderer, Controller, MPEGTSFeeder, TextRenderer } from 'aribb24.js';
 
 import { broadcastFontUrl } from './broadcastFont';
+import { defaultCaptionStyle, rendererColor, type CaptionStyle } from './captionStyle';
+
+export { rendererColor, type CaptionStyle } from './captionStyle';
 
 // Captions は、字幕と文字スーパーを、映像の上に描く (設計書 7.4)。
 // ブラウザの中で変換する経路では、プレイヤーが渡す private PES を、kyusu の経路では、hls.js が取り出す ID3 を渡す。
@@ -17,24 +20,6 @@ export type Captions = {
   reset: () => void;
   destroy: () => void;
 };
-
-// CaptionStyle は、字幕の見た目 (#491)。stroke なら、放送の指定によらず黒で縁取る。
-// backgroundOpacity は、背景を、放送の指定する色に代えて、この不透明度の黒で塗る。null なら、放送の指定どおり。
-export type CaptionStyle = { stroke: boolean; backgroundOpacity: number | null };
-
-export const defaultCaptionStyle: CaptionStyle = { stroke: false, backgroundOpacity: null };
-
-// rendererColor は、字幕の見た目を、aribb24.js の描画器の色の設定 (null なら放送の指定どおり) にする。
-export function rendererColor(style: CaptionStyle): {
-  stroke: string | null;
-  background: string | null;
-} {
-  return {
-    stroke: style.stroke ? 'black' : null,
-    background:
-      style.backgroundOpacity === null ? null : `rgba(0, 0, 0, ${style.backgroundOpacity})`,
-  };
-}
 
 // RendererWithOption は、aribb24.js の描画器のうち、描くたびに読み直す設定。型の上では隠れているので、ここで名前を付ける。
 type RendererWithOption = {
