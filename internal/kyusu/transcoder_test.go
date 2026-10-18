@@ -87,10 +87,10 @@ func TestTranscoderWritesHLS(t *testing.T) {
 		// wantFrameRate は、映像のフレームレート。test.ts は 29.97fps のインターレースなので、60fps のプリセットでは倍になる。
 		wantFrameRate string
 	}{
-		{preset: "360p", wantCodec: "h264", wantHeight: 360, wantFrameRate: frames30},
-		{preset: "720p", wantCodec: "h264", wantHeight: 720, wantFrameRate: frames30},
-		{preset: "360p-hevc", wantCodec: "hevc", wantHeight: 360, wantFrameRate: frames30},
-		{preset: "720p60", wantCodec: "h264", wantHeight: 720, wantFrameRate: frames60},
+		{preset: "360p", wantCodec: string(kyusu.CodecH264), wantHeight: 360, wantFrameRate: frames30},
+		{preset: "720p", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames30},
+		{preset: "360p-hevc", wantCodec: string(kyusu.CodecHEVC), wantHeight: 360, wantFrameRate: frames30},
+		{preset: "720p60", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60},
 	}
 	for _, tt := range tests {
 		t.Run(tt.preset, func(t *testing.T) {
