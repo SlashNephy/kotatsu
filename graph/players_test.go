@@ -25,6 +25,7 @@ const (
 	keyCommandType   = "type"
 	keyVolume        = "volume"
 	commandSeek      = "SEEK"
+	commandSetVolume = "SET_VOLUME"
 )
 
 type playerItem struct {
@@ -124,13 +125,15 @@ func TestPlayerRejectsInvalidInput(t *testing.T) {
 
 	tooLoud := liveState(false)
 	tooLoud[keyVolume] = 3
+	negative := liveState(false)
+	negative[keyVolume] = -0.1
 	tooMany := liveState(false)
 	keyGroups := make([]string, 9)
 	for i := range keyGroups {
 		keyGroups[i] = "basic"
 	}
 	tooMany["keyGroups"] = keyGroups
-	for _, state := range []map[string]any{tooLoud, tooMany} {
+	for _, state := range []map[string]any{tooLoud, negative, tooMany} {
 		assert.Equal(t, []string{codeBadUserInput}, f.query(t, registerPlayer, map[string]any{varState: state}, nil))
 	}
 
@@ -140,7 +143,9 @@ func TestPlayerRejectsInvalidInput(t *testing.T) {
 	}{
 		{name: "位置のないシーク", command: map[string]any{keyCommandType: commandSeek}},
 		{name: "負の位置", command: map[string]any{keyCommandType: commandSeek, "position": -1}},
-		{name: "大きすぎる音量", command: map[string]any{keyCommandType: "SET_VOLUME", keyVolume: 2.5}},
+		{name: "大きすぎる音量", command: map[string]any{keyCommandType: commandSetVolume, keyVolume: 2.5}},
+		{name: "負の音量", command: map[string]any{keyCommandType: commandSetVolume, keyVolume: -0.1}},
+		{name: "音声のない切り替え", command: map[string]any{keyCommandType: "SELECT_AUDIO"}},
 		{name: "値のないミュート", command: map[string]any{keyCommandType: "SET_MUTED"}},
 		{name: "キーのない押下", command: map[string]any{keyCommandType: "PRESS_KEY"}},
 	}
@@ -167,7 +172,7 @@ func TestPlayerCommands(t *testing.T) {
 	for _, command := range []map[string]any{
 		{keyCommandType: "PAUSE"},
 		{keyCommandType: commandSeek, "position": 120.5},
-		{keyCommandType: "SET_VOLUME", keyVolume: 0.5},
+		{keyCommandType: commandSetVolume, keyVolume: 0.5},
 	} {
 		require.Empty(t, remote.query(t, sendCommand, map[string]any{varID: playerID, varCommand: command}, nil))
 	}
@@ -180,7 +185,39 @@ func TestPlayerCommands(t *testing.T) {
 	require.Empty(t, f.query(t, updatePlayer, map[string]any{varID: playerID, varState: liveState(true), varAnnounce: true}, nil))
 	assert.JSONEq(t, `{"playersChanged":2}`, string(next(t, changes)))
 
+	// 取り消したら、ほかの端末に一覧を読み直させる。
+	require.Empty(t, f.query(t, unregisterPlayer, map[string]any{varID: playerID}, nil))
+	assert.JSONEq(t, `{"playersChanged":3}`, string(next(t, changes)))
+
 	// ほかのユーザーは、操作を送れない。
 	other := f.as(t, otherUser, auth.RoleMember)
 	assert.Equal(t, []string{codeNotFound}, other.query(t, sendCommand, map[string]any{varID: playerID, varCommand: map[string]any{keyCommandType: "PLAY"}}, nil))
+}
+
+// TestPlayerCommandsReplay は、つなぎ直すときに、最後に受け取った操作より後に届いた操作を、すべての種類について取りこぼさないことを確かめる。
+func TestPlayerCommandsReplay(t *testing.T) {
+	t.Parallel()
+
+	f := newFixtureWithChanges(t)
+	playerID := f.registerPlayer(t)
+	remote := f.withNewSession(t)
+	send := func(command map[string]any) {
+		t.Helper()
+
+		require.Empty(t, remote.query(t, sendCommand, map[string]any{varID: playerID, varCommand: command}, nil))
+	}
+	send(map[string]any{keyCommandType: "PLAY"})
+
+	// 1 つめの操作を受け取った後に切れ、その間に操作が届いた。
+	send(map[string]any{keyCommandType: "SELECT_AUDIO", "audio": "sub"})
+	send(map[string]any{keyCommandType: "PRESS_KEY", "key": "d"})
+	send(map[string]any{keyCommandType: "STOP"})
+	commands := f.subscribe(t, `subscription { playerCommands(id: "`+playerID+`", after: "1") { id type audio key } }`)
+	assert.JSONEq(t, `{"playerCommands":{"id":"2","type":"SELECT_AUDIO","audio":"sub","key":null}}`, string(next(t, commands)))
+	assert.JSONEq(t, `{"playerCommands":{"id":"3","type":"PRESS_KEY","audio":null,"key":"d"}}`, string(next(t, commands)))
+	assert.JSONEq(t, `{"playerCommands":{"id":"4","type":"STOP","audio":null,"key":null}}`, string(next(t, commands)))
+
+	// つないだ後に届いた操作も、続けて受け取る。
+	send(map[string]any{keyCommandType: "SET_MUTED", "muted": true})
+	assert.JSONEq(t, `{"playerCommands":{"id":"5","type":"SET_MUTED","audio":null,"key":null}}`, string(next(t, commands)))
 }

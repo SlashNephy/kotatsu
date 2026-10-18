@@ -130,6 +130,10 @@ extend type Mutation {
 extend type Subscription {
   "ログイン中のユーザーの、再生中のプレイヤーの一覧の版。変わったら、players を読み直す。"
   playersChanged: Int!
-  "このセッションのプレイヤーへの操作。購読を始めた後に届いたものを、届いた順に送る。"
-  playerCommands(id: ID!): PlayerCommand!
+  """
+  このセッションのプレイヤーへの操作を、届いた順に送る。after を渡せば、その操作より後に届いたものから送る。
+  つなぎ直すときは、最後に受け取った操作の id を渡し、つなぎ直す間に届いた操作を取りこぼさないようにする (操作は 1 分残す)。
+  渡さなければ、購読を始めた後に届いたものから送る。
+  """
+  playerCommands(id: ID!, after: ID): PlayerCommand!
 }

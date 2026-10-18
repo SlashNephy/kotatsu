@@ -750,7 +750,7 @@ type ComplexityRoot struct {
 	Subscription struct {
 		DataChanged             func(childComplexity int) int
 		Heartbeat               func(childComplexity int) int
-		PlayerCommands          func(childComplexity int, id string) int
+		PlayerCommands          func(childComplexity int, id string, after *string) int
 		PlayersChanged          func(childComplexity int) int
 		UnreadNotificationCount func(childComplexity int) int
 		ViewerSettingsChanged   func(childComplexity int) int
@@ -1015,7 +1015,7 @@ type SubscriptionResolver interface {
 	UnreadNotificationCount(ctx context.Context) (<-chan int, error)
 	ViewerSettingsChanged(ctx context.Context) (<-chan int, error)
 	PlayersChanged(ctx context.Context) (<-chan int, error)
-	PlayerCommands(ctx context.Context, id string) (<-chan *model.PlayerCommand, error)
+	PlayerCommands(ctx context.Context, id string, after *string) (<-chan *model.PlayerCommand, error)
 }
 type UserResolver interface {
 	AvatarURL(ctx context.Context, obj *model.User) (*string, error)
@@ -4282,7 +4282,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Subscription.PlayerCommands(childComplexity, args["id"].(string)), true
+		return e.ComplexityRoot.Subscription.PlayerCommands(childComplexity, args["id"].(string), args["after"].(*string)), true
 	case "Subscription.playersChanged":
 		if e.ComplexityRoot.Subscription.PlayersChanged == nil {
 			break
@@ -5853,8 +5853,12 @@ extend type Mutation {
 extend type Subscription {
   "ログイン中のユーザーの、再生中のプレイヤーの一覧の版。変わったら、players を読み直す。"
   playersChanged: Int!
-  "このセッションのプレイヤーへの操作。購読を始めた後に届いたものを、届いた順に送る。"
-  playerCommands(id: ID!): PlayerCommand!
+  """
+  このセッションのプレイヤーへの操作を、届いた順に送る。after を渡せば、その操作より後に届いたものから送る。
+  つなぎ直すときは、最後に受け取った操作の id を渡し、つなぎ直す間に届いた操作を取りこぼさないようにする (操作は 1 分残す)。
+  渡さなければ、購読を始めた後に届いたものから送る。
+  """
+  playerCommands(id: ID!, after: ID): PlayerCommand!
 }
 `, BuiltIn: false},
 	{Name: "../schema/recording_renames.graphqls", Input: `"""
@@ -10000,6 +10004,14 @@ func (ec *executionContext) field_Subscription_playerCommands_args(ctx context.C
 		return nil, err
 	}
 	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["after"] = arg1
 	return args, nil
 }
 
@@ -23378,7 +23390,7 @@ func (ec *executionContext) _Subscription_playerCommands(ctx context.Context, fi
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Subscription().PlayerCommands(ctx, fc.Args["id"].(string))
+			return ec.Resolvers.Subscription().PlayerCommands(ctx, fc.Args["id"].(string), fc.Args["after"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.PlayerCommand) graphql.Marshaler {

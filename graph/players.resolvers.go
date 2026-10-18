@@ -126,6 +126,6 @@ func (r *subscriptionResolver) PlayersChanged(ctx context.Context) (<-chan int, 
 }
 
 // PlayerCommands is the resolver for the playerCommands field.
-func (r *subscriptionResolver) PlayerCommands(ctx context.Context, id string) (<-chan *model.PlayerCommand, error) {
-	return r.subscribePlayerCommands(ctx, id)
+func (r *subscriptionResolver) PlayerCommands(ctx context.Context, id string, after *string) (<-chan *model.PlayerCommand, error) {
+	return r.subscribePlayerCommands(ctx, id, after)
 }
