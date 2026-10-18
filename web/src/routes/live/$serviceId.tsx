@@ -324,6 +324,7 @@ function Live({
     jikkyoEnabled,
     setJikkyoEnabled,
     comments: commentSettings,
+    muteUser,
   } = usePlayerSettings();
   const channel = data.node?.__typename === 'Service' ? (data.node.jikkyo ?? null) : null;
   const jikkyo = useLiveJikkyo(
@@ -858,8 +859,10 @@ function Live({
                 key: comment.key,
                 label: formatClock(comment.at),
                 content: comment.content,
+                ...(comment.userId === undefined ? {} : { userId: comment.userId }),
               }))
             }
+            onMuteUser={muteUser}
           />
         </>
       )}

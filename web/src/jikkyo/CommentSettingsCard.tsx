@@ -18,12 +18,11 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { usePlayerSettings, type CommentSettingsInput } from '../yunomi/usePlayerSettings';
-import type { KeywordMuteMatch } from './comments';
-
-const matches: readonly KeywordMuteMatch[] = ['PARTIAL', 'PREFIX', 'SUFFIX', 'EXACT', 'REGEX'];
-
-const isMatch = (value: string): value is KeywordMuteMatch =>
-  (matches as readonly string[]).includes(value);
+import {
+  isKeywordMuteMatch as isMatch,
+  keywordMuteMatches as matches,
+  type KeywordMuteMatch,
+} from './comments';
 
 // validRegExp は、正規表現として読めるかを返す。読めないものはミュートに使われないので、足す前に知らせる。
 const validRegExp = (pattern: string) => {

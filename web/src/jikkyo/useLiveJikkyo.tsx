@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import { appendComment, type ListedComment } from './commentList';
 import { CommentCanvas, type CommentCanvasHandle } from './CommentCanvas';
@@ -99,6 +99,20 @@ export function useLiveJikkyo(
     setComments((list) => appendComment(list, { at: Date.now(), content: text, mail: '184' }));
   };
 
+  // 届いた後にミュートしたユーザーやキーワードのコメントも、一覧から外す (#767)。
+  // ミュートの一覧は、ほかの設定を変えただけでも新しい配列で届くので、中身で比べる。
+  const muteKey = JSON.stringify([settings.mutedKeywords, settings.mutedUsers]);
+  const listed = useMemo(() => {
+    const [keywords, users] = JSON.parse(muteKey) as [CommentSettings['mutedKeywords'], string[]];
+    const isMuted = compileMute({
+      ...defaultCommentSettings,
+      mutedKeywords: keywords,
+      mutedUsers: users,
+    });
+
+    return comments.filter((comment) => !isMuted({ time: 0, mail: '', ...comment }));
+  }, [comments, muteKey]);
+
   return {
     overlay:
       channelId === null ? undefined : (
@@ -112,7 +126,7 @@ export function useLiveJikkyo(
         />
       ),
     status,
-    comments,
+    comments: listed,
     post,
   };
 }
