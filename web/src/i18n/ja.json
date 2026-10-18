@@ -1069,6 +1069,14 @@
       "etc": "その他の言語"
     }
   },
+  "captionHistory": {
+    "show": "字幕の履歴を出す",
+    "hide": "字幕の履歴を隠す",
+    "list": "字幕の履歴",
+    "empty": "まだ字幕は出ていません",
+    "copy": "字幕をコピー",
+    "seek": "{{time}} の字幕へ移る"
+  },
   "jikkyo": {
     "toggle": "実況",
     "toggleWith": "実況 ({{state}})",

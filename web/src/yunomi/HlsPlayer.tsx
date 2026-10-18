@@ -12,6 +12,8 @@ type Props = {
   live: boolean;
   // captions は、字幕と文字スーパーを出すかどうか。
   captions: boolean;
+  // onCaptionText は、字幕が出るたびに、その文を受け取る (#450)。字幕を出さない設定でも受け取る。
+  onCaptionText?: (text: string) => void;
   // startPosition は、録画で、読み始める位置 (秒)。画質を変えたときに、それまでの位置から続けるのに使う。
   startPosition?: number;
   onError?: (error: Error) => void;
@@ -36,6 +38,7 @@ export function HlsPlayer({
   videoRef,
   live,
   captions,
+  onCaptionText,
   startPosition,
   onError,
   onLoaded,
@@ -52,6 +55,9 @@ export function HlsPlayer({
   const frameRef = useRef<HTMLDivElement | null>(null);
   const captionsRef = useRef<Captions | null>(null);
   const showCaptions = useRef(captions);
+  // captionText は、字幕の文を渡す先。字幕は作り直さずに、渡す先だけを差し替える。
+  const captionText = useRef(onCaptionText);
+  captionText.current = onCaptionText;
   showCaptions.current = captions;
   // generation を変えると、hls.js を作り直して読み直す。ライブを長く一時停止してから再開したときに使う。
   const [generation, setGeneration] = useState(0);
@@ -70,7 +76,7 @@ export function HlsPlayer({
     videoRef.current = video;
     handlers.current.onVideo?.(video);
     // 字幕は、aribb24.js を読み終えるまで溜めておくので、最初のセグメントの字幕も落とさない。
-    const renderer = createCaptions(video, frame);
+    const renderer = createCaptions(video, frame, (text) => captionText.current?.(text));
     renderer.setVisible(showCaptions.current);
     captionsRef.current = renderer;
 
