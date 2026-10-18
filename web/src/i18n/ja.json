@@ -369,7 +369,8 @@
     "live": "ライブ",
     "menu": "メニュー",
     "account": "アカウント",
-    "captures": "キャプチャの履歴"
+    "captures": "キャプチャの履歴",
+    "remote": "リモコン"
   },
   "guide": {
     "watchLive": "{{name}}をライブ視聴する",
@@ -1417,6 +1418,26 @@
   "timeZone": {
     "tokyo": "日本時間",
     "other": "{{zone}} の時刻"
+  },
+  "remote": {
+    "title": "リモコン",
+    "error": "再生中のプレイヤーを読み込めませんでした",
+    "empty": "ほかの端末で再生しているプレイヤーはありません",
+    "emptyHint": "同じアカウントでログインしたほかの端末で、ライブ視聴か録画の再生を開くと、ここから操作できます",
+    "unknownDevice": "不明な端末",
+    "kindLive": "ライブ視聴",
+    "kindRecording": "録画",
+    "position": "再生位置",
+    "play": "再生",
+    "pause": "一時停止",
+    "rewind": "{{seconds}}秒戻る",
+    "forward": "{{seconds}}秒進む",
+    "volume": "音量",
+    "mute": "ミュート",
+    "unmute": "ミュートを解除",
+    "audio": "音声",
+    "showDataBroadcast": "データ放送を出す",
+    "stop": "プレイヤーを閉じる"
   },
   "captures": {
     "title": "キャプチャの履歴",
