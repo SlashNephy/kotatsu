@@ -6,7 +6,8 @@
 
 | ファイル | 内容 |
 | --- | --- |
-| `main-v6.svg` | 夕焼け色 (#f3b97a) の背景に、頭にみかんを載せた三毛猫の顔を描いた絵です。favicon とインストール用アイコンのすべてのサイズで使います。`web/public/icons/icon.svg` と同じものです。 |
+| `main-v6.svg` | 夕焼け色 (#f3b97a) の背景に、頭にみかんを載せた三毛猫の顔を描いた絵です。インストール用アイコンのすべてのサイズと、ヘッダーのロゴで使います。`web/public/icons/icon.svg` と同じものです。 |
+| `favicon-mikan.svg` | ブラウザのタブに出す favicon です。16px では猫の顔が潰れて見分けにくいので、`main-v6.svg` と同じ背景にみかんだけを載せています。背景に埋もれないよう、みかんを濃い橙にして右下に影を付けています (#759)。`web/public/icons/favicon.svg` と同じものです。 |
 | `main-v6-maskable.svg` | マスカブル版です。縮尺は `main-v6.svg` のままで、背景を全面に敷き、顔とみかんを半径 40% のセーフゾーンに収めています。`web/public/icons/icon-maskable-512.png` の元です。 |
 
 ## 候補
