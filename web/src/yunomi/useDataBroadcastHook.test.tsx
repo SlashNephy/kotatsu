@@ -3,6 +3,7 @@ import { useRef } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import classes from './TsPlayer.module.css';
+import { settleMs } from './settleDelay';
 import { RemoteKey, useDataBroadcast } from './useDataBroadcast';
 
 // FakeBrowser は、BMLBrowser の代わり。イベントを外から送り、映像の位置の有無を決められる。
@@ -150,6 +151,11 @@ describe('useDataBroadcast', () => {
       expect(getByTestId('receiving').textContent).toBe('true');
       act(() => {
         browser?.dispatchEvent(new CustomEvent('invisible', { detail: false }));
+      });
+      // 受信中の知らせは、消すのを少し遅らせる (#445)。
+      expect(getByTestId('receiving').textContent).toBe('true');
+      act(() => {
+        vi.advanceTimersByTime(settleMs);
       });
       expect(getByTestId('receiving').textContent).toBe('false');
     } finally {
