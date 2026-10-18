@@ -27,7 +27,7 @@ const secondsLimit = 100_000_000_000
 // eventIDDigits は、番組 ID で、イベント ID に割く桁。Mirakurun の番組 ID (サービス ID × 100000 + イベント ID) と同じにする。
 const eventIDDigits = 100000
 
-var errInvalidTime = errors.New("startAt and endAt must be integers")
+var errInvalidTime = errors.New("startAt and endAt must be integers, startAt must be before endAt, and the range must be at most 8 days")
 
 type configResponse struct {
 	// Broadcast は、放送波の種別ごとに、サービスがあるかどうか。
@@ -138,7 +138,8 @@ func (h *Handler) Schedules(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	from, errFrom := parseTime(query.Get("startAt"))
 	to, errTo := parseTime(query.Get("endAt"))
-	if errFrom != nil || errTo != nil || !from.Before(to) {
+	// 番組表の画面と同じく、一度に引ける時間帯の長さに上限を設ける。
+	if errFrom != nil || errTo != nil || !from.Before(to) || to.Sub(from) > epg.MaxGuideRange {
 		http.Error(w, errInvalidTime.Error(), http.StatusBadRequest)
 
 		return

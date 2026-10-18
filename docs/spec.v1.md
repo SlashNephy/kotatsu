@@ -1167,7 +1167,7 @@ EPGStationのAPIで番組表と録画を読むクライアント（[kiririn](htt
 | `GET /api/config` | 放送波の種別（GR、BS、CS、SKY）ごとに、サービスがあるかどうか（`broadcast`） |
 | `GET /api/channels` | 番組表に出すサービス（非表示のサービスと、映像も音声も流さないサービスを除きます）。チャンネルのIDは、Kotatsuのサービス ID（[3.2](#32-識別子)）です。 |
 | `GET /api/channels/{id}/logo` | サービスのロゴ。チューナーサーバーから取って中継します。 |
-| `GET /api/schedules` | `startAt`から`endAt`に重なる番組を、サービスごとに返します。GR、BS、CS、SKYに`false`を渡した種別は除きます。 |
+| `GET /api/schedules` | `startAt`から`endAt`に重なる番組を、サービスごとに返します。GR、BS、CS、SKYに`false`を渡した種別は除きます。番組表の画面と同じく、一度に引けるのは8日と1時間までです。 |
 | `GET /api/streams/live/{id}/m2ts` | ライブ視聴のTS。無変換のTSだけを返し、`mode`は読みません。 |
 
 応答の形は、EPGStationに合わせます。

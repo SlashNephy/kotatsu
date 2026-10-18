@@ -198,7 +198,7 @@ func TestSchedules(t *testing.T) {
 		})
 	}
 
-	for _, query := range []string{"", "startAt=x&endAt=1", "startAt=" + ms(to) + "&endAt=" + ms(from)} {
+	for _, query := range []string{"", "startAt=x&endAt=1", "startAt=" + ms(to) + "&endAt=" + ms(from), "startAt=" + ms(from) + "&endAt=" + ms(from.Add(10*24*time.Hour))} {
 		assert.Equal(t, http.StatusBadRequest, get(t, h.Schedules, "/api/schedules?"+query, nil), query)
 	}
 }
