@@ -1,5 +1,5 @@
 import { Alert, Anchor, Button, Group, Stack, Text, Title } from '@mantine/core';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Captions, Keyboard, MessageSquareText } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -41,6 +41,7 @@ import {
 } from '../../yunomi/QualitySelect';
 import { hlsURL } from '../../yunomi/route';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
+import { useRemotePlayer } from '../../yunomi/useRemotePlayer';
 import { SeekBar } from '../../yunomi/SeekBar';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
@@ -205,6 +206,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // video は、今の video の要素。画質を変えたときや、別のウィンドウに移したときに作り直される。
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const videoState = useVideoState(video);
+  const navigate = useNavigate();
   // ブラウザに音ありの自動再生を断られたら、映像の真ん中に再生ボタンを出す。
   const autoplay = useAutoplayBlocked(video);
   const videoLoading = useVideoLoading(video);
@@ -628,6 +630,49 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     };
     // 画質を変えたときと、別のウィンドウに出したり戻したりしたときは、video の要素を作り直すので、付け直す。
   }, [startedAt, hls, video]);
+
+  // 同じアカウントのほかの端末から、このプレイヤーを操作できるようにする (#459、設計書 7.7)。
+  useRemotePlayer(
+    recording === null || video === null
+      ? null
+      : {
+          kind: 'RECORDING',
+          target: recordingId,
+          title: recording.name,
+          paused,
+          position,
+          duration,
+          volume: videoState.volume,
+          muted: videoState.muted,
+          audios: audio.remote.choices,
+          audio: audio.remote.selected,
+          dataBroadcast: false,
+          keyGroups: [],
+        },
+    {
+      play: () => {
+        if (paused) {
+          togglePlay();
+        }
+      },
+      pause: () => {
+        if (!paused) {
+          togglePlay();
+        }
+      },
+      seek,
+      setVolume: videoState.setVolume,
+      setMuted: (muted) => {
+        if (muted !== videoState.muted) {
+          videoState.toggleMute();
+        }
+      },
+      selectAudio: audio.remote.select,
+      // 録画の再生では、データ放送を出さない。
+      pressKey: () => {},
+      stop: () => void navigate({ to: '/recordings/$recordingId', params: { recordingId } }),
+    },
+  );
 
   if (recording === null) {
     return <Alert color="amber">{t('recordings.notFound')}</Alert>;

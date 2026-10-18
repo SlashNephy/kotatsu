@@ -75,7 +75,8 @@ import {
 } from '../../yunomi/QualitySelect';
 import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
 import { dataBroadcastSource, hlsURL } from '../../yunomi/route';
-import { useDataBroadcast } from '../../yunomi/useDataBroadcast';
+import { RemoteKey, useDataBroadcast } from '../../yunomi/useDataBroadcast';
+import { useRemotePlayer } from '../../yunomi/useRemotePlayer';
 import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
 import { useLiveCatchUp, useLowLatency } from '../../yunomi/liveCatchUp';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
@@ -609,6 +610,56 @@ function Live({
     dataBroadcastEnabled && dataBroadcast.state === 'shown' && !dataBroadcast.receiving,
     dataBroadcast.keyGroups,
     dataBroadcast.press,
+  );
+  // 同じアカウントのほかの端末から、このプレイヤーを操作できるようにする (#459、設計書 7.7)。
+  useRemotePlayer(
+    video === null
+      ? null
+      : {
+          kind: 'LIVE',
+          target: serviceId,
+          title: program?.name ?? null,
+          paused: videoState.paused,
+          position: null,
+          duration: null,
+          volume: videoState.volume,
+          muted: videoState.muted,
+          audios: audio.remote.choices,
+          audio: audio.remote.selected,
+          dataBroadcast: dataBroadcastEnabled,
+          keyGroups: [...dataBroadcast.keyGroups],
+        },
+    {
+      play: () => {
+        if (videoState.paused) {
+          videoState.togglePlay();
+        }
+      },
+      pause: () => {
+        if (!videoState.paused) {
+          videoState.togglePlay();
+        }
+      },
+      setVolume: videoState.setVolume,
+      setMuted: (muted) => {
+        if (muted !== videoState.muted) {
+          videoState.toggleMute();
+        }
+      },
+      selectAudio: audio.remote.select,
+      // データ放送を出していなければ、d ボタンで出す。リモコンのほかのボタンは、出している間だけ渡す。
+      pressKey: (key) => {
+        if (!dataBroadcastEnabled) {
+          if (key === RemoteKey.d) {
+            setDataBroadcastEnabled(true);
+          }
+
+          return;
+        }
+        dataBroadcast.press(key);
+      },
+      stop: () => void navigate({ to: '/live' }),
+    },
   );
   if (service === null) {
     return <Alert color="amber">{t('live.notFound')}</Alert>;

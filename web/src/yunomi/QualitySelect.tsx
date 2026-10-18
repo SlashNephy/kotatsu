@@ -138,6 +138,30 @@ function languageName(t: TFunction, code: string): string {
   return known === undefined ? code : t(`player.languages.${known}`);
 }
 
+// audioChoiceLabel は、ブラウザの中で変換する経路の音声の選択肢の名前。
+export function audioChoiceLabel(t: TFunction, choice: AudioChoice): string {
+  const base =
+    choice.kind === 'dualMono'
+      ? t(choice.sub ? 'player.audioSub' : 'player.audioMain')
+      : t('player.audioStream', { number: choice.index + 1 });
+
+  return choice.language === null ? base : `${base}（${languageName(t, choice.language)}）`;
+}
+
+// kyusuAudioChoiceLabel は、kyusu の経路の音声の選択肢の名前。
+export function kyusuAudioChoiceLabel(t: TFunction, choice: KyusuAudioChoice): string {
+  let base: string;
+  if (choice.kind === 'dualMono') {
+    base = t(choice.slot === 1 ? 'player.audioMain' : 'player.audioSub');
+  } else if (choice.kind === 'stream') {
+    base = t('player.audioStream', { number: choice.slot });
+  } else {
+    base = t(choice.slot === 1 ? 'player.audioMain' : 'player.audioSecond');
+  }
+
+  return choice.language === null ? base : `${base}（${languageName(t, choice.language)}）`;
+}
+
 // AudioSelect は、音声のメニュー。二か国語放送の音声や、デュアルモノの主音声と副音声を選ぶ (設計書 7.5)。
 export function AudioSelect({
   choices,
@@ -152,14 +176,7 @@ export function AudioSelect({
   if (choices.length < 2) {
     return null;
   }
-  const label = (choice: AudioChoice) => {
-    const base =
-      choice.kind === 'dualMono'
-        ? t(choice.sub ? 'player.audioSub' : 'player.audioMain')
-        : t('player.audioStream', { number: choice.index + 1 });
-
-    return choice.language === null ? base : `${base}（${languageName(t, choice.language)}）`;
-  };
+  const label = (choice: AudioChoice) => audioChoiceLabel(t, choice);
 
   return (
     <Select
@@ -194,18 +211,7 @@ export function KyusuAudioSelect({
   if (choices.length < 2) {
     return null;
   }
-  const label = (choice: KyusuAudioChoice) => {
-    let base: string;
-    if (choice.kind === 'dualMono') {
-      base = t(choice.slot === 1 ? 'player.audioMain' : 'player.audioSub');
-    } else if (choice.kind === 'stream') {
-      base = t('player.audioStream', { number: choice.slot });
-    } else {
-      base = t(choice.slot === 1 ? 'player.audioMain' : 'player.audioSecond');
-    }
-
-    return choice.language === null ? base : `${base}（${languageName(t, choice.language)}）`;
-  };
+  const label = (choice: KyusuAudioChoice) => kyusuAudioChoiceLabel(t, choice);
 
   return (
     <Select

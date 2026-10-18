@@ -1,5 +1,6 @@
 import type { AudioTracks } from '@mpeg2toh264/player';
 import { useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import {
   audioChoices,
@@ -10,7 +11,12 @@ import {
   kyusuAudioChoices,
   type ProgramAudio,
 } from './audio';
-import { AudioSelect, KyusuAudioSelect } from './QualitySelect';
+import {
+  AudioSelect,
+  audioChoiceLabel,
+  KyusuAudioSelect,
+  kyusuAudioChoiceLabel,
+} from './QualitySelect';
 import type { KyusuAudio, PlaybackRoute } from './route';
 
 // usePlayerAudio は、聞く音声を選ぶ (設計書 7.5)。ブラウザの中で変換する経路では、番組の音声から選び、
@@ -34,7 +40,14 @@ export function usePlayerAudio(
   // selectComponent は、データ放送の文書が選んだ音声に切り替える (#440)。ブラウザの中で変換する経路でだけ選べる。
   // 選べたら true を返す。
   selectComponent: (componentTag: number, channelId?: number) => boolean;
+  // remote は、ほかの端末から音声を選ぶためのもの (#459)。選べる音声が 2 つ以上なければ、choices は空。
+  remote: {
+    choices: ReadonlyArray<{ id: string; label: string }>;
+    selected: string | null;
+    select: (id: string) => void;
+  };
 } {
+  const { t } = useTranslation();
   const [tracks, setTracks] = useState<AudioTracks | null>(null);
   // choice は、ブラウザの中で変換する経路のメニューで選んだもの。kyusu の経路で選び直したら捨てる。
   const [choice, setChoice] = useState<string | null>(null);
@@ -49,35 +62,32 @@ export function usePlayerAudio(
   const current = choices.some((candidate) => candidate.value === choice) ? choice : null;
   const convertAudio = current ?? (slot === 1 ? null : choiceForSlot(choices, slot));
 
+  const selectConvert = (value: string) => {
+    setChoice(value);
+    const selected = choices.find((candidate) => candidate.value === value);
+    if (selected !== undefined) {
+      setSlot(audioSlot(selected));
+    }
+  };
+  const selectKyusu = (next: KyusuAudio) => {
+    if (next !== kyusuAudio) {
+      onReload?.();
+    }
+    setSlot(next);
+    setChoice(null);
+  };
+
   let menu: ReactNode = null;
   if (route.kind === 'convert') {
     menu = (
       <AudioSelect
         choices={choices}
         value={currentAudioChoice(convertTracks)}
-        onChange={(value) => {
-          setChoice(value);
-          const selected = choices.find((candidate) => candidate.value === value);
-          if (selected !== undefined) {
-            setSlot(audioSlot(selected));
-          }
-        }}
+        onChange={selectConvert}
       />
     );
   } else if (route.kind === 'kyusu') {
-    menu = (
-      <KyusuAudioSelect
-        choices={kyusuChoices}
-        value={kyusuAudio}
-        onChange={(next) => {
-          if (next !== kyusuAudio) {
-            onReload?.();
-          }
-          setSlot(next);
-          setChoice(null);
-        }}
-      />
-    );
+    menu = <KyusuAudioSelect choices={kyusuChoices} value={kyusuAudio} onChange={selectKyusu} />;
   }
 
   // available は、選べる音声が 2 つ以上あるかどうか。なければ、メニューは何も出さない。
@@ -100,5 +110,35 @@ export function usePlayerAudio(
     return true;
   };
 
-  return { onAudio: setTracks, convertAudio, kyusuAudio, menu, available, selectComponent };
+  let remote: {
+    choices: ReadonlyArray<{ id: string; label: string }>;
+    selected: string | null;
+    select: (id: string) => void;
+  } = { choices: [], selected: null, select: () => {} };
+  if (available && route.kind === 'convert') {
+    remote = {
+      choices: choices.map((choice) => ({ id: choice.value, label: audioChoiceLabel(t, choice) })),
+      selected: currentAudioChoice(convertTracks),
+      select: (id) => {
+        if (choices.some((candidate) => candidate.value === id)) {
+          selectConvert(id);
+        }
+      },
+    };
+  } else if (available && route.kind === 'kyusu') {
+    remote = {
+      choices: kyusuChoices.map((choice) => ({
+        id: String(choice.slot),
+        label: kyusuAudioChoiceLabel(t, choice),
+      })),
+      selected: String(kyusuAudio),
+      select: (id) => {
+        if (id === '1' || id === '2') {
+          selectKyusu(id === '1' ? 1 : 2);
+        }
+      },
+    };
+  }
+
+  return { onAudio: setTracks, convertAudio, kyusuAudio, menu, available, selectComponent, remote };
 }
