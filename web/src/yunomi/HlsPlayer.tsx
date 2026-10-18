@@ -1,6 +1,7 @@
 import type Hls from 'hls.js';
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
+import { catchUpRate } from './liveCatchUp';
 import { createCaptions, type Captions } from './captions';
 import classes from './TsPlayer.module.css';
 
@@ -10,6 +11,8 @@ type Props = {
   videoRef: RefObject<HTMLVideoElement | null>;
   // live は、ライブ視聴かどうか。ライブは最新の位置から、録画は startPosition から読む。
   live: boolean;
+  // lowLatency は、ライブで、放送からの遅れが広がったら少し速く再生して追いつくかどうか (#495)。
+  lowLatency?: boolean;
   // captions は、字幕と文字スーパーを出すかどうか。
   captions: boolean;
   // onCaptionText は、字幕が出るたびに、その文を受け取る (#450)。字幕を出さない設定でも受け取る。
@@ -37,6 +40,7 @@ export function HlsPlayer({
   url,
   videoRef,
   live,
+  lowLatency = false,
   captions,
   onCaptionText,
   startPosition,
@@ -104,6 +108,15 @@ export function HlsPlayer({
       }
       const instance = new HlsClass({
         startPosition: live ? -1 : (start.current ?? -1),
+        // 低遅延モードでは、ライブの端から 2 セグメント (4 秒) 後ろを保ち、遅れが広がったら 1.1 倍の速さで追いつく。
+        // 既定は 3 セグメント後ろで、追いつかない。
+        ...(live && lowLatency
+          ? {
+              liveSyncDuration: 4,
+              liveMaxLatencyDuration: 12,
+              maxLiveSyncPlaybackRate: catchUpRate,
+            }
+          : {}),
         // 字幕は、FRAG_PARSING_METADATA で受け取った ID3 から描く。hls.js の字幕と、ID3 を入れる TextTrack は使わない。
         // TextTrack は、CSP で禁じた data: の URL を読もうとする。
         enableID3MetadataCues: false,

@@ -68,6 +68,7 @@ import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect'
 import { dataBroadcastSource, hlsURL } from '../../yunomi/route';
 import { useDataBroadcast } from '../../yunomi/useDataBroadcast';
 import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
+import { useLiveCatchUp, useLowLatency } from '../../yunomi/liveCatchUp';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
@@ -342,6 +343,10 @@ function Live({
   // dataBroadcastEnabled は、データ放送を出すかどうか。映像を覆うので、既定では出さない (設計書 7.4)。
   const [dataBroadcastEnabled, setDataBroadcastEnabled] = useState(false);
   const [dataBroadcastPreload] = useDataBroadcastPreload();
+  // 低遅延モードなら、放送からの遅れが広がったときに、少し速く再生して追いつく (#495)。
+  const [lowLatency] = useLowLatency();
+  // kyusu の経路は、hls.js が追いつくので、ブラウザ内で変換する経路でだけ、再生の速さを変える。
+  useLiveCatchUp(video, lowLatency && route.kind === 'convert');
   // dataBroadcastUsed は、このページでデータ放送を出したことがあるか。一度出したら、消しても受け取りを続け、次はすぐに出す。
   const [dataBroadcastUsed, setDataBroadcastUsed] = useState(false);
   if (dataBroadcastEnabled && !dataBroadcastUsed) {
@@ -729,6 +734,7 @@ function Live({
       )}
       {route.kind === 'kyusu' && (
         <HlsPlayer
+          lowLatency={lowLatency}
           url={
             disconnection === null
               ? withSession(hlsURL(service.streamUrl, route.preset, audio.kyusuAudio))

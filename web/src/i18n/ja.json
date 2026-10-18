@@ -276,6 +276,8 @@
       "jikkyo": "実況のコメントを出す",
       "captions": "字幕を出す",
       "dataBroadcastPreload": "データ放送をプリロードする",
+      "lowLatency": "ライブを低遅延で見る",
+      "lowLatencyHelp": "ライブ視聴で、放送からの遅れが3秒を超えたら、1.1倍の速さで再生して追いつきます。回線が細いと、止まりやすくなります。",
       "deviceOnly": "端末間同期なし",
       "dataBroadcastZipcode": "データ放送の郵便番号",
       "dataBroadcastZipcodeHelp": "天気やニュースなど、郵便番号で地域を選ぶデータ放送に渡します。7桁の数字で入れてください。空にすると渡しません",

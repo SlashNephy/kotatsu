@@ -38,6 +38,7 @@ import {
 import { GuideAppearanceSettings } from '../../guide/GuideAppearanceSettings';
 import { CommentSettingsCard } from '../../jikkyo/CommentSettingsCard';
 import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
+import { useLowLatency } from '../../yunomi/liveCatchUp';
 import { DataBroadcastStorageReset } from '../../yunomi/DataBroadcastStorageReset';
 import { DataBroadcastZipcodeInput } from '../../yunomi/DataBroadcastZipcodeInput';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
@@ -156,6 +157,7 @@ function Account() {
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
   const player = usePlayerSettings();
   const [dataBroadcastPreload, setDataBroadcastPreload] = useDataBroadcastPreload();
+  const [lowLatency, setLowLatency] = useLowLatency();
   const [autoPictureInPicture, setAutoPictureInPicture] = useAutoPictureInPicture();
   // 自動で別のウィンドウに出せないブラウザでは、設定の項目を出さない (#492)。
   const [autoPictureInPictureAvailable] = useState(autoPictureInPictureSupported);
@@ -212,6 +214,19 @@ function Account() {
             description={t('settings.account.dataBroadcastPreloadHelp')}
             checked={dataBroadcastPreload}
             onChange={(event) => setDataBroadcastPreload(event.currentTarget.checked)}
+          />
+          <Switch
+            label={
+              <Group gap={6} component="span">
+                {t('settings.account.lowLatency')}
+                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
+                  {t('settings.account.deviceOnly')}
+                </Badge>
+              </Group>
+            }
+            description={t('settings.account.lowLatencyHelp')}
+            checked={lowLatency}
+            onChange={(event) => setLowLatency(event.currentTarget.checked)}
           />
           <DataBroadcastZipcodeInput />
           <DataBroadcastStorageReset />
