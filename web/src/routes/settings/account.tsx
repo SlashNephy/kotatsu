@@ -39,6 +39,8 @@ import {
 import { GuideAppearanceSettings } from '../../guide/GuideAppearanceSettings';
 import { CommentSettingsCard } from '../../jikkyo/CommentSettingsCard';
 import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
+import { captureFileName, captureFileNameMacros } from '../../yunomi/capture';
+import { useCaptureFileNameTemplate } from '../../yunomi/captureFileNameTemplate';
 import { useLowLatency } from '../../yunomi/liveCatchUp';
 import { DataBroadcastStorageReset } from '../../yunomi/DataBroadcastStorageReset';
 import { DataBroadcastZipcodeInput } from '../../yunomi/DataBroadcastZipcodeInput';
@@ -66,6 +68,9 @@ const path = '/settings/account';
 
 // captionBackgrounds は、字幕の背景の選択肢 (#491)。broadcast は放送の指定どおり、ほかは黒の不透明度。
 const captionBackgrounds = ['broadcast', '0', '0.25', '0.5', '0.75', '1'];
+
+// captureExampleTime は、キャプチャのファイル名の例に使う時刻。ファイル名は端末のローカル時刻で書くので、ローカル時刻で作る。
+const captureExampleTime = new Date(2026, 9, 16, 21, 0, 5).getTime();
 
 export const Route = createFileRoute('/settings/account')({
   validateSearch: (search: Record<string, unknown>): AccountSearch => ({
@@ -161,6 +166,7 @@ function Account() {
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
   const player = usePlayerSettings();
   const [dataBroadcastPreload, setDataBroadcastPreload] = useDataBroadcastPreload();
+  const [captureTemplate, setCaptureTemplate] = useCaptureFileNameTemplate();
   const [lowLatency, setLowLatency] = useLowLatency();
   const [autoPictureInPicture, setAutoPictureInPicture] = useAutoPictureInPicture();
   // 自動で別のウィンドウに出せないブラウザでは、設定の項目を出さない (#492)。
@@ -293,6 +299,29 @@ function Account() {
             description={t('settings.account.lowLatencyHelp')}
             checked={lowLatency}
             onChange={(event) => setLowLatency(event.currentTarget.checked)}
+          />
+          <TextInput
+            label={
+              <Group gap={6} component="span">
+                {t('settings.account.captureFileName')}
+                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
+                  {t('settings.account.deviceOnly')}
+                </Badge>
+              </Group>
+            }
+            description={t('settings.account.captureFileNameHelp', {
+              macros: captureFileNameMacros.join(' '),
+              example: captureFileName(
+                captureExampleTime,
+                'NHK総合1・東京',
+                'ニュース７🈑',
+                captureTemplate,
+              ),
+            })}
+            placeholder={t('settings.account.captureFileNameDefault')}
+            value={captureTemplate}
+            onChange={(event) => setCaptureTemplate(event.currentTarget.value)}
+            maw={480}
           />
           <DataBroadcastZipcodeInput />
           <DataBroadcastStorageReset />
