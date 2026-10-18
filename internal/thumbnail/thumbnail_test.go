@@ -168,17 +168,18 @@ func TestGenerate(t *testing.T) {
 			wantMarkers:   []int{1, 2, 3},
 		},
 		{
-			name: "途切れた録画は、セグメントの始まりの位置で、時間を求める",
+			name: "途切れた録画は、途切れた区間を詰めて、時間を求める",
 			segments: func(t *testing.T) []thumbnail.Segment {
 				t.Helper()
 
 				return []thumbnail.Segment{segment(t, 0, 3, time.Second, 0), segment(t, 10*time.Second, 3, time.Second, 3)}
 			},
 			interval: 5 * time.Second,
-			// 12 秒の 1/4 の 3 秒に最も近いのは、前のセグメントの 2 秒の I フレーム。
-			wantThumbnail: 3,
-			wantTimes:     []float64{0, 2, 10},
-			wantMarkers:   []int{1, 3, 4},
+			// 2 秒から 10 秒までの途切れは、I フレームの間隔の 1 秒に詰めるので、後のセグメントは 3 秒から始まる。
+			// 5 秒の 1/4 の 1.25 秒に最も近いのは、前のセグメントの 1 秒の I フレーム。
+			wantThumbnail: 2,
+			wantTimes:     []float64{0, 5},
+			wantMarkers:   []int{1, 6},
 		},
 		{
 			name: "セグメントが始まりの順に並んでいなくても、時間の順に並べ直す",
@@ -188,9 +189,9 @@ func TestGenerate(t *testing.T) {
 				return []thumbnail.Segment{segment(t, 10*time.Second, 3, time.Second, 3), segment(t, 0, 3, time.Second, 0)}
 			},
 			interval:      5 * time.Second,
-			wantThumbnail: 3,
-			wantTimes:     []float64{0, 2, 10},
-			wantMarkers:   []int{1, 3, 4},
+			wantThumbnail: 2,
+			wantTimes:     []float64{0, 5},
+			wantMarkers:   []int{1, 6},
 		},
 		{
 			name: "取り出せない I フレームは、代表画像では後ろで試し直し、プレビュー画像では飛ばす",

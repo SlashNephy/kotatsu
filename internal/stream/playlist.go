@@ -14,8 +14,10 @@ type segment struct {
 	// poolID と path は、セグメントのファイルの、プール ID とプール内の相対パス。
 	poolID string
 	path   string
-	// startedAt は、セグメントの始まり。録画の始まりからの時間は、最初のセグメントとの差で求める。
+	// startedAt は、セグメントの始まり。
 	startedAt time.Time
+	// endedAt は、セグメントを書き終えた時刻。書いている途中なら nil。
+	endedAt *time.Time
 	// open は、セグメントを書いている途中かどうか。
 	open bool
 	// index は、セグメントの索引。索引がなければ空で、そのセグメントには始まりからしか入れない。
@@ -37,42 +39,26 @@ type piece struct {
 // 後のセグメントの最初の I フレームの PTS を P とすると、前のセグメントは、PTS が P 以上の最初の I フレームの手前で切り、
 // 後のセグメントは、最初の I フレームから配信する。前のセグメントに P 以上の I フレームがなければ、前のセグメントは終わりまで配信する。
 //
-// start は、最も近い手前の I フレームに丸める。時間は、サムネイルのコマの時間と同じく、セグメントの始まりの差と、
-// セグメントの中の PTS の差を足して求める。start より手前に I フレームがなければ、最初から配信する。
+// start は、最も近い手前の I フレームに丸める。時間は、途切れた区間を含めない再生の時間 (walk) で表す。
+// start より手前に I フレームがなければ、最初から配信する。
 func plan(segments []*segment, start time.Duration) ([]*piece, time.Duration) {
 	pieces := trim(segments)
 	if len(pieces) == 0 {
 		return pieces, 0
 	}
-	first, from, at := seek(pieces, segments[0].startedAt, start)
+	first, from, at := seek(pieces, start)
 	pieces = pieces[first:]
 	pieces[0].from = from
 
 	return pieces, at
 }
 
-// keyframes は、trim した範囲の I フレームの、録画の始まりからの時間を、順に返す。索引のないセグメントは、その始まりだけを含める。
+// keyframes は、trim した範囲の I フレームの、録画の始まりからの再生の時間 (walk) を、順に返す。索引のないセグメントは、その始まりだけを含める。
 func keyframes(segments []*segment) []time.Duration {
 	times := []time.Duration{}
-	pieces := trim(segments)
-	if len(pieces) == 0 {
-		return times
-	}
-	origin := segments[0].startedAt
-	for _, p := range pieces {
-		base := p.segment.startedAt.Sub(origin)
-		if len(p.segment.index) == 0 {
-			times = append(times, base)
-
-			continue
-		}
-		head := p.segment.index[0].PTS
-		for _, entry := range p.segment.index {
-			if entry.Offset >= p.from && (p.to < 0 || entry.Offset < p.to) {
-				times = append(times, base+time.Duration(ts.PTSDiff(head, entry.PTS))*time.Second/ts.PTSClock)
-			}
-		}
-	}
+	walk(trim(segments), func(_ int, _ int64, at time.Duration) {
+		times = append(times, at)
+	})
 
 	return times
 }
@@ -100,31 +86,61 @@ func trim(segments []*segment) []*piece {
 	return pieces
 }
 
-// seek は、録画の始まり origin から start の位置に最も近い手前の I フレームを探し、その範囲の添え字と、バイト位置と、時間を返す。
+// seek は、再生の時間で start の位置に最も近い手前の I フレームを探し、その範囲の添え字と、バイト位置と、時間を返す。
 // 配信しない範囲 (切り詰めた区間) の I フレームは使わない。索引のないセグメントには、始まりからしか入れない。
-func seek(pieces []*piece, origin time.Time, start time.Duration) (int, int64, time.Duration) {
+func seek(pieces []*piece, start time.Duration) (int, int64, time.Duration) {
 	best, bestOffset := 0, pieces[0].from
 	var bestAt time.Duration
-	found := false
-	consider := func(i int, offset int64, at time.Duration) {
-		if at <= start && (!found || at >= bestAt) {
-			best, bestOffset, bestAt, found = i, offset, at, true
+	walk(pieces, func(i int, offset int64, at time.Duration) {
+		// 時間は増えていくので、start までのうち最後のものが、最も近い手前の I フレーム。
+		if at <= start {
+			best, bestOffset, bestAt = i, offset, at
 		}
-	}
+	})
+
+	return best, bestOffset, bestAt
+}
+
+// walk は、配信する I フレームを順にたどり、範囲の添え字と、バイト位置と、録画の始まりからの再生の時間を fn に渡す。
+//
+// 再生の時間は、途切れた区間を含めない (設計書 7.2)。録画の配信もトランスコードも、途切れた区間の前後をそのままつないで流すので、
+// プレイヤーとエンコーダーの時間も、途切れた区間を含まないからである。
+// 時間は、前の I フレームからの PTS の差を足して求める。差が ts.MaxKeyframeInterval を超えるか、PTS が戻ったら、間で途切れたので、
+// 直前の I フレームの間隔だけ進める。セグメントをつないだファイルの中の途切れも、同じく詰める。
+// 索引のないセグメントは、PTS が分からないので、前の I フレームの次の位置から始まり、書いていた時間だけ続くものとする。
+func walk(pieces []*piece, fn func(i int, offset int64, at time.Duration)) {
+	// next は、PTS でつながらないときに、次の I フレームに付ける時間。
+	var at, next time.Duration
+	interval := ts.DefaultKeyframeInterval
+	var prev int64
+	chained := false
 	for i, p := range pieces {
-		base := p.segment.startedAt.Sub(origin)
-		if len(p.segment.index) == 0 {
-			consider(i, p.from, base)
+		seg := p.segment
+		if len(seg.index) == 0 {
+			at = next
+			fn(i, p.from, at)
+			chained = false
+			next = at + interval
+			if seg.endedAt != nil {
+				next = at + max(seg.endedAt.Sub(seg.startedAt), interval)
+			}
 
 			continue
 		}
-		head := p.segment.index[0].PTS
-		for _, entry := range p.segment.index {
-			if entry.Offset >= p.from && (p.to < 0 || entry.Offset < p.to) {
-				consider(i, entry.Offset, base+time.Duration(ts.PTSDiff(head, entry.PTS))*time.Second/ts.PTSClock)
+		for _, entry := range seg.index {
+			if entry.Offset < p.from || (p.to >= 0 && entry.Offset >= p.to) {
+				continue
 			}
+			t := next
+			if chained {
+				if d := time.Duration(ts.PTSDiff(prev, entry.PTS)) * time.Second / ts.PTSClock; d > 0 && d <= ts.MaxKeyframeInterval {
+					interval, t = d, at+d
+				}
+			}
+			at = t
+			fn(i, entry.Offset, at)
+			prev, chained = entry.PTS, true
+			next = at + interval
 		}
 	}
-
-	return best, bestOffset, bestAt
 }

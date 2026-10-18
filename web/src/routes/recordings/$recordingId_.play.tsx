@@ -15,10 +15,12 @@ import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import {
   broadcastTime,
+  recordingPosition,
   parseStreamStart,
   formatClock,
   formatDuration,
   playbackPosition,
+  skipJump,
 } from '../../yunomi/position';
 import { RateSelect, PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
 import { hlsURL } from '../../yunomi/route';
@@ -226,14 +228,14 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
 
     return () => clearInterval(timer);
   }, [environment, stillRecording, recordingId]);
+  // duration は、録画の長さ (秒)。ファイルには途切れた区間の分の映像がないので、その分を引く。
   const duration =
     recording === null
       ? 0
-      : Math.max(
-          ((recording.recordedUntil == null ? Date.now() : Date.parse(recording.recordedUntil)) -
-            Date.parse(recording.recordedFrom)) /
-            1000,
-          0,
+      : recordingPosition(
+          recording.recordedFrom,
+          recording.gaps,
+          recording.recordedUntil == null ? Date.now() : Date.parse(recording.recordedUntil),
         );
   // resumeAt は、再生を始める位置 (秒)。URL で位置を渡されたらそこから、なければ前回の続きから、続きもなければ 0 (設計書 7.5)。
   // Int64 は Relay の型では any になるので、数に直す。
@@ -277,6 +279,15 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   }, [hls, streamUrl, offset, loads]);
   // base は、読み込んだ映像の最初のフレームの、video の時刻。変換した映像の時刻は 0 から始まるとは限らない。
   const base = useRef(0);
+  // lastVideoTime は、最後に見た video の時刻。変換した映像の時刻が、途切れた区間で飛んだのを見つけるのに使う。
+  const lastVideoTime = useRef(0);
+  // convertedPosition は、ブラウザの中で変換した映像の時刻 current から、再生位置を求める。途切れた区間で飛んだ分は数えない。
+  const convertedPosition = (current: number) => {
+    base.current = skipJump(base.current, lastVideoTime.current, current);
+    lastVideoTime.current = current;
+
+    return playbackPosition(startedAt, base.current, current);
+  };
   // phase は、読み込みの段階。読み直している間に、前の映像の時刻で位置を動かさないよう、base を決めるまで位置を更新しない。
   const phase = useRef<'loading' | 'awaitingBase' | 'playing'>('loading');
   const [position, setPosition] = useState(resumeAt);
@@ -301,7 +312,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       return video.currentTime;
     }
 
-    return playbackPosition(startedAt, base.current, video.currentTime);
+    return convertedPosition(video.currentTime);
   };
   const channel = recording?.service.jikkyo ?? null;
   useWatchPositionSaver(recordingId, currentPosition, !paused);
@@ -544,9 +555,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           return;
         }
         base.current = video.currentTime;
+        lastVideoTime.current = video.currentTime;
         phase.current = 'playing';
       }
-      const next = playbackPosition(startedAt, base.current, video.currentTime);
+      const next = convertedPosition(video.currentTime);
       positionRef.current = next;
       setPosition(next);
     };

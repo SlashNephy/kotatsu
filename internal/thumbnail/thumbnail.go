@@ -276,6 +276,8 @@ func (g *Generator) extract(ctx context.Context, segments []Segment, k keyframe,
 
 // keyframesOf は、セグメントの索引を、録画の始まりからの時間の順に並べる。
 // 放送の PTS が途中で飛んだり、セグメントの時間が重なったりしても、時間の順に並べ直す。
+// 時間は、再生と同じく、途切れた区間を含めない (設計書 7.2)。プレビュー画像のコマを、シークバーの位置に合わせるためである。
+// 並べた I フレームの間が ts.MaxKeyframeInterval より空いていたら、間で途切れたので、直前の I フレームの間隔だけ進める。
 func keyframesOf(segments []Segment) []keyframe {
 	keyframes := []keyframe{}
 	for i := range segments {
@@ -286,6 +288,18 @@ func keyframesOf(segments []Segment) []keyframe {
 		}
 	}
 	slices.SortStableFunc(keyframes, func(a, b keyframe) int { return cmp.Compare(a.at, b.at) })
+	var removed time.Duration
+	interval := ts.DefaultKeyframeInterval
+	for i := 1; i < len(keyframes); i++ {
+		d := keyframes[i].at - removed - keyframes[i-1].at
+		switch {
+		case d > ts.MaxKeyframeInterval:
+			removed += d - interval
+		case d > 0:
+			interval = d
+		}
+		keyframes[i].at -= removed
+	}
 
 	return keyframes
 }

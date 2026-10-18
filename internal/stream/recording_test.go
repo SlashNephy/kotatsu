@@ -199,7 +199,7 @@ func TestRecordingHandler(t *testing.T) {
 		{name: "2.01 秒の位置は、2.002 秒の I フレームから流す", handover: false, query: "?start=2.01", want: wantIFramePTS()[4:], wantStart: "2.002"},
 		{name: "I フレームの間の位置は、手前の I フレームに丸める", handover: false, query: "?start=2", want: wantIFramePTS()[3:], wantStart: "1.502"},
 		{name: "引き継ぎで重なった区間を切り詰める", handover: true, query: "", want: wantIFramePTS(), wantStart: ""},
-		{name: "後のセグメントの位置から流す", handover: true, query: "?start=1", want: wantIFramePTS()[2:], wantStart: "1.000"},
+		{name: "後のセグメントの位置から流す", handover: true, query: "?start=1.01", want: wantIFramePTS()[2:], wantStart: "1.001"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

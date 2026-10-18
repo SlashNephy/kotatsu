@@ -97,6 +97,10 @@ const query = graphql`
           scrambled
           recordedFrom
           recordedUntil
+          gaps {
+            from
+            to
+          }
           watchPositionMs
           thumbnailUrl
           previewUrl

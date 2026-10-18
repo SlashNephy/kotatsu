@@ -7,7 +7,20 @@ import {
   parseStreamStart,
   playbackPosition,
   recordingPosition,
+  skipJump,
 } from './position';
+
+describe('skipJump', () => {
+  test.each([
+    { name: '続けて進んだ', base: 1.4, last: 10, current: 10.25, want: 1.4 },
+    { name: '2 倍速で 1 秒おきに進んだ', base: 1.4, last: 10, current: 12, want: 1.4 },
+    // 途切れた区間の前後で、video の時刻が 126 秒飛んだ。飛んだ分を base に足し、位置に数えない。
+    { name: '途切れた区間を越えた', base: 1.4, last: 10, current: 136, want: 127.4 },
+    { name: '時刻が戻った', base: 1.4, last: 136, current: 10, want: -124.6 },
+  ])('$name', ({ base, last, current, want }) => {
+    expect(skipJump(base, last, current)).toBeCloseTo(want);
+  });
+});
 
 describe('playbackPosition', () => {
   test.each([
