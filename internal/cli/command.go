@@ -41,6 +41,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/password"
+	"github.com/SlashNephy/kotatsu/internal/player"
 	"github.com/SlashNephy/kotatsu/internal/registry"
 	"github.com/SlashNephy/kotatsu/internal/segjoin"
 	"github.com/SlashNephy/kotatsu/internal/settings"
@@ -632,6 +633,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		SecondFactors:     factors,
 		Passkeys:          passkeys,
 		APITokens:         apiTokens,
+		Players:           player.NewService(deps.DB, deps.Clock),
 		UserAdmin:         auth.NewUserAdmin(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
 		Passwords:         auth.NewPasswords(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
 		Sessions:          sessions,

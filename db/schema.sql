@@ -346,6 +346,39 @@ CREATE TABLE user_setting_versions (
   updated_at timestamptz NOT NULL
 );
 
+-- 再生中のプレイヤー (#459、設計書 7.7)。プレイヤーを開いた端末が登録し、状態を送り続ける。
+-- 同じユーザーのほかの端末は、一覧から選んで操作する。last_seen_at が古いものは、閉じたとみなす。
+-- セッションを消すと、そのセッションで開いたプレイヤーも消す。端末の名前は、セッションの User-Agent から作る。
+CREATE TABLE players (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  session_id uuid NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+  -- 再生の状態 (何を見ているか、再生位置、音量など)。GraphQL の PlayerStateInput をそのまま入れる。
+  state jsonb NOT NULL,
+  started_at timestamptz NOT NULL,
+  last_seen_at timestamptz NOT NULL
+);
+
+CREATE INDEX players_user_id_idx ON players (user_id, last_seen_at);
+
+-- プレイヤーへの操作 (#459)。操作される端末は、届いた順に、前に読んだものより新しい操作を読む。古い操作は、送るときに消す。
+CREATE TABLE player_commands (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  player_id uuid NOT NULL REFERENCES players (id) ON DELETE CASCADE,
+  command jsonb NOT NULL,
+  created_at timestamptz NOT NULL
+);
+
+CREATE INDEX player_commands_player_id_idx ON player_commands (player_id, id);
+
+-- ユーザーごとの、再生中のプレイヤーの一覧の版。登録、取り消し、知らせるべき状態の変化で上げる。
+-- user_setting_versions と分けるのは、再生の状態が変わるたびに、設定の画面を読み直させないため。
+CREATE TABLE player_versions (
+  user_id uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+  version bigint NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
 -- 端末をまたいで同期する、プレイヤーの設定 (設計書 9.1)。行がなければ既定値を使う。
 CREATE TABLE user_settings (
   user_id uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,

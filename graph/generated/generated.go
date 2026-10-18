@@ -269,11 +269,13 @@ type ComplexityRoot struct {
 		ReanalyzeRecording           func(childComplexity int, id string) int
 		RegenerateRecordingImages    func(childComplexity int, id string) int
 		RegenerateRecoveryCodes      func(childComplexity int) int
+		RegisterPlayer               func(childComplexity int, state model.PlayerStateInput) int
 		RenamePasskey                func(childComplexity int, id string, name string) int
 		RenameRecordingFiles         func(childComplexity int, ids []string) int
 		ResetUserPassword            func(childComplexity int, id string, password string) int
 		RevokeSession                func(childComplexity int, id string) int
 		SaveWatchPosition            func(childComplexity int, id string, positionMs int64) int
+		SendPlayerCommand            func(childComplexity int, id string, command model.PlayerCommandInput) int
 		SetRecordingProtected        func(childComplexity int, id string, protected bool) int
 		SetRecordingTags             func(childComplexity int, id string, tags []string) int
 		SetReservationsEnabled       func(childComplexity int, ids []string, enabled bool) int
@@ -282,10 +284,12 @@ type ComplexityRoot struct {
 		SetServicePinned             func(childComplexity int, id string, pinned bool) int
 		SetWatchReservation          func(childComplexity int, program string, reserved bool) int
 		SubscribeWebPush             func(childComplexity int, input model.WebPushSubscriptionInput) int
+		UnregisterPlayer             func(childComplexity int, id string) int
 		UnsubscribeWebPush           func(childComplexity int, endpoint string) int
 		UpdateChannelType            func(childComplexity int, typeArg string, input model.ChannelTypeInput) int
 		UpdateGuideView              func(childComplexity int, id string, input model.GuideViewInput) int
 		UpdateNotificationPreference func(childComplexity int, input model.NotificationPreferenceInput) int
+		UpdatePlayer                 func(childComplexity int, id string, state model.PlayerStateInput, announce bool) int
 		UpdatePlayerSettings         func(childComplexity int, input model.PlayerSettingsInput) int
 		UpdateReservation            func(childComplexity int, id string, input model.ReservationUpdateInput) int
 		UpdateRule                   func(childComplexity int, id string, input model.RuleInput) int
@@ -352,11 +356,50 @@ type ComplexityRoot struct {
 		RpID       func(childComplexity int) int
 	}
 
+	Player struct {
+		Current    func(childComplexity int) int
+		ID         func(childComplexity int) int
+		LastSeenAt func(childComplexity int) int
+		StartedAt  func(childComplexity int) int
+		State      func(childComplexity int) int
+		UserAgent  func(childComplexity int) int
+	}
+
+	PlayerAudio struct {
+		ID    func(childComplexity int) int
+		Label func(childComplexity int) int
+	}
+
+	PlayerCommand struct {
+		Audio    func(childComplexity int) int
+		ID       func(childComplexity int) int
+		Key      func(childComplexity int) int
+		Muted    func(childComplexity int) int
+		Position func(childComplexity int) int
+		Type     func(childComplexity int) int
+		Volume   func(childComplexity int) int
+	}
+
 	PlayerSettings struct {
 		Captions        func(childComplexity int) int
 		CaptionsEnabled func(childComplexity int) int
 		Comments        func(childComplexity int) int
 		JikkyoEnabled   func(childComplexity int) int
+	}
+
+	PlayerState struct {
+		Audio         func(childComplexity int) int
+		Audios        func(childComplexity int) int
+		DataBroadcast func(childComplexity int) int
+		Duration      func(childComplexity int) int
+		KeyGroups     func(childComplexity int) int
+		Kind          func(childComplexity int) int
+		Muted         func(childComplexity int) int
+		Paused        func(childComplexity int) int
+		Position      func(childComplexity int) int
+		Target        func(childComplexity int) int
+		Title         func(childComplexity int) int
+		Volume        func(childComplexity int) int
 	}
 
 	PreviewFrame struct {
@@ -436,6 +479,7 @@ type ComplexityRoot struct {
 		Passkeys                func(childComplexity int) int
 		PinnedServices          func(childComplexity int) int
 		PlayerSettings          func(childComplexity int) int
+		Players                 func(childComplexity int) int
 		PreviewFileName         func(childComplexity int, template string, program *string) int
 		PreviewRule             func(childComplexity int, input model.RuleInput, first int, after *string) int
 		RecordingRenames        func(childComplexity int) int
@@ -706,6 +750,8 @@ type ComplexityRoot struct {
 	Subscription struct {
 		DataChanged             func(childComplexity int) int
 		Heartbeat               func(childComplexity int) int
+		PlayerCommands          func(childComplexity int, id string, after *string) int
+		PlayersChanged          func(childComplexity int) int
 		UnreadNotificationCount func(childComplexity int) int
 		ViewerSettingsChanged   func(childComplexity int) int
 	}
@@ -836,6 +882,10 @@ type MutationResolver interface {
 	DeletePasskey(ctx context.Context, id string) (string, error)
 	SetServicePinned(ctx context.Context, id string, pinned bool) ([]*model.Service, error)
 	UpdatePlayerSettings(ctx context.Context, input model.PlayerSettingsInput) (*model.PlayerSettings, error)
+	RegisterPlayer(ctx context.Context, state model.PlayerStateInput) (*model.Player, error)
+	UpdatePlayer(ctx context.Context, id string, state model.PlayerStateInput, announce bool) (*model.Player, error)
+	UnregisterPlayer(ctx context.Context, id string) (string, error)
+	SendPlayerCommand(ctx context.Context, id string, command model.PlayerCommandInput) (bool, error)
 	RenameRecordingFiles(ctx context.Context, ids []string) (*model.RenameRecordingFilesPayload, error)
 	DeleteRecording(ctx context.Context, id string) (string, error)
 	DeleteRecordings(ctx context.Context, ids []string) (*model.BulkOperationPayload, error)
@@ -916,6 +966,7 @@ type QueryResolver interface {
 	Passkeys(ctx context.Context) ([]*model.Passkey, error)
 	PinnedServices(ctx context.Context) ([]*model.Service, error)
 	PlayerSettings(ctx context.Context) (*model.PlayerSettings, error)
+	Players(ctx context.Context) ([]*model.Player, error)
 	RecordingRenames(ctx context.Context) ([]*model.RecordingRename, error)
 	Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) (*model.RecordingConnection, error)
 	ContinueWatching(ctx context.Context, first int) ([]*model.Recording, error)
@@ -963,6 +1014,8 @@ type SubscriptionResolver interface {
 	DataChanged(ctx context.Context) (<-chan *model.DataChange, error)
 	UnreadNotificationCount(ctx context.Context) (<-chan int, error)
 	ViewerSettingsChanged(ctx context.Context) (<-chan int, error)
+	PlayersChanged(ctx context.Context) (<-chan int, error)
+	PlayerCommands(ctx context.Context, id string, after *string) (<-chan *model.PlayerCommand, error)
 }
 type UserResolver interface {
 	AvatarURL(ctx context.Context, obj *model.User) (*string, error)
@@ -1943,6 +1996,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RegenerateRecoveryCodes(childComplexity), true
+	case "Mutation.registerPlayer":
+		if e.ComplexityRoot.Mutation.RegisterPlayer == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_registerPlayer_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RegisterPlayer(childComplexity, args["state"].(model.PlayerStateInput)), true
 	case "Mutation.renamePasskey":
 		if e.ComplexityRoot.Mutation.RenamePasskey == nil {
 			break
@@ -1998,6 +2062,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SaveWatchPosition(childComplexity, args["id"].(string), args["positionMs"].(int64)), true
+	case "Mutation.sendPlayerCommand":
+		if e.ComplexityRoot.Mutation.SendPlayerCommand == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_sendPlayerCommand_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SendPlayerCommand(childComplexity, args["id"].(string), args["command"].(model.PlayerCommandInput)), true
 	case "Mutation.setRecordingProtected":
 		if e.ComplexityRoot.Mutation.SetRecordingProtected == nil {
 			break
@@ -2086,6 +2161,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SubscribeWebPush(childComplexity, args["input"].(model.WebPushSubscriptionInput)), true
+	case "Mutation.unregisterPlayer":
+		if e.ComplexityRoot.Mutation.UnregisterPlayer == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_unregisterPlayer_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UnregisterPlayer(childComplexity, args["id"].(string)), true
 	case "Mutation.unsubscribeWebPush":
 		if e.ComplexityRoot.Mutation.UnsubscribeWebPush == nil {
 			break
@@ -2130,6 +2216,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateNotificationPreference(childComplexity, args["input"].(model.NotificationPreferenceInput)), true
+	case "Mutation.updatePlayer":
+		if e.ComplexityRoot.Mutation.UpdatePlayer == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updatePlayer_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdatePlayer(childComplexity, args["id"].(string), args["state"].(model.PlayerStateInput), args["announce"].(bool)), true
 	case "Mutation.updatePlayerSettings":
 		if e.ComplexityRoot.Mutation.UpdatePlayerSettings == nil {
 			break
@@ -2424,6 +2521,99 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Passkey.RpID(childComplexity), true
 
+	case "Player.current":
+		if e.ComplexityRoot.Player.Current == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Player.Current(childComplexity), true
+	case "Player.id":
+		if e.ComplexityRoot.Player.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Player.ID(childComplexity), true
+	case "Player.lastSeenAt":
+		if e.ComplexityRoot.Player.LastSeenAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Player.LastSeenAt(childComplexity), true
+	case "Player.startedAt":
+		if e.ComplexityRoot.Player.StartedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Player.StartedAt(childComplexity), true
+	case "Player.state":
+		if e.ComplexityRoot.Player.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Player.State(childComplexity), true
+	case "Player.userAgent":
+		if e.ComplexityRoot.Player.UserAgent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Player.UserAgent(childComplexity), true
+
+	case "PlayerAudio.id":
+		if e.ComplexityRoot.PlayerAudio.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerAudio.ID(childComplexity), true
+	case "PlayerAudio.label":
+		if e.ComplexityRoot.PlayerAudio.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerAudio.Label(childComplexity), true
+
+	case "PlayerCommand.audio":
+		if e.ComplexityRoot.PlayerCommand.Audio == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerCommand.Audio(childComplexity), true
+	case "PlayerCommand.id":
+		if e.ComplexityRoot.PlayerCommand.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerCommand.ID(childComplexity), true
+	case "PlayerCommand.key":
+		if e.ComplexityRoot.PlayerCommand.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerCommand.Key(childComplexity), true
+	case "PlayerCommand.muted":
+		if e.ComplexityRoot.PlayerCommand.Muted == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerCommand.Muted(childComplexity), true
+	case "PlayerCommand.position":
+		if e.ComplexityRoot.PlayerCommand.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerCommand.Position(childComplexity), true
+	case "PlayerCommand.type":
+		if e.ComplexityRoot.PlayerCommand.Type == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerCommand.Type(childComplexity), true
+	case "PlayerCommand.volume":
+		if e.ComplexityRoot.PlayerCommand.Volume == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerCommand.Volume(childComplexity), true
+
 	case "PlayerSettings.captions":
 		if e.ComplexityRoot.PlayerSettings.Captions == nil {
 			break
@@ -2448,6 +2638,79 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.PlayerSettings.JikkyoEnabled(childComplexity), true
+
+	case "PlayerState.audio":
+		if e.ComplexityRoot.PlayerState.Audio == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerState.Audio(childComplexity), true
+	case "PlayerState.audios":
+		if e.ComplexityRoot.PlayerState.Audios == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerState.Audios(childComplexity), true
+	case "PlayerState.dataBroadcast":
+		if e.ComplexityRoot.PlayerState.DataBroadcast == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerState.DataBroadcast(childComplexity), true
+	case "PlayerState.duration":
+		if e.ComplexityRoot.PlayerState.Duration == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerState.Duration(childComplexity), true
+	case "PlayerState.keyGroups":
+		if e.ComplexityRoot.PlayerState.KeyGroups == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerState.KeyGroups(childComplexity), true
+	case "PlayerState.kind":
+		if e.ComplexityRoot.PlayerState.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerState.Kind(childComplexity), true
+	case "PlayerState.muted":
+		if e.ComplexityRoot.PlayerState.Muted == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerState.Muted(childComplexity), true
+	case "PlayerState.paused":
+		if e.ComplexityRoot.PlayerState.Paused == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerState.Paused(childComplexity), true
+	case "PlayerState.position":
+		if e.ComplexityRoot.PlayerState.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerState.Position(childComplexity), true
+	case "PlayerState.target":
+		if e.ComplexityRoot.PlayerState.Target == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerState.Target(childComplexity), true
+	case "PlayerState.title":
+		if e.ComplexityRoot.PlayerState.Title == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerState.Title(childComplexity), true
+	case "PlayerState.volume":
+		if e.ComplexityRoot.PlayerState.Volume == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerState.Volume(childComplexity), true
 
 	case "PreviewFrame.height":
 		if e.ComplexityRoot.PreviewFrame.Height == nil {
@@ -2829,6 +3092,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.PlayerSettings(childComplexity), true
+	case "Query.players":
+		if e.ComplexityRoot.Query.Players == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.Players(childComplexity), true
 	case "Query.previewFileName":
 		if e.ComplexityRoot.Query.PreviewFileName == nil {
 			break
@@ -4003,6 +4272,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Subscription.Heartbeat(childComplexity), true
+	case "Subscription.playerCommands":
+		if e.ComplexityRoot.Subscription.PlayerCommands == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_playerCommands_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Subscription.PlayerCommands(childComplexity, args["id"].(string), args["after"].(*string)), true
+	case "Subscription.playersChanged":
+		if e.ComplexityRoot.Subscription.PlayersChanged == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Subscription.PlayersChanged(childComplexity), true
 	case "Subscription.unreadNotificationCount":
 		if e.ComplexityRoot.Subscription.UnreadNotificationCount == nil {
 			break
@@ -4417,7 +4703,10 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputMutedKeywordInput,
 		ec.unmarshalInputNotificationPreferenceInput,
 		ec.unmarshalInputOrphanFileInput,
+		ec.unmarshalInputPlayerAudioInput,
+		ec.unmarshalInputPlayerCommandInput,
 		ec.unmarshalInputPlayerSettingsInput,
+		ec.unmarshalInputPlayerStateInput,
 		ec.unmarshalInputProgramConditionsInput,
 		ec.unmarshalInputProgramReservationInput,
 		ec.unmarshalInputRecordingFilter,
@@ -5430,6 +5719,146 @@ extend type Query {
 extend type Mutation {
   "プレイヤーの設定を変え、同じユーザーのほかの端末に viewerSettingsChanged で知らせる。"
   updatePlayerSettings(input: PlayerSettingsInput!): PlayerSettings!
+}
+`, BuiltIn: false},
+	{Name: "../schema/players.graphqls", Input: `"再生中のプレイヤーで見ているもの。"
+enum PlayerKind {
+  LIVE
+  RECORDING
+}
+
+"プレイヤーで選べる音声。"
+type PlayerAudio {
+  "プレイヤーが音声を見分ける値。SELECT_AUDIO の操作で、この値を渡す。"
+  id: String!
+  label: String!
+}
+
+"再生中のプレイヤーの状態 (#459、設計書 7.7)。プレイヤーが送ったものを、そのまま返す。"
+type PlayerState {
+  kind: PlayerKind!
+  "見ているもの。ライブ視聴ならサービス、録画の再生なら録画の ID。"
+  target: ID!
+  "番組名。"
+  title: String
+  paused: Boolean!
+  "録画の再生位置と長さ (秒)。ライブ視聴では null。状態を送った時点 (Player.lastSeenAt) のもの。"
+  position: Float
+  duration: Float
+  "音量。1 が 100%。"
+  volume: Float!
+  muted: Boolean!
+  audios: [PlayerAudio!]!
+  "選んでいる音声の PlayerAudio.id。"
+  audio: String
+  "データ放送を出しているかどうかと、いまの文書が使うリモコンのキーのグループ (basic、data-button、numeric-tuning)。"
+  dataBroadcast: Boolean!
+  keyGroups: [String!]!
+}
+
+input PlayerAudioInput {
+  id: String!
+  label: String!
+}
+
+input PlayerStateInput {
+  kind: PlayerKind!
+  target: ID!
+  title: String
+  paused: Boolean!
+  position: Float
+  duration: Float
+  volume: Float!
+  muted: Boolean!
+  audios: [PlayerAudioInput!]!
+  audio: String
+  dataBroadcast: Boolean!
+  keyGroups: [String!]!
+}
+
+"""
+再生中のプレイヤー (#459、設計書 7.7)。プレイヤーを開いた端末が登録し、10 秒ごとに状態を送る。
+30 秒送られてこなければ、閉じたとみなし、一覧に出さない。
+"""
+type Player {
+  id: ID!
+  "このリクエストのセッション (端末) で開いたプレイヤーかどうか。"
+  current: Boolean!
+  "プレイヤーを開いた端末の User-Agent。"
+  userAgent: String!
+  state: PlayerState!
+  startedAt: Time!
+  "最後に状態を送った日時。"
+  lastSeenAt: Time!
+}
+
+"プレイヤーへの操作の種類。"
+enum PlayerCommandType {
+  PLAY
+  PAUSE
+  "position (秒) の位置へ移る。録画の再生だけ。"
+  SEEK
+  "volume にする。"
+  SET_VOLUME
+  "muted にする。"
+  SET_MUTED
+  "audio (PlayerAudio.id) の音声にする。"
+  SELECT_AUDIO
+  "データ放送のリモコンの key (上下左右、決定、戻る、d、色、数字) を押す。"
+  PRESS_KEY
+  "プレイヤーを閉じる。"
+  STOP
+}
+
+input PlayerCommandInput {
+  type: PlayerCommandType!
+  position: Float
+  volume: Float
+  muted: Boolean
+  audio: String
+  key: String
+}
+
+"プレイヤーへの操作。操作される端末が subscription で受け取る。"
+type PlayerCommand {
+  "届いた順に増える。"
+  id: ID!
+  type: PlayerCommandType!
+  position: Float
+  volume: Float
+  muted: Boolean
+  audio: String
+  key: String
+}
+
+extend type Query {
+  "ログイン中のユーザーの、再生中のプレイヤー。開いた順に並べる。"
+  players: [Player!]!
+}
+
+extend type Mutation {
+  "このセッションのプレイヤーを登録する。"
+  registerPlayer(state: PlayerStateInput!): Player!
+  """
+  このセッションのプレイヤーの状態を送る。10 秒ごとと、状態が変わったときに送る。
+  announce なら、ほかの端末に一覧を読み直させる。再生位置が進んだだけのときは false にする。
+  """
+  updatePlayer(id: ID!, state: PlayerStateInput!, announce: Boolean!): Player!
+  "このセッションのプレイヤーを取り消し、その ID を返す。"
+  unregisterPlayer(id: ID!): ID!
+  "ログイン中のユーザーのプレイヤーに操作を送る。"
+  sendPlayerCommand(id: ID!, command: PlayerCommandInput!): Boolean!
+}
+
+extend type Subscription {
+  "ログイン中のユーザーの、再生中のプレイヤーの一覧の版。変わったら、players を読み直す。"
+  playersChanged: Int!
+  """
+  このセッションのプレイヤーへの操作を、届いた順に送る。after を渡せば、その操作より後に届いたものから送る。
+  つなぎ直すときは、最後に受け取った操作の id を渡し、つなぎ直す間に届いた操作を取りこぼさないようにする (操作は 1 分残す)。
+  渡さなければ、購読を始めた後に届いたものから送る。
+  """
+  playerCommands(id: ID!, after: ID): PlayerCommand!
 }
 `, BuiltIn: false},
 	{Name: "../schema/recording_renames.graphqls", Input: `"""
@@ -7242,6 +7671,54 @@ func (ec *executionContext) childFields_Passkey(ctx context.Context, field graph
 	return nil, fmt.Errorf("no field named %q was found under type Passkey", field.Name)
 }
 
+func (ec *executionContext) childFields_Player(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Player_id(ctx, field)
+	case "current":
+		return ec.fieldContext_Player_current(ctx, field)
+	case "userAgent":
+		return ec.fieldContext_Player_userAgent(ctx, field)
+	case "state":
+		return ec.fieldContext_Player_state(ctx, field)
+	case "startedAt":
+		return ec.fieldContext_Player_startedAt(ctx, field)
+	case "lastSeenAt":
+		return ec.fieldContext_Player_lastSeenAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Player", field.Name)
+}
+
+func (ec *executionContext) childFields_PlayerAudio(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_PlayerAudio_id(ctx, field)
+	case "label":
+		return ec.fieldContext_PlayerAudio_label(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PlayerAudio", field.Name)
+}
+
+func (ec *executionContext) childFields_PlayerCommand(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_PlayerCommand_id(ctx, field)
+	case "type":
+		return ec.fieldContext_PlayerCommand_type(ctx, field)
+	case "position":
+		return ec.fieldContext_PlayerCommand_position(ctx, field)
+	case "volume":
+		return ec.fieldContext_PlayerCommand_volume(ctx, field)
+	case "muted":
+		return ec.fieldContext_PlayerCommand_muted(ctx, field)
+	case "audio":
+		return ec.fieldContext_PlayerCommand_audio(ctx, field)
+	case "key":
+		return ec.fieldContext_PlayerCommand_key(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PlayerCommand", field.Name)
+}
+
 func (ec *executionContext) childFields_PlayerSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "jikkyoEnabled":
@@ -7254,6 +7731,36 @@ func (ec *executionContext) childFields_PlayerSettings(ctx context.Context, fiel
 		return ec.fieldContext_PlayerSettings_captions(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type PlayerSettings", field.Name)
+}
+
+func (ec *executionContext) childFields_PlayerState(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "kind":
+		return ec.fieldContext_PlayerState_kind(ctx, field)
+	case "target":
+		return ec.fieldContext_PlayerState_target(ctx, field)
+	case "title":
+		return ec.fieldContext_PlayerState_title(ctx, field)
+	case "paused":
+		return ec.fieldContext_PlayerState_paused(ctx, field)
+	case "position":
+		return ec.fieldContext_PlayerState_position(ctx, field)
+	case "duration":
+		return ec.fieldContext_PlayerState_duration(ctx, field)
+	case "volume":
+		return ec.fieldContext_PlayerState_volume(ctx, field)
+	case "muted":
+		return ec.fieldContext_PlayerState_muted(ctx, field)
+	case "audios":
+		return ec.fieldContext_PlayerState_audios(ctx, field)
+	case "audio":
+		return ec.fieldContext_PlayerState_audio(ctx, field)
+	case "dataBroadcast":
+		return ec.fieldContext_PlayerState_dataBroadcast(ctx, field)
+	case "keyGroups":
+		return ec.fieldContext_PlayerState_keyGroups(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PlayerState", field.Name)
 }
 
 func (ec *executionContext) childFields_PreviewFrame(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -8554,6 +9061,20 @@ func (ec *executionContext) field_Mutation_regenerateRecordingImages_args(ctx co
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_registerPlayer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "state",
+		func(ctx context.Context, v any) (model.PlayerStateInput, error) {
+			return ec.unmarshalNPlayerStateInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerStateInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["state"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_renamePasskey_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -8645,6 +9166,28 @@ func (ec *executionContext) field_Mutation_saveWatchPosition_args(ctx context.Co
 		return nil, err
 	}
 	args["positionMs"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_sendPlayerCommand_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "command",
+		func(ctx context.Context, v any) (model.PlayerCommandInput, error) {
+			return ec.unmarshalNPlayerCommandInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerCommandInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["command"] = arg1
 	return args, nil
 }
 
@@ -8816,6 +9359,20 @@ func (ec *executionContext) field_Mutation_subscribeWebPush_args(ctx context.Con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_unregisterPlayer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_unsubscribeWebPush_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -8899,6 +9456,36 @@ func (ec *executionContext) field_Mutation_updatePlayerSettings_args(ctx context
 		return nil, err
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updatePlayer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "state",
+		func(ctx context.Context, v any) (model.PlayerStateInput, error) {
+			return ec.unmarshalNPlayerStateInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerStateInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["state"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "announce",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["announce"] = arg2
 	return args, nil
 }
 
@@ -9403,6 +9990,28 @@ func (ec *executionContext) field_Query_services_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["includeHidden"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_playerCommands_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["after"] = arg1
 	return args, nil
 }
 
@@ -12546,6 +13155,182 @@ func (ec *executionContext) fieldContext_Mutation_updatePlayerSettings(ctx conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_registerPlayer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_registerPlayer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RegisterPlayer(ctx, fc.Args["state"].(model.PlayerStateInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Player) graphql.Marshaler {
+			return ec.marshalNPlayer2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayer(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_registerPlayer(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Player(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_registerPlayer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updatePlayer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updatePlayer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdatePlayer(ctx, fc.Args["id"].(string), fc.Args["state"].(model.PlayerStateInput), fc.Args["announce"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Player) graphql.Marshaler {
+			return ec.marshalNPlayer2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayer(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updatePlayer(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Player(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updatePlayer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_unregisterPlayer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_unregisterPlayer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UnregisterPlayer(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_unregisterPlayer(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_unregisterPlayer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_sendPlayerCommand(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_sendPlayerCommand(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SendPlayerCommand(ctx, fc.Args["id"].(string), fc.Args["command"].(model.PlayerCommandInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_sendPlayerCommand(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_sendPlayerCommand_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_renameRecordingFiles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15142,6 +15927,360 @@ func (ec *executionContext) fieldContext_Passkey_lastUsedAt(_ context.Context, f
 	return graphql.NewScalarFieldContext("Passkey", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _Player_id(ctx context.Context, field graphql.CollectedField, obj *model.Player) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Player_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Player_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Player", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _Player_current(ctx context.Context, field graphql.CollectedField, obj *model.Player) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Player_current(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Current, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Player_current(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Player", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Player_userAgent(ctx context.Context, field graphql.CollectedField, obj *model.Player) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Player_userAgent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UserAgent, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Player_userAgent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Player", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Player_state(ctx context.Context, field graphql.CollectedField, obj *model.Player) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Player_state(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PlayerState) graphql.Marshaler {
+			return ec.marshalNPlayerState2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerState(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Player_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Player",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PlayerState(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Player_startedAt(ctx context.Context, field graphql.CollectedField, obj *model.Player) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Player_startedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Player_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Player", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Player_lastSeenAt(ctx context.Context, field graphql.CollectedField, obj *model.Player) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Player_lastSeenAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastSeenAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Player_lastSeenAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Player", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerAudio_id(ctx context.Context, field graphql.CollectedField, obj *model.PlayerAudio) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerAudio_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerAudio_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerAudio", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerAudio_label(ctx context.Context, field graphql.CollectedField, obj *model.PlayerAudio) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerAudio_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerAudio_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerAudio", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerCommand_id(ctx context.Context, field graphql.CollectedField, obj *model.PlayerCommand) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerCommand_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerCommand_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerCommand", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerCommand_type(ctx context.Context, field graphql.CollectedField, obj *model.PlayerCommand) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerCommand_type(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.PlayerCommandType) graphql.Marshaler {
+			return ec.marshalNPlayerCommandType2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerCommandType(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerCommand_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerCommand", field, false, false, errors.New("field of type PlayerCommandType does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerCommand_position(ctx context.Context, field graphql.CollectedField, obj *model.PlayerCommand) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerCommand_position(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerCommand_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerCommand", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerCommand_volume(ctx context.Context, field graphql.CollectedField, obj *model.PlayerCommand) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerCommand_volume(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Volume, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerCommand_volume(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerCommand", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerCommand_muted(ctx context.Context, field graphql.CollectedField, obj *model.PlayerCommand) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerCommand_muted(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Muted, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *bool) graphql.Marshaler {
+			return ec.marshalOBoolean2ᚖbool(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerCommand_muted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerCommand", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerCommand_audio(ctx context.Context, field graphql.CollectedField, obj *model.PlayerCommand) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerCommand_audio(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Audio, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerCommand_audio(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerCommand", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerCommand_key(ctx context.Context, field graphql.CollectedField, obj *model.PlayerCommand) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerCommand_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerCommand_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerCommand", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _PlayerSettings_jikkyoEnabled(ctx context.Context, field graphql.CollectedField, obj *model.PlayerSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15250,6 +16389,291 @@ func (ec *executionContext) fieldContext_PlayerSettings_captions(_ context.Conte
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _PlayerState_kind(ctx context.Context, field graphql.CollectedField, obj *model.PlayerState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerState_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.PlayerKind) graphql.Marshaler {
+			return ec.marshalNPlayerKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerState_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerState", field, false, false, errors.New("field of type PlayerKind does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerState_target(ctx context.Context, field graphql.CollectedField, obj *model.PlayerState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerState_target(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Target, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerState_target(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerState", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerState_title(ctx context.Context, field graphql.CollectedField, obj *model.PlayerState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerState_title(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerState_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerState", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerState_paused(ctx context.Context, field graphql.CollectedField, obj *model.PlayerState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerState_paused(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Paused, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerState_paused(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerState", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerState_position(ctx context.Context, field graphql.CollectedField, obj *model.PlayerState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerState_position(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerState_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerState", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerState_duration(ctx context.Context, field graphql.CollectedField, obj *model.PlayerState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerState_duration(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Duration, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerState_duration(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerState", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerState_volume(ctx context.Context, field graphql.CollectedField, obj *model.PlayerState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerState_volume(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Volume, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerState_volume(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerState", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerState_muted(ctx context.Context, field graphql.CollectedField, obj *model.PlayerState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerState_muted(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Muted, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerState_muted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerState", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerState_audios(ctx context.Context, field graphql.CollectedField, obj *model.PlayerState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerState_audios(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Audios, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.PlayerAudio) graphql.Marshaler {
+			return ec.marshalNPlayerAudio2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerAudioᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerState_audios(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlayerState",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PlayerAudio(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlayerState_audio(ctx context.Context, field graphql.CollectedField, obj *model.PlayerState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerState_audio(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Audio, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerState_audio(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerState", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerState_dataBroadcast(ctx context.Context, field graphql.CollectedField, obj *model.PlayerState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerState_dataBroadcast(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DataBroadcast, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerState_dataBroadcast(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerState", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerState_keyGroups(ctx context.Context, field graphql.CollectedField, obj *model.PlayerState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerState_keyGroups(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.KeyGroups, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerState_keyGroups(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerState", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _PreviewFrame_url(ctx context.Context, field graphql.CollectedField, obj *model.PreviewFrame) (ret graphql.Marshaler) {
@@ -17161,6 +18585,38 @@ func (ec *executionContext) fieldContext_Query_playerSettings(_ context.Context,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_PlayerSettings(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_players(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_players(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().Players(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Player) graphql.Marshaler {
+			return ec.marshalNPlayer2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_players(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Player(ctx, field)
 		},
 	}
 	return fc, nil
@@ -21901,6 +23357,73 @@ func (ec *executionContext) fieldContext_Subscription_viewerSettingsChanged(_ co
 	return graphql.NewScalarFieldContext("Subscription", field, true, true, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _Subscription_playersChanged(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_playersChanged(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Subscription().PlayersChanged(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_playersChanged(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Subscription", field, true, true, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _Subscription_playerCommands(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_playerCommands(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Subscription().PlayerCommands(ctx, fc.Args["id"].(string), fc.Args["after"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PlayerCommand) graphql.Marshaler {
+			return ec.marshalNPlayerCommand2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerCommand(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_playerCommands(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PlayerCommand(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_playerCommands_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SystemSettings_recordingDefaults(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -25118,6 +26641,108 @@ func (ec *executionContext) unmarshalInputOrphanFileInput(ctx context.Context, o
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputPlayerAudioInput(ctx context.Context, obj any) (model.PlayerAudioInput, error) {
+	var it model.PlayerAudioInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"id", "label"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "label":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("label"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Label = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputPlayerCommandInput(ctx context.Context, obj any) (model.PlayerCommandInput, error) {
+	var it model.PlayerCommandInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"type", "position", "volume", "muted", "audio", "key"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "type":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("type"))
+			data, err := ec.unmarshalNPlayerCommandType2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerCommandType(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Type = data
+		case "position":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("position"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Position = data
+		case "volume":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("volume"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Volume = data
+		case "muted":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("muted"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Muted = data
+		case "audio":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("audio"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Audio = data
+		case "key":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Key = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputPlayerSettingsInput(ctx context.Context, obj any) (model.PlayerSettingsInput, error) {
 	var it model.PlayerSettingsInput
 	if obj == nil {
@@ -25164,6 +26789,113 @@ func (ec *executionContext) unmarshalInputPlayerSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.Captions = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputPlayerStateInput(ctx context.Context, obj any) (model.PlayerStateInput, error) {
+	var it model.PlayerStateInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"kind", "target", "title", "paused", "position", "duration", "volume", "muted", "audios", "audio", "dataBroadcast", "keyGroups"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "kind":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
+			data, err := ec.unmarshalNPlayerKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerKind(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Kind = data
+		case "target":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("target"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Target = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "paused":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("paused"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Paused = data
+		case "position":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("position"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Position = data
+		case "duration":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("duration"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Duration = data
+		case "volume":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("volume"))
+			data, err := ec.unmarshalNFloat2float64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Volume = data
+		case "muted":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("muted"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Muted = data
+		case "audios":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("audios"))
+			data, err := ec.unmarshalNPlayerAudioInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerAudioInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Audios = data
+		case "audio":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("audio"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Audio = data
+		case "dataBroadcast":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dataBroadcast"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DataBroadcast = data
+		case "keyGroups":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("keyGroups"))
+			data, err := ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.KeyGroups = data
 		}
 	}
 	return it, nil
@@ -27795,6 +29527,34 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "registerPlayer":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_registerPlayer(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatePlayer":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updatePlayer(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unregisterPlayer":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_unregisterPlayer(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sendPlayerCommand":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_sendPlayerCommand(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "renameRecordingFiles":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_renameRecordingFiles(ctx, field)
@@ -28536,6 +30296,180 @@ func (ec *executionContext) _Passkey(ctx context.Context, sel ast.SelectionSet, 
 	return out
 }
 
+var playerImplementors = []string{"Player"}
+
+func (ec *executionContext) _Player(ctx context.Context, sel ast.SelectionSet, obj *model.Player) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, playerImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Player")
+		case "id":
+			out.Values[i] = ec._Player_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "current":
+			out.Values[i] = ec._Player_current(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userAgent":
+			out.Values[i] = ec._Player_userAgent(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "state":
+			out.Values[i] = ec._Player_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startedAt":
+			out.Values[i] = ec._Player_startedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastSeenAt":
+			out.Values[i] = ec._Player_lastSeenAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var playerAudioImplementors = []string{"PlayerAudio"}
+
+func (ec *executionContext) _PlayerAudio(ctx context.Context, sel ast.SelectionSet, obj *model.PlayerAudio) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, playerAudioImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PlayerAudio")
+		case "id":
+			out.Values[i] = ec._PlayerAudio_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "label":
+			out.Values[i] = ec._PlayerAudio_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var playerCommandImplementors = []string{"PlayerCommand"}
+
+func (ec *executionContext) _PlayerCommand(ctx context.Context, sel ast.SelectionSet, obj *model.PlayerCommand) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, playerCommandImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PlayerCommand")
+		case "id":
+			out.Values[i] = ec._PlayerCommand_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._PlayerCommand_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._PlayerCommand_position(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "volume":
+			out.Values[i] = ec._PlayerCommand_volume(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "muted":
+			out.Values[i] = ec._PlayerCommand_muted(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "audio":
+			out.Values[i] = ec._PlayerCommand_audio(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "key":
+			out.Values[i] = ec._PlayerCommand_key(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var playerSettingsImplementors = []string{"PlayerSettings"}
 
 func (ec *executionContext) _PlayerSettings(ctx context.Context, sel ast.SelectionSet, obj *model.PlayerSettings) graphql.Marshaler {
@@ -28565,6 +30499,99 @@ func (ec *executionContext) _PlayerSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "captions":
 			out.Values[i] = ec._PlayerSettings_captions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var playerStateImplementors = []string{"PlayerState"}
+
+func (ec *executionContext) _PlayerState(ctx context.Context, sel ast.SelectionSet, obj *model.PlayerState) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, playerStateImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PlayerState")
+		case "kind":
+			out.Values[i] = ec._PlayerState_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "target":
+			out.Values[i] = ec._PlayerState_target(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "title":
+			out.Values[i] = ec._PlayerState_title(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "paused":
+			out.Values[i] = ec._PlayerState_paused(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._PlayerState_position(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "duration":
+			out.Values[i] = ec._PlayerState_duration(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "volume":
+			out.Values[i] = ec._PlayerState_volume(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "muted":
+			out.Values[i] = ec._PlayerState_muted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "audios":
+			out.Values[i] = ec._PlayerState_audios(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "audio":
+			out.Values[i] = ec._PlayerState_audio(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "dataBroadcast":
+			out.Values[i] = ec._PlayerState_dataBroadcast(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "keyGroups":
+			out.Values[i] = ec._PlayerState_keyGroups(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -29714,6 +31741,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_playerSettings(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "players":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_players(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -32173,6 +34222,10 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_unreadNotificationCount(ctx, fields[0])
 	case "viewerSettingsChanged":
 		return ec._Subscription_viewerSettingsChanged(ctx, fields[0])
+	case "playersChanged":
+		return ec._Subscription_playersChanged(ctx, fields[0])
+	case "playerCommands":
+		return ec._Subscription_playerCommands(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -34375,6 +36428,112 @@ func (ec *executionContext) marshalNPasskey2ᚖgithubᚗcomᚋSlashNephyᚋkotat
 	return ec._Passkey(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNPlayer2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Player) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNPlayer2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayer(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNPlayer2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayer(ctx context.Context, sel ast.SelectionSet, v *model.Player) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Player(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPlayerAudio2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerAudioᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.PlayerAudio) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNPlayerAudio2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerAudio(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNPlayerAudio2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerAudio(ctx context.Context, sel ast.SelectionSet, v *model.PlayerAudio) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PlayerAudio(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNPlayerAudioInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerAudioInputᚄ(ctx context.Context, v any) ([]*model.PlayerAudioInput, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.PlayerAudioInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNPlayerAudioInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerAudioInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNPlayerAudioInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerAudioInput(ctx context.Context, v any) (*model.PlayerAudioInput, error) {
+	res, err := ec.unmarshalInputPlayerAudioInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPlayerCommand2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerCommand(ctx context.Context, sel ast.SelectionSet, v *model.PlayerCommand) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PlayerCommand(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNPlayerCommandInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerCommandInput(ctx context.Context, v any) (model.PlayerCommandInput, error) {
+	res, err := ec.unmarshalInputPlayerCommandInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNPlayerCommandType2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerCommandType(ctx context.Context, v any) (model.PlayerCommandType, error) {
+	var res model.PlayerCommandType
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPlayerCommandType2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerCommandType(ctx context.Context, sel ast.SelectionSet, v model.PlayerCommandType) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNPlayerKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerKind(ctx context.Context, v any) (model.PlayerKind, error) {
+	var res model.PlayerKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPlayerKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerKind(ctx context.Context, sel ast.SelectionSet, v model.PlayerKind) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNPlayerSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerSettings(ctx context.Context, sel ast.SelectionSet, v *model.PlayerSettings) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -34387,6 +36546,21 @@ func (ec *executionContext) marshalNPlayerSettings2ᚖgithubᚗcomᚋSlashNephy�
 
 func (ec *executionContext) unmarshalNPlayerSettingsInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerSettingsInput(ctx context.Context, v any) (model.PlayerSettingsInput, error) {
 	res, err := ec.unmarshalInputPlayerSettingsInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPlayerState2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerState(ctx context.Context, sel ast.SelectionSet, v *model.PlayerState) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PlayerState(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNPlayerStateInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPlayerStateInput(ctx context.Context, v any) (model.PlayerStateInput, error) {
+	res, err := ec.unmarshalInputPlayerStateInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

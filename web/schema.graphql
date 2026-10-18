@@ -714,6 +714,23 @@ type Mutation {
   """
   updatePlayerSettings(input: PlayerSettingsInput!): PlayerSettings!
   """
+  このセッションのプレイヤーを登録する。
+  """
+  registerPlayer(state: PlayerStateInput!): Player!
+  """
+  このセッションのプレイヤーの状態を送る。10 秒ごとと、状態が変わったときに送る。
+  announce なら、ほかの端末に一覧を読み直させる。再生位置が進んだだけのときは false にする。
+  """
+  updatePlayer(id: ID!, state: PlayerStateInput!, announce: Boolean!): Player!
+  """
+  このセッションのプレイヤーを取り消し、その ID を返す。
+  """
+  unregisterPlayer(id: ID!): ID!
+  """
+  ログイン中のユーザーのプレイヤーに操作を送る。
+  """
+  sendPlayerCommand(id: ID!, command: PlayerCommandInput!): Boolean!
+  """
   録画 ids のセグメントのファイルと付属ファイルのディレクトリを、今のテンプレートの名前に付け直し、記録のパスを書き換える。
   管理者だけが使え、一度に 100 件まで。同じプールの中だけで移す。監査ログに残す。
   """
@@ -1091,6 +1108,102 @@ type Passkey {
   lastUsedAt: Time
 }
 """
+再生中のプレイヤー (#459、設計書 7.7)。プレイヤーを開いた端末が登録し、10 秒ごとに状態を送る。
+30 秒送られてこなければ、閉じたとみなし、一覧に出さない。
+"""
+type Player {
+  id: ID!
+  """
+  このリクエストのセッション (端末) で開いたプレイヤーかどうか。
+  """
+  current: Boolean!
+  """
+  プレイヤーを開いた端末の User-Agent。
+  """
+  userAgent: String!
+  state: PlayerState!
+  startedAt: Time!
+  """
+  最後に状態を送った日時。
+  """
+  lastSeenAt: Time!
+}
+"""
+プレイヤーで選べる音声。
+"""
+type PlayerAudio {
+  """
+  プレイヤーが音声を見分ける値。SELECT_AUDIO の操作で、この値を渡す。
+  """
+  id: String!
+  label: String!
+}
+input PlayerAudioInput {
+  id: String!
+  label: String!
+}
+"""
+プレイヤーへの操作。操作される端末が subscription で受け取る。
+"""
+type PlayerCommand {
+  """
+  届いた順に増える。
+  """
+  id: ID!
+  type: PlayerCommandType!
+  position: Float
+  volume: Float
+  muted: Boolean
+  audio: String
+  key: String
+}
+input PlayerCommandInput {
+  type: PlayerCommandType!
+  position: Float
+  volume: Float
+  muted: Boolean
+  audio: String
+  key: String
+}
+"""
+プレイヤーへの操作の種類。
+"""
+enum PlayerCommandType {
+  PLAY
+  PAUSE
+  """
+  position (秒) の位置へ移る。録画の再生だけ。
+  """
+  SEEK
+  """
+  volume にする。
+  """
+  SET_VOLUME
+  """
+  muted にする。
+  """
+  SET_MUTED
+  """
+  audio (PlayerAudio.id) の音声にする。
+  """
+  SELECT_AUDIO
+  """
+  データ放送のリモコンの key (上下左右、決定、戻る、d、色、数字) を押す。
+  """
+  PRESS_KEY
+  """
+  プレイヤーを閉じる。
+  """
+  STOP
+}
+"""
+再生中のプレイヤーで見ているもの。
+"""
+enum PlayerKind {
+  LIVE
+  RECORDING
+}
+"""
 ログイン中のユーザーのプレイヤーの設定 (設計書 9.1)。端末をまたいで同期する。
 """
 type PlayerSettings {
@@ -1125,6 +1238,55 @@ input PlayerSettingsInput {
   渡したら、字幕の設定をまるごと置き換える。
   """
   captions: CaptionSettingsInput
+}
+"""
+再生中のプレイヤーの状態 (#459、設計書 7.7)。プレイヤーが送ったものを、そのまま返す。
+"""
+type PlayerState {
+  kind: PlayerKind!
+  """
+  見ているもの。ライブ視聴ならサービス、録画の再生なら録画の ID。
+  """
+  target: ID!
+  """
+  番組名。
+  """
+  title: String
+  paused: Boolean!
+  """
+  録画の再生位置と長さ (秒)。ライブ視聴では null。状態を送った時点 (Player.lastSeenAt) のもの。
+  """
+  position: Float
+  duration: Float
+  """
+  音量。1 が 100%。
+  """
+  volume: Float!
+  muted: Boolean!
+  audios: [PlayerAudio!]!
+  """
+  選んでいる音声の PlayerAudio.id。
+  """
+  audio: String
+  """
+  データ放送を出しているかどうかと、いまの文書が使うリモコンのキーのグループ (basic、data-button、numeric-tuning)。
+  """
+  dataBroadcast: Boolean!
+  keyGroups: [String!]!
+}
+input PlayerStateInput {
+  kind: PlayerKind!
+  target: ID!
+  title: String
+  paused: Boolean!
+  position: Float
+  duration: Float
+  volume: Float!
+  muted: Boolean!
+  audios: [PlayerAudioInput!]!
+  audio: String
+  dataBroadcast: Boolean!
+  keyGroups: [String!]!
 }
 """
 プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
@@ -1373,6 +1535,10 @@ type Query {
   """
   pinnedServices: [Service!]!
   playerSettings: PlayerSettings!
+  """
+  ログイン中のユーザーの、再生中のプレイヤー。開いた順に並べる。
+  """
+  players: [Player!]!
   """
   今の録画設定のファイル名のテンプレートで付け直すと、名前が変わる録画を、録画を始めた日時の新しい順に返す。管理者だけが使える。
   録画設定は、録画のときと同じく、全体の既定値にルールと予約の上書きを重ねて求める。
@@ -2292,6 +2458,16 @@ type Subscription {
   クライアントは、届いたら設定を読み直す。対象の設定は、通知の設定、番組表ビュー、プレイヤーの設定、視聴予約とその通知の設定、第二要素、パスキー、セッションの失効。
   """
   viewerSettingsChanged: Int!
+  """
+  ログイン中のユーザーの、再生中のプレイヤーの一覧の版。変わったら、players を読み直す。
+  """
+  playersChanged: Int!
+  """
+  このセッションのプレイヤーへの操作を、届いた順に送る。after を渡せば、その操作より後に届いたものから送る。
+  つなぎ直すときは、最後に受け取った操作の id を渡し、つなぎ直す間に届いた操作を取りこぼさないようにする (操作は 1 分残す)。
+  渡さなければ、購読を始めた後に届いたものから送る。
+  """
+  playerCommands(id: ID!, after: ID): PlayerCommand!
 }
 """
 画面から変える、全体の設定 (設計書 11.2)。

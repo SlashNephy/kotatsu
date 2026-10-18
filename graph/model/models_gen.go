@@ -466,6 +466,53 @@ type Passkey struct {
 	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 }
 
+// 再生中のプレイヤー (#459、設計書 7.7)。プレイヤーを開いた端末が登録し、10 秒ごとに状態を送る。
+// 30 秒送られてこなければ、閉じたとみなし、一覧に出さない。
+type Player struct {
+	ID string `json:"id"`
+	// このリクエストのセッション (端末) で開いたプレイヤーかどうか。
+	Current bool `json:"current"`
+	// プレイヤーを開いた端末の User-Agent。
+	UserAgent string       `json:"userAgent"`
+	State     *PlayerState `json:"state"`
+	StartedAt time.Time    `json:"startedAt"`
+	// 最後に状態を送った日時。
+	LastSeenAt time.Time `json:"lastSeenAt"`
+}
+
+// プレイヤーで選べる音声。
+type PlayerAudio struct {
+	// プレイヤーが音声を見分ける値。SELECT_AUDIO の操作で、この値を渡す。
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
+type PlayerAudioInput struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
+// プレイヤーへの操作。操作される端末が subscription で受け取る。
+type PlayerCommand struct {
+	// 届いた順に増える。
+	ID       string            `json:"id"`
+	Type     PlayerCommandType `json:"type"`
+	Position *float64          `json:"position,omitempty"`
+	Volume   *float64          `json:"volume,omitempty"`
+	Muted    *bool             `json:"muted,omitempty"`
+	Audio    *string           `json:"audio,omitempty"`
+	Key      *string           `json:"key,omitempty"`
+}
+
+type PlayerCommandInput struct {
+	Type     PlayerCommandType `json:"type"`
+	Position *float64          `json:"position,omitempty"`
+	Volume   *float64          `json:"volume,omitempty"`
+	Muted    *bool             `json:"muted,omitempty"`
+	Audio    *string           `json:"audio,omitempty"`
+	Key      *string           `json:"key,omitempty"`
+}
+
 // ログイン中のユーザーのプレイヤーの設定 (設計書 9.1)。端末をまたいで同期する。
 type PlayerSettings struct {
 	// 実況のコメントを出すかどうか。出さなければ、NX-Jikkyo に接続しない (設計書 7.4)。
@@ -486,6 +533,43 @@ type PlayerSettingsInput struct {
 	Comments *CommentSettingsInput `json:"comments,omitempty"`
 	// 渡したら、字幕の設定をまるごと置き換える。
 	Captions *CaptionSettingsInput `json:"captions,omitempty"`
+}
+
+// 再生中のプレイヤーの状態 (#459、設計書 7.7)。プレイヤーが送ったものを、そのまま返す。
+type PlayerState struct {
+	Kind PlayerKind `json:"kind"`
+	// 見ているもの。ライブ視聴ならサービス、録画の再生なら録画の ID。
+	Target string `json:"target"`
+	// 番組名。
+	Title  *string `json:"title,omitempty"`
+	Paused bool    `json:"paused"`
+	// 録画の再生位置と長さ (秒)。ライブ視聴では null。状態を送った時点 (Player.lastSeenAt) のもの。
+	Position *float64 `json:"position,omitempty"`
+	Duration *float64 `json:"duration,omitempty"`
+	// 音量。1 が 100%。
+	Volume float64        `json:"volume"`
+	Muted  bool           `json:"muted"`
+	Audios []*PlayerAudio `json:"audios"`
+	// 選んでいる音声の PlayerAudio.id。
+	Audio *string `json:"audio,omitempty"`
+	// データ放送を出しているかどうかと、いまの文書が使うリモコンのキーのグループ (basic、data-button、numeric-tuning)。
+	DataBroadcast bool     `json:"dataBroadcast"`
+	KeyGroups     []string `json:"keyGroups"`
+}
+
+type PlayerStateInput struct {
+	Kind          PlayerKind          `json:"kind"`
+	Target        string              `json:"target"`
+	Title         *string             `json:"title,omitempty"`
+	Paused        bool                `json:"paused"`
+	Position      *float64            `json:"position,omitempty"`
+	Duration      *float64            `json:"duration,omitempty"`
+	Volume        float64             `json:"volume"`
+	Muted         bool                `json:"muted"`
+	Audios        []*PlayerAudioInput `json:"audios"`
+	Audio         *string             `json:"audio,omitempty"`
+	DataBroadcast bool                `json:"dataBroadcast"`
+	KeyGroups     []string            `json:"keyGroups"`
 }
 
 // プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。
@@ -1446,6 +1530,136 @@ func (e *NotificationKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e NotificationKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// プレイヤーへの操作の種類。
+type PlayerCommandType string
+
+const (
+	PlayerCommandTypePlay  PlayerCommandType = "PLAY"
+	PlayerCommandTypePause PlayerCommandType = "PAUSE"
+	// position (秒) の位置へ移る。録画の再生だけ。
+	PlayerCommandTypeSeek PlayerCommandType = "SEEK"
+	// volume にする。
+	PlayerCommandTypeSetVolume PlayerCommandType = "SET_VOLUME"
+	// muted にする。
+	PlayerCommandTypeSetMuted PlayerCommandType = "SET_MUTED"
+	// audio (PlayerAudio.id) の音声にする。
+	PlayerCommandTypeSelectAudio PlayerCommandType = "SELECT_AUDIO"
+	// データ放送のリモコンの key (上下左右、決定、戻る、d、色、数字) を押す。
+	PlayerCommandTypePressKey PlayerCommandType = "PRESS_KEY"
+	// プレイヤーを閉じる。
+	PlayerCommandTypeStop PlayerCommandType = "STOP"
+)
+
+var AllPlayerCommandType = []PlayerCommandType{
+	PlayerCommandTypePlay,
+	PlayerCommandTypePause,
+	PlayerCommandTypeSeek,
+	PlayerCommandTypeSetVolume,
+	PlayerCommandTypeSetMuted,
+	PlayerCommandTypeSelectAudio,
+	PlayerCommandTypePressKey,
+	PlayerCommandTypeStop,
+}
+
+func (e PlayerCommandType) IsValid() bool {
+	switch e {
+	case PlayerCommandTypePlay, PlayerCommandTypePause, PlayerCommandTypeSeek, PlayerCommandTypeSetVolume, PlayerCommandTypeSetMuted, PlayerCommandTypeSelectAudio, PlayerCommandTypePressKey, PlayerCommandTypeStop:
+		return true
+	}
+	return false
+}
+
+func (e PlayerCommandType) String() string {
+	return string(e)
+}
+
+func (e *PlayerCommandType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = PlayerCommandType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid PlayerCommandType", str)
+	}
+	return nil
+}
+
+func (e PlayerCommandType) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *PlayerCommandType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e PlayerCommandType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 再生中のプレイヤーで見ているもの。
+type PlayerKind string
+
+const (
+	PlayerKindLive      PlayerKind = "LIVE"
+	PlayerKindRecording PlayerKind = "RECORDING"
+)
+
+var AllPlayerKind = []PlayerKind{
+	PlayerKindLive,
+	PlayerKindRecording,
+}
+
+func (e PlayerKind) IsValid() bool {
+	switch e {
+	case PlayerKindLive, PlayerKindRecording:
+		return true
+	}
+	return false
+}
+
+func (e PlayerKind) String() string {
+	return string(e)
+}
+
+func (e *PlayerKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = PlayerKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid PlayerKind", str)
+	}
+	return nil
+}
+
+func (e PlayerKind) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *PlayerKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e PlayerKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

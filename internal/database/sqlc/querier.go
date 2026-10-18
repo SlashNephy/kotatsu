@@ -27,6 +27,7 @@ type Querier interface {
 	// 同じ番組を移し直すことは通常ないが、移した後に上流から同じ番組が届き、また移すときは新しい内容で上書きする。
 	ArchivePrograms(ctx context.Context, arg ArchiveProgramsParams) (int64, error)
 	BumpChangeVersion(ctx context.Context, arg BumpChangeVersionParams) (int64, error)
+	BumpPlayerVersion(ctx context.Context, arg BumpPlayerVersionParams) error
 	BumpUserSettingsVersion(ctx context.Context, arg BumpUserSettingsVersionParams) (int64, error)
 	// 無効にした予約の割り当ての結果を消す。
 	ClearDisabledAssignments(ctx context.Context) (int64, error)
@@ -52,6 +53,8 @@ type Querier interface {
 	CountUpcomingReservationsByRules(ctx context.Context, arg CountUpcomingReservationsByRulesParams) ([]CountUpcomingReservationsByRulesRow, error)
 	CountUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) error
+	CreatePlayer(ctx context.Context, arg CreatePlayerParams) error
+	CreatePlayerCommand(ctx context.Context, arg CreatePlayerCommandParams) (int64, error)
 	// ユーザーの API トークンを消し、消した名前を返す。ほかのユーザーのトークンは消さない。
 	DeleteAPIToken(ctx context.Context, arg DeleteAPITokenParams) (string, error)
 	// before より前の記録を、古い順に max_count 件まで消す。1 回のトランザクションで大量の行を消さないよう、件数を区切る。
@@ -67,6 +70,8 @@ type Querier interface {
 	// 配り終えた通知のイベントのうち、before より前に起きたものを、max_count 件まで消す。ユーザーごとの通知も一緒に消える。
 	// まだ配っていないイベントは消さない。
 	DeleteNotificationEventsBefore(ctx context.Context, arg DeleteNotificationEventsBeforeParams) (int64, error)
+	DeleteOldPlayerCommands(ctx context.Context, before time.Time) (int64, error)
+	DeletePlayer(ctx context.Context, arg DeletePlayerParams) (int64, error)
 	// 放送が始まった番組は、アーカイブに移すまで残す (設計書 3.3、3.4)。
 	DeletePrograms(ctx context.Context, arg []DeleteProgramsParams) *DeleteProgramsBatchResults
 	DeleteRecording(ctx context.Context, id uuid.UUID) (int64, error)
@@ -81,6 +86,8 @@ type Querier interface {
 	DeleteStaleInstances(ctx context.Context, before time.Time) (int64, error)
 	// 数え直す時間を過ぎ、待たせてもいない行を消す。存在しないユーザー名や IP の行が溜まり続けないようにする。
 	DeleteStaleLoginThrottles(ctx context.Context, arg DeleteStaleLoginThrottlesParams) (int64, error)
+	// 閉じたとみなすプレイヤーを消す。操作も一緒に消える。
+	DeleteStalePlayers(ctx context.Context, before time.Time) (int64, error)
 	// まだ mikan が取っていない割り振りのうち、録画しなくなった予約のものを消す。
 	// 予約を無効にしたか、割り当てを計算し直す前の状態に戻ったか、予定の開始が due_before より後に動いたか、
 	// mikan が取らないまま予定の終わりが過ぎたもの。
@@ -130,8 +137,11 @@ type Querier interface {
 	GetNotificationEvent(ctx context.Context, id uuid.UUID) (NotificationEvent, error)
 	GetOIDCIdentity(ctx context.Context, arg GetOIDCIdentityParams) (UserOidcIdentity, error)
 	GetPasskeyByCredentialID(ctx context.Context, credentialID []byte) (UserPasskey, error)
+	// プレイヤーのユーザーとセッション。閉じたとみなすプレイヤーは返さない。
+	GetPlayerOwner(ctx context.Context, arg GetPlayerOwnerParams) (GetPlayerOwnerRow, error)
 	// プレイヤーの設定。一度も変えていなければ、既定値を返す。
 	GetPlayerSettings(ctx context.Context, userID uuid.UUID) (GetPlayerSettingsRow, error)
+	GetPlayerVersion(ctx context.Context, userID uuid.UUID) (int64, error)
 	// 録画中の番組の、今の EPG の終了時刻と、未定かどうか。番組が EPG から消えていれば行を返さない。
 	GetProgramEnd(ctx context.Context, arg GetProgramEndParams) (GetProgramEndRow, error)
 	// ファイル名のテンプレートのプレビューに当てはめる、番組とサービスの情報。
@@ -229,6 +239,7 @@ type Querier interface {
 	InsertWebhook(ctx context.Context, arg InsertWebhookParams) (Webhook, error)
 	// 予約の録画が録画中かどうか。まとめて消すか無効にするとき、録画中の予約を飛ばすのに使う (#471)。
 	IsReservationRecording(ctx context.Context, reservationID *uuid.UUID) (bool, error)
+	LastPlayerCommandID(ctx context.Context, playerID uuid.UUID) (int64, error)
 	// EPGStation 互換の API (#431、設計書 9.8) で返す録画。セグメントがなく、再生できない録画は返さない。
 	// 録画を、録画を始めた日時の新しい順に、offset から max_count 件返す。keyword が空でなければ、番組名で絞る。
 	ListAPIRecordings(ctx context.Context, arg ListAPIRecordingsParams) ([]ListAPIRecordingsRow, error)
@@ -296,6 +307,10 @@ type Querier interface {
 	ListPendingNotificationEvents(ctx context.Context, maxCount int32) ([]NotificationEvent, error)
 	// ユーザーがピン留めしたサービスを、ピン留めした順に返す (#485)。
 	ListPinnedServiceIDs(ctx context.Context, userID uuid.UUID) ([]int64, error)
+	// プレイヤーへの操作のうち、after より新しいものを、届いた順に返す。
+	ListPlayerCommands(ctx context.Context, arg ListPlayerCommandsParams) ([]ListPlayerCommandsRow, error)
+	// ユーザーの、閉じていないプレイヤーを、開いた順に返す。
+	ListPlayers(ctx context.Context, arg ListPlayersParams) ([]ListPlayersRow, error)
 	ListPrograms(ctx context.Context) ([]ListProgramsRow, error)
 	// 時間帯 [from, to) に重なる番組。
 	ListProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]ListProgramsInRangeRow, error)
@@ -511,6 +526,8 @@ type Querier interface {
 	UpdateAssignment(ctx context.Context, arg UpdateAssignmentParams) error
 	UpdateChannelType(ctx context.Context, arg UpdateChannelTypeParams) (ChannelType, error)
 	UpdateGuideView(ctx context.Context, arg UpdateGuideViewParams) (int64, error)
+	// セッションのプレイヤーの状態を書き直す。ほかのセッションのプレイヤーは書き直さない。
+	UpdatePlayer(ctx context.Context, arg UpdatePlayerParams) (int64, error)
 	UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error)
 	UpdateReservationProgram(ctx context.Context, arg UpdateReservationProgramParams) error
 	UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, error)

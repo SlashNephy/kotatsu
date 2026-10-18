@@ -1,4 +1,4 @@
-h1:/YQqD8Kl0K9jw6jBpHuH9WnefXEHmtTGYrzPZtruf7Y=
+h1:dh6Wgk/MQxGJjEG1yAE9cQj0yNtOWNCtVuDRtwbVZWE=
 20261009102215_init.sql h1:djnv0wCljjLLAM5B5hIIhKRznUe+i3cP9cxgvQGM8xc=
 20261009105537_coordination.sql h1:4kuzfKBnc3dZixraSK3FOFkkX25e2X59okkh0iXnETo=
 20261009114515_audit_events.sql h1:5zL6ffLkLETRIkZis+kRS1SdjTlgdvLW4NNecIsxWQE=
@@ -51,3 +51,4 @@ h1:/YQqD8Kl0K9jw6jBpHuH9WnefXEHmtTGYrzPZtruf7Y=
 20261018052916_add_api_tokens.sql h1:gbFYeF1I3cEduOBXLTQrIpM0dlFVCrE9bMkoxVawPsY=
 20261018055523_add_recording_api_id.sql h1:N7IwnHY+kdM3SKq5vT+ENqqEe6EflgNwTafEk10aCNI=
 20261018072046_add_oidc_picture.sql h1:gfsBmlY/p0BGuxssriIf/4l+lwDVFzEO2MdkHxsjsEQ=
+20261018094040_add_players.sql h1:cR581WHcQxU4muXQV/yRLHuMwVGXjjENH7EMjSX8MwI=
