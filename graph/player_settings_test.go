@@ -186,8 +186,18 @@ func TestCaptionSettings(t *testing.T) {
 	}{JikkyoEnabled: false}}, &ignored))
 	assert.Equal(t, valid, get())
 
-	invalid := valid
-	invalid.BackgroundOpacity = new(1.5)
-	assert.Equal(t, []string{codeBadUserInput}, f.query(t, mutation, map[string]any{varInput: map[string]any{"captions": invalid}}, &ignored))
+	tests := []struct {
+		name    string
+		opacity float64
+	}{
+		{name: "背景の不透明度が 1 を超える", opacity: 1.5},
+		{name: "背景の不透明度が負", opacity: -0.1},
+	}
+	// 同じユーザーの設定を順に変えるので、並行に動かさない。
+	for _, tt := range tests {
+		invalid := valid
+		invalid.BackgroundOpacity = new(tt.opacity)
+		assert.Equal(t, []string{codeBadUserInput}, f.query(t, mutation, map[string]any{varInput: map[string]any{"captions": invalid}}, &ignored), tt.name)
+	}
 	assert.Equal(t, valid, get(), "rejected changes are not saved")
 }
