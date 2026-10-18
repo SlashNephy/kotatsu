@@ -33,7 +33,7 @@ func testNow() time.Time {
 }
 
 // newHandler は、GR と BS のサービスを 1 つずつと、出さないサービス (非表示、データ放送) を持つ DB で Handler を返す。
-func newHandler(t *testing.T) *epgstationapi.Handler {
+func newHandler(t *testing.T) (*epgstationapi.Handler, *pgxpool.Pool) {
 	t.Helper()
 
 	now := testNow()
@@ -80,7 +80,7 @@ func newHandler(t *testing.T) *epgstationapi.Handler {
 			p.serviceID, p.eventID, p.serviceID*100000+p.eventID, p.start, p.start.Add(time.Hour), p.name, p.extended, p.genres, now)
 	}
 
-	return epgstationapi.New(pool, slog.New(slog.DiscardHandler))
+	return epgstationapi.New(pool, slog.New(slog.DiscardHandler)), pool
 }
 
 func exec(t *testing.T, pool *pgxpool.Pool, sql string, args ...any) {
@@ -136,7 +136,7 @@ type schedule struct {
 func TestChannelsAndConfig(t *testing.T) {
 	t.Parallel()
 
-	h := newHandler(t)
+	h, _ := newHandler(t)
 	var channels []channel
 	require.Equal(t, http.StatusOK, get(t, h.Channels, "/api/channels", &channels))
 	assert.Equal(t, []channel{
@@ -155,7 +155,7 @@ func TestChannelsAndConfig(t *testing.T) {
 func TestSchedules(t *testing.T) {
 	t.Parallel()
 
-	h := newHandler(t)
+	h, _ := newHandler(t)
 	now := testNow()
 	from, to := now.Add(-time.Minute), now.Add(time.Hour)
 	ms := func(v time.Time) string { return strconv.FormatInt(v.UnixMilli(), 10) }

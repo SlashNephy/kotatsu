@@ -144,7 +144,7 @@ func (h *Handler) Schedules(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	toHalfWidth := query.Get("isHalfWidth") == "true"
+	toHalfWidth := wantsHalfWidth(r)
 	rows, err := h.services(r)
 	if err != nil {
 		h.fail(w, r, err)
@@ -202,10 +202,7 @@ func programOf(row *sqlc.ListProgramsInRangeRow, ch *channel, toHalfWidth bool) 
 		ID: row.ServiceID*eventIDDigits + row.EventID, EventID: row.EventID, ServiceID: ch.ServiceID, NetworkID: ch.NetworkID,
 		ChannelID: row.ServiceID, StartAt: row.StartAt.UnixMilli(), EndAt: row.EndAt.UnixMilli(),
 		Duration: row.EndAt.Sub(row.StartAt).Milliseconds(), IsFree: row.IsFree, Name: name, Description: description,
-		Extended: extendedText(extended, toHalfWidth), Genres: make([]genre, 0, len(genres)), Genre1: nil, SubGenre1: nil,
-	}
-	for _, g := range genres {
-		p.Genres = append(p.Genres, genre{Lv1: g.Lv1, Lv2: g.Lv2, Un1: g.Un1, Un2: g.Un2})
+		Extended: extendedText(extended, toHalfWidth), Genres: genresOf(genres), Genre1: nil, SubGenre1: nil,
 	}
 	if len(genres) > 0 {
 		p.Genre1, p.SubGenre1 = &genres[0].Lv1, &genres[0].Lv2
@@ -227,6 +224,11 @@ func extendedText(extended map[string]string, toHalfWidth bool) string {
 	}
 
 	return text
+}
+
+// wantsHalfWidth は、isHalfWidth で、名前や説明を半角にするよう求められたかどうかを返す。
+func wantsHalfWidth(r *http.Request) bool {
+	return r.URL.Query().Get("isHalfWidth") == "true"
 }
 
 // halfWidth は、全角の英数字と記号、全角の空白を半角にする。EPGStation の isHalfWidth と同じく、カタカナや

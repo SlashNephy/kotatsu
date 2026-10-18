@@ -199,6 +199,7 @@ type ProgramArchive struct {
 
 type Recording struct {
 	ID                 uuid.UUID
+	APIID              int64
 	ReservationID      *uuid.UUID
 	ServiceID          int64
 	EventID            *int64

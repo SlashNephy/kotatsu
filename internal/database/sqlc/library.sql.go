@@ -36,7 +36,7 @@ func (q *Queries) InsertRecordingTag(ctx context.Context, arg InsertRecordingTag
 }
 
 const listContinueWatching = `-- name: ListContinueWatching :many
-SELECT r.id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.genres, r.rule_id, r.rule_name, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM watch_progress w
+SELECT r.id, r.api_id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.genres, r.rule_id, r.rule_name, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM watch_progress w
 JOIN recordings r ON r.id = w.recording_id
 WHERE w.user_id = $1 AND w.position_ms >= $2::bigint
   AND (r.recorded_until IS NULL
@@ -75,6 +75,7 @@ func (q *Queries) ListContinueWatching(ctx context.Context, arg ListContinueWatc
 		var i ListContinueWatchingRow
 		if err := rows.Scan(
 			&i.Recording.ID,
+			&i.Recording.APIID,
 			&i.Recording.ReservationID,
 			&i.Recording.ServiceID,
 			&i.Recording.EventID,
@@ -190,7 +191,7 @@ func (q *Queries) ListRecordingTags(ctx context.Context, recordingIds []uuid.UUI
 }
 
 const listRecordingsByIDs = `-- name: ListRecordingsByIDs :many
-SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = ANY($1::uuid[])
+SELECT id, api_id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = ANY($1::uuid[])
 `
 
 func (q *Queries) ListRecordingsByIDs(ctx context.Context, ids []uuid.UUID) ([]Recording, error) {
@@ -204,6 +205,7 @@ func (q *Queries) ListRecordingsByIDs(ctx context.Context, ids []uuid.UUID) ([]R
 		var i Recording
 		if err := rows.Scan(
 			&i.ID,
+			&i.APIID,
 			&i.ReservationID,
 			&i.ServiceID,
 			&i.EventID,
@@ -311,7 +313,7 @@ func (q *Queries) ListWatchProgress(ctx context.Context, arg ListWatchProgressPa
 }
 
 const lockRecording = `-- name: LockRecording :one
-SELECT id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1 FOR UPDATE
+SELECT id, api_id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1 FOR UPDATE
 `
 
 // 録画を変える前に、ロックして読む。
@@ -320,6 +322,7 @@ func (q *Queries) LockRecording(ctx context.Context, id uuid.UUID) (Recording, e
 	var i Recording
 	err := row.Scan(
 		&i.ID,
+		&i.APIID,
 		&i.ReservationID,
 		&i.ServiceID,
 		&i.EventID,
@@ -352,7 +355,7 @@ func (q *Queries) LockRecording(ctx context.Context, id uuid.UUID) (Recording, e
 }
 
 const searchRecordings = `-- name: SearchRecordings :many
-SELECT r.id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.genres, r.rule_id, r.rule_name, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM recordings r
+SELECT r.id, r.api_id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.genres, r.rule_id, r.rule_name, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM recordings r
 WHERE (cardinality($1::text[]) = 0 OR r.state = ANY($1::text[]))
   AND (cardinality($2::bigint[]) = 0 OR r.service_id = ANY($2::bigint[]))
   AND (cardinality($3::uuid[]) = 0 OR EXISTS (
@@ -412,6 +415,7 @@ func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsPara
 		var i Recording
 		if err := rows.Scan(
 			&i.ID,
+			&i.APIID,
 			&i.ReservationID,
 			&i.ServiceID,
 			&i.EventID,
@@ -451,7 +455,7 @@ func (q *Queries) SearchRecordings(ctx context.Context, arg SearchRecordingsPara
 }
 
 const searchRecordingsOldest = `-- name: SearchRecordingsOldest :many
-SELECT r.id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.genres, r.rule_id, r.rule_name, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM recordings r
+SELECT r.id, r.api_id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.genres, r.rule_id, r.rule_name, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at FROM recordings r
 WHERE (cardinality($1::text[]) = 0 OR r.state = ANY($1::text[]))
   AND (cardinality($2::bigint[]) = 0 OR r.service_id = ANY($2::bigint[]))
   AND (cardinality($3::uuid[]) = 0 OR EXISTS (
@@ -508,6 +512,7 @@ func (q *Queries) SearchRecordingsOldest(ctx context.Context, arg SearchRecordin
 		var i Recording
 		if err := rows.Scan(
 			&i.ID,
+			&i.APIID,
 			&i.ReservationID,
 			&i.ServiceID,
 			&i.EventID,
