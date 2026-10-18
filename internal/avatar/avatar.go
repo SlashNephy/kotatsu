@@ -126,12 +126,12 @@ func (h *Handler) fetch(ctx context.Context, picture string) ([]byte, string, er
 	if h.issuerHost != "" && strings.EqualFold(u.Host, h.issuerHost) {
 		client = h.issuer
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody) //nolint:gosec // IdP の picture を中継するのが目的。接続先は publicnet.Control と issuer のホストに限り、リダイレクトに従わない (#778)。
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to build the request: %w", err)
 	}
 	req.Header.Set("Accept", "image/*")
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:gosec // IdP の picture を中継するのが目的。接続先は publicnet.Control と issuer のホストに限り、リダイレクトに従わない (#778)。
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to fetch the avatar: %w", err)
 	}
