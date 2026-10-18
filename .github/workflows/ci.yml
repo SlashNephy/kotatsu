@@ -239,3 +239,56 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
         working-directory: web
       - run: mise run web:e2e
+
+  # 偽のチューナーサーバーと Kotatsu を立てて、主な流れを E2E で確かめる (#508、設計書 11.6)。
+  # 画面と Go のどちらが変わっても流す。web のジョブと並べて走らせ、CI の待ち時間を延ばさない。
+  e2e-stack:
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: mirror.gcr.io/library/postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336 # renovate: latest
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kotatsu
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      KOTATSU_DATABASE_URL: postgres://postgres:postgres@localhost:5432/kotatsu?sslmode=disable
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-
+            go-${{ github.job }}-${{ runner.os }}-
+      - run: mise run web:install
+      # Playwright のブラウザは、web/package.json で固定した @playwright/test の版に合わせて入れる。
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: web
+      - run: mise run e2e:stack
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-stack-traces
+          path: web/test-results/
+          retention-days: 7

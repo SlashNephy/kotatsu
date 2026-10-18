@@ -14,10 +14,22 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'chromium',
+      // spa は、ビルドした SPA だけで確かめるテスト。
+      name: 'spa',
       use: {
         ...devices['Desktop Chrome'],
         // 手元にある Chromium を使うときに指定する。
+        launchOptions: { executablePath: process.env['KOTATSU_E2E_CHROMIUM'] },
+      },
+    },
+    {
+      // stack は、偽のチューナーサーバーと Kotatsu を立てて、主な流れを確かめるテスト (#508)。
+      // scripts/e2e-stack.sh から流す。初回セットアップから順に進めるので、1 つずつ順に流す。
+      name: 'stack',
+      testDir: './e2e-stack',
+      fullyParallel: false,
+      use: {
+        ...devices['Desktop Chrome'],
         launchOptions: { executablePath: process.env['KOTATSU_E2E_CHROMIUM'] },
       },
     },
