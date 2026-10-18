@@ -57,7 +57,7 @@ function RootLayout() {
         onClick={close}
         className={classes.brand}
       >
-        <img src="/icons/icon.svg" alt="" width={28} height={28} className={classes.brandIcon} />
+        <img src="/icons/icon.svg" alt="" width={36} height={36} className={classes.brandIcon} />
         {t('app.name')}
       </Anchor>
     </Title>
