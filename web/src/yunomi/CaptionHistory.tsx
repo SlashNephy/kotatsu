@@ -6,8 +6,8 @@ import { useTranslation } from 'react-i18next';
 
 import type { CaptionEntry } from './captionHistory';
 
-// stickThreshold は、履歴の末尾からこの画素の内にいれば、新しい字幕が出たときに末尾へ追う範囲。
-const stickThreshold = 48;
+// followPause は、利用者が履歴をスクロールしてから、新しい字幕の行へ追うのを止めておく時間 (ミリ秒)。読み返している間は動かさない。
+const followPause = 10_000;
 
 type Props = {
   entries: readonly CaptionEntry[];
@@ -17,34 +17,50 @@ type Props = {
   onSelect?: (entry: CaptionEntry) => void;
 };
 
-// CaptionHistory は、字幕の履歴 (#450、設計書 7.4)。出た字幕を古い順に並べ、新しいものを下に足す。
+// CaptionHistory は、字幕の履歴 (#450、設計書 7.4)。出た字幕を時刻の順に並べ、新しい字幕が出たらその行へ追う。
 // 各行から字幕の文をコピーでき、録画では行を押すとその位置へ移る。
 export function CaptionHistory({ entries, label, onSelect }: Props) {
   const { t } = useTranslation();
   const clipboard = useClipboard();
   const [copiedKey, setCopiedKey] = useState<number | null>(null);
   const viewport = useRef<HTMLDivElement | null>(null);
-  const stick = useRef(true);
-  const last = entries.at(-1)?.key;
+  // scrolledAt は、利用者が最後に履歴をスクロールした時刻。
+  const scrolledAt = useRef(0);
+  // newest は、最後に足した行。番号は足した順に増える。録画では、シークで戻ると途中に差し込むので、末尾の行とは限らない。
+  const newest = entries.reduce<number | null>(
+    (max, entry) => (max === null || entry.key > max ? entry.key : max),
+    null,
+  );
   useEffect(() => {
     const element = viewport.current;
-    if (element !== null && stick.current) {
-      element.scrollTop = element.scrollHeight;
+    if (element === null || newest === null || Date.now() - scrolledAt.current < followPause) {
+      return;
     }
-  }, [last]);
+    const row = element.querySelector<HTMLElement>(`[data-key="${newest}"]`);
+    if (row === null) {
+      return;
+    }
+    // 行が見える範囲に入るよう、履歴の中だけを動かす。scrollIntoView は、ページごと動かすので使わない。
+    const view = element.getBoundingClientRect();
+    const rect = row.getBoundingClientRect();
+    if (rect.top < view.top) {
+      element.scrollTop += rect.top - view.top;
+    } else if (rect.bottom > view.bottom) {
+      element.scrollTop += rect.bottom - view.bottom;
+    }
+  }, [newest]);
+  const markScrolled = () => {
+    scrolledAt.current = Date.now();
+  };
 
   return (
     <ScrollArea
       h={240}
       type="auto"
       viewportRef={viewport}
-      onScrollPositionChange={() => {
-        const element = viewport.current;
-        if (element !== null) {
-          stick.current =
-            element.scrollHeight - element.scrollTop - element.clientHeight < stickThreshold;
-        }
-      }}
+      onWheel={markScrolled}
+      onTouchMove={markScrolled}
+      onPointerDown={markScrolled}
       aria-label={t('captionHistory.list')}
     >
       {entries.length === 0 ? (
@@ -69,14 +85,15 @@ export function CaptionHistory({ entries, label, onSelect }: Props) {
             );
 
             return (
-              <li key={entry.key}>
+              <li key={entry.key} data-key={entry.key}>
                 <Group gap="xs" wrap="nowrap" px="xs" py={2}>
                   {onSelect === undefined ? (
                     <div style={{ flex: 1 }}>{body}</div>
                   ) : (
                     <UnstyledButton
                       style={{ flex: 1 }}
-                      aria-label={t('captionHistory.seek', { time: label(entry) })}
+                      // 読み上げでは、時刻と字幕の文を名前にする。押すと移ることは、title で添える。
+                      title={t('captionHistory.seek')}
                       onClick={() => onSelect(entry)}
                     >
                       {body}
