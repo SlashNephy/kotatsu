@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"slices"
 	"sync"
 	"time"
@@ -181,6 +182,24 @@ type oidcClaims struct {
 	all     map[string]any
 }
 
+// maxPictureURL は、picture のクレームとして受け取る URL の長さの上限。
+const maxPictureURL = 2048
+
+// pictureOf は、picture のクレームを、ユーザーのアイコンの画像の URL として返す (#778)。
+// http か https の絶対 URL でなければ、ないものとして nil を返す。
+func pictureOf(claims map[string]any) *string {
+	raw, _ := claims["picture"].(string)
+	if raw == "" || len(raw) > maxPictureURL {
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+		return nil
+	}
+
+	return &raw
+}
+
 // roleFor は、groups のどれかが当たる、最も強いロールを返す。どれにも当たらなければ false を返す。
 func (a *OIDCAutoCreate) roleFor(groups []string) (Role, bool) {
 	for _, candidate := range []struct {
@@ -239,7 +258,7 @@ func (o *OIDC) Link(ctx context.Context, db Database, actor *audit.Actor, userna
 		if err != nil {
 			return fmt.Errorf("failed to get the user: %w", err)
 		}
-		if err := o.link(ctx, tx, user.ID, o.settings.Issuer, subject, nil); err != nil {
+		if err := o.link(ctx, tx, user.ID, &oidcClaims{issuer: o.settings.Issuer, subject: subject, all: map[string]any{}}, nil); err != nil {
 			return err
 		}
 
@@ -461,7 +480,7 @@ func (o *OIDC) userFor(ctx context.Context, tx pgx.Tx, claims *oidcClaims, clien
 		if user.DisabledAt != nil {
 			return &user.ID, fmt.Errorf("%w: the user is disabled", ErrOIDCAccessDenied)
 		}
-		if err := q.RecordOIDCIdentityUse(ctx, sqlc.RecordOIDCIdentityUseParams{ID: identity.ID, Now: new(o.clock.Now())}); err != nil {
+		if err := q.RecordOIDCIdentityUse(ctx, sqlc.RecordOIDCIdentityUseParams{ID: identity.ID, Now: new(o.clock.Now()), Picture: pictureOf(claims.all)}); err != nil {
 			return nil, fmt.Errorf("failed to record the OIDC identity use: %w", err)
 		}
 
@@ -511,7 +530,7 @@ func (o *OIDC) autoCreate(ctx context.Context, tx pgx.Tx, claims *oidcClaims, cl
 		return nil, err
 	}
 	// 作ったユーザーは、このログインで使ったことにする。
-	if err := o.link(ctx, tx, created.ID, claims.issuer, claims.subject, new(o.clock.Now())); err != nil {
+	if err := o.link(ctx, tx, created.ID, claims, new(o.clock.Now())); err != nil {
 		return nil, err
 	}
 	err = o.recorder.Record(ctx, tx, &audit.Event{
@@ -531,15 +550,16 @@ func (o *OIDC) autoCreate(ctx context.Context, tx pgx.Tx, claims *oidcClaims, cl
 }
 
 // link は、userID を IdP のユーザーと紐付ける。lastUsedAt は、紐付けたときにログインに使ったなら、その日時。
-func (o *OIDC) link(ctx context.Context, tx pgx.Tx, userID uuid.UUID, issuer, subject string, lastUsedAt *time.Time) error {
+func (o *OIDC) link(ctx context.Context, tx pgx.Tx, userID uuid.UUID, claims *oidcClaims, lastUsedAt *time.Time) error {
 	q := sqlc.New(tx)
-	if _, err := q.GetOIDCIdentity(ctx, sqlc.GetOIDCIdentityParams{Issuer: issuer, Subject: subject}); err == nil {
+	if _, err := q.GetOIDCIdentity(ctx, sqlc.GetOIDCIdentityParams{Issuer: claims.issuer, Subject: claims.subject}); err == nil {
 		return ErrOIDCIdentityLinked
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("failed to get the OIDC identity: %w", err)
 	}
 	err := q.InsertOIDCIdentity(ctx, sqlc.InsertOIDCIdentityParams{
-		ID: id.New(), UserID: userID, Issuer: issuer, Subject: subject, Now: o.clock.Now(), LastUsedAt: lastUsedAt,
+		ID: id.New(), UserID: userID, Issuer: claims.issuer, Subject: claims.subject, Picture: pictureOf(claims.all),
+		Now: o.clock.Now(), LastUsedAt: lastUsedAt,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to link the OIDC identity: %w", err)

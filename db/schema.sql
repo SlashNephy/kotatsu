@@ -188,6 +188,9 @@ CREATE TABLE user_oidc_identities (
   user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
   issuer text NOT NULL,
   subject text NOT NULL,
+  -- ID トークンの picture のクレーム (#778)。ログインするたびに書き直す。なければ NULL。
+  -- 画像は、ブラウザに IdP から読ませず、tenban が中継する (/media/users/{id}/avatar)。
+  picture text,
   created_at timestamptz NOT NULL,
   last_used_at timestamptz,
   UNIQUE (issuer, subject)

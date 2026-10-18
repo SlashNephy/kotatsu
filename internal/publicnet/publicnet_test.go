@@ -1,4 +1,4 @@
-package webpush_test
+package publicnet_test
 
 import (
 	"net/netip"
@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/SlashNephy/kotatsu/internal/webpush"
+	"github.com/SlashNephy/kotatsu/internal/publicnet"
 )
 
-// TestIsPublic は、プッシュサービスとして接続してよい、インターネットのアドレスだけを受け付けることを確かめる。
+// TestIsPublic は、接続してよい、インターネットのアドレスだけを受け付けることを確かめる。
 func TestIsPublic(t *testing.T) {
 	t.Parallel()
 
@@ -35,7 +35,7 @@ func TestIsPublic(t *testing.T) {
 		t.Run(tt.addr, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, webpush.IsPublic(netip.MustParseAddr(tt.addr)))
+			assert.Equal(t, tt.want, publicnet.IsPublic(netip.MustParseAddr(tt.addr)))
 		})
 	}
 }

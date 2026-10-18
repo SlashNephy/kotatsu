@@ -232,6 +232,47 @@ func TestOIDCLogin(t *testing.T) {
 	}
 }
 
+// TestOIDCPicture は、ログインのたびに、ID トークンの picture を、アイコンの URL として書き直すことを確かめる (#778)。
+// http か https の絶対 URL でなければ、ないものとして扱う。
+func TestOIDCPicture(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		picture any
+		want    *string
+	}{
+		{name: "https", picture: "https://idp.example/avatar.png", want: new("https://idp.example/avatar.png")},
+		{name: "http", picture: "http://idp.example/avatar.png", want: new("http://idp.example/avatar.png")},
+		{name: "ない", picture: nil, want: nil},
+		{name: "javascript", picture: "javascript:alert(1)", want: nil},
+		{name: "相対", picture: "/avatar.png", want: nil},
+		{name: "文字列でない", picture: 1, want: nil},
+		{name: "長すぎる", picture: "https://idp.example/" + strings.Repeat("a", 2048), want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newOIDCFixture(t, auth.OIDCAutoCreate{})
+			f.linkedUser(t)
+			// 前のログインの picture は、残さずに書き直す。
+			f.idp.Claims = map[string]any{"picture": "https://idp.example/old.png"}
+			_, err := f.login(t, nil)
+			require.NoError(t, err)
+			f.idp.Claims = map[string]any{}
+			if tt.picture != nil {
+				f.idp.Claims["picture"] = tt.picture
+			}
+			result, err := f.login(t, nil)
+			require.NoError(t, err)
+			var got *string
+			require.NoError(t, f.db.QueryRow(t.Context(), "SELECT picture FROM user_oidc_identities WHERE user_id = $1", result.Session.UserID).Scan(&got))
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 // TestOIDCRejectsTamperedLogin は、state、nonce、audience、PKCE が合わないログインや、使用済みの状態を拒むことを確かめる。
 func TestOIDCRejectsTamperedLogin(t *testing.T) {
 	t.Parallel()

@@ -14,11 +14,18 @@ DELETE FROM oidc_logins WHERE expires_at <= @now;
 SELECT * FROM user_oidc_identities WHERE issuer = @issuer AND subject = @subject;
 
 -- name: InsertOIDCIdentity :exec
-INSERT INTO user_oidc_identities (id, user_id, issuer, subject, created_at, last_used_at)
-VALUES (@id, @user_id, @issuer, @subject, @now, sqlc.narg(last_used_at));
+INSERT INTO user_oidc_identities (id, user_id, issuer, subject, picture, created_at, last_used_at)
+VALUES (@id, @user_id, @issuer, @subject, sqlc.narg(picture), @now, sqlc.narg(last_used_at));
 
 -- name: RecordOIDCIdentityUse :exec
-UPDATE user_oidc_identities SET last_used_at = @now WHERE id = @id;
+UPDATE user_oidc_identities SET last_used_at = @now, picture = sqlc.narg(picture) WHERE id = @id;
 
 -- name: ListUserOIDCIdentities :many
 SELECT * FROM user_oidc_identities WHERE user_id = @user_id ORDER BY created_at, id;
+
+-- name: GetUserPicture :one
+-- ユーザーのアイコンの画像の URL。IdP を複数紐付けていれば、最後に使った IdP のもの。
+SELECT picture::text FROM user_oidc_identities
+WHERE user_id = @user_id AND picture IS NOT NULL
+ORDER BY last_used_at DESC NULLS LAST, created_at DESC
+LIMIT 1;

@@ -9,9 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/netip"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/notification"
+	"github.com/SlashNephy/kotatsu/internal/publicnet"
 )
 
 const (
@@ -252,7 +251,7 @@ var (
 	errEventNotFound        = errors.New("the notification event no longer exists")
 	errExpired              = errors.New("the web push subscription has expired")
 	errUnexpectedStatus     = errors.New("the push service returned an unexpected status")
-	errNonPublicAddress     = errors.New("the push service must have a public address")
+	errNonPublicAddress     = publicnet.ErrNonPublicAddress
 )
 
 // NewHTTPClient は、プッシュサービスに送る HTTP クライアントを返す。
@@ -260,17 +259,7 @@ var (
 // 名前を引いた後のアドレスで確かめるので、DNS の応答を後から変えられても、LAN の中には送らない。
 // 同じ理由で、環境変数のプロキシは使わず、リダイレクトにも従わない。
 func NewHTTPClient() *http.Client {
-	dialer := &net.Dialer{Timeout: requestTimeout, Control: func(_, address string, _ syscall.RawConn) error {
-		addrPort, err := netip.ParseAddrPort(address)
-		if err != nil {
-			return fmt.Errorf("failed to parse the address %s: %w", address, err)
-		}
-		if !isPublic(addrPort.Addr()) {
-			return fmt.Errorf("%w: %s", errNonPublicAddress, addrPort.Addr())
-		}
-
-		return nil
-	}}
+	dialer := &net.Dialer{Timeout: requestTimeout, Control: publicnet.Control}
 
 	return &http.Client{
 		Transport: &http.Transport{
@@ -284,13 +273,4 @@ func NewHTTPClient() *http.Client {
 		Timeout:       requestTimeout,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
-}
-
-// isPublic は、addr が、インターネットのグローバルなユニキャストのアドレスかどうかを返す。
-func isPublic(addr netip.Addr) bool {
-	addr = addr.Unmap()
-	// CGNAT や Tailscale が使う 100.64.0.0/10 (RFC 6598) は、netip.Addr.IsPrivate が含めないので、別に除く。
-	sharedAddressSpace := netip.PrefixFrom(netip.AddrFrom4([4]byte{100, 64, 0, 0}), 10)
-
-	return addr.IsGlobalUnicast() && !addr.IsPrivate() && !sharedAddressSpace.Contains(addr)
 }
