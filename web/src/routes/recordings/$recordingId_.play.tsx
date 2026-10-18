@@ -10,6 +10,7 @@ import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../..
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { CommentListToggle } from '../../jikkyo/CommentList';
+import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistoryToggle } from '../../yunomi/CaptionHistory';
 import {
   insertRecordedCaption,
@@ -28,7 +29,12 @@ import {
   playbackPosition,
   skipJump,
 } from '../../yunomi/position';
-import { RateSelect, PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
+import {
+  RateSelect,
+  PlaybackUnavailable,
+  QualitySelect,
+  CropSelect,
+} from '../../yunomi/QualitySelect';
 import { hlsURL } from '../../yunomi/route';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
 import { SeekBar } from '../../yunomi/SeekBar';
@@ -376,6 +382,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
 
   // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
   const [statsShown, setStatsShown] = useState(false);
+  // crop は、L 字放送の切り抜き (#496)。その場限りで、画面を開き直したら戻す。
+  const [crop, setCrop] = useState<Crop>(noCrop);
   // startAt は、指定の位置から読み直す。
   const startAt = (seconds: number) => {
     phase.current = 'loading';
@@ -451,6 +459,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // flash は、キーで操作した結果。映像の上に短く出す (#448)。
   const [flash, showFlash] = usePlayerFlash();
   const capture = useCapture({
+    crop,
     frameRef: playerBoxRef,
     videoRef,
     serviceName: recording?.service.name ?? '',
@@ -667,6 +676,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
             {audio.menu}
             <RateSelect value={rate} onChange={setRate} />
+            <CropSelect value={crop} onChange={setCrop} />
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
           <CaptureButton capture={capture} />
@@ -720,6 +730,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           onVideo={setVideo}
           controls={controlBar}
           captions={captions}
+          crop={crop}
           onCaptionText={onCaptionText}
           onLoaded={() => {
             // 最初のフレームが出たときの時刻を、base にする。
@@ -749,6 +760,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           onVideo={setVideo}
           controls={controlBar}
           captions={captions}
+          crop={crop}
           onCaptionText={onCaptionText}
           live={false}
           startPosition={offset}

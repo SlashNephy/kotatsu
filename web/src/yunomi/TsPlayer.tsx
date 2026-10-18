@@ -2,6 +2,7 @@ import type { AudioTracks, Mpeg2TsPlayer, PlayerState, PrivateStream } from '@mp
 import { useEffect, useRef, type ReactNode, useState, type RefObject } from 'react';
 
 import { audioChoices, currentAudioChoice } from './audio';
+import { cropStyle, noCrop, type Crop } from './crop';
 import { createCaptions, type Captions } from './captions';
 import { deinterlacerCanvas } from './deinterlacer';
 import classes from './TsPlayer.module.css';
@@ -16,6 +17,8 @@ type Props = {
   videoRef: RefObject<HTMLVideoElement | null>;
   // captions は、字幕と文字スーパーを出すかどうか。
   captions: boolean;
+  // crop は、L 字放送の切り抜き (#496)。映像と字幕をまとめて拡大する。
+  crop?: Crop;
   // onCaptionText は、字幕が出るたびに、その文を受け取る (#450)。字幕を出さない設定でも受け取る。
   onCaptionText?: (text: string) => void;
   onState?: (state: PlayerState) => void;
@@ -40,6 +43,7 @@ export function TsPlayer({
   url,
   videoRef,
   captions,
+  crop = noCrop,
   onCaptionText,
   onState,
   onError,
@@ -193,7 +197,10 @@ export function TsPlayer({
 
   return (
     <div className={classes.frame}>
-      <div ref={frameRef} className={classes.media} />
+      {/* 切り抜き (#496) で拡大した映像と字幕を、枠の外に出さない。 */}
+      <div className={classes.clip}>
+        <div ref={frameRef} className={classes.media} style={cropStyle(crop)} />
+      </div>
       {overlay !== undefined && <div className={classes.overlay}>{overlay}</div>}
       {controls}
     </div>

@@ -1,6 +1,7 @@
 import type Hls from 'hls.js';
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
+import { cropStyle, noCrop, type Crop } from './crop';
 import { catchUpRate } from './liveCatchUp';
 import { createCaptions, type Captions } from './captions';
 import classes from './TsPlayer.module.css';
@@ -15,6 +16,8 @@ type Props = {
   lowLatency?: boolean;
   // captions は、字幕と文字スーパーを出すかどうか。
   captions: boolean;
+  // crop は、L 字放送の切り抜き (#496)。映像と字幕をまとめて拡大する。
+  crop?: Crop;
   // onCaptionText は、字幕が出るたびに、その文を受け取る (#450)。字幕を出さない設定でも受け取る。
   onCaptionText?: (text: string) => void;
   // startPosition は、録画で、読み始める位置 (秒)。画質を変えたときに、それまでの位置から続けるのに使う。
@@ -58,6 +61,7 @@ export function HlsPlayer({
   live,
   lowLatency = false,
   captions,
+  crop = noCrop,
   onCaptionText,
   startPosition,
   onError,
@@ -209,7 +213,10 @@ export function HlsPlayer({
 
   return (
     <div className={classes.frame}>
-      <div ref={frameRef} className={classes.media} />
+      {/* 切り抜き (#496) で拡大した映像と字幕を、枠の外に出さない。 */}
+      <div className={classes.clip}>
+        <div ref={frameRef} className={classes.media} style={cropStyle(crop)} />
+      </div>
       {overlay !== undefined && <div className={classes.overlay}>{overlay}</div>}
       {controls}
     </div>

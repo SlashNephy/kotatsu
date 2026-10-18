@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
 import type { AudioChoice, KyusuAudioChoice } from './audio';
+import { cropOrigins, cropScales, type Crop } from './crop';
 import { original, type KyusuAudio, type PlaybackRoute } from './route';
 
 type Props = {
@@ -250,5 +251,50 @@ export function RateSelect({
         }
       }}
     />
+  );
+}
+
+// CropSelect は、L 字放送の切り抜き (#496) を選ぶ。拡大率と、拡大の起点を選ぶ。切り抜きは、その場限りで覚えない。
+export function CropSelect({ value, onChange }: { value: Crop; onChange: (crop: Crop) => void }) {
+  const { t } = useTranslation();
+
+  return (
+    <>
+      <Select
+        label={t('player.crop.scale')}
+        size="xs"
+        comboboxProps={{ withinPortal: false }}
+        allowDeselect={false}
+        data={cropScales.map((scale) => ({
+          value: String(scale),
+          label: scale === 1 ? t('player.crop.none') : `${scale}x`,
+        }))}
+        value={String(value.scale)}
+        onChange={(next) => {
+          if (next !== null) {
+            onChange({ ...value, scale: Number(next) });
+          }
+        }}
+      />
+      {value.scale !== 1 && (
+        <Select
+          label={t('player.crop.origin')}
+          size="xs"
+          comboboxProps={{ withinPortal: false }}
+          allowDeselect={false}
+          data={cropOrigins.map((origin) => ({
+            value: origin,
+            label: t(`player.crop.origins.${origin}`),
+          }))}
+          value={value.origin}
+          onChange={(next) => {
+            const origin = cropOrigins.find((candidate) => candidate === next);
+            if (origin !== undefined) {
+              onChange({ ...value, origin });
+            }
+          }}
+        />
+      )}
+    </>
   );
 }
