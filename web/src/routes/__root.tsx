@@ -71,7 +71,7 @@ function RootLayout() {
         navbar={{ width: 240, breakpoint: 'sm', collapsed: { mobile: !opened, desktop: true } }}
         padding="md"
       >
-        <AppShell.Header>
+        <AppShell.Header className={classes.shellHeader}>
           <SignedIn
             fallback={
               <Group
@@ -127,7 +127,12 @@ function RootLayout() {
             </Group>
           </SignedIn>
         </AppShell.Header>
-        <AppShell.Navbar p="md" component="nav" aria-label={t('nav.menu')}>
+        <AppShell.Navbar
+          p="md"
+          className={classes.shellNavbar}
+          component="nav"
+          aria-label={t('nav.menu')}
+        >
           <SignedIn fallback={null}>
             <Stack gap="sm">
               {navItems.map((item) => (
@@ -144,7 +149,7 @@ function RootLayout() {
             </Stack>
           </SignedIn>
         </AppShell.Navbar>
-        <AppShell.Main>
+        <AppShell.Main className={classes.shellMain}>
           <div className={classes.content} data-fluid={fluid || undefined}>
             <Outlet />
           </div>
