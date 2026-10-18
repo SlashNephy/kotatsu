@@ -27,6 +27,12 @@
   transition: opacity 200ms ease;
 }
 
+/* 操作バーの中に描くメニューとポップオーバーは、白い背景なので、操作バーの白い文字を受け継がず、テーマの色で書く (#775)。 */
+.bar :global(.mantine-Popover-dropdown),
+.bar :global(.mantine-Menu-dropdown) {
+  color: var(--mantine-color-text);
+}
+
 /* 隠すのは、見た目と操作だけにする。display: none にすると、タブキーで操作バーへ戻れなくなる。 */
 .bar[data-visible='false'] {
   opacity: 0;
