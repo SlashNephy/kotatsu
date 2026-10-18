@@ -218,6 +218,9 @@ spec:
       {{- with .pod.priorityClassName | default $root.Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
+      {{- with .pod.runtimeClassName }}
+      runtimeClassName: {{ . }}
+      {{- end }}
       terminationGracePeriodSeconds: {{ .pod.terminationGracePeriodSeconds }}
       containers:
         - name: kotatsu
