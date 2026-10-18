@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<5b52bc6825017542fa8621df0d7a27cc>>
+ * @generated SignedSource<<bffd7a53ba49740f805c8d92045f20c5>>
  * @lightSyntaxTransform
  */
 
@@ -11,9 +11,13 @@ import { ConcreteRequest } from 'relay-runtime';
 export type DataChannel = "ASSIGNMENTS" | "EPG" | "RESERVATIONS" | "RESERVATION_CONFLICTS" | "RULES" | "TUNERS" | "%future added value";
 export type DataChangesSubscription$variables = Record<PropertyKey, never>;
 export type DataChangesSubscription$data = {
-  readonly dataChanged: {
-    readonly channel: DataChannel;
-    readonly version: number;
+  readonly viewerEvents: {
+    readonly dataChange: {
+      readonly channel: DataChannel;
+      readonly version: number;
+    } | null | undefined;
+    readonly unreadNotificationCount: number | null | undefined;
+    readonly viewerSettingsVersion: number | null | undefined;
   };
 };
 export type DataChangesSubscription = {
@@ -26,23 +30,48 @@ var v0 = [
   {
     "alias": null,
     "args": null,
-    "concreteType": "DataChange",
+    "concreteType": "ViewerEvent",
     "kind": "LinkedField",
-    "name": "dataChanged",
+    "name": "viewerEvents",
     "plural": false,
     "selections": [
       {
         "alias": null,
         "args": null,
-        "kind": "ScalarField",
-        "name": "channel",
+        "concreteType": "DataChange",
+        "kind": "LinkedField",
+        "name": "dataChange",
+        "plural": false,
+        "selections": [
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "channel",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "version",
+            "storageKey": null
+          }
+        ],
         "storageKey": null
       },
       {
         "alias": null,
         "args": null,
         "kind": "ScalarField",
-        "name": "version",
+        "name": "viewerSettingsVersion",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "unreadNotificationCount",
         "storageKey": null
       }
     ],
@@ -67,16 +96,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "78c1beba3ccd6260d6d7f64f637c076c",
+    "cacheID": "5423a02a184b9e80357dad2b6455f115",
     "id": null,
     "metadata": {},
     "name": "DataChangesSubscription",
     "operationKind": "subscription",
-    "text": "subscription DataChangesSubscription {\n  dataChanged {\n    channel\n    version\n  }\n}\n"
+    "text": "subscription DataChangesSubscription {\n  viewerEvents {\n    dataChange {\n      channel\n      version\n    }\n    viewerSettingsVersion\n    unreadNotificationCount\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "2cf0c4f10fd617131b8315ab05729c59";
+(node as any).hash = "4ee0c551cc27d1a289980cc39a37c402";
 
 export default node;

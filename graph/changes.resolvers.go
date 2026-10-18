@@ -6,6 +6,11 @@ import (
 	"github.com/SlashNephy/kotatsu/graph/model"
 )
 
+// ViewerEvents is the resolver for the viewerEvents field.
+func (r *subscriptionResolver) ViewerEvents(ctx context.Context) (<-chan *model.ViewerEvent, error) {
+	return r.subscribeViewerEvents(ctx)
+}
+
 // DataChanged is the resolver for the dataChanged field.
 func (r *subscriptionResolver) DataChanged(ctx context.Context) (<-chan *model.DataChange, error) {
 	return r.subscribeDataChanges(ctx)

@@ -1095,6 +1095,14 @@ type User struct {
 
 func (User) IsNode() {}
 
+// ヘッダーで購読する、ログイン中のユーザーへの知らせ (設計書 9.1)。1 つの知らせには、どれか 1 つだけが入る。
+// dataChanged、viewerSettingsChanged、unreadNotificationCount を、1 つの接続でまとめて送る。
+type ViewerEvent struct {
+	DataChange              *DataChange `json:"dataChange,omitempty"`
+	ViewerSettingsVersion   *int        `json:"viewerSettingsVersion,omitempty"`
+	UnreadNotificationCount *int        `json:"unreadNotificationCount,omitempty"`
+}
+
 // 視聴予約の通知の設定。端末をまたいで同期する。
 type WatchReminderSettings struct {
 	// 放送の何分前に通知を送るか。0 から 60 まで。

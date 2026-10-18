@@ -228,3 +228,36 @@ func TestViewerSettingsChanged(t *testing.T) {
 	tests[0].change(t, other)
 	assert.JSONEq(t, `{"viewerSettingsChanged":1}`, string(next(t, theirs)))
 }
+
+// TestViewerEvents は、データの変更、設定の版数、未読の通知の数が、1 つの購読にまとまって届くことを確かめる (設計書 9.1)。
+func TestViewerEvents(t *testing.T) {
+	t.Parallel()
+
+	f := newFixtureWithChanges(t)
+	events := f.subscribe(t, `subscription { viewerEvents { dataChange { channel version } viewerSettingsVersion unreadNotificationCount } }`)
+	// 始めに、すべての今の値が届く。3 つの購読から届くので、順は決まらない。
+	initial := make([]string, 0, 8)
+	for range 8 {
+		initial = append(initial, string(next(t, events)))
+	}
+	event := func(dataChange, settings, unread string) string {
+		return `{"viewerEvents":{"dataChange":` + dataChange + `,"viewerSettingsVersion":` + settings + `,"unreadNotificationCount":` + unread + `}}`
+	}
+	want := make([]string, 0, 8)
+	want = append(want, event("null", "0", "null"), event("null", "null", "0"))
+	for _, channel := range []string{"EPG", "RULES", "RESERVATIONS", "ASSIGNMENTS", "RESERVATION_CONFLICTS", "TUNERS"} {
+		want = append(want, event(`{"channel":"`+channel+`","version":0}`, "null", "null"))
+	}
+	assert.ElementsMatch(t, want, initial)
+
+	f.publish(t, rule.NotifyChannel)
+	assert.JSONEq(t, event(`{"channel":"RULES","version":1}`, "null", "null"), string(next(t, events)))
+	f.notify(t, notification.KindRecordingStarted, nil)
+	assert.JSONEq(t, event("null", "null", "1"), string(next(t, events)))
+	device := f.withNewSession(t)
+	require.Empty(t, device.query(t, markAllRead, nil, nil))
+	assert.JSONEq(t, event("null", "null", "0"), string(next(t, events)))
+	input := map[string]any{keyKind: "STORAGE_LOW", keyInApp: false, keyWebPush: true}
+	require.Empty(t, device.query(t, updatePreference, map[string]any{varInput: input}, nil))
+	assert.JSONEq(t, event("null", "1", "null"), string(next(t, events)))
+}

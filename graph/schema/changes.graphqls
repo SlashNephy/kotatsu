@@ -25,7 +25,22 @@ type DataChange {
   version: Int!
 }
 
+"""
+ヘッダーで購読する、ログイン中のユーザーへの知らせ (設計書 9.1)。1 つの知らせには、どれか 1 つだけが入る。
+dataChanged、viewerSettingsChanged、unreadNotificationCount を、1 つの接続でまとめて送る。
+"""
+type ViewerEvent {
+  dataChange: DataChange
+  viewerSettingsVersion: Int
+  unreadNotificationCount: Int
+}
+
 extend type Subscription {
+  """
+  dataChanged、viewerSettingsChanged、unreadNotificationCount を、1 つの接続でまとめて購読する (設計書 9.1)。
+  HTTP/1.1 では、ブラウザが同じホストに同時に開く接続は 6 本までなので、画面が開く SSE の数を抑える。
+  """
+  viewerEvents: ViewerEvent!
   """
   データの変更 (設計書 9.1)。購読を始めたときに、すべての種類の今の版数を送り、その後は版数が上がった種類を送る。
   どの tenban で起きた変更も届く。
