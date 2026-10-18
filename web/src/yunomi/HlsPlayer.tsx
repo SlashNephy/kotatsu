@@ -34,6 +34,22 @@ type Props = {
 // kyusu は、セグメントの要求が 10 秒途絶えたらセッションを止める (設計書 7.3) ので、それより短くする。
 const liveResumeLimitMs = 8_000;
 
+// liveSyncConfig は、低遅延モードの hls.js の設定を返す (#495)。ライブの端から 2 セグメント (4 秒) 後ろを保ち、
+// 遅れが広がったら 1.1 倍の速さで追いつく。切ったときは、hls.js の既定 (3 セグメント後ろで、追いつかない) に戻す。
+function liveSyncConfig(lowLatency: boolean): {
+  liveSyncDuration: number | undefined;
+  liveMaxLatencyDuration: number | undefined;
+  maxLiveSyncPlaybackRate: number;
+} {
+  return lowLatency
+    ? { liveSyncDuration: 4, liveMaxLatencyDuration: 12, maxLiveSyncPlaybackRate: catchUpRate }
+    : {
+        liveSyncDuration: undefined,
+        liveMaxLatencyDuration: undefined,
+        maxLiveSyncPlaybackRate: 1,
+      };
+}
+
 // HlsPlayer は、kyusu がトランスコードした HLS を hls.js で再生する (設計書 7.3)。
 // iPhone の Safari では、ManagedMediaSource の上で hls.js が動く。
 export function HlsPlayer({
@@ -51,6 +67,15 @@ export function HlsPlayer({
   onVideo,
 }: Props) {
   const hlsRef = useRef<Hls | null>(null);
+  // lowLatencyRef は、hls.js を作るときに読む低遅延モードの設定。変えたら、作り直さずに、動いている hls.js の設定を変える。
+  const lowLatencyRef = useRef(lowLatency);
+  lowLatencyRef.current = lowLatency;
+  useEffect(() => {
+    const instance = hlsRef.current;
+    if (instance !== null) {
+      Object.assign(instance.config, liveSyncConfig(live && lowLatency));
+    }
+  }, [live, lowLatency]);
   const handlers = useRef({ onError, onLoaded, onVideo });
   handlers.current = { onError, onLoaded, onVideo };
   // 読み始める位置は、読み直すときにだけ使う。位置が変わるたびに読み直さないよう、ref で渡す。
@@ -110,13 +135,7 @@ export function HlsPlayer({
         startPosition: live ? -1 : (start.current ?? -1),
         // 低遅延モードでは、ライブの端から 2 セグメント (4 秒) 後ろを保ち、遅れが広がったら 1.1 倍の速さで追いつく。
         // 既定は 3 セグメント後ろで、追いつかない。
-        ...(live && lowLatency
-          ? {
-              liveSyncDuration: 4,
-              liveMaxLatencyDuration: 12,
-              maxLiveSyncPlaybackRate: catchUpRate,
-            }
-          : {}),
+        ...liveSyncConfig(live && lowLatencyRef.current),
         // 字幕は、FRAG_PARSING_METADATA で受け取った ID3 から描く。hls.js の字幕と、ID3 を入れる TextTrack は使わない。
         // TextTrack は、CSP で禁じた data: の URL を読もうとする。
         enableID3MetadataCues: false,
