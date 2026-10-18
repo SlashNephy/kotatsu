@@ -81,7 +81,14 @@ run = "pnpm exec storybook build --quiet"
 [tasks."web:e2e"]
 dir = "web"
 depends = ["web:build"]
-run = "pnpm exec playwright test"
+run = "pnpm exec playwright test --project=spa"
+
+# 偽のチューナーサーバーと Kotatsu を立てて、初回セットアップ、ルール、ライブ視聴の流れを E2E で確かめる (#508)。
+# KOTATSU_DATABASE_URL に、空の DB を渡す。
+[tasks."e2e:stack"]
+# 画面を埋め込むので、Kotatsu は web:build の後にビルドする。depends に並べると、同時に走ってしまう。
+depends = ["web:build"]
+run = ["go build -trimpath -o ./bin/ ./cmd/kotatsu", "scripts/e2e-stack.sh"]
 
 # サーバーの goja で動かす zxcvbn-ts のバンドル (設計書 2.2) を作り、gzip で internal/password に置く。
 [tasks."password:zxcvbn"]
