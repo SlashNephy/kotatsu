@@ -293,6 +293,8 @@ export function useDataBroadcast(
     };
     // loaded は、最初の文書を読んだかどうか。読む前に出すことになったら、読んだところで入る。
     let loaded = false;
+    // justLoaded は、文書を読んでから、まだ見えるか隠れるかの知らせを受けていないこと。
+    let justLoaded = false;
     // enter は、出すことになっていて、まだ入っていなければ、d ボタンを押し始める。
     // 文書が見えるかは、load の直後の invisible で分かる。見える文書なら、最初に押す前に止まる。
     const enter = () => {
@@ -323,6 +325,7 @@ export function useDataBroadcast(
       setResolution(event.detail.resolution);
       setState('shown');
       loaded = true;
+      justLoaded = true;
       place();
       enter();
     });
@@ -339,13 +342,14 @@ export function useDataBroadcast(
       if (!hidden) {
         stopEntering();
       }
-      // 最初の文書を読む前は、まだ映像を移していないので、待たずに反映する。待つと、隠れた文書のときに、
-      // 一度データ放送の中へ移してから戻すことになり、かえってちらつく。
-      if (loaded) {
+      // 最初の文書を読む前と、文書を読んだ直後の最初の知らせは、待たずに反映する。web-bml は、読んだ文書が見えるかを
+      // load の直後に知らせるので、待つと、隠れた文書のときに、一度データ放送の中へ移してから戻すことになり、かえってちらつく。
+      if (loaded && !justLoaded) {
         invisibility.set(event.detail);
       } else {
         invisibility.now(event.detail);
       }
+      justLoaded = false;
     });
 
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -462,9 +466,9 @@ export function useDataBroadcast(
   );
 
   // 受信中の知らせは、消すのを少し遅らせる。文書が移る途中で、消えては出る、を繰り返さないようにする (#445)。
-  const receiving = useSettledFalse(
-    shown && (state === 'loading' || (state === 'shown' && pressing)),
-  );
+  // データ放送を閉じたときは、すぐに消す。
+  const receiving =
+    useSettledFalse(shown && (state === 'loading' || (state === 'shown' && pressing))) && shown;
 
   return { layer: element, state, receiving, keyGroups, press };
 }
