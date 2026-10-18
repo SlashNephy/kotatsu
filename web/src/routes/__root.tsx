@@ -127,12 +127,7 @@ function RootLayout() {
             </Group>
           </SignedIn>
         </AppShell.Header>
-        <AppShell.Navbar
-          p="md"
-          className={classes.shellNavbar}
-          component="nav"
-          aria-label={t('nav.menu')}
-        >
+        <AppShell.Navbar className={classes.shellNavbar} component="nav" aria-label={t('nav.menu')}>
           <SignedIn fallback={null}>
             <Stack gap="sm">
               {navItems.map((item) => (
