@@ -158,7 +158,7 @@ func (r *queryResolver) Guide(ctx context.Context, from time.Time, to time.Time,
 			return nil, err
 		}
 	}
-	if !from.Before(to) || to.Sub(from) > maxGuideRange {
+	if !from.Before(to) || to.Sub(from) > epg.MaxGuideRange {
 		return nil, NewError(CodeBadUserInput, "from must be before to, and the range must be at most 7 days")
 	}
 	// 空の一覧を指定したときは、どのサービスも選ばれていないので、何も返さない。省いたときとは区別する。

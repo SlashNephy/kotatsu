@@ -29,6 +29,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/config"
 	"github.com/SlashNephy/kotatsu/internal/database"
+	"github.com/SlashNephy/kotatsu/internal/epgstationapi"
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jikkyo"
@@ -621,6 +622,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	}
 	jikkyoClient := jikkyo.NewClient(&jikkyo.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: nil, Clock: deps.Clock})
 	updates, graphUpdates := newUpdates(logger, deps)
+	apiTokens := auth.NewAPITokens(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
 	mux := http.NewServeMux()
 	// 変更の購読 (SSE) は終わらないので、停止を始めたら打ち切る。
 	mux.Handle("/graphql", httpserver.StopEventStreamsOnShutdown(graph.NewHandler(&graph.Options{
@@ -628,7 +630,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Recorder:          audit.NewRecorder(deps.Clock),
 		SecondFactors:     factors,
 		Passkeys:          passkeys,
-		APITokens:         auth.NewAPITokens(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock)),
+		APITokens:         apiTokens,
 		UserAdmin:         auth.NewUserAdmin(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
 		Passwords:         auth.NewPasswords(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
 		Sessions:          sessions,
@@ -734,6 +736,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	mux.Handle("GET /media/recordings/{id}/"+jikkyo.CommentsFileName, authorizer.Middleware(
 		jikkyo.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))))
 	api := sessions.Middleware(deps.DB)(mux)
+	compat := newEPGStationAPI(deps, apiTokens, opener, logos, streamLogger)
 
 	app, err := spa.NewHandler(web.App(), logger.With(slog.String("component", "spa")))
 	if err != nil {
@@ -744,9 +747,26 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	root.Handle("/auth/", api)
 	root.Handle("/streams/", api)
 	root.Handle("/media/", api)
+	root.Handle("/api/", compat)
 	root.Handle("/", app)
 
 	return &apiHandler{handler: policy.Middleware(root), changes: changes, updates: updates}, nil
+}
+
+// newEPGStationAPI は、EPGStation 互換の読み取り専用 API (/api/*) を返す (#431、設計書 9.1)。
+// セッションの Cookie は使わず、API トークン (Bearer) だけで認証する (設計書 9.8)。トークンがなければ 401 を返す。
+func newEPGStationAPI(deps *Deps, tokens *auth.APITokens, opener stream.ServiceOpener, logos stream.LogoFetcher, streamLogger *slog.Logger) http.Handler {
+	h := epgstationapi.New(deps.DB, streamLogger)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/version", h.Version)
+	mux.HandleFunc("GET /api/config", h.Config)
+	mux.HandleFunc("GET /api/channels", h.Channels)
+	mux.Handle("GET /api/channels/{id}/logo", stream.NewLogoHandler(logos, streamLogger))
+	mux.HandleFunc("GET /api/schedules", h.Schedules)
+	// mode は、EPGStation のエンコードの設定の番号。Kotatsu は無変換の TS だけを返すので、読まない。
+	mux.Handle("GET /api/streams/live/{id}/m2ts", httpserver.StopOnShutdown(stream.NewLiveHandler(opener, streamLogger)))
+
+	return tokens.BearerMiddleware(auth.RequirePermission(auth.PermissionWatch)(mux))
 }
 
 // newKyusu は、kyusu のライブ視聴と録画の仮想 HLS のセッションと、tenban からのリクエストを確かめるトークンを返す。
