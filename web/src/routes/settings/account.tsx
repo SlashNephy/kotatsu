@@ -69,8 +69,8 @@ const path = '/settings/account';
 // captionBackgrounds は、字幕の背景の選択肢 (#491)。broadcast は放送の指定どおり、ほかは黒の不透明度。
 const captionBackgrounds = ['broadcast', '0', '0.25', '0.5', '0.75', '1'];
 
-// captureExampleTime は、キャプチャのファイル名の例に使う時刻 (2026-10-16 21:00:05、日本時間)。
-const captureExampleTime = Date.UTC(2026, 9, 16, 12, 0, 5);
+// captureExampleTime は、キャプチャのファイル名の例に使う時刻。ファイル名は端末のローカル時刻で書くので、ローカル時刻で作る。
+const captureExampleTime = new Date(2026, 9, 16, 21, 0, 5).getTime();
 
 export const Route = createFileRoute('/settings/account')({
   validateSearch: (search: Record<string, unknown>): AccountSearch => ({
