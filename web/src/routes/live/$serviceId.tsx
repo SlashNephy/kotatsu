@@ -34,6 +34,7 @@ import {
   useDocumentTitle,
 } from '../../futon';
 import { CommentListToggle } from '../../jikkyo/CommentList';
+import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistoryToggle } from '../../yunomi/CaptionHistory';
 import {
   appendLiveCaption,
@@ -63,7 +64,7 @@ import {
   PlayerFlash,
   usePlayerFlash,
 } from '../../yunomi/PlayerControls';
-import { PlaybackUnavailable, QualitySelect } from '../../yunomi/QualitySelect';
+import { PlaybackUnavailable, QualitySelect, CropSelect } from '../../yunomi/QualitySelect';
 import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
 import { dataBroadcastSource, hlsURL } from '../../yunomi/route';
 import { useDataBroadcast } from '../../yunomi/useDataBroadcast';
@@ -427,6 +428,8 @@ function Live({
   const reload = () => setSession((n) => n + 1);
   // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
   const [statsShown, setStatsShown] = useState(false);
+  // crop は、L 字放送の切り抜き (#496)。その場限りで、画面を開き直したら戻す。
+  const [crop, setCrop] = useState<Crop>(noCrop);
   // captionEntries は、字幕の履歴 (#450)。局を変えたら、画面ごと作り直すので捨てる。
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
   // currentCaption は、今出ている字幕の文。キャプチャに書き込む (#458)。
@@ -470,6 +473,7 @@ function Live({
   // flash は、キーで操作した結果。映像の上に短く出す (#448)。
   const [flash, showFlash] = usePlayerFlash();
   const capture = useCapture({
+    crop,
     frameRef: playerBoxRef,
     videoRef,
     serviceName,
@@ -634,6 +638,7 @@ function Live({
           <SettingsButton>
             <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
             {audio.menu}
+            <CropSelect value={crop} onChange={setCrop} />
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
           <CaptureButton capture={capture} />
@@ -699,6 +704,7 @@ function Live({
           onVideo={setVideo}
           controls={controlBar}
           captions={captions}
+          crop={crop}
           onCaptionText={onCaptionText}
           onLoaded={onLoaded}
           overlay={
@@ -744,6 +750,7 @@ function Live({
           onVideo={setVideo}
           controls={controlBar}
           captions={captions}
+          crop={crop}
           onCaptionText={onCaptionText}
           live
           onLoaded={onLoaded}

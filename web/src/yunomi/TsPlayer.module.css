@@ -17,6 +17,13 @@
   max-width: none;
 }
 
+/* 映像と字幕を包み、切り抜き (#496) で拡大したものを枠の中に収める。 */
+.clip {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 /* 映像と字幕を置く要素。React に持たせずに、video と字幕の canvas を入れる。 */
 .media {
   /* 字幕の canvas を、映像に重ねる。 */

@@ -1,6 +1,7 @@
 // 再生中の場面を画像にする (設計書 7.5)。
 
 import { splitProgramMarks } from '../futon/programMarks';
+import { cropSource, noCrop, type Crop } from './crop';
 import { withPNGText, type PNGText } from './pngText';
 
 // captureSize は、画像の大きさ。放送の映像の表示の比率 (16:9) にそろえる。
@@ -28,9 +29,11 @@ export function fitContain(
 
 // captureFrame は、video の今の場面を PNG にする。overlays を渡せば、字幕とコメントの canvas を、枠いっぱいに重ねる。
 // 字幕とコメントの canvas は、どちらも映像の枠 (16:9) に合わせて描いている。
+// crop で切り抜いているときは、画面と同じく、映像と字幕だけを切り抜いた範囲で写し、コメントは切り抜かずに重ねる (#496)。
 export async function captureFrame(
   video: HTMLVideoElement,
   overlays: HTMLCanvasElement[],
+  crop: Crop = noCrop,
 ): Promise<Blob> {
   const canvas = document.createElement('canvas');
   canvas.width = captureSize.width;
@@ -43,8 +46,40 @@ export async function captureFrame(
   context.fillRect(0, 0, canvas.width, canvas.height);
   // 画面と同じく、枠に収めて描く。videoWidth と videoHeight は、画素の比率 (1440x1080 の放送の 4:3 の画素など) を当てた後の大きさ。
   const shown = fitContain(video.videoWidth, video.videoHeight, canvas.width, canvas.height);
-  context.drawImage(video, shown.x, shown.y, shown.width, shown.height);
-  for (const overlay of overlays) {
+  const captions = overlays.filter((overlay) => overlay.dataset['overlay'] === 'captions');
+  const others = overlays.filter((overlay) => overlay.dataset['overlay'] !== 'captions');
+  if (crop.scale === 1) {
+    context.drawImage(video, shown.x, shown.y, shown.width, shown.height);
+    for (const overlay of captions) {
+      context.drawImage(overlay, 0, 0, canvas.width, canvas.height);
+    }
+  } else {
+    // 映像と字幕を枠いっぱいに描いてから、切り抜いた範囲を拡大して写す。
+    const full = document.createElement('canvas');
+    full.width = canvas.width;
+    full.height = canvas.height;
+    const fullContext = full.getContext('2d');
+    if (fullContext === null) {
+      throw new Error('2D canvas is not available');
+    }
+    fullContext.drawImage(video, shown.x, shown.y, shown.width, shown.height);
+    for (const overlay of captions) {
+      fullContext.drawImage(overlay, 0, 0, full.width, full.height);
+    }
+    const source = cropSource(crop, full.width, full.height);
+    context.drawImage(
+      full,
+      source.x,
+      source.y,
+      source.width,
+      source.height,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+  }
+  for (const overlay of others) {
     context.drawImage(overlay, 0, 0, canvas.width, canvas.height);
   }
 

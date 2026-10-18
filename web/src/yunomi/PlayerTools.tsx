@@ -12,6 +12,7 @@ import {
   saveBlob,
   withCaptureTexts,
 } from './capture';
+import { noCrop, type Crop } from './crop';
 import { addCapture } from '../captures/history';
 import { ControlButton, playerControlsClasses } from './PlayerControls';
 import classes from './TsPlayer.module.css';
@@ -46,6 +47,8 @@ type CaptureOptions = {
   position?: (() => number) | null;
   // caption は、今出ている字幕の文を返す (#458)。出ていなければ null。保存する画像に書き込む。
   caption?: (() => string | null) | null;
+  // crop は、今の切り抜き (#496)。キャプチャも、画面と同じ範囲で写す。
+  crop?: Crop;
 };
 
 // CaptureResult は、キャプチャの結果。映像がなければ null。
@@ -69,6 +72,7 @@ export function useCapture({
   recordingId = null,
   position = null,
   caption = null,
+  crop = noCrop,
 }: CaptureOptions): Capture {
   const { t } = useTranslation();
   // overlays は、キャプチャに、字幕とコメントを写すかどうか。
@@ -86,7 +90,7 @@ export function useCapture({
     const at = position?.() ?? null;
     const text = caption?.() ?? null;
     try {
-      const blob = await captureFrame(video, overlays ? overlayCanvases(frame) : []);
+      const blob = await captureFrame(video, overlays ? overlayCanvases(frame) : [], crop);
       // 保存してもコピーしても、端末の履歴に残す (#457)。残せなくても、保存とコピーは続ける。
       addCapture({
         time,

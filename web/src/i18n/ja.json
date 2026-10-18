@@ -951,6 +951,18 @@
     "play": "再生"
   },
   "player": {
+    "crop": {
+      "scale": "L字の切り抜き",
+      "none": "切り抜かない",
+      "origin": "拡大の起点",
+      "origins": {
+        "top-left": "左上",
+        "top-right": "右上",
+        "bottom-left": "左下",
+        "bottom-right": "右下",
+        "center": "中央"
+      }
+    },
     "stats": {
       "title": "統計情報",
       "toggle": "統計情報を出す",
