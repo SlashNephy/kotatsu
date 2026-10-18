@@ -144,3 +144,50 @@ func TestCommentSettings(t *testing.T) {
 	}
 	assert.Equal(t, valid, get(), "rejected changes are not saved")
 }
+
+// captionSettings は、字幕の設定 (#491)。
+type captionSettings struct {
+	SuperimposeLive     bool     `json:"superimposeLive"`
+	SuperimposeRecorded bool     `json:"superimposeRecorded"`
+	Stroke              bool     `json:"stroke"`
+	BackgroundOpacity   *float64 `json:"backgroundOpacity"`
+}
+
+const captionSettingsFields = `captions { superimposeLive superimposeRecorded stroke backgroundOpacity }`
+
+// TestCaptionSettings は、字幕の設定を、既定値から変えて残し、範囲の外の値を断ることを確かめる (#491)。
+func TestCaptionSettings(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	get := func() captionSettings {
+		var got struct {
+			PlayerSettings struct {
+				Captions captionSettings `json:"captions"`
+			} `json:"playerSettings"`
+		}
+		require.Empty(t, f.query(t, `{ playerSettings { `+captionSettingsFields+` } }`, nil, &got))
+
+		return got.PlayerSettings.Captions
+	}
+	const mutation = `mutation($input: PlayerSettingsInput!) { updatePlayerSettings(input: $input) { ` + captionSettingsFields + ` } }`
+
+	// 一度も変えていなければ、文字スーパーをライブでも録画でも出し、見た目は放送の指定どおりにする。
+	assert.Equal(t, captionSettings{SuperimposeLive: true, SuperimposeRecorded: true, Stroke: false, BackgroundOpacity: nil}, get())
+
+	valid := captionSettings{SuperimposeLive: true, SuperimposeRecorded: false, Stroke: true, BackgroundOpacity: new(0.5)}
+	var ignored struct{}
+	require.Empty(t, f.query(t, mutation, map[string]any{varInput: map[string]any{"captions": valid}}, &ignored))
+	assert.Equal(t, valid, get())
+
+	// ほかの設定を変えても、字幕の設定は残す。
+	require.Empty(t, f.query(t, mutation, map[string]any{varInput: struct {
+		JikkyoEnabled bool `json:"jikkyoEnabled"`
+	}{JikkyoEnabled: false}}, &ignored))
+	assert.Equal(t, valid, get())
+
+	invalid := valid
+	invalid.BackgroundOpacity = new(1.5)
+	assert.Equal(t, []string{codeBadUserInput}, f.query(t, mutation, map[string]any{varInput: map[string]any{"captions": invalid}}, &ignored))
+	assert.Equal(t, valid, get(), "rejected changes are not saved")
+}

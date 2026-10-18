@@ -29,6 +29,12 @@ const settingsQuery = graphql`
         }
         mutedUsers
       }
+      captions {
+        superimposeLive
+        superimposeRecorded
+        stroke
+        backgroundOpacity
+      }
     }
   }
 `;
@@ -45,6 +51,15 @@ export type CommentSettingsInput = {
   mutedUsers: string[];
 };
 
+// CaptionSettings は、字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。
+export type CaptionSettings = {
+  superimposeLive: boolean;
+  superimposeRecorded: boolean;
+  stroke: boolean;
+  // backgroundOpacity は、背景の不透明度 (0〜1)。null なら、放送の指定どおり。
+  backgroundOpacity: number | null;
+};
+
 // usePlayerSettings は、端末をまたいで同期するプレイヤーの設定を返す (設計書 9.1)。
 // ほかの端末で変えたら、viewerSettingsChanged で知らされて読み直す。
 export function usePlayerSettings(): Settings & {
@@ -55,6 +70,9 @@ export function usePlayerSettings(): Settings & {
   setComments: (comments: CommentSettingsInput, onError?: () => void) => void;
   // muteUser は、ユーザー ID をミュートの一覧に足す (#767)。足してあれば何もしない。
   muteUser: (userId: string) => void;
+  captions: CaptionSettings;
+  // setCaptions は、字幕の設定を置き換える。失敗したら onError を呼ぶ。
+  setCaptions: (captions: CaptionSettings, onError?: () => void) => void;
 } {
   const environment = useRelayEnvironment();
   const data = useLazyLoadQuery<usePlayerSettingsQuery>(
@@ -77,6 +95,12 @@ export function usePlayerSettings(): Settings & {
             match
           }
           mutedUsers
+        }
+        captions {
+          superimposeLive
+          superimposeRecorded
+          stroke
+          backgroundOpacity
         }
       }
     }
@@ -102,7 +126,12 @@ export function usePlayerSettings(): Settings & {
 
   const settings = data.playerSettings;
   const update = (input: Partial<Settings>) => {
-    const next = { ...settings, ...input, comments: settings.comments };
+    const next = {
+      ...settings,
+      ...input,
+      comments: settings.comments,
+      captions: settings.captions,
+    };
     commit({
       variables: { input },
       // 切り替えはすぐに画面に出し、失敗したら元に戻す。
@@ -141,6 +170,21 @@ export function usePlayerSettings(): Settings & {
     });
   };
 
+  const setCaptions = (captions: CaptionSettings, onError?: () => void) => {
+    commit({
+      variables: { input: { captions } },
+      // 変えた設定はすぐに画面に出し、失敗したら元に戻す。
+      optimisticResponse: { updatePlayerSettings: { ...settings, captions } },
+      onError: () => onError?.(),
+      updater: (store) => {
+        const updated = store.getRootField('updatePlayerSettings');
+        if (updated !== null) {
+          store.getRoot().setLinkedRecord(updated, 'playerSettings');
+        }
+      },
+    });
+  };
+
   const muteUser = (userId: string) => {
     const comments = settings.comments;
     if (comments.mutedUsers.includes(userId)) {
@@ -166,5 +210,10 @@ export function usePlayerSettings(): Settings & {
     comments: settings.comments,
     setComments,
     muteUser,
+    captions: {
+      ...settings.captions,
+      backgroundOpacity: settings.captions.backgroundOpacity ?? null,
+    },
+    setCaptions,
   };
 }

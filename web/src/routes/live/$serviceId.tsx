@@ -333,6 +333,7 @@ function Live({
     setJikkyoEnabled,
     comments: commentSettings,
     muteUser,
+    captions: captionSettings,
   } = usePlayerSettings();
   const channel = data.node?.__typename === 'Service' ? (data.node.jikkyo ?? null) : null;
   const jikkyo = useLiveJikkyo(
@@ -704,6 +705,8 @@ function Live({
           onVideo={setVideo}
           controls={controlBar}
           captions={captions}
+          superimpose={captionSettings.superimposeLive}
+          captionStyle={captionSettings}
           crop={crop}
           onCaptionText={onCaptionText}
           onLoaded={onLoaded}
@@ -750,6 +753,8 @@ function Live({
           onVideo={setVideo}
           controls={controlBar}
           captions={captions}
+          superimpose={captionSettings.superimposeLive}
+          captionStyle={captionSettings}
           crop={crop}
           onCaptionText={onCaptionText}
           live

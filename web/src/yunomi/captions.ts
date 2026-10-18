@@ -9,12 +9,41 @@ export type Captions = {
   feedB24: (data: ArrayBuffer, pts: number) => void;
   feedID3: (data: Uint8Array, pts: number) => void;
   setVisible: (visible: boolean) => void;
+  // setSuperimposeVisible は、文字スーパーを出すかどうかを、字幕とは別に切り替える (#491)。setVisible で隠していれば、どちらも出さない。
+  setSuperimposeVisible: (visible: boolean) => void;
+  // setStyle は、字幕と文字スーパーの見た目を変える (#491)。次に描くときから効く。
+  setStyle: (style: CaptionStyle) => void;
   // reset は、受け取った字幕を捨てる。読み直すと video の時刻の基準が変わるので、前の読み込みの字幕を出さないようにする。
   reset: () => void;
   destroy: () => void;
 };
 
+// CaptionStyle は、字幕の見た目 (#491)。stroke なら、放送の指定によらず黒で縁取る。
+// backgroundOpacity は、背景を、放送の指定する色に代えて、この不透明度の黒で塗る。null なら、放送の指定どおり。
+export type CaptionStyle = { stroke: boolean; backgroundOpacity: number | null };
+
+export const defaultCaptionStyle: CaptionStyle = { stroke: false, backgroundOpacity: null };
+
+// rendererColor は、字幕の見た目を、aribb24.js の描画器の色の設定 (null なら放送の指定どおり) にする。
+export function rendererColor(style: CaptionStyle): {
+  stroke: string | null;
+  background: string | null;
+} {
+  return {
+    stroke: style.stroke ? 'black' : null,
+    background:
+      style.backgroundOpacity === null ? null : `rgba(0, 0, 0, ${style.backgroundOpacity})`,
+  };
+}
+
+// RendererWithOption は、aribb24.js の描画器のうち、描くたびに読み直す設定。型の上では隠れているので、ここで名前を付ける。
+type RendererWithOption = {
+  option: { color: { stroke: string | null; background: string | null } };
+};
+
 type Layer = {
+  // type は、字幕 (Caption) か文字スーパー (Superimpose) か。
+  type: 'Caption' | 'Superimpose';
   controller: Controller;
   feeder: MPEGTSFeeder;
   renderer: CanvasMainThreadRenderer;
@@ -85,6 +114,14 @@ export function createCaptions(
   let layers: Layer[] | null = null;
   let queue: Feed[] = [];
   let visible = true;
+  let superimposeVisible = true;
+  let style = defaultCaptionStyle;
+  // applyStyle は、描画器の色の設定を変える。aribb24.js は、描くたびに設定を読むので、作り直さなくてよい。
+  const applyStyle = () => {
+    for (const { renderer } of layers ?? []) {
+      Object.assign((renderer as unknown as RendererWithOption).option.color, rendererColor(style));
+    }
+  };
   let destroyed = false;
 
   const feed = (layer: Layer, item: Feed) => {
@@ -107,8 +144,9 @@ export function createCaptions(
     }
   };
   const show = () => {
-    for (const { controller } of layers ?? []) {
-      if (visible) {
+    for (const { type, controller } of layers ?? []) {
+      const layerVisible = visible && (type === 'Caption' || superimposeVisible);
+      if (layerVisible) {
         controller.show();
       } else {
         controller.hide();
@@ -151,9 +189,10 @@ export function createCaptions(
         }
         controller.attachMedia(video, container);
 
-        return { controller, feeder, renderer, text };
+        return { type, controller, feeder, renderer, text };
       });
       show();
+      applyStyle();
       const queued = queue;
       queue = [];
       for (const item of queued) {
@@ -172,6 +211,14 @@ export function createCaptions(
     setVisible: (next) => {
       visible = next;
       show();
+    },
+    setSuperimposeVisible: (next) => {
+      superimposeVisible = next;
+      show();
+    },
+    setStyle: (next) => {
+      style = next;
+      applyStyle();
     },
     reset: () => {
       queue = [];

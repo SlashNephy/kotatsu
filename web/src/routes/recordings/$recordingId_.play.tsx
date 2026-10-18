@@ -221,6 +221,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     setJikkyoEnabled,
     comments: commentSettings,
     muteUser,
+    captions: captionSettings,
   } = usePlayerSettings();
   const recording = data.node?.__typename === 'Recording' ? data.node : null;
   // 録画中なら、録画を終えるまで読み直し、終えた時刻を受け取ったら、録画の長さを伸ばすのをやめる (#671)。
@@ -730,6 +731,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           onVideo={setVideo}
           controls={controlBar}
           captions={captions}
+          superimpose={captionSettings.superimposeRecorded}
+          captionStyle={captionSettings}
           crop={crop}
           onCaptionText={onCaptionText}
           onLoaded={() => {
@@ -760,6 +763,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           onVideo={setVideo}
           controls={controlBar}
           captions={captions}
+          superimpose={captionSettings.superimposeRecorded}
+          captionStyle={captionSettings}
           crop={crop}
           onCaptionText={onCaptionText}
           live={false}

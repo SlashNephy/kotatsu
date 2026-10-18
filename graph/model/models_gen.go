@@ -95,6 +95,26 @@ type BulkOperationPayload struct {
 	Skipped int `json:"skipped"`
 }
 
+// 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。字幕と文字スーパーを両方とも出さないのは、captionsEnabled で切り替える。
+type CaptionSettings struct {
+	// ライブ視聴で、文字スーパー (速報など) を出すかどうか。
+	SuperimposeLive bool `json:"superimposeLive"`
+	// 録画の再生で、文字スーパーを出すかどうか。
+	SuperimposeRecorded bool `json:"superimposeRecorded"`
+	// 放送の指定によらず、文字を縁取るかどうか。
+	Stroke bool `json:"stroke"`
+	// 背景の不透明度 (0〜1)。放送の指定する背景の色に代えて、この不透明度の黒で塗る。null なら、放送の指定どおりにする。
+	BackgroundOpacity *float64 `json:"backgroundOpacity,omitempty"`
+}
+
+type CaptionSettingsInput struct {
+	SuperimposeLive     bool `json:"superimposeLive"`
+	SuperimposeRecorded bool `json:"superimposeRecorded"`
+	Stroke              bool `json:"stroke"`
+	// 0〜1。null なら、放送の指定どおり
+	BackgroundOpacity *float64 `json:"backgroundOpacity,omitempty"`
+}
+
 // チャンネル種別 (設計書 3.1)。種別の文字列はチューナーサーバーが返すものをそのまま使い、表示名と並び順は管理者が変えられる。
 type ChannelType struct {
 	Type        string `json:"type"`
@@ -436,6 +456,8 @@ type PlayerSettings struct {
 	CaptionsEnabled bool `json:"captionsEnabled"`
 	// 実況のコメントの表示とミュートの設定 (#488)。
 	Comments *CommentSettings `json:"comments"`
+	// 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。
+	Captions *CaptionSettings `json:"captions"`
 }
 
 // プレイヤーの設定の変更。省いた項目は変えない。
@@ -444,6 +466,8 @@ type PlayerSettingsInput struct {
 	CaptionsEnabled *bool `json:"captionsEnabled,omitempty"`
 	// 渡したら、コメントの設定をまるごと置き換える。
 	Comments *CommentSettingsInput `json:"comments,omitempty"`
+	// 渡したら、字幕の設定をまるごと置き換える。
+	Captions *CaptionSettingsInput `json:"captions,omitempty"`
 }
 
 // プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。

@@ -85,6 +85,13 @@ type ComplexityRoot struct {
 		Skipped   func(childComplexity int) int
 	}
 
+	CaptionSettings struct {
+		BackgroundOpacity   func(childComplexity int) int
+		Stroke              func(childComplexity int) int
+		SuperimposeLive     func(childComplexity int) int
+		SuperimposeRecorded func(childComplexity int) int
+	}
+
 	ChannelType struct {
 		DisplayName func(childComplexity int) int
 		SortOrder   func(childComplexity int) int
@@ -331,6 +338,7 @@ type ComplexityRoot struct {
 	}
 
 	PlayerSettings struct {
+		Captions        func(childComplexity int) int
 		CaptionsEnabled func(childComplexity int) int
 		Comments        func(childComplexity int) int
 		JikkyoEnabled   func(childComplexity int) int
@@ -1092,6 +1100,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.BulkOperationPayload.Skipped(childComplexity), true
+
+	case "CaptionSettings.backgroundOpacity":
+		if e.ComplexityRoot.CaptionSettings.BackgroundOpacity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionSettings.BackgroundOpacity(childComplexity), true
+	case "CaptionSettings.stroke":
+		if e.ComplexityRoot.CaptionSettings.Stroke == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionSettings.Stroke(childComplexity), true
+	case "CaptionSettings.superimposeLive":
+		if e.ComplexityRoot.CaptionSettings.SuperimposeLive == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionSettings.SuperimposeLive(childComplexity), true
+	case "CaptionSettings.superimposeRecorded":
+		if e.ComplexityRoot.CaptionSettings.SuperimposeRecorded == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionSettings.SuperimposeRecorded(childComplexity), true
 
 	case "ChannelType.displayName":
 		if e.ComplexityRoot.ChannelType.DisplayName == nil {
@@ -2308,6 +2341,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Passkey.RpID(childComplexity), true
 
+	case "PlayerSettings.captions":
+		if e.ComplexityRoot.PlayerSettings.Captions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerSettings.Captions(childComplexity), true
 	case "PlayerSettings.captionsEnabled":
 		if e.ComplexityRoot.PlayerSettings.CaptionsEnabled == nil {
 			break
@@ -4272,6 +4311,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputArchiveRangeInput,
 		ec.unmarshalInputAuditEventFilter,
+		ec.unmarshalInputCaptionSettingsInput,
 		ec.unmarshalInputChannelTypeInput,
 		ec.unmarshalInputCommentSettingsInput,
 		ec.unmarshalInputCreateUserInput,
@@ -5156,6 +5196,22 @@ type PlayerSettings {
   captionsEnabled: Boolean!
   "実況のコメントの表示とミュートの設定 (#488)。"
   comments: CommentSettings!
+  "字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。"
+  captions: CaptionSettings!
+}
+
+"""
+字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。字幕と文字スーパーを両方とも出さないのは、captionsEnabled で切り替える。
+"""
+type CaptionSettings {
+  "ライブ視聴で、文字スーパー (速報など) を出すかどうか。"
+  superimposeLive: Boolean!
+  "録画の再生で、文字スーパーを出すかどうか。"
+  superimposeRecorded: Boolean!
+  "放送の指定によらず、文字を縁取るかどうか。"
+  stroke: Boolean!
+  "背景の不透明度 (0〜1)。放送の指定する背景の色に代えて、この不透明度の黒で塗る。null なら、放送の指定どおりにする。"
+  backgroundOpacity: Float
 }
 
 """
@@ -5209,6 +5265,16 @@ input PlayerSettingsInput {
   captionsEnabled: Boolean
   "渡したら、コメントの設定をまるごと置き換える。"
   comments: CommentSettingsInput
+  "渡したら、字幕の設定をまるごと置き換える。"
+  captions: CaptionSettingsInput
+}
+
+input CaptionSettingsInput {
+  superimposeLive: Boolean!
+  superimposeRecorded: Boolean!
+  stroke: Boolean!
+  "0〜1。null なら、放送の指定どおり"
+  backgroundOpacity: Float
 }
 
 input CommentSettingsInput {
@@ -6632,6 +6698,20 @@ func (ec *executionContext) childFields_BulkOperationPayload(ctx context.Context
 	return nil, fmt.Errorf("no field named %q was found under type BulkOperationPayload", field.Name)
 }
 
+func (ec *executionContext) childFields_CaptionSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "superimposeLive":
+		return ec.fieldContext_CaptionSettings_superimposeLive(ctx, field)
+	case "superimposeRecorded":
+		return ec.fieldContext_CaptionSettings_superimposeRecorded(ctx, field)
+	case "stroke":
+		return ec.fieldContext_CaptionSettings_stroke(ctx, field)
+	case "backgroundOpacity":
+		return ec.fieldContext_CaptionSettings_backgroundOpacity(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CaptionSettings", field.Name)
+}
+
 func (ec *executionContext) childFields_ChannelType(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "type":
@@ -7014,6 +7094,8 @@ func (ec *executionContext) childFields_PlayerSettings(ctx context.Context, fiel
 		return ec.fieldContext_PlayerSettings_captionsEnabled(ctx, field)
 	case "comments":
 		return ec.fieldContext_PlayerSettings_comments(ctx, field)
+	case "captions":
+		return ec.fieldContext_PlayerSettings_captions(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type PlayerSettings", field.Name)
 }
@@ -9756,6 +9838,98 @@ func (ec *executionContext) _BulkOperationPayload_skipped(ctx context.Context, f
 }
 func (ec *executionContext) fieldContext_BulkOperationPayload_skipped(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("BulkOperationPayload", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _CaptionSettings_superimposeLive(ctx context.Context, field graphql.CollectedField, obj *model.CaptionSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionSettings_superimposeLive(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SuperimposeLive, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionSettings_superimposeLive(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CaptionSettings_superimposeRecorded(ctx context.Context, field graphql.CollectedField, obj *model.CaptionSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionSettings_superimposeRecorded(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SuperimposeRecorded, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionSettings_superimposeRecorded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CaptionSettings_stroke(ctx context.Context, field graphql.CollectedField, obj *model.CaptionSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionSettings_stroke(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Stroke, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionSettings_stroke(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _CaptionSettings_backgroundOpacity(ctx context.Context, field graphql.CollectedField, obj *model.CaptionSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionSettings_backgroundOpacity(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BackgroundOpacity, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionSettings_backgroundOpacity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionSettings", field, false, false, errors.New("field of type Float does not have child fields"))
 }
 
 func (ec *executionContext) _ChannelType_type(ctx context.Context, field graphql.CollectedField, obj *model.ChannelType) (ret graphql.Marshaler) {
@@ -14620,6 +14794,38 @@ func (ec *executionContext) fieldContext_PlayerSettings_comments(_ context.Conte
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_CommentSettings(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PlayerSettings_captions(ctx context.Context, field graphql.CollectedField, obj *model.PlayerSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerSettings_captions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Captions, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CaptionSettings) graphql.Marshaler {
+			return ec.marshalNCaptionSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐCaptionSettings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerSettings_captions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PlayerSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CaptionSettings(ctx, field)
 		},
 	}
 	return fc, nil
@@ -23864,6 +24070,57 @@ func (ec *executionContext) unmarshalInputAuditEventFilter(ctx context.Context, 
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputCaptionSettingsInput(ctx context.Context, obj any) (model.CaptionSettingsInput, error) {
+	var it model.CaptionSettingsInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"superimposeLive", "superimposeRecorded", "stroke", "backgroundOpacity"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "superimposeLive":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("superimposeLive"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SuperimposeLive = data
+		case "superimposeRecorded":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("superimposeRecorded"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SuperimposeRecorded = data
+		case "stroke":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("stroke"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Stroke = data
+		case "backgroundOpacity":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("backgroundOpacity"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BackgroundOpacity = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputChannelTypeInput(ctx context.Context, obj any) (model.ChannelTypeInput, error) {
 	var it model.ChannelTypeInput
 	if obj == nil {
@@ -24396,7 +24653,7 @@ func (ec *executionContext) unmarshalInputPlayerSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"jikkyoEnabled", "captionsEnabled", "comments"}
+	fieldsInOrder := [...]string{"jikkyoEnabled", "captionsEnabled", "comments", "captions"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -24424,6 +24681,13 @@ func (ec *executionContext) unmarshalInputPlayerSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.Comments = data
+		case "captions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("captions"))
+			data, err := ec.unmarshalOCaptionSettingsInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐCaptionSettingsInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Captions = data
 		}
 	}
 	return it, nil
@@ -25694,6 +25958,59 @@ func (ec *executionContext) _BulkOperationPayload(ctx context.Context, sel ast.S
 		case "skipped":
 			out.Values[i] = ec._BulkOperationPayload_skipped(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var captionSettingsImplementors = []string{"CaptionSettings"}
+
+func (ec *executionContext) _CaptionSettings(ctx context.Context, sel ast.SelectionSet, obj *model.CaptionSettings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, captionSettingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CaptionSettings")
+		case "superimposeLive":
+			out.Values[i] = ec._CaptionSettings_superimposeLive(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "superimposeRecorded":
+			out.Values[i] = ec._CaptionSettings_superimposeRecorded(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stroke":
+			out.Values[i] = ec._CaptionSettings_stroke(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "backgroundOpacity":
+			out.Values[i] = ec._CaptionSettings_backgroundOpacity(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -27657,6 +27974,11 @@ func (ec *executionContext) _PlayerSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "comments":
 			out.Values[i] = ec._PlayerSettings_comments(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "captions":
+			out.Values[i] = ec._PlayerSettings_captions(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -32504,6 +32826,16 @@ func (ec *executionContext) marshalNBulkOperationPayload2ᚖgithubᚗcomᚋSlash
 	return ec._BulkOperationPayload(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNCaptionSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐCaptionSettings(ctx context.Context, sel ast.SelectionSet, v *model.CaptionSettings) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CaptionSettings(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNChannelType2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐChannelTypeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ChannelType) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -34666,12 +34998,37 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
+func (ec *executionContext) unmarshalOCaptionSettingsInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐCaptionSettingsInput(ctx context.Context, v any) (*model.CaptionSettingsInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputCaptionSettingsInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalOCommentSettingsInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐCommentSettingsInput(ctx context.Context, v any) (*model.CommentSettingsInput, error) {
 	if v == nil {
 		return nil, nil
 	}
 	res, err := ec.unmarshalInputCommentSettingsInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOFloat2ᚖfloat64(ctx context.Context, v any) (*float64, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalFloatContext(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOFloat2ᚖfloat64(ctx context.Context, sel ast.SelectionSet, v *float64) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	res := graphql.MarshalFloatContext(*v)
+	return graphql.WrapContextMarshaler(ctx, res)
 }
 
 func (ec *executionContext) unmarshalOGenreInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐGenreInputᚄ(ctx context.Context, v any) ([]*model.GenreInput, error) {

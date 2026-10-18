@@ -1,15 +1,22 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { createCaptions } from './captions';
+import { createCaptions, rendererColor } from './captions';
 
 // fed は、偽の aribb24.js の feeder に渡ったもの。種類 (字幕か文字スーパーか) ごとに、渡った順に並べる。
 const fed: { type: string; kind: string; pts: number }[] = [];
 // texts は、偽の aribb24.js の Controller に付けた、字幕の文を取り出す描画器。
 const texts: { render: () => void; clear: () => void }[] = [];
+// shown は、偽の aribb24.js の Controller ごとの、最後に出したか隠したか。種類 (字幕か文字スーパーか) で引く。
+const shown = new Map<string, boolean>();
+// colors は、偽の描画器の色の設定。種類で引けないので、作った順に並べる (字幕、文字スーパーの順)。
+const colors: { stroke: string | null; background: string | null }[] = [];
 vi.mock('aribb24.js', () => {
   return {
     Controller: class {
-      attachFeeder() {}
+      private type = '';
+      attachFeeder(feeder: { type: string }) {
+        this.type = feeder.type;
+      }
       attachRenderer(renderer: { render?: () => void; getText?: () => string }) {
         if (renderer.getText !== undefined) {
           texts.push(renderer as { render: () => void; clear: () => void });
@@ -19,11 +26,15 @@ vi.mock('aribb24.js', () => {
       detachMedia() {}
       detachFeeder() {}
       detachRenderer() {}
-      show() {}
-      hide() {}
+      show() {
+        shown.set(this.type, true);
+      }
+      hide() {
+        shown.set(this.type, false);
+      }
     },
     MPEGTSFeeder: class {
-      private readonly type: string;
+      readonly type: string;
       constructor(option: { receive: { type: string } }) {
         this.type = option.receive.type;
       }
@@ -45,6 +56,11 @@ vi.mock('aribb24.js', () => {
     },
     CanvasMainThreadRenderer: class {
       private readonly canvas = document.createElement('canvas');
+      // option は、aribb24.js の描画器が、描くたびに読む設定。
+      readonly option = { color: { stroke: null, background: null } };
+      constructor() {
+        colors.push(this.option.color);
+      }
       getPresentationCanvas() {
         return this.canvas;
       }
@@ -57,6 +73,8 @@ vi.mock('aribb24.js', () => {
 afterEach(() => {
   fed.length = 0;
   texts.length = 0;
+  shown.clear();
+  colors.length = 0;
   vi.resetModules();
 });
 
@@ -115,5 +133,46 @@ describe('createCaptions', () => {
     await vi.waitFor(() => expect(fed).toHaveLength(2));
 
     expect(texts).toHaveLength(0);
+  });
+
+  test('文字スーパーは、字幕とは別に隠せる。字幕を隠せば、どちらも隠す (#491)', async () => {
+    const captions = createCaptions(document.createElement('video'), document.createElement('div'));
+    await vi.waitFor(() => expect(shown.size).toBe(2));
+
+    captions.setSuperimposeVisible(false);
+    expect(Object.fromEntries(shown)).toEqual({ Caption: true, Superimpose: false });
+
+    captions.setSuperimposeVisible(true);
+    captions.setVisible(false);
+    expect(Object.fromEntries(shown)).toEqual({ Caption: false, Superimpose: false });
+  });
+
+  test('見た目を変えると、どちらの層の描画器の色の設定も変える (#491)', async () => {
+    const captions = createCaptions(document.createElement('video'), document.createElement('div'));
+    await vi.waitFor(() => expect(colors).toHaveLength(2));
+
+    captions.setStyle({ stroke: true, backgroundOpacity: 0.5 });
+
+    expect(colors).toEqual([
+      { stroke: 'black', background: 'rgba(0, 0, 0, 0.5)' },
+      { stroke: 'black', background: 'rgba(0, 0, 0, 0.5)' },
+    ]);
+  });
+});
+
+describe('rendererColor', () => {
+  test.each([
+    {
+      name: '放送の指定どおり',
+      style: { stroke: false, backgroundOpacity: null },
+      want: { stroke: null, background: null },
+    },
+    {
+      name: '縁取り、背景は透明',
+      style: { stroke: true, backgroundOpacity: 0 },
+      want: { stroke: 'black', background: 'rgba(0, 0, 0, 0)' },
+    },
+  ])('$name', ({ style, want }) => {
+    expect(rendererColor(style)).toEqual(want);
   });
 });

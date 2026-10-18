@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<7b2a2958f097853720a8229241d99550>>
+ * @generated SignedSource<<d08e81c1792f184e16d9f3ad32224147>>
  * @lightSyntaxTransform
  */
 
@@ -12,6 +12,12 @@ export type KeywordMuteMatch = "EXACT" | "PARTIAL" | "PREFIX" | "REGEX" | "SUFFI
 export type usePlayerSettingsQuery$variables = Record<PropertyKey, never>;
 export type usePlayerSettingsQuery$data = {
   readonly playerSettings: {
+    readonly captions: {
+      readonly backgroundOpacity: number | null | undefined;
+      readonly stroke: boolean;
+      readonly superimposeLive: boolean;
+      readonly superimposeRecorded: boolean;
+    };
     readonly captionsEnabled: boolean;
     readonly comments: {
       readonly mutedKeywords: ReadonlyArray<{
@@ -126,6 +132,45 @@ var v0 = [
           }
         ],
         "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "CaptionSettings",
+        "kind": "LinkedField",
+        "name": "captions",
+        "plural": false,
+        "selections": [
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "superimposeLive",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "superimposeRecorded",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "stroke",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "backgroundOpacity",
+            "storageKey": null
+          }
+        ],
+        "storageKey": null
       }
     ],
     "storageKey": null
@@ -149,16 +194,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "8e6d239d666fde78e83e593356eecf63",
+    "cacheID": "24a9d35c62c7b5254c889a73c945142e",
     "id": null,
     "metadata": {},
     "name": "usePlayerSettingsQuery",
     "operationKind": "query",
-    "text": "query usePlayerSettingsQuery {\n  playerSettings {\n    jikkyoEnabled\n    captionsEnabled\n    comments {\n      opacity\n      speed\n      scale\n      showAll\n      mutedKeywords {\n        text\n        match\n      }\n      mutedUsers\n    }\n  }\n}\n"
+    "text": "query usePlayerSettingsQuery {\n  playerSettings {\n    jikkyoEnabled\n    captionsEnabled\n    comments {\n      opacity\n      speed\n      scale\n      showAll\n      mutedKeywords {\n        text\n        match\n      }\n      mutedUsers\n    }\n    captions {\n      superimposeLive\n      superimposeRecorded\n      stroke\n      backgroundOpacity\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "3df20b488020a487f2a1eed6c4d63db9";
+(node as any).hash = "87cab6f817dd26481b27528e312a33a2";
 
 export default node;

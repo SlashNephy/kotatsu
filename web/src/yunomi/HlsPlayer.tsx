@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 
 import { cropStyle, noCrop, type Crop } from './crop';
 import { catchUpRate } from './liveCatchUp';
-import { createCaptions, type Captions } from './captions';
+import { createCaptions, defaultCaptionStyle, type Captions, type CaptionStyle } from './captions';
 import classes from './TsPlayer.module.css';
 
 type Props = {
@@ -16,6 +16,10 @@ type Props = {
   lowLatency?: boolean;
   // captions は、字幕と文字スーパーを出すかどうか。
   captions: boolean;
+  // superimpose は、文字スーパーを出すかどうか (#491)。captions を切っていれば、出さない。
+  superimpose?: boolean;
+  // captionStyle は、字幕の見た目 (#491)。
+  captionStyle?: CaptionStyle;
   // crop は、L 字放送の切り抜き (#496)。映像と字幕をまとめて拡大する。
   crop?: Crop;
   // onCaptionText は、字幕が出るたびに、その文を受け取る (#450)。字幕を出さない設定でも受け取る。
@@ -61,6 +65,8 @@ export function HlsPlayer({
   live,
   lowLatency = false,
   captions,
+  superimpose = true,
+  captionStyle = defaultCaptionStyle,
   crop = noCrop,
   onCaptionText,
   startPosition,
@@ -92,6 +98,11 @@ export function HlsPlayer({
   const captionText = useRef(onCaptionText);
   captionText.current = onCaptionText;
   showCaptions.current = captions;
+  // 字幕を作り直したときに、今の設定から始めるよう、ref でも持つ。
+  const superimposeRef = useRef(superimpose);
+  superimposeRef.current = superimpose;
+  const styleRef = useRef(captionStyle);
+  styleRef.current = captionStyle;
   // generation を変えると、hls.js を作り直して読み直す。ライブを長く一時停止してから再開したときに使う。
   const [generation, setGeneration] = useState(0);
 
@@ -111,6 +122,8 @@ export function HlsPlayer({
     // 字幕は、aribb24.js を読み終えるまで溜めておくので、最初のセグメントの字幕も落とさない。
     const renderer = createCaptions(video, frame, (text) => captionText.current?.(text));
     renderer.setVisible(showCaptions.current);
+    renderer.setSuperimposeVisible(superimposeRef.current);
+    renderer.setStyle(styleRef.current);
     captionsRef.current = renderer;
 
     return () => {
@@ -210,6 +223,15 @@ export function HlsPlayer({
   useEffect(() => {
     captionsRef.current?.setVisible(captions);
   }, [captions]);
+
+  useEffect(() => {
+    captionsRef.current?.setSuperimposeVisible(superimpose);
+  }, [superimpose]);
+
+  const { stroke, backgroundOpacity } = captionStyle;
+  useEffect(() => {
+    captionsRef.current?.setStyle({ stroke, backgroundOpacity });
+  }, [stroke, backgroundOpacity]);
 
   return (
     <div className={classes.frame}>
