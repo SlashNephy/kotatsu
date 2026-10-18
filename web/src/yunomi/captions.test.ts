@@ -90,13 +90,22 @@ describe('createCaptions', () => {
 
   test('字幕の層にだけ、文を取り出す描画器を付け、字幕を描くたびに文を渡し、消えたら空の文を渡す', async () => {
     const onText = vi.fn();
-    createCaptions(document.createElement('video'), document.createElement('div'), onText);
+    const captions = createCaptions(
+      document.createElement('video'),
+      document.createElement('div'),
+      onText,
+    );
     await vi.waitFor(() => expect(texts).toHaveLength(1));
     texts[0]!.render();
     expect(onText).toHaveBeenLastCalledWith('字幕の文');
 
     // 字幕が消えたら、空の文を渡す。キャプチャに、消えた字幕を書き込まないようにする (#458)。
     texts[0]!.clear();
+    expect(onText).toHaveBeenLastCalledWith('');
+
+    // 読み直すときも、今出ている字幕を消したことを渡す。
+    texts[0]!.render();
+    captions.reset();
     expect(onText).toHaveBeenLastCalledWith('');
   });
 

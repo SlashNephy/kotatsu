@@ -175,9 +175,11 @@ export function createCaptions(
     },
     reset: () => {
       queue = [];
-      for (const { feeder, renderer } of layers ?? []) {
+      for (const { feeder, renderer, text } of layers ?? []) {
         feeder.clear();
         renderer.clear();
+        // 読み直す前の字幕を、今出ている字幕として残さない (#458)。
+        text?.clear();
       }
     },
     destroy: () => {
