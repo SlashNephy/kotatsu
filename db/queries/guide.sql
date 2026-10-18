@@ -7,7 +7,7 @@ SELECT type, display_name, sort_order FROM channel_types WHERE type = ANY(@types
 -- name: ListGuideServices :many
 -- 番組表の並び順のサービス。チャンネル種別の並び順、管理者の上書き、リモコンのキー、サービス ID の順に並べる。
 -- media_service_types を渡すと、その種別 (映像か音声を流すサービス) だけを返す。空なら、種別で絞らない。
-SELECT s.id, s.network_id, s.sid, s.name, s.channel_type, s.channel, s.remote_control_key_id, s.logo_id, s.hidden, s.sort_order
+SELECT s.id, s.network_id, s.sid, s.name, s.service_type, s.channel_type, s.channel, s.remote_control_key_id, s.logo_id, s.hidden, s.sort_order
 FROM services s
 JOIN channel_types ct ON ct.type = s.channel_type
 WHERE (@include_hidden::boolean OR NOT s.hidden)

@@ -81,6 +81,8 @@ export default defineConfig({
       // 映像、録画の画像、ロゴも中継し、開発サーバーだけで画面のすべてを確かめられるようにする。
       '/streams': { target: devAPI, changeOrigin: false },
       '/media': { target: devAPI, changeOrigin: false },
+      // EPGStation 互換の API (#431) も、開発サーバーから確かめられるようにする。
+      '/api': { target: devAPI, changeOrigin: false },
     },
   },
   fmt: {
