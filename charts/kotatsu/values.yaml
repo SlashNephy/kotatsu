@@ -117,6 +117,9 @@ all:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+  # runtimeClassName は、Pod を動かすランタイム。GPU を使うとき、NVIDIA のランタイムが既定でないクラスター (k3s など) では、
+  # その RuntimeClass の名前 (例: nvidia) を入れる。空なら既定のランタイムを使う。
+  runtimeClassName: ""
   # terminationGracePeriodSeconds は、mikan が録画を引き継ぐまで待つ時間を含める。
   terminationGracePeriodSeconds: 300
   # workSizeLimit は、kyusu が HLS のセグメントを置く作業ディレクトリ (emptyDir) の容量の上限。空なら上限を付けない。
@@ -134,6 +137,7 @@ roles:
     nodeSelector: {}
     tolerations: []
     affinity: {}
+    runtimeClassName: ""
     terminationGracePeriodSeconds: 30
   neko:
     # neko は、リースを持つ 1 つだけが動くので、増やしても待機になる。
@@ -144,6 +148,7 @@ roles:
     nodeSelector: {}
     tolerations: []
     affinity: {}
+    runtimeClassName: ""
     terminationGracePeriodSeconds: 30
   mikan:
     # mikan を 2 つ以上にすると、更新の間も録画が途切れない (設計書 5.4)。
@@ -154,6 +159,7 @@ roles:
     nodeSelector: {}
     tolerations: []
     affinity: {}
+    runtimeClassName: ""
     # 終了のシグナルを受けてから、別の mikan が録画を引き継ぐまで待つ。
     terminationGracePeriodSeconds: 300
     podDisruptionBudget:
@@ -166,9 +172,11 @@ roles:
     nodeSelector: {}
     tolerations: []
     affinity: {}
+    runtimeClassName: ""
     terminationGracePeriodSeconds: 60
   kyusu:
-    # kyusu はサーバー側でのトランスコードで、なくても動く。GPU のあるノードに置くときは nodeSelector と resources を使う。
+    # kyusu はサーバー側でのトランスコードで、なくても動く。GPU のあるノードに置くときは nodeSelector と resources を使い、
+    # NVIDIA のランタイムが既定でないクラスターでは runtimeClassName も入れる (all の runtimeClassName を参照)。
     replicas: 0
     # workSizeLimit は、HLS のセグメントを置く作業ディレクトリ (emptyDir) の容量の上限。空なら上限を付けない。
     # 超えると kubelet が Pod を退避させるので、同時に開くセッションの数と画質に見合う量にする。
@@ -179,4 +187,5 @@ roles:
     nodeSelector: {}
     tolerations: []
     affinity: {}
+    runtimeClassName: ""
     terminationGracePeriodSeconds: 30

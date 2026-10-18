@@ -1299,7 +1299,7 @@ HelmのChartの版とイメージのタグはSemVerの形を求めるので、�
 Helm Chartは次の方針で作ります。
 
 - `all`の構成とロールを分けた構成を、valuesで切り替えられるようにします。
-- ロールごとに、台数、リソース、配置先（kyusuをGPUのあるノードに置く、など）を指定できるようにします。
+- ロールごとに、台数、リソース、配置先（kyusuをGPUのあるノードに置く、など）、RuntimeClass（`runtimeClassName`）を指定できるようにします。RuntimeClassは、NVIDIAのランタイムが既定でないクラスター（k3sなど）で、kyusuにGPUを渡すのに使います（#509）。
 - 接続先と秘密キーは、項目ごとに別のSecretから渡せるようにします。CloudNativePGが作るSecretを、そのまま使えるようにするためです。
 - イメージはdigestでも固定でき、PodにはPriorityClassを付けられるようにします。
 - mikanにはPodDisruptionBudgetと、引き継ぎに十分な`terminationGracePeriodSeconds`を設定します。
@@ -1410,7 +1410,7 @@ Kotatsuは公開リポジトリなので、実際の放送のTSをテスト用�
 | 長時間のストリームとタイムアウト | net/httpのタイムアウトの設定が、何時間も続くストリームを切らないか | ストリーム用のハンドラでだけ、書き込みのタイムアウトを外します。 | 想定どおりでした。tenbanのHTTPサーバーは`ReadHeaderTimeout`だけを設定し、書き込みのタイムアウトを設定していません。Docker上のmirakc 3.4.89（録画したTSを流すチューナー）からのライブ視聴のストリームを、tenban経由で3時間受け取り続けても切れませんでした（#53）。 |
 | データ放送の渡し方 | web-bmlにデータを渡す方法として、ブラウザに届いたTSを使う方法、Mahironのデータ放送API、psisiarcのどれが使えるか | 使える方法をサーバーごとに選びます。どれも使えないサーバーでは、データ放送を表示しません。 | どれも使えますが、tenbanがTSからデータ放送に要るPIDだけを残して配信し、ブラウザでweb-bmlの`decodeTS`に渡す方法を、どのサーバーでも使います（#67）。実際の地上波の10秒のTSで比べると、PIDを絞ったTS（約1.8Mbps、元の約18%）から、元のTSと同じメッセージが出ました。ブラウザに届いたTSは、mpeg2toh264のプレイヤーが字幕と文字スーパーのPESしか外に出さないので、そのままでは使えません。MahironのAPIは、web-bmlの形に組み立て直す処理が重く、Mahironでしか使えません。psisiarcは帯域をさらに半分ほどにできますが、外部のプログラムが要るので使いません。web-bmlは`<style>`要素とstyle属性を書くので、今のCSPではそのままでは描画できません。この扱いは#68で決めます。 |
 | デュアルモノ | mpeg2toh264のプレイヤーが、デュアルモノの音声を切り替えられるか | ブラウザ内での変換では主音声だけを再生し、切り替えはkyusuの経路で行います。 | 切り替えられました。プレイヤーは音声のフレームからデュアルモノを見分け、`selectDualMono`で副音声に切り替えます。実際の放送のデュアルモノの番組から取ったTSを再生し、切り替えの前は主音声と、後は副音声と、FFmpegで復号したものと波形が一致しました。切り替えは変換を終えたところから効くので、録画では最大で約8秒遅れて聞こえます（#69）。 |
-| ハードウェアエンコード | Debianの`ffmpeg`とmainコンポーネントのドライバで、VAAPI、QSV、NVENCのH.264とHEVCのエンコードが動くか。IntelのGPUは、non-freeのドライバに頼りやすいGen11以前と、Gen12以降の両方で確かめます | 動かないエンコーダーやGPUの世代は、v1の対応から外します。 | 2026-10-18に確かめました（#509）。NVENC（GeForce RTX 3080）は、H.264とHEVCの全プリセットが9〜25倍速で動きます。IntelのGen9（HD Graphics 530）では、mainの`intel-media-va-driver`だと、縮小とHEVCができず、1080pのH.264しか動きません。non-freeの`intel-media-va-driver-non-free`なら、VAAPIで全プリセットが1.5〜4倍速で動くので、これを入れます。QSVは、Gen11以前では動きません（Gen11以前に要る`libmfx1`がDebian 13にありません）。Gen12以降のQSVとVAAPI、AMDのVAAPIは未検証です。 |
+| ハードウェアエンコード | Debianの`ffmpeg`とmainコンポーネントのドライバで、VAAPI、QSV、NVENCのH.264とHEVCのエンコードが動くか。IntelのGPUは、non-freeのドライバに頼りやすいGen11以前と、Gen12以降の両方で確かめます | 動かないエンコーダーやGPUの世代は、v1の対応から外します。 | 2026-10-18に確かめました（#509）。NVENC（GeForce RTX 3080）は、H.264とHEVCの全プリセットが9〜25倍速で動きます。IntelのGen9（HD Graphics 530）では、mainの`intel-media-va-driver`だと、縮小とHEVCができず、1080pのH.264しか動きません。non-freeの`intel-media-va-driver-non-free`なら、VAAPIで全プリセットが1.5〜4倍速で動くので、これを入れます。QSVは、Gen11以前では動きません（Gen11以前に要る`libmfx1`がDebian 13にありません）。Gen12（UHD Graphics 770）では、QSVとVAAPIのどちらでも、全プリセットが5〜30倍速で動きます。QSVの縮小（`scale_qsv`）は、幅に`-2`を受け付けないので、`-1`を渡します。KubernetesでのNVENCは、一時的なクラスター（kind）で確かめ、全プリセットが9〜33倍速で動きます。NVIDIAのランタイムが既定でないクラスターでは、RuntimeClassを指定しないとGPUが渡されないので、Helm Chartで`runtimeClassName`を指定できるようにしました。AMDのVAAPIは、手元にGPUがなく、動作未確認です。 |
 
 ## 付録 A. 既定値の一覧
 
