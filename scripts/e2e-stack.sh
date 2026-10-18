@@ -38,19 +38,25 @@ export KOTATSU_KYUSU_WORK_DIR="$work/kyusu"
 
 ./bin/kotatsu migrate
 ./bin/kotatsu all >"$log" 2>&1 &
-pids+=("$!")
+kotatsu_pid="$!"
+pids+=("$kotatsu_pid")
 
-# 起動と、セットアップトークンのログを待つ。
+# 起動と、セットアップトークンのログを待つ。落ちたら、待たずに失敗する。
 token=""
+ready=false
 for _ in $(seq 1 120); do
+  if ! kill -0 "$kotatsu_pid" 2>/dev/null; then
+    break
+  fi
   token="$(grep -o '"setup_token":"[^"]*"' "$log" | head -n 1 | cut -d '"' -f 4 || true)"
   if [ -n "$token" ] && curl -fsS "http://127.0.0.1:$port/readyz" >/dev/null 2>&1; then
+    ready=true
     break
   fi
   sleep 1
 done
-if [ -z "$token" ]; then
-  echo "Kotatsu did not log a setup token" >&2
+if [ "$ready" != true ]; then
+  echo "Kotatsu did not become ready with a setup token" >&2
   cat "$log" >&2
   exit 1
 fi
