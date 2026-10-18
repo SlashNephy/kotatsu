@@ -318,6 +318,13 @@ export function useDataBroadcast(
       }, delay);
     };
     // 待機文書は見える文書なので、見えたところで押すのを止めてしまう。文書を読んで少し待ってから確かめ、待機文書なら押し直す。
+    // 出している間に、見えた待機文書なら押し始める。裏で受け取っている間に読んだ待機文書は、出したときに確かめる。
+    const pressIfStandby = () => {
+      if (shownRef.current && !userStopped && entering !== 'pressing' && !hidden && standby()) {
+        tries = 0;
+        pressLater(0);
+      }
+    };
     let standbyTimer: ReturnType<typeof setTimeout> | null = null;
     const checkStandbyLater = () => {
       if (standbyTimer !== null) {
@@ -325,10 +332,7 @@ export function useDataBroadcast(
       }
       standbyTimer = setTimeout(() => {
         standbyTimer = null;
-        if (shownRef.current && !userStopped && entering !== 'pressing' && !hidden && standby()) {
-          tries = 0;
-          pressLater(0);
-        }
+        pressIfStandby();
       }, standbyCheckMs);
     };
     // loaded は、最初の文書を読んだかどうか。読む前に出すことになったら、読んだところで入る。
@@ -348,6 +352,9 @@ export function useDataBroadcast(
       audio?.resume();
       place();
       enter();
+      if (loaded) {
+        pressIfStandby();
+      }
     };
     // 出すのをやめたら、受け取りは続けたまま、受信機で d ボタンを押して消すのと同じく、最初の見えない文書へ戻す。
     // 受け取り直すと、次に出すときに、また d ボタンを受け取れるまで待つことになる。

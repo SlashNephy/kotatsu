@@ -257,6 +257,31 @@ describe('useDataBroadcast', () => {
     }
   });
 
+  test('裏で受け取っている間に読んだ待機文書は、出したときに押す', () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(<Harness shown={false} />);
+      const browser = fake.FakeBrowser.instances[0];
+      if (browser !== undefined) {
+        browser.content.bmlDocument.documentElement.node = standbyRoot();
+      }
+      act(() => {
+        browser?.dispatchEvent(load);
+        browser?.dispatchEvent(new CustomEvent('invisible', { detail: false }));
+        vi.advanceTimersByTime(5000);
+      });
+      expect(browser?.pressed).toEqual([]);
+
+      rerender(<Harness shown />);
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(browser?.pressed).toEqual([RemoteKey.d]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('利用者がリモコンを使ったら、待機文書でも押さない', () => {
     vi.useFakeTimers();
     try {
