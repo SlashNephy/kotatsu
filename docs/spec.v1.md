@@ -1214,7 +1214,7 @@ EPGStationのAPIで番組表と録画を読むクライアント（[kiririn](htt
 | 番組表 | TanStack Virtual | 縦と横の両方を仮想化し、チャンネル数と番組数が多くても描画する要素を画面内に限ります。 |
 | 再生 | mpeg2toh264、hls.js、aribb24.js、web-bml、niconicomments | |
 | 認証 | @simplewebauthn/browser、zxcvbn-ts | |
-| PWA | Service Workerでアプリの外枠だけをキャッシュし、Web Pushを受け取ります | 番組データと映像はキャッシュしません。Service Workerはvite-plugin-pwaの`injectManifest`で作ります。プリキャッシュの一覧はプラグインに注入させ、Web Pushの受信とナビゲーションの扱いは自前のService Workerに書きます。ページは`viewport-fit=cover`で画面の端（Androidのジェスチャーナビゲーションの帯や、ノッチ）の下まで描き、帯の色をページの背景に合わせます。マニフェストの`background_color`は1色しか書けず、ダークモードで帯だけが明るく残るからです（#425）。中身が隠れないよう、下と左右の`env(safe-area-inset-*)`の分だけ余白を足します。上の端（ステータスバー）は、AndroidのChromeもiOSの既定のステータスバーもページを下に描かないので、扱いません。 |
+| PWA | Service Workerでアプリの外枠だけをキャッシュし、Web Pushを受け取ります | 番組データと映像はキャッシュしません。Service Workerはvite-plugin-pwaの`injectManifest`で作ります。プリキャッシュの一覧はプラグインに注入させ、Web Pushの受信とナビゲーションの扱いは自前のService Workerに書きます。ページは`viewport-fit=cover`で画面の端（Androidのジェスチャーナビゲーションの帯や、ノッチ）の下まで描き、帯の色をページの背景に合わせます。マニフェストの`background_color`は1色しか書けず、ダークモードで帯だけが明るく残るからです（#425）。中身が隠れないよう、下と左右の`env(safe-area-inset-*)`の分だけ余白を足します。上の端（ステータスバー）は、AndroidのChromeもiOSの既定のステータスバーもページを下に描かないので、扱いません。iOSのホーム画面のアイコンには、透過のない180×180のPNGを、`apple-touch-icon`に`data:` URLで埋め込みます。iOS 27の「ホーム画面に追加」は、URLで指したアイコンを読み込めず、タイトルの頭文字のタイルを出すからです（#582）。埋め込みはビルド時に行い、元のPNGは`web/public/icons`に置きます。 |
 | 文言 | i18next | v1は日本語だけですが、後から仕組みを入れ直さずに済むよう最初から導入します。 |
 | 品質 | OxlintとOxfmt（`vp check`）、Vitest、Storybook、Playwright | Storybookはfutonの部品の確認に使います。 |
 
