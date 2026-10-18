@@ -138,7 +138,13 @@ func TestTranscoding(t *testing.T) {
 			assert.Equal(t, "1080p", got.Transcoding.Presets[0].Name)
 			assert.Equal(t, 6000, got.Transcoding.Presets[0].VideoBitrate)
 			assert.Equal(t, "H264", got.Transcoding.Presets[0].Codec)
-			assert.Equal(t, "HEVC", got.Transcoding.Presets[len(got.Transcoding.Presets)-1].Codec)
+			codecs := map[string]string{}
+			for _, preset := range got.Transcoding.Presets {
+				codecs[preset.Name] = preset.Codec
+			}
+			assert.Equal(t, "HEVC", codecs["720p-hevc"])
+			// 60fps の画質も返す (#499)。
+			assert.Equal(t, "H264", codecs["720p60"])
 		})
 	}
 }
