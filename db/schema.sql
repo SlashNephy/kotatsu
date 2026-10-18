@@ -90,6 +90,21 @@ CREATE TABLE users (
 -- ユーザー名は大文字と小文字を区別せずに一意にする。citext は拡張を要するので使わない。
 CREATE UNIQUE INDEX users_lower_username_idx ON users (lower(username));
 
+-- 読み取り専用の API トークン (#431、設計書 9.8)。EPGStation 互換の読み取り API (/api/*) を、外のクライアントから使うのに発行する。
+-- トークンは発行したときにだけ見せ、DB には SHA-256 だけを保存する。トークンは、発行したユーザーのロールのまま動く。
+CREATE TABLE api_tokens (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  -- name は、どのクライアントに渡したかを見分けるための名前。1〜64 文字。
+  name text NOT NULL,
+  token_hash bytea NOT NULL UNIQUE,
+  created_at timestamptz NOT NULL,
+  -- 最後に使われた日時。書き込みを減らすため、一定の間隔でしか更新しない。使われていなければ NULL。
+  last_used_at timestamptz
+);
+
+CREATE INDEX api_tokens_user_id_idx ON api_tokens (user_id);
+
 -- サーバー側で持つセッション (設計書 9.5)。全インスタンスで共有する。
 -- Cookie にはランダムなトークンを入れ、DB にはその SHA-256 だけを保存する。DB が漏れても、セッションを乗っ取れない。
 CREATE TABLE sessions (

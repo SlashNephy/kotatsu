@@ -1,0 +1,34 @@
+"""
+読み取り専用の API トークン (#431、設計書 9.8)。EPGStation 互換の読み取り API (/api/*) を、外のクライアントから使うのに発行する。
+トークンそのものは、発行したときにだけ返す。
+"""
+type ApiToken {
+  id: ID!
+  "どのクライアントに渡したかを見分けるための名前。"
+  name: String!
+  createdAt: Time!
+  "最後に使われた日時。1 分ごとにしか書き直さない。使われていなければ null。"
+  lastUsedAt: Time
+}
+
+"発行した API トークン。"
+type CreatedApiToken {
+  "トークンそのもの。ここでしか分からないので、すぐに控えてもらう。"
+  token: String!
+  apiToken: ApiToken!
+}
+
+extend type Query {
+  "ログイン中のユーザーの API トークン。新しい順に並べる。"
+  apiTokens: [ApiToken!]!
+}
+
+extend type Mutation {
+  """
+  API トークンを発行する。名前は 1 文字以上 64 文字以下。直近 10 分以内の認証が要る。
+  トークンは、発行したユーザーのロールのまま、読み取り専用の API にだけ使える。
+  """
+  createApiToken(name: String!): CreatedApiToken!
+  "API トークンを取り消し、取り消したトークンの ID を返す。"
+  deleteApiToken(id: ID!): ID!
+}

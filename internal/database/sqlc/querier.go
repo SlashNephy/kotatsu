@@ -50,6 +50,9 @@ type Querier interface {
 	// ルールごとに、一致した予約のうち、終わっていないものの件数を数える。無効な予約も数える。予約のないルールは返さない。
 	CountUpcomingReservationsByRules(ctx context.Context, arg CountUpcomingReservationsByRulesParams) ([]CountUpcomingReservationsByRulesRow, error)
 	CountUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
+	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) error
+	// ユーザーの API トークンを消し、消した名前を返す。ほかのユーザーのトークンは消さない。
+	DeleteAPIToken(ctx context.Context, arg DeleteAPITokenParams) (string, error)
 	// before より前の記録を、古い順に max_count 件まで消す。1 回のトランザクションで大量の行を消さないよう、件数を区切る。
 	DeleteAuditEventsBefore(ctx context.Context, arg DeleteAuditEventsBeforeParams) (int64, error)
 	DeleteExpiredLoginChallenges(ctx context.Context, now time.Time) (int64, error)
@@ -106,6 +109,8 @@ type Querier interface {
 	FinishRecording(ctx context.Context, arg FinishRecordingParams) error
 	// 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。引き継ぎ待ちの間に予定の終わりが来ても終える。
 	FinishRecordingAssignment(ctx context.Context, arg FinishRecordingAssignmentParams) (int64, error)
+	// トークンのハッシュから、発行したユーザーを引く。無効にしたユーザーのトークンは使えない。
+	GetAPITokenUser(ctx context.Context, tokenHash []byte) (GetAPITokenUserRow, error)
 	// 予約した番組が放送されなかったときに、その時間に放送されていた番組の名前。番組表か、アーカイブから引く。
 	// eventId は日をまたいで使い回されるので、録画の予定の時間 (window_start〜window_end) に重なる番組に絞る。
 	GetAiredProgramName(ctx context.Context, arg GetAiredProgramNameParams) (string, error)
@@ -219,6 +224,8 @@ type Querier interface {
 	InsertWebhook(ctx context.Context, arg InsertWebhookParams) (Webhook, error)
 	// 予約の録画が録画中かどうか。まとめて消すか無効にするとき、録画中の予約を飛ばすのに使う (#471)。
 	IsReservationRecording(ctx context.Context, reservationID *uuid.UUID) (bool, error)
+	// ユーザーの API トークンを、新しい順に返す。
+	ListAPITokens(ctx context.Context, userID uuid.UUID) ([]ListAPITokensRow, error)
 	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
 	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
 	// 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。
@@ -483,6 +490,7 @@ type Querier interface {
 	TakeOIDCLogin(ctx context.Context, arg TakeOIDCLoginParams) (OidcLogin, error)
 	// 手続きは 1 回しか使わせないので、引くと同時に消す。
 	TakeWebAuthnCeremony(ctx context.Context, arg TakeWebAuthnCeremonyParams) (WebauthnCeremony, error)
+	TouchAPIToken(ctx context.Context, arg TouchAPITokenParams) error
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
 	// 試行回数の制限のキーを、トランザクションの終わりまでロックする。ほかの試行がロックしていれば、待たずに false を返す。
