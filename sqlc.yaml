@@ -12,6 +12,7 @@ sql:
         emit_interface: true
         emit_empty_slices: true
         rename:
+          api_id: APIID
           source_ip: SourceIP
           url: URL
           vapid_key: VAPIDKey

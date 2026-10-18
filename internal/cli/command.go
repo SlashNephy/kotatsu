@@ -765,6 +765,13 @@ func newEPGStationAPI(deps *Deps, tokens *auth.APITokens, opener stream.ServiceO
 	mux.HandleFunc("GET /api/schedules", h.Schedules)
 	// mode は、EPGStation のエンコードの設定の番号。Kotatsu は無変換の TS だけを返すので、読まない。
 	mux.Handle("GET /api/streams/live/{id}/m2ts", httpserver.StopOnShutdown(stream.NewLiveHandler(opener, streamLogger)))
+	mux.HandleFunc("GET /api/recorded", h.Recorded)
+	mux.HandleFunc("GET /api/recorded/{id}", h.RecordedItem)
+	// 動画とサムネイルは、録画の ID を読み替えて、録画の配信と代表画像の配信につなぐ。動画は Range に答える。
+	mux.Handle("GET /api/videos/{id}", httpserver.StopOnShutdown(
+		h.WithRecording(stream.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0), "")))
+	mux.Handle("GET /api/thumbnails/{id}",
+		h.WithRecording(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger), thumbnail.ThumbnailFileName))
 
 	return tokens.BearerMiddleware(auth.RequirePermission(auth.PermissionWatch)(mux))
 }

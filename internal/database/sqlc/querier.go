@@ -35,6 +35,7 @@ type Querier interface {
 	ClearStoragePoolLow(ctx context.Context, id string) error
 	// 書き終えたファイルの大きさと、表す時間の終わりを記録する。
 	CloseRecordingFile(ctx context.Context, arg CloseRecordingFileParams) error
+	CountAPIRecordings(ctx context.Context, keyword string) (int64, error)
 	// /metrics に出す、状態ごとの録画の割り振りの数。
 	CountRecordingAssignmentsByState(ctx context.Context) ([]CountRecordingAssignmentsByStateRow, error)
 	// /metrics に出す、失敗の理由ごとの録画の数。
@@ -109,6 +110,7 @@ type Querier interface {
 	FinishRecording(ctx context.Context, arg FinishRecordingParams) error
 	// 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。引き継ぎ待ちの間に予定の終わりが来ても終える。
 	FinishRecordingAssignment(ctx context.Context, arg FinishRecordingAssignmentParams) (int64, error)
+	GetAPIRecording(ctx context.Context, apiID int64) (GetAPIRecordingRow, error)
 	// トークンのハッシュから、発行したユーザーを引く。無効にしたユーザーのトークンは使えない。
 	GetAPITokenUser(ctx context.Context, tokenHash []byte) (GetAPITokenUserRow, error)
 	// 予約した番組が放送されなかったときに、その時間に放送されていた番組の名前。番組表か、アーカイブから引く。
@@ -137,6 +139,7 @@ type Querier interface {
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetRecording(ctx context.Context, id uuid.UUID) (Recording, error)
 	GetRecordingAssignmentStream(ctx context.Context, id uuid.UUID) (GetRecordingAssignmentStreamRow, error)
+	GetRecordingIDByAPIID(ctx context.Context, apiID int64) (uuid.UUID, error)
 	// 実況の過去ログを引くための、録画した時間帯とサービス (設計書 7.4)。
 	GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (GetRecordingJikkyoSourceRow, error)
 	// 通知に載せる、録画とサービス名。
@@ -224,6 +227,9 @@ type Querier interface {
 	InsertWebhook(ctx context.Context, arg InsertWebhookParams) (Webhook, error)
 	// 予約の録画が録画中かどうか。まとめて消すか無効にするとき、録画中の予約を飛ばすのに使う (#471)。
 	IsReservationRecording(ctx context.Context, reservationID *uuid.UUID) (bool, error)
+	// EPGStation 互換の API (#431、設計書 9.8) で返す録画。セグメントがなく、再生できない録画は返さない。
+	// 録画を、録画を始めた日時の新しい順に、offset から max_count 件返す。keyword が空でなければ、番組名で絞る。
+	ListAPIRecordings(ctx context.Context, arg ListAPIRecordingsParams) ([]ListAPIRecordingsRow, error)
 	// ユーザーの API トークンを、新しい順に返す。
 	ListAPITokens(ctx context.Context, userID uuid.UUID) ([]ListAPITokensRow, error)
 	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
