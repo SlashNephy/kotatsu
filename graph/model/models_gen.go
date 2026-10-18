@@ -15,6 +15,17 @@ type Node interface {
 	IsNode()
 }
 
+// 読み取り専用の API トークン (#431、設計書 9.8)。EPGStation 互換の読み取り API (/api/*) を、外のクライアントから使うのに発行する。
+// トークンそのものは、発行したときにだけ返す。
+type APIToken struct {
+	ID string `json:"id"`
+	// どのクライアントに渡したかを見分けるための名前。
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"createdAt"`
+	// 最後に使われた日時。1 分ごとにしか書き直さない。使われていなければ null。
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+}
+
 // Kotatsu の版。
 type AppVersion struct {
 	// リリースのタグの版 (1.2.3)。main のビルドなら edge、版を埋め込まないビルドなら dev。
@@ -191,6 +202,13 @@ type CreateWebhookPayload struct {
 	Webhook *Webhook `json:"webhook"`
 	// 署名用の秘密キー。受信側で署名を確かめるのに使う。ここでしか返さない。
 	Secret string `json:"secret"`
+}
+
+// 発行した API トークン。
+type CreatedAPIToken struct {
+	// トークンそのもの。ここでしか分からないので、すぐに控えてもらう。
+	Token    string    `json:"token"`
+	APIToken *APIToken `json:"apiToken"`
 }
 
 // データの変更。何が変わったかだけを知らせるので、クライアントは、そのデータを読み直す。

@@ -55,6 +55,8 @@ type Options struct {
 	SecondFactors *auth.SecondFactors
 	// Passkeys は、パスキーの一覧、名前の変更、削除に使う。nil なら、パスキーの操作は内部のエラーにする。
 	Passkeys *auth.Passkeys
+	// APITokens は、読み取り専用の API トークンを発行する (#431)。nil なら、API トークンを扱わない。
+	APITokens *auth.APITokens
 	// UserAdmin は、管理者によるユーザーの管理に使う。nil なら、ユーザーの管理は内部のエラーにする。
 	UserAdmin *auth.UserAdmin
 	// Passwords は、ログイン中のユーザーがパスワードを変えるのに使う。nil なら、内部のエラーにする。
@@ -145,6 +147,7 @@ func NewHandler(opts *Options) http.Handler {
 		reservations: reserve.NewReservations(o.Clock, o.Recorder),
 		factors:      o.SecondFactors,
 		passkeys:     o.Passkeys,
+		apiTokens:    o.APITokens,
 		userAdmin:    o.UserAdmin,
 		passwords:    o.Passwords,
 		sessions:     o.Sessions,

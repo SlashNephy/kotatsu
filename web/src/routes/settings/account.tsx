@@ -27,6 +27,7 @@ import { authApi, type OIDCStatus } from '../../auth/api';
 import { oidcErrorMessage } from '../../auth/messages';
 import { settingsErrorMessage } from '../../settings/errors';
 import { PasskeyCancelledError, passkeyAvailable, registerPasskey } from '../../auth/passkey';
+import { ApiTokens } from '../../settings/ApiTokens';
 import { deviceName } from '../../settings/device';
 import { ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
@@ -131,6 +132,12 @@ const query = graphql`
       remainingRecoveryCodes
     }
     passkeys {
+      id
+      name
+      createdAt
+      lastUsedAt
+    }
+    apiTokens {
       id
       name
       createdAt
@@ -361,6 +368,14 @@ function Account() {
 
           <Passkeys
             passkeys={data.passkeys}
+            onChanged={refresh}
+            run={run}
+            fail={fail}
+            environment={environment}
+          />
+
+          <ApiTokens
+            tokens={data.apiTokens}
             onChanged={refresh}
             run={run}
             fail={fail}

@@ -11,6 +11,15 @@ import (
 	"github.com/google/uuid"
 )
 
+type ApiToken struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Name       string
+	TokenHash  []byte
+	CreatedAt  time.Time
+	LastUsedAt *time.Time
+}
+
 type AuditEvent struct {
 	ID          uuid.UUID
 	OccurredAt  time.Time

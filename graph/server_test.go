@@ -146,6 +146,7 @@ func newFixtureWith(t *testing.T, opts *graph.Options, watchChanges bool) *fixtu
 	require.NoError(t, err)
 	opts.WebPush, err = webpush.NewService(clk, "kotatsu-graph-test-application-key-0123456789")
 	require.NoError(t, err)
+	opts.APITokens = auth.NewAPITokens(pool, clk, audit.NewRecorder(clk))
 	opts.Passkeys = auth.NewPasskeys(&auth.PasskeysOptions{
 		Clock: clk, Recorder: audit.NewRecorder(clk), Logger: slog.New(slog.DiscardHandler), Sessions: sessions,
 	})

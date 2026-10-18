@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<9a58163a886f7a0a4d1f8f27a08448cf>>
+ * @generated SignedSource<<4da211009e41a8aa0ce35c95ce7ae057>>
  * @lightSyntaxTransform
  */
 
@@ -10,6 +10,12 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type accountQuery$variables = Record<PropertyKey, never>;
 export type accountQuery$data = {
+  readonly apiTokens: ReadonlyArray<{
+    readonly createdAt: string;
+    readonly id: string;
+    readonly lastUsedAt: string | null | undefined;
+    readonly name: string;
+  }>;
   readonly passkeys: ReadonlyArray<{
     readonly createdAt: string;
     readonly id: string;
@@ -50,6 +56,24 @@ v1 = {
   "storageKey": null
 },
 v2 = [
+  (v0/*:: as any*/),
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "name",
+    "storageKey": null
+  },
+  (v1/*:: as any*/),
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "lastUsedAt",
+    "storageKey": null
+  }
+],
+v3 = [
   {
     "alias": null,
     "args": null,
@@ -82,24 +106,17 @@ v2 = [
     "kind": "LinkedField",
     "name": "passkeys",
     "plural": true,
-    "selections": [
-      (v0/*:: as any*/),
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "name",
-        "storageKey": null
-      },
-      (v1/*:: as any*/),
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "lastUsedAt",
-        "storageKey": null
-      }
-    ],
+    "selections": (v2/*:: as any*/),
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "ApiToken",
+    "kind": "LinkedField",
+    "name": "apiTokens",
+    "plural": true,
+    "selections": (v2/*:: as any*/),
     "storageKey": null
   },
   {
@@ -150,7 +167,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "accountQuery",
-    "selections": (v2/*:: as any*/),
+    "selections": (v3/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -159,19 +176,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "accountQuery",
-    "selections": (v2/*:: as any*/)
+    "selections": (v3/*:: as any*/)
   },
   "params": {
-    "cacheID": "eb466592d50637faff918e9157cb3bdf",
+    "cacheID": "7b31979b3967c866c3ef03273ba5d707",
     "id": null,
     "metadata": {},
     "name": "accountQuery",
     "operationKind": "query",
-    "text": "query accountQuery {\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  sessions {\n    id\n    current\n    createdAt\n    lastSeenAt\n    userAgent\n    sourceIp\n  }\n}\n"
+    "text": "query accountQuery {\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  apiTokens {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  sessions {\n    id\n    current\n    createdAt\n    lastSeenAt\n    userAgent\n    sourceIp\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "3b7fc0b65727016a18b3d923991034f2";
+(node as any).hash = "00f5c62a16fcfe2a1cae9d222ecb2986";
 
 export default node;

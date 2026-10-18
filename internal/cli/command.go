@@ -628,6 +628,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Recorder:          audit.NewRecorder(deps.Clock),
 		SecondFactors:     factors,
 		Passkeys:          passkeys,
+		APITokens:         auth.NewAPITokens(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock)),
 		UserAdmin:         auth.NewUserAdmin(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
 		Passwords:         auth.NewPasswords(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
 		Sessions:          sessions,
