@@ -67,11 +67,16 @@ ENTRYPOINT ["/usr/local/bin/kotatsu"]
 # FFmpeg と tsreadex を入れた実行環境。ffmpeg と、開発用の dev の土台にする。
 FROM mirror.gcr.io/library/debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f AS runtime
 ARG TARGETARCH
-# FFmpeg は Debian の ffmpeg パッケージ (GPL-2.0-or-later) を使い、non-free のパッケージは入れない (#77)。
-# VAAPI と QSV のドライバは main コンポーネントのものだけを入れる。Intel のものは amd64 にしかない。
-RUN apt-get update \
-    && drivers="mesa-va-drivers" \
-    && if [ "$TARGETARCH" = "amd64" ]; then drivers="$drivers intel-media-va-driver libvpl2 libmfx-gen1.2"; fi \
+# FFmpeg は Debian の ffmpeg パッケージ (GPL-2.0-or-later) を使う (#77)。
+# VAAPI と QSV のドライバのうち、Intel のものは amd64 にしかない。Intel の VAAPI のドライバだけは、non-free の
+# intel-media-va-driver-non-free を入れる (#509)。main の intel-media-va-driver は、Gen11 以前の GPU で、縮小 (VPP) と
+# HEVC のエンコードができないため。ライセンスは Expat で再配布できるが、GPU のバイナリにソースがないので non-free にある (付録 B)。
+RUN drivers="mesa-va-drivers" \
+    && if [ "$TARGETARCH" = "amd64" ]; then \
+        sed -i 's/^Components: main$/Components: main non-free/' /etc/apt/sources.list.d/debian.sources; \
+        drivers="$drivers intel-media-va-driver-non-free libvpl2 libmfx-gen1.2"; \
+    fi \
+    && apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates ffmpeg $drivers \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=tools /out/tsreadex /usr/local/bin/
