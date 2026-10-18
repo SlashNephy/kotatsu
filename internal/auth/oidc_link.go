@@ -86,7 +86,7 @@ func (o *OIDC) linkSession(
 		if linked {
 			return ErrOIDCAlreadyLinked
 		}
-		if err := o.link(ctx, tx, principal.UserID, claims.issuer, claims.subject, new(o.clock.Now())); err != nil {
+		if err := o.link(ctx, tx, principal.UserID, claims, new(o.clock.Now())); err != nil {
 			return err
 		}
 

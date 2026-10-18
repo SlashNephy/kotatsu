@@ -2528,6 +2528,10 @@ type User implements Node {
   """
   disabled: Boolean!
   createdAt: Time!
+  """
+  アイコンの画像の URL (#778)。IdP の picture を中継する。IdP が picture を返さないユーザーは null。
+  """
+  avatarUrl: String
 }
 """
 サーバー側でのトランスコード (kyusu) の映像のコーデック。

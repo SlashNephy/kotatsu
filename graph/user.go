@@ -22,6 +22,7 @@ func toUser(user *sqlc.User) *model.User {
 		Role:        model.Role(strings.ToUpper(user.Role)),
 		Disabled:    user.DisabledAt != nil,
 		CreatedAt:   user.CreatedAt,
+		AvatarURL:   nil,
 	}
 }
 

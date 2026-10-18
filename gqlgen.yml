@@ -33,6 +33,11 @@ models:
   Int64:
     model:
       - github.com/99designs/gqlgen/graphql.Int64
+  User:
+    fields:
+      # アイコンは、要るときにだけ引く (#778)。
+      avatarUrl:
+        resolver: true
   Service:
     model: github.com/SlashNephy/kotatsu/graph/model.Service
     fields:

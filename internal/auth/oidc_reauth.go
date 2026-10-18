@@ -90,7 +90,7 @@ func (o *OIDC) reauthenticate(
 		if identity.UserID != principal.UserID {
 			return ErrOIDCReauthenticationMismatch
 		}
-		if err := q.RecordOIDCIdentityUse(ctx, sqlc.RecordOIDCIdentityUseParams{ID: identity.ID, Now: &now}); err != nil {
+		if err := q.RecordOIDCIdentityUse(ctx, sqlc.RecordOIDCIdentityUseParams{ID: identity.ID, Now: &now, Picture: pictureOf(claims.all)}); err != nil {
 			return fmt.Errorf("failed to record the OIDC identity use: %w", err)
 		}
 

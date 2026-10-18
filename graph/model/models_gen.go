@@ -1005,6 +1005,8 @@ type User struct {
 	// 無効にしたユーザーかどうか。無効にしたユーザーは、ログインできない。
 	Disabled  bool      `json:"disabled"`
 	CreatedAt time.Time `json:"createdAt"`
+	// アイコンの画像の URL (#778)。IdP の picture を中継する。IdP が picture を返さないユーザーは null。
+	AvatarURL *string `json:"avatarUrl,omitempty"`
 }
 
 func (User) IsNode() {}

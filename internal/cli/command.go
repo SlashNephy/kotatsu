@@ -24,6 +24,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/analysis"
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/avatar"
 	"github.com/SlashNephy/kotatsu/internal/buildinfo"
 	"github.com/SlashNephy/kotatsu/internal/capacity"
 	"github.com/SlashNephy/kotatsu/internal/clock"
@@ -727,14 +728,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
 	mux.Handle("GET /streams/recordings/{id}/files/{file}",
 		httpserver.StopOnShutdown(authorizer.Middleware(stream.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger))))
-	// サービスのロゴは、チューナーサーバーから取って中継する。
-	mux.Handle("GET /media/services/{id}/logo", authorizer.Middleware(stream.NewLogoHandler(logos, streamLogger)))
-	// 録画の代表画像とプレビュー画像も、このインスタンスにマウントしたプールのものだけ配信できる。
-	mux.Handle("GET /media/recordings/{id}/{file}",
-		authorizer.Middleware(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger)))
-	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
-	mux.Handle("GET /media/recordings/{id}/"+jikkyo.CommentsFileName, authorizer.Middleware(
-		jikkyo.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))))
+	handleMedia(mux, deps, logger, authorizer, logos, jikkyoTable, jikkyoClient)
 	api := sessions.Middleware(deps.DB)(mux)
 	compat := newEPGStationAPI(deps, apiTokens, opener, logos, streamLogger)
 
@@ -751,6 +745,25 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	root.Handle("/", app)
 
 	return &apiHandler{handler: policy.Middleware(root), changes: changes, updates: updates}, nil
+}
+
+// handleMedia は、画像と実況の過去ログ (/media/*) を mux に登録する。どれも、セッションか署名付き URL で認可する。
+func handleMedia(
+	mux *http.ServeMux, deps *Deps, logger *slog.Logger, authorizer *stream.Authorizer, logos stream.LogoFetcher,
+	jikkyoTable *jikkyo.Table, jikkyoClient *jikkyo.Client,
+) {
+	streamLogger := logger.With(slog.String("component", "stream"))
+	// サービスのロゴは、チューナーサーバーから取って中継する。
+	mux.Handle("GET /media/services/{id}/logo", authorizer.Middleware(stream.NewLogoHandler(logos, streamLogger)))
+	// ユーザーのアイコンは、IdP から取って中継する (#778)。
+	mux.Handle("GET /media/users/{id}/avatar",
+		authorizer.Middleware(avatar.NewHandler(deps.DB, deps.Config.Auth.OIDC.Issuer, logger.With(slog.String("component", "avatar")))))
+	// 録画の代表画像とプレビュー画像も、このインスタンスにマウントしたプールのものだけ配信できる。
+	mux.Handle("GET /media/recordings/{id}/{file}",
+		authorizer.Middleware(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger)))
+	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
+	mux.Handle("GET /media/recordings/{id}/"+jikkyo.CommentsFileName, authorizer.Middleware(
+		jikkyo.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))))
 }
 
 // newEPGStationAPI は、EPGStation 互換の読み取り専用 API (/api/*) を返す (#431、設計書 9.1)。

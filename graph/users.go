@@ -56,6 +56,7 @@ func userModel(user *auth.User) *model.User {
 		Role:        model.Role(strings.ToUpper(string(user.Role))),
 		Disabled:    user.DisabledAt != nil,
 		CreatedAt:   user.CreatedAt,
+		AvatarURL:   nil,
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/notification"
+	"github.com/SlashNephy/kotatsu/internal/publicnet"
 	"github.com/SlashNephy/kotatsu/internal/webpush"
 )
 
@@ -305,5 +306,5 @@ func TestNewHTTPClientRefusesNonPublicAddresses(t *testing.T) {
 	if resp != nil {
 		resp.Body.Close()
 	}
-	require.ErrorContains(t, err, "the push service must have a public address")
+	require.ErrorIs(t, err, publicnet.ErrNonPublicAddress)
 }

@@ -18,6 +18,7 @@ export function UserMenu() {
         viewer {
           displayName
           username
+          avatarUrl
         }
         version {
           version
@@ -43,9 +44,16 @@ export function UserMenu() {
             variant="subtle"
             size="compact-sm"
             maw={180}
-            // ユーザーのアイコン (#778)。画像は持たないので、表示名の頭文字を、名前ごとに決まる色で出す。
+            // ユーザーのアイコン (#778)。IdP の picture を tenban が中継する。画像がないか、読めなければ、
+            // 表示名の頭文字を、名前ごとに決まる色で出す。
             leftSection={
-              <Avatar name={data.viewer.displayName} color="initials" size={22} aria-hidden />
+              <Avatar
+                src={data.viewer.avatarUrl}
+                name={data.viewer.displayName}
+                color="initials"
+                size={22}
+                aria-hidden
+              />
             }
           >
             <Text span size="sm" truncate="end">

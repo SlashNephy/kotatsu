@@ -423,6 +423,7 @@ type UserOidcIdentity struct {
 	UserID     uuid.UUID
 	Issuer     string
 	Subject    string
+	Picture    *string
 	CreatedAt  time.Time
 	LastUsedAt *time.Time
 }

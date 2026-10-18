@@ -25,7 +25,7 @@ func (q *Queries) DeleteExpiredOIDCLogins(ctx context.Context, now time.Time) (i
 }
 
 const getOIDCIdentity = `-- name: GetOIDCIdentity :one
-SELECT id, user_id, issuer, subject, created_at, last_used_at FROM user_oidc_identities WHERE issuer = $1 AND subject = $2
+SELECT id, user_id, issuer, subject, picture, created_at, last_used_at FROM user_oidc_identities WHERE issuer = $1 AND subject = $2
 `
 
 type GetOIDCIdentityParams struct {
@@ -41,15 +41,31 @@ func (q *Queries) GetOIDCIdentity(ctx context.Context, arg GetOIDCIdentityParams
 		&i.UserID,
 		&i.Issuer,
 		&i.Subject,
+		&i.Picture,
 		&i.CreatedAt,
 		&i.LastUsedAt,
 	)
 	return i, err
 }
 
+const getUserPicture = `-- name: GetUserPicture :one
+SELECT picture::text FROM user_oidc_identities
+WHERE user_id = $1 AND picture IS NOT NULL
+ORDER BY last_used_at DESC NULLS LAST, created_at DESC
+LIMIT 1
+`
+
+// ユーザーのアイコンの画像の URL。IdP を複数紐付けていれば、画像を返した IdP のうち、最後に使ったもの。
+func (q *Queries) GetUserPicture(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getUserPicture, userID)
+	var picture string
+	err := row.Scan(&picture)
+	return picture, err
+}
+
 const insertOIDCIdentity = `-- name: InsertOIDCIdentity :exec
-INSERT INTO user_oidc_identities (id, user_id, issuer, subject, created_at, last_used_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO user_oidc_identities (id, user_id, issuer, subject, picture, created_at, last_used_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 `
 
 type InsertOIDCIdentityParams struct {
@@ -57,6 +73,7 @@ type InsertOIDCIdentityParams struct {
 	UserID     uuid.UUID
 	Issuer     string
 	Subject    string
+	Picture    *string
 	Now        time.Time
 	LastUsedAt *time.Time
 }
@@ -67,6 +84,7 @@ func (q *Queries) InsertOIDCIdentity(ctx context.Context, arg InsertOIDCIdentity
 		arg.UserID,
 		arg.Issuer,
 		arg.Subject,
+		arg.Picture,
 		arg.Now,
 		arg.LastUsedAt,
 	)
@@ -110,7 +128,7 @@ func (q *Queries) InsertOIDCLogin(ctx context.Context, arg InsertOIDCLoginParams
 }
 
 const listUserOIDCIdentities = `-- name: ListUserOIDCIdentities :many
-SELECT id, user_id, issuer, subject, created_at, last_used_at FROM user_oidc_identities WHERE user_id = $1 ORDER BY created_at, id
+SELECT id, user_id, issuer, subject, picture, created_at, last_used_at FROM user_oidc_identities WHERE user_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListUserOIDCIdentities(ctx context.Context, userID uuid.UUID) ([]UserOidcIdentity, error) {
@@ -127,6 +145,7 @@ func (q *Queries) ListUserOIDCIdentities(ctx context.Context, userID uuid.UUID) 
 			&i.UserID,
 			&i.Issuer,
 			&i.Subject,
+			&i.Picture,
 			&i.CreatedAt,
 			&i.LastUsedAt,
 		); err != nil {
@@ -141,16 +160,17 @@ func (q *Queries) ListUserOIDCIdentities(ctx context.Context, userID uuid.UUID) 
 }
 
 const recordOIDCIdentityUse = `-- name: RecordOIDCIdentityUse :exec
-UPDATE user_oidc_identities SET last_used_at = $1 WHERE id = $2
+UPDATE user_oidc_identities SET last_used_at = $1, picture = $2 WHERE id = $3
 `
 
 type RecordOIDCIdentityUseParams struct {
-	Now *time.Time
-	ID  uuid.UUID
+	Now     *time.Time
+	Picture *string
+	ID      uuid.UUID
 }
 
 func (q *Queries) RecordOIDCIdentityUse(ctx context.Context, arg RecordOIDCIdentityUseParams) error {
-	_, err := q.db.Exec(ctx, recordOIDCIdentityUse, arg.Now, arg.ID)
+	_, err := q.db.Exec(ctx, recordOIDCIdentityUse, arg.Now, arg.Picture, arg.ID)
 	return err
 }
 
