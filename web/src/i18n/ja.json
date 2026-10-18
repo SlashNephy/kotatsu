@@ -960,6 +960,7 @@
   },
   "player": {
     "normalizeVolume": "音量を補正する",
+    "virtualSurround": "5.1chをヘッドホン向けのサラウンドで聞く",
     "gapMark": "ここで {{duration}} 途切れています",
     "crop": {
       "scale": "L字の切り抜き",
