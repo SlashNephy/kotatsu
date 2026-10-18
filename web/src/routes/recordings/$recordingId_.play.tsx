@@ -10,6 +10,8 @@ import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../..
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { CommentListToggle } from '../../jikkyo/CommentList';
+import { CaptionHistoryToggle } from '../../yunomi/CaptionHistory';
+import { insertRecordedCaption, type CaptionEntry } from '../../yunomi/captionHistory';
 import { countUntil, listedUntil } from '../../jikkyo/commentList';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
@@ -385,6 +387,12 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   };
 
   // seek は、指定の位置に移る。kyusu の HLS は、プレイリストの中を移るだけで、読み直さない。
+  // captionEntries は、字幕の履歴 (#450)。字幕が出たときの再生位置で並べ、行を押すとその位置へ移る。
+  const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
+  const onCaptionText = (text: string) => {
+    const at = currentPosition();
+    setCaptionEntries((list) => insertRecordedCaption(list, at, text));
+  };
   const seek = (target: number) => {
     // 録画の外へは移らない。OS のメディア操作からも、範囲の外の位置が届くことがある。
     const seconds = Math.min(Math.max(target, 0), duration);
@@ -703,6 +711,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           onVideo={setVideo}
           controls={controlBar}
           captions={captions}
+          onCaptionText={onCaptionText}
           onLoaded={() => {
             // 最初のフレームが出たときの時刻を、base にする。
             phase.current = 'awaitingBase';
@@ -731,6 +740,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           onVideo={setVideo}
           controls={controlBar}
           captions={captions}
+          onCaptionText={onCaptionText}
           live={false}
           startPosition={offset}
           overlay={
@@ -772,6 +782,15 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             </Button>
           </Group>
         </Alert>
+      )}
+      {recording !== null && (
+        <CaptionHistoryToggle
+          entries={captionEntries}
+          label={(entry) =>
+            formatClock(broadcastTime(recording.recordedFrom, recording.gaps, entry.at))
+          }
+          onSelect={(entry) => seek(entry.at)}
+        />
       )}
       {/* 実況の過去ログのうち、再生位置までに流れたもの (#489)。 */}
       {jikkyo.comments !== null && jikkyo.comments.length > 0 && (

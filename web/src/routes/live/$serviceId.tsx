@@ -34,6 +34,8 @@ import {
   useDocumentTitle,
 } from '../../futon';
 import { CommentListToggle } from '../../jikkyo/CommentList';
+import { CaptionHistoryToggle } from '../../yunomi/CaptionHistory';
+import { appendLiveCaption, type CaptionEntry } from '../../yunomi/captionHistory';
 import { formatClock } from '../../yunomi/position';
 import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
@@ -416,6 +418,10 @@ function Live({
   const reload = () => setSession((n) => n + 1);
   // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
   const [statsShown, setStatsShown] = useState(false);
+  // captionEntries は、字幕の履歴 (#450)。局を変えたら、画面ごと作り直すので捨てる。
+  const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
+  const onCaptionText = (text: string) =>
+    setCaptionEntries((list) => appendLiveCaption(list, Date.now(), text));
   // externalOpen は、外部プレイヤー用の URL を発行するダイアログを出しているかどうか (#487)。
   const [externalOpen, setExternalOpen] = useState(false);
   // tuneRequest は、データ放送の文書が選局しようとしたサービス。確かめてから移る (#440)。
@@ -678,6 +684,7 @@ function Live({
           onVideo={setVideo}
           controls={controlBar}
           captions={captions}
+          onCaptionText={onCaptionText}
           onLoaded={onLoaded}
           overlay={
             <>
@@ -721,6 +728,7 @@ function Live({
           onVideo={setVideo}
           controls={controlBar}
           captions={captions}
+          onCaptionText={onCaptionText}
           live
           onLoaded={onLoaded}
           overlay={
@@ -850,6 +858,7 @@ function Live({
           onPress={dataBroadcast.press}
         />
       )}
+      <CaptionHistoryToggle entries={captionEntries} label={(entry) => formatClock(entry.at)} />
       {channel !== null && jikkyoEnabled && (
         <>
           <JikkyoPanel channelName={channel.name} status={jikkyo.status} onPost={jikkyo.post} />

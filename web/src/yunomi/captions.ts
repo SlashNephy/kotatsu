@@ -1,4 +1,4 @@
-import type { CanvasMainThreadRenderer, Controller, MPEGTSFeeder } from 'aribb24.js';
+import type { CanvasMainThreadRenderer, Controller, MPEGTSFeeder, TextRenderer } from 'aribb24.js';
 
 import { broadcastFontUrl } from './broadcastFont';
 
@@ -14,7 +14,27 @@ export type Captions = {
   destroy: () => void;
 };
 
-type Layer = { controller: Controller; feeder: MPEGTSFeeder; renderer: CanvasMainThreadRenderer };
+type Layer = {
+  controller: Controller;
+  feeder: MPEGTSFeeder;
+  renderer: CanvasMainThreadRenderer;
+  // text は、字幕の文を取り出す描画器。字幕の層にだけ付ける (#450)。
+  text: TextRenderer | null;
+};
+
+// textRecorder は、aribb24.js の TextRenderer を広げ、字幕を描くたびに、その文を onText に渡す描画器を作る。
+// aribb24.js は、字幕の時刻 (PTS) に合わせて、付けた描画器すべての render を呼ぶので、時刻を自前で合わせなくてよい。
+// 消すとき (clear) は渡さない。履歴には、出た字幕だけを残すためである。
+function textRecorder(Base: typeof TextRenderer, onText: (text: string) => void): TextRenderer {
+  class Recorder extends Base {
+    override render(...args: Parameters<TextRenderer['render']>): void {
+      super.render(...args);
+      onText(this.getText());
+    }
+  }
+
+  return new Recorder();
+}
 
 type Feed =
   | { kind: 'b24'; data: ArrayBuffer; pts: number }
@@ -51,7 +71,12 @@ function loadCaptionFont(): Promise<void> {
 // createCaptions は、video の上に字幕を描く。描画用の canvas は container に置くので、container は position: relative にする。
 // aribb24.js と字幕のフォントは大きいので、ここから読み始める。読み終えるまでに届いた字幕は溜めておき、読み終えたら描く。
 // 読めなかったときは、字幕なしで再生を続ける。
-export function createCaptions(video: HTMLVideoElement, container: HTMLElement): Captions {
+// onText は、字幕 (文字スーパーは除く) が出るたびに、その文を受け取る (#450)。
+export function createCaptions(
+  video: HTMLVideoElement,
+  container: HTMLElement,
+  onText?: (text: string) => void,
+): Captions {
   let layers: Layer[] | null = null;
   let queue: Feed[] = [];
   let visible = true;
@@ -92,6 +117,7 @@ export function createCaptions(video: HTMLVideoElement, container: HTMLElement):
         Controller: ControllerClass,
         MPEGTSFeeder: FeederClass,
         CanvasMainThreadRenderer: RendererClass,
+        TextRenderer: TextRendererClass,
       },
     ]) => {
       if (destroyed) {
@@ -110,9 +136,17 @@ export function createCaptions(video: HTMLVideoElement, container: HTMLElement):
         renderer.getPresentationCanvas().dataset.overlay = 'captions';
         controller.attachFeeder(feeder);
         controller.attachRenderer(renderer);
+        // 字幕の文は、字幕の層からだけ取り出す。文字スーパーは、速報などで字幕の流れとは別のものなので、履歴に入れない。
+        const text =
+          type === 'Caption' && onText !== undefined
+            ? textRecorder(TextRendererClass, onText)
+            : null;
+        if (text !== null) {
+          controller.attachRenderer(text);
+        }
         controller.attachMedia(video, container);
 
-        return { controller, feeder, renderer };
+        return { controller, feeder, renderer, text };
       });
       show();
       const queued = queue;
@@ -144,11 +178,15 @@ export function createCaptions(video: HTMLVideoElement, container: HTMLElement):
     destroy: () => {
       destroyed = true;
       queue = [];
-      for (const { controller, renderer } of layers ?? []) {
+      for (const { controller, renderer, text } of layers ?? []) {
         controller.detachMedia();
         controller.detachFeeder();
         controller.detachRenderer(renderer);
         renderer.destroy();
+        if (text !== null) {
+          controller.detachRenderer(text);
+          text.destroy();
+        }
       }
       layers = null;
     },

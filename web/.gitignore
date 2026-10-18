@@ -7,3 +7,5 @@
 /zxcvbn/dist/
 /vendor/caption-font/*.ttf
 /vendor/caption-font/*.tmp
+# TanStack Router が作る一時ファイル。
+/.tanstack/

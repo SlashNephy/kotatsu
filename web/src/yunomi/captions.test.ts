@@ -4,11 +4,17 @@ import { createCaptions } from './captions';
 
 // fed は、偽の aribb24.js の feeder に渡ったもの。種類 (字幕か文字スーパーか) ごとに、渡った順に並べる。
 const fed: { type: string; kind: string; pts: number }[] = [];
+// texts は、偽の aribb24.js の Controller に付けた、字幕の文を取り出す描画器。
+const texts: { render: () => void }[] = [];
 vi.mock('aribb24.js', () => {
   return {
     Controller: class {
       attachFeeder() {}
-      attachRenderer() {}
+      attachRenderer(renderer: { render?: () => void; getText?: () => string }) {
+        if (renderer.getText !== undefined) {
+          texts.push(renderer as { render: () => void });
+        }
+      }
       attachMedia() {}
       detachMedia() {}
       detachFeeder() {}
@@ -29,6 +35,13 @@ vi.mock('aribb24.js', () => {
       }
       clear() {}
     },
+    TextRenderer: class {
+      render() {}
+      getText() {
+        return '字幕の文';
+      }
+      destroy() {}
+    },
     CanvasMainThreadRenderer: class {
       private readonly canvas = document.createElement('canvas');
       getPresentationCanvas() {
@@ -42,6 +55,7 @@ vi.mock('aribb24.js', () => {
 
 afterEach(() => {
   fed.length = 0;
+  texts.length = 0;
   vi.resetModules();
 });
 
@@ -71,5 +85,22 @@ describe('createCaptions', () => {
     await vi.waitFor(() => expect(fed).toHaveLength(2));
 
     expect(fed.map((item) => item.pts)).toEqual([2, 2]);
+  });
+
+  test('字幕の層にだけ、文を取り出す描画器を付け、字幕を描くたびに文を渡す', async () => {
+    const onText = vi.fn();
+    createCaptions(document.createElement('video'), document.createElement('div'), onText);
+    await vi.waitFor(() => expect(texts).toHaveLength(1));
+    texts[0]!.render();
+
+    expect(onText).toHaveBeenCalledWith('字幕の文');
+  });
+
+  test('文を受け取らないなら、文を取り出す描画器を付けない', async () => {
+    const captions = createCaptions(document.createElement('video'), document.createElement('div'));
+    captions.feedB24(new ArrayBuffer(1), 1);
+    await vi.waitFor(() => expect(fed).toHaveLength(2));
+
+    expect(texts).toHaveLength(0);
   });
 });
