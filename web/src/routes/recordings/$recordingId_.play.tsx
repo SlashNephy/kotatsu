@@ -11,7 +11,11 @@ import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { CommentListToggle } from '../../jikkyo/CommentList';
 import { CaptionHistoryToggle } from '../../yunomi/CaptionHistory';
-import { insertRecordedCaption, type CaptionEntry } from '../../yunomi/captionHistory';
+import {
+  insertRecordedCaption,
+  normalizeCaption,
+  type CaptionEntry,
+} from '../../yunomi/captionHistory';
 import { countUntil, listedUntil } from '../../jikkyo/commentList';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
@@ -389,7 +393,11 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // seek は、指定の位置に移る。kyusu の HLS は、プレイリストの中を移るだけで、読み直さない。
   // captionEntries は、字幕の履歴 (#450)。字幕が出たときの再生位置で並べ、行を押すとその位置へ移る。
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
+  // currentCaption は、今出ている字幕の文。キャプチャに書き込む (#458)。
+  const currentCaption = useRef<string | null>(null);
   const onCaptionText = (text: string) => {
+    const normalized = normalizeCaption(text);
+    currentCaption.current = normalized === '' ? null : normalized;
     const at = currentPosition();
     setCaptionEntries((list) => insertRecordedCaption(list, at, text));
   };
@@ -453,6 +461,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
         : broadcastTime(recording.recordedFrom, recording.gaps, currentPosition()),
     recordingId,
     position: currentPosition,
+    caption: () => currentCaption.current,
   });
   const doubleTap = useDoubleTap((side) => {
     if (side === 'center') {

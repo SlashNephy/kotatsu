@@ -5,14 +5,14 @@ import { createCaptions } from './captions';
 // fed は、偽の aribb24.js の feeder に渡ったもの。種類 (字幕か文字スーパーか) ごとに、渡った順に並べる。
 const fed: { type: string; kind: string; pts: number }[] = [];
 // texts は、偽の aribb24.js の Controller に付けた、字幕の文を取り出す描画器。
-const texts: { render: () => void }[] = [];
+const texts: { render: () => void; clear: () => void }[] = [];
 vi.mock('aribb24.js', () => {
   return {
     Controller: class {
       attachFeeder() {}
       attachRenderer(renderer: { render?: () => void; getText?: () => string }) {
         if (renderer.getText !== undefined) {
-          texts.push(renderer as { render: () => void });
+          texts.push(renderer as { render: () => void; clear: () => void });
         }
       }
       attachMedia() {}
@@ -37,6 +37,7 @@ vi.mock('aribb24.js', () => {
     },
     TextRenderer: class {
       render() {}
+      clear() {}
       getText() {
         return '字幕の文';
       }
@@ -87,13 +88,25 @@ describe('createCaptions', () => {
     expect(fed.map((item) => item.pts)).toEqual([2, 2]);
   });
 
-  test('字幕の層にだけ、文を取り出す描画器を付け、字幕を描くたびに文を渡す', async () => {
+  test('字幕の層にだけ、文を取り出す描画器を付け、字幕を描くたびに文を渡し、消えたら空の文を渡す', async () => {
     const onText = vi.fn();
-    createCaptions(document.createElement('video'), document.createElement('div'), onText);
+    const captions = createCaptions(
+      document.createElement('video'),
+      document.createElement('div'),
+      onText,
+    );
     await vi.waitFor(() => expect(texts).toHaveLength(1));
     texts[0]!.render();
+    expect(onText).toHaveBeenLastCalledWith('字幕の文');
 
-    expect(onText).toHaveBeenCalledWith('字幕の文');
+    // 字幕が消えたら、空の文を渡す。キャプチャに、消えた字幕を書き込まないようにする (#458)。
+    texts[0]!.clear();
+    expect(onText).toHaveBeenLastCalledWith('');
+
+    // 読み直すときも、今出ている字幕を消したことを渡す。
+    texts[0]!.render();
+    captions.reset();
+    expect(onText).toHaveBeenLastCalledWith('');
   });
 
   test('文を受け取らないなら、文を取り出す描画器を付けない', async () => {

@@ -107,7 +107,12 @@ function CaptureCard({ entry, onDelete }: { entry: CaptureEntry; onDelete: () =>
   }, [entry.image]);
 
   const save = async () => {
-    const texts = captureTexts(entry.time, entry.serviceName, entry.programName);
+    const texts = captureTexts(
+      entry.time,
+      entry.serviceName,
+      entry.programName,
+      entry.caption ?? null,
+    );
     saveBlob(
       await withCaptureTexts(entry.image, texts),
       captureFileName(entry.time, entry.serviceName, entry.programName),
