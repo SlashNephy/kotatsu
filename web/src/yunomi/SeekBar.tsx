@@ -32,7 +32,13 @@ export function SeekBar({ duration, value, label, previewUrl, onChange, onChange
   const [hover, setHover] = useState<{ offset: number; width: number; seconds: number } | null>(
     null,
   );
-  const [manifest, setManifest] = useState<PreviewManifest | null>(null);
+  // dragging は、つまみを動かしている間かどうか。その間は、カーソルがバーから外れても吹き出しを出し続ける。
+  const dragging = useRef(false);
+  // loaded は、読んだ preview.json と、その録画のプレビュー画像の URL。録画が変わったら、前の録画のコマの並びを使わない。
+  const [loaded, setLoaded] = useState<{ url: string; manifest: PreviewManifest | null } | null>(
+    null,
+  );
+  const manifest = loaded !== null && loaded.url === previewUrl ? loaded.manifest : null;
 
   // preview.json は、初めてカーソルを乗せたときに読む。見ない録画のために取りに行かない。
   const hovered = hover !== null;
@@ -41,9 +47,9 @@ export function SeekBar({ duration, value, label, previewUrl, onChange, onChange
       return;
     }
     let cancelled = false;
-    void loadManifest(previewUrl).then((loaded) => {
+    void loadManifest(previewUrl).then((manifest) => {
       if (!cancelled) {
-        setManifest(loaded);
+        setLoaded({ url: previewUrl, manifest });
       }
     });
 
@@ -53,19 +59,23 @@ export function SeekBar({ duration, value, label, previewUrl, onChange, onChange
   }, [hovered, previewUrl]);
 
   const max = Math.max(duration, 1);
+  // show は、バーの中の秒 seconds の位置に、吹き出しを出す。
+  const show = (seconds: number) => {
+    const width = ref.current?.getBoundingClientRect().width ?? 0;
+    setHover({ offset: (seconds / max) * width, width, seconds });
+  };
   const track = (event: PointerEvent<HTMLDivElement>) => {
     const rect = ref.current?.getBoundingClientRect();
     if (rect === undefined) {
       return;
     }
-    setHover({
-      offset: event.clientX - rect.left,
-      width: rect.width,
-      seconds: hoverSeconds(event.clientX, rect.left, rect.width, max),
-    });
+    show(hoverSeconds(event.clientX, rect.left, rect.width, max));
   };
-  // タッチでは、指を離したら吹き出しを消す。マウスでは、バーから出たら消す。
+  // マウスでは、バーから出たら消す。タッチでは、指を離したら消す。つまみを動かしている間は消さない。
   const leave = (event: PointerEvent<HTMLDivElement>) => {
+    if (dragging.current) {
+      return;
+    }
     if (event.pointerType !== 'mouse' || event.type === 'pointerleave') {
       setHover(null);
     }
@@ -80,10 +90,16 @@ export function SeekBar({ duration, value, label, previewUrl, onChange, onChange
       ref={ref}
       className={classes.root}
       onPointerMove={track}
-      onPointerDown={track}
+      onPointerDown={(event) => {
+        dragging.current = true;
+        track(event);
+      }}
       onPointerUp={leave}
       onPointerLeave={leave}
-      onPointerCancel={() => setHover(null)}
+      onPointerCancel={() => {
+        dragging.current = false;
+        setHover(null);
+      }}
     >
       {hover !== null && (
         <div
@@ -114,8 +130,19 @@ export function SeekBar({ duration, value, label, previewUrl, onChange, onChange
         value={Math.min(value, duration)}
         // 位置は吹き出しで出すので、つまみの上のラベルは出さない。キーボードで動かしたときは、操作バーの時刻で分かる。
         label={null}
-        onChange={onChange}
-        onChangeEnd={onChangeEnd}
+        onChange={(seconds) => {
+          // つまみを動かしている間は、カーソルがバーの外にあっても、つまみの位置に吹き出しを出す。
+          if (dragging.current) {
+            show(seconds);
+          }
+          onChange(seconds);
+        }}
+        onChangeEnd={(seconds) => {
+          // 動かし終えたら消す。カーソルがまだバーの上にあれば、次に動かしたときに出し直す。
+          dragging.current = false;
+          setHover(null);
+          onChangeEnd(seconds);
+        }}
       />
     </div>
   );
