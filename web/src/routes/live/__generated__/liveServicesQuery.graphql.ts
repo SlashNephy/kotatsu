@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<f3a98d392cb0ebd7f4c7e63192a3ad8c>>
+ * @generated SignedSource<<453007c9779af37744262e6581a50833>>
  * @lightSyntaxTransform
  */
 
@@ -31,6 +31,9 @@ export type liveServicesQuery$data = {
         readonly type: string;
       };
       readonly id: string;
+      readonly jikkyo: {
+        readonly force: number | null | undefined;
+      } | null | undefined;
       readonly logoUrl: string | null | undefined;
       readonly name: string;
     };
@@ -150,6 +153,24 @@ v8 = {
         (v1/*:: as any*/)
       ],
       "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "JikkyoChannel",
+      "kind": "LinkedField",
+      "name": "jikkyo",
+      "plural": false,
+      "selections": [
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "force",
+          "storageKey": null
+        }
+      ],
+      "storageKey": null
     }
   ],
   "storageKey": null
@@ -257,16 +278,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "714607be4282cb044ed59a7063899a97",
+    "cacheID": "2dfc65fe2bf3ae64e44b259deddd5e7c",
     "id": null,
     "metadata": {},
     "name": "liveServicesQuery",
     "operationKind": "query",
-    "text": "query liveServicesQuery(\n  $from: Time!\n  $to: Time!\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  pinnedServices {\n    id\n  }\n  guide(from: $from, to: $to) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n      id\n    }\n  }\n}\n"
+    "text": "query liveServicesQuery(\n  $from: Time!\n  $to: Time!\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  pinnedServices {\n    id\n  }\n  guide(from: $from, to: $to) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n      jikkyo {\n        force\n      }\n    }\n    programs {\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "05538ae0ef8bc33eaf299ce708cf03d9";
+(node as any).hash = "aa5bf590b3916d812484711a3cbf9442";
 
 export default node;

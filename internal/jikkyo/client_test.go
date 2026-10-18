@@ -102,6 +102,64 @@ func TestClientChannel(t *testing.T) {
 	}, time.Second, time.Millisecond)
 }
 
+// TestClientChannelActivity は、放送中のスレッドの勢いと視聴者数を返し、1 分で取り直すことを確かめる (#490)。
+func TestClientChannelActivity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		threads string
+		want    *jikkyo.Activity
+	}{
+		{
+			name:    "放送中のスレッドの値を返す",
+			threads: `[{"status":"PAST","jikkyo_force":3,"viewers":5},{"status":"ACTIVE","jikkyo_force":112,"viewers":4567}]`,
+			want:    &jikkyo.Activity{Force: 112, Viewers: 4567},
+		},
+		{
+			name:    "放送中のスレッドがなければ nil",
+			threads: `[{"status":"PAST","jikkyo_force":3,"viewers":5}]`,
+			want:    nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, server := newFakeJikkyo(t, `[{"id":"jk1","name":"NHK総合","threads":`+tt.threads+`}]`, "")
+			client := jikkyo.NewClient(&jikkyo.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: nil, Clock: nil})
+
+			got, err := client.Channel(t.Context(), jkNHK)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got.Activity)
+		})
+	}
+}
+
+// TestClientChannelRefreshesActivityEveryMinute は、勢いが古くならないよう、1 分で一覧を取り直し、取り直したものを返すことを確かめる。
+func TestClientChannelRefreshesActivityEveryMinute(t *testing.T) {
+	t.Parallel()
+
+	fake, server := newFakeJikkyo(t, `[{"id":"jk1","name":"NHK総合","threads":[{"status":"ACTIVE","jikkyo_force":1,"viewers":1}]}]`, "")
+	clk := clocktest.NewFake(time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC))
+	client := jikkyo.NewClient(&jikkyo.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: nil, Clock: clk})
+	_, err := client.Channel(t.Context(), jkNHK)
+	require.NoError(t, err)
+
+	next := `[{"id":"jk1","name":"NHK総合","threads":[{"status":"ACTIVE","jikkyo_force":50,"viewers":9}]}]`
+	fake.channels.Store(&next)
+	clk.Advance(59 * time.Second)
+	_, err = client.Channel(t.Context(), jkNHK)
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), fake.channelRequests.Load(), "the list is reused within a minute")
+
+	// 1 分を過ぎたら、取り直したものを待って返す。前に取った古い勢いは返さない。
+	clk.Advance(time.Second)
+	got, err := client.Channel(t.Context(), jkNHK)
+	require.NoError(t, err)
+	assert.Equal(t, &jikkyo.Activity{Force: 50, Viewers: 9}, got.Activity)
+}
+
 // TestClientChannelDoesNotWaitForUnresponsiveServer は、NX-Jikkyo が応答しなくても、前に取った一覧を返して待たせず、
 // 一覧がまだなければ、同時の要求を 1 つの問い合わせにまとめることを確かめる。
 func TestClientChannelDoesNotWaitForUnresponsiveServer(t *testing.T) {
@@ -129,7 +187,7 @@ func TestClientChannelDoesNotWaitForUnresponsiveServer(t *testing.T) {
 	}
 	assert.Equal(t, int32(1), fake.channelRequests.Load())
 
-	// 使い回す時間を過ぎた後、NX-Jikkyo が応答しなくても、前に取った一覧をすぐに返す。
+	// 使い回す時間を過ぎた後、NX-Jikkyo が応答しなくても、少し待つだけで、前に取った一覧を返す。
 	stuck := make(chan struct{})
 	t.Cleanup(func() { close(stuck) })
 	fake.hold.Store(&stuck)

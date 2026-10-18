@@ -1078,6 +1078,8 @@
     "seek": "この字幕の位置へ移る"
   },
   "jikkyo": {
+    "force": "勢い {{count}}",
+    "forceHelp": "1 分あたりのコメントの数",
     "toggle": "実況",
     "toggleWith": "実況 ({{state}})",
     "comment": "実況のコメント",
@@ -1101,6 +1103,9 @@
     "muteUser": "このユーザーをミュート"
   },
   "live": {
+    "order": "並べる順",
+    "orderGuide": "番組表の順",
+    "orderForce": "実況の勢いの順",
     "overlay": {
       "endUndecided": "終了時刻未定",
       "next": "次 › {{range}}"

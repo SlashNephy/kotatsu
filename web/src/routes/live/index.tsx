@@ -1,4 +1,13 @@
-import { Alert, Anchor, Box, SegmentedControl, SimpleGrid, Stack, Title } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Box,
+  Group,
+  SegmentedControl,
+  SimpleGrid,
+  Stack,
+  Title,
+} from '@mantine/core';
 import { Tv } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useEffect, useState } from 'react';
@@ -74,6 +83,9 @@ function Services({ range }: { range: { from: string; to: string } }) {
             channelType {
               type
             }
+            jikkyo {
+              force
+            }
           }
           programs {
             name
@@ -104,34 +116,56 @@ function Services({ range }: { range: { from: string; to: string } }) {
     }
   }, [fallBack, types]);
   const type = fallBack ? (types[0]?.type ?? '') : selectedType;
+  // order は、並べる順。勢いの順では、実況の勢いが強い局から並べる (#490)。勢いの分からない局は後ろに回す。
+  const [order, setOrder] = useState<'guide' | 'force'>('guide');
   // サブチャンネルがメインチャンネルと同じ番組を流しているときは、メインチャンネルだけを出す (ホームの放送中の番組と同じ)。
   // ピン留めのタブでは、ピン留めしたサービスをそのまま出す。
   const listed = new Set(data.guide.map((row) => row.service.id));
-  const shown =
+  const filtered =
     type === pinnedTab
       ? pinned.flatMap((id) => data.guide.filter((row) => row.service.id === id))
       : data.guide.filter(
           (row) =>
             row.service.channelType.type === type && !sharesWithListed(row.programs[0], listed),
         );
+  const shown =
+    order === 'force'
+      ? [...filtered].sort(
+          (a, b) => (b.service.jikkyo?.force ?? -1) - (a.service.jikkyo?.force ?? -1),
+        )
+      : filtered;
 
   return (
     <Stack>
-      {(types.length > 1 || pinned.length > 0) && (
-        <SegmentedControl
-          size="xs"
-          value={type}
-          onChange={setType}
-          data={[
-            ...(pinned.length > 0 ? [{ value: pinnedTab, label: t('pin.tab') }] : []),
-            ...types.map((channelType) => ({
-              value: channelType.type,
-              label: channelType.displayName,
-            })),
-          ]}
-          style={{ alignSelf: 'flex-start' }}
-        />
-      )}
+      <Group justify="space-between" gap="xs">
+        {(types.length > 1 || pinned.length > 0) && (
+          <SegmentedControl
+            size="xs"
+            value={type}
+            onChange={setType}
+            data={[
+              ...(pinned.length > 0 ? [{ value: pinnedTab, label: t('pin.tab') }] : []),
+              ...types.map((channelType) => ({
+                value: channelType.type,
+                label: channelType.displayName,
+              })),
+            ]}
+          />
+        )}
+        {/* 並べる局がなければ、並べる順も出さない。 */}
+        {types.length > 0 && (
+          <SegmentedControl
+            size="xs"
+            value={order}
+            onChange={(value) => setOrder(value === 'force' ? 'force' : 'guide')}
+            aria-label={t('live.order')}
+            data={[
+              { value: 'guide', label: t('live.orderGuide') },
+              { value: 'force', label: t('live.orderForce') },
+            ]}
+          />
+        )}
+      </Group>
       {types.length === 0 && (
         <EmptyState icon={Tv} title={t('live.empty')} hint={t('live.emptyHint')} />
       )}
@@ -144,6 +178,7 @@ function Services({ range }: { range: { from: string; to: string } }) {
               serviceName={row.service.name}
               serviceLogoUrl={row.service.logoUrl ?? null}
               program={row.programs[0] ?? null}
+              force={row.service.jikkyo?.force ?? null}
             />
             <Box pos="absolute" top={6} right={6}>
               <PinButton

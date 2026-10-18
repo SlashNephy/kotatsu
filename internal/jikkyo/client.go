@@ -23,8 +23,11 @@ const (
 	DefaultNXJikkyoURL = "https://nx-jikkyo.tsukumijima.net"
 	// DefaultKakologURL は、過去ログを返すニコニコ実況 過去ログ API の URL (設計書 7.4)。
 	DefaultKakologURL = "https://jikkyo.tsukumijima.net"
-	// channelsTTL は、チャンネルの一覧を使い回す時間。チャンネルが増減するのはまれなので、長めにする。
-	channelsTTL = time.Hour
+	// channelsTTL は、チャンネルの一覧を使い回す時間。一覧は、放送中のスレッドの勢いと視聴者数も持つので (#490)、
+	// 1 分で取り直す。取り直す間も前の一覧を返すので、待たせない。
+	channelsTTL = time.Minute
+	// staleWait は、一覧が古くなっていたときに、取り直すのを待つ時間。NX-Jikkyo が応答しなくても、番組表や視聴の画面を長く待たせない。
+	staleWait = 500 * time.Millisecond
 	// channelsRetryAfter は、チャンネルの一覧を取れなかったときに、取り直すまで待つ時間。
 	// 番組表を開くたびに、落ちている NX-Jikkyo に問い合わせないようにする。
 	channelsRetryAfter = time.Minute
@@ -33,6 +36,8 @@ const (
 	// maxResponseBytes は、応答の大きさの上限。過去ログ API は、1 日分で 10 MB 近くになる。
 	maxResponseBytes = 256 << 20
 	userAgent        = "Kotatsu-Jikkyo/1"
+	// threadActive は、放送中のスレッドの状態。
+	threadActive = "ACTIVE"
 )
 
 // ErrKakolog は、過去ログ API が、取得できなかった理由を返したこと。
@@ -43,6 +48,16 @@ type Channel struct {
 	// ID は、jk1 などの ID。
 	ID   string
 	Name string
+	// Activity は、放送中のスレッドの勢いと視聴者数 (#490)。放送中のスレッドがなければ nil。
+	Activity *Activity
+}
+
+// Activity は、実況のチャンネルの、放送中のスレッドの盛り上がり。
+type Activity struct {
+	// Force は、勢い (1 分あたりのコメントの数)。
+	Force int
+	// Viewers は、見ている人の数。
+	Viewers int
 }
 
 // Comment は、過去ログのコメント。
@@ -112,7 +127,7 @@ func NewClient(opts *ClientOptions) *Client {
 // Channel は、NX-Jikkyo が今扱っているチャンネルのうち、ID が id のものを返す。扱っていなければ nil を返す。
 // チャンネルの一覧は、しばらく使い回す。
 //
-// 一覧を取り直す間は、前に取った一覧を返して待たせない。一覧を一度も取れていなければ、取れるまで待つ。
+// 一覧が古くなっていたら、取り直しを staleWait まで待ち、間に合わなければ前に取った一覧を返す。一覧を一度も取れていなければ、取れるまで待つ。
 // 取得はロックの外で行い、同時の取得は 1 つにまとめる。NX-Jikkyo が応答しなくても、ほかの要求を止めない。
 func (c *Client) Channel(ctx context.Context, id string) (*Channel, error) {
 	c.mu.Lock()
@@ -127,6 +142,13 @@ func (c *Client) Channel(ctx context.Context, id string) (*Channel, error) {
 		refreshed = c.refreshChannels(ctx, now)
 	}
 	if channels != nil {
+		if refreshed != nil {
+			// 勢いが古くならないよう、取り直しを少しだけ待つ。間に合わなければ、前に取った一覧を返す。
+			if fresh, ok := awaitRefresh(ctx, refreshed); ok {
+				return fresh[id], nil
+			}
+		}
+
 		return channels[id], nil
 	}
 	if refreshed == nil {
@@ -143,6 +165,22 @@ func (c *Client) Channel(ctx context.Context, id string) (*Channel, error) {
 		refreshedChannels, _ := result.Val.(map[string]*Channel)
 
 		return refreshedChannels[id], nil
+	}
+}
+
+// awaitRefresh は、取り直した一覧を staleWait まで待つ。取り直せなかったか、間に合わなければ false を返す。
+func awaitRefresh(ctx context.Context, refreshed <-chan singleflight.Result) (map[string]*Channel, bool) {
+	timer := time.NewTimer(staleWait)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return nil, false
+	case <-timer.C:
+		return nil, false
+	case result := <-refreshed:
+		channels, ok := result.Val.(map[string]*Channel)
+
+		return channels, result.Err == nil && ok
 	}
 }
 
@@ -210,15 +248,28 @@ func (c *Client) refreshChannels(ctx context.Context, now time.Time) <-chan sing
 
 func (c *Client) fetchChannels(ctx context.Context) (map[string]*Channel, error) {
 	var body []struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
+		ID      string `json:"id"`
+		Name    string `json:"name"`
+		Threads []struct {
+			Status      string `json:"status"`
+			JikkyoForce int    `json:"jikkyo_force"`
+			Viewers     int    `json:"viewers"`
+		} `json:"threads"`
 	}
 	if err := c.getJSON(ctx, c.nxJikkyoURL+"/api/v1/channels", &body); err != nil {
 		return nil, fmt.Errorf("failed to fetch the jikkyo channels: %w", err)
 	}
 	channels := make(map[string]*Channel, len(body))
 	for _, channel := range body {
-		channels[channel.ID] = &Channel{ID: channel.ID, Name: channel.Name}
+		var activity *Activity
+		for _, thread := range channel.Threads {
+			if thread.Status == threadActive {
+				activity = &Activity{Force: thread.JikkyoForce, Viewers: thread.Viewers}
+
+				break
+			}
+		}
+		channels[channel.ID] = &Channel{ID: channel.ID, Name: channel.Name, Activity: activity}
 	}
 
 	return channels, nil
