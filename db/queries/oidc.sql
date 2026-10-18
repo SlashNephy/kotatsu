@@ -24,7 +24,7 @@ UPDATE user_oidc_identities SET last_used_at = @now, picture = sqlc.narg(picture
 SELECT * FROM user_oidc_identities WHERE user_id = @user_id ORDER BY created_at, id;
 
 -- name: GetUserPicture :one
--- ユーザーのアイコンの画像の URL。IdP を複数紐付けていれば、最後に使った IdP のもの。
+-- ユーザーのアイコンの画像の URL。IdP を複数紐付けていれば、画像を返した IdP のうち、最後に使ったもの。
 SELECT picture::text FROM user_oidc_identities
 WHERE user_id = @user_id AND picture IS NOT NULL
 ORDER BY last_used_at DESC NULLS LAST, created_at DESC

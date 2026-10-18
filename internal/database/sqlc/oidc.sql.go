@@ -55,7 +55,7 @@ ORDER BY last_used_at DESC NULLS LAST, created_at DESC
 LIMIT 1
 `
 
-// ユーザーのアイコンの画像の URL。IdP を複数紐付けていれば、最後に使った IdP のもの。
+// ユーザーのアイコンの画像の URL。IdP を複数紐付けていれば、画像を返した IdP のうち、最後に使ったもの。
 func (q *Queries) GetUserPicture(ctx context.Context, userID uuid.UUID) (string, error) {
 	row := q.db.QueryRow(ctx, getUserPicture, userID)
 	var picture string

@@ -165,7 +165,7 @@ type Querier interface {
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	GetUserForUpdate(ctx context.Context, id uuid.UUID) (User, error)
-	// ユーザーのアイコンの画像の URL。IdP を複数紐付けていれば、最後に使った IdP のもの。
+	// ユーザーのアイコンの画像の URL。IdP を複数紐付けていれば、画像を返した IdP のうち、最後に使ったもの。
 	GetUserPicture(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserSettingsVersion(ctx context.Context, userID uuid.UUID) (int64, error)
 	GetUserTOTPForUpdate(ctx context.Context, userID uuid.UUID) (UserTotp, error)
