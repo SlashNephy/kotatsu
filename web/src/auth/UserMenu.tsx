@@ -1,4 +1,4 @@
-import { Box, Button, Indicator, Menu, Text } from '@mantine/core';
+import { Avatar, Box, Button, Indicator, Menu, Text } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
@@ -39,7 +39,15 @@ export function UserMenu() {
     <Menu position="bottom-end" width={240} withinPortal>
       <Menu.Target>
         <Indicator disabled={latest == null} color="teal" size={8} offset={4}>
-          <Button variant="subtle" size="compact-sm" maw={160}>
+          <Button
+            variant="subtle"
+            size="compact-sm"
+            maw={180}
+            // ユーザーのアイコン (#778)。画像は持たないので、表示名の頭文字を、名前ごとに決まる色で出す。
+            leftSection={
+              <Avatar name={data.viewer.displayName} color="initials" size={22} aria-hidden />
+            }
+          >
             <Text span size="sm" truncate="end">
               {data.viewer.displayName}
             </Text>
