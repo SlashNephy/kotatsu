@@ -86,7 +86,7 @@ FROM runtime AS dev
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=mirror.gcr.io/jdxcode/mise:2026.10.12@sha256:dd80c97d74796d4e65eda39616ba39ea102d717e118de86d985563b71b2c159e /usr/local/bin/mise /usr/local/bin/mise
+COPY --from=mirror.gcr.io/jdxcode/mise:2026.10.13@sha256:a2f1563d47f56a7ce69d5c94ac61d9f7af5063613bfd3c50e6268768ed9c87ad /usr/local/bin/mise /usr/local/bin/mise
 ARG UID=1000
 ARG GID=1000
 # 名前付きボリュームは、最初にマウントしたときに、イメージのディレクトリの持ち主を引き継ぐ。
