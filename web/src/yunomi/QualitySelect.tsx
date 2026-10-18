@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next';
 
 import type { AudioChoice, KyusuAudioChoice } from './audio';
 import { cropOrigins, cropScales, type Crop } from './crop';
+import { useNormalizeVolume } from './volumeNormalize';
 import { original, type KyusuAudio, type PlaybackRoute } from './route';
 
 type Props = {
@@ -296,5 +297,20 @@ export function CropSelect({ value, onChange }: { value: Crop; onChange: (crop: 
         />
       )}
     </>
+  );
+}
+
+// NormalizeVolumeToggle は、設定のメニューに置く、音量の補正 (#499) の切り替え。端末ごとの設定を変える。
+export function NormalizeVolumeToggle() {
+  const { t } = useTranslation();
+  const [enabled, setEnabled] = useNormalizeVolume();
+
+  return (
+    <Switch
+      size="xs"
+      label={t('player.normalizeVolume')}
+      checked={enabled}
+      onChange={(event) => setEnabled(event.currentTarget.checked)}
+    />
   );
 }

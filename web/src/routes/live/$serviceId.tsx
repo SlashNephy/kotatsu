@@ -34,6 +34,7 @@ import {
   useDocumentTitle,
 } from '../../futon';
 import { CommentListToggle } from '../../jikkyo/CommentList';
+import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
 import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistoryToggle } from '../../yunomi/CaptionHistory';
 import {
@@ -64,7 +65,12 @@ import {
   PlayerFlash,
   usePlayerFlash,
 } from '../../yunomi/PlayerControls';
-import { PlaybackUnavailable, QualitySelect, CropSelect } from '../../yunomi/QualitySelect';
+import {
+  PlaybackUnavailable,
+  QualitySelect,
+  CropSelect,
+  NormalizeVolumeToggle,
+} from '../../yunomi/QualitySelect';
 import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
 import { dataBroadcastSource, hlsURL } from '../../yunomi/route';
 import { useDataBroadcast } from '../../yunomi/useDataBroadcast';
@@ -429,6 +435,8 @@ function Live({
   const reload = () => setSession((n) => n + 1);
   // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
   const [statsShown, setStatsShown] = useState(false);
+  // 音量の補正 (#499)。端末ごとの設定に合わせる。
+  useVolumeNormalizer(video);
   // crop は、L 字放送の切り抜き (#496)。その場限りで、画面を開き直したら戻す。
   const [crop, setCrop] = useState<Crop>(noCrop);
   // captionEntries は、字幕の履歴 (#450)。局を変えたら、画面ごと作り直すので捨てる。
@@ -640,6 +648,7 @@ function Live({
             <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
             {audio.menu}
             <CropSelect value={crop} onChange={setCrop} />
+            <NormalizeVolumeToggle />
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
           <CaptureButton capture={capture} />
