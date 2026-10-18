@@ -39,3 +39,30 @@
   display: block;
   border-radius: 6px;
 }
+
+/* ページは、viewport-fit=cover で、画面の端 (ジェスチャーナビゲーションの帯や、ノッチ) の下まで描く (#425)。 */
+/* 中身が隠れないよう、下と左右の端に掛かる分だけ余白を足す。端に何もない画面では、env() は 0 になる。 */
+/* 上の端 (ステータスバー) は、Android の Chrome も iOS の既定のステータスバーも、ページを下に描かないので扱わない。 */
+.shellHeader {
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+}
+
+/* 余白は、Mantine の p ではなくここで決める。p はインラインのスタイルになり、ここの余白を打ち消すため。 */
+.shellNavbar {
+  padding: var(--mantine-spacing-md);
+  padding-bottom: calc(var(--mantine-spacing-md) + env(safe-area-inset-bottom));
+  padding-inline-start: calc(var(--mantine-spacing-md) + env(safe-area-inset-left));
+  padding-inline-end: calc(var(--mantine-spacing-md) + env(safe-area-inset-right));
+}
+
+.shellMain {
+  padding-inline-start: calc(
+    var(--app-shell-navbar-offset, 0rem) + var(--app-shell-padding) + env(safe-area-inset-left)
+  );
+  padding-inline-end: calc(
+    var(--app-shell-aside-offset, 0rem) + var(--app-shell-padding) + env(safe-area-inset-right)
+  );
+  padding-bottom: calc(
+    var(--app-shell-footer-offset, 0rem) + var(--app-shell-padding) + env(safe-area-inset-bottom)
+  );
+}
