@@ -1,6 +1,9 @@
 import type { CanvasMainThreadRenderer, Controller, MPEGTSFeeder, TextRenderer } from 'aribb24.js';
 
 import { broadcastFontUrl } from './broadcastFont';
+import { defaultCaptionStyle, rendererColor, type CaptionStyle } from './captionStyle';
+
+export { rendererColor, type CaptionStyle } from './captionStyle';
 
 // Captions は、字幕と文字スーパーを、映像の上に描く (設計書 7.4)。
 // ブラウザの中で変換する経路では、プレイヤーが渡す private PES を、kyusu の経路では、hls.js が取り出す ID3 を渡す。
@@ -9,12 +12,23 @@ export type Captions = {
   feedB24: (data: ArrayBuffer, pts: number) => void;
   feedID3: (data: Uint8Array, pts: number) => void;
   setVisible: (visible: boolean) => void;
+  // setSuperimposeVisible は、文字スーパーを出すかどうかを、字幕とは別に切り替える (#491)。setVisible で隠していれば、どちらも出さない。
+  setSuperimposeVisible: (visible: boolean) => void;
+  // setStyle は、字幕と文字スーパーの見た目を変える (#491)。次に描くときから効く。
+  setStyle: (style: CaptionStyle) => void;
   // reset は、受け取った字幕を捨てる。読み直すと video の時刻の基準が変わるので、前の読み込みの字幕を出さないようにする。
   reset: () => void;
   destroy: () => void;
 };
 
+// RendererWithOption は、aribb24.js の描画器のうち、描くたびに読み直す設定。型の上では隠れているので、ここで名前を付ける。
+type RendererWithOption = {
+  option: { color: { stroke: string | null; background: string | null } };
+};
+
 type Layer = {
+  // type は、字幕 (Caption) か文字スーパー (Superimpose) か。
+  type: 'Caption' | 'Superimpose';
   controller: Controller;
   feeder: MPEGTSFeeder;
   renderer: CanvasMainThreadRenderer;
@@ -85,6 +99,14 @@ export function createCaptions(
   let layers: Layer[] | null = null;
   let queue: Feed[] = [];
   let visible = true;
+  let superimposeVisible = true;
+  let style = defaultCaptionStyle;
+  // applyStyle は、描画器の色の設定を変える。aribb24.js は、描くたびに設定を読むので、作り直さなくてよい。
+  const applyStyle = () => {
+    for (const { renderer } of layers ?? []) {
+      Object.assign((renderer as unknown as RendererWithOption).option.color, rendererColor(style));
+    }
+  };
   let destroyed = false;
 
   const feed = (layer: Layer, item: Feed) => {
@@ -107,8 +129,9 @@ export function createCaptions(
     }
   };
   const show = () => {
-    for (const { controller } of layers ?? []) {
-      if (visible) {
+    for (const { type, controller } of layers ?? []) {
+      const layerVisible = visible && (type === 'Caption' || superimposeVisible);
+      if (layerVisible) {
         controller.show();
       } else {
         controller.hide();
@@ -151,9 +174,10 @@ export function createCaptions(
         }
         controller.attachMedia(video, container);
 
-        return { controller, feeder, renderer, text };
+        return { type, controller, feeder, renderer, text };
       });
       show();
+      applyStyle();
       const queued = queue;
       queue = [];
       for (const item of queued) {
@@ -172,6 +196,14 @@ export function createCaptions(
     setVisible: (next) => {
       visible = next;
       show();
+    },
+    setSuperimposeVisible: (next) => {
+      superimposeVisible = next;
+      show();
+    },
+    setStyle: (next) => {
+      style = next;
+      applyStyle();
     },
     reset: () => {
       queue = [];

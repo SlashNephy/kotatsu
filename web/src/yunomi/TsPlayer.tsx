@@ -4,6 +4,7 @@ import { useEffect, useRef, type ReactNode, useState, type RefObject } from 'rea
 import { audioChoices, currentAudioChoice } from './audio';
 import { cropStyle, noCrop, type Crop } from './crop';
 import { createCaptions, type Captions } from './captions';
+import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import { deinterlacerCanvas } from './deinterlacer';
 import classes from './TsPlayer.module.css';
 
@@ -17,6 +18,10 @@ type Props = {
   videoRef: RefObject<HTMLVideoElement | null>;
   // captions は、字幕と文字スーパーを出すかどうか。
   captions: boolean;
+  // superimpose は、文字スーパーを出すかどうか (#491)。captions を切っていれば、出さない。
+  superimpose?: boolean;
+  // captionStyle は、字幕の見た目 (#491)。
+  captionStyle?: CaptionStyle;
   // crop は、L 字放送の切り抜き (#496)。映像と字幕をまとめて拡大する。
   crop?: Crop;
   // onCaptionText は、字幕が出るたびに、その文を受け取る (#450)。字幕を出さない設定でも受け取る。
@@ -43,6 +48,8 @@ export function TsPlayer({
   url,
   videoRef,
   captions,
+  superimpose = true,
+  captionStyle = defaultCaptionStyle,
   crop = noCrop,
   onCaptionText,
   onState,
@@ -61,6 +68,11 @@ export function TsPlayer({
   const captionText = useRef(onCaptionText);
   captionText.current = onCaptionText;
   showCaptions.current = captions;
+  // 字幕を作り直したときに、今の設定から始めるよう、ref でも持つ。
+  const superimposeRef = useRef(superimpose);
+  superimposeRef.current = superimpose;
+  const styleRef = useRef(captionStyle);
+  styleRef.current = captionStyle;
   const [ready, setReady] = useState(false);
   const handlers = useRef({ onState, onError, onLoaded, onAudio, onVideo });
   handlers.current = { onState, onError, onLoaded, onAudio, onVideo };
@@ -86,6 +98,8 @@ export function TsPlayer({
     // 字幕は、aribb24.js を読み終えるまで溜めておくので、プレイヤーより先に作る。
     const renderer = createCaptions(video, frame, (text) => captionText.current?.(text));
     renderer.setVisible(showCaptions.current);
+    renderer.setSuperimposeVisible(superimposeRef.current);
+    renderer.setStyle(styleRef.current);
     captionsRef.current = renderer;
     let destroyed = false;
     void (async () => {
@@ -154,6 +168,15 @@ export function TsPlayer({
   useEffect(() => {
     captionsRef.current?.setVisible(captions);
   }, [captions]);
+
+  useEffect(() => {
+    captionsRef.current?.setSuperimposeVisible(superimpose);
+  }, [superimpose]);
+
+  const { stroke, backgroundOpacity } = captionStyle;
+  useEffect(() => {
+    captionsRef.current?.setStyle({ stroke, backgroundOpacity });
+  }, [stroke, backgroundOpacity]);
 
   // 聞く音声を選ぶ。切り替えは、これから変換する部分から効く (設計書 12 章のデュアルモノ)。
   // 読み直すとプレイヤーが既定の音声に戻ることがあるので、読み直すたびにも選び直す。

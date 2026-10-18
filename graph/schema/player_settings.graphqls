@@ -8,6 +8,22 @@ type PlayerSettings {
   captionsEnabled: Boolean!
   "実況のコメントの表示とミュートの設定 (#488)。"
   comments: CommentSettings!
+  "字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。"
+  captions: CaptionSettings!
+}
+
+"""
+字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。字幕と文字スーパーを両方とも出さないのは、captionsEnabled で切り替える。
+"""
+type CaptionSettings {
+  "ライブ視聴で、文字スーパー (速報など) を出すかどうか。"
+  superimposeLive: Boolean!
+  "録画の再生で、文字スーパーを出すかどうか。"
+  superimposeRecorded: Boolean!
+  "放送の指定によらず、文字を縁取るかどうか。"
+  stroke: Boolean!
+  "背景の不透明度 (0〜1)。放送の指定する背景の色に代えて、この不透明度の黒で塗る。null なら、放送の指定どおりにする。"
+  backgroundOpacity: Float
 }
 
 """
@@ -61,6 +77,16 @@ input PlayerSettingsInput {
   captionsEnabled: Boolean
   "渡したら、コメントの設定をまるごと置き換える。"
   comments: CommentSettingsInput
+  "渡したら、字幕の設定をまるごと置き換える。"
+  captions: CaptionSettingsInput
+}
+
+input CaptionSettingsInput {
+  superimposeLive: Boolean!
+  superimposeRecorded: Boolean!
+  stroke: Boolean!
+  "0〜1。null なら、放送の指定どおり"
+  backgroundOpacity: Float
 }
 
 input CommentSettingsInput {

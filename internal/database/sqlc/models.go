@@ -442,6 +442,7 @@ type UserSetting struct {
 	CaptionsEnabled      bool
 	WatchReminderMinutes int32
 	CommentSettings      []byte
+	CaptionSettings      []byte
 	UpdatedAt            time.Time
 }
 

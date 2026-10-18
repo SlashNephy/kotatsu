@@ -28,6 +28,11 @@ const (
 	maxMutedUserLength    = 64
 )
 
+// defaultCaptionSettings は、字幕の設定の既定値 (設計書 付録 A)。文字スーパーは、速報を見落とさないよう、ライブでも録画でも出す。
+func defaultCaptionSettings() *model.CaptionSettings {
+	return &model.CaptionSettings{SuperimposeLive: true, SuperimposeRecorded: true, Stroke: false, BackgroundOpacity: nil}
+}
+
 // defaultCommentSettings は、コメントの設定の既定値 (設計書 付録 A)。
 func defaultCommentSettings() *model.CommentSettings {
 	return &model.CommentSettings{Opacity: 1, Speed: 1, Scale: 1, ShowAll: true, MutedKeywords: []*model.MutedKeyword{}, MutedUsers: []string{}}
@@ -47,8 +52,12 @@ func (r *Resolver) playerSettings(ctx context.Context) (*model.PlayerSettings, e
 	if err != nil {
 		return nil, err
 	}
+	captions, err := decodeCaptionSettings(row.CaptionSettings)
+	if err != nil {
+		return nil, err
+	}
 
-	return &model.PlayerSettings{JikkyoEnabled: row.JikkyoEnabled, CaptionsEnabled: row.CaptionsEnabled, Comments: comments}, nil
+	return &model.PlayerSettings{JikkyoEnabled: row.JikkyoEnabled, CaptionsEnabled: row.CaptionsEnabled, Comments: comments, Captions: captions}, nil
 }
 
 // updatePlayerSettings は、プレイヤーの設定を変え、同じユーザーのほかの端末に知らせる。
@@ -57,9 +66,14 @@ func (r *Resolver) updatePlayerSettings(ctx context.Context, input *model.Player
 	if err != nil {
 		return nil, err
 	}
-	var encoded []byte
+	var encoded, encodedCaptions []byte
 	if input.Comments != nil {
 		if encoded, err = encodeCommentSettings(input.Comments); err != nil {
+			return nil, err
+		}
+	}
+	if input.Captions != nil {
+		if encodedCaptions, err = encodeCaptionSettings(input.Captions); err != nil {
 			return nil, err
 		}
 	}
@@ -70,6 +84,12 @@ func (r *Resolver) updatePlayerSettings(ctx context.Context, input *model.Player
 			err := q.SetCommentSettings(ctx, sqlc.SetCommentSettingsParams{UserID: principal.UserID, CommentSettings: encoded, Now: r.clock.Now()})
 			if err != nil {
 				return fmt.Errorf("failed to save the comment settings: %w", err)
+			}
+		}
+		if encodedCaptions != nil {
+			err := q.SetCaptionSettings(ctx, sqlc.SetCaptionSettingsParams{UserID: principal.UserID, CaptionSettings: encodedCaptions, Now: r.clock.Now()})
+			if err != nil {
+				return fmt.Errorf("failed to save the caption settings: %w", err)
 			}
 		}
 		row, err := q.UpsertPlayerSettings(ctx, sqlc.UpsertPlayerSettingsParams{
@@ -83,7 +103,11 @@ func (r *Resolver) updatePlayerSettings(ctx context.Context, input *model.Player
 		if err != nil {
 			return err
 		}
-		settings = &model.PlayerSettings{JikkyoEnabled: row.JikkyoEnabled, CaptionsEnabled: row.CaptionsEnabled, Comments: comments}
+		captions, err := decodeCaptionSettings(row.CaptionSettings)
+		if err != nil {
+			return err
+		}
+		settings = &model.PlayerSettings{JikkyoEnabled: row.JikkyoEnabled, CaptionsEnabled: row.CaptionsEnabled, Comments: comments, Captions: captions}
 
 		return usersettings.Touch(ctx, tx, r.clock, principal.UserID)
 	})
@@ -141,6 +165,35 @@ func decodeCommentSettings(raw []byte) (*model.CommentSettings, error) {
 	}
 	if err := json.Unmarshal(raw, settings); err != nil {
 		return nil, fmt.Errorf("failed to decode the comment settings: %w", err)
+	}
+
+	return settings, nil
+}
+
+// encodeCaptionSettings は、字幕の設定を確かめて、DB に書く JSON にする (#491)。
+func encodeCaptionSettings(input *model.CaptionSettingsInput) ([]byte, error) {
+	if opacity := input.BackgroundOpacity; opacity != nil && (*opacity < 0 || *opacity > 1) {
+		return nil, NewError(CodeBadUserInput, "backgroundOpacity must be between 0 and 1")
+	}
+	encoded, err := json.Marshal(&model.CaptionSettings{
+		SuperimposeLive: input.SuperimposeLive, SuperimposeRecorded: input.SuperimposeRecorded,
+		Stroke: input.Stroke, BackgroundOpacity: input.BackgroundOpacity,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode the caption settings: %w", err)
+	}
+
+	return encoded, nil
+}
+
+// decodeCaptionSettings は、DB の JSON を字幕の設定にする。NULL なら既定値を返す。
+func decodeCaptionSettings(raw []byte) (*model.CaptionSettings, error) {
+	settings := defaultCaptionSettings()
+	if raw == nil {
+		return settings, nil
+	}
+	if err := json.Unmarshal(raw, settings); err != nil {
+		return nil, fmt.Errorf("failed to decode the caption settings: %w", err)
 	}
 
 	return settings, nil

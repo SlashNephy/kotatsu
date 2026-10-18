@@ -141,6 +141,36 @@ type BulkOperationPayload {
   skipped: Int!
 }
 """
+字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。字幕と文字スーパーを両方とも出さないのは、captionsEnabled で切り替える。
+"""
+type CaptionSettings {
+  """
+  ライブ視聴で、文字スーパー (速報など) を出すかどうか。
+  """
+  superimposeLive: Boolean!
+  """
+  録画の再生で、文字スーパーを出すかどうか。
+  """
+  superimposeRecorded: Boolean!
+  """
+  放送の指定によらず、文字を縁取るかどうか。
+  """
+  stroke: Boolean!
+  """
+  背景の不透明度 (0〜1)。放送の指定する背景の色に代えて、この不透明度の黒で塗る。null なら、放送の指定どおりにする。
+  """
+  backgroundOpacity: Float
+}
+input CaptionSettingsInput {
+  superimposeLive: Boolean!
+  superimposeRecorded: Boolean!
+  stroke: Boolean!
+  """
+  0〜1。null なら、放送の指定どおり
+  """
+  backgroundOpacity: Float
+}
+"""
 チャンネル種別 (設計書 3.1)。種別の文字列はチューナーサーバーが返すものをそのまま使い、表示名と並び順は管理者が変えられる。
 """
 type ChannelType {
@@ -1041,6 +1071,10 @@ type PlayerSettings {
   実況のコメントの表示とミュートの設定 (#488)。
   """
   comments: CommentSettings!
+  """
+  字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。
+  """
+  captions: CaptionSettings!
 }
 """
 プレイヤーの設定の変更。省いた項目は変えない。
@@ -1052,6 +1086,10 @@ input PlayerSettingsInput {
   渡したら、コメントの設定をまるごと置き換える。
   """
   comments: CommentSettingsInput
+  """
+  渡したら、字幕の設定をまるごと置き換える。
+  """
+  captions: CaptionSettingsInput
 }
 """
 プレビュー画像 (preview.jpg) から切り出す 1 コマ。画面は、url の画像を背景にして、(x, y) から width × height を見せる。

@@ -339,6 +339,8 @@ CREATE TABLE user_settings (
   watch_reminder_minutes integer NOT NULL DEFAULT 5 CHECK (watch_reminder_minutes BETWEEN 0 AND 60),
   -- 実況のコメントの表示とミュートの設定 (#488)。{opacity, speed, scale, showAll, mutedKeywords, mutedUsers} の形。NULL なら既定値。
   comment_settings jsonb,
+  -- 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。{superimposeLive, superimposeRecorded, stroke, backgroundOpacity} の形。NULL なら既定値。
+  caption_settings jsonb,
   updated_at timestamptz NOT NULL
 );
 
