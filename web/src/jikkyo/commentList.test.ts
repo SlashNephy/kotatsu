@@ -13,11 +13,12 @@ describe('appendComment', () => {
   test('届いた順に末尾へ足し、行を見分ける番号を振る', () => {
     let list: readonly ListedComment[] = [];
     list = appendComment(list, { at: 1000, content: 'わこつ', mail: '184' });
-    list = appendComment(list, { at: 2000, content: 'きたー', mail: '' });
+    list = appendComment(list, { at: 2000, content: 'きたー', mail: '', userId: 'u1' });
 
+    // ユーザー ID は、行からミュートできるよう残す (#767)。
     expect(list).toEqual([
       { key: 0, at: 1000, content: 'わこつ' },
-      { key: 1, at: 2000, content: 'きたー' },
+      { key: 1, at: 2000, content: 'きたー', userId: 'u1' },
     ]);
   });
 

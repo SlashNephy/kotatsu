@@ -6,6 +6,7 @@ import {
   useMutation,
   useRelayEnvironment,
 } from 'react-relay';
+import { isKeywordMuteMatch } from '../jikkyo/comments';
 
 import { useDataChanges } from '../changes/DataChanges';
 import type { usePlayerSettingsMutation } from './__generated__/usePlayerSettingsMutation.graphql';
@@ -52,6 +53,8 @@ export function usePlayerSettings(): Settings & {
   comments: CommentSettings;
   // setComments は、実況のコメントの設定を置き換える。失敗したら onError を呼ぶ。
   setComments: (comments: CommentSettingsInput, onError?: () => void) => void;
+  // muteUser は、ユーザー ID をミュートの一覧に足す (#767)。足してあれば何もしない。
+  muteUser: (userId: string) => void;
 } {
   const environment = useRelayEnvironment();
   const data = useLazyLoadQuery<usePlayerSettingsQuery>(
@@ -138,6 +141,23 @@ export function usePlayerSettings(): Settings & {
     });
   };
 
+  const muteUser = (userId: string) => {
+    const comments = settings.comments;
+    if (comments.mutedUsers.includes(userId)) {
+      return;
+    }
+    setComments({
+      opacity: comments.opacity,
+      speed: comments.speed,
+      scale: comments.scale,
+      showAll: comments.showAll,
+      mutedKeywords: comments.mutedKeywords.flatMap(({ text, match }) =>
+        isKeywordMuteMatch(match) ? [{ text, match }] : [],
+      ),
+      mutedUsers: [...comments.mutedUsers, userId],
+    });
+  };
+
   return {
     jikkyoEnabled: settings.jikkyoEnabled,
     captionsEnabled: settings.captionsEnabled,
@@ -145,5 +165,6 @@ export function usePlayerSettings(): Settings & {
     setCaptionsEnabled: (enabled) => update({ captionsEnabled: enabled }),
     comments: settings.comments,
     setComments,
+    muteUser,
   };
 }

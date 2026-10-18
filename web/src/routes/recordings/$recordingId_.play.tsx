@@ -208,6 +208,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     jikkyoEnabled,
     setJikkyoEnabled,
     comments: commentSettings,
+    muteUser,
   } = usePlayerSettings();
   const recording = data.node?.__typename === 'Recording' ? data.node : null;
   // 録画中なら、録画を終えるまで読み直し、終えた時刻を受け取ったら、録画の長さを伸ばすのをやめる (#671)。
@@ -344,7 +345,12 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
         commentLabels.set(index, label);
       }
 
-      return { key: index, label, content: comment.content };
+      return {
+        key: index,
+        label,
+        content: comment.content,
+        ...(comment.userId === undefined ? {} : { userId: comment.userId }),
+      };
     });
   }, [jikkyo.comments, listedCount, recording, commentLabels]);
   // 実況の過去ログの読み込み具合は、実況のボタンのツールチップで示す。
@@ -769,7 +775,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       )}
       {/* 実況の過去ログのうち、再生位置までに流れたもの (#489)。 */}
       {jikkyo.comments !== null && jikkyo.comments.length > 0 && (
-        <CommentListToggle rows={() => recordedRows} />
+        <CommentListToggle rows={() => recordedRows} onMuteUser={muteUser} />
       )}
     </Stack>
   );

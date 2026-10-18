@@ -1088,7 +1088,9 @@
     "listEmpty": "まだコメントはありません",
     "copy": "コピー",
     "copied": "コピーしました",
-    "copyComment": "「{{content}}」をコピー"
+    "rowMenu": "「{{content}}」の操作",
+    "copyUserId": "ユーザー ID をコピー",
+    "muteUser": "このユーザーをミュート"
   },
   "live": {
     "overlay": {

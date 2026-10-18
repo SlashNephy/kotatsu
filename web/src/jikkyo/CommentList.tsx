@@ -1,27 +1,33 @@
-import {
-  ActionIcon,
-  Button,
-  CopyButton,
-  Group,
-  ScrollArea,
-  Stack,
-  Text,
-  Tooltip,
-} from '@mantine/core';
-import { Check, Copy, List } from 'lucide-react';
+import { ActionIcon, Button, Group, Menu, ScrollArea, Stack, Text } from '@mantine/core';
+import { useClipboard } from '@mantine/hooks';
+import { Copy, EllipsisVertical, IdCard, List, UserX } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-// CommentRow は、一覧に出す 1 行。label は、行の先頭に添える時刻。
-export type CommentRow = { key: number | string; label: string; content: string };
+// CommentRow は、一覧に出す 1 行。label は、行の先頭に添える時刻。userId は、投稿したユーザーの匿名の ID (分からなければ省く)。
+export type CommentRow = { key: number | string; label: string; content: string; userId?: string };
 
 // stickThreshold は、一覧の末尾からこの画素の内にいれば、新しいコメントが届いたときに末尾へ追う範囲。
 // 読み返すために上へ戻している間は、追わない。
 const stickThreshold = 48;
 
-// CommentList は、実況のコメントの一覧 (#489、設計書 7.4)。新しいものを下に足し、各行からコメントをコピーできる。
-export function CommentList({ rows }: { rows: readonly CommentRow[] }) {
+type ListProps = {
+  rows: readonly CommentRow[];
+  // onMuteUser は、行から、そのコメントを書いたユーザーをミュートする (#767)。渡さなければ、メニューに出さない。
+  onMuteUser?: (userId: string) => void;
+};
+
+// CommentList は、実況のコメントの一覧 (#489、設計書 7.4)。新しいものを下に足す。
+// 各行のメニューから、コメントとユーザー ID をコピーし、そのユーザーをミュートできる (#767)。
+export function CommentList({ rows, onMuteUser }: ListProps) {
   const { t } = useTranslation();
+  const clipboard = useClipboard();
+  // copiedKey は、最後にコピーした行。コピーしたことを、その行にしばらく出す。
+  const [copiedKey, setCopiedKey] = useState<CommentRow['key'] | null>(null);
+  const copy = (key: CommentRow['key'], text: string) => {
+    clipboard.copy(text);
+    setCopiedKey(key);
+  };
   const viewport = useRef<HTMLDivElement | null>(null);
   const stick = useRef(true);
   const last = rows.at(-1)?.key;
@@ -61,24 +67,48 @@ export function CommentList({ rows }: { rows: readonly CommentRow[] }) {
                 <Text size="sm" style={{ flex: 1, overflowWrap: 'anywhere' }}>
                   {row.content}
                 </Text>
-                <CopyButton value={row.content}>
-                  {({ copied, copy }) => (
-                    <Tooltip
-                      label={copied ? t('jikkyo.copied') : t('jikkyo.copy')}
-                      withinPortal={false}
+                {clipboard.copied && copiedKey === row.key && (
+                  <Text size="xs" c="dimmed" role="status" style={{ flexShrink: 0 }}>
+                    {t('jikkyo.copied')}
+                  </Text>
+                )}
+                <Menu position="bottom-end">
+                  <Menu.Target>
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      color="gray"
+                      aria-label={t('jikkyo.rowMenu', { content: row.content })}
                     >
-                      <ActionIcon
-                        size="sm"
-                        variant="subtle"
-                        color="gray"
-                        aria-label={t('jikkyo.copyComment', { content: row.content })}
-                        onClick={copy}
+                      <EllipsisVertical size={14} aria-hidden />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Item
+                      leftSection={<Copy size={14} aria-hidden />}
+                      onClick={() => copy(row.key, row.content)}
+                    >
+                      {t('jikkyo.copy')}
+                    </Menu.Item>
+                    {row.userId !== undefined && (
+                      <Menu.Item
+                        leftSection={<IdCard size={14} aria-hidden />}
+                        onClick={() => copy(row.key, row.userId!)}
                       >
-                        {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-                      </ActionIcon>
-                    </Tooltip>
-                  )}
-                </CopyButton>
+                        {t('jikkyo.copyUserId')}
+                      </Menu.Item>
+                    )}
+                    {row.userId !== undefined && onMuteUser !== undefined && (
+                      <Menu.Item
+                        color="red"
+                        leftSection={<UserX size={14} aria-hidden />}
+                        onClick={() => onMuteUser(row.userId!)}
+                      >
+                        {t('jikkyo.muteUser')}
+                      </Menu.Item>
+                    )}
+                  </Menu.Dropdown>
+                </Menu>
               </Group>
             </li>
           ))}
@@ -90,7 +120,13 @@ export function CommentList({ rows }: { rows: readonly CommentRow[] }) {
 
 // CommentListToggle は、コメントの一覧を開閉するボタンと、一覧。場所を取るので、既定では閉じる。
 // rows は、開いている間だけ求める。
-export function CommentListToggle({ rows }: { rows: () => readonly CommentRow[] }) {
+export function CommentListToggle({
+  rows,
+  onMuteUser,
+}: {
+  rows: () => readonly CommentRow[];
+  onMuteUser?: (userId: string) => void;
+}) {
   const { t } = useTranslation();
   const [opened, setOpened] = useState(false);
 
@@ -107,7 +143,9 @@ export function CommentListToggle({ rows }: { rows: () => readonly CommentRow[] 
           {opened ? t('jikkyo.hideList') : t('jikkyo.showList')}
         </Button>
       </Group>
-      {opened && <CommentList rows={rows()} />}
+      {opened && (
+        <CommentList rows={rows()} {...(onMuteUser === undefined ? {} : { onMuteUser })} />
+      )}
     </Stack>
   );
 }

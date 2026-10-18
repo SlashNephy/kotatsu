@@ -13,6 +13,19 @@ export type JikkyoComment = {
 // KeywordMuteMatch は、ミュートするキーワードの照らし方。
 export type KeywordMuteMatch = 'PARTIAL' | 'PREFIX' | 'SUFFIX' | 'EXACT' | 'REGEX';
 
+// keywordMuteMatches は、照らし方の一覧。設定の画面の選択肢の順。
+export const keywordMuteMatches: readonly KeywordMuteMatch[] = [
+  'PARTIAL',
+  'PREFIX',
+  'SUFFIX',
+  'EXACT',
+  'REGEX',
+];
+
+// isKeywordMuteMatch は、サーバーから届いた照らし方が、この画面の知っているものかを返す。知らないものは保存し直さない。
+export const isKeywordMuteMatch = (value: string): value is KeywordMuteMatch =>
+  (keywordMuteMatches as readonly string[]).includes(value);
+
 // CommentSettings は、実況のコメントの表示とミュートの設定 (#488)。ユーザーごとに持ち、端末をまたいで同期する。
 export type CommentSettings = {
   // opacity は、不透明度 (0.1〜1)。

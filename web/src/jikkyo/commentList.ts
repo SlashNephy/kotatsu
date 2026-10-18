@@ -6,18 +6,27 @@ import { shouldDraw, type JikkyoComment } from './comments';
 export const maxListed = 500;
 
 // ListedComment は、一覧の 1 行。at は、コメントの時刻 (Unix ミリ秒)。key は、一覧の中で行を見分ける番号。
-export type ListedComment = { key: number; at: number; content: string };
+// userId は、投稿したユーザーの匿名の ID。行からミュートするのに使う。分からなければ省く。
+export type ListedComment = { key: number; at: number; content: string; userId?: string };
 
 // appendComment は、ライブで届いたコメントを一覧の末尾に足す。流さないコメントは足さない。上限を超えたら、古いものから捨てる。
 export function appendComment(
   list: readonly ListedComment[],
-  comment: { at: number; content: string; mail: string },
+  comment: { at: number; content: string; mail: string; userId?: string },
 ): readonly ListedComment[] {
   if (!shouldDraw({ time: 0, content: comment.content, mail: comment.mail })) {
     return list;
   }
   const key = (list.at(-1)?.key ?? -1) + 1;
-  const next = [...list, { key, at: comment.at, content: comment.content }];
+  const next = [
+    ...list,
+    {
+      key,
+      at: comment.at,
+      content: comment.content,
+      ...(comment.userId === undefined ? {} : { userId: comment.userId }),
+    },
+  ];
 
   return next.length > maxListed ? next.slice(next.length - maxListed) : next;
 }
