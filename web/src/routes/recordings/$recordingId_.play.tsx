@@ -630,12 +630,21 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     <PlayerAlert title={error} action={{ label: t('player.retry'), onClick: retry }} />
   );
   const shown = seeking ?? position;
+  // gapMarks は、録画が途切れた位置の印 (#479)。途切れた区間はシークバーの長さに含めないので (#754)、長さのない印にし、
+  // カーソルを乗せたら、途切れていた長さを出す。
+  const gapMarks = (recording?.gaps ?? []).map((gap) => {
+    const at = recordingPosition(recording!.recordedFrom, recording!.gaps, Date.parse(gap.from));
+    const length = Math.max((Date.parse(gap.to) - Date.parse(gap.from)) / 1000, 0);
+
+    return { from: at, to: at, label: t('player.gapMark', { duration: formatDuration(length) }) };
+  });
 
   const controlBar = (
     <PlayerControls
       visible={controls.visible}
       seek={
         <SeekBar
+          bands={gapMarks}
           duration={duration}
           value={shown}
           previewUrl={recording.previewUrl}

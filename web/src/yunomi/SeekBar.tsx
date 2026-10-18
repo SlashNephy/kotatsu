@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { frameBefore, previewFrame, type PreviewManifest } from '../recordings/previewFrame';
 import { loadManifest } from '../recordings/usePreviewSlideshow';
 import classes from './SeekBar.module.css';
-import { bubbleLeft, hoverSeconds } from './seekHover';
+import { bandAt, bubbleLeft, hoverSeconds, type SeekBand } from './seekHover';
 
 // bubbleWidth は、吹き出しの幅 (px)。プレビュー画像の 1 コマ (16:9) をこの幅で見せる。
 const bubbleWidth = 160;
@@ -21,11 +21,21 @@ type Props = {
   previewUrl: string | null | undefined;
   onChange: (seconds: number) => void;
   onChangeEnd: (seconds: number) => void;
+  // bands は、シークバーに示す区間と印 (#479)。録画が途切れた位置などを示す。
+  bands?: readonly SeekBand[];
 };
 
 // SeekBar は、録画のシークバー。カーソルを乗せるか、つまみを動かしている間、その位置の時刻を、
 // プレビュー画像があればそのコマと一緒に、吹き出しで出す (#755)。
-export function SeekBar({ duration, value, label, previewUrl, onChange, onChangeEnd }: Props) {
+export function SeekBar({
+  duration,
+  value,
+  label,
+  previewUrl,
+  onChange,
+  onChangeEnd,
+  bands = [],
+}: Props) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   // hover は、吹き出しを出す位置。offset はバーの左端からの px、seconds はその位置の秒。
@@ -81,6 +91,8 @@ export function SeekBar({ duration, value, label, previewUrl, onChange, onChange
     }
   };
 
+  // 印には、バーの幅の 1% (少なくとも 2 秒) 以内に乗せれば当たったとみなす。細くて、ちょうどには乗せにくいため。
+  const band = hover === null ? null : bandAt(bands, hover.seconds, Math.max(max * 0.01, 2));
   const index =
     hover === null || manifest === null ? null : frameBefore(manifest.times, hover.seconds);
   const frame = manifest === null || index === null ? null : previewFrame(manifest, index);
@@ -118,8 +130,25 @@ export function SeekBar({ duration, value, label, previewUrl, onChange, onChange
             />
           )}
           <span className={classes.label}>{label(hover.seconds)}</span>
+          {band !== null && <span className={classes.label}>{band.label}</span>}
         </div>
       )}
+      {/* 区間と印は、バーの上に重ねる。操作は、下のスライダーに通す。 */}
+      <div className={classes.bands} aria-hidden>
+        {bands.map((item) => (
+          <div
+            key={`${item.from}-${item.to}`}
+            className={item.to > item.from ? classes.band : classes.mark}
+            style={{
+              left: `${(Math.min(item.from, max) / max) * 100}%`,
+              width:
+                item.to > item.from
+                  ? `${((Math.min(item.to, max) - item.from) / max) * 100}%`
+                  : undefined,
+            }}
+          />
+        ))}
+      </div>
       <Slider
         aria-label={t('player.seek')}
         size={4}

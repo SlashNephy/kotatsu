@@ -35,3 +35,32 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* 区間と印を重ねる層 (#479)。スライダーのバーと同じ高さに置く。 */
+.bands {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 50%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* 区間は、バーの上に半透明の色で重ねる。 */
+.band {
+  position: absolute;
+  height: 6px;
+  transform: translateY(-50%);
+  background: rgb(255 214 102 / 0.8);
+  border-radius: 2px;
+}
+
+/* 印は、長さのない区間 (録画が途切れた位置など)。バーを縦に切る細い線にする。 */
+.mark {
+  position: absolute;
+  width: 3px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  background: #ffd666;
+  border-radius: 1px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.6);
+}

@@ -28,7 +28,7 @@ afterEach(() => {
 });
 
 // renderSeekBar は、幅 600px で左端が 0 の、長さ 600 秒のシークバーを描く。jsdom は大きさを持たないので、測った値を差し替える。
-function renderSeekBar() {
+function renderSeekBar(bands: { from: number; to: number; label: string }[] = []) {
   const { container } = render(
     <MantineProvider>
       <SeekBar
@@ -38,6 +38,7 @@ function renderSeekBar() {
         previewUrl={null}
         onChange={() => {}}
         onChangeEnd={() => {}}
+        bands={bands}
       />
     </MantineProvider>,
   );
@@ -75,5 +76,15 @@ describe('SeekBar', () => {
 
     fireEvent.pointerCancel(root, { pointerType: 'touch' });
     expect(screen.queryByText('60 秒')).toBeNull();
+  });
+
+  test('印の近くにカーソルを乗せると、印の文も出す (#479)', () => {
+    const root = renderSeekBar([{ from: 300, to: 300, label: 'ここで 2:07 途切れています' }]);
+
+    fireEvent.pointerMove(root, { clientX: 302, pointerType: 'mouse' });
+    expect(screen.getByText('ここで 2:07 途切れています')).toBeDefined();
+
+    fireEvent.pointerMove(root, { clientX: 100, pointerType: 'mouse' });
+    expect(screen.queryByText('ここで 2:07 途切れています')).toBeNull();
   });
 });
