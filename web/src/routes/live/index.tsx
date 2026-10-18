@@ -152,16 +152,19 @@ function Services({ range }: { range: { from: string; to: string } }) {
             ]}
           />
         )}
-        <SegmentedControl
-          size="xs"
-          value={order}
-          onChange={(value) => setOrder(value === 'force' ? 'force' : 'guide')}
-          aria-label={t('live.order')}
-          data={[
-            { value: 'guide', label: t('live.orderGuide') },
-            { value: 'force', label: t('live.orderForce') },
-          ]}
-        />
+        {/* 並べる局がなければ、並べる順も出さない。 */}
+        {types.length > 0 && (
+          <SegmentedControl
+            size="xs"
+            value={order}
+            onChange={(value) => setOrder(value === 'force' ? 'force' : 'guide')}
+            aria-label={t('live.order')}
+            data={[
+              { value: 'guide', label: t('live.orderGuide') },
+              { value: 'force', label: t('live.orderForce') },
+            ]}
+          />
+        )}
       </Group>
       {types.length === 0 && (
         <EmptyState icon={Tv} title={t('live.empty')} hint={t('live.emptyHint')} />
