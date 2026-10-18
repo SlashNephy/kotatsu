@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs';
+
 import babel from '@rolldown/plugin-babel';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
-import { defineConfig, lazyPlugins } from 'vite-plus';
+import { defineConfig, lazyPlugins, type Plugin } from 'vite-plus';
 
 // ビルドした SPA は、Go のバイナリに埋め込む (設計書 2.3)。web/embed.go が dist/app を埋め込む。
 // dist 自体は、未ビルドでも go build が通るように、空の .gitkeep だけを置いてリポジトリに残す。
@@ -13,6 +15,24 @@ import { defineConfig, lazyPlugins } from 'vite-plus';
 const devAPI =
   process.env.KOTATSU_DEV_API || `http://127.0.0.1:${process.env.KOTATSU_DEV_PORT || '8080'}`;
 
+// inlineAppleTouchIcon は、index.html の apple-touch-icon を、public/icons の PNG の data: URL に置き換える (#582)。
+// iOS 27 の「ホーム画面に追加」は、URL で指したアイコンを読み込めず、タイトルの頭文字のタイルを出す。
+// data: URL なら、別のリクエストなしにアイコンを渡せる。
+function inlineAppleTouchIcon(): Plugin {
+  const placeholder = '__KOTATSU_APPLE_TOUCH_ICON__';
+
+  return {
+    name: 'kotatsu:inline-apple-touch-icon',
+    transformIndexHtml(html) {
+      const icon = readFileSync(
+        new URL('./public/icons/apple-touch-icon-180.png', import.meta.url),
+      );
+
+      return html.replace(placeholder, `data:image/png;base64,${icon.toString('base64')}`);
+    },
+  };
+}
+
 export default defineConfig({
   plugins: lazyPlugins(() => [
     // Relay のコンパイラが routes/ に生成する __generated__ は、ルートではない。
@@ -22,6 +42,7 @@ export default defineConfig({
       routeFileIgnorePattern: '__generated__',
     }),
     react(),
+    inlineAppleTouchIcon(),
     // graphql`...` を、Relay のコンパイラが生成したアーティファクトの import に置き換える。
     babel({ presets: [reactCompilerPreset()], plugins: [['relay', { eagerEsModules: true }]] }),
     // PWA の外枠 (設計書 10.1)。Web Push の受信とナビゲーションは、自前の Service Worker (src/sw.ts) に書く。
