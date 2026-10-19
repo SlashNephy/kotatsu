@@ -25,6 +25,16 @@ func TestNormalize(t *testing.T) {
 		{name: "enclosed alphabets", in: "番組名🅊🅂", want: "番組名[HV][S]"},
 		// 🈀 (ほか) は番組名の一部なので、括弧にしない。
 		{name: "hoka is part of the name", in: "出演者🈀", want: "出演者ほか"},
+		// ㊙ は「㊙情報」のように言葉の一部として使われるので、括弧にしない。
+		{name: "maruhi is part of the name", in: "㊙情報", want: "秘情報"},
+		// 画面で選べる囲み文字 (設計書 4.2) は、すべて括弧の書き方になる。
+		{
+			name: "all selectable enclosed characters",
+			in:   "🈟🈡🈞🈠🈢🈜🈝🈑🈔🈕🈖🈒🈓🈐🈥🈤🈦🈚🈛🈙🈗🈘🈣⚿🄱🄽🄿🅂🅆🅊🅋🅌🅍🅎🆛🆜🆝🆞🆟🆠🆡🆢🆣🆤🆥🆦🆧🆨🆩🆪🆫🆬",
+			want: "[新][終][再][初][生][前][後][字][二][多][解][双][デ][手][吹][声][演][無][料][映][天][交][販][鍵]" +
+				"[B][N][P][S][W][HV][MV][SD][SS][PPV]" +
+				"[3D][2ndScr][2K][4K][8K][5.1][7.1][22.2][60P][120P][d][HC][HDR][Hi-Res][Lossless][SHV][UHD][VOD]",
+		},
 		{name: "keeps letter case", in: "Ｎｅｗｓ", want: "News"},
 	}
 	for _, tt := range tests {
