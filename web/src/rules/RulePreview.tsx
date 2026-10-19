@@ -72,7 +72,7 @@ export function RulePreview({ input, enabled, onPrograms }: Props) {
   // 渡されるたびに作り直される関数で取り直さないよう、ref で持つ。
   const onProgramsRef = useRef(onPrograms);
   onProgramsRef.current = onPrograms;
-  // 入力の中身が変わったときだけ取り直す。
+  // 入力の中身が変わったときと、番組表が変わったときだけ取り直す。
   const key = JSON.stringify(input);
   // 番組表が変わったら、一致する番組を取り直す (#867)。
   const epgChanges = useDataChanges(previewChannels);
@@ -91,7 +91,7 @@ export function RulePreview({ input, enabled, onPrograms }: Props) {
     const timer = setTimeout(() => {
       setLoading(true);
       setError(false);
-      // key から戻した入力で取る。effect は key の変化だけを見る。
+      // key から戻した入力で取る。effect は、入力そのものではなく key と番組表の変化を見る。
       const variables = { input: JSON.parse(key) as Props['input'] };
       fetchQuery<RulePreviewQuery>(environment, query, variables, { fetchPolicy: 'network-only' })
         .toPromise()
