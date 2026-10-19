@@ -7,7 +7,7 @@ import {
   type GenreInput,
   type ProgramConditionsInput,
 } from './epg';
-import type { EventHub } from './events';
+import { createEventHub, type EventHub } from './events';
 import {
   defaultFileNameTemplate,
   fileNameTemplateItems,
@@ -15,6 +15,7 @@ import {
   renderFileName,
   sampleFileNameData,
 } from './filename';
+import { createRecordings, type RecordingFilter } from './recordings';
 import { createScheduler, type RuleInput, type SettingsInput } from './schedule';
 
 // demoUser は、デモでログインしているものとして扱うユーザー。
@@ -27,13 +28,6 @@ const demoUser = {
   disabled: false,
   createdAt: '2026-10-01T00:00:00Z',
   avatarUrl: null,
-};
-
-const emptyPageInfo = {
-  hasNextPage: false,
-  hasPreviousPage: false,
-  startCursor: null,
-  endCursor: null,
 };
 
 // paginate は、items を、after (前のページの最後の cursor) の次から first 件だけの connection にする。
@@ -95,6 +89,26 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     }
   };
   const scheduler = createScheduler({ programs, now, user: demoUser, changed: dataChanged });
+  const recordings = createRecordings({
+    programs,
+    now,
+    rules: scheduler.recordingRules(),
+    ruleView: scheduler.findRule,
+  });
+  let playerSettings = {
+    jikkyoEnabled: false,
+    captionsEnabled: true,
+    comments: { opacity: 1, speed: 1, scale: 1, showAll: false, mutedKeywords: [], mutedUsers: [] },
+    captions: {
+      superimposeLive: true,
+      superimposeRecorded: true,
+      stroke: true,
+      backgroundOpacity: null,
+    },
+  };
+  let nextPlayer = 1;
+  // idle は、何も流さない購読に使う。ほかの端末からのプレイヤーの操作は、デモでは届かない。
+  const idle = createEventHub();
 
   // program は、番組に、デモの状態から決まるフィールドを足して返す。
   // 放送が終わった番組は、アーカイブに移したものとして扱う。
@@ -128,7 +142,7 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     if (view !== undefined) {
       return guideView(id, view);
     }
-    const scheduled = scheduler.node(id);
+    const scheduled = scheduler.node(id) ?? recordings.node(id);
     if (scheduled !== undefined) {
       return scheduled;
     }
@@ -220,8 +234,17 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
 
       return paginate(found, args.first, args.after);
     },
-    continueWatching: () => [],
-    recordings: () => ({ edges: [], pageInfo: emptyPageInfo }),
+    continueWatching: ({ first }: { first: number }) => recordings.continueWatching(first),
+    recordings: (args: {
+      first: number;
+      after?: string | null;
+      filter?: RecordingFilter | null;
+      order: string;
+    }) => paginate(recordings.list(args.filter, args.order), args.first, args.after),
+    tags: () => recordings.tags(),
+    playerSettings: () => playerSettings,
+    // デモには、映像を変換する kyusu がない。
+    transcoding: () => ({ available: false, presets: [] }),
     reservations: (
       args: Parameters<typeof scheduler.reservations>[0] & { first: number; after?: string | null },
     ) => paginate(scheduler.reservations(args), args.first, args.after),
@@ -285,6 +308,73 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     },
 
     // Mutation
+    setRecordingTags: ({ id, tags }: { id: string; tags: string[] }) =>
+      recordings.setTags(id, tags),
+    setRecordingProtected: ({ id, protected: value }: { id: string; protected: boolean }) =>
+      recordings.setProtected(id, value),
+    deleteRecording: ({ id }: { id: string }) => recordings.delete(id),
+    deleteRecordings: ({ ids }: { ids: string[] }) => recordings.deleteMany(ids),
+    // 索引や画像を作り直すジョブは、デモでは何もせずに受け付ける。
+    reanalyzeRecording: () => true,
+    regenerateRecordingImages: () => true,
+    saveWatchPosition: ({ id, positionMs }: { id: string; positionMs: number }) =>
+      recordings.saveWatchPosition(id, positionMs),
+    createStreamURL: ({ target }: { target: string }) => {
+      const found = node(target) as { streamUrl?: string } | null;
+      if (found?.streamUrl === undefined) {
+        throw new Error('the target is not found');
+      }
+
+      return {
+        url: found.streamUrl,
+        expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
+      };
+    },
+    updatePlayerSettings: ({
+      input,
+    }: {
+      input: {
+        jikkyoEnabled?: boolean | null;
+        captionsEnabled?: boolean | null;
+        comments?: Record<string, unknown> | null;
+        captions?: Record<string, unknown> | null;
+      };
+    }) => {
+      playerSettings = {
+        jikkyoEnabled: input.jikkyoEnabled ?? playerSettings.jikkyoEnabled,
+        captionsEnabled: input.captionsEnabled ?? playerSettings.captionsEnabled,
+        comments: { ...playerSettings.comments, ...input.comments },
+        captions: { ...playerSettings.captions, ...input.captions },
+      };
+      viewerSettingsChanged();
+
+      return playerSettings;
+    },
+    registerPlayer: ({ state }: { state: object }) => {
+      const at = new Date().toISOString();
+
+      return {
+        id: `Player:${nextPlayer++}`,
+        current: true,
+        userAgent: navigator.userAgent,
+        state,
+        startedAt: at,
+        lastSeenAt: at,
+      };
+    },
+    updatePlayer: ({ id, state }: { id: string; state: object }) => {
+      const at = new Date().toISOString();
+
+      return {
+        id,
+        current: true,
+        userAgent: navigator.userAgent,
+        state,
+        startedAt: at,
+        lastSeenAt: at,
+      };
+    },
+    unregisterPlayer: ({ id }: { id: string }) => id,
     createProgramReservation: ({
       input,
     }: {
@@ -381,5 +471,6 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
 
     // Subscription。graphql-js は、流れた値を rootValue にして選択集合を解くので、フィールド名で包む。
     viewerEvents: () => events.listen((event) => ({ viewerEvents: event })),
+    playerCommands: () => idle.listen(() => ({ playerCommands: null })),
   };
 }
