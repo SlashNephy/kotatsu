@@ -747,6 +747,173 @@ func TestRecorderWaitsBeforeReopeningShortStreams(t *testing.T) {
 	assert.LessOrEqual(t, int64(f.segments(t, reservationID)), limit)
 }
 
+// TestRecorderSkipsUntilPlannedStart は、チューニングのために早く開いたストリームを予定の開始まで読み捨て、
+// TS パケットの区切りから書き始めることを確かめる (#847)。開始前のマージンが、チューニングにかかる時間のぶん長くならない。
+// 読み捨てる長さは最初に決め、経過時間で測るので、読み捨てている間に壁時計が戻っても、読み捨て続けない。
+func TestRecorderSkipsUntilPlannedStart(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	tests := []struct {
+		name string
+		// jump は、2 回目に読んだ後に壁時計を動かす幅。経過時間は動かさない。
+		jump time.Duration
+	}{
+		{name: "壁時計が飛ばない", jump: 0},
+		// 戻った壁時計で予定の開始を待つと、データを流し終えるまで (1000 秒余り) 読み捨て続け、何も書けない。
+		{name: "読み捨てている間に壁時計が 1 時間戻る", jump: -time.Hour},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			// 1 回の読み込みで 1000 バイト (パケットの区切りではない) を返し、そのたびに 1 秒進める。
+			// チューニングにかかる時間 (5 秒) の前に開くので、5 回読むと予定の開始になる。
+			reads := 0
+			stream := &tickingStream{data: data, chunk: 1000, tick: func() {
+				f.clock.Advance(time.Second)
+				reads++
+				if reads == 2 && tt.jump != 0 {
+					f.clock.Set(f.clock.Now().Add(tt.jump))
+				}
+			}}
+			recorder, dir := f.newRecorder(t, stream, nil)
+			_, done := f.session(t, recorder, reservationID)
+			f.clock.Advance(plannedStart().Add(-recording.DefaultTuningTime).Sub(f.clock.Now()))
+
+			// 5000 バイトを読み捨て、次のパケットの区切り (27 パケット目の終わり) まで捨てる。
+			skipped := 27 * 188
+			require.Eventually(t, func() bool {
+				files := f.files(t, reservationID)
+				if len(files) != 2 {
+					return false
+				}
+				info, err := os.Stat(filepath.Join(dir, files[1].path))
+
+				return err == nil && info.Size() == int64(len(data)-skipped)
+			}, waitTimeout, 10*time.Millisecond)
+			var recordedFrom time.Time
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT recorded_from FROM recordings WHERE reservation_id = $1", reservationID).
+				Scan(&recordedFrom))
+			assert.True(t, plannedStart().Equal(recordedFrom), "recorded_from %s", recordedFrom)
+			f.clock.Advance(time.Hour - tt.jump)
+			require.NoError(t, wait(t, done))
+
+			written, err := os.ReadFile(filepath.Join(dir, f.files(t, reservationID)[1].path))
+			require.NoError(t, err)
+			assert.True(t, bytes.Equal(data[skipped:], written), "the segment starts at the packet boundary after the planned start")
+		})
+	}
+}
+
+// TestRecorderReopensWhenInterruptedBeforePlannedStart は、予定の開始まで読み捨てている間にストリームが切れたら、
+// 開き直して、改めて予定の開始まで読み捨ててから書き始めることを確かめる (#847)。
+func TestRecorderReopensWhenInterruptedBeforePlannedStart(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	// 最初のストリームは、2 回読ませて (2 秒進めて) 切れる。開き直したストリームは、残りの 3 秒を読み捨てさせる。
+	stream := &interruptedStream{first: data[:2000], data: data, chunk: 1000, tick: func() { f.clock.Advance(time.Second) }, opened: atomic.Int32{}}
+	recorder, dir := f.newRecorder(t, stream, nil)
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Add(-recording.DefaultTuningTime).Sub(f.clock.Now()))
+
+	// 開き直したストリームで 3000 バイトを読み捨て、次のパケットの区切り (16 パケット目の終わり) まで捨てる。
+	skipped := 16 * 188
+	require.Eventually(t, func() bool {
+		files := f.files(t, reservationID)
+		if len(files) != 2 {
+			return false
+		}
+		info, err := os.Stat(filepath.Join(dir, files[1].path))
+
+		return err == nil && info.Size() == int64(len(data)-skipped)
+	}, waitTimeout, 10*time.Millisecond)
+	f.clock.Advance(time.Hour)
+	require.NoError(t, wait(t, done))
+
+	assert.Equal(t, int32(2), stream.opened.Load())
+	// 書き始める前に切れたので、セグメントは 1 つだけ作る。
+	assert.Equal(t, 1, f.segments(t, reservationID))
+	written, err := os.ReadFile(filepath.Join(dir, f.files(t, reservationID)[1].path))
+	require.NoError(t, err)
+	assert.True(t, bytes.Equal(data[skipped:], written), "the segment starts at the packet boundary after the planned start")
+}
+
+// interruptedStream は、最初に開いたときは first を流して切れ、開き直したら data を流す。1 回の読み込みで chunk バイトまで流し、tick を呼ぶ。
+type interruptedStream struct {
+	first  []byte
+	data   []byte
+	chunk  int
+	tick   func()
+	opened atomic.Int32
+}
+
+var _ recording.StreamOpener = new(interruptedStream)
+
+func (s *interruptedStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
+	if s.opened.Add(1) == 1 {
+		return &tickingReader{done: ctx.Done(), closed: make(chan struct{}), once: sync.Once{}, rest: s.first, chunk: s.chunk, tick: s.tick, cut: true}, nil
+	}
+
+	return (&tickingStream{data: s.data, chunk: s.chunk, tick: s.tick}).OpenServiceStream(ctx, 0, nil)
+}
+
+// tickingStream は、1 回の読み込みで chunk バイトまで data を流し、tick を呼ぶ。流し終えたら、閉じるか ctx が終わるまで待つ。
+type tickingStream struct {
+	data  []byte
+	chunk int
+	tick  func()
+}
+
+var _ recording.StreamOpener = new(tickingStream)
+
+func (s *tickingStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
+	return &tickingReader{done: ctx.Done(), closed: make(chan struct{}), once: sync.Once{}, rest: s.data, chunk: s.chunk, tick: s.tick, cut: false}, nil
+}
+
+type tickingReader struct {
+	done   <-chan struct{}
+	closed chan struct{}
+	once   sync.Once
+	rest   []byte
+	chunk  int
+	tick   func()
+	// cut なら、流し終えたら待たずに切れる。
+	cut bool
+}
+
+func (r *tickingReader) Read(p []byte) (int, error) {
+	if len(r.rest) == 0 {
+		if r.cut {
+			return 0, io.ErrUnexpectedEOF
+		}
+		select {
+		case <-r.done:
+			return 0, context.Canceled
+		case <-r.closed:
+			return 0, io.ErrClosedPipe
+		}
+	}
+	n := copy(p[:min(len(p), r.chunk)], r.rest)
+	r.rest = r.rest[n:]
+	r.tick()
+
+	return n, nil
+}
+
+func (r *tickingReader) Close() error {
+	r.once.Do(func() { close(r.closed) })
+
+	return nil
+}
+
 // TestRecorderReconnects は、予定の終わりの前にストリームが切れたら、開き直して新しいセグメントに書き、
 // 途切れた区間を記録して、録画を一部のみにすることを確かめる (設計書 5.2、5.5)。
 func TestRecorderReconnects(t *testing.T) {

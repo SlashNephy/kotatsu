@@ -117,7 +117,8 @@ type PeersFunc func(ctx context.Context) (int, error)
 var ErrRecorderUnavailable = errors.New("this mikan is unable to record")
 
 // Recorder は、割り振りの録画を行う Session を提供する (設計書 5.1、5.2、5.3)。
-// 予定の開始からチューニングにかかる時間を引いた時刻にサービスストリームを開き、届いたデータをすべて最終的な保存先に書き込む。
+// 予定の開始からチューニングにかかる時間を引いた時刻にサービスストリームを開き、予定の開始までに届いたデータは捨て (#847)、
+// その後に届いたデータをすべて最終的な保存先に書き込む。
 // 書きながら TS を解析し、ドロップを数え、索引を作る。予定の終わりは、録画しながら予約を読み直して決める。
 type Recorder struct {
 	pool     *pgxpool.Pool
@@ -200,7 +201,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	// unreachableSince は、チューナーサーバーにつながらなくなった時刻。つながればゼロ値に戻す。
 	var unreachableSince time.Time
 	for {
-		stream, err := r.tuner.OpenServiceStream(ctx, reservation.ServiceID, &mirakurun.StreamOptions{Decode: true, Priority: assignment.Priority})
+		stream, err := r.openStream(ctx, logger, assignment, &reservation)
 		if err != nil {
 			if done, err := r.retryOpen(ctx, logger, assignment, &recording, tracker, result, created, &unreachableSince, err); done {
 				return err
@@ -209,13 +210,6 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 			continue
 		}
 		unreachableSince = time.Time{}
-		// 引き継ぎ待ちの古い mikan は、ストリームを開いたことを見て、自分のストリームを閉じる (設計書 5.4)。
-		err = sqlc.New(r.pool).MarkRecordingStreamOpened(ctx, sqlc.MarkRecordingStreamOpenedParams{
-			Generation: assignment.Generation, Now: r.clock.Now(), ID: assignment.ID,
-		})
-		if err != nil {
-			logger.WarnContext(ctx, "failed to record that the stream was opened", slog.Any("error", err))
-		}
 
 		segment, reason, err := r.createSegment(ctx, &recording, &reservation)
 		if err != nil {
@@ -256,6 +250,34 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 
 		return r.finish(ctx, logger, assignment, &recording, end, result, false)
 	}
+}
+
+// errInterruptedBeforeStart は、予定の開始まで読み捨てている間に、ストリームが切れたこと。
+var errInterruptedBeforeStart = errors.New("the stream was interrupted before the planned start")
+
+// openStream は、サービスストリームを開き、予定の開始まで読み捨てる。
+// チューニングのために早く開いたストリームを読み捨て、開始前のマージンを設定どおりにする (#847)。
+func (r *Recorder) openStream(
+	ctx context.Context, logger *slog.Logger, assignment *Assignment, reservation *sqlc.GetReservationForRecordingRow,
+) (io.ReadCloser, error) {
+	stream, err := r.tuner.OpenServiceStream(ctx, reservation.ServiceID, &mirakurun.StreamOptions{Decode: true, Priority: assignment.Priority})
+	if err != nil {
+		return nil, err
+	}
+	// 引き継ぎ待ちの古い mikan は、ストリームを開いたことを見て、自分のストリームを閉じる (設計書 5.4)。
+	err = sqlc.New(r.pool).MarkRecordingStreamOpened(ctx, sqlc.MarkRecordingStreamOpenedParams{
+		Generation: assignment.Generation, Now: r.clock.Now(), ID: assignment.ID,
+	})
+	if err != nil {
+		logger.WarnContext(ctx, "failed to record that the stream was opened", slog.Any("error", err))
+	}
+	if err := skipUntil(r.clock, stream, *reservation.PlannedStartAt); err != nil {
+		_ = stream.Close()
+
+		return nil, fmt.Errorf("%w: %w", errInterruptedBeforeStart, err)
+	}
+
+	return stream, nil
 }
 
 // retryOpen は、ストリームを開けなかったときに、開き直すか、録画を終えるか、割り振りを手放すかを決める。録画を終えたか手放したら true を返す。
@@ -847,6 +869,30 @@ func (w writeErrorWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
+// skipUntil は、clk の until まで stream を読み捨てる。until が過ぎていれば何もしない。
+// 読み捨てる長さは最初に決め、経過時間で測る。読み捨てている間に壁時計が戻っても、読み捨て続けて冒頭を失わないようにする。
+// 読み捨てた後に書くデータが TS パケットの途中から始まらないよう、パケットの区切りまで読み捨てる。
+func skipUntil(clk clock.Clock, stream io.Reader, until time.Time) error {
+	stopwatch := clk.StartStopwatch()
+	length := until.Sub(clk.Now())
+	buf := make([]byte, 64*ts.PacketSize)
+	skipped := 0
+	for stopwatch.Elapsed() < length {
+		n, err := stream.Read(buf)
+		skipped += n
+		if err != nil {
+			return err
+		}
+	}
+	if rest := skipped % ts.PacketSize; rest != 0 {
+		if _, err := io.CopyN(io.Discard, stream, int64(ts.PacketSize-rest)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (r *Recorder) copyUntilEnd(ctx context.Context, tracker *endTracker, stream io.ReadCloser, seg *segment) (*ts.Stats, endReason, error) {
 	tracker.watch(seg.analyzer)
 	ended := make(chan endReason, 1)
@@ -1212,7 +1258,8 @@ func (r *Recorder) start(ctx context.Context, reservation *sqlc.GetReservationFo
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		started, err := sqlc.New(tx).StartRecording(ctx, sqlc.StartRecordingParams{
 			ID: id.New(), ReservationID: &reservation.ID, ServiceID: reservation.ServiceID, EventID: reservation.EventID,
-			Name: reservation.Name, Description: reservation.Description, StartAt: reservation.StartAt, EndAt: reservation.EndAt, Now: r.clock.Now(),
+			Name: reservation.Name, Description: reservation.Description, StartAt: reservation.StartAt, EndAt: reservation.EndAt,
+			RecordedFrom: maxTime(r.clock.Now(), *reservation.PlannedStartAt), Now: r.clock.Now(),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to start the recording: %w", err)
@@ -1390,6 +1437,10 @@ func (r *Recorder) settings(ctx context.Context, reservation *sqlc.GetReservatio
 
 // streamFailure は、ストリームを開けなかったエラーを、録画の失敗の理由にする。
 func streamFailure(err error) FailureReason {
+	// 開いた後に切れたので、チューナーサーバーにはつながっている。
+	if errors.Is(err, errInterruptedBeforeStart) {
+		return FailureStreamInterrupted
+	}
 	// チューナーサーバーは、チューナーの空きを待つ間、応答を返さないことがある。つながってはいるので、チューナーが空いていないとみなす。
 	if errors.Is(err, mirakurun.ErrStreamOpenTimeout) {
 		return FailureTunerUnavailable

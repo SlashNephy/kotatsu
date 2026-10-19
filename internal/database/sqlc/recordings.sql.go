@@ -927,7 +927,7 @@ SELECT $1, $2, $3, $4, $5, $6, $7, $8, 'recording', NULL,
   COALESCE((SELECT p.audios FROM programs p WHERE p.service_id = $3 AND p.event_id = $4), '[]'::jsonb),
   COALESCE((SELECT r.genres FROM reservations r WHERE r.id = $2), '[]'::jsonb),
   m.id, m.name,
-  $9, NULL, $9, $9
+  $9, NULL, $10, $10
 FROM (SELECT 1) AS one
 LEFT JOIN LATERAL (
   SELECT ru.id, ru.name FROM reservation_rules rr JOIN rules ru ON ru.id = rr.rule_id
@@ -948,6 +948,7 @@ type StartRecordingParams struct {
 	Description   string
 	StartAt       time.Time
 	EndAt         time.Time
+	RecordedFrom  time.Time
 	Now           time.Time
 }
 
@@ -959,6 +960,7 @@ type StartRecordingRow struct {
 // 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。新しく始めたかどうかを inserted で返す。
 // 番組の音声の構成は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
 // ジャンルと、一致したルール (最も古いもの) とその名前も、予約から写す。予約やルールを消しても、録画を絞れるようにする (#468)。
+// recorded_from は、録画ファイルに書き始める時刻。チューニングのために早く開いたストリームは、予定の開始まで捨てるので (#847)、now より後になることがある。
 func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error) {
 	row := q.db.QueryRow(ctx, startRecording,
 		arg.ID,
@@ -969,6 +971,7 @@ func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) 
 		arg.Description,
 		arg.StartAt,
 		arg.EndAt,
+		arg.RecordedFrom,
 		arg.Now,
 	)
 	var i StartRecordingRow
