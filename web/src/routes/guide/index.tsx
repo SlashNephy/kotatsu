@@ -20,7 +20,7 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
-import { EmptyState, ErrorBoundary, fromWallClock, PageLoader } from '../../futon';
+import { EmptyState, ErrorBoundary, fromWallClock, PageLoader, useNow } from '../../futon';
 import { loadExtendedHours, saveExtendedHours } from '../../guide/hourNotation';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
 import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
@@ -138,8 +138,10 @@ function Guide() {
   const { t } = useTranslation();
   const navigate = useNavigate({ from: '/guide/' });
   const search = Route.useSearch();
-  // now は、画面を開いた (「現在時刻」を押した) 時刻。日付の移動の基準と、いまの時刻の線に使う。
+  // now は、画面を開いた (「現在時刻」を押した) 時刻。日付の移動とスクロールの基準に使う。
   const [now, setNow] = useState(() => Date.now());
+  // lineNow は、いまの時刻の線を引く時刻。開いたままでも線が進むよう、1 分ごとに進める (#866)。
+  const lineNow = useNow(60_000);
   const today = broadcastDay(now);
   // 日付やビューを変えても、新しい番組表を読み終えるまでは前の番組表を出したままにし、番組表の上に読み込み中を出す。
   // 画面全体を読み込み中にしないよう、読み込みに使う値だけを遅らせる。
@@ -526,7 +528,7 @@ function Guide() {
                 size="sm"
               />
             )}
-            now={now}
+            now={lineNow}
             receivedUntil={
               window.from > today.from
                 ? receivedUntil(

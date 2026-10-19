@@ -15,12 +15,14 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
+import { useDataChanges } from '../changes/DataChanges';
+import type { ChangeChannel } from '../changes/dataChanges';
 import { RecordingCard } from '../recordings/RecordingCard';
 import type { DashboardQuery } from './__generated__/DashboardQuery.graphql';
 import classes from './Dashboard.module.css';
 import { nowPlaying } from './nowPlaying';
 import { broadcastDay, dateOf } from '../guide/layout';
-import { ProgramTitle, toHalfWidth } from '../futon';
+import { nextWakeAt, ProgramTitle, toHalfWidth, useWakeAt } from '../futon';
 import { NowPlayingCard } from '../guide/NowPlayingCard';
 import { ServiceLabel } from '../guide/ServiceLabel';
 import { zonedFormat } from '../futon';
@@ -44,10 +46,25 @@ const recentRecordings = 6;
 
 export type DashboardRange = { now: number; nowEnd: string; from: string; to: string };
 
+// homeChannels は、ホームに関わるデータの種類。変わったら、読み直す (#866)。
+const homeChannels: readonly ChangeChannel[] = [
+  'EPG',
+  'RESERVATIONS',
+  'ASSIGNMENTS',
+  'RESERVATION_CONFLICTS',
+  'TUNERS',
+];
+
+// maxWaitMs は、時刻で読み直すまでに待つ最大の時間。放送中の番組がないサービスで、番組が始まるのに気づくのに使う。
+const maxWaitMs = 10 * 60_000;
+
 // Dashboard は、ホームの中身。縮退と予約の競合の警告、これからの予約、最近の録画、放送中の番組を出す (設計書 10.3)。
 // range は、待たない親で決めた時刻。待つ間に決め直すと、読み込みが終わらなくなる。
-export function Dashboard({ range }: { range: DashboardRange }) {
+// onExpire は、放送中の番組が終わったり、予約が始まったりして、range を決め直す時刻になったら呼ぶ。
+export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire: () => void }) {
   const { t } = useTranslation();
+  // 予約やチューナーの状態などが、ほかの端末や neko で変わったら読み直す (#866)。
+  const changes = useDataChanges(homeChannels);
   const data = useLazyLoadQuery<DashboardQuery>(
     graphql`
       query DashboardQuery(
@@ -199,6 +216,7 @@ export function Dashboard({ range }: { range: DashboardRange }) {
       recordings: recentRecordings,
       upcoming: upcomingFetch,
     },
+    { fetchKey: changes, fetchPolicy: 'store-and-network' },
   );
   // 放送中の番組を、チャンネルの種類ごとに分ける。番組のない種類は、選べないようにする。
   // これからの予約は、まだ始まっていないものだけにする。始まった予約は、録画中として最近の録画に出る。
@@ -215,6 +233,18 @@ export function Dashboard({ range }: { range: DashboardRange }) {
     }))
     .filter((channelType) => channelType.playing.length > 0);
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  // 放送中の番組が終わる時刻か、これからの予約が始まる時刻のうち、最も早いものに読み直す。
+  useWakeAt(
+    nextWakeAt(
+      [
+        ...data.guide.flatMap((row) => row.programs.map((program) => program.endAt)),
+        ...upcoming.map(({ node }) => node.startAt),
+      ],
+      range.now,
+      maxWaitMs,
+    ),
+    onExpire,
+  );
   const current =
     playingByType.find((channelType) => channelType.type === selectedType) ?? playingByType[0];
   const playing = current?.playing ?? [];
