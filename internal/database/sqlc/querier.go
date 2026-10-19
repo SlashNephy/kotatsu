@@ -142,6 +142,8 @@ type Querier interface {
 	// プレイヤーの設定。一度も変えていなければ、既定値を返す。
 	GetPlayerSettings(ctx context.Context, userID uuid.UUID) (GetPlayerSettingsRow, error)
 	GetPlayerVersion(ctx context.Context, userID uuid.UUID) (int64, error)
+	// サービスで now に放送中の番組の、映像の解像度を返す (#806)。番組がなければ行を返さない。
+	GetPresentVideoResolution(ctx context.Context, arg GetPresentVideoResolutionParams) (*string, error)
 	// 録画中の番組の、今の EPG の終了時刻と、未定かどうか。番組が EPG から消えていれば行を返さない。
 	GetProgramEnd(ctx context.Context, arg GetProgramEndParams) (GetProgramEndRow, error)
 	// ファイル名のテンプレートのプレビューに当てはめる、番組とサービスの情報。
@@ -505,7 +507,7 @@ type Querier interface {
 	SetUserPassword(ctx context.Context, arg SetUserPasswordParams) (int64, error)
 	SetupTokenExists(ctx context.Context, tokenHash []byte) (bool, error)
 	// 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。新しく始めたかどうかを inserted で返す。
-	// 番組の音声の構成は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
+	// 番組の音声の構成と映像の解像度は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
 	// ジャンルと、一致したルール (最も古いもの) とその名前も、予約から写す。予約やルールを消しても、録画を絞れるようにする (#468)。
 	// recorded_from は、録画ファイルに書き始める時刻。チューニングのために早く開いたストリームは、予定の開始まで捨てるので (#847)、now より後になることがある。
 	StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error)

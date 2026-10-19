@@ -2192,6 +2192,67 @@ func (e VideoCodec) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// 放送の映像の種類 (設計書 7.1)。再生の経路を選ぶのに使う (#806)。
+type VideoFormat string
+
+const (
+	// 2K 以下の映像 (地上波、BS、CS)。ブラウザ内での変換で再生できる。
+	VideoFormatHd VideoFormat = "HD"
+	// BS4K の 2160p の HEVC。ブラウザ内での変換では再生できない。
+	VideoFormatUhd VideoFormat = "UHD"
+	// BS8K の 4320p の HEVC。ブラウザでは再生できない。
+	VideoFormatShv VideoFormat = "SHV"
+)
+
+var AllVideoFormat = []VideoFormat{
+	VideoFormatHd,
+	VideoFormatUhd,
+	VideoFormatShv,
+}
+
+func (e VideoFormat) IsValid() bool {
+	switch e {
+	case VideoFormatHd, VideoFormatUhd, VideoFormatShv:
+		return true
+	}
+	return false
+}
+
+func (e VideoFormat) String() string {
+	return string(e)
+}
+
+func (e *VideoFormat) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = VideoFormat(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid VideoFormat", str)
+	}
+	return nil
+}
+
+func (e VideoFormat) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *VideoFormat) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e VideoFormat) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 // Webhook で送る形式 (設計書 6.2)。
 type WebhookFormat string
 

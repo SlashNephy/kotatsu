@@ -36,7 +36,7 @@ func (Service) IsNode() {}
 // StreamURL は、ライブ視聴の TS を流す URL のパス。tenban の GET /streams/services/{id} で、Mirakurun のサービス ID を使う。
 // IsNode と揃えて、値のレシーバーにする。
 func (s Service) StreamURL() string {
-	return fmt.Sprintf("/streams/services/%d", s.mirakurunID())
+	return fmt.Sprintf("/streams/services/%d", s.MirakurunID())
 }
 
 // LogoURL は、ロゴの画像の URL のパス。tenban の GET /media/services/{id}/logo で、Mirakurun のサービス ID を使う。
@@ -46,11 +46,11 @@ func (s Service) LogoURL() *string {
 		return nil
 	}
 
-	return new(fmt.Sprintf("/media/services/%d/logo", s.mirakurunID()))
+	return new(fmt.Sprintf("/media/services/%d/logo", s.MirakurunID()))
 }
 
-// mirakurunID は、Mirakurun のサービス ID。
-func (s Service) mirakurunID() int64 {
+// MirakurunID は、Mirakurun のサービス ID。DB の services の ID と同じ。
+func (s Service) MirakurunID() int64 {
 	return int64(s.NetworkID)*mirakurunServiceIDBase + int64(s.ServiceID)
 }
 

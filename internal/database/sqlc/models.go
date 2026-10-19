@@ -194,6 +194,7 @@ type Program struct {
 	Genres                []byte
 	RelatedItems          []byte
 	Audios                []byte
+	VideoResolution       *string
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }
@@ -215,6 +216,7 @@ type ProgramArchive struct {
 	Genres                []byte
 	RelatedItems          []byte
 	Audios                []byte
+	VideoResolution       *string
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	ArchivedAt            time.Time
@@ -238,6 +240,7 @@ type Recording struct {
 	Scrambled          int64
 	Gaps               []byte
 	Audios             []byte
+	VideoResolution    *string
 	Genres             []byte
 	RuleID             *uuid.UUID
 	RuleName           *string

@@ -72,6 +72,11 @@ func (r *recordingResolver) StreamQuality(ctx context.Context, obj *model.Record
 	return r.streamQuality(ctx, obj)
 }
 
+// VideoFormat is the resolver for the videoFormat field.
+func (r *recordingResolver) VideoFormat(ctx context.Context, obj *model.Recording) (model.VideoFormat, error) {
+	return r.recordingVideoFormat(ctx, obj)
+}
+
 // Rule is the resolver for the rule field.
 func (r *recordingResolver) Rule(ctx context.Context, obj *model.Recording) (*model.Rule, error) {
 	return r.recordingRule(ctx, obj)

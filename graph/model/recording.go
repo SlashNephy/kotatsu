@@ -39,6 +39,8 @@ type Recording struct {
 	JikkyoCommentsURL  string                  `json:"jikkyoCommentsUrl"`
 	// ServiceKey は、Mirakurun のサービス ID。スキーマには出さない。
 	ServiceKey int64 `json:"-"`
+	// VideoResolution は、録画を始めたときの番組の映像の解像度。分からなければ nil。スキーマには出さず、videoFormat のリゾルバーで使う。
+	VideoResolution *string `json:"-"`
 	// RuleKey は、録画を始めたときに一致していたルールの ID。スキーマには出さず、rule のリゾルバーで引く。
 	RuleKey *uuid.UUID `json:"-"`
 }

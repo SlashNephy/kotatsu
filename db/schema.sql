@@ -497,6 +497,8 @@ CREATE TABLE programs (
   genres jsonb NOT NULL,
   related_items jsonb NOT NULL,
   audios jsonb NOT NULL DEFAULT '[]',
+  -- 映像の解像度 (2160p、4320p など、Mirakurun の video.resolution)。上流が返さなければ NULL。BS4K と 8K を見分けるのに使う (#806)。
+  video_resolution text,
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   PRIMARY KEY (service_id, event_id)
@@ -538,6 +540,7 @@ CREATE TABLE program_archives (
   genres jsonb NOT NULL,
   related_items jsonb NOT NULL,
   audios jsonb NOT NULL DEFAULT '[]',
+  video_resolution text,
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   archived_at timestamptz NOT NULL,
@@ -735,6 +738,8 @@ CREATE TABLE recordings (
   gaps jsonb NOT NULL DEFAULT '[]',
   -- 録画を始めたときの番組の音声の構成 (programs.audios の写し)。時刻予約や、番組がないときは空にする。
   audios jsonb NOT NULL DEFAULT '[]',
+  -- 録画を始めたときの番組の映像の解像度 (programs.video_resolution の写し)。分からなければ NULL。
+  video_resolution text,
   -- 録画を始めたときの予約のジャンル (reservations.genres の写し)。予約を消しても、ジャンルで絞れるようにする (#468)。
   genres jsonb NOT NULL DEFAULT '[]',
   -- 録画を始めたときに予約に一致していたルール (最も古いもの) と、その名前 (#468)。ルールを消すと ID は NULL になり、名前は残る。

@@ -105,6 +105,26 @@ func (q *Queries) GetGuideProgram(ctx context.Context, arg GetGuideProgramParams
 	return i, err
 }
 
+const getPresentVideoResolution = `-- name: GetPresentVideoResolution :one
+SELECT video_resolution FROM programs
+WHERE service_id = $1 AND start_at <= $2 AND (end_undecided OR end_at > $2)
+ORDER BY start_at DESC
+LIMIT 1
+`
+
+type GetPresentVideoResolutionParams struct {
+	ServiceID int64
+	Now       time.Time
+}
+
+// サービスで now に放送中の番組の、映像の解像度を返す (#806)。番組がなければ行を返さない。
+func (q *Queries) GetPresentVideoResolution(ctx context.Context, arg GetPresentVideoResolutionParams) (*string, error) {
+	row := q.db.QueryRow(ctx, getPresentVideoResolution, arg.ServiceID, arg.Now)
+	var video_resolution *string
+	err := row.Scan(&video_resolution)
+	return video_resolution, err
+}
+
 const listChannelTypes = `-- name: ListChannelTypes :many
 SELECT type, display_name, sort_order FROM channel_types ORDER BY sort_order, type
 `

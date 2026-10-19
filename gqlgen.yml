@@ -45,6 +45,8 @@ models:
         resolver: true
       jikkyo:
         resolver: true
+      videoFormat:
+        resolver: true
   Program:
     model: github.com/SlashNephy/kotatsu/graph/model.Program
     fields:
@@ -74,6 +76,8 @@ models:
     model: github.com/SlashNephy/kotatsu/graph/model.Recording
     fields:
       service:
+        resolver: true
+      videoFormat:
         resolver: true
       watchFrame:
         resolver: true

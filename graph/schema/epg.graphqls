@@ -31,6 +31,8 @@ type Service implements Node {
   logoUrl: String
   "ニコニコ実況のチャンネル (設計書 7.4)。対応するチャンネルがないか、NX-Jikkyo が扱っていなければ null。"
   jikkyo: JikkyoChannel
+  "放送中の番組の映像の種類 (#806)。番組の映像の解像度が分からなければ、チャンネル種別から決める。"
+  videoFormat: VideoFormat!
 }
 
 "NX-Jikkyo の実況のチャンネル。"

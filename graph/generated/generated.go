@@ -543,6 +543,7 @@ type ComplexityRoot struct {
 		StreamURL          func(childComplexity int) int
 		Tags               func(childComplexity int) int
 		ThumbnailURL       func(childComplexity int) int
+		VideoFormat        func(childComplexity int) int
 		WatchFrame         func(childComplexity int) int
 		WatchPositionMs    func(childComplexity int) int
 	}
@@ -697,6 +698,7 @@ type ComplexityRoot struct {
 		ServiceID          func(childComplexity int) int
 		SortOrder          func(childComplexity int) int
 		StreamURL          func(childComplexity int) int
+		VideoFormat        func(childComplexity int) int
 	}
 
 	Session struct {
@@ -1002,6 +1004,8 @@ type RecordingResolver interface {
 
 	StreamQuality(ctx context.Context, obj *model.Recording) ([]*model.StreamQuality, error)
 
+	VideoFormat(ctx context.Context, obj *model.Recording) (model.VideoFormat, error)
+
 	Rule(ctx context.Context, obj *model.Recording) (*model.Rule, error)
 
 	WatchFrame(ctx context.Context, obj *model.Recording) (*model.PreviewFrame, error)
@@ -1018,6 +1022,7 @@ type ServiceResolver interface {
 	ChannelType(ctx context.Context, obj *model.Service) (*model.ChannelType, error)
 
 	Jikkyo(ctx context.Context, obj *model.Service) (*model.JikkyoChannel, error)
+	VideoFormat(ctx context.Context, obj *model.Service) (model.VideoFormat, error)
 }
 type SubscriptionResolver interface {
 	Heartbeat(ctx context.Context) (<-chan *time.Time, error)
@@ -3500,6 +3505,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.ThumbnailURL(childComplexity), true
+	case "Recording.videoFormat":
+		if e.ComplexityRoot.Recording.VideoFormat == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.VideoFormat(childComplexity), true
 	case "Recording.watchFrame":
 		if e.ComplexityRoot.Recording.WatchFrame == nil {
 			break
@@ -4101,6 +4112,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Service.StreamURL(childComplexity), true
+	case "Service.videoFormat":
+		if e.ComplexityRoot.Service.VideoFormat == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Service.VideoFormat(childComplexity), true
 
 	case "Session.createdAt":
 		if e.ComplexityRoot.Session.CreatedAt == nil {
@@ -5270,6 +5287,8 @@ type Service implements Node {
   logoUrl: String
   "ニコニコ実況のチャンネル (設計書 7.4)。対応するチャンネルがないか、NX-Jikkyo が扱っていなければ null。"
   jikkyo: JikkyoChannel
+  "放送中の番組の映像の種類 (#806)。番組の映像の解像度が分からなければ、チャンネル種別から決める。"
+  videoFormat: VideoFormat!
 }
 
 "NX-Jikkyo の実況のチャンネル。"
@@ -6105,6 +6124,8 @@ type Recording implements Node {
   gaps: [RecordingGap!]!
   "録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。"
   audios: [ProgramAudio!]!
+  "映像の種類 (#806)。録画を始めたときの番組の映像の解像度から決める。分からなければ、チャンネル種別から決める。"
+  videoFormat: VideoFormat!
   "録画を始めたときの予約のジャンル。時刻予約の録画や、取り込んだ録画では空になる (#468)。"
   genres: [Genre!]!
   "録画を始めたときに予約に一致していたルール (最も古いもの)。番組予約と時刻予約の録画や、ルールを消したときは null。"
@@ -6969,6 +6990,18 @@ extend type Mutation {
 enum VideoCodec {
   H264
   HEVC
+}
+
+"""
+放送の映像の種類 (設計書 7.1)。再生の経路を選ぶのに使う (#806)。
+"""
+enum VideoFormat {
+  "2K 以下の映像 (地上波、BS、CS)。ブラウザ内での変換で再生できる。"
+  HD
+  "BS4K の 2160p の HEVC。ブラウザ内での変換では再生できない。"
+  UHD
+  "BS8K の 4320p の HEVC。ブラウザでは再生できない。"
+  SHV
 }
 
 """
@@ -8009,6 +8042,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_gaps(ctx, field)
 	case "audios":
 		return ec.fieldContext_Recording_audios(ctx, field)
+	case "videoFormat":
+		return ec.fieldContext_Recording_videoFormat(ctx, field)
 	case "genres":
 		return ec.fieldContext_Recording_genres(ctx, field)
 	case "rule":
@@ -8347,6 +8382,8 @@ func (ec *executionContext) childFields_Service(ctx context.Context, field graph
 		return ec.fieldContext_Service_logoUrl(ctx, field)
 	case "jikkyo":
 		return ec.fieldContext_Service_jikkyo(ctx, field)
+	case "videoFormat":
+		return ec.fieldContext_Service_videoFormat(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Service", field.Name)
 }
@@ -19911,6 +19948,29 @@ func (ec *executionContext) fieldContext_Recording_audios(_ context.Context, fie
 	return fc, nil
 }
 
+func (ec *executionContext) _Recording_videoFormat(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_videoFormat(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().VideoFormat(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.VideoFormat) graphql.Marshaler {
+			return ec.marshalNVideoFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐVideoFormat(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_videoFormat(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, true, true, errors.New("field of type VideoFormat does not have child fields"))
+}
+
 func (ec *executionContext) _Recording_genres(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -22719,6 +22779,29 @@ func (ec *executionContext) fieldContext_Service_jikkyo(_ context.Context, field
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Service_videoFormat(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Service_videoFormat(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Service().VideoFormat(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.VideoFormat) graphql.Marshaler {
+			return ec.marshalNVideoFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐVideoFormat(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Service_videoFormat(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Service", field, true, true, errors.New("field of type VideoFormat does not have child fields"))
 }
 
 func (ec *executionContext) _Session_id(ctx context.Context, field graphql.CollectedField, obj *model.Session) (ret graphql.Marshaler) {
@@ -32693,6 +32776,44 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "videoFormat":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Recording_videoFormat(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "genres":
 			out.Values[i] = ec._Recording_genres(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -34084,6 +34205,44 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 				}()
 				res = ec._Service_jikkyo(ctx, field, obj)
 				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "videoFormat":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Service_videoFormat(ctx, field, obj)
+				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res
@@ -37888,6 +38047,16 @@ func (ec *executionContext) unmarshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkot
 }
 
 func (ec *executionContext) marshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐVideoCodec(ctx context.Context, sel ast.SelectionSet, v model.VideoCodec) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNVideoFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐVideoFormat(ctx context.Context, v any) (model.VideoFormat, error) {
+	var res model.VideoFormat
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNVideoFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐVideoFormat(ctx context.Context, sel ast.SelectionSet, v model.VideoFormat) graphql.Marshaler {
 	return v
 }
 

@@ -1,4 +1,4 @@
-h1:cDedrJjkshVVyAGFfVFP1JXb5ScVfaxRYuo+23Tkwgo=
+h1:mgQ93lqEjqS90I7gkOcnCmva0KJxuZHpNXpx7MS78CE=
 20261009102215_init.sql h1:djnv0wCljjLLAM5B5hIIhKRznUe+i3cP9cxgvQGM8xc=
 20261009105537_coordination.sql h1:4kuzfKBnc3dZixraSK3FOFkkX25e2X59okkh0iXnETo=
 20261009114515_audit_events.sql h1:5zL6ffLkLETRIkZis+kRS1SdjTlgdvLW4NNecIsxWQE=
@@ -53,3 +53,4 @@ h1:cDedrJjkshVVyAGFfVFP1JXb5ScVfaxRYuo+23Tkwgo=
 20261018072046_add_oidc_picture.sql h1:gfsBmlY/p0BGuxssriIf/4l+lwDVFzEO2MdkHxsjsEQ=
 20261018094040_add_players.sql h1:cR581WHcQxU4muXQV/yRLHuMwVGXjjENH7EMjSX8MwI=
 20261019122336_add_program_archives_extended_normalized.sql h1:EdNocgN4abXtM7WvWxT1vKQdsUZgkLneVnB8hp03/wo=
+20261019144322_add_video_resolution.sql h1:RRm/rzGvP7IVofv3IR0NpC5gaKKYirwlEAeU7TNmMNA=

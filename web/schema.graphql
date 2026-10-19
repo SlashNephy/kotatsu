@@ -1707,6 +1707,10 @@ type Recording implements Node {
   """
   audios: [ProgramAudio!]!
   """
+  映像の種類 (#806)。録画を始めたときの番組の映像の解像度から決める。分からなければ、チャンネル種別から決める。
+  """
+  videoFormat: VideoFormat!
+  """
   録画を始めたときの予約のジャンル。時刻予約の録画や、取り込んだ録画では空になる (#468)。
   """
   genres: [Genre!]!
@@ -2312,6 +2316,10 @@ type Service implements Node {
   ニコニコ実況のチャンネル (設計書 7.4)。対応するチャンネルがないか、NX-Jikkyo が扱っていなければ null。
   """
   jikkyo: JikkyoChannel
+  """
+  放送中の番組の映像の種類 (#806)。番組の映像の解像度が分からなければ、チャンネル種別から決める。
+  """
+  videoFormat: VideoFormat!
 }
 """
 サービスの表示の変える項目。省いた項目は変えない。
@@ -2749,6 +2757,23 @@ type User implements Node {
 enum VideoCodec {
   H264
   HEVC
+}
+"""
+放送の映像の種類 (設計書 7.1)。再生の経路を選ぶのに使う (#806)。
+"""
+enum VideoFormat {
+  """
+  2K 以下の映像 (地上波、BS、CS)。ブラウザ内での変換で再生できる。
+  """
+  HD
+  """
+  BS4K の 2160p の HEVC。ブラウザ内での変換では再生できない。
+  """
+  UHD
+  """
+  BS8K の 4320p の HEVC。ブラウザでは再生できない。
+  """
+  SHV
 }
 """
 ヘッダーで購読する、ログイン中のユーザーへの知らせ (設計書 9.1)。1 つの知らせには、どれか 1 つだけが入る。

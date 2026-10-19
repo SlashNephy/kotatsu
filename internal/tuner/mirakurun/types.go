@@ -62,6 +62,15 @@ type Program struct {
 	RelatedItems []*RelatedItem `json:"relatedItems,omitempty"`
 	// Audios は、番組の音声の構成。音声コンポーネント記述子ごとに 1 つある。
 	Audios []*Audio `json:"audios,omitempty"`
+	// Video は、番組の映像。EIT のコンポーネント記述子から作られる。上流が返さなければ nil。
+	Video *Video `json:"video,omitempty"`
+}
+
+// Video は、番組の映像。
+type Video struct {
+	// Resolution は、映像の解像度 (480i、1080i、2160p、4320p など)。
+	// Mahiron は BS4K の番組の type を mpeg2 と返すので、映像の種類は Resolution で見分ける (#806)。
+	Resolution string `json:"resolution,omitempty"`
 }
 
 // Start は開始時刻を返す。

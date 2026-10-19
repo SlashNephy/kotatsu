@@ -56,6 +56,14 @@ type Program struct {
 	RelatedItems []*RelatedItem `json:"relatedItems,omitempty"`
 	// Audios は、番組の音声の構成。
 	Audios []*Audio `json:"audios,omitempty"`
+	// Video は、番組の映像。
+	Video *Video `json:"video,omitempty"`
+}
+
+// Video は、番組の映像。Mirakurun の video と同じ形にする。
+type Video struct {
+	Type       string `json:"type"`
+	Resolution string `json:"resolution"`
 }
 
 // Audio は、番組の音声。Mirakurun の audios の要素と同じ形にする。

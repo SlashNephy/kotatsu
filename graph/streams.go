@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
@@ -102,4 +103,42 @@ func (r *Resolver) transcoding(ctx context.Context) (*model.Transcoding, error) 
 	}
 
 	return &model.Transcoding{Available: len(instances) > 0, Presets: presets}, nil
+}
+
+// bs4kChannelType は、BS4K のチャンネル種別。Mahiron が返す (設計書 3.1)。
+const bs4kChannelType = "BS4K"
+
+// videoFormat は、映像の解像度 (分からなければ nil) とチャンネル種別から、映像の種類を決める (#806)。
+// BS4K のチャンネルは、番組の解像度が分からなくても、2K と書かれていても、MPEG-2 ではないので UHD にする。
+func videoFormat(resolution *string, channelType string) model.VideoFormat {
+	switch {
+	case resolution != nil && *resolution == "4320p":
+		return model.VideoFormatShv
+	case resolution != nil && *resolution == "2160p", channelType == bs4kChannelType:
+		return model.VideoFormatUhd
+	default:
+		return model.VideoFormatHd
+	}
+}
+
+// serviceVideoFormat は、サービスで放送中の番組の映像の種類を返す。放送中の番組がなければ、チャンネル種別から決める。
+func (r *Resolver) serviceVideoFormat(ctx context.Context, obj *model.Service) (model.VideoFormat, error) {
+	resolution, err := sqlc.New(r.db).GetPresentVideoResolution(ctx, sqlc.GetPresentVideoResolutionParams{
+		ServiceID: obj.MirakurunID(), Now: r.clock.Now(),
+	})
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("failed to get the video resolution of the present program: %w", err)
+	}
+
+	return videoFormat(resolution, obj.ChannelTypeKey), nil
+}
+
+// recordingVideoFormat は、録画の映像の種類を、録画を始めたときの番組の解像度と、サービスのチャンネル種別から返す。
+func (r *Resolver) recordingVideoFormat(ctx context.Context, obj *model.Recording) (model.VideoFormat, error) {
+	service, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)
+	if err != nil {
+		return "", err
+	}
+
+	return videoFormat(obj.VideoResolution, service.ChannelType), nil
 }
