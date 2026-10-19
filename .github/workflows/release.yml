@@ -114,3 +114,12 @@ jobs:
           git add index.yaml
           git commit -m "chore: publish the kotatsu chart ${REF_NAME#v}"
           git push origin HEAD:gh-pages
+
+  # 更新した index.yaml を、GitHub Pages に配信し直す。Pages はデモと一緒に pages.yml が配信する。
+  pages:
+    needs: chart
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml
