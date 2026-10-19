@@ -9,6 +9,8 @@ import type {
   RulePreviewQuery$data,
   RulePreviewQuery$variables,
 } from './__generated__/RulePreviewQuery.graphql';
+import { useDataChanges } from '../changes/DataChanges';
+import type { ChangeChannel } from '../changes/dataChanges';
 import { ProgramList } from '../conditions/ProgramList';
 import { EmptyState } from '../futon';
 import { ProgramDetail } from '../guide/ProgramDetail';
@@ -51,6 +53,9 @@ const programTime = zonedFormat({
   hourCycle: 'h23',
 });
 
+// previewChannels は、プレビューに関わるデータの種類。
+const previewChannels: readonly ChangeChannel[] = ['EPG'];
+
 // debounceMs は、入力が止まってからプレビューを取るまでの時間。打つたびに問い合わせないようにする。
 const debounceMs = 400;
 
@@ -69,6 +74,8 @@ export function RulePreview({ input, enabled, onPrograms }: Props) {
   onProgramsRef.current = onPrograms;
   // 入力の中身が変わったときだけ取り直す。
   const key = JSON.stringify(input);
+  // 番組表が変わったら、一致する番組を取り直す (#867)。
+  const epgChanges = useDataChanges(previewChannels);
 
   useEffect(() => {
     if (!enabled) {
@@ -118,7 +125,7 @@ export function RulePreview({ input, enabled, onPrograms }: Props) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [key, enabled, environment]);
+  }, [key, enabled, environment, epgChanges]);
 
   return (
     <Card withBorder>
