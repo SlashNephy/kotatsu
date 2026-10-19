@@ -253,4 +253,39 @@ describe('demo recordings', () => {
       target.id,
     );
   });
+
+  it('lists recordings from the oldest when asked', async () => {
+    const executor = newExecutor();
+
+    const result = await executor.execute(
+      'query { recordings(first: 100, order: OLDEST_FIRST) { edges { node { startAt } } } }',
+      {},
+    );
+
+    const starts = (
+      result.data as { recordings: { edges: { node: { startAt: string } }[] } }
+    ).recordings.edges.map((edge) => Date.parse(edge.node.startAt));
+    expect(starts).toEqual(starts.toSorted((a, b) => a - b));
+  });
+
+  it('skips protected, recording, and unknown recordings when deleting many', async () => {
+    const executor = newExecutor();
+    const list = await listRecordings(executor);
+    const removable = list.find((item) => !item.protected && item.state !== 'RECORDING')!;
+    const kept = [
+      list.find((item) => item.protected)!.id,
+      list.find((item) => item.state === 'RECORDING')!.id,
+      'Recording:unknown',
+    ];
+
+    const result = await executor.execute(
+      'mutation ($ids: [ID!]!) { deleteRecordings(ids: $ids) { processed skipped } }',
+      { ids: [removable.id, ...kept] },
+    );
+
+    expect(result.data).toEqual({ deleteRecordings: { processed: 1, skipped: 3 } });
+    const after = (await listRecordings(executor)).map((item) => item.id);
+    expect(after).not.toContain(removable.id);
+    expect(after).toEqual(expect.arrayContaining(kept.slice(0, 2)));
+  });
 });
