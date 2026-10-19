@@ -375,9 +375,11 @@ const jstOffset = 9 * 60 * minute;
 
 // generatePrograms は、now を含む日の前後の番組を、局ごとに隙間なく並べて作る。
 export function generatePrograms(now: number): DemoProgram[] {
-  const today = Math.floor((now + jstOffset) / day) * day - jstOffset;
-  const from = today - 3 * day + 4 * 60 * minute;
-  const to = today + 8 * day + 4 * 60 * minute;
+  // today は、now を含む放送日 (日本時間の 4 時から翌日の 4 時まで) の始まり。
+  const dayStart = jstOffset - 4 * 60 * minute;
+  const today = Math.floor((now + dayStart) / day) * day - dayStart;
+  const from = today - 3 * day;
+  const to = today + 8 * day;
   const programs: DemoProgram[] = [];
 
   for (const service of services) {

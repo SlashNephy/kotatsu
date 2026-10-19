@@ -74,9 +74,10 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
   let viewerSettingsVersion = 0;
 
   // program は、番組に、デモの状態から決まるフィールドを足して返す。
-  const program = (item: DemoProgram, archived = false) => ({
+  // 放送が終わった番組は、アーカイブに移したものとして扱う。
+  const program = (item: DemoProgram) => ({
     ...item,
-    archived,
+    archived: item.end <= now,
     watchReserved: watchReserved.has(item.id),
     reservation: null,
   });
@@ -97,7 +98,7 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
   const node = (id: string) => {
     const found = programsById.get(id);
     if (found !== undefined) {
-      return program(found, found.end <= now);
+      return program(found);
     }
     const view = guideViews.get(id);
     if (view !== undefined) {
@@ -107,7 +108,7 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     return services.find((item) => item.id === id) ?? null;
   };
 
-  // viewerSettingsChanged は、ピン留めや番組表ビューを変えたことを、画面に知らせる。
+  // viewerSettingsChanged は、ピン留め、番組表ビュー、視聴予約を変えたことを、画面に知らせる。
   const viewerSettingsChanged = () => {
     viewerSettingsVersion += 1;
     events.publish({ dataChange: null, viewerSettingsVersion, unreadNotificationCount: null });
@@ -138,7 +139,13 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
       const from = Date.parse(args.from);
       const to = Date.parse(args.to);
       const view = args.view == null ? undefined : guideViews.get(args.view);
-      const ids = args.services ?? view?.services ?? [];
+      // services を指定すると、その局だけを返す。ビューの局の並びは、並べ替えだけに使い、
+      // 並びに無い局は、既定の並びで後ろに置く。
+      const viewOrder = servicesOf(view?.services ?? []);
+      const rows =
+        args.services != null && args.services.length > 0
+          ? servicesOf(args.services)
+          : [...viewOrder, ...services.filter((item) => !viewOrder.includes(item))];
       const conditions: ProgramConditionsInput = {
         genres: view?.genres,
         excludeGenres: view?.excludeGenres,
@@ -146,7 +153,7 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
         freeOnly: view?.freeOnly,
       };
 
-      return (ids.length > 0 ? servicesOf(ids) : services)
+      return rows
         .map((service) => ({
           service,
           programs: programs
@@ -179,7 +186,9 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
             : item.end <= now && item.end > archiveFrom && item.start < archiveTo,
         )
         .filter((item) => matchProgram(item, args.conditions))
-        .map((item) => program(item, archive != null));
+        // 局をまたいで放送の順に並べる。アーカイブは、新しいものから並べる。
+        .toSorted((a, b) => (archive == null ? a.start - b.start : b.start - a.start))
+        .map((item) => program(item));
 
       return paginate(found, args.first, args.after);
     },
@@ -221,13 +230,22 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
       return id;
     },
     setWatchReservation: ({ program: id, reserved }: { program: string; reserved: boolean }) => {
+      const found = programsById.get(id);
+      if (found === undefined) {
+        throw new Error('the program is not found');
+      }
+      // 放送が始まった番組と、過去の番組には付けられない。
+      if (reserved && found.start <= now) {
+        throw new Error('the program has already started');
+      }
       if (reserved) {
         watchReserved.add(id);
       } else {
         watchReserved.delete(id);
       }
+      viewerSettingsChanged();
 
-      return node(id);
+      return program(found);
     },
 
     // Subscription。graphql-js は、流れた値を rootValue にして選択集合を解くので、フィールド名で包む。

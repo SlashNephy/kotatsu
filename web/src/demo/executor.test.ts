@@ -17,6 +17,7 @@ import guideQuery from '../routes/guide/__generated__/guideQuery.graphql';
 import liveServicesQuery from '../routes/live/__generated__/liveServicesQuery.graphql';
 import WatchReserveButtonMutation from '../watch/__generated__/WatchReserveButtonMutation.graphql';
 import { createRootValue } from './data';
+import { generatePrograms } from './epg';
 import { createEventHub } from './events';
 import { createExecutor, type Variables } from './executor';
 
@@ -34,8 +35,10 @@ function text(request: ConcreteRequest): string {
 
 const hour = 60 * 60 * 1000;
 const at = (offset: number) => new Date(now + offset).toISOString();
-// program は、デモの番組の 1 つ (こたつテレビの、3 日前の 4 時からの最初の番組)。
-const program = 'Program:1024:1';
+const programs = generatePrograms(now);
+// past は、放送が終わった番組。upcoming は、これから放送する番組。
+const past = programs.find((item) => item.end <= now)!.id;
+const upcoming = programs.find((item) => item.start > now)!.id;
 
 // 画面が実際に送る query (Relay のコンパイラが生成した本文) を、デモの実行器に流す。
 // スキーマや画面の query が変わって、デモのデータが答えられなくなったら落ちる。
@@ -71,12 +74,12 @@ describe('demo executor answers the queries of the screens', () => {
       request: searchProgramsQuery,
       variables: { conditions: {}, archive: null, first: 50, after: null },
     },
-    { name: 'program detail', request: ProgramDetailQuery, variables: { id: program } },
+    { name: 'program detail', request: ProgramDetailQuery, variables: { id: past } },
     { name: 'pin', request: PinButtonMutation, variables: { id: 'Service:1040', pinned: true } },
     {
       name: 'watch reservation',
       request: WatchReserveButtonMutation,
-      variables: { program, reserved: true },
+      variables: { program: upcoming, reserved: true },
     },
     {
       name: 'create guide view',
@@ -212,5 +215,88 @@ describe('demo guide and search', () => {
     const result = await executor.execute(text(liveServicesQuery), { from: at(0), to: at(1000) });
     const pinned = (result.data as { pinnedServices: { id: string }[] }).pinnedServices;
     expect(pinned.map((item) => item.id)).toEqual(['Service:1032', 'Service:1024']);
+  });
+
+  it('orders the services of a guide view first, and keeps the other services after them', async () => {
+    const { executor } = newExecutor();
+    const created = await executor.execute(text(GuideViewEditorCreateMutation), {
+      input: { name: 'みかん', services: ['Service:1032'] },
+    });
+    const id = (created.data as { createGuideView: { id: string } }).createGuideView.id;
+
+    const viewed = await executor.execute(text(guideQuery), {
+      from: at(0),
+      to: at(hour),
+      view: id,
+    });
+
+    const ids = (viewed.data as { guide: { service: { id: string } }[] }).guide.map(
+      (row) => row.service.id,
+    );
+    expect(ids[0]).toBe('Service:1032');
+    expect(ids.slice(1, 3)).toEqual(['Service:1024', 'Service:1040']);
+    expect(ids).toHaveLength(9);
+  });
+
+  it('returns search results in the order of broadcast across services', async () => {
+    const { executor } = newExecutor();
+
+    const result = await executor.execute(text(searchProgramsQuery), {
+      conditions: {},
+      archive: null,
+      first: 20,
+      after: null,
+    });
+
+    const nodes = (
+      result.data as {
+        searchPrograms: { edges: { node: { startAt: string; service: { id: string } } }[] };
+      }
+    ).searchPrograms.edges.map((edge) => edge.node);
+    const starts = nodes.map((item) => Date.parse(item.startAt));
+    expect(starts).toEqual(starts.toSorted((a, b) => a - b));
+    expect(new Set(nodes.map((item) => item.service.id)).size).toBeGreaterThan(1);
+  });
+
+  it('marks only programs that have ended as archived in the guide', async () => {
+    const { executor } = newExecutor();
+
+    const result = await executor.execute(
+      'query ($from: Time!, $to: Time!) { guide(from: $from, to: $to) { programs { endAt archived } } }',
+      { from: at(-3 * hour), to: at(3 * hour) },
+    );
+
+    const items = (
+      result.data as { guide: { programs: { endAt: string; archived: boolean }[] }[] }
+    ).guide.flatMap((row) => row.programs);
+    expect(items.some((item) => item.archived)).toBe(true);
+    expect(items.every((item) => item.archived === Date.parse(item.endAt) <= now)).toBe(true);
+  });
+});
+
+describe('demo watch reservation', () => {
+  it('tells the other screens about the change', async () => {
+    const { executor } = newExecutor();
+    const results = (await executor.subscribe(text(DataChangesSubscription), {}))[
+      Symbol.asyncIterator
+    ]();
+    const next = results.next();
+
+    await executor.execute(text(WatchReserveButtonMutation), { program: upcoming, reserved: true });
+
+    const { value } = await next;
+    expect(value).toMatchObject({ data: { viewerEvents: { viewerSettingsVersion: 1 } } });
+    await results.return?.();
+  });
+
+  it('refuses a program that has already started', async () => {
+    const { executor } = newExecutor();
+
+    const result = await executor.execute(text(WatchReserveButtonMutation), {
+      program: past,
+      reserved: true,
+    });
+
+    expect(result.errors?.[0]?.message).toBe('the program has already started');
   });
 });
