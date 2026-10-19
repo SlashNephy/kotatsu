@@ -5,6 +5,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
+import { useUnreadNotificationCount } from '../changes/DataChanges';
 import { EmptyState, ErrorBoundary, PageLoader, ProgramTitle, splitProgramMarks } from '../futon';
 import { notificationPath } from '../notifications/link';
 import { splitMessage } from '../notifications/message';
@@ -66,6 +67,12 @@ const pageSize = 100;
 // 開いたときに未読だった通知は、既読にした後に一覧を読み直しても、この画面にいる間は新着として示す。
 function NotificationList() {
   const { t } = useTranslation();
+  // 未読の数が変わったら、一覧を読み直す (#867)。開いている間に届いた通知を出し、既読にした結果も反映する。
+  const unreadChanges = useUnreadChanges();
+  // markedCount は、開いたときの既読の処理を終えた回数。購読が最初の未読の数を送る前に既読にし終えると、
+  // 未読の数の変化に気づけないので、終えたときにも読み直す。
+  const [markedCount, setMarkedCount] = useState(0);
+  const fetchKey = unreadChanges + markedCount;
   const data = useLazyLoadQuery<notificationsListQuery>(
     graphql`
       query notificationsListQuery($first: Int!) {
@@ -87,7 +94,8 @@ function NotificationList() {
     `,
     { first: pageSize },
     // 開くたびに既読にするので、前に開いたときの一覧を使い回さず、取り直してから出す。
-    { fetchPolicy: 'network-only' },
+    // 開いた後に読み直すときは、読み直す間も一覧を出したままにする。
+    { fetchKey, fetchPolicy: fetchKey === 0 ? 'network-only' : 'store-and-network' },
   );
   const [markAll] = useMutation<notificationsMarkAllMutation>(graphql`
     mutation notificationsMarkAllMutation {
@@ -116,7 +124,11 @@ function NotificationList() {
     }
     marked.current = true;
     if (unread > 0) {
-      markAll({ variables: {}, onError: () => setError(true) });
+      markAll({
+        variables: {},
+        onCompleted: () => setMarkedCount((n) => n + 1),
+        onError: () => setError(true),
+      });
     }
   }, [markAll, unread]);
 
@@ -217,4 +229,15 @@ function NotificationMessage({ message, payload }: { message: string; payload: s
       {after}
     </>
   );
+}
+
+// useUnreadChanges は、画面を開いてから未読の通知の数が変わった回数を返す。分からない間 (切れている間) は数えない。
+function useUnreadChanges(): number {
+  const unread = useUnreadNotificationCount();
+  const [state, setState] = useState({ last: unread, changes: 0 });
+  if (unread !== null && unread !== state.last) {
+    setState({ last: unread, changes: state.last === null ? state.changes : state.changes + 1 });
+  }
+
+  return state.changes;
 }
