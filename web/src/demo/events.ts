@@ -9,8 +9,8 @@ export type ViewerEvent = {
 // 画面は、dataChange の版で query を取り直すので (useDataChanges)、mutation の後にここへ流す。
 export type EventHub = {
   publish: (event: ViewerEvent) => void;
-  // listen は、購読をやめるまで、流れた出来事を返し続ける。
-  listen: () => AsyncGenerator<ViewerEvent>;
+  // listen は、return を呼ぶまで、流れた出来事を map で変えて返し続ける。
+  listen: <T>(map: (event: ViewerEvent) => T) => AsyncIterableIterator<T>;
 };
 
 export function createEventHub(): EventHub {
@@ -22,29 +22,49 @@ export function createEventHub(): EventHub {
         listener(event);
       }
     },
-    listen: async function* () {
-      const queue: ViewerEvent[] = [];
-      let wake: (() => void) | undefined;
+    // ジェネレーターで書くと、次の出来事を待っている間に return を呼ばれても、待ちが終わるまで finally に進めず、
+    // リスナーが残る。そこで、待っている next をその場で終わらせられるよう、イテレーターを直に組む。
+    listen: <T>(map: (event: ViewerEvent) => T) => {
+      const queue: T[] = [];
+      let waiting: ((result: IteratorResult<T>) => void) | undefined;
       const listener = (event: ViewerEvent) => {
-        queue.push(event);
-        wake?.();
+        const value = map(event);
+        if (waiting === undefined) {
+          queue.push(value);
+          return;
+        }
+        const resolve = waiting;
+        waiting = undefined;
+        resolve({ done: false, value });
       };
       listeners.add(listener);
-      try {
-        for (;;) {
-          const event = queue.shift();
-          if (event !== undefined) {
-            yield event;
-            continue;
+      const done = (): IteratorResult<T> => ({ done: true, value: undefined });
+
+      const iterator: AsyncIterableIterator<T> = {
+        next: async () => {
+          if (!listeners.has(listener)) {
+            return done();
           }
-          await new Promise<void>((resolve) => {
-            wake = resolve;
+          const value = queue.shift();
+          if (value !== undefined) {
+            return { done: false, value };
+          }
+          return new Promise<IteratorResult<T>>((resolve) => {
+            waiting = resolve;
           });
-          wake = undefined;
-        }
-      } finally {
-        listeners.delete(listener);
-      }
+        },
+        return: async () => {
+          listeners.delete(listener);
+          queue.length = 0;
+          waiting?.(done());
+          waiting = undefined;
+
+          return done();
+        },
+        [Symbol.asyncIterator]: () => iterator,
+      };
+
+      return iterator;
     },
   };
 }

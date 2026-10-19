@@ -32,12 +32,13 @@ function json(body: unknown): Response {
 function interceptFetch(executor: Executor): void {
   const original = window.fetch.bind(window);
   window.fetch = async (input, init) => {
-    const request = new Request(input, init);
-    const url = new URL(request.url);
+    // 横取りしない要求の body を読んでしまわないよう、URL だけを先に見る。
+    const url = new URL(input instanceof Request ? input.url : input, window.location.href);
     if (url.origin !== window.location.origin) {
       return original(input, init);
     }
-    if (url.pathname === '/graphql' && request.method === 'POST') {
+    if (url.pathname === '/graphql') {
+      const request = new Request(input, init);
       const body = (await request.json()) as GraphQLBody;
 
       return json(await executor.execute(body.query ?? '', body.variables ?? {}));

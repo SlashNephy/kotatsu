@@ -43,10 +43,6 @@ export function createRootValue(events: EventHub): object {
     reservations: () => ({ edges: [], pageInfo: emptyPageInfo }),
 
     // Subscription。graphql-js は、流れた値を rootValue にして選択集合を解くので、フィールド名で包む。
-    viewerEvents: async function* () {
-      for await (const event of events.listen()) {
-        yield { viewerEvents: event };
-      }
-    },
+    viewerEvents: () => events.listen((event) => ({ viewerEvents: event })),
   };
 }

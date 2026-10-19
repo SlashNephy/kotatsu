@@ -78,4 +78,16 @@ describe('demo viewerEvents', () => {
     });
     await results.return?.();
   });
+
+  it('ends a pending wait when the subscriber stops', async () => {
+    const { executor } = newExecutor();
+    const results = (await executor.subscribe(text(DataChangesSubscription), {}))[
+      Symbol.asyncIterator
+    ]();
+
+    const pending = results.next();
+    await results.return?.();
+
+    await expect(pending).resolves.toEqual({ done: true, value: undefined });
+  });
 });
