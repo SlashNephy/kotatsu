@@ -615,9 +615,9 @@ type ProgramConditionsInput struct {
 	MinDurationSeconds *int              `json:"minDurationSeconds,omitempty"`
 	MaxDurationSeconds *int              `json:"maxDurationSeconds,omitempty"`
 	FreeOnly           *bool             `json:"freeOnly,omitempty"`
-	// 番組名の印 (囲み文字の中身と、括弧で書いた印。「新」や「字」など) のどれか 1 つを持つ番組を対象にする。
+	// 番組名の囲み文字 (中身で指定する。「新」や「字」など。括弧で書いた [新] なども同じとみなす) のどれか 1 つを持つ番組を対象にする。
 	Marks []string `json:"marks,omitempty"`
-	// どれか 1 つの印を持つ番組を除外する。
+	// どれか 1 つの囲み文字を持つ番組を除外する。
 	ExcludeMarks []string `json:"excludeMarks,omitempty"`
 }
 

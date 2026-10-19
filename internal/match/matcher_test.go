@@ -319,7 +319,7 @@ func TestMatchFoldsCase(t *testing.T) {
 	}
 }
 
-// TestMatchMarks は、番組名の印 (囲み文字と、括弧で書いた印) での照合を確かめる。
+// TestMatchMarks は、番組名の囲み文字 (括弧で書いたものを含む) での照合を確かめる。
 func TestMatchMarks(t *testing.T) {
 	t.Parallel()
 
@@ -348,7 +348,7 @@ func TestMatchMarks(t *testing.T) {
 			want:       true,
 		},
 		{
-			// 番組名の文字の「新」は印ではない。
+			// 番組名の文字の「新」は囲み文字ではない。
 			name:       "plain character is not a mark",
 			conditions: &match.Conditions{Marks: []string{"新"}},
 			modify:     func(p *match.ProgramInput) { p.Name = "新ゆるキャン△" },

@@ -109,7 +109,7 @@ type Conditions struct {
 	MaxDurationSeconds *int `json:"maxDurationSeconds,omitempty"`
 	// FreeOnly は、無料放送に限るかどうか。
 	FreeOnly bool `json:"freeOnly"`
-	// Marks は、番組名の印 (囲み文字の中身と、括弧で書いた印。「新」や「字」など) のどれか 1 つを持つ番組を対象にする。
+	// Marks は、番組名の囲み文字 (中身で指定する。「新」や「字」など。括弧で書いた [新] なども同じとみなす) のどれか 1 つを持つ番組を対象にする。
 	// ExcludeMarks は、どれか 1 つを持つ番組を除外する。
 	// 項目を足す前のバイナリも条件を読めるよう、空なら保存しない。
 	Marks        []string `json:"marks,omitempty"`

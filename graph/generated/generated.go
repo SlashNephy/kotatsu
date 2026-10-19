@@ -5220,9 +5220,9 @@ input ProgramConditionsInput {
   minDurationSeconds: Int
   maxDurationSeconds: Int
   freeOnly: Boolean
-  "番組名の印 (囲み文字の中身と、括弧で書いた印。「新」や「字」など) のどれか 1 つを持つ番組を対象にする。"
+  "番組名の囲み文字 (中身で指定する。「新」や「字」など。括弧で書いた [新] なども同じとみなす) のどれか 1 つを持つ番組を対象にする。"
   marks: [String!]
-  "どれか 1 つの印を持つ番組を除外する。"
+  "どれか 1 つの囲み文字を持つ番組を除外する。"
   excludeMarks: [String!]
 }
 `, BuiltIn: false},
@@ -6473,9 +6473,9 @@ type ProgramConditions {
   minDurationSeconds: Int
   maxDurationSeconds: Int
   freeOnly: Boolean!
-  "番組名の印 (囲み文字の中身と、括弧で書いた印。「新」や「字」など)。どれか 1 つを持つ番組を対象にする。"
+  "番組名の囲み文字 (中身で表す。「新」や「字」など。括弧で書いた [新] なども同じとみなす)。どれか 1 つを持つ番組を対象にする。"
   marks: [String!]!
-  "どれか 1 つを持つ番組を除外する印"
+  "どれか 1 つを持つ番組を除外する囲み文字"
   excludeMarks: [String!]!
 }
 

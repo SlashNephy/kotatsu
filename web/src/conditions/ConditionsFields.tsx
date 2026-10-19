@@ -229,8 +229,8 @@ type KeywordRowsProps = {
   onChange: (rows: KeywordRow[]) => void;
 };
 
-// MarkMultiSelect は、番組名の印 (新、字など) を選ぶ欄。
-// keep は、選択肢になくても残す印。API で保存した、一覧にない印を選んだままにする。
+// MarkMultiSelect は、番組名の囲み文字 (新、字など) を選ぶ欄。
+// keep は、選択肢になくても残す囲み文字。API で保存した、一覧にないものを選んだままにする。
 function MarkMultiSelect({
   label,
   description,

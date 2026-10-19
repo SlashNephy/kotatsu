@@ -237,7 +237,7 @@ func toMatchProgram(row sqlc.ListMatchableProgramsRow) (*match.Program, error) {
 		Duration:    row.EndAt.Sub(row.StartAt),
 		IsFree:      row.IsFree,
 		// 囲み文字を括弧の書き方にする前に正規化した番組名では、囲み文字と番組名の文字を見分けられないので、
-		// 印は正規化する前の番組名から取り出す。
+		// 囲み文字は正規化する前の番組名から取り出す。
 		Marks: epg.Marks(row.Name),
 	}, nil
 }

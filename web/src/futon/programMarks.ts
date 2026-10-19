@@ -34,10 +34,10 @@ const markLabels: Readonly<Record<string, string>> = {
   '\u26BF': '鍵',
 };
 
-// markOptions は、番組の条件で選べる印 (設計書 4.2)。番組名に付く ARIB の囲み文字の中身を、よく使うものから並べる。
-// 括弧で書いた印 ([新] など) も、バックエンドで同じ印とみなす。
+// markOptions は、番組の条件で選べる囲み文字の中身 (設計書 4.2)。番組名に付く ARIB の囲み文字を、よく使うものから並べる。
+// 括弧で書いたもの ([新] など) も、バックエンドで同じ囲み文字とみなす。
 export const markOptions = {
-  // 漢字と仮名の印
+  // 漢字と仮名の囲み文字
   ideographic: [
     '新',
     '終',
@@ -63,7 +63,7 @@ export const markOptions = {
     '販',
     '鍵',
   ],
-  // 英数字の印
+  // 英数字の囲み文字
   alphanumeric: [
     'S',
     'SS',
