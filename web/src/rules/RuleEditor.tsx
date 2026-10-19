@@ -108,6 +108,8 @@ export const ruleEditorRuleFragment = graphql`
       minDurationSeconds
       maxDurationSeconds
       freeOnly
+      marks
+      excludeMarks
     }
     settings {
       poolId

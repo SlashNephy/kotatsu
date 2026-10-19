@@ -796,6 +796,15 @@
     },
     "excludeKeywords": "除外するキーワード",
     "excludeKeywordsDescription": "いずれかのキーワードに一致する番組を除外します（OR検索）。",
+    "marks": "含める印",
+    "marksDescription": "番組名の囲み文字や、[新] のように括弧で書いた印のいずれかを持つ番組を対象とします。",
+    "excludeMarks": "除外する印",
+    "excludeMarksDescription": "いずれかの印を持つ番組を除外します。",
+    "markGroup": {
+      "ideographic": "漢字と仮名",
+      "alphanumeric": "英数字",
+      "others": "その他"
+    },
     "field": {
       "NAME": "番組名",
       "DESCRIPTION": "概要",

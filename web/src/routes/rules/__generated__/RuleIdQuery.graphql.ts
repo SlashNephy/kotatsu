@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b4978be6f62d2fe59cd832d189c43cd2>>
+ * @generated SignedSource<<caa04d505de659f5f23dc7b39e29cd36>>
  * @lightSyntaxTransform
  */
 
@@ -591,6 +591,20 @@ return {
                         "kind": "ScalarField",
                         "name": "freeOnly",
                         "storageKey": null
+                      },
+                      {
+                        "alias": null,
+                        "args": null,
+                        "kind": "ScalarField",
+                        "name": "marks",
+                        "storageKey": null
+                      },
+                      {
+                        "alias": null,
+                        "args": null,
+                        "kind": "ScalarField",
+                        "name": "excludeMarks",
+                        "storageKey": null
                       }
                     ],
                     "storageKey": null
@@ -671,12 +685,12 @@ return {
     ]
   },
   "params": {
-    "cacheID": "03932d206524e8679594d2ff5c008a05",
+    "cacheID": "4c0700deabee74507d9278b904b834c1",
     "id": null,
     "metadata": {},
     "name": "RuleIdQuery",
     "operationKind": "query",
-    "text": "query RuleIdQuery(\n  $id: ID!\n  $skip: Boolean!\n) {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  storagePoolNames\n  systemSettings {\n    recordingDefaults {\n      poolId\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n    }\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  node(id: $id) @skip(if: $skip) {\n    __typename\n    ... on Rule {\n      id\n      ...RuleEditor_rule\n    }\n    id\n  }\n}\n\nfragment RuleEditor_rule on Rule {\n  id\n  createdAt\n  createdBy {\n    displayName\n    id\n  }\n  updatedAt\n  updatedBy {\n    displayName\n    id\n  }\n  name\n  memo\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n    }\n    excludeServices {\n      id\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n  }\n  settings {\n    poolId\n    fileNameTemplate\n    startMarginSeconds\n    endMarginSeconds\n    priority\n    joinSegments\n  }\n  validFrom\n  validUntil\n  avoidDuplicates\n  duplicateWindowDays\n  followEventRelay\n}\n"
+    "text": "query RuleIdQuery(\n  $id: ID!\n  $skip: Boolean!\n) {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  storagePoolNames\n  systemSettings {\n    recordingDefaults {\n      poolId\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n    }\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  node(id: $id) @skip(if: $skip) {\n    __typename\n    ... on Rule {\n      id\n      ...RuleEditor_rule\n    }\n    id\n  }\n}\n\nfragment RuleEditor_rule on Rule {\n  id\n  createdAt\n  createdBy {\n    displayName\n    id\n  }\n  updatedAt\n  updatedBy {\n    displayName\n    id\n  }\n  name\n  memo\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n    }\n    excludeServices {\n      id\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n    marks\n    excludeMarks\n  }\n  settings {\n    poolId\n    fileNameTemplate\n    startMarginSeconds\n    endMarginSeconds\n    priority\n    joinSegments\n  }\n  validFrom\n  validUntil\n  avoidDuplicates\n  duplicateWindowDays\n  followEventRelay\n}\n"
   }
 };
 })();

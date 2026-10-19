@@ -27,6 +27,7 @@ const (
 	minutesPerDay    = 24 * 60
 	minutesPerWeek   = 7 * minutesPerDay
 	maxGenreLevel    = 0xF
+	maxMarkLength    = 16
 )
 
 // ErrInvalidConditions は、条件が正しくないことを表す。
@@ -108,6 +109,11 @@ type Conditions struct {
 	MaxDurationSeconds *int `json:"maxDurationSeconds,omitempty"`
 	// FreeOnly は、無料放送に限るかどうか。
 	FreeOnly bool `json:"freeOnly"`
+	// Marks は、番組名の印 (囲み文字の中身と、括弧で書いた印。「新」や「字」など) のどれか 1 つを持つ番組を対象にする。
+	// ExcludeMarks は、どれか 1 つを持つ番組を除外する。
+	// 項目を足す前のバイナリも条件を読めるよう、空なら保存しない。
+	Marks        []string `json:"marks,omitempty"`
+	ExcludeMarks []string `json:"excludeMarks,omitempty"`
 }
 
 // Validate は、条件が正しいかを確かめる。正しくなければ、理由をすべてまとめた ErrInvalidConditions を返す。
@@ -132,6 +138,8 @@ func (c *Conditions) Validate() error {
 		{"genres", len(c.Genres)},
 		{"excludeGenres", len(c.ExcludeGenres)},
 		{"timeRanges", len(c.TimeRanges)},
+		{"marks", len(c.Marks)},
+		{"excludeMarks", len(c.ExcludeMarks)},
 	} {
 		if list.length > maxListLength {
 			errs = append(errs, invalid("%s must have at most %d items", list.name, maxListLength))
@@ -142,6 +150,8 @@ func (c *Conditions) Validate() error {
 	}
 	errs = append(errs, validateGenres("genres", c.Genres)...)
 	errs = append(errs, validateGenres("excludeGenres", c.ExcludeGenres)...)
+	errs = append(errs, validateMarks("marks", c.Marks)...)
+	errs = append(errs, validateMarks("excludeMarks", c.ExcludeMarks)...)
 	for i, r := range c.TimeRanges {
 		if err := r.validate(); err != nil {
 			errs = append(errs, invalid("timeRanges[%d]: %v", i, err))
@@ -179,6 +189,17 @@ func validateGenres(name string, genres []*Genre) []error {
 	for i, genre := range genres {
 		if genre == nil || !inRange(genre.Lv1) || (genre.Lv2 != nil && !inRange(*genre.Lv2)) {
 			errs = append(errs, invalid("%s[%d] must have lv1 and lv2 between 0 and %d", name, i, maxGenreLevel))
+		}
+	}
+
+	return errs
+}
+
+func validateMarks(name string, marks []string) []error {
+	errs := []error{}
+	for i, mark := range marks {
+		if mark == "" || utf8.RuneCountInString(mark) > maxMarkLength {
+			errs = append(errs, invalid("%s[%d] must be 1 to %d characters", name, i, maxMarkLength))
 		}
 	}
 

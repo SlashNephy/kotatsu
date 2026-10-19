@@ -14,10 +14,11 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { MonitorX, Plus, RadioTower, Search, SearchX, Shapes, Tv, X } from 'lucide-react';
+import { MonitorX, Plus, RadioTower, Search, SearchX, Shapes, Stamp, Tv, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { markOptions } from '../futon/programMarks';
 import { GenreMultiSelect } from '../guide/GenreMultiSelect';
 import { decodeGenre, encodeGenre } from '../guide/guideView';
 import { ServiceLabel } from '../guide/ServiceLabel';
@@ -103,6 +104,20 @@ export function ConditionsFields({ value, onChange, channelTypes, services }: Pr
             icon={<SearchX size={16} aria-hidden />}
             rows={value.excludeKeywords}
             onChange={(excludeKeywords) => onChange({ excludeKeywords })}
+          />
+          <MarkMultiSelect
+            label={t('rules.marks')}
+            description={t('rules.marksDescription')}
+            keep={[...value.marks, ...value.excludeMarks]}
+            value={value.marks}
+            onChange={(marks) => onChange({ marks })}
+          />
+          <MarkMultiSelect
+            label={t('rules.excludeMarks')}
+            description={t('rules.excludeMarksDescription')}
+            keep={[...value.marks, ...value.excludeMarks]}
+            value={value.excludeMarks}
+            onChange={(excludeMarks) => onChange({ excludeMarks })}
           />
         </Stack>
       </Card>
@@ -213,6 +228,44 @@ type KeywordRowsProps = {
   rows: KeywordRow[];
   onChange: (rows: KeywordRow[]) => void;
 };
+
+// MarkMultiSelect は、番組名の印 (新、字など) を選ぶ欄。
+// keep は、選択肢になくても残す印。API で保存した、一覧にない印を選んだままにする。
+function MarkMultiSelect({
+  label,
+  description,
+  keep,
+  value,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  keep: readonly string[];
+  value: string[];
+  onChange: (selected: string[]) => void;
+}) {
+  const { t } = useTranslation();
+  const known: readonly string[] = [...markOptions.ideographic, ...markOptions.alphanumeric];
+  const others = [...new Set(keep)].filter((mark) => !known.includes(mark));
+
+  return (
+    <MultiSelect
+      label={label}
+      description={description}
+      leftSection={<Stamp size={16} aria-hidden />}
+      data={[
+        { group: t('rules.markGroup.ideographic'), items: [...markOptions.ideographic] },
+        { group: t('rules.markGroup.alphanumeric'), items: [...markOptions.alphanumeric] },
+        ...(others.length > 0 ? [{ group: t('rules.markGroup.others'), items: others }] : []),
+      ]}
+      value={value}
+      onChange={onChange}
+      searchable
+      clearable
+      maxDropdownHeight={320}
+    />
+  );
+}
 
 // ServiceMultiSelect は、サービスを選ぶ欄。同じ名前のサービスが別の種別にもあるので、種別とサービス ID を添える。
 function ServiceMultiSelect({

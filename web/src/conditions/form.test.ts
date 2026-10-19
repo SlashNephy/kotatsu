@@ -54,6 +54,8 @@ describe('hasConditions', () => {
     },
     { name: 'チャンネル種別', form: { ...emptyConditions(), channelTypes: ['BS'] }, want: true },
     { name: '最短の長さ', form: { ...emptyConditions(), minDurationSeconds: 1800 }, want: true },
+    { name: '含める印', form: { ...emptyConditions(), marks: ['新'] }, want: true },
+    { name: '除外する印', form: { ...emptyConditions(), excludeMarks: ['再'] }, want: true },
     {
       name: '除外するサービス',
       form: { ...emptyConditions(), excludeServices: ['U2VydmljZTox'] },
@@ -78,6 +80,8 @@ describe('fromConditions と toConditionsInput', () => {
     minDurationSeconds: min,
     maxDurationSeconds: max,
     freeOnly: false,
+    marks: [],
+    excludeMarks: [],
   });
 
   test.each([

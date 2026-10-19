@@ -31,6 +31,8 @@ func toConditions(in *model.ProgramConditionsInput) (*match.Conditions, error) {
 		MinDurationSeconds: in.MinDurationSeconds,
 		MaxDurationSeconds: in.MaxDurationSeconds,
 		FreeOnly:           in.FreeOnly != nil && *in.FreeOnly,
+		Marks:              in.Marks,
+		ExcludeMarks:       in.ExcludeMarks,
 	}
 	if err := conditions.Validate(); err != nil {
 		return nil, NewError(CodeBadUserInput, err.Error())

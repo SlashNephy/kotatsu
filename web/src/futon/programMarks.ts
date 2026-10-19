@@ -34,6 +34,68 @@ const markLabels: Readonly<Record<string, string>> = {
   '\u26BF': '鍵',
 };
 
+// markOptions は、番組の条件で選べる印 (設計書 4.2)。番組名に付く ARIB の囲み文字の中身を、よく使うものから並べる。
+// 括弧で書いた印 ([新] など) も、バックエンドで同じ印とみなす。
+export const markOptions = {
+  // 漢字と仮名の印
+  ideographic: [
+    '新',
+    '終',
+    '再',
+    '初',
+    '生',
+    '前',
+    '後',
+    '字',
+    '二',
+    '多',
+    '解',
+    '双',
+    'デ',
+    '手',
+    '吹',
+    '声',
+    '無',
+    '料',
+    '映',
+    '天',
+    '交',
+    '販',
+    '鍵',
+  ],
+  // 英数字の印
+  alphanumeric: [
+    'S',
+    'SS',
+    'B',
+    'N',
+    'P',
+    'W',
+    'HV',
+    'MV',
+    'SD',
+    'PPV',
+    '2K',
+    '4K',
+    '8K',
+    '3D',
+    'HDR',
+    'SHV',
+    'UHD',
+    '60P',
+    '120P',
+    'HC',
+    '5.1',
+    '7.1',
+    '22.2',
+    'Hi-Res',
+    'Lossless',
+    'VOD',
+    '2ndScr',
+    'd',
+  ],
+} as const;
+
 export type ProgramMarks = {
   // name は、囲み文字を除き、前後の空白を詰めた番組名。
   name: string;

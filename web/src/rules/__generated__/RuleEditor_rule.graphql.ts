@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<cb37c5628f2336a2a763f007bc079ea8>>
+ * @generated SignedSource<<7231b8df1148e5455ace653fd7c94463>>
  * @lightSyntaxTransform
  */
 
@@ -25,6 +25,7 @@ export type RuleEditor_rule$data = {
       readonly regexp: boolean;
       readonly text: string;
     }>;
+    readonly excludeMarks: ReadonlyArray<string>;
     readonly excludeServices: ReadonlyArray<{
       readonly id: string;
     }>;
@@ -40,6 +41,7 @@ export type RuleEditor_rule$data = {
       readonly regexp: boolean;
       readonly text: string;
     }>;
+    readonly marks: ReadonlyArray<string>;
     readonly maxDurationSeconds: number | null | undefined;
     readonly minDurationSeconds: number | null | undefined;
     readonly services: ReadonlyArray<{
@@ -344,6 +346,20 @@ return {
           "kind": "ScalarField",
           "name": "freeOnly",
           "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "marks",
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "excludeMarks",
+          "storageKey": null
         }
       ],
       "storageKey": null
@@ -442,6 +458,6 @@ return {
 };
 })();
 
-(node as any).hash = "f8b3bc083368746e4b682e7818cb83ab";
+(node as any).hash = "076efb35ac79e7b50c3bba858969ae7d";
 
 export default node;

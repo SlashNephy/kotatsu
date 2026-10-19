@@ -276,6 +276,8 @@ func (a *applier) ruleInput(r *Rule) *rule.Input {
 		MinDurationSeconds: r.DurationMin,
 		MaxDurationSeconds: r.DurationMax,
 		FreeOnly:           r.FreeOnly,
+		Marks:              nil,
+		ExcludeMarks:       nil,
 	}
 	// EPGStation は、チャンネルを指定すると、放送波の種類を見ない。
 	if len(r.ChannelIDs) > 0 {

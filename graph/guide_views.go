@@ -49,6 +49,7 @@ func (s *guideViewSettings) conditions() *match.Conditions {
 		ExcludeServiceIDs: []int64{},
 		Genres:            s.Genres, ExcludeGenres: s.ExcludeGenres, TimeRanges: []*match.TimeRange{},
 		MinDurationSeconds: s.MinDurationSeconds, MaxDurationSeconds: nil, FreeOnly: s.FreeOnly,
+		Marks: nil, ExcludeMarks: nil,
 	}
 }
 

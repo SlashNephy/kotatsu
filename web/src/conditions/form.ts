@@ -43,6 +43,10 @@ export type ConditionsForm = {
   minDurationSeconds: number | null;
   maxDurationSeconds: number | null;
   freeOnly: boolean;
+  // marks は、番組名の印 (囲み文字の中身と、括弧で書いた印。「新」や「字」など)。どれか 1 つを持つ番組を対象にする。
+  marks: string[];
+  // excludeMarks は、どれか 1 つを持つ番組を除外する印。
+  excludeMarks: string[];
 };
 
 // KeywordData は、tenban が返すキーワード。
@@ -73,6 +77,8 @@ export type ConditionsData = {
   readonly minDurationSeconds?: number | null;
   readonly maxDurationSeconds?: number | null;
   readonly freeOnly: boolean;
+  readonly marks: readonly string[];
+  readonly excludeMarks: readonly string[];
 };
 
 // emptyKeyword は、キーワードの新しい行。番組名から探す。
@@ -95,6 +101,8 @@ export function emptyConditions(): ConditionsForm {
     minDurationSeconds: null,
     maxDurationSeconds: null,
     freeOnly: false,
+    marks: [],
+    excludeMarks: [],
   };
 }
 
@@ -143,6 +151,8 @@ export function fromConditions(c: ConditionsData): ConditionsForm {
     minDurationSeconds: c.minDurationSeconds ?? null,
     maxDurationSeconds: c.maxDurationSeconds ?? null,
     freeOnly: c.freeOnly,
+    marks: [...c.marks],
+    excludeMarks: [...c.excludeMarks],
   };
 }
 
@@ -167,6 +177,8 @@ export function toConditionsInput(form: ConditionsForm) {
     minDurationSeconds: form.minDurationSeconds,
     maxDurationSeconds: form.maxDurationSeconds,
     freeOnly: form.freeOnly,
+    marks: form.marks,
+    excludeMarks: form.excludeMarks,
   };
 }
 
@@ -185,6 +197,8 @@ export function hasConditions(form: ConditionsForm): boolean {
     c.timeRanges.length > 0 ||
     c.minDurationSeconds != null ||
     c.maxDurationSeconds != null ||
-    c.freeOnly
+    c.freeOnly ||
+    c.marks.length > 0 ||
+    c.excludeMarks.length > 0
   );
 }

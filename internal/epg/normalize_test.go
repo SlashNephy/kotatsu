@@ -19,8 +19,12 @@ func TestNormalize(t *testing.T) {
 		{name: "full-width service name", in: "ＴＯＫＹＯ　ＭＸ１", want: "TOKYO MX1"},
 		{name: "full-width digits and symbols", in: "第１話「ａｂｃ！」", want: "第1話「abc!」"},
 		{name: "half-width katakana", in: "ｱﾆﾒ ﾆｭｰｽ", want: "アニメ ニュース"},
-		// ARIB の囲み文字は、NFKC で中の文字に分解される。「新」や「字」での検索に一致するようになる。
-		{name: "enclosed characters used in EPG", in: "🈟番組名🈑", want: "新番組名字"},
+		// ARIB の囲み文字は、EPGStation と同じく括弧の書き方にする。「[新]」でも「新」でも検索に一致する。
+		{name: "enclosed characters used in EPG", in: "🈟番組名🈑", want: "[新]番組名[字]"},
+		{name: "enclosed characters without NFKC decomposition", in: "番組名🆞⚿", want: "番組名[4K][鍵]"},
+		{name: "enclosed alphabets", in: "番組名🅊🅂", want: "番組名[HV][S]"},
+		// 🈀 (ほか) は番組名の一部なので、括弧にしない。
+		{name: "hoka is part of the name", in: "出演者🈀", want: "出演者ほか"},
 		{name: "keeps letter case", in: "Ｎｅｗｓ", want: "News"},
 	}
 	for _, tt := range tests {
