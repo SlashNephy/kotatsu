@@ -28,13 +28,13 @@ func (Real) Now() time.Time {
 // StartStopwatch は、単調時計で経過時間を測る Stopwatch を返す。
 // Now は UTC にするときに単調時計の読みを落とすので、time.Now をそのまま持つ。
 func (Real) StartStopwatch() Stopwatch {
-	return realStopwatch{start: time.Now()}
+	return &realStopwatch{start: time.Now()}
 }
 
 type realStopwatch struct{ start time.Time }
 
 var _ Stopwatch = new(realStopwatch)
 
-func (s realStopwatch) Elapsed() time.Duration {
+func (s *realStopwatch) Elapsed() time.Duration {
 	return time.Since(s.start)
 }
