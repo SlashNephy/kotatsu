@@ -13,6 +13,7 @@ import {
 import { ScrollText } from 'lucide-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { Fragment, startTransition, useState, type FormEvent } from 'react';
+import { useDataChanges } from '../../changes/DataChanges';
 import { EmptyState } from '../../futon';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
@@ -97,20 +98,24 @@ function AuditLog() {
   const [filter, setFilter] = useState<AuditEventFilter>({});
   const [actionPrefix, setActionPrefix] = useState('');
   const [actor, setActor] = useState<string | null>(null);
+  // 監査ログに残る操作があったら、最初のページを読み直す (#869)。
+  const adminChanges = useDataChanges(['ADMIN']);
   const data = useLazyLoadQuery<auditQuery>(
     query,
     { first: pageSize, after: null, filter },
-    { fetchPolicy: 'store-and-network' },
+    { fetchKey: adminChanges, fetchPolicy: 'store-and-network' },
   );
   // more は、続きの読み込みで足した記録と、その次のカーソル。絞り込みを変えたら捨てる。
+  // 記録が増えて最初のページを読み直したときも捨てる。残すと、最初のページからこぼれた記録が、どちらにも出なくなる。
   const [more, setMore] = useState<{
     filter: AuditEventFilter;
+    changes: number;
     nodes: AuditEvent[];
     next: string | null;
   } | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState(false);
-  const extra = more?.filter === filter ? more : null;
+  const extra = more?.filter === filter && more.changes === adminChanges ? more : null;
   const next = extra !== null ? extra.next : (data.auditEvents.pageInfo.endCursor ?? null);
   const hasMore = extra !== null ? extra.next !== null : data.auditEvents.pageInfo.hasNextPage;
   const events = [...data.auditEvents.edges.map((edge) => edge.node), ...(extra?.nodes ?? [])];
@@ -139,6 +144,7 @@ function AuditLog() {
       if (page !== undefined) {
         setMore({
           filter,
+          changes: adminChanges,
           nodes: [...(extra?.nodes ?? []), ...page.auditEvents.edges.map((edge) => edge.node)],
           next: page.auditEvents.pageInfo.hasNextPage
             ? (page.auditEvents.pageInfo.endCursor ?? null)

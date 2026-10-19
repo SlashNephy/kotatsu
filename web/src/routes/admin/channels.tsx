@@ -16,6 +16,7 @@ import { startTransition, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
+import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
 import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
@@ -79,10 +80,12 @@ function ChannelSettings() {
   const oidc = Route.useLoaderData();
   // fetchKey を変えると、読み直す。読み直す間も画面を出したままにするため、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
+  // ほかの管理者が変えたら、読み直す (#869)。
+  const adminChanges = useDataChanges(['ADMIN']);
   const data = useLazyLoadQuery<channelsQuery>(
     query,
     {},
-    { fetchKey, fetchPolicy: 'store-and-network' },
+    { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);

@@ -5095,6 +5095,8 @@ enum DataChannel {
   TUNERS
   "録画 (#868)"
   RECORDINGS
+  "管理のデータ。監査ログに残る操作で変わる。管理者にだけ届く (#869)"
+  ADMIN
 }
 
 """

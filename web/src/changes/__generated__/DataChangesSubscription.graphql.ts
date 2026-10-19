@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<3e4510a984b3e2147f438e0d7e75a273>>
+ * @generated SignedSource<<0ea869cc3ccfd6ea500c80f19d2f3187>>
  * @lightSyntaxTransform
  */
 
@@ -8,7 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type DataChannel = "ASSIGNMENTS" | "EPG" | "RECORDINGS" | "RESERVATIONS" | "RESERVATION_CONFLICTS" | "RULES" | "TUNERS" | "%future added value";
+export type DataChannel = "ADMIN" | "ASSIGNMENTS" | "EPG" | "RECORDINGS" | "RESERVATIONS" | "RESERVATION_CONFLICTS" | "RULES" | "TUNERS" | "%future added value";
 export type DataChangesSubscription$variables = Record<PropertyKey, never>;
 export type DataChangesSubscription$data = {
   readonly viewerEvents: {

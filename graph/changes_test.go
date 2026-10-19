@@ -151,6 +151,63 @@ func TestDataChangedRequiresLogin(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
+// TestDataChangedAdmin は、管理のデータの変更 (ADMIN) が、管理者にだけ届くことを確かめる (#869)。
+func TestDataChangedAdmin(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		role auth.Role
+		want bool
+	}{
+		{name: "管理者", role: auth.RoleAdmin, want: true},
+		{name: "閲覧者", role: auth.RoleViewer, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixtureWithChanges(t)
+			events := f.as(t, "user", tt.role).subscribe(t, `subscription { dataChanged { channel version } }`)
+			channels := []string{}
+			for range len(dataChannelNames(tt.want)) {
+				var got struct {
+					DataChanged struct {
+						Channel string `json:"channel"`
+					} `json:"dataChanged"`
+				}
+				require.NoError(t, json.Unmarshal(next(t, events), &got))
+				channels = append(channels, got.DataChanged.Channel)
+			}
+			assert.Equal(t, dataChannelNames(tt.want), channels)
+
+			// 管理の変更と、ほかの変更を起こす。2 つの知らせは 1 つにまとまることがあり、届く順は決まらないので、
+			// 届く数で、管理の変更が届いたかを見分ける。管理者でなければ、ほかの変更だけが届く。
+			f.publish(t, notify.AuditChannel)
+			f.publish(t, rule.NotifyChannel)
+			want := []string{`{"dataChanged":{"channel":"RULES","version":1}}`}
+			if tt.want {
+				want = append(want, `{"dataChanged":{"channel":"ADMIN","version":1}}`)
+			}
+			got := make([]string, 0, len(want))
+			for range want {
+				got = append(got, string(next(t, events)))
+			}
+			assert.ElementsMatch(t, want, got)
+		})
+	}
+}
+
+// dataChannelNames は、購読を始めたときに届くデータの種類の名前を、届く順に返す。admin なら ADMIN も含む。
+func dataChannelNames(admin bool) []string {
+	names := []string{"EPG", "RULES", "RESERVATIONS", "ASSIGNMENTS", "RESERVATION_CONFLICTS", "TUNERS", "RECORDINGS"}
+	if admin {
+		names = append(names, "ADMIN")
+	}
+
+	return names
+}
+
 // TestUnreadNotificationCount は、通知が増えたときと、ほかの端末で既読にしたときに、未読の数が届くことを確かめる (設計書 6.2)。
 func TestUnreadNotificationCount(t *testing.T) {
 	t.Parallel()

@@ -30,6 +30,11 @@ import (
 // 録画は recording、library、thumbnail、analysis、epgstation が書くので、互いに import しなくて済むよう、ここに置く。
 const RecordingsChannel = "recordings"
 
+// AuditChannel は、監査ログに残る操作があったことを知らせる変更通知のチャンネル (#869)。
+// 管理の画面 (チャンネル、ユーザー、Webhook、設定、監査ログ) のデータは、どれも監査ログに残る操作で変わるので、
+// 監査ログを書くたびに版数を上げ、管理の画面の読み直しの合図にする。
+const AuditChannel = "audit"
+
 // DefaultPollInterval は、版数をポーリングする既定の間隔。
 const DefaultPollInterval = 5 * time.Second
 
