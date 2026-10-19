@@ -80,7 +80,9 @@ function Enroll() {
             </Button>
           )}
         </CopyButton>
-        <Button onClick={() => window.location.assign('/')}>{t('auth.enroll.continue')}</Button>
+        <Button onClick={() => window.location.assign(import.meta.env.BASE_URL)}>
+          {t('auth.enroll.continue')}
+        </Button>
       </AuthCard>
     );
   }

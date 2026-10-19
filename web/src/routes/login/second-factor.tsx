@@ -54,7 +54,7 @@ function SecondFactor() {
     try {
       await verify();
       // セッションの Cookie が入ったので、画面を読み直して、ログイン後のデータを取り直す。
-      window.location.assign('/');
+      window.location.assign(import.meta.env.BASE_URL);
     } catch (caught) {
       if (caught instanceof AuthError && caught.code === 'LOGIN_REQUIRED') {
         await navigate({ to: '/login' });

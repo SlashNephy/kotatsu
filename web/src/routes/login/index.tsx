@@ -76,7 +76,7 @@ function Login() {
     try {
       await verifyWithPasskey(authApi.beginPasskeyLogin, authApi.confirmPasskeyLogin);
       // セッションの Cookie が入ったので、画面を読み直して、ログイン後のデータを取り直す。
-      window.location.assign('/');
+      window.location.assign(import.meta.env.BASE_URL);
     } catch (caught) {
       setPasskeyError(authErrorMessage(t, caught));
     } finally {

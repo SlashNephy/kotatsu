@@ -10,7 +10,7 @@ import classes from './TsPlayer.module.css';
 
 // wasmURL は、変換に使う WebAssembly の URL。Vite にワーカーへ埋め込ませず、明示的な URL で配信して、
 // ストリーミングコンパイルを効かせる (設計書 7.2)。
-const wasmURL = '/mpeg2toh264/mpeg2toh264_wasm_bg.wasm';
+const wasmURL = `${import.meta.env.BASE_URL}mpeg2toh264/mpeg2toh264_wasm_bg.wasm`;
 
 type Props = {
   // url は、流す TS の URL。null なら、何も読まない。
