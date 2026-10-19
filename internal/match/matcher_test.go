@@ -366,6 +366,12 @@ func TestMatchMarks(t *testing.T) {
 			want:       false,
 		},
 		{
+			name:       "exclude mark wins over include mark",
+			conditions: &match.Conditions{Marks: []string{"新"}, ExcludeMarks: []string{"字"}},
+			modify:     func(p *match.ProgramInput) { p.Name = "🈟ゆるキャン△🈑" },
+			want:       false,
+		},
+		{
 			name:       "exclude mark does not exclude a program without the mark",
 			conditions: &match.Conditions{ExcludeMarks: []string{"再"}},
 			want:       true,

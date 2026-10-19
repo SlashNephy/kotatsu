@@ -22,6 +22,7 @@ func TestMarks(t *testing.T) {
 		// 局によっては括弧で書くので、囲み文字と同じ印とみなす。全角の括弧も同じ。
 		{name: "bracketed marks", in: "[再]番組名【字】（二）", want: []string{"再", "字", "二"}},
 		{name: "bracketed words are mapped to the enclosed labels", in: "番組名[字幕][吹替][無料]", want: []string{"字", "吹", "無"}},
+		{name: "bracketed alphanumeric marks", in: "[HV]番組名[4K][5.1]", want: []string{"HV", "4K", "5.1"}},
 		{name: "duplicates are removed", in: "🈞[再]番組名", want: []string{"再"}},
 		// 番組名の文字の「新」や、印でない括弧は、印ではない。
 		{name: "plain characters are not marks", in: "新番組 再放送 [前編] [劇場版]", want: []string{}},
