@@ -106,22 +106,19 @@ function AuditLog() {
     { fetchKey: adminChanges, fetchPolicy: 'store-and-network' },
   );
   // more は、続きの読み込みで足した記録と、その次のカーソル。絞り込みを変えたら捨てる。
+  // 記録が増えて最初のページを読み直したときも捨てる。残すと、最初のページからこぼれた記録が、どちらにも出なくなる。
   const [more, setMore] = useState<{
     filter: AuditEventFilter;
+    changes: number;
     nodes: AuditEvent[];
     next: string | null;
   } | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState(false);
-  const extra = more?.filter === filter ? more : null;
+  const extra = more?.filter === filter && more.changes === adminChanges ? more : null;
   const next = extra !== null ? extra.next : (data.auditEvents.pageInfo.endCursor ?? null);
   const hasMore = extra !== null ? extra.next !== null : data.auditEvents.pageInfo.hasNextPage;
-  // 最初のページを読み直すと、続きで足した記録と重なることがあるので、重なりは除く。
-  const seen = new Set<string>();
-  const events = [
-    ...data.auditEvents.edges.map((edge) => edge.node),
-    ...(extra?.nodes ?? []),
-  ].filter((event) => !seen.has(event.id) && seen.add(event.id));
+  const events = [...data.auditEvents.edges.map((edge) => edge.node), ...(extra?.nodes ?? [])];
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const apply = (event: FormEvent) => {
@@ -147,6 +144,7 @@ function AuditLog() {
       if (page !== undefined) {
         setMore({
           filter,
+          changes: adminChanges,
           nodes: [...(extra?.nodes ?? []), ...page.auditEvents.edges.map((edge) => edge.node)],
           next: page.auditEvents.pageInfo.hasNextPage
             ? (page.auditEvents.pageInfo.endCursor ?? null)
