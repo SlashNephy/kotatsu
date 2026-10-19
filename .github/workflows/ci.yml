@@ -234,6 +234,8 @@ jobs:
       - run: mise run web:test
       - run: mise run web:storybook
       - run: mise run web:build
+      # デモ (#832) も、スキーマや画面の変更でビルドが通らなくなっていないかを確かめる。
+      - run: mise run web:demo
       - run: git add -N . && git diff --exit-code
       # Playwright のブラウザは、web/package.json で固定した @playwright/test の版に合わせて入れる。
       - run: pnpm exec playwright install --with-deps chromium

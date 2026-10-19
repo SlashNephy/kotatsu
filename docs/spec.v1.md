@@ -1248,6 +1248,14 @@ EPGStationのAPIで番組表と録画を読むクライアント（[kiririn](htt
 Vite+ はnpmのdevDependencyとして導入し、Node.jsのバージョンはmiseで固定します。
 Vite+ にもNode.jsのバージョンを管理する機能（`vp env`）がありますが、miseと役割が重なるので使いません。
 
+tenbanを動かさずに画面を触れる、静的なデモも同じソースからビルドします（`mise run web:demo`、#832）。
+`vp build --mode demo`のときだけ、GraphQLと`/auth/*`の応答をブラウザの中で返します。
+GraphQLは、graphql-jsで`schema.graphql`をメモリ上のデータに対して実行します。
+`/auth/*`は、いつもログインしているものとして答えます。
+デモはGitHub Pagesの`/kotatsu/demo/`に置くので、ルーターと静的なファイルのURLはViteの`base`に従います。
+Service Workerは作らず、登録もしません。
+通常のビルドは`import.meta.env.MODE`の比較でデモのコードを除き、tenbanに埋め込むSPAには含めません。
+
 ### 10.2 見た目の方針
 
 - テーマは2つ用意します。既定ではOSの設定に従い、ユーザーが切り替えられます。ライトテーマは、生成り色の背景にみかん色のアクセントを合わせます。ダークテーマ（夜のこたつ）は、真っ黒の代わりに、温かみのある焦げ茶を基調にします。

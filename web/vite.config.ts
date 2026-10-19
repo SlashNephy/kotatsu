@@ -33,7 +33,8 @@ function inlineAppleTouchIcon(): Plugin {
   };
 }
 
-export default defineConfig({
+// mode が demo のときは、静的なデモ (#832) をビルドする。`vp build --mode demo --base /kotatsu/demo/` で使う。
+export default defineConfig(({ mode }) => ({
   plugins: lazyPlugins(() => [
     // Relay のコンパイラが routes/ に生成する __generated__ は、ルートではない。
     tanstackRouter({
@@ -46,7 +47,9 @@ export default defineConfig({
     // graphql`...` を、Relay のコンパイラが生成したアーティファクトの import に置き換える。
     babel({ presets: [reactCompilerPreset()], plugins: [['relay', { eagerEsModules: true }]] }),
     // PWA の外枠 (設計書 10.1)。Web Push の受信とナビゲーションは、自前の Service Worker (src/sw.ts) に書く。
+    // デモは Service Worker を登録しないので、作らない。
     VitePWA({
+      disable: mode === 'demo',
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',
@@ -137,4 +140,4 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['src/test/setup.ts'],
   },
-});
+}));
