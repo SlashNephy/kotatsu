@@ -9,6 +9,12 @@ const enclosedMark = new RegExp(`[${enclosedClass}]`, 'gu');
 // enclosedMarks は、続いた囲み文字と、その前後の空白。
 const enclosedMarks = new RegExp(`\\s*(?:[${enclosedClass}]\\s*)+`, 'gu');
 const enclosedLabels = new Map(enclosedCharacters.map((c) => [c.character, c.label]));
+const enclosedDescriptions = new Map(enclosedCharacters.map((c) => [c.label, c.description]));
+
+// markDescription は、囲み文字の中身の説明 (新なら新番組) を返す。表にない中身なら undefined。
+export function markDescription(label: string): string | undefined {
+  return enclosedDescriptions.get(label);
+}
 
 // markOptions は、番組の条件で選べる囲み文字の中身を、まとまりごとに表の順に並べる (設計書 4.2)。
 // 括弧で書いたもの ([新] など) も、バックエンドで同じ囲み文字とみなす。

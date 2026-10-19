@@ -30,11 +30,13 @@ func main() {
 	write("export type EnclosedCharacter = {\n")
 	write("  readonly character: string;\n")
 	write("  readonly label: string;\n")
+	write("  readonly description: string;\n")
 	write("  readonly group: EnclosedGroup;\n")
 	write("};\n\n")
 	write("export const enclosedCharacters: readonly EnclosedCharacter[] = [\n")
 	for _, c := range epg.EnclosedCharacters() {
-		write("  { character: '\\u{%X}', label: '%s', group: '%s' },\n", c.Character, c.Label, c.Group)
+		write("  {\n    character: '\\u{%X}',\n    label: '%s',\n    description: '%s',\n    group: '%s',\n  },\n",
+			c.Character, c.Label, c.Description, c.Group)
 	}
 	write("];\n")
 

@@ -13,12 +13,13 @@ import {
   Text,
   TextInput,
   Title,
+  Tooltip,
 } from '@mantine/core';
 import { Minus, MonitorX, Plus, RadioTower, Search, SearchX, Shapes, Tv, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { markOptions } from '../futon/programMarks';
+import { markDescription, markOptions } from '../futon/programMarks';
 import { GenreMultiSelect } from '../guide/GenreMultiSelect';
 import { decodeGenre, encodeGenre } from '../guide/guideView';
 import { ServiceLabel } from '../guide/ServiceLabel';
@@ -282,31 +283,45 @@ function MarkChips({
           <Group gap={4}>
             {group.items.map((mark) => {
               const excluded = excludeMarks.includes(mark);
+              const description = markDescription(mark);
+              const name =
+                description === undefined
+                  ? mark
+                  : t('rules.markWithDescription', { mark, description });
 
               return (
-                <Chip
+                // Chip の根は見えない input を包むので、ツールチップは外側の要素に付ける。
+                <Tooltip
                   key={mark}
-                  size="xs"
-                  checked={excluded || marks.includes(mark)}
-                  onChange={() => cycle(mark)}
-                  color={excluded ? 'red' : undefined}
-                  icon={
-                    excluded ? (
-                      <Minus size={12} strokeWidth={3} aria-hidden />
-                    ) : (
-                      <Plus size={12} strokeWidth={3} aria-hidden />
-                    )
-                  }
-                  aria-label={
-                    excluded
-                      ? t('rules.markState.exclude', { mark })
-                      : marks.includes(mark)
-                        ? t('rules.markState.include', { mark })
-                        : mark
-                  }
+                  label={description}
+                  disabled={description === undefined}
+                  withArrow
                 >
-                  {mark}
-                </Chip>
+                  <span>
+                    <Chip
+                      size="xs"
+                      checked={excluded || marks.includes(mark)}
+                      onChange={() => cycle(mark)}
+                      color={excluded ? 'red' : undefined}
+                      icon={
+                        excluded ? (
+                          <Minus size={12} strokeWidth={3} aria-hidden />
+                        ) : (
+                          <Plus size={12} strokeWidth={3} aria-hidden />
+                        )
+                      }
+                      aria-label={
+                        excluded
+                          ? t('rules.markState.exclude', { mark: name })
+                          : marks.includes(mark)
+                            ? t('rules.markState.include', { mark: name })
+                            : name
+                      }
+                    >
+                      {mark}
+                    </Chip>
+                  </span>
+                </Tooltip>
               );
             })}
           </Group>

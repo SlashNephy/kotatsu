@@ -798,14 +798,14 @@
     "excludeKeywordsDescription": "いずれかのキーワードに一致する番組を除外します（OR検索）。",
     "marks": "囲み文字",
     "marksDescription": "ARIBで定義されている放送用の囲み文字から、番組をフィルタすることができます。",
+    "markWithDescription": "{{mark}}（{{description}}）",
     "markState": {
-      "include": "{{mark}}（含める）",
-      "exclude": "{{mark}}（除外する）"
+      "include": "{{mark}}、含める",
+      "exclude": "{{mark}}、除外する"
     },
     "markGroup": {
-      "popular": "よく使う",
+      "basic": "基本",
       "program": "番組の種類",
-      "accessibility": "字幕・解説・言語",
       "video": "映像",
       "audio": "音声",
       "data": "データ・連携",
