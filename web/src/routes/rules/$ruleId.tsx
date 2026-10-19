@@ -4,6 +4,8 @@ import { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 
+import { useDataChanges } from '../../changes/DataChanges';
+import type { ChangeChannel } from '../../changes/dataChanges';
 import { ErrorBoundary, PageLoader } from '../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { ConditionsForm } from '../../conditions/form';
@@ -72,8 +74,13 @@ function RulePage() {
   );
 }
 
+// ruleChannels は、ルールの詳細に関わるデータの種類。
+const ruleChannels: readonly ChangeChannel[] = ['RULES'];
+
 function Rule({ ruleId }: { ruleId: string }) {
   const isNew = ruleId === newRuleId;
+  // ほかの端末でルールが変わったら、読み直す (#867)。入力を触っていれば、RuleEditor は入れ直さない。
+  const changes = useDataChanges(ruleChannels);
   const data = useLazyLoadQuery<RuleIdQuery>(
     graphql`
       query RuleIdQuery($id: ID!, $skip: Boolean!) {
@@ -116,7 +123,7 @@ function Rule({ ruleId }: { ruleId: string }) {
     // 新しいルールでは node を引かないので、ID は何でもよい。
     { id: isNew ? '' : ruleId, skip: isNew },
     // ストアにある値ですぐに描き、裏で読み直す。読み直した値は、RuleEditor が入力を触っていなければ入れ直す (#533)。
-    { fetchPolicy: 'store-and-network' },
+    { fetchKey: changes, fetchPolicy: 'store-and-network' },
   );
   const node = data.node;
   const rule = useFragment<RuleEditor_rule$key>(

@@ -24,6 +24,8 @@ import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
+import { useDataChanges } from '../changes/DataChanges';
+import type { ChangeChannel } from '../changes/dataChanges';
 import { conditionsFromProgram } from '../conditions/form';
 import { ErrorBoundary, LinkifiedText, ProgramTitle, toHalfWidth } from '../futon';
 import { genreKey } from './genres';
@@ -80,9 +82,14 @@ const timeFormat = zonedFormat({
 });
 
 // onReserved は、録画予約を作れたときに呼ぶ。サイドバーを閉じ、番組表で予約した番組を見せる。
+// detailChannels は、番組の詳細に関わるデータの種類。予約の割り当ての状態も出す。
+const detailChannels: readonly ChangeChannel[] = ['EPG', 'RESERVATIONS', 'ASSIGNMENTS'];
+
 function Detail({ programId, onReserved }: { programId: string; onReserved: () => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  // 番組や予約が、EPG の同期やほかの端末、ルールで変わったら、読み直す (#867)。
+  const changes = useDataChanges(detailChannels);
   const data = useLazyLoadQuery<ProgramDetailQuery>(
     graphql`
       query ProgramDetailQuery($id: ID!) {
@@ -132,6 +139,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
       }
     `,
     { id: programId },
+    { fetchKey: changes, fetchPolicy: 'store-and-network' },
   );
   const [commit, inFlight] = useMutation<ProgramDetailReserveMutation>(graphql`
     mutation ProgramDetailReserveMutation($program: ID!) {
