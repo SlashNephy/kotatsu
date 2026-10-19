@@ -210,6 +210,7 @@ type ProgramArchive struct {
 	Description           string
 	NameNormalized        string
 	DescriptionNormalized string
+	ExtendedNormalized    *string
 	Extended              []byte
 	Genres                []byte
 	RelatedItems          []byte

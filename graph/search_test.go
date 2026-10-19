@@ -241,6 +241,40 @@ func TestSearchArchivedPrograms(t *testing.T) {
 	}
 }
 
+// TestSearchArchivedProgramsByExtended は、アーカイブの番組の詳細を、正規化した列で探せることを確かめる。
+// 列を写す前に移したアーカイブ (列が NULL) は、上流の詳細から正規化して探す (#852)。
+func TestSearchArchivedProgramsByExtended(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		extendedNormalized *string
+	}{
+		{name: "with the normalized column", extendedNormalized: new("出演者\nABC太郎\n")},
+		{name: "moved before the column", extendedNormalized: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			f.syncEPG(t)
+			start := testNow().Add(-5 * 24 * time.Hour)
+			_, err := f.pool.Exec(t.Context(), `INSERT INTO program_archives (
+				service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
+				name_normalized, description_normalized, extended_normalized, extended, genres, related_items, created_at, updated_at, archived_at
+			) SELECT id, 9000, 0, $1, $2, false, true, '過去の番組', '', '過去の番組', '', $3, '{"出演者": "ＡＢＣ太郎"}', '[]', '[]', $1, $1, $2
+			FROM services WHERE name = 'こたつテスト1'`, start, start.Add(30*time.Minute), tt.extendedNormalized)
+			require.NoError(t, err)
+
+			conditions := conditionsInput{Keywords: []keywordInput{{Text: "abc太郎", Regexp: false, CaseSensitive: false, Fields: []string{"EXTENDED"}}}}
+			var got searchResult
+			require.Empty(t, f.query(t, searchQuery, searchVariables(conditions, &archiveInput{}, 50, nil), &got))
+			assert.Equal(t, []string{"過去の番組"}, got.names())
+		})
+	}
+}
+
 func TestSearchProgramsRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 
@@ -530,7 +564,7 @@ func TestSearchProgramsKeywordMatch(t *testing.T) {
 	}{
 		{name: "既定はすべてに一致", keywordMatch: "", want: []string{}},
 		{name: "すべてに一致", keywordMatch: "ALL", want: []string{}},
-		{name: "いずれかに一致", keywordMatch: "ANY", want: []string{programName(5), programName(6)}},
+		{name: "いずれかに一致", keywordMatch: keywordMatchAny, want: []string{programName(5), programName(6)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

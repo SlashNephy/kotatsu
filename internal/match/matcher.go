@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"regexp/syntax"
 	"slices"
 	"strings"
 	"time"
@@ -109,7 +110,9 @@ type Matcher struct {
 // 文字どおりのキーワードを正規表現で探すと、照合の時間の大半を占めるので、文字列の検索にする (#530)。
 type compiledKeyword struct {
 	pattern *regexp.Regexp
-	literal string
+	// prefilter は、pattern に一致しえない文字列を先に落とす絞り込み。絞り込めない正規表現なら nil (#852)。
+	prefilter *prefilter
+	literal   string
 	// fold は、literal を、大文字と小文字を区別せずに探すかどうか。literal は畳んで持つ。
 	fold   bool
 	fields []Field
@@ -171,7 +174,7 @@ func compileKeyword(k *Keyword) (*compiledKeyword, error) {
 			literal = foldCase(literal)
 		}
 
-		return &compiledKeyword{pattern: nil, literal: literal, fold: fold, fields: k.Fields}, nil
+		return &compiledKeyword{pattern: nil, prefilter: nil, literal: literal, fold: fold, fields: k.Fields}, nil
 	}
 	pattern := k.Text
 	if !k.CaseSensitive {
@@ -181,8 +184,13 @@ func compileKeyword(k *Keyword) (*compiledKeyword, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid regular expression: %w", ErrInvalidConditions, err)
 	}
+	// regexp.Compile と同じ構文の規則 (syntax.Perl) で読む。コンパイルできた正規表現なので、読み損なうことはない。
+	parsed, err := syntax.Parse(pattern, syntax.Perl)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid regular expression: %w", ErrInvalidConditions, err)
+	}
 
-	return &compiledKeyword{pattern: compiled, literal: "", fold: false, fields: k.Fields}, nil
+	return &compiledKeyword{pattern: compiled, prefilter: newPrefilter(parsed), literal: "", fold: false, fields: k.Fields}, nil
 }
 
 // hasCase は、s に、大文字と小文字で別の形を持つ文字があるかどうか。
@@ -267,7 +275,7 @@ func (k *compiledKeyword) match(p *Program) bool {
 		var found bool
 		switch {
 		case k.pattern != nil:
-			found = k.pattern.MatchString(p.text(field))
+			found = (k.prefilter == nil || k.prefilter.mayMatch(p, field)) && k.pattern.MatchString(p.text(field))
 		case k.fold:
 			found = strings.Contains(p.foldedText(field), k.literal)
 		default:

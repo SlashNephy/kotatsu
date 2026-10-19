@@ -144,7 +144,7 @@ func TestRules(t *testing.T) {
 	input.ValidFrom, input.ValidUntil = noon, "2026-12-31T15:00:00Z"
 	input.DuplicateWindowDays = new(7)
 	input.Conditions.TimeRanges = []timeRangeInput{{Weekdays: []int{6}, StartMinute: 1200, DurationMinutes: 120}}
-	input.Conditions.KeywordMatch = "ANY"
+	input.Conditions.KeywordMatch = keywordMatchAny
 	var created struct {
 		CreateRule ruleResult `json:"createRule"`
 	}
