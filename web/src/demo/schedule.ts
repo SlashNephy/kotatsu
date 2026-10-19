@@ -563,5 +563,18 @@ export function createScheduler(options: {
       return { processed, skipped: ids.length - processed };
     },
     ruleView: (id: string) => ruleView(ruleOrThrow(id)),
+    // findRule は、ルールを返す。消していれば null。
+    findRule: (id: string) => {
+      const rule = rules.get(id);
+
+      return rule === undefined ? null : ruleView(rule);
+    },
+    // recordingRules は、録画の最初の状態を作るための、今あるルールと、その条件の照合。
+    recordingRules: () =>
+      [...rules.values()].map((rule) => ({
+        id: rule.id,
+        name: rule.input.name,
+        matches: (item: DemoProgram) => conditionsMatch(rule, item),
+      })),
   };
 }

@@ -45,7 +45,7 @@ export const channelTypes = [
 ];
 
 // demoStreamURL は、デモの映像の URL。映像は #857 の 3 段目で用意する。
-const demoStreamURL = `${import.meta.env.BASE_URL}demo/stream.ts`;
+export const demoStreamURL = `${import.meta.env.BASE_URL}demo/stream.ts`;
 
 // logo は、局の頭文字を色の付いた四角に載せた、64×36 の SVG を data: URL で返す。
 function logo(text: string, color: string): string {
