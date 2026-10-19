@@ -181,13 +181,19 @@ func TestDataChangedAdmin(t *testing.T) {
 			}
 			assert.Equal(t, dataChannelNames(tt.want), channels)
 
-			// 管理の変更の後に、ほかの変更を起こし、届く順で、管理の変更が届いたかを見分ける。
+			// 管理の変更と、ほかの変更を起こす。2 つの知らせは 1 つにまとまることがあり、届く順は決まらないので、
+			// 届く数で、管理の変更が届いたかを見分ける。管理者でなければ、ほかの変更だけが届く。
 			f.publish(t, notify.AuditChannel)
 			f.publish(t, rule.NotifyChannel)
+			want := []string{`{"dataChanged":{"channel":"RULES","version":1}}`}
 			if tt.want {
-				assert.JSONEq(t, `{"dataChanged":{"channel":"ADMIN","version":1}}`, string(next(t, events)))
+				want = append(want, `{"dataChanged":{"channel":"ADMIN","version":1}}`)
 			}
-			assert.JSONEq(t, `{"dataChanged":{"channel":"RULES","version":1}}`, string(next(t, events)))
+			got := make([]string, 0, len(want))
+			for range want {
+				got = append(got, string(next(t, events)))
+			}
+			assert.ElementsMatch(t, want, got)
 		})
 	}
 }
