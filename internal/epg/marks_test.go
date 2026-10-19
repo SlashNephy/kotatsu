@@ -26,6 +26,7 @@ func TestMarks(t *testing.T) {
 		{name: "duplicates are removed", in: "🈞[再]番組名", want: []string{"再"}},
 		// 番組名の文字の「新」や、囲み文字でない括弧は、囲み文字ではない。
 		{name: "plain characters are not marks", in: "新番組 再放送 [前編] [劇場版]", want: []string{}},
+		{name: "enclosed characters not in the table are not marks", in: "番組名🄰🈲", want: []string{}},
 		// 🈀 (ほか) は番組名の一部。
 		{name: "hoka is not a mark", in: "出演者🈀", want: []string{}},
 	}

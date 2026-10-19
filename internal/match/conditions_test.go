@@ -74,12 +74,13 @@ func TestValidateRejectsInvalidConditions(t *testing.T) {
 		{
 			name:    "empty mark",
 			modify:  func(c *match.Conditions) { c.Marks[0] = "" },
-			wantErr: "marks[0] must be 1 to 16 characters",
+			wantErr: `marks[0]: unknown enclosed character ""`,
 		},
 		{
-			name:    "too long exclude mark",
-			modify:  func(c *match.Conditions) { c.ExcludeMarks[0] = "あいうえおかきくけこさしすせそたち" },
-			wantErr: "excludeMarks[0] must be 1 to 16 characters",
+			// 🈲 (禁) は、表にない囲み文字。
+			name:    "enclosed character not in the table",
+			modify:  func(c *match.Conditions) { c.ExcludeMarks[0] = "禁" },
+			wantErr: `excludeMarks[0]: unknown enclosed character "禁"`,
 		},
 		{
 			name:    "weekday out of range",

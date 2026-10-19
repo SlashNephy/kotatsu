@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"slices"
 	"unicode/utf8"
+
+	"github.com/SlashNephy/kotatsu/internal/epg"
 )
 
 // SchemaVersion は、JSONB に保存する条件のスキーマのバージョン (設計書 8.3)。
@@ -27,7 +29,6 @@ const (
 	minutesPerDay    = 24 * 60
 	minutesPerWeek   = 7 * minutesPerDay
 	maxGenreLevel    = 0xF
-	maxMarkLength    = 16
 )
 
 // ErrInvalidConditions は、条件が正しくないことを表す。
@@ -198,8 +199,8 @@ func validateGenres(name string, genres []*Genre) []error {
 func validateMarks(name string, marks []string) []error {
 	errs := []error{}
 	for i, mark := range marks {
-		if mark == "" || utf8.RuneCountInString(mark) > maxMarkLength {
-			errs = append(errs, invalid("%s[%d] must be 1 to %d characters", name, i, maxMarkLength))
+		if !epg.IsEnclosedLabel(mark) {
+			errs = append(errs, invalid("%s[%d]: unknown enclosed character %q", name, i, mark))
 		}
 	}
 

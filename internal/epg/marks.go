@@ -16,62 +16,6 @@ var bracketMarkPattern = regexp.MustCompile(`[\[【(（]` +
 	`2K|4K|8K|3D|HDR|SHV|UHD|5\.1|7\.1|22\.2)` +
 	`[\]】)）]`)
 
-// isEnclosedMark は、番組名に入る ARIB の囲み文字かどうかを返す (#434)。
-//   - 英字の囲み文字 (🄰〜🅏、HV や SD などを含む)
-//   - 4K や 5.1 などの囲み文字 (🆛〜🆬)
-//   - 仮名や漢字の囲み文字 (🈁〜)。🈀 (ほか) は、番組名の一部 (「〜ほか」) なので含めない。
-//   - 鍵の囲み文字 (⚿)
-func isEnclosedMark(r rune) bool {
-	return (r >= 0x1F130 && r <= 0x1F14F) || (r >= 0x1F19B && r <= 0x1F1AC) || (r >= 0x1F201 && r <= 0x1F2FF) || r == 0x26BF
-}
-
-// markLabel は、囲み文字の中身 (🈑 なら「字」、🅊 なら「HV」) を返す。
-// NFKC で中身を取り出せない囲み文字は、Unicode の文字名 (SQUARED FOUR K など) から決めた。web の programMarks.ts と同じ表にする。
-func markLabel(r rune) string {
-	switch r {
-	case '\U0001F19B':
-		return "3D"
-	case '\U0001F19C':
-		return "2ndScr"
-	case '\U0001F19D':
-		return "2K"
-	case '\U0001F19E':
-		return "4K"
-	case '\U0001F19F':
-		return "8K"
-	case '\U0001F1A0':
-		return "5.1"
-	case '\U0001F1A1':
-		return "7.1"
-	case '\U0001F1A2':
-		return "22.2"
-	case '\U0001F1A3':
-		return "60P"
-	case '\U0001F1A4':
-		return "120P"
-	case '\U0001F1A5':
-		return "d"
-	case '\U0001F1A6':
-		return "HC"
-	case '\U0001F1A7':
-		return "HDR"
-	case '\U0001F1A8':
-		return "Hi-Res"
-	case '\U0001F1A9':
-		return "Lossless"
-	case '\U0001F1AA':
-		return "SHV"
-	case '\U0001F1AB':
-		return "UHD"
-	case '\U0001F1AC':
-		return "VOD"
-	case '\u26BF':
-		return "鍵"
-	}
-
-	return norm.NFKC.String(string(r))
-}
-
 // bracketMarkLabel は、括弧で書いた語を、囲み文字の中身にそろえる。
 func bracketMarkLabel(word string) string {
 	switch word {
@@ -87,17 +31,17 @@ func bracketMarkLabel(word string) string {
 	return word
 }
 
-// replaceEnclosedMarks は、囲み文字を、EPGStation と同じく [字] のような括弧の書き方に置き換える。
+// replaceEnclosedMarks は、表の囲み文字を、EPGStation と同じく [字] のような括弧の書き方に置き換える。
 func replaceEnclosedMarks(s string) string {
-	if !strings.ContainsFunc(s, isEnclosedMark) {
+	if !strings.ContainsFunc(s, mayBeEnclosed) {
 		return s
 	}
 
 	var b strings.Builder
 	for _, r := range s {
-		if isEnclosedMark(r) {
+		if label, ok := enclosedLabel(r); ok {
 			b.WriteByte('[')
-			b.WriteString(markLabel(r))
+			b.WriteString(label)
 			b.WriteByte(']')
 
 			continue
@@ -120,8 +64,8 @@ func Marks(name string) []string {
 		}
 	}
 	for _, r := range name {
-		if isEnclosedMark(r) {
-			add(markLabel(r))
+		if label, ok := enclosedLabel(r); ok {
+			add(label)
 		}
 	}
 	for _, match := range bracketMarkPattern.FindAllStringSubmatch(norm.NFKC.String(name), -1) {
