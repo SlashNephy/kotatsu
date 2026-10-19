@@ -1,0 +1,73 @@
+name: Pages
+
+# GitHub Pages (https://slashnephy.github.io/kotatsu) に、静的なデモと Helm リポジトリの index.yaml を配信する (設計書 11.1)。
+# デモは /demo/ に置き、main に push するたびに作り直す (#832)。
+# index.yaml は、release.yml が gh-pages ブランチに置く。リリースで更新したら、release.yml がこの workflow を呼ぶ。
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - web/**
+      - .github/workflows/pages.yml
+      - mise.toml
+      - mise.lock
+  workflow_dispatch:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      # pnpm のストア。web/pnpm-lock.yaml が変わったら作り直す。
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+      - run: mise run web:demo
+      - name: Assemble the site
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          site="$RUNNER_TEMP/site"
+          mkdir -p "$site"
+          cp -R web/dist/demo "$site/demo"
+          # Pages は、ないパスに、サイトの直下の 404.html を返す。
+          # デモの深いパス (/demo/login など) を読み直せるよう、デモの index.html を置く。
+          cp web/dist/demo/index.html "$site/404.html"
+          # Helm リポジトリの index.yaml。最初のリリースより前は、gh-pages ブランチがないので載せない。
+          if gh api -H 'Accept: application/vnd.github.raw' "repos/$REPOSITORY/contents/index.yaml?ref=gh-pages" >"$RUNNER_TEMP/index.yaml"; then
+            mv "$RUNNER_TEMP/index.yaml" "$site/index.yaml"
+          fi
+          ls -la "$site"
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # 配信は 1 つずつにし、走っているものは止めずに最後まで出す。
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}demo/
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

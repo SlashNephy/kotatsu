@@ -1319,8 +1319,13 @@ Content Security Policyは厳しく設定します。
 | コンテナイメージ | [2.4](#24-コンテナイメージ)の2種類です。ビルドに使うtsreadexのバージョンは、Renovateで追跡できる形で固定します。 |
 | バイナリ | GoReleaserでGitHub Releasesに置きます。SPAは埋め込み済みです。FFmpegとtsreadexは利用者が別途用意します。 |
 | Helm Chart | GitHub PagesのHelmリポジトリ（`https://slashnephy.github.io/kotatsu`）で配布します。Chartの本体はリリースに添付します。 |
+| デモ | GitHub Pagesの`https://slashnephy.github.io/kotatsu/demo/`に置く、tenbanなしに画面を触れる静的なデモです（[10.1](#101-技術の構成)、#832）。mainにpushするたびに作り直します。 |
 | Kubernetesのマニフェスト | Helm Chartから`helm template`で生成します。 |
 | Docker Composeの例 | `-ffmpeg`イメージの`all`構成とPostgreSQLの組み合わせです。 |
+
+GitHub Pagesは、GitHub Actionsから配信します（`.github/workflows/pages.yml`）。
+HelmリポジトリのChartの一覧（`index.yaml`）は、リリースのworkflowがgh-pagesブランチに置き、デモと一緒に配信します。
+リリースで一覧を更新したときも、配信し直します。
 
 版はCalVerで`YYYY.M.N`（年、月、その月の何回目のリリースか。0から数えます）とし、タグは`v2026.10.0`の形にします。
 HelmのChartの版とイメージのタグはSemVerの形を求めるので、月に0を付けず、数字を3つにします。
