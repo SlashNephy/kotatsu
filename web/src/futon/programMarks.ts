@@ -55,6 +55,7 @@ export const markOptions = {
     '手',
     '吹',
     '声',
+    '演',
     '無',
     '料',
     '映',

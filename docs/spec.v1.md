@@ -465,6 +465,21 @@ Kotatsuを通さずにチューナーを使う利用者（TVTestなど）もい�
 新しいルールの入力は、全体の設定の「ルールを作るときの既定値」（重複の回避とその期間、イベントリレーへの追従）から始めます。ルールは家族で共有するので、既定値も全体で1つにし、管理者が変えます。既定値を変えても、作ったルールは変わりません。番組の条件は既定値に含めません（#470）。
 ルールの条件は、Goの型で定義して検証し、スキーマのバージョンを付けてJSONBに保存します（[8.3](#83-ルールの条件を-jsonb-に保存する理由)）。
 
+画面で選べる囲み文字は次のとおりです。出典は、Unicodeの符号表（Unicode 18.0のU+1F100、U+1F200、U+2600の各ブロック）が、その文字の出どころとして示すARIBの規格です。ARIBの規格書は有料で、公開されている見本には追加記号の表がないため、Unicodeの注記によります（#840）。
+
+| 囲み文字 | 出典 |
+| --- | --- |
+| 新 終 再 初 生 前 後 字 二 多 解 双 デ 手 吹 声 演 無 料 映 天 交 販 | ARIB STD-B24（Squared ideographs and kana from ARIB STD B24） |
+| 鍵（⚿） | ARIB STD-B24（Miscellaneous symbol from ARIB STD B24） |
+| B N P S W | ARIB STD-B24（各文字の注記） |
+| HV MV SD SS PPV | 放送の用語（hdtv、multi-view television、sdtv、surround stereo、pay-per-view）の注記はあるが、ARIBの名はない |
+| 3D 2ndScr 2K 4K 8K 5.1 7.1 22.2 60P 120P d HC HDR Hi-Res Lossless SHV UHD VOD | ARIB STD-B62（Squared Latin letter sequences from ARIB STD B62） |
+
+ARIB由来でも、次のものは選べるようにしていません。
+
+- 野球の囲み文字（投、捕、一、三、遊、左、中、右、指、走、打）と、亀甲括弧の〔本〕〔三〕〔二〕〔安〕〔点〕〔打〕〔盗〕〔勝〕〔敗〕。番組の種類を表すものではないからです。
+- 🈀（ほか）。番組名の一部として扱います（[3.5](#35-検索と照合)）。
+
 ### 4.3 ルールの照合
 
 ルールの照合は、何度実行しても同じ結果になるように作ります。
