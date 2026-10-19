@@ -173,16 +173,22 @@ func tsreadexArgs() []string {
 }
 
 // ffmpegArgs は、FFmpeg の引数を返す。音声は、audio で選んだ tsreadex の出力の音声を 1 つだけ入れる。映像は、どのエンコーダーでも、CPU の yadif でインターレースを解除してから縮める (設計書 7.2)。
-// VAAPI と QSV では、解除した後に GPU へ送って縮める。vod が nil でなければ、録画の仮想 HLS のセグメントを書く。
+// yadif は、インターレースの印のあるフレームだけを解除するので、BS4K のプログレッシブの映像は、そのまま通す。
+// 縮めた後は 8 ビットにする。BS4K の 10 ビットの映像 (HEVC Main10) をそのまま渡すと、x264 は High 10 で書き、
+// ブラウザで再生できない。NVENC は 10 ビットの入力を受け付けない (#806)。
+// VAAPI と QSV では、解除した後に GPU へ送って縮める。NVENC では、映像の復号を GPU (CUDA) でする。BS4K の 2160p の HEVC を CPU で復号すると重いため。
+// vod が nil でなければ、録画の仮想 HLS のセグメントを書く。
 func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod *RunOptions) []string {
 	height := strconv.Itoa(preset.Height)
 	device := []string{}
 	// yadif の mode は、フィールドごとに 1 フレームにするなら 1、フレームごとなら 0。
+	// フィールドごとにするときは、59.94fps に固定する。プログレッシブの 59.94p の入力 (BS4K) では、yadif がフレームを
+	// そのまま通したまま、フレームレートだけを倍 (119.88fps) と記すため。
 	yadif := "yadif=0:-1:1"
 	if preset.Fields {
-		yadif = "yadif=1:-1:1"
+		yadif = "yadif=1:-1:1,fps=60000/1001"
 	}
-	filter := yadif + ",scale=-2:" + height
+	filter := yadif + ",scale=-2:" + height + ",format=yuv420p"
 	var encoder string
 	options := []string{}
 	switch cfg.Encoder {
@@ -196,6 +202,8 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod 
 		filter = yadif + ",format=nv12,hwupload=extra_hw_frames=64,scale_qsv=w=-1:h=" + height
 		encoder = map[Codec]string{CodecH264: "h264_qsv", CodecHEVC: "hevc_qsv"}[preset.Codec]
 	case config.EncoderNVENC:
+		// 復号したフレームは CPU のメモリへ戻し、yadif と縮小は CPU でする。
+		device = []string{"-hwaccel", "cuda"}
 		encoder = map[Codec]string{CodecH264: "h264_nvenc", CodecHEVC: "hevc_nvenc"}[preset.Codec]
 	default:
 		// x264 と x265 は、速さを優先する。
