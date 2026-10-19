@@ -869,12 +869,15 @@ func (w writeErrorWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// skipUntil は、clk が until になるまで stream を読み捨てる。until が過ぎていれば何もしない。
+// skipUntil は、clk の until まで stream を読み捨てる。until が過ぎていれば何もしない。
+// 読み捨てる長さは最初に決め、経過時間で測る。読み捨てている間に壁時計が戻っても、読み捨て続けて冒頭を失わないようにする。
 // 読み捨てた後に書くデータが TS パケットの途中から始まらないよう、パケットの区切りまで読み捨てる。
 func skipUntil(clk clock.Clock, stream io.Reader, until time.Time) error {
+	stopwatch := clk.StartStopwatch()
+	length := until.Sub(clk.Now())
 	buf := make([]byte, 64*ts.PacketSize)
 	skipped := 0
-	for clk.Now().Before(until) {
+	for stopwatch.Elapsed() < length {
 		n, err := stream.Read(buf)
 		skipped += n
 		if err != nil {

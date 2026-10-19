@@ -749,40 +749,64 @@ func TestRecorderWaitsBeforeReopeningShortStreams(t *testing.T) {
 
 // TestRecorderSkipsUntilPlannedStart は、チューニングのために早く開いたストリームを予定の開始まで読み捨て、
 // TS パケットの区切りから書き始めることを確かめる (#847)。開始前のマージンが、チューニングにかかる時間のぶん長くならない。
+// 読み捨てる長さは最初に決め、経過時間で測るので、読み捨てている間に壁時計が戻っても、読み捨て続けない。
 func TestRecorderSkipsUntilPlannedStart(t *testing.T) {
 	t.Parallel()
 
 	data, err := os.ReadFile("../../testdata/ts/test.ts")
 	require.NoError(t, err)
-	f := newFixture(t)
-	reservationID := f.reserve(t, 0)
-	// 1 回の読み込みで 1000 バイト (パケットの区切りではない) を返し、そのたびに 1 秒進める。
-	// チューニングにかかる時間 (5 秒) の前に開くので、5 回読むと予定の開始になる。
-	stream := &tickingStream{data: data, chunk: 1000, tick: func() { f.clock.Advance(time.Second) }}
-	recorder, dir := f.newRecorder(t, stream, nil)
-	_, done := f.session(t, recorder, reservationID)
-	f.clock.Advance(plannedStart().Add(-recording.DefaultTuningTime).Sub(f.clock.Now()))
+	tests := []struct {
+		name string
+		// jump は、2 回目に読んだ後に壁時計を動かす幅。経過時間は動かさない。
+		jump time.Duration
+	}{
+		{name: "壁時計が飛ばない", jump: 0},
+		// 戻った壁時計で予定の開始を待つと、データを流し終えるまで (1000 秒余り) 読み捨て続け、何も書けない。
+		{name: "読み捨てている間に壁時計が 1 時間戻る", jump: -time.Hour},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// 5000 バイトを読み捨て、次のパケットの区切り (27 パケット目の終わり) まで捨てる。
-	skipped := 27 * 188
-	require.Eventually(t, func() bool {
-		files := f.files(t, reservationID)
-		if len(files) != 2 {
-			return false
-		}
-		info, err := os.Stat(filepath.Join(dir, files[1].path))
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			// 1 回の読み込みで 1000 バイト (パケットの区切りではない) を返し、そのたびに 1 秒進める。
+			// チューニングにかかる時間 (5 秒) の前に開くので、5 回読むと予定の開始になる。
+			reads := 0
+			stream := &tickingStream{data: data, chunk: 1000, tick: func() {
+				f.clock.Advance(time.Second)
+				reads++
+				if reads == 2 && tt.jump != 0 {
+					f.clock.Set(f.clock.Now().Add(tt.jump))
+				}
+			}}
+			recorder, dir := f.newRecorder(t, stream, nil)
+			_, done := f.session(t, recorder, reservationID)
+			f.clock.Advance(plannedStart().Add(-recording.DefaultTuningTime).Sub(f.clock.Now()))
 
-		return err == nil && info.Size() == int64(len(data)-skipped)
-	}, waitTimeout, 10*time.Millisecond)
-	var recordedFrom time.Time
-	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT recorded_from FROM recordings WHERE reservation_id = $1", reservationID).Scan(&recordedFrom))
-	assert.True(t, plannedStart().Equal(recordedFrom), "recorded_from %s", recordedFrom)
-	f.clock.Advance(time.Hour)
-	require.NoError(t, wait(t, done))
+			// 5000 バイトを読み捨て、次のパケットの区切り (27 パケット目の終わり) まで捨てる。
+			skipped := 27 * 188
+			require.Eventually(t, func() bool {
+				files := f.files(t, reservationID)
+				if len(files) != 2 {
+					return false
+				}
+				info, err := os.Stat(filepath.Join(dir, files[1].path))
 
-	written, err := os.ReadFile(filepath.Join(dir, f.files(t, reservationID)[1].path))
-	require.NoError(t, err)
-	assert.True(t, bytes.Equal(data[skipped:], written), "the segment starts at the packet boundary after the planned start")
+				return err == nil && info.Size() == int64(len(data)-skipped)
+			}, waitTimeout, 10*time.Millisecond)
+			var recordedFrom time.Time
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT recorded_from FROM recordings WHERE reservation_id = $1", reservationID).
+				Scan(&recordedFrom))
+			assert.True(t, plannedStart().Equal(recordedFrom), "recorded_from %s", recordedFrom)
+			f.clock.Advance(time.Hour - tt.jump)
+			require.NoError(t, wait(t, done))
+
+			written, err := os.ReadFile(filepath.Join(dir, f.files(t, reservationID)[1].path))
+			require.NoError(t, err)
+			assert.True(t, bytes.Equal(data[skipped:], written), "the segment starts at the packet boundary after the planned start")
+		})
+	}
 }
 
 // TestRecorderReopensWhenInterruptedBeforePlannedStart は、予定の開始まで読み捨てている間にストリームが切れたら、
