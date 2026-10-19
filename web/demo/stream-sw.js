@@ -30,10 +30,16 @@ self.addEventListener('fetch', (event) => {
 
 async function paced(href) {
   const response = await fetch(href);
+  // 映像を取れなければ、その応答をそのまま返す。
+  if (!response.ok) {
+    return response;
+  }
   const bytes = new Uint8Array(await response.arrayBuffer());
   const bytesPerSecond = bytes.length / durationSeconds;
   const startedAt = Date.now();
   let offset = 0;
+  // cancelled は、プレイヤーが読むのをやめたかどうか。待っている間にやめていれば、渡さずに終える。
+  let cancelled = false;
 
   const body = new ReadableStream({
     async pull(controller) {
@@ -48,9 +54,15 @@ async function paced(href) {
       if (wait > 0) {
         await new Promise((resolve) => setTimeout(resolve, wait));
       }
+      if (cancelled) {
+        return;
+      }
       const end = Math.min(offset + chunkBytes, bytes.length);
       controller.enqueue(bytes.slice(offset, end));
       offset = end;
+    },
+    cancel() {
+      cancelled = true;
     },
   });
 
