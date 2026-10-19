@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 
 import { AdminPage } from '../../admin/AdminPage';
+import { useDataChanges } from '../../changes/DataChanges';
 import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
 import { formatBytes } from '../../futon';
@@ -137,10 +138,12 @@ function SystemStatus() {
   const oidc = Route.useLoaderData();
   // fetchKey を変えると、読み直す。読み直す間も画面を出したままにするため、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
+  // チューナーとチューナーサーバーの状態が変わったら、読み直す (#867)。
+  const tunerChanges = useDataChanges(['TUNERS']);
   const data = useLazyLoadQuery<systemQuery>(
     query,
     {},
-    { fetchKey, fetchPolicy: 'store-and-network' },
+    { fetchKey: `${fetchKey}:${tunerChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
