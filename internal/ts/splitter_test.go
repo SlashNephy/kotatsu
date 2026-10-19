@@ -2,6 +2,7 @@ package ts_test
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"testing"
 	"time"
@@ -132,4 +133,30 @@ func TestSplitterCutsAtKeyframes(t *testing.T) {
 			assert.Equal(t, len(input)-int(first.Offset), written)
 		})
 	}
+}
+
+// TestSplitterReportsCreateFailure は、セグメントを開けなかったら、それまでに読んだバイト数とエラーを返し、
+// 以後も同じエラーを返すことを確かめる。
+func TestSplitterReportsCreateFailure(t *testing.T) {
+	t.Parallel()
+
+	input := loadTestTSFile(t, "test-hevc-main10.ts")
+	errFull := errors.New("disk full")
+	splitter, err := ts.NewSplitter([]int64{129003, 219093}, time.Hour, func(i int) (io.WriteCloser, error) {
+		if i == 1 {
+			return nil, errFull
+		}
+
+		return &segmentBuffer{Buffer: bytes.Buffer{}, cut: i, closed: false}, nil
+	})
+	require.NoError(t, err)
+
+	n, err := splitter.Write(input)
+	require.ErrorIs(t, err, errFull)
+	assert.Positive(t, n)
+	assert.Less(t, n, len(input), "the bytes after the failed packet are not consumed")
+	assert.Zero(t, n%ts.PacketSize)
+	_, err = splitter.Write(input)
+	require.ErrorIs(t, err, errFull)
+	require.ErrorIs(t, splitter.Close(), errFull)
 }

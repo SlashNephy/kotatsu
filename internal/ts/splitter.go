@@ -66,6 +66,7 @@ func NewSplitter(cuts []int64, interval time.Duration, create func(i int) (io.Wr
 }
 
 // Write は、TS を受け取る。パケットの境界でなくてもよい。
+// セグメントを開くか書くのに失敗したら、失敗したパケットまでのバイト数と、そのエラーを返す。以後の Write と Close も、同じエラーを返す。
 func (s *Splitter) Write(p []byte) (int, error) {
 	if s.err != nil {
 		return 0, s.err
@@ -97,7 +98,8 @@ func (s *Splitter) Write(p []byte) (int, error) {
 		p = p[PacketSize:]
 	}
 	if s.err != nil {
-		return n, s.err
+		// 失敗したパケットまでを読んだものとする。
+		return n - len(p), s.err
 	}
 
 	return n, nil
