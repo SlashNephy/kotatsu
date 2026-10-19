@@ -28,7 +28,14 @@ import (
 func loadTestTS(t *testing.T) []byte {
 	t.Helper()
 
-	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "ts", "test.ts"))
+	return loadTS(t, "test.ts")
+}
+
+// loadTS は、testdata/ts の name の TS を返す。
+func loadTS(t *testing.T, name string) []byte {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "ts", name))
 	require.NoError(t, err)
 
 	return data
@@ -56,6 +63,7 @@ type probedStream struct {
 	CodecName string `json:"codec_name"`
 	Height    int    `json:"height"`
 	FrameRate string `json:"r_frame_rate"`
+	PixFmt    string `json:"pix_fmt"`
 }
 
 func probe(t *testing.T, path string) []probedStream {
@@ -73,33 +81,42 @@ func probe(t *testing.T, path string) []probedStream {
 
 // TestTranscoderWritesHLS は、TS を、画質のプリセットどおりの映像と、AAC の音声と、字幕の ID3 timed metadata を持つ
 // MPEG-TS のセグメントの HLS にすることを確かめる (設計書 7.3)。
-// testdata/ts/test.ts には字幕がないので、ID3 timed metadata は、tsreadex が補う空のデータである。
+// テスト用の TS には字幕がないので、ID3 timed metadata は、tsreadex が補う空のデータである。
+// BS4K に似せた 10 ビットの HEVC の入力でも、ブラウザで再生できる 8 ビットの映像にすることを確かめる (#806)。
 func TestTranscoderWritesHLS(t *testing.T) {
 	t.Parallel()
 
 	transcoder := newTranscoder(t)
 	// frames30 と frames60 は、ffprobe が返すフレームレート (29.97fps と 59.94fps)。
 	const frames30, frames60 = "30000/1001", "60000/1001"
+	// mpeg2 は地上波に似せた MPEG-2 の入力、bs4k は BS4K に似せた 10 ビットの HEVC の入力。
+	const mpeg2, bs4k = "test.ts", "test-hevc-main10.ts"
 	tests := []struct {
+		// input は、testdata/ts の入力の TS。
+		input      string
 		preset     string
 		wantCodec  string
 		wantHeight int
 		// wantFrameRate は、映像のフレームレート。test.ts は 29.97fps のインターレースなので、60fps のプリセットでは倍になる。
+		// test-hevc-main10.ts は 59.94fps のプログレッシブなので、どのプリセットでもそのまま送る。
 		wantFrameRate string
 	}{
-		{preset: "360p", wantCodec: string(kyusu.CodecH264), wantHeight: 360, wantFrameRate: frames30},
-		{preset: "720p", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames30},
-		{preset: "360p-hevc", wantCodec: string(kyusu.CodecHEVC), wantHeight: 360, wantFrameRate: frames30},
-		{preset: "720p60", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60},
+		{input: mpeg2, preset: "360p", wantCodec: string(kyusu.CodecH264), wantHeight: 360, wantFrameRate: frames30},
+		{input: mpeg2, preset: "720p", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames30},
+		{input: mpeg2, preset: "360p-hevc", wantCodec: string(kyusu.CodecHEVC), wantHeight: 360, wantFrameRate: frames30},
+		{input: mpeg2, preset: "720p60", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60},
+		{input: bs4k, preset: "360p", wantCodec: string(kyusu.CodecH264), wantHeight: 360, wantFrameRate: frames60},
+		{input: bs4k, preset: "360p-hevc", wantCodec: string(kyusu.CodecHEVC), wantHeight: 360, wantFrameRate: frames60},
+		{input: bs4k, preset: "720p60", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60},
 	}
 	for _, tt := range tests {
-		t.Run(tt.preset, func(t *testing.T) {
+		t.Run(tt.input+"/"+tt.preset, func(t *testing.T) {
 			t.Parallel()
 
 			preset, ok := kyusu.PresetByName(tt.preset)
 			require.True(t, ok)
 			dir := t.TempDir()
-			require.NoError(t, transcoder.Run(t.Context(), bytes.NewReader(loadTestTS(t)), preset, kyusu.AudioFirst, dir))
+			require.NoError(t, transcoder.Run(t.Context(), bytes.NewReader(loadTS(t, tt.input)), preset, kyusu.AudioFirst, dir))
 
 			playlist, err := os.ReadFile(filepath.Join(dir, kyusu.PlaylistName))
 			require.NoError(t, err)
@@ -121,6 +138,7 @@ func TestTranscoderWritesHLS(t *testing.T) {
 			assert.Equal(t, tt.wantCodec, got["video"].CodecName)
 			assert.Equal(t, tt.wantHeight, got["video"].Height)
 			assert.Equal(t, tt.wantFrameRate, got["video"].FrameRate)
+			assert.Equal(t, "yuv420p", got["video"].PixFmt, "browsers decode only 8-bit video")
 			assert.Equal(t, "aac", got["audio"].CodecName)
 			assert.Equal(t, "timed_id3", got["data"].CodecName, "subtitles are carried as ID3 timed metadata")
 		})
