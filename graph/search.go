@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -15,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/epg"
 	"github.com/SlashNephy/kotatsu/internal/match"
+	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
 
 const (
@@ -314,6 +316,7 @@ func setKeywordPatterns(params *sqlc.SearchProgramCandidatesParams, conditions *
 }
 
 // matchCandidate は、候補が条件に一致するかを照合し、一致すれば一覧の要素にする。accept が nil でなければ、accept も満たす必要がある。
+// 一覧の要素は、一致した候補だけで作る。ほとんどの候補は一致しないので、詳細などの JSON を読むのを省く (#852)。
 func (r *Resolver) matchCandidate(
 	matcher *match.Matcher,
 	accept func(startAt time.Time, endUndecided bool) bool,
@@ -322,6 +325,14 @@ func (r *Resolver) matchCandidate(
 	if accept != nil && !accept(row.StartAt, row.EndUndecided) {
 		return nil, false, nil
 	}
+	candidate, err := toMatchCandidate(row)
+	if err != nil {
+		return nil, false, err
+	}
+	if !matcher.Match(candidate) {
+		return nil, false, nil
+	}
+
 	program, err := toProgram(&programRow{
 		ServiceID: row.ServiceID, EventID: row.EventID, StartAt: row.StartAt, EndAt: row.EndAt,
 		EndUndecided: row.EndUndecided, IsFree: row.IsFree, Name: row.Name, Description: row.Description,
@@ -330,28 +341,6 @@ func (r *Resolver) matchCandidate(
 	if err != nil {
 		return nil, false, err
 	}
-	extended := map[string]string{}
-	for _, item := range program.Extended {
-		extended[item.Heading] = item.Text
-	}
-	genres := make([]*match.Genre, 0, len(program.Genres))
-	for _, g := range program.Genres {
-		genres = append(genres, &match.Genre{Lv1: g.Lv1, Lv2: new(g.Lv2)})
-	}
-	if !matcher.Match(match.NewProgram(&match.ProgramInput{
-		ServiceID:   row.ServiceID,
-		ChannelType: row.ChannelType,
-		Name:        row.Name,
-		Description: row.Description,
-		Extended:    extended,
-		Genres:      genres,
-		StartAt:     row.StartAt,
-		Duration:    row.EndAt.Sub(row.StartAt),
-		IsFree:      row.IsFree,
-	})) {
-		return nil, false, nil
-	}
-
 	if row.Archived {
 		program.ID = archiveGlobalID(row.ServiceID, row.EventID, row.StartAt)
 		program.Archived = true
@@ -362,6 +351,43 @@ func (r *Resolver) matchCandidate(
 	}
 
 	return &model.ProgramEdge{Cursor: cursor, Node: program}, true, nil
+}
+
+// toMatchCandidate は、候補を照合する形にする。ルールの照合 (rule.toMatchProgram) と同じく、同期で正規化して持った列を使う。
+// 候補ごとに NFKC で正規化し直すと、検索の時間の大半を占めるからである (#852)。
+func toMatchCandidate(row *sqlc.SearchProgramCandidatesRow) (*match.Program, error) {
+	upstreamGenres := []*mirakurun.Genre{}
+	if err := json.Unmarshal(row.Genres, &upstreamGenres); err != nil {
+		return nil, fmt.Errorf("failed to decode the genres of program %d/%d: %w", row.ServiceID, row.EventID, err)
+	}
+	genres := make([]*match.Genre, 0, len(upstreamGenres))
+	for _, g := range upstreamGenres {
+		genres = append(genres, &match.Genre{Lv1: g.Lv1, Lv2: new(g.Lv2)})
+	}
+	extended := row.ExtendedNormalized
+	if extended == nil {
+		// 列を足す前に書いた番組と、列を足す前にアーカイブへ移した番組は、上流の詳細から正規化する。
+		upstream := map[string]string{}
+		if err := json.Unmarshal(row.Extended, &upstream); err != nil {
+			return nil, fmt.Errorf("failed to decode the extended of program %d/%d: %w", row.ServiceID, row.EventID, err)
+		}
+		extended = new(epg.NormalizeExtended(upstream))
+	}
+
+	return &match.Program{
+		ServiceID:   row.ServiceID,
+		ChannelType: row.ChannelType,
+		Name:        row.NameNormalized,
+		Description: row.DescriptionNormalized,
+		Extended:    *extended,
+		Genres:      genres,
+		StartAt:     row.StartAt,
+		Duration:    row.EndAt.Sub(row.StartAt),
+		IsFree:      row.IsFree,
+		// 囲み文字を括弧の書き方にする前に正規化した番組名では、囲み文字と番組名の文字を見分けられないので、
+		// 囲み文字は正規化する前の番組名から取り出す。
+		Marks: epg.Marks(row.Name),
+	}, nil
 }
 
 // genreLv1s は、SQL で絞り込むジャンルの大分類を返す。wholeOnly なら、中分類を指定していない (大分類のすべての) ものだけを返す。

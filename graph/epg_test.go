@@ -24,15 +24,15 @@ import (
 )
 
 // syncEPG は、偽チューナーサーバーの EPG (12:10 の時点、11:00 から 30 分ごとの番組) を DB に取り込む。
-func (f *fixture) syncEPG(t *testing.T) {
-	t.Helper()
+func (f *fixture) syncEPG(tb testing.TB) {
+	tb.Helper()
 
 	server := httptest.NewServer(faketuner.New(faketuner.DefaultOptions(testNow(), nil)))
-	t.Cleanup(server.Close)
+	tb.Cleanup(server.Close)
 	client, err := mirakurun.New(&mirakurun.Options{URL: server.URL})
-	require.NoError(t, err)
-	_, err = epg.NewReconciler(f.pool, client, clocktest.NewFake(testNow()), func(context.Context, pgx.Tx) error { return nil }).SyncAll(t.Context())
-	require.NoError(t, err)
+	require.NoError(tb, err)
+	_, err = epg.NewReconciler(f.pool, client, clocktest.NewFake(testNow()), func(context.Context, pgx.Tx) error { return nil }).SyncAll(tb.Context())
+	require.NoError(tb, err)
 }
 
 const (
@@ -43,6 +43,8 @@ const (
 	codeForbidden    = "FORBIDDEN"
 	// fieldName は、番組名を照合するキーワードの項目。
 	fieldName = "NAME"
+	// keywordMatchAny は、いずれかのキーワードに一致すればよい照合のしかた。
+	keywordMatchAny = "ANY"
 	// testUsername は、newFixture がログインさせるユーザーの名前。
 	testUsername = "kotatsu"
 	// GraphQL の変数の名前。
@@ -67,24 +69,24 @@ type gqlResponse struct {
 
 // query は、ログイン済みのユーザーとして GraphQL を叩き、data を v に読む。エラーがあれば、そのエラーコードを返す。
 // extensions.reason があれば、エラーコードに「:理由」を付ける。
-func (f *fixture) query(t *testing.T, query string, variables any, v any) []string {
-	t.Helper()
+func (f *fixture) query(tb testing.TB, query string, variables any, v any) []string {
+	tb.Helper()
 
 	body, err := json.Marshal(map[string]any{"query": query, "variables": variables})
-	require.NoError(t, err)
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, f.server.URL+"/graphql", bytes.NewReader(body))
-	require.NoError(t, err)
+	require.NoError(tb, err)
+	req, err := http.NewRequestWithContext(tb.Context(), http.MethodPost, f.server.URL+"/graphql", bytes.NewReader(body))
+	require.NoError(tb, err)
 	req.Header.Set("Content-Type", contentTypeJSON)
 	req.Header.Set("Cookie", auth.CookieName+"="+f.token)
 	req.Header.Set("User-Agent", testUserAgent)
 	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
 	var decoded gqlResponse
-	require.NoError(t, json.NewDecoder(resp.Body).Decode(&decoded))
+	require.NoError(tb, json.NewDecoder(resp.Body).Decode(&decoded))
 	codes := make([]string, 0, len(decoded.Errors))
 	for _, e := range decoded.Errors {
 		code := e.Extensions.Code
@@ -94,7 +96,7 @@ func (f *fixture) query(t *testing.T, query string, variables any, v any) []stri
 		codes = append(codes, code)
 	}
 	if len(codes) == 0 && v != nil {
-		require.NoError(t, json.Unmarshal(decoded.Data, v))
+		require.NoError(tb, json.Unmarshal(decoded.Data, v))
 	}
 
 	return codes

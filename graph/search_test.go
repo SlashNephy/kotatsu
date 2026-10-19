@@ -530,7 +530,7 @@ func TestSearchProgramsKeywordMatch(t *testing.T) {
 	}{
 		{name: "既定はすべてに一致", keywordMatch: "", want: []string{}},
 		{name: "すべてに一致", keywordMatch: "ALL", want: []string{}},
-		{name: "いずれかに一致", keywordMatch: "ANY", want: []string{programName(5), programName(6)}},
+		{name: "いずれかに一致", keywordMatch: keywordMatchAny, want: []string{programName(5), programName(6)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

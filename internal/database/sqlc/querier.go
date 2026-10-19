@@ -459,6 +459,10 @@ type Querier interface {
 	// include_archive なら、開始時刻が [archive_from, archive_to) の放送の終わった番組 (アーカイブと、まだ移していない番組) も含める。
 	// キーワードのうち、正規表現でなく、番組名と概要だけを見るものは、正規化した列の LIKE で粗く絞る (keyword_*)。
 	// 最終的な判定は Go の照合関数で行うので、ここでは一致しうる番組を落とさないことだけを守る。
+	// 照合には、ルールの照合と同じく正規化した列を使い、候補ごとに正規化し直さない (#852)。
+	// UNION ALL の枝は、絞り込みも結合も持たない 1 つの表にする。枝に WHERE や JOIN があると、PostgreSQL は枝を親に引き上げず、
+	// 開始時刻のインデックスの順に読めないので、カーソルより後ろの候補をすべて読んで並べ替える。1 回に読む件数ずつ読むたびにそうなり、
+	// 候補の数の 2 乗に比例して遅くなる (#852)。枝ごとの条件は、archived で分けて外に書く。
 	SearchProgramCandidates(ctx context.Context, arg SearchProgramCandidatesParams) ([]SearchProgramCandidatesRow, error)
 	// 録画を、録画を始めた日時の新しい順に返す。絞り込まない条件は NULL か空にする。
 	// ジャンルは、大分類 (lv1) のどれかに当たる録画を返す (#468)。

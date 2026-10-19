@@ -1,6 +1,7 @@
 package match_test
 
 import (
+	"regexp"
 	"testing"
 	"time"
 
@@ -389,5 +390,42 @@ func TestMatchMarks(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, matcher.Match(match.NewProgram(in)))
 		})
+	}
+}
+
+// TestMatchRegexpAgreesWithRegexp は、正規表現のキーワードを前段の絞り込みで先に落としても、
+// 正規表現だけで照合したときと同じ結果になることを確かめる (#852)。
+func TestMatchRegexpAgreesWithRegexp(t *testing.T) {
+	t.Parallel()
+
+	patterns := []string{
+		"(?i)season",
+		"Season",
+		"(?i)καλος",
+		"(?i)ゆるキャン|nowhere",
+		"(?i:ゆる)キャン△",
+		"(?i:abc)|SEASON",
+		"^\\[新\\]ゆる",
+		"第[0-9]+話$",
+		"(キャン)+△",
+		"(ゆるキャン)?△",
+	}
+	names := []string{"［新］ゆるキャン△　ＳＥＡＳＯＮ３　第１話", "ゆるキャン△ season3", "ΚΑΛΟΣ", "Καλος", "△", "どこにもない"}
+	for _, pattern := range patterns {
+		expected := regexp.MustCompile(pattern)
+		for _, name := range names {
+			t.Run(pattern+" on "+name, func(t *testing.T) {
+				t.Parallel()
+
+				matcher, err := match.Compile(&match.Conditions{Keywords: []*match.Keyword{
+					{Text: pattern, Regexp: true, CaseSensitive: true, Fields: []match.Field{match.FieldName}},
+				}}, tokyo(t))
+				require.NoError(t, err)
+				in := program(t)
+				in.Name = name
+				p := match.NewProgram(in)
+				assert.Equal(t, expected.MatchString(p.Name), matcher.Match(p))
+			})
+		}
 	}
 }

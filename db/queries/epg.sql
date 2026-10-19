@@ -104,12 +104,12 @@ WITH moved AS (
 )
 INSERT INTO program_archives (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
-  name, description, name_normalized, description_normalized, extended, genres, related_items, audios,
+  name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
   created_at, updated_at, archived_at
 )
 SELECT
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
-  name, description, name_normalized, description_normalized, extended, genres, related_items, audios,
+  name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
   created_at, updated_at, @now
 FROM moved
 -- 同じ番組を移し直すことは通常ないが、移した後に上流から同じ番組が届き、また移すときは新しい内容で上書きする。
@@ -122,6 +122,7 @@ ON CONFLICT (service_id, event_id, start_at) DO UPDATE SET
   description = excluded.description,
   name_normalized = excluded.name_normalized,
   description_normalized = excluded.description_normalized,
+  extended_normalized = excluded.extended_normalized,
   extended = excluded.extended,
   genres = excluded.genres,
   related_items = excluded.related_items,

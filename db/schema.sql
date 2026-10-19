@@ -489,7 +489,7 @@ CREATE TABLE programs (
   -- NFKC で正規化した番組名と説明 (設計書 3.5)。キーワードの照合と検索に使う。
   name_normalized text NOT NULL,
   description_normalized text NOT NULL,
-  -- 詳細を、見出しの順に「見出し\n本文\n」とつないで NFKC で正規化したもの (設計書 3.5)。ルールの照合に使う。
+  -- 詳細を、見出しの順に「見出し\n本文\n」とつないで NFKC で正規化したもの (設計書 3.5)。ルールの照合と番組の検索に使う。
   -- この列を足す前に書いた番組は NULL で、照合では extended から正規化し直す (#530)。
   extended_normalized text,
   -- 詳細 (見出しから本文への対応)、ジャンル、関連する番組 (イベント共有とイベントリレー)、音声の構成は、上流の JSON のまま持つ。
@@ -532,6 +532,8 @@ CREATE TABLE program_archives (
   description text NOT NULL,
   name_normalized text NOT NULL,
   description_normalized text NOT NULL,
+  -- programs の extended_normalized を移したもの。番組の検索に使う。列を足す前に移した番組は NULL で、検索では extended から正規化し直す (#852)。
+  extended_normalized text,
   extended jsonb NOT NULL,
   genres jsonb NOT NULL,
   related_items jsonb NOT NULL,

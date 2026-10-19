@@ -77,10 +77,10 @@ func (f *fixture) withNewSession(t *testing.T) *fixture {
 }
 
 // newFixture は、ログイン済みのセッションを 1 つ持つ DB と、セッションのミドルウェアを通した /graphql を用意する。
-func newFixture(t *testing.T, opts *graph.Options) *fixture {
-	t.Helper()
+func newFixture(tb testing.TB, opts *graph.Options) *fixture {
+	tb.Helper()
 
-	return newFixtureWith(t, opts, false)
+	return newFixtureWith(tb, opts, false)
 }
 
 // newFixtureWithChanges は、newFixture に加えて、変更の subscription のため、本物の Watcher で変更の通知を見張る。
@@ -92,73 +92,73 @@ func newFixtureWithChanges(t *testing.T) *fixture {
 }
 
 // startChanges は、変更の通知を見張る Broadcaster を、テストが終わるまで動かす。
-func startChanges(t *testing.T, pool *pgxpool.Pool) *notify.Broadcaster {
-	t.Helper()
+func startChanges(tb testing.TB, pool *pgxpool.Pool) *notify.Broadcaster {
+	tb.Helper()
 
-	watcher, err := notify.NewWatcher(t.Context(), pool, slog.New(slog.DiscardHandler), graph.WatchedChannels(),
+	watcher, err := notify.NewWatcher(tb.Context(), pool, slog.New(slog.DiscardHandler), graph.WatchedChannels(),
 		notify.WatcherOptions{UseListen: true, PollInterval: time.Second})
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	changes := notify.NewBroadcaster(watcher)
-	ctx, stop := context.WithCancel(t.Context())
+	ctx, stop := context.WithCancel(tb.Context())
 	done := make(chan error, 1)
 	go func() {
 		done <- changes.Run(ctx)
 	}()
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		stop()
-		assert.NoError(t, <-done)
+		assert.NoError(tb, <-done)
 	})
 
 	return changes
 }
 
-func newFixtureWith(t *testing.T, opts *graph.Options, watchChanges bool) *fixture {
-	t.Helper()
+func newFixtureWith(tb testing.TB, opts *graph.Options, watchChanges bool) *fixture {
+	tb.Helper()
 
-	pool, err := database.Open(t.Context(), databasetest.New(t))
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+	pool, err := database.Open(tb.Context(), databasetest.New(tb))
+	require.NoError(tb, err)
+	tb.Cleanup(pool.Close)
+	require.NoError(tb, database.Migrate(tb.Context(), slog.New(slog.DiscardHandler), pool))
 
 	clk := clocktest.NewFake(testNow())
-	user, err := auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{
+	user, err := auth.NewUsers(clk).Create(tb.Context(), pool, &auth.NewUser{
 		Username: testUsername, DisplayName: "こたつ", Role: auth.RoleMember, PasswordHash: nil,
 	})
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	sessions := auth.NewSessions(&auth.SessionsOptions{IdleTimeout: 0, AbsoluteTimeout: 0, IsSecure: nil, Clock: clk})
-	token, _, err := sessions.Create(t.Context(), pool, user.ID, nil)
-	require.NoError(t, err)
+	token, _, err := sessions.Create(tb.Context(), pool, user.ID, nil)
+	require.NoError(tb, err)
 
 	if opts == nil {
 		opts = &graph.Options{}
 	}
 	opts.DB, opts.Clock, opts.Logger = pool, clk, slog.New(slog.DiscardHandler)
 	opts.SecondFactors, err = auth.NewSecondFactors(clk, audit.NewRecorder(clk), "kotatsu-graph-test-application-key-0123456789")
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	// 強度の判定は、-race で遅い zxcvbn-ts の代わりに、決まったパスワードと、ユーザー名を含むパスワードを弱いとみなすものにする。
 	policy, err := password.NewPolicy(&password.PolicyOptions{
 		HIBP: nil, StrengthTimeout: 0, Estimator: passwordtest.NewEstimator("kotatsukotatsu"), Logger: slog.New(slog.DiscardHandler),
 	})
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	opts.UserAdmin = auth.NewUserAdmin(clk, audit.NewRecorder(clk), policy)
 	opts.Passwords = auth.NewPasswords(clk, audit.NewRecorder(clk), policy)
 	opts.Sessions = sessions
 	opts.Webhooks, err = webhook.NewStore(clk, audit.NewRecorder(clk), "kotatsu-graph-test-application-key-0123456789")
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	opts.WebPush, err = webpush.NewService(clk, "kotatsu-graph-test-application-key-0123456789")
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	opts.APITokens = auth.NewAPITokens(pool, clk, audit.NewRecorder(clk))
 	opts.Players = player.NewService(pool, clk)
 	opts.Passkeys = auth.NewPasskeys(&auth.PasskeysOptions{
 		Clock: clk, Recorder: audit.NewRecorder(clk), Logger: slog.New(slog.DiscardHandler), Sessions: sessions,
 	})
 	if watchChanges {
-		opts.Changes = startChanges(t, pool)
+		opts.Changes = startChanges(tb, pool)
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", sessions.Middleware(pool)(graph.NewHandler(opts)))
 	server := httptest.NewServer(mux)
-	t.Cleanup(server.Close)
+	tb.Cleanup(server.Close)
 
 	return &fixture{pool: pool, server: server, clock: clk, sessions: sessions, passkeys: opts.Passkeys, userID: user.ID, token: token}
 }
