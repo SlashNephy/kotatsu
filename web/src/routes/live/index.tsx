@@ -10,11 +10,13 @@ import {
 } from '@mantine/core';
 import { Tv } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Suspense, useEffect, useState } from 'react';
+import { startTransition, Suspense, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
-import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
+import { useDataChanges } from '../../changes/DataChanges';
+import type { ChangeChannel } from '../../changes/dataChanges';
+import { EmptyState, ErrorBoundary, nextWakeAt, PageLoader, useWakeAt } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import type { liveServicesQuery } from './__generated__/liveServicesQuery.graphql';
 import { NowPlayingCard } from '../../guide/NowPlayingCard';
@@ -30,11 +32,9 @@ function LivePage() {
   const { t } = useTranslation();
   // 放送中の番組を出すので、画面を開いた時刻から 1 分間の時間帯を引く。
   // 読み込みの間に子は描き直されて state を失うので、時間帯は、待たない親で決める。
-  const [range] = useState(() => {
-    const now = Date.now();
-
-    return { from: new Date(now).toISOString(), to: new Date(now + 60_000).toISOString() };
-  });
+  const [range, setRange] = useState(() => liveRange(Date.now()));
+  // 放送中の番組が終わったら、時刻を決め直して読み直す (#866)。読み直す間も一覧を出したままにする。
+  const refresh = useCallback(() => startTransition(() => setRange(liveRange(Date.now()))), []);
 
   return (
     <Stack gap="sm">
@@ -53,18 +53,32 @@ function LivePage() {
         }
       >
         <Suspense fallback={<PageLoader />}>
-          <Services range={range} />
+          <Services range={range} onExpire={refresh} />
         </Suspense>
       </ErrorBoundary>
     </Stack>
   );
 }
 
+type LiveRange = { now: number; from: string; to: string };
+
+// liveRange は、now を基準にした、ライブの一覧で読む時間帯。
+function liveRange(now: number): LiveRange {
+  return { now, from: new Date(now).toISOString(), to: new Date(now + 60_000).toISOString() };
+}
+
+// liveChannels は、ライブの一覧に関わるデータの種類。変わったら、読み直す (#866)。
+const liveChannels: readonly ChangeChannel[] = ['EPG'];
+
+// maxWaitMs は、時刻で読み直すまでに待つ最大の時間。放送中の番組がないサービスで、番組が始まるのに気づくのに使う。
+const maxWaitMs = 10 * 60_000;
+
 // pinnedTab は、ピン留めしたサービスを出すタブの値。チャンネル種別とぶつからないよう、小文字にする。
 const pinnedTab = 'pinned';
 
-function Services({ range }: { range: { from: string; to: string } }) {
+function Services({ range, onExpire }: { range: LiveRange; onExpire: () => void }) {
   const { t } = useTranslation();
+  const changes = useDataChanges(liveChannels);
   const data = useLazyLoadQuery<liveServicesQuery>(
     graphql`
       query liveServicesQuery($from: Time!, $to: Time!) {
@@ -98,7 +112,17 @@ function Services({ range }: { range: { from: string; to: string } }) {
         }
       }
     `,
-    range,
+    { from: range.from, to: range.to },
+    { fetchKey: changes, fetchPolicy: 'store-and-network' },
+  );
+  // 放送中の番組のうち、最も早く終わる時刻に読み直す。
+  useWakeAt(
+    nextWakeAt(
+      data.guide.flatMap((row) => row.programs.map((program) => program.endAt)),
+      range.now,
+      maxWaitMs,
+    ),
+    onExpire,
   );
   const types = data.channelTypes.filter((type) =>
     data.guide.some((row) => row.service.channelType.type === type.type),
