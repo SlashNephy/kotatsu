@@ -89,10 +89,26 @@ function createNetwork(executor: Executor) {
   return Network.create(fetchQuery, subscribe);
 }
 
+// registerStreamWorker は、ライブ視聴の映像を実時間の速さで流す Service Worker (demo/stream-sw.js) を登録する。
+// 登録を待たずに画面を出す。Service Worker は登録した直後のページも受け持つので、ライブ視聴を開くまでには間に合う。
+function registerStreamWorker(): void {
+  if (!('serviceWorker' in navigator)) {
+    return;
+  }
+  const base = import.meta.env.BASE_URL;
+  // 登録できなくても、ライブ視聴が映らないだけなので、画面はそのまま出す。
+  navigator.serviceWorker
+    .register(`${base}stream-sw.js`, { scope: base })
+    .catch((error: unknown) => {
+      console.warn('failed to register the demo stream worker', error);
+    });
+}
+
 // installDemo は、fetch を横取りし、デモの応答を返す Relay の Environment を作る。
 export function installDemo(): Environment {
   const executor = createExecutor(createRootValue(createEventHub()));
   interceptFetch(executor);
+  registerStreamWorker();
 
   return new Environment({
     network: createNetwork(executor),

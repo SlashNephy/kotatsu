@@ -34,17 +34,41 @@ function inlineAppleTouchIcon(): Plugin {
 }
 
 // mode が demo のときは、静的なデモ (#832) をビルドする。`vp build --mode demo --base /kotatsu/demo/` で使う。
-// demoStream は、静的なデモ (#832) のときだけ、合成の映像 (demo/stream.m2ts) を出力に加える。
+// demoStream は、静的なデモ (#832) のときだけ、合成の映像 (demo/stream.m2ts) と、
+// ライブ視聴の映像を実時間の速さで流す Service Worker (stream-sw.js) を出力に加える。
 // public に置くと、tenban に埋め込む通常のビルドにも入るので、ここで加える。
+// Service Worker は、デモの全体を受け持てるよう、base の直下に置く。
 function demoStream(): Plugin {
+  const files = [
+    { fileName: 'demo/stream.m2ts', source: './demo/stream.m2ts', type: 'video/mp2t' },
+    { fileName: 'stream-sw.js', source: './demo/stream-sw.js', type: 'text/javascript' },
+  ];
+
   return {
     name: 'kotatsu:demo-stream',
-    generateBundle() {
-      this.emitFile({
-        type: 'asset',
-        fileName: 'demo/stream.m2ts',
-        source: readFileSync(new URL('./demo/stream.m2ts', import.meta.url)),
+    // 開発サーバー (vp dev --mode demo) でも、同じパスで配信する。
+    configureServer(server) {
+      const base = server.config.base;
+      server.middlewares.use((request, response, next) => {
+        const path = (request.url ?? '').split('?')[0];
+        const file = files.find((item) => path === `${base}${item.fileName}`);
+        if (file === undefined) {
+          next();
+
+          return;
+        }
+        response.setHeader('Content-Type', file.type);
+        response.end(readFileSync(new URL(file.source, import.meta.url)));
       });
+    },
+    generateBundle() {
+      for (const file of files) {
+        this.emitFile({
+          type: 'asset',
+          fileName: file.fileName,
+          source: readFileSync(new URL(file.source, import.meta.url)),
+        });
+      }
     },
   };
 }
