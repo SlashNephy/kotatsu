@@ -15,6 +15,35 @@ import searchViewerQuery from '../routes/__generated__/searchViewerQuery.graphql
 import channelServiceIdGuideQuery from '../routes/guide/__generated__/channelServiceIdGuideQuery.graphql';
 import guideQuery from '../routes/guide/__generated__/guideQuery.graphql';
 import liveServicesQuery from '../routes/live/__generated__/liveServicesQuery.graphql';
+import FileNameTemplateFieldDefaultQuery from '../reservations/__generated__/FileNameTemplateFieldDefaultQuery.graphql';
+import FileNameTemplateFieldHelpQuery from '../reservations/__generated__/FileNameTemplateFieldHelpQuery.graphql';
+import FileNameTemplateFieldPreviewQuery from '../reservations/__generated__/FileNameTemplateFieldPreviewQuery.graphql';
+import MarginFieldsQuery from '../reservations/__generated__/MarginFieldsQuery.graphql';
+import ReservationSettingsDialogCreateMutation from '../reservations/__generated__/ReservationSettingsDialogCreateMutation.graphql';
+import ReservationSettingsDialogMutation from '../reservations/__generated__/ReservationSettingsDialogMutation.graphql';
+import ReservationSettingsDialogQuery from '../reservations/__generated__/ReservationSettingsDialogQuery.graphql';
+import SkippedDuplicateListQuery from '../reservations/__generated__/SkippedDuplicateListQuery.graphql';
+import TimeReservationDialogCreateMutation from '../reservations/__generated__/TimeReservationDialogCreateMutation.graphql';
+import TimeReservationDialogQuery from '../reservations/__generated__/TimeReservationDialogQuery.graphql';
+import TimeReservationDialogUpdateMutation from '../reservations/__generated__/TimeReservationDialogUpdateMutation.graphql';
+import reservationsDeleteManyMutation from '../routes/__generated__/reservationsDeleteManyMutation.graphql';
+import reservationsDeleteMutation from '../routes/__generated__/reservationsDeleteMutation.graphql';
+import reservationsEnableMutation from '../routes/__generated__/reservationsEnableMutation.graphql';
+import reservationsQuery from '../routes/__generated__/reservationsQuery.graphql';
+import reservationsSetManyEnabledMutation from '../routes/__generated__/reservationsSetManyEnabledMutation.graphql';
+import RuleIdQuery from '../routes/rules/__generated__/RuleIdQuery.graphql';
+import rulesDeleteManyMutation from '../routes/rules/__generated__/rulesDeleteManyMutation.graphql';
+import rulesEnableMutation from '../routes/rules/__generated__/rulesEnableMutation.graphql';
+import rulesListQuery from '../routes/rules/__generated__/rulesListQuery.graphql';
+import rulesSetManyEnabledMutation from '../routes/rules/__generated__/rulesSetManyEnabledMutation.graphql';
+import RuleEditorCreateMutation from '../rules/__generated__/RuleEditorCreateMutation.graphql';
+import RuleEditorDeleteMutation from '../rules/__generated__/RuleEditorDeleteMutation.graphql';
+import RuleEditorUpdateMutation from '../rules/__generated__/RuleEditorUpdateMutation.graphql';
+import RulePreviewQuery from '../rules/__generated__/RulePreviewQuery.graphql';
+import WatchReminderSettingsMutation from '../watch/__generated__/WatchReminderSettingsMutation.graphql';
+import WatchReservationListQuery from '../watch/__generated__/WatchReservationListQuery.graphql';
+import ProgramDetailCancelMutation from '../guide/__generated__/ProgramDetailCancelMutation.graphql';
+import ProgramDetailReserveMutation from '../guide/__generated__/ProgramDetailReserveMutation.graphql';
 import WatchReserveButtonMutation from '../watch/__generated__/WatchReserveButtonMutation.graphql';
 import { createRootValue } from './data';
 import { generatePrograms } from './epg';
@@ -39,6 +68,9 @@ const programs = generatePrograms(now);
 // past は、放送が終わった番組。upcoming は、これから放送する番組。
 const past = programs.find((item) => item.end <= now)!.id;
 const upcoming = programs.find((item) => item.start > now)!.id;
+// firstReservation は、最初の状態にあるルール予約の 1 つ。rule は、ルールの入力の例。
+const firstReservation = 'Reservation:3';
+const rule = { name: 'アニメ', conditions: { genres: [{ lv1: 7 }] } };
 
 // 画面が実際に送る query (Relay のコンパイラが生成した本文) を、デモの実行器に流す。
 // スキーマや画面の query が変わって、デモのデータが答えられなくなったら落ちる。
@@ -80,6 +112,125 @@ describe('demo executor answers the queries of the screens', () => {
       name: 'watch reservation',
       request: WatchReserveButtonMutation,
       variables: { program: upcoming, reserved: true },
+    },
+    {
+      name: 'reservations',
+      request: reservationsQuery,
+      variables: {
+        from: at(-hour),
+        to: at(8 * 24 * hour),
+        states: null,
+        rule: null,
+        ruleId: '',
+        withRule: false,
+        first: 50,
+        after: null,
+      },
+    },
+    {
+      name: 'reservations of a rule',
+      request: reservationsQuery,
+      variables: {
+        from: at(-hour),
+        to: at(8 * 24 * hour),
+        states: ['OK'],
+        rule: 'Rule:1',
+        ruleId: 'Rule:1',
+        withRule: true,
+        first: 50,
+        after: null,
+      },
+    },
+    { name: 'rules', request: rulesListQuery, variables: {} },
+    { name: 'rule', request: RuleIdQuery, variables: { id: 'Rule:1', skip: false } },
+    { name: 'new rule', request: RuleIdQuery, variables: { id: '', skip: true } },
+    { name: 'rule preview', request: RulePreviewQuery, variables: { input: rule } },
+    { name: 'create rule', request: RuleEditorCreateMutation, variables: { input: rule } },
+    {
+      name: 'update rule',
+      request: RuleEditorUpdateMutation,
+      variables: { id: 'Rule:1', input: rule },
+    },
+    { name: 'delete rule', request: RuleEditorDeleteMutation, variables: { id: 'Rule:1' } },
+    {
+      name: 'enable rule',
+      request: rulesEnableMutation,
+      variables: { id: 'Rule:1', enabled: false },
+    },
+    {
+      name: 'enable rules',
+      request: rulesSetManyEnabledMutation,
+      variables: { ids: ['Rule:1'], enabled: false },
+    },
+    { name: 'delete rules', request: rulesDeleteManyMutation, variables: { ids: ['Rule:1'] } },
+    { name: 'reserve', request: ProgramDetailReserveMutation, variables: { program: upcoming } },
+    {
+      name: 'reserve with settings',
+      request: ReservationSettingsDialogCreateMutation,
+      variables: {
+        program: upcoming,
+        settings: { startMarginSeconds: 60 },
+        followEventRelay: true,
+      },
+    },
+    { name: 'cancel', request: ProgramDetailCancelMutation, variables: { id: firstReservation } },
+    {
+      name: 'delete reservation',
+      request: reservationsDeleteMutation,
+      variables: { id: firstReservation },
+    },
+    {
+      name: 'delete reservations',
+      request: reservationsDeleteManyMutation,
+      variables: { ids: [firstReservation] },
+    },
+    {
+      name: 'enable reservation',
+      request: reservationsEnableMutation,
+      variables: { id: firstReservation, enabled: false },
+    },
+    {
+      name: 'enable reservations',
+      request: reservationsSetManyEnabledMutation,
+      variables: { ids: [firstReservation], enabled: false },
+    },
+    {
+      name: 'reservation settings',
+      request: ReservationSettingsDialogQuery,
+      variables: { id: firstReservation },
+    },
+    {
+      name: 'update reservation settings',
+      request: ReservationSettingsDialogMutation,
+      variables: { id: firstReservation, settings: { priority: 1 }, followEventRelay: null },
+    },
+    { name: 'time reservation dialog', request: TimeReservationDialogQuery, variables: {} },
+    {
+      name: 'create time reservation',
+      request: TimeReservationDialogCreateMutation,
+      variables: {
+        input: { service: 'Service:101', startAt: at(hour), endAt: at(2 * hour), name: '時刻予約' },
+      },
+    },
+    {
+      name: 'update time reservation',
+      request: TimeReservationDialogUpdateMutation,
+      variables: { id: firstReservation, input: { enabled: true } },
+    },
+    { name: 'skipped duplicates', request: SkippedDuplicateListQuery, variables: {} },
+    { name: 'margins', request: MarginFieldsQuery, variables: {} },
+    { name: 'file name default', request: FileNameTemplateFieldDefaultQuery, variables: {} },
+    { name: 'file name help', request: FileNameTemplateFieldHelpQuery, variables: {} },
+    {
+      name: 'file name preview',
+      request: FileNameTemplateFieldPreviewQuery,
+      variables: { template: '{{.Name}}', program: upcoming },
+    },
+    { name: 'watch reservations', request: WatchReservationListQuery, variables: {} },
+    {
+      name: 'watch reminder',
+      request: WatchReminderSettingsMutation,
+      variables: { minutesBefore: 10 },
     },
     {
       name: 'create guide view',
