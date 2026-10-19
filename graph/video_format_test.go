@@ -22,7 +22,9 @@ func TestVideoFormat(t *testing.T) {
 		channelType string
 		// resolution は、番組と録画の映像の解像度。nil なら分からない。
 		resolution *string
-		want       model.VideoFormat
+		// noProgram なら、サービスの番組を消し、放送中の番組がない状態にする。
+		noProgram bool
+		want      model.VideoFormat
 	}{
 		{name: "2K", channelType: "GR", resolution: new("1080i"), want: model.VideoFormatHd},
 		{name: "unknown on GR", channelType: "GR", resolution: nil, want: model.VideoFormatHd},
@@ -31,6 +33,9 @@ func TestVideoFormat(t *testing.T) {
 		{name: "2K on BS4K", channelType: bs4k, resolution: new("1080i"), want: model.VideoFormatUhd},
 		// Mahiron は、NHK BS8K の種別も BS4K と返す。
 		{name: "8K", channelType: bs4k, resolution: new("4320p"), want: model.VideoFormatShv},
+		// 放送中の番組がなければ、サービスはチャンネル種別から決める。
+		{name: "no program on GR", channelType: "GR", resolution: nil, noProgram: true, want: model.VideoFormatHd},
+		{name: "no program on BS4K", channelType: bs4k, resolution: nil, noProgram: true, want: model.VideoFormatUhd},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -44,6 +49,10 @@ func TestVideoFormat(t *testing.T) {
 			require.NoError(t, err)
 			_, err = f.pool.Exec(t.Context(), `UPDATE programs SET video_resolution = $2 WHERE service_id = $1`, recordingServiceID, tt.resolution)
 			require.NoError(t, err)
+			if tt.noProgram {
+				_, err = f.pool.Exec(t.Context(), `DELETE FROM programs WHERE service_id = $1`, recordingServiceID)
+				require.NoError(t, err)
+			}
 			recordingID := f.addRecording(t, dir, "録画", "completed", time.Hour)
 			_, err = f.pool.Exec(t.Context(), `UPDATE recordings SET video_resolution = $1`, tt.resolution)
 			require.NoError(t, err)
