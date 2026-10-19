@@ -233,6 +233,7 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     watchReservations: () =>
       programs
         .filter((item) => watchReserved.has(item.id) && item.start > now)
+        .toSorted((a, b) => a.start - b.start)
         .map((item) => ({
           program: program(item),
           notifyAt: new Date(item.start - minutesBefore * 60 * 1000).toISOString(),

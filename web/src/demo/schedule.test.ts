@@ -96,6 +96,37 @@ describe('demo rules', () => {
   });
 });
 
+describe('demo rules and their reservations', () => {
+  it('keeps a cancelled rule reservation cancelled after the rule is disabled and enabled again', async () => {
+    const { executor } = newExecutor();
+    const before = await reservations(executor);
+    const target = before.find((item) => item.kind === 'RULE')!;
+    const rules = await executor.execute('{ rules { id name } }', {});
+    const rule = (rules.data as { rules: { id: string; name: string }[] }).rules.find((item) =>
+      target.name.includes(item.name),
+    )!;
+
+    await executor.execute('mutation ($id: ID!) { deleteReservation(id: $id) { id } }', {
+      id: target.id,
+    });
+    for (const enabled of [false, true]) {
+      await executor.execute(
+        'mutation ($id: ID!, $enabled: Boolean!) { setRuleEnabled(id: $id, enabled: $enabled) { id } }',
+        {
+          id: rule.id,
+          enabled,
+        },
+      );
+    }
+
+    // 同じ名前の番組がほかの局にもあるので、名前の一致する予約の数が変わらないことで、作り直していないことを確かめる。
+    const after = await reservations(executor);
+    const sameName = (list: ReservationNode[]) => list.filter((item) => item.name === target.name);
+    expect(sameName(after)).toHaveLength(sameName(before).length);
+    expect(after.find((item) => item.id === target.id)?.enabled).toBe(false);
+  });
+});
+
 describe('demo reservations', () => {
   it('reports a conflict when more programs overlap than there are tuners', async () => {
     const { executor } = newExecutor();

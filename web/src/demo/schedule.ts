@@ -67,18 +67,21 @@ export function createScheduler(options: {
   let nextId = 1;
   const newId = (type: string) => `${type}:${nextId++}`;
 
-  const ruleMatches = (rule: Rule, item: DemoProgram) => {
+  // conditionsMatch は、番組がルールの条件と有効期間に当てはまるかを返す。放送中の予約とルールの結び付きにも使う。
+  const conditionsMatch = (rule: Rule, item: DemoProgram) => {
     const validFrom = rule.input.validFrom == null ? -Infinity : Date.parse(rule.input.validFrom);
     const validUntil = rule.input.validUntil == null ? Infinity : Date.parse(rule.input.validUntil);
 
     return (
-      item.start > now &&
       !item.endUndecided &&
       item.start >= validFrom &&
       item.start < validUntil &&
       matchProgram(item, rule.input.conditions)
     );
   };
+  // ruleMatches は、新しくルール予約を作る番組かを返す。放送が始まった番組は含めない。
+  const ruleMatches = (rule: Rule, item: DemoProgram) =>
+    item.start > now && conditionsMatch(rule, item);
 
   const reservationOf = (programId: string) =>
     [...reservations.values()].find((item) => item.program?.id === programId);
@@ -87,14 +90,21 @@ export function createScheduler(options: {
     reservation.program === null
       ? []
       : [...rules.values()].filter(
-          (rule) => rule.input.enabled !== false && ruleMatches(rule, reservation.program!),
+          (rule) => rule.input.enabled !== false && conditionsMatch(rule, reservation.program!),
         );
 
   // syncRules は、有効なルールに一致する番組のうち、予約のないものにルール予約を作り、
-  // どのルールにも一致しなくなったルール予約を消す。無効にしたルール予約は、一致する限り残す。
+  // どのルールにも一致しなくなったルール予約を消す。無効にしたルール予約は、無効にしたルールも含めて、
+  // 一致するルールがある限り残す。ルールを有効に戻したときに、消した予約が戻らないようにするため。
   const syncRules = () => {
     for (const reservation of reservations.values()) {
-      if (reservation.kind === 'RULE' && matchingRules(reservation).length === 0) {
+      if (reservation.kind !== 'RULE') {
+        continue;
+      }
+      const kept = reservation.enabled
+        ? matchingRules(reservation).length > 0
+        : [...rules.values()].some((rule) => conditionsMatch(rule, reservation.program!));
+      if (!kept) {
         reservations.delete(reservation.id);
       }
     }
@@ -210,7 +220,7 @@ export function createScheduler(options: {
         item.kind === 'RULE' &&
         item.end > now &&
         item.program !== null &&
-        ruleMatches(rule, item.program),
+        conditionsMatch(rule, item.program),
     ).length,
   });
 
@@ -383,7 +393,7 @@ export function createScheduler(options: {
         .filter(
           (item) =>
             args.rule == null ||
-            (rule !== undefined && item.program !== null && ruleMatches(rule, item.program)),
+            (rule !== undefined && item.program !== null && conditionsMatch(rule, item.program)),
         )
         .toSorted((a, b) => a.start - b.start)
         .map((item) => reservationView(item, assigned))
