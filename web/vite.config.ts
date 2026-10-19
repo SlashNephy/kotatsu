@@ -64,16 +64,17 @@ export default defineConfig({
         short_name: 'Kotatsu',
         description: 'テレビの予約、録画、視聴をまとめるアプリ',
         lang: 'ja',
-        start_url: '/',
-        scope: '/',
+        // マニフェストの URL から解決させ、Vite の base に置いても同じ場所を指すようにする (#832)。
+        start_url: '.',
+        scope: '.',
         display: 'standalone',
         theme_color: '#ff7407',
         background_color: '#fbf7ef',
         icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
           {
-            src: '/icons/icon-maskable-512.png',
+            src: 'icons/icon-maskable-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',

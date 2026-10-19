@@ -23,7 +23,8 @@ import { routeTree } from './routeTree.gen';
 // react-remove-scroll は get-nonce から nonce を引くので、CSP の nonce を渡しておく (設計書 10.4)。
 setNonce(cspNonce());
 
-const router = createRouter({ routeTree });
+// basepath は、Vite の base に合わせる。tenban は / に置き、静的なデモはサブパスに置く (#832)。
+const router = createRouter({ routeTree, basepath: import.meta.env.BASE_URL });
 const environment = createEnvironment();
 
 // Service Worker を登録する。新しい版があれば、次に開いたときに切り替わる。

@@ -91,7 +91,9 @@ export function UserMenu() {
           color="red"
           onClick={() => {
             // ログアウトに失敗しても (セッションが切れているときなど)、ログインの画面へ移す。
-            void authApi.logout().finally(() => window.location.assign('/login'));
+            void authApi
+              .logout()
+              .finally(() => window.location.assign(`${import.meta.env.BASE_URL}login`));
           }}
         >
           {t('auth.logout')}
