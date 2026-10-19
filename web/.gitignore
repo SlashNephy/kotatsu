@@ -9,3 +9,6 @@
 /vendor/caption-font/*.tmp
 # TanStack Router が作る一時ファイル。
 /.tanstack/
+
+# tsc -b の増分ビルドの記録
+*.tsbuildinfo

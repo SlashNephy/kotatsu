@@ -625,3 +625,24 @@ func TestEngineMatchesNormalizedExtended(t *testing.T) {
 		})
 	}
 }
+
+// TestEngineMatchesMarksFromRawName は、囲み文字を、正規化する前の番組名から取り出して照合することを確かめる。
+// 囲み文字を括弧の書き方にする前に正規化した番組名では、🈟 が「新」になり、番組名の文字と見分けられない。
+func TestEngineMatchesMarksFromRawName(t *testing.T) {
+	t.Parallel()
+
+	f := newEngineFixture(t)
+	for _, update := range []string{
+		`UPDATE programs SET name = '🈟番組', name_normalized = '新番組' WHERE service_id = $1 AND event_id = 5`,
+		`UPDATE programs SET name = '新番組', name_normalized = '新番組' WHERE service_id = $1 AND event_id = 6`,
+	} {
+		_, err := f.pool.Exec(t.Context(), update, serviceID())
+		require.NoError(t, err)
+	}
+	f.createRule(t, "番組", func(in *rule.Input) {
+		in.Conditions.Marks = []string{"新"}
+	})
+
+	f.run(t)
+	assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
+}

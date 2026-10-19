@@ -318,3 +318,76 @@ func TestMatchFoldsCase(t *testing.T) {
 		})
 	}
 }
+
+// TestMatchMarks は、番組名の囲み文字 (括弧で書いたものを含む) での照合を確かめる。
+func TestMatchMarks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		conditions *match.Conditions
+		modify     func(p *match.ProgramInput)
+		want       bool
+	}{
+		{
+			// EPGStation から移したルールのキーワード [再] は、囲み文字の 🈞 に一致する。
+			name:       "bracketed keyword matches the enclosed character",
+			conditions: &match.Conditions{Keywords: []*match.Keyword{keyword("[再]", match.FieldName)}},
+			modify:     func(p *match.ProgramInput) { p.Name = "ゆるキャン△🈞" },
+			want:       true,
+		},
+		{
+			name:       "mark from the enclosed character",
+			conditions: &match.Conditions{Marks: []string{"字", "新"}},
+			modify:     func(p *match.ProgramInput) { p.Name = "🈟ゆるキャン△" },
+			want:       true,
+		},
+		{
+			name:       "mark from the bracketed text",
+			conditions: &match.Conditions{Marks: []string{"新"}},
+			want:       true,
+		},
+		{
+			// 番組名の文字の「新」は囲み文字ではない。
+			name:       "plain character is not a mark",
+			conditions: &match.Conditions{Marks: []string{"新"}},
+			modify:     func(p *match.ProgramInput) { p.Name = "新ゆるキャン△" },
+			want:       false,
+		},
+		{
+			name:       "program without the mark",
+			conditions: &match.Conditions{Marks: []string{"再"}},
+			want:       false,
+		},
+		{
+			name:       "exclude mark excludes",
+			conditions: &match.Conditions{ExcludeMarks: []string{"再"}},
+			modify:     func(p *match.ProgramInput) { p.Name = "ゆるキャン△🈞" },
+			want:       false,
+		},
+		{
+			name:       "exclude mark wins over include mark",
+			conditions: &match.Conditions{Marks: []string{"新"}, ExcludeMarks: []string{"字"}},
+			modify:     func(p *match.ProgramInput) { p.Name = "🈟ゆるキャン△🈑" },
+			want:       false,
+		},
+		{
+			name:       "exclude mark does not exclude a program without the mark",
+			conditions: &match.Conditions{ExcludeMarks: []string{"再"}},
+			want:       true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			in := program(t)
+			if tt.modify != nil {
+				tt.modify(in)
+			}
+			matcher, err := match.Compile(tt.conditions, tokyo(t))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, matcher.Match(match.NewProgram(in)))
+		})
+	}
+}

@@ -28,6 +28,8 @@ func fullConditions() *match.Conditions {
 		MinDurationSeconds: new(600),
 		MaxDurationSeconds: new(7200),
 		FreeOnly:           true,
+		Marks:              []string{"新"},
+		ExcludeMarks:       []string{"再"},
 	}
 }
 
@@ -68,6 +70,17 @@ func TestValidateRejectsInvalidConditions(t *testing.T) {
 			name:    "genre out of range",
 			modify:  func(c *match.Conditions) { c.Genres[0].Lv1 = 16 },
 			wantErr: "genres[0] must have lv1 and lv2 between 0 and 15",
+		},
+		{
+			name:    "empty mark",
+			modify:  func(c *match.Conditions) { c.Marks[0] = "" },
+			wantErr: `marks[0]: unknown enclosed character ""`,
+		},
+		{
+			// 🈲 (禁) は、表にない囲み文字。
+			name:    "enclosed character not in the table",
+			modify:  func(c *match.Conditions) { c.ExcludeMarks[0] = "禁" },
+			wantErr: `excludeMarks[0]: unknown enclosed character "禁"`,
 		},
 		{
 			name:    "weekday out of range",

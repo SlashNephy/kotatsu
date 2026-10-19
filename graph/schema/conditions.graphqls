@@ -81,4 +81,8 @@ input ProgramConditionsInput {
   minDurationSeconds: Int
   maxDurationSeconds: Int
   freeOnly: Boolean
+  "番組名の囲み文字 (中身で指定する。「新」や「字」など。括弧で書いた [新] なども同じとみなす) のどれか 1 つを持つ番組を対象にする。"
+  marks: [String!]
+  "どれか 1 つの囲み文字を持つ番組を除外する。"
+  excludeMarks: [String!]
 }

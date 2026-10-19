@@ -13,11 +13,13 @@ import {
   Text,
   TextInput,
   Title,
+  Tooltip,
 } from '@mantine/core';
-import { MonitorX, Plus, RadioTower, Search, SearchX, Shapes, Tv, X } from 'lucide-react';
+import { Minus, MonitorX, Plus, RadioTower, Search, SearchX, Shapes, Tv, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { markDescription, markOptions } from '../futon/programMarks';
 import { GenreMultiSelect } from '../guide/GenreMultiSelect';
 import { decodeGenre, encodeGenre } from '../guide/guideView';
 import { ServiceLabel } from '../guide/ServiceLabel';
@@ -103,6 +105,11 @@ export function ConditionsFields({ value, onChange, channelTypes, services }: Pr
             icon={<SearchX size={16} aria-hidden />}
             rows={value.excludeKeywords}
             onChange={(excludeKeywords) => onChange({ excludeKeywords })}
+          />
+          <MarkChips
+            marks={value.marks}
+            excludeMarks={value.excludeMarks}
+            onChange={(marks, excludeMarks) => onChange({ marks, excludeMarks })}
           />
         </Stack>
       </Card>
@@ -213,6 +220,116 @@ type KeywordRowsProps = {
   rows: KeywordRow[];
   onChange: (rows: KeywordRow[]) => void;
 };
+
+// MarkChips は、番組名の囲み文字 (新、字など) を選ぶ欄。表の囲み文字をすべてチップで並べ、
+// 押すたびに、含める、除外する、選ばない、の順に切り替える。
+// 一覧にない囲み文字 (API で保存したもの) も、選んだまま残すために並べる。
+function MarkChips({
+  marks,
+  excludeMarks,
+  onChange,
+}: {
+  marks: string[];
+  excludeMarks: string[];
+  onChange: (marks: string[], excludeMarks: string[]) => void;
+}) {
+  const { t } = useTranslation();
+  const known = markOptions.flatMap((option) => option.labels);
+  const others = [...new Set([...marks, ...excludeMarks])].filter((mark) => !known.includes(mark));
+  const groups = [
+    ...markOptions.map((option) => ({
+      key: option.group,
+      label: t(`rules.markGroup.${option.group}`),
+      items: option.labels,
+    })),
+    ...(others.length > 0
+      ? [{ key: 'others', label: t('rules.markGroup.others'), items: others }]
+      : []),
+  ];
+  // 押した順でなく、表の順にそろえて持つ。
+  const order = [...known, ...others];
+  const sorted = (list: string[]) => [...list].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  const cycle = (mark: string) => {
+    if (marks.includes(mark)) {
+      onChange(
+        marks.filter((m) => m !== mark),
+        sorted([...excludeMarks, mark]),
+      );
+    } else if (excludeMarks.includes(mark)) {
+      onChange(
+        marks,
+        excludeMarks.filter((m) => m !== mark),
+      );
+    } else {
+      onChange(sorted([...marks, mark]), excludeMarks);
+    }
+  };
+
+  return (
+    <Stack gap={6} role="group" aria-label={t('rules.marks')}>
+      <div>
+        <Text size="sm" fw={500}>
+          {t('rules.marks')}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {t('rules.marksDescription')}
+        </Text>
+      </div>
+      {groups.map((group) => (
+        <Stack key={group.key} gap={4}>
+          <Text size="xs" c="dimmed">
+            {group.label}
+          </Text>
+          <Group gap={4}>
+            {group.items.map((mark) => {
+              const excluded = excludeMarks.includes(mark);
+              const description = markDescription(mark);
+              const name =
+                description === undefined
+                  ? mark
+                  : t('rules.markWithDescription', { mark, description });
+
+              return (
+                // Chip の根は見えない input を包むので、ツールチップは外側の要素に付ける。
+                <Tooltip
+                  key={mark}
+                  label={description}
+                  disabled={description === undefined}
+                  withArrow
+                >
+                  <span>
+                    <Chip
+                      size="xs"
+                      checked={excluded || marks.includes(mark)}
+                      onChange={() => cycle(mark)}
+                      color={excluded ? 'red' : undefined}
+                      icon={
+                        excluded ? (
+                          <Minus size={12} strokeWidth={3} aria-hidden />
+                        ) : (
+                          <Plus size={12} strokeWidth={3} aria-hidden />
+                        )
+                      }
+                      aria-label={
+                        excluded
+                          ? t('rules.markState.exclude', { mark: name })
+                          : marks.includes(mark)
+                            ? t('rules.markState.include', { mark: name })
+                            : name
+                      }
+                    >
+                      {mark}
+                    </Chip>
+                  </span>
+                </Tooltip>
+              );
+            })}
+          </Group>
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
 
 // ServiceMultiSelect は、サービスを選ぶ欄。同じ名前のサービスが別の種別にもあるので、種別とサービス ID を添える。
 function ServiceMultiSelect({

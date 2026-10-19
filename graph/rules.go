@@ -187,6 +187,8 @@ func toProgramConditions(c *match.Conditions) *model.ProgramConditions {
 		FreeOnly:           c.FreeOnly,
 		ServiceKeys:        nonNil(c.ServiceIDs),
 		ExcludeServiceKeys: nonNil(c.ExcludeServiceIDs),
+		Marks:              nonNil(c.Marks),
+		ExcludeMarks:       nonNil(c.ExcludeMarks),
 	}
 }
 

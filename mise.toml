@@ -130,6 +130,8 @@ run = [
   "golangci-lint fmt",
   # フロントエンドの Relay のコンパイラが読む、1 つにまとめたスキーマを書き出す。
   "go run ./graph/printschema > web/schema.graphql",
+  # 囲み文字の表 (internal/epg/enclosed.go) を、画面で使う TypeScript に書き出す。
+  "go run ./internal/epg/printenclosed > web/src/futon/enclosedCharacters.gen.ts",
   # schema.sql とマイグレーションが食い違っていれば、ここで新しいマイグレーションが生成される。
   "atlas migrate diff --env local",
   "atlas migrate validate --env local",

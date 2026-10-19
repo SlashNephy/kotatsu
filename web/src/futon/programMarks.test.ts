@@ -37,6 +37,11 @@ describe('splitProgramMarks', () => {
       want: { name: '出演：山田ほか', marks: ['字'] },
     },
     {
+      name: '表にない囲み文字は、番組名の一部として残す',
+      input: '番組🈲🄰',
+      want: { name: '番組🈲🄰', marks: [] },
+    },
+    {
       name: '丸数字は番組名の一部として残す',
       input: '講座①',
       want: { name: '講座①', marks: [] },

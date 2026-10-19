@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<91847bac256aa35a913b592bfd77720f>>
+ * @generated SignedSource<<68b0ac3aad88fcae50e3433e3daae372>>
  * @lightSyntaxTransform
  */
 
@@ -14,11 +14,13 @@ export type ProgramConditionsInput = {
   channelTypes?: ReadonlyArray<string> | null | undefined;
   excludeGenres?: ReadonlyArray<GenreInput> | null | undefined;
   excludeKeywords?: ReadonlyArray<KeywordInput> | null | undefined;
+  excludeMarks?: ReadonlyArray<string> | null | undefined;
   excludeServices?: ReadonlyArray<string> | null | undefined;
   freeOnly?: boolean | null | undefined;
   genres?: ReadonlyArray<GenreInput> | null | undefined;
   keywordMatch?: KeywordMatch;
   keywords?: ReadonlyArray<KeywordInput> | null | undefined;
+  marks?: ReadonlyArray<string> | null | undefined;
   maxDurationSeconds?: number | null | undefined;
   minDurationSeconds?: number | null | undefined;
   services?: ReadonlyArray<string> | null | undefined;

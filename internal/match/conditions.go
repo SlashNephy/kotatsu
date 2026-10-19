@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"slices"
 	"unicode/utf8"
+
+	"github.com/SlashNephy/kotatsu/internal/epg"
 )
 
 // SchemaVersion は、JSONB に保存する条件のスキーマのバージョン (設計書 8.3)。
@@ -108,6 +110,11 @@ type Conditions struct {
 	MaxDurationSeconds *int `json:"maxDurationSeconds,omitempty"`
 	// FreeOnly は、無料放送に限るかどうか。
 	FreeOnly bool `json:"freeOnly"`
+	// Marks は、番組名の囲み文字 (中身で指定する。「新」や「字」など。括弧で書いた [新] なども同じとみなす) のどれか 1 つを持つ番組を対象にする。
+	// ExcludeMarks は、どれか 1 つを持つ番組を除外する。
+	// 項目を足す前のバイナリも条件を読めるよう、空なら保存しない。
+	Marks        []string `json:"marks,omitempty"`
+	ExcludeMarks []string `json:"excludeMarks,omitempty"`
 }
 
 // Validate は、条件が正しいかを確かめる。正しくなければ、理由をすべてまとめた ErrInvalidConditions を返す。
@@ -132,6 +139,8 @@ func (c *Conditions) Validate() error {
 		{"genres", len(c.Genres)},
 		{"excludeGenres", len(c.ExcludeGenres)},
 		{"timeRanges", len(c.TimeRanges)},
+		{"marks", len(c.Marks)},
+		{"excludeMarks", len(c.ExcludeMarks)},
 	} {
 		if list.length > maxListLength {
 			errs = append(errs, invalid("%s must have at most %d items", list.name, maxListLength))
@@ -142,6 +151,8 @@ func (c *Conditions) Validate() error {
 	}
 	errs = append(errs, validateGenres("genres", c.Genres)...)
 	errs = append(errs, validateGenres("excludeGenres", c.ExcludeGenres)...)
+	errs = append(errs, validateMarks("marks", c.Marks)...)
+	errs = append(errs, validateMarks("excludeMarks", c.ExcludeMarks)...)
 	for i, r := range c.TimeRanges {
 		if err := r.validate(); err != nil {
 			errs = append(errs, invalid("timeRanges[%d]: %v", i, err))
@@ -179,6 +190,17 @@ func validateGenres(name string, genres []*Genre) []error {
 	for i, genre := range genres {
 		if genre == nil || !inRange(genre.Lv1) || (genre.Lv2 != nil && !inRange(*genre.Lv2)) {
 			errs = append(errs, invalid("%s[%d] must have lv1 and lv2 between 0 and %d", name, i, maxGenreLevel))
+		}
+	}
+
+	return errs
+}
+
+func validateMarks(name string, marks []string) []error {
+	errs := []error{}
+	for i, mark := range marks {
+		if !epg.IsEnclosedLabel(mark) {
+			errs = append(errs, invalid("%s[%d]: unknown enclosed character %q", name, i, mark))
 		}
 	}
 

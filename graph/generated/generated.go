@@ -442,11 +442,13 @@ type ComplexityRoot struct {
 		ChannelTypes       func(childComplexity int) int
 		ExcludeGenres      func(childComplexity int) int
 		ExcludeKeywords    func(childComplexity int) int
+		ExcludeMarks       func(childComplexity int) int
 		ExcludeServices    func(childComplexity int) int
 		FreeOnly           func(childComplexity int) int
 		Genres             func(childComplexity int) int
 		KeywordMatch       func(childComplexity int) int
 		Keywords           func(childComplexity int) int
+		Marks              func(childComplexity int) int
 		MaxDurationSeconds func(childComplexity int) int
 		MinDurationSeconds func(childComplexity int) int
 		Services           func(childComplexity int) int
@@ -2903,6 +2905,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProgramConditions.ExcludeKeywords(childComplexity), true
+	case "ProgramConditions.excludeMarks":
+		if e.ComplexityRoot.ProgramConditions.ExcludeMarks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProgramConditions.ExcludeMarks(childComplexity), true
 	case "ProgramConditions.excludeServices":
 		if e.ComplexityRoot.ProgramConditions.ExcludeServices == nil {
 			break
@@ -2933,6 +2941,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProgramConditions.Keywords(childComplexity), true
+	case "ProgramConditions.marks":
+		if e.ComplexityRoot.ProgramConditions.Marks == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProgramConditions.Marks(childComplexity), true
 	case "ProgramConditions.maxDurationSeconds":
 		if e.ComplexityRoot.ProgramConditions.MaxDurationSeconds == nil {
 			break
@@ -5206,6 +5220,10 @@ input ProgramConditionsInput {
   minDurationSeconds: Int
   maxDurationSeconds: Int
   freeOnly: Boolean
+  "番組名の囲み文字 (中身で指定する。「新」や「字」など。括弧で書いた [新] なども同じとみなす) のどれか 1 つを持つ番組を対象にする。"
+  marks: [String!]
+  "どれか 1 つの囲み文字を持つ番組を除外する。"
+  excludeMarks: [String!]
 }
 `, BuiltIn: false},
 	{Name: "../schema/epg.graphqls", Input: `"""
@@ -6455,6 +6473,10 @@ type ProgramConditions {
   minDurationSeconds: Int
   maxDurationSeconds: Int
   freeOnly: Boolean!
+  "番組名の囲み文字 (中身で表す。「新」や「字」など。括弧で書いた [新] なども同じとみなす)。どれか 1 つを持つ番組を対象にする。"
+  marks: [String!]!
+  "どれか 1 つを持つ番組を除外する囲み文字"
+  excludeMarks: [String!]!
 }
 
 """
@@ -7909,6 +7931,10 @@ func (ec *executionContext) childFields_ProgramConditions(ctx context.Context, f
 		return ec.fieldContext_ProgramConditions_maxDurationSeconds(ctx, field)
 	case "freeOnly":
 		return ec.fieldContext_ProgramConditions_freeOnly(ctx, field)
+	case "marks":
+		return ec.fieldContext_ProgramConditions_marks(ctx, field)
+	case "excludeMarks":
+		return ec.fieldContext_ProgramConditions_excludeMarks(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ProgramConditions", field.Name)
 }
@@ -17750,6 +17776,52 @@ func (ec *executionContext) fieldContext_ProgramConditions_freeOnly(_ context.Co
 	return graphql.NewScalarFieldContext("ProgramConditions", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _ProgramConditions_marks(ctx context.Context, field graphql.CollectedField, obj *model.ProgramConditions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProgramConditions_marks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Marks, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProgramConditions_marks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProgramConditions", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _ProgramConditions_excludeMarks(ctx context.Context, field graphql.CollectedField, obj *model.ProgramConditions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProgramConditions_excludeMarks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExcludeMarks, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProgramConditions_excludeMarks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProgramConditions", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _ProgramConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.ProgramConnection) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -27086,7 +27158,7 @@ func (ec *executionContext) unmarshalInputProgramConditionsInput(ctx context.Con
 		asMap["keywordMatch"] = "ALL"
 	}
 
-	fieldsInOrder := [...]string{"keywords", "keywordMatch", "excludeKeywords", "channelTypes", "services", "excludeServices", "genres", "excludeGenres", "timeRanges", "minDurationSeconds", "maxDurationSeconds", "freeOnly"}
+	fieldsInOrder := [...]string{"keywords", "keywordMatch", "excludeKeywords", "channelTypes", "services", "excludeServices", "genres", "excludeGenres", "timeRanges", "minDurationSeconds", "maxDurationSeconds", "freeOnly", "marks", "excludeMarks"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -27177,6 +27249,20 @@ func (ec *executionContext) unmarshalInputProgramConditionsInput(ctx context.Con
 				return it, err
 			}
 			it.FreeOnly = data
+		case "marks":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("marks"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Marks = data
+		case "excludeMarks":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("excludeMarks"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExcludeMarks = data
 		}
 	}
 	return it, nil
@@ -31287,6 +31373,16 @@ func (ec *executionContext) _ProgramConditions(ctx context.Context, sel ast.Sele
 			}
 		case "freeOnly":
 			out.Values[i] = ec._ProgramConditions_freeOnly(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "marks":
+			out.Values[i] = ec._ProgramConditions_marks(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "excludeMarks":
+			out.Values[i] = ec._ProgramConditions_excludeMarks(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

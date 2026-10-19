@@ -112,6 +112,8 @@ type ProgramConditions struct {
 	MinDurationSeconds *int              `json:"minDurationSeconds,omitempty"`
 	MaxDurationSeconds *int              `json:"maxDurationSeconds,omitempty"`
 	FreeOnly           bool              `json:"freeOnly"`
+	Marks              []string          `json:"marks"`
+	ExcludeMarks       []string          `json:"excludeMarks"`
 	// ServiceKeys は、サービス (Mirakurun のサービス ID)。スキーマには出さない。
 	ServiceKeys []int64 `json:"-"`
 	// ExcludeServiceKeys は、除外するサービス (Mirakurun のサービス ID)。スキーマには出さない。

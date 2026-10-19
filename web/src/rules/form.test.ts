@@ -22,6 +22,8 @@ const imported: RuleData = {
     minDurationSeconds: 1200,
     maxDurationSeconds: 7200,
     freeOnly: true,
+    marks: ['新'],
+    excludeMarks: ['再'],
   },
   settings: {
     poolId: 'main',
@@ -59,6 +61,8 @@ describe('fromRule と toInput', () => {
         minDurationSeconds: 1200,
         maxDurationSeconds: 7200,
         freeOnly: true,
+        marks: ['新'],
+        excludeMarks: ['再'],
       },
       settings: {
         poolId: 'main',

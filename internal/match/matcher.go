@@ -25,6 +25,9 @@ type Program struct {
 	StartAt  time.Time
 	Duration time.Duration
 	IsFree   bool
+	// Marks は、番組名の囲み文字の中身。囲み文字を括弧の書き方にする前に正規化した番組名では、囲み文字が「新」のような文字になり、
+	// 番組名の文字と見分けられないので、正規化する前の番組名から epg.Marks で取り出しておく。
+	Marks []string
 
 	// folded は、大文字と小文字を区別しないキーワードで探すために、項目ごとに畳んだ文字列。照合のときに初めて作る。
 	folded map[Field]string
@@ -57,6 +60,7 @@ func NewProgram(in *ProgramInput) *Program {
 		StartAt:     in.StartAt,
 		Duration:    in.Duration,
 		IsFree:      in.IsFree,
+		Marks:       epg.Marks(in.Name),
 		folded:      nil,
 	}
 }
@@ -231,6 +235,9 @@ func (m *Matcher) Match(p *Program) bool {
 	if anyGenre(c.ExcludeGenres, p.Genres) {
 		return false
 	}
+	if !m.matchMarks(p) {
+		return false
+	}
 	if len(c.TimeRanges) > 0 && !m.inTimeRanges(p.StartAt) {
 		return false
 	}
@@ -285,6 +292,21 @@ func anyGenre(conditions, genres []*Genre) bool {
 	}
 
 	return false
+}
+
+// matchMarks は、番組が、含める囲み文字のどれかを持ち (なければ絞り込まない)、除外する囲み文字をどれも持たないかどうかを返す。
+func (m *Matcher) matchMarks(p *Program) bool {
+	c := m.conditions
+	if len(c.Marks) > 0 && !anyMark(c.Marks, p.Marks) {
+		return false
+	}
+
+	return !anyMark(c.ExcludeMarks, p.Marks)
+}
+
+// anyMark は、番組の囲み文字のどれかが、条件の囲み文字のどれかに当たるかどうかを返す。
+func anyMark(conditions, marks []string) bool {
+	return slices.ContainsFunc(conditions, func(mark string) bool { return slices.Contains(marks, mark) })
 }
 
 // inTimeRanges は、開始時刻が、曜日と時間帯の組のどれかに入るかどうかを返す。

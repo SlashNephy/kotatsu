@@ -12,10 +12,11 @@ import (
 // Normalize は、検索用の列に入れる文字列を作る (設計書 3.5)。
 // NFKC で全角の英数字と記号を半角に、半角のカタカナを全角にそろえる。
 // Mirakurun はサービス名や番組名を全角で返すので、そろえないと半角で入力した語が一致しない。
-// 🈟 や 🈑 のような ARIB の囲み文字も、中の文字 (新、字) に分解される。
+// 🈟 や 🈑 のような ARIB の囲み文字は、EPGStation と同じく [新] や [字] にする。
+// EPGStation から移したルールの [再] のようなキーワードが、そのまま一致するようにするためである。
 // 大文字と小文字は区別したまま残す。区別するかどうかは照合の条件で決める。
 func Normalize(s string) string {
-	return norm.NFKC.String(s)
+	return norm.NFKC.String(replaceEnclosedMarks(s))
 }
 
 // NormalizeExtended は、詳細 (見出しから本文への対応) を、照合のための 1 つの文字列にして正規化する (設計書 3.5)。
