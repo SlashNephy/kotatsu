@@ -8,6 +8,14 @@ import {
   type ProgramConditionsInput,
 } from './epg';
 import type { EventHub } from './events';
+import {
+  defaultFileNameTemplate,
+  fileNameTemplateItems,
+  fileNameTemplatePresets,
+  renderFileName,
+  sampleFileNameData,
+} from './filename';
+import { createScheduler, type RuleInput, type SettingsInput } from './schedule';
 
 // demoUser は、デモでログインしているものとして扱うユーザー。
 const demoUser = {
@@ -72,6 +80,21 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
   const guideViews = new Map<string, GuideViewInput>();
   let nextGuideView = 1;
   let viewerSettingsVersion = 0;
+  let minutesBefore = 5;
+  const dataVersions = new Map<string, number>();
+  // dataChanged は、予約やルールを変えたことを、変わった種類ごとに版を上げて画面に知らせる。
+  const dataChanged = (channels: string[]) => {
+    for (const channel of channels) {
+      const version = (dataVersions.get(channel) ?? 0) + 1;
+      dataVersions.set(channel, version);
+      events.publish({
+        dataChange: { channel, version },
+        viewerSettingsVersion: null,
+        unreadNotificationCount: null,
+      });
+    }
+  };
+  const scheduler = createScheduler({ programs, now, user: demoUser, changed: dataChanged });
 
   // program は、番組に、デモの状態から決まるフィールドを足して返す。
   // 放送が終わった番組は、アーカイブに移したものとして扱う。
@@ -79,7 +102,8 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     ...item,
     archived: item.end <= now,
     watchReserved: watchReserved.has(item.id),
-    reservation: null,
+    // 予約は、選ばれたときだけ引く。番組表の番組ごとに割り当てを計算しないため。
+    reservation: () => scheduler.reservationOfProgram(item.id),
   });
 
   const guideView = (id: string, input: GuideViewInput) => ({
@@ -103,6 +127,10 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     const view = guideViews.get(id);
     if (view !== undefined) {
       return guideView(id, view);
+    }
+    const scheduled = scheduler.node(id);
+    if (scheduled !== undefined) {
+      return scheduled;
     }
 
     return services.find((item) => item.id === id) ?? null;
@@ -194,9 +222,111 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     },
     continueWatching: () => [],
     recordings: () => ({ edges: [], pageInfo: emptyPageInfo }),
-    reservations: () => ({ edges: [], pageInfo: emptyPageInfo }),
+    reservations: (
+      args: Parameters<typeof scheduler.reservations>[0] & { first: number; after?: string | null },
+    ) => paginate(scheduler.reservations(args), args.first, args.after),
+    rules: () => scheduler.rules(),
+    previewRule: (args: { input: RuleInput; first: number; after?: string | null }) =>
+      paginate(scheduler.previewRule(args).map(program), args.first, args.after),
+    // 重複の回避で見送った番組は、録画の履歴から求める。デモには録画の履歴がないので、ない。
+    skippedDuplicates: () => [],
+    watchReservations: () =>
+      programs
+        .filter((item) => watchReserved.has(item.id) && item.start > now)
+        .map((item) => ({
+          program: program(item),
+          notifyAt: new Date(item.start - minutesBefore * 60 * 1000).toISOString(),
+          createdAt: new Date(now).toISOString(),
+        })),
+    watchReminderSettings: () => ({ minutesBefore }),
+    systemSettings: () => ({
+      recordingDefaults: {
+        poolId: 'default',
+        fileNameTemplate: defaultFileNameTemplate,
+        startMarginSeconds: 0,
+        endMarginSeconds: 0,
+        priority: 0,
+        joinSegments: true,
+      },
+      archiveRetentionDays: 30,
+      notificationRetentionDays: 30,
+      ruleDefaults: { avoidDuplicates: false, duplicateWindowDays: null, followEventRelay: true },
+      updatedAt: null,
+    }),
+    storagePoolNames: () => ['default'],
+    fileNameTemplateHelp: () => ({
+      items: fileNameTemplateItems.map((item) => ({
+        ...item,
+        example: renderFileName(item.snippet, sampleFileNameData).fileName ?? '',
+      })),
+      presets: fileNameTemplatePresets.map((preset) => ({
+        ...preset,
+        example: renderFileName(preset.template, sampleFileNameData).fileName ?? '',
+      })),
+    }),
+    previewFileName: ({ template, program: id }: { template: string; program?: string | null }) => {
+      const item = id == null ? undefined : programsById.get(id);
+
+      return renderFileName(
+        template,
+        item === undefined
+          ? sampleFileNameData
+          : {
+              name: item.name,
+              serviceName: item.service.name,
+              channelType: item.service.channelType.type,
+              channel: item.service.channel,
+              eventId: item.eventId,
+              startAt: item.start,
+              endAt: item.end,
+            },
+      );
+    },
 
     // Mutation
+    createProgramReservation: ({
+      input,
+    }: {
+      input: {
+        program: string;
+        followEventRelay?: boolean | null;
+        settings?: SettingsInput | null;
+      };
+    }) => scheduler.createProgramReservation(input),
+    createTimeReservation: ({
+      input,
+    }: {
+      input: Parameters<typeof scheduler.createTimeReservation>[0];
+    }) => scheduler.createTimeReservation(input),
+    updateReservation: ({
+      id,
+      input,
+    }: {
+      id: string;
+      input: Parameters<typeof scheduler.updateReservation>[1];
+    }) => scheduler.updateReservation(id, input),
+    deleteReservation: ({ id }: { id: string }) => scheduler.deleteReservation(id),
+    deleteReservations: ({ ids }: { ids: string[] }) => scheduler.deleteReservations(ids),
+    setReservationsEnabled: ({ ids, enabled }: { ids: string[]; enabled: boolean }) =>
+      scheduler.setReservationsEnabled(ids, enabled),
+    createRule: ({ input }: { input: RuleInput }) => scheduler.createRule(input),
+    updateRule: ({ id, input }: { id: string; input: RuleInput }) =>
+      scheduler.updateRule(id, input),
+    deleteRule: ({ id }: { id: string }) => scheduler.deleteRule(id),
+    deleteRules: ({ ids }: { ids: string[] }) => scheduler.deleteRules(ids),
+    setRuleEnabled: ({ id, enabled }: { id: string; enabled: boolean }) => {
+      scheduler.setRulesEnabled([id], enabled);
+
+      return scheduler.ruleView(id);
+    },
+    setRulesEnabled: ({ ids, enabled }: { ids: string[]; enabled: boolean }) =>
+      scheduler.setRulesEnabled(ids, enabled),
+    updateWatchReminderSettings: ({ minutesBefore: value }: { minutesBefore: number }) => {
+      minutesBefore = value;
+      viewerSettingsChanged();
+
+      return { minutesBefore };
+    },
     setServicePinned: ({ id, pinned: value }: { id: string; pinned: boolean }) => {
       pinned = pinned.filter((item) => item !== id);
       if (value) {
