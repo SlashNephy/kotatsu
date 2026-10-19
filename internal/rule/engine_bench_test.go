@@ -50,6 +50,13 @@ func BenchmarkEngineRun(b *testing.B) {
 			},
 		},
 		{
+			// 必ず含む文字列を決められない正規表現は、前段で絞り込めず、そのまま照合する (#852)。
+			name: "regexp without literals in all fields",
+			modify: func(i int, in *rule.Input) {
+				in.Conditions.Keywords = []*match.Keyword{{Text: fmt.Sprintf("[a-z]{%d}[0-9]", 20+i), Regexp: true, CaseSensitive: false, Fields: allFields}}
+			},
+		},
+		{
 			// いずれかに一致すればよいキーワードを 3 つと、除外するキーワード。
 			name: "any of keywords with excludes",
 			modify: func(i int, in *rule.Input) {

@@ -1,6 +1,7 @@
 package match_test
 
 import (
+	"fmt"
 	"regexp"
 	"testing"
 	"time"
@@ -412,20 +413,26 @@ func TestMatchRegexpAgreesWithRegexp(t *testing.T) {
 	}
 	names := []string{"［新］ゆるキャン△　ＳＥＡＳＯＮ３　第１話", "ゆるキャン△ season3", "ΚΑΛΟΣ", "Καλος", "△", "どこにもない"}
 	for _, pattern := range patterns {
-		expected := regexp.MustCompile(pattern)
-		for _, name := range names {
-			t.Run(pattern+" on "+name, func(t *testing.T) {
-				t.Parallel()
+		for _, caseSensitive := range []bool{true, false} {
+			// 大文字と小文字を区別しないキーワードは、(?i) を付けた正規表現として照合する。
+			expected := regexp.MustCompile(pattern)
+			if !caseSensitive {
+				expected = regexp.MustCompile("(?i)" + pattern)
+			}
+			for _, name := range names {
+				t.Run(fmt.Sprintf("%s (case-sensitive %t) on %s", pattern, caseSensitive, name), func(t *testing.T) {
+					t.Parallel()
 
-				matcher, err := match.Compile(&match.Conditions{Keywords: []*match.Keyword{
-					{Text: pattern, Regexp: true, CaseSensitive: true, Fields: []match.Field{match.FieldName}},
-				}}, tokyo(t))
-				require.NoError(t, err)
-				in := program(t)
-				in.Name = name
-				p := match.NewProgram(in)
-				assert.Equal(t, expected.MatchString(p.Name), matcher.Match(p))
-			})
+					matcher, err := match.Compile(&match.Conditions{Keywords: []*match.Keyword{
+						{Text: pattern, Regexp: true, CaseSensitive: caseSensitive, Fields: []match.Field{match.FieldName}},
+					}}, tokyo(t))
+					require.NoError(t, err)
+					in := program(t)
+					in.Name = name
+					p := match.NewProgram(in)
+					assert.Equal(t, expected.MatchString(p.Name), matcher.Match(p))
+				})
+			}
 		}
 	}
 }
