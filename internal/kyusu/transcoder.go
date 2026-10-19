@@ -330,7 +330,7 @@ func passthroughArgs(audio Audio, dir string, vod *RunOptions) []string {
 	)
 	if vod != nil {
 		return append(args,
-			"-output_ts_offset", seconds(time.Duration(vod.Offset)*time.Second/ts.PTSClock),
+			"-output_ts_offset", ptsSeconds(vod.Offset),
 			"-muxdelay", "0", "-muxpreload", "0",
 			"-f", "mpegts", "pipe:1",
 		)
@@ -343,6 +343,18 @@ func passthroughArgs(audio Audio, dir string, vod *RunOptions) []string {
 		"-hls_segment_filename", filepath.Join(dir, segmentPattern),
 		filepath.Join(dir, PlaylistName),
 	)
+}
+
+// ptsSeconds は、9 の倍数の PTS の刻み (90 kHz) を、FFmpeg の引数に渡す秒にする。
+// 刻みの 9 つは 100 マイクロ秒なので、マイクロ秒の整数で表せる。ナノ秒を経ないので、長い時間でも int64 を超えない。
+func ptsSeconds(ticks int64) string {
+	micros := ticks / 9 * 100
+	sign := ""
+	if micros < 0 {
+		sign, micros = "-", -micros
+	}
+
+	return fmt.Sprintf("%s%d.%06d", sign, micros/1_000_000, micros%1_000_000)
 }
 
 // seconds は、FFmpeg の引数に渡す秒を返す。

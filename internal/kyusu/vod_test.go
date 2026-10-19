@@ -35,8 +35,11 @@ import (
 )
 
 const (
-	poolID    = "main"
-	serviceID = 3273601024
+	// stateRecording と stateCompleted は、録画中と、録画を終えた録画の状態。
+	stateRecording = "recording"
+	stateCompleted = "completed"
+	poolID         = "main"
+	serviceID      = 3273601024
 	// videoFrame は、testdata/ts/test.ts の映像の 1 フレームの長さ (29.97 fps)。
 	videoFrame = 33367 * time.Microsecond
 )
@@ -113,7 +116,7 @@ func (f *vodFixture) recording(t *testing.T, state string, data []byte) uuid.UUI
 	require.NoError(t, os.MkdirAll(filepath.Join(f.dir, name+".kotatsu"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(f.dir, kago.IndexPath(name)), index.Bytes(), 0o600))
 	var endedAt *time.Time
-	if state != "recording" {
+	if state != stateRecording {
 		endedAt = new(startAt.Add(time.Minute))
 	}
 	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
@@ -138,19 +141,19 @@ func (f *vodFixture) longRecording(t *testing.T, duration time.Duration) uuid.UU
 		keyframes = append(keyframes, at)
 	}
 
-	return f.keyframedRecording(t, keyframes, duration)
+	return f.keyframedRecording(t, keyframes, duration, stateCompleted)
 }
 
-// keyframedRecording は、索引だけを作り込んだ、I フレームが keyframes の時間にある、duration の長さの録画を作る。
+// keyframedRecording は、索引だけを作り込んだ、I フレームが keyframes の時間にある、duration の長さの、state の状態の録画を作る。
 // 中身は TS として正しくないので、入力を読み捨てる偽のエンコーダーと使う。
-func (f *vodFixture) keyframedRecording(t *testing.T, keyframes []time.Duration, duration time.Duration) uuid.UUID {
+func (f *vodFixture) keyframedRecording(t *testing.T, keyframes []time.Duration, duration time.Duration, state string) uuid.UUID {
 	t.Helper()
 
 	recordingID := id.New()
 	startAt := f.clock.Now().Add(-time.Hour)
 	_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
 		state, protected, recorded_from, created_at, updated_at)
-		VALUES ($1, NULL, $2, NULL, '録画', '', $3, $3, 'completed', false, $3, $3, $3)`, recordingID, serviceID, startAt)
+		VALUES ($1, NULL, $2, NULL, '録画', '', $3, $3, $4, false, $3, $3, $3)`, recordingID, serviceID, startAt, state)
 	require.NoError(t, err)
 	name := recordingID.String() + ".m2ts"
 	require.NoError(t, os.WriteFile(filepath.Join(f.dir, name), make([]byte, len(keyframes)*keyframeBytes), 0o600))
@@ -162,9 +165,13 @@ func (f *vodFixture) keyframedRecording(t *testing.T, keyframes []time.Duration,
 	}
 	require.NoError(t, os.MkdirAll(filepath.Join(f.dir, name+".kotatsu"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(f.dir, kago.IndexPath(name)), index.Bytes(), 0o600))
+	var endedAt *time.Time
+	if state != stateRecording {
+		endedAt = new(startAt.Add(duration))
+	}
 	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
 		VALUES ($1, $2, 'segment', $3, $4, 0, $5, $6, $5), ($7, $2, 'index', $3, $8, 0, $5, $6, $5)`,
-		id.New(), recordingID, poolID, name, startAt, startAt.Add(duration), id.New(), kago.IndexPath(name))
+		id.New(), recordingID, poolID, name, startAt, endedAt, id.New(), kago.IndexPath(name))
 	require.NoError(t, err)
 
 	return recordingID
@@ -242,7 +249,7 @@ func TestVODPassthroughPlaylist(t *testing.T) {
 	ms := func(n int) time.Duration { return time.Duration(n) * time.Millisecond }
 	// 始まりは 0、2.1 (2 秒以上進んだ最初の I フレーム)、4.4 秒。録画の長さは、最後の I フレームに平均の間隔 (4.4 / 7) を足した 5.029 秒。
 	keyframes := []time.Duration{0, ms(500), ms(1000), ms(1600), ms(2100), ms(2600), ms(3000), ms(4400)}
-	recordingID := f.keyframedRecording(t, keyframes, 5*time.Second)
+	recordingID := f.keyframedRecording(t, keyframes, 5*time.Second, stateCompleted)
 
 	status, body := f.getPreset(t, recordingID, kyusu.PassthroughPreset, kyusu.PlaylistName)
 	assert.Equal(t, http.StatusOK, status)
@@ -250,6 +257,13 @@ func TestVODPassthroughPlaylist(t *testing.T) {
 		"#EXTINF:2.100,\nsegment00000.ts\n#EXTINF:2.300,\nsegment00001.ts\n#EXTINF:0.629,\nsegment00002.ts\n#EXT-X-ENDLIST\n", string(body))
 	status, _ = f.getPreset(t, recordingID, kyusu.PassthroughPreset, "segment00003.ts")
 	assert.Equal(t, http.StatusNotFound, status, "a segment out of the recording")
+
+	// 録画中は、最後のセグメント (4.4 秒から) は、次の始まりが索引に載るまで伸びるので載せず、終わりの印も付けない。
+	recordingID = f.keyframedRecording(t, keyframes, 5*time.Second, stateRecording)
+	status, body = f.getPreset(t, recordingID, kyusu.PassthroughPreset, kyusu.PlaylistName)
+	assert.Equal(t, http.StatusOK, status)
+	assert.Equal(t, "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:3\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:EVENT\n#EXT-X-INDEPENDENT-SEGMENTS\n"+
+		"#EXTINF:2.100,\nsegment00000.ts\n#EXTINF:2.300,\nsegment00001.ts\n", string(body))
 }
 
 // TestVODPassthroughSegments は、映像を変換しないプリセットのセグメントが、プレイリストの区切りの I フレームから始まり、

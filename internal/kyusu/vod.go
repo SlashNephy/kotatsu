@@ -351,6 +351,12 @@ func (v *VOD) servePlaylist(w http.ResponseWriter, r *http.Request, recordingID 
 
 		return
 	}
+	if preset.Passthrough && slices.ContainsFunc(recording.KeyframePoints(), func(point stream.Keyframe) bool { return point.PTS < 0 }) {
+		// セグメントを要求されても書けないので、プレイリストの時点で断る。
+		v.writeError(w, r, errNoPTS)
+
+		return
+	}
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = io.WriteString(w, vodPlaylist(recording.Keyframes(), recording.InProgress, preset.Passthrough))
@@ -807,7 +813,8 @@ func passthroughOptions(points []stream.Keyframe, number int) (*RunOptions, time
 		}
 	}
 	at := starts[number]
-	offset := int64((passthroughBase+at)*ts.PTSClock/time.Second) - cuts[0]
+	// 刻みは、マイクロ秒から求める。ナノ秒に PTSClock を掛けると、長い時間で int64 を超えるため。
+	offset := (passthroughBase+at).Microseconds()*ts.PTSClock/int64(time.Second/time.Microsecond) - cuts[0]
 	// FFmpeg はマイクロ秒で受け取るので、9 の倍数 (100 マイクロ秒) に切り捨てて、刻みの数を保つ。
 	offset -= ((offset % 9) + 9) % 9
 	for i := range cuts {
@@ -823,7 +830,7 @@ func (v *VOD) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	case r.Context().Err() != nil:
 	case errors.Is(err, stream.ErrRecordingNotFound), errors.Is(err, stream.ErrNoSegment), errors.Is(err, errOutOfRange):
 		http.Error(w, err.Error(), http.StatusNotFound)
-	case errors.Is(err, stream.ErrNotMounted), errors.Is(err, errNotIndexed), errors.Is(err, errNoEncoder),
+	case errors.Is(err, stream.ErrNotMounted), errors.Is(err, errNotIndexed), errors.Is(err, errNoPTS), errors.Is(err, errNoEncoder),
 		errors.Is(err, errEnded), errors.Is(err, errSegmentTimeout), errors.Is(err, errTooManySessions):
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 	default:
