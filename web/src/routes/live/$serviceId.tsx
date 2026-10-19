@@ -74,7 +74,7 @@ import {
   VirtualSurroundToggle,
 } from '../../yunomi/QualitySelect';
 import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
-import { dataBroadcastSource, hlsURL } from '../../yunomi/route';
+import { dataBroadcastSource, hlsURL, toVideoFormat } from '../../yunomi/route';
 import { RemoteKey, useDataBroadcast } from '../../yunomi/useDataBroadcast';
 import { useRemotePlayer } from '../../yunomi/useRemotePlayer';
 import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
@@ -267,6 +267,7 @@ function Live({
             name
             logoUrl
             streamUrl
+            videoFormat
             jikkyo {
               id
               name
@@ -335,7 +336,12 @@ function Live({
   const controls = useControlsVisibility({ playing: !videoState.paused && !shortcutsOpen });
   // 再生している間は、画面を消さない。
   useWakeLock(!videoState.paused);
-  const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
+  // videoFormat は、放送中の番組の映像の種類。BS4K と 8K では、経路の選び方が変わる (#806)。
+  const videoFormat =
+    data.node?.__typename === 'Service' ? toVideoFormat(data.node.videoFormat) : 'HD';
+  const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding, videoFormat);
+  // BS4K と 8K のデータ放送は、BML でなく HTML5 で作られていて、web-bml では描けないので出さない (設計書 7.4)。
+  const dataBroadcastAvailable = videoFormat === 'HD';
   const {
     captionsEnabled: captions,
     setCaptionsEnabled: setCaptions,
@@ -535,6 +541,9 @@ function Live({
     volumeDown: () => changeVolume(-volumeStep),
     capture: () => void saveCapture(),
     toggleDataBroadcast: () => {
+      if (!dataBroadcastAvailable) {
+        return;
+      }
       setDataBroadcastEnabled(!dataBroadcastEnabled);
       showFlash(
         t(dataBroadcastEnabled ? 'player.flash.dataBroadcastOff' : 'player.flash.dataBroadcastOn'),
@@ -580,6 +589,7 @@ function Live({
   // 視聴が切れている間と、映像が見えていない間は、データ放送の TS も読まない。
   const dataBroadcast = useDataBroadcast(
     service !== null &&
+      dataBroadcastAvailable &&
       (dataBroadcastPreload || dataBroadcastUsed) &&
       visible &&
       disconnection === null
@@ -694,13 +704,15 @@ function Live({
               onClick={() => setJikkyoEnabled(!jikkyoEnabled)}
             />
           )}
-          <ControlButton
-            label={t('player.dataBroadcast')}
-            icon={Tv}
-            active={dataBroadcastEnabled}
-            optional
-            onClick={() => setDataBroadcastEnabled(!dataBroadcastEnabled)}
-          />
+          {dataBroadcastAvailable && (
+            <ControlButton
+              label={t('player.dataBroadcast')}
+              icon={Tv}
+              active={dataBroadcastEnabled}
+              optional
+              onClick={() => setDataBroadcastEnabled(!dataBroadcastEnabled)}
+            />
+          )}
           <SettingsButton>
             <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
             {audio.menu}

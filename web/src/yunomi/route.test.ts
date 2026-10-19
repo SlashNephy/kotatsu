@@ -5,15 +5,19 @@ import {
   dataBroadcastSource,
   hlsURL,
   qualities,
+  toVideoFormat,
   type Capabilities,
   type Transcoding,
 } from './route';
 
-const pc: Capabilities = { convert: true, hls: true, hevc: true };
+// pc は、HEVC の 2160p の 10 ビットを復号できない PC (Linux の Chrome など)。
+const pc: Capabilities = { convert: true, hls: true, hevc: true, hevcUhd: false };
+// uhdPC は、BS4K の映像をそのまま再生できる PC。
+const uhdPC: Capabilities = { convert: true, hls: true, hevc: true, hevcUhd: true };
 // iPhone は MediaSource を持たず、ManagedMediaSource で hls.js を動かす。HEVC は再生できる。
-const iphone: Capabilities = { convert: false, hls: true, hevc: true };
-const noHevc: Capabilities = { convert: false, hls: true, hevc: false };
-const nothing: Capabilities = { convert: false, hls: false, hevc: false };
+const iphone: Capabilities = { convert: false, hls: true, hevc: true, hevcUhd: true };
+const noHevc: Capabilities = { convert: false, hls: true, hevc: false, hevcUhd: false };
+const nothing: Capabilities = { convert: false, hls: false, hevc: false, hevcUhd: false };
 
 const presets = [
   { name: '1080p', codec: 'H264', passthrough: false },
@@ -42,7 +46,31 @@ describe('qualities', () => {
     },
     { name: '何も再生できない端末', capabilities: nothing, transcoding: withKyusu, want: [] },
   ])('$name', ({ capabilities, transcoding, want }) => {
-    expect(qualities(capabilities, transcoding)).toEqual(want);
+    expect(qualities(capabilities, transcoding, 'HD')).toEqual(want);
+  });
+
+  // BS4K の番組では、ブラウザの中で変換できず、映像を変換しない画質は、そのまま再生できる端末にだけ出す (#806)。
+  test.each([
+    {
+      name: 'BS4K の映像をそのまま再生できる PC',
+      capabilities: uhdPC,
+      format: 'UHD' as const,
+      want: ['1080p', '720p', '360p', '720p-hevc', 'source'],
+    },
+    {
+      name: 'BS4K の映像をそのまま再生できない PC',
+      capabilities: pc,
+      format: 'UHD' as const,
+      want: ['1080p', '720p', '360p', '720p-hevc'],
+    },
+    {
+      name: '8K の番組は、どの端末でも再生できない',
+      capabilities: uhdPC,
+      format: 'SHV' as const,
+      want: [],
+    },
+  ])('$name', ({ capabilities, format, want }) => {
+    expect(qualities(capabilities, withKyusu, format)).toEqual(want);
   });
 });
 
@@ -91,7 +119,60 @@ describe('chooseRoute', () => {
       want: { kind: 'unavailable', reason: 'noPlayer' },
     },
   ])('$name', ({ capabilities, transcoding, requested, want }) => {
-    expect(chooseRoute(capabilities, transcoding, requested)).toEqual(want);
+    expect(chooseRoute(capabilities, transcoding, requested, 'HD')).toEqual(want);
+  });
+
+  test.each([
+    {
+      name: 'BS4K の映像をそのまま再生できる端末では、映像を変換しない画質を選ぶ',
+      capabilities: uhdPC,
+      transcoding: withKyusu,
+      requested: undefined,
+      format: 'UHD' as const,
+      want: { kind: 'kyusu', preset: 'source' },
+    },
+    {
+      name: 'BS4K の映像をそのまま再生できない PC では、1080p に変換する',
+      capabilities: pc,
+      transcoding: withKyusu,
+      requested: undefined,
+      format: 'UHD' as const,
+      want: { kind: 'kyusu', preset: '1080p' },
+    },
+    {
+      name: 'BS4K の映像をそのまま再生できないスマートフォンでは、既定の画質に変換する',
+      capabilities: noHevc,
+      transcoding: withKyusu,
+      requested: undefined,
+      format: 'UHD' as const,
+      want: { kind: 'kyusu', preset: '720p' },
+    },
+    {
+      name: '2K の番組で覚えたオリジナルは、BS4K の番組では選べないので既定に戻す',
+      capabilities: pc,
+      transcoding: withKyusu,
+      requested: 'original',
+      format: 'UHD' as const,
+      want: { kind: 'kyusu', preset: '1080p' },
+    },
+    {
+      name: 'BS4K の番組は、kyusu がなければ再生できない',
+      capabilities: uhdPC,
+      transcoding: withoutKyusu,
+      requested: undefined,
+      format: 'UHD' as const,
+      want: { kind: 'unavailable', reason: 'uhdNoTranscoder' },
+    },
+    {
+      name: '8K の番組は再生できない',
+      capabilities: uhdPC,
+      transcoding: withKyusu,
+      requested: '720p',
+      format: 'SHV' as const,
+      want: { kind: 'unavailable', reason: 'shv' },
+    },
+  ])('$name', ({ capabilities, transcoding, requested, format, want }) => {
+    expect(chooseRoute(capabilities, transcoding, requested, format)).toEqual(want);
   });
 });
 
@@ -135,5 +216,17 @@ describe('dataBroadcastSource', () => {
     { name: 'サービス ID でない', streamUrl: '/streams/services/nhk', want: null },
   ])('$name', ({ streamUrl, want }) => {
     expect(dataBroadcastSource(streamUrl)).toEqual(want);
+  });
+});
+
+describe('toVideoFormat', () => {
+  test.each([
+    { value: 'HD', want: 'HD' },
+    { value: 'SHV', want: 'SHV' },
+    { value: 'UHD', want: 'UHD' },
+    // サーバーが新しく、知らない種類を返したら、ブラウザの中での変換を選ばせないよう、BS4K と同じく扱う。
+    { value: '%future added value', want: 'UHD' },
+  ])('$value', ({ value, want }) => {
+    expect(toVideoFormat(value)).toBe(want);
   });
 });

@@ -39,7 +39,7 @@ import {
   NormalizeVolumeToggle,
   VirtualSurroundToggle,
 } from '../../yunomi/QualitySelect';
-import { hlsURL } from '../../yunomi/route';
+import { hlsURL, toVideoFormat } from '../../yunomi/route';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
 import { useRemotePlayer } from '../../yunomi/useRemotePlayer';
 import { SeekBar } from '../../yunomi/SeekBar';
@@ -152,6 +152,7 @@ const playQuery = graphql`
       ... on Recording {
         name
         streamUrl
+        videoFormat
         recordedFrom
         recordedUntil
         gaps {
@@ -220,7 +221,11 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const controls = useControlsVisibility({ playing: !videoState.paused && !shortcutsOpen });
   // 再生している間は、画面を消さない。
   useWakeLock(!videoState.paused);
-  const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding);
+  // BS4K と 8K の録画では、経路の選び方が変わる (#806)。
+  const { route, choices, quality, setQuality } = usePlaybackRoute(
+    data.transcoding,
+    data.node?.__typename === 'Recording' ? toVideoFormat(data.node.videoFormat) : 'HD',
+  );
   const {
     captionsEnabled: captions,
     setCaptionsEnabled: setCaptions,

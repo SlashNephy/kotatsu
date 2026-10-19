@@ -17,6 +17,8 @@ export type DemoService = {
   streamUrl: string;
   logoUrl: string | null;
   jikkyo: null;
+  // videoFormat は、放送中の番組の映像の種類。デモの局は、どれも 2K にする。
+  videoFormat: 'HD';
 };
 
 export type DemoProgram = {
@@ -181,6 +183,7 @@ export const services: DemoService[] = serviceSeeds.map((seed, index) => {
     logoUrl: logo(seed.short, seed.color),
     // 実況は、外部の NX-Jikkyo につながるので、デモでは持たせない。
     jikkyo: null,
+    videoFormat: 'HD',
   };
 });
 

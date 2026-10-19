@@ -1,4 +1,4 @@
-// 再生の経路を選ぶ (設計書 7.1)。端末の能力と、サーバー側でのトランスコード (kyusu) の有無から決める。
+// 再生の経路を選ぶ (設計書 7.1)。端末の能力と、サーバー側でのトランスコード (kyusu) の有無と、放送の映像の種類から決める。
 
 // Capabilities は、端末で使える再生の仕組み。
 export type Capabilities = {
@@ -9,12 +9,24 @@ export type Capabilities = {
   hls: boolean;
   // hevc は、HEVC の映像を再生できるかどうか。できなければ、HEVC の画質を選ばせない。
   hevc: boolean;
+  // hevcUhd は、BS4K の映像 (HEVC Main10、2160p) をそのまま再生できるかどうか (#806)。
+  // できなければ、映像を変換しない画質を選ばせない。
+  hevcUhd: boolean;
 };
 
 // passthrough は、映像を変換しない (BS4K の HEVC をそのまま送る) 画質かどうか。
 export type Preset = { name: string; codec: string; passthrough: boolean };
 
 export type Transcoding = { available: boolean; presets: readonly Preset[] };
+
+// VideoFormat は、放送の映像の種類 (#806)。HD は 2K 以下、UHD は BS4K、SHV は BS8K。
+export type VideoFormat = 'HD' | 'UHD' | 'SHV';
+
+// toVideoFormat は、GraphQL の映像の種類を VideoFormat にする。知らない値 (サーバーが新しい) なら、
+// ブラウザの中での変換を選ばせないよう、BS4K と同じく扱う。
+export function toVideoFormat(value: string): VideoFormat {
+  return value === 'HD' || value === 'SHV' ? value : 'UHD';
+}
 
 // original は、ブラウザの中で変換する経路を表す画質の名前。
 export const original = 'original';
@@ -23,21 +35,35 @@ export type PlaybackRoute =
   | { kind: 'convert' }
   | { kind: 'kyusu'; preset: string }
   // unavailable は、再生できないこと。reason は、利用者に示す理由。
-  | { kind: 'unavailable'; reason: 'noTranscoder' | 'noPlayer' };
+  | { kind: 'unavailable'; reason: 'noTranscoder' | 'noPlayer' | 'uhdNoTranscoder' | 'shv' };
 
 // defaultPreset は、kyusu の経路を選んだときの既定の画質。スマートフォンの回線を想定して控えめにする。
 const defaultPreset = '720p';
+// uhdDesktopPreset は、BS4K の映像をそのまま再生できない PC で、kyusu の経路を選んだときの既定の画質。
+// 2K の番組ではブラウザの中で変換した元の画質で見られるので、4K の番組でも画質を落としすぎない。
+const uhdDesktopPreset = '1080p';
 
-// qualities は、画質のメニューに出す選択肢を返す。先頭が、ブラウザの中での変換 (オリジナル)。
-export function qualities(capabilities: Capabilities, transcoding: Transcoding): string[] {
+// qualities は、画質のメニューに出す選択肢を返す。HD の番組では、先頭が、ブラウザの中での変換 (オリジナル)。
+// BS4K の映像は MPEG-2 でないので、ブラウザの中では変換できず、kyusu の画質だけを出す。映像を変換しない画質は、BS4K の番組で、
+// 端末がそのまま再生できるときだけ出す。8K の番組は、どの経路でも再生できない (#806)。
+export function qualities(
+  capabilities: Capabilities,
+  transcoding: Transcoding,
+  format: VideoFormat,
+): string[] {
   const list: string[] = [];
-  if (capabilities.convert) {
+  if (format === 'SHV') {
+    return list;
+  }
+  if (format === 'HD' && capabilities.convert) {
     list.push(original);
   }
   if (transcoding.available && capabilities.hls) {
     for (const preset of transcoding.presets) {
-      // 映像を変換しない画質は、BS4K の番組を見分けられるようになるまで出さない (#806)。
       if (preset.passthrough) {
+        if (format === 'UHD' && capabilities.hevcUhd) {
+          list.push(preset.name);
+        }
         continue;
       }
       if (preset.codec !== 'HEVC' || capabilities.hevc) {
@@ -50,29 +76,43 @@ export function qualities(capabilities: Capabilities, transcoding: Transcoding):
 }
 
 // chooseRoute は、再生の経路を返す。requested は、利用者が画質のメニューで選んだもの。選べないものなら、既定に戻す。
-// 既定では、サーバーに負荷をかけないブラウザの中での変換を選び、使えない端末では kyusu を選ぶ。
+// 既定では、サーバーに負荷をかけない経路を選ぶ。HD の番組ではブラウザの中での変換、BS4K の番組では映像を変換しない画質を選び、
+// 使えない端末では kyusu で変換する。
 export function chooseRoute(
   capabilities: Capabilities,
   transcoding: Transcoding,
   requested: string | undefined,
+  format: VideoFormat,
 ): PlaybackRoute {
-  const choices = qualities(capabilities, transcoding);
+  if (format === 'SHV') {
+    return { kind: 'unavailable', reason: 'shv' };
+  }
+  const choices = qualities(capabilities, transcoding, format);
   if (requested !== undefined && choices.includes(requested)) {
     return requested === original ? { kind: 'convert' } : { kind: 'kyusu', preset: requested };
   }
-  if (capabilities.convert) {
+  if (choices.includes(original)) {
     return { kind: 'convert' };
   }
-  const preset = choices.includes(defaultPreset) ? defaultPreset : choices[0];
+  const passthrough = transcoding.presets.find(
+    (preset) => preset.passthrough && choices.includes(preset.name),
+  );
+  if (passthrough !== undefined) {
+    return { kind: 'kyusu', preset: passthrough.name };
+  }
+  const preferred = format === 'UHD' && capabilities.convert ? uhdDesktopPreset : defaultPreset;
+  const preset = choices.includes(preferred) ? preferred : choices[0];
   if (preset !== undefined) {
     return { kind: 'kyusu', preset };
   }
 
-  // ブラウザの中で変換できず、kyusu も使えない。kyusu がいれば使えるのか、端末が HLS も再生できないのかで、理由を分ける。
-  return {
-    kind: 'unavailable',
-    reason: transcoding.available ? 'noPlayer' : 'noTranscoder',
-  };
+  // 再生できる経路がない。kyusu がいれば使えるのか、端末が HLS も再生できないのかで、理由を分ける。
+  // BS4K の番組は、ブラウザの中で変換できないので、kyusu がいなければ、どの端末でも再生できない。
+  if (transcoding.available) {
+    return { kind: 'unavailable', reason: 'noPlayer' };
+  }
+
+  return { kind: 'unavailable', reason: format === 'UHD' ? 'uhdNoTranscoder' : 'noTranscoder' };
 }
 
 // KyusuAudio は、kyusu の HLS に入れる音声。1 は第 1 音声 (主音声)、2 は第 2 音声 (副音声や 2 つ目の音声)。

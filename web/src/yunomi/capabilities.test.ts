@@ -12,22 +12,28 @@ describe('detectCapabilities', () => {
     {
       name: 'PC のブラウザは、MediaSource で変換もトランスコードも使える',
       scope: { MediaSource: source('avc1', 'hvc1') },
-      want: { convert: true, hls: true, hevc: true },
+      want: { convert: true, hls: true, hevc: true, hevcUhd: true },
     },
     {
       name: 'iPhone は ManagedMediaSource しかないので、kyusu だけを使う',
       scope: { ManagedMediaSource: source('avc1', 'hvc1') },
-      want: { convert: false, hls: true, hevc: true },
+      want: { convert: false, hls: true, hevc: true, hevcUhd: true },
     },
     {
       name: 'HEVC を再生できないブラウザ',
       scope: { MediaSource: source('avc1') },
-      want: { convert: true, hls: true, hevc: false },
+      want: { convert: true, hls: true, hevc: false, hevcUhd: false },
     },
     {
       name: 'MediaSource のないブラウザ',
       scope: {},
-      want: { convert: false, hls: false, hevc: false },
+      want: { convert: false, hls: false, hevc: false, hevcUhd: false },
+    },
+    {
+      // Linux の Chrome などは、HEVC の 1080p の 8 ビットは復号できても、BS4K の 2160p の 10 ビットは復号できないことがある。
+      name: 'BS4K の映像を復号できないブラウザ',
+      scope: { MediaSource: source('avc1', 'hvc1.1.') },
+      want: { convert: true, hls: true, hevc: true, hevcUhd: false },
     },
   ])('$name', ({ scope, want }) => {
     expect(detectCapabilities(scope as unknown as typeof globalThis)).toEqual(want);

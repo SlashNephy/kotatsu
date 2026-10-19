@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<332ffff85e38616f26c77e04cdc1e6b9>>
+ * @generated SignedSource<<fb77e7de0927a75ff7f86e36b1afb9c5>>
  * @lightSyntaxTransform
  */
 
@@ -9,6 +9,7 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type VideoCodec = "H264" | "HEVC" | "%future added value";
+export type VideoFormat = "HD" | "SHV" | "UHD" | "%future added value";
 export type RecordingIdPlayQuery$variables = {
   id: string;
 };
@@ -38,6 +39,7 @@ export type RecordingIdPlayQuery$data = {
     };
     readonly streamUrl: string;
     readonly thumbnailUrl: string | null | undefined;
+    readonly videoFormat: VideoFormat;
     readonly watchPositionMs: number | null | undefined;
   } | {
     // This will never be '%other', but we need some
@@ -98,17 +100,24 @@ v5 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedFrom",
+  "name": "videoFormat",
   "storageKey": null
 },
 v6 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedUntil",
+  "name": "recordedFrom",
   "storageKey": null
 },
 v7 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "recordedUntil",
+  "storageKey": null
+},
+v8 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingGap",
@@ -133,35 +142,35 @@ v7 = {
   ],
   "storageKey": null
 },
-v8 = {
+v9 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "jikkyoCommentsUrl",
   "storageKey": null
 },
-v9 = {
+v10 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "watchPositionMs",
   "storageKey": null
 },
-v10 = {
+v11 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "thumbnailUrl",
   "storageKey": null
 },
-v11 = {
+v12 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "previewUrl",
   "storageKey": null
 },
-v12 = {
+v13 = {
   "alias": null,
   "args": null,
   "concreteType": "ProgramAudio",
@@ -186,21 +195,21 @@ v12 = {
   ],
   "storageKey": null
 },
-v13 = {
+v14 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v14 = {
+v15 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "id",
   "storageKey": null
 },
-v15 = {
+v16 = {
   "alias": null,
   "args": null,
   "concreteType": "JikkyoChannel",
@@ -208,12 +217,12 @@ v15 = {
   "name": "jikkyo",
   "plural": false,
   "selections": [
-    (v14/*:: as any*/),
+    (v15/*:: as any*/),
     (v3/*:: as any*/)
   ],
   "storageKey": null
 },
-v16 = {
+v17 = {
   "alias": null,
   "args": null,
   "concreteType": "Transcoding",
@@ -286,6 +295,7 @@ return {
               (v10/*:: as any*/),
               (v11/*:: as any*/),
               (v12/*:: as any*/),
+              (v13/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -295,8 +305,8 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v13/*:: as any*/),
-                  (v15/*:: as any*/)
+                  (v14/*:: as any*/),
+                  (v16/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -307,7 +317,7 @@ return {
         ],
         "storageKey": null
       },
-      (v16/*:: as any*/)
+      (v17/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -340,6 +350,7 @@ return {
               (v10/*:: as any*/),
               (v11/*:: as any*/),
               (v12/*:: as any*/),
+              (v13/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -349,9 +360,9 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v13/*:: as any*/),
-                  (v15/*:: as any*/),
-                  (v14/*:: as any*/)
+                  (v14/*:: as any*/),
+                  (v16/*:: as any*/),
+                  (v15/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -359,24 +370,24 @@ return {
             "type": "Recording",
             "abstractKey": null
           },
-          (v14/*:: as any*/)
+          (v15/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v16/*:: as any*/)
+      (v17/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "ddeb3099ffc4f7140690787b64d6fef1",
+    "cacheID": "aa2c271f5a659a394accf79d2f632d03",
     "id": null,
     "metadata": {},
     "name": "RecordingIdPlayQuery",
     "operationKind": "query",
-    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      streamUrl\n      recordedFrom\n      recordedUntil\n      gaps {\n        from\n        to\n      }\n      jikkyoCommentsUrl\n      watchPositionMs\n      thumbnailUrl\n      previewUrl\n      audios {\n        componentType\n        languages\n      }\n      service {\n        name\n        logoUrl\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
+    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      streamUrl\n      videoFormat\n      recordedFrom\n      recordedUntil\n      gaps {\n        from\n        to\n      }\n      jikkyoCommentsUrl\n      watchPositionMs\n      thumbnailUrl\n      previewUrl\n      audios {\n        componentType\n        languages\n      }\n      service {\n        name\n        logoUrl\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "0b38aeeddb2b0f4b787ab27985736b86";
+(node as any).hash = "2df39c4b3d11a950ee14b2ace62a34cc";
 
 export default node;
