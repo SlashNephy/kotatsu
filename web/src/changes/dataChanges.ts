@@ -8,7 +8,8 @@ export type DataChannel =
   | 'ASSIGNMENTS'
   | 'RESERVATION_CONFLICTS'
   | 'TUNERS'
-  | 'RECORDINGS';
+  | 'RECORDINGS'
+  | 'ADMIN';
 
 // ChangeChannel は、画面が読み直す合図にする変更の種類。dataChanged で知らされる DataChannel と、
 // viewerSettingsChanged で知らされる、ログイン中のユーザーの設定 (VIEWER_SETTINGS)。

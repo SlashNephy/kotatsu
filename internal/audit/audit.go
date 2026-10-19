@@ -17,6 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/notify"
 )
 
 // ActorType は操作者の種類。
@@ -99,6 +100,10 @@ func (r *DBRecorder) Record(ctx context.Context, db sqlc.DBTX, event *Event) err
 	}
 	if err := sqlc.New(db).InsertAuditEvent(ctx, params); err != nil {
 		return fmt.Errorf("failed to record the audit event %s: %w", event.Action, err)
+	}
+	// 管理の画面に、読み直しの合図を送る (#869)。
+	if _, err := notify.Publish(ctx, db, r.clock, notify.AuditChannel); err != nil {
+		return err
 	}
 
 	return nil

@@ -23,6 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
+	"github.com/SlashNephy/kotatsu/internal/notify"
 )
 
 const (
@@ -212,6 +213,24 @@ func TestRecordFollowsTransaction(t *testing.T) {
 	events, err := sqlc.New(pool).ListAuditEvents(t.Context(), 10)
 	require.NoError(t, err)
 	assert.Empty(t, events, "a rolled back operation must not leave an audit event")
+	assert.Zero(t, auditVersion(t, pool), "a rolled back operation must not notify the change")
+
+	// コミットしたら、管理の画面に変更を知らせる (#869)。
+	require.NoError(t, pgx.BeginFunc(t.Context(), pool, func(tx pgx.Tx) error {
+		return recorder.Record(t.Context(), tx, &audit.Event{Actor: audit.System("neko"), Action: actionRuleCreate, TargetType: targetRule})
+	}))
+	assert.EqualValues(t, 1, auditVersion(t, pool))
+}
+
+// auditVersion は、監査ログの変更の通知の版数を返す。
+func auditVersion(t *testing.T, pool *pgxpool.Pool) int64 {
+	t.Helper()
+
+	var version int64
+	require.NoError(t, pool.QueryRow(t.Context(),
+		"SELECT coalesce((SELECT version FROM change_versions WHERE channel = $1), 0)", notify.AuditChannel).Scan(&version))
+
+	return version
 }
 
 func TestPruneDeletesEventsPastRetention(t *testing.T) {

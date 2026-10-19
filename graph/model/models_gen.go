@@ -1236,6 +1236,8 @@ const (
 	DataChannelTuners DataChannel = "TUNERS"
 	// 録画 (#868)
 	DataChannelRecordings DataChannel = "RECORDINGS"
+	// 管理のデータ。監査ログに残る操作で変わる。管理者にだけ届く (#869)
+	DataChannelAdmin DataChannel = "ADMIN"
 )
 
 var AllDataChannel = []DataChannel{
@@ -1246,11 +1248,12 @@ var AllDataChannel = []DataChannel{
 	DataChannelReservationConflicts,
 	DataChannelTuners,
 	DataChannelRecordings,
+	DataChannelAdmin,
 }
 
 func (e DataChannel) IsValid() bool {
 	switch e {
-	case DataChannelEpg, DataChannelRules, DataChannelReservations, DataChannelAssignments, DataChannelReservationConflicts, DataChannelTuners, DataChannelRecordings:
+	case DataChannelEpg, DataChannelRules, DataChannelReservations, DataChannelAssignments, DataChannelReservationConflicts, DataChannelTuners, DataChannelRecordings, DataChannelAdmin:
 		return true
 	}
 	return false

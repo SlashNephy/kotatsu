@@ -13,6 +13,7 @@ import {
 import { ScrollText } from 'lucide-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { Fragment, startTransition, useState, type FormEvent } from 'react';
+import { useDataChanges } from '../../changes/DataChanges';
 import { EmptyState } from '../../futon';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
@@ -97,10 +98,12 @@ function AuditLog() {
   const [filter, setFilter] = useState<AuditEventFilter>({});
   const [actionPrefix, setActionPrefix] = useState('');
   const [actor, setActor] = useState<string | null>(null);
+  // 監査ログに残る操作があったら、最初のページを読み直す (#869)。
+  const adminChanges = useDataChanges(['ADMIN']);
   const data = useLazyLoadQuery<auditQuery>(
     query,
     { first: pageSize, after: null, filter },
-    { fetchPolicy: 'store-and-network' },
+    { fetchKey: adminChanges, fetchPolicy: 'store-and-network' },
   );
   // more は、続きの読み込みで足した記録と、その次のカーソル。絞り込みを変えたら捨てる。
   const [more, setMore] = useState<{
@@ -113,7 +116,12 @@ function AuditLog() {
   const extra = more?.filter === filter ? more : null;
   const next = extra !== null ? extra.next : (data.auditEvents.pageInfo.endCursor ?? null);
   const hasMore = extra !== null ? extra.next !== null : data.auditEvents.pageInfo.hasNextPage;
-  const events = [...data.auditEvents.edges.map((edge) => edge.node), ...(extra?.nodes ?? [])];
+  // 最初のページを読み直すと、続きで足した記録と重なることがあるので、重なりは除く。
+  const seen = new Set<string>();
+  const events = [
+    ...data.auditEvents.edges.map((edge) => edge.node),
+    ...(extra?.nodes ?? []),
+  ].filter((event) => !seen.has(event.id) && seen.add(event.id));
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const apply = (event: FormEvent) => {

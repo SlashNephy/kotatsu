@@ -3,9 +3,11 @@ package graph
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/assign"
+	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/epg"
 	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/notify"
@@ -27,22 +29,24 @@ type Changes interface {
 // errChangesUnavailable は、変更の通知が設定されていないことを表す。
 var errChangesUnavailable = errors.New("change notifications are not configured")
 
-// dataChannels は、dataChanged で知らせるデータの種類と、変更の通知のチャンネルの対応。
-func dataChannels() []struct {
-	channel model.DataChannel
-	notify  string
-} {
-	return []struct {
-		channel model.DataChannel
-		notify  string
-	}{
-		{channel: model.DataChannelEpg, notify: epg.NotifyChannel},
-		{channel: model.DataChannelRules, notify: rule.NotifyChannel},
-		{channel: model.DataChannelReservations, notify: reserve.NotifyChannel},
-		{channel: model.DataChannelAssignments, notify: assign.NotifyChannel},
-		{channel: model.DataChannelReservationConflicts, notify: assign.ConflictChannel},
-		{channel: model.DataChannelTuners, notify: tunerstate.NotifyChannel},
-		{channel: model.DataChannelRecordings, notify: notify.RecordingsChannel},
+// dataChannel は、dataChanged で知らせるデータの種類と、変更の通知のチャンネルの対応。adminOnly のものは、管理者にだけ知らせる。
+type dataChannel struct {
+	channel   model.DataChannel
+	notify    string
+	adminOnly bool
+}
+
+// dataChannels は、dataChanged で知らせるデータの種類の一覧。
+func dataChannels() []dataChannel {
+	return []dataChannel{
+		{channel: model.DataChannelEpg, notify: epg.NotifyChannel, adminOnly: false},
+		{channel: model.DataChannelRules, notify: rule.NotifyChannel, adminOnly: false},
+		{channel: model.DataChannelReservations, notify: reserve.NotifyChannel, adminOnly: false},
+		{channel: model.DataChannelAssignments, notify: assign.NotifyChannel, adminOnly: false},
+		{channel: model.DataChannelReservationConflicts, notify: assign.ConflictChannel, adminOnly: false},
+		{channel: model.DataChannelTuners, notify: tunerstate.NotifyChannel, adminOnly: false},
+		{channel: model.DataChannelRecordings, notify: notify.RecordingsChannel, adminOnly: false},
+		{channel: model.DataChannelAdmin, notify: notify.AuditChannel, adminOnly: true},
 	}
 }
 
@@ -58,20 +62,25 @@ func WatchedChannels() []string {
 
 // subscribeDataChanges は、購読を始めたときに今の版数を送り、その後は版数が上がったデータの種類を送る。
 func (r *Resolver) subscribeDataChanges(ctx context.Context) (<-chan *model.DataChange, error) {
-	if _, err := viewer(ctx); err != nil {
+	principal, err := viewer(ctx)
+	if err != nil {
 		return nil, err
 	}
 	if r.changes == nil {
 		return nil, errChangesUnavailable
 	}
+	channels := dataChannels()
+	if principal.Role != auth.RoleAdmin {
+		channels = slices.DeleteFunc(channels, func(c dataChannel) bool { return c.adminOnly })
+	}
 	// 版数を読む前に購読し、読んだ後の変更を取りこぼさないようにする。
 	wake, unsubscribe := r.changes.Subscribe()
 	last := map[model.DataChannel]int64{}
-	for _, c := range dataChannels() {
+	for _, c := range channels {
 		last[c.channel] = r.changes.Version(c.notify)
 	}
 
-	out := make(chan *model.DataChange, len(dataChannels()))
+	out := make(chan *model.DataChange, len(channels))
 	go func() {
 		defer close(out)
 		defer unsubscribe()
@@ -83,7 +92,7 @@ func (r *Resolver) subscribeDataChanges(ctx context.Context) (<-chan *model.Data
 				return true
 			}
 		}
-		for _, c := range dataChannels() {
+		for _, c := range channels {
 			if !send(&model.DataChange{Channel: c.channel, Version: int(last[c.channel])}) {
 				return
 			}
@@ -94,7 +103,7 @@ func (r *Resolver) subscribeDataChanges(ctx context.Context) (<-chan *model.Data
 				return
 			case <-wake:
 			}
-			for _, c := range dataChannels() {
+			for _, c := range channels {
 				version := r.changes.Version(c.notify)
 				if version <= last[c.channel] {
 					continue
