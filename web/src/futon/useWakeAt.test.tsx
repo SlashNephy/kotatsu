@@ -35,6 +35,25 @@ describe('useWakeAt', () => {
     expect(onWake).toHaveBeenCalledTimes(1);
   });
 
+  test('タイマーが時刻より早く呼ばれたら、時刻まで待ち直す', () => {
+    const onWake = vi.fn();
+    renderHook(() => useWakeAt(start + 60_000, onWake));
+
+    // タイマーが呼ばれる 60 秒後に、壁時計はまだ 5 秒手前にあることにする。
+    act(() => {
+      vi.advanceTimersByTime(55_000);
+    });
+    vi.setSystemTime(start + 50_000);
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
+    expect(onWake).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
+    expect(onWake).toHaveBeenCalledTimes(1);
+  });
+
   test('null なら呼ばない', () => {
     const onWake = vi.fn();
     renderHook(() => useWakeAt(null, onWake));

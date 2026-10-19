@@ -23,6 +23,13 @@ export function useWakeAt(at: number | null, onWake: () => void): void {
       if (done) {
         return;
       }
+      // タイマーは、時計の進み方の違いで、少し早く呼ばれることがある。早ければ待ち直す。
+      // 待ち直さずに呼ぶと、useNow が同じ区切りの時刻を決め直し、at が変わらないので、二度と呼ばれなくなる。
+      if (Date.now() < at) {
+        schedule();
+
+        return;
+      }
       done = true;
       clearTimeout(timer);
       callback.current();
