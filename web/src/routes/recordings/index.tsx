@@ -45,6 +45,8 @@ import {
   useRelayEnvironment,
 } from 'react-relay';
 
+import { useDataChanges } from '../../changes/DataChanges';
+import type { ChangeChannel } from '../../changes/dataChanges';
 import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
 import { genreKey } from '../../guide/genres';
 import { broadcastRange } from '../../recordings/filterRange';
@@ -215,6 +217,8 @@ function Recordings({
   onFiltersClose: () => void;
 }) {
   const { t } = useTranslation();
+  // タグごとの録画の数も、録画が変わったら読み直す (#868)。
+  const changes = useDataChanges(recordingChannels);
   const tags = useLazyLoadQuery<recordingsTagsQuery>(
     graphql`
       query recordingsTagsQuery($ruleId: ID!, $withRule: Boolean!) {
@@ -239,7 +243,7 @@ function Recordings({
       }
     `,
     { ruleId: filter.ruleId ?? '', withRule: filter.ruleId != null },
-    { fetchPolicy: 'store-and-network' },
+    { fetchKey: changes, fetchPolicy: 'store-and-network' },
   );
   const navigate = useNavigate({ from: '/recordings/' });
   const ruleName = tags.ruleFilter?.__typename === 'Rule' ? tags.ruleFilter.name : null;
@@ -418,6 +422,9 @@ function Recordings({
   );
 }
 
+// recordingChannels は、録画の一覧に関わるデータの種類。
+const recordingChannels: readonly ChangeChannel[] = ['RECORDINGS'];
+
 // RecordingGrid は、絞り込んだ録画のグリッド。続きは、同じ絞り込みで、カーソルから読む。
 function RecordingGrid({
   filter,
@@ -470,13 +477,22 @@ function RecordingGrid({
         setError(true);
       },
     });
+  // 録画を始めた、終えた、消したなど、録画が変わったら、最初のページを読み直す (#868)。
+  const changes = useDataChanges(recordingChannels);
   const data = useLazyLoadQuery<recordingsListQuery>(
     query,
     { first: pageSize, after: null, filter, order },
-    { fetchPolicy: 'store-and-network' },
+    { fetchKey: changes, fetchPolicy: 'store-and-network' },
   );
-  // more は、続きの読み込みで足した録画と、その次のカーソル。
-  const [more, setMore] = useState<{ recordings: Recording[]; next: string | null } | null>(null);
+  // more は、続きの読み込みで足した録画と、その次のカーソル。changes は、読み込んだときの録画の変更の回数。
+  // 録画が変わって最初のページを読み直したら、続きは捨てて、最初のページから出し直す。
+  // 続きを残すと、録画が増えて最初のページからこぼれた録画が、どちらにも出なくなる (#868)。
+  const [loaded, setMore] = useState<{
+    changes: number;
+    recordings: Recording[];
+    next: string | null;
+  } | null>(null);
+  const more = loaded?.changes === changes ? loaded : null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const recordings = [
@@ -502,6 +518,7 @@ function RecordingGrid({
       }).toPromise();
       if (page !== undefined) {
         setMore({
+          changes,
           recordings: [
             ...(more?.recordings ?? []),
             ...page.recordings.edges.map((edge) => edge.node),

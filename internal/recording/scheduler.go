@@ -193,6 +193,11 @@ func (s *Scheduler) failStuck(ctx context.Context, tx pgx.Tx, now time.Time) (in
 	if err != nil {
 		return 0, fmt.Errorf("failed to fail stuck recordings: %w", err)
 	}
+	if len(rows) > 0 {
+		if _, err := notify.Publish(ctx, tx, s.clock, notify.RecordingsChannel); err != nil {
+			return 0, err
+		}
+	}
 	for _, row := range rows {
 		s.logger.WarnContext(ctx, "failed a recording left recording without a mikan", slog.String("recording_id", row.ID.String()))
 		payload := recordingPayload(row.ID, row.Name, row.ServiceName, row.StartAt, row.EndAt)
@@ -252,6 +257,11 @@ func (s *Scheduler) recordMissed(ctx context.Context, tx pgx.Tx, now time.Time) 
 		}
 		target.AddTo(payload)
 		if err := notification.EmitTo(ctx, tx, s.clock, notification.KindRecordingFailed, payload, target.Audience); err != nil {
+			return 0, err
+		}
+	}
+	if missed > 0 {
+		if _, err := notify.Publish(ctx, tx, s.clock, notify.RecordingsChannel); err != nil {
 			return 0, err
 		}
 	}

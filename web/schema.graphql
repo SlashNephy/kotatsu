@@ -350,6 +350,10 @@ enum DataChannel {
   チューナーとチューナーサーバーの状態
   """
   TUNERS
+  """
+  録画 (#868)
+  """
+  RECORDINGS
 }
 """
 DB にないファイルを消した結果。

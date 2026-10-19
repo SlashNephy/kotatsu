@@ -26,6 +26,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/ts"
 )
@@ -331,6 +332,10 @@ func (w *AnalyzeWorker) record(ctx context.Context, recordingID uuid.UUID, resul
 		})
 		if err != nil {
 			return fmt.Errorf("failed to record the stats: %w", err)
+		}
+		// 録画の一覧にドロップの数を出すので、録画の変更として知らせる (#868)。
+		if _, err := notify.Publish(ctx, tx, w.clock, notify.RecordingsChannel); err != nil {
+			return err
 		}
 		if audios != nil {
 			if err := q.SetRecordingAudiosIfUnknown(ctx, sqlc.SetRecordingAudiosIfUnknownParams{Audios: audios, Now: now, ID: recordingID}); err != nil {

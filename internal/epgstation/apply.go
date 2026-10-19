@@ -21,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/match"
+	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 )
@@ -148,7 +149,7 @@ func (im *Importer) Apply(ctx context.Context, db Database, snapshot *Snapshot, 
 		}
 	}
 	for _, r := range snapshot.Recordings {
-		if err := a.apply(ctx, KindRecorded, r.ID, func(tx pgx.Tx) (uuid.UUID, error) { return a.recording(ctx, tx, r) }); err != nil {
+		if err := a.apply(ctx, KindRecorded, r.ID, func(tx pgx.Tx) (uuid.UUID, error) { return a.recordingAndPublish(ctx, tx, r) }); err != nil {
 			return nil, err
 		}
 	}
@@ -489,6 +490,19 @@ func (a *applier) createReservation(ctx context.Context, tx pgx.Tx, r *Reserve, 
 	}
 
 	return reservation, nil
+}
+
+// recordingAndPublish は、録画を取り込み、録画の変更を知らせる (#868)。
+func (a *applier) recordingAndPublish(ctx context.Context, tx pgx.Tx, r *Recording) (uuid.UUID, error) {
+	recordingID, err := a.recording(ctx, tx, r)
+	if err != nil || recordingID == uuid.Nil {
+		return recordingID, err
+	}
+	if _, err := notify.Publish(ctx, tx, a.importer.clock, notify.RecordingsChannel); err != nil {
+		return uuid.Nil, err
+	}
+
+	return recordingID, nil
 }
 
 // recording は、EPGStation の録画済みの番組と、そのファイルを Kotatsu の録画として記録する。

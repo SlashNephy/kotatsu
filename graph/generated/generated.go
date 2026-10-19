@@ -5093,6 +5093,8 @@ enum DataChannel {
   RESERVATION_CONFLICTS
   "チューナーとチューナーサーバーの状態"
   TUNERS
+  "録画 (#868)"
+  RECORDINGS
 }
 
 """
