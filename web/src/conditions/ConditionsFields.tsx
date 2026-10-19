@@ -14,18 +14,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import {
-  MonitorX,
-  Plus,
-  RadioTower,
-  Search,
-  SearchX,
-  Shapes,
-  SquareDashed,
-  SquareExclamationPoint,
-  Tv,
-  X,
-} from 'lucide-react';
+import { Minus, MonitorX, Plus, RadioTower, Search, SearchX, Shapes, Tv, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -116,21 +105,10 @@ export function ConditionsFields({ value, onChange, channelTypes, services }: Pr
             rows={value.excludeKeywords}
             onChange={(excludeKeywords) => onChange({ excludeKeywords })}
           />
-          <MarkMultiSelect
-            label={t('rules.marks')}
-            description={t('rules.marksDescription')}
-            icon={<SquareExclamationPoint size={16} aria-hidden />}
-            keep={[...value.marks, ...value.excludeMarks]}
-            value={value.marks}
-            onChange={(marks) => onChange({ marks })}
-          />
-          <MarkMultiSelect
-            label={t('rules.excludeMarks')}
-            description={t('rules.excludeMarksDescription')}
-            icon={<SquareDashed size={16} aria-hidden />}
-            keep={[...value.marks, ...value.excludeMarks]}
-            value={value.excludeMarks}
-            onChange={(excludeMarks) => onChange({ excludeMarks })}
+          <MarkChips
+            marks={value.marks}
+            excludeMarks={value.excludeMarks}
+            onChange={(marks, excludeMarks) => onChange({ marks, excludeMarks })}
           />
         </Stack>
       </Card>
@@ -242,43 +220,99 @@ type KeywordRowsProps = {
   onChange: (rows: KeywordRow[]) => void;
 };
 
-// MarkMultiSelect は、番組名の囲み文字 (新、字など) を選ぶ欄。
-// keep は、選択肢になくても残す囲み文字。API で保存した、一覧にないものを選んだままにする。
-function MarkMultiSelect({
-  label,
-  description,
-  icon,
-  keep,
-  value,
+// MarkChips は、番組名の囲み文字 (新、字など) を選ぶ欄。表の囲み文字をすべてチップで並べ、
+// 押すたびに、含める、除外する、選ばない、の順に切り替える。
+// 一覧にない囲み文字 (API で保存したもの) も、選んだまま残すために並べる。
+function MarkChips({
+  marks,
+  excludeMarks,
   onChange,
 }: {
-  label: string;
-  description: string;
-  icon: ReactNode;
-  keep: readonly string[];
-  value: string[];
-  onChange: (selected: string[]) => void;
+  marks: string[];
+  excludeMarks: string[];
+  onChange: (marks: string[], excludeMarks: string[]) => void;
 }) {
   const { t } = useTranslation();
-  const known: readonly string[] = [...markOptions.ideographic, ...markOptions.alphanumeric];
-  const others = [...new Set(keep)].filter((mark) => !known.includes(mark));
+  const known = markOptions.flatMap((option) => option.labels);
+  const others = [...new Set([...marks, ...excludeMarks])].filter((mark) => !known.includes(mark));
+  const groups = [
+    ...markOptions.map((option) => ({
+      key: option.group,
+      label: t(`rules.markGroup.${option.group}`),
+      items: option.labels,
+    })),
+    ...(others.length > 0
+      ? [{ key: 'others', label: t('rules.markGroup.others'), items: others }]
+      : []),
+  ];
+  // 押した順でなく、表の順にそろえて持つ。
+  const order = [...known, ...others];
+  const sorted = (list: string[]) => [...list].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  const cycle = (mark: string) => {
+    if (marks.includes(mark)) {
+      onChange(
+        marks.filter((m) => m !== mark),
+        sorted([...excludeMarks, mark]),
+      );
+    } else if (excludeMarks.includes(mark)) {
+      onChange(
+        marks,
+        excludeMarks.filter((m) => m !== mark),
+      );
+    } else {
+      onChange(sorted([...marks, mark]), excludeMarks);
+    }
+  };
 
   return (
-    <MultiSelect
-      label={label}
-      description={description}
-      leftSection={icon}
-      data={[
-        { group: t('rules.markGroup.ideographic'), items: [...markOptions.ideographic] },
-        { group: t('rules.markGroup.alphanumeric'), items: [...markOptions.alphanumeric] },
-        ...(others.length > 0 ? [{ group: t('rules.markGroup.others'), items: others }] : []),
-      ]}
-      value={value}
-      onChange={onChange}
-      searchable
-      clearable
-      maxDropdownHeight={320}
-    />
+    <Stack gap={6} role="group" aria-label={t('rules.marks')}>
+      <div>
+        <Text size="sm" fw={500}>
+          {t('rules.marks')}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {t('rules.marksDescription')}
+        </Text>
+      </div>
+      {groups.map((group) => (
+        <Stack key={group.key} gap={4}>
+          <Text size="xs" c="dimmed">
+            {group.label}
+          </Text>
+          <Group gap={4}>
+            {group.items.map((mark) => {
+              const excluded = excludeMarks.includes(mark);
+
+              return (
+                <Chip
+                  key={mark}
+                  size="xs"
+                  checked={excluded || marks.includes(mark)}
+                  onChange={() => cycle(mark)}
+                  color={excluded ? 'red' : undefined}
+                  icon={
+                    excluded ? (
+                      <Minus size={12} strokeWidth={3} aria-hidden />
+                    ) : (
+                      <Plus size={12} strokeWidth={3} aria-hidden />
+                    )
+                  }
+                  aria-label={
+                    excluded
+                      ? t('rules.markState.exclude', { mark })
+                      : marks.includes(mark)
+                        ? t('rules.markState.include', { mark })
+                        : mark
+                  }
+                >
+                  {mark}
+                </Chip>
+              );
+            })}
+          </Group>
+        </Stack>
+      ))}
+    </Stack>
   );
 }
 

@@ -1,14 +1,37 @@
 package epg
 
-// EnclosedGroup は、囲み文字を画面で選ぶときのまとまり。
+// EnclosedGroup は、囲み文字を画面で選ぶときのまとまり。意味は Unicode の符号表の注記による。
 type EnclosedGroup string
 
 const (
-	// EnclosedGroupIdeographic は、漢字と仮名の囲み文字。
-	EnclosedGroupIdeographic EnclosedGroup = "ideographic"
-	// EnclosedGroupAlphanumeric は、英数字の囲み文字。
-	EnclosedGroupAlphanumeric EnclosedGroup = "alphanumeric"
+	// EnclosedGroupPopular は、よく使う囲み文字 (新番組、最終回、再放送、初回放送)。
+	EnclosedGroupPopular EnclosedGroup = "popular"
+	// EnclosedGroupProgram は、番組の種類 (生放送、前編、映画、ニュースなど)。
+	EnclosedGroupProgram EnclosedGroup = "program"
+	// EnclosedGroupAccessibility は、字幕、解説、言語 (手話、吹替、二か国語など)。
+	EnclosedGroupAccessibility EnclosedGroup = "accessibility"
+	// EnclosedGroupVideo は、映像 (ハイビジョン、4K、HDR など)。
+	EnclosedGroupVideo EnclosedGroup = "video"
+	// EnclosedGroupAudio は、音声 (ステレオ、5.1 など)。
+	EnclosedGroupAudio EnclosedGroup = "audio"
+	// EnclosedGroupData は、データ放送や連携 (データ放送、双方向、ハイブリッドキャストなど)。
+	EnclosedGroupData EnclosedGroup = "data"
+	// EnclosedGroupAccess は、料金と視聴制限 (無料放送、有料放送、ペイ・パー・ビュー、視聴制限)。
+	EnclosedGroupAccess EnclosedGroup = "access"
 )
+
+// EnclosedGroups は、まとまりを、画面で並べる順に返す。
+func EnclosedGroups() []EnclosedGroup {
+	return []EnclosedGroup{
+		EnclosedGroupPopular,
+		EnclosedGroupProgram,
+		EnclosedGroupAccessibility,
+		EnclosedGroupVideo,
+		EnclosedGroupAudio,
+		EnclosedGroupData,
+		EnclosedGroupAccess,
+	}
+}
 
 // EnclosedCharacter は、番組名に付く ARIB の囲み文字 (設計書 4.2)。
 type EnclosedCharacter struct {
@@ -36,69 +59,67 @@ func EnclosedCharacters() []*EnclosedCharacter {
 
 // enclosedTable は、表を値の配列で返す。照合では番組ごとに表を引くので、ヒープに確保しないよう配列にする。
 func enclosedTable() [enclosedCount]EnclosedCharacter {
-	ideographic := func(r rune, label string) EnclosedCharacter {
-		return EnclosedCharacter{Character: r, Label: label, Group: EnclosedGroupIdeographic}
-	}
-	alphanumeric := func(r rune, label string) EnclosedCharacter {
-		return EnclosedCharacter{Character: r, Label: label, Group: EnclosedGroupAlphanumeric}
+	c := func(r rune, label string, group EnclosedGroup) EnclosedCharacter {
+		return EnclosedCharacter{Character: r, Label: label, Group: group}
 	}
 
+	// 出典は、Unicode の符号表が示す ARIB の規格 (設計書 4.2)。
+	// 鍵 (⚿) は Miscellaneous symbol from ARIB STD B24、漢字と仮名は Squared ideographs and kana from ARIB STD B24、
+	// 英字のうち B、N、P、S、W は各文字の注記に ARIB STD B24 とあり、HV、MV、SD、SS、PPV は放送の用語の注記がある。
+	// 2K や 4K などは Squared Latin letter sequences from ARIB STD B62。
 	return [enclosedCount]EnclosedCharacter{
-		// ARIB STD-B24 (Unicode の Squared ideographs and kana from ARIB STD B24 と、Miscellaneous symbol from ARIB STD B24)
-		ideographic('\U0001F21F', "新"),
-		ideographic('\U0001F221', "終"),
-		ideographic('\U0001F21E', "再"),
-		ideographic('\U0001F220', "初"),
-		ideographic('\U0001F222', "生"),
-		ideographic('\U0001F21C', "前"),
-		ideographic('\U0001F21D', "後"),
-		ideographic('\U0001F211', "字"),
-		ideographic('\U0001F214', "二"),
-		ideographic('\U0001F215', "多"),
-		ideographic('\U0001F216', "解"),
-		ideographic('\U0001F212', "双"),
-		ideographic('\U0001F213', "デ"),
-		ideographic('\U0001F210', "手"),
-		ideographic('\U0001F225', "吹"),
-		ideographic('\U0001F224', "声"),
-		ideographic('\U0001F226', "演"),
-		ideographic('\U0001F21A', "無"),
-		ideographic('\U0001F21B', "料"),
-		ideographic('\U0001F219', "映"),
-		ideographic('\U0001F217', "天"),
-		ideographic('\U0001F218', "交"),
-		ideographic('\U0001F223', "販"),
-		ideographic('⚿', "鍵"),
-		// ARIB STD-B24 (Unicode の Squared Latin letters のうち、放送の注記があるもの)
-		alphanumeric('\U0001F142', "S"),
-		alphanumeric('\U0001F14D', "SS"),
-		alphanumeric('\U0001F131', "B"),
-		alphanumeric('\U0001F13D', "N"),
-		alphanumeric('\U0001F13F', "P"),
-		alphanumeric('\U0001F146', "W"),
-		alphanumeric('\U0001F14A', "HV"),
-		alphanumeric('\U0001F14B', "MV"),
-		alphanumeric('\U0001F14C', "SD"),
-		alphanumeric('\U0001F14E', "PPV"),
-		// ARIB STD-B62 (Unicode の Squared Latin letter sequences from ARIB STD B62)
-		alphanumeric('\U0001F19D', "2K"),
-		alphanumeric('\U0001F19E', "4K"),
-		alphanumeric('\U0001F19F', "8K"),
-		alphanumeric('\U0001F19B', "3D"),
-		alphanumeric('\U0001F1A7', "HDR"),
-		alphanumeric('\U0001F1AA', "SHV"),
-		alphanumeric('\U0001F1AB', "UHD"),
-		alphanumeric('\U0001F1A3', "60P"),
-		alphanumeric('\U0001F1A4', "120P"),
-		alphanumeric('\U0001F1A6', "HC"),
-		alphanumeric('\U0001F1A0', "5.1"),
-		alphanumeric('\U0001F1A1', "7.1"),
-		alphanumeric('\U0001F1A2', "22.2"),
-		alphanumeric('\U0001F1A8', "Hi-Res"),
-		alphanumeric('\U0001F1A9', "Lossless"),
-		alphanumeric('\U0001F1AC', "VOD"),
-		alphanumeric('\U0001F19C', "2ndScr"),
-		alphanumeric('\U0001F1A5', "d"),
+		c('\U0001F21F', "新", EnclosedGroupPopular),
+		c('\U0001F221', "終", EnclosedGroupPopular),
+		c('\U0001F21E', "再", EnclosedGroupPopular),
+		c('\U0001F220', "初", EnclosedGroupPopular),
+		c('\U0001F222', "生", EnclosedGroupProgram),
+		c('\U0001F21C', "前", EnclosedGroupProgram),
+		c('\U0001F21D', "後", EnclosedGroupProgram),
+		c('\U0001F219', "映", EnclosedGroupProgram),
+		c('\U0001F226', "演", EnclosedGroupProgram),
+		c('\U0001F217', "天", EnclosedGroupProgram),
+		c('\U0001F218', "交", EnclosedGroupProgram),
+		c('\U0001F223', "販", EnclosedGroupProgram),
+		c('\U0001F13D', "N", EnclosedGroupProgram),
+		c('\U0001F211', "字", EnclosedGroupAccessibility),
+		c('\U0001F216', "解", EnclosedGroupAccessibility),
+		c('\U0001F210', "手", EnclosedGroupAccessibility),
+		c('\U0001F225', "吹", EnclosedGroupAccessibility),
+		c('\U0001F224', "声", EnclosedGroupAccessibility),
+		c('\U0001F214', "二", EnclosedGroupAccessibility),
+		c('\U0001F215', "多", EnclosedGroupAccessibility),
+		c('\U0001F14A', "HV", EnclosedGroupVideo),
+		c('\U0001F14C', "SD", EnclosedGroupVideo),
+		c('\U0001F146', "W", EnclosedGroupVideo),
+		c('\U0001F13F', "P", EnclosedGroupVideo),
+		c('\U0001F14B', "MV", EnclosedGroupVideo),
+		c('\U0001F19D', "2K", EnclosedGroupVideo),
+		c('\U0001F19E', "4K", EnclosedGroupVideo),
+		c('\U0001F19F', "8K", EnclosedGroupVideo),
+		c('\U0001F19B', "3D", EnclosedGroupVideo),
+		c('\U0001F1A7', "HDR", EnclosedGroupVideo),
+		c('\U0001F1AA', "SHV", EnclosedGroupVideo),
+		c('\U0001F1AB', "UHD", EnclosedGroupVideo),
+		c('\U0001F1A3', "60P", EnclosedGroupVideo),
+		c('\U0001F1A4', "120P", EnclosedGroupVideo),
+		c('\U0001F142', "S", EnclosedGroupAudio),
+		c('\U0001F14D', "SS", EnclosedGroupAudio),
+		c('\U0001F131', "B", EnclosedGroupAudio),
+		c('\U0001F1A0', "5.1", EnclosedGroupAudio),
+		c('\U0001F1A1', "7.1", EnclosedGroupAudio),
+		c('\U0001F1A2', "22.2", EnclosedGroupAudio),
+		c('\U0001F1A8', "Hi-Res", EnclosedGroupAudio),
+		c('\U0001F1A9', "Lossless", EnclosedGroupAudio),
+		c('\U0001F213', "デ", EnclosedGroupData),
+		c('\U0001F212', "双", EnclosedGroupData),
+		c('\U0001F1A6', "HC", EnclosedGroupData),
+		c('\U0001F1A5', "d", EnclosedGroupData),
+		c('\U0001F19C', "2ndScr", EnclosedGroupData),
+		c('\U0001F1AC', "VOD", EnclosedGroupData),
+		c('\U0001F21A', "無", EnclosedGroupAccess),
+		c('\U0001F21B', "料", EnclosedGroupAccess),
+		c('\U0001F14E', "PPV", EnclosedGroupAccess),
+		c('\u26BF', "鍵", EnclosedGroupAccess),
 	}
 }
 

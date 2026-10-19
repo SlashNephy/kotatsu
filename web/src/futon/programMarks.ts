@@ -1,7 +1,7 @@
 // 番組名に入る囲み文字 (🈑 や 🅊 など、ARIB の追加記号) を、番組名から取り出す。
 // 囲み文字は、フォントによっては潰れて読めないので、画面では番組名と分けて、自前の印として描く。
 
-import { enclosedCharacters } from './enclosedCharacters.gen';
+import { enclosedCharacters, enclosedGroups, type EnclosedGroup } from './enclosedCharacters.gen';
 
 // 取り出す囲み文字は、バックエンドと同じ表 (設計書 4.2) で決める。表にない囲み文字 (🈀 や ㊙ など) は、番組名の一部として残す。
 const enclosedClass = enclosedCharacters.map((c) => c.character).join('');
@@ -10,12 +10,13 @@ const enclosedMark = new RegExp(`[${enclosedClass}]`, 'gu');
 const enclosedMarks = new RegExp(`\\s*(?:[${enclosedClass}]\\s*)+`, 'gu');
 const enclosedLabels = new Map(enclosedCharacters.map((c) => [c.character, c.label]));
 
-// markOptions は、番組の条件で選べる囲み文字の中身を、表の順にまとまりごとに並べる (設計書 4.2)。
+// markOptions は、番組の条件で選べる囲み文字の中身を、まとまりごとに表の順に並べる (設計書 4.2)。
 // 括弧で書いたもの ([新] など) も、バックエンドで同じ囲み文字とみなす。
-export const markOptions = {
-  ideographic: enclosedCharacters.filter((c) => c.group === 'ideographic').map((c) => c.label),
-  alphanumeric: enclosedCharacters.filter((c) => c.group === 'alphanumeric').map((c) => c.label),
-};
+export const markOptions: readonly { group: EnclosedGroup; labels: readonly string[] }[] =
+  enclosedGroups.map((group) => ({
+    group,
+    labels: enclosedCharacters.filter((c) => c.group === group).map((c) => c.label),
+  }));
 
 export type ProgramMarks = {
   // name は、囲み文字を除き、前後の空白を詰めた番組名。
