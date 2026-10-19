@@ -8,6 +8,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/assign"
 	"github.com/SlashNephy/kotatsu/internal/epg"
 	"github.com/SlashNephy/kotatsu/internal/notification"
+	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/player"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
@@ -41,6 +42,7 @@ func dataChannels() []struct {
 		{channel: model.DataChannelAssignments, notify: assign.NotifyChannel},
 		{channel: model.DataChannelReservationConflicts, notify: assign.ConflictChannel},
 		{channel: model.DataChannelTuners, notify: tunerstate.NotifyChannel},
+		{channel: model.DataChannelRecordings, notify: notify.RecordingsChannel},
 	}
 }
 

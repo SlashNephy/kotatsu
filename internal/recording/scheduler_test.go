@@ -21,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/epg"
 	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/recording"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/tuner/faketuner"
@@ -145,6 +146,17 @@ func (f *fixture) version(t *testing.T) int64 {
 	var version int64
 	require.NoError(t, f.pool.QueryRow(t.Context(),
 		"SELECT coalesce((SELECT version FROM change_versions WHERE channel = $1), 0)", recording.NotifyChannel).Scan(&version))
+
+	return version
+}
+
+// recordingsVersion は、録画の変更の通知の版数を返す (#868)。
+func (f *fixture) recordingsVersion(t *testing.T) int64 {
+	t.Helper()
+
+	var version int64
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT coalesce((SELECT version FROM change_versions WHERE channel = $1), 0)", notify.RecordingsChannel).Scan(&version))
 
 	return version
 }
@@ -292,6 +304,7 @@ func TestSchedulerFailsStuckRecordings(t *testing.T) {
 			if !tt.wantFail {
 				assert.Equal(t, "recording", state)
 				assert.Zero(t, events)
+				assert.Zero(t, f.recordingsVersion(t))
 
 				return
 			}
@@ -299,6 +312,7 @@ func TestSchedulerFailsStuckRecordings(t *testing.T) {
 			require.NotNil(t, reason)
 			assert.Equal(t, "stream_interrupted", *reason)
 			assert.Equal(t, 1, events)
+			assert.EqualValues(t, 1, f.recordingsVersion(t))
 
 			// 何度見直しても、通知は 1 回だけ。
 			f.schedule(t)
@@ -351,6 +365,7 @@ func TestSchedulerRecordsMissedRecordings(t *testing.T) {
 			require.NoError(t, f.pool.QueryRow(t.Context(),
 				"SELECT count(*) FROM notification_events WHERE kind = 'recording_failed' AND payload->>'reason' = 'recorder_unavailable'").Scan(&events))
 			assert.Equal(t, tt.wantMissed, events)
+			assert.EqualValues(t, tt.wantMissed, f.recordingsVersion(t))
 			if tt.wantMissed == 0 {
 				return
 			}

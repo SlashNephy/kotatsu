@@ -105,6 +105,9 @@ func (f *fixture) actions(t *testing.T, recordingID uuid.UUID) []string {
 	return actions
 }
 
+// recordingsVersion は、録画の変更の通知の版数を読む。
+const recordingsVersion = "SELECT coalesce((SELECT version FROM change_versions WHERE channel = 'recordings'), 0)"
+
 func (f *fixture) count(t *testing.T, query string) int {
 	t.Helper()
 
@@ -164,6 +167,7 @@ func TestDelete(t *testing.T) {
 			}
 			assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM recording_history"), "the history is kept")
 			assert.Equal(t, []string{"recording.deleted"}, f.actions(t, recordingID))
+			assert.Equal(t, 1, f.count(t, recordingsVersion))
 		})
 	}
 }
@@ -179,6 +183,8 @@ func TestSetProtected(t *testing.T) {
 		assert.Equal(t, protected, f.count(t, "SELECT count(*) FROM recordings WHERE protected") == 1)
 	}
 	assert.Equal(t, []string{"recording.protected", "recording.unprotected"}, f.actions(t, recordingID))
+	// 変えたときだけ、録画の変更を知らせる (#868)。
+	assert.Equal(t, 2, f.count(t, recordingsVersion))
 	require.ErrorIs(t, f.library.SetProtected(t.Context(), f.pool, audit.User(f.userID), id.New(), true), library.ErrNotFound)
 }
 

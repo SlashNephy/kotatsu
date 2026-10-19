@@ -53,6 +53,7 @@ const homeChannels: readonly ChangeChannel[] = [
   'ASSIGNMENTS',
   'RESERVATION_CONFLICTS',
   'TUNERS',
+  'RECORDINGS',
 ];
 
 // maxWaitMs は、時刻で読み直すまでに待つ最大の時間。放送中の番組がないサービスで、番組が始まるのに気づくのに使う。

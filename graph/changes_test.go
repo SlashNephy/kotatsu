@@ -99,8 +99,8 @@ func TestDataChanged(t *testing.T) {
 
 	f := newFixtureWithChanges(t)
 	events := f.as(t, "viewer", auth.RoleViewer).subscribe(t, `subscription { dataChanged { channel version } }`)
-	initial := make([]string, 0, 6)
-	for range 6 {
+	initial := make([]string, 0, 7)
+	for range 7 {
 		initial = append(initial, string(next(t, events)))
 	}
 	assert.Equal(t, []string{
@@ -110,11 +110,14 @@ func TestDataChanged(t *testing.T) {
 		`{"dataChanged":{"channel":"ASSIGNMENTS","version":0}}`,
 		`{"dataChanged":{"channel":"RESERVATION_CONFLICTS","version":0}}`,
 		`{"dataChanged":{"channel":"TUNERS","version":0}}`,
+		`{"dataChanged":{"channel":"RECORDINGS","version":0}}`,
 	}, initial)
 
 	// 別の tenban の変更は、DB の変更の通知だけで届く。ここでは、この tenban を通さずに DB で通知する。
 	f.publish(t, rule.NotifyChannel)
 	assert.JSONEq(t, `{"dataChanged":{"channel":"RULES","version":1}}`, string(next(t, events)))
+	f.publish(t, notify.RecordingsChannel)
+	assert.JSONEq(t, `{"dataChanged":{"channel":"RECORDINGS","version":1}}`, string(next(t, events)))
 	f.publish(t, tunerstate.NotifyChannel)
 	f.publish(t, tunerstate.NotifyChannel)
 	// 立て続けの変更は 1 つにまとまることがあるので、最後の版数が届くまで読む。
@@ -236,16 +239,16 @@ func TestViewerEvents(t *testing.T) {
 	f := newFixtureWithChanges(t)
 	events := f.subscribe(t, `subscription { viewerEvents { dataChange { channel version } viewerSettingsVersion unreadNotificationCount } }`)
 	// 始めに、すべての今の値が届く。3 つの購読から届くので、順は決まらない。
-	initial := make([]string, 0, 8)
-	for range 8 {
+	initial := make([]string, 0, 9)
+	for range 9 {
 		initial = append(initial, string(next(t, events)))
 	}
 	event := func(dataChange, settings, unread string) string {
 		return `{"viewerEvents":{"dataChange":` + dataChange + `,"viewerSettingsVersion":` + settings + `,"unreadNotificationCount":` + unread + `}}`
 	}
-	want := make([]string, 0, 8)
+	want := make([]string, 0, 9)
 	want = append(want, event("null", "0", "null"), event("null", "null", "0"))
-	for _, channel := range []string{"EPG", "RULES", "RESERVATIONS", "ASSIGNMENTS", "RESERVATION_CONFLICTS", "TUNERS"} {
+	for _, channel := range []string{"EPG", "RULES", "RESERVATIONS", "ASSIGNMENTS", "RESERVATION_CONFLICTS", "TUNERS", "RECORDINGS"} {
 		want = append(want, event(`{"channel":"`+channel+`","version":0}`, "null", "null"))
 	}
 	assert.ElementsMatch(t, want, initial)

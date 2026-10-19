@@ -24,6 +24,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/notify"
 )
 
 const (
@@ -209,8 +210,12 @@ func (l *Library) SaveProgress(ctx context.Context, db sqlc.DBTX, userID, record
 const foreignKeyViolation = "23503"
 
 // record は、録画の操作を監査ログに残す。要約には、録画の名前を加える。
+// 録画を変えたときに必ず呼ぶので、ここで録画の変更も知らせる。
 func (l *Library) record(ctx context.Context, tx pgx.Tx, actor *audit.Actor, action string, recording *sqlc.Recording, summary map[string]any) error {
 	summary["name"] = recording.Name
+	if _, err := notify.Publish(ctx, tx, l.clock, notify.RecordingsChannel); err != nil {
+		return err
+	}
 
 	return l.recorder.Record(ctx, tx, &audit.Event{
 		Actor:      actor,

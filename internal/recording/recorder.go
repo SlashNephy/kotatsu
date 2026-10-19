@@ -27,6 +27,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/notification"
+	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/ts"
@@ -1147,6 +1148,9 @@ func (t *endTracker) markNotBroadcast(ctx context.Context) {
 		return
 	}
 	t.notBroadcast = true
+	if _, err := notify.Publish(ctx, r.pool, r.clock, notify.RecordingsChannel); err != nil {
+		r.logger.WarnContext(ctx, "failed to notify the recording change", slog.Any("error", err))
+	}
 	r.logger.WarnContext(ctx, "the program was not broadcast during the planned time", slog.String("recording_id", t.recordingID.String()))
 }
 
@@ -1162,6 +1166,9 @@ func (t *endTracker) markLost(ctx context.Context) {
 		return
 	}
 	t.lost = true
+	if _, err := notify.Publish(ctx, r.pool, r.clock, notify.RecordingsChannel); err != nil {
+		r.logger.WarnContext(ctx, "failed to notify the recording change", slog.Any("error", err))
+	}
 	r.logger.WarnContext(ctx, "the program disappeared from the EPG; recording until the planned end", slog.String("recording_id", t.recordingID.String()))
 }
 
@@ -1268,6 +1275,9 @@ func (r *Recorder) start(ctx context.Context, reservation *sqlc.GetReservationFo
 		if !started.Inserted {
 			return nil
 		}
+		if _, err := notify.Publish(ctx, tx, r.clock, notify.RecordingsChannel); err != nil {
+			return err
+		}
 
 		target, err := notification.LoadReservationContext(ctx, tx, reservation.ID)
 		if err != nil {
@@ -1313,6 +1323,9 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 		}
 		if err := q.FinishRecording(ctx, sqlc.FinishRecordingParams{State: string(state), FailureReason: failure, Now: &now, ID: recordingID}); err != nil {
 			return fmt.Errorf("failed to finish the recording: %w", err)
+		}
+		if _, err := notify.Publish(ctx, tx, r.clock, notify.RecordingsChannel); err != nil {
+			return err
 		}
 		row, err := q.GetRecordingWithService(ctx, recordingID)
 		if err != nil {

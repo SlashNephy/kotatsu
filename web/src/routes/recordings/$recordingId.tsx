@@ -55,6 +55,8 @@ import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { genreKey } from '../../guide/genres';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 import { zonedFormat } from '../../futon';
+import { useDataChanges } from '../../changes/DataChanges';
+import type { ChangeChannel } from '../../changes/dataChanges';
 
 export const Route = createFileRoute('/recordings/$recordingId')({
   component: RecordingPage,
@@ -136,9 +138,14 @@ function RecordingPage() {
   );
 }
 
+// recordingChannels は、録画の詳細に関わるデータの種類。
+const recordingChannels: readonly ChangeChannel[] = ['RECORDINGS'];
+
 function Recording({ recordingId }: { recordingId: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  // 録画を終えた、サムネイルができた、ほかの端末で保護やタグを変えたなど、録画が変わったら読み直す (#868)。
+  const changes = useDataChanges(recordingChannels);
   const data = useLazyLoadQuery<RecordingIdQuery>(
     graphql`
       query RecordingIdQuery($id: ID!) {
@@ -208,7 +215,7 @@ function Recording({ recordingId }: { recordingId: string }) {
       }
     `,
     { id: recordingId },
-    { fetchPolicy: 'store-and-network' },
+    { fetchKey: changes, fetchPolicy: 'store-and-network' },
   );
   const [protect, protecting] = useMutation<RecordingIdProtectMutation>(graphql`
     mutation RecordingIdProtectMutation($id: ID!, $protected: Boolean!) {

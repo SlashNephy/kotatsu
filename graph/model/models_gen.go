@@ -1234,6 +1234,8 @@ const (
 	DataChannelReservationConflicts DataChannel = "RESERVATION_CONFLICTS"
 	// チューナーとチューナーサーバーの状態
 	DataChannelTuners DataChannel = "TUNERS"
+	// 録画 (#868)
+	DataChannelRecordings DataChannel = "RECORDINGS"
 )
 
 var AllDataChannel = []DataChannel{
@@ -1243,11 +1245,12 @@ var AllDataChannel = []DataChannel{
 	DataChannelAssignments,
 	DataChannelReservationConflicts,
 	DataChannelTuners,
+	DataChannelRecordings,
 }
 
 func (e DataChannel) IsValid() bool {
 	switch e {
-	case DataChannelEpg, DataChannelRules, DataChannelReservations, DataChannelAssignments, DataChannelReservationConflicts, DataChannelTuners:
+	case DataChannelEpg, DataChannelRules, DataChannelReservations, DataChannelAssignments, DataChannelReservationConflicts, DataChannelTuners, DataChannelRecordings:
 		return true
 	}
 	return false

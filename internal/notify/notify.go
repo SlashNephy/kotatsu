@@ -25,12 +25,19 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 )
 
+// RecordingsChannel は、録画が変わったことを知らせる変更通知のチャンネル (#868)。録画を始めた、終えた、消した、
+// 保護やタグを変えた、サムネイルや解析の結果を書いたときに版数を上げる。録画中にファイルが伸びるだけでは上げない。
+// 録画は recording、library、thumbnail、analysis、epgstation が書くので、互いに import しなくて済むよう、ここに置く。
+const RecordingsChannel = "recordings"
+
 // DefaultPollInterval は、版数をポーリングする既定の間隔。
 const DefaultPollInterval = 5 * time.Second
 
-// Publish は、tx の中で channel の版数を上げて NOTIFY を送り、上げた後の版数を返す。
-func Publish(ctx context.Context, tx pgx.Tx, clk clock.Clock, channel string) (int64, error) {
-	q := sqlc.New(tx)
+// Publish は、db で channel の版数を上げて NOTIFY を送り、上げた後の版数を返す。
+// db がトランザクションなら、版数はコミットしたときに上がり、NOTIFY もコミットしたときに送られる。
+// トランザクションの外で書いた変更は、書いた後に、トランザクションでない db を渡して知らせる。
+func Publish(ctx context.Context, db sqlc.DBTX, clk clock.Clock, channel string) (int64, error) {
+	q := sqlc.New(db)
 	version, err := q.BumpChangeVersion(ctx, sqlc.BumpChangeVersionParams{Channel: channel, Now: clk.Now()})
 	if err != nil {
 		return 0, fmt.Errorf("failed to bump the version of %s: %w", channel, err)

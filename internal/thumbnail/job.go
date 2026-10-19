@@ -21,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/notify"
 	"github.com/SlashNephy/kotatsu/internal/ts"
 )
 
@@ -304,6 +305,10 @@ func (w *GenerateWorker) record(ctx context.Context, recordingID uuid.UUID, firs
 		if err != nil {
 			return fmt.Errorf("failed to record the %s: %w", img.kind, err)
 		}
+	}
+	// 録画の一覧にサムネイルを出すので、録画の変更として知らせる (#868)。
+	if _, err := notify.Publish(ctx, w.db, w.clock, notify.RecordingsChannel); err != nil {
+		return err
 	}
 
 	return nil
