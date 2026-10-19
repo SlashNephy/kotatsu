@@ -2435,6 +2435,11 @@ type StreamPreset {
   """
   videoBitrate: Int!
   codec: VideoCodec!
+  """
+  映像を変換せずに、放送の HEVC のまま送るかどうか (#806)。BS4K の番組を、HEVC を復号できる端末で見るのに使う。
+  height と videoBitrate は、BS4K の放送の目安。
+  """
+  passthrough: Boolean!
 }
 """
 PID ごとの品質の集計 (#473)。
@@ -2639,7 +2644,7 @@ type Transcoding {
   """
   available: Boolean!
   """
-  選べる画質。H.264、HEVC の順に、それぞれ高い画質から並べる。
+  選べる画質。H.264、HEVC の順に、それぞれ高い画質から並べ、最後に映像を変換しないものを置く。
   """
   presets: [StreamPreset!]!
 }

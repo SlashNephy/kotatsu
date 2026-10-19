@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<ada3d39c2b9637289bc010a0fac8bf15>>
+ * @generated SignedSource<<332ffff85e38616f26c77e04cdc1e6b9>>
  * @lightSyntaxTransform
  */
 
@@ -49,6 +49,7 @@ export type RecordingIdPlayQuery$data = {
     readonly presets: ReadonlyArray<{
       readonly codec: VideoCodec;
       readonly name: string;
+      readonly passthrough: boolean;
     }>;
   };
 };
@@ -242,6 +243,13 @@ v16 = {
           "kind": "ScalarField",
           "name": "codec",
           "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "passthrough",
+          "storageKey": null
         }
       ],
       "storageKey": null
@@ -359,16 +367,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "4f956a00b0b2655775bde18bab3b56b4",
+    "cacheID": "ddeb3099ffc4f7140690787b64d6fef1",
     "id": null,
     "metadata": {},
     "name": "RecordingIdPlayQuery",
     "operationKind": "query",
-    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      streamUrl\n      recordedFrom\n      recordedUntil\n      gaps {\n        from\n        to\n      }\n      jikkyoCommentsUrl\n      watchPositionMs\n      thumbnailUrl\n      previewUrl\n      audios {\n        componentType\n        languages\n      }\n      service {\n        name\n        logoUrl\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n}\n"
+    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      streamUrl\n      recordedFrom\n      recordedUntil\n      gaps {\n        from\n        to\n      }\n      jikkyoCommentsUrl\n      watchPositionMs\n      thumbnailUrl\n      previewUrl\n      audios {\n        componentType\n        languages\n      }\n      service {\n        name\n        logoUrl\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "139d2d83b024e0c6405bfece193b55ef";
+(node as any).hash = "0b38aeeddb2b0f4b787ab27985736b86";
 
 export default node;

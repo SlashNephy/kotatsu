@@ -732,6 +732,7 @@ type ComplexityRoot struct {
 		Codec        func(childComplexity int) int
 		Height       func(childComplexity int) int
 		Name         func(childComplexity int) int
+		Passthrough  func(childComplexity int) int
 		VideoBitrate func(childComplexity int) int
 	}
 
@@ -4225,6 +4226,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.StreamPreset.Name(childComplexity), true
+	case "StreamPreset.passthrough":
+		if e.ComplexityRoot.StreamPreset.Passthrough == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamPreset.Passthrough(childComplexity), true
 	case "StreamPreset.videoBitrate":
 		if e.ComplexityRoot.StreamPreset.VideoBitrate == nil {
 			break
@@ -6977,6 +6984,11 @@ type StreamPreset {
   "映像のビットレート (kbps)。"
   videoBitrate: Int!
   codec: VideoCodec!
+  """
+  映像を変換せずに、放送の HEVC のまま送るかどうか (#806)。BS4K の番組を、HEVC を復号できる端末で見るのに使う。
+  height と videoBitrate は、BS4K の放送の目安。
+  """
+  passthrough: Boolean!
 }
 
 """
@@ -6985,7 +6997,7 @@ type StreamPreset {
 type Transcoding {
   "トランスコードできる kyusu が動いているかどうか。動いていなければ、ブラウザ内での変換だけを使える。"
   available: Boolean!
-  "選べる画質。H.264、HEVC の順に、それぞれ高い画質から並べる。"
+  "選べる画質。H.264、HEVC の順に、それぞれ高い画質から並べ、最後に映像を変換しないものを置く。"
   presets: [StreamPreset!]!
 }
 
@@ -8407,6 +8419,8 @@ func (ec *executionContext) childFields_StreamPreset(ctx context.Context, field 
 		return ec.fieldContext_StreamPreset_videoBitrate(ctx, field)
 	case "codec":
 		return ec.fieldContext_StreamPreset_codec(ctx, field)
+	case "passthrough":
+		return ec.fieldContext_StreamPreset_passthrough(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type StreamPreset", field.Name)
 }
@@ -23208,6 +23222,29 @@ func (ec *executionContext) fieldContext_StreamPreset_codec(_ context.Context, f
 	return graphql.NewScalarFieldContext("StreamPreset", field, false, false, errors.New("field of type VideoCodec does not have child fields"))
 }
 
+func (ec *executionContext) _StreamPreset_passthrough(ctx context.Context, field graphql.CollectedField, obj *model.StreamPreset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StreamPreset_passthrough(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Passthrough, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StreamPreset_passthrough(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StreamPreset", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _StreamQuality_pid(ctx context.Context, field graphql.CollectedField, obj *model.StreamQuality) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -34341,6 +34378,11 @@ func (ec *executionContext) _StreamPreset(ctx context.Context, sel ast.Selection
 			}
 		case "codec":
 			out.Values[i] = ec._StreamPreset_codec(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "passthrough":
+			out.Values[i] = ec._StreamPreset_passthrough(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

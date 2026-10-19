@@ -97,7 +97,7 @@ func (r *Resolver) transcoding(ctx context.Context) (*model.Transcoding, error) 
 			return nil, fmt.Errorf("unknown codec of preset %q: %s", preset.Name, preset.Codec)
 		}
 		presets = append(presets, &model.StreamPreset{
-			Name: preset.Name, Height: preset.Height, VideoBitrate: preset.VideoBitrate, Codec: codec,
+			Name: preset.Name, Height: preset.Height, VideoBitrate: preset.VideoBitrate, Codec: codec, Passthrough: preset.Passthrough,
 		})
 	}
 

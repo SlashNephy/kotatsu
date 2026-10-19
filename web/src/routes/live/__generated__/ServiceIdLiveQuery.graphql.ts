@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<1269934d01d701914b5d88aa2c603acb>>
+ * @generated SignedSource<<87e4b4a3771c37a3920304702b1d260b>>
  * @lightSyntaxTransform
  */
 
@@ -56,6 +56,7 @@ export type ServiceIdLiveQuery$data = {
     readonly presets: ReadonlyArray<{
       readonly codec: VideoCodec;
       readonly name: string;
+      readonly passthrough: boolean;
     }>;
   };
 };
@@ -242,6 +243,13 @@ v13 = {
           "kind": "ScalarField",
           "name": "codec",
           "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "passthrough",
+          "storageKey": null
         }
       ],
       "storageKey": null
@@ -415,16 +423,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "27612447b55f7875dea7a07fedd033aa",
+    "cacheID": "d3717a14d236f6026c8b37b7757312de",
     "id": null,
     "metadata": {},
     "name": "ServiceIdLiveQuery",
     "operationKind": "query",
-    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      jikkyo {\n        id\n        name\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      startAt\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n      }\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n  services {\n    id\n    name\n    networkId\n    serviceId\n    channelType {\n      type\n      displayName\n    }\n  }\n}\n"
+    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      jikkyo {\n        id\n        name\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      startAt\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n      }\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n  services {\n    id\n    name\n    networkId\n    serviceId\n    channelType {\n      type\n      displayName\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "cd64edf342e5ee944185021fc0ecfe6c";
+(node as any).hash = "515c71f8b658058ba582967c843449e3";
 
 export default node;

@@ -75,6 +75,13 @@ func TestKeyframesSkipGaps(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.want, keyframes(tt.segments))
+			// keyframePoints は、keyframes と同じ I フレームを返す。
+			points := keyframePoints(tt.segments)
+			ats := make([]time.Duration, 0, len(points))
+			for _, point := range points {
+				ats = append(ats, point.At)
+			}
+			assert.Equal(t, tt.want, ats)
 			pieces, at := plan(tt.segments, tt.start)
 			assert.Equal(t, tt.wantAt, at)
 			assert.Same(t, tt.segments[tt.wantPiece], pieces[0].segment)

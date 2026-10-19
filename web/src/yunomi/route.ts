@@ -11,7 +11,8 @@ export type Capabilities = {
   hevc: boolean;
 };
 
-export type Preset = { name: string; codec: string };
+// passthrough は、映像を変換しない (BS4K の HEVC をそのまま送る) 画質かどうか。
+export type Preset = { name: string; codec: string; passthrough: boolean };
 
 export type Transcoding = { available: boolean; presets: readonly Preset[] };
 
@@ -35,6 +36,10 @@ export function qualities(capabilities: Capabilities, transcoding: Transcoding):
   }
   if (transcoding.available && capabilities.hls) {
     for (const preset of transcoding.presets) {
+      // 映像を変換しない画質は、BS4K の番組を見分けられるようになるまで出さない (#806)。
+      if (preset.passthrough) {
+        continue;
+      }
       if (preset.codec !== 'HEVC' || capabilities.hevc) {
         list.push(preset.name);
       }

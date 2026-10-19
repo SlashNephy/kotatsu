@@ -915,6 +915,9 @@ type StreamPreset struct {
 	// 映像のビットレート (kbps)。
 	VideoBitrate int        `json:"videoBitrate"`
 	Codec        VideoCodec `json:"codec"`
+	// 映像を変換せずに、放送の HEVC のまま送るかどうか (#806)。BS4K の番組を、HEVC を復号できる端末で見るのに使う。
+	// height と videoBitrate は、BS4K の放送の目安。
+	Passthrough bool `json:"passthrough"`
 }
 
 // PID ごとの品質の集計 (#473)。
@@ -1026,7 +1029,7 @@ type TimeReservationInput struct {
 type Transcoding struct {
 	// トランスコードできる kyusu が動いているかどうか。動いていなければ、ブラウザ内での変換だけを使える。
 	Available bool `json:"available"`
-	// 選べる画質。H.264、HEVC の順に、それぞれ高い画質から並べる。
+	// 選べる画質。H.264、HEVC の順に、それぞれ高い画質から並べ、最後に映像を変換しないものを置く。
 	Presets []*StreamPreset `json:"presets"`
 }
 

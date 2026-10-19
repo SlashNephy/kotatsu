@@ -290,6 +290,7 @@ function Live({
           presets {
             name
             codec
+            passthrough
           }
         }
         # 視聴画面の中で選局するための、番組表と同じ並びのサービス (#493)。

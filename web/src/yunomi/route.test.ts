@@ -16,10 +16,11 @@ const noHevc: Capabilities = { convert: false, hls: true, hevc: false };
 const nothing: Capabilities = { convert: false, hls: false, hevc: false };
 
 const presets = [
-  { name: '1080p', codec: 'H264' },
-  { name: '720p', codec: 'H264' },
-  { name: '360p', codec: 'H264' },
-  { name: '720p-hevc', codec: 'HEVC' },
+  { name: '1080p', codec: 'H264', passthrough: false },
+  { name: '720p', codec: 'H264', passthrough: false },
+  { name: '360p', codec: 'H264', passthrough: false },
+  { name: '720p-hevc', codec: 'HEVC', passthrough: false },
+  { name: 'source', codec: 'HEVC', passthrough: true },
 ];
 const withKyusu: Transcoding = { available: true, presets };
 const withoutKyusu: Transcoding = { available: false, presets };

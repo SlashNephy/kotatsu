@@ -294,7 +294,7 @@ func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 		case !ok:
 			a.video = nil
 		case a.video == nil || a.video.pid != video.PID || a.video.streamType != video.StreamType:
-			a.video, _ = newIFrameDetector(video.PID, video.StreamType)
+			a.video = newIFrameDetector(video.PID, video.StreamType)
 		}
 	}
 	if a.video == nil || a.video.pid != pkt.pid {

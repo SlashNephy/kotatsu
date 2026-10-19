@@ -181,6 +181,7 @@ const playQuery = graphql`
       presets {
         name
         codec
+        passthrough
       }
     }
   }

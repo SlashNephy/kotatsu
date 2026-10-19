@@ -112,6 +112,12 @@ func (r *Recording) Keyframes() []time.Duration {
 	return keyframes(r.segments)
 }
 
+// KeyframePoints は、Keyframes と同じ I フレームの、録画の始まりからの時間と PTS を、順に返す。
+// kyusu が、録画の映像を変換せずに配信するとき、I フレームの位置でセグメントを切るのに使う (#806)。
+func (r *Recording) KeyframePoints() []Keyframe {
+	return keyframePoints(r.segments)
+}
+
 // Indexed は、索引のあるセグメントがあるかどうかを返す。取り込んだ直後の録画は、解析するまで索引がない。
 func (r *Recording) Indexed() bool {
 	return slices.ContainsFunc(r.segments, func(seg *segment) bool { return len(seg.index) > 0 })

@@ -56,11 +56,28 @@ func plan(segments []*segment, start time.Duration) ([]*piece, time.Duration) {
 // keyframes は、trim した範囲の I フレームの、録画の始まりからの再生の時間 (walk) を、順に返す。索引のないセグメントは、その始まりだけを含める。
 func keyframes(segments []*segment) []time.Duration {
 	times := []time.Duration{}
-	walk(trim(segments), func(_ int, _ int64, at time.Duration) {
+	walk(trim(segments), func(_ int, _ int64, at time.Duration, _ int64) {
 		times = append(times, at)
 	})
 
 	return times
+}
+
+// Keyframe は、流す I フレームの、録画の始まりからの再生の時間と、PTS。
+type Keyframe struct {
+	At time.Duration
+	// PTS は、放送局が付けた PTS (90 kHz)。索引のないセグメントの始まりでは、分からないので -1。
+	PTS int64
+}
+
+// keyframePoints は、keyframes と同じ I フレームの、再生の時間と PTS を、順に返す。
+func keyframePoints(segments []*segment) []Keyframe {
+	points := []Keyframe{}
+	walk(trim(segments), func(_ int, _ int64, at time.Duration, pts int64) {
+		points = append(points, Keyframe{At: at, PTS: pts})
+	})
+
+	return points
 }
 
 // trim は、セグメントごとに配信する範囲を決め、引き継ぎで重なった区間を切り詰める。
@@ -91,7 +108,7 @@ func trim(segments []*segment) []*piece {
 func seek(pieces []*piece, start time.Duration) (int, int64, time.Duration) {
 	best, bestOffset := 0, pieces[0].from
 	var bestAt time.Duration
-	walk(pieces, func(i int, offset int64, at time.Duration) {
+	walk(pieces, func(i int, offset int64, at time.Duration, _ int64) {
 		// 時間は増えていくので、start までのうち最後のものが、最も近い手前の I フレーム。
 		if at <= start {
 			best, bestOffset, bestAt = i, offset, at
@@ -101,14 +118,15 @@ func seek(pieces []*piece, start time.Duration) (int, int64, time.Duration) {
 	return best, bestOffset, bestAt
 }
 
-// walk は、配信する I フレームを順にたどり、範囲の添え字と、バイト位置と、録画の始まりからの再生の時間を fn に渡す。
+// walk は、配信する I フレームを順にたどり、範囲の添え字と、バイト位置と、録画の始まりからの再生の時間と、PTS を fn に渡す。
+// 索引のないセグメントの始まりは、PTS が分からないので -1 を渡す。
 //
 // 再生の時間は、途切れた区間を含めない (設計書 7.2)。録画の配信もトランスコードも、途切れた区間の前後をそのままつないで流すので、
 // プレイヤーとエンコーダーの時間も、途切れた区間を含まないからである。
 // 時間は、前の I フレームからの PTS の差を足して求める。差が ts.MaxKeyframeInterval を超えるか、PTS が戻ったら、間で途切れたので、
 // 直前の I フレームの間隔だけ進める。セグメントをつないだファイルの中の途切れも、同じく詰める。
 // 索引のないセグメントは、PTS が分からないので、前の I フレームの次の位置から始まり、書いていた時間だけ続くものとする。
-func walk(pieces []*piece, fn func(i int, offset int64, at time.Duration)) {
+func walk(pieces []*piece, fn func(i int, offset int64, at time.Duration, pts int64)) {
 	// next は、PTS でつながらないときに、次の I フレームに付ける時間。
 	var at, next time.Duration
 	interval := ts.DefaultKeyframeInterval
@@ -118,7 +136,7 @@ func walk(pieces []*piece, fn func(i int, offset int64, at time.Duration)) {
 		seg := p.segment
 		if len(seg.index) == 0 {
 			at = next
-			fn(i, p.from, at)
+			fn(i, p.from, at, -1)
 			chained = false
 			next = at + interval
 			if seg.endedAt != nil {
@@ -138,7 +156,7 @@ func walk(pieces []*piece, fn func(i int, offset int64, at time.Duration)) {
 				}
 			}
 			at = t
-			fn(i, entry.Offset, at)
+			fn(i, entry.Offset, at, entry.PTS)
 			prev, chained = entry.PTS, true
 			next = at + interval
 		}
