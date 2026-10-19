@@ -26,14 +26,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # 公開する workflow なので、ほかの workflow と共有するキャッシュを読まない (release.yml と同じ)。
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-      # pnpm のストア。web/pnpm-lock.yaml が変わったら作り直す。
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.local/share/pnpm/store
-          key: pnpm-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
-          restore-keys: |
-            pnpm-${{ runner.os }}-
+          cache: false
       - run: mise run web:demo
       - name: Assemble the site
         env:
@@ -47,8 +43,9 @@ jobs:
           # デモの深いパス (/demo/login など) を読み直せるよう、デモの index.html を置く。
           cp web/dist/demo/index.html "$site/404.html"
           # Helm リポジトリの index.yaml。最初のリリースより前は、gh-pages ブランチがないので載せない。
-          if gh api -H 'Accept: application/vnd.github.raw' "repos/$REPOSITORY/contents/index.yaml?ref=gh-pages" >"$RUNNER_TEMP/index.yaml"; then
-            mv "$RUNNER_TEMP/index.yaml" "$site/index.yaml"
+          # ブランチがあるのに取れないときは、index.yaml のない Pages を出さないよう、配信をやめる。
+          if git ls-remote --exit-code --heads "https://github.com/$REPOSITORY.git" gh-pages >/dev/null; then
+            gh api -H 'Accept: application/vnd.github.raw' "repos/$REPOSITORY/contents/index.yaml?ref=gh-pages" >"$site/index.yaml"
           fi
           ls -la "$site"
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
