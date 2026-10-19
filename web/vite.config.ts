@@ -34,6 +34,21 @@ function inlineAppleTouchIcon(): Plugin {
 }
 
 // mode が demo のときは、静的なデモ (#832) をビルドする。`vp build --mode demo --base /kotatsu/demo/` で使う。
+// demoStream は、静的なデモ (#832) のときだけ、合成の映像 (demo/stream.m2ts) を出力に加える。
+// public に置くと、tenban に埋め込む通常のビルドにも入るので、ここで加える。
+function demoStream(): Plugin {
+  return {
+    name: 'kotatsu:demo-stream',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'demo/stream.m2ts',
+        source: readFileSync(new URL('./demo/stream.m2ts', import.meta.url)),
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => ({
   plugins: lazyPlugins(() => [
     // Relay のコンパイラが routes/ に生成する __generated__ は、ルートではない。
@@ -44,6 +59,7 @@ export default defineConfig(({ mode }) => ({
     }),
     react(),
     inlineAppleTouchIcon(),
+    ...(mode === 'demo' ? [demoStream()] : []),
     // graphql`...` を、Relay のコンパイラが生成したアーティファクトの import に置き換える。
     babel({ presets: [reactCompilerPreset()], plugins: [['relay', { eagerEsModules: true }]] }),
     // PWA の外枠 (設計書 10.1)。Web Push の受信とナビゲーションは、自前の Service Worker (src/sw.ts) に書く。
