@@ -3,7 +3,7 @@ import { createTheme, type MantineColorsTuple } from '@mantine/core';
 // futon は、Mantine に重ねる Kotatsu 用のテーマと部品 (設計書 10.1、10.2)。
 
 // みかん色。ライトテーマのアクセントにする。
-const mikan: MantineColorsTuple = [
+export const mikan: MantineColorsTuple = [
   '#fff3e6',
   '#ffe4cc',
   '#ffc799',
@@ -31,7 +31,7 @@ const amber: MantineColorsTuple = [
 ];
 
 // 焦げ茶。ダークテーマ (夜のこたつ) の背景と面に使う。dark[7] が背景、dark[6] が面になる。
-const kogecha: MantineColorsTuple = [
+export const kogecha: MantineColorsTuple = [
   '#e9e1da',
   '#c9bcb0',
   '#a3948a',

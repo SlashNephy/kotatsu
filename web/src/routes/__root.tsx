@@ -7,7 +7,7 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 
 import { UserMenu } from '../auth/UserMenu';
 import { DataChangesProvider, DataChangesSubscriber } from '../changes/DataChanges';
-import { ColorSchemeToggle, ErrorBoundary } from '../futon';
+import { ColorSchemeToggle, ErrorBoundary, useThemeColor } from '../futon';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { ConnectionStatus } from '../relay/ConnectionStatus';
 import type { RootViewerQuery } from './__generated__/RootViewerQuery.graphql';
@@ -45,6 +45,7 @@ function RootLayout() {
   const fluid = useMatches({
     select: (matches) => matches.some((match) => match.staticData.fluid),
   });
+  useThemeColor();
   // アプリのアイコンと名前は、押すとホームを開く。アイコンは飾りなので、読み上げない。
   const brand = (
     <Title order={1} size="h3">
