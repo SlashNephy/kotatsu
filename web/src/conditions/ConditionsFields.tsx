@@ -14,7 +14,18 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { MonitorX, Plus, RadioTower, Search, SearchX, Shapes, Stamp, Tv, X } from 'lucide-react';
+import {
+  MonitorX,
+  Plus,
+  RadioTower,
+  Search,
+  SearchX,
+  Shapes,
+  SquareDashed,
+  SquareExclamationPoint,
+  Tv,
+  X,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -108,6 +119,7 @@ export function ConditionsFields({ value, onChange, channelTypes, services }: Pr
           <MarkMultiSelect
             label={t('rules.marks')}
             description={t('rules.marksDescription')}
+            icon={<SquareExclamationPoint size={16} aria-hidden />}
             keep={[...value.marks, ...value.excludeMarks]}
             value={value.marks}
             onChange={(marks) => onChange({ marks })}
@@ -115,6 +127,7 @@ export function ConditionsFields({ value, onChange, channelTypes, services }: Pr
           <MarkMultiSelect
             label={t('rules.excludeMarks')}
             description={t('rules.excludeMarksDescription')}
+            icon={<SquareDashed size={16} aria-hidden />}
             keep={[...value.marks, ...value.excludeMarks]}
             value={value.excludeMarks}
             onChange={(excludeMarks) => onChange({ excludeMarks })}
@@ -234,12 +247,14 @@ type KeywordRowsProps = {
 function MarkMultiSelect({
   label,
   description,
+  icon,
   keep,
   value,
   onChange,
 }: {
   label: string;
   description: string;
+  icon: ReactNode;
   keep: readonly string[];
   value: string[];
   onChange: (selected: string[]) => void;
@@ -252,7 +267,7 @@ function MarkMultiSelect({
     <MultiSelect
       label={label}
       description={description}
-      leftSection={<Stamp size={16} aria-hidden />}
+      leftSection={icon}
       data={[
         { group: t('rules.markGroup.ideographic'), items: [...markOptions.ideographic] },
         { group: t('rules.markGroup.alphanumeric'), items: [...markOptions.alphanumeric] },
