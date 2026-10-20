@@ -36,7 +36,8 @@ extend type Query {
 
 extend type Mutation {
   """
-  録画 ids のセグメントのファイルと生成物のディレクトリを、今のテンプレートの名前に付け直し、記録のパスを書き換える。
+  録画 ids のセグメントのファイルを、今のテンプレートの名前に付け直し、記録のパスを書き換える。
+  生成物は、データディレクトリにセグメントのファイルの ID で置くので移さない。
   管理者だけが使え、一度に 100 件まで。同じプールの中だけで移す。監査ログに残す。
   """
   renameRecordingFiles(ids: [ID!]!): RenameRecordingFilesPayload!

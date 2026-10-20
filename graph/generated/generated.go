@@ -5609,7 +5609,7 @@ extend type Mutation {
 }
 `, BuiltIn: false},
 	{Name: "../schema/orphan_files.graphqls", Input: `"""
-プールにあるのに DB に記録のないファイルか、持ち主の録画ファイルが DB にない生成物のディレクトリ (設計書 5.6)。
+プールかデータディレクトリにあるのに DB に記録のないファイルか、持ち主のセグメントのファイルが DB にない生成物のディレクトリ (設計書 5.6)。
 録画を消すのに失敗したときや、取り込みをやり直したときに残る。
 """
 type OrphanFile {
@@ -5996,7 +5996,8 @@ extend type Query {
 
 extend type Mutation {
   """
-  録画 ids のセグメントのファイルと生成物のディレクトリを、今のテンプレートの名前に付け直し、記録のパスを書き換える。
+  録画 ids のセグメントのファイルを、今のテンプレートの名前に付け直し、記録のパスを書き換える。
+  生成物は、データディレクトリにセグメントのファイルの ID で置くので移さない。
   管理者だけが使え、一度に 100 件まで。同じプールの中だけで移す。監査ログに残す。
   """
   renameRecordingFiles(ids: [ID!]!): RenameRecordingFilesPayload!

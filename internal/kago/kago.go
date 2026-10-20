@@ -42,8 +42,8 @@ type Store struct {
 	dataDir string
 }
 
-// DataPoolID は、データディレクトリ (WithDataDir) を、プールと同じく扱うときの ID。
-// recording_files の pool_id に記録する。設定のプールの ID とは重ならないよう、_ で始める。
+// DataPoolID は、データディレクトリ (WithDataDir) を、Store の中でプールと同じく扱うときの ID。
+// DB にも API にも出さない。設定のプールの ID とは重ならないよう、_ で始める。
 const DataPoolID = "_data"
 
 // Location は、プールの中のファイルの場所。
@@ -104,7 +104,7 @@ func (s *Store) WithDataDir(dir string) *Store {
 	return &Store{mounts: mounts, order: s.order, freeSpace: s.freeSpace, dataDir: dir}
 }
 
-// DataDir は、セグメントのファイル fileID (recording_files.id) の生成物のディレクトリの場所を返す。
+// SegmentDir は、セグメントのファイル fileID (recording_files.id) の生成物のディレクトリの場所を返す。
 func SegmentDir(fileID uuid.UUID) *Location {
 	return &Location{PoolID: DataPoolID, Path: fileID.String()}
 }
@@ -362,7 +362,11 @@ func removedEmptyDir(path string) bool {
 // 中にディレクトリがあれば、生成物のディレクトリではない (ほかの録画を置いたディレクトリと重なった) とみなし、中身ごとは消さない。
 // プールの中に限って消すので、シンボリックリンクをたどってプールの外を消すことはない (リンクそのものは消す)。
 func (s *Store) removeSegmentDir(poolID, dir string) error {
-	root, err := os.OpenRoot(s.mounts[poolID])
+	mount, ok := s.mounts[poolID]
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
+	}
+	root, err := os.OpenRoot(mount)
 	if err != nil {
 		return err
 	}
