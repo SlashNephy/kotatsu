@@ -54,6 +54,9 @@ export type GuideColumn = {
   // logoUrl は、サービスのロゴの URL のパス。ロゴがなければ null。
   logoUrl: string | null;
   programs: GuideProgram[];
+  // receivedUntil は、この列の EPG が届いている時刻。これより後は、この列だけ、まだ届いていないと案内する。
+  // 列ごとに届いている時刻が違うとき (1 つのチャンネルの番組表) に使う。省くと、列では案内しない。
+  receivedUntil?: number;
 };
 
 type Props = {
@@ -99,7 +102,6 @@ export function GuideGrid({
   renderHeader,
   onSelect,
 }: Props) {
-  const { t } = useTranslation();
   // チャンネルの幅と 1 分の高さは、端末ごとの密度の設定に従う (#483)。
   const [appearance] = useGuideAppearance();
   const { columnWidth, minuteHeight } = densities[appearance.density];
@@ -323,39 +325,33 @@ export function GuideGrid({
             onSelect={onSelect}
           />
         ))}
+        {virtualizer.getVirtualItems().map((item) => {
+          const until = columns[item.index]!.receivedUntil;
+          if (until === undefined || until >= window.to) {
+            return null;
+          }
+          const top = timeToY(window, Math.max(until, window.from));
+
+          // 列ごとに届いている時刻が違うとき (1 つのチャンネルの番組表で、日ごとの列) は、列ごとに塗る。
+          return (
+            <NotReceived
+              key={`not-received-${item.key}`}
+              top={top}
+              left={axisWidth + item.start}
+              width={item.size}
+              height={height - top}
+            />
+          );
+        })}
         {receivedY !== undefined && (
           // まだ届いていない時間帯は、斜線で塗り、横にスクロールしても見える位置に案内を出す。
-          <Box
-            style={{
-              position: 'absolute',
-              top: receivedY,
-              left: axisWidth,
-              width: totalWidth - axisWidth,
-              height: height - receivedY,
-              borderTop: '1px dashed var(--mantine-color-default-border)',
-              background:
-                'repeating-linear-gradient(135deg, transparent 0 8px, var(--mantine-color-default-hover) 8px 16px)',
-            }}
-          >
-            <Text
-              size="sm"
-              c="dimmed"
-              style={{
-                position: 'sticky',
-                top: headerHeight + 16,
-                left: axisWidth + 16,
-                display: 'inline-block',
-                marginTop: 16,
-                marginLeft: 16,
-                paddingInline: 8,
-                paddingBlock: 4,
-                borderRadius: 'var(--mantine-radius-sm)',
-                background: 'var(--mantine-color-body)',
-              }}
-            >
-              {t('guide.notReceived')}
-            </Text>
-          </Box>
+          <NotReceived
+            top={receivedY}
+            left={axisWidth}
+            width={totalWidth - axisWidth}
+            height={height - receivedY}
+            stickyLeft
+          />
         )}
         {nowY !== undefined && (
           <Box
@@ -373,6 +369,59 @@ export function GuideGrid({
           />
         )}
       </Box>
+    </Box>
+  );
+}
+
+// NotReceived は、まだ EPG が届いていない時間帯。斜線で塗り、縦にスクロールしても見える位置に案内を出す。
+// stickyLeft は、横にスクロールしても案内を見える位置に置くかどうか。すべての列にまたがって塗るときに使う。
+function NotReceived({
+  top,
+  left,
+  width,
+  height,
+  stickyLeft = false,
+}: {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+  stickyLeft?: boolean;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Box
+      style={{
+        position: 'absolute',
+        top,
+        left,
+        width,
+        height,
+        borderTop: '1px dashed var(--mantine-color-default-border)',
+        background:
+          'repeating-linear-gradient(135deg, transparent 0 8px, var(--mantine-color-default-hover) 8px 16px)',
+      }}
+    >
+      <Text
+        size="sm"
+        c="dimmed"
+        style={{
+          position: 'sticky',
+          top: headerHeight + 16,
+          left: stickyLeft ? axisWidth + 16 : undefined,
+          display: 'inline-block',
+          maxWidth: 'calc(100% - 16px)',
+          marginTop: 16,
+          marginLeft: stickyLeft ? 16 : 8,
+          paddingInline: 8,
+          paddingBlock: 4,
+          borderRadius: 'var(--mantine-radius-sm)',
+          background: 'var(--mantine-color-body)',
+        }}
+      >
+        {t('guide.notReceived')}
+      </Text>
     </Box>
   );
 }
