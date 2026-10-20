@@ -5,7 +5,7 @@ import type { ComboboxItem, ComboboxItemGroup } from '@mantine/core';
 import type { TFunction } from 'i18next';
 
 import { resources } from '../i18n';
-import { genreKey } from './genres';
+import { genreKey, isGenre } from './genres';
 import { decodeGenre, encodeGenre, type Genre } from './guideView';
 
 type SubGenres = (typeof resources)['ja']['translation']['subGenre'];
@@ -39,6 +39,21 @@ export function genreLabel(t: TFunction, genre: Genre): string {
   return key === undefined
     ? t('guide.view.subGenre', { genre: lv1, lv2: genre.lv2 })
     : `${lv1}／${t(key)}`;
+}
+
+// programGenreLabels は、番組や録画に付いたジャンルの表示名を、「大分類／中分類」で並べて返す。
+// ジャンルでない拡張などは除き、同じ名前は 1 つにまとめる。
+export function programGenreLabels(
+  t: TFunction,
+  genres: readonly { readonly lv1: number; readonly lv2: number }[],
+): string[] {
+  return [
+    ...new Set(
+      genres
+        .filter((genre) => isGenre(genre.lv1))
+        .map((genre) => genreLabel(t, { lv1: genre.lv1, lv2: genre.lv2 })),
+    ),
+  ];
 }
 
 // genreOptions は、ジャンルのドロップダウンの選択肢を、大分類ごとのグループにして返す。

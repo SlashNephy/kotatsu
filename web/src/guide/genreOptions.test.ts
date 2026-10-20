@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import i18next from '../i18n';
-import { genreLabel, genreOptions } from './genreOptions';
+import { genreLabel, genreOptions, programGenreLabels } from './genreOptions';
 
 const t = i18next.t;
 
@@ -57,5 +57,18 @@ describe('genreOptions', () => {
 
     expect(valuesOf(groups, 'アニメ・特撮')).toEqual(['7', '7:0', '7:1', '7:2', '7:15', '7:9']);
     expect(valuesOf(groups, '拡張')).toEqual(['14:0']);
+  });
+});
+
+describe('programGenreLabels', () => {
+  test('「大分類／中分類」で並べ、拡張を除き、同じ名前を 1 つにまとめる', () => {
+    const genres = [
+      { lv1: 6, lv2: 2 },
+      { lv1: 14, lv2: 0 },
+      { lv1: 7, lv2: 0 },
+      { lv1: 6, lv2: 2 },
+    ];
+
+    expect(programGenreLabels(t, genres)).toEqual(['映画／アニメ', 'アニメ・特撮／国内アニメ']);
   });
 });
