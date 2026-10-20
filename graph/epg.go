@@ -15,6 +15,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/epg"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
 
@@ -141,7 +142,7 @@ func toProgram(row *programRow) (*model.Program, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode the audios of program %d/%d: %w", row.ServiceID, row.EventID, err)
 	}
-	sharedFrom, err := sharedFromKey(row.ServiceID, row.RelatedItems)
+	sharedFrom, err := epg.SharedFrom(row.ServiceID, row.RelatedItems)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode the related items of program %d/%d: %w", row.ServiceID, row.EventID, err)
 	}
@@ -162,35 +163,6 @@ func toProgram(row *programRow) (*model.Program, error) {
 		ServiceKey:    row.ServiceID,
 		SharedFromKey: sharedFrom,
 	}, nil
-}
-
-// serviceKeyBase は、Mirakurun のサービス ID の、ネットワーク ID の桁の重み (network_id * 100000 + service_id)。
-const serviceKeyBase = 100000
-
-// sharedFromKey は、イベント共有の元のサービスの Mirakurun のサービス ID を返す。番組が元であるか、共有していなければ 0 を返す。
-// 元は、同じネットワークで共有しているサービス (自分を含む) のうち、サービス ID が最も小さいものにする。
-// 地上波では、メインチャンネルの番組は共有するサブチャンネルを全て挙げ、サブチャンネルの番組はメインチャンネルだけを挙げる。
-func sharedFromKey(serviceKey int64, raw []byte) (int64, error) {
-	if len(raw) == 0 {
-		return 0, nil
-	}
-	var related []*mirakurun.RelatedItem
-	if err := json.Unmarshal(raw, &related); err != nil {
-		return 0, err
-	}
-	networkID := serviceKey / serviceKeyBase
-	from := serviceKey
-	for _, item := range related {
-		if item.Type != "shared" || (item.NetworkID != 0 && int64(item.NetworkID) != networkID) {
-			continue
-		}
-		from = min(from, networkID*serviceKeyBase+int64(item.ServiceID))
-	}
-	if from == serviceKey {
-		return 0, nil
-	}
-
-	return from, nil
 }
 
 // toProgramAudios は、上流の JSON のままの音声の構成を、主音声が先になるよう並べて返す。

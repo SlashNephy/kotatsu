@@ -509,12 +509,19 @@ func TestSearchProgramsOmitsSharedEvents(t *testing.T) {
 		name    string
 		keyword string
 		first   int
-		want    []string
+		// excludeMain なら、元のサービス (こたつテスト1) を除外するサービスに入れる。
+		excludeMain bool
+		want        []string
 	}{
 		{name: "元の番組も一致すれば、サブチャンネルの番組を省く", keyword: "^こたつテスト1 (サブ )?テスト番組 5$", first: 50, want: []string{main5}},
 		{name: "元の番組が一致しなければ、サブチャンネルの番組を残す", keyword: "^こたつテスト1 サブ テスト番組 5$", first: 50, want: []string{sub5}},
 		{name: "共有していない番組は、どちらも返す", keyword: "^こたつテスト1 (サブ )?テスト番組 6$", first: 50, want: []string{main6, sub6}},
 		{name: "ページをまたいでも省く", keyword: "^こたつテスト1 (サブ )?テスト番組 [56]$", first: 1, want: []string{main5, main6, sub6}},
+		{
+			// 共有していないサブチャンネルの番組は、元のサービスを除外しても残す (#899)。
+			name: "元のサービスを除外すれば、同じ番組を流しているサブチャンネルの番組も除く", keyword: "^こたつテスト1 (サブ )?テスト番組 [56]$", first: 50,
+			excludeMain: true, want: []string{sub6},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -532,6 +539,9 @@ func TestSearchProgramsOmitsSharedEvents(t *testing.T) {
 			}
 
 			conditions := conditionsInput{Keywords: []keywordInput{keyword(tt.keyword, true)}}
+			if tt.excludeMain {
+				conditions.ExcludeServices = []string{f.serviceIDs(t)["こたつテスト1"]}
+			}
 			found := []string{}
 			var after *string
 			for {

@@ -496,6 +496,47 @@ func TestEngineFailsOnUnreadablePrograms(t *testing.T) {
 	assert.Empty(t, f.reserved(t))
 }
 
+// TestEngineExcludesSharedEventsOfExcludedServices は、除外するサービスと同じイベントを流しているサービスの番組を、
+// 除外するサービスがイベント共有の元のときだけ除くことを確かめる (#899)。
+func TestEngineExcludesSharedEventsOfExcludedServices(t *testing.T) {
+	t.Parallel()
+
+	start := testNow().Add(5 * time.Hour).UnixMilli()
+	shared := func(serviceID, otherServiceID int) *faketuner.Program {
+		return &faketuner.Program{
+			ID: faketuner.ProgramID(grNetworkID, serviceID, 200), EventID: 200, ServiceID: serviceID, NetworkID: grNetworkID,
+			StartAt: start, Duration: time.Hour.Milliseconds(), IsFree: true, Name: "共有イベント", Description: "",
+			RelatedItems: []*faketuner.RelatedItem{{Type: "shared", NetworkID: 0, ServiceID: otherServiceID, EventID: 200}},
+		}
+	}
+	tests := []struct {
+		name     string
+		excluded int64
+		want     []int64
+	}{
+		{name: "元のサービスを除外すれば、サブチャンネルの番組も除く", excluded: serviceID(), want: []int64{}},
+		{name: "サブチャンネルを除外しても、元のサービスの番組は予約する", excluded: faketuner.ServiceItemID(grNetworkID, subServiceID), want: []int64{serviceID()}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newEngineFixture(t, shared(grServiceID, subServiceID), shared(subServiceID, grServiceID))
+			f.createRule(t, `共有イベント`, func(in *rule.Input) {
+				in.Conditions.ChannelTypes = []string{"GR"}
+				in.Conditions.ExcludeServiceIDs = []int64{tt.excluded}
+			})
+
+			f.run(t)
+			rows, err := f.pool.Query(t.Context(), "SELECT service_id FROM reservations")
+			require.NoError(t, err)
+			serviceIDs, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tt.want, serviceIDs)
+		})
+	}
+}
+
 // TestEngineKeepsReservationsWhileProgramIsUncertain は、番組の終了時刻が未定になったときや、番組が EPG から消えたときに、
 // ルール予約を消さないことを確かめる (#518)。どちらも一時的なことがあり、消すと録り逃す。
 func TestEngineKeepsReservationsWhileProgramIsUncertain(t *testing.T) {
