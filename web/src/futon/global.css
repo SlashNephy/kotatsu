@@ -4,3 +4,16 @@ body {
   /* 和文と欧文や数字の間に、ブラウザが自動で詰め物の空白を入れる。対応していないブラウザでは何も起きない。 */
   text-autospace: normal;
 }
+
+/* ドロップダウン (Select、MultiSelect など) で選んでいる項目。Mantine の既定は、薄く小さいチェックの印だけで見分けにくい。 */
+/* 選んでいる項目は、アクセントの薄い背景と太字にする。ホバーやキーボードで動かしている項目より、選んでいる項目の色を優先する。 */
+[data-combobox-option][data-checked] {
+  background-color: var(--mantine-primary-color-light);
+  color: var(--mantine-primary-color-light-color);
+  font-weight: 700;
+}
+
+[data-combobox-option][data-checked]:hover,
+[data-combobox-option][data-checked][data-combobox-selected] {
+  background-color: var(--mantine-primary-color-light-hover);
+}
