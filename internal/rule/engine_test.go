@@ -2,6 +2,7 @@ package rule_test
 
 import (
 	"context"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -454,6 +455,45 @@ func TestEnginePicksOneOfSharedEvents(t *testing.T) {
 	serviceIDs, err = pgx.CollectRows(rows, pgx.RowTo[int64])
 	require.NoError(t, err)
 	assert.Equal(t, []int64{serviceID()}, serviceIDs)
+}
+
+// TestEngineMatchesProgramsInParallel は、番組を並べて照合しても (#878)、どの番組も落とさず、一致したルールをすべて残すことを確かめる。
+// 番組の数は、照合を並べる数 (GOMAXPROCS) より多くする。
+func TestEngineMatchesProgramsInParallel(t *testing.T) {
+	t.Parallel()
+
+	const programs = 200
+	start := testNow().Add(5 * time.Hour)
+	extra := make([]*faketuner.Program, 0, programs)
+	for i := range programs {
+		eventID := 1000 + i
+		extra = append(extra, &faketuner.Program{
+			ID: faketuner.ProgramID(grNetworkID, grServiceID, eventID), EventID: eventID, ServiceID: grServiceID, NetworkID: grNetworkID,
+			StartAt: start.Add(time.Duration(i) * time.Minute).UnixMilli(), Duration: time.Minute.Milliseconds(), IsFree: true,
+			Name: fmt.Sprintf("並列の番組 %d", i), Description: "",
+		})
+	}
+	f := newEngineFixture(t, extra...)
+	f.createRule(t, `^並列の番組`, nil)
+	f.createRule(t, `^並列の番組 \d+$`, nil)
+
+	result := f.run(t)
+	assert.Equal(t, programs, result.Created)
+	assert.Equal(t, 2*programs, result.Linked)
+}
+
+// TestEngineFailsOnUnreadablePrograms は、番組を並べて照合する途中で読めない番組があれば、照合を失敗にし、予約を作らないことを確かめる。
+func TestEngineFailsOnUnreadablePrograms(t *testing.T) {
+	t.Parallel()
+
+	f := newEngineFixture(t)
+	f.createRule(t, `テスト番組`, nil)
+	_, err := f.pool.Exec(t.Context(), `UPDATE programs SET genres = '{}' WHERE event_id = 5`)
+	require.NoError(t, err)
+
+	_, err = f.engine.Run(t.Context())
+	require.ErrorContains(t, err, "failed to decode the genres")
+	assert.Empty(t, f.reserved(t))
 }
 
 // TestEngineKeepsReservationsWhileProgramIsUncertain は、番組の終了時刻が未定になったときや、番組が EPG から消えたときに、
