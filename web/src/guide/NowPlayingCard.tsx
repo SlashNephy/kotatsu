@@ -33,15 +33,18 @@ export function NowPlayingCard({
   const { t } = useTranslation();
 
   return (
+    // 包む要素 (ライブ視聴の一覧では、ピン留めのボタンを重ねる枠) があっても、グリッドの行の高さまで伸ばす (#896)。
     <Card
       withBorder
       padding="xs"
+      h="100%"
       renderRoot={(props) => <Link {...props} to="/live/$serviceId" params={{ serviceId }} />}
     >
       <Text size="xs" c="dimmed">
         <ServiceLabel name={serviceName} logoUrl={serviceLogoUrl} />
       </Text>
-      <Text size="sm" lineClamp={2} mt="xs" c={program === null ? 'dimmed' : undefined}>
+      {/* 番組名は 2 行まで出すので、1 行の番組名でも 2 行分の高さを取り、カードの高さを揃える (#896)。 */}
+      <Text size="sm" lineClamp={2} mih="2lh" mt="xs" c={program === null ? 'dimmed' : undefined}>
         {program === null ? t('live.noProgram') : <ProgramTitle name={program.name} />}
       </Text>
       {/* 番組名が 1 行のカードでも、放送時間をカードの下端に揃える。 */}
