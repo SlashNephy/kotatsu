@@ -163,6 +163,8 @@ func newAdminCommand(opts *Options, connect func(ctx context.Context) (*config.C
 		},
 	})
 
+	adminCmd.AddCommand(newReanalyzeCommand(opts, connect))
+
 	return adminCmd
 }
 
