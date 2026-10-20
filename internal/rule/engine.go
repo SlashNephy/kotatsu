@@ -4,9 +4,12 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
+	"runtime"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -116,30 +119,63 @@ func (e *Engine) desired(
 		return nil, fmt.Errorf("failed to list programs: %w", err)
 	}
 
-	matched := map[programKey]*desiredProgram{}
-	for _, row := range rows {
-		program, err := toMatchProgram(row)
-		if err != nil {
-			return nil, err
-		}
-		for _, r := range rules {
-			if !r.covers(row.StartAt) || !r.matcher.Match(program) {
-				continue
-			}
-			key := programKey{serviceID: row.ServiceID, eventID: row.EventID}
-			d, ok := matched[key]
-			if !ok {
-				d = &desiredProgram{row: row, rules: []*compiledRule{}}
-				matched[key] = d
-			}
-			d.rules = append(d.rules, r)
-		}
+	matched, err := matchPrograms(rows, rules)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := e.avoidDuplicates(ctx, tx, now, matched, skipped); err != nil {
 		return nil, err
 	}
 	pickSharedEvents(matched)
+
+	return matched, nil
+}
+
+// matchPrograms は、番組ごとに、一致したルールを rules の順に集める。
+// 必ず含む文字列を決められない正規表現は、前段で絞り込めず、番組ごとに照合するので重い (#878)。
+// そこで、番組を GOMAXPROCS の数のまとまりに分け、並べて照合する。GOMAXPROCS は、コンテナの CPU の制限にも従う。
+func matchPrograms(rows []sqlc.ListMatchableProgramsRow, rules []*compiledRule) (map[programKey]*desiredProgram, error) {
+	workers := max(1, min(runtime.GOMAXPROCS(0), len(rows)))
+	parts := make([]map[programKey]*desiredProgram, workers)
+	errs := make([]error, workers)
+	var wg sync.WaitGroup
+	for w := range workers {
+		wg.Go(func() {
+			part := map[programKey]*desiredProgram{}
+			for i := w; i < len(rows); i += workers {
+				row := rows[i]
+				program, err := toMatchProgram(row)
+				if err != nil {
+					errs[w] = err
+
+					return
+				}
+				for _, r := range rules {
+					if !r.covers(row.StartAt) || !r.matcher.Match(program) {
+						continue
+					}
+					key := programKey{serviceID: row.ServiceID, eventID: row.EventID}
+					d, ok := part[key]
+					if !ok {
+						d = &desiredProgram{row: row, rules: []*compiledRule{}}
+						part[key] = d
+					}
+					d.rules = append(d.rules, r)
+				}
+			}
+			parts[w] = part
+		})
+	}
+	wg.Wait()
+	if err := errors.Join(errs...); err != nil {
+		return nil, err
+	}
+
+	matched := map[programKey]*desiredProgram{}
+	for _, part := range parts {
+		maps.Copy(matched, part)
+	}
 
 	return matched, nil
 }
