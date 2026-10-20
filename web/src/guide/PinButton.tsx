@@ -3,6 +3,8 @@ import { Pin, PinOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useMutation } from 'react-relay';
 
+import { toHalfWidth } from '../futon';
+
 import type { PinButtonMutation } from './__generated__/PinButtonMutation.graphql';
 
 type Props = {
@@ -23,7 +25,7 @@ export function PinButton({ serviceId, serviceName, pinned, size = 'sm' }: Props
       }
     }
   `);
-  const label = t(pinned ? 'pin.unpin' : 'pin.pin', { name: serviceName });
+  const label = t(pinned ? 'pin.unpin' : 'pin.pin', { name: toHalfWidth(serviceName) });
 
   return (
     <Tooltip label={label}>
