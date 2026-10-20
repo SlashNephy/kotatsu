@@ -24,7 +24,7 @@ import { nowPlaying, pinnedNowPlaying } from './nowPlaying';
 import { broadcastDay, dateOf } from '../guide/layout';
 import { nextWakeAt, ProgramTitle, toHalfWidth, useWakeAt } from '../futon';
 import { NowPlayingCard } from '../guide/NowPlayingCard';
-import { PinButton } from '../guide/PinButton';
+import { PinnableCard } from '../guide/PinnableCard';
 import { ServiceLabel } from '../guide/ServiceLabel';
 import { zonedFormat } from '../futon';
 
@@ -450,23 +450,19 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
         ) : (
           <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="xs">
             {playing.map((item) => (
-              // カードはリンクなので、ピン留めのボタンは、カードの中ではなく上に重ねる (ライブの一覧と同じ)。
-              <Box key={item.serviceId} pos="relative">
+              <PinnableCard
+                key={item.serviceId}
+                serviceId={item.serviceId}
+                serviceName={item.serviceName}
+                pinned={pinnedSet.has(item.serviceId)}
+              >
                 <NowPlayingCard
                   serviceId={item.serviceId}
                   serviceName={item.serviceName}
                   serviceLogoUrl={item.serviceLogoUrl}
                   program={{ name: item.programName, startAt: item.startAt, endAt: item.endAt }}
                 />
-                <Box pos="absolute" top={6} right={6}>
-                  <PinButton
-                    serviceId={item.serviceId}
-                    serviceName={item.serviceName}
-                    pinned={pinnedSet.has(item.serviceId)}
-                    size="xs"
-                  />
-                </Box>
-              </Box>
+              </PinnableCard>
             ))}
           </SimpleGrid>
         )}
