@@ -374,10 +374,10 @@
   },
   "guide": {
     "watchLive": "{{name}}をライブ視聴する",
-    "channelWeek": "{{name}}の8日分の番組表",
+    "channelWeek": "{{name}}の1週間の番組表",
     "channel": {
       "back": "番組表に戻る",
-      "title": "{{days}}日分の番組表",
+      "title": "1週間の番組表",
       "notFound": "チャンネルが見つかりません"
     },
     "sharedProgram": "メインチャンネルと同じ番組（{{name}}）",

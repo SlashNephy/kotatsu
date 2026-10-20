@@ -4,6 +4,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BellRing, CalendarRange } from 'lucide-react';
 
+import classes from './GuideGrid.module.css';
 import { densities, genreBackground, useGuideAppearance, type GuideAppearance } from './appearance';
 import {
   broadcastDay,
@@ -70,7 +71,7 @@ type Props = {
   scrollTime: number | null;
   // extendedHours は、深夜を 24 時以降 (28 時間表記) で表すかどうか (#486)。
   extendedHours?: boolean;
-  // renderHeader は、列の見出し。省くと、サービス名 (押すとライブ視聴) と、そのチャンネルの数日分の番組表への入り口を出す。
+  // renderHeader は、列の見出し。省くと、サービス名 (押すとライブ視聴) と、そのチャンネルの1週間の番組表への入り口を出す。
   renderHeader?: (column: GuideColumn) => ReactNode;
   onSelect: (programId: string) => void;
 };
@@ -475,19 +476,20 @@ function GuideColumnView({
   );
 }
 
-// ServiceHeader は、サービスの列の見出し。サービス名を押すとライブ視聴を開き、右のボタンでそのチャンネルの数日分の番組表を開く (#482)。
+// ServiceHeader は、サービスの列の見出し。サービス名を押すとライブ視聴を開き、右のボタンでそのチャンネルの1週間の番組表を開く (#482)。
 function ServiceHeader({ column }: { column: GuideColumn }) {
   const { t } = useTranslation();
+  const name = toHalfWidth(column.name);
 
   return (
-    <Group gap={0} wrap="nowrap" h={headerHeight}>
+    <Group gap={0} wrap="nowrap" h={headerHeight} className={classes.serviceHeader}>
       <Anchor
         size="sm"
         fw={700}
         truncate
         c="inherit"
         underline="hover"
-        title={t('guide.watchLive', { name: column.name })}
+        title={t('guide.watchLive', { name })}
         renderRoot={(props) => (
           <Link {...props} to="/live/$serviceId" params={{ serviceId: column.id }} />
         )}
@@ -495,13 +497,14 @@ function ServiceHeader({ column }: { column: GuideColumn }) {
       >
         <ServiceLabel name={column.name} logoUrl={column.logoUrl} logoHeight="24px" />
       </Anchor>
-      <Tooltip label={t('guide.channelWeek', { name: column.name })}>
+      <Tooltip label={t('guide.channelWeek', { name })}>
         <ActionIcon
           variant="subtle"
           color="gray"
           size="sm"
           mr={4}
-          aria-label={t('guide.channelWeek', { name: column.name })}
+          className={classes.headerAction}
+          aria-label={t('guide.channelWeek', { name })}
           renderRoot={(props) => (
             <Link {...props} to="/guide/channel/$serviceId" params={{ serviceId: column.id }} />
           )}

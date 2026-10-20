@@ -157,7 +157,7 @@ function ChannelGuide() {
           <ServiceLabel name={row.service.name} logoUrl={row.service.logoUrl ?? null} />
         </Title>
         <Text c="dimmed" size="sm">
-          {t('guide.channel.title', { days: channelWeekDays })}
+          {t('guide.channel.title')}
         </Text>
       </Group>
       {columns.every((column) => column.programs.length === 0) ? (
