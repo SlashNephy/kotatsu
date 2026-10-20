@@ -72,8 +72,6 @@ type Props = {
   extendedHours?: boolean;
   // renderHeader は、列の見出し。省くと、サービス名 (押すとライブ視聴) と、そのチャンネルの数日分の番組表への入り口を出す。
   renderHeader?: (column: GuideColumn) => ReactNode;
-  // headerAction は、既定の見出しの右に足す操作 (ピン留めなど。#485)。renderHeader を渡したときは使わない。
-  headerAction?: (column: GuideColumn) => ReactNode;
   onSelect: (programId: string) => void;
 };
 
@@ -94,7 +92,6 @@ export function GuideGrid({
   scrollTime,
   extendedHours = false,
   renderHeader,
-  headerAction,
   onSelect,
 }: Props) {
   const { t } = useTranslation();
@@ -267,7 +264,7 @@ export function GuideGrid({
             }}
           >
             {renderHeader === undefined ? (
-              <ServiceHeader column={columns[item.index]!} action={headerAction} />
+              <ServiceHeader column={columns[item.index]!} />
             ) : (
               renderHeader(columns[item.index]!)
             )}
@@ -474,13 +471,7 @@ function GuideColumnView({
 }
 
 // ServiceHeader は、サービスの列の見出し。サービス名を押すとライブ視聴を開き、右のボタンでそのチャンネルの数日分の番組表を開く (#482)。
-function ServiceHeader({
-  column,
-  action,
-}: {
-  column: GuideColumn;
-  action?: (column: GuideColumn) => ReactNode;
-}) {
+function ServiceHeader({ column }: { column: GuideColumn }) {
   const { t } = useTranslation();
 
   return (
@@ -513,7 +504,6 @@ function ServiceHeader({
           <CalendarRange size={14} aria-hidden />
         </ActionIcon>
       </Tooltip>
-      {action?.(column)}
     </Group>
   );
 }
