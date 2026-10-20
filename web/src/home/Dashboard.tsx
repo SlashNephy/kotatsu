@@ -448,7 +448,7 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
             {t('home.nothingPlaying')}
           </Text>
         ) : (
-          <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="xs">
+          <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="xs">
             {playing.map((item) => (
               // カードはリンクなので、ピン留めのボタンは、カードの中ではなく上に重ねる (ライブの一覧と同じ)。
               <Box key={item.serviceId} pos="relative">
