@@ -24,3 +24,9 @@ const genreKeys = [
 export function genreKey(lv1: number): (typeof genreKeys)[number] {
   return genreKeys[lv1] ?? 'genre.15';
 }
+
+// isGenre は、大分類が番組のジャンルかどうかを返す。予備 (12、13) と拡張 (14) は、ジャンルではないので false を返す。
+// 拡張は、番組付属情報 (ARIB STD-B10) で、ジャンルの後ろに付くことがある。ジャンルそのものは、1 つの番組に 3 つまで付く。
+export function isGenre(lv1: number): boolean {
+  return lv1 < 12 || lv1 > 14;
+}

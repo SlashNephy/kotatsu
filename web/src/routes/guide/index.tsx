@@ -25,7 +25,6 @@ import { loadExtendedHours, saveExtendedHours } from '../../guide/hourNotation';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
 import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
 import { broadcastDay, dateOf, receivedUntil } from '../../guide/layout';
-import { PinButton } from '../../guide/PinButton';
 import { ProgramDetail } from '../../guide/ProgramDetail';
 import { collapseSharedColumns } from '../../guide/sharedEvent';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -520,14 +519,6 @@ function Guide() {
           <GuideGrid
             window={window}
             columns={columns}
-            headerAction={(column) => (
-              <PinButton
-                serviceId={column.id}
-                serviceName={column.name}
-                pinned={pinned.includes(column.id)}
-                size="sm"
-              />
-            )}
             now={lineNow}
             receivedUntil={
               window.from > today.from

@@ -68,4 +68,23 @@ describe('channelWeekColumns', () => {
     expect(columns[1]?.programs[0]?.endAt).toBe(dayStart + hour);
     expect(columns[7]?.programs[0]?.startAt).toBe(dayStart + 8 * hour);
   });
+
+  test('列ごとに、EPG が届いている時刻を、今日の放送日へずらして持つ', () => {
+    const programs = [
+      // 今日は 4 時から 27 時半まで届いている。日の終わりの 1 時間前までに届いていれば、すべて届いたとみなす。
+      program('今日', dayStart, 23.5 * 60),
+      // 明日は、今日から続く番組の後、12 時まで届いている。
+      program('明日の 3 時半から', dayStart + 23.5 * hour, 30),
+      program('明日の 4 時', dayStart + 24 * hour, 8 * 60),
+    ];
+
+    const columns = channelWeekColumns(today, 'S', String, programs, 3);
+
+    expect(columns.map((column) => column.receivedUntil)).toEqual([
+      undefined,
+      dayStart + 8 * hour,
+      // 明後日は 1 つも届いていないので、日の始まりから届いていないとする。
+      dayStart,
+    ]);
+  });
 });

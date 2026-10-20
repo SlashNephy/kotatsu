@@ -717,7 +717,10 @@ function ReservationRow({
       )}
       <Box className={classes.time}>
         <Text size="sm" c="dimmed">
-          {timeFormat.format(reservation.startMs)}〜{timeFormat.format(reservation.endMs)}
+          {t('range', {
+            from: timeFormat.format(reservation.startMs),
+            to: timeFormat.format(reservation.endMs),
+          })}
         </Text>
         {planned !== null && (
           <Text size="xs" c="amber.8">

@@ -52,7 +52,7 @@ import type { RecordingIdReanalyzeMutation } from './__generated__/RecordingIdRe
 import type { RecordingIdRegenerateMutation } from './__generated__/RecordingIdRegenerateMutation.graphql';
 import type { RecordingIdTagsMutation } from './__generated__/RecordingIdTagsMutation.graphql';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
-import { genreKey } from '../../guide/genres';
+import { programGenreLabels } from '../../guide/genreOptions';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 import { zonedFormat } from '../../futon';
 import { useDataChanges } from '../../changes/DataChanges';
@@ -187,6 +187,7 @@ function Recording({ recordingId }: { recordingId: string }) {
             notBroadcast
             genres {
               lv1
+              lv2
             }
             rule {
               id
@@ -390,8 +391,10 @@ function Recording({ recordingId }: { recordingId: string }) {
               <ServiceLabel name={recording.service.name} logoUrl={recording.service.logoUrl} />
             </Text>
             <Text size="sm" c="dimmed">
-              {dateTimeFormat.format(Date.parse(recording.startAt))}〜
-              {minuteFormat.format(Date.parse(recording.endAt))}
+              {t('range', {
+                from: dateTimeFormat.format(Date.parse(recording.startAt)),
+                to: minuteFormat.format(Date.parse(recording.endAt)),
+              })}
             </Text>
             {/* 完了は当たり前なので出さず、録画中や失敗のように目を留めたい状態だけを出す。 */}
             {recording.state !== 'COMPLETED' && <RecordingStateBadge state={recording.state} />}
@@ -400,9 +403,12 @@ function Recording({ recordingId }: { recordingId: string }) {
                 {t('recordings.protected')}
               </Badge>
             )}
-            {recording.genres[0] !== undefined && (
-              <Badge variant="light">{t(genreKey(recording.genres[0].lv1))}</Badge>
-            )}
+            {/* ジャンルは、番組の詳細と同じく「大分類／中分類」ですべて出す。 */}
+            {programGenreLabels(t, recording.genres).map((genre) => (
+              <Badge key={genre} variant="light">
+                {genre}
+              </Badge>
+            ))}
           </Group>
           {/* ルールで録った録画は、そのルールへ移れるようにする。ルールを消していても、名前は出す (#468)。 */}
           {recording.ruleName != null &&

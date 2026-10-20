@@ -134,7 +134,10 @@ export function SkippedDuplicateList() {
                   </Text>
                   <Group gap="xs">
                     <Text size="xs" c="dimmed">
-                      {dateTimeFormat.format(start)}〜{timeFormat.format(Date.parse(program.endAt))}
+                      {t('range', {
+                        from: dateTimeFormat.format(start),
+                        to: timeFormat.format(Date.parse(program.endAt)),
+                      })}
                     </Text>
                     <Text size="xs">
                       <ServiceLabel name={program.service.name} logoUrl={program.service.logoUrl} />

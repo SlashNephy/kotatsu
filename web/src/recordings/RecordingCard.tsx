@@ -155,8 +155,10 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
         <Box flex={1}>
           <Group gap={6} pt={4}>
             <Text size="xs" c="dimmed">
-              {(sameYear ? dateTimeFormat : yearDateTimeFormat).format(startAt)} 〜{' '}
-              {timeFormat.format(Date.parse(recording.endAt))}
+              {t('range', {
+                from: (sameYear ? dateTimeFormat : yearDateTimeFormat).format(startAt),
+                to: timeFormat.format(Date.parse(recording.endAt)),
+              })}
             </Text>
             {/* 受信に傷があれば、警告の印を、日時のすぐ右に出す。数は、ツールチップと読み上げで示す。 */}
             {damaged && (

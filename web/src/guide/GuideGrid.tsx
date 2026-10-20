@@ -4,6 +4,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BellRing, CalendarRange } from 'lucide-react';
 
+import classes from './GuideGrid.module.css';
 import { densities, genreBackground, useGuideAppearance, type GuideAppearance } from './appearance';
 import {
   broadcastDay,
@@ -53,6 +54,9 @@ export type GuideColumn = {
   // logoUrl は、サービスのロゴの URL のパス。ロゴがなければ null。
   logoUrl: string | null;
   programs: GuideProgram[];
+  // receivedUntil は、この列の EPG が届いている時刻。これより後は、この列だけ、まだ届いていないと案内する。
+  // 列ごとに届いている時刻が違うとき (1 つのチャンネルの番組表) に使う。省くと、列では案内しない。
+  receivedUntil?: number;
 };
 
 type Props = {
@@ -70,14 +74,16 @@ type Props = {
   scrollTime: number | null;
   // extendedHours は、深夜を 24 時以降 (28 時間表記) で表すかどうか (#486)。
   extendedHours?: boolean;
-  // renderHeader は、列の見出し。省くと、サービス名 (押すとライブ視聴) と、そのチャンネルの数日分の番組表への入り口を出す。
+  // renderHeader は、列の見出し。省くと、サービス名 (押すとライブ視聴) と、そのチャンネルの1週間の番組表への入り口を出す。
   renderHeader?: (column: GuideColumn) => ReactNode;
-  // headerAction は、既定の見出しの右に足す操作 (ピン留めなど。#485)。renderHeader を渡したときは使わない。
-  headerAction?: (column: GuideColumn) => ReactNode;
   onSelect: (programId: string) => void;
 };
 
 const axisWidth = 44;
+// lastColumnLine は、最後の列の右の罫線。列の左の罫線と同じ線を、番組表の右の外に影で引く。
+// 列が少なく右に余白があるときに見え、横にスクロールできるときは、外枠の内側で切れて、外枠の線と重ならない。
+// 影は、スクロールできる範囲を広げない。
+const lastColumnLine = '1px 0 0 var(--mantine-color-default-border)';
 const headerHeight = 36;
 // overscanPixels は、見えている範囲の上下に、余分に描く高さ。速くスクロールしても、空白が見えにくくする。
 const overscanPixels = 600;
@@ -94,10 +100,8 @@ export function GuideGrid({
   scrollTime,
   extendedHours = false,
   renderHeader,
-  headerAction,
   onSelect,
 }: Props) {
-  const { t } = useTranslation();
   // チャンネルの幅と 1 分の高さは、端末ごとの密度の設定に従う (#483)。
   const [appearance] = useGuideAppearance();
   const { columnWidth, minuteHeight } = densities[appearance.density];
@@ -242,6 +246,7 @@ export function GuideGrid({
           height: headerHeight,
           background: 'var(--mantine-color-body)',
           borderBottom: '1px solid var(--mantine-color-default-border)',
+          boxShadow: lastColumnLine,
         }}
       >
         <Box
@@ -267,14 +272,14 @@ export function GuideGrid({
             }}
           >
             {renderHeader === undefined ? (
-              <ServiceHeader column={columns[item.index]!} action={headerAction} />
+              <ServiceHeader column={columns[item.index]!} />
             ) : (
               renderHeader(columns[item.index]!)
             )}
           </Box>
         ))}
       </Box>
-      <Box style={{ position: 'relative', width: totalWidth, height }}>
+      <Box style={{ position: 'relative', width: totalWidth, height, boxShadow: lastColumnLine }}>
         <Box
           style={{
             position: 'sticky',
@@ -320,39 +325,33 @@ export function GuideGrid({
             onSelect={onSelect}
           />
         ))}
+        {virtualizer.getVirtualItems().map((item) => {
+          const until = columns[item.index]!.receivedUntil;
+          if (until === undefined || until >= window.to) {
+            return null;
+          }
+          const top = timeToY(window, Math.max(until, window.from));
+
+          // 列ごとに届いている時刻が違うとき (1 つのチャンネルの番組表で、日ごとの列) は、列ごとに塗る。
+          return (
+            <NotReceived
+              key={`not-received-${item.key}`}
+              top={top}
+              left={axisWidth + item.start}
+              width={item.size}
+              height={height - top}
+            />
+          );
+        })}
         {receivedY !== undefined && (
           // まだ届いていない時間帯は、斜線で塗り、横にスクロールしても見える位置に案内を出す。
-          <Box
-            style={{
-              position: 'absolute',
-              top: receivedY,
-              left: axisWidth,
-              width: totalWidth - axisWidth,
-              height: height - receivedY,
-              borderTop: '1px dashed var(--mantine-color-default-border)',
-              background:
-                'repeating-linear-gradient(135deg, transparent 0 8px, var(--mantine-color-default-hover) 8px 16px)',
-            }}
-          >
-            <Text
-              size="sm"
-              c="dimmed"
-              style={{
-                position: 'sticky',
-                top: headerHeight + 16,
-                left: axisWidth + 16,
-                display: 'inline-block',
-                marginTop: 16,
-                marginLeft: 16,
-                paddingInline: 8,
-                paddingBlock: 4,
-                borderRadius: 'var(--mantine-radius-sm)',
-                background: 'var(--mantine-color-body)',
-              }}
-            >
-              {t('guide.notReceived')}
-            </Text>
-          </Box>
+          <NotReceived
+            top={receivedY}
+            left={axisWidth}
+            width={totalWidth - axisWidth}
+            height={height - receivedY}
+            stickyLeft
+          />
         )}
         {nowY !== undefined && (
           <Box
@@ -370,6 +369,59 @@ export function GuideGrid({
           />
         )}
       </Box>
+    </Box>
+  );
+}
+
+// NotReceived は、まだ EPG が届いていない時間帯。斜線で塗り、縦にスクロールしても見える位置に案内を出す。
+// stickyLeft は、横にスクロールしても案内を見える位置に置くかどうか。すべての列にまたがって塗るときに使う。
+function NotReceived({
+  top,
+  left,
+  width,
+  height,
+  stickyLeft = false,
+}: {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+  stickyLeft?: boolean;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Box
+      style={{
+        position: 'absolute',
+        top,
+        left,
+        width,
+        height,
+        borderTop: '1px dashed var(--mantine-color-default-border)',
+        background:
+          'repeating-linear-gradient(135deg, transparent 0 8px, var(--mantine-color-default-hover) 8px 16px)',
+      }}
+    >
+      <Text
+        size="sm"
+        c="dimmed"
+        style={{
+          position: 'sticky',
+          top: headerHeight + 16,
+          left: stickyLeft ? axisWidth + 16 : undefined,
+          display: 'inline-block',
+          maxWidth: 'calc(100% - 16px)',
+          marginTop: 16,
+          marginLeft: stickyLeft ? 16 : 8,
+          paddingInline: 8,
+          paddingBlock: 4,
+          borderRadius: 'var(--mantine-radius-sm)',
+          background: 'var(--mantine-color-body)',
+        }}
+      >
+        {t('guide.notReceived')}
+      </Text>
     </Box>
   );
 }
@@ -473,25 +525,20 @@ function GuideColumnView({
   );
 }
 
-// ServiceHeader は、サービスの列の見出し。サービス名を押すとライブ視聴を開き、右のボタンでそのチャンネルの数日分の番組表を開く (#482)。
-function ServiceHeader({
-  column,
-  action,
-}: {
-  column: GuideColumn;
-  action?: (column: GuideColumn) => ReactNode;
-}) {
+// ServiceHeader は、サービスの列の見出し。サービス名を押すとライブ視聴を開き、右のボタンでそのチャンネルの1週間の番組表を開く (#482)。
+function ServiceHeader({ column }: { column: GuideColumn }) {
   const { t } = useTranslation();
+  const name = toHalfWidth(column.name);
 
   return (
-    <Group gap={0} wrap="nowrap" h={headerHeight}>
+    <Group gap={0} wrap="nowrap" h={headerHeight} className={classes.serviceHeader}>
       <Anchor
         size="sm"
         fw={700}
         truncate
         c="inherit"
         underline="hover"
-        title={t('guide.watchLive', { name: column.name })}
+        title={t('guide.watchLive', { name })}
         renderRoot={(props) => (
           <Link {...props} to="/live/$serviceId" params={{ serviceId: column.id }} />
         )}
@@ -499,13 +546,14 @@ function ServiceHeader({
       >
         <ServiceLabel name={column.name} logoUrl={column.logoUrl} logoHeight="24px" />
       </Anchor>
-      <Tooltip label={t('guide.channelWeek', { name: column.name })}>
+      <Tooltip label={t('guide.channelWeek', { name })}>
         <ActionIcon
           variant="subtle"
           color="gray"
           size="sm"
           mr={4}
-          aria-label={t('guide.channelWeek', { name: column.name })}
+          className={classes.headerAction}
+          aria-label={t('guide.channelWeek', { name })}
           renderRoot={(props) => (
             <Link {...props} to="/guide/channel/$serviceId" params={{ serviceId: column.id }} />
           )}
@@ -513,7 +561,6 @@ function ServiceHeader({
           <CalendarRange size={14} aria-hidden />
         </ActionIcon>
       </Tooltip>
-      {action?.(column)}
     </Group>
   );
 }

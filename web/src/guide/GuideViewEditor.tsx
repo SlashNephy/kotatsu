@@ -19,7 +19,7 @@ import type { GuideViewEditorDeleteMutation } from './__generated__/GuideViewEdi
 import type { GuideViewEditorUpdateMutation } from './__generated__/GuideViewEditorUpdateMutation.graphql';
 import { GenreMultiSelect } from './GenreMultiSelect';
 import { decodeGenre, encodeGenre, type Genre } from './guideView';
-import { ServiceLabel } from './ServiceLabel';
+import { renderServiceOption, serviceGroups } from './serviceOption';
 
 // EditableGuideView は、編集する番組表ビュー。id がなければ、新しく作る。
 export type EditableGuideView = {
@@ -198,17 +198,14 @@ export function GuideViewEditor({ view, services, onClose, onSaved }: Props) {
           <MultiSelect
             label={t('guide.view.services')}
             description={t('guide.view.servicesDescription')}
-            data={services.map((service) => ({
-              value: service.id,
+            data={serviceGroups(
+              services,
               // 同じ名前のサービスが、別のチャンネル種別や、同じ放送局の別のサービスにもあるので、種別とサービス ID を添える。
-              label: `${service.name}（${service.channelType.displayName}・${service.serviceId}）`,
-            }))}
-            renderOption={({ option }) => (
-              <ServiceLabel
-                name={option.label}
-                logoUrl={services.find((service) => service.id === option.value)?.logoUrl}
-              />
+              // 選んだ後の欄には種別が出ないので、まとめた放送波とは別に、名前にも添える。
+              (service) =>
+                `${service.name}（${service.channelType.displayName}・${service.serviceId}）`,
             )}
+            renderOption={renderServiceOption(services)}
             value={serviceOrder}
             onChange={setServiceOrder}
             searchable

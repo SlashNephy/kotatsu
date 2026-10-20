@@ -1,10 +1,10 @@
 import { MultiSelect, type MultiSelectProps } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
-import { decodeGenre, type Genre } from './guideView';
-import { genreOptions, subGenreKey } from './genreOptions';
+import type { Genre } from './guideView';
+import { genreOptions } from './genreOptions';
 
-type Props = Omit<MultiSelectProps, 'data' | 'value' | 'onChange' | 'renderOption'> & {
+type Props = Omit<MultiSelectProps, 'data' | 'value' | 'onChange'> & {
   // value は、選んでいるジャンルを encodeGenre で直した値。
   value: string[];
   onChange: (value: string[]) => void;
@@ -13,8 +13,8 @@ type Props = Omit<MultiSelectProps, 'data' | 'value' | 'onChange' | 'renderOptio
 };
 
 // GenreMultiSelect は、大分類と中分類を混ぜて選ぶドロップダウン。大分類ごとのグループに分けて並べる。
-// 選んだジャンルは「映画／アニメ」のように大分類を添えて出し、ドロップダウンの中では、グループの見出しがあるので短く出す。
-// 文字を入れると、大分類を添えた名前で絞り込むので、「アニメ」で「アニメ・特撮」と「映画／アニメ」の両方が出る。
+// 選択肢も選んだジャンルも、アプリのほかの場所と同じく「映画／アニメ」のように「大分類／中分類」で出す。大分類のすべては、大分類の名前だけにする。
+// 文字を入れると、この名前で絞り込むので、「アニメ」で「アニメ・特撮」と「映画／アニメ」の両方が出る。
 export function GenreMultiSelect({ value, onChange, keep, ...props }: Props) {
   const { t } = useTranslation();
 
@@ -24,15 +24,6 @@ export function GenreMultiSelect({ value, onChange, keep, ...props }: Props) {
       data={genreOptions(t, keep)}
       value={value}
       onChange={onChange}
-      renderOption={({ option }) => {
-        const genre = decodeGenre(option.value);
-        if (genre.lv2 == null) {
-          return t('guide.view.allOfGenre');
-        }
-        const key = subGenreKey(genre.lv1, genre.lv2);
-
-        return key === undefined ? option.label : t(key);
-      }}
       searchable
       clearable
       maxDropdownHeight={320}

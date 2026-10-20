@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<92bc7c355a30b319c483b0d0088c2b46>>
+ * @generated SignedSource<<6c079f72d75413d318295c625af6c9d1>>
  * @lightSyntaxTransform
  */
 
@@ -27,6 +27,7 @@ export type ProgramDetailQuery$data = {
     }>;
     readonly genres: ReadonlyArray<{
       readonly lv1: number;
+      readonly lv2: number;
     }>;
     readonly id: string;
     readonly isFree: boolean;
@@ -184,6 +185,13 @@ v13 = {
       "args": null,
       "kind": "ScalarField",
       "name": "lv1",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "lv2",
       "storageKey": null
     }
   ],
@@ -401,16 +409,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "ce2844e45df01e7b3120c012bb59e631",
+    "cacheID": "3a3138f0bff483e527848aeea33c4457",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      service {\n        id\n        name\n        logoUrl\n      }\n      genres {\n        lv1\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      service {\n        id\n        name\n        logoUrl\n      }\n      genres {\n        lv1\n        lv2\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "d21e98487661afd6655a933dde6dd6b6";
+(node as any).hash = "e2f6716a68c53b6b3e8b941305fc014e";
 
 export default node;

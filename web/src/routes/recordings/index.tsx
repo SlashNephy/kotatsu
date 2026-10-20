@@ -60,6 +60,7 @@ import type {
 } from './__generated__/recordingsListQuery.graphql';
 import type { recordingsDeleteMutation } from './__generated__/recordingsDeleteMutation.graphql';
 import type { recordingsTagsQuery } from './__generated__/recordingsTagsQuery.graphql';
+import { renderServiceOption, serviceGroups } from '../../guide/serviceOption';
 
 type RecordingsSearch = {
   // rule は、このルールで録った録画だけを出すときの、ルールの ID (#468)。
@@ -239,6 +240,10 @@ function Recordings({
         services {
           id
           name
+          logoUrl
+          channelType {
+            displayName
+          }
         }
       }
     `,
@@ -310,7 +315,8 @@ function Recordings({
         <MultiSelect
           label={t('recordings.services')}
           leftSection={<Tv size={16} aria-hidden />}
-          data={tags.services.map((service) => ({ value: service.id, label: service.name }))}
+          data={serviceGroups(tags.services)}
+          renderOption={renderServiceOption(tags.services)}
           value={serviceIds}
           onChange={setServiceIds}
           searchable

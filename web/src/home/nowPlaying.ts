@@ -29,20 +29,46 @@ export function nowPlaying(rows: readonly GuideRowLike[], now: number): NowPlayi
   const serviceIds = new Set(rows.map((row) => row.service.id));
   const playing: NowPlaying[] = [];
   for (const row of rows) {
-    const program = row.programs.find(
-      (candidate) => Date.parse(candidate.startAt) <= now && now < Date.parse(candidate.endAt),
-    );
+    const program = currentProgram(row, now);
     if (program !== undefined && !sharesWithListed(program, serviceIds)) {
-      playing.push({
-        serviceId: row.service.id,
-        serviceName: row.service.name,
-        serviceLogoUrl: row.service.logoUrl ?? null,
-        programName: program.name,
-        startAt: program.startAt,
-        endAt: program.endAt,
-      });
+      playing.push(toNowPlaying(row, program));
     }
   }
 
   return playing;
+}
+
+// pinnedNowPlaying は、ピン留めしたサービスのうち、now に放送しているものを、ピン留めした順に返す (#485)。
+// ピン留めしたサービスは、イベント共有のサブチャンネルでも省かない (ライブの一覧のピン留めのタブと同じ)。
+export function pinnedNowPlaying(
+  rows: readonly GuideRowLike[],
+  pinned: readonly string[],
+  now: number,
+): NowPlaying[] {
+  return pinned.flatMap((id) =>
+    rows
+      .filter((row) => row.service.id === id)
+      .flatMap((row) => {
+        const program = currentProgram(row, now);
+
+        return program === undefined ? [] : [toNowPlaying(row, program)];
+      }),
+  );
+}
+
+function currentProgram(row: GuideRowLike, now: number) {
+  return row.programs.find(
+    (candidate) => Date.parse(candidate.startAt) <= now && now < Date.parse(candidate.endAt),
+  );
+}
+
+function toNowPlaying(row: GuideRowLike, program: GuideRowLike['programs'][number]): NowPlaying {
+  return {
+    serviceId: row.service.id,
+    serviceName: row.service.name,
+    serviceLogoUrl: row.service.logoUrl ?? null,
+    programName: program.name,
+    startAt: program.startAt,
+    endAt: program.endAt,
+  };
 }

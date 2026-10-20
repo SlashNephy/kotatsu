@@ -1,5 +1,5 @@
 import type { GuideColumn, GuideProgram } from './GuideGrid';
-import { broadcastDay } from './layout';
+import { broadcastDay, receivedUntil } from './layout';
 
 // channelWeekDays は、1 つのチャンネルの番組表に並べる日数。EPG が届く 8 日分にする (#482)。
 export const channelWeekDays = 8;
@@ -27,18 +27,29 @@ export function channelWeekColumns(
     // 夏時間のある地域では、放送日の長さが 23 時間か 25 時間になるので、次の日の始まりは、その日の終わりから求める。
     const window = broadcastDay(dayFrom);
     const shift = window.from - start;
+    const dayPrograms = programs
+      .filter((program) => program.startAt >= window.from && program.startAt < window.to)
+      .map((program) => ({
+        ...program,
+        startAt: program.startAt - shift,
+        endAt: program.endAt - shift,
+      }));
+    // 日ごとに EPG が届いている時刻が違うので、列ごとに、まだ届いていない時間帯を案内する。
+    // 前の日から続く番組は、その日の列に入らないので、届いている時刻を求めるときは含める。
+    const until = receivedUntil(
+      programs
+        .filter((program) => program.startAt < window.to)
+        .map((program) => program.endAt - shift),
+      window.to - shift,
+    );
     columns.push({
       id: `${serviceId}:${i}`,
       name: label(window.from),
       logoUrl: null,
       from: window.from,
-      programs: programs
-        .filter((program) => program.startAt >= window.from && program.startAt < window.to)
-        .map((program) => ({
-          ...program,
-          startAt: program.startAt - shift,
-          endAt: program.endAt - shift,
-        })),
+      programs: dayPrograms,
+      // 1 つも届いていない日は、届いている時刻が前の日になるので、日の始まりにそろえる。
+      ...(until === undefined ? {} : { receivedUntil: Math.max(until, start) }),
     });
     dayFrom = window.to;
   }

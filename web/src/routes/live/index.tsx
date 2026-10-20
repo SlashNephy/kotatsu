@@ -1,13 +1,4 @@
-import {
-  Alert,
-  Anchor,
-  Box,
-  Group,
-  SegmentedControl,
-  SimpleGrid,
-  Stack,
-  Title,
-} from '@mantine/core';
+import { Alert, Anchor, Group, SegmentedControl, SimpleGrid, Stack, Title } from '@mantine/core';
 import { Tv } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { startTransition, Suspense, useCallback, useEffect, useState } from 'react';
@@ -20,7 +11,7 @@ import { EmptyState, ErrorBoundary, nextWakeAt, PageLoader, useWakeAt } from '..
 import { isUnauthenticated } from '../../relay/environment';
 import type { liveServicesQuery } from './__generated__/liveServicesQuery.graphql';
 import { NowPlayingCard } from '../../guide/NowPlayingCard';
-import { PinButton } from '../../guide/PinButton';
+import { PinnableCard } from '../../guide/PinnableCard';
 import { sharesWithListed } from '../../guide/sharedEvent';
 
 export const Route = createFileRoute('/live/')({
@@ -195,8 +186,12 @@ function Services({ range, onExpire }: { range: LiveRange; onExpire: () => void 
       )}
       <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="xs">
         {shown.map((row) => (
-          // カードはリンクなので、ピン留めのボタンは、カードの中ではなく上に重ねる。
-          <Box key={row.service.id} pos="relative">
+          <PinnableCard
+            key={row.service.id}
+            serviceId={row.service.id}
+            serviceName={row.service.name}
+            pinned={pinnedSet.has(row.service.id)}
+          >
             <NowPlayingCard
               serviceId={row.service.id}
               serviceName={row.service.name}
@@ -204,15 +199,7 @@ function Services({ range, onExpire }: { range: LiveRange; onExpire: () => void 
               program={row.programs[0] ?? null}
               force={row.service.jikkyo?.force ?? null}
             />
-            <Box pos="absolute" top={6} right={6}>
-              <PinButton
-                serviceId={row.service.id}
-                serviceName={row.service.name}
-                pinned={pinnedSet.has(row.service.id)}
-                size="xs"
-              />
-            </Box>
-          </Box>
+          </PinnableCard>
         ))}
       </SimpleGrid>
     </Stack>

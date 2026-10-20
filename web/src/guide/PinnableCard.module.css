@@ -1,0 +1,18 @@
+/* ピン留めのボタンは、カードの右上に重ねる。 */
+.root {
+  position: relative;
+}
+
+.pin {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+
+/* ホバーできる端末では、ピン留めしていないカードのボタンを、カードにホバーしているか、フォーカスがあるときだけ出す。 */
+/* タッチの端末ではホバーできないので、いつも出す。 */
+@media (hover: hover) {
+  .root:not(:hover, :focus-within) .pin[data-pinned='false'] {
+    opacity: 0;
+  }
+}

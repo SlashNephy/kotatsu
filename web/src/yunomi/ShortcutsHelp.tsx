@@ -77,9 +77,12 @@ export function ShortcutsHelp({ opened, onClose, actions, target, dataBroadcast 
                     <Table.Td>{t(`player.shortcuts.dataBroadcast.${label}`)}</Table.Td>
                     <Table.Td>
                       <Group gap={4} wrap="nowrap">
-                        {keys.map((key) => (
-                          <Kbd key={key}>{key}</Kbd>
-                        ))}
+                        {/* 範囲 (数字の 0 から 9 など) は、1 つのキーとして出す。 */}
+                        {keys.map((key) => {
+                          const text = typeof key === 'string' ? key : t('range', key);
+
+                          return <Kbd key={text}>{text}</Kbd>;
+                        })}
                       </Group>
                     </Table.Td>
                   </Table.Tr>

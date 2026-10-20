@@ -1,0 +1,7 @@
+/* ホバーできる端末では、チャンネルの見出しのボタンを、見出しにホバーしているか、フォーカスがあるときだけ出す。 */
+/* ボタンが出ていないときは、その分もサービス名に使う。タッチの端末ではホバーできないので、いつも出す。 */
+@media (hover: hover) {
+  .serviceHeader:not(:hover, :focus-within) .headerAction {
+    display: none;
+  }
+}

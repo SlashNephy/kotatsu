@@ -49,7 +49,7 @@ export const dataBroadcastKeyHelp = [
   { label: 'enter', keys: ['Enter'] },
   { label: 'back', keys: ['Backspace'] },
   { label: 'colors', keys: ['Alt', 'B', 'R', 'G', 'Y'] },
-  { label: 'digits', keys: ['0〜9'] },
+  { label: 'digits', keys: [{ from: '0', to: '9' }] },
 ] as const;
 
 // dataBroadcastKeyFor は、データ放送を出している間に押したキーを、リモコンのボタンにする (#441)。割り当てがなければ null。
