@@ -379,7 +379,7 @@
     "channel": {
       "back": "番組表に戻る",
       "title": "1週間の番組表",
-      "notFound": "チャンネルが見つかりません"
+      "notFound": "サービスが見つかりません"
     },
     "sharedProgram": "メインチャンネルと同じ番組（{{name}}）",
     "title": "番組表",
@@ -425,16 +425,16 @@
       "create": "ビューを作成",
       "edit": "ビューを編集",
       "createTitle": "番組表ビューを作成",
-      "createHint": "番組表ビューを作成すると、見たいチャンネル・ジャンルにフォーカスできます。",
+      "createHint": "番組表ビューを作成すると、見たいサービス・ジャンルにフォーカスできます。",
       "editTitle": "番組表ビューを編集",
       "name": "タイトル",
       "genres": "含めるジャンル",
       "excludeGenres": "除外するジャンル",
       "minDuration": "番組の最低長さ (分)",
       "minutes": "分",
-      "services": "チャンネルの並び",
-      "servicesDescription": "選択した順序で左から表示されます。指定のないチャンネルは、後に既定の順序で続きます。",
-      "hideEmpty": "番組のないチャンネルを隠す",
+      "services": "サービスの並び",
+      "servicesDescription": "選択した順序で左から表示されます。指定のないサービスは、後に既定の順序で続きます。",
+      "hideEmpty": "番組のないサービスを隠す",
       "freeOnly": "無料放送の番組だけを出す",
       "save": "保存",
       "delete": "削除",
@@ -644,7 +644,7 @@
     "pin": "{{name}}をピン留めする",
     "unpin": "{{name}}のピン留めを外す",
     "tab": "ピン留め",
-    "empty": "ピン留めしたチャンネルはありません"
+    "empty": "ピン留めしたサービスはありません"
   },
   "reservations": {
     "skipped": {
@@ -868,7 +868,7 @@
       "noConditions": "条件を入れると、一致する番組をここに表示します",
       "error": "プレビューを取れませんでした",
       "empty": "一致する番組はありません",
-      "emptyHint": "キーワードやチャンネル、ジャンルの条件を見直してください。",
+      "emptyHint": "キーワードやサービス、ジャンルの条件を見直してください。",
       "more": "ほかにも一致する番組があります"
     },
     "caseSensitive": "大文字と小文字を区別",
@@ -1167,20 +1167,20 @@
       "endUndecided": "終了時刻未定",
       "next": "次 › {{range}}"
     },
-    "switchChannel": "ほかのチャンネルを見る",
+    "switchChannel": "ほかのサービスを見る",
     "moreActions": "そのほかの操作",
     "tuneRequest": {
-      "title": "チャンネルを移りますか",
+      "title": "サービスを移りますか",
       "body": "データ放送が「{{name}}」への選局を求めています",
       "go": "移る",
       "stay": "このまま見る"
     },
     "title": "ライブ",
-    "empty": "視聴できるチャンネルがありません",
+    "empty": "視聴できるサービスがありません",
     "emptyHint": "お使いのチューナーサーバーが正しく動作しているか確認してください。",
     "noProgram": "番組の情報はありません",
-    "back": "チャンネルの一覧に戻る",
-    "notFound": "チャンネルが見つかりませんでした",
+    "back": "サービスの一覧に戻る",
+    "notFound": "サービスが見つかりませんでした",
     "disconnected": "視聴が止まりました",
     "tunerTaken": "録画のためにチューナーを使っているので、視聴が止まりました。録画中: {{recordings}}",
     "streamEnded": "チューナーサーバーとの接続が切れました",
@@ -1307,8 +1307,8 @@
       "channelTypes": "放送波の表示",
       "channelTypeName": "表示名",
       "channelTypeOrder": "並び順",
-      "services": "チャンネルの表示",
-      "servicesDescription": "番組表とライブに出さないチャンネルを選び、並び順を変えます。並び順は、同じ放送波の中で、小さいほど前に並びます",
+      "services": "サービスの表示",
+      "servicesDescription": "番組表とライブに出さないサービスを選び、並び順を変えます。並び順は、同じ放送波の中で、小さいほど前に並びます",
       "serviceHidden": "出さない",
       "serviceOrder": "並び順",
       "serviceOrderDefault": "既定"
@@ -1416,8 +1416,8 @@
       "neverUpdated": "まだ変えていません"
     },
     "channels": {
-      "title": "チャンネルの表示",
-      "summary": "放送波の表示名と、番組表とライブに出すチャンネルと並び順を変えます"
+      "title": "サービスの表示",
+      "summary": "放送波の表示名と、番組表とライブに出すサービスと並び順を変えます"
     }
   },
   "authorship": {
