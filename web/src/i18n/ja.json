@@ -904,7 +904,7 @@
     "keyword": "番組名",
     "tags": "タグ",
     "states": "状態",
-    "services": "チャンネル",
+    "services": "サービス",
     "from": "放送日（から）",
     "to": "放送日（まで）",
     "order": "並び順",

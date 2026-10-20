@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<aeea14c86a2437b56d060c283a2f6412>>
+ * @generated SignedSource<<c087eee9c454bd6fd57696f5726fd282>>
  * @lightSyntaxTransform
  */
 
@@ -23,7 +23,11 @@ export type recordingsTagsQuery$data = {
     readonly __typename: "%other";
   } | null | undefined;
   readonly services: ReadonlyArray<{
+    readonly channelType: {
+      readonly displayName: string;
+    };
     readonly id: string;
+    readonly logoUrl: string | null | undefined;
     readonly name: string;
   }>;
   readonly tags: ReadonlyArray<{
@@ -125,7 +129,32 @@ v8 = {
   "plural": true,
   "selections": [
     (v6/*:: as any*/),
-    (v4/*:: as any*/)
+    (v4/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "logoUrl",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "ChannelType",
+      "kind": "LinkedField",
+      "name": "channelType",
+      "plural": false,
+      "selections": [
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "displayName",
+          "storageKey": null
+        }
+      ],
+      "storageKey": null
+    }
   ],
   "storageKey": null
 };
@@ -219,16 +248,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "bf1a5b532f1f8be1a506166e4e79a283",
+    "cacheID": "376a85150ac3bd3d8d678a121deafb92",
     "id": null,
     "metadata": {},
     "name": "recordingsTagsQuery",
     "operationKind": "query",
-    "text": "query recordingsTagsQuery(\n  $ruleId: ID!\n  $withRule: Boolean!\n) {\n  viewer {\n    role\n    id\n  }\n  ruleFilter: node(id: $ruleId) @include(if: $withRule) {\n    __typename\n    ... on Rule {\n      name\n    }\n    id\n  }\n  tags {\n    id\n    name\n    recordings\n  }\n  services {\n    id\n    name\n  }\n}\n"
+    "text": "query recordingsTagsQuery(\n  $ruleId: ID!\n  $withRule: Boolean!\n) {\n  viewer {\n    role\n    id\n  }\n  ruleFilter: node(id: $ruleId) @include(if: $withRule) {\n    __typename\n    ... on Rule {\n      name\n    }\n    id\n  }\n  tags {\n    id\n    name\n    recordings\n  }\n  services {\n    id\n    name\n    logoUrl\n    channelType {\n      displayName\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "c94668e20ca2109d8b09b4a419133df6";
+(node as any).hash = "f37a1956d6ee9803e233b8815773b3b9";
 
 export default node;

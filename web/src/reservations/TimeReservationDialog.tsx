@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 
 import { ErrorBoundary } from '../futon';
-import { ServiceLabel } from '../guide/ServiceLabel';
 import type { TimeReservationDialogCreateMutation } from './__generated__/TimeReservationDialogCreateMutation.graphql';
 import type { TimeReservationDialogQuery } from './__generated__/TimeReservationDialogQuery.graphql';
 import type { TimeReservationDialogUpdateMutation } from './__generated__/TimeReservationDialogUpdateMutation.graphql';
@@ -16,6 +15,7 @@ import {
   validateRange,
   type TimeRangeError,
 } from './timeReservation';
+import { renderServiceOption, serviceGroups } from '../guide/serviceOption';
 
 // EditableTimeReservation は、時刻と名前を変える時刻予約。サービスは変えられない。
 export type EditableTimeReservation = {
@@ -220,17 +220,12 @@ function ServiceSelect({
   return (
     <Select
       label={t('reservations.time.service')}
-      data={data.services.map((s) => ({
-        value: s.id,
+      data={serviceGroups(
+        data.services,
         // 同じ名前のサービスが、別のチャンネル種別や、同じ放送局の別のサービスにもあるので、種別とサービス ID を添える。
-        label: `${s.name}（${s.channelType.displayName}・${s.serviceId}）`,
-      }))}
-      renderOption={({ option }) => (
-        <ServiceLabel
-          name={option.label}
-          logoUrl={data.services.find((s) => s.id === option.value)?.logoUrl}
-        />
+        (s) => `${s.name}（${s.channelType.displayName}・${s.serviceId}）`,
       )}
+      renderOption={renderServiceOption(data.services)}
       value={value}
       onChange={onChange}
       searchable

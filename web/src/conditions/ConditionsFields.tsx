@@ -22,7 +22,6 @@ import { useTranslation } from 'react-i18next';
 import { markDescription, markOptions } from '../futon/programMarks';
 import { GenreMultiSelect } from '../guide/GenreMultiSelect';
 import { decodeGenre, encodeGenre } from '../guide/guideView';
-import { ServiceLabel } from '../guide/ServiceLabel';
 import {
   emptyKeyword,
   keywordFields,
@@ -32,6 +31,7 @@ import {
   type KeywordRow,
   type TimeRangeRow,
 } from './form';
+import { renderServiceOption, serviceGroups } from '../guide/serviceOption';
 
 const weekdays = [0, 1, 2, 3, 4, 5, 6];
 
@@ -352,16 +352,11 @@ function ServiceMultiSelect({
       label={label}
       description={description}
       leftSection={icon}
-      data={services.map((service) => ({
-        value: service.id,
-        label: `${service.name}（${service.channelType.displayName}・${service.serviceId}）`,
-      }))}
-      renderOption={({ option }) => (
-        <ServiceLabel
-          name={option.label}
-          logoUrl={services.find((service) => service.id === option.value)?.logoUrl}
-        />
+      data={serviceGroups(
+        services,
+        (service) => `${service.name}（${service.channelType.displayName}・${service.serviceId}）`,
       )}
+      renderOption={renderServiceOption(services)}
       value={value}
       onChange={onChange}
       searchable

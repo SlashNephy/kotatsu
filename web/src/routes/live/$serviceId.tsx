@@ -112,30 +112,10 @@ import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordin
 import { ProgramOverlay } from '../../yunomi/ProgramOverlay';
 import { neighborServices } from '../../yunomi/channels';
 import { ServiceLabel } from '../../guide/ServiceLabel';
+import { renderServiceOption, serviceGroups } from '../../guide/serviceOption';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
-
-// channelGroups は、選局の欄の選択肢を、チャンネル種別ごとにまとめて返す。
-function channelGroups(
-  services: readonly {
-    id: string;
-    name: string;
-    channelType: { type: string; displayName: string };
-  }[],
-) {
-  const groups: { group: string; items: { value: string; label: string }[] }[] = [];
-  for (const service of services) {
-    let group = groups.find((candidate) => candidate.group === service.channelType.displayName);
-    if (group === undefined) {
-      group = { group: service.channelType.displayName, items: [] };
-      groups.push(group);
-    }
-    group.items.push({ value: service.id, label: toHalfWidth(service.name) });
-  }
-
-  return groups;
-}
 
 export const Route = createFileRoute('/live/$serviceId')({
   component: LiveServicePage,
@@ -298,6 +278,7 @@ function Live({
         services {
           id
           name
+          logoUrl
           networkId
           serviceId
           channelType {
@@ -878,7 +859,8 @@ function Live({
             w={240}
             aria-label={t('live.switchChannel')}
             placeholder={t('live.switchChannel')}
-            data={channelGroups(data.services)}
+            data={serviceGroups(data.services, (service) => toHalfWidth(service.name))}
+            renderOption={renderServiceOption(data.services)}
             value={serviceId}
             onChange={(id) => {
               if (id !== null && id !== serviceId) {
