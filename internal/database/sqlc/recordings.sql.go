@@ -479,6 +479,40 @@ func (q *Queries) InsertRecordingHistory(ctx context.Context, arg InsertRecordin
 	return err
 }
 
+const listAnalyzableRecordingSegments = `-- name: ListAnalyzableRecordingSegments :many
+SELECT r.id AS recording_id, f.id
+FROM recordings r JOIN recording_files f ON f.recording_id = r.id AND f.kind = 'segment' AND f.size > 0
+WHERE r.state <> 'recording'
+ORDER BY r.recorded_from DESC, r.id, f.started_at, f.id
+`
+
+type ListAnalyzableRecordingSegmentsRow struct {
+	RecordingID uuid.UUID
+	ID          uuid.UUID
+}
+
+// 録画中でない録画の、書いたもののあるセグメントを、録画を始めた日時の新しい順、セグメントの始まりの順に返す。
+// 生成物のない録画を探して、解析し直すのに使う (#897)。
+func (q *Queries) ListAnalyzableRecordingSegments(ctx context.Context) ([]ListAnalyzableRecordingSegmentsRow, error) {
+	rows, err := q.db.Query(ctx, listAnalyzableRecordingSegments)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAnalyzableRecordingSegmentsRow{}
+	for rows.Next() {
+		var i ListAnalyzableRecordingSegmentsRow
+		if err := rows.Scan(&i.RecordingID, &i.ID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFinishedRecordingSegments = `-- name: ListFinishedRecordingSegments :many
 SELECT r.id AS recording_id, f.id, f.pool_id, f.path
 FROM recordings r JOIN recording_files f ON f.recording_id = r.id AND f.kind = 'segment'

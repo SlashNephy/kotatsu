@@ -123,6 +123,13 @@ SELECT r.id AS recording_id, f.id, f.pool_id, f.path
 FROM recordings r JOIN recording_files f ON f.recording_id = r.id AND f.kind = 'segment'
 WHERE r.state <> 'recording'
 ORDER BY r.recorded_from DESC, r.id, f.started_at, f.id;
+-- name: ListAnalyzableRecordingSegments :many
+-- 録画中でない録画の、書いたもののあるセグメントを、録画を始めた日時の新しい順、セグメントの始まりの順に返す。
+-- 生成物のない録画を探して、解析し直すのに使う (#897)。
+SELECT r.id AS recording_id, f.id
+FROM recordings r JOIN recording_files f ON f.recording_id = r.id AND f.kind = 'segment' AND f.size > 0
+WHERE r.state <> 'recording'
+ORDER BY r.recorded_from DESC, r.id, f.started_at, f.id;
 -- name: ListRecordingFileLocations :many
 -- すべての録画ファイルの ID と置き場所を返す。録画中のものも含む。DB にないファイルを探すのに使う。
 SELECT id, pool_id, path FROM recording_files;

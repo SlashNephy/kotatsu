@@ -249,6 +249,9 @@ type Querier interface {
 	ListAPITokens(ctx context.Context, userID uuid.UUID) ([]ListAPITokensRow, error)
 	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
 	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
+	// 録画中でない録画の、書いたもののあるセグメントを、録画を始めた日時の新しい順、セグメントの始まりの順に返す。
+	// 生成物のない録画を探して、解析し直すのに使う (#897)。
+	ListAnalyzableRecordingSegments(ctx context.Context) ([]ListAnalyzableRecordingSegmentsRow, error)
 	// 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。
 	ListAssignableReservations(ctx context.Context, now time.Time) ([]ListAssignableReservationsRow, error)
 	ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error)

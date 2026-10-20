@@ -72,8 +72,12 @@ func (AnalyzeArgs) InsertOpts() river.InsertOpts {
 		// 解析するのは、取り込んだ録画と、頼まれてやり直す録画 (#476)。取り込んだ分は、新しく録った録画のジョブより後に回す。
 		// 頼まれてやり直すときは、投入するときに優先度を上げる。
 		Priority: jobs.PriorityImported,
-		// 同じ録画を解析するジョブは、待っている間に重ねて投入しない。
-		UniqueOpts: river.UniqueOpts{ByArgs: true},
+		// 同じ録画を解析するジョブは、待っている間に重ねて投入しない。River の既定は、終えたジョブ (completed) にも重ねないので、
+		// 待っている状態だけにする。終えたジョブに重ねないと、解析してから 1 日 (River が終えたジョブを残す間) はやり直せない (#897)。
+		UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{
+			rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRetryable,
+			rivertype.JobStateRunning, rivertype.JobStateScheduled,
+		}},
 	}
 }
 
