@@ -28,7 +28,8 @@ import { useDataChanges } from '../changes/DataChanges';
 import type { ChangeChannel } from '../changes/dataChanges';
 import { conditionsFromProgram } from '../conditions/form';
 import { ErrorBoundary, LinkifiedText, ProgramTitle, toHalfWidth } from '../futon';
-import { genreKey } from './genres';
+import { genreLabel } from './genreOptions';
+import { isGenre } from './genres';
 import type { ProgramDetailCancelMutation } from './__generated__/ProgramDetailCancelMutation.graphql';
 import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.graphql';
 import type { ProgramDetailReserveMutation } from './__generated__/ProgramDetailReserveMutation.graphql';
@@ -114,6 +115,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             }
             genres {
               lv1
+              lv2
             }
             extended {
               heading
@@ -204,13 +206,22 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
   const canWatchReserve = !program.archived && (start > Date.now() || program.watchReserved);
   // canRecord は、録画予約のボタンを出すかどうか。検索から開いた、放送の終わった番組は予約できない。
   const canRecord = data.viewer.role !== 'VIEWER' && !ended;
+  // genres は、番組のジャンル (中分類まで) の表示名。ジャンルでない拡張などは除き、同じ名前は 1 つにまとめる。
+  const genres = [
+    ...new Set(
+      program.genres
+        .filter((genre) => isGenre(genre.lv1))
+        .map((genre) => genreLabel(t, { lv1: genre.lv1, lv2: genre.lv2 })),
+    ),
+  ];
 
   return (
     <Stack>
-      <Title order={3} size="h4">
-        <ProgramTitle name={program.name} />
-      </Title>
-      <Group gap="xs">
+      {/* 番組名、サービス、放送時間、ジャンルの順に、1 段ずつ並べる。 */}
+      <Stack gap={4}>
+        <Title order={3} size="h4">
+          <ProgramTitle name={program.name} />
+        </Title>
         <Text size="sm">
           <ServiceLabel name={program.service.name} logoUrl={program.service.logoUrl} />
         </Text>
@@ -220,11 +231,17 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             ? t('guide.detail.endUndecided')
             : timeFormat.format(Date.parse(program.endAt))}
         </Text>
-        {!program.isFree && <Badge color="gray">{t('guide.detail.paid')}</Badge>}
-        {program.genres[0] !== undefined && (
-          <Badge variant="light">{t(genreKey(program.genres[0].lv1))}</Badge>
+        {(genres.length > 0 || !program.isFree) && (
+          <Group gap="xs">
+            {genres.map((genre) => (
+              <Badge key={genre} variant="light">
+                {genre}
+              </Badge>
+            ))}
+            {!program.isFree && <Badge color="gray">{t('guide.detail.paid')}</Badge>}
+          </Group>
         )}
-      </Group>
+      </Stack>
       {onAir && (
         <Button
           variant="light"
