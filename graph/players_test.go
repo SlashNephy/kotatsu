@@ -160,7 +160,9 @@ func TestPlayerCommands(t *testing.T) {
 
 	f := newFixtureWithChanges(t)
 	playerID := f.registerPlayer(t)
-	commands := f.subscribe(t, `subscription { playerCommands(id: "`+playerID+`") { type position volume } }`)
+	// Web の画面と同じく after に 0 を渡す (設計書 7.7)。after がなければ、購読が受け付けられる前に送った操作は届かない。
+	// SSE の購読は、応答のヘッダーが返った後にリゾルバーが動くので、ヘッダーを待っても、受け付けられたかは分からない (#849)。
+	commands := f.subscribe(t, `subscription { playerCommands(id: "`+playerID+`", after: "0") { type position volume } }`)
 	changes := f.subscribe(t, `subscription { playersChanged }`)
 	assert.JSONEq(t, `{"playersChanged":1}`, string(next(t, changes)))
 
