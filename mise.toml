@@ -54,7 +54,12 @@ run = "./scripts/build-mpeg2toh264.sh"
 dir = "web"
 depends = ["web:install"]
 env = { FORCE_NO_WATCHMAN = "1" }
-run = "pnpm exec relay-compiler"
+run = [
+  # relay-compiler は、元の graphql タグを消した生成物を消さない (--validate でも見つからない)。
+  # 一度すべて消してから生成し、残った古い生成物を CI の git diff で見つけられるようにする (#860)。
+  "find src -path '*/__generated__/*.graphql.ts' -delete",
+  "pnpm exec relay-compiler",
+]
 
 [tasks."web:build"]
 dir = "web"
