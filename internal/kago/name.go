@@ -30,6 +30,8 @@ const (
 	maxExtBytes = 16
 	// trimmedChars は、名前の前後から取り除く文字 (空白、ドット、全角空白)。
 	trimmedChars = " .\u3000"
+	// windowsUnsafeChars は、Windows でファイル名に使えないので、取り除く記号。
+	windowsUnsafeChars = `:*?"<>|`
 	// maxDirDepth は、ファイル名のテンプレートで掘れるディレクトリの深さの上限。これより深い分は捨てる。
 	maxDirDepth = 8
 )
@@ -95,6 +97,7 @@ func cutName(name string, limit int) string {
 // SanitizeName は、ファイル名として使えない文字を取り除く。
 //
 //   - パス区切り (/ と \) と、制御文字を取り除く
+//   - Windows で使えない記号 (: * ? " < > |) を取り除く。プールのファイルは SMB などでほかのツールからも見るため
 //   - UTF-8 として正しくないバイトを取り除く
 //   - 前後の空白とドットを取り除く (先頭のドットは隠しファイルになり、末尾のドットは SMB で扱えないため)
 //   - 何も残らなければ "untitled" にする
@@ -110,7 +113,7 @@ func SanitizeName(name string) string {
 func stripName(name string) string {
 	name = strings.ToValidUTF8(name, "")
 	name = strings.Map(func(r rune) rune {
-		if r == '/' || r == '\\' || unicode.IsControl(r) {
+		if r == '/' || r == '\\' || unicode.IsControl(r) || strings.ContainsRune(windowsUnsafeChars, r) {
 			return -1
 		}
 
