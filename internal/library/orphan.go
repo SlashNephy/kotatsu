@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
@@ -30,13 +31,13 @@ const (
 // ErrNotOrphan は、消そうとしたファイルが、DB にあるか、録画やつなぐ処理で使っているか、書いたばかりであることを表す。
 var ErrNotOrphan = errors.New("the file is in use or recently written")
 
-// OrphanFile は、プールにあるのに DB に記録のないファイルか、持ち主の録画ファイルが DB にない付属ファイルのディレクトリ (設計書 5.6)。
+// OrphanFile は、プールにあるのに DB に記録のないファイルか、持ち主の録画ファイルが DB にない生成物のディレクトリ (設計書 5.6)。
 type OrphanFile struct {
 	PoolID string
 	Entry  *kago.Entry
 }
 
-// FindOrphans は、このインスタンスにマウントしたプールと、付属ファイルをまとめて置くディレクトリを調べ、DB にないファイルを、プールとパスの順に返す。
+// FindOrphans は、このインスタンスにマウントしたプールと、データディレクトリを調べ、DB にないファイルを、プールとパスの順に返す。
 // 録画中のファイル、つないでいる途中のファイルとつなぐ元のファイル、書いたばかりのファイルは返さない。
 func (l *Library) FindOrphans(ctx context.Context, db sqlc.DBTX) ([]*OrphanFile, error) {
 	used, err := l.usedFiles(ctx, db)
@@ -60,11 +61,11 @@ func (l *Library) FindOrphans(ctx context.Context, db sqlc.DBTX) ([]*OrphanFile,
 	return result, nil
 }
 
-// OrphanTarget は、消す、DB にないファイルか付属ファイルのディレクトリ。FindOrphans が返したものを渡す。
+// OrphanTarget は、消す、DB にないファイルか生成物のディレクトリ。FindOrphans が返したものを渡す。
 type OrphanTarget struct {
-	PoolID  string
-	Path    string
-	Sidecar bool
+	PoolID     string
+	Path       string
+	SegmentDir bool
 }
 
 // DeleteOrphansResult は、DeleteOrphans の結果。
@@ -75,7 +76,7 @@ type DeleteOrphansResult struct {
 	Skipped int
 }
 
-// DeleteOrphans は、FindOrphans が返したファイルか付属ファイルのディレクトリを、確かめ直して消し、1 つずつ監査ログに残す。
+// DeleteOrphans は、FindOrphans が返したファイルか生成物のディレクトリを、確かめ直して消し、1 つずつ監査ログに残す。
 func (l *Library) DeleteOrphans(ctx context.Context, db Database, actor *audit.Actor, targets []*OrphanTarget) (*DeleteOrphansResult, error) {
 	result := &DeleteOrphansResult{Deleted: 0, Skipped: 0}
 	used, err := l.usedFiles(ctx, db)
@@ -98,8 +99,8 @@ func (l *Library) DeleteOrphans(ctx context.Context, db Database, actor *audit.A
 }
 
 // deleteOrphan は、target を確かめ直して消す。DB にあるか、使っているか、書いたばかりなら ErrNotOrphan を、なければ ErrNotFound を返す。
-func (l *Library) deleteOrphan(ctx context.Context, db Database, actor *audit.Actor, used usedFiles, target *OrphanTarget) error {
-	entry, err := l.store.Inspect(target.PoolID, target.Path, target.Sidecar)
+func (l *Library) deleteOrphan(ctx context.Context, db Database, actor *audit.Actor, used *usedFiles, target *OrphanTarget) error {
+	entry, err := l.store.Inspect(target.PoolID, target.Path, target.SegmentDir)
 	switch {
 	case errors.Is(err, kago.ErrInvalidPath), errors.Is(err, kago.ErrPoolNotMounted):
 		return fmt.Errorf("%w: %w", ErrNotOrphan, err)
@@ -119,14 +120,14 @@ func (l *Library) deleteOrphan(ctx context.Context, db Database, actor *audit.Ac
 			Action:     "storage_file.deleted",
 			TargetType: orphanAuditTarget,
 			TargetID:   target.PoolID,
-			Summary:    map[string]any{"path": entry.Path, "sidecar": entry.Sidecar, "size": entry.Size},
+			Summary:    map[string]any{"path": entry.Path, "segment_dir": entry.SegmentDir, "size": entry.Size},
 			SourceIP:   netip.Addr{},
 			UserAgent:  "",
 		})
 		if err != nil {
 			return err
 		}
-		if err := l.store.RemoveEntry(target.PoolID, entry.Path, entry.Sidecar); err != nil {
+		if err := l.store.RemoveEntry(target.PoolID, entry.Path, entry.SegmentDir); err != nil {
 			return fmt.Errorf("failed to remove an orphan file: %w", err)
 		}
 
@@ -134,18 +135,29 @@ func (l *Library) deleteOrphan(ctx context.Context, db Database, actor *audit.Ac
 	})
 }
 
-// usedFiles は、DB にある録画ファイルと、つなぐ処理が使っているファイルの置き場所。
-type usedFiles map[kago.Location]struct{}
+// usedFiles は、DB にある録画ファイルと、つなぐ処理が使っているファイルの置き場所と ID。
+// ID は、生成物のディレクトリの持ち主を確かめるのに使う。
+type usedFiles struct {
+	locations map[kago.Location]struct{}
+	ids       map[uuid.UUID]struct{}
+}
+
+func (u *usedFiles) add(id uuid.UUID, poolID, path string) {
+	u.locations[kago.Location{PoolID: poolID, Path: path}] = struct{}{}
+	if id != uuid.Nil {
+		u.ids[id] = struct{}{}
+	}
+}
 
 // usedFiles は、DB にある録画ファイル (録画中のものも含む) と、終わっていないつなぐ処理が置き換えるファイルと消すファイルを返す。
-func (l *Library) usedFiles(ctx context.Context, db sqlc.DBTX) (usedFiles, error) {
+func (l *Library) usedFiles(ctx context.Context, db sqlc.DBTX) (*usedFiles, error) {
 	rows, err := sqlc.New(db).ListRecordingFileLocations(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the recording files: %w", err)
 	}
-	used := usedFiles{}
+	used := &usedFiles{locations: map[kago.Location]struct{}{}, ids: map[uuid.UUID]struct{}{}}
 	for _, row := range rows {
-		used[kago.Location{PoolID: row.PoolID, Path: row.Path}] = struct{}{}
+		used.add(row.ID, row.PoolID, row.Path)
 	}
 	// つないだ後は、DB の記録はつないだファイルに置き換わるが、つなぐ元のファイルは、置き換えるジョブが消すまで残る。
 	// ジョブは、マウントが戻るまで何日もやり直すことがあるので、終わっていないジョブのファイルは使っているとみなす。
@@ -164,9 +176,9 @@ func (l *Library) usedFiles(ctx context.Context, db sqlc.DBTX) (usedFiles, error
 		if err := json.Unmarshal(raw, &args); err != nil {
 			return nil, fmt.Errorf("failed to decode a join job: %w", err)
 		}
-		used[kago.Location{PoolID: args.PoolID, Path: args.Path}] = struct{}{}
+		used.add(uuid.Nil, args.PoolID, args.Path)
 		for _, removed := range args.Removed {
-			used[kago.Location{PoolID: removed.PoolID, Path: removed.Path}] = struct{}{}
+			used.add(removed.ID, removed.PoolID, removed.Path)
 		}
 	}
 	if err := jobs.Err(); err != nil {
@@ -178,18 +190,21 @@ func (l *Library) usedFiles(ctx context.Context, db sqlc.DBTX) (usedFiles, error
 
 // orphan は、プール poolID の entry が、DB にも、つなぐ処理にもなく、書くか名前を変えてから orphanGrace が過ぎたかを返す。
 // 録画のファイル名を付け直すときは、ファイルを移してから記録を書き換えるので、移したばかりのファイルは DB にないことがある。
-func (u usedFiles) orphan(poolID string, entry *kago.Entry, now time.Time) bool {
+func (u *usedFiles) orphan(poolID string, entry *kago.Entry, now time.Time) bool {
 	if now.Sub(entry.ChangedAt) < orphanGrace {
 		return false
 	}
-	owner := &kago.Location{PoolID: poolID, Path: entry.Path}
-	if entry.Sidecar {
-		var err error
-		if owner, err = kago.SidecarOwner(poolID, entry.Path); err != nil {
+	if entry.SegmentDir {
+		owner, err := kago.SegmentDirOwner(poolID, entry.Path)
+		if err != nil {
 			// 持ち主の分からないディレクトリは、消さないよう、使っているとみなす。
 			return false
 		}
+		_, ok := u.ids[owner]
+
+		return !ok
 	}
+	owner := &kago.Location{PoolID: poolID, Path: entry.Path}
 	candidates := []kago.Location{*owner}
 	// つないでいる途中のファイルは、つないだ後のファイル (最初のセグメント) の名前に接尾辞を付けたもの。
 	if trimmed, ok := strings.CutSuffix(owner.Path, joiningSuffix); ok {
@@ -197,7 +212,7 @@ func (u usedFiles) orphan(poolID string, entry *kago.Entry, now time.Time) bool 
 	}
 
 	return !slices.ContainsFunc(candidates, func(location kago.Location) bool {
-		_, ok := u[location]
+		_, ok := u.locations[location]
 
 		return ok
 	})

@@ -257,6 +257,7 @@ func importDatabase(t *testing.T, services bool) (*cli.Options, *pgxpool.Pool) {
 	env := testEnv()
 	env["KOTATSU_DATABASE_URL"] = dbConfig.URL.Value()
 	env["KOTATSU_STORAGE_POOLS"] = "main=" + t.TempDir() + ",archive=" + t.TempDir()
+	env["KOTATSU_STORAGE_DATA_DIR"] = t.TempDir()
 	defaults := cli.DefaultOptions(slog.New(slog.DiscardHandler))
 	opts.OpenDatabase, opts.Migrate = defaults.OpenDatabase, defaults.Migrate
 	opts.LookupEnv = func(key string) (string, bool) {
@@ -292,6 +293,7 @@ func importOptions(t *testing.T) *cli.Options {
 
 	env := testEnv()
 	env["KOTATSU_STORAGE_POOLS"] = "main=" + t.TempDir() + ",archive=" + t.TempDir()
+	env["KOTATSU_STORAGE_DATA_DIR"] = t.TempDir()
 	opts := testOptions(slog.New(slog.DiscardHandler), cli.DefaultRoles(), func(key string) (string, bool) {
 		v, ok := env[key]
 

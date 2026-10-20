@@ -8,7 +8,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -19,9 +18,8 @@ import (
 const (
 	// maxNameBytes は、多くのファイルシステムでの、名前 1 つあたりの長さの上限。
 	maxNameBytes = 255
-	// maxFileNameBytes は、録画ファイルの名前の長さの上限。付属ファイル用のディレクトリの名前 (名前 + .kotatsu) も
-	// 上限に収まるよう、その分を空けておく。
-	maxFileNameBytes = maxNameBytes - len(sidecarSuffix)
+	// maxFileNameBytes は、録画ファイルの名前の長さの上限。
+	maxFileNameBytes = maxNameBytes
 	// maxSequence は、同じ名前のファイルがあるときに付ける連番の上限。
 	maxSequence = 10_000
 	// fallbackName は、整えた結果が空になったときの名前。
@@ -61,22 +59,7 @@ func RenderName(tmpl *template.Template, data any, ext string) (string, error) {
 
 // sanitizeDirName は、ディレクトリの名前を、ファイル名と同じく整え、長さの上限に収める。整えて空になれば空を返す。
 func sanitizeDirName(name string) string {
-	name = stripName(name)
-	if name == "" {
-		return ""
-	}
-	// 付属ファイルのディレクトリ (録画ファイル名 + .kotatsu) と重なると、その録画を消すときに巻き込むので、名前を変える。
-	// 大文字と小文字を区別しないファイルシステムもあるので、区別せずに比べる。切り詰めた後の名前で比べ、_ の分も空ける。
-	limit := maxNameBytes
-	if strings.HasSuffix(strings.ToLower(cutName(name, limit)), sidecarSuffix) {
-		limit--
-	}
-	name = cutName(name, limit)
-	if strings.HasSuffix(strings.ToLower(name), sidecarSuffix) {
-		name += "_"
-	}
-
-	return name
+	return cutName(stripName(name), maxNameBytes)
 }
 
 // cutName は、name を limit バイト以内に、文字の境界で切り詰める。切った位置の前の空白とドットも取り除く。
@@ -231,9 +214,9 @@ func SequencedName(name string, n int) string {
 	return fitName(strings.TrimSuffix(name, ext), ext, " ("+strconv.Itoa(n)+")")
 }
 
-// Rename は、プールの中で、録画ファイル from (プール内の相対パス) を dir/name に移し、付属ファイルのディレクトリも一緒に移す。
-// name には連番を付ける前の名前を渡し、start 番目の連番 (1 なら連番なし) から試す。移す先に同じ名前のファイルか
-// 付属ファイルのディレクトリがあれば、次の連番を試す。from のあったディレクトリが空になれば消す。
+// Rename は、プールの中で、録画ファイル from (プール内の相対パス) を dir/name に移す。生成物は、ファイルの ID で置くので移さない。
+// name には連番を付ける前の名前を渡し、start 番目の連番 (1 なら連番なし) から試す。移す先に同じ名前のものがあれば、
+// 次の連番を試す。from のあったディレクトリが空になれば消す。
 // プールの中に限って移すので、シンボリックリンクでプールの外には移さない。移した先の相対パスを返す。
 func (s *Store) Rename(poolID, from, dir, name string, start int) (string, error) {
 	if name != SanitizeName(name) || len(name) > maxFileNameBytes || !filepath.IsLocal(from) || (dir != "" && !filepath.IsLocal(dir)) {
@@ -258,16 +241,11 @@ func (s *Store) Rename(poolID, from, dir, name string, start int) (string, error
 		if rel == filepath.Clean(from) {
 			return rel, nil
 		}
-		if exists(root, rel) || s.sidecarTaken(poolID, rel) {
+		if exists(root, rel) {
 			continue
 		}
 		if err := root.Rename(from, rel); err != nil {
 			return "", fmt.Errorf("failed to rename a file in pool %s: %w", poolID, err)
-		}
-		if err := s.moveSidecars(poolID, from, rel); err != nil {
-			_ = root.Rename(rel, from)
-
-			return "", err
 		}
 		for parent := filepath.Dir(from); parent != "." && root.Remove(parent) == nil; parent = filepath.Dir(parent) {
 			continue
@@ -284,89 +262,4 @@ func exists(root *os.Root, rel string) bool {
 	_, err := root.Lstat(rel)
 
 	return err == nil
-}
-
-// SidecarMove は、録画ファイルを移したときの、付属ファイルのディレクトリの場所の変わり方。記録のパスを書き換えるのに使う。
-type SidecarMove struct {
-	PoolID string
-	// From と To は、移す前と後の、付属ファイルのディレクトリのプール内の相対パス。
-	From string
-	To   string
-}
-
-// SidecarMoves は、録画ファイル from を to に移したときの、付属ファイルのディレクトリの場所の変わり方を、置き場所の候補ごとに返す。
-func (s *Store) SidecarMoves(poolID, from, to string) []*SidecarMove {
-	olds, news := s.sidecarLocations(poolID, from), s.sidecarLocations(poolID, to)
-	moves := make([]*SidecarMove, 0, len(olds))
-	for i := range olds {
-		moves = append(moves, &SidecarMove{PoolID: olds[i].PoolID, From: olds[i].Path, To: news[i].Path})
-	}
-
-	return moves
-}
-
-// sidecarTaken は、録画ファイル rel の付属ファイルのディレクトリの場所のどれかが、すでにふさがっているかを返す。
-func (s *Store) sidecarTaken(poolID, rel string) bool {
-	for _, location := range s.sidecarLocations(poolID, rel) {
-		root, err := os.OpenRoot(s.mounts[location.PoolID])
-		if err != nil {
-			continue
-		}
-		taken := exists(root, location.Path)
-		_ = root.Close()
-		if taken {
-			return true
-		}
-	}
-
-	return false
-}
-
-// moveSidecars は、録画ファイル from の付属ファイルのディレクトリを、to のものとして移す。どの置き場所のものも移す。
-// 途中で移せなければ、それまでに移したものを元に戻す。
-func (s *Store) moveSidecars(poolID, from, to string) error {
-	moved := []*SidecarMove{}
-	for _, move := range s.SidecarMoves(poolID, from, to) {
-		if err := s.moveSidecar(move.PoolID, move.From, move.To); err != nil {
-			for _, done := range slices.Backward(moved) {
-				_ = s.moveSidecar(done.PoolID, done.To, done.From)
-			}
-
-			return fmt.Errorf("failed to rename the sidecar directory in pool %s: %w", move.PoolID, err)
-		}
-		moved = append(moved, move)
-	}
-
-	return nil
-}
-
-func (s *Store) moveSidecar(poolID, from, to string) error {
-	root, err := os.OpenRoot(s.mounts[poolID])
-	if err != nil {
-		return fmt.Errorf("failed to open pool %s: %w", poolID, err)
-	}
-	defer root.Close()
-
-	return moveInRoot(root, from, to)
-}
-
-// moveInRoot は、root の中で from を to に移す。from がなければ何もしない。to のディレクトリがなければ作り、
-// from のあったディレクトリが空になれば消す。
-func moveInRoot(root *os.Root, from, to string) error {
-	if !exists(root, from) {
-		return nil
-	}
-	if parent := filepath.Dir(to); parent != "." {
-		if err := root.MkdirAll(parent, 0o755); err != nil {
-			return err
-		}
-	}
-	if err := root.Rename(from, to); err != nil {
-		return err
-	}
-	for parent := filepath.Dir(from); parent != "." && root.Remove(parent) == nil; parent = filepath.Dir(parent) {
-		continue
-	}
-
-	return nil
 }

@@ -19,9 +19,8 @@ import (
 )
 
 const (
-	// kindSegment と kindIndex は、recording_files の、TS のセグメントと、その索引の種類。
+	// kindSegment は、recording_files の、TS のセグメントの種類。
 	kindSegment = "segment"
-	kindIndex   = "index"
 	// stateRecording は、録画中の録画の状態。
 	stateRecording = "recording"
 	// defaultPollInterval は、追っかけ再生で、録画中のファイルが伸びるのを確かめる間隔。
@@ -134,12 +133,6 @@ func (s *RecordingSource) load(ctx context.Context, recordingID uuid.UUID) ([]*s
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the recording files: %w", err)
 	}
-	indexes := map[string]*sqlc.RecordingFile{}
-	for i := range files {
-		if files[i].Kind == kindIndex {
-			indexes[files[i].PoolID+"/"+files[i].Path] = &files[i]
-		}
-	}
 	segments := []*segment{}
 	for i := range files {
 		file := &files[i]
@@ -155,14 +148,8 @@ func (s *RecordingSource) load(ctx context.Context, recordingID uuid.UUID) ([]*s
 			id: file.ID, poolID: file.PoolID, path: file.Path, startedAt: file.StartedAt, endedAt: file.EndedAt, open: file.EndedAt == nil,
 			index: []ts.IndexEntry{},
 		}
-		for _, candidate := range s.store.IndexLocations(file.PoolID, file.Path) {
-			if index, ok := indexes[candidate.PoolID+"/"+candidate.Path]; ok {
-				if seg.index, err = s.readIndex(index); err != nil {
-					return nil, err
-				}
-
-				break
-			}
+		if seg.index, err = s.readIndex(kago.IndexLocation(file.ID)); err != nil {
+			return nil, err
 		}
 		segments = append(segments, seg)
 	}
@@ -170,8 +157,8 @@ func (s *RecordingSource) load(ctx context.Context, recordingID uuid.UUID) ([]*s
 	return segments, nil
 }
 
-// readIndex は、索引を読む。書いている途中の索引の、書きかけの最後の記録は読まない。
-func (s *RecordingSource) readIndex(index *sqlc.RecordingFile) ([]ts.IndexEntry, error) {
+// readIndex は、索引を読む。書いている途中の索引の、書きかけの最後の記録は読まない。索引がなければ、空を返す。
+func (s *RecordingSource) readIndex(index *kago.Location) ([]ts.IndexEntry, error) {
 	file, err := s.store.Open(index.PoolID, index.Path)
 	if errors.Is(err, os.ErrNotExist) {
 		return []ts.IndexEntry{}, nil

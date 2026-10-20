@@ -17,6 +17,10 @@ storage:
       volume:
         persistentVolumeClaim:
           claimName: kotatsu-recordings
+  data:
+    volume:
+      persistentVolumeClaim:
+        claimName: kotatsu-data
 # 録画を担う mikan と、予約とチューナーの割り当てを担う neko は、ノードの空きが足りないときにも先に置かれ、優先度の低い Pod を追い出して起動できるようにする。
 roles:
   mikan:

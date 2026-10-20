@@ -12,6 +12,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/library"
 )
 
@@ -28,7 +29,7 @@ type segment struct {
 	exists bool
 }
 
-// segmented は、セグメント segments を持つ録画を作る。各セグメントには索引の記録も付ける。
+// segmented は、セグメント segments を持つ録画を作る。各セグメントには、データディレクトリに索引も置く。
 func (f *fixture) segmented(t *testing.T, ago time.Duration, protected bool, segments ...segment) uuid.UUID {
 	t.Helper()
 
@@ -43,11 +44,13 @@ func (f *fixture) segmented(t *testing.T, ago time.Duration, protected bool, seg
 			require.NoError(t, os.WriteFile(filepath.Join(f.dir, s.path), []byte("ts"), 0o600))
 		}
 		started := at.Add(time.Duration(i) * time.Minute)
-		for _, file := range []struct{ kind, path string }{{"segment", s.path}, {"index", s.path + ".kotatsu/index"}} {
-			_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-				VALUES ($1, $2, $3, $4, $5, 2, $6, $6, $6)`, id.New(), recordingID, file.kind, s.pool, file.path, started)
-			require.NoError(t, err)
-		}
+		// 生成物は、セグメントのファイルがなくても、データディレクトリに残っている。
+		segmentID := id.New()
+		require.NoError(t, os.MkdirAll(filepath.Join(f.dataRoot, segmentID.String()), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(f.dataRoot, kago.IndexLocation(segmentID).Path), []byte("index"), 0o600))
+		_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+			VALUES ($1, $2, 'segment', $3, $4, 2, $5, $5, $5)`, segmentID, recordingID, s.pool, s.path, started)
+		require.NoError(t, err)
 	}
 
 	return recordingID
@@ -104,19 +107,19 @@ func TestCleanUpMissing(t *testing.T) {
 			want:     &library.CleanUpResult{Deleted: true, PrunedSegments: 0}, wantFiles: 0, wantActions: []string{"recording.deleted"},
 		},
 		{
-			name:     "一部だけなら、見つからないセグメントと索引の記録だけを消す",
+			name:     "一部だけなら、見つからないセグメントの記録だけを消す",
 			segments: []segment{{pool: poolID, path: segmentA, exists: true}, {pool: poolID, path: segmentB, exists: false}},
-			want:     &library.CleanUpResult{Deleted: false, PrunedSegments: 1}, wantFiles: 2, wantActions: []string{"recording.missing_segments_removed"},
+			want:     &library.CleanUpResult{Deleted: false, PrunedSegments: 1}, wantFiles: 1, wantActions: []string{"recording.missing_segments_removed"},
 		},
 		{
 			name:     "見つかれば何もしない",
 			segments: []segment{{pool: poolID, path: segmentA, exists: true}},
-			want:     &library.CleanUpResult{Deleted: false, PrunedSegments: 0}, wantFiles: 2, wantActions: []string{},
+			want:     &library.CleanUpResult{Deleted: false, PrunedSegments: 0}, wantFiles: 1, wantActions: []string{},
 		},
 		{
 			name: "保護した録画は消さない", protected: true,
 			segments: []segment{{pool: poolID, path: segmentA, exists: false}},
-			wantErr:  library.ErrProtected, wantFiles: 2, wantActions: []string{},
+			wantErr:  library.ErrProtected, wantFiles: 1, wantActions: []string{},
 		},
 	}
 	for _, tt := range tests {
@@ -135,6 +138,10 @@ func TestCleanUpMissing(t *testing.T) {
 			}
 			assert.Equal(t, tt.wantFiles, f.files(t, recordingID))
 			assert.Equal(t, tt.wantActions, f.actions(t, recordingID))
+			// 記録が残るセグメントの生成物だけが、データディレクトリに残る。
+			entries, err := os.ReadDir(f.dataRoot)
+			require.NoError(t, err)
+			assert.Len(t, entries, tt.wantFiles)
 		})
 	}
 }

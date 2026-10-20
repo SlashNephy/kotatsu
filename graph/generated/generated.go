@@ -337,7 +337,7 @@ type ComplexityRoot struct {
 		ModifiedAt func(childComplexity int) int
 		Path       func(childComplexity int) int
 		PoolID     func(childComplexity int) int
-		Sidecar    func(childComplexity int) int
+		SegmentDir func(childComplexity int) int
 		Size       func(childComplexity int) int
 	}
 
@@ -2468,12 +2468,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OrphanFile.PoolID(childComplexity), true
-	case "OrphanFile.sidecar":
-		if e.ComplexityRoot.OrphanFile.Sidecar == nil {
+	case "OrphanFile.segmentDir":
+		if e.ComplexityRoot.OrphanFile.SegmentDir == nil {
 			break
 		}
 
-		return e.ComplexityRoot.OrphanFile.Sidecar(childComplexity), true
+		return e.ComplexityRoot.OrphanFile.SegmentDir(childComplexity), true
 	case "OrphanFile.size":
 		if e.ComplexityRoot.OrphanFile.Size == nil {
 			break
@@ -5609,29 +5609,29 @@ extend type Mutation {
 }
 `, BuiltIn: false},
 	{Name: "../schema/orphan_files.graphqls", Input: `"""
-プールにあるのに DB に記録のないファイルか、持ち主の録画ファイルが DB にない付属ファイルのディレクトリ (設計書 5.6)。
+プールにあるのに DB に記録のないファイルか、持ち主の録画ファイルが DB にない生成物のディレクトリ (設計書 5.6)。
 録画を消すのに失敗したときや、取り込みをやり直したときに残る。
 """
 type OrphanFile {
-  "プールの ID。付属ファイルをまとめて置くディレクトリなら _sidecar。"
-  poolId: String!
-  "プール内の相対パス。"
+  "プールの ID。データディレクトリにあるものなら null。"
+  poolId: String
+  "プールかデータディレクトリの中の相対パス。"
   path: String!
-  "付属ファイルのディレクトリかどうか。"
-  sidecar: Boolean!
-  "大きさ (バイト)。付属ファイルのディレクトリでは、中のファイルの合計。"
+  "データディレクトリの、セグメントのファイルの ID のディレクトリ (生成物のディレクトリ) かどうか。"
+  segmentDir: Boolean!
+  "大きさ (バイト)。生成物のディレクトリでは、中のファイルの合計。"
   size: Int64!
-  "最後に書いた日時。付属ファイルのディレクトリでは、中のファイルのうち最も新しいもの。"
+  "最後に書いた日時。生成物のディレクトリでは、中のファイルのうち最も新しいもの。"
   modifiedAt: Time!
 }
 
 """
-消す、DB にないファイル。orphanFiles が返した poolId、path、sidecar をそのまま渡す。
+消す、DB にないファイル。orphanFiles が返した poolId、path、segmentDir をそのまま渡す。
 """
 input OrphanFileInput {
-  poolId: String!
+  poolId: String
   path: String!
-  sidecar: Boolean!
+  segmentDir: Boolean!
 }
 
 """
@@ -5647,7 +5647,8 @@ type DeleteOrphanFilesPayload {
 extend type Query {
   """
   DB にないファイルを、プールとパスの順に返す。管理者だけが使える。
-  このインスタンスにマウントしたプールと、付属ファイルをまとめて置くディレクトリだけを調べる。
+  このインスタンスにマウントしたプールと、データディレクトリだけを調べる。
+  データディレクトリでは、持ち主のセグメントのファイルが DB にない生成物のディレクトリと、生成物のディレクトリでないファイルを返す。
   録画中のファイル、セグメントをつないでいる途中のファイルとつなぐ元のファイル、書くか名前を変えて 1 時間以内のファイル、隠しファイルと lost+found は返さない。
   """
   orphanFiles: [OrphanFile!]!
@@ -5655,7 +5656,7 @@ extend type Query {
 
 extend type Mutation {
   """
-  DB にないファイルを確かめ直して消す。ファイルなら、その付属ファイルのディレクトリも消す。管理者だけが使える。監査ログに残す。
+  DB にないファイルを確かめ直して消す。管理者だけが使える。監査ログに残す。
   """
   deleteOrphanFiles(files: [OrphanFileInput!]!): DeleteOrphanFilesPayload!
 }
@@ -5995,7 +5996,7 @@ extend type Query {
 
 extend type Mutation {
   """
-  録画 ids のセグメントのファイルと付属ファイルのディレクトリを、今のテンプレートの名前に付け直し、記録のパスを書き換える。
+  録画 ids のセグメントのファイルと生成物のディレクトリを、今のテンプレートの名前に付け直し、記録のパスを書き換える。
   管理者だけが使え、一度に 100 件まで。同じプールの中だけで移す。監査ログに残す。
   """
   renameRecordingFiles(ids: [ID!]!): RenameRecordingFilesPayload!
@@ -6045,12 +6046,6 @@ enum RecordingFailureReason {
 enum RecordingFileKind {
   "TS のセグメント"
   SEGMENT
-  "セグメントの索引"
-  INDEX
-  "代表画像 (JPEG)"
-  THUMBNAIL
-  "シークバー用のプレビュー画像 (JPEG)。コマの並びは、同じディレクトリの preview.json に書く"
-  PREVIEW
   "EPGStation から取り込んだ、エンコード済みの MP4 のような TS 以外のファイル"
   OTHER
 }
@@ -6233,7 +6228,7 @@ extend type Query {
 
 extend type Mutation {
   """
-  録画を消し、消した録画の ID を返す。録画ファイルと付属ファイルも消すが、録画履歴は残す。視聴者は使えない (設計書 9.7)。
+  録画を消し、消した録画の ID を返す。録画ファイルと生成物も消すが、録画履歴は残す。視聴者は使えない (設計書 9.7)。
   保護した録画と、録画中の録画は消さずに CONFLICT を返す。
   """
   deleteRecording(id: ID!): ID!
@@ -7750,8 +7745,8 @@ func (ec *executionContext) childFields_OrphanFile(ctx context.Context, field gr
 		return ec.fieldContext_OrphanFile_poolId(ctx, field)
 	case "path":
 		return ec.fieldContext_OrphanFile_path(ctx, field)
-	case "sidecar":
-		return ec.fieldContext_OrphanFile_sidecar(ctx, field)
+	case "segmentDir":
+		return ec.fieldContext_OrphanFile_segmentDir(ctx, field)
 	case "size":
 		return ec.fieldContext_OrphanFile_size(ctx, field)
 	case "modifiedAt":
@@ -15758,11 +15753,11 @@ func (ec *executionContext) _OrphanFile_poolId(ctx context.Context, field graphq
 			return obj.PoolID, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
 		},
 		true,
-		true,
+		false,
 	)
 }
 func (ec *executionContext) fieldContext_OrphanFile_poolId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -15792,16 +15787,16 @@ func (ec *executionContext) fieldContext_OrphanFile_path(_ context.Context, fiel
 	return graphql.NewScalarFieldContext("OrphanFile", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
-func (ec *executionContext) _OrphanFile_sidecar(ctx context.Context, field graphql.CollectedField, obj *model.OrphanFile) (ret graphql.Marshaler) {
+func (ec *executionContext) _OrphanFile_segmentDir(ctx context.Context, field graphql.CollectedField, obj *model.OrphanFile) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_OrphanFile_sidecar(ctx, field)
+			return ec.fieldContext_OrphanFile_segmentDir(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Sidecar, nil
+			return obj.SegmentDir, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
@@ -15811,7 +15806,7 @@ func (ec *executionContext) _OrphanFile_sidecar(ctx context.Context, field graph
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_OrphanFile_sidecar(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_OrphanFile_segmentDir(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OrphanFile", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
@@ -26974,7 +26969,7 @@ func (ec *executionContext) unmarshalInputOrphanFileInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"poolId", "path", "sidecar"}
+	fieldsInOrder := [...]string{"poolId", "path", "segmentDir"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -26983,7 +26978,7 @@ func (ec *executionContext) unmarshalInputOrphanFileInput(ctx context.Context, o
 		switch k {
 		case "poolId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("poolId"))
-			data, err := ec.unmarshalNString2string(ctx, v)
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -26995,13 +26990,13 @@ func (ec *executionContext) unmarshalInputOrphanFileInput(ctx context.Context, o
 				return it, err
 			}
 			it.Path = data
-		case "sidecar":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sidecar"))
+		case "segmentDir":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("segmentDir"))
 			data, err := ec.unmarshalNBoolean2bool(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Sidecar = data
+			it.SegmentDir = data
 		}
 	}
 	return it, nil
@@ -30521,7 +30516,7 @@ func (ec *executionContext) _OrphanFile(ctx context.Context, sel ast.SelectionSe
 			out.Values[i] = graphql.MarshalString("OrphanFile")
 		case "poolId":
 			out.Values[i] = ec._OrphanFile_poolId(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "path":
@@ -30529,8 +30524,8 @@ func (ec *executionContext) _OrphanFile(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "sidecar":
-			out.Values[i] = ec._OrphanFile_sidecar(ctx, field, obj)
+		case "segmentDir":
+			out.Values[i] = ec._OrphanFile_segmentDir(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

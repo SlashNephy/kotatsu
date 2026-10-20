@@ -51,9 +51,12 @@ type fixture struct {
 	pool     *pgxpool.Pool
 	clock    *clocktest.Fake
 	dir      string
+	dataRoot string
 	store    *kago.Store
 	inserter *jobs.Client
 	original []byte
+	// segmentIDs は、recording で作ったセグメントのファイルの ID を、プール内の相対パスで引く。
+	segmentIDs map[string]uuid.UUID
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -74,9 +77,12 @@ func newFixture(t *testing.T) *fixture {
 	require.NoError(t, err)
 	original, err := os.ReadFile(filepath.Join("..", "..", "testdata", "ts", "test.ts"))
 	require.NoError(t, err)
-	dir := t.TempDir()
+	dir, dataRoot := t.TempDir(), t.TempDir()
 
-	return &fixture{pool: pool, clock: clk, dir: dir, store: kago.New(map[string]string{poolID: dir}, nil), inserter: inserter, original: original}
+	return &fixture{
+		pool: pool, clock: clk, dir: dir, dataRoot: dataRoot, store: kago.New(map[string]string{poolID: dir}, nil).WithDataDir(dataRoot),
+		inserter: inserter, original: original, segmentIDs: map[string]uuid.UUID{},
+	}
 }
 
 // segment は、録画のセグメントの中身と、表す時間。
@@ -85,7 +91,7 @@ type segment struct {
 	start, end time.Duration
 }
 
-// recording は、segments を持つ、完了した録画を作る。各セグメントには、付属ファイルのディレクトリに索引の記録も作る。
+// recording は、segments を持つ、完了した録画を作る。各セグメントには、生成物のディレクトリに索引の記録も作る。
 func (f *fixture) recording(t *testing.T, segments []segment) (uuid.UUID, []string) {
 	t.Helper()
 
@@ -100,18 +106,14 @@ func (f *fixture) recording(t *testing.T, segments []segment) (uuid.UUID, []stri
 		path := filepath.Join("録画", []string{"a.m2ts", "b.m2ts", "c.m2ts"}[i])
 		require.NoError(t, os.MkdirAll(filepath.Join(f.dir, "録画"), 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(f.dir, path), seg.data, 0o600))
-		sidecarDir, err := f.store.CreateSidecarDir(poolID, path)
+		segmentID := id.New()
+		f.segmentIDs[path] = segmentID
+		segmentDir, err := f.store.CreateSegmentDir(segmentID)
 		require.NoError(t, err)
-		sidecar := sidecarDir.Path
-		require.NoError(t, os.WriteFile(filepath.Join(f.dir, sidecar, "index"), []byte("index"), 0o600))
-		for _, file := range []struct {
-			kind, path string
-			size       int
-		}{{"segment", path, len(seg.data)}, {"index", sidecar + "/index", len("index")}} {
-			_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $7)`, id.New(), recordingID, file.kind, poolID, file.path, file.size, now.Add(seg.start), now.Add(seg.end))
-			require.NoError(t, err)
-		}
+		require.NoError(t, os.WriteFile(filepath.Join(f.dataRoot, segmentDir.Path, "index"), []byte("index"), 0o600))
+		_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+			VALUES ($1, $2, 'segment', $3, $4, $5, $6, $7, $6)`, segmentID, recordingID, poolID, path, len(seg.data), now.Add(seg.start), now.Add(seg.end))
+		require.NoError(t, err)
 		paths = append(paths, path)
 	}
 
@@ -258,9 +260,11 @@ func TestJoin(t *testing.T) {
 			require.NoError(t, err)
 			assert.True(t, bytes.Equal(want, got), "the joined file differs from the expected stream")
 			assert.NoFileExists(t, filepath.Join(f.dir, paths[0]+".joining"))
-			// つないだ元のセグメントは、付属ファイルのディレクトリごと消える。
+			// つないだ元のセグメントは、生成物のディレクトリごと消える。
 			assert.NoFileExists(t, filepath.Join(f.dir, paths[1]))
-			assert.NoDirExists(t, filepath.Join(f.dir, paths[1]+".kotatsu"))
+			assert.NoDirExists(t, filepath.Join(f.dataRoot, f.segmentIDs[paths[1]].String()))
+			// 置き換えた最初のセグメントの索引は合わなくなるので消え、解析のジョブが作り直す。
+			assert.NoFileExists(t, filepath.Join(f.dataRoot, kago.IndexLocation(f.segmentIDs[paths[0]]).Path))
 			assert.Contains(t, f.jobs(t), kindAnalyze)
 
 			// やり直しても、同じ結果になる。

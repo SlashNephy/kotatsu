@@ -69,7 +69,7 @@ func newVODFixture(t *testing.T, encoder kyusu.VODEncoder, modify ...func(opts *
 		VALUES ($1, 32736, 1024, 'こたつテスト1', 'こたつテスト1', 1, 'GR', '27', $2, $2)`, serviceID, clk.Now())
 	require.NoError(t, err)
 	dir, workDir := t.TempDir(), t.TempDir()
-	source := stream.NewRecordingSource(pool, kago.New(map[string]string{poolID: dir}, nil), 10*time.Millisecond)
+	source := stream.NewRecordingSource(pool, kago.New(map[string]string{poolID: dir}, nil).WithDataDir(dir), 10*time.Millisecond)
 	opts := &kyusu.VODOptions{
 		Opener: source, Encoder: encoder, WorkDir: workDir, Clock: clk, Logger: slog.New(slog.DiscardHandler), IdleTimeout: 0, MaxSessions: 0,
 	}
@@ -113,15 +113,17 @@ func (f *vodFixture) recording(t *testing.T, state string, data []byte) uuid.UUI
 	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer})
 	_, err = analyzer.Write(data)
 	require.NoError(t, err)
-	require.NoError(t, os.MkdirAll(filepath.Join(f.dir, name+".kotatsu"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(f.dir, kago.IndexPath(name)), index.Bytes(), 0o600))
+	segmentID := id.New()
+	indexLocation := kago.IndexLocation(segmentID)
+	require.NoError(t, os.MkdirAll(filepath.Join(f.dir, segmentID.String()), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(f.dir, indexLocation.Path), index.Bytes(), 0o600))
 	var endedAt *time.Time
 	if state != stateRecording {
 		endedAt = new(startAt.Add(time.Minute))
 	}
 	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-		VALUES ($1, $2, 'segment', $3, $4, 0, $5, $6, $5), ($7, $2, 'index', $3, $8, 0, $5, $6, $5)`,
-		id.New(), recordingID, poolID, name, startAt, endedAt, id.New(), kago.IndexPath(name))
+		VALUES ($1, $2, 'segment', $3, $4, 0, $5, $6, $5)`,
+		segmentID, recordingID, poolID, name, startAt, endedAt)
 	require.NoError(t, err)
 
 	return recordingID
@@ -163,15 +165,17 @@ func (f *vodFixture) keyframedRecording(t *testing.T, keyframes []time.Duration,
 	for i, at := range keyframes {
 		require.NoError(t, writer.Append(ts.IndexEntry{Offset: int64(i * keyframeBytes), PTS: int64(at * ts.PTSClock / time.Second)}))
 	}
-	require.NoError(t, os.MkdirAll(filepath.Join(f.dir, name+".kotatsu"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(f.dir, kago.IndexPath(name)), index.Bytes(), 0o600))
+	segmentID := id.New()
+	indexLocation := kago.IndexLocation(segmentID)
+	require.NoError(t, os.MkdirAll(filepath.Join(f.dir, segmentID.String()), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(f.dir, indexLocation.Path), index.Bytes(), 0o600))
 	var endedAt *time.Time
 	if state != stateRecording {
 		endedAt = new(startAt.Add(duration))
 	}
 	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-		VALUES ($1, $2, 'segment', $3, $4, 0, $5, $6, $5), ($7, $2, 'index', $3, $8, 0, $5, $6, $5)`,
-		id.New(), recordingID, poolID, name, startAt, endedAt, id.New(), kago.IndexPath(name))
+		VALUES ($1, $2, 'segment', $3, $4, 0, $5, $6, $5)`,
+		segmentID, recordingID, poolID, name, startAt, endedAt)
 	require.NoError(t, err)
 
 	return recordingID
@@ -605,8 +609,9 @@ func TestVODErrors(t *testing.T) {
 
 	f := newVODFixture(t, new(fakeVODEncoder))
 	unindexed := f.recording(t, "completed", loadTestTS(t))
-	_, err := f.pool.Exec(t.Context(), "DELETE FROM recording_files WHERE recording_id = $1 AND kind = 'index'", unindexed)
-	require.NoError(t, err)
+	var segmentID uuid.UUID
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT id FROM recording_files WHERE recording_id = $1", unindexed).Scan(&segmentID))
+	require.NoError(t, os.Remove(filepath.Join(f.dir, kago.IndexLocation(segmentID).Path)))
 	tests := []struct {
 		name        string
 		recordingID uuid.UUID

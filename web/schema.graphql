@@ -700,7 +700,7 @@ type Mutation {
   """
   updateNotificationPreference(input: NotificationPreferenceInput!): NotificationPreference!
   """
-  DB にないファイルを確かめ直して消す。ファイルなら、その付属ファイルのディレクトリも消す。管理者だけが使える。監査ログに残す。
+  DB にないファイルを確かめ直して消す。管理者だけが使える。監査ログに残す。
   """
   deleteOrphanFiles(files: [OrphanFileInput!]!): DeleteOrphanFilesPayload!
   """
@@ -739,12 +739,12 @@ type Mutation {
   """
   sendPlayerCommand(id: ID!, command: PlayerCommandInput!): Boolean!
   """
-  録画 ids のセグメントのファイルと付属ファイルのディレクトリを、今のテンプレートの名前に付け直し、記録のパスを書き換える。
+  録画 ids のセグメントのファイルと生成物のディレクトリを、今のテンプレートの名前に付け直し、記録のパスを書き換える。
   管理者だけが使え、一度に 100 件まで。同じプールの中だけで移す。監査ログに残す。
   """
   renameRecordingFiles(ids: [ID!]!): RenameRecordingFilesPayload!
   """
-  録画を消し、消した録画の ID を返す。録画ファイルと付属ファイルも消すが、録画履歴は残す。視聴者は使えない (設計書 9.7)。
+  録画を消し、消した録画の ID を返す。録画ファイルと生成物も消すが、録画履歴は残す。視聴者は使えない (設計書 9.7)。
   保護した録画と、録画中の録画は消さずに CONFLICT を返す。
   """
   deleteRecording(id: ID!): ID!
@@ -1057,38 +1057,38 @@ input NotificationPreferenceInput {
   ruleReservations: Boolean
 }
 """
-プールにあるのに DB に記録のないファイルか、持ち主の録画ファイルが DB にない付属ファイルのディレクトリ (設計書 5.6)。
+プールにあるのに DB に記録のないファイルか、持ち主の録画ファイルが DB にない生成物のディレクトリ (設計書 5.6)。
 録画を消すのに失敗したときや、取り込みをやり直したときに残る。
 """
 type OrphanFile {
   """
-  プールの ID。付属ファイルをまとめて置くディレクトリなら _sidecar。
+  プールの ID。データディレクトリにあるものなら null。
   """
-  poolId: String!
+  poolId: String
   """
-  プール内の相対パス。
+  プールかデータディレクトリの中の相対パス。
   """
   path: String!
   """
-  付属ファイルのディレクトリかどうか。
+  データディレクトリの、セグメントのファイルの ID のディレクトリ (生成物のディレクトリ) かどうか。
   """
-  sidecar: Boolean!
+  segmentDir: Boolean!
   """
-  大きさ (バイト)。付属ファイルのディレクトリでは、中のファイルの合計。
+  大きさ (バイト)。生成物のディレクトリでは、中のファイルの合計。
   """
   size: Int64!
   """
-  最後に書いた日時。付属ファイルのディレクトリでは、中のファイルのうち最も新しいもの。
+  最後に書いた日時。生成物のディレクトリでは、中のファイルのうち最も新しいもの。
   """
   modifiedAt: Time!
 }
 """
-消す、DB にないファイル。orphanFiles が返した poolId、path、sidecar をそのまま渡す。
+消す、DB にないファイル。orphanFiles が返した poolId、path、segmentDir をそのまま渡す。
 """
 input OrphanFileInput {
-  poolId: String!
+  poolId: String
   path: String!
-  sidecar: Boolean!
+  segmentDir: Boolean!
 }
 """
 一覧のページの情報 (Relay の Cursor Connections)。カーソルは中身を解釈せずに、そのまま次のリクエストに渡す。
@@ -1546,7 +1546,8 @@ type Query {
   notificationPreferences: [NotificationPreference!]!
   """
   DB にないファイルを、プールとパスの順に返す。管理者だけが使える。
-  このインスタンスにマウントしたプールと、付属ファイルをまとめて置くディレクトリだけを調べる。
+  このインスタンスにマウントしたプールと、データディレクトリだけを調べる。
+  データディレクトリでは、持ち主のセグメントのファイルが DB にない生成物のディレクトリと、生成物のディレクトリでないファイルを返す。
   録画中のファイル、セグメントをつないでいる途中のファイルとつなぐ元のファイル、書くか名前を変えて 1 時間以内のファイル、隠しファイルと lost+found は返さない。
   """
   orphanFiles: [OrphanFile!]!
@@ -1855,18 +1856,6 @@ enum RecordingFileKind {
   TS のセグメント
   """
   SEGMENT
-  """
-  セグメントの索引
-  """
-  INDEX
-  """
-  代表画像 (JPEG)
-  """
-  THUMBNAIL
-  """
-  シークバー用のプレビュー画像 (JPEG)。コマの並びは、同じディレクトリの preview.json に書く
-  """
-  PREVIEW
   """
   EPGStation から取り込んだ、エンコード済みの MP4 のような TS 以外のファイル
   """

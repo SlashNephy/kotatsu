@@ -15,8 +15,10 @@ import (
 )
 
 const (
-	orphanFilesQuery     = `{ orphanFiles { poolId path sidecar size } }`
-	orphanFileName       = "消し忘れ.m2ts"
+	orphanFilesQuery = `{ orphanFiles { poolId path segmentDir size } }`
+	orphanFileName   = "消し忘れ.m2ts"
+	// orphanSegmentDir は、持ち主のセグメントのファイルが DB にない、データディレクトリの生成物のディレクトリ。
+	orphanSegmentDir     = "0199f0a0-0000-7000-8000-00000000dead"
 	deleteOrphanMutation = `mutation($files: [OrphanFileInput!]!) { deleteOrphanFiles(files: $files) { deleted skipped } }`
 )
 
@@ -29,20 +31,26 @@ func TestOrphanFiles(t *testing.T) {
 	admin := f.as(t, adminName, auth.RoleAdmin)
 	f.addRecording(t, dir, remainingRecordingName, "completed", time.Hour)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, orphanFileName), []byte("orphan"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(dataRootOf(dir), orphanSegmentDir), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dataRootOf(dir), orphanSegmentDir, "thumbnail.jpg"), []byte("jpeg"), 0o600))
 	// 書くか名前を変えてから時間が経ったファイルだけを、DB にないとみなす。
 	f.clock.Advance(time.Since(f.clock.Now()) + 2*time.Hour)
 
 	type orphanFile struct {
-		PoolID  string `json:"poolId"`
-		Path    string `json:"path"`
-		Sidecar bool   `json:"sidecar"`
-		Size    int64  `json:"size"`
+		PoolID     *string `json:"poolId"`
+		Path       string  `json:"path"`
+		SegmentDir bool    `json:"segmentDir"`
+		Size       int64   `json:"size"`
 	}
 	var found struct {
 		OrphanFiles []orphanFile `json:"orphanFiles"`
 	}
 	require.Empty(t, admin.query(t, orphanFilesQuery, nil, &found))
-	assert.Equal(t, []orphanFile{{PoolID: poolMain, Path: orphanFileName, Sidecar: false, Size: 6}}, found.OrphanFiles)
+	// データディレクトリはプールではないので、プールの ID を返さない。
+	assert.Equal(t, []orphanFile{
+		{PoolID: new(poolMain), Path: orphanFileName, SegmentDir: false, Size: 6},
+		{PoolID: nil, Path: orphanSegmentDir, SegmentDir: true, Size: 4},
+	}, found.OrphanFiles)
 
 	var deleted struct {
 		DeleteOrphanFiles struct {
@@ -51,18 +59,20 @@ func TestOrphanFiles(t *testing.T) {
 		} `json:"deleteOrphanFiles"`
 	}
 	type orphanFileInput struct {
-		PoolID  string `json:"poolId"`
-		Path    string `json:"path"`
-		Sidecar bool   `json:"sidecar"`
+		PoolID     *string `json:"poolId"`
+		Path       string  `json:"path"`
+		SegmentDir bool    `json:"segmentDir"`
 	}
 	files := []orphanFileInput{
-		{PoolID: poolMain, Path: orphanFileName, Sidecar: false},
-		{PoolID: poolMain, Path: remainingRecordingName + ".m2ts", Sidecar: false},
+		{PoolID: new(poolMain), Path: orphanFileName, SegmentDir: false},
+		{PoolID: nil, Path: orphanSegmentDir, SegmentDir: true},
+		{PoolID: new(poolMain), Path: remainingRecordingName + ".m2ts", SegmentDir: false},
 	}
 	require.Empty(t, admin.query(t, deleteOrphanMutation, map[string]any{"files": files}, &deleted))
-	assert.Equal(t, 1, deleted.DeleteOrphanFiles.Deleted)
+	assert.Equal(t, 2, deleted.DeleteOrphanFiles.Deleted)
 	assert.Equal(t, 1, deleted.DeleteOrphanFiles.Skipped)
 	assert.NoFileExists(t, filepath.Join(dir, orphanFileName))
+	assert.NoDirExists(t, filepath.Join(dataRootOf(dir), orphanSegmentDir))
 	assert.FileExists(t, filepath.Join(dir, remainingRecordingName+".m2ts"))
 
 	var ignored struct{}

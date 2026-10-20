@@ -26,13 +26,6 @@ RETURNING sqlc.embed(recordings), (xmax = 0)::boolean AS inserted;
 INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
 VALUES (@id, @recording_id, @kind, @pool_id, @path, 0, @started_at, NULL, @now);
 
--- name: UpsertRecordingImage :exec
--- 録画の代表画像かプレビュー画像を記録する。作り直したときは、同じパスの行を書き換える。
-INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-VALUES (@id, @recording_id, @kind, @pool_id, @path, @size, @started_at, @now, @now)
-ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, ended_at = EXCLUDED.ended_at
-WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.kind = EXCLUDED.kind;
-
 -- name: CloseRecordingFile :exec
 -- 書き終えたファイルの大きさと、表す時間の終わりを記録する。
 UPDATE recording_files SET size = @size, ended_at = @ended_at WHERE id = @id;
@@ -85,13 +78,6 @@ SELECT * FROM recording_files WHERE recording_id = @recording_id AND ended_at IS
 -- 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
 UPDATE recordings SET gaps = @gaps, updated_at = @now WHERE id = @id;
 
--- name: UpsertRecordingIndex :exec
--- 録画を終えた後に作ったセグメントの索引を記録する。索引は、セグメントと同じ時間の範囲を表す。作り直したときは、同じパスの行を書き換える。
-INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-VALUES (@id, @recording_id, 'index', @pool_id, @path, @size, @started_at, sqlc.narg(ended_at), @now)
-ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, ended_at = EXCLUDED.ended_at
-WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.kind = 'index';
-
 -- name: SetRecordingStats :exec
 -- 録画を終えた後に解析したドロップ、エラー、スクランブルで、録画の集計を置き換える。
 -- 完了した録画は、ドロップの有無で、完了とエラーありの完了を決め直す。
@@ -138,8 +124,8 @@ FROM recordings r JOIN recording_files f ON f.recording_id = r.id AND f.kind = '
 WHERE r.state <> 'recording'
 ORDER BY r.recorded_from DESC, r.id, f.started_at, f.id;
 -- name: ListRecordingFileLocations :many
--- すべての録画ファイルの置き場所を返す。録画中のものも含む。DB にないファイルを探すのに使う。
-SELECT pool_id, path FROM recording_files;
+-- すべての録画ファイルの ID と置き場所を返す。録画中のものも含む。DB にないファイルを探すのに使う。
+SELECT id, pool_id, path FROM recording_files;
 -- name: ListRecordingsForRename :many
 -- ファイル名を付け直す録画と、ファイル名のテンプレートに当てはめる番組とサービスと、録画設定を求めるための予約。
 -- 録画中の録画は除く。予約が消えていれば、予約の項目は NULL になる。
@@ -153,12 +139,6 @@ ORDER BY r.recorded_from DESC, r.id;
 
 -- name: SetRecordingFilePath :exec
 UPDATE recording_files SET path = @path WHERE id = @id;
-
--- name: MoveRecordingSidecarPaths :exec
--- 付属ファイルのディレクトリを移したとき、その中のファイル (索引、代表画像、プレビュー画像) の記録のパスを書き換える。
-UPDATE recording_files SET path = @new_prefix::text || substr(path, length(@old_prefix::text) + 1)
-WHERE recording_id = @recording_id AND pool_id = @pool_id AND kind IN ('index', 'thumbnail', 'preview')
-  AND starts_with(path, @old_prefix::text);
 
 -- name: SetRecordingBroadcastStarted :exec
 -- 予約した番組が放送中になった日時を、最初の一度だけ記録する。

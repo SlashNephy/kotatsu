@@ -163,7 +163,8 @@ func (l *Library) plan(
 	return plan, nil
 }
 
-// Rename は、計画 plan のとおりに、録画のセグメントのファイルと付属ファイルのディレクトリを移し、記録のパスを書き換える。
+// Rename は、計画 plan のとおりに、録画のセグメントのファイルを移し、記録のパスを書き換える。
+// 生成物は、セグメントのファイルの ID で置くので移さない。
 // 移す先に同じ名前があれば連番を付ける。録画中と、セグメントをつないでいる途中の録画は移さない。監査ログに残す。
 // 記録を書き換えられなければ、移したファイルを元に戻す。同じプールの中だけで移す。
 func (l *Library) Rename(ctx context.Context, db Database, actor *audit.Actor, plan *RenamePlan) error {
@@ -193,14 +194,6 @@ func (l *Library) Rename(ctx context.Context, db Database, actor *audit.Actor, p
 			})
 			if err := q.SetRecordingFilePath(ctx, sqlc.SetRecordingFilePathParams{Path: to, ID: file.FileID}); err != nil {
 				return fmt.Errorf("failed to update the recording file path: %w", err)
-			}
-			for _, move := range l.store.SidecarMoves(file.PoolID, file.From, to) {
-				err = q.MoveRecordingSidecarPaths(ctx, sqlc.MoveRecordingSidecarPathsParams{
-					NewPrefix: move.To + "/", OldPrefix: move.From + "/", RecordingID: plan.RecordingID, PoolID: move.PoolID,
-				})
-				if err != nil {
-					return fmt.Errorf("failed to update the sidecar paths: %w", err)
-				}
 			}
 			renamed = append(renamed, map[string]string{"from": file.From, "to": to})
 		}

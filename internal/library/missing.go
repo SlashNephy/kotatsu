@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -81,11 +82,13 @@ type CleanUpResult struct {
 	PrunedSegments int
 }
 
-// CleanUpMissing は、録画のセグメントのファイルを確かめ直し、見つからないものの記録を DB から消す。ファイルは触らない。
-// セグメントが 1 つも見つからなければ録画を消し、一部だけなら、録画は残して、見つからないセグメントと、その索引の記録だけを消す。
+// CleanUpMissing は、録画のセグメントのファイルを確かめ直し、見つからないものの記録を DB から消す。プールのファイルは触らない。
+// セグメントが 1 つも見つからなければ録画を消し、一部だけなら、録画は残して、見つからないセグメントの記録だけを消す。
+// 記録を消したセグメントの、データディレクトリの生成物 (索引や画像) は、記録を消した後に消す。
 // 録画中と保護した録画は消さない。監査ログに残す。
 func (l *Library) CleanUpMissing(ctx context.Context, db Database, actor *audit.Actor, recordingID uuid.UUID) (*CleanUpResult, error) {
 	result := &CleanUpResult{Deleted: false, PrunedSegments: 0}
+	removed := []uuid.UUID{}
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		recording, err := lock(ctx, q, recordingID)
@@ -114,6 +117,7 @@ func (l *Library) CleanUpMissing(ctx context.Context, db Database, actor *audit.
 				return fmt.Errorf("failed to delete the recording: %w", err)
 			}
 			result.Deleted = true
+			removed = missing
 
 			return l.record(ctx, tx, actor, "recording.deleted", &recording, map[string]any{"reason": "missing_files"})
 		default:
@@ -121,6 +125,7 @@ func (l *Library) CleanUpMissing(ctx context.Context, db Database, actor *audit.
 				return fmt.Errorf("failed to delete the missing recording files: %w", err)
 			}
 			result.PrunedSegments = missingSegments
+			removed = missing
 
 			return l.record(ctx, tx, actor, "recording.missing_segments_removed", &recording, map[string]any{"segments": result.PrunedSegments})
 		}
@@ -128,11 +133,16 @@ func (l *Library) CleanUpMissing(ctx context.Context, db Database, actor *audit.
 	if err != nil {
 		return nil, err
 	}
+	for _, fileID := range removed {
+		if err := l.store.RemoveSegmentDir(fileID); err != nil {
+			l.logger.WarnContext(ctx, "failed to remove the generated files of a missing segment", slog.String("file_id", fileID.String()), slog.Any("error", err))
+		}
+	}
 
 	return result, nil
 }
 
-// missingFiles は、セグメントの数と、見つからないセグメントの数と、見つからないセグメントとその索引の記録の ID を返す。
+// missingFiles は、セグメントの数と、見つからないセグメントの数と、見つからないセグメントの記録の ID を返す。
 func (l *Library) missingFiles(files []sqlc.RecordingFile) (int, int, []uuid.UUID, error) {
 	checker := l.store.NewChecker()
 	defer checker.Close()
@@ -152,14 +162,6 @@ func (l *Library) missingFiles(files []sqlc.RecordingFile) (int, int, []uuid.UUI
 		}
 		missingSegments++
 		missing = append(missing, files[i].ID)
-		// 索引は、セグメントの付属ファイルのディレクトリにあるので、セグメントと一緒に記録を消す。
-		for _, index := range l.store.IndexLocations(files[i].PoolID, files[i].Path) {
-			for j := range files {
-				if files[j].Kind == "index" && files[j].PoolID == index.PoolID && files[j].Path == index.Path {
-					missing = append(missing, files[j].ID)
-				}
-			}
-		}
 	}
 
 	return segments, missingSegments, missing, nil

@@ -16,7 +16,7 @@ import (
 // oldName は、付け直す前の録画ファイルの名前。
 const oldName = "古い名前.m2ts"
 
-// TestRename は、今のテンプレートで付け直すと名前が変わる録画を計画し、ファイルと付属ファイルと記録のパスを付け直し、
+// TestRename は、今のテンプレートで付け直すと名前が変わる録画を計画し、ファイルと記録のパスを付け直し、
 // 監査ログに残すことを確かめる。分かれた録画の 2 つ目以降のセグメントには連番を付ける。
 func TestRename(t *testing.T) {
 	t.Parallel()
@@ -26,8 +26,8 @@ func TestRename(t *testing.T) {
 	const want1 = "2026-10-10 1100 こたつテスト1 録画.m2ts"
 	split := f.segmented(t, time.Hour, false,
 		segment{pool: poolID, path: oldName, exists: true}, segment{pool: poolID, path: "古い名前 (2).ts", exists: true})
-	require.NoError(t, os.Mkdir(filepath.Join(f.dir, "古い名前.m2ts.kotatsu"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(f.dir, "古い名前.m2ts.kotatsu", "index"), []byte("i"), 0o600))
+	before, err := os.ReadDir(f.dataRoot)
+	require.NoError(t, err)
 
 	plans, err := f.library.PlanRenames(t.Context(), f.pool, nil, time.UTC)
 	require.NoError(t, err)
@@ -41,8 +41,10 @@ func TestRename(t *testing.T) {
 	assert.Equal(t, [][2]string{{oldName, want1}, {"古い名前 (2).ts", "2026-10-10 1100 こたつテスト1 録画 (2).ts"}}, got)
 
 	require.NoError(t, f.library.Rename(t.Context(), f.pool, audit.User(f.userID), plans[0]))
-	_, err = os.Stat(filepath.Join(f.dir, want1+".kotatsu", "index"))
+	// 生成物は、セグメントのファイルの ID で置くので、名前を変えても動かない。
+	after, err := os.ReadDir(f.dataRoot)
 	require.NoError(t, err)
+	assert.Equal(t, before, after)
 	paths := []string{}
 	rows, err := f.pool.Query(t.Context(), "SELECT path FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind", split)
 	require.NoError(t, err)
@@ -51,7 +53,7 @@ func TestRename(t *testing.T) {
 		require.NoError(t, rows.Scan(&p))
 		paths = append(paths, p)
 	}
-	assert.Equal(t, []string{want1 + ".kotatsu/index", want1, "2026-10-10 1100 こたつテスト1 録画 (2).ts.kotatsu/index", "2026-10-10 1100 こたつテスト1 録画 (2).ts"}, paths)
+	assert.Equal(t, []string{want1, "2026-10-10 1100 こたつテスト1 録画 (2).ts"}, paths)
 	assert.Equal(t, []string{"recording.renamed"}, f.actions(t, split))
 
 	// 付け直した後は、名前が変わらないので、計画に出てこない。

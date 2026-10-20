@@ -645,7 +645,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		JikkyoClient:      jikkyoClient,
 		Changes:           changes,
 		Pools:             deps.Config.Storage.Pools,
-		SidecarDir:        deps.Config.Storage.SidecarDir,
+		DataDir:           deps.Config.Storage.DataDir,
 		FreeSpace:         nil,
 		Jobs:              deps.Jobs,
 		TotalSpace:        nil,
@@ -771,7 +771,7 @@ func handleMedia(
 // newEPGStationAPI は、EPGStation 互換の読み取り専用 API (/api/*) を返す (#431、設計書 9.1)。
 // セッションの Cookie は使わず、API トークン (Bearer) だけで認証する (設計書 9.8)。トークンがなければ 401 を返す。
 func newEPGStationAPI(deps *Deps, tokens *auth.APITokens, opener stream.ServiceOpener, logos stream.LogoFetcher, streamLogger *slog.Logger) http.Handler {
-	h := epgstationapi.New(deps.DB, streamLogger)
+	h := epgstationapi.New(deps.DB, storeOf(deps.Config), streamLogger)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/version", h.Version)
 	mux.HandleFunc("GET /api/config", h.Config)
@@ -879,7 +879,7 @@ func closePool(pool *pgxpool.Pool) {
 	}
 }
 
-// storeOf は、設定のプールと、付属ファイルをまとめて置くディレクトリを使う kago.Store を返す。
+// storeOf は、設定のプールと、データディレクトリを使う kago.Store を返す。
 func storeOf(cfg *config.Config) *kago.Store {
-	return kago.NewOrdered(cfg.Storage.Pools, cfg.Storage.PoolOrder, nil).WithSidecarDir(cfg.Storage.SidecarDir)
+	return kago.NewOrdered(cfg.Storage.Pools, cfg.Storage.PoolOrder, nil).WithDataDir(cfg.Storage.DataDir)
 }

@@ -59,7 +59,7 @@ type Resolver struct {
 	jikkyoTable       *jikkyo.Table
 	jikkyoClient      *jikkyo.Client
 	logger            *slog.Logger
-	// store は、録画のファイルと付属ファイルを読むための、このインスタンスにマウントしたプール。
+	// store は、録画のファイルと生成物を読むための、このインスタンスにマウントしたプール。
 	store     *kago.Store
 	library   *library.Library
 	changes   Changes

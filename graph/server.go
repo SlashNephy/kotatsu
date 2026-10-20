@@ -81,8 +81,8 @@ type Options struct {
 	Changes Changes
 	// Pools は、保存先プールの ID からマウント先への対応。システムの状態で示す。
 	Pools map[string]string
-	// SidecarDir は、付属ファイルをまとめて置くディレクトリ。空なら、録画ファイルの横に置く。
-	SidecarDir string
+	// DataDir は、データディレクトリ。
+	DataDir string
 	// FreeSpace は、保存先プールの空き容量を調べる。nil なら、ファイルシステムに問い合わせる。
 	FreeSpace kago.FreeSpaceFunc
 	// Jobs は、ジョブを入れる River のクライアント。録画の画像を作り直すのに使う。nil なら、作り直せない。
@@ -168,8 +168,8 @@ func NewHandler(opts *Options) http.Handler {
 		freeSpace:    o.FreeSpace,
 		jobs:         o.Jobs,
 		totalSpace:   o.TotalSpace,
-		store:        kago.New(o.Pools, o.FreeSpace).WithSidecarDir(o.SidecarDir),
-		library:      library.New(o.Clock, o.Recorder, kago.New(o.Pools, o.FreeSpace).WithSidecarDir(o.SidecarDir), o.Logger),
+		store:        kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir),
+		library:      library.New(o.Clock, o.Recorder, kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir), o.Logger),
 		updates:      o.Updates,
 	}
 	if resolver.freeSpace == nil {

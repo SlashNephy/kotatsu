@@ -53,17 +53,24 @@ func (f *fixture) newRecorderWithLogger(t *testing.T, tuner recording.StreamOpen
 	t.Helper()
 
 	dir := t.TempDir()
+	// 同じテストの Recorder は、データディレクトリを共有する (dataRootOf)。
+	require.NoError(t, os.MkdirAll(dataRootOf(dir), 0o755))
 	tokyo, err := time.LoadLocation("Asia/Tokyo")
 	require.NoError(t, err)
 	if freeSpace == nil {
 		freeSpace = func(string) (uint64, error) { return 1 << 40, nil }
 	}
-	recorder := recording.NewRecorder(f.pool, f.clock, tuner, kago.New(map[string]string{poolID: dir}, freeSpace), nil, tokyo,
+	recorder := recording.NewRecorder(f.pool, f.clock, tuner, kago.New(map[string]string{poolID: dir}, freeSpace).WithDataDir(dataRootOf(dir)), nil, tokyo,
 		logger, &recording.RecorderOptions{
 			TuningTime: 0, Tick: 10 * time.Millisecond, RetryInterval: 20 * time.Millisecond, ReleaseAfter: 0, Peers: peers,
 		})
 
 	return recorder, dir
+}
+
+// dataRootOf は、プールのディレクトリ dir の Recorder が使う、データディレクトリを返す。t.TempDir の隣に置く。
+func dataRootOf(dir string) string {
+	return filepath.Join(filepath.Dir(dir), "data")
 }
 
 // messageRecorder は、ログのメッセージを順に記録する slog.Handler。録画は別の goroutine からログを書くので、ロックで守る。
@@ -116,6 +123,7 @@ func (f *fixture) recording(t *testing.T, reservationID uuid.UUID) (recorded, bo
 }
 
 type recordedFile struct {
+	id     uuid.UUID
 	kind   string
 	path   string
 	size   int64
@@ -125,14 +133,14 @@ type recordedFile struct {
 func (f *fixture) files(t *testing.T, reservationID uuid.UUID) []recordedFile {
 	t.Helper()
 
-	rows, err := f.pool.Query(t.Context(), `SELECT kind, path, size, ended_at IS NOT NULL FROM recording_files
+	rows, err := f.pool.Query(t.Context(), `SELECT id, kind, path, size, ended_at IS NOT NULL FROM recording_files
 		WHERE recording_id = (SELECT id FROM recordings WHERE reservation_id = $1) ORDER BY kind`, reservationID)
 	require.NoError(t, err)
 	defer rows.Close()
 	files := []recordedFile{}
 	for rows.Next() {
 		var file recordedFile
-		require.NoError(t, rows.Scan(&file.kind, &file.path, &file.size, &file.closed))
+		require.NoError(t, rows.Scan(&file.id, &file.kind, &file.path, &file.size, &file.closed))
 		files = append(files, file)
 	}
 	require.NoError(t, rows.Err())
@@ -199,12 +207,12 @@ func TestRecorderRecordsUntilPlannedEnd(t *testing.T) {
 	require.Eventually(t, func() bool {
 		files := f.files(t, reservationID)
 
-		return len(files) == 2
+		return len(files) == 1
 	}, waitTimeout, 10*time.Millisecond)
 	got, _ := f.recording(t, reservationID)
 	assert.Equal(t, string(recording.StateRecording), got.state)
 	// 書いている間も、最終的な保存先のファイルが伸びていく (追っかけ再生のため)。
-	segment := f.files(t, reservationID)[1]
+	segment := f.files(t, reservationID)[0]
 	require.Eventually(t, func() bool {
 		info, err := os.Stat(filepath.Join(dir, segment.path))
 
@@ -220,17 +228,17 @@ func TestRecorderRecordsUntilPlannedEnd(t *testing.T) {
 	assert.Equal(t, string(recording.StateCompletedWithErrors), got.state)
 	assert.Nil(t, got.failureReason)
 	assert.Positive(t, got.drops)
+	// 索引は DB に記録せず、データディレクトリの、セグメントのファイルの ID のディレクトリに置く。
 	files := f.files(t, reservationID)
-	require.Len(t, files, 2)
-	index, segment := files[0], files[1]
-	assert.Equal(t, "index", index.kind)
+	require.Len(t, files, 1)
+	segment = files[0]
 	assert.Equal(t, "segment", segment.kind)
+	indexPath := filepath.Join(dataRootOf(dir), kago.IndexLocation(segment.id).Path)
 	// 既定のファイル名は、表示のタイムゾーンの放送の開始、サービス名、番組名を並べる。
 	var serviceName, programName string
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT s.name, r.name FROM reservations r JOIN services s ON s.id = r.service_id WHERE r.id = $1",
 		reservationID).Scan(&serviceName, &programName))
 	assert.Equal(t, "2026-10-10 2230 "+serviceName+" "+programName+".m2ts", segment.path)
-	assert.Equal(t, segment.path+".kotatsu/index", index.path)
 	for _, file := range files {
 		assert.True(t, file.closed, file.path)
 		info, err := os.Stat(filepath.Join(dir, file.path))
@@ -246,7 +254,7 @@ func TestRecorderRecordsUntilPlannedEnd(t *testing.T) {
 	assert.Equal(t, got.drops, pidDrops)
 	assert.Positive(t, videoPackets)
 	// 索引には、書きながら見つけた I フレームが入る。
-	indexFile, err := os.Open(filepath.Join(dir, index.path))
+	indexFile, err := os.Open(indexPath)
 	require.NoError(t, err)
 	defer indexFile.Close()
 	entries, err := ts.ReadIndex(indexFile)
@@ -266,7 +274,7 @@ func TestRecorderStopsWhenStopped(t *testing.T) {
 	require.Eventually(t, func() bool {
 		files := f.files(t, reservationID)
 
-		return len(files) == 2 && files[1].kind == "segment"
+		return len(files) == 1 && files[0].kind == "segment"
 	}, waitTimeout, 10*time.Millisecond)
 	time.Sleep(100 * time.Millisecond)
 
@@ -277,7 +285,7 @@ func TestRecorderStopsWhenStopped(t *testing.T) {
 	for _, file := range f.files(t, reservationID) {
 		assert.True(t, file.closed, file.path)
 	}
-	assert.Positive(t, f.files(t, reservationID)[1].size)
+	assert.Positive(t, f.files(t, reservationID)[0].size)
 }
 
 // TestRecorderSkipsDisabledReservations は、録画を始める前に予約を無効にしたら、録画しないことを確かめる。
@@ -520,7 +528,7 @@ func TestRecorderDecidesStateFromWholeRecording(t *testing.T) {
 			require.Eventually(t, func() bool {
 				files := f.files(t, reservationID)
 
-				return len(files) == 2
+				return len(files) == 1
 			}, waitTimeout, 10*time.Millisecond)
 			time.Sleep(100 * time.Millisecond)
 			f.clock.Advance(time.Hour)
@@ -564,7 +572,7 @@ func TestRecorderCancelsWhenDisabled(t *testing.T) {
 			_, done := f.session(t, recorder, reservationID)
 			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 			require.Eventually(t, func() bool {
-				return len(f.files(t, reservationID)) == 2
+				return len(f.files(t, reservationID)) == 1
 			}, waitTimeout, 10*time.Millisecond)
 			// 予約を消すと、録画の reservation_id は NULL になるので、録画の ID で追う。
 			var recordingID uuid.UUID
@@ -705,7 +713,7 @@ func TestRecorderDoesNotReopenAfterPlannedEnd(t *testing.T) {
 	_, done := f.session(t, recorder, reservationID)
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 	require.Eventually(t, func() bool {
-		return len(f.files(t, reservationID)) == 2
+		return len(f.files(t, reservationID)) == 1
 	}, waitTimeout, 10*time.Millisecond)
 
 	// 予定の終わりを過ぎてから、ストリームが閉じる。
@@ -788,10 +796,10 @@ func TestRecorderSkipsUntilPlannedStart(t *testing.T) {
 			skipped := 27 * 188
 			require.Eventually(t, func() bool {
 				files := f.files(t, reservationID)
-				if len(files) != 2 {
+				if len(files) != 1 {
 					return false
 				}
-				info, err := os.Stat(filepath.Join(dir, files[1].path))
+				info, err := os.Stat(filepath.Join(dir, files[0].path))
 
 				return err == nil && info.Size() == int64(len(data)-skipped)
 			}, waitTimeout, 10*time.Millisecond)
@@ -802,7 +810,7 @@ func TestRecorderSkipsUntilPlannedStart(t *testing.T) {
 			f.clock.Advance(time.Hour - tt.jump)
 			require.NoError(t, wait(t, done))
 
-			written, err := os.ReadFile(filepath.Join(dir, f.files(t, reservationID)[1].path))
+			written, err := os.ReadFile(filepath.Join(dir, f.files(t, reservationID)[0].path))
 			require.NoError(t, err)
 			assert.True(t, bytes.Equal(data[skipped:], written), "the segment starts at the packet boundary after the planned start")
 		})
@@ -828,10 +836,10 @@ func TestRecorderReopensWhenInterruptedBeforePlannedStart(t *testing.T) {
 	skipped := 16 * 188
 	require.Eventually(t, func() bool {
 		files := f.files(t, reservationID)
-		if len(files) != 2 {
+		if len(files) != 1 {
 			return false
 		}
-		info, err := os.Stat(filepath.Join(dir, files[1].path))
+		info, err := os.Stat(filepath.Join(dir, files[0].path))
 
 		return err == nil && info.Size() == int64(len(data)-skipped)
 	}, waitTimeout, 10*time.Millisecond)
@@ -841,7 +849,7 @@ func TestRecorderReopensWhenInterruptedBeforePlannedStart(t *testing.T) {
 	assert.Equal(t, int32(2), stream.opened.Load())
 	// 書き始める前に切れたので、セグメントは 1 つだけ作る。
 	assert.Equal(t, 1, f.segments(t, reservationID))
-	written, err := os.ReadFile(filepath.Join(dir, f.files(t, reservationID)[1].path))
+	written, err := os.ReadFile(filepath.Join(dir, f.files(t, reservationID)[0].path))
 	require.NoError(t, err)
 	assert.True(t, bytes.Equal(data[skipped:], written), "the segment starts at the packet boundary after the planned start")
 }
@@ -997,7 +1005,7 @@ func TestRecorderExtendsWhileEndIsUndecided(t *testing.T) {
 			_, done := f.session(t, recorder, reservationID)
 			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 			require.Eventually(t, func() bool {
-				return len(f.files(t, reservationID)) == 2
+				return len(f.files(t, reservationID)) == 1
 			}, waitTimeout, 10*time.Millisecond)
 			_, err := f.pool.Exec(t.Context(), "UPDATE programs SET end_undecided = true WHERE service_id = $1 AND event_id = 6", grService(0))
 			require.NoError(t, err)
@@ -1033,7 +1041,7 @@ func TestRecorderKeepsRecordingWhenProgramIsLost(t *testing.T) {
 	_, done := f.session(t, recorder, reservationID)
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 	require.Eventually(t, func() bool {
-		return len(f.files(t, reservationID)) == 2
+		return len(f.files(t, reservationID)) == 1
 	}, waitTimeout, 10*time.Millisecond)
 	_, err = f.pool.Exec(t.Context(), "DELETE FROM programs WHERE service_id = $1 AND event_id = 6", grService(0))
 	require.NoError(t, err)
@@ -1069,7 +1077,7 @@ func TestRecorderCopiesProgramAudios(t *testing.T) {
 	_, done := f.session(t, recorder, reservationID)
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 	require.Eventually(t, func() bool {
-		return len(f.files(t, reservationID)) == 2
+		return len(f.files(t, reservationID)) == 1
 	}, waitTimeout, 10*time.Millisecond)
 	_, err = f.pool.Exec(t.Context(), "UPDATE programs SET audios = '[]', video_resolution = NULL WHERE service_id = $1 AND event_id = 6", grService(0))
 	require.NoError(t, err)
@@ -1111,7 +1119,7 @@ func TestRecorderCopiesRuleAndGenres(t *testing.T) {
 	_, done := f.session(t, recorder, reservationID)
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 	require.Eventually(t, func() bool {
-		return len(f.files(t, reservationID)) == 2
+		return len(f.files(t, reservationID)) == 1
 	}, waitTimeout, 10*time.Millisecond)
 	f.clock.Advance(programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
 	require.NoError(t, wait(t, done))
@@ -1355,7 +1363,7 @@ func TestRecorderUsesPoolSettings(t *testing.T) {
 			_, done := f.session(t, recorder, reservationID)
 			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 			require.Eventually(t, func() bool {
-				return len(f.files(t, reservationID)) == 2
+				return len(f.files(t, reservationID)) == 1
 			}, waitTimeout, 10*time.Millisecond)
 			f.clock.Advance(time.Hour)
 			require.NoError(t, wait(t, done))
@@ -1385,7 +1393,7 @@ func TestRecorderContinuesAfterHandover(t *testing.T) {
 	})
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 	require.Eventually(t, func() bool {
-		return len(f.files(t, reservationID)) == 2
+		return len(f.files(t, reservationID)) == 1
 	}, waitTimeout, 10*time.Millisecond)
 
 	// 古い mikan が書いている間に、新しい mikan が引き継いで、2 つ目のセグメントを書き始める。
@@ -1657,7 +1665,7 @@ func TestRecorderLeavesFinishingToCurrentGeneration(t *testing.T) {
 	})
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 	require.Eventually(t, func() bool {
-		return len(f.files(t, reservationID)) == 2
+		return len(f.files(t, reservationID)) == 1
 	}, waitTimeout, 10*time.Millisecond)
 
 	// ほかの mikan が、世代 2 で取った。
@@ -1770,7 +1778,7 @@ func TestRecorderRecordsLateStartAsGap(t *testing.T) {
 			f.clock.Advance(plannedStart().Add(tt.late).Sub(f.clock.Now()))
 			_, done := f.session(t, recorder, reservationID)
 			require.Eventually(t, func() bool {
-				return len(f.files(t, reservationID)) == 2
+				return len(f.files(t, reservationID)) == 1
 			}, waitTimeout, 10*time.Millisecond)
 
 			f.clock.Advance(programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
@@ -1964,11 +1972,11 @@ func TestRecorderFlushesLowBitrateStreams(t *testing.T) {
 	_, done := f.session(t, recorder, reservationID)
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 	require.Eventually(t, func() bool {
-		return len(f.files(t, reservationID)) == 2
+		return len(f.files(t, reservationID)) == 1
 	}, waitTimeout, 10*time.Millisecond)
 
 	// ストリームを閉じる前に、書いた分がファイルに出る。
-	segmentPath := f.files(t, reservationID)[1].path
+	segmentPath := f.files(t, reservationID)[0].path
 	require.Eventually(t, func() bool {
 		info, err := os.Stat(filepath.Join(dir, segmentPath))
 

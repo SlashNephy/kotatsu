@@ -29,7 +29,9 @@ const getAPIRecording = `-- name: GetAPIRecording :one
 SELECT r.api_id, r.id, r.service_id, r.name, r.description, r.start_at, r.end_at, r.genres, r.state, r.protected,
   coalesce(res.extended, '{}'::jsonb)::jsonb AS extended,
   (SELECT coalesce(sum(f.size), 0) FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment')::bigint AS size,
-  EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'thumbnail') AS has_thumbnail
+  -- 代表画像を置くセグメント (書いたものがある最初のセグメント。thumbnail.ImageSegment と同じ)。なければ全て 0 の ID。
+  coalesce((SELECT f.id FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment' AND f.size > 0
+    ORDER BY f.started_at, f.id LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS image_segment_id
 FROM recordings r
 LEFT JOIN reservations res ON res.id = r.reservation_id
 WHERE r.api_id = $1
@@ -37,19 +39,19 @@ WHERE r.api_id = $1
 `
 
 type GetAPIRecordingRow struct {
-	APIID        int64
-	ID           uuid.UUID
-	ServiceID    int64
-	Name         string
-	Description  string
-	StartAt      time.Time
-	EndAt        time.Time
-	Genres       []byte
-	State        string
-	Protected    bool
-	Extended     []byte
-	Size         int64
-	HasThumbnail bool
+	APIID          int64
+	ID             uuid.UUID
+	ServiceID      int64
+	Name           string
+	Description    string
+	StartAt        time.Time
+	EndAt          time.Time
+	Genres         []byte
+	State          string
+	Protected      bool
+	Extended       []byte
+	Size           int64
+	ImageSegmentID uuid.UUID
 }
 
 func (q *Queries) GetAPIRecording(ctx context.Context, apiID int64) (GetAPIRecordingRow, error) {
@@ -68,7 +70,7 @@ func (q *Queries) GetAPIRecording(ctx context.Context, apiID int64) (GetAPIRecor
 		&i.Protected,
 		&i.Extended,
 		&i.Size,
-		&i.HasThumbnail,
+		&i.ImageSegmentID,
 	)
 	return i, err
 }
@@ -89,7 +91,9 @@ const listAPIRecordings = `-- name: ListAPIRecordings :many
 SELECT r.api_id, r.id, r.service_id, r.name, r.description, r.start_at, r.end_at, r.genres, r.state, r.protected,
   coalesce(res.extended, '{}'::jsonb)::jsonb AS extended,
   (SELECT coalesce(sum(f.size), 0) FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment')::bigint AS size,
-  EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'thumbnail') AS has_thumbnail
+  -- 代表画像を置くセグメント (書いたものがある最初のセグメント。thumbnail.ImageSegment と同じ)。なければ全て 0 の ID。
+  coalesce((SELECT f.id FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment' AND f.size > 0
+    ORDER BY f.started_at, f.id LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS image_segment_id
 FROM recordings r
 LEFT JOIN reservations res ON res.id = r.reservation_id
 WHERE EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment')
@@ -105,19 +109,19 @@ type ListAPIRecordingsParams struct {
 }
 
 type ListAPIRecordingsRow struct {
-	APIID        int64
-	ID           uuid.UUID
-	ServiceID    int64
-	Name         string
-	Description  string
-	StartAt      time.Time
-	EndAt        time.Time
-	Genres       []byte
-	State        string
-	Protected    bool
-	Extended     []byte
-	Size         int64
-	HasThumbnail bool
+	APIID          int64
+	ID             uuid.UUID
+	ServiceID      int64
+	Name           string
+	Description    string
+	StartAt        time.Time
+	EndAt          time.Time
+	Genres         []byte
+	State          string
+	Protected      bool
+	Extended       []byte
+	Size           int64
+	ImageSegmentID uuid.UUID
 }
 
 // EPGStation 互換の API (#431、設計書 9.8) で返す録画。セグメントがなく、再生できない録画は返さない。
@@ -144,7 +148,7 @@ func (q *Queries) ListAPIRecordings(ctx context.Context, arg ListAPIRecordingsPa
 			&i.Protected,
 			&i.Extended,
 			&i.Size,
-			&i.HasThumbnail,
+			&i.ImageSegmentID,
 		); err != nil {
 			return nil, err
 		}

@@ -88,6 +88,8 @@ spec:
                   key: secret-key
             - name: KOTATSU_STORAGE_POOLS
               value: "main=/var/lib/kotatsu/pools/main"
+            - name: KOTATSU_STORAGE_DATA_DIR
+              value: /var/lib/kotatsu/data
             - name: KOTATSU_KYUSU_WORK_DIR
               value: /var/lib/kotatsu/work
             - name: KOTATSU_TUNER_URL
@@ -120,6 +122,8 @@ spec:
               mountPath: /var/lib/kotatsu/work
             - name: pool-0
               mountPath: /var/lib/kotatsu/pools/main
+            - name: data
+              mountPath: /var/lib/kotatsu/data
       volumes:
         - name: tmp
           emptyDir: {}
@@ -128,6 +132,9 @@ spec:
         - name: pool-0
           persistentVolumeClaim:
             claimName: kotatsu-recordings
+        - name: data
+          persistentVolumeClaim:
+            claimName: kotatsu-data
 ---
 # Source: kotatsu/templates/migration.yaml
 apiVersion: batch/v1

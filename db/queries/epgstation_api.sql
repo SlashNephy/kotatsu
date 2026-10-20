@@ -5,7 +5,9 @@
 SELECT r.api_id, r.id, r.service_id, r.name, r.description, r.start_at, r.end_at, r.genres, r.state, r.protected,
   coalesce(res.extended, '{}'::jsonb)::jsonb AS extended,
   (SELECT coalesce(sum(f.size), 0) FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment')::bigint AS size,
-  EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'thumbnail') AS has_thumbnail
+  -- 代表画像を置くセグメント (書いたものがある最初のセグメント。thumbnail.ImageSegment と同じ)。なければ全て 0 の ID。
+  coalesce((SELECT f.id FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment' AND f.size > 0
+    ORDER BY f.started_at, f.id LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS image_segment_id
 FROM recordings r
 LEFT JOIN reservations res ON res.id = r.reservation_id
 WHERE EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment')
@@ -22,7 +24,9 @@ WHERE EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.
 SELECT r.api_id, r.id, r.service_id, r.name, r.description, r.start_at, r.end_at, r.genres, r.state, r.protected,
   coalesce(res.extended, '{}'::jsonb)::jsonb AS extended,
   (SELECT coalesce(sum(f.size), 0) FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment')::bigint AS size,
-  EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'thumbnail') AS has_thumbnail
+  -- 代表画像を置くセグメント (書いたものがある最初のセグメント。thumbnail.ImageSegment と同じ)。なければ全て 0 の ID。
+  coalesce((SELECT f.id FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment' AND f.size > 0
+    ORDER BY f.started_at, f.id LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS image_segment_id
 FROM recordings r
 LEFT JOIN reservations res ON res.id = r.reservation_id
 WHERE r.api_id = @api_id

@@ -68,7 +68,7 @@ func newRecordingFixture(t *testing.T, pools map[string]string) *recordingFixtur
 		pools = map[string]string{poolID: dir}
 	}
 	mux := http.NewServeMux()
-	mux.Handle(recordingPattern, stream.NewRecordingHandler(pool, kago.New(pools, nil), slog.New(slog.DiscardHandler), pollInterval))
+	mux.Handle(recordingPattern, stream.NewRecordingHandler(pool, kago.New(pools, nil).WithDataDir(dir), slog.New(slog.DiscardHandler), pollInterval))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
@@ -100,20 +100,19 @@ func (f *recordingFixture) segment(t *testing.T, recordingID uuid.UUID, name str
 	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer})
 	_, err = analyzer.Write(data)
 	require.NoError(t, err)
-	require.NoError(t, os.MkdirAll(filepath.Join(f.dir, name+".kotatsu"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(f.dir, kago.IndexPath(name)), index.Bytes(), 0o600))
+	segmentID := id.New()
+	indexLocation := kago.IndexLocation(segmentID)
+	require.NoError(t, os.MkdirAll(filepath.Join(f.dir, segmentID.String()), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(f.dir, indexLocation.Path), index.Bytes(), 0o600))
 
 	startedAt := f.startedAt.Add(offset)
 	var endedAt *time.Time
 	if !open {
 		endedAt = new(startedAt.Add(time.Minute))
 	}
-	// セグメントと索引の行は、1 つの文で入れる。録画では、セグメントを書き終える前に索引の行ができているので、
-	// 書き終えたセグメントの索引の行だけがない、という途中の状態を作らない。
-	segmentID := id.New()
 	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-		VALUES ($1, $2, 'segment', $3, $4, 0, $5, $6, $5), ($7, $2, 'index', $3, $8, 0, $5, $6, $5)`,
-		segmentID, recordingID, poolID, name, startedAt, endedAt, id.New(), kago.IndexPath(name))
+		VALUES ($1, $2, 'segment', $3, $4, 0, $5, $6, $5)`,
+		segmentID, recordingID, poolID, name, startedAt, endedAt)
 	require.NoError(t, err)
 
 	return segmentID

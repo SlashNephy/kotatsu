@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
+	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/library"
 	"github.com/SlashNephy/kotatsu/internal/stream"
 	"github.com/SlashNephy/kotatsu/internal/thumbnail"
@@ -246,8 +246,13 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []sqlc.Recording) (
 		return nil, fmt.Errorf("failed to list the recording files: %w", err)
 	}
 	files := map[uuid.UUID][]*model.RecordingFile{}
+	// 画像は、書いたものがある最初のセグメントのディレクトリに置く (thumbnail.ImageSegment)。行は始まりの順に並ぶ。
+	imageSegments := map[uuid.UUID]uuid.UUID{}
 	for i := range fileRows {
 		row := &fileRows[i]
+		if _, ok := imageSegments[row.RecordingID]; !ok && row.Kind == "segment" && row.Size > 0 {
+			imageSegments[row.RecordingID] = row.ID
+		}
 		file := &model.RecordingFile{
 			Kind: model.RecordingFileKind(strings.ToUpper(row.Kind)), PoolID: row.PoolID, Path: row.Path, Size: row.Size,
 			StartedAt: row.StartedAt, EndedAt: row.EndedAt, URL: nil,
@@ -278,7 +283,8 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []sqlc.Recording) (
 		}
 		recording.Tags = orEmpty(tags[rows[i].ID])
 		recording.Files = orEmpty(files[rows[i].ID])
-		recording.ThumbnailURL, recording.PreviewURL = imageURLs(rows[i].ID, recording.Files)
+		recording.ImageSegmentID = imageSegments[rows[i].ID]
+		recording.ThumbnailURL, recording.PreviewURL = r.imageURLs(rows[i].ID, recording.ImageSegmentID)
 		if position, ok := progress[rows[i].ID]; ok {
 			recording.WatchPositionMs = &position
 		}
@@ -302,16 +308,7 @@ func (r *Resolver) watchFrame(ctx context.Context, recording *model.Recording) *
 	if recording.RecordedUntil != nil && position > recording.RecordedUntil.Sub(recording.RecordedFrom)-watchEndMargin {
 		return nil
 	}
-	var preview *model.RecordingFile
-	for _, file := range recording.Files {
-		if file.Kind == model.RecordingFileKindPreview {
-			preview = file
-		}
-	}
-	if preview == nil {
-		return nil
-	}
-	manifest, err := r.readManifest(preview)
+	manifest, err := r.readManifest(recording.ImageSegmentID)
 	if err != nil {
 		r.logger.WarnContext(ctx, "failed to read the preview manifest", slog.String("recording", recording.ID), slog.Any("error", err))
 
@@ -332,10 +329,10 @@ func (r *Resolver) watchFrame(ctx context.Context, recording *model.Recording) *
 	}
 }
 
-// readManifest は、プレビュー画像と同じディレクトリの preview.json を、このインスタンスにマウントしたプールから読む。
-func (r *Resolver) readManifest(preview *model.RecordingFile) (*thumbnail.Manifest, error) {
-	// 付属ファイルをまとめて置くディレクトリ (kago.SidecarPoolID) にあるものも、同じように読む。
-	f, err := r.store.Open(preview.PoolID, path.Join(path.Dir(preview.Path), thumbnail.ManifestFileName))
+// readManifest は、セグメントのファイル owner のディレクトリにある、プレビュー画像の説明 (preview.json) を読む。
+func (r *Resolver) readManifest(owner uuid.UUID) (*thumbnail.Manifest, error) {
+	location := kago.DataLocation(owner, thumbnail.ManifestFileName)
+	f, err := r.store.Open(location.PoolID, location.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the preview manifest: %w", err)
 	}
@@ -348,32 +345,25 @@ func (r *Resolver) readManifest(preview *model.RecordingFile) (*thumbnail.Manife
 	return &manifest, nil
 }
 
-// imageURL は、録画の画像の URL のパス。画像はブラウザにしばらく使い回させるので、作り直したら URL が変わるよう、
-// 作った日時 (ended_at) を添える (#476)。配信する側は、クエリを見ない。
-func imageURL(recordingID uuid.UUID, name string, file *model.RecordingFile) string {
-	path := "/media/recordings/" + recordingID.String() + "/" + name
-	if file.EndedAt == nil {
-		return path
+// imageURL は、録画の画像 name の URL のパスを返す。データディレクトリの、セグメントのファイル owner のディレクトリになければ nil を返す。
+// 画像はブラウザにしばらく使い回させるので、作り直したら URL が変わるよう、ファイルの更新日時を添える (#476)。配信する側は、クエリを見ない。
+// 画像は、GET /media/recordings/{id}/{file} で配信する (thumbnail.ImageHandler)。
+func (r *Resolver) imageURL(recordingID, owner uuid.UUID, name string) *string {
+	if owner == uuid.Nil {
+		return nil
+	}
+	location := kago.DataLocation(owner, name)
+	info, err := r.store.Stat(location.PoolID, location.Path)
+	if err != nil {
+		return nil
 	}
 
-	return path + "?v=" + strconv.FormatInt(file.EndedAt.Unix(), 10)
+	return new("/media/recordings/" + recordingID.String() + "/" + name + "?v=" + strconv.FormatInt(info.ModTime().Unix(), 10))
 }
 
 // imageURLs は、録画の代表画像とプレビュー画像の URL のパスを返す。画像のファイルがなければ nil にする。
-// 画像は、GET /media/recordings/{id}/{file} で配信する (thumbnail.ImageHandler)。
-func imageURLs(recordingID uuid.UUID, files []*model.RecordingFile) (*string, *string) {
-	var thumbnailURL, previewURL *string
-	for _, file := range files {
-		switch file.Kind {
-		case model.RecordingFileKindThumbnail:
-			thumbnailURL = new(imageURL(recordingID, thumbnail.ThumbnailFileName, file))
-		case model.RecordingFileKindPreview:
-			previewURL = new(imageURL(recordingID, thumbnail.PreviewFileName, file))
-		case model.RecordingFileKindSegment, model.RecordingFileKindIndex, model.RecordingFileKindOther:
-		}
-	}
-
-	return thumbnailURL, previewURL
+func (r *Resolver) imageURLs(recordingID, owner uuid.UUID) (*string, *string) {
+	return r.imageURL(recordingID, owner, thumbnail.ThumbnailFileName), r.imageURL(recordingID, owner, thumbnail.PreviewFileName)
 }
 
 func recordingModel(row *sqlc.Recording) (*model.Recording, error) {
@@ -397,7 +387,7 @@ func recordingModel(row *sqlc.Recording) (*model.Recording, error) {
 		ID: GlobalID(recordingType, row.ID.String()), EventID: nil, Name: row.Name, Description: row.Description,
 		StartAt: row.StartAt, EndAt: row.EndAt, State: model.RecordingState(strings.ToUpper(row.State)), FailureReason: nil,
 		Protected: row.Protected, Drops: row.Drops, Errors: row.Errors, Scrambled: row.Scrambled, Gaps: orEmpty(gaps),
-		Audios: audios, Genres: genres, RuleName: row.RuleName, RuleKey: row.RuleID,
+		Audios: audios, Genres: genres, RuleName: row.RuleName, RuleKey: row.RuleID, ImageSegmentID: uuid.Nil,
 		ProgramLost: row.ProgramLost, RecordedFrom: row.RecordedFrom, RecordedUntil: row.RecordedUntil,
 		BroadcastStartedAt: row.BroadcastStartedAt, BroadcastEndedAt: row.BroadcastEndedAt, NotBroadcast: row.NotBroadcast,
 		Tags: []*model.Tag{}, Files: []*model.RecordingFile{}, WatchPositionMs: nil, ThumbnailURL: nil, PreviewURL: nil,

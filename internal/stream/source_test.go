@@ -53,7 +53,7 @@ func TestRecordingKeyframesAndSeek(t *testing.T) {
 			} else {
 				f.segment(t, recordingID, "a.m2ts", data, 0, false)
 			}
-			source := stream.NewRecordingSource(f.pool, kago.New(map[string]string{poolID: f.dir}, nil), 0)
+			source := stream.NewRecordingSource(f.pool, kago.New(map[string]string{poolID: f.dir}, nil).WithDataDir(f.dir), 0)
 			recording, err := source.Open(t.Context(), recordingID)
 			require.NoError(t, err)
 
@@ -71,7 +71,7 @@ func TestRecordingSourceOpenErrors(t *testing.T) {
 
 	f := newRecordingFixture(t, nil)
 	empty := f.recording(t, "completed")
-	source := stream.NewRecordingSource(f.pool, kago.New(map[string]string{poolID: f.dir}, nil), 0)
+	source := stream.NewRecordingSource(f.pool, kago.New(map[string]string{poolID: f.dir}, nil).WithDataDir(f.dir), 0)
 	_, err := source.Open(t.Context(), uuid.New())
 	require.ErrorIs(t, err, stream.ErrRecordingNotFound)
 	_, err = source.Open(t.Context(), empty)
@@ -80,7 +80,7 @@ func TestRecordingSourceOpenErrors(t *testing.T) {
 	// プールをマウントしていないインスタンスでは開けない。
 	mounted := f.recording(t, "completed")
 	f.segment(t, mounted, "a.m2ts", loadTestTS(t), 0, false)
-	unmounted := stream.NewRecordingSource(f.pool, kago.New(map[string]string{"sub": f.dir}, nil), 0)
+	unmounted := stream.NewRecordingSource(f.pool, kago.New(map[string]string{"sub": f.dir}, nil).WithDataDir(f.dir), 0)
 	_, err = unmounted.Open(t.Context(), mounted)
 	require.ErrorIs(t, err, stream.ErrNotMounted)
 }
