@@ -76,6 +76,10 @@ type Props = {
 };
 
 const axisWidth = 44;
+// lastColumnLine は、最後の列の右の罫線。列の左の罫線と同じ線を、番組表の右の外に影で引く。
+// 列が少なく右に余白があるときに見え、横にスクロールできるときは、外枠の内側で切れて、外枠の線と重ならない。
+// 影は、スクロールできる範囲を広げない。
+const lastColumnLine = '1px 0 0 var(--mantine-color-default-border)';
 const headerHeight = 36;
 // overscanPixels は、見えている範囲の上下に、余分に描く高さ。速くスクロールしても、空白が見えにくくする。
 const overscanPixels = 600;
@@ -239,6 +243,7 @@ export function GuideGrid({
           height: headerHeight,
           background: 'var(--mantine-color-body)',
           borderBottom: '1px solid var(--mantine-color-default-border)',
+          boxShadow: lastColumnLine,
         }}
       >
         <Box
@@ -271,7 +276,7 @@ export function GuideGrid({
           </Box>
         ))}
       </Box>
-      <Box style={{ position: 'relative', width: totalWidth, height }}>
+      <Box style={{ position: 'relative', width: totalWidth, height, boxShadow: lastColumnLine }}>
         <Box
           style={{
             position: 'sticky',
