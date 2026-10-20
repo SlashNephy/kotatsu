@@ -5,6 +5,7 @@ import {
   Button,
   Drawer,
   Group,
+  Menu,
   Modal,
   Stack,
   Text,
@@ -15,6 +16,8 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import {
   CalendarCheck,
   CalendarPlus,
+  CalendarX2,
+  ChevronDown,
   ListPlus,
   Play,
   SlidersHorizontal,
@@ -205,6 +208,14 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
   const canWatchReserve = !program.archived && (start > Date.now() || program.watchReserved);
   // canRecord は、録画予約のボタンを出すかどうか。検索から開いた、放送の終わった番組は予約できない。
   const canRecord = data.viewer.role !== 'VIEWER' && !ended;
+  const canCreateRule = data.viewer.role !== 'VIEWER';
+  // createRule は、番組名とサービスを条件に引き継いで、ルールの作成画面を開く。番組検索の「この条件でルールを作成」と同じ画面。
+  const createRule = () =>
+    void navigate({
+      to: '/rules/$ruleId',
+      params: { ruleId: 'new' },
+      state: { ruleConditions: conditionsFromProgram(program.name, program.service.id) },
+    });
   const genres = programGenreLabels(t, program.genres);
 
   return (
@@ -236,86 +247,97 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           </Group>
         )}
       </Stack>
-      {onAir && (
-        <Button
-          variant="light"
-          leftSection={<Play size={16} aria-hidden />}
-          renderRoot={(props) => (
-            <Link {...props} to="/live/$serviceId" params={{ serviceId: program.service.id }} />
+      {/* 操作は 1 段にまとめる。録画予約は、よく使うワンクリックの予約を前に出し、ほかの操作は横の ▾ のメニューに入れる。 */}
+      {(onAir || canRecord || canCreateRule || canWatchReserve) && (
+        <Group gap="xs" wrap="nowrap">
+          {onAir && (
+            <Button
+              variant="light"
+              flex={1}
+              leftSection={<Play size={16} aria-hidden />}
+              renderRoot={(props) => (
+                <Link {...props} to="/live/$serviceId" params={{ serviceId: program.service.id }} />
+              )}
+            >
+              {t('guide.detail.watch')}
+            </Button>
           )}
-        >
-          {t('guide.detail.watch')}
-        </Button>
-      )}
-      {/* 録画予約のボタンの横に、視聴予約のベルを置く。視聴予約は、放送が始まる前の番組にだけ付けられる (設計書 4.8)。 */}
-      {(canWatchReserve || canRecord) && (
-        <Group gap="xs" wrap="nowrap" align="stretch">
-          {/* 閲覧だけのユーザーには録画予約のボタンがないので、ベルだけを左に寄せる。 */}
           {canRecord && (
-            <Stack gap="xs" style={{ flex: 1 }}>
-              {/* ワンクリックの予約の横に、録画の設定をしてから予約するボタンを置く (#463)。 */}
-              {!reserved && (
-                <Group gap="xs" grow>
+            <Button.Group flex={1}>
+              {reserved && program.reservation != null ? (
+                // 録画予約済みのボタンを押すと、録画の設定を開く。取り消しは、間違えて押さないよう、メニューに入れる。
+                <Tooltip label={t('reservations.settings.open')}>
                   <Button
-                    onClick={reserve}
-                    loading={inFlight}
-                    leftSection={<CalendarPlus size={16} aria-hidden />}
-                  >
-                    {t('guide.detail.reserve')}
-                  </Button>
-                  <Button
-                    variant="default"
-                    onClick={() => setConfiguring(true)}
-                    disabled={inFlight}
-                    leftSection={<SlidersHorizontal size={16} aria-hidden />}
-                  >
-                    {t('reservations.settings.openCreate')}
-                  </Button>
-                </Group>
-              )}
-              {/* 録画予約済みのボタンを押すと、確かめてから取り消す。 */}
-              {reserved && program.reservation != null && (
-                <Group gap="xs" grow>
-                  <Tooltip label={t('guide.detail.cancelReservation')}>
-                    <Button
-                      variant="outline"
-                      onClick={() => setCancelling(true)}
-                      leftSection={<CalendarCheck size={16} aria-hidden />}
-                    >
-                      {t('guide.detail.reserved')}
-                    </Button>
-                  </Tooltip>
-                  <Button
-                    variant="default"
+                    variant="outline"
+                    flex={1}
                     onClick={() => setEditing(true)}
-                    leftSection={<SlidersHorizontal size={16} aria-hidden />}
+                    leftSection={<CalendarCheck size={16} aria-hidden />}
                   >
-                    {t('reservations.settings.open')}
+                    {t('guide.detail.reserved')}
                   </Button>
-                </Group>
+                </Tooltip>
+              ) : (
+                <Button
+                  flex={1}
+                  onClick={reserve}
+                  loading={inFlight}
+                  leftSection={<CalendarPlus size={16} aria-hidden />}
+                >
+                  {t('guide.detail.reserve')}
+                </Button>
               )}
-            </Stack>
+              <Menu position="bottom-end">
+                <Menu.Target>
+                  <Button
+                    variant={reserved ? 'outline' : 'filled'}
+                    px={8}
+                    disabled={inFlight}
+                    aria-label={t('guide.detail.moreActions')}
+                  >
+                    <ChevronDown size={16} aria-hidden />
+                  </Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  {reserved && program.reservation != null ? (
+                    <Menu.Item
+                      color="red"
+                      leftSection={<CalendarX2 size={16} aria-hidden />}
+                      onClick={() => setCancelling(true)}
+                    >
+                      {t('guide.detail.cancelReservation')}
+                    </Menu.Item>
+                  ) : (
+                    // ワンクリックの予約とは別に、録画の設定をしてから予約する (#463)。
+                    <Menu.Item
+                      leftSection={<SlidersHorizontal size={16} aria-hidden />}
+                      onClick={() => setConfiguring(true)}
+                    >
+                      {t('reservations.settings.openCreate')}
+                    </Menu.Item>
+                  )}
+                  <Menu.Item leftSection={<ListPlus size={16} aria-hidden />} onClick={createRule}>
+                    {t('guide.detail.createRule')}
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            </Button.Group>
           )}
+          {/* 放送の終わった番組は予約できないが、同じ番組名のこれからの回を録るルールは作れる。 */}
+          {!canRecord && canCreateRule && (
+            <Button
+              variant="default"
+              flex={1}
+              leftSection={<ListPlus size={16} aria-hidden />}
+              onClick={createRule}
+            >
+              {t('guide.detail.createRule')}
+            </Button>
+          )}
+          {/* 視聴予約は、放送が始まる前の番組にだけ付けられる (設計書 4.8)。 */}
           {canWatchReserve && (
             <WatchReserveButton programId={program.id} reserved={program.watchReserved} />
           )}
         </Group>
-      )}
-      {/* 番組名とサービスを条件に引き継いで、ルールの作成画面を開く。番組検索の「この条件でルールを作成」と同じ画面。 */}
-      {data.viewer.role !== 'VIEWER' && (
-        <Button
-          variant="default"
-          leftSection={<ListPlus size={16} aria-hidden />}
-          onClick={() =>
-            void navigate({
-              to: '/rules/$ruleId',
-              params: { ruleId: 'new' },
-              state: { ruleConditions: conditionsFromProgram(program.name, program.service.id) },
-            })
-          }
-        >
-          {t('guide.detail.createRule')}
-        </Button>
       )}
       {/* 一部のみ録画する予約は、録れない範囲が分かるよう、マージンを削った後の予定時刻を出す (#466)。 */}
       {reserved &&
