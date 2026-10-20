@@ -1051,8 +1051,8 @@ func TestRecorderKeepsRecordingWhenProgramIsLost(t *testing.T) {
 	assert.Equal(t, string(recording.StateCompleted), got.state)
 }
 
-// TestRecorderCopiesProgramAudios は、録画を始めたときの番組の音声の構成を録画に残し、
-// 録画中に番組の構成が変わっても書き換えないことを確かめる (#284)。
+// TestRecorderCopiesProgramAudios は、録画を始めたときの番組の音声の構成 (#284) と映像の解像度 (#806) を録画に残し、
+// 録画中に番組の構成が変わっても書き換えないことを確かめる。
 func TestRecorderCopiesProgramAudios(t *testing.T) {
 	t.Parallel()
 
@@ -1061,7 +1061,8 @@ func TestRecorderCopiesProgramAudios(t *testing.T) {
 	data, err := os.ReadFile("../../testdata/ts/test.ts")
 	require.NoError(t, err)
 	f := newFixture(t)
-	_, err = f.pool.Exec(t.Context(), "UPDATE programs SET audios = $2 WHERE service_id = $1 AND event_id = 6", grService(0), bilingual)
+	_, err = f.pool.Exec(t.Context(), "UPDATE programs SET audios = $2, video_resolution = '2160p' WHERE service_id = $1 AND event_id = 6",
+		grService(0), bilingual)
 	require.NoError(t, err)
 	reservationID := f.reserve(t, 0)
 	recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
@@ -1070,15 +1071,17 @@ func TestRecorderCopiesProgramAudios(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return len(f.files(t, reservationID)) == 2
 	}, waitTimeout, 10*time.Millisecond)
-	_, err = f.pool.Exec(t.Context(), "UPDATE programs SET audios = '[]' WHERE service_id = $1 AND event_id = 6", grService(0))
+	_, err = f.pool.Exec(t.Context(), "UPDATE programs SET audios = '[]', video_resolution = NULL WHERE service_id = $1 AND event_id = 6", grService(0))
 	require.NoError(t, err)
 
 	f.clock.Advance(programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
 	require.NoError(t, wait(t, done))
 	var same bool
-	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT audios = $2::jsonb FROM recordings WHERE reservation_id = $1",
-		reservationID, bilingual).Scan(&same))
+	var resolution *string
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT audios = $2::jsonb, video_resolution FROM recordings WHERE reservation_id = $1",
+		reservationID, bilingual).Scan(&same, &resolution))
 	assert.True(t, same)
+	assert.Equal(t, new("2160p"), resolution)
 }
 
 // TestRecorderCopiesRuleAndGenres は、録画を始めたときに、予約のジャンルと、一致したルールのうち最も古いものとその名前を、

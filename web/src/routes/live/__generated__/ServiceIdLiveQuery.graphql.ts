@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<1269934d01d701914b5d88aa2c603acb>>
+ * @generated SignedSource<<0840bcbfe3318dbfe3c88aa38c63dfff>>
  * @lightSyntaxTransform
  */
 
@@ -9,6 +9,7 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type VideoCodec = "H264" | "HEVC" | "%future added value";
+export type VideoFormat = "HD" | "SHV" | "UHD" | "%future added value";
 export type ServiceIdLiveQuery$variables = {
   from: string;
   id: string;
@@ -36,6 +37,7 @@ export type ServiceIdLiveQuery$data = {
     readonly logoUrl: string | null | undefined;
     readonly name: string;
     readonly streamUrl: string;
+    readonly videoFormat: VideoFormat;
   } | {
     // This will never be '%other', but we need some
     // value in case none of the concrete values match.
@@ -56,6 +58,7 @@ export type ServiceIdLiveQuery$data = {
     readonly presets: ReadonlyArray<{
       readonly codec: VideoCodec;
       readonly name: string;
+      readonly passthrough: boolean;
     }>;
   };
 };
@@ -124,6 +127,13 @@ v7 = {
       "args": null,
       "kind": "ScalarField",
       "name": "streamUrl",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "videoFormat",
       "storageKey": null
     },
     {
@@ -241,6 +251,13 @@ v13 = {
           "args": null,
           "kind": "ScalarField",
           "name": "codec",
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "passthrough",
           "storageKey": null
         }
       ],
@@ -415,16 +432,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "27612447b55f7875dea7a07fedd033aa",
+    "cacheID": "7d291c595907bbc3bd81da65b888f242",
     "id": null,
     "metadata": {},
     "name": "ServiceIdLiveQuery",
     "operationKind": "query",
-    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      jikkyo {\n        id\n        name\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      startAt\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n      }\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n    }\n  }\n  services {\n    id\n    name\n    networkId\n    serviceId\n    channelType {\n      type\n      displayName\n    }\n  }\n}\n"
+    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      videoFormat\n      jikkyo {\n        id\n        name\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      startAt\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n      }\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n  services {\n    id\n    name\n    networkId\n    serviceId\n    channelType {\n      type\n      displayName\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "cd64edf342e5ee944185021fc0ecfe6c";
+(node as any).hash = "e4c5787daff9171f8f84dce2d95cf367";
 
 export default node;

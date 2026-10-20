@@ -231,6 +231,11 @@ func (r *serviceResolver) Jikkyo(ctx context.Context, obj *model.Service) (*mode
 	return r.serviceJikkyo(ctx, obj), nil
 }
 
+// VideoFormat is the resolver for the videoFormat field.
+func (r *serviceResolver) VideoFormat(ctx context.Context, obj *model.Service) (model.VideoFormat, error) {
+	return r.serviceVideoFormat(ctx, obj)
+}
+
 // Program returns generated.ProgramResolver implementation.
 func (r *Resolver) Program() generated.ProgramResolver { return &programResolver{r} }
 

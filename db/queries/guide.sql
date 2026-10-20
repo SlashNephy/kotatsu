@@ -41,3 +41,10 @@ SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, des
   related_items
 FROM program_archives
 WHERE service_id = @service_id AND event_id = @event_id AND start_at = @start_at;
+
+-- name: GetPresentVideoResolution :one
+-- サービスで now に放送中の番組の、映像の解像度を返す (#806)。番組がなければ行を返さない。
+SELECT video_resolution FROM programs
+WHERE service_id = @service_id AND start_at <= @now AND (end_undecided OR end_at > @now)
+ORDER BY start_at DESC
+LIMIT 1;

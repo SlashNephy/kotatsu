@@ -66,8 +66,8 @@ type iframeDetector struct {
 }
 
 // newIFrameDetector は、stream_type の映像から I フレームを探す iframeDetector を作る。
-// I フレームの探し方を知らない stream_type なら false を返す。
-func newIFrameDetector(pid uint16, streamType uint8) (*iframeDetector, bool) {
+// I フレームの探し方を知らない stream_type なら nil を返す。
+func newIFrameDetector(pid uint16, streamType uint8) *iframeDetector {
 	var codec videoCodec
 	switch streamType {
 	case streamTypeMPEG1Video, streamTypeMPEG2Video:
@@ -77,13 +77,13 @@ func newIFrameDetector(pid uint16, streamType uint8) (*iframeDetector, bool) {
 	case streamTypeHEVC:
 		codec = codecHEVC
 	default:
-		return nil, false
+		return nil
 	}
 
 	return &iframeDetector{
 		pid: pid, streamType: streamType, codec: codec, pesOffset: -1, pesPTS: noPTS, found: false,
 		state: scanSearching, zeros: 0, sliceHeader: 0, sliceHeaderLen: 0,
-	}, true
+	}
 }
 
 // reset は、探索の途中の状態を捨てる。ドロップでパケットが欠けたときに呼ぶ。

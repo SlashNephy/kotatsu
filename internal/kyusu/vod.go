@@ -23,6 +23,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/stream"
+	"github.com/SlashNephy/kotatsu/internal/ts"
 )
 
 const (
@@ -49,6 +50,11 @@ const (
 	keepBehindSegments = 150
 	// DefaultMaxVODSessions は、同時に開く録画の再生のセッションの数の上限の既定値 (#532)。
 	DefaultMaxVODSessions = 4
+	// passthroughBase は、映像を変換しないプリセットで、録画の始まりに付ける出力の PTS (#806)。
+	// 流し始めた位置 (seekMargin より手前) の音声と映像の PTS が、負にならないようにする。
+	passthroughBase = 10 * time.Second
+	// ptsWrap は、PTS (33 ビット) が一周する刻みの数。
+	ptsWrap = 1 << 33
 )
 
 var (
@@ -56,6 +62,7 @@ var (
 	errSegmentTimeout  = errors.New("the encoder did not write the segment in time")
 	errOutOfRange      = errors.New("the segment is out of the recording")
 	errTooManySessions = errors.New("too many recording sessions")
+	errNoPTS           = errors.New("the recording has a segment without an index; it cannot be streamed without transcoding")
 )
 
 // RecordingOpener は、録画を開く。*stream.RecordingSource が満たす。
@@ -322,7 +329,7 @@ func (v *VOD) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	file := r.PathValue("file")
 	switch {
 	case file == PlaylistName:
-		v.servePlaylist(w, r, recordingID)
+		v.servePlaylist(w, r, recordingID, preset)
 	case segmentName.MatchString(file):
 		number, err := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(file, "segment"), ".ts"))
 		if err != nil {
@@ -337,16 +344,22 @@ func (v *VOD) serveHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // servePlaylist は、索引から作ったセグメントの一覧を返す。録画中なら、書き終えた区間のセグメントだけを載せ、終わりの印を付けない。
-func (v *VOD) servePlaylist(w http.ResponseWriter, r *http.Request, recordingID uuid.UUID) {
+func (v *VOD) servePlaylist(w http.ResponseWriter, r *http.Request, recordingID uuid.UUID, preset *Preset) {
 	recording, err := v.open(r.Context(), recordingID)
 	if err != nil {
 		v.writeError(w, r, err)
 
 		return
 	}
+	if preset.Passthrough && slices.ContainsFunc(recording.KeyframePoints(), func(point stream.Keyframe) bool { return point.PTS < 0 }) {
+		// セグメントを要求されても書けないので、プレイリストの時点で断る。
+		v.writeError(w, r, errNoPTS)
+
+		return
+	}
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.Header().Set("Cache-Control", "no-store")
-	_, _ = io.WriteString(w, vodPlaylist(recording.Keyframes(), recording.InProgress))
+	_, _ = io.WriteString(w, vodPlaylist(recording.Keyframes(), recording.InProgress, preset.Passthrough))
 }
 
 // open は、録画を開く。索引がまだなければ errNotIndexed を返す。
@@ -378,23 +391,71 @@ func vodTimeline(keyframes []time.Duration, inProgress bool) (time.Duration, int
 	return duration, int(math.Ceil(float64(duration) / float64(VODSegmentDuration)))
 }
 
-// vodPlaylist は、I フレームの時間の並びから、録画の仮想 HLS のプレイリストを作る。keyframes は空でない。
-func vodPlaylist(keyframes []time.Duration, inProgress bool) string {
+// vodSegment は、プレイリストに載せるセグメントの、録画の始まりからの時間と長さ。
+type vodSegment struct {
+	start, length time.Duration
+}
+
+// vodSegments は、I フレームの時間の並びから、プレイリストに載せるセグメントを返す。keyframes は空でない。
+// 映像を変換するプリセットでは、2 秒ずつに区切る。変換しないプリセット (passthrough) では、I フレームでしか切れないので、
+// 前のセグメントの始まりから 2 秒以上進んだ最初の I フレームで区切る (#806)。
+// 録画を終えていれば、最後のセグメントを録画の終わりまでにする。録画中は、書き終えた区間のセグメントだけを返す。
+func vodSegments(keyframes []time.Duration, inProgress, passthrough bool) []vodSegment {
 	duration, count := vodTimeline(keyframes, inProgress)
+	if !passthrough {
+		segments := make([]vodSegment, 0, count)
+		for k := range count {
+			start := time.Duration(k) * VODSegmentDuration
+			segments = append(segments, vodSegment{start: start, length: min(VODSegmentDuration, duration-start)})
+		}
+
+		return segments
+	}
+	starts := passthroughStarts(keyframes)
+	segments := make([]vodSegment, 0, len(starts))
+	for k, start := range starts {
+		if k+1 < len(starts) {
+			segments = append(segments, vodSegment{start: start, length: starts[k+1] - start})
+		} else if !inProgress {
+			// 録画中なら、最後のセグメントは、次の始まりが索引に載るまで伸びるので載せない。
+			segments = append(segments, vodSegment{start: start, length: duration - start})
+		}
+	}
+
+	return segments
+}
+
+// passthroughStarts は、映像を変換しないプリセットのセグメントの始まりを、keyframes の中から選ぶ。keyframes は空でない。
+// 最初の I フレームから始め、前の始まりから VODSegmentDuration 以上進んだ最初の I フレームを、次の始まりにする。
+func passthroughStarts(keyframes []time.Duration) []time.Duration {
+	starts := []time.Duration{keyframes[0]}
+	for _, at := range keyframes[1:] {
+		if at-starts[len(starts)-1] >= VODSegmentDuration {
+			starts = append(starts, at)
+		}
+	}
+
+	return starts
+}
+
+// vodPlaylist は、I フレームの時間の並びから、録画の仮想 HLS のプレイリストを作る。keyframes は空でない。
+func vodPlaylist(keyframes []time.Duration, inProgress, passthrough bool) string {
+	segments := vodSegments(keyframes, inProgress, passthrough)
 	playlistType := "VOD"
 	if inProgress {
 		playlistType = "EVENT"
 	}
+	// EXT-X-TARGETDURATION は、最も長いセグメントの長さを秒に切り上げたもの。
+	target := VODSegmentDuration
+	for _, segment := range segments {
+		target = max(target, segment.length)
+	}
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:%d\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:%s\n#EXT-X-INDEPENDENT-SEGMENTS\n",
-		int(VODSegmentDuration/time.Second), playlistType)
-	for k := range count {
-		length := VODSegmentDuration
-		if !inProgress && k == count-1 {
-			length = duration - time.Duration(k)*VODSegmentDuration
-		}
-		fmt.Fprintf(&b, "#EXTINF:%.3f,\nsegment%05d.ts\n", length.Seconds(), k)
+		int(math.Ceil(target.Seconds())), playlistType)
+	for k, segment := range segments {
+		fmt.Fprintf(&b, "#EXTINF:%.3f,\nsegment%05d.ts\n", segment.length.Seconds(), k)
 	}
 	if !inProgress {
 		b.WriteString("#EXT-X-ENDLIST\n")
@@ -458,7 +519,7 @@ func (v *VOD) awaitSegment(ctx context.Context, s *vodSession, preset *Preset, n
 	if err != nil {
 		return "", err
 	}
-	if _, count := vodTimeline(recording.Keyframes(), recording.InProgress); number < 0 || number >= count {
+	if segments := vodSegments(recording.Keyframes(), recording.InProgress, preset.Passthrough); number < 0 || number >= len(segments) {
 		return "", errOutOfRange
 	}
 
@@ -686,6 +747,13 @@ func (v *VOD) start(ctx context.Context, s *vodSession, preset *Preset, number i
 		return nil, err
 	}
 	at := time.Duration(number) * VODSegmentDuration
+	var passthrough *RunOptions
+	if preset.Passthrough {
+		passthrough, at, err = passthroughOptions(recording.KeyframePoints(), number)
+		if err != nil {
+			return nil, err
+		}
+	}
 	pos := recording.Seek(max(at-seekMargin, 0))
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	run := &vodRun{
@@ -698,7 +766,11 @@ func (v *VOD) start(ctx context.Context, s *vodSession, preset *Preset, number i
 		writer.CloseWithError(recording.Write(runCtx, &lookaheadWriter{w: writer, run: run, dir: s.dir, stopped: runCtx.Done()}, pos))
 	}()
 	go func() {
-		err := v.encoder.RunVOD(runCtx, reader, preset, s.key.audio, s.dir, &RunOptions{StartNumber: number, Trim: max(at-pos.At, 0)})
+		opts := passthrough
+		if opts == nil {
+			opts = &RunOptions{StartNumber: number, Trim: max(at-pos.At, 0), Cuts: nil, Offset: 0}
+		}
+		err := v.encoder.RunVOD(runCtx, reader, preset, s.key.audio, s.dir, opts)
 		reader.CloseWithError(err)
 		if runCtx.Err() != nil {
 			err = errEnded
@@ -714,13 +786,51 @@ func (v *VOD) start(ctx context.Context, s *vodSession, preset *Preset, number i
 	return run, nil
 }
 
+// passthroughOptions は、映像を変換しないプリセットで、number 番目のセグメントから書くときの設定と、その始まりの時間を返す (#806)。
+// セグメントを、索引の I フレームの PTS で区切らせる。出力の PTS は、number 番目のセグメントの始まりが、passthroughBase に
+// その始まりの時間を足したものになるようにずらす。索引のないセグメントがあれば、PTS が分からないので errNoPTS を返す。
+func passthroughOptions(points []stream.Keyframe, number int) (*RunOptions, time.Duration, error) {
+	keyframes := make([]time.Duration, 0, len(points))
+	for _, point := range points {
+		if point.PTS < 0 {
+			return nil, 0, errNoPTS
+		}
+		keyframes = append(keyframes, point.At)
+	}
+	if len(keyframes) == 0 {
+		return nil, 0, errNotIndexed
+	}
+	starts := passthroughStarts(keyframes)
+	if number < 0 || number >= len(starts) {
+		return nil, 0, errOutOfRange
+	}
+	cuts := make([]int64, 0, len(starts)-number)
+	j := number
+	for _, point := range points {
+		if j < len(starts) && point.At == starts[j] {
+			cuts = append(cuts, point.PTS)
+			j++
+		}
+	}
+	at := starts[number]
+	// 刻みは、マイクロ秒から求める。ナノ秒に PTSClock を掛けると、長い時間で int64 を超えるため。
+	offset := (passthroughBase+at).Microseconds()*ts.PTSClock/int64(time.Second/time.Microsecond) - cuts[0]
+	// FFmpeg はマイクロ秒で受け取るので、9 の倍数 (100 マイクロ秒) に切り捨てて、刻みの数を保つ。
+	offset -= ((offset % 9) + 9) % 9
+	for i := range cuts {
+		cuts[i] = ((cuts[i]+offset)%ptsWrap + ptsWrap) % ptsWrap
+	}
+
+	return &RunOptions{StartNumber: number, Trim: 0, Cuts: cuts, Offset: offset}, at, nil
+}
+
 // writeError は、エラーに応じた状態を返す。
 func (v *VOD) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case r.Context().Err() != nil:
 	case errors.Is(err, stream.ErrRecordingNotFound), errors.Is(err, stream.ErrNoSegment), errors.Is(err, errOutOfRange):
 		http.Error(w, err.Error(), http.StatusNotFound)
-	case errors.Is(err, stream.ErrNotMounted), errors.Is(err, errNotIndexed), errors.Is(err, errNoEncoder),
+	case errors.Is(err, stream.ErrNotMounted), errors.Is(err, errNotIndexed), errors.Is(err, errNoPTS), errors.Is(err, errNoEncoder),
 		errors.Is(err, errEnded), errors.Is(err, errSegmentTimeout), errors.Is(err, errTooManySessions):
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 	default:

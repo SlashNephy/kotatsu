@@ -8,6 +8,9 @@ import { useNormalizeVolume } from './volumeNormalize';
 import { useVirtualSurroundSetting } from './useVirtualSurround';
 import { original, type KyusuAudio, type PlaybackRoute } from './route';
 
+// passthrough は、BS4K の映像を変換せずに送る kyusu の画質の名前 (#806)。
+const passthrough = 'source';
+
 type Props = {
   choices: string[];
   quality: string | null;
@@ -22,6 +25,9 @@ export function QualitySelect({ choices, quality, onChange }: Props) {
   const qualityLabel = (name: string): string => {
     if (name === original) {
       return t('player.original');
+    }
+    if (name === passthrough) {
+      return t('player.passthrough');
     }
     if (name.endsWith('-hevc')) {
       return t('player.presetHevc', { name: name.slice(0, -'-hevc'.length) });
@@ -61,9 +67,7 @@ export function PlaybackUnavailable({ route }: { route: PlaybackRoute }) {
 
   return (
     <Alert color="amber" role="alert" title={t('player.unavailable.title')}>
-      {route.reason === 'noTranscoder'
-        ? t('player.unavailable.noTranscoder')
-        : t('player.unavailable.noPlayer')}
+      {t(`player.unavailable.${route.reason}`)}
     </Alert>
   );
 }

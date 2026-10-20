@@ -172,6 +172,13 @@ func (s *Server) ChangeProgramAudios(id int64, audios []*Audio) error {
 	})
 }
 
+// ChangeProgramVideo は番組の映像を変え、program の update イベントを送る。
+func (s *Server) ChangeProgramVideo(id int64, video *Video) error {
+	return s.updateProgram(id, func(p *Program) {
+		p.Video = video
+	})
+}
+
 // RemoveProgram は番組を消し、program の remove イベントを送る。
 func (s *Server) RemoveProgram(id int64) error {
 	s.mu.Lock()

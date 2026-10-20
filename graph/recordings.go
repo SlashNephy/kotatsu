@@ -404,6 +404,7 @@ func recordingModel(row *sqlc.Recording) (*model.Recording, error) {
 		StreamURL:         "/streams/recordings/" + row.ID.String(),
 		JikkyoCommentsURL: "/media/recordings/" + row.ID.String() + "/" + jikkyo.CommentsFileName,
 		ServiceKey:        row.ServiceID,
+		VideoResolution:   row.VideoResolution,
 	}
 	if row.EventID != nil {
 		recording.EventID = new(int(*row.EventID))

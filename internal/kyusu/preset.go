@@ -28,26 +28,33 @@ type Preset struct {
 	// Fields は、インターレースのフィールドごとに 1 フレームにして、60fps (59.94) で送るかどうか (#499)。
 	// 動きのなめらかさを保てるが、エンコードの負荷とビットレートが増える。
 	Fields bool
+	// Passthrough は、映像を変換せずに、放送の HEVC のまま送るかどうか (#806)。BS4K の映像を、HEVC を復号できる端末に送る。
+	// Height と VideoBitrate は、BS4K の放送の目安で、変換には使わない。音声は、ほかのプリセットと同じく AAC に変換する。
+	Passthrough bool
 }
+
+// PassthroughPreset は、映像を変換しないプリセットの名前。
+const PassthroughPreset = "source"
 
 // audioBitrate は、音声のビットレート (kbps)。どの画質でも同じにする。
 const audioBitrate = 128
 
-// Presets は、画質のプリセットを、H.264 を高い順に、続けて HEVC を高い順に、最後に 60fps のものを返す。
+// Presets は、画質のプリセットを、H.264 を高い順に、続けて HEVC を高い順に、60fps のもの、最後に変換しないものを返す。
 // HEVC は、同じ高さの H.264 のおよそ 3 分の 2 のビットレートにする。60fps は、同じ高さの 30fps のおよそ 1.4 倍にする。
 // 既定の画質は名前で選ぶ (web の route.ts) ので、60fps を足しても変わらない。
 func Presets() []*Preset {
 	return []*Preset{
-		{Name: "1080p", Height: 1080, VideoBitrate: 6000, Codec: CodecH264, Fields: false},
-		{Name: "720p", Height: 720, VideoBitrate: 3500, Codec: CodecH264, Fields: false},
-		{Name: "540p", Height: 540, VideoBitrate: 2000, Codec: CodecH264, Fields: false},
-		{Name: "360p", Height: 360, VideoBitrate: 1000, Codec: CodecH264, Fields: false},
-		{Name: "1080p-hevc", Height: 1080, VideoBitrate: 4000, Codec: CodecHEVC, Fields: false},
-		{Name: "720p-hevc", Height: 720, VideoBitrate: 2300, Codec: CodecHEVC, Fields: false},
-		{Name: "540p-hevc", Height: 540, VideoBitrate: 1300, Codec: CodecHEVC, Fields: false},
-		{Name: "360p-hevc", Height: 360, VideoBitrate: 700, Codec: CodecHEVC, Fields: false},
-		{Name: "1080p60", Height: 1080, VideoBitrate: 8500, Codec: CodecH264, Fields: true},
-		{Name: "720p60", Height: 720, VideoBitrate: 5000, Codec: CodecH264, Fields: true},
+		{Name: "1080p", Height: 1080, VideoBitrate: 6000, Codec: CodecH264, Fields: false, Passthrough: false},
+		{Name: "720p", Height: 720, VideoBitrate: 3500, Codec: CodecH264, Fields: false, Passthrough: false},
+		{Name: "540p", Height: 540, VideoBitrate: 2000, Codec: CodecH264, Fields: false, Passthrough: false},
+		{Name: "360p", Height: 360, VideoBitrate: 1000, Codec: CodecH264, Fields: false, Passthrough: false},
+		{Name: "1080p-hevc", Height: 1080, VideoBitrate: 4000, Codec: CodecHEVC, Fields: false, Passthrough: false},
+		{Name: "720p-hevc", Height: 720, VideoBitrate: 2300, Codec: CodecHEVC, Fields: false, Passthrough: false},
+		{Name: "540p-hevc", Height: 540, VideoBitrate: 1300, Codec: CodecHEVC, Fields: false, Passthrough: false},
+		{Name: "360p-hevc", Height: 360, VideoBitrate: 700, Codec: CodecHEVC, Fields: false, Passthrough: false},
+		{Name: "1080p60", Height: 1080, VideoBitrate: 8500, Codec: CodecH264, Fields: true, Passthrough: false},
+		{Name: "720p60", Height: 720, VideoBitrate: 5000, Codec: CodecH264, Fields: true, Passthrough: false},
+		{Name: PassthroughPreset, Height: 2160, VideoBitrate: 24000, Codec: CodecHEVC, Fields: false, Passthrough: true},
 	}
 }
 

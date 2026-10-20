@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/config"
+	"github.com/SlashNephy/kotatsu/internal/ts"
 )
 
 const (
@@ -61,7 +63,14 @@ type RunOptions struct {
 	// StartNumber は、最初に書くセグメントの番号 k。
 	StartNumber int
 	// Trim は、入力の始まり (流し始めた I フレーム) から、k 番目のセグメントの始まりまでの時間。デコードして捨てる。
+	// 映像を変換しないプリセットでは使わない。
 	Trim time.Duration
+	// Cuts は、映像を変換しないプリセットで、k 番目から後のセグメントを始める I フレームの、出力での PTS (90 kHz) の並び (#806)。
+	// FFmpeg は、入力の PTS に Offset を足して書くので、放送の PTS に Offset を足した値にする。
+	Cuts []int64
+	// Offset は、映像を変換しないプリセットで、入力の PTS に足して出力の PTS にする量 (90 kHz)。9 の倍数にする。
+	// FFmpeg はマイクロ秒で受け取るので、9 の倍数なら、刻みの数がそのまま保たれる。
+	Offset int64
 }
 
 // VODSegmentDuration は、録画の仮想 HLS のセグメントの長さ。ライブ視聴と同じ 2 秒にして、シークの位置を細かく合わせる。
@@ -74,20 +83,69 @@ const vodPlaylistName = "encoder.m3u8"
 // ctx が終わったら、どちらのプロセスも止めて、ctx のエラーを返す。
 // どちらかのプロセスが失敗したら、もう一方も止めて、失敗したプロセスの標準エラー出力を添えたエラーを返す。
 func (t *Transcoder) Run(ctx context.Context, src io.Reader, preset *Preset, audio Audio, dir string) error {
-	return t.run(ctx, src, ffmpegArgs(t.cfg, preset, audio, dir, nil))
+	return t.run(ctx, src, ffmpegArgs(t.cfg, preset, audio, dir, nil), io.Discard)
 }
 
 // RunVOD は、録画の仮想 HLS のセグメントを、opts.StartNumber 番目から書く。src は、k 番目のセグメントの手前の I フレームから流す。
 // FFmpeg は書いたセグメントを消さないので、視聴者は巻き戻せる。古いセグメントは VOD が消す。セグメントの時刻は、k 番目のセグメントの始まりを k × セグメントの長さにする。
+//
+// 映像を変換しないプリセットでは、FFmpeg の出力を 1 本の TS で受け取り、opts.Cuts の I フレームの位置で区切って書く (#806)。
+// FFmpeg の HLS の muxer は、出力の始まりからの時間で区切るので、起動した位置によって区切りがずれるからである。
+// セグメントは、書き終えてから名前を変えて置くので、ファイルがあれば書き終えている。最後のセグメントは、入力を読み終えたときだけ置く。
 func (t *Transcoder) RunVOD(ctx context.Context, src io.Reader, preset *Preset, audio Audio, dir string, opts *RunOptions) error {
-	return t.run(ctx, src, ffmpegArgs(t.cfg, preset, audio, dir, opts))
+	if !preset.Passthrough {
+		return t.run(ctx, src, ffmpegArgs(t.cfg, preset, audio, dir, opts), io.Discard)
+	}
+	splitter, err := ts.NewSplitter(opts.Cuts, VODSegmentDuration, func(i int) (io.WriteCloser, error) {
+		return newSegmentFile(filepath.Join(dir, fmt.Sprintf(segmentPattern, opts.StartNumber+i)))
+	})
+	if err != nil {
+		return err
+	}
+	if err := t.run(ctx, src, ffmpegArgs(t.cfg, preset, audio, dir, opts), splitter); err != nil {
+		return err
+	}
+
+	return splitter.Close()
 }
 
-func (t *Transcoder) run(ctx context.Context, src io.Reader, args []string) error {
+// segmentFile は、セグメントを一時的な名前で書き、閉じるときに本来の名前に変える。
+type segmentFile struct {
+	*os.File
+
+	path string
+}
+
+var _ io.WriteCloser = new(segmentFile)
+
+func newSegmentFile(path string) (*segmentFile, error) {
+	file, err := os.Create(path + ".tmp")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a segment: %w", err)
+	}
+
+	return &segmentFile{File: file, path: path}, nil
+}
+
+func (f *segmentFile) Close() error {
+	if err := f.File.Close(); err != nil {
+		return fmt.Errorf("failed to write a segment: %w", err)
+	}
+	if err := os.Rename(f.Name(), f.path); err != nil {
+		return fmt.Errorf("failed to put a segment: %w", err)
+	}
+
+	return nil
+}
+
+// run は、tsreadex と FFmpeg を動かす。FFmpeg の標準出力は stdout に書く。
+func (t *Transcoder) run(ctx context.Context, src io.Reader, args []string, stdout io.Writer) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	normalizer := exec.CommandContext(runCtx, t.tsreadex, tsreadexArgs()...)
-	encoder := exec.CommandContext(runCtx, t.ffmpeg, args...)
+	// 引数は、設定のエンコーダーと、固定の表の画質と、数値から組み立てる。利用者の入力 (URL の画質や音声) は、表を引くのに使うだけで、
+	// そのまま渡さない。gosec の taint 解析は、入力を受け取った関数の戻り値をまとめて汚染されたものとみなすので、ここで外す。
+	encoder := exec.CommandContext(runCtx, t.ffmpeg, args...) //nolint:gosec // G702 の誤検知。理由は上のとおり。
 	normalizerErr, encoderErr := newTailBuffer(stderrLimit), newTailBuffer(stderrLimit)
 	for _, cmd := range []*exec.Cmd{normalizer, encoder} {
 		cmd.WaitDelay = stopDelay
@@ -95,7 +153,7 @@ func (t *Transcoder) run(ctx context.Context, src io.Reader, args []string) erro
 	normalizer.Stdin = src
 	normalizer.Stderr = normalizerErr
 	encoder.Stderr = encoderErr
-	encoder.Stdout = io.Discard
+	encoder.Stdout = stdout
 	pipe, err := normalizer.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("failed to connect tsreadex to FFmpeg: %w", err)
@@ -178,7 +236,11 @@ func tsreadexArgs() []string {
 // ブラウザで再生できない。NVENC は 10 ビットの入力を受け付けない (#806)。
 // VAAPI と QSV では、解除した後に GPU へ送って縮める。NVENC では、映像の復号を GPU (CUDA) でする。BS4K の 2160p の HEVC を CPU で復号すると重いため。
 // vod が nil でなければ、録画の仮想 HLS のセグメントを書く。
+// 映像を変換しないプリセットは、passthroughArgs で組み立てる。
 func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod *RunOptions) []string {
+	if preset.Passthrough {
+		return passthroughArgs(audio, dir, vod)
+	}
 	height := strconv.Itoa(preset.Height)
 	device := []string{}
 	// yadif の mode は、フィールドごとに 1 フレームにするなら 1、フレームごとなら 0。
@@ -249,6 +311,50 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod 
 	)
 
 	return append(args, hls...)
+}
+
+// passthroughArgs は、映像を変換しないプリセットの FFmpeg の引数を返す (#806)。音声と字幕は、ほかのプリセットと同じく扱う。
+// ライブ視聴では、HLS の muxer で書く。セグメントは I フレームの位置でしか切れないので、長さは 2 秒ちょうどにならない。
+// 録画では、入力の PTS をそのまま使い (-copyts)、vod.Offset を足して、1 本の TS で標準出力に書く。区切るのは RunVOD である。
+// mpegts の muxer が PTS を遅らせない (-muxdelay と -muxpreload を 0) ようにして、出力の PTS を、放送の PTS に Offset を足したものにそろえる。
+func passthroughArgs(audio Audio, dir string, vod *RunOptions) []string {
+	args := make([]string, 0, 48)
+	args = append(args, "-hide_banner", "-loglevel", "warning", "-nostdin")
+	if vod != nil {
+		args = append(args, "-copyts")
+	}
+	args = append(args, "-f", "mpegts", "-i", "pipe:0", "-map", "0:v:0", "-map", "0:a:"+audio.streamIndex(), "-map", "0:d?",
+		"-c:v", "copy",
+		"-c:a", "aac", "-b:a", strconv.Itoa(audioBitrate)+"k", "-ac", "2", "-ar", "48000",
+		"-c:d", "copy",
+	)
+	if vod != nil {
+		return append(args,
+			"-output_ts_offset", ptsSeconds(vod.Offset),
+			"-muxdelay", "0", "-muxpreload", "0",
+			"-f", "mpegts", "pipe:1",
+		)
+	}
+
+	return append(args,
+		"-f", "hls", "-hls_segment_type", "mpegts", "-hls_time", strconv.Itoa(segmentSeconds),
+		"-hls_list_size", strconv.Itoa(playlistSize),
+		"-hls_flags", "delete_segments+independent_segments+temp_file",
+		"-hls_segment_filename", filepath.Join(dir, segmentPattern),
+		filepath.Join(dir, PlaylistName),
+	)
+}
+
+// ptsSeconds は、9 の倍数の PTS の刻み (90 kHz) を、FFmpeg の引数に渡す秒にする。
+// 刻みの 9 つは 100 マイクロ秒なので、マイクロ秒の整数で表せる。ナノ秒を経ないので、長い時間でも int64 を超えない。
+func ptsSeconds(ticks int64) string {
+	micros := ticks / 9 * 100
+	sign := ""
+	if micros < 0 {
+		sign, micros = "-", -micros
+	}
+
+	return fmt.Sprintf("%s%d.%06d", sign, micros/1_000_000, micros%1_000_000)
 }
 
 // seconds は、FFmpeg の引数に渡す秒を返す。

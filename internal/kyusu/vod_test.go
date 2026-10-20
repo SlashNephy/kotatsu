@@ -35,8 +35,11 @@ import (
 )
 
 const (
-	poolID    = "main"
-	serviceID = 3273601024
+	// stateRecording と stateCompleted は、録画中と、録画を終えた録画の状態。
+	stateRecording = "recording"
+	stateCompleted = "completed"
+	poolID         = "main"
+	serviceID      = 3273601024
 	// videoFrame は、testdata/ts/test.ts の映像の 1 フレームの長さ (29.97 fps)。
 	videoFrame = 33367 * time.Microsecond
 )
@@ -113,7 +116,7 @@ func (f *vodFixture) recording(t *testing.T, state string, data []byte) uuid.UUI
 	require.NoError(t, os.MkdirAll(filepath.Join(f.dir, name+".kotatsu"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(f.dir, kago.IndexPath(name)), index.Bytes(), 0o600))
 	var endedAt *time.Time
-	if state != "recording" {
+	if state != stateRecording {
 		endedAt = new(startAt.Add(time.Minute))
 	}
 	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
@@ -133,26 +136,42 @@ const keyframeBytes = 100 * ts.PacketSize
 func (f *vodFixture) longRecording(t *testing.T, duration time.Duration) uuid.UUID {
 	t.Helper()
 
+	keyframes := []time.Duration{}
+	for at := time.Duration(0); at+500*time.Millisecond <= duration; at += 500 * time.Millisecond {
+		keyframes = append(keyframes, at)
+	}
+
+	return f.keyframedRecording(t, keyframes, duration, stateCompleted)
+}
+
+// keyframedRecording は、索引だけを作り込んだ、I フレームが keyframes の時間にある、duration の長さの、state の状態の録画を作る。
+// 中身は TS として正しくないので、入力を読み捨てる偽のエンコーダーと使う。
+func (f *vodFixture) keyframedRecording(t *testing.T, keyframes []time.Duration, duration time.Duration, state string) uuid.UUID {
+	t.Helper()
+
 	recordingID := id.New()
 	startAt := f.clock.Now().Add(-time.Hour)
 	_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
 		state, protected, recorded_from, created_at, updated_at)
-		VALUES ($1, NULL, $2, NULL, '録画', '', $3, $3, 'completed', false, $3, $3, $3)`, recordingID, serviceID, startAt)
+		VALUES ($1, NULL, $2, NULL, '録画', '', $3, $3, $4, false, $3, $3, $3)`, recordingID, serviceID, startAt, state)
 	require.NoError(t, err)
 	name := recordingID.String() + ".m2ts"
-	keyframes := int(duration / (500 * time.Millisecond))
-	require.NoError(t, os.WriteFile(filepath.Join(f.dir, name), make([]byte, keyframes*keyframeBytes), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(f.dir, name), make([]byte, len(keyframes)*keyframeBytes), 0o600))
 	var index bytes.Buffer
 	writer, err := ts.NewIndexWriter(&index)
 	require.NoError(t, err)
-	for i := range keyframes {
-		require.NoError(t, writer.Append(ts.IndexEntry{Offset: int64(i * keyframeBytes), PTS: int64(i * ts.PTSClock / 2)}))
+	for i, at := range keyframes {
+		require.NoError(t, writer.Append(ts.IndexEntry{Offset: int64(i * keyframeBytes), PTS: int64(at * ts.PTSClock / time.Second)}))
 	}
 	require.NoError(t, os.MkdirAll(filepath.Join(f.dir, name+".kotatsu"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(f.dir, kago.IndexPath(name)), index.Bytes(), 0o600))
+	var endedAt *time.Time
+	if state != stateRecording {
+		endedAt = new(startAt.Add(duration))
+	}
 	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
 		VALUES ($1, $2, 'segment', $3, $4, 0, $5, $6, $5), ($7, $2, 'index', $3, $8, 0, $5, $6, $5)`,
-		id.New(), recordingID, poolID, name, startAt, startAt.Add(duration), id.New(), kago.IndexPath(name))
+		id.New(), recordingID, poolID, name, startAt, endedAt, id.New(), kago.IndexPath(name))
 	require.NoError(t, err)
 
 	return recordingID
@@ -162,8 +181,15 @@ func (f *vodFixture) longRecording(t *testing.T, duration time.Duration) uuid.UU
 func (f *vodFixture) get(t *testing.T, recordingID uuid.UUID, file string) (int, []byte) {
 	t.Helper()
 
+	return f.getPreset(t, recordingID, "360p", file)
+}
+
+// getPreset は、トークンを付けて、録画を preset の画質にした file を取得する。
+func (f *vodFixture) getPreset(t *testing.T, recordingID uuid.UUID, preset, file string) (int, []byte) {
+	t.Helper()
+
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
-		f.server.URL+kyusu.RecordingPathPrefix+recordingID.String()+"/360p/1/"+file, nil)
+		f.server.URL+kyusu.RecordingPathPrefix+recordingID.String()+"/"+preset+"/1/"+file, nil)
 	require.NoError(t, err)
 	f.token.Authorize(req)
 	resp, err := http.DefaultClient.Do(req)
@@ -211,6 +237,76 @@ func TestVODPlaylist(t *testing.T) {
 			assert.Equal(t, http.StatusOK, status)
 			assert.Equal(t, tt.want, string(body))
 		})
+	}
+}
+
+// TestVODPassthroughPlaylist は、映像を変換しないプリセットでは、前のセグメントの始まりから 2 秒以上進んだ最初の I フレームで
+// 区切った、長さのそろわないセグメントの一覧を作ることを確かめる (#806)。
+func TestVODPassthroughPlaylist(t *testing.T) {
+	t.Parallel()
+
+	f := newVODFixture(t, new(fakeVODEncoder))
+	ms := func(n int) time.Duration { return time.Duration(n) * time.Millisecond }
+	// 始まりは 0、2.1 (2 秒以上進んだ最初の I フレーム)、4.4 秒。録画の長さは、最後の I フレームに平均の間隔 (4.4 / 7) を足した 5.029 秒。
+	keyframes := []time.Duration{0, ms(500), ms(1000), ms(1600), ms(2100), ms(2600), ms(3000), ms(4400)}
+	recordingID := f.keyframedRecording(t, keyframes, 5*time.Second, stateCompleted)
+
+	status, body := f.getPreset(t, recordingID, kyusu.PassthroughPreset, kyusu.PlaylistName)
+	assert.Equal(t, http.StatusOK, status)
+	assert.Equal(t, "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:3\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-INDEPENDENT-SEGMENTS\n"+
+		"#EXTINF:2.100,\nsegment00000.ts\n#EXTINF:2.300,\nsegment00001.ts\n#EXTINF:0.629,\nsegment00002.ts\n#EXT-X-ENDLIST\n", string(body))
+	status, _ = f.getPreset(t, recordingID, kyusu.PassthroughPreset, "segment00003.ts")
+	assert.Equal(t, http.StatusNotFound, status, "a segment out of the recording")
+
+	// 録画中は、最後のセグメント (4.4 秒から) は、次の始まりが索引に載るまで伸びるので載せず、終わりの印も付けない。
+	recordingID = f.keyframedRecording(t, keyframes, 5*time.Second, stateRecording)
+	status, body = f.getPreset(t, recordingID, kyusu.PassthroughPreset, kyusu.PlaylistName)
+	assert.Equal(t, http.StatusOK, status)
+	assert.Equal(t, "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:3\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:EVENT\n#EXT-X-INDEPENDENT-SEGMENTS\n"+
+		"#EXTINF:2.100,\nsegment00000.ts\n#EXTINF:2.300,\nsegment00001.ts\n", string(body))
+}
+
+// TestVODPassthroughSegments は、映像を変換しないプリセットのセグメントが、プレイリストの区切りの I フレームから始まり、
+// その PTS が、録画の始まりからの時間に 10 秒 (出力の PTS の起点) を足したものになることを確かめる (#806)。
+// 後のセグメントから先に要求し、途中から起動したエンコーダーでも、区切りと時刻がずれないことを確かめる。
+func TestVODPassthroughSegments(t *testing.T) {
+	t.Parallel()
+
+	f := newVODFixture(t, newTranscoder(t))
+	recordingID := f.recording(t, "completed", loadTS(t, "test-hevc-main10.ts"))
+	status, body := f.getPreset(t, recordingID, kyusu.PassthroughPreset, kyusu.PlaylistName)
+	require.Equal(t, http.StatusOK, status)
+	// I フレームは 0.5 秒ごとに 8 つあるので、始まりは 0 と 2.002 秒。
+	assert.Contains(t, string(body), "#EXTINF:2.002,\nsegment00000.ts\n#EXTINF:2.002,\nsegment00001.ts\n#EXT-X-ENDLIST\n")
+
+	for _, tt := range []struct {
+		file      string
+		wantStart float64
+	}{
+		{file: "segment00001.ts", wantStart: 10 + 2.002},
+		{file: "segment00000.ts", wantStart: 10},
+	} {
+		status, data := f.getPreset(t, recordingID, kyusu.PassthroughPreset, tt.file)
+		require.Equal(t, http.StatusOK, status, tt.file)
+		path := filepath.Join(t.TempDir(), tt.file)
+		require.NoError(t, os.WriteFile(path, data, 0o600))
+		got := map[string]probedStream{}
+		for _, s := range probe(t, path) {
+			got[s.CodecType] = s
+		}
+		assert.Equal(t, "hevc", got["video"].CodecName, tt.file)
+		assert.Equal(t, "yuv420p10le", got["video"].PixFmt, "the video is not transcoded")
+		assert.Equal(t, "aac", got["audio"].CodecName)
+		out, err := exec.CommandContext(t.Context(), "ffprobe", "-v", "error", "-select_streams", "v", "-show_entries", "packet=pts_time,flags",
+			"-of", "csv=p=0", "-read_intervals", "%+#1", path).Output()
+		require.NoError(t, err)
+		// pts_time と flags の後に、空の欄が続く。
+		fields := strings.Split(strings.TrimSpace(string(out)), ",")
+		require.GreaterOrEqual(t, len(fields), 2)
+		start, err := strconv.ParseFloat(fields[0], 64)
+		require.NoError(t, err)
+		assert.InDelta(t, tt.wantStart, start, 0.001, tt.file)
+		assert.Contains(t, fields[1], "K", "a segment starts with a keyframe")
 	}
 }
 

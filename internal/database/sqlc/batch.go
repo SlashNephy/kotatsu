@@ -73,12 +73,12 @@ const upsertPrograms = `-- name: UpsertPrograms :batchexec
 INSERT INTO programs (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  created_at, updated_at
+  video_resolution, created_at, updated_at
 )
 VALUES (
   $1, $2, $3, $4, $5, $6, $7,
   $8, $9, $10, $11, $12, $13, $14, $15, $16,
-  $17, $17
+  $17, $18, $18
 )
 ON CONFLICT (service_id, event_id) DO UPDATE SET
   mirakurun_id = excluded.mirakurun_id,
@@ -95,6 +95,7 @@ ON CONFLICT (service_id, event_id) DO UPDATE SET
   genres = excluded.genres,
   related_items = excluded.related_items,
   audios = excluded.audios,
+  video_resolution = excluded.video_resolution,
   updated_at = excluded.updated_at
 `
 
@@ -121,6 +122,7 @@ type UpsertProgramsParams struct {
 	Genres                []byte
 	RelatedItems          []byte
 	Audios                []byte
+	VideoResolution       *string
 	Now                   time.Time
 }
 
@@ -144,6 +146,7 @@ func (q *Queries) UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams
 			a.Genres,
 			a.RelatedItems,
 			a.Audios,
+			a.VideoResolution,
 			a.Now,
 		}
 		batch.Queue(upsertPrograms, vals...)

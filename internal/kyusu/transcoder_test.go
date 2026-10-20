@@ -82,7 +82,8 @@ func probe(t *testing.T, path string) []probedStream {
 // TestTranscoderWritesHLS は、TS を、画質のプリセットどおりの映像と、AAC の音声と、字幕の ID3 timed metadata を持つ
 // MPEG-TS のセグメントの HLS にすることを確かめる (設計書 7.3)。
 // テスト用の TS には字幕がないので、ID3 timed metadata は、tsreadex が補う空のデータである。
-// BS4K に似せた 10 ビットの HEVC の入力でも、ブラウザで再生できる 8 ビットの映像にすることを確かめる (#806)。
+// BS4K に似せた 10 ビットの HEVC の入力でも、ブラウザで再生できる 8 ビットの映像にすることと、
+// 変換しないプリセットでは、HEVC をそのまま送ることを確かめる (#806)。
 func TestTranscoderWritesHLS(t *testing.T) {
 	t.Parallel()
 
@@ -91,6 +92,8 @@ func TestTranscoderWritesHLS(t *testing.T) {
 	const frames30, frames60 = "30000/1001", "60000/1001"
 	// mpeg2 は地上波に似せた MPEG-2 の入力、bs4k は BS4K に似せた 10 ビットの HEVC の入力。
 	const mpeg2, bs4k = "test.ts", "test-hevc-main10.ts"
+	// yuv420p は、ブラウザが復号できる 8 ビットの画素の形式。
+	const yuv420p = "yuv420p"
 	tests := []struct {
 		// input は、testdata/ts の入力の TS。
 		input      string
@@ -100,14 +103,18 @@ func TestTranscoderWritesHLS(t *testing.T) {
 		// wantFrameRate は、映像のフレームレート。test.ts は 29.97fps のインターレースなので、60fps のプリセットでは倍になる。
 		// test-hevc-main10.ts は 59.94fps のプログレッシブなので、どのプリセットでもそのまま送る。
 		wantFrameRate string
+		// wantPixFmt は、映像の画素の形式。変換するプリセットでは、ブラウザが復号できる 8 ビットにする。
+		// 変換しないプリセットでは、入力の 10 ビットのまま送る。
+		wantPixFmt string
 	}{
-		{input: mpeg2, preset: "360p", wantCodec: string(kyusu.CodecH264), wantHeight: 360, wantFrameRate: frames30},
-		{input: mpeg2, preset: "720p", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames30},
-		{input: mpeg2, preset: "360p-hevc", wantCodec: string(kyusu.CodecHEVC), wantHeight: 360, wantFrameRate: frames30},
-		{input: mpeg2, preset: "720p60", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60},
-		{input: bs4k, preset: "360p", wantCodec: string(kyusu.CodecH264), wantHeight: 360, wantFrameRate: frames60},
-		{input: bs4k, preset: "360p-hevc", wantCodec: string(kyusu.CodecHEVC), wantHeight: 360, wantFrameRate: frames60},
-		{input: bs4k, preset: "720p60", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60},
+		{input: mpeg2, preset: "360p", wantCodec: string(kyusu.CodecH264), wantHeight: 360, wantFrameRate: frames30, wantPixFmt: yuv420p},
+		{input: mpeg2, preset: "720p", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames30, wantPixFmt: yuv420p},
+		{input: mpeg2, preset: "360p-hevc", wantCodec: string(kyusu.CodecHEVC), wantHeight: 360, wantFrameRate: frames30, wantPixFmt: yuv420p},
+		{input: mpeg2, preset: "720p60", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60, wantPixFmt: yuv420p},
+		{input: bs4k, preset: "360p", wantCodec: string(kyusu.CodecH264), wantHeight: 360, wantFrameRate: frames60, wantPixFmt: yuv420p},
+		{input: bs4k, preset: "360p-hevc", wantCodec: string(kyusu.CodecHEVC), wantHeight: 360, wantFrameRate: frames60, wantPixFmt: yuv420p},
+		{input: bs4k, preset: "720p60", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60, wantPixFmt: yuv420p},
+		{input: bs4k, preset: kyusu.PassthroughPreset, wantCodec: string(kyusu.CodecHEVC), wantHeight: 180, wantFrameRate: frames60, wantPixFmt: "yuv420p10le"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.input+"/"+tt.preset, func(t *testing.T) {
@@ -138,7 +145,7 @@ func TestTranscoderWritesHLS(t *testing.T) {
 			assert.Equal(t, tt.wantCodec, got["video"].CodecName)
 			assert.Equal(t, tt.wantHeight, got["video"].Height)
 			assert.Equal(t, tt.wantFrameRate, got["video"].FrameRate)
-			assert.Equal(t, "yuv420p", got["video"].PixFmt, "browsers decode only 8-bit video")
+			assert.Equal(t, tt.wantPixFmt, got["video"].PixFmt)
 			assert.Equal(t, "aac", got["audio"].CodecName)
 			assert.Equal(t, "timed_id3", got["data"].CodecName, "subtitles are carried as ID3 timed metadata")
 		})

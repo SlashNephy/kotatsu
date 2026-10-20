@@ -915,6 +915,9 @@ type StreamPreset struct {
 	// 映像のビットレート (kbps)。
 	VideoBitrate int        `json:"videoBitrate"`
 	Codec        VideoCodec `json:"codec"`
+	// 映像を変換せずに、放送の HEVC のまま送るかどうか (#806)。BS4K の番組を、HEVC を復号できる端末で見るのに使う。
+	// height と videoBitrate は、BS4K の放送の目安。
+	Passthrough bool `json:"passthrough"`
 }
 
 // PID ごとの品質の集計 (#473)。
@@ -1026,7 +1029,7 @@ type TimeReservationInput struct {
 type Transcoding struct {
 	// トランスコードできる kyusu が動いているかどうか。動いていなければ、ブラウザ内での変換だけを使える。
 	Available bool `json:"available"`
-	// 選べる画質。H.264、HEVC の順に、それぞれ高い画質から並べる。
+	// 選べる画質。H.264、HEVC の順に、それぞれ高い画質から並べ、最後に映像を変換しないものを置く。
 	Presets []*StreamPreset `json:"presets"`
 }
 
@@ -2184,6 +2187,67 @@ func (e *VideoCodec) UnmarshalJSON(b []byte) error {
 }
 
 func (e VideoCodec) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 放送の映像の種類 (設計書 7.1)。再生の経路を選ぶのに使う (#806)。
+type VideoFormat string
+
+const (
+	// 2K 以下の映像 (地上波、BS、CS)。ブラウザ内での変換で再生できる。
+	VideoFormatHd VideoFormat = "HD"
+	// BS4K の 2160p の HEVC。ブラウザ内での変換では再生できない。
+	VideoFormatUhd VideoFormat = "UHD"
+	// BS8K の 4320p の HEVC。ブラウザでは再生できない。
+	VideoFormatShv VideoFormat = "SHV"
+)
+
+var AllVideoFormat = []VideoFormat{
+	VideoFormatHd,
+	VideoFormatUhd,
+	VideoFormatShv,
+}
+
+func (e VideoFormat) IsValid() bool {
+	switch e {
+	case VideoFormatHd, VideoFormatUhd, VideoFormatShv:
+		return true
+	}
+	return false
+}
+
+func (e VideoFormat) String() string {
+	return string(e)
+}
+
+func (e *VideoFormat) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = VideoFormat(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid VideoFormat", str)
+	}
+	return nil
+}
+
+func (e VideoFormat) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *VideoFormat) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e VideoFormat) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

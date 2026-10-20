@@ -383,6 +383,8 @@ type program struct {
 	Genres       []*mirakurun.Genre
 	RelatedItems []*mirakurun.RelatedItem
 	Audios       []*mirakurun.Audio
+	// VideoResolution は、映像の解像度 (2160p など)。上流が返さなければ空 (#806)。
+	VideoResolution string
 }
 
 // programKey は番組の主キー (サービスと eventId の組)。
@@ -415,40 +417,49 @@ func fromUpstream(p *mirakurun.Program) *program {
 	if audios == nil {
 		audios = []*mirakurun.Audio{}
 	}
+	resolution := ""
+	if p.Video != nil {
+		resolution = p.Video.Resolution
+	}
 
 	return &program{
-		ServiceID:    int64(p.NetworkID)*serviceIDBase + int64(p.ServiceID),
-		EventID:      int64(p.EventID),
-		MirakurunID:  p.ID,
-		StartAt:      start,
-		EndAt:        start.Add(time.Duration(p.Duration) * time.Millisecond),
-		EndUndecided: p.Duration <= 1,
-		IsFree:       p.IsFree,
-		Name:         p.Name,
-		Description:  p.Description,
-		Extended:     extended,
-		Genres:       genres,
-		RelatedItems: related,
-		Audios:       audios,
+		ServiceID:       int64(p.NetworkID)*serviceIDBase + int64(p.ServiceID),
+		EventID:         int64(p.EventID),
+		MirakurunID:     p.ID,
+		StartAt:         start,
+		EndAt:           start.Add(time.Duration(p.Duration) * time.Millisecond),
+		EndUndecided:    p.Duration <= 1,
+		IsFree:          p.IsFree,
+		Name:            p.Name,
+		Description:     p.Description,
+		Extended:        extended,
+		Genres:          genres,
+		RelatedItems:    related,
+		Audios:          audios,
+		VideoResolution: resolution,
 	}
 }
 
 // fromRow は、DB の行を program にする。
 func fromRow(row sqlc.ListProgramsRow) (*program, error) {
 	p := &program{
-		ServiceID:    row.ServiceID,
-		EventID:      row.EventID,
-		MirakurunID:  row.MirakurunID,
-		StartAt:      row.StartAt.UTC(),
-		EndAt:        row.EndAt.UTC(),
-		EndUndecided: row.EndUndecided,
-		IsFree:       row.IsFree,
-		Name:         row.Name,
-		Description:  row.Description,
-		Extended:     map[string]string{},
-		Genres:       []*mirakurun.Genre{},
-		RelatedItems: []*mirakurun.RelatedItem{},
-		Audios:       []*mirakurun.Audio{},
+		ServiceID:       row.ServiceID,
+		EventID:         row.EventID,
+		MirakurunID:     row.MirakurunID,
+		StartAt:         row.StartAt.UTC(),
+		EndAt:           row.EndAt.UTC(),
+		EndUndecided:    row.EndUndecided,
+		IsFree:          row.IsFree,
+		Name:            row.Name,
+		Description:     row.Description,
+		Extended:        map[string]string{},
+		Genres:          []*mirakurun.Genre{},
+		RelatedItems:    []*mirakurun.RelatedItem{},
+		Audios:          []*mirakurun.Audio{},
+		VideoResolution: "",
+	}
+	if row.VideoResolution != nil {
+		p.VideoResolution = *row.VideoResolution
 	}
 	for _, column := range []struct {
 		raw []byte
@@ -566,6 +577,7 @@ func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, no
 			Genres:                columns.genres,
 			RelatedItems:          columns.related,
 			Audios:                columns.audios,
+			VideoResolution:       videoResolution(p.VideoResolution),
 			Now:                   now,
 		})
 	}
@@ -607,6 +619,15 @@ func deletePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, n
 	}
 
 	return deleted, nil
+}
+
+// videoResolution は、映像の解像度を列の値にする。分からなければ NULL にする。
+func videoResolution(resolution string) *string {
+	if resolution == "" {
+		return nil
+	}
+
+	return &resolution
 }
 
 // jsonColumns は、番組の JSON の列。

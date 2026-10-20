@@ -236,6 +236,42 @@ func TestSyncAllStoresProgramAudios(t *testing.T) {
 	assert.Equal(t, &epg.Result{ServicesUpserted: 0, ProgramsUpserted: 0, ProgramsDeleted: 0, Version: 0}, result)
 }
 
+// TestSyncAllStoresProgramVideoResolution は、番組の映像の解像度を保存し、変わらなければ書き直さないことを確かめる (#806)。
+// BS4K と 8K の番組を見分けるのに使う。
+func TestSyncAllStoresProgramVideoResolution(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	resolution := func() *string {
+		var got *string
+		require.NoError(t, f.pool.QueryRow(t.Context(),
+			"SELECT video_resolution FROM programs WHERE service_id = $1 AND event_id = 6", serviceID()).Scan(&got))
+
+		return got
+	}
+	assert.Equal(t, new("1080i"), resolution())
+
+	// Mahiron は BS4K の番組の type を mpeg2 と返すので、解像度だけを持つ。
+	require.NoError(t, f.fake.ChangeProgramVideo(programID(6), &faketuner.Video{Type: "mpeg2", Resolution: "2160p"}))
+	result, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.ProgramsUpserted)
+	assert.Equal(t, new("2160p"), resolution())
+
+	// 解像度を DB から読み直しても、上流と同じとみなす。
+	result, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, &epg.Result{ServicesUpserted: 0, ProgramsUpserted: 0, ProgramsDeleted: 0, Version: 0}, result)
+
+	// 上流が映像を返さなくなったら、分からないものとして NULL にする。
+	require.NoError(t, f.fake.ChangeProgramVideo(programID(6), nil))
+	_, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Nil(t, resolution())
+}
+
 // TestSyncAllKeepsAdministratorSettings は、管理者が画面から変えた値を同期が上書きしないことを確かめる。
 func TestSyncAllKeepsAdministratorSettings(t *testing.T) {
 	t.Parallel()
