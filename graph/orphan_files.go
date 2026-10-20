@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/SlashNephy/kotatsu/graph/model"
+	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/library"
 )
 
@@ -19,8 +20,13 @@ func (r *Resolver) orphanFiles(ctx context.Context) ([]*model.OrphanFile, error)
 	}
 	result := make([]*model.OrphanFile, 0, len(orphans))
 	for _, orphan := range orphans {
+		// データディレクトリは、プールではないので、プールの ID を返さない。
+		var poolID *string
+		if orphan.PoolID != kago.DataPoolID {
+			poolID = &orphan.PoolID
+		}
 		result = append(result, &model.OrphanFile{
-			PoolID: orphan.PoolID, Path: orphan.Entry.Path, Sidecar: orphan.Entry.Sidecar, Size: orphan.Entry.Size, ModifiedAt: orphan.Entry.ModifiedAt,
+			PoolID: poolID, Path: orphan.Entry.Path, SegmentDir: orphan.Entry.SegmentDir, Size: orphan.Entry.Size, ModifiedAt: orphan.Entry.ModifiedAt,
 		})
 	}
 
@@ -38,7 +44,11 @@ func (r *Resolver) deleteOrphanFiles(ctx context.Context, files []*model.OrphanF
 	}
 	targets := make([]*library.OrphanTarget, 0, len(files))
 	for _, file := range files {
-		targets = append(targets, &library.OrphanTarget{PoolID: file.PoolID, Path: file.Path, Sidecar: file.Sidecar})
+		poolID := kago.DataPoolID
+		if file.PoolID != nil {
+			poolID = *file.PoolID
+		}
+		targets = append(targets, &library.OrphanTarget{PoolID: poolID, Path: file.Path, SegmentDir: file.SegmentDir})
 	}
 	result, err := r.library.DeleteOrphans(ctx, r.db, actor, targets)
 	if err != nil {

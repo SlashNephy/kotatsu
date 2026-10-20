@@ -7,9 +7,12 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
 
@@ -80,7 +83,7 @@ func (h *Handler) Recorded(w http.ResponseWriter, r *http.Request) {
 	toHalfWidth := wantsHalfWidth(r)
 	records := make([]*recordedItem, 0, len(rows))
 	for i := range rows {
-		item, err := recordedOf(&rows[i], toHalfWidth)
+		item, err := recordedOf(&rows[i], toHalfWidth, h.hasThumbnail(rows[i].ImageSegmentID))
 		if err != nil {
 			h.fail(w, r, err)
 
@@ -111,7 +114,7 @@ func (h *Handler) RecordedItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	listed := sqlc.ListAPIRecordingsRow(row)
-	item, err := recordedOf(&listed, wantsHalfWidth(r))
+	item, err := recordedOf(&listed, wantsHalfWidth(r), h.hasThumbnail(listed.ImageSegmentID))
 	if err != nil {
 		h.fail(w, r, err)
 
@@ -150,7 +153,18 @@ func (h *Handler) WithRecording(next http.Handler, file string) http.Handler {
 	})
 }
 
-func recordedOf(row *sqlc.ListAPIRecordingsRow, toHalfWidth bool) (*recordedItem, error) {
+// hasThumbnail は、セグメントのファイル owner のディレクトリに、代表画像があるかを返す。
+func (h *Handler) hasThumbnail(owner uuid.UUID) bool {
+	if owner == uuid.Nil {
+		return false
+	}
+	image := kago.DataLocation(owner, thumbnail.ThumbnailFileName)
+	exists, err := h.store.Exists(image.PoolID, image.Path)
+
+	return err == nil && exists
+}
+
+func recordedOf(row *sqlc.ListAPIRecordingsRow, toHalfWidth, hasThumbnail bool) (*recordedItem, error) {
 	var genres []*mirakurun.Genre
 	if err := json.Unmarshal(row.Genres, &genres); err != nil {
 		return nil, fmt.Errorf("failed to decode the genres: %w", err)
@@ -176,7 +190,7 @@ func recordedOf(row *sqlc.ListAPIRecordingsRow, toHalfWidth bool) (*recordedItem
 		item.Genre1, item.SubGenre1 = &genres[0].Lv1, &genres[0].Lv2
 	}
 	// サムネイルも、録画ごとに 1 つだけなので、録画の ID をそのまま使う。
-	if row.HasThumbnail {
+	if hasThumbnail {
 		item.Thumbnails = []int64{row.APIID}
 	}
 

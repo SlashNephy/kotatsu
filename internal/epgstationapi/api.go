@@ -11,17 +11,20 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/buildinfo"
+	"github.com/SlashNephy/kotatsu/internal/kago"
 )
 
 // Handler は、EPGStation 互換の API のうち、DB から組み立てる応答を返す。映像とロゴは、既存のハンドラーにつなぐ。
 type Handler struct {
-	pool   *pgxpool.Pool
+	pool *pgxpool.Pool
+	// store は、代表画像があるかを、データディレクトリで確かめるのに使う。
+	store  *kago.Store
 	logger *slog.Logger
 }
 
 // New は Handler を返す。
-func New(pool *pgxpool.Pool, logger *slog.Logger) *Handler {
-	return &Handler{pool: pool, logger: logger}
+func New(pool *pgxpool.Pool, store *kago.Store, logger *slog.Logger) *Handler {
+	return &Handler{pool: pool, store: store, logger: logger}
 }
 
 type versionResponse struct {

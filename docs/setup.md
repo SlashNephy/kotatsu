@@ -45,11 +45,11 @@ openssl rand -base64 48 > secret_key.txt
 chmod 644 secret_key.txt
 ```
 
-録画を置くディレクトリは、UID 65532が書き込めるようにしておきます。
+録画を置くディレクトリと、索引や代表画像などの生成物を置くディレクトリは、UID 65532が書き込めるようにしておきます。
 
 ```bash
-mkdir recordings
-sudo chown 65532:65532 recordings
+mkdir recordings data
+sudo chown 65532:65532 recordings data
 ```
 
 compose.yamlの`KOTATSU_TUNER_URL`を、チューナーサーバーのURLに書き換えてください。
@@ -109,6 +109,10 @@ storage:
         nfs:
           server: nas.example.internal
           path: /export/recordings
+  data:
+    volume:
+      persistentVolumeClaim:
+        claimName: kotatsu-data
 ```
 
 `config`には、環境変数`KOTATSU_`の後ろの名前と値を書きます。
@@ -127,7 +131,7 @@ secrets:
 ```
 
 `KOTATSU_STORAGE_POOLS`は、`storage.pools`からChartが作るので、`config`には書きません。
-新しい録画の付属ファイル（索引、代表画像、プレビュー画像）を、録画ファイルの横でなく別の場所にまとめたいときは、`storage.sidecar.volume`にvolumeを書きます。Chartが`KOTATSU_STORAGE_SIDECAR_DIR`を渡し、プールと同じロールにマウントします。すでにある付属ファイルは移しません。
+録画の生成物（索引、代表画像、プレビュー画像）を置くデータディレクトリのvolumeを、`storage.data.volume`に必ず書きます。Chartが`KOTATSU_STORAGE_DATA_DIR`を渡し、プールと同じロールにマウントします。生成物は録画ファイルのプールに置かないので、プールをクラウドと同期していても混ざりません。
 
 Ingressを使うときは、`ingress.enabled`と一緒に`ingress.trustedProxies`を書きます。
 Kotatsuは、ここに書いたネットワークから届いた`X-Forwarded-For`だけを信頼します。

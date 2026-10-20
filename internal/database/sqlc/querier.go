@@ -318,7 +318,7 @@ type Querier interface {
 	ListProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]ListProgramsInRangeRow, error)
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
 	ListRecordingAssignments(ctx context.Context) ([]RecordingAssignment, error)
-	// すべての録画ファイルの置き場所を返す。録画中のものも含む。DB にないファイルを探すのに使う。
+	// すべての録画ファイルの ID と置き場所を返す。録画中のものも含む。DB にないファイルを探すのに使う。
 	ListRecordingFileLocations(ctx context.Context) ([]ListRecordingFileLocationsRow, error)
 	ListRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error)
 	ListRecordingFilesByRecordings(ctx context.Context, recordingIds []uuid.UUID) ([]RecordingFile, error)
@@ -414,8 +414,6 @@ type Querier interface {
 	MarkRecordingStreamOpened(ctx context.Context, arg MarkRecordingStreamOpenedParams) error
 	// 空き容量が閾値を下回ったままになったことを記録する。すでに記録していれば何もしない (0 行)。
 	MarkStoragePoolLow(ctx context.Context, arg MarkStoragePoolLowParams) (int64, error)
-	// 付属ファイルのディレクトリを移したとき、その中のファイル (索引、代表画像、プレビュー画像) の記録のパスを書き換える。
-	MoveRecordingSidecarPaths(ctx context.Context, arg MoveRecordingSidecarPathsParams) error
 	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
 	NotifyChange(ctx context.Context, arg NotifyChangeParams) error
 	PinService(ctx context.Context, arg PinServiceParams) error
@@ -550,10 +548,6 @@ type Querier interface {
 	// プレイヤーの設定を変える。null の項目は変えない。
 	UpsertPlayerSettings(ctx context.Context, arg UpsertPlayerSettingsParams) (UpsertPlayerSettingsRow, error)
 	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults
-	// 録画の代表画像かプレビュー画像を記録する。作り直したときは、同じパスの行を書き換える。
-	UpsertRecordingImage(ctx context.Context, arg UpsertRecordingImageParams) error
-	// 録画を終えた後に作ったセグメントの索引を記録する。索引は、セグメントと同じ時間の範囲を表す。作り直したときは、同じパスの行を書き換える。
-	UpsertRecordingIndex(ctx context.Context, arg UpsertRecordingIndexParams) error
 	// 上流から来る項目だけを更新する。非表示の印と並び順の上書きは、管理者のものなので触らない。
 	UpsertService(ctx context.Context, arg UpsertServiceParams) error
 	UpsertStoragePool(ctx context.Context, arg UpsertStoragePoolParams) (StoragePool, error)

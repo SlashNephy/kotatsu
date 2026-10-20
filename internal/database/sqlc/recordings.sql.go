@@ -556,15 +556,16 @@ func (q *Queries) ListOpenRecordingFiles(ctx context.Context, recordingID uuid.U
 }
 
 const listRecordingFileLocations = `-- name: ListRecordingFileLocations :many
-SELECT pool_id, path FROM recording_files
+SELECT id, pool_id, path FROM recording_files
 `
 
 type ListRecordingFileLocationsRow struct {
+	ID     uuid.UUID
 	PoolID string
 	Path   string
 }
 
-// すべての録画ファイルの置き場所を返す。録画中のものも含む。DB にないファイルを探すのに使う。
+// すべての録画ファイルの ID と置き場所を返す。録画中のものも含む。DB にないファイルを探すのに使う。
 func (q *Queries) ListRecordingFileLocations(ctx context.Context) ([]ListRecordingFileLocationsRow, error) {
 	rows, err := q.db.Query(ctx, listRecordingFileLocations)
 	if err != nil {
@@ -574,7 +575,7 @@ func (q *Queries) ListRecordingFileLocations(ctx context.Context) ([]ListRecordi
 	items := []ListRecordingFileLocationsRow{}
 	for rows.Next() {
 		var i ListRecordingFileLocationsRow
-		if err := rows.Scan(&i.PoolID, &i.Path); err != nil {
+		if err := rows.Scan(&i.ID, &i.PoolID, &i.Path); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -737,30 +738,6 @@ type MarkRecordingProgramLostParams struct {
 
 func (q *Queries) MarkRecordingProgramLost(ctx context.Context, arg MarkRecordingProgramLostParams) error {
 	_, err := q.db.Exec(ctx, markRecordingProgramLost, arg.Now, arg.ID)
-	return err
-}
-
-const moveRecordingSidecarPaths = `-- name: MoveRecordingSidecarPaths :exec
-UPDATE recording_files SET path = $1::text || substr(path, length($2::text) + 1)
-WHERE recording_id = $3 AND pool_id = $4 AND kind IN ('index', 'thumbnail', 'preview')
-  AND starts_with(path, $2::text)
-`
-
-type MoveRecordingSidecarPathsParams struct {
-	NewPrefix   string
-	OldPrefix   string
-	RecordingID uuid.UUID
-	PoolID      string
-}
-
-// 付属ファイルのディレクトリを移したとき、その中のファイル (索引、代表画像、プレビュー画像) の記録のパスを書き換える。
-func (q *Queries) MoveRecordingSidecarPaths(ctx context.Context, arg MoveRecordingSidecarPathsParams) error {
-	_, err := q.db.Exec(ctx, moveRecordingSidecarPaths,
-		arg.NewPrefix,
-		arg.OldPrefix,
-		arg.RecordingID,
-		arg.PoolID,
-	)
 	return err
 }
 
@@ -1035,70 +1012,4 @@ func (q *Queries) UnlockRecordingJoin(ctx context.Context, recordingID string) (
 	var unlocked bool
 	err := row.Scan(&unlocked)
 	return unlocked, err
-}
-
-const upsertRecordingImage = `-- name: UpsertRecordingImage :exec
-INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
-ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, ended_at = EXCLUDED.ended_at
-WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.kind = EXCLUDED.kind
-`
-
-type UpsertRecordingImageParams struct {
-	ID          uuid.UUID
-	RecordingID uuid.UUID
-	Kind        string
-	PoolID      string
-	Path        string
-	Size        int64
-	StartedAt   time.Time
-	Now         *time.Time
-}
-
-// 録画の代表画像かプレビュー画像を記録する。作り直したときは、同じパスの行を書き換える。
-func (q *Queries) UpsertRecordingImage(ctx context.Context, arg UpsertRecordingImageParams) error {
-	_, err := q.db.Exec(ctx, upsertRecordingImage,
-		arg.ID,
-		arg.RecordingID,
-		arg.Kind,
-		arg.PoolID,
-		arg.Path,
-		arg.Size,
-		arg.StartedAt,
-		arg.Now,
-	)
-	return err
-}
-
-const upsertRecordingIndex = `-- name: UpsertRecordingIndex :exec
-INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-VALUES ($1, $2, 'index', $3, $4, $5, $6, $7, $8)
-ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, ended_at = EXCLUDED.ended_at
-WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.kind = 'index'
-`
-
-type UpsertRecordingIndexParams struct {
-	ID          uuid.UUID
-	RecordingID uuid.UUID
-	PoolID      string
-	Path        string
-	Size        int64
-	StartedAt   time.Time
-	EndedAt     *time.Time
-	Now         time.Time
-}
-
-// 録画を終えた後に作ったセグメントの索引を記録する。索引は、セグメントと同じ時間の範囲を表す。作り直したときは、同じパスの行を書き換える。
-func (q *Queries) UpsertRecordingIndex(ctx context.Context, arg UpsertRecordingIndexParams) error {
-	_, err := q.db.Exec(ctx, upsertRecordingIndex,
-		arg.ID,
-		arg.RecordingID,
-		arg.PoolID,
-		arg.Path,
-		arg.Size,
-		arg.StartedAt,
-		arg.EndedAt,
-		arg.Now,
-	)
-	return err
 }

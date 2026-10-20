@@ -103,7 +103,7 @@ func TestRecorderMarksNotBroadcast(t *testing.T) {
 		Scan(&notBroadcast, &aired))
 	assert.True(t, notBroadcast)
 	assert.Equal(t, new(int64(99)), aired)
-	assert.Len(t, f.files(t, reservationID), 2, "the recorded TS is kept")
+	assert.Len(t, f.files(t, reservationID), 1, "the recorded TS is kept")
 	// 完了の通知で、放送されなかったことを知らせる。
 	var flagged bool
 	var airedName *string
@@ -147,7 +147,7 @@ func TestRecorderMarksNotBroadcastWhenFollowingUntilLimit(t *testing.T) {
 		Scan(&notBroadcast, &aired))
 	assert.True(t, notBroadcast)
 	assert.Equal(t, new(int64(99)), aired)
-	assert.Len(t, f.files(t, reservationID), 2, "the recorded TS is kept")
+	assert.Len(t, f.files(t, reservationID), 1, "the recorded TS is kept")
 }
 
 // TestRecorderExtendsWhileOnAir は、予約した番組が EIT[p/f] の放送中になったら、その時刻を記録し、

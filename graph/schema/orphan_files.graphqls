@@ -1,27 +1,27 @@
 """
-プールにあるのに DB に記録のないファイルか、持ち主の録画ファイルが DB にない付属ファイルのディレクトリ (設計書 5.6)。
+プールかデータディレクトリにあるのに DB に記録のないファイルか、持ち主のセグメントのファイルが DB にない生成物のディレクトリ (設計書 5.6)。
 録画を消すのに失敗したときや、取り込みをやり直したときに残る。
 """
 type OrphanFile {
-  "プールの ID。付属ファイルをまとめて置くディレクトリなら _sidecar。"
-  poolId: String!
-  "プール内の相対パス。"
+  "プールの ID。データディレクトリにあるものなら null。"
+  poolId: String
+  "プールかデータディレクトリの中の相対パス。"
   path: String!
-  "付属ファイルのディレクトリかどうか。"
-  sidecar: Boolean!
-  "大きさ (バイト)。付属ファイルのディレクトリでは、中のファイルの合計。"
+  "データディレクトリの、セグメントのファイルの ID のディレクトリ (生成物のディレクトリ) かどうか。"
+  segmentDir: Boolean!
+  "大きさ (バイト)。生成物のディレクトリでは、中のファイルの合計。"
   size: Int64!
-  "最後に書いた日時。付属ファイルのディレクトリでは、中のファイルのうち最も新しいもの。"
+  "最後に書いた日時。生成物のディレクトリでは、中のファイルのうち最も新しいもの。"
   modifiedAt: Time!
 }
 
 """
-消す、DB にないファイル。orphanFiles が返した poolId、path、sidecar をそのまま渡す。
+消す、DB にないファイル。orphanFiles が返した poolId、path、segmentDir をそのまま渡す。
 """
 input OrphanFileInput {
-  poolId: String!
+  poolId: String
   path: String!
-  sidecar: Boolean!
+  segmentDir: Boolean!
 }
 
 """
@@ -37,7 +37,8 @@ type DeleteOrphanFilesPayload {
 extend type Query {
   """
   DB にないファイルを、プールとパスの順に返す。管理者だけが使える。
-  このインスタンスにマウントしたプールと、付属ファイルをまとめて置くディレクトリだけを調べる。
+  このインスタンスにマウントしたプールと、データディレクトリだけを調べる。
+  データディレクトリでは、持ち主のセグメントのファイルが DB にない生成物のディレクトリと、生成物のディレクトリでないファイルを返す。
   録画中のファイル、セグメントをつないでいる途中のファイルとつなぐ元のファイル、書くか名前を変えて 1 時間以内のファイル、隠しファイルと lost+found は返さない。
   """
   orphanFiles: [OrphanFile!]!
@@ -45,7 +46,7 @@ extend type Query {
 
 extend type Mutation {
   """
-  DB にないファイルを確かめ直して消す。ファイルなら、その付属ファイルのディレクトリも消す。管理者だけが使える。監査ログに残す。
+  DB にないファイルを確かめ直して消す。管理者だけが使える。監査ログに残す。
   """
   deleteOrphanFiles(files: [OrphanFileInput!]!): DeleteOrphanFilesPayload!
 }

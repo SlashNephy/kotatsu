@@ -21,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
+	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/thumbnail"
 )
 
@@ -93,14 +94,33 @@ func (p *recordingPage) names() []string {
 }
 
 // newRecordingFixture は、EPG を取り込み、プール main を一時ディレクトリに置いた fixture を返す。
+// データディレクトリは、dataRootOf(dir) に置く。
 func newRecordingFixture(t *testing.T) (*fixture, string) {
 	t.Helper()
 
 	dir := t.TempDir()
-	f := newFixture(t, &graph.Options{Pools: map[string]string{poolMain: dir}})
+	require.NoError(t, os.MkdirAll(dataRootOf(dir), 0o755))
+	f := newFixture(t, &graph.Options{Pools: map[string]string{poolMain: dir}, DataDir: dataRootOf(dir)})
 	f.syncEPG(t)
 
 	return f, dir
+}
+
+// dataRootOf は、プールのディレクトリ dir の fixture が使う、データディレクトリを返す。t.TempDir の隣に置く。
+func dataRootOf(dir string) string {
+	return filepath.Join(filepath.Dir(dir), "data")
+}
+
+// writeImage は、第 1 話の録画 (episode1) のセグメントの、データディレクトリのディレクトリに、file を置く。更新日時は modifiedAt にする。
+func (f *fixture) writeImage(t *testing.T, dir, file, body string, modifiedAt time.Time) {
+	t.Helper()
+
+	var segmentID uuid.UUID
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT id FROM recording_files WHERE path = $1", episode1+".m2ts").Scan(&segmentID))
+	path := filepath.Join(dataRootOf(dir), kago.DataLocation(segmentID, file).Path)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+	require.NoError(t, os.Chtimes(path, modifiedAt, modifiedAt))
 }
 
 // addRecording は、録画と、その録画ファイルを作る。古い順に作るよう、録画を始めた日時を ago だけ前にする。
@@ -153,20 +173,17 @@ func TestRecordings(t *testing.T) {
 	assert.Equal(t, "SEGMENT", first.Files[0].Kind)
 	assert.Equal(t, int64(2), first.Files[0].Size)
 
-	// nekonote が作った代表画像とプレビュー画像も、録画のファイルとして返す。
-	_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-		SELECT gen_random_uuid(), recording_id, kinds.kind, pool_id, path || '.kotatsu/' || kinds.kind || '.jpg', 1, started_at, ended_at, created_at
-		FROM recording_files CROSS JOIN (VALUES ('thumbnail'), ('preview')) AS kinds (kind) WHERE path = $1`, episode1+".m2ts")
-	require.NoError(t, err)
+	// nekonote が作った代表画像とプレビュー画像は、DB に記録せず、データディレクトリにあれば URL を返す。
+	generatedAt := testNow().Add(-30 * time.Minute)
+	f.writeImage(t, dir, "thumbnail.jpg", "jpeg", generatedAt)
+	f.writeImage(t, dir, "preview.jpg", "jpeg", generatedAt)
 	withImages := f.recordings(t, 10, nil, nil).Recordings.Edges[2].Node
 	files := withImages.Files
 	// 画像は /media で配信するので、その URL のパスを返す。画像のない録画では null にする。
-	// 作り直したら URL が変わるよう、画像を作った日時 (ended_at) を添える (#476)。
+	// 作り直したら URL が変わるよう、画像のファイルの更新日時を添える (#476)。
 	var rawID string
-	var version int64
-	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT recording_id::text, extract(epoch FROM ended_at)::bigint FROM recording_files WHERE path = $1`,
-		episode1+".m2ts.kotatsu/thumbnail.jpg").Scan(&rawID, &version))
-	suffix := "?v=" + strconv.FormatInt(version, 10)
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT id::text FROM recordings WHERE name = $1`, episode1).Scan(&rawID))
+	suffix := "?v=" + strconv.FormatInt(generatedAt.Unix(), 10)
 	assert.Equal(t, new("/media/recordings/"+rawID+"/thumbnail.jpg"+suffix), withImages.ThumbnailURL)
 	assert.Equal(t, new("/media/recordings/"+rawID+"/preview.jpg"+suffix), withImages.PreviewURL)
 	assert.Equal(t, "/streams/recordings/"+rawID, withImages.StreamURL)
@@ -175,7 +192,7 @@ func TestRecordings(t *testing.T) {
 	for _, file := range files {
 		kinds = append(kinds, file.Kind)
 	}
-	assert.ElementsMatch(t, []string{"SEGMENT", "THUMBNAIL", "PREVIEW"}, kinds)
+	assert.Equal(t, []string{"SEGMENT"}, kinds)
 
 	page := f.recordings(t, 2, nil, nil)
 	assert.True(t, page.Recordings.PageInfo.HasNextPage)
@@ -517,13 +534,9 @@ func TestRecordingWatchFrame(t *testing.T) {
 	// 録画は 30 分。プレビュー画像は、0 秒、60 秒、120 秒の 3 コマ (1 行に収まる)。
 	_, err := f.pool.Exec(t.Context(), `UPDATE recordings SET recorded_until = recorded_from + interval '30 minutes' WHERE name = $1`, episode1)
 	require.NoError(t, err)
-	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-		SELECT gen_random_uuid(), recording_id, 'preview', pool_id, $2, 1, started_at, ended_at, created_at
-		FROM recording_files WHERE path = $1`, episode1+".m2ts", episode1+".kotatsu/preview.jpg")
-	require.NoError(t, err)
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, episode1+".kotatsu"), 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, episode1+".kotatsu", "preview.json"),
-		[]byte(`{"width":160,"height":90,"columns":10,"times":[0,60,120]}`), 0o600))
+	generatedAt := testNow().Add(-30 * time.Minute)
+	f.writeImage(t, dir, "preview.jpg", "jpeg", generatedAt)
+	f.writeImage(t, dir, "preview.json", `{"width":160,"height":90,"columns":10,"times":[0,60,120]}`, generatedAt)
 
 	type frame struct {
 		URL         string `json:"url"`
@@ -568,11 +581,9 @@ func TestRecordingWatchFrame(t *testing.T) {
 	got := watchFrame(t)
 	require.NotNil(t, got)
 	var rawID string
-	var version int64
-	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT r.id::text, extract(epoch FROM f.ended_at)::bigint FROM recordings r
-		JOIN recording_files f ON f.recording_id = r.id AND f.kind = 'preview' WHERE r.name = $1`, episode1).Scan(&rawID, &version))
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT id::text FROM recordings WHERE name = $1`, episode1).Scan(&rawID))
 	assert.Equal(t, &frame{
-		URL: "/media/recordings/" + rawID + "/preview.jpg?v=" + strconv.FormatInt(version, 10), X: 160, Y: 0, Width: 160, Height: 90, SheetWidth: 480, SheetHeight: 90,
+		URL: "/media/recordings/" + rawID + "/preview.jpg?v=" + strconv.FormatInt(generatedAt.Unix(), 10), X: 160, Y: 0, Width: 160, Height: 90, SheetWidth: 480, SheetHeight: 90,
 	}, got)
 
 	// 終わりの近くまで見ていたら、見終えたとみなして返さない。

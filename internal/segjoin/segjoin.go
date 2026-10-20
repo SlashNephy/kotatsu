@@ -32,7 +32,6 @@ import (
 
 const (
 	kindSegment = "segment"
-	kindIndex   = "index"
 	// stateRecording は、録画中の録画の状態。
 	stateRecording = "recording"
 	stateFailed    = "failed"
@@ -84,17 +83,20 @@ func (JoinArgs) InsertOpts() river.InsertOpts {
 // FinalizeArgs は、つないだファイルを最初のセグメントの名前に置き換え、つないだ元のファイルを消すジョブの引数。
 type FinalizeArgs struct {
 	RecordingID uuid.UUID `json:"recordingId"`
+	// FileID は、つないだファイル (最初のセグメント) の recording_files.id。置き換えたら古くなる索引を消すのに使う。
+	FileID uuid.UUID `json:"fileId"`
 	// PoolID と Path は、つないだファイルの置き場所 (最初のセグメントの置き場所)。一時ファイルは Path に tempSuffix を付けたもの。
 	PoolID string `json:"poolId"`
 	Path   string `json:"path"`
-	// Removed は、消す、つないだ元のセグメント。付属ファイルのディレクトリも一緒に消す。
+	// Removed は、消す、つないだ元のセグメント。生成物のディレクトリも一緒に消す。
 	Removed []File `json:"removed"`
 }
 
-// File は、プールとプール内の相対パスで表すファイル。
+// File は、プールとプール内の相対パスで表すファイル。ID は、生成物のディレクトリを探すのに使う recording_files.id。
 type File struct {
-	PoolID string `json:"poolId"`
-	Path   string `json:"path"`
+	ID     uuid.UUID `json:"id"`
+	PoolID string    `json:"poolId"`
+	Path   string    `json:"path"`
 }
 
 var _ river.JobArgsWithInsertOpts = new(FinalizeArgs)
@@ -244,7 +246,7 @@ func (w *JoinWorker) work(ctx context.Context, job *river.Job[JoinArgs]) error {
 	if err != nil {
 		return fmt.Errorf("failed to list the recording files: %w", err)
 	}
-	segments, indexes := split(files)
+	segments := split(files)
 	logger := w.logger.With(slog.String("recording_id", recording.ID.String()))
 	if len(segments) < 2 {
 		// つなぐものがなければ、画像だけを作る。
@@ -281,7 +283,7 @@ func (w *JoinWorker) work(ctx context.Context, job *river.Job[JoinArgs]) error {
 		return err
 	}
 
-	if err := w.commit(ctx, logger, recording.ID, segments, indexes, size, outPath); err != nil {
+	if err := w.commit(ctx, logger, recording.ID, segments, size, outPath); err != nil {
 		return err
 	}
 	logger.InfoContext(ctx, "joined the recording segments", slog.Int("segments", len(segments)), slog.Int64("size", size))
@@ -291,17 +293,14 @@ func (w *JoinWorker) work(ctx context.Context, job *river.Job[JoinArgs]) error {
 
 // commit は、DB のファイルの記録を、つないだ後の内容に置き換え、同じトランザクションで置き換えのジョブを投入する。
 func (w *JoinWorker) commit(
-	ctx context.Context, logger *slog.Logger, recordingID uuid.UUID, segments, indexes []*sqlc.RecordingFile, size int64, outPath string,
+	ctx context.Context, logger *slog.Logger, recordingID uuid.UUID, segments []*sqlc.RecordingFile, size int64, outPath string,
 ) error {
 	first := segments[0]
 	removed := make([]File, 0, len(segments)-1)
-	ids := make([]uuid.UUID, 0, len(segments)-1+len(indexes))
+	ids := make([]uuid.UUID, 0, len(segments)-1)
 	for _, segment := range segments[1:] {
-		removed = append(removed, File{PoolID: segment.PoolID, Path: segment.Path})
+		removed = append(removed, File{ID: segment.ID, PoolID: segment.PoolID, Path: segment.Path})
 		ids = append(ids, segment.ID)
-	}
-	for _, index := range indexes {
-		ids = append(ids, index.ID)
 	}
 	last := segments[len(segments)-1]
 	err := pgx.BeginFunc(ctx, w.pool, func(tx pgx.Tx) error {
@@ -317,7 +316,7 @@ func (w *JoinWorker) commit(
 		if err := q.DeleteRecordingFiles(ctx, sqlc.DeleteRecordingFilesParams{RecordingID: recordingID, Ids: ids}); err != nil {
 			return fmt.Errorf("failed to delete the joined segments: %w", err)
 		}
-		args := FinalizeArgs{RecordingID: recordingID, PoolID: first.PoolID, Path: first.Path, Removed: removed}
+		args := FinalizeArgs{RecordingID: recordingID, FileID: first.ID, PoolID: first.PoolID, Path: first.Path, Removed: removed}
 		if _, err := w.inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: args, InsertOpts: nil}}); err != nil {
 			return fmt.Errorf("failed to enqueue the finalization: %w", err)
 		}
@@ -426,20 +425,16 @@ func overlaps(prev, next *sqlc.RecordingFile) bool {
 	return prev.EndedAt != nil && next.StartedAt.Before(*prev.EndedAt)
 }
 
-// split は、録画のファイルから、書いたものがあるセグメント (始まりの順) と、索引を選ぶ。
-func split(files []sqlc.RecordingFile) ([]*sqlc.RecordingFile, []*sqlc.RecordingFile) {
+// split は、録画のファイルから、書いたものがあるセグメントを、始まりの順に選ぶ。
+func split(files []sqlc.RecordingFile) []*sqlc.RecordingFile {
 	segments := []*sqlc.RecordingFile{}
-	indexes := []*sqlc.RecordingFile{}
 	for i := range files {
-		switch file := &files[i]; {
-		case file.Kind == kindSegment && file.Size > 0:
+		if file := &files[i]; file.Kind == kindSegment && file.Size > 0 {
 			segments = append(segments, file)
-		case file.Kind == kindIndex:
-			indexes = append(indexes, file)
 		}
 	}
 
-	return segments, indexes
+	return segments
 }
 
 // enqueue は、ジョブを投入する。
@@ -487,12 +482,19 @@ func (w *FinalizeWorker) Work(ctx context.Context, job *river.Job[FinalizeArgs])
 		// つないだファイルと元のセグメントを消す。置き換えると、消した録画のファイルを作り直してしまう (#514)。
 		return w.removeAll(&job.Args, path)
 	}
+	// 最初のセグメントの索引は、置き換えると合わなくなるので、先に消す。解析のジョブが作り直す。
+	index := kago.IndexLocation(job.Args.FileID)
+	if indexPath, err := w.store.Path(index.PoolID, index.Path); err != nil {
+		return fmt.Errorf("failed to locate the index of the joined file: %w", err)
+	} else if err := os.Remove(indexPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to remove the index of the joined file: %w", err)
+	}
 	// やり直したときは、一時ファイルはもう置き換えてある。
 	if err := os.Rename(path+tempSuffix, path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to replace the first segment with the joined file: %w", err)
 	}
 	for _, file := range job.Args.Removed {
-		if err := w.store.Remove(file.PoolID, file.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := w.store.Remove(file.PoolID, file.Path, file.ID); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("failed to remove the joined segment %s: %w", file.Path, err)
 		}
 	}
@@ -533,7 +535,7 @@ func (w *FinalizeWorker) removeAll(args *FinalizeArgs, path string) error {
 		return fmt.Errorf("failed to remove the joined file of a deleted recording: %w", err)
 	}
 	for _, file := range args.Removed {
-		if err := w.store.Remove(file.PoolID, file.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := w.store.Remove(file.PoolID, file.Path, file.ID); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("failed to remove a segment of a deleted recording %s: %w", file.Path, err)
 		}
 	}

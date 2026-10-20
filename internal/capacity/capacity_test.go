@@ -34,10 +34,14 @@ const (
 )
 
 type fixture struct {
-	pool    *pgxpool.Pool
-	clock   *clocktest.Fake
-	dir     string
-	manager *capacity.Manager
+	pool  *pgxpool.Pool
+	clock *clocktest.Fake
+	dir   string
+	// dataRoot は、データディレクトリ。
+	dataRoot string
+	manager  *capacity.Manager
+	// segmentIDs は、recording で作ったセグメントのファイルの ID を、録画の名前で引く。
+	segmentIDs map[string]uuid.UUID
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -83,15 +87,17 @@ func newFixtureWithFreeSpace(t *testing.T, freeSpace kago.FreeSpaceFunc) *fixtur
 	if freeSpace == nil {
 		freeSpace = usedSpace
 	}
-	store := kago.New(map[string]string{poolID: dir}, freeSpace)
+	dataRoot := t.TempDir()
+	store := kago.New(map[string]string{poolID: dir}, freeSpace).WithDataDir(dataRoot)
 
 	return &fixture{
-		pool: pool, clock: clk, dir: dir,
-		manager: capacity.NewManager(pool, clk, store, audit.NewRecorder(clk), slog.New(slog.DiscardHandler)),
+		pool: pool, clock: clk, dir: dir, dataRoot: dataRoot,
+		manager:    capacity.NewManager(pool, clk, store, audit.NewRecorder(clk), slog.New(slog.DiscardHandler)),
+		segmentIDs: map[string]uuid.UUID{},
 	}
 }
 
-// recording は、録画と、その録画ファイルと索引を作る。古い順に作るよう、作るたびに時計を進める。
+// recording は、録画と、その録画ファイルと、データディレクトリの索引を作る。古い順に作るよう、作るたびに時計を進める。
 func (f *fixture) recording(t *testing.T, name, state string, protected bool) uuid.UUID {
 	t.Helper()
 
@@ -105,13 +111,14 @@ func (f *fixture) recording(t *testing.T, name, state string, protected bool) uu
 
 	path := name + ".m2ts"
 	require.NoError(t, os.WriteFile(filepath.Join(f.dir, path), make([]byte, fileSize), 0o600))
-	require.NoError(t, os.Mkdir(filepath.Join(f.dir, path+".kotatsu"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(f.dir, path+".kotatsu", "index"), []byte("index"), 0o600))
-	for _, file := range []struct{ kind, path string }{{"segment", path}, {"index", path + ".kotatsu/index"}} {
-		_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7)`, id.New(), recordingID, file.kind, poolID, file.path, fileSize, now)
-		require.NoError(t, err)
-	}
+	segmentID := id.New()
+	f.segmentIDs[name] = segmentID
+	index := kago.IndexLocation(segmentID)
+	require.NoError(t, os.Mkdir(filepath.Join(f.dataRoot, segmentID.String()), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(f.dataRoot, index.Path), []byte("index"), 0o600))
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+		VALUES ($1, $2, 'segment', $3, $4, $5, $6, $6, $6)`, segmentID, recordingID, poolID, path, fileSize, now)
+	require.NoError(t, err)
 
 	return recordingID
 }
@@ -172,10 +179,10 @@ func TestRunOnceDeletesOldRecordings(t *testing.T) {
 	require.Len(t, results, 1)
 	assert.Equal(t, &capacity.PoolResult{PoolID: poolID, FreeBytes: 7 << 20, Deleted: 2, Low: false}, results[0])
 	assert.Equal(t, []string{"保護した録画", "録画中の録画", "新しい録画"}, f.names(t))
-	// 録画ファイルと、付属ファイルのディレクトリを消す。
+	// 録画ファイルと、生成物のディレクトリを消す。
 	_, err := os.Stat(filepath.Join(f.dir, "最も古い録画.m2ts"))
 	require.ErrorIs(t, err, fs.ErrNotExist)
-	_, err = os.Stat(filepath.Join(f.dir, "最も古い録画.m2ts.kotatsu"))
+	_, err = os.Stat(filepath.Join(f.dataRoot, f.segmentIDs["最も古い録画"].String()))
 	require.ErrorIs(t, err, fs.ErrNotExist)
 
 	var actorRole, reason string

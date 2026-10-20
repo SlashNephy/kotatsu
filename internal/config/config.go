@@ -127,10 +127,9 @@ type Storage struct {
 	// PoolOrder は、Pools を書いた順のプール ID。優先順位が同じプールは、この順に選ぶ (設計書 5.6)。
 	// 対応 (map) では順が失われるので、読み込むときに設定ファイルか環境変数から求める。
 	PoolOrder []string `yaml:"-"`
-	// SidecarDir は、新しい録画の付属ファイル (索引、代表画像、プレビュー画像) をまとめて置くディレクトリ (設計書 5.6)。
-	// 空なら、今までどおり録画ファイルの横 (番組名.m2ts.kotatsu/) に置く。すでにある付属ファイルは移さない。
-	// 付属ファイルを読み書きするロール (mikan、nekonote、tenban) で、同じディレクトリをマウントする。
-	SidecarDir string `yaml:"sidecar_dir"`
+	// DataDir は、録画の生成物 (索引、代表画像、プレビュー画像) を、セグメントのファイルの ID ごとに置くディレクトリ (設計書 5.6)。
+	// プールを設定するロールでは必ず設定する。プールをマウントするロール (mikan、nekonote、tenban、kyusu) で、同じディレクトリをマウントする。
+	DataDir string `yaml:"data_dir"`
 }
 
 // Tuner はチューナーサーバーの設定 (設計書 3.1)。
@@ -280,9 +279,9 @@ func Default() *Config {
 			RetentionDays: 365,
 		},
 		Storage: Storage{
-			Pools:      map[string]string{},
-			PoolOrder:  []string{},
-			SidecarDir: "",
+			Pools:     map[string]string{},
+			PoolOrder: []string{},
+			DataDir:   "",
 		},
 		Tuner: Tuner{
 			URL: "",
@@ -369,11 +368,23 @@ func (c *Config) validate() error {
 			errs = append(errs, fieldError("storage.pools", err))
 		}
 	}
-	if c.Storage.SidecarDir != "" && !filepath.IsAbs(c.Storage.SidecarDir) {
-		errs = append(errs, fieldError("storage.sidecar_dir", errors.New("must be an absolute path")))
+	if err := c.Storage.validateDataDir(); err != nil {
+		errs = append(errs, fieldError("storage.data_dir", err))
 	}
 
 	return errors.Join(errs...)
+}
+
+// validateDataDir は、データディレクトリを検査する。プールを設定するロールでは、生成物を置くので必ず要る。
+func (s *Storage) validateDataDir() error {
+	switch {
+	case s.DataDir == "" && len(s.Pools) > 0:
+		return errors.New("is required when storage.pools is set")
+	case s.DataDir != "" && !filepath.IsAbs(s.DataDir):
+		return errors.New("must be an absolute path")
+	default:
+		return nil
+	}
 }
 
 func validateListen(addr string) error {

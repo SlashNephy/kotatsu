@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<0e4a1a7a14a4aae99a5cc4ddd756273c>>
+ * @generated SignedSource<<6e889d2ae76a4ceaea5290238a2c76da>>
  * @lightSyntaxTransform
  */
 
@@ -13,8 +13,8 @@ export type OrphanFilesQuery$data = {
   readonly orphanFiles: ReadonlyArray<{
     readonly modifiedAt: string;
     readonly path: string;
-    readonly poolId: string;
-    readonly sidecar: boolean;
+    readonly poolId: string | null | undefined;
+    readonly segmentDir: boolean;
     readonly size: number;
   }>;
 };
@@ -51,7 +51,7 @@ var v0 = [
         "alias": null,
         "args": null,
         "kind": "ScalarField",
-        "name": "sidecar",
+        "name": "segmentDir",
         "storageKey": null
       },
       {
@@ -90,16 +90,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "7b09863da2eac74eb0df05b7961596ac",
+    "cacheID": "3daaf20f4b0be859e00711a112e714e8",
     "id": null,
     "metadata": {},
     "name": "OrphanFilesQuery",
     "operationKind": "query",
-    "text": "query OrphanFilesQuery {\n  orphanFiles {\n    poolId\n    path\n    sidecar\n    size\n    modifiedAt\n  }\n}\n"
+    "text": "query OrphanFilesQuery {\n  orphanFiles {\n    poolId\n    path\n    segmentDir\n    size\n    modifiedAt\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "87bb7d9747dc9ebfb893442e81ba6e32";
+(node as any).hash = "1b3cfb4a05ec46e23d61d8d2b7374911";
 
 export default node;

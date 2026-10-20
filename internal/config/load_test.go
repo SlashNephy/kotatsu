@@ -248,37 +248,6 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			},
 		},
 		{
-			name: "storage pools in yaml",
-			// 書いた順を、ID の昇順ではなく、そのまま PoolOrder に残す。
-			yaml: "storage:\n  pools:\n    sub-2: /mnt/sub\n    main: /mnt/main\n",
-			env:  map[string]string{envKeyURL: envURL},
-			want: &config.Config{
-				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
-				Metrics:  config.Metrics{Listen: defaultMetricsListen},
-				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
-				Storage:  config.Storage{Pools: map[string]string{poolMain: "/mnt/main", "sub-2": "/mnt/sub"}, PoolOrder: []string{"sub-2", poolMain}},
-				Tuner:    config.Tuner{URL: ""},
-			},
-		},
-		{
-			name: "env replaces storage pools in yaml",
-			yaml: "storage:\n  pools:\n    main: /mnt/main\n",
-			env: map[string]string{
-				envKeyURL:   envURL,
-				envKeyPools: "main=/data/main, archive=/data/archive",
-			},
-			want: &config.Config{
-				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
-				Metrics:  config.Metrics{Listen: defaultMetricsListen},
-				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
-				// 環境変数は設定ファイルの対応を丸ごと置き換えるので、順も環境変数に書いた順になる。
-				Storage: config.Storage{Pools: map[string]string{poolMain: "/data/main", "archive": "/data/archive"}, PoolOrder: []string{poolMain, "archive"}},
-				Tuner:   config.Tuner{URL: ""},
-			},
-		},
-		{
 			name: "networks from yaml and env",
 			yaml: "server:\n  allowed_networks: [0.0.0.0/0]\n",
 			env: map[string]string{
@@ -355,6 +324,50 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			want := *tt.want
 			want.TimeZone = config.DefaultTimeZone
 			assert.Equal(t, &want, cfg)
+		})
+	}
+}
+
+// TestLoadStorage は、保存先プールとデータディレクトリを、YAML と環境変数から読むことを確かめる。
+func TestLoadStorage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		yaml string
+		env  map[string]string
+		want config.Storage
+	}{
+		{
+			name: "storage pools in yaml",
+			// 書いた順を、ID の昇順ではなく、そのまま PoolOrder に残す。
+			yaml: "storage:\n  pools:\n    sub-2: /mnt/sub\n    main: /mnt/main\n  data_dir: /var/lib/kotatsu\n",
+			env:  map[string]string{envKeyURL: envURL},
+			want: config.Storage{
+				Pools: map[string]string{poolMain: "/mnt/main", "sub-2": "/mnt/sub"}, PoolOrder: []string{"sub-2", poolMain}, DataDir: "/var/lib/kotatsu",
+			},
+		},
+		{
+			name: "env replaces storage pools in yaml",
+			yaml: "storage:\n  pools:\n    main: /mnt/main\n",
+			env: map[string]string{
+				envKeyURL:                  envURL,
+				envKeyPools:                "main=/data/main, archive=/data/archive",
+				"KOTATSU_STORAGE_DATA_DIR": "/data/kotatsu",
+			},
+			// 環境変数は設定ファイルの対応を丸ごと置き換えるので、順も環境変数に書いた順になる。
+			want: config.Storage{
+				Pools: map[string]string{poolMain: "/data/main", "archive": "/data/archive"}, PoolOrder: []string{poolMain, "archive"}, DataDir: "/data/kotatsu",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg, err := config.Load(writeFile(t, t.TempDir(), "config.yaml", tt.yaml), lookup(tt.env))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.Storage)
 		})
 	}
 }
@@ -684,12 +697,24 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 		},
 		{
 			name: "invalid pool ID and relative mount point",
-			yaml: "storage:\n  pools:\n    Main: /mnt/main\n    sub: mnt/sub\n",
+			yaml: "storage:\n  pools:\n    Main: /mnt/main\n    sub: mnt/sub\n  data_dir: /var/lib/kotatsu\n",
 			env:  map[string]string{envKeyURL: envURL},
 			wantErrs: []string{
 				`storage.pools (KOTATSU_STORAGE_POOLS): pool ID "Main" must consist of`,
 				`storage.pools (KOTATSU_STORAGE_POOLS): mount point of pool "sub" must be an absolute path`,
 			},
+		},
+		{
+			name:     "pools without the data directory",
+			yaml:     "storage:\n  pools:\n    main: /mnt/main\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{"storage.data_dir (KOTATSU_STORAGE_DATA_DIR): is required when storage.pools is set"},
+		},
+		{
+			name:     "relative data directory",
+			yaml:     "storage:\n  pools:\n    main: /mnt/main\n  data_dir: var/lib/kotatsu\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{"storage.data_dir (KOTATSU_STORAGE_DATA_DIR): must be an absolute path"},
 		},
 		{
 			name: "malformed pools in env",

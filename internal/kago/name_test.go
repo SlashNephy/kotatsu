@@ -9,6 +9,7 @@ import (
 	"text/template"
 	"unicode/utf8"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -86,17 +87,6 @@ func TestRenderName(t *testing.T) {
 			want: "20261009-2100 こたつテスト1 untitled/番組.m2ts",
 		},
 		{
-			// 付属ファイルのディレクトリと重ならないよう、名前を変える。
-			name: "a directory ending with the sidecar suffix is renamed",
-			data: data{Date: date, Channel: channel, Title: "x.m2ts.kotatsu/番組"},
-			want: "20261009-2100 こたつテスト1 x.m2ts.kotatsu_/番組.m2ts",
-		},
-		{
-			name: "the sidecar suffix is compared case-insensitively",
-			data: data{Date: date, Channel: channel, Title: "x.m2ts.KOTATSU/番組"},
-			want: "20261009-2100 こたつテスト1 x.m2ts.KOTATSU_/番組.m2ts",
-		},
-		{
 			name: "characters Windows cannot use are removed from directories too",
 			data: data{Date: date, Channel: channel, Title: "A: B?/番組"},
 			want: "20261009-2100 こたつテスト1 A B/番組.m2ts",
@@ -110,7 +100,7 @@ func TestRenderName(t *testing.T) {
 			// 3 バイトの文字を 200 文字並べ、600 バイトにする。
 			name:   "a long title is cut at a character boundary",
 			data:   data{Date: date, Channel: channel, Title: strings.Repeat("あ", 200)},
-			maxLen: 255 - len(".kotatsu"),
+			maxLen: 255,
 		},
 	}
 	for _, tt := range tests {
@@ -127,8 +117,6 @@ func TestRenderName(t *testing.T) {
 			if tt.maxLen > 0 {
 				assert.LessOrEqual(t, len(got), tt.maxLen)
 				assert.Greater(t, len(got), tt.maxLen-3, "only the bytes of a partial character may be left over")
-				// 付属ファイル用のディレクトリの名前も、255 バイトに収まる。
-				assert.LessOrEqual(t, len(got+".kotatsu"), 255)
 			}
 		})
 	}
@@ -146,9 +134,9 @@ func TestRenderName(t *testing.T) {
 		t.Parallel()
 
 		// 切る位置の直前に全角空白が来るようにする。名前の先頭 (日付とチャンネルと空白) は 34 バイトで、
-		// 上限の 247 バイトから ".m2ts" を引いた 242 バイトまでに入れる。
-		// 34 + 3×68 + 3 (全角空白) = 241 バイトで、次の文字を足すと 244 バイトになるので、全角空白の直後で切れる。
-		long := strings.Repeat("あ", 68) + "\u3000" + strings.Repeat("い", 20)
+		// 上限の 255 バイトから ".m2ts" を引いた 250 バイトまでに入れる。
+		// 34 + 3×71 + 3 (全角空白) = 250 バイトで、次の文字を足すと 253 バイトになるので、全角空白の直後で切れる。
+		long := strings.Repeat("あ", 71) + "\u3000" + strings.Repeat("い", 20)
 		name, err := kago.RenderName(tmpl, data{Date: date, Channel: channel, Title: long}, ".m2ts")
 		require.NoError(t, err)
 		assert.NotContains(t, name, "\u3000.m2ts", "the trailing ideographic space must be trimmed")
@@ -170,8 +158,8 @@ func TestRenderName(t *testing.T) {
 func TestCreate(t *testing.T) {
 	t.Parallel()
 
-	longName := strings.Repeat("あ", 80) + ".m2ts"
-	require.LessOrEqual(t, len(longName), 255-len(".kotatsu"))
+	longName := strings.Repeat("あ", 83) + ".m2ts"
+	require.LessOrEqual(t, len(longName), 255)
 
 	tests := []struct {
 		name  string
@@ -209,8 +197,8 @@ func TestCreate(t *testing.T) {
 			count: 2,
 			wantRel: []string{
 				longName,
-				// 247 バイトから " (2)" と ".m2ts" の 9 バイトを引いた 238 バイトに、3 バイトの文字が 79 文字入る。
-				strings.Repeat("あ", 79) + " (2).m2ts",
+				// 255 バイトから " (2)" と ".m2ts" の 9 バイトを引いた 246 バイトに、3 バイトの文字が 82 文字入る。
+				strings.Repeat("あ", 82) + " (2).m2ts",
 			},
 		},
 	}
@@ -234,7 +222,7 @@ func TestCreate(t *testing.T) {
 			}
 			assert.Equal(t, tt.wantRel, rels)
 			for _, rel := range rels {
-				assert.LessOrEqual(t, len(filepath.Base(rel)), 255-len(".kotatsu"))
+				assert.LessOrEqual(t, len(filepath.Base(rel)), 255)
 			}
 		})
 	}
@@ -287,7 +275,7 @@ func TestCreateRejectsUnsanitizedName(t *testing.T) {
 	}{
 		{name: "separator", file: "../番組.m2ts"},
 		{name: "control character", file: "番組\n.m2ts"},
-		{name: "too long", file: strings.Repeat("a", 250) + ".m2ts"},
+		{name: "too long", file: strings.Repeat("a", 251) + ".m2ts"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -329,64 +317,63 @@ func TestRemoveDeletesEmptyDirectories(t *testing.T) {
 	}
 	removed := create("GR/2026-10")
 	kept := create("GR/2026-11")
-	_, err := store.CreateSidecarDir(poolMain, removed)
-	require.NoError(t, err)
 
-	require.NoError(t, store.Remove(poolMain, removed))
-	_, err = os.Stat(filepath.Join(mount, "GR/2026-10"))
+	require.NoError(t, store.Remove(poolMain, removed, uuid.Nil))
+	_, err := os.Stat(filepath.Join(mount, "GR/2026-10"))
 	require.ErrorIs(t, err, os.ErrNotExist)
 	_, err = os.Stat(filepath.Join(mount, kept))
 	require.NoError(t, err)
 
-	require.NoError(t, store.Remove(poolMain, kept))
+	require.NoError(t, store.Remove(poolMain, kept, uuid.Nil))
 	entries, err := os.ReadDir(mount)
 	require.NoError(t, err)
 	assert.Empty(t, entries)
 }
 
-// TestRemoveKeepsDirectoriesInTheSidecarPath は、付属ファイルのディレクトリの場所に、ほかの録画を置いたディレクトリがあっても、
-// 中身ごと消さないことを確かめる。
-func TestRemoveKeepsDirectoriesInTheSidecarPath(t *testing.T) {
+// TestRemoveKeepsDirectoriesInTheSegmentDir は、生成物のディレクトリの中にディレクトリがあれば、
+// 生成物のディレクトリではないとみなし、中身ごと消さないことを確かめる。
+func TestRemoveKeepsDirectoriesInTheSegmentDir(t *testing.T) {
 	t.Parallel()
 
-	mount := t.TempDir()
-	store := kago.New(map[string]string{poolMain: mount}, nil)
+	mount, dataRoot := t.TempDir(), t.TempDir()
+	store := kago.New(map[string]string{poolMain: mount}, nil).WithDataDir(dataRoot)
 	f, rel, err := store.Create(poolMain, "", fileName)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
-	other := filepath.Join(mount, rel+".kotatsu", "sub", "other.m2ts")
+	fileID := uuid.New()
+	other := filepath.Join(dataRoot, fileID.String(), "sub", "other.m2ts")
 	require.NoError(t, os.MkdirAll(filepath.Dir(other), 0o755))
 	require.NoError(t, os.WriteFile(other, []byte("x"), 0o600))
 
-	require.ErrorIs(t, store.Remove(poolMain, rel), kago.ErrInvalidPath)
+	require.ErrorIs(t, store.Remove(poolMain, rel, fileID), kago.ErrInvalidPath)
 	_, err = os.Stat(other)
 	assert.NoError(t, err)
 }
 
-// TestRemoveDoesNotFollowSymlinksInTheSidecar は、付属ファイルのディレクトリの中のシンボリックリンクをたどらず、リンクだけを消すことを確かめる。
-func TestRemoveDoesNotFollowSymlinksInTheSidecar(t *testing.T) {
+// TestRemoveDoesNotFollowSymlinksInTheSegmentDir は、生成物のディレクトリの中のシンボリックリンクをたどらず、リンクだけを消すことを確かめる。
+func TestRemoveDoesNotFollowSymlinksInTheSegmentDir(t *testing.T) {
 	t.Parallel()
 
-	mount, outside := t.TempDir(), t.TempDir()
+	mount, dataRoot, outside := t.TempDir(), t.TempDir(), t.TempDir()
 	target := filepath.Join(outside, "keep.txt")
 	require.NoError(t, os.WriteFile(target, []byte("x"), 0o600))
-	store := kago.New(map[string]string{poolMain: mount}, nil)
+	store := kago.New(map[string]string{poolMain: mount}, nil).WithDataDir(dataRoot)
 	f, rel, err := store.Create(poolMain, "", fileName)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
-	sidecar, err := store.CreateSidecarDir(poolMain, rel)
+	fileID := uuid.New()
+	segmentDir, err := store.CreateSegmentDir(fileID)
 	require.NoError(t, err)
-	require.NoError(t, os.Symlink(target, filepath.Join(mount, sidecar.Path, "link")))
+	require.NoError(t, os.Symlink(target, filepath.Join(dataRoot, segmentDir.Path, "link")))
 
-	require.NoError(t, store.Remove(poolMain, rel))
+	require.NoError(t, store.Remove(poolMain, rel, fileID))
 	_, err = os.Stat(target)
 	require.NoError(t, err)
-	_, err = os.Lstat(filepath.Join(mount, sidecar.Path))
+	_, err = os.Lstat(filepath.Join(dataRoot, segmentDir.Path))
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
-// TestRename は、録画ファイルと付属ファイルのディレクトリを一緒に移し、移す先に同じ名前があれば連番を付け、
-// 元のディレクトリが空になれば消すことを確かめる。
+// TestRename は、録画ファイルを移し、移す先に同じ名前があれば連番を付け、元のディレクトリが空になれば消すことを確かめる。
 func TestRename(t *testing.T) {
 	t.Parallel()
 
@@ -400,16 +387,11 @@ func TestRename(t *testing.T) {
 		return rel
 	}
 	from := create("old", fileName)
-	_, err := store.CreateSidecarDir(poolMain, from)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(mount, from+".kotatsu", "index"), []byte("i"), 0o600))
 	create("GR", "新しい名前.m2ts")
 
 	got, err := store.Rename(poolMain, from, "GR", "新しい名前.m2ts", 1)
 	require.NoError(t, err)
 	assert.Equal(t, "GR/新しい名前 (2).m2ts", got)
-	_, err = os.Stat(filepath.Join(mount, got+".kotatsu", "index"))
-	require.NoError(t, err)
 	_, err = os.Stat(filepath.Join(mount, "old"))
 	require.ErrorIs(t, err, os.ErrNotExist, "the emptied directory is removed")
 

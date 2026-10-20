@@ -23,7 +23,6 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/notify"
@@ -34,6 +33,8 @@ import (
 const (
 	// kindSegment は、recording_files の、TS のセグメントの種類。
 	kindSegment = "segment"
+	// indexTempSuffix は、作り直している途中の索引の一時ファイルの接尾辞。
+	indexTempSuffix = ".tmp"
 	// stateRecording は、録画中の録画の状態。
 	stateRecording = "recording"
 
@@ -114,9 +115,6 @@ func (w *AnalyzeWorker) Timeout(*river.Job[AnalyzeArgs]) time.Duration {
 // analyzed は、解析したセグメントと、その索引。
 type analyzed struct {
 	segment *sqlc.RecordingFile
-	// index は、作った索引の場所。付属ファイルをまとめて置くディレクトリがあれば、セグメントとは別のプールになる。
-	index     *kago.Location
-	indexSize int64
 	// pidStats は、PID ごとの品質の集計の JSON (#473)。
 	pidStats []byte
 }
@@ -247,7 +245,7 @@ func overlaps(segment, next *sqlc.RecordingFile) bool {
 	return segment.EndedAt != nil && next.StartedAt.After(segment.StartedAt) && next.StartedAt.Before(*segment.EndedAt)
 }
 
-// analyze は、セグメントを読み通して、付属ファイルのディレクトリに索引を書き、統計を返す。
+// analyze は、セグメントを読み通して、データディレクトリに索引を書き、統計を返す。
 // cutoff を渡せば、PTS がそこに届いたときの統計も返す。索引は作り直すたびに切り詰めて書くので、何度実行しても同じ索引になる。
 func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile, cutoff *int64) (*analyzed, *ts.Stats, error) {
 	segmentPath, err := w.store.Path(segment.PoolID, segment.Path)
@@ -261,21 +259,23 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 	defer func() {
 		_ = input.Close()
 	}()
-	dir, err := w.store.CreateSidecarDir(segment.PoolID, segment.Path)
-	if err != nil {
+	if _, err := w.store.CreateSegmentDir(segment.ID); err != nil {
 		return nil, nil, err
 	}
-	index := &kago.Location{PoolID: dir.PoolID, Path: dir.Path + "/" + kago.IndexFileName}
+	index := kago.IndexLocation(segment.ID)
 	indexPath, err := w.store.Path(index.PoolID, index.Path)
 	if err != nil {
 		return nil, nil, err
 	}
-	output, err := os.OpenFile(indexPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	// 索引は一時ファイルに書き、読み終えてから置き換える。途中で止まっても、読む側に書きかけの索引を見せない。
+	tmpPath := indexPath + indexTempSuffix
+	output, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create the index file: %w", err)
 	}
 	defer func() {
 		_ = output.Close()
+		_ = os.Remove(tmpPath)
 	}()
 	writer, err := ts.NewIndexWriter(output)
 	if err != nil {
@@ -301,28 +301,20 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 	if err := output.Close(); err != nil {
 		return nil, nil, fmt.Errorf("failed to close the index file: %w", err)
 	}
-	info, err := os.Stat(indexPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to inspect the index file: %w", err)
+	if err := os.Rename(tmpPath, indexPath); err != nil {
+		return nil, nil, fmt.Errorf("failed to replace the index file: %w", err)
 	}
 
-	return &analyzed{segment: segment, index: index, indexSize: info.Size(), pidStats: nil}, stats, nil
+	return &analyzed{segment: segment, pidStats: nil}, stats, nil
 }
 
-// record は、索引と集計を記録し、同じトランザクションで、代表画像とプレビュー画像を作るジョブを投入する。
+// record は、集計を記録し、同じトランザクションで、代表画像とプレビュー画像を作るジョブを投入する。
 // audios は、TS から読んだ音声の構成の JSON。読めなければ nil。
 func (w *AnalyzeWorker) record(ctx context.Context, recordingID uuid.UUID, results []*analyzed, total *ts.PIDStats, audios []byte) error {
 	now := w.clock.Now()
 	err := pgx.BeginFunc(ctx, w.db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		for _, result := range results {
-			err := q.UpsertRecordingIndex(ctx, sqlc.UpsertRecordingIndexParams{
-				ID: id.New(), RecordingID: recordingID, PoolID: result.index.PoolID, Path: result.index.Path, Size: result.indexSize,
-				StartedAt: result.segment.StartedAt, EndedAt: result.segment.EndedAt, Now: now,
-			})
-			if err != nil {
-				return fmt.Errorf("failed to record the index: %w", err)
-			}
 			if err := q.SetRecordingFilePIDStats(ctx, sqlc.SetRecordingFilePIDStatsParams{PIDStats: result.pidStats, ID: result.segment.ID}); err != nil {
 				return fmt.Errorf("failed to record the PID stats: %w", err)
 			}

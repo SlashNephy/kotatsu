@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<bbb8fbd5331596c6100bcca590f0adfd>>
+ * @generated SignedSource<<3db737e041a862e302555ed8d650bf82>>
  * @lightSyntaxTransform
  */
 
@@ -10,8 +10,8 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type OrphanFileInput = {
   path: string;
-  poolId: string;
-  sidecar: boolean;
+  poolId?: string | null | undefined;
+  segmentDir: boolean;
 };
 export type OrphanFilesDeleteMutation$variables = {
   files: ReadonlyArray<OrphanFileInput>;

@@ -42,12 +42,6 @@ enum RecordingFailureReason {
 enum RecordingFileKind {
   "TS のセグメント"
   SEGMENT
-  "セグメントの索引"
-  INDEX
-  "代表画像 (JPEG)"
-  THUMBNAIL
-  "シークバー用のプレビュー画像 (JPEG)。コマの並びは、同じディレクトリの preview.json に書く"
-  PREVIEW
   "EPGStation から取り込んだ、エンコード済みの MP4 のような TS 以外のファイル"
   OTHER
 }
@@ -230,7 +224,7 @@ extend type Query {
 
 extend type Mutation {
   """
-  録画を消し、消した録画の ID を返す。録画ファイルと付属ファイルも消すが、録画履歴は残す。視聴者は使えない (設計書 9.7)。
+  録画を消し、消した録画の ID を返す。録画ファイルと生成物も消すが、録画履歴は残す。視聴者は使えない (設計書 9.7)。
   保護した録画と、録画中の録画は消さずに CONFLICT を返す。
   """
   deleteRecording(id: ID!): ID!

@@ -34,11 +34,15 @@ const (
 )
 
 type fixture struct {
-	pool    *pgxpool.Pool
-	clock   *clocktest.Fake
-	dir     string
-	library *library.Library
-	userID  uuid.UUID
+	pool  *pgxpool.Pool
+	clock *clocktest.Fake
+	dir   string
+	// dataRoot は、データディレクトリ。
+	dataRoot string
+	library  *library.Library
+	userID   uuid.UUID
+	// segmentID は、最後に recording で作ったセグメントのファイルの ID。
+	segmentID uuid.UUID
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -58,10 +62,13 @@ func newFixture(t *testing.T) *fixture {
 	require.NoError(t, sqlc.New(pool).InsertUser(t.Context(), sqlc.InsertUserParams{
 		ID: userID, Username: "mikan", DisplayName: "みかん", Role: "member", PasswordHash: nil, CreatedAt: clk.Now(),
 	}))
-	dir := t.TempDir()
-	store := kago.New(map[string]string{poolID: dir}, nil)
+	dir, dataRoot := t.TempDir(), t.TempDir()
+	store := kago.New(map[string]string{poolID: dir}, nil).WithDataDir(dataRoot)
 
-	return &fixture{pool: pool, clock: clk, dir: dir, library: library.New(clk, audit.NewRecorder(clk), store, slog.New(slog.DiscardHandler)), userID: userID}
+	return &fixture{
+		pool: pool, clock: clk, dir: dir, dataRoot: dataRoot,
+		library: library.New(clk, audit.NewRecorder(clk), store, slog.New(slog.DiscardHandler)), userID: userID, segmentID: uuid.Nil,
+	}
 }
 
 // recording は、録画と、その録画ファイルと索引を作る。
@@ -77,13 +84,18 @@ func (f *fixture) recording(t *testing.T, state string, protected bool) uuid.UUI
 	require.NoError(t, err)
 	path := name + ".m2ts"
 	require.NoError(t, os.WriteFile(filepath.Join(f.dir, path), []byte("ts"), 0o600))
-	require.NoError(t, os.Mkdir(filepath.Join(f.dir, path+".kotatsu"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(f.dir, path+".kotatsu", "index"), []byte("index"), 0o600))
+	f.segmentID = id.New()
+	index := kago.IndexLocation(f.segmentID)
+	require.NoError(t, os.Mkdir(filepath.Join(f.dataRoot, f.segmentID.String()), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(f.dataRoot, index.Path), []byte("index"), 0o600))
 	// EPGStation から取り込んだ録画には、エンコード済みの MP4 のような、その他のファイルもある。
 	require.NoError(t, os.WriteFile(filepath.Join(f.dir, name+".mp4"), []byte("mp4"), 0o600))
-	for _, file := range []struct{ kind, path string }{{"segment", path}, {"index", path + ".kotatsu/index"}, {"other", name + ".mp4"}} {
+	for _, file := range []struct {
+		id               uuid.UUID
+		kind, pool, path string
+	}{{f.segmentID, "segment", poolID, path}, {id.New(), "other", poolID, name + ".mp4"}} {
 		_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-			VALUES ($1, $2, $3, $4, $5, 2, $6, $6, $6)`, id.New(), recordingID, file.kind, poolID, file.path, now)
+			VALUES ($1, $2, $3, $4, $5, 2, $6, $6, $6)`, file.id, recordingID, file.kind, file.pool, file.path, now)
 		require.NoError(t, err)
 	}
 	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at)
@@ -117,7 +129,7 @@ func (f *fixture) count(t *testing.T, query string) int {
 	return n
 }
 
-// TestDelete は、録画を消すと、録画ファイルと付属ファイルが消え、録画履歴は残り、監査ログに残ることを確かめる (設計書 4.4、9.7)。
+// TestDelete は、録画を消すと、録画ファイルと生成物が消え、録画履歴は残り、監査ログに残ることを確かめる (設計書 4.4、9.7)。
 // 保護した録画と、録画中の録画は消さない。
 func TestDelete(t *testing.T) {
 	t.Parallel()
@@ -161,8 +173,8 @@ func TestDelete(t *testing.T) {
 			require.NoError(t, err)
 			assert.Zero(t, f.count(t, "SELECT count(*) FROM recordings"))
 			assert.Zero(t, f.count(t, "SELECT count(*) FROM recording_files"))
-			for _, path := range []string{"録画.m2ts", "録画.m2ts.kotatsu", "録画.mp4"} {
-				_, err := os.Stat(filepath.Join(f.dir, path))
+			for _, path := range []string{filepath.Join(f.dir, "録画.m2ts"), filepath.Join(f.dataRoot, f.segmentID.String()), filepath.Join(f.dir, "録画.mp4")} {
+				_, err := os.Stat(path)
 				require.ErrorIs(t, err, fs.ErrNotExist, path)
 			}
 			assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM recording_history"), "the history is kept")

@@ -28,10 +28,11 @@ go build -o "$work/faketuner" ./cmd/faketuner
 "$work/faketuner" -listen "127.0.0.1:$tuner_port" -ts testdata/ts/test.ts >"$work/faketuner.log" 2>&1 &
 pids+=("$!")
 
-mkdir -p "$work/recordings"
+mkdir -p "$work/recordings" "$work/data"
 export KOTATSU_AUTH_SECRET_KEY="kotatsu-e2e-only-secret-key-do-not-use"
 export KOTATSU_TUNER_URL="http://127.0.0.1:$tuner_port/"
 export KOTATSU_STORAGE_POOLS="main=$work/recordings"
+export KOTATSU_STORAGE_DATA_DIR="$work/data"
 export KOTATSU_SERVER_LISTEN="127.0.0.1:$port"
 export KOTATSU_METRICS_LISTEN="127.0.0.1:0"
 export KOTATSU_KYUSU_WORK_DIR="$work/kyusu"

@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
-	"path"
 
 	"github.com/google/uuid"
 
@@ -19,7 +18,7 @@ const imageCacheControl = "private, max-age=3600"
 
 // ImageHandler は、録画の代表画像と、シークバー用のプレビュー画像とその説明を配信する
 // (GET /media/recordings/{id}/{file}、file は thumbnail.jpg、preview.jpg、preview.json のどれか)。
-// ファイルは、このインスタンスにマウントしたプールから読む。
+// ファイルは、データディレクトリの、画像を置くセグメント (ImageSegment) のディレクトリから読む。
 type ImageHandler struct {
 	db     sqlc.DBTX
 	store  *kago.Store
@@ -43,16 +42,13 @@ func (h *ImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	// 説明のファイルは、recording_files に載せず、プレビュー画像と同じディレクトリに置く。
-	var kind, contentType string
-	manifest := false
-	switch r.PathValue("file") {
-	case ThumbnailFileName:
-		kind, contentType = kindThumbnail, "image/jpeg"
-	case PreviewFileName:
-		kind, contentType = kindPreview, "image/jpeg"
+	var contentType string
+	name := r.PathValue("file")
+	switch name {
+	case ThumbnailFileName, PreviewFileName:
+		contentType = "image/jpeg"
 	case ManifestFileName:
-		kind, contentType, manifest = kindPreview, "application/json", true
+		contentType = "application/json"
 	default:
 		http.NotFound(w, r)
 
@@ -65,30 +61,21 @@ func (h *ImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	var file *sqlc.RecordingFile
-	for i := range files {
-		if files[i].Kind == kind {
-			file = &files[i]
-		}
-	}
-	if file == nil {
+	owner, ok := ImageSegment(files)
+	if !ok {
 		http.Error(w, "the recording has no such image", http.StatusNotFound)
 
 		return
 	}
-	rel := file.Path
-	if manifest {
-		rel = path.Join(path.Dir(rel), ManifestFileName)
-	}
-
-	f, err := h.store.Open(file.PoolID, rel)
+	image := kago.DataLocation(owner, name)
+	f, err := h.store.Open(image.PoolID, image.Path)
 	switch {
 	case errors.Is(err, kago.ErrPoolNotMounted):
-		http.Error(w, "the pool is not mounted on this instance", http.StatusServiceUnavailable)
+		http.Error(w, "the data directory is not mounted on this instance", http.StatusServiceUnavailable)
 
 		return
 	case errors.Is(err, fs.ErrNotExist):
-		http.Error(w, "the image file is missing", http.StatusNotFound)
+		http.Error(w, "the recording has no such image", http.StatusNotFound)
 
 		return
 	case err != nil:

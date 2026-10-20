@@ -22,25 +22,32 @@ import (
 const (
 	// imagePattern は、録画の画像のパス。
 	imagePattern = "GET /media/recordings/{id}/{file}"
-	// sidecarDir は、テストの画像を置く付属ファイルのディレクトリ。
-	sidecarDir = segmentName + ".kotatsu"
 )
 
-// addImages は、録画に代表画像とプレビュー画像を記録し、ファイルを置く。説明のファイルは、プレビュー画像の横に置く。
+// addSegment は、録画に、書いたもののあるセグメントの行を足し、そのファイルの ID を返す。画像の配信は、セグメントを読まない。
+func (f *jobFixture) addSegment(t *testing.T, recordingID uuid.UUID) uuid.UUID {
+	t.Helper()
+
+	segmentID := id.New()
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+		VALUES ($1, $2, 'segment', $3, $4, 1, $5, $5, $5)`, segmentID, recordingID, poolID, segmentID.String()+".m2ts", f.clock.Now())
+	require.NoError(t, err)
+
+	return segmentID
+}
+
+// addImages は、録画にセグメントを足し、そのデータディレクトリのディレクトリに、代表画像とプレビュー画像とその説明を置く。
 func (f *jobFixture) addImages(t *testing.T, recordingID uuid.UUID) {
 	t.Helper()
 
-	require.NoError(t, os.MkdirAll(filepath.Join(f.dir, sidecarDir), 0o700))
-	for _, file := range []struct{ kind, name, body string }{
-		{kindThumbnail, thumbnail.ThumbnailFileName, "thumbnail-jpeg"},
-		{kindPreview, thumbnail.PreviewFileName, "preview-jpeg"},
+	segmentID := f.addSegment(t, recordingID)
+	require.NoError(t, os.MkdirAll(filepath.Join(f.dataRoot, segmentID.String()), 0o700))
+	for name, body := range map[string]string{
+		thumbnail.ThumbnailFileName: "thumbnail-jpeg", thumbnail.PreviewFileName: "preview-jpeg", thumbnail.ManifestFileName: `{"columns":10}`,
+		kago.IndexFileName: "index",
 	} {
-		require.NoError(t, os.WriteFile(filepath.Join(f.dir, sidecarDir, file.name), []byte(file.body), 0o600))
-		_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7)`, id.New(), recordingID, file.kind, poolID, sidecarDir+"/"+file.name, len(file.body), f.clock.Now())
-		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(f.dataRoot, kago.DataLocation(segmentID, name).Path), []byte(body), 0o600))
 	}
-	require.NoError(t, os.WriteFile(filepath.Join(f.dir, sidecarDir, thumbnail.ManifestFileName), []byte(`{"columns":10}`), 0o600))
 }
 
 // response は、画像の要求に対する応答の、確かめる部分。
@@ -69,7 +76,7 @@ func serveImage(t *testing.T, store *kago.Store, f *jobFixture, path string, hea
 	return response{status: res.StatusCode, header: res.Header, body: string(body)}
 }
 
-// bareRecording は、ファイルのない録画を作る。画像の配信は、セグメントを読まない。
+// bareRecording は、ファイルのない録画を作る。
 func (f *jobFixture) bareRecording(t *testing.T) uuid.UUID {
 	t.Helper()
 
@@ -89,11 +96,9 @@ func TestImageHandler(t *testing.T) {
 	withImages := f.bareRecording(t)
 	f.addImages(t, withImages)
 	withoutImages := f.bareRecording(t)
-	// missingFile は、画像を記録したが、ファイルが消えた録画。
+	// missingFile は、セグメントはあるが、画像をまだ作っていない録画。
 	missingFile := f.bareRecording(t)
-	_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-		VALUES ($1, $2, 'thumbnail', $3, 'missing/thumbnail.jpg', 1, $4, $4, $4)`, id.New(), missingFile, poolID, f.clock.Now())
-	require.NoError(t, err)
+	f.addSegment(t, missingFile)
 
 	tests := []struct {
 		name            string
@@ -112,20 +117,20 @@ func TestImageHandler(t *testing.T) {
 			wantStatus: http.StatusOK, wantBody: "preview-jpeg", wantContentType: "image/jpeg",
 		},
 		{
-			name: "preview manifest next to the preview image", store: f.store,
+			name: "preview manifest", store: f.store,
 			path:       "/media/recordings/" + withImages.String() + "/preview.json",
 			wantStatus: http.StatusOK, wantBody: `{"columns":10}`, wantContentType: "application/json",
 		},
 		{
-			name: "other file names in the sidecar directory are not served", store: f.store,
+			name: "other file names in the segment directory are not served", store: f.store,
 			path: "/media/recordings/" + withImages.String() + "/index", wantStatus: http.StatusNotFound,
 		},
 		{
-			name: "recording without images", store: f.store,
+			name: "recording without segments", store: f.store,
 			path: "/media/recordings/" + withoutImages.String() + "/thumbnail.jpg", wantStatus: http.StatusNotFound,
 		},
 		{
-			name: "image file missing on the disk", store: f.store,
+			name: "images not generated yet", store: f.store,
 			path: "/media/recordings/" + missingFile.String() + "/thumbnail.jpg", wantStatus: http.StatusNotFound,
 		},
 		{
@@ -137,7 +142,7 @@ func TestImageHandler(t *testing.T) {
 			path: "/media/recordings/not-a-uuid/thumbnail.jpg", wantStatus: http.StatusBadRequest,
 		},
 		{
-			name: "pool not mounted on this instance", store: kago.New(map[string]string{}, nil),
+			name: "data directory not mounted on this instance", store: kago.New(map[string]string{}, nil),
 			path:       "/media/recordings/" + withImages.String() + "/thumbnail.jpg",
 			wantStatus: http.StatusServiceUnavailable,
 		},

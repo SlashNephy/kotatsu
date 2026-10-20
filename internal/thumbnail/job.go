@@ -12,13 +12,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/notify"
@@ -26,24 +24,19 @@ import (
 )
 
 const (
-	// ThumbnailFileName、PreviewFileName、ManifestFileName は、最初のセグメントの付属ファイルのディレクトリに置く、
-	// 代表画像、プレビュー画像、プレビュー画像の説明のファイルの名前 (設計書 5.6)。
+	// ThumbnailFileName、PreviewFileName、ManifestFileName は、データディレクトリの、画像を置くセグメント (ImageSegment) の
+	// ディレクトリに置く、代表画像、プレビュー画像、プレビュー画像の説明のファイルの名前 (設計書 5.6)。
 	ThumbnailFileName = "thumbnail.jpg"
 	PreviewFileName   = "preview.jpg"
 	ManifestFileName  = "preview.json"
 
-	// kindSegment、kindIndex、kindThumbnail、kindPreview は、recording_files の種類。
-	kindSegment   = "segment"
-	kindIndex     = "index"
-	kindThumbnail = "thumbnail"
-	kindPreview   = "preview"
+	// kindSegment は、recording_files の、TS のセグメントの種類。
+	kindSegment = "segment"
 
 	// generateMaxAttempts は、画像を作るジョブを試す回数の上限。
 	generateMaxAttempts = 3
 	// generateTimeout は、画像を作るジョブの時間の上限。1 枚ずつ FFmpeg を動かすので、コマの数だけかかる。
 	generateTimeout = 10 * time.Minute
-	// foreignKeyViolation は、PostgreSQL の外部キーの違反のエラーコード。作っている間に録画が消されたときに返る。
-	foreignKeyViolation = "23503"
 )
 
 var (
@@ -78,7 +71,7 @@ type Inserter interface {
 	InsertManyTx(ctx context.Context, tx pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error)
 }
 
-// GenerateWorker は、録画の代表画像とプレビュー画像を作り、最初のセグメントの付属ファイルのディレクトリに置く。
+// GenerateWorker は、録画の代表画像とプレビュー画像を作り、最初のセグメントの生成物のディレクトリに置く。
 // FFmpeg が見つからなければ、理由を残して取りやめる。
 type GenerateWorker struct {
 	river.WorkerDefaults[GenerateArgs]
@@ -128,9 +121,13 @@ func (w *GenerateWorker) Work(ctx context.Context, job *river.Job[GenerateArgs])
 	if err != nil {
 		return fmt.Errorf("failed to list the recording files: %w", err)
 	}
-	segments, first, err := w.segments(files)
+	segments, err := w.segments(files)
 	if err != nil {
 		return err
+	}
+	owner, ok := ImageSegment(files)
+	if !ok {
+		return river.JobCancel(errNoSegment)
 	}
 	result, err := NewGenerator(extractor, &Options{Preview: w.preview, Interval: 0}).Generate(ctx, segments)
 	if errors.Is(err, ErrNoKeyframe) {
@@ -139,50 +136,50 @@ func (w *GenerateWorker) Work(ctx context.Context, job *river.Job[GenerateArgs])
 	if err != nil {
 		return err
 	}
-	written, err := w.write(first, result)
-	if err != nil {
+	if err := w.write(owner, result); err != nil {
+		return err
+	}
+	// 作っている間に録画が消されていたら、書いた画像を消す。録画の削除は、そのときにあったファイルしか消さない。
+	if _, err := q.GetRecording(ctx, job.Args.RecordingID); errors.Is(err, pgx.ErrNoRows) {
+		if err := w.store.RemoveSegmentDir(owner); err != nil {
+			return fmt.Errorf("failed to remove the images of a deleted recording: %w", err)
+		}
+
+		return river.JobCancel(errRecordingNotFound)
+	} else if err != nil {
+		return fmt.Errorf("failed to get the recording: %w", err)
+	}
+	// 録画の一覧にサムネイルを出すので、録画の変更として知らせる (#868)。
+	if _, err := notify.Publish(ctx, w.db, w.clock, notify.RecordingsChannel); err != nil {
 		return err
 	}
 
-	return w.record(ctx, job.Args.RecordingID, first, written)
+	return nil
 }
 
-// sidecar は、画像を置く、最初のセグメントの付属ファイルのディレクトリ。
-type sidecar struct {
-	poolID string
-	// dir は、プール内の相対パス。
-	dir string
-	// startedAt は、最初のセグメントの始まり。画像の行に記録する。
-	startedAt time.Time
+// ImageSegment は、録画の代表画像とプレビュー画像を置くセグメントのファイルの ID を返す。
+// 画像は、書いたものがある最初のセグメント (始まりの順) の、データディレクトリのディレクトリに置く。セグメントがなければ false を返す。
+// files は、ListRecordingFiles の順 (始まりの順) に並べて渡す。
+func ImageSegment(files []sqlc.RecordingFile) (uuid.UUID, bool) {
+	for i := range files {
+		if files[i].Kind == kindSegment && files[i].Size > 0 {
+			return files[i].ID, true
+		}
+	}
+
+	return uuid.Nil, false
 }
 
 // segments は、録画のファイルから、索引のあるセグメントを、始まりの順に読む。このインスタンスにマウントされていないプールのものは使えない。
-// 索引は、セグメントの付属ファイルのディレクトリにあるものを、そのセグメントの索引とする。
+// 索引は、データディレクトリの、セグメントのファイルの ID のディレクトリにあるものを、そのセグメントの索引とする。
 // EPGStation から取り込んだ録画では、複数のセグメントの始まりが同じことがあるので、始まりでは対応付けない。
-func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, *sidecar, error) {
-	type location struct{ poolID, path string }
-	indexes := map[location]*sqlc.RecordingFile{}
-	for i := range files {
-		if files[i].Kind == kindIndex {
-			indexes[location{poolID: files[i].PoolID, path: files[i].Path}] = &files[i]
-		}
-	}
+// コマの時間は、使える最初のセグメントの始まりからの時間にする。
+func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, error) {
 	segments := []Segment{}
-	var first *sidecar
+	var startedAt *time.Time
 	for i := range files {
 		file := &files[i]
 		if file.Kind != kindSegment || file.Size == 0 {
-			continue
-		}
-		var index *sqlc.RecordingFile
-		for _, candidate := range w.store.IndexLocations(file.PoolID, file.Path) {
-			if found, ok := indexes[location{poolID: candidate.PoolID, path: candidate.Path}]; ok {
-				index = found
-
-				break
-			}
-		}
-		if index == nil {
 			continue
 		}
 		segmentPath, err := w.store.Path(file.PoolID, file.Path)
@@ -190,30 +187,29 @@ func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, *sidec
 			continue
 		}
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		entries, err := readIndex(w.store, index)
+		entries, err := readIndex(w.store, kago.IndexLocation(file.ID))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		if first == nil {
-			dir, err := w.store.CreateSidecarDir(file.PoolID, file.Path)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to create the sidecar directory: %w", err)
-			}
-			// 付属ファイルをまとめて置くディレクトリがあれば、画像はそちらのプール (kago.SidecarPoolID) に置く。
-			first = &sidecar{poolID: dir.PoolID, dir: dir.Path, startedAt: file.StartedAt}
+		if startedAt == nil {
+			startedAt = &file.StartedAt
 		}
-		segments = append(segments, Segment{Path: segmentPath, Start: file.StartedAt.Sub(first.startedAt), Index: entries})
+		segments = append(segments, Segment{Path: segmentPath, Start: file.StartedAt.Sub(*startedAt), Index: entries})
 	}
-	if first == nil {
-		return nil, nil, river.JobCancel(errNoSegment)
+	if len(segments) == 0 {
+		return nil, river.JobCancel(errNoSegment)
 	}
 
-	return segments, first, nil
+	return segments, nil
 }
 
-func readIndex(store *kago.Store, index *sqlc.RecordingFile) ([]ts.IndexEntry, error) {
+// readIndex は、索引を読む。なければ os.ErrNotExist を包んで返す。
+func readIndex(store *kago.Store, index *kago.Location) ([]ts.IndexEntry, error) {
 	indexPath, err := store.Path(index.PoolID, index.Path)
 	if err != nil {
 		return nil, err
@@ -230,51 +226,37 @@ func readIndex(store *kago.Store, index *sqlc.RecordingFile) ([]ts.IndexEntry, e
 	return entries, nil
 }
 
-// writtenImage は、書いた画像のファイル。
-type writtenImage struct {
-	kind string
-	// path は、プール内の相対パス。
-	path string
-	size int64
-}
-
-// output は、付属ファイルのディレクトリに書くファイル。
+// output は、データディレクトリに書くファイル。
 type output struct {
-	// kind は、録画のファイルとして記録する種類。空なら記録しない。
-	kind string
 	name string
 	data []byte
 }
 
-// write は、画像を付属ファイルのディレクトリに書く。作り直したときは、上書きする。
-func (w *GenerateWorker) write(first *sidecar, result *Result) ([]writtenImage, error) {
-	outputs := []output{{kind: kindThumbnail, name: ThumbnailFileName, data: result.Thumbnail}}
+// write は、画像を、セグメントのファイル owner の、データディレクトリのディレクトリに書く。作り直したときは、上書きする。
+func (w *GenerateWorker) write(owner uuid.UUID, result *Result) error {
+	dir, err := w.store.CreateSegmentDir(owner)
+	if err != nil {
+		return fmt.Errorf("failed to create the segment directory: %w", err)
+	}
+	outputs := []output{{name: ThumbnailFileName, data: result.Thumbnail}}
 	if result.Preview != nil {
 		manifest, err := json.Marshal(result.Manifest)
 		if err != nil {
-			return nil, fmt.Errorf("failed to encode the preview manifest: %w", err)
+			return fmt.Errorf("failed to encode the preview manifest: %w", err)
 		}
-		// プレビュー画像の説明は、プレビュー画像と同じディレクトリにあるので、DB には記録しない。
-		outputs = append(outputs,
-			output{kind: kindPreview, name: PreviewFileName, data: result.Preview},
-			output{kind: "", name: ManifestFileName, data: manifest})
+		outputs = append(outputs, output{name: PreviewFileName, data: result.Preview}, output{name: ManifestFileName, data: manifest})
 	}
-	written := make([]writtenImage, 0, len(outputs))
 	for _, out := range outputs {
-		rel := path.Join(first.dir, out.name)
-		abs, err := w.store.Path(first.poolID, rel)
+		abs, err := w.store.Path(dir.PoolID, path.Join(dir.Path, out.name))
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if err := writeFile(abs, out.data); err != nil {
-			return nil, err
-		}
-		if out.kind != "" {
-			written = append(written, writtenImage{kind: out.kind, path: rel, size: int64(len(out.data))})
+			return err
 		}
 	}
 
-	return written, nil
+	return nil
 }
 
 // writeFile は、一時ファイルに書いてから名前を変え、読む側に書きかけのファイルを見せない。
@@ -285,30 +267,6 @@ func writeFile(name string, data []byte) error {
 	}
 	if err := os.Rename(tmp, name); err != nil {
 		return fmt.Errorf("failed to rename %s: %w", tmp, err)
-	}
-
-	return nil
-}
-
-// record は、書いた画像を、録画のファイルとして記録する。作っている間に録画が消されていたら、取りやめる。
-func (w *GenerateWorker) record(ctx context.Context, recordingID uuid.UUID, first *sidecar, images []writtenImage) error {
-	now := w.clock.Now()
-	q := sqlc.New(w.db)
-	for _, img := range images {
-		err := q.UpsertRecordingImage(ctx, sqlc.UpsertRecordingImageParams{
-			ID: id.New(), RecordingID: recordingID, Kind: img.kind, PoolID: first.poolID, Path: img.path, Size: img.size,
-			StartedAt: first.startedAt, Now: &now,
-		})
-		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == foreignKeyViolation {
-			return river.JobCancel(errRecordingNotFound)
-		}
-		if err != nil {
-			return fmt.Errorf("failed to record the %s: %w", img.kind, err)
-		}
-	}
-	// 録画の一覧にサムネイルを出すので、録画の変更として知らせる (#868)。
-	if _, err := notify.Publish(ctx, w.db, w.clock, notify.RecordingsChannel); err != nil {
-		return err
 	}
 
 	return nil

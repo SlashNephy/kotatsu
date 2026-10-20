@@ -74,7 +74,7 @@ func New(clk clock.Clock, recorder audit.Recorder, store *kago.Store, logger *sl
 	return &Library{clock: clk, recorder: recorder, store: store, logger: logger}
 }
 
-// Delete は、録画を DB から消し、監査ログに残してから、録画ファイルと付属ファイルを消す。録画履歴は残す。
+// Delete は、録画を DB から消し、監査ログに残してから、録画ファイルと生成物を消す。録画履歴は残す。
 // 保護した録画は ErrProtected を、録画中の録画は ErrRecording を返して消さない。reason は、監査ログに残す消した理由。
 // ファイルを先に消すと、DB を書けなかったときに、ファイルのない録画が残るので、DB を先に書く。
 func (l *Library) Delete(ctx context.Context, db Database, actor *audit.Actor, recordingID uuid.UUID, reason string) error {
@@ -104,11 +104,11 @@ func (l *Library) Delete(ctx context.Context, db Database, actor *audit.Actor, r
 		return err
 	}
 	for i := range files {
-		// 索引や画像は、録画ファイルの付属ファイルのディレクトリにあるので、録画ファイルと一緒に消える。
+		// 索引や画像は、セグメントのファイルの ID の生成物のディレクトリにあり、録画ファイルと一緒に消す。
 		if files[i].Kind != segmentKind && files[i].Kind != otherKind {
 			continue
 		}
-		if err := l.store.Remove(files[i].PoolID, files[i].Path); err != nil {
+		if err := l.store.Remove(files[i].PoolID, files[i].Path, files[i].ID); err != nil {
 			l.logger.WarnContext(ctx, "failed to remove a recording file", slog.String("path", files[i].Path), slog.Any("error", err))
 		}
 	}

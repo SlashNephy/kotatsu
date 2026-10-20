@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<932162c73b38822853bcafe11a472a3b>>
+ * @generated SignedSource<<3190efaa986d88dd9d0de98f64ff81e2>>
  * @lightSyntaxTransform
  */
 
@@ -9,7 +9,7 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type RecordingFailureReason = "CANCELLED" | "PROGRAM_NOT_FOUND" | "RECORDER_UNAVAILABLE" | "STORAGE_FULL" | "STORAGE_UNAVAILABLE" | "STREAM_INTERRUPTED" | "TUNER_SERVER_UNREACHABLE" | "TUNER_UNAVAILABLE" | "%future added value";
-export type RecordingFileKind = "INDEX" | "OTHER" | "PREVIEW" | "SEGMENT" | "THUMBNAIL" | "%future added value";
+export type RecordingFileKind = "OTHER" | "SEGMENT" | "%future added value";
 export type RecordingState = "COMPLETED" | "COMPLETED_WITH_ERRORS" | "FAILED" | "PARTIAL" | "RECORDING" | "%future added value";
 export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type StreamKind = "AUDIO" | "OTHER" | "PSI" | "UNKNOWN" | "VIDEO" | "%future added value";

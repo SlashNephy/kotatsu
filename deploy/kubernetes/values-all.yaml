@@ -8,3 +8,7 @@ storage:
       volume:
         persistentVolumeClaim:
           claimName: kotatsu-recordings
+  data:
+    volume:
+      persistentVolumeClaim:
+        claimName: kotatsu-data

@@ -120,9 +120,12 @@ env は、すべてのコンテナに渡す環境変数。
 - name: KOTATSU_STORAGE_POOLS
   value: {{ . | quote }}
 {{- end }}
-{{- if .Values.storage.sidecar.volume }}
-- name: KOTATSU_STORAGE_SIDECAR_DIR
-  value: /var/lib/kotatsu/sidecar
+{{- if and .Values.storage.pools (not .Values.storage.data.volume) }}
+{{- fail "storage.data.volume is required when storage.pools is set" }}
+{{- end }}
+{{- if .Values.storage.data.volume }}
+- name: KOTATSU_STORAGE_DATA_DIR
+  value: /var/lib/kotatsu/data
 {{- end }}
 - name: KOTATSU_KYUSU_WORK_DIR
   value: /var/lib/kotatsu/work
@@ -158,9 +161,9 @@ volume の名前は、プール ID に使える _ を含められないので、
 - name: {{ printf "pool-%d" $i }}
   mountPath: {{ printf "/var/lib/kotatsu/pools/%s" $pool.id }}
 {{- end }}
-{{- if .root.Values.storage.sidecar.volume }}
-- name: sidecar
-  mountPath: /var/lib/kotatsu/sidecar
+{{- if .root.Values.storage.data.volume }}
+- name: data
+  mountPath: /var/lib/kotatsu/data
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -181,8 +184,8 @@ volume の名前は、プール ID に使える _ を含められないので、
 - name: {{ printf "pool-%d" $i }}
   {{- toYaml $pool.volume | nindent 2 }}
 {{- end }}
-{{- with .root.Values.storage.sidecar.volume }}
-- name: sidecar
+{{- with .root.Values.storage.data.volume }}
+- name: data
   {{- toYaml . | nindent 2 }}
 {{- end }}
 {{- end }}

@@ -425,26 +425,26 @@ type NotificationPreferenceInput struct {
 	RuleReservations *bool `json:"ruleReservations,omitempty"`
 }
 
-// プールにあるのに DB に記録のないファイルか、持ち主の録画ファイルが DB にない付属ファイルのディレクトリ (設計書 5.6)。
+// プールかデータディレクトリにあるのに DB に記録のないファイルか、持ち主のセグメントのファイルが DB にない生成物のディレクトリ (設計書 5.6)。
 // 録画を消すのに失敗したときや、取り込みをやり直したときに残る。
 type OrphanFile struct {
-	// プールの ID。付属ファイルをまとめて置くディレクトリなら _sidecar。
-	PoolID string `json:"poolId"`
-	// プール内の相対パス。
+	// プールの ID。データディレクトリにあるものなら null。
+	PoolID *string `json:"poolId,omitempty"`
+	// プールかデータディレクトリの中の相対パス。
 	Path string `json:"path"`
-	// 付属ファイルのディレクトリかどうか。
-	Sidecar bool `json:"sidecar"`
-	// 大きさ (バイト)。付属ファイルのディレクトリでは、中のファイルの合計。
+	// データディレクトリの、セグメントのファイルの ID のディレクトリ (生成物のディレクトリ) かどうか。
+	SegmentDir bool `json:"segmentDir"`
+	// 大きさ (バイト)。生成物のディレクトリでは、中のファイルの合計。
 	Size int64 `json:"size"`
-	// 最後に書いた日時。付属ファイルのディレクトリでは、中のファイルのうち最も新しいもの。
+	// 最後に書いた日時。生成物のディレクトリでは、中のファイルのうち最も新しいもの。
 	ModifiedAt time.Time `json:"modifiedAt"`
 }
 
-// 消す、DB にないファイル。orphanFiles が返した poolId、path、sidecar をそのまま渡す。
+// 消す、DB にないファイル。orphanFiles が返した poolId、path、segmentDir をそのまま渡す。
 type OrphanFileInput struct {
-	PoolID  string `json:"poolId"`
-	Path    string `json:"path"`
-	Sidecar bool   `json:"sidecar"`
+	PoolID     *string `json:"poolId,omitempty"`
+	Path       string  `json:"path"`
+	SegmentDir bool    `json:"segmentDir"`
 }
 
 // 一覧のページの情報 (Relay の Cursor Connections)。カーソルは中身を解釈せずに、そのまま次のリクエストに渡す。
@@ -1768,27 +1768,18 @@ type RecordingFileKind string
 const (
 	// TS のセグメント
 	RecordingFileKindSegment RecordingFileKind = "SEGMENT"
-	// セグメントの索引
-	RecordingFileKindIndex RecordingFileKind = "INDEX"
-	// 代表画像 (JPEG)
-	RecordingFileKindThumbnail RecordingFileKind = "THUMBNAIL"
-	// シークバー用のプレビュー画像 (JPEG)。コマの並びは、同じディレクトリの preview.json に書く
-	RecordingFileKindPreview RecordingFileKind = "PREVIEW"
 	// EPGStation から取り込んだ、エンコード済みの MP4 のような TS 以外のファイル
 	RecordingFileKindOther RecordingFileKind = "OTHER"
 )
 
 var AllRecordingFileKind = []RecordingFileKind{
 	RecordingFileKindSegment,
-	RecordingFileKindIndex,
-	RecordingFileKindThumbnail,
-	RecordingFileKindPreview,
 	RecordingFileKindOther,
 }
 
 func (e RecordingFileKind) IsValid() bool {
 	switch e {
-	case RecordingFileKindSegment, RecordingFileKindIndex, RecordingFileKindThumbnail, RecordingFileKindPreview, RecordingFileKindOther:
+	case RecordingFileKindSegment, RecordingFileKindOther:
 		return true
 	}
 	return false

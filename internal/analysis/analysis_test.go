@@ -46,11 +46,23 @@ func wantIFramePTS() []int64 {
 }
 
 type fixture struct {
-	pool     *pgxpool.Pool
-	clock    *clocktest.Fake
-	dir      string
+	pool  *pgxpool.Pool
+	clock *clocktest.Fake
+	dir   string
+	// dataRoot は、データディレクトリ。
+	dataRoot string
 	store    *kago.Store
 	inserter *jobs.Client
+}
+
+// segmentID は、録画 recordingID の、プール内の相対パスが path のセグメントのファイルの ID を返す。
+func (f *fixture) segmentID(t *testing.T, recordingID uuid.UUID, path string) uuid.UUID {
+	t.Helper()
+
+	var id uuid.UUID
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT id FROM recording_files WHERE recording_id = $1 AND path = $2", recordingID, path).Scan(&id))
+
+	return id
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -71,7 +83,11 @@ func newFixture(t *testing.T) *fixture {
 	require.NoError(t, err)
 	dir := t.TempDir()
 
-	return &fixture{pool: pool, clock: clk, dir: dir, store: kago.New(map[string]string{poolID: dir}, nil), inserter: inserter}
+	dataRoot := t.TempDir()
+
+	return &fixture{
+		pool: pool, clock: clk, dir: dir, dataRoot: dataRoot, store: kago.New(map[string]string{poolID: dir}, nil).WithDataDir(dataRoot), inserter: inserter,
+	}
 }
 
 // segmentNames は、テストの録画のセグメントの、プール内の相対パス。n 番目のセグメントは segmentNames()[n] に置く。
@@ -185,7 +201,7 @@ func transportError(packet []byte) { packet[1] |= 0x80 }
 // scrambled は、パケットの transport_scrambling_control を 0 以外にする。
 func scrambled(packet []byte) { packet[3] |= 0x80 }
 
-// TestAnalyzeWorker は、取り込んだ録画のセグメントを読み直し、付属ファイルのディレクトリに索引を作り、
+// TestAnalyzeWorker は、取り込んだ録画のセグメントを読み直し、生成物のディレクトリに索引を作り、
 // ドロップ、エラー、スクランブルを数え直して状態を決め直すことを確かめる (設計書 6.1)。
 // 何度実行しても、索引の行は増えない。
 func TestAnalyzeWorker(t *testing.T) {
@@ -259,20 +275,10 @@ func TestAnalyzeWorker(t *testing.T) {
 				Scan(&got.State, &got.Drops, &got.Errors, &got.Scrambled))
 			assert.Equal(t, tt.want, got)
 
-			// 索引は、録画中に作るものと同じく、I フレームの位置と PTS を並べる。セグメントごとに、同じ時間の範囲を表す行として 1 つだけ記録する。
-			type file struct {
-				Kind      string
-				Path      string
-				Size      int64
-				StartedAt time.Time
-				EndedAt   *time.Time
-			}
-			startAt := f.clock.Now().Add(-time.Hour)
-			endAt := startAt.Add(30 * time.Minute)
-			wantIndexes := make([]file, 0, len(segments))
+			// 索引は、録画中に作るものと同じく、I フレームの位置と PTS を並べる。DB には記録せず、データディレクトリに置く。
 			for i := range segments {
 				name := segmentNames()[i]
-				index, err := os.ReadFile(filepath.Join(f.dir, name+".kotatsu", "index"))
+				index, err := os.ReadFile(filepath.Join(f.dataRoot, kago.IndexLocation(f.segmentID(t, recordingID, name)).Path))
 				require.NoError(t, err)
 				entries, err := ts.ReadIndex(bytes.NewReader(index))
 				require.NoError(t, err)
@@ -282,20 +288,11 @@ func TestAnalyzeWorker(t *testing.T) {
 					pts = append(pts, entry.PTS)
 				}
 				assert.Equal(t, wantIFramePTS(), pts, name)
-				wantIndexes = append(wantIndexes, file{
-					Kind: "index", Path: name + ".kotatsu/index", Size: int64(len(index)), StartedAt: startAt, EndedAt: &endAt,
-				})
 			}
-			rows, err := f.pool.Query(t.Context(),
-				"SELECT kind, path, size, started_at, ended_at FROM recording_files WHERE recording_id = $1 AND kind = 'index'", recordingID)
-			require.NoError(t, err)
-			indexes, err := pgx.CollectRows(rows, pgx.RowToStructByPos[file])
-			require.NoError(t, err)
-			assert.ElementsMatch(t, wantIndexes, indexes)
 
 			// 代表画像とプレビュー画像を作るジョブを、重いジョブのキューに 1 つだけ投入する。
 			// 取り込んだ録画の画像なので、優先度を下げる (#551)。
-			rows, err = f.pool.Query(t.Context(),
+			rows, err := f.pool.Query(t.Context(),
 				"SELECT queue || ' ' || priority || ' ' || (args->>'recordingId') FROM river_job WHERE kind = 'thumbnail_generate'")
 			require.NoError(t, err)
 			queued, err := pgx.CollectRows(rows, pgx.RowTo[string])
@@ -407,7 +404,7 @@ func TestAnalyzeWorkerCancels(t *testing.T) {
 			prepare: func(t *testing.T, f *fixture, recordingID uuid.UUID) uuid.UUID {
 				t.Helper()
 
-				f.store = kago.New(map[string]string{"sub": f.dir}, nil)
+				f.store = kago.New(map[string]string{"sub": f.dir}, nil).WithDataDir(f.dataRoot)
 
 				return recordingID
 			},
@@ -473,7 +470,9 @@ func TestAnalyzeWorkerStopsWhenCancelled(t *testing.T) {
 	var drops int64
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT drops FROM recordings WHERE id = $1", recordingID).Scan(&drops))
 	assert.Equal(t, int64(2), drops, "the imported stats are kept")
-	var indexes int
-	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM recording_files WHERE kind = 'index'").Scan(&indexes))
-	assert.Zero(t, indexes)
+	// 書きかけの索引は残さない。
+	var segmentID uuid.UUID
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT id FROM recording_files WHERE recording_id = $1", recordingID).Scan(&segmentID))
+	assert.NoFileExists(t, filepath.Join(f.dataRoot, kago.IndexLocation(segmentID).Path))
+	assert.NoFileExists(t, filepath.Join(f.dataRoot, kago.IndexLocation(segmentID).Path+".tmp"))
 }

@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+
+	"github.com/google/uuid"
 )
 
 // Pool は保存先プールの設定。
@@ -36,13 +38,13 @@ type Store struct {
 	// order は、設定に書いたプールの順。優先順位が同じプールは、この順に選ぶ。
 	order     []string
 	freeSpace FreeSpaceFunc
-	// sidecarDir は、付属ファイルを録画ファイルの横でなく、まとめて置くディレクトリ。空なら、録画ファイルの横に置く。
-	sidecarDir string
+	// dataDir は、データディレクトリ。
+	dataDir string
 }
 
-// SidecarPoolID は、付属ファイルをまとめて置くディレクトリ (WithSidecarDir) を、プールと同じく扱うときの ID。
-// recording_files の pool_id に記録する。設定のプールの ID とは重ならないよう、_ で始める。
-const SidecarPoolID = "_sidecar"
+// DataPoolID は、データディレクトリ (WithDataDir) を、Store の中でプールと同じく扱うときの ID。
+// DB にも API にも出さない。設定のプールの ID とは重ならないよう、_ で始める。
+const DataPoolID = "_data"
 
 // Location は、プールの中のファイルの場所。
 type Location struct {
@@ -87,30 +89,34 @@ func NewOrdered(mounts map[string]string, order []string, freeSpace FreeSpaceFun
 	}
 
 	// 呼び出し側が後から書き換えても影響しないよう、複製して持つ。
-	return &Store{mounts: maps.Clone(mounts), order: ordered, freeSpace: freeSpace, sidecarDir: ""}
+	return &Store{mounts: maps.Clone(mounts), order: ordered, freeSpace: freeSpace, dataDir: ""}
 }
 
-// WithSidecarDir は、新しい録画の付属ファイルを、dir の中の「プール ID/録画ファイルのパス.kotatsu/」に置く Store を返す (設計書 5.6)。
-// すでにある録画の付属ファイルは移さず、録画ファイルの横にあれば、そこを使い続ける。dir が空なら、s をそのまま返す。
-func (s *Store) WithSidecarDir(dir string) *Store {
+// WithDataDir は、セグメントの生成物を、dir の中の「セグメントのファイルの ID/」に置く Store を返す (設計書 5.6)。
+// dir が空なら、s をそのまま返す。そのときは、生成物を作れない。
+func (s *Store) WithDataDir(dir string) *Store {
 	if dir == "" {
 		return s
 	}
 	mounts := maps.Clone(s.mounts)
-	mounts[SidecarPoolID] = dir
+	mounts[DataPoolID] = dir
 
-	return &Store{mounts: mounts, order: s.order, freeSpace: s.freeSpace, sidecarDir: dir}
+	return &Store{mounts: mounts, order: s.order, freeSpace: s.freeSpace, dataDir: dir}
 }
 
-// IndexLocations は、録画ファイル rel の索引の場所の候補を返す。記録から索引を探すときは、どれかに当たるものを使う。
-func (s *Store) IndexLocations(poolID, rel string) []*Location {
-	dirs := s.sidecarLocations(poolID, rel)
-	locations := make([]*Location, 0, len(dirs))
-	for _, dir := range dirs {
-		locations = append(locations, &Location{PoolID: dir.PoolID, Path: dir.Path + "/" + IndexFileName})
-	}
+// SegmentDir は、セグメントのファイル fileID (recording_files.id) の生成物のディレクトリの場所を返す。
+func SegmentDir(fileID uuid.UUID) *Location {
+	return &Location{PoolID: DataPoolID, Path: fileID.String()}
+}
 
-	return locations
+// DataLocation は、データディレクトリの、セグメントのファイル fileID のディレクトリにある、name のファイルの場所を返す。
+func DataLocation(fileID uuid.UUID, name string) *Location {
+	return &Location{PoolID: DataPoolID, Path: fileID.String() + "/" + name}
+}
+
+// IndexLocation は、セグメントのファイル fileID の索引の場所を返す。
+func IndexLocation(fileID uuid.UUID) *Location {
+	return DataLocation(fileID, IndexFileName)
 }
 
 // PoolIDs は、このロールにマウントされているプールの ID を、プールの順に返す。
@@ -144,6 +150,17 @@ func (s *Store) Open(poolID, rel string) (*os.File, error) {
 	}
 
 	return os.OpenInRoot(mount, rel)
+}
+
+// Stat は、プール ID とプール内の相対パスのファイルの情報を返す。Open と同じく、プールのマウント先の中に限って調べる。
+func (s *Store) Stat(poolID, rel string) (os.FileInfo, error) {
+	f, err := s.Open(poolID, rel)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	return f.Stat()
 }
 
 // Select は、推定サイズ estimated (バイト) を書いても空き容量が閾値を下回らないプールのうち、
@@ -194,37 +211,16 @@ func (s *Store) Select(pools []*Pool, estimated uint64) (*Pool, error) {
 	return nil, errors.Join(append([]error{fmt.Errorf("%w: estimated %d bytes", ErrNoPoolFits, estimated)}, errs...)...)
 }
 
-// sidecarSuffix は、録画ファイルの横に作る、付属ファイル用のディレクトリの名前に付ける接尾辞。
-const sidecarSuffix = ".kotatsu"
-
-// IndexFileName は、付属ファイルのディレクトリに置く、セグメントの索引のファイルの名前 (設計書 5.6)。
+// IndexFileName は、生成物のディレクトリに置く、セグメントの索引のファイルの名前 (設計書 5.6)。
 const IndexFileName = "index"
 
-// IndexPath は、録画ファイル rel の索引の、プール内の相対パスを返す。
-func IndexPath(rel string) string {
-	return rel + sidecarSuffix + "/" + IndexFileName
-}
-
-// CreateSidecarDir は、録画ファイル rel の付属ファイル (索引やサムネイル) を置くディレクトリを作り、その場所を返す。
-// 録画ファイルの横 (以前の置き場所) にすでにあれば、そこを使い続ける。なければ、まとめて置くディレクトリがあればそこに、
-// なければ録画ファイルの横 (例: 番組名.m2ts.kotatsu/) に作る。すでにあれば、そのまま使う。
-func (s *Store) CreateSidecarDir(poolID, rel string) (*Location, error) {
-	candidates := s.sidecarLocations(poolID, rel)
-	legacy := candidates[len(candidates)-1]
-	target := candidates[0]
-	if len(candidates) > 1 {
-		if dir, err := s.Path(legacy.PoolID, legacy.Path); err == nil {
-			if info, statErr := os.Stat(dir); statErr == nil && info.IsDir() {
-				target = legacy
-			}
-		}
-	}
+// CreateSegmentDir は、セグメントのファイル fileID の生成物 (索引やサムネイル) を置くディレクトリを作り、その場所を返す。
+// すでにあれば、そのまま使う。
+func (s *Store) CreateSegmentDir(fileID uuid.UUID) (*Location, error) {
+	target := SegmentDir(fileID)
 	mount, ok := s.mounts[target.PoolID]
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrPoolNotMounted, target.PoolID)
-	}
-	if !filepath.IsLocal(target.Path) {
-		return nil, fmt.Errorf("%w: %q", ErrInvalidPath, target.Path)
 	}
 	root, err := os.OpenRoot(mount)
 	if err != nil {
@@ -232,15 +228,25 @@ func (s *Store) CreateSidecarDir(poolID, rel string) (*Location, error) {
 	}
 	defer root.Close()
 	if err := root.MkdirAll(target.Path, 0o755); err != nil {
-		// 同じ名前のディレクトリでないものがあれば、付属ファイルを置けない。
+		// 同じ名前のディレクトリでないものがあれば、生成物を置けない。
 		if info, statErr := root.Lstat(target.Path); statErr == nil && !info.IsDir() {
 			return nil, fmt.Errorf("%w: %q exists and is not a directory", ErrInvalidPath, target.Path)
 		}
 
-		return nil, fmt.Errorf("failed to create the sidecar directory: %w", err)
+		return nil, fmt.Errorf("failed to create the segment directory: %w", err)
 	}
 
 	return target, nil
+}
+
+// RemoveSegmentDir は、データディレクトリの、セグメントのファイル fileID のディレクトリと、その中のファイルを消す。なければ何もしない。
+func (s *Store) RemoveSegmentDir(fileID uuid.UUID) error {
+	dir := SegmentDir(fileID)
+	if err := s.removeSegmentDir(dir.PoolID, dir.Path); err != nil {
+		return fmt.Errorf("failed to remove the segment directory: %w", err)
+	}
+
+	return nil
 }
 
 // PoolFreeSpace は、プール poolID の空き容量 (バイト) を返す。
@@ -257,8 +263,9 @@ func (s *Store) PoolFreeSpace(poolID string) (uint64, error) {
 	return free, nil
 }
 
-// Remove は、プールの録画ファイル rel と、その付属ファイルのディレクトリを消す。どちらもなければ、何もしない。
-func (s *Store) Remove(poolID, rel string) error {
+// Remove は、プールの録画ファイル rel と、そのファイル fileID (recording_files.id) の生成物のディレクトリを消す。
+// どちらもなければ、何もしない。fileID が uuid.Nil なら、生成物のディレクトリは消さない。
+func (s *Store) Remove(poolID, rel string, fileID uuid.UUID) error {
 	path, err := s.Path(poolID, rel)
 	if err != nil {
 		return err
@@ -266,15 +273,9 @@ func (s *Store) Remove(poolID, rel string) error {
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to remove a file in pool %s: %w", poolID, err)
 	}
-	for _, sidecar := range s.sidecarLocations(poolID, rel) {
-		if err := s.removeSidecarDir(sidecar.PoolID, sidecar.Path); err != nil {
-			return fmt.Errorf("failed to remove the sidecar directory in pool %s: %w", sidecar.PoolID, err)
-		}
-		// まとめて置くディレクトリの中に掘ったディレクトリも、空になれば遡って消す。
-		if sidecar.PoolID == SidecarPoolID {
-			for dir := filepath.Dir(sidecar.Path); dir != "." && removedEmptyDir(filepath.Join(s.mounts[SidecarPoolID], dir)); {
-				dir = filepath.Dir(dir)
-			}
+	if _, mounted := s.mounts[DataPoolID]; mounted && fileID != uuid.Nil {
+		if err := s.RemoveSegmentDir(fileID); err != nil {
+			return err
 		}
 	}
 	// ファイル名のテンプレートで掘ったディレクトリが空になれば、プールの直下まで遡って消す。
@@ -357,11 +358,15 @@ func removedEmptyDir(path string) bool {
 	return os.Remove(path) == nil
 }
 
-// removeSidecarDir は、付属ファイルのディレクトリ dir (プール内の相対パス) と、その中のファイルを消す。
-// 中にディレクトリがあれば、付属ファイルのディレクトリではない (ほかの録画を置いたディレクトリと重なった) とみなし、中身ごとは消さない。
+// removeSegmentDir は、生成物のディレクトリ dir (プール内の相対パス) と、その中のファイルを消す。
+// 中にディレクトリがあれば、生成物のディレクトリではない (ほかの録画を置いたディレクトリと重なった) とみなし、中身ごとは消さない。
 // プールの中に限って消すので、シンボリックリンクをたどってプールの外を消すことはない (リンクそのものは消す)。
-func (s *Store) removeSidecarDir(poolID, dir string) error {
-	root, err := os.OpenRoot(s.mounts[poolID])
+func (s *Store) removeSegmentDir(poolID, dir string) error {
+	mount, ok := s.mounts[poolID]
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
+	}
+	root, err := os.OpenRoot(mount)
 	if err != nil {
 		return err
 	}
@@ -400,15 +405,4 @@ func (s *Store) removeSidecarDir(poolID, dir string) error {
 	}
 
 	return nil
-}
-
-// sidecarLocations は、録画ファイル rel の付属ファイルのディレクトリの場所の候補を、使う順に返す。
-// まとめて置くディレクトリがあれば、そこを先にし、録画ファイルの横 (以前の置き場所) を後にする。
-func (s *Store) sidecarLocations(poolID, rel string) []*Location {
-	legacy := &Location{PoolID: poolID, Path: rel + sidecarSuffix}
-	if s.sidecarDir == "" {
-		return []*Location{legacy}
-	}
-
-	return []*Location{{PoolID: SidecarPoolID, Path: filepath.ToSlash(filepath.Join(poolID, rel)) + sidecarSuffix}, legacy}
 }

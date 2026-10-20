@@ -3,6 +3,8 @@ package epgstationapi_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -11,6 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/SlashNephy/kotatsu/internal/kago"
 )
 
 type recorded struct {
@@ -33,22 +37,24 @@ type recordedList struct {
 }
 
 // addRecording は、録画を足し、その整数の ID を返す。segments が 0 なら、再生できない録画にする。
-func addRecording(t *testing.T, pool *pgxpool.Pool, name, state string, recordedFrom time.Time, segments int, thumbnail bool) (uuid.UUID, int64) {
+// thumbnail なら、データディレクトリ dataRoot の、最初のセグメントのディレクトリに代表画像を置く。
+func addRecording(
+	t *testing.T, pool *pgxpool.Pool, dataRoot, name, state string, recordedFrom time.Time, segments int, thumbnail bool,
+) (uuid.UUID, int64) {
 	t.Helper()
 
 	id := uuid.New()
 	exec(t, pool, `INSERT INTO recordings (id, service_id, name, description, start_at, end_at, state, recorded_from, created_at, updated_at)
 		VALUES ($1, $2, $3, '', $4, $5, $6, $4, $4, $4)`, id, grService, name, recordedFrom, recordedFrom.Add(time.Hour), state)
-	kinds := make([]string, 0, segments+1)
-	for range segments {
-		kinds = append(kinds, "segment")
-	}
-	if thumbnail {
-		kinds = append(kinds, "thumbnail")
-	}
-	for _, kind := range kinds {
+	for i := range segments {
+		segmentID := uuid.New()
 		exec(t, pool, `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, created_at)
-			VALUES ($1, $2, $3, 'default', $4, 1000, $5, $5)`, uuid.New(), id, kind, uuid.NewString(), recordedFrom)
+			VALUES ($1, $2, 'segment', 'default', $3, 1000, $4, $4)`, segmentID, id, uuid.NewString(), recordedFrom.Add(time.Duration(i)*time.Minute))
+		if thumbnail && i == 0 {
+			image := kago.DataLocation(segmentID, "thumbnail.jpg")
+			require.NoError(t, os.MkdirAll(filepath.Join(dataRoot, filepath.Dir(image.Path)), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(dataRoot, image.Path), []byte("jpeg"), 0o600))
+		}
 	}
 	var apiID int64
 	require.NoError(t, pool.QueryRow(t.Context(), "SELECT api_id FROM recordings WHERE id = $1", id).Scan(&apiID))
@@ -60,12 +66,12 @@ func addRecording(t *testing.T, pool *pgxpool.Pool, name, state string, recorded
 func TestRecorded(t *testing.T) {
 	t.Parallel()
 
-	h, pool := newHandler(t)
+	h, pool, dataRoot := newHandler(t)
 	now := testNow()
-	_, oldest := addRecording(t, pool, "こたつ特集", "completed", now.Add(-3*time.Hour), 1, false)
-	_, middle := addRecording(t, pool, "ねこの番組２", "completed", now.Add(-2*time.Hour), 2, true)
-	_, newest := addRecording(t, pool, "こたつとねこ", "recording", now.Add(-time.Hour), 1, false)
-	_, failed := addRecording(t, pool, "失敗した録画", "failed", now, 0, false)
+	_, oldest := addRecording(t, pool, dataRoot, "こたつ特集", "completed", now.Add(-3*time.Hour), 1, false)
+	_, middle := addRecording(t, pool, dataRoot, "ねこの番組２", "completed", now.Add(-2*time.Hour), 2, true)
+	_, newest := addRecording(t, pool, dataRoot, "こたつとねこ", "recording", now.Add(-time.Hour), 1, false)
+	_, failed := addRecording(t, pool, dataRoot, "失敗した録画", "failed", now, 0, false)
 
 	tests := []struct {
 		name      string
@@ -126,8 +132,8 @@ func getItem(t *testing.T, handler http.HandlerFunc, id int64, out any) int {
 func TestWithRecording(t *testing.T) {
 	t.Parallel()
 
-	h, pool := newHandler(t)
-	recordingID, apiID := addRecording(t, pool, "こたつ特集", "completed", testNow(), 1, true)
+	h, pool, dataRoot := newHandler(t)
+	recordingID, apiID := addRecording(t, pool, dataRoot, "こたつ特集", "completed", testNow(), 1, true)
 	var gotID, gotFile string
 	mux := http.NewServeMux()
 	mux.Handle("GET /api/thumbnails/{id}", h.WithRecording(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

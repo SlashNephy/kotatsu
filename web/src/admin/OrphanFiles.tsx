@@ -26,7 +26,7 @@ const query = graphql`
     orphanFiles {
       poolId
       path
-      sidecar
+      segmentDir
       size
       modifiedAt
     }
@@ -47,10 +47,10 @@ const dateTimeFormat = zonedFormat({
   hourCycle: 'h23',
 });
 
-// keyOf は、選んだファイルを覚えておくためのキー。プールとパスと、付属ファイルのディレクトリかどうかで決まる。
-const keyOf = (orphan: Orphan) => JSON.stringify([orphan.poolId, orphan.path, orphan.sidecar]);
+// keyOf は、選んだファイルを覚えておくためのキー。プール (データディレクトリなら null) とパスと、生成物のディレクトリかどうかで決まる。
+const keyOf = (orphan: Orphan) => JSON.stringify([orphan.poolId, orphan.path, orphan.segmentDir]);
 
-// OrphanFiles は、プールにあるのに DB に記録のないファイルを探し、確かめてから消す (設計書 5.6)。
+// OrphanFiles は、プールとデータディレクトリにあるのに DB に記録のないファイルを探し、確かめてから消す (設計書 5.6)。
 // 録画を消すのに失敗したときや、取り込みをやり直したときに残るので、管理者が片付ける。
 export function OrphanFiles() {
   const { t } = useTranslation();
@@ -113,7 +113,7 @@ export function OrphanFiles() {
   const run = async () => {
     const files = all
       .filter((orphan) => selected.has(keyOf(orphan)))
-      .map(({ poolId, path, sidecar }) => ({ poolId, path, sidecar }));
+      .map(({ poolId, path, segmentDir }) => ({ poolId, path, segmentDir }));
     const total = { deleted: 0, skipped: 0 };
     setDeleting(true);
     try {
@@ -186,7 +186,9 @@ export function OrphanFiles() {
               <Table.Tbody>
                 {found.map((orphan) => {
                   const key = keyOf(orphan);
-                  const label = `${orphan.poolId}:${orphan.path}`;
+                  // データディレクトリはプールではないので、プールの ID の代わりに名前を出す。
+                  const place = orphan.poolId ?? t('admin.orphan.dataDir');
+                  const label = `${place}:${orphan.path}`;
 
                   return (
                     <Table.Tr key={key}>
@@ -199,13 +201,13 @@ export function OrphanFiles() {
                       </Table.Td>
                       <Table.Td style={{ wordBreak: 'break-all' }}>
                         <Text span size="xs" c="dimmed">
-                          {orphan.poolId}:
+                          {place}:
                         </Text>
                         {orphan.path}
-                        {orphan.sidecar && (
+                        {orphan.segmentDir && (
                           <Text span size="xs" c="dimmed">
                             {' '}
-                            {t('admin.orphan.sidecar')}
+                            {t('admin.orphan.segmentDir')}
                           </Text>
                         )}
                       </Table.Td>
