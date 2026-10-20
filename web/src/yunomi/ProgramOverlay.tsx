@@ -31,11 +31,12 @@ type Props = {
 export function ProgramOverlay({ visible, serviceName, current, next }: Props) {
   const { t } = useTranslation();
   const range = (program: Program) =>
-    `${timeFormat.format(Date.parse(program.startAt))}〜${
-      program.endUndecided
+    t('range', {
+      from: timeFormat.format(Date.parse(program.startAt)),
+      to: program.endUndecided
         ? t('live.overlay.endUndecided')
-        : timeFormat.format(Date.parse(program.endAt))
-    }`;
+        : timeFormat.format(Date.parse(program.endAt)),
+    });
 
   return (
     <div className={classes.programInfo} data-visible={visible} aria-hidden={!visible}>

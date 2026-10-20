@@ -390,8 +390,10 @@ function Recording({ recordingId }: { recordingId: string }) {
               <ServiceLabel name={recording.service.name} logoUrl={recording.service.logoUrl} />
             </Text>
             <Text size="sm" c="dimmed">
-              {dateTimeFormat.format(Date.parse(recording.startAt))}〜
-              {minuteFormat.format(Date.parse(recording.endAt))}
+              {t('range', {
+                from: dateTimeFormat.format(Date.parse(recording.startAt)),
+                to: minuteFormat.format(Date.parse(recording.endAt)),
+              })}
             </Text>
             {/* 完了は当たり前なので出さず、録画中や失敗のように目を留めたい状態だけを出す。 */}
             {recording.state !== 'COMPLETED' && <RecordingStateBadge state={recording.state} />}

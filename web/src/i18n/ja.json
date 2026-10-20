@@ -1,4 +1,5 @@
 {
+  "range": "{{from}} 〜 {{to}}",
   "app": {
     "newRelease": "新しい版 {{version}} があります",
     "name": "Kotatsu",
@@ -408,7 +409,7 @@
       "reserve": "録画予約",
       "createRule": "この番組からルールを作成",
       "reserved": "録画予約済み",
-      "partial": "本編の一部が欠ける見込みです。{{start}}〜{{end}} を録画する予定です",
+      "partial": "本編の一部が欠ける見込みです。{{start}} 〜 {{end}} を録画する予定です",
       "reservedByRules": "ルールで予約: ",
       "reservedByRulesSettings": "録画の設定は、最も古いルール「{{name}}」に従います",
       "cancelReservation": "録画予約を取り消す",
@@ -737,7 +738,7 @@
       "PARTIAL": "一部のみ",
       "CONFLICT": "競合"
     },
-    "planned": "録画 {{start}}〜{{end}}",
+    "planned": "録画 {{start}} 〜 {{end}}",
     "disabled": "無効",
     "enable": "有効にする",
     "disable": "無効にする",
@@ -944,7 +945,7 @@
     "qualityCounts": "ドロップ {{drops}} / エラー {{errors}} / スクランブル {{scrambled}}",
     "recordedRange": "録画した時刻 {{from}} 〜 {{until}}",
     "size": "{{size}}（{{count}}ファイル）",
-    "gap": "{{from}} 〜 {{to}}が途切れています",
+    "gap": "{{from}} 〜 {{to}} が途切れています",
     "programLost": "録画中に、番組が番組表から消えました",
     "broadcastRange": "実際の放送: {{from}} 〜 {{until}}",
     "broadcastOngoing": "放送中",

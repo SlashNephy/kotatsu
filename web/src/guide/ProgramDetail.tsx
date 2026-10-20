@@ -226,10 +226,12 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           <ServiceLabel name={program.service.name} logoUrl={program.service.logoUrl} />
         </Text>
         <Text size="sm" c="dimmed">
-          {dateTimeFormat.format(start)}〜
-          {program.endUndecided
-            ? t('guide.detail.endUndecided')
-            : timeFormat.format(Date.parse(program.endAt))}
+          {t('range', {
+            from: dateTimeFormat.format(start),
+            to: program.endUndecided
+              ? t('guide.detail.endUndecided')
+              : timeFormat.format(Date.parse(program.endAt)),
+          })}
         </Text>
         {(genres.length > 0 || !program.isFree) && (
           <Group gap="xs">

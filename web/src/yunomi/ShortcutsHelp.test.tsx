@@ -57,7 +57,7 @@ describe('ShortcutsHelp', () => {
       ['決定', 'Enter'],
       ['戻る', 'Backspace'],
       ['青・赤・緑・黄', 'AltBRGY'],
-      ['数字', '0〜9'],
+      ['数字', '0 〜 9'],
     ]);
   });
 });

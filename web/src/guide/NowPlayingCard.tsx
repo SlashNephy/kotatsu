@@ -50,8 +50,10 @@ export function NowPlayingCard({
       {/* 番組名が 1 行のカードでも、放送時間をカードの下端に揃える。 */}
       {program !== null && (
         <Text size="xs" c="dimmed" mt="auto" pt={4}>
-          {timeFormat.format(Date.parse(program.startAt))} 〜{' '}
-          {timeFormat.format(Date.parse(program.endAt))}{' '}
+          {t('range', {
+            from: timeFormat.format(Date.parse(program.startAt)),
+            to: timeFormat.format(Date.parse(program.endAt)),
+          })}{' '}
           {t('home.duration', {
             minutes: Math.round((Date.parse(program.endAt) - Date.parse(program.startAt)) / 60_000),
           })}
