@@ -32,6 +32,7 @@ func TestSanitizeName(t *testing.T) {
 	}{
 		{name: "plain", input: "【新】番組名 #1「サブタイトル」", want: "【新】番組名 #1「サブタイトル」"},
 		{name: "path separators", input: "A/B\\C", want: "ABC"},
+		{name: "characters Windows cannot use", input: `番組: "A" <B> | C? *`, want: "番組 A B  C"},
 		{name: "control characters", input: "番組\x00名\t\n\x7f", want: title},
 		{name: "invalid UTF-8", input: "番組\xff\xfe名", want: title},
 		{name: "leading dots and spaces", input: " ..hidden", want: "hidden"},
@@ -94,6 +95,11 @@ func TestRenderName(t *testing.T) {
 			name: "the sidecar suffix is compared case-insensitively",
 			data: data{Date: date, Channel: channel, Title: "x.m2ts.KOTATSU/番組"},
 			want: "20261009-2100 こたつテスト1 x.m2ts.KOTATSU_/番組.m2ts",
+		},
+		{
+			name: "characters Windows cannot use are removed from directories too",
+			data: data{Date: date, Channel: channel, Title: "A: B?/番組"},
+			want: "20261009-2100 こたつテスト1 A B/番組.m2ts",
 		},
 		{
 			name: "directories deeper than the limit are dropped",

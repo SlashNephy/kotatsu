@@ -150,3 +150,19 @@ func TestRenderFileName(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "GR/TV1/前編後編完結.m2ts", got)
 }
+
+// TestRenderFileNameRemovesWindowsUnsafeCharacters は、half で半角になった : や * も、
+// Windows で使えないので、ファイル名から取り除くことを確かめる (#881)。
+func TestRenderFileNameRemovesWindowsUnsafeCharacters(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, 10, 12, 0, 30, 0, 0, time.UTC)
+	data := &reserve.FileNameData{
+		StartAt: start, EndAt: start.Add(time.Hour), ServiceName: "ＴＶ１", ChannelType: "GR", Channel: "16", Name: "第１話：前編＊", EventID: 1,
+	}
+	tmpl, err := reserve.ParseFileNameTemplate(`{{half .Name}}`)
+	require.NoError(t, err)
+	got, err := reserve.RenderFileName(tmpl, data, ".m2ts")
+	require.NoError(t, err)
+	assert.Equal(t, "第1話前編.m2ts", got)
+}
