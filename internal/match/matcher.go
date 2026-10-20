@@ -16,7 +16,9 @@ import (
 
 // Program は、照合する番組。文字列の項目は、NewProgram で NFKC で正規化しておくか、DB の正規化した列から入れる。
 type Program struct {
-	ServiceID   int64
+	ServiceID int64
+	// SharedFrom は、イベント共有の元のサービス (epg.SharedFrom)。共有していないか、番組が元であれば 0。
+	SharedFrom  int64
 	ChannelType string
 	Name        string
 	Description string
@@ -37,6 +39,7 @@ type Program struct {
 // ProgramInput は、NewProgram に渡す番組の情報。文字列は正規化する前のものでよい。
 type ProgramInput struct {
 	ServiceID   int64
+	SharedFrom  int64
 	ChannelType string
 	Name        string
 	Description string
@@ -53,6 +56,7 @@ type ProgramInput struct {
 func NewProgram(in *ProgramInput) *Program {
 	return &Program{
 		ServiceID:   in.ServiceID,
+		SharedFrom:  in.SharedFrom,
 		ChannelType: in.ChannelType,
 		Name:        epg.Normalize(in.Name),
 		Description: epg.Normalize(in.Description),
@@ -231,10 +235,7 @@ func (m *Matcher) Match(p *Program) bool {
 	if c.MaxDurationSeconds != nil && p.Duration > time.Duration(*c.MaxDurationSeconds)*time.Second {
 		return false
 	}
-	if (len(m.channelTypes) > 0 || len(m.serviceIDs) > 0) && !m.channelTypes[p.ChannelType] && !m.serviceIDs[p.ServiceID] {
-		return false
-	}
-	if m.excludeServiceIDs[p.ServiceID] {
+	if !m.matchServices(p) {
 		return false
 	}
 	if len(c.Genres) > 0 && !anyGenre(c.Genres, p.Genres) {
@@ -300,6 +301,16 @@ func anyGenre(conditions, genres []*Genre) bool {
 	}
 
 	return false
+}
+
+// matchServices は、番組が、チャンネル種別かサービスで対象になり (どちらもなければ絞り込まない)、除外するサービスの番組でないかを返す。
+// イベント共有の元のサービスを除外したら、同じ番組を流しているサブチャンネルの番組も除く (#899)。
+func (m *Matcher) matchServices(p *Program) bool {
+	if (len(m.channelTypes) > 0 || len(m.serviceIDs) > 0) && !m.channelTypes[p.ChannelType] && !m.serviceIDs[p.ServiceID] {
+		return false
+	}
+
+	return !m.excludeServiceIDs[p.ServiceID] && (p.SharedFrom == 0 || !m.excludeServiceIDs[p.SharedFrom])
 }
 
 // matchMarks は、番組が、含める囲み文字のどれかを持ち (なければ絞り込まない)、除外する囲み文字をどれも持たないかどうかを返す。

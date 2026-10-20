@@ -18,6 +18,8 @@ const (
 	// serviceGR と serviceBS は、テストの番組のサービス ID。
 	serviceGR = 3273601024
 	serviceBS = 400101
+	// serviceGRSub は、serviceGR のサブチャンネル。
+	serviceGRSub = 3273601025
 )
 
 func tokyo(t *testing.T) *time.Location {
@@ -176,6 +178,12 @@ func TestMatch(t *testing.T) {
 		{
 			name:       "excluded service wins over the same service in the set",
 			conditions: &match.Conditions{ServiceIDs: []int64{serviceGR}, ExcludeServiceIDs: []int64{serviceGR}},
+			want:       false,
+		},
+		{
+			name:       "program sharing the event with an excluded service is excluded",
+			conditions: &match.Conditions{ChannelTypes: []string{channelGR}, ExcludeServiceIDs: []int64{serviceGR}},
+			modify:     func(p *match.ProgramInput) { p.ServiceID, p.SharedFrom = serviceGRSub, serviceGR },
 			want:       false,
 		},
 		{
