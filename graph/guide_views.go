@@ -272,6 +272,7 @@ func matchProgram(service *model.Service, p *model.Program) *match.Program {
 
 	return match.NewProgram(&match.ProgramInput{
 		ServiceID:   p.ServiceKey,
+		SharedFrom:  p.SharedFromKey,
 		ChannelType: service.ChannelTypeKey,
 		Name:        p.Name,
 		Description: p.Description,

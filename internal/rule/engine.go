@@ -226,8 +226,14 @@ func toMatchProgram(row sqlc.ListMatchableProgramsRow) (*match.Program, error) {
 		extended = new(epg.NormalizeExtended(upstream))
 	}
 
+	sharedFrom, err := epg.SharedFrom(row.ServiceID, row.RelatedItems)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode the related items of program %d/%d: %w", row.ServiceID, row.EventID, err)
+	}
+
 	return &match.Program{
 		ServiceID:   row.ServiceID,
+		SharedFrom:  sharedFrom,
 		ChannelType: row.ChannelType,
 		Name:        row.NameNormalized,
 		Description: row.DescriptionNormalized,
