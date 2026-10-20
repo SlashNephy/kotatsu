@@ -11,7 +11,7 @@ import {
   Title,
 } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 
@@ -20,10 +20,11 @@ import type { ChangeChannel } from '../changes/dataChanges';
 import { RecordingCard } from '../recordings/RecordingCard';
 import type { DashboardQuery } from './__generated__/DashboardQuery.graphql';
 import classes from './Dashboard.module.css';
-import { nowPlaying } from './nowPlaying';
+import { nowPlaying, pinnedNowPlaying } from './nowPlaying';
 import { broadcastDay, dateOf } from '../guide/layout';
 import { nextWakeAt, ProgramTitle, toHalfWidth, useWakeAt } from '../futon';
 import { NowPlayingCard } from '../guide/NowPlayingCard';
+import { PinButton } from '../guide/PinButton';
 import { ServiceLabel } from '../guide/ServiceLabel';
 import { zonedFormat } from '../futon';
 
@@ -59,6 +60,9 @@ const homeChannels: readonly ChangeChannel[] = [
 // maxWaitMs は、時刻で読み直すまでに待つ最大の時間。放送中の番組がないサービスで、番組が始まるのに気づくのに使う。
 const maxWaitMs = 10 * 60_000;
 
+// pinnedTab は、ピン留めしたサービスを出すタブの値。チャンネル種別とぶつからないよう、小文字にする (ライブの一覧と同じ)。
+const pinnedTab = 'pinned';
+
 // Dashboard は、ホームの中身。縮退と予約の競合の警告、これからの予約、最近の録画、放送中の番組を出す (設計書 10.3)。
 // range は、待たない親で決めた時刻。待つ間に決め直すと、読み込みが終わらなくなる。
 // onExpire は、放送中の番組が終わったり、予約が始まったりして、range を決め直す時刻になったら呼ぶ。
@@ -84,6 +88,9 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
         channelTypes {
           type
           displayName
+        }
+        pinnedServices {
+          id
         }
         guide(from: $from, to: $nowEnd) {
           service {
@@ -233,7 +240,27 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
       ),
     }))
     .filter((channelType) => channelType.playing.length > 0);
-  const [selectedType, setSelectedType] = useState<string | null>(null);
+  // pinned は、ピン留めしたサービスの ID を、ピン留めした順に並べたもの (#485)。
+  // ピン留めしたサービスに放送中の番組があれば、種類の前に「ピン留め」のタブを置き、そこから出す。
+  const pinned = data.pinnedServices.map((service) => service.id);
+  const pinnedSet = new Set(pinned);
+  const pinnedPlaying = pinnedNowPlaying(data.guide, pinned, range.now);
+  const tabs = [
+    ...(pinnedPlaying.length > 0
+      ? [{ type: pinnedTab, displayName: t('pin.tab'), playing: pinnedPlaying }]
+      : []),
+    ...playingByType,
+  ];
+  const [selectedType, setSelectedType] = useState<string | null>(() =>
+    pinnedPlaying.length > 0 ? pinnedTab : null,
+  );
+  // ピン留めのタブがなくなったら、最初の種類に戻す。後でまたピン留めのタブができても、ピン留めのタブへは戻さない。
+  const fallBack = selectedType === pinnedTab && pinnedPlaying.length === 0;
+  useEffect(() => {
+    if (fallBack) {
+      setSelectedType(null);
+    }
+  }, [fallBack]);
   // 放送中の番組が終わる時刻か、これからの予約が始まる時刻のうち、最も早いものに読み直す。
   useWakeAt(
     nextWakeAt(
@@ -246,8 +273,7 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
     ),
     onExpire,
   );
-  const current =
-    playingByType.find((channelType) => channelType.type === selectedType) ?? playingByType[0];
+  const current = tabs.find((tab) => tab.type === selectedType) ?? playingByType[0];
   const playing = current?.playing ?? [];
   // 100 件を超えたら、「100 件以上」と示す。
   const troubles = data.troubles.edges.length;
@@ -404,16 +430,13 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
           <Title order={3} size="h5" className={classes.title}>
             {t('home.nowPlaying')}
           </Title>
-          {playingByType.length > 1 && (
+          {tabs.length > 1 && (
             <SegmentedControl
               className={classes.types}
               size="xs"
               value={current?.type ?? ''}
               onChange={setSelectedType}
-              data={playingByType.map((channelType) => ({
-                value: channelType.type,
-                label: channelType.displayName,
-              }))}
+              data={tabs.map((tab) => ({ value: tab.type, label: tab.displayName }))}
             />
           )}
           <Anchor component={Link} to="/guide" size="sm" className={classes.link}>
@@ -427,13 +450,23 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
         ) : (
           <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="xs">
             {playing.map((item) => (
-              <NowPlayingCard
-                key={item.serviceId}
-                serviceId={item.serviceId}
-                serviceName={item.serviceName}
-                serviceLogoUrl={item.serviceLogoUrl}
-                program={{ name: item.programName, startAt: item.startAt, endAt: item.endAt }}
-              />
+              // カードはリンクなので、ピン留めのボタンは、カードの中ではなく上に重ねる (ライブの一覧と同じ)。
+              <Box key={item.serviceId} pos="relative">
+                <NowPlayingCard
+                  serviceId={item.serviceId}
+                  serviceName={item.serviceName}
+                  serviceLogoUrl={item.serviceLogoUrl}
+                  program={{ name: item.programName, startAt: item.startAt, endAt: item.endAt }}
+                />
+                <Box pos="absolute" top={6} right={6}>
+                  <PinButton
+                    serviceId={item.serviceId}
+                    serviceName={item.serviceName}
+                    pinned={pinnedSet.has(item.serviceId)}
+                    size="xs"
+                  />
+                </Box>
+              </Box>
             ))}
           </SimpleGrid>
         )}
