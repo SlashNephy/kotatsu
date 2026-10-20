@@ -247,6 +247,7 @@ func twoAudioTS(t *testing.T) []byte {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "two-audio.ts")
+	//nolint:gosec // G204: 引数は固定の値と、テスト用の一時ディレクトリのパスだけ。
 	cmd := exec.CommandContext(t.Context(), "ffmpeg", "-hide_banner", "-loglevel", "error",
 		"-i", filepath.Join("..", "..", "testdata", "ts", "test.ts"),
 		"-f", "lavfi", "-i", "sine=frequency=1000:sample_rate=48000",

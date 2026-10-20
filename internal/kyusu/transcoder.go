@@ -142,10 +142,11 @@ func (f *segmentFile) Close() error {
 func (t *Transcoder) run(ctx context.Context, src io.Reader, args []string, stdout io.Writer) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	normalizer := exec.CommandContext(runCtx, t.tsreadex, tsreadexArgs()...)
-	// 引数は、設定のエンコーダーと、固定の表の画質と、数値から組み立てる。利用者の入力 (URL の画質や音声) は、表を引くのに使うだけで、
-	// そのまま渡さない。gosec の taint 解析は、入力を受け取った関数の戻り値をまとめて汚染されたものとみなすので、ここで外す。
-	encoder := exec.CommandContext(runCtx, t.ffmpeg, args...) //nolint:gosec // G702 の誤検知。理由は上のとおり。
+	normalizer := exec.CommandContext(runCtx, t.tsreadex, tsreadexArgs()...) //nolint:gosec // G204: パスは PATH から引き、引数は固定の値から取る。
+	// FFmpeg のパスは PATH から引く。引数は、設定のエンコーダーと、固定の表の画質と、数値から組み立てる。
+	// 利用者の入力 (URL の画質や音声) は、表を引くのに使うだけで、そのまま渡さない。
+	// gosec の taint 解析は、入力を受け取った関数の戻り値をまとめて汚染されたものとみなすので、G204 と G702 をここで外す。
+	encoder := exec.CommandContext(runCtx, t.ffmpeg, args...) //nolint:gosec // G204 と G702 の誤検知。理由は上のとおり。
 	normalizerErr, encoderErr := newTailBuffer(stderrLimit), newTailBuffer(stderrLimit)
 	for _, cmd := range []*exec.Cmd{normalizer, encoder} {
 		cmd.WaitDelay = stopDelay
