@@ -2,7 +2,8 @@ import { Alert, Anchor, Stack, Title } from '@mantine/core';
 import { createFileRoute, Link, useLocation } from '@tanstack/react-router';
 import { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
+import { graphql, useFragment } from 'react-relay';
+import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';

@@ -174,6 +174,27 @@ export default defineConfig(({ mode }) => ({
       typeAware: true,
       typeCheck: true,
     },
+    rules: {
+      // useLazyLoadQuery は、ErrorBoundary が戻したときに読み直す relay/useLazyLoadQuery を使う。
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react-relay',
+              importNames: ['useLazyLoadQuery'],
+              message: 'Use useLazyLoadQuery from src/relay/useLazyLoadQuery instead.',
+            },
+          ],
+        },
+      ],
+    },
+    overrides: [
+      {
+        files: ['src/relay/useLazyLoadQuery.ts'],
+        rules: { 'no-restricted-imports': 'off' },
+      },
+    ],
   },
   test: {
     include: ['src/**/*.test.{ts,tsx}'],

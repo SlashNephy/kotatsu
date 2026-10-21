@@ -1,11 +1,6 @@
 import { useEffect, useRef } from 'react';
-import {
-  fetchQuery,
-  graphql,
-  useLazyLoadQuery,
-  useMutation,
-  useRelayEnvironment,
-} from 'react-relay';
+import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-relay';
+import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 import { isKeywordMuteMatch } from '../jikkyo/comments';
 
 import { useDataChanges } from '../changes/DataChanges';

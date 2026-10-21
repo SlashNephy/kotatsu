@@ -34,13 +34,8 @@ import {
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { startTransition, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  fetchQuery,
-  graphql,
-  useLazyLoadQuery,
-  useMutation,
-  useRelayEnvironment,
-} from 'react-relay';
+import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-relay';
+import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../changes/DataChanges';
 import type { DataChannel } from '../changes/dataChanges';

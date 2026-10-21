@@ -1,7 +1,8 @@
 import { Group, Loader, NumberInput } from '@mantine/core';
 import { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery } from 'react-relay';
+import { graphql } from 'react-relay';
+import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import type { MarginFieldsQuery } from './__generated__/MarginFieldsQuery.graphql';
 

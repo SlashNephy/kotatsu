@@ -2,7 +2,8 @@ import { Alert, Anchor, Card, Group, Stack, Switch, Table, Text, Title } from '@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
+import { graphql, useMutation } from 'react-relay';
+import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 import type { PayloadError, RecordSourceSelectorProxy } from 'relay-runtime';
 
 import { ErrorBoundary, PageLoader } from '../../futon';

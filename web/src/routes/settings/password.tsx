@@ -2,7 +2,8 @@ import { Alert, Anchor, Button, PasswordInput, Stack, Text } from '@mantine/core
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
+import { graphql, useMutation } from 'react-relay';
+import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { authApi, type OIDCStatus } from '../../auth/api';
 import { AuthCard } from '../../auth/AuthCard';

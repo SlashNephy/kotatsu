@@ -3,7 +3,8 @@ import { Link } from '@tanstack/react-router';
 import { CopyCheck } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
+import { graphql, useMutation } from 'react-relay';
+import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../changes/DataChanges';
 import { EmptyState, ProgramTitle, zonedFormat } from '../futon';

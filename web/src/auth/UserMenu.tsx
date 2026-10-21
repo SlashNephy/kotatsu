@@ -1,7 +1,8 @@
 import { Avatar, Box, Button, Indicator, Menu, Text } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery } from 'react-relay';
+import { graphql } from 'react-relay';
+import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import { ColorSchemeToggle } from '../futon';
 import { authApi } from './api';

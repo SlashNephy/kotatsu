@@ -3,7 +3,8 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { CalendarX2 } from 'lucide-react';
 import { Suspense, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery } from 'react-relay';
+import { graphql } from 'react-relay';
+import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';

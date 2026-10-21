@@ -19,7 +19,8 @@ import { startTransition, useState, type FormEvent } from 'react';
 import { useDataChanges } from '../../changes/DataChanges';
 import { EmptyState } from '../../futon';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
+import { graphql, useRelayEnvironment } from 'react-relay';
+import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { AdminPage } from '../../admin/AdminPage';
 import { authApi, type OIDCStatus } from '../../auth/api';

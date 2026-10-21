@@ -2,7 +2,8 @@ import { Anchor, Card, Group, Stack, Text } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
 import { BellOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery } from 'react-relay';
+import { graphql } from 'react-relay';
+import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../changes/DataChanges';
 import { EmptyState, ProgramTitle, zonedFormat } from '../futon';

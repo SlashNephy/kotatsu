@@ -10,25 +10,14 @@ import {
   type SubscribeFunction,
 } from 'relay-runtime';
 
-import { retryDelayMs, subscriptionConnections } from './connection';
+import { retryDelayMs, serverConnections } from './connection';
+import { GraphQLRequestError } from './requestError';
+import { withTransientRetry } from './withTransientRetry';
+
+export { GraphQLRequestError } from './requestError';
 
 // GraphQL のエンドポイント (設計書 9.1)。tenban と同じオリジンに置く。
 const endpoint = '/graphql';
-
-// GraphQLRequestError は、GraphQL の処理に入る前に tenban が拒否したリクエストや、
-// リバースプロキシのエラーのように GraphQL の応答でないものを表す。
-export class GraphQLRequestError extends Error {
-  readonly status: number;
-  // code は、tenban が付けたエラーコード (UNAUTHENTICATED など)。GraphQL の応答でなければ undefined。
-  readonly code: string | undefined;
-
-  constructor(message: string, status: number, code: string | undefined) {
-    super(message);
-    this.name = 'GraphQLRequestError';
-    this.status = status;
-    this.code = code;
-  }
-}
 
 // isUnauthenticated は、ログインしていないために拒否されたエラーかどうかを返す。
 export function isUnauthenticated(error: unknown): boolean {
@@ -104,7 +93,7 @@ let sseClient: Client | undefined;
 // subscribe は、subscription を graphql-sse で受け取る。tenban は、同じエンドポイントで SSE を返す。
 // 接続が切れたら、上限なしにつなぎ直す。graphql-sse の既定 (5 回、約 30 秒) で諦めると、
 // サーバーの再起動などの後、ページを読み込み直すまで変更が届かなくなるため (#503)。
-// つなぎ直している間は、subscriptionConnections に知らせ、ヘッダーに印を出す。
+// つなぎ直している間は、serverConnections に知らせ、ヘッダーに印を出す。
 const subscribe: SubscribeFunction = (operation, variables) => {
   sseClient ??= createClient({
     url: endpoint,
@@ -116,7 +105,7 @@ const subscribe: SubscribeFunction = (operation, variables) => {
   const client = sseClient;
 
   return Observable.create<GraphQLResponse>((sink) => {
-    const connection = subscriptionConnections.track();
+    const connection = serverConnections.track();
     const dispose = client.subscribe(
       { query: operation.text ?? '', variables },
       {
@@ -149,7 +138,7 @@ const subscribe: SubscribeFunction = (operation, variables) => {
 
 export function createEnvironment(): Environment {
   return new Environment({
-    network: Network.create(fetchQuery, subscribe),
+    network: Network.create(withTransientRetry(fetchQuery), subscribe),
     store: new Store(new RecordSource()),
   });
 }

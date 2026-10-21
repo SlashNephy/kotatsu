@@ -20,8 +20,8 @@ describe('createConnectionTracker', () => {
     expect(tracker.isReconnecting()).toBe(true);
     b.release();
     expect(tracker.isReconnecting()).toBe(false);
-    // 知らせるのは、つなぎ直しているかどうかが変わったときだけ。
-    expect(notified).toBe(2);
+    // 知らせるのは、つなぎ直しているかどうかが変わったとき (2 回) と、a がつなぎ直してつながったとき (1 回)。
+    expect(notified).toBe(3);
   });
 
   test('やめた後に届いた知らせは数えない', () => {
@@ -58,5 +58,32 @@ describe('retryDelayMs', () => {
     { retries: 0, random: 0.9999, want: 1000 + 2999 },
   ])('$retries 回目 (random=$random) は $want ms 待つ', ({ retries, random, want }) => {
     expect(retryDelayMs(retries, random)).toBe(want);
+  });
+});
+
+describe('createConnectionTracker の recoveries', () => {
+  test('つなぎ直していた接続がつながったときだけ数え、そのたびに知らせる', () => {
+    const tracker = createConnectionTracker();
+    let notified = 0;
+    tracker.subscribe(() => {
+      notified++;
+    });
+    const a = tracker.track();
+
+    // 最初からつながった接続は、戻ったとはみなさない。
+    a.connected();
+    expect(tracker.recoveries()).toBe(0);
+
+    a.reconnecting();
+    a.connected();
+    expect(tracker.recoveries()).toBe(1);
+    // つなぎ直し始めたとき、戻ったとき、つなぎ直している接続がなくなったときに知らせる。
+    expect(notified).toBe(3);
+
+    // やめた接続は、つなぎ直していても数えない。
+    a.reconnecting();
+    a.release();
+    a.connected();
+    expect(tracker.recoveries()).toBe(1);
   });
 });

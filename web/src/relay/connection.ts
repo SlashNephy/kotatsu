@@ -10,18 +10,28 @@ export type SubscriptionConnection = {
   release: () => void;
 };
 
-// ConnectionTracker は、subscription の接続のうち、つなぎ直している最中のものがあるかを数える (#503)。
+// ConnectionTracker は、サーバーとの接続のうち、つなぎ直している最中のものがあるかを数える (#503)。
 // graphql-sse は subscription ごとに SSE の接続を張るので、1 本ずつ数える。
+// 一時的な障害で送り直している query も、1 本の接続として数える (withTransientRetry)。
 export type ConnectionTracker = {
   track: () => SubscriptionConnection;
-  // isReconnecting は、つなぎ直している最中の subscription が 1 本でもあれば true を返す。
+  // isReconnecting は、つなぎ直している最中の接続が 1 本でもあれば true を返す。
   isReconnecting: () => boolean;
+  // recoveries は、つなぎ直していた接続が、つながった回数。サーバーが戻ったことの知らせに使う。
+  // つなぎ直している接続の数が 0 に戻るだけでは、諦めてやめたのと区別できないので、別に数える。
+  recoveries: () => number;
   subscribe: (listener: () => void) => () => void;
 };
 
 export function createConnectionTracker(): ConnectionTracker {
   const reconnecting = new Set<symbol>();
   const listeners = new Set<() => void>();
+  let recoveries = 0;
+  const notify = () => {
+    for (const listener of listeners) {
+      listener();
+    }
+  };
   const update = (id: symbol, value: boolean) => {
     const before = reconnecting.size > 0;
     if (value) {
@@ -30,9 +40,7 @@ export function createConnectionTracker(): ConnectionTracker {
       reconnecting.delete(id);
     }
     if (before !== reconnecting.size > 0) {
-      for (const listener of listeners) {
-        listener();
-      }
+      notify();
     }
   };
 
@@ -49,9 +57,14 @@ export function createConnectionTracker(): ConnectionTracker {
           }
         },
         connected: () => {
-          if (!released) {
-            update(id, false);
+          if (released) {
+            return;
           }
+          if (reconnecting.has(id)) {
+            recoveries++;
+            notify();
+          }
+          update(id, false);
         },
         release: () => {
           released = true;
@@ -60,6 +73,7 @@ export function createConnectionTracker(): ConnectionTracker {
       };
     },
     isReconnecting: () => reconnecting.size > 0,
+    recoveries: () => recoveries,
     subscribe: (listener) => {
       listeners.add(listener);
 
@@ -70,15 +84,12 @@ export function createConnectionTracker(): ConnectionTracker {
   };
 }
 
-// subscriptionConnections は、画面全体の subscription の接続の状態。
-export const subscriptionConnections = createConnectionTracker();
+// serverConnections は、画面全体のサーバーとの接続 (subscription と、送り直している query) の状態。
+export const serverConnections = createConnectionTracker();
 
-// useSubscriptionsReconnecting は、つなぎ直している最中の subscription があるかを返す。
-export function useSubscriptionsReconnecting(): boolean {
-  return useSyncExternalStore(
-    subscriptionConnections.subscribe,
-    subscriptionConnections.isReconnecting,
-  );
+// useServerReconnecting は、つなぎ直している最中の接続があるかを返す。
+export function useServerReconnecting(): boolean {
+  return useSyncExternalStore(serverConnections.subscribe, serverConnections.isReconnecting);
 }
 
 // maxRetryDelayMs は、つなぎ直すのを待つ時間の上限。サーバーの再起動などで長く切れても、この間隔で試し続ける。

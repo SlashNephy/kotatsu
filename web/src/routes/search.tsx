@@ -15,7 +15,8 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { History, ListPlus, SearchX } from 'lucide-react';
 import { Suspense, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
+import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
+import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import { ConditionsFields } from '../conditions/ConditionsFields';
 import {
