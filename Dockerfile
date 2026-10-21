@@ -5,13 +5,12 @@
 #   - ffmpeg: Debian 13 の slim に FFmpeg と tsreadex を入れたイメージ。kyusu、nekonote、all 向け。
 #
 # docker buildx build --platform linux/amd64,linux/arm64 --target static . のようにビルドする。
-# Docker Hub の取得の回数の上限に当たらないよう、Docker Hub の公式イメージは Google のミラーから取得する。
 
 # renovate: datasource=github-tags depName=xtne6f/tsreadex versioning=loose
 ARG TSREADEX_VERSION=master-260428
 
 # SPA は、どのアーキテクチャでも同じものになるので、ビルドするマシンのアーキテクチャで 1 回だけビルドする。
-FROM --platform=$BUILDPLATFORM mirror.gcr.io/library/node:24.22.0-trixie-slim@sha256:a6155384446670e9719bdc4fd0ebe4d4b29fb32a8d6aa523da3547a6cfbcf22c AS web
+FROM --platform=$BUILDPLATFORM docker.io/library/node:24.22.0-trixie-slim@sha256:a6155384446670e9719bdc4fd0ebe4d4b29fb32a8d6aa523da3547a6cfbcf22c AS web
 WORKDIR /src/web
 # pnpm の版は package.json の packageManager に従う。
 RUN corepack enable
@@ -27,7 +26,7 @@ RUN node scripts/fetch-caption-font.mjs
 RUN pnpm exec vp build
 
 # Go のバイナリは、ビルドするマシンのアーキテクチャのまま、対象のアーキテクチャへクロスコンパイルする。
-FROM --platform=$BUILDPLATFORM mirror.gcr.io/library/golang:1.27-trixie@sha256:604106102d33b1084e37ca08adf98ac0813624ae8595bd0d7f3965ecebded09c AS build
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27-trixie@sha256:604106102d33b1084e37ca08adf98ac0813624ae8595bd0d7f3965ecebded09c AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
@@ -43,7 +42,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     -ldflags="-s -w -X github.com/SlashNephy/kotatsu/internal/buildinfo.version=${VERSION}" -o /out/kotatsu ./cmd/kotatsu
 
 # tsreadex は、配布されているバイナリがないので、対象のアーキテクチャでソースからビルドする。
-FROM mirror.gcr.io/library/debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS tools
+FROM docker.io/library/debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS tools
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates g++ git make \
     && rm -rf /var/lib/apt/lists/*
@@ -65,7 +64,7 @@ USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/kotatsu"]
 
 # FFmpeg と tsreadex を入れた実行環境。ffmpeg と、開発用の dev の土台にする。
-FROM mirror.gcr.io/library/debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS runtime
+FROM docker.io/library/debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS runtime
 ARG TARGETARCH
 # FFmpeg は Debian の ffmpeg パッケージ (GPL-2.0-or-later) を使う (#77)。
 # VAAPI と QSV のドライバのうち、Intel のものは amd64 にしかない。Intel の VAAPI のドライバだけは、non-free の
@@ -91,7 +90,7 @@ FROM runtime AS dev
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=mirror.gcr.io/jdxcode/mise:2026.10.14@sha256:7cb6019fd7e60dfc3622b1d667d3e57628549fbc9e36b4a5768265388342f754 /usr/local/bin/mise /usr/local/bin/mise
+COPY --from=docker.io/jdxcode/mise:2026.10.14@sha256:7cb6019fd7e60dfc3622b1d667d3e57628549fbc9e36b4a5768265388342f754 /usr/local/bin/mise /usr/local/bin/mise
 ARG UID=1000
 ARG GID=1000
 # 名前付きボリュームは、最初にマウントしたときに、イメージのディレクトリの持ち主を引き継ぐ。
