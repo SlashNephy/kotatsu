@@ -260,6 +260,44 @@ func (s *Store) Rename(poolID, from, dir, name string, start int) (string, error
 	return "", fmt.Errorf("too many files named %q in pool %s", name, poolID)
 }
 
+// Restore は、Rename で移した録画ファイル from (プール内の相対パス) を、元のパス to に戻す。
+// to は、移す前に実際にあったパスなので、今の整え方で使えない文字 (設計書 4.7) を含んでいても、整え直さずに戻す。
+// to のディレクトリが空になって消えていれば作り直す。to に別のものがあれば、上書きせずに失敗する。
+// from のあったディレクトリが空になれば消す。プールの中に限って移す。
+func (s *Store) Restore(poolID, from, to string) error {
+	if !filepath.IsLocal(from) || !filepath.IsLocal(to) {
+		return fmt.Errorf("%w: %q -> %q", ErrInvalidPath, from, to)
+	}
+	if filepath.Clean(from) == filepath.Clean(to) {
+		return nil
+	}
+	mount, ok := s.mounts[poolID]
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
+	}
+	root, err := os.OpenRoot(mount)
+	if err != nil {
+		return fmt.Errorf("failed to open pool %s: %w", poolID, err)
+	}
+	defer root.Close()
+	if dir := filepath.Dir(to); dir != "." {
+		if err := root.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("failed to create a directory in pool %s: %w", poolID, err)
+		}
+	}
+	if exists(root, to) {
+		return fmt.Errorf("failed to restore a file in pool %s: %q already exists", poolID, to)
+	}
+	if err := root.Rename(from, to); err != nil {
+		return fmt.Errorf("failed to restore a file in pool %s: %w", poolID, err)
+	}
+	for parent := filepath.Dir(from); parent != "." && root.Remove(parent) == nil; parent = filepath.Dir(parent) {
+		continue
+	}
+
+	return nil
+}
+
 // exists は、root の中に rel があるかを返す。シンボリックリンクはたどらない。
 func exists(root *os.Root, rel string) bool {
 	_, err := root.Lstat(rel)

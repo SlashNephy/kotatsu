@@ -402,3 +402,66 @@ func TestRename(t *testing.T) {
 	_, err = store.Rename(poolMain, got, "../outside", fileName, 1)
 	require.ErrorIs(t, err, kago.ErrInvalidPath)
 }
+
+// TestRestore は、Rename で移したファイルを、元のパスへ戻すことを確かめる (#917)。
+// 元の名前は、今の整え方で使えない文字を含むことがあるので、整え直さずに戻す。
+func TestRestore(t *testing.T) {
+	t.Parallel()
+
+	const (
+		// unsanitized は、整え方を変える前に付いた名前。今の SanitizeName は半角の : を取り除く。
+		unsanitized = "old/古い:名前.m2ts"
+		moved       = "GR/新しい名前.m2ts"
+	)
+	tests := []struct {
+		name string
+		// occupied は、戻す前に、元のパスに別のファイルを置くかどうか。
+		occupied bool
+		wantErr  bool
+	}{
+		{name: "今の整え方で使えない文字を含む元の名前に戻し、消えた元のディレクトリを作り直す", occupied: false, wantErr: false},
+		{name: "元のパスに別のファイルがあれば、上書きせずに失敗する", occupied: true, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mount := t.TempDir()
+			store := kago.New(map[string]string{poolMain: mount}, nil)
+			require.NoError(t, os.MkdirAll(filepath.Join(mount, "GR"), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(mount, moved), []byte("recording"), 0o600))
+			if tt.occupied {
+				require.NoError(t, os.MkdirAll(filepath.Join(mount, "old"), 0o755))
+				require.NoError(t, os.WriteFile(filepath.Join(mount, unsanitized), []byte("other"), 0o600))
+			}
+
+			err := store.Restore(poolMain, moved, unsanitized)
+			if tt.wantErr {
+				require.Error(t, err)
+				got, err := os.ReadFile(filepath.Join(mount, unsanitized))
+				require.NoError(t, err)
+				assert.Equal(t, "other", string(got), "the existing file is not overwritten")
+				_, err = os.Stat(filepath.Join(mount, moved))
+				require.NoError(t, err, "the moved file stays")
+
+				return
+			}
+			require.NoError(t, err)
+			got, err := os.ReadFile(filepath.Join(mount, unsanitized))
+			require.NoError(t, err)
+			assert.Equal(t, "recording", string(got))
+			_, err = os.Stat(filepath.Join(mount, "GR"))
+			require.ErrorIs(t, err, os.ErrNotExist, "the emptied directory is removed")
+		})
+	}
+
+	mount := t.TempDir()
+	store := kago.New(map[string]string{poolMain: mount}, nil)
+	require.ErrorIs(t, store.Restore(poolMain, moved, "../outside.m2ts"), kago.ErrInvalidPath)
+
+	// 元と同じパスなら、何もしない。
+	require.NoError(t, os.WriteFile(filepath.Join(mount, "same.m2ts"), []byte("recording"), 0o600))
+	require.NoError(t, store.Restore(poolMain, "same.m2ts", "./same.m2ts"))
+	_, err := os.Stat(filepath.Join(mount, "same.m2ts"))
+	require.NoError(t, err)
+}
