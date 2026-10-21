@@ -64,7 +64,7 @@ jobs:
             mysql: mirror.gcr.io/library/mysql:8.4@sha256:24989179f58856db763f418010c1169fecc944e3ec1ea7e921572d83eb070f70 # renovate: oldest
             mariadb: mirror.gcr.io/library/mariadb:11.8@sha256:f16d7a344413e519dff518f27bdb221388f84b0d274c97c4fb5f2cb0dc1b34fa # renovate: oldest
           - db: latest
-            postgres: mirror.gcr.io/library/postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336 # renovate: latest
+            postgres: mirror.gcr.io/library/postgres:18@sha256:1267c7e692de235fda2a50dbcdbcbca4672ea6a0298576a6bd9d07cafc319b32 # renovate: latest
             mysql: mirror.gcr.io/library/mysql:26.7@sha256:893418c8a7a34c60d2d961cc30ef136095da141478562ed2101ae3f5faba9c3f # renovate: latest
             mariadb: mirror.gcr.io/library/mariadb:13.0@sha256:0e4bb0f339feba125d1154fbacd36c16ec8518f52e44e1f82ecec7d6771caf39 # renovate: latest
     # Docker Hub は認証なしの取得に回数の上限があり、同時に何本も CI が走ると当たるので、Google のミラーから取得する。
@@ -253,7 +253,7 @@ jobs:
       contents: read
     services:
       postgres:
-        image: mirror.gcr.io/library/postgres:18@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336 # renovate: latest
+        image: mirror.gcr.io/library/postgres:18@sha256:1267c7e692de235fda2a50dbcdbcbca4672ea6a0298576a6bd9d07cafc319b32 # renovate: latest
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: kotatsu
