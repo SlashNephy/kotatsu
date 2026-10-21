@@ -1,0 +1,49 @@
+name: Label a pull request
+
+# PR のタイトル (Conventional Commits) の種類から、リリースノートで分けるためのラベルを付ける (.github/release.yml)。
+# タイトルを変えたら、付け直す。Renovate と Dependabot の PR は、それぞれが付けるラベルで分けるので、付けない。
+on:
+  # フォークからの PR にもラベルを付けられるよう、pull_request_target で動かす。
+  # PR のコードはチェックアウトせず、タイトルだけを読む。
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - reopened
+
+permissions: {}
+
+jobs:
+  label:
+    if: github.event.pull_request.user.login != 'renovate[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Label by the title
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|perf|docs)(\([^)]*\))?!?: '
+          label=
+          if [[ "$TITLE" =~ $pattern ]]; then
+            case "${BASH_REMATCH[1]}" in
+              feat) label=enhancement ;;
+              fix) label=bug ;;
+              perf) label=performance ;;
+              docs) label=documentation ;;
+            esac
+          fi
+          args=()
+          for other in enhancement bug performance documentation; do
+            if [ "$other" != "$label" ]; then
+              args+=(--remove-label "$other")
+            fi
+          done
+          if [ -n "$label" ]; then
+            args+=(--add-label "$label")
+          fi
+          gh pr edit "$NUMBER" --repo "$REPOSITORY" "${args[@]}"
