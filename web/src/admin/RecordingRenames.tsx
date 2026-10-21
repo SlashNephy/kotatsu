@@ -14,9 +14,11 @@ import {
 } from '@mantine/core';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-relay';
+import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 
 import { ProgramTitle } from '../futon';
+import { mutate } from '../settings/mutate';
+import type { ReauthRun } from '../settings/useReauthGate';
 import type {
   RecordingRenamesQuery,
   RecordingRenamesQuery$data,
@@ -43,9 +45,20 @@ type Rename = RecordingRenamesQuery$data['recordingRenames'][number];
 // renameBatch は、1 回の renameRecordingFiles で送る録画の数 (サーバーの上限)。
 const renameBatch = 100;
 
+const renameMutation = graphql`
+  mutation RecordingRenamesMutation($ids: [ID!]!) {
+    renameRecordingFiles(ids: $ids) {
+      renamed
+      skipped
+      failed
+    }
+  }
+`;
+
 // RecordingRenames は、ファイル名のテンプレートを変えた後に、既存の録画のファイルを今のテンプレートの名前に付け直す (設計書 4.7)。
 // 元の名前と新しい名前の一覧を見せ、確かめてから付け直す。
-export function RecordingRenames() {
+// ファイルを動かすのは重要な操作なので、ページの再認証 (run) を通して送る (設計書 9.5)。
+export function RecordingRenames({ run: reauthRun }: { run: ReauthRun }) {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const [found, setFound] = useState<readonly Rename[] | null>(null);
@@ -54,15 +67,6 @@ export function RecordingRenames() {
   const [confirming, setConfirming] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const [rename] = useMutation<RecordingRenamesMutation>(graphql`
-    mutation RecordingRenamesMutation($ids: [ID!]!) {
-      renameRecordingFiles(ids: $ids) {
-        renamed
-        skipped
-        failed
-      }
-    }
-  `);
 
   // search は、付け直すと名前が変わる録画を探す。付け直した後に探し直すときは、結果の表示を残す (keepMessage)。
   const search = async (keepMessage = false) => {
@@ -100,38 +104,39 @@ export function RecordingRenames() {
     });
 
   // run は、選んだ録画を、サーバーの上限ごとに分けて付け直し、進み具合を示す。
-  const run = async () => {
+  // 途中で再認証を求められたら、再認証した後、まだ送っていない分から続ける。
+  const run = () => {
     const ids = [...selected];
     const total = { renamed: 0, skipped: 0, failed: 0 };
+    let next = 0;
     setConfirming(false);
-    setProgress({ done: 0, total: ids.length });
-    try {
-      for (let start = 0; start < ids.length; start += renameBatch) {
-        const batch = ids.slice(start, start + renameBatch);
-        const r = await new Promise<{ renamed: number; skipped: number; failed: number }>(
-          (resolve, reject) => {
-            rename({
-              variables: { ids: batch },
-              onCompleted: (response, errors) =>
-                errors != null && errors.length > 0
-                  ? reject(new Error(errors[0]?.message ?? 'GraphQL error'))
-                  : resolve(response.renameRecordingFiles),
-              onError: reject,
-            });
-          },
-        );
-        total.renamed += r.renamed;
-        total.skipped += r.skipped;
-        total.failed += r.failed;
-        setProgress({ done: start + batch.length, total: ids.length });
-      }
-      setMessage({ ok: total.failed === 0, text: t('admin.rename.done', total) });
-    } catch {
-      setMessage({ ok: false, text: t('admin.rename.error') });
-    } finally {
+    const finish = (text: { ok: boolean; text: string } | null) => {
       setProgress(null);
-      void search(true);
-    }
+      if (text !== null) {
+        setMessage(text);
+        void search(true);
+      }
+    };
+    reauthRun(
+      async () => {
+        setProgress({ done: next, total: ids.length });
+        for (; next < ids.length; next += renameBatch) {
+          const batch = ids.slice(next, next + renameBatch);
+          const { renameRecordingFiles: r } = await mutate<RecordingRenamesMutation>(
+            environment,
+            renameMutation,
+            { ids: batch },
+          );
+          total.renamed += r.renamed;
+          total.skipped += r.skipped;
+          total.failed += r.failed;
+          setProgress({ done: next + batch.length, total: ids.length });
+        }
+        finish({ ok: total.failed === 0, text: t('admin.rename.done', total) });
+      },
+      () => finish({ ok: false, text: t('admin.rename.error') }),
+      () => finish(null),
+    );
   };
 
   return (
@@ -231,7 +236,7 @@ export function RecordingRenames() {
             <Button variant="default" onClick={() => setConfirming(false)}>
               {t('admin.rename.cancel')}
             </Button>
-            <Button onClick={() => void run()}>{t('admin.rename.confirmButton')}</Button>
+            <Button onClick={run}>{t('admin.rename.confirmButton')}</Button>
           </Group>
         </Stack>
       </Modal>

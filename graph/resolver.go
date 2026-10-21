@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
@@ -51,14 +52,16 @@ type Resolver struct {
 	userAdmin         *auth.UserAdmin
 	passwords         *auth.Passwords
 	sessions          *auth.Sessions
-	settings          *settings.Store
-	inbox             *notification.Inbox
-	webhooks          *webhook.Store
-	webPush           *webpush.Service
-	streamSigner      *stream.Signer
-	jikkyoTable       *jikkyo.Table
-	jikkyoClient      *jikkyo.Client
-	logger            *slog.Logger
+	// recorder は、ほかの部品を通さずにリゾルバが直接残す監査ログ (セッションの失効など)。
+	recorder     audit.Recorder
+	settings     *settings.Store
+	inbox        *notification.Inbox
+	webhooks     *webhook.Store
+	webPush      *webpush.Service
+	streamSigner *stream.Signer
+	jikkyoTable  *jikkyo.Table
+	jikkyoClient *jikkyo.Client
+	logger       *slog.Logger
 	// store は、録画のファイルと生成物を読むための、このインスタンスにマウントしたプール。
 	store     *kago.Store
 	library   *library.Library

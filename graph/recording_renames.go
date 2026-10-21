@@ -57,8 +57,9 @@ func (r *Resolver) recordingRenames(ctx context.Context) ([]*model.RecordingRena
 }
 
 // renameRecordingFiles は、録画 ids のファイルを、今のテンプレートの名前に付け直す。
+// ファイルを動かす操作なので、直近 10 分以内の再認証を求める (設計書 9.5)。
 func (r *Resolver) renameRecordingFiles(ctx context.Context, globalIDs []string) (*model.RenameRecordingFilesPayload, error) {
-	actor, err := administrator(ctx)
+	_, actor, err := r.recentAdministrator(ctx, "only administrators can rename recording files")
 	if err != nil {
 		return nil, err
 	}

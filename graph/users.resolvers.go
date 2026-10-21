@@ -132,7 +132,7 @@ func (r *mutationResolver) RevokeSession(ctx context.Context, id string) (string
 	if err != nil {
 		return "", err
 	}
-	if err := r.sessions.Revoke(ctx, r.db, principal.UserID, sessionID); err != nil {
+	if err := r.revokeSession(ctx, principal, sessionID); err != nil {
 		return "", err
 	}
 

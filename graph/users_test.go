@@ -205,6 +205,12 @@ func TestChangePasswordAndSessions(t *testing.T) {
 	}
 	require.Empty(t, f.query(t, revokeQuery, map[string]any{varID: otherID}, &revoked))
 	assert.Equal(t, otherID, revoked.RevokeSession)
+	// 失効させたことを、どのセッションかとともに監査ログに残す。
+	var auditedSession string
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT summary->>'sessionId' FROM audit_events WHERE action = 'user.session_revoked' AND target_id = $1",
+		f.userID.String()).Scan(&auditedSession))
+	assert.Equal(t, other.ID.String(), auditedSession)
 	assert.Equal(t, []string{codeNotFound}, f.query(t, revokeQuery, map[string]any{varID: otherID}, nil))
 	// ほかのユーザーのセッションは、失効させられない。
 	mikan := f.as(t, mikanUser, auth.RoleMember)

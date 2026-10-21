@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	// LivePathPrefix は、kyusu のライブ視聴の HLS のパスの前置き。/internal/kyusu/live/{サービス ID}/{画質}/{ファイル} で受け付ける。
+	// LivePathPrefix は、kyusu のライブ視聴の HLS のパスの前置き。/internal/kyusu/live/{サービス ID}/{画質}/{音声}/{ファイル} で受け付ける。
 	LivePathPrefix = "/internal/kyusu/live/"
 	// DefaultIdleTimeout は、セグメントへのリクエストが途絶えてから、エンコーダーを止めるまでの時間 (設計書 7.3、付録 A)。
 	DefaultIdleTimeout = 10 * time.Second

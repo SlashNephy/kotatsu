@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	// RecordingPathPrefix は、kyusu の録画の仮想 HLS のパスの前置き。/internal/kyusu/recordings/{録画 ID}/{画質}/{ファイル} で受け付ける。
+	// RecordingPathPrefix は、kyusu の録画の仮想 HLS のパスの前置き。/internal/kyusu/recordings/{録画 ID}/{画質}/{音声}/{ファイル} で受け付ける。
 	RecordingPathPrefix = "/internal/kyusu/recordings/"
 	// recordingDir は、作業ディレクトリのうち、録画の仮想 HLS を置くディレクトリ。
 	recordingDir = "recordings"

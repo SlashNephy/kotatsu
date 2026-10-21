@@ -14,15 +14,27 @@ export function needsReauthentication(error: unknown): boolean {
   );
 }
 
-type Pending = { operation: () => Promise<void>; onError: (error: unknown) => void };
+type Pending = {
+  operation: () => Promise<void>;
+  onError: (error: unknown) => void;
+  onCancel: (() => void) | undefined;
+};
+
+// ReauthRun は、重要な操作を、必要なら再認証してから行う関数。onCancel は、再認証をやめたときに呼ぶ。
+export type ReauthRun = (
+  operation: () => Promise<void>,
+  onError: (error: unknown) => void,
+  onCancel?: () => void,
+) => void;
 
 // useReauthGate は、重要な操作を、必要なら再認証してから行う。
 // run に渡した操作が再認証を求められたら、再認証の画面を出し、終えたら同じ操作をもう一度行う。
+// 再認証の画面を閉じたら、操作をやめて onCancel を呼ぶ。
 export function useReauthGate(
   methods: ReauthenticationMethods,
   returnTo: string,
 ): {
-  run: (operation: () => Promise<void>, onError: (error: unknown) => void) => void;
+  run: ReauthRun;
   busy: boolean;
   modal: ReactNode;
 } {
@@ -33,7 +45,7 @@ export function useReauthGate(
   const running = useRef(false);
   const [busy, setBusy] = useState(false);
 
-  const execute = (operation: () => Promise<void>, onError: (error: unknown) => void) => {
+  const execute: ReauthRun = (operation, onError, onCancel) => {
     if (running.current) {
       return;
     }
@@ -42,7 +54,7 @@ export function useReauthGate(
     operation()
       .catch((error: unknown) => {
         if (needsReauthentication(error)) {
-          setPending({ operation, onError });
+          setPending({ operation, onError, onCancel });
 
           return;
         }
@@ -57,7 +69,10 @@ export function useReauthGate(
   const modal = (
     <Modal
       opened={pending !== null}
-      onClose={() => setPending(null)}
+      onClose={() => {
+        pending?.onCancel?.();
+        setPending(null);
+      }}
       title={t('settings.reauth.title')}
       closeButtonProps={{ 'aria-label': t('settings.reauth.close') }}
     >
@@ -66,9 +81,9 @@ export function useReauthGate(
           methods={methods}
           returnTo={returnTo}
           onDone={() => {
-            const { operation, onError } = pending;
+            const { operation, onError, onCancel } = pending;
             setPending(null);
-            execute(operation, onError);
+            execute(operation, onError, onCancel);
           }}
         />
       )}

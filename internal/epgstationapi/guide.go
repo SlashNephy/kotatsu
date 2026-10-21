@@ -27,7 +27,7 @@ const secondsLimit = 100_000_000_000
 // eventIDDigits は、番組 ID で、イベント ID に割く桁。Mirakurun の番組 ID (サービス ID × 100000 + イベント ID) と同じにする。
 const eventIDDigits = 100000
 
-var errInvalidTime = errors.New("startAt and endAt must be integers, startAt must be before endAt, and the range must be at most 8 days")
+var errInvalidTime = errors.New("startAt and endAt must be integers, startAt must be before endAt, and the range must be at most 8 days and 1 hour")
 
 type configResponse struct {
 	// Broadcast は、放送波の種別ごとに、サービスがあるかどうか。

@@ -35,7 +35,7 @@ import (
 
 const (
 	// DefaultMaxDepth と DefaultMaxComplexity は、クエリの深さと複雑度の上限 (設計書 9.1)。
-	// 設計書に値の定めはない。画面が使うクエリが収まり、入れ子の深い悪意あるクエリを拒める値にする。
+	// 画面が使うクエリが収まり、入れ子の深い悪意あるクエリを拒める値にする (付録 A)。
 	DefaultMaxDepth      = 12
 	DefaultMaxComplexity = 1000
 	// DefaultHeartbeatInterval は、heartbeat の subscription で時刻を送る間隔。
@@ -155,6 +155,7 @@ func NewHandler(opts *Options) http.Handler {
 		userAdmin:    o.UserAdmin,
 		passwords:    o.Passwords,
 		sessions:     o.Sessions,
+		recorder:     o.Recorder,
 		settings:     o.Settings,
 		inbox:        notification.NewInbox(o.Clock),
 		webhooks:     o.Webhooks,
