@@ -4,6 +4,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: kotatsu
+  namespace: default
   labels:
     app.kubernetes.io/name: kotatsu
     app.kubernetes.io/instance: kotatsu
@@ -27,6 +28,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kotatsu-all
+  namespace: default
   labels:
     app.kubernetes.io/name: kotatsu
     app.kubernetes.io/instance: kotatsu
@@ -51,6 +53,7 @@ spec:
         helm.sh/chart: kotatsu-0.0.0
         app.kubernetes.io/component: all
     spec:
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 65532
         runAsGroup: 65532
@@ -141,6 +144,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: kotatsu-migrate
+  namespace: default
   labels:
     app.kubernetes.io/name: kotatsu
     app.kubernetes.io/instance: kotatsu
@@ -165,6 +169,7 @@ spec:
         app.kubernetes.io/component: migrate
     spec:
       restartPolicy: Never
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 65532
         runAsGroup: 65532

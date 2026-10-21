@@ -38,6 +38,23 @@ secrets:
     name: ""
     key: oidc-client-secret
 
+# automountServiceAccountToken は、Pod に ServiceAccount のトークンを渡すかどうか。Kotatsu は Kubernetes の API を使わないので、既定では渡さない。
+automountServiceAccountToken: false
+
+# probes は、すべてのコンテナの liveness と readiness のプローブの設定 (Kubernetes の Probe のうち、httpGet のほか)。
+# all や roles の各ロールの probes で、項目ごとに上書きできる。CPU が飽和しがちなノードでは、timeoutSeconds を延ばす。
+# 例:
+#   probes:
+#     liveness:
+#       timeoutSeconds: 5
+#       periodSeconds: 30
+#       failureThreshold: 4
+#     readiness:
+#       timeoutSeconds: 5
+probes:
+  liveness: {}
+  readiness: {}
+
 # priorityClassName は、すべての Pod に付ける PriorityClass。all や roles の各ロールで priorityClassName を指定すると、そちらを使う。
 priorityClassName: ""
 
@@ -120,6 +137,7 @@ all:
   # runtimeClassName は、Pod を動かすランタイム。GPU を使うとき、NVIDIA のランタイムが既定でないクラスター (k3s など) では、
   # その RuntimeClass の名前 (例: nvidia) を入れる。空なら既定のランタイムを使う。
   runtimeClassName: ""
+  probes: {}
   # terminationGracePeriodSeconds は、mikan が録画を引き継ぐまで待つ時間を含める。
   terminationGracePeriodSeconds: 300
   # workSizeLimit は、kyusu が HLS のセグメントを置く作業ディレクトリ (emptyDir) の容量の上限。空なら上限を付けない。
@@ -138,6 +156,7 @@ roles:
     tolerations: []
     affinity: {}
     runtimeClassName: ""
+    probes: {}
     terminationGracePeriodSeconds: 30
   neko:
     # neko は、リースを持つ 1 つだけが動くので、増やしても待機になる。
@@ -149,6 +168,7 @@ roles:
     tolerations: []
     affinity: {}
     runtimeClassName: ""
+    probes: {}
     terminationGracePeriodSeconds: 30
   mikan:
     # mikan を 2 つ以上にすると、更新の間も録画が途切れない (設計書 5.4)。
@@ -160,6 +180,7 @@ roles:
     tolerations: []
     affinity: {}
     runtimeClassName: ""
+    probes: {}
     # 終了のシグナルを受けてから、別の mikan が録画を引き継ぐまで待つ。
     terminationGracePeriodSeconds: 300
     podDisruptionBudget:
@@ -173,6 +194,7 @@ roles:
     tolerations: []
     affinity: {}
     runtimeClassName: ""
+    probes: {}
     terminationGracePeriodSeconds: 60
   kyusu:
     # kyusu はサーバー側でのトランスコードで、なくても動く。GPU のあるノードに置くときは nodeSelector と resources を使い、
@@ -188,4 +210,5 @@ roles:
     tolerations: []
     affinity: {}
     runtimeClassName: ""
+    probes: {}
     terminationGracePeriodSeconds: 30

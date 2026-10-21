@@ -7,6 +7,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ printf "%s-migrate" (include "kotatsu.fullname" .) }}
+  namespace: {{ $.Release.Namespace }}
   labels:
     {{- include "kotatsu.labels" . | nindent 4 }}
     app.kubernetes.io/component: migrate
@@ -23,6 +24,7 @@ spec:
         app.kubernetes.io/component: migrate
     spec:
       restartPolicy: Never
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
