@@ -6,9 +6,15 @@ describe('splitMessage', () => {
   test.each([
     {
       name: '文の中の番組名で分ける',
-      message: '「相棒14　#4🈖🈑」の録画が終わりました',
-      payload: '{"name":"相棒14　#4🈖🈑"}',
-      want: { before: '「', name: '相棒14　#4🈖🈑', after: '」の録画が終わりました' },
+      message: '「相棒14 #4🈖🈑」の録画が終わりました',
+      payload: '{"name":"相棒14 #4🈖🈑"}',
+      want: { before: '「', name: '相棒14 #4🈖🈑', after: '」の録画が終わりました' },
+    },
+    {
+      name: '全角の番組名は、サーバーが文に書くのと同じく半角にして探す',
+      message: '21:00 から TOKYO MX1で「相棒14 #4🈑」が始まります',
+      payload: '{"name":"相棒１４　＃４🈑"}',
+      want: { before: '21:00 から TOKYO MX1で「', name: '相棒14 #4🈑', after: '」が始まります' },
     },
     {
       name: '番組名のない通知は、文をそのまま返す',

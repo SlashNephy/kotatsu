@@ -12,7 +12,7 @@ import type {
 import { useDataChanges } from '../changes/DataChanges';
 import type { ChangeChannel } from '../changes/dataChanges';
 import { ProgramList } from '../conditions/ProgramList';
-import { EmptyState } from '../futon';
+import { EmptyState, splitProgramMarks, toHalfWidth } from '../futon';
 import { ProgramDetail } from '../guide/ProgramDetail';
 import { zonedFormat } from '../futon';
 
@@ -100,10 +100,11 @@ export function RulePreview({ input, enabled, onPrograms }: Props) {
             if (!cancelled && data !== undefined) {
               setPreview(data.previewRule);
               onProgramsRef.current?.(
-                // 同じ番組名の回を見分けられるよう、放送の日時も添える。
+                // 同じ番組名の回を見分けられるよう、放送の日時も添える。選択肢の文字は印を描けないので、
+                // 囲み文字を外し、全角の英数字は半角にする。
                 data.previewRule.edges.map(({ node }) => ({
                   id: node.id,
-                  name: `${programTime.format(Date.parse(node.startAt))} ${node.name}`,
+                  name: `${programTime.format(Date.parse(node.startAt))} ${toHalfWidth(splitProgramMarks(node.name).name)}`,
                 })),
               );
             }

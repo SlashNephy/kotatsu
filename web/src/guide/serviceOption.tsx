@@ -1,6 +1,7 @@
 import type { ComboboxItem, ComboboxItemGroup, ComboboxLikeRenderOptionInput } from '@mantine/core';
 import type { ReactNode } from 'react';
 
+import { toHalfWidth } from '../futon/halfWidth';
 import { ServiceLabel } from './ServiceLabel';
 
 type ServiceLike = {
@@ -12,6 +13,7 @@ type ServiceLike = {
 
 // serviceGroups は、サービスを選ぶドロップダウン (Select、MultiSelect) の選択肢を、放送波 (チャンネル種別) ごとにまとめて返す。
 // 放送波は、最初に現れた順に並べ、その中のサービスは、渡した順のままにする。label は、選択肢に出す名前を決める。
+// 選んだ後の入力欄にも label がそのまま出るので、全角の英数字は半角にする。
 export function serviceGroups<S extends ServiceLike>(
   services: readonly S[],
   label: (service: S) => string = (service) => service.name,
@@ -19,7 +21,7 @@ export function serviceGroups<S extends ServiceLike>(
   const groups = new Map<string, ComboboxItem[]>();
   for (const service of services) {
     const items = groups.get(service.channelType.displayName) ?? [];
-    items.push({ value: service.id, label: label(service) });
+    items.push({ value: service.id, label: toHalfWidth(label(service)) });
     groups.set(service.channelType.displayName, items);
   }
 

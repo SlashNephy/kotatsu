@@ -16,7 +16,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 
-import { ProgramTitle } from '../futon';
+import { ProgramTitle, toHalfWidth } from '../futon';
 import { mutate } from '../settings/mutate';
 import type { ReauthRun } from '../settings/useReauthGate';
 import type {
@@ -194,7 +194,9 @@ export function RecordingRenames({ run: reauthRun }: { run: ReauthRun }) {
                   <Table.Tr key={r.recording.id}>
                     <Table.Td>
                       <Checkbox
-                        aria-label={t('admin.rename.select', { name: r.recording.name })}
+                        aria-label={t('admin.rename.select', {
+                          name: toHalfWidth(r.recording.name),
+                        })}
                         checked={selected.has(r.recording.id)}
                         disabled={progress !== null}
                         onChange={(event) => toggle(r.recording.id, event.currentTarget.checked)}

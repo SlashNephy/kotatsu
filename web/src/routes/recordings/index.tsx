@@ -42,7 +42,7 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
-import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
+import { EmptyState, ErrorBoundary, PageLoader, toHalfWidth } from '../../futon';
 import { genreKey } from '../../guide/genres';
 import { broadcastRange } from '../../recordings/filterRange';
 import { RecordingCard } from '../../recordings/RecordingCard';
@@ -594,7 +594,7 @@ function RecordingGrid({
                 </Box>
                 {selecting && (
                   <SelectionOverlay
-                    label={recording.name}
+                    label={toHalfWidth(recording.name)}
                     checked={selected.has(recording.id)}
                     disabledReason={
                       locked

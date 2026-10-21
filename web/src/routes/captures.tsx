@@ -133,7 +133,11 @@ function CaptureCard({ entry, onDelete }: { entry: CaptureEntry; onDelete: () =>
     <Card withBorder padding="sm">
       <Card.Section>
         {url !== null && (
-          <Image src={url} alt={entry.programName ?? entry.serviceName} fit="contain" />
+          <Image
+            src={url}
+            alt={toHalfWidth(entry.programName ?? entry.serviceName)}
+            fit="contain"
+          />
         )}
       </Card.Section>
       <Stack gap={4} mt="xs">

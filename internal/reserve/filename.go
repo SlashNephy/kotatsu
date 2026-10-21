@@ -8,6 +8,7 @@ import (
 	"text/template/parse"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/halfwidth"
 	"github.com/SlashNephy/kotatsu/internal/kago"
 )
 
@@ -16,28 +17,13 @@ import (
 func fileNameFuncs() template.FuncMap {
 	return template.FuncMap{
 		"weekdayJa": WeekdayJa,
-		"half":      HalfWidth,
+		"half":      halfwidth.Convert,
 	}
 }
 
 // WeekdayJa は、t の曜日を漢字 1 文字 (日〜土) で返す。
 func WeekdayJa(t time.Time) string {
 	return []string{"日", "月", "火", "水", "木", "金", "土"}[t.Weekday()]
-}
-
-// HalfWidth は、全角の英数字と、英数字に添えて使う記号と、全角の空白を半角にする。
-// 画面の表示で使う半角化 (web/src/futon/halfWidth.ts) と同じ範囲にする。「！」「？」「（）」「～」は、和文の約物として使うので残す。
-func HalfWidth(s string) string {
-	return strings.Map(func(r rune) rune {
-		switch {
-		case r == '　':
-			return ' '
-		case r >= 'Ａ' && r <= 'Ｚ', r >= 'ａ' && r <= 'ｚ', r >= '０' && r <= '９', strings.ContainsRune("＃＄％＆＊＋－．／：；＝＠＿", r):
-			return r - 0xfee0
-		default:
-			return r
-		}
-	}, s)
 }
 
 // SampleFileNameData は、テンプレートを確かめ、画面で書き方の例を示すのに使う、見本の番組。

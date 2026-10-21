@@ -3,15 +3,18 @@ package notification
 import (
 	"fmt"
 	"time"
+
+	"github.com/SlashNephy/kotatsu/internal/halfwidth"
 )
 
 // Message は、イベントを、人が読む 1 行の文にする。Discord や Slack の Webhook のように、文で届ける通知先に使う。
 // 日時は、表示のタイムゾーン location で書く。nil なら UTC で書く。payload に材料がなければ、種類だけの文にする。
+// 番組名とサービス名は、画面の表示と同じく、全角の英数字を半角にして書く。
 func Message(kind Kind, payload map[string]any, location *time.Location) string {
 	if location == nil {
 		location = time.UTC
 	}
-	name, _ := payload["name"].(string)
+	name := payloadText(payload, "name")
 	// withName は、番組名があれば「番組名」の録画を…の形にし、なければ録画を…の形にする。
 	withName := func(text string) string {
 		if name == "" {
@@ -30,7 +33,7 @@ func Message(kind Kind, payload map[string]any, location *time.Location) string 
 			if name != "" {
 				text = fmt.Sprintf("「%s」は、予定の時間に放送されませんでした", name)
 			}
-			if aired, _ := payload["airedName"].(string); aired != "" {
+			if aired := payloadText(payload, "airedName"); aired != "" {
 				text += fmt.Sprintf("。放送されていたのは「%s」です", aired)
 			}
 
@@ -58,6 +61,13 @@ func Message(kind Kind, payload map[string]any, location *time.Location) string 
 	}
 }
 
+// payloadText は、payload の key の文字列を、全角の英数字を半角にして返す。なければ空にする。
+func payloadText(payload map[string]any, key string) string {
+	value, _ := payload[key].(string)
+
+	return halfwidth.Convert(value)
+}
+
 // conflictDetail は、競合した予約を「1/2（金）21:00 NHK総合「番組名」」の形にする。
 func conflictDetail(payload map[string]any, location *time.Location) string {
 	detail := ""
@@ -67,13 +77,13 @@ func conflictDetail(payload map[string]any, location *time.Location) string {
 			detail = fmt.Sprintf("%d/%d（%s）%s", local.Month(), local.Day(), weekdayName(local.Weekday()), local.Format("15:04"))
 		}
 	}
-	if service, ok := payload["serviceName"].(string); ok && service != "" {
+	if service := payloadText(payload, "serviceName"); service != "" {
 		if detail != "" {
 			detail += " "
 		}
 		detail += service
 	}
-	if name, ok := payload["name"].(string); ok && name != "" {
+	if name := payloadText(payload, "name"); name != "" {
 		detail += "「" + name + "」"
 	}
 
@@ -92,7 +102,7 @@ func watchReminderMessage(name string, payload map[string]any, location *time.Lo
 		return "視聴予約した番組が始まります"
 	}
 	text := fmt.Sprintf("「%s」が始まります", name)
-	if service, _ := payload["serviceName"].(string); service != "" {
+	if service := payloadText(payload, "serviceName"); service != "" {
 		text = fmt.Sprintf("%sで%s", service, text)
 	}
 	if raw, _ := payload["startAt"].(string); raw != "" {
