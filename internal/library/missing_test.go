@@ -41,6 +41,7 @@ func (f *fixture) segmented(t *testing.T, ago time.Duration, protected bool, seg
 	require.NoError(t, err)
 	for i, s := range segments {
 		if s.exists {
+			require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(f.dir, s.path)), 0o755))
 			require.NoError(t, os.WriteFile(filepath.Join(f.dir, s.path), []byte("ts"), 0o600))
 		}
 		started := at.Add(time.Duration(i) * time.Minute)

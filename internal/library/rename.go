@@ -65,9 +65,11 @@ func (l *Library) PlanRenames(ctx context.Context, db sqlc.DBTX, ids []uuid.UUID
 	if err != nil {
 		return nil, err
 	}
+	checker := l.store.NewChecker()
+	defer checker.Close()
 	plans := []*RenamePlan{}
 	for i := range rows {
-		plan, err := l.plan(ctx, q, &rows[i], system.Recording, ruleSettings, location)
+		plan, err := l.plan(ctx, q, checker, &rows[i], system.Recording, ruleSettings, location)
 		if err != nil {
 			return nil, err
 		}
@@ -102,7 +104,7 @@ func firstRuleSettings(ctx context.Context, q *sqlc.Queries, rows []sqlc.ListRec
 }
 
 func (l *Library) plan(
-	ctx context.Context, q *sqlc.Queries, row *sqlc.ListRecordingsForRenameRow, defaults *reserve.Settings,
+	ctx context.Context, q *sqlc.Queries, checker *kago.Checker, row *sqlc.ListRecordingsForRenameRow, defaults *reserve.Settings,
 	ruleSettings map[uuid.UUID][]byte, location *time.Location,
 ) (*RenamePlan, error) {
 	resolved := defaults
@@ -135,6 +137,8 @@ func (l *Library) plan(
 		return nil, fmt.Errorf("failed to list the recording files: %w", err)
 	}
 	plan := &RenamePlan{RecordingID: row.ID, Files: []*RenameFile{}}
+	// taken は、この録画のほかのセグメントが移る先。同じ録画のセグメントはまとめて移すので、ふさがっているとみなす。
+	taken := map[string]bool{}
 	n := 0
 	for i := range files {
 		if files[i].Kind != segmentKind {
@@ -151,16 +155,41 @@ func (l *Library) plan(
 			return nil, err
 		}
 		dir, name := path.Split(rendered)
-		to := path.Join(dir, kago.SequencedName(name, n))
-		if to != files[i].Path {
+		dir = strings.TrimSuffix(dir, "/")
+		to, moves := destination(checker, taken, files[i].PoolID, files[i].Path, dir, name, n)
+		taken[to] = true
+		if moves {
 			plan.Files = append(plan.Files, &RenameFile{
 				FileID: files[i].ID, PoolID: files[i].PoolID, From: files[i].Path, To: to,
-				Dir: strings.TrimSuffix(dir, "/"), Name: name, Sequence: n,
+				Dir: dir, Name: name, Sequence: n,
 			})
 		}
 	}
 
 	return plan, nil
+}
+
+// destination は、セグメントのファイル from を dir/name の start 番目の連番から付け直したときに移る先と、名前が変わるかを返す。
+// kago.Store.Rename と同じく、ふさがっている名前を飛ばして次の連番を試す。ほかの録画が名前をふさいでいて連番が付いた
+// ファイルは、付け直しても名前が変わらないので、計画に出さない。taken の名前も、ふさがっているとみなす。
+// プールを調べられなければ、start 番目の連番に移るとみなす。
+func destination(checker *kago.Checker, taken map[string]bool, poolID, from, dir, name string, start int) (string, bool) {
+	for n := start; ; n++ {
+		to := path.Join(dir, kago.SequencedName(name, n))
+		if to == from {
+			return to, false
+		}
+		if taken[to] {
+			continue
+		}
+		exists, err := checker.Exists(poolID, to)
+		if err != nil {
+			return path.Join(dir, kago.SequencedName(name, start)), true
+		}
+		if !exists {
+			return to, true
+		}
+	}
 }
 
 // Rename は、計画 plan のとおりに、録画のセグメントのファイルを移し、記録のパスを書き換える。
