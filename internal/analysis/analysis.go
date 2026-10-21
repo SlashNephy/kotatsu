@@ -69,8 +69,8 @@ func (AnalyzeArgs) InsertOpts() river.InsertOpts {
 		// 録画ファイルを読み通すので、FFmpeg を動かすジョブと同じく、同時に 1 つだけ動かす。
 		Queue:       jobs.QueueMedia,
 		MaxAttempts: analyzeMaxAttempts,
-		// 解析するのは、取り込んだ録画と、頼まれてやり直す録画 (#476)。取り込んだ分は、新しく録った録画のジョブより後に回す。
-		// 頼まれてやり直すときは、投入するときに優先度を上げる。
+		// 解析するのは、取り込んだ録画と、頼まれてやり直す録画 (#476)、セグメントをつないだ録画。取り込んだ分は、新しく録った録画のジョブより後に回す。
+		// 頼まれてやり直すときと、セグメントをつないだ録画では、投入するときに優先度を上げる。
 		Priority: jobs.PriorityImported,
 		// 同じ録画を解析するジョブは、待っている間に重ねて投入しない。River の既定は、終えたジョブ (completed) にも重ねないので、
 		// 待っている状態だけにする。終えたジョブに重ねないと、解析してから 1 日 (River が終えたジョブを残す間) はやり直せない (#897)。
@@ -212,7 +212,7 @@ func (w *AnalyzeWorker) work(ctx context.Context, job *river.Job[AnalyzeArgs]) e
 		audios = nil
 	}
 
-	return w.record(ctx, job.Args.RecordingID, results, total, audios)
+	return w.record(ctx, job.Args.RecordingID, job.Priority, results, total, audios)
 }
 
 // segments は、録画のファイルから TS のセグメントを選ぶ。
@@ -314,7 +314,9 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 
 // record は、集計を記録し、同じトランザクションで、代表画像とプレビュー画像を作るジョブを投入する。
 // audios は、TS から読んだ音声の構成の JSON。読めなければ nil。
-func (w *AnalyzeWorker) record(ctx context.Context, recordingID uuid.UUID, results []*analyzed, total *ts.PIDStats, audios []byte) error {
+func (w *AnalyzeWorker) record(
+	ctx context.Context, recordingID uuid.UUID, priority int, results []*analyzed, total *ts.PIDStats, audios []byte,
+) error {
 	now := w.clock.Now()
 	err := pgx.BeginFunc(ctx, w.db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
@@ -338,10 +340,11 @@ func (w *AnalyzeWorker) record(ctx context.Context, recordingID uuid.UUID, resul
 				return fmt.Errorf("failed to record the audio components: %w", err)
 			}
 		}
-		// 取り込んだ録画の画像なので、新しく録った録画の画像より後に回す。キューと一意性は、GenerateArgs に従う。
+		// 画像は、解析と同じ優先度で作る。取り込んだ録画の画像は、新しく録った録画の画像より後に回し、
+		// 頼まれてやり直す録画と、セグメントをつないだ録画の画像は、取り込んだ分を待たせない。キューと一意性は、GenerateArgs に従う。
 		params := []river.InsertManyParams{{
 			Args:       thumbnail.GenerateArgs{RecordingID: recordingID},
-			InsertOpts: &river.InsertOpts{Priority: jobs.PriorityImported},
+			InsertOpts: &river.InsertOpts{Priority: priority},
 		}}
 		if _, err := w.inserter.InsertManyTx(ctx, tx, params); err != nil {
 			return fmt.Errorf("failed to enqueue the thumbnail generation: %w", err)
