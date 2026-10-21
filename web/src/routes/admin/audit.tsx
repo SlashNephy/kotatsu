@@ -16,7 +16,8 @@ import { Fragment, startTransition, useState, type FormEvent } from 'react';
 import { useDataChanges } from '../../changes/DataChanges';
 import { EmptyState } from '../../futon';
 import { useTranslation } from 'react-i18next';
-import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
+import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
+import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { AdminPage } from '../../admin/AdminPage';
 import type {

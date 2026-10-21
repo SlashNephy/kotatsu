@@ -3,7 +3,8 @@ import { useDisclosure } from '@mantine/hooks';
 import { createRootRoute, Link, Outlet, useMatches, useRouterState } from '@tanstack/react-router';
 import { Suspense, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery } from 'react-relay';
+import { graphql } from 'react-relay';
+import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import { UserMenu } from '../auth/UserMenu';
 import { DataChangesProvider, DataChangesSubscriber } from '../changes/DataChanges';

@@ -25,7 +25,8 @@ import {
 } from 'lucide-react';
 import { Suspense, startTransition, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery, useRelayEnvironment, useSubscription } from 'react-relay';
+import { graphql, useRelayEnvironment, useSubscription } from 'react-relay';
+import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import { EmptyState, ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../futon';
 import { estimatedPosition, remoteKeyName } from '../remote/remote';

@@ -11,7 +11,8 @@ import {
 } from '@mantine/core';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
+import { graphql, useMutation } from 'react-relay';
+import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import { Authorship, ErrorBoundary } from '../futon';
 import { FileNameTemplateField, InheritedFileNameTemplateField } from './FileNameTemplateField';

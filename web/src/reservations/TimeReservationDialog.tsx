@@ -2,7 +2,8 @@ import { Alert, Button, Group, Modal, Select, Stack, Text, TextInput } from '@ma
 import { useTimeZoneLabel } from '../futon/timeZone';
 import { Suspense, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
+import { graphql, useMutation } from 'react-relay';
+import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import { ErrorBoundary } from '../futon';
 import type { TimeReservationDialogCreateMutation } from './__generated__/TimeReservationDialogCreateMutation.graphql';

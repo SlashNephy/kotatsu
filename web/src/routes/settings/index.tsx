@@ -2,7 +2,8 @@ import { Card, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery } from 'react-relay';
+import { graphql } from 'react-relay';
+import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { ErrorBoundary } from '../../futon';
 import type { settingsViewerQuery } from './__generated__/settingsViewerQuery.graphql';

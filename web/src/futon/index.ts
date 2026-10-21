@@ -3,7 +3,12 @@ export { Authorship } from './Authorship';
 export { ColorSchemeToggle } from './ColorSchemeToggle';
 export { cspNonce } from './nonce';
 export { EmptyState } from './EmptyState';
-export { ErrorBoundary } from './ErrorBoundary';
+export {
+  ErrorBoundary,
+  ErrorBoundaryAttemptContext,
+  ErrorRecoveryContext,
+  type ErrorRecovery,
+} from './ErrorBoundary';
 export { PageLoader } from './PageLoader';
 export { PasswordStrength } from './PasswordStrength';
 export { formatBytes } from './format';

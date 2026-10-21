@@ -16,7 +16,8 @@ import { CalendarDays, CalendarX2, ChevronLeft, ChevronRight, Clock, Sunrise } f
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery } from 'react-relay';
+import { graphql } from 'react-relay';
+import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';

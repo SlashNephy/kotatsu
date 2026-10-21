@@ -12,7 +12,8 @@ import {
 } from '@mantine/core';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
+import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
+import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import type { FileNameTemplateFieldDefaultQuery } from './__generated__/FileNameTemplateFieldDefaultQuery.graphql';
 import type { FileNameTemplateFieldHelpQuery } from './__generated__/FileNameTemplateFieldHelpQuery.graphql';

@@ -14,9 +14,10 @@ import { createRoot } from 'react-dom/client';
 import { RelayEnvironmentProvider } from 'react-relay';
 import { registerSW } from 'virtual:pwa-register';
 
-import { cspNonce, cssVariablesResolver, theme } from './futon';
+import { cspNonce, cssVariablesResolver, ErrorRecoveryContext, theme } from './futon';
 import { loadTimeZone } from './futon/timeZone';
 import { createEnvironment } from './relay/environment';
+import { errorRecovery } from './relay/recovery';
 import { routeTree } from './routeTree.gen';
 
 // Mantine の Modal と Drawer は、背景のスクロールを止める <style> を react-remove-scroll で差し込む。
@@ -31,7 +32,7 @@ const environment =
   import.meta.env.MODE === 'demo' ? (await import('./demo')).installDemo() : createEnvironment();
 
 // Service Worker を登録する。新しい版があれば、次に開いたときに切り替わる。
-// デモは、Helm リポジトリと同じ GitHub Pages に置くので、登録しない。
+// デモは、ライブ視聴の映像を流す Service Worker を別に登録するので、登録しない。
 if (import.meta.env.MODE !== 'demo') {
   void registerSW({ immediate: true });
 }
@@ -59,7 +60,10 @@ createRoot(root).render(
       getStyleNonce={cspNonce}
     >
       <RelayEnvironmentProvider environment={environment}>
-        <RouterProvider router={router} />
+        {/* サーバーの入れ替わりなどで読み込みに失敗した画面を、サーバーが戻ったら自動で描き直す。 */}
+        <ErrorRecoveryContext value={errorRecovery}>
+          <RouterProvider router={router} />
+        </ErrorRecoveryContext>
       </RelayEnvironmentProvider>
     </MantineProvider>
   </StrictMode>,

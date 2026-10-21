@@ -20,7 +20,8 @@ import {
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, startTransition, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
+import { graphql, useRelayEnvironment } from 'react-relay';
+import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 import { renderSVG } from 'uqr';
 
 import { authApi, type OIDCStatus } from '../../auth/api';

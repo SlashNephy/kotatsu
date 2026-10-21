@@ -16,7 +16,8 @@ import {
 import { createFileRoute } from '@tanstack/react-router';
 import { startTransition, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
+import { graphql, useRelayEnvironment } from 'react-relay';
+import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { AdminPage } from '../../admin/AdminPage';
 import { useDataChanges } from '../../changes/DataChanges';
