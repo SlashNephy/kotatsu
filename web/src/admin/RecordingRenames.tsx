@@ -136,6 +136,8 @@ export function RecordingRenames({ run: reauthRun }: { run: ReauthRun }) {
       },
       () => finish({ ok: false, text: t('admin.rename.error') }),
       () => finish(null),
+      // 再認証を待っている間は、進み具合を出さない (#915)。
+      () => finish(null),
     );
   };
 

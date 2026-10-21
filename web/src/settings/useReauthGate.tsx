@@ -18,13 +18,17 @@ type Pending = {
   operation: () => Promise<void>;
   onError: (error: unknown) => void;
   onCancel: (() => void) | undefined;
+  onWaiting: (() => void) | undefined;
 };
 
 // ReauthRun は、重要な操作を、必要なら再認証してから行う関数。onCancel は、再認証をやめたときに呼ぶ。
+// onWaiting は、再認証を求められ、再認証の画面を出して待ち始めたときに呼ぶ。
+// 操作が出した読み込み中の表示を、待っている間は消すのに使う (#915)。再認証を終えたら、同じ操作をもう一度行う。
 export type ReauthRun = (
   operation: () => Promise<void>,
   onError: (error: unknown) => void,
   onCancel?: () => void,
+  onWaiting?: () => void,
 ) => void;
 
 // useReauthGate は、重要な操作を、必要なら再認証してから行う。
@@ -45,7 +49,7 @@ export function useReauthGate(
   const running = useRef(false);
   const [busy, setBusy] = useState(false);
 
-  const execute: ReauthRun = (operation, onError, onCancel) => {
+  const execute: ReauthRun = (operation, onError, onCancel, onWaiting) => {
     if (running.current) {
       return;
     }
@@ -54,7 +58,8 @@ export function useReauthGate(
     operation()
       .catch((error: unknown) => {
         if (needsReauthentication(error)) {
-          setPending({ operation, onError, onCancel });
+          onWaiting?.();
+          setPending({ operation, onError, onCancel, onWaiting });
 
           return;
         }
@@ -81,9 +86,9 @@ export function useReauthGate(
           methods={methods}
           returnTo={returnTo}
           onDone={() => {
-            const { operation, onError, onCancel } = pending;
+            const { operation, onError, onCancel, onWaiting } = pending;
             setPending(null);
-            execute(operation, onError, onCancel);
+            execute(operation, onError, onCancel, onWaiting);
           }}
         />
       )}
