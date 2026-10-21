@@ -231,11 +231,19 @@ func (l *Library) Rename(ctx context.Context, db Database, actor *audit.Actor, p
 	})
 	if err != nil {
 		// 記録を書き換えられなかったので、移したファイルを元に戻す。
+		// 元の名前は、今の整え方で使えない文字を含むことがあるので (#917)、整え直さずに戻す。
 		for _, file := range slices.Backward(moved) {
-			dir, name := path.Split(file.From)
-			if _, undoErr := l.store.Rename(file.PoolID, file.To, strings.TrimSuffix(dir, "/"), name, 1); undoErr != nil {
-				l.logger.ErrorContext(ctx, "failed to undo a renamed recording file",
-					slog.String("from", file.To), slog.String("to", file.From), slog.Any("error", undoErr))
+			undoErr := l.store.Restore(file.PoolID, file.To, file.From)
+			if undoErr == nil {
+				continue
+			}
+			l.logger.ErrorContext(ctx, "failed to undo a renamed recording file",
+				slog.String("from", file.To), slog.String("to", file.From), slog.Any("error", undoErr))
+			// 戻せなければ、ファイルは移した先にあるので、記録をそこに合わせる。
+			// 合わせないと、記録が元のパスを指したまま、ファイルが見つからなくなる。
+			if err := sqlc.New(db).SetRecordingFilePath(ctx, sqlc.SetRecordingFilePathParams{Path: file.To, ID: file.FileID}); err != nil {
+				l.logger.ErrorContext(ctx, "failed to record the path of a recording file that could not be restored",
+					slog.String("path", file.To), slog.Any("error", err))
 			}
 		}
 

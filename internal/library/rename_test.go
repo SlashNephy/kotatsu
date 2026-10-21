@@ -322,3 +322,40 @@ func (f *fixture) poolFiles(t *testing.T) []string {
 
 	return files
 }
+
+// TestRenameUndoesToUnsanitizedName は、付け直しの途中で失敗したとき、先に移したファイルを、
+// 今の整え方で使えない文字を含む元の名前にも戻し、記録と合わせることを確かめる (#917)。
+func TestRenameUndoesToUnsanitizedName(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	const unsanitized = "古い:名前.m2ts"
+	// 2 つ目のセグメントのファイルがないので、1 つ目を移した後に失敗する。
+	recordingID := f.segmented(t, time.Hour, false,
+		segment{pool: poolID, path: unsanitized, exists: true}, segment{pool: poolID, path: "missing.m2ts", exists: false})
+	plans, err := f.library.PlanRenames(t.Context(), f.pool, nil, time.UTC)
+	require.NoError(t, err)
+	require.Len(t, plans, 1)
+	require.Len(t, plans[0].Files, 2)
+
+	require.Error(t, f.library.Rename(t.Context(), f.pool, audit.User(f.userID), plans[0]))
+
+	assert.Equal(t, []string{unsanitized, "missing.m2ts"}, f.segmentPathsUnchecked(t, recordingID))
+	_, err = os.Stat(filepath.Join(f.dir, unsanitized))
+	require.NoError(t, err, "the moved file is restored to the unsanitized name")
+	assert.Equal(t, []string{unsanitized}, f.poolFiles(t))
+	assert.Empty(t, f.actions(t, recordingID))
+}
+
+// segmentPathsUnchecked は、segmentPaths と同じく記録のパスを返すが、ファイルがあるかは確かめない。
+func (f *fixture) segmentPathsUnchecked(t *testing.T, recordingID uuid.UUID) []string {
+	t.Helper()
+
+	rows, err := f.pool.Query(t.Context(), "SELECT path FROM recording_files WHERE recording_id = $1 AND kind = 'segment' ORDER BY started_at",
+		recordingID)
+	require.NoError(t, err)
+	paths, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	require.NoError(t, err)
+
+	return paths
+}
