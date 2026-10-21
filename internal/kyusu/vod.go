@@ -583,8 +583,17 @@ func (v *VOD) ensureRun(ctx context.Context, s *vodSession, preset *Preset, numb
 	s.pruneLocked()
 	now := v.clock.Now()
 	// 要求を受けてからここまでに、書き終えたかもしれない。
-	_, err := os.Stat(filepath.Join(s.dir, fmt.Sprintf(segmentPattern, number)))
-	if run := s.coveringLocked(number, err == nil); run != nil {
+	path := filepath.Join(s.dir, fmt.Sprintf(segmentPattern, number))
+	_, err := os.Stat(path)
+	run := s.coveringLocked(number, err == nil)
+	if run == nil && err != nil {
+		// 確かめてから、エンコーダーが次に書くセグメントを数えるまでに、number より先まで書いたかもしれない。
+		// セグメントを消すのは runMu を持つときだけなので、今あれば、エンコーダーが書いたものである。
+		if _, err := os.Stat(path); err == nil {
+			run = s.coveringLocked(number, true)
+		}
+	}
+	if run != nil {
 		run.lastUsed = now
 		run.want(number)
 
@@ -593,7 +602,7 @@ func (v *VOD) ensureRun(ctx context.Context, s *vodSession, preset *Preset, numb
 	if len(s.runs) >= maxVODRuns {
 		s.stopLocked(slices.MinFunc(s.runs, func(a, b *vodRun) int { return a.lastUsed.Compare(b.lastUsed) }))
 	}
-	run, err := v.start(ctx, s, preset, number)
+	run, err = v.start(ctx, s, preset, number)
 	if err != nil {
 		return nil, err
 	}
