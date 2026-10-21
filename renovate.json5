@@ -88,7 +88,7 @@
         '/^\\.github/workflows/ci\\.yml$/',
       ],
       matchStrings: [
-        '(?<depName>mirror\\.gcr\\.io/library/[a-z]+):(?<currentValue>[^@\\s]+)(?:@(?<currentDigest>sha256:[0-9a-f]{64}))? # renovate: (?<depType>oldest|latest)',
+        '(?<depName>docker\\.io/library/[a-z]+):(?<currentValue>[^@\\s]+)(?:@(?<currentDigest>sha256:[0-9a-f]{64}))? # renovate: (?<depType>oldest|latest)',
       ],
       datasourceTemplate: 'docker',
     },
