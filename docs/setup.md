@@ -154,6 +154,20 @@ ingress:
 `all`と`split`の例は、[deploy/kubernetes](../deploy/kubernetes)にも置いています。
 同じディレクトリにある`all.yaml`と`split.yaml`は、その例から作ったマニフェストです。
 Helmを使わずに、マニフェストを手で直して使うこともできます。
+マニフェストは`default`のnamespaceに入れる形で作っているので、別のnamespaceに入れるときは、各リソースの`namespace`も直してください。
+
+CPUが飽和しがちなノードでは、応答が遅れただけでPodが再起動されないよう、プローブの待ち時間を延ばせます。
+`probes`は全体の設定で、`all`や`roles`の各ロールの`probes`で項目ごとに上書きできます。
+
+```yaml
+probes:
+  liveness:
+    timeoutSeconds: 5
+    periodSeconds: 30
+    failureThreshold: 4
+  readiness:
+    timeoutSeconds: 5
+```
 
 ### インストールする
 

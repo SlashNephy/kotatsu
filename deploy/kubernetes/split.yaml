@@ -4,6 +4,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: kotatsu-mikan
+  namespace: default
   labels:
     app.kubernetes.io/name: kotatsu
     app.kubernetes.io/instance: kotatsu
@@ -24,6 +25,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: kotatsu
+  namespace: default
   labels:
     app.kubernetes.io/name: kotatsu
     app.kubernetes.io/instance: kotatsu
@@ -47,6 +49,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kotatsu-kyusu
+  namespace: default
   labels:
     app.kubernetes.io/name: kotatsu
     app.kubernetes.io/instance: kotatsu
@@ -71,6 +74,7 @@ spec:
         helm.sh/chart: kotatsu-0.0.0
         app.kubernetes.io/component: kyusu
     spec:
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 65532
         runAsGroup: 65532
@@ -167,6 +171,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kotatsu-mikan
+  namespace: default
   labels:
     app.kubernetes.io/name: kotatsu
     app.kubernetes.io/instance: kotatsu
@@ -191,6 +196,7 @@ spec:
         helm.sh/chart: kotatsu-0.0.0
         app.kubernetes.io/component: mikan
     spec:
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 65532
         runAsGroup: 65532
@@ -285,6 +291,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kotatsu-neko
+  namespace: default
   labels:
     app.kubernetes.io/name: kotatsu
     app.kubernetes.io/instance: kotatsu
@@ -309,6 +316,7 @@ spec:
         helm.sh/chart: kotatsu-0.0.0
         app.kubernetes.io/component: neko
     spec:
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 65532
         runAsGroup: 65532
@@ -393,6 +401,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kotatsu-nekonote
+  namespace: default
   labels:
     app.kubernetes.io/name: kotatsu
     app.kubernetes.io/instance: kotatsu
@@ -417,6 +426,7 @@ spec:
         helm.sh/chart: kotatsu-0.0.0
         app.kubernetes.io/component: nekonote
     spec:
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 65532
         runAsGroup: 65532
@@ -510,6 +520,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kotatsu-tenban
+  namespace: default
   labels:
     app.kubernetes.io/name: kotatsu
     app.kubernetes.io/instance: kotatsu
@@ -534,6 +545,7 @@ spec:
         helm.sh/chart: kotatsu-0.0.0
         app.kubernetes.io/component: tenban
     spec:
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 65532
         runAsGroup: 65532
@@ -626,6 +638,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: kotatsu-migrate
+  namespace: default
   labels:
     app.kubernetes.io/name: kotatsu
     app.kubernetes.io/instance: kotatsu
@@ -650,6 +663,7 @@ spec:
         app.kubernetes.io/component: migrate
     spec:
       restartPolicy: Never
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 65532
         runAsGroup: 65532

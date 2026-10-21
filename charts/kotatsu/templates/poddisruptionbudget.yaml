@@ -4,6 +4,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: {{ printf "%s-mikan" (include "kotatsu.fullname" .) }}
+  namespace: {{ $.Release.Namespace }}
   labels:
     {{- include "kotatsu.labels" . | nindent 4 }}
 spec:

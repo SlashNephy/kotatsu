@@ -191,6 +191,22 @@ volume の名前は、プール ID に使える _ を含められないので、
 {{- end }}
 {{- end -}}
 
+{{/*
+probe は、コンテナの liveness か readiness のプローブ。引数は (dict "root" $ "pod" 設定 "kind" "liveness" か "readiness" "path" 確かめるパス)。
+values の probes に、ロール (all や roles の各ロール) の probes を重ねたものを、httpGet に足す。
+*/}}
+{{- define "kotatsu.probe" -}}
+{{- $base := index (.root.Values.probes | default dict) .kind | default dict -}}
+{{- $override := index (.pod.probes | default dict) .kind | default dict -}}
+{{- $probe := mergeOverwrite (deepCopy $base) (deepCopy $override) -}}
+httpGet:
+  path: {{ .path }}
+  port: http
+{{- with $probe }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
 {{/* deployment は、ロールの Deployment。引数は (dict "root" $ "component" 名前 "args" 引数 "pod" 設定 "replicas" 台数 "ffmpeg" 真偽値 "pools" 真偽値)。 */}}
 {{- define "kotatsu.deployment" -}}
 {{- $root := .root -}}
@@ -198,6 +214,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ printf "%s-%s" (include "kotatsu.fullname" $root) .component }}
+  namespace: {{ $root.Release.Namespace }}
   labels:
     {{- include "kotatsu.labels" $root | nindent 4 }}
     app.kubernetes.io/component: {{ .component }}
@@ -216,6 +233,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      automountServiceAccountToken: {{ $root.Values.automountServiceAccountToken }}
       securityContext:
         {{- toYaml $root.Values.podSecurityContext | nindent 8 }}
       {{- with .pod.priorityClassName | default $root.Values.priorityClassName }}
@@ -243,13 +261,9 @@ spec:
             - name: metrics
               containerPort: 9090
           livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http
+            {{- include "kotatsu.probe" (dict "root" $root "pod" .pod "kind" "liveness" "path" "/healthz") | nindent 12 }}
           readinessProbe:
-            httpGet:
-              path: /readyz
-              port: http
+            {{- include "kotatsu.probe" (dict "root" $root "pod" .pod "kind" "readiness" "path" "/readyz") | nindent 12 }}
           securityContext:
             {{- toYaml $root.Values.securityContext | nindent 12 }}
           resources:

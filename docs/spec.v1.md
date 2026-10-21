@@ -1422,7 +1422,9 @@ Helm Chartは次の方針で作ります。
 - 接続先と秘密キーは、項目ごとに別のSecretから渡せるようにします。CloudNativePGが作るSecretを、そのまま使えるようにするためです。
 - イメージはdigestでも固定でき、PodにはPriorityClassを付けられるようにします。
 - mikanにはPodDisruptionBudgetと、引き継ぎに十分な`terminationGracePeriodSeconds`を設定します。
-- securityContextの既定値を堅くします。`readOnlyRootFilesystem`、全capabilityの削除、非rootでの実行、seccompの`RuntimeDefault`を、そのまま使えるようにします。
+- securityContextの既定値を堅くします。`readOnlyRootFilesystem`、全capabilityの削除、非rootでの実行、seccompの`RuntimeDefault`を、そのまま使えるようにします。KotatsuはKubernetesのAPIを使わないので、既定ではPodにServiceAccountのトークンを渡しません（`automountServiceAccountToken`）。
+- livenessとreadinessのプローブの待ち時間などを、全体（`probes`）とロールごとに変えられるようにします。CPUが飽和しがちなノードで、応答が遅れただけでPodが再起動されないようにするためです（#932）。
+- すべてのリソースに、入れる先のnamespaceを書きます。kustomizeの`helmCharts`で描画しても、namespaceが付くようにするためです。
 - PostgreSQLはChartに含めず、外部のもの（CloudNativePGなど）を使う前提にします。
 
 Kubernetesのマニフェストは、全ロールを1つのPodで動かす構成例と、ロールを分けた構成例の2つを生成します。
