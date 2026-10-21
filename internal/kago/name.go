@@ -268,6 +268,9 @@ func (s *Store) Restore(poolID, from, to string) error {
 	if !filepath.IsLocal(from) || !filepath.IsLocal(to) {
 		return fmt.Errorf("%w: %q -> %q", ErrInvalidPath, from, to)
 	}
+	if filepath.Clean(from) == filepath.Clean(to) {
+		return nil
+	}
 	mount, ok := s.mounts[poolID]
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)

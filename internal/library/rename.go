@@ -24,6 +24,9 @@ import (
 // joiningSuffix は、セグメントをつないでいる途中のファイルの名前に付く接尾辞 (segjoin パッケージの tempSuffix と同じ)。
 const joiningSuffix = ".joining"
 
+// undoTimeout は、付け直しに失敗した後、記録をファイルに合わせるのを待つ時間の上限。
+const undoTimeout = 10 * time.Second
+
 // ErrBusy は、セグメントをつないでいる途中なので、ファイルを移せないことを表す。
 var ErrBusy = errors.New("the recording files are being joined")
 
@@ -192,6 +195,16 @@ func destination(checker *kago.Checker, taken map[string]bool, poolID, from, dir
 	}
 }
 
+// recordUnrestoredPath は、元に戻せなかったセグメントのファイル file の記録を、移した先のパスに合わせる。
+func (l *Library) recordUnrestoredPath(ctx context.Context, db Database, file *RenameFile) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), undoTimeout)
+	defer cancel()
+	if err := sqlc.New(db).SetRecordingFilePath(ctx, sqlc.SetRecordingFilePathParams{Path: file.To, ID: file.FileID}); err != nil {
+		l.logger.ErrorContext(ctx, "failed to record the path of a recording file that could not be restored",
+			slog.String("path", file.To), slog.Any("error", err))
+	}
+}
+
 // Rename は、計画 plan のとおりに、録画のセグメントのファイルを移し、記録のパスを書き換える。
 // 生成物は、セグメントのファイルの ID で置くので移さない。
 // 移す先に同じ名前があれば連番を付ける。録画中と、セグメントをつないでいる途中の録画は移さない。監査ログに残す。
@@ -241,10 +254,8 @@ func (l *Library) Rename(ctx context.Context, db Database, actor *audit.Actor, p
 				slog.String("from", file.To), slog.String("to", file.From), slog.Any("error", undoErr))
 			// 戻せなければ、ファイルは移した先にあるので、記録をそこに合わせる。
 			// 合わせないと、記録が元のパスを指したまま、ファイルが見つからなくなる。
-			if err := sqlc.New(db).SetRecordingFilePath(ctx, sqlc.SetRecordingFilePathParams{Path: file.To, ID: file.FileID}); err != nil {
-				l.logger.ErrorContext(ctx, "failed to record the path of a recording file that could not be restored",
-					slog.String("path", file.To), slog.Any("error", err))
-			}
+			// 要求が取り消されて失敗したときも合わせるよう、取り消しを引き継がない ctx で書く。
+			l.recordUnrestoredPath(ctx, db, file)
 		}
 
 		return err

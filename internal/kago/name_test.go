@@ -455,6 +455,13 @@ func TestRestore(t *testing.T) {
 		})
 	}
 
-	store := kago.New(map[string]string{poolMain: t.TempDir()}, nil)
+	mount := t.TempDir()
+	store := kago.New(map[string]string{poolMain: mount}, nil)
 	require.ErrorIs(t, store.Restore(poolMain, moved, "../outside.m2ts"), kago.ErrInvalidPath)
+
+	// 元と同じパスなら、何もしない。
+	require.NoError(t, os.WriteFile(filepath.Join(mount, "same.m2ts"), []byte("recording"), 0o600))
+	require.NoError(t, store.Restore(poolMain, "same.m2ts", "./same.m2ts"))
+	_, err := os.Stat(filepath.Join(mount, "same.m2ts"))
+	require.NoError(t, err)
 }
