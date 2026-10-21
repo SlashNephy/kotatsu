@@ -48,6 +48,14 @@ jobs:
             type=semver,pattern={{version}}
             type=edge,branch=main
             type=ref,event=pr
+      # バイナリに埋め込む版。metadata-action の版には、イメージの種類の接尾辞 (-ffmpeg) が付くので、取り除く。
+      # 付いたままだと、-ffmpeg のイメージだけが 2026.10.1-ffmpeg と名乗り、新しいリリースの確かめで
+      # SemVer のプレリリースとして読まれる (#933)。
+      - id: version
+        env:
+          META_VERSION: ${{ steps.meta.outputs.version }}
+          SUFFIX: ${{ matrix.suffix }}
+        run: echo "version=${META_VERSION%"$SUFFIX"}" >> "$GITHUB_OUTPUT"
       # 公開する前に、amd64 のイメージを読み取り専用のルートファイルシステムで起動できるかを確かめる。
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -57,19 +65,20 @@ jobs:
           load: true
           tags: kotatsu:smoke
           build-args: |
-            VERSION=${{ steps.meta.outputs.version }}+${{ github.sha }}
+            VERSION=${{ steps.version.outputs.version }}+${{ github.sha }}
           # キャッシュは読むだけにする。amd64 だけのこのビルドが書くと、同じ scope の arm64 の層が消え、
           # 後の amd64 と arm64 のビルドで、QEMU で動く arm64 の層を毎回作り直すことになる。
           cache-from: type=gha,scope=${{ matrix.target }}
       - name: Smoke test
         env:
           TARGET: ${{ matrix.target }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -eux
           test "$(docker inspect kotatsu:smoke -f '{{.Config.User}}')" = 65532:65532
           docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges kotatsu:smoke --help
-          # 版とコミットを埋め込めているか。
-          docker run --rm --read-only kotatsu:smoke --version | grep -F "($(echo "$GITHUB_SHA" | cut -c1-7))"
+          # 版とコミットを埋め込めているか。版には、イメージの種類の接尾辞を付けない (#933)。
+          docker run --rm --read-only kotatsu:smoke --version | grep -F "kotatsu version $VERSION ($(echo "$GITHUB_SHA" | cut -c1-7))"
           if [ "$TARGET" = ffmpeg ]; then
             docker run --rm --read-only --entrypoint ffmpeg kotatsu:smoke -hide_banner -version
             # tsreadex は、引数がないと使い方のエラーで終わる。起動できればよい。
@@ -94,7 +103,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && steps.meta.outputs.tags != '' }}
           tags: ${{ steps.meta.outputs.tags }}
           build-args: |
-            VERSION=${{ steps.meta.outputs.version }}+${{ github.sha }}
+            VERSION=${{ steps.version.outputs.version }}+${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,scope=${{ matrix.target }},mode=max
