@@ -501,7 +501,11 @@ func (w *FinalizeWorker) Work(ctx context.Context, job *river.Job[FinalizeArgs])
 
 	// つないだファイルの索引と集計、画像を作り直す。解析のジョブが、終わったら画像のジョブを投入する。
 	return pgx.BeginFunc(ctx, w.pool, func(tx pgx.Tx) error {
-		params := []river.InsertManyParams{{Args: analysis.AnalyzeArgs{RecordingID: job.Args.RecordingID}, InsertOpts: nil}}
+		// 新しく録った録画なので、取り込んだ録画の解析より先に回す。解析の後の画像も、同じ優先度で作る。
+		params := []river.InsertManyParams{{
+			Args:       analysis.AnalyzeArgs{RecordingID: job.Args.RecordingID},
+			InsertOpts: &river.InsertOpts{Priority: jobs.PriorityDefault},
+		}}
 		if _, err := w.inserter.InsertManyTx(ctx, tx, params); err != nil {
 			return fmt.Errorf("failed to enqueue the analysis: %w", err)
 		}

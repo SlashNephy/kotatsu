@@ -120,11 +120,19 @@ func (f *fixture) recording(t *testing.T, state string, segments ...[]byte) uuid
 	return recordingID
 }
 
+// analyze は、取り込んだ録画の解析として (優先度 4)、録画 recordingID を解析する。
 func (f *fixture) analyze(t *testing.T, recordingID uuid.UUID) error {
 	t.Helper()
 
+	return f.analyzeWithPriority(t, recordingID, jobs.PriorityImported)
+}
+
+// analyzeWithPriority は、優先度 priority で投入された解析のジョブとして、録画 recordingID を解析する。
+func (f *fixture) analyzeWithPriority(t *testing.T, recordingID uuid.UUID, priority int) error {
+	t.Helper()
+
 	worker := analysis.NewAnalyzeWorker(f.pool, f.store, f.clock, f.inserter)
-	job := &river.Job[analysis.AnalyzeArgs]{JobRow: new(rivertype.JobRow), Args: analysis.AnalyzeArgs{RecordingID: recordingID}}
+	job := &river.Job[analysis.AnalyzeArgs]{JobRow: &rivertype.JobRow{Priority: priority}, Args: analysis.AnalyzeArgs{RecordingID: recordingID}}
 
 	return worker.Work(t.Context(), job)
 }
@@ -291,7 +299,7 @@ func TestAnalyzeWorker(t *testing.T) {
 			}
 
 			// 代表画像とプレビュー画像を作るジョブを、重いジョブのキューに 1 つだけ投入する。
-			// 取り込んだ録画の画像なので、優先度を下げる (#551)。
+			// 取り込んだ録画の解析なので、画像も同じく優先度を下げる (#551)。
 			rows, err := f.pool.Query(t.Context(),
 				"SELECT queue || ' ' || priority || ' ' || (args->>'recordingId') FROM river_job WHERE kind = 'thumbnail_generate'")
 			require.NoError(t, err)
@@ -475,4 +483,31 @@ func TestAnalyzeWorkerStopsWhenCancelled(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT id FROM recording_files WHERE recording_id = $1", recordingID).Scan(&segmentID))
 	assert.NoFileExists(t, filepath.Join(f.dataRoot, kago.IndexLocation(segmentID).Path))
 	assert.NoFileExists(t, filepath.Join(f.dataRoot, kago.IndexLocation(segmentID).Path+".tmp"))
+}
+
+// TestAnalyzeWorkerQueuesThumbnailAtJobPriority は、解析の後に作る画像を、解析のジョブと同じ優先度で投入することを確かめる。
+// 頼まれてやり直す録画と、セグメントをつないだ録画の画像は、取り込んだ録画の画像の後ろで待たせない。
+func TestAnalyzeWorkerQueuesThumbnailAtJobPriority(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		priority int
+	}{
+		{name: "取り込んだ録画", priority: jobs.PriorityImported},
+		{name: "頼まれてやり直す録画と、セグメントをつないだ録画", priority: jobs.PriorityDefault},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			recordingID := f.recording(t, completed, singleTestTS(t)...)
+			require.NoError(t, f.analyzeWithPriority(t, recordingID, tt.priority))
+
+			var priority int
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT priority FROM river_job WHERE kind = 'thumbnail_generate'").Scan(&priority))
+			assert.Equal(t, tt.priority, priority)
+		})
+	}
 }

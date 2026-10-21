@@ -264,8 +264,12 @@ func TestJoin(t *testing.T) {
 			assert.NoFileExists(t, filepath.Join(f.dir, paths[1]))
 			assert.NoDirExists(t, filepath.Join(f.dataRoot, f.segmentIDs[paths[1]].String()))
 			// 置き換えた最初のセグメントの索引は合わなくなるので消え、解析のジョブが作り直す。
+			// 新しく録った録画なので、取り込んだ録画の解析 (優先度 4) の後ろで待たせない。
 			assert.NoFileExists(t, filepath.Join(f.dataRoot, kago.IndexLocation(f.segmentIDs[paths[0]]).Path))
 			assert.Contains(t, f.jobs(t), kindAnalyze)
+			var priority int
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT priority FROM river_job WHERE kind = $1", kindAnalyze).Scan(&priority))
+			assert.Equal(t, jobs.PriorityDefault, priority)
 
 			// やり直しても、同じ結果になる。
 			require.NoError(t, f.finalize(t, queued[kindFinalize]))
