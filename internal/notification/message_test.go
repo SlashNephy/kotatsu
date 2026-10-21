@@ -11,8 +11,12 @@ import (
 )
 
 const (
-	keyName     = "name"
-	programName = "こたつ特集"
+	keyName         = "name"
+	keyServiceName  = "serviceName"
+	keyNotBroadcast = "notBroadcast"
+	keyStartAt      = "startAt"
+	programName     = "こたつ特集"
+	evening         = "2026-10-10T12:00:00Z"
 )
 
 func TestMessage(t *testing.T) {
@@ -20,7 +24,7 @@ func TestMessage(t *testing.T) {
 
 	tokyo, err := time.LoadLocation("Asia/Tokyo")
 	require.NoError(t, err)
-	conflict := map[string]any{keyName: programName, "serviceName": "NHK総合", "startAt": "2026-10-10T15:00:00Z"}
+	conflict := map[string]any{keyName: programName, keyServiceName: "NHK総合", keyStartAt: "2026-10-10T15:00:00Z"}
 	tests := []struct {
 		name     string
 		kind     notification.Kind
@@ -32,12 +36,12 @@ func TestMessage(t *testing.T) {
 		{name: "番組名のない録画の完了", kind: notification.KindRecordingCompleted, payload: map[string]any{}, location: tokyo, want: "録画が終わりました"},
 		{
 			name: "放送されなかった録画の完了", kind: notification.KindRecordingCompleted, location: tokyo,
-			payload: map[string]any{keyName: programName, "notBroadcast": true, "airedName": "ニュース"},
+			payload: map[string]any{keyName: programName, keyNotBroadcast: true, "airedName": "ニュース"},
 			want:    "「こたつ特集」は、予定の時間に放送されませんでした。放送されていたのは「ニュース」です",
 		},
 		{
 			name: "放送されていた番組が分からない", kind: notification.KindRecordingCompleted, location: tokyo,
-			payload: map[string]any{"notBroadcast": true}, want: "予約した番組は、予定の時間に放送されませんでした",
+			payload: map[string]any{keyNotBroadcast: true}, want: "予約した番組は、予定の時間に放送されませんでした",
 		},
 		{name: "録画の失敗", kind: notification.KindRecordingFailed, payload: map[string]any{keyName: programName}, location: tokyo, want: "「こたつ特集」の録画に失敗しました"},
 		{
@@ -56,8 +60,23 @@ func TestMessage(t *testing.T) {
 		{name: "チューナーサーバーへの接続不可", kind: notification.KindTunerServerUnreachable, payload: map[string]any{}, location: tokyo, want: "チューナーサーバーに接続できません"},
 		{
 			name: "視聴予約は、表示のタイムゾーンの時刻で書く", kind: notification.KindWatchReminder,
-			payload: map[string]any{keyName: programName, "serviceName": "NHK総合", "startAt": "2026-10-10T12:00:00Z"}, location: tokyo,
+			payload: map[string]any{keyName: programName, keyServiceName: "NHK総合", keyStartAt: evening}, location: tokyo,
 			want: "21:00 から NHK総合で「こたつ特集」が始まります",
+		},
+		{
+			name: "視聴予約の番組名とサービス名は、全角の英数字を半角にする", kind: notification.KindWatchReminder,
+			payload: map[string]any{keyName: "アニメ　＃１２「再会」", keyServiceName: "ＴＯＫＹＯ　ＭＸ１", keyStartAt: evening}, location: tokyo,
+			want: "21:00 から TOKYO MX1で「アニメ #12「再会」」が始まります",
+		},
+		{
+			name: "競合の番組名とサービス名も半角にする", kind: notification.KindReservationConflict, location: tokyo,
+			payload: map[string]any{keyName: "ニュース１０", keyServiceName: "ＢＳ１１", keyStartAt: evening},
+			want:    "チューナーが足りず、録画できない見込みの予約があります。10/10（土）21:00 BS11「ニュース10」",
+		},
+		{
+			name: "放送されていた番組名も半角にする", kind: notification.KindRecordingCompleted, location: tokyo,
+			payload: map[string]any{keyName: "ドラマ２４", keyNotBroadcast: true, "airedName": "ニュース　ＷＢＳ"},
+			want:    "「ドラマ24」は、予定の時間に放送されませんでした。放送されていたのは「ニュース WBS」です",
 		},
 		{name: "材料のない視聴予約", kind: notification.KindWatchReminder, payload: map[string]any{}, location: tokyo, want: "視聴予約した番組が始まります"},
 	}

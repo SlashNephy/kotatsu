@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 
-import { ProgramTitle } from '../futon';
+import { ProgramTitle, toHalfWidth } from '../futon';
 import { mutate } from '../settings/mutate';
 import type { ReauthRun } from '../settings/useReauthGate';
 import type {
@@ -189,7 +189,9 @@ export function MissingRecordings({ run: reauthRun }: { run: ReauthRun }) {
                   <Table.Tr key={m.recording.id}>
                     <Table.Td>
                       <Checkbox
-                        aria-label={t('admin.missing.select', { name: m.recording.name })}
+                        aria-label={t('admin.missing.select', {
+                          name: toHalfWidth(m.recording.name),
+                        })}
                         checked={selected.has(m.recording.id)}
                         disabled={m.recording.protected}
                         onChange={(event) => toggle(m.recording.id, event.currentTarget.checked)}

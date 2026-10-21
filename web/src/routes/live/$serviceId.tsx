@@ -472,6 +472,9 @@ function Live({
   const surroundAvailable = route.kind === 'convert' && isSurroundAudio(program?.audios ?? null);
   useVirtualSurround(video, surroundAvailable);
   const programName = program?.name ?? null;
+  // programTitle は、タブの題名や OS のメディアの表示に出す番組名。印を描けないので囲み文字を外し、全角の英数字は半角にする。
+  const programTitle =
+    programName === null ? null : toHalfWidth(splitProgramMarks(programName).name);
   const serviceName = data.node?.__typename === 'Service' ? data.node.name : '';
   const serviceLogoUrl = data.node?.__typename === 'Service' ? (data.node.logoUrl ?? null) : null;
   // flash は、キーで操作した結果。映像の上に短く出す (#448)。
@@ -540,10 +543,14 @@ function Live({
     showShortcuts: () => setShortcutsOpen(true),
   } satisfies Partial<Record<ShortcutAction, () => void>>;
   usePlayerShortcuts(shortcuts);
-  useDocumentTitle([programName, serviceName]);
+  useDocumentTitle([programTitle, toHalfWidth(serviceName)]);
   const [autoPictureInPicture] = useAutoPictureInPicture();
   useMediaSession(
-    { title: programName ?? serviceName, artist: serviceName, artwork: serviceLogoUrl },
+    {
+      title: programTitle ?? toHalfWidth(serviceName),
+      artist: toHalfWidth(serviceName),
+      artwork: serviceLogoUrl,
+    },
     {
       play: () => void videoRef.current?.play().catch(() => {}),
       pause: () => videoRef.current?.pause(),
@@ -589,7 +596,7 @@ function Live({
           return false;
         }
         if (target.id !== serviceId) {
-          setTuneRequest({ id: target.id, name: target.name });
+          setTuneRequest({ id: target.id, name: toHalfWidth(target.name) });
         }
 
         return true;
@@ -860,7 +867,7 @@ function Live({
             w={240}
             aria-label={t('live.switchChannel')}
             placeholder={t('live.switchChannel')}
-            data={serviceGroups(data.services, (service) => toHalfWidth(service.name))}
+            data={serviceGroups(data.services)}
             renderOption={renderServiceOption(data.services)}
             value={serviceId}
             onChange={(id) => {

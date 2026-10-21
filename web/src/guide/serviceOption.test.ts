@@ -36,4 +36,17 @@ describe('serviceGroups', () => {
       { group: 'CS', items: [{ value: '4', label: '局 4!' }] },
     ]);
   });
+
+  test('選んだ後の入力欄にも出る label は、全角の英数字を半角にする', () => {
+    const services = [
+      { id: '1', name: 'ＴＯＫＹＯ　ＭＸ１', channelType: { displayName: '地上波' } },
+    ];
+
+    expect(serviceGroups(services)).toEqual([
+      { group: '地上波', items: [{ value: '1', label: 'TOKYO MX1' }] },
+    ]);
+    expect(serviceGroups(services, (s) => `${s.name}（地上波・23608）`)).toEqual([
+      { group: '地上波', items: [{ value: '1', label: 'TOKYO MX1（地上波・23608）' }] },
+    ]);
+  });
 });

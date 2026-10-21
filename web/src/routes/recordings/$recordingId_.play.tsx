@@ -7,7 +7,14 @@ import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
-import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../../futon';
+import {
+  ErrorBoundary,
+  PageLoader,
+  ProgramTitle,
+  splitProgramMarks,
+  toHalfWidth,
+  useDocumentTitle,
+} from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { CommentListToggle } from '../../jikkyo/CommentList';
@@ -553,12 +560,15 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     showShortcuts: () => setShortcutsOpen(true),
   } satisfies Partial<Record<ShortcutAction, () => void>>;
   usePlayerShortcuts(shortcuts);
-  useDocumentTitle([recording?.name ?? null]);
+  // タブの題名や OS のメディアの表示は印を描けないので、囲み文字を外し、全角の英数字は半角にする。
+  const recordingTitle =
+    recording == null ? null : toHalfWidth(splitProgramMarks(recording.name).name);
+  useDocumentTitle([recordingTitle]);
   const [autoPictureInPicture] = useAutoPictureInPicture();
   useMediaSession(
     {
-      title: recording?.name ?? '',
-      artist: recording?.service.name ?? '',
+      title: recordingTitle ?? '',
+      artist: toHalfWidth(recording?.service.name ?? ''),
       artwork: recording?.thumbnailUrl ?? null,
     },
     {
