@@ -1,0 +1,35 @@
+# GitHub がリリースノートを生成するときの分け方 (設計書 11.1)。
+# PR の種類のラベルは、PR のタイトル (Conventional Commits) から label-pull-request.yml が付ける。
+# 見出しは上から順に当てはめ、最初に当てはまった見出しに入れる。
+changelog:
+  categories:
+    - title: 新機能
+      labels:
+        - enhancement
+      exclude:
+        labels:
+          - renovate
+    - title: 不具合の修正
+      labels:
+        - bug
+      exclude:
+        labels:
+          - renovate
+    - title: 性能の改善
+      labels:
+        - performance
+      exclude:
+        labels:
+          - renovate
+    - title: ドキュメント
+      labels:
+        - documentation
+      exclude:
+        labels:
+          - renovate
+    - title: 依存関係の更新
+      labels:
+        - renovate
+    - title: その他
+      labels:
+        - "*"
