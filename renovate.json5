@@ -3,6 +3,10 @@
   extends: [
     'local>SlashNephy/renovate-config',
   ],
+  // main が進んでも、コンフリクトしない限り PR を作り直さない。自動マージする PR は、既定では main より遅れるたびに
+  // 作り直され、そのたびに CI、Image、CodeQL が動いて、開いている PR の数だけランナーを待たせるため。
+  // 必須のチェック (ルールセット) は main への追従を求めないので、作り直さなくても自動マージできる。
+  rebaseWhen: 'conflicted',
   packageRules: [
     {
       // wasm-bindgen の CLI は、mpeg2toh264 の Cargo.lock の wasm-bindgen と同じ版でないと使えない。
