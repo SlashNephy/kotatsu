@@ -67,11 +67,11 @@ depends = ["web:relay"]
 run = "pnpm exec vp build"
 
 # 静的なデモ (#832)。tenban なしに画面を触れるよう、応答をブラウザの中で返す。
-# GitHub Pages の /kotatsu/demo/ に置くので、base をそこに合わせ、web/dist/demo に出力する。
+# Cloudflare Pages のサイトの直下に置き、web/dist/demo に出力する。Cloudflare Pages は、web の pnpm run build:demo でビルドする。
 [tasks."web:demo"]
 dir = "web"
 depends = ["web:relay"]
-run = "pnpm exec vp build --mode demo --base /kotatsu/demo/ --outDir dist/demo"
+run = "pnpm exec vp build --mode demo --outDir dist/demo"
 
 [tasks."web:check"]
 dir = "web"
