@@ -50,3 +50,7 @@ release:
   github:
     owner: SlashNephy
     name: kotatsu
+  # Helm Chart も、公開と同時に添付する。公開した後のリリースには添付できない (immutable releases)。
+  # Chart は、release.yml が GoReleaser の前に KOTATSU_CHART_DIR に作る。
+  extra_files:
+    - glob: "{{ .Env.KOTATSU_CHART_DIR }}/kotatsu-*.tgz"
