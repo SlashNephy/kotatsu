@@ -33,7 +33,7 @@ function inlineAppleTouchIcon(): Plugin {
   };
 }
 
-// mode が demo のときは、静的なデモ (#832) をビルドする。`vp build --mode demo --base /kotatsu/demo/` で使う。
+// mode が demo のときは、静的なデモ (#832) をビルドする。`vp build --mode demo` で使う。
 // demoStream は、静的なデモ (#832) のときだけ、合成の映像 (demo/stream.m2ts) と、
 // ライブ視聴の映像を実時間の速さで流す Service Worker (stream-sw.js) を出力に加える。
 // public に置くと、tenban に埋め込む通常のビルドにも入るので、ここで加える。

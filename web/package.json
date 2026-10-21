@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vp dev",
-    "build": "vp build"
+    "build": "vp build",
+    "build:demo": "node scripts/fetch-caption-font.mjs && FORCE_NO_WATCHMAN=1 relay-compiler && vp build --mode demo --outDir dist/demo"
   },
   "dependencies": {
     "@fontsource/m-plus-rounded-1c": "5.3.0",

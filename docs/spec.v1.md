@@ -1292,9 +1292,9 @@ tenbanを動かさずに画面を触れる、静的なデモも同じソース�
 `vp build --mode demo`のときだけ、GraphQLと`/auth/*`の応答をブラウザの中で返します。
 GraphQLは、graphql-jsで`schema.graphql`をメモリ上のデータに対して実行します。
 `/auth/*`は、いつもログインしているものとして答えます。
-デモはGitHub Pagesの`/kotatsu/demo/`に置くので、ルーターと静的なファイルのURLはViteの`base`に従います。
+デモはCloudflare Pagesのサイトの直下に置きます。ルーターと静的なファイルのURLは、Viteの`base`に従います。
 アプリの外枠のService Worker（PWA）は作らず、登録もしません。
-代わりに、ライブ視聴の映像を実時間の速さで流すだけのService Workerを、`/kotatsu/demo/`に範囲を絞って登録します。静的なファイルは一気に届き終わり、ライブ視聴の画面が再生を始める前に切れたものとして扱うためです。
+代わりに、ライブ視聴の映像を実時間の速さで流すだけのService Workerを、`base`に範囲を絞って登録します。静的なファイルは一気に届き終わり、ライブ視聴の画面が再生を始める前に切れたものとして扱うためです。
 映像は、ffmpegのテストパターンから作った20秒の合成の映像（`web/demo/stream.m2ts`）で、どの局と録画もこれを流します。ライブ視聴は、映像が終わると切れたものとして扱い、つなぎ直して繰り返します。
 通常のビルドは`import.meta.env.MODE`の比較でデモのコードを除き、tenbanに埋め込むSPAには含めません。
 
@@ -1395,13 +1395,13 @@ Content Security Policyは厳しく設定します。
 | コンテナイメージ | [2.4](#24-コンテナイメージ)の2種類です。ビルドに使うtsreadexのバージョンは、Renovateで追跡できる形で固定します。 |
 | バイナリ | GoReleaserでGitHub Releasesに置きます。SPAは埋め込み済みです。FFmpegとtsreadexは利用者が別途用意します。 |
 | Helm Chart | GitHub PagesのHelmリポジトリ（`https://slashnephy.github.io/kotatsu`）で配布します。Chartの本体はリリースに添付します。 |
-| デモ | GitHub Pagesの`https://slashnephy.github.io/kotatsu/demo/`に置く、tenbanなしに画面を触れる静的なデモです（[10.1](#101-技術の構成)、#832）。mainにpushするたびに作り直します。 |
+| デモ | Cloudflare Pagesの`https://kotatsu-demo.pages.dev/`に置く、tenbanなしに画面を触れる静的なデモです（[10.1](#101-技術の構成)、#832）。Cloudflare PagesのGit連携で、mainにpushするたびに作り直します（`web`で`pnpm run build:demo`）。 |
 | Kubernetesのマニフェスト | Helm Chartから`helm template`で生成します。 |
 | Docker Composeの例 | `-ffmpeg`イメージの`all`構成とPostgreSQLの組み合わせです。 |
 
 GitHub Pagesは、GitHub Actionsから配信します（`.github/workflows/pages.yml`）。
-HelmリポジトリのChartの一覧（`index.yaml`）は、リリースのworkflowがgh-pagesブランチに置き、デモと一緒に配信します。
-リリースで一覧を更新したときも、配信し直します。
+GitHub Pagesには、HelmリポジトリのChartの一覧（`index.yaml`）だけを置きます。
+一覧は、リリースのworkflowがgh-pagesブランチに置き、そのリリースのタグから配信し直します。
 
 版はCalVerで`YYYY.M.N`（年、月、その月の何回目のリリースか。0から数えます）とし、タグは`v2026.10.0`の形にします。
 HelmのChartの版とイメージのタグはSemVerの形を求めるので、月に0を付けず、数字を3つにします。
