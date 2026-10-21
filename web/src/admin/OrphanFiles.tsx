@@ -146,6 +146,8 @@ export function OrphanFiles({ run: reauthRun }: { run: ReauthRun }) {
       },
       () => finish({ ok: false, text: t('admin.orphan.deleteError') }),
       () => finish(null),
+      // 再認証を待っている間は、消している途中の表示を出さない (#915)。
+      () => finish(null),
     );
   };
 

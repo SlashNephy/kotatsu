@@ -144,6 +144,8 @@ export function MissingRecordings({ run: reauthRun }: { run: ReauthRun }) {
       },
       () => finish({ ok: false, text: t('admin.missing.cleanUpError') }),
       () => finish(null),
+      // 再認証を待っている間は、消している途中の表示を出さない (#915)。
+      () => finish(null),
     );
   };
 
