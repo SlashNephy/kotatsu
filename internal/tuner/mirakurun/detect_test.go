@@ -93,10 +93,9 @@ func TestDetect(t *testing.T) {
 		{
 			kind: mirakurun.ServerMahiron,
 			want: &mirakurun.ServerInfo{
-				Kind:          mirakurun.ServerMahiron,
-				Version:       &mirakurun.Version{Current: "5.2.2", Latest: "", Server: "mahiron"},
-				EventsStream:  true,
-				DataBroadcast: true,
+				Kind:         mirakurun.ServerMahiron,
+				Version:      &mirakurun.Version{Current: "5.2.2", Latest: "", Server: "mahiron"},
+				EventsStream: true,
 			},
 		},
 		{

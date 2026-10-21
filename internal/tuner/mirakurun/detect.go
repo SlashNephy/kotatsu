@@ -31,8 +31,6 @@ type ServerInfo struct {
 	SSEEvents bool
 	// OnAir は、/api/onair を使えるかどうか。mirakc が持つ。
 	OnAir bool
-	// DataBroadcast は、データ放送の API を使えるかどうか。Mahiron が持つ。
-	DataBroadcast bool
 }
 
 // Server は、チューナーサーバーの種類と追加機能を返す。
@@ -85,12 +83,11 @@ func (c *Client) Detect(ctx context.Context) (*ServerInfo, error) {
 
 	if version.Server == mahironServerName {
 		return &ServerInfo{
-			Kind:          ServerMahiron,
-			Version:       version,
-			EventsStream:  true,
-			SSEEvents:     false,
-			OnAir:         false,
-			DataBroadcast: true,
+			Kind:         ServerMahiron,
+			Version:      version,
+			EventsStream: true,
+			SSEEvents:    false,
+			OnAir:        false,
 		}, nil
 	}
 
@@ -100,22 +97,20 @@ func (c *Client) Detect(ctx context.Context) (*ServerInfo, error) {
 	}
 	if sse {
 		return &ServerInfo{
-			Kind:          ServerMirakc,
-			Version:       version,
-			EventsStream:  false,
-			SSEEvents:     true,
-			OnAir:         true,
-			DataBroadcast: false,
+			Kind:         ServerMirakc,
+			Version:      version,
+			EventsStream: false,
+			SSEEvents:    true,
+			OnAir:        true,
 		}, nil
 	}
 
 	return &ServerInfo{
-		Kind:          ServerMirakurun,
-		Version:       version,
-		EventsStream:  true,
-		SSEEvents:     false,
-		OnAir:         false,
-		DataBroadcast: false,
+		Kind:         ServerMirakurun,
+		Version:      version,
+		EventsStream: true,
+		SSEEvents:    false,
+		OnAir:        false,
 	}, nil
 }
 

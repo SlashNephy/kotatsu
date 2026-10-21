@@ -30,7 +30,7 @@ const (
 	// searchTimeout は、1 回の検索にかけてよい時間。一致する番組が少ないと、候補を最後まで照合するので、これで守る。
 	// キーワードの多くは SQL で粗く絞るので、ふつうの検索はこれよりずっと早く終わる。
 	searchTimeout = 15 * time.Second
-	// maxConcurrentSearches は、サーバー全体で同時に照合する検索 (番組の検索とルールのプレビュー) の数の上限。
+	// maxConcurrentSearches は、tenban ごとに同時に照合する検索 (番組の検索とルールのプレビュー) の数の上限。
 	maxConcurrentSearches = 4
 )
 
