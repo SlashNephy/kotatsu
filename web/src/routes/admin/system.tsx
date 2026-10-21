@@ -53,19 +53,14 @@ const dateTimeFormat = zonedFormat({
 
 const formatTime = (time: string) => dateTimeFormat.format(Date.parse(time));
 
-// SystemPage は、システムの状態を見て、保存先プールを変える、管理者向けの画面 (設計書 10.3)。
+// SystemPage は、システムの状態を見て、保存先プールを変え、録画とファイルを片付ける、管理者向けの画面 (設計書 10.3)。
 // チャンネル種別とチャンネルの表示は、チャンネルの表示の画面 (/admin/channels) で変える。
 function SystemPage() {
   const { t } = useTranslation();
 
   return (
     <AdminPage title={t('admin.system.title')}>
-      <Stack gap="md">
-        <SystemStatus />
-        <MissingRecordings />
-        <OrphanFiles />
-        <RecordingRenames />
-      </Stack>
+      <SystemStatus />
     </AdminPage>
   );
 }
@@ -375,6 +370,11 @@ function SystemStatus() {
           ))
         )}
       </Section>
+
+      {/* 録画やファイルを消す、動かす操作も重要な操作なので、同じ再認証を通す (設計書 9.5)。 */}
+      <MissingRecordings run={gate.run} />
+      <OrphanFiles run={gate.run} />
+      <RecordingRenames run={gate.run} />
     </Stack>
   );
 }

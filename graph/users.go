@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strings"
 
 	"github.com/google/uuid"
@@ -71,6 +72,27 @@ func parseUserID(globalID string) (uuid.UUID, error) {
 
 func parseSessionID(globalID string) (uuid.UUID, error) {
 	return parseTypedID(globalID, sessionType, "invalid session ID")
+}
+
+// revokeSession は、ログイン中のユーザーのセッション sessionID を失効させ、監査ログに残す (設計書 8.5)。
+// 失効と記録を 1 つのトランザクションにまとめ、記録できなければ失効させない。
+func (r *Resolver) revokeSession(ctx context.Context, principal *auth.Principal, sessionID uuid.UUID) error {
+	return pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
+		if err := r.sessions.Revoke(ctx, tx, principal.UserID, sessionID); err != nil {
+			return err
+		}
+
+		return r.recorder.Record(ctx, tx, &audit.Event{
+			Actor:      actorOf(ctx, principal),
+			Action:     "user.session_revoked",
+			TargetType: "user",
+			TargetID:   principal.UserID.String(),
+			Summary:    map[string]any{"sessionId": sessionID.String()},
+			// 送信元は、操作者 (actor) に持たせる。
+			SourceIP:  netip.Addr{},
+			UserAgent: "",
+		})
+	})
 }
 
 // parseTypedID は、typeName の Node の ID から、UUID を取り出す。

@@ -155,6 +155,7 @@ func NewHandler(opts *Options) http.Handler {
 		userAdmin:    o.UserAdmin,
 		passwords:    o.Passwords,
 		sessions:     o.Sessions,
+		recorder:     o.Recorder,
 		settings:     o.Settings,
 		inbox:        notification.NewInbox(o.Clock),
 		webhooks:     o.Webhooks,

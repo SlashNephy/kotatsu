@@ -12,9 +12,11 @@ import {
 } from '@mantine/core';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-relay';
+import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 
 import { ProgramTitle } from '../futon';
+import { mutate } from '../settings/mutate';
+import type { ReauthRun } from '../settings/useReauthGate';
 import type {
   MissingRecordingsQuery,
   MissingRecordingsQuery$data,
@@ -37,6 +39,16 @@ const query = graphql`
   }
 `;
 
+const cleanUpMutation = graphql`
+  mutation MissingRecordingsCleanUpMutation($ids: [ID!]!) {
+    cleanUpMissingRecordings(ids: $ids) {
+      deletedRecordings
+      prunedSegments
+      skipped
+    }
+  }
+`;
+
 type Missing = MissingRecordingsQuery$data['missingRecordings'][number];
 
 // cleanUpBatch は、1 回の cleanUpMissingRecordings で送る録画の数 (サーバーの上限)。
@@ -53,7 +65,8 @@ const dateTimeFormat = zonedFormat({
 
 // MissingRecordings は、セグメントのファイルが見つからない録画を探し、確かめてから DB から消す (設計書 5.6)。
 // ファイルを Kotatsu を通さずに消すと、録画の一覧に残り続けるので、管理者が片付ける。
-export function MissingRecordings() {
+// 録画を消すのは重要な操作なので、ページの再認証 (run) を通して送る (設計書 9.5)。
+export function MissingRecordings({ run: reauthRun }: { run: ReauthRun }) {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const [found, setFound] = useState<readonly Missing[] | null>(null);
@@ -62,15 +75,6 @@ export function MissingRecordings() {
   const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [cleaning, setCleaning] = useState(false);
-  const [cleanUp] = useMutation<MissingRecordingsCleanUpMutation>(graphql`
-    mutation MissingRecordingsCleanUpMutation($ids: [ID!]!) {
-      cleanUpMissingRecordings(ids: $ids) {
-        deletedRecordings
-        prunedSegments
-        skipped
-      }
-    }
-  `);
 
   // search は、ファイルの見つからない録画を探す。消した後に探し直すときは、消した結果の表示を残す (keepMessage)。
   const search = async (keepMessage = false) => {
@@ -109,38 +113,38 @@ export function MissingRecordings() {
     });
 
   // run は、選んだ録画を、サーバーの上限 (1 回に 500 件) ごとに分けて消す。
-  const run = async () => {
+  // 途中で再認証を求められたら、再認証した後、まだ送っていない分から続ける。
+  const run = () => {
     const ids = [...selected];
     const total = { deleted: 0, pruned: 0, skipped: 0 };
-    setCleaning(true);
-    try {
-      for (let start = 0; start < ids.length; start += cleanUpBatch) {
-        const r = await new Promise<{
-          deletedRecordings: number;
-          prunedSegments: number;
-          skipped: number;
-        }>((resolve, reject) => {
-          cleanUp({
-            variables: { ids: ids.slice(start, start + cleanUpBatch) },
-            onCompleted: (response, errors) =>
-              errors != null && errors.length > 0
-                ? reject(new Error(errors[0]?.message ?? 'GraphQL error'))
-                : resolve(response.cleanUpMissingRecordings),
-            onError: reject,
-          });
-        });
-        total.deleted += r.deletedRecordings;
-        total.pruned += r.prunedSegments;
-        total.skipped += r.skipped;
-      }
-      setMessage({ ok: true, text: t('admin.missing.cleaned', total) });
-    } catch {
-      setMessage({ ok: false, text: t('admin.missing.cleanUpError') });
-    } finally {
+    let next = 0;
+    // 再認証の画面と重ならないよう、確かめる画面は先に閉じる。
+    setConfirming(false);
+    const finish = (text: { ok: boolean; text: string } | null) => {
       setCleaning(false);
-      setConfirming(false);
-      void search(true);
-    }
+      if (text !== null) {
+        setMessage(text);
+        void search(true);
+      }
+    };
+    reauthRun(
+      async () => {
+        setCleaning(true);
+        for (; next < ids.length; next += cleanUpBatch) {
+          const { cleanUpMissingRecordings: r } = await mutate<MissingRecordingsCleanUpMutation>(
+            environment,
+            cleanUpMutation,
+            { ids: ids.slice(next, next + cleanUpBatch) },
+          );
+          total.deleted += r.deletedRecordings;
+          total.pruned += r.prunedSegments;
+          total.skipped += r.skipped;
+        }
+        finish({ ok: true, text: t('admin.missing.cleaned', total) });
+      },
+      () => finish({ ok: false, text: t('admin.missing.cleanUpError') }),
+      () => finish(null),
+    );
   };
 
   return (
@@ -217,6 +221,7 @@ export function MissingRecordings() {
               <Button
                 color="red"
                 disabled={selected.size === 0}
+                loading={cleaning}
                 onClick={() => setConfirming(true)}
               >
                 {t('admin.missing.cleanUp', { count: selected.size })}
@@ -236,7 +241,7 @@ export function MissingRecordings() {
             <Button variant="default" onClick={() => setConfirming(false)}>
               {t('admin.missing.cancel')}
             </Button>
-            <Button color="red" loading={cleaning} onClick={() => void run()}>
+            <Button color="red" onClick={run}>
               {t('admin.missing.confirmButton')}
             </Button>
           </Group>

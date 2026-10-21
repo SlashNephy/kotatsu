@@ -8,27 +8,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/SlashNephy/kotatsu/graph/model"
-	"github.com/SlashNephy/kotatsu/internal/audit"
-	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/library"
 )
 
 // maxCleanUpRecordings は、一度に確かめ直して消す録画の数の上限。
 const maxCleanUpRecordings = 500
-
-// administrator は、管理者である操作者を返す。
-func administrator(ctx context.Context) (*audit.Actor, error) {
-	principal, err := viewer(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if !principal.Role.Can(auth.PermissionAdminister) {
-		return nil, NewError(CodeForbidden, "only administrators can do this")
-	}
-
-	return actorOf(ctx, principal), nil
-}
 
 // missingRecordings は、セグメントのファイルが見つからない録画を返す。
 func (r *Resolver) missingRecordings(ctx context.Context) ([]*model.MissingRecording, error) {
@@ -67,8 +52,9 @@ func (r *Resolver) missingRecordings(ctx context.Context) ([]*model.MissingRecor
 }
 
 // cleanUpMissingRecordings は、録画 ids のセグメントのファイルを確かめ直し、見つからないものの記録を DB から消す。
+// 録画を消す取り返しのつかない操作なので、直近 10 分以内の再認証を求める (設計書 9.5)。
 func (r *Resolver) cleanUpMissingRecordings(ctx context.Context, ids []string) (*model.CleanUpMissingRecordingsPayload, error) {
-	actor, err := administrator(ctx)
+	_, actor, err := r.recentAdministrator(ctx, "only administrators can clean up missing recordings")
 	if err != nil {
 		return nil, err
 	}

@@ -12,9 +12,11 @@ import {
 } from '@mantine/core';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-relay';
+import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 
 import { formatBytes, zonedFormat } from '../futon';
+import { mutate } from '../settings/mutate';
+import type { ReauthRun } from '../settings/useReauthGate';
 import type {
   OrphanFilesQuery,
   OrphanFilesQuery$data,
@@ -29,6 +31,15 @@ const query = graphql`
       segmentDir
       size
       modifiedAt
+    }
+  }
+`;
+
+const deleteMutation = graphql`
+  mutation OrphanFilesDeleteMutation($files: [OrphanFileInput!]!) {
+    deleteOrphanFiles(files: $files) {
+      deleted
+      skipped
     }
   }
 `;
@@ -52,7 +63,8 @@ const keyOf = (orphan: Orphan) => JSON.stringify([orphan.poolId, orphan.path, or
 
 // OrphanFiles は、プールとデータディレクトリにあるのに DB に記録のないファイルを探し、確かめてから消す (設計書 5.6)。
 // 録画を消すのに失敗したときや、取り込みをやり直したときに残るので、管理者が片付ける。
-export function OrphanFiles() {
+// ファイルを消すのは重要な操作なので、ページの再認証 (run) を通して送る (設計書 9.5)。
+export function OrphanFiles({ run: reauthRun }: { run: ReauthRun }) {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const [found, setFound] = useState<readonly Orphan[] | null>(null);
@@ -61,14 +73,6 @@ export function OrphanFiles() {
   const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [remove] = useMutation<OrphanFilesDeleteMutation>(graphql`
-    mutation OrphanFilesDeleteMutation($files: [OrphanFileInput!]!) {
-      deleteOrphanFiles(files: $files) {
-        deleted
-        skipped
-      }
-    }
-  `);
 
   // search は、DB にないファイルを探す。消した後に探し直すときは、消した結果の表示を残す (keepMessage)。
   // 消すかどうかは一つずつ確かめてほしいので、はじめは何も選ばない。
@@ -110,35 +114,39 @@ export function OrphanFiles() {
   const toggleAll = (checked: boolean) => setSelected(new Set(checked ? all.map(keyOf) : []));
 
   // run は、選んだファイルを、サーバーの上限 (1 回に 500 件) ごとに分けて消す。
-  const run = async () => {
+  // 途中で再認証を求められたら、再認証した後、まだ送っていない分から続ける。
+  const run = () => {
     const files = all
       .filter((orphan) => selected.has(keyOf(orphan)))
       .map(({ poolId, path, segmentDir }) => ({ poolId, path, segmentDir }));
     const total = { deleted: 0, skipped: 0 };
-    setDeleting(true);
-    try {
-      for (let start = 0; start < files.length; start += deleteBatch) {
-        const r = await new Promise<{ deleted: number; skipped: number }>((resolve, reject) => {
-          remove({
-            variables: { files: files.slice(start, start + deleteBatch) },
-            onCompleted: (response, errors) =>
-              errors != null && errors.length > 0
-                ? reject(new Error(errors[0]?.message ?? 'GraphQL error'))
-                : resolve(response.deleteOrphanFiles),
-            onError: reject,
-          });
-        });
-        total.deleted += r.deleted;
-        total.skipped += r.skipped;
-      }
-      setMessage({ ok: true, text: t('admin.orphan.deleted', total) });
-    } catch {
-      setMessage({ ok: false, text: t('admin.orphan.deleteError') });
-    } finally {
+    let next = 0;
+    // 再認証の画面と重ならないよう、確かめる画面は先に閉じる。
+    setConfirming(false);
+    const finish = (text: { ok: boolean; text: string } | null) => {
       setDeleting(false);
-      setConfirming(false);
-      void search(true);
-    }
+      if (text !== null) {
+        setMessage(text);
+        void search(true);
+      }
+    };
+    reauthRun(
+      async () => {
+        setDeleting(true);
+        for (; next < files.length; next += deleteBatch) {
+          const { deleteOrphanFiles: r } = await mutate<OrphanFilesDeleteMutation>(
+            environment,
+            deleteMutation,
+            { files: files.slice(next, next + deleteBatch) },
+          );
+          total.deleted += r.deleted;
+          total.skipped += r.skipped;
+        }
+        finish({ ok: true, text: t('admin.orphan.deleted', total) });
+      },
+      () => finish({ ok: false, text: t('admin.orphan.deleteError') }),
+      () => finish(null),
+    );
   };
 
   return (
@@ -226,6 +234,7 @@ export function OrphanFiles() {
               <Button
                 color="red"
                 disabled={selected.size === 0}
+                loading={deleting}
                 onClick={() => setConfirming(true)}
               >
                 {t('admin.orphan.delete', { count: selected.size })}
@@ -245,7 +254,7 @@ export function OrphanFiles() {
             <Button variant="default" onClick={() => setConfirming(false)}>
               {t('admin.orphan.cancel')}
             </Button>
-            <Button color="red" loading={deleting} onClick={() => void run()}>
+            <Button color="red" onClick={run}>
               {t('admin.orphan.confirmButton')}
             </Button>
           </Group>
