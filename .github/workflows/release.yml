@@ -56,15 +56,23 @@ jobs:
         with:
           cache: false
       - run: mise run web:build
+      # Chart は、GoReleaser がリリースに一緒に添付する (.goreleaser.yaml の release.extra_files)。
+      # 公開した後のリリースには添付できない (immutable releases) ので、公開する前にそろえる。
+      # 作業ツリーに置くと、GoReleaser が変更のあるツリーとみなして止まるので、外に置く。
+      - name: Package the chart
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: helm package charts/kotatsu --version "${REF_NAME#v}" --app-version "${REF_NAME#v}" --destination "$RUNNER_TEMP/chart"
       - run: goreleaser release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KOTATSU_CHART_DIR: ${{ runner.temp }}/chart
 
   # Helm Chart を、タグの版で GitHub Pages の Helm リポジトリ (https://slashnephy.github.io/kotatsu) に公開する (設計書 11.1)。
-  # Chart の本体はリリースに添付し、gh-pages ブランチの index.yaml からそれを指す。
+  # Chart の本体はリリースに添付してあり、gh-pages ブランチの index.yaml からそれを指す。
   chart:
     if: startsWith(github.ref, 'refs/tags/v')
-    # リリースに添付するので、GoReleaser がリリースを作り終えてから動かす。
+    # リリースに添付した Chart を指すので、GoReleaser がリリースを公開し終えてから動かす。
     needs: release
     runs-on: ubuntu-latest
     permissions:
@@ -76,15 +84,11 @@ jobs:
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           cache: false
-      - name: Package the chart
-        env:
-          REF_NAME: ${{ github.ref_name }}
-        run: helm package charts/kotatsu --version "${REF_NAME#v}" --app-version "${REF_NAME#v}" --destination "$RUNNER_TEMP/chart"
-      - name: Attach the chart to the release
+      - name: Download the chart from the release
         env:
           GH_TOKEN: ${{ github.token }}
           REF_NAME: ${{ github.ref_name }}
-        run: gh release upload "$REF_NAME" "$RUNNER_TEMP"/chart/*.tgz --clobber
+        run: gh release download "$REF_NAME" --pattern 'kotatsu-*.tgz' --dir "$RUNNER_TEMP/chart"
       - name: Update the Helm repository index
         env:
           GH_TOKEN: ${{ github.token }}
