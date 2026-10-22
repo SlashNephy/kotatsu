@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// DefaultStreamIdleTimeout は、ストリームのデータが届かないまま待つ時間の上限 (#537)。
+// DefaultStreamIdleTimeout は、放送のストリームのデータが届かないまま待つ時間の上限 (#537)。
 // 放送のストリームには、PAT などが 1 秒に何度も入るので、これだけ届かなければ止まったとみなす。
 const DefaultStreamIdleTimeout = 10 * time.Second
 

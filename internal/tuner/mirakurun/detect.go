@@ -183,7 +183,7 @@ func (c *Client) openEvents(ctx context.Context, server *ServerInfo, query *Even
 			return nil, err
 		}
 		req.Header.Set("Accept", "text/event-stream")
-		body, err := c.openStream(req)
+		body, err := c.openStream(req, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -204,7 +204,7 @@ func (c *Client) openEvents(ctx context.Context, server *ServerInfo, query *Even
 	if err != nil {
 		return nil, err
 	}
-	body, err := c.openStream(req)
+	body, err := c.openStream(req, 0)
 	if err != nil {
 		return nil, err
 	}

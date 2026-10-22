@@ -32,7 +32,12 @@ const (
 
 	resourceProgram   = "program"
 	resourceTuner     = "tuner"
+	typeUpdate        = "update"
 	typeStatusChanged = "status-changed"
+
+	pathVersion = "/api/version"
+	// pathSSEEvents は、mirakc のイベントストリーム (SSE)。
+	pathSSEEvents = "/events"
 )
 
 // recorder は、偽チューナーへのリクエストを記録する。
