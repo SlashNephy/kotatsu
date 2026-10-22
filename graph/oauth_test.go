@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/auth"
 )
@@ -36,4 +37,60 @@ func TestApproveOAuthAuthorizationRejects(t *testing.T) {
 			assert.Equal(t, []string{tt.want}, f.query(t, approveMutation, map[string]any{"authorizationQuery": tt.query, "scopes": []string{"mcp:read"}}, nil))
 		})
 	}
+}
+
+const (
+	oauthGrantsQuery    = `{ oauthGrants { id clientId clientName scopes lastUsedAt } }`
+	deleteGrantMutation = `mutation($id: ID!) { deleteOAuthGrant(id: $id) }`
+)
+
+type oauthGrant struct {
+	ID         string     `json:"id"`
+	ClientID   string     `json:"clientId"`
+	ClientName string     `json:"clientName"`
+	Scopes     []string   `json:"scopes"`
+	LastUsedAt *time.Time `json:"lastUsedAt"`
+}
+
+func (f *fixture) listOAuthGrants(t *testing.T) []oauthGrant {
+	t.Helper()
+
+	var got struct {
+		OauthGrants []oauthGrant `json:"oauthGrants"`
+	}
+	require.Empty(t, f.query(t, oauthGrantsQuery, nil, &got))
+
+	return got.OauthGrants
+}
+
+// TestManageOAuthGrants は、ログイン中のユーザーが、連携中の MCP のクライアントを一覧し、取り消せることを確かめる (#965)。
+func TestManageOAuthGrants(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	const clientID = "https://claude.ai/oauth/claude-code-client-metadata"
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO oauth_grants (id, user_id, client_id, client_name, scopes, resource, created_at)
+		VALUES (gen_random_uuid(), $1, $2, 'Claude Code', '{mcp:read,mcp:write}', 'https://kotatsu.example/mcp', now())`, f.userID, clientID)
+	require.NoError(t, err)
+
+	grants := f.listOAuthGrants(t)
+	require.Len(t, grants, 1)
+	assert.Equal(t, oauthGrant{ID: grants[0].ID, ClientID: clientID, ClientName: "Claude Code", Scopes: []string{"mcp:read", "mcp:write"}, LastUsedAt: nil}, grants[0])
+	// ほかのユーザーには見えず、取り消せない。
+	other := f.as(t, otherUser, auth.RoleMember)
+	assert.Empty(t, other.listOAuthGrants(t))
+	assert.Equal(t, []string{codeNotFound}, other.query(t, deleteGrantMutation, map[string]any{varID: grants[0].ID}, nil))
+
+	// 取り消しは、被害を抑える操作なので、直近の認証がなくてもできる。
+	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
+	var deleted struct {
+		DeleteOAuthGrant string `json:"deleteOAuthGrant"`
+	}
+	require.Empty(t, f.query(t, deleteGrantMutation, map[string]any{varID: grants[0].ID}, &deleted))
+	assert.Equal(t, grants[0].ID, deleted.DeleteOAuthGrant)
+	assert.Empty(t, f.listOAuthGrants(t))
+	var events int
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM audit_events WHERE action = 'oauth_grant.delete' AND target_id = $1", clientID).Scan(&events))
+	assert.Equal(t, 1, events)
+	assert.Equal(t, []string{codeBadUserInput}, f.query(t, deleteGrantMutation, map[string]any{varID: "invalid"}, nil))
 }

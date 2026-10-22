@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<4da211009e41a8aa0ce35c95ce7ae057>>
+ * @generated SignedSource<<feedb826eec9ae06f896efff7b081428>>
  * @lightSyntaxTransform
  */
 
@@ -15,6 +15,14 @@ export type accountQuery$data = {
     readonly id: string;
     readonly lastUsedAt: string | null | undefined;
     readonly name: string;
+  }>;
+  readonly oauthGrants: ReadonlyArray<{
+    readonly clientId: string;
+    readonly clientName: string;
+    readonly createdAt: string;
+    readonly id: string;
+    readonly lastUsedAt: string | null | undefined;
+    readonly scopes: ReadonlyArray<string>;
   }>;
   readonly passkeys: ReadonlyArray<{
     readonly createdAt: string;
@@ -55,7 +63,14 @@ v1 = {
   "name": "createdAt",
   "storageKey": null
 },
-v2 = [
+v2 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "lastUsedAt",
+  "storageKey": null
+},
+v3 = [
   (v0/*:: as any*/),
   {
     "alias": null,
@@ -65,15 +80,9 @@ v2 = [
     "storageKey": null
   },
   (v1/*:: as any*/),
-  {
-    "alias": null,
-    "args": null,
-    "kind": "ScalarField",
-    "name": "lastUsedAt",
-    "storageKey": null
-  }
+  (v2/*:: as any*/)
 ],
-v3 = [
+v4 = [
   {
     "alias": null,
     "args": null,
@@ -106,7 +115,7 @@ v3 = [
     "kind": "LinkedField",
     "name": "passkeys",
     "plural": true,
-    "selections": (v2/*:: as any*/),
+    "selections": (v3/*:: as any*/),
     "storageKey": null
   },
   {
@@ -116,7 +125,42 @@ v3 = [
     "kind": "LinkedField",
     "name": "apiTokens",
     "plural": true,
-    "selections": (v2/*:: as any*/),
+    "selections": (v3/*:: as any*/),
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "OAuthGrant",
+    "kind": "LinkedField",
+    "name": "oauthGrants",
+    "plural": true,
+    "selections": [
+      (v0/*:: as any*/),
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "clientId",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "clientName",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "scopes",
+        "storageKey": null
+      },
+      (v1/*:: as any*/),
+      (v2/*:: as any*/)
+    ],
     "storageKey": null
   },
   {
@@ -167,7 +211,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "accountQuery",
-    "selections": (v3/*:: as any*/),
+    "selections": (v4/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -176,19 +220,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "accountQuery",
-    "selections": (v3/*:: as any*/)
+    "selections": (v4/*:: as any*/)
   },
   "params": {
-    "cacheID": "7b31979b3967c866c3ef03273ba5d707",
+    "cacheID": "fac9c0a54a2b2d85288b2b228a92c4b5",
     "id": null,
     "metadata": {},
     "name": "accountQuery",
     "operationKind": "query",
-    "text": "query accountQuery {\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  apiTokens {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  sessions {\n    id\n    current\n    createdAt\n    lastSeenAt\n    userAgent\n    sourceIp\n  }\n}\n"
+    "text": "query accountQuery {\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  apiTokens {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  oauthGrants {\n    id\n    clientId\n    clientName\n    scopes\n    createdAt\n    lastUsedAt\n  }\n  sessions {\n    id\n    current\n    createdAt\n    lastSeenAt\n    userAgent\n    sourceIp\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "00f5c62a16fcfe2a1cae9d222ecb2986";
+(node as any).hash = "9ff5456fc9ef208ec51f9f94e226372a";
 
 export default node;

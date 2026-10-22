@@ -449,6 +449,20 @@ type OAuthAuthorizationCheck struct {
 	ErrorRedirectURL *string `json:"errorRedirectUrl,omitempty"`
 }
 
+// 連携中の MCP のクライアント (#965、設計書 9.9)。同意してトークンに引き換えるたびに 1 つできる。
+type OAuthGrant struct {
+	ID string `json:"id"`
+	// クライアントの ID。クライアントのメタデータの URL (CIMD)。
+	ClientID string `json:"clientId"`
+	// 同意したときのクライアントの名前。
+	ClientName string `json:"clientName"`
+	// 同意したスコープ。
+	Scopes    []string  `json:"scopes"`
+	CreatedAt time.Time `json:"createdAt"`
+	// 最後にアクセストークンを使った日時。1 分ごとにしか書き直さない。使われていなければ null。
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+}
+
 // プールかデータディレクトリにあるのに DB に記録のないファイルか、持ち主のセグメントのファイルが DB にない生成物のディレクトリ (設計書 5.6)。
 // 録画を消すのに失敗したときや、取り込みをやり直したときに残る。
 type OrphanFile struct {

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { authApi, type OIDCStatus } from '../../auth/api';
 import { AuthCard } from '../../auth/AuthCard';
+import { afterLoginURL } from '../../auth/returnTo';
 import { authErrorMessage, oidcErrorMessage } from '../../auth/messages';
 import { passkeyAvailable, verifyWithPasskey } from '../../auth/passkey';
 
@@ -76,7 +77,7 @@ function Login() {
     try {
       await verifyWithPasskey(authApi.beginPasskeyLogin, authApi.confirmPasskeyLogin);
       // セッションの Cookie が入ったので、画面を読み直して、ログイン後のデータを取り直す。
-      window.location.assign(import.meta.env.BASE_URL);
+      window.location.assign(afterLoginURL());
     } catch (caught) {
       setPasskeyError(authErrorMessage(t, caught));
     } finally {

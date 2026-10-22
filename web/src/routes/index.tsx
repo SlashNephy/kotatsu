@@ -6,10 +6,18 @@ import { Dashboard, type DashboardRange } from '../home/Dashboard';
 import { useTranslation } from 'react-i18next';
 
 import { authApi } from '../auth/api';
+import { consumeReturnTo } from '../auth/returnTo';
 import { ErrorBoundary, PageLoader } from '../futon';
 import { isUnauthenticated } from '../relay/environment';
 
 export const Route = createFileRoute('/')({
+  // OIDC でログインすると、サーバーが最初の画面へ戻すので、ログインの前に覚えた画面があれば、そこへ移る (#965)。
+  beforeLoad: () => {
+    const returnTo = consumeReturnTo();
+    if (returnTo !== null) {
+      window.location.replace(returnTo);
+    }
+  },
   component: Home,
 });
 
