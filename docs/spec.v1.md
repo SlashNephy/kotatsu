@@ -1425,6 +1425,7 @@ Helm Chartは次の方針で作ります。
 - mikanにはPodDisruptionBudgetと、引き継ぎに十分な`terminationGracePeriodSeconds`を設定します。
 - securityContextの既定値を堅くします。`readOnlyRootFilesystem`、全capabilityの削除、非rootでの実行、seccompの`RuntimeDefault`を、そのまま使えるようにします。KotatsuはKubernetesのAPIを使わないので、既定ではPodにServiceAccountのトークンを渡しません（`automountServiceAccountToken`）。
 - livenessとreadinessのプローブの待ち時間などを、全体（`probes`）とロールごとに変えられるようにします。CPUが飽和しがちなノードで、応答が遅れただけでPodが再起動されないようにするためです（#932）。
+- readinessのプローブは、既定で起動から2秒待ってから始めます（`initialDelaySeconds`）。起動直後に最初のプローブが届くと、HTTPサーバーが待ち受ける前で失敗し、更新のたびにUnhealthyのイベントが出るためです。
 - すべてのリソースに、入れる先のnamespaceを書きます。kustomizeの`helmCharts`で描画しても、namespaceが付くようにするためです。
 - PostgreSQLはChartに含めず、外部のもの（CloudNativePGなど）を使う前提にします。
 
