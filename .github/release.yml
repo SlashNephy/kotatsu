@@ -2,8 +2,13 @@
 # PR の種類のラベルは、PR のタイトル (Conventional Commits) から label-pull-request.yml が付ける。
 # 見出しは上から順に当てはめ、最初に当てはまった見出しに入れる。
 # 依存関係の更新は、Renovate が付ける renovate と、Dependabot (セキュリティアップデート) が付ける dependencies のラベルで分ける。
+# セキュリティの修正は、security のラベルで最初の見出しに入れる。Renovate は脆弱性を直す更新に security を付ける。
+# それ以外の PR には手で付ける。依存関係の更新でも、security が付いていればこの見出しに入る。
 changelog:
   categories:
+    - title: セキュリティ
+      labels:
+        - security
     - title: 新機能
       labels:
         - enhancement
