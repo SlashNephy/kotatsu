@@ -23,6 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/database"
 	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/notify"
+	"github.com/SlashNephy/kotatsu/internal/oauth"
 	"github.com/SlashNephy/kotatsu/internal/password"
 	"github.com/SlashNephy/kotatsu/internal/password/passwordtest"
 	"github.com/SlashNephy/kotatsu/internal/player"
@@ -148,6 +149,7 @@ func newFixtureWith(tb testing.TB, opts *graph.Options, watchChanges bool) *fixt
 	opts.WebPush, err = webpush.NewService(clk, "kotatsu-graph-test-application-key-0123456789")
 	require.NoError(tb, err)
 	opts.APITokens = auth.NewAPITokens(pool, clk, audit.NewRecorder(clk))
+	opts.OAuth = oauth.NewServer(pool, clk, oauth.NewFetcher(clk), audit.NewRecorder(clk))
 	opts.Players = player.NewService(pool, clk)
 	opts.Passkeys = auth.NewPasskeys(&auth.PasskeysOptions{
 		Clock: clk, Recorder: audit.NewRecorder(clk), Logger: slog.New(slog.DiscardHandler), Sessions: sessions,

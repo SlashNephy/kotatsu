@@ -40,6 +40,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/metrics"
 	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/notify"
+	"github.com/SlashNephy/kotatsu/internal/oauth"
 	"github.com/SlashNephy/kotatsu/internal/password"
 	"github.com/SlashNephy/kotatsu/internal/player"
 	"github.com/SlashNephy/kotatsu/internal/registry"
@@ -114,6 +115,8 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	retention := time.Duration(deps.Config.Audit.RetentionDays) * 24 * time.Hour
 	river.AddWorker(workers, audit.NewPruneWorker(deps.DB, deps.Clock, retention))
 	river.AddWorker(workers, auth.NewPruneSessionsWorker(deps.DB, deps.Clock))
+	// MCP のクライアントに発行した、期限を過ぎた認可コードとトークンを消す (#963)。
+	river.AddWorker(workers, oauth.NewPruneWorker(deps.DB, deps.Clock))
 	// 配り終えた通知は、画面から変えられる保持期間を過ぎたら消す (#551)。
 	river.AddWorker(workers, notification.NewPruneWorker(deps.DB, deps.Clock, func(ctx context.Context) (time.Duration, error) {
 		system, err := settings.Load(ctx, deps.DB)
@@ -168,7 +171,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 
 	return workers, []*river.PeriodicJob{
 		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
-		watch.NotifyPeriodicJob(),
+		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(),
 	}, nil
 }
 
@@ -625,6 +628,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	jikkyoClient := jikkyo.NewClient(&jikkyo.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: nil, Clock: deps.Clock})
 	updates, graphUpdates := newUpdates(logger, deps)
 	apiTokens := auth.NewAPITokens(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
+	authorizationServer := oauth.NewServer(deps.DB, deps.Clock, oauth.NewFetcher(deps.Clock), audit.NewRecorder(deps.Clock))
 	mux := http.NewServeMux()
 	// 変更の購読 (SSE) は終わらないので、停止を始めたら打ち切る。
 	mux.Handle("/graphql", httpserver.StopEventStreamsOnShutdown(graph.NewHandler(&graph.Options{
@@ -633,6 +637,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		SecondFactors:     factors,
 		Passkeys:          passkeys,
 		APITokens:         apiTokens,
+		OAuth:             authorizationServer,
 		Players:           player.NewService(deps.DB, deps.Clock),
 		UserAdmin:         auth.NewUserAdmin(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
 		Passwords:         auth.NewPasswords(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
@@ -744,6 +749,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	root.Handle("/streams/", api)
 	root.Handle("/media/", api)
 	root.Handle("/api/", compat)
+	handleOAuth(root, authorizationServer, logger.With(slog.String("component", "oauth")))
 	root.Handle("/", app)
 
 	return &apiHandler{handler: policy.Middleware(root), changes: changes, updates: updates}, nil
@@ -766,6 +772,16 @@ func handleMedia(
 	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
 	mux.Handle("GET /media/recordings/{id}/"+jikkyo.CommentsFileName, authorizer.Middleware(
 		jikkyo.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))))
+}
+
+// handleOAuth は、MCP のクライアントにトークンを発行する認可サーバーのエンドポイントを root に登録する (#963、設計書 9.9)。
+// どれもセッションの Cookie を使わない。同意は、ログインした後の GraphQL で行う。
+func handleOAuth(root *http.ServeMux, server *oauth.Server, logger *slog.Logger) {
+	root.Handle("GET "+oauth.MetadataPath, server.MetadataHandler(logger))
+	root.Handle("GET "+oauth.ProtectedResourceMetadataPath, server.ProtectedResourceMetadataHandler(logger))
+	root.Handle("GET "+oauth.AuthorizePath, server.AuthorizeHandler(logger))
+	root.Handle("POST "+oauth.ExchangePath, server.TokenHandler(logger))
+	root.Handle("POST "+oauth.RevokePath, server.RevokeHandler(logger))
 }
 
 // newEPGStationAPI は、EPGStation 互換の読み取り専用 API (/api/*) を返す (#431、設計書 9.1)。

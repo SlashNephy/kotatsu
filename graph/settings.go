@@ -30,7 +30,8 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 			DuplicateWindowDays: system.Rule.DuplicateWindowDays,
 			FollowEventRelay:    system.Rule.FollowEventRelay,
 		},
-		UpdatedAt: system.UpdatedAt,
+		McpEnabled: system.MCPEnabled,
+		UpdatedAt:  system.UpdatedAt,
 	}
 }
 

@@ -700,6 +700,16 @@ type Mutation {
   """
   updateNotificationPreference(input: NotificationPreferenceInput!): NotificationPreference!
   """
+  認可のリクエストに同意し、認可コードを付けてクライアントへ戻す URL を返す。scopes は、同意するスコープ。
+  求められたもので、ロールに許すものでなければ BAD_USER_INPUT を返す。直近 10 分以内の認証が要る。
+  パラメーターが正しくなければ、エラーを付けてクライアントへ戻す URL を返す。
+  """
+  approveOAuthAuthorization(query: String!, scopes: [String!]!): String!
+  """
+  認可のリクエストを断り、access_denied を付けてクライアントへ戻す URL を返す。
+  """
+  denyOAuthAuthorization(query: String!): String!
+  """
   DB にないファイルを確かめ直して消す。管理者だけが使える。監査ログに残す。
   """
   deleteOrphanFiles(files: [OrphanFileInput!]!): DeleteOrphanFilesPayload!
@@ -1056,6 +1066,48 @@ input NotificationPreferenceInput {
   省けば、今の設定のままにする。
   """
   ruleReservations: Boolean
+}
+"""
+MCP のクライアントからの認可のリクエスト (#963、設計書 9.9)。同意の画面に出す。
+"""
+type OAuthAuthorization {
+  """
+  クライアントの ID。クライアントのメタデータの URL (CIMD)。
+  """
+  clientId: String!
+  """
+  クライアントの名前。クライアントが自分で名乗るもので、確かめていない。
+  """
+  clientName: String!
+  """
+  クライアントのサイト。名乗っていなければ null。
+  """
+  clientUri: String
+  """
+  認可の後に戻す URI。
+  """
+  redirectUri: String!
+  """
+  求められたスコープ。
+  """
+  scopes: [String!]!
+  """
+  求められたスコープのうち、ログイン中のユーザーのロールで許すもの。視聴者は mcp:write を選べない。
+  """
+  allowedScopes: [String!]!
+}
+"""
+同意の画面に出す前に確かめた、認可のリクエスト。
+"""
+type OAuthAuthorizationCheck {
+  """
+  確かめた認可のリクエスト。errorRedirectUrl があれば null。
+  """
+  authorization: OAuthAuthorization
+  """
+  パラメーターが正しくないときに、エラーを付けてクライアントへ戻す URL。正しければ null。
+  """
+  errorRedirectUrl: String
 }
 """
 プールかデータディレクトリにあるのに DB に記録のないファイルか、持ち主のセグメントのファイルが DB にない生成物のディレクトリ (設計書 5.6)。
@@ -1545,6 +1597,12 @@ type Query {
   ログイン中のユーザーの通知設定を、すべての種類について返す。設定していない種類は、どの通知先でも受け取る。
   """
   notificationPreferences: [NotificationPreference!]!
+  """
+  認可のエンドポイントに届いたクエリ (先頭の ? を除く) を確かめる。クライアントのメタデータは、ここで取ってくる。
+  client_id かリダイレクト URI を確かめられなければ、どこへ戻すかが分からないので BAD_USER_INPUT を返す。
+  MCP が無効なら NOT_FOUND を返す。
+  """
+  oauthAuthorization(query: String!): OAuthAuthorizationCheck!
   """
   DB にないファイルを、プールとパスの順に返す。管理者だけが使える。
   このインスタンスにマウントしたプールと、データディレクトリだけを調べる。
@@ -2522,6 +2580,10 @@ type SystemSettings {
   """
   ruleDefaults: RuleDefaults!
   """
+  MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。
+  """
+  mcpEnabled: Boolean!
+  """
   最後に変えた日時。一度も変えていなければ null。
   """
   updatedAt: Time
@@ -2540,6 +2602,7 @@ input SystemSettingsInput {
   ルールを作るときの既定値の変える項目。省いた項目は変えない。
   """
   ruleDefaults: RuleDefaultsInput
+  mcpEnabled: Boolean
 }
 """
 システムの状態。

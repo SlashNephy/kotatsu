@@ -5,8 +5,11 @@ import (
 	"strings"
 )
 
-// schemeHTTPS は、https のスキーム。
-const schemeHTTPS = "https"
+// schemeHTTP と schemeHTTPS は、http と https のスキーム。
+const (
+	schemeHTTP  = "http"
+	schemeHTTPS = "https"
+)
 
 // validRedirectURI は、クライアントのメタデータに載せてよいリダイレクト URI かどうかを返す。
 // https、ループバックの http (RFC 8252 7.3)、スマートフォンのアプリが使う独自のスキーム (RFC 8252 7.1) を受け付ける。
@@ -19,7 +22,7 @@ func validRedirectURI(raw string) bool {
 	switch u.Scheme {
 	case schemeHTTPS:
 		return u.Hostname() != ""
-	case "http":
+	case schemeHTTP:
 		return isLoopback(u)
 	case "":
 		return false
@@ -57,7 +60,7 @@ func MatchRedirectURI(registered []string, requested string) bool {
 
 // isLoopback は、u がループバックのアドレスへの http の URI かどうかを返す。
 func isLoopback(u *url.URL) bool {
-	if u.Scheme != "http" {
+	if u.Scheme != schemeHTTP {
 		return false
 	}
 	switch u.Hostname() {

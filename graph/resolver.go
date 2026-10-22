@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/library"
 	"github.com/SlashNephy/kotatsu/internal/notification"
+	"github.com/SlashNephy/kotatsu/internal/oauth"
 	"github.com/SlashNephy/kotatsu/internal/player"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
@@ -48,6 +49,7 @@ type Resolver struct {
 	factors           *auth.SecondFactors
 	passkeys          *auth.Passkeys
 	apiTokens         *auth.APITokens
+	oauth             *oauth.Server
 	players           *player.Service
 	userAdmin         *auth.UserAdmin
 	passwords         *auth.Passwords

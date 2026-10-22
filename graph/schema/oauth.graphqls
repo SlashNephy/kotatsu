@@ -1,0 +1,47 @@
+"""
+MCP のクライアントからの認可のリクエスト (#963、設計書 9.9)。同意の画面に出す。
+"""
+type OAuthAuthorization {
+  "クライアントの ID。クライアントのメタデータの URL (CIMD)。"
+  clientId: String!
+  "クライアントの名前。クライアントが自分で名乗るもので、確かめていない。"
+  clientName: String!
+  "クライアントのサイト。名乗っていなければ null。"
+  clientUri: String
+  "認可の後に戻す URI。"
+  redirectUri: String!
+  "求められたスコープ。"
+  scopes: [String!]!
+  "求められたスコープのうち、ログイン中のユーザーのロールで許すもの。視聴者は mcp:write を選べない。"
+  allowedScopes: [String!]!
+}
+
+"""
+同意の画面に出す前に確かめた、認可のリクエスト。
+"""
+type OAuthAuthorizationCheck {
+  "確かめた認可のリクエスト。errorRedirectUrl があれば null。"
+  authorization: OAuthAuthorization
+  "パラメーターが正しくないときに、エラーを付けてクライアントへ戻す URL。正しければ null。"
+  errorRedirectUrl: String
+}
+
+extend type Query {
+  """
+  認可のエンドポイントに届いたクエリ (先頭の ? を除く) を確かめる。クライアントのメタデータは、ここで取ってくる。
+  client_id かリダイレクト URI を確かめられなければ、どこへ戻すかが分からないので BAD_USER_INPUT を返す。
+  MCP が無効なら NOT_FOUND を返す。
+  """
+  oauthAuthorization(query: String!): OAuthAuthorizationCheck!
+}
+
+extend type Mutation {
+  """
+  認可のリクエストに同意し、認可コードを付けてクライアントへ戻す URL を返す。scopes は、同意するスコープ。
+  求められたもので、ロールに許すものでなければ BAD_USER_INPUT を返す。直近 10 分以内の認証が要る。
+  パラメーターが正しくなければ、エラーを付けてクライアントへ戻す URL を返す。
+  """
+  approveOAuthAuthorization(query: String!, scopes: [String!]!): String!
+  "認可のリクエストを断り、access_denied を付けてクライアントへ戻す URL を返す。"
+  denyOAuthAuthorization(query: String!): String!
+}

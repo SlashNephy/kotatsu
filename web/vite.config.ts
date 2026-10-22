@@ -148,6 +148,9 @@ export default defineConfig(({ mode }) => ({
       '/media': { target: devAPI, changeOrigin: false },
       // EPGStation 互換の API (#431) も、開発サーバーから確かめられるようにする。
       '/api': { target: devAPI, changeOrigin: false },
+      // MCP のクライアントにトークンを発行する認可サーバー (#963) も、開発サーバーから確かめられるようにする。
+      '/oauth': { target: devAPI, changeOrigin: false },
+      '/.well-known': { target: devAPI, changeOrigin: false },
     },
   },
   fmt: {

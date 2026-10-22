@@ -105,6 +105,55 @@ CREATE TABLE api_tokens (
 
 CREATE INDEX api_tokens_user_id_idx ON api_tokens (user_id);
 
+-- MCP のクライアントの認可コード (#963、設計書 9.9)。同意したときに作り、トークンと引き換えたら消す。
+-- 認可コードそのものは持たず、SHA-256 だけを保存する。
+CREATE TABLE oauth_authorization_codes (
+  code_hash bytea PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  -- client_id は、クライアントのメタデータの URL (CIMD)。client_name は、同意したときのクライアントの名前。
+  client_id text NOT NULL,
+  client_name text NOT NULL,
+  redirect_uri text NOT NULL,
+  -- code_challenge は、PKCE の S256 の値。
+  code_challenge text NOT NULL,
+  scopes text[] NOT NULL,
+  -- resource は、トークンを使ってよい MCP サーバーの URL (RFC 8707)。
+  resource text NOT NULL,
+  created_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL
+);
+
+-- MCP のクライアントとの連携 (#963、設計書 9.9)。認可コードをトークンと引き換えたときに作り、
+-- そこから入れ替えていくトークンの系統をまとめる。取り消すと行を消し、系統のトークンもまとめて消える。
+CREATE TABLE oauth_grants (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  client_id text NOT NULL,
+  client_name text NOT NULL,
+  scopes text[] NOT NULL,
+  resource text NOT NULL,
+  created_at timestamptz NOT NULL,
+  -- 最後にアクセストークンを使った日時。書き込みを減らすため、一定の間隔でしか更新しない。使われていなければ NULL。
+  last_used_at timestamptz
+);
+
+CREATE INDEX oauth_grants_user_id_idx ON oauth_grants (user_id);
+
+-- MCP のクライアントに発行したアクセストークンとリフレッシュトークン (#963、設計書 9.9)。SHA-256 だけを保存する。
+CREATE TABLE oauth_tokens (
+  token_hash bytea PRIMARY KEY,
+  grant_id uuid NOT NULL REFERENCES oauth_grants (id) ON DELETE CASCADE,
+  kind text NOT NULL CHECK (kind IN ('access', 'refresh')),
+  created_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL,
+  -- used_at は、リフレッシュトークンを使って入れ替えた日時。使い済みのものがもう一度来たら、盗まれたとみなして系統ごと取り消す。
+  used_at timestamptz,
+  CHECK (kind = 'refresh' OR used_at IS NULL)
+);
+
+CREATE INDEX oauth_tokens_grant_id_idx ON oauth_tokens (grant_id);
+CREATE INDEX oauth_tokens_expires_at_idx ON oauth_tokens (expires_at);
+
 -- サーバー側で持つセッション (設計書 9.5)。全インスタンスで共有する。
 -- Cookie にはランダムなトークンを入れ、DB にはその SHA-256 だけを保存する。DB が漏れても、セッションを乗っ取れない。
 CREATE TABLE sessions (
@@ -275,6 +324,8 @@ CREATE TABLE system_settings (
   archive_retention_days integer NOT NULL CHECK (archive_retention_days >= 0),
   -- 配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限 (#551)。
   notification_retention_days integer NOT NULL DEFAULT 90 CHECK (notification_retention_days >= 0),
+  -- MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定では使わせない。
+  mcp_enabled boolean NOT NULL DEFAULT false,
   -- ルールを作るときの既定値 (重複の回避と期間、イベントリレーへの追従。#470)。変えた項目だけを持ち、Go の既定値に重ねる。
   rule_defaults jsonb NOT NULL DEFAULT '{}',
   updated_at timestamptz NOT NULL

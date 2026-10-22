@@ -24,6 +24,14 @@ const (
 	claudeCodeName    = "Claude Code"
 	loopbackCallback  = "http://localhost/callback"
 	privateKeyJWTAuth = "private_key_jwt"
+
+	paramClientID          = "client_id"
+	paramCode              = "code"
+	paramRedirectURI       = "redirect_uri"
+	paramResource          = "resource"
+	grantAuthorizationCode = "authorization_code"
+	grantRefreshToken      = "refresh_token"
+	authNone               = "none"
 )
 
 // metadataServer は、path でクライアントのメタデータを返す https のテストのサーバーと、受けたリクエストの数を返す。
@@ -66,13 +74,13 @@ func metadataServer(t *testing.T, cacheControl string, document func(clientID st
 // claudeCodeDocument は、Claude Code が公開しているものと同じ形のメタデータを返す。
 func claudeCodeDocument(clientID string) any {
 	return map[string]any{
-		"client_id":                  clientID,
+		paramClientID:                clientID,
 		"client_name":                claudeCodeName,
 		"client_uri":                 "https://claude.ai",
 		"redirect_uris":              []string{loopbackCallback, "http://127.0.0.1/callback"},
-		"grant_types":                []string{"authorization_code", "refresh_token"},
-		"response_types":             []string{"code"},
-		"token_endpoint_auth_method": "none",
+		"grant_types":                []string{grantAuthorizationCode, grantRefreshToken},
+		"response_types":             []string{paramCode},
+		"token_endpoint_auth_method": authNone,
 	}
 }
 
@@ -92,7 +100,7 @@ func TestFetcherFetch(t *testing.T) {
 			document: func(clientID string) any {
 				doc, _ := claudeCodeDocument(clientID).(map[string]any)
 				doc["redirect_uris"] = []string{exampleCallback}
-				doc["token_endpoint_auth_methods_supported"] = []string{"none", privateKeyJWTAuth}
+				doc["token_endpoint_auth_methods_supported"] = []string{authNone, privateKeyJWTAuth}
 				doc["token_endpoint_auth_method"] = privateKeyJWTAuth
 
 				return doc
@@ -102,7 +110,7 @@ func TestFetcherFetch(t *testing.T) {
 		{
 			name: "no auth method means a public client",
 			document: func(clientID string) any {
-				return map[string]any{"client_id": clientID, "client_name": "App", "redirect_uris": []string{exampleCallback}}
+				return map[string]any{paramClientID: clientID, "client_name": "App", "redirect_uris": []string{exampleCallback}}
 			},
 			wantErr: nil,
 		},
@@ -110,7 +118,7 @@ func TestFetcherFetch(t *testing.T) {
 			name: "client_id mismatch",
 			document: func(clientID string) any {
 				doc, _ := claudeCodeDocument(clientID).(map[string]any)
-				doc["client_id"] = clientID + "?"
+				doc[paramClientID] = clientID + "?"
 
 				return doc
 			},

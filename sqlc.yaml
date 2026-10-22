@@ -18,6 +18,7 @@ sql:
           vapid_key: VAPIDKey
           p256dh: P256DH
           pid_stats: PIDStats
+          mcp_enabled: MCPEnabled
         overrides:
           - db_type: uuid
             go_type: github.com/google/uuid.UUID
