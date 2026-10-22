@@ -37,6 +37,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/jobs"
 	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/kyusu"
+	"github.com/SlashNephy/kotatsu/internal/mcpserver"
 	"github.com/SlashNephy/kotatsu/internal/metrics"
 	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/notify"
@@ -631,7 +632,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	authorizationServer := oauth.NewServer(deps.DB, deps.Clock, oauth.NewFetcher(deps.Clock), audit.NewRecorder(deps.Clock))
 	mux := http.NewServeMux()
 	// 変更の購読 (SSE) は終わらないので、停止を始めたら打ち切る。
-	mux.Handle("/graphql", httpserver.StopEventStreamsOnShutdown(graph.NewHandler(&graph.Options{
+	graphQL := graph.NewHandler(&graph.Options{
 		DB:                deps.DB,
 		Recorder:          audit.NewRecorder(deps.Clock),
 		SecondFactors:     factors,
@@ -661,7 +662,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		MaxComplexity:     0,
 		HeartbeatInterval: 0,
 		Updates:           graphUpdates,
-	})))
+	})
+	mux.Handle("/graphql", httpserver.StopEventStreamsOnShutdown(graphQL))
 	mux.Handle("POST /auth/logout", httpserver.RequireSameOrigin(sessions.LogoutHandler(deps.DB)))
 	logins := auth.NewLogins(&auth.LoginsOptions{
 		Clock:         deps.Clock,
@@ -749,7 +751,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	root.Handle("/streams/", api)
 	root.Handle("/media/", api)
 	root.Handle("/api/", compat)
-	handleOAuth(root, authorizationServer, logger.With(slog.String("component", "oauth")))
+	handleOAuth(root, authorizationServer, graphQL, logger)
 	root.Handle("/", app)
 
 	return &apiHandler{handler: policy.Middleware(root), changes: changes, updates: updates}, nil
@@ -774,14 +776,22 @@ func handleMedia(
 		jikkyo.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))))
 }
 
-// handleOAuth は、MCP のクライアントにトークンを発行する認可サーバーのエンドポイントを root に登録する (#963、設計書 9.9)。
-// どれもセッションの Cookie を使わない。同意は、ログインした後の GraphQL で行う。
-func handleOAuth(root *http.ServeMux, server *oauth.Server, logger *slog.Logger) {
-	root.Handle("GET "+oauth.MetadataPath, server.MetadataHandler(logger))
-	root.Handle("GET "+oauth.ProtectedResourceMetadataPath, server.ProtectedResourceMetadataHandler(logger))
-	root.Handle("GET "+oauth.AuthorizePath, server.AuthorizeHandler(logger))
-	root.Handle("POST "+oauth.ExchangePath, server.TokenHandler(logger))
-	root.Handle("POST "+oauth.RevokePath, server.RevokeHandler(logger))
+// handleOAuth は、MCP のクライアントにトークンを発行する認可サーバーのエンドポイント (#963、設計書 9.9) と、
+// MCP サーバー (/mcp、#964、設計書 9.10) を root に登録する。どれもセッションの Cookie を使わない。
+// 同意は、ログインした後の GraphQL で行う。MCP のツールは、ログイン中のユーザーとして、同じ GraphQL のハンドラーで操作する。
+func handleOAuth(root *http.ServeMux, server *oauth.Server, graphQL http.Handler, logger *slog.Logger) {
+	oauthLogger := logger.With(slog.String("component", "oauth"))
+	root.Handle("GET "+oauth.MetadataPath, server.MetadataHandler(oauthLogger))
+	root.Handle("GET "+oauth.ProtectedResourceMetadataPath, server.ProtectedResourceMetadataHandler(oauthLogger))
+	root.Handle("GET "+oauth.AuthorizePath, server.AuthorizeHandler(oauthLogger))
+	root.Handle("POST "+oauth.ExchangePath, server.TokenHandler(oauthLogger))
+	root.Handle("POST "+oauth.RevokePath, server.RevokeHandler(oauthLogger))
+	mcpHandler, err := mcpserver.NewHandler(server, graphQL, graph.Schema(), logger.With(slog.String("component", "mcp")))
+	if err != nil {
+		// ツールの GraphQL の操作は、ソースに書いた固定のものなので、ここで失敗するのはプログラムの誤り。テストで防ぐ。
+		panic(err)
+	}
+	root.Handle(oauth.ResourcePath, mcpHandler)
 }
 
 // newEPGStationAPI は、EPGStation 互換の読み取り専用 API (/api/*) を返す (#431、設計書 9.1)。

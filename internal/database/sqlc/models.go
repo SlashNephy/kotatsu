@@ -32,6 +32,7 @@ type AuditEvent struct {
 	Summary     []byte
 	SourceIP    *netip.Addr
 	UserAgent   *string
+	ActorClient *string
 }
 
 type ChangeVersion struct {

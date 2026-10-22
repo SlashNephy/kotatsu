@@ -35,9 +35,10 @@ func (q *Queries) DeleteAuditEventsBefore(ctx context.Context, arg DeleteAuditEv
 
 const insertAuditEvent = `-- name: InsertAuditEvent :exec
 INSERT INTO audit_events (
-  id, occurred_at, actor_type, actor_user_id, actor_role, action, target_type, target_id, summary, source_ip, user_agent
+  id, occurred_at, actor_type, actor_user_id, actor_role, action, target_type, target_id, summary, source_ip, user_agent, actor_client
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+  $12
 )
 `
 
@@ -53,6 +54,7 @@ type InsertAuditEventParams struct {
 	Summary     []byte
 	SourceIP    *netip.Addr
 	UserAgent   *string
+	ActorClient *string
 }
 
 func (q *Queries) InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error {
@@ -68,12 +70,13 @@ func (q *Queries) InsertAuditEvent(ctx context.Context, arg InsertAuditEventPara
 		arg.Summary,
 		arg.SourceIP,
 		arg.UserAgent,
+		arg.ActorClient,
 	)
 	return err
 }
 
 const listAuditEvents = `-- name: ListAuditEvents :many
-SELECT id, occurred_at, actor_type, actor_user_id, actor_role, action, target_type, target_id, summary, source_ip, user_agent FROM audit_events ORDER BY occurred_at DESC, id DESC LIMIT $1
+SELECT id, occurred_at, actor_type, actor_user_id, actor_role, action, target_type, target_id, summary, source_ip, user_agent, actor_client FROM audit_events ORDER BY occurred_at DESC, id DESC LIMIT $1
 `
 
 func (q *Queries) ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error) {
@@ -97,6 +100,7 @@ func (q *Queries) ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditE
 			&i.Summary,
 			&i.SourceIP,
 			&i.UserAgent,
+			&i.ActorClient,
 		); err != nil {
 			return nil, err
 		}
@@ -109,7 +113,7 @@ func (q *Queries) ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditE
 }
 
 const searchAuditEvents = `-- name: SearchAuditEvents :many
-SELECT id, occurred_at, actor_type, actor_user_id, actor_role, action, target_type, target_id, summary, source_ip, user_agent FROM audit_events
+SELECT id, occurred_at, actor_type, actor_user_id, actor_role, action, target_type, target_id, summary, source_ip, user_agent, actor_client FROM audit_events
 WHERE ($1::text IS NULL OR starts_with(action, $1::text))
   AND ($2::uuid IS NULL OR actor_user_id = $2::uuid)
   AND ($3::text IS NULL OR target_type = $3::text)
@@ -166,6 +170,7 @@ func (q *Queries) SearchAuditEvents(ctx context.Context, arg SearchAuditEventsPa
 			&i.Summary,
 			&i.SourceIP,
 			&i.UserAgent,
+			&i.ActorClient,
 		); err != nil {
 			return nil, err
 		}

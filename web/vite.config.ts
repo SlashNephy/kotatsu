@@ -152,6 +152,8 @@ export default defineConfig(({ mode }) => ({
       // MCP のクライアントにトークンを発行する認可サーバー (#963) も、開発サーバーから確かめられるようにする。
       '/oauth': { target: devAPI, changeOrigin: false },
       '/.well-known': { target: devAPI, changeOrigin: false },
+      // MCP サーバー (#964) も、開発サーバーから確かめられるようにする。
+      '/mcp': { target: devAPI, changeOrigin: false },
     },
   },
   fmt: {

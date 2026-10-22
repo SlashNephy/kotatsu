@@ -156,7 +156,7 @@ func (a *APITokens) Authenticate(ctx context.Context, token string) (*Principal,
 		}
 	}
 
-	return &Principal{UserID: row.UserID, Role: role, SessionID: uuid.Nil, AuthenticatedAt: time.Time{}}, nil
+	return &Principal{UserID: row.UserID, Role: role, SessionID: uuid.Nil, AuthenticatedAt: time.Time{}, OAuthClientID: ""}, nil
 }
 
 // BearerMiddleware は、Authorization の Bearer の API トークンを確かめ、そのユーザーを context に持たせるミドルウェアを返す。

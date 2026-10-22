@@ -29,6 +29,8 @@ type Principal struct {
 	SessionID uuid.UUID
 	// AuthenticatedAt は、このセッションで最後にパスワードなどで認証した日時。
 	AuthenticatedAt time.Time
+	// OAuthClientID は、MCP のクライアントのトークンで認証したときの、クライアントの ID (#964)。ほかの認証では空。
+	OAuthClientID string
 }
 
 // RequireRecentAuthentication は、パスワードの変更、第二要素の変更、ユーザーの管理のような重要な操作の前に呼ぶ (設計書 9.5)。

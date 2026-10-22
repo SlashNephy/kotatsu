@@ -1,8 +1,9 @@
 -- name: InsertAuditEvent :exec
 INSERT INTO audit_events (
-  id, occurred_at, actor_type, actor_user_id, actor_role, action, target_type, target_id, summary, source_ip, user_agent
+  id, occurred_at, actor_type, actor_user_id, actor_role, action, target_type, target_id, summary, source_ip, user_agent, actor_client
 ) VALUES (
-  @id, @occurred_at, @actor_type, @actor_user_id, @actor_role, @action, @target_type, @target_id, @summary, @source_ip, @user_agent
+  @id, @occurred_at, @actor_type, @actor_user_id, @actor_role, @action, @target_type, @target_id, @summary, @source_ip, @user_agent,
+  sqlc.narg(actor_client)
 );
 
 -- name: DeleteAuditEventsBefore :execrows

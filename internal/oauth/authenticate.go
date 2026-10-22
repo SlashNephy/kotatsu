@@ -61,7 +61,7 @@ func (s *Server) Authenticate(ctx context.Context, token, resource string) (*aut
 			return nil, nil, fmt.Errorf("failed to record the OAuth grant use: %w", err)
 		}
 	}
-	principal := &auth.Principal{UserID: row.UserID, Role: role, SessionID: uuid.Nil, AuthenticatedAt: time.Time{}}
+	principal := &auth.Principal{UserID: row.UserID, Role: role, SessionID: uuid.Nil, AuthenticatedAt: time.Time{}, OAuthClientID: row.ClientID}
 	grant := &Grant{ID: row.GrantID, ClientID: row.ClientID, ClientName: row.ClientName, Scopes: narrowScopes(row.Scopes, role)}
 
 	return principal, grant, nil

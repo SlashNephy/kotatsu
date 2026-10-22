@@ -12,6 +12,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
+	"github.com/vektah/gqlparser/v2/ast"
 
 	"github.com/SlashNephy/kotatsu/graph/generated"
 	"github.com/SlashNephy/kotatsu/graph/model"
@@ -101,6 +102,13 @@ type Options struct {
 	HeartbeatInterval time.Duration
 	// Updates は、新しいリリースを確かめた結果 (#506)。確かめない設定なら nil。
 	Updates Updates
+}
+
+// Schema は、GraphQL のスキーマを返す。MCP のツールの入力の型を作るのに使う (#964)。
+func Schema() *ast.Schema {
+	var config generated.Config
+
+	return generated.NewExecutableSchema(config).Schema()
 }
 
 // Updates は、動いている版より新しいリリースを返す。

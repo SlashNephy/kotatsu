@@ -40,21 +40,23 @@ type Actor struct {
 	// SourceIP と UserAgent は、ユーザーの操作の送信元。分からなければ空にする。
 	SourceIP  netip.Addr
 	UserAgent string
+	// Client は、MCP のクライアントを経由した操作で、クライアントの ID (#964)。ほかの操作では空。
+	Client string
 }
 
 // User は、ユーザーの操作者を返す。
 func User(userID uuid.UUID) *Actor {
-	return &Actor{Type: ActorTypeUser, UserID: userID, Role: "", SourceIP: netip.Addr{}, UserAgent: ""}
+	return &Actor{Type: ActorTypeUser, UserID: userID, Role: "", SourceIP: netip.Addr{}, UserAgent: "", Client: ""}
 }
 
 // UserFrom は、送信元の分かるユーザーの操作者を返す。
 func UserFrom(userID uuid.UUID, sourceIP netip.Addr, userAgent string) *Actor {
-	return &Actor{Type: ActorTypeUser, UserID: userID, Role: "", SourceIP: sourceIP, UserAgent: userAgent}
+	return &Actor{Type: ActorTypeUser, UserID: userID, Role: "", SourceIP: sourceIP, UserAgent: userAgent, Client: ""}
 }
 
 // System は、システムのロールの操作者を返す。
 func System(role string) *Actor {
-	return &Actor{Type: ActorTypeSystem, UserID: uuid.Nil, Role: role, SourceIP: netip.Addr{}, UserAgent: ""}
+	return &Actor{Type: ActorTypeSystem, UserID: uuid.Nil, Role: role, SourceIP: netip.Addr{}, UserAgent: "", Client: ""}
 }
 
 // Event は、記録する操作。
@@ -133,6 +135,10 @@ func (r *DBRecorder) params(event *Event) (sqlc.InsertAuditEventParams, error) {
 		Summary:     nil,
 		SourceIP:    nil,
 		UserAgent:   nil,
+		ActorClient: nil,
+	}
+	if event.Actor.Client != "" {
+		params.ActorClient = &event.Actor.Client
 	}
 
 	switch event.Actor.Type {
