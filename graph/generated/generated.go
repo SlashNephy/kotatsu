@@ -69,6 +69,7 @@ type ComplexityRoot struct {
 	AuditEvent struct {
 		Action     func(childComplexity int) int
 		Actor      func(childComplexity int) int
+		Client     func(childComplexity int) int
 		ID         func(childComplexity int) int
 		OccurredAt func(childComplexity int) int
 		SourceIP   func(childComplexity int) int
@@ -1170,6 +1171,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AuditEvent.Actor(childComplexity), true
+	case "AuditEvent.client":
+		if e.ComplexityRoot.AuditEvent.Client == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AuditEvent.Client(childComplexity), true
 	case "AuditEvent.id":
 		if e.ComplexityRoot.AuditEvent.ID == nil {
 			break
@@ -5080,6 +5087,8 @@ type AuditEvent {
   "送信元。システムの操作では null。"
   sourceIp: String
   userAgent: String
+  "MCP のクライアントを経由した操作なら、クライアントの ID (クライアントのメタデータの URL)。ほかの操作では null。"
+  client: String
 }
 
 """
@@ -7602,6 +7611,8 @@ func (ec *executionContext) childFields_AuditEvent(ctx context.Context, field gr
 		return ec.fieldContext_AuditEvent_sourceIp(ctx, field)
 	case "userAgent":
 		return ec.fieldContext_AuditEvent_userAgent(ctx, field)
+	case "client":
+		return ec.fieldContext_AuditEvent_client(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AuditEvent", field.Name)
 }
@@ -11056,6 +11067,29 @@ func (ec *executionContext) _AuditEvent_userAgent(ctx context.Context, field gra
 	)
 }
 func (ec *executionContext) fieldContext_AuditEvent_userAgent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AuditEvent", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AuditEvent_client(ctx context.Context, field graphql.CollectedField, obj *model.AuditEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AuditEvent_client(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Client, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AuditEvent_client(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AuditEvent", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -29394,6 +29428,11 @@ func (ec *executionContext) _AuditEvent(ctx context.Context, sel ast.SelectionSe
 			}
 		case "userAgent":
 			out.Values[i] = ec._AuditEvent_userAgent(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "client":
+			out.Values[i] = ec._AuditEvent_client(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}

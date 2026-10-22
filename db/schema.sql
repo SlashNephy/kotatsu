@@ -64,6 +64,8 @@ CREATE TABLE audit_events (
   -- 送信元。システムの操作では空。
   source_ip inet,
   user_agent text,
+  -- MCP のクライアントを経由した操作では、クライアントの ID (クライアントのメタデータの URL。#964)。
+  actor_client text,
   CONSTRAINT audit_events_actor_check CHECK (
     (actor_type = 'user' AND actor_user_id IS NOT NULL AND actor_role IS NULL)
     OR (actor_type = 'system' AND actor_user_id IS NULL AND actor_role IS NOT NULL)

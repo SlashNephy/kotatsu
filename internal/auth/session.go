@@ -194,7 +194,7 @@ func (s *Sessions) Authenticate(ctx context.Context, db sqlc.DBTX, token string)
 		return nil, fmt.Errorf("failed to touch a session: %w", err)
 	}
 
-	return &Principal{UserID: session.UserID, Role: role, SessionID: session.ID, AuthenticatedAt: session.AuthenticatedAt.UTC()}, nil
+	return &Principal{UserID: session.UserID, Role: role, SessionID: session.ID, AuthenticatedAt: session.AuthenticatedAt.UTC(), OAuthClientID: ""}, nil
 }
 
 // Usable は、セッションが今も使えるかを返す。失効させた、期限を過ぎた、ユーザーを無効にした、消したなら false を返す。

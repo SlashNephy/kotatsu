@@ -143,6 +143,7 @@ func auditEventOf(row *sqlc.AuditEvent, byID map[uuid.UUID]*model.User) *model.A
 		Summary:    string(row.Summary),
 		SourceIP:   nil,
 		UserAgent:  row.UserAgent,
+		Client:     row.ActorClient,
 	}
 	if row.SourceIP != nil {
 		event.SourceIP = new(row.SourceIP.String())

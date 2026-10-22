@@ -73,6 +73,8 @@ type AuditEvent struct {
 	// 送信元。システムの操作では null。
 	SourceIP  *string `json:"sourceIp,omitempty"`
 	UserAgent *string `json:"userAgent,omitempty"`
+	// MCP のクライアントを経由した操作なら、クライアントの ID (クライアントのメタデータの URL)。ほかの操作では null。
+	Client *string `json:"client,omitempty"`
 }
 
 type AuditEventConnection struct {

@@ -114,6 +114,10 @@ type AuditEvent {
   """
   sourceIp: String
   userAgent: String
+  """
+  MCP のクライアントを経由した操作なら、クライアントの ID (クライアントのメタデータの URL)。ほかの操作では null。
+  """
+  client: String
 }
 type AuditEventConnection {
   edges: [AuditEventEdge!]!

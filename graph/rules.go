@@ -40,6 +40,7 @@ func scheduler(ctx context.Context) (*audit.Actor, error) {
 // actorOf は、ログイン中のユーザーの操作者を返す。監査ログに残すため、送信元の IP アドレスと User-Agent も持たせる。
 func actorOf(ctx context.Context, principal *auth.Principal) *audit.Actor {
 	actor := audit.User(principal.UserID)
+	actor.Client = principal.OAuthClientID
 	if client := httpserver.ClientFrom(ctx); client != nil {
 		actor.SourceIP = client.IP
 	}
