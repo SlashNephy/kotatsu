@@ -51,7 +51,8 @@ func ParseClientID(raw string) (*url.URL, error) {
 	case u.EscapedPath() == "" || u.EscapedPath() == "/":
 		return nil, fmt.Errorf("%w: the path is missing", ErrInvalidClientID)
 	}
-	for segment := range strings.SplitSeq(u.EscapedPath(), "/") {
+	// %2e のように符号化した `.` も、取りに行く先のサーバーが `.` と解釈するので、復号したパスで確かめる。
+	for segment := range strings.SplitSeq(u.Path, "/") {
 		if segment == "." || segment == ".." {
 			return nil, fmt.Errorf("%w: must not contain dot segments", ErrInvalidClientID)
 		}

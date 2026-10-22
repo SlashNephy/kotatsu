@@ -95,6 +95,7 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 }
 
 // Fetch は、clientID のクライアントのメタデータを返す。覚えているものがまだ新しければ、それを返す。
+// 返すメタデータは、ほかの呼び出しと共有するので、書き換えてはならない。
 // client_id が正しくなければ ErrInvalidClientID を、取ってこられなければ ErrClientMetadataUnavailable を、
 // 文書が正しくないか Kotatsu で使えなければ ErrInvalidClientMetadata を返す。
 func (f *Fetcher) Fetch(ctx context.Context, clientID string) (*ClientMetadata, error) {
@@ -198,10 +199,10 @@ func (f *Fetcher) store(clientID string, metadata *ClientMetadata, ttl time.Dura
 func freshness(cacheControl string) time.Duration {
 	ttl := defaultFreshness
 	for directive := range strings.SplitSeq(cacheControl, ",") {
-		name, value, _ := strings.Cut(strings.TrimSpace(directive), "=")
-		switch strings.ToLower(name) {
+		name, value, _ := strings.Cut(directive, "=")
+		switch strings.ToLower(strings.TrimSpace(name)) {
 		case "max-age":
-			if seconds, err := strconv.Atoi(strings.Trim(value, `"`)); err == nil {
+			if seconds, err := strconv.Atoi(strings.Trim(strings.TrimSpace(value), `"`)); err == nil {
 				ttl = time.Duration(seconds) * time.Second
 			}
 		case "no-store", "no-cache":

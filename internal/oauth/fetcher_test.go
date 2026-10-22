@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -289,6 +290,43 @@ func TestFetcherDoesNotCacheErrors(t *testing.T) {
 	assert.Equal(t, int32(2), requests.Load())
 }
 
+// TestFetcherFetchesOnceConcurrently は、同じクライアントの認可が重なっても、取りに行くのは 1 回であることを確かめる。
+func TestFetcherFetchesOnceConcurrently(t *testing.T) {
+	t.Parallel()
+
+	const callers = 8
+	release := make(chan struct{})
+	var srvURL string
+	var requests atomic.Int32
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		<-release
+		_ = json.NewEncoder(w).Encode(claudeCodeDocument(srvURL + metadataPath))
+	}))
+	t.Cleanup(srv.Close)
+	srvURL = srv.URL
+	fetcher := oauth.NewFetcherWithTransport(clocktest.NewFake(time.Now()), srv.Client().Transport)
+
+	var wg sync.WaitGroup
+	errs := make(chan error, callers)
+	for range callers {
+		wg.Go(func() {
+			_, err := fetcher.Fetch(t.Context(), srv.URL+metadataPath)
+			errs <- err
+		})
+	}
+	// 最初のリクエストが届いてから、ほかの呼び出しが待ちに入るまで少し待ち、まとめて返す。
+	require.Eventually(t, func() bool { return requests.Load() == 1 }, 5*time.Second, 10*time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	close(release)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	assert.Equal(t, int32(1), requests.Load())
+}
+
 // TestFetcherRejectsNonPublicAddress は、LAN の中のサーバー (ここではループバック) には接続しないことを確かめる。
 func TestFetcherRejectsNonPublicAddress(t *testing.T) {
 	t.Parallel()
@@ -317,6 +355,7 @@ func TestFreshness(t *testing.T) {
 		{cacheControl: "max-age=604800", want: 24 * time.Hour},
 		{cacheControl: "max-age=invalid", want: 15 * time.Minute},
 		{cacheControl: "no-cache", want: 5 * time.Minute},
+		{cacheControl: "max-age = 3600", want: time.Hour},
 	}
 	for _, tt := range tests {
 		t.Run(tt.cacheControl, func(t *testing.T) {

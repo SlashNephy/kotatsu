@@ -27,6 +27,8 @@ func TestParseClientID(t *testing.T) {
 		{name: "root path", raw: "https://example.com/", wantErr: true},
 		{name: "dot segment", raw: "https://example.com/a/./client.json", wantErr: true},
 		{name: "parent segment", raw: "https://example.com/a/../client.json", wantErr: true},
+		{name: "encoded dot segment", raw: "https://example.com/a/%2E/client.json", wantErr: true},
+		{name: "encoded parent segment", raw: "https://example.com/a/%2e%2e/client.json", wantErr: true},
 		{name: "fragment", raw: "https://example.com/client.json#a", wantErr: true},
 		{name: "empty fragment", raw: "https://example.com/client.json#", wantErr: true},
 		{name: "user info", raw: "https://user@example.com/client.json", wantErr: true},
