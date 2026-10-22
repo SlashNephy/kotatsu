@@ -50,6 +50,8 @@ type SystemSettings {
   notificationRetentionDays: Int!
   "ルールを作るときの既定値。"
   ruleDefaults: RuleDefaults!
+  "MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。"
+  mcpEnabled: Boolean!
   "最後に変えた日時。一度も変えていなければ null。"
   updatedAt: Time
 }
@@ -64,6 +66,7 @@ input SystemSettingsInput {
   notificationRetentionDays: Int
   "ルールを作るときの既定値の変える項目。省いた項目は変えない。"
   ruleDefaults: RuleDefaultsInput
+  mcpEnabled: Boolean
 }
 
 """

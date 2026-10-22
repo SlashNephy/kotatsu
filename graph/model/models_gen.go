@@ -425,6 +425,30 @@ type NotificationPreferenceInput struct {
 	RuleReservations *bool `json:"ruleReservations,omitempty"`
 }
 
+// MCP のクライアントからの認可のリクエスト (#963、設計書 9.9)。同意の画面に出す。
+type OAuthAuthorization struct {
+	// クライアントの ID。クライアントのメタデータの URL (CIMD)。
+	ClientID string `json:"clientId"`
+	// クライアントの名前。クライアントが自分で名乗るもので、確かめていない。
+	ClientName string `json:"clientName"`
+	// クライアントのサイト。名乗っていなければ null。
+	ClientURI *string `json:"clientUri,omitempty"`
+	// 認可の後に戻す URI。
+	RedirectURI string `json:"redirectUri"`
+	// 求められたスコープ。
+	Scopes []string `json:"scopes"`
+	// 求められたスコープのうち、ログイン中のユーザーのロールで許すもの。視聴者は mcp:write を選べない。
+	AllowedScopes []string `json:"allowedScopes"`
+}
+
+// 同意の画面に出す前に確かめた、認可のリクエスト。
+type OAuthAuthorizationCheck struct {
+	// 確かめた認可のリクエスト。errorRedirectUrl があれば null。
+	Authorization *OAuthAuthorization `json:"authorization,omitempty"`
+	// パラメーターが正しくないときに、エラーを付けてクライアントへ戻す URL。正しければ null。
+	ErrorRedirectURL *string `json:"errorRedirectUrl,omitempty"`
+}
+
 // プールかデータディレクトリにあるのに DB に記録のないファイルか、持ち主のセグメントのファイルが DB にない生成物のディレクトリ (設計書 5.6)。
 // 録画を消すのに失敗したときや、取り込みをやり直したときに残る。
 type OrphanFile struct {
@@ -953,6 +977,8 @@ type SystemSettings struct {
 	NotificationRetentionDays int `json:"notificationRetentionDays"`
 	// ルールを作るときの既定値。
 	RuleDefaults *RuleDefaults `json:"ruleDefaults"`
+	// MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。
+	McpEnabled bool `json:"mcpEnabled"`
 	// 最後に変えた日時。一度も変えていなければ null。
 	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 }
@@ -965,6 +991,7 @@ type SystemSettingsInput struct {
 	NotificationRetentionDays *int                             `json:"notificationRetentionDays,omitempty"`
 	// ルールを作るときの既定値の変える項目。省いた項目は変えない。
 	RuleDefaults *RuleDefaultsInput `json:"ruleDefaults,omitempty"`
+	McpEnabled   *bool              `json:"mcpEnabled,omitempty"`
 }
 
 // システムの状態。

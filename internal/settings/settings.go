@@ -48,6 +48,8 @@ type System struct {
 	NotificationRetentionDays int
 	// Rule は、ルールを作るときの既定値 (#470)。
 	Rule *RuleDefaults
+	// MCPEnabled は、MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。
+	MCPEnabled bool
 	// UpdatedAt は、最後に変えた日時。一度も変えていなければ nil。
 	UpdatedAt *time.Time
 }
@@ -108,6 +110,7 @@ type Changes struct {
 	ArchiveRetentionDays      *int
 	NotificationRetentionDays *int
 	Rule                      *RuleChanges
+	MCPEnabled                *bool
 }
 
 // Load は、全体の設定を返す。一度も変えていなければ、既定値を返す。
@@ -195,7 +198,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 		}
 		saved, err := q.UpdateSystemSettings(ctx, sqlc.UpdateSystemSettingsParams{
 			RecordingDefaults: encoded, ArchiveRetentionDays: archiveDays, NotificationRetentionDays: notificationDays,
-			RuleDefaults: ruleEncoded, Now: now,
+			RuleDefaults: ruleEncoded, MCPEnabled: valueOr(changes.MCPEnabled, current.MCPEnabled), Now: now,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to update the system settings: %w", err)
@@ -214,6 +217,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"archiveRetentionDays":      change(current.ArchiveRetentionDays, updated.ArchiveRetentionDays),
 				"notificationRetentionDays": change(current.NotificationRetentionDays, updated.NotificationRetentionDays),
 				"rule":                      change(current.Rule, updated.Rule),
+				"mcpEnabled":                change(current.MCPEnabled, updated.MCPEnabled),
 			},
 			// 送信元は、操作者 (actor) に持たせる。
 			SourceIP:  netip.Addr{},
@@ -242,7 +246,7 @@ func retentionDays(name string, days int) (int32, error) {
 }
 
 // valueOr は、変える値 change があればそれを、なければ今の値 current を返す。
-func valueOr(change *int, current int) int {
+func valueOr[T any](change *T, current T) T {
 	if change != nil {
 		return *change
 	}
@@ -346,6 +350,7 @@ func defaults() *System {
 		ArchiveRetentionDays:      DefaultArchiveRetentionDays,
 		NotificationRetentionDays: DefaultNotificationRetentionDays,
 		Rule:                      defaultRuleDefaults(),
+		MCPEnabled:                false,
 		UpdatedAt:                 nil,
 	}
 }
@@ -366,6 +371,7 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		ArchiveRetentionDays:      int(row.ArchiveRetentionDays),
 		NotificationRetentionDays: int(row.NotificationRetentionDays),
 		Rule:                      resolveRule(rule),
+		MCPEnabled:                row.MCPEnabled,
 		UpdatedAt:                 &row.UpdatedAt,
 	}, nil
 }

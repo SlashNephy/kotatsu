@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<fa6c2fc9434604e6bf6a311c4abf92d0>>
+ * @generated SignedSource<<dd3be45a78784633f8f1562516652566>>
  * @lightSyntaxTransform
  */
 
@@ -10,6 +10,7 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type SystemSettingsInput = {
   archiveRetentionDays?: number | null | undefined;
+  mcpEnabled?: boolean | null | undefined;
   notificationRetentionDays?: number | null | undefined;
   recordingDefaults?: RecordingSettingsOverridesInput | null | undefined;
   ruleDefaults?: RuleDefaultsInput | null | undefined;

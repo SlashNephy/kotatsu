@@ -36,6 +36,8 @@ type Querier interface {
 	ClearStoragePoolLow(ctx context.Context, id string) error
 	// 書き終えたファイルの大きさと、表す時間の終わりを記録する。
 	CloseRecordingFile(ctx context.Context, arg CloseRecordingFileParams) error
+	// 認可コードを消して返す。一度しか引き換えられないよう、引き換えるときに消す。期限を過ぎたものは返さない。
+	ConsumeOAuthAuthorizationCode(ctx context.Context, arg ConsumeOAuthAuthorizationCodeParams) (ConsumeOAuthAuthorizationCodeRow, error)
 	CountAPIRecordings(ctx context.Context, keyword string) (int64, error)
 	// /metrics に出す、状態ごとの録画の割り振りの数。
 	CountRecordingAssignmentsByState(ctx context.Context) ([]CountRecordingAssignmentsByStateRow, error)
@@ -53,6 +55,9 @@ type Querier interface {
 	CountUpcomingReservationsByRules(ctx context.Context, arg CountUpcomingReservationsByRulesParams) ([]CountUpcomingReservationsByRulesRow, error)
 	CountUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) error
+	CreateOAuthAuthorizationCode(ctx context.Context, arg CreateOAuthAuthorizationCodeParams) error
+	CreateOAuthGrant(ctx context.Context, arg CreateOAuthGrantParams) error
+	CreateOAuthToken(ctx context.Context, arg CreateOAuthTokenParams) error
 	CreatePlayer(ctx context.Context, arg CreatePlayerParams) error
 	CreatePlayerCommand(ctx context.Context, arg CreatePlayerCommandParams) (int64, error)
 	// ユーザーの API トークンを消し、消した名前を返す。ほかのユーザーのトークンは消さない。
@@ -60,6 +65,8 @@ type Querier interface {
 	// before より前の記録を、古い順に max_count 件まで消す。1 回のトランザクションで大量の行を消さないよう、件数を区切る。
 	DeleteAuditEventsBefore(ctx context.Context, arg DeleteAuditEventsBeforeParams) (int64, error)
 	DeleteExpiredLoginChallenges(ctx context.Context, now time.Time) (int64, error)
+	DeleteExpiredOAuthAuthorizationCodes(ctx context.Context, arg DeleteExpiredOAuthAuthorizationCodesParams) (int64, error)
+	DeleteExpiredOAuthTokens(ctx context.Context, arg DeleteExpiredOAuthTokensParams) (int64, error)
 	DeleteExpiredOIDCLogins(ctx context.Context, now time.Time) (int64, error)
 	DeleteExpiredWebAuthnCeremonies(ctx context.Context, now time.Time) (int64, error)
 	// プッシュサービスが失効を返した購読を消す。送った後に、同じ端末が購読し直していたら (鍵が変わっていたら)、消さない。
@@ -70,6 +77,10 @@ type Querier interface {
 	// 配り終えた通知のイベントのうち、before より前に起きたものを、max_count 件まで消す。ユーザーごとの通知も一緒に消える。
 	// まだ配っていないイベントは消さない。
 	DeleteNotificationEventsBefore(ctx context.Context, arg DeleteNotificationEventsBeforeParams) (int64, error)
+	DeleteOAuthGrant(ctx context.Context, id uuid.UUID) error
+	// トークンがすべて期限を過ぎて消えた連携を消す。リフレッシュトークンを 30 日使わなかった連携は、ここで終わる。
+	DeleteOAuthGrantsWithoutTokens(ctx context.Context, arg DeleteOAuthGrantsWithoutTokensParams) (int64, error)
+	DeleteOAuthToken(ctx context.Context, tokenHash []byte) error
 	DeleteOldPlayerCommands(ctx context.Context, before time.Time) (int64, error)
 	DeletePlayer(ctx context.Context, arg DeletePlayerParams) (int64, error)
 	// 放送が始まった番組は、アーカイブに移すまで残す (設計書 3.3、3.4)。
@@ -135,6 +146,10 @@ type Querier interface {
 	GetLoginThrottles(ctx context.Context, throttleKeys []string) ([]LoginThrottle, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
 	GetNotificationEvent(ctx context.Context, id uuid.UUID) (NotificationEvent, error)
+	// アクセストークンから、連携と、そのユーザーを引く。期限を過ぎたものと、無効にしたユーザーのものは返さない。
+	GetOAuthAccessToken(ctx context.Context, arg GetOAuthAccessTokenParams) (GetOAuthAccessTokenRow, error)
+	// 失効させるトークンの種類と連携を引く。ほかのクライアントのトークンは返さない。
+	GetOAuthTokenForRevocation(ctx context.Context, arg GetOAuthTokenForRevocationParams) (GetOAuthTokenForRevocationRow, error)
 	GetOIDCIdentity(ctx context.Context, arg GetOIDCIdentityParams) (UserOidcIdentity, error)
 	GetPasskeyByCredentialID(ctx context.Context, credentialID []byte) (UserPasskey, error)
 	// プレイヤーのユーザーとセッション。閉じたとみなすプレイヤーは返さない。
@@ -389,6 +404,8 @@ type Querier interface {
 	// FOR KEY SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない (取る前に FOR UPDATE で待つ)。
 	// 延長 (RenewLease) の UPDATE とはぶつからないので、長い書き込みの間もリースを延ばせる (#729)。
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
+	// リフレッシュトークンと、その連携を、入れ替えが重ならないようロックして引く。
+	LockOAuthRefreshToken(ctx context.Context, tokenHash []byte) (LockOAuthRefreshTokenRow, error)
 	// 録画を変える前に、ロックして読む。
 	LockRecording(ctx context.Context, id uuid.UUID) (Recording, error)
 	// 録画を終える前に、割り振りをロックして、今の世代番号を読む。ほかの mikan が取っていたら、録画を終えない。
@@ -408,6 +425,7 @@ type Querier interface {
 	MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) (int64, error)
 	MarkNotificationEventDispatched(ctx context.Context, arg MarkNotificationEventDispatchedParams) error
 	MarkNotificationsRead(ctx context.Context, arg MarkNotificationsReadParams) (int64, error)
+	MarkOAuthRefreshTokenUsed(ctx context.Context, arg MarkOAuthRefreshTokenUsedParams) error
 	// 止まる mikan が、割り振りに引き継ぎ待ちの印を付ける (設計書 5.4)。
 	MarkRecordingHandover(ctx context.Context, arg MarkRecordingHandoverParams) (int64, error)
 	// 予約した番組が放送されなかったことと、その時間に放送されていた番組を記録する。
@@ -522,6 +540,7 @@ type Querier interface {
 	// 手続きは 1 回しか使わせないので、引くと同時に消す。
 	TakeWebAuthnCeremony(ctx context.Context, arg TakeWebAuthnCeremonyParams) (WebauthnCeremony, error)
 	TouchAPIToken(ctx context.Context, arg TouchAPITokenParams) error
+	TouchOAuthGrant(ctx context.Context, arg TouchOAuthGrantParams) error
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
 	// 試行回数の制限のキーを、トランザクションの終わりまでロックする。ほかの試行がロックしていれば、待たずに false を返す。

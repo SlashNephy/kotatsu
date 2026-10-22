@@ -135,6 +135,39 @@ type NotificationPreference struct {
 	UpdatedAt        time.Time
 }
 
+type OauthAuthorizationCode struct {
+	CodeHash      []byte
+	UserID        uuid.UUID
+	ClientID      string
+	ClientName    string
+	RedirectUri   string
+	CodeChallenge string
+	Scopes        []string
+	Resource      string
+	CreatedAt     time.Time
+	ExpiresAt     time.Time
+}
+
+type OauthGrant struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	ClientID   string
+	ClientName string
+	Scopes     []string
+	Resource   string
+	CreatedAt  time.Time
+	LastUsedAt *time.Time
+}
+
+type OauthToken struct {
+	TokenHash []byte
+	GrantID   uuid.UUID
+	Kind      string
+	CreatedAt time.Time
+	ExpiresAt time.Time
+	UsedAt    *time.Time
+}
+
 type OidcLogin struct {
 	ID           uuid.UUID
 	TokenHash    []byte
@@ -398,6 +431,7 @@ type SystemSetting struct {
 	RecordingDefaults         []byte
 	ArchiveRetentionDays      int32
 	NotificationRetentionDays int32
+	MCPEnabled                bool
 	RuleDefaults              []byte
 	UpdatedAt                 time.Time
 }

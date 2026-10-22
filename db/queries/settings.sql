@@ -10,7 +10,8 @@ RETURNING *;
 
 -- name: UpdateSystemSettings :one
 UPDATE system_settings SET recording_defaults = @recording_defaults, archive_retention_days = @archive_retention_days,
-  notification_retention_days = @notification_retention_days, rule_defaults = @rule_defaults, updated_at = @now
+  notification_retention_days = @notification_retention_days, rule_defaults = @rule_defaults, mcp_enabled = @mcp_enabled,
+  updated_at = @now
 WHERE id = 1
 RETURNING *;
 

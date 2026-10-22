@@ -22,6 +22,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/kago"
 	"github.com/SlashNephy/kotatsu/internal/library"
 	"github.com/SlashNephy/kotatsu/internal/notification"
+	"github.com/SlashNephy/kotatsu/internal/oauth"
 	"github.com/SlashNephy/kotatsu/internal/player"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
@@ -58,6 +59,8 @@ type Options struct {
 	Passkeys *auth.Passkeys
 	// APITokens は、読み取り専用の API トークンを発行する (#431)。nil なら、API トークンを扱わない。
 	APITokens *auth.APITokens
+	// OAuth は、MCP のクライアントにトークンを発行する認可サーバー (#963)。nil なら、同意の操作を扱わない。
+	OAuth *oauth.Server
 	// Players は、再生中のプレイヤーを扱う (#459)。nil なら、プレイヤーを扱わない。
 	Players *player.Service
 	// UserAdmin は、管理者によるユーザーの管理に使う。nil なら、ユーザーの管理は内部のエラーにする。
@@ -151,6 +154,7 @@ func NewHandler(opts *Options) http.Handler {
 		factors:      o.SecondFactors,
 		passkeys:     o.Passkeys,
 		apiTokens:    o.APITokens,
+		oauth:        o.OAuth,
 		players:      o.Players,
 		userAdmin:    o.UserAdmin,
 		passwords:    o.Passwords,

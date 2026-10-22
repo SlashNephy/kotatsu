@@ -19,9 +19,9 @@ const (
 	fieldDays     = "archiveRetentionDays"
 	// fieldNotificationDays は、通知の保持期間の項目 (#551)。
 	fieldNotificationDays = "notificationRetentionDays"
-	settingsQuery         = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays } }`
+	settingsQuery         = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays mcpEnabled } }`
 	updateSettings        = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
-		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays } }`
+		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays mcpEnabled } }`
 )
 
 type recordingSettings struct {
@@ -36,6 +36,7 @@ type systemSettings struct {
 	RecordingDefaults         recordingSettings `json:"recordingDefaults"`
 	ArchiveRetentionDays      int               `json:"archiveRetentionDays"`
 	NotificationRetentionDays int               `json:"notificationRetentionDays"`
+	MCPEnabled                bool              `json:"mcpEnabled"`
 }
 
 func defaultSystemSettings() systemSettings {
@@ -46,6 +47,7 @@ func defaultSystemSettings() systemSettings {
 		},
 		ArchiveRetentionDays:      90,
 		NotificationRetentionDays: 90,
+		MCPEnabled:                false,
 	}
 }
 
@@ -112,6 +114,10 @@ func TestSystemSettings(t *testing.T) {
 	// 通知の保持期間も変えられ、ほかの項目は変えない (#551)。
 	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldNotificationDays: 30}}, &partial))
 	want.NotificationRetentionDays = 30
+	assert.Equal(t, want, partial.UpdateSystemSettings)
+	// MCP は、既定では使わせず、管理者が有効にする (#963)。
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{"mcpEnabled": true}}, &partial))
+	want.MCPEnabled = true
 	assert.Equal(t, want, partial.UpdateSystemSettings)
 
 	var stamped struct {

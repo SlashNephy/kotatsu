@@ -238,6 +238,7 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
+		ApproveOAuthAuthorization    func(childComplexity int, query string, scopes []string) int
 		BeginTotpEnrollment          func(childComplexity int) int
 		ChangePassword               func(childComplexity int, password string) int
 		CleanUpMissingRecordings     func(childComplexity int, ids []string) int
@@ -262,6 +263,7 @@ type ComplexityRoot struct {
 		DeleteRules                  func(childComplexity int, ids []string) int
 		DeleteTotp                   func(childComplexity int) int
 		DeleteWebhook                func(childComplexity int, id string) int
+		DenyOAuthAuthorization       func(childComplexity int, query string) int
 		DisableUser                  func(childComplexity int, id string) int
 		EnableUser                   func(childComplexity int, id string) int
 		MarkAllNotificationsRead     func(childComplexity int) int
@@ -331,6 +333,20 @@ type ComplexityRoot struct {
 		Kind             func(childComplexity int) int
 		RuleReservations func(childComplexity int) int
 		WebPush          func(childComplexity int) int
+	}
+
+	OAuthAuthorization struct {
+		AllowedScopes func(childComplexity int) int
+		ClientID      func(childComplexity int) int
+		ClientName    func(childComplexity int) int
+		ClientURI     func(childComplexity int) int
+		RedirectURI   func(childComplexity int) int
+		Scopes        func(childComplexity int) int
+	}
+
+	OAuthAuthorizationCheck struct {
+		Authorization    func(childComplexity int) int
+		ErrorRedirectURL func(childComplexity int) int
 	}
 
 	OrphanFile struct {
@@ -477,6 +493,7 @@ type ComplexityRoot struct {
 		Node                    func(childComplexity int, id string) int
 		NotificationPreferences func(childComplexity int) int
 		Notifications           func(childComplexity int, first int, after *string, unreadOnly bool) int
+		OauthAuthorization      func(childComplexity int, query string) int
 		OrphanFiles             func(childComplexity int) int
 		Passkeys                func(childComplexity int) int
 		PinnedServices          func(childComplexity int) int
@@ -764,6 +781,7 @@ type ComplexityRoot struct {
 
 	SystemSettings struct {
 		ArchiveRetentionDays      func(childComplexity int) int
+		McpEnabled                func(childComplexity int) int
 		NotificationRetentionDays func(childComplexity int) int
 		RecordingDefaults         func(childComplexity int) int
 		RuleDefaults              func(childComplexity int) int
@@ -889,6 +907,8 @@ type MutationResolver interface {
 	MarkNotificationsRead(ctx context.Context, ids []string) (int, error)
 	MarkAllNotificationsRead(ctx context.Context) (int, error)
 	UpdateNotificationPreference(ctx context.Context, input model.NotificationPreferenceInput) (*model.NotificationPreference, error)
+	ApproveOAuthAuthorization(ctx context.Context, query string, scopes []string) (string, error)
+	DenyOAuthAuthorization(ctx context.Context, query string) (string, error)
 	DeleteOrphanFiles(ctx context.Context, files []*model.OrphanFileInput) (*model.DeleteOrphanFilesPayload, error)
 	RenamePasskey(ctx context.Context, id string, name string) (*model.Passkey, error)
 	DeletePasskey(ctx context.Context, id string) (string, error)
@@ -974,6 +994,7 @@ type QueryResolver interface {
 	Notifications(ctx context.Context, first int, after *string, unreadOnly bool) (*model.NotificationConnection, error)
 	UnreadNotificationCount(ctx context.Context) (int, error)
 	NotificationPreferences(ctx context.Context) ([]*model.NotificationPreference, error)
+	OauthAuthorization(ctx context.Context, query string) (*model.OAuthAuthorizationCheck, error)
 	OrphanFiles(ctx context.Context) ([]*model.OrphanFile, error)
 	Passkeys(ctx context.Context) ([]*model.Passkey, error)
 	PinnedServices(ctx context.Context) ([]*model.Service, error)
@@ -1691,6 +1712,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MissingRecording.Segments(childComplexity), true
 
+	case "Mutation.approveOAuthAuthorization":
+		if e.ComplexityRoot.Mutation.ApproveOAuthAuthorization == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_approveOAuthAuthorization_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ApproveOAuthAuthorization(childComplexity, args["query"].(string), args["scopes"].([]string)), true
 	case "Mutation.beginTotpEnrollment":
 		if e.ComplexityRoot.Mutation.BeginTotpEnrollment == nil {
 			break
@@ -1945,6 +1977,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteWebhook(childComplexity, args["id"].(string)), true
+	case "Mutation.denyOAuthAuthorization":
+		if e.ComplexityRoot.Mutation.DenyOAuthAuthorization == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_denyOAuthAuthorization_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DenyOAuthAuthorization(childComplexity, args["query"].(string)), true
 	case "Mutation.disableUser":
 		if e.ComplexityRoot.Mutation.DisableUser == nil {
 			break
@@ -2449,6 +2492,56 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.NotificationPreference.WebPush(childComplexity), true
+
+	case "OAuthAuthorization.allowedScopes":
+		if e.ComplexityRoot.OAuthAuthorization.AllowedScopes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthAuthorization.AllowedScopes(childComplexity), true
+	case "OAuthAuthorization.clientId":
+		if e.ComplexityRoot.OAuthAuthorization.ClientID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthAuthorization.ClientID(childComplexity), true
+	case "OAuthAuthorization.clientName":
+		if e.ComplexityRoot.OAuthAuthorization.ClientName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthAuthorization.ClientName(childComplexity), true
+	case "OAuthAuthorization.clientUri":
+		if e.ComplexityRoot.OAuthAuthorization.ClientURI == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthAuthorization.ClientURI(childComplexity), true
+	case "OAuthAuthorization.redirectUri":
+		if e.ComplexityRoot.OAuthAuthorization.RedirectURI == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthAuthorization.RedirectURI(childComplexity), true
+	case "OAuthAuthorization.scopes":
+		if e.ComplexityRoot.OAuthAuthorization.Scopes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthAuthorization.Scopes(childComplexity), true
+
+	case "OAuthAuthorizationCheck.authorization":
+		if e.ComplexityRoot.OAuthAuthorizationCheck.Authorization == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthAuthorizationCheck.Authorization(childComplexity), true
+	case "OAuthAuthorizationCheck.errorRedirectUrl":
+		if e.ComplexityRoot.OAuthAuthorizationCheck.ErrorRedirectURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthAuthorizationCheck.ErrorRedirectURL(childComplexity), true
 
 	case "OrphanFile.modifiedAt":
 		if e.ComplexityRoot.OrphanFile.ModifiedAt == nil {
@@ -3096,6 +3189,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Notifications(childComplexity, args["first"].(int), args["after"].(*string), args["unreadOnly"].(bool)), true
+	case "Query.oauthAuthorization":
+		if e.ComplexityRoot.Query.OauthAuthorization == nil {
+			break
+		}
+
+		args, err := ec.field_Query_oauthAuthorization_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.OauthAuthorization(childComplexity, args["query"].(string)), true
 	case "Query.orphanFiles":
 		if e.ComplexityRoot.Query.OrphanFiles == nil {
 			break
@@ -4360,6 +4464,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.ArchiveRetentionDays(childComplexity), true
+	case "SystemSettings.mcpEnabled":
+		if e.ComplexityRoot.SystemSettings.McpEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.McpEnabled(childComplexity), true
 	case "SystemSettings.notificationRetentionDays":
 		if e.ComplexityRoot.SystemSettings.NotificationRetentionDays == nil {
 			break
@@ -5608,6 +5718,54 @@ extend type Mutation {
   updateNotificationPreference(input: NotificationPreferenceInput!): NotificationPreference!
 }
 `, BuiltIn: false},
+	{Name: "../schema/oauth.graphqls", Input: `"""
+MCP のクライアントからの認可のリクエスト (#963、設計書 9.9)。同意の画面に出す。
+"""
+type OAuthAuthorization {
+  "クライアントの ID。クライアントのメタデータの URL (CIMD)。"
+  clientId: String!
+  "クライアントの名前。クライアントが自分で名乗るもので、確かめていない。"
+  clientName: String!
+  "クライアントのサイト。名乗っていなければ null。"
+  clientUri: String
+  "認可の後に戻す URI。"
+  redirectUri: String!
+  "求められたスコープ。"
+  scopes: [String!]!
+  "求められたスコープのうち、ログイン中のユーザーのロールで許すもの。視聴者は mcp:write を選べない。"
+  allowedScopes: [String!]!
+}
+
+"""
+同意の画面に出す前に確かめた、認可のリクエスト。
+"""
+type OAuthAuthorizationCheck {
+  "確かめた認可のリクエスト。errorRedirectUrl があれば null。"
+  authorization: OAuthAuthorization
+  "パラメーターが正しくないときに、エラーを付けてクライアントへ戻す URL。正しければ null。"
+  errorRedirectUrl: String
+}
+
+extend type Query {
+  """
+  認可のエンドポイントに届いたクエリ (先頭の ? を除く) を確かめる。クライアントのメタデータは、ここで取ってくる。
+  client_id かリダイレクト URI を確かめられなければ、どこへ戻すかが分からないので BAD_USER_INPUT を返す。
+  MCP が無効なら NOT_FOUND を返す。
+  """
+  oauthAuthorization(query: String!): OAuthAuthorizationCheck!
+}
+
+extend type Mutation {
+  """
+  認可のリクエストに同意し、認可コードを付けてクライアントへ戻す URL を返す。scopes は、同意するスコープ。
+  求められたもので、ロールに許すものでなければ BAD_USER_INPUT を返す。直近 10 分以内の認証が要る。
+  パラメーターが正しくなければ、エラーを付けてクライアントへ戻す URL を返す。
+  """
+  approveOAuthAuthorization(query: String!, scopes: [String!]!): String!
+  "認可のリクエストを断り、access_denied を付けてクライアントへ戻す URL を返す。"
+  denyOAuthAuthorization(query: String!): String!
+}
+`, BuiltIn: false},
 	{Name: "../schema/orphan_files.graphqls", Input: `"""
 プールかデータディレクトリにあるのに DB に記録のないファイルか、持ち主のセグメントのファイルが DB にない生成物のディレクトリ (設計書 5.6)。
 録画を消すのに失敗したときや、取り込みをやり直したときに残る。
@@ -6851,6 +7009,8 @@ type SystemSettings {
   notificationRetentionDays: Int!
   "ルールを作るときの既定値。"
   ruleDefaults: RuleDefaults!
+  "MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。"
+  mcpEnabled: Boolean!
   "最後に変えた日時。一度も変えていなければ null。"
   updatedAt: Time
 }
@@ -6865,6 +7025,7 @@ input SystemSettingsInput {
   notificationRetentionDays: Int
   "ルールを作るときの既定値の変える項目。省いた項目は変えない。"
   ruleDefaults: RuleDefaultsInput
+  mcpEnabled: Boolean
 }
 
 """
@@ -7740,6 +7901,34 @@ func (ec *executionContext) childFields_NotificationPreference(ctx context.Conte
 	return nil, fmt.Errorf("no field named %q was found under type NotificationPreference", field.Name)
 }
 
+func (ec *executionContext) childFields_OAuthAuthorization(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "clientId":
+		return ec.fieldContext_OAuthAuthorization_clientId(ctx, field)
+	case "clientName":
+		return ec.fieldContext_OAuthAuthorization_clientName(ctx, field)
+	case "clientUri":
+		return ec.fieldContext_OAuthAuthorization_clientUri(ctx, field)
+	case "redirectUri":
+		return ec.fieldContext_OAuthAuthorization_redirectUri(ctx, field)
+	case "scopes":
+		return ec.fieldContext_OAuthAuthorization_scopes(ctx, field)
+	case "allowedScopes":
+		return ec.fieldContext_OAuthAuthorization_allowedScopes(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OAuthAuthorization", field.Name)
+}
+
+func (ec *executionContext) childFields_OAuthAuthorizationCheck(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "authorization":
+		return ec.fieldContext_OAuthAuthorizationCheck_authorization(ctx, field)
+	case "errorRedirectUrl":
+		return ec.fieldContext_OAuthAuthorizationCheck_errorRedirectUrl(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OAuthAuthorizationCheck", field.Name)
+}
+
 func (ec *executionContext) childFields_OrphanFile(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "poolId":
@@ -8496,6 +8685,8 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_notificationRetentionDays(ctx, field)
 	case "ruleDefaults":
 		return ec.fieldContext_SystemSettings_ruleDefaults(ctx, field)
+	case "mcpEnabled":
+		return ec.fieldContext_SystemSettings_mcpEnabled(ctx, field)
 	case "updatedAt":
 		return ec.fieldContext_SystemSettings_updatedAt(ctx, field)
 	}
@@ -8820,6 +9011,28 @@ func (ec *executionContext) childFields___Type(ctx context.Context, field graphq
 
 // region    ***************************** args.gotpl *****************************
 
+func (ec *executionContext) field_Mutation_approveOAuthAuthorization_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "query",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["query"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "scopes",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["scopes"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_changePassword_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -9125,6 +9338,20 @@ func (ec *executionContext) field_Mutation_deleteWebhook_args(ctx context.Contex
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_denyOAuthAuthorization_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "query",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["query"] = arg0
 	return args, nil
 }
 
@@ -9923,6 +10150,20 @@ func (ec *executionContext) field_Query_notifications_args(ctx context.Context, 
 		return nil, err
 	}
 	args["unreadOnly"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_oauthAuthorization_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "query",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["query"] = arg0
 	return args, nil
 }
 
@@ -13072,6 +13313,94 @@ func (ec *executionContext) fieldContext_Mutation_updateNotificationPreference(c
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_approveOAuthAuthorization(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_approveOAuthAuthorization(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ApproveOAuthAuthorization(ctx, fc.Args["query"].(string), fc.Args["scopes"].([]string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_approveOAuthAuthorization(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_approveOAuthAuthorization_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_denyOAuthAuthorization(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_denyOAuthAuthorization(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DenyOAuthAuthorization(ctx, fc.Args["query"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_denyOAuthAuthorization(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_denyOAuthAuthorization_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_deleteOrphanFiles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15740,6 +16069,199 @@ func (ec *executionContext) _NotificationPreference_ruleReservations(ctx context
 }
 func (ec *executionContext) fieldContext_NotificationPreference_ruleReservations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("NotificationPreference", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _OAuthAuthorization_clientId(ctx context.Context, field graphql.CollectedField, obj *model.OAuthAuthorization) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OAuthAuthorization_clientId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClientID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OAuthAuthorization_clientId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OAuthAuthorization", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OAuthAuthorization_clientName(ctx context.Context, field graphql.CollectedField, obj *model.OAuthAuthorization) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OAuthAuthorization_clientName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClientName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OAuthAuthorization_clientName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OAuthAuthorization", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OAuthAuthorization_clientUri(ctx context.Context, field graphql.CollectedField, obj *model.OAuthAuthorization) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OAuthAuthorization_clientUri(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ClientURI, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OAuthAuthorization_clientUri(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OAuthAuthorization", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OAuthAuthorization_redirectUri(ctx context.Context, field graphql.CollectedField, obj *model.OAuthAuthorization) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OAuthAuthorization_redirectUri(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RedirectURI, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OAuthAuthorization_redirectUri(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OAuthAuthorization", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OAuthAuthorization_scopes(ctx context.Context, field graphql.CollectedField, obj *model.OAuthAuthorization) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OAuthAuthorization_scopes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Scopes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OAuthAuthorization_scopes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OAuthAuthorization", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OAuthAuthorization_allowedScopes(ctx context.Context, field graphql.CollectedField, obj *model.OAuthAuthorization) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OAuthAuthorization_allowedScopes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AllowedScopes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OAuthAuthorization_allowedScopes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OAuthAuthorization", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OAuthAuthorizationCheck_authorization(ctx context.Context, field graphql.CollectedField, obj *model.OAuthAuthorizationCheck) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OAuthAuthorizationCheck_authorization(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Authorization, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.OAuthAuthorization) graphql.Marshaler {
+			return ec.marshalOOAuthAuthorization2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐOAuthAuthorization(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OAuthAuthorizationCheck_authorization(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthAuthorizationCheck",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OAuthAuthorization(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OAuthAuthorizationCheck_errorRedirectUrl(ctx context.Context, field graphql.CollectedField, obj *model.OAuthAuthorizationCheck) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OAuthAuthorizationCheck_errorRedirectUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ErrorRedirectURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_OAuthAuthorizationCheck_errorRedirectUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OAuthAuthorizationCheck", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _OrphanFile_poolId(ctx context.Context, field graphql.CollectedField, obj *model.OrphanFile) (ret graphql.Marshaler) {
@@ -18641,6 +19163,50 @@ func (ec *executionContext) fieldContext_Query_notificationPreferences(_ context
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_NotificationPreference(ctx, field)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_oauthAuthorization(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_oauthAuthorization(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().OauthAuthorization(ctx, fc.Args["query"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.OAuthAuthorizationCheck) graphql.Marshaler {
+			return ec.marshalNOAuthAuthorizationCheck2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐOAuthAuthorizationCheck(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_oauthAuthorization(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OAuthAuthorizationCheck(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_oauthAuthorization_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -23818,6 +24384,29 @@ func (ec *executionContext) fieldContext_SystemSettings_ruleDefaults(_ context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _SystemSettings_mcpEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_mcpEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.McpEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_mcpEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _SystemSettings_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -27902,7 +28491,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "ruleDefaults"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "ruleDefaults", "mcpEnabled"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -27937,6 +28526,13 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.RuleDefaults = data
+		case "mcpEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mcpEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.McpEnabled = data
 		}
 	}
 	return it, nil
@@ -29868,6 +30464,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "approveOAuthAuthorization":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_approveOAuthAuthorization(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "denyOAuthAuthorization":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_denyOAuthAuthorization(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "deleteOrphanFiles":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteOrphanFiles(ctx, field)
@@ -30480,6 +31090,112 @@ func (ec *executionContext) _NotificationPreference(ctx context.Context, sel ast
 		case "ruleReservations":
 			out.Values[i] = ec._NotificationPreference_ruleReservations(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var oAuthAuthorizationImplementors = []string{"OAuthAuthorization"}
+
+func (ec *executionContext) _OAuthAuthorization(ctx context.Context, sel ast.SelectionSet, obj *model.OAuthAuthorization) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, oAuthAuthorizationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OAuthAuthorization")
+		case "clientId":
+			out.Values[i] = ec._OAuthAuthorization_clientId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clientName":
+			out.Values[i] = ec._OAuthAuthorization_clientName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clientUri":
+			out.Values[i] = ec._OAuthAuthorization_clientUri(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "redirectUri":
+			out.Values[i] = ec._OAuthAuthorization_redirectUri(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scopes":
+			out.Values[i] = ec._OAuthAuthorization_scopes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "allowedScopes":
+			out.Values[i] = ec._OAuthAuthorization_allowedScopes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var oAuthAuthorizationCheckImplementors = []string{"OAuthAuthorizationCheck"}
+
+func (ec *executionContext) _OAuthAuthorizationCheck(ctx context.Context, sel ast.SelectionSet, obj *model.OAuthAuthorizationCheck) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, oAuthAuthorizationCheckImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OAuthAuthorizationCheck")
+		case "authorization":
+			out.Values[i] = ec._OAuthAuthorizationCheck_authorization(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "errorRedirectUrl":
+			out.Values[i] = ec._OAuthAuthorizationCheck_errorRedirectUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -32039,6 +32755,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_notificationPreferences(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "oauthAuthorization":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_oauthAuthorization(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -34732,6 +35470,11 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "mcpEnabled":
+			out.Values[i] = ec._SystemSettings_mcpEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "updatedAt":
 			out.Values[i] = ec._SystemSettings_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -36864,6 +37607,16 @@ func (ec *executionContext) unmarshalNNotificationPreferenceInput2githubᚗcom�
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNOAuthAuthorizationCheck2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐOAuthAuthorizationCheck(ctx context.Context, sel ast.SelectionSet, v *model.OAuthAuthorizationCheck) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OAuthAuthorizationCheck(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNOrphanFile2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐOrphanFileᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OrphanFile) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -38637,6 +39390,13 @@ func (ec *executionContext) marshalONotificationKind2ᚕgithubᚗcomᚋSlashNeph
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalOOAuthAuthorization2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐOAuthAuthorization(ctx context.Context, sel ast.SelectionSet, v *model.OAuthAuthorization) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._OAuthAuthorization(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOPreviewFrame2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋgraphᚋmodelᚐPreviewFrame(ctx context.Context, sel ast.SelectionSet, v *model.PreviewFrame) graphql.Marshaler {
