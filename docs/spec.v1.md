@@ -1410,8 +1410,9 @@ HelmのChartの版とイメージのタグはSemVerの形を求めるので、�
 
 リリースは、Actionsの「Tag a release」をmainで手で動かして作ります。
 このworkflowが、mainの今のコミットに次の版のタグを打ち、配布物を作るworkflowをそのタグで動かします。
-リリースノートはGitHubが生成し、PRのラベルで、新機能、不具合の修正、性能の改善、ドキュメント、依存関係の更新、その他に分けます（`.github/release.yml`）。
+リリースノートはGitHubが生成し、PRのラベルで、セキュリティ、新機能、不具合の修正、性能の改善、ドキュメント、依存関係の更新、その他に分けます（`.github/release.yml`）。
 種類のラベルは、PRのタイトル（Conventional Commits）の`feat`、`fix`、`perf`、`docs`から、workflowが付けます。依存関係の更新は、Renovateと、Dependabot（セキュリティアップデート）が付けるラベルで分けます。
+セキュリティの修正は、`security`のラベルで、ほかのどの見出しより先に「セキュリティ」に入れます。Renovateは脆弱性を直す更新にこのラベルを付けます。Goのランタイムのようにそれ以外で直したPRには、手で付けます。
 
 新しいリリースが出たことは、設定（`update_check.enabled`、`KOTATSU_UPDATE_CHECK_ENABLED`）を入れたときだけ知らせます（#506）。tenbanが1日に1回、GitHubのAPIで最新のリリースを確かめ、動いている版より新しければ、管理者にだけ、ヘッダーのメニューの印と項目、システムの状態の画面で知らせます。外部への通信になるので、既定では確かめません。CSP（[10.4](#104-content-security-policy)）があるので、ブラウザからは確かめません。mainのビルド（`edge`）と、版を埋め込まないビルド（`dev`）は、リリースと比べられないので確かめません。画面内の通知とWeb Pushでは知らせません。
 
