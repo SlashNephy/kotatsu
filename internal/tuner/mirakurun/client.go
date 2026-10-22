@@ -46,7 +46,7 @@ type Options struct {
 	RequestTimeout time.Duration
 	// DetectInterval は、サーバーの種類を判定し直す間隔。0 なら 10 分。
 	DetectInterval time.Duration
-	// StreamIdleTimeout は、ストリームのデータが届かないまま待つ時間の上限。0 なら DefaultStreamIdleTimeout。
+	// StreamIdleTimeout は、放送のストリームのデータが届かないまま待つ時間の上限。0 なら DefaultStreamIdleTimeout。イベントストリームには使わない。
 	StreamIdleTimeout time.Duration
 	// StreamOpenTimeout は、ストリームを開くときに、応答の頭を待つ時間の上限。0 なら DefaultStreamOpenTimeout。
 	StreamOpenTimeout time.Duration
@@ -298,7 +298,7 @@ func (c *Client) OpenServiceStream(ctx context.Context, serviceID int64, opts *S
 	}
 	req.Header.Set(PriorityHeader, strconv.Itoa(opts.Priority))
 
-	return c.openStream(req)
+	return c.openStream(req, c.idleTimeout)
 }
 
 // ServiceLogo は、サービス ID (networkId × 100000 + serviceId) のロゴの画像を返す。Mirakurun 互換のサーバーは PNG を返す。
@@ -333,9 +333,10 @@ func (c *Client) ServiceLogo(ctx context.Context, serviceID int64) ([]byte, erro
 
 // openStream は、ストリームのリクエストを送り、2xx なら本文を返す。
 // 本文は、データが idleTimeout の間届かなければ閉じ、ErrStreamStalled を返す。接続を保ったまま送らなくなったことに気づくため (#537)。
+// idleTimeout が 0 なら見張らない。イベントストリームは、変化がなければ何分でも黙るので、黙っても止まったとはみなせない (#954)。
 // 応答の頭が openTimeout までに届かなければ、要求をやめて ErrStreamOpenTimeout を返す (#412)。
 // ストリームは何時間も続くので、要求全体には期限を付けず、応答の頭を待つ間だけ見張る。
-func (c *Client) openStream(req *http.Request) (io.ReadCloser, error) {
+func (c *Client) openStream(req *http.Request, idleTimeout time.Duration) (io.ReadCloser, error) {
 	ctx, cancel := context.WithCancelCause(req.Context())
 	timer := time.AfterFunc(c.openTimeout, func() { cancel(ErrStreamOpenTimeout) })
 	resp, err := c.httpClient.Do(req.WithContext(ctx))
@@ -361,7 +362,26 @@ func (c *Client) openStream(req *http.Request) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	return newIdleReader(resp.Body, c.idleTimeout, func() { cancel(nil) }), nil
+	if idleTimeout == 0 {
+		return &releasingBody{ReadCloser: resp.Body, release: func() { cancel(nil) }}, nil
+	}
+
+	return newIdleReader(resp.Body, idleTimeout, func() { cancel(nil) }), nil
+}
+
+// releasingBody は、閉じたときに、ストリームの要求の context を手放す本文。
+type releasingBody struct {
+	io.ReadCloser
+
+	release func()
+}
+
+var _ io.ReadCloser = new(releasingBody)
+
+func (b *releasingBody) Close() error {
+	defer b.release()
+
+	return b.ReadCloser.Close()
 }
 
 func (c *Client) getJSON(ctx context.Context, path string, query url.Values, v any) error {

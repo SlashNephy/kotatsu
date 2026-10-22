@@ -34,11 +34,11 @@ func newStubServer(t *testing.T, kind mirakurun.ServerKind) (*stubServer, *httpt
 func (s *stubServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	kind, _ := s.kind.Load().(mirakurun.ServerKind)
 	switch {
-	case r.URL.Path == "/api/version" && kind == mirakurun.ServerMahiron:
+	case r.URL.Path == pathVersion && kind == mirakurun.ServerMahiron:
 		_, _ = w.Write([]byte(`{"current":"5.2.2","latest":"","server":"mahiron"}`))
-	case r.URL.Path == "/api/version":
+	case r.URL.Path == pathVersion:
 		_, _ = w.Write([]byte(`{"current":"4.0.0","latest":"4.0.0"}`))
-	case r.URL.Path == "/events" && kind == mirakurun.ServerMirakc:
+	case r.URL.Path == pathSSEEvents && kind == mirakurun.ServerMirakc:
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("event: tuner.status-changed\ndata: {\"tunerIndex\":0}\n\n"))
@@ -50,7 +50,7 @@ func (s *stubServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// 延長で終了時刻が未定になった番組と、次の番組がない状態。形は mirakc の OpenAPI の WebOnairProgram に従う。
 		_, _ = w.Write([]byte(`[{"serviceId":3273601024,"current":{"id":327360102401405,"eventId":1405,"serviceId":1024,` +
 			`"networkId":32736,"startAt":1791702600000,"duration":1,"isFree":true,"name":"中継"},"next":null}]`))
-	case r.URL.Path == "/events" && kind == "spa":
+	case r.URL.Path == pathSSEEvents && kind == "spa":
 		// SPA のフォールバックで、知らないパスにも HTML を返すサーバー。
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write([]byte("<!doctype html>"))
@@ -163,8 +163,8 @@ func TestOpenEventsByServerKind(t *testing.T) {
 		wantResource string
 		wantType     string
 	}{
-		{kind: mirakurun.ServerMirakurun, wantResource: resourceTuner, wantType: "update"},
-		{kind: mirakurun.ServerMahiron, wantResource: resourceTuner, wantType: "update"},
+		{kind: mirakurun.ServerMirakurun, wantResource: resourceTuner, wantType: typeUpdate},
+		{kind: mirakurun.ServerMahiron, wantResource: resourceTuner, wantType: typeUpdate},
 		{kind: mirakurun.ServerMirakc, wantResource: resourceTuner, wantType: typeStatusChanged},
 	}
 	for _, tt := range tests {
@@ -210,5 +210,5 @@ func TestOpenEventsInvalidatesOnFailure(t *testing.T) {
 	t.Cleanup(func() { _ = stream.Close() })
 	event, err := stream.Next()
 	require.NoError(t, err)
-	assert.Equal(t, "update", event.Type)
+	assert.Equal(t, typeUpdate, event.Type)
 }

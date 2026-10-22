@@ -162,3 +162,77 @@ func TestClientOpenServiceStreamOpenTimeout(t *testing.T) {
 		})
 	}
 }
+
+// quietEventsServer は、イベントストリームを開いた後、quiet の間何も送らずに、イベントを 1 つ送るチューナーサーバー。
+func quietEventsServer(t *testing.T, kind mirakurun.ServerKind, quiet time.Duration) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		flusher, _ := w.(http.Flusher)
+		wait := func() bool {
+			select {
+			case <-r.Context().Done():
+				return false
+			case <-time.After(quiet):
+				return true
+			}
+		}
+		switch {
+		case r.URL.Path == pathVersion:
+			_, _ = w.Write([]byte(`{"current":"4.0.0","latest":"4.0.0"}`))
+		case r.URL.Path == pathSSEEvents && kind == mirakurun.ServerMirakc:
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+			flusher.Flush()
+			if wait() {
+				_, _ = w.Write([]byte("event: tuner.status-changed\ndata: {\"tunerIndex\":0}\n\n"))
+				flusher.Flush()
+			}
+			<-r.Context().Done()
+		case r.URL.Path == "/api/events/stream" && kind != mirakurun.ServerMirakc:
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			_, _ = w.Write([]byte("[\n"))
+			flusher.Flush()
+			if wait() {
+				_, _ = w.Write([]byte("{\"resource\":\"tuner\",\"type\":\"update\",\"data\":{},\"time\":0}\n,\n"))
+				flusher.Flush()
+			}
+			<-r.Context().Done()
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	return server
+}
+
+func TestClientOpenEventsQuiet(t *testing.T) {
+	t.Parallel()
+
+	// イベントストリームは、変化がなければ何も送らないので、録画のストリームの上限より長く黙っても閉じない (#954)。
+	const idle = 200 * time.Millisecond
+	tests := []struct {
+		kind     mirakurun.ServerKind
+		wantType string
+	}{
+		{kind: mirakurun.ServerMirakurun, wantType: typeUpdate},
+		{kind: mirakurun.ServerMirakc, wantType: typeStatusChanged},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.kind), func(t *testing.T) {
+			t.Parallel()
+
+			server := quietEventsServer(t, tt.kind, 3*idle)
+			client, err := mirakurun.New(&mirakurun.Options{URL: server.URL, StreamIdleTimeout: idle})
+			require.NoError(t, err)
+			stream, err := client.OpenEvents(t.Context(), nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = stream.Close() })
+
+			event, err := stream.Next()
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantType, event.Type)
+		})
+	}
+}
