@@ -108,7 +108,11 @@ function Consent({ query }: { query: string }) {
   );
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), currentPath());
   const { authorization, errorRedirectUrl } = data.oauthAuthorization;
-  const [chosen, setChosen] = useState<string[]>(() => authorization?.allowedScopes.slice() ?? []);
+  // 初めは、求められたスコープのうち、ロールで許すものをすべて選んでおく。
+  const [chosen, setChosen] = useState<string[]>(
+    () =>
+      authorization?.scopes.filter((scope) => authorization.allowedScopes.includes(scope)) ?? [],
+  );
   const [error, setError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
 
@@ -119,7 +123,14 @@ function Consent({ query }: { query: string }) {
     }
   }, [errorRedirectUrl]);
   if (authorization == null) {
-    return <PageLoader />;
+    // クライアントへ戻すまでは読み込み中にする。戻す先もなければ、エラーを出す。
+    return errorRedirectUrl != null ? (
+      <PageLoader />
+    ) : (
+      <Alert color="red" role="alert">
+        {t('oauth.invalidRequest')}
+      </Alert>
+    );
   }
 
   const leave = (url: string) => {
