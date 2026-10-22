@@ -51,9 +51,12 @@ automountServiceAccountToken: false
 #       failureThreshold: 4
 #     readiness:
 #       timeoutSeconds: 5
+# readiness の initialDelaySeconds は、コンテナの起動直後に最初のプローブが届き、HTTP サーバーが待ち受ける前で
+# connection refused になって Unhealthy のイベントが出るのを避ける。サーバーは起動から 1 秒もかからず待ち受ける。
 probes:
   liveness: {}
-  readiness: {}
+  readiness:
+    initialDelaySeconds: 2
 
 # priorityClassName は、すべての Pod に付ける PriorityClass。all や roles の各ロールで priorityClassName を指定すると、そちらを使う。
 priorityClassName: ""

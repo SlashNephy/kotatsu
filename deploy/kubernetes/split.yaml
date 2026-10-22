@@ -133,6 +133,7 @@ spec:
             httpGet:
               path: /readyz
               port: http
+            initialDelaySeconds: 2
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -256,6 +257,7 @@ spec:
             httpGet:
               path: /readyz
               port: http
+            initialDelaySeconds: 2
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -376,6 +378,7 @@ spec:
             httpGet:
               path: /readyz
               port: http
+            initialDelaySeconds: 2
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -485,6 +488,7 @@ spec:
             httpGet:
               path: /readyz
               port: http
+            initialDelaySeconds: 2
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -604,6 +608,7 @@ spec:
             httpGet:
               path: /readyz
               port: http
+            initialDelaySeconds: 2
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
