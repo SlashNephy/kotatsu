@@ -10,7 +10,7 @@
 ARG TSREADEX_VERSION=master-260428
 
 # SPA は、どのアーキテクチャでも同じものになるので、ビルドするマシンのアーキテクチャで 1 回だけビルドする。
-FROM --platform=$BUILDPLATFORM docker.io/library/node:24.22.0-trixie-slim@sha256:a6155384446670e9719bdc4fd0ebe4d4b29fb32a8d6aa523da3547a6cfbcf22c AS web
+FROM --platform=$BUILDPLATFORM docker.io/library/node:24.22.1-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS web
 WORKDIR /src/web
 # pnpm の版は package.json の packageManager に従う。
 RUN corepack enable
