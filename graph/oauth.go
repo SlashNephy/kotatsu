@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/url"
 	"slices"
+	"strings"
 
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
@@ -16,7 +17,7 @@ var errOAuthUnavailable = errors.New("the OAuth authorization server is not conf
 
 // oauthQuery は、認可のエンドポイントに届いたクエリを読み、リクエストが接続したオリジンと一緒に返す。
 func oauthQuery(ctx context.Context, raw string) (url.Values, string, error) {
-	query, err := url.ParseQuery(raw)
+	query, err := url.ParseQuery(strings.TrimPrefix(raw, "?"))
 	if err != nil {
 		return nil, "", NewError(CodeBadUserInput, "invalid authorization query")
 	}

@@ -1284,7 +1284,7 @@ MCPのクライアント（ClaudeやChatGPTなど）に、番組、予約、ル�
 | `GET /.well-known/oauth-authorization-server` | 認可サーバーのメタデータ（RFC 8414） |
 | `GET /oauth/authorize` | 認可のエンドポイント。何も確かめず、クエリを付けて同意の画面（`/authorize`）へ送ります |
 | `POST /oauth/token` | 認可コードとリフレッシュトークンを、トークンに引き換えます |
-| `POST /oauth/revoke` | トークンの失効（RFC 7009） |
+| `POST /oauth/revoke` | トークンの失効（RFC 7009）。`client_id`が要ります。ほかのクライアントのトークンと知らないトークンは、何もせずに成功を返します |
 
 **クライアントの登録**：Client ID Metadata Documents（CIMD）だけで受け付けます。client_idはクライアントのメタデータのURLで、Kotatsuが取りに行きます。DCRと、事前に登録したクライアントは受け付けません。ClaudeとChatGPTは、どちらもCIMDに対応しています。
 

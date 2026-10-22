@@ -156,6 +156,10 @@ func (s *Server) refresh(ctx context.Context, form url.Values, logger *slog.Logg
 		case form.Get("client_id") != row.ClientID:
 			return invalidGrant("client_id does not match the refresh token")
 		case row.UsedAt != nil:
+			// ロックしたまま取り消し、見つけたことと取り消すことの間に、ほかの入れ替えを挟ませない。
+			if err := q.DeleteOAuthGrant(ctx, row.GrantID); err != nil {
+				return fmt.Errorf("failed to revoke the OAuth grant: %w", err)
+			}
 			reused = &row.GrantID
 
 			return nil
@@ -185,9 +189,6 @@ func (s *Server) refresh(ctx context.Context, form url.Values, logger *slog.Logg
 		return nil, err
 	}
 	if reused != nil {
-		if err := sqlc.New(s.db).DeleteOAuthGrant(ctx, *reused); err != nil {
-			return nil, fmt.Errorf("failed to revoke the OAuth grant: %w", err)
-		}
 		logger.WarnContext(ctx, "a used refresh token was presented again; the OAuth grant is revoked", slog.String("grant_id", reused.String()))
 
 		return nil, invalidGrant("the refresh token is invalid")
@@ -232,8 +233,9 @@ func (s *Server) RevokeHandler(logger *slog.Logger) http.Handler {
 			return
 		}
 		form, err := readForm(w, r)
-		if err != nil || form.Get("token") == "" {
-			writeTokenError(w, &tokenError{code: errorInvalidRequest, description: "token is missing"})
+		if err != nil || form.Get("token") == "" || form.Get("client_id") == "" {
+			// 公開クライアントは、client_id で自分を示す (RFC 6749 3.2.1)。
+			writeTokenError(w, &tokenError{code: errorInvalidRequest, description: "token and client_id are required"})
 
 			return
 		}

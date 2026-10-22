@@ -240,6 +240,16 @@ func TestAccessTokenExpires(t *testing.T) {
 	status, body := f.refresh(t, writerRefresh)
 	require.Equal(t, http.StatusOK, status)
 	assert.Equal(t, oauth.ScopeRead, body["scope"])
+	// 書くスコープだけの連携でも、読むスコープは残る。
+	_, err = f.db.Exec(t.Context(), "UPDATE users SET role = 'member' WHERE id = $1", f.member.UserID)
+	require.NoError(t, err)
+	_, body = f.exchange(t, f.approve(t, f.member, []string{oauth.ScopeWrite}))
+	writeOnly, _ := body["access_token"].(string)
+	_, err = f.db.Exec(t.Context(), "UPDATE users SET role = 'viewer' WHERE id = $1", f.member.UserID)
+	require.NoError(t, err)
+	_, grant, err = f.server.Authenticate(t.Context(), writeOnly, testResource)
+	require.NoError(t, err)
+	assert.Equal(t, []string{oauth.ScopeRead}, grant.Scopes)
 
 	_, err = f.db.Exec(t.Context(), "UPDATE users SET disabled_at = now() WHERE id = $1", f.member.UserID)
 	require.NoError(t, err)
@@ -404,8 +414,9 @@ func TestRevoke(t *testing.T) {
 	assert.Equal(t, http.StatusOK, revoke(newRefresh, f.clientID))
 	_, _, err = f.server.Authenticate(t.Context(), newAccess, testResource)
 	require.ErrorIs(t, err, auth.ErrUnauthenticated)
-	// 知らないトークンでも成功を返す。
+	// 知らないトークンでも成功を返す。client_id がなければ断る。
 	assert.Equal(t, http.StatusOK, revoke("kotatsu_rt_unknown", f.clientID))
+	assert.Equal(t, http.StatusBadRequest, revoke(access, ""))
 }
 
 // TestDisabled は、管理者が MCP を有効にしていなければ、認可サーバーがないものとして振る舞うことを確かめる。

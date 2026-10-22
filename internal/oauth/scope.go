@@ -48,11 +48,12 @@ func AllowedScopes(role auth.Role) []string {
 
 // narrowScopes は、連携のスコープを、ユーザーの今のロールに許すものに絞る。
 // 同意した後にロールを下げられたユーザーの連携が、下げる前のスコープのまま使われないようにする。
+// 書くスコープだけの連携でも、読むスコープを含むので、視聴者に下げたら読むスコープを残す。
 func narrowScopes(scopes []string, role auth.Role) []string {
 	allowed := AllowedScopes(role)
-	narrowed := make([]string, 0, len(scopes))
-	for _, scope := range scopes {
-		if slices.Contains(allowed, scope) {
+	narrowed := make([]string, 0, len(allowed))
+	for _, scope := range allowed {
+		if HasScope(scopes, scope) {
 			narrowed = append(narrowed, scope)
 		}
 	}
