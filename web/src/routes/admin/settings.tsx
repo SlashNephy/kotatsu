@@ -73,6 +73,7 @@ const query = graphql`
       }
       archiveRetentionDays
       notificationRetentionDays
+      mcpEnabled
       ruleDefaults {
         avoidDuplicates
         duplicateWindowDays
@@ -108,6 +109,8 @@ type Form = {
   ruleAvoidDuplicates: boolean;
   ruleDuplicateWindowDays: number | string;
   ruleFollowEventRelay: boolean;
+  // MCP のクライアントに使わせるかどうか (#965)。
+  mcpEnabled: boolean;
 };
 
 function SystemSettings() {
@@ -139,6 +142,7 @@ function SystemSettings() {
     ruleAvoidDuplicates: settings.ruleDefaults.avoidDuplicates,
     ruleDuplicateWindowDays: settings.ruleDefaults.duplicateWindowDays ?? '',
     ruleFollowEventRelay: settings.ruleDefaults.followEventRelay,
+    mcpEnabled: settings.mcpEnabled,
   });
   const set = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
   const numbers = [
@@ -183,6 +187,7 @@ function SystemSettings() {
                   : { clearDuplicateWindowDays: true }),
                 followEventRelay: form.ruleFollowEventRelay,
               },
+              mcpEnabled: form.mcpEnabled,
             },
           },
         );
@@ -351,6 +356,21 @@ function SystemSettings() {
                 allowDecimal={false}
                 value={form.notificationRetentionDays}
                 onChange={(value) => set({ notificationRetentionDays: value })}
+              />
+            </Stack>
+          </Card>
+
+          <Card withBorder>
+            <Stack gap="xs">
+              <Title order={3} size="h5">
+                {t('admin.settings.mcp')}
+              </Title>
+              <Switch
+                size="sm"
+                label={t('admin.settings.mcpEnabled')}
+                description={t('admin.settings.mcpHelp')}
+                checked={form.mcpEnabled}
+                onChange={(event) => set({ mcpEnabled: event.currentTarget.checked })}
               />
             </Stack>
           </Card>

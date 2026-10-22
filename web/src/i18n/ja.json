@@ -329,6 +329,11 @@
       "copied": "コピーしました",
       "revokeApiToken": "取り消す",
       "apiTokenTimes": "発行 {{created}}・最終利用 {{lastUsed}}",
+      "oauthGrants": "連携中のアプリ",
+      "oauthGrantsDescription": "ClaudeやChatGPTのようなMCPのクライアントのうち、連携を許可したものです。取り消すと、そのアプリはKotatsuを使えなくなります",
+      "noOAuthGrants": "連携中のアプリはありません",
+      "oauthGrantTimes": "連携 {{created}}・最終利用 {{lastUsed}}",
+      "revokeOAuthGrant": "取り消す",
       "sessions": "ログイン中の端末",
       "thisSession": "この端末",
       "unknownDevice": "不明な端末",
@@ -984,7 +989,6 @@
     "reanalyzeWaiting": "前に頼んだ解析のやり直しを待っています",
     "download": "ダウンロード",
     "unknownEnd": "不明",
-    "cancel": "キャンセル",
     "play": "再生"
   },
   "player": {
@@ -1412,6 +1416,9 @@
       "notifications": "通知",
       "notificationRetentionDays": "保持期間（日）",
       "notificationRetentionHelp": "画面内の通知を残す日数です。既読か未読かにかかわらず、これより古い通知は1日ごとに消します。0なら無期限に残します",
+      "mcp": "MCPのクライアント",
+      "mcpEnabled": "MCPのクライアントとの連携を有効にする",
+      "mcpHelp": "ClaudeやChatGPTのようなMCPのクライアントに、番組、予約、ルール、録画を扱わせます。無効にすると、新しい連携も、連携中のアプリも使えなくなります",
       "updatedAt": "最終更新 {{at}}",
       "neverUpdated": "まだ変えていません"
     },
@@ -1473,5 +1480,20 @@
     "delete": "削除",
     "openRecording": "録画を開く",
     "playFrom": "撮った場面から再生"
+  },
+  "oauth": {
+    "title": "アプリの連携",
+    "client": "アプリ: {{host}}",
+    "redirect": "許可した後に戻る先: {{host}}",
+    "description": "{{name}}が、あなたのアカウントでKotatsuを使う許可を求めています。許可する範囲を選んでください。名前はアプリが自分で名乗るものなので、心当たりがなければ拒否してください",
+    "scopeRead": "読む",
+    "scopeReadHelp": "番組、予約、ルール、録画を読めます",
+    "scopeWrite": "書く",
+    "scopeWriteHelp": "予約とルールを作り、変え、消せます。読むこともできます",
+    "scopeNotAllowed": "あなたの権限では許可できません",
+    "approve": "許可する",
+    "deny": "拒否する",
+    "disabled": "管理者がMCPのクライアントとの連携を有効にしていません",
+    "invalidRequest": "アプリからの要求が正しくないため、連携できません。アプリの設定を確かめてください"
   }
 }

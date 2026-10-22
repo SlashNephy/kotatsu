@@ -26,7 +26,25 @@ type OAuthAuthorizationCheck {
   errorRedirectUrl: String
 }
 
+"""
+連携中の MCP のクライアント (#965、設計書 9.9)。同意してトークンに引き換えるたびに 1 つできる。
+"""
+type OAuthGrant {
+  id: ID!
+  "クライアントの ID。クライアントのメタデータの URL (CIMD)。"
+  clientId: String!
+  "同意したときのクライアントの名前。"
+  clientName: String!
+  "同意したスコープ。"
+  scopes: [String!]!
+  createdAt: Time!
+  "最後にアクセストークンを使った日時。1 分ごとにしか書き直さない。使われていなければ null。"
+  lastUsedAt: Time
+}
+
 extend type Query {
+  "ログイン中のユーザーが連携している MCP のクライアント。新しい順に並べる。MCP を無効にしていても返す。"
+  oauthGrants: [OAuthGrant!]!
   """
   認可のエンドポイントに届いたクエリ (先頭の ? を除く) を確かめる。クライアントのメタデータは、ここで取ってくる。
   client_id かリダイレクト URI を確かめられなければ、どこへ戻すかが分からないので BAD_USER_INPUT を返す。
@@ -44,4 +62,6 @@ extend type Mutation {
   approveOAuthAuthorization(query: String!, scopes: [String!]!): String!
   "認可のリクエストを断り、access_denied を付けてクライアントへ戻す URL を返す。"
   denyOAuthAuthorization(query: String!): String!
+  "MCP のクライアントとの連携を取り消し、取り消した連携の ID を返す。連携のトークンもまとめて使えなくなる。"
+  deleteOAuthGrant(id: ID!): ID!
 }

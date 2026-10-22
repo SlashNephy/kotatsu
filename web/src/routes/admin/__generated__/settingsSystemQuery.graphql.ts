@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<d9797492cd01daa3ef29519d549a5c49>>
+ * @generated SignedSource<<1af8e08379e02c1a371cc4920c1f73bb>>
  * @lightSyntaxTransform
  */
 
@@ -19,6 +19,7 @@ export type settingsSystemQuery$data = {
   };
   readonly systemSettings: {
     readonly archiveRetentionDays: number;
+    readonly mcpEnabled: boolean;
     readonly notificationRetentionDays: number;
     readonly recordingDefaults: {
       readonly endMarginSeconds: number;
@@ -130,6 +131,13 @@ v1 = [
         "args": null,
         "kind": "ScalarField",
         "name": "notificationRetentionDays",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "mcpEnabled",
         "storageKey": null
       },
       {
@@ -249,16 +257,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "653ca00771f8d67132ec2f18c0c8fdce",
+    "cacheID": "9c38c2469266bf2afd24beeddf1563c8",
     "id": null,
     "metadata": {},
     "name": "settingsSystemQuery",
     "operationKind": "query",
-    "text": "query settingsSystemQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n    }\n    archiveRetentionDays\n    notificationRetentionDays\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n    }\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query settingsSystemQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n    }\n    archiveRetentionDays\n    notificationRetentionDays\n    mcpEnabled\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n    }\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "ef1150644660e4ba3150a0a774271599";
+(node as any).hash = "be71c9ca2ae57f335a455b207e21815e";
 
 export default node;

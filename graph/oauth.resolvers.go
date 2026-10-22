@@ -60,6 +60,48 @@ func (r *mutationResolver) DenyOAuthAuthorization(ctx context.Context, query str
 	return redirect, nil
 }
 
+// DeleteOAuthGrant is the resolver for the deleteOAuthGrant field.
+func (r *mutationResolver) DeleteOAuthGrant(ctx context.Context, id string) (string, error) {
+	if r.oauth == nil {
+		return "", errOAuthUnavailable
+	}
+	principal, err := viewer(ctx)
+	if err != nil {
+		return "", err
+	}
+	grantID, err := parseOAuthGrantID(id)
+	if err != nil {
+		return "", err
+	}
+	// 取り消しは、権限を広げず、乗っ取られた後の被害を抑える操作なので、再認証を求めない (設計書 9.5)。
+	if err := r.oauth.DeleteGrant(ctx, actorOf(ctx, principal), principal.UserID, grantID); err != nil {
+		return "", oauthError(err)
+	}
+
+	return id, nil
+}
+
+// OauthGrants is the resolver for the oauthGrants field.
+func (r *queryResolver) OauthGrants(ctx context.Context) ([]*model.OAuthGrant, error) {
+	if r.oauth == nil {
+		return nil, errOAuthUnavailable
+	}
+	principal, err := viewer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	grants, err := r.oauth.ListGrants(ctx, principal.UserID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*model.OAuthGrant, 0, len(grants))
+	for _, grant := range grants {
+		result = append(result, oauthGrantOf(grant))
+	}
+
+	return result, nil
+}
+
 // OauthAuthorization is the resolver for the oauthAuthorization field.
 func (r *queryResolver) OauthAuthorization(ctx context.Context, query string) (*model.OAuthAuthorizationCheck, error) {
 	if r.oauth == nil {

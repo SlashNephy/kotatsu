@@ -142,7 +142,8 @@ export default defineConfig(({ mode }) => ({
     // OIDC のリダイレクト URI も Host から作る。文字列で書くと changeOrigin が有効になり、どちらも食い違う。
     proxy: {
       '/graphql': { target: devAPI, changeOrigin: false },
-      '/auth': { target: devAPI, changeOrigin: false },
+      // 末尾の / まで含めて指す。'/auth' だけでは、同意の画面 (/authorize、#965) まで中継してしまう。
+      '/auth/': { target: devAPI, changeOrigin: false },
       // 映像、録画の画像、ロゴも中継し、開発サーバーだけで画面のすべてを確かめられるようにする。
       '/streams': { target: devAPI, changeOrigin: false },
       '/media': { target: devAPI, changeOrigin: false },

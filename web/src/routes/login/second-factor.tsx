@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { AuthError, authApi, type SecondFactor as Method } from '../../auth/api';
 import { AuthCard } from '../../auth/AuthCard';
+import { afterLoginURL } from '../../auth/returnTo';
 import { authErrorMessage } from '../../auth/messages';
 import { passkeyAvailable, verifyWithPasskey } from '../../auth/passkey';
 
@@ -54,7 +55,7 @@ function SecondFactor() {
     try {
       await verify();
       // セッションの Cookie が入ったので、画面を読み直して、ログイン後のデータを取り直す。
-      window.location.assign(import.meta.env.BASE_URL);
+      window.location.assign(afterLoginURL());
     } catch (caught) {
       if (caught instanceof AuthError && caught.code === 'LOGIN_REQUIRED') {
         await navigate({ to: '/login' });

@@ -17,6 +17,7 @@ import { renderSVG } from 'uqr';
 
 import { AuthError, authApi, type TOTPEnrollment } from '../../auth/api';
 import { AuthCard } from '../../auth/AuthCard';
+import { afterLoginURL } from '../../auth/returnTo';
 import { authErrorMessage } from '../../auth/messages';
 
 export const Route = createFileRoute('/login/enroll')({
@@ -80,7 +81,7 @@ function Enroll() {
             </Button>
           )}
         </CopyButton>
-        <Button onClick={() => window.location.assign(import.meta.env.BASE_URL)}>
+        <Button onClick={() => window.location.assign(afterLoginURL())}>
           {t('auth.enroll.continue')}
         </Button>
       </AuthCard>

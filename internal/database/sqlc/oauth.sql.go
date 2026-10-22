@@ -218,6 +218,28 @@ func (q *Queries) DeleteOAuthToken(ctx context.Context, tokenHash []byte) error 
 	return err
 }
 
+const deleteUserOAuthGrant = `-- name: DeleteUserOAuthGrant :one
+DELETE FROM oauth_grants WHERE id = $1 AND user_id = $2 RETURNING client_id, client_name
+`
+
+type DeleteUserOAuthGrantParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+type DeleteUserOAuthGrantRow struct {
+	ClientID   string
+	ClientName string
+}
+
+// ユーザーの連携を取り消し、取り消したクライアントを返す。ほかのユーザーの連携は取り消さない。
+func (q *Queries) DeleteUserOAuthGrant(ctx context.Context, arg DeleteUserOAuthGrantParams) (DeleteUserOAuthGrantRow, error) {
+	row := q.db.QueryRow(ctx, deleteUserOAuthGrant, arg.ID, arg.UserID)
+	var i DeleteUserOAuthGrantRow
+	err := row.Scan(&i.ClientID, &i.ClientName)
+	return i, err
+}
+
 const getOAuthAccessToken = `-- name: GetOAuthAccessToken :one
 SELECT g.id AS grant_id, g.client_id, g.client_name, g.scopes, g.resource, g.last_used_at, u.id AS user_id, u.role
 FROM oauth_tokens t
@@ -282,6 +304,48 @@ func (q *Queries) GetOAuthTokenForRevocation(ctx context.Context, arg GetOAuthTo
 	var i GetOAuthTokenForRevocationRow
 	err := row.Scan(&i.Kind, &i.GrantID)
 	return i, err
+}
+
+const listOAuthGrants = `-- name: ListOAuthGrants :many
+SELECT id, client_id, client_name, scopes, created_at, last_used_at FROM oauth_grants
+WHERE user_id = $1 ORDER BY created_at DESC, id
+`
+
+type ListOAuthGrantsRow struct {
+	ID         uuid.UUID
+	ClientID   string
+	ClientName string
+	Scopes     []string
+	CreatedAt  time.Time
+	LastUsedAt *time.Time
+}
+
+// ユーザーの連携を、新しい順に返す。
+func (q *Queries) ListOAuthGrants(ctx context.Context, userID uuid.UUID) ([]ListOAuthGrantsRow, error) {
+	rows, err := q.db.Query(ctx, listOAuthGrants, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOAuthGrantsRow{}
+	for rows.Next() {
+		var i ListOAuthGrantsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ClientID,
+			&i.ClientName,
+			&i.Scopes,
+			&i.CreatedAt,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const lockOAuthRefreshToken = `-- name: LockOAuthRefreshToken :one

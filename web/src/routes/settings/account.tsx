@@ -29,6 +29,7 @@ import { oidcErrorMessage } from '../../auth/messages';
 import { settingsErrorMessage } from '../../settings/errors';
 import { PasskeyCancelledError, passkeyAvailable, registerPasskey } from '../../auth/passkey';
 import { ApiTokens } from '../../settings/ApiTokens';
+import { OAuthGrants } from '../../settings/OAuthGrants';
 import { deviceName } from '../../settings/device';
 import { ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
@@ -141,6 +142,14 @@ const query = graphql`
     apiTokens {
       id
       name
+      createdAt
+      lastUsedAt
+    }
+    oauthGrants {
+      id
+      clientId
+      clientName
+      scopes
       createdAt
       lastUsedAt
     }
@@ -377,6 +386,14 @@ function Account() {
 
           <ApiTokens
             tokens={data.apiTokens}
+            onChanged={refresh}
+            run={run}
+            fail={fail}
+            environment={environment}
+          />
+
+          <OAuthGrants
+            grants={data.oauthGrants}
             onChanged={refresh}
             run={run}
             fail={fail}

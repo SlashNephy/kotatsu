@@ -74,3 +74,12 @@ WHERE id IN (
   WHERE g.created_at <= @created_before AND NOT EXISTS (SELECT 1 FROM oauth_tokens t WHERE t.grant_id = g.id)
   LIMIT @max_count
 );
+
+-- name: ListOAuthGrants :many
+-- ユーザーの連携を、新しい順に返す。
+SELECT id, client_id, client_name, scopes, created_at, last_used_at FROM oauth_grants
+WHERE user_id = @user_id ORDER BY created_at DESC, id;
+
+-- name: DeleteUserOAuthGrant :one
+-- ユーザーの連携を取り消し、取り消したクライアントを返す。ほかのユーザーの連携は取り消さない。
+DELETE FROM oauth_grants WHERE id = @id AND user_id = @user_id RETURNING client_id, client_name;

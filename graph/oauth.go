@@ -7,10 +7,15 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/oauth"
 )
+
+// oauthGrantType は、連携の ID に付ける型の名前。
+const oauthGrantType = "OAuthGrant"
 
 // errOAuthUnavailable は、認可サーバーを扱う設定がないことを表す。
 var errOAuthUnavailable = errors.New("the OAuth authorization server is not configured")
@@ -55,9 +60,31 @@ func oauthError(err error) error {
 		return NewError(CodeNotFound, "MCP is disabled")
 	case errors.Is(err, oauth.ErrInvalidAuthorizationRequest):
 		return NewError(CodeBadUserInput, err.Error())
+	case errors.Is(err, oauth.ErrGrantNotFound):
+		return NewError(CodeNotFound, "OAuth grant not found")
 	case errors.Is(err, oauth.ErrInvalidScopeChoice):
 		return NewError(CodeBadUserInput, "the chosen scopes are not requested or not allowed")
 	default:
 		return err
 	}
+}
+
+func oauthGrantOf(grant *oauth.GrantRecord) *model.OAuthGrant {
+	return &model.OAuthGrant{
+		ID: GlobalID(oauthGrantType, grant.ID.String()), ClientID: grant.ClientID, ClientName: grant.ClientName,
+		Scopes: grant.Scopes, CreatedAt: grant.CreatedAt, LastUsedAt: grant.LastUsedAt,
+	}
+}
+
+func parseOAuthGrantID(globalID string) (uuid.UUID, error) {
+	typeName, raw, err := ParseGlobalID(globalID)
+	if err != nil || typeName != oauthGrantType {
+		return uuid.Nil, NewError(CodeBadUserInput, "invalid OAuth grant ID")
+	}
+	grantID, err := uuid.Parse(raw)
+	if err != nil {
+		return uuid.Nil, NewError(CodeBadUserInput, "invalid OAuth grant ID")
+	}
+
+	return grantID, nil
 }

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthorizeRouteImport } from './routes/authorize'
 import { Route as CapturesRouteImport } from './routes/captures'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as RemoteRouteImport } from './routes/remote'
@@ -42,6 +43,11 @@ import { Route as RecordingsRecordingIdPlayRouteImport } from './routes/recordin
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthorizeRoute = AuthorizeRouteImport.update({
+  id: '/authorize',
+  path: '/authorize',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CapturesRoute = CapturesRouteImport.update({
@@ -188,6 +194,7 @@ const RecordingsRecordingIdPlayRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/authorize': typeof AuthorizeRoute
   '/captures': typeof CapturesRoute
   '/notifications': typeof NotificationsRoute
   '/remote': typeof RemoteRoute
@@ -219,6 +226,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/authorize': typeof AuthorizeRoute
   '/captures': typeof CapturesRoute
   '/notifications': typeof NotificationsRoute
   '/remote': typeof RemoteRoute
@@ -251,6 +259,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/authorize': typeof AuthorizeRoute
   '/captures': typeof CapturesRoute
   '/notifications': typeof NotificationsRoute
   '/remote': typeof RemoteRoute
@@ -284,6 +293,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/authorize'
     | '/captures'
     | '/notifications'
     | '/remote'
@@ -315,6 +325,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/authorize'
     | '/captures'
     | '/notifications'
     | '/remote'
@@ -346,6 +357,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/authorize'
     | '/captures'
     | '/notifications'
     | '/remote'
@@ -378,6 +390,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthorizeRoute: typeof AuthorizeRoute
   CapturesRoute: typeof CapturesRoute
   NotificationsRoute: typeof NotificationsRoute
   RemoteRoute: typeof RemoteRoute
@@ -415,6 +428,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/authorize': {
+      id: '/authorize'
+      path: '/authorize'
+      fullPath: '/authorize'
+      preLoaderRoute: typeof AuthorizeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/captures': {
@@ -618,6 +638,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthorizeRoute: AuthorizeRoute,
   CapturesRoute: CapturesRoute,
   NotificationsRoute: NotificationsRoute,
   RemoteRoute: RemoteRoute,
