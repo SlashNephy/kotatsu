@@ -29,7 +29,6 @@ import { Route as LiveServiceIdRouteImport } from './routes/live/$serviceId'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as LoginEnrollRouteImport } from './routes/login/enroll'
 import { Route as LoginSecondFactorRouteImport } from './routes/login/second-factor'
-import { Route as ReauthDoneRouteImport } from './routes/reauth/done'
 import { Route as RecordingsIndexRouteImport } from './routes/recordings/index'
 import { Route as RecordingsRecordingIdRouteImport } from './routes/recordings/$recordingId'
 import { Route as RulesIndexRouteImport } from './routes/rules/index'
@@ -141,11 +140,6 @@ const LoginSecondFactorRoute = LoginSecondFactorRouteImport.update({
   path: '/login/second-factor',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ReauthDoneRoute = ReauthDoneRouteImport.update({
-  id: '/reauth/done',
-  path: '/reauth/done',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RecordingsIndexRoute = RecordingsIndexRouteImport.update({
   id: '/recordings/',
   path: '/recordings/',
@@ -216,7 +210,6 @@ export interface FileRoutesByFullPath {
   '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
-  '/reauth/done': typeof ReauthDoneRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/account': typeof SettingsAccountRoute
@@ -249,7 +242,6 @@ export interface FileRoutesByTo {
   '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
-  '/reauth/done': typeof ReauthDoneRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/account': typeof SettingsAccountRoute
@@ -283,7 +275,6 @@ export interface FileRoutesById {
   '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
-  '/reauth/done': typeof ReauthDoneRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/account': typeof SettingsAccountRoute
@@ -318,7 +309,6 @@ export interface FileRouteTypes {
     | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
-    | '/reauth/done'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
     | '/settings/account'
@@ -351,7 +341,6 @@ export interface FileRouteTypes {
     | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
-    | '/reauth/done'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
     | '/settings/account'
@@ -384,7 +373,6 @@ export interface FileRouteTypes {
     | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
-    | '/reauth/done'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
     | '/settings/account'
@@ -418,7 +406,6 @@ export interface RootRouteChildren {
   LiveServiceIdRoute: typeof LiveServiceIdRoute
   LoginEnrollRoute: typeof LoginEnrollRoute
   LoginSecondFactorRoute: typeof LoginSecondFactorRoute
-  ReauthDoneRoute: typeof ReauthDoneRoute
   RecordingsRecordingIdRoute: typeof RecordingsRecordingIdRoute
   RulesRuleIdRoute: typeof RulesRuleIdRoute
   SettingsAccountRoute: typeof SettingsAccountRoute
@@ -576,13 +563,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginSecondFactorRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/reauth/done': {
-      id: '/reauth/done'
-      path: '/reauth/done'
-      fullPath: '/reauth/done'
-      preLoaderRoute: typeof ReauthDoneRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/recordings/': {
       id: '/recordings/'
       path: '/recordings'
@@ -674,7 +654,6 @@ const rootRouteChildren: RootRouteChildren = {
   LiveServiceIdRoute: LiveServiceIdRoute,
   LoginEnrollRoute: LoginEnrollRoute,
   LoginSecondFactorRoute: LoginSecondFactorRoute,
-  ReauthDoneRoute: ReauthDoneRoute,
   RecordingsRecordingIdRoute: RecordingsRecordingIdRoute,
   RulesRuleIdRoute: RulesRuleIdRoute,
   SettingsAccountRoute: SettingsAccountRoute,

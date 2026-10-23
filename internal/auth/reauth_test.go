@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
 )
 
 // TestRequireRecentAuthentication は、重要な操作の前に、直近 10 分以内の認証を求めることを確かめる。
@@ -71,12 +72,12 @@ func TestLogoutHandler(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrSessionInvalid)
 }
 
-// TestReauthenticationStatusHandler は、ログイン中のセッションの認証の日時を返すことを確かめる。
-// 別のウィンドウで IdP の再認証を待つ画面が、終えたかを確かめるのに使う (#916)。
+// TestReauthenticationStatusHandler は、ログイン中のセッションの認証の日時と、重要な操作ができるかを返すことを確かめる。
+// 入力を始める前に、IdP での再認証を求めるかを決めるのに使う (#916)。
 func TestReauthenticationStatusHandler(t *testing.T) {
 	t.Parallel()
 
-	authenticatedAt := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
 	tests := []struct {
 		name      string
 		principal *auth.Principal
@@ -84,10 +85,16 @@ func TestReauthenticationStatusHandler(t *testing.T) {
 		wantBody  string
 	}{
 		{
-			name:      "ログイン中",
-			principal: &auth.Principal{AuthenticatedAt: authenticatedAt},
+			name:      "10 分以内に認証した",
+			principal: &auth.Principal{AuthenticatedAt: now.Add(-10 * time.Minute)},
 			wantCode:  http.StatusOK,
-			wantBody:  `{"authenticatedAt":"2026-10-23T12:00:00Z"}`,
+			wantBody:  `{"authenticatedAt":"2026-10-23T11:50:00Z","recent":true}`,
+		},
+		{
+			name:      "10 分より前に認証した",
+			principal: &auth.Principal{AuthenticatedAt: now.Add(-10*time.Minute - time.Second)},
+			wantCode:  http.StatusOK,
+			wantBody:  `{"authenticatedAt":"2026-10-23T11:49:59Z","recent":false}`,
 		},
 		{
 			name:      "ログインしていない",
@@ -106,7 +113,7 @@ func TestReauthenticationStatusHandler(t *testing.T) {
 			}
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/auth/reauth", nil)
 			rec := httptest.NewRecorder()
-			auth.ReauthenticationStatusHandler().ServeHTTP(rec, req)
+			auth.ReauthenticationStatusHandler(clocktest.NewFake(now)).ServeHTTP(rec, req)
 
 			assert.Equal(t, tt.wantCode, rec.Code)
 			assert.JSONEq(t, tt.wantBody, rec.Body.String())

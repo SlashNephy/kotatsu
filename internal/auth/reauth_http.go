@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/SlashNephy/kotatsu/internal/clock"
 )
 
 type reauthRequest struct {
@@ -16,7 +18,7 @@ type reauthRequest struct {
 }
 
 type reauthResponse struct {
-	// AuthenticatedAt は、セッションの認証の日時。これから 10 分の間、重要な操作ができる。
+	// AuthenticatedAt は、更新したセッションの認証の日時。これから 10 分の間、重要な操作ができる。
 	AuthenticatedAt time.Time `json:"authenticatedAt"`
 }
 
@@ -116,16 +118,27 @@ func (l *Logins) PasskeyReauthenticationConfirmHandler(db Database, client func(
 	})
 }
 
-// ReauthenticationStatusHandler は、ログイン中のセッションの認証の日時を返すハンドラーを返す (GET /auth/reauth)。
-// 別のウィンドウで IdP の再認証を待つ画面が、日時が変わったかで、再認証を終えたかを確かめるのに使う (#916)。
-// 別のウィンドウからの知らせが届かない環境 (ホーム画面に追加したアプリなど) でも、終えたことが分かる。
-func ReauthenticationStatusHandler() http.Handler {
+type reauthStatusResponse struct {
+	// AuthenticatedAt は、セッションの認証の日時。
+	AuthenticatedAt time.Time `json:"authenticatedAt"`
+	// Recent は、直近 10 分以内に認証していて、重要な操作ができるかどうか。
+	Recent bool `json:"recent"`
+}
+
+// ReauthenticationStatusHandler は、ログイン中のセッションの認証の日時と、重要な操作ができるかを返すハンドラーを返す
+// (GET /auth/reauth)。画面は、重要な操作の入力を始める前にこれを確かめ、必要なら先に再認証させる (#916)。
+// IdP での再認証はページを離れるので、入力の途中で求めると、入力が消えてしまうため。
+// 端末の時計はずれていることがあるので、できるかどうかはサーバーの時計で決める。
+func ReauthenticationStatusHandler(clk clock.Clock) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		principal, ok := requirePrincipal(w, r)
 		if !ok {
 			return
 		}
-		writeJSON(w, http.StatusOK, reauthResponse{AuthenticatedAt: principal.AuthenticatedAt})
+		writeJSON(w, http.StatusOK, reauthStatusResponse{
+			AuthenticatedAt: principal.AuthenticatedAt,
+			Recent:          RequireRecentAuthentication(r.Context(), clk) == nil,
+		})
 	})
 }
 

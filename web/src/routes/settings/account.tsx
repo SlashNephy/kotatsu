@@ -33,7 +33,13 @@ import { deviceName } from '../../settings/device';
 import { ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { mutate } from '../../settings/mutate';
-import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
+import {
+  reauthMethods,
+  useReauthBeforeInput,
+  useReauthGate,
+  useReauthResume,
+  type ReauthPrepare,
+} from '../../settings/useReauthGate';
 import {
   autoPictureInPictureSupported,
   useAutoPictureInPicture,
@@ -186,9 +192,9 @@ function Account() {
   const [linked, setLinked] = useState(search.linked === 'oidc');
   const fail = (caught: unknown) => setError(settingsErrorMessage(t, caught));
   // run は、前の操作のエラーを消してから、操作を行う。
-  const run: Run = (operation, onError) => {
+  const run: Run = (operation, onError, onCancel, onWaiting, resume) => {
     setError(null);
-    gate.run(operation, onError);
+    gate.run(operation, onError, onCancel, onWaiting, resume);
   };
 
   return (
@@ -372,6 +378,7 @@ function Account() {
             passkeys={data.passkeys}
             onChanged={refresh}
             run={run}
+            prepare={gate.prepare}
             fail={fail}
             environment={environment}
           />
@@ -380,6 +387,7 @@ function Account() {
             tokens={data.apiTokens}
             onChanged={refresh}
             run={run}
+            prepare={gate.prepare}
             fail={fail}
             environment={environment}
           />
@@ -490,6 +498,19 @@ function OIDCLink({
   fail: (error: unknown) => void;
 }) {
   const { t } = useTranslation();
+  const link = () =>
+    run(
+      async () => {
+        const { authorizationUrl } = await authApi.beginOIDCLink(path);
+        window.location.assign(authorizationUrl);
+      },
+      fail,
+      undefined,
+      undefined,
+      { key: 'oidc.link' },
+    );
+  // IdP で再認証して戻ってきたら、そのまま紐付けを始める (#916)。
+  useReauthResume('oidc.link', link);
 
   return (
     <Card withBorder>
@@ -499,15 +520,7 @@ function OIDCLink({
         </Title>
         <Text size="sm">{t('settings.account.oidcDescription', { name: displayName })}</Text>
         <Group gap="xs">
-          <Button
-            size="compact-sm"
-            onClick={() =>
-              run(async () => {
-                const { authorizationUrl } = await authApi.beginOIDCLink(path);
-                window.location.assign(authorizationUrl);
-              }, fail)
-            }
-          >
+          <Button size="compact-sm" onClick={link}>
             {t('settings.account.oidcLink', { name: displayName })}
           </Button>
         </Group>
@@ -538,23 +551,29 @@ function TwoFactor({
   const [codes, setCodes] = useState<readonly string[] | null>(null);
 
   const begin = () =>
-    run(async () => {
-      const response = await mutate<accountBeginTotpMutation>(
-        environment,
-        graphql`
-          mutation accountBeginTotpMutation {
-            beginTotpEnrollment {
-              secret
-              uri
+    run(
+      async () => {
+        const response = await mutate<accountBeginTotpMutation>(
+          environment,
+          graphql`
+            mutation accountBeginTotpMutation {
+              beginTotpEnrollment {
+                secret
+                uri
+              }
             }
-          }
-        `,
-        {},
-      );
-      setEnrollment(response.beginTotpEnrollment);
-      setCode('');
-      setCodes(null);
-    }, fail);
+          `,
+          {},
+        );
+        setEnrollment(response.beginTotpEnrollment);
+        setCode('');
+        setCodes(null);
+      },
+      fail,
+      undefined,
+      undefined,
+      { key: 'totp.begin' },
+    );
   const confirm = () =>
     run(async () => {
       const response = await mutate<accountConfirmTotpMutation>(
@@ -573,38 +592,54 @@ function TwoFactor({
       onChanged();
     }, fail);
   const remove = () =>
-    run(async () => {
-      await mutate<accountDeleteTotpMutation>(
-        environment,
-        graphql`
-          mutation accountDeleteTotpMutation {
-            deleteTotp {
-              totp
+    run(
+      async () => {
+        await mutate<accountDeleteTotpMutation>(
+          environment,
+          graphql`
+            mutation accountDeleteTotpMutation {
+              deleteTotp {
+                totp
+              }
             }
-          }
-        `,
-        {},
-      );
-      // 認証アプリの登録を消すと、リカバリーコードも使えなくなるので、表示していたものを消す。
-      setCodes(null);
-      onChanged();
-    }, fail);
+          `,
+          {},
+        );
+        // 認証アプリの登録を消すと、リカバリーコードも使えなくなるので、表示していたものを消す。
+        setCodes(null);
+        onChanged();
+      },
+      fail,
+      undefined,
+      undefined,
+      { key: 'totp.delete' },
+    );
   const regenerate = () =>
-    run(async () => {
-      const response = await mutate<accountRegenerateMutation>(
-        environment,
-        graphql`
-          mutation accountRegenerateMutation {
-            regenerateRecoveryCodes {
-              codes
+    run(
+      async () => {
+        const response = await mutate<accountRegenerateMutation>(
+          environment,
+          graphql`
+            mutation accountRegenerateMutation {
+              regenerateRecoveryCodes {
+                codes
+              }
             }
-          }
-        `,
-        {},
-      );
-      setCodes(response.regenerateRecoveryCodes.codes);
-      onChanged();
-    }, fail);
+          `,
+          {},
+        );
+        setCodes(response.regenerateRecoveryCodes.codes);
+        onChanged();
+      },
+      fail,
+      undefined,
+      undefined,
+      { key: 'recoveryCodes.regenerate' },
+    );
+  // IdP で再認証して戻ってきたら、押した操作を続ける (#916)。
+  useReauthResume('totp.begin', begin);
+  useReauthResume('totp.delete', remove);
+  useReauthResume('recoveryCodes.regenerate', regenerate);
 
   return (
     <Card withBorder>
@@ -692,11 +727,40 @@ function Passkeys({
   run,
   fail,
   environment,
-}: SectionProps & { passkeys: readonly PasskeyItem[] }) {
+  prepare,
+}: SectionProps & { passkeys: readonly PasskeyItem[]; prepare: ReauthPrepare }) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
+  // 名前を入れ始める前に再認証させる。IdP で再認証すると、ページを離れ、入れた名前が消えるため (#916)。
+  const nameInput = useReauthBeforeInput(prepare, 'passkey.name');
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
   const available = passkeyAvailable();
+
+  const remove = (id: string) =>
+    run(
+      async () => {
+        await mutate<accountDeletePasskeyMutation>(
+          environment,
+          graphql`
+            mutation accountDeletePasskeyMutation($id: ID!) {
+              deletePasskey(id: $id)
+            }
+          `,
+          { id },
+        );
+        onChanged();
+      },
+      fail,
+      undefined,
+      undefined,
+      { key: 'passkey.delete', params: id },
+    );
+  // IdP で再認証して戻ってきたら、押した削除を続ける (#916)。
+  useReauthResume('passkey.delete', (id) => {
+    if (id !== undefined) {
+      remove(id);
+    }
+  });
 
   const add = () =>
     run(
@@ -797,20 +861,7 @@ function Passkeys({
                 size="compact-sm"
                 variant="default"
                 color="red"
-                onClick={() =>
-                  run(async () => {
-                    await mutate<accountDeletePasskeyMutation>(
-                      environment,
-                      graphql`
-                        mutation accountDeletePasskeyMutation($id: ID!) {
-                          deletePasskey(id: $id)
-                        }
-                      `,
-                      { id: passkey.id },
-                    );
-                    onChanged();
-                  }, fail)
-                }
+                onClick={() => remove(passkey.id)}
               >
                 {t('settings.account.delete')}
               </Button>
@@ -823,6 +874,8 @@ function Passkeys({
               size="xs"
               label={t('settings.account.newPasskeyName')}
               placeholder={t('settings.account.newPasskeyPlaceholder')}
+              ref={nameInput.ref}
+              onFocus={nameInput.onFocus}
               value={name}
               onChange={(event) => setName(event.currentTarget.value)}
             />

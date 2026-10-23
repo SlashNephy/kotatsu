@@ -1,6 +1,6 @@
 import { Alert, Anchor, Button, PasswordInput, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Suspense, useState, type FormEvent } from 'react';
+import { Suspense, useEffect, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useMutation } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
@@ -17,8 +17,6 @@ import type { passwordViewerQuery } from './__generated__/passwordViewerQuery.gr
 type PasswordSearch = {
   // error は、IdP での再認証に失敗して戻ってきたときの理由 (oidc_denied など)。
   error?: string;
-  // reauthenticated は、IdP での再認証を終えて戻ってきたときに oidc になる。
-  reauthenticated?: 'oidc';
 };
 
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
@@ -28,12 +26,8 @@ const passwordReasons = ['too_short', 'too_long', 'blocklisted', 'breached', 'to
 const path = '/settings/password';
 
 export const Route = createFileRoute('/settings/password')({
-  validateSearch: (search: Record<string, unknown>): PasswordSearch => ({
-    ...(typeof search['error'] === 'string' && search['error'] !== ''
-      ? { error: search['error'] }
-      : {}),
-    ...(search['reauthenticated'] === 'oidc' ? { reauthenticated: 'oidc' as const } : {}),
-  }),
+  validateSearch: (search: Record<string, unknown>): PasswordSearch =>
+    typeof search['error'] === 'string' && search['error'] !== '' ? { error: search['error'] } : {},
   // IdP での再認証を出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
   loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: ChangePasswordPage,
@@ -69,7 +63,7 @@ function ChangePasswordPage() {
 
 function ChangePassword() {
   const { t } = useTranslation();
-  const { error: oidcError, reauthenticated } = Route.useSearch();
+  const { error: oidcError } = Route.useSearch();
   const oidc = Route.useLoaderData();
   const data = useLazyLoadQuery<passwordViewerQuery>(
     graphql`
@@ -101,10 +95,25 @@ function ChangePassword() {
     oidcError === undefined ? null : oidcErrorMessage(t, oidcError),
   );
   const [done, setDone] = useState(false);
-  // returned は、この画面のまま IdP で再認証して戻ってきたかどうか。入力したパスワードは消えているので、もう一度入れてもらう (#916)。
-  const [returned, setReturned] = useState(reauthenticated === 'oidc');
   // needsReauthentication は、直近の認証から時間が経っていて、もう一度確かめる必要があるかどうか。
   const [needsReauthentication, setNeedsReauthentication] = useState(false);
+  // 新しいパスワードを入れ始める前に、必要なら再認証させる。IdP で再認証すると、ページを離れ、入れたパスワードが消えるため (#916)。
+  // 確かめられなくても、入力は始めさせる。必要なら、変えるときに再認証を求められる。
+  useEffect(() => {
+    let active = true;
+    authApi.reauthenticationStatus().then(
+      ({ recent }) => {
+        if (active && !recent) {
+          setNeedsReauthentication(true);
+        }
+      },
+      () => undefined,
+    );
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const change = () => {
     setError(null);
@@ -151,10 +160,12 @@ function ChangePassword() {
             oidc,
           }}
           returnTo={path}
-          // 再認証を終えたら、入力済みのパスワードで、もう一度変更を試みる。
+          // 再認証を終えたら、入力済みのパスワードで、もう一度変更を試みる。入れる前に確かめたときは、入力に進む。
           onDone={() => {
             setNeedsReauthentication(false);
-            change();
+            if (password !== '') {
+              change();
+            }
           }}
         />
         <Anchor
@@ -203,11 +214,6 @@ function ChangePassword() {
         {done && (
           <Alert color="green" role="status">
             {t('settings.password.done')}
-          </Alert>
-        )}
-        {returned && !done && error === null && (
-          <Alert color="green" role="status" withCloseButton onClose={() => setReturned(false)}>
-            {t('settings.reauth.returned')}
           </Alert>
         )}
         <Button type="submit" loading={inFlight} disabled={password === ''}>

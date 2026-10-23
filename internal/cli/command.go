@@ -678,8 +678,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	})
 	setup := auth.NewSetup(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy, logger.With(slog.String("component", "setup")))
 	mux.Handle("GET /auth/setup", setup.StatusHandler(deps.DB))
-	// セッションの認証の日時。別のウィンドウで IdP の再認証を待つ画面が使う (設計書 9.5)。
-	mux.Handle("GET /auth/reauth", auth.ReauthenticationStatusHandler())
+	// 重要な操作ができるか。画面が、重要な操作の入力を始める前に確かめる (設計書 9.5)。
+	mux.Handle("GET /auth/reauth", auth.ReauthenticationStatusHandler(deps.Clock))
 	// OIDC でのログイン (設計書 9.4)。IdP からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
 	oidc := newOIDC(deps.Clock, logger, deps.Config, sessions)
 	mux.Handle("GET /auth/oidc", oidc.StatusHandler(deps.DB))

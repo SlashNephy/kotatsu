@@ -1,11 +1,11 @@
 import { MantineProvider } from '@mantine/core';
-import { act, cleanup, render, renderHook, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import '../i18n';
-import { AuthError } from '../auth/api';
+import { authApi, AuthError } from '../auth/api';
 
-import { useReauthGate } from './useReauthGate';
+import { useReauthBeforeInput, useReauthGate, useReauthResume } from './useReauthGate';
 
 const methods = {
   totp: false,
@@ -18,12 +18,6 @@ afterEach(() => {
   cleanup();
   window.history.replaceState(null, '', '/');
 });
-
-function Gate() {
-  const gate = useReauthGate(methods, '/admin/system');
-
-  return <MantineProvider>{gate.modal}</MantineProvider>;
-}
 
 describe('useReauthGate', () => {
   test('再認証を求められたら、onWaiting を呼んで待ち始め、操作の失敗としては扱わない (#915)', async () => {
@@ -68,23 +62,201 @@ describe('useReauthGate', () => {
     expect(onWaiting).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledTimes(wantError ? 1 : 0);
   });
+});
 
-  // ポップアップを止められ、この画面のまま IdP で再認証したときは、待っていた操作が消えるので、もう一度操作するよう知らせる (#916)。
-  test.each([
-    { name: '再認証を終えて戻った', search: '?reauthenticated=oidc', want: 'status' },
-    { name: '再認証に失敗して戻った', search: '?error=oidc_denied', want: 'alert' },
-  ])('$nameときは、知らせを出す', ({ search, want }) => {
-    window.history.replaceState(null, '', `/admin/system${search}`);
-    render(<Gate />);
+const storageKey = 'kotatsu.reauth.resume';
+const reauthRequired = () =>
+  Promise.reject(new AuthError(403, 'REAUTHENTICATION_REQUIRED', undefined, undefined));
 
-    expect(screen.getByRole(want)).toBeTruthy();
+function stored(key: string | null, path = '/admin/system', params?: string) {
+  window.sessionStorage.setItem(
+    storageKey,
+    JSON.stringify({
+      key,
+      path,
+      savedAt: performance.timeOrigin - 1000,
+      ...(params === undefined ? {} : { params }),
+    }),
+  );
+}
+
+// Page は、続け方を登録した操作のある画面の代わり。
+function Page({ onResume }: { onResume: (params: string | undefined) => void }) {
+  const gate = useReauthGate(methods, '/admin/system');
+  useReauthResume('webhook.delete', onResume);
+
+  return <MantineProvider>{gate.modal}</MantineProvider>;
+}
+
+describe('IdP での再認証から戻ったときの再開 (#916)', () => {
+  afterEach(() => {
+    window.sessionStorage.clear();
   });
 
-  test('IdP から戻ったのでなければ、知らせを出さない', () => {
+  test('再認証を求められたら、操作の種類と対象を覚えておく', async () => {
     window.history.replaceState(null, '', '/admin/system');
-    render(<Gate />);
+    const { result } = renderHook(() => useReauthGate(methods, '/admin/system'));
 
+    await act(async () => {
+      result.current.run(reauthRequired, vi.fn(), undefined, undefined, {
+        key: 'webhook.delete',
+        params: 'webhook-1',
+      });
+      await Promise.resolve();
+    });
+
+    expect(JSON.parse(window.sessionStorage.getItem(storageKey)!)).toMatchObject({
+      key: 'webhook.delete',
+      params: 'webhook-1',
+      path: '/admin/system',
+    });
+  });
+
+  test('この画面に戻ってきたら、覚えておいた操作を一度だけ続け、知らせは出さない', () => {
+    window.history.replaceState(null, '', '/admin/system?reauthenticated=oidc');
+    stored('webhook.delete', '/admin/system', 'webhook-1');
+    const onResume = vi.fn();
+
+    const { unmount } = render(<Page onResume={onResume} />);
+
+    expect(onResume).toHaveBeenCalledExactlyOnceWith('webhook-1');
+    expect(window.sessionStorage.getItem(storageKey)).toBeNull();
     expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.queryByRole('alert')).toBeNull();
+
+    // 読み直しても、もう一度は続けない。
+    unmount();
+    render(<Page onResume={onResume} />);
+    expect(onResume).toHaveBeenCalledOnce();
+  });
+
+  test.each([
+    { name: 'IdP から戻ったのでない', url: '/admin/system', path: '/admin/system' },
+    { name: 'ほかの画面で覚えた', url: '/admin/system?reauthenticated=oidc', path: '/admin/users' },
+  ])('$nameときは、続けない', ({ url, path }) => {
+    window.history.replaceState(null, '', url);
+    stored('webhook.delete', path, 'webhook-1');
+    const onResume = vi.fn();
+
+    render(<Page onResume={onResume} />);
+
+    expect(onResume).not.toHaveBeenCalled();
+  });
+
+  test('このページを読み込んだ後に覚えたものは、戻ってきた URL のままでも続けない', async () => {
+    window.history.replaceState(null, '', '/admin/system?reauthenticated=oidc');
+    const { result } = renderHook(() => useReauthGate(methods, '/admin/system'));
+    await act(async () => {
+      result.current.run(reauthRequired, vi.fn(), undefined, undefined, {
+        key: 'webhook.delete',
+        params: 'webhook-2',
+      });
+      await Promise.resolve();
+    });
+    const onResume = vi.fn();
+
+    render(<Page onResume={onResume} />);
+
+    expect(onResume).not.toHaveBeenCalled();
+  });
+
+  test('続け方のない操作を待っていたときは、もう一度操作するよう知らせる', () => {
+    window.history.replaceState(null, '', '/admin/system?reauthenticated=oidc');
+    stored(null);
+
+    render(<Page onResume={vi.fn()} />);
+
+    expect(screen.getByRole('status')).toBeTruthy();
+  });
+
+  test('再認証に失敗して戻ったときは、理由を出し、続けない', () => {
+    window.history.replaceState(null, '', '/admin/system?error=oidc_denied');
+    stored('webhook.delete', '/admin/system', 'webhook-1');
+    const onResume = vi.fn();
+
+    render(<Page onResume={onResume} />);
+
+    expect(screen.getByRole('alert')).toBeTruthy();
+    expect(onResume).not.toHaveBeenCalled();
+    expect(window.sessionStorage.getItem(storageKey)).toBeNull();
+  });
+});
+
+describe('入力を始める前の再認証 (#916)', () => {
+  afterEach(() => {
+    window.sessionStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  test('重要な操作ができるなら、すぐに onReady を呼ぶ', async () => {
+    vi.spyOn(authApi, 'reauthenticationStatus').mockResolvedValue({
+      authenticatedAt: '2026-10-23T03:00:00Z',
+      recent: true,
+    });
+    const { result } = renderHook(() => useReauthGate(methods, '/admin/system'));
+    const onReady = vi.fn();
+
+    await act(async () => {
+      result.current.prepare({ key: 'webhook.create' }, onReady);
+      await Promise.resolve();
+    });
+
+    expect(onReady).toHaveBeenCalledOnce();
+    expect(window.sessionStorage.getItem(storageKey)).toBeNull();
+  });
+
+  test('再認証が要るなら、再認証の画面を出し、戻ってきたときのために覚えておく', async () => {
+    window.history.replaceState(null, '', '/admin/system');
+    vi.spyOn(authApi, 'reauthenticationStatus').mockResolvedValue({
+      authenticatedAt: '2026-10-23T03:00:00Z',
+      recent: false,
+    });
+    const { result } = renderHook(() => useReauthGate(methods, '/admin/system'));
+    const onReady = vi.fn();
+
+    await act(async () => {
+      result.current.prepare({ key: 'webhook.create' }, onReady);
+      await Promise.resolve();
+    });
+
+    expect(onReady).not.toHaveBeenCalled();
+    render(<MantineProvider>{result.current.modal}</MantineProvider>);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(JSON.parse(window.sessionStorage.getItem(storageKey)!)).toMatchObject({
+      key: 'webhook.create',
+    });
+  });
+});
+
+// NameInput は、入力のある重要な操作の入力欄の代わり。
+function NameInput({ prepare }: { prepare: ReturnType<typeof useReauthGate>['prepare'] }) {
+  const input = useReauthBeforeInput(prepare, 'apiToken.name');
+
+  return <input aria-label="name" ref={input.ref} onFocus={input.onFocus} />;
+}
+
+describe('useReauthBeforeInput (#916)', () => {
+  afterEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  test('最初にフォーカスしたときだけ、入力を始める前の再認証を確かめる', () => {
+    window.history.replaceState(null, '', '/settings/account');
+    const prepare = vi.fn();
+    render(<NameInput prepare={prepare} />);
+
+    fireEvent.focus(screen.getByLabelText('name'));
+    fireEvent.focus(screen.getByLabelText('name'));
+
+    expect(prepare).toHaveBeenCalledExactlyOnceWith({ key: 'apiToken.name' }, expect.any(Function));
+  });
+
+  test('IdP での再認証から戻ってきたら、入力欄にフォーカスし直し、もう一度は確かめない', () => {
+    window.history.replaceState(null, '', '/settings/account?reauthenticated=oidc');
+    stored('apiToken.name', '/settings/account');
+    const prepare = vi.fn();
+    render(<NameInput prepare={prepare} />);
+
+    expect(document.activeElement).toBe(screen.getByLabelText('name'));
+    expect(prepare).not.toHaveBeenCalled();
   });
 });
