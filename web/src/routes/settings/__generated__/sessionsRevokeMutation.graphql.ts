@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<6a57766f32fad130f0ce0f732277ab40>>
+ * @generated SignedSource<<2fd6d8cb6f106d481159dc57b101833d>>
  * @lightSyntaxTransform
  */
 
@@ -8,15 +8,15 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type accountDeletePasskeyMutation$variables = {
+export type sessionsRevokeMutation$variables = {
   id: string;
 };
-export type accountDeletePasskeyMutation$data = {
-  readonly deletePasskey: string;
+export type sessionsRevokeMutation$data = {
+  readonly revokeSession: string;
 };
-export type accountDeletePasskeyMutation = {
-  response: accountDeletePasskeyMutation$data;
-  variables: accountDeletePasskeyMutation$variables;
+export type sessionsRevokeMutation = {
+  response: sessionsRevokeMutation$data;
+  variables: sessionsRevokeMutation$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -38,7 +38,7 @@ v1 = [
       }
     ],
     "kind": "ScalarField",
-    "name": "deletePasskey",
+    "name": "revokeSession",
     "storageKey": null
   }
 ];
@@ -47,7 +47,7 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Fragment",
     "metadata": null,
-    "name": "accountDeletePasskeyMutation",
+    "name": "sessionsRevokeMutation",
     "selections": (v1/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
@@ -56,20 +56,20 @@ return {
   "operation": {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
-    "name": "accountDeletePasskeyMutation",
+    "name": "sessionsRevokeMutation",
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "9fb34aef25b0900b8bcb242f8bd62eac",
+    "cacheID": "763b9dcd1bb1d59c0d898c8647e9d212",
     "id": null,
     "metadata": {},
-    "name": "accountDeletePasskeyMutation",
+    "name": "sessionsRevokeMutation",
     "operationKind": "mutation",
-    "text": "mutation accountDeletePasskeyMutation(\n  $id: ID!\n) {\n  deletePasskey(id: $id)\n}\n"
+    "text": "mutation sessionsRevokeMutation(\n  $id: ID!\n) {\n  revokeSession(id: $id)\n}\n"
   }
 };
 })();
 
-(node as any).hash = "aa9a7e88272d1dfe58d9e62dd360fcb8";
+(node as any).hash = "313f9e53e12b589908b8ce8b08ae48fd";
 
 export default node;

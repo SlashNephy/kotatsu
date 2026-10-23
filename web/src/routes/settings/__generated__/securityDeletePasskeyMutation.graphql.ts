@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<f50878267069e92dd31ade7ab4e50b59>>
+ * @generated SignedSource<<bc2a797de9b9a160644f1b93e51ada9e>>
  * @lightSyntaxTransform
  */
 
@@ -8,15 +8,15 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type accountRevokeSessionMutation$variables = {
+export type securityDeletePasskeyMutation$variables = {
   id: string;
 };
-export type accountRevokeSessionMutation$data = {
-  readonly revokeSession: string;
+export type securityDeletePasskeyMutation$data = {
+  readonly deletePasskey: string;
 };
-export type accountRevokeSessionMutation = {
-  response: accountRevokeSessionMutation$data;
-  variables: accountRevokeSessionMutation$variables;
+export type securityDeletePasskeyMutation = {
+  response: securityDeletePasskeyMutation$data;
+  variables: securityDeletePasskeyMutation$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -38,7 +38,7 @@ v1 = [
       }
     ],
     "kind": "ScalarField",
-    "name": "revokeSession",
+    "name": "deletePasskey",
     "storageKey": null
   }
 ];
@@ -47,7 +47,7 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Fragment",
     "metadata": null,
-    "name": "accountRevokeSessionMutation",
+    "name": "securityDeletePasskeyMutation",
     "selections": (v1/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
@@ -56,20 +56,20 @@ return {
   "operation": {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
-    "name": "accountRevokeSessionMutation",
+    "name": "securityDeletePasskeyMutation",
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "ef24bc8563603a194458a023e2b66bde",
+    "cacheID": "f29f713bcd41aa15c13e2beed94bda42",
     "id": null,
     "metadata": {},
-    "name": "accountRevokeSessionMutation",
+    "name": "securityDeletePasskeyMutation",
     "operationKind": "mutation",
-    "text": "mutation accountRevokeSessionMutation(\n  $id: ID!\n) {\n  revokeSession(id: $id)\n}\n"
+    "text": "mutation securityDeletePasskeyMutation(\n  $id: ID!\n) {\n  deletePasskey(id: $id)\n}\n"
   }
 };
 })();
 
-(node as any).hash = "d6be8e649123226ae333d5c51d076198";
+(node as any).hash = "fd931332493df2e24ce69ec5aaf90867";
 
 export default node;

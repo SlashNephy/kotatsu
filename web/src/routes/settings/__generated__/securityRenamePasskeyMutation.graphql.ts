@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<5eebdca7ed932779318e5aebde93fa26>>
+ * @generated SignedSource<<1524df827069ec55714a184853ad182e>>
  * @lightSyntaxTransform
  */
 
@@ -8,19 +8,19 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type accountRenamePasskeyMutation$variables = {
+export type securityRenamePasskeyMutation$variables = {
   id: string;
   name: string;
 };
-export type accountRenamePasskeyMutation$data = {
+export type securityRenamePasskeyMutation$data = {
   readonly renamePasskey: {
     readonly id: string;
     readonly name: string;
   };
 };
-export type accountRenamePasskeyMutation = {
-  response: accountRenamePasskeyMutation$data;
-  variables: accountRenamePasskeyMutation$variables;
+export type securityRenamePasskeyMutation = {
+  response: securityRenamePasskeyMutation$data;
+  variables: securityRenamePasskeyMutation$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -79,7 +79,7 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Fragment",
     "metadata": null,
-    "name": "accountRenamePasskeyMutation",
+    "name": "securityRenamePasskeyMutation",
     "selections": (v1/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
@@ -88,20 +88,20 @@ return {
   "operation": {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
-    "name": "accountRenamePasskeyMutation",
+    "name": "securityRenamePasskeyMutation",
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "7165c78aea992c4ce265ee993ca043b5",
+    "cacheID": "f160936820016fa9ae32c5366df5ae39",
     "id": null,
     "metadata": {},
-    "name": "accountRenamePasskeyMutation",
+    "name": "securityRenamePasskeyMutation",
     "operationKind": "mutation",
-    "text": "mutation accountRenamePasskeyMutation(\n  $id: ID!\n  $name: String!\n) {\n  renamePasskey(id: $id, name: $name) {\n    id\n    name\n  }\n}\n"
+    "text": "mutation securityRenamePasskeyMutation(\n  $id: ID!\n  $name: String!\n) {\n  renamePasskey(id: $id, name: $name) {\n    id\n    name\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "3c9db3c338864d8509186fb346e007f7";
+(node as any).hash = "fdeb1c1fb742bfced4dd535feb92b059";
 
 export default node;

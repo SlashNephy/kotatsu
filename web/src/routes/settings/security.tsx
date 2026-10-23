@@ -1,7 +1,6 @@
 import {
   Alert,
   Anchor,
-  Badge,
   Button,
   Card,
   Code,
@@ -11,11 +10,9 @@ import {
   PinInput,
   SimpleGrid,
   Stack,
-  Switch,
   Text,
   TextInput,
   Title,
-  Select,
 } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, startTransition, useState } from 'react';
@@ -29,7 +26,6 @@ import { settingsErrorMessage } from '../../settings/errors';
 import { PasskeyCancelledError, passkeyAvailable, registerPasskey } from '../../auth/passkey';
 import { ApiTokens } from '../../settings/ApiTokens';
 import { OAuthGrants } from '../../settings/OAuthGrants';
-import { deviceName } from '../../settings/device';
 import { ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { mutate } from '../../settings/mutate';
@@ -40,51 +36,31 @@ import {
   useReauthResume,
   type ReauthPrepare,
 } from '../../settings/useReauthGate';
-import {
-  autoPictureInPictureSupported,
-  useAutoPictureInPicture,
-} from '../../yunomi/autoPictureInPicture';
-import { GuideAppearanceSettings } from '../../guide/GuideAppearanceSettings';
-import { CommentSettingsCard } from '../../jikkyo/CommentSettingsCard';
-import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
-import { captureFileName, captureFileNameMacros } from '../../yunomi/capture';
-import { useCaptureFileNameTemplate } from '../../yunomi/captureFileNameTemplate';
-import { useLowLatency } from '../../yunomi/liveCatchUp';
-import { DataBroadcastStorageReset } from '../../yunomi/DataBroadcastStorageReset';
-import { DataBroadcastZipcodeInput } from '../../yunomi/DataBroadcastZipcodeInput';
-import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
-import type { accountBeginTotpMutation } from './__generated__/accountBeginTotpMutation.graphql';
-import type { accountConfirmTotpMutation } from './__generated__/accountConfirmTotpMutation.graphql';
-import type { accountDeletePasskeyMutation } from './__generated__/accountDeletePasskeyMutation.graphql';
-import type { accountDeleteTotpMutation } from './__generated__/accountDeleteTotpMutation.graphql';
-import type { accountQuery } from './__generated__/accountQuery.graphql';
-import type { accountRegenerateMutation } from './__generated__/accountRegenerateMutation.graphql';
-import type { accountRenamePasskeyMutation } from './__generated__/accountRenamePasskeyMutation.graphql';
-import type { accountRevokeSessionMutation } from './__generated__/accountRevokeSessionMutation.graphql';
+import type { securityBeginTotpMutation } from './__generated__/securityBeginTotpMutation.graphql';
+import type { securityConfirmTotpMutation } from './__generated__/securityConfirmTotpMutation.graphql';
+import type { securityDeletePasskeyMutation } from './__generated__/securityDeletePasskeyMutation.graphql';
+import type { securityDeleteTotpMutation } from './__generated__/securityDeleteTotpMutation.graphql';
+import type { securityQuery } from './__generated__/securityQuery.graphql';
+import type { securityRegenerateMutation } from './__generated__/securityRegenerateMutation.graphql';
+import type { securityRenamePasskeyMutation } from './__generated__/securityRenamePasskeyMutation.graphql';
 import { zonedFormat } from '../../futon';
 import { useDataChanges } from '../../changes/DataChanges';
 
 // IdP での再認証か紐付けに失敗して戻ってきたときの理由 (error=oidc_link_taken など) は、useReauthGate が出す。
-type AccountSearch = {
+type SecuritySearch = {
   // linked は、IdP との紐付けを終えて戻ってきたときに oidc になる。
   linked?: 'oidc';
 };
 
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
-const path = '/settings/account';
+const path = '/settings/security';
 
-// captionBackgrounds は、字幕の背景の選択肢 (#491)。broadcast は放送の指定どおり、ほかは黒の不透明度。
-const captionBackgrounds = ['broadcast', '0', '0.25', '0.5', '0.75', '1'];
-
-// captureExampleTime は、キャプチャのファイル名の例に使う時刻。ファイル名は端末のローカル時刻で書くので、ローカル時刻で作る。
-const captureExampleTime = new Date(2026, 9, 16, 21, 0, 5).getTime();
-
-export const Route = createFileRoute('/settings/account')({
-  validateSearch: (search: Record<string, unknown>): AccountSearch =>
+export const Route = createFileRoute('/settings/security')({
+  validateSearch: (search: Record<string, unknown>): SecuritySearch =>
     search['linked'] === 'oidc' ? { linked: 'oidc' } : {},
   // IdP での再認証と紐付けを出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
   loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
-  component: AccountPage,
+  component: SecurityPage,
 });
 
 const dateTimeFormat = zonedFormat({
@@ -96,8 +72,9 @@ const dateTimeFormat = zonedFormat({
   hourCycle: 'h23',
 });
 
-// AccountPage は、ログイン中のユーザーの個人の設定 (設計書 10.3)。プレイヤー、セッション、パスキー、第二要素を扱う。
-function AccountPage() {
+// SecurityPage は、ログイン中のユーザーの、本人確認の手段と、ほかから使うための手段の設定 (設計書 10.3、#980)。
+// パスワード、認証アプリ、パスキー、IdP との紐付け、API トークン、連携中のアプリを扱う。
+function SecurityPage() {
   const { t } = useTranslation();
 
   return (
@@ -105,7 +82,7 @@ function AccountPage() {
       <Anchor component={Link} to="/settings" size="sm">
         {t('settings.back')}
       </Anchor>
-      <Title order={2}>{t('settings.account.title')}</Title>
+      <Title order={2}>{t('settings.pages.security.title')}</Title>
       <ErrorBoundary
         fallback={(error) =>
           isUnauthenticated(error) ? (
@@ -120,7 +97,7 @@ function AccountPage() {
         }
       >
         <Suspense fallback={<PageLoader />}>
-          <Account />
+          <Security />
         </Suspense>
       </ErrorBoundary>
     </Stack>
@@ -128,7 +105,7 @@ function AccountPage() {
 }
 
 const query = graphql`
-  query accountQuery {
+  query securityQuery {
     secondFactors {
       totp
       remainingRecoveryCodes
@@ -153,18 +130,10 @@ const query = graphql`
       createdAt
       lastUsedAt
     }
-    sessions {
-      id
-      current
-      createdAt
-      lastSeenAt
-      userAgent
-      sourceIp
-    }
   }
 `;
 
-function Account() {
+function Security() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const oidc = Route.useLoaderData();
@@ -174,20 +143,13 @@ function Account() {
   const [fetchKey, setFetchKey] = useState(0);
   // ほかの端末で設定を変えたら、読み直す (#503)。
   const viewerChanges = useDataChanges(['VIEWER_SETTINGS']);
-  const data = useLazyLoadQuery<accountQuery>(
+  const data = useLazyLoadQuery<securityQuery>(
     query,
     {},
     { fetchKey: `${fetchKey}:${viewerChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
-  const player = usePlayerSettings();
-  const [dataBroadcastPreload, setDataBroadcastPreload] = useDataBroadcastPreload();
-  const [captureTemplate, setCaptureTemplate] = useCaptureFileNameTemplate();
-  const [lowLatency, setLowLatency] = useLowLatency();
-  const [autoPictureInPicture, setAutoPictureInPicture] = useAutoPictureInPicture();
-  // 自動で別のウィンドウに出せないブラウザでは、設定の項目を出さない (#492)。
-  const [autoPictureInPictureAvailable] = useState(autoPictureInPictureSupported);
   const [error, setError] = useState<string | null>(null);
   const [linked, setLinked] = useState(search.linked === 'oidc');
   const fail = (caught: unknown) => setError(settingsErrorMessage(t, caught));
@@ -212,155 +174,19 @@ function Account() {
       )}
 
       <Card withBorder>
-        <Stack gap="xs">
+        <Group justify="space-between" wrap="wrap">
           <Title order={3} size="h5">
-            {t('settings.account.player')}
+            {t('auth.password')}
           </Title>
-          <Switch
-            label={t('settings.account.jikkyo')}
-            checked={player.jikkyoEnabled}
-            onChange={(event) => player.setJikkyoEnabled(event.currentTarget.checked)}
-          />
-          <Switch
-            label={t('settings.account.captions')}
-            checked={player.captionsEnabled}
-            onChange={(event) => player.setCaptionsEnabled(event.currentTarget.checked)}
-          />
-          {/* 字幕の見た目と、文字スーパーを出すかどうか (#491)。字幕を出さなければ、どれも効かない。 */}
-          <Stack gap="xs" pl="lg">
-            <Switch
-              size="sm"
-              label={t('settings.account.superimposeLive')}
-              disabled={!player.captionsEnabled}
-              checked={player.captions.superimposeLive}
-              onChange={(event) =>
-                player.setCaptions({
-                  ...player.captions,
-                  superimposeLive: event.currentTarget.checked,
-                })
-              }
-            />
-            <Switch
-              size="sm"
-              label={t('settings.account.superimposeRecorded')}
-              disabled={!player.captionsEnabled}
-              checked={player.captions.superimposeRecorded}
-              onChange={(event) =>
-                player.setCaptions({
-                  ...player.captions,
-                  superimposeRecorded: event.currentTarget.checked,
-                })
-              }
-            />
-            <Switch
-              size="sm"
-              label={t('settings.account.captionStroke')}
-              disabled={!player.captionsEnabled}
-              checked={player.captions.stroke}
-              onChange={(event) =>
-                player.setCaptions({ ...player.captions, stroke: event.currentTarget.checked })
-              }
-            />
-            <Select
-              size="xs"
-              label={t('settings.account.captionBackground')}
-              disabled={!player.captionsEnabled}
-              allowDeselect={false}
-              data={captionBackgrounds.map((value) => ({
-                value,
-                label:
-                  value === 'broadcast'
-                    ? t('settings.account.captionBackgroundBroadcast')
-                    : `${Math.round(Number(value) * 100)}%`,
-              }))}
-              value={
-                player.captions.backgroundOpacity === null
-                  ? 'broadcast'
-                  : String(player.captions.backgroundOpacity)
-              }
-              onChange={(value) =>
-                value !== null &&
-                player.setCaptions({
-                  ...player.captions,
-                  backgroundOpacity: value === 'broadcast' ? null : Number(value),
-                })
-              }
-              maw={240}
-            />
-          </Stack>
-          <Switch
-            label={
-              <Group gap={6} component="span">
-                {t('settings.account.dataBroadcastPreload')}
-                {/* アカウントの設定と並ぶので、この端末だけの設定であることを示す。 */}
-                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                  {t('settings.account.deviceOnly')}
-                </Badge>
-              </Group>
-            }
-            description={t('settings.account.dataBroadcastPreloadHelp')}
-            checked={dataBroadcastPreload}
-            onChange={(event) => setDataBroadcastPreload(event.currentTarget.checked)}
-          />
-          <Switch
-            label={
-              <Group gap={6} component="span">
-                {t('settings.account.lowLatency')}
-                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                  {t('settings.account.deviceOnly')}
-                </Badge>
-              </Group>
-            }
-            description={t('settings.account.lowLatencyHelp')}
-            checked={lowLatency}
-            onChange={(event) => setLowLatency(event.currentTarget.checked)}
-          />
-          <TextInput
-            label={
-              <Group gap={6} component="span">
-                {t('settings.account.captureFileName')}
-                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                  {t('settings.account.deviceOnly')}
-                </Badge>
-              </Group>
-            }
-            description={t('settings.account.captureFileNameHelp', {
-              macros: captureFileNameMacros.join(' '),
-              example: captureFileName(
-                captureExampleTime,
-                'NHK総合1・東京',
-                'ニュース７🈑',
-                captureTemplate,
-              ),
-            })}
-            placeholder={t('settings.account.captureFileNameDefault')}
-            value={captureTemplate}
-            onChange={(event) => setCaptureTemplate(event.currentTarget.value)}
-            maw={480}
-          />
-          <DataBroadcastZipcodeInput />
-          <DataBroadcastStorageReset />
-          {autoPictureInPictureAvailable && (
-            <Switch
-              label={
-                <Group gap={6} component="span">
-                  {t('settings.account.autoPictureInPicture')}
-                  <Badge size="sm" variant="light" color="gray" tt="none" component="span">
-                    {t('settings.account.deviceOnly')}
-                  </Badge>
-                </Group>
-              }
-              description={t('settings.account.autoPictureInPictureHelp')}
-              checked={autoPictureInPicture}
-              onChange={(event) => setAutoPictureInPicture(event.currentTarget.checked)}
-            />
-          )}
-        </Stack>
+          <Button
+            variant="default"
+            size="xs"
+            renderRoot={(props) => <Link {...props} to="/settings/password" />}
+          >
+            {t('viewer.changePassword')}
+          </Button>
+        </Group>
       </Card>
-
-      <CommentSettingsCard />
-
-      <GuideAppearanceSettings />
 
       {/* 操作の途中は、ほかのボタンを押せないようにする。 */}
       <Fieldset variant="unstyled" disabled={gate.busy} p={0} m={0} miw={0}>
@@ -404,82 +230,8 @@ function Account() {
           {oidc.enabled && !oidc.linked && (
             <OIDCLink displayName={oidc.displayName} run={run} fail={fail} />
           )}
-
-          <Card withBorder>
-            <Stack gap="xs">
-              <Title order={3} size="h5">
-                {t('settings.account.sessions')}
-              </Title>
-              {data.sessions.map((session) => (
-                <Group
-                  key={session.id}
-                  justify="space-between"
-                  wrap="nowrap"
-                  data-session={session.id}
-                >
-                  <Stack gap={0} miw={0} flex={1}>
-                    <Group gap="xs">
-                      <Text size="sm" truncate title={session.userAgent}>
-                        {deviceName(session.userAgent) ??
-                          (session.userAgent || t('settings.account.unknownDevice'))}
-                      </Text>
-                      {session.current && (
-                        <Badge size="xs" variant="light">
-                          {t('settings.account.thisSession')}
-                        </Badge>
-                      )}
-                    </Group>
-                    <Text size="xs" c="dimmed">
-                      {t('settings.account.sessionTimes', {
-                        lastSeen: dateTimeFormat.format(Date.parse(session.lastSeenAt)),
-                        source: session.sourceIp ?? '-',
-                      })}
-                    </Text>
-                  </Stack>
-                  {!session.current && (
-                    <Button
-                      size="compact-sm"
-                      variant="default"
-                      flex="none"
-                      onClick={() =>
-                        run(async () => {
-                          await mutate<accountRevokeSessionMutation>(
-                            environment,
-                            graphql`
-                              mutation accountRevokeSessionMutation($id: ID!) {
-                                revokeSession(id: $id)
-                              }
-                            `,
-                            { id: session.id },
-                          );
-                          refresh();
-                        }, fail)
-                      }
-                    >
-                      {t('settings.account.revoke')}
-                    </Button>
-                  )}
-                </Group>
-              ))}
-            </Stack>
-          </Card>
         </Stack>
       </Fieldset>
-
-      <Card withBorder>
-        <Group justify="space-between" wrap="wrap">
-          <Title order={3} size="h5">
-            {t('auth.password')}
-          </Title>
-          <Button
-            variant="default"
-            size="xs"
-            renderRoot={(props) => <Link {...props} to="/settings/password" />}
-          >
-            {t('viewer.changePassword')}
-          </Button>
-        </Group>
-      </Card>
     </Stack>
   );
 }
@@ -553,10 +305,10 @@ function TwoFactor({
   const begin = () =>
     run(
       async () => {
-        const response = await mutate<accountBeginTotpMutation>(
+        const response = await mutate<securityBeginTotpMutation>(
           environment,
           graphql`
-            mutation accountBeginTotpMutation {
+            mutation securityBeginTotpMutation {
               beginTotpEnrollment {
                 secret
                 uri
@@ -576,10 +328,10 @@ function TwoFactor({
     );
   const confirm = () =>
     run(async () => {
-      const response = await mutate<accountConfirmTotpMutation>(
+      const response = await mutate<securityConfirmTotpMutation>(
         environment,
         graphql`
-          mutation accountConfirmTotpMutation($code: String!) {
+          mutation securityConfirmTotpMutation($code: String!) {
             confirmTotpEnrollment(code: $code) {
               codes
             }
@@ -594,10 +346,10 @@ function TwoFactor({
   const remove = () =>
     run(
       async () => {
-        await mutate<accountDeleteTotpMutation>(
+        await mutate<securityDeleteTotpMutation>(
           environment,
           graphql`
-            mutation accountDeleteTotpMutation {
+            mutation securityDeleteTotpMutation {
               deleteTotp {
                 totp
               }
@@ -617,10 +369,10 @@ function TwoFactor({
   const regenerate = () =>
     run(
       async () => {
-        const response = await mutate<accountRegenerateMutation>(
+        const response = await mutate<securityRegenerateMutation>(
           environment,
           graphql`
-            mutation accountRegenerateMutation {
+            mutation securityRegenerateMutation {
               regenerateRecoveryCodes {
                 codes
               }
@@ -739,10 +491,10 @@ function Passkeys({
   const remove = (id: string) =>
     run(
       async () => {
-        await mutate<accountDeletePasskeyMutation>(
+        await mutate<securityDeletePasskeyMutation>(
           environment,
           graphql`
-            mutation accountDeletePasskeyMutation($id: ID!) {
+            mutation securityDeletePasskeyMutation($id: ID!) {
               deletePasskey(id: $id)
             }
           `,
@@ -824,10 +576,10 @@ function Passkeys({
                   disabled={editing.name.trim() === ''}
                   onClick={() =>
                     run(async () => {
-                      await mutate<accountRenamePasskeyMutation>(
+                      await mutate<securityRenamePasskeyMutation>(
                         environment,
                         graphql`
-                          mutation accountRenamePasskeyMutation($id: ID!, $name: String!) {
+                          mutation securityRenamePasskeyMutation($id: ID!, $name: String!) {
                             renamePasskey(id: $id, name: $name) {
                               id
                               name

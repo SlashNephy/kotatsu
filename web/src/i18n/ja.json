@@ -265,16 +265,30 @@
     "title": "設定",
     "back": "設定に戻る",
     "notificationsSummary": "画面内の通知とWeb Pushで、何を受け取るかを選びます",
-    "passwordSummary": "ログインに使うパスワードを変えます",
+    "pages": {
+      "player": {
+        "title": "プレイヤー",
+        "summary": "字幕やデータ放送、実況のコメントの出し方など、再生の画面の設定を変えます"
+      },
+      "guide": {
+        "title": "番組表",
+        "summary": "番組表の密度や、ジャンルの色を変えます"
+      },
+      "security": {
+        "title": "セキュリティ",
+        "summary": "パスワード、2段階認証、パスキー、APIトークン、連携中のアプリを管理します"
+      },
+      "sessions": {
+        "title": "ログイン中の端末",
+        "summary": "ログイン中の端末を確かめ、ほかの端末をログアウトさせます"
+      }
+    },
     "reauth": {
       "title": "本人確認",
       "close": "閉じる",
       "returned": "本人であることを確かめました。もう一度操作してください"
     },
     "account": {
-      "title": "アカウント",
-      "summary": "プレイヤー、2段階認証、パスキー、ログイン中の端末を管理します",
-      "player": "プレイヤー",
       "jikkyo": "実況のコメントを出す",
       "captions": "字幕を出す",
       "dataBroadcastPreload": "データ放送をプリロードする",
@@ -375,7 +389,6 @@
     "settings": "設定",
     "live": "ライブ",
     "menu": "メニュー",
-    "account": "アカウント",
     "captures": "キャプチャの履歴",
     "remote": "リモコン"
   },

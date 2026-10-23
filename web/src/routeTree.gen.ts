@@ -34,9 +34,12 @@ import { Route as RecordingsRecordingIdRouteImport } from './routes/recordings/$
 import { Route as RulesIndexRouteImport } from './routes/rules/index'
 import { Route as RulesRuleIdRouteImport } from './routes/rules/$ruleId'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
-import { Route as SettingsAccountRouteImport } from './routes/settings/account'
+import { Route as SettingsGuideRouteImport } from './routes/settings/guide'
 import { Route as SettingsNotificationsRouteImport } from './routes/settings/notifications'
 import { Route as SettingsPasswordRouteImport } from './routes/settings/password'
+import { Route as SettingsPlayerRouteImport } from './routes/settings/player'
+import { Route as SettingsSecurityRouteImport } from './routes/settings/security'
+import { Route as SettingsSessionsRouteImport } from './routes/settings/sessions'
 import { Route as GuideChannelServiceIdRouteImport } from './routes/guide/channel.$serviceId'
 import { Route as RecordingsRecordingIdPlayRouteImport } from './routes/recordings/$recordingId_.play'
 
@@ -165,9 +168,9 @@ const SettingsIndexRoute = SettingsIndexRouteImport.update({
   path: '/settings/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsAccountRoute = SettingsAccountRouteImport.update({
-  id: '/settings/account',
-  path: '/settings/account',
+const SettingsGuideRoute = SettingsGuideRouteImport.update({
+  id: '/settings/guide',
+  path: '/settings/guide',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsNotificationsRoute = SettingsNotificationsRouteImport.update({
@@ -178,6 +181,21 @@ const SettingsNotificationsRoute = SettingsNotificationsRouteImport.update({
 const SettingsPasswordRoute = SettingsPasswordRouteImport.update({
   id: '/settings/password',
   path: '/settings/password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsPlayerRoute = SettingsPlayerRouteImport.update({
+  id: '/settings/player',
+  path: '/settings/player',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsSecurityRoute = SettingsSecurityRouteImport.update({
+  id: '/settings/security',
+  path: '/settings/security',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsSessionsRoute = SettingsSessionsRouteImport.update({
+  id: '/settings/sessions',
+  path: '/settings/sessions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GuideChannelServiceIdRoute = GuideChannelServiceIdRouteImport.update({
@@ -212,9 +230,12 @@ export interface FileRoutesByFullPath {
   '/login/second-factor': typeof LoginSecondFactorRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
-  '/settings/account': typeof SettingsAccountRoute
+  '/settings/guide': typeof SettingsGuideRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/password': typeof SettingsPasswordRoute
+  '/settings/player': typeof SettingsPlayerRoute
+  '/settings/security': typeof SettingsSecurityRoute
+  '/settings/sessions': typeof SettingsSessionsRoute
   '/guide/': typeof GuideIndexRoute
   '/live/': typeof LiveIndexRoute
   '/login/': typeof LoginIndexRoute
@@ -244,9 +265,12 @@ export interface FileRoutesByTo {
   '/login/second-factor': typeof LoginSecondFactorRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
-  '/settings/account': typeof SettingsAccountRoute
+  '/settings/guide': typeof SettingsGuideRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/password': typeof SettingsPasswordRoute
+  '/settings/player': typeof SettingsPlayerRoute
+  '/settings/security': typeof SettingsSecurityRoute
+  '/settings/sessions': typeof SettingsSessionsRoute
   '/guide': typeof GuideIndexRoute
   '/live': typeof LiveIndexRoute
   '/login': typeof LoginIndexRoute
@@ -277,9 +301,12 @@ export interface FileRoutesById {
   '/login/second-factor': typeof LoginSecondFactorRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
-  '/settings/account': typeof SettingsAccountRoute
+  '/settings/guide': typeof SettingsGuideRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/password': typeof SettingsPasswordRoute
+  '/settings/player': typeof SettingsPlayerRoute
+  '/settings/security': typeof SettingsSecurityRoute
+  '/settings/sessions': typeof SettingsSessionsRoute
   '/guide/': typeof GuideIndexRoute
   '/live/': typeof LiveIndexRoute
   '/login/': typeof LoginIndexRoute
@@ -311,9 +338,12 @@ export interface FileRouteTypes {
     | '/login/second-factor'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
-    | '/settings/account'
+    | '/settings/guide'
     | '/settings/notifications'
     | '/settings/password'
+    | '/settings/player'
+    | '/settings/security'
+    | '/settings/sessions'
     | '/guide/'
     | '/live/'
     | '/login/'
@@ -343,9 +373,12 @@ export interface FileRouteTypes {
     | '/login/second-factor'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
-    | '/settings/account'
+    | '/settings/guide'
     | '/settings/notifications'
     | '/settings/password'
+    | '/settings/player'
+    | '/settings/security'
+    | '/settings/sessions'
     | '/guide'
     | '/live'
     | '/login'
@@ -375,9 +408,12 @@ export interface FileRouteTypes {
     | '/login/second-factor'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
-    | '/settings/account'
+    | '/settings/guide'
     | '/settings/notifications'
     | '/settings/password'
+    | '/settings/player'
+    | '/settings/security'
+    | '/settings/sessions'
     | '/guide/'
     | '/live/'
     | '/login/'
@@ -408,9 +444,12 @@ export interface RootRouteChildren {
   LoginSecondFactorRoute: typeof LoginSecondFactorRoute
   RecordingsRecordingIdRoute: typeof RecordingsRecordingIdRoute
   RulesRuleIdRoute: typeof RulesRuleIdRoute
-  SettingsAccountRoute: typeof SettingsAccountRoute
+  SettingsGuideRoute: typeof SettingsGuideRoute
   SettingsNotificationsRoute: typeof SettingsNotificationsRoute
   SettingsPasswordRoute: typeof SettingsPasswordRoute
+  SettingsPlayerRoute: typeof SettingsPlayerRoute
+  SettingsSecurityRoute: typeof SettingsSecurityRoute
+  SettingsSessionsRoute: typeof SettingsSessionsRoute
   GuideIndexRoute: typeof GuideIndexRoute
   LiveIndexRoute: typeof LiveIndexRoute
   LoginIndexRoute: typeof LoginIndexRoute
@@ -598,11 +637,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/account': {
-      id: '/settings/account'
-      path: '/settings/account'
-      fullPath: '/settings/account'
-      preLoaderRoute: typeof SettingsAccountRouteImport
+    '/settings/guide': {
+      id: '/settings/guide'
+      path: '/settings/guide'
+      fullPath: '/settings/guide'
+      preLoaderRoute: typeof SettingsGuideRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings/notifications': {
@@ -617,6 +656,27 @@ declare module '@tanstack/react-router' {
       path: '/settings/password'
       fullPath: '/settings/password'
       preLoaderRoute: typeof SettingsPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/player': {
+      id: '/settings/player'
+      path: '/settings/player'
+      fullPath: '/settings/player'
+      preLoaderRoute: typeof SettingsPlayerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/security': {
+      id: '/settings/security'
+      path: '/settings/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof SettingsSecurityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/sessions': {
+      id: '/settings/sessions'
+      path: '/settings/sessions'
+      fullPath: '/settings/sessions'
+      preLoaderRoute: typeof SettingsSessionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/guide/channel/$serviceId': {
@@ -656,9 +716,12 @@ const rootRouteChildren: RootRouteChildren = {
   LoginSecondFactorRoute: LoginSecondFactorRoute,
   RecordingsRecordingIdRoute: RecordingsRecordingIdRoute,
   RulesRuleIdRoute: RulesRuleIdRoute,
-  SettingsAccountRoute: SettingsAccountRoute,
+  SettingsGuideRoute: SettingsGuideRoute,
   SettingsNotificationsRoute: SettingsNotificationsRoute,
   SettingsPasswordRoute: SettingsPasswordRoute,
+  SettingsPlayerRoute: SettingsPlayerRoute,
+  SettingsSecurityRoute: SettingsSecurityRoute,
+  SettingsSessionsRoute: SettingsSessionsRoute,
   GuideIndexRoute: GuideIndexRoute,
   LiveIndexRoute: LiveIndexRoute,
   LoginIndexRoute: LoginIndexRoute,

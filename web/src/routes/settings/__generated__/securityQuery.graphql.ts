@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<feedb826eec9ae06f896efff7b081428>>
+ * @generated SignedSource<<53391afd2820ec7d8b7bc53e6a7ddadf>>
  * @lightSyntaxTransform
  */
 
@@ -8,8 +8,8 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type accountQuery$variables = Record<PropertyKey, never>;
-export type accountQuery$data = {
+export type securityQuery$variables = Record<PropertyKey, never>;
+export type securityQuery$data = {
   readonly apiTokens: ReadonlyArray<{
     readonly createdAt: string;
     readonly id: string;
@@ -34,18 +34,10 @@ export type accountQuery$data = {
     readonly remainingRecoveryCodes: number;
     readonly totp: boolean;
   };
-  readonly sessions: ReadonlyArray<{
-    readonly createdAt: string;
-    readonly current: boolean;
-    readonly id: string;
-    readonly lastSeenAt: string;
-    readonly sourceIp: string | null | undefined;
-    readonly userAgent: string;
-  }>;
 };
-export type accountQuery = {
-  response: accountQuery$data;
-  variables: accountQuery$variables;
+export type securityQuery = {
+  response: securityQuery$data;
+  variables: securityQuery$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -162,47 +154,6 @@ v4 = [
       (v2/*:: as any*/)
     ],
     "storageKey": null
-  },
-  {
-    "alias": null,
-    "args": null,
-    "concreteType": "Session",
-    "kind": "LinkedField",
-    "name": "sessions",
-    "plural": true,
-    "selections": [
-      (v0/*:: as any*/),
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "current",
-        "storageKey": null
-      },
-      (v1/*:: as any*/),
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "lastSeenAt",
-        "storageKey": null
-      },
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "userAgent",
-        "storageKey": null
-      },
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "sourceIp",
-        "storageKey": null
-      }
-    ],
-    "storageKey": null
   }
 ];
 return {
@@ -210,7 +161,7 @@ return {
     "argumentDefinitions": [],
     "kind": "Fragment",
     "metadata": null,
-    "name": "accountQuery",
+    "name": "securityQuery",
     "selections": (v4/*:: as any*/),
     "type": "Query",
     "abstractKey": null
@@ -219,20 +170,20 @@ return {
   "operation": {
     "argumentDefinitions": [],
     "kind": "Operation",
-    "name": "accountQuery",
+    "name": "securityQuery",
     "selections": (v4/*:: as any*/)
   },
   "params": {
-    "cacheID": "fac9c0a54a2b2d85288b2b228a92c4b5",
+    "cacheID": "f61252f5ca6f79070301fbed497d6ed1",
     "id": null,
     "metadata": {},
-    "name": "accountQuery",
+    "name": "securityQuery",
     "operationKind": "query",
-    "text": "query accountQuery {\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  apiTokens {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  oauthGrants {\n    id\n    clientId\n    clientName\n    scopes\n    createdAt\n    lastUsedAt\n  }\n  sessions {\n    id\n    current\n    createdAt\n    lastSeenAt\n    userAgent\n    sourceIp\n  }\n}\n"
+    "text": "query securityQuery {\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  apiTokens {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  oauthGrants {\n    id\n    clientId\n    clientName\n    scopes\n    createdAt\n    lastUsedAt\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "9ff5456fc9ef208ec51f9f94e226372a";
+(node as any).hash = "498c2292840c19bce5068c972446be50";
 
 export default node;

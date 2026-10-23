@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	accountPath  = "/settings/account"
+	securityPath = "/settings/security"
 	unlinkedName = "yuzu"
 )
 
@@ -53,7 +53,7 @@ func newOIDCLinkFixture(t *testing.T) *oidcLinkFixture {
 func (f *oidcLinkFixture) begin(t *testing.T) (string, *auth.OIDCCallback) {
 	t.Helper()
 
-	login, err := f.oidc.BeginLink(t.Context(), f.db, f.principal, accountPath, f.client)
+	login, err := f.oidc.BeginLink(t.Context(), f.db, f.principal, securityPath, f.client)
 	require.NoError(t, err)
 	redirect, err := f.idp.Authorize(login.AuthorizationURL)
 	require.NoError(t, err)
@@ -156,7 +156,7 @@ func TestOIDCLinkFromSession(t *testing.T) {
 
 			reauth, returnTo, err := f.oidc.CompleteAs(t.Context(), f.db, token, callback, f.client, principal)
 			assert.Nil(t, reauth, "linking is not a reauthentication")
-			assert.Equal(t, accountPath, returnTo)
+			assert.Equal(t, securityPath, returnTo)
 			assert.Equal(t, tt.wantSubjects, f.linkedSubjects(t))
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
@@ -274,7 +274,7 @@ func TestOIDCLinkHandlers(t *testing.T) {
 	}
 	// begin は、紐付けを始めて、IdP でログインし、テストのサーバーのコールバックの URL を返す。
 	begin := func() string {
-		status, _, body := do(http.MethodPost, server.URL+"/auth/oidc/link", `{"returnTo": "/settings/account?tab=security"}`)
+		status, _, body := do(http.MethodPost, server.URL+"/auth/oidc/link", `{"returnTo": "/settings/security?tab=security"}`)
 		require.Equal(t, http.StatusOK, status, string(body))
 		var begun struct {
 			AuthorizationURL string `json:"authorizationUrl"`
@@ -296,14 +296,14 @@ func TestOIDCLinkHandlers(t *testing.T) {
 	require.NoError(t, f.oidc.Link(t.Context(), f.db, audit.System("cli"), other.Username, "taken-subject"))
 	status, location, _ := do(http.MethodGet, begin(), "")
 	assert.Equal(t, http.StatusSeeOther, status)
-	assert.Equal(t, "/settings/account?error=oidc_link_taken&tab=security", location)
+	assert.Equal(t, "/settings/security?error=oidc_link_taken&tab=security", location)
 	assert.False(t, linked())
 
 	// 紐付けたら、始めたときのパスに、linked=oidc を付けて戻す。
 	f.idp.Subject = idpSubject
 	status, location, _ = do(http.MethodGet, begin(), "")
 	assert.Equal(t, http.StatusSeeOther, status)
-	assert.Equal(t, "/settings/account?linked=oidc&tab=security", location)
+	assert.Equal(t, "/settings/security?linked=oidc&tab=security", location)
 	assert.True(t, linked())
 
 	// 紐付いたら、もう始められない。

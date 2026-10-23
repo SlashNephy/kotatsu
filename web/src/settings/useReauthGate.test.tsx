@@ -282,7 +282,7 @@ describe('useReauthBeforeInput (#916)', () => {
   });
 
   test('最初にフォーカスしたときだけ、入力を始める前の再認証を確かめる', () => {
-    window.history.replaceState(null, '', '/settings/account');
+    window.history.replaceState(null, '', '/settings/security');
     const prepare = vi.fn();
     render(<NameInput prepare={prepare} />);
 
@@ -293,8 +293,8 @@ describe('useReauthBeforeInput (#916)', () => {
   });
 
   test('IdP での再認証から戻ってきたら、入力欄にフォーカスし直し、もう一度は確かめない', () => {
-    window.history.replaceState(null, '', '/settings/account?reauthenticated=oidc');
-    stored('apiToken.name', '/settings/account');
+    window.history.replaceState(null, '', '/settings/security?reauthenticated=oidc');
+    stored('apiToken.name', '/settings/security');
     const prepare = vi.fn();
     render(<NameInput prepare={prepare} />);
 
