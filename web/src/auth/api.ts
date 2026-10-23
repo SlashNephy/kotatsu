@@ -140,7 +140,7 @@ export const authApi = {
     post<Reauthenticated>('/auth/reauth/passkey/confirm', { credential }),
   // 重要な操作ができるか。重要な操作のある画面は、開いたときに確かめ、必要なら先に再認証させる (#981)。
   reauthenticationStatus: () => get<ReauthenticationStatus>('/auth/reauth'),
-  // IdP で再認証する。終えると、returnTo のパスに reauthenticated=oidc を付けて戻る。失敗したときは、returnTo に error=<理由> が付く。
+  // IdP で再認証する。終えると、returnTo のパスに戻る。失敗したときは、returnTo に error=<理由> が付く。
   beginOIDCReauthentication: (returnTo: string) =>
     post<{ authorizationUrl: string }>('/auth/reauth/oidc', { returnTo }),
   // ログイン中のユーザーを IdP のユーザーと紐付ける (設計書 9.4)。終えると、returnTo のパスに linked=oidc を付けて戻る。

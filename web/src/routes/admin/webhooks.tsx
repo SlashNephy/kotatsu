@@ -27,12 +27,7 @@ import { authApi, type OIDCStatus } from '../../auth/api';
 import { notificationKinds, type NotificationKindName } from '../../notifications/kinds';
 import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
-import {
-  reauthMethods,
-  useReauthGate,
-  useReauthResume,
-  type ReauthResume,
-} from '../../settings/useReauthGate';
+import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import { SudoGate } from '../../settings/SudoGate';
 import type {
   WebhookFormat,
@@ -188,25 +183,19 @@ function Webhooks() {
                       succeed(t('admin.saved'));
                     }, fail)
                   }
-                  onDelete={(resume) =>
-                    gate.run(
-                      async () => {
-                        await mutate<webhooksDeleteMutation>(
-                          environment,
-                          graphql`
-                            mutation webhooksDeleteMutation($id: ID!) {
-                              deleteWebhook(id: $id)
-                            }
-                          `,
-                          { id: webhook.id },
-                        );
-                        succeed(t('admin.webhooks.deleted', { name: webhook.name }));
-                      },
-                      fail,
-                      undefined,
-                      undefined,
-                      resume,
-                    )
+                  onDelete={() =>
+                    gate.run(async () => {
+                      await mutate<webhooksDeleteMutation>(
+                        environment,
+                        graphql`
+                          mutation webhooksDeleteMutation($id: ID!) {
+                            deleteWebhook(id: $id)
+                          }
+                        `,
+                        { id: webhook.id },
+                      );
+                      succeed(t('admin.webhooks.deleted', { name: webhook.name }));
+                    }, fail)
                   }
                 />
               ))}
@@ -278,15 +267,12 @@ function WebhookRow({
 }: {
   webhook: WebhookItem;
   onUpdate: (input: WebhookInput, onDone: () => void) => void;
-  onDelete: (resume: ReauthResume) => void;
+  onDelete: () => void;
 }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const knownFormat = formats.find((format) => format === webhook.format);
-  // 削除は、確かめてから押すので、IdP で再認証して戻ってきたら、そのまま続ける (#916)。
-  const remove = () => onDelete({ key: 'webhook.delete', params: webhook.id });
-  useReauthResume('webhook.delete', remove, webhook.id);
 
   if (editing) {
     return (
@@ -362,7 +348,7 @@ function WebhookRow({
                 color="red"
                 onClick={() => {
                   setConfirming(false);
-                  remove();
+                  onDelete();
                 }}
               >
                 {t('admin.webhooks.delete')}

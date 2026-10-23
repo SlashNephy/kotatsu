@@ -28,7 +28,7 @@ import { ApiTokens } from '../../settings/ApiTokens';
 import { ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { mutate } from '../../settings/mutate';
-import { reauthMethods, useReauthGate, useReauthResume } from '../../settings/useReauthGate';
+import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import { SudoGate } from '../../settings/SudoGate';
 import type { securityBeginTotpMutation } from './__generated__/securityBeginTotpMutation.graphql';
 import type { securityConfirmTotpMutation } from './__generated__/securityConfirmTotpMutation.graphql';
@@ -141,9 +141,9 @@ function Security() {
   const [linked, setLinked] = useState(search.linked === 'oidc');
   const fail = (caught: unknown) => setError(settingsErrorMessage(t, caught));
   // run は、前の操作のエラーを消してから、操作を行う。
-  const run: Run = (operation, onError, onCancel, onWaiting, resume) => {
+  const run: Run = (operation, onError, onCancel, onWaiting) => {
     setError(null);
-    gate.run(operation, onError, onCancel, onWaiting, resume);
+    gate.run(operation, onError, onCancel, onWaiting);
   };
 
   return (
@@ -230,18 +230,10 @@ function OIDCLink({
 }) {
   const { t } = useTranslation();
   const link = () =>
-    run(
-      async () => {
-        const { authorizationUrl } = await authApi.beginOIDCLink(path);
-        window.location.assign(authorizationUrl);
-      },
-      fail,
-      undefined,
-      undefined,
-      { key: 'oidc.link' },
-    );
-  // IdP で再認証して戻ってきたら、そのまま紐付けを始める (#916)。
-  useReauthResume('oidc.link', link);
+    run(async () => {
+      const { authorizationUrl } = await authApi.beginOIDCLink(path);
+      window.location.assign(authorizationUrl);
+    }, fail);
 
   return (
     <Card withBorder>
@@ -282,29 +274,23 @@ function TwoFactor({
   const [codes, setCodes] = useState<readonly string[] | null>(null);
 
   const begin = () =>
-    run(
-      async () => {
-        const response = await mutate<securityBeginTotpMutation>(
-          environment,
-          graphql`
-            mutation securityBeginTotpMutation {
-              beginTotpEnrollment {
-                secret
-                uri
-              }
+    run(async () => {
+      const response = await mutate<securityBeginTotpMutation>(
+        environment,
+        graphql`
+          mutation securityBeginTotpMutation {
+            beginTotpEnrollment {
+              secret
+              uri
             }
-          `,
-          {},
-        );
-        setEnrollment(response.beginTotpEnrollment);
-        setCode('');
-        setCodes(null);
-      },
-      fail,
-      undefined,
-      undefined,
-      { key: 'totp.begin' },
-    );
+          }
+        `,
+        {},
+      );
+      setEnrollment(response.beginTotpEnrollment);
+      setCode('');
+      setCodes(null);
+    }, fail);
   const confirm = () =>
     run(async () => {
       const response = await mutate<securityConfirmTotpMutation>(
@@ -323,54 +309,38 @@ function TwoFactor({
       onChanged();
     }, fail);
   const remove = () =>
-    run(
-      async () => {
-        await mutate<securityDeleteTotpMutation>(
-          environment,
-          graphql`
-            mutation securityDeleteTotpMutation {
-              deleteTotp {
-                totp
-              }
+    run(async () => {
+      await mutate<securityDeleteTotpMutation>(
+        environment,
+        graphql`
+          mutation securityDeleteTotpMutation {
+            deleteTotp {
+              totp
             }
-          `,
-          {},
-        );
-        // 認証アプリの登録を消すと、リカバリーコードも使えなくなるので、表示していたものを消す。
-        setCodes(null);
-        onChanged();
-      },
-      fail,
-      undefined,
-      undefined,
-      { key: 'totp.delete' },
-    );
+          }
+        `,
+        {},
+      );
+      // 認証アプリの登録を消すと、リカバリーコードも使えなくなるので、表示していたものを消す。
+      setCodes(null);
+      onChanged();
+    }, fail);
   const regenerate = () =>
-    run(
-      async () => {
-        const response = await mutate<securityRegenerateMutation>(
-          environment,
-          graphql`
-            mutation securityRegenerateMutation {
-              regenerateRecoveryCodes {
-                codes
-              }
+    run(async () => {
+      const response = await mutate<securityRegenerateMutation>(
+        environment,
+        graphql`
+          mutation securityRegenerateMutation {
+            regenerateRecoveryCodes {
+              codes
             }
-          `,
-          {},
-        );
-        setCodes(response.regenerateRecoveryCodes.codes);
-        onChanged();
-      },
-      fail,
-      undefined,
-      undefined,
-      { key: 'recoveryCodes.regenerate' },
-    );
-  // IdP で再認証して戻ってきたら、押した操作を続ける (#916)。
-  useReauthResume('totp.begin', begin);
-  useReauthResume('totp.delete', remove);
-  useReauthResume('recoveryCodes.regenerate', regenerate);
+          }
+        `,
+        {},
+      );
+      setCodes(response.regenerateRecoveryCodes.codes);
+      onChanged();
+    }, fail);
 
   return (
     <Card withBorder>
@@ -465,30 +435,18 @@ function Passkeys({
   const available = passkeyAvailable();
 
   const remove = (id: string) =>
-    run(
-      async () => {
-        await mutate<securityDeletePasskeyMutation>(
-          environment,
-          graphql`
-            mutation securityDeletePasskeyMutation($id: ID!) {
-              deletePasskey(id: $id)
-            }
-          `,
-          { id },
-        );
-        onChanged();
-      },
-      fail,
-      undefined,
-      undefined,
-      { key: 'passkey.delete', params: id },
-    );
-  // IdP で再認証して戻ってきたら、押した削除を続ける (#916)。
-  useReauthResume('passkey.delete', (id) => {
-    if (id !== undefined) {
-      remove(id);
-    }
-  });
+    run(async () => {
+      await mutate<securityDeletePasskeyMutation>(
+        environment,
+        graphql`
+          mutation securityDeletePasskeyMutation($id: ID!) {
+            deletePasskey(id: $id)
+          }
+        `,
+        { id },
+      );
+      onChanged();
+    }, fail);
 
   const add = () =>
     run(

@@ -1,5 +1,5 @@
 import { Alert, Modal } from '@mantine/core';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { AuthError } from '../auth/api';
@@ -15,126 +15,22 @@ export function needsReauthentication(error: unknown): boolean {
   );
 }
 
-// ReauthResume は、IdP での再認証から戻ってきたときに、待っていた操作を続けるための手がかり (#916)。
-// IdP での再認証はページを離れるので、操作 (関数) は持ち越せない。代わりに、操作の種類 key と、
-// 対象の ID などの params を覚えておき、戻ってきた画面で useReauthResume に登録した続け方を呼ぶ。
-// 入力した値は持ち越さない。入力のある操作は、画面を開いたときに SudoGate で再認証させておく (#981)。
-export type ReauthResume = { key: string; params?: string };
-
 type Pending = {
   operation: () => Promise<void>;
   onError: (error: unknown) => void;
   onCancel: (() => void) | undefined;
   onWaiting: (() => void) | undefined;
-  resume: ReauthResume | undefined;
 };
 
 // ReauthRun は、重要な操作を、必要なら再認証してから行う関数。onCancel は、再認証をやめたときに呼ぶ。
 // onWaiting は、再認証を求められ、再認証の画面を出して待ち始めたときに呼ぶ。
 // 操作が出した読み込み中の表示を、待っている間は消すのに使う (#915)。再認証を終えたら、同じ操作をもう一度行う。
-// resume を渡すと、IdP で再認証して戻ってきたときにも、useReauthResume に登録した続け方で操作を続ける。
 export type ReauthRun = (
   operation: () => Promise<void>,
   onError: (error: unknown) => void,
   onCancel?: () => void,
   onWaiting?: () => void,
-  resume?: ReauthResume,
 ) => void;
-
-const resumeStorageKey = 'kotatsu.reauth.resume';
-// resumeLifetime は、覚えておいた手がかりを使える長さ。IdP で手間取っても、これを過ぎたら続けない。
-const resumeLifetime = 10 * 60 * 1000;
-
-// StoredResume は、IdP へ移る前に sessionStorage に覚えておく手がかり。key が null なら、続け方がない。
-// returnTo は、IdP から戻すパス。戻ってきた URL がこれと同じときだけ続ける。MCP のクライアントへの同意の画面では、
-// 認可のリクエストのクエリを含むので、同じタブでほかのリクエストの同意の画面を開かされても、続けて同意しない。
-type StoredResume = { key: string | null; params?: string; returnTo: string; savedAt: number };
-
-// comparableLocation は、パスとクエリを、IdP から戻すリダイレクトの付けた reauthenticated を除き、
-// クエリの順を揃えた文字列にする。サーバーは、戻すときにクエリを並べ替えるため。
-function comparableLocation(pathAndSearch: string): string {
-  const url = new URL(pathAndSearch, window.location.origin);
-  url.searchParams.delete('reauthenticated');
-  url.searchParams.sort();
-
-  return `${url.pathname}?${url.searchParams.toString()}`;
-}
-
-function saveResume(resume: ReauthResume | undefined, returnTo: string) {
-  const stored: StoredResume = {
-    key: resume?.key ?? null,
-    ...(resume?.params === undefined ? {} : { params: resume.params }),
-    returnTo,
-    savedAt: Date.now(),
-  };
-  try {
-    window.sessionStorage.setItem(resumeStorageKey, JSON.stringify(stored));
-  } catch {
-    // 覚えておけなくても、戻ってきたときに、もう一度操作してもらうだけで済む。
-  }
-}
-
-function clearResume() {
-  try {
-    window.sessionStorage.removeItem(resumeStorageKey);
-  } catch {
-    // 消せなくても、覚えておいた時刻から時間が経てば使わない。
-  }
-}
-
-// takeResume は、IdP での再認証から、この画面に戻ってきたときだけ、覚えておいた手がかりを返し、消す。
-// 同じ操作を 2 回続けないよう、返す前に消す (読み直しや、開発時の StrictMode で、もう一度呼ばれても続けない)。
-// このページを読み込んだ後に覚えたものは、まだ IdP へ移っていないので返さない。戻ってきた URL のまま
-// (reauthenticated=oidc が付いたまま) 次の操作で再認証を求められても、再認証せずに続けないようにする。
-function takeResume(match: (stored: StoredResume) => boolean): StoredResume | null {
-  if (new URLSearchParams(window.location.search).get('reauthenticated') !== 'oidc') {
-    return null;
-  }
-  let stored: StoredResume;
-  try {
-    const raw = window.sessionStorage.getItem(resumeStorageKey);
-    if (raw === null) {
-      return null;
-    }
-    stored = JSON.parse(raw) as StoredResume;
-  } catch {
-    return null;
-  }
-  if (
-    comparableLocation(stored.returnTo) !==
-      comparableLocation(window.location.pathname + window.location.search) ||
-    stored.savedAt >= performance.timeOrigin ||
-    Date.now() - stored.savedAt > resumeLifetime ||
-    !match(stored)
-  ) {
-    return null;
-  }
-  clearResume();
-
-  return stored;
-}
-
-// useReauthResume は、IdP での再認証から戻ってきたときに、key の操作を続ける方法を登録する。
-// handler には、run に渡した params を渡す。params を渡すと、それと同じ params の操作だけを続ける。
-// 一覧の行ごとに、その行の操作だけを続けるのに使う。
-export function useReauthResume(
-  key: string,
-  handler: (params: string | undefined) => void,
-  params?: string,
-) {
-  const handlerRef = useRef(handler);
-  useEffect(() => {
-    handlerRef.current = handler;
-  });
-  useEffect(() => {
-    const stored = takeResume(
-      (s) => s.key === key && (params === undefined || s.params === params),
-    );
-    if (stored !== null) {
-      handlerRef.current(stored.params);
-    }
-  }, [key, params]);
-}
 
 // returnedError は、IdP での再認証に失敗して戻ってきたときの理由を読む (設計書 9.4)。
 function returnedError(): string | null {
@@ -144,10 +40,12 @@ function returnedError(): string | null {
 }
 
 // useReauthGate は、重要な操作を、必要なら再認証してから行う。
-// run に渡した操作が再認証を求められたら、再認証の画面を出し、終えたら同じ操作をもう一度行う。
-// 再認証の画面を閉じたら、操作をやめて onCancel を呼ぶ。
-// modal は、再認証の画面と、IdP での再認証から戻ってきたときの知らせ。続け方のない操作を待っていたときは、
-// もう一度操作するよう知らせる。失敗して戻ってきたときは、理由を出す。
+// 重要な操作のある画面は、開いたときに SudoGate で再認証させておく (#981)。これは、開いている間に直近の認証の
+// 期限 (10 分) が切れたときのためのもの。run に渡した操作が再認証を求められたら、再認証の画面を出し、終えたら
+// 同じ操作をもう一度行う。再認証の画面を閉じたら、操作をやめて onCancel を呼ぶ。
+// IdP で再認証するときは、ページを離れて、この画面に戻ってくる。戻ってきた画面は、開いたときと同じく SudoGate が
+// 確かめるので、待っていた操作は続けず、利用者にもう一度操作してもらう。
+// modal は、再認証の画面と、IdP での再認証に失敗して戻ってきたときの理由。
 export function useReauthGate(
   methods: ReauthenticationMethods,
   returnTo: string,
@@ -162,44 +60,23 @@ export function useReauthGate(
   // 押した直後の 2 回目の押下も止めるため、描画を待たない ref で持つ。
   const running = useRef(false);
   const [busy, setBusy] = useState(false);
-  const [returned, setReturned] = useState<{ reauthenticated: true } | { error: string } | null>(
-    null,
-  );
+  const [error, setError] = useState(returnedError);
 
-  // 続け方を登録した操作は、useReauthResume が手がかりを取る。続け方のない操作を待っていたときだけ、
-  // もう一度操作するよう知らせる。
-  useEffect(() => {
-    const error = returnedError();
-    const stored = takeResume((s) => s.key === null);
-    if (error !== null) {
-      clearResume();
-      setReturned({ error });
-    } else if (stored !== null) {
-      setReturned({ reauthenticated: true });
-    }
-  }, []);
-
-  const wait = (next: Pending) => {
-    next.onWaiting?.();
-    // IdP で再認証するとページを離れるので、続けるための手がかりを先に覚えておく。
-    saveResume(next.resume, returnTo);
-    setPending(next);
-  };
-
-  const execute: ReauthRun = (operation, onError, onCancel, onWaiting, resume) => {
+  const execute: ReauthRun = (operation, onError, onCancel, onWaiting) => {
     if (running.current) {
       return;
     }
     running.current = true;
     setBusy(true);
     operation()
-      .catch((error: unknown) => {
-        if (needsReauthentication(error)) {
-          wait({ operation, onError, onCancel, onWaiting, resume });
+      .catch((caught: unknown) => {
+        if (needsReauthentication(caught)) {
+          onWaiting?.();
+          setPending({ operation, onError, onCancel, onWaiting });
 
           return;
         }
-        onError(error);
+        onError(caught);
       })
       .finally(() => {
         running.current = false;
@@ -209,21 +86,15 @@ export function useReauthGate(
 
   const modal = (
     <>
-      {returned !== null &&
-        ('error' in returned ? (
-          <Alert color="red" role="alert" withCloseButton onClose={() => setReturned(null)}>
-            {oidcErrorMessage(t, returned.error)}
-          </Alert>
-        ) : (
-          <Alert color="green" role="status" withCloseButton onClose={() => setReturned(null)}>
-            {t('settings.reauth.returned')}
-          </Alert>
-        ))}
+      {error !== null && (
+        <Alert color="red" role="alert" withCloseButton onClose={() => setError(null)}>
+          {oidcErrorMessage(t, error)}
+        </Alert>
+      )}
       <Modal
         opened={pending !== null}
         onClose={() => {
           pending?.onCancel?.();
-          clearResume();
           setPending(null);
         }}
         title={t('settings.reauth.title')}
@@ -234,10 +105,9 @@ export function useReauthGate(
             methods={methods}
             returnTo={returnTo}
             onDone={() => {
-              const { operation, onError, onCancel, onWaiting, resume } = pending;
-              clearResume();
+              const { operation, onError, onCancel, onWaiting } = pending;
               setPending(null);
-              execute(operation, onError, onCancel, onWaiting, resume);
+              execute(operation, onError, onCancel, onWaiting);
             }}
           />
         )}

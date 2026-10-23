@@ -5,7 +5,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import '../i18n';
 import { AuthError } from '../auth/api';
 
-import { useReauthGate, useReauthResume } from './useReauthGate';
+import { useReauthGate } from './useReauthGate';
 
 const methods = {
   totp: false,
@@ -64,161 +64,28 @@ describe('useReauthGate', () => {
   });
 });
 
-const storageKey = 'kotatsu.reauth.resume';
-const reauthRequired = () =>
-  Promise.reject(new AuthError(403, 'REAUTHENTICATION_REQUIRED', undefined, undefined));
-
-function stored(key: string | null, returnTo = '/admin/system', params?: string) {
-  window.sessionStorage.setItem(
-    storageKey,
-    JSON.stringify({
-      key,
-      returnTo,
-      savedAt: performance.timeOrigin - 1000,
-      ...(params === undefined ? {} : { params }),
-    }),
-  );
-}
-
-// Page は、続け方を登録した操作のある画面の代わり。
-function Page({ onResume }: { onResume: (params: string | undefined) => void }) {
+// Gate は、再認証の画面を出す画面の代わり。
+function Gate() {
   const gate = useReauthGate(methods, '/admin/system');
-  useReauthResume('webhook.delete', onResume);
 
   return <MantineProvider>{gate.modal}</MantineProvider>;
 }
 
-describe('IdP での再認証から戻ったときの再開 (#916)', () => {
-  afterEach(() => {
-    window.sessionStorage.clear();
-  });
-
-  test('再認証を求められたら、操作の種類と対象を覚えておく', async () => {
-    window.history.replaceState(null, '', '/admin/system');
-    const { result } = renderHook(() => useReauthGate(methods, '/admin/system'));
-
-    await act(async () => {
-      result.current.run(reauthRequired, vi.fn(), undefined, undefined, {
-        key: 'webhook.delete',
-        params: 'webhook-1',
-      });
-      await Promise.resolve();
-    });
-
-    expect(JSON.parse(window.sessionStorage.getItem(storageKey)!)).toMatchObject({
-      key: 'webhook.delete',
-      params: 'webhook-1',
-      returnTo: '/admin/system',
-    });
-  });
-
-  test('この画面に戻ってきたら、覚えておいた操作を一度だけ続け、知らせは出さない', () => {
-    window.history.replaceState(null, '', '/admin/system?reauthenticated=oidc');
-    stored('webhook.delete', '/admin/system', 'webhook-1');
-    const onResume = vi.fn();
-
-    const { unmount } = render(<Page onResume={onResume} />);
-
-    expect(onResume).toHaveBeenCalledExactlyOnceWith('webhook-1');
-    expect(window.sessionStorage.getItem(storageKey)).toBeNull();
-    expect(screen.queryByRole('status')).toBeNull();
-
-    // 読み直しても、もう一度は続けない。
-    unmount();
-    render(<Page onResume={onResume} />);
-    expect(onResume).toHaveBeenCalledOnce();
-  });
-
-  test.each([
-    { name: 'IdP から戻ったのでない', url: '/admin/system', returnTo: '/admin/system' },
-    {
-      name: 'ほかの画面で覚えた',
-      url: '/admin/system?reauthenticated=oidc',
-      returnTo: '/admin/users',
-    },
-    {
-      // MCP のクライアントへの同意で、同じタブでほかのリクエストの同意の画面を開かされたとき。
-      name: '同じ画面でもクエリが違う',
-      url: '/authorize?client_id=https%3A%2F%2Fevil.example%2Fc&reauthenticated=oidc',
-      returnTo: '/authorize?client_id=https%3A%2F%2Fgood.example%2Fc',
-    },
-  ])('$nameときは、続けない', ({ url, returnTo }) => {
-    window.history.replaceState(null, '', url);
-    stored('webhook.delete', returnTo, 'webhook-1');
-    const onResume = vi.fn();
-
-    render(<Page onResume={onResume} />);
-
-    expect(onResume).not.toHaveBeenCalled();
-  });
-
-  test('このページを読み込んだ後に覚えたものは、戻ってきた URL のままでも続けない', async () => {
-    window.history.replaceState(null, '', '/admin/system?reauthenticated=oidc');
-    const { result } = renderHook(() => useReauthGate(methods, '/admin/system'));
-    await act(async () => {
-      result.current.run(reauthRequired, vi.fn(), undefined, undefined, {
-        key: 'webhook.delete',
-        params: 'webhook-2',
-      });
-      await Promise.resolve();
-    });
-    const onResume = vi.fn();
-
-    render(<Page onResume={onResume} />);
-
-    expect(onResume).not.toHaveBeenCalled();
-  });
-
-  test('戻すパスのクエリが同じなら、サーバーが並べ替えていても続ける', () => {
-    window.history.replaceState(null, '', '/authorize?reauthenticated=oidc&scope=mcp&state=s1');
-    stored('webhook.delete', '/authorize?state=s1&scope=mcp', 'webhook-1');
-    const onResume = vi.fn();
-
-    render(<Page onResume={onResume} />);
-
-    expect(onResume).toHaveBeenCalledOnce();
-  });
-
-  test('params を渡した続け方は、同じ params の操作だけを続ける (一覧の行ごと)', () => {
-    window.history.replaceState(null, '', '/admin/system?reauthenticated=oidc');
-    stored('webhook.delete', '/admin/system', 'webhook-2');
-    const first = vi.fn();
-    const second = vi.fn();
-    function Row({ id, onResume }: { id: string; onResume: () => void }) {
-      useReauthResume('webhook.delete', onResume, id);
-
-      return null;
-    }
-
-    render(
-      <>
-        <Row id="webhook-1" onResume={first} />
-        <Row id="webhook-2" onResume={second} />
-      </>,
-    );
-
-    expect(first).not.toHaveBeenCalled();
-    expect(second).toHaveBeenCalledOnce();
-  });
-
-  test('続け方のない操作を待っていたときは、もう一度操作するよう知らせる', () => {
-    window.history.replaceState(null, '', '/admin/system?reauthenticated=oidc');
-    stored(null);
-
-    render(<Page onResume={vi.fn()} />);
-
-    expect(screen.getByRole('status')).toBeTruthy();
-  });
-
-  test('再認証に失敗して戻ったときは、理由を出し、続けない', () => {
+describe('IdP での再認証から戻ったとき', () => {
+  test('失敗して戻ったときは、理由を出す', () => {
     window.history.replaceState(null, '', '/admin/system?error=oidc_denied');
-    stored('webhook.delete', '/admin/system', 'webhook-1');
-    const onResume = vi.fn();
 
-    render(<Page onResume={onResume} />);
+    render(<Gate />);
 
     expect(screen.getByRole('alert')).toBeTruthy();
-    expect(onResume).not.toHaveBeenCalled();
-    expect(window.sessionStorage.getItem(storageKey)).toBeNull();
+  });
+
+  test('成功して戻ったときは、何も出さない (開き直した画面は SudoGate が確かめる)', () => {
+    window.history.replaceState(null, '', '/admin/system');
+
+    render(<Gate />);
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });

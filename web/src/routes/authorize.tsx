@@ -13,7 +13,7 @@ import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 import { settingsErrorMessage } from '../settings/errors';
 import { mutate } from '../settings/mutate';
 import { clientHost } from '../settings/OAuthGrants';
-import { reauthMethods, useReauthGate, useReauthResume } from '../settings/useReauthGate';
+import { reauthMethods, useReauthGate } from '../settings/useReauthGate';
 import { SudoGate } from '../settings/SudoGate';
 import type { authorizeApproveMutation } from './__generated__/authorizeApproveMutation.graphql';
 import type { authorizeDenyMutation } from './__generated__/authorizeDenyMutation.graphql';
@@ -123,49 +123,32 @@ function Consent({ query }: { query: string }) {
     window.location.assign(url);
   };
   const fail = (caught: unknown) => setError(settingsErrorMessage(t, caught));
-  // 同意と拒否は、IdP で再認証して戻ってきたら、そのまま続ける (#916)。選んだスコープは秘密ではないので、覚えておく。
   const approve = (scopes: readonly string[]) =>
-    gate.run(
-      async () => {
-        const response = await mutate<authorizeApproveMutation>(
-          environment,
-          graphql`
-            mutation authorizeApproveMutation($query: String!, $scopes: [String!]!) {
-              approveOAuthAuthorization(query: $query, scopes: $scopes)
-            }
-          `,
-          { query, scopes: [...scopes] },
-        );
-        leave(response.approveOAuthAuthorization);
-      },
-      fail,
-      undefined,
-      undefined,
-      { key: 'oauth.approve', params: scopes.join(' ') },
-    );
+    gate.run(async () => {
+      const response = await mutate<authorizeApproveMutation>(
+        environment,
+        graphql`
+          mutation authorizeApproveMutation($query: String!, $scopes: [String!]!) {
+            approveOAuthAuthorization(query: $query, scopes: $scopes)
+          }
+        `,
+        { query, scopes: [...scopes] },
+      );
+      leave(response.approveOAuthAuthorization);
+    }, fail);
   const deny = () =>
-    gate.run(
-      async () => {
-        const response = await mutate<authorizeDenyMutation>(
-          environment,
-          graphql`
-            mutation authorizeDenyMutation($query: String!) {
-              denyOAuthAuthorization(query: $query)
-            }
-          `,
-          { query },
-        );
-        leave(response.denyOAuthAuthorization);
-      },
-      fail,
-      undefined,
-      undefined,
-      { key: 'oauth.deny' },
-    );
-  useReauthResume('oauth.approve', (params) =>
-    approve((params ?? '').split(' ').filter((scope) => scope !== '')),
-  );
-  useReauthResume('oauth.deny', deny);
+    gate.run(async () => {
+      const response = await mutate<authorizeDenyMutation>(
+        environment,
+        graphql`
+          mutation authorizeDenyMutation($query: String!) {
+            denyOAuthAuthorization(query: $query)
+          }
+        `,
+        { query },
+      );
+      leave(response.denyOAuthAuthorization);
+    }, fail);
 
   // パラメーターが正しくなければ、エラーを付けてクライアントへ戻す。
   useEffect(() => {
