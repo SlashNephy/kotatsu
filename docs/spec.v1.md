@@ -1591,6 +1591,7 @@ Docker Composeの例は、停止の猶予（`stop_grace_period`）を、Helm Cha
 | `web/` | フロントエンド（futonとyunomiを含みます） |
 | `charts/kotatsu/` | Helm Chart |
 | `deploy/` | 生成したKubernetesのマニフェストと、Docker Composeの例 |
+| `docker/` | 開発用のComposeと、コンテナイメージのビルドで使う設定とスクリプト |
 | `docs/` | ドキュメント |
 
 ツールチェーンはmiseで固定し、依存関係はRenovateで追跡します。

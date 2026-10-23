@@ -42,7 +42,7 @@ while IFS= read -r file || [[ -n "$file" ]]; do
     web/*) web=true ;;
     *.go | go.mod | go.sum | internal/* | cmd/* | db/* | graph/* | testdata/* | charts/* | deploy/* | .github/* | \
       .golangci.yaml | sqlc.yaml | atlas.hcl | gqlgen.yml | scripts/testts/* | scripts/generate-test-ts.sh | \
-      scripts/next-version.sh | scripts/update-password-blocklist.sh | mise.dev.toml | mise.dev.lock | compose.yaml | dev/* | \
+      scripts/next-version.sh | scripts/update-password-blocklist.sh | mise.dev.toml | mise.dev.lock | compose.yaml | docker/* | \
       Dockerfile | .dockerignore | .goreleaser.yaml) ;;
     *) web=true ;;
   esac

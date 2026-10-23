@@ -81,7 +81,7 @@ RUN drivers="mesa-va-drivers" \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=tools /out/tsreadex /usr/local/bin/
 COPY --from=tools /out/doc/ /usr/share/doc/kotatsu/third-party/
-COPY build/container/write-debian-sources.sh /tmp/
+COPY docker/debian/write-debian-sources.sh /tmp/
 # 入れた Debian のパッケージとソースパッケージの一覧を、ソースの入手先とともに書き出す (付録 B)。
 RUN sh /tmp/write-debian-sources.sh /usr/share/doc/kotatsu/third-party/debian-packages.tsv && rm /tmp/write-debian-sources.sh
 

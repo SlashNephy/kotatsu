@@ -93,7 +93,7 @@ Dexの画面で、次のどれかのユーザーでログインします。
 ロールは、Dexのユーザーのグループで決まります。
 OIDCでのログインには、認証アプリの登録が要りません。
 
-ユーザーとパスワードは、[dev/dex.yaml](../dev/dex.yaml)で変えられます。
+ユーザーとパスワードは、[docker/dex/kotatsu.yaml](../docker/dex/kotatsu.yaml)で変えられます。
 DexのissuerのURLは`dex.localhost`です。
 ブラウザは`*.localhost`を手元のマシンに向けるので、そのまま開けます。
 

@@ -49,7 +49,7 @@ services:
     ports:
       - "127.0.0.1:40772:40772"
 
-  # 開発用の OIDC の IdP。admin、member、viewer のユーザーで、パスワードだけでログインできる (dev/dex.yaml)。
+  # 開発用の OIDC の IdP。admin、member、viewer のユーザーで、パスワードだけでログインできる (docker/dex/kotatsu.yaml)。
   dex:
     image: ghcr.io/dexidp/dex:v2.46.1@sha256:65b72ca0f4b0bf6d4ada84ec21da8851782563404ac7b8f926923d27ceced9ab
     command: ["dex", "serve", "/etc/dex/kotatsu.yaml"]
@@ -58,7 +58,7 @@ services:
     ports:
       - "127.0.0.1:5556:5556"
     volumes:
-      - ./dev/dex.yaml:/etc/dex/kotatsu.yaml:ro
+      - ./docker/dex/kotatsu.yaml:/etc/dex/kotatsu.yaml:ro
     networks:
       default:
         # issuer の dex.localhost を、Kotatsu のコンテナからも引けるようにする。
