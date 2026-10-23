@@ -65,4 +65,9 @@ extend type Mutation {
   changePassword(password: String!): Boolean!
   "ログイン中のユーザーのセッションを失効させ、その ID を返す。"
   revokeSession(id: ID!): ID!
+  """
+  ログイン中のユーザーの、今のセッションのほかをまとめて失効させ、失効させた数を返す。
+  乗っ取られた後の被害を抑える操作なので、再認証を求めない。
+  """
+  revokeOtherSessions: Int!
 }

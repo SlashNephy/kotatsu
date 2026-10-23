@@ -277,6 +277,7 @@ type ComplexityRoot struct {
 		RenamePasskey                func(childComplexity int, id string, name string) int
 		RenameRecordingFiles         func(childComplexity int, ids []string) int
 		ResetUserPassword            func(childComplexity int, id string, password string) int
+		RevokeOtherSessions          func(childComplexity int) int
 		RevokeSession                func(childComplexity int, id string) int
 		SaveWatchPosition            func(childComplexity int, id string, positionMs int64) int
 		SendPlayerCommand            func(childComplexity int, id string, command model.PlayerCommandInput) int
@@ -967,6 +968,7 @@ type MutationResolver interface {
 	ResetUserPassword(ctx context.Context, id string, password string) (*model.User, error)
 	ChangePassword(ctx context.Context, password string) (bool, error)
 	RevokeSession(ctx context.Context, id string) (string, error)
+	RevokeOtherSessions(ctx context.Context) (int, error)
 	SetWatchReservation(ctx context.Context, program string, reserved bool) (*model.Program, error)
 	UpdateWatchReminderSettings(ctx context.Context, minutesBefore int) (*model.WatchReminderSettings, error)
 	SubscribeWebPush(ctx context.Context, input model.WebPushSubscriptionInput) (*model.WebPushSubscription, error)
@@ -2130,6 +2132,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ResetUserPassword(childComplexity, args["id"].(string), args["password"].(string)), true
+	case "Mutation.revokeOtherSessions":
+		if e.ComplexityRoot.Mutation.RevokeOtherSessions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.RevokeOtherSessions(childComplexity), true
 	case "Mutation.revokeSession":
 		if e.ComplexityRoot.Mutation.RevokeSession == nil {
 			break
@@ -7383,6 +7391,11 @@ extend type Mutation {
   changePassword(password: String!): Boolean!
   "ログイン中のユーザーのセッションを失効させ、その ID を返す。"
   revokeSession(id: ID!): ID!
+  """
+  ログイン中のユーザーの、今のセッションのほかをまとめて失効させ、失効させた数を返す。
+  乗っ取られた後の被害を抑える操作なので、再認証を求めない。
+  """
+  revokeOtherSessions: Int!
 }
 `, BuiltIn: false},
 	{Name: "../schema/watch_reservations.graphqls", Input: `"""
@@ -15540,6 +15553,29 @@ func (ec *executionContext) fieldContext_Mutation_revokeSession(ctx context.Cont
 		return fc, err
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_revokeOtherSessions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_revokeOtherSessions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().RevokeOtherSessions(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_revokeOtherSessions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Mutation", field, true, true, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _Mutation_setWatchReservation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -31168,6 +31204,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "revokeSession":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_revokeSession(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revokeOtherSessions":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_revokeOtherSessions(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

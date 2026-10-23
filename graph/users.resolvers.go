@@ -139,6 +139,23 @@ func (r *mutationResolver) RevokeSession(ctx context.Context, id string) (string
 	return id, nil
 }
 
+// RevokeOtherSessions is the resolver for the revokeOtherSessions field.
+func (r *mutationResolver) RevokeOtherSessions(ctx context.Context) (int, error) {
+	if r.sessions == nil {
+		return 0, errUsersUnavailable
+	}
+	principal, err := viewer(ctx)
+	if err != nil {
+		return 0, err
+	}
+	revoked, err := r.revokeOtherSessions(ctx, principal)
+	if err != nil {
+		return 0, err
+	}
+
+	return int(revoked), nil
+}
+
 // Users is the resolver for the users field.
 func (r *queryResolver) Users(ctx context.Context) ([]*model.User, error) {
 	principal, err := viewer(ctx)
