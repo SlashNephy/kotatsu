@@ -126,13 +126,13 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
 
-  # 画面の依存を、web/node_modules のボリュームに入れる。pnpm-lock.yaml を変えたら、docker compose up web-install で入れ直す。
+  # 画面の依存を、frontend/node_modules のボリュームに入れる。pnpm-lock.yaml を変えたら、docker compose up web-install で入れ直す。
   web-install:
     <<: *dev
     command: ["run", "web:install"]
     volumes:
       - .:/src
-      - web-node-modules:/src/web/node_modules
+      - web-node-modules:/src/frontend/node_modules
 
   # 画面の開発サーバー (Vite)。ブラウザはここを開き、API と映像は Kotatsu に中継される。保存した画面の変更は、その場で差し替わる。
   web:
@@ -145,7 +145,7 @@ services:
       - "127.0.0.1:${KOTATSU_DEV_PORT:-8080}:8080"
     volumes:
       - .:/src
-      - web-node-modules:/src/web/node_modules
+      - web-node-modules:/src/frontend/node_modules
     depends_on:
       web-install:
         condition: service_completed_successfully
@@ -164,7 +164,7 @@ services:
     command: ["run", "dev:relay"]
     volumes:
       - .:/src
-      - web-node-modules:/src/web/node_modules
+      - web-node-modules:/src/frontend/node_modules
     depends_on:
       web-install:
         condition: service_completed_successfully

@@ -53,7 +53,7 @@ export default defineConfig({
   publicDir: false,
   build: {
     target: 'es2020',
-    // web/dist は SPA の埋め込み先なので、別のディレクトリに書き出す。
+    // frontend/dist はデモの出力先なので、別のディレクトリに書き出す。
     outDir: 'zxcvbn/dist',
     emptyOutDir: true,
     minify: true,

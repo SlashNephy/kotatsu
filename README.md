@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="web/public/icons/icon.svg" alt="Kotatsu のアイコン" width="128" height="128">
+  <img src="frontend/public/icons/icon.svg" alt="Kotatsu のアイコン" width="128" height="128">
 </p>
 
 # Kotatsu

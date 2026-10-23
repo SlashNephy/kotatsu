@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# mpeg2toh264 のプレイヤーを、web/vendor/mpeg2toh264/SOURCE で固定した commit からビルドし、web に置く (設計書 7.2)。
+# mpeg2toh264 のプレイヤーを、frontend/vendor/mpeg2toh264/SOURCE で固定した commit からビルドし、frontend に置く (設計書 7.2)。
 #
 # mpeg2toh264 のプレイヤーは npm に公開されていないので、ソースからビルドしたものをリポジトリに置く。
 # ビルドには、mise で固定した Rust と wasm-bindgen と Node.js を使う。
 # 同じ commit からは同じものができるよう、ビルドしたディレクトリの絶対パスを成果物に残さない。
 #
 # 置くもの:
-#   web/vendor/mpeg2toh264/player  @mpeg2toh264/player (MIT)。変換のワーカーを含む
-#   web/vendor/mpeg2toh264/yadif   @mpeg2toh264/yadif (LGPL-2.1-or-later)。差し替えられるよう、別のパッケージのままにする
-#   web/public/mpeg2toh264/        変換に使う WebAssembly と、yadif のライセンス文書とソースの入手先。明示的な URL で配信する
+#   frontend/vendor/mpeg2toh264/player  @mpeg2toh264/player (MIT)。変換のワーカーを含む
+#   frontend/vendor/mpeg2toh264/yadif   @mpeg2toh264/yadif (LGPL-2.1-or-later)。差し替えられるよう、別のパッケージのままにする
+#   frontend/public/mpeg2toh264/        変換に使う WebAssembly と、yadif のライセンス文書とソースの入手先。明示的な URL で配信する
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-vendor="$root/web/vendor/mpeg2toh264"
-public="$root/web/public/mpeg2toh264"
+vendor="$root/frontend/vendor/mpeg2toh264"
+public="$root/frontend/public/mpeg2toh264"
 # shellcheck source=/dev/null
 source <(grep -E '^(repository|commit)=' "$vendor/SOURCE")
 

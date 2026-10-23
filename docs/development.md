@@ -114,8 +114,8 @@ docker compose logs kotatsu | grep setup_token
 | 変えたもの | 反映のしかた |
 | --- | --- |
 | Goのソース（`backend/`の`cmd/`、`internal/`、`graph/`） | `kotatsu`がビルドし直し、マイグレーションを当ててから起動し直します。数秒かかり、その間はAPIが502を返します |
-| 画面のソース（`web/src/`） | 開発サーバーが、ページを読み込み直さずに差し替えます |
-| SQLのクエリやスキーマ（`backend/db/queries/`、`backend/db/schema.sql`）、GraphQLのスキーマ（`backend/graph/schema/`） | `generate`が、sqlcとgqlgenの生成物と`web/schema.graphql`を作り直します。続けて、Goのビルドと`relay`が動きます |
+| 画面のソース（`frontend/src/`） | 開発サーバーが、ページを読み込み直さずに差し替えます |
+| SQLのクエリやスキーマ（`backend/db/queries/`、`backend/db/schema.sql`）、GraphQLのスキーマ（`backend/graph/schema/`） | `generate`が、sqlcとgqlgenの生成物と`frontend/schema.graphql`を作り直します。続けて、Goのビルドと`relay`が動きます |
 | 画面のGraphQLのクエリ | `relay`が、`__generated__`を作り直します |
 
 マイグレーションは自動では作りません。
@@ -124,7 +124,7 @@ docker compose logs kotatsu | grep setup_token
 ビルドに失敗したときは、`docker compose logs -f kotatsu`でエラーを確かめてください。
 直して保存すると、またビルドします。
 
-`web/pnpm-lock.yaml`を変えたときは、依存を入れ直してから、開発サーバーを起動し直してください。
+`frontend/pnpm-lock.yaml`を変えたときは、依存を入れ直してから、開発サーバーを起動し直してください。
 
 ```bash
 docker compose up web-install

@@ -181,7 +181,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
       - run: mise run web:mpeg2toh264
-      - run: git add -N web/vendor web/public && git diff --exit-code web/vendor web/public
+      - run: git add -N frontend/vendor frontend/public && git diff --exit-code frontend/vendor frontend/public
 
   generate:
     needs: changes
@@ -203,11 +203,11 @@ jobs:
           restore-keys: |
             go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
             go-${{ github.job }}-${{ runner.os }}-
-      # pnpm のストア。web/pnpm-lock.yaml が変わったら作り直す。
+      # pnpm のストア。frontend/pnpm-lock.yaml が変わったら作り直す。
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/share/pnpm/store
-          key: pnpm-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
           restore-keys: |
             pnpm-${{ runner.os }}-
       - run: mise run generate
@@ -225,11 +225,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
-      # pnpm のストア。web/pnpm-lock.yaml が変わったら作り直す。
+      # pnpm のストア。frontend/pnpm-lock.yaml が変わったら作り直す。
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/share/pnpm/store
-          key: pnpm-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
           restore-keys: |
             pnpm-${{ runner.os }}-
       - run: mise run web:check
@@ -239,9 +239,9 @@ jobs:
       # デモ (#832) も、スキーマや画面の変更でビルドが通らなくなっていないかを確かめる。
       - run: mise run web:demo
       - run: git add -N . && git diff --exit-code
-      # Playwright のブラウザは、web/package.json で固定した @playwright/test の版に合わせて入れる。
+      # Playwright のブラウザは、frontend/package.json で固定した @playwright/test の版に合わせて入れる。
       - run: pnpm exec playwright install --with-deps chromium
-        working-directory: web
+        working-directory: frontend
       - run: mise run web:e2e
 
   # 偽のチューナーサーバーと Kotatsu を立てて、主な流れを E2E で確かめる (#508、設計書 11.6)。
@@ -273,7 +273,7 @@ jobs:
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/share/pnpm/store
-          key: pnpm-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
           restore-keys: |
             pnpm-${{ runner.os }}-
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -286,15 +286,15 @@ jobs:
             go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
             go-${{ github.job }}-${{ runner.os }}-
       - run: mise run web:install
-      # Playwright のブラウザは、web/package.json で固定した @playwright/test の版に合わせて入れる。
+      # Playwright のブラウザは、frontend/package.json で固定した @playwright/test の版に合わせて入れる。
       - run: pnpm exec playwright install --with-deps chromium
-        working-directory: web
+        working-directory: frontend
       - run: mise run e2e:stack
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-stack-traces
-          path: web/test-results/
+          path: frontend/test-results/
           retention-days: 7
 
   # ルールセットで必須のチェックにする、CI の結果のまとめ。Auto-merge は、このジョブが通るのを待つ。

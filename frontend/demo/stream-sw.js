@@ -3,7 +3,7 @@
 // ライブ視聴の要求 (?session= の付いたもの) だけを受け持ち、ほかの要求には手を出さない。
 // 映像が終わると切れたものとして扱われ、画面のつなぎ直しで、また初めから流れる。
 
-// durationSeconds は、映像の長さ (web/scripts/build-demo-stream.sh で作る長さ)。
+// durationSeconds は、映像の長さ (frontend/scripts/build-demo-stream.sh で作る長さ)。
 const durationSeconds = 20;
 // leadSeconds は、初めに一気に渡す分。プレイヤーが再生を始めるのに足りるだけ先に渡す。
 const leadSeconds = 2;

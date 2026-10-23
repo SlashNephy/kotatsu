@@ -1,6 +1,6 @@
 // Package webui は、ビルドした SPA を Go のバイナリに埋め込む (設計書 2.3)。
 //
-// SPA は web/ で vp build すると、このパッケージの dist/app に出力される。
+// SPA は frontend/ で vp build すると、このパッケージの dist/app に出力される。
 // 未ビルドでも go build が通るよう、dist には空の .gitkeep だけを置いてリポジトリに残す。
 package webui
 
@@ -12,7 +12,7 @@ import (
 //go:embed all:dist
 var dist embed.FS
 
-// icons は、SPA を未ビルドでも使えるよう、web/public/icons から写したものを埋め込む。
+// icons は、SPA を未ビルドでも使えるよう、frontend/public/icons から写したものを埋め込む。
 // 写すのは mise run generate で、CI で原本と食い違っていないかを確かめる。
 //
 //go:embed icons/icon.svg icons/icon-192.png

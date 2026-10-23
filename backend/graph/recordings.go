@@ -116,7 +116,7 @@ func (r *Resolver) listRecordings(
 
 const (
 	// continueMinPositionMs は、続きから見る録画に含める、再生位置の下限 (ミリ秒)。少し見ただけの録画は含めない。
-	// これより前は、続きから再生しても最初から始まる (web/src/yunomi/resume.ts の minResume に、戻す長さ rewind を足したもの) のでそろえる。
+	// これより前は、続きから再生しても最初から始まる (frontend/src/yunomi/resume.ts の minResume に、戻す長さ rewind を足したもの) のでそろえる。
 	continueMinPositionMs = 10000
 	// continueEndMarginMs は、見終えたとみなす、終わりからの長さ (ミリ秒)。resume.ts の endMargin とそろえる。
 	continueEndMarginMs = 10000
@@ -295,7 +295,7 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []sqlc.Recording) (
 }
 
 // watchEndMargin は、見終えたとみなす、録画の終わりからの時間。
-// 再生画面が、続きから再生せずに最初から再生する判定 (web/src/yunomi/resume.ts の endMargin) と揃える。
+// 再生画面が、続きから再生せずに最初から再生する判定 (frontend/src/yunomi/resume.ts の endMargin) と揃える。
 const watchEndMargin = 10 * time.Second
 
 // watchFrame は、ログイン中のユーザーが前回見た位置に合う、プレビュー画像のコマを返す。

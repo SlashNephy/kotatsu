@@ -16,7 +16,7 @@ import (
 	"github.com/dop251/goja"
 )
 
-// zxcvbnBundle は、web/zxcvbn から作った zxcvbn-ts のバンドル。mise run generate で作り直す。
+// zxcvbnBundle は、frontend/zxcvbn から作った zxcvbn-ts のバンドル。mise run generate で作り直す。
 //
 //go:embed zxcvbn.js.gz
 var zxcvbnBundle []byte

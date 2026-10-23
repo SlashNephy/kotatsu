@@ -50,7 +50,7 @@
       // 字幕を描くフォント。リリースのタグと、添付のフォントの sha256 を合わせて上げる。
       customType: 'regex',
       managerFilePatterns: [
-        '/^web/vendor/caption-font/SOURCE$/',
+        '/^frontend/vendor/caption-font/SOURCE$/',
       ],
       matchStrings: [
         '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\ntag=(?<currentValue>\\S+)\\nsha256=(?<currentDigest>[0-9a-f]{64})',
@@ -62,7 +62,7 @@
       // ブラウザ内での変換に使う mpeg2toh264 の commit (設計書 7.2)。更新したら、mise run web:mpeg2toh264 でビルドし直す。
       customType: 'regex',
       managerFilePatterns: [
-        '/^web/vendor/mpeg2toh264/SOURCE$/',
+        '/^frontend/vendor/mpeg2toh264/SOURCE$/',
       ],
       matchStrings: [
         '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) currentValue=(?<currentValue>\\S+)\\ncommit=(?<currentDigest>[0-9a-f]{40})',

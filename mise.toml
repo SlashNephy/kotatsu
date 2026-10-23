@@ -7,7 +7,7 @@ sqlc = "1.31.1"
 goreleaser = "2.18.3"
 # Helm Chart から Kubernetes のマニフェストを生成する (設計書 11.1)。
 helm = "4.3.1"
-# フロントエンド (web/) のツールチェーン。Vite+ は web/package.json の devDependency にする (設計書 10.1)。
+# フロントエンド (frontend/) のツールチェーン。Vite+ は frontend/package.json の devDependency にする (設計書 10.1)。
 node = "24.22.1"
 pnpm = "12.15.0"
 
@@ -33,17 +33,17 @@ run = [
 depends = ["web:build"]
 run = "goreleaser release --snapshot --clean"
 
-# フロントエンド (web/)。ビルドした SPA は backend/internal/webui/dist/app に出力され、go build で埋め込まれる。
+# フロントエンド (frontend/)。ビルドした SPA は backend/internal/webui/dist/app に出力され、go build で埋め込まれる。
 # 埋め込んだバイナリを作るときは、mise run web:build の後に mise run build を実行する。
 [tasks."web:install"]
-dir = "web"
+dir = "frontend"
 run = [
   "pnpm install --frozen-lockfile",
-  # 字幕を描くフォントは npm にないので、web/vendor/caption-font/SOURCE で固定したリリースから取得する。
+  # 字幕を描くフォントは npm にないので、frontend/vendor/caption-font/SOURCE で固定したリリースから取得する。
   "node scripts/fetch-caption-font.mjs",
 ]
 
-# ブラウザ内での変換に使う mpeg2toh264 のプレイヤーを、web/vendor/mpeg2toh264/SOURCE の commit からビルドし直す (設計書 7.2)。
+# ブラウザ内での変換に使う mpeg2toh264 のプレイヤーを、frontend/vendor/mpeg2toh264/SOURCE の commit からビルドし直す (設計書 7.2)。
 # Rust と wasm-bindgen は mise.mpeg2toh264.toml で固定しているので、MISE_ENV=mpeg2toh264 を付けて実行する。
 [tasks."web:mpeg2toh264"]
 run = "./scripts/build-mpeg2toh264.sh"
@@ -51,7 +51,7 @@ run = "./scripts/build-mpeg2toh264.sh"
 # GraphQL のクエリから、Relay の型とアーティファクト (__generated__) を生成する。
 # watchman があれば使おうとするが、使わなくても足りるので切る。
 [tasks."web:relay"]
-dir = "web"
+dir = "frontend"
 depends = ["web:install"]
 env = { FORCE_NO_WATCHMAN = "1" }
 run = [
@@ -62,36 +62,36 @@ run = [
 ]
 
 [tasks."web:build"]
-dir = "web"
+dir = "frontend"
 depends = ["web:relay"]
 run = "pnpm exec vp build"
 
 # 静的なデモ (#832)。tenban なしに画面を触れるよう、応答をブラウザの中で返す。
-# Cloudflare Pages のサイトの直下に置き、web/dist/demo に出力する。Cloudflare Pages は、web の pnpm run build:demo でビルドする。
+# Cloudflare Pages のサイトの直下に置き、frontend/dist/demo に出力する。Cloudflare Pages は、frontend の pnpm run build:demo でビルドする。
 [tasks."web:demo"]
-dir = "web"
+dir = "frontend"
 depends = ["web:relay"]
 run = "pnpm exec vp build --mode demo --outDir dist/demo"
 
 [tasks."web:check"]
-dir = "web"
+dir = "frontend"
 depends = ["web:relay"]
 run = "pnpm exec vp check"
 
 [tasks."web:test"]
-dir = "web"
+dir = "frontend"
 depends = ["web:relay"]
 run = "pnpm exec vp test run"
 
 [tasks."web:storybook"]
-dir = "web"
+dir = "frontend"
 depends = ["web:relay"]
 run = "pnpm exec storybook build --quiet"
 
 # E2E テスト。ビルド済みの SPA を vp preview で配信して確かめる。
 # Chromium は pnpm exec playwright install chromium で入れるか、KOTATSU_E2E_CHROMIUM に手元のものを指定する。
 [tasks."web:e2e"]
-dir = "web"
+dir = "frontend"
 depends = ["web:build"]
 run = "pnpm exec playwright test --project=spa"
 
@@ -104,7 +104,7 @@ run = ["go build -trimpath -o ./bin/ ./backend/cmd/kotatsu", "scripts/e2e-stack.
 
 # サーバーの goja で動かす zxcvbn-ts のバンドル (設計書 2.2) を作り、gzip で backend/internal/password に置く。
 [tasks."password:zxcvbn"]
-dir = "web"
+dir = "frontend"
 depends = ["web:install"]
 run = [
   "pnpm exec vp build --config zxcvbn/vite.config.ts",
@@ -112,7 +112,7 @@ run = [
 ]
 
 [tasks."web:dev"]
-dir = "web"
+dir = "frontend"
 depends = ["web:install"]
 run = "pnpm exec vp dev"
 
@@ -146,11 +146,11 @@ run = [
   # gqlgen が書き換えたリゾルバの import を、リポジトリの形式にそろえる。
   "golangci-lint fmt",
   # フロントエンドの Relay のコンパイラが読む、1 つにまとめたスキーマを書き出す。
-  "go run ./graph/printschema > ../web/schema.graphql",
+  "go run ./graph/printschema > ../frontend/schema.graphql",
   # 囲み文字の表 (internal/epg/enclosed.go) を、画面で使う TypeScript に書き出す。
-  "go run ./internal/epg/printenclosed > ../web/src/futon/enclosedCharacters.gen.ts",
+  "go run ./internal/epg/printenclosed > ../frontend/src/futon/enclosedCharacters.gen.ts",
   # MCP サーバーが SPA なしで返すアイコンを、画面の原本から写す。
-  "cp ../web/public/icons/icon.svg ../web/public/icons/icon-192.png internal/webui/icons/",
+  "cp ../frontend/public/icons/icon.svg ../frontend/public/icons/icon-192.png internal/webui/icons/",
   # schema.sql とマイグレーションが食い違っていれば、ここで新しいマイグレーションが生成される。
   "atlas migrate diff --env local",
   "atlas migrate validate --env local",

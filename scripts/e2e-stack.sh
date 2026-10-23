@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 偽のチューナーサーバーと Kotatsu (全ロール) を立て、web/e2e-stack の E2E テストを流す (#508、設計書 11.6)。
+# 偽のチューナーサーバーと Kotatsu (全ロール) を立て、frontend/e2e/stack の E2E テストを流す (#508、設計書 11.6)。
 #
 # 使い方: KOTATSU_DATABASE_URL=postgres://.../空のDB scripts/e2e-stack.sh [playwright test の引数...]
 # 先に mise run web:build と mise run build で、画面を埋め込んだ ./bin/kotatsu を作っておく。
@@ -64,7 +64,7 @@ fi
 
 status=0
 (
-  cd web
+  cd frontend
   KOTATSU_E2E_URL="http://127.0.0.1:$port" KOTATSU_E2E_SETUP_TOKEN="$token" \
     pnpm exec playwright test --project=stack "$@"
 ) || status=$?

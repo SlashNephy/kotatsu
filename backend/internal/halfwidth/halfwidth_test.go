@@ -8,7 +8,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/halfwidth"
 )
 
-// TestConvert は、画面の半角化 (web/src/futon/halfWidth.test.ts) と同じ例で、同じ結果になることを確かめる。
+// TestConvert は、画面の半角化 (frontend/src/futon/halfWidth.test.ts) と同じ例で、同じ結果になることを確かめる。
 func TestConvert(t *testing.T) {
 	t.Parallel()
 

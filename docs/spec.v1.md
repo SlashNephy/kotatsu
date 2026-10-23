@@ -277,7 +277,7 @@ Goに移植されたzxcvbnは、どれも更新が止まっています（truste
 l33tの照合は、`4→a`のような読み替えの候補を最大100通り作り、候補ごとに辞書全体を引き直すからです。
 64文字のパスワードの判定は、手元のgojaで約3.5秒、負荷の高い機材では12秒を超えました。
 
-そこで、zxcvbn-tsに次のパッチを当て、判定の結果を変えずに速くします（`web/patches`）。
+そこで、zxcvbn-tsに次のパッチを当て、判定の結果を変えずに速くします（`frontend/patches`）。
 
 - l33tの候補では、読み替えた文字を含む部分だけを辞書で引き、引いた結果を候補の間で使い回します。読み替えた文字を含まない部分の一致は、もともと捨てられます。
 - 順位を付け終えた辞書を受け取れるようにします。サーバーのバンドルには、ビルドのときに順位を付けた辞書をJSONの文字列で埋め込みます。gojaの`JSON.parse`はGoで動くので、辞書を展開して順位を付け直すより速いからです。
@@ -1363,7 +1363,7 @@ tenbanは、`/mcp`で、MCPのクライアントに、番組、予約、ルー�
 | 番組表 | TanStack Virtual | 縦と横の両方を仮想化し、チャンネル数と番組数が多くても描画する要素を画面内に限ります。 |
 | 再生 | mpeg2toh264、hls.js、aribb24.js、web-bml、niconicomments | |
 | 認証 | @simplewebauthn/browser、zxcvbn-ts | |
-| PWA | Service Workerでアプリの外枠だけをキャッシュし、Web Pushを受け取ります | 番組データと映像はキャッシュしません。Service Workerはvite-plugin-pwaの`injectManifest`で作ります。プリキャッシュの一覧はプラグインに注入させ、Web Pushの受信とナビゲーションの扱いは自前のService Workerに書きます。AndroidにインストールしたPWAは、ジェスチャーナビゲーションの帯を`theme-color`の色で塗ります。マニフェストの`theme_color`は1色しか書けず、ダークテーマで帯だけがみかん色に浮くので、ページの`<meta name="theme-color">`を表示中のテーマに合わせて書き換えます。ライトテーマはみかん色、ダークテーマは背景の焦げ茶です。アプリ内でテーマを切り替えたときも追従します（#425）。ページは`viewport-fit=cover`で画面の端（ノッチや、ブラウザのタブで見たときのジェスチャーナビゲーションの帯）の下まで描き、中身が隠れないよう、下と左右の`env(safe-area-inset-*)`の分だけ余白を足します。上の端（ステータスバー）は、AndroidのChromeもiOSの既定のステータスバーもページを下に描かないので、扱いません。iOSのホーム画面のアイコンには、透過のない180×180のPNGを、`apple-touch-icon`に`data:` URLで埋め込みます。iOS 27の「ホーム画面に追加」は、URLで指したアイコンを読み込めず、タイトルの頭文字のタイルを出すからです（#582）。埋め込みはビルド時に行い、元のPNGは`web/public/icons`に置きます。 |
+| PWA | Service Workerでアプリの外枠だけをキャッシュし、Web Pushを受け取ります | 番組データと映像はキャッシュしません。Service Workerはvite-plugin-pwaの`injectManifest`で作ります。プリキャッシュの一覧はプラグインに注入させ、Web Pushの受信とナビゲーションの扱いは自前のService Workerに書きます。AndroidにインストールしたPWAは、ジェスチャーナビゲーションの帯を`theme-color`の色で塗ります。マニフェストの`theme_color`は1色しか書けず、ダークテーマで帯だけがみかん色に浮くので、ページの`<meta name="theme-color">`を表示中のテーマに合わせて書き換えます。ライトテーマはみかん色、ダークテーマは背景の焦げ茶です。アプリ内でテーマを切り替えたときも追従します（#425）。ページは`viewport-fit=cover`で画面の端（ノッチや、ブラウザのタブで見たときのジェスチャーナビゲーションの帯）の下まで描き、中身が隠れないよう、下と左右の`env(safe-area-inset-*)`の分だけ余白を足します。上の端（ステータスバー）は、AndroidのChromeもiOSの既定のステータスバーもページを下に描かないので、扱いません。iOSのホーム画面のアイコンには、透過のない180×180のPNGを、`apple-touch-icon`に`data:` URLで埋め込みます。iOS 27の「ホーム画面に追加」は、URLで指したアイコンを読み込めず、タイトルの頭文字のタイルを出すからです（#582）。埋め込みはビルド時に行い、元のPNGは`frontend/public/icons`に置きます。 |
 | 文言 | i18next | v1は日本語だけですが、後から仕組みを入れ直さずに済むよう最初から導入します。 |
 | 品質 | OxlintとOxfmt（`vp check`）、Vitest、Storybook、Playwright | Storybookはfutonの部品の確認に使います。 |
 
@@ -1377,7 +1377,7 @@ GraphQLは、graphql-jsで`schema.graphql`をメモリ上のデータに対し�
 デモはCloudflare Pagesのサイトの直下に置きます。ルーターと静的なファイルのURLは、Viteの`base`に従います。
 アプリの外枠のService Worker（PWA）は作らず、登録もしません。
 代わりに、ライブ視聴の映像を実時間の速さで流すだけのService Workerを、`base`に範囲を絞って登録します。静的なファイルは一気に届き終わり、ライブ視聴の画面が再生を始める前に切れたものとして扱うためです。
-映像は、ffmpegのテストパターンから作った20秒の合成の映像（`web/demo/stream.m2ts`）で、どの局と録画もこれを流します。ライブ視聴は、映像が終わると切れたものとして扱い、つなぎ直して繰り返します。
+映像は、ffmpegのテストパターンから作った20秒の合成の映像（`frontend/demo/stream.m2ts`）で、どの局と録画もこれを流します。ライブ視聴は、映像が終わると切れたものとして扱い、つなぎ直して繰り返します。
 通常のビルドは`import.meta.env.MODE`の比較でデモのコードを除き、tenbanに埋め込むSPAには含めません。
 
 ### 10.2 見た目の方針
@@ -1483,7 +1483,7 @@ Content Security Policyは厳しく設定します。
 | コンテナイメージ | [2.4](#24-コンテナイメージ)の2種類です。ビルドに使うtsreadexのバージョンは、Renovateで追跡できる形で固定します。 |
 | バイナリ | GoReleaserでGitHub Releasesに置きます。SPAは埋め込み済みです。FFmpegとtsreadexは利用者が別途用意します。 |
 | Helm Chart | GitHub PagesのHelmリポジトリ（`https://slashnephy.github.io/kotatsu`）で配布します。Chartの本体はリリースに添付します。 |
-| デモ | Cloudflare Pagesの`https://kotatsu-demo.pages.dev/`に置く、tenbanなしに画面を触れる静的なデモです（[10.1](#101-技術の構成)、#832）。Cloudflare PagesのGit連携で、mainにpushするたびに作り直します（`web`で`pnpm run build:demo`）。 |
+| デモ | Cloudflare Pagesの`https://kotatsu-demo.pages.dev/`に置く、tenbanなしに画面を触れる静的なデモです（[10.1](#101-技術の構成)、#832）。Cloudflare PagesのGit連携で、mainにpushするたびに作り直します（`frontend`で`pnpm run build:demo`）。 |
 | Kubernetesのマニフェスト | Helm Chartから`helm template`で生成します。 |
 | Docker Composeの例 | `-ffmpeg`イメージの`all`構成とPostgreSQLの組み合わせです。 |
 
@@ -1591,7 +1591,7 @@ Docker Composeの例は、停止の猶予（`stop_grace_period`）を、Helm Cha
 | `backend/internal/webui/` | ビルドしたSPAの埋め込み |
 | `backend/graph/` | GraphQLのスキーマとリゾルバ |
 | `backend/db/` | `schema.sql`、マイグレーション、sqlcのクエリ |
-| `web/` | フロントエンド（futonとyunomiを含みます） |
+| `frontend/` | フロントエンド（futonとyunomiを含みます） |
 | `deploy/helm/kotatsu/` | Helm Chart |
 | `deploy/kubernetes/`、`deploy/compose/` | Helm Chartから生成したKubernetesのマニフェストと、Docker Composeの例 |
 | `docker/` | 開発用のComposeと、コンテナイメージのビルドで使う設定とスクリプト |
@@ -1611,7 +1611,7 @@ Kotatsuは公開リポジトリなので、実際の放送のTSをテスト用�
 - Goのテストはtable-drivenで書き、testifyで検証します。時刻はclockのinterfaceで差し替えます。
 - チューナー割り当てのアルゴリズムには、性質ベースのテストも加えます（同じ入力から常に同じ結果が出ること、録画が始まった予約を動かさないこと、など）。
 - DBを使うテストは、本物のPostgreSQLで実行します。
-- CIはGitHub Actionsで回します。golangci-lintと`vp check`、Goのテスト、Vitest、Helmのlintと生成物の差分の検査、PlaywrightによるE2Eテストを実行します。E2Eテストは2種類あります。ビルドしたSPAだけで確かめるもの（`web/e2e`）と、PostgreSQL、偽のチューナーサーバー、Kotatsu（`all`）を立てて主な流れを確かめるもの（`web/e2e-stack`、`mise run e2e:stack`）です。後者は、初回セットアップ（起動時のログからセットアップトークンを読み、認証アプリのコードはテストの中で作ります）、ルールの作成と一致する番組のプレビュー、ライブ視聴の開始を、1つのページで順に確かめます（#508）。PRでは、変わったファイルから関係するジョブだけを走らせます（文書だけならどれも走らせず、画面だけならGoのテストとlintを飛ばす、など）。同時に走るジョブを減らし、ランナーの空きを待つ時間を短くするためです。迷うファイルは走らせる側に倒し、ツールの版やCI自体を変えたときと、mainへのpushでは、すべて走らせます（#700）。
+- CIはGitHub Actionsで回します。golangci-lintと`vp check`、Goのテスト、Vitest、Helmのlintと生成物の差分の検査、PlaywrightによるE2Eテストを実行します。E2Eテストは2種類あります。ビルドしたSPAだけで確かめるもの（`frontend/e2e/mock`）と、PostgreSQL、偽のチューナーサーバー、Kotatsu（`all`）を立てて主な流れを確かめるもの（`frontend/e2e/stack`、`mise run e2e:stack`）です。後者は、初回セットアップ（起動時のログからセットアップトークンを読み、認証アプリのコードはテストの中で作ります）、ルールの作成と一致する番組のプレビュー、ライブ視聴の開始を、1つのページで順に確かめます（#508）。PRでは、変わったファイルから関係するジョブだけを走らせます（文書だけならどれも走らせず、画面だけならGoのテストとlintを飛ばす、など）。同時に走るジョブを減らし、ランナーの空きを待つ時間を短くするためです。迷うファイルは走らせる側に倒し、ツールの版やCI自体を変えたときと、mainへのpushでは、すべて走らせます（#700）。
 
 ## 12. 要検証事項
 

@@ -99,7 +99,7 @@ type Frame struct {
 
 // Frame は、index 番目のコマの位置を返す。そのコマがなければ false を返す。
 // コマは、左上から右へ Columns 個ずつ並ぶ。コマが Columns 個より少なければ、プレビュー画像の幅はその数のコマの幅になる。
-// 画面 (web/src/recordings/previewFrame.ts) も、同じ並べ方で切り出す。
+// 画面 (frontend/src/recordings/previewFrame.ts) も、同じ並べ方で切り出す。
 func (m *Manifest) Frame(index int) (Frame, bool) {
 	count := len(m.Times)
 	if m.Columns <= 0 || index < 0 || index >= count {

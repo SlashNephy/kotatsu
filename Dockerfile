@@ -11,17 +11,17 @@ ARG TSREADEX_VERSION=master-260428
 
 # SPA は、どのアーキテクチャでも同じものになるので、ビルドするマシンのアーキテクチャで 1 回だけビルドする。
 FROM --platform=$BUILDPLATFORM docker.io/library/node:24.22.1-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS web
-WORKDIR /src/web
+WORKDIR /src/frontend
 # pnpm の版は package.json の packageManager に従う。
 RUN corepack enable
-COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 # ワークスペースのパッケージ (ビルドした mpeg2toh264) も、依存を入れる前に置く。
-COPY web/vendor/ ./vendor/
+COPY frontend/vendor/ ./vendor/
 # 依存に当てるパッチ (pnpm-workspace.yaml の patchedDependencies) も、依存を入れる前に置く。
-COPY web/patches/ ./patches/
+COPY frontend/patches/ ./patches/
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
-COPY web/ ./
-# 字幕を描くフォントは npm にないので、web/vendor/caption-font/SOURCE で固定したリリースから取得する。
+COPY frontend/ ./
+# 字幕を描くフォントは npm にないので、frontend/vendor/caption-font/SOURCE で固定したリリースから取得する。
 RUN node scripts/fetch-caption-font.mjs
 RUN pnpm exec vp build
 
@@ -97,10 +97,10 @@ COPY --from=docker.io/jdxcode/mise:2026.10.14@sha256:7cb6019fd7e60dfc3622b1d667d
 ARG UID=1000
 ARG GID=1000
 # 名前付きボリュームは、最初にマウントしたときに、イメージのディレクトリの持ち主を引き継ぐ。
-# ソースのマウントの中にある web/node_modules も、先に作っておく。
+# ソースのマウントの中にある frontend/node_modules も、先に作っておく。
 RUN groupadd -o -g "${GID}" kotatsu \
     && useradd -o -m -u "${UID}" -g "${GID}" -d /home/kotatsu kotatsu \
-    && mkdir -p /mise /go/pkg/mod /go/cache /src/web/node_modules \
+    && mkdir -p /mise /go/pkg/mod /go/cache /src/frontend/node_modules \
     && chown -R "${UID}:${GID}" /mise /go /src /home/kotatsu
 USER kotatsu
 ENV MISE_DATA_DIR=/mise \
@@ -112,9 +112,9 @@ ENV MISE_DATA_DIR=/mise \
     GOCACHE=/go/cache
 # 足りないツールをその場で入れて mise.lock を書き換えないよう、イメージに入れたツールだけを使う。
 ENV MISE_AUTO_INSTALL=false
-# pnpm のストアは、ハードリンクが効くよう、web/node_modules と同じボリュームに置く。
+# pnpm のストアは、ハードリンクが効くよう、frontend/node_modules と同じボリュームに置く。
 # 置き場所を決めないと、マウントしたソースの直下に作ってしまう。
-ENV pnpm_config_store_dir=/src/web/node_modules/.pnpm-store
+ENV pnpm_config_store_dir=/src/frontend/node_modules/.pnpm-store
 WORKDIR /src
 # 開発に使うツールだけを、イメージに入れておく。
 COPY --chown=${UID}:${GID} mise.toml mise.lock mise.dev.toml mise.dev.lock ./

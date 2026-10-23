@@ -5,7 +5,7 @@ import { defineConfig, devices } from '@playwright/test';
 const baseURL = process.env['KOTATSU_E2E_URL'];
 
 export default defineConfig({
-  testDir: './e2e',
+  testDir: './e2e/mock',
   forbidOnly: process.env['CI'] !== undefined,
   reporter: 'list',
   use: {
@@ -26,7 +26,7 @@ export default defineConfig({
       // stack は、偽のチューナーサーバーと Kotatsu を立てて、主な流れを確かめるテスト (#508)。
       // scripts/e2e-stack.sh から流す。初回セットアップから順に進めるので、1 つずつ順に流す。
       name: 'stack',
-      testDir: './e2e-stack',
+      testDir: './e2e/stack',
       fullyParallel: false,
       use: {
         ...devices['Desktop Chrome'],
