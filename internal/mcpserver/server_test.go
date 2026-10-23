@@ -2,6 +2,7 @@ package mcpserver_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -26,6 +27,8 @@ const (
 	readAccess  = "kotatsu_at_read"
 	writeAccess = "kotatsu_at_write"
 	otherAccess = "kotatsu_at_other"
+	// legacyVersion は、Stateless のままでもつながるかを確かめる、古い版。
+	legacyVersion = "2025-11-25"
 )
 
 // fakeAuthenticator は、決まったトークンだけを受け付ける。otherAccess は、ほかの MCP サーバー宛てのトークンとして扱う。
@@ -131,7 +134,7 @@ func TestListTools(t *testing.T) {
 	}{
 		{name: "2026-07-28", version: ""},
 		// Stateless のままでも、古い版のクライアントがつながる。
-		{name: "2025-11-25", version: "2025-11-25"},
+		{name: legacyVersion, version: legacyVersion},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -167,6 +170,44 @@ func TestListTools(t *testing.T) {
 			require.NoError(t, err)
 			assert.Contains(t, string(schema), `"required":["conditions"]`)
 			assert.Contains(t, string(schema), `"keywordMatch"`)
+		})
+	}
+}
+
+// TestServerIcons は、serverInfo で、そのまま描ける Kotatsu のアイコンを data URI で返すことを確かめる。
+func TestServerIcons(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		version string
+	}{
+		{name: "2026-07-28", version: ""},
+		{name: legacyVersion, version: legacyVersion},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			result := f.connect(t, readAccess, tt.version).InitializeResult()
+			require.NotNil(t, result)
+			require.NotNil(t, result.ServerInfo)
+			types := make([]string, 0, len(result.ServerInfo.Icons))
+			for _, icon := range result.ServerInfo.Icons {
+				prefix := "data:" + icon.MIMEType + ";base64,"
+				require.True(t, strings.HasPrefix(icon.Source, prefix), icon.MIMEType)
+				data, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(icon.Source, prefix))
+				require.NoError(t, err)
+				// 中身が、名乗った MIME タイプの画像であることを確かめる。http.DetectContentType は SVG を見分けない。
+				if icon.MIMEType == "image/svg+xml" {
+					assert.True(t, strings.HasPrefix(string(data), "<svg "))
+				} else {
+					assert.Equal(t, icon.MIMEType, http.DetectContentType(data))
+				}
+				types = append(types, icon.MIMEType)
+			}
+			assert.Equal(t, []string{"image/svg+xml", "image/png"}, types)
 		})
 	}
 }
@@ -233,7 +274,7 @@ func (f *fixture) post(t *testing.T, token, body string, header map[string]strin
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
-	req.Header.Set("Mcp-Protocol-Version", "2025-11-25")
+	req.Header.Set("Mcp-Protocol-Version", legacyVersion)
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
