@@ -24,8 +24,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-go build -o "$work/faketuner" ./cmd/faketuner
-"$work/faketuner" -listen "127.0.0.1:$tuner_port" -ts testdata/ts/test.ts >"$work/faketuner.log" 2>&1 &
+go build -o "$work/faketuner" ./backend/cmd/faketuner
+"$work/faketuner" -listen "127.0.0.1:$tuner_port" -ts backend/testdata/ts/test.ts >"$work/faketuner.log" 2>&1 &
 pids+=("$!")
 
 mkdir -p "$work/recordings" "$work/data"

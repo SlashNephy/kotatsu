@@ -23,7 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/buildinfo"
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/oauth"
-	"github.com/SlashNephy/kotatsu/web"
+	"github.com/SlashNephy/kotatsu/internal/webui"
 )
 
 const (
@@ -250,7 +250,7 @@ func serverIcons() ([]mcp.Icon, error) {
 	}
 	icons := make([]mcp.Icon, 0, len(files))
 	for _, f := range files {
-		data, err := fs.ReadFile(web.Icons(), f.name)
+		data, err := fs.ReadFile(webui.Icons(), f.name)
 		if err != nil {
 			return nil, fmt.Errorf("read the icon %s: %w", f.name, err)
 		}

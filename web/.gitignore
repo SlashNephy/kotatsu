@@ -1,6 +1,5 @@
 /node_modules/
 /dist/*
-!/dist/.gitkeep
 /storybook-static/
 /test-results/
 /playwright-report/

@@ -96,7 +96,7 @@ mise install
 | `mise run lint` | golangci-lintを実行する |
 | `mise run web:check` | 画面のlintと型を確認する |
 | `mise run web:test` | 画面のテストを実行する |
-| `mise run db:diff -- <名前>` | `db/schema.sql`の変更からマイグレーションを作る |
+| `mise run db:diff -- <名前>` | `backend/db/schema.sql`の変更からマイグレーションを作る |
 
 DBを使うテストは、`KOTATSU_TEST_DATABASE_URL`にPostgreSQLの接続先を渡したときだけ実行されます（[開発](docs/development.md#テストを流す)）。
 

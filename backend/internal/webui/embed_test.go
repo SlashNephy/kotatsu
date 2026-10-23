@@ -1,4 +1,4 @@
-package web_test
+package webui_test
 
 import (
 	"log/slog"
@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/spa"
-	"github.com/SlashNephy/kotatsu/web"
+	"github.com/SlashNephy/kotatsu/internal/webui"
 )
 
 // TestAppServes は、埋め込んだ SPA から、ビルドの有無にかかわらず SPA の配信を作れることを確かめる。
@@ -15,6 +15,6 @@ import (
 func TestAppServes(t *testing.T) {
 	t.Parallel()
 
-	_, err := spa.NewHandler(web.App(), slog.New(slog.DiscardHandler))
+	_, err := spa.NewHandler(webui.App(), slog.New(slog.DiscardHandler))
 	require.NoError(t, err)
 }

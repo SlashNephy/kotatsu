@@ -1,5 +1,5 @@
-# scripts/generate-test-ts.sh で作るテスト用の TS。
-testdata/ts/*.ts binary linguist-generated
+# backend/scripts/generate-test-ts.sh で作るテスト用の TS。
+backend/testdata/ts/*.ts binary linguist-generated
 
 # web/scripts/build-demo-stream.sh で作る、デモの合成の映像。
 web/demo/*.m2ts binary linguist-generated

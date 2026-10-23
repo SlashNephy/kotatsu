@@ -6,7 +6,7 @@ import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig, lazyPlugins, type Plugin } from 'vite-plus';
 
-// ビルドした SPA は、Go のバイナリに埋め込む (設計書 2.3)。web/embed.go が dist/app を埋め込む。
+// ビルドした SPA は、Go のバイナリに埋め込む (設計書 2.3)。backend/internal/webui/embed.go が、その dist/app を埋め込む。
 // dist 自体は、未ビルドでも go build が通るように、空の .gitkeep だけを置いてリポジトリに残す。
 // devAPI は、開発サーバーが API を中継する先。
 // 開発用の Compose では、KOTATSU_DEV_API で Kotatsu のコンテナを指す。
@@ -131,7 +131,7 @@ export default defineConfig(({ mode }) => ({
     cspNonce: '__KOTATSU_CSP_NONCE__',
   },
   build: {
-    outDir: 'dist/app',
+    outDir: '../backend/internal/webui/dist/app',
     emptyOutDir: true,
     // CSP の font-src は 'self' だけなので、小さいフォントも data: URL にせず、ファイルのまま配信する。
     assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),

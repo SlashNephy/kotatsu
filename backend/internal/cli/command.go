@@ -55,7 +55,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/watch"
 	"github.com/SlashNephy/kotatsu/internal/webhook"
 	"github.com/SlashNephy/kotatsu/internal/webpush"
-	"github.com/SlashNephy/kotatsu/web"
+	"github.com/SlashNephy/kotatsu/internal/webui"
 )
 
 const (
@@ -743,7 +743,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	api := sessions.Middleware(deps.DB)(mux)
 	compat := newEPGStationAPI(deps, apiTokens, opener, logos, streamLogger)
 
-	app, err := spa.NewHandler(web.App(), logger.With(slog.String("component", "spa")))
+	app, err := spa.NewHandler(webui.App(), logger.With(slog.String("component", "spa")))
 	if err != nil {
 		return nil, err
 	}

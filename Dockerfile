@@ -29,10 +29,12 @@ RUN pnpm exec vp build
 # Go の脆弱性の影響を受ける版かどうかがわかるよう、タグはパッチバージョンまで書く (mise.toml の go と合わせる)。
 FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.3-trixie@sha256:fbb7ae40b62ff8afe31662df570d39b4f5052ac32b90dae8e60d7657a20a74f4 AS build
 WORKDIR /src
-COPY go.mod go.sum ./
+# go.work に足したモジュールの go.mod と go.sum も、ここで写す。
+COPY go.work go.work.sum ./
+COPY backend/go.mod backend/go.sum ./backend/
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
-COPY --from=web /src/web/dist/app ./web/dist/app
+COPY --from=web /src/backend/internal/webui/dist/app ./backend/internal/webui/dist/app
 ARG TARGETOS
 ARG TARGETARCH
 # VERSION は、版とコミットを 1.2.3+<コミット> の形で渡す (internal/buildinfo)。.git はイメージに入れないので、
@@ -40,7 +42,7 @@ ARG TARGETARCH
 ARG VERSION=""
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
-    -ldflags="-s -w -X github.com/SlashNephy/kotatsu/internal/buildinfo.version=${VERSION}" -o /out/kotatsu ./cmd/kotatsu
+    -ldflags="-s -w -X github.com/SlashNephy/kotatsu/internal/buildinfo.version=${VERSION}" -o /out/kotatsu ./backend/cmd/kotatsu
 
 # tsreadex は、配布されているバイナリがないので、対象のアーキテクチャでソースからビルドする。
 FROM docker.io/library/debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS tools

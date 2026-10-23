@@ -33,7 +33,7 @@
     {
       // atlas.hcl の開発用 DB の URL (docker+postgres://) には、digest を書けない。
       matchFileNames: [
-        'atlas.hcl',
+        'backend/atlas.hcl',
       ],
       pinDigests: false,
     },
@@ -73,7 +73,7 @@
       // atlas.hcl の開発用 DB のイメージ。
       customType: 'regex',
       managerFilePatterns: [
-        '/^atlas\\.hcl$/',
+        '/^backend/atlas\\.hcl$/',
       ],
       matchStrings: [
         'docker\\+postgres://(?<depName>[^:]+):(?<currentValue>[^/]+)/',

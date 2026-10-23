@@ -1,5 +1,5 @@
 #!/bin/sh
-# テスト用の TS を作る。コンテナの中で動かす (scripts/generate-test-ts.sh を参照)。
+# テスト用の TS を作る。コンテナの中で動かす (backend/scripts/generate-test-ts.sh を参照)。
 #
 # FFmpeg でテストパターンの映像 (MPEG-2) とサイン波の音声 (AAC) を作り、TSDuck で SI を差し替える。
 # 実際の放送の TS は使わない。

@@ -17,7 +17,7 @@ pnpm = "12.15.0"
 run = "DEV_UID=$(id -u) DEV_GID=$(id -g) docker compose up --build"
 
 [tasks.build]
-run = "go build -trimpath -o ./bin/ ./cmd/kotatsu"
+run = "go build -trimpath -o ./bin/ ./backend/cmd/kotatsu"
 
 # Helm Chart から、全ロールを 1 つの Pod で動かす構成と、ロールを分けた構成のマニフェストを生成する (設計書 11.1)。
 # 生成したものとリポジトリの内容に差分がないことを、CI で確かめる。
@@ -33,7 +33,7 @@ run = [
 depends = ["web:build"]
 run = "goreleaser release --snapshot --clean"
 
-# フロントエンド (web/)。ビルドした SPA は web/dist/app に出力され、go build で埋め込まれる。
+# フロントエンド (web/)。ビルドした SPA は backend/internal/webui/dist/app に出力され、go build で埋め込まれる。
 # 埋め込んだバイナリを作るときは、mise run web:build の後に mise run build を実行する。
 [tasks."web:install"]
 dir = "web"
@@ -100,15 +100,15 @@ run = "pnpm exec playwright test --project=spa"
 [tasks."e2e:stack"]
 # 画面を埋め込むので、Kotatsu は web:build の後にビルドする。depends に並べると、同時に走ってしまう。
 depends = ["web:build"]
-run = ["go build -trimpath -o ./bin/ ./cmd/kotatsu", "scripts/e2e-stack.sh"]
+run = ["go build -trimpath -o ./bin/ ./backend/cmd/kotatsu", "scripts/e2e-stack.sh"]
 
-# サーバーの goja で動かす zxcvbn-ts のバンドル (設計書 2.2) を作り、gzip で internal/password に置く。
+# サーバーの goja で動かす zxcvbn-ts のバンドル (設計書 2.2) を作り、gzip で backend/internal/password に置く。
 [tasks."password:zxcvbn"]
 dir = "web"
 depends = ["web:install"]
 run = [
   "pnpm exec vp build --config zxcvbn/vite.config.ts",
-  "gzip -9nc zxcvbn/dist/zxcvbn.js > ../internal/password/zxcvbn.js.gz",
+  "gzip -9nc zxcvbn/dist/zxcvbn.js > ../backend/internal/password/zxcvbn.js.gz",
 ]
 
 [tasks."web:dev"]
@@ -117,22 +117,27 @@ depends = ["web:install"]
 run = "pnpm exec vp dev"
 
 [tasks.test]
+dir = "backend"
 # DB を使うテストは、パッケージをまたいで並行に動くと PostgreSQL の接続数の上限 (既定は 100) に達する。
 # CPU の多いマシンでも CI (4 コア) と同じ並行度になるよう、同時に動かすパッケージの数を絞る。
 run = "go test -race -p 4 ./..."
 
 [tasks.lint]
+dir = "backend"
 run = "golangci-lint run"
 
 [tasks.fmt]
+dir = "backend"
 run = "golangci-lint fmt"
 
-# db/schema.sql とマイグレーションの差分から、新しいマイグレーションを生成する (Docker が要る)。
+# backend/db/schema.sql とマイグレーションの差分から、新しいマイグレーションを生成する (Docker が要る)。
 # 名前を付けるときは mise run db:diff -- add_users のように渡す。
 [tasks."db:diff"]
+dir = "backend"
 run = "atlas migrate diff --env local"
 
 [tasks.generate]
+dir = "backend"
 depends = ["password:zxcvbn"]
 run = [
   "sqlc generate",
@@ -141,9 +146,11 @@ run = [
   # gqlgen が書き換えたリゾルバの import を、リポジトリの形式にそろえる。
   "golangci-lint fmt",
   # フロントエンドの Relay のコンパイラが読む、1 つにまとめたスキーマを書き出す。
-  "go run ./graph/printschema > web/schema.graphql",
+  "go run ./graph/printschema > ../web/schema.graphql",
   # 囲み文字の表 (internal/epg/enclosed.go) を、画面で使う TypeScript に書き出す。
-  "go run ./internal/epg/printenclosed > web/src/futon/enclosedCharacters.gen.ts",
+  "go run ./internal/epg/printenclosed > ../web/src/futon/enclosedCharacters.gen.ts",
+  # MCP サーバーが SPA なしで返すアイコンを、画面の原本から写す。
+  "cp ../web/public/icons/icon.svg ../web/public/icons/icon-192.png internal/webui/icons/",
   # schema.sql とマイグレーションが食い違っていれば、ここで新しいマイグレーションが生成される。
   "atlas migrate diff --env local",
   "atlas migrate validate --env local",

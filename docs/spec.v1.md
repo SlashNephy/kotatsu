@@ -473,7 +473,7 @@ Kotatsuを通さずにチューナーを使う利用者（TVTestなど）もい�
 新しいルールの入力は、全体の設定の「ルールを作るときの既定値」（重複の回避とその期間、イベントリレーへの追従）から始めます。ルールは家族で共有するので、既定値も全体で1つにし、管理者が変えます。既定値を変えても、作ったルールは変わりません。番組の条件は既定値に含めません（#470）。
 ルールの条件は、Goの型で定義して検証し、スキーマのバージョンを付けてJSONBに保存します（[8.3](#83-ルールの条件を-jsonb-に保存する理由)）。
 
-囲み文字の表は次のとおりです。この表だけが、正規化で括弧にするもの（[3.5](#35-検索と照合)）、番組名から取り出して照合するもの、条件で選べるもの、画面で番組名から外して描くもの（[10.2](#102-見た目の方針)）を決めます。表はGoで持ち（`internal/epg/enclosed.go`）、画面が使うTypeScriptの表は`mise run generate`でそこから作ります。条件に表にない囲み文字を指定すると、条件の検証で拒みます。出典は、Unicodeの符号表（Unicode 18.0のU+1F100、U+1F200、U+2600の各ブロック）が、その文字の出どころとして示すARIBの規格です。ARIBの規格書は有料で、公開されている見本には追加記号の表がないため、Unicodeの注記によります（#840）。
+囲み文字の表は次のとおりです。この表だけが、正規化で括弧にするもの（[3.5](#35-検索と照合)）、番組名から取り出して照合するもの、条件で選べるもの、画面で番組名から外して描くもの（[10.2](#102-見た目の方針)）を決めます。表はGoで持ち（`backend/internal/epg/enclosed.go`）、画面が使うTypeScriptの表は`mise run generate`でそこから作ります。条件に表にない囲み文字を指定すると、条件の検証で拒みます。出典は、Unicodeの符号表（Unicode 18.0のU+1F100、U+1F200、U+2600の各ブロック）が、その文字の出どころとして示すARIBの規格です。ARIBの規格書は有料で、公開されている見本には追加記号の表がないため、Unicodeの注記によります（#840）。
 
 | 囲み文字 | 出典 |
 | --- | --- |
@@ -1582,12 +1582,15 @@ Docker Composeの例は、停止の猶予（`stop_grace_period`）を、Helm Cha
 
 | パス | 内容 |
 |---|---|
-| `cmd/kotatsu/` | エントリポイント |
-| `internal/cli/` | ロールの組み立てとサブコマンド |
-| `internal/neko/`、`internal/kyusu/`、`internal/recording/`、`internal/stream/` | 各ロールの中心の処理（nekoのリーダー選出、kyusuのトランスコード、mikanの録画、tenbanの配信） |
-| `internal/tuner/`、`internal/epg/`、`internal/reserve/`、`internal/rule/`、`internal/assign/`、`internal/kago/`、`internal/auth/`など | ドメインのロジック（`internal/kago/`は保存先プール） |
-| `graph/` | GraphQLのスキーマとリゾルバ |
-| `db/` | `schema.sql`、マイグレーション、sqlcのクエリ |
+| `go.work` | Goのワークスペース。Goのモジュールを並べます |
+| `backend/` | Goのモジュール（`github.com/SlashNephy/kotatsu`） |
+| `backend/cmd/kotatsu/` | エントリポイント |
+| `backend/internal/cli/` | ロールの組み立てとサブコマンド |
+| `backend/internal/neko/`、`internal/kyusu/`、`internal/recording/`、`internal/stream/` | 各ロールの中心の処理（nekoのリーダー選出、kyusuのトランスコード、mikanの録画、tenbanの配信） |
+| `backend/internal/tuner/`、`internal/epg/`、`internal/reserve/`、`internal/rule/`、`internal/assign/`、`internal/kago/`、`internal/auth/`など | ドメインのロジック（`internal/kago/`は保存先プール） |
+| `backend/internal/webui/` | ビルドしたSPAの埋め込み |
+| `backend/graph/` | GraphQLのスキーマとリゾルバ |
+| `backend/db/` | `schema.sql`、マイグレーション、sqlcのクエリ |
 | `web/` | フロントエンド（futonとyunomiを含みます） |
 | `deploy/helm/kotatsu/` | Helm Chart |
 | `deploy/kubernetes/`、`deploy/compose/` | Helm Chartから生成したKubernetesのマニフェストと、Docker Composeの例 |
@@ -1746,7 +1749,7 @@ Kotatsu本体はApache License 2.0で公開します。
 | 字幕とデータ放送のフォント（Rounded M+ 1m WadaLab mix） | Unlicense | フロントエンドに同梱します（リポジトリには置かず、ビルド時にGitHubのリリースから取得し、ハッシュを確かめます）。字幕かデータ放送を描くときにだけ読み込みます。 |
 | zxcvbn-ts（`@zxcvbn-ts/core`と言語の辞書） | MIT | フロントエンドに同梱し、gojaで動かすバンドルを本体にも埋め込みます。 |
 | goja | MIT | 本体にリンクします。 |
-| パスワードのブロックリスト（SecListsの`xato-net-10-million-passwords-100000.txt`から作成） | MIT | 本体に埋め込み、ライセンスと出典を`internal/password/`に残します。 |
+| パスワードのブロックリスト（SecListsの`xato-net-10-million-passwords-100000.txt`から作成） | MIT | 本体に埋め込み、ライセンスと出典を`backend/internal/password/`に残します。 |
 | 実況チャンネルの対応表（KonomiTVの`jikkyo_channels.json`から作成） | MIT | 本体に同梱し、著作権表示を残します。 |
 | mirakc-arib、aribb24（C実装） | GPL-2.0、LGPL-3.0 | v1では使いません。将来使う場合も、子プロセスとして実行し、本体とはリンクしません。 |
 | Intel Media Driver（`intel-media-va-driver-non-free`） | Expat（同梱のGoogle TestはBSD-3-Clause）。ただし、ソースのないGPUのバイナリ（メディアのカーネル）を含むので、Debianではnon-freeにあります | amd64の`-ffmpeg`イメージにだけ同梱します。FFmpegが、libvaを通して実行時に読み込むプラグインで、本体ともFFmpegともリンクしません。ライセンス文書は、ほかのDebianのパッケージと同じく残し、ソースパッケージの入手先も一覧に書き出します（GPUのバイナリは、ソースパッケージの中でもバイナリのままです）。#509で、Gen11以前のGPUで縮小とHEVCのエンコードができるように入れました。 |

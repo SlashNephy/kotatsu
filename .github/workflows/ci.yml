@@ -110,15 +110,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
       # Go のモジュールとビルドのキャッシュ。変わっていないパッケージは、ビルドもテストも、前の結果を使う。
-      # go.sum が変わったら作り直し、それまでは前のキャッシュから始める。
+      # backend/go.sum が変わったら作り直し、それまでは前のキャッシュから始める。
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ github.job }}-${{ matrix.db }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          key: go-${{ github.job }}-${{ matrix.db }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
           restore-keys: |
-            go-${{ github.job }}-${{ matrix.db }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-
+            go-${{ github.job }}-${{ matrix.db }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
             go-${{ github.job }}-${{ matrix.db }}-${{ runner.os }}-
       - run: mise run build
       - run: mise run test
@@ -133,20 +133,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
       # Go のモジュールとビルドのキャッシュ。変わっていないパッケージは、ビルドもテストも、前の結果を使う。
-      # go.sum が変わったら作り直し、それまでは前のキャッシュから始める。
+      # backend/go.sum が変わったら作り直し、それまでは前のキャッシュから始める。
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
             ~/.cache/golangci-lint
-          key: go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          key: go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
           restore-keys: |
-            go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-
+            go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
             go-${{ github.job }}-${{ runner.os }}-
       - run: mise run lint
       - run: golangci-lint fmt --diff
+        working-directory: backend
       - run: go mod tidy -diff
+        working-directory: backend
 
   # Helm Chart から生成したマニフェストと、リポジトリの内容に差分がないことを確かめる (設計書 11.1)。
   deploy:
@@ -191,15 +193,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
       # Go のモジュールとビルドのキャッシュ。変わっていないパッケージは、ビルドもテストも、前の結果を使う。
-      # go.sum が変わったら作り直し、それまでは前のキャッシュから始める。
+      # backend/go.sum が変わったら作り直し、それまでは前のキャッシュから始める。
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          key: go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
           restore-keys: |
-            go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-
+            go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
             go-${{ github.job }}-${{ runner.os }}-
       # pnpm のストア。web/pnpm-lock.yaml が変わったら作り直す。
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -279,9 +281,9 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          key: go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
           restore-keys: |
-            go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('go.sum') }}-
+            go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
             go-${{ github.job }}-${{ runner.os }}-
       - run: mise run web:install
       # Playwright のブラウザは、web/package.json で固定した @playwright/test の版に合わせて入れる。

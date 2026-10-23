@@ -1,8 +1,8 @@
-// Package web は、ビルドした SPA を Go のバイナリに埋め込む (設計書 2.3)。
+// Package webui は、ビルドした SPA を Go のバイナリに埋め込む (設計書 2.3)。
 //
-// SPA は web/ で vp build すると dist/app に出力される。
+// SPA は web/ で vp build すると、このパッケージの dist/app に出力される。
 // 未ビルドでも go build が通るよう、dist には空の .gitkeep だけを置いてリポジトリに残す。
-package web
+package webui
 
 import (
 	"embed"
@@ -12,16 +12,17 @@ import (
 //go:embed all:dist
 var dist embed.FS
 
-// icons は、SPA を未ビルドでも使えるよう、public から直接埋め込む。
+// icons は、SPA を未ビルドでも使えるよう、web/public/icons から写したものを埋め込む。
+// 写すのは mise run generate で、CI で原本と食い違っていないかを確かめる。
 //
-//go:embed public/icons/icon.svg public/icons/icon-192.png
+//go:embed icons/icon.svg icons/icon-192.png
 var icons embed.FS
 
 // Icons は、Kotatsu のアイコン (icon.svg と icon-192.png) を返す。
 func Icons() fs.FS {
-	sub, err := fs.Sub(icons, "public/icons")
+	sub, err := fs.Sub(icons, "icons")
 	if err != nil {
-		// "public/icons" は正しいパスなので、fs.Sub は失敗しない。
+		// "icons" は正しいパスなので、fs.Sub は失敗しない。
 		panic(err)
 	}
 

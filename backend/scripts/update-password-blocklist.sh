@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # パスワードのブロックリスト (設計書 9.3) を、SecLists (MIT) から作り直す。
 # 8 文字未満のパスワードは長さの規定で拒否するので含めない。大文字と小文字は区別せずに照合する。
-# 使い方: scripts/update-password-blocklist.sh <SecLists のコミット>
+# 使い方: backend/scripts/update-password-blocklist.sh <SecLists のコミット>
 set -euo pipefail
 
 commit="${1:?usage: $0 <SecLists commit>}"

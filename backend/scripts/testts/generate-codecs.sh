@@ -1,5 +1,5 @@
 #!/bin/sh
-# H.264 と HEVC のテスト用の TS を作る。コンテナの中で動かす (scripts/generate-test-ts.sh を参照)。
+# H.264 と HEVC のテスト用の TS を作る。コンテナの中で動かす (backend/scripts/generate-test-ts.sh を参照)。
 #
 # 8 ビットの H.264 と HEVC は、索引が I フレームを拾えるかを確かめるためのもの。どれも SI は差し替えない。
 # 開いた GOP にして、IDR でない I フレーム (H.264 の I スライス、HEVC の CRA) も含める。

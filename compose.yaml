@@ -42,10 +42,10 @@ services:
       timeout: 5s
       retries: 30
 
-  # 偽のチューナーサーバー。testdata/ts/test.ts を、すべてのサービスのストリームとして流す。
+  # 偽のチューナーサーバー。backend/testdata/ts/test.ts を、すべてのサービスのストリームとして流す。
   faketuner:
     <<: *dev
-    command: ["exec", "--", "go", "run", "./cmd/faketuner", "-listen", "0.0.0.0:40772", "-ts", "testdata/ts/test.ts"]
+    command: ["exec", "--", "go", "run", "./backend/cmd/faketuner", "-listen", "0.0.0.0:40772", "-ts", "backend/testdata/ts/test.ts"]
     ports:
       - "127.0.0.1:40772:40772"
 
