@@ -50,13 +50,25 @@ const resumeStorageKey = 'kotatsu.reauth.resume';
 const resumeLifetime = 10 * 60 * 1000;
 
 // StoredResume は、IdP へ移る前に sessionStorage に覚えておく手がかり。key が null なら、続け方がない。
-type StoredResume = { key: string | null; params?: string; path: string; savedAt: number };
+// returnTo は、IdP から戻すパス。戻ってきた URL がこれと同じときだけ続ける。MCP のクライアントへの同意の画面では、
+// 認可のリクエストのクエリを含むので、同じタブでほかのリクエストの同意の画面を開かされても、続けて同意しない。
+type StoredResume = { key: string | null; params?: string; returnTo: string; savedAt: number };
 
-function saveResume(resume: ReauthResume | undefined) {
+// comparableLocation は、パスとクエリを、IdP から戻すリダイレクトの付けた reauthenticated を除き、
+// クエリの順を揃えた文字列にする。サーバーは、戻すときにクエリを並べ替えるため。
+function comparableLocation(pathAndSearch: string): string {
+  const url = new URL(pathAndSearch, window.location.origin);
+  url.searchParams.delete('reauthenticated');
+  url.searchParams.sort();
+
+  return `${url.pathname}?${url.searchParams.toString()}`;
+}
+
+function saveResume(resume: ReauthResume | undefined, returnTo: string) {
   const stored: StoredResume = {
     key: resume?.key ?? null,
     ...(resume?.params === undefined ? {} : { params: resume.params }),
-    path: window.location.pathname,
+    returnTo,
     savedAt: Date.now(),
   };
   try {
@@ -93,7 +105,8 @@ function takeResume(match: (stored: StoredResume) => boolean): StoredResume | nu
     return null;
   }
   if (
-    stored.path !== window.location.pathname ||
+    comparableLocation(stored.returnTo) !==
+      comparableLocation(window.location.pathname + window.location.search) ||
     stored.savedAt >= performance.timeOrigin ||
     Date.now() - stored.savedAt > resumeLifetime ||
     !match(stored)
@@ -204,7 +217,7 @@ export function useReauthGate(
   const wait = (next: Pending) => {
     next.onWaiting?.();
     // IdP で再認証するとページを離れるので、続けるための手がかりを先に覚えておく。
-    saveResume(next.resume);
+    saveResume(next.resume, returnTo);
     setPending(next);
   };
 

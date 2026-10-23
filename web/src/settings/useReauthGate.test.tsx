@@ -68,12 +68,12 @@ const storageKey = 'kotatsu.reauth.resume';
 const reauthRequired = () =>
   Promise.reject(new AuthError(403, 'REAUTHENTICATION_REQUIRED', undefined, undefined));
 
-function stored(key: string | null, path = '/admin/system', params?: string) {
+function stored(key: string | null, returnTo = '/admin/system', params?: string) {
   window.sessionStorage.setItem(
     storageKey,
     JSON.stringify({
       key,
-      path,
+      returnTo,
       savedAt: performance.timeOrigin - 1000,
       ...(params === undefined ? {} : { params }),
     }),
@@ -108,7 +108,7 @@ describe('IdP での再認証から戻ったときの再開 (#916)', () => {
     expect(JSON.parse(window.sessionStorage.getItem(storageKey)!)).toMatchObject({
       key: 'webhook.delete',
       params: 'webhook-1',
-      path: '/admin/system',
+      returnTo: '/admin/system',
     });
   });
 
@@ -130,11 +130,21 @@ describe('IdP での再認証から戻ったときの再開 (#916)', () => {
   });
 
   test.each([
-    { name: 'IdP から戻ったのでない', url: '/admin/system', path: '/admin/system' },
-    { name: 'ほかの画面で覚えた', url: '/admin/system?reauthenticated=oidc', path: '/admin/users' },
-  ])('$nameときは、続けない', ({ url, path }) => {
+    { name: 'IdP から戻ったのでない', url: '/admin/system', returnTo: '/admin/system' },
+    {
+      name: 'ほかの画面で覚えた',
+      url: '/admin/system?reauthenticated=oidc',
+      returnTo: '/admin/users',
+    },
+    {
+      // MCP のクライアントへの同意で、同じタブでほかのリクエストの同意の画面を開かされたとき。
+      name: '同じ画面でもクエリが違う',
+      url: '/authorize?client_id=https%3A%2F%2Fevil.example%2Fc&reauthenticated=oidc',
+      returnTo: '/authorize?client_id=https%3A%2F%2Fgood.example%2Fc',
+    },
+  ])('$nameときは、続けない', ({ url, returnTo }) => {
     window.history.replaceState(null, '', url);
-    stored('webhook.delete', path, 'webhook-1');
+    stored('webhook.delete', returnTo, 'webhook-1');
     const onResume = vi.fn();
 
     render(<Page onResume={onResume} />);
@@ -157,6 +167,16 @@ describe('IdP での再認証から戻ったときの再開 (#916)', () => {
     render(<Page onResume={onResume} />);
 
     expect(onResume).not.toHaveBeenCalled();
+  });
+
+  test('戻すパスのクエリが同じなら、サーバーが並べ替えていても続ける', () => {
+    window.history.replaceState(null, '', '/authorize?reauthenticated=oidc&scope=mcp&state=s1');
+    stored('webhook.delete', '/authorize?state=s1&scope=mcp', 'webhook-1');
+    const onResume = vi.fn();
+
+    render(<Page onResume={onResume} />);
+
+    expect(onResume).toHaveBeenCalledOnce();
   });
 
   test('params を渡した続け方は、同じ params の操作だけを続ける (一覧の行ごと)', () => {
