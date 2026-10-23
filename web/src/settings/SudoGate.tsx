@@ -63,5 +63,5 @@ export function SudoGate({ methods, returnTo, children }: Props) {
     );
   }
 
-  return children;
+  return <>{children}</>;
 }

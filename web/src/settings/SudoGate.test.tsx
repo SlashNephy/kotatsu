@@ -1,5 +1,5 @@
 import { MantineProvider } from '@mantine/core';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import '../i18n';
@@ -62,5 +62,36 @@ describe('SudoGate (#981)', () => {
     renderGate();
 
     expect(await screen.findByText('重要な操作')).toBeTruthy();
+  });
+
+  test('本人確認を終えたら、中身を出す', async () => {
+    vi.spyOn(authApi, 'reauthenticationStatus').mockResolvedValue({
+      authenticatedAt: '2026-10-23T03:00:00Z',
+      recent: false,
+    });
+    const reauthenticate = vi
+      .spyOn(authApi, 'reauthenticate')
+      .mockResolvedValue({ authenticatedAt: '2026-10-23T04:00:00Z' });
+    render(
+      <MantineProvider>
+        <SudoGate
+          methods={{ ...methods, totp: false, recoveryCode: true }}
+          returnTo="/settings/security"
+        >
+          <p>重要な操作</p>
+        </SudoGate>
+      </MantineProvider>,
+    );
+
+    fireEvent.change(await screen.findByLabelText(/いまのパスワード/), {
+      target: { value: 'kotatsu' },
+    });
+    fireEvent.change(screen.getByLabelText(/リカバリーコード/), {
+      target: { value: 'abcde-fghij' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '確認' }));
+
+    expect(await screen.findByText('重要な操作')).toBeTruthy();
+    expect(reauthenticate).toHaveBeenCalledWith('kotatsu', 'recovery_code', 'abcde-fghij');
   });
 });
