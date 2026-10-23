@@ -2,6 +2,19 @@ apiVersion: v1
 entries:
   kotatsu:
   - apiVersion: v2
+    appVersion: 2026.10.4
+    created: "2026-10-23T02:07:47.389469962Z"
+    description: Kotatsu reserves, records, and serves Japanese TV broadcasts
+    digest: 5ba799e60851ef4cf2663f76561a55a874ccdc281475d9db1b4e90ee4d7d0c80
+    home: https://github.com/SlashNephy/kotatsu
+    name: kotatsu
+    sources:
+    - https://github.com/SlashNephy/kotatsu
+    type: application
+    urls:
+    - https://github.com/SlashNephy/kotatsu/releases/download/v2026.10.4/kotatsu-2026.10.4.tgz
+    version: 2026.10.4
+  - apiVersion: v2
     appVersion: 2026.10.3
     created: "2026-10-22T04:24:40.033649144Z"
     description: Kotatsu reserves, records, and serves Japanese TV broadcasts
@@ -40,4 +53,4 @@ entries:
     urls:
     - https://github.com/SlashNephy/kotatsu/releases/download/v2026.10.1/kotatsu-2026.10.1.tgz
     version: 2026.10.1
-generated: "2026-10-22T04:24:40.033052163Z"
+generated: "2026-10-23T02:07:47.388941585Z"
