@@ -175,7 +175,7 @@ function Sessions() {
                 <Title order={3} size="h5">
                   {t('settings.account.sessions')}
                 </Title>
-                {others > 0 && (
+                {others > 0 && !confirming && (
                   <Button
                     size="compact-sm"
                     variant="default"
@@ -186,7 +186,7 @@ function Sessions() {
                   </Button>
                 )}
               </Group>
-              {confirming && (
+              {confirming && others > 0 && (
                 <Alert color="red" role="alert">
                   <Stack gap="xs">
                     <Text size="sm">
