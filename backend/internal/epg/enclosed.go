@@ -44,7 +44,7 @@ type EnclosedCharacter struct {
 const enclosedCount = 52
 
 // EnclosedCharacters は、変換し、取り出し、条件で選べる囲み文字の表 (設計書 4.2)。画面で並べる順に並べる。
-// この表だけが囲み文字を決める。web の表 (enclosedCharacters.gen.ts) は、mise run generate でここから作る。
+// この表だけが囲み文字を決める。web の表 (enclosedCharacters.gen.ts) は、mise run //backend:generate でここから作る。
 // 表にない囲み文字 (🈀 や ㊙ など) は、番組名の一部として NFKC で中の文字にするだけにする。
 func EnclosedCharacters() []*EnclosedCharacter {
 	table := enclosedTable()

@@ -16,6 +16,7 @@ Kotatsuに関心を持っていただき、ありがとうございます。
 
 ```bash
 mise install
+mise -C backend install
 mise run dev
 ```
 
@@ -25,11 +26,11 @@ mise run dev
 
 | コマンド | 内容 |
 | --- | --- |
-| `mise run generate` | 生成物 (sqlc、gqlgen、GraphQLのスキーマなど) を作り直す。生成物の差分も一緒にコミットする |
-| `mise run lint` | golangci-lintを実行する |
-| `mise run test` | Goのテストを実行する。DBを使うテストには`KOTATSU_TEST_DATABASE_URL`が要る |
-| `mise run web:check` | 画面のlintと型を確かめる |
-| `mise run web:test` | 画面のテストを実行する |
+| `mise run //backend:generate` | 生成物 (sqlc、gqlgen、GraphQLのスキーマなど) を作り直す。生成物の差分も一緒にコミットする |
+| `mise run //backend:lint` | golangci-lintを実行する |
+| `mise run //backend:test` | Goのテストを実行する。DBを使うテストには`KOTATSU_TEST_DATABASE_URL`が要る |
+| `mise run //frontend:check` | 画面のlintと型を確かめる |
+| `mise run //frontend:test` | 画面のテストを実行する |
 
 ## 設計書
 

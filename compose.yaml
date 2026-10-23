@@ -77,7 +77,7 @@ services:
   # 前のプロセスを止めてからビルドするので、ビルドの間の数秒は応答しない (web は 502 を返す)。
   kotatsu:
     <<: *dev
-    command: ["run", "dev:server"]
+    command: ["run", "//backend:dev:server"]
     environment:
       KOTATSU_DATABASE_URL: postgres://postgres:postgres@postgres:5432/kotatsu?sslmode=disable
       # 開発専用の固定の秘密キー。運用では、ランダムな値を Secret で渡す。
@@ -129,7 +129,7 @@ services:
   # 画面の依存を、frontend/node_modules のボリュームに入れる。pnpm-lock.yaml を変えたら、docker compose up web-install で入れ直す。
   web-install:
     <<: *dev
-    command: ["run", "web:install"]
+    command: ["run", "//frontend:install"]
     volumes:
       - .:/src
       - web-node-modules:/src/frontend/node_modules
@@ -137,7 +137,7 @@ services:
   # 画面の開発サーバー (Vite)。ブラウザはここを開き、API と映像は Kotatsu に中継される。保存した画面の変更は、その場で差し替わる。
   web:
     <<: *dev
-    command: ["run", "dev:web"]
+    command: ["run", "//frontend:dev:web"]
     environment:
       KOTATSU_DEV_API: http://kotatsu:8080
     ports:
@@ -156,12 +156,12 @@ services:
   # SQL のクエリやスキーマ、GraphQL のスキーマを変えたら、sqlc と gqlgen の生成物と、画面が読むスキーマを作り直す (mise.dev.toml の dev:generate)。
   generate:
     <<: *dev
-    command: ["run", "dev:generate"]
+    command: ["run", "//backend:dev:generate"]
 
   # 画面のクエリやスキーマを変えたら、Relay の生成物を作り直す (mise.dev.toml の dev:relay)。
   relay:
     <<: *dev
-    command: ["run", "dev:relay"]
+    command: ["run", "//frontend:dev:relay"]
     volumes:
       - .:/src
       - web-node-modules:/src/frontend/node_modules

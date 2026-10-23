@@ -2,7 +2,7 @@
 # 偽のチューナーサーバーと Kotatsu (全ロール) を立て、frontend/e2e/stack の E2E テストを流す (#508、設計書 11.6)。
 #
 # 使い方: KOTATSU_DATABASE_URL=postgres://.../空のDB scripts/e2e-stack.sh [playwright test の引数...]
-# 先に mise run web:build と mise run build で、画面を埋め込んだ ./bin/kotatsu を作っておく。
+# 先に mise run //frontend:build と mise run build で、画面を埋め込んだ ./bin/kotatsu を作っておく。
 # DB は空にしておく。初回セットアップから流すので、管理者がいると失敗する。
 set -euo pipefail
 

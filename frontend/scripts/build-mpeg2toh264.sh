@@ -11,9 +11,9 @@
 #   frontend/public/mpeg2toh264/        変換に使う WebAssembly と、yadif のライセンス文書とソースの入手先。明示的な URL で配信する
 set -euo pipefail
 
-root="$(cd "$(dirname "$0")/.." && pwd)"
-vendor="$root/frontend/vendor/mpeg2toh264"
-public="$root/frontend/public/mpeg2toh264"
+frontend="$(cd "$(dirname "$0")/.." && pwd)"
+vendor="$frontend/vendor/mpeg2toh264"
+public="$frontend/public/mpeg2toh264"
 # shellcheck source=/dev/null
 source <(grep -E '^(repository|commit)=' "$vendor/SOURCE")
 

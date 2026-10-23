@@ -66,7 +66,7 @@ func NewHandler(app fs.FS, logger *slog.Logger) (*Handler, error) {
 	index, err := fs.ReadFile(app, indexFile)
 	if errors.Is(err, fs.ErrNotExist) {
 		// 未ビルドのバイナリでも API は使えるように、起動は止めない。
-		logger.Warn("the frontend is not built; build it with `mise run web:build` before go build")
+		logger.Warn("the frontend is not built; build it with `mise run //frontend:build` before go build")
 
 		return &Handler{app: app, files: http.FileServerFS(app), built: false, index: []byte{}, logger: logger}, nil
 	}

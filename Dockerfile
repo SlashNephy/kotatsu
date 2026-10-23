@@ -118,7 +118,10 @@ ENV pnpm_config_store_dir=/src/frontend/node_modules/.pnpm-store
 WORKDIR /src
 # 開発に使うツールだけを、イメージに入れておく。
 COPY --chown=${UID}:${GID} mise.toml mise.lock mise.dev.toml mise.dev.lock ./
-RUN mise install go node pnpm watchexec sqlc golangci-lint
+COPY --chown=${UID}:${GID} backend/mise.toml backend/mise.lock backend/mise.dev.toml ./backend/
+# mise install は、そのディレクトリの config root のツールだけを入れるので、backend/ のツールは backend/ で入れる。
+RUN mise install go node pnpm watchexec \
+    && mise -C backend install golangci-lint sqlc
 ENTRYPOINT ["mise"]
 
 FROM runtime AS ffmpeg

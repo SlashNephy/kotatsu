@@ -9,9 +9,11 @@
 - Docker（Compose v2を含む）：PostgreSQL、偽のチューナーサーバー、Kotatsuを動かします。
 
 ツールは、リポジトリの直下で次のコマンドを実行して入れてください。
+`mise install`は、そのディレクトリの`mise.toml`のツールだけを入れるので、`backend/`のツール（golangci-lint、sqlc、atlas）は`backend/`で入れます。
 
 ```bash
 mise install
+mise -C backend install
 ```
 
 ## Docker Composeで動かす
@@ -119,7 +121,7 @@ docker compose logs kotatsu | grep setup_token
 | 画面のGraphQLのクエリ | `relay`が、`__generated__`を作り直します |
 
 マイグレーションは自動では作りません。
-`backend/db/schema.sql`を変えたら、`mise run db:diff -- <名前>`でマイグレーションを作ってください。
+`backend/db/schema.sql`を変えたら、`mise run //backend:db:diff -- <名前>`でマイグレーションを作ってください。
 
 ビルドに失敗したときは、`docker compose logs -f kotatsu`でエラーを確かめてください。
 直して保存すると、またビルドします。
@@ -131,10 +133,10 @@ docker compose up web-install
 docker compose restart web
 ```
 
-`Dockerfile`や`mise.toml`、`mise.dev.toml`を変えたときは、`mise run dev`を実行し直してください。
+`Dockerfile`や、ルートと`backend/`と`frontend/`の`mise.toml`、`mise.dev.toml`を変えたときは、`mise run dev`を実行し直してください。
 開発用のイメージを作り直します。
 
-`mise run web:dev`は、Composeの外で画面の開発サーバーを`http://localhost:5173`に起動します。
+`mise run //frontend:dev`は、Composeの外で画面の開発サーバーを`http://localhost:5173`に起動します。
 Composeを使わずに、手元でKotatsuを`127.0.0.1:8080`に起動しているときに使います。
 
 ## テストを流す
@@ -143,7 +145,7 @@ DBを使うGoのテストは、`KOTATSU_TEST_DATABASE_URL`にPostgreSQLの接続
 Composeの`postgres`サービスに向けられます。
 
 ```bash
-KOTATSU_TEST_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/postgres?sslmode=disable' mise run test
+KOTATSU_TEST_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/postgres?sslmode=disable' mise run //backend:test
 ```
 
 テストは、テストごとに一時的なDBを作って使います。

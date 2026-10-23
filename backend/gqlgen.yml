@@ -1,4 +1,4 @@
-# GraphQL のスキーマから、実行のコードとモデルを生成する (設計書 2.1、9.1)。mise run generate で生成する。
+# GraphQL のスキーマから、実行のコードとモデルを生成する (設計書 2.1、9.1)。mise run //backend:generate で生成する。
 schema:
   - graph/schema/*.graphqls
 

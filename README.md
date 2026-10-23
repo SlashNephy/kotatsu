@@ -86,17 +86,20 @@ Docker Composeで1台のマシンに立てる手順と、HelmでKubernetesに立
 
 ```bash
 mise install
+mise -C backend install
 ```
+
+タスクは、プロジェクトごとに`backend/`と`frontend/`の`mise.toml`にあり、`//backend:`や`//frontend:`を付けて呼びます。
 
 | コマンド | 内容 |
 | --- | --- |
 | `mise run dev` | 開発用のComposeを動かす。ソースを保存すると、その場で反映される |
-| `mise run generate` | sqlc、gqlgen、GraphQLのスキーマなどの生成物を作り直し、マイグレーションを検証する |
-| `mise run test` | Goのテストを`-race`付きで実行する |
-| `mise run lint` | golangci-lintを実行する |
-| `mise run web:check` | 画面のlintと型を確認する |
-| `mise run web:test` | 画面のテストを実行する |
-| `mise run db:diff -- <名前>` | `backend/db/schema.sql`の変更からマイグレーションを作る |
+| `mise run //backend:generate` | sqlc、gqlgen、GraphQLのスキーマなどの生成物を作り直し、マイグレーションを検証する |
+| `mise run //backend:test` | Goのテストを`-race`付きで実行する |
+| `mise run //backend:lint` | golangci-lintを実行する |
+| `mise run //frontend:check` | 画面のlintと型を確認する |
+| `mise run //frontend:test` | 画面のテストを実行する |
+| `mise run //backend:db:diff -- <名前>` | `backend/db/schema.sql`の変更からマイグレーションを作る |
 
 DBを使うテストは、`KOTATSU_TEST_DATABASE_URL`にPostgreSQLの接続先を渡したときだけ実行されます（[開発](docs/development.md#テストを流す)）。
 

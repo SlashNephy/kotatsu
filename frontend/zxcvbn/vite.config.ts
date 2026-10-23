@@ -45,7 +45,7 @@ function rankedDictionary(): Plugin {
   };
 }
 
-// サーバーの goja で動かす zxcvbn-ts のバンドル (設計書 2.2)。mise run generate で
+// サーバーの goja で動かす zxcvbn-ts のバンドル (設計書 2.2)。mise run //backend:generate で
 // internal/password/zxcvbn.js に書き出し、Go のバイナリに gzip で埋め込む。
 // goja は ES2020 までなら動くことを確かめているので、それより新しい構文は変換する。
 export default defineConfig({

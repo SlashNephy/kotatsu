@@ -31,7 +31,7 @@ while IFS= read -r file || [[ -n "$file" ]]; do
 
   # 生成物の確かめ。Go の生成に加え、zxcvbn のバンドルを画面の依存で作るので、その依存にも関わる。
   case "$file" in
-    frontend/package.json | frontend/pnpm-lock.yaml | frontend/pnpm-workspace.yaml | frontend/patches/* | frontend/zxcvbn/* | frontend/schema.graphql | frontend/public/icons/*) generate=true ;;
+    frontend/package.json | frontend/pnpm-lock.yaml | frontend/pnpm-workspace.yaml | frontend/patches/* | frontend/zxcvbn/* | frontend/schema.graphql | frontend/public/icons/* | frontend/mise.toml) generate=true ;;
     frontend/* | deploy/* | .github/*) ;;
     *) generate=true ;;
   esac
@@ -52,7 +52,7 @@ while IFS= read -r file || [[ -n "$file" ]]; do
 
   # mpeg2toh264 のプレイヤーのビルド。
   case "$file" in
-    frontend/vendor/mpeg2toh264/* | frontend/public/mpeg2toh264/* | scripts/build-mpeg2toh264.sh | mise.mpeg2toh264.toml | mise.mpeg2toh264.lock) mpeg2toh264=true ;;
+    frontend/vendor/mpeg2toh264/* | frontend/public/mpeg2toh264/* | frontend/scripts/build-mpeg2toh264.sh | frontend/mise.mpeg2toh264.toml | frontend/mise.mpeg2toh264.lock) mpeg2toh264=true ;;
   esac
 done
 

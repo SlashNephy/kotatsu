@@ -12,7 +12,7 @@
       // wasm-bindgen の CLI は、mpeg2toh264 の Cargo.lock の wasm-bindgen と同じ版でないと使えない。
       // mpeg2toh264 の commit を上げるときに、合わせて手で上げる。
       matchFileNames: [
-        'mise.mpeg2toh264.toml',
+        'frontend/mise.mpeg2toh264.toml',
       ],
       matchDepNames: [
         '/wasm-bindgen/',
@@ -59,7 +59,7 @@
       autoReplaceStringTemplate: '# renovate: datasource={{{datasource}}} depName={{{depName}}}\ntag={{{newValue}}}\nsha256={{{newDigest}}}',
     },
     {
-      // ブラウザ内での変換に使う mpeg2toh264 の commit (設計書 7.2)。更新したら、mise run web:mpeg2toh264 でビルドし直す。
+      // ブラウザ内での変換に使う mpeg2toh264 の commit (設計書 7.2)。更新したら、mise run //frontend:mpeg2toh264 でビルドし直す。
       customType: 'regex',
       managerFilePatterns: [
         '/^frontend/vendor/mpeg2toh264/SOURCE$/',

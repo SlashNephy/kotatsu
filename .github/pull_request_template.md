@@ -6,10 +6,10 @@
 
 ## 検証
 
-<!-- 流した確認 (mise run lint、mise run test、mise run web:check など) と、その結果 -->
+<!-- 流した確認 (mise run //backend:lint、mise run //backend:test、mise run //frontend:check など) と、その結果 -->
 <!-- 画面を変えたときは、変更の前と後のスクリーンショットを添えてください -->
 
 ## チェックリスト
 
-- [ ] `mise run generate`の生成物の差分をコミットした
+- [ ] `mise run //backend:generate`の生成物の差分をコミットした
 - [ ] 振る舞い、仕様、既定値を変えたときは、設計書 (`docs/spec.v1.md`) も直した

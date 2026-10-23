@@ -5,7 +5,7 @@ npmに公開されていないので、`SOURCE`で固定したcommitのソース
 ここのファイルは手で編集せず、次のコマンドでビルドし直してください。
 
 ```bash
-MISE_ENV=mpeg2toh264 mise run web:mpeg2toh264
+MISE_ENV=mpeg2toh264 mise run //frontend:mpeg2toh264
 ```
 
 ビルドには、`mise.mpeg2toh264.toml`で固定したRustとwasm-bindgenを使います。

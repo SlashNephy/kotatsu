@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # SPA を埋め込んだ kotatsu のバイナリを、GitHub Releases に公開する (設計書 11.1)。
-# SPA は、goreleaser を動かす前に mise run web:build で backend/internal/webui/dist/app に作っておく (mise run release:snapshot がまとめて行う)。
+# SPA は、goreleaser を動かす前に mise run //frontend:build で backend/internal/webui/dist/app に作っておく (mise run release:snapshot がまとめて行う)。
 # FFmpeg と tsreadex は含めないので、kyusu と nekonote を動かす利用者が用意する。
 version: 2
 

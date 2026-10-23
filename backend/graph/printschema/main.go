@@ -1,6 +1,6 @@
 // printschema は、GraphQL のスキーマを 1 つの SDL にまとめて標準出力に書く。
 // graph/schema/*.graphqls は extend type で分けて書いているが、Relay のコンパイラは 1 つのファイルを読むので、
-// mise run generate で frontend/schema.graphql に書き出す。
+// mise run //backend:generate で frontend/schema.graphql に書き出す。
 package main
 
 import (

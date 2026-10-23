@@ -55,7 +55,7 @@ jobs:
       - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
         with:
           cache: false
-      - run: mise run web:build
+      - run: mise run //frontend:build
       # Chart は、GoReleaser がリリースに一緒に添付する (.goreleaser.yaml の release.extra_files)。
       # 公開した後のリリースには添付できない (immutable releases) ので、公開する前にそろえる。
       # 作業ツリーに置くと、GoReleaser が変更のあるツリーとみなして止まるので、外に置く。

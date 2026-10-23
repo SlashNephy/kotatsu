@@ -22,7 +22,7 @@ staticClients:
     name: Kotatsu
     secret: kotatsu-development-only-client-secret
     # Kotatsu は、接続したオリジンに /auth/oidc/callback を付けて IdP に戻させる。
-    # Kotatsu を直接開くときと、mise run web:dev の Vite の開発サーバー (5173) から開くときの両方を許す。
+    # Kotatsu を直接開くときと、mise run //frontend:dev の Vite の開発サーバー (5173) から開くときの両方を許す。
     redirectURIs:
       {{- $port := getenv "KOTATSU_DEV_PORT" "8080" }}
       - http://localhost:{{ $port }}/auth/oidc/callback
