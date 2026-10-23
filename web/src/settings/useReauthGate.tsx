@@ -2,7 +2,7 @@ import { Alert, Modal } from '@mantine/core';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { authApi, AuthError } from '../auth/api';
+import { AuthError } from '../auth/api';
 import { oidcErrorMessage } from '../auth/messages';
 import { Reauthenticate, type ReauthenticationMethods } from '../auth/Reauthenticate';
 import { graphQLErrorDetails } from '../relay/environment';
@@ -18,7 +18,7 @@ export function needsReauthentication(error: unknown): boolean {
 // ReauthResume は、IdP での再認証から戻ってきたときに、待っていた操作を続けるための手がかり (#916)。
 // IdP での再認証はページを離れるので、操作 (関数) は持ち越せない。代わりに、操作の種類 key と、
 // 対象の ID などの params を覚えておき、戻ってきた画面で useReauthResume に登録した続け方を呼ぶ。
-// 入力した値は持ち越さない。入力のある操作は、入力を始める前に prepare で再認証させる。
+// 入力した値は持ち越さない。入力のある操作は、画面を開いたときに SudoGate で再認証させておく (#981)。
 export type ReauthResume = { key: string; params?: string };
 
 type Pending = {
@@ -40,10 +40,6 @@ export type ReauthRun = (
   onWaiting?: () => void,
   resume?: ReauthResume,
 ) => void;
-
-// ReauthPrepare は、入力のある重要な操作の、入力を始める前に、必要なら再認証させる関数。
-// 再認証が要らないか、終えたら onReady を呼ぶ。IdP で再認証して戻ってきたときは、useReauthResume に登録した続け方を呼ぶ。
-export type ReauthPrepare = (resume: ReauthResume, onReady: () => void) => void;
 
 const resumeStorageKey = 'kotatsu.reauth.resume';
 // resumeLifetime は、覚えておいた手がかりを使える長さ。IdP で手間取っても、これを過ぎたら続けない。
@@ -119,7 +115,7 @@ function takeResume(match: (stored: StoredResume) => boolean): StoredResume | nu
 }
 
 // useReauthResume は、IdP での再認証から戻ってきたときに、key の操作を続ける方法を登録する。
-// handler には、run や prepare に渡した params を渡す。params を渡すと、それと同じ params の操作だけを続ける。
+// handler には、run に渡した params を渡す。params を渡すと、それと同じ params の操作だけを続ける。
 // 一覧の行ごとに、その行の操作だけを続けるのに使う。
 export function useReauthResume(
   key: string,
@@ -140,35 +136,6 @@ export function useReauthResume(
   }, [key, params]);
 }
 
-// useReauthBeforeInput は、入力のある重要な操作の入力欄に、最初にフォーカスしたときに、必要なら再認証させる。
-// IdP で再認証して戻ってきたら、その入力欄にフォーカスし直す。返した ref と onFocus を入力欄に渡す。
-// いくつかの入力欄があるフォームでは、onFocus をフォームを囲む要素に、ref を最初の入力欄に渡す。
-// params は、一覧の行ごとの入力欄で、どの行かを見分けるのに使う。
-// 再認証をやめても、入力は止めない (操作のときに、改めて再認証を求められる)。
-export function useReauthBeforeInput(prepare: ReauthPrepare, key: string, params?: string) {
-  const ref = useRef<HTMLInputElement>(null);
-  // checked は、確かめたかどうか。再認証の画面を閉じて入力欄にフォーカスが戻ったときに、また確かめないようにする。
-  const checked = useRef(false);
-  useReauthResume(
-    key,
-    () => {
-      // 戻ってきたときは再認証を終えているので、フォーカスし直しても、もう一度は確かめない。
-      checked.current = true;
-      ref.current?.focus();
-    },
-    params,
-  );
-  const onFocus = () => {
-    if (checked.current) {
-      return;
-    }
-    checked.current = true;
-    prepare(params === undefined ? { key } : { key, params }, () => undefined);
-  };
-
-  return { ref, onFocus };
-}
-
 // returnedError は、IdP での再認証に失敗して戻ってきたときの理由を読む (設計書 9.4)。
 function returnedError(): string | null {
   const error = new URLSearchParams(window.location.search).get('error');
@@ -179,7 +146,6 @@ function returnedError(): string | null {
 // useReauthGate は、重要な操作を、必要なら再認証してから行う。
 // run に渡した操作が再認証を求められたら、再認証の画面を出し、終えたら同じ操作をもう一度行う。
 // 再認証の画面を閉じたら、操作をやめて onCancel を呼ぶ。
-// prepare は、入力のある操作の、入力を始める前に再認証させる。IdP での再認証はページを離れ、入力が消えるため (#916)。
 // modal は、再認証の画面と、IdP での再認証から戻ってきたときの知らせ。続け方のない操作を待っていたときは、
 // もう一度操作するよう知らせる。失敗して戻ってきたときは、理由を出す。
 export function useReauthGate(
@@ -187,7 +153,6 @@ export function useReauthGate(
   returnTo: string,
 ): {
   run: ReauthRun;
-  prepare: ReauthPrepare;
   busy: boolean;
   modal: ReactNode;
 } {
@@ -242,31 +207,6 @@ export function useReauthGate(
       });
   };
 
-  const prepare: ReauthPrepare = (resume, onReady) => {
-    authApi.reauthenticationStatus().then(
-      ({ recent }) => {
-        if (recent) {
-          onReady();
-
-          return;
-        }
-        wait({
-          operation: () => {
-            onReady();
-
-            return Promise.resolve();
-          },
-          onError: () => undefined,
-          onCancel: undefined,
-          onWaiting: undefined,
-          resume,
-        });
-      },
-      // 確かめられなくても、入力は始めさせる。必要なら、操作のときに再認証を求められる。
-      () => onReady(),
-    );
-  };
-
   const modal = (
     <>
       {returned !== null &&
@@ -305,7 +245,7 @@ export function useReauthGate(
     </>
   );
 
-  return { run: execute, prepare, busy, modal };
+  return { run: execute, busy, modal };
 }
 
 // reauthMethods は、第二要素とパスキーの登録の状況から、再認証に使える方法を返す。

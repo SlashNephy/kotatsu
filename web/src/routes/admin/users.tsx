@@ -25,12 +25,11 @@ import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
 import {
   reauthMethods,
-  useReauthBeforeInput,
   useReauthGate,
   useReauthResume,
-  type ReauthPrepare,
   type ReauthResume,
 } from '../../settings/useReauthGate';
+import { SudoGate } from '../../settings/SudoGate';
 import type { Role, usersCreateMutation } from './__generated__/usersCreateMutation.graphql';
 import type { usersDisableMutation } from './__generated__/usersDisableMutation.graphql';
 import type { usersEnableMutation } from './__generated__/usersEnableMutation.graphql';
@@ -106,7 +105,8 @@ function Users() {
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
+  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
+  const gate = useReauthGate(methods, path);
   const [message, setMessage] = useState<Message | null>(null);
   const fail = (caught: unknown) =>
     setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
@@ -118,125 +118,125 @@ function Users() {
   return (
     <Stack gap="md">
       {gate.modal}
-      {message !== null && (
-        <Alert
-          color={message.ok ? 'teal' : 'red'}
-          role={message.ok ? 'status' : 'alert'}
-          withCloseButton
-          onClose={() => setMessage(null)}
-        >
-          {message.text}
-        </Alert>
-      )}
+      <SudoGate methods={methods} returnTo={path}>
+        {message !== null && (
+          <Alert
+            color={message.ok ? 'teal' : 'red'}
+            role={message.ok ? 'status' : 'alert'}
+            withCloseButton
+            onClose={() => setMessage(null)}
+          >
+            {message.text}
+          </Alert>
+        )}
 
-      <Card withBorder>
-        <Stack gap="xs">
-          {data.users.map((user) => (
-            <UserRow
-              key={`${user.id}/${user.displayName}/${user.role}/${String(user.disabled)}`}
-              user={user}
-              self={user.id === data.viewer.id}
-              prepare={gate.prepare}
-              onUpdate={(input, onDone) =>
-                gate.run(async () => {
-                  await mutate<usersUpdateMutation>(
-                    environment,
-                    graphql`
-                      mutation usersUpdateMutation($id: ID!, $input: UpdateUserInput!) {
-                        updateUser(id: $id, input: $input) {
-                          id
-                          displayName
-                          role
+        <Card withBorder>
+          <Stack gap="xs">
+            {data.users.map((user) => (
+              <UserRow
+                key={`${user.id}/${user.displayName}/${user.role}/${String(user.disabled)}`}
+                user={user}
+                self={user.id === data.viewer.id}
+                onUpdate={(input, onDone) =>
+                  gate.run(async () => {
+                    await mutate<usersUpdateMutation>(
+                      environment,
+                      graphql`
+                        mutation usersUpdateMutation($id: ID!, $input: UpdateUserInput!) {
+                          updateUser(id: $id, input: $input) {
+                            id
+                            displayName
+                            role
+                          }
                         }
-                      }
-                    `,
-                    { id: user.id, input },
-                  );
-                  onDone();
-                  succeed(t('admin.saved'));
-                }, fail)
-              }
-              onToggle={(resume) =>
-                gate.run(
-                  async () => {
-                    if (user.disabled) {
-                      await mutate<usersEnableMutation>(
-                        environment,
-                        graphql`
-                          mutation usersEnableMutation($id: ID!) {
-                            enableUser(id: $id) {
-                              id
-                              disabled
-                            }
-                          }
-                        `,
-                        { id: user.id },
-                      );
-                    } else {
-                      await mutate<usersDisableMutation>(
-                        environment,
-                        graphql`
-                          mutation usersDisableMutation($id: ID!) {
-                            disableUser(id: $id) {
-                              id
-                              disabled
-                            }
-                          }
-                        `,
-                        { id: user.id },
-                      );
-                    }
+                      `,
+                      { id: user.id, input },
+                    );
+                    onDone();
                     succeed(t('admin.saved'));
-                  },
-                  fail,
-                  undefined,
-                  undefined,
-                  resume,
-                )
-              }
-              onResetPassword={(password, onDone) =>
-                gate.run(async () => {
-                  await mutate<usersResetPasswordMutation>(
-                    environment,
-                    graphql`
-                      mutation usersResetPasswordMutation($id: ID!, $password: String!) {
-                        resetUserPassword(id: $id, password: $password) {
-                          id
-                        }
-                      }
-                    `,
-                    { id: user.id, password },
-                  );
-                  onDone();
-                  succeed(t('admin.users.passwordReset', { username: user.username }));
-                }, fail)
-              }
-            />
-          ))}
-        </Stack>
-      </Card>
-
-      <CreateUser
-        prepare={gate.prepare}
-        onCreate={(input, onDone) =>
-          gate.run(async () => {
-            const response = await mutate<usersCreateMutation>(
-              environment,
-              graphql`
-                mutation usersCreateMutation($input: CreateUserInput!) {
-                  createUser(input: $input) {
-                    id
-                    username
-                  }
+                  }, fail)
                 }
-              `,
-              { input },
-            );
-            onDone();
-            succeed(t('admin.users.created', { username: response.createUser.username }));
-          }, fail)
-        }
-      />
+                onToggle={(resume) =>
+                  gate.run(
+                    async () => {
+                      if (user.disabled) {
+                        await mutate<usersEnableMutation>(
+                          environment,
+                          graphql`
+                            mutation usersEnableMutation($id: ID!) {
+                              enableUser(id: $id) {
+                                id
+                                disabled
+                              }
+                            }
+                          `,
+                          { id: user.id },
+                        );
+                      } else {
+                        await mutate<usersDisableMutation>(
+                          environment,
+                          graphql`
+                            mutation usersDisableMutation($id: ID!) {
+                              disableUser(id: $id) {
+                                id
+                                disabled
+                              }
+                            }
+                          `,
+                          { id: user.id },
+                        );
+                      }
+                      succeed(t('admin.saved'));
+                    },
+                    fail,
+                    undefined,
+                    undefined,
+                    resume,
+                  )
+                }
+                onResetPassword={(password, onDone) =>
+                  gate.run(async () => {
+                    await mutate<usersResetPasswordMutation>(
+                      environment,
+                      graphql`
+                        mutation usersResetPasswordMutation($id: ID!, $password: String!) {
+                          resetUserPassword(id: $id, password: $password) {
+                            id
+                          }
+                        }
+                      `,
+                      { id: user.id, password },
+                    );
+                    onDone();
+                    succeed(t('admin.users.passwordReset', { username: user.username }));
+                  }, fail)
+                }
+              />
+            ))}
+          </Stack>
+        </Card>
+
+        <CreateUser
+          onCreate={(input, onDone) =>
+            gate.run(async () => {
+              const response = await mutate<usersCreateMutation>(
+                environment,
+                graphql`
+                  mutation usersCreateMutation($input: CreateUserInput!) {
+                    createUser(input: $input) {
+                      id
+                      username
+                    }
+                  }
+                `,
+                { input },
+              );
+              onDone();
+              succeed(t('admin.users.created', { username: response.createUser.username }));
+            }, fail)
+          }
+        />
+      </SudoGate>
     </Stack>
   );
 }
@@ -261,14 +261,12 @@ function useRoleOptions() {
 function UserRow({
   user,
   self,
-  prepare,
   onUpdate,
   onToggle,
   onResetPassword,
 }: {
   user: UserItem;
   self: boolean;
-  prepare: ReauthPrepare;
   onUpdate: (input: { displayName: string; role: Role }, onDone: () => void) => void;
   onToggle: (resume: ReauthResume) => void;
   onResetPassword: (password: string, onDone: () => void) => void;
@@ -288,14 +286,8 @@ function UserRow({
   };
   // サーバーが新しいロールを足したときは、名前をそのまま出す。
   const knownRole = roles.find((known) => known === user.role);
-  // 変更とパスワードの設定し直しは、入力を始める前に再認証させる。IdP で再認証すると、ページを離れ、入力が消えるため。
   // 無効と有効の切り替えは、IdP で再認証して戻ってきたら、そのまま続ける (#916)。
-  const edit = () => prepare({ key: 'user.edit', params: user.id }, () => setMode('edit'));
-  const resetPassword = () =>
-    prepare({ key: 'user.password', params: user.id }, () => setMode('password'));
   const toggle = () => onToggle({ key: 'user.toggle', params: user.id });
-  useReauthResume('user.edit', () => setMode('edit'), user.id);
-  useReauthResume('user.password', () => setMode('password'), user.id);
   useReauthResume('user.toggle', toggle, user.id);
 
   return (
@@ -329,10 +321,10 @@ function UserRow({
         </Stack>
         {mode === 'view' && (
           <Group gap="xs" justify="flex-end" flex="none" maw="60%">
-            <Button size="compact-sm" variant="default" onClick={edit}>
+            <Button size="compact-sm" variant="default" onClick={() => setMode('edit')}>
               {t('admin.users.edit')}
             </Button>
-            <Button size="compact-sm" variant="default" onClick={resetPassword}>
+            <Button size="compact-sm" variant="default" onClick={() => setMode('password')}>
               {t('admin.users.resetPassword')}
             </Button>
             {!self && (
@@ -408,10 +400,8 @@ function UserRow({
 
 // CreateUser は、ユーザーを作るフォーム。パスワードを省くと、パスワードを持たないユーザーにする。
 function CreateUser({
-  prepare,
   onCreate,
 }: {
-  prepare: ReauthPrepare;
   onCreate: (
     input: { username: string; displayName: string; role: Role; password: string | null },
     onDone: () => void,
@@ -423,8 +413,6 @@ function CreateUser({
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<Role>('MEMBER');
   const [password, setPassword] = useState('');
-  // 入力を始める前に再認証させる。IdP で再認証すると、ページを離れ、入れたパスワードなどが消えるため (#916)。
-  const input = useReauthBeforeInput(prepare, 'user.create');
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -450,14 +438,13 @@ function CreateUser({
 
   return (
     <Card withBorder>
-      <form onSubmit={submit} onFocus={input.onFocus}>
+      <form onSubmit={submit}>
         <Stack gap="xs">
           <Title order={3} size="h5">
             {t('admin.users.create')}
           </Title>
           <Group gap="xs" align="flex-start">
             <TextInput
-              ref={input.ref}
               size="xs"
               label={t('admin.users.username')}
               required

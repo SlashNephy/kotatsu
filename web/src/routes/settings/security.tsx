@@ -28,13 +28,8 @@ import { ApiTokens } from '../../settings/ApiTokens';
 import { ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { mutate } from '../../settings/mutate';
-import {
-  reauthMethods,
-  useReauthBeforeInput,
-  useReauthGate,
-  useReauthResume,
-  type ReauthPrepare,
-} from '../../settings/useReauthGate';
+import { reauthMethods, useReauthGate, useReauthResume } from '../../settings/useReauthGate';
+import { SudoGate } from '../../settings/SudoGate';
 import type { securityBeginTotpMutation } from './__generated__/securityBeginTotpMutation.graphql';
 import type { securityConfirmTotpMutation } from './__generated__/securityConfirmTotpMutation.graphql';
 import type { securityDeletePasskeyMutation } from './__generated__/securityDeletePasskeyMutation.graphql';
@@ -140,7 +135,8 @@ function Security() {
     { fetchKey: `${fetchKey}:${viewerChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
+  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
+  const gate = useReauthGate(methods, path);
   const [error, setError] = useState<string | null>(null);
   const [linked, setLinked] = useState(search.linked === 'oidc');
   const fail = (caught: unknown) => setError(settingsErrorMessage(t, caught));
@@ -153,68 +149,68 @@ function Security() {
   return (
     <Stack gap="md">
       {gate.modal}
-      {error !== null && (
-        <Alert color="red" role="alert" withCloseButton onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
-      {linked && (
-        <Alert color="green" role="status" withCloseButton onClose={() => setLinked(false)}>
-          {t('settings.account.oidcLinked', { name: oidc.displayName })}
-        </Alert>
-      )}
+      <SudoGate methods={methods} returnTo={path}>
+        {error !== null && (
+          <Alert color="red" role="alert" withCloseButton onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+        {linked && (
+          <Alert color="green" role="status" withCloseButton onClose={() => setLinked(false)}>
+            {t('settings.account.oidcLinked', { name: oidc.displayName })}
+          </Alert>
+        )}
 
-      <Card withBorder>
-        <Group justify="space-between" wrap="wrap">
-          <Title order={3} size="h5">
-            {t('auth.password')}
-          </Title>
-          <Button
-            variant="default"
-            size="xs"
-            renderRoot={(props) => <Link {...props} to="/settings/password" />}
-          >
-            {t('viewer.changePassword')}
-          </Button>
-        </Group>
-      </Card>
+        <Card withBorder>
+          <Group justify="space-between" wrap="wrap">
+            <Title order={3} size="h5">
+              {t('auth.password')}
+            </Title>
+            <Button
+              variant="default"
+              size="xs"
+              renderRoot={(props) => <Link {...props} to="/settings/password" />}
+            >
+              {t('viewer.changePassword')}
+            </Button>
+          </Group>
+        </Card>
 
-      {/* 操作の途中は、ほかのボタンを押せないようにする。 */}
-      <Fieldset variant="unstyled" disabled={gate.busy} p={0} m={0} miw={0}>
-        <Stack gap="md">
-          <TwoFactor
-            totp={data.secondFactors.totp}
-            remaining={data.secondFactors.remainingRecoveryCodes}
-            onChanged={refresh}
-            run={run}
-            fail={fail}
-            environment={environment}
-          />
+        {/* 操作の途中は、ほかのボタンを押せないようにする。 */}
+        <Fieldset variant="unstyled" disabled={gate.busy} p={0} m={0} miw={0}>
+          <Stack gap="md">
+            <TwoFactor
+              totp={data.secondFactors.totp}
+              remaining={data.secondFactors.remainingRecoveryCodes}
+              onChanged={refresh}
+              run={run}
+              fail={fail}
+              environment={environment}
+            />
 
-          <Passkeys
-            passkeys={data.passkeys}
-            onChanged={refresh}
-            run={run}
-            prepare={gate.prepare}
-            fail={fail}
-            environment={environment}
-          />
+            <Passkeys
+              passkeys={data.passkeys}
+              onChanged={refresh}
+              run={run}
+              fail={fail}
+              environment={environment}
+            />
 
-          <ApiTokens
-            tokens={data.apiTokens}
-            onChanged={refresh}
-            run={run}
-            prepare={gate.prepare}
-            fail={fail}
-            environment={environment}
-          />
+            <ApiTokens
+              tokens={data.apiTokens}
+              onChanged={refresh}
+              run={run}
+              fail={fail}
+              environment={environment}
+            />
 
-          {/* 紐付いていないときだけ出す。紐付けを外す操作は、パスワードもパスキーもないユーザーを締め出しかねないので設けない。 */}
-          {oidc.enabled && !oidc.linked && (
-            <OIDCLink displayName={oidc.displayName} run={run} fail={fail} />
-          )}
-        </Stack>
-      </Fieldset>
+            {/* 紐付いていないときだけ出す。紐付けを外す操作は、パスワードもパスキーもないユーザーを締め出しかねないので設けない。 */}
+            {oidc.enabled && !oidc.linked && (
+              <OIDCLink displayName={oidc.displayName} run={run} fail={fail} />
+            )}
+          </Stack>
+        </Fieldset>
+      </SudoGate>
     </Stack>
   );
 }
@@ -462,12 +458,9 @@ function Passkeys({
   run,
   fail,
   environment,
-  prepare,
-}: SectionProps & { passkeys: readonly PasskeyItem[]; prepare: ReauthPrepare }) {
+}: SectionProps & { passkeys: readonly PasskeyItem[] }) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
-  // 名前を入れ始める前に再認証させる。IdP で再認証すると、ページを離れ、入れた名前が消えるため (#916)。
-  const nameInput = useReauthBeforeInput(prepare, 'passkey.name');
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
   const available = passkeyAvailable();
 
@@ -609,8 +602,6 @@ function Passkeys({
               size="xs"
               label={t('settings.account.newPasskeyName')}
               placeholder={t('settings.account.newPasskeyPlaceholder')}
-              ref={nameInput.ref}
-              onFocus={nameInput.onFocus}
               value={name}
               onChange={(event) => setName(event.currentTarget.value)}
             />

@@ -19,7 +19,7 @@ import type { ApiTokensCreateMutation } from './__generated__/ApiTokensCreateMut
 import type { ApiTokensDeleteMutation } from './__generated__/ApiTokensDeleteMutation.graphql';
 import { zonedFormat } from '../futon';
 import { mutate } from './mutate';
-import { useReauthBeforeInput, type useReauthGate } from './useReauthGate';
+import type { useReauthGate } from './useReauthGate';
 
 const dateTimeFormat = zonedFormat({
   year: 'numeric',
@@ -41,19 +41,16 @@ type Props = {
   tokens: readonly ApiTokenItem[];
   onChanged: () => void;
   run: ReturnType<typeof useReauthGate>['run'];
-  prepare: ReturnType<typeof useReauthGate>['prepare'];
   fail: (error: unknown) => void;
   environment: ReturnType<typeof useRelayEnvironment>;
 };
 
 // ApiTokens は、読み取り専用の API トークン (#431、設計書 9.8) の一覧と、発行、取り消し。
 // 発行は、そのユーザーとして読むことを許すので、再認証してから行う。トークンそのものは、発行した直後にだけ出す。
-export function ApiTokens({ tokens, onChanged, run, prepare, fail, environment }: Props) {
+export function ApiTokens({ tokens, onChanged, run, fail, environment }: Props) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [issued, setIssued] = useState<string | null>(null);
-  // 名前を入れ始める前に再認証させる。IdP で再認証すると、ページを離れ、入れた名前が消えるため (#916)。
-  const nameInput = useReauthBeforeInput(prepare, 'apiToken.name');
 
   const create = () =>
     run(async () => {
@@ -162,8 +159,6 @@ export function ApiTokens({ tokens, onChanged, run, prepare, fail, environment }
             label={t('settings.account.newApiTokenName')}
             placeholder={t('settings.account.newApiTokenPlaceholder')}
             maxLength={64}
-            ref={nameInput.ref}
-            onFocus={nameInput.onFocus}
             value={name}
             onChange={(event) => setName(event.currentTarget.value)}
           />

@@ -13,12 +13,8 @@ import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 import { settingsErrorMessage } from '../settings/errors';
 import { mutate } from '../settings/mutate';
 import { clientHost } from '../settings/OAuthGrants';
-import {
-  reauthMethods,
-  useReauthBeforeInput,
-  useReauthGate,
-  useReauthResume,
-} from '../settings/useReauthGate';
+import { reauthMethods, useReauthGate, useReauthResume } from '../settings/useReauthGate';
+import { SudoGate } from '../settings/SudoGate';
 import type { authorizeApproveMutation } from './__generated__/authorizeApproveMutation.graphql';
 import type { authorizeDenyMutation } from './__generated__/authorizeDenyMutation.graphql';
 import type { authorizeQuery } from './__generated__/authorizeQuery.graphql';
@@ -111,7 +107,8 @@ function Consent({ query }: { query: string }) {
     { query },
     { fetchPolicy: 'network-only' },
   );
-  const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), currentPath());
+  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
+  const gate = useReauthGate(methods, currentPath());
   const { authorization, errorRedirectUrl } = data.oauthAuthorization;
   // 初めは、求められたスコープのうち、ロールで許すものをすべて選んでおく。
   const [chosen, setChosen] = useState<string[]>(
@@ -169,8 +166,6 @@ function Consent({ query }: { query: string }) {
     approve((params ?? '').split(' ').filter((scope) => scope !== '')),
   );
   useReauthResume('oauth.deny', deny);
-  // スコープを選び直す前に再認証させる。IdP で再認証すると、ページを離れ、選び直したものが消えるため。
-  const scopesInput = useReauthBeforeInput(gate.prepare, 'oauth.scopes');
 
   // パラメーターが正しくなければ、エラーを付けてクライアントへ戻す。
   useEffect(() => {
@@ -204,48 +199,50 @@ function Consent({ query }: { query: string }) {
         </Text>
       </Stack>
       <Text size="sm">{t('oauth.description', { name: authorization.clientName })}</Text>
-      <Stack gap="xs" onFocus={scopesInput.onFocus}>
-        {authorization.scopes.map((scope, index) => {
-          const allowed = authorization.allowedScopes.includes(scope);
+      {/* どのアプリへの同意かは、本人確認の前にも出しておく。 */}
+      <SudoGate methods={methods} returnTo={currentPath()}>
+        <Stack gap="xs">
+          {authorization.scopes.map((scope) => {
+            const allowed = authorization.allowedScopes.includes(scope);
 
-          return (
-            <Checkbox
-              key={scope}
-              ref={index === 0 ? scopesInput.ref : undefined}
-              label={t(scope === 'mcp:write' ? 'oauth.scopeWrite' : 'oauth.scopeRead')}
-              description={
-                allowed
-                  ? t(scope === 'mcp:write' ? 'oauth.scopeWriteHelp' : 'oauth.scopeReadHelp')
-                  : t('oauth.scopeNotAllowed')
-              }
-              disabled={!allowed}
-              checked={chosen.includes(scope)}
-              onChange={(event) => {
-                const checked = event.currentTarget.checked;
-                setChosen((current) =>
-                  checked ? [...current, scope] : current.filter((value) => value !== scope),
-                );
-              }}
-            />
-          );
-        })}
-      </Stack>
-      {error !== null && (
-        <Alert color="red" role="alert">
-          {error}
-        </Alert>
-      )}
-      <Group justify="flex-end">
-        <Button variant="default" onClick={deny} disabled={gate.busy || leaving}>
-          {t('oauth.deny')}
-        </Button>
-        <Button
-          onClick={() => approve(chosen)}
-          disabled={chosen.length === 0 || gate.busy || leaving}
-        >
-          {t('oauth.approve')}
-        </Button>
-      </Group>
+            return (
+              <Checkbox
+                key={scope}
+                label={t(scope === 'mcp:write' ? 'oauth.scopeWrite' : 'oauth.scopeRead')}
+                description={
+                  allowed
+                    ? t(scope === 'mcp:write' ? 'oauth.scopeWriteHelp' : 'oauth.scopeReadHelp')
+                    : t('oauth.scopeNotAllowed')
+                }
+                disabled={!allowed}
+                checked={chosen.includes(scope)}
+                onChange={(event) => {
+                  const checked = event.currentTarget.checked;
+                  setChosen((current) =>
+                    checked ? [...current, scope] : current.filter((value) => value !== scope),
+                  );
+                }}
+              />
+            );
+          })}
+        </Stack>
+        {error !== null && (
+          <Alert color="red" role="alert">
+            {error}
+          </Alert>
+        )}
+        <Group justify="flex-end">
+          <Button variant="default" onClick={deny} disabled={gate.busy || leaving}>
+            {t('oauth.deny')}
+          </Button>
+          <Button
+            onClick={() => approve(chosen)}
+            disabled={chosen.length === 0 || gate.busy || leaving}
+          >
+            {t('oauth.approve')}
+          </Button>
+        </Group>
+      </SudoGate>
     </Stack>
   );
 }

@@ -29,12 +29,11 @@ import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
 import {
   reauthMethods,
-  useReauthBeforeInput,
   useReauthGate,
   useReauthResume,
-  type ReauthPrepare,
   type ReauthResume,
 } from '../../settings/useReauthGate';
+import { SudoGate } from '../../settings/SudoGate';
 import type {
   WebhookFormat,
   webhooksCreateMutation,
@@ -113,7 +112,8 @@ function Webhooks() {
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
+  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
+  const gate = useReauthGate(methods, path);
   const [message, setMessage] = useState<Message | null>(null);
   // secret は、作った Webhook の署名用の秘密キー。作ったときにしか返らないので、ここで出す。
   const [secret, setSecret] = useState<{ name: string; secret: string } | null>(null);
@@ -127,129 +127,131 @@ function Webhooks() {
   return (
     <Stack gap="md">
       {gate.modal}
-      {message !== null && (
-        <Alert
-          color={message.ok ? 'teal' : 'red'}
-          role={message.ok ? 'status' : 'alert'}
-          withCloseButton
-          onClose={() => setMessage(null)}
-        >
-          {message.text}
-        </Alert>
-      )}
-      {secret !== null && (
-        <Alert
-          color="amber"
-          title={`${t('admin.webhooks.secret')} (${secret.name})`}
-          withCloseButton
-          onClose={() => setSecret(null)}
-        >
-          <Text size="sm">{t('admin.webhooks.secretNote')}</Text>
-          <Code block mt="xs">
-            {secret.secret}
-          </Code>
-        </Alert>
-      )}
+      <SudoGate methods={methods} returnTo={path}>
+        {message !== null && (
+          <Alert
+            color={message.ok ? 'teal' : 'red'}
+            role={message.ok ? 'status' : 'alert'}
+            withCloseButton
+            onClose={() => setMessage(null)}
+          >
+            {message.text}
+          </Alert>
+        )}
+        {secret !== null && (
+          <Alert
+            color="amber"
+            title={`${t('admin.webhooks.secret')} (${secret.name})`}
+            withCloseButton
+            onClose={() => setSecret(null)}
+          >
+            <Text size="sm">{t('admin.webhooks.secretNote')}</Text>
+            <Code block mt="xs">
+              {secret.secret}
+            </Code>
+          </Alert>
+        )}
 
-      {/* 空のときは、空の表示だけを出す。カードで囲むと、枠が二重になる。 */}
-      {data.webhooks.length === 0 ? (
-        <EmptyState
-          icon={Webhook}
-          title={t('admin.webhooks.empty')}
-          hint={t('admin.webhooks.emptyHint')}
-        />
-      ) : (
-        <Card withBorder>
-          <Stack gap="sm">
-            {data.webhooks.map((webhook) => (
-              <WebhookRow
-                key={`${webhook.id}/${webhook.name}/${webhook.url}/${webhook.format}/${webhook.kinds.join()}/${String(webhook.enabled)}`}
-                webhook={webhook}
-                prepare={gate.prepare}
-                onUpdate={(input, onDone) =>
-                  gate.run(async () => {
-                    await mutate<webhooksUpdateMutation>(
-                      environment,
-                      graphql`
-                        mutation webhooksUpdateMutation($id: ID!, $input: UpdateWebhookInput!) {
-                          updateWebhook(id: $id, input: $input) {
-                            id
-                            name
-                            url
-                            format
-                            kinds
-                            enabled
-                          }
-                        }
-                      `,
-                      { id: webhook.id, input },
-                    );
-                    onDone();
-                    succeed(t('admin.saved'));
-                  }, fail)
-                }
-                onDelete={(resume) =>
-                  gate.run(
-                    async () => {
-                      await mutate<webhooksDeleteMutation>(
+        {/* 空のときは、空の表示だけを出す。カードで囲むと、枠が二重になる。 */}
+        {data.webhooks.length === 0 ? (
+          <EmptyState
+            icon={Webhook}
+            title={t('admin.webhooks.empty')}
+            hint={t('admin.webhooks.emptyHint')}
+          />
+        ) : (
+          <Card withBorder>
+            <Stack gap="sm">
+              {data.webhooks.map((webhook) => (
+                <WebhookRow
+                  key={`${webhook.id}/${webhook.name}/${webhook.url}/${webhook.format}/${webhook.kinds.join()}/${String(webhook.enabled)}`}
+                  webhook={webhook}
+                  onUpdate={(input, onDone) =>
+                    gate.run(async () => {
+                      await mutate<webhooksUpdateMutation>(
                         environment,
                         graphql`
-                          mutation webhooksDeleteMutation($id: ID!) {
-                            deleteWebhook(id: $id)
+                          mutation webhooksUpdateMutation($id: ID!, $input: UpdateWebhookInput!) {
+                            updateWebhook(id: $id, input: $input) {
+                              id
+                              name
+                              url
+                              format
+                              kinds
+                              enabled
+                            }
                           }
                         `,
-                        { id: webhook.id },
+                        { id: webhook.id, input },
                       );
-                      succeed(t('admin.webhooks.deleted', { name: webhook.name }));
-                    },
-                    fail,
-                    undefined,
-                    undefined,
-                    resume,
-                  )
-                }
-              />
-            ))}
+                      onDone();
+                      succeed(t('admin.saved'));
+                    }, fail)
+                  }
+                  onDelete={(resume) =>
+                    gate.run(
+                      async () => {
+                        await mutate<webhooksDeleteMutation>(
+                          environment,
+                          graphql`
+                            mutation webhooksDeleteMutation($id: ID!) {
+                              deleteWebhook(id: $id)
+                            }
+                          `,
+                          { id: webhook.id },
+                        );
+                        succeed(t('admin.webhooks.deleted', { name: webhook.name }));
+                      },
+                      fail,
+                      undefined,
+                      undefined,
+                      resume,
+                    )
+                  }
+                />
+              ))}
+            </Stack>
+          </Card>
+        )}
+
+        <Card withBorder>
+          <Stack gap="xs">
+            <Title order={3} size="h5">
+              {t('admin.webhooks.create')}
+            </Title>
+            <WebhookForm
+              submitLabel={t('admin.webhooks.create')}
+              onSubmit={(input, onDone) =>
+                gate.run(async () => {
+                  const response = await mutate<webhooksCreateMutation>(
+                    environment,
+                    graphql`
+                      mutation webhooksCreateMutation($input: CreateWebhookInput!) {
+                        createWebhook(input: $input) {
+                          webhook {
+                            id
+                            name
+                          }
+                          secret
+                        }
+                      }
+                    `,
+                    { input },
+                  );
+                  onDone();
+                  setSecret({
+                    name: response.createWebhook.webhook.name,
+                    secret: response.createWebhook.secret,
+                  });
+                  succeed(
+                    t('admin.webhooks.created', { name: response.createWebhook.webhook.name }),
+                  );
+                }, fail)
+              }
+            />
           </Stack>
         </Card>
-      )}
-
-      <Card withBorder>
-        <Stack gap="xs">
-          <Title order={3} size="h5">
-            {t('admin.webhooks.create')}
-          </Title>
-          <WebhookForm
-            submitLabel={t('admin.webhooks.create')}
-            prepare={gate.prepare}
-            onSubmit={(input, onDone) =>
-              gate.run(async () => {
-                const response = await mutate<webhooksCreateMutation>(
-                  environment,
-                  graphql`
-                    mutation webhooksCreateMutation($input: CreateWebhookInput!) {
-                      createWebhook(input: $input) {
-                        webhook {
-                          id
-                          name
-                        }
-                        secret
-                      }
-                    }
-                  `,
-                  { input },
-                );
-                onDone();
-                setSecret({
-                  name: response.createWebhook.webhook.name,
-                  secret: response.createWebhook.secret,
-                });
-                succeed(t('admin.webhooks.created', { name: response.createWebhook.webhook.name }));
-              }, fail)
-            }
-          />
-        </Stack>
-      </Card>
+      </SudoGate>
     </Stack>
   );
 }
@@ -271,12 +273,10 @@ function knownKinds(values: readonly string[]): NotificationKindName[] {
 // WebhookRow は、Webhook 1 つの行。URL は秘密のトークンを含むので、送り先のホストだけを出す。
 function WebhookRow({
   webhook,
-  prepare,
   onUpdate,
   onDelete,
 }: {
   webhook: WebhookItem;
-  prepare: ReauthPrepare;
   onUpdate: (input: WebhookInput, onDone: () => void) => void;
   onDelete: (resume: ReauthResume) => void;
 }) {
@@ -284,11 +284,8 @@ function WebhookRow({
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const knownFormat = formats.find((format) => format === webhook.format);
-  // 変更は、入力を始める前に再認証させる。IdP で再認証すると、ページを離れ、入力が消えるため。
   // 削除は、確かめてから押すので、IdP で再認証して戻ってきたら、そのまま続ける (#916)。
-  const edit = () => prepare({ key: 'webhook.edit', params: webhook.id }, () => setEditing(true));
   const remove = () => onDelete({ key: 'webhook.delete', params: webhook.id });
-  useReauthResume('webhook.edit', () => setEditing(true), webhook.id);
   useReauthResume('webhook.delete', remove, webhook.id);
 
   if (editing) {
@@ -342,7 +339,7 @@ function WebhookRow({
           </Group>
         </Stack>
         <Group gap="xs" flex="none">
-          <Button size="compact-sm" variant="default" onClick={edit}>
+          <Button size="compact-sm" variant="default" onClick={() => setEditing(true)}>
             {t('admin.webhooks.edit')}
           </Button>
           <Button
@@ -402,24 +399,16 @@ const emptyWebhook: WebhookInput = {
 function WebhookForm({
   initial = emptyWebhook,
   submitLabel,
-  prepare,
   onSubmit,
   onCancel,
 }: {
   initial?: WebhookInput;
   submitLabel: string;
-  // prepare を渡すと、入力を始める前に再認証させる。作るフォームで使う。変えるフォームは、開く前に再認証させる。
-  prepare?: ReauthPrepare;
   onSubmit: (input: WebhookInput, onDone: () => void) => void;
   onCancel?: () => void;
 }) {
   const { t } = useTranslation();
   const [input, setInput] = useState<WebhookInput>(initial);
-  // 入力を始める前に再認証させる。IdP で再認証すると、ページを離れ、入れた URL などが消えるため (#916)。
-  const reauth = useReauthBeforeInput(
-    prepare ?? ((_resume, onReady) => onReady()),
-    'webhook.create',
-  );
   const set = (patch: Partial<WebhookInput>) => setInput((current) => ({ ...current, ...patch }));
   const name = input.name.trim();
   const url = input.url.trim();
@@ -430,11 +419,10 @@ function WebhookForm({
   };
 
   return (
-    <form onSubmit={submit} onFocus={reauth.onFocus}>
+    <form onSubmit={submit}>
       <Stack gap="xs">
         <Group gap="xs" align="flex-start">
           <TextInput
-            ref={reauth.ref}
             size="xs"
             label={t('admin.webhooks.name')}
             required

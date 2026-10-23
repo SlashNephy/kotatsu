@@ -138,7 +138,7 @@ export const authApi = {
     post<RegisteredPasskey>('/auth/passkey/registration/confirm', { credential, name }),
   confirmPasskeyReauthentication: (credential: AuthenticationResponseJSON) =>
     post<Reauthenticated>('/auth/reauth/passkey/confirm', { credential }),
-  // 重要な操作ができるか。入力のある重要な操作は、入力を始める前に確かめ、必要なら先に再認証させる (#916)。
+  // 重要な操作ができるか。重要な操作のある画面は、開いたときに確かめ、必要なら先に再認証させる (#981)。
   reauthenticationStatus: () => get<ReauthenticationStatus>('/auth/reauth'),
   // IdP で再認証する。終えると、returnTo のパスに reauthenticated=oidc を付けて戻る。失敗したときは、returnTo に error=<理由> が付く。
   beginOIDCReauthentication: (returnTo: string) =>

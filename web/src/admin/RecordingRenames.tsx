@@ -18,7 +18,7 @@ import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 
 import { ProgramTitle, toHalfWidth } from '../futon';
 import { mutate } from '../settings/mutate';
-import { useReauthResume, type ReauthPrepare, type ReauthRun } from '../settings/useReauthGate';
+import type { ReauthRun } from '../settings/useReauthGate';
 import type {
   RecordingRenamesQuery,
   RecordingRenamesQuery$data,
@@ -58,13 +58,7 @@ const renameMutation = graphql`
 // RecordingRenames は、ファイル名のテンプレートを変えた後に、既存の録画のファイルを今のテンプレートの名前に付け直す (設計書 4.7)。
 // 元の名前と新しい名前の一覧を見せ、確かめてから付け直す。
 // ファイルを動かすのは重要な操作なので、ページの再認証 (run) を通して送る (設計書 9.5)。
-export function RecordingRenames({
-  run: reauthRun,
-  prepare,
-}: {
-  run: ReauthRun;
-  prepare: ReauthPrepare;
-}) {
+export function RecordingRenames({ run: reauthRun }: { run: ReauthRun }) {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const [found, setFound] = useState<readonly Rename[] | null>(null);
@@ -96,10 +90,6 @@ export function RecordingRenames({
       setSearching(false);
     }
   };
-  // 選ぶ前に再認証させる。選んでから IdP で再認証すると、ページを離れ、選んだものが消えるため (#916)。
-  // IdP で再認証して戻ってきたら、そのまま探す。
-  const startSearch = () => prepare({ key: 'renames.search' }, () => void search());
-  useReauthResume('renames.search', () => void search());
 
   const toggle = (id: string, checked: boolean) =>
     setSelected((prev) => {
@@ -163,7 +153,7 @@ export function RecordingRenames({
             variant="default"
             loading={searching}
             disabled={progress !== null}
-            onClick={startSearch}
+            onClick={() => void search()}
           >
             {t('admin.rename.search')}
           </Button>

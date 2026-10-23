@@ -97,7 +97,9 @@ function ChangePassword() {
   const [done, setDone] = useState(false);
   // needsReauthentication は、直近の認証から時間が経っていて、もう一度確かめる必要があるかどうか。
   const [needsReauthentication, setNeedsReauthentication] = useState(false);
-  // 新しいパスワードを入れ始める前に、必要なら再認証させる。IdP で再認証すると、ページを離れ、入れたパスワードが消えるため (#916)。
+  // ほかの重要な操作のある画面の SudoGate と同じく、開いたときに、必要なら再認証させる (#981)。
+  // IdP で再認証すると、ページを離れ、入れたパスワードが消えるため。この画面は全体がカードなので、カードを重ねる
+  // SudoGate ではなく、フォームの代わりに再認証の画面を出す。
   // 確かめられなくても、入力は始めさせる。必要なら、変えるときに再認証を求められる。
   useEffect(() => {
     let active = true;

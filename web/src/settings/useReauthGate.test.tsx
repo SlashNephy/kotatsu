@@ -1,11 +1,11 @@
 import { MantineProvider } from '@mantine/core';
-import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { act, cleanup, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import '../i18n';
-import { authApi, AuthError } from '../auth/api';
+import { AuthError } from '../auth/api';
 
-import { useReauthBeforeInput, useReauthGate, useReauthResume } from './useReauthGate';
+import { useReauthGate, useReauthResume } from './useReauthGate';
 
 const methods = {
   totp: false,
@@ -220,85 +220,5 @@ describe('IdP での再認証から戻ったときの再開 (#916)', () => {
     expect(screen.getByRole('alert')).toBeTruthy();
     expect(onResume).not.toHaveBeenCalled();
     expect(window.sessionStorage.getItem(storageKey)).toBeNull();
-  });
-});
-
-describe('入力を始める前の再認証 (#916)', () => {
-  afterEach(() => {
-    window.sessionStorage.clear();
-    vi.restoreAllMocks();
-  });
-
-  test('重要な操作ができるなら、すぐに onReady を呼ぶ', async () => {
-    vi.spyOn(authApi, 'reauthenticationStatus').mockResolvedValue({
-      authenticatedAt: '2026-10-23T03:00:00Z',
-      recent: true,
-    });
-    const { result } = renderHook(() => useReauthGate(methods, '/admin/system'));
-    const onReady = vi.fn();
-
-    await act(async () => {
-      result.current.prepare({ key: 'webhook.create' }, onReady);
-      await Promise.resolve();
-    });
-
-    expect(onReady).toHaveBeenCalledOnce();
-    expect(window.sessionStorage.getItem(storageKey)).toBeNull();
-  });
-
-  test('再認証が要るなら、再認証の画面を出し、戻ってきたときのために覚えておく', async () => {
-    window.history.replaceState(null, '', '/admin/system');
-    vi.spyOn(authApi, 'reauthenticationStatus').mockResolvedValue({
-      authenticatedAt: '2026-10-23T03:00:00Z',
-      recent: false,
-    });
-    const { result } = renderHook(() => useReauthGate(methods, '/admin/system'));
-    const onReady = vi.fn();
-
-    await act(async () => {
-      result.current.prepare({ key: 'webhook.create' }, onReady);
-      await Promise.resolve();
-    });
-
-    expect(onReady).not.toHaveBeenCalled();
-    render(<MantineProvider>{result.current.modal}</MantineProvider>);
-    expect(screen.getByRole('dialog')).toBeTruthy();
-    expect(JSON.parse(window.sessionStorage.getItem(storageKey)!)).toMatchObject({
-      key: 'webhook.create',
-    });
-  });
-});
-
-// NameInput は、入力のある重要な操作の入力欄の代わり。
-function NameInput({ prepare }: { prepare: ReturnType<typeof useReauthGate>['prepare'] }) {
-  const input = useReauthBeforeInput(prepare, 'apiToken.name');
-
-  return <input aria-label="name" ref={input.ref} onFocus={input.onFocus} />;
-}
-
-describe('useReauthBeforeInput (#916)', () => {
-  afterEach(() => {
-    window.sessionStorage.clear();
-  });
-
-  test('最初にフォーカスしたときだけ、入力を始める前の再認証を確かめる', () => {
-    window.history.replaceState(null, '', '/settings/security');
-    const prepare = vi.fn();
-    render(<NameInput prepare={prepare} />);
-
-    fireEvent.focus(screen.getByLabelText('name'));
-    fireEvent.focus(screen.getByLabelText('name'));
-
-    expect(prepare).toHaveBeenCalledExactlyOnceWith({ key: 'apiToken.name' }, expect.any(Function));
-  });
-
-  test('IdP での再認証から戻ってきたら、入力欄にフォーカスし直し、もう一度は確かめない', () => {
-    window.history.replaceState(null, '', '/settings/security?reauthenticated=oidc');
-    stored('apiToken.name', '/settings/security');
-    const prepare = vi.fn();
-    render(<NameInput prepare={prepare} />);
-
-    expect(document.activeElement).toBe(screen.getByLabelText('name'));
-    expect(prepare).not.toHaveBeenCalled();
   });
 });

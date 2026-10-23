@@ -26,12 +26,8 @@ import { settingsErrorMessage } from '../../settings/errors';
 import { formatBytes } from '../../futon';
 import classes from './system.module.css';
 import { mutate } from '../../settings/mutate';
-import {
-  reauthMethods,
-  useReauthBeforeInput,
-  useReauthGate,
-  type ReauthPrepare,
-} from '../../settings/useReauthGate';
+import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
+import { SudoGate } from '../../settings/SudoGate';
 import { MissingRecordings } from '../../admin/MissingRecordings';
 import { OrphanFiles } from '../../admin/OrphanFiles';
 import { RecordingRenames } from '../../admin/RecordingRenames';
@@ -147,7 +143,8 @@ function SystemStatus() {
     { fetchKey: `${fetchKey}:${tunerChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
+  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
+  const gate = useReauthGate(methods, path);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const fail = (caught: unknown) =>
     setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
@@ -344,44 +341,46 @@ function SystemStatus() {
         />
       </Section>
 
-      <Section title={t('admin.system.pools')}>
-        {status.pools.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            {t('admin.system.noPools')}
-          </Text>
-        ) : (
-          status.pools.map((pool) => (
-            <PoolEditor
-              key={`${pool.id}/${pool.priority}/${pool.minFreeBytes}`}
-              pool={pool}
-              prepare={gate.prepare}
-              onSave={(input) =>
-                gate.run(async () => {
-                  await mutate<systemPoolMutation>(
-                    environment,
-                    graphql`
-                      mutation systemPoolMutation($id: String!, $input: StoragePoolInput!) {
-                        updateStoragePool(id: $id, input: $input) {
-                          id
-                          priority
-                          minFreeBytes
+      {/* 状態の表示は、本人確認なしで見られるようにする。重要な操作のある部分だけ、開いたときに本人確認する (#981)。 */}
+      <SudoGate methods={methods} returnTo={path}>
+        <Section title={t('admin.system.pools')}>
+          {status.pools.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              {t('admin.system.noPools')}
+            </Text>
+          ) : (
+            status.pools.map((pool) => (
+              <PoolEditor
+                key={`${pool.id}/${pool.priority}/${pool.minFreeBytes}`}
+                pool={pool}
+                onSave={(input) =>
+                  gate.run(async () => {
+                    await mutate<systemPoolMutation>(
+                      environment,
+                      graphql`
+                        mutation systemPoolMutation($id: String!, $input: StoragePoolInput!) {
+                          updateStoragePool(id: $id, input: $input) {
+                            id
+                            priority
+                            minFreeBytes
+                          }
                         }
-                      }
-                    `,
-                    { id: pool.id, input },
-                  );
-                  done();
-                }, fail)
-              }
-            />
-          ))
-        )}
-      </Section>
+                      `,
+                      { id: pool.id, input },
+                    );
+                    done();
+                  }, fail)
+                }
+              />
+            ))
+          )}
+        </Section>
 
-      {/* 録画やファイルを消す、動かす操作も重要な操作なので、同じ再認証を通す (設計書 9.5)。 */}
-      <MissingRecordings run={gate.run} prepare={gate.prepare} />
-      <OrphanFiles run={gate.run} prepare={gate.prepare} />
-      <RecordingRenames run={gate.run} prepare={gate.prepare} />
+        {/* 録画やファイルを消す、動かす操作も重要な操作なので、同じ再認証を通す (設計書 9.5)。 */}
+        <MissingRecordings run={gate.run} />
+        <OrphanFiles run={gate.run} />
+        <RecordingRenames run={gate.run} />
+      </SudoGate>
     </Stack>
   );
 }
@@ -481,7 +480,6 @@ function PoolUsage({ free, total, minFree }: { free: number; total: number; minF
 // PoolEditor は、保存先プールの優先順位と容量の閾値を変える。閾値は GB で入力する。
 function PoolEditor({
   pool,
-  prepare,
   onSave,
 }: {
   pool: {
@@ -492,14 +490,11 @@ function PoolEditor({
     freeBytes: number | null | undefined;
     totalBytes: number | null | undefined;
   };
-  prepare: ReauthPrepare;
   onSave: (input: { priority: number; minFreeBytes: number }) => void;
 }) {
   const { t } = useTranslation();
   const [priority, setPriority] = useState<number | string>(pool.priority);
   const [minFreeGB, setMinFreeGB] = useState<number | string>(pool.minFreeBytes / bytesPerGB);
-  // 変え始める前に再認証させる。IdP で再認証すると、ページを離れ、変えた値が消えるため (#916)。
-  const reauth = useReauthBeforeInput(prepare, 'pool.edit', pool.id);
 
   return (
     <Stack gap={4} data-pool={pool.id}>
@@ -517,9 +512,8 @@ function PoolEditor({
       {pool.freeBytes != null && pool.totalBytes != null && pool.totalBytes > 0 && (
         <PoolUsage free={pool.freeBytes} total={pool.totalBytes} minFree={pool.minFreeBytes} />
       )}
-      <Group gap="xs" align="flex-end" onFocus={reauth.onFocus}>
+      <Group gap="xs" align="flex-end">
         <NumberInput
-          ref={reauth.ref}
           size="xs"
           w={240}
           label={t('admin.system.poolPriority')}

@@ -16,7 +16,7 @@ import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 
 import { formatBytes, zonedFormat } from '../futon';
 import { mutate } from '../settings/mutate';
-import { useReauthResume, type ReauthPrepare, type ReauthRun } from '../settings/useReauthGate';
+import type { ReauthRun } from '../settings/useReauthGate';
 import type {
   OrphanFilesQuery,
   OrphanFilesQuery$data,
@@ -64,13 +64,7 @@ const keyOf = (orphan: Orphan) => JSON.stringify([orphan.poolId, orphan.path, or
 // OrphanFiles は、プールとデータディレクトリにあるのに DB に記録のないファイルを探し、確かめてから消す (設計書 5.6)。
 // 録画を消すのに失敗したときや、取り込みをやり直したときに残るので、管理者が片付ける。
 // ファイルを消すのは重要な操作なので、ページの再認証 (run) を通して送る (設計書 9.5)。
-export function OrphanFiles({
-  run: reauthRun,
-  prepare,
-}: {
-  run: ReauthRun;
-  prepare: ReauthPrepare;
-}) {
+export function OrphanFiles({ run: reauthRun }: { run: ReauthRun }) {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const [found, setFound] = useState<readonly Orphan[] | null>(null);
@@ -102,10 +96,6 @@ export function OrphanFiles({
       setSearching(false);
     }
   };
-  // 選ぶ前に再認証させる。選んでから IdP で再認証すると、ページを離れ、選んだものが消えるため (#916)。
-  // IdP で再認証して戻ってきたら、そのまま探す。
-  const startSearch = () => prepare({ key: 'orphan.search' }, () => void search());
-  useReauthResume('orphan.search', () => void search());
 
   const toggle = (key: string, checked: boolean) =>
     setSelected((prev) => {
@@ -168,7 +158,7 @@ export function OrphanFiles({
           <Title order={3} size="h5">
             {t('admin.orphan.title')}
           </Title>
-          <Button size="xs" variant="default" loading={searching} onClick={startSearch}>
+          <Button size="xs" variant="default" loading={searching} onClick={() => void search()}>
             {t('admin.orphan.search')}
           </Button>
         </Group>
