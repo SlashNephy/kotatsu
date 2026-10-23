@@ -68,15 +68,14 @@ var _ http.Handler = new(Handler)
 
 // NewHandler は Handler を返す。schema は GraphQL のスキーマで、ツールの入力の JSON Schema を作るのに使う。
 func NewHandler(authenticator Authenticator, graphql http.Handler, schema *ast.Schema, logger *slog.Logger) (*Handler, error) {
-	h := &Handler{
-		authenticator: authenticator, graphql: graphql, logger: logger,
-		tools: make([]*registeredTool, 0), byName: make(map[string]*registeredTool), sdk: nil, icons: nil,
-	}
 	icons, err := serverIcons()
 	if err != nil {
 		return nil, err
 	}
-	h.icons = icons
+	h := &Handler{
+		authenticator: authenticator, graphql: graphql, logger: logger,
+		tools: make([]*registeredTool, 0), byName: make(map[string]*registeredTool), sdk: nil, icons: icons,
+	}
 	for _, t := range toolList() {
 		registered := &registeredTool{tool: t, schema: map[string]any{keyType: schemaObject, "properties": map[string]any{}, "additionalProperties": false}}
 		if t.query != "" {
