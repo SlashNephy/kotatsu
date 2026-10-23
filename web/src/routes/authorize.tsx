@@ -13,7 +13,12 @@ import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 import { settingsErrorMessage } from '../settings/errors';
 import { mutate } from '../settings/mutate';
 import { clientHost } from '../settings/OAuthGrants';
-import { reauthMethods, useReauthGate } from '../settings/useReauthGate';
+import {
+  reauthMethods,
+  useReauthBeforeInput,
+  useReauthGate,
+  useReauthResume,
+} from '../settings/useReauthGate';
 import type { authorizeApproveMutation } from './__generated__/authorizeApproveMutation.graphql';
 import type { authorizeDenyMutation } from './__generated__/authorizeDenyMutation.graphql';
 import type { authorizeQuery } from './__generated__/authorizeQuery.graphql';
@@ -116,6 +121,57 @@ function Consent({ query }: { query: string }) {
   const [error, setError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
 
+  const leave = (url: string) => {
+    setLeaving(true);
+    window.location.assign(url);
+  };
+  const fail = (caught: unknown) => setError(settingsErrorMessage(t, caught));
+  // 同意と拒否は、IdP で再認証して戻ってきたら、そのまま続ける (#916)。選んだスコープは秘密ではないので、覚えておく。
+  const approve = (scopes: readonly string[]) =>
+    gate.run(
+      async () => {
+        const response = await mutate<authorizeApproveMutation>(
+          environment,
+          graphql`
+            mutation authorizeApproveMutation($query: String!, $scopes: [String!]!) {
+              approveOAuthAuthorization(query: $query, scopes: $scopes)
+            }
+          `,
+          { query, scopes: [...scopes] },
+        );
+        leave(response.approveOAuthAuthorization);
+      },
+      fail,
+      undefined,
+      undefined,
+      { key: 'oauth.approve', params: scopes.join(' ') },
+    );
+  const deny = () =>
+    gate.run(
+      async () => {
+        const response = await mutate<authorizeDenyMutation>(
+          environment,
+          graphql`
+            mutation authorizeDenyMutation($query: String!) {
+              denyOAuthAuthorization(query: $query)
+            }
+          `,
+          { query },
+        );
+        leave(response.denyOAuthAuthorization);
+      },
+      fail,
+      undefined,
+      undefined,
+      { key: 'oauth.deny' },
+    );
+  useReauthResume('oauth.approve', (params) =>
+    approve((params ?? '').split(' ').filter((scope) => scope !== '')),
+  );
+  useReauthResume('oauth.deny', deny);
+  // スコープを選び直す前に再認証させる。IdP で再認証すると、ページを離れ、選び直したものが消えるため。
+  const scopesInput = useReauthBeforeInput(gate.prepare, 'oauth.scopes');
+
   // パラメーターが正しくなければ、エラーを付けてクライアントへ戻す。
   useEffect(() => {
     if (errorRedirectUrl != null) {
@@ -133,38 +189,6 @@ function Consent({ query }: { query: string }) {
     );
   }
 
-  const leave = (url: string) => {
-    setLeaving(true);
-    window.location.assign(url);
-  };
-  const fail = (caught: unknown) => setError(settingsErrorMessage(t, caught));
-  const approve = () =>
-    gate.run(async () => {
-      const response = await mutate<authorizeApproveMutation>(
-        environment,
-        graphql`
-          mutation authorizeApproveMutation($query: String!, $scopes: [String!]!) {
-            approveOAuthAuthorization(query: $query, scopes: $scopes)
-          }
-        `,
-        { query, scopes: chosen },
-      );
-      leave(response.approveOAuthAuthorization);
-    }, fail);
-  const deny = () =>
-    gate.run(async () => {
-      const response = await mutate<authorizeDenyMutation>(
-        environment,
-        graphql`
-          mutation authorizeDenyMutation($query: String!) {
-            denyOAuthAuthorization(query: $query)
-          }
-        `,
-        { query },
-      );
-      leave(response.denyOAuthAuthorization);
-    }, fail);
-
   return (
     <Stack>
       {gate.modal}
@@ -180,13 +204,14 @@ function Consent({ query }: { query: string }) {
         </Text>
       </Stack>
       <Text size="sm">{t('oauth.description', { name: authorization.clientName })}</Text>
-      <Stack gap="xs">
-        {authorization.scopes.map((scope) => {
+      <Stack gap="xs" onFocus={scopesInput.onFocus}>
+        {authorization.scopes.map((scope, index) => {
           const allowed = authorization.allowedScopes.includes(scope);
 
           return (
             <Checkbox
               key={scope}
+              ref={index === 0 ? scopesInput.ref : undefined}
               label={t(scope === 'mcp:write' ? 'oauth.scopeWrite' : 'oauth.scopeRead')}
               description={
                 allowed
@@ -214,7 +239,10 @@ function Consent({ query }: { query: string }) {
         <Button variant="default" onClick={deny} disabled={gate.busy || leaving}>
           {t('oauth.deny')}
         </Button>
-        <Button onClick={approve} disabled={chosen.length === 0 || gate.busy || leaving}>
+        <Button
+          onClick={() => approve(chosen)}
+          disabled={chosen.length === 0 || gate.busy || leaving}
+        >
           {t('oauth.approve')}
         </Button>
       </Group>
