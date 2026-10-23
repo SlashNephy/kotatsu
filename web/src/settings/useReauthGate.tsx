@@ -106,38 +106,51 @@ function takeResume(match: (stored: StoredResume) => boolean): StoredResume | nu
 }
 
 // useReauthResume は、IdP での再認証から戻ってきたときに、key の操作を続ける方法を登録する。
-// handler には、run や prepare に渡した params を渡す。
-export function useReauthResume(key: string, handler: (params: string | undefined) => void) {
+// handler には、run や prepare に渡した params を渡す。params を渡すと、それと同じ params の操作だけを続ける。
+// 一覧の行ごとに、その行の操作だけを続けるのに使う。
+export function useReauthResume(
+  key: string,
+  handler: (params: string | undefined) => void,
+  params?: string,
+) {
   const handlerRef = useRef(handler);
   useEffect(() => {
     handlerRef.current = handler;
   });
   useEffect(() => {
-    const stored = takeResume((s) => s.key === key);
+    const stored = takeResume(
+      (s) => s.key === key && (params === undefined || s.params === params),
+    );
     if (stored !== null) {
       handlerRef.current(stored.params);
     }
-  }, [key]);
+  }, [key, params]);
 }
 
 // useReauthBeforeInput は、入力のある重要な操作の入力欄に、最初にフォーカスしたときに、必要なら再認証させる。
 // IdP で再認証して戻ってきたら、その入力欄にフォーカスし直す。返した ref と onFocus を入力欄に渡す。
+// いくつかの入力欄があるフォームでは、onFocus をフォームを囲む要素に、ref を最初の入力欄に渡す。
+// params は、一覧の行ごとの入力欄で、どの行かを見分けるのに使う。
 // 再認証をやめても、入力は止めない (操作のときに、改めて再認証を求められる)。
-export function useReauthBeforeInput(prepare: ReauthPrepare, key: string) {
+export function useReauthBeforeInput(prepare: ReauthPrepare, key: string, params?: string) {
   const ref = useRef<HTMLInputElement>(null);
   // checked は、確かめたかどうか。再認証の画面を閉じて入力欄にフォーカスが戻ったときに、また確かめないようにする。
   const checked = useRef(false);
-  useReauthResume(key, () => {
-    // 戻ってきたときは再認証を終えているので、フォーカスし直しても、もう一度は確かめない。
-    checked.current = true;
-    ref.current?.focus();
-  });
+  useReauthResume(
+    key,
+    () => {
+      // 戻ってきたときは再認証を終えているので、フォーカスし直しても、もう一度は確かめない。
+      checked.current = true;
+      ref.current?.focus();
+    },
+    params,
+  );
   const onFocus = () => {
     if (checked.current) {
       return;
     }
     checked.current = true;
-    prepare({ key }, () => undefined);
+    prepare(params === undefined ? { key } : { key, params }, () => undefined);
   };
 
   return { ref, onFocus };

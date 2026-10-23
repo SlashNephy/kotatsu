@@ -22,7 +22,7 @@ import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
 import { FileNameTemplateField } from '../../reservations/FileNameTemplateField';
 import { mutate } from '../../settings/mutate';
-import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
+import { reauthMethods, useReauthBeforeInput, useReauthGate } from '../../settings/useReauthGate';
 import type { settingsSystemMutation } from './__generated__/settingsSystemMutation.graphql';
 import type { settingsSystemQuery } from './__generated__/settingsSystemQuery.graphql';
 import { zonedFormat } from '../../futon';
@@ -127,6 +127,8 @@ function SystemSettings() {
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
+  // 変え始める前に再認証させる。IdP で再認証すると、ページを離れ、変えた値が消えるため (#916)。
+  const reauth = useReauthBeforeInput(gate.prepare, 'settings.edit');
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const settings = data.systemSettings;
   const defaults = settings.recordingDefaults;
@@ -202,7 +204,7 @@ function SystemSettings() {
     // 再認証のモーダルは、form の外に置く。ポータルの中の送信も、React では外の form に伝わるので。
     <>
       {gate.modal}
-      <form onSubmit={submit}>
+      <form onSubmit={submit} onFocus={reauth.onFocus}>
         <Stack gap="md">
           {message !== null && (
             <Alert
@@ -224,6 +226,7 @@ function SystemSettings() {
                 {t('admin.settings.recordingDefaultsNote')}
               </Text>
               <Select
+                ref={reauth.ref}
                 size="xs"
                 maw={480}
                 label={t('admin.settings.pool')}

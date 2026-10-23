@@ -159,6 +159,28 @@ describe('IdP での再認証から戻ったときの再開 (#916)', () => {
     expect(onResume).not.toHaveBeenCalled();
   });
 
+  test('params を渡した続け方は、同じ params の操作だけを続ける (一覧の行ごと)', () => {
+    window.history.replaceState(null, '', '/admin/system?reauthenticated=oidc');
+    stored('webhook.delete', '/admin/system', 'webhook-2');
+    const first = vi.fn();
+    const second = vi.fn();
+    function Row({ id, onResume }: { id: string; onResume: () => void }) {
+      useReauthResume('webhook.delete', onResume, id);
+
+      return null;
+    }
+
+    render(
+      <>
+        <Row id="webhook-1" onResume={first} />
+        <Row id="webhook-2" onResume={second} />
+      </>,
+    );
+
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledOnce();
+  });
+
   test('続け方のない操作を待っていたときは、もう一度操作するよう知らせる', () => {
     window.history.replaceState(null, '', '/admin/system?reauthenticated=oidc');
     stored(null);

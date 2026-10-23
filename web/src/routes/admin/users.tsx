@@ -23,7 +23,14 @@ import { authApi, type OIDCStatus } from '../../auth/api';
 import { PasswordStrength } from '../../futon';
 import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
-import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
+import {
+  reauthMethods,
+  useReauthBeforeInput,
+  useReauthGate,
+  useReauthResume,
+  type ReauthPrepare,
+  type ReauthResume,
+} from '../../settings/useReauthGate';
 import type { Role, usersCreateMutation } from './__generated__/usersCreateMutation.graphql';
 import type { usersDisableMutation } from './__generated__/usersDisableMutation.graphql';
 import type { usersEnableMutation } from './__generated__/usersEnableMutation.graphql';
@@ -129,6 +136,7 @@ function Users() {
               key={`${user.id}/${user.displayName}/${user.role}/${String(user.disabled)}`}
               user={user}
               self={user.id === data.viewer.id}
+              prepare={gate.prepare}
               onUpdate={(input, onDone) =>
                 gate.run(async () => {
                   await mutate<usersUpdateMutation>(
@@ -148,37 +156,43 @@ function Users() {
                   succeed(t('admin.saved'));
                 }, fail)
               }
-              onToggle={() =>
-                gate.run(async () => {
-                  if (user.disabled) {
-                    await mutate<usersEnableMutation>(
-                      environment,
-                      graphql`
-                        mutation usersEnableMutation($id: ID!) {
-                          enableUser(id: $id) {
-                            id
-                            disabled
+              onToggle={(resume) =>
+                gate.run(
+                  async () => {
+                    if (user.disabled) {
+                      await mutate<usersEnableMutation>(
+                        environment,
+                        graphql`
+                          mutation usersEnableMutation($id: ID!) {
+                            enableUser(id: $id) {
+                              id
+                              disabled
+                            }
                           }
-                        }
-                      `,
-                      { id: user.id },
-                    );
-                  } else {
-                    await mutate<usersDisableMutation>(
-                      environment,
-                      graphql`
-                        mutation usersDisableMutation($id: ID!) {
-                          disableUser(id: $id) {
-                            id
-                            disabled
+                        `,
+                        { id: user.id },
+                      );
+                    } else {
+                      await mutate<usersDisableMutation>(
+                        environment,
+                        graphql`
+                          mutation usersDisableMutation($id: ID!) {
+                            disableUser(id: $id) {
+                              id
+                              disabled
+                            }
                           }
-                        }
-                      `,
-                      { id: user.id },
-                    );
-                  }
-                  succeed(t('admin.saved'));
-                }, fail)
+                        `,
+                        { id: user.id },
+                      );
+                    }
+                    succeed(t('admin.saved'));
+                  },
+                  fail,
+                  undefined,
+                  undefined,
+                  resume,
+                )
               }
               onResetPassword={(password, onDone) =>
                 gate.run(async () => {
@@ -203,6 +217,7 @@ function Users() {
       </Card>
 
       <CreateUser
+        prepare={gate.prepare}
         onCreate={(input, onDone) =>
           gate.run(async () => {
             const response = await mutate<usersCreateMutation>(
@@ -246,14 +261,16 @@ function useRoleOptions() {
 function UserRow({
   user,
   self,
+  prepare,
   onUpdate,
   onToggle,
   onResetPassword,
 }: {
   user: UserItem;
   self: boolean;
+  prepare: ReauthPrepare;
   onUpdate: (input: { displayName: string; role: Role }, onDone: () => void) => void;
-  onToggle: () => void;
+  onToggle: (resume: ReauthResume) => void;
   onResetPassword: (password: string, onDone: () => void) => void;
 }) {
   const { t } = useTranslation();
@@ -271,6 +288,15 @@ function UserRow({
   };
   // サーバーが新しいロールを足したときは、名前をそのまま出す。
   const knownRole = roles.find((known) => known === user.role);
+  // 変更とパスワードの設定し直しは、入力を始める前に再認証させる。IdP で再認証すると、ページを離れ、入力が消えるため。
+  // 無効と有効の切り替えは、IdP で再認証して戻ってきたら、そのまま続ける (#916)。
+  const edit = () => prepare({ key: 'user.edit', params: user.id }, () => setMode('edit'));
+  const resetPassword = () =>
+    prepare({ key: 'user.password', params: user.id }, () => setMode('password'));
+  const toggle = () => onToggle({ key: 'user.toggle', params: user.id });
+  useReauthResume('user.edit', () => setMode('edit'), user.id);
+  useReauthResume('user.password', () => setMode('password'), user.id);
+  useReauthResume('user.toggle', toggle, user.id);
 
   return (
     <Stack gap={4} data-user={user.username}>
@@ -303,10 +329,10 @@ function UserRow({
         </Stack>
         {mode === 'view' && (
           <Group gap="xs" justify="flex-end" flex="none" maw="60%">
-            <Button size="compact-sm" variant="default" onClick={() => setMode('edit')}>
+            <Button size="compact-sm" variant="default" onClick={edit}>
               {t('admin.users.edit')}
             </Button>
-            <Button size="compact-sm" variant="default" onClick={() => setMode('password')}>
+            <Button size="compact-sm" variant="default" onClick={resetPassword}>
               {t('admin.users.resetPassword')}
             </Button>
             {!self && (
@@ -314,7 +340,7 @@ function UserRow({
                 size="compact-sm"
                 variant="default"
                 color={user.disabled ? undefined : 'red'}
-                onClick={onToggle}
+                onClick={toggle}
               >
                 {user.disabled ? t('admin.users.enable') : t('admin.users.disable')}
               </Button>
@@ -382,8 +408,10 @@ function UserRow({
 
 // CreateUser は、ユーザーを作るフォーム。パスワードを省くと、パスワードを持たないユーザーにする。
 function CreateUser({
+  prepare,
   onCreate,
 }: {
+  prepare: ReauthPrepare;
   onCreate: (
     input: { username: string; displayName: string; role: Role; password: string | null },
     onDone: () => void,
@@ -395,6 +423,8 @@ function CreateUser({
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<Role>('MEMBER');
   const [password, setPassword] = useState('');
+  // 入力を始める前に再認証させる。IdP で再認証すると、ページを離れ、入れたパスワードなどが消えるため (#916)。
+  const input = useReauthBeforeInput(prepare, 'user.create');
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -420,13 +450,14 @@ function CreateUser({
 
   return (
     <Card withBorder>
-      <form onSubmit={submit}>
+      <form onSubmit={submit} onFocus={input.onFocus}>
         <Stack gap="xs">
           <Title order={3} size="h5">
             {t('admin.users.create')}
           </Title>
           <Group gap="xs" align="flex-start">
             <TextInput
+              ref={input.ref}
               size="xs"
               label={t('admin.users.username')}
               required

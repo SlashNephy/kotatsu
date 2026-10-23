@@ -16,7 +16,7 @@ import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 
 import { ProgramTitle, toHalfWidth } from '../futon';
 import { mutate } from '../settings/mutate';
-import type { ReauthRun } from '../settings/useReauthGate';
+import { useReauthResume, type ReauthPrepare, type ReauthRun } from '../settings/useReauthGate';
 import type {
   MissingRecordingsQuery,
   MissingRecordingsQuery$data,
@@ -66,7 +66,13 @@ const dateTimeFormat = zonedFormat({
 // MissingRecordings は、セグメントのファイルが見つからない録画を探し、確かめてから DB から消す (設計書 5.6)。
 // ファイルを Kotatsu を通さずに消すと、録画の一覧に残り続けるので、管理者が片付ける。
 // 録画を消すのは重要な操作なので、ページの再認証 (run) を通して送る (設計書 9.5)。
-export function MissingRecordings({ run: reauthRun }: { run: ReauthRun }) {
+export function MissingRecordings({
+  run: reauthRun,
+  prepare,
+}: {
+  run: ReauthRun;
+  prepare: ReauthPrepare;
+}) {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const [found, setFound] = useState<readonly Missing[] | null>(null);
@@ -99,6 +105,10 @@ export function MissingRecordings({ run: reauthRun }: { run: ReauthRun }) {
       setSearching(false);
     }
   };
+  // 選ぶ前に再認証させる。選んでから IdP で再認証すると、ページを離れ、選んだものが消えるため (#916)。
+  // IdP で再認証して戻ってきたら、そのまま探す。
+  const startSearch = () => prepare({ key: 'missing.search' }, () => void search());
+  useReauthResume('missing.search', () => void search());
 
   const toggle = (id: string, checked: boolean) =>
     setSelected((prev) => {
@@ -156,7 +166,7 @@ export function MissingRecordings({ run: reauthRun }: { run: ReauthRun }) {
           <Title order={3} size="h5">
             {t('admin.missing.title')}
           </Title>
-          <Button size="xs" variant="default" loading={searching} onClick={() => void search()}>
+          <Button size="xs" variant="default" loading={searching} onClick={startSearch}>
             {t('admin.missing.search')}
           </Button>
         </Group>

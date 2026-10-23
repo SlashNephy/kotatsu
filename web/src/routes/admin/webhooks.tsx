@@ -27,7 +27,14 @@ import { authApi, type OIDCStatus } from '../../auth/api';
 import { notificationKinds, type NotificationKindName } from '../../notifications/kinds';
 import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
-import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
+import {
+  reauthMethods,
+  useReauthBeforeInput,
+  useReauthGate,
+  useReauthResume,
+  type ReauthPrepare,
+  type ReauthResume,
+} from '../../settings/useReauthGate';
 import type {
   WebhookFormat,
   webhooksCreateMutation,
@@ -158,6 +165,7 @@ function Webhooks() {
               <WebhookRow
                 key={`${webhook.id}/${webhook.name}/${webhook.url}/${webhook.format}/${webhook.kinds.join()}/${String(webhook.enabled)}`}
                 webhook={webhook}
+                prepare={gate.prepare}
                 onUpdate={(input, onDone) =>
                   gate.run(async () => {
                     await mutate<webhooksUpdateMutation>(
@@ -180,19 +188,25 @@ function Webhooks() {
                     succeed(t('admin.saved'));
                   }, fail)
                 }
-                onDelete={() =>
-                  gate.run(async () => {
-                    await mutate<webhooksDeleteMutation>(
-                      environment,
-                      graphql`
-                        mutation webhooksDeleteMutation($id: ID!) {
-                          deleteWebhook(id: $id)
-                        }
-                      `,
-                      { id: webhook.id },
-                    );
-                    succeed(t('admin.webhooks.deleted', { name: webhook.name }));
-                  }, fail)
+                onDelete={(resume) =>
+                  gate.run(
+                    async () => {
+                      await mutate<webhooksDeleteMutation>(
+                        environment,
+                        graphql`
+                          mutation webhooksDeleteMutation($id: ID!) {
+                            deleteWebhook(id: $id)
+                          }
+                        `,
+                        { id: webhook.id },
+                      );
+                      succeed(t('admin.webhooks.deleted', { name: webhook.name }));
+                    },
+                    fail,
+                    undefined,
+                    undefined,
+                    resume,
+                  )
                 }
               />
             ))}
@@ -207,6 +221,7 @@ function Webhooks() {
           </Title>
           <WebhookForm
             submitLabel={t('admin.webhooks.create')}
+            prepare={gate.prepare}
             onSubmit={(input, onDone) =>
               gate.run(async () => {
                 const response = await mutate<webhooksCreateMutation>(
@@ -256,17 +271,25 @@ function knownKinds(values: readonly string[]): NotificationKindName[] {
 // WebhookRow は、Webhook 1 つの行。URL は秘密のトークンを含むので、送り先のホストだけを出す。
 function WebhookRow({
   webhook,
+  prepare,
   onUpdate,
   onDelete,
 }: {
   webhook: WebhookItem;
+  prepare: ReauthPrepare;
   onUpdate: (input: WebhookInput, onDone: () => void) => void;
-  onDelete: () => void;
+  onDelete: (resume: ReauthResume) => void;
 }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const knownFormat = formats.find((format) => format === webhook.format);
+  // 変更は、入力を始める前に再認証させる。IdP で再認証すると、ページを離れ、入力が消えるため。
+  // 削除は、確かめてから押すので、IdP で再認証して戻ってきたら、そのまま続ける (#916)。
+  const edit = () => prepare({ key: 'webhook.edit', params: webhook.id }, () => setEditing(true));
+  const remove = () => onDelete({ key: 'webhook.delete', params: webhook.id });
+  useReauthResume('webhook.edit', () => setEditing(true), webhook.id);
+  useReauthResume('webhook.delete', remove, webhook.id);
 
   if (editing) {
     return (
@@ -319,7 +342,7 @@ function WebhookRow({
           </Group>
         </Stack>
         <Group gap="xs" flex="none">
-          <Button size="compact-sm" variant="default" onClick={() => setEditing(true)}>
+          <Button size="compact-sm" variant="default" onClick={edit}>
             {t('admin.webhooks.edit')}
           </Button>
           <Button
@@ -342,7 +365,7 @@ function WebhookRow({
                 color="red"
                 onClick={() => {
                   setConfirming(false);
-                  onDelete();
+                  remove();
                 }}
               >
                 {t('admin.webhooks.delete')}
@@ -379,16 +402,24 @@ const emptyWebhook: WebhookInput = {
 function WebhookForm({
   initial = emptyWebhook,
   submitLabel,
+  prepare,
   onSubmit,
   onCancel,
 }: {
   initial?: WebhookInput;
   submitLabel: string;
+  // prepare を渡すと、入力を始める前に再認証させる。作るフォームで使う。変えるフォームは、開く前に再認証させる。
+  prepare?: ReauthPrepare;
   onSubmit: (input: WebhookInput, onDone: () => void) => void;
   onCancel?: () => void;
 }) {
   const { t } = useTranslation();
   const [input, setInput] = useState<WebhookInput>(initial);
+  // 入力を始める前に再認証させる。IdP で再認証すると、ページを離れ、入れた URL などが消えるため (#916)。
+  const reauth = useReauthBeforeInput(
+    prepare ?? ((_resume, onReady) => onReady()),
+    'webhook.create',
+  );
   const set = (patch: Partial<WebhookInput>) => setInput((current) => ({ ...current, ...patch }));
   const name = input.name.trim();
   const url = input.url.trim();
@@ -399,10 +430,11 @@ function WebhookForm({
   };
 
   return (
-    <form onSubmit={submit}>
+    <form onSubmit={submit} onFocus={reauth.onFocus}>
       <Stack gap="xs">
         <Group gap="xs" align="flex-start">
           <TextInput
+            ref={reauth.ref}
             size="xs"
             label={t('admin.webhooks.name')}
             required

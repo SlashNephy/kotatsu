@@ -22,7 +22,12 @@ import { AdminPage } from '../../admin/AdminPage';
 import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
-import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
+import {
+  reauthMethods,
+  useReauthBeforeInput,
+  useReauthGate,
+  type ReauthPrepare,
+} from '../../settings/useReauthGate';
 import type { channelsChannelTypeMutation } from './__generated__/channelsChannelTypeMutation.graphql';
 import type { channelsQuery } from './__generated__/channelsQuery.graphql';
 import type { channelsServiceMutation } from './__generated__/channelsServiceMutation.graphql';
@@ -117,6 +122,7 @@ function ChannelSettings() {
           <ChannelTypeEditor
             key={`${channelType.type}/${channelType.displayName}/${channelType.sortOrder}`}
             channelType={channelType}
+            prepare={gate.prepare}
             onSave={(input) =>
               gate.run(async () => {
                 await mutate<channelsChannelTypeMutation>(
@@ -152,6 +158,7 @@ function ChannelSettings() {
               <ServiceEditor
                 key={`${service.id}/${service.hidden}/${service.sortOrder}`}
                 service={service}
+                prepare={gate.prepare}
                 onSave={(input) =>
                   gate.run(async () => {
                     await mutate<channelsServiceMutation>(
@@ -196,24 +203,29 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 // 並び順を空にして保存すると、上書きを消して、リモコンのキーの順に戻す。
 function ServiceEditor({
   service,
+  prepare,
   onSave,
 }: {
   service: {
+    id: string;
     name: string;
     logoUrl: string | null | undefined;
     hidden: boolean;
     sortOrder: number | null | undefined;
     channelType: { displayName: string };
   };
+  prepare: ReauthPrepare;
   onSave: (input: { hidden: boolean; sortOrder?: number; resetSortOrder: boolean }) => void;
 }) {
   const { t } = useTranslation();
   const [hidden, setHidden] = useState(service.hidden);
   const [sortOrder, setSortOrder] = useState<number | string>(service.sortOrder ?? '');
   const order = typeof sortOrder === 'number' ? sortOrder : null;
+  // 変え始める前に再認証させる。IdP で再認証すると、ページを離れ、変えた値が消えるため (#916)。
+  const input = useReauthBeforeInput(prepare, 'service.edit', service.id);
 
   return (
-    <Group gap="xs" align="flex-end">
+    <Group gap="xs" align="flex-end" onFocus={input.onFocus}>
       <Stack gap={0} w={200} pb={4}>
         <Text size="sm" fw={600} truncate>
           <ServiceLabel name={service.name} logoUrl={service.logoUrl} />
@@ -223,6 +235,7 @@ function ServiceEditor({
         </Text>
       </Stack>
       <Switch
+        ref={input.ref}
         size="sm"
         pb={6}
         label={t('admin.system.serviceHidden')}
@@ -259,22 +272,27 @@ function ServiceEditor({
 
 function ChannelTypeEditor({
   channelType,
+  prepare,
   onSave,
 }: {
   channelType: { type: string; displayName: string; sortOrder: number };
+  prepare: ReauthPrepare;
   onSave: (input: { displayName: string; sortOrder: number }) => void;
 }) {
   const { t } = useTranslation();
   const [displayName, setDisplayName] = useState(channelType.displayName);
   const [sortOrder, setSortOrder] = useState<number | string>(channelType.sortOrder);
   const name = displayName.trim();
+  // 変え始める前に再認証させる。IdP で再認証すると、ページを離れ、変えた値が消えるため (#916)。
+  const input = useReauthBeforeInput(prepare, 'channelType.edit', channelType.type);
 
   return (
-    <Group gap="xs" align="flex-end" data-channel-type={channelType.type}>
+    <Group gap="xs" align="flex-end" data-channel-type={channelType.type} onFocus={input.onFocus}>
       <Text fw={600} w={48} pb={4}>
         {channelType.type}
       </Text>
       <TextInput
+        ref={input.ref}
         size="xs"
         w={160}
         label={t('admin.system.channelTypeName')}
