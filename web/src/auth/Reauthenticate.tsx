@@ -105,28 +105,37 @@ export function Reauthenticate({ methods, returnTo, onDone }: Props) {
     setOIDCError(null);
     // ブラウザーがポップアップを止めないよう、IdP の URL を待たずに、押した直後に開く。
     const popup = openOIDCReauthWindow();
-    const id = crypto.randomUUID();
     try {
-      const { authorizationUrl } = await authApi.beginOIDCReauthentication(
-        popup === null ? returnTo : oidcReauthReturnTo(id),
-      );
       if (popup === null) {
+        const { authorizationUrl } = await authApi.beginOIDCReauthentication(returnTo);
         window.location.assign(authorizationUrl);
 
         return;
       }
+      const id = crypto.randomUUID();
+      // IdP へ送り出す前の認証の日時を読んでおき、変わったら終えたとみなす。
+      const [{ authorizationUrl }, { authenticatedAt }] = await Promise.all([
+        authApi.beginOIDCReauthentication(oidcReauthReturnTo(id)),
+        authApi.reauthenticationStatus(),
+      ]);
       stopWaiting.current?.();
-      stopWaiting.current = waitForOIDCReauthentication(id, ({ error: reason }) => {
-        stopWaiting.current?.();
-        stopWaiting.current = null;
-        setOIDCWaiting(false);
-        if (reason === undefined) {
-          onDone();
-        } else {
-          setOIDCError(oidcErrorMessage(t, reason));
-        }
-      });
-      popup.location.assign(authorizationUrl);
+      stopWaiting.current = waitForOIDCReauthentication(
+        id,
+        authenticatedAt,
+        authApi.reauthenticationStatus,
+        ({ error: reason }) => {
+          stopWaiting.current = null;
+          setOIDCWaiting(false);
+          if (reason === undefined) {
+            onDone();
+          } else {
+            setOIDCError(oidcErrorMessage(t, reason));
+          }
+        },
+      );
+      // もう一度押したときは、IdP を開いたままの (ほかのオリジンの) ウィンドウが返る。
+      // ほかのオリジンの Location では assign を呼べないので、href に入れる。
+      popup.location.href = authorizationUrl;
       setOIDCWaiting(true);
       setSubmitting(false);
     } catch (caught) {
@@ -134,15 +143,6 @@ export function Reauthenticate({ methods, returnTo, onDone }: Props) {
       setOIDCError(authErrorMessage(t, caught));
       setSubmitting(false);
     }
-  };
-
-  // finishOIDC は、別のウィンドウからの知らせが届かないとき (ホーム画面に追加したアプリから開いた、など) に、
-  // 利用者が確認を終えたと伝えるのに使う。再認証できていなければ、操作がまた再認証を求めるので、確かめ直しになる。
-  const finishOIDC = () => {
-    stopWaiting.current?.();
-    stopWaiting.current = null;
-    setOIDCWaiting(false);
-    onDone();
   };
 
   if (!hasCode && !methods.passkey && !oidc) {
@@ -179,14 +179,9 @@ export function Reauthenticate({ methods, returnTo, onDone }: Props) {
             {t('auth.reauth.oidc', { name: methods.oidc.displayName })}
           </Button>
           {oidcWaiting && (
-            <>
-              <Text size="sm" c="dimmed">
-                {t('auth.reauth.oidcWaiting', { name: methods.oidc.displayName })}
-              </Text>
-              <Button variant="subtle" onClick={finishOIDC}>
-                {t('auth.reauth.oidcFinished')}
-              </Button>
-            </>
+            <Text size="sm" c="dimmed">
+              {t('auth.reauth.oidcWaiting', { name: methods.oidc.displayName })}
+            </Text>
           )}
           {oidcError !== null && (
             <Alert color="red" role="alert">

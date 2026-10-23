@@ -2,6 +2,7 @@
 // 元の画面を離れないので、再認証を待っている操作 (React の状態にしか持てない) を、終えた後に続けられる。
 // IdP から戻ったウィンドウは、元の画面へ結果を BroadcastChannel で知らせる。
 // IdP が Cross-Origin-Opener-Policy を付けると window.opener が切れるので、opener には頼らない。
+// 知らせが届かないときのために、元の画面は、セッションの認証の日時が変わったかも確かめる。
 
 // oidcReauthDonePath は、別のウィンドウで再認証を終えたときに戻す画面のパス。
 export const oidcReauthDonePath = '/reauth/done';
@@ -24,19 +25,61 @@ export function oidcReauthReturnTo(id: string): string {
   return `${oidcReauthDonePath}?${new URLSearchParams({ id }).toString()}`;
 }
 
-// waitForOIDCReauthentication は、id の再認証の結果を待ち、届いたら onResult を呼ぶ。返した関数で、待つのをやめる。
+// statusInterval は、再認証を終えたかを、サーバーに確かめる間隔。
+const statusInterval = 2000;
+
+// waitForOIDCReauthentication は、id の再認証の結果を待ち、届いたら一度だけ onResult を呼ぶ。返した関数で、待つのをやめる。
+// 結果は、別のウィンドウからの知らせに加えて、セッションの認証の日時が since から変わったかでも確かめる。
+// ホーム画面に追加したアプリから開いたときなど、別のウィンドウが元の画面と別の場所で開き、知らせが届かないことがあるため。
+// 確かめるのは、一定の間隔ごとと、元の画面に戻ってきたとき。
 export function waitForOIDCReauthentication(
   id: string,
+  since: string,
+  status: () => Promise<{ authenticatedAt: string }>,
   onResult: (result: OIDCReauthResult) => void,
 ): () => void {
+  let finished = false;
+  const finish = (result: OIDCReauthResult) => {
+    if (finished) {
+      return;
+    }
+    stop();
+    onResult(result);
+  };
   const channel = new BroadcastChannel(channelName);
   channel.onmessage = (event: MessageEvent<OIDCReauthResult>) => {
     if (event.data.id === id) {
-      onResult(event.data);
+      finish(event.data);
     }
   };
+  const check = () => {
+    status().then(
+      ({ authenticatedAt }) => {
+        if (authenticatedAt !== since) {
+          finish({ id, error: undefined });
+        }
+      },
+      // 確かめられなくても、次の機会に確かめ直す。
+      () => undefined,
+    );
+  };
+  const checkIfVisible = () => {
+    if (document.visibilityState === 'visible') {
+      check();
+    }
+  };
+  const timer = window.setInterval(check, statusInterval);
+  window.addEventListener('focus', check);
+  document.addEventListener('visibilitychange', checkIfVisible);
+  function stop() {
+    finished = true;
+    channel.close();
+    window.clearInterval(timer);
+    window.removeEventListener('focus', check);
+    document.removeEventListener('visibilitychange', checkIfVisible);
+  }
 
-  return () => channel.close();
+  return stop;
 }
 
 // reportOIDCReauthentication は、再認証の結果を、待っている元の画面に知らせる。

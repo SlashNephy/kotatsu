@@ -16,13 +16,16 @@ const methods = {
 
 // popupStub は、window.open が返す、IdP へ送り出すウィンドウの代わり。
 function popupStub() {
-  return { location: { assign: vi.fn() }, close: vi.fn() };
+  return { location: { href: '' }, close: vi.fn() };
 }
+
+const before = '2026-10-23T03:00:00Z';
 
 beforeEach(() => {
   vi.spyOn(authApi, 'beginOIDCReauthentication').mockResolvedValue({
     authorizationUrl: 'https://idp.example/authorize',
   });
+  vi.spyOn(authApi, 'reauthenticationStatus').mockResolvedValue({ authenticatedAt: before });
 });
 
 afterEach(() => {
@@ -47,7 +50,7 @@ describe('Reauthenticate の IdP での再認証 (#916)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Dexで確認' }));
     await waitFor(() => {
-      expect(popup.location.assign).toHaveBeenCalledWith('https://idp.example/authorize');
+      expect(popup.location.href).toBe('https://idp.example/authorize');
     });
     const [returnTo] = vi.mocked(authApi.beginOIDCReauthentication).mock.calls[0]!;
     const id = new URL(returnTo, 'http://localhost').searchParams.get('id')!;
@@ -73,7 +76,7 @@ describe('Reauthenticate の IdP での再認証 (#916)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Dexで確認' }));
     await waitFor(() => {
-      expect(popup.location.assign).toHaveBeenCalled();
+      expect(popup.location.href).toBe('https://idp.example/authorize');
     });
     const [returnTo] = vi.mocked(authApi.beginOIDCReauthentication).mock.calls[0]!;
     const id = new URL(returnTo, 'http://localhost').searchParams.get('id')!;
@@ -83,15 +86,32 @@ describe('Reauthenticate の IdP での再認証 (#916)', () => {
     expect(onDone).not.toHaveBeenCalled();
   });
 
-  test('知らせが届かなくても、確認を終えたと押せば onDone を呼ぶ', async () => {
-    vi.spyOn(window, 'open').mockReturnValue(popupStub() as unknown as Window);
+  test('知らせが届かなくても、元の画面に戻ったときに認証の日時が変わっていれば onDone を呼ぶ', async () => {
+    const popup = popupStub();
+    vi.spyOn(window, 'open').mockReturnValue(popup as unknown as Window);
     const onDone = vi.fn();
     renderReauthenticate(onDone);
 
     fireEvent.click(screen.getByRole('button', { name: 'Dexで確認' }));
-    fireEvent.click(await screen.findByRole('button', { name: '確認を終えた' }));
+    await waitFor(() => {
+      expect(popup.location.href).toBe('https://idp.example/authorize');
+    });
+    // 認証の日時が変わっていなければ、続けない。
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(onDone).not.toHaveBeenCalled();
 
-    expect(onDone).toHaveBeenCalledOnce();
+    vi.mocked(authApi.reauthenticationStatus).mockResolvedValue({
+      authenticatedAt: '2026-10-23T03:05:00Z',
+    });
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    await waitFor(() => {
+      expect(onDone).toHaveBeenCalledOnce();
+    });
   });
 
   test('ウィンドウを開けなければ、この画面のまま IdP へ送り出し、この画面に戻させる', async () => {

@@ -135,7 +135,9 @@ export const authApi = {
     post<RegisteredPasskey>('/auth/passkey/registration/confirm', { credential, name }),
   confirmPasskeyReauthentication: (credential: AuthenticationResponseJSON) =>
     post<Reauthenticated>('/auth/reauth/passkey/confirm', { credential }),
-  // IdP で再認証する。終えると、returnTo のパスに戻る。失敗したときは、returnTo に error=<理由> が付く。
+  // ログイン中のセッションの認証の日時。別のウィンドウで IdP の再認証を待つ間に、終えたかを確かめる (#916)。
+  reauthenticationStatus: () => get<Reauthenticated>('/auth/reauth'),
+  // IdP で再認証する。終えると、returnTo のパスに reauthenticated=oidc を付けて戻る。失敗したときは、returnTo に error=<理由> が付く。
   beginOIDCReauthentication: (returnTo: string) =>
     post<{ authorizationUrl: string }>('/auth/reauth/oidc', { returnTo }),
   // ログイン中のユーザーを IdP のユーザーと紐付ける (設計書 9.4)。終えると、returnTo のパスに linked=oidc を付けて戻る。

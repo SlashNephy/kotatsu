@@ -203,7 +203,6 @@
       "passkey": "パスキーで確認",
       "oidc": "{{name}}で確認",
       "oidcWaiting": "開いたウィンドウで、{{name}}での確認を続けてください。終えると、この操作を続けます",
-      "oidcFinished": "確認を終えた",
       "or": "またはパスワードと2段階認証",
       "currentPassword": "いまのパスワード",
       "submit": "確認",

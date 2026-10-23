@@ -70,3 +70,46 @@ func TestLogoutHandler(t *testing.T) {
 	_, err := f.sessions.Authenticate(t.Context(), f.db, token)
 	require.ErrorIs(t, err, auth.ErrSessionInvalid)
 }
+
+// TestReauthenticationStatusHandler は、ログイン中のセッションの認証の日時を返すことを確かめる。
+// 別のウィンドウで IdP の再認証を待つ画面が、終えたかを確かめるのに使う (#916)。
+func TestReauthenticationStatusHandler(t *testing.T) {
+	t.Parallel()
+
+	authenticatedAt := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name      string
+		principal *auth.Principal
+		wantCode  int
+		wantBody  string
+	}{
+		{
+			name:      "ログイン中",
+			principal: &auth.Principal{AuthenticatedAt: authenticatedAt},
+			wantCode:  http.StatusOK,
+			wantBody:  `{"authenticatedAt":"2026-10-23T12:00:00Z"}`,
+		},
+		{
+			name:      "ログインしていない",
+			principal: nil,
+			wantCode:  http.StatusUnauthorized,
+			wantBody:  `{"error":{"code":"UNAUTHENTICATED","message":"log in first"}}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			if tt.principal != nil {
+				ctx = auth.WithPrincipal(ctx, tt.principal)
+			}
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/auth/reauth", nil)
+			rec := httptest.NewRecorder()
+			auth.ReauthenticationStatusHandler().ServeHTTP(rec, req)
+
+			assert.Equal(t, tt.wantCode, rec.Code)
+			assert.JSONEq(t, tt.wantBody, rec.Body.String())
+		})
+	}
+}

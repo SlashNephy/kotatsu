@@ -16,7 +16,7 @@ type reauthRequest struct {
 }
 
 type reauthResponse struct {
-	// AuthenticatedAt は、更新したセッションの認証の日時。これから 10 分の間、重要な操作ができる。
+	// AuthenticatedAt は、セッションの認証の日時。これから 10 分の間、重要な操作ができる。
 	AuthenticatedAt time.Time `json:"authenticatedAt"`
 }
 
@@ -113,6 +113,19 @@ func (l *Logins) PasskeyReauthenticationConfirmHandler(db Database, client func(
 		default:
 			l.internalError(w, r, err)
 		}
+	})
+}
+
+// ReauthenticationStatusHandler は、ログイン中のセッションの認証の日時を返すハンドラーを返す (GET /auth/reauth)。
+// 別のウィンドウで IdP の再認証を待つ画面が、日時が変わったかで、再認証を終えたかを確かめるのに使う (#916)。
+// 別のウィンドウからの知らせが届かない環境 (ホーム画面に追加したアプリなど) でも、終えたことが分かる。
+func ReauthenticationStatusHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		principal, ok := requirePrincipal(w, r)
+		if !ok {
+			return
+		}
+		writeJSON(w, http.StatusOK, reauthResponse{AuthenticatedAt: principal.AuthenticatedAt})
 	})
 }
 
