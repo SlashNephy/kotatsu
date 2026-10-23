@@ -1589,8 +1589,8 @@ Docker Composeの例は、停止の猶予（`stop_grace_period`）を、Helm Cha
 | `graph/` | GraphQLのスキーマとリゾルバ |
 | `db/` | `schema.sql`、マイグレーション、sqlcのクエリ |
 | `web/` | フロントエンド（futonとyunomiを含みます） |
-| `charts/kotatsu/` | Helm Chart |
-| `deploy/` | 生成したKubernetesのマニフェストと、Docker Composeの例 |
+| `deploy/helm/kotatsu/` | Helm Chart |
+| `deploy/kubernetes/`、`deploy/compose/` | Helm Chartから生成したKubernetesのマニフェストと、Docker Composeの例 |
 | `docker/` | 開発用のComposeと、コンテナイメージのビルドで使う設定とスクリプト |
 | `docs/` | ドキュメント |
 

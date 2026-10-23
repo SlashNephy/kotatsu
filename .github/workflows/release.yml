@@ -6,7 +6,7 @@ on:
     paths:
       - .goreleaser.yaml
       - .github/workflows/release.yml
-      - charts/**
+      - deploy/helm/**
       - mise.toml
       - mise.lock
   push:
@@ -37,7 +37,7 @@ jobs:
         with:
           cache: false
       - run: mise run release:snapshot
-      - run: helm package charts/kotatsu --destination "$RUNNER_TEMP"
+      - run: helm package deploy/helm/kotatsu --destination "$RUNNER_TEMP"
 
   # SPA を埋め込んだ linux の amd64 と arm64 のバイナリを、GitHub Releases に公開する (設計書 11.1)。
   release:
@@ -62,7 +62,7 @@ jobs:
       - name: Package the chart
         env:
           REF_NAME: ${{ github.ref_name }}
-        run: helm package charts/kotatsu --version "${REF_NAME#v}" --app-version "${REF_NAME#v}" --destination "$RUNNER_TEMP/chart"
+        run: helm package deploy/helm/kotatsu --version "${REF_NAME#v}" --app-version "${REF_NAME#v}" --destination "$RUNNER_TEMP/chart"
       - run: goreleaser release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

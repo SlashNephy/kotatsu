@@ -26,21 +26,21 @@ while IFS= read -r file || [[ -n "$file" ]]; do
   # Go のテストと lint。画面 (web/) は、埋め込みの web/embed.go のほかは関わらない。
   case "$file" in
     web/embed.go | web/embed_test.go) go=true ;;
-    web/* | charts/* | deploy/* | .github/*) ;;
+    web/* | deploy/* | .github/*) ;;
     *) go=true ;;
   esac
 
   # 生成物の確かめ。Go の生成に加え、zxcvbn のバンドルを画面の依存で作るので、その依存にも関わる。
   case "$file" in
     web/package.json | web/pnpm-lock.yaml | web/pnpm-workspace.yaml | web/patches/* | web/zxcvbn/* | web/schema.graphql | web/embed.go) generate=true ;;
-    web/* | charts/* | deploy/* | .github/*) ;;
+    web/* | deploy/* | .github/*) ;;
     *) generate=true ;;
   esac
 
   # 画面。Go の変更は、GraphQL のスキーマが変われば生成した web/schema.graphql も変わるので、それで拾う。
   case "$file" in
     web/*) web=true ;;
-    *.go | go.mod | go.sum | internal/* | cmd/* | db/* | graph/* | testdata/* | charts/* | deploy/* | .github/* | \
+    *.go | go.mod | go.sum | internal/* | cmd/* | db/* | graph/* | testdata/* | deploy/* | .github/* | \
       .golangci.yaml | sqlc.yaml | atlas.hcl | gqlgen.yml | scripts/testts/* | scripts/generate-test-ts.sh | \
       scripts/next-version.sh | scripts/update-password-blocklist.sh | mise.dev.toml | mise.dev.lock | compose.yaml | docker/* | \
       Dockerfile | .dockerignore | .goreleaser.yaml) ;;
@@ -49,7 +49,7 @@ while IFS= read -r file || [[ -n "$file" ]]; do
 
   # Helm Chart から生成したマニフェスト。
   case "$file" in
-    charts/* | deploy/*) deploy=true ;;
+    deploy/*) deploy=true ;;
   esac
 
   # mpeg2toh264 のプレイヤーのビルド。
