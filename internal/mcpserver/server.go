@@ -5,9 +5,11 @@ package mcpserver
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/buildinfo"
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/oauth"
+	"github.com/SlashNephy/kotatsu/web"
 )
 
 const (
@@ -51,6 +54,8 @@ type Handler struct {
 	byName  map[string]*registeredTool
 	logger  *slog.Logger
 	sdk     http.Handler
+	// icons は、serverInfo で返すアイコン。
+	icons []mcp.Icon
 }
 
 type registeredTool struct {
@@ -63,9 +68,13 @@ var _ http.Handler = new(Handler)
 
 // NewHandler は Handler を返す。schema は GraphQL のスキーマで、ツールの入力の JSON Schema を作るのに使う。
 func NewHandler(authenticator Authenticator, graphql http.Handler, schema *ast.Schema, logger *slog.Logger) (*Handler, error) {
+	icons, err := serverIcons()
+	if err != nil {
+		return nil, err
+	}
 	h := &Handler{
 		authenticator: authenticator, graphql: graphql, logger: logger,
-		tools: make([]*registeredTool, 0), byName: make(map[string]*registeredTool), sdk: nil,
+		tools: make([]*registeredTool, 0), byName: make(map[string]*registeredTool), sdk: nil, icons: icons,
 	}
 	for _, t := range toolList() {
 		registered := &registeredTool{tool: t, schema: map[string]any{keyType: schemaObject, "properties": map[string]any{}, "additionalProperties": false}}
@@ -210,7 +219,7 @@ func requestOrigin(r *http.Request) string {
 
 // server は、リクエストごとに MCP のサーバーを作る。stateless なので、リクエストごとに作ってよい。
 func (h *Handler) server(*http.Request) *mcp.Server {
-	server := mcp.NewServer(&mcp.Implementation{Name: "kotatsu", Title: "Kotatsu", Version: buildinfo.Get().Version}, &mcp.ServerOptions{
+	server := mcp.NewServer(&mcp.Implementation{Name: "kotatsu", Title: "Kotatsu", Version: buildinfo.Get().Version, Icons: h.icons}, &mcp.ServerOptions{
 		Instructions: "Kotatsu は、テレビ番組を録画するサーバー。番組を探して予約し、録画のルールを作り、録画を探せる。" +
 			"サービスやジャンルを指定するときは、先に list_services と list_genres で ID と番号を確かめる。時刻は RFC 3339 で渡す。",
 	})
@@ -226,6 +235,32 @@ func (h *Handler) server(*http.Request) *mcp.Server {
 	}
 
 	return server
+}
+
+// serverIcons は、serverInfo で返すアイコンを、data URI にして返す。
+// 前段に認証のプロキシを置く構成では、Kotatsu の URL のアイコンをクライアントが取れないので、URL にはしない。
+// 背景を塗ったアイコンなので、テーマで出し分けない。
+func serverIcons() ([]mcp.Icon, error) {
+	files := []struct {
+		name, mimeType, size string
+	}{
+		{name: "icon.svg", mimeType: "image/svg+xml", size: "any"},
+		// SVG を描けないクライアントのために、PNG も返す。
+		{name: "icon-192.png", mimeType: "image/png", size: "192x192"},
+	}
+	icons := make([]mcp.Icon, 0, len(files))
+	for _, f := range files {
+		data, err := fs.ReadFile(web.Icons(), f.name)
+		if err != nil {
+			return nil, fmt.Errorf("read the icon %s: %w", f.name, err)
+		}
+		icons = append(icons, mcp.Icon{
+			Source:   "data:" + f.mimeType + ";base64," + base64.StdEncoding.EncodeToString(data),
+			MIMEType: f.mimeType, Sizes: []string{f.size}, Theme: "",
+		})
+	}
+
+	return icons, nil
 }
 
 // toolHandler は、ツールの処理を返す。
