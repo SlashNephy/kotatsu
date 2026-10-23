@@ -25,7 +25,6 @@ import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
 import { PasskeyCancelledError, passkeyAvailable, registerPasskey } from '../../auth/passkey';
 import { ApiTokens } from '../../settings/ApiTokens';
-import { OAuthGrants } from '../../settings/OAuthGrants';
 import { ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { mutate } from '../../settings/mutate';
@@ -73,7 +72,7 @@ const dateTimeFormat = zonedFormat({
 });
 
 // SecurityPage は、ログイン中のユーザーの、本人確認の手段と、ほかから使うための手段の設定 (設計書 10.3、#980)。
-// パスワード、認証アプリ、パスキー、IdP との紐付け、API トークン、連携中のアプリを扱う。
+// パスワード、認証アプリ、パスキー、IdP との紐付け、API トークンを扱う。
 function SecurityPage() {
   const { t } = useTranslation();
 
@@ -119,14 +118,6 @@ const query = graphql`
     apiTokens {
       id
       name
-      createdAt
-      lastUsedAt
-    }
-    oauthGrants {
-      id
-      clientId
-      clientName
-      scopes
       createdAt
       lastUsedAt
     }
@@ -214,14 +205,6 @@ function Security() {
             onChanged={refresh}
             run={run}
             prepare={gate.prepare}
-            fail={fail}
-            environment={environment}
-          />
-
-          <OAuthGrants
-            grants={data.oauthGrants}
-            onChanged={refresh}
-            run={run}
             fail={fail}
             environment={environment}
           />

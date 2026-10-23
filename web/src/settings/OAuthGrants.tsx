@@ -5,7 +5,6 @@ import { graphql, type useRelayEnvironment } from 'react-relay';
 import type { OAuthGrantsDeleteMutation } from './__generated__/OAuthGrantsDeleteMutation.graphql';
 import { zonedFormat } from '../futon';
 import { mutate } from './mutate';
-import type { useReauthGate } from './useReauthGate';
 
 const dateTimeFormat = zonedFormat({
   year: 'numeric',
@@ -28,7 +27,8 @@ export type OAuthGrantItem = {
 type Props = {
   grants: readonly OAuthGrantItem[];
   onChanged: () => void;
-  run: ReturnType<typeof useReauthGate>['run'];
+  // run は、操作を行い、失敗したら onError を呼ぶ。取り消しは再認証を求めないので、再認証の画面は要らない。
+  run: (operation: () => Promise<void>, onError: (error: unknown) => void) => void;
   fail: (error: unknown) => void;
   environment: ReturnType<typeof useRelayEnvironment>;
 };

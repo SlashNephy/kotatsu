@@ -1,4 +1,15 @@
-import { Alert, Anchor, Badge, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Badge,
+  Button,
+  Card,
+  Fieldset,
+  Group,
+  Stack,
+  Text,
+  Title,
+} from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, startTransition, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +22,7 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 import { deviceName } from '../../settings/device';
 import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
+import { OAuthGrants } from '../../settings/OAuthGrants';
 import type { sessionsQuery } from './__generated__/sessionsQuery.graphql';
 import type { sessionsRevokeMutation } from './__generated__/sessionsRevokeMutation.graphql';
 
@@ -27,9 +39,9 @@ const dateTimeFormat = zonedFormat({
   hourCycle: 'h23',
 });
 
-// SessionsPage は、ログイン中の端末の一覧と、ほかの端末をログアウトさせる画面 (設計書 9.5、10.3、#980)。
-// ログアウトさせるのは、乗っ取られた後の被害を抑える操作なので、再認証を求めない。セキュリティの画面から分けて、
-// 乗っ取りに気づいたときに、本人確認で待たせずに使えるようにする。
+// SessionsPage は、このアカウントを使っているもの (ログイン中の端末と、連携中のアプリ) を一覧し、切る画面
+// (設計書 9.5、10.3、#980)。ほかの端末をログアウトさせるのも、連携を取り消すのも、乗っ取られた後の被害を抑える操作なので、
+// 再認証を求めない。セキュリティの画面から分けて、乗っ取りに気づいたときに、本人確認で待たせずに使えるようにする。
 function SessionsPage() {
   const { t } = useTranslation();
 
@@ -78,31 +90,45 @@ function Sessions() {
           userAgent
           sourceIp
         }
+        oauthGrants {
+          id
+          clientId
+          clientName
+          scopes
+          createdAt
+          lastUsedAt
+        }
       }
     `,
     {},
     { fetchKey: `${fetchKey}:${viewerChanges}`, fetchPolicy: 'store-and-network' },
   );
   const [error, setError] = useState<string | null>(null);
-  // revoking は、ログアウトさせている途中かどうか。続けて押されても、重ねて送らない。
-  const [revoking, setRevoking] = useState(false);
-
-  const revoke = (id: string) => {
+  // running は、ログアウトさせるか、連携を取り消している途中かどうか。続けて押されても、重ねて送らない。
+  const [running, setRunning] = useState(false);
+  const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
+  const fail = (caught: unknown) => setError(settingsErrorMessage(t, caught));
+  const run = (operation: () => Promise<void>, onError: (error: unknown) => void) => {
     setError(null);
-    setRevoking(true);
-    mutate<sessionsRevokeMutation>(
-      environment,
-      graphql`
-        mutation sessionsRevokeMutation($id: ID!) {
-          revokeSession(id: $id)
-        }
-      `,
-      { id },
-    )
-      .then(() => startTransition(() => setFetchKey((key) => key + 1)))
-      .catch((caught: unknown) => setError(settingsErrorMessage(t, caught)))
-      .finally(() => setRevoking(false));
+    setRunning(true);
+    operation()
+      .catch(onError)
+      .finally(() => setRunning(false));
   };
+
+  const revoke = (id: string) =>
+    run(async () => {
+      await mutate<sessionsRevokeMutation>(
+        environment,
+        graphql`
+          mutation sessionsRevokeMutation($id: ID!) {
+            revokeSession(id: $id)
+          }
+        `,
+        { id },
+      );
+      refresh();
+    }, fail);
 
   return (
     <Stack gap="md">
@@ -111,44 +137,63 @@ function Sessions() {
           {error}
         </Alert>
       )}
-      <Card withBorder>
-        <Stack gap="xs">
-          {data.sessions.map((session) => (
-            <Group key={session.id} justify="space-between" wrap="nowrap" data-session={session.id}>
-              <Stack gap={0} miw={0} flex={1}>
-                <Group gap="xs">
-                  <Text size="sm" truncate title={session.userAgent}>
-                    {deviceName(session.userAgent) ??
-                      (session.userAgent || t('settings.account.unknownDevice'))}
-                  </Text>
-                  {session.current && (
-                    <Badge size="xs" variant="light">
-                      {t('settings.account.thisSession')}
-                    </Badge>
+      {/* 操作の途中は、ほかのボタンを押せないようにする。 */}
+      <Fieldset variant="unstyled" disabled={running} p={0} m={0} miw={0}>
+        <Stack gap="md">
+          <Card withBorder>
+            <Stack gap="xs">
+              <Title order={3} size="h5">
+                {t('settings.account.sessions')}
+              </Title>
+              {data.sessions.map((session) => (
+                <Group
+                  key={session.id}
+                  justify="space-between"
+                  wrap="nowrap"
+                  data-session={session.id}
+                >
+                  <Stack gap={0} miw={0} flex={1}>
+                    <Group gap="xs">
+                      <Text size="sm" truncate title={session.userAgent}>
+                        {deviceName(session.userAgent) ??
+                          (session.userAgent || t('settings.account.unknownDevice'))}
+                      </Text>
+                      {session.current && (
+                        <Badge size="xs" variant="light">
+                          {t('settings.account.thisSession')}
+                        </Badge>
+                      )}
+                    </Group>
+                    <Text size="xs" c="dimmed">
+                      {t('settings.account.sessionTimes', {
+                        lastSeen: dateTimeFormat.format(Date.parse(session.lastSeenAt)),
+                        source: session.sourceIp ?? '-',
+                      })}
+                    </Text>
+                  </Stack>
+                  {!session.current && (
+                    <Button
+                      size="compact-sm"
+                      variant="default"
+                      flex="none"
+                      onClick={() => revoke(session.id)}
+                    >
+                      {t('settings.account.revoke')}
+                    </Button>
                   )}
                 </Group>
-                <Text size="xs" c="dimmed">
-                  {t('settings.account.sessionTimes', {
-                    lastSeen: dateTimeFormat.format(Date.parse(session.lastSeenAt)),
-                    source: session.sourceIp ?? '-',
-                  })}
-                </Text>
-              </Stack>
-              {!session.current && (
-                <Button
-                  size="compact-sm"
-                  variant="default"
-                  flex="none"
-                  disabled={revoking}
-                  onClick={() => revoke(session.id)}
-                >
-                  {t('settings.account.revoke')}
-                </Button>
-              )}
-            </Group>
-          ))}
+              ))}
+            </Stack>
+          </Card>
+          <OAuthGrants
+            grants={data.oauthGrants}
+            onChanged={refresh}
+            run={run}
+            fail={fail}
+            environment={environment}
+          />
         </Stack>
-      </Card>
+      </Fieldset>
     </Stack>
   );
 }
