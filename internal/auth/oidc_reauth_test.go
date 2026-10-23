@@ -293,11 +293,11 @@ func TestOIDCReauthenticationHandlers(t *testing.T) {
 	assert.Equal(t, http.StatusSeeOther, status)
 	assert.Equal(t, "/settings/security?error=oidc_reauth_stale&tab=passkeys", location)
 
-	// IdP で認証し直したら、セッションの認証の日時を更新し、始めたときのパスに戻す。
+	// IdP で認証し直したら、セッションの認証の日時を更新し、始めたときのパスに reauthenticated=oidc を付けて戻す。
 	f.idp.Claims = map[string]any{authTime: f.clock.Now().Unix()}
 	status, location, _ = do(http.MethodGet, begin(), "")
 	assert.Equal(t, http.StatusSeeOther, status)
-	assert.Equal(t, "/settings/security?tab=passkeys", location)
+	assert.Equal(t, "/settings/security?reauthenticated=oidc&tab=passkeys", location)
 	assert.WithinDuration(t, f.clock.Now(), f.authenticatedAt(t), time.Second)
 
 	// ログインしていなければ、始められない。

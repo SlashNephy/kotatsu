@@ -1,6 +1,8 @@
-import { act, cleanup, renderHook } from '@testing-library/react';
+import { MantineProvider } from '@mantine/core';
+import { act, cleanup, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
+import '../i18n';
 import { AuthError } from '../auth/api';
 
 import { useReauthGate } from './useReauthGate';
@@ -14,7 +16,14 @@ const methods = {
 
 afterEach(() => {
   cleanup();
+  window.history.replaceState(null, '', '/');
 });
+
+function Gate() {
+  const gate = useReauthGate(methods, '/admin/system');
+
+  return <MantineProvider>{gate.modal}</MantineProvider>;
+}
 
 describe('useReauthGate', () => {
   test('再認証を求められたら、onWaiting を呼んで待ち始め、操作の失敗としては扱わない (#915)', async () => {
@@ -58,5 +67,24 @@ describe('useReauthGate', () => {
 
     expect(onWaiting).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledTimes(wantError ? 1 : 0);
+  });
+
+  // ポップアップを止められ、この画面のまま IdP で再認証したときは、待っていた操作が消えるので、もう一度操作するよう知らせる (#916)。
+  test.each([
+    { name: '再認証を終えて戻った', search: '?reauthenticated=oidc', want: 'status' },
+    { name: '再認証に失敗して戻った', search: '?error=oidc_denied', want: 'alert' },
+  ])('$nameときは、知らせを出す', ({ search, want }) => {
+    window.history.replaceState(null, '', `/admin/system${search}`);
+    render(<Gate />);
+
+    expect(screen.getByRole(want)).toBeTruthy();
+  });
+
+  test('IdP から戻ったのでなければ、知らせを出さない', () => {
+    window.history.replaceState(null, '', '/admin/system');
+    render(<Gate />);
+
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

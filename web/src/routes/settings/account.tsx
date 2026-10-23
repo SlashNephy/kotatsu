@@ -25,7 +25,6 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 import { renderSVG } from 'uqr';
 
 import { authApi, type OIDCStatus } from '../../auth/api';
-import { oidcErrorMessage } from '../../auth/messages';
 import { settingsErrorMessage } from '../../settings/errors';
 import { PasskeyCancelledError, passkeyAvailable, registerPasskey } from '../../auth/passkey';
 import { ApiTokens } from '../../settings/ApiTokens';
@@ -59,9 +58,8 @@ import type { accountRevokeSessionMutation } from './__generated__/accountRevoke
 import { zonedFormat } from '../../futon';
 import { useDataChanges } from '../../changes/DataChanges';
 
+// IdP での再認証か紐付けに失敗して戻ってきたときの理由 (error=oidc_link_taken など) は、useReauthGate が出す。
 type AccountSearch = {
-  // error は、IdP での再認証か紐付けに失敗して戻ってきたときの理由 (oidc_link_taken など)。
-  error?: string;
   // linked は、IdP との紐付けを終えて戻ってきたときに oidc になる。
   linked?: 'oidc';
 };
@@ -76,12 +74,8 @@ const captionBackgrounds = ['broadcast', '0', '0.25', '0.5', '0.75', '1'];
 const captureExampleTime = new Date(2026, 9, 16, 21, 0, 5).getTime();
 
 export const Route = createFileRoute('/settings/account')({
-  validateSearch: (search: Record<string, unknown>): AccountSearch => ({
-    ...(typeof search['error'] === 'string' && search['error'] !== ''
-      ? { error: search['error'] }
-      : {}),
-    ...(search['linked'] === 'oidc' ? { linked: 'oidc' as const } : {}),
-  }),
+  validateSearch: (search: Record<string, unknown>): AccountSearch =>
+    search['linked'] === 'oidc' ? { linked: 'oidc' } : {},
   // IdP での再認証と紐付けを出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
   loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: AccountPage,
@@ -188,9 +182,7 @@ function Account() {
   const [autoPictureInPicture, setAutoPictureInPicture] = useAutoPictureInPicture();
   // 自動で別のウィンドウに出せないブラウザでは、設定の項目を出さない (#492)。
   const [autoPictureInPictureAvailable] = useState(autoPictureInPictureSupported);
-  const [error, setError] = useState<string | null>(
-    search.error === undefined ? null : oidcErrorMessage(t, search.error),
-  );
+  const [error, setError] = useState<string | null>(null);
   const [linked, setLinked] = useState(search.linked === 'oidc');
   const fail = (caught: unknown) => setError(settingsErrorMessage(t, caught));
   // run は、前の操作のエラーを消してから、操作を行う。

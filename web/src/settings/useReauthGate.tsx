@@ -1,8 +1,9 @@
-import { Modal } from '@mantine/core';
+import { Alert, Modal } from '@mantine/core';
 import { useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { AuthError } from '../auth/api';
+import { oidcErrorMessage } from '../auth/messages';
 import { Reauthenticate, type ReauthenticationMethods } from '../auth/Reauthenticate';
 import { graphQLErrorDetails } from '../relay/environment';
 
@@ -31,9 +32,28 @@ export type ReauthRun = (
   onWaiting?: () => void,
 ) => void;
 
+// ReturnedFromOIDC は、この画面のまま IdP で再認証して戻ってきたときの結果。
+type ReturnedFromOIDC = { reauthenticated: true } | { error: string } | null;
+
+// returnedFromOIDC は、IdP での再認証から戻ってきたときに、IdP から戻すリダイレクトが付けたクエリを読む (設計書 9.4)。
+function returnedFromOIDC(): ReturnedFromOIDC {
+  const search = new URLSearchParams(window.location.search);
+  const error = search.get('error');
+  if (error !== null && error !== '') {
+    return { error };
+  }
+  if (search.get('reauthenticated') === 'oidc') {
+    return { reauthenticated: true };
+  }
+
+  return null;
+}
+
 // useReauthGate は、重要な操作を、必要なら再認証してから行う。
 // run に渡した操作が再認証を求められたら、再認証の画面を出し、終えたら同じ操作をもう一度行う。
 // 再認証の画面を閉じたら、操作をやめて onCancel を呼ぶ。
+// modal は、再認証の画面と、この画面のまま IdP で再認証して戻ってきたときの知らせ。
+// 戻ってくると画面を読み直すので、待っていた操作は消えている。もう一度操作するよう知らせる (#916)。
 export function useReauthGate(
   methods: ReauthenticationMethods,
   returnTo: string,
@@ -48,6 +68,7 @@ export function useReauthGate(
   // 押した直後の 2 回目の押下も止めるため、描画を待たない ref で持つ。
   const running = useRef(false);
   const [busy, setBusy] = useState(false);
+  const [returned, setReturned] = useState(returnedFromOIDC);
 
   const execute: ReauthRun = (operation, onError, onCancel, onWaiting) => {
     if (running.current) {
@@ -72,27 +93,39 @@ export function useReauthGate(
   };
 
   const modal = (
-    <Modal
-      opened={pending !== null}
-      onClose={() => {
-        pending?.onCancel?.();
-        setPending(null);
-      }}
-      title={t('settings.reauth.title')}
-      closeButtonProps={{ 'aria-label': t('settings.reauth.close') }}
-    >
-      {pending !== null && (
-        <Reauthenticate
-          methods={methods}
-          returnTo={returnTo}
-          onDone={() => {
-            const { operation, onError, onCancel, onWaiting } = pending;
-            setPending(null);
-            execute(operation, onError, onCancel, onWaiting);
-          }}
-        />
-      )}
-    </Modal>
+    <>
+      {returned !== null &&
+        ('error' in returned ? (
+          <Alert color="red" role="alert" withCloseButton onClose={() => setReturned(null)}>
+            {oidcErrorMessage(t, returned.error)}
+          </Alert>
+        ) : (
+          <Alert color="green" role="status" withCloseButton onClose={() => setReturned(null)}>
+            {t('settings.reauth.returned')}
+          </Alert>
+        ))}
+      <Modal
+        opened={pending !== null}
+        onClose={() => {
+          pending?.onCancel?.();
+          setPending(null);
+        }}
+        title={t('settings.reauth.title')}
+        closeButtonProps={{ 'aria-label': t('settings.reauth.close') }}
+      >
+        {pending !== null && (
+          <Reauthenticate
+            methods={methods}
+            returnTo={returnTo}
+            onDone={() => {
+              const { operation, onError, onCancel, onWaiting } = pending;
+              setPending(null);
+              execute(operation, onError, onCancel, onWaiting);
+            }}
+          />
+        )}
+      </Modal>
+    </>
   );
 
   return { run: execute, busy, modal };

@@ -17,6 +17,8 @@ import type { passwordViewerQuery } from './__generated__/passwordViewerQuery.gr
 type PasswordSearch = {
   // error は、IdP での再認証に失敗して戻ってきたときの理由 (oidc_denied など)。
   error?: string;
+  // reauthenticated は、IdP での再認証を終えて戻ってきたときに oidc になる。
+  reauthenticated?: 'oidc';
 };
 
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
@@ -26,8 +28,12 @@ const passwordReasons = ['too_short', 'too_long', 'blocklisted', 'breached', 'to
 const path = '/settings/password';
 
 export const Route = createFileRoute('/settings/password')({
-  validateSearch: (search: Record<string, unknown>): PasswordSearch =>
-    typeof search['error'] === 'string' && search['error'] !== '' ? { error: search['error'] } : {},
+  validateSearch: (search: Record<string, unknown>): PasswordSearch => ({
+    ...(typeof search['error'] === 'string' && search['error'] !== ''
+      ? { error: search['error'] }
+      : {}),
+    ...(search['reauthenticated'] === 'oidc' ? { reauthenticated: 'oidc' as const } : {}),
+  }),
   // IdP での再認証を出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
   loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: ChangePasswordPage,
@@ -63,7 +69,7 @@ function ChangePasswordPage() {
 
 function ChangePassword() {
   const { t } = useTranslation();
-  const { error: oidcError } = Route.useSearch();
+  const { error: oidcError, reauthenticated } = Route.useSearch();
   const oidc = Route.useLoaderData();
   const data = useLazyLoadQuery<passwordViewerQuery>(
     graphql`
@@ -95,6 +101,8 @@ function ChangePassword() {
     oidcError === undefined ? null : oidcErrorMessage(t, oidcError),
   );
   const [done, setDone] = useState(false);
+  // returned は、この画面のまま IdP で再認証して戻ってきたかどうか。入力したパスワードは消えているので、もう一度入れてもらう (#916)。
+  const [returned, setReturned] = useState(reauthenticated === 'oidc');
   // needsReauthentication は、直近の認証から時間が経っていて、もう一度確かめる必要があるかどうか。
   const [needsReauthentication, setNeedsReauthentication] = useState(false);
 
@@ -195,6 +203,11 @@ function ChangePassword() {
         {done && (
           <Alert color="green" role="status">
             {t('settings.password.done')}
+          </Alert>
+        )}
+        {returned && !done && error === null && (
+          <Alert color="green" role="status" withCloseButton onClose={() => setReturned(false)}>
+            {t('settings.reauth.returned')}
           </Alert>
         )}
         <Button type="submit" loading={inFlight} disabled={password === ''}>

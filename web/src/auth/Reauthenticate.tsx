@@ -9,11 +9,16 @@ import {
   Text,
   TextInput,
 } from '@mantine/core';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { authApi, type OIDCStatus } from './api';
-import { authErrorMessage } from './messages';
+import { authErrorMessage, oidcErrorMessage } from './messages';
+import {
+  oidcReauthReturnTo,
+  openOIDCReauthWindow,
+  waitForOIDCReauthentication,
+} from './oidcReauth';
 import { passkeyAvailable, verifyWithPasskey } from './passkey';
 
 // ReauthenticationMethods は、ユーザーが再認証に使える方法。
@@ -48,6 +53,11 @@ export function Reauthenticate({ methods, returnTo, onDone }: Props) {
   const [passkeyError, setPasskeyError] = useState<string | null>(null);
   const [oidcError, setOIDCError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // oidcWaiting は、別のウィンドウで IdP の再認証を始め、結果を待っているかどうか。
+  const [oidcWaiting, setOIDCWaiting] = useState(false);
+  // stopWaiting は、別のウィンドウでの再認証の結果を待つのをやめる関数。
+  const stopWaiting = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopWaiting.current?.(), []);
 
   const run = async (verify: () => Promise<unknown>, report: (message: string) => void) => {
     setSubmitting(true);
@@ -88,17 +98,51 @@ export function Reauthenticate({ methods, returnTo, onDone }: Props) {
       setPasskeyError,
     );
 
-  // IdP から戻ると、画面を読み直すことになるので、ここでは onDone を呼ばない。
+  // IdP での再認証は、別のウィンドウで行い、この画面を離れない (#916)。終えたと知らされたら onDone を呼ぶ。
+  // ウィンドウを開けなければ、この画面のまま IdP へ送り出す。戻ると画面を読み直すので、待っていた操作は続けられない。
   const verifyWithOIDC = async () => {
     setSubmitting(true);
     setOIDCError(null);
+    // ブラウザーがポップアップを止めないよう、IdP の URL を待たずに、押した直後に開く。
+    const popup = openOIDCReauthWindow();
+    const id = crypto.randomUUID();
     try {
-      const { authorizationUrl } = await authApi.beginOIDCReauthentication(returnTo);
-      window.location.assign(authorizationUrl);
+      const { authorizationUrl } = await authApi.beginOIDCReauthentication(
+        popup === null ? returnTo : oidcReauthReturnTo(id),
+      );
+      if (popup === null) {
+        window.location.assign(authorizationUrl);
+
+        return;
+      }
+      stopWaiting.current?.();
+      stopWaiting.current = waitForOIDCReauthentication(id, ({ error: reason }) => {
+        stopWaiting.current?.();
+        stopWaiting.current = null;
+        setOIDCWaiting(false);
+        if (reason === undefined) {
+          onDone();
+        } else {
+          setOIDCError(oidcErrorMessage(t, reason));
+        }
+      });
+      popup.location.assign(authorizationUrl);
+      setOIDCWaiting(true);
+      setSubmitting(false);
     } catch (caught) {
+      popup?.close();
       setOIDCError(authErrorMessage(t, caught));
       setSubmitting(false);
     }
+  };
+
+  // finishOIDC は、別のウィンドウからの知らせが届かないとき (ホーム画面に追加したアプリから開いた、など) に、
+  // 利用者が確認を終えたと伝えるのに使う。再認証できていなければ、操作がまた再認証を求めるので、確かめ直しになる。
+  const finishOIDC = () => {
+    stopWaiting.current?.();
+    stopWaiting.current = null;
+    setOIDCWaiting(false);
+    onDone();
   };
 
   if (!hasCode && !methods.passkey && !oidc) {
@@ -134,6 +178,16 @@ export function Reauthenticate({ methods, returnTo, onDone }: Props) {
           <Button variant="default" loading={submitting} onClick={() => void verifyWithOIDC()}>
             {t('auth.reauth.oidc', { name: methods.oidc.displayName })}
           </Button>
+          {oidcWaiting && (
+            <>
+              <Text size="sm" c="dimmed">
+                {t('auth.reauth.oidcWaiting', { name: methods.oidc.displayName })}
+              </Text>
+              <Button variant="subtle" onClick={finishOIDC}>
+                {t('auth.reauth.oidcFinished')}
+              </Button>
+            </>
+          )}
           {oidcError !== null && (
             <Alert color="red" role="alert">
               {oidcError}

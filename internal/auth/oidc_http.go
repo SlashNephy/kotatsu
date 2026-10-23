@@ -174,7 +174,7 @@ func (o *OIDC) LinkHandler(db Database, client func(*http.Request) *ClientInfo) 
 }
 
 // CallbackHandler は、IdP から戻ってきたログインを確かめ、セッションを作るハンドラーを返す (GET /auth/oidc/callback)。
-// 再認証として始めたものなら、ログイン中のセッションの認証の日時を更新し、始めたときに渡したパスに戻す。
+// 再認証として始めたものなら、ログイン中のセッションの認証の日時を更新し、始めたときに渡したパスに reauthenticated=oidc を付けて戻す。
 // 紐付けとして始めたものなら、ログイン中のユーザーを IdP のユーザーと紐付け、始めたときに渡したパスに linked=oidc を付けて戻す。
 //
 // IdP からのリダイレクトなので、Origin を確かめられない。代わりに、Cookie のトークンと state で、
@@ -212,7 +212,8 @@ func (o *OIDC) CallbackHandler(db Database, client func(*http.Request) *ClientIn
 			return
 		}
 		if outcome.reauth != nil {
-			http.Redirect(w, r, outcome.reauth.ReturnTo, http.StatusSeeOther)
+			// 戻った画面が、再認証を終えたことを知れるようにする (#916)。
+			redirectWithQuery(w, r, outcome.reauth.ReturnTo, "reauthenticated", "oidc")
 
 			return
 		}
