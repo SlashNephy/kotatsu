@@ -1586,8 +1586,8 @@ Docker Composeの例は、停止の猶予（`stop_grace_period`）を、Helm Cha
 | `backend/` | Goのモジュール（`github.com/SlashNephy/kotatsu`） |
 | `backend/cmd/kotatsu/` | エントリポイント |
 | `backend/internal/cli/` | ロールの組み立てとサブコマンド |
-| `backend/internal/neko/`、`internal/kyusu/`、`internal/recording/`、`internal/stream/` | 各ロールの中心の処理（nekoのリーダー選出、kyusuのトランスコード、mikanの録画、tenbanの配信） |
-| `backend/internal/tuner/`、`internal/epg/`、`internal/reserve/`、`internal/rule/`、`internal/assign/`、`internal/kago/`、`internal/auth/`など | ドメインのロジック（`internal/kago/`は保存先プール） |
+| `backend/internal/neko/`、`backend/internal/kyusu/`、`backend/internal/recording/`、`backend/internal/stream/` | 各ロールの中心の処理（nekoのリーダー選出、kyusuのトランスコード、mikanの録画、tenbanの配信） |
+| `backend/internal/tuner/`、`backend/internal/epg/`、`backend/internal/reserve/`、`backend/internal/rule/`、`backend/internal/assign/`、`backend/internal/kago/`、`backend/internal/auth/`など | ドメインのロジック（`backend/internal/kago/`は保存先プール） |
 | `backend/internal/webui/` | ビルドしたSPAの埋め込み |
 | `backend/graph/` | GraphQLのスキーマとリゾルバ |
 | `backend/db/` | `schema.sql`、マイグレーション、sqlcのクエリ |

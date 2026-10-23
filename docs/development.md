@@ -30,7 +30,7 @@ mise run dev
 | サービス | 内容 | 手元からの接続先 |
 | --- | --- | --- |
 | `postgres` | PostgreSQL 18 | `127.0.0.1:55432`（ユーザーとパスワードはどちらも`postgres`） |
-| `faketuner` | 偽のチューナーサーバー（`cmd/faketuner`） | `127.0.0.1:40772` |
+| `faketuner` | 偽のチューナーサーバー（`backend/cmd/faketuner`） | `127.0.0.1:40772` |
 | `dex` | 開発用のOIDCのIdP（[Dex](https://dexidp.io/)） | `http://dex.localhost:5556/dex` |
 | `kotatsu` | 全ロールを1つのコンテナで動かします | なし（`web`が中継します） |
 | `web-install` | 画面の依存を入れます | なし |
