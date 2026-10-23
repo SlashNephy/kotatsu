@@ -1,8 +1,9 @@
-import { Modal } from '@mantine/core';
+import { Alert, Modal } from '@mantine/core';
 import { useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { AuthError } from '../auth/api';
+import { oidcErrorMessage } from '../auth/messages';
 import { Reauthenticate, type ReauthenticationMethods } from '../auth/Reauthenticate';
 import { graphQLErrorDetails } from '../relay/environment';
 
@@ -31,9 +32,20 @@ export type ReauthRun = (
   onWaiting?: () => void,
 ) => void;
 
+// returnedError は、IdP での再認証に失敗して戻ってきたときの理由を読む (設計書 9.4)。
+function returnedError(): string | null {
+  const error = new URLSearchParams(window.location.search).get('error');
+
+  return error === null || error === '' ? null : error;
+}
+
 // useReauthGate は、重要な操作を、必要なら再認証してから行う。
-// run に渡した操作が再認証を求められたら、再認証の画面を出し、終えたら同じ操作をもう一度行う。
-// 再認証の画面を閉じたら、操作をやめて onCancel を呼ぶ。
+// 重要な操作のある画面は、開いたときに SudoGate で再認証させておく (#981)。これは、開いている間に直近の認証の
+// 期限 (10 分) が切れたときのためのもの。run に渡した操作が再認証を求められたら、再認証の画面を出し、終えたら
+// 同じ操作をもう一度行う。再認証の画面を閉じたら、操作をやめて onCancel を呼ぶ。
+// IdP で再認証するときは、ページを離れて、この画面に戻ってくる。戻ってきた画面は、開いたときと同じく SudoGate が
+// 確かめるので、待っていた操作は続けず、利用者にもう一度操作してもらう。
+// modal は、再認証の画面と、IdP での再認証に失敗して戻ってきたときの理由。
 export function useReauthGate(
   methods: ReauthenticationMethods,
   returnTo: string,
@@ -48,6 +60,7 @@ export function useReauthGate(
   // 押した直後の 2 回目の押下も止めるため、描画を待たない ref で持つ。
   const running = useRef(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(returnedError);
 
   const execute: ReauthRun = (operation, onError, onCancel, onWaiting) => {
     if (running.current) {
@@ -56,14 +69,14 @@ export function useReauthGate(
     running.current = true;
     setBusy(true);
     operation()
-      .catch((error: unknown) => {
-        if (needsReauthentication(error)) {
+      .catch((caught: unknown) => {
+        if (needsReauthentication(caught)) {
           onWaiting?.();
           setPending({ operation, onError, onCancel, onWaiting });
 
           return;
         }
-        onError(error);
+        onError(caught);
       })
       .finally(() => {
         running.current = false;
@@ -72,27 +85,34 @@ export function useReauthGate(
   };
 
   const modal = (
-    <Modal
-      opened={pending !== null}
-      onClose={() => {
-        pending?.onCancel?.();
-        setPending(null);
-      }}
-      title={t('settings.reauth.title')}
-      closeButtonProps={{ 'aria-label': t('settings.reauth.close') }}
-    >
-      {pending !== null && (
-        <Reauthenticate
-          methods={methods}
-          returnTo={returnTo}
-          onDone={() => {
-            const { operation, onError, onCancel, onWaiting } = pending;
-            setPending(null);
-            execute(operation, onError, onCancel, onWaiting);
-          }}
-        />
+    <>
+      {error !== null && (
+        <Alert color="red" role="alert" withCloseButton onClose={() => setError(null)}>
+          {oidcErrorMessage(t, error)}
+        </Alert>
       )}
-    </Modal>
+      <Modal
+        opened={pending !== null}
+        onClose={() => {
+          pending?.onCancel?.();
+          setPending(null);
+        }}
+        title={t('settings.reauth.title')}
+        closeButtonProps={{ 'aria-label': t('settings.reauth.close') }}
+      >
+        {pending !== null && (
+          <Reauthenticate
+            methods={methods}
+            returnTo={returnTo}
+            onDone={() => {
+              const { operation, onError, onCancel, onWaiting } = pending;
+              setPending(null);
+              execute(operation, onError, onCancel, onWaiting);
+            }}
+          />
+        )}
+      </Modal>
+    </>
   );
 
   return { run: execute, busy, modal };

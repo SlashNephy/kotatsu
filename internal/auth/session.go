@@ -262,6 +262,26 @@ func (s *Sessions) Revoke(ctx context.Context, db Database, userID, sessionID uu
 	})
 }
 
+// RevokeOthers は、ユーザーのセッションのうち、keepID のほかをまとめて失効させ、失効させた数を返す (設計書 9.5)。
+// ログイン中の端末の画面で、使わなくなった端末や、覚えのない端末をまとめてログアウトさせるのに使う。
+func (s *Sessions) RevokeOthers(ctx context.Context, db Database, userID, keepID uuid.UUID) (int64, error) {
+	var revoked int64
+	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		n, err := sqlc.New(tx).RevokeUserSessions(ctx, sqlc.RevokeUserSessionsParams{Now: s.clock.Now(), UserID: userID, KeepID: &keepID})
+		if err != nil {
+			return fmt.Errorf("failed to revoke the other sessions: %w", err)
+		}
+		revoked = n
+
+		return usersettings.Touch(ctx, tx, s.clock, userID)
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	return revoked, nil
+}
+
 // SetCookie は、セッションのトークンを Cookie に入れる。
 // HttpOnly と SameSite=Lax を付け、HTTPS で届いたリクエストなら Secure も付ける (設計書 9.5)。
 func (s *Sessions) SetCookie(w http.ResponseWriter, r *http.Request, token string, session *Session) {

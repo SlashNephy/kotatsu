@@ -265,15 +265,30 @@
     "title": "設定",
     "back": "設定に戻る",
     "notificationsSummary": "画面内の通知とWeb Pushで、何を受け取るかを選びます",
-    "passwordSummary": "ログインに使うパスワードを変えます",
+    "pages": {
+      "player": {
+        "title": "プレイヤー",
+        "summary": "字幕やデータ放送、実況のコメントの出し方など、再生の画面の設定を変えます"
+      },
+      "guide": {
+        "title": "番組表",
+        "summary": "番組表の密度や、ジャンルの色を変えます"
+      },
+      "security": {
+        "title": "セキュリティ",
+        "summary": "パスワード、2段階認証、パスキー、IdPとの紐付け、APIトークンを管理します"
+      },
+      "sessions": {
+        "title": "ログイン中の端末と連携",
+        "summary": "ログイン中の端末と、連携中のアプリを確かめ、ログアウトさせたり、連携を取り消したりします"
+      }
+    },
     "reauth": {
       "title": "本人確認",
-      "close": "閉じる"
+      "close": "閉じる",
+      "sudoDescription": "ここには重要な操作があるので、出す前に、本人であることをもう一度確かめます。"
     },
     "account": {
-      "title": "アカウント",
-      "summary": "プレイヤー、2段階認証、パスキー、ログイン中の端末を管理します",
-      "player": "プレイヤー",
       "jikkyo": "実況のコメントを出す",
       "captions": "字幕を出す",
       "dataBroadcastPreload": "データ放送をプリロードする",
@@ -339,6 +354,9 @@
       "unknownDevice": "不明な端末",
       "sessionTimes": "最終利用 {{lastSeen}}・送信元 {{source}}",
       "revoke": "ログアウトさせる",
+      "revokeOthers": "ほかの端末をすべてログアウトさせる",
+      "revokeOthersConfirm": "この端末のほかの{{count}}台を、すべてログアウトさせます。それらの端末では、ログインし直す必要があります",
+      "revokedOthers": "{{count}}台の端末をログアウトさせました",
       "oidc": "{{name}}との紐付け",
       "oidcDescription": "{{name}}のアカウントと紐付けると、{{name}}でこのユーザーとしてログインできます",
       "oidcLink": "{{name}}と紐付ける",
@@ -374,7 +392,6 @@
     "settings": "設定",
     "live": "ライブ",
     "menu": "メニュー",
-    "account": "アカウント",
     "captures": "キャプチャの履歴",
     "remote": "リモコン"
   },

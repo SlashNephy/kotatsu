@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<03cc576b6db1e1f1fa0f9d400395df70>>
+ * @generated SignedSource<<4c150c930d2d27237e5dccf01d5a8fb9>>
  * @lightSyntaxTransform
  */
 
@@ -8,16 +8,16 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type accountBeginTotpMutation$variables = Record<PropertyKey, never>;
-export type accountBeginTotpMutation$data = {
+export type securityBeginTotpMutation$variables = Record<PropertyKey, never>;
+export type securityBeginTotpMutation$data = {
   readonly beginTotpEnrollment: {
     readonly secret: string;
     readonly uri: string;
   };
 };
-export type accountBeginTotpMutation = {
-  response: accountBeginTotpMutation$data;
-  variables: accountBeginTotpMutation$variables;
+export type securityBeginTotpMutation = {
+  response: securityBeginTotpMutation$data;
+  variables: securityBeginTotpMutation$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -53,7 +53,7 @@ return {
     "argumentDefinitions": [],
     "kind": "Fragment",
     "metadata": null,
-    "name": "accountBeginTotpMutation",
+    "name": "securityBeginTotpMutation",
     "selections": (v0/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
@@ -62,20 +62,20 @@ return {
   "operation": {
     "argumentDefinitions": [],
     "kind": "Operation",
-    "name": "accountBeginTotpMutation",
+    "name": "securityBeginTotpMutation",
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "ef93cf8e9aaf46183069a9723735f6ff",
+    "cacheID": "e29d539884eb5fc5a5602357c6a705ed",
     "id": null,
     "metadata": {},
-    "name": "accountBeginTotpMutation",
+    "name": "securityBeginTotpMutation",
     "operationKind": "mutation",
-    "text": "mutation accountBeginTotpMutation {\n  beginTotpEnrollment {\n    secret\n    uri\n  }\n}\n"
+    "text": "mutation securityBeginTotpMutation {\n  beginTotpEnrollment {\n    secret\n    uri\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "6e7ba13317f200139fd9a0ff945ad084";
+(node as any).hash = "976f82e3a847b1c2d0831784c09caf0d";
 
 export default node;

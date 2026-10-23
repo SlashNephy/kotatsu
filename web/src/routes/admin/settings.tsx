@@ -23,6 +23,7 @@ import { settingsErrorMessage } from '../../settings/errors';
 import { FileNameTemplateField } from '../../reservations/FileNameTemplateField';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
+import { SudoGate } from '../../settings/SudoGate';
 import type { settingsSystemMutation } from './__generated__/settingsSystemMutation.graphql';
 import type { settingsSystemQuery } from './__generated__/settingsSystemQuery.graphql';
 import { zonedFormat } from '../../futon';
@@ -126,7 +127,8 @@ function SystemSettings() {
     {},
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
-  const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
+  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
+  const gate = useReauthGate(methods, path);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const settings = data.systemSettings;
   const defaults = settings.recordingDefaults;
@@ -202,193 +204,195 @@ function SystemSettings() {
     // 再認証のモーダルは、form の外に置く。ポータルの中の送信も、React では外の form に伝わるので。
     <>
       {gate.modal}
-      <form onSubmit={submit}>
-        <Stack gap="md">
-          {message !== null && (
-            <Alert
-              color={message.ok ? 'teal' : 'red'}
-              role={message.ok ? 'status' : 'alert'}
-              withCloseButton
-              onClose={() => setMessage(null)}
-            >
-              {message.text}
-            </Alert>
-          )}
+      <SudoGate methods={methods} returnTo={path}>
+        <form onSubmit={submit}>
+          <Stack gap="md">
+            {message !== null && (
+              <Alert
+                color={message.ok ? 'teal' : 'red'}
+                role={message.ok ? 'status' : 'alert'}
+                withCloseButton
+                onClose={() => setMessage(null)}
+              >
+                {message.text}
+              </Alert>
+            )}
 
-          <Card withBorder>
-            <Stack gap="xs">
-              <Title order={3} size="h5">
-                {t('admin.settings.recordingDefaults')}
-              </Title>
-              <Text size="xs" c="dimmed">
-                {t('admin.settings.recordingDefaultsNote')}
-              </Text>
-              <Select
-                size="xs"
-                maw={480}
-                label={t('admin.settings.pool')}
-                description={t('admin.settings.poolHelp')}
-                allowDeselect={false}
-                data={[
-                  { value: autoPool, label: t('admin.settings.poolAuto') },
-                  ...data.systemStatus.pools.map((pool) => ({ value: pool.id, label: pool.id })),
-                ]}
-                value={form.poolId}
-                onChange={(value) => set({ poolId: value ?? autoPool })}
-              />
-              <FileNameTemplateField
-                label={t('admin.settings.fileNameTemplate')}
-                description={t('admin.settings.fileNameTemplateHelp')}
-                value={form.fileNameTemplate}
-                onChange={(value) => set({ fileNameTemplate: value })}
-              />
-              <Group gap="xs" align="flex-start">
-                <NumberInput
+            <Card withBorder>
+              <Stack gap="xs">
+                <Title order={3} size="h5">
+                  {t('admin.settings.recordingDefaults')}
+                </Title>
+                <Text size="xs" c="dimmed">
+                  {t('admin.settings.recordingDefaultsNote')}
+                </Text>
+                <Select
                   size="xs"
-                  w={180}
-                  label={t('admin.settings.startMargin')}
-                  min={0}
-                  max={3600}
-                  allowDecimal={false}
-                  value={form.startMarginSeconds}
-                  onChange={(value) => set({ startMarginSeconds: value })}
+                  maw={480}
+                  label={t('admin.settings.pool')}
+                  description={t('admin.settings.poolHelp')}
+                  allowDeselect={false}
+                  data={[
+                    { value: autoPool, label: t('admin.settings.poolAuto') },
+                    ...data.systemStatus.pools.map((pool) => ({ value: pool.id, label: pool.id })),
+                  ]}
+                  value={form.poolId}
+                  onChange={(value) => set({ poolId: value ?? autoPool })}
                 />
-                <NumberInput
-                  size="xs"
-                  w={180}
-                  label={t('admin.settings.endMargin')}
-                  min={0}
-                  max={3600}
-                  allowDecimal={false}
-                  value={form.endMarginSeconds}
-                  onChange={(value) => set({ endMarginSeconds: value })}
+                <FileNameTemplateField
+                  label={t('admin.settings.fileNameTemplate')}
+                  description={t('admin.settings.fileNameTemplateHelp')}
+                  value={form.fileNameTemplate}
+                  onChange={(value) => set({ fileNameTemplate: value })}
                 />
-              </Group>
-              <NumberInput
-                size="xs"
-                maw={480}
-                label={t('admin.settings.priority')}
-                description={t('admin.settings.priorityHelp')}
-                min={-10}
-                max={10}
-                allowDecimal={false}
-                value={form.priority}
-                onChange={(value) => set({ priority: value })}
-              />
-              <Switch
-                size="sm"
-                label={t('admin.settings.joinSegments')}
-                description={t('admin.settings.joinSegmentsHelp')}
-                checked={form.joinSegments}
-                onChange={(event) => set({ joinSegments: event.currentTarget.checked })}
-              />
-            </Stack>
-          </Card>
-
-          <Card withBorder>
-            <Stack gap="xs">
-              <Title order={3} size="h5">
-                {t('admin.settings.ruleDefaults')}
-              </Title>
-              <Text size="xs" c="dimmed">
-                {t('admin.settings.ruleDefaultsNote')}
-              </Text>
-              <Group gap="xs" align="flex-end">
-                <Switch
-                  size="sm"
-                  label={t('rules.avoidDuplicates')}
-                  checked={form.ruleAvoidDuplicates}
-                  onChange={(event) => set({ ruleAvoidDuplicates: event.currentTarget.checked })}
-                />
-                {form.ruleAvoidDuplicates && (
+                <Group gap="xs" align="flex-start">
                   <NumberInput
                     size="xs"
-                    w={160}
-                    aria-label={t('rules.duplicateWindowDays')}
-                    placeholder={t('rules.duplicateWindowDaysPlaceholder')}
-                    min={1}
-                    max={3650}
+                    w={180}
+                    label={t('admin.settings.startMargin')}
+                    min={0}
+                    max={3600}
                     allowDecimal={false}
-                    suffix={t('rules.days')}
-                    value={form.ruleDuplicateWindowDays}
-                    onChange={(value) => set({ ruleDuplicateWindowDays: value })}
+                    value={form.startMarginSeconds}
+                    onChange={(value) => set({ startMarginSeconds: value })}
                   />
-                )}
-              </Group>
-              <Switch
-                size="sm"
-                label={t('rules.followEventRelay')}
-                checked={form.ruleFollowEventRelay}
-                onChange={(event) => set({ ruleFollowEventRelay: event.currentTarget.checked })}
-              />
-            </Stack>
-          </Card>
+                  <NumberInput
+                    size="xs"
+                    w={180}
+                    label={t('admin.settings.endMargin')}
+                    min={0}
+                    max={3600}
+                    allowDecimal={false}
+                    value={form.endMarginSeconds}
+                    onChange={(value) => set({ endMarginSeconds: value })}
+                  />
+                </Group>
+                <NumberInput
+                  size="xs"
+                  maw={480}
+                  label={t('admin.settings.priority')}
+                  description={t('admin.settings.priorityHelp')}
+                  min={-10}
+                  max={10}
+                  allowDecimal={false}
+                  value={form.priority}
+                  onChange={(value) => set({ priority: value })}
+                />
+                <Switch
+                  size="sm"
+                  label={t('admin.settings.joinSegments')}
+                  description={t('admin.settings.joinSegmentsHelp')}
+                  checked={form.joinSegments}
+                  onChange={(event) => set({ joinSegments: event.currentTarget.checked })}
+                />
+              </Stack>
+            </Card>
 
-          <Card withBorder>
-            <Stack gap="xs">
-              <Title order={3} size="h5">
-                {t('admin.settings.archive')}
-              </Title>
-              <NumberInput
-                size="xs"
-                maw={480}
-                label={t('admin.settings.archiveRetentionDays')}
-                description={t('admin.settings.archiveRetentionHelp')}
-                min={0}
-                allowDecimal={false}
-                value={form.archiveRetentionDays}
-                onChange={(value) => set({ archiveRetentionDays: value })}
-              />
-            </Stack>
-          </Card>
+            <Card withBorder>
+              <Stack gap="xs">
+                <Title order={3} size="h5">
+                  {t('admin.settings.ruleDefaults')}
+                </Title>
+                <Text size="xs" c="dimmed">
+                  {t('admin.settings.ruleDefaultsNote')}
+                </Text>
+                <Group gap="xs" align="flex-end">
+                  <Switch
+                    size="sm"
+                    label={t('rules.avoidDuplicates')}
+                    checked={form.ruleAvoidDuplicates}
+                    onChange={(event) => set({ ruleAvoidDuplicates: event.currentTarget.checked })}
+                  />
+                  {form.ruleAvoidDuplicates && (
+                    <NumberInput
+                      size="xs"
+                      w={160}
+                      aria-label={t('rules.duplicateWindowDays')}
+                      placeholder={t('rules.duplicateWindowDaysPlaceholder')}
+                      min={1}
+                      max={3650}
+                      allowDecimal={false}
+                      suffix={t('rules.days')}
+                      value={form.ruleDuplicateWindowDays}
+                      onChange={(value) => set({ ruleDuplicateWindowDays: value })}
+                    />
+                  )}
+                </Group>
+                <Switch
+                  size="sm"
+                  label={t('rules.followEventRelay')}
+                  checked={form.ruleFollowEventRelay}
+                  onChange={(event) => set({ ruleFollowEventRelay: event.currentTarget.checked })}
+                />
+              </Stack>
+            </Card>
 
-          <Card withBorder>
-            <Stack gap="xs">
-              <Title order={3} size="h5">
-                {t('admin.settings.notifications')}
-              </Title>
-              <NumberInput
-                size="xs"
-                maw={480}
-                label={t('admin.settings.notificationRetentionDays')}
-                description={t('admin.settings.notificationRetentionHelp')}
-                min={0}
-                allowDecimal={false}
-                value={form.notificationRetentionDays}
-                onChange={(value) => set({ notificationRetentionDays: value })}
-              />
-            </Stack>
-          </Card>
+            <Card withBorder>
+              <Stack gap="xs">
+                <Title order={3} size="h5">
+                  {t('admin.settings.archive')}
+                </Title>
+                <NumberInput
+                  size="xs"
+                  maw={480}
+                  label={t('admin.settings.archiveRetentionDays')}
+                  description={t('admin.settings.archiveRetentionHelp')}
+                  min={0}
+                  allowDecimal={false}
+                  value={form.archiveRetentionDays}
+                  onChange={(value) => set({ archiveRetentionDays: value })}
+                />
+              </Stack>
+            </Card>
 
-          <Card withBorder>
-            <Stack gap="xs">
-              <Title order={3} size="h5">
-                {t('admin.settings.mcp')}
-              </Title>
-              <Switch
-                size="sm"
-                label={t('admin.settings.mcpEnabled')}
-                description={t('admin.settings.mcpHelp')}
-                checked={form.mcpEnabled}
-                onChange={(event) => set({ mcpEnabled: event.currentTarget.checked })}
-              />
-            </Stack>
-          </Card>
+            <Card withBorder>
+              <Stack gap="xs">
+                <Title order={3} size="h5">
+                  {t('admin.settings.notifications')}
+                </Title>
+                <NumberInput
+                  size="xs"
+                  maw={480}
+                  label={t('admin.settings.notificationRetentionDays')}
+                  description={t('admin.settings.notificationRetentionHelp')}
+                  min={0}
+                  allowDecimal={false}
+                  value={form.notificationRetentionDays}
+                  onChange={(value) => set({ notificationRetentionDays: value })}
+                />
+              </Stack>
+            </Card>
 
-          <Group justify="space-between">
-            <Text size="xs" c="dimmed">
-              {settings.updatedAt == null
-                ? t('admin.settings.neverUpdated')
-                : t('admin.settings.updatedAt', {
-                    at: dateTimeFormat.format(Date.parse(settings.updatedAt)),
-                  })}
-            </Text>
-            <Button type="submit" size="compact-sm" disabled={!valid || gate.busy}>
-              {t('admin.save')}
-            </Button>
-          </Group>
-        </Stack>
-      </form>
+            <Card withBorder>
+              <Stack gap="xs">
+                <Title order={3} size="h5">
+                  {t('admin.settings.mcp')}
+                </Title>
+                <Switch
+                  size="sm"
+                  label={t('admin.settings.mcpEnabled')}
+                  description={t('admin.settings.mcpHelp')}
+                  checked={form.mcpEnabled}
+                  onChange={(event) => set({ mcpEnabled: event.currentTarget.checked })}
+                />
+              </Stack>
+            </Card>
+
+            <Group justify="space-between">
+              <Text size="xs" c="dimmed">
+                {settings.updatedAt == null
+                  ? t('admin.settings.neverUpdated')
+                  : t('admin.settings.updatedAt', {
+                      at: dateTimeFormat.format(Date.parse(settings.updatedAt)),
+                    })}
+              </Text>
+              <Button type="submit" size="compact-sm" disabled={!valid || gate.busy}>
+                {t('admin.save')}
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </SudoGate>
     </>
   );
 }

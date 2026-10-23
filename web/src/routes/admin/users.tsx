@@ -24,6 +24,7 @@ import { PasswordStrength } from '../../futon';
 import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
+import { SudoGate } from '../../settings/SudoGate';
 import type { Role, usersCreateMutation } from './__generated__/usersCreateMutation.graphql';
 import type { usersDisableMutation } from './__generated__/usersDisableMutation.graphql';
 import type { usersEnableMutation } from './__generated__/usersEnableMutation.graphql';
@@ -99,7 +100,8 @@ function Users() {
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
+  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
+  const gate = useReauthGate(methods, path);
   const [message, setMessage] = useState<Message | null>(null);
   const fail = (caught: unknown) =>
     setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
@@ -111,117 +113,119 @@ function Users() {
   return (
     <Stack gap="md">
       {gate.modal}
-      {message !== null && (
-        <Alert
-          color={message.ok ? 'teal' : 'red'}
-          role={message.ok ? 'status' : 'alert'}
-          withCloseButton
-          onClose={() => setMessage(null)}
-        >
-          {message.text}
-        </Alert>
-      )}
+      <SudoGate methods={methods} returnTo={path}>
+        {message !== null && (
+          <Alert
+            color={message.ok ? 'teal' : 'red'}
+            role={message.ok ? 'status' : 'alert'}
+            withCloseButton
+            onClose={() => setMessage(null)}
+          >
+            {message.text}
+          </Alert>
+        )}
 
-      <Card withBorder>
-        <Stack gap="xs">
-          {data.users.map((user) => (
-            <UserRow
-              key={`${user.id}/${user.displayName}/${user.role}/${String(user.disabled)}`}
-              user={user}
-              self={user.id === data.viewer.id}
-              onUpdate={(input, onDone) =>
-                gate.run(async () => {
-                  await mutate<usersUpdateMutation>(
-                    environment,
-                    graphql`
-                      mutation usersUpdateMutation($id: ID!, $input: UpdateUserInput!) {
-                        updateUser(id: $id, input: $input) {
-                          id
-                          displayName
-                          role
-                        }
-                      }
-                    `,
-                    { id: user.id, input },
-                  );
-                  onDone();
-                  succeed(t('admin.saved'));
-                }, fail)
-              }
-              onToggle={() =>
-                gate.run(async () => {
-                  if (user.disabled) {
-                    await mutate<usersEnableMutation>(
+        <Card withBorder>
+          <Stack gap="xs">
+            {data.users.map((user) => (
+              <UserRow
+                key={`${user.id}/${user.displayName}/${user.role}/${String(user.disabled)}`}
+                user={user}
+                self={user.id === data.viewer.id}
+                onUpdate={(input, onDone) =>
+                  gate.run(async () => {
+                    await mutate<usersUpdateMutation>(
                       environment,
                       graphql`
-                        mutation usersEnableMutation($id: ID!) {
-                          enableUser(id: $id) {
+                        mutation usersUpdateMutation($id: ID!, $input: UpdateUserInput!) {
+                          updateUser(id: $id, input: $input) {
                             id
-                            disabled
+                            displayName
+                            role
                           }
                         }
                       `,
-                      { id: user.id },
+                      { id: user.id, input },
                     );
-                  } else {
-                    await mutate<usersDisableMutation>(
-                      environment,
-                      graphql`
-                        mutation usersDisableMutation($id: ID!) {
-                          disableUser(id: $id) {
-                            id
-                            disabled
-                          }
-                        }
-                      `,
-                      { id: user.id },
-                    );
-                  }
-                  succeed(t('admin.saved'));
-                }, fail)
-              }
-              onResetPassword={(password, onDone) =>
-                gate.run(async () => {
-                  await mutate<usersResetPasswordMutation>(
-                    environment,
-                    graphql`
-                      mutation usersResetPasswordMutation($id: ID!, $password: String!) {
-                        resetUserPassword(id: $id, password: $password) {
-                          id
-                        }
-                      }
-                    `,
-                    { id: user.id, password },
-                  );
-                  onDone();
-                  succeed(t('admin.users.passwordReset', { username: user.username }));
-                }, fail)
-              }
-            />
-          ))}
-        </Stack>
-      </Card>
-
-      <CreateUser
-        onCreate={(input, onDone) =>
-          gate.run(async () => {
-            const response = await mutate<usersCreateMutation>(
-              environment,
-              graphql`
-                mutation usersCreateMutation($input: CreateUserInput!) {
-                  createUser(input: $input) {
-                    id
-                    username
-                  }
+                    onDone();
+                    succeed(t('admin.saved'));
+                  }, fail)
                 }
-              `,
-              { input },
-            );
-            onDone();
-            succeed(t('admin.users.created', { username: response.createUser.username }));
-          }, fail)
-        }
-      />
+                onToggle={() =>
+                  gate.run(async () => {
+                    if (user.disabled) {
+                      await mutate<usersEnableMutation>(
+                        environment,
+                        graphql`
+                          mutation usersEnableMutation($id: ID!) {
+                            enableUser(id: $id) {
+                              id
+                              disabled
+                            }
+                          }
+                        `,
+                        { id: user.id },
+                      );
+                    } else {
+                      await mutate<usersDisableMutation>(
+                        environment,
+                        graphql`
+                          mutation usersDisableMutation($id: ID!) {
+                            disableUser(id: $id) {
+                              id
+                              disabled
+                            }
+                          }
+                        `,
+                        { id: user.id },
+                      );
+                    }
+                    succeed(t('admin.saved'));
+                  }, fail)
+                }
+                onResetPassword={(password, onDone) =>
+                  gate.run(async () => {
+                    await mutate<usersResetPasswordMutation>(
+                      environment,
+                      graphql`
+                        mutation usersResetPasswordMutation($id: ID!, $password: String!) {
+                          resetUserPassword(id: $id, password: $password) {
+                            id
+                          }
+                        }
+                      `,
+                      { id: user.id, password },
+                    );
+                    onDone();
+                    succeed(t('admin.users.passwordReset', { username: user.username }));
+                  }, fail)
+                }
+              />
+            ))}
+          </Stack>
+        </Card>
+
+        <CreateUser
+          onCreate={(input, onDone) =>
+            gate.run(async () => {
+              const response = await mutate<usersCreateMutation>(
+                environment,
+                graphql`
+                  mutation usersCreateMutation($input: CreateUserInput!) {
+                    createUser(input: $input) {
+                      id
+                      username
+                    }
+                  }
+                `,
+                { input },
+              );
+              onDone();
+              succeed(t('admin.users.created', { username: response.createUser.username }));
+            }, fail)
+          }
+        />
+      </SudoGate>
     </Stack>
   );
 }

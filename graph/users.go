@@ -95,6 +95,34 @@ func (r *Resolver) revokeSession(ctx context.Context, principal *auth.Principal,
 	})
 }
 
+// revokeOtherSessions は、ログイン中のユーザーの、今のセッションのほかをまとめて失効させ、監査ログに残す。
+func (r *Resolver) revokeOtherSessions(ctx context.Context, principal *auth.Principal) (int64, error) {
+	var revoked int64
+	err := pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
+		n, err := r.sessions.RevokeOthers(ctx, tx, principal.UserID, principal.SessionID)
+		if err != nil {
+			return err
+		}
+		revoked = n
+
+		return r.recorder.Record(ctx, tx, &audit.Event{
+			Actor:      actorOf(ctx, principal),
+			Action:     "user.other_sessions_revoked",
+			TargetType: "user",
+			TargetID:   principal.UserID.String(),
+			Summary:    map[string]any{"count": n},
+			// 送信元は、操作者 (actor) に持たせる。
+			SourceIP:  netip.Addr{},
+			UserAgent: "",
+		})
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	return revoked, nil
+}
+
 // parseTypedID は、typeName の Node の ID から、UUID を取り出す。
 func parseTypedID(globalID, typeName, message string) (uuid.UUID, error) {
 	got, raw, err := ParseGlobalID(globalID)

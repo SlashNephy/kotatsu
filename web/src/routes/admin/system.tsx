@@ -27,6 +27,7 @@ import { formatBytes } from '../../futon';
 import classes from './system.module.css';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
+import { SudoGate } from '../../settings/SudoGate';
 import { MissingRecordings } from '../../admin/MissingRecordings';
 import { OrphanFiles } from '../../admin/OrphanFiles';
 import { RecordingRenames } from '../../admin/RecordingRenames';
@@ -142,7 +143,8 @@ function SystemStatus() {
     { fetchKey: `${fetchKey}:${tunerChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
+  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
+  const gate = useReauthGate(methods, path);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const fail = (caught: unknown) =>
     setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
@@ -339,43 +341,46 @@ function SystemStatus() {
         />
       </Section>
 
-      <Section title={t('admin.system.pools')}>
-        {status.pools.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            {t('admin.system.noPools')}
-          </Text>
-        ) : (
-          status.pools.map((pool) => (
-            <PoolEditor
-              key={`${pool.id}/${pool.priority}/${pool.minFreeBytes}`}
-              pool={pool}
-              onSave={(input) =>
-                gate.run(async () => {
-                  await mutate<systemPoolMutation>(
-                    environment,
-                    graphql`
-                      mutation systemPoolMutation($id: String!, $input: StoragePoolInput!) {
-                        updateStoragePool(id: $id, input: $input) {
-                          id
-                          priority
-                          minFreeBytes
+      {/* 状態の表示は、本人確認なしで見られるようにする。重要な操作のある部分だけ、開いたときに本人確認する (#981)。 */}
+      <SudoGate methods={methods} returnTo={path}>
+        <Section title={t('admin.system.pools')}>
+          {status.pools.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              {t('admin.system.noPools')}
+            </Text>
+          ) : (
+            status.pools.map((pool) => (
+              <PoolEditor
+                key={`${pool.id}/${pool.priority}/${pool.minFreeBytes}`}
+                pool={pool}
+                onSave={(input) =>
+                  gate.run(async () => {
+                    await mutate<systemPoolMutation>(
+                      environment,
+                      graphql`
+                        mutation systemPoolMutation($id: String!, $input: StoragePoolInput!) {
+                          updateStoragePool(id: $id, input: $input) {
+                            id
+                            priority
+                            minFreeBytes
+                          }
                         }
-                      }
-                    `,
-                    { id: pool.id, input },
-                  );
-                  done();
-                }, fail)
-              }
-            />
-          ))
-        )}
-      </Section>
+                      `,
+                      { id: pool.id, input },
+                    );
+                    done();
+                  }, fail)
+                }
+              />
+            ))
+          )}
+        </Section>
 
-      {/* 録画やファイルを消す、動かす操作も重要な操作なので、同じ再認証を通す (設計書 9.5)。 */}
-      <MissingRecordings run={gate.run} />
-      <OrphanFiles run={gate.run} />
-      <RecordingRenames run={gate.run} />
+        {/* 録画やファイルを消す、動かす操作も重要な操作なので、同じ再認証を通す (設計書 9.5)。 */}
+        <MissingRecordings run={gate.run} />
+        <OrphanFiles run={gate.run} />
+        <RecordingRenames run={gate.run} />
+      </SudoGate>
     </Stack>
   );
 }

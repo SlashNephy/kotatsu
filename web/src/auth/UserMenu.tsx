@@ -69,9 +69,6 @@ export function UserMenu() {
             @{data.viewer.username}
           </Text>
         </Menu.Label>
-        <Menu.Item component={Link} to="/settings/account">
-          {t('nav.account')}
-        </Menu.Item>
         <Menu.Item component={Link} to="/captures">
           {t('nav.captures')}
         </Menu.Item>

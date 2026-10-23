@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
 )
 
 // TestRequireRecentAuthentication は、重要な操作の前に、直近 10 分以内の認証を求めることを確かめる。
@@ -69,4 +70,53 @@ func TestLogoutHandler(t *testing.T) {
 	assert.Equal(t, -1, cookies[0].MaxAge)
 	_, err := f.sessions.Authenticate(t.Context(), f.db, token)
 	require.ErrorIs(t, err, auth.ErrSessionInvalid)
+}
+
+// TestReauthenticationStatusHandler は、ログイン中のセッションの認証の日時と、重要な操作ができるかを返すことを確かめる。
+// 入力を始める前に、IdP での再認証を求めるかを決めるのに使う (#916)。
+func TestReauthenticationStatusHandler(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name      string
+		principal *auth.Principal
+		wantCode  int
+		wantBody  string
+	}{
+		{
+			name:      "10 分以内に認証した",
+			principal: &auth.Principal{AuthenticatedAt: now.Add(-10 * time.Minute)},
+			wantCode:  http.StatusOK,
+			wantBody:  `{"authenticatedAt":"2026-10-23T11:50:00Z","recent":true}`,
+		},
+		{
+			name:      "10 分より前に認証した",
+			principal: &auth.Principal{AuthenticatedAt: now.Add(-10*time.Minute - time.Second)},
+			wantCode:  http.StatusOK,
+			wantBody:  `{"authenticatedAt":"2026-10-23T11:49:59Z","recent":false}`,
+		},
+		{
+			name:      "ログインしていない",
+			principal: nil,
+			wantCode:  http.StatusUnauthorized,
+			wantBody:  `{"error":{"code":"UNAUTHENTICATED","message":"log in first"}}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			if tt.principal != nil {
+				ctx = auth.WithPrincipal(ctx, tt.principal)
+			}
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/auth/reauth", nil)
+			rec := httptest.NewRecorder()
+			auth.ReauthenticationStatusHandler(clocktest.NewFake(now)).ServeHTTP(rec, req)
+
+			assert.Equal(t, tt.wantCode, rec.Code)
+			assert.JSONEq(t, tt.wantBody, rec.Body.String())
+		})
+	}
 }

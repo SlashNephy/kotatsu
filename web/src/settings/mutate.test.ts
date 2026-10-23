@@ -2,9 +2,9 @@ import { Environment, Network, RecordSource, Store, type GraphQLResponse } from 
 import { describe, expect, test } from 'vitest';
 
 import { AuthError } from '../auth/api';
-import accountRegenerateMutation, {
-  type accountRegenerateMutation as Mutation,
-} from '../routes/settings/__generated__/accountRegenerateMutation.graphql';
+import securityRegenerateMutation, {
+  type securityRegenerateMutation as Mutation,
+} from '../routes/settings/__generated__/securityRegenerateMutation.graphql';
 import { mutate } from './mutate';
 import { needsReauthentication } from './useReauthGate';
 
@@ -28,7 +28,7 @@ describe('mutate', () => {
     await expect(
       mutate<Mutation>(
         environment({ data: { regenerateRecoveryCodes: { codes } } }),
-        accountRegenerateMutation,
+        securityRegenerateMutation,
         {},
       ),
     ).resolves.toEqual({ regenerateRecoveryCodes: { codes } });
@@ -56,7 +56,7 @@ describe('mutate', () => {
   ])('$name は失敗し、再認証が要るかをエラーから読める', async ({ payload, reauthenticate }) => {
     const error: unknown = await mutate<Mutation>(
       environment(payload as GraphQLResponse),
-      accountRegenerateMutation,
+      securityRegenerateMutation,
       {},
     ).then(
       () => undefined,

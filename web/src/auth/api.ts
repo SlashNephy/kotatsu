@@ -85,6 +85,9 @@ export type Completed = { recoveryCodes: string[] };
 // Reauthenticated は、再認証を終えたときの応答。authenticatedAt から 10 分の間、重要な操作ができる。
 export type Reauthenticated = { authenticatedAt: string };
 
+// ReauthenticationStatus は、ログイン中のセッションの認証の日時と、直近 10 分以内に認証していて重要な操作ができるか。
+export type ReauthenticationStatus = { authenticatedAt: string; recent: boolean };
+
 // OIDCStatus は、OIDC でのログインを受け付けるかと、ボタンに出す IdP の名前、ログイン中のユーザーが IdP と紐付いているか。
 export type OIDCStatus = { enabled: boolean; displayName: string; linked: boolean };
 
@@ -135,6 +138,8 @@ export const authApi = {
     post<RegisteredPasskey>('/auth/passkey/registration/confirm', { credential, name }),
   confirmPasskeyReauthentication: (credential: AuthenticationResponseJSON) =>
     post<Reauthenticated>('/auth/reauth/passkey/confirm', { credential }),
+  // 重要な操作ができるか。重要な操作のある画面は、開いたときに確かめ、必要なら先に再認証させる (#981)。
+  reauthenticationStatus: () => get<ReauthenticationStatus>('/auth/reauth'),
   // IdP で再認証する。終えると、returnTo のパスに戻る。失敗したときは、returnTo に error=<理由> が付く。
   beginOIDCReauthentication: (returnTo: string) =>
     post<{ authorizationUrl: string }>('/auth/reauth/oidc', { returnTo }),

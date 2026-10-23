@@ -30,12 +30,14 @@ type Props = {
   methods: ReauthenticationMethods;
   // returnTo は、IdP で再認証したときに戻す、この画面のパス。
   returnTo: string;
+  // description は、なぜ確かめるのかの説明。省くと、操作の前に確かめる説明を出す。
+  description?: string;
   onDone: () => void;
 };
 
 // Reauthenticate は、パスワードの変更のような重要な操作の前に、ログイン中のユーザーをもう一度確かめる (設計書 9.3)。
 // パスワードと第二要素、パスキー、IdP のうち、ユーザーが使えるものを出す。
-export function Reauthenticate({ methods, returnTo, onDone }: Props) {
+export function Reauthenticate({ methods, returnTo, description, onDone }: Props) {
   const { t } = useTranslation();
   const hasCode = methods.totp || methods.recoveryCode;
   // IdP で再認証できるのは、IdP のユーザーと紐付いているときだけ。
@@ -111,7 +113,7 @@ export function Reauthenticate({ methods, returnTo, onDone }: Props) {
 
   return (
     <Stack>
-      <Text size="sm">{t('auth.reauth.description')}</Text>
+      <Text size="sm">{description ?? t('auth.reauth.description')}</Text>
       {methods.passkey && (
         <Stack gap="xs">
           <Button loading={submitting} disabled={!passkeyAvailable()} onClick={verifyPasskey}>

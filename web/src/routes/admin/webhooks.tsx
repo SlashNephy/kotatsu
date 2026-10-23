@@ -28,6 +28,7 @@ import { notificationKinds, type NotificationKindName } from '../../notification
 import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
+import { SudoGate } from '../../settings/SudoGate';
 import type {
   WebhookFormat,
   webhooksCreateMutation,
@@ -106,7 +107,8 @@ function Webhooks() {
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
+  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
+  const gate = useReauthGate(methods, path);
   const [message, setMessage] = useState<Message | null>(null);
   // secret は、作った Webhook の署名用の秘密キー。作ったときにしか返らないので、ここで出す。
   const [secret, setSecret] = useState<{ name: string; secret: string } | null>(null);
@@ -120,121 +122,125 @@ function Webhooks() {
   return (
     <Stack gap="md">
       {gate.modal}
-      {message !== null && (
-        <Alert
-          color={message.ok ? 'teal' : 'red'}
-          role={message.ok ? 'status' : 'alert'}
-          withCloseButton
-          onClose={() => setMessage(null)}
-        >
-          {message.text}
-        </Alert>
-      )}
-      {secret !== null && (
-        <Alert
-          color="amber"
-          title={`${t('admin.webhooks.secret')} (${secret.name})`}
-          withCloseButton
-          onClose={() => setSecret(null)}
-        >
-          <Text size="sm">{t('admin.webhooks.secretNote')}</Text>
-          <Code block mt="xs">
-            {secret.secret}
-          </Code>
-        </Alert>
-      )}
+      <SudoGate methods={methods} returnTo={path}>
+        {message !== null && (
+          <Alert
+            color={message.ok ? 'teal' : 'red'}
+            role={message.ok ? 'status' : 'alert'}
+            withCloseButton
+            onClose={() => setMessage(null)}
+          >
+            {message.text}
+          </Alert>
+        )}
+        {secret !== null && (
+          <Alert
+            color="amber"
+            title={`${t('admin.webhooks.secret')} (${secret.name})`}
+            withCloseButton
+            onClose={() => setSecret(null)}
+          >
+            <Text size="sm">{t('admin.webhooks.secretNote')}</Text>
+            <Code block mt="xs">
+              {secret.secret}
+            </Code>
+          </Alert>
+        )}
 
-      {/* 空のときは、空の表示だけを出す。カードで囲むと、枠が二重になる。 */}
-      {data.webhooks.length === 0 ? (
-        <EmptyState
-          icon={Webhook}
-          title={t('admin.webhooks.empty')}
-          hint={t('admin.webhooks.emptyHint')}
-        />
-      ) : (
+        {/* 空のときは、空の表示だけを出す。カードで囲むと、枠が二重になる。 */}
+        {data.webhooks.length === 0 ? (
+          <EmptyState
+            icon={Webhook}
+            title={t('admin.webhooks.empty')}
+            hint={t('admin.webhooks.emptyHint')}
+          />
+        ) : (
+          <Card withBorder>
+            <Stack gap="sm">
+              {data.webhooks.map((webhook) => (
+                <WebhookRow
+                  key={`${webhook.id}/${webhook.name}/${webhook.url}/${webhook.format}/${webhook.kinds.join()}/${String(webhook.enabled)}`}
+                  webhook={webhook}
+                  onUpdate={(input, onDone) =>
+                    gate.run(async () => {
+                      await mutate<webhooksUpdateMutation>(
+                        environment,
+                        graphql`
+                          mutation webhooksUpdateMutation($id: ID!, $input: UpdateWebhookInput!) {
+                            updateWebhook(id: $id, input: $input) {
+                              id
+                              name
+                              url
+                              format
+                              kinds
+                              enabled
+                            }
+                          }
+                        `,
+                        { id: webhook.id, input },
+                      );
+                      onDone();
+                      succeed(t('admin.saved'));
+                    }, fail)
+                  }
+                  onDelete={() =>
+                    gate.run(async () => {
+                      await mutate<webhooksDeleteMutation>(
+                        environment,
+                        graphql`
+                          mutation webhooksDeleteMutation($id: ID!) {
+                            deleteWebhook(id: $id)
+                          }
+                        `,
+                        { id: webhook.id },
+                      );
+                      succeed(t('admin.webhooks.deleted', { name: webhook.name }));
+                    }, fail)
+                  }
+                />
+              ))}
+            </Stack>
+          </Card>
+        )}
+
         <Card withBorder>
-          <Stack gap="sm">
-            {data.webhooks.map((webhook) => (
-              <WebhookRow
-                key={`${webhook.id}/${webhook.name}/${webhook.url}/${webhook.format}/${webhook.kinds.join()}/${String(webhook.enabled)}`}
-                webhook={webhook}
-                onUpdate={(input, onDone) =>
-                  gate.run(async () => {
-                    await mutate<webhooksUpdateMutation>(
-                      environment,
-                      graphql`
-                        mutation webhooksUpdateMutation($id: ID!, $input: UpdateWebhookInput!) {
-                          updateWebhook(id: $id, input: $input) {
+          <Stack gap="xs">
+            <Title order={3} size="h5">
+              {t('admin.webhooks.create')}
+            </Title>
+            <WebhookForm
+              submitLabel={t('admin.webhooks.create')}
+              onSubmit={(input, onDone) =>
+                gate.run(async () => {
+                  const response = await mutate<webhooksCreateMutation>(
+                    environment,
+                    graphql`
+                      mutation webhooksCreateMutation($input: CreateWebhookInput!) {
+                        createWebhook(input: $input) {
+                          webhook {
                             id
                             name
-                            url
-                            format
-                            kinds
-                            enabled
                           }
+                          secret
                         }
-                      `,
-                      { id: webhook.id, input },
-                    );
-                    onDone();
-                    succeed(t('admin.saved'));
-                  }, fail)
-                }
-                onDelete={() =>
-                  gate.run(async () => {
-                    await mutate<webhooksDeleteMutation>(
-                      environment,
-                      graphql`
-                        mutation webhooksDeleteMutation($id: ID!) {
-                          deleteWebhook(id: $id)
-                        }
-                      `,
-                      { id: webhook.id },
-                    );
-                    succeed(t('admin.webhooks.deleted', { name: webhook.name }));
-                  }, fail)
-                }
-              />
-            ))}
+                      }
+                    `,
+                    { input },
+                  );
+                  onDone();
+                  setSecret({
+                    name: response.createWebhook.webhook.name,
+                    secret: response.createWebhook.secret,
+                  });
+                  succeed(
+                    t('admin.webhooks.created', { name: response.createWebhook.webhook.name }),
+                  );
+                }, fail)
+              }
+            />
           </Stack>
         </Card>
-      )}
-
-      <Card withBorder>
-        <Stack gap="xs">
-          <Title order={3} size="h5">
-            {t('admin.webhooks.create')}
-          </Title>
-          <WebhookForm
-            submitLabel={t('admin.webhooks.create')}
-            onSubmit={(input, onDone) =>
-              gate.run(async () => {
-                const response = await mutate<webhooksCreateMutation>(
-                  environment,
-                  graphql`
-                    mutation webhooksCreateMutation($input: CreateWebhookInput!) {
-                      createWebhook(input: $input) {
-                        webhook {
-                          id
-                          name
-                        }
-                        secret
-                      }
-                    }
-                  `,
-                  { input },
-                );
-                onDone();
-                setSecret({
-                  name: response.createWebhook.webhook.name,
-                  secret: response.createWebhook.secret,
-                });
-                succeed(t('admin.webhooks.created', { name: response.createWebhook.webhook.name }));
-              }, fail)
-            }
-          />
-        </Stack>
-      </Card>
+      </SudoGate>
     </Stack>
   );
 }

@@ -19,9 +19,14 @@ function SettingsPage() {
   const { t } = useTranslation();
   const links: SettingsLink[] = [
     {
-      to: '/settings/account',
-      title: t('settings.account.title'),
-      body: t('settings.account.summary'),
+      to: '/settings/player',
+      title: t('settings.pages.player.title'),
+      body: t('settings.pages.player.summary'),
+    },
+    {
+      to: '/settings/guide',
+      title: t('settings.pages.guide.title'),
+      body: t('settings.pages.guide.summary'),
     },
     {
       to: '/settings/notifications',
@@ -29,9 +34,14 @@ function SettingsPage() {
       body: t('settings.notificationsSummary'),
     },
     {
-      to: '/settings/password',
-      title: t('viewer.changePassword'),
-      body: t('settings.passwordSummary'),
+      to: '/settings/security',
+      title: t('settings.pages.security.title'),
+      body: t('settings.pages.security.summary'),
+    },
+    {
+      to: '/settings/sessions',
+      title: t('settings.pages.sessions.title'),
+      body: t('settings.pages.sessions.summary'),
     },
   ];
 

@@ -23,6 +23,7 @@ import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
+import { SudoGate } from '../../settings/SudoGate';
 import type { channelsChannelTypeMutation } from './__generated__/channelsChannelTypeMutation.graphql';
 import type { channelsQuery } from './__generated__/channelsQuery.graphql';
 import type { channelsServiceMutation } from './__generated__/channelsServiceMutation.graphql';
@@ -89,7 +90,8 @@ function ChannelSettings() {
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), path);
+  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
+  const gate = useReauthGate(methods, path);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const fail = (caught: unknown) =>
     setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
@@ -101,80 +103,82 @@ function ChannelSettings() {
   return (
     <Stack gap="md">
       {gate.modal}
-      {message !== null && (
-        <Alert
-          color={message.ok ? 'teal' : 'red'}
-          role={message.ok ? 'status' : 'alert'}
-          withCloseButton
-          onClose={() => setMessage(null)}
-        >
-          {message.text}
-        </Alert>
-      )}
+      <SudoGate methods={methods} returnTo={path}>
+        {message !== null && (
+          <Alert
+            color={message.ok ? 'teal' : 'red'}
+            role={message.ok ? 'status' : 'alert'}
+            withCloseButton
+            onClose={() => setMessage(null)}
+          >
+            {message.text}
+          </Alert>
+        )}
 
-      <Section title={t('admin.system.channelTypes')}>
-        {data.channelTypes.map((channelType) => (
-          <ChannelTypeEditor
-            key={`${channelType.type}/${channelType.displayName}/${channelType.sortOrder}`}
-            channelType={channelType}
-            onSave={(input) =>
-              gate.run(async () => {
-                await mutate<channelsChannelTypeMutation>(
-                  environment,
-                  graphql`
-                    mutation channelsChannelTypeMutation(
-                      $type: String!
-                      $input: ChannelTypeInput!
-                    ) {
-                      updateChannelType(type: $type, input: $input) {
-                        type
-                        displayName
-                        sortOrder
-                      }
-                    }
-                  `,
-                  { type: channelType.type, input },
-                );
-                done();
-              }, fail)
-            }
-          />
-        ))}
-      </Section>
-
-      <Section title={t('admin.system.services')}>
-        <Text size="sm" c="dimmed">
-          {t('admin.system.servicesDescription')}
-        </Text>
-        <ScrollArea.Autosize mah={480}>
-          <Stack gap="xs">
-            {data.services.map((service) => (
-              <ServiceEditor
-                key={`${service.id}/${service.hidden}/${service.sortOrder}`}
-                service={service}
-                onSave={(input) =>
-                  gate.run(async () => {
-                    await mutate<channelsServiceMutation>(
-                      environment,
-                      graphql`
-                        mutation channelsServiceMutation($id: ID!, $input: ServiceInput!) {
-                          updateService(id: $id, input: $input) {
-                            id
-                            hidden
-                            sortOrder
-                          }
+        <Section title={t('admin.system.channelTypes')}>
+          {data.channelTypes.map((channelType) => (
+            <ChannelTypeEditor
+              key={`${channelType.type}/${channelType.displayName}/${channelType.sortOrder}`}
+              channelType={channelType}
+              onSave={(input) =>
+                gate.run(async () => {
+                  await mutate<channelsChannelTypeMutation>(
+                    environment,
+                    graphql`
+                      mutation channelsChannelTypeMutation(
+                        $type: String!
+                        $input: ChannelTypeInput!
+                      ) {
+                        updateChannelType(type: $type, input: $input) {
+                          type
+                          displayName
+                          sortOrder
                         }
-                      `,
-                      { id: service.id, input },
-                    );
-                    done();
-                  }, fail)
-                }
-              />
-            ))}
-          </Stack>
-        </ScrollArea.Autosize>
-      </Section>
+                      }
+                    `,
+                    { type: channelType.type, input },
+                  );
+                  done();
+                }, fail)
+              }
+            />
+          ))}
+        </Section>
+
+        <Section title={t('admin.system.services')}>
+          <Text size="sm" c="dimmed">
+            {t('admin.system.servicesDescription')}
+          </Text>
+          <ScrollArea.Autosize mah={480}>
+            <Stack gap="xs">
+              {data.services.map((service) => (
+                <ServiceEditor
+                  key={`${service.id}/${service.hidden}/${service.sortOrder}`}
+                  service={service}
+                  onSave={(input) =>
+                    gate.run(async () => {
+                      await mutate<channelsServiceMutation>(
+                        environment,
+                        graphql`
+                          mutation channelsServiceMutation($id: ID!, $input: ServiceInput!) {
+                            updateService(id: $id, input: $input) {
+                              id
+                              hidden
+                              sortOrder
+                            }
+                          }
+                        `,
+                        { id: service.id, input },
+                      );
+                      done();
+                    }, fail)
+                  }
+                />
+              ))}
+            </Stack>
+          </ScrollArea.Autosize>
+        </Section>
+      </SudoGate>
     </Stack>
   );
 }
@@ -199,6 +203,7 @@ function ServiceEditor({
   onSave,
 }: {
   service: {
+    id: string;
     name: string;
     logoUrl: string | null | undefined;
     hidden: boolean;

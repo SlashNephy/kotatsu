@@ -14,6 +14,7 @@ import { settingsErrorMessage } from '../settings/errors';
 import { mutate } from '../settings/mutate';
 import { clientHost } from '../settings/OAuthGrants';
 import { reauthMethods, useReauthGate } from '../settings/useReauthGate';
+import { SudoGate } from '../settings/SudoGate';
 import type { authorizeApproveMutation } from './__generated__/authorizeApproveMutation.graphql';
 import type { authorizeDenyMutation } from './__generated__/authorizeDenyMutation.graphql';
 import type { authorizeQuery } from './__generated__/authorizeQuery.graphql';
@@ -106,7 +107,8 @@ function Consent({ query }: { query: string }) {
     { query },
     { fetchPolicy: 'network-only' },
   );
-  const gate = useReauthGate(reauthMethods(data.secondFactors, data.passkeys, oidc), currentPath());
+  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
+  const gate = useReauthGate(methods, currentPath());
   const { authorization, errorRedirectUrl } = data.oauthAuthorization;
   // 初めは、求められたスコープのうち、ロールで許すものをすべて選んでおく。
   const [chosen, setChosen] = useState<string[]>(
@@ -115,6 +117,38 @@ function Consent({ query }: { query: string }) {
   );
   const [error, setError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
+
+  const leave = (url: string) => {
+    setLeaving(true);
+    window.location.assign(url);
+  };
+  const fail = (caught: unknown) => setError(settingsErrorMessage(t, caught));
+  const approve = (scopes: readonly string[]) =>
+    gate.run(async () => {
+      const response = await mutate<authorizeApproveMutation>(
+        environment,
+        graphql`
+          mutation authorizeApproveMutation($query: String!, $scopes: [String!]!) {
+            approveOAuthAuthorization(query: $query, scopes: $scopes)
+          }
+        `,
+        { query, scopes: [...scopes] },
+      );
+      leave(response.approveOAuthAuthorization);
+    }, fail);
+  const deny = () =>
+    gate.run(async () => {
+      const response = await mutate<authorizeDenyMutation>(
+        environment,
+        graphql`
+          mutation authorizeDenyMutation($query: String!) {
+            denyOAuthAuthorization(query: $query)
+          }
+        `,
+        { query },
+      );
+      leave(response.denyOAuthAuthorization);
+    }, fail);
 
   // パラメーターが正しくなければ、エラーを付けてクライアントへ戻す。
   useEffect(() => {
@@ -133,38 +167,6 @@ function Consent({ query }: { query: string }) {
     );
   }
 
-  const leave = (url: string) => {
-    setLeaving(true);
-    window.location.assign(url);
-  };
-  const fail = (caught: unknown) => setError(settingsErrorMessage(t, caught));
-  const approve = () =>
-    gate.run(async () => {
-      const response = await mutate<authorizeApproveMutation>(
-        environment,
-        graphql`
-          mutation authorizeApproveMutation($query: String!, $scopes: [String!]!) {
-            approveOAuthAuthorization(query: $query, scopes: $scopes)
-          }
-        `,
-        { query, scopes: chosen },
-      );
-      leave(response.approveOAuthAuthorization);
-    }, fail);
-  const deny = () =>
-    gate.run(async () => {
-      const response = await mutate<authorizeDenyMutation>(
-        environment,
-        graphql`
-          mutation authorizeDenyMutation($query: String!) {
-            denyOAuthAuthorization(query: $query)
-          }
-        `,
-        { query },
-      );
-      leave(response.denyOAuthAuthorization);
-    }, fail);
-
   return (
     <Stack>
       {gate.modal}
@@ -180,44 +182,50 @@ function Consent({ query }: { query: string }) {
         </Text>
       </Stack>
       <Text size="sm">{t('oauth.description', { name: authorization.clientName })}</Text>
-      <Stack gap="xs">
-        {authorization.scopes.map((scope) => {
-          const allowed = authorization.allowedScopes.includes(scope);
+      {/* どのアプリへの同意かは、本人確認の前にも出しておく。 */}
+      <SudoGate methods={methods} returnTo={currentPath()}>
+        <Stack gap="xs">
+          {authorization.scopes.map((scope) => {
+            const allowed = authorization.allowedScopes.includes(scope);
 
-          return (
-            <Checkbox
-              key={scope}
-              label={t(scope === 'mcp:write' ? 'oauth.scopeWrite' : 'oauth.scopeRead')}
-              description={
-                allowed
-                  ? t(scope === 'mcp:write' ? 'oauth.scopeWriteHelp' : 'oauth.scopeReadHelp')
-                  : t('oauth.scopeNotAllowed')
-              }
-              disabled={!allowed}
-              checked={chosen.includes(scope)}
-              onChange={(event) => {
-                const checked = event.currentTarget.checked;
-                setChosen((current) =>
-                  checked ? [...current, scope] : current.filter((value) => value !== scope),
-                );
-              }}
-            />
-          );
-        })}
-      </Stack>
-      {error !== null && (
-        <Alert color="red" role="alert">
-          {error}
-        </Alert>
-      )}
-      <Group justify="flex-end">
-        <Button variant="default" onClick={deny} disabled={gate.busy || leaving}>
-          {t('oauth.deny')}
-        </Button>
-        <Button onClick={approve} disabled={chosen.length === 0 || gate.busy || leaving}>
-          {t('oauth.approve')}
-        </Button>
-      </Group>
+            return (
+              <Checkbox
+                key={scope}
+                label={t(scope === 'mcp:write' ? 'oauth.scopeWrite' : 'oauth.scopeRead')}
+                description={
+                  allowed
+                    ? t(scope === 'mcp:write' ? 'oauth.scopeWriteHelp' : 'oauth.scopeReadHelp')
+                    : t('oauth.scopeNotAllowed')
+                }
+                disabled={!allowed}
+                checked={chosen.includes(scope)}
+                onChange={(event) => {
+                  const checked = event.currentTarget.checked;
+                  setChosen((current) =>
+                    checked ? [...current, scope] : current.filter((value) => value !== scope),
+                  );
+                }}
+              />
+            );
+          })}
+        </Stack>
+        {error !== null && (
+          <Alert color="red" role="alert">
+            {error}
+          </Alert>
+        )}
+        <Group justify="flex-end">
+          <Button variant="default" onClick={deny} disabled={gate.busy || leaving}>
+            {t('oauth.deny')}
+          </Button>
+          <Button
+            onClick={() => approve(chosen)}
+            disabled={chosen.length === 0 || gate.busy || leaving}
+          >
+            {t('oauth.approve')}
+          </Button>
+        </Group>
+      </SudoGate>
     </Stack>
   );
 }

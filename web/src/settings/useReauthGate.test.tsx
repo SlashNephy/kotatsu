@@ -1,6 +1,8 @@
-import { act, cleanup, renderHook } from '@testing-library/react';
+import { MantineProvider } from '@mantine/core';
+import { act, cleanup, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
+import '../i18n';
 import { AuthError } from '../auth/api';
 
 import { useReauthGate } from './useReauthGate';
@@ -14,6 +16,7 @@ const methods = {
 
 afterEach(() => {
   cleanup();
+  window.history.replaceState(null, '', '/');
 });
 
 describe('useReauthGate', () => {
@@ -58,5 +61,31 @@ describe('useReauthGate', () => {
 
     expect(onWaiting).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledTimes(wantError ? 1 : 0);
+  });
+});
+
+// Gate は、再認証の画面を出す画面の代わり。
+function Gate() {
+  const gate = useReauthGate(methods, '/admin/system');
+
+  return <MantineProvider>{gate.modal}</MantineProvider>;
+}
+
+describe('IdP での再認証から戻ったとき', () => {
+  test('失敗して戻ったときは、理由を出す', () => {
+    window.history.replaceState(null, '', '/admin/system?error=oidc_denied');
+
+    render(<Gate />);
+
+    expect(screen.getByRole('alert')).toBeTruthy();
+  });
+
+  test('成功して戻ったときは、何も出さない (開き直した画面は SudoGate が確かめる)', () => {
+    window.history.replaceState(null, '', '/admin/system');
+
+    render(<Gate />);
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });

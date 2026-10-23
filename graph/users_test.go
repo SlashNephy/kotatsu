@@ -25,6 +25,7 @@ const (
 	changeQuery     = `mutation($value: String!) { changePassword(password: $value) }`
 	sessionsQuery   = `{ sessions { id current userAgent sourceIp } }`
 	revokeQuery     = `mutation($id: ID!) { revokeSession(id: $id) }`
+	revokeOthers    = `mutation { revokeOtherSessions }`
 
 	adminName    = "admin"
 	weakValue    = "kotatsukotatsu"
@@ -219,6 +220,47 @@ func TestChangePasswordAndSessions(t *testing.T) {
 
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 	assert.Equal(t, []string{codeReauthRequired}, f.query(t, changeQuery, map[string]any{varValue: strongPhrase + "!"}, nil))
+}
+
+// TestRevokeOtherSessions は、ログイン中のユーザーの、今のセッションのほかをまとめて失効させることを確かめる (設計書 9.5)。
+// 乗っ取られた後の被害を抑える操作なので、再認証を求めない。ほかのユーザーのセッションは失効させない。
+func TestRevokeOtherSessions(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	others := []*fixture{f.withNewSession(t), f.withNewSession(t)}
+	mikan := f.as(t, mikanUser, auth.RoleMember)
+	// 再認証を求めないことを確かめるため、直近の認証の期限を過ぎてから操作する。
+	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
+
+	var revoked struct {
+		RevokeOtherSessions int `json:"revokeOtherSessions"`
+	}
+	require.Empty(t, f.query(t, revokeOthers, nil, &revoked))
+	assert.Equal(t, 2, revoked.RevokeOtherSessions)
+
+	var listed struct {
+		Sessions []struct {
+			Current bool `json:"current"`
+		} `json:"sessions"`
+	}
+	require.Empty(t, f.query(t, sessionsQuery, nil, &listed))
+	require.Len(t, listed.Sessions, 1)
+	assert.True(t, listed.Sessions[0].Current, "the current session is kept")
+	for _, other := range others {
+		assert.Equal(t, []string{"UNAUTHENTICATED"}, other.query(t, sessionsQuery, nil, nil))
+	}
+	assert.Empty(t, mikan.query(t, sessionsQuery, nil, nil), "the sessions of other users are kept")
+	// まとめて失効させたことを、件数とともに監査ログに残す。
+	var auditedCount int
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT (summary->>'count')::int FROM audit_events WHERE action = 'user.other_sessions_revoked' AND target_id = $1",
+		f.userID.String()).Scan(&auditedCount))
+	assert.Equal(t, 2, auditedCount)
+
+	// ほかのセッションがなければ、0 を返す。
+	require.Empty(t, f.query(t, revokeOthers, nil, &revoked))
+	assert.Equal(t, 0, revoked.RevokeOtherSessions)
 }
 
 // messages は、GraphQL を叩き、エラーのメッセージを返す。
