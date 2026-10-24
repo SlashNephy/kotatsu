@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/jackc/pgx/v5"
-
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -62,9 +60,4 @@ func secondFactorError(err error) error {
 	default:
 		return err
 	}
-}
-
-// inTx は、第二要素の操作を、1 つのトランザクションで行う。
-func (r *Resolver) inTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
-	return secondFactorError(pgx.BeginFunc(ctx, r.db, fn))
 }

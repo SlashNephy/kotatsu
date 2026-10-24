@@ -226,54 +226,17 @@ func (p *Passkeys) List(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) ([]
 }
 
 // Rename は、パスキーの名前を変える。
-func (p *Passkeys) Rename(ctx context.Context, tx pgx.Tx, actor *audit.Actor, userID, passkeyID uuid.UUID, name string) error {
-	name, err := normalizePasskeyName(name)
-	if err != nil {
-		return err
-	}
-	n, err := sqlc.New(tx).RenameUserPasskey(ctx, sqlc.RenameUserPasskeyParams{ID: passkeyID, UserID: userID, Name: name})
-	if err != nil {
-		return fmt.Errorf("failed to rename the passkey: %w", err)
-	}
-	if n == 0 {
-		return ErrPasskeyNotFound
-	}
-
-	return p.record(ctx, tx, actor, "user.passkey_renamed", userID, &Passkey{ID: passkeyID, Name: name, RPID: "", CreatedAt: time.Time{}, LastUsedAt: nil})
+func (p *Passkeys) Rename(ctx context.Context, db Beginner, actor *audit.Actor, userID, passkeyID uuid.UUID, name string) error {
+	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		return p.rename(ctx, tx, actor, userID, passkeyID, name)
+	})
 }
 
 // Delete は、パスキーを消す。パスワードを持たないユーザーの最後のパスキーは、ログインする手段がなくなるので消さない。
-func (p *Passkeys) Delete(ctx context.Context, tx pgx.Tx, actor *audit.Actor, userID, passkeyID uuid.UUID) error {
-	q := sqlc.New(tx)
-	// 同じユーザーのパスキーを同時に消して、最後の 1 つまで消してしまわないようにする。
-	if _, err := q.LockUser(ctx, userID); err != nil {
-		return fmt.Errorf("failed to lock the user: %w", err)
-	}
-	user, err := q.GetUser(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("failed to get the user: %w", err)
-	}
-	rows, err := q.ListUserPasskeys(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("failed to list passkeys: %w", err)
-	}
-	var target *sqlc.UserPasskey
-	for i := range rows {
-		if rows[i].ID == passkeyID {
-			target = &rows[i]
-		}
-	}
-	if target == nil {
-		return ErrPasskeyNotFound
-	}
-	if user.PasswordHash == nil && len(rows) == 1 {
-		return ErrLastPasskey
-	}
-	if _, err := q.DeleteUserPasskey(ctx, sqlc.DeleteUserPasskeyParams{ID: passkeyID, UserID: userID}); err != nil {
-		return fmt.Errorf("failed to delete the passkey: %w", err)
-	}
-
-	return p.record(ctx, tx, actor, "user.passkey_deleted", userID, passkeyOf(target))
+func (p *Passkeys) Delete(ctx context.Context, db Beginner, actor *audit.Actor, userID, passkeyID uuid.UUID) error {
+	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		return p.delete(ctx, tx, actor, userID, passkeyID)
+	})
 }
 
 func (p *Passkeys) register(
@@ -535,4 +498,53 @@ func decodeSession(encoded []byte) (*webauthn.SessionData, error) {
 	}
 
 	return &session, nil
+}
+
+func (p *Passkeys) rename(ctx context.Context, tx pgx.Tx, actor *audit.Actor, userID, passkeyID uuid.UUID, name string) error {
+	name, err := normalizePasskeyName(name)
+	if err != nil {
+		return err
+	}
+	n, err := sqlc.New(tx).RenameUserPasskey(ctx, sqlc.RenameUserPasskeyParams{ID: passkeyID, UserID: userID, Name: name})
+	if err != nil {
+		return fmt.Errorf("failed to rename the passkey: %w", err)
+	}
+	if n == 0 {
+		return ErrPasskeyNotFound
+	}
+
+	return p.record(ctx, tx, actor, "user.passkey_renamed", userID, &Passkey{ID: passkeyID, Name: name, RPID: "", CreatedAt: time.Time{}, LastUsedAt: nil})
+}
+
+func (p *Passkeys) delete(ctx context.Context, tx pgx.Tx, actor *audit.Actor, userID, passkeyID uuid.UUID) error {
+	q := sqlc.New(tx)
+	// 同じユーザーのパスキーを同時に消して、最後の 1 つまで消してしまわないようにする。
+	if _, err := q.LockUser(ctx, userID); err != nil {
+		return fmt.Errorf("failed to lock the user: %w", err)
+	}
+	user, err := q.GetUser(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to get the user: %w", err)
+	}
+	rows, err := q.ListUserPasskeys(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to list passkeys: %w", err)
+	}
+	var target *sqlc.UserPasskey
+	for i := range rows {
+		if rows[i].ID == passkeyID {
+			target = &rows[i]
+		}
+	}
+	if target == nil {
+		return ErrPasskeyNotFound
+	}
+	if user.PasswordHash == nil && len(rows) == 1 {
+		return ErrLastPasskey
+	}
+	if _, err := q.DeleteUserPasskey(ctx, sqlc.DeleteUserPasskeyParams{ID: passkeyID, UserID: userID}); err != nil {
+		return fmt.Errorf("failed to delete the passkey: %w", err)
+	}
+
+	return p.record(ctx, tx, actor, "user.passkey_deleted", userID, passkeyOf(target))
 }

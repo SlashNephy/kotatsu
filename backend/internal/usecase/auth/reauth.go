@@ -230,7 +230,7 @@ func markSessionReauthenticated(
 		Action:     actionReauthenticated,
 		TargetType: loginAuditTarget,
 		TargetID:   principal.UserID.String(),
-		Summary:    map[string]any{summaryMethod: string(method), "sessionId": principal.SessionID.String()},
+		Summary:    map[string]any{summaryMethod: string(method), summarySessionID: principal.SessionID.String()},
 		SourceIP:   client.SourceIP,
 		UserAgent:  client.UserAgent,
 	})

@@ -19,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
+	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
 )
 
 const (
@@ -73,6 +74,42 @@ func Cancel(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, key domain.Prog
 	}
 
 	return nil
+}
+
+// SetReserved は、ユーザー userID の、番組 key の視聴予約を付けるか外し、同じユーザーのほかの端末に知らせる。
+// 付けるときに、番組が EPG にないか、放送が始まっていれば ErrProgramUnavailable を返す。
+func SetReserved(ctx context.Context, db usersettings.Beginner, clk clock.Clock, userID uuid.UUID, key domain.ProgramKey, reserved bool) error {
+	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		if reserved {
+			if err := Reserve(ctx, tx, clk, userID, key); err != nil {
+				return err
+			}
+		} else if err := Cancel(ctx, tx, userID, key); err != nil {
+			return err
+		}
+
+		return usersettings.Touch(ctx, tx, clk, userID)
+	})
+}
+
+// UpdateReminderMinutes は、ユーザー userID の、視聴予約の通知を放送の何分前に送るかを変え、同じユーザーのほかの端末に知らせる。
+// 変えた後の分を返す。0 から MaxReminderMinutes の外なら ErrInvalidReminderMinutes を返す。
+func UpdateReminderMinutes(ctx context.Context, db usersettings.Beginner, clk clock.Clock, userID uuid.UUID, minutes int) (int, error) {
+	var updated int
+	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		var err error
+		updated, err = SetReminderMinutes(ctx, tx, clk, userID, minutes)
+		if err != nil {
+			return err
+		}
+
+		return usersettings.Touch(ctx, tx, clk, userID)
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	return updated, nil
 }
 
 // SetReminderMinutes は、ユーザー userID の、視聴予約の通知を放送の何分前に送るかを変える。

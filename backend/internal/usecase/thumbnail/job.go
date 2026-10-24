@@ -271,3 +271,27 @@ func writeFile(name string, data []byte) error {
 
 	return nil
 }
+
+// Beginner はトランザクションを始められるもの。*pgxpool.Pool と pgx.Tx が満たす。
+type Beginner interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
+// EnqueueGenerate は、録画 recordingID の代表画像とプレビュー画像を作り直すジョブを投入する。
+// 待っているジョブにだけ重ねない (GenerateArgs.InsertOpts)。作り終えた録画は、また作り直せる。重ねずに飛ばしたら false を返す。
+func EnqueueGenerate(ctx context.Context, db Beginner, inserter Inserter, recordingID uuid.UUID) (bool, error) {
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to begin a transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	results, err := inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: GenerateArgs{RecordingID: recordingID}, InsertOpts: nil}})
+	if err != nil {
+		return false, fmt.Errorf("failed to insert the thumbnail job: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("failed to commit the thumbnail job: %w", err)
+	}
+
+	return len(results) == 1 && !results[0].UniqueSkippedAsDuplicate, nil
+}

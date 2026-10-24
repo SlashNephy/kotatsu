@@ -3,8 +3,6 @@ package graph
 import (
 	"context"
 
-	pgx "github.com/jackc/pgx/v5"
-
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -32,13 +30,8 @@ func (r *mutationResolver) ConfirmTotpEnrollment(ctx context.Context, code strin
 	if err != nil {
 		return nil, err
 	}
-	var codes []string
-	err = r.inTx(ctx, func(tx pgx.Tx) error {
-		codes, err = r.factors.ConfirmTOTP(ctx, tx, actor, principal.UserID, code)
-
-		return err
-	})
-	if err != nil {
+	codes, err := r.factors.ConfirmTOTP(ctx, r.db, actor, principal.UserID, code)
+	if err := secondFactorError(err); err != nil {
 		return nil, err
 	}
 
@@ -51,9 +44,7 @@ func (r *mutationResolver) DeleteTotp(ctx context.Context) (*model.SecondFactorS
 	if err != nil {
 		return nil, err
 	}
-	if err := r.inTx(ctx, func(tx pgx.Tx) error {
-		return r.factors.DeleteTOTP(ctx, tx, actor, principal.UserID)
-	}); err != nil {
+	if err := secondFactorError(r.factors.DeleteTOTP(ctx, r.db, actor, principal.UserID)); err != nil {
 		return nil, err
 	}
 
@@ -66,13 +57,8 @@ func (r *mutationResolver) RegenerateRecoveryCodes(ctx context.Context) (*model.
 	if err != nil {
 		return nil, err
 	}
-	var codes []string
-	err = r.inTx(ctx, func(tx pgx.Tx) error {
-		codes, err = r.factors.RegenerateRecoveryCodes(ctx, tx, actor, principal.UserID)
-
-		return err
-	})
-	if err != nil {
+	codes, err := r.factors.RegenerateRecoveryCodes(ctx, r.db, actor, principal.UserID)
+	if err := secondFactorError(err); err != nil {
 		return nil, err
 	}
 

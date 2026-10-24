@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vikstrous/dataloadgen"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
@@ -45,7 +45,7 @@ type watchReservedKey struct {
 type loadersKey struct{}
 
 // newLoaders は、db から引く Loaders を作る。
-func newLoaders(db sqlc.DBTX, q *query.Queries, clk clock.Clock, rules *rule.Rules) *Loaders {
+func newLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule.Rules) *Loaders {
 	return &Loaders{
 		Users: dataloadgen.NewLoader(func(ctx context.Context, ids []uuid.UUID) ([]*domain.User, []error) {
 			rows, err := q.ListUsersByIDs(ctx, ids)
@@ -185,7 +185,7 @@ func orderBy[K comparable, V any](keys []K, byKey map[K]V, name string) ([]V, []
 }
 
 // withLoaders は、リクエストごとに Loaders を作って context に入れるミドルウェアを返す。
-func withLoaders(db sqlc.DBTX, q *query.Queries, clk clock.Clock, rules *rule.Rules) func(http.Handler) http.Handler {
+func withLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule.Rules) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), loadersKey{}, newLoaders(db, q, clk, rules))))

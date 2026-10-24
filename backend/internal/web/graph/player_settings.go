@@ -6,10 +6,6 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	pgx "github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -77,45 +73,22 @@ func (r *Resolver) updatePlayerSettings(ctx context.Context, input *model.Player
 			return nil, err
 		}
 	}
-	var settings *model.PlayerSettings
-	err = pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
-		q := sqlc.New(tx)
-		if encoded != nil {
-			err := q.SetCommentSettings(ctx, sqlc.SetCommentSettingsParams{UserID: principal.UserID, CommentSettings: encoded, Now: r.clock.Now()})
-			if err != nil {
-				return fmt.Errorf("failed to save the comment settings: %w", err)
-			}
-		}
-		if encodedCaptions != nil {
-			err := q.SetCaptionSettings(ctx, sqlc.SetCaptionSettingsParams{UserID: principal.UserID, CaptionSettings: encodedCaptions, Now: r.clock.Now()})
-			if err != nil {
-				return fmt.Errorf("failed to save the caption settings: %w", err)
-			}
-		}
-		row, err := q.UpsertPlayerSettings(ctx, sqlc.UpsertPlayerSettingsParams{
-			UserID: principal.UserID, JikkyoEnabled: optionalBool(input.JikkyoEnabled), CaptionsEnabled: optionalBool(input.CaptionsEnabled),
-			Now: r.clock.Now(),
-		})
-		if err != nil {
-			return err
-		}
-		comments, err := decodeCommentSettings(row.CommentSettings)
-		if err != nil {
-			return err
-		}
-		captions, err := decodeCaptionSettings(row.CaptionSettings)
-		if err != nil {
-			return err
-		}
-		settings = &model.PlayerSettings{JikkyoEnabled: row.JikkyoEnabled, CaptionsEnabled: row.CaptionsEnabled, Comments: comments, Captions: captions}
-
-		return usersettings.Touch(ctx, tx, r.clock, principal.UserID)
+	row, err := usersettings.UpdatePlayerSettings(ctx, r.db, r.clock, principal.UserID, &usersettings.PlayerSettingsChange{
+		JikkyoEnabled: input.JikkyoEnabled, CaptionsEnabled: input.CaptionsEnabled, CommentSettings: encoded, CaptionSettings: encodedCaptions,
 	})
 	if err != nil {
 		return nil, err
 	}
+	comments, err := decodeCommentSettings(row.CommentSettings)
+	if err != nil {
+		return nil, err
+	}
+	captions, err := decodeCaptionSettings(row.CaptionSettings)
+	if err != nil {
+		return nil, err
+	}
 
-	return settings, nil
+	return &model.PlayerSettings{JikkyoEnabled: row.JikkyoEnabled, CaptionsEnabled: row.CaptionsEnabled, Comments: comments, Captions: captions}, nil
 }
 
 // encodeCommentSettings は、コメントの設定を確かめて、DB に書く JSON にする。
@@ -197,13 +170,4 @@ func decodeCaptionSettings(raw []byte) (*model.CaptionSettings, error) {
 	}
 
 	return settings, nil
-}
-
-// optionalBool は、省いた項目 (nil) を、DB の NULL にする。
-func optionalBool(v *bool) pgtype.Bool {
-	if v == nil {
-		return pgtype.Bool{Bool: false, Valid: false}
-	}
-
-	return pgtype.Bool{Bool: *v, Valid: true}
 }

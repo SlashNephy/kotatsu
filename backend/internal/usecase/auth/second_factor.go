@@ -149,42 +149,17 @@ func (s *SecondFactors) BeginTOTP(ctx context.Context, db sqlc.DBTX, userID uuid
 }
 
 // ConfirmTOTP は、登録中の TOTP のコードを確かめて有効にし、新しいリカバリーコードを返す。
-// 既に TOTP があれば置き換え、古いリカバリーコードは使えなくする。tx の中で呼ぶ。
-func (s *SecondFactors) ConfirmTOTP(ctx context.Context, tx pgx.Tx, actor *audit.Actor, userID uuid.UUID, code string) ([]string, error) {
-	q := sqlc.New(tx)
-	now := s.clock.Now()
-	enrollment, err := q.GetTOTPEnrollmentForUpdate(ctx, sqlc.GetTOTPEnrollmentForUpdateParams{UserID: userID, Now: now})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNoTOTPEnrollment
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get the TOTP enrollment: %w", err)
-	}
-	secret, err := s.box.Open(enrollment.SecretEncrypted)
-	if err != nil {
-		return nil, err
-	}
-	step, ok, err := totp.Verify(secret, code, now, 0)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, ErrInvalidSecondFactor
-	}
+// 既に TOTP があれば置き換え、古いリカバリーコードは使えなくする。1 つのトランザクションで行う。
+func (s *SecondFactors) ConfirmTOTP(ctx context.Context, db Beginner, actor *audit.Actor, userID uuid.UUID, code string) ([]string, error) {
+	var codes []string
+	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		var err error
+		codes, err = s.confirmTOTP(ctx, tx, actor, userID, code)
 
-	err = q.UpsertUserTOTP(ctx, sqlc.UpsertUserTOTPParams{UserID: userID, SecretEncrypted: enrollment.SecretEncrypted, LastUsedStep: step, Now: now})
-	if err != nil {
-		return nil, fmt.Errorf("failed to enable the TOTP: %w", err)
-	}
-	if err := q.DeleteTOTPEnrollment(ctx, userID); err != nil {
-		return nil, fmt.Errorf("failed to finish the TOTP enrollment: %w", err)
-	}
-	codes, err := s.replaceRecoveryCodes(ctx, q, userID, now)
-	if err != nil {
-		return nil, err
-	}
+		return err
+	})
 
-	return codes, s.record(ctx, tx, actor, "user.totp_enabled", userID)
+	return codes, err
 }
 
 // VerifyTOTP は、TOTP のコードを確かめる。一度受け付けたコードは、二度と受け付けない。tx の中で呼ぶ。
@@ -233,39 +208,23 @@ func (s *SecondFactors) UseRecoveryCode(ctx context.Context, db sqlc.DBTX, userI
 // DeleteTOTP は、TOTP を消す。リカバリーコードは TOTP の予備なので、あわせて消す。
 //
 // 第二要素がなくなると、次にパスワードでログインしたときに、TOTP を登録し直すことになる (設計書 9.3)。
-func (s *SecondFactors) DeleteTOTP(ctx context.Context, tx pgx.Tx, actor *audit.Actor, userID uuid.UUID) error {
-	q := sqlc.New(tx)
-	n, err := q.DeleteUserTOTP(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("failed to delete the TOTP: %w", err)
-	}
-	if n == 0 {
-		return ErrNoTOTP
-	}
-	if err := q.DeleteRecoveryCodes(ctx, userID); err != nil {
-		return fmt.Errorf("failed to delete recovery codes: %w", err)
-	}
-
-	return s.record(ctx, tx, actor, "user.totp_disabled", userID)
+func (s *SecondFactors) DeleteTOTP(ctx context.Context, db Beginner, actor *audit.Actor, userID uuid.UUID) error {
+	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		return s.deleteTOTP(ctx, tx, actor, userID)
+	})
 }
 
 // RegenerateRecoveryCodes は、リカバリーコードを作り直す。古いコードは使えなくなる。TOTP を登録していなければ作らない。
-func (s *SecondFactors) RegenerateRecoveryCodes(ctx context.Context, tx pgx.Tx, actor *audit.Actor, userID uuid.UUID) ([]string, error) {
-	q := sqlc.New(tx)
-	// TOTP の行をロックし、同時に TOTP を消されて、TOTP のないリカバリーコードが残らないようにする。
-	_, err := q.GetUserTOTPForUpdate(ctx, userID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNoTOTP
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get the TOTP: %w", err)
-	}
-	codes, err := s.replaceRecoveryCodes(ctx, q, userID, s.clock.Now())
-	if err != nil {
-		return nil, err
-	}
+func (s *SecondFactors) RegenerateRecoveryCodes(ctx context.Context, db Beginner, actor *audit.Actor, userID uuid.UUID) ([]string, error) {
+	var codes []string
+	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		var err error
+		codes, err = s.regenerateRecoveryCodes(ctx, tx, actor, userID)
 
-	return codes, s.record(ctx, tx, actor, "user.recovery_codes_regenerated", userID)
+		return err
+	})
+
+	return codes, err
 }
 
 func (s *SecondFactors) replaceRecoveryCodes(ctx context.Context, q *sqlc.Queries, userID uuid.UUID, now time.Time) ([]string, error) {
@@ -323,4 +282,76 @@ func hashRecoveryCode(code string) []byte {
 	sum := sha256.Sum256([]byte(normalized))
 
 	return sum[:]
+}
+
+// confirmTOTP は、ConfirmTOTP を tx の中で行う。
+func (s *SecondFactors) confirmTOTP(ctx context.Context, tx pgx.Tx, actor *audit.Actor, userID uuid.UUID, code string) ([]string, error) {
+	q := sqlc.New(tx)
+	now := s.clock.Now()
+	enrollment, err := q.GetTOTPEnrollmentForUpdate(ctx, sqlc.GetTOTPEnrollmentForUpdateParams{UserID: userID, Now: now})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNoTOTPEnrollment
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the TOTP enrollment: %w", err)
+	}
+	secret, err := s.box.Open(enrollment.SecretEncrypted)
+	if err != nil {
+		return nil, err
+	}
+	step, ok, err := totp.Verify(secret, code, now, 0)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, ErrInvalidSecondFactor
+	}
+
+	err = q.UpsertUserTOTP(ctx, sqlc.UpsertUserTOTPParams{UserID: userID, SecretEncrypted: enrollment.SecretEncrypted, LastUsedStep: step, Now: now})
+	if err != nil {
+		return nil, fmt.Errorf("failed to enable the TOTP: %w", err)
+	}
+	if err := q.DeleteTOTPEnrollment(ctx, userID); err != nil {
+		return nil, fmt.Errorf("failed to finish the TOTP enrollment: %w", err)
+	}
+	codes, err := s.replaceRecoveryCodes(ctx, q, userID, now)
+	if err != nil {
+		return nil, err
+	}
+
+	return codes, s.record(ctx, tx, actor, "user.totp_enabled", userID)
+}
+
+func (s *SecondFactors) deleteTOTP(ctx context.Context, tx pgx.Tx, actor *audit.Actor, userID uuid.UUID) error {
+	q := sqlc.New(tx)
+	n, err := q.DeleteUserTOTP(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete the TOTP: %w", err)
+	}
+	if n == 0 {
+		return ErrNoTOTP
+	}
+	if err := q.DeleteRecoveryCodes(ctx, userID); err != nil {
+		return fmt.Errorf("failed to delete recovery codes: %w", err)
+	}
+
+	return s.record(ctx, tx, actor, "user.totp_disabled", userID)
+}
+
+func (s *SecondFactors) regenerateRecoveryCodes(ctx context.Context, tx pgx.Tx, actor *audit.Actor, userID uuid.UUID) ([]string, error) {
+	q := sqlc.New(tx)
+	// TOTP の行をロックし、同時に TOTP を消されて、TOTP のないリカバリーコードが残らないようにする。
+	_, err := q.GetUserTOTPForUpdate(ctx, userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNoTOTP
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the TOTP: %w", err)
+	}
+	codes, err := s.replaceRecoveryCodes(ctx, q, userID, s.clock.Now())
+	if err != nil {
+		return nil, err
+	}
+
+	return codes, s.record(ctx, tx, actor, "user.recovery_codes_regenerated", userID)
 }

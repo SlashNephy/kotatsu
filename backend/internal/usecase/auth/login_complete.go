@@ -200,7 +200,7 @@ func startSession(
 		Action:     "user.login",
 		TargetType: loginAuditTarget,
 		TargetID:   userID.String(),
-		Summary:    map[string]any{summaryMethod: string(method), "sessionId": session.ID.String()},
+		Summary:    map[string]any{summaryMethod: string(method), summarySessionID: session.ID.String()},
 		SourceIP:   client.SourceIP,
 		UserAgent:  client.UserAgent,
 	})
@@ -252,7 +252,7 @@ func (l *Logins) CompleteEnrollment(ctx context.Context, db Database, token, cod
 		if err := l.requireNoSecondFactor(ctx, tx, row); err != nil {
 			return err
 		}
-		codes, err := l.factors.ConfirmTOTP(ctx, tx, audit.UserFrom(row.UserID, client.SourceIP, client.UserAgent), row.UserID, code)
+		codes, err := l.factors.confirmTOTP(ctx, tx, audit.UserFrom(row.UserID, client.SourceIP, client.UserAgent), row.UserID, code)
 		verifyErr = err
 		if errors.Is(err, ErrInvalidSecondFactor) {
 			return l.recordSecondFactorFailure(ctx, tx, row, attempt, SecondFactorTOTP, client)

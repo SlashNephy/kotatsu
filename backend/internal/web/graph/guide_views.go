@@ -11,12 +11,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
@@ -29,8 +26,6 @@ const (
 	maxGuideViewName = 100
 	// maxGuideViewServices は、番組表ビューに並べられるサービスの数の上限。
 	maxGuideViewServices = 1000
-	// pgUniqueViolation は、一意制約の違反を表す PostgreSQL のエラーコード。
-	pgUniqueViolation = "23505"
 )
 
 // guideViewSettings は、番組表ビューの条件の、JSONB に保存する形。
@@ -177,42 +172,20 @@ func (r *Resolver) saveGuideView(ctx context.Context, viewID *uuid.UUID, in *mod
 	}
 
 	// 番組表ビューは個人の設定なので、書いたら、同じユーザーのほかの端末に知らせる。
-	err = pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
-		q := sqlc.New(tx)
-		now := r.clock.Now()
-		if viewID == nil {
-			viewID = new(id.New())
-			err := q.InsertGuideView(ctx, sqlc.InsertGuideViewParams{
-				ID: *viewID, UserID: principal.UserID, Name: in.Name, Settings: encoded, HideEmptyServices: in.HideEmptyServices, Now: now,
-			})
-			if err != nil {
-				return err
-			}
-		} else {
-			n, err := q.UpdateGuideView(ctx, sqlc.UpdateGuideViewParams{
-				ID: *viewID, UserID: principal.UserID, Name: in.Name, Settings: encoded, HideEmptyServices: in.HideEmptyServices, Now: now,
-			})
-			if err != nil {
-				return err
-			}
-			if n == 0 {
-				return NewError(CodeNotFound, "guide view not found")
-			}
-		}
-
-		return usersettings.Touch(ctx, tx, r.clock, principal.UserID)
+	saved, err := usersettings.SaveGuideView(ctx, r.db, r.clock, principal.UserID, viewID, &usersettings.GuideView{
+		Name: in.Name, Settings: encoded, HideEmptyServices: in.HideEmptyServices,
 	})
-	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgUniqueViolation {
+	if errors.Is(err, usersettings.ErrDuplicateGuideViewName) {
 		return nil, NewError(CodeBadUserInput, "a guide view with the same name already exists")
 	}
-	if _, ok := errors.AsType[*Error](err); ok {
-		return nil, err
+	if errors.Is(err, usersettings.ErrGuideViewNotFound) {
+		return nil, NewError(CodeNotFound, "guide view not found")
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to save the guide view: %w", err)
+		return nil, err
 	}
 
-	row, err := r.queries.GetGuideView(ctx, query.GetGuideViewParams{ID: *viewID, UserID: principal.UserID})
+	row, err := r.queries.GetGuideView(ctx, query.GetGuideViewParams{ID: saved, UserID: principal.UserID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the guide view: %w", err)
 	}
@@ -288,15 +261,10 @@ func matchProgram(service *model.Service, p *model.Program) *match.Program {
 
 // deleteGuideView は、ユーザーの番組表ビューを消し、同じユーザーのほかの端末に知らせる。
 func (r *Resolver) deleteGuideView(ctx context.Context, userID, viewID uuid.UUID) error {
-	return pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
-		n, err := sqlc.New(tx).DeleteGuideView(ctx, sqlc.DeleteGuideViewParams{ID: viewID, UserID: userID})
-		if err != nil {
-			return fmt.Errorf("failed to delete the guide view: %w", err)
-		}
-		if n == 0 {
-			return NewError(CodeNotFound, "guide view not found")
-		}
+	err := usersettings.DeleteGuideView(ctx, r.db, r.clock, userID, viewID)
+	if errors.Is(err, usersettings.ErrGuideViewNotFound) {
+		return NewError(CodeNotFound, "guide view not found")
+	}
 
-		return usersettings.Touch(ctx, tx, r.clock, userID)
-	})
+	return err
 }
