@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/riverqueue/river"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
@@ -231,7 +232,7 @@ func isSkip(err error) bool {
 
 	return errors.Is(err, rule.ErrInvalidRule) ||
 		errors.Is(err, match.ErrInvalidConditions) ||
-		errors.Is(err, reserve.ErrInvalidReservation) ||
+		errors.Is(err, domain.ErrInvalidReservation) ||
 		errors.Is(err, reserve.ErrInvalidSettings) ||
 		errors.Is(err, reserve.ErrProgramNotFound)
 }
@@ -320,7 +321,7 @@ func (a *applier) ruleInput(r *Rule) *rule.Input {
 		window = new(min(*r.PeriodToAvoidDuplicate, maxDuplicateWindowDays))
 	}
 
-	overrides := new(reserve.Overrides)
+	overrides := new(domain.RecordingOverrides)
 	poolID, ok := a.poolOf(r.ParentDirectoryName)
 	if !ok {
 		notes = append(notes, "保存先 "+r.ParentDirectoryName+" (プールを対応付けていない)")
@@ -451,7 +452,7 @@ func (a *applier) reserve(ctx context.Context, tx pgx.Tx, r *Reserve) (uuid.UUID
 	if !ok {
 		return uuid.Nil, skip("directory %q is not mapped to a pool", r.ParentDirectoryName)
 	}
-	overrides := &reserve.Overrides{PoolID: poolID, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil}
+	overrides := &domain.RecordingOverrides{PoolID: poolID, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil}
 
 	created, err := a.createReservation(ctx, tx, r, overrides)
 	if err != nil {
@@ -469,7 +470,7 @@ func (a *applier) reserve(ctx context.Context, tx pgx.Tx, r *Reserve) (uuid.UUID
 }
 
 // createReservation は、時刻予約か番組予約を作る。番組予約の番組がすでに予約されていれば、取り込まない。
-func (a *applier) createReservation(ctx context.Context, tx pgx.Tx, r *Reserve, overrides *reserve.Overrides) (*reserve.Reservation, error) {
+func (a *applier) createReservation(ctx context.Context, tx pgx.Tx, r *Reserve, overrides *domain.RecordingOverrides) (*domain.Reservation, error) {
 	if r.IsTimeSpecified {
 		return a.importer.reservations.CreateTime(ctx, tx, a.actor, &reserve.TimeInput{
 			ServiceID: r.ChannelID, StartAt: r.StartAt.UTC(), EndAt: r.EndAt.UTC(), Name: r.Name, Overrides: overrides,

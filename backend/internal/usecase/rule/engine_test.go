@@ -13,9 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -141,12 +143,12 @@ func (f *engineFixture) reserved(t *testing.T) map[int64]bool {
 	return reserved
 }
 
-func (f *engineFixture) reservationOf(t *testing.T, eventID int64) *reserve.Reservation {
+func (f *engineFixture) reservationOf(t *testing.T, eventID int64) *domain.Reservation {
 	t.Helper()
 
 	var reservationID uuid.UUID
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT id FROM reservations WHERE service_id = $1 AND event_id = $2", serviceID(), eventID).Scan(&reservationID))
-	reservation, err := f.reservations.Get(t.Context(), f.pool, reservationID)
+	reservation, err := query.New(f.pool).GetReservation(t.Context(), reservationID)
 	require.NoError(t, err)
 
 	return reservation
@@ -174,7 +176,7 @@ func TestEngineIsIdempotent(t *testing.T) {
 	assert.Equal(t, &rule.Result{Created: 2, Deleted: 0, Linked: 2, Unlinked: 0, Skipped: map[uuid.UUID]error{}}, f.run(t))
 	want := map[int64]bool{5: true, 6: true}
 	assert.Equal(t, want, f.reserved(t))
-	assert.Equal(t, reserve.KindRule, f.reservationOf(t, 5).Kind)
+	assert.Equal(t, domain.ReservationKindRule, f.reservationOf(t, 5).Kind)
 
 	// 同じ EPG とルールで何度照合しても、予約の集合は変わらない。
 	for range 3 {
@@ -295,25 +297,25 @@ func TestManualReservationOverridesRuleReservation(t *testing.T) {
 			r := f.createRule(t, `テスト番組 5$`, nil)
 			f.run(t)
 			ruleReservation := f.reservationOf(t, 5)
-			require.Equal(t, reserve.KindRule, ruleReservation.Kind)
+			require.Equal(t, domain.ReservationKindRule, ruleReservation.Kind)
 			if tt.disable {
 				require.NoError(t, f.reservations.Delete(t.Context(), f.pool, f.user, ruleReservation.ID))
 			}
 
 			got, created, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, &reserve.ProgramInput{
-				ServiceID: serviceID(), EventID: 5, FollowEventRelay: false, Overrides: &reserve.Overrides{EndMarginSeconds: new(120)},
+				ServiceID: serviceID(), EventID: 5, FollowEventRelay: false, Overrides: &domain.RecordingOverrides{EndMarginSeconds: new(120)},
 			})
 			require.NoError(t, err)
 			assert.False(t, created)
 			assert.Equal(t, ruleReservation.ID, got.ID)
-			assert.Equal(t, reserve.KindProgram, got.Kind)
+			assert.Equal(t, domain.ReservationKindProgram, got.Kind)
 			assert.True(t, got.Enabled)
 			assert.False(t, got.FollowEventRelay)
-			assert.Equal(t, &reserve.Overrides{EndMarginSeconds: new(120)}, got.Overrides)
+			assert.Equal(t, &domain.RecordingOverrides{EndMarginSeconds: new(120)}, got.Overrides)
 
 			// ルールに一致したまま照合しても、手動の予約のまま変えない。
 			assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: map[uuid.UUID]error{}}, f.run(t))
-			assert.Equal(t, reserve.KindProgram, f.reservationOf(t, 5).Kind)
+			assert.Equal(t, domain.ReservationKindProgram, f.reservationOf(t, 5).Kind)
 
 			// ルールに一致しなくなっても、手動の予約は残る。
 			in := unmatchedInput(r)
@@ -404,7 +406,7 @@ func TestEngineKeepsOneReservationForMultipleRules(t *testing.T) {
 
 	f := newEngineFixture(t)
 	manual, _, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, &reserve.ProgramInput{
-		ServiceID: serviceID(), EventID: 6, FollowEventRelay: false, Overrides: &reserve.Overrides{Priority: new(5)},
+		ServiceID: serviceID(), EventID: 6, FollowEventRelay: false, Overrides: &domain.RecordingOverrides{Priority: new(5)},
 	})
 	require.NoError(t, err)
 	first := f.createRule(t, `テスト番組 (5|6)$`, nil)
@@ -419,7 +421,7 @@ func TestEngineKeepsOneReservationForMultipleRules(t *testing.T) {
 	// 手動の予約は、手動の設定のまま残る。
 	got := f.reservationOf(t, 6)
 	assert.Equal(t, manual.ID, got.ID)
-	assert.Equal(t, reserve.KindProgram, got.Kind)
+	assert.Equal(t, domain.ReservationKindProgram, got.Kind)
 	assert.Equal(t, new(5), got.Overrides.Priority)
 
 	// ルールが一致しなくなっても、手動の予約は消さず、関係だけを除く。

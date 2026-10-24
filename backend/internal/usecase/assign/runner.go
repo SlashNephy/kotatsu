@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -54,11 +55,11 @@ type Runner struct {
 }
 
 // DefaultsFunc は、録画設定の全体の既定値を返す。画面から変えられるので (設計書 11.2)、割り当てのたびに引く。
-type DefaultsFunc func(ctx context.Context, db sqlc.DBTX) (*reserve.Settings, error)
+type DefaultsFunc func(ctx context.Context, db sqlc.DBTX) (*domain.RecordingSettings, error)
 
 // FixedDefaults は、いつも settings を返す DefaultsFunc を返す。
-func FixedDefaults(settings *reserve.Settings) DefaultsFunc {
-	return func(context.Context, sqlc.DBTX) (*reserve.Settings, error) {
+func FixedDefaults(settings *domain.RecordingSettings) DefaultsFunc {
+	return func(context.Context, sqlc.DBTX) (*domain.RecordingSettings, error) {
 		return settings, nil
 	}
 }
@@ -66,7 +67,7 @@ func FixedDefaults(settings *reserve.Settings) DefaultsFunc {
 // NewRunner は Runner を作る。defaults は録画設定の全体の既定値を返す。nil なら Go の既定値を使う。opts は nil でもよい。
 func NewRunner(pool *pgxpool.Pool, clk clock.Clock, guard Guard, logger *slog.Logger, defaults DefaultsFunc, opts *RunnerOptions) *Runner {
 	if defaults == nil {
-		defaults = FixedDefaults(reserve.DefaultSettings())
+		defaults = FixedDefaults(domain.DefaultRecordingSettings())
 	}
 	o := RunnerOptions{Debounce: DefaultDebounce, Interval: DefaultInterval, PollOnly: false, PollInterval: notify.DefaultPollInterval}
 	if opts != nil {
@@ -136,7 +137,7 @@ func (r *Runner) RunOnce(ctx context.Context) (*Result, error) {
 			return fmt.Errorf("failed to get the default recording settings: %w", err)
 		}
 		if defaults == nil {
-			defaults = reserve.DefaultSettings()
+			defaults = domain.DefaultRecordingSettings()
 		}
 		reservations, err := r.inputs(ctx, q, defaults, rows, now)
 		if err != nil {
@@ -215,7 +216,7 @@ func (r *Runner) emitConflicts(ctx context.Context, tx pgx.Tx, conflicts []uuid.
 			"endAt":         reservation.EndAt,
 		}
 		target.AddTo(payload)
-		err = notification.EmitTo(ctx, tx, r.clock, notification.KindReservationConflict, payload, target.Audience)
+		err = notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindReservationConflict, payload, target.Audience)
 		if err != nil {
 			return err
 		}
@@ -229,7 +230,7 @@ func (r *Runner) emitConflicts(ctx context.Context, tx pgx.Tx, conflicts []uuid.
 func (r *Runner) inputs(
 	ctx context.Context,
 	q *sqlc.Queries,
-	defaults *reserve.Settings,
+	defaults *domain.RecordingSettings,
 	rows []sqlc.ListAssignableReservationsRow,
 	now time.Time,
 ) ([]*Reservation, error) {
@@ -249,14 +250,14 @@ func (r *Runner) inputs(
 	reservations := make([]*Reservation, 0, len(rows))
 	for _, row := range rows {
 		settings := defaults
-		if raw, ok := ruleSettings[row.ID]; ok && reserve.Kind(row.Kind) == reserve.KindRule {
-			overrides, err := reserve.DecodeOverrides(raw)
+		if raw, ok := ruleSettings[row.ID]; ok && domain.ReservationKind(row.Kind) == domain.ReservationKindRule {
+			overrides, err := domain.DecodeOverrides(raw)
 			if err != nil {
 				return nil, err
 			}
 			settings = settings.Resolve(overrides)
 		}
-		overrides, err := reserve.DecodeOverrides(row.Settings)
+		overrides, err := domain.DecodeOverrides(row.Settings)
 		if err != nil {
 			return nil, err
 		}

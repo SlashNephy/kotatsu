@@ -10,10 +10,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
-	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
@@ -87,12 +87,12 @@ func toRuleInput(in *model.RuleInput) (*rule.Input, error) {
 }
 
 // toOverrides は、録画設定の上書きの入力を、予約の録画設定の上書きにする。省いたら何も上書きしない。
-func toOverrides(in *model.RecordingSettingsOverridesInput) *reserve.Overrides {
+func toOverrides(in *model.RecordingSettingsOverridesInput) *domain.RecordingOverrides {
 	if in == nil {
-		return &reserve.Overrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil}
+		return &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil}
 	}
 
-	return &reserve.Overrides{
+	return &domain.RecordingOverrides{
 		PoolID:             in.PoolID,
 		FileNameTemplate:   in.FileNameTemplate,
 		StartMarginSeconds: in.StartMarginSeconds,
@@ -102,7 +102,7 @@ func toOverrides(in *model.RecordingSettingsOverridesInput) *reserve.Overrides {
 	}
 }
 
-func toOverridesModel(o *reserve.Overrides) *model.RecordingSettingsOverrides {
+func toOverridesModel(o *domain.RecordingOverrides) *model.RecordingSettingsOverrides {
 	if o == nil {
 		return &model.RecordingSettingsOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil}
 	}

@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/testutil/webauthntest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
-	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
 )
 
 const (
@@ -424,7 +424,7 @@ func TestRenameAndDeletePasskey(t *testing.T) {
 			})
 			// 登録、名前の変更、削除のたびに、ほかの端末に知らせるため、設定の版数を上げる。消せなければ上げない。
 			version := func() int64 {
-				v, err := usersettings.Version(t.Context(), f.db, f.user.ID)
+				v, err := query.New(f.db).UserSettingsVersion(t.Context(), f.user.ID)
 				require.NoError(t, err)
 
 				return v

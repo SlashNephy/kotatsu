@@ -6,7 +6,6 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
-	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 )
 
@@ -14,5 +13,5 @@ import (
 func NewLoaders(pool *pgxpool.Pool) *Loaders {
 	clk := new(clock.Real)
 
-	return newLoaders(pool, query.New(pool), rule.NewRules(clk, audit.NewRecorder(clk)), reserve.NewReservations(clk, audit.NewRecorder(clk)))
+	return newLoaders(pool, query.New(pool), clk, rule.NewRules(clk, audit.NewRecorder(clk)))
 }

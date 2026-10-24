@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
@@ -86,7 +87,7 @@ func newFixture(t *testing.T) *fixture {
 func (f *fixture) reserve(t *testing.T, user string, eventID int64) {
 	t.Helper()
 
-	require.NoError(t, watch.Reserve(t.Context(), f.pool, f.clock, f.users[user], watch.ProgramKey{ServiceID: serviceID(), EventID: eventID}))
+	require.NoError(t, watch.Reserve(t.Context(), f.pool, f.clock, f.users[user], domain.ProgramKey{ServiceID: serviceID(), EventID: eventID}))
 }
 
 // sent は、記録した視聴予約の通知の、受け取るユーザーの名前と payload を、記録した順に返す。
@@ -253,7 +254,7 @@ func TestReserve(t *testing.T) {
 	}
 	// 同じ番組に二度付けるので、順に動かす。
 	for _, tt := range tests {
-		err := watch.Reserve(t.Context(), f.pool, f.clock, f.users["alice"], watch.ProgramKey{ServiceID: serviceID(), EventID: tt.eventID})
+		err := watch.Reserve(t.Context(), f.pool, f.clock, f.users["alice"], domain.ProgramKey{ServiceID: serviceID(), EventID: tt.eventID})
 		if tt.wantErr == nil {
 			require.NoError(t, err, tt.name)
 		} else {

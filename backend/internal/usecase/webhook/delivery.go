@@ -19,6 +19,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
@@ -217,7 +218,7 @@ func Body(format Format, event *sqlc.NotificationEvent, location *time.Location)
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
 			return nil, fmt.Errorf("failed to decode the notification payload: %w", err)
 		}
-		text := notification.Message(notification.Kind(event.Kind), payload, location)
+		text := notification.Message(domain.NotificationKind(event.Kind), payload, location)
 		if format == FormatDiscord {
 			value = map[string]string{"content": text}
 		} else {

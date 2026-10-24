@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/lease"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
@@ -111,7 +112,7 @@ func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 		})
 		eg.Go(func() error {
 			// 録画設定の全体の既定値は、画面から変えられる (設計書 11.2) ので、割り当てのたびに引く。
-			defaults := func(ctx context.Context, db sqlc.DBTX) (*reserve.Settings, error) {
+			defaults := func(ctx context.Context, db sqlc.DBTX) (*domain.RecordingSettings, error) {
 				system, err := settings.Load(ctx, db)
 				if err != nil {
 					return nil, err

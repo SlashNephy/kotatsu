@@ -217,7 +217,7 @@ func NewHandler(opts *Options) http.Handler {
 	server.SetErrorPresenter(errorPresenter(o.Logger))
 	server.SetRecoverFunc(recoverFunc(o.Logger))
 
-	handler := withLoaders(o.DB, resolver.queries, resolver.rules, resolver.reservations)(server)
+	handler := withLoaders(o.DB, resolver.queries, resolver.clock, resolver.rules)(server)
 	if o.Sessions != nil {
 		handler = revalidateSubscriptions(handler, o.Sessions, o.DB, o.HeartbeatInterval, o.Logger)
 	}

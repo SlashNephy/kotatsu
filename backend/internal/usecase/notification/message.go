@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/halfwidth"
 )
 
 // Message は、イベントを、人が読む 1 行の文にする。Discord や Slack の Webhook のように、文で届ける通知先に使う。
 // 日時は、表示のタイムゾーン location で書く。nil なら UTC で書く。payload に材料がなければ、種類だけの文にする。
 // 番組名とサービス名は、画面の表示と同じく、全角の英数字を半角にして書く。
-func Message(kind Kind, payload map[string]any, location *time.Location) string {
+func Message(kind domain.NotificationKind, payload map[string]any, location *time.Location) string {
 	if location == nil {
 		location = time.UTC
 	}
@@ -25,9 +26,9 @@ func Message(kind Kind, payload map[string]any, location *time.Location) string 
 	}
 
 	switch kind {
-	case KindRecordingStarted:
+	case domain.NotificationKindRecordingStarted:
 		return withName("録画を始めました")
-	case KindRecordingCompleted:
+	case domain.NotificationKindRecordingCompleted:
 		if notBroadcast, _ := payload["notBroadcast"].(bool); notBroadcast {
 			text := "予約した番組は、予定の時間に放送されませんでした"
 			if name != "" {
@@ -41,20 +42,20 @@ func Message(kind Kind, payload map[string]any, location *time.Location) string 
 		}
 
 		return withName("録画が終わりました")
-	case KindRecordingFailed:
+	case domain.NotificationKindRecordingFailed:
 		return withName("録画に失敗しました")
-	case KindReservationConflict:
+	case domain.NotificationKindReservationConflict:
 		text := "チューナーが足りず、録画できない見込みの予約があります"
 		if detail := conflictDetail(payload, location); detail != "" {
 			return fmt.Sprintf("%s。%s", text, detail)
 		}
 
 		return text
-	case KindStorageLow:
+	case domain.NotificationKindStorageLow:
 		return "保存先の空き容量が足りません"
-	case KindTunerServerUnreachable:
+	case domain.NotificationKindTunerServerUnreachable:
 		return "チューナーサーバーに接続できません"
-	case KindWatchReminder:
+	case domain.NotificationKindWatchReminder:
 		return watchReminderMessage(name, payload, location)
 	default:
 		return string(kind)

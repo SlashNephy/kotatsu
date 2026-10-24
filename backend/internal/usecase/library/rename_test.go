@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
-	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
@@ -272,7 +272,7 @@ func (f *fixture) setTemplate(t *testing.T, template string) {
 	t.Helper()
 
 	_, err := settings.NewStore(f.clock, audit.NewRecorder(f.clock)).Update(t.Context(), f.pool, audit.User(f.userID),
-		&settings.Changes{Recording: &reserve.Overrides{FileNameTemplate: &template}})
+		&settings.Changes{Recording: &domain.RecordingOverrides{FileNameTemplate: &template}})
 	require.NoError(t, err)
 }
 

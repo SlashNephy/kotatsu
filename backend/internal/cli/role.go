@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/riverqueue/river"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
@@ -260,7 +261,7 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 		return err
 	}
 	// 録画設定の全体の既定値は、画面から変えられる (設計書 11.2) ので、録画のたびに引く。
-	defaults := func(ctx context.Context, db sqlc.DBTX) (*reserve.Settings, error) {
+	defaults := func(ctx context.Context, db sqlc.DBTX) (*domain.RecordingSettings, error) {
 		system, err := settings.Load(ctx, db)
 		if err != nil {
 			return nil, err

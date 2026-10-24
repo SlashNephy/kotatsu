@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
-	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -137,10 +137,10 @@ func webhookFormatOf(format model.WebhookFormat) webhook.Format {
 	return webhook.Format(strings.ToLower(string(format)))
 }
 
-func notificationKindsOf(kinds []model.NotificationKind) []notification.Kind {
-	result := make([]notification.Kind, 0, len(kinds))
+func notificationKindsOf(kinds []model.NotificationKind) []domain.NotificationKind {
+	result := make([]domain.NotificationKind, 0, len(kinds))
 	for _, kind := range kinds {
-		result = append(result, notification.Kind(strings.ToLower(string(kind))))
+		result = append(result, domain.NotificationKind(strings.ToLower(string(kind))))
 	}
 
 	return result

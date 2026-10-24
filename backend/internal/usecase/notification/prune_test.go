@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 )
 
@@ -20,20 +22,20 @@ func TestPrune(t *testing.T) {
 		name      string
 		retention time.Duration
 		// wantKinds は、消した後に残るユーザーの通知の種類 (新しい順)。
-		wantKinds []notification.Kind
+		wantKinds []domain.NotificationKind
 		// wantDeleted は、消した通知のイベントの数。
 		wantDeleted int64
 	}{
 		{
 			name:        "保持期間を過ぎた通知は、既読でも未読でも消す",
 			retention:   90 * day,
-			wantKinds:   []notification.Kind{notification.KindStorageLow},
+			wantKinds:   []domain.NotificationKind{domain.NotificationKindStorageLow},
 			wantDeleted: 2,
 		},
 		{
 			name:        "無期限なら消さない",
 			retention:   -1,
-			wantKinds:   []notification.Kind{notification.KindStorageLow, notification.KindRecordingFailed, notification.KindRecordingStarted},
+			wantKinds:   []domain.NotificationKind{domain.NotificationKindStorageLow, domain.NotificationKindRecordingFailed, domain.NotificationKindRecordingStarted},
 			wantDeleted: 0,
 		},
 	}
@@ -44,19 +46,19 @@ func TestPrune(t *testing.T) {
 			f := newFixture(t)
 			userID := f.user(t, "kotatsu")
 			// 100 日前に 2 件配り、1 件を既読にする。
-			f.emit(t, notification.KindRecordingStarted)
-			f.emit(t, notification.KindRecordingFailed)
+			f.emit(t, domain.NotificationKindRecordingStarted)
+			f.emit(t, domain.NotificationKindRecordingFailed)
 			require.Equal(t, 2, f.dispatch(t))
-			old := f.list(t, userID, &notification.ListQuery{UnreadOnly: false, Before: nil, Limit: 50})
+			old := f.list(t, userID, &query.NotificationListQuery{UnreadOnly: false, Before: nil, Limit: 50})
 			_, err := f.inbox.MarkRead(t.Context(), f.pool, userID, []uuid.UUID{old[0].ID})
 			require.NoError(t, err)
 			// まだ配っていない通知は、古くても消さない。配るジョブが止まっていた間の通知を失わないため。
-			f.emit(t, notification.KindTunerServerUnreachable)
+			f.emit(t, domain.NotificationKindTunerServerUnreachable)
 			// 1 日前に 1 件配る (上で配っていなかった分は、配らないまま残す)。
 			f.clock.Advance(99 * day)
 			_, err = f.pool.Exec(t.Context(), `UPDATE notification_events SET dispatched_at = NULL WHERE kind = 'tuner_server_unreachable'`)
 			require.NoError(t, err)
-			require.NoError(t, notification.Emit(t.Context(), f.pool, f.clock, notification.KindStorageLow, nil))
+			require.NoError(t, notification.Emit(t.Context(), f.pool, f.clock, domain.NotificationKindStorageLow, nil))
 			_, err = f.pool.Exec(t.Context(), `UPDATE notification_events SET dispatched_at = $1 WHERE kind = 'storage_low'`, f.clock.Now())
 			require.NoError(t, err)
 			_, err = f.pool.Exec(t.Context(),
@@ -68,7 +70,7 @@ func TestPrune(t *testing.T) {
 			deleted, err := notification.Prune(t.Context(), f.pool, f.clock, tt.retention)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantDeleted, deleted)
-			assert.Equal(t, tt.wantKinds, kinds(f.list(t, userID, &notification.ListQuery{UnreadOnly: false, Before: nil, Limit: 50})))
+			assert.Equal(t, tt.wantKinds, kinds(f.list(t, userID, &query.NotificationListQuery{UnreadOnly: false, Before: nil, Limit: 50})))
 			var pending int
 			require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT count(*) FROM notification_events WHERE dispatched_at IS NULL`).Scan(&pending))
 			assert.Equal(t, 1, pending, "undispatched events are kept")

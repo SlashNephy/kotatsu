@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
-	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
 
@@ -42,8 +42,8 @@ type systemSettings struct {
 func defaultSystemSettings() systemSettings {
 	return systemSettings{
 		RecordingDefaults: recordingSettings{
-			PoolID: nil, FileNameTemplate: reserve.DefaultFileNameTemplate,
-			StartMarginSeconds: reserve.DefaultMarginSeconds, EndMarginSeconds: reserve.DefaultMarginSeconds, Priority: reserve.DefaultPriority,
+			PoolID: nil, FileNameTemplate: domain.DefaultFileNameTemplate,
+			StartMarginSeconds: domain.DefaultMarginSeconds, EndMarginSeconds: domain.DefaultMarginSeconds, Priority: domain.DefaultPriority,
 		},
 		ArchiveRetentionDays:      90,
 		NotificationRetentionDays: 90,

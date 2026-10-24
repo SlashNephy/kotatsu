@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 )
@@ -118,7 +120,7 @@ func TestFollowerUpdatesRescheduledPrograms(t *testing.T) {
 			f.syncEPG(t)
 
 			assert.Equal(t, &reserve.FollowResult{Updated: tt.wantUpdated, Relayed: 0, Removed: 0}, f.follow(t))
-			got, err := f.reservations.Get(t.Context(), f.pool, reservation.ID)
+			got, err := query.New(f.pool).GetReservation(t.Context(), reservation.ID)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantStart, got.StartAt)
 			assert.Equal(t, tt.wantEnd, got.EndAt)
@@ -150,7 +152,7 @@ func TestFollowerCreatesRelayedReservations(t *testing.T) {
 			f := newFixture(t)
 			in := programInput()
 			in.FollowEventRelay = tt.follow
-			in.Overrides = &reserve.Overrides{Priority: new(3)}
+			in.Overrides = &domain.RecordingOverrides{Priority: new(3)}
 			original, _, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, in)
 			require.NoError(t, err)
 			if tt.disabled {
@@ -307,9 +309,9 @@ func TestFollowerRemovesFinishedReservations(t *testing.T) {
 			f.clock.Advance(tt.elapsed)
 
 			assert.Equal(t, tt.wantRemoved, f.follow(t).Removed)
-			_, err = f.reservations.Get(t.Context(), f.pool, reservation.ID)
+			_, err = query.New(f.pool).GetReservation(t.Context(), reservation.ID)
 			if tt.wantRemoved > 0 {
-				require.ErrorIs(t, err, reserve.ErrNotFound)
+				require.ErrorIs(t, err, domain.ErrReservationNotFound)
 				// 消したことを監査ログに残す。録画は残る。
 				assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM audit_events WHERE action = 'reservation.delete' AND target_id = $1", reservation.ID.String()))
 				if tt.recording != "" {
@@ -338,8 +340,8 @@ func TestFollowerReleasesReusedEventIDs(t *testing.T) {
 	f.syncEPG(t)
 
 	assert.Equal(t, &reserve.FollowResult{Updated: 0, Relayed: 0, Removed: 1}, f.follow(t))
-	_, err = f.reservations.Get(t.Context(), f.pool, old.ID)
-	require.ErrorIs(t, err, reserve.ErrNotFound)
+	_, err = query.New(f.pool).GetReservation(t.Context(), old.ID)
+	require.ErrorIs(t, err, domain.ErrReservationNotFound)
 
 	reservation, created, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, programInput())
 	require.NoError(t, err)
@@ -397,7 +399,7 @@ func TestFollowerDoesNotRewriteEndedReservations(t *testing.T) {
 			result := f.follow(t)
 			assert.Equal(t, tt.wantUpdated, result.Updated)
 			assert.Zero(t, result.Removed)
-			got, err := f.reservations.Get(t.Context(), f.pool, reservation.ID)
+			got, err := query.New(f.pool).GetReservation(t.Context(), reservation.ID)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantStart, got.StartAt)
 			assert.Equal(t, tt.wantEnd, got.EndAt)
@@ -424,7 +426,7 @@ func TestFollowerKeepsExtendedReservations(t *testing.T) {
 	// 割り当ての予定の終わりからは 1 時間が過ぎたが、延びた終わりからは過ぎていない。
 	f.clock.Advance(3 * time.Hour)
 	assert.Zero(t, f.follow(t).Removed)
-	_, err = f.reservations.Get(t.Context(), f.pool, reservation.ID)
+	_, err = query.New(f.pool).GetReservation(t.Context(), reservation.ID)
 	require.NoError(t, err)
 }
 
@@ -477,7 +479,7 @@ func TestReservationsOfUndecidedPrograms(t *testing.T) {
 			require.NoError(t, f.fake.RescheduleProgram(faketuner.ProgramID(grNetworkID, subServiceID, 7), relayedStart, 30*time.Minute))
 			f.syncEPG(t)
 			f.follow(t)
-			got, err := f.reservations.Get(t.Context(), f.pool, reservation.ID)
+			got, err := query.New(f.pool).GetReservation(t.Context(), reservation.ID)
 			require.NoError(t, err)
 			assert.Equal(t, relayedStart.Add(30*time.Minute), got.EndAt)
 		})
@@ -500,7 +502,7 @@ func TestDeletingRelayedReservationDisablesIt(t *testing.T) {
 
 	require.NoError(t, f.reservations.Delete(t.Context(), f.pool, f.user, relayedID))
 	assert.Zero(t, f.follow(t).Relayed)
-	got, err := f.reservations.Get(t.Context(), f.pool, relayedID)
+	got, err := query.New(f.pool).GetReservation(t.Context(), relayedID)
 	require.NoError(t, err)
 	assert.False(t, got.Enabled)
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM reservations WHERE relayed_from = $1", original.ID))

@@ -8,6 +8,7 @@ import (
 	"text/template/parse"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/halfwidth"
 )
@@ -80,7 +81,7 @@ type FileNameTemplatePreset struct {
 // FileNameTemplatePresets は、画面で選べる、よく使うファイル名のテンプレート。
 func FileNameTemplatePresets() []FileNameTemplatePreset {
 	return []FileNameTemplatePreset{
-		{Name: "既定値", Template: DefaultFileNameTemplate},
+		{Name: "既定値", Template: domain.DefaultFileNameTemplate},
 		{
 			Name:     "EPGStation と同じ",
 			Template: `[{{.StartAt.Format "06-01-02"}}({{weekdayJa .StartAt}})_{{.StartAt.Format "15-04"}}][{{.ChannelType}}_{{half .ServiceName}}]{{half .Name}}`,

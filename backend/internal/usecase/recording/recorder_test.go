@@ -20,12 +20,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
-	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 )
@@ -186,7 +186,7 @@ func wait(t *testing.T, done <-chan error) error {
 
 // plannedStart は、予約した番組の、マージンを含めた録画の予定の開始。
 func plannedStart() time.Time {
-	return programStart().Add(-reserve.DefaultMarginSeconds * time.Second)
+	return programStart().Add(-domain.DefaultMarginSeconds * time.Second)
 }
 
 // TestRecorderRecordsUntilPlannedEnd は、予定の開始にストリームを開き、予定の終わりまで、録画ファイルと索引を書くことを確かめる (設計書 5.1、5.2、5.3)。
@@ -220,7 +220,7 @@ func TestRecorderRecordsUntilPlannedEnd(t *testing.T) {
 	}, waitTimeout, 10*time.Millisecond)
 
 	// 予定の終わり (番組の終わりにマージンを足した時刻) が来たら止める。
-	f.clock.Advance(programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
+	f.clock.Advance(programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
 	require.NoError(t, wait(t, done))
 
 	// 偽チューナーサーバーは、同じ TS を繰り返し流すので、つなぎ目で continuity_counter が飛び、ドロップとして数える。
@@ -717,7 +717,7 @@ func TestRecorderDoesNotReopenAfterPlannedEnd(t *testing.T) {
 	}, waitTimeout, 10*time.Millisecond)
 
 	// 予定の終わりを過ぎてから、ストリームが閉じる。
-	f.clock.Advance(programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
+	f.clock.Advance(programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
 	close(stream.close)
 	require.NoError(t, wait(t, done))
 	assert.Equal(t, int32(1), opened.Load())
@@ -957,7 +957,7 @@ func TestRecorderExtendsWhileEndIsUndecided(t *testing.T) {
 
 	data, err := os.ReadFile("../../../testdata/ts/test.ts")
 	require.NoError(t, err)
-	plannedEnd := programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second)
+	plannedEnd := programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second)
 	tests := []struct {
 		name string
 		// stop は、延長を始めた後に、録画を止める出来事を起こし、止まる時刻を返す。
@@ -979,7 +979,7 @@ func TestRecorderExtendsWhileEndIsUndecided(t *testing.T) {
 			_, err := f.pool.Exec(t.Context(), "UPDATE programs SET end_undecided = false, end_at = $2 WHERE service_id = $1 AND event_id = 6",
 				grService(0), decided)
 			require.NoError(t, err)
-			stopsAt := decided.Add(reserve.DefaultMarginSeconds * time.Second)
+			stopsAt := decided.Add(domain.DefaultMarginSeconds * time.Second)
 
 			// 決まった終わりとマージンの直前までは、録り続ける。
 			f.clock.Advance(stopsAt.Add(-time.Second).Sub(f.clock.Now()))
@@ -1034,7 +1034,7 @@ func TestRecorderKeepsRecordingWhenProgramIsLost(t *testing.T) {
 
 	data, err := os.ReadFile("../../../testdata/ts/test.ts")
 	require.NoError(t, err)
-	plannedEnd := programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second)
+	plannedEnd := programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second)
 	f := newFixture(t)
 	reservationID := f.reserve(t, 0)
 	recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
@@ -1082,7 +1082,7 @@ func TestRecorderCopiesProgramAudios(t *testing.T) {
 	_, err = f.pool.Exec(t.Context(), "UPDATE programs SET audios = '[]', video_resolution = NULL WHERE service_id = $1 AND event_id = 6", grService(0))
 	require.NoError(t, err)
 
-	f.clock.Advance(programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
+	f.clock.Advance(programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
 	require.NoError(t, wait(t, done))
 	var same bool
 	var resolution *string
@@ -1121,7 +1121,7 @@ func TestRecorderCopiesRuleAndGenres(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return len(f.files(t, reservationID)) == 1
 	}, waitTimeout, 10*time.Millisecond)
-	f.clock.Advance(programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
+	f.clock.Advance(programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
 	require.NoError(t, wait(t, done))
 
 	var ruleID *uuid.UUID
@@ -1170,7 +1170,7 @@ func TestRecorderRecordsGapOnResume(t *testing.T) {
 	for _, e := range events {
 		kinds = append(kinds, e.Kind)
 	}
-	assert.Equal(t, []string{string(notification.KindRecordingStarted), string(notification.KindRecordingCompleted)}, kinds)
+	assert.Equal(t, []string{string(domain.NotificationKindRecordingStarted), string(domain.NotificationKindRecordingCompleted)}, kinds)
 	assert.Zero(t, f.historyCount(t))
 	var gap struct {
 		From time.Time `json:"from"`
@@ -1260,7 +1260,7 @@ func TestRecorderEmitsEvents(t *testing.T) {
 
 				return stream, stream.wait
 			},
-			wantKinds: []string{string(notification.KindRecordingStarted), string(notification.KindRecordingCompleted)}, wantHistory: 1,
+			wantKinds: []string{string(domain.NotificationKindRecordingStarted), string(domain.NotificationKindRecordingCompleted)}, wantHistory: 1,
 		},
 		{
 			name: "チューナーサーバーに接続できず失敗した",
@@ -1269,7 +1269,7 @@ func TestRecorderEmitsEvents(t *testing.T) {
 
 				return stream, stream.wait
 			},
-			wantKinds: []string{string(notification.KindRecordingStarted), string(notification.KindRecordingFailed)}, wantHistory: 0,
+			wantKinds: []string{string(domain.NotificationKindRecordingStarted), string(domain.NotificationKindRecordingFailed)}, wantHistory: 0,
 		},
 	}
 	for _, tt := range tests {
@@ -1781,7 +1781,7 @@ func TestRecorderRecordsLateStartAsGap(t *testing.T) {
 				return len(f.files(t, reservationID)) == 1
 			}, waitTimeout, 10*time.Millisecond)
 
-			f.clock.Advance(programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
+			f.clock.Advance(programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
 			require.NoError(t, wait(t, done))
 			got, _ := f.recording(t, reservationID)
 			assert.Equal(t, string(tt.wantState), got.state)

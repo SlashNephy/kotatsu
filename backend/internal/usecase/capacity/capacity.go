@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -185,7 +186,7 @@ func (m *Manager) report(ctx context.Context, row *sqlc.StoragePool, result *Poo
 			return nil
 		}
 
-		return notification.Emit(ctx, tx, m.clock, notification.KindStorageLow, map[string]any{
+		return notification.Emit(ctx, tx, m.clock, domain.NotificationKindStorageLow, map[string]any{
 			"poolId": row.ID, "freeBytes": result.FreeBytes, "minFreeBytes": row.MinFreeBytes,
 			"deletedRecordings": result.Deleted, "stillLow": result.Low,
 		})

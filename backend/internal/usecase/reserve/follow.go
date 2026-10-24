@@ -225,7 +225,7 @@ func (f *Follower) relay(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservati
 	}
 
 	settings := row.Settings
-	if Kind(row.Kind) == KindRule && row.RuleSettings != nil {
+	if domain.ReservationKind(row.Kind) == domain.ReservationKindRule && row.RuleSettings != nil {
 		settings = row.RuleSettings
 	}
 
@@ -294,7 +294,7 @@ func (f *Follower) removeFinished(ctx context.Context, tx pgx.Tx, now time.Time)
 	for _, reservationID := range ids {
 		err := f.reservations.remove(ctx, tx, followerActor(), reservationID)
 		// 一覧を読んだ後に、ユーザーが先に消していれば飛ばす。
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, domain.ErrReservationNotFound) {
 			continue
 		}
 		if err != nil {

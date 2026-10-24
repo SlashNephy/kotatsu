@@ -13,6 +13,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
@@ -42,9 +43,9 @@ func TestTouch(t *testing.T) {
 		}))
 	}
 	versions := func() (int64, int64, int64) {
-		a, err := usersettings.Version(t.Context(), pool, alice)
+		a, err := query.New(pool).UserSettingsVersion(t.Context(), alice)
 		require.NoError(t, err)
-		b, err := usersettings.Version(t.Context(), pool, bob)
+		b, err := query.New(pool).UserSettingsVersion(t.Context(), bob)
 		require.NoError(t, err)
 		var channel int64
 		require.NoError(t, pool.QueryRow(t.Context(),

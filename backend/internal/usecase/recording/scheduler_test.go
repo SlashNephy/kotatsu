@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
@@ -171,7 +172,7 @@ func TestSchedulerWritesAssignmentsBeforeStart(t *testing.T) {
 	ids := []uuid.UUID{f.reserve(t, 0), f.reserve(t, 1), f.reserve(t, 2)}
 
 	// 予定の開始 (13:30 からマージンを引いた時刻) の 2 分前より前には書かない。
-	f.clock.Advance(programStart().Add(-reserve.DefaultMarginSeconds*time.Second - recording.DefaultLead - time.Second).Sub(f.clock.Now()))
+	f.clock.Advance(programStart().Add(-domain.DefaultMarginSeconds*time.Second - recording.DefaultLead - time.Second).Sub(f.clock.Now()))
 	assert.Equal(t, &recording.ScheduleResult{Created: 0, Deleted: 0}, f.schedule(t))
 	assert.Zero(t, f.version(t))
 

@@ -14,8 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
@@ -149,7 +151,7 @@ func TestProgramReservationKeepsCopyAfterEPGRemoval(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1 AND event_id = $2", serviceID(), futureEvent))
 
-	got, err := f.reservations.Get(t.Context(), f.pool, created.ID)
+	got, err := query.New(f.pool).GetReservation(t.Context(), created.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "こたつテスト1 テスト番組 6", got.Name)
 	assert.Equal(t, "偽のチューナーサーバーが合成した番組です。", got.Description)
@@ -173,7 +175,7 @@ func TestOverridesApplyOnDefaults(t *testing.T) {
 
 	f := newFixture(t)
 	in := programInput()
-	in.Overrides = &reserve.Overrides{
+	in.Overrides = &domain.RecordingOverrides{
 		PoolID:             new("archive"),
 		FileNameTemplate:   new(`{{.Name}}`),
 		StartMarginSeconds: new(60),
@@ -184,17 +186,17 @@ func TestOverridesApplyOnDefaults(t *testing.T) {
 	created, _, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, in)
 	require.NoError(t, err)
 
-	got, err := f.reservations.Get(t.Context(), f.pool, created.ID)
+	got, err := query.New(f.pool).GetReservation(t.Context(), created.ID)
 	require.NoError(t, err)
-	assert.Equal(t, &reserve.Settings{
+	assert.Equal(t, &domain.RecordingSettings{
 		PoolID:             "archive",
 		FileNameTemplate:   `{{.Name}}`,
 		StartMarginSeconds: 60,
 		// 上書きしなかった項目は、全体の既定値のまま。
-		EndMarginSeconds: reserve.DefaultMarginSeconds,
+		EndMarginSeconds: domain.DefaultMarginSeconds,
 		Priority:         3,
 		JoinSegments:     false,
-	}, got.Settings(reserve.DefaultSettings()))
+	}, got.Settings(domain.DefaultRecordingSettings()))
 }
 
 func TestInvalidOverridesAreRejected(t *testing.T) {
@@ -202,20 +204,20 @@ func TestInvalidOverridesAreRejected(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		overrides *reserve.Overrides
+		overrides *domain.RecordingOverrides
 		wantErr   string
 	}{
-		{name: "unknown field in the file name template", overrides: &reserve.Overrides{FileNameTemplate: new(`{{.Title}}`)}, wantErr: "invalid file name template"},
-		{name: "broken file name template", overrides: &reserve.Overrides{FileNameTemplate: new(`{{.Name`)}, wantErr: "invalid file name template"},
-		{name: "invalid pool ID", overrides: &reserve.Overrides{PoolID: new("../main")}, wantErr: `poolId "../main"`},
-		{name: "negative margin", overrides: &reserve.Overrides{EndMarginSeconds: new(-1)}, wantErr: "endMarginSeconds must be between 0 and 3600"},
-		{name: "priority out of range", overrides: &reserve.Overrides{Priority: new(11)}, wantErr: "priority must be between -10 and 10"},
+		{name: "unknown field in the file name template", overrides: &domain.RecordingOverrides{FileNameTemplate: new(`{{.Title}}`)}, wantErr: "invalid file name template"},
+		{name: "broken file name template", overrides: &domain.RecordingOverrides{FileNameTemplate: new(`{{.Name`)}, wantErr: "invalid file name template"},
+		{name: "invalid pool ID", overrides: &domain.RecordingOverrides{PoolID: new("../main")}, wantErr: `poolId "../main"`},
+		{name: "negative margin", overrides: &domain.RecordingOverrides{EndMarginSeconds: new(-1)}, wantErr: "endMarginSeconds must be between 0 and 3600"},
+		{name: "priority out of range", overrides: &domain.RecordingOverrides{Priority: new(11)}, wantErr: "priority must be between -10 and 10"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tt.overrides.Validate()
+			err := reserve.ValidateOverrides(tt.overrides)
 			require.ErrorIs(t, err, reserve.ErrInvalidSettings)
 			require.ErrorContains(t, err, tt.wantErr)
 		})
@@ -233,9 +235,9 @@ func TestCreateTimeValidatesSchedule(t *testing.T) {
 		wantErr error
 	}{
 		{name: "valid", in: &reserve.TimeInput{ServiceID: serviceID(), StartAt: start, EndAt: start.Add(time.Hour), Name: "朝の番組", Overrides: nil}},
-		{name: "end before start", in: &reserve.TimeInput{ServiceID: serviceID(), StartAt: start, EndAt: start, Name: "", Overrides: nil}, wantErr: reserve.ErrInvalidReservation},
-		{name: "longer than a day", in: &reserve.TimeInput{ServiceID: serviceID(), StartAt: start, EndAt: start.Add(25 * time.Hour), Name: "", Overrides: nil}, wantErr: reserve.ErrInvalidReservation},
-		{name: "invalid overrides", in: &reserve.TimeInput{ServiceID: serviceID(), StartAt: start, EndAt: start.Add(time.Hour), Name: "", Overrides: &reserve.Overrides{Priority: new(100)}}, wantErr: reserve.ErrInvalidSettings},
+		{name: "end before start", in: &reserve.TimeInput{ServiceID: serviceID(), StartAt: start, EndAt: start, Name: "", Overrides: nil}, wantErr: domain.ErrInvalidReservation},
+		{name: "longer than a day", in: &reserve.TimeInput{ServiceID: serviceID(), StartAt: start, EndAt: start.Add(25 * time.Hour), Name: "", Overrides: nil}, wantErr: domain.ErrInvalidReservation},
+		{name: "invalid overrides", in: &reserve.TimeInput{ServiceID: serviceID(), StartAt: start, EndAt: start.Add(time.Hour), Name: "", Overrides: &domain.RecordingOverrides{Priority: new(100)}}, wantErr: reserve.ErrInvalidSettings},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -248,7 +250,7 @@ func TestCreateTimeValidatesSchedule(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, reserve.KindTime, reservation.Kind)
+			assert.Equal(t, domain.ReservationKindTime, reservation.Kind)
 			assert.Nil(t, reservation.EventID)
 			assert.Equal(t, tt.in.Name, reservation.Name)
 		})
@@ -264,7 +266,7 @@ func TestChangesAreAudited(t *testing.T) {
 	require.NoError(t, err)
 
 	updated, err := f.reservations.Update(t.Context(), f.pool, f.user, reservation.ID, &reserve.Update{
-		Enabled: new(false), FollowEventRelay: nil, Overrides: &reserve.Overrides{Priority: new(5)},
+		Enabled: new(false), FollowEventRelay: nil, Overrides: &domain.RecordingOverrides{Priority: new(5)},
 		StartAt: nil, EndAt: nil, Name: nil,
 	})
 	require.NoError(t, err)
@@ -274,17 +276,17 @@ func TestChangesAreAudited(t *testing.T) {
 
 	// 番組予約の時刻は EPG に従うので、変えられない。
 	_, err = f.reservations.Update(t.Context(), f.pool, f.user, reservation.ID, &reserve.Update{Name: new("別の名前")})
-	require.ErrorIs(t, err, reserve.ErrInvalidReservation)
+	require.ErrorIs(t, err, domain.ErrInvalidReservation)
 
 	require.NoError(t, f.reservations.Delete(t.Context(), f.pool, f.user, reservation.ID))
-	_, err = f.reservations.Get(t.Context(), f.pool, reservation.ID)
-	require.ErrorIs(t, err, reserve.ErrNotFound)
+	_, err = query.New(f.pool).GetReservation(t.Context(), reservation.ID)
+	require.ErrorIs(t, err, domain.ErrReservationNotFound)
 	// 消した予約は、変えることも消すこともできず、監査ログも増えない。
-	require.ErrorIs(t, f.reservations.Delete(t.Context(), f.pool, f.user, reservation.ID), reserve.ErrNotFound)
+	require.ErrorIs(t, f.reservations.Delete(t.Context(), f.pool, f.user, reservation.ID), domain.ErrReservationNotFound)
 	_, err = f.reservations.Update(t.Context(), f.pool, f.user, reservation.ID, &reserve.Update{Enabled: new(true)})
-	require.ErrorIs(t, err, reserve.ErrNotFound)
+	require.ErrorIs(t, err, domain.ErrReservationNotFound)
 	_, err = f.reservations.Update(t.Context(), f.pool, f.user, reservation.ID, nil)
-	require.ErrorIs(t, err, reserve.ErrInvalidReservation)
+	require.ErrorIs(t, err, domain.ErrInvalidReservation)
 
 	for _, action := range []string{"reservation.create", "reservation.update", "reservation.delete"} {
 		assert.Equal(t, 1, f.count(t,

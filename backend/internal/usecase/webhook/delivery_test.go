@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
@@ -49,7 +50,7 @@ func receiver(t *testing.T, status int) (*httptest.Server, <-chan received) {
 	return server, requests
 }
 
-func (f *fixture) createWebhook(t *testing.T, url string, format webhook.Format, kinds []notification.Kind, enabled bool) (uuid.UUID, string) {
+func (f *fixture) createWebhook(t *testing.T, url string, format webhook.Format, kinds []domain.NotificationKind, enabled bool) (uuid.UUID, string) {
 	t.Helper()
 
 	created, secret, err := f.store.Create(t.Context(), f.pool, audit.System("test"), &webhook.Input{
@@ -61,7 +62,7 @@ func (f *fixture) createWebhook(t *testing.T, url string, format webhook.Format,
 }
 
 // emit は、イベントを記録し、その ID を返す。
-func (f *fixture) emit(t *testing.T, kind notification.Kind, payload map[string]any) uuid.UUID {
+func (f *fixture) emit(t *testing.T, kind domain.NotificationKind, payload map[string]any) uuid.UUID {
 	t.Helper()
 
 	require.NoError(t, notification.Emit(t.Context(), f.pool, f.clock, kind, payload))
@@ -114,11 +115,11 @@ func TestEnqueuerQueuesDeliveries(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
-	failed := []notification.Kind{notification.KindRecordingFailed}
+	failed := []domain.NotificationKind{domain.NotificationKindRecordingFailed}
 	target, _ := f.createWebhook(t, "https://a.example/hook", webhook.FormatJSON, failed, true)
 	f.createWebhook(t, "https://b.example/hook", webhook.FormatJSON, failed, false)
-	f.createWebhook(t, "https://c.example/hook", webhook.FormatJSON, []notification.Kind{notification.KindStorageLow}, true)
-	eventID := f.emit(t, notification.KindRecordingFailed, nil)
+	f.createWebhook(t, "https://c.example/hook", webhook.FormatJSON, []domain.NotificationKind{domain.NotificationKindStorageLow}, true)
+	eventID := f.emit(t, domain.NotificationKindRecordingFailed, nil)
 
 	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
 	inserter, err := jobs.NewClient(f.pool, slog.New(slog.DiscardHandler), &jobs.Options{PollOnly: false, Workers: nil, PeriodicJobs: nil})
@@ -171,8 +172,8 @@ func TestDeliverWorkerSendsSignedBody(t *testing.T) {
 
 			f := newFixture(t)
 			server, requests := receiver(t, http.StatusNoContent)
-			webhookID, secret := f.createWebhook(t, server.URL, tt.format, []notification.Kind{notification.KindReservationConflict}, true)
-			eventID := f.emit(t, notification.KindReservationConflict, payload)
+			webhookID, secret := f.createWebhook(t, server.URL, tt.format, []domain.NotificationKind{domain.NotificationKindReservationConflict}, true)
+			eventID := f.emit(t, domain.NotificationKindReservationConflict, payload)
 			f.clock.Advance(time.Minute)
 
 			require.NoError(t, f.deliver(t, webhookID, eventID))
@@ -191,7 +192,7 @@ func TestDeliverWorkerSendsSignedBody(t *testing.T) {
 func TestDeliverWorkerFailures(t *testing.T) {
 	t.Parallel()
 
-	kinds := []notification.Kind{notification.KindStorageLow}
+	kinds := []domain.NotificationKind{domain.NotificationKindStorageLow}
 	tests := []struct {
 		name       string
 		status     int
@@ -214,7 +215,7 @@ func TestDeliverWorkerFailures(t *testing.T) {
 			if tt.deleted {
 				require.NoError(t, f.store.Delete(t.Context(), f.pool, audit.System("test"), webhookID))
 			}
-			eventID := f.emit(t, notification.KindStorageLow, nil)
+			eventID := f.emit(t, domain.NotificationKindStorageLow, nil)
 
 			err := f.deliver(t, webhookID, eventID)
 			require.Error(t, err)

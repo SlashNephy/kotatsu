@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -87,7 +88,7 @@ func (l *Library) PlanRenames(ctx context.Context, db sqlc.DBTX, ids []uuid.UUID
 func firstRuleSettings(ctx context.Context, q *sqlc.Queries, rows []sqlc.ListRecordingsForRenameRow) (map[uuid.UUID][]byte, error) {
 	ruleReservations := []uuid.UUID{}
 	for i := range rows {
-		if rows[i].ReservationKind != nil && reserve.Kind(*rows[i].ReservationKind) == reserve.KindRule {
+		if rows[i].ReservationKind != nil && domain.ReservationKind(*rows[i].ReservationKind) == domain.ReservationKindRule {
 			ruleReservations = append(ruleReservations, *rows[i].ReservationID)
 		}
 	}
@@ -107,7 +108,7 @@ func firstRuleSettings(ctx context.Context, q *sqlc.Queries, rows []sqlc.ListRec
 }
 
 func (l *Library) plan(
-	ctx context.Context, q *sqlc.Queries, checker *kago.Checker, row *sqlc.ListRecordingsForRenameRow, defaults *reserve.Settings,
+	ctx context.Context, q *sqlc.Queries, checker *kago.Checker, row *sqlc.ListRecordingsForRenameRow, defaults *domain.RecordingSettings,
 	ruleSettings map[uuid.UUID][]byte, location *time.Location,
 ) (*RenamePlan, error) {
 	resolved := defaults
@@ -116,7 +117,7 @@ func (l *Library) plan(
 			if raw == nil {
 				continue
 			}
-			overrides, err := reserve.DecodeOverrides(raw)
+			overrides, err := domain.DecodeOverrides(raw)
 			if err != nil {
 				return nil, err
 			}

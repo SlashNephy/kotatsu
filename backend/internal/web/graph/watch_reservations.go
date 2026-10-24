@@ -30,7 +30,7 @@ func (r *Resolver) setWatchReservation(ctx context.Context, programID string, re
 	if err != nil {
 		return nil, err
 	}
-	key := watch.ProgramKey{ServiceID: serviceID, EventID: eventID}
+	key := domain.ProgramKey{ServiceID: serviceID, EventID: eventID}
 	err = pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
 		if reserved {
 			if err := watch.Reserve(ctx, tx, r.clock, principal.UserID, key); err != nil {
@@ -70,7 +70,7 @@ func (r *Resolver) watchReserved(ctx context.Context, obj *model.Program) (bool,
 	}
 
 	return loadersFrom(ctx).WatchReserved.Load(ctx, watchReservedKey{
-		UserID: principal.UserID, Program: watch.ProgramKey{ServiceID: obj.ServiceKey, EventID: int64(obj.EventID)},
+		UserID: principal.UserID, Program: domain.ProgramKey{ServiceID: obj.ServiceKey, EventID: int64(obj.EventID)},
 	})
 }
 
@@ -80,7 +80,7 @@ func (r *Resolver) listWatchReservations(ctx context.Context) ([]*model.WatchRes
 	if err != nil {
 		return nil, err
 	}
-	minutes, err := watch.ReminderMinutes(ctx, r.db, principal.UserID)
+	minutes, err := r.queries.WatchReminderMinutes(ctx, principal.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (r *Resolver) watchReminderSettings(ctx context.Context) (*model.WatchRemin
 	if err != nil {
 		return nil, err
 	}
-	minutes, err := watch.ReminderMinutes(ctx, r.db, principal.UserID)
+	minutes, err := r.queries.WatchReminderMinutes(ctx, principal.UserID)
 	if err != nil {
 		return nil, err
 	}
