@@ -8,7 +8,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -47,7 +48,7 @@ func (r *Resolver) setWatchReservation(ctx context.Context, programID string, re
 	if err != nil {
 		return nil, err
 	}
-	row, err := sqlc.New(r.db).GetGuideProgram(ctx, sqlc.GetGuideProgramParams{ServiceID: serviceID, EventID: eventID})
+	row, err := r.queries.GetGuideProgram(ctx, query.GetGuideProgramParams{ServiceID: serviceID, EventID: eventID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, NewError(CodeNotFound, "program not found")
 	}
@@ -55,7 +56,7 @@ func (r *Resolver) setWatchReservation(ctx context.Context, programID string, re
 		return nil, fmt.Errorf("failed to get the program: %w", err)
 	}
 
-	return toProgram((*programRow)(&row))
+	return toProgram((&row))
 }
 
 // watchReserved は、ログイン中のユーザーが、番組 obj を視聴予約しているかどうかを返す。過去の番組では false を返す。
@@ -83,14 +84,14 @@ func (r *Resolver) listWatchReservations(ctx context.Context) ([]*model.WatchRes
 	if err != nil {
 		return nil, err
 	}
-	rows, err := sqlc.New(r.db).ListWatchReservations(ctx, principal.UserID)
+	rows, err := r.queries.ListWatchReservations(ctx, principal.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the watch reservations: %w", err)
 	}
 	reservations := make([]*model.WatchReservation, 0, len(rows))
 	for i := range rows {
 		row := &rows[i]
-		program, err := toProgram(&programRow{
+		program, err := toProgram(&domain.Program{
 			ServiceID: row.ServiceID, EventID: row.EventID, StartAt: row.StartAt, EndAt: row.EndAt, EndUndecided: row.EndUndecided,
 			IsFree: row.IsFree, Name: row.Name, Description: row.Description, Extended: row.Extended, Genres: row.Genres,
 			Audios: row.Audios, RelatedItems: row.RelatedItems,

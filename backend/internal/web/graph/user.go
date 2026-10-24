@@ -7,14 +7,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
 // userType は、User の Node の ID に使う型の名前。
 const userType = "User"
 
-func toUser(user *sqlc.User) *model.User {
+func toUser(user *domain.User) *model.User {
 	return &model.User{
 		ID:          GlobalID(userType, user.ID.String()),
 		Username:    user.Username,

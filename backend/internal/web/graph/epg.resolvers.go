@@ -10,7 +10,7 @@ import (
 	pgx "github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/generated"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -27,7 +27,7 @@ func (r *programResolver) Service(ctx context.Context, obj *model.Program) (*mod
 
 // SharedFrom is the resolver for the sharedFrom field.
 func (r *programResolver) SharedFrom(ctx context.Context, obj *model.Program) (*model.Service, error) {
-	var row *sqlc.ListGuideServicesRow
+	var row *domain.Service
 	var err error
 	if obj.SharedFromKey != 0 {
 		row, err = loadersFrom(ctx).Services.Load(ctx, obj.SharedFromKey)
@@ -85,7 +85,7 @@ func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error)
 		if err != nil {
 			return nil, err
 		}
-		row, err := sqlc.New(r.db).GetGuideProgram(ctx, sqlc.GetGuideProgramParams{ServiceID: serviceID, EventID: eventID})
+		row, err := r.queries.GetGuideProgram(ctx, query.GetGuideProgramParams{ServiceID: serviceID, EventID: eventID})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, NewError(CodeNotFound, "program not found")
 		}
@@ -93,7 +93,7 @@ func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error)
 			return nil, fmt.Errorf("failed to get the program: %w", err)
 		}
 
-		return toProgram((*programRow)(&row))
+		return toProgram((&row))
 	case archiveType:
 		return r.archivedProgram(ctx, raw)
 	case reservationType:
@@ -114,7 +114,7 @@ func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error)
 
 // ChannelTypes is the resolver for the channelTypes field.
 func (r *queryResolver) ChannelTypes(ctx context.Context) ([]*model.ChannelType, error) {
-	rows, err := sqlc.New(r.db).ListChannelTypes(ctx)
+	rows, err := r.queries.ListChannelTypes(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list channel types: %w", err)
 	}
@@ -133,10 +133,10 @@ func (r *queryResolver) Services(ctx context.Context, includeHidden bool) ([]*mo
 	if includeHidden {
 		mediaTypes = []int64{}
 	}
-	rows, err := sqlc.New(r.db).ListGuideServices(ctx, sqlc.ListGuideServicesParams{
+	rows, err := r.queries.ListGuideServices(ctx, query.ListGuideServicesParams{
 		IncludeHidden:     includeHidden,
 		MediaServiceTypes: mediaTypes,
-		Ids:               []int64{},
+		IDs:               []int64{},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list services: %w", err)
@@ -151,7 +151,7 @@ func (r *queryResolver) Services(ctx context.Context, includeHidden bool) ([]*mo
 
 // Guide is the resolver for the guide field.
 func (r *queryResolver) Guide(ctx context.Context, from time.Time, to time.Time, services []string, view *string) ([]*model.GuideRow, error) {
-	var guideView *sqlc.GuideView
+	var guideView *domain.GuideView
 	if view != nil {
 		var err error
 		if guideView, err = r.guideView(ctx, *view); err != nil {
@@ -174,16 +174,16 @@ func (r *queryResolver) Guide(ctx context.Context, from time.Time, to time.Time,
 		ids = append(ids, id)
 	}
 
-	q := sqlc.New(r.db)
+	q := r.queries
 	// サービスを指定したときは、非表示のサービスも、ワンセグやデータ放送のサービスも返す。
 	mediaTypes := domain.MediaServiceTypes()
 	if len(ids) > 0 {
 		mediaTypes = []int64{}
 	}
-	serviceRows, err := q.ListGuideServices(ctx, sqlc.ListGuideServicesParams{
+	serviceRows, err := q.ListGuideServices(ctx, query.ListGuideServicesParams{
 		IncludeHidden:     len(ids) > 0,
 		MediaServiceTypes: mediaTypes,
-		Ids:               ids,
+		IDs:               ids,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list services: %w", err)
@@ -198,12 +198,12 @@ func (r *queryResolver) Guide(ctx context.Context, from time.Time, to time.Time,
 		keys = append(keys, serviceRows[i].ID)
 	}
 
-	programs, err := q.ListProgramsInRange(ctx, sqlc.ListProgramsInRangeParams{ServiceIds: keys, FromAt: from, ToAt: to})
+	programs, err := q.ListProgramsInRange(ctx, query.ListProgramsInRangeParams{ServiceIDs: keys, FromAt: from, ToAt: to})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list programs: %w", err)
 	}
 	for i := range programs {
-		program, err := toProgram((*programRow)(&programs[i]))
+		program, err := toProgram((&programs[i]))
 		if err != nil {
 			return nil, err
 		}

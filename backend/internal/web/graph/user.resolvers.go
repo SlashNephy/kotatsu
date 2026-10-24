@@ -7,7 +7,6 @@ import (
 
 	pgx "github.com/jackc/pgx/v5"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/generated"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -19,7 +18,7 @@ func (r *userResolver) AvatarURL(ctx context.Context, obj *model.User) (*string,
 		return nil, err
 	}
 	var avatar *string
-	_, err = sqlc.New(r.db).GetUserPicture(ctx, userID)
+	_, err = r.queries.GetUserPicture(ctx, userID)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		// IdP が picture を返さなければ、画面は表示名の頭文字を出す。

@@ -9,7 +9,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/vikstrous/dataloadgen"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
@@ -21,9 +23,9 @@ const loaderWait = time.Millisecond
 // Loaders は、1 つのリクエストの中で、同じ種類のデータをまとめて引く dataloader (設計書 9.1)。
 // N+1 問題を防ぐため、リゾルバは DB を直接引かずに、ここから引く。リクエストごとに作り直す。
 type Loaders struct {
-	Users        *dataloadgen.Loader[uuid.UUID, *sqlc.User]
-	Services     *dataloadgen.Loader[int64, *sqlc.ListGuideServicesRow]
-	ChannelTypes *dataloadgen.Loader[string, *sqlc.ChannelType]
+	Users        *dataloadgen.Loader[uuid.UUID, *domain.User]
+	Services     *dataloadgen.Loader[int64, *domain.Service]
+	ChannelTypes *dataloadgen.Loader[string, *domain.ChannelType]
 	Rules        *dataloadgen.Loader[uuid.UUID, *rule.Rule]
 	// RuleIDs は、予約に一致したルールの ID。ルールに一致していない予約では空にする。
 	RuleIDs *dataloadgen.Loader[uuid.UUID, []uuid.UUID]
@@ -44,38 +46,38 @@ type watchReservedKey struct {
 type loadersKey struct{}
 
 // newLoaders は、db から引く Loaders を作る。
-func newLoaders(db sqlc.DBTX, rules *rule.Rules, reservations *reserve.Reservations) *Loaders {
+func newLoaders(db sqlc.DBTX, q *query.Queries, rules *rule.Rules, reservations *reserve.Reservations) *Loaders {
 	return &Loaders{
-		Users: dataloadgen.NewLoader(func(ctx context.Context, ids []uuid.UUID) ([]*sqlc.User, []error) {
-			rows, err := sqlc.New(db).ListUsersByIDs(ctx, ids)
+		Users: dataloadgen.NewLoader(func(ctx context.Context, ids []uuid.UUID) ([]*domain.User, []error) {
+			rows, err := q.ListUsersByIDs(ctx, ids)
 			if err != nil {
-				return failAll[*sqlc.User](len(ids), fmt.Errorf("failed to load users: %w", err))
+				return failAll[*domain.User](len(ids), fmt.Errorf("failed to load users: %w", err))
 			}
-			byID := make(map[uuid.UUID]*sqlc.User, len(rows))
+			byID := make(map[uuid.UUID]*domain.User, len(rows))
 			for i := range rows {
 				byID[rows[i].ID] = &rows[i]
 			}
 
 			return orderBy(ids, byID, "user")
 		}, dataloadgen.WithWait(loaderWait)),
-		Services: dataloadgen.NewLoader(func(ctx context.Context, ids []int64) ([]*sqlc.ListGuideServicesRow, []error) {
-			rows, err := sqlc.New(db).ListGuideServices(ctx, sqlc.ListGuideServicesParams{IncludeHidden: true, MediaServiceTypes: []int64{}, Ids: ids})
+		Services: dataloadgen.NewLoader(func(ctx context.Context, ids []int64) ([]*domain.Service, []error) {
+			rows, err := q.ListGuideServices(ctx, query.ListGuideServicesParams{IncludeHidden: true, MediaServiceTypes: []int64{}, IDs: ids})
 			if err != nil {
-				return failAll[*sqlc.ListGuideServicesRow](len(ids), fmt.Errorf("failed to load services: %w", err))
+				return failAll[*domain.Service](len(ids), fmt.Errorf("failed to load services: %w", err))
 			}
-			byID := make(map[int64]*sqlc.ListGuideServicesRow, len(rows))
+			byID := make(map[int64]*domain.Service, len(rows))
 			for i := range rows {
 				byID[rows[i].ID] = &rows[i]
 			}
 
 			return orderBy(ids, byID, "service")
 		}, dataloadgen.WithWait(loaderWait)),
-		ChannelTypes: dataloadgen.NewLoader(func(ctx context.Context, types []string) ([]*sqlc.ChannelType, []error) {
-			rows, err := sqlc.New(db).ListChannelTypesByTypes(ctx, types)
+		ChannelTypes: dataloadgen.NewLoader(func(ctx context.Context, types []string) ([]*domain.ChannelType, []error) {
+			rows, err := q.ListChannelTypesByTypes(ctx, types)
 			if err != nil {
-				return failAll[*sqlc.ChannelType](len(types), fmt.Errorf("failed to load channel types: %w", err))
+				return failAll[*domain.ChannelType](len(types), fmt.Errorf("failed to load channel types: %w", err))
 			}
-			byType := make(map[string]*sqlc.ChannelType, len(rows))
+			byType := make(map[string]*domain.ChannelType, len(rows))
 			for i := range rows {
 				byType[rows[i].Type] = &rows[i]
 			}
@@ -184,10 +186,10 @@ func orderBy[K comparable, V any](keys []K, byKey map[K]V, name string) ([]V, []
 }
 
 // withLoaders は、リクエストごとに Loaders を作って context に入れるミドルウェアを返す。
-func withLoaders(db sqlc.DBTX, rules *rule.Rules, reservations *reserve.Reservations) func(http.Handler) http.Handler {
+func withLoaders(db sqlc.DBTX, q *query.Queries, rules *rule.Rules, reservations *reserve.Reservations) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), loadersKey{}, newLoaders(db, rules, reservations))))
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), loadersKey{}, newLoaders(db, q, rules, reservations))))
 		})
 	}
 }

@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -40,7 +40,7 @@ func (r *Resolver) streamResource(ctx context.Context, target string) (string, e
 	if err != nil {
 		return "", NewError(CodeBadUserInput, "invalid target ID")
 	}
-	q := sqlc.New(r.db)
+	q := r.queries
 	switch typeName {
 	case serviceType:
 		serviceID, err := parseServiceGlobalID(target)
@@ -123,7 +123,7 @@ func videoFormat(resolution *string, channelType string) model.VideoFormat {
 
 // serviceVideoFormat は、サービスで放送中の番組の映像の種類を返す。放送中の番組がなければ、チャンネル種別から決める。
 func (r *Resolver) serviceVideoFormat(ctx context.Context, obj *model.Service) (model.VideoFormat, error) {
-	resolution, err := sqlc.New(r.db).GetPresentVideoResolution(ctx, sqlc.GetPresentVideoResolutionParams{
+	resolution, err := r.queries.GetPresentVideoResolution(ctx, query.GetPresentVideoResolutionParams{
 		ServiceID: obj.MirakurunID(), Now: r.clock.Now(),
 	})
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {

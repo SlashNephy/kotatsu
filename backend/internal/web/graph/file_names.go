@@ -9,7 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -69,7 +69,7 @@ func (r *Resolver) previewFileName(ctx context.Context, text string, programID *
 		if err != nil {
 			return nil, err
 		}
-		row, err := sqlc.New(r.db).GetProgramForFileName(ctx, sqlc.GetProgramForFileNameParams{ServiceID: serviceID, EventID: eventID})
+		row, err := r.queries.GetProgramForFileName(ctx, query.GetProgramForFileNameParams{ServiceID: serviceID, EventID: eventID})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, NewError(CodeNotFound, "program not found")
 		}

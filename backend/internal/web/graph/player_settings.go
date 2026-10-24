@@ -44,7 +44,7 @@ func (r *Resolver) playerSettings(ctx context.Context) (*model.PlayerSettings, e
 	if err != nil {
 		return nil, err
 	}
-	row, err := sqlc.New(r.db).GetPlayerSettings(ctx, principal.UserID)
+	row, err := r.queries.GetPlayerSettings(ctx, principal.UserID)
 	if err != nil {
 		return nil, err
 	}

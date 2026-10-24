@@ -11,8 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 )
 
@@ -56,17 +56,17 @@ type recordedResponse struct {
 
 // Recorded は GET /api/recorded に答える。録画を、録画を始めた日時の新しい順に、offset と limit で区切って返す。
 func (h *Handler) Recorded(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	offset, errOffset := parseCount(query.Get("offset"), 0)
-	limit, errLimit := parseCount(query.Get("limit"), defaultRecordedLimit)
+	values := r.URL.Query()
+	offset, errOffset := parseCount(values.Get("offset"), 0)
+	limit, errLimit := parseCount(values.Get("limit"), defaultRecordedLimit)
 	if errOffset != nil || errLimit != nil {
 		http.Error(w, "offset and limit must be non-negative integers", http.StatusBadRequest)
 
 		return
 	}
-	keyword := query.Get("keyword")
-	q := sqlc.New(h.pool)
-	rows, err := q.ListAPIRecordings(r.Context(), sqlc.ListAPIRecordingsParams{
+	keyword := values.Get("keyword")
+	q := h.queries
+	rows, err := q.ListAPIRecordings(r.Context(), query.ListAPIRecordingsParams{
 		Keyword: keyword, Skip: offset, MaxCount: min(limit, maxRecordedLimit),
 	})
 	if err != nil {
@@ -102,7 +102,7 @@ func (h *Handler) RecordedItem(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	row, err := sqlc.New(h.pool).GetAPIRecording(r.Context(), apiID)
+	row, err := h.queries.GetAPIRecording(r.Context(), apiID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, "recorded not found", http.StatusNotFound)
 
@@ -113,7 +113,7 @@ func (h *Handler) RecordedItem(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	listed := sqlc.ListAPIRecordingsRow(row)
+	listed := row
 	item, err := recordedOf(&listed, wantsHalfWidth(r), h.hasThumbnail(listed.ImageSegmentID))
 	if err != nil {
 		h.fail(w, r, err)
@@ -134,7 +134,7 @@ func (h *Handler) WithRecording(next http.Handler, file string) http.Handler {
 
 			return
 		}
-		recordingID, err := sqlc.New(h.pool).GetRecordingIDByAPIID(r.Context(), apiID)
+		recordingID, err := h.queries.GetRecordingIDByAPIID(r.Context(), apiID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			http.NotFound(w, r)
 
@@ -164,7 +164,7 @@ func (h *Handler) hasThumbnail(owner uuid.UUID) bool {
 	return err == nil && exists
 }
 
-func recordedOf(row *sqlc.ListAPIRecordingsRow, toHalfWidth, hasThumbnail bool) (*recordedItem, error) {
+func recordedOf(row *domain.APIRecording, toHalfWidth, hasThumbnail bool) (*recordedItem, error) {
 	var genres []*domain.Genre
 	if err := json.Unmarshal(row.Genres, &genres); err != nil {
 		return nil, fmt.Errorf("failed to decode the genres: %w", err)

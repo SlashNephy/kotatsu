@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/generated"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -52,7 +51,7 @@ func (r *queryResolver) GuideViews(ctx context.Context) ([]*model.GuideView, err
 	if err != nil {
 		return nil, err
 	}
-	rows, err := sqlc.New(r.db).ListGuideViews(ctx, principal.UserID)
+	rows, err := r.queries.ListGuideViews(ctx, principal.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list guide views: %w", err)
 	}
