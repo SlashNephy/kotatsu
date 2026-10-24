@@ -16,12 +16,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
-	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 )
 
@@ -114,7 +113,7 @@ func (e *Engine) desired(
 	if err != nil {
 		return nil, err
 	}
-	rows, err := sqlc.New(tx).ListMatchablePrograms(ctx, sqlc.ListMatchableProgramsParams{Now: now, MediaServiceTypes: epg.MediaServiceTypes()})
+	rows, err := sqlc.New(tx).ListMatchablePrograms(ctx, sqlc.ListMatchableProgramsParams{Now: now, MediaServiceTypes: domain.MediaServiceTypes()})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list programs: %w", err)
 	}
@@ -243,7 +242,7 @@ func (e *Engine) enabledRules(ctx context.Context, tx pgx.Tx, result *Result) ([
 
 // toMatchProgram は、DB の番組を照合する形にする。
 func toMatchProgram(row sqlc.ListMatchableProgramsRow) (*match.Program, error) {
-	upstreamGenres := []*mirakurun.Genre{}
+	upstreamGenres := []*domain.Genre{}
 	if err := json.Unmarshal(row.Genres, &upstreamGenres); err != nil {
 		return nil, fmt.Errorf("failed to decode the genres of program %d/%d: %w", row.ServiceID, row.EventID, err)
 	}
@@ -259,10 +258,10 @@ func toMatchProgram(row sqlc.ListMatchableProgramsRow) (*match.Program, error) {
 		if err := json.Unmarshal(row.Extended, &upstream); err != nil {
 			return nil, fmt.Errorf("failed to decode the extended of program %d/%d: %w", row.ServiceID, row.EventID, err)
 		}
-		extended = new(epg.NormalizeExtended(upstream))
+		extended = new(domain.NormalizeExtended(upstream))
 	}
 
-	sharedFrom, err := epg.SharedFrom(row.ServiceID, row.RelatedItems)
+	sharedFrom, err := domain.SharedFrom(row.ServiceID, row.RelatedItems)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode the related items of program %d/%d: %w", row.ServiceID, row.EventID, err)
 	}
@@ -280,7 +279,7 @@ func toMatchProgram(row sqlc.ListMatchableProgramsRow) (*match.Program, error) {
 		IsFree:      row.IsFree,
 		// 囲み文字を括弧の書き方にする前に正規化した番組名では、囲み文字と番組名の文字を見分けられないので、
 		// 囲み文字は正規化する前の番組名から取り出す。
-		Marks: epg.Marks(row.Name),
+		Marks: domain.Marks(row.Name),
 	}, nil
 }
 
@@ -350,7 +349,7 @@ func pickSharedEvents(matched map[programKey]*desiredProgram) {
 		if !ok {
 			continue
 		}
-		var related []*mirakurun.RelatedItem
+		var related []*domain.RelatedItem
 		if err := json.Unmarshal(d.row.RelatedItems, &related); err != nil {
 			continue
 		}

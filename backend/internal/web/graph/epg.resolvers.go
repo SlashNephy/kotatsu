@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	pgx "github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/generated"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -129,7 +129,7 @@ func (r *queryResolver) ChannelTypes(ctx context.Context) ([]*model.ChannelType,
 // Services is the resolver for the services field.
 func (r *queryResolver) Services(ctx context.Context, includeHidden bool) ([]*model.Service, error) {
 	// 番組表やライブ視聴に出す一覧では、ワンセグやデータ放送のサービスを外す。非表示を選ぶ管理の画面では、すべて返す。
-	mediaTypes := epg.MediaServiceTypes()
+	mediaTypes := domain.MediaServiceTypes()
 	if includeHidden {
 		mediaTypes = []int64{}
 	}
@@ -158,7 +158,7 @@ func (r *queryResolver) Guide(ctx context.Context, from time.Time, to time.Time,
 			return nil, err
 		}
 	}
-	if !from.Before(to) || to.Sub(from) > epg.MaxGuideRange {
+	if !from.Before(to) || to.Sub(from) > domain.MaxGuideRange {
 		return nil, NewError(CodeBadUserInput, "from must be before to, and the range must be at most 7 days")
 	}
 	// 空の一覧を指定したときは、どのサービスも選ばれていないので、何も返さない。省いたときとは区別する。
@@ -176,7 +176,7 @@ func (r *queryResolver) Guide(ctx context.Context, from time.Time, to time.Time,
 
 	q := sqlc.New(r.db)
 	// サービスを指定したときは、非表示のサービスも、ワンセグやデータ放送のサービスも返す。
-	mediaTypes := epg.MediaServiceTypes()
+	mediaTypes := domain.MediaServiceTypes()
 	if len(ids) > 0 {
 		mediaTypes = []int64{}
 	}

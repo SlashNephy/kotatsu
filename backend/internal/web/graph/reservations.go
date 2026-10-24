@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -78,7 +78,7 @@ func toReservationModel(ctx context.Context, r *reserve.Reservation) (*model.Res
 }
 
 func toReservation(r *reserve.Reservation) (*model.Reservation, error) {
-	upstreamGenres := []*mirakurun.Genre{}
+	upstreamGenres := []*domain.Genre{}
 	if err := json.Unmarshal(r.Genres, &upstreamGenres); err != nil {
 		return nil, fmt.Errorf("failed to decode the genres of reservation %s: %w", r.ID, err)
 	}

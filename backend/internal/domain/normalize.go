@@ -1,5 +1,4 @@
-// Package epg は、チューナーサーバーの EPG を DB に同期する (設計書 3.3)。
-package epg
+package domain
 
 import (
 	"maps"

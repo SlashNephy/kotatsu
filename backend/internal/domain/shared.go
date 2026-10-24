@@ -1,14 +1,16 @@
-package epg
+package domain
 
 import (
 	"encoding/json"
 	"fmt"
-
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 )
 
-// relatedShared は、同じイベントを複数のサービスで放送する関係 (イベント共有)。
-const relatedShared = "shared"
+const (
+	// relatedShared は、同じイベントを複数のサービスで放送する関係 (イベント共有)。
+	relatedShared = "shared"
+	// serviceIDBase は、Mirakurun のサービス ID を組み立てる基数 (networkId × 100000 + serviceId)。
+	serviceIDBase = 100_000
+)
 
 // SharedFrom は、イベント共有の元のサービスの Mirakurun のサービス ID を返す。番組が元であるか、共有していなければ 0 を返す。
 // relatedItems は、上流の番組の relatedItems の JSON。
@@ -18,7 +20,7 @@ func SharedFrom(serviceID int64, relatedItems []byte) (int64, error) {
 	if len(relatedItems) == 0 {
 		return 0, nil
 	}
-	var related []*mirakurun.RelatedItem
+	var related []*RelatedItem
 	if err := json.Unmarshal(relatedItems, &related); err != nil {
 		return 0, fmt.Errorf("failed to decode the related items: %w", err)
 	}

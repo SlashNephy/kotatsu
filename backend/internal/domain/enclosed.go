@@ -1,4 +1,4 @@
-package epg
+package domain
 
 // EnclosedGroup は、囲み文字を画面で選ぶときのまとまり。意味は Unicode の符号表の注記による。
 type EnclosedGroup string

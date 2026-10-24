@@ -14,10 +14,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
@@ -375,7 +375,7 @@ func recordingModel(row *sqlc.Recording) (*model.Recording, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode the recording audios: %w", err)
 	}
-	upstreamGenres := []*mirakurun.Genre{}
+	upstreamGenres := []*domain.Genre{}
 	if err := json.Unmarshal(row.Genres, &upstreamGenres); err != nil {
 		return nil, fmt.Errorf("failed to decode the recording genres: %w", err)
 	}

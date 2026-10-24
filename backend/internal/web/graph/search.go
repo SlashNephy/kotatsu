@@ -12,10 +12,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
-	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -247,7 +246,7 @@ func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.Arc
 	params := &sqlc.SearchProgramCandidatesParams{
 		IncludeArchive:     archive != nil,
 		Now:                r.clock.Now(),
-		MediaServiceTypes:  epg.MediaServiceTypes(),
+		MediaServiceTypes:  domain.MediaServiceTypes(),
 		ArchiveFrom:        time.Time{},
 		ArchiveTo:          time.Time{},
 		ChannelTypes:       conditions.ChannelTypes,
@@ -308,7 +307,7 @@ func setKeywordPatterns(params *sqlc.SearchProgramCandidatesParams, conditions *
 		if keyword.Regexp || slices.Contains(keyword.Fields, match.FieldExtended) {
 			continue
 		}
-		params.KeywordPatterns = append(params.KeywordPatterns, "%"+likeEscaper.Replace(epg.Normalize(keyword.Text))+"%")
+		params.KeywordPatterns = append(params.KeywordPatterns, "%"+likeEscaper.Replace(domain.Normalize(keyword.Text))+"%")
 		params.KeywordInName = append(params.KeywordInName, slices.Contains(keyword.Fields, match.FieldName))
 		params.KeywordInDescription = append(params.KeywordInDescription, slices.Contains(keyword.Fields, match.FieldDescription))
 		params.KeywordCaseSensitive = append(params.KeywordCaseSensitive, keyword.CaseSensitive)
@@ -356,7 +355,7 @@ func (r *Resolver) matchCandidate(
 // toMatchCandidate は、候補を照合する形にする。ルールの照合 (rule.toMatchProgram) と同じく、同期で正規化して持った列を使う。
 // 候補ごとに NFKC で正規化し直すと、検索の時間の大半を占めるからである (#852)。
 func toMatchCandidate(row *sqlc.SearchProgramCandidatesRow) (*match.Program, error) {
-	upstreamGenres := []*mirakurun.Genre{}
+	upstreamGenres := []*domain.Genre{}
 	if err := json.Unmarshal(row.Genres, &upstreamGenres); err != nil {
 		return nil, fmt.Errorf("failed to decode the genres of program %d/%d: %w", row.ServiceID, row.EventID, err)
 	}
@@ -371,10 +370,10 @@ func toMatchCandidate(row *sqlc.SearchProgramCandidatesRow) (*match.Program, err
 		if err := json.Unmarshal(row.Extended, &upstream); err != nil {
 			return nil, fmt.Errorf("failed to decode the extended of program %d/%d: %w", row.ServiceID, row.EventID, err)
 		}
-		extended = new(epg.NormalizeExtended(upstream))
+		extended = new(domain.NormalizeExtended(upstream))
 	}
 
-	sharedFrom, err := epg.SharedFrom(row.ServiceID, row.RelatedItems)
+	sharedFrom, err := domain.SharedFrom(row.ServiceID, row.RelatedItems)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode the related items of program %d/%d: %w", row.ServiceID, row.EventID, err)
 	}
@@ -392,7 +391,7 @@ func toMatchCandidate(row *sqlc.SearchProgramCandidatesRow) (*match.Program, err
 		IsFree:      row.IsFree,
 		// 囲み文字を括弧の書き方にする前に正規化した番組名では、囲み文字と番組名の文字を見分けられないので、
 		// 囲み文字は正規化する前の番組名から取り出す。
-		Marks: epg.Marks(row.Name),
+		Marks: domain.Marks(row.Name),
 	}, nil
 }
 

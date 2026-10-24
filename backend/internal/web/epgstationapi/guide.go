@@ -11,9 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
-	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
 )
 
 // broadcastTypes は、EPGStation の放送波の種別。config の broadcast と、schedules の絞り込みに使う。
@@ -80,7 +79,7 @@ type scheduleChannel struct {
 // services は、番組表に出すサービスを、番組表の並び順で返す。非表示のサービスと、映像も音声も流さないサービスは外す。
 func (h *Handler) services(r *http.Request) ([]sqlc.ListGuideServicesRow, error) {
 	rows, err := sqlc.New(h.pool).ListGuideServices(r.Context(), sqlc.ListGuideServicesParams{
-		IncludeHidden: false, MediaServiceTypes: epg.MediaServiceTypes(), Ids: []int64{},
+		IncludeHidden: false, MediaServiceTypes: domain.MediaServiceTypes(), Ids: []int64{},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the services: %w", err)
@@ -139,7 +138,7 @@ func (h *Handler) Schedules(w http.ResponseWriter, r *http.Request) {
 	from, errFrom := parseTime(query.Get("startAt"))
 	to, errTo := parseTime(query.Get("endAt"))
 	// 番組表の画面と同じく、一度に引ける時間帯の長さに上限を設ける。
-	if errFrom != nil || errTo != nil || !from.Before(to) || to.Sub(from) > epg.MaxGuideRange {
+	if errFrom != nil || errTo != nil || !from.Before(to) || to.Sub(from) > domain.MaxGuideRange {
 		http.Error(w, errInvalidTime.Error(), http.StatusBadRequest)
 
 		return
@@ -184,7 +183,7 @@ func (h *Handler) Schedules(w http.ResponseWriter, r *http.Request) {
 }
 
 func programOf(row *sqlc.ListProgramsInRangeRow, ch *channel, toHalfWidth bool) (*program, error) {
-	var genres []*mirakurun.Genre
+	var genres []*domain.Genre
 	if err := json.Unmarshal(row.Genres, &genres); err != nil {
 		return nil, fmt.Errorf("failed to decode the genres: %w", err)
 	}

@@ -31,8 +31,8 @@ run = [
   "golangci-lint fmt",
   # フロントエンドの Relay のコンパイラが読む、1 つにまとめたスキーマを書き出す。
   "go run ./internal/web/graph/printschema > ../frontend/schema.graphql",
-  # 囲み文字の表 (internal/usecase/epg/enclosed.go) を、画面で使う TypeScript に書き出す。
-  "go run ./internal/usecase/epg/printenclosed > ../frontend/src/futon/enclosedCharacters.gen.ts",
+  # 囲み文字の表 (internal/domain/enclosed.go) を、画面で使う TypeScript に書き出す。
+  "go run ./internal/domain/printenclosed > ../frontend/src/futon/enclosedCharacters.gen.ts",
   # MCP サーバーが SPA なしで返すアイコンを、画面の原本から写す。
   "cp ../frontend/public/icons/icon.svg ../frontend/public/icons/icon-192.png internal/web/webui/icons/",
   # schema.sql とマイグレーションが食い違っていれば、ここで新しいマイグレーションが生成される。
