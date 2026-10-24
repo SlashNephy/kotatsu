@@ -5,7 +5,7 @@ docs
 backend/testdata
 **/*_test.go
 frontend/node_modules
-backend/internal/webui/dist/app
+backend/internal/web/webui/dist/app
 frontend/dist
 # 字幕を描くフォントは、イメージのビルドで取得し直す。
 frontend/vendor/caption-font/*.ttf

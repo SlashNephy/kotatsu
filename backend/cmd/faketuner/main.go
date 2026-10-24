@@ -16,8 +16,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
+	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
 func main() {

@@ -34,7 +34,7 @@ COPY go.work go.work.sum ./
 COPY backend/go.mod backend/go.sum ./backend/
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
-COPY --from=web /src/backend/internal/webui/dist/app ./backend/internal/webui/dist/app
+COPY --from=web /src/backend/internal/web/webui/dist/app ./backend/internal/web/webui/dist/app
 ARG TARGETOS
 ARG TARGETARCH
 # VERSION は、版とコミットを 1.2.3+<コミット> の形で渡す (internal/lib/buildinfo)。.git はイメージに入れないので、

@@ -1,5 +1,5 @@
 # ツールは、ルートの mise.toml の node と pnpm を引き継ぐ。
-# ビルドした SPA は ../backend/internal/webui/dist/app に出力され、go build で埋め込まれる。
+# ビルドした SPA は ../backend/internal/web/webui/dist/app に出力され、go build で埋め込まれる。
 # 埋め込んだバイナリを作るときは、mise run //frontend:build の後に mise run build を実行する。
 
 [tasks.install]

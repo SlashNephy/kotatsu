@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/SlashNephy/kotatsu/internal/httpserver"
+	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
 // MetadataPath と ProtectedResourceMetadataPath は、認可サーバーのメタデータ (RFC 8414) と、
