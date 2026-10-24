@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/epgstation"
-	"github.com/SlashNephy/kotatsu/internal/epgstation/epgstationtest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/epgstationtest"
 )
 
 // 番組とチャンネルの ID は、EPGStation では 32 ビットに収まらない値になる。

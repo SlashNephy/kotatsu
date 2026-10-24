@@ -13,12 +13,12 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database"
-	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/match"
 	"github.com/SlashNephy/kotatsu/internal/neko"
 	"github.com/SlashNephy/kotatsu/internal/rule"
-	"github.com/SlashNephy/kotatsu/internal/tuner/faketuner"
+	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
 

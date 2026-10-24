@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
-	"github.com/SlashNephy/kotatsu/internal/tuner/faketuner"
+	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 )
 
 func main() {

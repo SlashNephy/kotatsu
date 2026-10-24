@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 )
 
 // TestFakeStopwatch は、Stopwatch の経過時間が Advance でだけ進み、Set で壁時計を動かしても変わらないことを確かめる。

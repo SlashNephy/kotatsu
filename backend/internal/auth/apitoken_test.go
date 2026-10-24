@@ -13,7 +13,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
-	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 )
 
 // TestAPITokens は、API トークンを発行し、そのユーザーのロールのまま認証し、取り消したら使えなくなることを確かめる (#431)。

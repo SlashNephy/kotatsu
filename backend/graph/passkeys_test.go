@@ -15,7 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/graph"
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
-	"github.com/SlashNephy/kotatsu/internal/webauthntest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/webauthntest"
 )
 
 const (

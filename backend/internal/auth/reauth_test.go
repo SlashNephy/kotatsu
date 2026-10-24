@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/auth"
-	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 )
 
 // TestRequireRecentAuthentication は、重要な操作の前に、直近 10 分以内の認証を求めることを確かめる。

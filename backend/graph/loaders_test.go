@@ -10,7 +10,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/graph"
 	"github.com/SlashNephy/kotatsu/internal/database"
-	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 )
 
 // TestLoaderFailsEveryKeyWhenTheQueryFails は、まとめて引くクエリが失敗したとき、まとめたすべてのキーにエラーを返すことを確かめる。

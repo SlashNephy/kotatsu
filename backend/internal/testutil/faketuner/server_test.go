@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/tuner/faketuner"
+	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 )
 
 // testNow は、テストで使う現在時刻。

@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/stream"
-	"github.com/SlashNephy/kotatsu/internal/tuner/faketuner"
+	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
 

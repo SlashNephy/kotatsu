@@ -13,10 +13,10 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/database"
-	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/id"
 	"github.com/SlashNephy/kotatsu/internal/password"
-	"github.com/SlashNephy/kotatsu/internal/password/passwordtest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/passwordtest"
 )
 
 // newTestPolicy は、パスワードの規定を返す。強度の判定は、-race で遅い zxcvbn-ts の代わりに、
