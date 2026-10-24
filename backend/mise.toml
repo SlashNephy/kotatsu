@@ -1,0 +1,41 @@
+[tools]
+golangci-lint = "2.14.0" # go より先に置かないと、go/bin/ のバイナリが優先されてしまう
+# ルートと同じ版。golangci-lint より後に置くため、ここでも書く。
+go = "1.27.3"
+atlas-community = "1.3.0"
+sqlc = "1.31.1"
+
+[tasks.test]
+# DB を使うテストは、パッケージをまたいで並行に動くと PostgreSQL の接続数の上限 (既定は 100) に達する。
+# CPU の多いマシンでも CI (4 コア) と同じ並行度になるよう、同時に動かすパッケージの数を絞る。
+run = "go test -race -p 4 ./..."
+
+[tasks.lint]
+run = "golangci-lint run"
+
+[tasks.fmt]
+run = "golangci-lint fmt"
+
+# db/schema.sql とマイグレーションの差分から、新しいマイグレーションを生成する (Docker が要る)。
+# 名前を付けるときは mise run //backend:db:diff -- add_users のように渡す。
+[tasks."db:diff"]
+run = "atlas migrate diff --env local"
+
+[tasks.generate]
+depends = ["//frontend:zxcvbn"]
+run = [
+  "sqlc generate",
+  # GraphQL のスキーマから、実行のコードとモデルを生成する。リゾルバの実装は残る。
+  "go tool gqlgen generate",
+  # gqlgen が書き換えたリゾルバの import を、リポジトリの形式にそろえる。
+  "golangci-lint fmt",
+  # フロントエンドの Relay のコンパイラが読む、1 つにまとめたスキーマを書き出す。
+  "go run ./graph/printschema > ../frontend/schema.graphql",
+  # 囲み文字の表 (internal/epg/enclosed.go) を、画面で使う TypeScript に書き出す。
+  "go run ./internal/epg/printenclosed > ../frontend/src/futon/enclosedCharacters.gen.ts",
+  # MCP サーバーが SPA なしで返すアイコンを、画面の原本から写す。
+  "cp ../frontend/public/icons/icon.svg ../frontend/public/icons/icon-192.png internal/webui/icons/",
+  # schema.sql とマイグレーションが食い違っていれば、ここで新しいマイグレーションが生成される。
+  "atlas migrate diff --env local",
+  "atlas migrate validate --env local",
+]

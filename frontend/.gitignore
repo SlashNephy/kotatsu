@@ -1,0 +1,13 @@
+/node_modules/
+/dist/*
+/storybook-static/
+/test-results/
+/playwright-report/
+/zxcvbn/dist/
+/vendor/caption-font/*.ttf
+/vendor/caption-font/*.tmp
+# TanStack Router が作る一時ファイル。
+/.tanstack/
+
+# tsc -b の増分ビルドの記録
+*.tsbuildinfo

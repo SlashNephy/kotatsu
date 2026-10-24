@@ -42,14 +42,14 @@ services:
       timeout: 5s
       retries: 30
 
-  # 偽のチューナーサーバー。testdata/ts/test.ts を、すべてのサービスのストリームとして流す。
+  # 偽のチューナーサーバー。backend/testdata/ts/test.ts を、すべてのサービスのストリームとして流す。
   faketuner:
     <<: *dev
-    command: ["exec", "--", "go", "run", "./cmd/faketuner", "-listen", "0.0.0.0:40772", "-ts", "testdata/ts/test.ts"]
+    command: ["exec", "--", "go", "run", "./backend/cmd/faketuner", "-listen", "0.0.0.0:40772", "-ts", "backend/testdata/ts/test.ts"]
     ports:
       - "127.0.0.1:40772:40772"
 
-  # 開発用の OIDC の IdP。admin、member、viewer のユーザーで、パスワードだけでログインできる (dev/dex.yaml)。
+  # 開発用の OIDC の IdP。admin、member、viewer のユーザーで、パスワードだけでログインできる (docker/dex/kotatsu.yaml)。
   dex:
     image: ghcr.io/dexidp/dex:v2.46.1@sha256:65b72ca0f4b0bf6d4ada84ec21da8851782563404ac7b8f926923d27ceced9ab
     command: ["dex", "serve", "/etc/dex/kotatsu.yaml"]
@@ -58,7 +58,7 @@ services:
     ports:
       - "127.0.0.1:5556:5556"
     volumes:
-      - ./dev/dex.yaml:/etc/dex/kotatsu.yaml:ro
+      - ./docker/dex/kotatsu.yaml:/etc/dex/kotatsu.yaml:ro
     networks:
       default:
         # issuer の dex.localhost を、Kotatsu のコンテナからも引けるようにする。
@@ -77,7 +77,7 @@ services:
   # 前のプロセスを止めてからビルドするので、ビルドの間の数秒は応答しない (web は 502 を返す)。
   kotatsu:
     <<: *dev
-    command: ["run", "dev:server"]
+    command: ["run", "//backend:dev:server"]
     environment:
       KOTATSU_DATABASE_URL: postgres://postgres:postgres@postgres:5432/kotatsu?sslmode=disable
       # 開発専用の固定の秘密キー。運用では、ランダムな値を Secret で渡す。
@@ -126,18 +126,18 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
 
-  # 画面の依存を、web/node_modules のボリュームに入れる。pnpm-lock.yaml を変えたら、docker compose up web-install で入れ直す。
+  # 画面の依存を、frontend/node_modules のボリュームに入れる。pnpm-lock.yaml を変えたら、docker compose up web-install で入れ直す。
   web-install:
     <<: *dev
-    command: ["run", "web:install"]
+    command: ["run", "//frontend:install"]
     volumes:
       - .:/src
-      - web-node-modules:/src/web/node_modules
+      - web-node-modules:/src/frontend/node_modules
 
   # 画面の開発サーバー (Vite)。ブラウザはここを開き、API と映像は Kotatsu に中継される。保存した画面の変更は、その場で差し替わる。
   web:
     <<: *dev
-    command: ["run", "dev:web"]
+    command: ["run", "//frontend:dev:web"]
     environment:
       KOTATSU_DEV_API: http://kotatsu:8080
     ports:
@@ -145,7 +145,7 @@ services:
       - "127.0.0.1:${KOTATSU_DEV_PORT:-8080}:8080"
     volumes:
       - .:/src
-      - web-node-modules:/src/web/node_modules
+      - web-node-modules:/src/frontend/node_modules
     depends_on:
       web-install:
         condition: service_completed_successfully
@@ -156,15 +156,15 @@ services:
   # SQL のクエリやスキーマ、GraphQL のスキーマを変えたら、sqlc と gqlgen の生成物と、画面が読むスキーマを作り直す (mise.dev.toml の dev:generate)。
   generate:
     <<: *dev
-    command: ["run", "dev:generate"]
+    command: ["run", "//backend:dev:generate"]
 
   # 画面のクエリやスキーマを変えたら、Relay の生成物を作り直す (mise.dev.toml の dev:relay)。
   relay:
     <<: *dev
-    command: ["run", "dev:relay"]
+    command: ["run", "//frontend:dev:relay"]
     volumes:
       - .:/src
-      - web-node-modules:/src/web/node_modules
+      - web-node-modules:/src/frontend/node_modules
     depends_on:
       web-install:
         condition: service_completed_successfully

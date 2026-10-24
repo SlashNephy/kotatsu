@@ -1,0 +1,3 @@
+# frontend/ で vp build した SPA。.gitkeep だけを残し、SPA を作らなくても go build が通るようにする。
+/dist/*
+!/dist/.gitkeep

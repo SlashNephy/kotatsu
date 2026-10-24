@@ -9,9 +9,11 @@
 - Docker（Compose v2を含む）：PostgreSQL、偽のチューナーサーバー、Kotatsuを動かします。
 
 ツールは、リポジトリの直下で次のコマンドを実行して入れてください。
+`mise install`は、そのディレクトリの`mise.toml`のツールだけを入れるので、`backend/`のツール（golangci-lint、sqlc、atlas）は`backend/`で入れます。
 
 ```bash
 mise install
+mise -C backend install
 ```
 
 ## Docker Composeで動かす
@@ -30,7 +32,7 @@ mise run dev
 | サービス | 内容 | 手元からの接続先 |
 | --- | --- | --- |
 | `postgres` | PostgreSQL 18 | `127.0.0.1:55432`（ユーザーとパスワードはどちらも`postgres`） |
-| `faketuner` | 偽のチューナーサーバー（`cmd/faketuner`） | `127.0.0.1:40772` |
+| `faketuner` | 偽のチューナーサーバー（`backend/cmd/faketuner`） | `127.0.0.1:40772` |
 | `dex` | 開発用のOIDCのIdP（[Dex](https://dexidp.io/)） | `http://dex.localhost:5556/dex` |
 | `kotatsu` | 全ロールを1つのコンテナで動かします | なし（`web`が中継します） |
 | `web-install` | 画面の依存を入れます | なし |
@@ -38,7 +40,7 @@ mise run dev
 | `generate` | SQLとGraphQLのスキーマの変更から、生成物を作り直します | なし |
 | `relay` | 画面のクエリの変更から、Relayの生成物を作り直します | なし |
 
-偽のチューナーサーバーは、`testdata/ts/test.ts`を、すべてのサービスのストリームとして流します。
+偽のチューナーサーバーは、`backend/testdata/ts/test.ts`を、すべてのサービスのストリームとして流します。
 番組表も、テスト用のものを返します。
 実際のチューナーサーバーにつなぐ方法は、後述の「実際のチューナーサーバーにつなぐ」を見てください。
 
@@ -93,7 +95,7 @@ Dexの画面で、次のどれかのユーザーでログインします。
 ロールは、Dexのユーザーのグループで決まります。
 OIDCでのログインには、認証アプリの登録が要りません。
 
-ユーザーとパスワードは、[dev/dex.yaml](../dev/dex.yaml)で変えられます。
+ユーザーとパスワードは、[docker/dex/kotatsu.yaml](../docker/dex/kotatsu.yaml)で変えられます。
 DexのissuerのURLは`dex.localhost`です。
 ブラウザは`*.localhost`を手元のマシンに向けるので、そのまま開けます。
 
@@ -113,28 +115,28 @@ docker compose logs kotatsu | grep setup_token
 
 | 変えたもの | 反映のしかた |
 | --- | --- |
-| Goのソース（`cmd/`、`internal/`、`graph/`） | `kotatsu`がビルドし直し、マイグレーションを当ててから起動し直します。数秒かかり、その間はAPIが502を返します |
-| 画面のソース（`web/src/`） | 開発サーバーが、ページを読み込み直さずに差し替えます |
-| SQLのクエリやスキーマ（`db/queries/`、`db/schema.sql`）、GraphQLのスキーマ（`graph/schema/`） | `generate`が、sqlcとgqlgenの生成物と`web/schema.graphql`を作り直します。続けて、Goのビルドと`relay`が動きます |
+| Goのソース（`backend/`の`cmd/`、`internal/`、`graph/`） | `kotatsu`がビルドし直し、マイグレーションを当ててから起動し直します。数秒かかり、その間はAPIが502を返します |
+| 画面のソース（`frontend/src/`） | 開発サーバーが、ページを読み込み直さずに差し替えます |
+| SQLのクエリやスキーマ（`backend/db/queries/`、`backend/db/schema.sql`）、GraphQLのスキーマ（`backend/graph/schema/`） | `generate`が、sqlcとgqlgenの生成物と`frontend/schema.graphql`を作り直します。続けて、Goのビルドと`relay`が動きます |
 | 画面のGraphQLのクエリ | `relay`が、`__generated__`を作り直します |
 
 マイグレーションは自動では作りません。
-`db/schema.sql`を変えたら、`mise run db:diff -- <名前>`でマイグレーションを作ってください。
+`backend/db/schema.sql`を変えたら、`mise run //backend:db:diff -- <名前>`でマイグレーションを作ってください。
 
 ビルドに失敗したときは、`docker compose logs -f kotatsu`でエラーを確かめてください。
 直して保存すると、またビルドします。
 
-`web/pnpm-lock.yaml`を変えたときは、依存を入れ直してから、開発サーバーを起動し直してください。
+`frontend/pnpm-lock.yaml`を変えたときは、依存を入れ直してから、開発サーバーを起動し直してください。
 
 ```bash
 docker compose up web-install
 docker compose restart web
 ```
 
-`Dockerfile`や`mise.toml`、`mise.dev.toml`を変えたときは、`mise run dev`を実行し直してください。
+`Dockerfile`や、ルートと`backend/`と`frontend/`の`mise.toml`、`mise.dev.toml`を変えたときは、`mise run dev`を実行し直してください。
 開発用のイメージを作り直します。
 
-`mise run web:dev`は、Composeの外で画面の開発サーバーを`http://localhost:5173`に起動します。
+`mise run //frontend:dev`は、Composeの外で画面の開発サーバーを`http://localhost:5173`に起動します。
 Composeを使わずに、手元でKotatsuを`127.0.0.1:8080`に起動しているときに使います。
 
 ## テストを流す
@@ -143,7 +145,7 @@ DBを使うGoのテストは、`KOTATSU_TEST_DATABASE_URL`にPostgreSQLの接続
 Composeの`postgres`サービスに向けられます。
 
 ```bash
-KOTATSU_TEST_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/postgres?sslmode=disable' mise run test
+KOTATSU_TEST_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/postgres?sslmode=disable' mise run //backend:test
 ```
 
 テストは、テストごとに一時的なDBを作って使います。

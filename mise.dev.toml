@@ -1,30 +1,6 @@
-# 開発用の Compose (compose.yaml) のコンテナで使うツールとタスク (docs/development.md)。
+# 開発用の Compose (compose.yaml) のコンテナで使うツール (docs/development.md)。
 # コンテナは MISE_ENV=dev で動かすので、mise.toml に加えて、これも読む。
+# タスクは、backend/mise.dev.toml と frontend/mise.dev.toml にある。
 [tools]
-# ソースの変更を見て、ビルドし直す。
+# ソースの変更を見て、ビルドし直す。backend/ と frontend/ のタスクが引き継いで使う。
 watchexec = "2.8.0"
-
-# Go のソースを変えたら、ビルドし直し、マイグレーションを当ててから、全ロールを起動し直す。
-# go run は、ビルドするたびにキャッシュとテンポラリを膨らませるので、go build で作ったものを実行する。
-# exec で置き換え、watchexec の止める合図が Kotatsu に届くようにする。
-# go generate などで一度にたくさん書き換えたときに、何度もビルドしないよう、2 秒待ってからまとめてビルドする。
-[tasks."dev:server"]
-run = "watchexec --shell=none --exts go --watch cmd --watch internal --watch graph --watch web/embed.go --restart --debounce 2s --stop-timeout 30s -- sh -c 'go build -o $HOME/bin/kotatsu ./cmd/kotatsu && $HOME/bin/kotatsu migrate && exec $HOME/bin/kotatsu all'"
-
-# 画面の開発サーバー。ブラウザは、ここを入口にして、API と映像を Kotatsu に中継させる。
-[tasks."dev:web"]
-dir = "web"
-run = "pnpm exec vp dev --host 0.0.0.0 --port 8080 --strictPort"
-
-# SQL のクエリやスキーマ、GraphQL のスキーマを変えたら、sqlc と gqlgen の生成物と、画面が読むスキーマを作り直す。
-# 作り直した Go のソースは dev:server が、web/schema.graphql は dev:relay が拾う。
-# マイグレーションは、変えるたびに作られると困るので、ここでは作らない (mise run db:diff で作る)。
-[tasks."dev:generate"]
-run = "watchexec --shell=none --watch db/schema.sql --watch db/queries --watch graph/schema --watch sqlc.yaml --watch gqlgen.yml --postpone --debounce 1s -- sh -c 'sqlc generate && go tool gqlgen generate && golangci-lint fmt && go run ./graph/printschema > web/schema.graphql.tmp && mv web/schema.graphql.tmp web/schema.graphql'"
-
-# 画面のクエリやスキーマを変えたら、Relay の型とアーティファクトを作り直す。
-# relay-compiler の --watch は watchman を要るので使わず、変更のたびに 1 回ずつ動かす。
-[tasks."dev:relay"]
-dir = "web"
-env = { FORCE_NO_WATCHMAN = "1" }
-run = "watchexec --shell=none --watch src --watch schema.graphql --exts ts,tsx,graphql --ignore '**/__generated__/**' --ignore src/routeTree.gen.ts --debounce 500ms -- pnpm exec relay-compiler"

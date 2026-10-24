@@ -68,7 +68,7 @@ docker compose up -d
 
 ## Helmで動かす
 
-[charts/kotatsu](../charts/kotatsu)のHelm Chartは、Kubernetesで動かすためのものです。
+[deploy/helm/kotatsu](../deploy/helm/kotatsu)のHelm Chartは、Kubernetesで動かすためのものです。
 PostgreSQLはChartに含めません。
 [CloudNativePG](https://cloudnative-pg.io/)などで、別に用意してください。
 
@@ -182,7 +182,7 @@ helm install kotatsu kotatsu/kotatsu --version <バージョン> -f values.yaml
 リリースしていないmainの版を使うときは、リポジトリのChartをそのまま指定してください。
 
 ```bash
-helm install kotatsu ./charts/kotatsu -f values.yaml
+helm install kotatsu ./deploy/helm/kotatsu -f values.yaml
 ```
 
 インストールと更新の前に、Chartのフックが`kotatsu migrate`のJobを実行し、DBのスキーマを更新します。

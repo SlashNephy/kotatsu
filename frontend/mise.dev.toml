@@ -1,0 +1,12 @@
+# 開発用の Compose (compose.yaml) のコンテナで使うタスク (docs/development.md)。
+# コンテナは MISE_ENV=dev で動かすので、mise.toml に加えて、これも読む。watchexec はルートの mise.dev.toml にある。
+
+# 画面の開発サーバー。ブラウザは、ここを入口にして、API と映像を Kotatsu に中継させる。
+[tasks."dev:web"]
+run = "pnpm exec vp dev --host 0.0.0.0 --port 8080 --strictPort"
+
+# 画面のクエリやスキーマを変えたら、Relay の型とアーティファクトを作り直す。
+# relay-compiler の --watch は watchman を要るので使わず、変更のたびに 1 回ずつ動かす。
+[tasks."dev:relay"]
+env = { FORCE_NO_WATCHMAN = "1" }
+run = "watchexec --shell=none --watch src --watch schema.graphql --exts ts,tsx,graphql --ignore '**/__generated__/**' --ignore src/routeTree.gen.ts --debounce 500ms -- pnpm exec relay-compiler"

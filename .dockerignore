@@ -2,9 +2,10 @@
 .github
 bin
 docs
-testdata
+backend/testdata
 **/*_test.go
-web/node_modules
-web/dist/app
+frontend/node_modules
+backend/internal/webui/dist/app
+frontend/dist
 # 字幕を描くフォントは、イメージのビルドで取得し直す。
-web/vendor/caption-font/*.ttf
+frontend/vendor/caption-font/*.ttf

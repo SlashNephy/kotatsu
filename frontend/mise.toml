@@ -1,0 +1,67 @@
+# ツールは、ルートの mise.toml の node と pnpm を引き継ぐ。
+# ビルドした SPA は ../backend/internal/webui/dist/app に出力され、go build で埋め込まれる。
+# 埋め込んだバイナリを作るときは、mise run //frontend:build の後に mise run build を実行する。
+
+[tasks.install]
+run = [
+  "pnpm install --frozen-lockfile",
+  # 字幕を描くフォントは npm にないので、vendor/caption-font/SOURCE で固定したリリースから取得する。
+  "node scripts/fetch-caption-font.mjs",
+]
+
+# ブラウザ内での変換に使う mpeg2toh264 のプレイヤーを、vendor/mpeg2toh264/SOURCE の commit からビルドし直す (設計書 7.2)。
+# Rust と wasm-bindgen は mise.mpeg2toh264.toml で固定しているので、MISE_ENV=mpeg2toh264 を付けて実行する。
+[tasks.mpeg2toh264]
+run = "./scripts/build-mpeg2toh264.sh"
+
+# GraphQL のクエリから、Relay の型とアーティファクト (__generated__) を生成する。
+# watchman があれば使おうとするが、使わなくても足りるので切る。
+[tasks.relay]
+depends = ["install"]
+env = { FORCE_NO_WATCHMAN = "1" }
+run = [
+  # relay-compiler は、元の graphql タグを消した生成物を消さない (--validate でも見つからない)。
+  # 一度すべて消してから生成し、残った古い生成物を CI の git diff で見つけられるようにする (#860)。
+  "find src -path '*/__generated__/*.graphql.ts' -delete",
+  "pnpm exec relay-compiler",
+]
+
+[tasks.build]
+depends = ["relay"]
+run = "pnpm exec vp build"
+
+# 静的なデモ (#832)。tenban なしに画面を触れるよう、応答をブラウザの中で返す。
+# Cloudflare Pages のサイトの直下に置き、dist/demo に出力する。Cloudflare Pages は、frontend の pnpm run build:demo でビルドする。
+[tasks.demo]
+depends = ["relay"]
+run = "pnpm exec vp build --mode demo --outDir dist/demo"
+
+[tasks.check]
+depends = ["relay"]
+run = "pnpm exec vp check"
+
+[tasks.test]
+depends = ["relay"]
+run = "pnpm exec vp test run"
+
+[tasks.storybook]
+depends = ["relay"]
+run = "pnpm exec storybook build --quiet"
+
+# E2E テスト。ビルド済みの SPA を vp preview で配信して確かめる。
+# Chromium は pnpm exec playwright install chromium で入れるか、KOTATSU_E2E_CHROMIUM に手元のものを指定する。
+[tasks.e2e]
+depends = ["build"]
+run = "pnpm exec playwright test --project=spa"
+
+# サーバーの goja で動かす zxcvbn-ts のバンドル (設計書 2.2) を作り、gzip で ../backend/internal/password に置く。
+[tasks.zxcvbn]
+depends = ["install"]
+run = [
+  "pnpm exec vp build --config zxcvbn/vite.config.ts",
+  "gzip -9nc zxcvbn/dist/zxcvbn.js > ../backend/internal/password/zxcvbn.js.gz",
+]
+
+[tasks.dev]
+depends = ["install"]
+run = "pnpm exec vp dev"

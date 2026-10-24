@@ -11,17 +11,17 @@ ARG TSREADEX_VERSION=master-260428
 
 # SPA は、どのアーキテクチャでも同じものになるので、ビルドするマシンのアーキテクチャで 1 回だけビルドする。
 FROM --platform=$BUILDPLATFORM docker.io/library/node:24.22.1-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS web
-WORKDIR /src/web
+WORKDIR /src/frontend
 # pnpm の版は package.json の packageManager に従う。
 RUN corepack enable
-COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 # ワークスペースのパッケージ (ビルドした mpeg2toh264) も、依存を入れる前に置く。
-COPY web/vendor/ ./vendor/
+COPY frontend/vendor/ ./vendor/
 # 依存に当てるパッチ (pnpm-workspace.yaml の patchedDependencies) も、依存を入れる前に置く。
-COPY web/patches/ ./patches/
+COPY frontend/patches/ ./patches/
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
-COPY web/ ./
-# 字幕を描くフォントは npm にないので、web/vendor/caption-font/SOURCE で固定したリリースから取得する。
+COPY frontend/ ./
+# 字幕を描くフォントは npm にないので、frontend/vendor/caption-font/SOURCE で固定したリリースから取得する。
 RUN node scripts/fetch-caption-font.mjs
 RUN pnpm exec vp build
 
@@ -29,10 +29,12 @@ RUN pnpm exec vp build
 # Go の脆弱性の影響を受ける版かどうかがわかるよう、タグはパッチバージョンまで書く (mise.toml の go と合わせる)。
 FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.3-trixie@sha256:fbb7ae40b62ff8afe31662df570d39b4f5052ac32b90dae8e60d7657a20a74f4 AS build
 WORKDIR /src
-COPY go.mod go.sum ./
+# go.work に足したモジュールの go.mod と go.sum も、ここで写す。
+COPY go.work go.work.sum ./
+COPY backend/go.mod backend/go.sum ./backend/
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
-COPY --from=web /src/web/dist/app ./web/dist/app
+COPY --from=web /src/backend/internal/webui/dist/app ./backend/internal/webui/dist/app
 ARG TARGETOS
 ARG TARGETARCH
 # VERSION は、版とコミットを 1.2.3+<コミット> の形で渡す (internal/buildinfo)。.git はイメージに入れないので、
@@ -40,7 +42,7 @@ ARG TARGETARCH
 ARG VERSION=""
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
-    -ldflags="-s -w -X github.com/SlashNephy/kotatsu/internal/buildinfo.version=${VERSION}" -o /out/kotatsu ./cmd/kotatsu
+    -ldflags="-s -w -X github.com/SlashNephy/kotatsu/internal/buildinfo.version=${VERSION}" -o /out/kotatsu ./backend/cmd/kotatsu
 
 # tsreadex は、配布されているバイナリがないので、対象のアーキテクチャでソースからビルドする。
 FROM docker.io/library/debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS tools
@@ -81,7 +83,7 @@ RUN drivers="mesa-va-drivers" \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=tools /out/tsreadex /usr/local/bin/
 COPY --from=tools /out/doc/ /usr/share/doc/kotatsu/third-party/
-COPY build/container/write-debian-sources.sh /tmp/
+COPY docker/debian/write-debian-sources.sh /tmp/
 # 入れた Debian のパッケージとソースパッケージの一覧を、ソースの入手先とともに書き出す (付録 B)。
 RUN sh /tmp/write-debian-sources.sh /usr/share/doc/kotatsu/third-party/debian-packages.tsv && rm /tmp/write-debian-sources.sh
 
@@ -95,10 +97,10 @@ COPY --from=docker.io/jdxcode/mise:2026.10.14@sha256:7cb6019fd7e60dfc3622b1d667d
 ARG UID=1000
 ARG GID=1000
 # 名前付きボリュームは、最初にマウントしたときに、イメージのディレクトリの持ち主を引き継ぐ。
-# ソースのマウントの中にある web/node_modules も、先に作っておく。
+# ソースのマウントの中にある frontend/node_modules も、先に作っておく。
 RUN groupadd -o -g "${GID}" kotatsu \
     && useradd -o -m -u "${UID}" -g "${GID}" -d /home/kotatsu kotatsu \
-    && mkdir -p /mise /go/pkg/mod /go/cache /src/web/node_modules \
+    && mkdir -p /mise /go/pkg/mod /go/cache /src/frontend/node_modules \
     && chown -R "${UID}:${GID}" /mise /go /src /home/kotatsu
 USER kotatsu
 ENV MISE_DATA_DIR=/mise \
@@ -110,13 +112,16 @@ ENV MISE_DATA_DIR=/mise \
     GOCACHE=/go/cache
 # 足りないツールをその場で入れて mise.lock を書き換えないよう、イメージに入れたツールだけを使う。
 ENV MISE_AUTO_INSTALL=false
-# pnpm のストアは、ハードリンクが効くよう、web/node_modules と同じボリュームに置く。
+# pnpm のストアは、ハードリンクが効くよう、frontend/node_modules と同じボリュームに置く。
 # 置き場所を決めないと、マウントしたソースの直下に作ってしまう。
-ENV pnpm_config_store_dir=/src/web/node_modules/.pnpm-store
+ENV pnpm_config_store_dir=/src/frontend/node_modules/.pnpm-store
 WORKDIR /src
 # 開発に使うツールだけを、イメージに入れておく。
 COPY --chown=${UID}:${GID} mise.toml mise.lock mise.dev.toml mise.dev.lock ./
-RUN mise install go node pnpm watchexec sqlc golangci-lint
+COPY --chown=${UID}:${GID} backend/mise.toml backend/mise.lock backend/mise.dev.toml ./backend/
+# mise install は、そのディレクトリの config root のツールだけを入れるので、backend/ のツールは backend/ で入れる。
+RUN mise install go node pnpm watchexec \
+    && mise -C backend install golangci-lint sqlc
 ENTRYPOINT ["mise"]
 
 FROM runtime AS ffmpeg

@@ -12,7 +12,7 @@
       // wasm-bindgen の CLI は、mpeg2toh264 の Cargo.lock の wasm-bindgen と同じ版でないと使えない。
       // mpeg2toh264 の commit を上げるときに、合わせて手で上げる。
       matchFileNames: [
-        'mise.mpeg2toh264.toml',
+        'frontend/mise.mpeg2toh264.toml',
       ],
       matchDepNames: [
         '/wasm-bindgen/',
@@ -33,7 +33,7 @@
     {
       // atlas.hcl の開発用 DB の URL (docker+postgres://) には、digest を書けない。
       matchFileNames: [
-        'atlas.hcl',
+        'backend/atlas.hcl',
       ],
       pinDigests: false,
     },
@@ -50,7 +50,7 @@
       // 字幕を描くフォント。リリースのタグと、添付のフォントの sha256 を合わせて上げる。
       customType: 'regex',
       managerFilePatterns: [
-        '/^web/vendor/caption-font/SOURCE$/',
+        '/^frontend/vendor/caption-font/SOURCE$/',
       ],
       matchStrings: [
         '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\ntag=(?<currentValue>\\S+)\\nsha256=(?<currentDigest>[0-9a-f]{64})',
@@ -59,10 +59,10 @@
       autoReplaceStringTemplate: '# renovate: datasource={{{datasource}}} depName={{{depName}}}\ntag={{{newValue}}}\nsha256={{{newDigest}}}',
     },
     {
-      // ブラウザ内での変換に使う mpeg2toh264 の commit (設計書 7.2)。更新したら、mise run web:mpeg2toh264 でビルドし直す。
+      // ブラウザ内での変換に使う mpeg2toh264 の commit (設計書 7.2)。更新したら、mise run //frontend:mpeg2toh264 でビルドし直す。
       customType: 'regex',
       managerFilePatterns: [
-        '/^web/vendor/mpeg2toh264/SOURCE$/',
+        '/^frontend/vendor/mpeg2toh264/SOURCE$/',
       ],
       matchStrings: [
         '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) currentValue=(?<currentValue>\\S+)\\ncommit=(?<currentDigest>[0-9a-f]{40})',
@@ -73,7 +73,7 @@
       // atlas.hcl の開発用 DB のイメージ。
       customType: 'regex',
       managerFilePatterns: [
-        '/^atlas\\.hcl$/',
+        '/^backend/atlas\\.hcl$/',
       ],
       matchStrings: [
         'docker\\+postgres://(?<depName>[^:]+):(?<currentValue>[^/]+)/',
