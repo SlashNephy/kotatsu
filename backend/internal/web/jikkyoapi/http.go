@@ -1,4 +1,4 @@
-package jikkyo
+package jikkyoapi
 
 import (
 	"context"
@@ -11,9 +11,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/query"
+	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 )
 
 // segmentKind は、録画のファイルのうち、TS のセグメントの種類。
@@ -31,18 +34,18 @@ const finishedCacheControl = "private, max-age=600"
 // 描画とミュートに使う項目だけを、録画の始まり (最初のセグメントを書き始めた時刻) からの秒とともに返す。
 // ユーザー ID は、過去ログ API が公開している匿名の ID で、ID でのミュートに使う (#488)。
 type CommentsHandler struct {
-	db     sqlc.DBTX
-	table  *Table
-	client *Client
-	clock  clock.Clock
-	logger *slog.Logger
+	queries *query.Queries
+	table   *jikkyo.Table
+	client  *jikkyoclient.Client
+	clock   clock.Clock
+	logger  *slog.Logger
 }
 
 var _ http.Handler = new(CommentsHandler)
 
 // NewCommentsHandler は CommentsHandler を返す。
-func NewCommentsHandler(db sqlc.DBTX, table *Table, client *Client, clk clock.Clock, logger *slog.Logger) *CommentsHandler {
-	return &CommentsHandler{db: db, table: table, client: client, clock: clk, logger: logger}
+func NewCommentsHandler(pool *pgxpool.Pool, table *jikkyo.Table, client *jikkyoclient.Client, clk clock.Clock, logger *slog.Logger) *CommentsHandler {
+	return &CommentsHandler{queries: query.New(pool), table: table, client: client, clock: clk, logger: logger}
 }
 
 type commentsResponse struct {
@@ -73,7 +76,7 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	source, err := sqlc.New(h.db).GetRecordingJikkyoSource(r.Context(), recordingID)
+	source, err := h.queries.GetRecordingJikkyoSource(r.Context(), recordingID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, "the recording is not found", http.StatusNotFound)
 
@@ -135,7 +138,7 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // 録画の行を作ってから、チューナーを開いて書き始めるまでには時間がかかるので、recorded_from とはずれる。
 // セグメントがまだなければ、recorded_from を使う。
 func (h *CommentsHandler) origin(ctx context.Context, recordingID uuid.UUID, recordedFrom time.Time) (time.Time, error) {
-	files, err := sqlc.New(h.db).ListRecordingFiles(ctx, recordingID)
+	files, err := h.queries.ListRecordingFiles(ctx, recordingID)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("failed to list the recording files: %w", err)
 	}

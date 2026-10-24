@@ -1,4 +1,4 @@
-package jikkyo
+package jikkyoclient
 
 import (
 	"context"

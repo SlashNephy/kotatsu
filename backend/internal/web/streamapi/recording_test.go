@@ -1,4 +1,4 @@
-package stream_test
+package streamapi_test
 
 import (
 	"bytes"
@@ -26,7 +26,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
-	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
+	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
 const (
@@ -68,7 +68,7 @@ func newRecordingFixture(t *testing.T, pools map[string]string) *recordingFixtur
 		pools = map[string]string{poolID: dir}
 	}
 	mux := http.NewServeMux()
-	mux.Handle(recordingPattern, stream.NewRecordingHandler(pool, kago.New(pools, nil).WithDataDir(dir), slog.New(slog.DiscardHandler), pollInterval))
+	mux.Handle(recordingPattern, streamapi.NewRecordingHandler(pool, kago.New(pools, nil).WithDataDir(dir), slog.New(slog.DiscardHandler), pollInterval))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
@@ -142,7 +142,7 @@ func (f *recordingFixture) get(t *testing.T, recordingID uuid.UUID, query string
 
 	return &fetched{
 		status: resp.StatusCode, contentType: resp.Header.Get("Content-Type"), disposition: resp.Header.Get("Content-Disposition"),
-		start: resp.Header.Get(stream.StartHeader), body: body,
+		start: resp.Header.Get(streamapi.StartHeader), body: body,
 	}
 }
 
@@ -386,7 +386,7 @@ func TestRecordingHandlerReportsStartOnHead(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "2.002", resp.Header.Get(stream.StartHeader))
+	assert.Equal(t, "2.002", resp.Header.Get(streamapi.StartHeader))
 	assert.Empty(t, body)
 }
 

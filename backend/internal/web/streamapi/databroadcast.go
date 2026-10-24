@@ -1,10 +1,11 @@
-package stream
+package streamapi
 
 import (
 	"math"
 	"net/http"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
+	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
 const (
@@ -45,7 +46,7 @@ func newDataBroadcastWriter(w http.ResponseWriter, number uint16) *dataBroadcast
 		ResponseWriter: w,
 		filter:         ts.NewDataBroadcastFilter(number),
 		pending:        make([]byte, 0, ts.PacketSize),
-		out:            make([]byte, 0, copyBufferSize),
+		out:            make([]byte, 0, stream.CopyBufferSize),
 	}
 }
 

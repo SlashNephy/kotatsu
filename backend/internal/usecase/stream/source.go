@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path"
 	"slices"
@@ -304,7 +305,7 @@ func (s *RecordingSource) servePiece(ctx context.Context, w io.Writer, recording
 			src = io.LimitReader(file, p.to-p.from)
 		}
 
-		return copyFlushing(w, src)
+		return CopyFlushing(w, src)
 	}
 
 	return s.serveGrowing(ctx, w, recordingID, p, file)
@@ -352,7 +353,7 @@ func (s *RecordingSource) serveGrowing(ctx context.Context, w io.Writer, recordi
 		if p.to >= 0 {
 			src = io.LimitReader(file, p.to-offset)
 		}
-		if err := copyFlushing(w, src); err != nil {
+		if err := CopyFlushing(w, src); err != nil {
 			return err
 		}
 		if offset, err = file.Seek(0, io.SeekCurrent); err != nil {
@@ -394,3 +395,41 @@ func sleep(ctx context.Context, d time.Duration) error {
 		return nil
 	}
 }
+
+// CopyFlushing は、src を読み終えるまで、読んだ分を w に書いて送り出す。w が HTTP の応答なら、書くたびに送り出す。
+func CopyFlushing(w io.Writer, src io.Reader) error {
+	flush := func() error { return nil }
+	if rw, ok := w.(http.ResponseWriter); ok {
+		controller := http.NewResponseController(rw)
+		flush = func() error {
+			if err := controller.Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
+				return err
+			}
+
+			return nil
+		}
+	}
+	buf := make([]byte, CopyBufferSize)
+	for {
+		n, err := src.Read(buf)
+		if n > 0 {
+			if _, werr := w.Write(buf[:n]); werr != nil {
+				return werr
+			}
+			if ferr := flush(); ferr != nil {
+				return ferr
+			}
+		}
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
+}
+
+const (
+	// CopyBufferSize は、上流から読んでクライアントに書く単位。TS のパケット 1024 個分。
+	CopyBufferSize = 188 * 1024
+)

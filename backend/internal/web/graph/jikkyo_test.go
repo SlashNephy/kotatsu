@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -50,7 +51,7 @@ func TestServiceJikkyo(t *testing.T) {
 			t.Cleanup(nx.Close)
 			table, err := jikkyo.NewTable(nil)
 			require.NoError(t, err)
-			client := jikkyo.NewClient(&jikkyo.ClientOptions{NXJikkyoURL: nx.URL, KakologURL: nx.URL, HTTPClient: nil, Clock: nil})
+			client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: nx.URL, KakologURL: nx.URL, HTTPClient: nil, Clock: nil})
 			f := newFixture(t, &graph.Options{JikkyoTable: table, JikkyoClient: client})
 			f.syncEPG(t)
 

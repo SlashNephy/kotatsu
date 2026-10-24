@@ -1,4 +1,4 @@
-package stream_test
+package streamapi_test
 
 import (
 	"bytes"
@@ -16,7 +16,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
-	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
+	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
 const logoPattern = "GET /media/services/{id}/logo"
@@ -29,11 +29,11 @@ func (htmlLogo) ServiceLogo(context.Context, int64) ([]byte, error) {
 }
 
 // logoServer は、tuner を上流にした tenban のロゴの中継を立てる。
-func logoServer(t *testing.T, tuner stream.LogoFetcher) *httptest.Server {
+func logoServer(t *testing.T, tuner streamapi.LogoFetcher) *httptest.Server {
 	t.Helper()
 
 	mux := http.NewServeMux()
-	mux.Handle(logoPattern, stream.NewLogoHandler(tuner, slog.New(slog.DiscardHandler)))
+	mux.Handle(logoPattern, streamapi.NewLogoHandler(tuner, slog.New(slog.DiscardHandler)))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
@@ -57,7 +57,7 @@ func TestLogoHandler(t *testing.T) {
 	client := fakeTunerClient(t)
 	tests := []struct {
 		name       string
-		tuner      stream.LogoFetcher
+		tuner      streamapi.LogoFetcher
 		id         string
 		wantStatus int
 	}{

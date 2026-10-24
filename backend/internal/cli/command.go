@@ -21,6 +21,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
+	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
@@ -35,7 +36,6 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
-	"github.com/SlashNephy/kotatsu/internal/usecase/avatar"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capacity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
@@ -50,11 +50,14 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
+	"github.com/SlashNephy/kotatsu/internal/web/avatar"
 	"github.com/SlashNephy/kotatsu/internal/web/epgstationapi"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
+	"github.com/SlashNephy/kotatsu/internal/web/jikkyoapi"
 	"github.com/SlashNephy/kotatsu/internal/web/mcpserver"
 	"github.com/SlashNephy/kotatsu/internal/web/spa"
+	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 	"github.com/SlashNephy/kotatsu/internal/web/webui"
 )
 
@@ -626,7 +629,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	if err != nil {
 		return nil, err
 	}
-	jikkyoClient := jikkyo.NewClient(&jikkyo.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: nil, Clock: deps.Clock})
+	jikkyoClient := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: nil, Clock: deps.Clock})
 	updates, graphUpdates := newUpdates(logger, deps)
 	apiTokens := auth.NewAPITokens(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
 	authorizationServer := oauth.NewServer(deps.DB, deps.Clock, oauth.NewFetcher(deps.Clock), audit.NewRecorder(deps.Clock))
@@ -707,8 +710,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		mux.Handle(pattern, httpserver.RequireSameOrigin(handler))
 	}
 	// 映像の配信 (設計書 7.2、7.6、9.6)。セッションか署名付き URL で認可する。
-	var opener stream.ServiceOpener
-	var logos stream.LogoFetcher
+	var opener streamapi.ServiceOpener
+	var logos streamapi.LogoFetcher
 	if deps.Config.Tuner.URL.Value() != "" {
 		client, err := newTunerClient(deps)
 		if err != nil {
@@ -716,13 +719,13 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		}
 		opener, logos = client, client
 	}
-	authorizer := stream.NewAuthorizer(signer, deps.DB, deps.Clock)
+	authorizer := streamapi.NewAuthorizer(signer, deps.DB, deps.Clock)
 	streamLogger := logger.With(slog.String("component", "stream"))
 	// ライブ視聴と録画の配信は終わらないので、停止を始めたら打ち切り、待たない。
 	mux.Handle("GET /streams/services/{id}",
-		httpserver.StopOnShutdown(authorizer.Middleware(stream.NewLiveHandler(opener, streamLogger))))
+		httpserver.StopOnShutdown(authorizer.Middleware(streamapi.NewLiveHandler(opener, streamLogger))))
 	mux.Handle("GET /streams/services/{id}/data-broadcast",
-		httpserver.StopOnShutdown(authorizer.Middleware(stream.NewDataBroadcastHandler(opener, streamLogger))))
+		httpserver.StopOnShutdown(authorizer.Middleware(streamapi.NewDataBroadcastHandler(opener, streamLogger))))
 	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
 	kyusuToken, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
 	if err != nil {
@@ -735,10 +738,10 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		authorizer.Middleware(kyusu.NewRecordingRelay(instances, kyusuToken, streamLogger)))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
 	mux.Handle("GET /streams/recordings/{id}",
-		httpserver.StopOnShutdown(authorizer.Middleware(stream.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))
+		httpserver.StopOnShutdown(authorizer.Middleware(streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
 	mux.Handle("GET /streams/recordings/{id}/files/{file}",
-		httpserver.StopOnShutdown(authorizer.Middleware(stream.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger))))
+		httpserver.StopOnShutdown(authorizer.Middleware(streamapi.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger))))
 	handleMedia(mux, deps, logger, authorizer, logos, jikkyoTable, jikkyoClient)
 	api := sessions.Middleware(deps.DB)(mux)
 	compat := newEPGStationAPI(deps, apiTokens, opener, logos, streamLogger)
@@ -761,12 +764,12 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 
 // handleMedia は、画像と実況の過去ログ (/media/*) を mux に登録する。どれも、セッションか署名付き URL で認可する。
 func handleMedia(
-	mux *http.ServeMux, deps *Deps, logger *slog.Logger, authorizer *stream.Authorizer, logos stream.LogoFetcher,
-	jikkyoTable *jikkyo.Table, jikkyoClient *jikkyo.Client,
+	mux *http.ServeMux, deps *Deps, logger *slog.Logger, authorizer *streamapi.Authorizer, logos streamapi.LogoFetcher,
+	jikkyoTable *jikkyo.Table, jikkyoClient *jikkyoclient.Client,
 ) {
 	streamLogger := logger.With(slog.String("component", "stream"))
 	// サービスのロゴは、チューナーサーバーから取って中継する。
-	mux.Handle("GET /media/services/{id}/logo", authorizer.Middleware(stream.NewLogoHandler(logos, streamLogger)))
+	mux.Handle("GET /media/services/{id}/logo", authorizer.Middleware(streamapi.NewLogoHandler(logos, streamLogger)))
 	// ユーザーのアイコンは、IdP から取って中継する (#778)。
 	mux.Handle("GET /media/users/{id}/avatar",
 		authorizer.Middleware(avatar.NewHandler(deps.DB, deps.Config.Auth.OIDC.Issuer, logger.With(slog.String("component", "avatar")))))
@@ -774,8 +777,8 @@ func handleMedia(
 	mux.Handle("GET /media/recordings/{id}/{file}",
 		authorizer.Middleware(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger)))
 	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
-	mux.Handle("GET /media/recordings/{id}/"+jikkyo.CommentsFileName, authorizer.Middleware(
-		jikkyo.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))))
+	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.CommentsFileName, authorizer.Middleware(
+		jikkyoapi.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))))
 }
 
 // handleOAuth は、MCP のクライアントにトークンを発行する認可サーバーのエンドポイント (#963、設計書 9.9) と、
@@ -798,21 +801,21 @@ func handleOAuth(root *http.ServeMux, server *oauth.Server, graphQL http.Handler
 
 // newEPGStationAPI は、EPGStation 互換の読み取り専用 API (/api/*) を返す (#431、設計書 9.1)。
 // セッションの Cookie は使わず、API トークン (Bearer) だけで認証する (設計書 9.8)。トークンがなければ 401 を返す。
-func newEPGStationAPI(deps *Deps, tokens *auth.APITokens, opener stream.ServiceOpener, logos stream.LogoFetcher, streamLogger *slog.Logger) http.Handler {
+func newEPGStationAPI(deps *Deps, tokens *auth.APITokens, opener streamapi.ServiceOpener, logos streamapi.LogoFetcher, streamLogger *slog.Logger) http.Handler {
 	h := epgstationapi.New(deps.DB, storeOf(deps.Config), streamLogger)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/version", h.Version)
 	mux.HandleFunc("GET /api/config", h.Config)
 	mux.HandleFunc("GET /api/channels", h.Channels)
-	mux.Handle("GET /api/channels/{id}/logo", stream.NewLogoHandler(logos, streamLogger))
+	mux.Handle("GET /api/channels/{id}/logo", streamapi.NewLogoHandler(logos, streamLogger))
 	mux.HandleFunc("GET /api/schedules", h.Schedules)
 	// mode は、EPGStation のエンコードの設定の番号。Kotatsu は無変換の TS だけを返すので、読まない。
-	mux.Handle("GET /api/streams/live/{id}/m2ts", httpserver.StopOnShutdown(stream.NewLiveHandler(opener, streamLogger)))
+	mux.Handle("GET /api/streams/live/{id}/m2ts", httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, streamLogger)))
 	mux.HandleFunc("GET /api/recorded", h.Recorded)
 	mux.HandleFunc("GET /api/recorded/{id}", h.RecordedItem)
 	// 動画とサムネイルは、録画の ID を読み替えて、録画の配信と代表画像の配信につなぐ。動画は Range に答える。
 	mux.Handle("GET /api/videos/{id}", httpserver.StopOnShutdown(
-		h.WithRecording(stream.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0), "")))
+		h.WithRecording(streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0), "")))
 	mux.Handle("GET /api/thumbnails/{id}",
 		h.WithRecording(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger), thumbnail.ThumbnailFileName))
 

@@ -1,4 +1,4 @@
-package stream
+package streamapi
 
 import (
 	"errors"
@@ -10,9 +10,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
 // RecordingHandler は、録画を配信する (GET /streams/recordings/{id}?start=秒)。download を付けると、録画ファイルの名前で保存させる。
@@ -21,7 +22,7 @@ import (
 // 索引を使って、録画の始まりから start 秒の位置を GOP の先頭のバイト位置に変換し、そこからセグメントを連結して流す。
 // 引き継ぎで重なった区間は切り詰める。録画中の録画は、ファイルの末尾まで読んだら、ファイルが伸びるのを待ちながら流し続ける。
 type RecordingHandler struct {
-	source *RecordingSource
+	source *stream.RecordingSource
 	logger *slog.Logger
 }
 
@@ -29,8 +30,8 @@ var _ http.Handler = new(RecordingHandler)
 
 // NewRecordingHandler は RecordingHandler を返す。store は、このインスタンスにマウントされたプール。
 // pollInterval が 0 なら 500 ミリ秒にする。
-func NewRecordingHandler(db sqlc.DBTX, store *kago.Store, logger *slog.Logger, pollInterval time.Duration) *RecordingHandler {
-	return &RecordingHandler{source: NewRecordingSource(db, store, pollInterval), logger: logger}
+func NewRecordingHandler(pool *pgxpool.Pool, store *kago.Store, logger *slog.Logger, pollInterval time.Duration) *RecordingHandler {
+	return &RecordingHandler{source: stream.NewRecordingSource(pool, store, pollInterval), logger: logger}
 }
 
 func (h *RecordingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -48,11 +49,11 @@ func (h *RecordingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	recording, err := h.source.Open(r.Context(), recordingID)
 	switch {
-	case errors.Is(err, ErrRecordingNotFound), errors.Is(err, ErrNoSegment):
+	case errors.Is(err, stream.ErrRecordingNotFound), errors.Is(err, stream.ErrNoSegment):
 		http.Error(w, err.Error(), http.StatusNotFound)
 
 		return
-	case errors.Is(err, ErrNotMounted):
+	case errors.Is(err, stream.ErrNotMounted):
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 
 		return
@@ -96,7 +97,7 @@ func (h *RecordingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveContent は、録画を終えた録画を、長さの決まった 1 本のファイルとして返す。Range に答えるので、外部プレイヤーがシークできる (#535)。
-func (h *RecordingHandler) serveContent(w http.ResponseWriter, r *http.Request, recording *Recording) {
+func (h *RecordingHandler) serveContent(w http.ResponseWriter, r *http.Request, recording *stream.Recording) {
 	content, err := recording.Content()
 	if err != nil {
 		h.internalError(w, r, err)

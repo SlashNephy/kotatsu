@@ -45,7 +45,7 @@ func (r *Resolver) setWatchReservation(ctx context.Context, programID string, re
 		return nil, fmt.Errorf("failed to get the program: %w", err)
 	}
 
-	return toProgram((&row))
+	return toProgram(&row)
 }
 
 // watchReserved は、ログイン中のユーザーが、番組 obj を視聴予約しているかどうかを返す。過去の番組では false を返す。

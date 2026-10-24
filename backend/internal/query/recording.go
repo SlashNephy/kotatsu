@@ -260,3 +260,13 @@ func (q *Queries) ListWatchProgress(ctx context.Context, arg ListWatchProgressPa
 
 	return out, nil
 }
+
+// GetRecordingJikkyoSource は、録画の実況のコメントを引くための、録画したサービスと時刻を返す。なければ pgx.ErrNoRows を返す。
+func (q *Queries) GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (domain.RecordingJikkyoSource, error) {
+	result, err := sqlc.New(q.pool).GetRecordingJikkyoSource(ctx, id)
+	if err != nil {
+		return domain.RecordingJikkyoSource{}, err
+	}
+
+	return domain.RecordingJikkyoSource(result), nil
+}

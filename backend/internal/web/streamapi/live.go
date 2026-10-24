@@ -1,21 +1,19 @@
-package stream
+package streamapi
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
 const (
 	// contentTypeTS は、MPEG-2 TS の Content-Type。
 	contentTypeTS = "video/mp2t"
-	// copyBufferSize は、上流から読んでクライアントに書く単位。TS のパケット 1024 個分。
-	copyBufferSize = 188 * 1024
 	// livePriority は、ライブ視聴でチューナーを確保するときの優先度 (設計書 7.2)。
 	// 録画は正の優先度で確保するので、チューナーが足りなければ、ライブ視聴が奪われる。
 	livePriority = 0
@@ -106,7 +104,7 @@ func (h *LiveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	writeStreamHeader(w)
-	if err := copyFlushing(dst, upstream); err != nil && r.Context().Err() == nil {
+	if err := stream.CopyFlushing(dst, upstream); err != nil && r.Context().Err() == nil {
 		// クライアントの切断ではなく、上流が途切れた。視聴の再接続はクライアントに任せる。
 		h.logger.WarnContext(r.Context(), "the service stream ended", slog.Int64("service_id", serviceID), slog.Any("error", err))
 	}
@@ -117,37 +115,4 @@ func writeStreamHeader(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", contentTypeTS)
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
-}
-
-// copyFlushing は、src を読み終えるまで、読んだ分を w に書いて送り出す。w が HTTP の応答なら、書くたびに送り出す。
-func copyFlushing(w io.Writer, src io.Reader) error {
-	flush := func() error { return nil }
-	if rw, ok := w.(http.ResponseWriter); ok {
-		controller := http.NewResponseController(rw)
-		flush = func() error {
-			if err := controller.Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
-				return err
-			}
-
-			return nil
-		}
-	}
-	buf := make([]byte, copyBufferSize)
-	for {
-		n, err := src.Read(buf)
-		if n > 0 {
-			if _, werr := w.Write(buf[:n]); werr != nil {
-				return werr
-			}
-			if ferr := flush(); ferr != nil {
-				return ferr
-			}
-		}
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-	}
 }

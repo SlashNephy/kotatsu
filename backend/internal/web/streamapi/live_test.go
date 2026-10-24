@@ -1,4 +1,4 @@
-package stream_test
+package streamapi_test
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
-	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
+	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
 const (
@@ -46,7 +46,7 @@ func liveServer(t *testing.T, tuner bool) (*httptest.Server, *faketuner.Server) 
 	fake := faketuner.New(faketuner.DefaultOptions(clk.Now(), loadTestTS(t)))
 	upstream := httptest.NewServer(fake)
 	t.Cleanup(upstream.Close)
-	var opener stream.ServiceOpener
+	var opener streamapi.ServiceOpener
 	if tuner {
 		client, err := mirakurun.New(&mirakurun.Options{
 			URL: upstream.URL, Username: "", Password: "", UserAgent: "", HTTPClient: nil, RequestTimeout: 0, DetectInterval: 0, Clock: clk,
@@ -55,7 +55,7 @@ func liveServer(t *testing.T, tuner bool) (*httptest.Server, *faketuner.Server) 
 		opener = client
 	}
 	mux := http.NewServeMux()
-	mux.Handle(livePattern, stream.NewLiveHandler(opener, slog.New(slog.DiscardHandler)))
+	mux.Handle(livePattern, streamapi.NewLiveHandler(opener, slog.New(slog.DiscardHandler)))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 

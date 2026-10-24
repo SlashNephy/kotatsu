@@ -1586,11 +1586,11 @@ Docker Composeの例は、停止の猶予（`stop_grace_period`）を、Helm Cha
 | `backend/` | Goのモジュール（`github.com/SlashNephy/kotatsu`） |
 | `backend/cmd/kotatsu/` | エントリポイント |
 | `backend/internal/cli/` | ロールの組み立てとサブコマンド |
-| `backend/internal/usecase/` | ビジネスロジック（`reserve/`、`rule/`、`assign/`、`epg/`、`auth/`など）と、各ロールの中心の処理（`neko/`のリーダー選出、`kyusu/`のトランスコード、`recording/`のmikanの録画、`stream/`のtenbanの配信） |
+| `backend/internal/usecase/` | ビジネスロジック（`reserve/`、`rule/`、`assign/`、`epg/`、`auth/`など）と、各ロールの中心の処理（`neko/`のリーダー選出、`kyusu/`のトランスコード、`recording/`のmikanの録画、`stream/`のtenbanの配信の元） |
 | `backend/internal/query/` | トランザクションの外の読み取り。DBのプールだけを持ち、`domain`の型を返します |
 | `backend/internal/domain/` | DBに触れない型と規則（番組のジャンルや音声の型、EPGの正規化と囲み文字の表、`match/`のルールの条件の照合など） |
-| `backend/internal/infra/` | DBと外部への接続（`database/`、`mirakurun/`のチューナーサーバーのクライアント、`kago/`の保存先プール、`jobs/`、`notify/`など） |
-| `backend/internal/web/` | HTTPの口（`graph/`のGraphQLのスキーマとリゾルバ、`mcpserver/`、`epgstationapi/`、`httpserver/`、`spa/`、`webui/`のビルドしたSPAの埋め込み） |
+| `backend/internal/infra/` | DBと外部への接続（`database/`、`mirakurun/`のチューナーサーバーのクライアント、`jikkyoclient/`のニコニコ実況のクライアント、`kago/`の保存先プール、`jobs/`、`notify/`など） |
+| `backend/internal/web/` | HTTPの口（`graph/`のGraphQLのスキーマとリゾルバ、`mcpserver/`、`epgstationapi/`、`streamapi/`のtenbanの配信、`jikkyoapi/`の実況のコメント、`avatar/`、`httpserver/`、`spa/`、`webui/`のビルドしたSPAの埋め込み） |
 | `backend/internal/lib/` | ドメインに依らない小さな部品（`clock/`、`config/`、`ts/`、`password/`など） |
 | `backend/internal/testutil/` | テスト用の部品（`databasetest/`、`faketuner/`など） |
 | `backend/db/` | `schema.sql`、マイグレーション、sqlcのクエリ |

@@ -20,7 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
-	"github.com/SlashNephy/kotatsu/internal/usecase/avatar"
+	"github.com/SlashNephy/kotatsu/internal/web/avatar"
 )
 
 func pngImage(t *testing.T) []byte {

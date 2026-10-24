@@ -1,4 +1,4 @@
-package stream_test
+package streamapi_test
 
 import (
 	"io"
@@ -15,7 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
-	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
+	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
 // TestDataBroadcastHandlerFiltersPackets は、データ放送用のエンドポイントが、サービスストリームから
@@ -32,7 +32,7 @@ func TestDataBroadcastHandlerFiltersPackets(t *testing.T) {
 	})
 	require.NoError(t, err)
 	mux := http.NewServeMux()
-	mux.Handle("GET /streams/services/{id}/data-broadcast", stream.NewDataBroadcastHandler(client, slog.New(slog.DiscardHandler)))
+	mux.Handle("GET /streams/services/{id}/data-broadcast", streamapi.NewDataBroadcastHandler(client, slog.New(slog.DiscardHandler)))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 

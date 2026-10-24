@@ -31,7 +31,7 @@ func (r *Resolver) skippedDuplicates(ctx context.Context) ([]*model.SkippedDupli
 	type key struct{ serviceID, eventID int64 }
 	programs := make(map[key]*model.Program, len(rows))
 	for i := range rows {
-		program, err := toProgram((&rows[i]))
+		program, err := toProgram(&rows[i])
 		if err != nil {
 			return nil, err
 		}
