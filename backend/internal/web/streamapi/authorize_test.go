@@ -1,4 +1,4 @@
-package stream_test
+package streamapi_test
 
 import (
 	"log/slog"
@@ -18,6 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
+	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
 const (
@@ -142,7 +143,7 @@ func TestAuthorizer(t *testing.T) {
 
 	signer := newSigner(t, keyMaterial)
 	mux := http.NewServeMux()
-	mux.Handle(livePattern, stream.NewAuthorizer(signer, pool, clk).Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	mux.Handle(livePattern, streamapi.NewAuthorizer(signer, pool, clk).Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})))
 	server := httptest.NewServer(sessions.Middleware(pool)(mux))

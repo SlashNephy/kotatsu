@@ -1,4 +1,4 @@
-package jikkyo_test
+package jikkyoapi_test
 
 import (
 	"encoding/json"
@@ -15,10 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
+	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
+	"github.com/SlashNephy/kotatsu/internal/web/jikkyoapi"
 )
 
 const (
@@ -55,12 +57,12 @@ func newCommentsFixture(t *testing.T, kakolog string) *commentsFixture {
 	fake, server := newFakeJikkyo(t, channelsJSON, kakolog)
 	table, err := jikkyo.NewTable(nil)
 	require.NoError(t, err)
-	client := jikkyo.NewClient(&jikkyo.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: nil, Clock: nil})
+	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: nil, Clock: nil})
 	// 今は、録画を始めて 40 分後。録画中の録画は、今までの過去ログを引く。
 	clk := clocktest.NewFake(recordedFrom().Add(40 * time.Minute))
-	handler := jikkyo.NewCommentsHandler(pool, table, client, clk, slog.New(slog.DiscardHandler))
+	handler := jikkyoapi.NewCommentsHandler(pool, table, client, clk, slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
-	mux.Handle("GET /media/recordings/{id}/"+jikkyo.CommentsFileName, handler)
+	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.CommentsFileName, handler)
 
 	return &commentsFixture{pool: pool, handler: mux, fake: fake}
 }
@@ -169,7 +171,7 @@ func TestCommentsHandler(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 			f.handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet,
-				"/media/recordings/"+recordingID.String()+"/"+jikkyo.CommentsFileName, http.NoBody))
+				"/media/recordings/"+recordingID.String()+"/"+jikkyoapi.CommentsFileName, http.NoBody))
 
 			require.Equal(t, http.StatusOK, rec.Code)
 			assert.Equal(t, tt.wantCache, rec.Header().Get("Cache-Control"))
@@ -230,7 +232,7 @@ func TestCommentsHandlerErrors(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 			f.handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet,
-				"/media/recordings/"+path+"/"+jikkyo.CommentsFileName, http.NoBody))
+				"/media/recordings/"+path+"/"+jikkyoapi.CommentsFileName, http.NoBody))
 			assert.Equal(t, tt.wantStatus, rec.Code)
 		})
 	}

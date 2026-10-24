@@ -20,9 +20,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
+	"github.com/SlashNephy/kotatsu/internal/query"
 )
 
 const (
@@ -46,8 +47,8 @@ var (
 // リクエストを送らせないようにする。IdP の issuer と同じホストの URL だけは、IdP と同じく信じて、LAN の中でも取りに行く。
 // 自宅で動かす IdP は、LAN の中にあることが多いからである。リダイレクトには従わない。
 type Handler struct {
-	db     sqlc.DBTX
-	logger *slog.Logger
+	queries *query.Queries
+	logger  *slog.Logger
 	// issuerHost は、IdP の issuer のホスト (ポートを含む)。OIDC を使わなければ空。
 	issuerHost string
 	// public は、グローバルなアドレスにだけ接続するクライアント。issuer は、IdP のホストへ接続するクライアント。
@@ -58,7 +59,7 @@ type Handler struct {
 var _ http.Handler = new(Handler)
 
 // NewHandler は Handler を返す。issuer は、OIDC の issuer の URL。OIDC を使わなければ空にする。
-func NewHandler(db sqlc.DBTX, issuer string, logger *slog.Logger) *Handler {
+func NewHandler(pool *pgxpool.Pool, issuer string, logger *slog.Logger) *Handler {
 	issuerHost := ""
 	if u, err := url.Parse(issuer); err == nil {
 		issuerHost = u.Host
@@ -67,7 +68,7 @@ func NewHandler(db sqlc.DBTX, issuer string, logger *slog.Logger) *Handler {
 	dialer := &net.Dialer{Timeout: fetchTimeout, Control: publicnet.Control}
 
 	return &Handler{
-		db: db, logger: logger, issuerHost: issuerHost,
+		queries: query.New(pool), logger: logger, issuerHost: issuerHost,
 		public: &http.Client{
 			Transport:     &http.Transport{Proxy: nil, DialContext: dialer.DialContext, ForceAttemptHTTP2: true, TLSHandshakeTimeout: fetchTimeout},
 			Timeout:       fetchTimeout,
@@ -86,7 +87,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	picture, err := sqlc.New(h.db).GetUserPicture(r.Context(), userID)
+	picture, err := h.queries.GetUserPicture(r.Context(), userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		http.Error(w, "the user has no avatar", http.StatusNotFound)
 

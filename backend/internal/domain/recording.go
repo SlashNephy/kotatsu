@@ -106,3 +106,11 @@ type WatchProgress struct {
 	PositionMs  int64
 	UpdatedAt   time.Time
 }
+
+// RecordingJikkyoSource は、録画の実況のコメントを引くための、録画したサービスと時刻。
+type RecordingJikkyoSource struct {
+	RecordedFrom  time.Time
+	RecordedUntil *time.Time
+	NetworkID     int64
+	Sid           int64
+}

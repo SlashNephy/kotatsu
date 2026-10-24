@@ -231,7 +231,7 @@ func (r *Resolver) archivedProgram(ctx context.Context, raw string) (*model.Prog
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the archived program: %w", err)
 	}
-	program, err := toProgram((&row))
+	program, err := toProgram(&row)
 	if err != nil {
 		return nil, err
 	}

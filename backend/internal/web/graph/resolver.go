@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
@@ -57,7 +58,7 @@ type Resolver struct {
 	webPush      *webpush.Service
 	streamSigner *stream.Signer
 	jikkyoTable  *jikkyo.Table
-	jikkyoClient *jikkyo.Client
+	jikkyoClient *jikkyoclient.Client
 	logger       *slog.Logger
 	// store は、録画のファイルと生成物を読むための、このインスタンスにマウントしたプール。
 	store     *kago.Store

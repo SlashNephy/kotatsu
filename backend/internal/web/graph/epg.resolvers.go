@@ -93,7 +93,7 @@ func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error)
 			return nil, fmt.Errorf("failed to get the program: %w", err)
 		}
 
-		return toProgram((&row))
+		return toProgram(&row)
 	case archiveType:
 		return r.archivedProgram(ctx, raw)
 	case reservationType:
@@ -203,7 +203,7 @@ func (r *queryResolver) Guide(ctx context.Context, from time.Time, to time.Time,
 		return nil, fmt.Errorf("failed to list programs: %w", err)
 	}
 	for i := range programs {
-		program, err := toProgram((&programs[i]))
+		program, err := toProgram(&programs[i])
 		if err != nil {
 			return nil, err
 		}

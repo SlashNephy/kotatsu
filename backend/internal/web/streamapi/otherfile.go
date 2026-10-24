@@ -1,4 +1,4 @@
-package stream
+package streamapi
 
 import (
 	"errors"
@@ -10,9 +10,11 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/query"
 )
 
 // kindOther は、EPGStation から取り込んだ、TS 以外のファイルの種類 (設計書 6.3)。
@@ -46,16 +48,16 @@ func OtherFileURL(recordingID, fileID uuid.UUID) string {
 // (GET /streams/recordings/{id}/files/{file}、設計書 6.3)。ブラウザがそのコーデックに対応していれば、そのまま再生できる。
 // ファイルは、このインスタンスにマウントしたプールから読む。
 type OtherFileHandler struct {
-	db     sqlc.DBTX
-	store  *kago.Store
-	logger *slog.Logger
+	queries *query.Queries
+	store   *kago.Store
+	logger  *slog.Logger
 }
 
 var _ http.Handler = new(OtherFileHandler)
 
 // NewOtherFileHandler は OtherFileHandler を返す。
-func NewOtherFileHandler(db sqlc.DBTX, store *kago.Store, logger *slog.Logger) *OtherFileHandler {
-	return &OtherFileHandler{db: db, store: store, logger: logger}
+func NewOtherFileHandler(pool *pgxpool.Pool, store *kago.Store, logger *slog.Logger) *OtherFileHandler {
+	return &OtherFileHandler{queries: query.New(pool), store: store, logger: logger}
 }
 
 func (h *OtherFileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -71,13 +73,13 @@ func (h *OtherFileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	files, err := sqlc.New(h.db).ListRecordingFiles(r.Context(), recordingID)
+	files, err := h.queries.ListRecordingFiles(r.Context(), recordingID)
 	if err != nil {
 		h.internalError(w, r, err)
 
 		return
 	}
-	var file *sqlc.RecordingFile
+	var file *domain.RecordingFile
 	for i := range files {
 		if files[i].ID == fileID && files[i].Kind == kindOther {
 			file = &files[i]

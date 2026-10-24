@@ -19,11 +19,11 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
-	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
-	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
+	"github.com/SlashNephy/kotatsu/internal/web/jikkyoapi"
+	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
 const (
@@ -256,7 +256,7 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []domain.Recording)
 			StartedAt: row.StartedAt, EndedAt: row.EndedAt, URL: nil,
 		}
 		if file.Kind == model.RecordingFileKindOther {
-			file.URL = new(stream.OtherFileURL(row.RecordingID, row.ID))
+			file.URL = new(streamapi.OtherFileURL(row.RecordingID, row.ID))
 		}
 		// 書いている間のファイルは、閉じるまで DB に大きさを書かないので、ファイルから読む (#736)。
 		if file.EndedAt == nil {
@@ -390,7 +390,7 @@ func recordingModel(row *domain.Recording) (*model.Recording, error) {
 		BroadcastStartedAt: row.BroadcastStartedAt, BroadcastEndedAt: row.BroadcastEndedAt, NotBroadcast: row.NotBroadcast,
 		Tags: []*model.Tag{}, Files: []*model.RecordingFile{}, WatchPositionMs: nil, ThumbnailURL: nil, PreviewURL: nil,
 		StreamURL:         "/streams/recordings/" + row.ID.String(),
-		JikkyoCommentsURL: "/media/recordings/" + row.ID.String() + "/" + jikkyo.CommentsFileName,
+		JikkyoCommentsURL: "/media/recordings/" + row.ID.String() + "/" + jikkyoapi.CommentsFileName,
 		ServiceKey:        row.ServiceID,
 		VideoResolution:   row.VideoResolution,
 	}

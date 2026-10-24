@@ -1,4 +1,4 @@
-package stream_test
+package streamapi_test
 
 import (
 	"io"
@@ -15,7 +15,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
-	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
+	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
 // otherFilePattern は、録画のその他のファイルのパス。
@@ -86,11 +86,11 @@ func TestOtherFileHandler(t *testing.T) {
 				pools = map[string]string{poolID: f.dir}
 			}
 			mux := http.NewServeMux()
-			mux.Handle(otherFilePattern, stream.NewOtherFileHandler(f.pool, kago.New(pools, nil), slog.New(slog.DiscardHandler)))
+			mux.Handle(otherFilePattern, streamapi.NewOtherFileHandler(f.pool, kago.New(pools, nil), slog.New(slog.DiscardHandler)))
 			server := httptest.NewServer(mux)
 			t.Cleanup(server.Close)
 
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+stream.OtherFileURL(recordingID, tt.fileID), nil)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+streamapi.OtherFileURL(recordingID, tt.fileID), nil)
 			require.NoError(t, err)
 			if tt.rangeValue != "" {
 				req.Header.Set("Range", tt.rangeValue)
