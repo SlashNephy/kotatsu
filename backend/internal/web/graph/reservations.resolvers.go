@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/reserve"
+	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/generated"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )

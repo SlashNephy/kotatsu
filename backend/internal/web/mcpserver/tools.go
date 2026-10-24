@@ -1,6 +1,6 @@
 package mcpserver
 
-import "github.com/SlashNephy/kotatsu/internal/oauth"
+import "github.com/SlashNephy/kotatsu/internal/usecase/oauth"
 
 // tool は、MCP のツール。中身は GraphQL の操作で、画面と同じ処理と権限の確認を通る (設計書 9.10)。
 // 入力の JSON Schema は、操作の変数の型から作る。

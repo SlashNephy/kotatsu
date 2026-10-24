@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/usersettings"
+	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 

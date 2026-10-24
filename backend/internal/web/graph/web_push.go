@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
-	"github.com/SlashNephy/kotatsu/internal/webpush"
 )
 
 // webPushSubscriptionType は、WebPushSubscription の Global ID の型名。

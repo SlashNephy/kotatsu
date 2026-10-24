@@ -1,4 +1,4 @@
-// デモのファイル名のテンプレート。tenban は Go の text/template で組み立てる (internal/reserve/filename.go) が、
+// デモのファイル名のテンプレート。tenban は Go の text/template で組み立てる (internal/usecase/reserve/filename.go) が、
 // デモでは、画面の説明に載せている書き方だけを置き換える。
 
 export type FileNameData = {

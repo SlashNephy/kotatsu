@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/epg"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
 )
 
 // broadcastTypes は、EPGStation の放送波の種別。config の broadcast と、schedules の絞り込みに使う。

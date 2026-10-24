@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/lib/totp"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
 const (

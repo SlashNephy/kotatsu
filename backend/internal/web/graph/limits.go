@@ -7,7 +7,7 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
-	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
 // depthLimit は、クエリの深さが上限を超えたら、実行の前に拒否する (設計書 9.1)。

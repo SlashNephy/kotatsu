@@ -6,7 +6,7 @@ import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import type { MarginFieldsQuery } from './__generated__/MarginFieldsQuery.graphql';
 
-// maxMarginSeconds は、マージンの上限 (internal/reserve の maxMarginSeconds)。
+// maxMarginSeconds は、マージンの上限 (internal/usecase/reserve の maxMarginSeconds)。
 const maxMarginSeconds = 60 * 60;
 
 type Props = {

@@ -8,9 +8,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
 
-	"github.com/SlashNephy/kotatsu/internal/analysis"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
+	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 )
 
 // newReanalyzeCommand は kotatsu admin reanalyze を作る (#897)。

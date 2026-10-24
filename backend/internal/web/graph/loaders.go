@@ -10,9 +10,9 @@ import (
 	"github.com/vikstrous/dataloadgen"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/reserve"
-	"github.com/SlashNephy/kotatsu/internal/rule"
-	"github.com/SlashNephy/kotatsu/internal/watch"
+	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
+	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
+	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 )
 
 // loaderWait は、同じリクエストの中で、まとめて引くまで待つ時間。

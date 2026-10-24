@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
-	"github.com/SlashNephy/kotatsu/internal/library"
+	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 

@@ -1,5 +1,5 @@
 // Package mcpserver は、MCP のクライアントに、番組、予約、ルール、録画を扱うツールを公開する (#964、設計書 9.10)。
-// トークンは、internal/oauth の認可サーバーが発行したものだけを受け付ける。
+// トークンは、internal/usecase/oauth の認可サーバーが発行したものだけを受け付ける。
 package mcpserver
 
 import (
@@ -19,9 +19,9 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/vektah/gqlparser/v2/ast"
 
-	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
-	"github.com/SlashNephy/kotatsu/internal/oauth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/web/webui"
 )

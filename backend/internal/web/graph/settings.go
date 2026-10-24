@@ -3,7 +3,7 @@ package graph
 import (
 	"errors"
 
-	"github.com/SlashNephy/kotatsu/internal/settings"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 

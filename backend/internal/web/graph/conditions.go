@@ -3,7 +3,7 @@ package graph
 import (
 	"strings"
 
-	"github.com/SlashNephy/kotatsu/internal/match"
+	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
