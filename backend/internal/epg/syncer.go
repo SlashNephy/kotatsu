@@ -10,8 +10,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
-	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
 
 const (

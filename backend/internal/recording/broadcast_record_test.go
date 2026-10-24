@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/recording"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
-	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
 
 // errStopForTest は、テストで録画を止めるときの理由。

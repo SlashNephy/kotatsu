@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
-	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
 
 // readAll は、エラーが出るまでイベントを読み、読めたイベントと最後のエラーを返す。

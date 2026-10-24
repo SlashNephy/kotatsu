@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
-	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
-	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 

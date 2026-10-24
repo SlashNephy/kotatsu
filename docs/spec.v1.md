@@ -1587,7 +1587,8 @@ Docker Composeの例は、停止の猶予（`stop_grace_period`）を、Helm Cha
 | `backend/cmd/kotatsu/` | エントリポイント |
 | `backend/internal/cli/` | ロールの組み立てとサブコマンド |
 | `backend/internal/neko/`、`backend/internal/kyusu/`、`backend/internal/recording/`、`backend/internal/stream/` | 各ロールの中心の処理（nekoのリーダー選出、kyusuのトランスコード、mikanの録画、tenbanの配信） |
-| `backend/internal/tuner/`、`backend/internal/epg/`、`backend/internal/reserve/`、`backend/internal/rule/`、`backend/internal/assign/`、`backend/internal/kago/`、`backend/internal/auth/`など | ドメインのロジック（`backend/internal/kago/`は保存先プール） |
+| `backend/internal/epg/`、`backend/internal/reserve/`、`backend/internal/rule/`、`backend/internal/assign/`、`backend/internal/auth/`など | ドメインのロジック |
+| `backend/internal/infra/` | DBと外部への接続（`database/`、`mirakurun/`のチューナーサーバーのクライアント、`kago/`の保存先プール、`jobs/`、`notify/`など） |
 | `backend/internal/web/` | HTTPの口（`graph/`のGraphQLのスキーマとリゾルバ、`mcpserver/`、`epgstationapi/`、`httpserver/`、`spa/`、`webui/`のビルドしたSPAの埋め込み） |
 | `backend/internal/lib/` | ドメインに依らない小さな部品（`clock/`、`config/`、`ts/`、`password/`など） |
 | `backend/internal/testutil/` | テスト用の部品（`databasetest/`、`faketuner/`など） |

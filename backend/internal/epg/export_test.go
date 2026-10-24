@@ -1,6 +1,6 @@
 package epg
 
-import "github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
+import "github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 
 // ServiceIDBase は serviceIDBase をテストから使う。
 const ServiceIDBase = serviceIDBase

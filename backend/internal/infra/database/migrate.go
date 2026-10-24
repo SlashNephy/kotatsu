@@ -18,7 +18,7 @@ import (
 	"github.com/pressly/goose/v3/lock"
 
 	"github.com/SlashNephy/kotatsu/db"
-	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 )
 
 // CompatibleSince は、このバイナリの最新のスキーマで動かしてよいバイナリの下限。

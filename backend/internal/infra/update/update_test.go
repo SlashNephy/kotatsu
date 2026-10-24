@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/update"
+	"github.com/SlashNephy/kotatsu/internal/infra/update"
 )
 
 // runningVersion は、テストで動いている版。

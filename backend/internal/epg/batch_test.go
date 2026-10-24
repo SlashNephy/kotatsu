@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/SlashNephy/kotatsu/internal/epg"
-	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 )
 
 // resourceProgram、typeUpdate、typeCreate は、Mirakurun のイベントのリソースと種類。

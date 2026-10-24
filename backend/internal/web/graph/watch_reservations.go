@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/usersettings"
 	"github.com/SlashNephy/kotatsu/internal/watch"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"

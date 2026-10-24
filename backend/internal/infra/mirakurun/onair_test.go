@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 )
 
 // TestOnAirPrograms は、/api/onair を mirakc からだけ読み、ほかのサーバーには問い合わせないことを確かめる。

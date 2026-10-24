@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 )
 
 // relatedShared は、同じイベントを複数のサービスで放送する関係 (イベント共有)。

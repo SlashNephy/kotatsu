@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/telemetry"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
-	"github.com/SlashNephy/kotatsu/internal/telemetry"
 )
 
 func TestMetricsHandlerExposesRuntimeMetrics(t *testing.T) {

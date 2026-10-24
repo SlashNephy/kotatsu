@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 )
 
 // stallingStream は、chunks 回だけ interval ごとに 188 バイトを送り、その後は接続を保ったまま何も送らない。

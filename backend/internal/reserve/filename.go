@@ -8,7 +8,7 @@ import (
 	"text/template/parse"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/halfwidth"
 )
 

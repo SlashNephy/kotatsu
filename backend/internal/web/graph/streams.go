@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/registry"
 	"github.com/SlashNephy/kotatsu/internal/kyusu"
-	"github.com/SlashNephy/kotatsu/internal/registry"
 	"github.com/SlashNephy/kotatsu/internal/stream"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )

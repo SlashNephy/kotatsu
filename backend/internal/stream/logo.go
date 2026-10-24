@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 )
 
 // logoCacheControl は、サービスのロゴの Cache-Control。ロゴはめったに変わらないので、1 日使い回させる。

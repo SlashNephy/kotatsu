@@ -17,7 +17,7 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
 
-	"github.com/SlashNephy/kotatsu/internal/database"
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
 )
 
 // Client は River のクライアント。トランザクションには pgx.Tx を使う。
