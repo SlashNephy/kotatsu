@@ -255,3 +255,13 @@ func (q *Queries) ListWatchReservations(ctx context.Context, userID uuid.UUID) (
 
 	return out, nil
 }
+
+// ListPinnedServiceIDs は、ユーザーがピン留めしたサービスの ID を、ピン留めした順に返す。
+func (q *Queries) ListPinnedServiceIDs(ctx context.Context, userID uuid.UUID) ([]int64, error) {
+	result, err := sqlc.New(q.pool).ListPinnedServiceIDs(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}

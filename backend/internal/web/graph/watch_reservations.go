@@ -10,7 +10,6 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/query"
-	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -31,17 +30,7 @@ func (r *Resolver) setWatchReservation(ctx context.Context, programID string, re
 		return nil, err
 	}
 	key := domain.ProgramKey{ServiceID: serviceID, EventID: eventID}
-	err = pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
-		if reserved {
-			if err := watch.Reserve(ctx, tx, r.clock, principal.UserID, key); err != nil {
-				return err
-			}
-		} else if err := watch.Cancel(ctx, tx, principal.UserID, key); err != nil {
-			return err
-		}
-
-		return usersettings.Touch(ctx, tx, r.clock, principal.UserID)
-	})
+	err = watch.SetReserved(ctx, r.db, r.clock, principal.UserID, key, reserved)
 	if errors.Is(err, watch.ErrProgramUnavailable) {
 		return nil, NewError(CodeBadUserInput, "the program is not found or has already started")
 	}
@@ -129,15 +118,7 @@ func (r *Resolver) updateWatchReminderSettings(ctx context.Context, minutesBefor
 	if err != nil {
 		return nil, err
 	}
-	var updated int
-	err = pgx.BeginFunc(ctx, r.db, func(tx pgx.Tx) error {
-		updated, err = watch.SetReminderMinutes(ctx, tx, r.clock, principal.UserID, minutesBefore)
-		if err != nil {
-			return err
-		}
-
-		return usersettings.Touch(ctx, tx, r.clock, principal.UserID)
-	})
+	updated, err := watch.UpdateReminderMinutes(ctx, r.db, r.clock, principal.UserID, minutesBefore)
 	if errors.Is(err, watch.ErrInvalidReminderMinutes) {
 		return nil, NewError(CodeBadUserInput, fmt.Sprintf("minutesBefore must be between 0 and %d", watch.MaxReminderMinutes))
 	}

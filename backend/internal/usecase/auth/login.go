@@ -46,6 +46,8 @@ const (
 	loginAuditTarget = "user"
 	// summaryMethod は、ログインの監査ログの要約で、認証に使った方式を入れる項目。
 	summaryMethod = "method"
+	// summarySessionID は、監査ログの要約で、セッションの ID を入れる項目の名前。
+	summarySessionID = "sessionId"
 	// summaryUsername は、監査ログの要約で、ユーザー名を入れる項目。
 	summaryUsername = "username"
 	// summaryRole は、監査ログの要約で、ロールを入れる項目。

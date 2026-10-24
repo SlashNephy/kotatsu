@@ -3,8 +3,6 @@ package graph
 import (
 	"context"
 
-	pgx "github.com/jackc/pgx/v5"
-
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -23,9 +21,7 @@ func (r *mutationResolver) RenamePasskey(ctx context.Context, id string, name st
 		return nil, err
 	}
 	// 名前は、第二要素の強さを変えないので、再認証を求めない。
-	if err := r.inTx(ctx, func(tx pgx.Tx) error {
-		return r.passkeys.Rename(ctx, tx, actorOf(ctx, principal), principal.UserID, passkeyID, name)
-	}); err != nil {
+	if err := secondFactorError(r.passkeys.Rename(ctx, r.db, actorOf(ctx, principal), principal.UserID, passkeyID, name)); err != nil {
 		return nil, err
 	}
 	passkeys, err := r.passkeys.List(ctx, r.db, principal.UserID)
@@ -59,9 +55,7 @@ func (r *mutationResolver) DeletePasskey(ctx context.Context, id string) (string
 	if err != nil {
 		return "", err
 	}
-	if err := r.inTx(ctx, func(tx pgx.Tx) error {
-		return r.passkeys.Delete(ctx, tx, actor, principal.UserID, passkeyID)
-	}); err != nil {
+	if err := secondFactorError(r.passkeys.Delete(ctx, r.db, actor, principal.UserID, passkeyID)); err != nil {
 		return "", err
 	}
 

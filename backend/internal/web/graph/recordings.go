@@ -12,10 +12,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/riverqueue/river"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
-	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
@@ -518,21 +516,7 @@ func (r *Resolver) regenerateRecordingImages(ctx context.Context, globalID strin
 		return false, fmt.Errorf("failed to get the recording: %w", err)
 	}
 
-	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to begin a transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	// 待っているジョブにだけ重ねない (GenerateArgs.InsertOpts)。作り終えた録画は、また作り直せる。
-	results, err := r.jobs.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: thumbnail.GenerateArgs{RecordingID: recordingID}, InsertOpts: nil}})
-	if err != nil {
-		return false, fmt.Errorf("failed to insert the thumbnail job: %w", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return false, fmt.Errorf("failed to commit the thumbnail job: %w", err)
-	}
-
-	return len(results) == 1 && !results[0].UniqueSkippedAsDuplicate, nil
+	return thumbnail.EnqueueGenerate(ctx, r.db, r.jobs, recordingID)
 }
 
 // dbStateRecording は、DB に記録する録画中の状態。
@@ -561,23 +545,8 @@ func (r *Resolver) reanalyzeRecording(ctx context.Context, globalID string) (boo
 		return false, NewError(CodeConflict, "the recording is still being recorded")
 	}
 
-	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to begin a transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	// 頼まれてやり直すので、取り込んだ録画の解析より先に回す。
-	results, err := r.jobs.InsertManyTx(ctx, tx, []river.InsertManyParams{{
-		Args: analysis.AnalyzeArgs{RecordingID: recordingID}, InsertOpts: &river.InsertOpts{Priority: jobs.PriorityDefault},
-	}})
-	if err != nil {
-		return false, fmt.Errorf("failed to insert the analysis job: %w", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return false, fmt.Errorf("failed to commit the analysis job: %w", err)
-	}
-
-	return len(results) == 1 && !results[0].UniqueSkippedAsDuplicate, nil
+	return analysis.EnqueuePriority(ctx, r.db, r.jobs, recordingID)
 }
 
 func (r *Resolver) setRecordingTags(ctx context.Context, globalID string, tags []string) (*model.Recording, error) {

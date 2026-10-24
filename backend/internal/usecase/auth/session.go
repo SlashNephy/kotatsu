@@ -17,6 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
 )
 
@@ -244,6 +245,56 @@ func (s *Sessions) List(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) ([]
 	}
 
 	return sessions, nil
+}
+
+// RevokeAndRecord は、ユーザー userID のセッション sessionID を失効させ、監査ログに残す (設計書 8.5)。
+// 失効と記録を 1 つのトランザクションにまとめ、記録できなければ失効させない。
+func (s *Sessions) RevokeAndRecord(ctx context.Context, db Database, recorder audit.Recorder, actor *audit.Actor, userID, sessionID uuid.UUID) error {
+	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		if err := s.Revoke(ctx, tx, userID, sessionID); err != nil {
+			return err
+		}
+
+		return recorder.Record(ctx, tx, &audit.Event{
+			Actor:      actor,
+			Action:     "user.session_revoked",
+			TargetType: "user",
+			TargetID:   userID.String(),
+			Summary:    map[string]any{summarySessionID: sessionID.String()},
+			// 送信元は、操作者 (actor) に持たせる。
+			SourceIP:  netip.Addr{},
+			UserAgent: "",
+		})
+	})
+}
+
+// RevokeOthersAndRecord は、ユーザー userID の、keepID のほかのセッションをまとめて失効させ、監査ログに残す。
+// 失効と記録を 1 つのトランザクションにまとめる。失効させた数を返す。
+func (s *Sessions) RevokeOthersAndRecord(ctx context.Context, db Database, recorder audit.Recorder, actor *audit.Actor, userID, keepID uuid.UUID) (int64, error) {
+	var revoked int64
+	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		n, err := s.RevokeOthers(ctx, tx, userID, keepID)
+		if err != nil {
+			return err
+		}
+		revoked = n
+
+		return recorder.Record(ctx, tx, &audit.Event{
+			Actor:      actor,
+			Action:     "user.other_sessions_revoked",
+			TargetType: "user",
+			TargetID:   userID.String(),
+			Summary:    map[string]any{"count": n},
+			// 送信元は、操作者 (actor) に持たせる。
+			SourceIP:  netip.Addr{},
+			UserAgent: "",
+		})
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	return revoked, nil
 }
 
 // Revoke は、ユーザーのセッションを失効させ、同じユーザーのほかの端末に、セッションの一覧が変わったことを知らせる。

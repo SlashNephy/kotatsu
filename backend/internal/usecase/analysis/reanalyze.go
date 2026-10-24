@@ -10,6 +10,7 @@ import (
 	"github.com/riverqueue/river"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 )
@@ -105,4 +106,30 @@ func Enqueue(ctx context.Context, db TxBeginner, inserter Inserter, ids []uuid.U
 	}
 
 	return inserted, nil
+}
+
+// EnqueuePriority は、録画 recordingID を解析し直すジョブを、取り込んだ録画の解析より先に回して投入する。
+// 頼まれてやり直すときに使う。同じ録画のジョブを待っていれば、入れずに false を返す。
+func EnqueuePriority(ctx context.Context, db Beginner, inserter Inserter, recordingID uuid.UUID) (bool, error) {
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to begin a transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	results, err := inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{
+		Args: AnalyzeArgs{RecordingID: recordingID}, InsertOpts: &river.InsertOpts{Priority: jobs.PriorityDefault},
+	}})
+	if err != nil {
+		return false, fmt.Errorf("failed to insert the analysis job: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("failed to commit the analysis job: %w", err)
+	}
+
+	return len(results) == 1 && !results[0].UniqueSkippedAsDuplicate, nil
+}
+
+// Beginner はトランザクションを始められるもの。*pgxpool.Pool と pgx.Tx が満たす。
+type Beginner interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
 }

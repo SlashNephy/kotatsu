@@ -2,13 +2,11 @@
 package graph
 
 import (
-	"context"
 	"log/slog"
 	"time"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
@@ -28,18 +26,12 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
 )
 
-// Database は、リゾルバが使う DB。書き込みをトランザクションにまとめるので、トランザクションを始められる。
-// *pgxpool.Pool が満たす。
-type Database interface {
-	sqlc.DBTX
-	Begin(ctx context.Context) (pgx.Tx, error)
-}
-
 // Resolver は、リゾルバが使う依存。
 type Resolver struct {
 	// searchSlots は、同時に照合する検索の数を maxConcurrentSearches までに抑える。
 	searchSlots chan struct{}
-	db          Database
+	// db は、usecase に渡す DB。トランザクションは usecase が張る。
+	db *pgxpool.Pool
 	// queries は、トランザクションの外の読み取り。
 	queries *query.Queries
 	clock   clock.Clock

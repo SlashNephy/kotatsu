@@ -228,7 +228,7 @@ func NewHandler(opts *Options) http.Handler {
 // revalidateSubscriptions は、接続中の subscription (SSE) のセッションを、interval ごとに確かめ直し、
 // 使えなくなっていたら (失効させた、ユーザーを無効にした、など) 切る。
 // 接続を始めたときに一度確かめるだけだと、失効させた後も、接続が続く間は届き続けるからである。
-func revalidateSubscriptions(next http.Handler, sessions *auth.Sessions, db Database, interval time.Duration, logger *slog.Logger) http.Handler {
+func revalidateSubscriptions(next http.Handler, sessions *auth.Sessions, db *pgxpool.Pool, interval time.Duration, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		principal := auth.PrincipalFrom(r.Context())
 		if principal == nil || !strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
