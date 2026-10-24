@@ -1606,6 +1606,7 @@ Docker Composeの例は、停止の猶予（`stop_grace_period`）を、Helm Cha
 - `domain`と`lib`は、どの層からも使えます。`domain`は`lib`のほかにinternalのパッケージをimportしません。`lib`はほかの層をimportしません。
 - `infra`は`domain`と`lib`のほかに、上の層をimportしません。
 - トランザクションを張るのは`usecase`です。`web`はDB（`infra/database`）に直接触れず、`query`は受け取ったプールだけで読みます。
+- sqlcの生成物を使えるのは、`usecase`、`query`、DBの基盤の部品（`infra/database`、`infra/lease`、`infra/notify`、`infra/registry`）と、組み立ての`cli`だけです。`query`が使える`infra`は`infra/database`だけです。
 - GraphQLのモデル（`web/graph/model`）は、`web/graph`の外で使いません。テスト用の部品（`testutil`）は、テストと`cmd/faketuner`のほかで使いません。
 
 importで判定できる規則は、`backend/.golangci.yaml`のdepguardで強制します。テストのコードは、DBの準備などで層をまたぐので、対象にしません。

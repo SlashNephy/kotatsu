@@ -71,7 +71,10 @@ linters:
           files:
             - "**/internal/query/**"
             - "!$test"
+          allow:
+            - "github.com/SlashNephy/kotatsu/internal/infra/database"
           deny:
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/infra", desc: "query が使える infra は DB (infra/database) だけ"}
             - {pkg: "github.com/SlashNephy/kotatsu/internal/usecase", desc: "query は usecase から呼ばれる側なので、usecase を import しない"}
             - {pkg: "github.com/SlashNephy/kotatsu/internal/web", desc: "query は web から呼ばれる側なので、web を import しない"}
             - {pkg: "github.com/SlashNephy/kotatsu/internal/cli", desc: "query は cli から組み立てられる側なので、cli を import しない"}
@@ -91,6 +94,22 @@ linters:
           deny:
             - {pkg: "github.com/SlashNephy/kotatsu/internal/infra/database", desc: "web は DB に直接触れない。読み取りは query を、書き込みとトランザクションは usecase を通す"}
             - {pkg: "github.com/SlashNephy/kotatsu/internal/cli", desc: "web は cli から組み立てられる側なので、cli を import しない"}
+        sqlc-only-in-allowed-places:
+          # sqlc の生成物を使えるのは、書き込みとトランザクションの中の読み取りを持つ usecase、読み取りの query、
+          # DB の基盤の部品 (infra/database、lease、notify、registry) と、組み立ての cli だけ。
+          list-mode: lax
+          files:
+            - "$all"
+            - "!$test"
+            - "!**/internal/usecase/**"
+            - "!**/internal/query/**"
+            - "!**/internal/infra/database/**"
+            - "!**/internal/infra/lease/**"
+            - "!**/internal/infra/notify/**"
+            - "!**/internal/infra/registry/**"
+            - "!**/internal/cli/**"
+          deny:
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/infra/database/sqlc", desc: "sqlc は usecase、query、DB の基盤の部品、cli のほかから使わない"}
         graph-model-must-not-leak-outside-graph:
           list-mode: lax
           files:
