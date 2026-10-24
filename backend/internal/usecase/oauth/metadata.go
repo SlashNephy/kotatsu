@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
+	"github.com/SlashNephy/kotatsu/internal/lib/clientinfo"
 )
 
 // MetadataPath と ProtectedResourceMetadataPath は、認可サーバーのメタデータ (RFC 8414) と、
@@ -22,7 +22,7 @@ const (
 
 // origin は、リクエストが接続したオリジンを返す。リバースプロキシを経由したときは、信頼済みのプロキシが伝えた値にする。
 func origin(r *http.Request) string {
-	if client := httpserver.ClientFrom(r.Context()); client != nil {
+	if client := clientinfo.From(r.Context()); client != nil {
 		return client.Origin()
 	}
 	scheme := schemeHTTP

@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"net"
@@ -11,28 +10,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/SlashNephy/kotatsu/internal/lib/clientinfo"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
 )
-
-// Client は、リクエストの送信元。信頼済みのプロキシを経由したときは、プロキシが伝えた値にする。
-type Client struct {
-	// IP は送信元の IP アドレス。
-	IP netip.Addr
-	// Secure は、送信元が HTTPS でつないでいるかどうか。
-	Secure bool
-	// Host は、送信元が接続したホスト名 (Origin の検査に使う)。
-	Host string
-}
-
-// Origin は、送信元が接続したオリジン (scheme://host) を返す。
-func (c *Client) Origin() string {
-	scheme := "http"
-	if c.Secure {
-		scheme = "https"
-	}
-
-	return scheme + "://" + c.Host
-}
 
 // defaultPort は、scheme の既定のポートを返す。Origin では省かれるので、比べる前に取り除く。
 func defaultPort(scheme string) string {
@@ -44,15 +24,6 @@ func defaultPort(scheme string) string {
 	default:
 		return ""
 	}
-}
-
-type clientKey struct{}
-
-// ClientFrom は、AccessPolicy.Middleware が context に入れた送信元を返す。入っていなければ nil を返す。
-func ClientFrom(ctx context.Context) *Client {
-	client, _ := ctx.Value(clientKey{}).(*Client)
-
-	return client
 }
 
 // forwardingHeaders は、リバースプロキシが送信元を伝えるヘッダーを返す。信頼済みのプロキシからでなければ受け付けない。
@@ -104,7 +75,7 @@ func (p *AccessPolicy) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		client := &Client{IP: peer, Secure: r.TLS != nil, Host: r.Host}
+		client := &clientinfo.Client{IP: peer, Secure: r.TLS != nil, Host: r.Host}
 		if p.isTrusted(peer) {
 			if err := p.applyForwarded(client, r.Header); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -140,7 +111,7 @@ func (p *AccessPolicy) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), clientKey{}, client)))
+		next.ServeHTTP(w, r.WithContext(clientinfo.With(r.Context(), client)))
 	})
 }
 
@@ -174,7 +145,7 @@ func (p *AccessPolicy) isTrusted(addr netip.Addr) bool {
 // X-Forwarded-For が無ければ X-Real-IP を使う。どちらも無ければ、送信元が分からないので拒否する。
 // プロキシ自身のアドレスで判定すると、プロキシのプライベートアドレスで接続元の制限をすり抜けてしまうからである。
 // server.client_ip_header が X-Real-IP なら、X-Forwarded-For は読まず、X-Real-IP だけを使う。
-func (p *AccessPolicy) applyForwarded(client *Client, header http.Header) error {
+func (p *AccessPolicy) applyForwarded(client *clientinfo.Client, header http.Header) error {
 	if p.clientIPHeader == config.ClientIPHeaderXRealIP {
 		if err := applyRealIP(client, header); err != nil {
 			return err
@@ -218,7 +189,7 @@ func (p *AccessPolicy) applyForwarded(client *Client, header http.Header) error 
 }
 
 // applyRealIP は、信頼済みのプロキシが X-Real-IP に書いた送信元を client に反映する。
-func applyRealIP(client *Client, header http.Header) error {
+func applyRealIP(client *clientinfo.Client, header http.Header) error {
 	realIP := header.Get("X-Real-IP")
 	if realIP == "" {
 		return fmt.Errorf("the request from the trusted proxy %s has no X-Real-IP; "+
@@ -234,7 +205,7 @@ func applyRealIP(client *Client, header http.Header) error {
 }
 
 // applyForwardedOrigin は、信頼済みのプロキシが伝えた scheme とホストを client に反映する。
-func applyForwardedOrigin(client *Client, header http.Header) {
+func applyForwardedOrigin(client *clientinfo.Client, header http.Header) {
 	// 複数のプロキシを経由すると、プロキシごとの値がカンマで並ぶ。最初の値が、送信元に最も近いプロキシの見たものである。
 	if proto := firstValue(header.Get("X-Forwarded-Proto")); proto != "" {
 		client.Secure = strings.EqualFold(proto, "https")
@@ -308,7 +279,7 @@ func RequireSameOrigin(next http.Handler) http.Handler {
 			return
 		}
 
-		client := ClientFrom(r.Context())
+		client := clientinfo.From(r.Context())
 		origin := r.Header.Get("Origin")
 		if client == nil || origin == "" || !sameOrigin(origin, client.Origin()) {
 			http.Error(w, "cross-origin request is not allowed", http.StatusForbidden)

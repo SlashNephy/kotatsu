@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/SlashNephy/kotatsu/internal/lib/clientinfo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
-	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
 // oauthGrantType は、連携の ID に付ける型の名前。
@@ -26,7 +26,7 @@ func oauthQuery(ctx context.Context, raw string) (url.Values, string, error) {
 	if err != nil {
 		return nil, "", NewError(CodeBadUserInput, "invalid authorization query")
 	}
-	client := httpserver.ClientFrom(ctx)
+	client := clientinfo.From(ctx)
 	if client == nil {
 		return nil, "", errors.New("the request origin is unknown")
 	}
