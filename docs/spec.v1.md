@@ -1587,9 +1587,11 @@ Docker Composeの例は、停止の猶予（`stop_grace_period`）を、Helm Cha
 | `backend/cmd/kotatsu/` | エントリポイント |
 | `backend/internal/cli/` | ロールの組み立てとサブコマンド |
 | `backend/internal/neko/`、`backend/internal/kyusu/`、`backend/internal/recording/`、`backend/internal/stream/` | 各ロールの中心の処理（nekoのリーダー選出、kyusuのトランスコード、mikanの録画、tenbanの配信） |
-| `backend/internal/tuner/`、`backend/internal/epg/`、`backend/internal/reserve/`、`backend/internal/rule/`、`backend/internal/assign/`、`backend/internal/kago/`、`backend/internal/auth/`など | ドメインのロジック（`backend/internal/kago/`は保存先プール） |
-| `backend/internal/webui/` | ビルドしたSPAの埋め込み |
-| `backend/graph/` | GraphQLのスキーマとリゾルバ |
+| `backend/internal/epg/`、`backend/internal/reserve/`、`backend/internal/rule/`、`backend/internal/assign/`、`backend/internal/auth/`など | ドメインのロジック |
+| `backend/internal/infra/` | DBと外部への接続（`database/`、`mirakurun/`のチューナーサーバーのクライアント、`kago/`の保存先プール、`jobs/`、`notify/`など） |
+| `backend/internal/web/` | HTTPの口（`graph/`のGraphQLのスキーマとリゾルバ、`mcpserver/`、`epgstationapi/`、`httpserver/`、`spa/`、`webui/`のビルドしたSPAの埋め込み） |
+| `backend/internal/lib/` | ドメインに依らない小さな部品（`clock/`、`config/`、`ts/`、`password/`など） |
+| `backend/internal/testutil/` | テスト用の部品（`databasetest/`、`faketuner/`など） |
 | `backend/db/` | `schema.sql`、マイグレーション、sqlcのクエリ |
 | `frontend/` | フロントエンド（futonとyunomiを含みます） |
 | `deploy/helm/kotatsu/` | Helm Chart |
@@ -1749,7 +1751,7 @@ Kotatsu本体はApache License 2.0で公開します。
 | 字幕とデータ放送のフォント（Rounded M+ 1m WadaLab mix） | Unlicense | フロントエンドに同梱します（リポジトリには置かず、ビルド時にGitHubのリリースから取得し、ハッシュを確かめます）。字幕かデータ放送を描くときにだけ読み込みます。 |
 | zxcvbn-ts（`@zxcvbn-ts/core`と言語の辞書） | MIT | フロントエンドに同梱し、gojaで動かすバンドルを本体にも埋め込みます。 |
 | goja | MIT | 本体にリンクします。 |
-| パスワードのブロックリスト（SecListsの`xato-net-10-million-passwords-100000.txt`から作成） | MIT | 本体に埋め込み、ライセンスと出典を`backend/internal/password/`に残します。 |
+| パスワードのブロックリスト（SecListsの`xato-net-10-million-passwords-100000.txt`から作成） | MIT | 本体に埋め込み、ライセンスと出典を`backend/internal/lib/password/`に残します。 |
 | 実況チャンネルの対応表（KonomiTVの`jikkyo_channels.json`から作成） | MIT | 本体に同梱し、著作権表示を残します。 |
 | mirakc-arib、aribb24（C実装） | GPL-2.0、LGPL-3.0 | v1では使いません。将来使う場合も、子プロセスとして実行し、本体とはリンクしません。 |
 | Intel Media Driver（`intel-media-va-driver-non-free`） | Expat（同梱のGoogle TestはBSD-3-Clause）。ただし、ソースのないGPUのバイナリ（メディアのカーネル）を含むので、Debianではnon-freeにあります | amd64の`-ffmpeg`イメージにだけ同梱します。FFmpegが、libvaを通して実行時に読み込むプラグインで、本体ともFFmpegともリンクしません。ライセンス文書は、ほかのDebianのパッケージと同じく残し、ソースパッケージの入手先も一覧に書き出します（GPUのバイナリは、ソースパッケージの中でもバイナリのままです）。#509で、Gen11以前のGPUで縮小とHEVCのエンコードができるように入れました。 |

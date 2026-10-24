@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
-	"github.com/SlashNephy/kotatsu/internal/jobs"
-	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
+	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/library"
 	"github.com/SlashNephy/kotatsu/internal/segjoin"
 )

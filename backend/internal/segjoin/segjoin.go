@@ -22,12 +22,12 @@ import (
 	"github.com/riverqueue/river/rivertype"
 
 	"github.com/SlashNephy/kotatsu/internal/analysis"
-	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/jobs"
-	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
+	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/notification"
 	"github.com/SlashNephy/kotatsu/internal/thumbnail"
-	"github.com/SlashNephy/kotatsu/internal/ts"
 )
 
 const (

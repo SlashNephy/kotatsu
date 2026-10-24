@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/cli"
-	"github.com/SlashNephy/kotatsu/internal/database"
-	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
-	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 )
 
 // TestAdminReanalyze は、kotatsu admin reanalyze が、生成物のない録画の解析のジョブを投入し、

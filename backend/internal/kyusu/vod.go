@@ -21,9 +21,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/stream"
-	"github.com/SlashNephy/kotatsu/internal/ts"
 )
 
 const (

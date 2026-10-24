@@ -10,12 +10,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
-	"github.com/SlashNephy/kotatsu/internal/database"
-	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
-	"github.com/SlashNephy/kotatsu/internal/id"
-	"github.com/SlashNephy/kotatsu/internal/jobs"
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/metrics"
+	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 )
 
 // TestDBCollector は、DB の録画、割り振り、チューナー、リース、ジョブの状態を、メトリクスとして返すことを確かめる (設計書 11.3)。

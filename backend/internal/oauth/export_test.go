@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
 // NewFetcherWithTransport は、テストのサーバー (ループバックのアドレス) に接続できる Fetcher を返す。

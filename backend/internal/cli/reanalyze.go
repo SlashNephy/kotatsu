@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/SlashNephy/kotatsu/internal/analysis"
-	"github.com/SlashNephy/kotatsu/internal/config"
-	"github.com/SlashNephy/kotatsu/internal/jobs"
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
+	"github.com/SlashNephy/kotatsu/internal/lib/config"
 )
 
 // newReanalyzeCommand は kotatsu admin reanalyze を作る (#897)。

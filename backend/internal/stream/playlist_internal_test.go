@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/SlashNephy/kotatsu/internal/ts"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
 // TestKeyframesSkipGaps は、録画が途切れた区間を、I フレームの再生の時間に含めないことを確かめる (#754)。

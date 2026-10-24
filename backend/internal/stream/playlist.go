@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/SlashNephy/kotatsu/internal/ts"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
 // segment は、録画のセグメントと、その索引。

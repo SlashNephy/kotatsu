@@ -16,12 +16,12 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/capacity"
-	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
-	"github.com/SlashNephy/kotatsu/internal/database"
-	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
-	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/id"
-	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 )
 
 const (

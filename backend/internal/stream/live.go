@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 )
 
 const (

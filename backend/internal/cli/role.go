@@ -12,19 +12,19 @@ import (
 	"github.com/riverqueue/river"
 
 	"github.com/SlashNephy/kotatsu/internal/assign"
-	"github.com/SlashNephy/kotatsu/internal/clock"
-	"github.com/SlashNephy/kotatsu/internal/config"
-	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/epg"
-	"github.com/SlashNephy/kotatsu/internal/httpserver"
-	"github.com/SlashNephy/kotatsu/internal/jobs"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
+	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/metrics"
 	"github.com/SlashNephy/kotatsu/internal/neko"
 	"github.com/SlashNephy/kotatsu/internal/recording"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
 	"github.com/SlashNephy/kotatsu/internal/rule"
 	"github.com/SlashNephy/kotatsu/internal/settings"
-	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
 // Deps は、ロールを起動する前に用意し、全ロールで共有するもの。

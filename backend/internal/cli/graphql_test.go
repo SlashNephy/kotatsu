@@ -13,9 +13,9 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/cli"
-	"github.com/SlashNephy/kotatsu/internal/clock"
-	"github.com/SlashNephy/kotatsu/internal/database"
-	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 )
 
 // TestTenbanServesGraphQL は、tenban が /graphql を公開し、他のロールは公開しないことを確かめる。

@@ -11,8 +11,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 )
 
 // RecordingHandler は、録画を配信する (GET /streams/recordings/{id}?start=秒)。download を付けると、録画ファイルの名前で保存させる。

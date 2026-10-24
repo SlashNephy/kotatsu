@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/halfwidth"
+	"github.com/SlashNephy/kotatsu/internal/lib/halfwidth"
 )
 
 // Message は、イベントを、人が読む 1 行の文にする。Discord や Slack の Webhook のように、文で届ける通知先に使う。

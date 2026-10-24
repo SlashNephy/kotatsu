@@ -23,8 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/cli"
-	"github.com/SlashNephy/kotatsu/internal/clock"
-	"github.com/SlashNephy/kotatsu/internal/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/config"
 )
 
 func TestHelpListsRolesWithAlias(t *testing.T) {

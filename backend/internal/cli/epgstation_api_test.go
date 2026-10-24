@@ -12,9 +12,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/cli"
-	"github.com/SlashNephy/kotatsu/internal/clock"
-	"github.com/SlashNephy/kotatsu/internal/database"
-	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 )
 
 // TestTenbanServesEPGStationAPI は、tenban が /api/* を、API トークンでだけ受け付けることを確かめる (#431、設計書 9.8)。

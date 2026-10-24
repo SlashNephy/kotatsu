@@ -16,10 +16,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
-	"github.com/SlashNephy/kotatsu/internal/clock"
-	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/id"
-	"github.com/SlashNephy/kotatsu/internal/notify"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/notify"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 )
 
 // Kind は予約の種類。

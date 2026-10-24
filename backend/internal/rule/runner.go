@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/epg"
-	"github.com/SlashNephy/kotatsu/internal/notify"
+	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 )
 
 const (

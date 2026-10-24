@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/auth"
-	"github.com/SlashNephy/kotatsu/internal/totp"
-	"github.com/SlashNephy/kotatsu/internal/webauthntest"
+	"github.com/SlashNephy/kotatsu/internal/lib/totp"
+	"github.com/SlashNephy/kotatsu/internal/testutil/webauthntest"
 )
 
 // reauthFixture は、TOTP を登録してログインしたセッションを持つ loginFixture。

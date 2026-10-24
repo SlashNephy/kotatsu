@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/ts"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
 // flushInterval は、書き込みのバッファを、たまっていなくても書き出す間隔 (#525)。

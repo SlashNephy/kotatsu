@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/jikkyo"
+	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 )
 
 // fakeJikkyo は、NX-Jikkyo と過去ログ API の代わり。

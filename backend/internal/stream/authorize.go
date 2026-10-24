@@ -7,8 +7,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/auth"
-	"github.com/SlashNephy/kotatsu/internal/clock"
-	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
 // Authorizer は、映像のリクエストを、セッションか署名付き URL で認可する (設計書 9.6)。

@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/reserve"
-	"github.com/SlashNephy/kotatsu/internal/tuner/faketuner"
+	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 )
 
 // subServiceID は、こたつテスト1 と同じチャンネルのサブチャンネル。イベントリレーの引き継ぎ先に使う。

@@ -22,11 +22,11 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
-	"github.com/SlashNephy/kotatsu/internal/clock"
-	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/lib/secretbox"
 	"github.com/SlashNephy/kotatsu/internal/notification"
-	"github.com/SlashNephy/kotatsu/internal/secretbox"
 )
 
 const (

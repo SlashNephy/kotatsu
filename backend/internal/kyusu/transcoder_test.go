@@ -20,9 +20,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/config"
 	"github.com/SlashNephy/kotatsu/internal/kyusu"
-	"github.com/SlashNephy/kotatsu/internal/ts"
+	"github.com/SlashNephy/kotatsu/internal/lib/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
 func loadTestTS(t *testing.T) []byte {

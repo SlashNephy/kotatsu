@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/cli"
-	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 )
 
 // TestKyusuRegistersOnlyWhenItCanTranscode は、FFmpeg と tsreadex がないときは、kyusu を登録簿に載せないことを確かめる。

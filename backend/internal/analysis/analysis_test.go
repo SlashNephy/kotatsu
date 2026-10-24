@@ -18,14 +18,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/analysis"
-	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
-	"github.com/SlashNephy/kotatsu/internal/database"
-	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
-	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/id"
-	"github.com/SlashNephy/kotatsu/internal/jobs"
-	"github.com/SlashNephy/kotatsu/internal/kago"
-	"github.com/SlashNephy/kotatsu/internal/ts"
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
+	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
+	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 )
 
 const (
@@ -40,7 +40,7 @@ const (
 	completedWithErrors = "completed_with_errors"
 )
 
-// wantIFramePTS は、testdata/ts/test.ts の I フレームの PTS。internal/ts の索引のテストと同じ値。
+// wantIFramePTS は、testdata/ts/test.ts の I フレームの PTS。internal/lib/ts の索引のテストと同じ値。
 func wantIFramePTS() []int64 {
 	return []int64{129003, 174048, 219093, 264138, 309183, 354228, 399273, 444318, 489363, 534408, 579453, 624498}
 }

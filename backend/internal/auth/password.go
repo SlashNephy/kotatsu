@@ -11,9 +11,9 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
-	"github.com/SlashNephy/kotatsu/internal/clock"
-	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/password"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/password"
 )
 
 // Database は、読み出しと、トランザクションでの書き込みに使う DB。*pgxpool.Pool が満たす。

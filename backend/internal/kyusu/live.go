@@ -15,8 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/clock"
-	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
 const (

@@ -11,15 +11,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
-	"github.com/SlashNephy/kotatsu/internal/clock"
-	"github.com/SlashNephy/kotatsu/internal/database"
-	"github.com/SlashNephy/kotatsu/internal/database/databasetest"
-	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
+	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/match"
 	"github.com/SlashNephy/kotatsu/internal/neko"
 	"github.com/SlashNephy/kotatsu/internal/rule"
-	"github.com/SlashNephy/kotatsu/internal/tuner/faketuner"
-	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 )
 
 // TestLeaderSyncsEPGAndMatchesRules は、リーダーになった neko が、チューナーサーバーの EPG を DB に同期し、

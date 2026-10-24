@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
-	"github.com/SlashNephy/kotatsu/internal/id"
-	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/library"
 )
 

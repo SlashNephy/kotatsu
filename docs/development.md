@@ -115,9 +115,9 @@ docker compose logs kotatsu | grep setup_token
 
 | 変えたもの | 反映のしかた |
 | --- | --- |
-| Goのソース（`backend/`の`cmd/`、`internal/`、`graph/`） | `kotatsu`がビルドし直し、マイグレーションを当ててから起動し直します。数秒かかり、その間はAPIが502を返します |
+| Goのソース（`backend/`の`cmd/`、`internal/`） | `kotatsu`がビルドし直し、マイグレーションを当ててから起動し直します。数秒かかり、その間はAPIが502を返します |
 | 画面のソース（`frontend/src/`） | 開発サーバーが、ページを読み込み直さずに差し替えます |
-| SQLのクエリやスキーマ（`backend/db/queries/`、`backend/db/schema.sql`）、GraphQLのスキーマ（`backend/graph/schema/`） | `generate`が、sqlcとgqlgenの生成物と`frontend/schema.graphql`を作り直します。続けて、Goのビルドと`relay`が動きます |
+| SQLのクエリやスキーマ（`backend/db/queries/`、`backend/db/schema.sql`）、GraphQLのスキーマ（`backend/internal/web/graph/schema/`） | `generate`が、sqlcとgqlgenの生成物と`frontend/schema.graphql`を作り直します。続けて、Goのビルドと`relay`が動きます |
 | 画面のGraphQLのクエリ | `relay`が、`__generated__`を作り直します |
 
 マイグレーションは自動では作りません。

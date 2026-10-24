@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/thumbnail"
-	"github.com/SlashNephy/kotatsu/internal/ts"
 )
 
 // testTS は、合成した 720×480 (画素の縦横比 1:1) の約 6 秒の TS。I フレームは 0.5 秒ごとにある。

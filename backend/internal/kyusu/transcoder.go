@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/config"
-	"github.com/SlashNephy/kotatsu/internal/ts"
+	"github.com/SlashNephy/kotatsu/internal/lib/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
 const (

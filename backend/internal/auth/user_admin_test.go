@@ -11,8 +11,8 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
-	"github.com/SlashNephy/kotatsu/internal/clock/clocktest"
-	"github.com/SlashNephy/kotatsu/internal/password"
+	"github.com/SlashNephy/kotatsu/internal/lib/password"
+	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 )
 
 // snowPhrase は、mikan の名前を含まない、十分強いパスワード。

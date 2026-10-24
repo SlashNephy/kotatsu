@@ -6,10 +6,10 @@
 # exec で置き換え、watchexec の止める合図が Kotatsu に届くようにする。
 # go generate などで一度にたくさん書き換えたときに、何度もビルドしないよう、2 秒待ってからまとめてビルドする。
 [tasks."dev:server"]
-run = "watchexec --shell=none --exts go --watch cmd --watch internal --watch graph --restart --debounce 2s --stop-timeout 30s -- sh -c 'go build -o $HOME/bin/kotatsu ./cmd/kotatsu && $HOME/bin/kotatsu migrate && exec $HOME/bin/kotatsu all'"
+run = "watchexec --shell=none --exts go --watch cmd --watch internal --restart --debounce 2s --stop-timeout 30s -- sh -c 'go build -o $HOME/bin/kotatsu ./cmd/kotatsu && $HOME/bin/kotatsu migrate && exec $HOME/bin/kotatsu all'"
 
 # SQL のクエリやスキーマ、GraphQL のスキーマを変えたら、sqlc と gqlgen の生成物と、画面が読むスキーマを作り直す。
 # 作り直した Go のソースは dev:server が、../frontend/schema.graphql は //frontend:dev:relay が拾う。
 # マイグレーションは、変えるたびに作られると困るので、ここでは作らない (mise run //backend:db:diff で作る)。
 [tasks."dev:generate"]
-run = "watchexec --shell=none --watch db/schema.sql --watch db/queries --watch graph/schema --watch sqlc.yaml --watch gqlgen.yml --postpone --debounce 1s -- sh -c 'sqlc generate && go tool gqlgen generate && golangci-lint fmt && go run ./graph/printschema > ../frontend/schema.graphql.tmp && mv ../frontend/schema.graphql.tmp ../frontend/schema.graphql'"
+run = "watchexec --shell=none --watch db/schema.sql --watch db/queries --watch internal/web/graph/schema --watch sqlc.yaml --watch gqlgen.yml --postpone --debounce 1s -- sh -c 'sqlc generate && go tool gqlgen generate && golangci-lint fmt && go run ./internal/web/graph/printschema > ../frontend/schema.graphql.tmp && mv ../frontend/schema.graphql.tmp ../frontend/schema.graphql'"

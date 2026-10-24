@@ -12,7 +12,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
-	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 )
 
 // エラーコード (RFC 6749 4.1.2.1、5.2、RFC 8707 2)。

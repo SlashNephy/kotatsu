@@ -17,10 +17,10 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
-	"github.com/SlashNephy/kotatsu/internal/clock"
-	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
 	"github.com/SlashNephy/kotatsu/internal/notification"
-	"github.com/SlashNephy/kotatsu/internal/publicnet"
 )
 
 const (

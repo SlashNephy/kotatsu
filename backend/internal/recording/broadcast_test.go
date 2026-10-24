@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/recording"
-	"github.com/SlashNephy/kotatsu/internal/ts"
 )
 
 // TestBroadcastTracker は、EIT[p/f] の放送中と次の番組から、録画を止める時刻と、放送されなかったことを決めることを確かめる (#389)。

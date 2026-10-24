@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/epgstation"
-	"github.com/SlashNephy/kotatsu/internal/epgstation/epgstationtest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/epgstationtest"
 )
 
 // mysqlName と sqliteName は、URL のスキームと database/sql のドライバ名に共通する名前。

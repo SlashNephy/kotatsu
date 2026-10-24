@@ -13,7 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/SlashNephy/kotatsu/internal/registry"
+	"github.com/SlashNephy/kotatsu/internal/infra/registry"
 )
 
 const (
