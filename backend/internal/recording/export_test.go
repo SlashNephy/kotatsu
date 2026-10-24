@@ -3,7 +3,7 @@ package recording
 import (
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/ts"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
 // BroadcastTracker は、テストから broadcastTracker を使うために公開する。

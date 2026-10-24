@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/ts"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
 // joinWindow は、テストで重なりを探す範囲。testdata/ts/test.ts の全体が入る大きさにする。
@@ -76,7 +76,7 @@ func joinSegments(t *testing.T, segments [][]byte, overlapping []bool, window in
 func TestJoiner(t *testing.T) {
 	t.Parallel()
 
-	original, err := os.ReadFile(filepath.Join("..", "..", "testdata", "ts", "test.ts"))
+	original, err := os.ReadFile(filepath.Join("..", "..", "..", "testdata", "ts", "test.ts"))
 	require.NoError(t, err)
 	packets := len(original) / ts.PacketSize
 	at := func(n int) int { return n * ts.PacketSize }

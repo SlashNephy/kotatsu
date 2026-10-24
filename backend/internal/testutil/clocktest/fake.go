@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
 // Fake は、Advance や Set で進めない限り止まっている時計。複数の goroutine から使ってよい。

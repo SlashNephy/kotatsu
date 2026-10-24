@@ -10,8 +10,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/SlashNephy/kotatsu/internal/buildinfo"
 	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
 )
 
 // Handler は、EPGStation 互換の API のうち、DB から組み立てる応答を返す。映像とロゴは、既存のハンドラーにつなぐ。

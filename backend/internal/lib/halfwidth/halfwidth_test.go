@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/SlashNephy/kotatsu/internal/halfwidth"
+	"github.com/SlashNephy/kotatsu/internal/lib/halfwidth"
 )
 
 // TestConvert は、画面の半角化 (frontend/src/futon/halfWidth.test.ts) と同じ例で、同じ結果になることを確かめる。

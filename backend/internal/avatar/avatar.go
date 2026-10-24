@@ -22,7 +22,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/publicnet"
+	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
 )
 
 const (

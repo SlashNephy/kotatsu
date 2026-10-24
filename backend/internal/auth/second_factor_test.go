@@ -12,8 +12,8 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/auth"
-	"github.com/SlashNephy/kotatsu/internal/secretbox"
-	"github.com/SlashNephy/kotatsu/internal/totp"
+	"github.com/SlashNephy/kotatsu/internal/lib/secretbox"
+	"github.com/SlashNephy/kotatsu/internal/lib/totp"
 	"github.com/SlashNephy/kotatsu/internal/usersettings"
 )
 

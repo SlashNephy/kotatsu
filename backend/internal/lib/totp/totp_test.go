@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/totp"
+	"github.com/SlashNephy/kotatsu/internal/lib/totp"
 )
 
 // rfcSecret は、RFC 6238 の付録 B の SHA-1 の秘密キー。

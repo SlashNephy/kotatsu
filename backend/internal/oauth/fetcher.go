@@ -15,8 +15,8 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/SlashNephy/kotatsu/internal/clock"
-	"github.com/SlashNephy/kotatsu/internal/publicnet"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
 )
 
 const (

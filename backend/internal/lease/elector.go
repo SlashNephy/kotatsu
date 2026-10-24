@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
 // Lead は、リーダーになっている間に動く処理。ctx はリースを失ったときと Run が止まるときに終わる。

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/graph"
-	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 )
 
 const guideViewFields = `id name genres { lv1 lv2 } excludeGenres { lv1 lv2 } minDurationSeconds hideEmptyServices services { name }`

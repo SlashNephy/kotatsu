@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/ts"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
 const (
@@ -30,7 +30,7 @@ func loadTestTS(t *testing.T) []byte {
 func loadTestTSFile(t *testing.T, name string) []byte {
 	t.Helper()
 
-	b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "ts", name))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "testdata", "ts", name))
 	require.NoError(t, err)
 	require.Zero(t, len(b)%ts.PacketSize)
 

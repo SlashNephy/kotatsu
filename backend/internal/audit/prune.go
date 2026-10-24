@@ -7,8 +7,8 @@ import (
 
 	"github.com/riverqueue/river"
 
-	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
 // pruneInterval は、保持期間を過ぎた記録を消す間隔。

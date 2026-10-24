@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/SlashNephy/kotatsu/internal/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/config"
 )
 
 // Client は、リクエストの送信元。信頼済みのプロキシを経由したときは、プロキシが伝えた値にする。

@@ -10,7 +10,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/tuner/mirakurun"
 )
 

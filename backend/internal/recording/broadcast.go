@@ -3,7 +3,7 @@ package recording
 import (
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/ts"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
 // emptyPresentGrace は、EIT[p/f] の放送中のセクションに番組がないまま、判断を保留する時間 (#637)。

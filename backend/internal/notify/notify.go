@@ -21,8 +21,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/SlashNephy/kotatsu/internal/clock"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
 // RecordingsChannel は、録画が変わったことを知らせる変更通知のチャンネル (#868)。録画を始めた、終えた、消した、

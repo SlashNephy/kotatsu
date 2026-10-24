@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
 type reauthRequest struct {

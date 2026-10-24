@@ -10,7 +10,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/ts"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
 // streamQuality は、録画のセグメントの PID ごとの品質の集計を、PID ごとに足し合わせて返す (#473)。

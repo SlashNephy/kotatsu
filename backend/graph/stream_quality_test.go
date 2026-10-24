@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 )
 
 // TestStreamQuality は、録画のセグメントの PID ごとの集計を、PID ごとに足し合わせて返し、

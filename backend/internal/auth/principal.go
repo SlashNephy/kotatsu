@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
 // RecentAuthenticationWindow は、重要な操作の前に求める再認証の新しさ (設計書 9.5)。

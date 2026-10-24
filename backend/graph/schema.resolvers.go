@@ -7,7 +7,7 @@ import (
 	"github.com/SlashNephy/kotatsu/graph/generated"
 	"github.com/SlashNephy/kotatsu/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/auth"
-	"github.com/SlashNephy/kotatsu/internal/buildinfo"
+	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
 )
 
 // Viewer is the resolver for the viewer field.

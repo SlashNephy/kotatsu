@@ -37,12 +37,12 @@ COPY . .
 COPY --from=web /src/backend/internal/webui/dist/app ./backend/internal/webui/dist/app
 ARG TARGETOS
 ARG TARGETARCH
-# VERSION は、版とコミットを 1.2.3+<コミット> の形で渡す (internal/buildinfo)。.git はイメージに入れないので、
+# VERSION は、版とコミットを 1.2.3+<コミット> の形で渡す (internal/lib/buildinfo)。.git はイメージに入れないので、
 # 渡さなければ dev になる。
 ARG VERSION=""
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
-    -ldflags="-s -w -X github.com/SlashNephy/kotatsu/internal/buildinfo.version=${VERSION}" -o /out/kotatsu ./backend/cmd/kotatsu
+    -ldflags="-s -w -X github.com/SlashNephy/kotatsu/internal/lib/buildinfo.version=${VERSION}" -o /out/kotatsu ./backend/cmd/kotatsu
 
 # tsreadex は、配布されているバイナリがないので、対象のアーキテクチャでソースからビルドする。
 FROM docker.io/library/debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS tools

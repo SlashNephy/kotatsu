@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/password"
+	"github.com/SlashNephy/kotatsu/internal/lib/password"
 )
 
 // hibpServer は、Pwned Passwords の範囲検索を真似る。breached の SHA-1 の後ろ 35 文字を返し、水増しの行も混ぜる。

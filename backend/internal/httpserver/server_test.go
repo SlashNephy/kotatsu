@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/database"
-	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 )
 
 type fakePinger struct {

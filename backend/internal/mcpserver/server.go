@@ -20,8 +20,8 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 
 	"github.com/SlashNephy/kotatsu/internal/auth"
-	"github.com/SlashNephy/kotatsu/internal/buildinfo"
 	"github.com/SlashNephy/kotatsu/internal/httpserver"
+	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
 	"github.com/SlashNephy/kotatsu/internal/oauth"
 	"github.com/SlashNephy/kotatsu/internal/webui"
 )

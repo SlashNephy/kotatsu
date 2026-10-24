@@ -8,7 +8,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/SlashNephy/kotatsu/internal/password"
+	"github.com/SlashNephy/kotatsu/internal/lib/password"
 )
 
 var _ password.StrengthEstimator = new(Estimator)

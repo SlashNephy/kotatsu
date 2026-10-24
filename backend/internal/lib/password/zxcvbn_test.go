@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/password"
+	"github.com/SlashNephy/kotatsu/internal/lib/password"
 )
 
 // testStrengthTimeout は、テストでの判定の時間の上限。-race では goja が 10 倍以上遅くなるので、長くとる。

@@ -8,8 +8,8 @@ import (
 	"text/template/parse"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/halfwidth"
 	"github.com/SlashNephy/kotatsu/internal/kago"
+	"github.com/SlashNephy/kotatsu/internal/lib/halfwidth"
 )
 
 // fileNameFuncs は、ファイル名のテンプレートで使える関数 (設計書 4.7)。Go のテンプレートを書かない利用者向けに、

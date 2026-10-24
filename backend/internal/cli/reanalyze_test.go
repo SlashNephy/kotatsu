@@ -11,8 +11,8 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/cli"
 	"github.com/SlashNephy/kotatsu/internal/database"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
-	"github.com/SlashNephy/kotatsu/internal/id"
 )
 
 // TestAdminReanalyze は、kotatsu admin reanalyze が、生成物のない録画の解析のジョブを投入し、

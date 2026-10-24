@@ -6,7 +6,7 @@ set -euo pipefail
 
 commit="${1:?usage: $0 <SecLists commit>}"
 base="https://raw.githubusercontent.com/danielmiessler/SecLists/${commit}"
-out="$(dirname "$0")/../internal/password"
+out="$(dirname "$0")/../internal/lib/password"
 
 curl -sSfL "${base}/Passwords/Common-Credentials/xato-net-10-million-passwords-100000.txt" |
   LC_ALL=C awk 'length($0) >= 8' | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C sort -u |

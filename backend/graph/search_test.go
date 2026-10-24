@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/id"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 )
 
 const searchQuery = `query($conditions: ProgramConditionsInput!, $archive: ArchiveRangeInput, $first: Int!, $after: String) {

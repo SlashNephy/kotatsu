@@ -19,7 +19,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/ts"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
 const (

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/SlashNephy/kotatsu/internal/ts"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
 // TestPIDQualities は、PID ごとの統計に、PMT と決まった PID から分かる種類を添えることを確かめる (#473)。

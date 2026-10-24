@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/SlashNephy/kotatsu/internal/buildinfo"
+	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
 )
 
 func TestResolve(t *testing.T) {

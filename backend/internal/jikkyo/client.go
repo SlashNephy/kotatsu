@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/SlashNephy/kotatsu/internal/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
 const (

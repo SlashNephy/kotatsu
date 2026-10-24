@@ -54,12 +54,12 @@ run = "pnpm exec storybook build --quiet"
 depends = ["build"]
 run = "pnpm exec playwright test --project=spa"
 
-# サーバーの goja で動かす zxcvbn-ts のバンドル (設計書 2.2) を作り、gzip で ../backend/internal/password に置く。
+# サーバーの goja で動かす zxcvbn-ts のバンドル (設計書 2.2) を作り、gzip で ../backend/internal/lib/password に置く。
 [tasks.zxcvbn]
 depends = ["install"]
 run = [
   "pnpm exec vp build --config zxcvbn/vite.config.ts",
-  "gzip -9nc zxcvbn/dist/zxcvbn.js > ../backend/internal/password/zxcvbn.js.gz",
+  "gzip -9nc zxcvbn/dist/zxcvbn.js > ../backend/internal/lib/password/zxcvbn.js.gz",
 ]
 
 [tasks.dev]

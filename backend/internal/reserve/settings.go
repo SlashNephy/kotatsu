@@ -8,7 +8,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/config"
 )
 
 const (
