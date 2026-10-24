@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
@@ -73,12 +74,12 @@ func newFixture(t *testing.T) *fixture {
 		pool:         pool,
 		clock:        clk,
 		reservations: reserve.NewReservations(clk, audit.NewRecorder(clk)),
-		runner:       assign.NewRunner(pool, clk, noGuard, slog.New(slog.DiscardHandler), assign.FixedDefaults(reserve.DefaultSettings()), nil),
+		runner:       assign.NewRunner(pool, clk, noGuard, slog.New(slog.DiscardHandler), assign.FixedDefaults(domain.DefaultRecordingSettings()), nil),
 	}
 }
 
 // reserve は、地上波の i 番目のサービスの、13:30 に始まる番組 (eventId 6) を予約する。
-func (f *fixture) reserve(t *testing.T, service int, overrides *reserve.Overrides) uuid.UUID {
+func (f *fixture) reserve(t *testing.T, service int, overrides *domain.RecordingOverrides) uuid.UUID {
 	t.Helper()
 
 	reservation, _, err := f.reservations.CreateProgram(t.Context(), f.pool, audit.System("test"), &reserve.ProgramInput{
@@ -222,7 +223,7 @@ func TestRunOnceNotifiesConflictOnce(t *testing.T) {
 	// 競合している予約を変えたら、また通知する。
 	f.clock.Advance(time.Minute)
 	_, err = f.reservations.Update(t.Context(), f.pool, audit.System("test"), conflicted,
-		&reserve.Update{Overrides: &reserve.Overrides{EndMarginSeconds: new(30)}})
+		&reserve.Update{Overrides: &domain.RecordingOverrides{EndMarginSeconds: new(30)}})
 	require.NoError(t, err)
 	assert.Len(t, flap(), 3, "the conflict is notified again after the reservation changes")
 }
@@ -233,11 +234,11 @@ func TestRunOnceUsesRecordingSettings(t *testing.T) {
 
 	f := newFixture(t)
 	withDefault := f.reserve(t, 0, nil)
-	withOverride := f.reserve(t, 1, &reserve.Overrides{StartMarginSeconds: new(60)})
+	withOverride := f.reserve(t, 1, &domain.RecordingOverrides{StartMarginSeconds: new(60)})
 	f.runOnce(t)
 
 	start := time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC)
-	assert.Equal(t, start.Add(-reserve.DefaultMarginSeconds*time.Second), f.stored(t, withDefault).plannedStart.UTC())
+	assert.Equal(t, start.Add(-domain.DefaultMarginSeconds*time.Second), f.stored(t, withDefault).plannedStart.UTC())
 	assert.Equal(t, start.Add(-time.Minute), f.stored(t, withOverride).plannedStart.UTC())
 }
 
@@ -247,13 +248,13 @@ func TestRunOnceReadsDefaultsEachTime(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
-	margin := reserve.DefaultMarginSeconds
+	margin := domain.DefaultMarginSeconds
 	var loadErr error
-	f.runner = assign.NewRunner(f.pool, f.clock, noGuard, slog.New(slog.DiscardHandler), func(context.Context, sqlc.DBTX) (*reserve.Settings, error) {
+	f.runner = assign.NewRunner(f.pool, f.clock, noGuard, slog.New(slog.DiscardHandler), func(context.Context, sqlc.DBTX) (*domain.RecordingSettings, error) {
 		if loadErr != nil {
 			return nil, loadErr
 		}
-		settings := reserve.DefaultSettings()
+		settings := domain.DefaultRecordingSettings()
 		settings.StartMarginSeconds = margin
 
 		return settings, nil
@@ -261,7 +262,7 @@ func TestRunOnceReadsDefaultsEachTime(t *testing.T) {
 	reservationID := f.reserve(t, 0, nil)
 	start := time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC)
 	f.runOnce(t)
-	assert.Equal(t, start.Add(-reserve.DefaultMarginSeconds*time.Second), f.stored(t, reservationID).plannedStart.UTC())
+	assert.Equal(t, start.Add(-domain.DefaultMarginSeconds*time.Second), f.stored(t, reservationID).plannedStart.UTC())
 
 	margin = 120
 	f.runOnce(t)
@@ -286,7 +287,7 @@ func TestRunOnceKeepsRecordingReservations(t *testing.T) {
 
 	// 録画が始まった後に、同じ時刻の優先度の高い予約が 2 件増える。
 	f.clock.Advance(80 * time.Minute)
-	high := &reserve.Overrides{Priority: new(10)}
+	high := &domain.RecordingOverrides{Priority: new(10)}
 	others := []uuid.UUID{f.reserve(t, 1, high), f.reserve(t, 2, high)}
 	result := f.runOnce(t)
 
@@ -300,7 +301,7 @@ func TestRunRecomputesOnReservationChanges(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
-	runner := assign.NewRunner(f.pool, f.clock, noGuard, slog.New(slog.DiscardHandler), assign.FixedDefaults(reserve.DefaultSettings()),
+	runner := assign.NewRunner(f.pool, f.clock, noGuard, slog.New(slog.DiscardHandler), assign.FixedDefaults(domain.DefaultRecordingSettings()),
 		&assign.RunnerOptions{Debounce: 10 * time.Millisecond, Interval: time.Hour, PollOnly: false, PollInterval: 0})
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)

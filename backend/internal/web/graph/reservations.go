@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -43,7 +44,7 @@ func parseReservationID(globalID string) (uuid.UUID, error) {
 }
 
 // toReservations は、予約を GraphQL の型にする。作成者と更新者は、まとめて引く。
-func toReservations(ctx context.Context, reservations ...*reserve.Reservation) ([]*model.Reservation, error) {
+func toReservations(ctx context.Context, reservations ...*domain.Reservation) ([]*model.Reservation, error) {
 	ids := make([]*uuid.UUID, 0, 2*len(reservations))
 	for _, r := range reservations {
 		ids = append(ids, r.CreatedBy, r.UpdatedBy)
@@ -67,7 +68,7 @@ func toReservations(ctx context.Context, reservations ...*reserve.Reservation) (
 }
 
 // toReservationModel は、予約 1 件を GraphQL の型にする。
-func toReservationModel(ctx context.Context, r *reserve.Reservation) (*model.Reservation, error) {
+func toReservationModel(ctx context.Context, r *domain.Reservation) (*model.Reservation, error) {
 	models, err := toReservations(ctx, r)
 	if err != nil {
 		return nil, err
@@ -76,7 +77,7 @@ func toReservationModel(ctx context.Context, r *reserve.Reservation) (*model.Res
 	return models[0], nil
 }
 
-func toReservation(r *reserve.Reservation) (*model.Reservation, error) {
+func toReservation(r *domain.Reservation) (*model.Reservation, error) {
 	upstreamGenres := []*domain.Genre{}
 	if err := json.Unmarshal(r.Genres, &upstreamGenres); err != nil {
 		return nil, fmt.Errorf("failed to decode the genres of reservation %s: %w", r.ID, err)
@@ -127,7 +128,7 @@ func (r *Resolver) reservation(ctx context.Context, globalID string) (*model.Res
 	if err != nil {
 		return nil, err
 	}
-	found, err := r.reservations.Get(ctx, r.db, reservationID)
+	found, err := r.queries.GetReservation(ctx, reservationID)
 	if err != nil {
 		return nil, err
 	}
@@ -148,30 +149,30 @@ func (r *Resolver) listReservations(
 	if first < 1 || first > maxReservations {
 		return nil, NewError(CodeBadUserInput, fmt.Sprintf("first must be between 1 and %d", maxReservations))
 	}
-	query := &reserve.ListQuery{
-		From: from, To: to, States: make([]reserve.AssignmentState, 0, len(states)), Enabled: enabled, RuleID: nil, AfterStartAt: nil, AfterID: nil,
+	listQuery := &query.ReservationListQuery{
+		From: from, To: to, States: make([]domain.AssignmentState, 0, len(states)), Enabled: enabled, RuleID: nil, AfterStartAt: nil, AfterID: nil,
 		// 次のページがあるかを知るため、1 件多く読む。
 		Limit: first + 1,
 	}
 	for _, state := range states {
-		query.States = append(query.States, reserve.AssignmentState(strings.ToLower(string(state))))
+		listQuery.States = append(listQuery.States, domain.AssignmentState(strings.ToLower(string(state))))
 	}
 	if ruleGlobalID != nil {
 		ruleID, err := parseRuleID(*ruleGlobalID)
 		if err != nil {
 			return nil, err
 		}
-		query.RuleID = &ruleID
+		listQuery.RuleID = &ruleID
 	}
 	if after != nil {
 		var cursor reservationCursor
 		if err := DecodeCursor(*after, &cursor); err != nil {
 			return nil, NewError(CodeBadUserInput, "invalid cursor")
 		}
-		query.AfterStartAt, query.AfterID = &cursor.StartAt, &cursor.ID
+		listQuery.AfterStartAt, listQuery.AfterID = &cursor.StartAt, &cursor.ID
 	}
 
-	found, err := r.reservations.List(ctx, r.db, query)
+	found, err := r.queries.ListReservations(ctx, listQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +234,7 @@ func (r *Resolver) bulkReservations(
 		}
 		err := apply(actor, reservationID)
 		switch {
-		case errors.Is(err, reserve.ErrNotFound):
+		case errors.Is(err, domain.ErrReservationNotFound):
 			payload.Skipped++
 		case err != nil:
 			return nil, err
@@ -278,8 +279,8 @@ func (r *Resolver) deleteReservation(ctx context.Context, globalID string) (*mod
 	}
 
 	payload := &model.DeleteReservationPayload{ID: globalID, Reservation: nil}
-	disabled, err := r.reservations.Get(ctx, r.db, reservationID)
-	if errors.Is(err, reserve.ErrNotFound) {
+	disabled, err := r.queries.GetReservation(ctx, reservationID)
+	if errors.Is(err, domain.ErrReservationNotFound) {
 		return payload, nil
 	}
 	if err != nil {

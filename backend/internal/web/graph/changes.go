@@ -132,7 +132,7 @@ func (r *Resolver) subscribeUnreadNotificationCount(ctx context.Context) (<-chan
 	// 数を読む前に購読し、読んだ後の変更を取りこぼさないようにする。
 	wake, unsubscribe := r.changes.Subscribe()
 	version := r.changes.Version(notification.NotifyChannel)
-	count, err := r.inbox.UnreadCount(ctx, r.db, principal.UserID)
+	count, err := r.queries.UnreadNotificationCount(ctx, principal.UserID)
 	if err != nil {
 		unsubscribe()
 
@@ -155,7 +155,7 @@ func (r *Resolver) subscribeUnreadNotificationCount(ctx context.Context) (<-chan
 				continue
 			}
 			version = latest
-			current, err := r.inbox.UnreadCount(ctx, r.db, principal.UserID)
+			current, err := r.queries.UnreadNotificationCount(ctx, principal.UserID)
 			if err != nil {
 				// 読めなければ、購読を終える。クライアントは、購読し直して今の数を受け取る。
 				return
@@ -188,7 +188,7 @@ func (r *Resolver) subscribeViewerSettings(ctx context.Context) (<-chan int, err
 	// 版数を読む前に購読し、読んだ後の変更を取りこぼさないようにする。
 	wake, unsubscribe := r.changes.Subscribe()
 	channelVersion := r.changes.Version(usersettings.NotifyChannel)
-	version, err := usersettings.Version(ctx, r.db, principal.UserID)
+	version, err := r.queries.UserSettingsVersion(ctx, principal.UserID)
 	if err != nil {
 		unsubscribe()
 
@@ -211,7 +211,7 @@ func (r *Resolver) subscribeViewerSettings(ctx context.Context) (<-chan int, err
 				continue
 			}
 			channelVersion = latest
-			current, err := usersettings.Version(ctx, r.db, principal.UserID)
+			current, err := r.queries.UserSettingsVersion(ctx, principal.UserID)
 			if err != nil {
 				// 読めなければ、購読を終える。クライアントは、購読し直して今の版数を受け取る。
 				return

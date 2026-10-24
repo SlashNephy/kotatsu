@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
@@ -65,7 +66,7 @@ func (f *fixture) subscribe(t *testing.T, username, endpoint string, b *browser)
 	return got[0].ID
 }
 
-func (f *fixture) emit(t *testing.T, kind notification.Kind, payload map[string]any) uuid.UUID {
+func (f *fixture) emit(t *testing.T, kind domain.NotificationKind, payload map[string]any) uuid.UUID {
 	t.Helper()
 
 	require.NoError(t, notification.Emit(t.Context(), f.pool, f.clock, kind, payload))
@@ -113,7 +114,7 @@ func TestEnqueuerQueuesDeliveries(t *testing.T) {
 	f.subscribe(t, "sudachi", "https://push.example/sudachi", newBrowser(t))
 	_, err = f.pool.Exec(t.Context(), "UPDATE users SET disabled_at = now() WHERE username = 'sudachi'")
 	require.NoError(t, err)
-	eventID := f.emit(t, notification.KindRecordingFailed, map[string]any{nameKey: "こたつ特集"})
+	eventID := f.emit(t, domain.NotificationKindRecordingFailed, map[string]any{nameKey: "こたつ特集"})
 
 	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
 	inserter, err := jobs.NewClient(f.pool, slog.New(slog.DiscardHandler), &jobs.Options{PollOnly: false, Workers: nil, PeriodicJobs: nil})
@@ -142,7 +143,7 @@ func TestDeliverWorkerSendsEncryptedNotification(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		kind        notification.Kind
+		kind        domain.NotificationKind
 		payload     map[string]any
 		wantBody    string
 		wantUrgency string
@@ -150,15 +151,15 @@ func TestDeliverWorkerSendsEncryptedNotification(t *testing.T) {
 		wantURL string
 	}{
 		{
-			name: "録画の失敗は、すぐに届ける", kind: notification.KindRecordingFailed, payload: map[string]any{nameKey: "こたつ特集"},
+			name: "録画の失敗は、すぐに届ける", kind: domain.NotificationKindRecordingFailed, payload: map[string]any{nameKey: "こたつ特集"},
 			wantBody: "「こたつ特集」の録画に失敗しました", wantUrgency: "high",
 		},
 		{
-			name: "録画の完了", kind: notification.KindRecordingCompleted, payload: map[string]any{nameKey: "みかん紀行"},
+			name: "録画の完了", kind: domain.NotificationKindRecordingCompleted, payload: map[string]any{nameKey: "みかん紀行"},
 			wantBody: "「みかん紀行」の録画が終わりました", wantUrgency: "normal",
 		},
 		{
-			name: "視聴予約の通知は、押すとライブ視聴を開く", kind: notification.KindWatchReminder,
+			name: "視聴予約の通知は、押すとライブ視聴を開く", kind: domain.NotificationKindWatchReminder,
 			payload: map[string]any{
 				nameKey: "こたつの時間", "serviceName": "NHK総合", "startAt": "2026-10-10T12:05:00Z", "url": "/live/U2VydmljZToxMDI0",
 			},
@@ -227,7 +228,7 @@ func TestDeliverWorkerResponses(t *testing.T) {
 			f := newFixture(t)
 			server, _ := pushService(t, func() int { return tt.status })
 			subscriptionID := f.subscribe(t, "mikan", server.URL+"/send/mikan", newBrowser(t))
-			eventID := f.emit(t, notification.KindRecordingStarted, nil)
+			eventID := f.emit(t, domain.NotificationKindRecordingStarted, nil)
 
 			err := f.deliver(t, server.Client(), subscriptionID, eventID)
 			assert.Equal(t, tt.wantErr, err != nil, "%v", err)
@@ -256,7 +257,7 @@ func TestDeliverWorkerKeepsResubscription(t *testing.T) {
 	resubscribe = func() {
 		assert.NoError(t, f.service.Subscribe(t.Context(), f.pool, userID, newBrowser(t).subscription(endpoint)))
 	}
-	eventID := f.emit(t, notification.KindRecordingStarted, nil)
+	eventID := f.emit(t, domain.NotificationKindRecordingStarted, nil)
 
 	var cancel *rivertype.JobCancelError
 	require.ErrorAs(t, f.deliver(t, server.Client(), subscriptionID, eventID), &cancel)
@@ -270,7 +271,7 @@ func TestDeliverWorkerCancelsWithoutTarget(t *testing.T) {
 	f := newFixture(t)
 	server, requests := pushService(t, func() int { return http.StatusCreated })
 	subscriptionID := f.subscribe(t, "mikan", server.URL+"/send/mikan", newBrowser(t))
-	eventID := f.emit(t, notification.KindRecordingStarted, nil)
+	eventID := f.emit(t, domain.NotificationKindRecordingStarted, nil)
 
 	var cancel *rivertype.JobCancelError
 	require.ErrorAs(t, f.deliver(t, server.Client(), uuid.New(), eventID), &cancel)
@@ -285,7 +286,7 @@ func TestDeliverWorkerCancelsNonPublicEndpoint(t *testing.T) {
 	f := newFixture(t)
 	server, requests := pushService(t, func() int { return http.StatusCreated })
 	subscriptionID := f.subscribe(t, "mikan", server.URL+"/send/mikan", newBrowser(t))
-	eventID := f.emit(t, notification.KindRecordingStarted, nil)
+	eventID := f.emit(t, domain.NotificationKindRecordingStarted, nil)
 
 	var cancel *rivertype.JobCancelError
 	require.ErrorAs(t, f.deliver(t, webpush.NewHTTPClient(), subscriptionID, eventID), &cancel)

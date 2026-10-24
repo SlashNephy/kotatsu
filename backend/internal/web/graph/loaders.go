@@ -11,10 +11,9 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
-	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
-	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 )
 
 // loaderWait は、同じリクエストの中で、まとめて引くまで待つ時間。
@@ -32,7 +31,7 @@ type Loaders struct {
 	// UpcomingReservationCounts は、ルールに一致した予約のうち、終わっていないものの件数。
 	UpcomingReservationCounts *dataloadgen.Loader[uuid.UUID, int]
 	// ProgramReservations は、番組の予約。予約のない番組では nil にする。
-	ProgramReservations *dataloadgen.Loader[reserve.ProgramKey, *reserve.Reservation]
+	ProgramReservations *dataloadgen.Loader[domain.ProgramKey, *domain.Reservation]
 	// WatchReserved は、ユーザーが番組を視聴予約しているかどうか。
 	WatchReserved *dataloadgen.Loader[watchReservedKey, bool]
 }
@@ -40,13 +39,13 @@ type Loaders struct {
 // watchReservedKey は、視聴予約を引くキー。ユーザーと番組の組。
 type watchReservedKey struct {
 	UserID  uuid.UUID
-	Program watch.ProgramKey
+	Program domain.ProgramKey
 }
 
 type loadersKey struct{}
 
 // newLoaders は、db から引く Loaders を作る。
-func newLoaders(db sqlc.DBTX, q *query.Queries, rules *rule.Rules, reservations *reserve.Reservations) *Loaders {
+func newLoaders(db sqlc.DBTX, q *query.Queries, clk clock.Clock, rules *rule.Rules) *Loaders {
 	return &Loaders{
 		Users: dataloadgen.NewLoader(func(ctx context.Context, ids []uuid.UUID) ([]*domain.User, []error) {
 			rows, err := q.ListUsersByIDs(ctx, ids)
@@ -93,7 +92,7 @@ func newLoaders(db sqlc.DBTX, q *query.Queries, rules *rule.Rules, reservations 
 			return orderBy(ids, byID, "rule")
 		}, dataloadgen.WithWait(loaderWait)),
 		RuleIDs: dataloadgen.NewLoader(func(ctx context.Context, ids []uuid.UUID) ([][]uuid.UUID, []error) {
-			byID, err := reservations.RuleIDs(ctx, db, ids)
+			byID, err := q.ReservationRuleIDs(ctx, ids)
 			if err != nil {
 				return failAll[[]uuid.UUID](len(ids), err)
 			}
@@ -105,7 +104,7 @@ func newLoaders(db sqlc.DBTX, q *query.Queries, rules *rule.Rules, reservations 
 			return ruleIDs, make([]error, len(ids))
 		}, dataloadgen.WithWait(loaderWait)),
 		UpcomingReservationCounts: dataloadgen.NewLoader(func(ctx context.Context, ids []uuid.UUID) ([]int, []error) {
-			byID, err := reservations.CountUpcomingByRules(ctx, db, ids)
+			byID, err := q.CountUpcomingReservationsByRules(ctx, ids, clk.Now())
 			if err != nil {
 				return failAll[int](len(ids), err)
 			}
@@ -117,12 +116,12 @@ func newLoaders(db sqlc.DBTX, q *query.Queries, rules *rule.Rules, reservations 
 
 			return counts, make([]error, len(ids))
 		}, dataloadgen.WithWait(loaderWait)),
-		ProgramReservations: dataloadgen.NewLoader(func(ctx context.Context, keys []reserve.ProgramKey) ([]*reserve.Reservation, []error) {
-			byKey, err := reservations.ListByPrograms(ctx, db, keys)
+		ProgramReservations: dataloadgen.NewLoader(func(ctx context.Context, keys []domain.ProgramKey) ([]*domain.Reservation, []error) {
+			byKey, err := q.ListReservationsByPrograms(ctx, keys)
 			if err != nil {
-				return failAll[*reserve.Reservation](len(keys), err)
+				return failAll[*domain.Reservation](len(keys), err)
 			}
-			found := make([]*reserve.Reservation, 0, len(keys))
+			found := make([]*domain.Reservation, 0, len(keys))
 			for _, key := range keys {
 				found = append(found, byKey[key])
 			}
@@ -130,21 +129,21 @@ func newLoaders(db sqlc.DBTX, q *query.Queries, rules *rule.Rules, reservations 
 			return found, make([]error, len(keys))
 		}, dataloadgen.WithWait(loaderWait)),
 		WatchReserved: dataloadgen.NewLoader(func(ctx context.Context, keys []watchReservedKey) ([]bool, []error) {
-			return loadWatchReserved(ctx, db, keys)
+			return loadWatchReserved(ctx, q, keys)
 		}, dataloadgen.WithWait(loaderWait)),
 	}
 }
 
 // loadWatchReserved は、keys の番組を、それぞれのユーザーが視聴予約しているかどうかを返す。
 // 1 つのリクエストはログイン中のユーザー 1 人のものなので、ユーザーごとにまとめて引く。
-func loadWatchReserved(ctx context.Context, db sqlc.DBTX, keys []watchReservedKey) ([]bool, []error) {
-	programsByUser := map[uuid.UUID][]watch.ProgramKey{}
+func loadWatchReserved(ctx context.Context, q *query.Queries, keys []watchReservedKey) ([]bool, []error) {
+	programsByUser := map[uuid.UUID][]domain.ProgramKey{}
 	for _, key := range keys {
 		programsByUser[key.UserID] = append(programsByUser[key.UserID], key.Program)
 	}
-	reservedByUser := make(map[uuid.UUID]map[watch.ProgramKey]bool, len(programsByUser))
+	reservedByUser := make(map[uuid.UUID]map[domain.ProgramKey]bool, len(programsByUser))
 	for userID, programs := range programsByUser {
-		reserved, err := watch.Reserved(ctx, db, userID, programs)
+		reserved, err := q.WatchReservedPrograms(ctx, userID, programs)
 		if err != nil {
 			return failAll[bool](len(keys), err)
 		}
@@ -186,10 +185,10 @@ func orderBy[K comparable, V any](keys []K, byKey map[K]V, name string) ([]V, []
 }
 
 // withLoaders は、リクエストごとに Loaders を作って context に入れるミドルウェアを返す。
-func withLoaders(db sqlc.DBTX, q *query.Queries, rules *rule.Rules, reservations *reserve.Reservations) func(http.Handler) http.Handler {
+func withLoaders(db sqlc.DBTX, q *query.Queries, clk clock.Clock, rules *rule.Rules) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), loadersKey{}, newLoaders(db, q, rules, reservations))))
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), loadersKey{}, newLoaders(db, q, clk, rules))))
 		})
 	}
 }

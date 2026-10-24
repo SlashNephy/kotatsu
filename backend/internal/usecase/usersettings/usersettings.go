@@ -30,13 +30,3 @@ func Touch(ctx context.Context, tx pgx.Tx, clk clock.Clock, userID uuid.UUID) er
 
 	return nil
 }
-
-// Version は、ユーザー userID の設定の版数を返す。一度も変えていなければ 0 を返す。
-func Version(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) (int64, error) {
-	version, err := sqlc.New(db).GetUserSettingsVersion(ctx, userID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get the user settings version: %w", err)
-	}
-
-	return version, nil
-}

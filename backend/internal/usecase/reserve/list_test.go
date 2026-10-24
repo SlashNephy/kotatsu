@@ -9,7 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 )
 
@@ -66,7 +68,7 @@ func (f *listFixture) add(reservationID uuid.UUID, name string) {
 	f.ids[name] = reservationID
 }
 
-func (f *listFixture) namesOf(reservations []*reserve.Reservation) []string {
+func (f *listFixture) namesOf(reservations []*domain.Reservation) []string {
 	names := make([]string, 0, len(reservations))
 	for _, r := range reservations {
 		names = append(names, f.names[r.ID])
@@ -84,63 +86,63 @@ func TestList(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		query   reserve.ListQuery
+		query   query.ReservationListQuery
 		want    []string
 		wantErr error
 	}{
 		{
 			name:  "all reservations in the order of the start time",
-			query: reserve.ListQuery{From: at(0, 0), To: at(23, 0), States: nil, Enabled: nil, AfterStartAt: nil, AfterID: nil, Limit: 10},
+			query: query.ReservationListQuery{From: at(0, 0), To: at(23, 0), States: nil, Enabled: nil, AfterStartAt: nil, AfterID: nil, Limit: 10},
 			want:  all,
 		},
 		{
 			name:  "reservations overlapping the range",
-			query: reserve.ListQuery{From: at(13, 30), To: at(14, 0), States: nil, AfterStartAt: nil, AfterID: nil, Limit: 10},
+			query: query.ReservationListQuery{From: at(13, 30), To: at(14, 0), States: nil, AfterStartAt: nil, AfterID: nil, Limit: 10},
 			want:  []string{conflicting},
 		},
 		{
 			name: "reservations in the states",
-			query: reserve.ListQuery{
-				From: at(0, 0), To: at(23, 0), States: []reserve.AssignmentState{reserve.AssignmentConflict}, AfterStartAt: nil, AfterID: nil, Limit: 10,
+			query: query.ReservationListQuery{
+				From: at(0, 0), To: at(23, 0), States: []domain.AssignmentState{domain.AssignmentConflict}, AfterStartAt: nil, AfterID: nil, Limit: 10,
 			},
 			want: []string{conflicting},
 		},
 		{
 			name:  "enabled reservations only",
-			query: reserve.ListQuery{From: at(0, 0), To: at(23, 0), States: nil, Enabled: new(true), AfterStartAt: nil, AfterID: nil, Limit: 10},
+			query: query.ReservationListQuery{From: at(0, 0), To: at(23, 0), States: nil, Enabled: new(true), AfterStartAt: nil, AfterID: nil, Limit: 10},
 			want:  []string{first, conflicting, partial},
 		},
 		{
 			name:  "disabled reservations only",
-			query: reserve.ListQuery{From: at(0, 0), To: at(23, 0), States: nil, Enabled: new(false), AfterStartAt: nil, AfterID: nil, Limit: 10},
+			query: query.ReservationListQuery{From: at(0, 0), To: at(23, 0), States: nil, Enabled: new(false), AfterStartAt: nil, AfterID: nil, Limit: 10},
 			want:  []string{disabled},
 		},
 		{
 			name:  "limit",
-			query: reserve.ListQuery{From: at(0, 0), To: at(23, 0), States: nil, AfterStartAt: nil, AfterID: nil, Limit: 2},
+			query: query.ReservationListQuery{From: at(0, 0), To: at(23, 0), States: nil, AfterStartAt: nil, AfterID: nil, Limit: 2},
 			want:  all[:2],
 		},
 		{
 			name:    "empty range",
-			query:   reserve.ListQuery{From: at(13, 0), To: at(13, 0), States: nil, AfterStartAt: nil, AfterID: nil, Limit: 10},
-			wantErr: reserve.ErrInvalidReservation,
+			query:   query.ReservationListQuery{From: at(13, 0), To: at(13, 0), States: nil, AfterStartAt: nil, AfterID: nil, Limit: 10},
+			wantErr: domain.ErrInvalidReservation,
 		},
 		{
 			name:    "cursor without the ID",
-			query:   reserve.ListQuery{From: at(0, 0), To: at(23, 0), States: nil, AfterStartAt: new(at(13, 0)), AfterID: nil, Limit: 10},
-			wantErr: reserve.ErrInvalidReservation,
+			query:   query.ReservationListQuery{From: at(0, 0), To: at(23, 0), States: nil, AfterStartAt: new(at(13, 0)), AfterID: nil, Limit: 10},
+			wantErr: domain.ErrInvalidReservation,
 		},
 		{
 			name:    "zero limit",
-			query:   reserve.ListQuery{From: at(0, 0), To: at(23, 0), States: nil, AfterStartAt: nil, AfterID: nil, Limit: 0},
-			wantErr: reserve.ErrInvalidReservation,
+			query:   query.ReservationListQuery{From: at(0, 0), To: at(23, 0), States: nil, AfterStartAt: nil, AfterID: nil, Limit: 0},
+			wantErr: domain.ErrInvalidReservation,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := f.reservations.List(t.Context(), f.pool, &tt.query)
+			got, err := query.New(f.pool).ListReservations(t.Context(), &tt.query)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 
@@ -157,17 +159,17 @@ func TestListPagesThroughAllReservations(t *testing.T) {
 	t.Parallel()
 
 	f := newListFixture(t)
-	query := reserve.ListQuery{From: at(0, 0), To: at(23, 0), States: nil, AfterStartAt: nil, AfterID: nil, Limit: 1}
+	listQuery := query.ReservationListQuery{From: at(0, 0), To: at(23, 0), States: nil, AfterStartAt: nil, AfterID: nil, Limit: 1}
 	got := []string{}
 	for {
-		page, err := f.reservations.List(t.Context(), f.pool, &query)
+		page, err := query.New(f.pool).ListReservations(t.Context(), &listQuery)
 		require.NoError(t, err)
 		if len(page) == 0 {
 			break
 		}
 		got = append(got, f.namesOf(page)...)
 		last := page[len(page)-1]
-		query.AfterStartAt, query.AfterID = &last.StartAt, &last.ID
+		listQuery.AfterStartAt, listQuery.AfterID = &last.StartAt, &last.ID
 	}
 	assert.Equal(t, []string{first, disabled, conflicting, partial}, got)
 }
@@ -180,33 +182,33 @@ func TestListCarriesAssignment(t *testing.T) {
 		planned_start_at = '2026-10-10T13:59:50Z', planned_end_at = '2026-10-10T14:30:00Z' WHERE id = $1`, f.ids[partial])
 	require.NoError(t, err)
 
-	listed, err := f.reservations.List(t.Context(), f.pool, &reserve.ListQuery{
+	listed, err := query.New(f.pool).ListReservations(t.Context(), &query.ReservationListQuery{
 		From: at(14, 0), To: at(14, 30), States: nil, AfterStartAt: nil, AfterID: nil, Limit: 10,
 	})
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
-	assert.Equal(t, &reserve.Assignment{
-		State:          reserve.AssignmentPartial,
+	assert.Equal(t, &domain.Assignment{
+		State:          domain.AssignmentPartial,
 		Tuner:          new(int64(2)),
 		PlannedStartAt: new(time.Date(2026, 10, 10, 13, 59, 50, 0, time.UTC)),
 		PlannedEndAt:   new(at(14, 30)),
 	}, listed[0].Assignment)
 
 	// まだ計算していない予約は、割り当てたチューナーと予定の時刻を持たない。
-	got, err := f.reservations.Get(t.Context(), f.pool, f.ids[first])
+	got, err := query.New(f.pool).GetReservation(t.Context(), f.ids[first])
 	require.NoError(t, err)
-	assert.Equal(t, &reserve.Assignment{State: reserve.AssignmentPending, Tuner: nil, PlannedStartAt: nil, PlannedEndAt: nil}, got.Assignment)
+	assert.Equal(t, &domain.Assignment{State: domain.AssignmentPending, Tuner: nil, PlannedStartAt: nil, PlannedEndAt: nil}, got.Assignment)
 }
 
 func TestListByPrograms(t *testing.T) {
 	t.Parallel()
 
 	f := newListFixture(t)
-	empty, err := f.reservations.ListByPrograms(t.Context(), f.pool, []reserve.ProgramKey{})
+	empty, err := query.New(f.pool).ListReservationsByPrograms(t.Context(), []domain.ProgramKey{})
 	require.NoError(t, err)
 	assert.Empty(t, empty)
 
-	got, err := f.reservations.ListByPrograms(t.Context(), f.pool, []reserve.ProgramKey{
+	got, err := query.New(f.pool).ListReservationsByPrograms(t.Context(), []domain.ProgramKey{
 		{ServiceID: serviceID(), EventID: 6},
 		{ServiceID: serviceID(), EventID: 7},
 		// 予約のない番組は結果に含めない。
@@ -238,7 +240,7 @@ func TestRuleIDs(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	got, err := f.reservations.RuleIDs(t.Context(), f.pool, []uuid.UUID{f.ids[first], f.ids[conflicting]})
+	got, err := query.New(f.pool).ReservationRuleIDs(t.Context(), []uuid.UUID{f.ids[first], f.ids[conflicting]})
 	require.NoError(t, err)
 	assert.Equal(t, map[uuid.UUID][]uuid.UUID{f.ids[conflicting]: {older, newer}}, got)
 }

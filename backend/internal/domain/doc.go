@@ -6,7 +6,7 @@
 //
 //	cli --> web --> usecase --> query --> infra/database
 //	web --> query, domain, lib, infra (infra/database を除く)
-//	usecase --> domain, infra, lib
+//	usecase --> query, domain, infra, lib
 //	query --> domain, lib, infra/database
 //	infra --> domain, lib
 //

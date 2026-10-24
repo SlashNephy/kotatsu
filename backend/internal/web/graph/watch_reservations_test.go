@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
-	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
 
@@ -75,7 +75,7 @@ func TestWatchReservations(t *testing.T) {
 	f := newFixture(t, nil)
 	f.syncEPG(t)
 	version := func() int64 {
-		v, err := usersettings.Version(t.Context(), f.pool, f.userID)
+		v, err := query.New(f.pool).UserSettingsVersion(t.Context(), f.userID)
 		require.NoError(t, err)
 
 		return v

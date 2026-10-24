@@ -11,67 +11,18 @@ package notification
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/google/uuid"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 )
 
-// Kind は、通知するイベントの種類 (設計書 6.2)。
-type Kind string
-
-const (
-	KindRecordingStarted       Kind = "recording_started"
-	KindRecordingCompleted     Kind = "recording_completed"
-	KindRecordingFailed        Kind = "recording_failed"
-	KindReservationConflict    Kind = "reservation_conflict"
-	KindStorageLow             Kind = "storage_low"
-	KindTunerServerUnreachable Kind = "tuner_server_unreachable"
-	// KindWatchReminder は、視聴予約した番組の放送が近いことを知らせる (設計書 4.8)。予約したユーザーだけに届け、Webhook では送らない。
-	KindWatchReminder Kind = "watch_reminder"
-)
-
 // NotifyChannel は、ユーザーの画面内の通知が増えたか、既読にしたときに、変更を通知するチャンネル (設計書 1.4)。
 const NotifyChannel = "notifications"
-
-// ErrUnknownKind は、知らない種類のイベントであることを表す。
-var ErrUnknownKind = errors.New("unknown notification kind")
-
-// Kinds は、通知するイベントの種類を、画面に並べる順に返す。
-func Kinds() []Kind {
-	return []Kind{
-		KindRecordingStarted, KindRecordingCompleted, KindRecordingFailed,
-		KindReservationConflict, KindStorageLow, KindTunerServerUnreachable, KindWatchReminder,
-	}
-}
-
-// WebhookKinds は、Webhook で送れるイベントの種類を、画面に並べる順に返す。
-// 視聴予約の通知は個人に届けるものなので、管理者が設定する全体向けの Webhook では送らない。
-func WebhookKinds() []Kind {
-	return slices.DeleteFunc(Kinds(), func(kind Kind) bool { return kind == KindWatchReminder })
-}
-
-// URL は、イベントを押したときに開く画面のパスを返す。payload に url がなければ空文字列を返す。
-func URL(payload map[string]any) string {
-	url, _ := payload["url"].(string)
-
-	return url
-}
-
-// ParseKind は、文字列をイベントの種類にする。
-func ParseKind(s string) (Kind, error) {
-	kind := Kind(s)
-	if !slices.Contains(Kinds(), kind) {
-		return "", fmt.Errorf("%w: %q", ErrUnknownKind, s)
-	}
-
-	return kind, nil
-}
 
 // Audience は、イベントを受け取るユーザーの絞り込み。
 type Audience struct {
@@ -83,13 +34,13 @@ type Audience struct {
 
 // Emit は、有効なユーザー全員に届ける通知するイベントを記録する。出来事を書くトランザクションの中で呼ぶ。
 // payload は、画面に出す文の材料 (番組名や理由など) で、JSON にする。
-func Emit(ctx context.Context, db sqlc.DBTX, clk clock.Clock, kind Kind, payload map[string]any) error {
+func Emit(ctx context.Context, db sqlc.DBTX, clk clock.Clock, kind domain.NotificationKind, payload map[string]any) error {
 	return EmitTo(ctx, db, clk, kind, payload, nil)
 }
 
 // EmitTo は、audience に届ける通知するイベントを記録する。audience が nil なら、Emit と同じく全員に届ける。
-func EmitTo(ctx context.Context, db sqlc.DBTX, clk clock.Clock, kind Kind, payload map[string]any, audience *Audience) error {
-	if _, err := ParseKind(string(kind)); err != nil {
+func EmitTo(ctx context.Context, db sqlc.DBTX, clk clock.Clock, kind domain.NotificationKind, payload map[string]any, audience *Audience) error {
+	if _, err := domain.ParseNotificationKind(string(kind)); err != nil {
 		return err
 	}
 	if payload == nil {

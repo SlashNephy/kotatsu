@@ -21,6 +21,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
@@ -121,7 +122,7 @@ func NewEnqueuer(inserter Inserter) *Enqueuer {
 }
 
 func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.Event) error {
-	if event.Kind != notification.KindRecordingCompleted {
+	if event.Kind != domain.NotificationKindRecordingCompleted {
 		return nil
 	}
 	recordingID, ok := recordingIDOf(event.Payload)

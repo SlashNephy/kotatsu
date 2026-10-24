@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -212,7 +213,7 @@ func (s *Scheduler) failStuck(ctx context.Context, tx pgx.Tx, now time.Time) (in
 			target.AddTo(payload)
 			audience = target.Audience
 		}
-		if err := notification.EmitTo(ctx, tx, s.clock, notification.KindRecordingFailed, payload, audience); err != nil {
+		if err := notification.EmitTo(ctx, tx, s.clock, domain.NotificationKindRecordingFailed, payload, audience); err != nil {
 			return 0, err
 		}
 	}
@@ -256,7 +257,7 @@ func (s *Scheduler) recordMissed(ctx context.Context, tx pgx.Tx, now time.Time) 
 			return 0, err
 		}
 		target.AddTo(payload)
-		if err := notification.EmitTo(ctx, tx, s.clock, notification.KindRecordingFailed, payload, target.Audience); err != nil {
+		if err := notification.EmitTo(ctx, tx, s.clock, domain.NotificationKindRecordingFailed, payload, target.Audience); err != nil {
 			return 0, err
 		}
 	}

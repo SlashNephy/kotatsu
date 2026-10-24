@@ -8,6 +8,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
@@ -119,10 +120,10 @@ func recoverFunc(logger *slog.Logger) graphql.RecoverFunc {
 func domainError(err error, target **Error) bool {
 	var code Code
 	switch {
-	case errors.Is(err, rule.ErrNotFound), errors.Is(err, reserve.ErrNotFound), errors.Is(err, reserve.ErrProgramNotFound),
+	case errors.Is(err, rule.ErrNotFound), errors.Is(err, domain.ErrReservationNotFound), errors.Is(err, reserve.ErrProgramNotFound),
 		errors.Is(err, auth.ErrUserNotFound), errors.Is(err, auth.ErrSessionNotFound):
 		code = CodeNotFound
-	case errors.Is(err, rule.ErrInvalidRule), errors.Is(err, reserve.ErrInvalidReservation),
+	case errors.Is(err, rule.ErrInvalidRule), errors.Is(err, domain.ErrInvalidReservation),
 		errors.Is(err, reserve.ErrInvalidSettings), errors.Is(err, match.ErrInvalidConditions),
 		errors.Is(err, auth.ErrInvalidUser), errors.Is(err, auth.ErrUsernameTaken), errors.Is(err, auth.ErrInvalidRole),
 		errors.Is(err, auth.ErrLastAdmin), errors.Is(err, auth.ErrCannotDisableSelf):

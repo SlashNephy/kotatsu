@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
-	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 )
 
 // errStopForTest は、テストで録画を止めるときの理由。
@@ -94,7 +94,7 @@ func TestRecorderMarksNotBroadcast(t *testing.T) {
 
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 	stream.wait(t)
-	f.clock.Advance(programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
+	f.clock.Advance(programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
 	require.NoError(t, wait(t, done))
 
 	var notBroadcast bool
@@ -130,7 +130,7 @@ func TestRecorderMarksNotBroadcastWhenFollowingUntilLimit(t *testing.T) {
 	stream.wait(t)
 
 	// 予定の終わりを過ぎても、次の番組にいるので待つ (繰り下げ)。
-	plannedEnd := programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second)
+	plannedEnd := programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second)
 	f.clock.Advance(plannedEnd.Add(time.Hour).Sub(f.clock.Now()))
 	select {
 	case err := <-done:
@@ -171,7 +171,7 @@ func TestRecorderExtendsWhileOnAir(t *testing.T) {
 	}, waitTimeout, 10*time.Millisecond)
 
 	// 予定の終わりを過ぎても、放送中なので止めない。
-	f.clock.Advance(programStart().Add(30*time.Minute + reserve.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
+	f.clock.Advance(programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
 	select {
 	case err := <-done:
 		require.FailNow(t, "the recording stopped while the program was on air", "%v", err)
@@ -354,7 +354,7 @@ func TestRecorderFollowsBroadcastAcrossReconnect(t *testing.T) {
 				}, waitTimeout, 10*time.Millisecond)
 				_, ended := broadcast()
 				assert.True(t, ended.Equal(reconnectedAt), "the broadcast ended at %v", ended)
-				f.clock.Advance(reserve.DefaultMarginSeconds * time.Second)
+				f.clock.Advance(domain.DefaultMarginSeconds * time.Second)
 				require.NoError(t, wait(t, done))
 				got, _ := f.recording(t, reservationID)
 				assert.Equal(t, string(recording.StatePartial), got.state, "the cut is recorded as a gap")
@@ -428,7 +428,7 @@ func TestRecorderStopsWhenLeftAirWhileEndIsUndecided(t *testing.T) {
 	}, waitTimeout, 10*time.Millisecond)
 
 	// EPG では未定でも、5 分の延長はせず、切り替わってから後ろのマージンで止める。
-	f.clock.Advance(reserve.DefaultMarginSeconds * time.Second)
+	f.clock.Advance(domain.DefaultMarginSeconds * time.Second)
 	require.NoError(t, wait(t, done))
 	got, _ := f.recording(t, reservationID)
 	assert.Equal(t, string(recording.StateCompleted), got.state)

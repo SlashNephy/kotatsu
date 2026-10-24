@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/generated"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -95,7 +96,7 @@ func (r *mutationResolver) DeleteReservations(ctx context.Context, ids []string)
 
 // Reservation is the resolver for the reservation field.
 func (r *programResolver) Reservation(ctx context.Context, obj *model.Program) (*model.Reservation, error) {
-	found, err := loadersFrom(ctx).ProgramReservations.Load(ctx, reserve.ProgramKey{ServiceID: obj.ServiceKey, EventID: int64(obj.EventID)})
+	found, err := loadersFrom(ctx).ProgramReservations.Load(ctx, domain.ProgramKey{ServiceID: obj.ServiceKey, EventID: int64(obj.EventID)})
 	// アーカイブの番組には、eventId を再利用した別の番組の予約を出さない。
 	if err != nil || found == nil || obj.Archived {
 		return nil, err

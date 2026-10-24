@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
-	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 )
 
 // TestRecorderFollowsInterruption は、録画中の番組 (eventId 6) が臨時ニュースなど別の番組 (eventId 65522) に割り込まれ、
@@ -17,7 +17,7 @@ func TestRecorderFollowsInterruption(t *testing.T) {
 	t.Parallel()
 
 	const (
-		margin      = reserve.DefaultMarginSeconds * time.Second
+		margin      = domain.DefaultMarginSeconds * time.Second
 		interruptID = 65522
 	)
 	interruptAt := programStart().Add(10 * time.Minute)

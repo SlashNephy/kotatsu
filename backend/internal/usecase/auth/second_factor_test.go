@@ -12,9 +12,9 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/lib/secretbox"
 	"github.com/SlashNephy/kotatsu/internal/lib/totp"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
-	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
 )
 
 // appKeyMaterial は、テストのアプリの秘密キー。
@@ -188,7 +188,7 @@ func TestDeleteTOTP(t *testing.T) {
 	}
 
 	version := func() int64 {
-		v, err := usersettings.Version(t.Context(), f.db, f.user.ID)
+		v, err := query.New(f.db).UserSettingsVersion(t.Context(), f.user.ID)
 		require.NoError(t, err)
 
 		return v

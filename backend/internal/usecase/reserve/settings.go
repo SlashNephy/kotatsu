@@ -8,17 +8,11 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
 )
 
 const (
-	// DefaultMarginSeconds は、録画の開始と終了のマージンの既定値 (設計書の付録 A の初期値)。
-	DefaultMarginSeconds = 15
-	// DefaultFileNameTemplate は、ファイル名のテンプレートの既定値。設計書に定めはないので、日時、サービス名、番組名を並べる。
-	DefaultFileNameTemplate = `{{.StartAt.Format "2006-01-02 1504"}} {{.ServiceName}} {{.Name}}`
-	// DefaultPriority は、予約の優先度の既定値。設計書に定めはないので 0 にする。
-	// チューナーの割り当て (設計書 4.5) では、優先度の高い予約から順に割り当てる。
-	DefaultPriority = 0
 
 	// 録画設定の値の範囲。
 	maxMarginSeconds     = 60 * 60
@@ -29,72 +23,6 @@ const (
 
 // ErrInvalidSettings は、録画設定が正しくないことを表す。
 var ErrInvalidSettings = errors.New("invalid recording settings")
-
-// Settings は、録画設定の全項目 (設計書 4.7)。全体の既定値に、ルールや予約の上書きを重ねて求める。
-type Settings struct {
-	// PoolID は保存先プール。空なら、推定サイズが収まるプールを kago が選ぶ (設計書 5.6)。
-	PoolID string
-	// FileNameTemplate は、ファイル名の text/template。データは FileNameData。
-	FileNameTemplate string
-	// StartMarginSeconds と EndMarginSeconds は、番組の前後に足して録画する秒数。
-	StartMarginSeconds int
-	EndMarginSeconds   int
-	// Priority は予約の優先度。チューナーが足りないときは、高い予約から割り当てる。
-	Priority int
-	// JoinSegments は、引き継ぎや再起動で分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか (設計書 5.4)。
-	JoinSegments bool
-}
-
-// DefaultSettings は、Go の既定値を返す。
-// 画面で変えた全体の既定値 (設計書 11.2) は、settings パッケージが、この値に重ねて返す。
-func DefaultSettings() *Settings {
-	return &Settings{
-		PoolID:             "",
-		FileNameTemplate:   DefaultFileNameTemplate,
-		StartMarginSeconds: DefaultMarginSeconds,
-		EndMarginSeconds:   DefaultMarginSeconds,
-		Priority:           DefaultPriority,
-		JoinSegments:       true,
-	}
-}
-
-// Overrides は、ルールや予約ごとの録画設定の上書き。nil の項目は上書きしない。
-type Overrides struct {
-	PoolID             *string `json:"poolId,omitempty"`
-	FileNameTemplate   *string `json:"fileNameTemplate,omitempty"`
-	StartMarginSeconds *int    `json:"startMarginSeconds,omitempty"`
-	EndMarginSeconds   *int    `json:"endMarginSeconds,omitempty"`
-	Priority           *int    `json:"priority,omitempty"`
-	JoinSegments       *bool   `json:"joinSegments,omitempty"`
-}
-
-// Resolve は、base に o の上書きを重ねた設定を返す。o は nil でもよい。
-func (s *Settings) Resolve(o *Overrides) *Settings {
-	resolved := *s
-	if o == nil {
-		return &resolved
-	}
-	if o.PoolID != nil {
-		resolved.PoolID = *o.PoolID
-	}
-	if o.FileNameTemplate != nil {
-		resolved.FileNameTemplate = *o.FileNameTemplate
-	}
-	if o.StartMarginSeconds != nil {
-		resolved.StartMarginSeconds = *o.StartMarginSeconds
-	}
-	if o.EndMarginSeconds != nil {
-		resolved.EndMarginSeconds = *o.EndMarginSeconds
-	}
-	if o.Priority != nil {
-		resolved.Priority = *o.Priority
-	}
-	if o.JoinSegments != nil {
-		resolved.JoinSegments = *o.JoinSegments
-	}
-
-	return &resolved
-}
 
 // FileNameData は、ファイル名のテンプレートに渡すデータ。
 type FileNameData struct {
@@ -132,8 +60,8 @@ func ParseFileNameTemplate(text string) (*template.Template, error) {
 	return tmpl, nil
 }
 
-// Validate は、上書きの値が正しいかを確かめる。プールが設定にあるかどうかは、設定を持つ API の層で確かめる。
-func (o *Overrides) Validate() error {
+// ValidateOverrides は、上書きの値が正しいかを確かめる。プールが設定にあるかどうかは、設定を持つ API の層で確かめる。
+func ValidateOverrides(o *domain.RecordingOverrides) error {
 	if o == nil {
 		return nil
 	}
@@ -165,12 +93,12 @@ func (o *Overrides) Validate() error {
 }
 
 // EncodeOverrides は、上書きを検証し、JSONB に保存する形にする。ルールも同じ形で保存する。nil なら空のオブジェクトにする。
-func EncodeOverrides(o *Overrides) ([]byte, error) {
-	if err := o.Validate(); err != nil {
+func EncodeOverrides(o *domain.RecordingOverrides) ([]byte, error) {
+	if err := ValidateOverrides(o); err != nil {
 		return nil, err
 	}
 	if o == nil {
-		o = new(Overrides)
+		o = new(domain.RecordingOverrides)
 	}
 	b, err := json.Marshal(o)
 	if err != nil {
@@ -178,15 +106,4 @@ func EncodeOverrides(o *Overrides) ([]byte, error) {
 	}
 
 	return b, nil
-}
-
-// DecodeOverrides は、JSONB に保存した上書きを読む。
-// ローリング更新の間は、新しいバイナリが足した項目を古いバイナリが読むことがあるので、知らない項目は無視する。
-func DecodeOverrides(b []byte) (*Overrides, error) {
-	o := new(Overrides)
-	if err := json.Unmarshal(b, o); err != nil {
-		return nil, fmt.Errorf("failed to decode recording settings: %w", err)
-	}
-
-	return o, nil
 }

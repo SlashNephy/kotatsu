@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
+	"github.com/SlashNephy/kotatsu/internal/query"
 )
 
 type playerSettings struct {
@@ -39,7 +39,7 @@ func TestPlayerSettings(t *testing.T) {
 		return got.UpdatePlayerSettings
 	}
 	version := func() int64 {
-		v, err := usersettings.Version(t.Context(), f.pool, f.userID)
+		v, err := query.New(f.pool).UserSettingsVersion(t.Context(), f.userID)
 		require.NoError(t, err)
 
 		return v

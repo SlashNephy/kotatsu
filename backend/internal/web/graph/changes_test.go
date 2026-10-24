@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
-	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/usecase/tunerstate"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
@@ -213,12 +213,12 @@ func TestUnreadNotificationCount(t *testing.T) {
 	t.Parallel()
 
 	f := newFixtureWithChanges(t)
-	f.notify(t, notification.KindRecordingStarted, nil)
+	f.notify(t, domain.NotificationKindRecordingStarted, nil)
 	events := f.subscribe(t, `subscription { unreadNotificationCount }`)
 	assert.JSONEq(t, `{"unreadNotificationCount":1}`, string(next(t, events)))
 
 	// nekonote が配った通知が届く。
-	f.notify(t, notification.KindRecordingCompleted, nil)
+	f.notify(t, domain.NotificationKindRecordingCompleted, nil)
 	assert.JSONEq(t, `{"unreadNotificationCount":2}`, string(next(t, events)))
 
 	// 別の端末 (同じユーザーの別のセッション) で既読にすると、数が減る。
@@ -233,14 +233,14 @@ func TestUnreadNotificationCountIsPerUser(t *testing.T) {
 
 	f := newFixtureWithChanges(t)
 	other := f.as(t, "viewer", auth.RoleViewer)
-	f.notify(t, notification.KindRecordingStarted, nil)
+	f.notify(t, domain.NotificationKindRecordingStarted, nil)
 	events := f.subscribe(t, `subscription { unreadNotificationCount }`)
 	assert.JSONEq(t, `{"unreadNotificationCount":1}`, string(next(t, events)))
 
 	// ほかのユーザーが既読にしても、自分の数は変わらないので、何も届かない。
 	require.Empty(t, other.query(t, markAllRead, nil, nil))
 	// 自分の数が変わると、それだけが届く。
-	f.notify(t, notification.KindRecordingFailed, nil)
+	f.notify(t, domain.NotificationKindRecordingFailed, nil)
 	assert.JSONEq(t, `{"unreadNotificationCount":2}`, string(next(t, events)))
 }
 
@@ -312,7 +312,7 @@ func TestViewerEvents(t *testing.T) {
 
 	f.publish(t, rule.NotifyChannel)
 	assert.JSONEq(t, event(`{"channel":"RULES","version":1}`, "null", "null"), string(next(t, events)))
-	f.notify(t, notification.KindRecordingStarted, nil)
+	f.notify(t, domain.NotificationKindRecordingStarted, nil)
 	assert.JSONEq(t, event("null", "null", "1"), string(next(t, events)))
 	device := f.withNewSession(t)
 	require.Empty(t, device.query(t, markAllRead, nil, nil))

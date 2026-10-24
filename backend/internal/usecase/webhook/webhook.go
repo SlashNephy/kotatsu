@@ -21,12 +21,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/secretbox"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
-	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 )
 
 const (
@@ -73,7 +73,7 @@ type Webhook struct {
 	Name      string
 	URL       string
 	Format    Format
-	Kinds     []notification.Kind
+	Kinds     []domain.NotificationKind
 	Enabled   bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -84,7 +84,7 @@ type Input struct {
 	Name    string
 	URL     string
 	Format  Format
-	Kinds   []notification.Kind
+	Kinds   []domain.NotificationKind
 	Enabled bool
 }
 
@@ -93,7 +93,7 @@ type Changes struct {
 	Name    *string
 	URL     *string
 	Format  *Format
-	Kinds   []notification.Kind
+	Kinds   []domain.NotificationKind
 	Enabled *bool
 }
 
@@ -317,12 +317,12 @@ func normalize(input *Input) (*Input, error) {
 	if len(input.Kinds) == 0 {
 		return nil, fmt.Errorf("%w: at least one kind is required", ErrInvalidWebhook)
 	}
-	kinds := make([]notification.Kind, 0, len(input.Kinds))
+	kinds := make([]domain.NotificationKind, 0, len(input.Kinds))
 	for _, kind := range input.Kinds {
-		if _, err := notification.ParseKind(string(kind)); err != nil {
+		if _, err := domain.ParseNotificationKind(string(kind)); err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrInvalidWebhook, err)
 		}
-		if !slices.Contains(notification.WebhookKinds(), kind) {
+		if !slices.Contains(domain.WebhookNotificationKinds(), kind) {
 			return nil, fmt.Errorf("%w: %q cannot be sent to webhooks", ErrInvalidWebhook, kind)
 		}
 		if !slices.Contains(kinds, kind) {
@@ -330,8 +330,8 @@ func normalize(input *Input) (*Input, error) {
 		}
 	}
 	// 画面に並べる順にそろえる。
-	slices.SortFunc(kinds, func(a, b notification.Kind) int {
-		return slices.Index(notification.WebhookKinds(), a) - slices.Index(notification.WebhookKinds(), b)
+	slices.SortFunc(kinds, func(a, b domain.NotificationKind) int {
+		return slices.Index(domain.WebhookNotificationKinds(), a) - slices.Index(domain.WebhookNotificationKinds(), b)
 	})
 
 	return &Input{Name: name, URL: rawURL, Format: input.Format, Kinds: kinds, Enabled: input.Enabled}, nil
@@ -362,9 +362,9 @@ func newSecret() (string, error) {
 }
 
 func webhookOf(row *sqlc.Webhook) *Webhook {
-	kinds := make([]notification.Kind, 0, len(row.Kinds))
+	kinds := make([]domain.NotificationKind, 0, len(row.Kinds))
 	for _, kind := range row.Kinds {
-		kinds = append(kinds, notification.Kind(kind))
+		kinds = append(kinds, domain.NotificationKind(kind))
 	}
 
 	return &Webhook{
@@ -373,7 +373,7 @@ func webhookOf(row *sqlc.Webhook) *Webhook {
 	}
 }
 
-func kindStrings(kinds []notification.Kind) []string {
+func kindStrings(kinds []domain.NotificationKind) []string {
 	result := make([]string, 0, len(kinds))
 	for _, kind := range kinds {
 		result = append(result, string(kind))

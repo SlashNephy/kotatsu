@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
@@ -286,24 +287,24 @@ func TestEnqueuer(t *testing.T) {
 	twoFiles := []map[string]string{{"poolId": poolID, "path": "a.m2ts"}, {"poolId": poolID, "path": "b.m2ts"}}
 	tests := []struct {
 		name    string
-		kind    notification.Kind
+		kind    domain.NotificationKind
 		payload map[string]any
 		want    string
 	}{
 		{
-			name: "分かれていて、つなぐ設定なら、つなぐ", kind: notification.KindRecordingCompleted,
+			name: "分かれていて、つなぐ設定なら、つなぐ", kind: domain.NotificationKindRecordingCompleted,
 			payload: map[string]any{joinKey: true, filesKey: twoFiles}, want: kindRecordingJoin,
 		},
 		{
-			name: "つながない設定なら、画像を作る", kind: notification.KindRecordingCompleted,
+			name: "つながない設定なら、画像を作る", kind: domain.NotificationKindRecordingCompleted,
 			payload: map[string]any{joinKey: false, filesKey: twoFiles}, want: kindThumbnail,
 		},
 		{
-			name: "分かれていなければ、画像を作る", kind: notification.KindRecordingCompleted,
+			name: "分かれていなければ、画像を作る", kind: domain.NotificationKindRecordingCompleted,
 			payload: map[string]any{joinKey: true, filesKey: twoFiles[:1]}, want: kindThumbnail,
 		},
 		{
-			name: "録画の失敗では、何もしない", kind: notification.KindRecordingFailed,
+			name: "録画の失敗では、何もしない", kind: domain.NotificationKindRecordingFailed,
 			payload: map[string]any{joinKey: true, filesKey: twoFiles}, want: "",
 		},
 	}

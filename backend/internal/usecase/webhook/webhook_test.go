@@ -11,12 +11,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/lib/secretbox"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
-	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 )
 
@@ -45,7 +45,7 @@ func newFixture(t *testing.T) *fixture {
 func validInput() *webhook.Input {
 	return &webhook.Input{
 		Name: "家族の Discord", URL: "https://discord.example/api/webhooks/1/token", Format: webhook.FormatDiscord,
-		Kinds: []notification.Kind{notification.KindRecordingFailed, notification.KindRecordingStarted}, Enabled: true,
+		Kinds: []domain.NotificationKind{domain.NotificationKindRecordingFailed, domain.NotificationKindRecordingStarted}, Enabled: true,
 	}
 }
 
@@ -84,7 +84,7 @@ func TestCreate(t *testing.T) {
 	assert.Equal(t, &webhook.Webhook{
 		ID: created.ID, Name: "家族の Discord", URL: "https://discord.example/api/webhooks/1/token", Format: webhook.FormatDiscord,
 		// 種類は、画面に並べる順にそろえる。
-		Kinds:   []notification.Kind{notification.KindRecordingStarted, notification.KindRecordingFailed},
+		Kinds:   []domain.NotificationKind{domain.NotificationKindRecordingStarted, domain.NotificationKindRecordingFailed},
 		Enabled: true, CreatedAt: f.clock.Now(), UpdatedAt: f.clock.Now(),
 	}, normalizeTimes(created))
 	assert.True(t, strings.HasPrefix(secret, "whsec_"))
@@ -136,10 +136,10 @@ func TestCreateRejectsInvalidInput(t *testing.T) {
 		{name: "http でも https でもない URL", modify: func(in *webhook.Input) { in.URL = "ftp://example.com/hooks" }},
 		{name: "長すぎる URL", modify: func(in *webhook.Input) { in.URL = "https://example.com/" + strings.Repeat("a", 2048) }},
 		{name: "知らない形式", modify: func(in *webhook.Input) { in.Format = "teams" }},
-		{name: "種類がない", modify: func(in *webhook.Input) { in.Kinds = []notification.Kind{} }},
-		{name: "知らない種類", modify: func(in *webhook.Input) { in.Kinds = []notification.Kind{"unknown"} }},
+		{name: "種類がない", modify: func(in *webhook.Input) { in.Kinds = []domain.NotificationKind{} }},
+		{name: "知らない種類", modify: func(in *webhook.Input) { in.Kinds = []domain.NotificationKind{"unknown"} }},
 		// 視聴予約の通知は個人に届けるものなので、全体向けの Webhook では送らない (設計書 4.8)。
-		{name: "視聴予約の通知", modify: func(in *webhook.Input) { in.Kinds = []notification.Kind{notification.KindWatchReminder} }},
+		{name: "視聴予約の通知", modify: func(in *webhook.Input) { in.Kinds = []domain.NotificationKind{domain.NotificationKindWatchReminder} }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -166,12 +166,12 @@ func TestUpdateAndDelete(t *testing.T) {
 
 	updated, err := f.store.Update(t.Context(), f.pool, audit.System("test"), created.ID, &webhook.Changes{
 		Name: nil, URL: new(" https://hooks.slack.example/services/T/B/X "), Format: new(webhook.FormatSlack),
-		Kinds: []notification.Kind{notification.KindStorageLow, notification.KindStorageLow}, Enabled: new(false),
+		Kinds: []domain.NotificationKind{domain.NotificationKindStorageLow, domain.NotificationKindStorageLow}, Enabled: new(false),
 	})
 	require.NoError(t, err)
 	assert.Equal(t, &webhook.Webhook{
 		ID: created.ID, Name: created.Name, URL: "https://hooks.slack.example/services/T/B/X", Format: webhook.FormatSlack,
-		Kinds: []notification.Kind{notification.KindStorageLow}, Enabled: false, CreatedAt: created.CreatedAt.UTC(), UpdatedAt: f.clock.Now(),
+		Kinds: []domain.NotificationKind{domain.NotificationKindStorageLow}, Enabled: false, CreatedAt: created.CreatedAt.UTC(), UpdatedAt: f.clock.Now(),
 	}, normalizeTimes(updated))
 	// 設定を変えても、秘密キーは変えない。
 	got, err := f.store.Secret(t.Context(), f.pool, created.ID)

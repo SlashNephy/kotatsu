@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
@@ -73,7 +74,7 @@ func (p *notificationPage) kinds() []string {
 }
 
 // notify は、イベントを記録して、受け取るユーザーに配る。作った日時で並ぶよう、配るたびに時計を進める。
-func (f *fixture) notify(t *testing.T, kind notification.Kind, payload map[string]any) {
+func (f *fixture) notify(t *testing.T, kind domain.NotificationKind, payload map[string]any) {
 	t.Helper()
 
 	require.NoError(t, notification.Emit(t.Context(), f.pool, f.clock, kind, payload))
@@ -109,9 +110,9 @@ func TestNotifications(t *testing.T) {
 	f := newFixture(t, nil)
 	// 視聴者も通知を受け取る。
 	other := f.as(t, "viewer", auth.RoleViewer)
-	f.notify(t, notification.KindRecordingStarted, map[string]any{varName: tagKotatsu})
-	f.notify(t, notification.KindRecordingCompleted, nil)
-	f.notify(t, notification.KindRecordingFailed, nil)
+	f.notify(t, domain.NotificationKindRecordingStarted, map[string]any{varName: tagKotatsu})
+	f.notify(t, domain.NotificationKindRecordingCompleted, nil)
+	f.notify(t, domain.NotificationKindRecordingFailed, nil)
 
 	all := f.notifications(t, 10, nil, false)
 	assert.Equal(t, []string{kindRecordingFailed, kindRecordingDone, kindRecordingBegan}, all.kinds())
@@ -219,8 +220,8 @@ func TestNotificationPreferences(t *testing.T) {
 	want[0].WebPush, want[0].RuleReservations = false, false
 	assert.Equal(t, want, list())
 
-	f.notify(t, notification.KindStorageLow, nil)
-	f.notify(t, notification.KindRecordingFailed, nil)
+	f.notify(t, domain.NotificationKindStorageLow, nil)
+	f.notify(t, domain.NotificationKindRecordingFailed, nil)
 	assert.Equal(t, []string{kindRecordingFailed}, f.notifications(t, 10, nil, false).kinds())
 }
 
@@ -232,13 +233,13 @@ func TestNotificationMessage(t *testing.T) {
 	require.NoError(t, err)
 	tests := []struct {
 		name    string
-		kind    notification.Kind
+		kind    domain.NotificationKind
 		payload map[string]any
 		want    string
 	}{
-		{name: "番組名を添える", kind: notification.KindRecordingStarted, payload: map[string]any{varName: tagKotatsu}, want: "「" + tagKotatsu + "」の録画を始めました"},
+		{name: "番組名を添える", kind: domain.NotificationKindRecordingStarted, payload: map[string]any{varName: tagKotatsu}, want: "「" + tagKotatsu + "」の録画を始めました"},
 		{
-			name: "競合した予約の日時を、表示のタイムゾーンで書く", kind: notification.KindReservationConflict,
+			name: "競合した予約の日時を、表示のタイムゾーンで書く", kind: domain.NotificationKindReservationConflict,
 			payload: map[string]any{"startAt": "2026-10-10T12:00:00Z", "serviceName": "NHK総合", varName: tagKotatsu},
 			want:    "チューナーが足りず、録画できない見込みの予約があります。10/10（土）21:00 NHK総合「" + tagKotatsu + "」",
 		},

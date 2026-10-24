@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
@@ -36,15 +37,9 @@ var (
 	ErrInvalidReminderMinutes = errors.New("the reminder minutes are out of range")
 )
 
-// ProgramKey は、視聴予約した番組を表す (サービス, eventId) の組。
-type ProgramKey struct {
-	ServiceID int64
-	EventID   int64
-}
-
 // Reserve は、ユーザー userID の、番組 key の視聴予約を付ける。付けてあれば何もしない。
 // 番組が EPG にないか、放送が始まっていれば ErrProgramUnavailable を返す。
-func Reserve(ctx context.Context, db sqlc.DBTX, clk clock.Clock, userID uuid.UUID, key ProgramKey) error {
+func Reserve(ctx context.Context, db sqlc.DBTX, clk clock.Clock, userID uuid.UUID, key domain.ProgramKey) error {
 	q := sqlc.New(db)
 	inserted, err := q.InsertWatchReservation(ctx, sqlc.InsertWatchReservationParams{
 		UserID: userID, ServiceID: key.ServiceID, EventID: key.EventID, Now: clk.Now(),
@@ -70,7 +65,7 @@ func Reserve(ctx context.Context, db sqlc.DBTX, clk clock.Clock, userID uuid.UUI
 }
 
 // Cancel は、ユーザー userID の、番組 key の視聴予約を外す。付けていなければ何もしない。
-func Cancel(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, key ProgramKey) error {
+func Cancel(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, key domain.ProgramKey) error {
 	if _, err := sqlc.New(db).DeleteWatchReservation(ctx, sqlc.DeleteWatchReservationParams{
 		UserID: userID, ServiceID: key.ServiceID, EventID: key.EventID,
 	}); err != nil {
@@ -78,38 +73,6 @@ func Cancel(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, key ProgramKey)
 	}
 
 	return nil
-}
-
-// Reserved は、keys のうち、ユーザー userID が視聴予約した番組を返す。
-func Reserved(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, keys []ProgramKey) (map[ProgramKey]bool, error) {
-	serviceIDs := make([]int64, 0, len(keys))
-	eventIDs := make([]int64, 0, len(keys))
-	for _, key := range keys {
-		serviceIDs = append(serviceIDs, key.ServiceID)
-		eventIDs = append(eventIDs, key.EventID)
-	}
-	rows, err := sqlc.New(db).ListWatchReservedPrograms(ctx, sqlc.ListWatchReservedProgramsParams{
-		UserID: userID, ServiceIds: serviceIDs, EventIds: eventIDs,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list the watch reservations: %w", err)
-	}
-	reserved := make(map[ProgramKey]bool, len(rows))
-	for _, row := range rows {
-		reserved[ProgramKey{ServiceID: row.ServiceID, EventID: row.EventID}] = true
-	}
-
-	return reserved, nil
-}
-
-// ReminderMinutes は、ユーザー userID の、視聴予約の通知を放送の何分前に送るかの設定を返す。
-func ReminderMinutes(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) (int, error) {
-	minutes, err := sqlc.New(db).GetWatchReminderMinutes(ctx, userID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get the watch reminder minutes: %w", err)
-	}
-
-	return int(minutes), nil
 }
 
 // SetReminderMinutes は、ユーザー userID の、視聴予約の通知を放送の何分前に送るかを変える。
@@ -159,7 +122,7 @@ func (n *Notifier) Notify(ctx context.Context) (int, int64, error) {
 				"name": row.Name, "serviceName": row.ServiceName, "startAt": row.StartAt.UTC().Format(time.RFC3339Nano),
 				"serviceId": row.ServiceID, "eventId": row.EventID, "url": n.liveURL(row.ServiceID),
 			}
-			if err := notification.EmitTo(ctx, tx, n.clock, notification.KindWatchReminder, payload,
+			if err := notification.EmitTo(ctx, tx, n.clock, domain.NotificationKindWatchReminder, payload,
 				&notification.Audience{UserIDs: []uuid.UUID{row.UserID}, ByRule: false}); err != nil {
 				return err
 			}

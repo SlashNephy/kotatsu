@@ -14,6 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -39,9 +40,9 @@ var ErrInvalidSettings = errors.New("invalid system settings")
 // System は、画面から変える全体の設定。
 type System struct {
 	// Recording は、録画設定の全体の既定値 (設計書 4.7)。Go の既定値に、画面で変えた項目を重ねたもの。
-	Recording *reserve.Settings
+	Recording *domain.RecordingSettings
 	// RecordingOverrides は、画面で変えた項目。変えていない項目は nil。
-	RecordingOverrides *reserve.Overrides
+	RecordingOverrides *domain.RecordingOverrides
 	// ArchiveRetentionDays は、過去の番組の保持期間 (日)。0 なら無期限。
 	ArchiveRetentionDays int
 	// NotificationRetentionDays は、配り終えた通知の保持期間 (日)。既読か未読かにかかわらず消す。0 なら無期限。
@@ -106,7 +107,7 @@ func defaultRuleDefaults() *RuleDefaults {
 // Changes は、変える項目。nil の項目は変えない。
 type Changes struct {
 	// Recording は、録画設定の既定値の変える項目。項目を既定値に戻すときは、既定値と同じ値を渡す。
-	Recording                 *reserve.Overrides
+	Recording                 *domain.RecordingOverrides
 	ArchiveRetentionDays      *int
 	NotificationRetentionDays *int
 	Rule                      *RuleChanges
@@ -255,7 +256,7 @@ func valueOr[T any](change *T, current T) T {
 }
 
 // merge は、base に changes の nil でない項目を重ねる。
-func merge(base, changes *reserve.Overrides) *reserve.Overrides {
+func merge(base, changes *domain.RecordingOverrides) *domain.RecordingOverrides {
 	merged := *base
 	if changes == nil {
 		return &merged
@@ -345,8 +346,8 @@ func resolveRule(stored *ruleDefaultsJSON) *RuleDefaults {
 
 func defaults() *System {
 	return &System{
-		Recording:                 reserve.DefaultSettings(),
-		RecordingOverrides:        new(reserve.Overrides),
+		Recording:                 domain.DefaultRecordingSettings(),
+		RecordingOverrides:        new(domain.RecordingOverrides),
 		ArchiveRetentionDays:      DefaultArchiveRetentionDays,
 		NotificationRetentionDays: DefaultNotificationRetentionDays,
 		Rule:                      defaultRuleDefaults(),
@@ -356,7 +357,7 @@ func defaults() *System {
 }
 
 func systemOf(row *sqlc.SystemSetting) (*System, error) {
-	overrides, err := reserve.DecodeOverrides(row.RecordingDefaults)
+	overrides, err := domain.DecodeOverrides(row.RecordingDefaults)
 	if err != nil {
 		return nil, err
 	}
@@ -366,7 +367,7 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 	}
 
 	return &System{
-		Recording:                 reserve.DefaultSettings().Resolve(overrides),
+		Recording:                 domain.DefaultRecordingSettings().Resolve(overrides),
 		RecordingOverrides:        overrides,
 		ArchiveRetentionDays:      int(row.ArchiveRetentionDays),
 		NotificationRetentionDays: int(row.NotificationRetentionDays),

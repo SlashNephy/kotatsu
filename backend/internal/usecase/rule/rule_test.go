@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
@@ -53,7 +54,7 @@ func validInput() *rule.Input {
 		Conditions: &match.Conditions{
 			Keywords: []*match.Keyword{{Text: "ゆるキャン", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldName}}},
 		},
-		Overrides:           &reserve.Overrides{Priority: new(2)},
+		Overrides:           &domain.RecordingOverrides{Priority: new(2)},
 		ValidFrom:           nil,
 		ValidUntil:          new(testNow().Add(30 * 24 * time.Hour)),
 		AvoidDuplicates:     true,
@@ -124,7 +125,7 @@ func TestCreateRejectsInvalidRules(t *testing.T) {
 			in.Conditions.Keywords[0] = &match.Keyword{Text: "(", Regexp: true, CaseSensitive: false, Fields: []match.Field{match.FieldName}}
 		}, wantErr: match.ErrInvalidConditions},
 		{name: "missing conditions", modify: func(in *rule.Input) { in.Conditions = nil }, wantErr: match.ErrInvalidConditions},
-		{name: "invalid overrides", modify: func(in *rule.Input) { in.Overrides = &reserve.Overrides{Priority: new(99)} }, wantErr: reserve.ErrInvalidSettings},
+		{name: "invalid overrides", modify: func(in *rule.Input) { in.Overrides = &domain.RecordingOverrides{Priority: new(99)} }, wantErr: reserve.ErrInvalidSettings},
 		{name: "empty validity period", modify: func(in *rule.Input) { in.ValidFrom = in.ValidUntil }, wantErr: rule.ErrInvalidRule},
 		{name: "zero duplicate window", modify: func(in *rule.Input) { in.DuplicateWindowDays = new(0) }, wantErr: rule.ErrInvalidRule},
 	}

@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
-	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 )
 
 // recordedSpan は、録画のセグメントが表す時間の範囲。書いている途中なら、to は nil。
@@ -50,7 +50,7 @@ func (f *fixture) broadcastTimes(t *testing.T, reservationID uuid.UUID) (*time.T
 func TestRecorderConsecutiveReservations(t *testing.T) {
 	t.Parallel()
 
-	const margin = reserve.DefaultMarginSeconds * time.Second
+	const margin = domain.DefaultMarginSeconds * time.Second
 	boundary := programStart().Add(30 * time.Minute)
 	tests := []struct {
 		name string

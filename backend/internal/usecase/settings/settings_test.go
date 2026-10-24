@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -45,7 +46,7 @@ func TestLoadDefaults(t *testing.T) {
 
 	got, err := settings.Load(t.Context(), newDB(t))
 	require.NoError(t, err)
-	assert.Equal(t, reserve.DefaultSettings(), got.Recording)
+	assert.Equal(t, domain.DefaultRecordingSettings(), got.Recording)
 	assert.Equal(t, settings.DefaultArchiveRetentionDays, got.ArchiveRetentionDays)
 	assert.Equal(t, 90*24*time.Hour, got.ArchiveRetention())
 	assert.Nil(t, got.UpdatedAt)
@@ -61,13 +62,13 @@ func TestUpdate(t *testing.T) {
 
 	margin, priority := 30, 3
 	_, err := store.Update(t.Context(), db, actor, &settings.Changes{
-		Recording:            &reserve.Overrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: &margin, EndMarginSeconds: nil, Priority: nil},
+		Recording:            &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: &margin, EndMarginSeconds: nil, Priority: nil},
 		ArchiveRetentionDays: nil,
 	})
 	require.NoError(t, err)
 	zero := 0
 	updated, err := store.Update(t.Context(), db, actor, &settings.Changes{
-		Recording:            &reserve.Overrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: &priority},
+		Recording:            &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: &priority},
 		ArchiveRetentionDays: &zero,
 	})
 	require.NoError(t, err)
@@ -75,7 +76,7 @@ func TestUpdate(t *testing.T) {
 	loaded, err := settings.Load(t.Context(), db)
 	require.NoError(t, err)
 	assert.Equal(t, updated, loaded)
-	want := reserve.DefaultSettings()
+	want := domain.DefaultRecordingSettings()
 	want.StartMarginSeconds, want.Priority = margin, priority
 	assert.Equal(t, want, loaded.Recording, "the earlier change is kept and the rest stays at the defaults")
 	assert.Equal(t, 0, loaded.ArchiveRetentionDays)
@@ -86,7 +87,7 @@ func TestUpdate(t *testing.T) {
 	// ファイル名のテンプレートとプールも、ほかの項目を保ったまま変えられる。プールは空にすると、自動で選ぶのに戻る。
 	template, pool, empty := `{{.Name}}`, "main", ""
 	_, err = store.Update(t.Context(), db, actor, &settings.Changes{
-		Recording:            &reserve.Overrides{PoolID: &pool, FileNameTemplate: &template, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil},
+		Recording:            &domain.RecordingOverrides{PoolID: &pool, FileNameTemplate: &template, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil},
 		ArchiveRetentionDays: nil,
 	})
 	require.NoError(t, err)
@@ -95,7 +96,7 @@ func TestUpdate(t *testing.T) {
 	want.PoolID, want.FileNameTemplate = pool, template
 	assert.Equal(t, want, loaded.Recording)
 	_, err = store.Update(t.Context(), db, actor, &settings.Changes{
-		Recording:            &reserve.Overrides{PoolID: &empty, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil},
+		Recording:            &domain.RecordingOverrides{PoolID: &empty, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil},
 		ArchiveRetentionDays: nil,
 	})
 	require.NoError(t, err)
@@ -125,14 +126,14 @@ func TestUpdateRejectsInvalidSettings(t *testing.T) {
 		{
 			name: "negative margin", wantErr: reserve.ErrInvalidSettings,
 			changes: &settings.Changes{
-				Recording:            &reserve.Overrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: &negative, EndMarginSeconds: nil, Priority: nil},
+				Recording:            &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: &negative, EndMarginSeconds: nil, Priority: nil},
 				ArchiveRetentionDays: nil,
 			},
 		},
 		{
 			name: "unknown template field", wantErr: reserve.ErrInvalidSettings,
 			changes: &settings.Changes{
-				Recording:            &reserve.Overrides{PoolID: nil, FileNameTemplate: &badTemplate, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil},
+				Recording:            &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: &badTemplate, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil},
 				ArchiveRetentionDays: nil,
 			},
 		},
@@ -144,7 +145,7 @@ func TestUpdateRejectsInvalidSettings(t *testing.T) {
 	}
 	loaded, err := settings.Load(t.Context(), db)
 	require.NoError(t, err)
-	assert.Equal(t, reserve.DefaultSettings(), loaded.Recording)
+	assert.Equal(t, domain.DefaultRecordingSettings(), loaded.Recording)
 	assert.Equal(t, settings.DefaultArchiveRetentionDays, loaded.ArchiveRetentionDays)
 }
 
@@ -156,7 +157,7 @@ func TestUpdateConcurrently(t *testing.T) {
 	store := newStore()
 	start, end := 20, 40
 	var wg sync.WaitGroup
-	for _, change := range []*reserve.Overrides{
+	for _, change := range []*domain.RecordingOverrides{
 		{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: &start, EndMarginSeconds: nil, Priority: nil},
 		{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: &end, Priority: nil},
 	} {

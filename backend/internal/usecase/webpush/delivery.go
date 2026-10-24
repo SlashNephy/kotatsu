@@ -17,6 +17,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
@@ -90,11 +91,11 @@ func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.E
 
 // Payload は、Service Worker が受け取る、通知の本文。
 type Payload struct {
-	Title      string            `json:"title"`
-	Body       string            `json:"body"`
-	EventID    uuid.UUID         `json:"eventId"`
-	Kind       notification.Kind `json:"kind"`
-	OccurredAt time.Time         `json:"occurredAt"`
+	Title      string                  `json:"title"`
+	Body       string                  `json:"body"`
+	EventID    uuid.UUID               `json:"eventId"`
+	Kind       domain.NotificationKind `json:"kind"`
+	OccurredAt time.Time               `json:"occurredAt"`
 	// URL は、通知を押したときに開く画面のパス。なければ省き、Service Worker は通知の一覧を開く。
 	URL string `json:"url,omitempty"`
 }
@@ -158,7 +159,7 @@ func (w *DeliverWorker) Work(ctx context.Context, job *river.Job[DeliverArgs]) e
 		return err
 	}
 
-	return w.send(ctx, &subscription, keys, notification.Kind(event.Kind), body)
+	return w.send(ctx, &subscription, keys, domain.NotificationKind(event.Kind), body)
 }
 
 func (w *DeliverWorker) payload(event *sqlc.NotificationEvent) ([]byte, error) {
@@ -166,10 +167,10 @@ func (w *DeliverWorker) payload(event *sqlc.NotificationEvent) ([]byte, error) {
 	if err := json.Unmarshal(event.Payload, &payload); err != nil {
 		return nil, fmt.Errorf("failed to decode the notification payload: %w", err)
 	}
-	kind := notification.Kind(event.Kind)
+	kind := domain.NotificationKind(event.Kind)
 	plaintext, err := json.Marshal(&Payload{
 		Title: title, Body: notification.Message(kind, payload, w.location), EventID: event.ID, Kind: kind, OccurredAt: event.OccurredAt,
-		URL: notification.URL(payload),
+		URL: domain.NotificationURL(payload),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the web push payload: %w", err)
@@ -178,7 +179,7 @@ func (w *DeliverWorker) payload(event *sqlc.NotificationEvent) ([]byte, error) {
 	return plaintext, nil
 }
 
-func (w *DeliverWorker) send(ctx context.Context, subscription *sqlc.WebPushSubscription, keys *Keys, kind notification.Kind, body []byte) error {
+func (w *DeliverWorker) send(ctx context.Context, subscription *sqlc.WebPushSubscription, keys *Keys, kind domain.NotificationKind, body []byte) error {
 	authorization, err := keys.authorization(subscription.Endpoint, w.subject, w.clock.Now())
 	if err != nil {
 		return river.JobCancel(err)
@@ -234,12 +235,12 @@ func (w *DeliverWorker) handle(ctx context.Context, subscription *sqlc.WebPushSu
 }
 
 // urgency は、イベントの種類ごとの、プッシュサービスへの緊急度 (RFC 8030 5.3)。録画の失敗のように、すぐ知らせたいものは high にする。
-func urgency(kind notification.Kind) string {
+func urgency(kind domain.NotificationKind) string {
 	switch kind {
-	case notification.KindRecordingFailed, notification.KindStorageLow, notification.KindTunerServerUnreachable:
+	case domain.NotificationKindRecordingFailed, domain.NotificationKindStorageLow, domain.NotificationKindTunerServerUnreachable:
 		return "high"
-	case notification.KindRecordingStarted, notification.KindRecordingCompleted, notification.KindReservationConflict,
-		notification.KindWatchReminder:
+	case domain.NotificationKindRecordingStarted, domain.NotificationKindRecordingCompleted, domain.NotificationKindReservationConflict,
+		domain.NotificationKindWatchReminder:
 		return "normal"
 	default:
 		return "normal"

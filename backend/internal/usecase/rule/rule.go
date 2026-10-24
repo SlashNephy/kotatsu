@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
@@ -48,7 +49,7 @@ type Rule struct {
 	Memo       string
 	Enabled    bool
 	Conditions *match.Conditions
-	Overrides  *reserve.Overrides
+	Overrides  *domain.RecordingOverrides
 	// ValidFrom と ValidUntil は、ルール自体の有効期間。番組の開始時刻がこの範囲に入るときだけ予約する。nil なら区切らない。
 	ValidFrom  *time.Time
 	ValidUntil *time.Time
@@ -69,7 +70,7 @@ type Input struct {
 	Memo                string
 	Enabled             bool
 	Conditions          *match.Conditions
-	Overrides           *reserve.Overrides
+	Overrides           *domain.RecordingOverrides
 	ValidFrom           *time.Time
 	ValidUntil          *time.Time
 	AvoidDuplicates     bool
@@ -336,7 +337,7 @@ func fromRow(row sqlc.Rule) (*Rule, error) {
 	if err != nil {
 		return nil, fmt.Errorf("rule %s: %w", row.ID, err)
 	}
-	overrides, err := reserve.DecodeOverrides(row.Settings)
+	overrides, err := domain.DecodeOverrides(row.Settings)
 	if err != nil {
 		return nil, fmt.Errorf("rule %s: %w", row.ID, err)
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -27,7 +28,7 @@ const (
 // Event は、通知するイベント。
 type Event struct {
 	ID         uuid.UUID
-	Kind       Kind
+	Kind       domain.NotificationKind
 	OccurredAt time.Time
 	// Payload は、画面に出す文の材料 (番組名や理由など)。
 	Payload map[string]any
@@ -145,7 +146,7 @@ func eventOf(row *sqlc.NotificationEvent) (*Event, error) {
 	}
 
 	return &Event{
-		ID: row.ID, Kind: Kind(row.Kind), OccurredAt: row.OccurredAt, Payload: payload,
+		ID: row.ID, Kind: domain.NotificationKind(row.Kind), OccurredAt: row.OccurredAt, Payload: payload,
 		Audience: Audience{UserIDs: row.Audience, ByRule: row.ByRule},
 	}, nil
 }

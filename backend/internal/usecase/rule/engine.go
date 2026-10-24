@@ -430,7 +430,7 @@ func (e *Engine) reconcile(
 	result *Result,
 ) error {
 	q := sqlc.New(tx)
-	isRule := reserve.Kind(row.Kind) == reserve.KindRule
+	isRule := domain.ReservationKind(row.Kind) == domain.ReservationKindRule
 	switch {
 	case d == nil && isRule && keepsUnmatched(&row, have, result):
 		return nil

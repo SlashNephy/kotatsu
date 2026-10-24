@@ -12,11 +12,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -118,7 +120,7 @@ type importedRule struct {
 	Memo                string
 	Enabled             bool
 	Conditions          *match.Conditions
-	Overrides           *reserve.Overrides
+	Overrides           *domain.RecordingOverrides
 	ValidFrom           *time.Time
 	ValidUntil          *time.Time
 	AvoidDuplicates     bool
@@ -145,8 +147,8 @@ func baseConditions() *match.Conditions {
 	}
 }
 
-func noOverrides() *reserve.Overrides {
-	return &reserve.Overrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil}
+func noOverrides() *domain.RecordingOverrides {
+	return &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil}
 }
 
 // TestApplyRules は、EPGStation のルールの各項目を、Kotatsu のルールの対応する項目に変換することを確かめる。
@@ -388,21 +390,21 @@ func TestApplyRuleIsMatched(t *testing.T) {
 	var ruleID uuid.UUID
 	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT r.kind, r.event_id, rr.rule_id FROM reservations r
 		JOIN reservation_rules rr ON rr.reservation_id = r.id`).Scan(&kind, &gotEventID, &ruleID))
-	assert.Equal(t, string(reserve.KindRule), kind)
+	assert.Equal(t, string(domain.ReservationKindRule), kind)
 	assert.Equal(t, int64(eventID), gotEventID)
 	assert.Equal(t, f.targetOf(t, epgstation.KindRule, 1), ruleID)
 }
 
 // importedReservation は、取り込んだ予約のうち、EPGStation の予約から決まる項目。
 type importedReservation struct {
-	Kind             reserve.Kind
+	Kind             domain.ReservationKind
 	ServiceID        int64
 	EventID          *int64
 	StartAt          time.Time
 	Name             string
 	Enabled          bool
 	FollowEventRelay bool
-	Overrides        *reserve.Overrides
+	Overrides        *domain.RecordingOverrides
 }
 
 // TestApplyReserves は、手動予約を番組予約か時刻予約として取り込み、取り込めないものを理由と一緒に飛ばすことを確かめる。
@@ -432,9 +434,9 @@ func TestApplyReserves(t *testing.T) {
 				return r
 			},
 			want: &importedReservation{
-				Kind: reserve.KindTime, ServiceID: channelID, EventID: nil, StartAt: now.Add(time.Hour), Name: programName,
+				Kind: domain.ReservationKindTime, ServiceID: channelID, EventID: nil, StartAt: now.Add(time.Hour), Name: programName,
 				Enabled: true, FollowEventRelay: false,
-				Overrides: &reserve.Overrides{PoolID: new(mainPool), FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil},
+				Overrides: &domain.RecordingOverrides{PoolID: new(mainPool), FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil},
 			},
 		},
 		{
@@ -448,7 +450,7 @@ func TestApplyReserves(t *testing.T) {
 				return r
 			},
 			want: &importedReservation{
-				Kind: reserve.KindProgram, ServiceID: channelID, EventID: new(int64(eventID)), StartAt: now.Add(2 * time.Hour), Name: programName,
+				Kind: domain.ReservationKindProgram, ServiceID: channelID, EventID: new(int64(eventID)), StartAt: now.Add(2 * time.Hour), Name: programName,
 				Enabled: false, FollowEventRelay: true, Overrides: noOverrides(),
 			},
 		},
@@ -508,7 +510,7 @@ func TestApplyReserves(t *testing.T) {
 				return
 			}
 			assert.Equal(t, map[epgstation.Kind]int{epgstation.KindReserve: 1}, result.Imported)
-			created, err := reserve.NewReservations(f.clock, audit.NewRecorder(f.clock)).Get(t.Context(), f.pool, f.targetOf(t, epgstation.KindReserve, 1))
+			created, err := query.New(f.pool).GetReservation(t.Context(), f.targetOf(t, epgstation.KindReserve, 1))
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, &importedReservation{
 				Kind: created.Kind, ServiceID: created.ServiceID, EventID: created.EventID, StartAt: created.StartAt, Name: created.Name,

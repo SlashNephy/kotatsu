@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
@@ -137,7 +138,7 @@ func NewRecorder(
 	location *time.Location, logger *slog.Logger, opts *RecorderOptions,
 ) *Recorder {
 	if defaults == nil {
-		defaults = assign.FixedDefaults(reserve.DefaultSettings())
+		defaults = assign.FixedDefaults(domain.DefaultRecordingSettings())
 	}
 	o := RecorderOptions{TuningTime: DefaultTuningTime, Tick: DefaultTick, RetryInterval: DefaultRetryInterval, ReleaseAfter: DefaultReleaseAfter, Peers: nil}
 	if opts != nil {
@@ -186,7 +187,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		}
 	}
 
-	endMargin := time.Duration(reserve.DefaultMarginSeconds) * time.Second
+	endMargin := time.Duration(domain.DefaultMarginSeconds) * time.Second
 	if settings, err := r.settings(ctx, &reservation); err == nil {
 		endMargin = time.Duration(settings.EndMarginSeconds) * time.Second
 	}
@@ -1255,7 +1256,7 @@ func (r *Recorder) start(ctx context.Context, reservation *sqlc.GetReservationFo
 		payload := recordingPayload(recording.ID, recording.Name, reservation.ServiceName, recording.StartAt, recording.EndAt)
 		target.AddTo(payload)
 
-		return notification.EmitTo(ctx, tx, r.clock, notification.KindRecordingStarted, payload, target.Audience)
+		return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingStarted, payload, target.Audience)
 	})
 
 	return recording, err
@@ -1311,7 +1312,7 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 		if state == StateFailed {
 			payload["reason"] = string(reason)
 
-			return notification.EmitTo(ctx, tx, r.clock, notification.KindRecordingFailed, payload, target.Audience)
+			return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingFailed, payload, target.Audience)
 		}
 
 		if (state == StateCompleted || state == StateCompletedWithErrors) && recording.Drops <= MaxHistoryDrops {
@@ -1335,7 +1336,7 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 		payload["joinSegments"] = join
 		addNotBroadcast(ctx, q, &recording, payload)
 
-		return notification.EmitTo(ctx, tx, r.clock, notification.KindRecordingCompleted, payload, target.Audience)
+		return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingCompleted, payload, target.Audience)
 	})
 	if errors.Is(err, errSuperseded) {
 		r.logger.InfoContext(ctx, "another mikan took over the recording; leaving it to finish", slog.String("recording_id", recordingID.String()))
@@ -1363,7 +1364,7 @@ func (r *Recorder) joinSegments(ctx context.Context, assignment *Assignment) boo
 	if err != nil {
 		r.logger.WarnContext(ctx, "failed to read the recording settings; joining the segments by default", slog.Any("error", err))
 
-		return reserve.DefaultSettings().JoinSegments
+		return domain.DefaultRecordingSettings().JoinSegments
 	}
 
 	return settings.JoinSegments
@@ -1390,26 +1391,26 @@ func addNotBroadcast(ctx context.Context, q *sqlc.Queries, recording *sqlc.Recor
 var errSuperseded = errors.New("the recording assignment was taken over")
 
 // settings は、予約の録画設定を、全体の既定値に、ルール予約ならルールの上書き、さらに予約自体の上書きを重ねて求める。
-func (r *Recorder) settings(ctx context.Context, reservation *sqlc.GetReservationForRecordingRow) (*reserve.Settings, error) {
+func (r *Recorder) settings(ctx context.Context, reservation *sqlc.GetReservationForRecordingRow) (*domain.RecordingSettings, error) {
 	q := sqlc.New(r.pool)
 	settings, err := r.defaults(ctx, r.pool)
 	if err != nil {
 		return nil, err
 	}
-	if reserve.Kind(reservation.Kind) == reserve.KindRule {
+	if domain.ReservationKind(reservation.Kind) == domain.ReservationKindRule {
 		rows, err := q.ListFirstRuleSettings(ctx, []uuid.UUID{reservation.ID})
 		if err != nil {
 			return nil, fmt.Errorf("failed to list rule settings: %w", err)
 		}
 		for _, row := range rows {
-			overrides, err := reserve.DecodeOverrides(row.Settings)
+			overrides, err := domain.DecodeOverrides(row.Settings)
 			if err != nil {
 				return nil, err
 			}
 			settings = settings.Resolve(overrides)
 		}
 	}
-	overrides, err := reserve.DecodeOverrides(reservation.Settings)
+	overrides, err := domain.DecodeOverrides(reservation.Settings)
 	if err != nil {
 		return nil, err
 	}
