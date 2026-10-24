@@ -29,6 +29,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/telemetry"
 	"github.com/SlashNephy/kotatsu/internal/infra/update"
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
+	"github.com/SlashNephy/kotatsu/internal/lib/clientinfo"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
@@ -574,7 +575,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		AbsoluteTimeout: 0,
 		// リバースプロキシが HTTPS を終端するときも、信頼済みのプロキシの X-Forwarded-Proto で Secure を付ける。
 		IsSecure: func(r *http.Request) bool {
-			client := httpserver.ClientFrom(r.Context())
+			client := clientinfo.From(r.Context())
 
 			return client != nil && client.Secure
 		},
@@ -884,7 +885,7 @@ var errSecretKeyRequired = errors.New("auth.secret_key (KOTATSU_AUTH_SECRET_KEY)
 // clientInfo は、リクエストの送信元を返す。リバースプロキシを経由したときは、信頼済みのプロキシが伝えた値にする。
 func clientInfo(r *http.Request) *auth.ClientInfo {
 	info := &auth.ClientInfo{UserAgent: r.UserAgent(), SourceIP: netip.Addr{}, Host: r.Host, Secure: r.TLS != nil}
-	if client := httpserver.ClientFrom(r.Context()); client != nil {
+	if client := clientinfo.From(r.Context()); client != nil {
 		info.SourceIP, info.Host, info.Secure = client.IP, client.Host, client.Secure
 	}
 

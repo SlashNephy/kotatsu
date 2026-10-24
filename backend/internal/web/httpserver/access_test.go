@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/lib/clientinfo"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
@@ -40,7 +41,7 @@ const (
 // clientEcho は、判定した送信元を応答のヘッダーに書く。
 func clientEcho() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		client := httpserver.ClientFrom(r.Context())
+		client := clientinfo.From(r.Context())
 		w.Header().Set("X-Client-IP", client.IP.String())
 		w.Header().Set("X-Client-Origin", client.Origin())
 	})

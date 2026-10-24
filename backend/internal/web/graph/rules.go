@@ -12,11 +12,11 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
+	"github.com/SlashNephy/kotatsu/internal/lib/clientinfo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
-	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
 const ruleType = "Rule"
@@ -41,7 +41,7 @@ func scheduler(ctx context.Context) (*audit.Actor, error) {
 func actorOf(ctx context.Context, principal *auth.Principal) *audit.Actor {
 	actor := audit.User(principal.UserID)
 	actor.Client = principal.OAuthClientID
-	if client := httpserver.ClientFrom(ctx); client != nil {
+	if client := clientinfo.From(ctx); client != nil {
 		actor.SourceIP = client.IP
 	}
 	if userAgent, ok := ctx.Value(userAgentKey{}).(string); ok {

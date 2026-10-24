@@ -7,7 +7,6 @@ linters:
   default: all
   disable:
     - canonicalheader # HTTP ヘッダー名のキャメルケースを強制しない
-    - depguard # import の制限は、レイヤーの境界が決まった時点でルールとともに有効にする
     - dupl # 重複コードを許可する
     - err113 # 動的な error の生成を許可する
     - exhaustruct # 非推奨。exhaustruct_v5 を使う
@@ -29,6 +28,104 @@ linters:
     - wsl # 非推奨
     - wsl_v5 # 空行の入れ方を強制しない
   settings:
+    depguard:
+      # レイヤの依存関係 (internal/domain の package doc、設計書 11.5) のうち、import で判定できるものを強制する。
+      # 矢印は import してよい向き: cli --> web --> usecase --> query --> infra/database。
+      # domain と lib は、どの層からも使える。テストのコードは、DB の準備などで層をまたいでよいので、対象にしない。
+      rules:
+        domain-must-stay-pure:
+          list-mode: lax
+          files:
+            - "**/internal/domain/**"
+            - "!$test"
+          deny:
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/usecase", desc: "domain は lib のほかに internal のパッケージを import しない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/query", desc: "domain は lib のほかに internal のパッケージを import しない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/infra", desc: "domain は lib のほかに internal のパッケージを import しない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/web", desc: "domain は lib のほかに internal のパッケージを import しない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/cli", desc: "domain は lib のほかに internal のパッケージを import しない"}
+        lib-must-stay-independent:
+          list-mode: lax
+          files:
+            - "**/internal/lib/**"
+            - "!$test"
+          deny:
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/domain", desc: "lib はドメインに依らない部品なので、ほかの層を import しない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/usecase", desc: "lib はドメインに依らない部品なので、ほかの層を import しない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/query", desc: "lib はドメインに依らない部品なので、ほかの層を import しない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/infra", desc: "lib はドメインに依らない部品なので、ほかの層を import しない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/web", desc: "lib はドメインに依らない部品なので、ほかの層を import しない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/cli", desc: "lib はドメインに依らない部品なので、ほかの層を import しない"}
+        infra-must-not-depend-on-upper-layers:
+          list-mode: lax
+          files:
+            - "**/internal/infra/**"
+            - "!$test"
+          deny:
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/usecase", desc: "infra は domain と lib のほかに、上の層を import しない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/query", desc: "infra は domain と lib のほかに、上の層を import しない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/web", desc: "infra は domain と lib のほかに、上の層を import しない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/cli", desc: "infra は domain と lib のほかに、上の層を import しない"}
+        query-must-not-depend-on-upper-layers:
+          list-mode: lax
+          files:
+            - "**/internal/query/**"
+            - "!$test"
+          allow:
+            - "github.com/SlashNephy/kotatsu/internal/infra/database"
+          deny:
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/infra", desc: "query が使える infra は DB (infra/database) だけ"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/usecase", desc: "query は usecase から呼ばれる側なので、usecase を import しない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/web", desc: "query は web から呼ばれる側なので、web を import しない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/cli", desc: "query は cli から組み立てられる側なので、cli を import しない"}
+        usecase-must-not-depend-on-entry-points:
+          list-mode: lax
+          files:
+            - "**/internal/usecase/**"
+            - "!$test"
+          deny:
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/web", desc: "usecase は web から呼ばれる側なので、web を import しない"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/cli", desc: "usecase は cli から組み立てられる側なので、cli を import しない"}
+        web-must-not-touch-database:
+          list-mode: lax
+          files:
+            - "**/internal/web/**"
+            - "!$test"
+          deny:
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/infra/database", desc: "web は DB に直接触れない。読み取りは query を、書き込みとトランザクションは usecase を通す"}
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/cli", desc: "web は cli から組み立てられる側なので、cli を import しない"}
+        sqlc-only-in-allowed-places:
+          # sqlc の生成物を使えるのは、書き込みとトランザクションの中の読み取りを持つ usecase、読み取りの query、
+          # DB の基盤の部品 (infra/database、lease、notify、registry) と、組み立ての cli だけ。
+          list-mode: lax
+          files:
+            - "$all"
+            - "!$test"
+            - "!**/internal/usecase/**"
+            - "!**/internal/query/**"
+            - "!**/internal/infra/database/**"
+            - "!**/internal/infra/lease/**"
+            - "!**/internal/infra/notify/**"
+            - "!**/internal/infra/registry/**"
+            - "!**/internal/cli/**"
+          deny:
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/infra/database/sqlc", desc: "sqlc は usecase、query、DB の基盤の部品、cli のほかから使わない"}
+        graph-model-must-not-leak-outside-graph:
+          list-mode: lax
+          files:
+            - "$all"
+            - "!**/internal/web/graph/**"
+          deny:
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/web/graph/model", desc: "GraphQL の表現は graph の内側に閉じる。ほかの口は domain の型を使う"}
+        testutil-only-in-tests:
+          list-mode: lax
+          files:
+            - "$all"
+            - "!$test"
+            - "!**/internal/testutil/**"
+            - "!**/cmd/faketuner/**"
+          deny:
+            - {pkg: "github.com/SlashNephy/kotatsu/internal/testutil", desc: "testutil はテスト用の部品なので、テストと cmd/faketuner のほかから使わない"}
     cyclop:
       max-complexity: 20
     exhaustruct_v5:

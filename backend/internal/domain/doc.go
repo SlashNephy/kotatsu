@@ -10,6 +10,8 @@
 //	query --> domain, lib, infra/database
 //	infra --> domain, lib
 //
+// import で判定できる規則は、backend/.golangci.yaml の depguard で強制する。
+//
 // # domain の制約
 //
 //   - lib のほかに、internal のパッケージを import してはならない。

@@ -20,9 +20,9 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
+	"github.com/SlashNephy/kotatsu/internal/lib/clientinfo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
-	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/web/webui"
 )
 
@@ -206,7 +206,7 @@ func unauthorized(w http.ResponseWriter, resourceMetadata, code string) {
 
 // requestOrigin は、リクエストが接続したオリジンを返す。
 func requestOrigin(r *http.Request) string {
-	if client := httpserver.ClientFrom(r.Context()); client != nil {
+	if client := clientinfo.From(r.Context()); client != nil {
 		return client.Origin()
 	}
 	scheme := "http"
