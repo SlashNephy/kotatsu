@@ -7,13 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
 const approveMutation = `mutation($authorizationQuery: String!, $scopes: [String!]!) { approveOAuthAuthorization(query: $authorizationQuery, scopes: $scopes) }`
 
 // TestApproveOAuthAuthorizationRejects は、同意に直近の認証が要り、クエリが読めなければ断ることを確かめる (#963)。
-// 同意から認可コードの発行までは、internal/oauth のテストで確かめる。
+// 同意から認可コードの発行までは、internal/usecase/oauth のテストで確かめる。
 func TestApproveOAuthAuthorizationRejects(t *testing.T) {
 	t.Parallel()
 

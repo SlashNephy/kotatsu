@@ -13,7 +13,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
-	"github.com/SlashNephy/kotatsu/internal/thumbnail"
+	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 )
 
 const (

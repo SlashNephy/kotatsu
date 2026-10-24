@@ -7,10 +7,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/SlashNephy/kotatsu/internal/audit"
-	"github.com/SlashNephy/kotatsu/internal/notification"
+	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
+	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
-	"github.com/SlashNephy/kotatsu/internal/webhook"
 )
 
 // webhookType は、Webhook の ID に付ける型の名前。

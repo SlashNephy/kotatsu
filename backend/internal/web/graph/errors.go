@@ -8,11 +8,11 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
-	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
-	"github.com/SlashNephy/kotatsu/internal/match"
-	"github.com/SlashNephy/kotatsu/internal/reserve"
-	"github.com/SlashNephy/kotatsu/internal/rule"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
+	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 )
 
 const (

@@ -15,11 +15,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/auth"
-	"github.com/SlashNephy/kotatsu/internal/epg"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
 

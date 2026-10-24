@@ -13,11 +13,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/SlashNephy/kotatsu/internal/auth"
+	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
-	"github.com/SlashNephy/kotatsu/internal/match"
-	"github.com/SlashNephy/kotatsu/internal/usersettings"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 

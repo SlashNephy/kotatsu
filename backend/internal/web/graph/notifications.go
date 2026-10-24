@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/SlashNephy/kotatsu/internal/notification"
+	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 

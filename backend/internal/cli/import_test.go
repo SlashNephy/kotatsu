@@ -11,12 +11,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/cli"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/epgstationtest"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
 // epgstationSeed は、2026-10-10 21:00 (JST) を今として、取り込む物と取り込まない物を一通り入れる。

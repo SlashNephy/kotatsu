@@ -16,19 +16,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/audit"
-	"github.com/SlashNephy/kotatsu/internal/auth"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
-	"github.com/SlashNephy/kotatsu/internal/oauth"
-	"github.com/SlashNephy/kotatsu/internal/player"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/passwordtest"
+	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/player"
+	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
+	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
-	"github.com/SlashNephy/kotatsu/internal/webhook"
-	"github.com/SlashNephy/kotatsu/internal/webpush"
 )
 
 const (

@@ -10,8 +10,8 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
-	"github.com/SlashNephy/kotatsu/internal/kyusu"
-	"github.com/SlashNephy/kotatsu/internal/stream"
+	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
+	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 

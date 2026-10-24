@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/rule"
+	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 

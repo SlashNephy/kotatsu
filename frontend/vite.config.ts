@@ -161,7 +161,7 @@ export default defineConfig(({ mode }) => ({
     // vendor/ は、上流のソースからビルドした成果物なので、整形しない (scripts/build-mpeg2toh264.sh)。
     ignorePatterns: [
       'src/routeTree.gen.ts',
-      // internal/epg/printenclosed が書き出す (mise run //backend:generate)。
+      // internal/usecase/epg/printenclosed が書き出す (mise run //backend:generate)。
       'src/futon/enclosedCharacters.gen.ts',
       'schema.graphql',
       '**/__generated__/**',

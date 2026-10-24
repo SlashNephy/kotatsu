@@ -14,12 +14,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
 
-	"github.com/SlashNephy/kotatsu/internal/audit"
-	"github.com/SlashNephy/kotatsu/internal/auth"
-	"github.com/SlashNephy/kotatsu/internal/epgstation"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
+	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/epgstation"
 )
 
 var (

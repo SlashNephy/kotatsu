@@ -1,11 +1,11 @@
 package graph
 
 import (
-	"github.com/SlashNephy/kotatsu/internal/audit"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
-	"github.com/SlashNephy/kotatsu/internal/reserve"
-	"github.com/SlashNephy/kotatsu/internal/rule"
+	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
+	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 )
 
 // NewLoaders は newLoaders をテストから呼ぶ。
