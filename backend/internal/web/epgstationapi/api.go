@@ -12,11 +12,12 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
+	"github.com/SlashNephy/kotatsu/internal/query"
 )
 
 // Handler は、EPGStation 互換の API のうち、DB から組み立てる応答を返す。映像とロゴは、既存のハンドラーにつなぐ。
 type Handler struct {
-	pool *pgxpool.Pool
+	queries *query.Queries
 	// store は、代表画像があるかを、データディレクトリで確かめるのに使う。
 	store  *kago.Store
 	logger *slog.Logger
@@ -24,7 +25,7 @@ type Handler struct {
 
 // New は Handler を返す。
 func New(pool *pgxpool.Pool, store *kago.Store, logger *slog.Logger) *Handler {
-	return &Handler{pool: pool, store: store, logger: logger}
+	return &Handler{queries: query.New(pool), store: store, logger: logger}
 }
 
 type versionResponse struct {

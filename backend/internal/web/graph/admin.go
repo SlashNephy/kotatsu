@@ -12,8 +12,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/tunerstate"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -54,7 +55,7 @@ func (r *Resolver) listAuditEvents(ctx context.Context, first int, after *string
 		return nil, NewError(CodeBadUserInput, fmt.Sprintf("first must be between 1 and %d", maxAuditEvents))
 	}
 	// 次のページがあるかを知るため、1 件多く読む。絞り込まない項目は NULL のままにする。
-	params := sqlc.SearchAuditEventsParams{
+	params := query.SearchAuditEventsParams{
 		ActionPrefix: nil, ActorUserID: nil, TargetType: nil, TargetID: nil, Since: nil, Until: nil, BeforeAt: nil, BeforeID: nil,
 		MaxCount: int32(first + 1),
 	}
@@ -77,7 +78,7 @@ func (r *Resolver) listAuditEvents(ctx context.Context, first int, after *string
 		params.BeforeAt, params.BeforeID = &cursor.OccurredAt, &cursor.ID
 	}
 
-	rows, err := sqlc.New(r.db).SearchAuditEvents(ctx, params)
+	rows, err := r.queries.SearchAuditEvents(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search audit events: %w", err)
 	}
@@ -121,7 +122,7 @@ func (r *Resolver) auditActors(ctx context.Context, ids []*uuid.UUID) (map[uuid.
 	if len(keys) == 0 {
 		return byID, nil
 	}
-	rows, err := sqlc.New(r.db).ListUsersByIDs(ctx, keys)
+	rows, err := r.queries.ListUsersByIDs(ctx, keys)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list users: %w", err)
 	}
@@ -132,7 +133,7 @@ func (r *Resolver) auditActors(ctx context.Context, ids []*uuid.UUID) (map[uuid.
 	return byID, nil
 }
 
-func auditEventOf(row *sqlc.AuditEvent, byID map[uuid.UUID]*model.User) *model.AuditEvent {
+func auditEventOf(row *domain.AuditEvent, byID map[uuid.UUID]*model.User) *model.AuditEvent {
 	event := &model.AuditEvent{
 		ID:         GlobalID(auditEventType, row.ID.String()),
 		OccurredAt: row.OccurredAt,
@@ -157,7 +158,7 @@ func (r *Resolver) tunerServerHealth(ctx context.Context) (*model.TunerServerHea
 	if _, err := viewer(ctx); err != nil {
 		return nil, err
 	}
-	server, err := sqlc.New(r.db).GetTunerServerStatus(ctx)
+	server, err := r.queries.GetTunerServerStatus(ctx)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return &model.TunerServerHealth{Degraded: false, DegradedSince: nil, ClockSkewed: false, ClockSkewMs: nil}, nil
@@ -187,7 +188,7 @@ func (r *Resolver) systemStatus(ctx context.Context) (*model.SystemStatus, error
 	if err := administer(ctx); err != nil {
 		return nil, err
 	}
-	q := sqlc.New(r.db)
+	q := r.queries
 	now := r.clock.Now()
 	status := &model.SystemStatus{
 		Instances: []*model.Instance{}, Leases: []*model.Lease{}, TunerServer: nil, Tuners: []*model.Tuner{}, Pools: []*model.StoragePool{},
@@ -251,7 +252,7 @@ func (r *Resolver) storagePoolNames(ctx context.Context) ([]string, error) {
 	if _, err := viewer(ctx); err != nil {
 		return nil, err
 	}
-	rows, err := sqlc.New(r.db).ListStoragePools(ctx)
+	rows, err := r.queries.ListStoragePools(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list storage pools: %w", err)
 	}
@@ -272,11 +273,11 @@ func (r *Resolver) storagePoolNames(ctx context.Context) ([]string, error) {
 
 // storagePools は、このインスタンスにマウントされた保存先プールを、設定と空き容量と一緒に返す。
 func (r *Resolver) storagePools(ctx context.Context) ([]*model.StoragePool, error) {
-	rows, err := sqlc.New(r.db).ListStoragePools(ctx)
+	rows, err := r.queries.ListStoragePools(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list storage pools: %w", err)
 	}
-	settings := make(map[string]*sqlc.StoragePool, len(rows))
+	settings := make(map[string]*domain.StoragePool, len(rows))
 	for i := range rows {
 		settings[rows[i].ID] = &rows[i]
 	}
@@ -289,7 +290,7 @@ func (r *Resolver) storagePools(ctx context.Context) ([]*model.StoragePool, erro
 }
 
 // storagePoolOf は、保存先プールを GraphQL の形にする。設定がなければ、優先順位 0、容量の閾値 0 とする。
-func (r *Resolver) storagePoolOf(id string, setting *sqlc.StoragePool) *model.StoragePool {
+func (r *Resolver) storagePoolOf(id string, setting *domain.StoragePool) *model.StoragePool {
 	pool := &model.StoragePool{ID: id, Path: r.pools[id], Priority: 0, MinFreeBytes: 0, FreeBytes: nil, TotalBytes: nil}
 	if setting != nil {
 		pool.Priority, pool.MinFreeBytes = int(setting.Priority), setting.MinFreeBytes

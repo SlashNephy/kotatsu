@@ -14,7 +14,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -86,7 +86,7 @@ func (r *Resolver) collect(
 	ctx context.Context,
 	matcher *match.Matcher,
 	accept func(startAt time.Time, endUndecided bool) bool,
-	params *sqlc.SearchProgramCandidatesParams,
+	params *query.SearchProgramCandidatesParams,
 	first int,
 	resumed bool,
 ) ([]*model.ProgramEdge, bool, error) {
@@ -138,8 +138,8 @@ func (r *Resolver) collect(
 }
 
 // searchCandidates は、params の位置から、候補を 1 回分読む。
-func (r *Resolver) searchCandidates(ctx context.Context, params *sqlc.SearchProgramCandidatesParams) ([]sqlc.SearchProgramCandidatesRow, error) {
-	rows, err := sqlc.New(r.db).SearchProgramCandidates(ctx, *params)
+func (r *Resolver) searchCandidates(ctx context.Context, params *query.SearchProgramCandidatesParams) ([]domain.ProgramCandidate, error) {
+	rows, err := r.queries.SearchProgramCandidates(ctx, *params)
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return nil, NewError(CodeBadUserInput, "the search took too long; narrow down the conditions")
 	}
@@ -156,7 +156,7 @@ func (r *Resolver) primeSharedEvents(
 	ctx context.Context,
 	matcher *match.Matcher,
 	accept func(startAt time.Time, endUndecided bool) bool,
-	params sqlc.SearchProgramCandidatesParams,
+	params query.SearchProgramCandidatesParams,
 	shared *sharedEvents,
 ) error {
 	cursor := searchCursor{StartAt: params.AfterStartAt, ServiceID: params.AfterServiceID, EventID: params.AfterEventID}
@@ -224,14 +224,14 @@ func (r *Resolver) archivedProgram(ctx context.Context, raw string) (*model.Prog
 	if err != nil {
 		return nil, NewError(CodeBadUserInput, "invalid archived program ID")
 	}
-	row, err := sqlc.New(r.db).GetArchivedProgram(ctx, sqlc.GetArchivedProgramParams{ServiceID: serviceID, EventID: eventID, StartAt: time.Unix(unix, 0)})
+	row, err := r.queries.GetArchivedProgram(ctx, query.GetArchivedProgramParams{ServiceID: serviceID, EventID: eventID, StartAt: time.Unix(unix, 0)})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, NewError(CodeNotFound, "program not found")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the archived program: %w", err)
 	}
-	program, err := toProgram((*programRow)(&row))
+	program, err := toProgram((&row))
 	if err != nil {
 		return nil, err
 	}
@@ -242,16 +242,16 @@ func (r *Resolver) archivedProgram(ctx context.Context, raw string) (*model.Prog
 }
 
 // searchParams は、候補を引くクエリの引数を作る。
-func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.ArchiveRangeInput, after *string) (*sqlc.SearchProgramCandidatesParams, error) {
-	params := &sqlc.SearchProgramCandidatesParams{
+func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.ArchiveRangeInput, after *string) (*query.SearchProgramCandidatesParams, error) {
+	params := &query.SearchProgramCandidatesParams{
 		IncludeArchive:     archive != nil,
 		Now:                r.clock.Now(),
 		MediaServiceTypes:  domain.MediaServiceTypes(),
 		ArchiveFrom:        time.Time{},
 		ArchiveTo:          time.Time{},
 		ChannelTypes:       conditions.ChannelTypes,
-		ServiceIds:         conditions.ServiceIDs,
-		ExcludedServiceIds: nonNil(conditions.ExcludeServiceIDs),
+		ServiceIDs:         conditions.ServiceIDs,
+		ExcludedServiceIDs: nonNil(conditions.ExcludeServiceIDs),
 		GenreLv1s:          genreLv1s(conditions.Genres, false),
 		ExcludedGenreLv1s:  genreLv1s(conditions.ExcludeGenres, true),
 		FreeOnly:           conditions.FreeOnly,
@@ -296,7 +296,7 @@ func (r *Resolver) searchParams(conditions *match.Conditions, archive *model.Arc
 // 正規表現のキーワードと、詳細も見るキーワードは、正規化した列がないので、Go の照合に任せる。
 // 照合関数と同じく NFKC で正規化した語を、正規化した列 (name_normalized、description_normalized) の部分一致で探す。
 // 大文字と小文字を区別しないときの ILIKE は、Go の (?i) とほぼ同じ範囲を一致とみなす。
-func setKeywordPatterns(params *sqlc.SearchProgramCandidatesParams, conditions *match.Conditions) {
+func setKeywordPatterns(params *query.SearchProgramCandidatesParams, conditions *match.Conditions) {
 	if conditions.KeywordMatch == match.KeywordMatchAny {
 		return
 	}
@@ -319,7 +319,7 @@ func setKeywordPatterns(params *sqlc.SearchProgramCandidatesParams, conditions *
 func (r *Resolver) matchCandidate(
 	matcher *match.Matcher,
 	accept func(startAt time.Time, endUndecided bool) bool,
-	row *sqlc.SearchProgramCandidatesRow,
+	row *domain.ProgramCandidate,
 ) (*model.ProgramEdge, bool, error) {
 	if accept != nil && !accept(row.StartAt, row.EndUndecided) {
 		return nil, false, nil
@@ -332,7 +332,7 @@ func (r *Resolver) matchCandidate(
 		return nil, false, nil
 	}
 
-	program, err := toProgram(&programRow{
+	program, err := toProgram(&domain.Program{
 		ServiceID: row.ServiceID, EventID: row.EventID, StartAt: row.StartAt, EndAt: row.EndAt,
 		EndUndecided: row.EndUndecided, IsFree: row.IsFree, Name: row.Name, Description: row.Description,
 		Extended: row.Extended, Genres: row.Genres, Audios: row.Audios, RelatedItems: row.RelatedItems,
@@ -354,7 +354,7 @@ func (r *Resolver) matchCandidate(
 
 // toMatchCandidate は、候補を照合する形にする。ルールの照合 (rule.toMatchProgram) と同じく、同期で正規化して持った列を使う。
 // 候補ごとに NFKC で正規化し直すと、検索の時間の大半を占めるからである (#852)。
-func toMatchCandidate(row *sqlc.SearchProgramCandidatesRow) (*match.Program, error) {
+func toMatchCandidate(row *domain.ProgramCandidate) (*match.Program, error) {
 	upstreamGenres := []*domain.Genre{}
 	if err := json.Unmarshal(row.Genres, &upstreamGenres); err != nil {
 		return nil, fmt.Errorf("failed to decode the genres of program %d/%d: %w", row.ServiceID, row.EventID, err)

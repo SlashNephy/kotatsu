@@ -15,9 +15,9 @@ import (
 	"github.com/riverqueue/river"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
@@ -79,15 +79,15 @@ func (r *Resolver) listRecordings(
 		params.BeforeAt, params.BeforeID = &cursor.RecordedFrom, &cursor.ID
 	}
 
-	var rows []sqlc.Recording
+	var rows []domain.Recording
 	if order == model.RecordingOrderOldestFirst {
-		rows, err = sqlc.New(r.db).SearchRecordingsOldest(ctx, sqlc.SearchRecordingsOldestParams{
-			States: params.States, ServiceIds: params.ServiceIds, TagIds: params.TagIds, Keyword: params.Keyword,
+		rows, err = r.queries.SearchRecordingsOldest(ctx, query.SearchRecordingsOldestParams{
+			States: params.States, ServiceIDs: params.ServiceIDs, TagIDs: params.TagIDs, Keyword: params.Keyword,
 			Since: params.Since, Until: params.Until, RuleID: params.RuleID, Genres: params.Genres,
 			AfterAt: params.BeforeAt, AfterID: params.BeforeID, MaxCount: params.MaxCount,
 		})
 	} else {
-		rows, err = sqlc.New(r.db).SearchRecordings(ctx, *params)
+		rows, err = r.queries.SearchRecordings(ctx, *params)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to search recordings: %w", err)
@@ -131,13 +131,13 @@ func (r *Resolver) continueWatching(ctx context.Context, first int) ([]*model.Re
 	if first < 1 || first > maxRecordings {
 		return nil, NewError(CodeBadUserInput, fmt.Sprintf("first must be between 1 and %d", maxRecordings))
 	}
-	found, err := sqlc.New(r.db).ListContinueWatching(ctx, sqlc.ListContinueWatchingParams{
+	found, err := r.queries.ListContinueWatching(ctx, query.ListContinueWatchingParams{
 		UserID: principal.UserID, MinPositionMs: continueMinPositionMs, EndMarginMs: continueEndMarginMs, MaxCount: int32(first),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the recordings to continue: %w", err)
 	}
-	rows := make([]sqlc.Recording, 0, len(found))
+	rows := make([]domain.Recording, 0, len(found))
 	for _, row := range found {
 		rows = append(rows, row.Recording)
 	}
@@ -149,9 +149,9 @@ func (r *Resolver) continueWatching(ctx context.Context, first int) ([]*model.Re
 const maxGenreLv1 = 0xF
 
 // searchParams は、録画の絞り込みを、検索のクエリの引数にする。
-func searchParams(filter *model.RecordingFilter) (*sqlc.SearchRecordingsParams, error) {
-	params := &sqlc.SearchRecordingsParams{
-		States: []string{}, ServiceIds: []int64{}, TagIds: []uuid.UUID{}, Keyword: nil, Since: nil, Until: nil,
+func searchParams(filter *model.RecordingFilter) (*query.SearchRecordingsParams, error) {
+	params := &query.SearchRecordingsParams{
+		States: []string{}, ServiceIDs: []int64{}, TagIDs: []uuid.UUID{}, Keyword: nil, Since: nil, Until: nil,
 		RuleID: nil, Genres: []int32{}, BeforeAt: nil, BeforeID: nil, MaxCount: 0,
 	}
 	if filter == nil {
@@ -169,14 +169,14 @@ func searchParams(filter *model.RecordingFilter) (*sqlc.SearchRecordingsParams, 
 		if err != nil {
 			return nil, err
 		}
-		params.ServiceIds = append(params.ServiceIds, serviceID)
+		params.ServiceIDs = append(params.ServiceIDs, serviceID)
 	}
 	for _, globalID := range filter.TagIds {
 		tagID, err := parseTypedID(globalID, tagType, "invalid tag ID")
 		if err != nil {
 			return nil, err
 		}
-		params.TagIds = append(params.TagIds, tagID)
+		params.TagIDs = append(params.TagIDs, tagID)
 	}
 	if filter.Keyword != nil && strings.TrimSpace(*filter.Keyword) != "" {
 		params.Keyword = new(escapeLike(strings.TrimSpace(*filter.Keyword)))
@@ -207,7 +207,7 @@ func escapeLike(s string) string {
 
 // recording は、ID の録画を返す。なければ NOT_FOUND を返す。
 func (r *Resolver) recording(ctx context.Context, recordingID uuid.UUID) (*model.Recording, error) {
-	rows, err := sqlc.New(r.db).ListRecordingsByIDs(ctx, []uuid.UUID{recordingID})
+	rows, err := r.queries.ListRecordingsByIDs(ctx, []uuid.UUID{recordingID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the recording: %w", err)
 	}
@@ -223,7 +223,7 @@ func (r *Resolver) recording(ctx context.Context, recordingID uuid.UUID) (*model
 }
 
 // recordingModels は、録画を GraphQL の形にする。タグ、ファイル、ログイン中のユーザーの再生位置は、まとめて引く。
-func (r *Resolver) recordingModels(ctx context.Context, rows []sqlc.Recording) ([]*model.Recording, error) {
+func (r *Resolver) recordingModels(ctx context.Context, rows []domain.Recording) ([]*model.Recording, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
 		return nil, err
@@ -232,7 +232,7 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []sqlc.Recording) (
 	for i := range rows {
 		ids = append(ids, rows[i].ID)
 	}
-	q := sqlc.New(r.db)
+	q := r.queries
 	tagRows, err := q.ListRecordingTags(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the recording tags: %w", err)
@@ -266,7 +266,7 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []sqlc.Recording) (
 		}
 		files[row.RecordingID] = append(files[row.RecordingID], file)
 	}
-	progressRows, err := q.ListWatchProgress(ctx, sqlc.ListWatchProgressParams{UserID: principal.UserID, RecordingIds: ids})
+	progressRows, err := q.ListWatchProgress(ctx, query.ListWatchProgressParams{UserID: principal.UserID, RecordingIDs: ids})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the watch progress: %w", err)
 	}
@@ -366,7 +366,7 @@ func (r *Resolver) imageURLs(recordingID, owner uuid.UUID) (*string, *string) {
 	return r.imageURL(recordingID, owner, thumbnail.ThumbnailFileName), r.imageURL(recordingID, owner, thumbnail.PreviewFileName)
 }
 
-func recordingModel(row *sqlc.Recording) (*model.Recording, error) {
+func recordingModel(row *domain.Recording) (*model.Recording, error) {
 	var gaps []*model.RecordingGap
 	if err := json.Unmarshal(row.Gaps, &gaps); err != nil {
 		return nil, fmt.Errorf("failed to decode the recording gaps: %w", err)
@@ -419,7 +419,7 @@ func (r *Resolver) listTags(ctx context.Context) ([]*model.Tag, error) {
 	if _, err := viewer(ctx); err != nil {
 		return nil, err
 	}
-	rows, err := sqlc.New(r.db).ListTags(ctx)
+	rows, err := r.queries.ListTags(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list tags: %w", err)
 	}
@@ -512,7 +512,7 @@ func (r *Resolver) regenerateRecordingImages(ctx context.Context, globalID strin
 	if r.jobs == nil {
 		return false, errors.New("the job client is not configured")
 	}
-	if _, err := sqlc.New(r.db).GetRecording(ctx, recordingID); errors.Is(err, pgx.ErrNoRows) {
+	if _, err := r.queries.GetRecording(ctx, recordingID); errors.Is(err, pgx.ErrNoRows) {
 		return false, NewError(CodeNotFound, "recording not found")
 	} else if err != nil {
 		return false, fmt.Errorf("failed to get the recording: %w", err)
@@ -550,7 +550,7 @@ func (r *Resolver) reanalyzeRecording(ctx context.Context, globalID string) (boo
 	if r.jobs == nil {
 		return false, errors.New("the job client is not configured")
 	}
-	recording, err := sqlc.New(r.db).GetRecording(ctx, recordingID)
+	recording, err := r.queries.GetRecording(ctx, recordingID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, NewError(CodeNotFound, "recording not found")
 	} else if err != nil {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -62,7 +62,7 @@ func (r *mutationResolver) UpdateService(ctx context.Context, id string, input m
 	if err != nil {
 		return nil, settingsError(err)
 	}
-	rows, err := sqlc.New(r.db).ListGuideServices(ctx, sqlc.ListGuideServicesParams{IncludeHidden: true, MediaServiceTypes: []int64{}, Ids: []int64{serviceID}})
+	rows, err := r.queries.ListGuideServices(ctx, query.ListGuideServicesParams{IncludeHidden: true, MediaServiceTypes: []int64{}, IDs: []int64{serviceID}})
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the service: %w", err)
 	}

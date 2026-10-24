@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -222,7 +221,7 @@ func (r *Resolver) bulkReservations(
 	payload := &model.BulkOperationPayload{Processed: 0, Skipped: 0}
 	for _, reservationID := range reservationIDs {
 		if skipRecording {
-			recording, err := sqlc.New(r.db).IsReservationRecording(ctx, &reservationID)
+			recording, err := r.queries.IsReservationRecording(ctx, &reservationID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to check the recording of the reservation: %w", err)
 			}

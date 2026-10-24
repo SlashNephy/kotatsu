@@ -12,11 +12,13 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vektah/gqlparser/v2/ast"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/update"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
@@ -51,7 +53,7 @@ const (
 
 // Options は Handler の設定。0 の項目は既定値にする。
 type Options struct {
-	DB Database
+	DB *pgxpool.Pool
 	// Recorder は、ルールや予約の変更を残す監査ログ。nil なら DB に記録する。
 	Recorder audit.Recorder
 	// SecondFactors は、第二要素の登録と削除に使う。nil なら、第二要素の操作は内部のエラーにする。
@@ -156,6 +158,7 @@ func NewHandler(opts *Options) http.Handler {
 	var config generated.Config
 	resolver := &Resolver{
 		searchSlots: make(chan struct{}, maxConcurrentSearches),
+		queries:     query.New(o.DB),
 		db:          o.DB, clock: o.Clock, location: o.Location, heartbeatInterval: o.HeartbeatInterval,
 		rules:        rule.NewRules(o.Clock, o.Recorder),
 		reservations: reserve.NewReservations(o.Clock, o.Recorder),
@@ -214,7 +217,7 @@ func NewHandler(opts *Options) http.Handler {
 	server.SetErrorPresenter(errorPresenter(o.Logger))
 	server.SetRecoverFunc(recoverFunc(o.Logger))
 
-	handler := withLoaders(o.DB, resolver.rules, resolver.reservations)(server)
+	handler := withLoaders(o.DB, resolver.queries, resolver.rules, resolver.reservations)(server)
 	if o.Sessions != nil {
 		handler = revalidateSubscriptions(handler, o.Sessions, o.DB, o.HeartbeatInterval, o.Logger)
 	}

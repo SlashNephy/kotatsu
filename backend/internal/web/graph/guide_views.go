@@ -13,9 +13,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -87,7 +89,7 @@ func guideViewFromInput(in *model.GuideViewInput) (*guideViewSettings, error) {
 	return settings, nil
 }
 
-func toGuideView(row *sqlc.GuideView) (*model.GuideView, error) {
+func toGuideView(row *domain.GuideView) (*model.GuideView, error) {
 	var settings guideViewSettings
 	if err := json.Unmarshal(row.Settings, &settings); err != nil {
 		return nil, fmt.Errorf("failed to decode guide view %s: %w", row.ID, err)
@@ -139,7 +141,7 @@ func viewer(ctx context.Context) (*auth.Principal, error) {
 }
 
 // guideView は、ログイン中のユーザーの番組表ビューを引く。他のユーザーのものは見つからないことにする。
-func (r *Resolver) guideView(ctx context.Context, globalID string) (*sqlc.GuideView, error) {
+func (r *Resolver) guideView(ctx context.Context, globalID string) (*domain.GuideView, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
 		return nil, err
@@ -148,7 +150,7 @@ func (r *Resolver) guideView(ctx context.Context, globalID string) (*sqlc.GuideV
 	if err != nil {
 		return nil, err
 	}
-	row, err := sqlc.New(r.db).GetGuideView(ctx, sqlc.GetGuideViewParams{ID: viewID, UserID: principal.UserID})
+	row, err := r.queries.GetGuideView(ctx, query.GetGuideViewParams{ID: viewID, UserID: principal.UserID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, NewError(CodeNotFound, "guide view not found")
 	}
@@ -210,7 +212,7 @@ func (r *Resolver) saveGuideView(ctx context.Context, viewID *uuid.UUID, in *mod
 		return nil, fmt.Errorf("failed to save the guide view: %w", err)
 	}
 
-	row, err := sqlc.New(r.db).GetGuideView(ctx, sqlc.GetGuideViewParams{ID: *viewID, UserID: principal.UserID})
+	row, err := r.queries.GetGuideView(ctx, query.GetGuideViewParams{ID: *viewID, UserID: principal.UserID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the guide view: %w", err)
 	}
@@ -219,7 +221,7 @@ func (r *Resolver) saveGuideView(ctx context.Context, viewID *uuid.UUID, in *mod
 }
 
 // applyGuideView は、番組表に番組表ビューの条件を当てる。番組を絞り込み、サービスを並べ替え、番組のないサービスを隠す。
-func (r *Resolver) applyGuideView(rows []*model.GuideRow, view *sqlc.GuideView) ([]*model.GuideRow, error) {
+func (r *Resolver) applyGuideView(rows []*model.GuideRow, view *domain.GuideView) ([]*model.GuideRow, error) {
 	var settings guideViewSettings
 	if err := json.Unmarshal(view.Settings, &settings); err != nil {
 		return nil, fmt.Errorf("failed to decode guide view %s: %w", view.ID, err)

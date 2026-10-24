@@ -11,6 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
@@ -39,7 +40,9 @@ type Resolver struct {
 	// searchSlots は、同時に照合する検索の数を maxConcurrentSearches までに抑える。
 	searchSlots chan struct{}
 	db          Database
-	clock       clock.Clock
+	// queries は、トランザクションの外の読み取り。
+	queries *query.Queries
+	clock   clock.Clock
 	// location は、番組の曜日と時間帯を判定する、表示のタイムゾーン。
 	location *time.Location
 	// heartbeatInterval は、heartbeat の subscription で時刻を送る間隔。

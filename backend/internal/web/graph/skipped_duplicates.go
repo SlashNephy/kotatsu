@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -24,14 +24,14 @@ func (r *Resolver) skippedDuplicates(ctx context.Context) ([]*model.SkippedDupli
 		serviceIDs = append(serviceIDs, s.ServiceID)
 		eventIDs = append(eventIDs, s.EventID)
 	}
-	rows, err := sqlc.New(r.db).ListGuideProgramsByKeys(ctx, sqlc.ListGuideProgramsByKeysParams{ServiceIds: serviceIDs, EventIds: eventIDs})
+	rows, err := r.queries.ListGuideProgramsByKeys(ctx, query.ListGuideProgramsByKeysParams{ServiceIDs: serviceIDs, EventIDs: eventIDs})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the programs: %w", err)
 	}
 	type key struct{ serviceID, eventID int64 }
 	programs := make(map[key]*model.Program, len(rows))
 	for i := range rows {
-		program, err := toProgram((*programRow)(&rows[i]))
+		program, err := toProgram((&rows[i]))
 		if err != nil {
 			return nil, err
 		}

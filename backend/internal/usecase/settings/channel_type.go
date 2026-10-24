@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 )
@@ -36,7 +37,7 @@ type ChannelTypeChanges struct {
 // 種別は、チューナーサーバーから EPG を取り込むときに足すので、ここでは足さない。
 func (s *Store) UpdateChannelType(
 	ctx context.Context, db Database, actor *audit.Actor, channelType string, changes *ChannelTypeChanges,
-) (*sqlc.ChannelType, error) {
+) (*domain.ChannelType, error) {
 	if changes == nil {
 		return nil, fmt.Errorf("%w: changes is nil", ErrInvalidSettings)
 	}
@@ -97,7 +98,7 @@ func (s *Store) UpdateChannelType(
 		return nil, err
 	}
 
-	return &updated, nil
+	return new(domain.ChannelType(updated)), nil
 }
 
 // sortOrder は、並び順が範囲にあるかを確かめ、DB に保存する形にする。

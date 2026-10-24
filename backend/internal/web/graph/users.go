@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -139,7 +138,7 @@ func parseTypedID(globalID, typeName, message string) (uuid.UUID, error) {
 
 // userByID は、ユーザーの管理の操作の後に、変わったユーザーを DB から引き直して返す。
 func (r *Resolver) userByID(ctx context.Context, userID uuid.UUID) (*model.User, error) {
-	row, err := sqlc.New(r.db).GetUser(ctx, userID)
+	row, err := r.queries.GetUser(ctx, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, NewError(CodeNotFound, "user not found")
 	}

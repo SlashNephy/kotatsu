@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 )
@@ -24,7 +25,7 @@ type StoragePoolChanges struct {
 // プールのマウント先は各ロールの設定で与えるので、ここでは設定だけを持つ。
 func (s *Store) UpdateStoragePool(
 	ctx context.Context, db Database, actor *audit.Actor, poolID string, changes *StoragePoolChanges,
-) (*sqlc.StoragePool, error) {
+) (*domain.StoragePool, error) {
 	if changes == nil {
 		return nil, fmt.Errorf("%w: changes is nil", ErrInvalidSettings)
 	}
@@ -77,7 +78,7 @@ func (s *Store) UpdateStoragePool(
 		return nil, err
 	}
 
-	return &updated, nil
+	return new(domain.StoragePool(updated)), nil
 }
 
 // poolPriority は、優先順位が範囲にあるかを確かめ、DB に保存する形にする。

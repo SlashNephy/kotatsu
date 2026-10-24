@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -19,7 +18,7 @@ func (r *Resolver) streamQuality(ctx context.Context, obj *model.Recording) ([]*
 	if err != nil {
 		return nil, err
 	}
-	files, err := sqlc.New(r.db).ListRecordingFiles(ctx, recordingID)
+	files, err := r.queries.ListRecordingFiles(ctx, recordingID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the recording files: %w", err)
 	}

@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -28,7 +27,7 @@ func (r *Resolver) recordingRenames(ctx context.Context) ([]*model.RecordingRena
 	for _, plan := range plans {
 		ids = append(ids, plan.RecordingID)
 	}
-	rows, err := sqlc.New(r.db).ListRecordingsByIDs(ctx, ids)
+	rows, err := r.queries.ListRecordingsByIDs(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the recordings: %w", err)
 	}

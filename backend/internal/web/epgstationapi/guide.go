@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/query"
 )
 
 // broadcastTypes は、EPGStation の放送波の種別。config の broadcast と、schedules の絞り込みに使う。
@@ -77,9 +77,9 @@ type scheduleChannel struct {
 }
 
 // services は、番組表に出すサービスを、番組表の並び順で返す。非表示のサービスと、映像も音声も流さないサービスは外す。
-func (h *Handler) services(r *http.Request) ([]sqlc.ListGuideServicesRow, error) {
-	rows, err := sqlc.New(h.pool).ListGuideServices(r.Context(), sqlc.ListGuideServicesParams{
-		IncludeHidden: false, MediaServiceTypes: domain.MediaServiceTypes(), Ids: []int64{},
+func (h *Handler) services(r *http.Request) ([]domain.Service, error) {
+	rows, err := h.queries.ListGuideServices(r.Context(), query.ListGuideServicesParams{
+		IncludeHidden: false, MediaServiceTypes: domain.MediaServiceTypes(), IDs: []int64{},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the services: %w", err)
@@ -88,7 +88,7 @@ func (h *Handler) services(r *http.Request) ([]sqlc.ListGuideServicesRow, error)
 	return rows, nil
 }
 
-func channelOf(row *sqlc.ListGuideServicesRow) *channel {
+func channelOf(row *domain.Service) *channel {
 	return &channel{
 		ID: row.ID, ServiceID: row.Sid, NetworkID: row.NetworkID, Name: row.Name, HalfWidthName: halfWidth(row.Name),
 		HasLogoData: row.LogoID != nil, ChannelType: row.ChannelType, Channel: row.Channel, Type: row.ServiceType,
@@ -134,9 +134,9 @@ func (h *Handler) Channels(w http.ResponseWriter, r *http.Request) {
 // Schedules は GET /api/schedules に答える。startAt から endAt に重なる番組を、サービスごとに返す。
 // GR、BS、CS、SKY に false を渡した種別のサービスは外す。isHalfWidth が true なら、番組名などを半角にする。
 func (h *Handler) Schedules(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	from, errFrom := parseTime(query.Get("startAt"))
-	to, errTo := parseTime(query.Get("endAt"))
+	values := r.URL.Query()
+	from, errFrom := parseTime(values.Get("startAt"))
+	to, errTo := parseTime(values.Get("endAt"))
 	// 番組表の画面と同じく、一度に引ける時間帯の長さに上限を設ける。
 	if errFrom != nil || errTo != nil || !from.Before(to) || to.Sub(from) > domain.MaxGuideRange {
 		http.Error(w, errInvalidTime.Error(), http.StatusBadRequest)
@@ -155,7 +155,7 @@ func (h *Handler) Schedules(w http.ResponseWriter, r *http.Request) {
 	ids := make([]int64, 0, len(rows))
 	for i := range rows {
 		// 種別を渡さなければ、その種別も返す。
-		if query.Get(rows[i].ChannelType) == "false" {
+		if values.Get(rows[i].ChannelType) == "false" {
 			continue
 		}
 		schedule := &scheduleChannel{Channel: channelOf(&rows[i]), Programs: []*program{}}
@@ -163,7 +163,7 @@ func (h *Handler) Schedules(w http.ResponseWriter, r *http.Request) {
 		byService[rows[i].ID] = schedule
 		ids = append(ids, rows[i].ID)
 	}
-	programs, err := sqlc.New(h.pool).ListProgramsInRange(r.Context(), sqlc.ListProgramsInRangeParams{ServiceIds: ids, FromAt: from, ToAt: to})
+	programs, err := h.queries.ListProgramsInRange(r.Context(), query.ListProgramsInRangeParams{ServiceIDs: ids, FromAt: from, ToAt: to})
 	if err != nil {
 		h.fail(w, r, fmt.Errorf("failed to list the programs: %w", err))
 
@@ -182,7 +182,7 @@ func (h *Handler) Schedules(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, r, schedules)
 }
 
-func programOf(row *sqlc.ListProgramsInRangeRow, ch *channel, toHalfWidth bool) (*program, error) {
+func programOf(row *domain.Program, ch *channel, toHalfWidth bool) (*program, error) {
 	var genres []*domain.Genre
 	if err := json.Unmarshal(row.Genres, &genres); err != nil {
 		return nil, fmt.Errorf("failed to decode the genres: %w", err)

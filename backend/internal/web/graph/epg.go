@@ -9,12 +9,10 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/vikstrous/dataloadgen"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -74,7 +72,7 @@ func parseProgramID(raw string) (int64, int64, error) {
 	return serviceID, eventID, nil
 }
 
-func toService(row *sqlc.ListGuideServicesRow) *model.Service {
+func toService(row *domain.Service) *model.Service {
 	var key *int
 	if row.RemoteControlKeyID != nil {
 		key = new(int(*row.RemoteControlKeyID))
@@ -100,27 +98,11 @@ func toService(row *sqlc.ListGuideServicesRow) *model.Service {
 	}
 }
 
-func toChannelType(row *sqlc.ChannelType) *model.ChannelType {
+func toChannelType(row *domain.ChannelType) *model.ChannelType {
 	return &model.ChannelType{Type: row.Type, DisplayName: row.DisplayName, SortOrder: int(row.SortOrder)}
 }
 
-// programRow は、番組の列。現役の番組とアーカイブの番組で同じ形にする。
-type programRow struct {
-	ServiceID    int64
-	EventID      int64
-	StartAt      time.Time
-	EndAt        time.Time
-	EndUndecided bool
-	IsFree       bool
-	Name         string
-	Description  string
-	Extended     []byte
-	Genres       []byte
-	Audios       []byte
-	RelatedItems []byte
-}
-
-func toProgram(row *programRow) (*model.Program, error) {
+func toProgram(row *domain.Program) (*model.Program, error) {
 	extendedMap := map[string]string{}
 	if err := json.Unmarshal(row.Extended, &extendedMap); err != nil {
 		return nil, fmt.Errorf("failed to decode the extended of program %d/%d: %w", row.ServiceID, row.EventID, err)
