@@ -1,11 +1,11 @@
-package epg_test
+package domain_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
 func TestNormalize(t *testing.T) {
@@ -43,7 +43,7 @@ func TestNormalize(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, epg.Normalize(tt.in))
+			assert.Equal(t, tt.want, domain.Normalize(tt.in))
 		})
 	}
 }
@@ -65,7 +65,7 @@ func TestNormalizeExtended(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, epg.NormalizeExtended(tt.extended))
+			assert.Equal(t, tt.want, domain.NormalizeExtended(tt.extended))
 		})
 	}
 }

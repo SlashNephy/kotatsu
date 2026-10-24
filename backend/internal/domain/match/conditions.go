@@ -14,7 +14,7 @@ import (
 	"slices"
 	"unicode/utf8"
 
-	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
 // SchemaVersion は、JSONB に保存する条件のスキーマのバージョン (設計書 8.3)。
@@ -199,7 +199,7 @@ func validateGenres(name string, genres []*Genre) []error {
 func validateMarks(name string, marks []string) []error {
 	errs := []error{}
 	for i, mark := range marks {
-		if !epg.IsEnclosedLabel(mark) {
+		if !domain.IsEnclosedLabel(mark) {
 			errs = append(errs, invalid("%s[%d]: unknown enclosed character %q", name, i, mark))
 		}
 	}

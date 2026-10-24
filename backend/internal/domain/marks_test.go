@@ -1,11 +1,11 @@
-package epg_test
+package domain_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
 func TestMarks(t *testing.T) {
@@ -34,7 +34,7 @@ func TestMarks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, epg.Marks(tt.in))
+			assert.Equal(t, tt.want, domain.Marks(tt.in))
 		})
 	}
 }

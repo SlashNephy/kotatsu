@@ -13,9 +13,8 @@ import (
 
 	"github.com/vikstrous/dataloadgen"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
-	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -130,7 +129,7 @@ func toProgram(row *programRow) (*model.Program, error) {
 	for _, heading := range slices.Sorted(maps.Keys(extendedMap)) {
 		extended = append(extended, &model.ExtendedItem{Heading: heading, Text: extendedMap[heading]})
 	}
-	upstreamGenres := []*mirakurun.Genre{}
+	upstreamGenres := []*domain.Genre{}
 	if err := json.Unmarshal(row.Genres, &upstreamGenres); err != nil {
 		return nil, fmt.Errorf("failed to decode the genres of program %d/%d: %w", row.ServiceID, row.EventID, err)
 	}
@@ -142,7 +141,7 @@ func toProgram(row *programRow) (*model.Program, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode the audios of program %d/%d: %w", row.ServiceID, row.EventID, err)
 	}
-	sharedFrom, err := epg.SharedFrom(row.ServiceID, row.RelatedItems)
+	sharedFrom, err := domain.SharedFrom(row.ServiceID, row.RelatedItems)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode the related items of program %d/%d: %w", row.ServiceID, row.EventID, err)
 	}
@@ -168,7 +167,7 @@ func toProgram(row *programRow) (*model.Program, error) {
 // toProgramAudios は、上流の JSON のままの音声の構成を、主音声が先になるよう並べて返す。
 // mirakc は、主音声でない音声を先に返すことがある。
 func toProgramAudios(raw []byte) ([]*model.ProgramAudio, error) {
-	upstream := []*mirakurun.Audio{}
+	upstream := []*domain.Audio{}
 	if err := json.Unmarshal(raw, &upstream); err != nil {
 		return nil, err
 	}

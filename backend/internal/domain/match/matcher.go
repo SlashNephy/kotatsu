@@ -11,13 +11,13 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
 // Program は、照合する番組。文字列の項目は、NewProgram で NFKC で正規化しておくか、DB の正規化した列から入れる。
 type Program struct {
 	ServiceID int64
-	// SharedFrom は、イベント共有の元のサービス (epg.SharedFrom)。共有していないか、番組が元であれば 0。
+	// SharedFrom は、イベント共有の元のサービス (domain.SharedFrom)。共有していないか、番組が元であれば 0。
 	SharedFrom  int64
 	ChannelType string
 	Name        string
@@ -29,7 +29,7 @@ type Program struct {
 	Duration time.Duration
 	IsFree   bool
 	// Marks は、番組名の囲み文字の中身。囲み文字を括弧の書き方にする前に正規化した番組名では、囲み文字が「新」のような文字になり、
-	// 番組名の文字と見分けられないので、正規化する前の番組名から epg.Marks で取り出しておく。
+	// 番組名の文字と見分けられないので、正規化する前の番組名から domain.Marks で取り出しておく。
 	Marks []string
 
 	// folded は、大文字と小文字を区別しないキーワードで探すために、項目ごとに畳んだ文字列。照合のときに初めて作る。
@@ -58,14 +58,14 @@ func NewProgram(in *ProgramInput) *Program {
 		ServiceID:   in.ServiceID,
 		SharedFrom:  in.SharedFrom,
 		ChannelType: in.ChannelType,
-		Name:        epg.Normalize(in.Name),
-		Description: epg.Normalize(in.Description),
-		Extended:    epg.NormalizeExtended(in.Extended),
+		Name:        domain.Normalize(in.Name),
+		Description: domain.Normalize(in.Description),
+		Extended:    domain.NormalizeExtended(in.Extended),
 		Genres:      in.Genres,
 		StartAt:     in.StartAt,
 		Duration:    in.Duration,
 		IsFree:      in.IsFree,
-		Marks:       epg.Marks(in.Name),
+		Marks:       domain.Marks(in.Name),
 		folded:      nil,
 	}
 }
@@ -171,7 +171,7 @@ func Compile(c *Conditions, location *time.Location) (*Matcher, error) {
 // 正規表現でないキーワードは、NFKC で正規化してから、文字どおりに探す。
 func compileKeyword(k *Keyword) (*compiledKeyword, error) {
 	if !k.Regexp {
-		literal := epg.Normalize(k.Text)
+		literal := domain.Normalize(k.Text)
 		// 大文字と小文字の区別がない文字 (かなや漢字、数字) だけのキーワードは、区別してもしなくても同じなので、番組の文字列を畳まずに探す。
 		fold := !k.CaseSensitive && hasCase(literal)
 		if fold {

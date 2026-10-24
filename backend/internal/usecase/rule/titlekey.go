@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
 // markPattern は、番組名に付く放送の種類の記号 ([新]、【再】、(字) など)。
@@ -29,7 +29,7 @@ func TitleKey(name string) string {
 
 		return r
 	}, name)
-	name = epg.Normalize(name)
+	name = domain.Normalize(name)
 	name = markPattern.ReplaceAllString(name, " ")
 
 	return strings.Join(strings.FieldsFunc(name, unicode.IsSpace), " ")

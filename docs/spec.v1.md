@@ -473,7 +473,7 @@ Kotatsuを通さずにチューナーを使う利用者（TVTestなど）もい�
 新しいルールの入力は、全体の設定の「ルールを作るときの既定値」（重複の回避とその期間、イベントリレーへの追従）から始めます。ルールは家族で共有するので、既定値も全体で1つにし、管理者が変えます。既定値を変えても、作ったルールは変わりません。番組の条件は既定値に含めません（#470）。
 ルールの条件は、Goの型で定義して検証し、スキーマのバージョンを付けてJSONBに保存します（[8.3](#83-ルールの条件を-jsonb-に保存する理由)）。
 
-囲み文字の表は次のとおりです。この表だけが、正規化で括弧にするもの（[3.5](#35-検索と照合)）、番組名から取り出して照合するもの、条件で選べるもの、画面で番組名から外して描くもの（[10.2](#102-見た目の方針)）を決めます。表はGoで持ち（`backend/internal/usecase/epg/enclosed.go`）、画面が使うTypeScriptの表は`mise run //backend:generate`でそこから作ります。条件に表にない囲み文字を指定すると、条件の検証で拒みます。出典は、Unicodeの符号表（Unicode 18.0のU+1F100、U+1F200、U+2600の各ブロック）が、その文字の出どころとして示すARIBの規格です。ARIBの規格書は有料で、公開されている見本には追加記号の表がないため、Unicodeの注記によります（#840）。
+囲み文字の表は次のとおりです。この表だけが、正規化で括弧にするもの（[3.5](#35-検索と照合)）、番組名から取り出して照合するもの、条件で選べるもの、画面で番組名から外して描くもの（[10.2](#102-見た目の方針)）を決めます。表はGoで持ち（`backend/internal/domain/enclosed.go`）、画面が使うTypeScriptの表は`mise run //backend:generate`でそこから作ります。条件に表にない囲み文字を指定すると、条件の検証で拒みます。出典は、Unicodeの符号表（Unicode 18.0のU+1F100、U+1F200、U+2600の各ブロック）が、その文字の出どころとして示すARIBの規格です。ARIBの規格書は有料で、公開されている見本には追加記号の表がないため、Unicodeの注記によります（#840）。
 
 | 囲み文字 | 出典 |
 | --- | --- |
@@ -1587,7 +1587,7 @@ Docker Composeの例は、停止の猶予（`stop_grace_period`）を、Helm Cha
 | `backend/cmd/kotatsu/` | エントリポイント |
 | `backend/internal/cli/` | ロールの組み立てとサブコマンド |
 | `backend/internal/usecase/` | ビジネスロジック（`reserve/`、`rule/`、`assign/`、`epg/`、`auth/`など）と、各ロールの中心の処理（`neko/`のリーダー選出、`kyusu/`のトランスコード、`recording/`のmikanの録画、`stream/`のtenbanの配信） |
-| `backend/internal/domain/` | DBに触れない型と規則（`match/`のルールの条件の照合など） |
+| `backend/internal/domain/` | DBに触れない型と規則（番組のジャンルや音声の型、EPGの正規化と囲み文字の表、`match/`のルールの条件の照合など） |
 | `backend/internal/infra/` | DBと外部への接続（`database/`、`mirakurun/`のチューナーサーバーのクライアント、`kago/`の保存先プール、`jobs/`、`notify/`など） |
 | `backend/internal/web/` | HTTPの口（`graph/`のGraphQLのスキーマとリゾルバ、`mcpserver/`、`epgstationapi/`、`httpserver/`、`spa/`、`webui/`のビルドしたSPAの埋め込み） |
 | `backend/internal/lib/` | ドメインに依らない小さな部品（`clock/`、`config/`、`ts/`、`password/`など） |

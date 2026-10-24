@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
@@ -93,12 +94,12 @@ func (r *Reconciler) SyncAll(ctx context.Context) (*Result, error) {
 	// それ以外のサービスの番組は、上流が返しても足さず、DB に残っているものも消さない。
 	known := map[int64]bool{}
 	for _, service := range upstreamServices {
-		if IsMediaService(int64(service.Type)) {
+		if domain.IsMediaService(int64(service.Type)) {
 			known[service.ID] = true
 		}
 	}
 	for _, service := range currentServices {
-		if IsMediaService(service.ServiceType) {
+		if domain.IsMediaService(service.ServiceType) {
 			known[service.ID] = true
 		}
 	}
@@ -143,7 +144,7 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 	// 映像か音声を流すサービスだけを突き合わせる。
 	media := map[int64]bool{}
 	for _, service := range services {
-		if IsMediaService(service.ServiceType) {
+		if domain.IsMediaService(service.ServiceType) {
 			media[service.ID] = true
 		}
 	}
@@ -304,7 +305,7 @@ func diffServices(upstream []*mirakurun.Service, current []sqlc.ListServicesRow)
 	diff := &serviceDiff{upserts: []*mirakurun.Service{}}
 	for _, service := range upstream {
 		// 映像も音声も流さないサービスは、取り込まない。
-		if service.Channel == nil || !IsMediaService(int64(service.Type)) {
+		if service.Channel == nil || !domain.IsMediaService(int64(service.Type)) {
 			continue
 		}
 		row, ok := byID[service.ID]
@@ -352,7 +353,7 @@ func writeServices(ctx context.Context, q *sqlc.Queries, services []*mirakurun.S
 			NetworkID:          row.NetworkID,
 			Sid:                row.Sid,
 			Name:               row.Name,
-			NameNormalized:     Normalize(row.Name),
+			NameNormalized:     domain.Normalize(row.Name),
 			ServiceType:        row.ServiceType,
 			ChannelType:        row.ChannelType,
 			Channel:            row.Channel,
@@ -380,9 +381,9 @@ type program struct {
 	Name         string
 	Description  string
 	Extended     map[string]string
-	Genres       []*mirakurun.Genre
-	RelatedItems []*mirakurun.RelatedItem
-	Audios       []*mirakurun.Audio
+	Genres       []*domain.Genre
+	RelatedItems []*domain.RelatedItem
+	Audios       []*domain.Audio
 	// VideoResolution は、映像の解像度 (2160p など)。上流が返さなければ空 (#806)。
 	VideoResolution string
 }
@@ -407,15 +408,15 @@ func fromUpstream(p *mirakurun.Program) *program {
 	}
 	genres := p.Genres
 	if genres == nil {
-		genres = []*mirakurun.Genre{}
+		genres = []*domain.Genre{}
 	}
 	related := p.RelatedItems
 	if related == nil {
-		related = []*mirakurun.RelatedItem{}
+		related = []*domain.RelatedItem{}
 	}
 	audios := p.Audios
 	if audios == nil {
-		audios = []*mirakurun.Audio{}
+		audios = []*domain.Audio{}
 	}
 	resolution := ""
 	if p.Video != nil {
@@ -453,9 +454,9 @@ func fromRow(row sqlc.ListProgramsRow) (*program, error) {
 		Name:            row.Name,
 		Description:     row.Description,
 		Extended:        map[string]string{},
-		Genres:          []*mirakurun.Genre{},
-		RelatedItems:    []*mirakurun.RelatedItem{},
-		Audios:          []*mirakurun.Audio{},
+		Genres:          []*domain.Genre{},
+		RelatedItems:    []*domain.RelatedItem{},
+		Audios:          []*domain.Audio{},
 		VideoResolution: "",
 	}
 	if row.VideoResolution != nil {
@@ -570,9 +571,9 @@ func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, no
 			IsFree:                p.IsFree,
 			Name:                  p.Name,
 			Description:           p.Description,
-			NameNormalized:        Normalize(p.Name),
-			DescriptionNormalized: Normalize(p.Description),
-			ExtendedNormalized:    new(NormalizeExtended(p.Extended)),
+			NameNormalized:        domain.Normalize(p.Name),
+			DescriptionNormalized: domain.Normalize(p.Description),
+			ExtendedNormalized:    new(domain.NormalizeExtended(p.Extended)),
 			Extended:              columns.extended,
 			Genres:                columns.genres,
 			RelatedItems:          columns.related,

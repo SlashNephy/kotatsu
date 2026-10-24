@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 )
 
@@ -165,7 +165,7 @@ func (h *Handler) hasThumbnail(owner uuid.UUID) bool {
 }
 
 func recordedOf(row *sqlc.ListAPIRecordingsRow, toHalfWidth, hasThumbnail bool) (*recordedItem, error) {
-	var genres []*mirakurun.Genre
+	var genres []*domain.Genre
 	if err := json.Unmarshal(row.Genres, &genres); err != nil {
 		return nil, fmt.Errorf("failed to decode the genres: %w", err)
 	}
@@ -197,7 +197,7 @@ func recordedOf(row *sqlc.ListAPIRecordingsRow, toHalfWidth, hasThumbnail bool) 
 	return item, nil
 }
 
-func genresOf(genres []*mirakurun.Genre) []genre {
+func genresOf(genres []*domain.Genre) []genre {
 	result := make([]genre, 0, len(genres))
 	for _, g := range genres {
 		result = append(result, genre{Lv1: g.Lv1, Lv2: g.Lv2, Un1: g.Un1, Un2: g.Un2})

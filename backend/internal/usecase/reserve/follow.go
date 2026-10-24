@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -219,7 +219,7 @@ func (f *Follower) update(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservat
 // 引き継ぎ先の予約は、元の予約の録画設定を引き継ぎ、元の予約と関連付ける。
 // ルール予約の録画設定はルールにあるので、一致したルールの上書きを引き継ぐ。
 func (f *Follower) relay(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservationsToRelayRow, now time.Time) (int, error) {
-	var related []*mirakurun.RelatedItem
+	var related []*domain.RelatedItem
 	if err := json.Unmarshal(row.ProgramRelatedItems, &related); err != nil {
 		return 0, fmt.Errorf("failed to decode the related items of reservation %s: %w", row.ID, err)
 	}
