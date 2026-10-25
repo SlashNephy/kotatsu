@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"crypto/hkdf"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base32"
@@ -26,6 +28,10 @@ import (
 const (
 	// TOTPPurpose は、TOTP の秘密キーを暗号化する鍵を、アプリの秘密キーから導出するときの用途。
 	TOTPPurpose = "kotatsu/totp/v1"
+	// recoveryCodePurpose は、リカバリーコードのハッシュの鍵を、アプリの秘密キーから導出するときの用途 (#1011)。
+	recoveryCodePurpose = "kotatsu/recovery-code/v1"
+	// recoveryCodeKeyLength は、リカバリーコードのハッシュの鍵の長さ。
+	recoveryCodeKeyLength = 32
 	// totpIssuer は、認証アプリに出す発行者の名前。
 	totpIssuer = "Kotatsu"
 	// enrollmentTTL は、TOTP の登録を始めてから、コードで確かめるまでに許す時間 (付録 A)。
@@ -69,6 +75,8 @@ type SecondFactors struct {
 	recorder audit.Recorder
 	// box は、TOTP の秘密キーを暗号化する。アプリの秘密キーから導出した鍵を使う (設計書 8.4)。
 	box *secretbox.Box
+	// recoveryCodeKey は、リカバリーコードのハッシュ (HMAC-SHA256) の鍵。アプリの秘密キーから導出する (設計書 8.4)。
+	recoveryCodeKey []byte
 }
 
 // NewSecondFactors は、アプリの秘密キー appSecret で TOTP の秘密キーを暗号化する SecondFactors を返す。
@@ -77,8 +85,12 @@ func NewSecondFactors(clk clock.Clock, recorder audit.Recorder, appSecret string
 	if err != nil {
 		return nil, err
 	}
+	recoveryCodeKey, err := hkdf.Key(sha256.New, []byte(appSecret), nil, recoveryCodePurpose, recoveryCodeKeyLength)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive the recovery code key: %w", err)
+	}
 
-	return &SecondFactors{clock: clk, recorder: recorder, box: box}, nil
+	return &SecondFactors{clock: clk, recorder: recorder, box: box, recoveryCodeKey: recoveryCodeKey}, nil
 }
 
 // Methods は、ユーザーが使える第二要素の種類を返す。登録していなければ空を返す。
@@ -191,18 +203,22 @@ func (s *SecondFactors) VerifyTOTP(ctx context.Context, tx pgx.Tx, userID uuid.U
 }
 
 // UseRecoveryCode は、リカバリーコードを確かめ、使用済みにする。どのコードも 1 回だけ使える。
+// #1011 より前に作ったコードは、鍵のない SHA-256 で保存しているので、新しいハッシュで見つからなければ、古いハッシュでも探す。
+// 古いコードは、作り直すまで使える。
 func (s *SecondFactors) UseRecoveryCode(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, code string) error {
-	n, err := sqlc.New(db).UseRecoveryCode(ctx, sqlc.UseRecoveryCodeParams{
-		UserID: userID, CodeHash: hashRecoveryCode(code), Now: new(s.clock.Now()),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to use the recovery code: %w", err)
-	}
-	if n == 0 {
-		return ErrInvalidSecondFactor
+	q := sqlc.New(db)
+	now := s.clock.Now()
+	for _, hash := range [][]byte{s.hashRecoveryCode(userID, code), legacyHashRecoveryCode(code)} {
+		n, err := q.UseRecoveryCode(ctx, sqlc.UseRecoveryCodeParams{UserID: userID, CodeHash: hash, Now: &now})
+		if err != nil {
+			return fmt.Errorf("failed to use the recovery code: %w", err)
+		}
+		if n > 0 {
+			return nil
+		}
 	}
 
-	return nil
+	return ErrInvalidSecondFactor
 }
 
 // DeleteTOTP は、TOTP を消す。リカバリーコードは TOTP の予備なので、あわせて消す。
@@ -237,7 +253,7 @@ func (s *SecondFactors) replaceRecoveryCodes(ctx context.Context, q *sqlc.Querie
 		if err != nil {
 			return nil, err
 		}
-		err = q.InsertRecoveryCode(ctx, sqlc.InsertRecoveryCodeParams{ID: id.New(), UserID: userID, CodeHash: hashRecoveryCode(code), Now: now})
+		err = q.InsertRecoveryCode(ctx, sqlc.InsertRecoveryCodeParams{ID: id.New(), UserID: userID, CodeHash: s.hashRecoveryCode(userID, code), Now: now})
 		if err != nil {
 			return nil, fmt.Errorf("failed to save a recovery code: %w", err)
 		}
@@ -276,12 +292,27 @@ func newRecoveryCode() (string, error) {
 	return code[:recoveryCodeChars/2] + "-" + code[recoveryCodeChars/2:], nil
 }
 
-// hashRecoveryCode は、リカバリーコードのハッシュを返す。区切りの記号と大文字と小文字は区別しない。
-func hashRecoveryCode(code string) []byte {
-	normalized := strings.ToLower(strings.NewReplacer("-", "", " ", "").Replace(code))
-	sum := sha256.Sum256([]byte(normalized))
+// hashRecoveryCode は、ユーザー userID のリカバリーコードのハッシュを返す。区切りの記号と大文字と小文字は区別しない。
+// コードは 50 ビットしかないので、DB が漏れても総当たりで戻せないよう、DB の外にあるアプリの秘密キーから導出した鍵で
+// HMAC-SHA256 をかける (#1011)。ユーザーの ID も入れ、同じコードでもユーザーごとに別のハッシュにする。
+func (s *SecondFactors) hashRecoveryCode(userID uuid.UUID, code string) []byte {
+	mac := hmac.New(sha256.New, s.recoveryCodeKey)
+	mac.Write(userID[:])
+	mac.Write([]byte(normalizeRecoveryCode(code)))
+
+	return mac.Sum(nil)
+}
+
+// legacyHashRecoveryCode は、#1011 より前のリカバリーコードのハッシュ (鍵のない SHA-256) を返す。照合にだけ使う。
+func legacyHashRecoveryCode(code string) []byte {
+	sum := sha256.Sum256([]byte(normalizeRecoveryCode(code)))
 
 	return sum[:]
+}
+
+// normalizeRecoveryCode は、区切りの記号と空白を除き、小文字にする。
+func normalizeRecoveryCode(code string) string {
+	return strings.ToLower(strings.NewReplacer("-", "", " ", "").Replace(code))
 }
 
 // confirmTOTP は、ConfirmTOTP を tx の中で行う。

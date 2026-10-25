@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"crypto/sha256"
 	"encoding/base32"
 	"strings"
 	"testing"
@@ -173,6 +174,52 @@ func TestRecoveryCodesAreSingleUse(t *testing.T) {
 	}))
 	require.ErrorIs(t, f.factors.UseRecoveryCode(t.Context(), f.db, f.user.ID, codes[1]), auth.ErrInvalidSecondFactor)
 	require.NoError(t, f.factors.UseRecoveryCode(t.Context(), f.db, f.user.ID, regenerated[1]))
+}
+
+// TestRecoveryCodesResistDatabaseLeak は、リカバリーコードを、DB だけでは総当たりで戻せない形で保存することを確かめる (#1011)。
+// 50 ビットのコードは、鍵のないハッシュなら総当たりで戻せる。DB の外のアプリの秘密キーがなければ、照合できない。
+func TestRecoveryCodesResistDatabaseLeak(t *testing.T) {
+	t.Parallel()
+
+	f := newSecondFactorFixture(t)
+	_, codes := f.enroll(t)
+
+	rows, err := f.db.Query(t.Context(), "SELECT code_hash FROM user_recovery_codes WHERE user_id = $1", f.user.ID)
+	require.NoError(t, err)
+	stored, err := pgx.CollectRows(rows, pgx.RowTo[[]byte])
+	require.NoError(t, err)
+	require.Len(t, stored, len(codes))
+	for _, code := range codes {
+		sum := sha256.Sum256([]byte(strings.ReplaceAll(code, "-", "")))
+		assert.NotContains(t, stored, sum[:], "the stored hash must not be a plain SHA-256 of the code")
+	}
+
+	// アプリの秘密キーが違えば、同じコードでも照合できない。
+	otherKey, err := auth.NewSecondFactors(f.clock, audit.NewRecorder(f.clock), appKeyMaterial+"-other")
+	require.NoError(t, err)
+	require.ErrorIs(t, otherKey.UseRecoveryCode(t.Context(), f.db, f.user.ID, codes[0]), auth.ErrInvalidSecondFactor)
+	require.NoError(t, f.factors.UseRecoveryCode(t.Context(), f.db, f.user.ID, codes[0]))
+}
+
+// TestLegacyRecoveryCodes は、#1011 より前に作ったリカバリーコード (鍵のない SHA-256) も、作り直すまで 1 回だけ使えることを確かめる。
+func TestLegacyRecoveryCodes(t *testing.T) {
+	t.Parallel()
+
+	f := newSecondFactorFixture(t)
+	f.enroll(t)
+	const legacy = "abcde-fghij"
+	sum := sha256.Sum256([]byte("abcdefghij"))
+	_, err := f.db.Exec(t.Context(), "INSERT INTO user_recovery_codes (id, user_id, code_hash, created_at) VALUES (gen_random_uuid(), $1, $2, now())", f.user.ID, sum[:])
+	require.NoError(t, err)
+
+	require.NoError(t, f.factors.UseRecoveryCode(t.Context(), f.db, f.user.ID, strings.ToUpper(legacy)))
+	require.ErrorIs(t, f.factors.UseRecoveryCode(t.Context(), f.db, f.user.ID, legacy), auth.ErrInvalidSecondFactor)
+	// ほかのユーザーとしては使えない。
+	other, err := auth.NewUsers(f.clock).Create(t.Context(), f.db, &auth.NewUser{Username: nekoName, DisplayName: nekoName, Role: auth.RoleMember, PasswordHash: nil})
+	require.NoError(t, err)
+	_, err = f.db.Exec(t.Context(), "UPDATE user_recovery_codes SET used_at = NULL WHERE user_id = $1", f.user.ID)
+	require.NoError(t, err)
+	require.ErrorIs(t, f.factors.UseRecoveryCode(t.Context(), f.db, other.ID, legacy), auth.ErrInvalidSecondFactor)
 }
 
 // TestDeleteTOTP は、TOTP を消すと、予備のリカバリーコードも消え、第二要素がなくなることを確かめる。
