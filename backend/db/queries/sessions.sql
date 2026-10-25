@@ -27,6 +27,10 @@ UPDATE sessions SET revoked_at = @now::timestamptz WHERE id = @id AND user_id = 
 -- 再認証した日時を記録する (設計書 9.5)。失効したセッションは更新しない。
 UPDATE sessions SET authenticated_at = @now WHERE id = @id AND user_id = @user_id AND revoked_at IS NULL;
 
+-- name: SetSessionAuthenticatedAt :exec
+-- 作ったばかりのセッションの認証の日時を、IdP で認証した日時にする (#1013)。
+UPDATE sessions SET authenticated_at = @authenticated_at WHERE id = @id;
+
 -- name: RevokeUserSessions :execrows
 -- ユーザーのセッションをまとめて失効させる。keep_id のセッション (パスワードを変えた本人の今のセッション) は残す。
 UPDATE sessions SET revoked_at = @now::timestamptz

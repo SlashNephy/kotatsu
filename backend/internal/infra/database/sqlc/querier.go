@@ -526,6 +526,8 @@ type Querier interface {
 	SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error)
 	SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error
 	SetRuleEnabled(ctx context.Context, arg SetRuleEnabledParams) (int64, error)
+	// 作ったばかりのセッションの認証の日時を、IdP で認証した日時にする (#1013)。
+	SetSessionAuthenticatedAt(ctx context.Context, arg SetSessionAuthenticatedAtParams) error
 	SetTOTPLastUsedStep(ctx context.Context, arg SetTOTPLastUsedStepParams) error
 	SetUserPassword(ctx context.Context, arg SetUserPasswordParams) (int64, error)
 	SetupTokenExists(ctx context.Context, tokenHash []byte) (bool, error)
