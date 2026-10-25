@@ -86,6 +86,20 @@ func TestParseSourceURL(t *testing.T) {
 	}
 }
 
+// TestParseSourceURLHidesMalformedURL は、URL を読めないとき、エラーにパスワードを含む URL を残さないことを確かめる (#1012)。
+// エラーは、CLI の終わりにログへ書かれる。
+func TestParseSourceURLHidesMalformedURL(t *testing.T) {
+	t.Parallel()
+
+	// パスワードに、エスケープしない「/」がある。url.Parse は、その前をポートとして読もうとして失敗する。
+	const leaked = "Ab3/xY+9"
+	_, _, err := epgstation.ParseSourceURL("mysql://epgstation:" + leaked + "@mariadb:3306/epgstation")
+
+	require.ErrorIs(t, err, epgstation.ErrUnsupportedSource)
+	assert.NotContains(t, err.Error(), "Ab3")
+	assert.NotContains(t, err.Error(), "xY+9")
+}
+
 func TestOpenFailsWithoutSQLiteFile(t *testing.T) {
 	t.Parallel()
 

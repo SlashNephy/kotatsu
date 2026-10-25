@@ -128,7 +128,8 @@ func sourceWithPassword(source string, lookupEnv config.LookupEnv) (string, erro
 	}
 	u, err := url.Parse(source)
 	if err != nil {
-		return "", fmt.Errorf("%w: failed to parse the source URL: %w", errSourcePassword, err)
+		// url.Parse のエラーは、URL の全文や、読めなかったポートのような一部を含む。URL はパスワードを含みうるので、理由を伏せる。
+		return "", fmt.Errorf("%w: the source URL is malformed", errSourcePassword)
 	}
 	if u.Scheme == "sqlite" {
 		return "", fmt.Errorf("%w: %s is not used for sqlite", errSourcePassword, sourceAuthEnv)
