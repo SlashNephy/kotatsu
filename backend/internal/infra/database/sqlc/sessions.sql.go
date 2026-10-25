@@ -221,6 +221,21 @@ func (q *Queries) RevokeUserSessions(ctx context.Context, arg RevokeUserSessions
 	return result.RowsAffected(), nil
 }
 
+const setSessionAuthenticatedAt = `-- name: SetSessionAuthenticatedAt :exec
+UPDATE sessions SET authenticated_at = $1 WHERE id = $2
+`
+
+type SetSessionAuthenticatedAtParams struct {
+	AuthenticatedAt time.Time
+	ID              uuid.UUID
+}
+
+// 作ったばかりのセッションの認証の日時を、IdP で認証した日時にする (#1013)。
+func (q *Queries) SetSessionAuthenticatedAt(ctx context.Context, arg SetSessionAuthenticatedAtParams) error {
+	_, err := q.db.Exec(ctx, setSessionAuthenticatedAt, arg.AuthenticatedAt, arg.ID)
+	return err
+}
+
 const touchSession = `-- name: TouchSession :exec
 UPDATE sessions SET last_seen_at = $1 WHERE id = $2 AND last_seen_at < $3
 `

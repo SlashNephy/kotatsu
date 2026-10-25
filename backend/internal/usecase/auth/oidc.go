@@ -410,6 +410,23 @@ func (o *OIDC) complete(
 	return outcome, err
 }
 
+// oidcAuthenticatedAt は、OIDC でログインしたセッションの認証の日時を、ID トークンのクレーム claims から決める (#1013)。
+// IdP は、自分のセッション (SSO) が残っていれば、資格情報を入れさせずにログインさせる。ログインした日時 now を認証の日時にすると、
+// ログインし直すだけで重要な操作の前の再認証を済ませたことになるので、IdP で認証した日時 (auth_time) にする。
+// IdP と時計がずれて auth_time が now より後なら、now にする。auth_time がなければ、いつ認証したか分からないので、
+// 直近に認証したものとして扱わない (ゼロの日時にする)。重要な操作の前には、再認証を求める。
+func oidcAuthenticatedAt(claims map[string]any, now time.Time) time.Time {
+	authTime, ok := authTimeOf(claims)
+	if !ok {
+		return time.Time{}
+	}
+	if authTime.After(now) {
+		return now
+	}
+
+	return authTime
+}
+
 // login は、確かめた ID トークンのユーザーで、セッションを作る。
 func (o *OIDC) login(ctx context.Context, db Database, claims *oidcClaims, client *ClientInfo) (*LoginResult, error) {
 	var (
@@ -428,8 +445,17 @@ func (o *OIDC) login(ctx context.Context, db Database, claims *oidcClaims, clien
 			return err
 		}
 		result, err = startSession(ctx, tx, o.sessions, o.recorder, *userID, methodOIDC, client)
+		if err != nil {
+			return err
+		}
+		err = sqlc.New(tx).SetSessionAuthenticatedAt(ctx, sqlc.SetSessionAuthenticatedAtParams{
+			ID: result.Session.ID, AuthenticatedAt: oidcAuthenticatedAt(claims.all, result.Session.CreatedAt),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to record when the user authenticated: %w", err)
+		}
 
-		return err
+		return nil
 	})
 	if err != nil {
 		return nil, err
