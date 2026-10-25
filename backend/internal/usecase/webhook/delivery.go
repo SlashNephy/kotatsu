@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -207,6 +208,35 @@ type jsonBody struct {
 	Payload    json.RawMessage `json:"payload"`
 }
 
+// discordBody は、Discord の形式の本文。
+type discordBody struct {
+	Content         string                 `json:"content"`
+	AllowedMentions discordAllowedMentions `json:"allowed_mentions"`
+}
+
+// discordAllowedMentions は、本文の中のメンションのうち、通知を飛ばすもの。空なら、どのメンションでも通知しない。
+type discordAllowedMentions struct {
+	Parse []string `json:"parse"`
+}
+
+// escapeDiscord は、名前 text を、Discord の記法として効かない文字列にする。
+// 強調、コード、偽装リンク、`<@id>` のようなメンションを始める記号を、バックスラッシュで打ち消す。
+// Discord は、バックスラッシュに続く記号を、そのまま文字として表示する。番組名によく出る括弧などは、記法を始めないので打ち消さない。
+// 行の頭にだけ効く記法 (見出し、引用、箇条書き) が効かないよう、改行は空白にする。
+func escapeDiscord(text string) string {
+	return strings.NewReplacer(
+		`\`, `\\`, "*", `\*`, "_", `\_`, "~", `\~`, "`", "\\`", "|", `\|`,
+		"[", `\[`, "]", `\]`, "<", `\<`,
+		"\r\n", " ", "\n", " ", "\r", " ",
+	).Replace(text)
+}
+
+// escapeSlack は、名前 text を、Slack の記法として効かない文字列にする。
+// Slack が記法 (リンク、メンション) の区切りに使う 3 つの記号を、実体参照にする。Slack は、この 3 つだけをエスケープするよう求めている。
+func escapeSlack(text string) string {
+	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(text)
+}
+
 // Body は、イベントを、形式 format の本文にする。Discord と Slack には、location の日時で書いた文を送る。
 func Body(format Format, event *sqlc.NotificationEvent, location *time.Location) ([]byte, error) {
 	var value any
@@ -218,11 +248,12 @@ func Body(format Format, event *sqlc.NotificationEvent, location *time.Location)
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
 			return nil, fmt.Errorf("failed to decode the notification payload: %w", err)
 		}
-		text := notification.Message(domain.NotificationKind(event.Kind), payload, location)
 		if format == FormatDiscord {
-			value = map[string]string{"content": text}
+			text := notification.MessageEscaped(domain.NotificationKind(event.Kind), payload, location, escapeDiscord)
+			// 名前に書かれたメンションで、チャンネルの人に通知が飛ばないようにする。
+			value = discordBody{Content: text, AllowedMentions: discordAllowedMentions{Parse: []string{}}}
 		} else {
-			value = map[string]string{"text": text}
+			value = map[string]string{"text": notification.MessageEscaped(domain.NotificationKind(event.Kind), payload, location, escapeSlack)}
 		}
 	default:
 		return nil, fmt.Errorf("%w: unknown format %q", ErrInvalidWebhook, format)

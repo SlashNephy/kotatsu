@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -22,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
@@ -160,7 +162,7 @@ func TestDeliverWorkerSendsSignedBody(t *testing.T) {
 				"startAt": "2026-10-10T12:30:00Z", "endAt": "2026-10-10T13:00:00Z"}}`
 		}},
 		{name: "Discord", format: webhook.FormatDiscord, want: func(uuid.UUID) string {
-			return `{"content": "チューナーが足りず、録画できない見込みの予約があります。10/10（土）21:30 NHK総合「こたつ特集」"}`
+			return `{"content": "チューナーが足りず、録画できない見込みの予約があります。10/10（土）21:30 NHK総合「こたつ特集」", "allowed_mentions": {"parse": []}}`
 		}},
 		{name: "Slack", format: webhook.FormatSlack, want: func(uuid.UUID) string {
 			return `{"text": "チューナーが足りず、録画できない見込みの予約があります。10/10（土）21:30 NHK総合「こたつ特集」"}`
@@ -184,6 +186,52 @@ func TestDeliverWorkerSendsSignedBody(t *testing.T) {
 			assert.Equal(t, "reservation_conflict", request.header.Get("X-Kotatsu-Event-Kind"))
 			// 署名の時刻は、送った時刻にする。受信側は、古すぎる時刻の署名を拒める。
 			assert.Equal(t, f.clock.Now(), verify(t, secret, request))
+		})
+	}
+}
+
+// TestBodyEscapesNames は、Discord と Slack の本文で、名前に書いた記法が効かないことを確かめる (#1010)。
+func TestBodyEscapesNames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		format  webhook.Format
+		program string
+		want    string
+	}{
+		{
+			name: "Discord のメンションと偽装リンク", format: webhook.FormatDiscord,
+			program: "@everyone <@&123> [確認](https://example.com/login)",
+			want:    `{"content": "「@everyone \\<@&123> \\[確認\\](https://example.com/login)」の録画を始めました", "allowed_mentions": {"parse": []}}`,
+		},
+		{
+			name: "Discord の強調とコードと改行", format: webhook.FormatDiscord,
+			program: "**太字** `code` ||spoiler||\n# 見出し",
+			want:    `{"content": "「\\*\\*太字\\*\\* \\` + "`" + `code\\` + "`" + ` \\|\\|spoiler\\|\\| # 見出し」の録画を始めました", "allowed_mentions": {"parse": []}}`,
+		},
+		{
+			name: "Discord で記法を始めない括弧は打ち消さない", format: webhook.FormatDiscord,
+			program: "こたつ特集(再)",
+			want:    `{"content": "「こたつ特集(再)」の録画を始めました", "allowed_mentions": {"parse": []}}`,
+		},
+		{
+			name: "Slack のメンションとリンク", format: webhook.FormatSlack,
+			program: "<!channel> <https://example.com/login|確認> & more",
+			want:    `{"text": "「&lt;!channel&gt; &lt;https://example.com/login|確認&gt; &amp; more」の録画を始めました"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload, err := json.Marshal(map[string]any{"name": tt.program})
+			require.NoError(t, err)
+			event := &sqlc.NotificationEvent{ID: uuid.New(), Kind: string(domain.NotificationKindRecordingStarted), Payload: payload}
+
+			body, err := webhook.Body(tt.format, event, time.UTC)
+			require.NoError(t, err)
+			assert.JSONEq(t, tt.want, string(body))
 		})
 	}
 }
