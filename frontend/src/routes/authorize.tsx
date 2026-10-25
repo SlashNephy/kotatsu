@@ -6,6 +6,7 @@ import { graphql, useRelayEnvironment } from 'react-relay';
 
 import { authApi, type OIDCStatus } from '../auth/api';
 import { AuthCard } from '../auth/AuthCard';
+import { AuthorizeInvalidRequest } from '../auth/AuthorizeInvalidRequest';
 import { rememberReturnTo } from '../auth/returnTo';
 import { ErrorBoundary, PageLoader } from '../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../relay/environment';
@@ -150,21 +151,8 @@ function Consent({ query }: { query: string }) {
       leave(response.denyOAuthAuthorization);
     }, fail);
 
-  // パラメーターが正しくなければ、エラーを付けてクライアントへ戻す。
-  useEffect(() => {
-    if (errorRedirectUrl != null) {
-      window.location.assign(errorRedirectUrl);
-    }
-  }, [errorRedirectUrl]);
   if (authorization == null) {
-    // クライアントへ戻すまでは読み込み中にする。戻す先もなければ、エラーを出す。
-    return errorRedirectUrl != null ? (
-      <PageLoader />
-    ) : (
-      <Alert color="red" role="alert">
-        {t('oauth.invalidRequest')}
-      </Alert>
-    );
+    return <AuthorizeInvalidRequest errorRedirectUrl={errorRedirectUrl ?? null} />;
   }
 
   return (
