@@ -23,6 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/redact"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 )
 
@@ -158,9 +159,10 @@ func (w *DeliverWorker) Work(ctx context.Context, job *river.Job[DeliverArgs]) e
 }
 
 func (w *DeliverWorker) send(ctx context.Context, url, secret string, event *sqlc.NotificationEvent, body []byte) error {
+	// Discord と Slack の URL は、パスに秘密のトークンを含む。エラーはログと River のジョブの記録に残るので、URL はホストまでにする。
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("failed to build the webhook request: %w", err)
+		return fmt.Errorf("failed to build the webhook request: %w", redact.URLError(err))
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", userAgent)
@@ -170,7 +172,7 @@ func (w *DeliverWorker) send(ctx context.Context, url, secret string, event *sql
 
 	resp, err := w.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to send the webhook: %w", err)
+		return fmt.Errorf("failed to send the webhook: %w", redact.URLError(err))
 	}
 	defer resp.Body.Close()
 	// 接続を使い回せるよう、応答の本文は上限まで読み捨てる。
