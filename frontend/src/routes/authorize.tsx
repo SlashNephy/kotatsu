@@ -6,6 +6,7 @@ import { graphql, useRelayEnvironment } from 'react-relay';
 
 import { authApi, type OIDCStatus } from '../auth/api';
 import { AuthCard } from '../auth/AuthCard';
+import { AuthorizeInvalidRequest } from '../auth/AuthorizeInvalidRequest';
 import { rememberReturnTo } from '../auth/returnTo';
 import { ErrorBoundary, PageLoader } from '../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../relay/environment';
@@ -151,28 +152,7 @@ function Consent({ query }: { query: string }) {
     }, fail);
 
   if (authorization == null) {
-    // パラメーターが正しくなければ、エラーを付けてクライアントへ戻す。戻す先は、クライアントが自分の文書に書いたものなので、
-    // 誰でも好きなサイトを書ける。押さずに移ると、Kotatsu のリンクから任意のサイトへ飛ばせてしまう (#1014、RFC 9700 4.11.2)。
-    // 戻す先のホストを見せ、押してから戻す。
-    return (
-      <Stack>
-        <Alert color="red" role="alert">
-          {t('oauth.invalidRequest')}
-        </Alert>
-        {errorRedirectUrl != null && (
-          <>
-            <Text size="sm">
-              {t('oauth.errorRedirect', { host: clientHost(errorRedirectUrl) })}
-            </Text>
-            <Group justify="flex-end">
-              <Button variant="default" onClick={() => leave(errorRedirectUrl)} disabled={leaving}>
-                {t('oauth.back')}
-              </Button>
-            </Group>
-          </>
-        )}
-      </Stack>
-    );
+    return <AuthorizeInvalidRequest errorRedirectUrl={errorRedirectUrl ?? null} />;
   }
 
   return (
