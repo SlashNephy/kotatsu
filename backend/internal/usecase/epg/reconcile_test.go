@@ -494,7 +494,7 @@ func TestSyncReflectsOnAirPrograms(t *testing.T) {
 	}
 }
 
-// dataServiceUpstream は、faketuner のサービスに、data のサービスを足した上流。
+// dataServiceUpstream は、faketuner のサービスに、data のサービスを 1 つ足した上流。
 type dataServiceUpstream struct {
 	*mirakurun.Client
 
@@ -728,21 +728,38 @@ func TestSyncInfersSharedEventsWithoutDescriptor(t *testing.T) {
 }
 
 // TestSyncDoesNotInferSharedEventsAcrossChannels は、別のチャンネルの番組は、開始、長さ、番組名が同じでも、
-// イベント共有とみなさないことを確かめる (#1024)。
+// イベント共有とみなさないことを確かめる (#1024)。同じネットワークの別のチャンネル (中継局など) も、同じ TS ではないのでまとめない。
 func TestSyncDoesNotInferSharedEventsAcrossChannels(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
+	services, err := f.client.Services(t.Context())
+	require.NoError(t, err)
+	main := services[slices.IndexFunc(services, func(s *mirakurun.Service) bool { return s.ID == serviceID() })]
+	relayServiceID := grServiceID + 2
+	relay := &mirakurun.Service{
+		ID: faketuner.ServiceItemID(grNetworkID, relayServiceID), ServiceID: relayServiceID, NetworkID: grNetworkID,
+		Name: "中継局", Type: main.Type, LogoID: nil, RemoteControlKeyID: nil,
+		Channel: &mirakurun.ChannelRef{Type: main.Channel.Type, Channel: "28"},
+	}
 	start := programStart(6).Add(10 * time.Minute)
-	for _, p := range []struct{ networkID, serviceID, eventID int }{{grNetworkID, grServiceID, 2410}, {grNetworkID + 1, 0x0408, 2538}} {
+	for _, p := range []struct{ networkID, serviceID, eventID int }{
+		{grNetworkID, grServiceID, 2410},
+		// 別のネットワークの別のチャンネル。
+		{grNetworkID + 1, 0x0408, 2538},
+		// 同じネットワークの別のチャンネル。
+		{grNetworkID, relayServiceID, 2539},
+	} {
 		f.fake.AddProgram(&faketuner.Program{
 			ID: faketuner.ProgramID(p.networkID, p.serviceID, p.eventID), EventID: p.eventID, ServiceID: p.serviceID, NetworkID: p.networkID,
 			StartAt: start.UnixMilli(), Duration: (3 * time.Minute).Milliseconds(), IsFree: true, Name: "同じ番組名",
 		})
 	}
-	_, err := f.reconciler.SyncAll(t.Context())
+	reconciler := epg.NewReconciler(f.pool, &dataServiceUpstream{Client: f.client, data: relay}, clocktest.NewFake(testNow()),
+		func(context.Context, pgx.Tx) error { return nil })
+	_, err = reconciler.SyncAll(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, 2, f.count(t, "SELECT count(*) FROM programs WHERE name = '同じ番組名' AND related_items = '[]'::jsonb"))
+	assert.Equal(t, 3, f.count(t, "SELECT count(*) FROM programs WHERE name = '同じ番組名' AND related_items = '[]'::jsonb"))
 }
 
 func syncAll(t *testing.T, r *epg.Reconciler) {
@@ -778,4 +795,11 @@ func TestSyncDoesNotInferSharedEventsOnSatellite(t *testing.T) {
 	_, err = reconciler.SyncAll(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, 2, f.count(t, "SELECT count(*) FROM programs WHERE name = 'インフォメーション' AND related_items = '[]'::jsonb"))
+
+	// BS と CS では、イベントで突き合わせるときも、同じ TS のほかのサービスまでは突き合わせない。
+	otherProgram := faketuner.ProgramID(bsNetworkID, other.ServiceID, 2538)
+	require.NoError(t, f.fake.ExtendProgram(otherProgram, 15*time.Minute))
+	_, err = reconciler.SyncServices(t.Context(), []int64{bs.ID})
+	require.NoError(t, err)
+	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM programs WHERE mirakurun_id = $1 AND end_at = $2", otherProgram, start.Add(30*time.Minute)))
 }

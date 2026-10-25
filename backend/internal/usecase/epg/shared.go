@@ -49,10 +49,11 @@ func (s streams) addRows(rows []sqlc.ListServicesRow) {
 }
 
 // siblings は、serviceIDs のサービスと同じ stream のサービスを、serviceIDs に足して返す。
+// イベント共有を補うのは地上波だけなので、BS と CS のサービスには足さない。1 つの TS に多くのサービスが入り、突き合わせが増えるだけになる。
 func (s streams) siblings(serviceIDs []int64) []int64 {
 	wanted := map[stream]bool{}
 	for _, id := range serviceIDs {
-		if st, ok := s[id]; ok {
+		if st, ok := s[id]; ok && domain.IsTerrestrialNetwork(st.networkID) {
 			wanted[st] = true
 		}
 	}
@@ -79,6 +80,7 @@ type sameEvent struct {
 // 同じ stream で、開始、長さ、番組名が同じで、どちらも shared の関連を持たない番組を、同じ番組とみなす。
 // BS と CS は、1 つの TS に別の放送局のサービスが入り、「インフォメーション」のような番組名が重なるので、対象にしない。
 // 関連を足す番組は複製して返し、programs の要素は書き換えない。
+// 放送中と次の番組 (EIT[p/f]) の延長が片方のサービスにだけ先に届くと、その間は同じ番組とみなさず、届いたら戻る。
 func inferSharedEvents(programs []*mirakurun.Program, streams streams) []*mirakurun.Program {
 	groups := map[sameEvent][]int{}
 	for i, p := range programs {
