@@ -8,7 +8,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/halfwidth"
 )
 
-// Message は、イベントを、人が読む 1 行の文にする。Discord や Slack の Webhook のように、文で届ける通知先に使う。
+// Message は、イベントを、人が読む 1 行の文にする。画面内の通知一覧や Web Push のように、文で届ける通知先に使う。
+// 記法のある通知先 (Discord、Slack の Webhook) には、名前を打ち消す MessageEscaped を使う。
 // 日時は、表示のタイムゾーン location で書く。nil なら UTC で書く。payload に材料がなければ、種類だけの文にする。
 // 番組名とサービス名は、画面の表示と同じく、全角の英数字を半角にして書く。
 func Message(kind domain.NotificationKind, payload map[string]any, location *time.Location) string {
@@ -21,8 +22,14 @@ func MessageEscaped(kind domain.NotificationKind, payload map[string]any, locati
 	if location == nil {
 		location = time.UTC
 	}
-	// field は、payload の名前を、escape で書き換えて返す。
-	field := func(key string) string { return escape(payloadText(payload, key)) }
+	// field は、payload の名前を、escape で書き換えて返す。名前がなければ空にする。
+	field := func(key string) string {
+		if text := payloadText(payload, key); text != "" {
+			return escape(text)
+		}
+
+		return ""
+	}
 	name := field("name")
 	// withName は、番組名があれば「番組名」の録画を…の形にし、なければ録画を…の形にする。
 	withName := func(text string) string {
@@ -54,7 +61,7 @@ func MessageEscaped(kind domain.NotificationKind, payload map[string]any, locati
 		return withName("録画に失敗しました")
 	case domain.NotificationKindReservationConflict:
 		text := "チューナーが足りず、録画できない見込みの予約があります"
-		if detail := conflictDetail(field("serviceName"), name, payload, location); detail != "" {
+		if detail := conflictDetail(name, field("serviceName"), payload, location); detail != "" {
 			return fmt.Sprintf("%s。%s", text, detail)
 		}
 
@@ -77,8 +84,8 @@ func payloadText(payload map[string]any, key string) string {
 	return halfwidth.Convert(value)
 }
 
-// conflictDetail は、サービス名 service と番組名 name で、競合した予約を「1/2（金）21:00 NHK総合「番組名」」の形にする。
-func conflictDetail(service, name string, payload map[string]any, location *time.Location) string {
+// conflictDetail は、番組名 name とサービス名 service で、競合した予約を「1/2（金）21:00 NHK総合「番組名」」の形にする。
+func conflictDetail(name, service string, payload map[string]any, location *time.Location) string {
 	detail := ""
 	if raw, ok := payload["startAt"].(string); ok {
 		if startAt, err := time.Parse(time.RFC3339Nano, raw); err == nil {
