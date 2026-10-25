@@ -20,3 +20,15 @@ const MaxGuideRange = 8*24*time.Hour + time.Hour
 func IsMediaService(serviceType int64) bool {
 	return slices.Contains(MediaServiceTypes(), serviceType)
 }
+
+// 地上波のネットワーク ID の範囲 (ARIB TR-B14)。
+const (
+	terrestrialMinNetworkID = 0x7880
+	terrestrialMaxNetworkID = 0x7fef
+)
+
+// IsTerrestrialNetwork は、ネットワーク ID が地上波のものかどうかを返す。
+// 地上波では、1 つの TS を 1 つの放送局が使う。BS と CS では、1 つの TS に別の放送局のサービスが入る。
+func IsTerrestrialNetwork(networkID int64) bool {
+	return networkID >= terrestrialMinNetworkID && networkID <= terrestrialMaxNetworkID
+}

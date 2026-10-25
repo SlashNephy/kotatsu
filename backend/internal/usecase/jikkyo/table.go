@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
 //go:embed konomitv/jikkyo_channels.json
@@ -16,9 +18,6 @@ const (
 	// terrestrialNetworkID は、KonomiTV の対応表で、地上波のサービスに書かれているネットワーク ID。
 	// 地上波のネットワーク ID は地域ごとに違うので、対応表では 15 にそろえ、サービス ID だけで引く。
 	terrestrialNetworkID = 15
-	// 地上波のネットワーク ID の範囲 (ARIB TR-B14)。
-	terrestrialMinNetworkID = 0x7880
-	terrestrialMaxNetworkID = 0x7fef
 	// noChannel は、KonomiTV の対応表で、実況のチャンネルがないことを表す ID。
 	noChannel = -1
 )
@@ -106,7 +105,7 @@ func (t *Table) Lookup(networkID, serviceID int64) (string, bool) {
 	if id, ok := t.services[serviceKey{networkID: networkID, serviceID: serviceID}]; ok {
 		return id, id != ""
 	}
-	if networkID < terrestrialMinNetworkID || networkID > terrestrialMaxNetworkID {
+	if !domain.IsTerrestrialNetwork(networkID) {
 		return "", false
 	}
 	for _, candidate := range []int64{serviceID, serviceID - 1, serviceID - 2} {

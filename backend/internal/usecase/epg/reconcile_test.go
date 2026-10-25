@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
@@ -493,7 +494,7 @@ func TestSyncReflectsOnAirPrograms(t *testing.T) {
 	}
 }
 
-// dataServiceUpstream は、faketuner のサービスに、映像も音声も流さないデータ放送のサービス (種別 0xC0) を足した上流。
+// dataServiceUpstream は、faketuner のサービスに、data のサービスを足した上流。
 type dataServiceUpstream struct {
 	*mirakurun.Client
 
@@ -749,4 +750,32 @@ func syncAll(t *testing.T, r *epg.Reconciler) {
 
 	_, err := r.SyncAll(t.Context())
 	require.NoError(t, err)
+}
+
+// TestSyncDoesNotInferSharedEventsOnSatellite は、BS と CS では、同じ TS のサービスの番組を、イベント共有とみなさないことを確かめる (#1024)。
+// BS と CS は、1 つの TS に別の放送局のサービスが入り、「インフォメーション」のような番組名が同じ時間に重なる。
+func TestSyncDoesNotInferSharedEventsOnSatellite(t *testing.T) {
+	t.Parallel()
+
+	const bsNetworkID = 4
+	f := newFixture(t, nil)
+	services, err := f.client.Services(t.Context())
+	require.NoError(t, err)
+	bs := services[slices.IndexFunc(services, func(s *mirakurun.Service) bool { return s.NetworkID == bsNetworkID })]
+	other := &mirakurun.Service{
+		ID: faketuner.ServiceItemID(bsNetworkID, 102), ServiceID: 102, NetworkID: bsNetworkID,
+		Name: "別の放送局", Type: bs.Type, LogoID: nil, RemoteControlKeyID: nil, Channel: bs.Channel,
+	}
+	start := programStart(6)
+	for _, p := range []struct{ serviceID, eventID int }{{bs.ServiceID, 2410}, {other.ServiceID, 2538}} {
+		f.fake.AddProgram(&faketuner.Program{
+			ID: faketuner.ProgramID(bsNetworkID, p.serviceID, p.eventID), EventID: p.eventID, ServiceID: p.serviceID, NetworkID: bsNetworkID,
+			StartAt: start.UnixMilli(), Duration: (30 * time.Minute).Milliseconds(), IsFree: true, Name: "インフォメーション",
+		})
+	}
+	reconciler := epg.NewReconciler(f.pool, &dataServiceUpstream{Client: f.client, data: other}, clocktest.NewFake(testNow()),
+		func(context.Context, pgx.Tx) error { return nil })
+	_, err = reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 2, f.count(t, "SELECT count(*) FROM programs WHERE name = 'インフォメーション' AND related_items = '[]'::jsonb"))
 }

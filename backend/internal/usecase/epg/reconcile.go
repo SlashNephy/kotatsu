@@ -109,6 +109,10 @@ func (r *Reconciler) SyncAll(ctx context.Context) (*Result, error) {
 		return nil, err
 	}
 	upstreamPrograms = filterPrograms(upstreamPrograms, known)
+	byService := streams{}
+	byService.addUpstream(upstreamServices)
+	byService.addRows(currentServices)
+	upstreamPrograms = inferSharedEvents(upstreamPrograms, byService)
 	programs, err := diffPrograms(upstreamPrograms, currentPrograms, r.archiveCutoff())
 	if err != nil {
 		return nil, err
@@ -148,7 +152,10 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 			media[service.ID] = true
 		}
 	}
-	for _, serviceID := range slices.Compact(slices.Sorted(slices.Values(serviceIDs))) {
+	// イベント共有を補うには同じ TS の番組を比べるので、同じ TS のサービスもまとめて突き合わせる (#1024)。
+	byService := streams{}
+	byService.addRows(services)
+	for _, serviceID := range byService.siblings(serviceIDs) {
 		if !media[serviceID] {
 			continue
 		}
@@ -177,6 +184,7 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 	if err != nil {
 		return nil, err
 	}
+	upstreamPrograms = inferSharedEvents(upstreamPrograms, byService)
 	programs, err := diffPrograms(upstreamPrograms, currentPrograms, r.archiveCutoff())
 	if err != nil {
 		return nil, err
