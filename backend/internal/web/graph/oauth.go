@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/url"
 	"slices"
 	"strings"
@@ -54,10 +55,15 @@ func oauthAuthorizationOf(req *oauth.AuthorizationRequest, allowed []string) *mo
 
 // oauthError は、認可のリクエストを確かめたときのエラーを、エラーコードにする。
 // クライアントへ戻すエラー (*oauth.AuthorizationError) は、エラーにせず、呼び出し側が戻す URL として返す。
-func oauthError(err error) error {
+func (r *Resolver) oauthError(ctx context.Context, err error) error {
 	switch {
 	case errors.Is(err, oauth.ErrDisabled):
 		return NewError(CodeNotFound, "MCP is disabled")
+	case errors.Is(err, oauth.ErrClientMetadataUnavailable):
+		// 取りに行けなかった理由 (名前を引いたアドレス、DNS や TLS のエラー) は、サーバーから見た内側のネットワークを明かすので、ログにだけ残す。
+		r.logger.WarnContext(ctx, "failed to fetch the OAuth client metadata", slog.Any("error", err))
+
+		return NewError(CodeBadUserInput, "invalid authorization request: the client metadata could not be fetched")
 	case errors.Is(err, oauth.ErrInvalidAuthorizationRequest):
 		return NewError(CodeBadUserInput, err.Error())
 	case errors.Is(err, oauth.ErrGrantNotFound):

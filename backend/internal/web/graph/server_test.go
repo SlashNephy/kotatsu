@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
+	"github.com/SlashNephy/kotatsu/internal/lib/clientinfo"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -158,11 +160,19 @@ func newFixtureWith(tb testing.TB, opts *graph.Options, watchChanges bool) *fixt
 		opts.Changes = startChanges(tb, pool)
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/graphql", sessions.Middleware(pool)(graph.NewHandler(opts)))
+	mux.Handle("/graphql", withClientInfo(sessions.Middleware(pool)(graph.NewHandler(opts))))
 	server := httptest.NewServer(mux)
 	tb.Cleanup(server.Close)
 
 	return &fixture{pool: pool, server: server, clock: clk, sessions: sessions, passkeys: opts.Passkeys, userID: user.ID, token: token}
+}
+
+// withClientInfo は、web/httpserver のアクセスの制限と同じく、送信元を context に入れる。OAuth の認可は、送信元のオリジンを使う。
+func withClientInfo(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		client := &clientinfo.Client{IP: netip.MustParseAddr("127.0.0.1"), Secure: false, Host: r.Host}
+		next.ServeHTTP(w, r.WithContext(clientinfo.With(r.Context(), client)))
+	})
 }
 
 type request struct {

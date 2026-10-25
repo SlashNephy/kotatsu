@@ -31,7 +31,7 @@ func (r *mutationResolver) ApproveOAuthAuthorization(ctx context.Context, query 
 		return authErr.RedirectURL, nil
 	}
 	if err != nil {
-		return "", oauthError(err)
+		return "", r.oauthError(ctx, err)
 	}
 
 	return redirect, nil
@@ -54,7 +54,7 @@ func (r *mutationResolver) DenyOAuthAuthorization(ctx context.Context, query str
 		return authErr.RedirectURL, nil
 	}
 	if err != nil {
-		return "", oauthError(err)
+		return "", r.oauthError(ctx, err)
 	}
 
 	return redirect, nil
@@ -75,7 +75,7 @@ func (r *mutationResolver) DeleteOAuthGrant(ctx context.Context, id string) (str
 	}
 	// 取り消しは、権限を広げず、乗っ取られた後の被害を抑える操作なので、再認証を求めない (設計書 9.5)。
 	if err := r.oauth.DeleteGrant(ctx, actorOf(ctx, principal), principal.UserID, grantID); err != nil {
-		return "", oauthError(err)
+		return "", r.oauthError(ctx, err)
 	}
 
 	return id, nil
@@ -120,7 +120,7 @@ func (r *queryResolver) OauthAuthorization(ctx context.Context, query string) (*
 		return &model.OAuthAuthorizationCheck{Authorization: nil, ErrorRedirectURL: &authErr.RedirectURL}, nil
 	}
 	if err != nil {
-		return nil, oauthError(err)
+		return nil, r.oauthError(ctx, err)
 	}
 
 	return &model.OAuthAuthorizationCheck{
