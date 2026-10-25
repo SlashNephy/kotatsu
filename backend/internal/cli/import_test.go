@@ -338,6 +338,8 @@ func TestSourceWithPassword(t *testing.T) {
 			got, err := cli.SourceWithPassword(tt.source, tt.env)
 			if tt.wantErr {
 				require.ErrorIs(t, err, cli.ErrSourcePassword)
+				// エラーは CLI の終わりにログへ書かれるので、URL を残さない (#1012)。
+				assert.NotContains(t, err.Error(), "mariadb")
 
 				return
 			}

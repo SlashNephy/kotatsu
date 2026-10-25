@@ -27,6 +27,9 @@ var (
 	ErrUnsupportedSource = errors.New("unsupported EPGStation database URL")
 	// ErrUnsupportedSchema は、EPGStation の DB のスキーマが古いか、EPGStation の DB ではないことを表す。
 	ErrUnsupportedSchema = errors.New("unsupported EPGStation database schema")
+
+	// errMalformedURL は、接続先の URL を読めなかったことを表す。
+	errMalformedURL = errors.New("the URL is malformed; percent-encode the symbols in the password")
 )
 
 // Source は、読み取り専用で開いた EPGStation の DB。
@@ -73,7 +76,8 @@ func (s *Source) Close() error {
 func parseSourceURL(rawURL string) (string, string, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return "", "", fmt.Errorf("%w: %w", ErrUnsupportedSource, err)
+		// url.Parse のエラーは、URL の全文や、読めなかったポートのような一部を含む。URL はパスワードを含みうるので、理由を伏せる。
+		return "", "", fmt.Errorf("%w: %w", ErrUnsupportedSource, errMalformedURL)
 	}
 
 	switch u.Scheme {
