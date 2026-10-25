@@ -2,6 +2,7 @@ package epg_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http/httptest"
 	"testing"
@@ -438,10 +439,11 @@ func TestSyncReflectsOnAirPrograms(t *testing.T) {
 		ID: programID(900), EventID: 900, ServiceID: grServiceID, NetworkID: grNetworkID,
 		StartAt: programStart(4).UnixMilli(), Duration: int64(5 * time.Minute / time.Millisecond), IsFree: true, Name: "差し込まれた番組",
 	}
-	// 同期しないサービスの放送中の番組は、SyncServices では反映しない。
-	otherService := faketuner.ServiceItemID(grNetworkID, grServiceID+1)
+	// 同期しないサービス (別のチャンネル) の放送中の番組は、SyncServices では反映しない。
+	// 同じチャンネルのサービスは、イベント共有を補うためにまとめて突き合わせるので、別のチャンネルにする (#1024)。
+	otherService := faketuner.ServiceItemID(grNetworkID+1, 0x0408)
 	other := &mirakurun.Program{
-		ID: faketuner.ProgramID(grNetworkID, grServiceID+1, 901), EventID: 901, ServiceID: grServiceID + 1, NetworkID: grNetworkID,
+		ID: faketuner.ProgramID(grNetworkID+1, 0x0408, 901), EventID: 901, ServiceID: 0x0408, NetworkID: grNetworkID + 1,
 		StartAt: programStart(3).UnixMilli(), Duration: 1, IsFree: true, Name: "ほかのサービスの番組",
 	}
 
@@ -610,4 +612,141 @@ func TestSyncServicesKeepsProgramsWhenUpstreamReturnsNone(t *testing.T) {
 	_, err = f.reconciler.SyncServices(t.Context(), []int64{serviceID()})
 	require.NoError(t, err)
 	assert.Equal(t, before, f.count(t, "SELECT count(*) FROM programs WHERE service_id = $1", serviceID()))
+}
+
+// TestSyncInfersSharedEventsWithoutDescriptor は、同じ TS のサブチャンネルで、イベント共有の記述子がなくても、
+// 開始、長さ、番組名が同じ番組を、イベント共有として取り込むことを確かめる (#1024)。
+// 放送の EIT には、event_id が違い、event_group_descriptor もない同じ番組がある (2026 年 10 月に NHK 総合 1 と 2 で確かめた)。
+func TestSyncInfersSharedEventsWithoutDescriptor(t *testing.T) {
+	t.Parallel()
+
+	const (
+		mainEventID = 2410
+		subEventID  = 2538
+		name        = "共有の記述子のない番組"
+	)
+	subServiceID := grServiceID + 1
+	start := programStart(6).Add(10 * time.Minute)
+	duration := 3 * time.Minute
+	newProgram := func(networkID, serviceID, eventID int, name string, related []*faketuner.RelatedItem) *faketuner.Program {
+		return &faketuner.Program{
+			ID: faketuner.ProgramID(networkID, serviceID, eventID), EventID: eventID, ServiceID: serviceID, NetworkID: networkID,
+			StartAt: start.UnixMilli(), Duration: duration.Milliseconds(), IsFree: true, Name: name, RelatedItems: related,
+		}
+	}
+	shared := func(serviceID, eventID int) string {
+		return fmt.Sprintf(`[{"type": "shared", "serviceId": %d, "eventId": %d}]`, serviceID, eventID)
+	}
+
+	tests := []struct {
+		name     string
+		programs []*faketuner.Program
+		// sync は、番組を足したあとの同期。
+		sync func(t *testing.T, r *epg.Reconciler)
+		// wantMain と wantSub は、メインチャンネルとサブチャンネルの番組の related_items。
+		wantMain string
+		wantSub  string
+	}{
+		{
+			name: "記述子がなければ、互いを共有として足す",
+			programs: []*faketuner.Program{
+				newProgram(grNetworkID, grServiceID, mainEventID, name, nil),
+				newProgram(grNetworkID, subServiceID, subEventID, name, nil),
+			},
+			sync:     syncAll,
+			wantMain: shared(subServiceID, subEventID),
+			wantSub:  shared(grServiceID, mainEventID),
+		},
+		{
+			name: "サブチャンネルの変化だけを突き合わせても、メインチャンネルの番組にも足す",
+			programs: []*faketuner.Program{
+				newProgram(grNetworkID, grServiceID, mainEventID, name, nil),
+				newProgram(grNetworkID, subServiceID, subEventID, name, nil),
+			},
+			sync: func(t *testing.T, r *epg.Reconciler) {
+				t.Helper()
+				_, err := r.SyncServices(t.Context(), []int64{faketuner.ServiceItemID(grNetworkID, subServiceID)})
+				require.NoError(t, err)
+			},
+			wantMain: shared(subServiceID, subEventID),
+			wantSub:  shared(grServiceID, mainEventID),
+		},
+		{
+			name: "番組名が違えば、足さない",
+			programs: []*faketuner.Program{
+				newProgram(grNetworkID, grServiceID, mainEventID, name, nil),
+				newProgram(grNetworkID, subServiceID, subEventID, "この時間はメインチャンネルをご覧ください", nil),
+			},
+			sync:     syncAll,
+			wantMain: "[]",
+			wantSub:  "[]",
+		},
+		{
+			name: "記述子があれば、上流のとおりにする",
+			programs: []*faketuner.Program{
+				newProgram(grNetworkID, grServiceID, mainEventID, name, nil),
+				newProgram(grNetworkID, subServiceID, subEventID, name, []*faketuner.RelatedItem{
+					{Type: "shared", NetworkID: 0, ServiceID: grServiceID, EventID: mainEventID},
+				}),
+			},
+			sync:     syncAll,
+			wantMain: "[]",
+			wantSub:  shared(grServiceID, mainEventID),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			_, err := f.reconciler.SyncAll(t.Context())
+			require.NoError(t, err)
+			for _, p := range tt.programs {
+				f.fake.AddProgram(p)
+			}
+			tt.sync(t, f.reconciler)
+
+			related := func(serviceID, eventID int) string {
+				t.Helper()
+
+				var raw []byte
+				require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT related_items FROM programs WHERE service_id = $1 AND event_id = $2",
+					faketuner.ServiceItemID(grNetworkID, serviceID), eventID).Scan(&raw))
+
+				return string(raw)
+			}
+			assert.JSONEq(t, tt.wantMain, related(grServiceID, mainEventID))
+			assert.JSONEq(t, tt.wantSub, related(subServiceID, subEventID))
+
+			// 足した関連は毎回同じになるので、もう一度同期しても書き直さない。
+			result, err := f.reconciler.SyncAll(t.Context())
+			require.NoError(t, err)
+			assert.Zero(t, result.ProgramsUpserted)
+		})
+	}
+}
+
+// TestSyncDoesNotInferSharedEventsAcrossChannels は、別のチャンネルの番組は、開始、長さ、番組名が同じでも、
+// イベント共有とみなさないことを確かめる (#1024)。
+func TestSyncDoesNotInferSharedEventsAcrossChannels(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	start := programStart(6).Add(10 * time.Minute)
+	for _, p := range []struct{ networkID, serviceID, eventID int }{{grNetworkID, grServiceID, 2410}, {grNetworkID + 1, 0x0408, 2538}} {
+		f.fake.AddProgram(&faketuner.Program{
+			ID: faketuner.ProgramID(p.networkID, p.serviceID, p.eventID), EventID: p.eventID, ServiceID: p.serviceID, NetworkID: p.networkID,
+			StartAt: start.UnixMilli(), Duration: (3 * time.Minute).Milliseconds(), IsFree: true, Name: "同じ番組名",
+		})
+	}
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 2, f.count(t, "SELECT count(*) FROM programs WHERE name = '同じ番組名' AND related_items = '[]'::jsonb"))
+}
+
+func syncAll(t *testing.T, r *epg.Reconciler) {
+	t.Helper()
+
+	_, err := r.SyncAll(t.Context())
+	require.NoError(t, err)
 }
