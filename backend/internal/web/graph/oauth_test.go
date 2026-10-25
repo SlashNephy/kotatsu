@@ -39,6 +39,24 @@ func TestApproveOAuthAuthorizationRejects(t *testing.T) {
 	}
 }
 
+// TestOAuthAuthorizationHidesFetchError は、クライアントのメタデータを取りに行けなかった理由を、応答に書かないことを確かめる (#1015)。
+// 理由には、名前を引いたアドレスや DNS のエラーのような、サーバーから見た内側のネットワークが入る。
+func TestOAuthAuthorizationHidesFetchError(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	admin := f.as(t, "admin", auth.RoleAdmin)
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{"mcpEnabled": true}}, nil))
+	viewer := f.as(t, "guest", auth.RoleViewer)
+
+	// ループバックのアドレスには、取りに行く前に断る。断った理由には、そのアドレスが入る。
+	const query = `query($q: String!) { oauthAuthorization(query: $q) { errorRedirectUrl } }`
+	variables := map[string]any{"q": "client_id=https%3A%2F%2F127.0.0.1%3A8443%2Fclient.json&redirect_uri=https%3A%2F%2Fa.example%2Fb"}
+
+	assert.Equal(t, []string{codeBadUserInput}, viewer.query(t, query, variables, nil))
+	assert.Equal(t, []string{"invalid authorization request: the client metadata could not be fetched"}, viewer.messages(t, query, variables))
+}
+
 const (
 	oauthGrantsQuery    = `{ oauthGrants { id clientId clientName scopes lastUsedAt } }`
 	deleteGrantMutation = `mutation($id: ID!) { deleteOAuthGrant(id: $id) }`
