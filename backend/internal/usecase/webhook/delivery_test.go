@@ -236,6 +236,24 @@ func TestBodyEscapesNames(t *testing.T) {
 	}
 }
 
+// TestDeliverWorkerRedactsURL は、送れなかったときのエラーに、URL のパスのトークンを残さないことを確かめる (#1016)。
+// エラーは、River がログとジョブの記録に残す。
+func TestDeliverWorkerRedactsURL(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	server, _ := receiver(t, http.StatusNoContent)
+	server.Close()
+	kinds := []domain.NotificationKind{domain.NotificationKindStorageLow}
+	webhookID, _ := f.createWebhook(t, server.URL+"/api/webhooks/123/secret-token", webhook.FormatDiscord, kinds, true)
+	eventID := f.emit(t, domain.NotificationKindStorageLow, nil)
+
+	err := f.deliver(t, webhookID, eventID)
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "secret-token")
+	assert.Contains(t, err.Error(), server.URL, "the host is kept for debugging")
+}
+
 // TestDeliverWorkerFailures は、送れなければ再試行に任せ、送る理由がなくなれば取りやめることを確かめる。
 func TestDeliverWorkerFailures(t *testing.T) {
 	t.Parallel()

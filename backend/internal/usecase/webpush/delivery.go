@@ -21,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
+	"github.com/SlashNephy/kotatsu/internal/lib/redact"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 )
 
@@ -184,9 +185,10 @@ func (w *DeliverWorker) send(ctx context.Context, subscription *sqlc.WebPushSubs
 	if err != nil {
 		return river.JobCancel(err)
 	}
+	// 購読の送り先は、それ自体が送るための鍵になる URL (capability URL) なので、エラーに残すのはホストまでにする。
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, subscription.Endpoint, bytes.NewReader(body))
 	if err != nil {
-		return river.JobCancel(fmt.Errorf("failed to build the web push request: %w", err))
+		return river.JobCancel(fmt.Errorf("failed to build the web push request: %w", redact.URLError(err)))
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.Header.Set("Content-Encoding", "aes128gcm")
@@ -195,6 +197,7 @@ func (w *DeliverWorker) send(ctx context.Context, subscription *sqlc.WebPushSubs
 	req.Header.Set("Authorization", authorization)
 
 	resp, err := w.client.Do(req)
+	err = redact.URLError(err)
 	if errors.Is(err, errNonPublicAddress) {
 		// LAN の中の送り先は、送り直しても送らないので、取りやめる。
 		return river.JobCancel(fmt.Errorf("failed to send the web push: %w", err))

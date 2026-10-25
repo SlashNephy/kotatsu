@@ -289,8 +289,11 @@ func TestDeliverWorkerCancelsNonPublicEndpoint(t *testing.T) {
 	eventID := f.emit(t, domain.NotificationKindRecordingStarted, nil)
 
 	var cancel *rivertype.JobCancelError
-	require.ErrorAs(t, f.deliver(t, webpush.NewHTTPClient(), subscriptionID, eventID), &cancel)
+	err := f.deliver(t, webpush.NewHTTPClient(), subscriptionID, eventID)
+	require.ErrorAs(t, err, &cancel)
 	assert.Empty(t, requests)
+	// 送り先は capability URL なので、エラーにはホストまでしか残さない (#1016)。
+	assert.NotContains(t, err.Error(), "/send/mikan")
 }
 
 // TestNewHTTPClientRefusesNonPublicAddresses は、プッシュサービスに送るクライアントが、LAN の中のアドレスには接続しないことを確かめる。
