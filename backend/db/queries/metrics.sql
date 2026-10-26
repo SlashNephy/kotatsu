@@ -11,6 +11,18 @@ SELECT failure_reason::text AS reason, count(*) AS count FROM recordings WHERE f
 SELECT COALESCE(sum(drops), 0)::bigint AS drops, COALESCE(sum(errors), 0)::bigint AS errors, COALESCE(sum(scrambled), 0)::bigint AS scrambled
 FROM recordings WHERE state = 'recording';
 
+-- name: CountReservationsByState :one
+-- /metrics に出す、録画の予定の終わりが来ていない予約の、割り当ての状態ごとの数。無効な予約は、割り当ての状態によらず無効として数える。
+-- 終わったかどうかは、割り当ての対象 (ListAssignableReservations) と同じく、予定の終わりで決める。
+SELECT
+  count(*) FILTER (WHERE enabled AND assignment_state = 'ok') AS ok,
+  count(*) FILTER (WHERE enabled AND assignment_state = 'partial') AS partial,
+  count(*) FILTER (WHERE enabled AND assignment_state = 'conflict') AS conflict,
+  count(*) FILTER (WHERE enabled AND assignment_state = 'pending') AS pending,
+  count(*) FILTER (WHERE NOT enabled) AS disabled
+FROM reservations
+WHERE coalesce(planned_end_at, end_at) > @now::timestamptz;
+
 -- name: CountRecordingAssignmentsByState :many
 -- /metrics に出す、状態ごとの録画の割り振りの数。
 SELECT state, count(*) AS count FROM recording_assignments GROUP BY state ORDER BY state;

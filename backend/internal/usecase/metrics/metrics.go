@@ -1,6 +1,6 @@
 // Package metrics は、/metrics で公開する Kotatsu のメトリクスを集める (設計書 11.3)。
 //
-// 録画、チューナー、ジョブのキューは、どのインスタンスからも同じ DB を読むので、どのインスタンスの /metrics も、クラスター全体の同じ値を返す。
+// 録画、予約、チューナー、ジョブのキューは、どのインスタンスからも同じ DB を読むので、どのインスタンスの /metrics も、クラスター全体の同じ値を返す。
 // 集計するときは、インスタンスをまたいで足さず、max などで 1 つにまとめる。
 // ラベルには、番組名のように視聴の傾向が分かる値を入れない。
 package metrics
@@ -27,7 +27,7 @@ const (
 	leaseName = "neko"
 )
 
-// DBCollector は、DB から、録画、割り振り、チューナー、neko のリース、River のキューの状態を、収集のたびに読む。
+// DBCollector は、DB から、録画、予約、割り振り、チューナー、neko のリース、River のキューの状態を、収集のたびに読む。
 type DBCollector struct {
 	pool       *pgxpool.Pool
 	clock      clock.Clock
@@ -37,6 +37,7 @@ type DBCollector struct {
 	recordings       *prometheus.Desc
 	failures         *prometheus.Desc
 	activePackets    *prometheus.Desc
+	reservations     *prometheus.Desc
 	assignments      *prometheus.Desc
 	tuners           *prometheus.Desc
 	leader           *prometheus.Desc
@@ -57,6 +58,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, instanceID uuid.UUID, l
 		recordings:       desc("recordings", "Number of recordings by state.", "state"),
 		failures:         desc("recording_failures", "Number of failed recordings by failure reason.", "reason"),
 		activePackets:    desc("recording_active_packets", "Dropped, errored, and scrambled packets of the recordings in progress.", "kind"),
+		reservations:     desc("reservations", "Number of reservations that have not ended, by assignment state, or disabled.", "state"),
 		assignments:      desc("recording_assignments", "Number of recording assignments by state.", "state"),
 		tuners:           desc("tuners", "Number of tuners of the tuner server by state.", "state"),
 		leader:           desc("neko_leader", "Whether this instance holds the neko lease (1) or not (0)."),
@@ -68,7 +70,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, instanceID uuid.UUID, l
 // Describe は、集めるメトリクスの説明を送る。
 func (c *DBCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{
-		c.recordings, c.failures, c.activePackets, c.assignments, c.tuners, c.leader, c.jobs, c.collectionErrors,
+		c.recordings, c.failures, c.activePackets, c.reservations, c.assignments, c.tuners, c.leader, c.jobs, c.collectionErrors,
 	} {
 		ch <- d
 	}
@@ -81,7 +83,7 @@ func (c *DBCollector) Collect(ch chan<- prometheus.Metric) {
 
 	failed := 0
 	for _, collect := range []func(context.Context, chan<- prometheus.Metric) error{
-		c.collectRecordings, c.collectAssignments, c.collectTuners, c.collectLeader, c.collectJobs,
+		c.collectRecordings, c.collectReservations, c.collectAssignments, c.collectTuners, c.collectLeader, c.collectJobs,
 	} {
 		if err := collect(ctx, ch); err != nil {
 			c.logger.WarnContext(ctx, "failed to collect metrics", slog.Any("error", err))
@@ -113,6 +115,21 @@ func (c *DBCollector) collectRecordings(ctx context.Context, ch chan<- prometheu
 	}
 	for kind, value := range map[string]int64{"drop": packets.Drops, "error": packets.Errors, "scrambled": packets.Scrambled} {
 		ch <- prometheus.MustNewConstMetric(c.activePackets, prometheus.GaugeValue, float64(value), kind)
+	}
+
+	return nil
+}
+
+// collectReservations は、予約を状態ごとに数える。件数が 0 の状態も送り、系列が途切れないようにする。
+func (c *DBCollector) collectReservations(ctx context.Context, ch chan<- prometheus.Metric) error {
+	row, err := sqlc.New(c.pool).CountReservationsByState(ctx, c.clock.Now())
+	if err != nil {
+		return err
+	}
+	for state, value := range map[string]int64{
+		"ok": row.Ok, "partial": row.Partial, "conflict": row.Conflict, "pending": row.Pending, "disabled": row.Disabled,
+	} {
+		ch <- prometheus.MustNewConstMetric(c.reservations, prometheus.GaugeValue, float64(value), state)
 	}
 
 	return nil

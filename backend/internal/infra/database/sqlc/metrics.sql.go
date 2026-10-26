@@ -102,6 +102,40 @@ func (q *Queries) CountRecordingsByState(ctx context.Context) ([]CountRecordings
 	return items, nil
 }
 
+const countReservationsByState = `-- name: CountReservationsByState :one
+SELECT
+  count(*) FILTER (WHERE enabled AND assignment_state = 'ok') AS ok,
+  count(*) FILTER (WHERE enabled AND assignment_state = 'partial') AS partial,
+  count(*) FILTER (WHERE enabled AND assignment_state = 'conflict') AS conflict,
+  count(*) FILTER (WHERE enabled AND assignment_state = 'pending') AS pending,
+  count(*) FILTER (WHERE NOT enabled) AS disabled
+FROM reservations
+WHERE coalesce(planned_end_at, end_at) > $1::timestamptz
+`
+
+type CountReservationsByStateRow struct {
+	Ok       int64
+	Partial  int64
+	Conflict int64
+	Pending  int64
+	Disabled int64
+}
+
+// /metrics に出す、録画の予定の終わりが来ていない予約の、割り当ての状態ごとの数。無効な予約は、割り当ての状態によらず無効として数える。
+// 終わったかどうかは、割り当ての対象 (ListAssignableReservations) と同じく、予定の終わりで決める。
+func (q *Queries) CountReservationsByState(ctx context.Context, now time.Time) (CountReservationsByStateRow, error) {
+	row := q.db.QueryRow(ctx, countReservationsByState, now)
+	var i CountReservationsByStateRow
+	err := row.Scan(
+		&i.Ok,
+		&i.Partial,
+		&i.Conflict,
+		&i.Pending,
+		&i.Disabled,
+	)
+	return i, err
+}
+
 const countTunersByState = `-- name: CountTunersByState :one
 SELECT
   count(*) FILTER (WHERE NOT is_fault AND is_available) AS available,
