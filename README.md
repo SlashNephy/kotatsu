@@ -18,6 +18,55 @@ Kotatsuは、日本のテレビ放送を予約、録画、視聴するためのW
 > 番組表の同期、ルール予約、録画、録画の再生、ライブ視聴、通知は、ひととおり動きます。
 > 残っている作業は[v1のマイルストーン](https://github.com/SlashNephy/kotatsu/milestone/1)で確認できます。
 
+## 画面
+
+デモから撮った画面です。画面が変わると、CIが撮り直して差し替えます。
+
+<table>
+  <tr>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/guide-dark.png">
+        <img src="docs/screenshots/guide-light.png" alt="番組表">
+      </picture>
+      <p align="center">番組表</p>
+    </td>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/live-dark.png">
+        <img src="docs/screenshots/live-light.png" alt="ライブ視聴">
+      </picture>
+      <p align="center">ライブ視聴</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/recordings-dark.png">
+        <img src="docs/screenshots/recordings-light.png" alt="録画の一覧">
+      </picture>
+      <p align="center">録画の一覧</p>
+    </td>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/recording-dark.png">
+        <img src="docs/screenshots/recording-light.png" alt="録画の詳細">
+      </picture>
+      <p align="center">録画の詳細</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/rule-dark.png">
+        <img src="docs/screenshots/rule-light.png" alt="ルールの編集">
+      </picture>
+      <p align="center">ルールの編集</p>
+    </td>
+    <td width="50%"></td>
+  </tr>
+</table>
+
 ## 特徴
 
 番組表、ルール予約、録画、録画の再生、ライブ視聴を、Mirakurun系のチューナーサーバーの上で1つのアプリケーションにまとめます。
@@ -99,6 +148,7 @@ mise -C backend install
 | `mise run //backend:lint` | golangci-lintを実行する |
 | `mise run //frontend:check` | 画面のlintと型を確認する |
 | `mise run //frontend:test` | 画面のテストを実行する |
+| `mise run //frontend:screenshots` | READMEのスクリーンショットを、デモから`docs/screenshots`に撮り直す |
 | `mise run //backend:db:diff -- <名前>` | `backend/db/schema.sql`の変更からマイグレーションを作る |
 
 DBを使うテストは、`KOTATSU_TEST_DATABASE_URL`にPostgreSQLの接続先を渡したときだけ実行されます（[開発](docs/development.md#テストを流す)）。

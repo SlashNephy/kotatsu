@@ -151,4 +151,16 @@ KOTATSU_TEST_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/postgres
 テストは、テストごとに一時的なDBを作って使います。
 Composeで動かしているKotatsuのDB（`kotatsu`）には触れません。
 
+## READMEのスクリーンショットを撮る
+
+READMEのスクリーンショット（`docs/screenshots`）は、静的なデモから撮ります。
+
+```bash
+mise run //frontend:screenshots
+```
+
+mainへのpushのたびにCIが撮り直し、差があれば、画像を差し替えるPRを自動で作ってマージします。
+手で撮った画像をコミットする必要はありません。
+手元ではフォントなどがCIと違うので、撮った画像はCIのものと同じになりません。撮れるかどうかや、見た目を確かめるのに使ってください。
+
 ほかのコマンドは、[README](../README.md#開発)の表にまとめました。
