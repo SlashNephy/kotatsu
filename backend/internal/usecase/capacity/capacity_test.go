@@ -1,6 +1,7 @@
 package capacity_test
 
 import (
+	"errors"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -88,7 +89,9 @@ func newFixtureWithFreeSpace(t *testing.T, freeSpace kago.FreeSpaceFunc) *fixtur
 		freeSpace = usedSpace
 	}
 	dataRoot := t.TempDir()
-	store := kago.New(map[string]string{poolID: dir}, freeSpace).WithDataDir(dataRoot)
+	store := kago.New(map[string]string{poolID: dir}, freeSpace).
+		WithTotalSpace(func(string) (uint64, error) { return diskSize, nil }).
+		WithDataDir(dataRoot)
 
 	return &fixture{
 		pool: pool, clock: clk, dir: dir, dataRoot: dataRoot,
@@ -128,6 +131,38 @@ func (f *fixture) setThreshold(t *testing.T, minFreeBytes int64) {
 
 	_, err := sqlc.New(f.pool).UpsertStoragePool(t.Context(), sqlc.UpsertStoragePoolParams{ID: poolID, Priority: 0, MinFreeBytes: minFreeBytes, Now: f.clock.Now()})
 	require.NoError(t, err)
+}
+
+// measured は、容量の管理が測って残したプールの値。測っていなければ、どれも nil。
+type measured struct {
+	total, free *int64
+	at          *time.Time
+}
+
+// measurement は、プール id の、容量の管理が測って残した値を返す (#957)。設定の行がなければ nil。
+func (f *fixture) measurement(t *testing.T, id string) *measured {
+	t.Helper()
+
+	var m measured
+	err := f.pool.QueryRow(t.Context(), "SELECT total_bytes, free_bytes, measured_at FROM storage_pools WHERE id = $1", id).Scan(&m.total, &m.free, &m.at)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	require.NoError(t, err)
+
+	return &m
+}
+
+// assertMeasured は、プール id の容量が diskSize で、空き容量が free で、今の時刻に測ったと残っていることを確かめる。
+func (f *fixture) assertMeasured(t *testing.T, id string, free int64) {
+	t.Helper()
+
+	m := f.measurement(t, id)
+	require.NotNil(t, m)
+	assert.Equal(t, new(int64(diskSize)), m.total)
+	assert.Equal(t, new(free), m.free)
+	require.NotNil(t, m.at)
+	assert.True(t, m.at.Equal(f.clock.Now()))
 }
 
 func (f *fixture) names(t *testing.T) []string {
@@ -179,6 +214,8 @@ func TestRunOnceDeletesOldRecordings(t *testing.T) {
 	require.Len(t, results, 1)
 	assert.Equal(t, &capacity.PoolResult{PoolID: poolID, FreeBytes: 7 << 20, Deleted: 2, Low: false}, results[0])
 	assert.Equal(t, []string{"保護した録画", "録画中の録画", "新しい録画"}, f.names(t))
+	// 測った値は、録画を消した後の空き容量を残す (#957)。
+	f.assertMeasured(t, poolID, 7<<20)
 	// 録画ファイルと、生成物のディレクトリを消す。
 	_, err := os.Stat(filepath.Join(f.dir, "最も古い録画.m2ts"))
 	require.ErrorIs(t, err, fs.ErrNotExist)
@@ -224,8 +261,51 @@ func TestRunOnceSkipsPools(t *testing.T) {
 			}
 			assert.Equal(t, []string{"録画"}, f.names(t))
 			assert.Empty(t, f.storageLowEvents(t))
+			// 閾値がなくても、容量と空き容量は測って残す。設定の行がなければ、既定値で作る (#957)。
+			f.assertMeasured(t, poolID, diskSize-fileSize)
 		})
 	}
+}
+
+// TestRunOnceClearsMeasurementsOfUnmountedPools は、このインスタンスにマウントされていないプールの、前に測った値を消すことを確かめる (#957)。
+// nekonote はどれもすべてのプールをマウントするので、マウントされていないプールは、設定から外したもの。
+// 古い値を残すと、/metrics に、測った時刻が古いままのプールが出続ける。
+func TestRunOnceClearsMeasurementsOfUnmountedPools(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO storage_pools (id, priority, min_free_bytes, updated_at, total_bytes, free_bytes, measured_at)
+		VALUES ('removed', 0, 1024, $1, 100, 50, $1)`, f.clock.Now().Add(-time.Hour))
+	require.NoError(t, err)
+
+	f.runOnce(t)
+	assert.Equal(t, &measured{total: nil, free: nil, at: nil}, f.measurement(t, "removed"))
+	// 設定は残す。
+	var threshold int64
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT min_free_bytes FROM storage_pools WHERE id = 'removed'").Scan(&threshold))
+	assert.EqualValues(t, 1024, threshold)
+	f.assertMeasured(t, poolID, diskSize)
+}
+
+// TestRunOnceKeepsMeasurementWhenMeasuringFails は、空き容量を測れなければ、前に測った値と時刻を書き換えず、エラーを返すことを確かめる (#957)。
+// 時刻が古いままになるので、/metrics から測れていないことが分かる。
+func TestRunOnceKeepsMeasurementWhenMeasuringFails(t *testing.T) {
+	t.Parallel()
+
+	f := newFixtureWithFreeSpace(t, func(string) (uint64, error) { return 0, errors.New("statfs failed") })
+	before := f.clock.Now().Add(-time.Hour)
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO storage_pools (id, priority, min_free_bytes, updated_at, total_bytes, free_bytes, measured_at)
+		VALUES ($1, 0, 0, $2, 100, 50, $2)`, poolID, before)
+	require.NoError(t, err)
+
+	_, err = f.manager.RunOnce(t.Context())
+	require.Error(t, err)
+	m := f.measurement(t, poolID)
+	require.NotNil(t, m)
+	assert.Equal(t, new(int64(100)), m.total)
+	assert.Equal(t, new(int64(50)), m.free)
+	require.NotNil(t, m.at)
+	assert.True(t, m.at.Equal(before))
 }
 
 // TestRunOnceReportsLowStorageOnce は、消せる録画がなく、空き容量が閾値を下回ったままのときは、下回り始めたときだけ通知することを確かめる。

@@ -39,6 +39,11 @@ SELECT
   count(*) FILTER (WHERE is_fault) AS fault
 FROM tuners;
 
+-- name: ListStoragePoolMeasurements :many
+-- /metrics に出す、容量の管理が測った保存先プールの容量と空き容量、閾値 (#957)。測っていないプールは返さない。
+SELECT id, min_free_bytes, total_bytes::bigint AS total_bytes, free_bytes::bigint AS free_bytes, measured_at::timestamptz AS measured_at
+FROM storage_pools WHERE measured_at IS NOT NULL ORDER BY id;
+
 -- name: HoldsLease :one
 -- リース name を、holder が今持っているかどうか。
 SELECT EXISTS (SELECT 1 FROM leases WHERE name = @name AND holder = @holder AND expires_at > @now);

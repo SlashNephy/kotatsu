@@ -1,6 +1,6 @@
 // Package capacity は、保存先プールの容量を管理する (設計書 6.1)。
 //
-// nekonote の定期ジョブが、各プールの空き容量を調べる。空き容量が閾値を下回ったら、保護されていない古い録画から消し、
+// nekonote の定期ジョブが、各プールの容量と空き容量を測って DB に残す。空き容量が閾値を下回ったら、保護されていない古い録画から消し、
 // 空き容量の不足を通知する。録画を消しても、重複の回避に使う録画履歴は残す。
 package capacity
 
@@ -9,8 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
-	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -65,30 +65,66 @@ type PoolResult struct {
 	Low bool
 }
 
-// RunOnce は、容量の閾値を設定した、このインスタンスにマウントされたプールを、1 回ずつ確かめる。
+// RunOnce は、このインスタンスにマウントされたプールを、1 回ずつ確かめる。
+// どのプールも容量と空き容量を測って DB に残し (#957)、容量の閾値を設定したプールでは、下回っていれば古い録画を消す。
+// 返すのは、閾値を設定したプールの結果。
 func (m *Manager) RunOnce(ctx context.Context) ([]*PoolResult, error) {
-	rows, err := sqlc.New(m.pool).ListStoragePools(ctx)
+	q := sqlc.New(m.pool)
+	rows, err := q.ListStoragePools(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list storage pools: %w", err)
+	}
+	settings := make(map[string]*sqlc.StoragePool, len(rows))
+	for i := range rows {
+		settings[rows[i].ID] = &rows[i]
 	}
 	mounted := m.store.PoolIDs()
 	results := []*PoolResult{}
 	errs := []error{}
-	for i := range rows {
-		row := &rows[i]
-		if row.MinFreeBytes <= 0 || !slices.Contains(mounted, row.ID) {
-			continue
-		}
-		result, err := m.check(ctx, row, mounted)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("pool %s: %w", row.ID, err))
+	// nekonote はどれもすべてのプールをマウントするので、マウントされていないプールは、設定から外したもの。
+	// 前に測った値を残すと、/metrics に古い値が出続けるので、消す。
+	if err := q.ClearUnmountedStoragePoolMeasurements(ctx, mounted); err != nil {
+		errs = append(errs, fmt.Errorf("failed to clear the measurements of unmounted storage pools: %w", err))
+	}
+	for _, id := range mounted {
+		var free uint64
+		if row, ok := settings[id]; ok && row.MinFreeBytes > 0 {
+			result, err := m.check(ctx, row, mounted)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("pool %s: %w", id, err))
+
+				continue
+			}
+			results = append(results, result)
+			// 録画を消した後の空き容量を残す。
+			free = result.FreeBytes
+		} else if free, err = m.store.PoolFreeSpace(id); err != nil {
+			errs = append(errs, fmt.Errorf("pool %s: %w", id, err))
 
 			continue
 		}
-		results = append(results, result)
+		if err := m.record(ctx, id, free); err != nil {
+			errs = append(errs, fmt.Errorf("pool %s: %w", id, err))
+		}
 	}
 
 	return results, errors.Join(errs...)
+}
+
+// record は、プールの容量と、空き容量 free を測った値として DB に残す。容量を測れなければ、前の値を残したままにする。
+func (m *Manager) record(ctx context.Context, poolID string, free uint64) error {
+	total, err := m.store.PoolTotalSpace(poolID)
+	if err != nil {
+		return err
+	}
+	err = sqlc.New(m.pool).RecordStoragePoolMeasurement(ctx, sqlc.RecordStoragePoolMeasurementParams{
+		ID: poolID, Now: m.clock.Now(), TotalBytes: int64(min(total, math.MaxInt64)), FreeBytes: int64(min(free, math.MaxInt64)),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to record the measurement: %w", err)
+	}
+
+	return nil
 }
 
 // check は、プールの空き容量が閾値を下回っていれば、保護されていない古い録画から消し、空き容量の不足を通知する。

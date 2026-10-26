@@ -745,7 +745,12 @@ CREATE TABLE storage_pools (
   min_free_bytes bigint NOT NULL CHECK (min_free_bytes >= 0),
   -- 古い録画を消しても、空き容量が閾値を下回ったままになった日時。不足を何度も通知しないために使う。
   low_since timestamptz,
-  updated_at timestamptz NOT NULL
+  updated_at timestamptz NOT NULL,
+  -- 容量の管理 (設計書 6.1) が最後に測った、ファイルシステムの容量と空き容量 (バイト) と、測った日時。/metrics に出す (#957)。
+  -- 測っていないか、設定から外したプールでは NULL。
+  total_bytes bigint,
+  free_bytes bigint,
+  measured_at timestamptz
 );
 
 -- ユーザーがピン留めしたサービス (#485)。端末をまたいで同期し、ライブの一覧と番組表の「ピン留め」のタブに出す。

@@ -201,6 +201,46 @@ func (q *Queries) ListRecordingFailureCounts(ctx context.Context) ([]RecordingFa
 	return items, nil
 }
 
+const listStoragePoolMeasurements = `-- name: ListStoragePoolMeasurements :many
+SELECT id, min_free_bytes, total_bytes::bigint AS total_bytes, free_bytes::bigint AS free_bytes, measured_at::timestamptz AS measured_at
+FROM storage_pools WHERE measured_at IS NOT NULL ORDER BY id
+`
+
+type ListStoragePoolMeasurementsRow struct {
+	ID           string
+	MinFreeBytes int64
+	TotalBytes   int64
+	FreeBytes    int64
+	MeasuredAt   time.Time
+}
+
+// /metrics に出す、容量の管理が測った保存先プールの容量と空き容量、閾値 (#957)。測っていないプールは返さない。
+func (q *Queries) ListStoragePoolMeasurements(ctx context.Context) ([]ListStoragePoolMeasurementsRow, error) {
+	rows, err := q.db.Query(ctx, listStoragePoolMeasurements)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListStoragePoolMeasurementsRow{}
+	for rows.Next() {
+		var i ListStoragePoolMeasurementsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.MinFreeBytes,
+			&i.TotalBytes,
+			&i.FreeBytes,
+			&i.MeasuredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const sumActiveRecordingPackets = `-- name: SumActiveRecordingPackets :one
 SELECT COALESCE(sum(drops), 0)::bigint AS drops, COALESCE(sum(errors), 0)::bigint AS errors, COALESCE(sum(scrambled), 0)::bigint AS scrambled
 FROM recordings WHERE state = 'recording'
