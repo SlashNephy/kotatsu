@@ -14,6 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
+	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 )
 
@@ -22,8 +23,6 @@ const (
 	NotifyChannel = "timeshift_assignments"
 	// DefaultInterval は、変化がなくても割り振りを見直す間隔。チャンネルの設定の変更や、予約の割り振りの時間に入ったことに気づくのに使う (付録 A)。
 	DefaultInterval = 10 * time.Second
-	// DefaultLead は、予約の録画の予定の開始の何分前に、タイムシフトの割り振りを外すか。予約の割り振りを書く時刻 (付録 A) に合わせる。
-	DefaultLead = 2 * time.Minute
 	// Priority は、チューナーサーバーに渡すタイムシフトの優先度 (設計書 1.6)。予約の録画にもライブ視聴にも譲る。
 	Priority = -1
 )
@@ -35,6 +34,7 @@ type Guard func(ctx context.Context, tx pgx.Tx) error
 type SchedulerOptions struct {
 	Interval time.Duration
 	// Lead は、予約の録画がチューナーを使い始める何分前から、そのチューナーのタイムシフトを外すか。
+	// 0 なら、録画の割り振りを書く時刻の前 (recording.DefaultLead) に、この見直しの間隔の分だけ余裕を持たせる (LeadFor)。
 	Lead time.Duration
 	// PollOnly は、変更の通知を LISTEN で受けずに、ポーリングだけで知るかどうか。
 	PollOnly     bool
@@ -52,7 +52,7 @@ type Scheduler struct {
 
 // NewScheduler は Scheduler を返す。opts は nil でもよい。
 func NewScheduler(pool *pgxpool.Pool, clk clock.Clock, guard Guard, logger *slog.Logger, opts *SchedulerOptions) *Scheduler {
-	o := SchedulerOptions{Interval: DefaultInterval, Lead: DefaultLead, PollOnly: false, PollInterval: notify.DefaultPollInterval}
+	o := SchedulerOptions{Interval: DefaultInterval, Lead: 0, PollOnly: false, PollInterval: notify.DefaultPollInterval}
 	if opts != nil {
 		o.PollOnly = opts.PollOnly
 		if opts.Interval > 0 {
@@ -66,7 +66,19 @@ func NewScheduler(pool *pgxpool.Pool, clk clock.Clock, guard Guard, logger *slog
 		}
 	}
 
+	if o.Lead == 0 {
+		o.Lead = LeadFor(recording.DefaultLead, o.Interval)
+	}
+
 	return &Scheduler{pool: pool, clock: clk, guard: guard, logger: logger, opts: o}
+}
+
+// LeadFor は、録画の割り振りを書く時刻の前 (recordingLead) から、タイムシフトの割り振りを外し始める時間を返す。
+// 予約へのチューナーの割り振りより前にタイムシフトを外す必要がある (設計書 1.6)。
+// 二つの見直しは独立に動き、タイムシフトの見直しは interval ごとなので、recordingLead と同じにすると、
+// 外すのが最大で interval 遅れ、録画の割り振りがタイムシフトのストリームと重なりうる。interval の分だけ早めに外す。
+func LeadFor(recordingLead, interval time.Duration) time.Duration {
+	return recordingLead + interval
 }
 
 // Run は、ctx が終わるまで、始めたとき、予約か割り当てが変わったとき、Interval ごとに割り振りを見直す。

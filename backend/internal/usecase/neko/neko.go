@@ -133,7 +133,7 @@ func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 			return scheduler.Run(ctx)
 		})
 		eg.Go(func() error {
-			scheduler := timeshift.NewScheduler(opts.DB, opts.Clock, timeshift.Guard(guard), logger.With(slog.String("component", "timeshift")), opts.Timeshift)
+			scheduler := timeshift.NewScheduler(opts.DB, opts.Clock, timeshift.Guard(guard), logger.With(slog.String("component", "timeshift")), timeshiftOptions(opts))
 
 			return scheduler.Run(ctx)
 		})
@@ -159,4 +159,22 @@ func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 
 		return eg.Wait()
 	})
+}
+
+// timeshiftOptions は、タイムシフトの割り振りの設定を返す。
+// 録画の割り振りを書く時刻を設定で変えたときは、タイムシフトを外す時刻もそれに合わせる (timeshift.LeadFor)。
+func timeshiftOptions(opts *Options) *timeshift.SchedulerOptions {
+	options := timeshift.SchedulerOptions{Interval: 0, Lead: 0, PollOnly: false, PollInterval: 0}
+	if opts.Timeshift != nil {
+		options = *opts.Timeshift
+	}
+	if options.Lead == 0 && opts.Recording != nil && opts.Recording.Lead > 0 {
+		interval := options.Interval
+		if interval == 0 {
+			interval = timeshift.DefaultInterval
+		}
+		options.Lead = timeshift.LeadFor(opts.Recording.Lead, interval)
+	}
+
+	return &options
 }
