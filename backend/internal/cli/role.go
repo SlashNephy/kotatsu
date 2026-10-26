@@ -33,9 +33,12 @@ type Deps struct {
 	Config *config.Config
 	// DB は、スキーマのバージョンを確かめた後の接続。
 	DB *pgxpool.Pool
-	// Metrics は /metrics で公開するレジストリ。各ロールのメトリクスはここに登録する。
+	// Metrics は、インスタンスごとの値のレジストリ。各ロールのメトリクスはここに登録する。
 	Metrics *prometheus.Registry
-	Clock   clock.Clock
+	// ClusterMetrics は、DB から読む値のように、どのインスタンスでも同じになる、クラスター全体の値のレジストリ。
+	// /metrics では Metrics と合わせて返す。OTLP では、neko のリースを持つインスタンスだけが送る (#962)。
+	ClusterMetrics *prometheus.Registry
+	Clock          clock.Clock
 	// InstanceID は、このプロセスのインスタンスの ID。リースの持ち主や、インスタンスの登録簿に使う。
 	InstanceID uuid.UUID
 	// Jobs は River のクライアント。ジョブはドメインの書き込みと同じトランザクションで InsertTx で投入する。
@@ -128,11 +131,12 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	}
 
 	// EPG の同期の遅れは、最後に全量を突き合わせた時刻から求める (設計書 11.3)。リーダーになるまでは 0 で、リーダーでなくなった後は最後の値を残す。
+	// リーダーの値なので、クラスターのレジストリに登録する。元のリーダーが、古い時刻を OTLP で送り続けないようにする (#962)。
 	lastFullSync := prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: metrics.Namespace, Name: "epg_last_full_sync_timestamp_seconds",
 		Help: "Unix time when this instance last synced the whole EPG as the neko leader.",
 	})
-	deps.Metrics.MustRegister(lastFullSync)
+	deps.ClusterMetrics.MustRegister(lastFullSync)
 
 	return neko.Run(ctx, logger, &neko.Options{
 		DB:         deps.DB,

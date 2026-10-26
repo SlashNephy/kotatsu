@@ -314,16 +314,20 @@ func NewCommand(opts *Options) *cobra.Command {
 		}
 
 		deps := &Deps{
-			Config:     cfg,
-			DB:         pool,
-			Metrics:    telemetry.NewRegistry(),
-			Clock:      opts.Clock,
-			InstanceID: id.New(),
-			Jobs:       nil,
-			JobWorkers: nil,
+			Config:         cfg,
+			DB:             pool,
+			Metrics:        telemetry.NewRegistry(),
+			ClusterMetrics: prometheus.NewRegistry(),
+			Clock:          opts.Clock,
+			InstanceID:     id.New(),
+			Jobs:           nil,
+			JobWorkers:     nil,
 		}
-		// 録画、チューナー、ジョブのキューの状態は、DB から読む (設計書 11.3)。
-		deps.Metrics.MustRegister(metrics.NewDBCollector(pool, opts.Clock, deps.InstanceID, opts.Logger.With(slog.String("component", "metrics"))))
+		// 録画、チューナー、ジョブのキューの状態は、DB から読む (設計書 11.3)。どのインスタンスでも同じ値なので、クラスターのレジストリに登録する。
+		// neko のリースを持っているかは、インスタンスごとに違うので、インスタンスのレジストリに登録する。
+		metricsLogger := opts.Logger.With(slog.String("component", "metrics"))
+		deps.ClusterMetrics.MustRegister(metrics.NewDBCollector(pool, opts.Clock, metricsLogger))
+		deps.Metrics.MustRegister(metrics.NewLeaderCollector(pool, opts.Clock, deps.InstanceID, metricsLogger))
 
 		// ジョブを実行するのは nekonote だけで、他のロールは投入だけを行う。
 		periodicJobs := []*river.PeriodicJob{}
@@ -464,7 +468,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 		mux.Handle(kyusu.RecordingPathPrefix, vod.Handler(token))
 	}
 	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider))
-	metricsHandler := telemetry.NewMetricsHandler(deps.Metrics)
+	metricsHandler := telemetry.NewMetricsHandler(prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

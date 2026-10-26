@@ -34,10 +34,11 @@ func NewRegistry() *prometheus.Registry {
 	return registry
 }
 
-// NewMetricsHandler は、registry の内容を Prometheus 形式で返す /metrics を作る。
-func NewMetricsHandler(registry *prometheus.Registry) http.Handler {
+// NewMetricsHandler は、gatherer の内容を Prometheus 形式で返す /metrics を作る。
+// registry には、/metrics 自身のエラーの数などを登録する。
+func NewMetricsHandler(gatherer prometheus.Gatherer, registry *prometheus.Registry) http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("GET /metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{
+	mux.Handle("GET /metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{
 		Registry: registry,
 	}))
 
