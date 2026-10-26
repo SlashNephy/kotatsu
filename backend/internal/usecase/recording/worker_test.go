@@ -34,7 +34,7 @@ func (f *fixture) startWorker(t *testing.T, holder uuid.UUID, session recording.
 func (f *fixture) startWorkerWithHandoverTimeout(t *testing.T, holder uuid.UUID, handoverTimeout time.Duration, session recording.Session) func() {
 	t.Helper()
 
-	worker := recording.NewWorker(f.pool, f.clock, holder, slog.New(slog.DiscardHandler), session, &recording.WorkerOptions{
+	worker := recording.NewWorker(f.pool, f.clock, holder, slog.New(slog.DiscardHandler), session, recording.NewRecordingLeases(f.pool), &recording.WorkerOptions{
 		LeaseTTL: 10 * time.Second, RenewInterval: 20 * time.Millisecond, AcquireInterval: 50 * time.Millisecond,
 		HandoverTimeout: handoverTimeout, ReleaseCooldown: 0, DatabaseClock: false, PollOnly: true, PollInterval: 50 * time.Millisecond,
 	})
@@ -580,7 +580,7 @@ func TestWorkerUsesDatabaseClockForLeases(t *testing.T) {
 				<-ctx.Done()
 
 				return nil
-			}, &recording.WorkerOptions{
+			}, recording.NewRecordingLeases(f.pool), &recording.WorkerOptions{
 				LeaseTTL: 10 * time.Second, RenewInterval: 20 * time.Millisecond, AcquireInterval: 50 * time.Millisecond,
 				HandoverTimeout: shortHandoverTimeout, ReleaseCooldown: 0, DatabaseClock: tt.databaseClock, PollOnly: true, PollInterval: 50 * time.Millisecond,
 			})

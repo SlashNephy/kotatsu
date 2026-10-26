@@ -279,7 +279,7 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 			TuningTime: 0, Tick: 0, RetryInterval: 0, ReleaseAfter: 0,
 			Peers: recording.AlivePeers(deps.DB, deps.Clock, deps.InstanceID),
 		})
-	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), &recording.WorkerOptions{
+	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), recording.NewRecordingLeases(deps.DB), &recording.WorkerOptions{
 		LeaseTTL: 0, RenewInterval: 0, AcquireInterval: 0, HandoverTimeout: 0, ReleaseCooldown: 0,
 		// mikan を複数のマシンで動かしても、時計のずれでリースを取り違えないよう、DB の時刻で決める (#526)。
 		DatabaseClock: true,
