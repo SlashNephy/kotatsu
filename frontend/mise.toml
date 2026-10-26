@@ -55,7 +55,7 @@ depends = ["build"]
 run = "pnpm exec playwright test --project=spa"
 
 # README のスクリーンショットを、静的なデモから撮り、../docs/screenshots に書き出す (#621)。
-# 正とするのは CI で撮ったもの。手元ではフォントなどが違うので、同じ PNG にならない。
+# 正とするのは CI で撮ったもの。手元ではフォントなどが違うので、撮るとすべて書き換わる。
 [tasks.screenshots]
 depends = ["demo"]
 run = "pnpm exec playwright test -c playwright.screenshots.config.ts"

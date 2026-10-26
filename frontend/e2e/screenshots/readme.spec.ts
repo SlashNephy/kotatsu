@@ -1,22 +1,19 @@
 import { expect, type Page, test } from '@playwright/test';
 
 // README に載せるスクリーンショット (#621)。画面ごとに、ライトとダークの両方を撮る。
-// 撮り直しても同じ PNG になるよう、時刻を固定し、映像は決まった位置で止めてから撮る。
+// 時刻を固定し、映像は決まった位置で止めてから撮る。
 // デモのデータは、開いた時刻を基準に作られる (src/demo/data.ts、src/demo/epg.ts)。
 
 // 番組表とライブ視聴で、夜の番組が並ぶ時刻にする。
 const fixedTime = new Date('2026-04-01T20:30:00+09:00');
 
-const outDir = new URL('../../../docs/screenshots/', import.meta.url).pathname;
-
+// 画像は toHaveScreenshot の比べる先 (docs/screenshots) として扱い、updateSnapshots: 'changed' で書き換える
+// (playwright.screenshots.config.ts)。同じ画面でも、ブラウザを起動するたびに、カードの角のアンチエイリアスが
+// 数ピクセルだけ変わる。許容差の中なら書き換えないので、画面が変わらない限り PNG は変わらない。
 async function capture(page: Page, name: string, scheme: string) {
-  // マウスの位置で出る表示 (ホバー、操作バー) が写らないよう、画面の外に置く。
-  await page.mouse.move(0, 0);
-  await page.screenshot({
-    path: `${outDir}${name}-${scheme}.png`,
-    animations: 'disabled',
-    caret: 'hide',
-  });
+  // マウスの位置で出る表示 (ホバー、操作バー) が写らないよう、何もない左下の隅に置く。
+  await page.mouse.move(0, 799);
+  await expect(page).toHaveScreenshot(`${name}-${scheme}.png`);
 }
 
 for (const scheme of ['light', 'dark'] as const) {

@@ -2,6 +2,7 @@ name: Screenshots
 
 # README のスクリーンショットを、静的なデモから撮り直す (#621)。
 # PR では、撮れることだけを確かめ、撮った画像を artifact に置く。
+# 撮影は docs/screenshots と比べ、許容差を超えて変わった画像だけを書き換える (frontend/playwright.screenshots.config.ts)。
 # main への push では、docs/screenshots と差があれば、bot が画像を差し替える PR を作り (あれば更新し)、auto-merge を有効にする。
 # GITHUB_TOKEN で作った PR では、ほかの workflow が動かず、必須のチェックが付かない。そのため、PR は GitHub App のトークンで作る。
 on:
@@ -60,8 +61,11 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ vars.KOTATSU_BOT_APP_ID }}
+          client-id: ${{ vars.KOTATSU_BOT_CLIENT_ID }}
           private-key: ${{ secrets.KOTATSU_BOT_PRIVATE_KEY }}
+          # 画像のブランチへの push と、PR の作成と auto-merge に要る権限だけにする。
+          permission-contents: write
+          permission-pull-requests: write
       # 差がなければ PR を作らない。開いている PR があれば閉じ、ブランチも消す。
       - if: github.event_name == 'push'
         id: pr

@@ -7,6 +7,9 @@ export default defineConfig({
   testDir: './e2e/screenshots',
   forbidOnly: process.env['CI'] !== undefined,
   reporter: 'list',
+  // 画像は toHaveScreenshot の比べる先として置き、許容差を超えて変わったものと、まだないものだけを書き換える。
+  snapshotPathTemplate: '../docs/screenshots/{arg}{ext}',
+  updateSnapshots: 'changed',
   use: {
     ...devices['Desktop Chrome'],
     baseURL: 'http://127.0.0.1:4174',
