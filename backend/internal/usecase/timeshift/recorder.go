@@ -117,7 +117,7 @@ func (r *Recorder) record(ctx context.Context, assignment *recording.Assignment)
 	// 落ちた mikan の代わりに取ったなら、書きかけのチャンクと番組を閉じる。
 	// 止まる mikan から引き継いだなら、古い mikan がまだ書いていて、自分で閉じるので、閉じない。
 	if !assignment.HandedOver {
-		if err := r.closeStale(ctx, assignment.ServiceID); err != nil {
+		if err := closeStale(ctx, sqlc.New(r.pool), r.store, assignment.ServiceID); err != nil {
 			return err
 		}
 	}
@@ -185,8 +185,8 @@ func (r *Recorder) unavailable(ctx context.Context, state *sessionState, err err
 // closeStale は、落ちた mikan が残した、書きかけのチャンクと、放送中のままの番組を閉じる。
 // 落ちてから今までは録れていないので、バッファの穴にする (設計書 5.7)。チャンクは、ファイルの大きさと、最後に書き込んだ時刻で閉じる。
 // 番組は、サービスのチャンクの最後の終わりで閉じる。チャンクがなければ、番組の始まりで閉じる。
-func (r *Recorder) closeStale(ctx context.Context, serviceID int64) error {
-	q := sqlc.New(r.pool)
+// 落ちた mikan の割り振りを取った mikan と、録る mikan のいない、外したチャンネルのものを捨てる破棄のジョブが使う。
+func closeStale(ctx context.Context, q *sqlc.Queries, store *kago.Store, serviceID int64) error {
 	chunks, err := q.ListOpenTimeshiftChunks(ctx, serviceID)
 	if err != nil {
 		return fmt.Errorf("failed to list the open timeshift chunks: %w", err)
@@ -194,7 +194,7 @@ func (r *Recorder) closeStale(ctx context.Context, serviceID int64) error {
 	for i := range chunks {
 		// ファイルを読めなければ、書き込んだ時刻も分からないので、大きさ 0、書き始めた時刻で閉じる。
 		size, writtenAt := int64(0), chunks[i].StartedAt
-		if path, err := r.store.Path(kago.TimeshiftPoolID, chunks[i].Path); err == nil {
+		if path, err := store.Path(kago.TimeshiftPoolID, chunks[i].Path); err == nil {
 			if info, err := os.Stat(path); err == nil {
 				size = info.Size()
 				if info.ModTime().After(writtenAt) {

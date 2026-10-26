@@ -138,3 +138,84 @@ func TestPruneWithoutTimeshiftDir(t *testing.T) {
 	assert.Equal(t, 0, pruned)
 	assert.Len(t, chunks(t, e), 1)
 }
+
+// TestPruneClosesAbandonedChunks は、タイムシフトから外したチャンネルに、録る mikan のいない書きかけのチャンクと放送中のままの番組が
+// 残っていたら、閉じてから消すことを確かめる。割り振りのあるサービスは、mikan が書いているかもしれないので触らない (#1055)。
+func TestPruneClosesAbandonedChunks(t *testing.T) {
+	t.Parallel()
+
+	e := newRecorderEnv(t)
+	// 0 番目のサービスだけ設定する。2 番目のサービスは、設定はないが割り振りが残っている (neko が消す前)。
+	e.configure(t, 0)
+	now := e.clk.Now()
+	require.NoError(t, e.q.InsertTimeshiftAssignment(t.Context(), sqlc.InsertTimeshiftAssignmentParams{
+		ID: id.New(), ServiceID: grService(2), Priority: timeshift.Priority, Now: now,
+	}))
+
+	tests := []struct {
+		name       string
+		service    int
+		startedAgo time.Duration
+		noFile     bool
+		kept       bool
+	}{
+		{name: "設定のあるサービスの書きかけ", service: 0, startedAgo: 3 * time.Minute, noFile: false, kept: true},
+		{name: "外したチャンネルの書きかけ", service: 1, startedAgo: 2 * time.Hour, noFile: false, kept: false},
+		{name: "外したチャンネルのファイルのない書きかけ", service: 1, startedAgo: time.Hour, noFile: true, kept: false},
+		{name: "割り振りの残るサービスの書きかけ", service: 2, startedAgo: 3 * time.Minute, noFile: false, kept: true},
+	}
+	ids := make([]uuid.UUID, len(tests))
+	paths := make([]string, len(tests))
+	for i, tt := range tests {
+		ids[i] = id.New()
+		started := now.Add(-tt.startedAgo)
+		paths[i] = chunkPath(grService(tt.service), started)
+		require.NoError(t, e.q.InsertTimeshiftChunk(t.Context(), sqlc.InsertTimeshiftChunkParams{
+			ID: ids[i], ServiceID: grService(tt.service), Path: paths[i], Size: 0, StartedAt: started, Now: started,
+		}))
+		if !tt.noFile {
+			writeUnder(t, e.dir, paths[i])
+			writeUnder(t, e.dataDir, ids[i].String()+"/index")
+			// 最後に書き込んだのは、書き始めて 1 分後。
+			written := started.Add(time.Minute)
+			require.NoError(t, os.Chtimes(filepath.Join(e.dir, paths[i]), written, written))
+		}
+	}
+	// 放送中のままの番組。外したチャンネルのものは閉じて消し、ほかは残す。
+	for _, service := range []int{0, 1, 2} {
+		_, err := e.pool.Exec(t.Context(), "INSERT INTO timeshift_programs (service_id, started_at, event_id, name, ended_at) VALUES ($1, $2, 1, 'p', NULL)",
+			grService(service), now.Add(-30*time.Minute))
+		require.NoError(t, err)
+	}
+
+	pruned, err := timeshift.NewPruneWorker(e.pool, e.clk, e.store, slog.New(slog.DiscardHandler)).RunOnce(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 2, pruned)
+
+	rows := map[uuid.UUID]chunkRow{}
+	for _, c := range chunks(t, e) {
+		rows[c.id] = c
+	}
+	for i, tt := range tests {
+		row, ok := rows[ids[i]]
+		assert.Equal(t, tt.kept, ok, "%s: the row", tt.name)
+		if ok {
+			assert.Nil(t, row.endedAt, "%s: still open", tt.name)
+		}
+		if tt.noFile {
+			continue
+		}
+		_, fileErr := os.Stat(filepath.Join(e.dir, paths[i]))
+		_, indexErr := os.Stat(filepath.Join(e.dataDir, ids[i].String()))
+		assert.Equal(t, tt.kept, fileErr == nil, "%s: the chunk file", tt.name)
+		assert.Equal(t, tt.kept, indexErr == nil, "%s: the index directory", tt.name)
+	}
+
+	var left []int64
+	require.NoError(t, e.pool.QueryRow(t.Context(),
+		"SELECT coalesce(array_agg(service_id ORDER BY service_id), '{}') FROM timeshift_programs WHERE ended_at IS NULL").Scan(&left))
+	assert.Equal(t, []int64{grService(0), grService(2)}, left, "the open program of the removed channel is closed and pruned")
+	var total int
+	require.NoError(t, e.pool.QueryRow(t.Context(), "SELECT count(*) FROM timeshift_programs").Scan(&total))
+	assert.Equal(t, 2, total)
+}

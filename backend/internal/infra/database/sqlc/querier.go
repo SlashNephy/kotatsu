@@ -304,6 +304,10 @@ type Querier interface {
 	ListAPIRecordings(ctx context.Context, arg ListAPIRecordingsParams) ([]ListAPIRecordingsRow, error)
 	// ユーザーの API トークンを、新しい順に返す。
 	ListAPITokens(ctx context.Context, userID uuid.UUID) ([]ListAPITokensRow, error)
+	// タイムシフトから外したチャンネルのうち、書きかけのチャンクか、放送中のままの番組が残り、割り振りのないサービス。
+	// mikan が強制終了した直後に外すと、閉じる mikan がいなくなるので、破棄のジョブが閉じる。
+	// 割り振りが残っていれば、mikan がまだ書いているかもしれないので、含めない。neko が割り振りを消せば、mikan が自分で閉じる。
+	ListAbandonedTimeshiftServices(ctx context.Context) ([]int64, error)
 	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
 	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
 	// 録画中でない録画の、書いたもののあるセグメントを、録画を始めた日時の新しい順、セグメントの始まりの順に返す。
@@ -326,6 +330,7 @@ type Querier interface {
 	ListDueReservations(ctx context.Context, arg ListDueReservationsParams) ([]ListDueReservationsRow, error)
 	ListEPGChangesSince(ctx context.Context, version int64) ([]ListEPGChangesSinceRow, error)
 	// 破棄するチャンク。書いている途中のものは除く。チャンネルの設定がなくなったサービスのものは全部、設定があるものは保持時間を過ぎたもの。
+	// 設定がなくなったサービスの、録る mikan のいない書きかけのチャンクは、先に閉じてから破棄する (ListAbandonedTimeshiftServices)。
 	ListExpiredTimeshiftChunks(ctx context.Context, now time.Time) ([]ListExpiredTimeshiftChunksRow, error)
 	// 録画中でない録画のセグメントの記録を、録画を始めた日時の新しい順に返す。ファイルの見つからない録画を探すのに使う。
 	ListFinishedRecordingSegments(ctx context.Context) ([]ListFinishedRecordingSegmentsRow, error)
@@ -369,7 +374,8 @@ type Querier interface {
 	ListOAuthGrants(ctx context.Context, userID uuid.UUID) ([]ListOAuthGrantsRow, error)
 	// 録画の、書き終えていないファイル。落ちた mikan が書きかけたまま残したものを、引き継ぐ mikan が閉じる。
 	ListOpenRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error)
-	// 書きかけのチャンク。mikan が落ちるなどして残ったものを、サービスを録り直す前に、ファイルの大きさと最後に書いた時刻で閉じる。
+	// 書きかけのチャンク。mikan が落ちるなどして残ったものを、サービスを録り直す前か、外したチャンネルのものを破棄する前に、
+	// ファイルの大きさと最後に書いた時刻で閉じる。
 	ListOpenTimeshiftChunks(ctx context.Context, serviceID int64) ([]ListOpenTimeshiftChunksRow, error)
 	// 配っていないイベントを、古い順に引き、ロックする。ほかの nekonote が同じイベントを配らないよう、ロック中の行は飛ばす。
 	ListPendingNotificationEvents(ctx context.Context, maxCount int32) ([]NotificationEvent, error)

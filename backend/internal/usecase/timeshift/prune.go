@@ -28,6 +28,7 @@ func (PruneArgs) Kind() string { return "timeshift_prune" }
 
 // PruneWorker は、保持時間を過ぎたチャンクを捨てるジョブを実行する。
 // チャンクのファイル、索引、DB の行の順に消し、再生できる範囲の外になった番組の行も消す。
+// タイムシフトから外したチャンネルに、録る mikan のいない書きかけのチャンクや放送中のままの番組が残っていれば、先に閉じる。
 type PruneWorker struct {
 	river.WorkerDefaults[PruneArgs]
 
@@ -61,6 +62,23 @@ func (w *PruneWorker) RunOnce(ctx context.Context) (int, error) {
 	}
 	now := w.clock.Now()
 	q := sqlc.New(w.pool)
+	// 番組の行は、チャンクを捨てたサービスのほか、設定のあるサービスと、書きかけを閉じたサービスでも整理する。
+	services := map[int64]struct{}{}
+	errs := []error{}
+	// 閉じたチャンクは、設定がないので、この回で捨てる。
+	abandoned, err := q.ListAbandonedTimeshiftServices(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to list abandoned timeshift services: %w", err)
+	}
+	for _, serviceID := range abandoned {
+		if err := closeStale(ctx, q, w.store, serviceID); err != nil {
+			errs = append(errs, fmt.Errorf("service %d: %w", serviceID, err))
+
+			continue
+		}
+		w.logger.InfoContext(ctx, "closed the abandoned timeshift chunks of a removed channel", slog.Int64("service_id", serviceID))
+		services[serviceID] = struct{}{}
+	}
 	expired, err := q.ListExpiredTimeshiftChunks(ctx, now)
 	if err != nil {
 		return 0, fmt.Errorf("failed to list expired timeshift chunks: %w", err)
@@ -69,13 +87,10 @@ func (w *PruneWorker) RunOnce(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to list timeshift channels: %w", err)
 	}
-	// 番組の行は、チャンクを捨てたサービスのほか、設定のあるサービスでも整理する。
-	services := map[int64]struct{}{}
 	for i := range channels {
 		services[channels[i].ServiceID] = struct{}{}
 	}
 	pruned := 0
-	errs := []error{}
 	for i := range expired {
 		chunk := &expired[i]
 		services[chunk.ServiceID] = struct{}{}

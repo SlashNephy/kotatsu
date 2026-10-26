@@ -112,10 +112,24 @@ UPDATE timeshift_chunks SET size = @size, ended_at = @ended_at
 WHERE id = @id;
 
 -- name: ListOpenTimeshiftChunks :many
--- 書きかけのチャンク。mikan が落ちるなどして残ったものを、サービスを録り直す前に、ファイルの大きさと最後に書いた時刻で閉じる。
+-- 書きかけのチャンク。mikan が落ちるなどして残ったものを、サービスを録り直す前か、外したチャンネルのものを破棄する前に、
+-- ファイルの大きさと最後に書いた時刻で閉じる。
 SELECT id, path, started_at FROM timeshift_chunks
 WHERE service_id = @service_id AND ended_at IS NULL
 ORDER BY started_at, id;
+
+-- name: ListAbandonedTimeshiftServices :many
+-- タイムシフトから外したチャンネルのうち、書きかけのチャンクか、放送中のままの番組が残り、割り振りのないサービス。
+-- mikan が強制終了した直後に外すと、閉じる mikan がいなくなるので、破棄のジョブが閉じる。
+-- 割り振りが残っていれば、mikan がまだ書いているかもしれないので、含めない。neko が割り振りを消せば、mikan が自分で閉じる。
+SELECT s.service_id FROM (
+  SELECT c.service_id FROM timeshift_chunks c WHERE c.ended_at IS NULL
+  UNION
+  SELECT p.service_id FROM timeshift_programs p WHERE p.ended_at IS NULL
+) s
+WHERE NOT EXISTS (SELECT 1 FROM timeshift_channels t WHERE t.service_id = s.service_id)
+  AND NOT EXISTS (SELECT 1 FROM timeshift_assignments a WHERE a.service_id = s.service_id)
+ORDER BY s.service_id;
 
 -- name: GetLastTimeshiftChunkEnd :one
 -- サービスのチャンクの、最も遅い終わり。落ちた mikan が残した放送中の番組を、録れていた最後の時刻で閉じるのに使う。
@@ -126,6 +140,7 @@ LIMIT 1;
 
 -- name: ListExpiredTimeshiftChunks :many
 -- 破棄するチャンク。書いている途中のものは除く。チャンネルの設定がなくなったサービスのものは全部、設定があるものは保持時間を過ぎたもの。
+-- 設定がなくなったサービスの、録る mikan のいない書きかけのチャンクは、先に閉じてから破棄する (ListAbandonedTimeshiftServices)。
 SELECT c.id, c.service_id, c.path
 FROM timeshift_chunks c
 LEFT JOIN timeshift_channels t ON t.service_id = c.service_id
