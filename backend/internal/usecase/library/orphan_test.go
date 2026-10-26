@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -12,8 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
@@ -100,6 +103,41 @@ func TestFindOrphans(t *testing.T) {
 		{pool: kago.DataPoolID, path: orphanSegmentDir, segmentDir: true},
 		{pool: kago.DataPoolID, path: "main/古い録画.m2ts.kotatsu/index", segmentDir: false},
 	}, f.orphans(t))
+}
+
+// TestFindOrphansTimeshiftIndex は、データディレクトリにあるタイムシフトのチャンクの索引のディレクトリを、
+// チャンクの行がある間は返さず、行を消した後は返すことを確かめる。
+func TestFindOrphansTimeshiftIndex(t *testing.T) {
+	t.Parallel()
+
+	f := orphanFixture(t)
+	chunkID := id.New()
+	started := f.clock.Now().Add(-time.Hour)
+	require.NoError(t, sqlc.New(f.pool).InsertTimeshiftChunk(t.Context(), sqlc.InsertTimeshiftChunkParams{
+		ID: chunkID, ServiceID: serviceID, Path: "1/chunk.m2ts", Size: 4, StartedAt: started, Now: started,
+	}))
+	index := filepath.Join(f.dataRoot, chunkID.String(), "index")
+	require.NoError(t, os.MkdirAll(filepath.Dir(index), 0o755))
+	require.NoError(t, os.WriteFile(index, []byte("index"), 0o600))
+	// 書いてから時間が経ったものにする。
+	f.clock.Advance(2 * time.Hour)
+	indexDir := orphan{pool: kago.DataPoolID, path: chunkID.String(), segmentDir: true}
+
+	tests := []struct {
+		name      string
+		deleteRow bool
+		orphan    bool
+	}{
+		{name: "チャンクの行がある間は出さない", deleteRow: false, orphan: false},
+		{name: "チャンクの行を消した後は出す", deleteRow: true, orphan: true},
+	}
+	for _, tt := range tests {
+		if tt.deleteRow {
+			_, err := sqlc.New(f.pool).DeleteTimeshiftChunk(t.Context(), chunkID)
+			require.NoError(t, err)
+		}
+		assert.Equal(t, tt.orphan, slices.Contains(f.orphans(t), indexDir), tt.name)
+	}
 }
 
 // TestDeleteOrphans は、DB にないファイルを確かめ直して消し、監査ログに残すことと、使っているファイルやプールの外は消さないことを確かめる。

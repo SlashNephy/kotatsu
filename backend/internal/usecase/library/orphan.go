@@ -163,6 +163,15 @@ func (l *Library) usedFiles(ctx context.Context, db sqlc.DBTX) (*usedFiles, erro
 	for _, row := range rows {
 		used.add(row.ID, row.PoolID, row.Path)
 	}
+	// タイムシフトのチャンクの索引は、録画のセグメントと同じく、データディレクトリの「ID/」に置く。チャンクの行があるうちは使っているとみなす。
+	// チャンクのファイルはタイムシフトのディレクトリにあり、プールとして調べないので、置き場所は足さない。
+	chunks, err := sqlc.New(db).ListTimeshiftChunkIDs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the timeshift chunks: %w", err)
+	}
+	for _, chunk := range chunks {
+		used.add(chunk.ID, "", "")
+	}
 	// つないだ後は、DB の記録はつないだファイルに置き換わるが、つなぐ元のファイルは、置き換えるジョブが消すまで残る。
 	// ジョブは、マウントが戻るまで何日もやり直すことがあるので、終わっていないジョブのファイルは使っているとみなす。
 	jobs, err := db.Query(ctx, `SELECT args FROM river_job WHERE kind = $1 AND state NOT IN ('completed', 'cancelled', 'discarded')`,
