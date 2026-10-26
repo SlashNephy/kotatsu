@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<15d82a57332603dcf567e497be6b2138>>
+ * @generated SignedSource<<3c50a50d9364d8fd28be89370692eec7>>
  * @lightSyntaxTransform
  */
 
@@ -33,6 +33,9 @@ export type channelsQuery$data = {
     readonly sortOrder: number | null | undefined;
   }>;
   readonly timeshiftAvailable: boolean;
+  readonly timeshiftCandidates: ReadonlyArray<{
+    readonly id: string;
+  }>;
   readonly timeshiftChannels: ReadonlyArray<{
     readonly bufferedFrom: string | null | undefined;
     readonly bufferedUntil: string | null | undefined;
@@ -102,6 +105,9 @@ v5 = {
   "storageKey": null
 },
 v6 = [
+  (v2/*:: as any*/)
+],
+v7 = [
   {
     "alias": null,
     "args": null,
@@ -152,6 +158,16 @@ v6 = [
     "storageKey": "services(includeHidden:true)"
   },
   {
+    "alias": "timeshiftCandidates",
+    "args": null,
+    "concreteType": "Service",
+    "kind": "LinkedField",
+    "name": "services",
+    "plural": true,
+    "selections": (v6/*:: as any*/),
+    "storageKey": null
+  },
+  {
     "alias": null,
     "args": null,
     "concreteType": "SecondFactorStatus",
@@ -183,9 +199,7 @@ v6 = [
     "kind": "LinkedField",
     "name": "passkeys",
     "plural": true,
-    "selections": [
-      (v2/*:: as any*/)
-    ],
+    "selections": (v6/*:: as any*/),
     "storageKey": null
   },
   {
@@ -256,7 +270,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "channelsQuery",
-    "selections": (v6/*:: as any*/),
+    "selections": (v7/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -265,19 +279,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "channelsQuery",
-    "selections": (v6/*:: as any*/)
+    "selections": (v7/*:: as any*/)
   },
   "params": {
-    "cacheID": "57e03cb40954677e365f3e8d36c714e3",
+    "cacheID": "6994c8abb8dcae2ad9ff9abc2a361315",
     "id": null,
     "metadata": {},
     "name": "channelsQuery",
     "operationKind": "query",
-    "text": "query channelsQuery {\n  channelTypes {\n    type\n    displayName\n    sortOrder\n  }\n  services(includeHidden: true) {\n    id\n    name\n    logoUrl\n    hidden\n    sortOrder\n    channelType {\n      displayName\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n  timeshiftAvailable\n  timeshiftChannels {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        displayName\n      }\n    }\n    retentionSeconds\n    bufferedFrom\n    bufferedUntil\n    recording\n  }\n}\n"
+    "text": "query channelsQuery {\n  channelTypes {\n    type\n    displayName\n    sortOrder\n  }\n  services(includeHidden: true) {\n    id\n    name\n    logoUrl\n    hidden\n    sortOrder\n    channelType {\n      displayName\n    }\n  }\n  timeshiftCandidates: services {\n    id\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n  timeshiftAvailable\n  timeshiftChannels {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        displayName\n      }\n    }\n    retentionSeconds\n    bufferedFrom\n    bufferedUntil\n    recording\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "b3f3371a2dfdc270b1ff1a2ed927d8f0";
+(node as any).hash = "b75cfe7b021cac3c0548200d275eb59e";
 
 export default node;

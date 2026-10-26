@@ -86,6 +86,10 @@ const query = graphql`
         displayName
       }
     }
+    # タイムシフトに足せるチャンネル。ほかの画面でサービスを選ぶときと同じく、映像か音声を流す、非表示でないサービスにする。
+    timeshiftCandidates: services {
+      id
+    }
     secondFactors {
       totp
       remainingRecoveryCodes
@@ -134,6 +138,7 @@ function ChannelSettings() {
     setMessage({ ok: true, text: t('admin.saved') });
     refresh();
   };
+  const candidates = new Set(data.timeshiftCandidates.map((service) => service.id));
   const setTimeshift = (serviceId: string, retentionSeconds: number) =>
     mutate<channelsSetTimeshiftMutation>(
       environment,
@@ -264,11 +269,13 @@ function ChannelSettings() {
               <TimeshiftChannelAdder
                 services={data.services.filter(
                   (service) =>
+                    candidates.has(service.id) &&
                     !data.timeshiftChannels.some((channel) => channel.service.id === service.id),
                 )}
-                onAdd={(serviceId, retentionSeconds) =>
+                onAdd={(serviceId, retentionSeconds, onAdded) =>
                   gate.run(async () => {
                     await setTimeshift(serviceId, retentionSeconds);
+                    onAdded();
                     done();
                   }, fail)
                 }
@@ -529,7 +536,7 @@ function TimeshiftChannelAdder({
   onAdd,
 }: {
   services: readonly { id: string; name: string; channelType: { displayName: string } }[];
-  onAdd: (serviceId: string, retentionSeconds: number) => void;
+  onAdd: (serviceId: string, retentionSeconds: number, onAdded: () => void) => void;
 }) {
   const { t } = useTranslation();
   const [serviceId, setServiceId] = useState<string | null>(null);
@@ -566,8 +573,8 @@ function TimeshiftChannelAdder({
         disabled={serviceId === null || typeof hours !== 'number'}
         onClick={() => {
           if (serviceId !== null) {
-            onAdd(serviceId, Number(hours) * secondsPerHour);
-            setServiceId(null);
+            // 選んだチャンネルは、足し終えてから消す。失敗したときや再認証をやめたときは、選び直さずにやり直せる。
+            onAdd(serviceId, Number(hours) * secondsPerHour, () => setServiceId(null));
           }
         }}
       >
