@@ -1,0 +1,88 @@
+name: Screenshots
+
+# README のスクリーンショットを、静的なデモから撮り直す (#621)。
+# PR では、撮れることだけを確かめ、撮った画像を artifact に置く。
+# 撮影は docs/screenshots と比べ、許容差を超えて変わった画像だけを書き換える (frontend/playwright.screenshots.config.ts)。
+# main への push では、docs/screenshots と差があれば、bot が画像を差し替える PR を作り (あれば更新し)、auto-merge を有効にする。
+# GITHUB_TOKEN で作った PR では、ほかの workflow が動かず、必須のチェックが付かない。そのため、PR は GitHub App のトークンで作る。
+on:
+  pull_request:
+    paths:
+      - frontend/**
+      - .github/workflows/screenshots.yml
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  # pull_request では github.ref が refs/pull/N/merge になるため head_ref でまとめる
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
+      # pnpm のストア。frontend/pnpm-lock.yaml が変わったら作り直す。
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
+      # 日本語のフォント。撮るたびに同じ PNG になるよう、ランナーに入れたものに揃える。
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - run: mise run //frontend:install
+      # Playwright のブラウザは、frontend/package.json で固定した @playwright/test の版に合わせて入れる。
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: frontend
+      - run: mise run //frontend:screenshots
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshots
+          path: docs/screenshots/
+          retention-days: 7
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshots-traces
+          path: frontend/test-results/
+          retention-days: 7
+      - if: github.event_name == 'push'
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.KOTATSU_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.KOTATSU_BOT_PRIVATE_KEY }}
+          # 画像のブランチへの push と、PR の作成と auto-merge に要る権限だけにする。
+          permission-contents: write
+          permission-pull-requests: write
+      # 差がなければ PR を作らない。開いている PR があれば閉じ、ブランチも消す。
+      - if: github.event_name == 'push'
+        id: pr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          branch: bot/screenshots
+          delete-branch: true
+          add-paths: docs/screenshots
+          sign-commits: true
+          commit-message: 'docs: README のスクリーンショットを撮り直す'
+          title: 'docs: README のスクリーンショットを撮り直す'
+          body: |
+            画面の変更に合わせて、README のスクリーンショット (`docs/screenshots`) を撮り直しました。
+            `.github/workflows/screenshots.yml` が、main への push のたびに作ります。必須のチェックが通ると、自動でマージします。
+      - if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+        run: gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --merge
