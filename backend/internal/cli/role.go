@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/riverqueue/river"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
@@ -300,11 +299,27 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	})
 	timeshiftWorker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, timeshiftLogger, timeshiftRecorder.Session(), timeshift.NewLeases(deps.DB),
 		mikanWorkerOptions(deps))
-	eg, ctx := errgroup.WithContext(ctx)
-	eg.Go(func() error { return worker.Run(ctx) })
-	eg.Go(func() error { return timeshiftWorker.Run(ctx) })
+	// タイムシフトの Worker がエラーで止まっても、予約の録画は止めない。
+	return runAlongside(ctx, timeshiftLogger, worker.Run, timeshiftWorker.Run)
+}
 
-	return eg.Wait()
+// runAlongside は、main を ctx で動かし、その横で side を動かす。side がエラーで返っても、ログに残すだけで、main を止めない。
+// main が返ったら、side を止め、side が返るのを待ってから、main の結果を返す。ctx が終われば、両方とも止まる。
+func runAlongside(ctx context.Context, logger *slog.Logger, main, side func(context.Context) error) error {
+	sideCtx, stopSide := context.WithCancel(ctx)
+	defer stopSide()
+	sideDone := make(chan struct{})
+	go func() {
+		defer close(sideDone)
+		if err := side(sideCtx); err != nil && sideCtx.Err() == nil {
+			logger.ErrorContext(ctx, "the worker stopped with an error; the others keep running", slog.Any("error", err))
+		}
+	}()
+	err := main(ctx)
+	stopSide()
+	<-sideDone
+
+	return err
 }
 
 // mikanWorkerOptions は、mikan が割り振りを取る Worker の設定を返す。録画とタイムシフトで同じものを使う。

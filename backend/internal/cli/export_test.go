@@ -1,5 +1,15 @@
 package cli
 
+import (
+	"context"
+	"log/slog"
+)
+
+// RunAlongside は、テストから runAlongside を呼ぶために公開する。
+func RunAlongside(ctx context.Context, logger *slog.Logger, main, side func(context.Context) error) error {
+	return runAlongside(ctx, logger, main, side)
+}
+
 // AdvertiseAddress は、テストから advertiseAddress を呼ぶために公開する。
 func AdvertiseAddress(listen, advertiseHost string) (string, error) {
 	return advertiseAddress(listen, advertiseHost)
