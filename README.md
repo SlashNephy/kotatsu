@@ -18,9 +18,9 @@ Kotatsuは、日本のテレビ放送を予約、録画、視聴するためのW
 > 番組表の同期、ルール予約、録画、録画の再生、ライブ視聴、通知は、ひととおり動きます。
 > 残っている作業は[v1のマイルストーン](https://github.com/SlashNephy/kotatsu/milestone/1)で確認できます。
 
-## 画面
+## スクリーンショット
 
-デモから撮った画面です。画面が変わると、CIが撮り直して差し替えます。
+[デモ](https://kotatsu-demo.pages.dev/)の画面です。
 
 <table>
   <tr>
@@ -148,7 +148,7 @@ mise -C backend install
 | `mise run //backend:lint` | golangci-lintを実行する |
 | `mise run //frontend:check` | 画面のlintと型を確認する |
 | `mise run //frontend:test` | 画面のテストを実行する |
-| `mise run //frontend:screenshots` | READMEのスクリーンショットを、デモから`docs/screenshots`に撮り直す |
+| `mise run //frontend:screenshots` | READMEのスクリーンショットをデモから撮り直し、`docs/screenshots`に書き出す |
 | `mise run //backend:db:diff -- <名前>` | `backend/db/schema.sql`の変更からマイグレーションを作る |
 
 DBを使うテストは、`KOTATSU_TEST_DATABASE_URL`にPostgreSQLの接続先を渡したときだけ実行されます（[開発](docs/development.md#テストを流す)）。
