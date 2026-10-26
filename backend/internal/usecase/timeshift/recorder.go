@@ -127,14 +127,48 @@ func (r *Recorder) record(ctx context.Context, assignment *recording.Assignment)
 	}
 }
 
-// closeStale は、落ちた mikan が残した、書きかけのチャンクと、放送中のままの番組を、今の時刻で閉じる。
+// closeStale は、落ちた mikan が残した、書きかけのチャンクと、放送中のままの番組を閉じる。
+// 落ちてから今までは録れていないので、バッファの穴にする (設計書 6)。チャンクは、ファイルの大きさと、最後に書き込んだ時刻で閉じる。
+// 番組は、サービスのチャンクの最後の終わりで閉じる。チャンクがなければ、番組の始まりで閉じる。
 func (r *Recorder) closeStale(ctx context.Context, serviceID int64) error {
-	now := r.clock.Now()
 	q := sqlc.New(r.pool)
-	if _, err := q.CloseStaleTimeshiftChunks(ctx, sqlc.CloseStaleTimeshiftChunksParams{EndedAt: &now, ServiceID: serviceID}); err != nil {
-		return fmt.Errorf("failed to close the stale timeshift chunks: %w", err)
+	chunks, err := q.ListOpenTimeshiftChunks(ctx, serviceID)
+	if err != nil {
+		return fmt.Errorf("failed to list the open timeshift chunks: %w", err)
 	}
-	if _, err := q.EndTimeshiftProgram(ctx, sqlc.EndTimeshiftProgramParams{EndedAt: &now, ServiceID: serviceID}); err != nil {
+	for i := range chunks {
+		// ファイルを読めなければ、書き込んだ時刻も分からないので、大きさ 0、書き始めた時刻で閉じる。
+		size, writtenAt := int64(0), chunks[i].StartedAt
+		if path, err := r.store.Path(kago.TimeshiftPoolID, chunks[i].Path); err == nil {
+			if info, err := os.Stat(path); err == nil {
+				size = info.Size()
+				if info.ModTime().After(writtenAt) {
+					writtenAt = info.ModTime()
+				}
+			}
+		}
+		if _, err := q.CloseTimeshiftChunk(ctx, sqlc.CloseTimeshiftChunkParams{Size: size, EndedAt: &writtenAt, ID: chunks[i].ID}); err != nil {
+			return fmt.Errorf("failed to close an abandoned timeshift chunk: %w", err)
+		}
+	}
+
+	program, err := q.GetOpenTimeshiftProgram(ctx, serviceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get the timeshift program on air: %w", err)
+	}
+	endedAt := program.StartedAt
+	lastEnd, err := q.GetLastTimeshiftChunkEnd(ctx, serviceID)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+	case err != nil:
+		return fmt.Errorf("failed to get the last timeshift chunk end: %w", err)
+	case lastEnd != nil && lastEnd.After(endedAt):
+		endedAt = *lastEnd
+	}
+	if _, err := q.EndTimeshiftProgram(ctx, sqlc.EndTimeshiftProgramParams{EndedAt: &endedAt, ServiceID: serviceID}); err != nil {
 		return fmt.Errorf("failed to end the stale timeshift program: %w", err)
 	}
 
@@ -391,13 +425,13 @@ type programTracker struct {
 func (r *Recorder) newProgramTracker(ctx context.Context, logger *slog.Logger, serviceID int64) (*programTracker, error) {
 	sid, ok := ts.BroadcastServiceID(serviceID)
 	t := &programTracker{recorder: r, logger: logger, serviceID: serviceID, sid: sid, ok: ok, current: nil}
-	eventID, err := sqlc.New(r.pool).GetOpenTimeshiftProgram(ctx, serviceID)
+	program, err := sqlc.New(r.pool).GetOpenTimeshiftProgram(ctx, serviceID)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 	case err != nil:
 		return nil, fmt.Errorf("failed to get the timeshift program on air: %w", err)
-	case eventID >= 0 && eventID <= 0xFFFF:
-		t.current = new(uint16(eventID))
+	case program.EventID >= 0 && program.EventID <= 0xFFFF:
+		t.current = new(uint16(program.EventID))
 	}
 
 	return t, nil

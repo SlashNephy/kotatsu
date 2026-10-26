@@ -43,8 +43,6 @@ type Querier interface {
 	ClearUnmountedStoragePoolMeasurements(ctx context.Context, mounted []string) error
 	// 書き終えたファイルの大きさと、表す時間の終わりを記録する。
 	CloseRecordingFile(ctx context.Context, arg CloseRecordingFileParams) error
-	// mikan が落ちるなどして、書きかけのまま残ったチャンクを閉じる。サービスを録り直す前に呼ぶ。
-	CloseStaleTimeshiftChunks(ctx context.Context, arg CloseStaleTimeshiftChunksParams) (int64, error)
 	// 書き終えたチャンクの大きさと終わりの時刻を記録する。
 	CloseTimeshiftChunk(ctx context.Context, arg CloseTimeshiftChunkParams) (int64, error)
 	// 認可コードを消して返す。一度しか引き換えられないよう、引き換えるときに消す。期限を過ぎたものは返さない。
@@ -174,6 +172,8 @@ type Querier interface {
 	GetGuideView(ctx context.Context, arg GetGuideViewParams) (GuideView, error)
 	// 取り込み元のデータを、既に取り込んだかどうか。取り込んでいれば、作った行の ID を返す。
 	GetImportedTarget(ctx context.Context, arg GetImportedTargetParams) (uuid.UUID, error)
+	// サービスのチャンクの、最も遅い終わり。落ちた mikan が残した放送中の番組を、録れていた最後の時刻で閉じるのに使う。
+	GetLastTimeshiftChunkEnd(ctx context.Context, serviceID int64) (*time.Time, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
 	GetLoginChallengeForUpdate(ctx context.Context, arg GetLoginChallengeForUpdateParams) (LoginChallenge, error)
 	GetLoginThrottles(ctx context.Context, throttleKeys []string) ([]LoginThrottle, error)
@@ -184,8 +184,9 @@ type Querier interface {
 	// 失効させるトークンの種類と連携を引く。ほかのクライアントのトークンは返さない。
 	GetOAuthTokenForRevocation(ctx context.Context, arg GetOAuthTokenForRevocationParams) (GetOAuthTokenForRevocationRow, error)
 	GetOIDCIdentity(ctx context.Context, arg GetOIDCIdentityParams) (UserOidcIdentity, error)
-	// 放送中として記録している番組の eventId。引き継いだ mikan が、同じ番組を 2 つの行に分けないよう、続きから追うのに使う。
-	GetOpenTimeshiftProgram(ctx context.Context, serviceID int64) (int64, error)
+	// 放送中として記録している番組。引き継いだ mikan が、同じ番組を 2 つの行に分けないよう、続きから追うのに使う。
+	// 落ちた mikan が残した番組を閉じるとき、チャンクがなければ、始まりで閉じるのにも使う。
+	GetOpenTimeshiftProgram(ctx context.Context, serviceID int64) (GetOpenTimeshiftProgramRow, error)
 	GetPasskeyByCredentialID(ctx context.Context, credentialID []byte) (UserPasskey, error)
 	// プレイヤーのユーザーとセッション。閉じたとみなすプレイヤーは返さない。
 	GetPlayerOwner(ctx context.Context, arg GetPlayerOwnerParams) (GetPlayerOwnerRow, error)
@@ -366,6 +367,8 @@ type Querier interface {
 	ListOAuthGrants(ctx context.Context, userID uuid.UUID) ([]ListOAuthGrantsRow, error)
 	// 録画の、書き終えていないファイル。落ちた mikan が書きかけたまま残したものを、引き継ぐ mikan が閉じる。
 	ListOpenRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error)
+	// 書きかけのチャンク。mikan が落ちるなどして残ったものを、サービスを録り直す前に、ファイルの大きさと最後に書いた時刻で閉じる。
+	ListOpenTimeshiftChunks(ctx context.Context, serviceID int64) ([]ListOpenTimeshiftChunksRow, error)
 	// 配っていないイベントを、古い順に引き、ロックする。ほかの nekonote が同じイベントを配らないよう、ロック中の行は飛ばす。
 	ListPendingNotificationEvents(ctx context.Context, maxCount int32) ([]NotificationEvent, error)
 	// ユーザーがピン留めしたサービスを、ピン留めした順に返す (#485)。

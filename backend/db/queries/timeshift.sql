@@ -102,10 +102,18 @@ VALUES (@id, @service_id, @path, @size, @started_at, NULL, @now);
 UPDATE timeshift_chunks SET size = @size, ended_at = @ended_at
 WHERE id = @id;
 
--- name: CloseStaleTimeshiftChunks :execrows
--- mikan が落ちるなどして、書きかけのまま残ったチャンクを閉じる。サービスを録り直す前に呼ぶ。
-UPDATE timeshift_chunks SET ended_at = @ended_at
-WHERE service_id = @service_id AND ended_at IS NULL;
+-- name: ListOpenTimeshiftChunks :many
+-- 書きかけのチャンク。mikan が落ちるなどして残ったものを、サービスを録り直す前に、ファイルの大きさと最後に書いた時刻で閉じる。
+SELECT id, path, started_at FROM timeshift_chunks
+WHERE service_id = @service_id AND ended_at IS NULL
+ORDER BY started_at, id;
+
+-- name: GetLastTimeshiftChunkEnd :one
+-- サービスのチャンクの、最も遅い終わり。落ちた mikan が残した放送中の番組を、録れていた最後の時刻で閉じるのに使う。
+SELECT ended_at FROM timeshift_chunks
+WHERE service_id = @service_id AND ended_at IS NOT NULL
+ORDER BY ended_at DESC
+LIMIT 1;
 
 -- name: ListExpiredTimeshiftChunks :many
 -- 破棄するチャンク。書いている途中のものは除く。チャンネルの設定がなくなったサービスのものは全部、設定があるものは保持時間を過ぎたもの。
@@ -130,8 +138,9 @@ VALUES (@service_id, @started_at, @event_id, @name, NULL)
 ON CONFLICT (service_id, started_at) DO UPDATE SET event_id = EXCLUDED.event_id, name = EXCLUDED.name, ended_at = NULL;
 
 -- name: GetOpenTimeshiftProgram :one
--- 放送中として記録している番組の eventId。引き継いだ mikan が、同じ番組を 2 つの行に分けないよう、続きから追うのに使う。
-SELECT event_id FROM timeshift_programs
+-- 放送中として記録している番組。引き継いだ mikan が、同じ番組を 2 つの行に分けないよう、続きから追うのに使う。
+-- 落ちた mikan が残した番組を閉じるとき、チャンクがなければ、始まりで閉じるのにも使う。
+SELECT event_id, started_at FROM timeshift_programs
 WHERE service_id = @service_id AND ended_at IS NULL
 ORDER BY started_at DESC
 LIMIT 1;

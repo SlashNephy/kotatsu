@@ -498,18 +498,27 @@ func TestTimeshiftRecorderStopsWhenAssignmentDeleted(t *testing.T) {
 	assert.True(t, start.Add(time.Minute).Equal(*gotPrograms[0].endedAt))
 }
 
-// TestTimeshiftRecorderClosesStaleChunks は、割り振りを取ったときに、落ちた mikan が残した書きかけのチャンクと番組を閉じることを確かめる。
+// TestTimeshiftRecorderClosesStaleChunks は、割り振りを取ったときに、落ちた mikan が残した書きかけのチャンクを、ファイルの大きさと
+// 最後に書き込んだ時刻で閉じ、放送中のままの番組を、チャンクの最後の終わりで閉じることを確かめる。落ちてから今までは、バッファの穴になる。
 // 止まる mikan から引き継いだときは、古い mikan がまだ書いているので、閉じない。
 func TestTimeshiftRecorderClosesStaleChunks(t *testing.T) {
 	t.Parallel()
 
+	const stalePackets = 5
 	tests := []struct {
 		name       string
 		handedOver bool
+		// writeFile は、落ちた mikan のチャンクのファイルを、ディスクに残すかどうか。
+		writeFile  bool
 		wantClosed bool
+		wantSize   int64
+		// wantEnd は、チャンクと番組を閉じた時刻の、チャンクの開始からの長さ。
+		wantEnd time.Duration
 	}{
-		{name: "落ちた mikan の代わり", handedOver: false, wantClosed: true},
-		{name: "引き継ぎ", handedOver: true, wantClosed: false},
+		{name: "落ちた mikan の代わり", handedOver: false, writeFile: true, wantClosed: true, wantSize: stalePackets * 188, wantEnd: 3 * time.Minute},
+		// ファイルを読めなければ、書き始めた時刻で閉じる。
+		{name: "ファイルがない", handedOver: false, writeFile: false, wantClosed: true, wantSize: 0, wantEnd: 0},
+		{name: "引き継ぎ", handedOver: true, writeFile: true, wantClosed: false, wantSize: 0, wantEnd: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -518,9 +527,18 @@ func TestTimeshiftRecorderClosesStaleChunks(t *testing.T) {
 			e := newRecorderEnv(t)
 			staleStart := e.clk.Now().Add(-10 * time.Minute)
 			staleID := id.New()
+			stalePath := chunkPath(grService(0), staleStart)
 			require.NoError(t, e.q.InsertTimeshiftChunk(t.Context(), sqlc.InsertTimeshiftChunkParams{
-				ID: staleID, ServiceID: grService(0), Path: chunkPath(grService(0), staleStart), Size: 0, StartedAt: staleStart, Now: staleStart,
+				ID: staleID, ServiceID: grService(0), Path: stalePath, Size: 0, StartedAt: staleStart, Now: staleStart,
 			}))
+			if tt.writeFile {
+				// 落ちた mikan は、チャンクを始めて 3 分後まで書いていた。
+				file := filepath.Join(e.dir, stalePath)
+				require.NoError(t, os.MkdirAll(filepath.Dir(file), 0o755))
+				require.NoError(t, os.WriteFile(file, nullPackets(stalePackets), 0o600))
+				lastWrite := staleStart.Add(3 * time.Minute)
+				require.NoError(t, os.Chtimes(file, lastWrite, lastWrite))
+			}
 			require.NoError(t, e.q.StartTimeshiftProgram(t.Context(), sqlc.StartTimeshiftProgramParams{
 				ServiceID: grService(0), StartedAt: staleStart, EventID: 3, Name: "こたつテスト1 テスト番組 3",
 			}))
@@ -535,12 +553,15 @@ func TestTimeshiftRecorderClosesStaleChunks(t *testing.T) {
 			assert.Equal(t, staleID, got[0].id)
 			gotPrograms := programs(t, e)
 			if tt.wantClosed {
+				wantEnd := staleStart.Add(tt.wantEnd)
 				require.NotNil(t, got[0].endedAt)
-				assert.True(t, e.clk.Now().Equal(*got[0].endedAt))
-				// 閉じた番組と、読み直した番組の 2 行になる。
+				assert.True(t, wantEnd.Equal(*got[0].endedAt), "the stale chunk ended at %s", *got[0].endedAt)
+				assert.Equal(t, tt.wantSize, got[0].size)
+				// 閉じた番組と、読み直した番組の 2 行になる。間は、録れていない穴になる。
 				require.Len(t, gotPrograms, 2)
 				require.NotNil(t, gotPrograms[0].endedAt)
-				assert.True(t, e.clk.Now().Equal(*gotPrograms[0].endedAt))
+				assert.True(t, wantEnd.Equal(*gotPrograms[0].endedAt), "the stale program ended at %s", *gotPrograms[0].endedAt)
+				assert.True(t, e.clk.Now().Equal(gotPrograms[1].startedAt))
 				assert.Nil(t, gotPrograms[1].endedAt)
 			} else {
 				assert.Nil(t, got[0].endedAt)

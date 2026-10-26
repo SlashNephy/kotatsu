@@ -61,25 +61,6 @@ func (q *Queries) AcquireTimeshiftAssignment(ctx context.Context, arg AcquireTim
 	return i, err
 }
 
-const closeStaleTimeshiftChunks = `-- name: CloseStaleTimeshiftChunks :execrows
-UPDATE timeshift_chunks SET ended_at = $1
-WHERE service_id = $2 AND ended_at IS NULL
-`
-
-type CloseStaleTimeshiftChunksParams struct {
-	EndedAt   *time.Time
-	ServiceID int64
-}
-
-// mikan が落ちるなどして、書きかけのまま残ったチャンクを閉じる。サービスを録り直す前に呼ぶ。
-func (q *Queries) CloseStaleTimeshiftChunks(ctx context.Context, arg CloseStaleTimeshiftChunksParams) (int64, error) {
-	result, err := q.db.Exec(ctx, closeStaleTimeshiftChunks, arg.EndedAt, arg.ServiceID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const closeTimeshiftChunk = `-- name: CloseTimeshiftChunk :execrows
 UPDATE timeshift_chunks SET size = $1, ended_at = $2
 WHERE id = $3
@@ -222,19 +203,40 @@ func (q *Queries) FinishTimeshiftAssignment(ctx context.Context, arg FinishTimes
 	return result.RowsAffected(), nil
 }
 
+const getLastTimeshiftChunkEnd = `-- name: GetLastTimeshiftChunkEnd :one
+SELECT ended_at FROM timeshift_chunks
+WHERE service_id = $1 AND ended_at IS NOT NULL
+ORDER BY ended_at DESC
+LIMIT 1
+`
+
+// サービスのチャンクの、最も遅い終わり。落ちた mikan が残した放送中の番組を、録れていた最後の時刻で閉じるのに使う。
+func (q *Queries) GetLastTimeshiftChunkEnd(ctx context.Context, serviceID int64) (*time.Time, error) {
+	row := q.db.QueryRow(ctx, getLastTimeshiftChunkEnd, serviceID)
+	var ended_at *time.Time
+	err := row.Scan(&ended_at)
+	return ended_at, err
+}
+
 const getOpenTimeshiftProgram = `-- name: GetOpenTimeshiftProgram :one
-SELECT event_id FROM timeshift_programs
+SELECT event_id, started_at FROM timeshift_programs
 WHERE service_id = $1 AND ended_at IS NULL
 ORDER BY started_at DESC
 LIMIT 1
 `
 
-// 放送中として記録している番組の eventId。引き継いだ mikan が、同じ番組を 2 つの行に分けないよう、続きから追うのに使う。
-func (q *Queries) GetOpenTimeshiftProgram(ctx context.Context, serviceID int64) (int64, error) {
+type GetOpenTimeshiftProgramRow struct {
+	EventID   int64
+	StartedAt time.Time
+}
+
+// 放送中として記録している番組。引き継いだ mikan が、同じ番組を 2 つの行に分けないよう、続きから追うのに使う。
+// 落ちた mikan が残した番組を閉じるとき、チャンクがなければ、始まりで閉じるのにも使う。
+func (q *Queries) GetOpenTimeshiftProgram(ctx context.Context, serviceID int64) (GetOpenTimeshiftProgramRow, error) {
 	row := q.db.QueryRow(ctx, getOpenTimeshiftProgram, serviceID)
-	var event_id int64
-	err := row.Scan(&event_id)
-	return event_id, err
+	var i GetOpenTimeshiftProgramRow
+	err := row.Scan(&i.EventID, &i.StartedAt)
+	return i, err
 }
 
 const getTimeshiftAssignmentStream = `-- name: GetTimeshiftAssignmentStream :one
@@ -327,6 +329,39 @@ func (q *Queries) ListExpiredTimeshiftChunks(ctx context.Context, now time.Time)
 	for rows.Next() {
 		var i ListExpiredTimeshiftChunksRow
 		if err := rows.Scan(&i.ID, &i.ServiceID, &i.Path); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOpenTimeshiftChunks = `-- name: ListOpenTimeshiftChunks :many
+SELECT id, path, started_at FROM timeshift_chunks
+WHERE service_id = $1 AND ended_at IS NULL
+ORDER BY started_at, id
+`
+
+type ListOpenTimeshiftChunksRow struct {
+	ID        uuid.UUID
+	Path      string
+	StartedAt time.Time
+}
+
+// 書きかけのチャンク。mikan が落ちるなどして残ったものを、サービスを録り直す前に、ファイルの大きさと最後に書いた時刻で閉じる。
+func (q *Queries) ListOpenTimeshiftChunks(ctx context.Context, serviceID int64) ([]ListOpenTimeshiftChunksRow, error) {
+	rows, err := q.db.Query(ctx, listOpenTimeshiftChunks, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOpenTimeshiftChunksRow{}
+	for rows.Next() {
+		var i ListOpenTimeshiftChunksRow
+		if err := rows.Scan(&i.ID, &i.Path, &i.StartedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
