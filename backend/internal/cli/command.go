@@ -18,6 +18,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
@@ -407,6 +408,34 @@ func NewCommand(opts *Options) *cobra.Command {
 	return root
 }
 
+// newMeterProviders は、送信先を設定していれば、メトリクスを OTLP で送り始める (設計書 11.3)。
+// クラスター全体の値は、neko のリースを持つインスタンスだけが送る。送信の失敗は、ロールを止めずに、ログに出す。
+func newMeterProviders(ctx context.Context, logger *slog.Logger, deps *Deps, roles []*Role) (func(context.Context) error, error) {
+	if deps.Config.Telemetry.OTLPMetricsEndpoint == "" {
+		return func(context.Context) error { return nil }, nil
+	}
+	// トレースとメトリクスの exporter は、送れなかったことをここに知らせる。
+	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
+		logger.Warn("failed to export telemetry", slog.Any("error", err))
+	}))
+	names := make([]string, 0, len(roles))
+	for _, role := range roles {
+		names = append(names, role.Name)
+	}
+
+	return telemetry.NewMeterProviders(ctx, &deps.Config.Telemetry, &telemetry.MeterOptions{
+		Instance: deps.Metrics,
+		Cluster:  deps.ClusterMetrics,
+		IsLeader: func(ctx context.Context) (bool, error) {
+			return metrics.HoldsLeaderLease(ctx, deps.DB, deps.Clock, deps.InstanceID)
+		},
+		InstanceID: deps.InstanceID,
+		Roles:      names,
+		Version:    buildinfo.Get().Version,
+		Logger:     logger.With(slog.String("component", "metrics")),
+	})
+}
+
 // serve は、roles と HTTP サーバーを並行に動かす。
 //
 // HTTP サーバーは 2 つある。server.listen では /healthz と /readyz を、metrics.listen では /metrics を公開する。
@@ -423,6 +452,17 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 		defer cancel()
 		if err := shutdownTracing(shutdownCtx); err != nil {
 			logger.WarnContext(shutdownCtx, "failed to flush traces", slog.Any("error", err))
+		}
+	}()
+	shutdownMetrics, err := newMeterProviders(ctx, logger, deps, roles)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), httpserver.ShutdownTimeout)
+		defer cancel()
+		if err := shutdownMetrics(shutdownCtx); err != nil {
+			logger.WarnContext(shutdownCtx, "failed to flush metrics", slog.Any("error", err))
 		}
 	}()
 
