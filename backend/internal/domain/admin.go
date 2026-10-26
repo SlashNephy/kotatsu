@@ -50,6 +50,10 @@ type StoragePool struct {
 	MinFreeBytes int64
 	LowSince     *time.Time
 	UpdatedAt    time.Time
+	// TotalBytes、FreeBytes、MeasuredAt は、容量の管理が最後に測った容量と空き容量と、測った日時 (#957)。測っていなければ nil。
+	TotalBytes *int64
+	FreeBytes  *int64
+	MeasuredAt *time.Time
 }
 
 // Instance は、動いているロールのインスタンス。

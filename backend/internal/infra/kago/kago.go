@@ -38,6 +38,8 @@ type Store struct {
 	// order は、設定に書いたプールの順。優先順位が同じプールは、この順に選ぶ。
 	order     []string
 	freeSpace FreeSpaceFunc
+	// totalSpace は、プールのファイルシステムの容量を調べる。
+	totalSpace TotalSpaceFunc
 	// dataDir は、データディレクトリ。
 	dataDir string
 }
@@ -89,7 +91,16 @@ func NewOrdered(mounts map[string]string, order []string, freeSpace FreeSpaceFun
 	}
 
 	// 呼び出し側が後から書き換えても影響しないよう、複製して持つ。
-	return &Store{mounts: maps.Clone(mounts), order: ordered, freeSpace: freeSpace, dataDir: ""}
+	return &Store{mounts: maps.Clone(mounts), order: ordered, freeSpace: freeSpace, totalSpace: TotalSpace, dataDir: ""}
+}
+
+// WithTotalSpace は、プールの容量を totalSpace で調べる Store を返す。totalSpace が nil なら、s をそのまま返す。
+func (s *Store) WithTotalSpace(totalSpace TotalSpaceFunc) *Store {
+	if totalSpace == nil {
+		return s
+	}
+
+	return &Store{mounts: s.mounts, order: s.order, freeSpace: s.freeSpace, totalSpace: totalSpace, dataDir: s.dataDir}
 }
 
 // WithDataDir は、セグメントの生成物を、dir の中の「セグメントのファイルの ID/」に置く Store を返す (設計書 5.6)。
@@ -101,7 +112,7 @@ func (s *Store) WithDataDir(dir string) *Store {
 	mounts := maps.Clone(s.mounts)
 	mounts[DataPoolID] = dir
 
-	return &Store{mounts: mounts, order: s.order, freeSpace: s.freeSpace, dataDir: dir}
+	return &Store{mounts: mounts, order: s.order, freeSpace: s.freeSpace, totalSpace: s.totalSpace, dataDir: dir}
 }
 
 // SegmentDir は、セグメントのファイル fileID (recording_files.id) の生成物のディレクトリの場所を返す。
@@ -261,6 +272,20 @@ func (s *Store) PoolFreeSpace(poolID string) (uint64, error) {
 	}
 
 	return free, nil
+}
+
+// PoolTotalSpace は、プール poolID のファイルシステムの容量 (バイト) を返す。
+func (s *Store) PoolTotalSpace(poolID string) (uint64, error) {
+	mount, ok := s.mounts[poolID]
+	if !ok {
+		return 0, fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
+	}
+	total, err := s.totalSpace(mount)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get the total space of pool %s: %w", poolID, err)
+	}
+
+	return total, nil
 }
 
 // Remove は、プールの録画ファイル rel と、そのファイル fileID (recording_files.id) の生成物のディレクトリを消す。

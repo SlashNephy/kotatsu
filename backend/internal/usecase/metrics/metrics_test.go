@@ -18,7 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
 )
 
-// TestDBCollector は、DB の録画、予約、割り振り、チューナー、リース、ジョブの状態を、メトリクスとして返すことを確かめる (設計書 11.3)。
+// TestDBCollector は、DB の録画、予約、割り振り、チューナー、保存先プール、リース、ジョブの状態を、メトリクスとして返すことを確かめる (設計書 11.3)。
 func TestDBCollector(t *testing.T) {
 	t.Parallel()
 
@@ -87,6 +87,10 @@ func TestDBCollector(t *testing.T) {
 	reserve(false, "pending", now.Add(-time.Minute), nil)
 	exec(`INSERT INTO recording_assignments (id, reservation_id, priority, state, generation, created_at, updated_at)
 		VALUES ($1, $2, 2, 'recording', 1, $3, $3)`, id.New(), reservation, now)
+	// 保存先プール (#957)。測っていないプールは出さない。
+	exec(`INSERT INTO storage_pools (id, priority, min_free_bytes, updated_at, total_bytes, free_bytes, measured_at)
+		VALUES ('main', 0, 300, $1, 1000, 400, $2)`, now, now.Add(-time.Minute))
+	exec(`INSERT INTO storage_pools (id, priority, min_free_bytes, updated_at) VALUES ('unmeasured', 0, 100, $1)`, now)
 	exec(`INSERT INTO river_job (args, kind, max_attempts, queue, state) VALUES ('{}', 'test', 1, 'default', 'available'), ('{}', 'test', 1, 'default', 'available')`)
 
 	collector := metrics.NewDBCollector(pool, clk, instanceID, logger)
@@ -133,6 +137,16 @@ kotatsu_recording_assignments{state="recording"} 1
 kotatsu_tuners{state="available"} 2
 kotatsu_tuners{state="fault"} 1
 kotatsu_tuners{state="unavailable"} 1
+# HELP kotatsu_storage_pool_bytes Size and available space of the storage pools, as last measured by the capacity check.
+# TYPE kotatsu_storage_pool_bytes gauge
+kotatsu_storage_pool_bytes{kind="available",pool="main"} 400
+kotatsu_storage_pool_bytes{kind="total",pool="main"} 1000
+# HELP kotatsu_storage_pool_threshold_bytes Free space that the capacity check keeps in the storage pools by deleting old recordings. 0 means it deletes nothing.
+# TYPE kotatsu_storage_pool_threshold_bytes gauge
+kotatsu_storage_pool_threshold_bytes{pool="main"} 300
+# HELP kotatsu_storage_pool_last_measured_timestamp_seconds Time when the capacity check last measured the storage pools.
+# TYPE kotatsu_storage_pool_last_measured_timestamp_seconds gauge
+kotatsu_storage_pool_last_measured_timestamp_seconds{pool="main"} 1.79163354e+09
 # HELP kotatsu_river_jobs Number of River jobs waiting or running, by queue and state.
 # TYPE kotatsu_river_jobs gauge
 kotatsu_river_jobs{queue="default",state="available"} 2
@@ -143,7 +157,7 @@ kotatsu_metrics_collection_errors 0
 	names := []string{
 		"kotatsu_recordings", "kotatsu_recording_failures", "kotatsu_recording_failures_total", "kotatsu_recording_last_failure_timestamp_seconds",
 		"kotatsu_recording_active_packets", "kotatsu_reservations", "kotatsu_recording_assignments", "kotatsu_tuners",
-		"kotatsu_river_jobs", "kotatsu_metrics_collection_errors", "kotatsu_neko_leader",
+		"kotatsu_storage_pool_bytes", "kotatsu_storage_pool_threshold_bytes", "kotatsu_storage_pool_last_measured_timestamp_seconds", "kotatsu_river_jobs", "kotatsu_metrics_collection_errors", "kotatsu_neko_leader",
 	}
 	leader := func(value string) string {
 		return "# HELP kotatsu_neko_leader Whether this instance holds the neko lease (1) or not (0).\n" +

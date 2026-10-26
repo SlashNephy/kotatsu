@@ -1,6 +1,6 @@
 // Package metrics は、/metrics で公開する Kotatsu のメトリクスを集める (設計書 11.3)。
 //
-// 録画、予約、チューナー、ジョブのキューは、どのインスタンスからも同じ DB を読むので、どのインスタンスの /metrics も、クラスター全体の同じ値を返す。
+// 録画、予約、チューナー、保存先プール、ジョブのキューは、どのインスタンスからも同じ DB を読むので、どのインスタンスの /metrics も、クラスター全体の同じ値を返す。
 // 集計するときは、インスタンスをまたいで足さず、max などで 1 つにまとめる。
 // ラベルには、番組名のように視聴の傾向が分かる値を入れない。
 package metrics
@@ -27,7 +27,7 @@ const (
 	leaseName = "neko"
 )
 
-// DBCollector は、DB から、録画、予約、割り振り、チューナー、neko のリース、River のキューの状態を、収集のたびに読む。
+// DBCollector は、DB から、録画、予約、割り振り、チューナー、保存先プール、neko のリース、River のキューの状態を、収集のたびに読む。
 type DBCollector struct {
 	pool       *pgxpool.Pool
 	clock      clock.Clock
@@ -42,6 +42,9 @@ type DBCollector struct {
 	reservations     *prometheus.Desc
 	assignments      *prometheus.Desc
 	tuners           *prometheus.Desc
+	poolBytes        *prometheus.Desc
+	poolThreshold    *prometheus.Desc
+	poolMeasured     *prometheus.Desc
 	leader           *prometheus.Desc
 	jobs             *prometheus.Desc
 	collectionErrors *prometheus.Desc
@@ -65,6 +68,9 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, instanceID uuid.UUID, l
 		reservations:     desc("reservations", "Number of reservations that have not ended, by assignment state, or disabled.", "state"),
 		assignments:      desc("recording_assignments", "Number of recording assignments by state.", "state"),
 		tuners:           desc("tuners", "Number of tuners of the tuner server by state.", "state"),
+		poolBytes:        desc("storage_pool_bytes", "Size and available space of the storage pools, as last measured by the capacity check.", "pool", "kind"),
+		poolThreshold:    desc("storage_pool_threshold_bytes", "Free space that the capacity check keeps in the storage pools by deleting old recordings. 0 means it deletes nothing.", "pool"),
+		poolMeasured:     desc("storage_pool_last_measured_timestamp_seconds", "Time when the capacity check last measured the storage pools.", "pool"),
 		leader:           desc("neko_leader", "Whether this instance holds the neko lease (1) or not (0)."),
 		jobs:             desc("river_jobs", "Number of River jobs waiting or running, by queue and state.", "queue", "state"),
 		collectionErrors: desc("metrics_collection_errors", "Number of metric groups that could not be read from the database in this scrape."),
@@ -74,7 +80,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, instanceID uuid.UUID, l
 // Describe は、集めるメトリクスの説明を送る。
 func (c *DBCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{
-		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.reservations, c.assignments, c.tuners, c.leader, c.jobs, c.collectionErrors,
+		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.reservations, c.assignments, c.tuners, c.poolBytes, c.poolThreshold, c.poolMeasured, c.leader, c.jobs, c.collectionErrors,
 	} {
 		ch <- d
 	}
@@ -87,7 +93,7 @@ func (c *DBCollector) Collect(ch chan<- prometheus.Metric) {
 
 	failed := 0
 	for _, collect := range []func(context.Context, chan<- prometheus.Metric) error{
-		c.collectRecordings, c.collectReservations, c.collectAssignments, c.collectTuners, c.collectLeader, c.collectJobs,
+		c.collectRecordings, c.collectReservations, c.collectAssignments, c.collectTuners, c.collectStoragePools, c.collectLeader, c.collectJobs,
 	} {
 		if err := collect(ctx, ch); err != nil {
 			c.logger.WarnContext(ctx, "failed to collect metrics", slog.Any("error", err))
@@ -169,6 +175,23 @@ func (c *DBCollector) collectTuners(ctx context.Context, ch chan<- prometheus.Me
 	}
 	for state, value := range map[string]int64{"available": row.Available, "unavailable": row.Unavailable, "fault": row.Fault} {
 		ch <- prometheus.MustNewConstMetric(c.tuners, prometheus.GaugeValue, float64(value), state)
+	}
+
+	return nil
+}
+
+// collectStoragePools は、容量の管理が測って残した、保存先プールの容量と空き容量を送る (#957)。測っていないプールは送らない。
+// 測った時刻を送るので、容量の管理が止まって値が古くなったことが分かる。
+func (c *DBCollector) collectStoragePools(ctx context.Context, ch chan<- prometheus.Metric) error {
+	rows, err := sqlc.New(c.pool).ListStoragePoolMeasurements(ctx)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		ch <- prometheus.MustNewConstMetric(c.poolBytes, prometheus.GaugeValue, float64(row.TotalBytes), row.ID, "total")
+		ch <- prometheus.MustNewConstMetric(c.poolBytes, prometheus.GaugeValue, float64(row.FreeBytes), row.ID, "available")
+		ch <- prometheus.MustNewConstMetric(c.poolThreshold, prometheus.GaugeValue, float64(row.MinFreeBytes), row.ID)
+		ch <- prometheus.MustNewConstMetric(c.poolMeasured, prometheus.GaugeValue, float64(row.MeasuredAt.Unix()), row.ID)
 	}
 
 	return nil

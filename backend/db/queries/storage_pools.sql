@@ -11,6 +11,17 @@ RETURNING *;
 -- 空き容量が閾値を下回ったままになったことを記録する。すでに記録していれば何もしない (0 行)。
 UPDATE storage_pools SET low_since = @now WHERE id = @id AND low_since IS NULL;
 
+-- name: RecordStoragePoolMeasurement :exec
+-- 容量の管理が測った、プールの容量と空き容量を残す (#957)。設定の行がなければ、既定値で作る。設定を変えた日時 (updated_at) は変えない。
+INSERT INTO storage_pools (id, priority, min_free_bytes, low_since, updated_at, total_bytes, free_bytes, measured_at)
+VALUES (@id, 0, 0, NULL, @now, @total_bytes::bigint, @free_bytes::bigint, @now)
+ON CONFLICT (id) DO UPDATE SET total_bytes = EXCLUDED.total_bytes, free_bytes = EXCLUDED.free_bytes, measured_at = EXCLUDED.measured_at;
+
+-- name: ClearUnmountedStoragePoolMeasurements :exec
+-- マウントされていないプール (設定から外したもの) の、前に測った値を消す。設定は残す。
+UPDATE storage_pools SET total_bytes = NULL, free_bytes = NULL, measured_at = NULL
+WHERE NOT (id = ANY(@mounted::text[])) AND measured_at IS NOT NULL;
+
 -- name: ClearStoragePoolLow :exec
 UPDATE storage_pools SET low_since = NULL WHERE id = @id AND low_since IS NOT NULL;
 

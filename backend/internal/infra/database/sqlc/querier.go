@@ -34,6 +34,8 @@ type Querier interface {
 	// 割り込みから予約した番組に戻ったので、記録した放送の終了を取り消す (#636)。
 	ClearRecordingBroadcastEnded(ctx context.Context, arg ClearRecordingBroadcastEndedParams) error
 	ClearStoragePoolLow(ctx context.Context, id string) error
+	// マウントされていないプール (設定から外したもの) の、前に測った値を消す。設定は残す。
+	ClearUnmountedStoragePoolMeasurements(ctx context.Context, mounted []string) error
 	// 書き終えたファイルの大きさと、表す時間の終わりを記録する。
 	CloseRecordingFile(ctx context.Context, arg CloseRecordingFileParams) error
 	// 認可コードを消して返す。一度しか引き換えられないよう、引き換えるときに消す。期限を過ぎたものは返さない。
@@ -381,6 +383,8 @@ type Querier interface {
 	// 取り込むデータが参照するサービスが、Kotatsu にあるかを確かめるのに使う。
 	ListServiceIDs(ctx context.Context) ([]int64, error)
 	ListServices(ctx context.Context) ([]ListServicesRow, error)
+	// /metrics に出す、容量の管理が測った保存先プールの容量と空き容量、閾値 (#957)。測っていないプールは返さない。
+	ListStoragePoolMeasurements(ctx context.Context) ([]ListStoragePoolMeasurementsRow, error)
 	ListStoragePools(ctx context.Context) ([]StoragePool, error)
 	// タグを、付いている録画の数と一緒に、名前の順で返す。
 	ListTags(ctx context.Context) ([]ListTagsRow, error)
@@ -466,6 +470,8 @@ type Querier interface {
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) (int32, error)
 	RecordOIDCIdentityUse(ctx context.Context, arg RecordOIDCIdentityUseParams) error
 	RecordPasskeyUse(ctx context.Context, arg RecordPasskeyUseParams) error
+	// 容量の管理が測った、プールの容量と空き容量を残す (#957)。設定の行がなければ、既定値で作る。設定を変えた日時 (updated_at) は変えない。
+	RecordStoragePoolMeasurement(ctx context.Context, arg RecordStoragePoolMeasurementParams) error
 	// 割り振りが残っているかどうか。予約を消すと、割り振りも一緒に消える。
 	RecordingAssignmentExists(ctx context.Context, id uuid.UUID) (bool, error)
 	// 期限をすぐに切れさせて、他のインスタンスがすぐに取れるようにする。世代番号は残す。

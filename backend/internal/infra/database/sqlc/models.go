@@ -431,6 +431,9 @@ type StoragePool struct {
 	MinFreeBytes int64
 	LowSince     *time.Time
 	UpdatedAt    time.Time
+	TotalBytes   *int64
+	FreeBytes    *int64
+	MeasuredAt   *time.Time
 }
 
 type SystemSetting struct {

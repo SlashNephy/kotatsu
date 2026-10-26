@@ -21,6 +21,17 @@ func (q *Queries) ClearStoragePoolLow(ctx context.Context, id string) error {
 	return err
 }
 
+const clearUnmountedStoragePoolMeasurements = `-- name: ClearUnmountedStoragePoolMeasurements :exec
+UPDATE storage_pools SET total_bytes = NULL, free_bytes = NULL, measured_at = NULL
+WHERE NOT (id = ANY($1::text[])) AND measured_at IS NOT NULL
+`
+
+// マウントされていないプール (設定から外したもの) の、前に測った値を消す。設定は残す。
+func (q *Queries) ClearUnmountedStoragePoolMeasurements(ctx context.Context, mounted []string) error {
+	_, err := q.db.Exec(ctx, clearUnmountedStoragePoolMeasurements, mounted)
+	return err
+}
+
 const deleteRecording = `-- name: DeleteRecording :execrows
 DELETE FROM recordings WHERE id = $1
 `
@@ -82,7 +93,7 @@ func (q *Queries) ListDeletableRecordings(ctx context.Context, arg ListDeletable
 }
 
 const listStoragePools = `-- name: ListStoragePools :many
-SELECT id, priority, min_free_bytes, low_since, updated_at FROM storage_pools ORDER BY id
+SELECT id, priority, min_free_bytes, low_since, updated_at, total_bytes, free_bytes, measured_at FROM storage_pools ORDER BY id
 `
 
 func (q *Queries) ListStoragePools(ctx context.Context) ([]StoragePool, error) {
@@ -100,6 +111,9 @@ func (q *Queries) ListStoragePools(ctx context.Context) ([]StoragePool, error) {
 			&i.MinFreeBytes,
 			&i.LowSince,
 			&i.UpdatedAt,
+			&i.TotalBytes,
+			&i.FreeBytes,
+			&i.MeasuredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -132,7 +146,7 @@ const lockStoragePool = `-- name: LockStoragePool :one
 INSERT INTO storage_pools (id, priority, min_free_bytes, low_since, updated_at)
 VALUES ($1, 0, 0, NULL, $2)
 ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id
-RETURNING id, priority, min_free_bytes, low_since, updated_at
+RETURNING id, priority, min_free_bytes, low_since, updated_at, total_bytes, free_bytes, measured_at
 `
 
 type LockStoragePoolParams struct {
@@ -150,6 +164,9 @@ func (q *Queries) LockStoragePool(ctx context.Context, arg LockStoragePoolParams
 		&i.MinFreeBytes,
 		&i.LowSince,
 		&i.UpdatedAt,
+		&i.TotalBytes,
+		&i.FreeBytes,
+		&i.MeasuredAt,
 	)
 	return i, err
 }
@@ -172,11 +189,35 @@ func (q *Queries) MarkStoragePoolLow(ctx context.Context, arg MarkStoragePoolLow
 	return result.RowsAffected(), nil
 }
 
+const recordStoragePoolMeasurement = `-- name: RecordStoragePoolMeasurement :exec
+INSERT INTO storage_pools (id, priority, min_free_bytes, low_since, updated_at, total_bytes, free_bytes, measured_at)
+VALUES ($1, 0, 0, NULL, $2, $3::bigint, $4::bigint, $2)
+ON CONFLICT (id) DO UPDATE SET total_bytes = EXCLUDED.total_bytes, free_bytes = EXCLUDED.free_bytes, measured_at = EXCLUDED.measured_at
+`
+
+type RecordStoragePoolMeasurementParams struct {
+	ID         string
+	Now        time.Time
+	TotalBytes int64
+	FreeBytes  int64
+}
+
+// 容量の管理が測った、プールの容量と空き容量を残す (#957)。設定の行がなければ、既定値で作る。設定を変えた日時 (updated_at) は変えない。
+func (q *Queries) RecordStoragePoolMeasurement(ctx context.Context, arg RecordStoragePoolMeasurementParams) error {
+	_, err := q.db.Exec(ctx, recordStoragePoolMeasurement,
+		arg.ID,
+		arg.Now,
+		arg.TotalBytes,
+		arg.FreeBytes,
+	)
+	return err
+}
+
 const upsertStoragePool = `-- name: UpsertStoragePool :one
 INSERT INTO storage_pools (id, priority, min_free_bytes, low_since, updated_at)
 VALUES ($1, $2, $3, NULL, $4)
 ON CONFLICT (id) DO UPDATE SET priority = EXCLUDED.priority, min_free_bytes = EXCLUDED.min_free_bytes, updated_at = EXCLUDED.updated_at
-RETURNING id, priority, min_free_bytes, low_since, updated_at
+RETURNING id, priority, min_free_bytes, low_since, updated_at, total_bytes, free_bytes, measured_at
 `
 
 type UpsertStoragePoolParams struct {
@@ -200,6 +241,9 @@ func (q *Queries) UpsertStoragePool(ctx context.Context, arg UpsertStoragePoolPa
 		&i.MinFreeBytes,
 		&i.LowSince,
 		&i.UpdatedAt,
+		&i.TotalBytes,
+		&i.FreeBytes,
+		&i.MeasuredAt,
 	)
 	return i, err
 }
