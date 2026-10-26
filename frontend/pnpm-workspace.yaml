@@ -14,7 +14,7 @@ overrides:
   # web-bml は、css を GitHub の tarball で指定している。tarball の依存は pnpm が拒み、Renovate も追えないので、
   # npm の css に差し替え、tarball との差分 (パーサーの修正と、ブラウザで使えない source map の処理の削除) をパッチで当てる。
   css: 3.0.0
-  vite: npm:@voidzero-dev/vite-plus-core@1.3.0
+  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
   vitest: 5.0.5
 
 patchedDependencies:
