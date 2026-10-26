@@ -27,9 +27,11 @@ const (
 	leaseName = "neko"
 )
 
-// FailureCountsCreated は、kotatsu_recording_failures_total の作成の時刻。失敗の累計を数え始めた版の日付で、どのインスタンスでも変わらない。
+// FailureCountsCreated は、kotatsu_recording_failures_total の作成の時刻を返す。失敗の累計を数え始めた版の日付で、どのインスタンスでも変わらない。
 // 値は DB に持つので、送るインスタンスが替わっても続く。作成の時刻も同じにして、OTLP の受け手がカウンターのリセットとみなさないようにする (#962)。
-var FailureCountsCreated = time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC)
+func FailureCountsCreated() time.Time {
+	return time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC)
+}
 
 // DBCollector は、DB から、録画、予約、割り振り、チューナー、保存先プール、River のキューの状態を、収集のたびに読む。
 // どのインスタンスでも同じ値になるものだけを集める。neko のリースを持っているかは、LeaderCollector で集める。
@@ -127,7 +129,7 @@ func (c *DBCollector) collectRecordings(ctx context.Context, ch chan<- prometheu
 		return err
 	}
 	for _, row := range counts {
-		ch <- prometheus.MustNewConstMetricWithCreatedTimestamp(c.failuresTotal, prometheus.CounterValue, float64(row.Count), FailureCountsCreated, row.Reason)
+		ch <- prometheus.MustNewConstMetricWithCreatedTimestamp(c.failuresTotal, prometheus.CounterValue, float64(row.Count), FailureCountsCreated(), row.Reason)
 		if row.LastFailedAt != nil {
 			ch <- prometheus.MustNewConstMetric(c.lastFailure, prometheus.GaugeValue, float64(row.LastFailedAt.Unix()), row.Reason)
 		}

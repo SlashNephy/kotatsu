@@ -567,7 +567,7 @@ func TestLoadTelemetry(t *testing.T) {
 		wantErr     string
 	}{
 		{
-			name: "defaults", env: map[string]string{envKeyURL: envURL},
+			name: "metrics defaults", env: map[string]string{envKeyURL: envURL},
 			want: config.Telemetry{
 				OTLPEndpoint: "", OTLPMetricsEndpoint: "", OTLPMetricsProtocol: config.OTLPProtocolGRPC, OTLPMetricsHeaders: "",
 				OTLPMetricsIntervalSeconds: defaultOTLPMetricsIntervalSeconds, OTLPMetricsExclude: []string{},
@@ -575,7 +575,7 @@ func TestLoadTelemetry(t *testing.T) {
 			wantHeaders: map[string]string{},
 		},
 		{
-			name: "env",
+			name: "metrics env",
 			env: map[string]string{
 				envKeyURL: envURL,
 				"KOTATSU_TELEMETRY_OTLP_METRICS_ENDPOINT":         "https://otlp.mackerelio.com:4317",
@@ -591,7 +591,7 @@ func TestLoadTelemetry(t *testing.T) {
 			wantHeaders: map[string]string{"Mackerel-Api-Key": "xxx"},
 		},
 		{
-			name: "yaml",
+			name: "metrics yaml",
 			yaml: "telemetry:\n  otlp_metrics_endpoint: http://collector:4317\n  otlp_metrics_exclude: [go_gc_duration_seconds]\n",
 			env:  map[string]string{envKeyURL: envURL},
 			want: config.Telemetry{

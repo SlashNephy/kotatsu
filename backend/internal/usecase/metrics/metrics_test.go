@@ -180,7 +180,7 @@ kotatsu_metrics_collection_errors 0
 	}
 	require.NotEmpty(t, created)
 	for _, at := range created {
-		assert.True(t, at.Equal(metrics.FailureCountsCreated), at)
+		assert.True(t, at.Equal(metrics.FailureCountsCreated()), at)
 	}
 }
 
