@@ -427,6 +427,7 @@ func (s *Storage) validateDataDir() error {
 }
 
 // validateTimeshiftDir は、タイムシフトのディレクトリを検査する。空なら、タイムシフトを使わないので何も求めない。
+// データディレクトリやプールと重なると、容量の管理や DB にないファイルを探す機能がチャンクを触るので、重なりを拒む (設計書 5.7)。
 func (s *Storage) validateTimeshiftDir() error {
 	switch {
 	case s.TimeshiftDir == "":
@@ -435,9 +436,34 @@ func (s *Storage) validateTimeshiftDir() error {
 		return errors.New("must be an absolute path")
 	case s.DataDir == "":
 		return errors.New("requires storage.data_dir")
-	default:
-		return nil
+	case overlaps(s.TimeshiftDir, s.DataDir):
+		return errors.New("must not be the same as, inside, or a parent of storage.data_dir")
 	}
+	for _, id := range slices.Sorted(maps.Keys(s.Pools)) {
+		if overlaps(s.TimeshiftDir, s.Pools[id]) {
+			return fmt.Errorf("must not be the same as, inside, or a parent of the mount point of pool %q", id)
+		}
+	}
+
+	return nil
+}
+
+// overlaps は、絶対パスの a と b が、同じディレクトリか、一方が他方の中にあるかを返す。相対パスなら、重ならないとみなす。
+// 名前の先頭が同じだけの別のディレクトリ (/mnt/main と /mnt/main2) は重ならない。
+func overlaps(a, b string) bool {
+	if !filepath.IsAbs(a) || !filepath.IsAbs(b) {
+		return false
+	}
+	a, b = filepath.Clean(a), filepath.Clean(b)
+
+	return a == b || within(a, b) || within(b, a)
+}
+
+// within は、Clean した絶対パスの child が、parent の中にあるかを返す。
+func within(child, parent string) bool {
+	rel, err := filepath.Rel(parent, child)
+
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func validateListen(addr string) error {

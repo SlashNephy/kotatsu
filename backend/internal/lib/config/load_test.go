@@ -28,6 +28,9 @@ const (
 	poolMain = "main"
 	// envKeyTunerURL は、チューナーサーバーの URL を渡す環境変数。
 	envKeyTunerURL = "KOTATSU_TUNER_URL"
+	// errTimeshiftOverlapsDataDir と errTimeshiftOverlapsMain は、タイムシフトのディレクトリが、データディレクトリかプール main と重なるときのエラー。
+	errTimeshiftOverlapsDataDir = "storage.timeshift_dir (KOTATSU_STORAGE_TIMESHIFT_DIR): must not be the same as, inside, or a parent of storage.data_dir"
+	errTimeshiftOverlapsMain    = `storage.timeshift_dir (KOTATSU_STORAGE_TIMESHIFT_DIR): must not be the same as, inside, or a parent of the mount point of pool "main"`
 	// leakedWord は、エラーに漏れてはいけない、URL に含めた資格情報の一部。
 	leakedWord = "hunter2"
 
@@ -374,6 +377,15 @@ func TestLoadStorage(t *testing.T) {
 			},
 			want: config.Storage{
 				Pools: map[string]string{}, PoolOrder: []string{}, DataDir: "/srv/kotatsu", TimeshiftDir: "/data/timeshift",
+			},
+		},
+		{
+			// 名前の先頭が同じでも、別のディレクトリなら重ならない。
+			name: "timeshift directory next to the pool and the data directory",
+			yaml: "storage:\n  pools:\n    main: /mnt/main\n  data_dir: /mnt/main-data\n  timeshift_dir: /mnt/main2\n",
+			env:  map[string]string{envKeyURL: envURL},
+			want: config.Storage{
+				Pools: map[string]string{poolMain: "/mnt/main"}, PoolOrder: []string{poolMain}, DataDir: "/mnt/main-data", TimeshiftDir: "/mnt/main2",
 			},
 		},
 	}
@@ -834,6 +846,48 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 			yaml:     "storage:\n  timeshift_dir: /var/timeshift\n",
 			env:      map[string]string{envKeyURL: envURL},
 			wantErrs: []string{"storage.timeshift_dir (KOTATSU_STORAGE_TIMESHIFT_DIR): requires storage.data_dir"},
+		},
+		{
+			name:     "timeshift directory same as the data directory",
+			yaml:     "storage:\n  data_dir: /var/lib/kotatsu\n  timeshift_dir: /var/lib/kotatsu/\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{errTimeshiftOverlapsDataDir},
+		},
+		{
+			name:     "timeshift directory inside the data directory",
+			yaml:     "storage:\n  data_dir: /var/lib/kotatsu\n  timeshift_dir: /var/lib/kotatsu/timeshift\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{errTimeshiftOverlapsDataDir},
+		},
+		{
+			name:     "timeshift directory containing the data directory",
+			yaml:     "storage:\n  data_dir: /var/lib/kotatsu/data\n  timeshift_dir: /var/lib/kotatsu/../kotatsu\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{errTimeshiftOverlapsDataDir},
+		},
+		{
+			name:     "timeshift directory same as a pool",
+			yaml:     "storage:\n  pools:\n    main: /mnt/main\n  data_dir: /var/lib/kotatsu\n  timeshift_dir: /mnt/main\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{errTimeshiftOverlapsMain},
+		},
+		{
+			name:     "timeshift directory inside a pool",
+			yaml:     "storage:\n  pools:\n    main: /mnt/main\n  data_dir: /var/lib/kotatsu\n  timeshift_dir: /mnt/main/timeshift\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{errTimeshiftOverlapsMain},
+		},
+		{
+			name:     "root timeshift directory containing everything",
+			yaml:     "storage:\n  pools:\n    main: /mnt/main\n    sub: /srv/sub\n  data_dir: /var/lib/kotatsu\n  timeshift_dir: /\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{errTimeshiftOverlapsDataDir},
+		},
+		{
+			name:     "timeshift directory containing a pool but not the data directory",
+			yaml:     "storage:\n  pools:\n    main: /mnt/main\n    sub: /mnt/sub\n  data_dir: /var/lib/kotatsu\n  timeshift_dir: /mnt\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{errTimeshiftOverlapsMain},
 		},
 		{
 			name: "malformed pools in env",
