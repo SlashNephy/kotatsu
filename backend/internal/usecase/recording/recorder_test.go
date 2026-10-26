@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
@@ -120,6 +121,18 @@ func (f *fixture) recording(t *testing.T, reservationID uuid.UUID) (recorded, bo
 	}
 
 	return r, true
+}
+
+// failures は、理由 reason の失敗の累計と、最後に失敗した時刻を返す (#960)。失敗したことがなければ、時刻は nil。
+func (f *fixture) failures(t *testing.T, reason recording.FailureReason) (int, *time.Time) {
+	t.Helper()
+
+	var count int
+	var last *time.Time
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count, last_failed_at FROM recording_failure_counts WHERE reason = $1", string(reason)).
+		Scan(&count, &last))
+
+	return count, last
 }
 
 type recordedFile struct {
@@ -435,6 +448,48 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			got, ok := f.recording(t, reservationID)
 			require.True(t, ok)
 			assert.Equal(t, recorded{state: string(recording.StateFailed), failureReason: new(string(tt.want)), drops: 0}, got)
+			// 失敗の累計にも足す (#960)。
+			count, last := f.failures(t, tt.want)
+			assert.Equal(t, 1, count)
+			require.NotNil(t, last)
+			assert.True(t, last.Equal(f.clock.Now()))
+		})
+	}
+}
+
+// TestFinishRecordingCountsFailures は、録画を終えるときに、失敗に変わった録画だけを、失敗の累計に足すことを確かめる (#960)。
+// すでに失敗の録画を、もう一度失敗で終えても、足さない。
+func TestFinishRecordingCountsFailures(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		before recording.State
+		after  recording.State
+		reason *string
+		want   int
+	}{
+		{name: "録画中から失敗", before: recording.StateRecording, after: recording.StateFailed, reason: new(string(recording.FailureCancelled)), want: 1},
+		{name: "失敗から失敗", before: recording.StateFailed, after: recording.StateFailed, reason: new(string(recording.FailureCancelled)), want: 0},
+		{name: "録画中から完了", before: recording.StateRecording, after: recording.StateCompleted, reason: nil, want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			recordingID := id.New()
+			now := f.clock.Now()
+			_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+				state, failure_reason, recorded_from, protected, created_at, updated_at)
+				VALUES ($1, NULL, $2, 6, '録画', '', $3, $3, $4, $5, $3, false, $3, $3)`, recordingID, grService(0), now, string(tt.before), tt.reason)
+			require.NoError(t, err)
+
+			require.NoError(t, sqlc.New(f.pool).FinishRecording(t.Context(), sqlc.FinishRecordingParams{
+				State: string(tt.after), FailureReason: tt.reason, Now: &now, ID: recordingID,
+			}))
+			count, _ := f.failures(t, recording.FailureCancelled)
+			assert.Equal(t, tt.want, count)
 		})
 	}
 }

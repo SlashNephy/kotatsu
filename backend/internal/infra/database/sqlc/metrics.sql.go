@@ -176,6 +176,31 @@ func (q *Queries) HoldsLease(ctx context.Context, arg HoldsLeaseParams) (bool, e
 	return exists, err
 }
 
+const listRecordingFailureCounts = `-- name: ListRecordingFailureCounts :many
+SELECT reason, count, last_failed_at FROM recording_failure_counts ORDER BY reason
+`
+
+// /metrics に出す、失敗の理由ごとの、録画の失敗の累計と最後に失敗した日時 (#960)。録画を消しても減らない。
+func (q *Queries) ListRecordingFailureCounts(ctx context.Context) ([]RecordingFailureCount, error) {
+	rows, err := q.db.Query(ctx, listRecordingFailureCounts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RecordingFailureCount{}
+	for rows.Next() {
+		var i RecordingFailureCount
+		if err := rows.Scan(&i.Reason, &i.Count, &i.LastFailedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const sumActiveRecordingPackets = `-- name: SumActiveRecordingPackets :one
 SELECT COALESCE(sum(drops), 0)::bigint AS drops, COALESCE(sum(errors), 0)::bigint AS errors, COALESCE(sum(scrambled), 0)::bigint AS scrambled
 FROM recordings WHERE state = 'recording'

@@ -6,6 +6,10 @@ SELECT state, count(*) AS count FROM recordings GROUP BY state ORDER BY state;
 -- /metrics に出す、失敗の理由ごとの録画の数。
 SELECT failure_reason::text AS reason, count(*) AS count FROM recordings WHERE failure_reason IS NOT NULL GROUP BY failure_reason ORDER BY failure_reason;
 
+-- name: ListRecordingFailureCounts :many
+-- /metrics に出す、失敗の理由ごとの、録画の失敗の累計と最後に失敗した日時 (#960)。録画を消しても減らない。
+SELECT reason, count, last_failed_at FROM recording_failure_counts ORDER BY reason;
+
 -- name: SumActiveRecordingPackets :one
 -- /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。
 SELECT COALESCE(sum(drops), 0)::bigint AS drops, COALESCE(sum(errors), 0)::bigint AS errors, COALESCE(sum(scrambled), 0)::bigint AS scrambled

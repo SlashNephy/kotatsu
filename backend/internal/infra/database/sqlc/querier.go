@@ -128,8 +128,10 @@ type Querier interface {
 	EnsureChannelType(ctx context.Context, arg EnsureChannelTypeParams) error
 	// 番組の終わりが before より前に過ぎても「録画中」のままで、録画している割り振り (終わっていないもの) もない録画を、失敗にする。
 	// 録画していた mikan がいなくなったか、予約を消して割り振りが消えたもので、ほかに録画を終える人がいない (#516)。
-	// 録画した時間の終わりは、書いたセグメントの終わりにする。
+	// 録画した時間の終わりは、書いたセグメントの終わりにする。失敗にした録画は、同じ文で失敗の累計に足す (#960)。
 	FailStuckRecordings(ctx context.Context, arg FailStuckRecordingsParams) ([]FailStuckRecordingsRow, error)
+	// 録画を state で終える。失敗に変わったときは、同じ文で失敗の累計に足す (#960)。すでに失敗の録画を、もう一度失敗で終えても足さない。
+	// prev には FOR UPDATE を付けない。付けると、同じ文の UPDATE がその行を飛ばす。同じ録画を同時に終えないことは、呼び出し側が割り振りの世代のロックで守る。
 	FinishRecording(ctx context.Context, arg FinishRecordingParams) error
 	// 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。引き継ぎ待ちの間に予定の終わりが来ても終える。
 	FinishRecordingAssignment(ctx context.Context, arg FinishRecordingAssignmentParams) (int64, error)
@@ -225,7 +227,8 @@ type Querier interface {
 	InsertImportedRecordingFile(ctx context.Context, arg InsertImportedRecordingFileParams) error
 	InsertLoginChallenge(ctx context.Context, arg InsertLoginChallengeParams) error
 	// mikan が取らなかった予約の録画を、失敗として記録する (#517)。録画した時間はないので、始まりと終わりを予定の開始にする。
-	// 同じ予約の録画がすでにあれば何もせず、0 を返す。
+	// 同じ予約の録画がすでにあれば何もせず、0 を返す。記録したときは、同じ文で失敗の累計に足す (#960)。
+	// 返す行数は累計の行を更新した数で、記録した録画の数と同じになる (理由の行はマイグレーションが作っておく)。
 	InsertMissedRecording(ctx context.Context, arg InsertMissedRecordingParams) (int64, error)
 	InsertNotificationEvent(ctx context.Context, arg InsertNotificationEventParams) error
 	// イベント event_id を、ユーザー user_ids に配る。ids と user_ids は同じ順に並べる。
@@ -343,6 +346,8 @@ type Querier interface {
 	ListProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]ListProgramsInRangeRow, error)
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
 	ListRecordingAssignments(ctx context.Context) ([]RecordingAssignment, error)
+	// /metrics に出す、失敗の理由ごとの、録画の失敗の累計と最後に失敗した日時 (#960)。録画を消しても減らない。
+	ListRecordingFailureCounts(ctx context.Context) ([]RecordingFailureCount, error)
 	// すべての録画ファイルの ID と置き場所を返す。録画中のものも含む。DB にないファイルを探すのに使う。
 	ListRecordingFileLocations(ctx context.Context) ([]ListRecordingFileLocationsRow, error)
 	ListRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error)

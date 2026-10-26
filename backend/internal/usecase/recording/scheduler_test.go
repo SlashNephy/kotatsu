@@ -306,6 +306,9 @@ func TestSchedulerFailsStuckRecordings(t *testing.T) {
 				assert.Equal(t, "recording", state)
 				assert.Zero(t, events)
 				assert.Zero(t, f.recordingsVersion(t))
+				count, last := f.failures(t, recording.FailureStreamInterrupted)
+				assert.Zero(t, count)
+				assert.Nil(t, last)
 
 				return
 			}
@@ -315,10 +318,21 @@ func TestSchedulerFailsStuckRecordings(t *testing.T) {
 			assert.Equal(t, 1, events)
 			assert.EqualValues(t, 1, f.recordingsVersion(t))
 
-			// 何度見直しても、通知は 1 回だけ。
+			failedAt := f.clock.Now()
+			count, last := f.failures(t, recording.FailureStreamInterrupted)
+			assert.Equal(t, 1, count)
+			require.NotNil(t, last)
+			assert.True(t, last.Equal(failedAt))
+
+			// 何度見直しても、通知と失敗の累計は 1 回だけ。
+			f.clock.Advance(time.Minute)
 			f.schedule(t)
 			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM notification_events WHERE kind = 'recording_failed'").Scan(&events))
 			assert.Equal(t, 1, events)
+			count, last = f.failures(t, recording.FailureStreamInterrupted)
+			assert.Equal(t, 1, count)
+			require.NotNil(t, last)
+			assert.True(t, last.Equal(failedAt))
 		})
 	}
 }
@@ -367,6 +381,9 @@ func TestSchedulerRecordsMissedRecordings(t *testing.T) {
 				"SELECT count(*) FROM notification_events WHERE kind = 'recording_failed' AND payload->>'reason' = 'recorder_unavailable'").Scan(&events))
 			assert.Equal(t, tt.wantMissed, events)
 			assert.EqualValues(t, tt.wantMissed, f.recordingsVersion(t))
+			// 録画の行がすでにあって記録しなかったときは、失敗の累計にも足さない (#960)。
+			count, _ := f.failures(t, recording.FailureRecorderUnavailable)
+			assert.Equal(t, tt.wantMissed, count)
 			if tt.wantMissed == 0 {
 				return
 			}
@@ -379,8 +396,10 @@ func TestSchedulerRecordsMissedRecordings(t *testing.T) {
 			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT payload->>'recordingId' FROM notification_events WHERE kind = 'recording_failed'").Scan(&notified))
 			assert.Equal(t, recordingID, notified)
 
-			// 何度見直しても、記録と通知は 1 回だけ。
+			// 何度見直しても、記録、通知、失敗の累計は 1 回だけ。
 			assert.Zero(t, f.schedule(t).Missed)
+			count, _ = f.failures(t, recording.FailureRecorderUnavailable)
+			assert.Equal(t, 1, count)
 		})
 	}
 }
@@ -408,4 +427,9 @@ func TestSchedulerFailsReleasedRecordingsWithTheirReason(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT state, failure_reason FROM recordings WHERE reservation_id = $1", reservationID).Scan(&state, &reason))
 	assert.Equal(t, "failed", state)
 	assert.Equal(t, "storage_unavailable", reason)
+	// 失敗の累計は、手放した mikan が残した理由で足す (#960)。
+	count, _ := f.failures(t, recording.FailureStorageUnavailable)
+	assert.Equal(t, 1, count)
+	count, _ = f.failures(t, recording.FailureStreamInterrupted)
+	assert.Zero(t, count)
 }
