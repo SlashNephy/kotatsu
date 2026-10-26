@@ -40,14 +40,23 @@ for (const scheme of ['light', 'dark'] as const) {
           timeout: 30_000,
         })
         .toBeGreaterThan(2.5);
-      await video.evaluate(async (element: HTMLVideoElement) => {
+      // seeked の時点では、まだ止める前のフレームが表示されていることがある。
+      // 戻した位置のフレームが表示されたことを requestVideoFrameCallback で確かめる。
+      const shownAt = await video.evaluate(async (element: HTMLVideoElement) => {
         element.pause();
-        const seeked = new Promise((resolve) => {
-          element.addEventListener('seeked', resolve, { once: true });
+        const shown = new Promise<number>((resolve) => {
+          element.requestVideoFrameCallback((_now, metadata) => {
+            resolve(metadata.mediaTime);
+          });
         });
         element.currentTime = 2;
-        await seeked;
+
+        return shown;
       });
+      expect(shownAt).toBeGreaterThan(1.9);
+      expect(shownAt).toBeLessThanOrEqual(2);
+      // 表示を知らせた直後の撮影には、前のフレームが写ることがあるので、少し置く。
+      await page.waitForTimeout(500);
       await capture(page, 'live', scheme);
     });
 
