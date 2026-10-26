@@ -15,6 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
@@ -236,4 +237,56 @@ func TestSchedulerIgnoresConflictedReservation(t *testing.T) {
 			want: []int64{grService(0)},
 		},
 	})
+}
+
+// TestSchedulerReplacesFinishedAssignment は、終わったことになったタイムシフトの割り振りを、ないものとして扱うことを確かめる。
+// 終わった割り振りはどの mikan も取らないので、残すとそのチャンネルを録れなくなる (#1055)。
+func TestSchedulerReplacesFinishedAssignment(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// configured は、終わった割り振りのチャンネルを、タイムシフトで録るよう設定しておくかどうか。
+		configured  bool
+		wantCreated int
+		wantDeleted int
+		want        []int64
+	}{
+		{name: "録るチャンネルなら、消して書き直す", configured: true, wantCreated: 1, wantDeleted: 1, want: []int64{grService(0)}},
+		{name: "設定のないチャンネルなら、消す", configured: false, wantCreated: 0, wantDeleted: 1, want: []int64{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			e := newEnv(t)
+			if tt.configured {
+				e.configure(t, 0)
+			}
+			finishedID := id.New()
+			require.NoError(t, e.q.InsertTimeshiftAssignment(t.Context(), sqlc.InsertTimeshiftAssignmentParams{
+				ID: finishedID, ServiceID: grService(0), Priority: timeshift.Priority, Now: e.clk.Now(),
+			}))
+			tag, err := e.pool.Exec(t.Context(), "UPDATE timeshift_assignments SET state = 'finished' WHERE id = $1", finishedID)
+			require.NoError(t, err)
+			require.EqualValues(t, 1, tag.RowsAffected())
+			before := channelVersion(t, e.pool)
+
+			result, err := e.scheduler.RunOnce(t.Context())
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.wantCreated, result.Created)
+			assert.Equal(t, tt.wantDeleted, result.Deleted)
+			assert.Greater(t, channelVersion(t, e.pool), before, "mikan is notified")
+			rows, err := e.q.ListTimeshiftAssignments(t.Context())
+			require.NoError(t, err)
+			got := make([]int64, 0, len(rows))
+			for _, row := range rows {
+				got = append(got, row.ServiceID)
+				assert.NotEqual(t, finishedID, row.ID, "the finished assignment is gone")
+				assert.Equal(t, "waiting", row.State, "a new assignment is waiting for mikan")
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }

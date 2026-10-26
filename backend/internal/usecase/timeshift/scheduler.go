@@ -182,6 +182,7 @@ func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time) (m
 
 // apply は、割り振りを want に合わせる。書いた数と消した数を返す。
 // 新しい割り振りは、channels の順 (チャンネル種別の並び順、サービス ID の順) に書く。
+// 終わったことになった割り振りは、どの mikan も取らず、残すとそのチャンネルを録れなくなるので、ないものとして消し、要れば書き直す。
 func apply(ctx context.Context, q *sqlc.Queries, now time.Time, channels []*Channel, want map[int64]bool) (int, int, error) {
 	assignments, err := q.ListTimeshiftAssignments(ctx)
 	if err != nil {
@@ -190,8 +191,11 @@ func apply(ctx context.Context, q *sqlc.Queries, now time.Time, channels []*Chan
 	have := map[int64]bool{}
 	deleted := 0
 	for _, a := range assignments {
-		have[a.ServiceID] = true
-		if want[a.ServiceID] {
+		finished := a.State == string(recording.AssignmentFinished)
+		if !finished {
+			have[a.ServiceID] = true
+		}
+		if want[a.ServiceID] && !finished {
 			continue
 		}
 		if _, err := q.DeleteTimeshiftAssignment(ctx, a.ServiceID); err != nil {
