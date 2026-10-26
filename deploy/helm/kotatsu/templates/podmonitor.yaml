@@ -1,0 +1,49 @@
+{{- /*
+Prometheus Operator の PodMonitor (設計書 11.3)。どのロールの Pod も /metrics を metrics のポート (9090 番) で待ち受ける。
+Service は tenban の Pod しか選ばないので、ServiceMonitor でなく PodMonitor で、全ロールの Pod を直接読む。
+CRD のないクラスターで失敗しないよう、既定では作らない。
+*/}}
+{{- with .Values.metrics.podMonitor }}
+{{- if .enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "kotatsu.fullname" $ }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "kotatsu.labels" $ | nindent 4 }}
+    {{- with .labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $.Chart.Name }}
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+    # マイグレーションの Job の Pod は、/metrics を待ち受けない。
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: NotIn
+        values: [migrate]
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      {{- with .interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .scrapeTimeout }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+      relabelings:
+        # どのロールの値かを見分けられるよう、Pod の component (all か、ロールの名前) を role のラベルにする。
+        - sourceLabels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+          targetLabel: role
+        {{- with .relabelings }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .metricRelabelings }}
+      metricRelabelings:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- end }}

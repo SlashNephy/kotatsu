@@ -1533,6 +1533,7 @@ Helm Chartは次の方針で作ります。
 - readinessのプローブは、既定で起動から2秒待ってから始めます（`initialDelaySeconds`）。起動直後に最初のプローブが届くと、HTTPサーバーが待ち受ける前で失敗し、更新のたびにUnhealthyのイベントが出るためです。
 - すべてのリソースに、入れる先のnamespaceを書きます。kustomizeの`helmCharts`で描画しても、namespaceが付くようにするためです。
 - PostgreSQLはChartに含めず、外部のもの（CloudNativePGなど）を使う前提にします。
+- `/metrics`を、Prometheus OperatorのPodMonitorで読めるようにします（`metrics.podMonitor.enabled`、[11.3](#113-監視)）。CRDのないクラスターで失敗しないよう、既定では作りません。
 
 Kubernetesのマニフェストは、全ロールを1つのPodで動かす構成例と、ロールを分けた構成例の2つを生成します。
 Chartから生成した結果とリポジトリ上のマニフェストの差分は、CIの検査対象です。
@@ -1555,6 +1556,7 @@ EPGStationのように、秘密情報を平文の設定ファイルに書く必�
 - `/readyz`はreadiness用で、DBに接続できれば成功を返します。チューナーサーバーの状態は判定に含めません（[3.7](#37-時刻と縮退)）。
 - `/healthz`と`/readyz`は、外部からの死活監視に使えるよう、認証なしで最小限の情報だけを返します。
 - `/metrics`は、別の待ち受けアドレス（既定は`:9090`）で公開します。メトリクスのラベルには、番組名のように視聴の傾向が分かる情報を入れません。
+- Helm Chartで入れたときは、`metrics.podMonitor.enabled`で、Prometheus OperatorのPodMonitorを作れます。どのロールのPodも`metrics`のポートで待ち受けるので、PodMonitorで全ロールのPodを直接読みます。ロールを分けた構成では、ServiceがtenbanのPodしか選ばないので、ServiceMonitorではnekoやkyusuの値を読めないためです。Podの`app.kubernetes.io/component`（`all`かロールの名前）は、`role`のラベルにします。DBから読まない値（`kotatsu_neko_leader`、`kotatsu_kyusu_sessions`、`kotatsu_tenban_streams`）が、どのロールのものかを見分けるためです。間隔、ラベル、relabelingはvaluesで変えられます。
 - 主なメトリクスは、録画中の件数、失敗の件数、ドロップの数、予約の割り当ての状態、チューナーの使用状況、保存先プールの空き容量、EPGの同期の遅れ、nekoのリースを持っているインスタンス、Riverのキューの長さ、kyusuのセッション数、tenbanの配信の本数です。名前は次のとおりです。
 
   | メトリクス | 内容 |

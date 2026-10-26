@@ -126,6 +126,21 @@ ingress:
   # コントローラーの Service を externalTrafficPolicy: Local にするなどして、送信元を保つ。
   trustedProxies: []
 
+# metrics は、/metrics の scrape の設定 (設計書 11.3)。どのロールの Pod も、metrics のポート (9090 番) で待ち受ける。
+metrics:
+  # podMonitor は、Prometheus Operator の PodMonitor。CRD (monitoring.coreos.com/v1) のないクラスターでは作れないので、既定では作らない。
+  # 全ロールの Pod を読み、Pod の component (all か、ロールの名前) を role のラベルにする。
+  podMonitor:
+    enabled: false
+    # labels は、PodMonitor に足すラベル。Prometheus の podMonitorSelector に合わせる。例: {release: kube-prometheus-stack}
+    labels: {}
+    # interval と scrapeTimeout が空なら、Prometheus の既定を使う。例: 30s
+    interval: ""
+    scrapeTimeout: ""
+    # relabelings と metricRelabelings は、Prometheus Operator の RelabelConfig の形。relabelings は、role のラベルの後に足す。
+    relabelings: []
+    metricRelabelings: []
+
 # migration は、install と upgrade の前に kotatsu migrate を実行する Job (設計書 11.4)。
 migration:
   enabled: true
