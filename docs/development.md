@@ -163,4 +163,17 @@ mainへのpushのたびにCIが撮り直し、差があれば、画像を差し�
 手で撮った画像をコミットする必要はありません。
 手元ではフォントなどがCIと違うので、撮るとすべての画像が書き換わります。撮れるかどうかや、見た目を確かめるのに使い、書き換わった画像はコミットしないでください。
 
-ほかのコマンドは、[README](../README.md#開発)の表にまとめました。
+## よく使うコマンド
+
+タスクは、プロジェクトごとに`backend/`と`frontend/`の`mise.toml`にあり、`//backend:`や`//frontend:`を付けて呼びます。
+
+| コマンド | 内容 |
+| --- | --- |
+| `mise run dev` | 開発用のComposeを動かす。ソースを保存すると、その場で反映される |
+| `mise run //backend:generate` | sqlc、gqlgen、GraphQLのスキーマなどの生成物を作り直し、マイグレーションを検証する |
+| `mise run //backend:test` | Goのテストを`-race`付きで実行する |
+| `mise run //backend:lint` | golangci-lintを実行する |
+| `mise run //frontend:check` | 画面のlintと型を確認する |
+| `mise run //frontend:test` | 画面のテストを実行する |
+| `mise run //frontend:screenshots` | READMEのスクリーンショットをデモから撮り直し、`docs/screenshots`に書き出す |
+| `mise run //backend:db:diff -- <名前>` | `backend/db/schema.sql`の変更からマイグレーションを作る |

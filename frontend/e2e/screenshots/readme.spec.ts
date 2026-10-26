@@ -1,10 +1,10 @@
 import { expect, type Page, test } from '@playwright/test';
 
 // README に載せるスクリーンショット (#621)。画面ごとに、ライトとダークの両方を撮る。
-// 時刻を固定し、映像は決まった位置で止めてから撮る。
-// デモのデータは、開いた時刻を基準に作られる (src/demo/data.ts、src/demo/epg.ts)。
+// デモのデータは、開いた時刻を基準に作られる (src/demo/data.ts、src/demo/epg.ts) ので、時刻を固定して撮る。
+// ライブ視聴は、デモの映像がテストパターンなので撮らない (#1050)。
 
-// 番組表とライブ視聴で、夜の番組が並ぶ時刻にする。
+// 番組表に、夜の番組が並ぶ時刻にする。
 const fixedTime = new Date('2026-04-01T20:30:00+09:00');
 
 // 画像は toHaveScreenshot の比べる先 (docs/screenshots) として扱い、updateSnapshots: 'changed' で書き換える
@@ -29,35 +29,6 @@ for (const scheme of ['light', 'dark'] as const) {
       await expect(page.getByText('こたつテレビ').first()).toBeVisible();
       await expect(page.getByText(/映画「雪の日の湯たんぽ」/).first()).toBeVisible();
       await capture(page, 'guide', scheme);
-    });
-
-    test('ライブ視聴', async ({ page }) => {
-      await page.goto('/live/Service%3A1024');
-      const video = page.locator('video');
-      // 再生が進んでから止め、決まった位置に戻して、毎回同じフレームを写す。
-      await expect
-        .poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime), {
-          timeout: 30_000,
-        })
-        .toBeGreaterThan(2.5);
-      // seeked の時点では、まだ止める前のフレームが表示されていることがある。
-      // 戻した位置のフレームが表示されたことを requestVideoFrameCallback で確かめる。
-      const shownAt = await video.evaluate(async (element: HTMLVideoElement) => {
-        element.pause();
-        const shown = new Promise<number>((resolve) => {
-          element.requestVideoFrameCallback((_now, metadata) => {
-            resolve(metadata.mediaTime);
-          });
-        });
-        element.currentTime = 2;
-
-        return shown;
-      });
-      expect(shownAt).toBeGreaterThan(1.9);
-      expect(shownAt).toBeLessThanOrEqual(2);
-      // 表示を知らせた直後の撮影には、前のフレームが写ることがあるので、少し置く。
-      await page.waitForTimeout(500);
-      await capture(page, 'live', scheme);
     });
 
     test('録画の一覧', async ({ page }) => {
