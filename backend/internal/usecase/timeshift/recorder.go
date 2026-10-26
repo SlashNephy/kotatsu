@@ -275,7 +275,8 @@ func (r *Recorder) copyChunks(ctx context.Context, logger *slog.Logger, serviceI
 func (r *Recorder) writePackets(ctx context.Context, logger *slog.Logger, serviceID int64, current *chunk, packets []byte) (*chunk, error) {
 	now := r.clock.Now()
 	if current != nil && now.Sub(current.startedAt) >= r.opts.ChunkDuration {
-		r.closeChunk(ctx, logger, current, now)
+		// ctx が終わっても、書き終えたチャンクを閉じずに残さない。
+		r.closeChunk(context.WithoutCancel(ctx), logger, current, now)
 		current = nil
 	}
 	if current == nil {
