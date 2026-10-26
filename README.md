@@ -68,6 +68,7 @@ EPGStationの録画の保存先ディレクトリは、`--pool 名前=プールI
 
 KotatsuにはPostgreSQLと、Mirakurun、mirakc、Mahironのいずれかのチューナーサーバーが必要です。
 コンテナイメージは`ghcr.io/slashnephy/kotatsu`で配布しています。
+Linux、macOS、Windowsのバイナリは、[GitHub Releases](https://github.com/SlashNephy/kotatsu/releases)に置いています。
 
 Docker Composeで1台のマシンに立てる手順と、HelmでKubernetesに立てる手順は、次のドキュメントにまとめました。
 
