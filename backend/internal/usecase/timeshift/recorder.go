@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime/debug"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -304,10 +305,15 @@ func (r *Recorder) recordStream(ctx context.Context, logger *slog.Logger, assign
 		}()
 		r.watch(watchCtx, assignment, stream, &deleted)
 	}()
+	// copyChunks が panic しても、見張りとストリームを残さないよう、defer でも止める。
+	stop := sync.OnceFunc(func() {
+		stopWatch()
+		<-watchDone
+		_ = stream.Close()
+	})
+	defer stop()
 	err = r.copyChunks(ctx, logger, stream, state)
-	stopWatch()
-	<-watchDone
-	_ = stream.Close()
+	stop()
 	if ctx.Err() == nil && !deleted.Load() {
 		logger.WarnContext(ctx, "the timeshift stream was interrupted; reconnecting", slog.Any("error", err))
 	}
