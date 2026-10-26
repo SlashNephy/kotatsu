@@ -116,6 +116,13 @@ func TestFollowerUpdatesRescheduledPrograms(t *testing.T) {
 			f := newFixture(t)
 			reservation, _, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, programInput())
 			require.NoError(t, err)
+			// 録画を始めた後に番組が変わっても、録画の番組情報は変わった後の EPG に合わせる (#1045)。
+			recordingID := id.New()
+			_, err = f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+				state, recorded_from, protected, created_at, updated_at)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'recording', $7, false, $7, $7)`,
+				recordingID, reservation.ID, serviceID(), futureEvent, reservation.Name, reservation.Description, reservation.StartAt, reservation.EndAt)
+			require.NoError(t, err)
 			tt.change(t, f.fake)
 			f.syncEPG(t)
 
@@ -124,6 +131,11 @@ func TestFollowerUpdatesRescheduledPrograms(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantStart, got.StartAt)
 			assert.Equal(t, tt.wantEnd, got.EndAt)
+			var recordingStart, recordingEnd time.Time
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT start_at, end_at FROM recordings WHERE id = $1", recordingID).
+				Scan(&recordingStart, &recordingEnd))
+			assert.Equal(t, tt.wantStart, recordingStart.UTC())
+			assert.Equal(t, tt.wantEnd, recordingEnd.UTC())
 
 			// 同じ EPG に何度追従しても、予約は変わらない。
 			assert.Equal(t, &reserve.FollowResult{Updated: 0, Relayed: 0, Removed: 0}, f.follow(t))

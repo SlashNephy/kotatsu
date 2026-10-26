@@ -205,6 +205,23 @@ func (f *Follower) update(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservat
 	if err != nil {
 		return false, fmt.Errorf("failed to update reservation %s: %w", row.ID, err)
 	}
+	// 録画は始めたときの予約の番組情報を写すので、その後の変更も録画に写す (#1045)。
+	recordings, err := sqlc.New(tx).UpdateRecordingProgram(ctx, sqlc.UpdateRecordingProgramParams{
+		StartAt:       row.ProgramStartAt,
+		EndAt:         endAt,
+		Name:          row.ProgramName,
+		Description:   row.ProgramDescription,
+		Now:           now,
+		ReservationID: &row.ID,
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to update the recording of reservation %s: %w", row.ID, err)
+	}
+	if recordings > 0 {
+		if _, err := notify.Publish(ctx, tx, f.reservations.clock, notify.RecordingsChannel); err != nil {
+			return false, fmt.Errorf("failed to notify the recording change: %w", err)
+		}
+	}
 	reservation, err := get(ctx, sqlc.New(tx), row.ID)
 	if err != nil {
 		return false, err
