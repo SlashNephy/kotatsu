@@ -47,6 +47,9 @@ type Querier interface {
 	CountRecordingSegments(ctx context.Context, arg CountRecordingSegmentsParams) (CountRecordingSegmentsRow, error)
 	// /metrics に出す、状態ごとの録画の数 (設計書 11.3)。
 	CountRecordingsByState(ctx context.Context) ([]CountRecordingsByStateRow, error)
+	// /metrics に出す、録画の予定の終わりが来ていない予約の、割り当ての状態ごとの数。無効な予約は、割り当ての状態によらず無効として数える。
+	// 終わったかどうかは、割り当ての対象 (ListAssignableReservations) と同じく、予定の終わりで決める。
+	CountReservationsByState(ctx context.Context, now time.Time) (CountReservationsByStateRow, error)
 	// /metrics に出す、状態ごとのチューナーの数。故障は、使えるかどうかより先に数える。
 	CountTunersByState(ctx context.Context) (CountTunersByStateRow, error)
 	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)

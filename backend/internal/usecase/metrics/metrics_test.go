@@ -18,7 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
 )
 
-// TestDBCollector は、DB の録画、割り振り、チューナー、リース、ジョブの状態を、メトリクスとして返すことを確かめる (設計書 11.3)。
+// TestDBCollector は、DB の録画、予約、割り振り、チューナー、リース、ジョブの状態を、メトリクスとして返すことを確かめる (設計書 11.3)。
 func TestDBCollector(t *testing.T) {
 	t.Parallel()
 
@@ -65,6 +65,24 @@ func TestDBCollector(t *testing.T) {
 	exec(`INSERT INTO reservations (id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres,
 		enabled, follow_event_relay, settings, created_at, updated_at)
 		VALUES ($1, 'time', 3273601024, NULL, $2, $3, '', '', '{}', '[]', true, false, '{}', $2, $2)`, reservation, now, now.Add(time.Hour))
+	// 予約。上の時刻予約は、まだ割り当てていない (pending)。一部のみ (partial) の予約はないので、0 件になる。
+	reserve := func(enabled bool, state string, end time.Time, plannedEnd *time.Time) {
+		t.Helper()
+		exec(`INSERT INTO reservations (id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres,
+			enabled, follow_event_relay, settings, created_at, updated_at, assignment_state, planned_end_at)
+			VALUES ($1, 'time', 3273601024, NULL, $2, $3, '', '', '{}', '[]', $4, false, '{}', $2, $2, $5, $6)`,
+			id.New(), now.Add(-2*time.Hour), end, enabled, state, plannedEnd)
+	}
+	reserve(true, "ok", now.Add(time.Hour), new(now.Add(time.Hour)))
+	reserve(true, "conflict", now.Add(time.Hour), new(now.Add(time.Hour)))
+	// 予定の終わりは、マージンで番組の終わりより後になる。番組が終わっても、予定の終わりまでは数える。
+	reserve(true, "conflict", now.Add(-time.Minute), new(now.Add(time.Minute)))
+	// 無効な予約は、割り当ての結果が残っていても、無効として数える。
+	reserve(false, "conflict", now.Add(time.Hour), new(now.Add(time.Hour)))
+	// 予定の終わりが過ぎた予約は、猶予の間は表に残っていても数えない。無効な予約も同じ。
+	reserve(true, "ok", now.Add(time.Hour), new(now.Add(-time.Minute)))
+	reserve(true, "partial", now.Add(-time.Minute), new(now.Add(-time.Minute)))
+	reserve(false, "pending", now.Add(-time.Minute), nil)
 	exec(`INSERT INTO recording_assignments (id, reservation_id, priority, state, generation, created_at, updated_at)
 		VALUES ($1, $2, 2, 'recording', 1, $3, $3)`, id.New(), reservation, now)
 	exec(`INSERT INTO river_job (args, kind, max_attempts, queue, state) VALUES ('{}', 'test', 1, 'default', 'available'), ('{}', 'test', 1, 'default', 'available')`)
@@ -85,6 +103,13 @@ kotatsu_recording_failures{reason="tuner_unavailable"} 1
 kotatsu_recording_active_packets{kind="drop"} 7
 kotatsu_recording_active_packets{kind="error"} 2
 kotatsu_recording_active_packets{kind="scrambled"} 0
+# HELP kotatsu_reservations Number of reservations that have not ended, by assignment state, or disabled.
+# TYPE kotatsu_reservations gauge
+kotatsu_reservations{state="conflict"} 2
+kotatsu_reservations{state="disabled"} 1
+kotatsu_reservations{state="ok"} 1
+kotatsu_reservations{state="partial"} 0
+kotatsu_reservations{state="pending"} 1
 # HELP kotatsu_recording_assignments Number of recording assignments by state.
 # TYPE kotatsu_recording_assignments gauge
 kotatsu_recording_assignments{state="recording"} 1
@@ -101,7 +126,7 @@ kotatsu_river_jobs{queue="default",state="available"} 2
 kotatsu_metrics_collection_errors 0
 `
 	names := []string{
-		"kotatsu_recordings", "kotatsu_recording_failures", "kotatsu_recording_active_packets", "kotatsu_recording_assignments", "kotatsu_tuners",
+		"kotatsu_recordings", "kotatsu_recording_failures", "kotatsu_recording_active_packets", "kotatsu_reservations", "kotatsu_recording_assignments", "kotatsu_tuners",
 		"kotatsu_river_jobs", "kotatsu_metrics_collection_errors", "kotatsu_neko_leader",
 	}
 	leader := func(value string) string {
