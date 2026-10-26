@@ -1508,7 +1508,7 @@ Content Security Policyは厳しく設定します。
 | 配布物 | 内容 |
 |---|---|
 | コンテナイメージ | [2.4](#24-コンテナイメージ)の2種類です。ビルドに使うtsreadexのバージョンは、Renovateで追跡できる形で固定します。 |
-| バイナリ | GoReleaserでGitHub Releasesに置きます。SPAは埋め込み済みです。FFmpegとtsreadexは利用者が別途用意します。 |
+| バイナリ | GoReleaserでGitHub Releasesに置きます。Linux、macOS、Windowsのそれぞれについて、amd64とarm64を作ります（#1054）。SPAは埋め込み済みです。FFmpegとtsreadexは利用者が別途用意します。Windowsでは、プールの空き容量と容量をまだ測れないので、容量の管理とセグメントの結合が動きません（#1058）。macOSとWindowsの実機では、まだ動きを確かめていません。 |
 | Helm Chart | GitHub PagesのHelmリポジトリ（`https://slashnephy.github.io/kotatsu`）で配布します。Chartの本体はリリースに添付します。 |
 | デモ | Cloudflare Pagesの`https://kotatsu-demo.pages.dev/`に置く、tenbanなしに画面を触れる静的なデモです（[10.1](#101-技術の構成)、#832）。Cloudflare PagesのGit連携で、mainにpushするたびに作り直します（`frontend`で`pnpm run build:demo`）。 |
 | Kubernetesのマニフェスト | Helm Chartから`helm template`で生成します。 |

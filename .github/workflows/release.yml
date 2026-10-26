@@ -39,7 +39,7 @@ jobs:
       - run: mise run release:snapshot
       - run: helm package deploy/helm/kotatsu --destination "$RUNNER_TEMP"
 
-  # SPA を埋め込んだ linux の amd64 と arm64 のバイナリを、GitHub Releases に公開する (設計書 11.1)。
+  # SPA を埋め込んだ Linux、macOS、Windows の amd64 と arm64 のバイナリを、GitHub Releases に公開する (設計書 11.1)。
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest

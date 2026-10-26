@@ -58,6 +58,7 @@ Kotatsu はテレビ番組を予約、録画、視聴できる Web アプリケ�
 
 PostgreSQLと、Mirakurun、mirakc、Mahironのいずれかのチューナーサーバーが必要です。
 コンテナイメージは`ghcr.io/slashnephy/kotatsu`で配布しています。
+Linux、macOS、Windowsのバイナリは、[GitHub Releases](https://github.com/SlashNephy/kotatsu/releases)に置いています。
 
 - [セットアップ](docs/setup.md)：Docker ComposeとHelmでの起動、EPGStationからの移行
 - [設定](docs/configuration.md)：設定項目の一覧
