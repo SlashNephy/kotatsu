@@ -86,7 +86,7 @@ func TestAllStartsEveryRole(t *testing.T) {
 		want = append(want, role.Name)
 	}
 
-	assert.ElementsMatch(t, want, startedRoles(t, "all"))
+	assert.ElementsMatch(t, want, startedRoles(t, allCommand))
 }
 
 // startedRoles は arg をサブコマンドとして実行し、起動したロールのコードネームを返す。
@@ -137,7 +137,7 @@ func TestRoleFailureStopsOtherRoles(t *testing.T) {
 	}
 
 	cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), roles, validEnv))
-	cmd.SetArgs([]string{"all"})
+	cmd.SetArgs([]string{allCommand})
 
 	done := make(chan error, 1)
 	go func() {
@@ -223,7 +223,7 @@ func TestRoleDoesNotStartWithInvalidConfig(t *testing.T) {
 	}
 
 	cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), roles, func(string) (string, bool) { return "", false }))
-	cmd.SetArgs([]string{"all"})
+	cmd.SetArgs([]string{allCommand})
 	require.ErrorContains(t, cmd.ExecuteContext(t.Context()), "database.url (KOTATSU_DATABASE_URL): is required")
 	assert.False(t, started.Load())
 }
@@ -444,6 +444,9 @@ const testKeyMaterial = "kotatsu-cli-test-application-key-0123456789"
 
 // anyLocalPort は、テストどうしで衝突しないよう空いているポートで待ち受けるアドレス。
 const anyLocalPort = "127.0.0.1:0"
+
+// allCommand は、全ロールを 1 つのプロセスで動かすサブコマンド。
+const allCommand = "all"
 
 var _ io.Writer = new(lockedWriter)
 

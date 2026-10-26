@@ -112,7 +112,7 @@ func TestServeSendsMetricsOverOTLP(t *testing.T) {
 		return pool, database.Migrate(ctx, slog.New(slog.DiscardHandler), pool)
 	}
 	cmd := cli.NewCommand(opts)
-	cmd.SetArgs([]string{"all"})
+	cmd.SetArgs([]string{allCommand})
 
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
