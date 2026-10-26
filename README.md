@@ -4,10 +4,10 @@
 
 # Kotatsu
 
-Kotatsuは日本のテレビ放送を予約、録画、視聴するためのWebアプリケーションです。
-[EPGStation](https://github.com/l3tnun/EPGStation)の後継として、[Mirakurun](https://github.com/Chinachu/Mirakurun)、[mirakc](https://github.com/mirakc/mirakc)、Mahironの上で動きます。
+Kotatsu はテレビ番組を予約、録画、視聴できる Web アプリケーションです。
+チューナーサーバーとして [Mirakurun](https://github.com/Chinachu/Mirakurun)、[mirakc](https://github.com/mirakc/mirakc)、[Mahiron](https://github.com/rokoucha/Mahiron) をサポートしています。
 
-[デモ](https://kotatsu-demo.pages.dev/)では、架空の局と番組で画面を触れます。
+[デモアプリ](https://kotatsu-demo.pages.dev/)で操作感をおためしできます。
 
 <table>
   <tr>
@@ -40,17 +40,21 @@ Kotatsuは日本のテレビ放送を予約、録画、視聴するためのWeb�
   </tr>
 </table>
 
-## 特徴
+## コンセプト
 
-- 番組表、ルール予約、録画、録画の再生、ライブ視聴を、1つのアプリケーションで扱います。
-- 録画は.m2tsのまま保存し、ブラウザの中でH.264に変換して再生します。変換できない端末にはサーバー側でトランスコードしたHLSを用意できます。
-- 再生中の映像に、ニコニコ実況のコメントとARIB字幕を重ねて表示できます。ライブ視聴では、データ放送も表示できます。
-- 1台のマシンからKubernetesのマルチレプリカ構成まで、同じバイナリで動きます。
-- ログインは必須で、パスキー、OIDC、パスワードと認証アプリ（TOTP）に対応します。
-- 録画の開始や失敗などを、Web PushとWebhook（Discord、Slack、汎用のJSON）で知らせます。
-- EPGStationから、ルール、予約、録画を取り込めます。
+- テレビ番組の予約、録画、視聴などがシングルバイナリで動作します。
+- 1台のマシンから、Kubernetes のマルチレプリカ構成までサポートしています。HA 構成も可能で、録画の信頼性を高める実装があります。
+- 録画ファイルをサーバーサイドでトランスコードすることなく、ブラウザ内で低遅延で再生できます (mpeg2toh264)。もちろん、サーバーサイドでのトランスコードもサポートしています。
+- PWA アプリをインストールすることで、モバイル端末でも快適に使用できます。また、Web Push で通知を受け取ることもできます。
+- ARIB 字幕 やデータ放送、NX-Jikkyo のコメントをオーバーレイ表示できます。
+- セキュアなログイン方式として、パスキーや OpenID Connect、TOTP が利用できます。
 
-## 使い方
+その他、アプリの仕様は設計書 [spec.v1.md](docs/spec.v1.md) にまとめられています。
+
+## 導入方法
+
+> [!WARNING]
+> ガイドを準備中です。もうしばらくお待ちください。
 
 PostgreSQLと、Mirakurun、mirakc、Mahironのいずれかのチューナーサーバーが必要です。
 コンテナイメージは`ghcr.io/slashnephy/kotatsu`で配布しています。
@@ -61,11 +65,14 @@ PostgreSQLと、Mirakurun、mirakc、Mahironのいずれかのチューナーサ
 
 ## 開発
 
-手元で動かす手順とよく使うコマンドは、[開発](docs/development.md)にまとめました。
-変更を送るときの約束は[貢献のしかた](.github/CONTRIBUTING.md)にあります。
-設計は[設計書](docs/spec.v1.md)にまとめています。
+バックエンドに Go (PostgreSQL, GraphQL) を、フロントエンドに TypeScript (Vite+, React) を採用しています。
+
+ローカル開発の手順は、[development.md](docs/development.md) を確認してください。
+
+Issue や PR による Contribution については、[CONTRIBUTING.md](.github/CONTRIBUTING.md) も確認してください。
 
 ## ライセンス
 
-Kotatsuは[Apache License 2.0](LICENSE)で公開しています。
-同梱するソフトウェアとデータのライセンスは、[設計書の付録B](docs/spec.v1.md#付録-b-ライセンスの境界)にまとめました。
+Kotatsu は [Apache License 2.0](LICENSE) で公開しています。
+
+同梱するソフトウェアとデータのライセンスは、[付録 B. ライセンスの境界](docs/spec.v1.md#付録-b-ライセンスの境界)にまとめられています。
