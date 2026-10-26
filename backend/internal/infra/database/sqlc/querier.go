@@ -575,6 +575,8 @@ type Querier interface {
 	UpdateGuideView(ctx context.Context, arg UpdateGuideViewParams) (int64, error)
 	// セッションのプレイヤーの状態を書き直す。ほかのセッションのプレイヤーは書き直さない。
 	UpdatePlayer(ctx context.Context, arg UpdatePlayerParams) (int64, error)
+	// 予約の録画の番組情報を、追従した予約に合わせる。録画を始めた後に繰り下げや延長が届いても、録画に古い時刻を残さない (#1045)。
+	UpdateRecordingProgram(ctx context.Context, arg UpdateRecordingProgramParams) (int64, error)
 	UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error)
 	UpdateReservationProgram(ctx context.Context, arg UpdateReservationProgramParams) error
 	UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, error)

@@ -27,6 +27,16 @@ UPDATE reservations SET
   updated_at = @now
 WHERE id = @id;
 
+-- name: UpdateRecordingProgram :execrows
+-- 予約の録画の番組情報を、追従した予約に合わせる。録画を始めた後に繰り下げや延長が届いても、録画に古い時刻を残さない (#1045)。
+UPDATE recordings SET
+  start_at = @start_at,
+  end_at = @end_at,
+  name = @name,
+  description = @description,
+  updated_at = @now
+WHERE reservation_id = @reservation_id;
+
 -- name: InsertRelayedReservation :one
 -- イベントリレーの引き継ぎ先の番組予約を、番組情報をコピーして作る。引き継ぎ先の予約がすでにあれば何もせず、行を返さない。
 -- 番組の終了時刻が未定なら、予約の終わりを、始まりから undecided_seconds 秒後にしておく。決まったら追従で直す (#521)。

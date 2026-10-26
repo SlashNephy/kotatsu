@@ -224,6 +224,41 @@ func (q *Queries) ListReservationsToRelay(ctx context.Context, since time.Time) 
 	return items, nil
 }
 
+const updateRecordingProgram = `-- name: UpdateRecordingProgram :execrows
+UPDATE recordings SET
+  start_at = $1,
+  end_at = $2,
+  name = $3,
+  description = $4,
+  updated_at = $5
+WHERE reservation_id = $6
+`
+
+type UpdateRecordingProgramParams struct {
+	StartAt       time.Time
+	EndAt         time.Time
+	Name          string
+	Description   string
+	Now           time.Time
+	ReservationID *uuid.UUID
+}
+
+// 予約の録画の番組情報を、追従した予約に合わせる。録画を始めた後に繰り下げや延長が届いても、録画に古い時刻を残さない (#1045)。
+func (q *Queries) UpdateRecordingProgram(ctx context.Context, arg UpdateRecordingProgramParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateRecordingProgram,
+		arg.StartAt,
+		arg.EndAt,
+		arg.Name,
+		arg.Description,
+		arg.Now,
+		arg.ReservationID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateReservationProgram = `-- name: UpdateReservationProgram :exec
 UPDATE reservations SET
   start_at = $1,
