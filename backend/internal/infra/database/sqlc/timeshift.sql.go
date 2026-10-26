@@ -410,7 +410,8 @@ const listTimeshiftChannels = `-- name: ListTimeshiftChannels :many
 SELECT t.service_id, t.retention_seconds, t.created_at, t.updated_at, t.updated_by, s.name AS service_name, s.channel_type, s.channel
 FROM timeshift_channels t
 JOIN services s ON s.id = t.service_id
-ORDER BY t.created_at, t.service_id
+JOIN channel_types ct ON ct.type = s.channel_type
+ORDER BY ct.sort_order, t.service_id
 `
 
 type ListTimeshiftChannelsRow struct {
@@ -425,6 +426,7 @@ type ListTimeshiftChannelsRow struct {
 }
 
 // タイムシフトで録るチャンネル。割り振りと、録画のチューナーとの衝突の判定には、サービスのチャンネル種別とチャンネルが要る。
+// チューナーが足りないときに先に録るものを決めるため、チャンネル種別の並び順、サービス ID の順に返す。
 func (q *Queries) ListTimeshiftChannels(ctx context.Context) ([]ListTimeshiftChannelsRow, error) {
 	rows, err := q.db.Query(ctx, listTimeshiftChannels)
 	if err != nil {

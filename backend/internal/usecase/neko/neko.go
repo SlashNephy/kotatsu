@@ -26,6 +26,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
+	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 	"github.com/SlashNephy/kotatsu/internal/usecase/tunerstate"
 )
 
@@ -60,12 +61,14 @@ type Options struct {
 	Follow *reserve.FollowerOptions
 	// Recording は、録画の割り振りの設定。nil なら既定値を使う。
 	Recording *recording.SchedulerOptions
+	// Timeshift は、タイムシフトの割り振りの設定。nil なら既定値を使う。
+	Timeshift *timeshift.SchedulerOptions
 }
 
 // Run は、ctx が終わるまでリースを取り合い、リーダーになっている間だけ neko の処理を動かす。
 // リーダーの間は、EPG を同期し (設計書 3.3)、放送が終わった番組をアーカイブに移し (設計書 3.4)、
 // チューナーの構成とチューナーサーバーの状態を把握し (設計書 3.6、3.7)、ルールから予約を作り (設計書 4.3)、
-// 予約をチューナーに割り当て (設計書 4.5)、番組の変更に予約を追従させ (設計書 4.6)、録画を mikan に割り振る (設計書 1.5)。DB への書き込みは、その世代のリースを持っている間だけ通す。
+// 予約をチューナーに割り当て (設計書 4.5)、番組の変更に予約を追従させ (設計書 4.6)、録画を mikan に割り振り (設計書 1.5)、タイムシフトのチャンネルを mikan に割り振る (設計書 1.6)。DB への書き込みは、その世代のリースを持っている間だけ通す。
 func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 	manager := lease.NewManager(opts.DB, opts.Clock, LeaseName, opts.InstanceID, LeaseTTL)
 	elector, err := lease.NewElector(manager, logger, RenewInterval)
@@ -126,6 +129,11 @@ func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 		})
 		eg.Go(func() error {
 			scheduler := recording.NewScheduler(opts.DB, opts.Clock, recording.Guard(guard), logger.With(slog.String("component", "recording")), opts.Recording)
+
+			return scheduler.Run(ctx)
+		})
+		eg.Go(func() error {
+			scheduler := timeshift.NewScheduler(opts.DB, opts.Clock, timeshift.Guard(guard), logger.With(slog.String("component", "timeshift")), opts.Timeshift)
 
 			return scheduler.Run(ctx)
 		})

@@ -421,6 +421,7 @@ type Querier interface {
 	ListTags(ctx context.Context) ([]ListTagsRow, error)
 	ListTimeshiftAssignments(ctx context.Context) ([]TimeshiftAssignment, error)
 	// タイムシフトで録るチャンネル。割り振りと、録画のチューナーとの衝突の判定には、サービスのチャンネル種別とチャンネルが要る。
+	// チューナーが足りないときに先に録るものを決めるため、チャンネル種別の並び順、サービス ID の順に返す。
 	ListTimeshiftChannels(ctx context.Context) ([]ListTimeshiftChannelsRow, error)
 	// 記録のあるチャンクの ID とパス。ディスク上のファイルとの突き合わせに使う。
 	ListTimeshiftChunkIDs(ctx context.Context) ([]ListTimeshiftChunkIDsRow, error)

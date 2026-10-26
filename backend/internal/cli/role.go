@@ -25,6 +25,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
+	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
@@ -173,6 +174,12 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 			Lead:         0,
 			Interval:     0,
 			Debounce:     0,
+			PollOnly:     deps.Config.Database.Pooler,
+			PollInterval: 0,
+		},
+		Timeshift: &timeshift.SchedulerOptions{
+			Interval:     0,
+			Lead:         0,
 			PollOnly:     deps.Config.Database.Pooler,
 			PollInterval: 0,
 		},
