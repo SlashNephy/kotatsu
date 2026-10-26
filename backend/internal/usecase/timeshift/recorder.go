@@ -27,7 +27,7 @@ import (
 const (
 	// DefaultChunkDuration は、タイムシフトのチャンクの長さ (付録 A)。
 	DefaultChunkDuration = 5 * time.Minute
-	// DefaultTick は、つなぎ直すまで待つ間に時計を確かめる間隔と、割り振りが消えていないかを確かめる間隔。
+	// DefaultTick は、つなぎ直すまで待つ間に時計を確かめる間隔と、割り振りが消えていないかを確かめる間隔 (付録 A)。
 	DefaultTick = time.Second
 	// chunkTimeLayout は、チャンクのファイル名にする、チャンクの開始の UTC の書式。
 	chunkTimeLayout = "20060102T150405Z"
