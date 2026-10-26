@@ -722,30 +722,13 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	}
 	authorizer := streamapi.NewAuthorizer(signer, deps.DB, deps.Clock)
 	streamLogger := logger.With(slog.String("component", "stream"))
-	// ライブ視聴と録画の配信は終わらないので、停止を始めたら打ち切り、待たない。
-	mux.Handle("GET /streams/services/{id}",
-		httpserver.StopOnShutdown(authorizer.Middleware(streamapi.NewLiveHandler(opener, streamLogger))))
-	mux.Handle("GET /streams/services/{id}/data-broadcast",
-		httpserver.StopOnShutdown(authorizer.Middleware(streamapi.NewDataBroadcastHandler(opener, streamLogger))))
-	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
-	kyusuToken, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
+	streams, err := handleStreams(mux, deps, authorizer, opener, streamLogger)
 	if err != nil {
 		return nil, err
 	}
-	instances := registry.New(deps.DB, deps.Clock, deps.InstanceID)
-	mux.Handle("GET /streams/services/{id}/hls/{preset}/{audio}/{file}",
-		authorizer.Middleware(kyusu.NewRelay(instances, kyusuToken, streamLogger)))
-	mux.Handle("GET /streams/recordings/{id}/hls/{preset}/{audio}/{file}",
-		authorizer.Middleware(kyusu.NewRecordingRelay(instances, kyusuToken, streamLogger)))
-	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
-	mux.Handle("GET /streams/recordings/{id}",
-		httpserver.StopOnShutdown(authorizer.Middleware(streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))
-	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
-	mux.Handle("GET /streams/recordings/{id}/files/{file}",
-		httpserver.StopOnShutdown(authorizer.Middleware(streamapi.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger))))
 	handleMedia(mux, deps, logger, authorizer, logos, jikkyoTable, jikkyoClient)
 	api := sessions.Middleware(deps.DB)(mux)
-	compat := newEPGStationAPI(deps, apiTokens, opener, logos, streamLogger)
+	compat := newEPGStationAPI(deps, apiTokens, opener, logos, streams, streamLogger)
 
 	app, err := spa.NewHandler(webui.App(), logger.With(slog.String("component", "spa")))
 	if err != nil {
@@ -761,6 +744,38 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	root.Handle("/", app)
 
 	return &apiHandler{handler: policy.Middleware(root), changes: changes, updates: updates}, nil
+}
+
+// handleStreams は、映像の配信 (/streams/*) を mux に登録する。どれも、セッションか署名付き URL で認可する。
+// 変換せずに流す配信を数える StreamCounter を返す。EPGStation 互換の配信も、同じものに数える。
+func handleStreams(
+	mux *http.ServeMux, deps *Deps, authorizer *streamapi.Authorizer, opener streamapi.ServiceOpener, streamLogger *slog.Logger,
+) (*streamapi.StreamCounter, error) {
+	streams := newStreamCounter(deps)
+	// ライブ視聴と録画の配信は終わらないので、停止を始めたら打ち切り、待たない。
+	// 配信は、認可を通ったものだけを数える。
+	mux.Handle("GET /streams/services/{id}", httpserver.StopOnShutdown(authorizer.Middleware(
+		streams.Count(streamapi.StreamLive, streamapi.NewLiveHandler(opener, streamLogger)))))
+	mux.Handle("GET /streams/services/{id}/data-broadcast", httpserver.StopOnShutdown(authorizer.Middleware(
+		streams.Count(streamapi.StreamDataBroadcast, streamapi.NewDataBroadcastHandler(opener, streamLogger)))))
+	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
+	kyusuToken, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
+	if err != nil {
+		return nil, err
+	}
+	instances := registry.New(deps.DB, deps.Clock, deps.InstanceID)
+	mux.Handle("GET /streams/services/{id}/hls/{preset}/{audio}/{file}",
+		authorizer.Middleware(kyusu.NewRelay(instances, kyusuToken, streamLogger)))
+	mux.Handle("GET /streams/recordings/{id}/hls/{preset}/{audio}/{file}",
+		authorizer.Middleware(kyusu.NewRecordingRelay(instances, kyusuToken, streamLogger)))
+	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
+	mux.Handle("GET /streams/recordings/{id}", httpserver.StopOnShutdown(authorizer.Middleware(
+		streams.Count(streamapi.StreamRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
+	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
+	mux.Handle("GET /streams/recordings/{id}/files/{file}", httpserver.StopOnShutdown(authorizer.Middleware(
+		streams.Count(streamapi.StreamRecording, streamapi.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger)))))
+
+	return streams, nil
 }
 
 // handleMedia は、画像と実況の過去ログ (/media/*) を mux に登録する。どれも、セッションか署名付き URL で認可する。
@@ -800,9 +815,25 @@ func handleOAuth(root *http.ServeMux, server *oauth.Server, graphQL http.Handler
 	root.Handle(oauth.ResourcePath, mcpHandler)
 }
 
+// newStreamCounter は、tenban が変換せずに流している配信を数える StreamCounter を返し、その数を種類ごとに /metrics に出す (設計書 11.3)。
+// kyusu への中継は、kyusu が kotatsu_kyusu_sessions で数えるので、ここでは数えない。
+func newStreamCounter(deps *Deps) *streamapi.StreamCounter {
+	streams := streamapi.NewStreamCounter()
+	for _, kind := range streamapi.StreamKinds() {
+		deps.Metrics.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Namespace: metrics.Namespace, Name: "tenban_streams", Help: "Number of responses that tenban is streaming without transcoding on this instance.",
+			ConstLabels: prometheus.Labels{"kind": string(kind)},
+		}, func() float64 { return float64(streams.Streams(kind)) }))
+	}
+
+	return streams
+}
+
 // newEPGStationAPI は、EPGStation 互換の読み取り専用 API (/api/*) を返す (#431、設計書 9.1)。
 // セッションの Cookie は使わず、API トークン (Bearer) だけで認証する (設計書 9.8)。トークンがなければ 401 を返す。
-func newEPGStationAPI(deps *Deps, tokens *auth.APITokens, opener streamapi.ServiceOpener, logos streamapi.LogoFetcher, streamLogger *slog.Logger) http.Handler {
+func newEPGStationAPI(
+	deps *Deps, tokens *auth.APITokens, opener streamapi.ServiceOpener, logos streamapi.LogoFetcher, streams *streamapi.StreamCounter, streamLogger *slog.Logger,
+) http.Handler {
 	h := epgstationapi.New(deps.DB, storeOf(deps.Config), streamLogger)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/version", h.Version)
@@ -811,12 +842,12 @@ func newEPGStationAPI(deps *Deps, tokens *auth.APITokens, opener streamapi.Servi
 	mux.Handle("GET /api/channels/{id}/logo", streamapi.NewLogoHandler(logos, streamLogger))
 	mux.HandleFunc("GET /api/schedules", h.Schedules)
 	// mode は、EPGStation のエンコードの設定の番号。Kotatsu は無変換の TS だけを返すので、読まない。
-	mux.Handle("GET /api/streams/live/{id}/m2ts", httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, streamLogger)))
+	mux.Handle("GET /api/streams/live/{id}/m2ts", streams.Count(streamapi.StreamLive, httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, streamLogger))))
 	mux.HandleFunc("GET /api/recorded", h.Recorded)
 	mux.HandleFunc("GET /api/recorded/{id}", h.RecordedItem)
 	// 動画とサムネイルは、録画の ID を読み替えて、録画の配信と代表画像の配信につなぐ。動画は Range に答える。
-	mux.Handle("GET /api/videos/{id}", httpserver.StopOnShutdown(
-		h.WithRecording(streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0), "")))
+	mux.Handle("GET /api/videos/{id}", streams.Count(streamapi.StreamRecording, httpserver.StopOnShutdown(
+		h.WithRecording(streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0), ""))))
 	mux.Handle("GET /api/thumbnails/{id}",
 		h.WithRecording(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger), thumbnail.ThumbnailFileName))
 
