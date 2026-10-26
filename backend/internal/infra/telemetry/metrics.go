@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,8 +24,13 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
 )
 
-// leaderCheckTimeout は、送るたびに、リーダーかどうかを DB で確かめる時間の上限。
-const leaderCheckTimeout = 5 * time.Second
+const (
+	// leaderCheckTimeout は、送るたびに、リーダーかどうかを DB で確かめる時間の上限。
+	leaderCheckTimeout = 5 * time.Second
+	// flushTimeout は、止めるときに、溜まっている値を送り切るのを待つ時間の上限。
+	// exporter は送れるまで送り直し続けるので、受け手が応答しないと、Pod の停止の猶予を使い切ってしまう。
+	flushTimeout = 5 * time.Second
+)
 
 // MeterOptions は、OTLP でメトリクスを送るのに要るもの。
 type MeterOptions struct {
@@ -91,10 +97,15 @@ func NewMeterProviders(ctx context.Context, cfg *config.Telemetry, opts *MeterOp
 	}
 
 	return func(ctx context.Context) error {
-		errs := make([]error, 0, len(providers))
-		for _, provider := range providers {
-			errs = append(errs, provider.Shutdown(ctx))
+		// 範囲ごとに順に止めると、先の範囲が待つ間に、後の範囲の期限が切れる。同じ期限で並べて止める。
+		ctx, cancel := context.WithTimeout(ctx, flushTimeout)
+		defer cancel()
+		errs := make([]error, len(providers))
+		var wg sync.WaitGroup
+		for i, provider := range providers {
+			wg.Go(func() { errs[i] = provider.Shutdown(ctx) })
 		}
+		wg.Wait()
 
 		return errors.Join(errs...)
 	}, nil

@@ -319,26 +319,55 @@ func TestNewMeterProvidersDisabled(t *testing.T) {
 	assert.Empty(t, drain(ch))
 }
 
-// TestNewMeterProvidersWithoutReceiver は、受け手につながらなくても作れることを確かめる。送れなくても、ロールを止めない。
+// TestNewMeterProvidersWithoutReceiver は、受け手につながらなくても作れ、止めるのに時間をかけすぎないことを確かめる。
+// 送れなくても、ロールを止めない。
 func TestNewMeterProvidersWithoutReceiver(t *testing.T) {
 	t.Parallel()
 
-	listener, err := new(net.ListenConfig).Listen(t.Context(), "tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	endpoint := "http://" + listener.Addr().String()
-	require.NoError(t, listener.Close())
-	instance, cluster := newRegistries(t)
-	shutdown, err := telemetry.NewMeterProviders(t.Context(), &config.Telemetry{
-		OTLPEndpoint: "", OTLPMetricsEndpoint: endpoint, OTLPMetricsProtocol: config.OTLPProtocolHTTP, OTLPMetricsHeaders: "",
-		OTLPMetricsIntervalSeconds: 60, OTLPMetricsExclude: []string{},
-	}, &telemetry.MeterOptions{
-		Instance: instance, Cluster: cluster, IsLeader: func(context.Context) (bool, error) { return true, nil },
-		InstanceID: id.New(), Roles: []string{}, Version: "", Logger: slog.New(slog.DiscardHandler),
-	})
-	require.NoError(t, err)
-	// 止めるときの送り残しは送れないので、エラーになる。呼び出し側はログに出すだけにする。
-	// exporter は既定で送り直し続けるので、止めるのに時間の上限を付ける。
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-	defer cancel()
-	assert.Error(t, shutdown(ctx))
+	tests := []struct {
+		name     string
+		endpoint func(t *testing.T) string
+	}{
+		{name: "ポートが閉じている", endpoint: func(t *testing.T) string {
+			t.Helper()
+			listener, err := new(net.ListenConfig).Listen(t.Context(), "tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			endpoint := "http://" + listener.Addr().String()
+			require.NoError(t, listener.Close())
+
+			return endpoint
+		}},
+		{name: "受け手が応答しない", endpoint: func(t *testing.T) string {
+			t.Helper()
+			release := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-release }))
+			t.Cleanup(func() {
+				close(release)
+				server.Close()
+			})
+
+			return server.URL
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			instance, cluster := newRegistries(t)
+			shutdown, err := telemetry.NewMeterProviders(t.Context(), &config.Telemetry{
+				OTLPEndpoint: "", OTLPMetricsEndpoint: tt.endpoint(t), OTLPMetricsProtocol: config.OTLPProtocolHTTP, OTLPMetricsHeaders: "",
+				OTLPMetricsIntervalSeconds: 60, OTLPMetricsExclude: []string{},
+			}, &telemetry.MeterOptions{
+				Instance: instance, Cluster: cluster, IsLeader: func(context.Context) (bool, error) { return true, nil },
+				InstanceID: id.New(), Roles: []string{}, Version: "", Logger: slog.New(slog.DiscardHandler),
+			})
+			require.NoError(t, err)
+			// 止めるときの送り残しは送れないので、エラーになる。呼び出し側はログに出すだけにする。
+			// exporter は既定で送り直し続けるが、期限のない context で呼んでも早く返す。
+			// Pod の停止の猶予 (terminationGracePeriodSeconds) のうちに終わらないと、強制的に止められるため。
+			started := time.Now()
+			require.Error(t, shutdown(t.Context()))
+			assert.Less(t, time.Since(started), 10*time.Second)
+		})
+	}
 }
