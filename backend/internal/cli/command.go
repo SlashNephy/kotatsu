@@ -753,10 +753,11 @@ func handleStreams(
 ) (*streamapi.StreamCounter, error) {
 	streams := newStreamCounter(deps)
 	// ライブ視聴と録画の配信は終わらないので、停止を始めたら打ち切り、待たない。
-	mux.Handle("GET /streams/services/{id}", streams.Count(streamapi.StreamLive,
-		httpserver.StopOnShutdown(authorizer.Middleware(streamapi.NewLiveHandler(opener, streamLogger)))))
-	mux.Handle("GET /streams/services/{id}/data-broadcast", streams.Count(streamapi.StreamDataBroadcast,
-		httpserver.StopOnShutdown(authorizer.Middleware(streamapi.NewDataBroadcastHandler(opener, streamLogger)))))
+	// 配信は、認可を通ったものだけを数える。
+	mux.Handle("GET /streams/services/{id}", httpserver.StopOnShutdown(authorizer.Middleware(
+		streams.Count(streamapi.StreamLive, streamapi.NewLiveHandler(opener, streamLogger)))))
+	mux.Handle("GET /streams/services/{id}/data-broadcast", httpserver.StopOnShutdown(authorizer.Middleware(
+		streams.Count(streamapi.StreamDataBroadcast, streamapi.NewDataBroadcastHandler(opener, streamLogger)))))
 	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
 	kyusuToken, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
 	if err != nil {
@@ -768,11 +769,11 @@ func handleStreams(
 	mux.Handle("GET /streams/recordings/{id}/hls/{preset}/{audio}/{file}",
 		authorizer.Middleware(kyusu.NewRecordingRelay(instances, kyusuToken, streamLogger)))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
-	mux.Handle("GET /streams/recordings/{id}", streams.Count(streamapi.StreamRecording,
-		httpserver.StopOnShutdown(authorizer.Middleware(streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
+	mux.Handle("GET /streams/recordings/{id}", httpserver.StopOnShutdown(authorizer.Middleware(
+		streams.Count(streamapi.StreamRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
-	mux.Handle("GET /streams/recordings/{id}/files/{file}", streams.Count(streamapi.StreamRecording,
-		httpserver.StopOnShutdown(authorizer.Middleware(streamapi.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger)))))
+	mux.Handle("GET /streams/recordings/{id}/files/{file}", httpserver.StopOnShutdown(authorizer.Middleware(
+		streams.Count(streamapi.StreamRecording, streamapi.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger)))))
 
 	return streams, nil
 }
