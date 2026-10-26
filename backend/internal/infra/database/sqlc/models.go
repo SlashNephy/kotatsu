@@ -281,6 +281,7 @@ type Recording struct {
 	ProgramLost        bool
 	BroadcastStartedAt *time.Time
 	BroadcastEndedAt   *time.Time
+	WaitedForBroadcast bool
 	NotBroadcast       bool
 	AiredEventID       *int64
 	RecordedFrom       time.Time

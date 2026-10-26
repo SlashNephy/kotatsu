@@ -32,6 +32,8 @@ type Recording struct {
 	ProgramLost        bool
 	BroadcastStartedAt *time.Time
 	BroadcastEndedAt   *time.Time
+	// WaitedForBroadcast は、番組が遅れて始まったので、前の番組の TS を消し、放送中になるまで待ってから書き始めたかどうか (#1046)。
+	WaitedForBroadcast bool
 	NotBroadcast       bool
 	AiredEventID       *int64
 	RecordedFrom       time.Time

@@ -56,6 +56,12 @@ const (
 	// ExtensionStep と MaxExtension は、延長中で終了時刻が未定の番組の、録画の延長幅と上限 (付録 A)。
 	ExtensionStep = 5 * time.Minute
 	MaxExtension  = 3 * time.Hour
+	// BroadcastStartGrace は、番組が始まるはずの時刻から、EIT[p/f] で予約した番組が次の番組のままでも、
+	// 遅れたとはみなさない時間 (付録 A、#1046)。EIT[p/f] の切り替わりが番組の始まりより少し遅れて届いても、時間どおりの番組を待たない。
+	BroadcastStartGrace = 30 * time.Second
+	// MaxPreroll は、遅れた番組が放送中になるのを待った後、先に書く直近の分の長さの上限 (付録 A、#1046)。
+	// 開始マージンが長くても、メモリに溜めるのはこの長さまでにする。
+	MaxPreroll = 30 * time.Second
 	// writeBufferSize は、録画ファイルへの書き込みをまとめる大きさ (設計書 5.2)。
 	writeBufferSize = 4 << 20
 	// estimatedBytesPerSecond は、保存先を選ぶときに見込む、録画の 1 秒あたりの大きさ。地上波の HD の TS (約 17 Mbps) に余裕を持たせる。
@@ -187,11 +193,13 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		}
 	}
 
+	startMargin := time.Duration(domain.DefaultMarginSeconds) * time.Second
 	endMargin := time.Duration(domain.DefaultMarginSeconds) * time.Second
 	if settings, err := r.settings(ctx, &reservation); err == nil {
+		startMargin = time.Duration(settings.StartMarginSeconds) * time.Second
 		endMargin = time.Duration(settings.EndMarginSeconds) * time.Second
 	}
-	tracker := newEndTracker(r, &recording, &reservation, endMargin)
+	tracker := newEndTracker(r, &recording, &reservation, startMargin, endMargin)
 	result := &sessionResult{lastFailure: ""}
 	// created は、録画のセグメントの数。前の mikan が録った分も数える。録画の途中で保存先に書けなくなっても、
 	// 録画を失敗にせず、やり直す (#519)。
@@ -202,17 +210,16 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	// unreachableSince は、チューナーサーバーにつながらなくなった時刻。つながればゼロ値に戻す。
 	var unreachableSince time.Time
 	for {
-		stream, err := r.openStream(ctx, logger, assignment, &reservation)
-		if err != nil {
-			if done, err := r.retryOpen(ctx, logger, assignment, &recording, tracker, result, created, &unreachableSince, err); done {
-				return err
-			}
-
+		opened := r.openForWriting(ctx, logger, assignment, &recording, &reservation, tracker, result, created, &unreachableSince)
+		switch {
+		case opened.done:
+			return opened.err
+		case opened.reopen:
 			continue
 		}
-		unreachableSince = time.Time{}
+		stream := opened.stream
 
-		segment, reason, err := r.createSegment(ctx, &recording, &reservation)
+		segment, reason, err := r.createSegment(ctx, &recording, &reservation, opened.startedAt)
 		if err != nil {
 			_ = stream.Close()
 			if done, err := r.retryCreate(ctx, logger, assignment, &recording, tracker, result, created, reason, err); done {
@@ -235,6 +242,11 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		case ctx.Err() != nil:
 			// リースを失ったか、止めるときは、録画を録画中のまま残し、続きを録る mikan に任せる。
 			return errors.Join(context.Cause(ctx), closeErr)
+		case end == endDelayed:
+			// 予約した番組が遅れて始まるので、前の番組しか入っていないセグメントを消し、開き直して放送中になるのを待つ (#1046)。
+			created = r.discardSegments(ctx, logger, &recording, tracker, created)
+
+			continue
 		case closeErr != nil || copyErr != nil:
 			// ストリームが切れたら、開き直して、新しいセグメントに書く (設計書 5.2)。
 			// 書き込みのエラー (ディスクが一杯、I/O エラー) でも、録画全体を失敗にせず、新しいセグメントに書き直す (#519)。
@@ -279,6 +291,24 @@ func (r *Recorder) openStream(
 	}
 
 	return stream, nil
+}
+
+// openForWriting は、ストリームを開き、書き始めるストリームと、その最初のデータを読んだ時刻を返す。
+// 開けなければ、開き直すか、録画を終えるか、割り振りを手放す (retryOpen)。
+// 遅れた番組を待つときは、放送中になるまで書かずに待ち、溜めた直近の分から書く (#1046)。
+func (r *Recorder) openForWriting(
+	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, reservation *sqlc.GetReservationForRecordingRow,
+	tracker *endTracker, result *sessionResult, created int, unreachableSince *time.Time,
+) waitOutcome {
+	stream, err := r.openStream(ctx, logger, assignment, reservation)
+	if err != nil {
+		done, err := r.retryOpen(ctx, logger, assignment, recording, tracker, result, created, unreachableSince, err)
+
+		return waitOutcome{stream: nil, startedAt: time.Time{}, reopen: !done, done: done, err: err}
+	}
+	*unreachableSince = time.Time{}
+
+	return r.waitBeforeWriting(ctx, logger, assignment, recording, tracker, result, stream, created)
 }
 
 // retryOpen は、ストリームを開けなかったときに、開き直すか、録画を終えるか、割り振りを手放すかを決める。録画を終えたか手放したら true を返す。
@@ -528,7 +558,7 @@ func (r *Recorder) finish(
 	if err != nil {
 		return fmt.Errorf("failed to list the recording files: %w", err)
 	}
-	plannedStart, found, err := r.plannedStart(ctx, assignment)
+	plannedStart, found, err := r.plannedStart(ctx, assignment, recording.ID)
 	if err != nil {
 		return err
 	}
@@ -582,19 +612,33 @@ type gap struct {
 
 // plannedStart は、予約の予定の開始を返す。割り当てが消えていれば、番組の開始を返す。
 // 予約が消えていれば、冒頭の欠けは確かめないので、found を false にする。
-func (r *Recorder) plannedStart(ctx context.Context, assignment *Assignment) (time.Time, bool, error) {
-	reservation, err := sqlc.New(r.pool).GetReservationForRecording(ctx, assignment.ReservationID)
+// 遅れた番組を待った録画では、放送の開始から、先に書く分の長さを引いた時刻にする。遅れた分は、欠けたのではない (#1046)。
+func (r *Recorder) plannedStart(ctx context.Context, assignment *Assignment, recordingID uuid.UUID) (time.Time, bool, error) {
+	q := sqlc.New(r.pool)
+	reservation, err := q.GetReservationForRecording(ctx, assignment.ReservationID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return time.Time{}, false, nil
 	}
 	if err != nil {
 		return time.Time{}, false, fmt.Errorf("failed to get the reservation: %w", err)
 	}
-	if reservation.PlannedStartAt == nil {
-		return reservation.StartAt, true, nil
+	planned := reservation.StartAt
+	if reservation.PlannedStartAt != nil {
+		planned = *reservation.PlannedStartAt
+	}
+	recording, err := q.GetRecording(ctx, recordingID)
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("failed to get the recording: %w", err)
+	}
+	if recording.WaitedForBroadcast && recording.BroadcastStartedAt != nil {
+		startMargin := time.Duration(domain.DefaultMarginSeconds) * time.Second
+		if settings, err := r.settings(ctx, &reservation); err == nil {
+			startMargin = time.Duration(settings.StartMarginSeconds) * time.Second
+		}
+		planned = maxTime(planned, recording.BroadcastStartedAt.Add(-min(startMargin, MaxPreroll)))
 	}
 
-	return *reservation.PlannedStartAt, true, nil
+	return planned, true, nil
 }
 
 // gapsOf は、書けたセグメントの時間の範囲のすき間を、途切れた区間として返す。書けたセグメントがなければ false を返す。
@@ -695,8 +739,9 @@ type segment struct {
 }
 
 // createSegment は、保存先を選んで録画ファイルと索引を作り、DB に記録する。失敗したら、録画の失敗の理由も返す。
+// startedAt は、セグメントの最初のデータを読んだ時刻。遅れた番組を待った後は、溜めた分を読み始めた時刻になる (#1046)。
 func (r *Recorder) createSegment(
-	ctx context.Context, recording *sqlc.Recording, reservation *sqlc.GetReservationForRecordingRow,
+	ctx context.Context, recording *sqlc.Recording, reservation *sqlc.GetReservationForRecordingRow, startedAt time.Time,
 ) (*segment, FailureReason, error) {
 	settings, err := r.settings(ctx, reservation)
 	if err != nil {
@@ -746,7 +791,7 @@ func (r *Recorder) createSegment(
 	}
 	seg := &segment{
 		poolID: pool.ID, path: rel, fileID: fileID, file: file, indexFile: indexFile,
-		buffer: bufio.NewWriterSize(file, writeBufferSize), analyzer: analyzer, startedAt: r.clock.Now(),
+		buffer: bufio.NewWriterSize(file, writeBufferSize), analyzer: analyzer, startedAt: startedAt,
 		samples: qualitySamples{mu: sync.Mutex{}, samples: []qualitySample{}}, excluded: qualityCounts{Drops: 0, Errors: 0, Scrambled: 0},
 	}
 
@@ -828,6 +873,8 @@ const (
 	endPlanned
 	// endCancelled は、録画中に予約を無効にしたことを表す。
 	endCancelled
+	// endDelayed は、予約した番組が遅れて始まるので、書いているセグメントを消して待つことを表す (#1046)。
+	endDelayed
 )
 
 // copyUntilEnd は、予定の終わりが来るか、予約を無効にするまで、ストリームを録画ファイルと解析器に書き、止めた理由を返す。
@@ -945,14 +992,27 @@ type endTracker struct {
 	endMargin time.Duration
 	// notBroadcast は、放送されなかったことを記録したかどうか。
 	notBroadcast bool
+	// expectedOnAir は、予約した番組が放送中になるはずの時刻 (#1046)。実際に録画を始めた時刻と予定の開始の早いほうに、開始マージンを足す。
+	// 録り始めた後に EPG で予約の開始が後ろに動いても、録画を始めた時刻で決めるので、変えない。録画を始めるのが遅れても、予定の開始で決める。
+	expectedOnAir time.Time
+	// startMargin は、番組の前のマージン。遅れた番組を待った後に先に書く長さは、これと MaxPreroll の短いほう。
+	startMargin time.Duration
+	// startedBefore は、この mikan が録り始める前に、予約した番組がすでに放送中になっていたかどうか (引き継ぎや再開)。
+	startedBefore bool
+	// waited は、遅れた番組を待ったことを、録画に記録したかどうか。
+	waited bool
 }
 
-func newEndTracker(r *Recorder, recording *sqlc.Recording, reservation *sqlc.GetReservationForRecordingRow, endMargin time.Duration) *endTracker {
+func newEndTracker(
+	r *Recorder, recording *sqlc.Recording, reservation *sqlc.GetReservationForRecordingRow, startMargin, endMargin time.Duration,
+) *endTracker {
 	t := &endTracker{
 		recorder: r, recordingID: recording.ID, reservationID: reservation.ID, serviceID: reservation.ServiceID, eventID: reservation.EventID,
 		extendedUntil: time.Time{}, limit: reservation.PlannedEndAt.Add(MaxExtension), lost: false,
 		broadcast: nil, analyzer: atomic.Pointer[ts.Analyzer]{}, serviceID16: 0,
 		endMargin: endMargin, notBroadcast: false,
+		expectedOnAir: minTime(recording.RecordedFrom, *reservation.PlannedStartAt).Add(startMargin), startMargin: startMargin, startedBefore: recording.BroadcastStartedAt != nil,
+		waited: recording.WaitedForBroadcast,
 	}
 	// 時刻予約や、ID が EIT の範囲に収まらない予約では、EIT[p/f] で追わない。
 	sid, ok := ts.BroadcastServiceID(reservation.ServiceID)
@@ -970,6 +1030,7 @@ func (t *endTracker) watch(analyzer *ts.Analyzer) {
 }
 
 // wait は、録画を止めるときまで待ち、その理由を返す。ctx が終わったら endNone を返す。
+// 番組が遅れて始まると分かったら、書いているセグメントを止めて待つよう、endDelayed を返す (#1046)。
 func (t *endTracker) wait(ctx context.Context) endReason {
 	ticker := time.NewTicker(t.recorder.opts.Tick)
 	defer ticker.Stop()
@@ -982,7 +1043,24 @@ func (t *endTracker) wait(ctx context.Context) endReason {
 		if reason := t.check(ctx); reason != endNone {
 			return reason
 		}
+		if t.delayed(t.recorder.clock.Now()) {
+			return endDelayed
+		}
 	}
+}
+
+// delayed は、番組が始まるはずの時刻から BroadcastStartGrace が過ぎても、予約した番組が一度も放送中にならず、
+// EIT[p/f] の次の番組にいるかどうか (#1046)。前の番組 (スポーツ中継など) が延び、予約した番組が遅れて始まるときに当たる。
+func (t *endTracker) delayed(now time.Time) bool {
+	return !t.startedBefore && t.broadcast.pending() && !now.Before(t.expectedOnAir.Add(BroadcastStartGrace))
+}
+
+// mustWait は、ストリームを開いた後、書き始める前に、予約した番組が放送中になるのを待つかどうか (#1046)。
+// まだ何も書いていない録画で、番組が始まるはずの時刻から BroadcastStartGrace が過ぎていれば、EIT[p/f] を読んでから決める。
+// 遅れた番組を待っている間に、ストリームが切れたときや、ほかの mikan に引き継いだときに当たる。
+func (t *endTracker) mustWait(created int, now time.Time) bool {
+	return t.broadcast != nil && !t.startedBefore && t.broadcast.startedAt == nil && created == 0 &&
+		!now.Before(t.expectedOnAir.Add(BroadcastStartGrace))
 }
 
 // sleep は、d の間待つ。その間に録画を止めるときが来たら、その理由を返す。

@@ -82,6 +82,12 @@ func (b *broadcastTracker) update(pf *ts.PresentFollowing, now time.Time) broadc
 	return change
 }
 
+// pending は、予約した番組がまだ一度も放送中になっておらず、EIT[p/f] の次の番組にいるかどうか (#1046)。
+// b が nil (EIT[p/f] で追わない録画) なら false。
+func (b *broadcastTracker) pending() bool {
+	return b != nil && b.observed && b.startedAt == nil && b.following
+}
+
 // leftAir は、予約した番組が放送中でなくなったことを検知したかどうか。b が nil (EIT[p/f] で追わない録画) なら false。
 func (b *broadcastTracker) leftAir() bool {
 	return b != nil && b.endedAt != nil
