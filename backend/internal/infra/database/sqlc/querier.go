@@ -418,6 +418,9 @@ type Querier interface {
 	ListReservationsUsingTunersBetween(ctx context.Context, arg ListReservationsUsingTunersBetweenParams) ([]ListReservationsUsingTunersBetweenRow, error)
 	ListRules(ctx context.Context) ([]Rule, error)
 	ListRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rule, error)
+	// サービスのあるチャンネル種別とチャンネルの組。チューナーサーバーが番組表を取るチャンネルで、
+	// タイムシフトの割り振りで、番組表の取得に残すチューナーを決めるのに使う。
+	ListServiceChannels(ctx context.Context) ([]ListServiceChannelsRow, error)
 	// 取り込むデータが参照するサービスが、Kotatsu にあるかを確かめるのに使う。
 	ListServiceIDs(ctx context.Context) ([]int64, error)
 	ListServices(ctx context.Context) ([]ListServicesRow, error)

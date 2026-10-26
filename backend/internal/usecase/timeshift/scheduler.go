@@ -146,6 +146,14 @@ func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time) (m
 	for _, row := range channelRows {
 		channels = append(channels, &Channel{ServiceID: row.ServiceID, ChannelType: row.ChannelType, Channel: row.Channel})
 	}
+	multiplexRows, err := q.ListServiceChannels(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list service channels: %w", err)
+	}
+	multiplexes := make([]*Multiplex, 0, len(multiplexRows))
+	for _, row := range multiplexRows {
+		multiplexes = append(multiplexes, &Multiplex{ChannelType: row.ChannelType, Channel: row.Channel})
+	}
 	tunerRows, err := q.ListUsableTuners(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list tuners: %w", err)
@@ -165,7 +173,7 @@ func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time) (m
 	}
 
 	want := map[int64]bool{}
-	for _, serviceID := range Plan(channels, tuners, busy) {
+	for _, serviceID := range Plan(channels, multiplexes, tuners, busy) {
 		want[serviceID] = true
 	}
 

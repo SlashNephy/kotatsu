@@ -7,6 +7,11 @@ JOIN services s ON s.id = t.service_id
 JOIN channel_types ct ON ct.type = s.channel_type
 ORDER BY ct.sort_order, t.service_id;
 
+-- name: ListServiceChannels :many
+-- サービスのあるチャンネル種別とチャンネルの組。チューナーサーバーが番組表を取るチャンネルで、
+-- タイムシフトの割り振りで、番組表の取得に残すチューナーを決めるのに使う。
+SELECT DISTINCT channel_type, channel FROM services ORDER BY channel_type, channel;
+
 -- name: UpsertTimeshiftChannel :exec
 INSERT INTO timeshift_channels (service_id, retention_seconds, created_at, updated_at, updated_by)
 VALUES (@service_id, @retention_seconds, @now, @now, @updated_by)

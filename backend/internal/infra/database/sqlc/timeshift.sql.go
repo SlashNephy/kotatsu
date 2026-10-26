@@ -436,6 +436,37 @@ func (q *Queries) ListReservationsUsingTunersBetween(ctx context.Context, arg Li
 	return items, nil
 }
 
+const listServiceChannels = `-- name: ListServiceChannels :many
+SELECT DISTINCT channel_type, channel FROM services ORDER BY channel_type, channel
+`
+
+type ListServiceChannelsRow struct {
+	ChannelType string
+	Channel     string
+}
+
+// サービスのあるチャンネル種別とチャンネルの組。チューナーサーバーが番組表を取るチャンネルで、
+// タイムシフトの割り振りで、番組表の取得に残すチューナーを決めるのに使う。
+func (q *Queries) ListServiceChannels(ctx context.Context) ([]ListServiceChannelsRow, error) {
+	rows, err := q.db.Query(ctx, listServiceChannels)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListServiceChannelsRow{}
+	for rows.Next() {
+		var i ListServiceChannelsRow
+		if err := rows.Scan(&i.ChannelType, &i.Channel); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTimeshiftAssignments = `-- name: ListTimeshiftAssignments :many
 SELECT id, service_id, priority, state, generation, holder, lease_expires_at, stream_generation, created_at, updated_at FROM timeshift_assignments ORDER BY created_at, id
 `

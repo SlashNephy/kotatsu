@@ -156,37 +156,45 @@ func TestSchedulerRunOnce(t *testing.T) {
 	t.Parallel()
 
 	e := newEnv(t)
-	// 地上波のチューナー 2 本で、2 チャンネルを録る。チャンネルは番号の若い順に優先する。
+	// 地上波のチューナー 2 本と 3 チャンネルで、2 チャンネルを録る。チャンネルは番号の若い順に優先する。
+	// タイムシフトで録らない地上波のチャンネルが残るうちは、番組表の取得にチューナーを 1 本残す。
 	runSteps(t, e, []step{
 		{
-			name:        "チャンネルを設定すると、割り振りを書く",
+			name:        "チャンネルを設定すると、番組表の取得に 1 本残して、割り振りを書く",
 			prepare:     func() { e.configure(t, 0); e.configure(t, 1) },
-			wantCreated: 2, wantDeleted: 0, wantChanged: true,
-			want: []int64{grService(0), grService(1)},
+			wantCreated: 1, wantDeleted: 0, wantChanged: true,
+			want: []int64{grService(0)},
 		},
 		{
 			name:        "変わらなければ、書き直さず、通知しない",
 			prepare:     func() {},
 			wantCreated: 0, wantDeleted: 0, wantChanged: false,
-			want: []int64{grService(0), grService(1)},
+			want: []int64{grService(0)},
 		},
 		{
 			name:        "予約が割り振りの前に入るまでは、割り振りを消さない",
 			prepare:     func() { e.reserve(t, 2) },
 			wantCreated: 0, wantDeleted: 0, wantChanged: false,
-			want: []int64{grService(0), grService(1)},
+			want: []int64{grService(0)},
 		},
 		{
 			// 録画の割り振りを書く 2 分前に、見直しの間隔の分だけ余裕を持たせて、先に外す。
-			name:        "予約の開始が録画の割り振りの時刻の間隔の分前に入ると、並びの後ろのチャンネルの割り振りを消す",
+			// 予約が 1 本を使い、残る 1 本は、録らない 2 番目のチャンネルの番組表の取得に残す。
+			name:        "予約の開始が録画の割り振りの時刻の間隔の分前に入ると、割り振りを消す",
 			prepare:     func() { e.clk.Set(time.Date(2026, 10, 10, 13, 27, 55, 0, time.UTC)) },
 			wantCreated: 0, wantDeleted: 1, wantChanged: true,
-			want: []int64{grService(0)},
+			want: []int64{},
 		},
 		{
 			name:        "予約の録画が始まってからも、チューナーは使われているので、外した割り振りを戻さない",
 			prepare:     func() { e.clk.Set(time.Date(2026, 10, 10, 13, 35, 0, 0, time.UTC)) },
 			wantCreated: 0, wantDeleted: 0, wantChanged: false,
+			want: []int64{},
+		},
+		{
+			name:        "予約の録画が終わると、空いたチューナーで録り直す",
+			prepare:     func() { e.clk.Set(time.Date(2026, 10, 10, 14, 30, 0, 0, time.UTC)) },
+			wantCreated: 1, wantDeleted: 0, wantChanged: true,
 			want: []int64{grService(0)},
 		},
 		{
@@ -208,13 +216,14 @@ func TestSchedulerIgnoresConflictedReservation(t *testing.T) {
 	e := newEnv(t)
 	runSteps(t, e, []step{
 		{
-			name:        "チャンネルを設定すると、割り振りを書く",
+			name:        "チャンネルを設定すると、番組表の取得に 1 本残して、割り振りを書く",
 			prepare:     func() { e.configure(t, 0); e.configure(t, 1) },
-			wantCreated: 2, wantDeleted: 0, wantChanged: true,
-			want: []int64{grService(0), grService(1)},
+			wantCreated: 1, wantDeleted: 0, wantChanged: true,
+			want: []int64{grService(0)},
 		},
 		{
 			// チューナーが割り当てられなかった予約は、チューナーを使わないので、タイムシフトを外さない。
+			// 競合した予約は、チューナーサーバーで優先度により空きチューナーかタイムシフトのチューナーを取る (設計書 5.7)。
 			name: "競合した予約が割り振りの時間に入っても、割り振りを消さない",
 			prepare: func() {
 				e.reserve(t, 2)
@@ -224,7 +233,7 @@ func TestSchedulerIgnoresConflictedReservation(t *testing.T) {
 				e.clk.Set(time.Date(2026, 10, 10, 13, 29, 0, 0, time.UTC))
 			},
 			wantCreated: 0, wantDeleted: 0, wantChanged: false,
-			want: []int64{grService(0), grService(1)},
+			want: []int64{grService(0)},
 		},
 	})
 }
