@@ -140,6 +140,25 @@ metrics:
     # relabelings と metricRelabelings は、Prometheus Operator の RelabelConfig の形。relabelings は、role のラベルの後に足す。
     relabelings: []
     metricRelabelings: []
+  # otlp は、メトリクスを OTLP で送る設定 (KOTATSU_TELEMETRY_OTLP_METRICS_*)。endpoint が空なら送らない。
+  # 空の項目は渡さず、Kotatsu の既定値 (protocol は grpc、intervalSeconds は 60) を使う。
+  # DB から読む値は、neko のリースを持つ Pod だけが送り、Pod の ID を付けない。ほかの値は、各 Pod が Pod の ID とロールを付けて送る。
+  # 例 (Mackerel に直接送る):
+  #   otlp:
+  #     endpoint: https://otlp.mackerelio.com:4317
+  #     headers: {name: mackerel, key: headers}   # 中身は Mackerel-Api-Key=<書き込みのできる API キー>
+  #     exclude: [go_*, process_*]                 # 系列を減らしたいときだけ
+  otlp:
+    endpoint: ""
+    # protocol は、grpc か http/protobuf。
+    protocol: ""
+    intervalSeconds: 0
+    # exclude は、送らないメトリクスの名前のパターン (Go の path.Match の形)。/metrics には影響しない。
+    exclude: []
+    # headers は、送るたびに付けるヘッダー (名前=値 をカンマでつないだもの) を持つ Secret とキー。name が空なら渡さない。
+    headers:
+      name: ""
+      key: headers
 
 # migration は、install と upgrade の前に kotatsu migrate を実行する Job (設計書 11.4)。
 migration:

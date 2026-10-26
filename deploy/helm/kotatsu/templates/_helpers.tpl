@@ -129,10 +129,31 @@ env は、すべてのコンテナに渡す環境変数。
 {{- end }}
 - name: KOTATSU_KYUSU_WORK_DIR
   value: /var/lib/kotatsu/work
+{{- include "kotatsu.otlpMetricsEnv" . }}
 {{- include "kotatsu.configEnv" . }}
 {{- with .Values.extraEnv }}
 {{ toYaml . }}
 {{- end }}
+{{- end -}}
+
+{{/*
+otlpMetricsEnv は、metrics.otlp から作る、OTLP でメトリクスを送る環境変数 (設計書 11.3)。空の項目は渡さず、Kotatsu の既定値を使う。
+config に同じ設定があると、同じ環境変数が 2 つになるので、描画を止める。
+*/}}
+{{- define "kotatsu.otlpMetricsEnv" -}}
+{{- $otlp := .Values.metrics.otlp -}}
+{{- $values := dict "TELEMETRY_OTLP_METRICS_ENDPOINT" $otlp.endpoint "TELEMETRY_OTLP_METRICS_PROTOCOL" $otlp.protocol "TELEMETRY_OTLP_METRICS_INTERVAL_SECONDS" (ternary "" (toString $otlp.intervalSeconds) (eq (int $otlp.intervalSeconds) 0)) "TELEMETRY_OTLP_METRICS_EXCLUDE" (join "," $otlp.exclude) -}}
+{{- range $env := keys $values | sortAlpha }}
+{{- $value := get $values $env }}
+{{- if $value }}
+{{- if hasKey $.Values.config $env }}
+{{- fail (printf "set either metrics.otlp or config.%s, not both" $env) }}
+{{- end }}
+- name: {{ printf "KOTATSU_%s" $env }}
+  value: {{ $value | quote }}
+{{- end }}
+{{- end }}
+{{- include "kotatsu.optionalSecretEnv" (dict "root" . "env" "TELEMETRY_OTLP_METRICS_HEADERS" "ref" $otlp.headers "value" "metrics.otlp.headers") }}
 {{- end -}}
 
 {{/*

@@ -237,7 +237,7 @@ v1では、これらの値を設定で変えられないようにします。mir
 | DB | PostgreSQL、pgx v5、sqlc | v1はPostgreSQLだけに対応します。DBへのアクセスはinterfaceの裏に置き、将来はsqlcのSQLiteエンジンで2系統目のクエリを足せるようにします。 |
 | マイグレーション | `schema.sql`に宣言的に書き、Atlasで差分を生成します | 実行時は、Goに埋め込んだマイグレーションを`kotatsu migrate`が適用します。 |
 | ログ | log/slog（JSON形式） | |
-| 可観測性 | OpenTelemetryとPrometheus形式の`/metrics` | OTLPの送信先を設定したときだけトレースを送ります。 |
+| 可観測性 | OpenTelemetryとPrometheus形式の`/metrics` | OTLPの送信先を設定したときだけ、トレースとメトリクスを送ります。メトリクスは`/metrics`と同じものです。 |
 | 設定 | YAMLと環境変数 | 置き場所の基準は[11.2](#112-設定の置き場所)で定めます。 |
 | 認証 | go-webauthn、pquerna/otp、coreos/go-oidc、x/crypto/argon2、webpush-go | |
 | ARIBの処理 | tsreadexを子プロセスとして使います | GoにはARIBの文字符号を扱える成熟したライブラリがありません。番組情報はMirakurunがJSONで返し、字幕とデータ放送はブラウザで描画するので、Kotatsuの中でARIBの文字符号を解く必要はありません。 |
@@ -1534,6 +1534,7 @@ Helm Chartは次の方針で作ります。
 - すべてのリソースに、入れる先のnamespaceを書きます。kustomizeの`helmCharts`で描画しても、namespaceが付くようにするためです。
 - PostgreSQLはChartに含めず、外部のもの（CloudNativePGなど）を使う前提にします。
 - `/metrics`を、Prometheus OperatorのPodMonitorで読めるようにします（`metrics.podMonitor.enabled`、[11.3](#113-監視)）。CRDのないクラスターで失敗しないよう、既定では作りません。
+- メトリクスをOTLPで送る設定（`metrics.otlp`）を、全ロールに渡せるようにします。ヘッダーはSecretから渡します。
 
 Kubernetesのマニフェストは、全ロールを1つのPodで動かす構成例と、ロールを分けた構成例の2つを生成します。
 Chartから生成した結果とリポジトリ上のマニフェストの差分は、CIの検査対象です。
@@ -1580,6 +1581,21 @@ EPGStationのように、秘密情報を平文の設定ファイルに書く必�
   | `kotatsu_tenban_streams{kind}` | このインスタンスのtenbanが、変換せずに流している最中の応答の数（[7.1](#71-再生経路)）。`live`はライブ視聴の中継、`data_broadcast`はライブ視聴と並べて開くデータ放送のストリーム、`recording`は録画の再生と取り込んだ録画のTS以外のファイルです。EPGStation互換の配信（[9.8](#98-api-トークン)）も数えます。kyusuへの中継は数えません。見ている人の数ではなく、プレイヤーがRangeで取り直すたびに別の応答になります。HEADは数えません。 |
 
   録画、失敗の累計、予約、チューナー、保存先プール、ジョブのキューは、DBから読むので、どのインスタンスも同じ値を返します。集計するときは、インスタンスをまたいで足さずに、`max`などでまとめます。
+- OTLPの送信先（`telemetry.otlp_metrics_endpoint`）を設定すると、`/metrics`と同じメトリクスを、OTLPで決まった間隔（既定は60秒）で送ります。MackerelのラベルつきメトリクスやOpenTelemetry Collectorのように、pushで受け取る監視先でも見られるようにするためです。
+  - 定義はPrometheusのレジストリ1つだけで、OTLPには`go.opentelemetry.io/contrib/bridges/prometheus`で橋渡しします。名前とラベルは`/metrics`と同じです。カウンターは累積（cumulative）で送ります。
+  - pushでは、インスタンスの数だけ同じ系列が送られます。そこで、値を次の2つの範囲に分け、範囲ごとに送り方を変えます。
+
+    | 範囲 | 中身 | 送るインスタンス | リソースの属性 |
+    |---|---|---|---|
+    | クラスター | DBから読む値（上の表のうち、`kotatsu_neko_leader`、`kotatsu_kyusu_sessions`、`kotatsu_tenban_streams`を除くもの）と、nekoのリーダーだけが持つ`kotatsu_epg_last_full_sync_timestamp_seconds` | nekoのリースを持つインスタンスだけ | `service.name`だけ |
+    | インスタンス | それ以外（`kotatsu_neko_leader`、`kotatsu_kyusu_sessions`、`kotatsu_tenban_streams`、Goのランタイムとプロセス） | すべてのインスタンス | `service.name`、`service.version`、`service.instance.id`（インスタンスのID）、`kotatsu.roles`（動かしているロール） |
+
+    クラスターの範囲には、インスタンスのIDも版も付けません。nekoのリーダーが替わっても、リリースしても、受け手から見て同じ系列のまま続くようにするためです。リーダーか分からないとき（DBに問い合わせられないとき）は、重複して送らないよう、その回は送りません。失敗の累計（`kotatsu_recording_failures_total`）には、どのインスタンスでも同じ作成の時刻を付け、送るインスタンスが替わってもカウンターのリセットとみなされないようにします。
+  - 送り方は、gRPCとHTTP（protobuf）から選べ（`telemetry.otlp_metrics_protocol`、既定はgRPC）、常にgzipで圧縮します。送信先が`http://`なら、暗号化せずに送ります。ヘッダー（`telemetry.otlp_metrics_headers`、`名前=値`をカンマでつなぐ）は秘密情報として扱います（[11.2](#112-設定の置き場所)）。
+  - 送らないメトリクスを、名前のパターンで指定できます（`telemetry.otlp_metrics_exclude`、例：`go_*`）。`/metrics`には影響しません。何を送るかは監視先の課金や見たいものによるので、既定では全部送ります。
+  - 送れなくても、ロールは止めずに、警告のログに出します。停止するときは、溜まっている値を送り切ってから止めます。
+  - Mackerelに直接送るときは、送信先を`https://otlp.mackerelio.com:4317`（gRPC）にし、ヘッダーに`Mackerel-Api-Key=<書き込みのできるAPIキー>`を渡します。Mackerelは系列の数で課金されるとみられるので、系列を減らしたいときは`exclude`に`go_*`と`process_*`を入れます。
+  - OpenTelemetry Collectorを挟むときは、送信先をCollectorのOTLPの受け口（`http://collector:4317`など）にします。
 - ログはslogのJSON形式で標準出力に書きます。
 
 EPGStationの運用では、不調を避けるために毎日再起動している例があります。
