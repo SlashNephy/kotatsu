@@ -222,6 +222,21 @@ func (q *Queries) FinishTimeshiftAssignment(ctx context.Context, arg FinishTimes
 	return result.RowsAffected(), nil
 }
 
+const getOpenTimeshiftProgram = `-- name: GetOpenTimeshiftProgram :one
+SELECT event_id FROM timeshift_programs
+WHERE service_id = $1 AND ended_at IS NULL
+ORDER BY started_at DESC
+LIMIT 1
+`
+
+// 放送中として記録している番組の eventId。引き継いだ mikan が、同じ番組を 2 つの行に分けないよう、続きから追うのに使う。
+func (q *Queries) GetOpenTimeshiftProgram(ctx context.Context, serviceID int64) (int64, error) {
+	row := q.db.QueryRow(ctx, getOpenTimeshiftProgram, serviceID)
+	var event_id int64
+	err := row.Scan(&event_id)
+	return event_id, err
+}
+
 const getTimeshiftAssignmentStream = `-- name: GetTimeshiftAssignmentStream :one
 SELECT generation, stream_generation FROM timeshift_assignments WHERE id = $1
 `
@@ -618,7 +633,7 @@ func (q *Queries) RenewTimeshiftAssignment(ctx context.Context, arg RenewTimeshi
 const startTimeshiftProgram = `-- name: StartTimeshiftProgram :exec
 INSERT INTO timeshift_programs (service_id, started_at, event_id, name, ended_at)
 VALUES ($1, $2, $3, $4, NULL)
-ON CONFLICT (service_id, started_at) DO UPDATE SET event_id = EXCLUDED.event_id, name = EXCLUDED.name
+ON CONFLICT (service_id, started_at) DO UPDATE SET event_id = EXCLUDED.event_id, name = EXCLUDED.name, ended_at = NULL
 `
 
 type StartTimeshiftProgramParams struct {
@@ -628,7 +643,7 @@ type StartTimeshiftProgramParams struct {
 	Name      string
 }
 
-// 番組の始まりを記録する。同じ時刻の行があれば、番組の情報を更新する。
+// 番組の始まりを記録する。同じ時刻の行があれば、その番組は始まってすぐに替わったので、新しい番組で置き換え、放送中に戻す。
 func (q *Queries) StartTimeshiftProgram(ctx context.Context, arg StartTimeshiftProgramParams) error {
 	_, err := q.db.Exec(ctx, startTimeshiftProgram,
 		arg.ServiceID,

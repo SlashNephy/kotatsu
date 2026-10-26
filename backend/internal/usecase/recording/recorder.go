@@ -785,7 +785,7 @@ func (r *Recorder) createSegment(
 	}
 	// 索引は、データディレクトリの、セグメントのファイルの ID のディレクトリに置く。作れなくても、録画は続ける。
 	fileID := id.New()
-	analyzer, indexFile, indexErr := r.createIndex(fileID)
+	analyzer, indexFile, indexErr := CreateIndex(r.store, fileID)
 	if indexErr != nil {
 		r.logger.WarnContext(ctx, "failed to create the index; recording without it", slog.String("path", rel), slog.Any("error", indexErr))
 	}
@@ -838,14 +838,14 @@ func (r *Recorder) pools(ctx context.Context, mounted []string, poolID string) (
 	return pools, nil
 }
 
-// createIndex は、データディレクトリの、セグメントのファイル fileID のディレクトリに索引を作り、索引を書く解析器を返す。
-// 索引を作れなければ、索引を書かない解析器と、そのエラーを返す。
-func (r *Recorder) createIndex(fileID uuid.UUID) (*ts.Analyzer, *os.File, error) {
-	if _, err := r.store.CreateSegmentDir(fileID); err != nil {
+// CreateIndex は、store のデータディレクトリの、ファイル fileID のディレクトリに索引を作り、索引を書く解析器を返す。
+// 索引を作れなければ、索引を書かない解析器と、そのエラーを返す。タイムシフトのチャンクも、同じ作りの索引を書く。
+func CreateIndex(store *kago.Store, fileID uuid.UUID) (*ts.Analyzer, *os.File, error) {
+	if _, err := store.CreateSegmentDir(fileID); err != nil {
 		return ts.NewAnalyzer(nil), nil, err
 	}
 	index := kago.IndexLocation(fileID)
-	path, err := r.store.Path(index.PoolID, index.Path)
+	path, err := store.Path(index.PoolID, index.Path)
 	if err != nil {
 		return ts.NewAnalyzer(nil), nil, err
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/riverqueue/river"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
@@ -280,18 +281,36 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 
 		return system.Recording, nil
 	}
+	store := storeOf(deps.Config)
 	// 録画できない理由がこの mikan にあれば、ほかの mikan に回すため、ほかに動いている mikan を数える (#524)。
-	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, storeOf(deps.Config), defaults, location,
+	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, store, defaults, location,
 		logger.With(slog.String("component", "recorder")), &recording.RecorderOptions{
 			TuningTime: 0, Tick: 0, RetryInterval: 0, ReleaseAfter: 0,
 			Peers: recording.AlivePeers(deps.DB, deps.Clock, deps.InstanceID),
 		})
-	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), recording.NewRecordingLeases(deps.DB), &recording.WorkerOptions{
+	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), recording.NewRecordingLeases(deps.DB), mikanWorkerOptions(deps))
+	if !store.HasTimeshiftDir() {
+		return worker.Run(ctx)
+	}
+
+	// タイムシフトのディレクトリを設定していれば、タイムシフトの割り振りも、同じインスタンスの ID で取って録る (設計書 6)。
+	timeshiftLogger := logger.With(slog.String("component", "timeshift"))
+	timeshiftRecorder := timeshift.NewRecorder(deps.DB, deps.Clock, tuner, store, timeshiftLogger, nil)
+	timeshiftWorker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, timeshiftLogger, timeshiftRecorder.Session(), timeshift.NewLeases(deps.DB),
+		mikanWorkerOptions(deps))
+	eg, ctx := errgroup.WithContext(ctx)
+	eg.Go(func() error { return worker.Run(ctx) })
+	eg.Go(func() error { return timeshiftWorker.Run(ctx) })
+
+	return eg.Wait()
+}
+
+// mikanWorkerOptions は、mikan が割り振りを取る Worker の設定を返す。録画とタイムシフトで同じものを使う。
+func mikanWorkerOptions(deps *Deps) *recording.WorkerOptions {
+	return &recording.WorkerOptions{
 		LeaseTTL: 0, RenewInterval: 0, AcquireInterval: 0, HandoverTimeout: 0, ReleaseCooldown: 0,
 		// mikan を複数のマシンで動かしても、時計のずれでリースを取り違えないよう、DB の時刻で決める (#526)。
 		DatabaseClock: true,
 		PollOnly:      deps.Config.Database.Pooler, PollInterval: 0,
-	})
-
-	return worker.Run(ctx)
+	}
 }

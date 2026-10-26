@@ -124,10 +124,17 @@ DELETE FROM timeshift_chunks WHERE id = @id;
 SELECT id, path FROM timeshift_chunks ORDER BY started_at, id;
 
 -- name: StartTimeshiftProgram :exec
--- 番組の始まりを記録する。同じ時刻の行があれば、番組の情報を更新する。
+-- 番組の始まりを記録する。同じ時刻の行があれば、その番組は始まってすぐに替わったので、新しい番組で置き換え、放送中に戻す。
 INSERT INTO timeshift_programs (service_id, started_at, event_id, name, ended_at)
 VALUES (@service_id, @started_at, @event_id, @name, NULL)
-ON CONFLICT (service_id, started_at) DO UPDATE SET event_id = EXCLUDED.event_id, name = EXCLUDED.name;
+ON CONFLICT (service_id, started_at) DO UPDATE SET event_id = EXCLUDED.event_id, name = EXCLUDED.name, ended_at = NULL;
+
+-- name: GetOpenTimeshiftProgram :one
+-- 放送中として記録している番組の eventId。引き継いだ mikan が、同じ番組を 2 つの行に分けないよう、続きから追うのに使う。
+SELECT event_id FROM timeshift_programs
+WHERE service_id = @service_id AND ended_at IS NULL
+ORDER BY started_at DESC
+LIMIT 1;
 
 -- name: EndTimeshiftProgram :execrows
 -- 終わっていない番組を閉じる。

@@ -184,6 +184,8 @@ type Querier interface {
 	// 失効させるトークンの種類と連携を引く。ほかのクライアントのトークンは返さない。
 	GetOAuthTokenForRevocation(ctx context.Context, arg GetOAuthTokenForRevocationParams) (GetOAuthTokenForRevocationRow, error)
 	GetOIDCIdentity(ctx context.Context, arg GetOIDCIdentityParams) (UserOidcIdentity, error)
+	// 放送中として記録している番組の eventId。引き継いだ mikan が、同じ番組を 2 つの行に分けないよう、続きから追うのに使う。
+	GetOpenTimeshiftProgram(ctx context.Context, serviceID int64) (int64, error)
 	GetPasskeyByCredentialID(ctx context.Context, credentialID []byte) (UserPasskey, error)
 	// プレイヤーのユーザーとセッション。閉じたとみなすプレイヤーは返さない。
 	GetPlayerOwner(ctx context.Context, arg GetPlayerOwnerParams) (GetPlayerOwnerRow, error)
@@ -605,7 +607,7 @@ type Querier interface {
 	// ジャンルと、一致したルール (最も古いもの) とその名前も、予約から写す。予約やルールを消しても、録画を絞れるようにする (#468)。
 	// recorded_from は、録画ファイルに書き始める時刻。チューニングのために早く開いたストリームは、予定の開始まで捨てるので (#847)、now より後になることがある。
 	StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error)
-	// 番組の始まりを記録する。同じ時刻の行があれば、番組の情報を更新する。
+	// 番組の始まりを記録する。同じ時刻の行があれば、その番組は始まってすぐに替わったので、新しい番組で置き換え、放送中に戻す。
 	StartTimeshiftProgram(ctx context.Context, arg StartTimeshiftProgramParams) error
 	// /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。
 	SumActiveRecordingPackets(ctx context.Context) (SumActiveRecordingPacketsRow, error)
