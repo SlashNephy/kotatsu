@@ -1832,7 +1832,7 @@ type Recording implements Node {
   broadcastStartedAt: Time
   broadcastEndedAt: Time
   """
-  予約した番組が、予定の時間に放送されなかったかどうか。録った TS は残す。
+  予約した番組が、予定の時間に放送されなかったかどうか。録った TS は残す。遅れて始まるのを待った番組が延長の上限まで放送中にならなかったときは、前の番組の TS を残さず、録画は失敗になる (#1046)。
   """
   notBroadcast: Boolean!
   """

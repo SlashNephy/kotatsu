@@ -106,6 +106,37 @@ func (q *Queries) DeleteRecordingFiles(ctx context.Context, arg DeleteRecordingF
 	return err
 }
 
+const deleteRecordingSegments = `-- name: DeleteRecordingSegments :many
+DELETE FROM recording_files WHERE recording_id = $1 AND kind = 'segment' RETURNING id, pool_id, path
+`
+
+type DeleteRecordingSegmentsRow struct {
+	ID     uuid.UUID
+	PoolID string
+	Path   string
+}
+
+// 録画のセグメントの記録を消し、消したファイルを返す (#1046)。ファイルは、呼ぶ側が消す。
+func (q *Queries) DeleteRecordingSegments(ctx context.Context, recordingID uuid.UUID) ([]DeleteRecordingSegmentsRow, error) {
+	rows, err := q.db.Query(ctx, deleteRecordingSegments, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DeleteRecordingSegmentsRow{}
+	for rows.Next() {
+		var i DeleteRecordingSegmentsRow
+		if err := rows.Scan(&i.ID, &i.PoolID, &i.Path); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const failStuckRecordings = `-- name: FailStuckRecordings :many
 WITH failed AS (
   UPDATE recordings r SET
@@ -265,7 +296,7 @@ func (q *Queries) GetProgramEnd(ctx context.Context, arg GetProgramEndParams) (G
 }
 
 const getRecording = `-- name: GetRecording :one
-SELECT id, api_id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1
+SELECT id, api_id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1
 `
 
 func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, error) {
@@ -296,6 +327,7 @@ func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, er
 		&i.ProgramLost,
 		&i.BroadcastStartedAt,
 		&i.BroadcastEndedAt,
+		&i.WaitedForBroadcast,
 		&i.NotBroadcast,
 		&i.AiredEventID,
 		&i.RecordedFrom,
@@ -334,7 +366,7 @@ func (q *Queries) GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (G
 }
 
 const getRecordingWithService = `-- name: GetRecordingWithService :one
-SELECT recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
+SELECT recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
 FROM recordings
 JOIN services s ON s.id = recordings.service_id
 WHERE recordings.id = $1
@@ -374,6 +406,7 @@ func (q *Queries) GetRecordingWithService(ctx context.Context, id uuid.UUID) (Ge
 		&i.Recording.ProgramLost,
 		&i.Recording.BroadcastStartedAt,
 		&i.Recording.BroadcastEndedAt,
+		&i.Recording.WaitedForBroadcast,
 		&i.Recording.NotBroadcast,
 		&i.Recording.AiredEventID,
 		&i.Recording.RecordedFrom,
@@ -799,6 +832,26 @@ func (q *Queries) MarkRecordingProgramLost(ctx context.Context, arg MarkRecordin
 	return err
 }
 
+const markRecordingWaitedForBroadcast = `-- name: MarkRecordingWaitedForBroadcast :execrows
+UPDATE recordings SET waited_for_broadcast = true, drops = 0, errors = 0, scrambled = 0, updated_at = $1
+WHERE id = $2 AND broadcast_started_at IS NULL
+`
+
+type MarkRecordingWaitedForBroadcastParams struct {
+	Now time.Time
+	ID  uuid.UUID
+}
+
+// 番組が遅れて始まるので、それまでに書いたセグメントを消して待つことを記録する (#1046)。消すセグメントのドロップなどは数え直す。
+// 予約した番組がすでに放送中になっていれば、セグメントに番組が入っているので、何もせず 0 を返す。
+func (q *Queries) MarkRecordingWaitedForBroadcast(ctx context.Context, arg MarkRecordingWaitedForBroadcastParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markRecordingWaitedForBroadcast, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setJoinedRecordingFile = `-- name: SetJoinedRecordingFile :execrows
 UPDATE recording_files SET size = $1, ended_at = $2 WHERE id = $3
 `
@@ -926,6 +979,24 @@ func (q *Queries) SetRecordingGaps(ctx context.Context, arg SetRecordingGapsPara
 	return err
 }
 
+const setRecordingRecordedFrom = `-- name: SetRecordingRecordedFrom :exec
+UPDATE recordings r SET recorded_from = $1, updated_at = $2
+WHERE r.id = $3 AND NOT EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment')
+`
+
+type SetRecordingRecordedFromParams struct {
+	At  time.Time
+	Now time.Time
+	ID  uuid.UUID
+}
+
+// 待った後に書き始めた日時を、実際に録画を始めた日時にする (#1046)。すでにセグメントがあれば (引き継いだ mikan が待ち直したときなど)、
+// 最初のセグメントから録り始めているので、変えない。
+func (q *Queries) SetRecordingRecordedFrom(ctx context.Context, arg SetRecordingRecordedFromParams) error {
+	_, err := q.db.Exec(ctx, setRecordingRecordedFrom, arg.At, arg.Now, arg.ID)
+	return err
+}
+
 const setRecordingStats = `-- name: SetRecordingStats :exec
 UPDATE recordings SET drops = $1, errors = $2, scrambled = $3,
   state = CASE WHEN state IN ('completed', 'completed_with_errors')
@@ -974,7 +1045,7 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) AS m ON true
 ON CONFLICT (reservation_id) DO UPDATE SET state = 'recording', failure_reason = NULL, recorded_until = NULL, updated_at = EXCLUDED.updated_at
-RETURNING recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, (xmax = 0)::boolean AS inserted
+RETURNING recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, (xmax = 0)::boolean AS inserted
 `
 
 type StartRecordingParams struct {
@@ -1038,6 +1109,7 @@ func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) 
 		&i.Recording.ProgramLost,
 		&i.Recording.BroadcastStartedAt,
 		&i.Recording.BroadcastEndedAt,
+		&i.Recording.WaitedForBroadcast,
 		&i.Recording.NotBroadcast,
 		&i.Recording.AiredEventID,
 		&i.Recording.RecordedFrom,

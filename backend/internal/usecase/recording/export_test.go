@@ -38,3 +38,27 @@ type QualitySample = qualitySample
 func CountsAfter(samples []QualitySample, since, end time.Time, final QualityCounts) QualityCounts {
 	return countsAfter(samples, since, end, final)
 }
+
+// Preroll は、テストから preroll を使うために公開する。
+type Preroll struct {
+	preroll *preroll
+}
+
+// NewPreroll は、テストから newPreroll を呼ぶために公開する。
+func NewPreroll(window time.Duration) *Preroll {
+	return &Preroll{preroll: newPreroll(window)}
+}
+
+// Add は、テストから preroll.add を呼ぶために公開する。
+func (p *Preroll) Add(at time.Time, b []byte) {
+	p.preroll.add(at, b)
+}
+
+// Bytes と StartedAt は、テストから preroll.bytes と preroll.startedAt を呼ぶために公開する。
+func (p *Preroll) Bytes() []byte {
+	return p.preroll.bytes()
+}
+
+func (p *Preroll) StartedAt(now time.Time) time.Time {
+	return p.preroll.startedAt(now)
+}
