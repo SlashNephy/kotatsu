@@ -163,7 +163,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	manager := capacity.NewManager(deps.DB, deps.Clock, storeOf(deps.Config), audit.NewRecorder(deps.Clock),
 		logger.With(slog.String("component", "capacity")))
 	river.AddWorker(workers, capacity.NewCheckWorker(manager))
-	// タイムシフトのバッファは、保持時間を過ぎたチャンクを捨てる (設計書 6)。タイムシフトのディレクトリがなければ、何もしない。
+	// タイムシフトのバッファは、保持時間を過ぎたチャンクを捨てる (設計書 5.7)。タイムシフトのディレクトリがなければ、何もしない。
 	river.AddWorker(workers, timeshift.NewPruneWorker(deps.DB, deps.Clock, storeOf(deps.Config),
 		logger.With(slog.String("component", "timeshift"))))
 	// 録画を終えたら、代表画像とプレビュー画像を作る (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。

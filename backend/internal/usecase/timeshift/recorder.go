@@ -56,7 +56,7 @@ type RecorderOptions struct {
 // errChunkStorage は、タイムシフトのディレクトリにチャンクのファイルを作れなかったこと。
 var errChunkStorage = errors.New("failed to create a timeshift chunk file")
 
-// Recorder は、タイムシフトの割り振りのサービスを、ChunkDuration ごとのチャンクに分けて録り続ける Session を提供する (設計書 6)。
+// Recorder は、タイムシフトの割り振りのサービスを、ChunkDuration ごとのチャンクに分けて録り続ける Session を提供する (設計書 5.7)。
 // チャンクごとに、通常の録画と同じ索引を書き、EIT[p/f] で放送中の番組が替わった時刻を記録する。
 type Recorder struct {
 	pool   *pgxpool.Pool
@@ -165,7 +165,7 @@ func (r *Recorder) unavailable(ctx context.Context, state *sessionState, err err
 }
 
 // closeStale は、落ちた mikan が残した、書きかけのチャンクと、放送中のままの番組を閉じる。
-// 落ちてから今までは録れていないので、バッファの穴にする (設計書 6)。チャンクは、ファイルの大きさと、最後に書き込んだ時刻で閉じる。
+// 落ちてから今までは録れていないので、バッファの穴にする (設計書 5.7)。チャンクは、ファイルの大きさと、最後に書き込んだ時刻で閉じる。
 // 番組は、サービスのチャンクの最後の終わりで閉じる。チャンクがなければ、番組の始まりで閉じる。
 func (r *Recorder) closeStale(ctx context.Context, serviceID int64) error {
 	q := sqlc.New(r.pool)

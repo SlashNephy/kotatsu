@@ -317,7 +317,7 @@ func chunkPath(serviceID int64, startedAt time.Time) string {
 	return fmt.Sprintf("%d/%s.m2ts", serviceID, startedAt.UTC().Format("20060102T150405Z"))
 }
 
-// TestTimeshiftRecorderRotatesChunks は、ChunkDuration ごとにチャンクを閉じて次を始め、チャンクごとに索引を書くことを確かめる (設計書 6)。
+// TestTimeshiftRecorderRotatesChunks は、ChunkDuration ごとにチャンクを閉じて次を始め、チャンクごとに索引を書くことを確かめる (設計書 5.7)。
 func TestTimeshiftRecorderRotatesChunks(t *testing.T) {
 	t.Parallel()
 
@@ -477,7 +477,7 @@ func TestTimeshiftRecorderClosesChunkOnStop(t *testing.T) {
 }
 
 // TestTimeshiftRecorderStopsWhenAssignmentDeleted は、neko が割り振りを消したら (チューナーを予約に渡すとき)、
-// ストリームを閉じ、チャンクと番組を閉じて返ることを確かめる (設計書 6)。
+// ストリームを閉じ、チャンクと番組を閉じて返ることを確かめる (設計書 5.7)。
 func TestTimeshiftRecorderStopsWhenAssignmentDeleted(t *testing.T) {
 	t.Parallel()
 

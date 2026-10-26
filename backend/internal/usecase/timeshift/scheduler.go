@@ -41,7 +41,7 @@ type SchedulerOptions struct {
 	PollInterval time.Duration
 }
 
-// Scheduler は、タイムシフトで録るチャンネルのうち、チューナーを使えるものの割り振りを書き、使えなくなったものの割り振りを消す (設計書 1.6)。
+// Scheduler は、タイムシフトで録るチャンネルのうち、チューナーを使えるものの割り振りを書き、使えなくなったものの割り振りを消す (設計書 5.7)。
 type Scheduler struct {
 	pool   *pgxpool.Pool
 	clock  clock.Clock
@@ -74,7 +74,7 @@ func NewScheduler(pool *pgxpool.Pool, clk clock.Clock, guard Guard, logger *slog
 }
 
 // LeadFor は、録画の割り振りを書く時刻の前 (recordingLead) から、タイムシフトの割り振りを外し始める時間を返す。
-// 予約へのチューナーの割り振りより前にタイムシフトを外す必要がある (設計書 1.6)。
+// 予約へのチューナーの割り振りより前にタイムシフトを外す必要がある (設計書 5.7)。
 // 二つの見直しは独立に動き、タイムシフトの見直しは interval ごとなので、recordingLead と同じにすると、
 // 外すのが最大で interval 遅れ、録画の割り振りがタイムシフトのストリームと重なりうる。interval の分だけ早めに外す。
 func LeadFor(recordingLead, interval time.Duration) time.Duration {

@@ -292,7 +292,7 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 		return worker.Run(ctx)
 	}
 
-	// タイムシフトのディレクトリを設定していれば、タイムシフトの割り振りも、同じインスタンスの ID で取って録る (設計書 6)。
+	// タイムシフトのディレクトリを設定していれば、タイムシフトの割り振りも、同じインスタンスの ID で取って録る (設計書 5.7)。
 	timeshiftLogger := logger.With(slog.String("component", "timeshift"))
 	timeshiftRecorder := timeshift.NewRecorder(deps.DB, deps.Clock, tuner, store, timeshiftLogger, &timeshift.RecorderOptions{
 		ChunkDuration: 0, Backoff: nil, Tick: 0, Peers: recording.AlivePeers(deps.DB, deps.Clock, deps.InstanceID),

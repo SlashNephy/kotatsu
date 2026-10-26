@@ -68,7 +68,7 @@ type Options struct {
 // Run は、ctx が終わるまでリースを取り合い、リーダーになっている間だけ neko の処理を動かす。
 // リーダーの間は、EPG を同期し (設計書 3.3)、放送が終わった番組をアーカイブに移し (設計書 3.4)、
 // チューナーの構成とチューナーサーバーの状態を把握し (設計書 3.6、3.7)、ルールから予約を作り (設計書 4.3)、
-// 予約をチューナーに割り当て (設計書 4.5)、番組の変更に予約を追従させ (設計書 4.6)、録画を mikan に割り振り (設計書 1.5)、タイムシフトのチャンネルを mikan に割り振る (設計書 1.6)。DB への書き込みは、その世代のリースを持っている間だけ通す。
+// 予約をチューナーに割り当て (設計書 4.5)、番組の変更に予約を追従させ (設計書 4.6)、録画を mikan に割り振り (設計書 1.5)、タイムシフトのチャンネルを mikan に割り振る (設計書 5.7)。DB への書き込みは、その世代のリースを持っている間だけ通す。
 func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 	manager := lease.NewManager(opts.DB, opts.Clock, LeaseName, opts.InstanceID, LeaseTTL)
 	elector, err := lease.NewElector(manager, logger, RenewInterval)
