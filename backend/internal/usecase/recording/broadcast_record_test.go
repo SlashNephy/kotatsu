@@ -1,11 +1,15 @@
 package recording_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
 	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -117,6 +121,7 @@ func TestRecorderMarksNotBroadcast(t *testing.T) {
 // TestRecorderMarksNotBroadcastWhenFollowingUntilLimit は、予約した番組 (eventId 6) が EIT[p/f] の次の番組のまま
 // 放送中にならなければ、延長の上限まで待って止め、放送されなかったことを記録することを確かめる (#640)。
 // 野球中継の延長で大幅に繰り下がり、そのまま放送されなかった場合に当たる。
+// 遅れたとみなした時点で、前の番組しか入っていない TS は消すので、録画は番組が見つからなかったとして失敗にする (#1046)。
 func TestRecorderMarksNotBroadcastWhenFollowingUntilLimit(t *testing.T) {
 	t.Parallel()
 
@@ -147,7 +152,83 @@ func TestRecorderMarksNotBroadcastWhenFollowingUntilLimit(t *testing.T) {
 		Scan(&notBroadcast, &aired))
 	assert.True(t, notBroadcast)
 	assert.Equal(t, new(int64(99)), aired)
-	assert.Len(t, f.files(t, reservationID), 1, "the recorded TS is kept")
+	assert.Empty(t, f.files(t, reservationID), "the TS of the previous program is not kept")
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StateFailed), got.state)
+	assert.Equal(t, new(string(recording.FailureProgramNotFound)), got.failureReason)
+}
+
+// TestRecorderWaitsForDelayedBroadcast は、番組が始まるはずの時刻から猶予が過ぎても、予約した番組 (eventId 6) が
+// EIT[p/f] の次の番組のままなら、それまでに書いた前の番組の TS を消し、放送中になるまで待ってから書き始めることを確かめる (#1046)。
+// 前の番組 (野球中継) が延び、EPG が繰り下げを知らせないまま、予約した番組が遅れて始まった場合に当たる。
+func TestRecorderWaitsForDelayedBroadcast(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	stream := newSteppedStream()
+	recorder, dir := f.newRecorder(t, stream, nil)
+	_, done := f.session(t, recorder, reservationID)
+	broadcastStarted := func() *time.Time {
+		var started *time.Time
+		if err := f.pool.QueryRow(t.Context(), "SELECT broadcast_started_at FROM recordings WHERE reservation_id = $1", reservationID).
+			Scan(&started); err != nil {
+			return nil
+		}
+
+		return started
+	}
+
+	// 予定の開始からは、今までどおり書く。前の番組が放送中で、予約した番組は次の番組にいる。
+	cc := byte(0)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 99, 6))
+	require.Equal(t, 1, f.segments(t, reservationID))
+
+	// 番組が始まるはずの時刻から猶予が過ぎても次の番組のままなので、前の番組しか入っていないセグメントを消す。
+	f.clock.Advance(programStart().Add(recording.BroadcastStartGrace).Sub(f.clock.Now()))
+	require.Eventually(t, func() bool { return len(f.files(t, reservationID)) == 0 }, waitTimeout, 10*time.Millisecond)
+
+	// 待っている間は、ストリームを読んでも書かない。読んだ分は 1 つずつ処理するので、次の分を読ませてから時計を進め、
+	// 待ち始めたときの EIT[p/f] を、進める前の時刻で溜めさせる。
+	stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 99, 6))
+	stream.next(t, nullPacket())
+	f.clock.Advance(10 * time.Minute)
+	stream.next(t, nullPacket())
+	assert.Empty(t, f.files(t, reservationID))
+
+	// 予約した番組が放送中になったら、溜めた分から書き始める。
+	startedAt := f.clock.Now()
+	stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 6, 7))
+	require.Eventually(t, func() bool { return broadcastStarted() != nil }, waitTimeout, 10*time.Millisecond)
+	assert.True(t, broadcastStarted().Equal(startedAt), "the broadcast started at %v", broadcastStarted())
+	require.Eventually(t, func() bool { return f.segments(t, reservationID) == 1 }, waitTimeout, 10*time.Millisecond)
+
+	// 遅れて始まった番組が終わったら、後ろのマージンを録って止める。遅れた分は、途切れた区間にしない。
+	f.clock.Advance(programStart().Add(40 * time.Minute).Sub(f.clock.Now()))
+	stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 7, 8))
+	require.Eventually(t, func() bool {
+		var ended *time.Time
+		err := f.pool.QueryRow(t.Context(), "SELECT broadcast_ended_at FROM recordings WHERE reservation_id = $1", reservationID).Scan(&ended)
+
+		return err == nil && ended != nil
+	}, waitTimeout, 10*time.Millisecond)
+	f.clock.Advance(domain.DefaultMarginSeconds * time.Second)
+	require.NoError(t, wait(t, done))
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StateCompleted), got.state)
+	files := f.files(t, reservationID)
+	require.Len(t, files, 1)
+	// 先に書くのは、溜めた分のうち開始マージン (15 秒) の間に読んだものだけ。待ち始めたときの EIT[p/f] は 10 分前に読んだので書かない。
+	// EIT[p/f] のパケットは continuity_counter だけが違うので、セクションの部分で見分ける。
+	data, err := os.ReadFile(filepath.Join(dir, files[0].path))
+	require.NoError(t, err)
+	section := func(present, following uint16) []byte {
+		return eitPFPacketsFrom(new(byte), 0x0400, present, following)[4:188]
+	}
+	assert.False(t, bytes.Contains(data, section(99, 6)), "the EIT[p/f] read 10 minutes before is not written")
+	assert.True(t, bytes.Contains(data, section(6, 7)), "the EIT[p/f] when the program went on the air is written")
+	assert.True(t, bytes.Contains(data, section(7, 8)), "the EIT[p/f] after the program is written")
 }
 
 // TestRecorderExtendsWhileOnAir は、予約した番組が EIT[p/f] の放送中になったら、その時刻を記録し、
@@ -204,6 +285,7 @@ func (s *steppedStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirak
 		return nil, errStreamOffline
 	}
 	reader, writer := io.Pipe()
+	closed := make(chan struct{})
 	go func() {
 		for {
 			select {
@@ -215,6 +297,9 @@ func (s *steppedStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirak
 				_ = writer.Close()
 
 				return
+			case <-closed:
+				// 録画がストリームを閉じたら、次の chunk は、開き直したストリームに渡す。
+				return
 			case chunk := <-s.chunks:
 				// io.Pipe の Write は、読む側がすべて読むまで戻らない。
 				if _, err := writer.Write(chunk); err != nil {
@@ -225,7 +310,21 @@ func (s *steppedStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirak
 		}
 	}()
 
-	return reader, nil
+	return &closeNotifier{ReadCloser: reader, closed: closed, once: sync.Once{}}, nil
+}
+
+// closeNotifier は、閉じたときに closed を閉じる ReadCloser。
+type closeNotifier struct {
+	io.ReadCloser
+
+	closed chan struct{}
+	once   sync.Once
+}
+
+func (c *closeNotifier) Close() error {
+	c.once.Do(func() { close(c.closed) })
+
+	return c.ReadCloser.Close()
 }
 
 // next は、chunk を書き、録画が読み終えるまで待つ。
@@ -437,4 +536,41 @@ func TestRecorderStopsWhenLeftAirWhileEndIsUndecided(t *testing.T) {
 	assert.True(t, ended.Equal(programEnd), "the broadcast ended at %v", ended)
 	assert.Contains(t, logs.list(), "the program left the air; recording the end margin")
 	assert.NotContains(t, logs.list(), "the program end is undecided; extending the recording")
+}
+
+// TestRecorderKeepsWaitingAcrossReconnect は、遅れた番組を待っている間にストリームが切れても、つなぎ直した後に
+// EIT[p/f] を読んでから決め、予約した番組が次の番組のままなら、書かずに待ち続けることを確かめる (#1046)。
+func TestRecorderKeepsWaitingAcrossReconnect(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	stream := newSteppedStream()
+	recorder, _ := f.newRecorder(t, stream, nil)
+	stop, done := f.session(t, recorder, reservationID)
+
+	cc := byte(0)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 99, 6))
+	f.clock.Advance(programStart().Add(recording.BroadcastStartGrace).Sub(f.clock.Now()))
+	require.Eventually(t, func() bool { return len(f.files(t, reservationID)) == 0 }, waitTimeout, 10*time.Millisecond)
+	stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 99, 6))
+
+	// 待っている間に切れ、しばらくつながらない。
+	stream.cut(t)
+	f.clock.Advance(5 * time.Minute)
+	stream.online()
+
+	// つなぎ直した後も、予約した番組が次の番組のままなので、書かない。
+	stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 99, 6))
+	stream.next(t, nullPacket())
+	assert.Empty(t, f.files(t, reservationID))
+
+	// 放送中になったら書き始める。
+	stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 6, 7))
+	require.Eventually(t, func() bool { return f.segments(t, reservationID) == 1 }, waitTimeout, 10*time.Millisecond)
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StateRecording), got.state)
+	stop(errStopForTest)
+	<-done
 }

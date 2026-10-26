@@ -128,7 +128,7 @@ type Recording implements Node {
   "録画中の TS の EIT[p/f] で、予約した番組が放送中になった日時と、放送中でなくなった日時 (設計書 5.1)。分からなければ null。"
   broadcastStartedAt: Time
   broadcastEndedAt: Time
-  "予約した番組が、予定の時間に放送されなかったかどうか。録った TS は残す。"
+  "予約した番組が、予定の時間に放送されなかったかどうか。録った TS は残す。遅れて始まるのを待った番組が延長の上限まで放送中にならなかったときは、前の番組の TS を残さず、録画は失敗になる (#1046)。"
   notBroadcast: Boolean!
   "実際に録画を始めた日時と、終えた日時。録画中なら終えた日時は null。"
   recordedFrom: Time!

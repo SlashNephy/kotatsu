@@ -809,7 +809,11 @@ CREATE TABLE recordings (
   -- 録画中の TS の EIT[p/f] で、予約した番組が放送中になった日時と、放送中でなくなった日時 (設計書 5.1)。分からなければ NULL。
   broadcast_started_at timestamptz,
   broadcast_ended_at timestamptz,
+  -- 番組が遅れて始まったので、それまでに書いた前の番組の TS を消し、放送中になるまで待ってから書き始めたかどうか (#1046)。
+  -- 待った録画は、冒頭が欠けたかを、予定の開始でなく放送の開始と比べて確かめる。
+  waited_for_broadcast boolean NOT NULL DEFAULT false,
   -- 予約した番組が、予定の終わりまで EIT[p/f] の放送中にも次の番組にも出てこなかったかどうか。録った TS は残す。
+  -- 遅れて始まるのを待った番組が延長の上限まで放送中にならなかったときも立てる。このときは、前の番組の TS を残さない (#1046)。
   not_broadcast boolean NOT NULL DEFAULT false,
   -- not_broadcast のとき、予定の時間に放送されていた番組の eventId。
   aired_event_id bigint,

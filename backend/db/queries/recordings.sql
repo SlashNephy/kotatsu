@@ -169,6 +169,20 @@ UPDATE recordings SET broadcast_ended_at = @at, updated_at = @at WHERE id = @id 
 -- 割り込みから予約した番組に戻ったので、記録した放送の終了を取り消す (#636)。
 UPDATE recordings SET broadcast_ended_at = NULL, updated_at = @now WHERE id = @id;
 
+-- name: MarkRecordingWaitedForBroadcast :execrows
+-- 番組が遅れて始まるので、それまでに書いたセグメントを消して待つことを記録する (#1046)。消すセグメントのドロップなどは数え直す。
+-- 予約した番組がすでに放送中になっていれば、セグメントに番組が入っているので、何もせず 0 を返す。
+UPDATE recordings SET waited_for_broadcast = true, drops = 0, errors = 0, scrambled = 0, updated_at = @now
+WHERE id = @id AND broadcast_started_at IS NULL;
+
+-- name: DeleteRecordingSegments :many
+-- 録画のセグメントの記録を消し、消したファイルを返す (#1046)。ファイルは、呼ぶ側が消す。
+DELETE FROM recording_files WHERE recording_id = @recording_id AND kind = 'segment' RETURNING id, pool_id, path;
+
+-- name: SetRecordingRecordedFrom :exec
+-- 待った後に書き始めた日時を、実際に録画を始めた日時にする (#1046)。
+UPDATE recordings SET recorded_from = @at, updated_at = @now WHERE id = @id;
+
 -- name: MarkRecordingNotBroadcast :exec
 -- 予約した番組が放送されなかったことと、その時間に放送されていた番組を記録する。
 UPDATE recordings SET not_broadcast = true, aired_event_id = sqlc.narg(aired_event_id), updated_at = @now WHERE id = @id;

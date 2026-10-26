@@ -93,6 +93,8 @@ type Querier interface {
 	DeleteRecording(ctx context.Context, id uuid.UUID) (int64, error)
 	// 録画のファイルの記録を消す。セグメントを 1 つにつないだあとで、つないだ元のセグメントと索引の記録を消すのに使う。
 	DeleteRecordingFiles(ctx context.Context, arg DeleteRecordingFilesParams) error
+	// 録画のセグメントの記録を消し、消したファイルを返す (#1046)。ファイルは、呼ぶ側が消す。
+	DeleteRecordingSegments(ctx context.Context, recordingID uuid.UUID) ([]DeleteRecordingSegmentsRow, error)
 	DeleteRecordingTags(ctx context.Context, recordingID uuid.UUID) error
 	DeleteRecoveryCodes(ctx context.Context, userID uuid.UUID) error
 	DeleteReservation(ctx context.Context, id uuid.UUID) (int64, error)
@@ -449,6 +451,9 @@ type Querier interface {
 	MarkRecordingProgramLost(ctx context.Context, arg MarkRecordingProgramLostParams) error
 	// 割り振りを取った mikan が、ストリームを開いたことを記録する。
 	MarkRecordingStreamOpened(ctx context.Context, arg MarkRecordingStreamOpenedParams) error
+	// 番組が遅れて始まるので、それまでに書いたセグメントを消して待つことを記録する (#1046)。消すセグメントのドロップなどは数え直す。
+	// 予約した番組がすでに放送中になっていれば、セグメントに番組が入っているので、何もせず 0 を返す。
+	MarkRecordingWaitedForBroadcast(ctx context.Context, arg MarkRecordingWaitedForBroadcastParams) (int64, error)
 	// 空き容量が閾値を下回ったままになったことを記録する。すでに記録していれば何もしない (0 行)。
 	MarkStoragePoolLow(ctx context.Context, arg MarkStoragePoolLowParams) (int64, error)
 	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
@@ -534,6 +539,8 @@ type Querier interface {
 	// 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
 	SetRecordingGaps(ctx context.Context, arg SetRecordingGapsParams) error
 	SetRecordingProtected(ctx context.Context, arg SetRecordingProtectedParams) error
+	// 待った後に書き始めた日時を、実際に録画を始めた日時にする (#1046)。
+	SetRecordingRecordedFrom(ctx context.Context, arg SetRecordingRecordedFromParams) error
 	// 録画を終えた後に解析したドロップ、エラー、スクランブルで、録画の集計を置き換える。
 	// 完了した録画は、ドロップの有無で、完了とエラーありの完了を決め直す。
 	SetRecordingStats(ctx context.Context, arg SetRecordingStatsParams) error
