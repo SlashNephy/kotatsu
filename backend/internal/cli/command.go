@@ -18,6 +18,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
@@ -314,16 +315,20 @@ func NewCommand(opts *Options) *cobra.Command {
 		}
 
 		deps := &Deps{
-			Config:     cfg,
-			DB:         pool,
-			Metrics:    telemetry.NewRegistry(),
-			Clock:      opts.Clock,
-			InstanceID: id.New(),
-			Jobs:       nil,
-			JobWorkers: nil,
+			Config:         cfg,
+			DB:             pool,
+			Metrics:        telemetry.NewRegistry(),
+			ClusterMetrics: prometheus.NewRegistry(),
+			Clock:          opts.Clock,
+			InstanceID:     id.New(),
+			Jobs:           nil,
+			JobWorkers:     nil,
 		}
-		// 録画、チューナー、ジョブのキューの状態は、DB から読む (設計書 11.3)。
-		deps.Metrics.MustRegister(metrics.NewDBCollector(pool, opts.Clock, deps.InstanceID, opts.Logger.With(slog.String("component", "metrics"))))
+		// 録画、チューナー、ジョブのキューの状態は、DB から読む (設計書 11.3)。どのインスタンスでも同じ値なので、クラスターのレジストリに登録する。
+		// neko のリースを持っているかは、インスタンスごとに違うので、インスタンスのレジストリに登録する。
+		metricsLogger := opts.Logger.With(slog.String("component", "metrics"))
+		deps.ClusterMetrics.MustRegister(metrics.NewDBCollector(pool, opts.Clock, metricsLogger))
+		deps.Metrics.MustRegister(metrics.NewLeaderCollector(pool, opts.Clock, deps.InstanceID, metricsLogger))
 
 		// ジョブを実行するのは nekonote だけで、他のロールは投入だけを行う。
 		periodicJobs := []*river.PeriodicJob{}
@@ -403,6 +408,34 @@ func NewCommand(opts *Options) *cobra.Command {
 	return root
 }
 
+// newMeterProviders は、送信先を設定していれば、メトリクスを OTLP で送り始める (設計書 11.3)。
+// クラスター全体の値は、neko のリースを持つインスタンスだけが送る。送信の失敗は、ロールを止めずに、ログに出す。
+func newMeterProviders(ctx context.Context, logger *slog.Logger, deps *Deps, roles []*Role) (func(context.Context) error, error) {
+	if deps.Config.Telemetry.OTLPMetricsEndpoint == "" {
+		return func(context.Context) error { return nil }, nil
+	}
+	// トレースとメトリクスの exporter は、送れなかったことをここに知らせる。
+	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
+		logger.Warn("failed to export telemetry", slog.Any("error", err))
+	}))
+	names := make([]string, 0, len(roles))
+	for _, role := range roles {
+		names = append(names, role.Name)
+	}
+
+	return telemetry.NewMeterProviders(ctx, &deps.Config.Telemetry, &telemetry.MeterOptions{
+		Instance: deps.Metrics,
+		Cluster:  deps.ClusterMetrics,
+		IsLeader: func(ctx context.Context) (bool, error) {
+			return metrics.HoldsLeaderLease(ctx, deps.DB, deps.Clock, deps.InstanceID)
+		},
+		InstanceID: deps.InstanceID,
+		Roles:      names,
+		Version:    buildinfo.Get().Version,
+		Logger:     logger.With(slog.String("component", "metrics")),
+	})
+}
+
 // serve は、roles と HTTP サーバーを並行に動かす。
 //
 // HTTP サーバーは 2 つある。server.listen では /healthz と /readyz を、metrics.listen では /metrics を公開する。
@@ -419,6 +452,17 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 		defer cancel()
 		if err := shutdownTracing(shutdownCtx); err != nil {
 			logger.WarnContext(shutdownCtx, "failed to flush traces", slog.Any("error", err))
+		}
+	}()
+	shutdownMetrics, err := newMeterProviders(ctx, logger, deps, roles)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), httpserver.ShutdownTimeout)
+		defer cancel()
+		if err := shutdownMetrics(shutdownCtx); err != nil {
+			logger.WarnContext(shutdownCtx, "failed to flush metrics", slog.Any("error", err))
 		}
 	}()
 
@@ -464,7 +508,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 		mux.Handle(kyusu.RecordingPathPrefix, vod.Handler(token))
 	}
 	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider))
-	metricsHandler := telemetry.NewMetricsHandler(deps.Metrics)
+	metricsHandler := telemetry.NewMetricsHandler(prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

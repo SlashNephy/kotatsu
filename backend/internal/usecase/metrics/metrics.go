@@ -2,6 +2,7 @@
 //
 // 録画、予約、チューナー、保存先プール、ジョブのキューは、どのインスタンスからも同じ DB を読むので、どのインスタンスの /metrics も、クラスター全体の同じ値を返す。
 // 集計するときは、インスタンスをまたいで足さず、max などで 1 つにまとめる。
+// OTLP では、これらをクラスターの範囲として、neko のリースを持つインスタンスだけが送る (#962)。
 // ラベルには、番組名のように視聴の傾向が分かる値を入れない。
 package metrics
 
@@ -10,7 +11,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -27,12 +27,18 @@ const (
 	leaseName = "neko"
 )
 
-// DBCollector は、DB から、録画、予約、割り振り、チューナー、保存先プール、neko のリース、River のキューの状態を、収集のたびに読む。
+// FailureCountsCreated は、kotatsu_recording_failures_total の作成の時刻を返す。失敗の累計を数え始めた版の日付で、どのインスタンスでも変わらない。
+// 値は DB に持つので、送るインスタンスが替わっても続く。作成の時刻も同じにして、OTLP の受け手がカウンターのリセットとみなさないようにする (#962)。
+func FailureCountsCreated() time.Time {
+	return time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC)
+}
+
+// DBCollector は、DB から、録画、予約、割り振り、チューナー、保存先プール、River のキューの状態を、収集のたびに読む。
+// どのインスタンスでも同じ値になるものだけを集める。neko のリースを持っているかは、LeaderCollector で集める。
 type DBCollector struct {
-	pool       *pgxpool.Pool
-	clock      clock.Clock
-	instanceID uuid.UUID
-	logger     *slog.Logger
+	pool   *pgxpool.Pool
+	clock  clock.Clock
+	logger *slog.Logger
 
 	recordings       *prometheus.Desc
 	failures         *prometheus.Desc
@@ -45,21 +51,20 @@ type DBCollector struct {
 	poolBytes        *prometheus.Desc
 	poolThreshold    *prometheus.Desc
 	poolMeasured     *prometheus.Desc
-	leader           *prometheus.Desc
 	jobs             *prometheus.Desc
 	collectionErrors *prometheus.Desc
 }
 
 var _ prometheus.Collector = new(DBCollector)
 
-// NewDBCollector は DBCollector を返す。instanceID は、このインスタンスの ID で、neko のリースを持っているかの判定に使う。
-func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, instanceID uuid.UUID, logger *slog.Logger) *DBCollector {
+// NewDBCollector は DBCollector を返す。
+func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *DBCollector {
 	desc := func(name, help string, labels ...string) *prometheus.Desc {
 		return prometheus.NewDesc(prometheus.BuildFQName(Namespace, "", name), help, labels, nil)
 	}
 
 	return &DBCollector{
-		pool: pool, clock: clk, instanceID: instanceID, logger: logger,
+		pool: pool, clock: clk, logger: logger,
 		recordings:       desc("recordings", "Number of recordings by state.", "state"),
 		failures:         desc("recording_failures", "Number of failed recordings by failure reason.", "reason"),
 		failuresTotal:    desc("recording_failures_total", "Number of recordings that have failed, by failure reason. Deleting recordings does not decrease it.", "reason"),
@@ -71,7 +76,6 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, instanceID uuid.UUID, l
 		poolBytes:        desc("storage_pool_bytes", "Size and available space of the storage pools, as last measured by the capacity check.", "pool", "kind"),
 		poolThreshold:    desc("storage_pool_threshold_bytes", "Free space that the capacity check keeps in the storage pools by deleting old recordings. 0 means it deletes nothing.", "pool"),
 		poolMeasured:     desc("storage_pool_last_measured_timestamp_seconds", "Time when the capacity check last measured the storage pools.", "pool"),
-		leader:           desc("neko_leader", "Whether this instance holds the neko lease (1) or not (0)."),
 		jobs:             desc("river_jobs", "Number of River jobs waiting or running, by queue and state.", "queue", "state"),
 		collectionErrors: desc("metrics_collection_errors", "Number of metric groups that could not be read from the database in this scrape."),
 	}
@@ -80,7 +84,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, instanceID uuid.UUID, l
 // Describe は、集めるメトリクスの説明を送る。
 func (c *DBCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{
-		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.reservations, c.assignments, c.tuners, c.poolBytes, c.poolThreshold, c.poolMeasured, c.leader, c.jobs, c.collectionErrors,
+		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.reservations, c.assignments, c.tuners, c.poolBytes, c.poolThreshold, c.poolMeasured, c.jobs, c.collectionErrors,
 	} {
 		ch <- d
 	}
@@ -93,7 +97,7 @@ func (c *DBCollector) Collect(ch chan<- prometheus.Metric) {
 
 	failed := 0
 	for _, collect := range []func(context.Context, chan<- prometheus.Metric) error{
-		c.collectRecordings, c.collectReservations, c.collectAssignments, c.collectTuners, c.collectStoragePools, c.collectLeader, c.collectJobs,
+		c.collectRecordings, c.collectReservations, c.collectAssignments, c.collectTuners, c.collectStoragePools, c.collectJobs,
 	} {
 		if err := collect(ctx, ch); err != nil {
 			c.logger.WarnContext(ctx, "failed to collect metrics", slog.Any("error", err))
@@ -125,7 +129,7 @@ func (c *DBCollector) collectRecordings(ctx context.Context, ch chan<- prometheu
 		return err
 	}
 	for _, row := range counts {
-		ch <- prometheus.MustNewConstMetric(c.failuresTotal, prometheus.CounterValue, float64(row.Count), row.Reason)
+		ch <- prometheus.MustNewConstMetricWithCreatedTimestamp(c.failuresTotal, prometheus.CounterValue, float64(row.Count), FailureCountsCreated(), row.Reason)
 		if row.LastFailedAt != nil {
 			ch <- prometheus.MustNewConstMetric(c.lastFailure, prometheus.GaugeValue, float64(row.LastFailedAt.Unix()), row.Reason)
 		}
@@ -193,20 +197,6 @@ func (c *DBCollector) collectStoragePools(ctx context.Context, ch chan<- prometh
 		ch <- prometheus.MustNewConstMetric(c.poolThreshold, prometheus.GaugeValue, float64(row.MinFreeBytes), row.ID)
 		ch <- prometheus.MustNewConstMetric(c.poolMeasured, prometheus.GaugeValue, float64(row.MeasuredAt.Unix()), row.ID)
 	}
-
-	return nil
-}
-
-func (c *DBCollector) collectLeader(ctx context.Context, ch chan<- prometheus.Metric) error {
-	holds, err := sqlc.New(c.pool).HoldsLease(ctx, sqlc.HoldsLeaseParams{Name: leaseName, Holder: c.instanceID, Now: c.clock.Now()})
-	if err != nil {
-		return err
-	}
-	value := 0.0
-	if holds {
-		value = 1
-	}
-	ch <- prometheus.MustNewConstMetric(c.leader, prometheus.GaugeValue, value)
 
 	return nil
 }

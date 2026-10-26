@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -110,6 +111,31 @@ type Telemetry struct {
 	// OTEL_EXPORTER_OTLP_ENDPOINT と同じく、トレースは /v1/traces を付けた URL に送る。
 	// 空ならトレースを送らない。
 	OTLPEndpoint string `yaml:"otlp_endpoint"`
+	// OTLPMetricsEndpoint は、メトリクスを送る OTLP の送信先 (https://otlp.mackerelio.com:4317 など、設計書 11.3)。
+	// http:// なら暗号化せずに送る。空ならメトリクスを送らない。
+	OTLPMetricsEndpoint string `yaml:"otlp_metrics_endpoint"`
+	// OTLPMetricsProtocol は、メトリクスの送り方 (OTLPProtocolGRPC か OTLPProtocolHTTP)。
+	OTLPMetricsProtocol string `yaml:"otlp_metrics_protocol"`
+	// OTLPMetricsHeaders は、送るたびに付けるヘッダー。OTEL_EXPORTER_OTLP_HEADERS と同じく「名前=値」をカンマでつなぐ。
+	// Mackerel の API キーのような秘密情報を含むので、Secret にする。
+	OTLPMetricsHeaders Secret `yaml:"otlp_metrics_headers"`
+	// OTLPMetricsIntervalSeconds は、メトリクスを送る間隔 (秒)。
+	OTLPMetricsIntervalSeconds int `yaml:"otlp_metrics_interval_seconds"`
+	// OTLPMetricsExclude は、OTLP で送らないメトリクスの名前のパターン (path.Match の形)。/metrics には影響しない。
+	OTLPMetricsExclude []string `yaml:"otlp_metrics_exclude"`
+}
+
+// OTLP でメトリクスを送る方法。
+const (
+	// OTLPProtocolGRPC は、OTLP/gRPC。
+	OTLPProtocolGRPC = "grpc"
+	// OTLPProtocolHTTP は、OTLP/HTTP で protobuf を送る。
+	OTLPProtocolHTTP = "http/protobuf"
+)
+
+// OTLPMetricsHeaderMap は、OTLPMetricsHeaders を、ヘッダーの名前から値への対応にして返す。
+func (t *Telemetry) OTLPMetricsHeaderMap() (map[string]string, error) {
+	return parseMap(t.OTLPMetricsHeaders.Value())
 }
 
 // Audit は監査ログの設定。
@@ -269,7 +295,12 @@ func Default() *Config {
 			Pooler: false,
 		},
 		Telemetry: Telemetry{
-			OTLPEndpoint: "",
+			OTLPEndpoint:               "",
+			OTLPMetricsEndpoint:        "",
+			OTLPMetricsProtocol:        OTLPProtocolGRPC,
+			OTLPMetricsHeaders:         "",
+			OTLPMetricsIntervalSeconds: 60,
+			OTLPMetricsExclude:         []string{},
 		},
 		UpdateCheck: UpdateCheck{
 			Enabled: false,
@@ -347,6 +378,7 @@ func (c *Config) validate() error {
 	if err := validateHTTPURL(c.Telemetry.OTLPEndpoint); err != nil {
 		errs = append(errs, fieldError("telemetry.otlp_endpoint", err))
 	}
+	errs = append(errs, c.Telemetry.validateMetrics()...)
 	if key := c.Auth.SecretKey.Value(); key != "" && len(key) < MinSecretKeyLength {
 		errs = append(errs, fieldError("auth.secret_key", fmt.Errorf("must be at least %d bytes", MinSecretKeyLength)))
 	}
@@ -472,6 +504,31 @@ func validateTunerURL(secret Secret) error {
 }
 
 // validateHTTPURL は、空でなければ http:// か https:// の URL であることを確かめる。
+// validateMetrics は、OTLP でメトリクスを送る設定を確かめる。
+func (t *Telemetry) validateMetrics() []error {
+	errs := []error{}
+	if err := validateHTTPURL(t.OTLPMetricsEndpoint); err != nil {
+		errs = append(errs, fieldError("telemetry.otlp_metrics_endpoint", err))
+	}
+	if t.OTLPMetricsProtocol != OTLPProtocolGRPC && t.OTLPMetricsProtocol != OTLPProtocolHTTP {
+		errs = append(errs, fieldError("telemetry.otlp_metrics_protocol", fmt.Errorf("must be %s or %s", OTLPProtocolGRPC, OTLPProtocolHTTP)))
+	}
+	// 値は秘密情報なので、エラーには含めない。
+	if _, err := t.OTLPMetricsHeaderMap(); err != nil {
+		errs = append(errs, fieldError("telemetry.otlp_metrics_headers", errors.New("must be name=value pairs separated by commas")))
+	}
+	if t.OTLPMetricsIntervalSeconds <= 0 {
+		errs = append(errs, fieldError("telemetry.otlp_metrics_interval_seconds", errors.New("must be positive")))
+	}
+	for _, pattern := range t.OTLPMetricsExclude {
+		if _, err := path.Match(pattern, ""); err != nil {
+			errs = append(errs, fieldError("telemetry.otlp_metrics_exclude", fmt.Errorf("%q is not a valid pattern", pattern)))
+		}
+	}
+
+	return errs
+}
+
 func validateHTTPURL(endpoint string) error {
 	if endpoint == "" {
 		return nil

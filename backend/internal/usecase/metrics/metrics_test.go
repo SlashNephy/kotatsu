@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
@@ -18,7 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
 )
 
-// TestDBCollector は、DB の録画、予約、割り振り、チューナー、保存先プール、リース、ジョブの状態を、メトリクスとして返すことを確かめる (設計書 11.3)。
+// TestDBCollector は、DB の録画、予約、割り振り、チューナー、保存先プール、ジョブの状態を、メトリクスとして返すことを確かめる (設計書 11.3)。
 func TestDBCollector(t *testing.T) {
 	t.Parallel()
 
@@ -30,7 +32,6 @@ func TestDBCollector(t *testing.T) {
 	require.NoError(t, jobs.Migrate(t.Context(), logger, pool))
 	clk := clocktest.NewFake(time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC))
 	now := clk.Now()
-	instanceID, other := id.New(), id.New()
 
 	exec := func(sql string, args ...any) {
 		t.Helper()
@@ -93,7 +94,7 @@ func TestDBCollector(t *testing.T) {
 	exec(`INSERT INTO storage_pools (id, priority, min_free_bytes, updated_at) VALUES ('unmeasured', 0, 100, $1)`, now)
 	exec(`INSERT INTO river_job (args, kind, max_attempts, queue, state) VALUES ('{}', 'test', 1, 'default', 'available'), ('{}', 'test', 1, 'default', 'available')`)
 
-	collector := metrics.NewDBCollector(pool, clk, instanceID, logger)
+	collector := metrics.NewDBCollector(pool, clk, logger)
 	const common = `
 # HELP kotatsu_recordings Number of recordings by state.
 # TYPE kotatsu_recordings gauge
@@ -157,8 +158,45 @@ kotatsu_metrics_collection_errors 0
 	names := []string{
 		"kotatsu_recordings", "kotatsu_recording_failures", "kotatsu_recording_failures_total", "kotatsu_recording_last_failure_timestamp_seconds",
 		"kotatsu_recording_active_packets", "kotatsu_reservations", "kotatsu_recording_assignments", "kotatsu_tuners",
-		"kotatsu_storage_pool_bytes", "kotatsu_storage_pool_threshold_bytes", "kotatsu_storage_pool_last_measured_timestamp_seconds", "kotatsu_river_jobs", "kotatsu_metrics_collection_errors", "kotatsu_neko_leader",
+		"kotatsu_storage_pool_bytes", "kotatsu_storage_pool_threshold_bytes", "kotatsu_storage_pool_last_measured_timestamp_seconds", "kotatsu_river_jobs", "kotatsu_metrics_collection_errors",
 	}
+	require.NoError(t, testutil.CollectAndCompare(collector, strings.NewReader(common), names...))
+	// neko のリースを持っているかは、インスタンスの値なので、クラスターの値を出す DBCollector では出さない (#962)。
+	assert.Zero(t, testutil.CollectAndCount(collector, "kotatsu_neko_leader"))
+
+	// 失敗の累計の作成の時刻は、どのインスタンスでも同じ値にする。リーダーが替わっても、OTLP の受け手がカウンターのリセットとみなさないようにする (#962)。
+	registry := prometheus.NewPedanticRegistry()
+	require.NoError(t, registry.Register(collector))
+	families, err := registry.Gather()
+	require.NoError(t, err)
+	var created []time.Time
+	for _, family := range families {
+		if family.GetName() != "kotatsu_recording_failures_total" {
+			continue
+		}
+		for _, m := range family.GetMetric() {
+			created = append(created, m.GetCounter().GetCreatedTimestamp().AsTime())
+		}
+	}
+	require.NotEmpty(t, created)
+	for _, at := range created {
+		assert.True(t, at.Equal(metrics.FailureCountsCreated()), at)
+	}
+}
+
+// TestLeaderCollector は、このインスタンスが neko のリースを持っているかを、メトリクスとして返すことを確かめる。
+func TestLeaderCollector(t *testing.T) {
+	t.Parallel()
+
+	pool, err := database.Open(t.Context(), databasetest.New(t))
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	logger := slog.New(slog.DiscardHandler)
+	require.NoError(t, database.Migrate(t.Context(), logger, pool))
+	clk := clocktest.NewFake(time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC))
+	now := clk.Now()
+	instanceID, other := id.New(), id.New()
+	collector := metrics.NewLeaderCollector(pool, clk, instanceID, logger)
 	leader := func(value string) string {
 		return "# HELP kotatsu_neko_leader Whether this instance holds the neko lease (1) or not (0).\n" +
 			"# TYPE kotatsu_neko_leader gauge\nkotatsu_neko_leader " + value + "\n"
@@ -175,11 +213,13 @@ kotatsu_metrics_collection_errors 0
 	}
 	for _, tt := range tests {
 		// リースの行を変えるので、順に動かす。
-		exec("DELETE FROM leases")
+		_, err := pool.Exec(t.Context(), "DELETE FROM leases")
+		require.NoError(t, err)
 		if tt.holder != nil {
-			exec(`INSERT INTO leases (name, holder, generation, acquired_at, renewed_at, expires_at) VALUES ('neko', $1, 1, $2, $2, $3)`,
+			_, err = pool.Exec(t.Context(), `INSERT INTO leases (name, holder, generation, acquired_at, renewed_at, expires_at) VALUES ('neko', $1, 1, $2, $2, $3)`,
 				*tt.holder, now, now.Add(time.Minute))
+			require.NoError(t, err)
 		}
-		require.NoError(t, testutil.CollectAndCompare(collector, strings.NewReader(common+tt.want), names...), tt.name)
+		require.NoError(t, testutil.CollectAndCompare(collector, strings.NewReader(tt.want), "kotatsu_neko_leader"), tt.name)
 	}
 }

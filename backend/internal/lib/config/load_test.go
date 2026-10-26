@@ -35,7 +35,8 @@ const (
 	defaultServerListen  = ":8080"
 	defaultMetricsListen = ":9090"
 	// 設計書の付録 A の初期値。
-	defaultAuditRetentionDays = 365
+	defaultAuditRetentionDays         = 365
+	defaultOTLPMetricsIntervalSeconds = 60
 
 	testIssuer    = "https://idp.example.com"
 	envOIDCIssuer = "KOTATSU_AUTH_OIDC_ISSUER"
@@ -320,6 +321,10 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			tt.want.Kyusu = config.Kyusu{Encoder: config.EncoderX264, VAAPIDevice: defaultVAAPIDevice, WorkDir: ""}
 			// jikkyo の設定は TestLoadJikkyo で確かめる。
 			tt.want.Jikkyo = config.Jikkyo{Channels: map[string]string{}}
+			// OTLP のメトリクスの設定は TestLoadTelemetry で確かめるので、ここでは既定値のままであることだけを確かめる。
+			tt.want.Telemetry.OTLPMetricsProtocol = config.OTLPProtocolGRPC
+			tt.want.Telemetry.OTLPMetricsIntervalSeconds = defaultOTLPMetricsIntervalSeconds
+			tt.want.Telemetry.OTLPMetricsExclude = []string{}
 			// タイムゾーンは、この表では変えないので、既定値になる。読み込みは TestLoadTimeZone で確かめる。
 			want := *tt.want
 			want.TimeZone = config.DefaultTimeZone
@@ -544,6 +549,97 @@ func TestLoadJikkyo(t *testing.T) {
 			cfg, err := config.Load(path, lookup(tt.env))
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, cfg.Jikkyo.Channels)
+		})
+	}
+}
+
+// TestLoadTelemetry は、OTLP でメトリクスを送る設定を、YAML、環境変数、ファイルから読み、誤りを起動時に知らせることを確かめる (#962)。
+func TestLoadTelemetry(t *testing.T) {
+	t.Parallel()
+
+	headersFile := writeFile(t, t.TempDir(), "headers", "Mackerel-Api-Key=xxx\n")
+	tests := []struct {
+		name        string
+		yaml        string
+		env         map[string]string
+		want        config.Telemetry
+		wantHeaders map[string]string
+		wantErr     string
+	}{
+		{
+			name: "metrics defaults", env: map[string]string{envKeyURL: envURL},
+			want: config.Telemetry{
+				OTLPEndpoint: "", OTLPMetricsEndpoint: "", OTLPMetricsProtocol: config.OTLPProtocolGRPC, OTLPMetricsHeaders: "",
+				OTLPMetricsIntervalSeconds: defaultOTLPMetricsIntervalSeconds, OTLPMetricsExclude: []string{},
+			},
+			wantHeaders: map[string]string{},
+		},
+		{
+			name: "metrics env",
+			env: map[string]string{
+				envKeyURL: envURL,
+				"KOTATSU_TELEMETRY_OTLP_METRICS_ENDPOINT":         "https://otlp.mackerelio.com:4317",
+				"KOTATSU_TELEMETRY_OTLP_METRICS_PROTOCOL":         "http/protobuf",
+				"KOTATSU_TELEMETRY_OTLP_METRICS_INTERVAL_SECONDS": "30",
+				"KOTATSU_TELEMETRY_OTLP_METRICS_EXCLUDE":          "go_*,process_*",
+				"KOTATSU_TELEMETRY_OTLP_METRICS_HEADERS_FILE":     headersFile,
+			},
+			want: config.Telemetry{
+				OTLPEndpoint: "", OTLPMetricsEndpoint: "https://otlp.mackerelio.com:4317", OTLPMetricsProtocol: config.OTLPProtocolHTTP,
+				OTLPMetricsHeaders: "Mackerel-Api-Key=xxx", OTLPMetricsIntervalSeconds: 30, OTLPMetricsExclude: []string{"go_*", "process_*"},
+			},
+			wantHeaders: map[string]string{"Mackerel-Api-Key": "xxx"},
+		},
+		{
+			name: "metrics yaml",
+			yaml: "telemetry:\n  otlp_metrics_endpoint: http://collector:4317\n  otlp_metrics_exclude: [go_gc_duration_seconds]\n",
+			env:  map[string]string{envKeyURL: envURL},
+			want: config.Telemetry{
+				OTLPEndpoint: "", OTLPMetricsEndpoint: "http://collector:4317", OTLPMetricsProtocol: config.OTLPProtocolGRPC, OTLPMetricsHeaders: "",
+				OTLPMetricsIntervalSeconds: defaultOTLPMetricsIntervalSeconds, OTLPMetricsExclude: []string{"go_gc_duration_seconds"},
+			},
+			wantHeaders: map[string]string{},
+		},
+		{
+			name: "invalid endpoint", env: map[string]string{envKeyURL: envURL, "KOTATSU_TELEMETRY_OTLP_METRICS_ENDPOINT": "ftp://x"},
+			wantErr: "telemetry.otlp_metrics_endpoint (KOTATSU_TELEMETRY_OTLP_METRICS_ENDPOINT): must be an http:// or https:// URL",
+		},
+		{
+			name: "invalid protocol", env: map[string]string{envKeyURL: envURL, "KOTATSU_TELEMETRY_OTLP_METRICS_PROTOCOL": "udp"},
+			wantErr: "telemetry.otlp_metrics_protocol (KOTATSU_TELEMETRY_OTLP_METRICS_PROTOCOL): must be grpc or http/protobuf",
+		},
+		{
+			name: "invalid headers", env: map[string]string{envKeyURL: envURL, "KOTATSU_TELEMETRY_OTLP_METRICS_HEADERS": "novalue"},
+			wantErr: "telemetry.otlp_metrics_headers (KOTATSU_TELEMETRY_OTLP_METRICS_HEADERS):",
+		},
+		{
+			name: "invalid interval", env: map[string]string{envKeyURL: envURL, "KOTATSU_TELEMETRY_OTLP_METRICS_INTERVAL_SECONDS": "0"},
+			wantErr: "telemetry.otlp_metrics_interval_seconds (KOTATSU_TELEMETRY_OTLP_METRICS_INTERVAL_SECONDS): must be positive",
+		},
+		{
+			name: "invalid exclude pattern", env: map[string]string{envKeyURL: envURL, "KOTATSU_TELEMETRY_OTLP_METRICS_EXCLUDE": "["},
+			wantErr: `telemetry.otlp_metrics_exclude (KOTATSU_TELEMETRY_OTLP_METRICS_EXCLUDE): "[" is not a valid pattern`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := ""
+			if tt.yaml != "" {
+				path = writeFile(t, t.TempDir(), "config.yaml", tt.yaml)
+			}
+			cfg, err := config.Load(path, lookup(tt.env))
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.Telemetry)
+			headers, err := cfg.Telemetry.OTLPMetricsHeaderMap()
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantHeaders, headers)
 		})
 	}
 }

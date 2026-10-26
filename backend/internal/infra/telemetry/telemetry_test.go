@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -17,13 +18,31 @@ func TestMetricsHandlerExposesRuntimeMetrics(t *testing.T) {
 	t.Parallel()
 
 	rec := httptest.NewRecorder()
-	telemetry.NewMetricsHandler(telemetry.NewRegistry()).
+	registry := telemetry.NewRegistry()
+	telemetry.NewMetricsHandler(registry, registry).
 		ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/metrics", nil))
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Header().Get("Content-Type"), "text/plain")
 	assert.Contains(t, rec.Body.String(), "go_goroutines ")
 	assert.Contains(t, rec.Body.String(), "process_start_time_seconds ")
+}
+
+// TestMetricsHandlerMergesGatherers は、/metrics が、インスタンスとクラスターのレジストリをまとめて返すことを確かめる (#962)。
+func TestMetricsHandlerMergesGatherers(t *testing.T) {
+	t.Parallel()
+
+	instance, cluster := prometheus.NewRegistry(), prometheus.NewRegistry()
+	instance.MustRegister(prometheus.NewGauge(prometheus.GaugeOpts{Name: "instance_value", Help: "instance"}))
+	cluster.MustRegister(prometheus.NewGauge(prometheus.GaugeOpts{Name: "cluster_value", Help: "cluster"}))
+
+	rec := httptest.NewRecorder()
+	telemetry.NewMetricsHandler(prometheus.Gatherers{instance, cluster}, instance).
+		ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/metrics", nil))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "instance_value 0")
+	assert.Contains(t, rec.Body.String(), "cluster_value 0")
 }
 
 func TestTracerProviderSendsTracesOnlyWhenConfigured(t *testing.T) {
