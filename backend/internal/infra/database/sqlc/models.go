@@ -453,6 +453,45 @@ type Tag struct {
 	CreatedAt time.Time
 }
 
+type TimeshiftAssignment struct {
+	ID               uuid.UUID
+	ServiceID        int64
+	Priority         int32
+	State            string
+	Generation       int64
+	Holder           *uuid.UUID
+	LeaseExpiresAt   *time.Time
+	StreamGeneration int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type TimeshiftChannel struct {
+	ServiceID        int64
+	RetentionSeconds int32
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	UpdatedBy        *uuid.UUID
+}
+
+type TimeshiftChunk struct {
+	ID        uuid.UUID
+	ServiceID int64
+	Path      string
+	Size      int64
+	StartedAt time.Time
+	EndedAt   *time.Time
+	CreatedAt time.Time
+}
+
+type TimeshiftProgram struct {
+	ServiceID int64
+	StartedAt time.Time
+	EventID   int64
+	Name      string
+	EndedAt   *time.Time
+}
+
 type TotpEnrollment struct {
 	UserID          uuid.UUID
 	SecretEncrypted []byte

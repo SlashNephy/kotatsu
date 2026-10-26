@@ -957,3 +957,58 @@ CREATE TABLE import_sources (
   created_at timestamptz NOT NULL,
   PRIMARY KEY (source, kind, source_id)
 );
+
+-- タイムシフトで常時録るチャンネルと、その保持時間 (設計書 5.7)。管理者が画面から設定する。行がなくなったチャンネルは、録るのをやめ、録ったチャンクも破棄する。
+CREATE TABLE timeshift_channels (
+  service_id bigint PRIMARY KEY REFERENCES services (id) ON DELETE CASCADE,
+  -- どれだけ過去まで遡れるようにするか。範囲は 10 分から 24 時間。
+  retention_seconds integer NOT NULL CHECK (retention_seconds BETWEEN 600 AND 86400),
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL,
+  updated_by uuid REFERENCES users (id) ON DELETE SET NULL
+);
+
+-- タイムシフトの mikan への割り振り (設計書 5.7)。recording_assignments と同じ仕組みで、neko がチューナーの空きを見て書き、mikan が行をロックして取り、リースを延長しながら録る。
+-- 録画と違って終わりがないので、行は予約ではなくサービスに紐づく。録るのをやめるときは、neko が行を消す。
+CREATE TABLE timeshift_assignments (
+  id uuid PRIMARY KEY,
+  service_id bigint NOT NULL UNIQUE REFERENCES services (id) ON DELETE CASCADE,
+  -- チューナーサーバーに渡す優先度 (設計書 1.6)。録画にも視聴にも譲るので低くする。
+  priority integer NOT NULL,
+  -- 状態は、mikan を待つ (waiting)、録っている (recording)、引き継ぎ待ち (handover)、終わった (finished) のどれか。
+  state text NOT NULL CHECK (state IN ('waiting', 'recording', 'handover', 'finished')),
+  -- mikan が取るたびに上げる世代番号。古い mikan は、リースの延長に失敗した時点で書き込みをやめる。
+  generation bigint NOT NULL,
+  -- 担当の mikan のインスタンスと、リースの期限。誰も取っていなければ NULL。
+  holder uuid,
+  lease_expires_at timestamptz,
+  -- ストリームを開いた mikan の世代番号。引き継ぎ待ちの古い mikan は、これが自分の世代より進んだら、ストリームを閉じる (設計書 5.4)。
+  stream_generation bigint NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- タイムシフトで録ったチャンク (設計書 5.7)。mikan が一定の長さで区切って書いたファイルを、1 行ずつ記録する。
+-- ended_at が NULL のチャンクは、書いている途中。破棄のジョブは、保持時間を過ぎたものか、チャンネルの設定がなくなったものを消す。
+CREATE TABLE timeshift_chunks (
+  id uuid PRIMARY KEY,
+  service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
+  -- タイムシフト用のディレクトリからの相対パス。
+  path text NOT NULL UNIQUE,
+  size bigint NOT NULL,
+  started_at timestamptz NOT NULL,
+  ended_at timestamptz,
+  created_at timestamptz NOT NULL
+);
+CREATE INDEX timeshift_chunks_service_started_at_idx ON timeshift_chunks (service_id, started_at);
+
+-- タイムシフトで録っている間の、放送中の番組の履歴 (設計書 5.7)。チャンクの時間軸に番組名を重ねて見せるのに使う。
+-- 番組の変わり目を mikan が記録するので、ended_at が NULL の行が、今放送中の番組。
+CREATE TABLE timeshift_programs (
+  service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
+  started_at timestamptz NOT NULL,
+  event_id bigint NOT NULL,
+  name text NOT NULL,
+  ended_at timestamptz,
+  PRIMARY KEY (service_id, started_at)
+);
