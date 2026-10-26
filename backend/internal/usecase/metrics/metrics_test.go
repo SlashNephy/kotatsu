@@ -52,6 +52,8 @@ func TestDBCollector(t *testing.T) {
 	recording("failed", new("tuner_unavailable"), 0)
 	recording("failed", new("cancelled"), 0)
 	recording("failed", new("cancelled"), 0)
+	// 失敗の累計 (#960)。マイグレーションが、理由ごとに 0 件の行を作っておく。録画を消しても減らないので、録画の数とは合わない。
+	exec(`UPDATE recording_failure_counts SET count = 5, last_failed_at = $1 WHERE reason = 'cancelled'`, now.Add(-time.Hour))
 	tuner := func(index int, available, fault bool) {
 		t.Helper()
 		exec(`INSERT INTO tuners (tuner_index, name, types, is_available, is_remote, is_fault, updated_at)
@@ -98,6 +100,19 @@ kotatsu_recordings{state="recording"} 2
 # TYPE kotatsu_recording_failures gauge
 kotatsu_recording_failures{reason="cancelled"} 2
 kotatsu_recording_failures{reason="tuner_unavailable"} 1
+# HELP kotatsu_recording_failures_total Number of recordings that have failed, by failure reason. Deleting recordings does not decrease it.
+# TYPE kotatsu_recording_failures_total counter
+kotatsu_recording_failures_total{reason="cancelled"} 5
+kotatsu_recording_failures_total{reason="program_not_found"} 0
+kotatsu_recording_failures_total{reason="recorder_unavailable"} 0
+kotatsu_recording_failures_total{reason="storage_full"} 0
+kotatsu_recording_failures_total{reason="storage_unavailable"} 0
+kotatsu_recording_failures_total{reason="stream_interrupted"} 0
+kotatsu_recording_failures_total{reason="tuner_server_unreachable"} 0
+kotatsu_recording_failures_total{reason="tuner_unavailable"} 0
+# HELP kotatsu_recording_last_failure_timestamp_seconds Time when a recording last failed, by failure reason.
+# TYPE kotatsu_recording_last_failure_timestamp_seconds gauge
+kotatsu_recording_last_failure_timestamp_seconds{reason="cancelled"} 1.79163e+09
 # HELP kotatsu_recording_active_packets Dropped, errored, and scrambled packets of the recordings in progress.
 # TYPE kotatsu_recording_active_packets gauge
 kotatsu_recording_active_packets{kind="drop"} 7
@@ -126,7 +141,8 @@ kotatsu_river_jobs{queue="default",state="available"} 2
 kotatsu_metrics_collection_errors 0
 `
 	names := []string{
-		"kotatsu_recordings", "kotatsu_recording_failures", "kotatsu_recording_active_packets", "kotatsu_reservations", "kotatsu_recording_assignments", "kotatsu_tuners",
+		"kotatsu_recordings", "kotatsu_recording_failures", "kotatsu_recording_failures_total", "kotatsu_recording_last_failure_timestamp_seconds",
+		"kotatsu_recording_active_packets", "kotatsu_reservations", "kotatsu_recording_assignments", "kotatsu_tuners",
 		"kotatsu_river_jobs", "kotatsu_metrics_collection_errors", "kotatsu_neko_leader",
 	}
 	leader := func(value string) string {

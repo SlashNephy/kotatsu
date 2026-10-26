@@ -107,23 +107,30 @@ func (q *Queries) DeleteRecordingFiles(ctx context.Context, arg DeleteRecordingF
 }
 
 const failStuckRecordings = `-- name: FailStuckRecordings :many
-UPDATE recordings r SET
-  state = 'failed',
-  -- 録画できずに割り振りを手放した mikan が理由を残していれば、それを使う (#524)。
-  failure_reason = coalesce(r.failure_reason, 'stream_interrupted'),
-  recorded_until = coalesce(
-    (SELECT max(coalesce(f.ended_at, f.started_at)) FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment'),
-    r.recorded_from
-  ),
-  updated_at = $1
-FROM services s
-WHERE s.id = r.service_id
-  AND r.state = 'recording'
-  AND r.end_at < $2::timestamptz
-  AND NOT EXISTS (
-    SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.reservation_id AND a.state <> 'finished'
-  )
-RETURNING r.id, r.reservation_id, r.name, r.start_at, r.end_at, s.name AS service_name
+WITH failed AS (
+  UPDATE recordings r SET
+    state = 'failed',
+    -- 録画できずに割り振りを手放した mikan が理由を残していれば、それを使う (#524)。
+    failure_reason = coalesce(r.failure_reason, 'stream_interrupted'),
+    recorded_until = coalesce(
+      (SELECT max(coalesce(f.ended_at, f.started_at)) FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment'),
+      r.recorded_from
+    ),
+    updated_at = $1
+  FROM services s
+  WHERE s.id = r.service_id
+    AND r.state = 'recording'
+    AND r.end_at < $2::timestamptz
+    AND NOT EXISTS (
+      SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.reservation_id AND a.state <> 'finished'
+    )
+  RETURNING r.id, r.reservation_id, r.name, r.start_at, r.end_at, s.name AS service_name, r.failure_reason
+), counted AS (
+  UPDATE recording_failure_counts c SET count = c.count + f.n, last_failed_at = $1
+  FROM (SELECT failure_reason, count(*) AS n FROM failed GROUP BY failure_reason) AS f
+  WHERE c.reason = f.failure_reason
+)
+SELECT id, reservation_id, name, start_at, end_at, service_name FROM failed
 `
 
 type FailStuckRecordingsParams struct {
@@ -142,7 +149,7 @@ type FailStuckRecordingsRow struct {
 
 // 番組の終わりが before より前に過ぎても「録画中」のままで、録画している割り振り (終わっていないもの) もない録画を、失敗にする。
 // 録画していた mikan がいなくなったか、予約を消して割り振りが消えたもので、ほかに録画を終える人がいない (#516)。
-// 録画した時間の終わりは、書いたセグメントの終わりにする。
+// 録画した時間の終わりは、書いたセグメントの終わりにする。失敗にした録画は、同じ文で失敗の累計に足す (#960)。
 func (q *Queries) FailStuckRecordings(ctx context.Context, arg FailStuckRecordingsParams) ([]FailStuckRecordingsRow, error) {
 	rows, err := q.db.Query(ctx, failStuckRecordings, arg.Now, arg.Before)
 	if err != nil {
@@ -171,23 +178,33 @@ func (q *Queries) FailStuckRecordings(ctx context.Context, arg FailStuckRecordin
 }
 
 const finishRecording = `-- name: FinishRecording :exec
-UPDATE recordings SET state = $1, failure_reason = $2, recorded_until = $3, updated_at = $3
-WHERE id = $4
+WITH prev AS (
+  SELECT p.state FROM recordings p WHERE p.id = $2
+), finished AS (
+  UPDATE recordings r SET state = $3, failure_reason = $4, recorded_until = $1, updated_at = $1
+  WHERE r.id = $2
+  RETURNING r.state, r.failure_reason
+)
+UPDATE recording_failure_counts c SET count = c.count + 1, last_failed_at = $1
+FROM finished, prev
+WHERE finished.state = 'failed' AND prev.state <> 'failed' AND c.reason = finished.failure_reason
 `
 
 type FinishRecordingParams struct {
-	State         string
-	FailureReason *string
 	Now           *time.Time
 	ID            uuid.UUID
+	State         string
+	FailureReason *string
 }
 
+// 録画を state で終える。失敗に変わったときは、同じ文で失敗の累計に足す (#960)。すでに失敗の録画を、もう一度失敗で終えても足さない。
+// prev には FOR UPDATE を付けない。付けると、同じ文の UPDATE がその行を飛ばす。同じ録画を同時に終えないことは、呼び出し側が割り振りの世代のロックで守る。
 func (q *Queries) FinishRecording(ctx context.Context, arg FinishRecordingParams) error {
 	_, err := q.db.Exec(ctx, finishRecording,
-		arg.State,
-		arg.FailureReason,
 		arg.Now,
 		arg.ID,
+		arg.State,
+		arg.FailureReason,
 	)
 	return err
 }
@@ -381,14 +398,21 @@ func (q *Queries) GetStoragePoolThreshold(ctx context.Context, id string) (int64
 }
 
 const insertMissedRecording = `-- name: InsertMissedRecording :execrows
-INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
-  recorded_from, recorded_until, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'failed', 'recorder_unavailable',
-  $9, $9, $10, $10)
-ON CONFLICT (reservation_id) DO NOTHING
+WITH inserted AS (
+  INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
+    recorded_from, recorded_until, created_at, updated_at)
+  VALUES ($2, $3, $4, $5, $6, $7, $8, $9, 'failed', 'recorder_unavailable',
+    $10, $10, $1, $1)
+  ON CONFLICT (reservation_id) DO NOTHING
+  RETURNING failure_reason
+)
+UPDATE recording_failure_counts c SET count = c.count + 1, last_failed_at = $1::timestamptz
+FROM inserted
+WHERE c.reason = inserted.failure_reason
 `
 
 type InsertMissedRecordingParams struct {
+	Now           time.Time
 	ID            uuid.UUID
 	ReservationID *uuid.UUID
 	ServiceID     int64
@@ -398,13 +422,14 @@ type InsertMissedRecordingParams struct {
 	StartAt       time.Time
 	EndAt         time.Time
 	RecordedFrom  time.Time
-	Now           time.Time
 }
 
 // mikan が取らなかった予約の録画を、失敗として記録する (#517)。録画した時間はないので、始まりと終わりを予定の開始にする。
-// 同じ予約の録画がすでにあれば何もせず、0 を返す。
+// 同じ予約の録画がすでにあれば何もせず、0 を返す。記録したときは、同じ文で失敗の累計に足す (#960)。
+// 返す行数は累計の行を更新した数で、記録した録画の数と同じになる (理由の行はマイグレーションが作っておく)。
 func (q *Queries) InsertMissedRecording(ctx context.Context, arg InsertMissedRecordingParams) (int64, error) {
 	result, err := q.db.Exec(ctx, insertMissedRecording,
+		arg.Now,
 		arg.ID,
 		arg.ReservationID,
 		arg.ServiceID,
@@ -414,7 +439,6 @@ func (q *Queries) InsertMissedRecording(ctx context.Context, arg InsertMissedRec
 		arg.StartAt,
 		arg.EndAt,
 		arg.RecordedFrom,
-		arg.Now,
 	)
 	if err != nil {
 		return 0, err

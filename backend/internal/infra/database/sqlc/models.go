@@ -302,6 +302,12 @@ type RecordingAssignment struct {
 	UpdatedAt        time.Time
 }
 
+type RecordingFailureCount struct {
+	Reason       string
+	Count        int64
+	LastFailedAt *time.Time
+}
+
 type RecordingFile struct {
 	ID          uuid.UUID
 	RecordingID uuid.UUID

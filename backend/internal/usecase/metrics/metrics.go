@@ -36,6 +36,8 @@ type DBCollector struct {
 
 	recordings       *prometheus.Desc
 	failures         *prometheus.Desc
+	failuresTotal    *prometheus.Desc
+	lastFailure      *prometheus.Desc
 	activePackets    *prometheus.Desc
 	reservations     *prometheus.Desc
 	assignments      *prometheus.Desc
@@ -57,6 +59,8 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, instanceID uuid.UUID, l
 		pool: pool, clock: clk, instanceID: instanceID, logger: logger,
 		recordings:       desc("recordings", "Number of recordings by state.", "state"),
 		failures:         desc("recording_failures", "Number of failed recordings by failure reason.", "reason"),
+		failuresTotal:    desc("recording_failures_total", "Number of recordings that have failed, by failure reason. Deleting recordings does not decrease it.", "reason"),
+		lastFailure:      desc("recording_last_failure_timestamp_seconds", "Time when a recording last failed, by failure reason.", "reason"),
 		activePackets:    desc("recording_active_packets", "Dropped, errored, and scrambled packets of the recordings in progress.", "kind"),
 		reservations:     desc("reservations", "Number of reservations that have not ended, by assignment state, or disabled.", "state"),
 		assignments:      desc("recording_assignments", "Number of recording assignments by state.", "state"),
@@ -70,7 +74,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, instanceID uuid.UUID, l
 // Describe は、集めるメトリクスの説明を送る。
 func (c *DBCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{
-		c.recordings, c.failures, c.activePackets, c.reservations, c.assignments, c.tuners, c.leader, c.jobs, c.collectionErrors,
+		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.reservations, c.assignments, c.tuners, c.leader, c.jobs, c.collectionErrors,
 	} {
 		ch <- d
 	}
@@ -108,6 +112,17 @@ func (c *DBCollector) collectRecordings(ctx context.Context, ch chan<- prometheu
 	}
 	for _, row := range reasons {
 		ch <- prometheus.MustNewConstMetric(c.failures, prometheus.GaugeValue, float64(row.Count), row.Reason)
+	}
+	// 失敗の累計は、録画を消しても減らない (#960)。一度も失敗していない理由は、累計を 0 で送り、時刻は送らない。
+	counts, err := q.ListRecordingFailureCounts(ctx)
+	if err != nil {
+		return err
+	}
+	for _, row := range counts {
+		ch <- prometheus.MustNewConstMetric(c.failuresTotal, prometheus.CounterValue, float64(row.Count), row.Reason)
+		if row.LastFailedAt != nil {
+			ch <- prometheus.MustNewConstMetric(c.lastFailure, prometheus.GaugeValue, float64(row.LastFailedAt.Unix()), row.Reason)
+		}
 	}
 	packets, err := q.SumActiveRecordingPackets(ctx)
 	if err != nil {

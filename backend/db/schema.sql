@@ -815,6 +815,19 @@ CREATE TABLE recordings (
   updated_at timestamptz NOT NULL
 );
 
+-- 失敗の理由ごとの、録画の失敗の累計と、最後に失敗した日時 (設計書 5.5、11.3、#960)。
+-- 録画が失敗に変わった文の中で足す。録画を消しても減らないので、/metrics で増え続けるカウンターとして出せる。
+-- マイグレーションが理由ごとに 0 件の行を作っておき、一度も失敗していない理由も 0 として出す。
+CREATE TABLE recording_failure_counts (
+  reason text PRIMARY KEY CHECK (reason IN (
+    'tuner_unavailable', 'tuner_server_unreachable', 'stream_interrupted', 'storage_unavailable',
+    'storage_full', 'program_not_found', 'cancelled', 'recorder_unavailable'
+  )),
+  count bigint NOT NULL DEFAULT 0,
+  -- 一度も失敗していなければ NULL。
+  last_failed_at timestamptz
+);
+
 -- 録画のファイル (設計書 5.2、5.6、8.2)。セグメントは、ストリームを開き直すたびに作る。
 -- 索引、代表画像、プレビュー画像のような生成物は記録しない。データディレクトリの、セグメントのファイルの ID のディレクトリに置く。
 CREATE TABLE recording_files (

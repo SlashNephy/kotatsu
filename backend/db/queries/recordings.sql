@@ -36,8 +36,18 @@ UPDATE recordings SET drops = drops + @drops, errors = errors + @errors, scrambl
 WHERE id = @id;
 
 -- name: FinishRecording :exec
-UPDATE recordings SET state = @state, failure_reason = sqlc.narg(failure_reason), recorded_until = @now, updated_at = @now
-WHERE id = @id;
+-- 録画を state で終える。失敗に変わったときは、同じ文で失敗の累計に足す (#960)。すでに失敗の録画を、もう一度失敗で終えても足さない。
+-- prev には FOR UPDATE を付けない。付けると、同じ文の UPDATE がその行を飛ばす。同じ録画を同時に終えないことは、呼び出し側が割り振りの世代のロックで守る。
+WITH prev AS (
+  SELECT p.state FROM recordings p WHERE p.id = @id
+), finished AS (
+  UPDATE recordings r SET state = @state, failure_reason = sqlc.narg(failure_reason), recorded_until = @now, updated_at = @now
+  WHERE r.id = @id
+  RETURNING r.state, r.failure_reason
+)
+UPDATE recording_failure_counts c SET count = c.count + 1, last_failed_at = @now
+FROM finished, prev
+WHERE finished.state = 'failed' AND prev.state <> 'failed' AND c.reason = finished.failure_reason;
 
 -- name: GetRecording :one
 SELECT * FROM recordings WHERE id = @id;
@@ -190,33 +200,47 @@ SELECT coalesce((SELECT min_free_bytes FROM storage_pools WHERE id = @id), 0)::b
 -- name: FailStuckRecordings :many
 -- 番組の終わりが before より前に過ぎても「録画中」のままで、録画している割り振り (終わっていないもの) もない録画を、失敗にする。
 -- 録画していた mikan がいなくなったか、予約を消して割り振りが消えたもので、ほかに録画を終える人がいない (#516)。
--- 録画した時間の終わりは、書いたセグメントの終わりにする。
-UPDATE recordings r SET
-  state = 'failed',
-  -- 録画できずに割り振りを手放した mikan が理由を残していれば、それを使う (#524)。
-  failure_reason = coalesce(r.failure_reason, 'stream_interrupted'),
-  recorded_until = coalesce(
-    (SELECT max(coalesce(f.ended_at, f.started_at)) FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment'),
-    r.recorded_from
-  ),
-  updated_at = @now
-FROM services s
-WHERE s.id = r.service_id
-  AND r.state = 'recording'
-  AND r.end_at < @before::timestamptz
-  AND NOT EXISTS (
-    SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.reservation_id AND a.state <> 'finished'
-  )
-RETURNING r.id, r.reservation_id, r.name, r.start_at, r.end_at, s.name AS service_name;
+-- 録画した時間の終わりは、書いたセグメントの終わりにする。失敗にした録画は、同じ文で失敗の累計に足す (#960)。
+WITH failed AS (
+  UPDATE recordings r SET
+    state = 'failed',
+    -- 録画できずに割り振りを手放した mikan が理由を残していれば、それを使う (#524)。
+    failure_reason = coalesce(r.failure_reason, 'stream_interrupted'),
+    recorded_until = coalesce(
+      (SELECT max(coalesce(f.ended_at, f.started_at)) FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment'),
+      r.recorded_from
+    ),
+    updated_at = @now
+  FROM services s
+  WHERE s.id = r.service_id
+    AND r.state = 'recording'
+    AND r.end_at < @before::timestamptz
+    AND NOT EXISTS (
+      SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.reservation_id AND a.state <> 'finished'
+    )
+  RETURNING r.id, r.reservation_id, r.name, r.start_at, r.end_at, s.name AS service_name, r.failure_reason
+), counted AS (
+  UPDATE recording_failure_counts c SET count = c.count + f.n, last_failed_at = @now
+  FROM (SELECT failure_reason, count(*) AS n FROM failed GROUP BY failure_reason) AS f
+  WHERE c.reason = f.failure_reason
+)
+SELECT id, reservation_id, name, start_at, end_at, service_name FROM failed;
 
 -- name: InsertMissedRecording :execrows
 -- mikan が取らなかった予約の録画を、失敗として記録する (#517)。録画した時間はないので、始まりと終わりを予定の開始にする。
--- 同じ予約の録画がすでにあれば何もせず、0 を返す。
-INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
-  recorded_from, recorded_until, created_at, updated_at)
-VALUES (@id, @reservation_id, @service_id, @event_id, @name, @description, @start_at, @end_at, 'failed', 'recorder_unavailable',
-  @recorded_from, @recorded_from, @now, @now)
-ON CONFLICT (reservation_id) DO NOTHING;
+-- 同じ予約の録画がすでにあれば何もせず、0 を返す。記録したときは、同じ文で失敗の累計に足す (#960)。
+-- 返す行数は累計の行を更新した数で、記録した録画の数と同じになる (理由の行はマイグレーションが作っておく)。
+WITH inserted AS (
+  INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
+    recorded_from, recorded_until, created_at, updated_at)
+  VALUES (@id, @reservation_id, @service_id, @event_id, @name, @description, @start_at, @end_at, 'failed', 'recorder_unavailable',
+    @recorded_from, @recorded_from, @now, @now)
+  ON CONFLICT (reservation_id) DO NOTHING
+  RETURNING failure_reason
+)
+UPDATE recording_failure_counts c SET count = c.count + 1, last_failed_at = @now::timestamptz
+FROM inserted
+WHERE c.reason = inserted.failure_reason;
 
 -- name: SetRecordingFailureHint :exec
 -- 録画中の録画に、録画できなかった理由を残す。割り振りを手放した後、ほかの mikan も録れなければ、この理由で失敗にする (#524)。
