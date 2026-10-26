@@ -1550,7 +1550,7 @@ GraphQLは、graphql-jsで`schema.graphql`をメモリ上のデータに対し�
 | `/settings/notifications` | 通知の設定 | |
 | `/settings/password` | パスワードの変更 | `error`は、IdPでの再認証から戻ったときの失敗の理由 |
 | `/admin/users` | ユーザー | |
-| `/admin/channels` | チャンネル種別とサービスの表示 | |
+| `/admin/channels` | チャンネル種別とサービスの表示、タイムシフトで録るチャンネル | |
 | `/admin/webhooks` | Webhook | |
 | `/admin/audit` | 監査ログ | |
 | `/admin/system` | システムの状態、保存先プール、見つからない録画、DBにないファイル、ファイル名の付け直し | |
@@ -1660,10 +1660,11 @@ EPGStationのように、秘密情報を平文の設定ファイルに書く必�
   | `kotatsu_epg_last_full_sync_timestamp_seconds` | nekoのリーダーが最後にEPGの全量を突き合わせた時刻。今の時刻との差が、同期の遅れです。 |
   | `kotatsu_neko_leader` | このインスタンスがnekoのリースを持っていれば1 |
   | `kotatsu_river_jobs{queue,state}` | 待っているか動いているRiverのジョブの数 |
+  | `kotatsu_timeshift_buffer_seconds{service_id}` | タイムシフトで録るチャンネルごとの、バッファの長さ（秒）。最も古いチャンクの始まりから、最新のチャンクの終わりまでで、書いている途中のチャンクは今まで録れているものとします。チャンクがまだなければ0です。外したチャンネルは、チャンクが残っていても出しません。 |
   | `kotatsu_kyusu_sessions{kind}` | このインスタンスのkyusuのセッションの数（`live`か`vod`） |
   | `kotatsu_tenban_streams{kind}` | このインスタンスのtenbanが、変換せずに流している最中の応答の数（[7.1](#71-再生経路)）。`live`はライブ視聴の中継、`data_broadcast`はライブ視聴と並べて開くデータ放送のストリーム、`recording`は録画の再生と取り込んだ録画のTS以外のファイルです。EPGStation互換の配信（[9.8](#98-api-トークン)）も数えます。kyusuへの中継は数えません。見ている人の数ではなく、プレイヤーがRangeで取り直すたびに別の応答になります。HEADは数えません。 |
 
-  録画、失敗の累計、予約、チューナー、保存先プール、ジョブのキューは、DBから読むので、どのインスタンスも同じ値を返します。集計するときは、インスタンスをまたいで足さずに、`max`などでまとめます。
+  録画、失敗の累計、予約、チューナー、保存先プール、ジョブのキュー、タイムシフトのバッファは、DBから読むので、どのインスタンスも同じ値を返します。集計するときは、インスタンスをまたいで足さずに、`max`などでまとめます。
 - OTLPの送信先（`telemetry.otlp_metrics_endpoint`）を設定すると、`/metrics`と同じメトリクスを、OTLPで決まった間隔（既定は60秒）で送ります。MackerelのラベルつきメトリクスやOpenTelemetry Collectorのように、pushで受け取る監視先でも見られるようにするためです。
   - 定義はPrometheusのレジストリ1つだけで、OTLPには`go.opentelemetry.io/contrib/bridges/prometheus`で橋渡しします。名前とラベルは`/metrics`と同じです。カウンターは累積（cumulative）で送ります。
   - pushでは、インスタンスの数だけ同じ系列が送られます。そこで、値を次の2つの範囲に分け、範囲ごとに送り方を変えます。

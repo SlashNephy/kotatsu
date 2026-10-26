@@ -471,6 +471,85 @@ func (q *Queries) ListTimeshiftAssignments(ctx context.Context) ([]TimeshiftAssi
 	return items, nil
 }
 
+const listTimeshiftBufferRanges = `-- name: ListTimeshiftBufferRanges :many
+SELECT c.service_id,
+  min(c.started_at)::timestamptz AS buffered_from,
+  max(coalesce(c.ended_at, $1::timestamptz))::timestamptz AS buffered_until
+FROM timeshift_chunks c
+JOIN timeshift_channels t ON t.service_id = c.service_id
+GROUP BY c.service_id
+ORDER BY c.service_id
+`
+
+type ListTimeshiftBufferRangesRow struct {
+	ServiceID     int64
+	BufferedFrom  time.Time
+	BufferedUntil time.Time
+}
+
+// タイムシフトで録るチャンネルの、バッファにある範囲。管理の画面とメトリクスに使う。チャンクのないサービスは返さない。
+// 範囲は、最も古いチャンクの始まりから、最新のチャンクの終わりまで。書いている途中のチャンクは、今まで録れているものとする。
+func (q *Queries) ListTimeshiftBufferRanges(ctx context.Context, now time.Time) ([]ListTimeshiftBufferRangesRow, error) {
+	rows, err := q.db.Query(ctx, listTimeshiftBufferRanges, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTimeshiftBufferRangesRow{}
+	for rows.Next() {
+		var i ListTimeshiftBufferRangesRow
+		if err := rows.Scan(&i.ServiceID, &i.BufferedFrom, &i.BufferedUntil); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTimeshiftChannelStatuses = `-- name: ListTimeshiftChannelStatuses :many
+SELECT t.service_id, t.retention_seconds,
+  EXISTS (
+    SELECT 1 FROM timeshift_assignments a
+    WHERE a.service_id = t.service_id AND a.state IN ('recording', 'handover')
+      AND a.holder IS NOT NULL AND a.lease_expires_at > $1::timestamptz
+  ) AS recording
+FROM timeshift_channels t
+JOIN services s ON s.id = t.service_id
+JOIN channel_types ct ON ct.type = s.channel_type
+ORDER BY ct.sort_order, t.service_id
+`
+
+type ListTimeshiftChannelStatusesRow struct {
+	ServiceID        int64
+	RetentionSeconds int32
+	Recording        bool
+}
+
+// タイムシフトで録るチャンネルと、mikan が録っているか。管理の画面に使う。
+// 録っているかは、mikan が割り振りを持ち、リースが切れていないかで決める。
+func (q *Queries) ListTimeshiftChannelStatuses(ctx context.Context, now time.Time) ([]ListTimeshiftChannelStatusesRow, error) {
+	rows, err := q.db.Query(ctx, listTimeshiftChannelStatuses, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTimeshiftChannelStatusesRow{}
+	for rows.Next() {
+		var i ListTimeshiftChannelStatusesRow
+		if err := rows.Scan(&i.ServiceID, &i.RetentionSeconds, &i.Recording); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTimeshiftChannels = `-- name: ListTimeshiftChannels :many
 SELECT t.service_id, t.retention_seconds, t.created_at, t.updated_at, t.updated_by, s.name AS service_name, s.channel_type, s.channel
 FROM timeshift_channels t
@@ -561,6 +640,18 @@ func (q *Queries) LockTimeshiftAssignmentGeneration(ctx context.Context, id uuid
 	var generation int64
 	err := row.Scan(&generation)
 	return generation, err
+}
+
+const lockTimeshiftChannel = `-- name: LockTimeshiftChannel :one
+SELECT retention_seconds FROM timeshift_channels WHERE service_id = $1 FOR UPDATE
+`
+
+// 変える前の保持時間を監査ログに残すため、チャンネルの行をロックして読む。
+func (q *Queries) LockTimeshiftChannel(ctx context.Context, serviceID int64) (int32, error) {
+	row := q.db.QueryRow(ctx, lockTimeshiftChannel, serviceID)
+	var retention_seconds int32
+	err := row.Scan(&retention_seconds)
+	return retention_seconds, err
 }
 
 const markTimeshiftHandover = `-- name: MarkTimeshiftHandover :execrows

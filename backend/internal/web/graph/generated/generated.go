@@ -39,6 +39,7 @@ type ResolverRoot interface {
 	Rule() RuleResolver
 	Service() ServiceResolver
 	Subscription() SubscriptionResolver
+	TimeshiftChannel() TimeshiftChannelResolver
 	User() UserResolver
 }
 
@@ -274,6 +275,7 @@ type ComplexityRoot struct {
 		RegenerateRecordingImages    func(childComplexity int, id string) int
 		RegenerateRecoveryCodes      func(childComplexity int) int
 		RegisterPlayer               func(childComplexity int, state model.PlayerStateInput) int
+		RemoveTimeshiftChannel       func(childComplexity int, serviceID string) int
 		RenamePasskey                func(childComplexity int, id string, name string) int
 		RenameRecordingFiles         func(childComplexity int, ids []string) int
 		ResetUserPassword            func(childComplexity int, id string, password string) int
@@ -287,6 +289,7 @@ type ComplexityRoot struct {
 		SetRuleEnabled               func(childComplexity int, id string, enabled bool) int
 		SetRulesEnabled              func(childComplexity int, ids []string, enabled bool) int
 		SetServicePinned             func(childComplexity int, id string, pinned bool) int
+		SetTimeshiftChannel          func(childComplexity int, serviceID string, retentionSeconds *int) int
 		SetWatchReservation          func(childComplexity int, program string, reserved bool) int
 		SubscribeWebPush             func(childComplexity int, input model.WebPushSubscriptionInput) int
 		UnregisterPlayer             func(childComplexity int, id string) int
@@ -528,6 +531,8 @@ type ComplexityRoot struct {
 		SystemStatus            func(childComplexity int) int
 		Tags                    func(childComplexity int) int
 		TimeZone                func(childComplexity int) int
+		TimeshiftAvailable      func(childComplexity int) int
+		TimeshiftChannels       func(childComplexity int) int
 		Transcoding             func(childComplexity int) int
 		TunerServerHealth       func(childComplexity int) int
 		UnreadNotificationCount func(childComplexity int) int
@@ -827,6 +832,14 @@ type ComplexityRoot struct {
 		Weekdays        func(childComplexity int) int
 	}
 
+	TimeshiftChannel struct {
+		BufferedFrom     func(childComplexity int) int
+		BufferedUntil    func(childComplexity int) int
+		Recording        func(childComplexity int) int
+		RetentionSeconds func(childComplexity int) int
+		Service          func(childComplexity int) int
+	}
+
 	Transcoding struct {
 		Available func(childComplexity int) int
 		Presets   func(childComplexity int) int
@@ -961,6 +974,8 @@ type MutationResolver interface {
 	UpdateService(ctx context.Context, id string, input model.ServiceInput) (*model.Service, error)
 	UpdateStoragePool(ctx context.Context, id string, input model.StoragePoolInput) (*model.StoragePool, error)
 	CreateStreamURL(ctx context.Context, target string) (*model.StreamURL, error)
+	SetTimeshiftChannel(ctx context.Context, serviceID string, retentionSeconds *int) (*model.TimeshiftChannel, error)
+	RemoveTimeshiftChannel(ctx context.Context, serviceID string) (string, error)
 	CreateUser(ctx context.Context, input model.CreateUserInput) (*model.User, error)
 	UpdateUser(ctx context.Context, id string, input model.UpdateUserInput) (*model.User, error)
 	DisableUser(ctx context.Context, id string) (*model.User, error)
@@ -1028,6 +1043,8 @@ type QueryResolver interface {
 	SystemSettings(ctx context.Context) (*model.SystemSettings, error)
 	SkippedDuplicates(ctx context.Context) ([]*model.SkippedDuplicate, error)
 	Transcoding(ctx context.Context) (*model.Transcoding, error)
+	TimeshiftAvailable(ctx context.Context) (bool, error)
+	TimeshiftChannels(ctx context.Context) ([]*model.TimeshiftChannel, error)
 	Users(ctx context.Context) ([]*model.User, error)
 	Sessions(ctx context.Context) ([]*model.Session, error)
 	WatchReservations(ctx context.Context) ([]*model.WatchReservation, error)
@@ -1069,6 +1086,9 @@ type SubscriptionResolver interface {
 	ViewerSettingsChanged(ctx context.Context) (<-chan int, error)
 	PlayersChanged(ctx context.Context) (<-chan int, error)
 	PlayerCommands(ctx context.Context, id string, after *string) (<-chan *model.PlayerCommand, error)
+}
+type TimeshiftChannelResolver interface {
+	Service(ctx context.Context, obj *model.TimeshiftChannel) (*model.Service, error)
 }
 type UserResolver interface {
 	AvatarURL(ctx context.Context, obj *model.User) (*string, error)
@@ -2099,6 +2119,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RegisterPlayer(childComplexity, args["state"].(model.PlayerStateInput)), true
+	case "Mutation.removeTimeshiftChannel":
+		if e.ComplexityRoot.Mutation.RemoveTimeshiftChannel == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_removeTimeshiftChannel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RemoveTimeshiftChannel(childComplexity, args["serviceId"].(string)), true
 	case "Mutation.renamePasskey":
 		if e.ComplexityRoot.Mutation.RenamePasskey == nil {
 			break
@@ -2237,6 +2268,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetServicePinned(childComplexity, args["id"].(string), args["pinned"].(bool)), true
+	case "Mutation.setTimeshiftChannel":
+		if e.ComplexityRoot.Mutation.SetTimeshiftChannel == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setTimeshiftChannel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetTimeshiftChannel(childComplexity, args["serviceId"].(string), args["retentionSeconds"].(*int)), true
 	case "Mutation.setWatchReservation":
 		if e.ComplexityRoot.Mutation.SetWatchReservation == nil {
 			break
@@ -3438,6 +3480,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.TimeZone(childComplexity), true
+	case "Query.timeshiftAvailable":
+		if e.ComplexityRoot.Query.TimeshiftAvailable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.TimeshiftAvailable(childComplexity), true
+	case "Query.timeshiftChannels":
+		if e.ComplexityRoot.Query.TimeshiftChannels == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.TimeshiftChannels(childComplexity), true
 	case "Query.transcoding":
 		if e.ComplexityRoot.Query.Transcoding == nil {
 			break
@@ -4664,6 +4718,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TimeRange.Weekdays(childComplexity), true
+
+	case "TimeshiftChannel.bufferedFrom":
+		if e.ComplexityRoot.TimeshiftChannel.BufferedFrom == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftChannel.BufferedFrom(childComplexity), true
+	case "TimeshiftChannel.bufferedUntil":
+		if e.ComplexityRoot.TimeshiftChannel.BufferedUntil == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftChannel.BufferedUntil(childComplexity), true
+	case "TimeshiftChannel.recording":
+		if e.ComplexityRoot.TimeshiftChannel.Recording == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftChannel.Recording(childComplexity), true
+	case "TimeshiftChannel.retentionSeconds":
+		if e.ComplexityRoot.TimeshiftChannel.RetentionSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftChannel.RetentionSeconds(childComplexity), true
+	case "TimeshiftChannel.service":
+		if e.ComplexityRoot.TimeshiftChannel.Service == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftChannel.Service(childComplexity), true
 
 	case "Transcoding.available":
 		if e.ComplexityRoot.Transcoding.Available == nil {
@@ -7300,6 +7385,45 @@ extend type Query {
   transcoding: Transcoding!
 }
 `, BuiltIn: false},
+	{Name: "../schema/timeshift.graphqls", Input: `"""
+タイムシフトで録るチャンネル。管理者が選び、選んだチャンネルを常に録って、保持時間だけ残す。
+"""
+type TimeshiftChannel {
+  service: Service!
+  "保持時間 (秒)。600〜86400。"
+  retentionSeconds: Int!
+  "バッファにある最も古いチャンクの始まり。チャンクがなければ null。"
+  bufferedFrom: Time
+  "バッファにある最新のチャンクの終わり。書いている途中のチャンクは、今まで録れているものとする。チャンクがなければ null。"
+  bufferedUntil: Time
+  "mikan が割り振りを持ち、録っているかどうか。チューナーを予約に渡している間や、録れる mikan がいないときは false。"
+  recording: Boolean!
+}
+
+extend type Query {
+  """
+  この tenban にタイムシフトのディレクトリ (storage.timeshift_dir) が設定されていて、タイムシフトを使えるかどうか。
+  false なら、チャンネルを足せない。管理者だけが使える (設計書 9.7)。
+  """
+  timeshiftAvailable: Boolean!
+  "タイムシフトで録るチャンネルを、チャンネル種別の並び順、サービス ID の順に返す。管理者だけが使える (設計書 9.7)。"
+  timeshiftChannels: [TimeshiftChannel!]!
+}
+
+extend type Mutation {
+  """
+  サービス serviceId をタイムシフトで録るチャンネルにし、保持時間を retentionSeconds (600〜86400 秒) にする。既に録っていれば、保持時間だけを変える。
+  管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  保持時間が範囲外なら BAD_USER_INPUT を、サービスがなければ NOT_FOUND を、タイムシフトを使えない tenban (timeshiftAvailable が false) なら CONFLICT を返す。
+  """
+  setTimeshiftChannel(serviceId: ID!, retentionSeconds: Int = 7200): TimeshiftChannel!
+  """
+  サービス serviceId を、タイムシフトで録るチャンネルから外し、外したサービスの ID を返す。録ったチャンクは、破棄のジョブが消す。
+  管理者だけが使え、直近 10 分以内の認証が要る。タイムシフトを使えない tenban でも外せる。録るチャンネルになければ NOT_FOUND を返す。
+  """
+  removeTimeshiftChannel(serviceId: ID!): ID!
+}
+`, BuiltIn: false},
 	{Name: "../schema/user.graphqls", Input: `"""
 ユーザーのロール (設計書 9.7)。
 """
@@ -8874,6 +8998,22 @@ func (ec *executionContext) childFields_TimeRange(ctx context.Context, field gra
 	return nil, fmt.Errorf("no field named %q was found under type TimeRange", field.Name)
 }
 
+func (ec *executionContext) childFields_TimeshiftChannel(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "service":
+		return ec.fieldContext_TimeshiftChannel_service(ctx, field)
+	case "retentionSeconds":
+		return ec.fieldContext_TimeshiftChannel_retentionSeconds(ctx, field)
+	case "bufferedFrom":
+		return ec.fieldContext_TimeshiftChannel_bufferedFrom(ctx, field)
+	case "bufferedUntil":
+		return ec.fieldContext_TimeshiftChannel_bufferedUntil(ctx, field)
+	case "recording":
+		return ec.fieldContext_TimeshiftChannel_recording(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TimeshiftChannel", field.Name)
+}
+
 func (ec *executionContext) childFields_Transcoding(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "available":
@@ -9582,6 +9722,20 @@ func (ec *executionContext) field_Mutation_registerPlayer_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_removeTimeshiftChannel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "serviceId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["serviceId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_renamePasskey_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -9827,6 +9981,28 @@ func (ec *executionContext) field_Mutation_setServicePinned_args(ctx context.Con
 		return nil, err
 	}
 	args["pinned"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setTimeshiftChannel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "serviceId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["serviceId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "retentionSeconds",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["retentionSeconds"] = arg1
 	return args, nil
 }
 
@@ -15247,6 +15423,94 @@ func (ec *executionContext) fieldContext_Mutation_createStreamURL(ctx context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_setTimeshiftChannel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setTimeshiftChannel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetTimeshiftChannel(ctx, fc.Args["serviceId"].(string), fc.Args["retentionSeconds"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.TimeshiftChannel) graphql.Marshaler {
+			return ec.marshalNTimeshiftChannel2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTimeshiftChannel(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setTimeshiftChannel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TimeshiftChannel(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setTimeshiftChannel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_removeTimeshiftChannel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_removeTimeshiftChannel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RemoveTimeshiftChannel(ctx, fc.Args["serviceId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_removeTimeshiftChannel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_removeTimeshiftChannel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createUser(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -20213,6 +20477,61 @@ func (ec *executionContext) fieldContext_Query_transcoding(_ context.Context, fi
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Transcoding(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_timeshiftAvailable(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_timeshiftAvailable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().TimeshiftAvailable(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_timeshiftAvailable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Query_timeshiftChannels(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_timeshiftChannels(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().TimeshiftChannels(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.TimeshiftChannel) graphql.Marshaler {
+			return ec.marshalNTimeshiftChannel2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTimeshiftChannelᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_timeshiftChannels(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TimeshiftChannel(ctx, field)
 		},
 	}
 	return fc, nil
@@ -25198,6 +25517,130 @@ func (ec *executionContext) _TimeRange_durationMinutes(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_TimeRange_durationMinutes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TimeRange", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TimeshiftChannel_service(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftChannel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftChannel_service(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.TimeshiftChannel().Service(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Service) graphql.Marshaler {
+			return ec.marshalNService2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐService(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftChannel_service(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TimeshiftChannel",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Service(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TimeshiftChannel_retentionSeconds(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftChannel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftChannel_retentionSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RetentionSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftChannel_retentionSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftChannel", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TimeshiftChannel_bufferedFrom(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftChannel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftChannel_bufferedFrom(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BufferedFrom, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftChannel_bufferedFrom(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftChannel", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _TimeshiftChannel_bufferedUntil(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftChannel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftChannel_bufferedUntil(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BufferedUntil, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftChannel_bufferedUntil(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftChannel", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _TimeshiftChannel_recording(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftChannel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftChannel_recording(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Recording, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftChannel_recording(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftChannel", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _Transcoding_available(ctx context.Context, field graphql.CollectedField, obj *model.Transcoding) (ret graphql.Marshaler) {
@@ -31159,6 +31602,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setTimeshiftChannel":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setTimeshiftChannel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "removeTimeshiftChannel":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_removeTimeshiftChannel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createUser":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createUser(ctx, field)
@@ -33658,6 +34115,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_transcoding(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "timeshiftAvailable":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_timeshiftAvailable(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "timeshiftChannels":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_timeshiftChannels(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -36188,6 +36689,97 @@ func (ec *executionContext) _TimeRange(ctx context.Context, sel ast.SelectionSet
 			out.Values[i] = ec._TimeRange_durationMinutes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var timeshiftChannelImplementors = []string{"TimeshiftChannel"}
+
+func (ec *executionContext) _TimeshiftChannel(ctx context.Context, sel ast.SelectionSet, obj *model.TimeshiftChannel) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, timeshiftChannelImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TimeshiftChannel")
+		case "service":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._TimeshiftChannel_service(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "retentionSeconds":
+			out.Values[i] = ec._TimeshiftChannel_retentionSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "bufferedFrom":
+			out.Values[i] = ec._TimeshiftChannel_bufferedFrom(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "bufferedUntil":
+			out.Values[i] = ec._TimeshiftChannel_bufferedUntil(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "recording":
+			out.Values[i] = ec._TimeshiftChannel_recording(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -39238,6 +39830,32 @@ func (ec *executionContext) unmarshalNTimeRangeInput2ᚖgithubᚗcomᚋSlashNeph
 func (ec *executionContext) unmarshalNTimeReservationInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTimeReservationInput(ctx context.Context, v any) (model.TimeReservationInput, error) {
 	res, err := ec.unmarshalInputTimeReservationInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTimeshiftChannel2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTimeshiftChannelᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.TimeshiftChannel) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTimeshiftChannel2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTimeshiftChannel(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTimeshiftChannel2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTimeshiftChannel(ctx context.Context, sel ast.SelectionSet, v *model.TimeshiftChannel) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TimeshiftChannel(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNTranscoding2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTranscoding(ctx context.Context, sel ast.SelectionSet, v *model.Transcoding) graphql.Marshaler {

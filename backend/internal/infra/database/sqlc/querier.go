@@ -427,6 +427,12 @@ type Querier interface {
 	// タグを、付いている録画の数と一緒に、名前の順で返す。
 	ListTags(ctx context.Context) ([]ListTagsRow, error)
 	ListTimeshiftAssignments(ctx context.Context) ([]TimeshiftAssignment, error)
+	// タイムシフトで録るチャンネルの、バッファにある範囲。管理の画面とメトリクスに使う。チャンクのないサービスは返さない。
+	// 範囲は、最も古いチャンクの始まりから、最新のチャンクの終わりまで。書いている途中のチャンクは、今まで録れているものとする。
+	ListTimeshiftBufferRanges(ctx context.Context, now time.Time) ([]ListTimeshiftBufferRangesRow, error)
+	// タイムシフトで録るチャンネルと、mikan が録っているか。管理の画面に使う。
+	// 録っているかは、mikan が割り振りを持ち、リースが切れていないかで決める。
+	ListTimeshiftChannelStatuses(ctx context.Context, now time.Time) ([]ListTimeshiftChannelStatusesRow, error)
 	// タイムシフトで録るチャンネル。割り振りと、録画のチューナーとの衝突の判定には、サービスのチャンネル種別とチャンネルが要る。
 	// チューナーが足りないときに先に録るものを決めるため、チャンネル種別の並び順、サービス ID の順に返す。
 	ListTimeshiftChannels(ctx context.Context) ([]ListTimeshiftChannelsRow, error)
@@ -480,6 +486,8 @@ type Querier interface {
 	LockSystemSettings(ctx context.Context, arg LockSystemSettingsParams) (SystemSetting, error)
 	// 割り振りを手放す前に、行をロックして、今の世代番号を読む。ほかの mikan が取っていたら、手放さない。
 	LockTimeshiftAssignmentGeneration(ctx context.Context, id uuid.UUID) (int64, error)
+	// 変える前の保持時間を監査ログに残すため、チャンネルの行をロックして読む。
+	LockTimeshiftChannel(ctx context.Context, serviceID int64) (int32, error)
 	// ユーザーの行を、トランザクションが終わるまで書き込みからロックする。同じユーザーの登録を同時に行わせない。
 	LockUser(ctx context.Context, id uuid.UUID) (LockUserRow, error)
 	// 変える前の値を監査ログに残すため、行をロックして読む。

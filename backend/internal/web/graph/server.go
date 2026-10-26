@@ -32,6 +32,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
+	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/generated"
@@ -90,6 +91,8 @@ type Options struct {
 	Pools map[string]string
 	// DataDir は、データディレクトリ。
 	DataDir string
+	// TimeshiftDir は、タイムシフトのバッファを置くディレクトリ。空なら、タイムシフトのチャンネルを設定できない。
+	TimeshiftDir string
 	// FreeSpace は、保存先プールの空き容量を調べる。nil なら、ファイルシステムに問い合わせる。
 	FreeSpace kago.FreeSpaceFunc
 	// Jobs は、ジョブを入れる River のクライアント。録画の画像を作り直すのに使う。nil なら、作り直せない。
@@ -173,6 +176,7 @@ func NewHandler(opts *Options) http.Handler {
 		sessions:     o.Sessions,
 		recorder:     o.Recorder,
 		settings:     o.Settings,
+		timeshift:    timeshift.NewChannels(o.Clock, o.Recorder),
 		inbox:        notification.NewInbox(o.Clock),
 		webhooks:     o.Webhooks,
 		webPush:      o.WebPush,
@@ -185,7 +189,7 @@ func NewHandler(opts *Options) http.Handler {
 		freeSpace:    o.FreeSpace,
 		jobs:         o.Jobs,
 		totalSpace:   o.TotalSpace,
-		store:        kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir),
+		store:        kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir).WithTimeshiftDir(o.TimeshiftDir),
 		library:      library.New(o.Clock, o.Recorder, kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir), o.Logger),
 		updates:      o.Updates,
 	}

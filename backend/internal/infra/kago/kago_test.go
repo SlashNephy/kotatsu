@@ -408,18 +408,28 @@ func TestWithTimeshiftDir(t *testing.T) {
 	tests := []struct {
 		name         string
 		timeshiftDir bool
-		wantHas      bool
-		wantPathErr  error
+		// noPools は、プールを設定していないかどうか。tenban は、プールがなくてもタイムシフトのディレクトリを持てる。
+		noPools     bool
+		wantHas     bool
+		wantPathErr error
 	}{
-		{name: "mounted", timeshiftDir: true, wantHas: true, wantPathErr: nil},
-		{name: "not mounted", timeshiftDir: false, wantHas: false, wantPathErr: kago.ErrPoolNotMounted},
+		{name: "mounted", timeshiftDir: true, noPools: false, wantHas: true, wantPathErr: nil},
+		{name: "mounted without pools", timeshiftDir: true, noPools: true, wantHas: true, wantPathErr: nil},
+		{name: "not mounted", timeshiftDir: false, noPools: false, wantHas: false, wantPathErr: kago.ErrPoolNotMounted},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			root := t.TempDir()
-			store := kago.New(map[string]string{poolMain: t.TempDir()}, nil).WithDataDir(t.TempDir())
+			var pools map[string]string
+			if !tt.noPools {
+				pools = map[string]string{poolMain: t.TempDir()}
+			}
+			store := kago.New(pools, nil)
+			if !tt.noPools {
+				store = store.WithDataDir(t.TempDir())
+			}
 			if tt.timeshiftDir {
 				store = store.WithTimeshiftDir(root)
 			}

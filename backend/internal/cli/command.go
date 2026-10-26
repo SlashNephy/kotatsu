@@ -704,6 +704,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Changes:           changes,
 		Pools:             deps.Config.Storage.Pools,
 		DataDir:           deps.Config.Storage.DataDir,
+		TimeshiftDir:      deps.Config.Storage.TimeshiftDir,
 		FreeSpace:         nil,
 		Jobs:              deps.Jobs,
 		TotalSpace:        nil,

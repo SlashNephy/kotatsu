@@ -893,6 +893,17 @@ type Mutation {
   """
   createStreamURL(target: ID!): StreamURL!
   """
+  サービス serviceId をタイムシフトで録るチャンネルにし、保持時間を retentionSeconds (600〜86400 秒) にする。既に録っていれば、保持時間だけを変える。
+  管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  保持時間が範囲外なら BAD_USER_INPUT を、サービスがなければ NOT_FOUND を、タイムシフトを使えない tenban (timeshiftAvailable が false) なら CONFLICT を返す。
+  """
+  setTimeshiftChannel(serviceId: ID!, retentionSeconds: Int = 7200): TimeshiftChannel!
+  """
+  サービス serviceId を、タイムシフトで録るチャンネルから外し、外したサービスの ID を返す。録ったチャンクは、破棄のジョブが消す。
+  管理者だけが使え、直近 10 分以内の認証が要る。タイムシフトを使えない tenban でも外せる。録るチャンネルになければ NOT_FOUND を返す。
+  """
+  removeTimeshiftChannel(serviceId: ID!): ID!
+  """
   ユーザーを作る。管理者だけが使え、直近 10 分以内の認証が要る。
   パスワードが規定に当たれば、BAD_USER_INPUT と、extensions.reason に理由 (too_weak など) を返す。
   """
@@ -1738,6 +1749,15 @@ type Query {
   サーバー側でのトランスコードを使えるかと、選べる画質。
   """
   transcoding: Transcoding!
+  """
+  この tenban にタイムシフトのディレクトリ (storage.timeshift_dir) が設定されていて、タイムシフトを使えるかどうか。
+  false なら、チャンネルを足せない。管理者だけが使える (設計書 9.7)。
+  """
+  timeshiftAvailable: Boolean!
+  """
+  タイムシフトで録るチャンネルを、チャンネル種別の並び順、サービス ID の順に返す。管理者だけが使える (設計書 9.7)。
+  """
+  timeshiftChannels: [TimeshiftChannel!]!
   """
   すべてのユーザーを、作った順に返す。管理者だけが使える (設計書 9.7)。
   """
@@ -2735,6 +2755,28 @@ input TimeReservationInput {
   """
   name: String! = ""
   settings: RecordingSettingsOverridesInput
+}
+"""
+タイムシフトで録るチャンネル。管理者が選び、選んだチャンネルを常に録って、保持時間だけ残す。
+"""
+type TimeshiftChannel {
+  service: Service!
+  """
+  保持時間 (秒)。600〜86400。
+  """
+  retentionSeconds: Int!
+  """
+  バッファにある最も古いチャンクの始まり。チャンクがなければ null。
+  """
+  bufferedFrom: Time
+  """
+  バッファにある最新のチャンクの終わり。書いている途中のチャンクは、今まで録れているものとする。チャンクがなければ null。
+  """
+  bufferedUntil: Time
+  """
+  mikan が割り振りを持ち、録っているかどうか。チューナーを予約に渡している間や、録れる mikan がいないときは false。
+  """
+  recording: Boolean!
 }
 """
 サーバー側でのトランスコード (kyusu) の状態 (設計書 7.1)。

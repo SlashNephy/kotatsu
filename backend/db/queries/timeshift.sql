@@ -16,6 +16,10 @@ SET retention_seconds = EXCLUDED.retention_seconds, updated_at = EXCLUDED.update
 -- name: DeleteTimeshiftChannel :execrows
 DELETE FROM timeshift_channels WHERE service_id = @service_id;
 
+-- name: LockTimeshiftChannel :one
+-- 変える前の保持時間を監査ログに残すため、チャンネルの行をロックして読む。
+SELECT retention_seconds FROM timeshift_channels WHERE service_id = @service_id FOR UPDATE;
+
 -- name: ListTimeshiftAssignments :many
 SELECT * FROM timeshift_assignments ORDER BY created_at, id;
 
@@ -172,3 +176,28 @@ SELECT started_at FROM timeshift_chunks
 WHERE service_id = @service_id
 ORDER BY started_at
 LIMIT 1;
+
+-- name: ListTimeshiftChannelStatuses :many
+-- タイムシフトで録るチャンネルと、mikan が録っているか。管理の画面に使う。
+-- 録っているかは、mikan が割り振りを持ち、リースが切れていないかで決める。
+SELECT t.service_id, t.retention_seconds,
+  EXISTS (
+    SELECT 1 FROM timeshift_assignments a
+    WHERE a.service_id = t.service_id AND a.state IN ('recording', 'handover')
+      AND a.holder IS NOT NULL AND a.lease_expires_at > @now::timestamptz
+  ) AS recording
+FROM timeshift_channels t
+JOIN services s ON s.id = t.service_id
+JOIN channel_types ct ON ct.type = s.channel_type
+ORDER BY ct.sort_order, t.service_id;
+
+-- name: ListTimeshiftBufferRanges :many
+-- タイムシフトで録るチャンネルの、バッファにある範囲。管理の画面とメトリクスに使う。チャンクのないサービスは返さない。
+-- 範囲は、最も古いチャンクの始まりから、最新のチャンクの終わりまで。書いている途中のチャンクは、今まで録れているものとする。
+SELECT c.service_id,
+  min(c.started_at)::timestamptz AS buffered_from,
+  max(coalesce(c.ended_at, @now::timestamptz))::timestamptz AS buffered_until
+FROM timeshift_chunks c
+JOIN timeshift_channels t ON t.service_id = c.service_id
+GROUP BY c.service_id
+ORDER BY c.service_id;

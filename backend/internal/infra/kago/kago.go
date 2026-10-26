@@ -96,8 +96,11 @@ func NewOrdered(mounts map[string]string, order []string, freeSpace FreeSpaceFun
 		}
 	}
 
-	// 呼び出し側が後から書き換えても影響しないよう、複製して持つ。
-	return &Store{mounts: maps.Clone(mounts), order: ordered, freeSpace: freeSpace, totalSpace: TotalSpace, dataDir: "", timeshiftDir: ""}
+	// 呼び出し側が後から書き換えても影響しないよう、複製して持つ。プールがなくても、データやタイムシフトのディレクトリを足せるよう、空の対応にする。
+	cloned := make(map[string]string, len(mounts))
+	maps.Copy(cloned, mounts)
+
+	return &Store{mounts: cloned, order: ordered, freeSpace: freeSpace, totalSpace: TotalSpace, dataDir: "", timeshiftDir: ""}
 }
 
 // WithTotalSpace は、プールの容量を totalSpace で調べる Store を返す。totalSpace が nil なら、s をそのまま返す。
