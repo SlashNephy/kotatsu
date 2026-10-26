@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"time"
 
 	"github.com/google/uuid"
@@ -299,11 +300,11 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	})
 	timeshiftWorker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, timeshiftLogger, timeshiftRecorder.Session(), timeshift.NewLeases(deps.DB),
 		mikanWorkerOptions(deps))
-	// タイムシフトの Worker がエラーで止まっても、予約の録画は止めない。
+	// タイムシフトの Worker がエラーで止まるか panic しても、予約の録画は止めない。
 	return runAlongside(ctx, timeshiftLogger, worker.Run, timeshiftWorker.Run)
 }
 
-// runAlongside は、main を ctx で動かし、その横で side を動かす。side がエラーで返っても、ログに残すだけで、main を止めない。
+// runAlongside は、main を ctx で動かし、その横で side を動かす。side がエラーで返るか panic しても、ログに残すだけで、main を止めない。
 // main が返ったら、side を止め、side が返るのを待ってから、main の結果を返す。ctx が終われば、両方とも止まる。
 func runAlongside(ctx context.Context, logger *slog.Logger, main, side func(context.Context) error) error {
 	sideCtx, stopSide := context.WithCancel(ctx)
@@ -311,6 +312,12 @@ func runAlongside(ctx context.Context, logger *slog.Logger, main, side func(cont
 	sideDone := make(chan struct{})
 	go func() {
 		defer close(sideDone)
+		// side の panic で、main ごとプロセスを落とさない。拾ったら、スタックをログに残して、side だけ止める。
+		defer func() {
+			if v := recover(); v != nil {
+				logger.ErrorContext(ctx, "the worker panicked; the others keep running", slog.Any("panic", v), slog.String("stack", string(debug.Stack())))
+			}
+		}()
 		if err := side(sideCtx); err != nil && sideCtx.Err() == nil {
 			logger.ErrorContext(ctx, "the worker stopped with an error; the others keep running", slog.Any("error", err))
 		}

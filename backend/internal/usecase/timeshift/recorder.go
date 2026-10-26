@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -53,8 +54,12 @@ type RecorderOptions struct {
 	Peers recording.PeersFunc
 }
 
-// errChunkStorage は、タイムシフトのディレクトリにチャンクのファイルを作れなかったこと。
-var errChunkStorage = errors.New("failed to create a timeshift chunk file")
+var (
+	// errChunkStorage は、タイムシフトのディレクトリにチャンクのファイルを作れなかったこと。
+	errChunkStorage = errors.New("failed to create a timeshift chunk file")
+	// errSessionPanicked は、タイムシフトの Session が panic したこと。
+	errSessionPanicked = errors.New("the timeshift session panicked")
+)
 
 // Recorder は、タイムシフトの割り振りのサービスを、ChunkDuration ごとのチャンクに分けて録り続ける Session を提供する (設計書 5.7)。
 // チャンクごとに、通常の録画と同じ索引を書き、EIT[p/f] で放送中の番組が替わった時刻を記録する。
@@ -87,8 +92,21 @@ func NewRecorder(pool *pgxpool.Pool, clk clock.Clock, tuner recording.StreamOpen
 }
 
 // Session は、Worker に渡す Session を返す。
+// Session の中で panic したら、拾ってスタックをログに残し、エラーとして返す。タイムシフトのせいで、録画ごと mikan を落とさないためである。
+// 書いていたチャンクは、panic で戻る途中に閉じる。Worker は、エラーで終えた割り振りを消し、neko が次の見直しで書き直す。
 func (r *Recorder) Session() recording.Session {
-	return r.record
+	return func(ctx context.Context, assignment *recording.Assignment) (err error) {
+		defer func() {
+			if v := recover(); v != nil {
+				r.logger.ErrorContext(ctx, "the timeshift session panicked",
+					slog.String("assignment_id", assignment.ID.String()), slog.Int64("service_id", assignment.ServiceID),
+					slog.Any("panic", v), slog.String("stack", string(debug.Stack())))
+				err = fmt.Errorf("%w: %v", errSessionPanicked, v)
+			}
+		}()
+
+		return r.record(ctx, assignment)
+	}
 }
 
 // record は、割り振りのサービスを録り続ける。neko が割り振りを消したら、チャンクと番組を閉じて nil を返す。
@@ -277,6 +295,13 @@ func (r *Recorder) recordStream(ctx context.Context, logger *slog.Logger, assign
 	watchDone := make(chan struct{})
 	go func() {
 		defer close(watchDone)
+		// 別の goroutine なので、Session の recover では拾えない。拾ったら、ストリームを閉じて、開き直させる。
+		defer func() {
+			if v := recover(); v != nil {
+				logger.ErrorContext(ctx, "the timeshift assignment watcher panicked", slog.Any("panic", v), slog.String("stack", string(debug.Stack())))
+				_ = stream.Close()
+			}
+		}()
 		r.watch(watchCtx, assignment, stream, &deleted)
 	}()
 	err = r.copyChunks(ctx, logger, stream, state)

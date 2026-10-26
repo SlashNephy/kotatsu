@@ -1,6 +1,7 @@
 package timeshift_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -626,6 +627,77 @@ func TestTimeshiftRecorderReleasesWhenUnwritable(t *testing.T) {
 				}
 			}
 			assert.Empty(t, chunks(t, e))
+		})
+	}
+}
+
+// panicTuner は、ストリームを開くとき (atOpen) か、data を流した後の読み込みで panic する偽のチューナーサーバー。
+type panicTuner struct {
+	atOpen bool
+	data   []byte
+}
+
+var _ recording.StreamOpener = new(panicTuner)
+
+func (p *panicTuner) OpenServiceStream(context.Context, int64, *mirakurun.StreamOptions) (io.ReadCloser, error) {
+	if p.atOpen {
+		panic("the tuner exploded on open")
+	}
+
+	return &panicStream{data: p.data, read: false}, nil
+}
+
+// panicStream は、最初の読み込みで data を返し、次の読み込みで panic するストリーム。
+type panicStream struct {
+	data []byte
+	read bool
+}
+
+func (s *panicStream) Read(p []byte) (int, error) {
+	if s.read {
+		panic("the tuner exploded while streaming")
+	}
+	s.read = true
+
+	return copy(p, s.data), nil
+}
+
+func (s *panicStream) Close() error { return nil }
+
+// TestTimeshiftRecorderRecoversPanic は、タイムシフトの Session の中で panic しても、mikan を落とさず、
+// スタックをログに残して、エラーとして返ることを確かめる。書いていたチャンクは閉じる (#1055)。
+func TestTimeshiftRecorderRecoversPanic(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		atOpen     bool
+		wantChunks int
+	}{
+		{name: "ストリームを開くときの panic", atOpen: true, wantChunks: 0},
+		{name: "書いている途中の panic では、チャンクを閉じる", atOpen: false, wantChunks: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			e := newRecorderEnv(t)
+			var logs bytes.Buffer
+			recorder := timeshift.NewRecorder(e.pool, e.clk, &panicTuner{atOpen: tt.atOpen, data: nullPackets(10)}, e.store,
+				slog.New(slog.NewTextHandler(&logs, nil)), &timeshift.RecorderOptions{ChunkDuration: 5 * time.Minute, Backoff: nil, Tick: testTick, Peers: nil})
+			_, done := session(t, recorder, e.assign(t, false))
+
+			err := wait(t, done)
+			require.ErrorContains(t, err, "panicked")
+			assert.Contains(t, logs.String(), "the timeshift session panicked")
+			assert.Contains(t, logs.String(), "the tuner exploded")
+			assert.Contains(t, logs.String(), "goroutine", "the stack is logged")
+			got := chunks(t, e)
+			require.Len(t, got, tt.wantChunks)
+			for _, c := range got {
+				require.NotNil(t, c.endedAt, "the chunk is closed")
+				assert.Equal(t, int64(10*188), c.size)
+			}
 		})
 	}
 }
