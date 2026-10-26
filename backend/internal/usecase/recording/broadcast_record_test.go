@@ -574,3 +574,26 @@ func TestRecorderKeepsWaitingAcrossReconnect(t *testing.T) {
 	stop(errStopForTest)
 	<-done
 }
+
+// TestRecorderWaitsWhenStartedLate は、番組が始まるはずの時刻から猶予が過ぎてから録画を始めたときも (チューナーの空きを待ったなど)、
+// 先に EIT[p/f] を読み、予約した番組が次の番組のままなら、前の番組を書かずに待つことを確かめる (#1046)。
+func TestRecorderWaitsWhenStartedLate(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	stream := newSteppedStream()
+	recorder, _ := f.newRecorder(t, stream, nil)
+	f.clock.Advance(programStart().Add(time.Minute).Sub(f.clock.Now()))
+	stop, done := f.session(t, recorder, reservationID)
+
+	cc := byte(0)
+	stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 99, 6))
+	stream.next(t, nullPacket())
+	assert.Empty(t, f.files(t, reservationID), "the previous program is not written")
+
+	stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 6, 7))
+	require.Eventually(t, func() bool { return f.segments(t, reservationID) == 1 }, waitTimeout, 10*time.Millisecond)
+	stop(errStopForTest)
+	<-done
+}

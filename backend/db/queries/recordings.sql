@@ -180,8 +180,10 @@ WHERE id = @id AND broadcast_started_at IS NULL;
 DELETE FROM recording_files WHERE recording_id = @recording_id AND kind = 'segment' RETURNING id, pool_id, path;
 
 -- name: SetRecordingRecordedFrom :exec
--- 待った後に書き始めた日時を、実際に録画を始めた日時にする (#1046)。
-UPDATE recordings SET recorded_from = @at, updated_at = @now WHERE id = @id;
+-- 待った後に書き始めた日時を、実際に録画を始めた日時にする (#1046)。すでにセグメントがあれば (引き継いだ mikan が待ち直したときなど)、
+-- 最初のセグメントから録り始めているので、変えない。
+UPDATE recordings r SET recorded_from = @at, updated_at = @now
+WHERE r.id = @id AND NOT EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment');
 
 -- name: MarkRecordingNotBroadcast :exec
 -- 予約した番組が放送されなかったことと、その時間に放送されていた番組を記録する。

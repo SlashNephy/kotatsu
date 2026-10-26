@@ -980,7 +980,8 @@ func (q *Queries) SetRecordingGaps(ctx context.Context, arg SetRecordingGapsPara
 }
 
 const setRecordingRecordedFrom = `-- name: SetRecordingRecordedFrom :exec
-UPDATE recordings SET recorded_from = $1, updated_at = $2 WHERE id = $3
+UPDATE recordings r SET recorded_from = $1, updated_at = $2
+WHERE r.id = $3 AND NOT EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment')
 `
 
 type SetRecordingRecordedFromParams struct {
@@ -989,7 +990,8 @@ type SetRecordingRecordedFromParams struct {
 	ID  uuid.UUID
 }
 
-// 待った後に書き始めた日時を、実際に録画を始めた日時にする (#1046)。
+// 待った後に書き始めた日時を、実際に録画を始めた日時にする (#1046)。すでにセグメントがあれば (引き継いだ mikan が待ち直したときなど)、
+// 最初のセグメントから録り始めているので、変えない。
 func (q *Queries) SetRecordingRecordedFrom(ctx context.Context, arg SetRecordingRecordedFromParams) error {
 	_, err := q.db.Exec(ctx, setRecordingRecordedFrom, arg.At, arg.Now, arg.ID)
 	return err

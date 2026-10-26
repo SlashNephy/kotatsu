@@ -539,7 +539,8 @@ type Querier interface {
 	// 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
 	SetRecordingGaps(ctx context.Context, arg SetRecordingGapsParams) error
 	SetRecordingProtected(ctx context.Context, arg SetRecordingProtectedParams) error
-	// 待った後に書き始めた日時を、実際に録画を始めた日時にする (#1046)。
+	// 待った後に書き始めた日時を、実際に録画を始めた日時にする (#1046)。すでにセグメントがあれば (引き継いだ mikan が待ち直したときなど)、
+	// 最初のセグメントから録り始めているので、変えない。
 	SetRecordingRecordedFrom(ctx context.Context, arg SetRecordingRecordedFromParams) error
 	// 録画を終えた後に解析したドロップ、エラー、スクランブルで、録画の集計を置き換える。
 	// 完了した録画は、ドロップの有無で、完了とエラーありの完了を決め直す。

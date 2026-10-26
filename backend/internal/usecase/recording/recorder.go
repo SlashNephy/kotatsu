@@ -992,8 +992,8 @@ type endTracker struct {
 	endMargin time.Duration
 	// notBroadcast は、放送されなかったことを記録したかどうか。
 	notBroadcast bool
-	// expectedOnAir は、予約した番組が放送中になるはずの時刻。実際に録画を始めた時刻に、開始マージンを足したもの (#1046)。
-	// 録り始めた後に EPG で予約の開始が動いても、変えない。
+	// expectedOnAir は、予約した番組が放送中になるはずの時刻 (#1046)。実際に録画を始めた時刻と予定の開始の早いほうに、開始マージンを足す。
+	// 録り始めた後に EPG で予約の開始が後ろに動いても、録画を始めた時刻で決めるので、変えない。録画を始めるのが遅れても、予定の開始で決める。
 	expectedOnAir time.Time
 	// startMargin は、番組の前のマージン。遅れた番組を待った後に先に書く長さは、これと MaxPreroll の短いほう。
 	startMargin time.Duration
@@ -1011,7 +1011,7 @@ func newEndTracker(
 		extendedUntil: time.Time{}, limit: reservation.PlannedEndAt.Add(MaxExtension), lost: false,
 		broadcast: nil, analyzer: atomic.Pointer[ts.Analyzer]{}, serviceID16: 0,
 		endMargin: endMargin, notBroadcast: false,
-		expectedOnAir: recording.RecordedFrom.Add(startMargin), startMargin: startMargin, startedBefore: recording.BroadcastStartedAt != nil,
+		expectedOnAir: minTime(recording.RecordedFrom, *reservation.PlannedStartAt).Add(startMargin), startMargin: startMargin, startedBefore: recording.BroadcastStartedAt != nil,
 		waited: recording.WaitedForBroadcast,
 	}
 	// 時刻予約や、ID が EIT の範囲に収まらない予約では、EIT[p/f] で追わない。
