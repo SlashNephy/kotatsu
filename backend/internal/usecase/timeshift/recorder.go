@@ -49,7 +49,12 @@ type RecorderOptions struct {
 	Backoff []time.Duration
 	// Tick は、時計と割り振りを確かめる間隔。
 	Tick time.Duration
+	// Peers は、ほかに動いている mikan の数を返す。nil なら、ほかの mikan はいないとみなし、割り振りを手放さない。
+	Peers recording.PeersFunc
 }
+
+// errChunkStorage は、タイムシフトのディレクトリにチャンクのファイルを作れなかったこと。
+var errChunkStorage = errors.New("failed to create a timeshift chunk file")
 
 // Recorder は、タイムシフトの割り振りのサービスを、ChunkDuration ごとのチャンクに分けて録り続ける Session を提供する (設計書 6)。
 // チャンクごとに、通常の録画と同じ索引を書き、EIT[p/f] で放送中の番組が替わった時刻を記録する。
@@ -64,8 +69,9 @@ type Recorder struct {
 
 // NewRecorder は Recorder を返す。store には、タイムシフトのディレクトリとデータディレクトリが要る。opts は nil でもよい。
 func NewRecorder(pool *pgxpool.Pool, clk clock.Clock, tuner recording.StreamOpener, store *kago.Store, logger *slog.Logger, opts *RecorderOptions) *Recorder {
-	o := RecorderOptions{ChunkDuration: DefaultChunkDuration, Backoff: DefaultBackoff(), Tick: DefaultTick}
+	o := RecorderOptions{ChunkDuration: DefaultChunkDuration, Backoff: DefaultBackoff(), Tick: DefaultTick, Peers: nil}
 	if opts != nil {
+		o.Peers = opts.Peers
 		if opts.ChunkDuration > 0 {
 			o.ChunkDuration = opts.ChunkDuration
 		}
@@ -101,16 +107,22 @@ func (r *Recorder) record(ctx context.Context, assignment *recording.Assignment)
 	if err != nil {
 		return err
 	}
+	state := &sessionState{serviceID: assignment.ServiceID, programs: programs, created: 0}
 
 	attempt := 0
 	for {
 		openedAt := r.clock.Now()
-		deleted := r.recordStream(ctx, logger, assignment, programs)
+		deleted, streamErr := r.recordStream(ctx, logger, assignment, state)
 		if ctx.Err() != nil {
 			return context.Cause(ctx)
 		}
 		if deleted {
 			return r.stopDeleted(ctx, logger, programs)
+		}
+		if r.unavailable(ctx, state, streamErr) {
+			logger.WarnContext(ctx, "unable to write timeshift chunks on this mikan; releasing the assignment", slog.Any("error", streamErr))
+
+			return fmt.Errorf("%w: %w", recording.ErrRecorderUnavailable, streamErr)
 		}
 		if r.clock.Now().Sub(openedAt) >= r.opts.ChunkDuration {
 			attempt = 0
@@ -125,6 +137,31 @@ func (r *Recorder) record(ctx context.Context, assignment *recording.Assignment)
 			return r.stopDeleted(ctx, logger, programs)
 		}
 	}
+}
+
+// sessionState は、1 つの割り振りを録る間の状態。
+type sessionState struct {
+	serviceID int64
+	programs  *programTracker
+	// created は、この Session で作ったチャンクの数。
+	created int
+}
+
+// unavailable は、チャンクのファイルを作れなかった理由がこの mikan にあり、ほかの mikan に回すべきかを返す (#524)。
+// 録画のセグメントと同じく、まだ 1 つも作れていないか、タイムシフトのディレクトリがマウントされておらず、ほかに mikan がいるときに回す。
+// 途中で作れなくなったときや、ほかに mikan がいないときは、開き直してやり直す。
+func (r *Recorder) unavailable(ctx context.Context, state *sessionState, err error) bool {
+	if !errors.Is(err, errChunkStorage) || (state.created > 0 && !errors.Is(err, kago.ErrPoolNotMounted)) || r.opts.Peers == nil {
+		return false
+	}
+	n, err := r.opts.Peers(ctx)
+	if err != nil {
+		r.logger.WarnContext(ctx, "failed to count other mikan instances", slog.Any("error", err))
+
+		return false
+	}
+
+	return n > 0
 }
 
 // closeStale は、落ちた mikan が残した、書きかけのチャンクと、放送中のままの番組を閉じる。
@@ -216,14 +253,15 @@ func (r *Recorder) deleted(ctx context.Context, assignment *recording.Assignment
 }
 
 // recordStream は、サービスストリームを開き、切れるまでチャンクに書く。割り振りが消えて止めたなら true を返す。
-func (r *Recorder) recordStream(ctx context.Context, logger *slog.Logger, assignment *recording.Assignment, programs *programTracker) bool {
+// 書くのをやめた理由のエラーも返す。
+func (r *Recorder) recordStream(ctx context.Context, logger *slog.Logger, assignment *recording.Assignment, state *sessionState) (bool, error) {
 	stream, err := r.tuner.OpenServiceStream(ctx, assignment.ServiceID, &mirakurun.StreamOptions{Decode: true, Priority: Priority})
 	if err != nil {
 		if ctx.Err() == nil {
 			logger.WarnContext(ctx, "failed to open the service stream; retrying", slog.Any("error", err))
 		}
 
-		return false
+		return false, err
 	}
 	// 引き継ぎ待ちの古い mikan は、ストリームを開いたことを見て、自分のストリームを閉じる (設計書 5.4)。
 	err = sqlc.New(r.pool).MarkTimeshiftStreamOpened(ctx, sqlc.MarkTimeshiftStreamOpenedParams{
@@ -241,7 +279,7 @@ func (r *Recorder) recordStream(ctx context.Context, logger *slog.Logger, assign
 		defer close(watchDone)
 		r.watch(watchCtx, assignment, stream, &deleted)
 	}()
-	err = r.copyChunks(ctx, logger, assignment.ServiceID, stream, programs)
+	err = r.copyChunks(ctx, logger, stream, state)
 	stopWatch()
 	<-watchDone
 	_ = stream.Close()
@@ -249,7 +287,7 @@ func (r *Recorder) recordStream(ctx context.Context, logger *slog.Logger, assign
 		logger.WarnContext(ctx, "the timeshift stream was interrupted; reconnecting", slog.Any("error", err))
 	}
 
-	return deleted.Load()
+	return deleted.Load(), err
 }
 
 // watch は、ctx が終わるか、割り振りが消えるまで待ち、ストリームを閉じる。消えたなら deleted を立てる。
@@ -275,7 +313,7 @@ func (r *Recorder) watch(ctx context.Context, assignment *recording.Assignment, 
 
 // copyChunks は、ストリームが切れるまで、チャンクに書く。ChunkDuration ごとに、TS パケットの区切りでチャンクを閉じて次を始める。
 // チャンクは、データが届いてから作る。開いてすぐ切れ続けても、空のチャンクを作らない。返る前に、書いているチャンクを閉じる。
-func (r *Recorder) copyChunks(ctx context.Context, logger *slog.Logger, serviceID int64, stream io.Reader, programs *programTracker) error {
+func (r *Recorder) copyChunks(ctx context.Context, logger *slog.Logger, stream io.Reader, state *sessionState) error {
 	var current *chunk
 	defer func() {
 		if current != nil {
@@ -291,10 +329,10 @@ func (r *Recorder) copyChunks(ctx context.Context, logger *slog.Logger, serviceI
 		whole := len(data) - len(data)%ts.PacketSize
 		if whole > 0 {
 			var err error
-			if current, err = r.writePackets(ctx, logger, serviceID, current, data[:whole]); err != nil {
+			if current, err = r.writePackets(ctx, logger, state, current, data[:whole]); err != nil {
 				return err
 			}
-			programs.observe(ctx, current.analyzer, r.clock.Now())
+			state.programs.observe(ctx, current.analyzer, r.clock.Now())
 		}
 		carried = copy(buf, data[whole:])
 		if readErr != nil {
@@ -306,7 +344,7 @@ func (r *Recorder) copyChunks(ctx context.Context, logger *slog.Logger, serviceI
 // writePackets は、TS パケットの区切りで揃えた packets を、チャンクに書き、書いたチャンクを返す。
 // 書いているチャンクが ChunkDuration に達していれば、閉じて次を始める。current が nil なら、新しく始める。
 // 書けなければ、書いていたチャンクを nil にせずに返すので、呼び出し元が閉じる。
-func (r *Recorder) writePackets(ctx context.Context, logger *slog.Logger, serviceID int64, current *chunk, packets []byte) (*chunk, error) {
+func (r *Recorder) writePackets(ctx context.Context, logger *slog.Logger, state *sessionState, current *chunk, packets []byte) (*chunk, error) {
 	now := r.clock.Now()
 	if current != nil && now.Sub(current.startedAt) >= r.opts.ChunkDuration {
 		// ctx が終わっても、書き終えたチャンクを閉じずに残さない。
@@ -314,11 +352,12 @@ func (r *Recorder) writePackets(ctx context.Context, logger *slog.Logger, servic
 		current = nil
 	}
 	if current == nil {
-		c, err := r.createChunk(ctx, logger, serviceID, now)
+		c, err := r.createChunk(ctx, logger, state.serviceID, now)
 		if err != nil {
 			return nil, err
 		}
 		current = c
+		state.created++
 	}
 
 	return current, current.write(packets)
@@ -339,7 +378,7 @@ type chunk struct {
 func (r *Recorder) createChunk(ctx context.Context, logger *slog.Logger, serviceID int64, now time.Time) (*chunk, error) {
 	file, rel, err := r.store.Create(kago.TimeshiftPoolID, strconv.FormatInt(serviceID, 10), now.UTC().Format(chunkTimeLayout)+chunkExt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create a timeshift chunk: %w", err)
+		return nil, fmt.Errorf("%w: %w", errChunkStorage, err)
 	}
 	// 索引は、データディレクトリの、チャンクの ID のディレクトリに置く。作れなくても、録り続ける。
 	chunkID := id.New()

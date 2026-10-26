@@ -211,8 +211,13 @@ func newRecorderEnv(t *testing.T) *recorderEnv {
 }
 
 func (e *recorderEnv) newRecorder(tuner recording.StreamOpener) *timeshift.Recorder {
+	return e.newRecorderWithPeers(tuner, nil)
+}
+
+// newRecorderWithPeers は、ほかに動いている mikan の数を peers で数える Recorder を返す。nil なら、ほかの mikan はいない。
+func (e *recorderEnv) newRecorderWithPeers(tuner recording.StreamOpener, peers recording.PeersFunc) *timeshift.Recorder {
 	return timeshift.NewRecorder(e.pool, e.clk, tuner, e.store, slog.New(slog.DiscardHandler), &timeshift.RecorderOptions{
-		ChunkDuration: 5 * time.Minute, Backoff: nil, Tick: testTick,
+		ChunkDuration: 5 * time.Minute, Backoff: nil, Tick: testTick, Peers: peers,
 	})
 }
 
@@ -573,6 +578,54 @@ func TestTimeshiftRecorderClosesStaleChunks(t *testing.T) {
 				require.FailNow(t, "the session returned while streaming", "%v", err)
 			default:
 			}
+		})
+	}
+}
+
+// TestTimeshiftRecorderReleasesWhenUnwritable は、タイムシフトのディレクトリにチャンクを作れないとき、ほかに mikan がいれば、
+// 割り振りを手放すために ErrRecorderUnavailable を返し、いなければ、開き直してやり直すことを確かめる (#524)。
+func TestTimeshiftRecorderReleasesWhenUnwritable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		peers        int
+		wantReleased bool
+	}{
+		{name: "ほかに mikan がいる", peers: 1, wantReleased: true},
+		{name: "ほかに mikan がいない", peers: 0, wantReleased: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			e := newRecorderEnv(t)
+			// タイムシフトのディレクトリが、マウントが外れるなどして、ディレクトリでなくなった。
+			require.NoError(t, os.RemoveAll(e.dir))
+			require.NoError(t, os.WriteFile(e.dir, nil, 0o600))
+			tuner := newFakeTuner(e.clk, false)
+			recorder := e.newRecorderWithPeers(tuner, func(context.Context) (int, error) { return tt.peers, nil })
+			_, done := session(t, recorder, e.assign(t, false))
+			// チャンクを作れずにストリームを閉じるので、次の読み込みは待たない。
+			select {
+			case tuner.chunks <- &streamChunk{data: nullPackets(10), taken: make(chan int64, 1)}:
+			case <-time.After(waitTimeout):
+				require.FailNow(t, "the recorder did not read the stream")
+			}
+
+			if tt.wantReleased {
+				require.ErrorIs(t, wait(t, done), recording.ErrRecorderUnavailable)
+				assert.Len(t, tuner.openTimes(), 1)
+			} else {
+				e.clk.Advance(5 * time.Second)
+				require.Eventually(t, func() bool { return len(tuner.openTimes()) == 2 }, waitTimeout, time.Millisecond)
+				select {
+				case err := <-done:
+					require.FailNow(t, "the session returned", "%v", err)
+				default:
+				}
+			}
+			assert.Empty(t, chunks(t, e))
 		})
 	}
 }
