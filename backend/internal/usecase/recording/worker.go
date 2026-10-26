@@ -155,7 +155,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			assignment, ok, err := w.acquireUnlessCoolingDown(ctx)
 			if err != nil {
 				if ctx.Err() == nil {
-					w.logger.WarnContext(ctx, "failed to acquire a recording assignment", slog.Any("error", err))
+					w.logger.WarnContext(ctx, "failed to acquire an assignment", slog.Any("error", err))
 				}
 
 				return
@@ -262,7 +262,7 @@ func (w *Worker) handOver(ctx context.Context, active *activeSession, hasPeers b
 	<-active.done
 	err := w.leases.Release(ctx, w.clock.Now(), a, w.holder)
 	if err != nil {
-		logger.WarnContext(ctx, "failed to release the recording assignment", slog.Any("error", err))
+		logger.WarnContext(ctx, "failed to release the assignment", slog.Any("error", err))
 	}
 }
 
@@ -351,8 +351,13 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 	assignment, cancel := active.assignment, active.cancel
 	// Session を止めた後も、割り振りを終わったことにするため、止まらない context を使う。
 	ctx := context.WithoutCancel(sessionCtx)
-	logger := w.logger.With(slog.String("assignment_id", assignment.ID.String()), slog.String("reservation_id", assignment.ReservationID.String()),
-		slog.Int64("generation", assignment.Generation))
+	logger := w.logger.With(slog.String("assignment_id", assignment.ID.String()), slog.Int64("generation", assignment.Generation))
+	// 同じ Worker で、録画とタイムシフトの割り振りを録る。録画は予約、タイムシフトはサービスに紐づく。
+	if assignment.ServiceID != 0 {
+		logger = logger.With(slog.Int64("service_id", assignment.ServiceID))
+	} else {
+		logger = logger.With(slog.String("reservation_id", assignment.ReservationID.String()))
+	}
 	defer cancel(nil)
 	defer func() {
 		w.mu.Lock()
@@ -387,7 +392,7 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 	deleted, err := w.leases.DeleteUnrecorded(ctx, assignment, w.holder)
 	if err != nil {
 		// 終わったことにすると、予約を有効に戻しても書き直せないので、そのままにする。リースが切れれば、ほかの mikan が取り直す。
-		logger.WarnContext(ctx, "failed to delete the unrecorded recording assignment", slog.Any("error", err))
+		logger.WarnContext(ctx, "failed to delete the unrecorded assignment", slog.Any("error", err))
 
 		return
 	}
@@ -397,26 +402,26 @@ func (w *Worker) record(sessionCtx context.Context, active *activeSession) {
 	}
 	n, err := w.leases.Finish(ctx, w.clock.Now(), assignment, w.holder)
 	if err != nil {
-		logger.WarnContext(ctx, "failed to finish the recording assignment", slog.Any("error", err))
+		logger.WarnContext(ctx, "failed to finish the assignment", slog.Any("error", err))
 
 		return
 	}
 	if n == 0 && !w.assignmentDeleted(ctx, assignment.ID, logger) {
-		logger.WarnContext(ctx, "the recording assignment was taken over before it finished")
+		logger.WarnContext(ctx, "the assignment was taken over before it finished")
 	}
 }
 
 // release は、録画できない理由がこの mikan にあるので、割り振りを手放し、しばらく割り振りを取らない (#524)。
 // ほかの mikan が取って録画する。ほかの mikan がいなければ、待った後に自分で取り直す。
 func (w *Worker) release(ctx context.Context, assignment *Assignment, logger *slog.Logger, cause error) {
-	logger.WarnContext(ctx, "released the recording assignment; this mikan is unable to record", slog.Any("error", cause))
+	logger.WarnContext(ctx, "released the assignment; this mikan is unable to record", slog.Any("error", cause))
 	w.cooldownMu.Lock()
 	defer w.cooldownMu.Unlock()
 	until := w.clock.Now().Add(w.opts.ReleaseCooldown)
 	w.cooldownUntil.Store(&until)
 	err := w.leases.ReleaseUnrecordable(ctx, w.clock.Now(), assignment, w.holder)
 	if err != nil {
-		logger.WarnContext(ctx, "failed to release the recording assignment", slog.Any("error", err))
+		logger.WarnContext(ctx, "failed to release the assignment", slog.Any("error", err))
 	}
 }
 
@@ -440,7 +445,7 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 		case err != nil && ctx.Err() != nil:
 			return
 		case err != nil:
-			logger.WarnContext(ctx, "failed to renew the recording assignment lease", slog.Any("error", err))
+			logger.WarnContext(ctx, "failed to renew the assignment lease", slog.Any("error", err))
 			// DB に届かない間も、リースが切れるまでは書き続ける。切れたら、ほかの mikan に任せる。
 			if !now.Before(expiresAt) {
 				cancel(ErrLeaseLost)
@@ -452,7 +457,8 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 			return
 		case n == 0 && w.assignmentDeleted(ctx, assignment.ID, logger):
 			// 録画中に予約が消され、割り振りも一緒に消えた。録画は、予約を読み直したときに取り消しとして終える。
-			logger.InfoContext(ctx, "the recording assignment was deleted with its reservation")
+			// タイムシフトでは、neko が割り振りを消した。Session が、割り振りを確かめて止まる。
+			logger.InfoContext(ctx, "the assignment was deleted")
 
 			return
 		case n == 0:
@@ -469,7 +475,7 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 func (w *Worker) assignmentDeleted(ctx context.Context, id uuid.UUID, logger *slog.Logger) bool {
 	exists, err := w.leases.Exists(ctx, id)
 	if err != nil {
-		logger.WarnContext(ctx, "failed to check the recording assignment", slog.Any("error", err))
+		logger.WarnContext(ctx, "failed to check the assignment", slog.Any("error", err))
 
 		return false
 	}
