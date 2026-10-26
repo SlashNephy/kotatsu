@@ -988,5 +988,5 @@ func closePool(pool *pgxpool.Pool) {
 
 // storeOf は、設定のプールと、データディレクトリを使う kago.Store を返す。
 func storeOf(cfg *config.Config) *kago.Store {
-	return kago.NewOrdered(cfg.Storage.Pools, cfg.Storage.PoolOrder, nil).WithDataDir(cfg.Storage.DataDir)
+	return kago.NewOrdered(cfg.Storage.Pools, cfg.Storage.PoolOrder, nil).WithDataDir(cfg.Storage.DataDir).WithTimeshiftDir(cfg.Storage.TimeshiftDir)
 }

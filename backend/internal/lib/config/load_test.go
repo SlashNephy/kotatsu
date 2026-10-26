@@ -365,6 +365,17 @@ func TestLoadStorage(t *testing.T) {
 				Pools: map[string]string{poolMain: "/data/main", "archive": "/data/archive"}, PoolOrder: []string{poolMain, "archive"}, DataDir: "/data/kotatsu",
 			},
 		},
+		{
+			name: "env sets the timeshift directory",
+			env: map[string]string{
+				envKeyURL:                       envURL,
+				"KOTATSU_STORAGE_DATA_DIR":      "/srv/kotatsu",
+				"KOTATSU_STORAGE_TIMESHIFT_DIR": "/data/timeshift",
+			},
+			want: config.Storage{
+				Pools: map[string]string{}, PoolOrder: []string{}, DataDir: "/srv/kotatsu", TimeshiftDir: "/data/timeshift",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -811,6 +822,18 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 			yaml:     "storage:\n  pools:\n    main: /mnt/main\n  data_dir: var/lib/kotatsu\n",
 			env:      map[string]string{envKeyURL: envURL},
 			wantErrs: []string{"storage.data_dir (KOTATSU_STORAGE_DATA_DIR): must be an absolute path"},
+		},
+		{
+			name:     "relative timeshift directory",
+			yaml:     "storage:\n  data_dir: /var/lib/kotatsu\n  timeshift_dir: var/timeshift\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{"storage.timeshift_dir (KOTATSU_STORAGE_TIMESHIFT_DIR): must be an absolute path"},
+		},
+		{
+			name:     "timeshift directory without the data directory",
+			yaml:     "storage:\n  timeshift_dir: /var/timeshift\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{"storage.timeshift_dir (KOTATSU_STORAGE_TIMESHIFT_DIR): requires storage.data_dir"},
 		},
 		{
 			name: "malformed pools in env",

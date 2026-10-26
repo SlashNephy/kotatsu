@@ -156,6 +156,9 @@ type Storage struct {
 	// DataDir は、録画の生成物 (索引、代表画像、プレビュー画像) を、セグメントのファイルの ID ごとに置くディレクトリ (設計書 5.6)。
 	// プールを設定するロールでは必ず設定する。プールをマウントするロール (mikan、nekonote、tenban、kyusu) で、同じディレクトリをマウントする。
 	DataDir string `yaml:"data_dir"`
+	// TimeshiftDir は、タイムシフトのバッファ (放送を一定時間だけ残すチャンクのファイル) を置くディレクトリ。
+	// 絶対パスで書く。設定するなら DataDir も要る。空なら、タイムシフトのどの処理も動かない。
+	TimeshiftDir string `yaml:"timeshift_dir"`
 }
 
 // Tuner はチューナーサーバーの設定 (設計書 3.1)。
@@ -310,9 +313,10 @@ func Default() *Config {
 			RetentionDays: 365,
 		},
 		Storage: Storage{
-			Pools:     map[string]string{},
-			PoolOrder: []string{},
-			DataDir:   "",
+			Pools:        map[string]string{},
+			PoolOrder:    []string{},
+			DataDir:      "",
+			TimeshiftDir: "",
 		},
 		Tuner: Tuner{
 			URL: "",
@@ -403,6 +407,9 @@ func (c *Config) validate() error {
 	if err := c.Storage.validateDataDir(); err != nil {
 		errs = append(errs, fieldError("storage.data_dir", err))
 	}
+	if err := c.Storage.validateTimeshiftDir(); err != nil {
+		errs = append(errs, fieldError("storage.timeshift_dir", err))
+	}
 
 	return errors.Join(errs...)
 }
@@ -414,6 +421,20 @@ func (s *Storage) validateDataDir() error {
 		return errors.New("is required when storage.pools is set")
 	case s.DataDir != "" && !filepath.IsAbs(s.DataDir):
 		return errors.New("must be an absolute path")
+	default:
+		return nil
+	}
+}
+
+// validateTimeshiftDir は、タイムシフトのディレクトリを検査する。空なら、タイムシフトを使わないので何も求めない。
+func (s *Storage) validateTimeshiftDir() error {
+	switch {
+	case s.TimeshiftDir == "":
+		return nil
+	case !filepath.IsAbs(s.TimeshiftDir):
+		return errors.New("must be an absolute path")
+	case s.DataDir == "":
+		return errors.New("requires storage.data_dir")
 	default:
 		return nil
 	}
