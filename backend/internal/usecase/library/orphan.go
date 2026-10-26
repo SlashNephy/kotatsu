@@ -100,6 +100,10 @@ func (l *Library) DeleteOrphans(ctx context.Context, db Database, actor *audit.A
 
 // deleteOrphan は、target を確かめ直して消す。DB にあるか、使っているか、書いたばかりなら ErrNotOrphan を、なければ ErrNotFound を返す。
 func (l *Library) deleteOrphan(ctx context.Context, db Database, actor *audit.Actor, used *usedFiles, target *OrphanTarget) error {
+	// 走査の対象でないもの (タイムシフトのバッファなど) は、DB にないのが正常なので、孤児として消さない。
+	if !slices.Contains(l.store.ScanPoolIDs(), target.PoolID) {
+		return fmt.Errorf("%w: pool %s is not scanned", ErrNotOrphan, target.PoolID)
+	}
 	entry, err := l.store.Inspect(target.PoolID, target.Path, target.SegmentDir)
 	switch {
 	case errors.Is(err, kago.ErrInvalidPath), errors.Is(err, kago.ErrPoolNotMounted):

@@ -24,6 +24,8 @@ const (
 	// orphanSegmentDir は、持ち主のセグメントのファイルが DB にない、生成物のディレクトリ。
 	orphanSegmentDir = "0199f0a0-0000-7000-8000-00000000dead"
 	removedByJoin    = "つなぐ元.m2ts"
+	// timeshiftChunk は、タイムシフトのディレクトリにある、DB にないチャンクのファイル。
+	timeshiftChunk = "1/chunk.m2ts"
 	// removedByJoinSegmentDir は、つなぐ元のセグメントの生成物のディレクトリ。
 	removedByJoinSegmentDir = "0199f0a0-0000-7000-8000-00000000beef"
 )
@@ -43,6 +45,7 @@ func orphanFixture(t *testing.T) *fixture {
 	for _, rel := range []string{orphanName, recordingName + ".m2ts.joining", removedByJoin, ".DS_Store", "lost+found/#123"} {
 		write(f.dir, rel)
 	}
+	write(f.timeshiftRoot, timeshiftChunk)
 	for _, rel := range []string{orphanSegmentDir + "/thumbnail.jpg", removedByJoinSegmentDir + "/index", "main/古い録画.m2ts.kotatsu/index"} {
 		write(f.dataRoot, rel)
 	}
@@ -123,6 +126,7 @@ func TestDeleteOrphans(t *testing.T) {
 		{name: "隠しファイルは消さない", pool: poolID, path: ".DS_Store", segmentDir: false, deleted: false},
 		{name: "ファイルを生成物のディレクトリとしては消さない", pool: poolID, path: orphanName, segmentDir: true, deleted: false},
 		{name: "プールの外は消さない", pool: poolID, path: "../" + orphanName, segmentDir: false, deleted: false},
+		{name: "タイムシフトのバッファは消さない", pool: kago.TimeshiftPoolID, path: timeshiftChunk, segmentDir: false, deleted: false},
 		{name: "ないファイル", pool: poolID, path: "ない.m2ts", segmentDir: false, deleted: false},
 	}
 	for _, tt := range tests {
@@ -145,6 +149,7 @@ func TestDeleteOrphans(t *testing.T) {
 			if !tt.deleted {
 				assert.Equal(t, &library.DeleteOrphansResult{Deleted: 0, Skipped: 1}, result)
 				assert.Zero(t, events)
+				assert.FileExists(t, filepath.Join(f.timeshiftRoot, timeshiftChunk))
 
 				return
 			}

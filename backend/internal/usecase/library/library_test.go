@@ -39,8 +39,10 @@ type fixture struct {
 	dir   string
 	// dataRoot は、データディレクトリ。
 	dataRoot string
-	library  *library.Library
-	userID   uuid.UUID
+	// timeshiftRoot は、タイムシフトのディレクトリ。
+	timeshiftRoot string
+	library       *library.Library
+	userID        uuid.UUID
 	// segmentID は、最後に recording で作ったセグメントのファイルの ID。
 	segmentID uuid.UUID
 }
@@ -62,11 +64,11 @@ func newFixture(t *testing.T) *fixture {
 	require.NoError(t, sqlc.New(pool).InsertUser(t.Context(), sqlc.InsertUserParams{
 		ID: userID, Username: "mikan", DisplayName: "みかん", Role: "member", PasswordHash: nil, CreatedAt: clk.Now(),
 	}))
-	dir, dataRoot := t.TempDir(), t.TempDir()
-	store := kago.New(map[string]string{poolID: dir}, nil).WithDataDir(dataRoot)
+	dir, dataRoot, timeshiftRoot := t.TempDir(), t.TempDir(), t.TempDir()
+	store := kago.New(map[string]string{poolID: dir}, nil).WithDataDir(dataRoot).WithTimeshiftDir(timeshiftRoot)
 
 	return &fixture{
-		pool: pool, clock: clk, dir: dir, dataRoot: dataRoot,
+		pool: pool, clock: clk, dir: dir, dataRoot: dataRoot, timeshiftRoot: timeshiftRoot,
 		library: library.New(clk, audit.NewRecorder(clk), store, slog.New(slog.DiscardHandler)), userID: userID, segmentID: uuid.Nil,
 	}
 }
