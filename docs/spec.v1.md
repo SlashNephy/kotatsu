@@ -1595,6 +1595,10 @@ EPGStationのように、秘密情報を平文の設定ファイルに書く必�
   - 送らないメトリクスを、名前のパターンで指定できます（`telemetry.otlp_metrics_exclude`、例：`go_*`）。`/metrics`には影響しません。何を送るかは監視先の課金や見たいものによるので、既定では全部送ります。
   - 送れなくても、ロールは止めずに、警告のログに出します。停止するときは、溜まっている値を送り切ってから止めます。
   - Mackerelに直接送るときは、送信先を`https://otlp.mackerelio.com:4317`（gRPC）にし、ヘッダーに`Mackerel-Api-Key=<書き込みのできるAPIキー>`を渡します。Mackerelは系列の数で課金されるとみられるので、系列を減らしたいときは`exclude`に`go_*`と`process_*`を入れます。
+    2026-10-26に、実際に送って次のことを確かめました。
+    - リソースの属性は、ラベルとして見えます。インスタンスの範囲には`service.instance.id`などが付き、クラスターの範囲には付きません。
+    - 累積のカウンターも、そのまま受け付けます。
+    - Summary（`go_gc_duration_seconds`）は保存されませんが、送信は失敗しません。
   - OpenTelemetry Collectorを挟むときは、送信先をCollectorのOTLPの受け口（`http://collector:4317`など）にします。
 - ログはslogのJSON形式で標準出力に書きます。
 
