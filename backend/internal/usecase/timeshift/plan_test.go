@@ -77,6 +77,43 @@ func TestPlan(t *testing.T) {
 			want:   []int64{1, 2},
 		},
 		{
+			name:     "1 本のチューナーで続く予約のどちらのチャンネルも、チューナーを使わずには録らない",
+			channels: grChannels(2),
+			tuners:   tuners(2, "GR"),
+			busy: []*timeshift.Busy{
+				{Tuner: 0, ChannelType: "GR", Channel: gr1},
+				{Tuner: 0, ChannelType: "GR", Channel: "GR_2"},
+			},
+			want: []int64{1},
+		},
+		{
+			name:     "1 本のチューナーで続く予約のチャンネルは、空きチューナーがなければ録らない",
+			channels: grChannels(2),
+			tuners:   tuners(1, "GR"),
+			busy: []*timeshift.Busy{
+				{Tuner: 0, ChannelType: "GR", Channel: gr1},
+				{Tuner: 0, ChannelType: "GR", Channel: "GR_2"},
+			},
+			want: []int64{},
+		},
+		{
+			name:     "同じチャンネルの予約が続くチューナーは、そのチャンネルのタイムシフトと共有する",
+			channels: grChannels(1),
+			tuners:   tuners(1, "GR"),
+			busy: []*timeshift.Busy{
+				{Tuner: 0, ChannelType: "GR", Channel: gr1},
+				{Tuner: 0, ChannelType: "GR", Channel: gr1},
+			},
+			want: []int64{1},
+		},
+		{
+			name:     "予約が 1 本だけのチューナーは、そのチャンネルのタイムシフトと共有する",
+			channels: grChannels(1),
+			tuners:   tuners(1, "GR"),
+			busy:     []*timeshift.Busy{{Tuner: 0, ChannelType: "GR", Channel: gr1}},
+			want:     []int64{1},
+		},
+		{
 			name:     "チューナーの種別が合わなければ録らない",
 			channels: grChannels(2),
 			tuners:   tuners(2, "BS"),

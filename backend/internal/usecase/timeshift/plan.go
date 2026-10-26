@@ -17,7 +17,7 @@ type Channel struct {
 	Channel     string
 }
 
-// Busy は、予約の録画が使うチューナーと、その予約のチャンネル。
+// Busy は、予定の時間が今から先回りの時間までと重なる予約が使うチューナーと、その予約のチャンネル。予約ごとに 1 つ持つ。
 type Busy struct {
 	Tuner       int
 	ChannelType string
@@ -31,15 +31,29 @@ type channelKey struct {
 
 // Plan は、タイムシフトで録るサービスの ID を、channels の順に返す。
 //
-// busy のチューナーは使えない。busy と同じチャンネルは、予約の録画と同じストリームなので、チューナーを使わずに録る。
+// busy のチューナーは使えない。busy のチューナーのうち、先回りの時間を通して 1 つのチャンネルに留まるもの (別のチャンネルの予約が続かないもの) と同じチャンネルは、
+// 予約の録画と同じストリームなので、チューナーを使わずに録る。
 // ほかのチャンネルは、channels の順に、受信できる空きチューナーを 1 本ずつ割り当てる。
 // 同じチャンネルのサービスどうしは 1 本を共有する。チューナーが足りないチャンネルは録らない。
 func Plan(channels []*Channel, tuners []*assign.Tuner, busy []*Busy) []int64 {
+	// チューナーごとに、先回りの時間に予約が使うチャンネルを集める。
+	// 予約が続いて別のチャンネルに替わるチューナーは、どのチャンネルにも留まらないので、タイムシフトと共有しない。
+	busyChannels := map[int]map[channelKey]bool{}
+	for _, b := range busy {
+		if busyChannels[b.Tuner] == nil {
+			busyChannels[b.Tuner] = map[channelKey]bool{}
+		}
+		busyChannels[b.Tuner][channelKey{channelType: b.ChannelType, channel: b.Channel}] = true
+	}
 	taken := map[int]bool{}
 	covered := map[channelKey]bool{}
-	for _, b := range busy {
-		taken[b.Tuner] = true
-		covered[channelKey{channelType: b.ChannelType, channel: b.Channel}] = true
+	for tuner, keys := range busyChannels {
+		taken[tuner] = true
+		if len(keys) == 1 {
+			for key := range keys {
+				covered[key] = true
+			}
+		}
 	}
 
 	// 受信できる種別の少ないチューナーから使い、いろいろな種別を受信できるチューナーを残す。
