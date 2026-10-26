@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
@@ -62,10 +61,8 @@ func (w *PruneWorker) RunOnce(ctx context.Context) (int, error) {
 	}
 	now := w.clock.Now()
 	q := sqlc.New(w.pool)
-	// 番組の行は、チャンクを捨てたサービスのほか、設定のあるサービスと、書きかけを閉じたサービスでも整理する。
-	services := map[int64]struct{}{}
 	errs := []error{}
-	// 閉じたチャンクは、設定がないので、この回で捨てる。
+	// 外したチャンネルの、録る mikan のいない書きかけを先に閉じる。閉じたチャンクは、設定がないので、この回で捨てる。
 	abandoned, err := q.ListAbandonedTimeshiftServices(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to list abandoned timeshift services: %w", err)
@@ -77,23 +74,14 @@ func (w *PruneWorker) RunOnce(ctx context.Context) (int, error) {
 			continue
 		}
 		w.logger.InfoContext(ctx, "closed the abandoned timeshift chunks of a removed channel", slog.Int64("service_id", serviceID))
-		services[serviceID] = struct{}{}
 	}
 	expired, err := q.ListExpiredTimeshiftChunks(ctx, now)
 	if err != nil {
 		return 0, fmt.Errorf("failed to list expired timeshift chunks: %w", err)
 	}
-	channels, err := q.ListTimeshiftChannels(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("failed to list timeshift channels: %w", err)
-	}
-	for i := range channels {
-		services[channels[i].ServiceID] = struct{}{}
-	}
 	pruned := 0
 	for i := range expired {
 		chunk := &expired[i]
-		services[chunk.ServiceID] = struct{}{}
 		// ファイルがもうなくても、行は消す。ファイルを消せなければ、行を残して次の周期でやり直す。
 		if err := w.store.Remove(kago.TimeshiftPoolID, chunk.Path, chunk.ID); err != nil {
 			errs = append(errs, fmt.Errorf("chunk %s: %w", chunk.ID, err))
@@ -107,32 +95,15 @@ func (w *PruneWorker) RunOnce(ctx context.Context) (int, error) {
 		}
 		pruned++
 	}
-	for serviceID := range services {
-		if err := w.pruneProgramsOf(ctx, q, serviceID, now); err != nil {
-			errs = append(errs, fmt.Errorf("service %d: %w", serviceID, err))
-		}
+	// 番組の行は、チャンクを捨てた後に、全サービスでまとめて整理する。外したチャンネルの行も残さない。
+	if _, err := q.DeleteStaleTimeshiftPrograms(ctx, now); err != nil {
+		errs = append(errs, fmt.Errorf("failed to delete old timeshift programs: %w", err))
 	}
 	if pruned > 0 {
 		w.logger.InfoContext(ctx, "pruned timeshift chunks", slog.Int("count", pruned))
 	}
 
 	return pruned, errors.Join(errs...)
-}
-
-// pruneProgramsOf は、サービスの残っているチャンクの最も早い始まりより前に終わった番組を消す。
-// チャンクが 1 つも残っていなければ、今より前に終わった番組を消す。
-func (w *PruneWorker) pruneProgramsOf(ctx context.Context, q *sqlc.Queries, serviceID int64, now time.Time) error {
-	before, err := q.GetOldestTimeshiftChunkStart(ctx, serviceID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		before = now
-	} else if err != nil {
-		return fmt.Errorf("failed to get the oldest timeshift chunk: %w", err)
-	}
-	if _, err := q.DeleteTimeshiftProgramsBefore(ctx, sqlc.DeleteTimeshiftProgramsBeforeParams{ServiceID: serviceID, Before: before}); err != nil {
-		return fmt.Errorf("failed to delete old timeshift programs: %w", err)
-	}
-
-	return nil
 }
 
 // PrunePeriodicJob は、保持時間を過ぎたチャンクを PruneInterval ごとに捨てる定期ジョブを返す。

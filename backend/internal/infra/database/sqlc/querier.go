@@ -119,6 +119,10 @@ type Querier interface {
 	DeleteStaleRecordingAssignments(ctx context.Context, arg DeleteStaleRecordingAssignmentsParams) (int64, error)
 	// 使えなくなったセッション (失効させた、絶対的な期限を過ぎた、無操作の期限を過ぎた) を、max_count 件まで消す。
 	DeleteStaleSessions(ctx context.Context, arg DeleteStaleSessionsParams) (int64, error)
+	// 再生できる範囲の外になった、終わった番組を、全サービスでまとめて消す。チャンクの破棄に合わせて呼ぶ。
+	// 範囲の外は、サービスの残っているチャンクの最も早い始まりより前。チャンクが 1 つも残っていなければ、今より前。
+	// タイムシフトから外し、チャンクのなくなったサービスの行も残さない。
+	DeleteStaleTimeshiftPrograms(ctx context.Context, now time.Time) (int64, error)
 	DeleteTOTPEnrollment(ctx context.Context, userID uuid.UUID) error
 	// neko が、チューナーを渡すため、またはチャンネルの設定がなくなったために、割り振りを取り消す。状態によらず消す。
 	DeleteTimeshiftAssignment(ctx context.Context, serviceID int64) (int64, error)
@@ -127,8 +131,6 @@ type Querier interface {
 	DeleteTimeshiftAssignmentByGeneration(ctx context.Context, arg DeleteTimeshiftAssignmentByGenerationParams) (int64, error)
 	DeleteTimeshiftChannel(ctx context.Context, serviceID int64) (int64, error)
 	DeleteTimeshiftChunk(ctx context.Context, id uuid.UUID) (int64, error)
-	// 終わりが before より前の番組を消す。チャンクの破棄に合わせて呼ぶ。
-	DeleteTimeshiftProgramsBefore(ctx context.Context, arg DeleteTimeshiftProgramsBeforeParams) (int64, error)
 	DeleteTuners(ctx context.Context) error
 	// 録画の行を作らずに終えた割り振り (録画を始める前に予約を無効にした、など) を消す。世代番号が進んでいたら、何もしない。
 	// 終わったことにして残すと、予約を有効に戻しても、割り振りを書き直せない (#523)。
@@ -184,8 +186,6 @@ type Querier interface {
 	// 失効させるトークンの種類と連携を引く。ほかのクライアントのトークンは返さない。
 	GetOAuthTokenForRevocation(ctx context.Context, arg GetOAuthTokenForRevocationParams) (GetOAuthTokenForRevocationRow, error)
 	GetOIDCIdentity(ctx context.Context, arg GetOIDCIdentityParams) (UserOidcIdentity, error)
-	// サービスの、残っているチャンクの最も早い始まり。これより前の番組は、再生できる範囲の外にあるので、捨てる。
-	GetOldestTimeshiftChunkStart(ctx context.Context, serviceID int64) (time.Time, error)
 	// 放送中として記録している番組。引き継いだ mikan が、同じ番組を 2 つの行に分けないよう、続きから追うのに使う。
 	// 落ちた mikan が残した番組を閉じるとき、チャンクがなければ、始まりで閉じるのにも使う。
 	GetOpenTimeshiftProgram(ctx context.Context, serviceID int64) (GetOpenTimeshiftProgramRow, error)

@@ -81,6 +81,26 @@ func (q *Queries) CloseTimeshiftChunk(ctx context.Context, arg CloseTimeshiftChu
 	return result.RowsAffected(), nil
 }
 
+const deleteStaleTimeshiftPrograms = `-- name: DeleteStaleTimeshiftPrograms :execrows
+DELETE FROM timeshift_programs p
+WHERE p.ended_at IS NOT NULL
+  AND p.ended_at < coalesce(
+    (SELECT min(c.started_at) FROM timeshift_chunks c WHERE c.service_id = p.service_id),
+    $1::timestamptz
+  )
+`
+
+// 再生できる範囲の外になった、終わった番組を、全サービスでまとめて消す。チャンクの破棄に合わせて呼ぶ。
+// 範囲の外は、サービスの残っているチャンクの最も早い始まりより前。チャンクが 1 つも残っていなければ、今より前。
+// タイムシフトから外し、チャンクのなくなったサービスの行も残さない。
+func (q *Queries) DeleteStaleTimeshiftPrograms(ctx context.Context, now time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteStaleTimeshiftPrograms, now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteTimeshiftAssignment = `-- name: DeleteTimeshiftAssignment :execrows
 DELETE FROM timeshift_assignments WHERE service_id = $1
 `
@@ -133,25 +153,6 @@ DELETE FROM timeshift_chunks WHERE id = $1
 
 func (q *Queries) DeleteTimeshiftChunk(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteTimeshiftChunk, id)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
-const deleteTimeshiftProgramsBefore = `-- name: DeleteTimeshiftProgramsBefore :execrows
-DELETE FROM timeshift_programs
-WHERE service_id = $1 AND ended_at IS NOT NULL AND ended_at < $2::timestamptz
-`
-
-type DeleteTimeshiftProgramsBeforeParams struct {
-	ServiceID int64
-	Before    time.Time
-}
-
-// 終わりが before より前の番組を消す。チャンクの破棄に合わせて呼ぶ。
-func (q *Queries) DeleteTimeshiftProgramsBefore(ctx context.Context, arg DeleteTimeshiftProgramsBeforeParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteTimeshiftProgramsBefore, arg.ServiceID, arg.Before)
 	if err != nil {
 		return 0, err
 	}
@@ -216,21 +217,6 @@ func (q *Queries) GetLastTimeshiftChunkEnd(ctx context.Context, serviceID int64)
 	var ended_at *time.Time
 	err := row.Scan(&ended_at)
 	return ended_at, err
-}
-
-const getOldestTimeshiftChunkStart = `-- name: GetOldestTimeshiftChunkStart :one
-SELECT started_at FROM timeshift_chunks
-WHERE service_id = $1
-ORDER BY started_at
-LIMIT 1
-`
-
-// サービスの、残っているチャンクの最も早い始まり。これより前の番組は、再生できる範囲の外にあるので、捨てる。
-func (q *Queries) GetOldestTimeshiftChunkStart(ctx context.Context, serviceID int64) (time.Time, error) {
-	row := q.db.QueryRow(ctx, getOldestTimeshiftChunkStart, serviceID)
-	var started_at time.Time
-	err := row.Scan(&started_at)
-	return started_at, err
 }
 
 const getOpenTimeshiftProgram = `-- name: GetOpenTimeshiftProgram :one

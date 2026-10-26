@@ -174,10 +174,16 @@ LIMIT 1;
 UPDATE timeshift_programs SET ended_at = @ended_at
 WHERE service_id = @service_id AND ended_at IS NULL;
 
--- name: DeleteTimeshiftProgramsBefore :execrows
--- 終わりが before より前の番組を消す。チャンクの破棄に合わせて呼ぶ。
-DELETE FROM timeshift_programs
-WHERE service_id = @service_id AND ended_at IS NOT NULL AND ended_at < @before::timestamptz;
+-- name: DeleteStaleTimeshiftPrograms :execrows
+-- 再生できる範囲の外になった、終わった番組を、全サービスでまとめて消す。チャンクの破棄に合わせて呼ぶ。
+-- 範囲の外は、サービスの残っているチャンクの最も早い始まりより前。チャンクが 1 つも残っていなければ、今より前。
+-- タイムシフトから外し、チャンクのなくなったサービスの行も残さない。
+DELETE FROM timeshift_programs p
+WHERE p.ended_at IS NOT NULL
+  AND p.ended_at < coalesce(
+    (SELECT min(c.started_at) FROM timeshift_chunks c WHERE c.service_id = p.service_id),
+    @now::timestamptz
+  );
 
 -- name: ListReservationsUsingTunersBetween :many
 -- from から to までの間にチューナーを使う予約。有効で、チューナーを割り当て済みで、予定が期間と重なるもの。録画中の予約も含む。
@@ -189,13 +195,6 @@ WHERE r.enabled
   AND r.planned_start_at < @to_at::timestamptz
   AND r.planned_end_at > @from_at::timestamptz
 ORDER BY r.planned_start_at, r.id;
-
--- name: GetOldestTimeshiftChunkStart :one
--- サービスの、残っているチャンクの最も早い始まり。これより前の番組は、再生できる範囲の外にあるので、捨てる。
-SELECT started_at FROM timeshift_chunks
-WHERE service_id = @service_id
-ORDER BY started_at
-LIMIT 1;
 
 -- name: ListTimeshiftChannelStatuses :many
 -- タイムシフトで録るチャンネルと、mikan が録っているか。管理の画面に使う。

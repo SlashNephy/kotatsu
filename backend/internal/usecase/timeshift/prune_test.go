@@ -219,3 +219,42 @@ func TestPruneClosesAbandonedChunks(t *testing.T) {
 	require.NoError(t, e.pool.QueryRow(t.Context(), "SELECT count(*) FROM timeshift_programs").Scan(&total))
 	assert.Equal(t, 2, total)
 }
+
+// TestPruneProgramsOfServicesWithoutChunks は、チャンクの 1 つも残らない、外したチャンネルの終わった番組の行も消すことを確かめる。
+// 最後のチャンクを捨てたときに番組がまだ放送中だったり、番組の整理に一度失敗したりしても、行を残し続けない (#1055)。
+func TestPruneProgramsOfServicesWithoutChunks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		ended   bool
+		wantRow bool
+	}{
+		{name: "終わった番組の行は消す", ended: true, wantRow: false},
+		{name: "放送中のままで、割り振りのあるサービスの行は残す", ended: false, wantRow: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			e := newRecorderEnv(t)
+			now := e.clk.Now()
+			// 1 番目のサービスは、設定もチャンクもない。放送中のままの番組は、割り振りを残して、破棄のジョブに閉じさせない。
+			require.NoError(t, e.q.InsertTimeshiftAssignment(t.Context(), sqlc.InsertTimeshiftAssignmentParams{
+				ID: id.New(), ServiceID: grService(1), Priority: timeshift.Priority, Now: now,
+			}))
+			var ended *time.Time
+			if tt.ended {
+				ended = new(now.Add(-time.Hour))
+			}
+			_, err := e.pool.Exec(t.Context(), "INSERT INTO timeshift_programs (service_id, started_at, event_id, name, ended_at) VALUES ($1, $2, 1, 'p', $3)",
+				grService(1), now.Add(-2*time.Hour), ended)
+			require.NoError(t, err)
+
+			pruned, err := timeshift.NewPruneWorker(e.pool, e.clk, e.store, slog.New(slog.DiscardHandler)).RunOnce(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, 0, pruned)
+			assert.Equal(t, tt.wantRow, len(programs(t, e)) == 1)
+		})
+	}
+}
