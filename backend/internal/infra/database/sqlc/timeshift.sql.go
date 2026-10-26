@@ -218,6 +218,21 @@ func (q *Queries) GetLastTimeshiftChunkEnd(ctx context.Context, serviceID int64)
 	return ended_at, err
 }
 
+const getOldestTimeshiftChunkStart = `-- name: GetOldestTimeshiftChunkStart :one
+SELECT started_at FROM timeshift_chunks
+WHERE service_id = $1
+ORDER BY started_at
+LIMIT 1
+`
+
+// サービスの、残っているチャンクの最も早い始まり。これより前の番組は、再生できる範囲の外にあるので、捨てる。
+func (q *Queries) GetOldestTimeshiftChunkStart(ctx context.Context, serviceID int64) (time.Time, error) {
+	row := q.db.QueryRow(ctx, getOldestTimeshiftChunkStart, serviceID)
+	var started_at time.Time
+	err := row.Scan(&started_at)
+	return started_at, err
+}
+
 const getOpenTimeshiftProgram = `-- name: GetOpenTimeshiftProgram :one
 SELECT event_id, started_at FROM timeshift_programs
 WHERE service_id = $1 AND ended_at IS NULL

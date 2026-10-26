@@ -49,6 +49,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
+	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
@@ -162,6 +163,9 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	manager := capacity.NewManager(deps.DB, deps.Clock, storeOf(deps.Config), audit.NewRecorder(deps.Clock),
 		logger.With(slog.String("component", "capacity")))
 	river.AddWorker(workers, capacity.NewCheckWorker(manager))
+	// タイムシフトのバッファは、保持時間を過ぎたチャンクを捨てる (設計書 6)。タイムシフトのディレクトリがなければ、何もしない。
+	river.AddWorker(workers, timeshift.NewPruneWorker(deps.DB, deps.Clock, storeOf(deps.Config),
+		logger.With(slog.String("component", "timeshift"))))
 	// 録画を終えたら、代表画像とプレビュー画像を作る (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。
 	river.AddWorker(workers, thumbnail.NewGenerateWorker(deps.DB, storeOf(deps.Config), deps.Clock,
 		!deps.Config.Thumbnail.DisablePreview))
@@ -177,7 +181,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 
 	return workers, []*river.PeriodicJob{
 		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
-		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(),
+		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(), timeshift.PrunePeriodicJob(),
 	}, nil
 }
 

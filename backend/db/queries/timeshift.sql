@@ -165,3 +165,10 @@ WHERE r.enabled
   AND r.planned_start_at < @to_at::timestamptz
   AND r.planned_end_at > @from_at::timestamptz
 ORDER BY r.planned_start_at, r.id;
+
+-- name: GetOldestTimeshiftChunkStart :one
+-- サービスの、残っているチャンクの最も早い始まり。これより前の番組は、再生できる範囲の外にあるので、捨てる。
+SELECT started_at FROM timeshift_chunks
+WHERE service_id = @service_id
+ORDER BY started_at
+LIMIT 1;

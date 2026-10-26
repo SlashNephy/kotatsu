@@ -184,6 +184,8 @@ type Querier interface {
 	// 失効させるトークンの種類と連携を引く。ほかのクライアントのトークンは返さない。
 	GetOAuthTokenForRevocation(ctx context.Context, arg GetOAuthTokenForRevocationParams) (GetOAuthTokenForRevocationRow, error)
 	GetOIDCIdentity(ctx context.Context, arg GetOIDCIdentityParams) (UserOidcIdentity, error)
+	// サービスの、残っているチャンクの最も早い始まり。これより前の番組は、再生できる範囲の外にあるので、捨てる。
+	GetOldestTimeshiftChunkStart(ctx context.Context, serviceID int64) (time.Time, error)
 	// 放送中として記録している番組。引き継いだ mikan が、同じ番組を 2 つの行に分けないよう、続きから追うのに使う。
 	// 落ちた mikan が残した番組を閉じるとき、チャンクがなければ、始まりで閉じるのにも使う。
 	GetOpenTimeshiftProgram(ctx context.Context, serviceID int64) (GetOpenTimeshiftProgramRow, error)
