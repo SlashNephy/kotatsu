@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
@@ -122,11 +123,14 @@ func (r *Recorder) record(ctx context.Context, assignment *recording.Assignment)
 			return err
 		}
 	}
-	programs, err := r.newProgramTracker(ctx, logger, assignment.ServiceID)
+	pending := newPendingWrites(assignment)
+	programs, err := r.newProgramTracker(ctx, logger, assignment.ServiceID, pending)
 	if err != nil {
 		return err
 	}
-	state := &sessionState{serviceID: assignment.ServiceID, programs: programs, created: 0}
+	state := &sessionState{serviceID: assignment.ServiceID, programs: programs, created: 0, pending: pending}
+	// 録るのをやめるときも、DB に届かずに記録できなかった分を、1 度は書いてみる。
+	defer r.flushPending(context.WithoutCancel(ctx), logger, pending)
 
 	attempt := 0
 	for {
@@ -148,7 +152,7 @@ func (r *Recorder) record(ctx context.Context, assignment *recording.Assignment)
 		}
 		interval := r.opts.Backoff[min(attempt, len(r.opts.Backoff)-1)]
 		attempt++
-		deleted, err := r.waitUntil(ctx, assignment, openedAt.Add(interval))
+		deleted, err := r.waitUntil(ctx, logger, assignment, pending, openedAt.Add(interval))
 		if err != nil {
 			return err
 		}
@@ -164,6 +168,8 @@ type sessionState struct {
 	programs  *programTracker
 	// created は、この Session で作ったチャンクの数。
 	created int
+	// pending は、DB に届かずに記録できなかったチャンクと番組の書き込み (#1073)。
+	pending *pendingWrites
 }
 
 // unavailable は、チャンクのファイルを作れなかった理由がこの mikan にあり、ほかの mikan に回すべきかを返す (#524)。
@@ -240,7 +246,10 @@ func (r *Recorder) stopDeleted(ctx context.Context, logger *slog.Logger, program
 }
 
 // waitUntil は、時計が until になるまで待つ。その間に割り振りが消えたら true を返す。ctx が終わったら、その原因を返す。
-func (r *Recorder) waitUntil(ctx context.Context, assignment *recording.Assignment, until time.Time) (bool, error) {
+// 待つ間も、DB に届かずに記録できなかった書き込み (pending) を、届くようになったら書く。
+func (r *Recorder) waitUntil(
+	ctx context.Context, logger *slog.Logger, assignment *recording.Assignment, pending *pendingWrites, until time.Time,
+) (bool, error) {
 	ticker := time.NewTicker(r.opts.Tick)
 	defer ticker.Stop()
 	for r.clock.Now().Before(until) {
@@ -249,7 +258,8 @@ func (r *Recorder) waitUntil(ctx context.Context, assignment *recording.Assignme
 			return false, context.Cause(ctx)
 		case <-ticker.C:
 		}
-		if r.deleted(ctx, assignment) {
+		r.flushPending(ctx, logger, pending)
+		if r.deleted(ctx, assignment, pending) {
 			return true, nil
 		}
 	}
@@ -258,14 +268,28 @@ func (r *Recorder) waitUntil(ctx context.Context, assignment *recording.Assignme
 }
 
 // deleted は、割り振りが DB から消えたかどうかを返す。確かめられなければ、消えていないとみなす。
-func (r *Recorder) deleted(ctx context.Context, assignment *recording.Assignment) bool {
-	exists, err := sqlc.New(r.pool).TimeshiftAssignmentExists(ctx, assignment.ID)
-	if err != nil {
-		if ctx.Err() == nil {
+// DB への問い合わせが詰まっても、見張りを止めないよう、databaseTimeout で打ち切る (#1073)。
+// DB に届かないことのログは、届かなくなったときに 1 度だけ出す。DB が止まっている間も録り続けるので、毎回出すとあふれる。
+func (r *Recorder) deleted(ctx context.Context, assignment *recording.Assignment, pending *pendingWrites) bool {
+	checkCtx, cancel := context.WithTimeout(ctx, databaseTimeout)
+	defer cancel()
+	exists, err := sqlc.New(r.pool).TimeshiftAssignmentExists(checkCtx, assignment.ID)
+	switch {
+	case err != nil && ctx.Err() != nil:
+		return false
+	case err != nil && database.IsUnavailable(err):
+		if !pending.unreachable.Swap(true) {
 			r.logger.WarnContext(ctx, "failed to check the timeshift assignment", slog.Any("error", err))
 		}
 
 		return false
+	case err != nil:
+		r.logger.WarnContext(ctx, "failed to check the timeshift assignment", slog.Any("error", err))
+
+		return false
+	}
+	if pending.unreachable.Swap(false) {
+		r.logger.InfoContext(ctx, "checked the timeshift assignment again")
 	}
 
 	return !exists
@@ -303,7 +327,7 @@ func (r *Recorder) recordStream(ctx context.Context, logger *slog.Logger, assign
 				_ = stream.Close()
 			}
 		}()
-		r.watch(watchCtx, assignment, stream, &deleted)
+		r.watch(watchCtx, logger, assignment, stream, &deleted, state.pending)
 	}()
 	// copyChunks が panic しても、見張りとストリームを残さないよう、defer でも止める。
 	stop := sync.OnceFunc(func() {
@@ -322,7 +346,10 @@ func (r *Recorder) recordStream(ctx context.Context, logger *slog.Logger, assign
 }
 
 // watch は、ctx が終わるか、割り振りが消えるまで待ち、ストリームを閉じる。消えたなら deleted を立てる。
-func (r *Recorder) watch(ctx context.Context, assignment *recording.Assignment, stream io.Closer, deleted *atomic.Bool) {
+// 待つ間に、DB に届かずに記録できなかった書き込み (pending) を、届くようになったら書く。読み込みのループを DB で待たせないため。
+func (r *Recorder) watch(
+	ctx context.Context, logger *slog.Logger, assignment *recording.Assignment, stream io.Closer, deleted *atomic.Bool, pending *pendingWrites,
+) {
 	ticker := time.NewTicker(r.opts.Tick)
 	defer ticker.Stop()
 	for {
@@ -333,7 +360,8 @@ func (r *Recorder) watch(ctx context.Context, assignment *recording.Assignment, 
 			return
 		case <-ticker.C:
 		}
-		if r.deleted(ctx, assignment) {
+		r.flushPending(ctx, logger, pending)
+		if r.deleted(ctx, assignment, pending) {
 			deleted.Store(true)
 			_ = stream.Close()
 
@@ -348,7 +376,7 @@ func (r *Recorder) copyChunks(ctx context.Context, logger *slog.Logger, stream i
 	var current *chunk
 	defer func() {
 		if current != nil {
-			r.closeChunk(context.WithoutCancel(ctx), logger, current, r.clock.Now())
+			r.closeChunk(context.WithoutCancel(ctx), logger, state.pending, current, r.clock.Now())
 		}
 	}()
 	buf := make([]byte, readPackets*ts.PacketSize)
@@ -379,11 +407,11 @@ func (r *Recorder) writePackets(ctx context.Context, logger *slog.Logger, state 
 	now := r.clock.Now()
 	if current != nil && now.Sub(current.startedAt) >= r.opts.ChunkDuration {
 		// ctx が終わっても、書き終えたチャンクを閉じずに残さない。
-		r.closeChunk(context.WithoutCancel(ctx), logger, current, now)
+		r.closeChunk(context.WithoutCancel(ctx), logger, state.pending, current, now)
 		current = nil
 	}
 	if current == nil {
-		c, err := r.createChunk(ctx, logger, state.serviceID, now)
+		c, err := r.createChunk(ctx, logger, state.pending, state.serviceID, now)
 		if err != nil {
 			return nil, err
 		}
@@ -406,7 +434,8 @@ type chunk struct {
 
 // createChunk は、タイムシフトのディレクトリの、サービスのディレクトリにチャンクのファイルを作り、索引を作って、DB に記録する。
 // ファイル名は、チャンクの開始の UTC にする。
-func (r *Recorder) createChunk(ctx context.Context, logger *slog.Logger, serviceID int64, now time.Time) (*chunk, error) {
+// DB に届かなければ、ファイルは残して書き続け、記録は pending に積んで後から書く (#1073)。
+func (r *Recorder) createChunk(ctx context.Context, logger *slog.Logger, pending *pendingWrites, serviceID int64, now time.Time) (*chunk, error) {
 	file, rel, err := r.store.Create(kago.TimeshiftPoolID, strconv.FormatInt(serviceID, 10), now.UTC().Format(chunkTimeLayout)+chunkExt)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errChunkStorage, err)
@@ -418,8 +447,9 @@ func (r *Recorder) createChunk(ctx context.Context, logger *slog.Logger, service
 		logger.WarnContext(ctx, "failed to create the index; recording without it", slog.String("path", rel), slog.Any("error", indexErr))
 	}
 	c := &chunk{id: chunkID, file: file, indexFile: indexFile, analyzer: analyzer, startedAt: now, size: 0}
-	err = sqlc.New(r.pool).InsertTimeshiftChunk(ctx, sqlc.InsertTimeshiftChunkParams{
-		ID: chunkID, ServiceID: serviceID, Path: rel, Size: 0, StartedAt: now, Now: now,
+	params := sqlc.InsertTimeshiftChunkParams{ID: chunkID, ServiceID: serviceID, Path: rel, Size: 0, StartedAt: now, Now: now}
+	err = r.writeOrDefer(ctx, logger, pending, func(ctx context.Context, q *sqlc.Queries) error {
+		return q.InsertTimeshiftChunk(ctx, params)
 	})
 	if err != nil {
 		_ = c.file.Close()
@@ -452,7 +482,7 @@ func (c *chunk) write(p []byte) error {
 
 // closeChunk は、チャンクのファイルと索引を書き終え、DB に大きさと終わりの時刻を記録する。
 // 閉じられなくても、次のチャンクに書き続けるので、ログに残すだけにする。
-func (r *Recorder) closeChunk(ctx context.Context, logger *slog.Logger, c *chunk, endedAt time.Time) {
+func (r *Recorder) closeChunk(ctx context.Context, logger *slog.Logger, pending *pendingWrites, c *chunk, endedAt time.Time) {
 	errs := []error{}
 	if err := c.file.Sync(); err != nil {
 		errs = append(errs, fmt.Errorf("failed to sync the timeshift chunk: %w", err))
@@ -468,7 +498,12 @@ func (r *Recorder) closeChunk(ctx context.Context, logger *slog.Logger, c *chunk
 			errs = append(errs, fmt.Errorf("failed to close the index file: %w", err))
 		}
 	}
-	_, err := sqlc.New(r.pool).CloseTimeshiftChunk(ctx, sqlc.CloseTimeshiftChunkParams{Size: c.size, EndedAt: &endedAt, ID: c.id})
+	params := sqlc.CloseTimeshiftChunkParams{Size: c.size, EndedAt: &endedAt, ID: c.id}
+	err := r.writeOrDefer(ctx, logger, pending, func(ctx context.Context, q *sqlc.Queries) error {
+		_, err := q.CloseTimeshiftChunk(ctx, params)
+
+		return err
+	})
 	if err != nil {
 		errs = append(errs, fmt.Errorf("failed to save the timeshift chunk size: %w", err))
 	}
@@ -488,13 +523,15 @@ type programTracker struct {
 	ok  bool
 	// current は、放送中として記録している番組の eventId。まだなければ nil。
 	current *uint16
+	// pending は、DB に届かずに記録できなかった書き込み。番組の切り替わりも、届くようになってから書く (#1073)。
+	pending *pendingWrites
 }
 
 // newProgramTracker は、programTracker を返す。放送中として記録している番組があれば、その続きから追う。
 // 引き継いだ mikan が、同じ番組を 2 つの行に分けないようにする。
-func (r *Recorder) newProgramTracker(ctx context.Context, logger *slog.Logger, serviceID int64) (*programTracker, error) {
+func (r *Recorder) newProgramTracker(ctx context.Context, logger *slog.Logger, serviceID int64, pending *pendingWrites) (*programTracker, error) {
 	sid, ok := ts.BroadcastServiceID(serviceID)
-	t := &programTracker{recorder: r, logger: logger, serviceID: serviceID, sid: sid, ok: ok, current: nil}
+	t := &programTracker{recorder: r, logger: logger, serviceID: serviceID, sid: sid, ok: ok, current: nil, pending: pending}
 	program, err := sqlc.New(r.pool).GetOpenTimeshiftProgram(ctx, serviceID)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
@@ -517,28 +554,47 @@ func (t *programTracker) observe(ctx context.Context, analyzer *ts.Analyzer, now
 	if pf == nil || pf.Present == nil || (t.current != nil && *t.current == *pf.Present) {
 		return
 	}
-	// 記録できなくても、同じ番組で何度もやり直さないよう、替わったものとする。
+	// 記録できなくても、同じ番組で何度もやり直さないよう、替わったものとする。DB に届かなければ、届いてから書く。
 	t.current = new(*pf.Present)
-	t.end(ctx, now)
-	q := sqlc.New(t.recorder.pool)
-	name := ""
-	program, err := q.GetProgramForReservation(ctx, sqlc.GetProgramForReservationParams{ServiceID: t.serviceID, EventID: int64(*pf.Present)})
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-	case err != nil:
-		t.logger.WarnContext(ctx, "failed to get the program name", slog.Any("error", err))
-	default:
-		name = program.Name
-	}
-	err = q.StartTimeshiftProgram(ctx, sqlc.StartTimeshiftProgramParams{ServiceID: t.serviceID, StartedAt: now, EventID: int64(*pf.Present), Name: name})
+	eventID := int64(*pf.Present)
+	err := t.recorder.writeOrDefer(ctx, t.logger, t.pending, func(ctx context.Context, q *sqlc.Queries) error {
+		// DB に届かないときだけ、やめて後から書き直す。ほかのエラーは、今までどおりログに残して進める。
+		if _, err := q.EndTimeshiftProgram(ctx, sqlc.EndTimeshiftProgramParams{EndedAt: &now, ServiceID: t.serviceID}); database.IsUnavailable(err) {
+			return fmt.Errorf("failed to end the timeshift program: %w", err)
+		} else if err != nil {
+			t.logger.WarnContext(ctx, "failed to end the timeshift program", slog.Any("error", err))
+		}
+		name := ""
+		program, err := q.GetProgramForReservation(ctx, sqlc.GetProgramForReservationParams{ServiceID: t.serviceID, EventID: eventID})
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+		case database.IsUnavailable(err):
+			return fmt.Errorf("failed to get the program name: %w", err)
+		case err != nil:
+			t.logger.WarnContext(ctx, "failed to get the program name", slog.Any("error", err))
+		default:
+			name = program.Name
+		}
+		err = q.StartTimeshiftProgram(ctx, sqlc.StartTimeshiftProgramParams{ServiceID: t.serviceID, StartedAt: now, EventID: eventID, Name: name})
+		if err != nil {
+			return fmt.Errorf("failed to record the timeshift program: %w", err)
+		}
+
+		return nil
+	})
 	if err != nil {
 		t.logger.WarnContext(ctx, "failed to record the timeshift program", slog.Any("error", err))
 	}
 }
 
-// end は、放送中として記録している番組を now で閉じる。
+// end は、放送中として記録している番組を now で閉じる。DB に届かなければ、後から書く。
+// 積んだ番組の始まりより先に閉じないよう、積んだ書き込みが残っていれば、その後ろに積む。
 func (t *programTracker) end(ctx context.Context, now time.Time) {
-	_, err := sqlc.New(t.recorder.pool).EndTimeshiftProgram(ctx, sqlc.EndTimeshiftProgramParams{EndedAt: &now, ServiceID: t.serviceID})
+	err := t.recorder.writeOrDefer(ctx, t.logger, t.pending, func(ctx context.Context, q *sqlc.Queries) error {
+		_, err := q.EndTimeshiftProgram(ctx, sqlc.EndTimeshiftProgramParams{EndedAt: &now, ServiceID: t.serviceID})
+
+		return err
+	})
 	if err != nil {
 		t.logger.WarnContext(ctx, "failed to end the timeshift program", slog.Any("error", err))
 	}

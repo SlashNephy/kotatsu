@@ -23,8 +23,10 @@ ON CONFLICT (reservation_id) DO UPDATE SET state = 'recording', failure_reason =
 RETURNING sqlc.embed(recordings), (xmax = 0)::boolean AS inserted;
 
 -- name: InsertRecordingFile :exec
+-- DB に届かずに後から記録し直すとき、同じファイルを二重に記録しない (#1073)。
 INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-VALUES (@id, @recording_id, @kind, @pool_id, @path, 0, @started_at, NULL, @now);
+VALUES (@id, @recording_id, @kind, @pool_id, @path, 0, @started_at, NULL, @now)
+ON CONFLICT (id) DO NOTHING;
 
 -- name: CloseRecordingFile :exec
 -- 書き終えたファイルの大きさと、表す時間の終わりを記録する。
@@ -72,6 +74,10 @@ VALUES (@id, @service_id, @title_key, @name, @start_at, @end_at, @now);
 SELECT pool_id, path FROM recording_files
 WHERE recording_id = @recording_id AND kind = 'segment' AND size > 0
 ORDER BY started_at, id;
+
+-- name: GetRecordingInProgressByReservation :one
+-- 予約の、録画中のままの録画。予定の終わりの後に割り振りを取った mikan が、前の mikan の録画を終えるのに使う (#1073)。
+SELECT * FROM recordings WHERE reservation_id = @reservation_id AND state = 'recording';
 
 -- name: GetRecordingWithService :one
 -- 通知に載せる、録画とサービス名。

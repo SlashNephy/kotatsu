@@ -43,8 +43,10 @@ DELETE FROM timeshift_assignments WHERE service_id = @service_id;
 -- 取る前の状態と、リースの期限も返す。引き継ぎか、落ちた mikan の代わりかで、途切れた区間の扱いが変わる。
 WITH target AS (
   SELECT a.id, a.state AS previous_state, a.lease_expires_at AS previous_lease_expires_at FROM timeshift_assignments a
-  WHERE (a.state IN ('waiting', 'recording') AND (a.holder IS NULL OR a.lease_expires_at <= @now::timestamptz))
-    OR (a.state = 'handover' AND a.holder IS DISTINCT FROM @holder::uuid)
+  WHERE ((a.state IN ('waiting', 'recording') AND (a.holder IS NULL OR a.lease_expires_at <= @now::timestamptz))
+    OR (a.state = 'handover' AND a.holder IS DISTINCT FROM @holder::uuid))
+    -- 自分が録っている割り振りは取らない。DB が止まっていた間にリースの期限が切れても、取り直すと世代番号が進み、録画が止まる (#1073)。
+    AND NOT (a.id = ANY(@active::uuid[]))
   ORDER BY a.priority DESC, a.created_at, a.id
   LIMIT 1
   FOR UPDATE SKIP LOCKED
@@ -57,8 +59,9 @@ RETURNING a.id, a.service_id, a.priority, a.generation, target.previous_state, t
 
 -- name: RenewTimeshiftAssignment :execrows
 -- 割り振りのリースを延長する。世代番号が進んでいたら、ほかの mikan が取ったので、延長しない。引き継ぎ待ちの間も延長する。
+-- 期限が切れていても、世代番号が進んでいなければ誰も取っていないので、延長する。DB が止まっていた間に期限が切れても、録り続けるため (#1073)。
 UPDATE timeshift_assignments SET lease_expires_at = @expires_at, updated_at = @now
-WHERE id = @id AND generation = @generation AND holder = @holder AND state IN ('recording', 'handover') AND lease_expires_at > @now::timestamptz;
+WHERE id = @id AND generation = @generation AND holder = @holder AND state IN ('recording', 'handover');
 
 -- name: TimeshiftAssignmentExists :one
 -- 割り振りが残っているかどうか。neko が取り消すと、割り振りは消える。
@@ -103,8 +106,10 @@ UPDATE timeshift_assignments SET state = 'waiting', holder = NULL, lease_expires
 WHERE id = @id AND generation = @generation AND holder = @holder AND state = 'recording';
 
 -- name: InsertTimeshiftChunk :exec
+-- DB に届かずに後から書き直すとき、同じチャンクを二重に作らない (#1073)。
 INSERT INTO timeshift_chunks (id, service_id, path, size, started_at, ended_at, created_at)
-VALUES (@id, @service_id, @path, @size, @started_at, NULL, @now);
+VALUES (@id, @service_id, @path, @size, @started_at, NULL, @now)
+ON CONFLICT (id) DO NOTHING;
 
 -- name: CloseTimeshiftChunk :execrows
 -- 書き終えたチャンクの大きさと終わりの時刻を記録する。

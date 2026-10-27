@@ -286,9 +286,10 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, store, defaults, location,
 		logger.With(slog.String("component", "recorder")), &recording.RecorderOptions{
 			TuningTime: 0, Tick: 0, RetryInterval: 0, ReleaseAfter: 0,
-			Peers: recording.AlivePeers(deps.DB, deps.Clock, deps.InstanceID),
+			Peers: recording.AlivePeers(deps.DB, deps.Clock, deps.InstanceID), DatabaseTimeout: 0,
 		})
 	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), recording.NewRecordingLeases(deps.DB), mikanWorkerOptions(deps))
+	registerUnreachable(deps, "recording", worker)
 	if !store.HasTimeshiftDir() {
 		return worker.Run(ctx)
 	}
@@ -300,8 +301,22 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	})
 	timeshiftWorker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, timeshiftLogger, timeshiftRecorder.Session(), timeshift.NewLeases(deps.DB),
 		mikanWorkerOptions(deps))
+	registerUnreachable(deps, "timeshift", timeshiftWorker)
 	// タイムシフトの Worker がエラーで止まるか panic しても、予約の録画は止めない。
 	return runAlongside(ctx, timeshiftLogger, worker.Run, timeshiftWorker.Run)
+}
+
+// kindLabel は、種類ごとに分けて出すメトリクスの、種類のラベルの名前。
+const kindLabel = "kind"
+
+// registerUnreachable は、mikan の Worker が録っている割り振りのリースを、DB に届かずに延長できていない時間を、/metrics に出す (設計書 11.3)。
+// DB が止まっていても録り続けるので (#1073)、止まっている長さは、ここで見る。
+func registerUnreachable(deps *Deps, kind string, worker *recording.Worker) {
+	deps.Metrics.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: metrics.Namespace, Name: "mikan_database_unreachable_seconds",
+		Help:        "Seconds since mikan could not reach the database to renew the lease of an assignment it is recording; 0 while reachable.",
+		ConstLabels: prometheus.Labels{kindLabel: kind},
+	}, func() float64 { return worker.DatabaseUnreachableFor().Seconds() }))
 }
 
 // runAlongside は、main を ctx で動かし、その横で side を動かす。side がエラーで返るか panic しても、ログに残すだけで、main を止めない。

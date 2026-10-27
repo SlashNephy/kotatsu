@@ -15,8 +15,10 @@ import (
 const acquireTimeshiftAssignment = `-- name: AcquireTimeshiftAssignment :one
 WITH target AS (
   SELECT a.id, a.state AS previous_state, a.lease_expires_at AS previous_lease_expires_at FROM timeshift_assignments a
-  WHERE (a.state IN ('waiting', 'recording') AND (a.holder IS NULL OR a.lease_expires_at <= $3::timestamptz))
-    OR (a.state = 'handover' AND a.holder IS DISTINCT FROM $1::uuid)
+  WHERE ((a.state IN ('waiting', 'recording') AND (a.holder IS NULL OR a.lease_expires_at <= $3::timestamptz))
+    OR (a.state = 'handover' AND a.holder IS DISTINCT FROM $1::uuid))
+    -- 自分が録っている割り振りは取らない。DB が止まっていた間にリースの期限が切れても、取り直すと世代番号が進み、録画が止まる (#1073)。
+    AND NOT (a.id = ANY($4::uuid[]))
   ORDER BY a.priority DESC, a.created_at, a.id
   LIMIT 1
   FOR UPDATE SKIP LOCKED
@@ -32,6 +34,7 @@ type AcquireTimeshiftAssignmentParams struct {
 	Holder    *uuid.UUID
 	ExpiresAt *time.Time
 	Now       time.Time
+	Active    []uuid.UUID
 }
 
 type AcquireTimeshiftAssignmentRow struct {
@@ -48,7 +51,12 @@ type AcquireTimeshiftAssignmentRow struct {
 // 引き継ぎ待ちの割り振りは、リースが切れていなくても、ほかの mikan が取る (設計書 5.4)。
 // 取る前の状態と、リースの期限も返す。引き継ぎか、落ちた mikan の代わりかで、途切れた区間の扱いが変わる。
 func (q *Queries) AcquireTimeshiftAssignment(ctx context.Context, arg AcquireTimeshiftAssignmentParams) (AcquireTimeshiftAssignmentRow, error) {
-	row := q.db.QueryRow(ctx, acquireTimeshiftAssignment, arg.Holder, arg.ExpiresAt, arg.Now)
+	row := q.db.QueryRow(ctx, acquireTimeshiftAssignment,
+		arg.Holder,
+		arg.ExpiresAt,
+		arg.Now,
+		arg.Active,
+	)
 	var i AcquireTimeshiftAssignmentRow
 	err := row.Scan(
 		&i.ID,
@@ -281,6 +289,7 @@ func (q *Queries) InsertTimeshiftAssignment(ctx context.Context, arg InsertTimes
 const insertTimeshiftChunk = `-- name: InsertTimeshiftChunk :exec
 INSERT INTO timeshift_chunks (id, service_id, path, size, started_at, ended_at, created_at)
 VALUES ($1, $2, $3, $4, $5, NULL, $6)
+ON CONFLICT (id) DO NOTHING
 `
 
 type InsertTimeshiftChunkParams struct {
@@ -292,6 +301,7 @@ type InsertTimeshiftChunkParams struct {
 	Now       time.Time
 }
 
+// DB に届かずに後から書き直すとき、同じチャンクを二重に作らない (#1073)。
 func (q *Queries) InsertTimeshiftChunk(ctx context.Context, arg InsertTimeshiftChunkParams) error {
 	_, err := q.db.Exec(ctx, insertTimeshiftChunk,
 		arg.ID,
@@ -798,7 +808,7 @@ func (q *Queries) ReleaseUnrecordableTimeshiftAssignment(ctx context.Context, ar
 
 const renewTimeshiftAssignment = `-- name: RenewTimeshiftAssignment :execrows
 UPDATE timeshift_assignments SET lease_expires_at = $1, updated_at = $2
-WHERE id = $3 AND generation = $4 AND holder = $5 AND state IN ('recording', 'handover') AND lease_expires_at > $2::timestamptz
+WHERE id = $3 AND generation = $4 AND holder = $5 AND state IN ('recording', 'handover')
 `
 
 type RenewTimeshiftAssignmentParams struct {
@@ -810,6 +820,7 @@ type RenewTimeshiftAssignmentParams struct {
 }
 
 // 割り振りのリースを延長する。世代番号が進んでいたら、ほかの mikan が取ったので、延長しない。引き継ぎ待ちの間も延長する。
+// 期限が切れていても、世代番号が進んでいなければ誰も取っていないので、延長する。DB が止まっていた間に期限が切れても、録り続けるため (#1073)。
 func (q *Queries) RenewTimeshiftAssignment(ctx context.Context, arg RenewTimeshiftAssignmentParams) (int64, error) {
 	result, err := q.db.Exec(ctx, renewTimeshiftAssignment,
 		arg.ExpiresAt,

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 )
@@ -217,7 +219,12 @@ func (e *recorderEnv) newRecorder(tuner recording.StreamOpener) *timeshift.Recor
 
 // newRecorderWithPeers は、ほかに動いている mikan の数を peers で数える Recorder を返す。nil なら、ほかの mikan はいない。
 func (e *recorderEnv) newRecorderWithPeers(tuner recording.StreamOpener, peers recording.PeersFunc) *timeshift.Recorder {
-	return timeshift.NewRecorder(e.pool, e.clk, tuner, e.store, slog.New(slog.DiscardHandler), &timeshift.RecorderOptions{
+	return e.newRecorderOn(e.pool, tuner, peers)
+}
+
+// newRecorderOn は、pool で DB を読み書きする Recorder を返す。DB に届かない状態を作るテストで、切り替えられるプールを渡す。
+func (e *recorderEnv) newRecorderOn(pool *pgxpool.Pool, tuner recording.StreamOpener, peers recording.PeersFunc) *timeshift.Recorder {
+	return timeshift.NewRecorder(pool, e.clk, tuner, e.store, slog.New(slog.DiscardHandler), &timeshift.RecorderOptions{
 		ChunkDuration: 5 * time.Minute, Backoff: nil, Tick: testTick, Peers: peers,
 	})
 }
@@ -371,6 +378,70 @@ func TestTimeshiftRecorderRotatesChunks(t *testing.T) {
 	}
 }
 
+// TestTimeshiftRecorderRotatesChunksWhileDatabaseIsUnreachable は、DB に届かない間も、ストリームを閉じずにチャンクを替えて書き続け、
+// DB が戻ったら、書けなかったチャンクを記録することを確かめる (#1073)。DB への問い合わせが詰まっても、読み込みを止めない。
+func TestTimeshiftRecorderRotatesChunksWhileDatabaseIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		outage func(db *databasetest.Switch)
+	}{
+		{name: "connection refused", outage: (*databasetest.Switch).Down},
+		{name: "queries hang", outage: (*databasetest.Switch).Hang},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			e := newRecorderEnv(t)
+			db := databasetest.NewSwitch(t, e.pool)
+			tuner := newFakeTuner(e.clk, false)
+			start := e.clk.Now()
+			_, done := session(t, e.newRecorderOn(db.Pool, tuner, nil), e.assign(t, false))
+
+			tuner.next(t, nullPackets(10))
+			tt.outage(db)
+			// 12 分の間、1 分ごとにデータを流す。チャンクは 5 分ごとに替わる。
+			for range 12 {
+				e.clk.Advance(time.Minute)
+				tuner.next(t, nullPackets(10))
+			}
+			select {
+			case err := <-done:
+				require.FailNow(t, "the session returned while the database was unreachable", "%v", err)
+			default:
+			}
+			db.Up()
+
+			wantStarts := []time.Time{start, start.Add(5 * time.Minute), start.Add(10 * time.Minute)}
+			require.Eventually(t, func() bool {
+				got := chunks(t, e)
+
+				return len(got) == 3 && got[1].endedAt != nil
+			}, waitTimeout, 10*time.Millisecond)
+			got := chunks(t, e)
+			for i, c := range got {
+				assert.True(t, wantStarts[i].Equal(c.startedAt), "chunk %d started at %s", i, c.startedAt)
+				info, err := os.Stat(filepath.Join(e.dir, c.path))
+				require.NoError(t, err, "chunk %d is kept on the disk", i)
+				if i == len(got)-1 {
+					assert.Nil(t, c.endedAt, "the last chunk is still being written")
+
+					continue
+				}
+				require.NotNil(t, c.endedAt, "chunk %d", i)
+				assert.True(t, wantStarts[i+1].Equal(*c.endedAt), "chunk %d ended at %s", i, *c.endedAt)
+				assert.Equal(t, info.Size(), c.size, "chunk %d: the size in the DB matches the file", i)
+			}
+			// ストリームは開き直していない。
+			tuner.mu.Lock()
+			assert.Len(t, tuner.opts, 1)
+			tuner.mu.Unlock()
+		})
+	}
+}
+
 // TestTimeshiftRecorderReconnectBackoff は、開いてすぐ切れ続けると、開き直す間隔を、Backoff の間隔で延ばしていくことを確かめる。
 func TestTimeshiftRecorderReconnectBackoff(t *testing.T) {
 	t.Parallel()
@@ -405,46 +476,145 @@ func TestTimeshiftRecorderReconnectBackoff(t *testing.T) {
 func TestTimeshiftRecorderRecordsPrograms(t *testing.T) {
 	t.Parallel()
 
-	e := newRecorderEnv(t)
-	tuner := newFakeTuner(e.clk, false)
-	start := e.clk.Now()
-	_, done := session(t, e.newRecorder(tuner), e.assign(t, false))
+	tests := []struct {
+		name string
+		// unreachable は、番組が替わる間、DB に届かないかどうか。届くようになってから、同じ順で記録する (#1073)。
+		unreachable bool
+	}{
+		{name: "database reachable", unreachable: false},
+		{name: "database unreachable", unreachable: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// 偽チューナーサーバーの EPG では、12:00 から eventId 3、12:30 から eventId 4 を放送する。eventId 9999 は EPG にない。
+			e := newRecorderEnv(t)
+			db := databasetest.NewSwitch(t, e.pool)
+			tuner := newFakeTuner(e.clk, false)
+			start := e.clk.Now()
+			_, done := session(t, e.newRecorderOn(db.Pool, tuner, nil), e.assign(t, false))
+
+			// 偽チューナーサーバーの EPG では、12:00 から eventId 3、12:30 から eventId 4 を放送する。eventId 9999 は EPG にない。
+			cc := byte(0)
+			tuner.next(t, eitPFPackets(&cc, 3, 4))
+			if tt.unreachable {
+				db.Down()
+			}
+			e.clk.Advance(time.Minute)
+			// 同じ番組のままなら、行を足さない。
+			tuner.next(t, eitPFPackets(&cc, 3, 4))
+			e.clk.Advance(time.Minute)
+			tuner.next(t, eitPFPackets(&cc, 4, 5))
+			e.clk.Advance(time.Minute)
+			tuner.next(t, eitPFPackets(&cc, 9999, 5))
+			db.Up()
+
+			want := []programRow{
+				{eventID: 3, name: "こたつテスト1 テスト番組 3", startedAt: start, endedAt: new(start.Add(2 * time.Minute))},
+				{eventID: 4, name: "こたつテスト1 テスト番組 4", startedAt: start.Add(2 * time.Minute), endedAt: new(start.Add(3 * time.Minute))},
+				{eventID: 9999, name: "", startedAt: start.Add(3 * time.Minute), endedAt: nil},
+			}
+			require.Eventually(t, func() bool {
+				return len(programs(t, e)) == len(want)
+			}, waitTimeout, 10*time.Millisecond)
+			got := programs(t, e)
+			for i := range want {
+				assert.Equal(t, want[i].eventID, got[i].eventID, "program %d", i)
+				assert.Equal(t, want[i].name, got[i].name, "program %d", i)
+				assert.True(t, want[i].startedAt.Equal(got[i].startedAt), "program %d started at %s", i, got[i].startedAt)
+				if want[i].endedAt == nil {
+					assert.Nil(t, got[i].endedAt, "program %d", i)
+
+					continue
+				}
+				require.NotNil(t, got[i].endedAt, "program %d", i)
+				assert.True(t, want[i].endedAt.Equal(*got[i].endedAt), "program %d ended at %s", i, *got[i].endedAt)
+			}
+			select {
+			case err := <-done:
+				require.FailNow(t, "the session returned while streaming", "%v", err)
+			default:
+			}
+		})
+	}
+}
+
+// TestTimeshiftRecorderDiscardsDeferredRecordsAfterTakeover は、DB に届かない間に覚えた記録を、DB が戻ったときに
+// ほかの mikan が割り振りを取っていたら書かないことを確かめる (#1073)。新しい mikan の記録を、古い記録で上書きしない。
+func TestTimeshiftRecorderDiscardsDeferredRecordsAfterTakeover(t *testing.T) {
+	t.Parallel()
+
+	e := newRecorderEnv(t)
+	db := databasetest.NewSwitch(t, e.pool)
+	tuner := newFakeTuner(e.clk, false)
+	assignment := e.assign(t, false)
+	_, _ = session(t, e.newRecorderOn(db.Pool, tuner, nil), assignment)
+
 	cc := byte(0)
 	tuner.next(t, eitPFPackets(&cc, 3, 4))
-	e.clk.Advance(time.Minute)
-	// 同じ番組のままなら、行を足さない。
-	tuner.next(t, eitPFPackets(&cc, 3, 4))
+	db.Down()
 	e.clk.Advance(time.Minute)
 	tuner.next(t, eitPFPackets(&cc, 4, 5))
-	e.clk.Advance(time.Minute)
-	tuner.next(t, eitPFPackets(&cc, 9999, 5))
+	// DB に届かない間に、ほかの mikan が割り振りを取った。
+	_, err := e.pool.Exec(t.Context(), "UPDATE timeshift_assignments SET generation = generation + 1 WHERE id = $1", assignment.ID)
+	require.NoError(t, err)
+	db.Up()
+	time.Sleep(20 * testTick)
 
 	got := programs(t, e)
-	require.Len(t, got, 3)
-	want := []programRow{
-		{eventID: 3, name: "こたつテスト1 テスト番組 3", startedAt: start, endedAt: new(start.Add(2 * time.Minute))},
-		{eventID: 4, name: "こたつテスト1 テスト番組 4", startedAt: start.Add(2 * time.Minute), endedAt: new(start.Add(3 * time.Minute))},
-		{eventID: 9999, name: "", startedAt: start.Add(3 * time.Minute), endedAt: nil},
-	}
-	for i := range want {
-		assert.Equal(t, want[i].eventID, got[i].eventID, "program %d", i)
-		assert.Equal(t, want[i].name, got[i].name, "program %d", i)
-		assert.True(t, want[i].startedAt.Equal(got[i].startedAt), "program %d started at %s", i, got[i].startedAt)
-		if want[i].endedAt == nil {
-			assert.Nil(t, got[i].endedAt, "program %d", i)
+	require.Len(t, got, 1, "the deferred program change is not written")
+	assert.Equal(t, int64(3), got[0].eventID)
+	assert.Nil(t, got[0].endedAt)
+}
 
-			continue
-		}
-		require.NotNil(t, got[i].endedAt, "program %d", i)
-		assert.True(t, want[i].endedAt.Equal(*got[i].endedAt), "program %d ended at %s", i, *got[i].endedAt)
+// TestTimeshiftRecorderLogsUnreachableOnce は、DB に届かない間、割り振りを確かめられないことを、毎回ではなく 1 度だけログに残すことを確かめる (#1073)。
+func TestTimeshiftRecorderLogsUnreachableOnce(t *testing.T) {
+	t.Parallel()
+
+	e := newRecorderEnv(t)
+	db := databasetest.NewSwitch(t, e.pool)
+	tuner := newFakeTuner(e.clk, false)
+	logs := &countingHandler{}
+	recorder := timeshift.NewRecorder(db.Pool, e.clk, tuner, e.store, slog.New(logs), &timeshift.RecorderOptions{
+		ChunkDuration: 5 * time.Minute, Backoff: nil, Tick: testTick, Peers: nil,
+	})
+	_, _ = session(t, recorder, e.assign(t, false))
+	tuner.next(t, nullPackets(10))
+	db.Down()
+	time.Sleep(30 * testTick)
+	db.Up()
+
+	assert.LessOrEqual(t, logs.count("failed to check the timeshift assignment"), 1)
+}
+
+// countingHandler は、ログのメッセージの数を数える slog.Handler。
+type countingHandler struct {
+	mu       sync.Mutex
+	messages map[string]int
+}
+
+func (h *countingHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *countingHandler) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.messages == nil {
+		h.messages = map[string]int{}
 	}
-	select {
-	case err := <-done:
-		require.FailNow(t, "the session returned while streaming", "%v", err)
-	default:
-	}
+	h.messages[r.Message]++
+
+	return nil
+}
+
+func (h *countingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+
+func (h *countingHandler) WithGroup(string) slog.Handler { return h }
+
+func (h *countingHandler) count(message string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.messages[message]
 }
 
 // TestTimeshiftRecorderClosesChunkOnStop は、Session を止めると、書きかけのチャンクを閉じて返ることを確かめる。

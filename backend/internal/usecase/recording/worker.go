@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
@@ -132,6 +133,8 @@ type activeSession struct {
 	handingOver atomic.Bool
 	// done は、Session が返ったら閉じる。引き継ぎを待つ間に録画を終えたら、待つのをやめる。
 	done chan struct{}
+	// unreachableSince は、リースの延長が DB に届かなくなった時刻。届いている間は nil (#1073)。
+	unreachableSince atomic.Pointer[time.Time]
 }
 
 // Run は、ctx が終わるまで、割り振りが変わったときと AcquireInterval ごとに、取れる割り振りをすべて取って録画する。
@@ -174,6 +177,22 @@ func (w *Worker) Run(ctx context.Context) error {
 	wg.Wait()
 
 	return err
+}
+
+// DatabaseUnreachableFor は、録っている割り振りのうち、リースの延長がいちばん長く DB に届いていないものの、届かなくなってからの時間を返す。
+// どれも届いていれば 0 を返す (#1073)。
+func (w *Worker) DatabaseUnreachableFor() time.Duration {
+	now := w.clock.Now()
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	var longest time.Duration
+	for _, active := range w.active {
+		if since := active.unreachableSince.Load(); since != nil {
+			longest = max(longest, now.Sub(*since))
+		}
+	}
+
+	return longest
 }
 
 // acquireUnlessCoolingDown は、録画できずに割り振りを手放した後のしばらくの間でなければ、割り振りを取る (#524)。
@@ -315,7 +334,10 @@ func (w *Worker) leaseNow(ctx context.Context) (time.Time, error) {
 }
 
 // renewLease は、割り振りのリースを、leaseNow から LeaseTTL 後まで延ばす。延ばせた行の数を返す。
+// DB への接続が応答のないまま詰まっても、延長のループが止まらないよう、RenewInterval で打ち切る。
 func (w *Worker) renewLease(ctx context.Context, assignment *Assignment) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, w.opts.RenewInterval)
+	defer cancel()
 	now, err := w.leaseNow(ctx)
 	if err != nil {
 		return 0, err
@@ -331,13 +353,27 @@ func (w *Worker) acquire(ctx context.Context) (*Assignment, bool, error) {
 		return nil, false, err
 	}
 
-	return w.leases.Acquire(ctx, w.holder, now, now.Add(w.opts.LeaseTTL))
+	return w.leases.Acquire(ctx, w.holder, now, now.Add(w.opts.LeaseTTL), w.activeIDs())
+}
+
+// activeIDs は、この mikan が録っている割り振りの ID を返す。
+func (w *Worker) activeIDs() []uuid.UUID {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	ids := make([]uuid.UUID, 0, len(w.active))
+	for id := range w.active {
+		ids = append(ids, id)
+	}
+
+	return ids
 }
 
 // register は、割り振りを、録画している割り振りに載せ、その Session の context を返す。
 func (w *Worker) register(ctx context.Context, assignment *Assignment) (*activeSession, context.Context) {
 	sessionCtx, cancel := context.WithCancelCause(ctx)
-	active := &activeSession{assignment: assignment, cancel: cancel, handingOver: atomic.Bool{}, done: make(chan struct{})}
+	active := &activeSession{
+		assignment: assignment, cancel: cancel, handingOver: atomic.Bool{}, done: make(chan struct{}), unreachableSince: atomic.Pointer[time.Time]{},
+	}
 	w.mu.Lock()
 	w.active[assignment.ID] = active
 	w.mu.Unlock()
@@ -426,12 +462,17 @@ func (w *Worker) release(ctx context.Context, assignment *Assignment, logger *sl
 }
 
 // renew は、ctx が終わるまで、RenewInterval ごとにリースを延長する。
-// ほかの mikan が取ったか、延長できないままリースが切れたら、ErrLeaseLost で録画を止める。
+// ほかの mikan が取ったと分かったら、ErrLeaseLost で録画を止める。
+// DB に届かない間は、リースの期限が過ぎても録画を止めない。ほかの mikan が割り振りを取るにも DB が要り、取れば世代番号が進むので、
+// DB に届くようになってからの延長で、取られたかどうかが分かる (設計書 1.5、#1073)。
+// DB に届いた後のエラー (権限など) は、DB が止まったのではないので、今までどおりリースの期限で止める。
 func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.Logger) {
 	assignment, cancel := active.assignment, active.cancel
 	ticker := time.NewTicker(w.opts.RenewInterval)
 	defer ticker.Stop()
 	expiresAt := w.clock.Now().Add(w.opts.LeaseTTL)
+	// unreachableSince は、延長が DB に届かなくなった時刻。届いている間はゼロ値。
+	var unreachableSince time.Time
 	for {
 		select {
 		case <-ctx.Done():
@@ -444,14 +485,35 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 		switch {
 		case err != nil && ctx.Err() != nil:
 			return
+		case err != nil && database.IsUnavailable(err):
+			if unreachableSince.IsZero() {
+				unreachableSince = now
+				since := unreachableSince
+				active.unreachableSince.Store(&since)
+				logger.WarnContext(ctx, "failed to renew the assignment lease; keep recording until the database is reachable", slog.Any("error", err))
+			} else {
+				logger.DebugContext(ctx, "failed to renew the assignment lease", slog.Any("error", err))
+			}
+
+			continue
 		case err != nil:
 			logger.WarnContext(ctx, "failed to renew the assignment lease", slog.Any("error", err))
-			// DB に届かない間も、リースが切れるまでは書き続ける。切れたら、ほかの mikan に任せる。
+			// 延長できないままリースが切れたら、ほかの mikan に任せる。
 			if !now.Before(expiresAt) {
 				cancel(ErrLeaseLost)
 
 				return
 			}
+
+			continue
+		}
+		recovered := !unreachableSince.IsZero()
+		if recovered {
+			logger.InfoContext(ctx, "renewed the assignment lease again", slog.Duration("unreachable", now.Sub(unreachableSince)))
+			unreachableSince = time.Time{}
+			active.unreachableSince.Store(nil)
+		}
+		switch {
 		case n == 0 && active.handingOver.Load():
 			// 引き継ぎ待ちの間に世代が進んだのは、ほかの mikan が取ったからである。ストリームを開くまで録り続ける。
 			return
@@ -459,6 +521,14 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 			// 録画中に予約が消され、割り振りも一緒に消えた。録画は、予約を読み直したときに取り消しとして終える。
 			// タイムシフトでは、neko が割り振りを消した。Session が、割り振りを確かめて止まる。
 			logger.InfoContext(ctx, "the assignment was deleted")
+
+			return
+		case n == 0 && recovered:
+			// DB に届かない間に期限が切れ、戻った直後に、ほかの mikan が先に取った。この mikan は落ちていないので、
+			// 引き継ぎと同じく、新しい mikan がストリームを開くまで録り続けてから止め、欠けないようにする。
+			logger.InfoContext(ctx, "another mikan took the assignment while the database was unreachable; recording until it opens the stream")
+			w.waitForSuccessor(ctx, active)
+			cancel(ErrLeaseLost)
 
 			return
 		case n == 0:
