@@ -1630,6 +1630,7 @@ Helm Chartは次の方針で作ります。
 - PostgreSQLはChartに含めず、外部のもの（CloudNativePGなど）を使う前提にします。
 - `/metrics`を、Prometheus OperatorのPodMonitorで読めるようにします（`metrics.podMonitor.enabled`、[11.3](#113-監視)）。CRDのないクラスターで失敗しないよう、既定では作りません。
 - メトリクスをOTLPで送る設定（`metrics.otlp`）を、全ロールに渡せるようにします。ヘッダーはSecretから渡します。
+- タイムシフト用のディレクトリ（[5.7](#57-タイムシフト)）は、`storage.timeshift`のvolumeで渡します。保存先プールとデータディレクトリと同じロール（mikan、nekonote、tenban、kyusu）にマウントします。設定しなければ、タイムシフトは動きません。
 
 Kubernetesのマニフェストは、全ロールを1つのPodで動かす構成例と、ロールを分けた構成例の2つを生成します。
 Chartから生成した結果とリポジトリ上のマニフェストの差分は、CIの検査対象です。

@@ -90,9 +90,16 @@ config: {}
 #   volume:
 #     persistentVolumeClaim:
 #       claimName: kotatsu-data
+# storage.timeshift は、タイムシフトのバッファ (放送を一定時間だけ残すチャンクのファイル) を置く volume (設計書 5.7)。
+# 設定しなければ、タイムシフトは動かない。設定するなら storage.data も要る。プールと同じロールにマウントする。
+# 例:
+#   volume:
+#     persistentVolumeClaim:
+#       claimName: kotatsu-timeshift
 storage:
   pools: []
   data: {}
+  timeshift: {}
 
 # podSecurityContext と securityContext は、すべての Pod とコンテナに付ける。既定値は堅くしてあり、そのまま使える。
 podSecurityContext:
