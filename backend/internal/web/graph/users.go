@@ -119,3 +119,14 @@ func (r *Resolver) userByID(ctx context.Context, userID uuid.UUID) (*model.User,
 
 	return toUser(&row), nil
 }
+
+// forgetAuthorizations は、ユーザーについて、DB に届かない間に使うために覚えた認可の結果を忘れる (#1084)。keep のセッションは残す。
+// ユーザーを無効にした、ロールやパスワードを変えた直後に DB が止まっても、覚えた結果で前の権限のまま認可しないようにする。
+func (r *Resolver) forgetAuthorizations(userID uuid.UUID, keep *uuid.UUID) {
+	if r.sessions != nil {
+		r.sessions.ForgetUser(userID, keep)
+	}
+	if r.urlUsers != nil {
+		r.urlUsers.Forget(userID)
+	}
+}
