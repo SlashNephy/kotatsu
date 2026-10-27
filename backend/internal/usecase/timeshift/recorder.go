@@ -123,7 +123,7 @@ func (r *Recorder) record(ctx context.Context, assignment *recording.Assignment)
 			return err
 		}
 	}
-	pending := &pendingWrites{mu: sync.Mutex{}, writes: nil}
+	pending := &pendingWrites{mu: sync.Mutex{}, writes: nil, flushing: sync.Mutex{}}
 	programs, err := r.newProgramTracker(ctx, logger, assignment.ServiceID, pending)
 	if err != nil {
 		return err
@@ -152,7 +152,7 @@ func (r *Recorder) record(ctx context.Context, assignment *recording.Assignment)
 		}
 		interval := r.opts.Backoff[min(attempt, len(r.opts.Backoff)-1)]
 		attempt++
-		deleted, err := r.waitUntil(ctx, assignment, openedAt.Add(interval))
+		deleted, err := r.waitUntil(ctx, logger, assignment, pending, openedAt.Add(interval))
 		if err != nil {
 			return err
 		}
@@ -246,7 +246,10 @@ func (r *Recorder) stopDeleted(ctx context.Context, logger *slog.Logger, program
 }
 
 // waitUntil は、時計が until になるまで待つ。その間に割り振りが消えたら true を返す。ctx が終わったら、その原因を返す。
-func (r *Recorder) waitUntil(ctx context.Context, assignment *recording.Assignment, until time.Time) (bool, error) {
+// 待つ間も、DB に届かずに記録できなかった書き込み (pending) を、届くようになったら書く。
+func (r *Recorder) waitUntil(
+	ctx context.Context, logger *slog.Logger, assignment *recording.Assignment, pending *pendingWrites, until time.Time,
+) (bool, error) {
 	ticker := time.NewTicker(r.opts.Tick)
 	defer ticker.Stop()
 	for r.clock.Now().Before(until) {
@@ -255,6 +258,7 @@ func (r *Recorder) waitUntil(ctx context.Context, assignment *recording.Assignme
 			return false, context.Cause(ctx)
 		case <-ticker.C:
 		}
+		r.flushPending(ctx, logger, pending)
 		if r.deleted(ctx, assignment) {
 			return true, nil
 		}
@@ -264,8 +268,11 @@ func (r *Recorder) waitUntil(ctx context.Context, assignment *recording.Assignme
 }
 
 // deleted は、割り振りが DB から消えたかどうかを返す。確かめられなければ、消えていないとみなす。
+// DB への問い合わせが詰まっても、見張りを止めないよう、databaseTimeout で打ち切る (#1073)。
 func (r *Recorder) deleted(ctx context.Context, assignment *recording.Assignment) bool {
-	exists, err := sqlc.New(r.pool).TimeshiftAssignmentExists(ctx, assignment.ID)
+	checkCtx, cancel := context.WithTimeout(ctx, databaseTimeout)
+	defer cancel()
+	exists, err := sqlc.New(r.pool).TimeshiftAssignmentExists(checkCtx, assignment.ID)
 	if err != nil {
 		if ctx.Err() == nil {
 			r.logger.WarnContext(ctx, "failed to check the timeshift assignment", slog.Any("error", err))
@@ -342,9 +349,7 @@ func (r *Recorder) watch(
 			return
 		case <-ticker.C:
 		}
-		if pending.waiting() {
-			r.flushPending(ctx, logger, pending)
-		}
+		r.flushPending(ctx, logger, pending)
 		if r.deleted(ctx, assignment) {
 			deleted.Store(true)
 			_ = stream.Close()
@@ -571,9 +576,14 @@ func (t *programTracker) observe(ctx context.Context, analyzer *ts.Analyzer, now
 	}
 }
 
-// end は、放送中として記録している番組を now で閉じる。
+// end は、放送中として記録している番組を now で閉じる。DB に届かなければ、後から書く。
+// 積んだ番組の始まりより先に閉じないよう、積んだ書き込みが残っていれば、その後ろに積む。
 func (t *programTracker) end(ctx context.Context, now time.Time) {
-	_, err := sqlc.New(t.recorder.pool).EndTimeshiftProgram(ctx, sqlc.EndTimeshiftProgramParams{EndedAt: &now, ServiceID: t.serviceID})
+	err := t.recorder.writeOrDefer(ctx, t.logger, t.pending, func(ctx context.Context, q *sqlc.Queries) error {
+		_, err := q.EndTimeshiftProgram(ctx, sqlc.EndTimeshiftProgramParams{EndedAt: &now, ServiceID: t.serviceID})
+
+		return err
+	})
 	if err != nil {
 		t.logger.WarnContext(ctx, "failed to end the timeshift program", slog.Any("error", err))
 	}
