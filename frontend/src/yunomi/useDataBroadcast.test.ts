@@ -72,6 +72,47 @@ describe('moveMedia', () => {
     expect(video.style.cssText).toBe('filter: blur(1px);');
     expect(wrapper.style.cssText).toBe('');
   });
+
+  test('切り替えのときに重ねた組 (.slot) があれば、映っている組だけを移す', () => {
+    const media = document.createElement('div');
+    media.className = classes.media ?? '';
+    const [active, pending] = [document.createElement('div'), document.createElement('div')];
+    for (const slot of [active, pending]) {
+      slot.className = classes.slot ?? '';
+      slot.append(document.createElement('video'));
+    }
+    pending.style.visibility = 'hidden';
+    media.append(active, pending);
+    document.body.append(media);
+    const target = document.createElement('div');
+
+    moveMedia(active.querySelector('video')!, target);
+
+    expect(Array.from(target.children)).toEqual([active]);
+    expect(Array.from(media.children)).toEqual([pending]);
+    expect(pending.style.visibility).toBe('hidden');
+  });
+
+  test('移している間に組を切り替えたら、戻すときは、そのとき移した先にある組を戻す', () => {
+    const media = document.createElement('div');
+    media.className = classes.media ?? '';
+    const [previous, next] = [document.createElement('div'), document.createElement('div')];
+    for (const slot of [previous, next]) {
+      slot.className = classes.slot ?? '';
+      slot.append(document.createElement('video'));
+    }
+    media.append(previous);
+    document.body.append(media);
+    const target = document.createElement('div');
+
+    const restore = moveMedia(previous.querySelector('video')!, target);
+    // TsPlayer は、切り替えるとき、移した先の前の組を、新しい組と入れ替える。
+    previous.replaceWith(next);
+    restore();
+
+    expect(Array.from(media.children)).toEqual([next]);
+    expect(target.childNodes).toHaveLength(0);
+  });
 });
 
 describe('fitDocument', () => {

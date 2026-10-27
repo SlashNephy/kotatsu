@@ -6,6 +6,7 @@ import { cropStyle, noCrop, type Crop } from './crop';
 import { createCaptions, type Captions } from './captions';
 import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import { deinterlacerCanvas } from './deinterlacer';
+import { fitMedia } from './mediaFit';
 import classes from './TsPlayer.module.css';
 
 // wasmURL は、変換に使う WebAssembly の URL。Vite にワーカーへ埋め込ませず、明示的な URL で配信して、
@@ -214,6 +215,11 @@ export function TsPlayer({
       slot.video.muted = false;
     }
     slot.container.style.visibility = '';
+    // データ放送が、映っていた組を自分の中へ移しているなら、新しい組を同じ所に置く。外の CSS が届かないので、大きさをインラインで整える。
+    if (previous !== null && previous.container.parentNode !== mediaRef.current) {
+      fitMedia([slot.container]);
+      previous.container.replaceWith(slot.container);
+    }
     pendingRef.current = null;
     activeRef.current = slot;
     videoRef.current = slot.video;
@@ -312,7 +318,8 @@ export function TsPlayer({
           }
           selectAudio(next, audioRef.current);
           await next.load(url);
-          await firstPicture(slot.video);
+          // 映像が出る前に、読み込みが失敗するか終わったら、切り替えずに失敗として知らせる。
+          await Promise.race([firstPicture(slot.video), failureBeforePicture(next)]);
           if (!cancelled) {
             promote(slot);
             handlers.current.onLoaded?.();
@@ -350,7 +357,8 @@ export function TsPlayer({
 
     return () => {
       cancelled = true;
-      // 裏で読み込んで切り替えるなら、前の読み込みは、切り替えるまで流し続ける。
+      // 裏で読み込んで切り替えるなら、前の読み込みは、次の URL を裏で読み込んで切り替えるまで流し続ける。
+      // 次の実行が裏で読み込まないとき (映像が出ていない、URL がない) は、そこで止めるか読み直すので、ここでは止めない。
       // そうでなければ、前の読み込みを止めて、サーバーに無駄な読み込みをさせない。
       if (!handover) {
         player.stop();
@@ -411,6 +419,30 @@ export function TsPlayer({
 // hasPicture は、video に、今映せる映像があるかどうかを返す。
 function hasPicture(video: HTMLVideoElement): boolean {
   return video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+}
+
+// handoverTimeoutMs は、裏で読み込んだ映像が出るのを待つ時間の上限。
+const handoverTimeoutMs = 15_000;
+
+// failureBeforePicture は、裏で読み込んでいるプレイヤーが、失敗するか、流し終えるか、handoverTimeoutMs が過ぎたら、失敗で終わる。
+// 映像が出る前に終わったら、待ち続けずに、知らせを出して間隔を延ばすほうに回す。
+function failureBeforePicture(player: Mpeg2TsPlayer): Promise<never> {
+  return new Promise((_, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error('the new stream did not show a picture in time')),
+      handoverTimeoutMs,
+    );
+    player.addEventListener('error', (event) => {
+      clearTimeout(timer);
+      reject(event.detail.error);
+    });
+    player.addEventListener('statechange', (event) => {
+      if (event.detail.state === 'completed' || event.detail.state === 'error') {
+        clearTimeout(timer);
+        reject(new Error(`the new stream ended before a picture (${event.detail.state})`));
+      }
+    });
+  });
 }
 
 // firstPicture は、video に最初の映像が入るのを待つ。
