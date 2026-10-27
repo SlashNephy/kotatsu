@@ -359,7 +359,14 @@ func (r *Recorder) retryCreate(
 		if errors.Is(err, kago.ErrPoolNotMounted) && r.hasPeers(ctx) {
 			logger.WarnContext(ctx, "the storage pool is not mounted on this mikan; releasing the assignment", slog.Any("error", err))
 
-			return true, r.release(ctx, recording, reason)
+			// DB に届かずに録画を記録できていなければ、届くのを待って記録してから、理由を残す (#1073)。
+			return true, r.untilDatabase(ctx, logger, "release the recording", func(ctx context.Context) error {
+				if err := tracker.pending.save(ctx, r, tracker); err != nil {
+					return err
+				}
+
+				return r.release(ctx, recording, reason)
+			})
 		}
 		logger.WarnContext(ctx, "failed to create a recording file", slog.Any("error", err))
 		// DB に届かずに録画を記録できていなければ、届くのを待って記録してから、失敗にする (#1073)。
@@ -1191,8 +1198,8 @@ func (t *endTracker) reload(ctx context.Context) (sqlc.GetReservationForRecordin
 // check は、今が録画を止めるときかを確かめる。読めなければ、録画を続ける。
 func (t *endTracker) check(ctx context.Context) endReason {
 	r := t.recorder
-	// 止めるときかは、DB を待つ前の時刻で決める。DB を待った分だけ、止める時刻が遅れないようにする (#1073)。
-	now := r.clock.Now()
+	// checkedAt は、DB を待つ前の時刻。DB に届かずに待たされたら、録画を止めた時刻は、これにする (#1073)。
+	checkedAt := r.clock.Now()
 	// DB への接続が詰まっても、予定の終わりに気づけるよう、DB を待つのは DatabaseTimeout までにする。
 	ctx, cancel := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
 	defer cancel()
@@ -1205,8 +1212,13 @@ func (t *endTracker) check(ctx context.Context) endReason {
 	if !reservation.Enabled {
 		return endCancelled
 	}
+	now := r.clock.Now()
+	stoppedAt := now
+	if t.unreachable {
+		stoppedAt = checkedAt
+	}
 	if reservation.PlannedEndAt == nil {
-		t.stoppedAt = now
+		t.stoppedAt = stoppedAt
 
 		return endPlanned
 	}
@@ -1243,7 +1255,7 @@ func (t *endTracker) check(ctx context.Context) endReason {
 		if notBroadcast {
 			t.markNotBroadcast(ctx)
 		}
-		t.stoppedAt = now
+		t.stoppedAt = stoppedAt
 
 		return endPlanned
 	}
@@ -1264,8 +1276,12 @@ func (t *endTracker) program(ctx context.Context, q *sqlc.Queries) (sqlc.GetProg
 		return *t.lastProgram, nil
 	}
 	program, err := q.GetProgramEnd(ctx, sqlc.GetProgramEndParams{ServiceID: t.serviceID, EventID: *t.eventID})
-	if err == nil {
+	switch {
+	case err == nil:
 		t.lastProgram = &program
+	case database.IsUnavailable(err) && t.lastProgram != nil:
+		// 予約を読み直した直後に DB に届かなくなっても、最後に読めた番組の終わりで延長を続ける。
+		return *t.lastProgram, nil
 	}
 
 	return program, err

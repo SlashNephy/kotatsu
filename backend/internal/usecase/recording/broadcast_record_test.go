@@ -160,6 +160,7 @@ func TestRecorderDoesNotChurnDelayedBroadcastWhileDatabaseIsUnreachable(t *testi
 	require.Equal(t, 1, f.segments(t, reservationID))
 
 	db.Down()
+	waitForRefused(t, db)
 	f.clock.Advance(programStart().Add(recording.BroadcastStartGrace).Sub(f.clock.Now()))
 	time.Sleep(300 * time.Millisecond)
 	assert.Len(t, segmentFiles(t, dir), 1, "the recorder keeps the segment instead of reopening the stream again and again")

@@ -22,15 +22,16 @@ type Switch struct {
 
 	down atomic.Bool
 	hang atomic.Bool
-	// reached は、DB に届いた問い合わせの数。
+	// reached は、DB に届いた問い合わせの数。refused は、届かなかった問い合わせの数。
 	reached atomic.Int64
+	refused atomic.Int64
 }
 
 // NewSwitch は、pool と同じ DB につなぐ、届くかどうかを切り替えられるプールを作る。プールはテストの終了時に閉じる。
 func NewSwitch(tb testing.TB, pool *pgxpool.Pool) *Switch {
 	tb.Helper()
 
-	s := &Switch{Pool: nil, down: atomic.Bool{}, hang: atomic.Bool{}, reached: atomic.Int64{}}
+	s := &Switch{Pool: nil, down: atomic.Bool{}, hang: atomic.Bool{}, reached: atomic.Int64{}, refused: atomic.Int64{}}
 	cfg := pool.Config().Copy()
 	cfg.BeforeConnect = func(ctx context.Context, _ *pgx.ConnConfig) error {
 		return s.check(ctx)
@@ -67,6 +68,11 @@ func (s *Switch) Reached() int64 {
 	return s.reached.Load()
 }
 
+// Refused は、これまでに DB に届かなかった問い合わせの数を返す。DB を止めたことに、問い合わせる側が気づいたのを待つのに使う。
+func (s *Switch) Refused() int64 {
+	return s.refused.Load()
+}
+
 // Up は、DB に届くことにする。
 func (s *Switch) Up() {
 	s.down.Store(false)
@@ -81,6 +87,8 @@ func (s *Switch) check(ctx context.Context) error {
 		return ctx.Err()
 	}
 	if s.down.Load() {
+		s.refused.Add(1)
+
 		return errUnreachable
 	}
 

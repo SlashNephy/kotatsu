@@ -75,10 +75,20 @@ func (f *fixture) newRecorderOn(t *testing.T, pool *pgxpool.Pool, tuner recordin
 	recorder := recording.NewRecorder(pool, f.clock, tuner, kago.New(map[string]string{poolID: dir}, freeSpace).WithDataDir(dataRootOf(dir)), nil, tokyo,
 		logger, &recording.RecorderOptions{
 			TuningTime: 0, Tick: 10 * time.Millisecond, RetryInterval: 20 * time.Millisecond, ReleaseAfter: 0, Peers: peers,
-			DatabaseTimeout: 100 * time.Millisecond,
+			DatabaseTimeout: databaseTimeoutFor(f, pool),
 		})
 
 	return recorder, dir
+}
+
+// databaseTimeoutFor は、Recorder が DB を待つ上限を返す。DB を止めるテスト (切り替えられるプール) では、詰まった問い合わせを早く打ち切るよう短くする。
+// ほかは既定値にする。テストの負荷で、普通の問い合わせが DB に届かないものとして扱われないようにする。
+func databaseTimeoutFor(f *fixture, pool *pgxpool.Pool) time.Duration {
+	if pool == f.pool {
+		return 0
+	}
+
+	return time.Second
 }
 
 // dataRootOf は、プールのディレクトリ dir の Recorder が使う、データディレクトリを返す。t.TempDir の隣に置く。
@@ -505,7 +515,8 @@ func TestRecorderKeepsExtendingWhileDatabaseIsUnreachable(t *testing.T) {
 	f := newFixture(t)
 	reservationID := f.reserve(t, 0)
 	db := databasetest.NewSwitch(t, f.pool)
-	recorder, _ := f.newRecorderOn(t, db.Pool, onceStream{data: data}, nil, nil, slog.New(slog.DiscardHandler))
+	logs := &messageRecorder{mu: sync.Mutex{}, messages: []string{}}
+	recorder, _ := f.newRecorderOn(t, db.Pool, onceStream{data: data}, nil, nil, slog.New(logs))
 	_, done := f.session(t, recorder, reservationID)
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
 	require.Eventually(t, func() bool {
@@ -515,9 +526,12 @@ func TestRecorderKeepsExtendingWhileDatabaseIsUnreachable(t *testing.T) {
 	require.NoError(t, err)
 	// 予定の終わりが来たら、5 分延ばす。
 	f.clock.Advance(plannedEnd.Sub(f.clock.Now()))
-	time.Sleep(100 * time.Millisecond)
+	require.Eventually(t, func() bool {
+		return slices.Contains(logs.list(), "the program end is undecided; extending the recording")
+	}, waitTimeout, 10*time.Millisecond)
 
 	db.Down()
+	waitForRefused(t, db)
 	f.clock.Advance(time.Minute)
 	time.Sleep(300 * time.Millisecond)
 	db.Up()
@@ -532,6 +546,15 @@ func TestRecorderKeepsExtendingWhileDatabaseIsUnreachable(t *testing.T) {
 
 		return got.state != string(recording.StateRecording)
 	}, 500*time.Millisecond, 10*time.Millisecond, "the recorder keeps recording while extending")
+}
+
+// waitForRefused は、DB を止めたことに、Recorder が問い合わせて気づくまで待つ。
+func waitForRefused(t *testing.T, db *databasetest.Switch) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		return db.Refused() > 0
+	}, waitTimeout, 10*time.Millisecond)
 }
 
 // segmentFiles は、プールのディレクトリ dir にある録画ファイルを返す。
