@@ -105,6 +105,9 @@ export function TsPlayer({
   handlers.current = { onState, onError, onLoaded, onAudio, onVideo };
   const audioRef = useRef(audio);
   audioRef.current = audio;
+  // handover は、URL が変わったときにだけ読む。変えただけで読み直さないよう、ref で持つ。
+  const handoverRef = useRef(handover);
+  handoverRef.current = handover;
 
   const mediaRef = useRef<HTMLDivElement | null>(null);
 
@@ -308,7 +311,7 @@ export function TsPlayer({
     }
     let cancelled = false;
     // 今の映像が出ていれば、流したまま裏で読み込む。出ていなければ、待たせる映像がないので、すぐ読み直す。
-    if (handover && hasPicture(active.video)) {
+    if (handoverRef.current && hasPicture(active.video)) {
       const slot = createSlot(media, true);
       pendingRef.current = slot;
       void attachPlayer(slot)
@@ -360,11 +363,11 @@ export function TsPlayer({
       // 裏で読み込んで切り替えるなら、前の読み込みは、次の URL を裏で読み込んで切り替えるまで流し続ける。
       // 次の実行が裏で読み込まないとき (映像が出ていない、URL がない) は、そこで止めるか読み直すので、ここでは止めない。
       // そうでなければ、前の読み込みを止めて、サーバーに無駄な読み込みをさせない。
-      if (!handover) {
+      if (!handoverRef.current) {
         player.stop();
       }
     };
-  }, [ready, url, handover]);
+  }, [ready, url]);
 
   // 再生しているのに映像が進まなければ、配信が切れたとみなして、エラーとして知らせる。利用者が止めたとき、シークしているとき、
   // 終わりまで再生したときは見張らない。読み込んで映像が出るまでも見張らない。

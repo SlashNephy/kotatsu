@@ -74,6 +74,7 @@ import {
   NormalizeVolumeToggle,
   VirtualSurroundToggle,
 } from '../../yunomi/QualitySelect';
+import { useStreamsDrains } from '../../changes/DataChanges';
 import {
   canRetryImmediately,
   reconnectDelay,
@@ -446,6 +447,19 @@ function Live({
   // 一時停止したら、放送から遅れる。ブラウザ内での変換では、長く止めていたら再開するときに読み直す。
   // kyusu の経路は、プレイヤーが読み直す (設計書 7.3)。どちらの経路でも、遅れている間は「ライブに戻る」で読み直せる (#449)。
   const reload = () => setSession((n) => n + 1);
+  // tenban が止まる前に知らせてきたら、ブラウザ内での変換では、新しい接続を張ってから切り替える (#1085)。
+  // kyusu の経路は、セグメントごとに読むので、止まる tenban を避けて次のセグメントを読む。つなぎ直さなくてよい。
+  const drains = useStreamsDrains();
+  const seenDrains = useRef(drains);
+  useEffect(() => {
+    if (drains === seenDrains.current) {
+      return;
+    }
+    seenDrains.current = drains;
+    if (route.kind === 'convert' && disconnection === null) {
+      setSession((n) => n + 1);
+    }
+  }, [drains, route.kind, disconnection]);
   // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
   const [statsShown, setStatsShown] = useState(false);
   // 音量の補正 (#499)。端末ごとの設定に合わせる。

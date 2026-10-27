@@ -92,6 +92,7 @@ import { stepVolume } from '../../yunomi/volume';
 import { currentVolume } from '../../yunomi/volumeBoost';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
+import { useStreamsDrains } from '../../changes/DataChanges';
 import { canRetryImmediately, endedEarly } from '../../yunomi/reconnect';
 import { resumePosition } from '../../yunomi/resume';
 import { useVisible } from '../../yunomi/useVisible';
@@ -336,6 +337,9 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const [error, setError] = useState<string | null>(null);
   // lastAutoRetry は、切れたときに、知らせを出さずに今の位置から読み直した時刻 (#1083)。
   const lastAutoRetry = useRef<number | null>(null);
+  // handover は、次の読み直しで、今の映像を流したまま裏で読み込んで切り替えるかどうか (#1085)。
+  // tenban が止まる前の知らせで読み直すときだけ使い、シークなどでは、すぐ読み直す。
+  const [handover, setHandover] = useState(false);
 
   // currentPosition は、今の再生位置 (録画の始まりからの秒) を返す。実況のコメントを、画面の更新ごとに描くのに使う。
   // timeupdate で更新する position は間隔が粗いので、video の時刻から求め直す。
@@ -416,12 +420,27 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const [crop, setCrop] = useState<Crop>(noCrop);
   // startAt は、指定の位置から読み直す。
   const startAt = (seconds: number) => {
+    setHandover(false);
     phase.current = 'loading';
     positionRef.current = seconds;
     setPosition(seconds);
     setOffset(seconds);
     setLoads((n) => n + 1);
   };
+  // tenban が止まる前に知らせてきたら、ブラウザの中で変換するときは、今の位置から、新しい接続を張ってから切り替える (#1085)。
+  // kyusu の HLS は、セグメントごとに読むので、つなぎ直さなくてよい。
+  const drains = useStreamsDrains();
+  const seenDrains = useRef(drains);
+  useEffect(() => {
+    if (drains === seenDrains.current) {
+      return;
+    }
+    seenDrains.current = drains;
+    if (!hls) {
+      startAt(positionRef.current);
+      setHandover(true);
+    }
+  });
   // retry は、今の位置から読み直す。エラーの知らせも消し、読み込めたら出さないままにする。
   const retry = () => {
     setError(null);
@@ -840,6 +859,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       {route.kind === 'convert' && (
         <TsPlayer
           url={url}
+          handover={handover}
           videoRef={videoRef}
           onVideo={setVideo}
           controls={controlBar}

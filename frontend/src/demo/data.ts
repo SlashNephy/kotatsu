@@ -85,6 +85,7 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
         dataChange: { channel, version },
         viewerSettingsVersion: null,
         unreadNotificationCount: null,
+        streamsDraining: null,
       });
     }
   };
@@ -153,7 +154,12 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
   // viewerSettingsChanged は、ピン留め、番組表ビュー、視聴予約を変えたことを、画面に知らせる。
   const viewerSettingsChanged = () => {
     viewerSettingsVersion += 1;
-    events.publish({ dataChange: null, viewerSettingsVersion, unreadNotificationCount: null });
+    events.publish({
+      dataChange: null,
+      viewerSettingsVersion,
+      unreadNotificationCount: null,
+      streamsDraining: null,
+    });
   };
 
   return {
