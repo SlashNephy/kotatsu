@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<2ed5ec332886e77346e2e71f66432176>>
+ * @generated SignedSource<<79781b035d111d182347a8e0f09a571e>>
  * @lightSyntaxTransform
  */
 
@@ -10,14 +10,17 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type NotificationKind = "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
 export type WebhookFormat = "DISCORD" | "JSON" | "SLACK" | "%future added value";
-export type webhooksQuery$variables = Record<PropertyKey, never>;
-export type webhooksQuery$data = {
+export type integrationsQuery$variables = Record<PropertyKey, never>;
+export type integrationsQuery$data = {
   readonly passkeys: ReadonlyArray<{
     readonly id: string;
   }>;
   readonly secondFactors: {
     readonly remainingRecoveryCodes: number;
     readonly totp: boolean;
+  };
+  readonly systemSettings: {
+    readonly mcpEnabled: boolean;
   };
   readonly webhooks: ReadonlyArray<{
     readonly enabled: boolean;
@@ -28,9 +31,9 @@ export type webhooksQuery$data = {
     readonly url: string;
   }>;
 };
-export type webhooksQuery = {
-  response: webhooksQuery$data;
-  variables: webhooksQuery$variables;
+export type integrationsQuery = {
+  response: integrationsQuery$data;
+  variables: integrationsQuery$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -42,6 +45,24 @@ var v0 = {
   "storageKey": null
 },
 v1 = [
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "SystemSettings",
+    "kind": "LinkedField",
+    "name": "systemSettings",
+    "plural": false,
+    "selections": [
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "mcpEnabled",
+        "storageKey": null
+      }
+    ],
+    "storageKey": null
+  },
   {
     "alias": null,
     "args": null,
@@ -132,7 +153,7 @@ return {
     "argumentDefinitions": [],
     "kind": "Fragment",
     "metadata": null,
-    "name": "webhooksQuery",
+    "name": "integrationsQuery",
     "selections": (v1/*:: as any*/),
     "type": "Query",
     "abstractKey": null
@@ -141,20 +162,20 @@ return {
   "operation": {
     "argumentDefinitions": [],
     "kind": "Operation",
-    "name": "webhooksQuery",
+    "name": "integrationsQuery",
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "1016d911ca521b57e9bcdea7e1e846d3",
+    "cacheID": "d841fb8b8b9e2232ea93f11c2d4e685b",
     "id": null,
     "metadata": {},
-    "name": "webhooksQuery",
+    "name": "integrationsQuery",
     "operationKind": "query",
-    "text": "query webhooksQuery {\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "3a0a925384eb149043175d794f5dea79";
+(node as any).hash = "ff75d5aefc7ce2714a466c39c9405a62";
 
 export default node;

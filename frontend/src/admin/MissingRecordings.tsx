@@ -16,7 +16,6 @@ import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 
 import { ProgramTitle, toHalfWidth } from '../futon';
 import { mutate } from '../settings/mutate';
-import type { ReauthRun } from '../settings/useReauthGate';
 import type {
   MissingRecordingsQuery,
   MissingRecordingsQuery$data,
@@ -65,8 +64,7 @@ const dateTimeFormat = zonedFormat({
 
 // MissingRecordings は、セグメントのファイルが見つからない録画を探し、確かめてから DB から消す (設計書 5.6)。
 // ファイルを Kotatsu を通さずに消すと、録画の一覧に残り続けるので、管理者が片付ける。
-// 録画を消すのは重要な操作なので、ページの再認証 (run) を通して送る (設計書 9.5)。
-export function MissingRecordings({ run: reauthRun }: { run: ReauthRun }) {
+export function MissingRecordings() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const [found, setFound] = useState<readonly Missing[] | null>(null);
@@ -113,40 +111,29 @@ export function MissingRecordings({ run: reauthRun }: { run: ReauthRun }) {
     });
 
   // run は、選んだ録画を、サーバーの上限 (1 回に 500 件) ごとに分けて消す。
-  // 途中で再認証を求められたら、再認証した後、まだ送っていない分から続ける。
-  const run = () => {
+  const run = async () => {
     const ids = [...selected];
     const total = { deleted: 0, pruned: 0, skipped: 0 };
-    let next = 0;
-    // 再認証の画面と重ならないよう、確かめる画面は先に閉じる。
     setConfirming(false);
-    const finish = (text: { ok: boolean; text: string } | null) => {
-      setCleaning(false);
-      if (text !== null) {
-        setMessage(text);
-        void search(true);
+    setCleaning(true);
+    try {
+      for (let next = 0; next < ids.length; next += cleanUpBatch) {
+        const { cleanUpMissingRecordings: r } = await mutate<MissingRecordingsCleanUpMutation>(
+          environment,
+          cleanUpMutation,
+          { ids: ids.slice(next, next + cleanUpBatch) },
+        );
+        total.deleted += r.deletedRecordings;
+        total.pruned += r.prunedSegments;
+        total.skipped += r.skipped;
       }
-    };
-    reauthRun(
-      async () => {
-        setCleaning(true);
-        for (; next < ids.length; next += cleanUpBatch) {
-          const { cleanUpMissingRecordings: r } = await mutate<MissingRecordingsCleanUpMutation>(
-            environment,
-            cleanUpMutation,
-            { ids: ids.slice(next, next + cleanUpBatch) },
-          );
-          total.deleted += r.deletedRecordings;
-          total.pruned += r.prunedSegments;
-          total.skipped += r.skipped;
-        }
-        finish({ ok: true, text: t('admin.missing.cleaned', total) });
-      },
-      () => finish({ ok: false, text: t('admin.missing.cleanUpError') }),
-      () => finish(null),
-      // 再認証を待っている間は、消している途中の表示を出さない (#915)。
-      () => finish(null),
-    );
+      setMessage({ ok: true, text: t('admin.missing.cleaned', total) });
+    } catch {
+      setMessage({ ok: false, text: t('admin.missing.cleanUpError') });
+    } finally {
+      setCleaning(false);
+      void search(true);
+    }
   };
 
   return (
@@ -245,7 +232,7 @@ export function MissingRecordings({ run: reauthRun }: { run: ReauthRun }) {
             <Button variant="default" onClick={() => setConfirming(false)}>
               {t('admin.missing.cancel')}
             </Button>
-            <Button color="red" onClick={run}>
+            <Button color="red" onClick={() => void run()}>
               {t('admin.missing.confirmButton')}
             </Button>
           </Group>

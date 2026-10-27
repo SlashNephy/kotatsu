@@ -23,6 +23,7 @@ import { graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { AdminPage } from '../../admin/AdminPage';
+import { Section } from '../../admin/Section';
 import { authApi, type OIDCStatus } from '../../auth/api';
 import { notificationKinds, type NotificationKindName } from '../../notifications/kinds';
 import { settingsErrorMessage } from '../../settings/errors';
@@ -31,19 +32,20 @@ import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import { SudoGate } from '../../settings/SudoGate';
 import type {
   WebhookFormat,
-  webhooksCreateMutation,
-} from './__generated__/webhooksCreateMutation.graphql';
-import type { webhooksDeleteMutation } from './__generated__/webhooksDeleteMutation.graphql';
-import type { webhooksQuery } from './__generated__/webhooksQuery.graphql';
-import type { webhooksUpdateMutation } from './__generated__/webhooksUpdateMutation.graphql';
+  integrationsWebhookCreateMutation,
+} from './__generated__/integrationsWebhookCreateMutation.graphql';
+import type { integrationsWebhookDeleteMutation } from './__generated__/integrationsWebhookDeleteMutation.graphql';
+import type { integrationsMcpMutation } from './__generated__/integrationsMcpMutation.graphql';
+import type { integrationsQuery } from './__generated__/integrationsQuery.graphql';
+import type { integrationsWebhookUpdateMutation } from './__generated__/integrationsWebhookUpdateMutation.graphql';
 
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
-const path = '/admin/webhooks';
+const path = '/admin/integrations';
 
-export const Route = createFileRoute('/admin/webhooks')({
+export const Route = createFileRoute('/admin/integrations')({
   // IdP での再認証を出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
   loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
-  component: WebhooksPage,
+  component: IntegrationsPage,
 });
 
 const formats = ['JSON', 'DISCORD', 'SLACK'] as const satisfies readonly WebhookFormat[];
@@ -52,19 +54,22 @@ const kinds = (Object.keys(notificationKinds) as NotificationKindName[]).filter(
   (kind) => kind !== 'WATCH_REMINDER',
 );
 
-// WebhooksPage は、通知を外部のサービスに送る Webhook を作り、変え、消す、管理者向けの画面 (設計書 6.2、10.3)。
-function WebhooksPage() {
+// IntegrationsPage は、外部のサービスとの連携 (MCP のクライアントと、通知を送る Webhook) を変える、管理者向けの画面 (設計書 6.2、10.3)。
+function IntegrationsPage() {
   const { t } = useTranslation();
 
   return (
-    <AdminPage title={t('admin.webhooks.title')}>
-      <Webhooks />
+    <AdminPage title={t('admin.integrations.title')}>
+      <Integrations />
     </AdminPage>
   );
 }
 
 const query = graphql`
-  query webhooksQuery {
+  query integrationsQuery {
+    systemSettings {
+      mcpEnabled
+    }
     webhooks {
       id
       name
@@ -93,7 +98,7 @@ type WebhookInput = {
 
 type Message = { ok: boolean; text: string };
 
-function Webhooks() {
+function Integrations() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const oidc = Route.useLoaderData();
@@ -101,7 +106,7 @@ function Webhooks() {
   const [fetchKey, setFetchKey] = useState(0);
   // ほかの管理者が変えたら、読み直す (#869)。
   const adminChanges = useDataChanges(['ADMIN']);
-  const data = useLazyLoadQuery<webhooksQuery>(
+  const data = useLazyLoadQuery<integrationsQuery>(
     query,
     {},
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
@@ -147,6 +152,28 @@ function Webhooks() {
           </Alert>
         )}
 
+        <McpSettings
+          key={String(data.systemSettings.mcpEnabled)}
+          enabled={data.systemSettings.mcpEnabled}
+          busy={gate.busy}
+          onSave={(mcpEnabled) =>
+            gate.run(async () => {
+              await mutate<integrationsMcpMutation>(
+                environment,
+                graphql`
+                  mutation integrationsMcpMutation($input: SystemSettingsInput!) {
+                    updateSystemSettings(input: $input) {
+                      updatedAt
+                    }
+                  }
+                `,
+                { input: { mcpEnabled } },
+              );
+              succeed(t('admin.saved'));
+            }, fail)
+          }
+        />
+
         {/* 空のときは、空の表示だけを出す。カードで囲むと、枠が二重になる。 */}
         {data.webhooks.length === 0 ? (
           <EmptyState
@@ -155,7 +182,7 @@ function Webhooks() {
             hint={t('admin.webhooks.emptyHint')}
           />
         ) : (
-          <Card withBorder>
+          <Section title={t('admin.webhooks.title')}>
             <Stack gap="sm">
               {data.webhooks.map((webhook) => (
                 <WebhookRow
@@ -163,10 +190,13 @@ function Webhooks() {
                   webhook={webhook}
                   onUpdate={(input, onDone) =>
                     gate.run(async () => {
-                      await mutate<webhooksUpdateMutation>(
+                      await mutate<integrationsWebhookUpdateMutation>(
                         environment,
                         graphql`
-                          mutation webhooksUpdateMutation($id: ID!, $input: UpdateWebhookInput!) {
+                          mutation integrationsWebhookUpdateMutation(
+                            $id: ID!
+                            $input: UpdateWebhookInput!
+                          ) {
                             updateWebhook(id: $id, input: $input) {
                               id
                               name
@@ -185,10 +215,10 @@ function Webhooks() {
                   }
                   onDelete={() =>
                     gate.run(async () => {
-                      await mutate<webhooksDeleteMutation>(
+                      await mutate<integrationsWebhookDeleteMutation>(
                         environment,
                         graphql`
-                          mutation webhooksDeleteMutation($id: ID!) {
+                          mutation integrationsWebhookDeleteMutation($id: ID!) {
                             deleteWebhook(id: $id)
                           }
                         `,
@@ -200,7 +230,7 @@ function Webhooks() {
                 />
               ))}
             </Stack>
-          </Card>
+          </Section>
         )}
 
         <Card withBorder>
@@ -212,10 +242,10 @@ function Webhooks() {
               submitLabel={t('admin.webhooks.create')}
               onSubmit={(input, onDone) =>
                 gate.run(async () => {
-                  const response = await mutate<webhooksCreateMutation>(
+                  const response = await mutate<integrationsWebhookCreateMutation>(
                     environment,
                     graphql`
-                      mutation webhooksCreateMutation($input: CreateWebhookInput!) {
+                      mutation integrationsWebhookCreateMutation($input: CreateWebhookInput!) {
                         createWebhook(input: $input) {
                           webhook {
                             id
@@ -242,6 +272,42 @@ function Webhooks() {
         </Card>
       </SudoGate>
     </Stack>
+  );
+}
+
+// McpSettings は、MCP のクライアントに使わせるかどうか (#965) を変える。
+function McpSettings({
+  enabled,
+  busy,
+  onSave,
+}: {
+  enabled: boolean;
+  busy: boolean;
+  onSave: (enabled: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const [checked, setChecked] = useState(enabled);
+
+  return (
+    <Section title={t('admin.settings.mcp')}>
+      <Group justify="space-between" align="flex-end">
+        <Switch
+          size="sm"
+          label={t('admin.settings.mcpEnabled')}
+          description={t('admin.settings.mcpHelp')}
+          checked={checked}
+          onChange={(event) => setChecked(event.currentTarget.checked)}
+          maw={560}
+        />
+        <Button
+          size="compact-sm"
+          disabled={checked === enabled || busy}
+          onClick={() => onSave(checked)}
+        >
+          {t('admin.save')}
+        </Button>
+      </Group>
+    </Section>
   );
 }
 

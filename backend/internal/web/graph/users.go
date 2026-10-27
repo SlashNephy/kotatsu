@@ -30,17 +30,28 @@ func (r *Resolver) administrator(ctx context.Context) (*auth.Principal, *audit.A
 }
 
 // recentAdministrator は、ログイン中のユーザーが管理者で、直近 10 分以内に認証したことを確かめ、操作者を返す。
-// 管理者でなければ、message を付けて FORBIDDEN を返す。
+// 管理者でなければ、message を付けて FORBIDDEN を返す。第三者に影響しうる操作 (ユーザーの管理、外部のサービスとの連携) に使う (設計書 9.5)。
 func (r *Resolver) recentAdministrator(ctx context.Context, message string) (*auth.Principal, *audit.Actor, error) {
+	principal, actor, err := r.administratorActor(ctx, message)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := auth.RequireRecentAuthentication(ctx, r.clock); err != nil {
+		return nil, nil, err
+	}
+
+	return principal, actor, nil
+}
+
+// administratorActor は、ログイン中のユーザーが管理者であることを確かめ、操作者を返す。再認証は求めない。
+// 管理者でなければ、message を付けて FORBIDDEN を返す。第三者に影響しない管理の操作 (録画やサービスの設定、ファイルの片付けなど) に使う (設計書 9.5)。
+func (r *Resolver) administratorActor(ctx context.Context, message string) (*auth.Principal, *audit.Actor, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 	if !principal.Role.Can(auth.PermissionAdminister) {
 		return nil, nil, NewError(CodeForbidden, message)
-	}
-	if err := auth.RequireRecentAuthentication(ctx, r.clock); err != nil {
-		return nil, nil, err
 	}
 
 	return principal, actorOf(ctx, principal), nil

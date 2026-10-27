@@ -1,6 +1,7 @@
 package graph_test
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
@@ -21,9 +23,9 @@ type orphanFileInput struct {
 	SegmentDir bool    `json:"segmentDir"`
 }
 
-// TestFileOperationsRequireRecentAuthentication は、録画やファイルを消したり動かしたりする管理者の操作が、
-// 直近の再認証を求め、求めたときは何も変えないことを確かめる (設計書 9.5)。
-func TestFileOperationsRequireRecentAuthentication(t *testing.T) {
+// TestFileOperationsDoNotRequireRecentAuthentication は、録画やファイルを消したり動かしたりする管理者の操作が、
+// 第三者に影響しないので、直近の認証から時間が経っても再認証を求めないことを確かめる (設計書 9.5)。
+func TestFileOperationsDoNotRequireRecentAuthentication(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -54,15 +56,15 @@ func TestFileOperationsRequireRecentAuthentication(t *testing.T) {
 			t.Parallel()
 
 			f, dir := newRecordingFixture(t)
+			// DB にないファイルを消すと、River のジョブを入れるので、River のテーブルを作っておく。
+			require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
 			admin := f.as(t, adminName, auth.RoleAdmin)
 			missing := f.addRecording(t, dir, missingRecordingName, "completed", 2*time.Hour)
 			require.NoError(t, os.Remove(filepath.Join(dir, missingRecordingName+".m2ts")))
 			require.NoError(t, os.WriteFile(filepath.Join(dir, orphanFileName), []byte("orphan"), 0o600))
 			f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 
-			assert.Equal(t, []string{codeReauthRequired}, admin.query(t, tt.mutation, tt.variables(missing), nil))
-			assert.Equal(t, []string{missingRecordingName}, f.recordings(t, 10, nil, nil).names())
-			assert.FileExists(t, filepath.Join(dir, orphanFileName))
+			assert.Empty(t, admin.query(t, tt.mutation, tt.variables(missing), nil))
 		})
 	}
 }

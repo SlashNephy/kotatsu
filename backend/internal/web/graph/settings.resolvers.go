@@ -11,7 +11,7 @@ import (
 
 // UpdateSystemSettings is the resolver for the updateSystemSettings field.
 func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model.SystemSettingsInput) (*model.SystemSettings, error) {
-	_, actor, err := r.recentAdministrator(ctx, "only administrators can change the system settings")
+	_, actor, err := r.systemSettingsAdministrator(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 
 // UpdateChannelType is the resolver for the updateChannelType field.
 func (r *mutationResolver) UpdateChannelType(ctx context.Context, typeArg string, input model.ChannelTypeInput) (*model.ChannelType, error) {
-	_, actor, err := r.recentAdministrator(ctx, "only administrators can change channel types")
+	_, actor, err := r.administratorActor(ctx, "only administrators can change channel types")
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (r *mutationResolver) UpdateChannelType(ctx context.Context, typeArg string
 
 // UpdateService is the resolver for the updateService field.
 func (r *mutationResolver) UpdateService(ctx context.Context, id string, input model.ServiceInput) (*model.Service, error) {
-	_, actor, err := r.recentAdministrator(ctx, "only administrators can change services")
+	_, actor, err := r.administratorActor(ctx, "only administrators can change services")
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (r *mutationResolver) UpdateService(ctx context.Context, id string, input m
 
 // UpdateStoragePool is the resolver for the updateStoragePool field.
 func (r *mutationResolver) UpdateStoragePool(ctx context.Context, id string, input model.StoragePoolInput) (*model.StoragePool, error) {
-	_, actor, err := r.recentAdministrator(ctx, "only administrators can change storage pools")
+	_, actor, err := r.administratorActor(ctx, "only administrators can change storage pools")
 	if err != nil {
 		return nil, err
 	}

@@ -28,7 +28,7 @@ func (r *Resolver) timeshiftChannels(ctx context.Context) ([]*model.TimeshiftCha
 // タイムシフトのディレクトリがない tenban では足させない。neko は、足されたチャンネルをそのまま割り振るので、
 // 設定していない構成で、録れない割り振りを作らないようにする。
 func (r *Resolver) setTimeshiftChannel(ctx context.Context, serviceGlobalID string, retentionSeconds *int) (*model.TimeshiftChannel, error) {
-	_, actor, err := r.recentAdministrator(ctx, "only administrators can change timeshift channels")
+	_, actor, err := r.administratorActor(ctx, "only administrators can change timeshift channels")
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (r *Resolver) setTimeshiftChannel(ctx context.Context, serviceGlobalID stri
 // removeTimeshiftChannel は、サービスをタイムシフトで録るチャンネルから外し、外したサービスの ID を返す。
 // タイムシフトのディレクトリがない tenban でも、前に足したチャンネルを外せるようにする。
 func (r *Resolver) removeTimeshiftChannel(ctx context.Context, serviceGlobalID string) (string, error) {
-	_, actor, err := r.recentAdministrator(ctx, "only administrators can change timeshift channels")
+	_, actor, err := r.administratorActor(ctx, "only administrators can change timeshift channels")
 	if err != nil {
 		return "", err
 	}

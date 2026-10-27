@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<8f3787bbd958f6a454c75803de89547b>>
+ * @generated SignedSource<<ed33bd99d9f20705067e4f184c7b903c>>
  * @lightSyntaxTransform
  */
 
@@ -10,13 +10,6 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type systemQuery$variables = Record<PropertyKey, never>;
 export type systemQuery$data = {
-  readonly passkeys: ReadonlyArray<{
-    readonly id: string;
-  }>;
-  readonly secondFactors: {
-    readonly remainingRecoveryCodes: number;
-    readonly totp: boolean;
-  };
   readonly systemStatus: {
     readonly instances: ReadonlyArray<{
       readonly address: string;
@@ -32,14 +25,6 @@ export type systemQuery$data = {
       readonly holderInstanceId: string;
       readonly name: string;
       readonly valid: boolean;
-    }>;
-    readonly pools: ReadonlyArray<{
-      readonly freeBytes: number | null | undefined;
-      readonly id: string;
-      readonly minFreeBytes: number;
-      readonly path: string;
-      readonly priority: number;
-      readonly totalBytes: number | null | undefined;
     }>;
     readonly tunerServer: {
       readonly checkedAt: string;
@@ -88,14 +73,7 @@ v1 = {
   "name": "name",
   "storageKey": null
 },
-v2 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "id",
-  "storageKey": null
-},
-v3 = [
+v2 = [
   {
     "alias": null,
     "args": null,
@@ -341,91 +319,7 @@ v3 = [
           }
         ],
         "storageKey": null
-      },
-      {
-        "alias": null,
-        "args": null,
-        "concreteType": "StoragePool",
-        "kind": "LinkedField",
-        "name": "pools",
-        "plural": true,
-        "selections": [
-          (v2/*:: as any*/),
-          {
-            "alias": null,
-            "args": null,
-            "kind": "ScalarField",
-            "name": "path",
-            "storageKey": null
-          },
-          {
-            "alias": null,
-            "args": null,
-            "kind": "ScalarField",
-            "name": "priority",
-            "storageKey": null
-          },
-          {
-            "alias": null,
-            "args": null,
-            "kind": "ScalarField",
-            "name": "minFreeBytes",
-            "storageKey": null
-          },
-          {
-            "alias": null,
-            "args": null,
-            "kind": "ScalarField",
-            "name": "freeBytes",
-            "storageKey": null
-          },
-          {
-            "alias": null,
-            "args": null,
-            "kind": "ScalarField",
-            "name": "totalBytes",
-            "storageKey": null
-          }
-        ],
-        "storageKey": null
       }
-    ],
-    "storageKey": null
-  },
-  {
-    "alias": null,
-    "args": null,
-    "concreteType": "SecondFactorStatus",
-    "kind": "LinkedField",
-    "name": "secondFactors",
-    "plural": false,
-    "selections": [
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "totp",
-        "storageKey": null
-      },
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "remainingRecoveryCodes",
-        "storageKey": null
-      }
-    ],
-    "storageKey": null
-  },
-  {
-    "alias": null,
-    "args": null,
-    "concreteType": "Passkey",
-    "kind": "LinkedField",
-    "name": "passkeys",
-    "plural": true,
-    "selections": [
-      (v2/*:: as any*/)
     ],
     "storageKey": null
   }
@@ -436,7 +330,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "systemQuery",
-    "selections": (v3/*:: as any*/),
+    "selections": (v2/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -445,19 +339,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "systemQuery",
-    "selections": (v3/*:: as any*/)
+    "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "adc855c3c52e4dc0db52dfda21b61cf0",
+    "cacheID": "802c148f5255d362de3190411942654e",
     "id": null,
     "metadata": {},
     "name": "systemQuery",
     "operationKind": "query",
-    "text": "query systemQuery {\n  version {\n    version\n    latestRelease {\n      version\n      url\n      publishedAt\n    }\n  }\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      clockSkewed\n      clockSkewThresholdMs\n      checkedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n    pools {\n      id\n      path\n      priority\n      minFreeBytes\n      freeBytes\n      totalBytes\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query systemQuery {\n  version {\n    version\n    latestRelease {\n      version\n      url\n      publishedAt\n    }\n  }\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      clockSkewed\n      clockSkewThresholdMs\n      checkedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "a8ff6e8d7d10c95dbec31b2a438f48b7";
+(node as any).hash = "f18fcc1c5f7f9b10ec359f62bb8f6f48";
 
 export default node;

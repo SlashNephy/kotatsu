@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<181ca4596fc7e3d8055a3f3ff3185bef>>
+ * @generated SignedSource<<eec4f0d0a443f8b843cd6c9fa8599584>>
  * @lightSyntaxTransform
  */
 
@@ -8,24 +8,25 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type StoragePoolInput = {
-  minFreeBytes?: number | null | undefined;
-  priority?: number | null | undefined;
+export type ServiceInput = {
+  hidden?: boolean | null | undefined;
+  resetSortOrder?: boolean;
+  sortOrder?: number | null | undefined;
 };
-export type systemPoolMutation$variables = {
+export type servicesServiceMutation$variables = {
   id: string;
-  input: StoragePoolInput;
+  input: ServiceInput;
 };
-export type systemPoolMutation$data = {
-  readonly updateStoragePool: {
+export type servicesServiceMutation$data = {
+  readonly updateService: {
+    readonly hidden: boolean;
     readonly id: string;
-    readonly minFreeBytes: number;
-    readonly priority: number;
+    readonly sortOrder: number | null | undefined;
   };
 };
-export type systemPoolMutation = {
-  response: systemPoolMutation$data;
-  variables: systemPoolMutation$variables;
+export type servicesServiceMutation = {
+  response: servicesServiceMutation$data;
+  variables: servicesServiceMutation$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -56,9 +57,9 @@ v1 = [
         "variableName": "input"
       }
     ],
-    "concreteType": "StoragePool",
+    "concreteType": "Service",
     "kind": "LinkedField",
-    "name": "updateStoragePool",
+    "name": "updateService",
     "plural": false,
     "selections": [
       {
@@ -72,14 +73,14 @@ v1 = [
         "alias": null,
         "args": null,
         "kind": "ScalarField",
-        "name": "priority",
+        "name": "hidden",
         "storageKey": null
       },
       {
         "alias": null,
         "args": null,
         "kind": "ScalarField",
-        "name": "minFreeBytes",
+        "name": "sortOrder",
         "storageKey": null
       }
     ],
@@ -91,7 +92,7 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Fragment",
     "metadata": null,
-    "name": "systemPoolMutation",
+    "name": "servicesServiceMutation",
     "selections": (v1/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
@@ -100,20 +101,20 @@ return {
   "operation": {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
-    "name": "systemPoolMutation",
+    "name": "servicesServiceMutation",
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "22bb978767e7e1293be8bb89b20b1f10",
+    "cacheID": "ffae66ce3076bbd254b3a05400dea258",
     "id": null,
     "metadata": {},
-    "name": "systemPoolMutation",
+    "name": "servicesServiceMutation",
     "operationKind": "mutation",
-    "text": "mutation systemPoolMutation(\n  $id: String!\n  $input: StoragePoolInput!\n) {\n  updateStoragePool(id: $id, input: $input) {\n    id\n    priority\n    minFreeBytes\n  }\n}\n"
+    "text": "mutation servicesServiceMutation(\n  $id: ID!\n  $input: ServiceInput!\n) {\n  updateService(id: $id, input: $input) {\n    id\n    hidden\n    sortOrder\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "7e484925c933a8a261e18c0529e6afa7";
+(node as any).hash = "3247f78f9a64a3b6f001c740dc603984";
 
 export default node;

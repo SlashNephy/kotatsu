@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<9ad47ff38a027c848552b4c8aa7732a3>>
+ * @generated SignedSource<<2003f90d62cbebf48d4306b90cde575f>>
  * @lightSyntaxTransform
  */
 
@@ -17,10 +17,10 @@ export type CreateWebhookInput = {
   name: string;
   url: string;
 };
-export type webhooksCreateMutation$variables = {
+export type integrationsWebhookCreateMutation$variables = {
   input: CreateWebhookInput;
 };
-export type webhooksCreateMutation$data = {
+export type integrationsWebhookCreateMutation$data = {
   readonly createWebhook: {
     readonly secret: string;
     readonly webhook: {
@@ -29,9 +29,9 @@ export type webhooksCreateMutation$data = {
     };
   };
 };
-export type webhooksCreateMutation = {
-  response: webhooksCreateMutation$data;
-  variables: webhooksCreateMutation$variables;
+export type integrationsWebhookCreateMutation = {
+  response: integrationsWebhookCreateMutation$data;
+  variables: integrationsWebhookCreateMutation$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -98,7 +98,7 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Fragment",
     "metadata": null,
-    "name": "webhooksCreateMutation",
+    "name": "integrationsWebhookCreateMutation",
     "selections": (v1/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
@@ -107,20 +107,20 @@ return {
   "operation": {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
-    "name": "webhooksCreateMutation",
+    "name": "integrationsWebhookCreateMutation",
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "231a4d1416bf3b6cdd655e7f3c8abffe",
+    "cacheID": "b50c94637e85f48eeebc7ee1a91acde1",
     "id": null,
     "metadata": {},
-    "name": "webhooksCreateMutation",
+    "name": "integrationsWebhookCreateMutation",
     "operationKind": "mutation",
-    "text": "mutation webhooksCreateMutation(\n  $input: CreateWebhookInput!\n) {\n  createWebhook(input: $input) {\n    webhook {\n      id\n      name\n    }\n    secret\n  }\n}\n"
+    "text": "mutation integrationsWebhookCreateMutation(\n  $input: CreateWebhookInput!\n) {\n  createWebhook(input: $input) {\n    webhook {\n      id\n      name\n    }\n    secret\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "6140ee19590bcb487f3625f8fb94a516";
+(node as any).hash = "3ff4dc5cb05bf19e3d626b63dcf4cd35";
 
 export default node;

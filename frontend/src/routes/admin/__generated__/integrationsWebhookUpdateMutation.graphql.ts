@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<bf2ee38bb8f892884ad187da9678ab74>>
+ * @generated SignedSource<<fb3f9c7583a8aec24c05b2882cf12ef5>>
  * @lightSyntaxTransform
  */
 
@@ -17,11 +17,11 @@ export type UpdateWebhookInput = {
   name?: string | null | undefined;
   url?: string | null | undefined;
 };
-export type webhooksUpdateMutation$variables = {
+export type integrationsWebhookUpdateMutation$variables = {
   id: string;
   input: UpdateWebhookInput;
 };
-export type webhooksUpdateMutation$data = {
+export type integrationsWebhookUpdateMutation$data = {
   readonly updateWebhook: {
     readonly enabled: boolean;
     readonly format: WebhookFormat;
@@ -31,9 +31,9 @@ export type webhooksUpdateMutation$data = {
     readonly url: string;
   };
 };
-export type webhooksUpdateMutation = {
-  response: webhooksUpdateMutation$data;
-  variables: webhooksUpdateMutation$variables;
+export type integrationsWebhookUpdateMutation = {
+  response: integrationsWebhookUpdateMutation$data;
+  variables: integrationsWebhookUpdateMutation$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -120,7 +120,7 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Fragment",
     "metadata": null,
-    "name": "webhooksUpdateMutation",
+    "name": "integrationsWebhookUpdateMutation",
     "selections": (v1/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
@@ -129,20 +129,20 @@ return {
   "operation": {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
-    "name": "webhooksUpdateMutation",
+    "name": "integrationsWebhookUpdateMutation",
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "e0ebd0663152e0f09b2040af947ca038",
+    "cacheID": "6e33481344e063290744e2da2b2442d4",
     "id": null,
     "metadata": {},
-    "name": "webhooksUpdateMutation",
+    "name": "integrationsWebhookUpdateMutation",
     "operationKind": "mutation",
-    "text": "mutation webhooksUpdateMutation(\n  $id: ID!\n  $input: UpdateWebhookInput!\n) {\n  updateWebhook(id: $id, input: $input) {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n}\n"
+    "text": "mutation integrationsWebhookUpdateMutation(\n  $id: ID!\n  $input: UpdateWebhookInput!\n) {\n  updateWebhook(id: $id, input: $input) {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "2d2ebbd2482be5ff902b1495bb25a49c";
+(node as any).hash = "df3da6a9218e69209c09ba96c21a480a";
 
 export default node;
