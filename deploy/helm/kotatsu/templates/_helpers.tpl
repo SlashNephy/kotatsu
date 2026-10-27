@@ -127,6 +127,13 @@ env は、すべてのコンテナに渡す環境変数。
 - name: KOTATSU_STORAGE_DATA_DIR
   value: /var/lib/kotatsu/data
 {{- end }}
+{{- if and .Values.storage.timeshift.volume (not .Values.storage.data.volume) }}
+{{- fail "storage.data.volume is required when storage.timeshift is set" }}
+{{- end }}
+{{- if .Values.storage.timeshift.volume }}
+- name: KOTATSU_STORAGE_TIMESHIFT_DIR
+  value: /var/lib/kotatsu/timeshift
+{{- end }}
 - name: KOTATSU_KYUSU_WORK_DIR
   value: /var/lib/kotatsu/work
 {{- include "kotatsu.otlpMetricsEnv" . }}
@@ -169,7 +176,7 @@ configEnv は、values の config から作る環境変数 (KOTATSU_ の後ろ�
 
 {{/*
 volumeMounts は、コンテナにマウントするもの。ルートファイルシステムは読み取り専用なので、書く場所は emptyDir にする。
-引数は (dict "root" $ "pools" 真偽値)。pools が true なら、録画の保存先プールもマウントする。
+引数は (dict "root" $ "pools" 真偽値)。pools が true なら、録画の保存先プールと、データとタイムシフトのディレクトリもマウントする。
 volume の名前は、プール ID に使える _ を含められないので、プールの並びの番号にする。
 */}}
 {{- define "kotatsu.volumeMounts" -}}
@@ -185,6 +192,10 @@ volume の名前は、プール ID に使える _ を含められないので、
 {{- if .root.Values.storage.data.volume }}
 - name: data
   mountPath: /var/lib/kotatsu/data
+{{- end }}
+{{- if .root.Values.storage.timeshift.volume }}
+- name: timeshift
+  mountPath: /var/lib/kotatsu/timeshift
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -207,6 +218,10 @@ volume の名前は、プール ID に使える _ を含められないので、
 {{- end }}
 {{- with .root.Values.storage.data.volume }}
 - name: data
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .root.Values.storage.timeshift.volume }}
+- name: timeshift
   {{- toYaml . | nindent 2 }}
 {{- end }}
 {{- end }}
