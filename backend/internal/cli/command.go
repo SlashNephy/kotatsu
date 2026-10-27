@@ -871,7 +871,7 @@ func newStreamCounter(deps *Deps) *streamapi.StreamCounter {
 	for _, kind := range streamapi.StreamKinds() {
 		deps.Metrics.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 			Namespace: metrics.Namespace, Name: "tenban_streams", Help: "Number of responses that tenban is streaming without transcoding on this instance.",
-			ConstLabels: prometheus.Labels{"kind": string(kind)},
+			ConstLabels: prometheus.Labels{kindLabel: string(kind)},
 		}, func() float64 { return float64(streams.Streams(kind)) }))
 	}
 
@@ -951,7 +951,7 @@ func newKyusu(ctx context.Context, logger *slog.Logger, deps *Deps) (*kyusu.Live
 	for kind, sessions := range map[string]func() int{"live": live.Sessions, "vod": vod.Sessions} {
 		deps.Metrics.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 			Namespace: metrics.Namespace, Name: "kyusu_sessions", Help: "Number of kyusu transcoding sessions on this instance.",
-			ConstLabels: prometheus.Labels{"kind": kind},
+			ConstLabels: prometheus.Labels{kindLabel: kind},
 		}, func() float64 { return float64(sessions()) }))
 	}
 

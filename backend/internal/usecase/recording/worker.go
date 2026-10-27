@@ -133,6 +133,8 @@ type activeSession struct {
 	handingOver atomic.Bool
 	// done は、Session が返ったら閉じる。引き継ぎを待つ間に録画を終えたら、待つのをやめる。
 	done chan struct{}
+	// unreachableSince は、リースの延長が DB に届かなくなった時刻。届いている間は nil (#1073)。
+	unreachableSince atomic.Pointer[time.Time]
 }
 
 // Run は、ctx が終わるまで、割り振りが変わったときと AcquireInterval ごとに、取れる割り振りをすべて取って録画する。
@@ -175,6 +177,22 @@ func (w *Worker) Run(ctx context.Context) error {
 	wg.Wait()
 
 	return err
+}
+
+// DatabaseUnreachableFor は、録っている割り振りのうち、リースの延長がいちばん長く DB に届いていないものの、届かなくなってからの時間を返す。
+// どれも届いていれば 0 を返す (#1073)。
+func (w *Worker) DatabaseUnreachableFor() time.Duration {
+	now := w.clock.Now()
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	var longest time.Duration
+	for _, active := range w.active {
+		if since := active.unreachableSince.Load(); since != nil {
+			longest = max(longest, now.Sub(*since))
+		}
+	}
+
+	return longest
 }
 
 // acquireUnlessCoolingDown は、録画できずに割り振りを手放した後のしばらくの間でなければ、割り振りを取る (#524)。
@@ -353,7 +371,9 @@ func (w *Worker) activeIDs() []uuid.UUID {
 // register は、割り振りを、録画している割り振りに載せ、その Session の context を返す。
 func (w *Worker) register(ctx context.Context, assignment *Assignment) (*activeSession, context.Context) {
 	sessionCtx, cancel := context.WithCancelCause(ctx)
-	active := &activeSession{assignment: assignment, cancel: cancel, handingOver: atomic.Bool{}, done: make(chan struct{})}
+	active := &activeSession{
+		assignment: assignment, cancel: cancel, handingOver: atomic.Bool{}, done: make(chan struct{}), unreachableSince: atomic.Pointer[time.Time]{},
+	}
 	w.mu.Lock()
 	w.active[assignment.ID] = active
 	w.mu.Unlock()
@@ -468,6 +488,8 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 		case err != nil && database.IsUnavailable(err):
 			if unreachableSince.IsZero() {
 				unreachableSince = now
+				since := unreachableSince
+				active.unreachableSince.Store(&since)
 				logger.WarnContext(ctx, "failed to renew the assignment lease; keep recording until the database is reachable", slog.Any("error", err))
 			} else {
 				logger.DebugContext(ctx, "failed to renew the assignment lease", slog.Any("error", err))
@@ -489,6 +511,7 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 		if recovered {
 			logger.InfoContext(ctx, "renewed the assignment lease again", slog.Duration("unreachable", now.Sub(unreachableSince)))
 			unreachableSince = time.Time{}
+			active.unreachableSince.Store(nil)
 		}
 		switch {
 		case n == 0 && active.handingOver.Load():

@@ -37,13 +37,15 @@ func (f *fixture) startWorker(t *testing.T, holder uuid.UUID, session recording.
 func (f *fixture) startWorkerWithHandoverTimeout(t *testing.T, holder uuid.UUID, handoverTimeout time.Duration, session recording.Session) func() {
 	t.Helper()
 
-	return f.startWorkerWith(t, holder, recording.NewRecordingLeases(f.pool), 10*time.Second, handoverTimeout, session)
+	_, stop := f.startWorkerWith(t, holder, recording.NewRecordingLeases(f.pool), 10*time.Second, handoverTimeout, session)
+
+	return stop
 }
 
 // startWorkerWith は、割り振りを leases で読み書きし、リースの期間を leaseTTL にして、mikan を動かす。
 func (f *fixture) startWorkerWith(t *testing.T, holder uuid.UUID, leases recording.LeaseStore, leaseTTL, handoverTimeout time.Duration,
 	session recording.Session,
-) func() {
+) (*recording.Worker, func()) {
 	t.Helper()
 
 	worker := recording.NewWorker(f.pool, f.clock, holder, slog.New(slog.DiscardHandler), session, leases, &recording.WorkerOptions{
@@ -66,7 +68,7 @@ func (f *fixture) startWorkerWith(t *testing.T, holder uuid.UUID, leases recordi
 	}
 	t.Cleanup(stop)
 
-	return stop
+	return worker, stop
 }
 
 // assignOne は、1 つの予約を、割り振りを書く時刻まで進めて割り振る。
@@ -297,7 +299,7 @@ func TestWorkerKeepsRecordingWhileDatabaseIsUnreachable(t *testing.T) {
 			reservationID := f.assignOne(t)
 			leases := &flakyLeases{LeaseStore: recording.NewRecordingLeases(f.pool)}
 			causes := make(chan error, 1)
-			f.startWorkerWith(t, id.New(), leases, 100*time.Millisecond, shortHandoverTimeout, func(ctx context.Context, _ *recording.Assignment) error {
+			_, _ = f.startWorkerWith(t, id.New(), leases, 100*time.Millisecond, shortHandoverTimeout, func(ctx context.Context, _ *recording.Assignment) error {
 				<-ctx.Done()
 				select {
 				case causes <- context.Cause(ctx):
@@ -345,7 +347,7 @@ func TestWorkerWaitsForSuccessorAfterOutage(t *testing.T) {
 	reservationID := f.assignOne(t)
 	leases := &flakyLeases{LeaseStore: recording.NewRecordingLeases(f.pool)}
 	causes := make(chan error, 1)
-	f.startWorkerWith(t, id.New(), leases, 100*time.Millisecond, waitTimeout, func(ctx context.Context, _ *recording.Assignment) error {
+	_, _ = f.startWorkerWith(t, id.New(), leases, 100*time.Millisecond, waitTimeout, func(ctx context.Context, _ *recording.Assignment) error {
 		<-ctx.Done()
 		select {
 		case causes <- context.Cause(ctx):
@@ -377,6 +379,35 @@ func TestWorkerWaitsForSuccessorAfterOutage(t *testing.T) {
 	case <-time.After(waitTimeout):
 		t.Fatal("the old mikan kept recording after the successor opened the stream")
 	}
+}
+
+// TestWorkerReportsDatabaseUnreachable は、録っている割り振りのリースを延長できない間、DB に届かなくなってからの時間を返し、
+// 延長できるようになったら 0 に戻すことを確かめる (#1073)。メトリクスに出す。
+func TestWorkerReportsDatabaseUnreachable(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	f.assignOne(t)
+	leases := &flakyLeases{LeaseStore: recording.NewRecordingLeases(f.pool)}
+	worker, _ := f.startWorkerWith(t, id.New(), leases, 100*time.Millisecond, shortHandoverTimeout, func(ctx context.Context, _ *recording.Assignment) error {
+		<-ctx.Done()
+
+		return nil
+	})
+	require.Eventually(t, func() bool {
+		return leases.renewed.Load() > 0
+	}, waitTimeout, 20*time.Millisecond)
+	assert.Zero(t, worker.DatabaseUnreachableFor())
+
+	leases.down.Store(true)
+	time.Sleep(100 * time.Millisecond)
+	f.clock.Advance(time.Minute)
+	assert.GreaterOrEqual(t, worker.DatabaseUnreachableFor(), time.Minute)
+
+	leases.down.Store(false)
+	require.Eventually(t, func() bool {
+		return worker.DatabaseUnreachableFor() == 0
+	}, waitTimeout, 20*time.Millisecond)
 }
 
 // TestWorkerKeepsSessionWhenAssignmentDeleted は、録画中に予約が消され、割り振りも消えたとき、
