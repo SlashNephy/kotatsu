@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
@@ -188,13 +189,20 @@ func (s *RecordingSource) write(ctx context.Context, w io.Writer, recordingID uu
 			}
 			last = p.segment
 		}
+		pieces = []*piece{}
 		inProgress, err := s.recordingInProgress(ctx, recordingID)
-		if err != nil {
-			return err
+		var next []*piece
+		var wait bool
+		if err == nil {
+			next, wait, err = s.following(ctx, recordingID, last, inProgress)
 		}
-		next, wait, err := s.following(ctx, recordingID, last, inProgress)
 		if err != nil {
-			return err
+			// DB に届かない間は、流し終えたところで、届くようになるのを待つ (#1084)。録画が終わったかも、次のセグメントも分からないためである。
+			if err := s.waitForDatabase(ctx, err); err != nil {
+				return err
+			}
+
+			continue
 		}
 		if len(next) == 0 {
 			if !inProgress && !wait {
@@ -212,7 +220,9 @@ func (s *RecordingSource) write(ctx context.Context, w io.Writer, recordingID uu
 // last は最後まで流したので、last と次のセグメントの重なりは、次のセグメントの側で、last の最後の I フレームより後から流して切り詰める。
 // 次のセグメントの索引がまだ追いついていなければ、wait を true にして、何も返さない。
 func (s *RecordingSource) following(ctx context.Context, recordingID uuid.UUID, last *segment, inProgress bool) ([]*piece, bool, error) {
-	segments, err := s.load(ctx, recordingID)
+	loadCtx, cancel := context.WithTimeout(ctx, database.FallbackQueryTimeout)
+	defer cancel()
+	segments, err := s.load(loadCtx, recordingID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -256,8 +266,20 @@ func (s *RecordingSource) following(ctx context.Context, recordingID uuid.UUID, 
 	return pieces[1:], false, nil
 }
 
+// waitForDatabase は、err が DB に届かないことによるものなら、pollInterval だけ待って nil を返す。そうでなければ err を返す。
+func (s *RecordingSource) waitForDatabase(ctx context.Context, err error) error {
+	if ctx.Err() != nil || !database.IsUnavailable(err) {
+		return err
+	}
+
+	return sleep(ctx, s.pollInterval)
+}
+
 // recordingInProgress は、録画がまだ録画中かどうかを返す。
+// 流している間に DB を引くときは、DB への接続が詰まっても流すのを止めないよう、database.FallbackQueryTimeout で打ち切る。
 func (s *RecordingSource) recordingInProgress(ctx context.Context, recordingID uuid.UUID) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, database.FallbackQueryTimeout)
+	defer cancel()
 	recording, err := sqlc.New(s.db).GetRecording(ctx, recordingID)
 	if err != nil {
 		return false, fmt.Errorf("failed to get the recording: %w", err)
@@ -272,7 +294,9 @@ func (s *RecordingSource) segmentClosed(ctx context.Context, recordingID, segmen
 	if err != nil || !recording {
 		return true, err
 	}
-	files, err := sqlc.New(s.db).ListRecordingFiles(ctx, recordingID)
+	listCtx, cancel := context.WithTimeout(ctx, database.FallbackQueryTimeout)
+	defer cancel()
+	files, err := sqlc.New(s.db).ListRecordingFiles(listCtx, recordingID)
 	if err != nil {
 		return false, fmt.Errorf("failed to list the recording files: %w", err)
 	}
@@ -284,6 +308,17 @@ func (s *RecordingSource) segmentClosed(ctx context.Context, recordingID, segmen
 
 	// セグメントの行が消えたら、録画を消したので、流すのをやめる。
 	return true, nil
+}
+
+// segmentClosedOrUnknown は、segmentClosed と同じく、セグメントを書き終えたかどうかを返す。
+// DB に届かなければ、書き終えたか分からないので、まだ書いているものとして扱い、ファイルが伸びるのを待ちながら流し続ける (#1084)。
+func (s *RecordingSource) segmentClosedOrUnknown(ctx context.Context, recordingID, segmentID uuid.UUID) (bool, error) {
+	closed, err := s.segmentClosed(ctx, recordingID, segmentID)
+	if err != nil && ctx.Err() == nil && database.IsUnavailable(err) {
+		return false, nil
+	}
+
+	return closed, err
 }
 
 // servePiece は、セグメントの範囲を流す。書いている途中のセグメントは、書き終えるまで、伸びるのを待ちながら流す。
@@ -318,7 +353,7 @@ func (s *RecordingSource) serveGrowing(ctx context.Context, w io.Writer, recordi
 	offset := p.from
 	for {
 		// 閉じたかを確かめてからファイルの大きさを見るので、確かめた後に書かれた分も見落とさない。
-		closed, err := s.segmentClosed(ctx, recordingID, p.segment.id)
+		closed, err := s.segmentClosedOrUnknown(ctx, recordingID, p.segment.id)
 		if err != nil {
 			return err
 		}
@@ -343,7 +378,7 @@ func (s *RecordingSource) serveGrowing(ctx context.Context, w io.Writer, recordi
 		return fmt.Errorf("failed to seek the segment: %w", err)
 	}
 	for {
-		closed, err := s.segmentClosed(ctx, recordingID, p.segment.id)
+		closed, err := s.segmentClosedOrUnknown(ctx, recordingID, p.segment.id)
 		if err != nil {
 			return err
 		}
