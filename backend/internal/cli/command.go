@@ -631,6 +631,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Clock:  deps.Clock,
 		Logger: logger.With(slog.String("component", "session")),
 	})
+	// 署名付き URL を発行したユーザーを引く。DB に届かない間は、覚えた結果を使う (#1084)。
+	urlUsers := auth.NewURLUsers(deps.DB, deps.Clock, logger.With(slog.String("component", "stream")))
 
 	// 表示のタイムゾーンは設定で決める (設計書 8.1)。
 	location, err := deps.Config.Location()
@@ -697,6 +699,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		UserAdmin:         auth.NewUserAdmin(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
 		Passwords:         auth.NewPasswords(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
 		Sessions:          sessions,
+		URLUsers:          urlUsers,
 		Settings:          settings.NewStore(deps.Clock, audit.NewRecorder(deps.Clock)),
 		Webhooks:          webhooks,
 		WebPush:           webPush,
@@ -772,7 +775,6 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		opener, logos = client, client
 	}
 	streamLogger := logger.With(slog.String("component", "stream"))
-	urlUsers := auth.NewURLUsers(deps.DB, deps.Clock, streamLogger)
 	authorizer := streamapi.NewAuthorizer(signer, urlUsers, deps.Clock)
 	streams, instances, err := handleStreams(mux, deps, authorizer, opener, streamLogger)
 	if err != nil {

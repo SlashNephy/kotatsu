@@ -37,6 +37,8 @@ type Fallback[K comparable, V any] struct {
 	lastSweep time.Time
 	// retryAt は、DB に届かないと分かったときに、次に DB を引き直す時刻。届いている間はゼロ値。
 	retryAt time.Time
+	// unreachable は、DB に届かないと分かったときのエラー。ログに出すのに使う。
+	unreachable error
 	// degraded は、前回の読み込みで覚えた結果を返したかどうか。ログを、切り替わったときだけ出すのに使う。
 	degraded bool
 
@@ -53,7 +55,7 @@ type fallbackEntry[V any] struct {
 func NewFallback[K comparable, V any](name string, ttl time.Duration, clk clock.Clock, logger *slog.Logger) *Fallback[K, V] {
 	return &Fallback[K, V]{
 		name: name, ttl: ttl, clock: clk, logger: logger,
-		mu: sync.Mutex{}, entries: map[K]*fallbackEntry[V]{}, lastSweep: clk.Now(), retryAt: time.Time{}, degraded: false,
+		mu: sync.Mutex{}, entries: map[K]*fallbackEntry[V]{}, lastSweep: clk.Now(), retryAt: time.Time{}, unreachable: nil, degraded: false,
 		used: atomic.Int64{},
 	}
 }
@@ -63,7 +65,7 @@ func NewFallback[K comparable, V any](name string, ttl time.Duration, clk clock.
 // 返す 2 つ目の値は、覚えた結果を返したかどうか。
 func (f *Fallback[K, V]) Load(ctx context.Context, key K, load func(ctx context.Context) (V, error)) (V, bool, error) {
 	if cached, ok := f.cachedWhileRetrying(key); ok {
-		f.serveStale(ctx, nil)
+		f.serveStale(ctx)
 
 		return cached, true, nil
 	}
@@ -85,11 +87,11 @@ func (f *Fallback[K, V]) Load(ctx context.Context, key K, load func(ctx context.
 
 		return value, false, err
 	}
-	cached, ok := f.cached(key, true)
+	cached, ok := f.cached(key, err)
 	if !ok {
 		return value, false, err
 	}
-	f.serveStale(ctx, err)
+	f.serveStale(ctx)
 
 	return cached, true, nil
 }
@@ -126,17 +128,18 @@ func (f *Fallback[K, V]) cachedWhileRetrying(key K) (V, bool) {
 		return zero, false
 	}
 
-	return f.cached(key, false)
+	return f.cached(key, nil)
 }
 
-// cached は、key の覚えた結果が ttl の中にあれば返す。unreachable なら、DB に届かないと分かったので、次に引き直す時刻を決める。
-func (f *Fallback[K, V]) cached(key K, unreachable bool) (V, bool) {
+// cached は、key の覚えた結果が ttl の中にあれば返す。unreachable が nil でなければ、DB に届かないと分かったので、次に引き直す時刻を決める。
+func (f *Fallback[K, V]) cached(key K, unreachable error) (V, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	now := f.clock.Now()
-	if unreachable {
+	if unreachable != nil {
 		f.retryAt = now.Add(FallbackRetryAfter)
+		f.unreachable = unreachable
 	}
 	entry, ok := f.entries[key]
 	if !ok || f.expired(entry, now) {
@@ -149,11 +152,12 @@ func (f *Fallback[K, V]) cached(key K, unreachable bool) (V, bool) {
 }
 
 // serveStale は、覚えた結果を返したことを数え、DB に届かなくなって初めて返したときに、ログに出す。
-func (f *Fallback[K, V]) serveStale(ctx context.Context, cause error) {
+func (f *Fallback[K, V]) serveStale(ctx context.Context) {
 	f.used.Add(1)
 	f.mu.Lock()
 	first := !f.degraded
 	f.degraded = true
+	cause := f.unreachable
 	f.mu.Unlock()
 	if first {
 		f.logger.WarnContext(ctx, "the database is unreachable; serving cached results", slog.String("cache", f.name), slog.Any("error", cause))
@@ -167,6 +171,7 @@ func (f *Fallback[K, V]) store(ctx context.Context, key K, value V) {
 	now := f.clock.Now()
 	f.entries[key] = &fallbackEntry[V]{value: value, storedAt: now}
 	f.retryAt = time.Time{}
+	f.unreachable = nil
 	recovered := f.degraded
 	f.degraded = false
 	if f.ttl > 0 && now.Sub(f.lastSweep) >= f.ttl {

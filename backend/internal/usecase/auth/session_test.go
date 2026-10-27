@@ -465,9 +465,20 @@ func TestAuthenticateWhileDatabaseIsUnreachable(t *testing.T) {
 				_, err := sessions.Authenticate(t.Context(), conn.Pool, token)
 				require.NoError(t, err)
 				require.NoError(t, f.users.Disable(t.Context(), f.db, f.userID))
-				sessions.ForgetUser(f.userID)
+				sessions.ForgetUser(f.userID, nil)
 			},
 			wantUnavailable: true,
+		},
+		{
+			// 本人がパスワードを変えたときは、今のセッションを残す。
+			name: "the kept session of the user",
+			beforeOutage: func(t *testing.T, f *sessionFixture, sessions *auth.Sessions, conn *databasetest.Switch, token string, session *auth.Session) {
+				t.Helper()
+				_, err := sessions.Authenticate(t.Context(), conn.Pool, token)
+				require.NoError(t, err)
+				sessions.ForgetUser(f.userID, &session.ID)
+			},
+			wantFallback: 1,
 		},
 	}
 	for _, tt := range tests {

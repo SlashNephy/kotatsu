@@ -57,6 +57,11 @@ func (u *URLUsers) Role(ctx context.Context, userID uuid.UUID) (Role, error) {
 	return role, err
 }
 
+// Forget は、ユーザーについて覚えた結果を忘れる。ユーザーを無効にしたときや、ロールを変えたときに呼ぶ。
+func (u *URLUsers) Forget(userID uuid.UUID) {
+	u.fallback.Forget(userID)
+}
+
 // FallbackUsed は、DB に届かずに、覚えた結果を使った回数を返す。
 func (u *URLUsers) FallbackUsed() int64 {
 	return u.fallback.Used()

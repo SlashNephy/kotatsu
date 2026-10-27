@@ -74,6 +74,8 @@ type Options struct {
 	Passwords *auth.Passwords
 	// Sessions は、ログイン中のユーザーのセッションの一覧と失効に使う。nil なら、内部のエラーにする。
 	Sessions *auth.Sessions
+	// URLUsers は、署名付き URL を発行したユーザーの、覚えた認可の結果を忘れるのに使う (#1084)。nil なら、何もしない。
+	URLUsers *auth.URLUsers
 	// Settings は、全体の設定を変えるのに使う。nil なら、Recorder と Clock で作る。
 	Settings *settings.Store
 	// Webhooks は、Webhook の管理に使う。nil なら、Webhook の操作は内部のエラーにする。
@@ -174,6 +176,7 @@ func NewHandler(opts *Options) http.Handler {
 		userAdmin:    o.UserAdmin,
 		passwords:    o.Passwords,
 		sessions:     o.Sessions,
+		urlUsers:     o.URLUsers,
 		recorder:     o.Recorder,
 		settings:     o.Settings,
 		timeshift:    timeshift.NewChannels(o.Clock, o.Recorder),

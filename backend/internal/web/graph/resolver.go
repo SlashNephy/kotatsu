@@ -51,6 +51,7 @@ type Resolver struct {
 	userAdmin         *auth.UserAdmin
 	passwords         *auth.Passwords
 	sessions          *auth.Sessions
+	urlUsers          *auth.URLUsers
 	// recorder は、ほかの部品を通さずにリゾルバが直接残す監査ログ (セッションの失効など)。
 	recorder     audit.Recorder
 	settings     *settings.Store

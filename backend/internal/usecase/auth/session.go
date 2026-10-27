@@ -215,10 +215,12 @@ func (s *Sessions) Authenticate(ctx context.Context, db sqlc.DBTX, token string)
 	return session.principal, nil
 }
 
-// ForgetUser は、ユーザーのセッションについて覚えた結果を忘れる。ユーザーを無効にしたときや、ロールやパスワードを変えたときに呼び、
-// その直後に DB が止まっても、覚えた結果で前の権限のまま認証しないようにする。
-func (s *Sessions) ForgetUser(userID uuid.UUID) {
-	s.fallback.ForgetIf(func(session *authenticatedSession) bool { return session.principal.UserID == userID })
+// ForgetUser は、ユーザーのセッションについて覚えた結果を、keep のセッションのほかは忘れる。keep は nil でもよい。
+// ユーザーを無効にしたときや、ロールやパスワードを変えたときに呼び、その直後に DB が止まっても、覚えた結果で前の権限のまま認証しないようにする。
+func (s *Sessions) ForgetUser(userID uuid.UUID, keep *uuid.UUID) {
+	s.fallback.ForgetIf(func(session *authenticatedSession) bool {
+		return session.principal.UserID == userID && (keep == nil || session.principal.SessionID != *keep)
+	})
 }
 
 // FallbackUsed は、DB に届かずに、覚えた結果で認証した回数を返す。

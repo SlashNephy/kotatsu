@@ -46,7 +46,7 @@ func (l *LastKnownInstances) ListAlive(ctx context.Context, role string) ([]*reg
 	// 詰まった DB を、リクエストのたびに待たないよう、届かないと分かってからしばらくは引き直さない。
 	l.mu.Lock()
 	known, ok := l.known[role]
-	retrying := l.degraded && l.clock.Now().Before(l.unreachableAt.Add(database.FallbackRetryAfter))
+	retrying := l.degraded && l.clock.Now().Sub(l.unreachableAt) < database.FallbackRetryAfter
 	l.mu.Unlock()
 	if retrying && ok {
 		l.used.Add(1)
