@@ -264,7 +264,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 			continue
 		}
 
-		return r.finish(ctx, logger, assignment, &recording, end, result, false, stoppedAt)
+		return r.finish(ctx, logger, assignment, &recording, end, result, false, stoppedAt, tracker)
 	}
 }
 
@@ -493,7 +493,7 @@ func (r *Recorder) waitToReopen(
 			return false, nil
 		}
 
-		return true, r.finish(ctx, logger, assignment, recording, end, result, false, r.clock.Now())
+		return true, r.finish(ctx, logger, assignment, recording, end, result, false, r.clock.Now(), tracker)
 	}
 	end, err := tracker.sleep(ctx, d)
 	if err != nil {
@@ -504,7 +504,7 @@ func (r *Recorder) waitToReopen(
 	}
 
 	// つながらないまま終えるので、最後のセグメントの終わりから今までも、途切れた区間にする。
-	return true, r.finish(ctx, logger, assignment, recording, end, result, true, r.clock.Now())
+	return true, r.finish(ctx, logger, assignment, recording, end, result, true, r.clock.Now(), tracker)
 }
 
 // sessionResult は、この mikan が録画を担当した間の結果。
@@ -546,9 +546,13 @@ func (r *Recorder) closeStaleFiles(ctx context.Context, recordingID uuid.UUID, s
 // now は、録画を止めた時刻。DB に届かない間は、届くまでやり直し、止めた時刻で記録する (#1073)。
 func (r *Recorder) finish(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, end endReason, result *sessionResult, disconnected bool,
-	now time.Time,
+	now time.Time, tracker *endTracker,
 ) error {
 	return r.untilDatabase(ctx, logger, "finish the recording", func() error {
+		if err := tracker.persist(ctx); err != nil {
+			return err
+		}
+
 		return r.finishOnce(ctx, logger, assignment, recording, end, result, disconnected, now)
 	})
 }
@@ -1019,6 +1023,10 @@ type endTracker struct {
 	last sqlc.GetReservationForRecordingRow
 	// unreachable は、予約を読もうとして DB に届かなかったかどうか。ログを、届かなくなったときと戻ったときに 1 度ずつ出す。
 	unreachable bool
+	// pendingBroadcast は、放送の開始と終了を、DB に届かずに記録できなかったかどうか。録画を終えるときに記録し直す (#1073)。
+	pendingBroadcast bool
+	// pendingNotBroadcast は、放送されなかったことを、DB に届かずに記録できなかったかどうか。録画を終えるときに記録し直す。
+	pendingNotBroadcast bool
 }
 
 func newEndTracker(
@@ -1030,7 +1038,7 @@ func newEndTracker(
 		broadcast: nil, analyzer: atomic.Pointer[ts.Analyzer]{}, serviceID16: 0,
 		endMargin: endMargin, notBroadcast: false,
 		expectedOnAir: minTime(recording.RecordedFrom, *reservation.PlannedStartAt).Add(startMargin), startMargin: startMargin, startedBefore: recording.BroadcastStartedAt != nil,
-		waited: recording.WaitedForBroadcast, last: *reservation, unreachable: false,
+		waited: recording.WaitedForBroadcast, last: *reservation, unreachable: false, pendingBroadcast: false, pendingNotBroadcast: false,
 	}
 	// 時刻予約や、ID が EIT の範囲に収まらない予約では、EIT[p/f] で追わない。
 	sid, ok := ts.BroadcastServiceID(reservation.ServiceID)
@@ -1199,12 +1207,14 @@ func (t *endTracker) observeBroadcast(ctx context.Context, now time.Time) {
 	change := t.broadcast.update(analyzer.PresentFollowing(t.serviceID16), now)
 	if change.started {
 		if err := q.SetRecordingBroadcastStarted(ctx, sqlc.SetRecordingBroadcastStartedParams{At: &now, ID: t.recordingID}); err != nil {
+			t.pendingBroadcast = true
 			r.logger.WarnContext(ctx, "failed to record the broadcast start", slog.Any("error", err))
 		}
 	}
 	if change.ended {
 		// 放送中が空のまま続いて終わったとみなしたときは、空になった時刻を記録する (#637)。
 		if err := q.SetRecordingBroadcastEnded(ctx, sqlc.SetRecordingBroadcastEndedParams{At: t.broadcast.endedAt, ID: t.recordingID}); err != nil {
+			t.pendingBroadcast = true
 			r.logger.WarnContext(ctx, "failed to record the broadcast end", slog.Any("error", err))
 		}
 		r.logger.InfoContext(ctx, "the program left the air; recording the end margin",
@@ -1212,6 +1222,7 @@ func (t *endTracker) observeBroadcast(ctx context.Context, now time.Time) {
 	}
 	if change.resumed {
 		if err := q.ClearRecordingBroadcastEnded(ctx, sqlc.ClearRecordingBroadcastEndedParams{Now: now, ID: t.recordingID}); err != nil {
+			t.pendingBroadcast = true
 			r.logger.WarnContext(ctx, "failed to clear the broadcast end", slog.Any("error", err))
 		}
 		r.logger.InfoContext(ctx, "the program is back on the air; continuing the recording", slog.String("recording_id", t.recordingID.String()))
@@ -1234,12 +1245,9 @@ func (t *endTracker) markNotBroadcast(ctx context.Context) {
 		return
 	}
 	r := t.recorder
-	var aired *int64
-	if present := t.broadcast.present; present != nil {
-		aired = new(int64(*present))
-	}
-	err := sqlc.New(r.pool).MarkRecordingNotBroadcast(ctx, sqlc.MarkRecordingNotBroadcastParams{AiredEventID: aired, Now: r.clock.Now(), ID: t.recordingID})
-	if err != nil {
+	if err := t.saveNotBroadcast(ctx); err != nil {
+		// DB に届かなければ、録画を終えるときに記録し直す。
+		t.pendingNotBroadcast = database.IsUnavailable(err)
 		r.logger.WarnContext(ctx, "failed to record that the program was not broadcast", slog.Any("error", err))
 
 		return
@@ -1249,6 +1257,60 @@ func (t *endTracker) markNotBroadcast(ctx context.Context) {
 		r.logger.WarnContext(ctx, "failed to notify the recording change", slog.Any("error", err))
 	}
 	r.logger.WarnContext(ctx, "the program was not broadcast during the planned time", slog.String("recording_id", t.recordingID.String()))
+}
+
+// saveNotBroadcast は、放送されなかったことと、その時間に放送されていた番組を記録する。
+func (t *endTracker) saveNotBroadcast(ctx context.Context) error {
+	r := t.recorder
+	var aired *int64
+	if present := t.broadcast.present; present != nil {
+		aired = new(int64(*present))
+	}
+
+	return sqlc.New(r.pool).MarkRecordingNotBroadcast(ctx, sqlc.MarkRecordingNotBroadcastParams{AiredEventID: aired, Now: r.clock.Now(), ID: t.recordingID})
+}
+
+// persist は、DB に届かずに記録できなかった放送の状態を、記録し直す (#1073)。録画を終える前に呼ぶ。
+// 放送の開始と終了は、一度きりの変化を記録しそこねても、最後の状態を書けば足りる。
+func (t *endTracker) persist(ctx context.Context) error {
+	r := t.recorder
+	q := sqlc.New(r.pool)
+	if t.pendingBroadcast && t.broadcast != nil {
+		if err := t.persistBroadcast(ctx, q); err != nil {
+			return err
+		}
+		t.pendingBroadcast = false
+	}
+	if t.pendingNotBroadcast {
+		if err := t.saveNotBroadcast(ctx); err != nil {
+			return fmt.Errorf("failed to record that the program was not broadcast: %w", err)
+		}
+		t.pendingNotBroadcast = false
+		t.notBroadcast = true
+	}
+
+	return nil
+}
+
+// persistBroadcast は、放送の開始と終了の最後の状態を記録する。
+func (t *endTracker) persistBroadcast(ctx context.Context, q *sqlc.Queries) error {
+	if started := t.broadcast.startedAt; started != nil {
+		if err := q.SetRecordingBroadcastStarted(ctx, sqlc.SetRecordingBroadcastStartedParams{At: started, ID: t.recordingID}); err != nil {
+			return fmt.Errorf("failed to record the broadcast start: %w", err)
+		}
+	}
+	if t.broadcast.endedAt != nil {
+		if err := q.SetRecordingBroadcastEnded(ctx, sqlc.SetRecordingBroadcastEndedParams{At: t.broadcast.endedAt, ID: t.recordingID}); err != nil {
+			return fmt.Errorf("failed to record the broadcast end: %w", err)
+		}
+
+		return nil
+	}
+	if err := q.ClearRecordingBroadcastEnded(ctx, sqlc.ClearRecordingBroadcastEndedParams{Now: t.recorder.clock.Now(), ID: t.recordingID}); err != nil {
+		return fmt.Errorf("failed to clear the broadcast end: %w", err)
+	}
+
+	return nil
 }
 
 // markLost は、番組を見失ったことを、録画に一度だけ記録する。

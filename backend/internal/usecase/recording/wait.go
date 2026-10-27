@@ -127,7 +127,7 @@ func (r *Recorder) waitBeforeWriting(
 			// 予定の終わり (延長の上限) まで、予約した番組が放送中にならなかった。前の番組の TS は残さない。
 			result.lastFailure = FailureProgramNotFound
 		}
-		outcome.done, outcome.err = true, r.finish(ctx, logger, assignment, recording, end, result, false, r.clock.Now())
+		outcome.done, outcome.err = true, r.finish(ctx, logger, assignment, recording, end, result, false, r.clock.Now(), tracker)
 
 		return outcome
 	}
