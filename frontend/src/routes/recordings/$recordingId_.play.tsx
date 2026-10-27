@@ -1,3 +1,4 @@
+import type { PlayerState } from '@mpeg2toh264/player';
 import { Alert, Anchor, Button, Group, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Captions, Keyboard, MessageSquareText } from 'lucide-react';
@@ -91,6 +92,7 @@ import { stepVolume } from '../../yunomi/volume';
 import { currentVolume } from '../../yunomi/volumeBoost';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
+import { canRetryImmediately, endedEarly } from '../../yunomi/reconnect';
 import { resumePosition } from '../../yunomi/resume';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
@@ -332,6 +334,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const [seeking, setSeeking] = useState<number | null>(null);
   const [paused, setPaused] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // lastAutoRetry は、切れたときに、知らせを出さずに今の位置から読み直した時刻 (#1083)。
+  const lastAutoRetry = useRef<number | null>(null);
 
   // currentPosition は、今の再生位置 (録画の始まりからの秒) を返す。実況のコメントを、画面の更新ごとに描くのに使う。
   // timeupdate で更新する position は間隔が粗いので、video の時刻から求め直す。
@@ -696,7 +700,34 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   }
   // フラグメントはサーバーに送られないので、読み込みを始め直すためだけに使う。
   const url = `${recording.streamUrl}?start=${offset.toFixed(1)}#${loads}`;
-  const onError = () => setError(t('player.error'));
+  // resumeAfterCut は、配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。tenban の入れ替えや回線の瞬断なら、これで戻る。
+  // 続けて切れるなら、読み直しを繰り返さずに、エラーを出して利用者に任せる。
+  const resumeAfterCut = () => {
+    const now = Date.now();
+    if (!canRetryImmediately(lastAutoRetry.current, now)) {
+      setError(t('player.error'));
+
+      return;
+    }
+    lastAutoRetry.current = now;
+    startAt(positionRef.current);
+  };
+  const onError = resumeAfterCut;
+  // onConvertState は、ブラウザの中で変換する配信が、録画の終わりに届く前に終わったら、途中で切れたとみなして読み直す。
+  const onConvertState = (state: PlayerState) => {
+    const video = videoRef.current;
+    if (state !== 'completed' || video === null) {
+      return;
+    }
+    const { buffered } = video;
+    const end =
+      buffered.length === 0
+        ? positionRef.current
+        : playbackPosition(startedAt, base.current, buffered.end(buffered.length - 1));
+    if (endedEarly(end, duration)) {
+      resumeAfterCut();
+    }
+  };
   // errorAlert は、全画面と別のウィンドウで、再生のエラーを映像に重ねて出す (#435)。
   const errorAlert = overlaid && error !== null && (
     <PlayerAlert title={error} action={{ label: t('player.retry'), onClick: retry }} />
@@ -823,6 +854,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             setError(null);
           }}
           onError={onError}
+          onState={onConvertState}
           overlay={
             <>
               {jikkyo.overlay}
