@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a8f08db666669eb1e4888fe50e6fd827>>
+ * @generated SignedSource<<3d64bfccb1c20752b95be495caf8bd8f>>
  * @lightSyntaxTransform
  */
 
@@ -10,13 +10,6 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type timeshiftQuery$variables = Record<PropertyKey, never>;
 export type timeshiftQuery$data = {
-  readonly passkeys: ReadonlyArray<{
-    readonly id: string;
-  }>;
-  readonly secondFactors: {
-    readonly remainingRecoveryCodes: number;
-    readonly totp: boolean;
-  };
   readonly services: ReadonlyArray<{
     readonly channelType: {
       readonly displayName: string;
@@ -113,43 +106,6 @@ v4 = [
   {
     "alias": null,
     "args": null,
-    "concreteType": "SecondFactorStatus",
-    "kind": "LinkedField",
-    "name": "secondFactors",
-    "plural": false,
-    "selections": [
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "totp",
-        "storageKey": null
-      },
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "remainingRecoveryCodes",
-        "storageKey": null
-      }
-    ],
-    "storageKey": null
-  },
-  {
-    "alias": null,
-    "args": null,
-    "concreteType": "Passkey",
-    "kind": "LinkedField",
-    "name": "passkeys",
-    "plural": true,
-    "selections": [
-      (v0/*:: as any*/)
-    ],
-    "storageKey": null
-  },
-  {
-    "alias": null,
-    "args": null,
     "kind": "ScalarField",
     "name": "timeshiftAvailable",
     "storageKey": null
@@ -227,16 +183,16 @@ return {
     "selections": (v4/*:: as any*/)
   },
   "params": {
-    "cacheID": "2a999b6e625503c6e278b97b5b475e0d",
+    "cacheID": "c6c418816e5eefdb2392af12ffd512d7",
     "id": null,
     "metadata": {},
     "name": "timeshiftQuery",
     "operationKind": "query",
-    "text": "query timeshiftQuery {\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n  timeshiftAvailable\n  timeshiftChannels {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        displayName\n      }\n    }\n    retentionSeconds\n    bufferedFrom\n    bufferedUntil\n    recording\n  }\n}\n"
+    "text": "query timeshiftQuery {\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  timeshiftAvailable\n  timeshiftChannels {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        displayName\n      }\n    }\n    retentionSeconds\n    bufferedFrom\n    bufferedUntil\n    recording\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "4f48bbb2ea0860a211b17c563b35f576";
+(node as any).hash = "aace4434466f70ec8d609edd305d306f";
 
 export default node;

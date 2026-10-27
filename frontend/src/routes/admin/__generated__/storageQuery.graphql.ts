@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a8b9e926df8d8715efbbc19e83cb09ae>>
+ * @generated SignedSource<<f9b2bac56b21e4dcb9f0eee7bb423611>>
  * @lightSyntaxTransform
  */
 
@@ -10,13 +10,6 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type storageQuery$variables = Record<PropertyKey, never>;
 export type storageQuery$data = {
-  readonly passkeys: ReadonlyArray<{
-    readonly id: string;
-  }>;
-  readonly secondFactors: {
-    readonly remainingRecoveryCodes: number;
-    readonly totp: boolean;
-  };
   readonly systemStatus: {
     readonly pools: ReadonlyArray<{
       readonly freeBytes: number | null | undefined;
@@ -34,14 +27,7 @@ export type storageQuery = {
 };
 
 const node: ConcreteRequest = (function(){
-var v0 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "id",
-  "storageKey": null
-},
-v1 = [
+var v0 = [
   {
     "alias": null,
     "args": null,
@@ -58,7 +44,13 @@ v1 = [
         "name": "pools",
         "plural": true,
         "selections": [
-          (v0/*:: as any*/),
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "id",
+            "storageKey": null
+          },
           {
             "alias": null,
             "args": null,
@@ -99,43 +91,6 @@ v1 = [
       }
     ],
     "storageKey": null
-  },
-  {
-    "alias": null,
-    "args": null,
-    "concreteType": "SecondFactorStatus",
-    "kind": "LinkedField",
-    "name": "secondFactors",
-    "plural": false,
-    "selections": [
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "totp",
-        "storageKey": null
-      },
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "remainingRecoveryCodes",
-        "storageKey": null
-      }
-    ],
-    "storageKey": null
-  },
-  {
-    "alias": null,
-    "args": null,
-    "concreteType": "Passkey",
-    "kind": "LinkedField",
-    "name": "passkeys",
-    "plural": true,
-    "selections": [
-      (v0/*:: as any*/)
-    ],
-    "storageKey": null
   }
 ];
 return {
@@ -144,7 +99,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "storageQuery",
-    "selections": (v1/*:: as any*/),
+    "selections": (v0/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -153,19 +108,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "storageQuery",
-    "selections": (v1/*:: as any*/)
+    "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "460fd739e9774f0844c787ec253b2e46",
+    "cacheID": "7527bf343eb2aef5c8561cd4bf120459",
     "id": null,
     "metadata": {},
     "name": "storageQuery",
     "operationKind": "query",
-    "text": "query storageQuery {\n  systemStatus {\n    pools {\n      id\n      path\n      priority\n      minFreeBytes\n      freeBytes\n      totalBytes\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query storageQuery {\n  systemStatus {\n    pools {\n      id\n      path\n      priority\n      minFreeBytes\n      freeBytes\n      totalBytes\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "eaaa4bfd56a47a42c3d6b06af2338085";
+(node as any).hash = "1583f67f3ee944ee22b77bf522d75265";
 
 export default node;

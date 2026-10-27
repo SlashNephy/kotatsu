@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<07e997b2a03754c930c0edce6817a188>>
+ * @generated SignedSource<<5f896dc3d547039778c5078eb59bf5b5>>
  * @lightSyntaxTransform
  */
 
@@ -10,13 +10,6 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type recordingQuery$variables = Record<PropertyKey, never>;
 export type recordingQuery$data = {
-  readonly passkeys: ReadonlyArray<{
-    readonly id: string;
-  }>;
-  readonly secondFactors: {
-    readonly remainingRecoveryCodes: number;
-    readonly totp: boolean;
-  };
   readonly systemSettings: {
     readonly recordingDefaults: {
       readonly endMarginSeconds: number;
@@ -46,15 +39,6 @@ export type recordingQuery = {
 
 const node: ConcreteRequest = (function(){
 var v0 = [
-  {
-    "alias": null,
-    "args": null,
-    "kind": "ScalarField",
-    "name": "id",
-    "storageKey": null
-  }
-],
-v1 = [
   {
     "alias": null,
     "args": null,
@@ -173,45 +157,18 @@ v1 = [
         "kind": "LinkedField",
         "name": "pools",
         "plural": true,
-        "selections": (v0/*:: as any*/),
+        "selections": [
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "id",
+            "storageKey": null
+          }
+        ],
         "storageKey": null
       }
     ],
-    "storageKey": null
-  },
-  {
-    "alias": null,
-    "args": null,
-    "concreteType": "SecondFactorStatus",
-    "kind": "LinkedField",
-    "name": "secondFactors",
-    "plural": false,
-    "selections": [
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "totp",
-        "storageKey": null
-      },
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "remainingRecoveryCodes",
-        "storageKey": null
-      }
-    ],
-    "storageKey": null
-  },
-  {
-    "alias": null,
-    "args": null,
-    "concreteType": "Passkey",
-    "kind": "LinkedField",
-    "name": "passkeys",
-    "plural": true,
-    "selections": (v0/*:: as any*/),
     "storageKey": null
   }
 ];
@@ -221,7 +178,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "recordingQuery",
-    "selections": (v1/*:: as any*/),
+    "selections": (v0/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -230,19 +187,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "recordingQuery",
-    "selections": (v1/*:: as any*/)
+    "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "2653b33ae11408285309d9e2bef20dd0",
+    "cacheID": "ea91e61d68b651c6cd5f673abee77cab",
     "id": null,
     "metadata": {},
     "name": "recordingQuery",
     "operationKind": "query",
-    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n    }\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n    }\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "e588a5886eeabe64976d7a8cf874f4ce";
+(node as any).hash = "6ad55e5baf7488c5abfb678f5a76b7d3";
 
 export default node;

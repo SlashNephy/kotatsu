@@ -135,10 +135,10 @@ func TestTimeshiftChannels(t *testing.T) {
 	assert.Equal(t, "timeshift_channel.deleted", admin.lastTimeshiftAuditAction(t))
 	assert.Equal(t, []string{codeNotFound}, admin.query(t, removeTimeshiftChannel, set, nil))
 
-	// 設定の変更なので、直前の再認証を求める。
+	// 第三者に影響しない設定の変更なので、直前の認証から時間が経っても、再認証を求めない (設計書 9.5)。
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
-	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, setTimeshiftChannel, set, nil))
-	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, removeTimeshiftChannel, set, nil))
+	assert.Empty(t, admin.query(t, setTimeshiftChannel, set, nil))
+	assert.Empty(t, admin.query(t, removeTimeshiftChannel, set, nil))
 }
 
 // TestSetTimeshiftChannelRejectsInvalidInput は、範囲外の保持時間と、ないサービスを拒み、保存しないことを確かめる。

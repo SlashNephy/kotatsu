@@ -17,23 +17,16 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
+import { useAction } from '../../admin/useAction';
 import { Section } from '../../admin/Section';
-import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
-import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
-import { SudoGate } from '../../settings/SudoGate';
 import type { servicesChannelTypeMutation } from './__generated__/servicesChannelTypeMutation.graphql';
 import type { servicesQuery } from './__generated__/servicesQuery.graphql';
 import type { servicesServiceMutation } from './__generated__/servicesServiceMutation.graphql';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 
-const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
-const path = '/admin/services';
-
 export const Route = createFileRoute('/admin/services')({
-  // IdP での再認証を出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
-  loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: ServicesPage,
 });
 
@@ -66,20 +59,12 @@ const query = graphql`
         displayName
       }
     }
-    secondFactors {
-      totp
-      remainingRecoveryCodes
-    }
-    passkeys {
-      id
-    }
   }
 `;
 
 function ServiceSettings() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
-  const oidc = Route.useLoaderData();
   // fetchKey を変えると、読み直す。読み直す間も画面を出したままにするため、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
   // ほかの管理者が変えたら、読み直す (#869)。
@@ -90,8 +75,7 @@ function ServiceSettings() {
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
-  const gate = useReauthGate(methods, path);
+  const action = useAction();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const fail = (caught: unknown) =>
     setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
@@ -102,83 +86,80 @@ function ServiceSettings() {
 
   return (
     <Stack gap="md">
-      {gate.modal}
-      <SudoGate methods={methods} returnTo={path}>
-        {message !== null && (
-          <Alert
-            color={message.ok ? 'teal' : 'red'}
-            role={message.ok ? 'status' : 'alert'}
-            withCloseButton
-            onClose={() => setMessage(null)}
-          >
-            {message.text}
-          </Alert>
-        )}
+      {message !== null && (
+        <Alert
+          color={message.ok ? 'teal' : 'red'}
+          role={message.ok ? 'status' : 'alert'}
+          withCloseButton
+          onClose={() => setMessage(null)}
+        >
+          {message.text}
+        </Alert>
+      )}
 
-        <Section title={t('admin.system.channelTypes')}>
-          {data.channelTypes.map((channelType) => (
-            <ChannelTypeEditor
-              key={`${channelType.type}/${channelType.displayName}/${channelType.sortOrder}`}
-              channelType={channelType}
-              onSave={(input) =>
-                gate.run(async () => {
-                  await mutate<servicesChannelTypeMutation>(
-                    environment,
-                    graphql`
-                      mutation servicesChannelTypeMutation(
-                        $type: String!
-                        $input: ChannelTypeInput!
-                      ) {
-                        updateChannelType(type: $type, input: $input) {
-                          type
-                          displayName
-                          sortOrder
-                        }
+      <Section title={t('admin.system.channelTypes')}>
+        {data.channelTypes.map((channelType) => (
+          <ChannelTypeEditor
+            key={`${channelType.type}/${channelType.displayName}/${channelType.sortOrder}`}
+            channelType={channelType}
+            onSave={(input) =>
+              action.run(async () => {
+                await mutate<servicesChannelTypeMutation>(
+                  environment,
+                  graphql`
+                    mutation servicesChannelTypeMutation(
+                      $type: String!
+                      $input: ChannelTypeInput!
+                    ) {
+                      updateChannelType(type: $type, input: $input) {
+                        type
+                        displayName
+                        sortOrder
                       }
-                    `,
-                    { type: channelType.type, input },
-                  );
-                  done();
-                }, fail)
-              }
-            />
-          ))}
-        </Section>
+                    }
+                  `,
+                  { type: channelType.type, input },
+                );
+                done();
+              }, fail)
+            }
+          />
+        ))}
+      </Section>
 
-        <Section title={t('admin.system.services')}>
-          <Text size="sm" c="dimmed">
-            {t('admin.system.servicesDescription')}
-          </Text>
-          <ScrollArea.Autosize mah={480}>
-            <Stack gap="xs">
-              {data.services.map((service) => (
-                <ServiceEditor
-                  key={`${service.id}/${service.hidden}/${service.sortOrder}`}
-                  service={service}
-                  onSave={(input) =>
-                    gate.run(async () => {
-                      await mutate<servicesServiceMutation>(
-                        environment,
-                        graphql`
-                          mutation servicesServiceMutation($id: ID!, $input: ServiceInput!) {
-                            updateService(id: $id, input: $input) {
-                              id
-                              hidden
-                              sortOrder
-                            }
+      <Section title={t('admin.system.services')}>
+        <Text size="sm" c="dimmed">
+          {t('admin.system.servicesDescription')}
+        </Text>
+        <ScrollArea.Autosize mah={480}>
+          <Stack gap="xs">
+            {data.services.map((service) => (
+              <ServiceEditor
+                key={`${service.id}/${service.hidden}/${service.sortOrder}`}
+                service={service}
+                onSave={(input) =>
+                  action.run(async () => {
+                    await mutate<servicesServiceMutation>(
+                      environment,
+                      graphql`
+                        mutation servicesServiceMutation($id: ID!, $input: ServiceInput!) {
+                          updateService(id: $id, input: $input) {
+                            id
+                            hidden
+                            sortOrder
                           }
-                        `,
-                        { id: service.id, input },
-                      );
-                      done();
-                    }, fail)
-                  }
-                />
-              ))}
-            </Stack>
-          </ScrollArea.Autosize>
-        </Section>
-      </SudoGate>
+                        }
+                      `,
+                      { id: service.id, input },
+                    );
+                    done();
+                  }, fail)
+                }
+              />
+            ))}
+          </Stack>
+        </ScrollArea.Autosize>
+      </Section>
     </Stack>
   );
 }

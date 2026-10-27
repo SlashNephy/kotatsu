@@ -35,7 +35,6 @@ func TestOrphanFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dataRootOf(dir), orphanSegmentDir, "thumbnail.jpg"), []byte("jpeg"), 0o600))
 	// 書くか名前を変えてから時間が経ったファイルだけを、DB にないとみなす。
 	f.clock.Advance(time.Since(f.clock.Now()) + 2*time.Hour)
-	// ファイルを消すには直近の再認証が要るので、時計を進めた後にログインする。
 	admin := f.as(t, adminName, auth.RoleAdmin)
 
 	type orphanFile struct {

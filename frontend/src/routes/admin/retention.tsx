@@ -7,21 +7,14 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
+import { useAction } from '../../admin/useAction';
 import { SaveRow } from '../../admin/SaveRow';
-import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
-import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
-import { SudoGate } from '../../settings/SudoGate';
 import type { retentionMutation } from './__generated__/retentionMutation.graphql';
 import type { retentionQuery } from './__generated__/retentionQuery.graphql';
 
-const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
-const path = '/admin/retention';
-
 export const Route = createFileRoute('/admin/retention')({
-  // IdP での再認証を出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
-  loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: RetentionPage,
 });
 
@@ -43,20 +36,12 @@ const query = graphql`
       notificationRetentionDays
       updatedAt
     }
-    secondFactors {
-      totp
-      remainingRecoveryCodes
-    }
-    passkeys {
-      id
-    }
   }
 `;
 
 function RetentionSettings() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
-  const oidc = Route.useLoaderData();
   // fetchKey を変えると、読み直す。読み直す間も画面を出したままにするため、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
   // ほかの管理者が変えたら、読み直す (#869)。
@@ -66,8 +51,7 @@ function RetentionSettings() {
     {},
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
-  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
-  const gate = useReauthGate(methods, path);
+  const action = useAction();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const settings = data.systemSettings;
   const [archiveDays, setArchiveDays] = useState<number | string>(settings.archiveRetentionDays);
@@ -79,7 +63,7 @@ function RetentionSettings() {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setMessage(null);
-    gate.run(
+    action.run(
       async () => {
         // この画面の項目だけを送る。省いた項目は、サーバーが変えない。
         await mutate<retentionMutation>(
@@ -106,63 +90,57 @@ function RetentionSettings() {
   };
 
   return (
-    // 再認証のモーダルは、form の外に置く。ポータルの中の送信も、React では外の form に伝わるので。
-    <>
-      {gate.modal}
-      <SudoGate methods={methods} returnTo={path}>
-        <form onSubmit={submit}>
-          <Stack gap="md">
-            {message !== null && (
-              <Alert
-                color={message.ok ? 'teal' : 'red'}
-                role={message.ok ? 'status' : 'alert'}
-                withCloseButton
-                onClose={() => setMessage(null)}
-              >
-                {message.text}
-              </Alert>
-            )}
+    <form onSubmit={submit}>
+      <Stack gap="md">
+        {message !== null && (
+          <Alert
+            color={message.ok ? 'teal' : 'red'}
+            role={message.ok ? 'status' : 'alert'}
+            withCloseButton
+            onClose={() => setMessage(null)}
+          >
+            {message.text}
+          </Alert>
+        )}
 
-            <Card withBorder>
-              <Stack gap="xs">
-                <Title order={3} size="h5">
-                  {t('admin.settings.archive')}
-                </Title>
-                <NumberInput
-                  size="xs"
-                  maw={480}
-                  label={t('admin.settings.archiveRetentionDays')}
-                  description={t('admin.settings.archiveRetentionHelp')}
-                  min={0}
-                  allowDecimal={false}
-                  value={archiveDays}
-                  onChange={setArchiveDays}
-                />
-              </Stack>
-            </Card>
-
-            <Card withBorder>
-              <Stack gap="xs">
-                <Title order={3} size="h5">
-                  {t('admin.settings.notifications')}
-                </Title>
-                <NumberInput
-                  size="xs"
-                  maw={480}
-                  label={t('admin.settings.notificationRetentionDays')}
-                  description={t('admin.settings.notificationRetentionHelp')}
-                  min={0}
-                  allowDecimal={false}
-                  value={notificationDays}
-                  onChange={setNotificationDays}
-                />
-              </Stack>
-            </Card>
-
-            <SaveRow updatedAt={settings.updatedAt} disabled={!valid || gate.busy} />
+        <Card withBorder>
+          <Stack gap="xs">
+            <Title order={3} size="h5">
+              {t('admin.settings.archive')}
+            </Title>
+            <NumberInput
+              size="xs"
+              maw={480}
+              label={t('admin.settings.archiveRetentionDays')}
+              description={t('admin.settings.archiveRetentionHelp')}
+              min={0}
+              allowDecimal={false}
+              value={archiveDays}
+              onChange={setArchiveDays}
+            />
           </Stack>
-        </form>
-      </SudoGate>
-    </>
+        </Card>
+
+        <Card withBorder>
+          <Stack gap="xs">
+            <Title order={3} size="h5">
+              {t('admin.settings.notifications')}
+            </Title>
+            <NumberInput
+              size="xs"
+              maw={480}
+              label={t('admin.settings.notificationRetentionDays')}
+              description={t('admin.settings.notificationRetentionHelp')}
+              min={0}
+              allowDecimal={false}
+              value={notificationDays}
+              onChange={setNotificationDays}
+            />
+          </Stack>
+        </Card>
+
+        <SaveRow updatedAt={settings.updatedAt} disabled={!valid || action.busy} />
+      </Stack>
+    </form>
   );
 }

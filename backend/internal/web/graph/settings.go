@@ -1,11 +1,26 @@
 package graph
 
 import (
+	"context"
 	"errors"
 
+	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
+
+// systemSettingsAdministrator は、全体の設定を変える管理者を確かめ、操作者を返す。
+// MCP のクライアントとの連携を変えるときだけ、外部のサービスに読ませるかどうかを決める操作なので、直近 10 分以内の再認証を求める。
+// 録画やルールの既定値、保持期間は、第三者に影響しないので求めない (設計書 9.5)。
+func (r *Resolver) systemSettingsAdministrator(ctx context.Context, input model.SystemSettingsInput) (*auth.Principal, *audit.Actor, error) {
+	const message = "only administrators can change the system settings"
+	if input.McpEnabled != nil {
+		return r.recentAdministrator(ctx, message)
+	}
+
+	return r.administratorActor(ctx, message)
+}
 
 // systemSettingsOf は、全体の設定を GraphQL の形にする。
 func systemSettingsOf(system *settings.System) *model.SystemSettings {

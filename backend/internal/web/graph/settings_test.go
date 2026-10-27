@@ -19,8 +19,10 @@ const (
 	fieldDays     = "archiveRetentionDays"
 	// fieldNotificationDays は、通知の保持期間の項目 (#551)。
 	fieldNotificationDays = "notificationRetentionDays"
-	settingsQuery         = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays mcpEnabled } }`
-	updateSettings        = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
+	// fieldMCPEnabled は、MCP のクライアントに使わせるかどうかの項目 (#963)。
+	fieldMCPEnabled = "mcpEnabled"
+	settingsQuery   = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays mcpEnabled } }`
+	updateSettings  = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
 		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays mcpEnabled } }`
 )
 
@@ -116,7 +118,7 @@ func TestSystemSettings(t *testing.T) {
 	want.NotificationRetentionDays = 30
 	assert.Equal(t, want, partial.UpdateSystemSettings)
 	// MCP は、既定では使わせず、管理者が有効にする (#963)。
-	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{"mcpEnabled": true}}, &partial))
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldMCPEnabled: true}}, &partial))
 	want.MCPEnabled = true
 	assert.Equal(t, want, partial.UpdateSystemSettings)
 
@@ -129,9 +131,13 @@ func TestSystemSettings(t *testing.T) {
 	require.NotNil(t, stamped.SystemSettings.UpdatedAt)
 	assert.True(t, stamped.SystemSettings.UpdatedAt.Equal(f.clock.Now()))
 
-	// 設定を変えるのは重要な操作なので、直前の再認証を求める。
+	// 録画の既定値や保持期間は、第三者に影響しないので、再認証を求めない。
+	// MCP のクライアントとの連携は、外部のサービスに読ませるかどうかを決めるので、直前の再認証を求め、変えない (設計書 9.5)。
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
-	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateSettings, change, nil))
+	require.Empty(t, admin.query(t, updateSettings, change, nil))
+	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldMCPEnabled: false}}, nil))
+	require.Empty(t, f.query(t, settingsQuery, nil, &got))
+	assert.True(t, got.SystemSettings.MCPEnabled, "rejected changes are not saved")
 }
 
 const fieldSortOrder = "sortOrder"
@@ -189,9 +195,9 @@ func TestUpdateChannelType(t *testing.T) {
 		"SELECT action FROM audit_events WHERE target_type = 'channel_type' AND target_id = $1 ORDER BY occurred_at DESC, id DESC LIMIT 1", last.Type).Scan(&action))
 	assert.Equal(t, "channel_type.updated", action)
 
-	// 表示を変えるのは管理者の設定の変更なので、直前の再認証を求める。
+	// 表示を変えるのは第三者に影響しないので、再認証を求めない (設計書 9.5)。
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
-	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateChannelType, change, nil))
+	assert.Empty(t, admin.query(t, updateChannelType, change, nil))
 }
 
 // TestUpdateChannelTypeRejectsInvalidInput は、正しくない値と、ない種別を拒み、保存しないことを確かめる。
@@ -324,8 +330,9 @@ func TestUpdateStoragePool(t *testing.T) {
 	}
 	assert.Equal(t, want, pools(admin)[0], "rejected changes are not saved")
 
+	// 保存先プールの設定は第三者に影響しないので、再認証を求めない (設計書 9.5)。
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
-	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateStoragePool, change, nil))
+	assert.Empty(t, admin.query(t, updateStoragePool, change, nil))
 }
 
 // fieldHidden は、ServiceInput の非表示の印。
@@ -409,9 +416,9 @@ func TestUpdateService(t *testing.T) {
 		"SELECT action FROM audit_events WHERE target_type = 'service' ORDER BY occurred_at DESC, id DESC LIMIT 1").Scan(&action))
 	assert.Equal(t, "service.updated", action)
 
-	// 表示を変えるのは管理者の設定の変更なので、直前の再認証を求める。
+	// 表示を変えるのは第三者に影響しないので、再認証を求めない (設計書 9.5)。
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
-	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateService, change, nil))
+	assert.Empty(t, admin.query(t, updateService, change, nil))
 }
 
 // TestUpdateServiceRejectsInvalidInput は、正しくない値と、ないサービスを拒み、保存しないことを確かめる。

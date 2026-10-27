@@ -34,9 +34,9 @@ func (r *Resolver) orphanFiles(ctx context.Context) ([]*model.OrphanFile, error)
 }
 
 // deleteOrphanFiles は、DB にないファイルを確かめ直して消す。
-// ファイルを消す取り返しのつかない操作なので、直近 10 分以内の再認証を求める (設計書 9.5)。
+// 第三者に影響しない管理の操作なので、再認証は求めない (設計書 9.5)。
 func (r *Resolver) deleteOrphanFiles(ctx context.Context, files []*model.OrphanFileInput) (*model.DeleteOrphanFilesPayload, error) {
-	_, actor, err := r.recentAdministrator(ctx, "only administrators can delete orphan files")
+	_, actor, err := r.administratorActor(ctx, "only administrators can delete orphan files")
 	if err != nil {
 		return nil, err
 	}

@@ -6,27 +6,20 @@ import { graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { AdminPage } from '../../admin/AdminPage';
+import { useAction } from '../../admin/useAction';
 import { useDataChanges } from '../../changes/DataChanges';
 import { Section } from '../../admin/Section';
-import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
 import { formatBytes } from '../../futon';
 import classes from './storage.module.css';
 import { mutate } from '../../settings/mutate';
-import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
-import { SudoGate } from '../../settings/SudoGate';
 import { MissingRecordings } from '../../admin/MissingRecordings';
 import { OrphanFiles } from '../../admin/OrphanFiles';
 import { RecordingRenames } from '../../admin/RecordingRenames';
 import type { storagePoolMutation } from './__generated__/storagePoolMutation.graphql';
 import type { storageQuery } from './__generated__/storageQuery.graphql';
 
-const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
-const path = '/admin/storage';
-
 export const Route = createFileRoute('/admin/storage')({
-  // IdP での再認証を出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
-  loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: StoragePage,
 });
 
@@ -53,20 +46,12 @@ const query = graphql`
         totalBytes
       }
     }
-    secondFactors {
-      totp
-      remainingRecoveryCodes
-    }
-    passkeys {
-      id
-    }
   }
 `;
 
 function StorageSettings() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
-  const oidc = Route.useLoaderData();
   // fetchKey を変えると、読み直す。読み直す間も画面を出したままにするため、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
   // ほかの管理者が変えたら、読み直す (#869)。
@@ -77,8 +62,7 @@ function StorageSettings() {
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
-  const gate = useReauthGate(methods, path);
+  const action = useAction();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const fail = (caught: unknown) =>
     setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
@@ -90,66 +74,62 @@ function StorageSettings() {
 
   return (
     <Stack gap="md">
-      {gate.modal}
-      <SudoGate methods={methods} returnTo={path}>
-        {/* 空き容量は保存しなくても変わるので、読み直せるようにする。 */}
-        <Group justify="space-between">
-          {message !== null ? (
-            <Alert
-              color={message.ok ? 'teal' : 'red'}
-              role={message.ok ? 'status' : 'alert'}
-              withCloseButton
-              onClose={() => setMessage(null)}
-              flex={1}
-            >
-              {message.text}
-            </Alert>
-          ) : (
-            <span />
-          )}
-          <Button size="compact-sm" variant="default" onClick={refresh}>
-            {t('admin.system.refresh')}
-          </Button>
-        </Group>
+      {/* 空き容量は保存しなくても変わるので、読み直せるようにする。 */}
+      <Group justify="space-between">
+        {message !== null ? (
+          <Alert
+            color={message.ok ? 'teal' : 'red'}
+            role={message.ok ? 'status' : 'alert'}
+            withCloseButton
+            onClose={() => setMessage(null)}
+            flex={1}
+          >
+            {message.text}
+          </Alert>
+        ) : (
+          <span />
+        )}
+        <Button size="compact-sm" variant="default" onClick={refresh}>
+          {t('admin.system.refresh')}
+        </Button>
+      </Group>
 
-        <Section title={t('admin.system.pools')}>
-          {pools.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              {t('admin.system.noPools')}
-            </Text>
-          ) : (
-            pools.map((pool) => (
-              <PoolEditor
-                key={`${pool.id}/${pool.priority}/${pool.minFreeBytes}`}
-                pool={pool}
-                onSave={(input) =>
-                  gate.run(async () => {
-                    await mutate<storagePoolMutation>(
-                      environment,
-                      graphql`
-                        mutation storagePoolMutation($id: String!, $input: StoragePoolInput!) {
-                          updateStoragePool(id: $id, input: $input) {
-                            id
-                            priority
-                            minFreeBytes
-                          }
+      <Section title={t('admin.system.pools')}>
+        {pools.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            {t('admin.system.noPools')}
+          </Text>
+        ) : (
+          pools.map((pool) => (
+            <PoolEditor
+              key={`${pool.id}/${pool.priority}/${pool.minFreeBytes}`}
+              pool={pool}
+              onSave={(input) =>
+                action.run(async () => {
+                  await mutate<storagePoolMutation>(
+                    environment,
+                    graphql`
+                      mutation storagePoolMutation($id: String!, $input: StoragePoolInput!) {
+                        updateStoragePool(id: $id, input: $input) {
+                          id
+                          priority
+                          minFreeBytes
                         }
-                      `,
-                      { id: pool.id, input },
-                    );
-                    done();
-                  }, fail)
-                }
-              />
-            ))
-          )}
-        </Section>
+                      }
+                    `,
+                    { id: pool.id, input },
+                  );
+                  done();
+                }, fail)
+              }
+            />
+          ))
+        )}
+      </Section>
 
-        {/* 録画やファイルを消す、動かす操作も重要な操作なので、同じ再認証を通す (設計書 9.5)。 */}
-        <MissingRecordings run={gate.run} />
-        <OrphanFiles run={gate.run} />
-        <RecordingRenames run={gate.run} />
-      </SudoGate>
+      <MissingRecordings />
+      <OrphanFiles />
+      <RecordingRenames />
     </Stack>
   );
 }

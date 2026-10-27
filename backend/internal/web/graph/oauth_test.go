@@ -46,7 +46,7 @@ func TestOAuthAuthorizationHidesFetchError(t *testing.T) {
 
 	f := newFixture(t, nil)
 	admin := f.as(t, "admin", auth.RoleAdmin)
-	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{"mcpEnabled": true}}, nil))
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldMCPEnabled: true}}, nil))
 	viewer := f.as(t, "guest", auth.RoleViewer)
 
 	// ループバックのアドレスには、取りに行く前に断る。断った理由には、そのアドレスが入る。

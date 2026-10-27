@@ -7,12 +7,10 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
+import { useAction } from '../../admin/useAction';
 import { Section } from '../../admin/Section';
-import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
-import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
-import { SudoGate } from '../../settings/SudoGate';
 import type { timeshiftQuery } from './__generated__/timeshiftQuery.graphql';
 import type { timeshiftRemoveMutation } from './__generated__/timeshiftRemoveMutation.graphql';
 import type { timeshiftSetMutation } from './__generated__/timeshiftSetMutation.graphql';
@@ -20,8 +18,6 @@ import { ServiceLabel } from '../../guide/ServiceLabel';
 import { renderServiceOption, serviceGroups } from '../../guide/serviceOption';
 import { zonedFormat } from '../../futon';
 
-const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
-const path = '/admin/timeshift';
 // タイムシフトの保持時間は、時間単位で 1〜24 時間から選ぶ。既定は 2 時間。
 const defaultRetentionHours = 2;
 const maxRetentionHours = 24;
@@ -38,8 +34,6 @@ const bufferFormat = zonedFormat({
 const formatBufferTime = (time: string) => bufferFormat.format(Date.parse(time));
 
 export const Route = createFileRoute('/admin/timeshift')({
-  // IdP での再認証を出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
-  loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: TimeshiftPage,
 });
 
@@ -66,13 +60,6 @@ const query = graphql`
         displayName
       }
     }
-    secondFactors {
-      totp
-      remainingRecoveryCodes
-    }
-    passkeys {
-      id
-    }
     timeshiftAvailable
     timeshiftChannels {
       service {
@@ -94,7 +81,6 @@ const query = graphql`
 function TimeshiftSettings() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
-  const oidc = Route.useLoaderData();
   // fetchKey を変えると、読み直す。読み直す間も画面を出したままにするため、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
   // ほかの管理者が変えたら、読み直す (#869)。
@@ -105,8 +91,7 @@ function TimeshiftSettings() {
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
-  const gate = useReauthGate(methods, path);
+  const action = useAction();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const fail = (caught: unknown) =>
     setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
@@ -137,67 +122,62 @@ function TimeshiftSettings() {
 
   return (
     <Stack gap="md">
-      {gate.modal}
-      <SudoGate methods={methods} returnTo={path}>
-        {message !== null && (
-          <Alert
-            color={message.ok ? 'teal' : 'red'}
-            role={message.ok ? 'status' : 'alert'}
-            withCloseButton
-            onClose={() => setMessage(null)}
-          >
-            {message.text}
-          </Alert>
-        )}
+      {message !== null && (
+        <Alert
+          color={message.ok ? 'teal' : 'red'}
+          role={message.ok ? 'status' : 'alert'}
+          withCloseButton
+          onClose={() => setMessage(null)}
+        >
+          {message.text}
+        </Alert>
+      )}
 
-        <Section title={t('admin.timeshift.services')}>
-          <Text size="sm" c="dimmed">
-            {t('admin.timeshift.description')}
-          </Text>
-          {data.timeshiftChannels.length === 0 && (
-            <Text size="sm">{t('admin.timeshift.empty')}</Text>
-          )}
-          {data.timeshiftChannels.map((channel) => (
-            <TimeshiftServiceEditor
-              key={`${channel.service.id}/${channel.retentionSeconds}`}
-              channel={channel}
-              onSave={(retentionSeconds) =>
-                gate.run(async () => {
-                  await setTimeshift(channel.service.id, retentionSeconds);
-                  done();
-                }, fail)
-              }
-              onRemove={() =>
-                gate.run(async () => {
-                  await mutate<timeshiftRemoveMutation>(
-                    environment,
-                    graphql`
-                      mutation timeshiftRemoveMutation($serviceId: ID!) {
-                        removeTimeshiftChannel(serviceId: $serviceId)
-                      }
-                    `,
-                    { serviceId: channel.service.id },
-                  );
-                  done();
-                }, fail)
-              }
-            />
-          ))}
-          <TimeshiftServiceAdder
-            services={data.services.filter(
-              (service) =>
-                !data.timeshiftChannels.some((channel) => channel.service.id === service.id),
-            )}
-            onAdd={(serviceId, retentionSeconds, onAdded) =>
-              gate.run(async () => {
-                await setTimeshift(serviceId, retentionSeconds);
-                onAdded();
+      <Section title={t('admin.timeshift.services')}>
+        <Text size="sm" c="dimmed">
+          {t('admin.timeshift.description')}
+        </Text>
+        {data.timeshiftChannels.length === 0 && <Text size="sm">{t('admin.timeshift.empty')}</Text>}
+        {data.timeshiftChannels.map((channel) => (
+          <TimeshiftServiceEditor
+            key={`${channel.service.id}/${channel.retentionSeconds}`}
+            channel={channel}
+            onSave={(retentionSeconds) =>
+              action.run(async () => {
+                await setTimeshift(channel.service.id, retentionSeconds);
+                done();
+              }, fail)
+            }
+            onRemove={() =>
+              action.run(async () => {
+                await mutate<timeshiftRemoveMutation>(
+                  environment,
+                  graphql`
+                    mutation timeshiftRemoveMutation($serviceId: ID!) {
+                      removeTimeshiftChannel(serviceId: $serviceId)
+                    }
+                  `,
+                  { serviceId: channel.service.id },
+                );
                 done();
               }, fail)
             }
           />
-        </Section>
-      </SudoGate>
+        ))}
+        <TimeshiftServiceAdder
+          services={data.services.filter(
+            (service) =>
+              !data.timeshiftChannels.some((channel) => channel.service.id === service.id),
+          )}
+          onAdd={(serviceId, retentionSeconds, onAdded) =>
+            action.run(async () => {
+              await setTimeshift(serviceId, retentionSeconds);
+              onAdded();
+              done();
+            }, fail)
+          }
+        />
+      </Section>
     </Stack>
   );
 }
@@ -363,7 +343,7 @@ function TimeshiftServiceAdder({
         disabled={serviceId === null || typeof hours !== 'number'}
         onClick={() => {
           if (serviceId !== null) {
-            // 選んだサービスは、足し終えてから消す。失敗したときや再認証をやめたときは、選び直さずにやり直せる。
+            // 選んだサービスは、足し終えてから消す。失敗したときは、選び直さずにやり直せる。
             onAdd(serviceId, Number(hours) * secondsPerHour, () => setServiceId(null));
           }
         }}
