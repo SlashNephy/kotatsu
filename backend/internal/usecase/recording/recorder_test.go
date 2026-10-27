@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
@@ -53,6 +55,15 @@ func (f *fixture) newRecorderWithLogger(t *testing.T, tuner recording.StreamOpen
 ) (*recording.Recorder, string) {
 	t.Helper()
 
+	return f.newRecorderOn(t, f.pool, tuner, freeSpace, peers, logger)
+}
+
+// newRecorderOn は、pool で DB を読み書きする Recorder を作る。DB に届かない状態を作るテストで、切り替えられるプールを渡す。
+func (f *fixture) newRecorderOn(t *testing.T, pool *pgxpool.Pool, tuner recording.StreamOpener, freeSpace kago.FreeSpaceFunc, peers recording.PeersFunc,
+	logger *slog.Logger,
+) (*recording.Recorder, string) {
+	t.Helper()
+
 	dir := t.TempDir()
 	// 同じテストの Recorder は、データディレクトリを共有する (dataRootOf)。
 	require.NoError(t, os.MkdirAll(dataRootOf(dir), 0o755))
@@ -61,7 +72,7 @@ func (f *fixture) newRecorderWithLogger(t *testing.T, tuner recording.StreamOpen
 	if freeSpace == nil {
 		freeSpace = func(string) (uint64, error) { return 1 << 40, nil }
 	}
-	recorder := recording.NewRecorder(f.pool, f.clock, tuner, kago.New(map[string]string{poolID: dir}, freeSpace).WithDataDir(dataRootOf(dir)), nil, tokyo,
+	recorder := recording.NewRecorder(pool, f.clock, tuner, kago.New(map[string]string{poolID: dir}, freeSpace).WithDataDir(dataRootOf(dir)), nil, tokyo,
 		logger, &recording.RecorderOptions{
 			TuningTime: 0, Tick: 10 * time.Millisecond, RetryInterval: 20 * time.Millisecond, ReleaseAfter: 0, Peers: peers,
 		})
@@ -273,6 +284,49 @@ func TestRecorderRecordsUntilPlannedEnd(t *testing.T) {
 	entries, err := ts.ReadIndex(indexFile)
 	require.NoError(t, err)
 	assert.NotEmpty(t, entries)
+}
+
+// TestRecorderFinishesWhileDatabaseIsUnreachable は、予定の終わりに DB に届かなくても、録り直さずに録画を止め、
+// DB が戻ってから、録画を止めた時刻で完了にすることを確かめる (#1073)。
+func TestRecorderFinishesWhileDatabaseIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	db := databasetest.NewSwitch(t, f.pool)
+	recorder, _ := f.newRecorderOn(t, db.Pool, f.tuner, nil, nil, slog.New(slog.DiscardHandler))
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return len(f.files(t, reservationID)) == 1
+	}, waitTimeout, 10*time.Millisecond)
+
+	db.Down()
+	plannedEnd := programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second)
+	f.clock.Advance(plannedEnd.Sub(f.clock.Now()))
+	// DB に届かない間も、予定の終わりで止め、新しいセグメントを作らない。
+	time.Sleep(300 * time.Millisecond)
+	select {
+	case err := <-done:
+		t.Fatalf("the session returned before the database was reachable: %v", err)
+	default:
+	}
+	// DB が戻ったのは、止めてからしばらく後とする。
+	f.clock.Advance(5 * time.Minute)
+	db.Up()
+	require.NoError(t, wait(t, done))
+
+	// 途切れていないので、partial にはならない。偽チューナーサーバーのつなぎ目のドロップは、録った長さによる。
+	got, _ := f.recording(t, reservationID)
+	assert.Contains(t, []string{string(recording.StateCompleted), string(recording.StateCompletedWithErrors)}, got.state)
+	files := f.files(t, reservationID)
+	require.Len(t, files, 1)
+	assert.True(t, files[0].closed)
+	var recordedUntil, endedAt time.Time
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT r.recorded_until, f.ended_at FROM recordings r JOIN recording_files f ON f.recording_id = r.id
+		WHERE r.reservation_id = $1`, reservationID).Scan(&recordedUntil, &endedAt))
+	assert.WithinDuration(t, plannedEnd, recordedUntil, time.Second, "the recording ends when it stopped, not when the database came back")
+	assert.WithinDuration(t, plannedEnd, endedAt, time.Second)
 }
 
 // TestRecorderStopsWhenStopped は、リースを失うか止めるときは、録画ファイルを閉じて、録画を録画中のまま残すことを確かめる (設計書 5.4)。
