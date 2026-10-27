@@ -47,7 +47,7 @@ func TestHealthEndpoints(t *testing.T) {
 			t.Parallel()
 
 			mux := http.NewServeMux()
-			httpserver.RegisterHealth(mux, slog.New(slog.DiscardHandler), &fakePinger{err: tt.pingErr})
+			httpserver.RegisterHealth(mux, slog.New(slog.DiscardHandler), &fakePinger{err: tt.pingErr}, time.Minute)
 
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, nil))
@@ -65,7 +65,7 @@ func TestReadyzWithRealDatabase(t *testing.T) {
 	require.NoError(t, err)
 
 	mux := http.NewServeMux()
-	httpserver.RegisterHealth(mux, slog.New(slog.DiscardHandler), pool)
+	httpserver.RegisterHealth(mux, slog.New(slog.DiscardHandler), pool, 0)
 
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))
@@ -75,6 +75,39 @@ func TestReadyzWithRealDatabase(t *testing.T) {
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+}
+
+// TestReadyzStaysReadyWithinGrace は、DB に一度接続できた後は、接続できなくなっても、grace の間は成功を返すことを確かめる (#1084)。
+func TestReadyzStaysReadyWithinGrace(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		grace      time.Duration
+		wantStatus int
+	}{
+		{name: "within the grace period", grace: time.Hour, wantStatus: http.StatusOK},
+		{name: "without a grace period", grace: 0, wantStatus: http.StatusServiceUnavailable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			pinger := &fakePinger{err: nil}
+			mux := http.NewServeMux()
+			httpserver.RegisterHealth(mux, slog.New(slog.DiscardHandler), pinger, tt.grace)
+			readyz := func() int {
+				rec := httptest.NewRecorder()
+				mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))
+
+				return rec.Code
+			}
+			require.Equal(t, http.StatusOK, readyz())
+
+			pinger.err = errors.New("down")
+			assert.Equal(t, tt.wantStatus, readyz())
+		})
+	}
 }
 
 func TestServeWaitsForInFlightRequests(t *testing.T) {

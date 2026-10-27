@@ -482,7 +482,8 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 	}
 
 	mux := http.NewServeMux()
-	httpserver.RegisterHealth(mux, logger, deps.DB)
+	// DB が止まっても、覚えた結果で視聴を続けられる間は、Service から外さない (#1084)。
+	httpserver.RegisterHealth(mux, logger, deps.DB, database.FallbackTTL)
 	var api *apiHandler
 	// API は tenban が受け持つ (設計書 1.2、9.1)。
 	if slices.ContainsFunc(roles, func(role *Role) bool { return role.Name == tenbanRoleName }) {
@@ -627,7 +628,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 
 			return client != nil && client.Secure
 		},
-		Clock: deps.Clock,
+		Clock:  deps.Clock,
+		Logger: logger.With(slog.String("component", "session")),
 	})
 
 	// 表示のタイムゾーンは設定で決める (設計書 8.1)。
@@ -769,12 +771,16 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		}
 		opener, logos = client, client
 	}
-	authorizer := streamapi.NewAuthorizer(signer, deps.DB, deps.Clock)
 	streamLogger := logger.With(slog.String("component", "stream"))
-	streams, err := handleStreams(mux, deps, authorizer, opener, streamLogger)
+	urlUsers := auth.NewURLUsers(deps.DB, deps.Clock, streamLogger)
+	authorizer := streamapi.NewAuthorizer(signer, urlUsers, deps.Clock)
+	streams, instances, err := handleStreams(mux, deps, authorizer, opener, streamLogger)
 	if err != nil {
 		return nil, err
 	}
+	registerFallbacks(deps, map[string]func() int64{
+		"session": sessions.FallbackUsed, "signed_url": urlUsers.FallbackUsed, "kyusu_instances": instances.FallbackUsed,
+	})
 	handleMedia(mux, deps, logger, authorizer, logos, jikkyoTable, jikkyoClient)
 	api := sessions.Middleware(deps.DB)(mux)
 	compat := newEPGStationAPI(deps, apiTokens, opener, logos, streams, streamLogger)
@@ -796,10 +802,10 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 }
 
 // handleStreams は、映像の配信 (/streams/*) を mux に登録する。どれも、セッションか署名付き URL で認可する。
-// 変換せずに流す配信を数える StreamCounter を返す。EPGStation 互換の配信も、同じものに数える。
+// 変換せずに流す配信を数える StreamCounter と、kyusu への中継に使うインスタンスの登録簿を返す。EPGStation 互換の配信も、同じものに数える。
 func handleStreams(
 	mux *http.ServeMux, deps *Deps, authorizer *streamapi.Authorizer, opener streamapi.ServiceOpener, streamLogger *slog.Logger,
-) (*streamapi.StreamCounter, error) {
+) (*streamapi.StreamCounter, *kyusu.LastKnownInstances, error) {
 	streams := newStreamCounter(deps)
 	// ライブ視聴と録画の配信は終わらないので、停止を始めたら打ち切り、待たない。
 	// 配信は、認可を通ったものだけを数える。
@@ -810,9 +816,10 @@ func handleStreams(
 	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
 	kyusuToken, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	instances := registry.New(deps.DB, deps.Clock, deps.InstanceID)
+	// DB に届かない間は、最後に引けた登録簿で中継を続ける (#1084)。
+	instances := kyusu.NewLastKnownInstances(registry.New(deps.DB, deps.Clock, deps.InstanceID), deps.Clock, streamLogger)
 	mux.Handle("GET /streams/services/{id}/hls/{preset}/{audio}/{file}",
 		authorizer.Middleware(kyusu.NewRelay(instances, kyusuToken, streamLogger)))
 	mux.Handle("GET /streams/recordings/{id}/hls/{preset}/{audio}/{file}",
@@ -824,7 +831,18 @@ func handleStreams(
 	mux.Handle("GET /streams/recordings/{id}/files/{file}", httpserver.StopOnShutdown(authorizer.Middleware(
 		streams.Count(streamapi.StreamRecording, streamapi.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger)))))
 
-	return streams, nil
+	return streams, instances, nil
+}
+
+// registerFallbacks は、tenban が DB に届かずに、覚えた結果を使った回数を、種類ごとに /metrics に出す (設計書 11.3、#1084)。
+func registerFallbacks(deps *Deps, used map[string]func() int64) {
+	for kind, count := range used {
+		deps.Metrics.MustRegister(prometheus.NewCounterFunc(prometheus.CounterOpts{
+			Namespace: metrics.Namespace, Name: "tenban_database_fallbacks_total",
+			Help:        "Number of times tenban used a cached result because the database was unreachable.",
+			ConstLabels: prometheus.Labels{kindLabel: kind},
+		}, func() float64 { return float64(count()) }))
+	}
 }
 
 // handleMedia は、画像と実況の過去ログ (/media/*) を mux に登録する。どれも、セッションか署名付き URL で認可する。
