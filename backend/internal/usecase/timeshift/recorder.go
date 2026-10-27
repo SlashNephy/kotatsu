@@ -123,7 +123,7 @@ func (r *Recorder) record(ctx context.Context, assignment *recording.Assignment)
 			return err
 		}
 	}
-	pending := &pendingWrites{mu: sync.Mutex{}, writes: nil, flushing: sync.Mutex{}}
+	pending := newPendingWrites(assignment)
 	programs, err := r.newProgramTracker(ctx, logger, assignment.ServiceID, pending)
 	if err != nil {
 		return err
@@ -259,7 +259,7 @@ func (r *Recorder) waitUntil(
 		case <-ticker.C:
 		}
 		r.flushPending(ctx, logger, pending)
-		if r.deleted(ctx, assignment) {
+		if r.deleted(ctx, assignment, pending) {
 			return true, nil
 		}
 	}
@@ -269,16 +269,27 @@ func (r *Recorder) waitUntil(
 
 // deleted は、割り振りが DB から消えたかどうかを返す。確かめられなければ、消えていないとみなす。
 // DB への問い合わせが詰まっても、見張りを止めないよう、databaseTimeout で打ち切る (#1073)。
-func (r *Recorder) deleted(ctx context.Context, assignment *recording.Assignment) bool {
+// DB に届かないことのログは、届かなくなったときに 1 度だけ出す。DB が止まっている間も録り続けるので、毎回出すとあふれる。
+func (r *Recorder) deleted(ctx context.Context, assignment *recording.Assignment, pending *pendingWrites) bool {
 	checkCtx, cancel := context.WithTimeout(ctx, databaseTimeout)
 	defer cancel()
 	exists, err := sqlc.New(r.pool).TimeshiftAssignmentExists(checkCtx, assignment.ID)
-	if err != nil {
-		if ctx.Err() == nil {
+	switch {
+	case err != nil && ctx.Err() != nil:
+		return false
+	case err != nil && database.IsUnavailable(err):
+		if !pending.unreachable.Swap(true) {
 			r.logger.WarnContext(ctx, "failed to check the timeshift assignment", slog.Any("error", err))
 		}
 
 		return false
+	case err != nil:
+		r.logger.WarnContext(ctx, "failed to check the timeshift assignment", slog.Any("error", err))
+
+		return false
+	}
+	if pending.unreachable.Swap(false) {
+		r.logger.InfoContext(ctx, "checked the timeshift assignment again")
 	}
 
 	return !exists
@@ -350,7 +361,7 @@ func (r *Recorder) watch(
 		case <-ticker.C:
 		}
 		r.flushPending(ctx, logger, pending)
-		if r.deleted(ctx, assignment) {
+		if r.deleted(ctx, assignment, pending) {
 			deleted.Store(true)
 			_ = stream.Close()
 

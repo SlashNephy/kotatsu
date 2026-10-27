@@ -539,6 +539,84 @@ func TestTimeshiftRecorderRecordsPrograms(t *testing.T) {
 	}
 }
 
+// TestTimeshiftRecorderDiscardsDeferredRecordsAfterTakeover は、DB に届かない間に覚えた記録を、DB が戻ったときに
+// ほかの mikan が割り振りを取っていたら書かないことを確かめる (#1073)。新しい mikan の記録を、古い記録で上書きしない。
+func TestTimeshiftRecorderDiscardsDeferredRecordsAfterTakeover(t *testing.T) {
+	t.Parallel()
+
+	e := newRecorderEnv(t)
+	db := databasetest.NewSwitch(t, e.pool)
+	tuner := newFakeTuner(e.clk, false)
+	assignment := e.assign(t, false)
+	_, _ = session(t, e.newRecorderOn(db.Pool, tuner, nil), assignment)
+
+	cc := byte(0)
+	tuner.next(t, eitPFPackets(&cc, 3, 4))
+	db.Down()
+	e.clk.Advance(time.Minute)
+	tuner.next(t, eitPFPackets(&cc, 4, 5))
+	// DB に届かない間に、ほかの mikan が割り振りを取った。
+	_, err := e.pool.Exec(t.Context(), "UPDATE timeshift_assignments SET generation = generation + 1 WHERE id = $1", assignment.ID)
+	require.NoError(t, err)
+	db.Up()
+	time.Sleep(20 * testTick)
+
+	got := programs(t, e)
+	require.Len(t, got, 1, "the deferred program change is not written")
+	assert.Equal(t, int64(3), got[0].eventID)
+	assert.Nil(t, got[0].endedAt)
+}
+
+// TestTimeshiftRecorderLogsUnreachableOnce は、DB に届かない間、割り振りを確かめられないことを、毎回ではなく 1 度だけログに残すことを確かめる (#1073)。
+func TestTimeshiftRecorderLogsUnreachableOnce(t *testing.T) {
+	t.Parallel()
+
+	e := newRecorderEnv(t)
+	db := databasetest.NewSwitch(t, e.pool)
+	tuner := newFakeTuner(e.clk, false)
+	logs := &countingHandler{}
+	recorder := timeshift.NewRecorder(db.Pool, e.clk, tuner, e.store, slog.New(logs), &timeshift.RecorderOptions{
+		ChunkDuration: 5 * time.Minute, Backoff: nil, Tick: testTick, Peers: nil,
+	})
+	_, _ = session(t, recorder, e.assign(t, false))
+	tuner.next(t, nullPackets(10))
+	db.Down()
+	time.Sleep(30 * testTick)
+	db.Up()
+
+	assert.LessOrEqual(t, logs.count("failed to check the timeshift assignment"), 1)
+}
+
+// countingHandler は、ログのメッセージの数を数える slog.Handler。
+type countingHandler struct {
+	mu       sync.Mutex
+	messages map[string]int
+}
+
+func (h *countingHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *countingHandler) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.messages == nil {
+		h.messages = map[string]int{}
+	}
+	h.messages[r.Message]++
+
+	return nil
+}
+
+func (h *countingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+
+func (h *countingHandler) WithGroup(string) slog.Handler { return h }
+
+func (h *countingHandler) count(message string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.messages[message]
+}
+
 // TestTimeshiftRecorderClosesChunkOnStop は、Session を止めると、書きかけのチャンクを閉じて返ることを確かめる。
 // 止めても番組は放送中のままなので、番組は閉じない。
 func TestTimeshiftRecorderClosesChunkOnStop(t *testing.T) {

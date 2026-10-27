@@ -2,15 +2,19 @@ package timeshift
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 )
 
 // databaseTimeout は、読み込みのループから DB に書くときに待つ上限。
@@ -25,6 +29,25 @@ type pendingWrites struct {
 	writes []func(ctx context.Context, q *sqlc.Queries) error
 	// flushing は、書いているところを 1 つにする。同じ書き込みを、2 つの goroutine で重ねて書かない。
 	flushing sync.Mutex
+	// assignment は、録っている割り振り。書く前に、ほかの mikan が取っていないかを、世代番号で確かめる。
+	assignment *recording.Assignment
+	// unreachable は、割り振りを確かめようとして DB に届かなかったかどうか。ログを、届かなくなったときと戻ったときに 1 度ずつ出す。
+	unreachable atomic.Bool
+}
+
+// newPendingWrites は、割り振り assignment を録る間の pendingWrites を返す。
+func newPendingWrites(assignment *recording.Assignment) *pendingWrites {
+	return &pendingWrites{mu: sync.Mutex{}, writes: nil, flushing: sync.Mutex{}, assignment: assignment, unreachable: atomic.Bool{}}
+}
+
+// discard は、積んだ書き込みを捨て、捨てた数を返す。
+func (p *pendingWrites) discard() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	n := len(p.writes)
+	p.writes = p.writes[:0]
+
+	return n
 }
 
 // addIfWaiting は、積んだ書き込みが残っていれば、write を後ろに積んで true を返す。残っていなければ、積まずに false を返す。
@@ -102,8 +125,23 @@ func (r *Recorder) writeOrDefer(
 }
 
 // flushPending は、積んだ書き込みを書く。書き終えたら、そのことをログに残す。
+// 書く前に、割り振りがまだこの mikan のものかを確かめる。DB が戻った直後にほかの mikan が取っていたら、
+// その mikan の記録を古い記録で上書きしないよう、書かずに捨てる (#1073)。
 func (r *Recorder) flushPending(ctx context.Context, logger *slog.Logger, pending *pendingWrites) {
 	if !pending.waiting() {
+		return
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, databaseTimeout)
+	defer cancel()
+	stream, err := sqlc.New(r.pool).GetTimeshiftAssignmentStream(checkCtx, pending.assignment.ID)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows) || (err == nil && stream.Generation != pending.assignment.Generation):
+		n := pending.discard()
+		logger.WarnContext(ctx, "another mikan took the timeshift assignment; discarding the records deferred while the database was unreachable",
+			slog.Int("writes", n))
+
+		return
+	case err != nil:
 		return
 	}
 	n, err := pending.flush(ctx, r.pool)
