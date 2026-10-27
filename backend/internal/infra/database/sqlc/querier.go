@@ -286,6 +286,7 @@ type Querier interface {
 	InsertSetupToken(ctx context.Context, arg InsertSetupTokenParams) error
 	InsertTimeReservation(ctx context.Context, arg InsertTimeReservationParams) error
 	InsertTimeshiftAssignment(ctx context.Context, arg InsertTimeshiftAssignmentParams) error
+	// DB に届かずに後から書き直すとき、同じチャンクを二重に作らない (#1073)。
 	InsertTimeshiftChunk(ctx context.Context, arg InsertTimeshiftChunkParams) error
 	InsertTuner(ctx context.Context, arg InsertTunerParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) error

@@ -106,8 +106,10 @@ UPDATE timeshift_assignments SET state = 'waiting', holder = NULL, lease_expires
 WHERE id = @id AND generation = @generation AND holder = @holder AND state = 'recording';
 
 -- name: InsertTimeshiftChunk :exec
+-- DB に届かずに後から書き直すとき、同じチャンクを二重に作らない (#1073)。
 INSERT INTO timeshift_chunks (id, service_id, path, size, started_at, ended_at, created_at)
-VALUES (@id, @service_id, @path, @size, @started_at, NULL, @now);
+VALUES (@id, @service_id, @path, @size, @started_at, NULL, @now)
+ON CONFLICT (id) DO NOTHING;
 
 -- name: CloseTimeshiftChunk :execrows
 -- 書き終えたチャンクの大きさと終わりの時刻を記録する。

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 )
@@ -217,7 +219,12 @@ func (e *recorderEnv) newRecorder(tuner recording.StreamOpener) *timeshift.Recor
 
 // newRecorderWithPeers は、ほかに動いている mikan の数を peers で数える Recorder を返す。nil なら、ほかの mikan はいない。
 func (e *recorderEnv) newRecorderWithPeers(tuner recording.StreamOpener, peers recording.PeersFunc) *timeshift.Recorder {
-	return timeshift.NewRecorder(e.pool, e.clk, tuner, e.store, slog.New(slog.DiscardHandler), &timeshift.RecorderOptions{
+	return e.newRecorderOn(e.pool, tuner, peers)
+}
+
+// newRecorderOn は、pool で DB を読み書きする Recorder を返す。DB に届かない状態を作るテストで、切り替えられるプールを渡す。
+func (e *recorderEnv) newRecorderOn(pool *pgxpool.Pool, tuner recording.StreamOpener, peers recording.PeersFunc) *timeshift.Recorder {
+	return timeshift.NewRecorder(pool, e.clk, tuner, e.store, slog.New(slog.DiscardHandler), &timeshift.RecorderOptions{
 		ChunkDuration: 5 * time.Minute, Backoff: nil, Tick: testTick, Peers: peers,
 	})
 }
@@ -369,6 +376,57 @@ func TestTimeshiftRecorderRotatesChunks(t *testing.T) {
 		require.FailNow(t, "the session returned while streaming", "%v", err)
 	default:
 	}
+}
+
+// TestTimeshiftRecorderRotatesChunksWhileDatabaseIsUnreachable は、DB に届かない間も、ストリームを閉じずにチャンクを替えて書き続け、
+// DB が戻ったら、書けなかったチャンクを記録することを確かめる (#1073)。
+func TestTimeshiftRecorderRotatesChunksWhileDatabaseIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	e := newRecorderEnv(t)
+	db := databasetest.NewSwitch(t, e.pool)
+	tuner := newFakeTuner(e.clk, false)
+	start := e.clk.Now()
+	_, done := session(t, e.newRecorderOn(db.Pool, tuner, nil), e.assign(t, false))
+
+	tuner.next(t, nullPackets(10))
+	db.Down()
+	// 12 分の間、1 分ごとにデータを流す。チャンクは 5 分ごとに替わる。
+	for range 12 {
+		e.clk.Advance(time.Minute)
+		tuner.next(t, nullPackets(10))
+	}
+	select {
+	case err := <-done:
+		require.FailNow(t, "the session returned while the database was unreachable", "%v", err)
+	default:
+	}
+	db.Up()
+
+	wantStarts := []time.Time{start, start.Add(5 * time.Minute), start.Add(10 * time.Minute)}
+	require.Eventually(t, func() bool {
+		got := chunks(t, e)
+
+		return len(got) == 3 && got[1].endedAt != nil
+	}, waitTimeout, 10*time.Millisecond)
+	got := chunks(t, e)
+	for i, c := range got {
+		assert.True(t, wantStarts[i].Equal(c.startedAt), "chunk %d started at %s", i, c.startedAt)
+		info, err := os.Stat(filepath.Join(e.dir, c.path))
+		require.NoError(t, err, "chunk %d is kept on the disk", i)
+		if i == len(got)-1 {
+			assert.Nil(t, c.endedAt, "the last chunk is still being written")
+
+			continue
+		}
+		require.NotNil(t, c.endedAt, "chunk %d", i)
+		assert.True(t, wantStarts[i+1].Equal(*c.endedAt), "chunk %d ended at %s", i, *c.endedAt)
+		assert.Equal(t, info.Size(), c.size, "chunk %d: the size in the DB matches the file", i)
+	}
+	// ストリームは開き直していない。
+	tuner.mu.Lock()
+	assert.Len(t, tuner.opts, 1)
+	tuner.mu.Unlock()
 }
 
 // TestTimeshiftRecorderReconnectBackoff は、開いてすぐ切れ続けると、開き直す間隔を、Backoff の間隔で延ばしていくことを確かめる。

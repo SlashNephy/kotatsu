@@ -289,6 +289,7 @@ func (q *Queries) InsertTimeshiftAssignment(ctx context.Context, arg InsertTimes
 const insertTimeshiftChunk = `-- name: InsertTimeshiftChunk :exec
 INSERT INTO timeshift_chunks (id, service_id, path, size, started_at, ended_at, created_at)
 VALUES ($1, $2, $3, $4, $5, NULL, $6)
+ON CONFLICT (id) DO NOTHING
 `
 
 type InsertTimeshiftChunkParams struct {
@@ -300,6 +301,7 @@ type InsertTimeshiftChunkParams struct {
 	Now       time.Time
 }
 
+// DB に届かずに後から書き直すとき、同じチャンクを二重に作らない (#1073)。
 func (q *Queries) InsertTimeshiftChunk(ctx context.Context, arg InsertTimeshiftChunkParams) error {
 	_, err := q.db.Exec(ctx, insertTimeshiftChunk,
 		arg.ID,
