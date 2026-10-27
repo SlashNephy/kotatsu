@@ -6,6 +6,7 @@ import { graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { AdminPage } from '../../admin/AdminPage';
+import { useDataChanges } from '../../changes/DataChanges';
 import { Section } from '../../admin/Section';
 import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
@@ -68,10 +69,12 @@ function StorageSettings() {
   const oidc = Route.useLoaderData();
   // fetchKey を変えると、読み直す。読み直す間も画面を出したままにするため、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
+  // ほかの管理者が変えたら、読み直す (#869)。
+  const adminChanges = useDataChanges(['ADMIN']);
   const data = useLazyLoadQuery<storageQuery>(
     query,
     {},
-    { fetchKey, fetchPolicy: 'store-and-network' },
+    { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
   const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
@@ -89,16 +92,25 @@ function StorageSettings() {
     <Stack gap="md">
       {gate.modal}
       <SudoGate methods={methods} returnTo={path}>
-        {message !== null && (
-          <Alert
-            color={message.ok ? 'teal' : 'red'}
-            role={message.ok ? 'status' : 'alert'}
-            withCloseButton
-            onClose={() => setMessage(null)}
-          >
-            {message.text}
-          </Alert>
-        )}
+        {/* 空き容量は保存しなくても変わるので、読み直せるようにする。 */}
+        <Group justify="space-between">
+          {message !== null ? (
+            <Alert
+              color={message.ok ? 'teal' : 'red'}
+              role={message.ok ? 'status' : 'alert'}
+              withCloseButton
+              onClose={() => setMessage(null)}
+              flex={1}
+            >
+              {message.text}
+            </Alert>
+          ) : (
+            <span />
+          )}
+          <Button size="compact-sm" variant="default" onClick={refresh}>
+            {t('admin.system.refresh')}
+          </Button>
+        </Group>
 
         <Section title={t('admin.system.pools')}>
           {pools.length === 0 ? (
