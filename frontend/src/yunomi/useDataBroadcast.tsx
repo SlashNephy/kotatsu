@@ -12,9 +12,9 @@ import { broadcastFontUrl } from './broadcastFont';
 import { createDataBroadcastAudio, type DataBroadcastAudio } from './dataBroadcastAudio';
 import { isStandbyDocument, renderedRoot } from './dataBroadcastStandby';
 import type { DataBroadcastEnd, DataBroadcastRequest } from './dataBroadcastWorker';
-import { deinterlacerCanvas } from './deinterlacer';
 import { reconnectDelay } from './reconnect';
 import type { DataBroadcastSource } from './route';
+import { fitMedia } from './mediaFit';
 import { createSettler, useSettledFalse } from './settleDelay';
 import classes from './TsPlayer.module.css';
 
@@ -532,33 +532,21 @@ export function useDataBroadcast(
 
 // moveMedia は、video を含むプレイヤーの映像の要素 (字幕の canvas などを含む) を target へ移し、戻す関数を返す。
 // target は web-bml の閉じた shadow root の中にあり、外の CSS が届かないので、大きさをインラインで整える。
+// TsPlayer は、切り替えのときに裏で読み込む組 (.slot) を重ねるので、映っている組だけを移す (#1083)。
 export function moveMedia(video: HTMLVideoElement, target: HTMLElement): () => void {
   const media = video.closest<HTMLElement>(`.${classes.media}`) ?? video.parentElement;
   if (media === null) {
     return () => {};
   }
-  const nodes = Array.from(media.childNodes);
-  const elements = nodes.flatMap((node) =>
-    node instanceof HTMLElement ? [node, ...node.querySelectorAll<HTMLElement>('*')] : [],
-  );
-  // 戻すときに元に戻すので、移す前のインラインのスタイルを覚える。style 属性は CSP に止められるので、CSSOM で読み書きする。
-  const saved = elements.map((element) => [element, element.style.cssText] as const);
-  for (const element of elements) {
-    // yadif の canvas は、yadif が video に合わせて置き直す。大きさを変えると、位置だけが元のままずれ、映像が二重に見える。
-    if (element.dataset[deinterlacerCanvas] !== undefined) {
-      continue;
-    }
-    element.style.display = 'block';
-    element.style.width = '100%';
-    element.style.height = '100%';
-    if (element instanceof HTMLVideoElement || element instanceof HTMLCanvasElement) {
-      element.style.objectFit = 'contain';
-    }
-  }
+  const slot = video.closest<HTMLElement>(`.${classes.slot}`);
+  const nodes = slot !== null && media.contains(slot) ? [slot] : Array.from(media.childNodes);
+  // 戻すときに元に戻すので、移す前のインラインのスタイルを覚える。
+  const saved = fitMedia(nodes);
   target.replaceChildren(...nodes);
 
   return () => {
-    media.append(...nodes);
+    // 移している間に TsPlayer が組を切り替えたら、target には新しい組が入っている。そのとき target にあるものを戻す。
+    media.append(...Array.from(target.childNodes));
     for (const [element, cssText] of saved) {
       element.style.cssText = cssText;
     }

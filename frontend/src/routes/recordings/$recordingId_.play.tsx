@@ -1,3 +1,4 @@
+import type { PlayerState } from '@mpeg2toh264/player';
 import { Alert, Anchor, Button, Group, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Captions, Keyboard, MessageSquareText } from 'lucide-react';
@@ -91,6 +92,8 @@ import { stepVolume } from '../../yunomi/volume';
 import { currentVolume } from '../../yunomi/volumeBoost';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
+import { useStreamsDrains } from '../../changes/DataChanges';
+import { canRetryImmediately, endedEarly } from '../../yunomi/reconnect';
 import { resumePosition } from '../../yunomi/resume';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
@@ -332,6 +335,11 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const [seeking, setSeeking] = useState<number | null>(null);
   const [paused, setPaused] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // lastAutoRetry は、切れたときに、知らせを出さずに今の位置から読み直した時刻 (#1083)。
+  const lastAutoRetry = useRef<number | null>(null);
+  // handover は、次の読み直しで、今の映像を流したまま裏で読み込んで切り替えるかどうか (#1085)。
+  // tenban が止まる前の知らせで読み直すときだけ使い、シークなどでは、すぐ読み直す。
+  const [handover, setHandover] = useState(false);
 
   // currentPosition は、今の再生位置 (録画の始まりからの秒) を返す。実況のコメントを、画面の更新ごとに描くのに使う。
   // timeupdate で更新する position は間隔が粗いので、video の時刻から求め直す。
@@ -412,12 +420,29 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const [crop, setCrop] = useState<Crop>(noCrop);
   // startAt は、指定の位置から読み直す。
   const startAt = (seconds: number) => {
+    setHandover(false);
     phase.current = 'loading';
     positionRef.current = seconds;
     setPosition(seconds);
     setOffset(seconds);
     setLoads((n) => n + 1);
   };
+  // tenban が止まる前に知らせてきたら、ブラウザの中で変換するときは、今の位置から、新しい接続を張ってから切り替える (#1085)。
+  // kyusu の HLS は、セグメントごとに読むので、つなぎ直さなくてよい。
+  const drains = useStreamsDrains();
+  const seenDrains = useRef(drains);
+  useEffect(() => {
+    if (drains === seenDrains.current) {
+      return;
+    }
+    seenDrains.current = drains;
+    // エラーで止まっている間は、「やり直す」に任せる。
+    if (!hls && error === null) {
+      startAt(positionRef.current);
+      setHandover(true);
+    }
+    // startAt と positionRef は、描画ごとに作り直すが、読み直しの位置は ref から読むので、知らせが届いたときだけ動かす。
+  }, [drains, hls, error]);
   // retry は、今の位置から読み直す。エラーの知らせも消し、読み込めたら出さないままにする。
   const retry = () => {
     setError(null);
@@ -696,7 +721,34 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   }
   // フラグメントはサーバーに送られないので、読み込みを始め直すためだけに使う。
   const url = `${recording.streamUrl}?start=${offset.toFixed(1)}#${loads}`;
-  const onError = () => setError(t('player.error'));
+  // resumeAfterCut は、配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。tenban の入れ替えや回線の瞬断なら、これで戻る。
+  // 続けて切れるなら、読み直しを繰り返さずに、エラーを出して利用者に任せる。
+  const resumeAfterCut = () => {
+    const now = Date.now();
+    if (!canRetryImmediately(lastAutoRetry.current, now)) {
+      setError(t('player.error'));
+
+      return;
+    }
+    lastAutoRetry.current = now;
+    startAt(positionRef.current);
+  };
+  const onError = resumeAfterCut;
+  // onConvertState は、ブラウザの中で変換する配信が、録画の終わりに届く前に終わったら、途中で切れたとみなして読み直す。
+  const onConvertState = (state: PlayerState) => {
+    const video = videoRef.current;
+    if (state !== 'completed' || video === null) {
+      return;
+    }
+    const { buffered } = video;
+    const end =
+      buffered.length === 0
+        ? positionRef.current
+        : playbackPosition(startedAt, base.current, buffered.end(buffered.length - 1));
+    if (endedEarly(end, duration)) {
+      resumeAfterCut();
+    }
+  };
   // errorAlert は、全画面と別のウィンドウで、再生のエラーを映像に重ねて出す (#435)。
   const errorAlert = overlaid && error !== null && (
     <PlayerAlert title={error} action={{ label: t('player.retry'), onClick: retry }} />
@@ -809,6 +861,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       {route.kind === 'convert' && (
         <TsPlayer
           url={url}
+          handover={handover}
           videoRef={videoRef}
           onVideo={setVideo}
           controls={controlBar}
@@ -823,6 +876,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             setError(null);
           }}
           onError={onError}
+          onState={onConvertState}
           overlay={
             <>
               {jikkyo.overlay}

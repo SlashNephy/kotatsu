@@ -1,6 +1,23 @@
 import { describe, expect, test } from 'vitest';
 
-import { reconnectDelay, recordingsThatTookTuner } from './reconnect';
+import {
+  canRetryImmediately,
+  endedEarly,
+  reconnectDelay,
+  recordingsThatTookTuner,
+} from './reconnect';
+
+describe('canRetryImmediately', () => {
+  const now = Date.parse('2026-10-27T20:00:00+09:00');
+  test.each([
+    { name: 'まだすぐつなぎ直していない', lastAt: null, want: true },
+    { name: '30 秒より前にすぐつなぎ直した', lastAt: now - 30_000, want: true },
+    // つないではすぐ切れるなら、知らせを出して間隔を延ばす。
+    { name: '30 秒以内にすぐつなぎ直した', lastAt: now - 29_999, want: false },
+  ])('$name', ({ lastAt, want }) => {
+    expect(canRetryImmediately(lastAt, now)).toBe(want);
+  });
+});
 
 describe('reconnectDelay', () => {
   test.each([
@@ -33,5 +50,15 @@ describe('recordingsThatTookTuner', () => {
 
   test('録画がなければ、空', () => {
     expect(recordingsThatTookTuner([], disconnectedAt)).toEqual([]);
+  });
+});
+
+describe('endedEarly', () => {
+  test.each([
+    { name: '終わりまで受け取った', bufferedEnd: 1795, duration: 1800, want: false },
+    { name: '終わりの少し手前まで受け取った', bufferedEnd: 1790, duration: 1800, want: false },
+    { name: '途中で切れた', bufferedEnd: 600, duration: 1800, want: true },
+  ])('$name', ({ bufferedEnd, duration, want }) => {
+    expect(endedEarly(bufferedEnd, duration)).toBe(want);
   });
 });

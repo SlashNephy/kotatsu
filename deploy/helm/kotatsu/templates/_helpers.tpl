@@ -300,6 +300,12 @@ spec:
             {{- include "kotatsu.probe" (dict "root" $root "pod" .pod "kind" "liveness" "path" "/healthz") | nindent 12 }}
           readinessProbe:
             {{- include "kotatsu.probe" (dict "root" $root "pod" .pod "kind" "readiness" "path" "/readyz") | nindent 12 }}
+          {{- with .pod.preStopSleepSeconds }}
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: {{ . }}
+          {{- end }}
           securityContext:
             {{- toYaml $root.Values.securityContext | nindent 12 }}
           resources:

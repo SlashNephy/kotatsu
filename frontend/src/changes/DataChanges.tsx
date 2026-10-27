@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -24,6 +25,9 @@ type Context = {
   // unread は、未読の通知の数 (設計書 6.2)。分からない間 (つなぐ前や切れたとき) は null。
   unread: number | null;
   setUnread: (unread: number | null) => void;
+  // drains は、tenban から、止める前につなぎ直してほしいと知らされた回数 (#1085)。
+  drains: number;
+  addDrain: () => void;
 };
 
 const DataChangesContext = createContext<Context>({
@@ -31,6 +35,8 @@ const DataChangesContext = createContext<Context>({
   dispatch: () => {},
   unread: null,
   setUnread: () => {},
+  drains: 0,
+  addDrain: () => {},
 });
 
 // DataChangesProvider は、データの変更を、画面に配る (#503)。購読は DataChangesSubscriber が行う。
@@ -38,7 +44,13 @@ const DataChangesContext = createContext<Context>({
 export function DataChangesProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(applyChange, initialChangeState);
   const [unread, setUnread] = useState<number | null>(null);
-  const value = useMemo(() => ({ state, dispatch, unread, setUnread }), [state, unread]);
+  const [drains, setDrains] = useState(0);
+  // 購読を作り直さないよう、変わらない関数にする。
+  const addDrain = useCallback(() => setDrains((n) => n + 1), []);
+  const value = useMemo(
+    () => ({ state, dispatch, unread, setUnread, drains, addDrain }),
+    [state, unread, drains, addDrain],
+  );
 
   return <DataChangesContext.Provider value={value}>{children}</DataChangesContext.Provider>;
 }
@@ -53,12 +65,18 @@ export function useUnreadNotificationCount(): number | null {
   return useContext(DataChangesContext).unread;
 }
 
+// useStreamsDrains は、tenban から、止める前につなぎ直してほしいと知らされた回数を返す (#1085)。
+// プレイヤーは、これが増えたら、新しい接続を張ってから切り替える。
+export function useStreamsDrains(): number {
+  return useContext(DataChangesContext).drains;
+}
+
 // DataChangesSubscriber は、ログイン中のユーザーへの知らせを購読し、DataChangesProvider に渡す。ログインしている間だけ置く。
 // データの変更、ログイン中のユーザーの設定 (通知の設定、番組表ビュー、プレイヤーの設定、第二要素、パスキー、セッション) の版数、
 // 未読の通知の数を、1 つの接続でまとめて受け取る。HTTP/1.1 では、ブラウザが同じホストに同時に開く接続は 6 本までなので、
 // 映像やデータ放送の接続のために、購読の接続の数を抑える。
 export function DataChangesSubscriber() {
-  const { dispatch, setUnread } = useContext(DataChangesContext);
+  const { dispatch, setUnread, addDrain } = useContext(DataChangesContext);
   const config = useMemo(
     () => ({
       subscription: graphql`
@@ -70,6 +88,7 @@ export function DataChangesSubscriber() {
             }
             viewerSettingsVersion
             unreadNotificationCount
+            streamsDraining
           }
         }
       `,
@@ -90,11 +109,14 @@ export function DataChangesSubscriber() {
         if (event.unreadNotificationCount != null) {
           setUnread(event.unreadNotificationCount);
         }
+        if (event.streamsDraining === true) {
+          addDrain();
+        }
       },
       // 切れても、画面は今の内容のまま使える。つなぎ直したときに、切れている間の変更を数える。未読の数は分からなくなる。
       onError: () => setUnread(null),
     }),
-    [dispatch, setUnread],
+    [dispatch, setUnread, addDrain],
   );
   useSubscription<DataChangesSubscription>(config);
 

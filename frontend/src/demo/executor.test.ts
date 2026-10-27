@@ -263,6 +263,7 @@ describe('demo viewerEvents', () => {
       dataChange: { channel: 'RESERVATIONS', version: 3 },
       viewerSettingsVersion: null,
       unreadNotificationCount: null,
+      streamsDraining: null,
     });
 
     const { value } = await next;
@@ -272,6 +273,7 @@ describe('demo viewerEvents', () => {
           dataChange: { channel: 'RESERVATIONS', version: 3 },
           viewerSettingsVersion: null,
           unreadNotificationCount: null,
+          streamsDraining: null,
         },
       },
     });

@@ -1151,6 +1151,9 @@ type ViewerEvent struct {
 	DataChange              *DataChange `json:"dataChange,omitempty"`
 	ViewerSettingsVersion   *int        `json:"viewerSettingsVersion,omitempty"`
 	UnreadNotificationCount *int        `json:"unreadNotificationCount,omitempty"`
+	// この tenban が止まる前に、流しているストリームを、新しい接続を張ってから切り替えてほしいという知らせ (設計書 7.2、#1085)。
+	// 届くときは常に true。届いてから一定の時間 (20 秒) が過ぎると、この tenban は、残ったストリームを打ち切る。
+	StreamsDraining *bool `json:"streamsDraining,omitempty"`
 }
 
 // 視聴予約の通知の設定。端末をまたいで同期する。

@@ -74,7 +74,12 @@ import {
   NormalizeVolumeToggle,
   VirtualSurroundToggle,
 } from '../../yunomi/QualitySelect';
-import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
+import { useStreamsDrains } from '../../changes/DataChanges';
+import {
+  canRetryImmediately,
+  reconnectDelay,
+  recordingsThatTookTuner,
+} from '../../yunomi/reconnect';
 import { dataBroadcastSource, hlsURL, toVideoFormat } from '../../yunomi/route';
 import { RemoteKey, useDataBroadcast } from '../../yunomi/useDataBroadcast';
 import { useRemotePlayer } from '../../yunomi/useRemotePlayer';
@@ -358,13 +363,30 @@ function Live({
   // preempted は、録画のためにチューナーを使われて切れたかどうか。つなぎ直せない間の理由に使う。
   const preempted = useRef(false);
   const [disconnection, setDisconnection] = useState<Disconnection | null>(null);
+  // retryingImmediately は、知らせを出さずにすぐつなぎ直している最中かどうか。lastImmediateRetry は、その時刻 (#1083)。
+  const retryingImmediately = useRef(false);
+  const lastImmediateRetry = useRef<number | null>(null);
 
-  // 視聴が切れたら、理由を調べ、間隔を延ばしながらつなぎ直す。
+  // 視聴が切れたら、まず知らせを出さずにすぐつなぎ直す。tenban の入れ替えや回線の瞬断なら、これで戻る (#1083)。
+  // ブラウザ内での変換では、切れる前に受け取った映像を流したまま、裏でつなぎ直して切り替える。
+  // すぐのつなぎ直しでも戻れなければ、理由を調べ、知らせを出して、間隔を延ばしながらつなぎ直す。
   const disconnected = () => {
     if (disconnection !== null) {
       return;
     }
     const at = Date.now();
+    if (
+      !retryingImmediately.current &&
+      attempt.current === 0 &&
+      canRetryImmediately(lastImmediateRetry.current, at)
+    ) {
+      retryingImmediately.current = true;
+      lastImmediateRetry.current = at;
+      setSession((n) => n + 1);
+
+      return;
+    }
+    retryingImmediately.current = false;
     // 録画にチューナーを使われて切れた後は、録画が続いている間はつなぎ直せない。
     const retried = attempt.current > 0 && preempted.current;
     const delay = reconnectDelay(attempt.current);
@@ -425,6 +447,19 @@ function Live({
   // 一時停止したら、放送から遅れる。ブラウザ内での変換では、長く止めていたら再開するときに読み直す。
   // kyusu の経路は、プレイヤーが読み直す (設計書 7.3)。どちらの経路でも、遅れている間は「ライブに戻る」で読み直せる (#449)。
   const reload = () => setSession((n) => n + 1);
+  // tenban が止まる前に知らせてきたら、ブラウザ内での変換では、新しい接続を張ってから切り替える (#1085)。
+  // kyusu の経路は、セグメントごとに読むので、止まる tenban を避けて次のセグメントを読む。つなぎ直さなくてよい。
+  const drains = useStreamsDrains();
+  const seenDrains = useRef(drains);
+  useEffect(() => {
+    if (drains === seenDrains.current) {
+      return;
+    }
+    seenDrains.current = drains;
+    if (route.kind === 'convert' && disconnection === null) {
+      setSession((n) => n + 1);
+    }
+  }, [drains, route.kind, disconnection]);
   // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
   const [statsShown, setStatsShown] = useState(false);
   // 音量の補正 (#499)。端末ごとの設定に合わせる。
@@ -670,6 +705,7 @@ function Live({
   const onLoaded = () => {
     attempt.current = 0;
     preempted.current = false;
+    retryingImmediately.current = false;
   };
 
   const controlBar = (
@@ -769,6 +805,7 @@ function Live({
       {route.kind === 'convert' && (
         <TsPlayer
           url={disconnection === null ? withSession(service.streamUrl) : null}
+          handover
           videoRef={videoRef}
           onVideo={setVideo}
           controls={controlBar}

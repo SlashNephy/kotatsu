@@ -321,3 +321,33 @@ func TestViewerEvents(t *testing.T) {
 	require.Empty(t, device.query(t, updatePreference, map[string]any{varInput: input}, nil))
 	assert.JSONEq(t, event("null", "1", "null"), string(next(t, events)))
 }
+
+// fakeDrain は、テストで、tenban を止める前の知らせを始める。
+type fakeDrain struct {
+	draining chan struct{}
+}
+
+func (d *fakeDrain) Draining() <-chan struct{} {
+	return d.draining
+}
+
+var _ graph.Drain = new(fakeDrain)
+
+// TestViewerEventsStreamsDraining は、tenban を止める前の知らせを始めたら、viewerEvents で一度だけ届くことを確かめる (#1085)。
+func TestViewerEventsStreamsDraining(t *testing.T) {
+	t.Parallel()
+
+	drain := &fakeDrain{draining: make(chan struct{})}
+	f := newFixtureWith(t, &graph.Options{Drain: drain}, true)
+	events := f.subscribe(t, `subscription { viewerEvents { viewerSettingsVersion unreadNotificationCount streamsDraining } }`)
+	// 始めに、すべての今の値が届く。
+	for range 9 {
+		next(t, events)
+	}
+
+	close(drain.draining)
+	assert.JSONEq(t, `{"viewerEvents":{"viewerSettingsVersion":null,"unreadNotificationCount":null,"streamsDraining":true}}`, string(next(t, events)))
+	// 一度だけ届き、その後は、ほかの知らせが今までどおり届く。
+	f.notify(t, domain.NotificationKindRecordingStarted, nil)
+	assert.JSONEq(t, `{"viewerEvents":{"viewerSettingsVersion":null,"unreadNotificationCount":1,"streamsDraining":null}}`, string(next(t, events)))
+}

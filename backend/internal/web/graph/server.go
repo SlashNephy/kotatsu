@@ -110,6 +110,13 @@ type Options struct {
 	HeartbeatInterval time.Duration
 	// Updates は、新しいリリースを確かめた結果 (#506)。確かめない設定なら nil。
 	Updates Updates
+	// Drain は、tenban を止める前に、視聴者につなぎ直してもらう知らせ (#1085)。nil なら、知らせない。
+	Drain Drain
+}
+
+// Drain は、tenban を止める前の知らせを始めたら閉じるチャネルを返す。*streamapi.Drainer が満たす。
+type Drain interface {
+	Draining() <-chan struct{}
 }
 
 // Schema は、GraphQL のスキーマを返す。MCP のツールの入力の型を作るのに使う (#964)。
@@ -195,6 +202,7 @@ func NewHandler(opts *Options) http.Handler {
 		store:        kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir).WithTimeshiftDir(o.TimeshiftDir),
 		library:      library.New(o.Clock, o.Recorder, kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir), o.Logger),
 		updates:      o.Updates,
+		drain:        o.Drain,
 	}
 	if resolver.freeSpace == nil {
 		resolver.freeSpace = kago.FreeSpace
