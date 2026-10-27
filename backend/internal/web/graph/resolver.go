@@ -75,4 +75,5 @@ type Resolver struct {
 	totalSpace kago.TotalSpaceFunc
 	// updates は、新しいリリースを確かめた結果。確かめない設定なら nil。
 	updates Updates
+	drain   Drain
 }

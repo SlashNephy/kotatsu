@@ -524,16 +524,31 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 
 		return runRoles(ctx, logger, deps, roles)
 	})
+	// tenban は、止まる前に、流している視聴者に、新しい接続を張ってから切り替えてもらう (設計書 11.4、#1085)。
+	// 知らせは変更の購読 (SSE) で届けるので、HTTP サーバーと変更の購読は、視聴者がつなぎ直すまで止めない。
+	apiCtx := ctx
+	if api != nil {
+		var stopAPI context.CancelFunc
+		apiCtx, stopAPI = context.WithCancel(context.WithoutCancel(ctx))
+		eg.Go(func() error {
+			defer stopAPI()
+			<-ctx.Done()
+			logger.InfoContext(apiCtx, "asking viewers to reconnect before stopping")
+			api.drainer.Drain(apiCtx, streamapi.DrainTimeout)
+
+			return nil
+		})
+	}
 	eg.Go(func() error {
-		return httpserver.Serve(ctx, logger.With(slog.String("server", "api")), apiListener, handler)
+		return httpserver.Serve(apiCtx, logger.With(slog.String("server", "api")), apiListener, handler)
 	})
 	if api != nil {
 		eg.Go(func() error {
-			return api.changes.Run(ctx)
+			return api.changes.Run(apiCtx)
 		})
 		if api.updates != nil {
 			eg.Go(func() error {
-				return api.updates.Run(ctx)
+				return api.updates.Run(apiCtx)
 			})
 		}
 	}
@@ -584,6 +599,8 @@ type apiHandler struct {
 	changes ChangeFeed
 	// updates は、新しいリリースを確かめる。確かめない設定なら nil。
 	updates *update.Checker
+	// drainer は、tenban を止める前に、視聴者につなぎ直してもらう (#1085)。
+	drainer *streamapi.Drainer
 }
 
 var _ graph.Updates = new(update.Checker)
@@ -688,6 +705,9 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	authorizationServer := oauth.NewServer(deps.DB, deps.Clock, oauth.NewFetcher(deps.Clock), audit.NewRecorder(deps.Clock))
 	mux := http.NewServeMux()
 	// 変更の購読 (SSE) は終わらないので、停止を始めたら打ち切る。
+	// 変換せずに流す配信を数える。tenban を止める前に、視聴者がつなぎ直したかを、これで見る (#1085)。
+	streams := newStreamCounter(deps)
+	drainer := streamapi.NewDrainer(streams)
 	graphQL := graph.NewHandler(&graph.Options{
 		DB:                deps.DB,
 		Recorder:          audit.NewRecorder(deps.Clock),
@@ -700,6 +720,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Passwords:         auth.NewPasswords(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
 		Sessions:          sessions,
 		URLUsers:          urlUsers,
+		Drain:             drainer,
 		Settings:          settings.NewStore(deps.Clock, audit.NewRecorder(deps.Clock)),
 		Webhooks:          webhooks,
 		WebPush:           webPush,
@@ -776,7 +797,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	}
 	streamLogger := logger.With(slog.String("component", "stream"))
 	authorizer := streamapi.NewAuthorizer(signer, urlUsers, deps.Clock)
-	streams, instances, err := handleStreams(mux, deps, authorizer, opener, streamLogger)
+	instances, err := handleStreams(mux, deps, authorizer, opener, streams, streamLogger)
 	if err != nil {
 		return nil, err
 	}
@@ -800,15 +821,16 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	handleOAuth(root, authorizationServer, graphQL, logger)
 	root.Handle("/", app)
 
-	return &apiHandler{handler: policy.Middleware(root), changes: changes, updates: updates}, nil
+	return &apiHandler{handler: policy.Middleware(root), changes: changes, updates: updates, drainer: drainer}, nil
 }
 
 // handleStreams は、映像の配信 (/streams/*) を mux に登録する。どれも、セッションか署名付き URL で認可する。
-// 変換せずに流す配信を数える StreamCounter と、kyusu への中継に使うインスタンスの登録簿を返す。EPGStation 互換の配信も、同じものに数える。
+// 変換せずに流す配信を、streams に数える。EPGStation 互換の配信も、同じものに数える。
+// kyusu への中継に使うインスタンスの登録簿を返す。
 func handleStreams(
-	mux *http.ServeMux, deps *Deps, authorizer *streamapi.Authorizer, opener streamapi.ServiceOpener, streamLogger *slog.Logger,
-) (*streamapi.StreamCounter, *kyusu.LastKnownInstances, error) {
-	streams := newStreamCounter(deps)
+	mux *http.ServeMux, deps *Deps, authorizer *streamapi.Authorizer, opener streamapi.ServiceOpener,
+	streams *streamapi.StreamCounter, streamLogger *slog.Logger,
+) (*kyusu.LastKnownInstances, error) {
 	// ライブ視聴と録画の配信は終わらないので、停止を始めたら打ち切り、待たない。
 	// 配信は、認可を通ったものだけを数える。
 	mux.Handle("GET /streams/services/{id}", httpserver.StopOnShutdown(authorizer.Middleware(
@@ -818,7 +840,7 @@ func handleStreams(
 	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
 	kyusuToken, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	// DB に届かない間は、最後に引けた登録簿で中継を続ける (#1084)。
 	instances := kyusu.NewLastKnownInstances(registry.New(deps.DB, deps.Clock, deps.InstanceID), deps.Clock, streamLogger)
@@ -833,7 +855,7 @@ func handleStreams(
 	mux.Handle("GET /streams/recordings/{id}/files/{file}", httpserver.StopOnShutdown(authorizer.Middleware(
 		streams.Count(streamapi.StreamRecording, streamapi.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger)))))
 
-	return streams, instances, nil
+	return instances, nil
 }
 
 // registerFallbacks は、tenban が DB に届かずに、覚えた結果を使った回数を、種類ごとに /metrics に出す (設計書 11.3、#1084)。

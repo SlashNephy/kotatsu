@@ -883,6 +883,7 @@ type ComplexityRoot struct {
 
 	ViewerEvent struct {
 		DataChange              func(childComplexity int) int
+		StreamsDraining         func(childComplexity int) int
 		UnreadNotificationCount func(childComplexity int) int
 		ViewerSettingsVersion   func(childComplexity int) int
 	}
@@ -4917,6 +4918,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ViewerEvent.DataChange(childComplexity), true
+	case "ViewerEvent.streamsDraining":
+		if e.ComplexityRoot.ViewerEvent.StreamsDraining == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ViewerEvent.StreamsDraining(childComplexity), true
 	case "ViewerEvent.unreadNotificationCount":
 		if e.ComplexityRoot.ViewerEvent.UnreadNotificationCount == nil {
 			break
@@ -5419,6 +5426,11 @@ type ViewerEvent {
   dataChange: DataChange
   viewerSettingsVersion: Int
   unreadNotificationCount: Int
+  """
+  この tenban が止まる前に、流しているストリームを、新しい接続を張ってから切り替えてほしいという知らせ (設計書 7.2、#1085)。
+  届くときは常に true。届いてから一定の時間 (20 秒) が過ぎると、この tenban は、残ったストリームを打ち切る。
+  """
+  streamsDraining: Boolean
 }
 
 extend type Subscription {
@@ -9104,6 +9116,8 @@ func (ec *executionContext) childFields_ViewerEvent(ctx context.Context, field g
 		return ec.fieldContext_ViewerEvent_viewerSettingsVersion(ctx, field)
 	case "unreadNotificationCount":
 		return ec.fieldContext_ViewerEvent_unreadNotificationCount(ctx, field)
+	case "streamsDraining":
+		return ec.fieldContext_ViewerEvent_streamsDraining(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ViewerEvent", field.Name)
 }
@@ -26328,6 +26342,29 @@ func (ec *executionContext) fieldContext_ViewerEvent_unreadNotificationCount(_ c
 	return graphql.NewScalarFieldContext("ViewerEvent", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _ViewerEvent_streamsDraining(ctx context.Context, field graphql.CollectedField, obj *model.ViewerEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ViewerEvent_streamsDraining(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StreamsDraining, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *bool) graphql.Marshaler {
+			return ec.marshalOBoolean2ᚖbool(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ViewerEvent_streamsDraining(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ViewerEvent", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _WatchReminderSettings_minutesBefore(ctx context.Context, field graphql.CollectedField, obj *model.WatchReminderSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -37154,6 +37191,11 @@ func (ec *executionContext) _ViewerEvent(ctx context.Context, sel ast.SelectionS
 			}
 		case "unreadNotificationCount":
 			out.Values[i] = ec._ViewerEvent_unreadNotificationCount(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "streamsDraining":
+			out.Values[i] = ec._ViewerEvent_streamsDraining(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
