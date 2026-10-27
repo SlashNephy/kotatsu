@@ -1675,7 +1675,7 @@ EPGStationのように、秘密情報を平文の設定ファイルに書く必�
 - `/readyz`はreadiness用で、DBに接続できれば成功を返します。チューナーサーバーの状態は判定に含めません（[3.7](#37-時刻と縮退)）。
 - `/healthz`と`/readyz`は、外部からの死活監視に使えるよう、認証なしで最小限の情報だけを返します。
 - `/metrics`は、別の待ち受けアドレス（既定は`:9090`）で公開します。メトリクスのラベルには、番組名のように視聴の傾向が分かる情報を入れません。
-- Helm Chartで入れたときは、`metrics.podMonitor.enabled`で、Prometheus OperatorのPodMonitorを作れます。どのロールのPodも`metrics`のポートで待ち受けるので、PodMonitorで全ロールのPodを直接読みます。ロールを分けた構成では、ServiceがtenbanのPodしか選ばないので、ServiceMonitorではnekoやkyusuの値を読めないためです。Podの`app.kubernetes.io/component`（`all`かロールの名前）は、`role`のラベルにします。DBから読まない値（`kotatsu_neko_leader`、`kotatsu_kyusu_sessions`、`kotatsu_tenban_streams`）が、どのロールのものかを見分けるためです。間隔、ラベル、relabelingはvaluesで変えられます。
+- Helm Chartで入れたときは、`metrics.podMonitor.enabled`で、Prometheus OperatorのPodMonitorを作れます。どのロールのPodも`metrics`のポートで待ち受けるので、PodMonitorで全ロールのPodを直接読みます。ロールを分けた構成では、ServiceがtenbanのPodしか選ばないので、ServiceMonitorではnekoやkyusuの値を読めないためです。Podの`app.kubernetes.io/component`（`all`かロールの名前）は、`role`のラベルにします。DBから読まない値（`kotatsu_neko_leader`、`kotatsu_kyusu_sessions`、`kotatsu_tenban_streams`、`kotatsu_mikan_database_unreachable_seconds`）が、どのロールのものかを見分けるためです。間隔、ラベル、relabelingはvaluesで変えられます。
 - 主なメトリクスは、録画中の件数、失敗の件数、ドロップの数、予約の割り当ての状態、チューナーの使用状況、保存先プールの空き容量、EPGの同期の遅れ、nekoのリースを持っているインスタンス、Riverのキューの長さ、kyusuのセッション数、tenbanの配信の本数です。名前は次のとおりです。
 
   | メトリクス | 内容 |
@@ -1706,8 +1706,8 @@ EPGStationのように、秘密情報を平文の設定ファイルに書く必�
 
     | 範囲 | 中身 | 送るインスタンス | リソースの属性 |
     |---|---|---|---|
-    | クラスター | DBから読む値（上の表のうち、`kotatsu_neko_leader`、`kotatsu_kyusu_sessions`、`kotatsu_tenban_streams`を除くもの）と、nekoのリーダーだけが持つ`kotatsu_epg_last_full_sync_timestamp_seconds` | nekoのリースを持つインスタンスだけ | `service.name`だけ |
-    | インスタンス | それ以外（`kotatsu_neko_leader`、`kotatsu_kyusu_sessions`、`kotatsu_tenban_streams`、Goのランタイムとプロセス） | すべてのインスタンス | `service.name`、`service.version`、`service.instance.id`（インスタンスのID）、`kotatsu.roles`（動かしているロール） |
+    | クラスター | DBから読む値（上の表のうち、`kotatsu_neko_leader`、`kotatsu_kyusu_sessions`、`kotatsu_tenban_streams`、`kotatsu_mikan_database_unreachable_seconds`を除くもの）と、nekoのリーダーだけが持つ`kotatsu_epg_last_full_sync_timestamp_seconds` | nekoのリースを持つインスタンスだけ | `service.name`だけ |
+    | インスタンス | それ以外（`kotatsu_neko_leader`、`kotatsu_kyusu_sessions`、`kotatsu_tenban_streams`、`kotatsu_mikan_database_unreachable_seconds`、Goのランタイムとプロセス） | すべてのインスタンス | `service.name`、`service.version`、`service.instance.id`（インスタンスのID）、`kotatsu.roles`（動かしているロール） |
 
     クラスターの範囲には、インスタンスのIDも版も付けません。nekoのリーダーが替わっても、リリースしても、受け手から見て同じ系列のまま続くようにするためです。リーダーか分からないとき（DBに問い合わせられないとき）は、重複して送らないよう、その回は送りません。失敗の累計（`kotatsu_recording_failures_total`）には、どのインスタンスでも同じ作成の時刻を付け、送るインスタンスが替わってもカウンターのリセットとみなされないようにします。
   - 送り方は、gRPCとHTTP（protobuf）から選べ（`telemetry.otlp_metrics_protocol`、既定はgRPC）、常にgzipで圧縮します。送信先が`http://`なら、暗号化せずに送ります。ヘッダー（`telemetry.otlp_metrics_headers`、`名前=値`をカンマでつなぐ）は秘密情報として扱います（[11.2](#112-設定の置き場所)）。
