@@ -2,15 +2,17 @@ package recording_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -195,11 +197,13 @@ func TestWorkerStopsWhenLeaseIsLost(t *testing.T) {
 		"the old mikan does not finish the assignment")
 }
 
-// flakyLeases は、down の間はリースの延長を失敗させ、blocked の間は延長から戻らない LeaseStore。DB に届かない状態を作る。
+// flakyLeases は、down の間はリースの延長を接続のエラーで失敗させ、broken の間は DB に届いた後のエラーで失敗させ、
+// blocked の間は延長から戻らない LeaseStore。DB に届かない状態を作る。
 type flakyLeases struct {
 	recording.LeaseStore
 
 	down    atomic.Bool
+	broken  atomic.Bool
 	blocked atomic.Bool
 	// renewed は、延長が通った回数。
 	renewed atomic.Int64
@@ -212,7 +216,10 @@ func (l *flakyLeases) Renew(ctx context.Context, a *recording.Assignment, holder
 		return 0, ctx.Err()
 	}
 	if l.down.Load() {
-		return 0, errors.New("dial tcp: connect: connection refused")
+		return 0, &net.OpError{Op: "dial", Net: "tcp", Source: nil, Addr: nil, Err: syscall.ECONNREFUSED}
+	}
+	if l.broken.Load() {
+		return 0, &pgconn.PgError{Code: "42501", Message: "permission denied for table recording_assignments"}
 	}
 	n, err := l.LeaseStore.Renew(ctx, a, holder, now, expiresAt)
 	if err == nil && n > 0 {
@@ -270,6 +277,17 @@ func TestWorkerKeepsRecordingWhileDatabaseIsUnreachable(t *testing.T) {
 			},
 			wantLost: true,
 		},
+		{
+			// DB に届いた後のエラー (権限など) は、DB が止まったのではないので、今までどおりリースの期限で止める。
+			name: "renew fails with an error from the database",
+			outage: func(t *testing.T, f *fixture, leases *flakyLeases, _ uuid.UUID) {
+				t.Helper()
+
+				leases.broken.Store(true)
+				f.clock.Advance(time.Minute)
+			},
+			wantLost: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -315,6 +333,49 @@ func TestWorkerKeepsRecordingWhileDatabaseIsUnreachable(t *testing.T) {
 			}
 			assert.Equal(t, int64(1), f.assignment(t, reservationID).generation)
 		})
+	}
+}
+
+// TestWorkerWaitsForSuccessorAfterOutage は、DB が戻った直後に、ほかの mikan が先にリースを取っていたら、
+// 新しい mikan がストリームを開くまで録り続けてから止めることを確かめる (#1073)。すぐに止めると、新しい mikan が書き始めるまで欠ける。
+func TestWorkerWaitsForSuccessorAfterOutage(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.assignOne(t)
+	leases := &flakyLeases{LeaseStore: recording.NewRecordingLeases(f.pool)}
+	causes := make(chan error, 1)
+	f.startWorkerWith(t, id.New(), leases, 100*time.Millisecond, waitTimeout, func(ctx context.Context, _ *recording.Assignment) error {
+		<-ctx.Done()
+		select {
+		case causes <- context.Cause(ctx):
+		default:
+		}
+
+		return nil
+	})
+	require.Eventually(t, func() bool {
+		return leases.renewed.Load() > 0
+	}, waitTimeout, 20*time.Millisecond)
+
+	leases.down.Store(true)
+	time.Sleep(100 * time.Millisecond)
+	_, err := f.pool.Exec(t.Context(), "UPDATE recording_assignments SET generation = 2, holder = $1 WHERE reservation_id = $2", id.New(), reservationID)
+	require.NoError(t, err)
+	leases.down.Store(false)
+	// 新しい mikan がストリームを開くまでは、録り続ける。
+	select {
+	case cause := <-causes:
+		t.Fatalf("the session was stopped before the successor opened the stream: %v", cause)
+	case <-time.After(500 * time.Millisecond):
+	}
+	_, err = f.pool.Exec(t.Context(), "UPDATE recording_assignments SET stream_generation = 2 WHERE reservation_id = $1", reservationID)
+	require.NoError(t, err)
+	select {
+	case cause := <-causes:
+		require.ErrorIs(t, cause, recording.ErrLeaseLost)
+	case <-time.After(waitTimeout):
+		t.Fatal("the old mikan kept recording after the successor opened the stream")
 	}
 }
 

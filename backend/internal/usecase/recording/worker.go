@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
@@ -444,10 +445,12 @@ func (w *Worker) release(ctx context.Context, assignment *Assignment, logger *sl
 // ほかの mikan が取ったと分かったら、ErrLeaseLost で録画を止める。
 // DB に届かない間は、リースの期限が過ぎても録画を止めない。ほかの mikan が割り振りを取るにも DB が要り、取れば世代番号が進むので、
 // DB に届くようになってからの延長で、取られたかどうかが分かる (設計書 1.5、#1073)。
+// DB に届いた後のエラー (権限など) は、DB が止まったのではないので、今までどおりリースの期限で止める。
 func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.Logger) {
 	assignment, cancel := active.assignment, active.cancel
 	ticker := time.NewTicker(w.opts.RenewInterval)
 	defer ticker.Stop()
+	expiresAt := w.clock.Now().Add(w.opts.LeaseTTL)
 	// unreachableSince は、延長が DB に届かなくなった時刻。届いている間はゼロ値。
 	var unreachableSince time.Time
 	for {
@@ -456,22 +459,35 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 			return
 		case <-ticker.C:
 		}
+		// 書き続けてよいかは、この mikan の時計で決める。DB の期限は、DB の時刻で決める (#526)。
+		now := w.clock.Now()
 		n, err := w.renewLease(ctx, assignment)
 		switch {
 		case err != nil && ctx.Err() != nil:
 			return
-		case err != nil:
+		case err != nil && database.IsUnavailable(err):
 			if unreachableSince.IsZero() {
-				unreachableSince = w.clock.Now()
+				unreachableSince = now
 				logger.WarnContext(ctx, "failed to renew the assignment lease; keep recording until the database is reachable", slog.Any("error", err))
 			} else {
 				logger.DebugContext(ctx, "failed to renew the assignment lease", slog.Any("error", err))
 			}
 
 			continue
+		case err != nil:
+			logger.WarnContext(ctx, "failed to renew the assignment lease", slog.Any("error", err))
+			// 延長できないままリースが切れたら、ほかの mikan に任せる。
+			if !now.Before(expiresAt) {
+				cancel(ErrLeaseLost)
+
+				return
+			}
+
+			continue
 		}
-		if !unreachableSince.IsZero() {
-			logger.InfoContext(ctx, "renewed the assignment lease again", slog.Duration("unreachable", w.clock.Now().Sub(unreachableSince)))
+		recovered := !unreachableSince.IsZero()
+		if recovered {
+			logger.InfoContext(ctx, "renewed the assignment lease again", slog.Duration("unreachable", now.Sub(unreachableSince)))
 			unreachableSince = time.Time{}
 		}
 		switch {
@@ -484,10 +500,20 @@ func (w *Worker) renew(ctx context.Context, active *activeSession, logger *slog.
 			logger.InfoContext(ctx, "the assignment was deleted")
 
 			return
+		case n == 0 && recovered:
+			// DB に届かない間に期限が切れ、戻った直後に、ほかの mikan が先に取った。この mikan は落ちていないので、
+			// 引き継ぎと同じく、新しい mikan がストリームを開くまで録り続けてから止め、欠けないようにする。
+			logger.InfoContext(ctx, "another mikan took the assignment while the database was unreachable; recording until it opens the stream")
+			w.waitForSuccessor(ctx, active)
+			cancel(ErrLeaseLost)
+
+			return
 		case n == 0:
 			cancel(ErrLeaseLost)
 
 			return
+		default:
+			expiresAt = now.Add(w.opts.LeaseTTL)
 		}
 	}
 }
