@@ -182,6 +182,9 @@ all:
   # その RuntimeClass の名前 (例: nvidia) を入れる。空なら既定のランタイムを使う。
   runtimeClassName: ""
   probes: {}
+  # preStopSleepSeconds は、止める前に、Service から外れるのを待つ秒 (preStop の sleep)。0 なら待たない。
+  # 外れる前に止まり始めると、止まりかけの tenban に新しい接続が来る (設計書 11.4、#1085)。
+  preStopSleepSeconds: 5
   # terminationGracePeriodSeconds は、mikan が録画を引き継ぐまで待つ時間を含める。
   terminationGracePeriodSeconds: 300
   # workSizeLimit は、kyusu が HLS のセグメントを置く作業ディレクトリ (emptyDir) の容量の上限。空なら上限を付けない。
@@ -201,7 +204,12 @@ roles:
     affinity: {}
     runtimeClassName: ""
     probes: {}
-    terminationGracePeriodSeconds: 30
+    # preStopSleepSeconds は、止める前に、Service から外れるのを待つ秒 (preStop の sleep)。0 なら待たない。
+    # 外れる前に止まり始めると、止まりかけの tenban に新しい接続が来る (設計書 11.4、#1085)。
+    preStopSleepSeconds: 5
+    # terminationGracePeriodSeconds は、preStop の待ち (5 秒)、視聴者がつなぎ直すのを待つ時間 (20 秒)、
+    # 処理中のリクエストを待つ時間 (20 秒) を足した長さに、余裕を持たせる。
+    terminationGracePeriodSeconds: 60
   neko:
     # neko は、リースを持つ 1 つだけが動くので、増やしても待機になる。
     replicas: 1
