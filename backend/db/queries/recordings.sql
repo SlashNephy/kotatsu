@@ -75,6 +75,10 @@ SELECT pool_id, path FROM recording_files
 WHERE recording_id = @recording_id AND kind = 'segment' AND size > 0
 ORDER BY started_at, id;
 
+-- name: GetRecordingInProgressByReservation :one
+-- 予約の、録画中のままの録画。予定の終わりの後に割り振りを取った mikan が、前の mikan の録画を終えるのに使う (#1073)。
+SELECT * FROM recordings WHERE reservation_id = @reservation_id AND state = 'recording';
+
 -- name: GetRecordingWithService :one
 -- 通知に載せる、録画とサービス名。
 SELECT sqlc.embed(recordings), s.name AS service_name

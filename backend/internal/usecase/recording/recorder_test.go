@@ -75,6 +75,7 @@ func (f *fixture) newRecorderOn(t *testing.T, pool *pgxpool.Pool, tuner recordin
 	recorder := recording.NewRecorder(pool, f.clock, tuner, kago.New(map[string]string{poolID: dir}, freeSpace).WithDataDir(dataRootOf(dir)), nil, tokyo,
 		logger, &recording.RecorderOptions{
 			TuningTime: 0, Tick: 10 * time.Millisecond, RetryInterval: 20 * time.Millisecond, ReleaseAfter: 0, Peers: peers,
+			DatabaseTimeout: 100 * time.Millisecond,
 		})
 
 	return recorder, dir
@@ -287,46 +288,69 @@ func TestRecorderRecordsUntilPlannedEnd(t *testing.T) {
 }
 
 // TestRecorderFinishesWhileDatabaseIsUnreachable は、予定の終わりに DB に届かなくても、録り直さずに録画を止め、
-// DB が戻ってから、録画を止めた時刻で完了にすることを確かめる (#1073)。
+// DB が戻ってから、録画を止めた時刻で完了にすることを確かめる (#1073)。DB への問い合わせが詰まっても、予定の終わりで止める。
 func TestRecorderFinishesWhileDatabaseIsUnreachable(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t)
-	reservationID := f.reserve(t, 0)
-	db := databasetest.NewSwitch(t, f.pool)
-	recorder, _ := f.newRecorderOn(t, db.Pool, f.tuner, nil, nil, slog.New(slog.DiscardHandler))
-	_, done := f.session(t, recorder, reservationID)
-	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
-	require.Eventually(t, func() bool {
-		return len(f.files(t, reservationID)) == 1
-	}, waitTimeout, 10*time.Millisecond)
-
-	db.Down()
-	plannedEnd := programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second)
-	f.clock.Advance(plannedEnd.Sub(f.clock.Now()))
-	// DB に届かない間も、予定の終わりで止め、新しいセグメントを作らない。
-	time.Sleep(300 * time.Millisecond)
-	select {
-	case err := <-done:
-		t.Fatalf("the session returned before the database was reachable: %v", err)
-	default:
+	tests := []struct {
+		name   string
+		outage func(db *databasetest.Switch)
+	}{
+		{name: "connection refused", outage: (*databasetest.Switch).Down},
+		{name: "queries hang", outage: (*databasetest.Switch).Hang},
 	}
-	// DB が戻ったのは、止めてからしばらく後とする。
-	f.clock.Advance(5 * time.Minute)
-	db.Up()
-	require.NoError(t, wait(t, done))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// 途切れていないので、partial にはならない。偽チューナーサーバーのつなぎ目のドロップは、録った長さによる。
-	got, _ := f.recording(t, reservationID)
-	assert.Contains(t, []string{string(recording.StateCompleted), string(recording.StateCompletedWithErrors)}, got.state)
-	files := f.files(t, reservationID)
-	require.Len(t, files, 1)
-	assert.True(t, files[0].closed)
-	var recordedUntil, endedAt time.Time
-	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT r.recorded_until, f.ended_at FROM recordings r JOIN recording_files f ON f.recording_id = r.id
-		WHERE r.reservation_id = $1`, reservationID).Scan(&recordedUntil, &endedAt))
-	assert.WithinDuration(t, plannedEnd, recordedUntil, time.Second, "the recording ends when it stopped, not when the database came back")
-	assert.WithinDuration(t, plannedEnd, endedAt, time.Second)
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			db := databasetest.NewSwitch(t, f.pool)
+			recorder, dir := f.newRecorderOn(t, db.Pool, f.tuner, nil, nil, slog.New(slog.DiscardHandler))
+			_, done := f.session(t, recorder, reservationID)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			require.Eventually(t, func() bool {
+				return len(f.files(t, reservationID)) == 1
+			}, waitTimeout, 10*time.Millisecond)
+
+			tt.outage(db)
+			plannedEnd := programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second)
+			f.clock.Advance(plannedEnd.Sub(f.clock.Now()))
+			// DB に届かない間も、予定の終わりで止め、新しいセグメントを作らない。止めたら、ファイルは伸びない。
+			segment := filepath.Join(dir, segmentFiles(t, dir)[0])
+			require.Eventually(t, func() bool {
+				before, err := os.Stat(segment)
+				require.NoError(t, err)
+				time.Sleep(100 * time.Millisecond)
+				after, err := os.Stat(segment)
+				require.NoError(t, err)
+
+				return before.Size() == after.Size()
+			}, waitTimeout, 10*time.Millisecond, "the recorder stops writing at the planned end")
+			assert.Len(t, segmentFiles(t, dir), 1)
+			select {
+			case err := <-done:
+				t.Fatalf("the session returned before the database was reachable: %v", err)
+			default:
+			}
+			// DB が戻ったのは、止めてからしばらく後とする。
+			f.clock.Advance(5 * time.Minute)
+			db.Up()
+			require.NoError(t, wait(t, done))
+
+			// 途切れていないので、partial にはならない。偽チューナーサーバーのつなぎ目のドロップは、録った長さによる。
+			got, _ := f.recording(t, reservationID)
+			assert.Contains(t, []string{string(recording.StateCompleted), string(recording.StateCompletedWithErrors)}, got.state)
+			files := f.files(t, reservationID)
+			require.Len(t, files, 1)
+			assert.True(t, files[0].closed)
+			var recordedUntil, endedAt time.Time
+			require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT r.recorded_until, f.ended_at FROM recordings r JOIN recording_files f ON f.recording_id = r.id
+				WHERE r.reservation_id = $1`, reservationID).Scan(&recordedUntil, &endedAt))
+			assert.WithinDuration(t, plannedEnd, recordedUntil, time.Second, "the recording ends when it stopped, not when the database came back")
+			assert.WithinDuration(t, plannedEnd, endedAt, time.Second)
+		})
+	}
 }
 
 // TestRecorderStartsWhileDatabaseIsUnreachable は、予定の開始に DB に届かなくても、最後に読めた予約で録画を始め、
@@ -437,6 +461,77 @@ func waitForQueries(t *testing.T, db *databasetest.Switch) {
 	require.Eventually(t, func() bool {
 		return db.Reached() >= 10
 	}, waitTimeout, 10*time.Millisecond)
+}
+
+// TestRecorderFinishesRecordingLeftAfterPlannedEnd は、予定の終わりの後に割り振りを取った mikan が、前の mikan が録り終えたまま
+// 録画中で残した録画を、予定の終わりで完了にすることを確かめる (#1073)。DB が予定の終わりをまたいで止まり、戻った直後に
+// ほかの mikan が割り振りを取ると、前の mikan は録画を完了にできない。
+func TestRecorderFinishesRecordingLeftAfterPlannedEnd(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	plannedEnd := programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second)
+	recordingID := id.New()
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+		state, recorded_from, protected, created_at, updated_at)
+		VALUES ($1, $2, $3, 6, '録画', '', $4, $5, 'recording', $6, false, $6, $6)`,
+		recordingID, reservationID, grService(0), programStart(), programStart().Add(30*time.Minute), plannedStart())
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+		VALUES ($1, $2, 'segment', $3, 'left.m2ts', 188, $4, $5, $4)`, id.New(), recordingID, poolID, plannedStart(), plannedEnd)
+	require.NoError(t, err)
+	f.clock.Advance(plannedEnd.Add(time.Minute).Sub(f.clock.Now()))
+
+	recorder, _ := f.newRecorder(t, f.tuner, nil)
+	_, done := f.session(t, recorder, reservationID)
+	require.NoError(t, wait(t, done))
+
+	got, _ := f.recording(t, reservationID)
+	assert.Equal(t, string(recording.StateCompleted), got.state)
+	var recordedUntil time.Time
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT recorded_until FROM recordings WHERE id = $1", recordingID).Scan(&recordedUntil))
+	assert.True(t, plannedEnd.Equal(recordedUntil), "recorded until %s", recordedUntil)
+}
+
+// TestRecorderKeepsExtendingWhileDatabaseIsUnreachable は、番組の終了時刻が未定で延長しているときに DB に届かなくなっても、
+// 最後に読めた番組の終わりで延長を続け、予定の終わりで止めてしまわないことを確かめる (#1073)。
+func TestRecorderKeepsExtendingWhileDatabaseIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	// EIT[p/f] のない TS にする。放送の終わりを TS から追えないので、EPG の終わりだけで延長する。
+	data := bytes.Repeat(nullPacket(), 10000)
+	plannedEnd := programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	db := databasetest.NewSwitch(t, f.pool)
+	recorder, _ := f.newRecorderOn(t, db.Pool, onceStream{data: data}, nil, nil, slog.New(slog.DiscardHandler))
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return len(f.files(t, reservationID)) >= 1
+	}, waitTimeout, 10*time.Millisecond)
+	_, err := f.pool.Exec(t.Context(), "UPDATE programs SET end_undecided = true WHERE service_id = $1 AND event_id = 6", grService(0))
+	require.NoError(t, err)
+	// 予定の終わりが来たら、5 分延ばす。
+	f.clock.Advance(plannedEnd.Sub(f.clock.Now()))
+	time.Sleep(100 * time.Millisecond)
+
+	db.Down()
+	f.clock.Advance(time.Minute)
+	time.Sleep(300 * time.Millisecond)
+	db.Up()
+	// 延長を続けていれば、DB が戻った後も録画中のまま。止めていたら、DB が戻ったところで録画を終える。
+	require.Never(t, func() bool {
+		select {
+		case <-done:
+			return true
+		default:
+		}
+		got, _ := f.recording(t, reservationID)
+
+		return got.state != string(recording.StateRecording)
+	}, 500*time.Millisecond, 10*time.Millisecond, "the recorder keeps recording while extending")
 }
 
 // segmentFiles は、プールのディレクトリ dir にある録画ファイルを返す。

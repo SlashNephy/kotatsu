@@ -113,7 +113,9 @@ func (p *pendingSave) writeOrDefer(ctx context.Context, r *Recorder, write pendi
 
 		return nil
 	}
-	err := write(ctx, sqlc.New(r.pool), p.recording.ID)
+	writeCtx, cancel := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
+	defer cancel()
+	err := write(writeCtx, sqlc.New(r.pool), p.recording.ID)
 	if database.IsUnavailable(err) {
 		r.logger.WarnContext(ctx, "failed to save the recording file; keep recording and save it when the database is reachable", slog.Any("error", err))
 		p.writes = append(p.writes, write)

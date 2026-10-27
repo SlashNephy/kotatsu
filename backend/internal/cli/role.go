@@ -286,7 +286,7 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, store, defaults, location,
 		logger.With(slog.String("component", "recorder")), &recording.RecorderOptions{
 			TuningTime: 0, Tick: 0, RetryInterval: 0, ReleaseAfter: 0,
-			Peers: recording.AlivePeers(deps.DB, deps.Clock, deps.InstanceID),
+			Peers: recording.AlivePeers(deps.DB, deps.Clock, deps.InstanceID), DatabaseTimeout: 0,
 		})
 	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), recording.NewRecordingLeases(deps.DB), mikanWorkerOptions(deps))
 	if !store.HasTimeshiftDir() {

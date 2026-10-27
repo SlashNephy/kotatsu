@@ -205,6 +205,8 @@ type Querier interface {
 	GetRecording(ctx context.Context, id uuid.UUID) (Recording, error)
 	GetRecordingAssignmentStream(ctx context.Context, id uuid.UUID) (GetRecordingAssignmentStreamRow, error)
 	GetRecordingIDByAPIID(ctx context.Context, apiID int64) (uuid.UUID, error)
+	// 予約の、録画中のままの録画。予定の終わりの後に割り振りを取った mikan が、前の mikan の録画を終えるのに使う (#1073)。
+	GetRecordingInProgressByReservation(ctx context.Context, reservationID *uuid.UUID) (Recording, error)
 	// 実況の過去ログを引くための、録画した時間帯とサービス (設計書 7.4)。
 	GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (GetRecordingJikkyoSourceRow, error)
 	// 通知に載せる、録画とサービス名。

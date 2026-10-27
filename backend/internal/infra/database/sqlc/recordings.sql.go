@@ -338,6 +338,50 @@ func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, er
 	return i, err
 }
 
+const getRecordingInProgressByReservation = `-- name: GetRecordingInProgressByReservation :one
+SELECT id, api_id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE reservation_id = $1 AND state = 'recording'
+`
+
+// 予約の、録画中のままの録画。予定の終わりの後に割り振りを取った mikan が、前の mikan の録画を終えるのに使う (#1073)。
+func (q *Queries) GetRecordingInProgressByReservation(ctx context.Context, reservationID *uuid.UUID) (Recording, error) {
+	row := q.db.QueryRow(ctx, getRecordingInProgressByReservation, reservationID)
+	var i Recording
+	err := row.Scan(
+		&i.ID,
+		&i.APIID,
+		&i.ReservationID,
+		&i.ServiceID,
+		&i.EventID,
+		&i.Name,
+		&i.Description,
+		&i.StartAt,
+		&i.EndAt,
+		&i.State,
+		&i.FailureReason,
+		&i.Protected,
+		&i.Drops,
+		&i.Errors,
+		&i.Scrambled,
+		&i.Gaps,
+		&i.Audios,
+		&i.VideoResolution,
+		&i.Genres,
+		&i.RuleID,
+		&i.RuleName,
+		&i.ProgramLost,
+		&i.BroadcastStartedAt,
+		&i.BroadcastEndedAt,
+		&i.WaitedForBroadcast,
+		&i.NotBroadcast,
+		&i.AiredEventID,
+		&i.RecordedFrom,
+		&i.RecordedUntil,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getRecordingJikkyoSource = `-- name: GetRecordingJikkyoSource :one
 SELECT r.recorded_from, r.recorded_until, s.network_id, s.sid
 FROM recordings r

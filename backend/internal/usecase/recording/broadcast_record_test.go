@@ -142,6 +142,30 @@ func TestRecorderMarksNotBroadcast(t *testing.T) {
 	}
 }
 
+// TestRecorderDoesNotChurnDelayedBroadcastWhileDatabaseIsUnreachable は、予約した番組が遅れているのに DB に届かないとき、
+// 前の番組のセグメントを消せないまま、開き直してセグメントを作り続けないことを確かめる (#1073)。DB が戻ってから待ち始める。
+func TestRecorderDoesNotChurnDelayedBroadcastWhileDatabaseIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	stream := newSteppedStream()
+	db := databasetest.NewSwitch(t, f.pool)
+	recorder, dir := f.newRecorderOn(t, db.Pool, stream, nil, nil, slog.New(slog.DiscardHandler))
+	_, _ = f.session(t, recorder, reservationID)
+
+	cc := byte(0)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 99, 6))
+	require.Equal(t, 1, f.segments(t, reservationID))
+
+	db.Down()
+	f.clock.Advance(programStart().Add(recording.BroadcastStartGrace).Sub(f.clock.Now()))
+	time.Sleep(300 * time.Millisecond)
+	assert.Len(t, segmentFiles(t, dir), 1, "the recorder keeps the segment instead of reopening the stream again and again")
+	db.Up()
+}
+
 // TestRecorderMarksNotBroadcastWhenFollowingUntilLimit は、予約した番組 (eventId 6) が EIT[p/f] の次の番組のまま
 // 放送中にならなければ、延長の上限まで待って止め、放送されなかったことを記録することを確かめる (#640)。
 // 野球中継の延長で大幅に繰り下がり、そのまま放送されなかった場合に当たる。
