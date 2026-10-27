@@ -482,6 +482,7 @@ func (q *Queries) InsertMissedRecording(ctx context.Context, arg InsertMissedRec
 const insertRecordingFile = `-- name: InsertRecordingFile :exec
 INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
 VALUES ($1, $2, $3, $4, $5, 0, $6, NULL, $7)
+ON CONFLICT (id) DO NOTHING
 `
 
 type InsertRecordingFileParams struct {
@@ -494,6 +495,7 @@ type InsertRecordingFileParams struct {
 	Now         time.Time
 }
 
+// DB に届かずに後から記録し直すとき、同じファイルを二重に記録しない (#1073)。
 func (q *Queries) InsertRecordingFile(ctx context.Context, arg InsertRecordingFileParams) error {
 	_, err := q.db.Exec(ctx, insertRecordingFile,
 		arg.ID,

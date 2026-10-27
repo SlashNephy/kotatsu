@@ -329,6 +329,99 @@ func TestRecorderFinishesWhileDatabaseIsUnreachable(t *testing.T) {
 	assert.WithinDuration(t, plannedEnd, endedAt, time.Second)
 }
 
+// TestRecorderStartsWhileDatabaseIsUnreachable は、予定の開始に DB に届かなくても、最後に読めた予約で録画を始め、
+// DB が戻ったら、録画とセグメントを、書き始めた時刻で記録することを確かめる (#1073)。
+func TestRecorderStartsWhileDatabaseIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	db := databasetest.NewSwitch(t, f.pool)
+	recorder, dir := f.newRecorderOn(t, db.Pool, f.tuner, nil, nil, slog.New(slog.DiscardHandler))
+	_, done := f.session(t, recorder, reservationID)
+	// 割り振りを取った mikan は、予約を一度読んでから、開始まで待つ。
+	time.Sleep(100 * time.Millisecond)
+	db.Down()
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+
+	// DB に届かなくても、ファイルに書き始める。
+	require.Eventually(t, func() bool {
+		return len(segmentFiles(t, dir)) == 1
+	}, waitTimeout, 10*time.Millisecond)
+	_, started := f.recording(t, reservationID)
+	assert.False(t, started, "the recording is not saved while the database is unreachable")
+	db.Up()
+	// DB が戻ったら、録画が終わるのを待たずに記録する。
+	require.Eventually(t, func() bool {
+		return f.segments(t, reservationID) == 1
+	}, waitTimeout, 10*time.Millisecond)
+	var recordedFrom time.Time
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT recorded_from FROM recordings WHERE reservation_id = $1", reservationID).Scan(&recordedFrom))
+	assert.True(t, plannedStart().Equal(recordedFrom), "recorded from %s", recordedFrom)
+
+	f.clock.Advance(programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
+	require.NoError(t, wait(t, done))
+	got, _ := f.recording(t, reservationID)
+	assert.Contains(t, []string{string(recording.StateCompleted), string(recording.StateCompletedWithErrors)}, got.state)
+	files := f.files(t, reservationID)
+	require.Len(t, files, 1)
+	assert.True(t, files[0].closed)
+	info, err := os.Stat(filepath.Join(dir, files[0].path))
+	require.NoError(t, err)
+	assert.Equal(t, info.Size(), files[0].size)
+}
+
+// TestRecorderReopensWhileDatabaseIsUnreachable は、DB に届かない間にストリームが切れても、新しいセグメントに書き続け、
+// DB が戻ったら、そのセグメントを記録することを確かめる (#1073)。
+func TestRecorderReopensWhileDatabaseIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	db := databasetest.NewSwitch(t, f.pool)
+	opened := new(atomic.Int32)
+	stream := flakyStream{head: data[:188*1000], data: data, opened: opened, reopen: func() {
+		db.Down()
+		f.clock.Advance(time.Second)
+	}}
+	recorder, dir := f.newRecorderOn(t, db.Pool, stream, nil, nil, slog.New(slog.DiscardHandler))
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool {
+		return len(segmentFiles(t, dir)) >= 2
+	}, waitTimeout, 10*time.Millisecond)
+	db.Up()
+	f.clock.Advance(time.Hour)
+	require.NoError(t, wait(t, done))
+
+	// ディスクに書いたセグメントは、どれも DB に記録され、閉じている。
+	files := f.files(t, reservationID)
+	paths := make([]string, 0, len(files))
+	for _, file := range files {
+		assert.True(t, file.closed, file.path)
+		paths = append(paths, file.path)
+	}
+	assert.ElementsMatch(t, segmentFiles(t, dir), paths)
+}
+
+// segmentFiles は、プールのディレクトリ dir にある録画ファイルを返す。
+func segmentFiles(t *testing.T, dir string) []string {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	names := []string{}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			names = append(names, entry.Name())
+		}
+	}
+
+	return names
+}
+
 // TestRecorderStopsWhenStopped は、リースを失うか止めるときは、録画ファイルを閉じて、録画を録画中のまま残すことを確かめる (設計書 5.4)。
 func TestRecorderStopsWhenStopped(t *testing.T) {
 	t.Parallel()

@@ -23,8 +23,10 @@ ON CONFLICT (reservation_id) DO UPDATE SET state = 'recording', failure_reason =
 RETURNING sqlc.embed(recordings), (xmax = 0)::boolean AS inserted;
 
 -- name: InsertRecordingFile :exec
+-- DB に届かずに後から記録し直すとき、同じファイルを二重に記録しない (#1073)。
 INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-VALUES (@id, @recording_id, @kind, @pool_id, @path, 0, @started_at, NULL, @now);
+VALUES (@id, @recording_id, @kind, @pool_id, @path, 0, @started_at, NULL, @now)
+ON CONFLICT (id) DO NOTHING;
 
 -- name: CloseRecordingFile :exec
 -- 書き終えたファイルの大きさと、表す時間の終わりを記録する。

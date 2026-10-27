@@ -270,6 +270,7 @@ type Querier interface {
 	// 同じ番組の予約がすでにあれば何もしない。そのときは行を返さない。
 	InsertProgramReservation(ctx context.Context, arg InsertProgramReservationParams) (uuid.UUID, error)
 	InsertRecordingAssignment(ctx context.Context, arg InsertRecordingAssignmentParams) error
+	// DB に届かずに後から記録し直すとき、同じファイルを二重に記録しない (#1073)。
 	InsertRecordingFile(ctx context.Context, arg InsertRecordingFileParams) error
 	// 重複の回避に使う録画履歴を記録する (設計書 4.4)。録画を削除しても残す。
 	InsertRecordingHistory(ctx context.Context, arg InsertRecordingHistoryParams) error
