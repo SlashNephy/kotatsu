@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<4f754bd312c11761a8ccb038405862f3>>
+ * @generated SignedSource<<0968ec7b98205ebbfc0bff0e17ff624b>>
  * @lightSyntaxTransform
  */
 
@@ -8,25 +8,24 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type ServiceInput = {
-  hidden?: boolean | null | undefined;
-  resetSortOrder?: boolean;
-  sortOrder?: number | null | undefined;
+export type StoragePoolInput = {
+  minFreeBytes?: number | null | undefined;
+  priority?: number | null | undefined;
 };
-export type channelsServiceMutation$variables = {
+export type storagePoolMutation$variables = {
   id: string;
-  input: ServiceInput;
+  input: StoragePoolInput;
 };
-export type channelsServiceMutation$data = {
-  readonly updateService: {
-    readonly hidden: boolean;
+export type storagePoolMutation$data = {
+  readonly updateStoragePool: {
     readonly id: string;
-    readonly sortOrder: number | null | undefined;
+    readonly minFreeBytes: number;
+    readonly priority: number;
   };
 };
-export type channelsServiceMutation = {
-  response: channelsServiceMutation$data;
-  variables: channelsServiceMutation$variables;
+export type storagePoolMutation = {
+  response: storagePoolMutation$data;
+  variables: storagePoolMutation$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -57,9 +56,9 @@ v1 = [
         "variableName": "input"
       }
     ],
-    "concreteType": "Service",
+    "concreteType": "StoragePool",
     "kind": "LinkedField",
-    "name": "updateService",
+    "name": "updateStoragePool",
     "plural": false,
     "selections": [
       {
@@ -73,14 +72,14 @@ v1 = [
         "alias": null,
         "args": null,
         "kind": "ScalarField",
-        "name": "hidden",
+        "name": "priority",
         "storageKey": null
       },
       {
         "alias": null,
         "args": null,
         "kind": "ScalarField",
-        "name": "sortOrder",
+        "name": "minFreeBytes",
         "storageKey": null
       }
     ],
@@ -92,7 +91,7 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Fragment",
     "metadata": null,
-    "name": "channelsServiceMutation",
+    "name": "storagePoolMutation",
     "selections": (v1/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
@@ -101,20 +100,20 @@ return {
   "operation": {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
-    "name": "channelsServiceMutation",
+    "name": "storagePoolMutation",
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "e444952fe65e0470aa907a1fb911c9fc",
+    "cacheID": "925e3ff7806c0d121c9d93350422ccf5",
     "id": null,
     "metadata": {},
-    "name": "channelsServiceMutation",
+    "name": "storagePoolMutation",
     "operationKind": "mutation",
-    "text": "mutation channelsServiceMutation(\n  $id: ID!\n  $input: ServiceInput!\n) {\n  updateService(id: $id, input: $input) {\n    id\n    hidden\n    sortOrder\n  }\n}\n"
+    "text": "mutation storagePoolMutation(\n  $id: String!\n  $input: StoragePoolInput!\n) {\n  updateStoragePool(id: $id, input: $input) {\n    id\n    priority\n    minFreeBytes\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "5b6ff24668fce90e5be1fd769023006a";
+(node as any).hash = "8f8089acc4a189b28dcf8b52d01a6863";
 
 export default node;

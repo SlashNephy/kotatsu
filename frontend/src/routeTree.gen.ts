@@ -18,11 +18,14 @@ import { Route as ReservationsRouteImport } from './routes/reservations'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as AdminAuditRouteImport } from './routes/admin/audit'
-import { Route as AdminChannelsRouteImport } from './routes/admin/channels'
-import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
+import { Route as AdminIntegrationsRouteImport } from './routes/admin/integrations'
+import { Route as AdminRecordingRouteImport } from './routes/admin/recording'
+import { Route as AdminRetentionRouteImport } from './routes/admin/retention'
+import { Route as AdminServicesRouteImport } from './routes/admin/services'
+import { Route as AdminStorageRouteImport } from './routes/admin/storage'
 import { Route as AdminSystemRouteImport } from './routes/admin/system'
+import { Route as AdminTimeshiftRouteImport } from './routes/admin/timeshift'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
-import { Route as AdminWebhooksRouteImport } from './routes/admin/webhooks'
 import { Route as GuideIndexRouteImport } from './routes/guide/index'
 import { Route as LiveIndexRouteImport } from './routes/live/index'
 import { Route as LiveServiceIdRouteImport } from './routes/live/$serviceId'
@@ -88,14 +91,29 @@ const AdminAuditRoute = AdminAuditRouteImport.update({
   path: '/admin/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminChannelsRoute = AdminChannelsRouteImport.update({
-  id: '/admin/channels',
-  path: '/admin/channels',
+const AdminIntegrationsRoute = AdminIntegrationsRouteImport.update({
+  id: '/admin/integrations',
+  path: '/admin/integrations',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminSettingsRoute = AdminSettingsRouteImport.update({
-  id: '/admin/settings',
-  path: '/admin/settings',
+const AdminRecordingRoute = AdminRecordingRouteImport.update({
+  id: '/admin/recording',
+  path: '/admin/recording',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRetentionRoute = AdminRetentionRouteImport.update({
+  id: '/admin/retention',
+  path: '/admin/retention',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminServicesRoute = AdminServicesRouteImport.update({
+  id: '/admin/services',
+  path: '/admin/services',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminStorageRoute = AdminStorageRouteImport.update({
+  id: '/admin/storage',
+  path: '/admin/storage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminSystemRoute = AdminSystemRouteImport.update({
@@ -103,14 +121,14 @@ const AdminSystemRoute = AdminSystemRouteImport.update({
   path: '/admin/system',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminTimeshiftRoute = AdminTimeshiftRouteImport.update({
+  id: '/admin/timeshift',
+  path: '/admin/timeshift',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminWebhooksRoute = AdminWebhooksRouteImport.update({
-  id: '/admin/webhooks',
-  path: '/admin/webhooks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GuideIndexRoute = GuideIndexRouteImport.update({
@@ -220,11 +238,14 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
   '/admin/audit': typeof AdminAuditRoute
-  '/admin/channels': typeof AdminChannelsRoute
-  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/integrations': typeof AdminIntegrationsRoute
+  '/admin/recording': typeof AdminRecordingRoute
+  '/admin/retention': typeof AdminRetentionRoute
+  '/admin/services': typeof AdminServicesRoute
+  '/admin/storage': typeof AdminStorageRoute
   '/admin/system': typeof AdminSystemRoute
+  '/admin/timeshift': typeof AdminTimeshiftRoute
   '/admin/users': typeof AdminUsersRoute
-  '/admin/webhooks': typeof AdminWebhooksRoute
   '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
@@ -255,11 +276,14 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
   '/admin/audit': typeof AdminAuditRoute
-  '/admin/channels': typeof AdminChannelsRoute
-  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/integrations': typeof AdminIntegrationsRoute
+  '/admin/recording': typeof AdminRecordingRoute
+  '/admin/retention': typeof AdminRetentionRoute
+  '/admin/services': typeof AdminServicesRoute
+  '/admin/storage': typeof AdminStorageRoute
   '/admin/system': typeof AdminSystemRoute
+  '/admin/timeshift': typeof AdminTimeshiftRoute
   '/admin/users': typeof AdminUsersRoute
-  '/admin/webhooks': typeof AdminWebhooksRoute
   '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
@@ -291,11 +315,14 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
   '/admin/audit': typeof AdminAuditRoute
-  '/admin/channels': typeof AdminChannelsRoute
-  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/integrations': typeof AdminIntegrationsRoute
+  '/admin/recording': typeof AdminRecordingRoute
+  '/admin/retention': typeof AdminRetentionRoute
+  '/admin/services': typeof AdminServicesRoute
+  '/admin/storage': typeof AdminStorageRoute
   '/admin/system': typeof AdminSystemRoute
+  '/admin/timeshift': typeof AdminTimeshiftRoute
   '/admin/users': typeof AdminUsersRoute
-  '/admin/webhooks': typeof AdminWebhooksRoute
   '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
@@ -328,11 +355,14 @@ export interface FileRouteTypes {
     | '/search'
     | '/setup'
     | '/admin/audit'
-    | '/admin/channels'
-    | '/admin/settings'
+    | '/admin/integrations'
+    | '/admin/recording'
+    | '/admin/retention'
+    | '/admin/services'
+    | '/admin/storage'
     | '/admin/system'
+    | '/admin/timeshift'
     | '/admin/users'
-    | '/admin/webhooks'
     | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
@@ -363,11 +393,14 @@ export interface FileRouteTypes {
     | '/search'
     | '/setup'
     | '/admin/audit'
-    | '/admin/channels'
-    | '/admin/settings'
+    | '/admin/integrations'
+    | '/admin/recording'
+    | '/admin/retention'
+    | '/admin/services'
+    | '/admin/storage'
     | '/admin/system'
+    | '/admin/timeshift'
     | '/admin/users'
-    | '/admin/webhooks'
     | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
@@ -398,11 +431,14 @@ export interface FileRouteTypes {
     | '/search'
     | '/setup'
     | '/admin/audit'
-    | '/admin/channels'
-    | '/admin/settings'
+    | '/admin/integrations'
+    | '/admin/recording'
+    | '/admin/retention'
+    | '/admin/services'
+    | '/admin/storage'
     | '/admin/system'
+    | '/admin/timeshift'
     | '/admin/users'
-    | '/admin/webhooks'
     | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
@@ -434,11 +470,14 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SetupRoute: typeof SetupRoute
   AdminAuditRoute: typeof AdminAuditRoute
-  AdminChannelsRoute: typeof AdminChannelsRoute
-  AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminIntegrationsRoute: typeof AdminIntegrationsRoute
+  AdminRecordingRoute: typeof AdminRecordingRoute
+  AdminRetentionRoute: typeof AdminRetentionRoute
+  AdminServicesRoute: typeof AdminServicesRoute
+  AdminStorageRoute: typeof AdminStorageRoute
   AdminSystemRoute: typeof AdminSystemRoute
+  AdminTimeshiftRoute: typeof AdminTimeshiftRoute
   AdminUsersRoute: typeof AdminUsersRoute
-  AdminWebhooksRoute: typeof AdminWebhooksRoute
   LiveServiceIdRoute: typeof LiveServiceIdRoute
   LoginEnrollRoute: typeof LoginEnrollRoute
   LoginSecondFactorRoute: typeof LoginSecondFactorRoute
@@ -525,18 +564,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAuditRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/channels': {
-      id: '/admin/channels'
-      path: '/admin/channels'
-      fullPath: '/admin/channels'
-      preLoaderRoute: typeof AdminChannelsRouteImport
+    '/admin/integrations': {
+      id: '/admin/integrations'
+      path: '/admin/integrations'
+      fullPath: '/admin/integrations'
+      preLoaderRoute: typeof AdminIntegrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/settings': {
-      id: '/admin/settings'
-      path: '/admin/settings'
-      fullPath: '/admin/settings'
-      preLoaderRoute: typeof AdminSettingsRouteImport
+    '/admin/recording': {
+      id: '/admin/recording'
+      path: '/admin/recording'
+      fullPath: '/admin/recording'
+      preLoaderRoute: typeof AdminRecordingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/retention': {
+      id: '/admin/retention'
+      path: '/admin/retention'
+      fullPath: '/admin/retention'
+      preLoaderRoute: typeof AdminRetentionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/services': {
+      id: '/admin/services'
+      path: '/admin/services'
+      fullPath: '/admin/services'
+      preLoaderRoute: typeof AdminServicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/storage': {
+      id: '/admin/storage'
+      path: '/admin/storage'
+      fullPath: '/admin/storage'
+      preLoaderRoute: typeof AdminStorageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/system': {
@@ -546,18 +606,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSystemRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/timeshift': {
+      id: '/admin/timeshift'
+      path: '/admin/timeshift'
+      fullPath: '/admin/timeshift'
+      preLoaderRoute: typeof AdminTimeshiftRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/users': {
       id: '/admin/users'
       path: '/admin/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof AdminUsersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/webhooks': {
-      id: '/admin/webhooks'
-      path: '/admin/webhooks'
-      fullPath: '/admin/webhooks'
-      preLoaderRoute: typeof AdminWebhooksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/guide/': {
@@ -706,11 +766,14 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SetupRoute: SetupRoute,
   AdminAuditRoute: AdminAuditRoute,
-  AdminChannelsRoute: AdminChannelsRoute,
-  AdminSettingsRoute: AdminSettingsRoute,
+  AdminIntegrationsRoute: AdminIntegrationsRoute,
+  AdminRecordingRoute: AdminRecordingRoute,
+  AdminRetentionRoute: AdminRetentionRoute,
+  AdminServicesRoute: AdminServicesRoute,
+  AdminStorageRoute: AdminStorageRoute,
   AdminSystemRoute: AdminSystemRoute,
+  AdminTimeshiftRoute: AdminTimeshiftRoute,
   AdminUsersRoute: AdminUsersRoute,
-  AdminWebhooksRoute: AdminWebhooksRoute,
   LiveServiceIdRoute: LiveServiceIdRoute,
   LoginEnrollRoute: LoginEnrollRoute,
   LoginSecondFactorRoute: LoginSecondFactorRoute,

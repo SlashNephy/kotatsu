@@ -1,15 +1,4 @@
-import {
-  Alert,
-  Button,
-  Card,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  Title,
-} from '@mantine/core';
+import { Alert, Card, Group, NumberInput, Select, Stack, Switch, Text, Title } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
 import { startTransition, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,51 +7,42 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
+import { SaveRow } from '../../admin/SaveRow';
 import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
 import { FileNameTemplateField } from '../../reservations/FileNameTemplateField';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import { SudoGate } from '../../settings/SudoGate';
-import type { settingsSystemMutation } from './__generated__/settingsSystemMutation.graphql';
-import type { settingsSystemQuery } from './__generated__/settingsSystemQuery.graphql';
-import { zonedFormat } from '../../futon';
+import type { recordingMutation } from './__generated__/recordingMutation.graphql';
+import type { recordingQuery } from './__generated__/recordingQuery.graphql';
 
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
-const path = '/admin/settings';
+const path = '/admin/recording';
 
-export const Route = createFileRoute('/admin/settings')({
+export const Route = createFileRoute('/admin/recording')({
   // IdP での再認証を出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
   loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
-  component: SettingsPage,
-});
-
-const dateTimeFormat = zonedFormat({
-  year: 'numeric',
-  month: 'numeric',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
+  component: RecordingPage,
 });
 
 // autoPool は、保存先プールのメニューで「自動で選ぶ」を表す値。保存するときも空文字のまま送る。
 // API では、null は「変えない」で、空文字が「自動で選ぶのに戻す」なので。
 const autoPool = '';
 
-// SettingsPage は、録画設定の既定値と、過去の番組の保持期間を変える、管理者向けの画面 (設計書 4.7、11.2)。
-function SettingsPage() {
+// RecordingPage は、録画設定の既定値と、ルールを作るときの既定値を変える、管理者向けの画面 (設計書 4.7、10.3、11.2)。
+function RecordingPage() {
   const { t } = useTranslation();
 
   return (
-    <AdminPage title={t('admin.settings.title')}>
-      <SystemSettings />
+    <AdminPage title={t('admin.recording.title')}>
+      <RecordingSettings />
     </AdminPage>
   );
 }
 
 const query = graphql`
-  query settingsSystemQuery {
+  query recordingQuery {
     systemSettings {
       recordingDefaults {
         poolId
@@ -72,9 +52,6 @@ const query = graphql`
         priority
         joinSegments
       }
-      archiveRetentionDays
-      notificationRetentionDays
-      mcpEnabled
       ruleDefaults {
         avoidDuplicates
         duplicateWindowDays
@@ -104,17 +81,13 @@ type Form = {
   endMarginSeconds: number | string;
   priority: number | string;
   joinSegments: boolean;
-  archiveRetentionDays: number | string;
-  notificationRetentionDays: number | string;
   // ルールを作るときの既定値 (#470)。重複を避ける日数は、空なら期間を区切らない。
   ruleAvoidDuplicates: boolean;
   ruleDuplicateWindowDays: number | string;
   ruleFollowEventRelay: boolean;
-  // MCP のクライアントに使わせるかどうか (#965)。
-  mcpEnabled: boolean;
 };
 
-function SystemSettings() {
+function RecordingSettings() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const oidc = Route.useLoaderData();
@@ -122,7 +95,7 @@ function SystemSettings() {
   const [fetchKey, setFetchKey] = useState(0);
   // ほかの管理者が変えたら、読み直す (#869)。
   const adminChanges = useDataChanges(['ADMIN']);
-  const data = useLazyLoadQuery<settingsSystemQuery>(
+  const data = useLazyLoadQuery<recordingQuery>(
     query,
     {},
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
@@ -139,21 +112,12 @@ function SystemSettings() {
     endMarginSeconds: defaults.endMarginSeconds,
     priority: defaults.priority,
     joinSegments: defaults.joinSegments,
-    archiveRetentionDays: settings.archiveRetentionDays,
-    notificationRetentionDays: settings.notificationRetentionDays,
     ruleAvoidDuplicates: settings.ruleDefaults.avoidDuplicates,
     ruleDuplicateWindowDays: settings.ruleDefaults.duplicateWindowDays ?? '',
     ruleFollowEventRelay: settings.ruleDefaults.followEventRelay,
-    mcpEnabled: settings.mcpEnabled,
   });
   const set = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
-  const numbers = [
-    form.startMarginSeconds,
-    form.endMarginSeconds,
-    form.priority,
-    form.archiveRetentionDays,
-    form.notificationRetentionDays,
-  ];
+  const numbers = [form.startMarginSeconds, form.endMarginSeconds, form.priority];
   const valid = form.fileNameTemplate.trim() !== '' && numbers.every((n) => typeof n === 'number');
 
   const submit = (event: FormEvent) => {
@@ -161,10 +125,11 @@ function SystemSettings() {
     setMessage(null);
     gate.run(
       async () => {
-        await mutate<settingsSystemMutation>(
+        // この画面の項目だけを送る。省いた項目 (保持期間や MCP) は、サーバーが変えない。
+        await mutate<recordingMutation>(
           environment,
           graphql`
-            mutation settingsSystemMutation($input: SystemSettingsInput!) {
+            mutation recordingMutation($input: SystemSettingsInput!) {
               updateSystemSettings(input: $input) {
                 updatedAt
               }
@@ -180,8 +145,6 @@ function SystemSettings() {
                 priority: Number(form.priority),
                 joinSegments: form.joinSegments,
               },
-              archiveRetentionDays: Number(form.archiveRetentionDays),
-              notificationRetentionDays: Number(form.notificationRetentionDays),
               ruleDefaults: {
                 avoidDuplicates: form.ruleAvoidDuplicates,
                 ...(typeof form.ruleDuplicateWindowDays === 'number'
@@ -189,7 +152,6 @@ function SystemSettings() {
                   : { clearDuplicateWindowDays: true }),
                 followEventRelay: form.ruleFollowEventRelay,
               },
-              mcpEnabled: form.mcpEnabled,
             },
           },
         );
@@ -327,69 +289,7 @@ function SystemSettings() {
               </Stack>
             </Card>
 
-            <Card withBorder>
-              <Stack gap="xs">
-                <Title order={3} size="h5">
-                  {t('admin.settings.archive')}
-                </Title>
-                <NumberInput
-                  size="xs"
-                  maw={480}
-                  label={t('admin.settings.archiveRetentionDays')}
-                  description={t('admin.settings.archiveRetentionHelp')}
-                  min={0}
-                  allowDecimal={false}
-                  value={form.archiveRetentionDays}
-                  onChange={(value) => set({ archiveRetentionDays: value })}
-                />
-              </Stack>
-            </Card>
-
-            <Card withBorder>
-              <Stack gap="xs">
-                <Title order={3} size="h5">
-                  {t('admin.settings.notifications')}
-                </Title>
-                <NumberInput
-                  size="xs"
-                  maw={480}
-                  label={t('admin.settings.notificationRetentionDays')}
-                  description={t('admin.settings.notificationRetentionHelp')}
-                  min={0}
-                  allowDecimal={false}
-                  value={form.notificationRetentionDays}
-                  onChange={(value) => set({ notificationRetentionDays: value })}
-                />
-              </Stack>
-            </Card>
-
-            <Card withBorder>
-              <Stack gap="xs">
-                <Title order={3} size="h5">
-                  {t('admin.settings.mcp')}
-                </Title>
-                <Switch
-                  size="sm"
-                  label={t('admin.settings.mcpEnabled')}
-                  description={t('admin.settings.mcpHelp')}
-                  checked={form.mcpEnabled}
-                  onChange={(event) => set({ mcpEnabled: event.currentTarget.checked })}
-                />
-              </Stack>
-            </Card>
-
-            <Group justify="space-between">
-              <Text size="xs" c="dimmed">
-                {settings.updatedAt == null
-                  ? t('admin.settings.neverUpdated')
-                  : t('admin.settings.updatedAt', {
-                      at: dateTimeFormat.format(Date.parse(settings.updatedAt)),
-                    })}
-              </Text>
-              <Button type="submit" size="compact-sm" disabled={!valid || gate.busy}>
-                {t('admin.save')}
-              </Button>
-            </Group>
+            <SaveRow updatedAt={settings.updatedAt} disabled={!valid || gate.busy} />
           </Stack>
         </form>
       </SudoGate>

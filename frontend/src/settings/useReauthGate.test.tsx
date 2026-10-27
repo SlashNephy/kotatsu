@@ -21,7 +21,7 @@ afterEach(() => {
 
 describe('useReauthGate', () => {
   test('再認証を求められたら、onWaiting を呼んで待ち始め、操作の失敗としては扱わない (#915)', async () => {
-    const { result } = renderHook(() => useReauthGate(methods, '/admin/system'));
+    const { result } = renderHook(() => useReauthGate(methods, '/admin/storage'));
     const onError = vi.fn();
     const onCancel = vi.fn();
     const onWaiting = vi.fn();
@@ -50,7 +50,7 @@ describe('useReauthGate', () => {
       wantError: true,
     },
   ])('$name では、onWaiting を呼ばない', async ({ operation, wantError }) => {
-    const { result } = renderHook(() => useReauthGate(methods, '/admin/system'));
+    const { result } = renderHook(() => useReauthGate(methods, '/admin/storage'));
     const onError = vi.fn();
     const onWaiting = vi.fn();
 
@@ -66,14 +66,14 @@ describe('useReauthGate', () => {
 
 // Gate は、再認証の画面を出す画面の代わり。
 function Gate() {
-  const gate = useReauthGate(methods, '/admin/system');
+  const gate = useReauthGate(methods, '/admin/storage');
 
   return <MantineProvider>{gate.modal}</MantineProvider>;
 }
 
 describe('IdP での再認証から戻ったとき', () => {
   test('失敗して戻ったときは、理由を出す', () => {
-    window.history.replaceState(null, '', '/admin/system?error=oidc_denied');
+    window.history.replaceState(null, '', '/admin/storage?error=oidc_denied');
 
     render(<Gate />);
 
@@ -81,7 +81,7 @@ describe('IdP での再認証から戻ったとき', () => {
   });
 
   test('成功して戻ったときは、何も出さない (開き直した画面は SudoGate が確かめる)', () => {
-    window.history.replaceState(null, '', '/admin/system');
+    window.history.replaceState(null, '', '/admin/storage');
 
     render(<Gate />);
 

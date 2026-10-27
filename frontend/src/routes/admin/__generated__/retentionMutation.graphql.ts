@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<dd3be45a78784633f8f1562516652566>>
+ * @generated SignedSource<<31ed4c22af52b43727395fca58ca432e>>
  * @lightSyntaxTransform
  */
 
@@ -29,17 +29,17 @@ export type RuleDefaultsInput = {
   duplicateWindowDays?: number | null | undefined;
   followEventRelay?: boolean | null | undefined;
 };
-export type settingsSystemMutation$variables = {
+export type retentionMutation$variables = {
   input: SystemSettingsInput;
 };
-export type settingsSystemMutation$data = {
+export type retentionMutation$data = {
   readonly updateSystemSettings: {
     readonly updatedAt: string | null | undefined;
   };
 };
-export type settingsSystemMutation = {
-  response: settingsSystemMutation$data;
-  variables: settingsSystemMutation$variables;
+export type retentionMutation = {
+  response: retentionMutation$data;
+  variables: retentionMutation$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -81,7 +81,7 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Fragment",
     "metadata": null,
-    "name": "settingsSystemMutation",
+    "name": "retentionMutation",
     "selections": (v1/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
@@ -90,20 +90,20 @@ return {
   "operation": {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
-    "name": "settingsSystemMutation",
+    "name": "retentionMutation",
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "1e067190f01c9b3602d9672ca35ec0d4",
+    "cacheID": "4dafd3103ed719966c6e3ee9d6bfe497",
     "id": null,
     "metadata": {},
-    "name": "settingsSystemMutation",
+    "name": "retentionMutation",
     "operationKind": "mutation",
-    "text": "mutation settingsSystemMutation(\n  $input: SystemSettingsInput!\n) {\n  updateSystemSettings(input: $input) {\n    updatedAt\n  }\n}\n"
+    "text": "mutation retentionMutation(\n  $input: SystemSettingsInput!\n) {\n  updateSystemSettings(input: $input) {\n    updatedAt\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "ad262ffbbd80e2be77ea45de8874f677";
+(node as any).hash = "d3d9711dca14072c4ae0f81936fd2d1f";
 
 export default node;

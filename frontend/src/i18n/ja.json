@@ -377,6 +377,11 @@
       "NOT_FOUND": "対象が見つかりませんでした。画面を読み直してください",
       "FORBIDDEN": "この操作は管理者だけができます",
       "CONFLICT": "ほかの変更と重なりました。画面を読み直してからやり直してください"
+    },
+    "adminGroups": {
+      "recording": "録画",
+      "people": "ユーザーと連携",
+      "status": "状態の確認"
     }
   },
   "connection": {
@@ -1277,7 +1282,7 @@
       "newReleaseBody": "動いている版は {{current}} です。{{published}} に公開されました。",
       "newReleaseLink": "リリースのページを開く",
       "title": "システムの状態",
-      "summary": "チューナーサーバー、チューナー、インスタンスの状態を確かめ、保存先プールを変えます",
+      "summary": "チューナーサーバー、チューナー、インスタンス、リースの状態を確かめます",
       "refresh": "読み直す",
       "tunerServer": "チューナーサーバー",
       "tunerServerUnchecked": "まだ確かめていません",
@@ -1332,22 +1337,7 @@
       "servicesDescription": "番組表とライブに出さないサービスを選び、並び順を変えます。並び順は、同じ放送波の中で、小さいほど前に並びます",
       "serviceHidden": "出さない",
       "serviceOrder": "並び順",
-      "serviceOrderDefault": "既定",
-      "timeshift": "タイムシフト",
-      "timeshiftDescription": "選んだチャンネルを常に録り、保持時間の分だけ残します。予約の録画やライブ視聴にチューナーが要るときは、タイムシフトを止めて譲ります",
-      "timeshiftUnavailable": "この tenban には、タイムシフトのディレクトリが設定されていません。使うには、storage.timeshift_dir（環境変数 KOTATSU_STORAGE_TIMESHIFT_DIR）に絶対パスを設定し、起動し直してください。録る mikan にも同じ設定が要ります",
-      "timeshiftEmpty": "タイムシフトで録るチャンネルはありません",
-      "timeshiftRecording": "録画中",
-      "timeshiftStopped": "停止中",
-      "timeshiftBuffer": "バッファ: {{from}} 〜 {{until}}",
-      "timeshiftNoBuffer": "バッファはまだありません",
-      "timeshiftRetention": "保持時間（時間）",
-      "timeshiftService": "チャンネル",
-      "timeshiftServicePlaceholder": "チャンネルを選ぶ",
-      "timeshiftAdd": "追加",
-      "timeshiftRemove": "外す",
-      "timeshiftCancel": "やめる",
-      "timeshiftConfirmRemove": "{{name}} をタイムシフトから外します。録ったバッファは消えます"
+      "serviceOrderDefault": "既定"
     },
     "users": {
       "title": "ユーザー",
@@ -1378,7 +1368,6 @@
     },
     "webhooks": {
       "title": "Webhook",
-      "summary": "通知するイベントを、DiscordやSlackなどの外部のサービスに送ります",
       "empty": "Webhookはまだありません",
       "emptyHint": "Webhook を作成することで、特定のイベントが発生した際にDiscordやSlackなどへ通知を送信することができます。",
       "name": "名前",
@@ -1425,8 +1414,6 @@
       "moreError": "続きを読み込めませんでした。時間をおいてやり直してください"
     },
     "settings": {
-      "title": "全体の設定",
-      "summary": "録画設定の既定値と、過去の番組の保持期間を変えます",
       "recordingDefaults": "録画設定の既定値",
       "recordingDefaultsNote": "ルールや予約で上書きしていない項目に使います",
       "pool": "保存先プール",
@@ -1454,9 +1441,44 @@
       "updatedAt": "最終更新 {{at}}",
       "neverUpdated": "まだ変えていません"
     },
-    "channels": {
-      "title": "サービスの表示",
+    "recording": {
+      "title": "録画の既定値",
+      "summary": "ルールや予約で上書きしていない録画設定と、ルールを作るときに最初から入れておく値を変えます"
+    },
+    "services": {
+      "title": "サービス",
       "summary": "放送波の表示名と、番組表とライブに出すサービスと並び順を変えます"
+    },
+    "timeshift": {
+      "title": "タイムシフト",
+      "summary": "選んだサービスを常に録り、保持時間の分だけ残します",
+      "services": "録るサービス",
+      "description": "選んだサービスを常に録り、保持時間の分だけ残します。予約の録画やライブ視聴にチューナーが要るときは、タイムシフトを止めて譲ります",
+      "unavailable": "この tenban には、タイムシフトのディレクトリが設定されていません。使うには、storage.timeshift_dir（環境変数 KOTATSU_STORAGE_TIMESHIFT_DIR）に絶対パスを設定し、起動し直してください。録る mikan にも同じ設定が要ります",
+      "empty": "タイムシフトで録るサービスはありません",
+      "recording": "録画中",
+      "stopped": "停止中",
+      "buffer": "バッファ: {{from}} 〜 {{until}}",
+      "noBuffer": "バッファはまだありません",
+      "retention": "保持時間（時間）",
+      "service": "サービス",
+      "servicePlaceholder": "サービスを選ぶ",
+      "add": "追加",
+      "remove": "外す",
+      "cancel": "やめる",
+      "confirmRemove": "{{name}} をタイムシフトから外します。録ったバッファは消えます"
+    },
+    "storage": {
+      "title": "保存先",
+      "summary": "保存先プールの優先順位と容量の閾値を変え、見つからない録画やDBにないファイルを片付けます"
+    },
+    "retention": {
+      "title": "保持期間",
+      "summary": "放送が終わった番組と、画面内の通知を残す日数を変えます"
+    },
+    "integrations": {
+      "title": "連携",
+      "summary": "MCPのクライアントとの連携と、DiscordやSlackなどに通知を送るWebhookを設定します"
     }
   },
   "authorship": {

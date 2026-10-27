@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<1af8e08379e02c1a371cc4920c1f73bb>>
+ * @generated SignedSource<<07e997b2a03754c930c0edce6817a188>>
  * @lightSyntaxTransform
  */
 
@@ -8,8 +8,8 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type settingsSystemQuery$variables = Record<PropertyKey, never>;
-export type settingsSystemQuery$data = {
+export type recordingQuery$variables = Record<PropertyKey, never>;
+export type recordingQuery$data = {
   readonly passkeys: ReadonlyArray<{
     readonly id: string;
   }>;
@@ -18,9 +18,6 @@ export type settingsSystemQuery$data = {
     readonly totp: boolean;
   };
   readonly systemSettings: {
-    readonly archiveRetentionDays: number;
-    readonly mcpEnabled: boolean;
-    readonly notificationRetentionDays: number;
     readonly recordingDefaults: {
       readonly endMarginSeconds: number;
       readonly fileNameTemplate: string;
@@ -42,9 +39,9 @@ export type settingsSystemQuery$data = {
     }>;
   };
 };
-export type settingsSystemQuery = {
-  response: settingsSystemQuery$data;
-  variables: settingsSystemQuery$variables;
+export type recordingQuery = {
+  response: recordingQuery$data;
+  variables: recordingQuery$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -117,27 +114,6 @@ v1 = [
             "storageKey": null
           }
         ],
-        "storageKey": null
-      },
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "archiveRetentionDays",
-        "storageKey": null
-      },
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "notificationRetentionDays",
-        "storageKey": null
-      },
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "mcpEnabled",
         "storageKey": null
       },
       {
@@ -244,7 +220,7 @@ return {
     "argumentDefinitions": [],
     "kind": "Fragment",
     "metadata": null,
-    "name": "settingsSystemQuery",
+    "name": "recordingQuery",
     "selections": (v1/*:: as any*/),
     "type": "Query",
     "abstractKey": null
@@ -253,20 +229,20 @@ return {
   "operation": {
     "argumentDefinitions": [],
     "kind": "Operation",
-    "name": "settingsSystemQuery",
+    "name": "recordingQuery",
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "9c38c2469266bf2afd24beeddf1563c8",
+    "cacheID": "2653b33ae11408285309d9e2bef20dd0",
     "id": null,
     "metadata": {},
-    "name": "settingsSystemQuery",
+    "name": "recordingQuery",
     "operationKind": "query",
-    "text": "query settingsSystemQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n    }\n    archiveRetentionDays\n    notificationRetentionDays\n    mcpEnabled\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n    }\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n    }\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "be71c9ca2ae57f335a455b207e21815e";
+(node as any).hash = "e588a5886eeabe64976d7a8cf874f4ce";
 
 export default node;

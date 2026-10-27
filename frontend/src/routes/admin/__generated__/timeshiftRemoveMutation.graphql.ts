@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<2d47395a190a4483ad0ce54c79be4333>>
+ * @generated SignedSource<<09415d79494eda1f8a81350e0e4f0bd2>>
  * @lightSyntaxTransform
  */
 
@@ -8,15 +8,15 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type channelsRemoveTimeshiftMutation$variables = {
+export type timeshiftRemoveMutation$variables = {
   serviceId: string;
 };
-export type channelsRemoveTimeshiftMutation$data = {
+export type timeshiftRemoveMutation$data = {
   readonly removeTimeshiftChannel: string;
 };
-export type channelsRemoveTimeshiftMutation = {
-  response: channelsRemoveTimeshiftMutation$data;
-  variables: channelsRemoveTimeshiftMutation$variables;
+export type timeshiftRemoveMutation = {
+  response: timeshiftRemoveMutation$data;
+  variables: timeshiftRemoveMutation$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -47,7 +47,7 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Fragment",
     "metadata": null,
-    "name": "channelsRemoveTimeshiftMutation",
+    "name": "timeshiftRemoveMutation",
     "selections": (v1/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
@@ -56,20 +56,20 @@ return {
   "operation": {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
-    "name": "channelsRemoveTimeshiftMutation",
+    "name": "timeshiftRemoveMutation",
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "b41c58a32ad9a5000399a646fec82be2",
+    "cacheID": "df589276b3a972115fed64217cb14103",
     "id": null,
     "metadata": {},
-    "name": "channelsRemoveTimeshiftMutation",
+    "name": "timeshiftRemoveMutation",
     "operationKind": "mutation",
-    "text": "mutation channelsRemoveTimeshiftMutation(\n  $serviceId: ID!\n) {\n  removeTimeshiftChannel(serviceId: $serviceId)\n}\n"
+    "text": "mutation timeshiftRemoveMutation(\n  $serviceId: ID!\n) {\n  removeTimeshiftChannel(serviceId: $serviceId)\n}\n"
   }
 };
 })();
 
-(node as any).hash = "96abeebdd9d3622485a31c6786bb417e";
+(node as any).hash = "484224e206e1d9ec8d66ae13a53d389e";
 
 export default node;

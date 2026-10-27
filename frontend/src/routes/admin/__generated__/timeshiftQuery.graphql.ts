@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<3c50a50d9364d8fd28be89370692eec7>>
+ * @generated SignedSource<<a8f08db666669eb1e4888fe50e6fd827>>
  * @lightSyntaxTransform
  */
 
@@ -8,13 +8,8 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type channelsQuery$variables = Record<PropertyKey, never>;
-export type channelsQuery$data = {
-  readonly channelTypes: ReadonlyArray<{
-    readonly displayName: string;
-    readonly sortOrder: number;
-    readonly type: string;
-  }>;
+export type timeshiftQuery$variables = Record<PropertyKey, never>;
+export type timeshiftQuery$data = {
   readonly passkeys: ReadonlyArray<{
     readonly id: string;
   }>;
@@ -26,16 +21,12 @@ export type channelsQuery$data = {
     readonly channelType: {
       readonly displayName: string;
     };
-    readonly hidden: boolean;
     readonly id: string;
     readonly logoUrl: string | null | undefined;
     readonly name: string;
-    readonly sortOrder: number | null | undefined;
+    readonly serviceId: number;
   }>;
   readonly timeshiftAvailable: boolean;
-  readonly timeshiftCandidates: ReadonlyArray<{
-    readonly id: string;
-  }>;
   readonly timeshiftChannels: ReadonlyArray<{
     readonly bufferedFrom: string | null | undefined;
     readonly bufferedUntil: string | null | undefined;
@@ -51,9 +42,9 @@ export type channelsQuery$data = {
     };
   }>;
 };
-export type channelsQuery = {
-  response: channelsQuery$data;
-  variables: channelsQuery$variables;
+export type timeshiftQuery = {
+  response: timeshiftQuery$data;
+  variables: timeshiftQuery$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -61,38 +52,24 @@ var v0 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "displayName",
+  "name": "id",
   "storageKey": null
 },
 v1 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "sortOrder",
+  "name": "name",
   "storageKey": null
 },
 v2 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "id",
-  "storageKey": null
-},
-v3 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "name",
-  "storageKey": null
-},
-v4 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v5 = {
+v3 = {
   "alias": null,
   "args": null,
   "concreteType": "ChannelType",
@@ -100,71 +77,37 @@ v5 = {
   "name": "channelType",
   "plural": false,
   "selections": [
-    (v0/*:: as any*/)
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "displayName",
+      "storageKey": null
+    }
   ],
   "storageKey": null
 },
-v6 = [
-  (v2/*:: as any*/)
-],
-v7 = [
+v4 = [
   {
     "alias": null,
     "args": null,
-    "concreteType": "ChannelType",
+    "concreteType": "Service",
     "kind": "LinkedField",
-    "name": "channelTypes",
+    "name": "services",
     "plural": true,
     "selections": [
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "type",
-        "storageKey": null
-      },
       (v0/*:: as any*/),
-      (v1/*:: as any*/)
-    ],
-    "storageKey": null
-  },
-  {
-    "alias": null,
-    "args": [
-      {
-        "kind": "Literal",
-        "name": "includeHidden",
-        "value": true
-      }
-    ],
-    "concreteType": "Service",
-    "kind": "LinkedField",
-    "name": "services",
-    "plural": true,
-    "selections": [
+      (v1/*:: as any*/),
       (v2/*:: as any*/),
-      (v3/*:: as any*/),
-      (v4/*:: as any*/),
       {
         "alias": null,
         "args": null,
         "kind": "ScalarField",
-        "name": "hidden",
+        "name": "serviceId",
         "storageKey": null
       },
-      (v1/*:: as any*/),
-      (v5/*:: as any*/)
+      (v3/*:: as any*/)
     ],
-    "storageKey": "services(includeHidden:true)"
-  },
-  {
-    "alias": "timeshiftCandidates",
-    "args": null,
-    "concreteType": "Service",
-    "kind": "LinkedField",
-    "name": "services",
-    "plural": true,
-    "selections": (v6/*:: as any*/),
     "storageKey": null
   },
   {
@@ -199,7 +142,9 @@ v7 = [
     "kind": "LinkedField",
     "name": "passkeys",
     "plural": true,
-    "selections": (v6/*:: as any*/),
+    "selections": [
+      (v0/*:: as any*/)
+    ],
     "storageKey": null
   },
   {
@@ -225,10 +170,10 @@ v7 = [
         "name": "service",
         "plural": false,
         "selections": [
+          (v0/*:: as any*/),
+          (v1/*:: as any*/),
           (v2/*:: as any*/),
-          (v3/*:: as any*/),
-          (v4/*:: as any*/),
-          (v5/*:: as any*/)
+          (v3/*:: as any*/)
         ],
         "storageKey": null
       },
@@ -269,8 +214,8 @@ return {
     "argumentDefinitions": [],
     "kind": "Fragment",
     "metadata": null,
-    "name": "channelsQuery",
-    "selections": (v7/*:: as any*/),
+    "name": "timeshiftQuery",
+    "selections": (v4/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -278,20 +223,20 @@ return {
   "operation": {
     "argumentDefinitions": [],
     "kind": "Operation",
-    "name": "channelsQuery",
-    "selections": (v7/*:: as any*/)
+    "name": "timeshiftQuery",
+    "selections": (v4/*:: as any*/)
   },
   "params": {
-    "cacheID": "6994c8abb8dcae2ad9ff9abc2a361315",
+    "cacheID": "2a999b6e625503c6e278b97b5b475e0d",
     "id": null,
     "metadata": {},
-    "name": "channelsQuery",
+    "name": "timeshiftQuery",
     "operationKind": "query",
-    "text": "query channelsQuery {\n  channelTypes {\n    type\n    displayName\n    sortOrder\n  }\n  services(includeHidden: true) {\n    id\n    name\n    logoUrl\n    hidden\n    sortOrder\n    channelType {\n      displayName\n    }\n  }\n  timeshiftCandidates: services {\n    id\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n  timeshiftAvailable\n  timeshiftChannels {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        displayName\n      }\n    }\n    retentionSeconds\n    bufferedFrom\n    bufferedUntil\n    recording\n  }\n}\n"
+    "text": "query timeshiftQuery {\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n  timeshiftAvailable\n  timeshiftChannels {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        displayName\n      }\n    }\n    retentionSeconds\n    bufferedFrom\n    bufferedUntil\n    recording\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "b75cfe7b021cac3c0548200d275eb59e";
+(node as any).hash = "4f48bbb2ea0860a211b17c563b35f576";
 
 export default node;

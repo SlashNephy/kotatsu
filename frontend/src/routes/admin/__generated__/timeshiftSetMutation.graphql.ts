@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<10b6a51a3476b70bf4e03cdb2f3b8a13>>
+ * @generated SignedSource<<5f9d6cd2b7e3f2373ca73b17847eb637>>
  * @lightSyntaxTransform
  */
 
@@ -8,18 +8,18 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type channelsSetTimeshiftMutation$variables = {
+export type timeshiftSetMutation$variables = {
   retentionSeconds: number;
   serviceId: string;
 };
-export type channelsSetTimeshiftMutation$data = {
+export type timeshiftSetMutation$data = {
   readonly setTimeshiftChannel: {
     readonly retentionSeconds: number;
   };
 };
-export type channelsSetTimeshiftMutation = {
-  response: channelsSetTimeshiftMutation$data;
-  variables: channelsSetTimeshiftMutation$variables;
+export type timeshiftSetMutation = {
+  response: timeshiftSetMutation$data;
+  variables: timeshiftSetMutation$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -72,7 +72,7 @@ return {
     ],
     "kind": "Fragment",
     "metadata": null,
-    "name": "channelsSetTimeshiftMutation",
+    "name": "timeshiftSetMutation",
     "selections": (v2/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
@@ -84,20 +84,20 @@ return {
       (v0/*:: as any*/)
     ],
     "kind": "Operation",
-    "name": "channelsSetTimeshiftMutation",
+    "name": "timeshiftSetMutation",
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "4eaf79d0648c8ed89a7bbd8d5e59c10e",
+    "cacheID": "a88c2b1ffe1201aee7849be3ad8f2cde",
     "id": null,
     "metadata": {},
-    "name": "channelsSetTimeshiftMutation",
+    "name": "timeshiftSetMutation",
     "operationKind": "mutation",
-    "text": "mutation channelsSetTimeshiftMutation(\n  $serviceId: ID!\n  $retentionSeconds: Int!\n) {\n  setTimeshiftChannel(serviceId: $serviceId, retentionSeconds: $retentionSeconds) {\n    retentionSeconds\n  }\n}\n"
+    "text": "mutation timeshiftSetMutation(\n  $serviceId: ID!\n  $retentionSeconds: Int!\n) {\n  setTimeshiftChannel(serviceId: $serviceId, retentionSeconds: $retentionSeconds) {\n    retentionSeconds\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "bf9fc3fc5ca2448e514a2755ffcaf43d";
+(node as any).hash = "1f0a7a8b6361e166625af6a55ba10d22";
 
 export default node;

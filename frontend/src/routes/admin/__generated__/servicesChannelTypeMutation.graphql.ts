@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a8fc7d0121bbcfa7679cde26595ccb99>>
+ * @generated SignedSource<<e4150d0a8572c83a8c84cd24f9d0c1df>>
  * @lightSyntaxTransform
  */
 
@@ -12,20 +12,20 @@ export type ChannelTypeInput = {
   displayName?: string | null | undefined;
   sortOrder?: number | null | undefined;
 };
-export type channelsChannelTypeMutation$variables = {
+export type servicesChannelTypeMutation$variables = {
   input: ChannelTypeInput;
   type: string;
 };
-export type channelsChannelTypeMutation$data = {
+export type servicesChannelTypeMutation$data = {
   readonly updateChannelType: {
     readonly displayName: string;
     readonly sortOrder: number;
     readonly type: string;
   };
 };
-export type channelsChannelTypeMutation = {
-  response: channelsChannelTypeMutation$data;
-  variables: channelsChannelTypeMutation$variables;
+export type servicesChannelTypeMutation = {
+  response: servicesChannelTypeMutation$data;
+  variables: servicesChannelTypeMutation$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -92,7 +92,7 @@ return {
     ],
     "kind": "Fragment",
     "metadata": null,
-    "name": "channelsChannelTypeMutation",
+    "name": "servicesChannelTypeMutation",
     "selections": (v2/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
@@ -104,20 +104,20 @@ return {
       (v0/*:: as any*/)
     ],
     "kind": "Operation",
-    "name": "channelsChannelTypeMutation",
+    "name": "servicesChannelTypeMutation",
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "c73803f68a3a9a5e8d2cfe6494a27165",
+    "cacheID": "5882711f8cf1c88ca41b783a054816f2",
     "id": null,
     "metadata": {},
-    "name": "channelsChannelTypeMutation",
+    "name": "servicesChannelTypeMutation",
     "operationKind": "mutation",
-    "text": "mutation channelsChannelTypeMutation(\n  $type: String!\n  $input: ChannelTypeInput!\n) {\n  updateChannelType(type: $type, input: $input) {\n    type\n    displayName\n    sortOrder\n  }\n}\n"
+    "text": "mutation servicesChannelTypeMutation(\n  $type: String!\n  $input: ChannelTypeInput!\n) {\n  updateChannelType(type: $type, input: $input) {\n    type\n    displayName\n    sortOrder\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "e7d1ae73848d56ff46548d8f9ce19be0";
+(node as any).hash = "343e08e0d7796fa9f8739fdbbb441368";
 
 export default node;
