@@ -43,6 +43,8 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, id string, input mode
 	if err != nil {
 		return nil, err
 	}
+	// 直後に DB が止まっても、前のロールのまま認証しないよう、覚えたセッションを忘れる (#1084)。
+	r.sessions.ForgetUser(userID)
 
 	return userModel(updated), nil
 }
@@ -60,6 +62,7 @@ func (r *mutationResolver) DisableUser(ctx context.Context, id string) (*model.U
 	if err := r.userAdmin.Disable(ctx, r.db, actor, principal.UserID, userID); err != nil {
 		return nil, err
 	}
+	r.sessions.ForgetUser(userID)
 
 	return r.userByID(ctx, userID)
 }
@@ -94,6 +97,7 @@ func (r *mutationResolver) ResetUserPassword(ctx context.Context, id string, pas
 	if err := r.userAdmin.ResetPassword(ctx, r.db, actor, userID, password); err != nil {
 		return nil, err
 	}
+	r.sessions.ForgetUser(userID)
 
 	return r.userByID(ctx, userID)
 }

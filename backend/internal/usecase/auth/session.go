@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/netip"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
@@ -85,6 +87,8 @@ type SessionsOptions struct {
 	// 信頼済みのプロキシの X-Forwarded-Proto を見る関数を渡す。
 	IsSecure func(r *http.Request) bool
 	Clock    clock.Clock
+	// Logger は、DB に届かずに覚えた結果で認証したことと、最後に使われた日時を書けなかったことを出す。nil なら出さない。
+	Logger *slog.Logger
 }
 
 // Sessions はサーバー側のセッションを扱う。
@@ -93,18 +97,30 @@ type Sessions struct {
 	absoluteTimeout time.Duration
 	isSecure        func(r *http.Request) bool
 	clock           clock.Clock
+	logger          *slog.Logger
+	// fallback は、トークンのハッシュごとに、使えると確かめたセッションを覚え、DB に届かない間だけ使う (#1084)。
+	fallback *database.Fallback[string, *authenticatedSession]
+}
+
+// authenticatedSession は、使えると確かめたセッション。
+type authenticatedSession struct {
+	principal *Principal
+	// expiresAt は、絶対的な期限。覚えた結果で認証するときも、これを過ぎたら使わない。
+	expiresAt time.Time
 }
 
 // NewSessions は Sessions を作る。opts は nil でもよい。
 func NewSessions(opts *SessionsOptions) *Sessions {
 	if opts == nil {
-		opts = &SessionsOptions{IdleTimeout: 0, AbsoluteTimeout: 0, IsSecure: nil, Clock: nil}
+		opts = &SessionsOptions{IdleTimeout: 0, AbsoluteTimeout: 0, IsSecure: nil, Clock: nil, Logger: nil}
 	}
 	s := &Sessions{
 		idleTimeout:     opts.IdleTimeout,
 		absoluteTimeout: opts.AbsoluteTimeout,
 		isSecure:        opts.IsSecure,
 		clock:           opts.Clock,
+		logger:          opts.Logger,
+		fallback:        nil,
 	}
 	if s.idleTimeout == 0 {
 		s.idleTimeout = DefaultIdleTimeout
@@ -118,6 +134,10 @@ func NewSessions(opts *SessionsOptions) *Sessions {
 	if s.clock == nil {
 		s.clock = new(clock.Real)
 	}
+	if s.logger == nil {
+		s.logger = slog.New(slog.DiscardHandler)
+	}
+	s.fallback = database.NewFallback[string, *authenticatedSession]("sessions", database.FallbackTTL, s.clock, s.logger)
 
 	return s
 }
@@ -166,36 +186,44 @@ func (s *Sessions) Create(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, c
 
 // Authenticate は、トークンのセッションが使えるかを確かめ、ログイン中のユーザーを返す。
 // 使えなければ ErrSessionInvalid を返す。使えたら、最後に使われた日時を更新する。
+// DB に届かなければ、database.FallbackTTL の中で使えると確かめたセッションに限って、覚えた結果で認証する (#1084)。
+// DB に届かずに覚えた結果もなければ、DB のエラーを返す (database.IsUnavailable が true になる)。
 func (s *Sessions) Authenticate(ctx context.Context, db sqlc.DBTX, token string) (*Principal, error) {
-	queries := sqlc.New(db)
-	row, err := queries.GetSessionByTokenHash(ctx, hashToken(token))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrSessionInvalid
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to look up a session: %w", err)
-	}
-
-	now := s.clock.Now()
-	session := row.Session
-	switch {
-	case session.RevokedAt != nil,
-		!now.Before(session.ExpiresAt),
-		!now.Before(session.LastSeenAt.Add(s.idleTimeout)),
-		row.UserDisabledAt != nil:
-		return nil, ErrSessionInvalid
-	}
-	role, err := ParseRole(row.Role)
+	session, stale, err := s.fallback.Load(ctx, string(hashToken(token)), func(ctx context.Context) (*authenticatedSession, error) {
+		return s.lookup(ctx, db, token)
+	})
 	if err != nil {
 		return nil, err
 	}
+	now := s.clock.Now()
+	if stale {
+		if !now.Before(session.expiresAt) {
+			return nil, ErrSessionInvalid
+		}
 
-	err = queries.TouchSession(ctx, sqlc.TouchSessionParams{Now: now, ID: session.ID, StaleBefore: now.Add(-touchInterval)})
-	if err != nil {
-		return nil, fmt.Errorf("failed to touch a session: %w", err)
+		return session.principal, nil
 	}
 
-	return &Principal{UserID: session.UserID, Role: role, SessionID: session.ID, AuthenticatedAt: session.AuthenticatedAt.UTC(), OAuthClientID: ""}, nil
+	// 最後に使われた日時は、セッションの一覧と無操作の期限に使うだけなので、書けなくても認証は通す (#1084)。
+	touchCtx, cancel := context.WithTimeout(ctx, database.FallbackQueryTimeout)
+	defer cancel()
+	err = sqlc.New(db).TouchSession(touchCtx, sqlc.TouchSessionParams{Now: now, ID: session.principal.SessionID, StaleBefore: now.Add(-touchInterval)})
+	if err != nil && ctx.Err() == nil {
+		s.logger.WarnContext(ctx, "failed to touch a session", slog.Any("error", err))
+	}
+
+	return session.principal, nil
+}
+
+// ForgetUser は、ユーザーのセッションについて覚えた結果を忘れる。ユーザーを無効にしたときや、ロールやパスワードを変えたときに呼び、
+// その直後に DB が止まっても、覚えた結果で前の権限のまま認証しないようにする。
+func (s *Sessions) ForgetUser(userID uuid.UUID) {
+	s.fallback.ForgetIf(func(session *authenticatedSession) bool { return session.principal.UserID == userID })
+}
+
+// FallbackUsed は、DB に届かずに、覚えた結果で認証した回数を返す。
+func (s *Sessions) FallbackUsed() int64 {
+	return s.fallback.Used()
 }
 
 // Usable は、セッションが今も使えるかを返す。失効させた、期限を過ぎた、ユーザーを無効にした、消したなら false を返す。
@@ -308,6 +336,7 @@ func (s *Sessions) Revoke(ctx context.Context, db Database, userID, sessionID uu
 		if n == 0 {
 			return ErrSessionNotFound
 		}
+		s.fallback.ForgetIf(func(session *authenticatedSession) bool { return session.principal.SessionID == sessionID })
 
 		return usersettings.Touch(ctx, tx, s.clock, userID)
 	})
@@ -323,6 +352,9 @@ func (s *Sessions) RevokeOthers(ctx context.Context, db Database, userID, keepID
 			return fmt.Errorf("failed to revoke the other sessions: %w", err)
 		}
 		revoked = n
+		s.fallback.ForgetIf(func(session *authenticatedSession) bool {
+			return session.principal.UserID == userID && session.principal.SessionID != keepID
+		})
 
 		return usersettings.Touch(ctx, tx, s.clock, userID)
 	})
@@ -365,6 +397,12 @@ func (s *Sessions) Middleware(db sqlc.DBTX) func(http.Handler) http.Handler {
 
 				return
 			}
+			// DB に届かず、覚えた結果もないセッションは、確かめられないので、DB が戻るのを待ってもらう (#1084)。
+			if database.IsUnavailable(err) {
+				http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+
+				return
+			}
 			if err != nil {
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
@@ -390,6 +428,36 @@ func (s *Sessions) LogoutHandler(db Database) http.Handler {
 		s.ClearCookie(w, r)
 		w.WriteHeader(http.StatusNoContent)
 	})
+}
+
+// lookup は、トークンのセッションを DB から引き、使えるかを確かめる。使えなければ ErrSessionInvalid を返す。
+func (s *Sessions) lookup(ctx context.Context, db sqlc.DBTX, token string) (*authenticatedSession, error) {
+	row, err := sqlc.New(db).GetSessionByTokenHash(ctx, hashToken(token))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrSessionInvalid
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to look up a session: %w", err)
+	}
+
+	now := s.clock.Now()
+	session := row.Session
+	switch {
+	case session.RevokedAt != nil,
+		!now.Before(session.ExpiresAt),
+		!now.Before(session.LastSeenAt.Add(s.idleTimeout)),
+		row.UserDisabledAt != nil:
+		return nil, ErrSessionInvalid
+	}
+	role, err := ParseRole(row.Role)
+	if err != nil {
+		return nil, err
+	}
+
+	return &authenticatedSession{
+		principal: &Principal{UserID: session.UserID, Role: role, SessionID: session.ID, AuthenticatedAt: session.AuthenticatedAt.UTC(), OAuthClientID: ""},
+		expiresAt: session.ExpiresAt,
+	}, nil
 }
 
 func (s *Sessions) cookie(r *http.Request, value string, expires time.Time) *http.Cookie {

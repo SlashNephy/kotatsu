@@ -13,8 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
@@ -380,4 +382,120 @@ func TestMiddlewareClearsInvalidCookie(t *testing.T) {
 	cleared := sessionCookie(t, resp)
 	assert.Empty(t, cleared.Value)
 	assert.Negative(t, cleared.MaxAge)
+}
+
+func TestAuthenticateWhileDatabaseIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	db := newDB(t)
+
+	tests := []struct {
+		name string
+		// beforeOutage は、DB を止める前に行う操作。sessions は、DB を止めるのと同じプールで認証する Sessions。
+		beforeOutage func(t *testing.T, f *sessionFixture, sessions *auth.Sessions, conn *databasetest.Switch, token string, session *auth.Session)
+		hang         bool
+		// elapsed は、DB を止めてから認証するまでの時間。
+		elapsed         time.Duration
+		wantUnavailable bool
+		wantFallback    int64
+	}{
+		{
+			name: "authenticated before the outage",
+			beforeOutage: func(t *testing.T, _ *sessionFixture, sessions *auth.Sessions, conn *databasetest.Switch, token string, _ *auth.Session) {
+				t.Helper()
+				_, err := sessions.Authenticate(t.Context(), conn.Pool, token)
+				require.NoError(t, err)
+			},
+			elapsed:      4 * time.Minute,
+			wantFallback: 1,
+		},
+		{
+			name: "the database hangs",
+			beforeOutage: func(t *testing.T, _ *sessionFixture, sessions *auth.Sessions, conn *databasetest.Switch, token string, _ *auth.Session) {
+				t.Helper()
+				_, err := sessions.Authenticate(t.Context(), conn.Pool, token)
+				require.NoError(t, err)
+			},
+			hang:         true,
+			wantFallback: 1,
+		},
+		{
+			name: "past the fallback limit",
+			beforeOutage: func(t *testing.T, _ *sessionFixture, sessions *auth.Sessions, conn *databasetest.Switch, token string, _ *auth.Session) {
+				t.Helper()
+				_, err := sessions.Authenticate(t.Context(), conn.Pool, token)
+				require.NoError(t, err)
+			},
+			elapsed:         5 * time.Minute,
+			wantUnavailable: true,
+		},
+		{
+			name:            "never authenticated before the outage",
+			beforeOutage:    func(*testing.T, *sessionFixture, *auth.Sessions, *databasetest.Switch, string, *auth.Session) {},
+			wantUnavailable: true,
+		},
+		{
+			// 取り消した tenban と同じプロセスなら、取り消した後に一度も認証しなくても、覚えた結果を使わない。
+			name: "revoked before the outage",
+			beforeOutage: func(t *testing.T, f *sessionFixture, sessions *auth.Sessions, conn *databasetest.Switch, token string, session *auth.Session) {
+				t.Helper()
+				_, err := sessions.Authenticate(t.Context(), conn.Pool, token)
+				require.NoError(t, err)
+				require.NoError(t, sessions.Revoke(t.Context(), f.db, f.userID, session.ID))
+			},
+			wantUnavailable: true,
+		},
+		{
+			// ほかの tenban で取り消したら、DB が止まる前に一度認証したときに、取り消したと分かって覚えた結果を忘れる。
+			name: "revoked on another instance before the outage",
+			beforeOutage: func(t *testing.T, f *sessionFixture, sessions *auth.Sessions, conn *databasetest.Switch, token string, session *auth.Session) {
+				t.Helper()
+				_, err := sessions.Authenticate(t.Context(), conn.Pool, token)
+				require.NoError(t, err)
+				require.NoError(t, f.sessions.Revoke(t.Context(), f.db, f.userID, session.ID))
+				_, err = sessions.Authenticate(t.Context(), conn.Pool, token)
+				require.ErrorIs(t, err, auth.ErrSessionInvalid)
+			},
+			wantUnavailable: true,
+		},
+		{
+			name: "user disabled before the outage",
+			beforeOutage: func(t *testing.T, f *sessionFixture, sessions *auth.Sessions, conn *databasetest.Switch, token string, _ *auth.Session) {
+				t.Helper()
+				_, err := sessions.Authenticate(t.Context(), conn.Pool, token)
+				require.NoError(t, err)
+				require.NoError(t, f.users.Disable(t.Context(), f.db, f.userID))
+				sessions.ForgetUser(f.userID)
+			},
+			wantUnavailable: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newSessionFixture(t, db)
+			token, session := f.login(t)
+			conn := databasetest.NewSwitch(t, db)
+			sessions := auth.NewSessions(&auth.SessionsOptions{Clock: f.clock})
+			tt.beforeOutage(t, f, sessions, conn, token, session)
+
+			if tt.hang {
+				conn.Hang()
+			} else {
+				conn.Down()
+			}
+			f.clock.Advance(tt.elapsed)
+			principal, err := sessions.Authenticate(t.Context(), conn.Pool, token)
+			assert.Equal(t, tt.wantFallback, sessions.FallbackUsed())
+			if tt.wantUnavailable {
+				require.Error(t, err)
+				assert.True(t, database.IsUnavailable(err), "err = %v", err)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, &auth.Principal{UserID: f.userID, Role: auth.RoleMember, SessionID: session.ID, AuthenticatedAt: testNow()}, principal)
+		})
+	}
 }

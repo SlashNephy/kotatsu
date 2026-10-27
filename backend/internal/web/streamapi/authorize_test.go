@@ -143,7 +143,7 @@ func TestAuthorizer(t *testing.T) {
 
 	signer := newSigner(t, keyMaterial)
 	mux := http.NewServeMux()
-	mux.Handle(livePattern, streamapi.NewAuthorizer(signer, pool, clk).Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	mux.Handle(livePattern, streamapi.NewAuthorizer(signer, auth.NewURLUsers(pool, clk, slog.New(slog.DiscardHandler)), clk).Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})))
 	server := httptest.NewServer(sessions.Middleware(pool)(mux))
@@ -179,6 +179,85 @@ func TestAuthorizer(t *testing.T) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
+		})
+	}
+}
+
+// TestAuthorizerWhileDatabaseIsUnreachable は、DB に届かない間は、DB が止まる前に認可できたセッションと署名付き URL のユーザーに限って、
+// 覚えた結果で映像を見られることを確かめる (#1084)。
+func TestAuthorizerWhileDatabaseIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	clk := clocktest.NewFake(time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC))
+	pool, err := database.Open(t.Context(), databasetest.New(t))
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+	users := auth.NewUsers(clk)
+	viewer, err := users.Create(t.Context(), pool, &auth.NewUser{Username: "mikan", DisplayName: "みかん", Role: auth.RoleViewer, PasswordHash: nil})
+	require.NoError(t, err)
+	other, err := users.Create(t.Context(), pool, &auth.NewUser{Username: "neko", DisplayName: "ねこ", Role: auth.RoleMember, PasswordHash: nil})
+	require.NoError(t, err)
+	conn := databasetest.NewSwitch(t, pool)
+	sessions := auth.NewSessions(&auth.SessionsOptions{IdleTimeout: 0, AbsoluteTimeout: 0, IsSecure: nil, Clock: clk, Logger: nil})
+	seen, _, err := sessions.Create(t.Context(), pool, viewer.ID, nil)
+	require.NoError(t, err)
+	unseen, _, err := sessions.Create(t.Context(), pool, viewer.ID, nil)
+	require.NoError(t, err)
+	revoked, revokedSession, err := sessions.Create(t.Context(), pool, viewer.ID, nil)
+	require.NoError(t, err)
+
+	signer := newSigner(t, keyMaterial)
+	authorizer := streamapi.NewAuthorizer(signer, auth.NewURLUsers(conn.Pool, clk, slog.New(slog.DiscardHandler)), clk)
+	mux := http.NewServeMux()
+	mux.Handle(livePattern, authorizer.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})))
+	server := httptest.NewServer(sessions.Middleware(conn.Pool)(mux))
+	t.Cleanup(server.Close)
+	expiresAt := clk.Now().Add(stream.DefaultURLLifetime)
+	signedSeen := signer.Sign(resource, viewer.ID, expiresAt).URL
+	signedUnseen := signer.Sign(resource, other.ID, expiresAt).URL
+
+	get := func(t *testing.T, path, cookie string) int {
+		t.Helper()
+
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+path, nil)
+		require.NoError(t, err)
+		if cookie != "" {
+			req.Header.Set("Cookie", auth.CookieName+"="+cookie)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		return resp.StatusCode
+	}
+	// DB が止まる前に、見ていたセッションと署名付き URL を認可する。取り消したセッションも、取り消す前は見ていた。
+	require.Equal(t, http.StatusOK, get(t, resource, seen))
+	require.Equal(t, http.StatusOK, get(t, signedSeen, ""))
+	require.Equal(t, http.StatusOK, get(t, resource, revoked))
+	require.NoError(t, sessions.Revoke(t.Context(), pool, viewer.ID, revokedSession.ID))
+	conn.Down()
+
+	tests := []struct {
+		name       string
+		path       string
+		cookie     string
+		wantStatus int
+	}{
+		{name: "認可できたセッション", path: resource, cookie: seen, wantStatus: http.StatusOK},
+		{name: "認可できた署名付き URL", path: signedSeen, cookie: "", wantStatus: http.StatusOK},
+		{name: "DB が止まってから初めてのセッション", path: resource, cookie: unseen, wantStatus: http.StatusServiceUnavailable},
+		{name: "DB が止まってから初めての署名付き URL", path: signedUnseen, cookie: "", wantStatus: http.StatusServiceUnavailable},
+		{name: "DB が止まる前に取り消したセッション", path: resource, cookie: revoked, wantStatus: http.StatusServiceUnavailable},
+		{name: "認証がない", path: resource, cookie: "", wantStatus: http.StatusUnauthorized},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.wantStatus, get(t, tt.path, tt.cookie))
 		})
 	}
 }
