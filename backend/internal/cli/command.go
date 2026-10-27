@@ -605,6 +605,8 @@ type apiHandler struct {
 
 var _ graph.Updates = new(update.Checker)
 
+var _ graph.Drain = new(streamapi.Drainer)
+
 // newUpdates は、新しいリリースを確かめる Checker と、GraphQL に渡すそれを返す。
 // 外部への通信になるので、設定で入れたときだけ確かめる (設計書 11.1、#506)。入れていなければ、どちらも nil。
 // GraphQL には、nil の *update.Checker でなく nil のインターフェースを渡す。

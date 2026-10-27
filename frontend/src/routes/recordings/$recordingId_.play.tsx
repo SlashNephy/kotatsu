@@ -436,11 +436,13 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       return;
     }
     seenDrains.current = drains;
-    if (!hls) {
+    // エラーで止まっている間は、「やり直す」に任せる。
+    if (!hls && error === null) {
       startAt(positionRef.current);
       setHandover(true);
     }
-  });
+    // startAt と positionRef は、描画ごとに作り直すが、読み直しの位置は ref から読むので、知らせが届いたときだけ動かす。
+  }, [drains, hls, error]);
   // retry は、今の位置から読み直す。エラーの知らせも消し、読み込めたら出さないままにする。
   const retry = () => {
     setError(null);
