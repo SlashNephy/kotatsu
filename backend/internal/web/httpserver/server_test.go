@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -206,17 +207,23 @@ func TestServeStopsStreamsOnShutdown(t *testing.T) {
 		served <- httpserver.Serve(ctx, slog.New(slog.DiscardHandler), ln, handler)
 	}()
 
+	read := make(chan error, 1)
 	go func() {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+ln.Addr().String()+"/", nil)
 		if err != nil {
+			read <- err
+
 			return
 		}
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
+			read <- err
+
 			return
 		}
 		defer res.Body.Close()
-		_, _ = io.Copy(io.Discard, res.Body)
+		_, err = io.Copy(io.Discard, res.Body)
+		read <- err
 	}()
 
 	<-streaming
@@ -226,6 +233,53 @@ func TestServeStopsStreamsOnShutdown(t *testing.T) {
 		require.NoError(t, err)
 	case <-time.After(5 * time.Second):
 		t.Fatal("the server kept waiting for the stream")
+	}
+	// ハンドラーが返ったので、応答はきれいに終わる。クライアントには、切れたのではなく、流し終えたように見える (#1083)。
+	require.NoError(t, <-read)
+}
+
+// TestServeCutsStuckStreamsOnShutdown は、停止を始めても、クライアントが読まずに書き込みが止まっているストリームは、
+// 少し待ってから書き込みを打ち切り、ShutdownTimeout まで待たずに止まることを確かめる。
+func TestServeCutsStuckStreamsOnShutdown(t *testing.T) {
+	t.Parallel()
+
+	writing := make(chan struct{})
+	handler := httpserver.StopOnShutdown(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// 取りやめを見ずに書き続ける。クライアントが読まないので、いずれ書き込みが止まる。
+		chunk := make([]byte, 64*1024)
+		once := false
+		for {
+			if _, err := w.Write(chunk); err != nil {
+				return
+			}
+			if !once {
+				once = true
+				close(writing)
+			}
+		}
+	}))
+
+	ln, err := httpserver.Listen(t.Context(), "127.0.0.1:0")
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(t.Context())
+	served := make(chan error, 1)
+	go func() {
+		served <- httpserver.Serve(ctx, slog.New(slog.DiscardHandler), ln, handler)
+	}()
+
+	conn, err := new(net.Dialer).DialContext(t.Context(), "tcp", ln.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+	_, err = io.WriteString(conn, "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n")
+	require.NoError(t, err)
+
+	<-writing
+	cancel()
+	select {
+	case err := <-served:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the server kept waiting for the stuck stream")
 	}
 }
 

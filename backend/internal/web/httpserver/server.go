@@ -20,6 +20,8 @@ const (
 	// readHeaderTimeout は、リクエストのヘッダーを読み終えるまでの上限。遅いクライアントに接続を占有させない。
 	// 本文の読み書きには上限を設けない。録画やライブの TS は何時間も流し続けるからである。
 	readHeaderTimeout = 10 * time.Second
+	// stopWriteGrace は、停止を始めてから、StopOnShutdown で包んだハンドラーが返るのを待つ時間の上限。
+	stopWriteGrace = time.Second
 	// idleTimeout は、keep-alive の接続を、次のリクエストを待って開けておく時間の上限。
 	idleTimeout = 2 * time.Minute
 )
@@ -29,6 +31,10 @@ type shutdownKey struct{}
 
 // StopOnShutdown は、サーバーが停止を始めたら、リクエストの context を取りやめ、書き込みも打ち切るミドルウェアを返す。
 // ライブ視聴や録画の配信のような、終わらないストリームを包む。包まないリクエストは、停止の間も終わるまで待つ。
+//
+// 取りやめたら、まずハンドラーが返るのを待ち、応答をきれいに終える (chunked の終わりを書く)。プレイヤーは、切れたのではなく
+// 流し終えたと分かるので、受け取った分を再生し続けながら、つなぎ直せる (#1083)。stopWriteGrace のうちに返らなければ
+// (クライアントが読まずに書き込みが止まっているなど)、書き込みを打ち切って抜けさせる。
 func StopOnShutdown(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		shutdown, ok := r.Context().Value(shutdownKey{}).(<-chan struct{})
@@ -39,9 +45,11 @@ func StopOnShutdown(next http.Handler) http.Handler {
 		}
 		ctx, cancel := context.WithCancel(r.Context())
 		controller := http.NewResponseController(w)
+		returned := make(chan struct{})
 		watched := make(chan struct{})
-		// ハンドラーが返った後に、応答を触らないよう、見張りが終わるのを待ってから返す。
+		// 応答を触るのは、この関数が返るまでにする。見張りが終わるのを待ってから返す。
 		defer func() {
+			close(returned)
 			cancel()
 			<-watched
 		}()
@@ -49,9 +57,15 @@ func StopOnShutdown(next http.Handler) http.Handler {
 			defer close(watched)
 			select {
 			case <-ctx.Done():
+				return
 			case <-shutdown:
 				cancel()
-				// クライアントが読まずに書き込みが止まっていても、すぐに抜けさせる。
+			}
+			timer := time.NewTimer(stopWriteGrace)
+			defer timer.Stop()
+			select {
+			case <-returned:
+			case <-timer.C:
 				_ = controller.SetWriteDeadline(time.Now())
 			}
 		}()
