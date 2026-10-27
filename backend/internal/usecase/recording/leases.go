@@ -22,7 +22,8 @@ type LeaseStore interface {
 	// Channel は、割り振りの変更を知らせる通知のチャンネル。Worker はこれを LISTEN する。
 	Channel() string
 	// Acquire は、取れる割り振りを 1 つ取る。なければ false を返す。now は取る時刻で、引き継ぎかどうかの判断に使う。
-	Acquire(ctx context.Context, holder uuid.UUID, now, expiresAt time.Time) (*Assignment, bool, error)
+	// active は、この mikan が録っている割り振り。リースの期限が切れていても取らない。
+	Acquire(ctx context.Context, holder uuid.UUID, now, expiresAt time.Time, active []uuid.UUID) (*Assignment, bool, error)
 	// Renew は、リースを expiresAt まで延ばす。延ばせた行の数を返す。
 	Renew(ctx context.Context, a *Assignment, holder uuid.UUID, now, expiresAt time.Time) (int64, error)
 	// MarkHandover は、割り振りに引き継ぎ待ちの印を付け、ほかの mikan に知らせる。印を付けたら true を返す。
@@ -59,9 +60,9 @@ func (l *recordingLeases) Channel() string {
 	return NotifyChannel
 }
 
-func (l *recordingLeases) Acquire(ctx context.Context, holder uuid.UUID, now, expiresAt time.Time) (*Assignment, bool, error) {
+func (l *recordingLeases) Acquire(ctx context.Context, holder uuid.UUID, now, expiresAt time.Time, active []uuid.UUID) (*Assignment, bool, error) {
 	row, err := sqlc.New(l.pool).AcquireRecordingAssignment(ctx, sqlc.AcquireRecordingAssignmentParams{
-		Now: now, Holder: &holder, ExpiresAt: &expiresAt,
+		Now: now, Holder: &holder, ExpiresAt: &expiresAt, Active: active,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, false, nil

@@ -32,9 +32,9 @@ func (l *leases) Channel() string {
 	return NotifyChannel
 }
 
-func (l *leases) Acquire(ctx context.Context, holder uuid.UUID, now, expiresAt time.Time) (*recording.Assignment, bool, error) {
+func (l *leases) Acquire(ctx context.Context, holder uuid.UUID, now, expiresAt time.Time, active []uuid.UUID) (*recording.Assignment, bool, error) {
 	row, err := sqlc.New(l.pool).AcquireTimeshiftAssignment(ctx, sqlc.AcquireTimeshiftAssignmentParams{
-		Holder: &holder, ExpiresAt: &expiresAt, Now: now,
+		Holder: &holder, ExpiresAt: &expiresAt, Now: now, Active: active,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, false, nil

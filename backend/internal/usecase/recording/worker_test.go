@@ -2,6 +2,7 @@ package recording_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -34,8 +35,17 @@ func (f *fixture) startWorker(t *testing.T, holder uuid.UUID, session recording.
 func (f *fixture) startWorkerWithHandoverTimeout(t *testing.T, holder uuid.UUID, handoverTimeout time.Duration, session recording.Session) func() {
 	t.Helper()
 
-	worker := recording.NewWorker(f.pool, f.clock, holder, slog.New(slog.DiscardHandler), session, recording.NewRecordingLeases(f.pool), &recording.WorkerOptions{
-		LeaseTTL: 10 * time.Second, RenewInterval: 20 * time.Millisecond, AcquireInterval: 50 * time.Millisecond,
+	return f.startWorkerWith(t, holder, recording.NewRecordingLeases(f.pool), 10*time.Second, handoverTimeout, session)
+}
+
+// startWorkerWith は、割り振りを leases で読み書きし、リースの期間を leaseTTL にして、mikan を動かす。
+func (f *fixture) startWorkerWith(t *testing.T, holder uuid.UUID, leases recording.LeaseStore, leaseTTL, handoverTimeout time.Duration,
+	session recording.Session,
+) func() {
+	t.Helper()
+
+	worker := recording.NewWorker(f.pool, f.clock, holder, slog.New(slog.DiscardHandler), session, leases, &recording.WorkerOptions{
+		LeaseTTL: leaseTTL, RenewInterval: 20 * time.Millisecond, AcquireInterval: 50 * time.Millisecond,
 		HandoverTimeout: handoverTimeout, ReleaseCooldown: 0, DatabaseClock: false, PollOnly: true, PollInterval: 50 * time.Millisecond,
 	})
 	ctx, cancel := context.WithCancel(t.Context())
@@ -183,6 +193,129 @@ func TestWorkerStopsWhenLeaseIsLost(t *testing.T) {
 	}
 	assert.Equal(t, assignmentRow{state: string(recording.AssignmentRecording), generation: 2, holder: &successor}, f.assignment(t, reservationID),
 		"the old mikan does not finish the assignment")
+}
+
+// flakyLeases は、down の間はリースの延長を失敗させ、blocked の間は延長から戻らない LeaseStore。DB に届かない状態を作る。
+type flakyLeases struct {
+	recording.LeaseStore
+
+	down    atomic.Bool
+	blocked atomic.Bool
+	// renewed は、延長が通った回数。
+	renewed atomic.Int64
+}
+
+func (l *flakyLeases) Renew(ctx context.Context, a *recording.Assignment, holder uuid.UUID, now, expiresAt time.Time) (int64, error) {
+	if l.blocked.Load() {
+		<-ctx.Done()
+
+		return 0, ctx.Err()
+	}
+	if l.down.Load() {
+		return 0, errors.New("dial tcp: connect: connection refused")
+	}
+	n, err := l.LeaseStore.Renew(ctx, a, holder, now, expiresAt)
+	if err == nil && n > 0 {
+		l.renewed.Add(1)
+	}
+
+	return n, err
+}
+
+// TestWorkerKeepsRecordingWhileDatabaseIsUnreachable は、DB に届かない間は、リースの期限が過ぎても録画を止めず、
+// ほかの mikan が取ったと分かったときだけ止めることを確かめる (#1073)。
+func TestWorkerKeepsRecordingWhileDatabaseIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// outage は、DB に届かない間に起きること。
+		outage   func(t *testing.T, f *fixture, leases *flakyLeases, reservationID uuid.UUID)
+		wantLost bool
+	}{
+		{
+			name: "renew fails longer than the lease",
+			outage: func(t *testing.T, f *fixture, leases *flakyLeases, _ uuid.UUID) {
+				t.Helper()
+
+				leases.down.Store(true)
+				time.Sleep(500 * time.Millisecond)
+				// DB の上でも、リースの期限を過ぎさせる。
+				f.clock.Advance(time.Minute)
+				time.Sleep(100 * time.Millisecond)
+				leases.down.Store(false)
+			},
+			wantLost: false,
+		},
+		{
+			name: "blocked renew does not stall the loop",
+			outage: func(t *testing.T, _ *fixture, leases *flakyLeases, _ uuid.UUID) {
+				t.Helper()
+
+				leases.blocked.Store(true)
+				time.Sleep(500 * time.Millisecond)
+				leases.blocked.Store(false)
+			},
+			wantLost: false,
+		},
+		{
+			name: "successor took over during outage",
+			outage: func(t *testing.T, f *fixture, leases *flakyLeases, reservationID uuid.UUID) {
+				t.Helper()
+
+				leases.down.Store(true)
+				_, err := f.pool.Exec(t.Context(), "UPDATE recording_assignments SET generation = 2, holder = $1 WHERE reservation_id = $2", id.New(), reservationID)
+				require.NoError(t, err)
+				leases.down.Store(false)
+			},
+			wantLost: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.assignOne(t)
+			leases := &flakyLeases{LeaseStore: recording.NewRecordingLeases(f.pool)}
+			causes := make(chan error, 1)
+			f.startWorkerWith(t, id.New(), leases, 100*time.Millisecond, shortHandoverTimeout, func(ctx context.Context, _ *recording.Assignment) error {
+				<-ctx.Done()
+				select {
+				case causes <- context.Cause(ctx):
+				default:
+				}
+
+				return nil
+			})
+			require.Eventually(t, func() bool {
+				return leases.renewed.Load() > 0
+			}, waitTimeout, 20*time.Millisecond)
+
+			tt.outage(t, f, leases, reservationID)
+			if tt.wantLost {
+				select {
+				case cause := <-causes:
+					require.ErrorIs(t, cause, recording.ErrLeaseLost)
+				case <-time.After(waitTimeout):
+					t.Fatal("the mikan kept recording after another mikan took over")
+				}
+
+				return
+			}
+			// DB に届くようになったら、また延長が通る。
+			renewed := leases.renewed.Load()
+			require.Eventually(t, func() bool {
+				return leases.renewed.Load() > renewed
+			}, waitTimeout, 20*time.Millisecond)
+			select {
+			case cause := <-causes:
+				t.Fatalf("the session was stopped: %v", cause)
+			default:
+			}
+			assert.Equal(t, int64(1), f.assignment(t, reservationID).generation)
+		})
+	}
 }
 
 // TestWorkerKeepsSessionWhenAssignmentDeleted は、録画中に予約が消され、割り振りも消えたとき、

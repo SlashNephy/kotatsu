@@ -559,8 +559,10 @@ type Querier interface {
 	// 同じ世代のリースを期限内に延長する。期限が切れていたり、他のインスタンスに取られていたりすれば、行を更新しない。
 	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
 	// 割り振りのリースを延長する。世代番号が進んでいたら、ほかの mikan が取ったので、延長しない。引き継ぎ待ちの間も延長する。
+	// 期限が切れていても、世代番号が進んでいなければ誰も取っていないので、延長する。DB が止まっていた間に期限が切れても、録り続けるため (#1073)。
 	RenewRecordingAssignment(ctx context.Context, arg RenewRecordingAssignmentParams) (int64, error)
 	// 割り振りのリースを延長する。世代番号が進んでいたら、ほかの mikan が取ったので、延長しない。引き継ぎ待ちの間も延長する。
+	// 期限が切れていても、世代番号が進んでいなければ誰も取っていないので、延長する。DB が止まっていた間に期限が切れても、録り続けるため (#1073)。
 	RenewTimeshiftAssignment(ctx context.Context, arg RenewTimeshiftAssignmentParams) (int64, error)
 	ResetLoginThrottle(ctx context.Context, key string) error
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)

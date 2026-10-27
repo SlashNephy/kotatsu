@@ -45,8 +45,10 @@ SELECT * FROM recording_assignments ORDER BY created_at, id;
 -- 取る前の状態と、リースの期限も返す。引き継ぎか、落ちた mikan の代わりかで、途切れた区間の扱いが変わる。
 WITH target AS (
   SELECT a.id, a.state AS previous_state, a.lease_expires_at AS previous_lease_expires_at FROM recording_assignments a
-  WHERE (a.state IN ('waiting', 'recording') AND (a.holder IS NULL OR a.lease_expires_at <= @now::timestamptz))
-    OR (a.state = 'handover' AND a.holder IS DISTINCT FROM @holder::uuid)
+  WHERE ((a.state IN ('waiting', 'recording') AND (a.holder IS NULL OR a.lease_expires_at <= @now::timestamptz))
+    OR (a.state = 'handover' AND a.holder IS DISTINCT FROM @holder::uuid))
+    -- 自分が録っている割り振りは取らない。DB が止まっていた間にリースの期限が切れても、取り直すと世代番号が進み、録画が止まる (#1073)。
+    AND NOT (a.id = ANY(@active::uuid[]))
   ORDER BY a.priority DESC, a.created_at, a.id
   LIMIT 1
   FOR UPDATE SKIP LOCKED
@@ -59,8 +61,9 @@ RETURNING a.id, a.reservation_id, a.priority, a.generation, target.previous_stat
 
 -- name: RenewRecordingAssignment :execrows
 -- 割り振りのリースを延長する。世代番号が進んでいたら、ほかの mikan が取ったので、延長しない。引き継ぎ待ちの間も延長する。
+-- 期限が切れていても、世代番号が進んでいなければ誰も取っていないので、延長する。DB が止まっていた間に期限が切れても、録り続けるため (#1073)。
 UPDATE recording_assignments SET lease_expires_at = @expires_at, updated_at = @now
-WHERE id = @id AND generation = @generation AND holder = @holder AND state IN ('recording', 'handover') AND lease_expires_at > @now::timestamptz;
+WHERE id = @id AND generation = @generation AND holder = @holder AND state IN ('recording', 'handover');
 
 -- name: RecordingAssignmentExists :one
 -- 割り振りが残っているかどうか。予約を消すと、割り振りも一緒に消える。
