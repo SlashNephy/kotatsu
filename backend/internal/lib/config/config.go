@@ -156,6 +156,9 @@ type Storage struct {
 	// DataDir は、録画の生成物 (索引、代表画像、プレビュー画像) を、セグメントのファイルの ID ごとに置くディレクトリ (設計書 5.6)。
 	// プールを設定するロールでは必ず設定する。プールをマウントするロール (mikan、nekonote、tenban、kyusu) で、同じディレクトリをマウントする。
 	DataDir string `yaml:"data_dir"`
+	// TimeshiftDir は、タイムシフトのバッファ (放送を一定時間だけ残すチャンクのファイル) を置くディレクトリ。
+	// 絶対パスで書く。設定するなら DataDir も要る。空なら、タイムシフトのどの処理も動かない。
+	TimeshiftDir string `yaml:"timeshift_dir"`
 }
 
 // Tuner はチューナーサーバーの設定 (設計書 3.1)。
@@ -310,9 +313,10 @@ func Default() *Config {
 			RetentionDays: 365,
 		},
 		Storage: Storage{
-			Pools:     map[string]string{},
-			PoolOrder: []string{},
-			DataDir:   "",
+			Pools:        map[string]string{},
+			PoolOrder:    []string{},
+			DataDir:      "",
+			TimeshiftDir: "",
 		},
 		Tuner: Tuner{
 			URL: "",
@@ -403,6 +407,9 @@ func (c *Config) validate() error {
 	if err := c.Storage.validateDataDir(); err != nil {
 		errs = append(errs, fieldError("storage.data_dir", err))
 	}
+	if err := c.Storage.validateTimeshiftDir(); err != nil {
+		errs = append(errs, fieldError("storage.timeshift_dir", err))
+	}
 
 	return errors.Join(errs...)
 }
@@ -417,6 +424,46 @@ func (s *Storage) validateDataDir() error {
 	default:
 		return nil
 	}
+}
+
+// validateTimeshiftDir は、タイムシフトのディレクトリを検査する。空なら、タイムシフトを使わないので何も求めない。
+// データディレクトリやプールと重なると、容量の管理や DB にないファイルを探す機能がチャンクを触るので、重なりを拒む (設計書 5.7)。
+func (s *Storage) validateTimeshiftDir() error {
+	switch {
+	case s.TimeshiftDir == "":
+		return nil
+	case !filepath.IsAbs(s.TimeshiftDir):
+		return errors.New("must be an absolute path")
+	case s.DataDir == "":
+		return errors.New("requires storage.data_dir")
+	case overlaps(s.TimeshiftDir, s.DataDir):
+		return errors.New("must not be the same as, inside, or a parent of storage.data_dir")
+	}
+	for _, id := range slices.Sorted(maps.Keys(s.Pools)) {
+		if overlaps(s.TimeshiftDir, s.Pools[id]) {
+			return fmt.Errorf("must not be the same as, inside, or a parent of the mount point of pool %q", id)
+		}
+	}
+
+	return nil
+}
+
+// overlaps は、絶対パスの a と b が、同じディレクトリか、一方が他方の中にあるかを返す。相対パスなら、重ならないとみなす。
+// 名前の先頭が同じだけの別のディレクトリ (/mnt/main と /mnt/main2) は重ならない。
+func overlaps(a, b string) bool {
+	if !filepath.IsAbs(a) || !filepath.IsAbs(b) {
+		return false
+	}
+	a, b = filepath.Clean(a), filepath.Clean(b)
+
+	return a == b || within(a, b) || within(b, a)
+}
+
+// within は、Clean した絶対パスの child が、parent の中にあるかを返す。
+func within(child, parent string) bool {
+	rel, err := filepath.Rel(parent, child)
+
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func validateListen(addr string) error {

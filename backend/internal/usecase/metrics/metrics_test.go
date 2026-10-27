@@ -93,6 +93,22 @@ func TestDBCollector(t *testing.T) {
 		VALUES ('main', 0, 300, $1, 1000, 400, $2)`, now, now.Add(-time.Minute))
 	exec(`INSERT INTO storage_pools (id, priority, min_free_bytes, updated_at) VALUES ('unmeasured', 0, 100, $1)`, now)
 	exec(`INSERT INTO river_job (args, kind, max_attempts, queue, state) VALUES ('{}', 'test', 1, 'default', 'available'), ('{}', 'test', 1, 'default', 'available')`)
+	// タイムシフトのバッファ。録るチャンネルだけを出し、チャンクがまだなければ 0 にする。書いている途中のチャンクは、今まで録れている。
+	// 外したチャンネルのチャンクは、破棄のジョブが消すまで残っていても出さない。
+	for _, sid := range []int{1025, 1026} {
+		exec(`INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
+			VALUES ($1, 32736, $2, 'テスト', 'テスト', 1, 'GR', '27', $3, $3)`, 3273600000+sid, sid, now)
+	}
+	exec(`INSERT INTO timeshift_channels (service_id, retention_seconds, created_at, updated_at) VALUES (3273601024, 7200, $1, $1), (3273601025, 7200, $1, $1)`, now)
+	chunk := func(serviceID int64, start time.Time, end *time.Time) {
+		t.Helper()
+		chunkID := id.New()
+		exec(`INSERT INTO timeshift_chunks (id, service_id, path, size, started_at, ended_at, created_at) VALUES ($1, $2, $3, 1, $4, $5, $4)`,
+			chunkID, serviceID, chunkID.String()+".m2ts", start, end)
+	}
+	chunk(3273601024, now.Add(-time.Hour), new(now.Add(-55*time.Minute)))
+	chunk(3273601024, now.Add(-55*time.Minute), nil)
+	chunk(3273601026, now.Add(-time.Hour), new(now.Add(-55*time.Minute)))
 
 	collector := metrics.NewDBCollector(pool, clk, logger)
 	const common = `
@@ -151,6 +167,10 @@ kotatsu_storage_pool_last_measured_timestamp_seconds{pool="main"} 1.79163354e+09
 # HELP kotatsu_river_jobs Number of River jobs waiting or running, by queue and state.
 # TYPE kotatsu_river_jobs gauge
 kotatsu_river_jobs{queue="default",state="available"} 2
+# HELP kotatsu_timeshift_buffer_seconds Length of the timeshift buffer, from the start of the oldest chunk to the end of the newest, by configured service. 0 if no chunk is buffered.
+# TYPE kotatsu_timeshift_buffer_seconds gauge
+kotatsu_timeshift_buffer_seconds{service_id="3273601024"} 3600
+kotatsu_timeshift_buffer_seconds{service_id="3273601025"} 0
 # HELP kotatsu_metrics_collection_errors Number of metric groups that could not be read from the database in this scrape.
 # TYPE kotatsu_metrics_collection_errors gauge
 kotatsu_metrics_collection_errors 0
@@ -158,7 +178,8 @@ kotatsu_metrics_collection_errors 0
 	names := []string{
 		"kotatsu_recordings", "kotatsu_recording_failures", "kotatsu_recording_failures_total", "kotatsu_recording_last_failure_timestamp_seconds",
 		"kotatsu_recording_active_packets", "kotatsu_reservations", "kotatsu_recording_assignments", "kotatsu_tuners",
-		"kotatsu_storage_pool_bytes", "kotatsu_storage_pool_threshold_bytes", "kotatsu_storage_pool_last_measured_timestamp_seconds", "kotatsu_river_jobs", "kotatsu_metrics_collection_errors",
+		"kotatsu_storage_pool_bytes", "kotatsu_storage_pool_threshold_bytes", "kotatsu_storage_pool_last_measured_timestamp_seconds", "kotatsu_river_jobs",
+		"kotatsu_timeshift_buffer_seconds", "kotatsu_metrics_collection_errors",
 	}
 	require.NoError(t, testutil.CollectAndCompare(collector, strings.NewReader(common), names...))
 	// neko のリースを持っているかは、インスタンスの値なので、クラスターの値を出す DBCollector では出さない (#962)。

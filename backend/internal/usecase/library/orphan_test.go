@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -12,8 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
@@ -24,6 +27,8 @@ const (
 	// orphanSegmentDir は、持ち主のセグメントのファイルが DB にない、生成物のディレクトリ。
 	orphanSegmentDir = "0199f0a0-0000-7000-8000-00000000dead"
 	removedByJoin    = "つなぐ元.m2ts"
+	// timeshiftChunk は、タイムシフトのディレクトリにある、DB にないチャンクのファイル。
+	timeshiftChunk = "1/chunk.m2ts"
 	// removedByJoinSegmentDir は、つなぐ元のセグメントの生成物のディレクトリ。
 	removedByJoinSegmentDir = "0199f0a0-0000-7000-8000-00000000beef"
 )
@@ -43,6 +48,7 @@ func orphanFixture(t *testing.T) *fixture {
 	for _, rel := range []string{orphanName, recordingName + ".m2ts.joining", removedByJoin, ".DS_Store", "lost+found/#123"} {
 		write(f.dir, rel)
 	}
+	write(f.timeshiftRoot, timeshiftChunk)
 	for _, rel := range []string{orphanSegmentDir + "/thumbnail.jpg", removedByJoinSegmentDir + "/index", "main/古い録画.m2ts.kotatsu/index"} {
 		write(f.dataRoot, rel)
 	}
@@ -99,6 +105,41 @@ func TestFindOrphans(t *testing.T) {
 	}, f.orphans(t))
 }
 
+// TestFindOrphansTimeshiftIndex は、データディレクトリにあるタイムシフトのチャンクの索引のディレクトリを、
+// チャンクの行がある間は返さず、行を消した後は返すことを確かめる。
+func TestFindOrphansTimeshiftIndex(t *testing.T) {
+	t.Parallel()
+
+	f := orphanFixture(t)
+	chunkID := id.New()
+	started := f.clock.Now().Add(-time.Hour)
+	require.NoError(t, sqlc.New(f.pool).InsertTimeshiftChunk(t.Context(), sqlc.InsertTimeshiftChunkParams{
+		ID: chunkID, ServiceID: serviceID, Path: "1/chunk.m2ts", Size: 4, StartedAt: started, Now: started,
+	}))
+	index := filepath.Join(f.dataRoot, chunkID.String(), "index")
+	require.NoError(t, os.MkdirAll(filepath.Dir(index), 0o755))
+	require.NoError(t, os.WriteFile(index, []byte("index"), 0o600))
+	// 書いてから時間が経ったものにする。
+	f.clock.Advance(2 * time.Hour)
+	indexDir := orphan{pool: kago.DataPoolID, path: chunkID.String(), segmentDir: true}
+
+	tests := []struct {
+		name      string
+		deleteRow bool
+		orphan    bool
+	}{
+		{name: "チャンクの行がある間は出さない", deleteRow: false, orphan: false},
+		{name: "チャンクの行を消した後は出す", deleteRow: true, orphan: true},
+	}
+	for _, tt := range tests {
+		if tt.deleteRow {
+			_, err := sqlc.New(f.pool).DeleteTimeshiftChunk(t.Context(), chunkID)
+			require.NoError(t, err)
+		}
+		assert.Equal(t, tt.orphan, slices.Contains(f.orphans(t), indexDir), tt.name)
+	}
+}
+
 // TestDeleteOrphans は、DB にないファイルを確かめ直して消し、監査ログに残すことと、使っているファイルやプールの外は消さないことを確かめる。
 func TestDeleteOrphans(t *testing.T) {
 	t.Parallel()
@@ -123,6 +164,7 @@ func TestDeleteOrphans(t *testing.T) {
 		{name: "隠しファイルは消さない", pool: poolID, path: ".DS_Store", segmentDir: false, deleted: false},
 		{name: "ファイルを生成物のディレクトリとしては消さない", pool: poolID, path: orphanName, segmentDir: true, deleted: false},
 		{name: "プールの外は消さない", pool: poolID, path: "../" + orphanName, segmentDir: false, deleted: false},
+		{name: "タイムシフトのバッファは消さない", pool: kago.TimeshiftPoolID, path: timeshiftChunk, segmentDir: false, deleted: false},
 		{name: "ないファイル", pool: poolID, path: "ない.m2ts", segmentDir: false, deleted: false},
 	}
 	for _, tt := range tests {
@@ -145,6 +187,7 @@ func TestDeleteOrphans(t *testing.T) {
 			if !tt.deleted {
 				assert.Equal(t, &library.DeleteOrphansResult{Deleted: 0, Skipped: 1}, result)
 				assert.Zero(t, events)
+				assert.FileExists(t, filepath.Join(f.timeshiftRoot, timeshiftChunk))
 
 				return
 			}

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<9ab84fcfb2992c778f81c922c7e62e8e>>
+ * @generated SignedSource<<3c50a50d9364d8fd28be89370692eec7>>
  * @lightSyntaxTransform
  */
 
@@ -32,6 +32,24 @@ export type channelsQuery$data = {
     readonly name: string;
     readonly sortOrder: number | null | undefined;
   }>;
+  readonly timeshiftAvailable: boolean;
+  readonly timeshiftCandidates: ReadonlyArray<{
+    readonly id: string;
+  }>;
+  readonly timeshiftChannels: ReadonlyArray<{
+    readonly bufferedFrom: string | null | undefined;
+    readonly bufferedUntil: string | null | undefined;
+    readonly recording: boolean;
+    readonly retentionSeconds: number;
+    readonly service: {
+      readonly channelType: {
+        readonly displayName: string;
+      };
+      readonly id: string;
+      readonly logoUrl: string | null | undefined;
+      readonly name: string;
+    };
+  }>;
 };
 export type channelsQuery = {
   response: channelsQuery$data;
@@ -60,7 +78,36 @@ v2 = {
   "name": "id",
   "storageKey": null
 },
-v3 = [
+v3 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "name",
+  "storageKey": null
+},
+v4 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v5 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "ChannelType",
+  "kind": "LinkedField",
+  "name": "channelType",
+  "plural": false,
+  "selections": [
+    (v0/*:: as any*/)
+  ],
+  "storageKey": null
+},
+v6 = [
+  (v2/*:: as any*/)
+],
+v7 = [
   {
     "alias": null,
     "args": null,
@@ -96,20 +143,8 @@ v3 = [
     "plural": true,
     "selections": [
       (v2/*:: as any*/),
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "name",
-        "storageKey": null
-      },
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "logoUrl",
-        "storageKey": null
-      },
+      (v3/*:: as any*/),
+      (v4/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -118,20 +153,19 @@ v3 = [
         "storageKey": null
       },
       (v1/*:: as any*/),
-      {
-        "alias": null,
-        "args": null,
-        "concreteType": "ChannelType",
-        "kind": "LinkedField",
-        "name": "channelType",
-        "plural": false,
-        "selections": [
-          (v0/*:: as any*/)
-        ],
-        "storageKey": null
-      }
+      (v5/*:: as any*/)
     ],
     "storageKey": "services(includeHidden:true)"
+  },
+  {
+    "alias": "timeshiftCandidates",
+    "args": null,
+    "concreteType": "Service",
+    "kind": "LinkedField",
+    "name": "services",
+    "plural": true,
+    "selections": (v6/*:: as any*/),
+    "storageKey": null
   },
   {
     "alias": null,
@@ -165,8 +199,67 @@ v3 = [
     "kind": "LinkedField",
     "name": "passkeys",
     "plural": true,
+    "selections": (v6/*:: as any*/),
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "kind": "ScalarField",
+    "name": "timeshiftAvailable",
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "TimeshiftChannel",
+    "kind": "LinkedField",
+    "name": "timeshiftChannels",
+    "plural": true,
     "selections": [
-      (v2/*:: as any*/)
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "Service",
+        "kind": "LinkedField",
+        "name": "service",
+        "plural": false,
+        "selections": [
+          (v2/*:: as any*/),
+          (v3/*:: as any*/),
+          (v4/*:: as any*/),
+          (v5/*:: as any*/)
+        ],
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "retentionSeconds",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "bufferedFrom",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "bufferedUntil",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "recording",
+        "storageKey": null
+      }
     ],
     "storageKey": null
   }
@@ -177,7 +270,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "channelsQuery",
-    "selections": (v3/*:: as any*/),
+    "selections": (v7/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -186,19 +279,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "channelsQuery",
-    "selections": (v3/*:: as any*/)
+    "selections": (v7/*:: as any*/)
   },
   "params": {
-    "cacheID": "a361a95dd54e59d87d267dc6d38730ba",
+    "cacheID": "6994c8abb8dcae2ad9ff9abc2a361315",
     "id": null,
     "metadata": {},
     "name": "channelsQuery",
     "operationKind": "query",
-    "text": "query channelsQuery {\n  channelTypes {\n    type\n    displayName\n    sortOrder\n  }\n  services(includeHidden: true) {\n    id\n    name\n    logoUrl\n    hidden\n    sortOrder\n    channelType {\n      displayName\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query channelsQuery {\n  channelTypes {\n    type\n    displayName\n    sortOrder\n  }\n  services(includeHidden: true) {\n    id\n    name\n    logoUrl\n    hidden\n    sortOrder\n    channelType {\n      displayName\n    }\n  }\n  timeshiftCandidates: services {\n    id\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n  timeshiftAvailable\n  timeshiftChannels {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        displayName\n      }\n    }\n    retentionSeconds\n    bufferedFrom\n    bufferedUntil\n    recording\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "1bb937f2c4d4c3027d75f4e097c84ad7";
+(node as any).hash = "b75cfe7b021cac3c0548200d275eb59e";
 
 export default node;

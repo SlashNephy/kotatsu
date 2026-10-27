@@ -100,6 +100,10 @@ func (l *Library) DeleteOrphans(ctx context.Context, db Database, actor *audit.A
 
 // deleteOrphan は、target を確かめ直して消す。DB にあるか、使っているか、書いたばかりなら ErrNotOrphan を、なければ ErrNotFound を返す。
 func (l *Library) deleteOrphan(ctx context.Context, db Database, actor *audit.Actor, used *usedFiles, target *OrphanTarget) error {
+	// 走査の対象でないもの (タイムシフトのバッファなど) は、DB にないのが正常なので、孤児として消さない。
+	if !slices.Contains(l.store.ScanPoolIDs(), target.PoolID) {
+		return fmt.Errorf("%w: pool %s is not scanned", ErrNotOrphan, target.PoolID)
+	}
 	entry, err := l.store.Inspect(target.PoolID, target.Path, target.SegmentDir)
 	switch {
 	case errors.Is(err, kago.ErrInvalidPath), errors.Is(err, kago.ErrPoolNotMounted):
@@ -158,6 +162,15 @@ func (l *Library) usedFiles(ctx context.Context, db sqlc.DBTX) (*usedFiles, erro
 	used := &usedFiles{locations: map[kago.Location]struct{}{}, ids: map[uuid.UUID]struct{}{}}
 	for _, row := range rows {
 		used.add(row.ID, row.PoolID, row.Path)
+	}
+	// タイムシフトのチャンクの索引は、録画のセグメントと同じく、データディレクトリの「ID/」に置く。チャンクの行があるうちは使っているとみなす。
+	// チャンクのファイルはタイムシフトのディレクトリにあり、プールとして調べないので、置き場所は足さない。
+	chunks, err := sqlc.New(db).ListTimeshiftChunkIDs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the timeshift chunks: %w", err)
+	}
+	for _, chunk := range chunks {
+		used.add(chunk.ID, "", "")
 	}
 	// つないだ後は、DB の記録はつないだファイルに置き換わるが、つなぐ元のファイルは、置き換えるジョブが消すまで残る。
 	// ジョブは、マウントが戻るまで何日もやり直すことがあるので、終わっていないジョブのファイルは使っているとみなす。

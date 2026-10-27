@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,6 +26,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
+	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
@@ -176,6 +178,12 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 			PollOnly:     deps.Config.Database.Pooler,
 			PollInterval: 0,
 		},
+		Timeshift: &timeshift.SchedulerOptions{
+			Interval:     0,
+			Lead:         0,
+			PollOnly:     deps.Config.Database.Pooler,
+			PollInterval: 0,
+		},
 	})
 }
 
@@ -273,18 +281,60 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 
 		return system.Recording, nil
 	}
+	store := storeOf(deps.Config)
 	// 録画できない理由がこの mikan にあれば、ほかの mikan に回すため、ほかに動いている mikan を数える (#524)。
-	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, storeOf(deps.Config), defaults, location,
+	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, store, defaults, location,
 		logger.With(slog.String("component", "recorder")), &recording.RecorderOptions{
 			TuningTime: 0, Tick: 0, RetryInterval: 0, ReleaseAfter: 0,
 			Peers: recording.AlivePeers(deps.DB, deps.Clock, deps.InstanceID),
 		})
-	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), &recording.WorkerOptions{
+	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), recording.NewRecordingLeases(deps.DB), mikanWorkerOptions(deps))
+	if !store.HasTimeshiftDir() {
+		return worker.Run(ctx)
+	}
+
+	// タイムシフトのディレクトリを設定していれば、タイムシフトの割り振りも、同じインスタンスの ID で取って録る (設計書 5.7)。
+	timeshiftLogger := logger.With(slog.String("component", "timeshift"))
+	timeshiftRecorder := timeshift.NewRecorder(deps.DB, deps.Clock, tuner, store, timeshiftLogger, &timeshift.RecorderOptions{
+		ChunkDuration: 0, Backoff: nil, Tick: 0, Peers: recording.AlivePeers(deps.DB, deps.Clock, deps.InstanceID),
+	})
+	timeshiftWorker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, timeshiftLogger, timeshiftRecorder.Session(), timeshift.NewLeases(deps.DB),
+		mikanWorkerOptions(deps))
+	// タイムシフトの Worker がエラーで止まるか panic しても、予約の録画は止めない。
+	return runAlongside(ctx, timeshiftLogger, worker.Run, timeshiftWorker.Run)
+}
+
+// runAlongside は、main を ctx で動かし、その横で side を動かす。side がエラーで返るか panic しても、ログに残すだけで、main を止めない。
+// main が返ったら、side を止め、side が返るのを待ってから、main の結果を返す。ctx が終われば、両方とも止まる。
+func runAlongside(ctx context.Context, logger *slog.Logger, main, side func(context.Context) error) error {
+	sideCtx, stopSide := context.WithCancel(ctx)
+	defer stopSide()
+	sideDone := make(chan struct{})
+	go func() {
+		defer close(sideDone)
+		// side の panic で、main ごとプロセスを落とさない。拾ったら、スタックをログに残して、side だけ止める。
+		defer func() {
+			if v := recover(); v != nil {
+				logger.ErrorContext(ctx, "the worker panicked; the others keep running", slog.Any("panic", v), slog.String("stack", string(debug.Stack())))
+			}
+		}()
+		if err := side(sideCtx); err != nil && sideCtx.Err() == nil {
+			logger.ErrorContext(ctx, "the worker stopped with an error; the others keep running", slog.Any("error", err))
+		}
+	}()
+	err := main(ctx)
+	stopSide()
+	<-sideDone
+
+	return err
+}
+
+// mikanWorkerOptions は、mikan が割り振りを取る Worker の設定を返す。録画とタイムシフトで同じものを使う。
+func mikanWorkerOptions(deps *Deps) *recording.WorkerOptions {
+	return &recording.WorkerOptions{
 		LeaseTTL: 0, RenewInterval: 0, AcquireInterval: 0, HandoverTimeout: 0, ReleaseCooldown: 0,
 		// mikan を複数のマシンで動かしても、時計のずれでリースを取り違えないよう、DB の時刻で決める (#526)。
 		DatabaseClock: true,
 		PollOnly:      deps.Config.Database.Pooler, PollInterval: 0,
-	})
-
-	return worker.Run(ctx)
+	}
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
+	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
 )
@@ -53,6 +54,7 @@ type Resolver struct {
 	// recorder は、ほかの部品を通さずにリゾルバが直接残す監査ログ (セッションの失効など)。
 	recorder     audit.Recorder
 	settings     *settings.Store
+	timeshift    *timeshift.Channels
 	inbox        *notification.Inbox
 	webhooks     *webhook.Store
 	webPush      *webpush.Service

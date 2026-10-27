@@ -20,6 +20,11 @@ type Querier interface {
 	// 引き継ぎ待ちの割り振りは、リースが切れていなくても、ほかの mikan が取る (設計書 5.4)。
 	// 取る前の状態と、リースの期限も返す。引き継ぎか、落ちた mikan の代わりかで、途切れた区間の扱いが変わる。
 	AcquireRecordingAssignment(ctx context.Context, arg AcquireRecordingAssignmentParams) (AcquireRecordingAssignmentRow, error)
+	// mikan が、誰も持っていないか、リースの切れたタイムシフトの割り振りを 1 つ取る。ほかの mikan が同時に取ろうとしている行は飛ばす。
+	// 取るたびに世代番号を上げ、古い mikan のリースの延長を失敗させる。優先度の高いものから取る。
+	// 引き継ぎ待ちの割り振りは、リースが切れていなくても、ほかの mikan が取る (設計書 5.4)。
+	// 取る前の状態と、リースの期限も返す。引き継ぎか、落ちた mikan の代わりかで、途切れた区間の扱いが変わる。
+	AcquireTimeshiftAssignment(ctx context.Context, arg AcquireTimeshiftAssignmentParams) (AcquireTimeshiftAssignmentRow, error)
 	// 書き終えたセグメントのドロップ、エラー、スクランブルを、録画の集計に足す。
 	AddRecordingStats(ctx context.Context, arg AddRecordingStatsParams) error
 	// 放送の終わりが before より前の番組を、最大 batch_size 件だけ program_archives へ移す。
@@ -38,6 +43,8 @@ type Querier interface {
 	ClearUnmountedStoragePoolMeasurements(ctx context.Context, mounted []string) error
 	// 書き終えたファイルの大きさと、表す時間の終わりを記録する。
 	CloseRecordingFile(ctx context.Context, arg CloseRecordingFileParams) error
+	// 書き終えたチャンクの大きさと終わりの時刻を記録する。
+	CloseTimeshiftChunk(ctx context.Context, arg CloseTimeshiftChunkParams) (int64, error)
 	// 認可コードを消して返す。一度しか引き換えられないよう、引き換えるときに消す。期限を過ぎたものは返さない。
 	ConsumeOAuthAuthorizationCode(ctx context.Context, arg ConsumeOAuthAuthorizationCodeParams) (ConsumeOAuthAuthorizationCodeRow, error)
 	CountAPIRecordings(ctx context.Context, keyword string) (int64, error)
@@ -112,7 +119,18 @@ type Querier interface {
 	DeleteStaleRecordingAssignments(ctx context.Context, arg DeleteStaleRecordingAssignmentsParams) (int64, error)
 	// 使えなくなったセッション (失効させた、絶対的な期限を過ぎた、無操作の期限を過ぎた) を、max_count 件まで消す。
 	DeleteStaleSessions(ctx context.Context, arg DeleteStaleSessionsParams) (int64, error)
+	// 再生できる範囲の外になった、終わった番組を、全サービスでまとめて消す。チャンクの破棄に合わせて呼ぶ。
+	// 範囲の外は、サービスの残っているチャンクの最も早い始まりより前。チャンクが 1 つも残っていなければ、今より前。
+	// タイムシフトから外し、チャンクのなくなったサービスの行も残さない。
+	DeleteStaleTimeshiftPrograms(ctx context.Context, now time.Time) (int64, error)
 	DeleteTOTPEnrollment(ctx context.Context, userID uuid.UUID) error
+	// neko が、チューナーを渡すため、またはチャンネルの設定がなくなったために、割り振りを取り消す。状態によらず消す。
+	DeleteTimeshiftAssignment(ctx context.Context, serviceID int64) (int64, error)
+	// 割り振りを終えるために消す。タイムシフトには録画の行がないので、終えることは消すこと。録り続けるべきチャンネルなら、neko が次の周期で書き直す。
+	// 世代番号が進んでいたら、何もしない。
+	DeleteTimeshiftAssignmentByGeneration(ctx context.Context, arg DeleteTimeshiftAssignmentByGenerationParams) (int64, error)
+	DeleteTimeshiftChannel(ctx context.Context, serviceID int64) (int64, error)
+	DeleteTimeshiftChunk(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteTuners(ctx context.Context) error
 	// 録画の行を作らずに終えた割り振り (録画を始める前に予約を無効にした、など) を消す。世代番号が進んでいたら、何もしない。
 	// 終わったことにして残すと、予約を有効に戻しても、割り振りを書き直せない (#523)。
@@ -128,6 +146,8 @@ type Querier interface {
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (int64, error)
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
 	EnableUser(ctx context.Context, arg EnableUserParams) (int64, error)
+	// 終わっていない番組を閉じる。
+	EndTimeshiftProgram(ctx context.Context, arg EndTimeshiftProgramParams) (int64, error)
 	// 種別が無ければ既定値で足す。管理者が変えた表示名と並び順は上書きしない。
 	EnsureChannelType(ctx context.Context, arg EnsureChannelTypeParams) error
 	// 番組の終わりが before より前に過ぎても「録画中」のままで、録画している割り振り (終わっていないもの) もない録画を、失敗にする。
@@ -139,6 +159,8 @@ type Querier interface {
 	FinishRecording(ctx context.Context, arg FinishRecordingParams) error
 	// 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。引き継ぎ待ちの間に予定の終わりが来ても終える。
 	FinishRecordingAssignment(ctx context.Context, arg FinishRecordingAssignmentParams) (int64, error)
+	// タイムシフトを終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。
+	FinishTimeshiftAssignment(ctx context.Context, arg FinishTimeshiftAssignmentParams) (int64, error)
 	GetAPIRecording(ctx context.Context, apiID int64) (GetAPIRecordingRow, error)
 	// トークンのハッシュから、発行したユーザーを引く。無効にしたユーザーのトークンは使えない。
 	GetAPITokenUser(ctx context.Context, tokenHash []byte) (GetAPITokenUserRow, error)
@@ -152,6 +174,8 @@ type Querier interface {
 	GetGuideView(ctx context.Context, arg GetGuideViewParams) (GuideView, error)
 	// 取り込み元のデータを、既に取り込んだかどうか。取り込んでいれば、作った行の ID を返す。
 	GetImportedTarget(ctx context.Context, arg GetImportedTargetParams) (uuid.UUID, error)
+	// サービスのチャンクの、最も遅い終わり。落ちた mikan が残した放送中の番組を、録れていた最後の時刻で閉じるのに使う。
+	GetLastTimeshiftChunkEnd(ctx context.Context, serviceID int64) (*time.Time, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
 	GetLoginChallengeForUpdate(ctx context.Context, arg GetLoginChallengeForUpdateParams) (LoginChallenge, error)
 	GetLoginThrottles(ctx context.Context, throttleKeys []string) ([]LoginThrottle, error)
@@ -162,6 +186,9 @@ type Querier interface {
 	// 失効させるトークンの種類と連携を引く。ほかのクライアントのトークンは返さない。
 	GetOAuthTokenForRevocation(ctx context.Context, arg GetOAuthTokenForRevocationParams) (GetOAuthTokenForRevocationRow, error)
 	GetOIDCIdentity(ctx context.Context, arg GetOIDCIdentityParams) (UserOidcIdentity, error)
+	// 放送中として記録している番組。引き継いだ mikan が、同じ番組を 2 つの行に分けないよう、続きから追うのに使う。
+	// 落ちた mikan が残した番組を閉じるとき、チャンクがなければ、始まりで閉じるのにも使う。
+	GetOpenTimeshiftProgram(ctx context.Context, serviceID int64) (GetOpenTimeshiftProgramRow, error)
 	GetPasskeyByCredentialID(ctx context.Context, credentialID []byte) (UserPasskey, error)
 	// プレイヤーのユーザーとセッション。閉じたとみなすプレイヤーは返さない。
 	GetPlayerOwner(ctx context.Context, arg GetPlayerOwnerParams) (GetPlayerOwnerRow, error)
@@ -199,6 +226,7 @@ type Querier interface {
 	GetStoragePoolThreshold(ctx context.Context, id string) (int64, error)
 	GetSystemSettings(ctx context.Context) (SystemSetting, error)
 	GetTOTPEnrollmentForUpdate(ctx context.Context, arg GetTOTPEnrollmentForUpdateParams) (TotpEnrollment, error)
+	GetTimeshiftAssignmentStream(ctx context.Context, id uuid.UUID) (GetTimeshiftAssignmentStreamRow, error)
 	GetTunerServerStatus(ctx context.Context) (GetTunerServerStatusRow, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
@@ -257,6 +285,8 @@ type Querier interface {
 	InsertSession(ctx context.Context, arg InsertSessionParams) error
 	InsertSetupToken(ctx context.Context, arg InsertSetupTokenParams) error
 	InsertTimeReservation(ctx context.Context, arg InsertTimeReservationParams) error
+	InsertTimeshiftAssignment(ctx context.Context, arg InsertTimeshiftAssignmentParams) error
+	InsertTimeshiftChunk(ctx context.Context, arg InsertTimeshiftChunkParams) error
 	InsertTuner(ctx context.Context, arg InsertTunerParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) error
 	InsertUserPasskey(ctx context.Context, arg InsertUserPasskeyParams) error
@@ -274,6 +304,10 @@ type Querier interface {
 	ListAPIRecordings(ctx context.Context, arg ListAPIRecordingsParams) ([]ListAPIRecordingsRow, error)
 	// ユーザーの API トークンを、新しい順に返す。
 	ListAPITokens(ctx context.Context, userID uuid.UUID) ([]ListAPITokensRow, error)
+	// タイムシフトから外したチャンネルのうち、書きかけのチャンクか、放送中のままの番組が残り、割り振りのないサービス。
+	// mikan が強制終了した直後に外すと、閉じる mikan がいなくなるので、破棄のジョブが閉じる。
+	// 割り振りが残っていれば、mikan がまだ書いているかもしれないので、含めない。neko が割り振りを消せば、mikan が自分で閉じる。
+	ListAbandonedTimeshiftServices(ctx context.Context) ([]int64, error)
 	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
 	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
 	// 録画中でない録画の、書いたもののあるセグメントを、録画を始めた日時の新しい順、セグメントの始まりの順に返す。
@@ -295,6 +329,9 @@ type Querier interface {
 	// 割り振りを書く予約。有効で、チューナーの割り当てを計算済みで、予定の開始が due_before までに来て、まだ終わっておらず、割り振りのないもの。
 	ListDueReservations(ctx context.Context, arg ListDueReservationsParams) ([]ListDueReservationsRow, error)
 	ListEPGChangesSince(ctx context.Context, version int64) ([]ListEPGChangesSinceRow, error)
+	// 破棄するチャンク。書いている途中のものは除く。チャンネルの設定がなくなったサービスのものは全部、設定があるものは保持時間を過ぎたもの。
+	// 設定がなくなったサービスの、録る mikan のいない書きかけのチャンクは、先に閉じてから破棄する (ListAbandonedTimeshiftServices)。
+	ListExpiredTimeshiftChunks(ctx context.Context, now time.Time) ([]ListExpiredTimeshiftChunksRow, error)
 	// 録画中でない録画のセグメントの記録を、録画を始めた日時の新しい順に返す。ファイルの見つからない録画を探すのに使う。
 	ListFinishedRecordingSegments(ctx context.Context) ([]ListFinishedRecordingSegmentsRow, error)
 	// 放送が終わって before より前に録画の予定の終わりが過ぎ、録画も終わった予約。
@@ -337,6 +374,9 @@ type Querier interface {
 	ListOAuthGrants(ctx context.Context, userID uuid.UUID) ([]ListOAuthGrantsRow, error)
 	// 録画の、書き終えていないファイル。落ちた mikan が書きかけたまま残したものを、引き継ぐ mikan が閉じる。
 	ListOpenRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error)
+	// 書きかけのチャンク。mikan が落ちるなどして残ったものを、サービスを録り直す前か、外したチャンネルのものを破棄する前に、
+	// ファイルの大きさと最後に書いた時刻で閉じる。
+	ListOpenTimeshiftChunks(ctx context.Context, serviceID int64) ([]ListOpenTimeshiftChunksRow, error)
 	// 配っていないイベントを、古い順に引き、ロックする。ほかの nekonote が同じイベントを配らないよう、ロック中の行は飛ばす。
 	ListPendingNotificationEvents(ctx context.Context, maxCount int32) ([]NotificationEvent, error)
 	// ユーザーがピン留めしたサービスを、ピン留めした順に返す (#485)。
@@ -380,8 +420,13 @@ type Querier interface {
 	// 延長で臨時のサブチャンネルへ移るときは、移る先の番組が、移った時点で初めて EPG に出ることがあるので、
 	// 予約の終わりが過ぎても、終わりが since より後の予約は追う (#639)。EID が再利用された番組 (予約の終わりより後に始まる) は除く。
 	ListReservationsToRelay(ctx context.Context, since time.Time) ([]ListReservationsToRelayRow, error)
+	// from から to までの間にチューナーを使う予約。有効で、チューナーを割り当て済みで、予定が期間と重なるもの。録画中の予約も含む。
+	ListReservationsUsingTunersBetween(ctx context.Context, arg ListReservationsUsingTunersBetweenParams) ([]ListReservationsUsingTunersBetweenRow, error)
 	ListRules(ctx context.Context) ([]Rule, error)
 	ListRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rule, error)
+	// サービスのあるチャンネル種別とチャンネルの組。チューナーサーバーが番組表を取るチャンネルで、
+	// タイムシフトの割り振りで、番組表の取得に残すチューナーを決めるのに使う。
+	ListServiceChannels(ctx context.Context) ([]ListServiceChannelsRow, error)
 	// 取り込むデータが参照するサービスが、Kotatsu にあるかを確かめるのに使う。
 	ListServiceIDs(ctx context.Context) ([]int64, error)
 	ListServices(ctx context.Context) ([]ListServicesRow, error)
@@ -390,6 +435,18 @@ type Querier interface {
 	ListStoragePools(ctx context.Context) ([]StoragePool, error)
 	// タグを、付いている録画の数と一緒に、名前の順で返す。
 	ListTags(ctx context.Context) ([]ListTagsRow, error)
+	ListTimeshiftAssignments(ctx context.Context) ([]TimeshiftAssignment, error)
+	// タイムシフトで録るチャンネルの、バッファにある範囲。管理の画面とメトリクスに使う。チャンクのないサービスは返さない。
+	// 範囲は、最も古いチャンクの始まりから、最新のチャンクの終わりまで。書いている途中のチャンクは、今まで録れているものとする。
+	ListTimeshiftBufferRanges(ctx context.Context, now time.Time) ([]ListTimeshiftBufferRangesRow, error)
+	// タイムシフトで録るチャンネルと、mikan が録っているか。管理の画面に使う。
+	// 録っているかは、mikan が割り振りを持ち、リースが切れていないかで決める。
+	ListTimeshiftChannelStatuses(ctx context.Context, now time.Time) ([]ListTimeshiftChannelStatusesRow, error)
+	// タイムシフトで録るチャンネル。割り振りと、録画のチューナーとの衝突の判定には、サービスのチャンネル種別とチャンネルが要る。
+	// チューナーが足りないときに先に録るものを決めるため、チャンネル種別の並び順、サービス ID の順に返す。
+	ListTimeshiftChannels(ctx context.Context) ([]ListTimeshiftChannelsRow, error)
+	// 記録のあるチャンクの ID とパス。ディスク上のファイルとの突き合わせに使う。
+	ListTimeshiftChunkIDs(ctx context.Context) ([]ListTimeshiftChunkIDsRow, error)
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
 	ListUsableTuners(ctx context.Context) ([]ListUsableTunersRow, error)
 	ListUserOIDCIdentities(ctx context.Context, userID uuid.UUID) ([]UserOidcIdentity, error)
@@ -436,6 +493,10 @@ type Querier interface {
 	LockStoragePool(ctx context.Context, arg LockStoragePoolParams) (StoragePool, error)
 	// 行がなければ既定値で作り、行をロックする。同時に変えても、片方の変更を失わない。
 	LockSystemSettings(ctx context.Context, arg LockSystemSettingsParams) (SystemSetting, error)
+	// 割り振りを手放す前に、行をロックして、今の世代番号を読む。ほかの mikan が取っていたら、手放さない。
+	LockTimeshiftAssignmentGeneration(ctx context.Context, id uuid.UUID) (int64, error)
+	// 変える前の保持時間を監査ログに残すため、チャンネルの行をロックして読む。
+	LockTimeshiftChannel(ctx context.Context, serviceID int64) (int32, error)
 	// ユーザーの行を、トランザクションが終わるまで書き込みからロックする。同じユーザーの登録を同時に行わせない。
 	LockUser(ctx context.Context, id uuid.UUID) (LockUserRow, error)
 	// 変える前の値を監査ログに残すため、行をロックして読む。
@@ -456,6 +517,10 @@ type Querier interface {
 	MarkRecordingWaitedForBroadcast(ctx context.Context, arg MarkRecordingWaitedForBroadcastParams) (int64, error)
 	// 空き容量が閾値を下回ったままになったことを記録する。すでに記録していれば何もしない (0 行)。
 	MarkStoragePoolLow(ctx context.Context, arg MarkStoragePoolLowParams) (int64, error)
+	// 止まる mikan が、割り振りに引き継ぎ待ちの印を付ける (設計書 5.4)。
+	MarkTimeshiftHandover(ctx context.Context, arg MarkTimeshiftHandoverParams) (int64, error)
+	// 割り振りを取った mikan が、ストリームを開いたことを記録する。
+	MarkTimeshiftStreamOpened(ctx context.Context, arg MarkTimeshiftStreamOpenedParams) error
 	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
 	NotifyChange(ctx context.Context, arg NotifyChangeParams) error
 	PinService(ctx context.Context, arg PinServiceParams) error
@@ -483,14 +548,20 @@ type Querier interface {
 	ReleaseLease(ctx context.Context, arg ReleaseLeaseParams) error
 	// 止まる mikan が、引き継ぐ mikan がいないときに、割り振りを手放す。再起動した mikan が、リースが切れるのを待たずに取れる。
 	ReleaseRecordingAssignment(ctx context.Context, arg ReleaseRecordingAssignmentParams) error
+	// 止まる mikan が、引き継ぐ mikan がいないときに、割り振りを手放す。再起動した mikan が、リースが切れるのを待たずに取れる。
+	ReleaseTimeshiftAssignment(ctx context.Context, arg ReleaseTimeshiftAssignmentParams) error
 	// 録画できない理由がこの mikan にあるので、割り振りを手放し、まだ取っていない状態に戻す (#524)。ほかの mikan が取る。
 	// まだ何も録っていないので、続きとしてではなく、初めから録る。予定の終わりまで誰も取らなければ、neko が消す。
 	ReleaseUnrecordableRecordingAssignment(ctx context.Context, arg ReleaseUnrecordableRecordingAssignmentParams) error
+	// 録れない理由がこの mikan にあるので、割り振りを手放し、まだ取っていない状態に戻す。ほかの mikan が取る。
+	ReleaseUnrecordableTimeshiftAssignment(ctx context.Context, arg ReleaseUnrecordableTimeshiftAssignmentParams) error
 	RenameUserPasskey(ctx context.Context, arg RenameUserPasskeyParams) (int64, error)
 	// 同じ世代のリースを期限内に延長する。期限が切れていたり、他のインスタンスに取られていたりすれば、行を更新しない。
 	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
 	// 割り振りのリースを延長する。世代番号が進んでいたら、ほかの mikan が取ったので、延長しない。引き継ぎ待ちの間も延長する。
 	RenewRecordingAssignment(ctx context.Context, arg RenewRecordingAssignmentParams) (int64, error)
+	// 割り振りのリースを延長する。世代番号が進んでいたら、ほかの mikan が取ったので、延長しない。引き継ぎ待ちの間も延長する。
+	RenewTimeshiftAssignment(ctx context.Context, arg RenewTimeshiftAssignmentParams) (int64, error)
 	ResetLoginThrottle(ctx context.Context, key string) error
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	// ユーザーのセッションをまとめて失効させる。keep_id のセッション (パスワードを変えた本人の今のセッション) は残す。
@@ -558,6 +629,8 @@ type Querier interface {
 	// ジャンルと、一致したルール (最も古いもの) とその名前も、予約から写す。予約やルールを消しても、録画を絞れるようにする (#468)。
 	// recorded_from は、録画ファイルに書き始める時刻。チューニングのために早く開いたストリームは、予定の開始まで捨てるので (#847)、now より後になることがある。
 	StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error)
+	// 番組の始まりを記録する。同じ時刻の行があれば、その番組は始まってすぐに替わったので、新しい番組で置き換え、放送中に戻す。
+	StartTimeshiftProgram(ctx context.Context, arg StartTimeshiftProgramParams) error
 	// /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。
 	SumActiveRecordingPackets(ctx context.Context) (SumActiveRecordingPacketsRow, error)
 	// 通知を送る時刻 (放送の開始からユーザーの設定の分だけ前) を過ぎ、放送が終わっていない視聴予約を消して返す。
@@ -567,6 +640,8 @@ type Querier interface {
 	TakeOIDCLogin(ctx context.Context, arg TakeOIDCLoginParams) (OidcLogin, error)
 	// 手続きは 1 回しか使わせないので、引くと同時に消す。
 	TakeWebAuthnCeremony(ctx context.Context, arg TakeWebAuthnCeremonyParams) (WebauthnCeremony, error)
+	// 割り振りが残っているかどうか。neko が取り消すと、割り振りは消える。
+	TimeshiftAssignmentExists(ctx context.Context, id uuid.UUID) (bool, error)
 	TouchAPIToken(ctx context.Context, arg TouchAPITokenParams) error
 	TouchOAuthGrant(ctx context.Context, arg TouchOAuthGrantParams) error
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
@@ -606,6 +681,7 @@ type Querier interface {
 	UpsertTOTPEnrollment(ctx context.Context, arg UpsertTOTPEnrollmentParams) error
 	// 名前のタグを作り、ID を返す。すでにあれば、そのタグの ID を返す。
 	UpsertTag(ctx context.Context, arg UpsertTagParams) (uuid.UUID, error)
+	UpsertTimeshiftChannel(ctx context.Context, arg UpsertTimeshiftChannelParams) error
 	UpsertTunerServerStatus(ctx context.Context, arg UpsertTunerServerStatusParams) error
 	UpsertUserTOTP(ctx context.Context, arg UpsertUserTOTPParams) error
 	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) error

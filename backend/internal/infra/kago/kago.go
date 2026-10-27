@@ -42,11 +42,17 @@ type Store struct {
 	totalSpace TotalSpaceFunc
 	// dataDir は、データディレクトリ。
 	dataDir string
+	// timeshiftDir は、タイムシフトのバッファを置くディレクトリ。
+	timeshiftDir string
 }
 
 // DataPoolID は、データディレクトリ (WithDataDir) を、Store の中でプールと同じく扱うときの ID。
 // DB にも API にも出さない。設定のプールの ID とは重ならないよう、_ で始める。
 const DataPoolID = "_data"
+
+// TimeshiftPoolID は、タイムシフトのディレクトリ (WithTimeshiftDir) を、Store の中でプールと同じく扱うときの ID。
+// DataPoolID と同じく、DB にも API にも出さず、PoolIDs と ScanPoolIDs にも含めない。
+const TimeshiftPoolID = "_timeshift"
 
 // Location は、プールの中のファイルの場所。
 type Location struct {
@@ -90,8 +96,11 @@ func NewOrdered(mounts map[string]string, order []string, freeSpace FreeSpaceFun
 		}
 	}
 
-	// 呼び出し側が後から書き換えても影響しないよう、複製して持つ。
-	return &Store{mounts: maps.Clone(mounts), order: ordered, freeSpace: freeSpace, totalSpace: TotalSpace, dataDir: ""}
+	// 呼び出し側が後から書き換えても影響しないよう、複製して持つ。プールがなくても、データやタイムシフトのディレクトリを足せるよう、空の対応にする。
+	cloned := make(map[string]string, len(mounts))
+	maps.Copy(cloned, mounts)
+
+	return &Store{mounts: cloned, order: ordered, freeSpace: freeSpace, totalSpace: TotalSpace, dataDir: "", timeshiftDir: ""}
 }
 
 // WithTotalSpace は、プールの容量を totalSpace で調べる Store を返す。totalSpace が nil なら、s をそのまま返す。
@@ -100,7 +109,7 @@ func (s *Store) WithTotalSpace(totalSpace TotalSpaceFunc) *Store {
 		return s
 	}
 
-	return &Store{mounts: s.mounts, order: s.order, freeSpace: s.freeSpace, totalSpace: totalSpace, dataDir: s.dataDir}
+	return &Store{mounts: s.mounts, order: s.order, freeSpace: s.freeSpace, totalSpace: totalSpace, dataDir: s.dataDir, timeshiftDir: s.timeshiftDir}
 }
 
 // WithDataDir は、セグメントの生成物を、dir の中の「セグメントのファイルの ID/」に置く Store を返す (設計書 5.6)。
@@ -112,7 +121,25 @@ func (s *Store) WithDataDir(dir string) *Store {
 	mounts := maps.Clone(s.mounts)
 	mounts[DataPoolID] = dir
 
-	return &Store{mounts: mounts, order: s.order, freeSpace: s.freeSpace, totalSpace: s.totalSpace, dataDir: dir}
+	return &Store{mounts: mounts, order: s.order, freeSpace: s.freeSpace, totalSpace: s.totalSpace, dataDir: dir, timeshiftDir: s.timeshiftDir}
+}
+
+// WithTimeshiftDir は、タイムシフトのバッファを、dir の中に置く Store を返す。
+// dir が空なら、s をそのまま返す。そのときは、タイムシフトのどの処理も動かない。
+// dir は TimeshiftPoolID のプールとして引けるが、PoolIDs と ScanPoolIDs には出ない。
+func (s *Store) WithTimeshiftDir(dir string) *Store {
+	if dir == "" {
+		return s
+	}
+	mounts := maps.Clone(s.mounts)
+	mounts[TimeshiftPoolID] = dir
+
+	return &Store{mounts: mounts, order: s.order, freeSpace: s.freeSpace, totalSpace: s.totalSpace, dataDir: s.dataDir, timeshiftDir: dir}
+}
+
+// HasTimeshiftDir は、タイムシフトのディレクトリを設定してあるかを返す。
+func (s *Store) HasTimeshiftDir() bool {
+	return s.timeshiftDir != ""
 }
 
 // SegmentDir は、セグメントのファイル fileID (recording_files.id) の生成物のディレクトリの場所を返す。

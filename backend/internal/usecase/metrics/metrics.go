@@ -1,6 +1,6 @@
 // Package metrics は、/metrics で公開する Kotatsu のメトリクスを集める (設計書 11.3)。
 //
-// 録画、予約、チューナー、保存先プール、ジョブのキューは、どのインスタンスからも同じ DB を読むので、どのインスタンスの /metrics も、クラスター全体の同じ値を返す。
+// 録画、予約、チューナー、保存先プール、ジョブのキュー、タイムシフトのバッファは、どのインスタンスからも同じ DB を読むので、どのインスタンスの /metrics も、クラスター全体の同じ値を返す。
 // 集計するときは、インスタンスをまたいで足さず、max などで 1 つにまとめる。
 // OTLP では、これらをクラスターの範囲として、neko のリースを持つインスタンスだけが送る (#962)。
 // ラベルには、番組名のように視聴の傾向が分かる値を入れない。
@@ -9,6 +9,7 @@ package metrics
 import (
 	"context"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,7 +34,7 @@ func FailureCountsCreated() time.Time {
 	return time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC)
 }
 
-// DBCollector は、DB から、録画、予約、割り振り、チューナー、保存先プール、River のキューの状態を、収集のたびに読む。
+// DBCollector は、DB から、録画、予約、割り振り、チューナー、保存先プール、River のキュー、タイムシフトのバッファの状態を、収集のたびに読む。
 // どのインスタンスでも同じ値になるものだけを集める。neko のリースを持っているかは、LeaderCollector で集める。
 type DBCollector struct {
 	pool   *pgxpool.Pool
@@ -52,6 +53,7 @@ type DBCollector struct {
 	poolThreshold    *prometheus.Desc
 	poolMeasured     *prometheus.Desc
 	jobs             *prometheus.Desc
+	timeshiftBuffer  *prometheus.Desc
 	collectionErrors *prometheus.Desc
 }
 
@@ -77,6 +79,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *D
 		poolThreshold:    desc("storage_pool_threshold_bytes", "Free space that the capacity check keeps in the storage pools by deleting old recordings. 0 means it deletes nothing.", "pool"),
 		poolMeasured:     desc("storage_pool_last_measured_timestamp_seconds", "Time when the capacity check last measured the storage pools.", "pool"),
 		jobs:             desc("river_jobs", "Number of River jobs waiting or running, by queue and state.", "queue", "state"),
+		timeshiftBuffer:  desc("timeshift_buffer_seconds", "Length of the timeshift buffer, from the start of the oldest chunk to the end of the newest, by configured service. 0 if no chunk is buffered.", "service_id"),
 		collectionErrors: desc("metrics_collection_errors", "Number of metric groups that could not be read from the database in this scrape."),
 	}
 }
@@ -84,7 +87,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *D
 // Describe は、集めるメトリクスの説明を送る。
 func (c *DBCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{
-		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.reservations, c.assignments, c.tuners, c.poolBytes, c.poolThreshold, c.poolMeasured, c.jobs, c.collectionErrors,
+		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.reservations, c.assignments, c.tuners, c.poolBytes, c.poolThreshold, c.poolMeasured, c.jobs, c.timeshiftBuffer, c.collectionErrors,
 	} {
 		ch <- d
 	}
@@ -97,7 +100,7 @@ func (c *DBCollector) Collect(ch chan<- prometheus.Metric) {
 
 	failed := 0
 	for _, collect := range []func(context.Context, chan<- prometheus.Metric) error{
-		c.collectRecordings, c.collectReservations, c.collectAssignments, c.collectTuners, c.collectStoragePools, c.collectJobs,
+		c.collectRecordings, c.collectReservations, c.collectAssignments, c.collectTuners, c.collectStoragePools, c.collectJobs, c.collectTimeshift,
 	} {
 		if err := collect(ctx, ch); err != nil {
 			c.logger.WarnContext(ctx, "failed to collect metrics", slog.Any("error", err))
@@ -219,4 +222,28 @@ func (c *DBCollector) collectJobs(ctx context.Context, ch chan<- prometheus.Metr
 	}
 
 	return rows.Err()
+}
+
+// collectTimeshift は、タイムシフトで録るチャンネルごとに、バッファの長さを送る。ラベルの数は、録るチャンネルの数に抑える。
+// チャンクがまだないチャンネルも 0 として送り、系列が途切れないようにする。外したチャンネルのチャンクは、残っていても送らない。
+func (c *DBCollector) collectTimeshift(ctx context.Context, ch chan<- prometheus.Metric) error {
+	q := sqlc.New(c.pool)
+	now := c.clock.Now()
+	channels, err := q.ListTimeshiftChannelStatuses(ctx, now)
+	if err != nil {
+		return err
+	}
+	ranges, err := q.ListTimeshiftBufferRanges(ctx, now)
+	if err != nil {
+		return err
+	}
+	seconds := make(map[int64]float64, len(ranges))
+	for _, row := range ranges {
+		seconds[row.ServiceID] = row.BufferedUntil.Sub(row.BufferedFrom).Seconds()
+	}
+	for _, row := range channels {
+		ch <- prometheus.MustNewConstMetric(c.timeshiftBuffer, prometheus.GaugeValue, seconds[row.ServiceID], strconv.FormatInt(row.ServiceID, 10))
+	}
+
+	return nil
 }
