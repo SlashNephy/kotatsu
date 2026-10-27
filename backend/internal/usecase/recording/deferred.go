@@ -3,6 +3,7 @@ package recording
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 	"time"
 
@@ -78,25 +79,49 @@ func (r *Recorder) cachedPools(ctx context.Context, mounted []string, poolID str
 	return poolsFrom(rows, mounted, poolID), nil
 }
 
+// pendingWrite は、DB に届くようになってから書く、録画の記録。recordingID は、そのときの録画の ID。
+type pendingWrite func(ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID) error
+
 // pendingSave は、DB に届かずに記録できていない録画とセグメント (#1073)。
-// 録画の行がなければ、セグメントの行も書けないので、録画、セグメントの順に、作った順で記録する。
+// 録画の行がなければ、セグメントの行も書けないので、録画、書きかけのセグメントの片付け、セグメントの作成と終わりの順に記録する。
 type pendingSave struct {
 	// recording は、Session の録画。記録したら、DB の行で置き換える (引き継ぎや再開なら、ID が変わる)。
 	recording *sqlc.Recording
 	// start は、録画をまだ記録していないかどうか。
 	start bool
+	// closeStale は、落ちた mikan の書きかけのセグメントを、まだ閉じていないかどうか。
+	closeStale bool
 	// startedAt は、録画を始めた時刻。録画は、この時刻で記録する。
 	startedAt time.Time
 	// handedOver は、止まる mikan から引き継いだかどうか。引き継いだなら、書きかけのセグメントを閉じない。
 	handedOver bool
-	// segments は、まだ記録していないセグメント。
-	segments []*segment
-	cache    *sessionCache
+	// writes は、まだ書いていないセグメントの作成と終わりの記録。作った順に書く。
+	writes []pendingWrite
+	cache  *sessionCache
 }
 
 // waiting は、記録できていないものがあるかどうかを返す。
 func (p *pendingSave) waiting() bool {
-	return p.start || len(p.segments) > 0
+	return p.start || p.closeStale || len(p.writes) > 0
+}
+
+// writeOrDefer は、write を書く。記録できていないものが残っていれば、順を守るため、書かずに積む。
+// DB に届かなければ、積んで nil を返す。
+func (p *pendingSave) writeOrDefer(ctx context.Context, r *Recorder, write pendingWrite) error {
+	if p.waiting() {
+		p.writes = append(p.writes, write)
+
+		return nil
+	}
+	err := write(ctx, sqlc.New(r.pool), p.recording.ID)
+	if database.IsUnavailable(err) {
+		r.logger.WarnContext(ctx, "failed to save the recording file; keep recording and save it when the database is reachable", slog.Any("error", err))
+		p.writes = append(p.writes, write)
+
+		return nil
+	}
+
+	return err
 }
 
 // save は、記録できていない録画とセグメントを記録する。失敗したら、残りを残して返す。
@@ -109,21 +134,35 @@ func (p *pendingSave) save(ctx context.Context, r *Recorder, tracker *endTracker
 		*p.recording = recording
 		tracker.recordingID = recording.ID
 		p.start = false
-		// 落ちた mikan の代わりに取ったなら、書きかけのセグメントを閉じる。まだ記録していない、この mikan のセグメントは閉じない。
-		if !p.handedOver {
-			if err := r.closeStaleFiles(ctx, recording.ID, p.startedAt); err != nil {
-				return err
-			}
-		}
+		p.closeStale = !p.handedOver
 	}
-	for len(p.segments) > 0 {
-		if err := sqlc.New(r.pool).InsertRecordingFile(ctx, segmentParams(p.segments[0], p.recording.ID)); err != nil {
-			return fmt.Errorf("failed to save the recording file: %w", err)
+	// 落ちた mikan の代わりに取ったなら、書きかけのセグメントを閉じる。まだ記録していない、この mikan のセグメントは閉じない。
+	if p.closeStale {
+		if err := r.closeStaleFiles(ctx, p.recording.ID, p.startedAt); err != nil {
+			return err
 		}
-		p.segments = slices.Delete(p.segments, 0, 1)
+		p.closeStale = false
+	}
+	q := sqlc.New(r.pool)
+	for len(p.writes) > 0 {
+		if err := p.writes[0](ctx, q, p.recording.ID); err != nil {
+			return err
+		}
+		p.writes = slices.Delete(p.writes, 0, 1)
 	}
 
 	return nil
+}
+
+// insertSegment は、セグメント seg を記録する書き込みを返す。
+func insertSegment(seg *segment) pendingWrite {
+	return func(ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID) error {
+		if err := q.InsertRecordingFile(ctx, segmentParams(seg, recordingID)); err != nil {
+			return fmt.Errorf("failed to save the recording file: %w", err)
+		}
+
+		return nil
+	}
 }
 
 // segmentParams は、セグメント seg を、録画 recordingID のファイルとして記録する引数を返す。
