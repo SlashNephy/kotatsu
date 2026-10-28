@@ -126,6 +126,48 @@ jobs:
       - run: mise run build
       - run: mise run //backend:test
 
+  # Linux 以外の配布先 (Windows、macOS) でも、DB を使わないテストを動かす (#1099)。
+  # DB のサービスコンテナーは Linux のランナーでしか動かないので、DB を使うテストは飛ばす。FFmpeg と tsreadex を使うテストも、ないので飛ばす。
+  test-os:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    env:
+      KOTATSU_TEST_SKIP_DATABASE: "1"
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # テストには Go だけを使う。golangci-lint、sqlc、atlas は入れない。
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
+        with:
+          working_directory: backend
+          install_args: go
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            ~/AppData/Local/go-build
+          key: go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-${{ github.job }}-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
+            go-${{ github.job }}-${{ runner.os }}-
+      - run: go test ./...
+
   lint:
     needs: changes
     if: needs.changes.outputs.go == 'true'
@@ -313,6 +355,7 @@ jobs:
     needs:
       - changes
       - test
+      - test-os
       - lint
       - deploy
       - mpeg2toh264

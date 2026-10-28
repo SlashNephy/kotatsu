@@ -23,6 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 	// SQLite のドライバ。
 	_ "modernc.org/sqlite"
+
+	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 )
 
 // Dialect は、EPGStation が対応する DB の種類。
@@ -117,7 +119,7 @@ func newMySQL(t *testing.T, env string) *DB {
 
 	adminURL, ok := os.LookupEnv(env)
 	if !ok || adminURL == "" {
-		if _, inCI := os.LookupEnv("CI"); inCI {
+		if databasetest.MustRunInCI() {
 			t.Fatalf("%s must be set in CI", env)
 		}
 		t.Skipf("%s is not set; skipping a test that needs it", env)
