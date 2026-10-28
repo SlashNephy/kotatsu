@@ -74,3 +74,26 @@ func TestRenameReplaces(t *testing.T) {
 	_, err = os.Stat(from)
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
+
+// TestRenameReplacesAnOpenFile は、Open で開いている読み手がいても、Rename が移す先を置き換え、
+// 読み手は置き換える前の中身を読み続けられることを確かめる (#1096)。
+// Windows では POSIX の意味の rename が要る。wine はこれに対応しないので、wine では失敗する。
+func TestRenameReplacesAnOpenFile(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	from, to := filepath.Join(dir, "index.tmp"), filepath.Join(dir, "index")
+	require.NoError(t, os.WriteFile(from, []byte("new"), 0o600))
+	require.NoError(t, os.WriteFile(to, []byte("old"), 0o600))
+	reader, err := sharedfile.Open(to)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = reader.Close() })
+
+	require.NoError(t, sharedfile.Rename(from, to))
+	data, err := os.ReadFile(to)
+	require.NoError(t, err)
+	assert.Equal(t, "new", string(data))
+	old, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	assert.Equal(t, "old", string(old))
+}
