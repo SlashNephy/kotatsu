@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -396,9 +398,12 @@ func TestLoadStorage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg, err := config.Load(writeFile(t, t.TempDir(), "config.yaml", tt.yaml), lookup(tt.env))
+			cfg, err := config.Load(writeFile(t, t.TempDir(), "config.yaml", nativePaths(tt.yaml)), lookup(nativeEnv(tt.env)))
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, cfg.Storage)
+			want := tt.want
+			want.Pools = nativeEnv(want.Pools)
+			want.DataDir, want.TimeshiftDir = nativePaths(want.DataDir), nativePaths(want.TimeshiftDir)
+			assert.Equal(t, want, cfg.Storage)
 		})
 	}
 }
@@ -925,10 +930,10 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 
 			path := ""
 			if tt.yaml != "" {
-				path = writeFile(t, t.TempDir(), "config.yaml", tt.yaml)
+				path = writeFile(t, t.TempDir(), "config.yaml", nativePaths(tt.yaml))
 			}
 
-			_, err := config.Load(path, lookup(tt.env))
+			_, err := config.Load(path, lookup(nativeEnv(tt.env)))
 			require.Error(t, err)
 			for _, want := range tt.wantErrs {
 				assert.ErrorContains(t, err, want)
@@ -1048,4 +1053,30 @@ func TestLoadRejectsTimeshiftDirectoryReachedByAnotherPath(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// rootedPath は、テストの値の中の、/ から始まる絶対パス。
+var rootedPath = regexp.MustCompile(`(^|[\s=,])/`)
+
+// nativePaths は、テストの値の中の、/ から始まる絶対パスを、この OS の絶対パスにする。
+// Windows では、/mnt/main はドライブ文字がないので絶対パスにならない。C: を前に付ける。ほかの OS では、そのまま返す。
+func nativePaths(s string) string {
+	if runtime.GOOS != "windows" {
+		return s
+	}
+
+	return rootedPath.ReplaceAllString(s, "${1}C:/")
+}
+
+// nativeEnv は、値の中の絶対パスを nativePaths で直した写しを返す。
+func nativeEnv(env map[string]string) map[string]string {
+	if env == nil {
+		return nil
+	}
+	native := make(map[string]string, len(env))
+	for k, v := range env {
+		native[k] = nativePaths(v)
+	}
+
+	return native
 }
