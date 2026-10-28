@@ -177,6 +177,9 @@ storage:
 KOTATSU_STORAGE_POOLS=main=/mnt/main,sub=/mnt/sub
 ```
 
+Windowsでは、ドライブ文字から書きます（`KOTATSU_STORAGE_POOLS=main=D:\rec`）。
+YAMLでは、二重引用符で囲むと`\`がエスケープになるので、引用符なしか一重引用符で書いてください（`main: 'D:\rec'`）。
+
 DBには、録画のパスを「プールのID」と「プールの中の相対パス」で記録します。
 そのため、ロールごとにマウント先が違っていても構いません。
 

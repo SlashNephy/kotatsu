@@ -139,7 +139,7 @@ func TestPath(t *testing.T) {
 		want    string
 		wantErr error
 	}{
-		{name: "file", poolID: poolMain, rel: "anime/番組.m2ts", want: "/mnt/main/anime/番組.m2ts"},
+		{name: "file", poolID: poolMain, rel: "anime/番組.m2ts", want: filepath.FromSlash("/mnt/main/anime/番組.m2ts")},
 		{name: "parent directory", poolID: poolMain, rel: "../etc/passwd", wantErr: kago.ErrInvalidPath},
 		{name: "parent directory in the middle", poolID: poolMain, rel: "a/../../b", wantErr: kago.ErrInvalidPath},
 		{name: "absolute path", poolID: poolMain, rel: "/etc/passwd", wantErr: kago.ErrInvalidPath},

@@ -54,6 +54,8 @@ type DB struct {
 	URL string
 	// Writer は、テストのデータを入れるための、書き込みのできる接続。
 	Writer *sql.DB
+	// Path は、SQLite の DB のファイルのパス。SQLite のときだけ持つ。
+	Path string
 }
 
 // New は、EPGStation のスキーマを適用した空の DB を作る。DB はテストの終了時に消す。
@@ -101,7 +103,13 @@ func newSQLite(t *testing.T) *DB {
 		_ = writer.Close()
 	})
 
-	return &DB{URL: (&url.URL{Scheme: "sqlite", Path: path}).String(), Writer: writer}
+	return &DB{URL: SQLiteURL(path), Writer: writer, Path: path}
+}
+
+// SQLiteURL は、SQLite のファイル path を指す sqlite: の URL を返す。
+// Windows のパス (C:\...) は、利用者が書くのと同じく sqlite:///C:/... の形にする。
+func SQLiteURL(path string) string {
+	return (&url.URL{Scheme: "sqlite", Path: "/" + strings.TrimPrefix(filepath.ToSlash(path), "/")}).String()
 }
 
 func newMySQL(t *testing.T, env string) *DB {
@@ -141,7 +149,7 @@ func newMySQL(t *testing.T, env string) *DB {
 	})
 	u.Path = "/" + name
 
-	return &DB{URL: u.String(), Writer: writer}
+	return &DB{URL: u.String(), Writer: writer, Path: ""}
 }
 
 func dsn(u *url.URL, database string) string {

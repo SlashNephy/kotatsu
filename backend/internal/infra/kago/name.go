@@ -64,7 +64,8 @@ func sanitizeDirName(name string) string {
 	return cutName(stripName(name), maxNameBytes)
 }
 
-// cutName は、name を limit バイト以内に、文字の境界で切り詰める。切った位置の前の空白とドットも取り除く。
+// cutName は、name を limit バイト以内に、文字の境界で切り詰める。切った位置の前の空白とドットも取り除き、
+// 予約された名前が残れば _ を付ける。
 func cutName(name string, limit int) string {
 	if len(name) <= limit {
 		return name
@@ -74,7 +75,7 @@ func cutName(name string, limit int) string {
 		cut--
 	}
 
-	return strings.TrimRight(name[:cut], trimmedChars)
+	return escapeReservedName(strings.TrimRight(name[:cut], trimmedChars))
 }
 
 // SanitizeName は、ファイル名として使えない文字を取り除く。
@@ -83,6 +84,7 @@ func cutName(name string, limit int) string {
 //   - Windows で使えない記号 (: * ? " < > |) を取り除く。プールのファイルは SMB などでほかのツールからも見るため
 //   - UTF-8 として正しくないバイトを取り除く
 //   - 前後の空白とドットを取り除く (先頭のドットは隠しファイルになり、末尾のドットは SMB で扱えないため)
+//   - Windows が予約している名前 (CON、NUL、COM1 など) なら、最初のドットの前に _ を付ける
 //   - 何も残らなければ "untitled" にする
 func SanitizeName(name string) string {
 	if name = stripName(name); name == "" {
@@ -103,7 +105,38 @@ func stripName(name string) string {
 		return r
 	}, name)
 
-	return strings.Trim(name, trimmedChars)
+	return escapeReservedName(strings.Trim(name, trimmedChars))
+}
+
+// escapeReservedName は、Windows が装置の名前として予約している名前 (CON、NUL、COM1 など) なら、最初のドットの前に _ を付ける。
+// Windows では、予約された名前は、拡張子を付けてもファイルの名前にもディレクトリの名前にも使えないため。
+func escapeReservedName(name string) string {
+	base, rest, hasExt := strings.Cut(name, ".")
+	if !isReservedName(strings.TrimRight(base, " ")) {
+		return name
+	}
+	if !hasExt {
+		return base + "_"
+	}
+
+	return base + "_." + rest
+}
+
+// isReservedName は、name (拡張子と末尾の空白を除いたもの) が、Windows の予約された名前かを返す。大文字と小文字は区別しない。
+func isReservedName(name string) bool {
+	upper := strings.ToUpper(name)
+	switch upper {
+	case "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$":
+		return true
+	}
+	for _, prefix := range []string{"COM", "LPT"} {
+		if n, ok := strings.CutPrefix(upper, prefix); ok {
+			// 数字のほか、上付きの ¹、²、³ も番号とみなされる。
+			return len(n) == 1 && '0' <= n[0] && n[0] <= '9' || n == "¹" || n == "²" || n == "³"
+		}
+	}
+
+	return false
 }
 
 // fitName は、base + suffix + ext が maxFileNameBytes 以内に収まるよう、base を文字の境界で切り詰める。
@@ -115,7 +148,8 @@ func fitName(base, ext, suffix string) string {
 			cut--
 		}
 		// 切った位置の前に空白やドットが残ると、SanitizeName を通した名前と食い違うので取り除く。
-		base = strings.TrimRight(base[:cut], trimmedChars)
+		// 取り除いて予約された名前が残ったときも、SanitizeName と同じく _ を付ける。
+		base = escapeReservedName(strings.TrimRight(base[:cut], trimmedChars))
 		if base == "" {
 			base = fallbackName
 		}
@@ -127,7 +161,7 @@ func fitName(base, ext, suffix string) string {
 // Create は、プールの dir (プール内の相対パス) に、name のファイルを新しく作って開く。dir がなければ作る。
 // 同じ名前のファイルがあれば、拡張子の前に " (2)"、" (3)" のような連番を付ける。
 // ファイルは O_EXCL で作るので、複数のプロセスが同時に同じ名前で作っても、別々のファイルになる。
-// 開いたファイルと、そのプール内の相対パスを返す。
+// 開いたファイルと、そのプール内の相対パス (/ 区切り) を返す。
 func (s *Store) Create(poolID, dir, name string) (*os.File, string, error) {
 	if name != SanitizeName(name) || len(name) > maxFileNameBytes {
 		return nil, "", fmt.Errorf("%w: file name %q must be sanitized and fitted", ErrInvalidPath, name)
@@ -145,13 +179,13 @@ func (s *Store) Create(poolID, dir, name string) (*os.File, string, error) {
 		if n > 1 {
 			candidate = fitName(base, ext, " ("+strconv.Itoa(n)+")")
 		}
-		rel := filepath.Join(dir, candidate)
-		path, err := s.Path(poolID, rel)
+		rel := path.Join(dir, candidate)
+		abs, err := s.Path(poolID, rel)
 		if err != nil {
 			return nil, "", err
 		}
 
-		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		f, err := os.OpenFile(abs, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 		if errors.Is(err, os.ErrExist) {
 			continue
 		}
@@ -220,7 +254,7 @@ func SequencedName(name string, n int) string {
 // Rename は、プールの中で、録画ファイル from (プール内の相対パス) を dir/name に移す。生成物は、ファイルの ID で置くので移さない。
 // name には連番を付ける前の名前を渡し、start 番目の連番 (1 なら連番なし) から試す。移す先に同じ名前のものがあれば、
 // 次の連番を試す。from のあったディレクトリが空になれば消す。
-// プールの中に限って移すので、シンボリックリンクでプールの外には移さない。移した先の相対パスを返す。
+// プールの中に限って移すので、シンボリックリンクでプールの外には移さない。移した先の相対パス (/ 区切り) を返す。
 func (s *Store) Rename(poolID, from, dir, name string, start int) (string, error) {
 	if name != SanitizeName(name) || len(name) > maxFileNameBytes || !filepath.IsLocal(from) || (dir != "" && !filepath.IsLocal(dir)) {
 		return "", fmt.Errorf("%w: %q -> %q/%q", ErrInvalidPath, from, dir, name)
@@ -240,8 +274,8 @@ func (s *Store) Rename(poolID, from, dir, name string, start int) (string, error
 		}
 	}
 	for n := max(start, 1); n <= maxSequence; n++ {
-		rel := filepath.Join(dir, SequencedName(name, n))
-		if rel == filepath.Clean(from) {
+		rel := path.Join(dir, SequencedName(name, n))
+		if rel == filepath.ToSlash(filepath.Clean(from)) {
 			return rel, nil
 		}
 		if exists(root, rel) {
