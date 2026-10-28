@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -387,6 +388,9 @@ func TestTranscoderSelectsAudio(t *testing.T) {
 // 書きかけのセグメントの一時ファイルを残さないことを確かめる (#1094)。
 // 入力をそのまま流すスクリプトを、FFmpeg と tsreadex として PATH に置く。PATH はプロセスで共有するので、並行して動かさない。
 func TestTranscoderRunVODDiscardsThePartialSegment(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake tools are shell scripts")
+	}
 	bin := t.TempDir()
 	for _, tool := range []string{"ffmpeg", "tsreadex"} {
 		require.NoError(t, os.WriteFile(filepath.Join(bin, tool), []byte("#!/bin/sh\nexec cat\n"), 0o755)) //nolint:gosec // G306: PATH から実行するスクリプトなので、実行権限が要る。
