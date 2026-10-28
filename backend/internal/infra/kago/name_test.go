@@ -89,6 +89,12 @@ func TestRenderName(t *testing.T) {
 			want: "20261009-2100 こたつテスト1/AUX_/PRN_.m2ts",
 		},
 		{
+			// 切り詰めて末尾の空白を取り除くと予約名だけが残るときも、_ を付ける。
+			name: "Windows reserved names left by cutting",
+			data: data{Date: date, Channel: channel, Title: "/CON" + strings.Repeat(" ", 252) + "a/NUL" + strings.Repeat("　", 82) + "あ"},
+			want: "20261009-2100 こたつテスト1/CON_/NUL_.m2ts",
+		},
+		{
 			name: "empty, dot and dot-dot elements are dropped",
 			data: data{Date: date, Channel: channel, Title: "/../a//./b/../番組"},
 			want: "20261009-2100 こたつテスト1/a/b/番組.m2ts",

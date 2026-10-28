@@ -64,7 +64,8 @@ func sanitizeDirName(name string) string {
 	return cutName(stripName(name), maxNameBytes)
 }
 
-// cutName は、name を limit バイト以内に、文字の境界で切り詰める。切った位置の前の空白とドットも取り除く。
+// cutName は、name を limit バイト以内に、文字の境界で切り詰める。切った位置の前の空白とドットも取り除き、
+// 予約された名前が残れば _ を付ける。
 func cutName(name string, limit int) string {
 	if len(name) <= limit {
 		return name
@@ -74,7 +75,7 @@ func cutName(name string, limit int) string {
 		cut--
 	}
 
-	return strings.TrimRight(name[:cut], trimmedChars)
+	return escapeReservedName(strings.TrimRight(name[:cut], trimmedChars))
 }
 
 // SanitizeName は、ファイル名として使えない文字を取り除く。
@@ -83,6 +84,7 @@ func cutName(name string, limit int) string {
 //   - Windows で使えない記号 (: * ? " < > |) を取り除く。プールのファイルは SMB などでほかのツールからも見るため
 //   - UTF-8 として正しくないバイトを取り除く
 //   - 前後の空白とドットを取り除く (先頭のドットは隠しファイルになり、末尾のドットは SMB で扱えないため)
+//   - Windows が予約している名前 (CON、NUL、COM1 など) なら、最初のドットの前に _ を付ける
 //   - 何も残らなければ "untitled" にする
 func SanitizeName(name string) string {
 	if name = stripName(name); name == "" {
@@ -146,7 +148,8 @@ func fitName(base, ext, suffix string) string {
 			cut--
 		}
 		// 切った位置の前に空白やドットが残ると、SanitizeName を通した名前と食い違うので取り除く。
-		base = strings.TrimRight(base[:cut], trimmedChars)
+		// 取り除いて予約された名前が残ったときも、SanitizeName と同じく _ を付ける。
+		base = escapeReservedName(strings.TrimRight(base[:cut], trimmedChars))
 		if base == "" {
 			base = fallbackName
 		}
