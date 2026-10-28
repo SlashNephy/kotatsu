@@ -107,7 +107,7 @@ func TestFindOrphans(t *testing.T) {
 
 // TestFindOrphansSameFileWithAnotherName は、DB のパスと、走査して見つけた名前が、大文字と小文字や Unicode の正規化だけ違っていても、
 // ファイルシステムが同じファイルとみなすなら、DB にないファイルとしないことを確かめる (#1095)。
-// 大文字と小文字を区別しない NTFS や APFS、NFD で名前を保存する HFS+ の代わりに、同じファイルへのハードリンクを置く。
+// 大文字と小文字を区別する (NFD に変えない) ファイルシステムでは、NTFS や APFS、HFS+ の代わりに、同じファイルへのハードリンクを置く。
 func TestFindOrphansSameFileWithAnotherName(t *testing.T) {
 	t.Parallel()
 
@@ -139,9 +139,15 @@ func TestFindOrphansSameFileWithAnotherName(t *testing.T) {
 					SELECT $1, id, 'segment', $2, $3, 2, $4, $4, $4 FROM recordings LIMIT 1`, id.New(), poolID, tt.recorded, f.clock.Now())
 				require.NoError(t, err)
 			}
-			if tt.link {
+			// 区別しないファイルシステムでは、found はすでに recorded と同じファイルを指す。
+			_, err := os.Stat(filepath.Join(f.dir, tt.found))
+			sameName := err == nil
+			switch {
+			case tt.link && !sameName:
 				require.NoError(t, os.Link(filepath.Join(f.dir, tt.recorded), filepath.Join(f.dir, tt.found)))
-			} else {
+			case !tt.link && sameName:
+				t.Skip("the file system does not distinguish the names")
+			case !tt.link:
 				require.NoError(t, os.WriteFile(filepath.Join(f.dir, tt.found), []byte("other"), 0o600))
 			}
 			// 書いてから時間が経ったものにする。

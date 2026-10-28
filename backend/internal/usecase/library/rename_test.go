@@ -110,7 +110,7 @@ func TestRenameAdvancesSequenceOnCollision(t *testing.T) {
 }
 
 // TestRenameToTheSameFileWithAnotherName は、大文字と小文字や正規化だけが違う名前に付け直すとき、移す先が自分自身として見つかっても、
-// ふさがっているとみなして連番を付けないことを確かめる (#1095)。NFD で名前を保存する HFS+ の代わりに、ハードリンクを置く。
+// ふさがっているとみなして連番を付けないことを確かめる (#1095)。正規化を区別するファイルシステムでは、HFS+ の代わりに、ハードリンクを置く。
 func TestRenameToTheSameFileWithAnotherName(t *testing.T) {
 	t.Parallel()
 
@@ -123,7 +123,10 @@ func TestRenameToTheSameFileWithAnotherName(t *testing.T) {
 	recordingID := f.segmented(t, time.Hour, false, segment{pool: poolID, path: nfd, exists: true})
 	_, err := f.pool.Exec(t.Context(), "UPDATE recordings SET name = 'ガイド' WHERE id = $1", recordingID)
 	require.NoError(t, err)
-	require.NoError(t, os.Link(filepath.Join(f.dir, nfd), filepath.Join(f.dir, want)))
+	// 正規化を区別しないファイルシステムでは、NFC の名前で、すでに同じファイルが見つかる。
+	if _, err := os.Stat(filepath.Join(f.dir, want)); err != nil {
+		require.NoError(t, os.Link(filepath.Join(f.dir, nfd), filepath.Join(f.dir, want)))
+	}
 
 	plans, err := f.library.PlanRenames(t.Context(), f.pool, nil, time.UTC)
 	require.NoError(t, err)

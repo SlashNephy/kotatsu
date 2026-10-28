@@ -486,17 +486,28 @@ func TestRestore(t *testing.T) {
 }
 
 // TestRestoreToTheSameFileWithAnotherName は、大文字と小文字や正規化だけを変えた付け直しを戻すとき、元のパスが自分自身として見つかっても、
-// ふさがっているとみなさずに戻すことを確かめる (#1095)。大文字と小文字を区別しないファイルシステムの代わりに、ハードリンクを置く。
+// ふさがっているとみなさずに戻すことを確かめる (#1095)。大文字と小文字を区別するファイルシステムでは、その代わりに、ハードリンクを置く。
 func TestRestoreToTheSameFileWithAnotherName(t *testing.T) {
 	t.Parallel()
 
 	mount := t.TempDir()
 	store := kago.New(map[string]string{poolMain: mount}, nil)
 	require.NoError(t, os.WriteFile(filepath.Join(mount, "NEW.m2ts"), []byte("recording"), 0o600))
-	require.NoError(t, os.Link(filepath.Join(mount, "NEW.m2ts"), filepath.Join(mount, "new.m2ts")))
+	linkIfDistinct(t, filepath.Join(mount, "NEW.m2ts"), filepath.Join(mount, "new.m2ts"))
 
 	require.NoError(t, store.Restore(poolMain, "NEW.m2ts", "new.m2ts"))
 	got, err := os.ReadFile(filepath.Join(mount, "new.m2ts"))
 	require.NoError(t, err)
 	assert.Equal(t, "recording", string(got))
+}
+
+// linkIfDistinct は、name を target と同じファイルにする。大文字と小文字や正規化を区別しないファイルシステムで、name が
+// すでに target と同じファイルを指すなら、何もしない。区別するファイルシステムでは、ハードリンクを置いて、同じことを起こす。
+func linkIfDistinct(t *testing.T, target, name string) {
+	t.Helper()
+
+	if _, err := os.Stat(name); err == nil {
+		return
+	}
+	require.NoError(t, os.Link(target, name))
 }
