@@ -409,8 +409,9 @@ func TestRestore(t *testing.T) {
 	t.Parallel()
 
 	const (
-		// unsanitized は、整え方を変える前に付いた名前。今の SanitizeName は半角の : を取り除く。
-		unsanitized = "old/古い:名前.m2ts"
+		// unsanitized は、整え方を変える前に付いた名前。今の SanitizeName は先頭の空白を取り除く。
+		// 半角の : のような Windows で使えない文字は、Windows ではファイルを置けないので使わない。
+		unsanitized = "old/ 古い名前.m2ts"
 		moved       = "GR/新しい名前.m2ts"
 	)
 	tests := []struct {

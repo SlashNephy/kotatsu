@@ -127,7 +127,7 @@ func fitName(base, ext, suffix string) string {
 // Create は、プールの dir (プール内の相対パス) に、name のファイルを新しく作って開く。dir がなければ作る。
 // 同じ名前のファイルがあれば、拡張子の前に " (2)"、" (3)" のような連番を付ける。
 // ファイルは O_EXCL で作るので、複数のプロセスが同時に同じ名前で作っても、別々のファイルになる。
-// 開いたファイルと、そのプール内の相対パスを返す。
+// 開いたファイルと、そのプール内の相対パス (/ 区切り) を返す。
 func (s *Store) Create(poolID, dir, name string) (*os.File, string, error) {
 	if name != SanitizeName(name) || len(name) > maxFileNameBytes {
 		return nil, "", fmt.Errorf("%w: file name %q must be sanitized and fitted", ErrInvalidPath, name)
@@ -145,13 +145,13 @@ func (s *Store) Create(poolID, dir, name string) (*os.File, string, error) {
 		if n > 1 {
 			candidate = fitName(base, ext, " ("+strconv.Itoa(n)+")")
 		}
-		rel := filepath.Join(dir, candidate)
-		path, err := s.Path(poolID, rel)
+		rel := path.Join(dir, candidate)
+		abs, err := s.Path(poolID, rel)
 		if err != nil {
 			return nil, "", err
 		}
 
-		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		f, err := os.OpenFile(abs, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 		if errors.Is(err, os.ErrExist) {
 			continue
 		}
@@ -220,7 +220,7 @@ func SequencedName(name string, n int) string {
 // Rename は、プールの中で、録画ファイル from (プール内の相対パス) を dir/name に移す。生成物は、ファイルの ID で置くので移さない。
 // name には連番を付ける前の名前を渡し、start 番目の連番 (1 なら連番なし) から試す。移す先に同じ名前のものがあれば、
 // 次の連番を試す。from のあったディレクトリが空になれば消す。
-// プールの中に限って移すので、シンボリックリンクでプールの外には移さない。移した先の相対パスを返す。
+// プールの中に限って移すので、シンボリックリンクでプールの外には移さない。移した先の相対パス (/ 区切り) を返す。
 func (s *Store) Rename(poolID, from, dir, name string, start int) (string, error) {
 	if name != SanitizeName(name) || len(name) > maxFileNameBytes || !filepath.IsLocal(from) || (dir != "" && !filepath.IsLocal(dir)) {
 		return "", fmt.Errorf("%w: %q -> %q/%q", ErrInvalidPath, from, dir, name)
@@ -240,8 +240,8 @@ func (s *Store) Rename(poolID, from, dir, name string, start int) (string, error
 		}
 	}
 	for n := max(start, 1); n <= maxSequence; n++ {
-		rel := filepath.Join(dir, SequencedName(name, n))
-		if rel == filepath.Clean(from) {
+		rel := path.Join(dir, SequencedName(name, n))
+		if rel == filepath.ToSlash(filepath.Clean(from)) {
 			return rel, nil
 		}
 		if exists(root, rel) {
