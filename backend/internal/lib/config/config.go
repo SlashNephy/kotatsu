@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -456,7 +457,26 @@ func overlaps(a, b string) bool {
 	}
 	a, b = filepath.Clean(a), filepath.Clean(b)
 
-	return a == b || within(a, b) || within(b, a)
+	return a == b || within(a, b) || within(b, a) || sameOrWithin(a, b) || sameOrWithin(b, a)
+}
+
+// sameOrWithin は、child かその親のどれかが、ファイルシステムの上で parent と同じディレクトリかを返す。
+// 大文字と小文字を区別しないファイルシステム (NTFS、APFS の既定) や、シンボリックリンク、ジャンクションでは、
+// 名前の違うパスが同じディレクトリを指すので、名前だけでは重なりを見逃す (#1097)。まだないディレクトリは、あるところまで遡って比べる。
+// parent がなければ、名前で比べるほかないので、false を返す。
+func sameOrWithin(child, parent string) bool {
+	target, err := os.Stat(parent)
+	if err != nil {
+		return false
+	}
+	for dir := child; ; dir = filepath.Dir(dir) {
+		if info, err := os.Stat(dir); err == nil && os.SameFile(info, target) {
+			return true
+		}
+		if filepath.Dir(dir) == dir {
+			return false
+		}
+	}
 }
 
 // within は、Clean した絶対パスの child が、parent の中にあるかを返す。

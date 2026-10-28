@@ -24,6 +24,9 @@ const (
 
 	envKeyURL   = "KOTATSU_DATABASE_URL"
 	envKeyPools = "KOTATSU_STORAGE_POOLS"
+	// envKeyDataDir と envKeyTimeshiftDir は、データディレクトリとタイムシフト用のディレクトリを渡す環境変数。
+	envKeyDataDir      = "KOTATSU_STORAGE_DATA_DIR"
+	envKeyTimeshiftDir = "KOTATSU_STORAGE_TIMESHIFT_DIR"
 	// poolMain は、プールの設定を確かめるテストで使うプール ID。
 	poolMain = "main"
 	// envKeyTunerURL は、チューナーサーバーの URL を渡す環境変数。
@@ -359,9 +362,9 @@ func TestLoadStorage(t *testing.T) {
 			name: "env replaces storage pools in yaml",
 			yaml: "storage:\n  pools:\n    main: /mnt/main\n",
 			env: map[string]string{
-				envKeyURL:                  envURL,
-				envKeyPools:                "main=/data/main, archive=/data/archive",
-				"KOTATSU_STORAGE_DATA_DIR": "/data/kotatsu",
+				envKeyURL:     envURL,
+				envKeyPools:   "main=/data/main, archive=/data/archive",
+				envKeyDataDir: "/data/kotatsu",
 			},
 			// 環境変数は設定ファイルの対応を丸ごと置き換えるので、順も環境変数に書いた順になる。
 			want: config.Storage{
@@ -371,9 +374,9 @@ func TestLoadStorage(t *testing.T) {
 		{
 			name: "env sets the timeshift directory",
 			env: map[string]string{
-				envKeyURL:                       envURL,
-				"KOTATSU_STORAGE_DATA_DIR":      "/srv/kotatsu",
-				"KOTATSU_STORAGE_TIMESHIFT_DIR": "/data/timeshift",
+				envKeyURL:          envURL,
+				envKeyDataDir:      "/srv/kotatsu",
+				envKeyTimeshiftDir: "/data/timeshift",
 			},
 			want: config.Storage{
 				Pools: map[string]string{}, PoolOrder: []string{}, DataDir: "/srv/kotatsu", TimeshiftDir: "/data/timeshift",
@@ -1005,4 +1008,44 @@ func writeFile(t *testing.T, dir, name, content string) string {
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 
 	return path
+}
+
+// TestLoadRejectsTimeshiftDirectoryReachedByAnotherPath は、タイムシフト用のディレクトリが、名前の上では重ならなくても、
+// ファイルシステムが同じディレクトリとみなすものの中にあれば、拒否することを確かめる (#1097)。
+// 大文字と小文字を区別しない NTFS や APFS では、大文字と小文字だけが違うパスが同じディレクトリになる。その代わりに、シンボリックリンクを置く。
+func TestLoadRejectsTimeshiftDirectoryReachedByAnotherPath(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	pool := filepath.Join(root, "main")
+	require.NoError(t, os.Mkdir(pool, 0o755))
+	require.NoError(t, os.Symlink(pool, filepath.Join(root, "alias")))
+
+	tests := []struct {
+		name         string
+		timeshiftDir string
+		wantErr      bool
+	}{
+		{name: "プールの中を別のパスで指す", timeshiftDir: filepath.Join(root, "alias", "timeshift"), wantErr: true},
+		{name: "プールそのものを別のパスで指す", timeshiftDir: filepath.Join(root, "alias"), wantErr: true},
+		{name: "重ならない", timeshiftDir: filepath.Join(root, "timeshift"), wantErr: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := config.Load("", lookup(map[string]string{
+				envKeyURL:          envURL,
+				envKeyPools:        "main=" + pool,
+				envKeyDataDir:      filepath.Join(root, "data"),
+				envKeyTimeshiftDir: tt.timeshiftDir,
+			}))
+			if tt.wantErr {
+				require.ErrorContains(t, err, errTimeshiftOverlapsMain)
+
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
 }

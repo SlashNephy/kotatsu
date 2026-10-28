@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -243,6 +244,9 @@ func readVideoFiles(ctx context.Context, tx *sql.Tx, byID map[int64]*Recording) 
 		var fileType string
 		err := rows.Scan(&r.file.ID, &r.recordedID, &r.file.ParentDirectoryName, &r.file.FilePath, &fileType, &r.file.Name, &r.file.Size)
 		r.file.Type = VideoFileType(fileType)
+		// Windows の EPGStation は、サブディレクトリを \ で区切って記録する (Node の path.join)。Kotatsu のプール内の相対パスは / で区切る (#1098)。
+		// EPGStation は、ファイル名の \ を ￥ に置き換えるので、\ は区切りだけに使われる。
+		r.file.FilePath = strings.ReplaceAll(r.file.FilePath, `\`, "/")
 
 		return r, err
 	})
