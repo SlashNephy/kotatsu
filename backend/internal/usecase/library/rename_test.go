@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -106,6 +107,37 @@ func TestRenameAdvancesSequenceOnCollision(t *testing.T) {
 		_, err := os.Stat(filepath.Join(f.dir, name))
 		require.NoError(t, err, name)
 	}
+}
+
+// TestRenameToTheSameFileWithAnotherName は、大文字と小文字や正規化だけが違う名前に付け直すとき、移す先が自分自身として見つかっても、
+// ふさがっているとみなして連番を付けないことを確かめる (#1095)。正規化を区別するファイルシステムでは、HFS+ の代わりに、ハードリンクを置く。
+func TestRenameToTheSameFileWithAnotherName(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	// 濁点を含む名前は、NFD にすると変わる。
+	const want = "2026-10-10 1100 こたつテスト1 ガイド.m2ts"
+	// 記録は NFD の名前で、同じファイルが NFC の名前でも見つかる。
+	nfd := norm.NFD.String(want)
+	require.NotEqual(t, want, nfd)
+	recordingID := f.segmented(t, time.Hour, false, segment{pool: poolID, path: nfd, exists: true})
+	_, err := f.pool.Exec(t.Context(), "UPDATE recordings SET name = 'ガイド' WHERE id = $1", recordingID)
+	require.NoError(t, err)
+	// 正規化を区別しないファイルシステムでは、NFC の名前で、すでに同じファイルが見つかる。
+	if _, err := os.Stat(filepath.Join(f.dir, want)); err != nil {
+		require.NoError(t, os.Link(filepath.Join(f.dir, nfd), filepath.Join(f.dir, want)))
+	}
+
+	plans, err := f.library.PlanRenames(t.Context(), f.pool, nil, time.UTC)
+	require.NoError(t, err)
+	require.Len(t, plans, 1)
+	require.Len(t, plans[0].Files, 1)
+	assert.Equal(t, want, plans[0].Files[0].To, "no sequence number is added")
+
+	require.NoError(t, f.library.Rename(t.Context(), f.pool, audit.User(f.userID), plans[0]))
+	var path string
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT path FROM recording_files WHERE recording_id = $1", recordingID).Scan(&path))
+	assert.Equal(t, want, path)
 }
 
 // TestRenameSettles は、付け直しを最後まで実行した後は、計画に何も出てこないことを確かめる。
