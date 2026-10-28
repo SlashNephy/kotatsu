@@ -821,12 +821,15 @@ function Live({
             <>
               {dataBroadcast.layer}
               {jikkyo.overlay}
-              <ProgramOverlay
-                visible={controls.visible}
-                serviceName={serviceName}
-                current={program}
-                next={nextProgram}
-              />
+              {/* 番組名は映像の下に出すので、映像の下が見えない別のウィンドウでだけ重ねる。 */}
+              {pip.container !== null && (
+                <ProgramOverlay
+                  visible={controls.visible}
+                  serviceName={serviceName}
+                  current={program}
+                  next={nextProgram}
+                />
+              )}
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {statsShown && <PlayerStats video={video} quality={quality} />}
               {dataBroadcast.receiving && (
@@ -870,12 +873,15 @@ function Live({
             <>
               {dataBroadcast.layer}
               {jikkyo.overlay}
-              <ProgramOverlay
-                visible={controls.visible}
-                serviceName={serviceName}
-                current={program}
-                next={nextProgram}
-              />
+              {/* 番組名は映像の下に出すので、映像の下が見えない別のウィンドウでだけ重ねる。 */}
+              {pip.container !== null && (
+                <ProgramOverlay
+                  visible={controls.visible}
+                  serviceName={serviceName}
+                  current={program}
+                  next={nextProgram}
+                />
+              )}
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {statsShown && <PlayerStats video={video} quality={quality} />}
               {dataBroadcast.receiving && (

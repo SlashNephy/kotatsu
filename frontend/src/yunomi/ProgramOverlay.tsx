@@ -27,7 +27,7 @@ type Props = {
 };
 
 // ProgramOverlay は、ライブ視聴で、操作バーを出している間、映像の上端に、放送中の番組と次の番組を重ねる (#438)。
-// 全画面や別のウィンドウでも、何を見ているか分かるようにする。
+// ページでは番組名を映像の下に出すので、映像の下が見えない別のウィンドウ (Document Picture-in-Picture) でだけ使う。
 export function ProgramOverlay({ visible, serviceName, current, next }: Props) {
   const { t } = useTranslation();
   const range = (program: Program) =>
