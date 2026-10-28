@@ -35,6 +35,10 @@ func changeTime(root *os.Root, rel string, info fs.FileInfo) time.Time {
 	if err := windows.GetFileInformationByHandleEx(windows.Handle(f.Fd()), windows.FileBasicInfo, (*byte)(unsafe.Pointer(&basic)), uint32(unsafe.Sizeof(basic))); err != nil {
 		return info.ModTime()
 	}
+	// exFAT や FAT32 のように ChangeTime を持たないファイルシステムでは 0 になる。0 を日時にすると桁があふれる。
+	if basic.ChangeTime == (windows.Filetime{}) {
+		return info.ModTime()
+	}
 
 	return time.Unix(0, basic.ChangeTime.Nanoseconds())
 }
