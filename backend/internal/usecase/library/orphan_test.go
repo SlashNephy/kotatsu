@@ -105,6 +105,59 @@ func TestFindOrphans(t *testing.T) {
 	}, f.orphans(t))
 }
 
+// TestFindOrphansSameFileWithAnotherName は、DB のパスと、走査して見つけた名前が、大文字と小文字や Unicode の正規化だけ違っていても、
+// ファイルシステムが同じファイルとみなすなら、DB にないファイルとしないことを確かめる (#1095)。
+// 大文字と小文字を区別する (NFD に変えない) ファイルシステムでは、NTFS や APFS、HFS+ の代わりに、同じファイルへのハードリンクを置く。
+func TestFindOrphansSameFileWithAnotherName(t *testing.T) {
+	t.Parallel()
+
+	const (
+		// nfc は DB に記録した名前で、nfd は同じ名前を NFD にしたもの。
+		nfc = "ガイド.m2ts"
+		nfd = "\u30ab\u3099イト\u3099.m2ts"
+	)
+	tests := []struct {
+		name string
+		// recorded は DB に記録したパスで、found は、走査で見つかる、名前の違うパス。
+		recorded, found string
+		// link は、found を recorded へのハードリンクにするかどうか。そうでなければ、別のファイルにする。
+		link   bool
+		orphan bool
+	}{
+		{name: "大文字と小文字だけ違う同じファイル", recorded: recordingName + ".m2ts", found: recordingName + ".M2TS", link: true, orphan: false},
+		{name: "正規化だけ違う同じファイル", recorded: nfc, found: nfd, link: true, orphan: false},
+		{name: "大文字と小文字だけ違う別のファイル", recorded: recordingName + ".m2ts", found: recordingName + ".M2TS", link: false, orphan: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := orphanFixture(t)
+			if tt.recorded != recordingName+".m2ts" {
+				require.NoError(t, os.WriteFile(filepath.Join(f.dir, tt.recorded), []byte("ts"), 0o600))
+				_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+					SELECT $1, id, 'segment', $2, $3, 2, $4, $4, $4 FROM recordings LIMIT 1`, id.New(), poolID, tt.recorded, f.clock.Now())
+				require.NoError(t, err)
+			}
+			// 区別しないファイルシステムでは、found はすでに recorded と同じファイルを指す。
+			_, err := os.Stat(filepath.Join(f.dir, tt.found))
+			sameName := err == nil
+			switch {
+			case tt.link && !sameName:
+				require.NoError(t, os.Link(filepath.Join(f.dir, tt.recorded), filepath.Join(f.dir, tt.found)))
+			case !tt.link && sameName:
+				t.Skip("the file system does not distinguish the names")
+			case !tt.link:
+				require.NoError(t, os.WriteFile(filepath.Join(f.dir, tt.found), []byte("other"), 0o600))
+			}
+			// 書いてから時間が経ったものにする。
+			f.clock.Advance(2 * time.Hour)
+
+			assert.Equal(t, tt.orphan, slices.Contains(f.orphans(t), orphan{pool: poolID, path: tt.found, segmentDir: false}))
+		})
+	}
+}
+
 // TestFindOrphansTimeshiftIndex は、データディレクトリにあるタイムシフトのチャンクの索引のディレクトリを、
 // チャンクの行がある間は返さず、行を消した後は返すことを確かめる。
 func TestFindOrphansTimeshiftIndex(t *testing.T) {

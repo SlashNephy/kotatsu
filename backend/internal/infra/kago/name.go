@@ -278,7 +278,8 @@ func (s *Store) Rename(poolID, from, dir, name string, start int) (string, error
 		if rel == filepath.ToSlash(filepath.Clean(from)) {
 			return rel, nil
 		}
-		if exists(root, rel) {
+		// 大文字と小文字や正規化だけを変えるときは、移す先が自分自身として見つかる。ふさがっているとはみなさない。
+		if exists(root, rel) && !sameFile(root, from, rel) {
 			continue
 		}
 		if err := root.Rename(from, rel); err != nil {
@@ -319,7 +320,8 @@ func (s *Store) Restore(poolID, from, to string) error {
 			return fmt.Errorf("failed to create a directory in pool %s: %w", poolID, err)
 		}
 	}
-	if exists(root, to) {
+	// 大文字と小文字や正規化だけを変えた付け直しを戻すときは、元のパスが自分自身として見つかる。ふさがっているとはみなさない。
+	if exists(root, to) && !sameFile(root, from, to) {
 		return fmt.Errorf("failed to restore a file in pool %s: %q already exists", poolID, to)
 	}
 	if err := root.Rename(from, to); err != nil {
@@ -330,6 +332,17 @@ func (s *Store) Restore(poolID, from, to string) error {
 	}
 
 	return nil
+}
+
+// sameFile は、root の中の a と b が、同じファイルを指すかを返す。シンボリックリンクはたどらない。
+func sameFile(root *os.Root, a, b string) bool {
+	infoA, err := root.Lstat(a)
+	if err != nil {
+		return false
+	}
+	infoB, err := root.Lstat(b)
+
+	return err == nil && os.SameFile(infoA, infoB)
 }
 
 // exists は、root の中に rel があるかを返す。シンボリックリンクはたどらない。
