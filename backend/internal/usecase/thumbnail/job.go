@@ -20,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
@@ -214,7 +215,7 @@ func readIndex(store *kago.Store, index *kago.Location) ([]ts.IndexEntry, error)
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(indexPath)
+	data, err := sharedfile.ReadFile(indexPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the index: %w", err)
 	}
@@ -265,7 +266,7 @@ func writeFile(name string, data []byte) error {
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write %s: %w", name, err)
 	}
-	if err := os.Rename(tmp, name); err != nil {
+	if err := sharedfile.Rename(tmp, name); err != nil {
 		return fmt.Errorf("failed to rename %s: %w", tmp, err)
 	}
 

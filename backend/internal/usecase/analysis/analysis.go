@@ -26,6 +26,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 )
@@ -256,7 +257,7 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 	if err != nil {
 		return nil, nil, err
 	}
-	input, err := os.Open(segmentPath)
+	input, err := sharedfile.Open(segmentPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to open the segment: %w", err)
 	}
@@ -305,7 +306,7 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 	if err := output.Close(); err != nil {
 		return nil, nil, fmt.Errorf("failed to close the index file: %w", err)
 	}
-	if err := os.Rename(tmpPath, indexPath); err != nil {
+	if err := sharedfile.Rename(tmpPath, indexPath); err != nil {
 		return nil, nil, fmt.Errorf("failed to replace the index file: %w", err)
 	}
 
