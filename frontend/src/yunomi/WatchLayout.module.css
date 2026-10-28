@@ -1,0 +1,60 @@
+/* 視聴の画面の並び。狭い画面では、映像、番組の情報、右の列の中身を、この順に縦に並べる。 */
+/* 1 カラムでは、YouTube と同じく、映像を列の幅いっぱいに広げる。 */
+.layout {
+  /* 右の列の中で、実況のコメントの一覧に取る高さ。狭い画面では、映像の下に並ぶので低くする。 */
+  --watch-comments-height: 240px;
+  /* 映像の幅の上限 (TsPlayer の .frame)。 */
+  --player-max-width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'player'
+    'info'
+    'side';
+  gap: var(--mantine-spacing-md);
+  /* 親は縦に並べる flex なので、左右の auto の余白で縮まないよう、幅を明示する。 */
+  width: 100%;
+  margin-inline: auto;
+}
+
+@media (min-width: 62em) {
+  /* 広い画面で右の列がなければ、並び全体を、映像が画面の高さに収まる幅までにして中央に置く。映像はその幅いっぱいに広げる。 */
+  .layout {
+    max-width: calc((100dvh - 280px) * 16 / 9);
+  }
+
+  /* 右の列があれば、YouTube と同じく、映像の横に置く。右の列は、映像と番組の情報の 2 行にまたがる。 */
+  /* 並び全体は、映像の幅の上限に、右の列と間を足した幅までにする。 */
+  .layout[data-side] {
+    --watch-comments-height: 420px;
+    --player-max-width: min(100%, calc((100dvh - 280px) * 16 / 9));
+    grid-template-columns: minmax(0, 1fr) var(--watch-side-width);
+    grid-template-areas:
+      'player side'
+      'info side';
+    grid-template-rows: auto 1fr;
+    max-width: max(
+      var(--layout-width),
+      calc((100dvh - 280px) * 16 / 9 + var(--watch-side-width) + var(--mantine-spacing-md))
+    );
+  }
+}
+
+:root {
+  --watch-side-width: 400px;
+}
+
+.player {
+  grid-area: player;
+  min-width: 0;
+}
+
+.info {
+  grid-area: info;
+  min-width: 0;
+}
+
+.side {
+  grid-area: side;
+  min-width: 0;
+}

@@ -4,7 +4,8 @@
   position: relative;
   aspect-ratio: 16 / 9;
   width: 100%;
-  max-width: min(100%, calc((100dvh - 280px) * 16 / 9));
+  /* 視聴の画面の並び (WatchLayout) は、--player-max-width で上限を変える。 */
+  max-width: var(--player-max-width, min(100%, calc((100dvh - 280px) * 16 / 9)));
   min-width: min(100%, 320px);
   background: black;
   /* 操作バーは、画面の幅ではなく、プレイヤーの幅で詰め方を変える。 */

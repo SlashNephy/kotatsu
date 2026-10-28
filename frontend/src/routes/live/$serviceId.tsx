@@ -1,16 +1,4 @@
-import {
-  ActionIcon,
-  Alert,
-  Anchor,
-  Button,
-  Group,
-  Menu,
-  Modal,
-  Select,
-  Stack,
-  Text,
-  Title,
-} from '@mantine/core';
+import { ActionIcon, Alert, Anchor, Button, Group, Menu, Modal, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
   Captions,
@@ -20,7 +8,7 @@ import {
   MessageSquareText,
   Tv,
 } from 'lucide-react';
-import { startTransition, Suspense, useEffect, useRef, useState } from 'react';
+import { startTransition, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
@@ -34,11 +22,14 @@ import {
   toHalfWidth,
   useDocumentTitle,
 } from '../../futon';
-import { CommentListToggle } from '../../jikkyo/CommentList';
+import { CommentList } from '../../jikkyo/CommentList';
+import { WatchPanel } from '../../yunomi/WatchPanel';
+import { LiveServiceList } from '../../guide/LiveServiceList';
+import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
 import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
 import { noCrop, type Crop } from '../../yunomi/crop';
-import { CaptionHistoryToggle } from '../../yunomi/CaptionHistory';
+import { CaptionHistory } from '../../yunomi/CaptionHistory';
 import {
   appendLiveCaption,
   normalizeCaption,
@@ -117,13 +108,13 @@ import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.grap
 import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordingsQuery.graphql';
 import { ProgramOverlay } from '../../yunomi/ProgramOverlay';
 import { neighborServices } from '../../yunomi/channels';
-import { ServiceLabel } from '../../guide/ServiceLabel';
-import { renderServiceOption, serviceGroups } from '../../guide/serviceOption';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
 
 export const Route = createFileRoute('/live/$serviceId')({
+  // 右の列を置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
+  staticData: { fluid: true },
   component: LiveServicePage,
 });
 
@@ -280,16 +271,14 @@ function Live({
             passthrough
           }
         }
-        # 視聴画面の中で選局するための、番組表と同じ並びのサービス (#493)。
+        # OS のメディア操作の前と次で移る局と、データ放送の選局で移る先を引く、番組表と同じ並びのサービス (#493、#440)。
         services {
           id
           name
-          logoUrl
           networkId
           serviceId
           channelType {
             type
-            displayName
           }
         }
       }
@@ -696,6 +685,18 @@ function Live({
       stop: () => void navigate({ to: '/live' }),
     },
   );
+  // commentRows は、右の列のコメントの一覧の行。操作バーの出し入れなどで描き直すたびに作らず、コメントが届いたときだけ作り直す。
+  const commentRows = useMemo(
+    () =>
+      jikkyo.comments.map((comment) => ({
+        key: comment.key,
+        label: formatClock(comment.at),
+        content: comment.content,
+        ...(comment.userId === undefined ? {} : { userId: comment.userId }),
+      })),
+    [jikkyo.comments],
+  );
+
   if (service === null) {
     return <Alert color="amber">{t('live.notFound')}</Alert>;
   }
@@ -819,12 +820,15 @@ function Live({
             <>
               {dataBroadcast.layer}
               {jikkyo.overlay}
-              <ProgramOverlay
-                visible={controls.visible}
-                serviceName={serviceName}
-                current={program}
-                next={nextProgram}
-              />
+              {/* 番組名は映像の下に出すので、映像の下が見えない別のウィンドウでだけ重ねる。 */}
+              {pip.container !== null && (
+                <ProgramOverlay
+                  visible={controls.visible}
+                  serviceName={serviceName}
+                  current={program}
+                  next={nextProgram}
+                />
+              )}
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {statsShown && <PlayerStats video={video} quality={quality} />}
               {dataBroadcast.receiving && (
@@ -868,12 +872,15 @@ function Live({
             <>
               {dataBroadcast.layer}
               {jikkyo.overlay}
-              <ProgramOverlay
-                visible={controls.visible}
-                serviceName={serviceName}
-                current={program}
-                next={nextProgram}
-              />
+              {/* 番組名は映像の下に出すので、映像の下が見えない別のウィンドウでだけ重ねる。 */}
+              {pip.container !== null && (
+                <ProgramOverlay
+                  visible={controls.visible}
+                  serviceName={serviceName}
+                  current={program}
+                  next={nextProgram}
+                />
+              )}
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {statsShown && <PlayerStats video={video} quality={quality} />}
               {dataBroadcast.receiving && (
@@ -892,47 +899,7 @@ function Live({
   );
 
   return (
-    <Stack gap="xs">
-      <Group justify="space-between" wrap="wrap" gap="xs">
-        <Title order={2} size="h4">
-          <ServiceLabel name={service.name} logoUrl={service.logoUrl} />
-        </Title>
-        {/* 一覧に戻らずに、ほかの局へ移る (#493)。種別ごとにまとめ、番組表と同じ順に並べる。 */}
-        <Group gap="xs" wrap="nowrap">
-          <Select
-            size="xs"
-            w={240}
-            aria-label={t('live.switchChannel')}
-            placeholder={t('live.switchChannel')}
-            data={serviceGroups(data.services)}
-            renderOption={renderServiceOption(data.services)}
-            value={serviceId}
-            onChange={(id) => {
-              if (id !== null && id !== serviceId) {
-                tune(id);
-              }
-            }}
-            searchable
-            allowDeselect={false}
-          />
-          {/* 使うことの少ない操作は、メニューにまとめる (#487)。 */}
-          <Menu position="bottom-end">
-            <Menu.Target>
-              <ActionIcon variant="default" size="md" aria-label={t('live.moreActions')}>
-                <EllipsisVertical size={16} aria-hidden />
-              </ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item
-                leftSection={<ExternalLink size={14} aria-hidden />}
-                onClick={() => setExternalOpen(true)}
-              >
-                {t('streamURL.open')}
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        </Group>
-      </Group>
+    <>
       <Modal
         opened={tuneRequest !== null}
         onClose={() => setTuneRequest(null)}
@@ -965,55 +932,111 @@ function Live({
       >
         <ExternalStreamURL target={serviceId} live />
       </Modal>
-      <Text size="sm" c="dimmed">
-        {programName === null ? t('live.noProgram') : <ProgramTitle name={programName} />}
-      </Text>
-      <PlaybackUnavailable route={route} />
-      {/* 画面の外に出たときと、タブが隠れたときも再生は続け、データ放送の受信と、実況のコメントの描画だけを止める (設計書 7.2)。 */}
-      <div ref={frameRef}>
-        {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
-      </div>
-      {pip.container !== null && createPortal(playerBox, pip.container)}
-      {disconnection !== null && (
-        <Alert color="amber" role="alert" title={t('live.disconnected')}>
-          <Stack gap="xs" align="flex-start">
-            <DisconnectionReason disconnection={disconnection} />
-            <Button size="compact-sm" variant="light" color="amber" onClick={reconnectNow}>
-              {t('live.reconnectNow')}
-            </Button>
+      <WatchLayout
+        player={
+          <Stack gap="xs">
+            <PlaybackUnavailable route={route} />
+            {/* 画面の外に出たときと、タブが隠れたときも再生は続け、データ放送の受信と、実況のコメントの描画だけを止める (設計書 7.2)。 */}
+            <div ref={frameRef}>
+              {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
+            </div>
+            {pip.container !== null && createPortal(playerBox, pip.container)}
           </Stack>
-        </Alert>
-      )}
-      {dataBroadcastEnabled && (
-        <DataBroadcastRemote
-          state={dataBroadcast.state}
-          receiving={dataBroadcast.receiving}
-          keyGroups={dataBroadcast.keyGroups}
-          onPress={dataBroadcast.press}
-        />
-      )}
-      <CaptionHistoryToggle entries={captionEntries} label={(entry) => formatClock(entry.at)} />
-      {channel !== null && jikkyoEnabled && (
-        <>
-          <JikkyoPanel
-            channelName={channel.name}
-            status={jikkyo.status}
-            onPost={jikkyo.post}
-            force={jikkyo.force}
-          />
-          <CommentListToggle
-            rows={() =>
-              jikkyo.comments.map((comment) => ({
-                key: comment.key,
-                label: formatClock(comment.at),
-                content: comment.content,
-                ...(comment.userId === undefined ? {} : { userId: comment.userId }),
-              }))
-            }
-            onMuteUser={muteUser}
-          />
-        </>
-      )}
-    </Stack>
+        }
+        info={
+          <>
+            <WatchHeading
+              title={
+                programName === null ? t('live.noProgram') : <ProgramTitle name={programName} />
+              }
+              serviceName={service.name}
+              serviceLogoUrl={service.logoUrl}
+              time={program}
+              // 使うことの少ない操作は、メニューにまとめる (#487)。
+              actions={
+                <Menu position="bottom-end">
+                  <Menu.Target>
+                    <ActionIcon variant="default" size="md" aria-label={t('live.moreActions')}>
+                      <EllipsisVertical size={16} aria-hidden />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Item
+                      leftSection={<ExternalLink size={14} aria-hidden />}
+                      onClick={() => setExternalOpen(true)}
+                    >
+                      {t('streamURL.open')}
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
+              }
+            />
+            {disconnection !== null && (
+              <Alert color="amber" role="alert" title={t('live.disconnected')}>
+                <Stack gap="xs" align="flex-start">
+                  <DisconnectionReason disconnection={disconnection} />
+                  <Button size="compact-sm" variant="light" color="amber" onClick={reconnectNow}>
+                    {t('live.reconnectNow')}
+                  </Button>
+                </Stack>
+              </Alert>
+            )}
+            {dataBroadcastEnabled && (
+              <DataBroadcastRemote
+                state={dataBroadcast.state}
+                receiving={dataBroadcast.receiving}
+                keyGroups={dataBroadcast.keyGroups}
+                onPress={dataBroadcast.press}
+              />
+            )}
+          </>
+        }
+        side={
+          <>
+            {/* 実況のコメントの一覧と字幕の履歴を、見出しで切り替える。実況を切っていれば、字幕の履歴だけを出す。 */}
+            <WatchPanel
+              label={t('player.sidePanel')}
+              tabs={[
+                ...(channel !== null && jikkyoEnabled
+                  ? [
+                      {
+                        value: 'jikkyo',
+                        label: t('jikkyo.toggle'),
+                        content: (
+                          <CommentList
+                            rows={commentRows}
+                            onMuteUser={muteUser}
+                            height={watchCommentsHeight}
+                          />
+                        ),
+                        footer: (
+                          <JikkyoPanel
+                            channelName={channel.name}
+                            status={jikkyo.status}
+                            onPost={jikkyo.post}
+                            force={jikkyo.force}
+                          />
+                        ),
+                      },
+                    ]
+                  : []),
+                {
+                  value: 'captions',
+                  label: t('captionHistory.tab'),
+                  content: (
+                    <CaptionHistory
+                      entries={captionEntries}
+                      label={(entry) => formatClock(entry.at)}
+                      height={watchCommentsHeight}
+                    />
+                  ),
+                },
+              ]}
+            />
+            <LiveServiceList serviceId={serviceId} />
+          </>
+        }
+      />
+    </>
   );
 }
