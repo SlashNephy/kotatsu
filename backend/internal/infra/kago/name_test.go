@@ -41,6 +41,13 @@ func TestSanitizeName(t *testing.T) {
 		{name: "parent directory", input: "..", want: untitled},
 		{name: "empty", input: "", want: untitled},
 		{name: "only separators", input: "///", want: untitled},
+		{name: "Windows reserved name", input: "con", want: "con_"},
+		{name: "Windows reserved name with an extension", input: "NUL.m2ts", want: "NUL_.m2ts"},
+		{name: "Windows reserved name with trailing spaces", input: "COM1 .m2ts", want: "COM1 _.m2ts"},
+		{name: "Windows reserved name with a superscript digit", input: "LPT¹", want: "LPT¹_"},
+		{name: "Windows console", input: "CONOUT$", want: "CONOUT$_"},
+		{name: "not a Windows reserved name", input: "CONSOLE.m2ts", want: "CONSOLE.m2ts"},
+		{name: "COM without a digit", input: "COM", want: "COM"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -75,6 +82,11 @@ func TestRenderName(t *testing.T) {
 			name: "slashes create directories",
 			data: data{Date: date, Channel: channel, Title: "前編/後編"},
 			want: "20261009-2100 こたつテスト1 前編/後編.m2ts",
+		},
+		{
+			name: "Windows reserved names in directories",
+			data: data{Date: date, Channel: channel, Title: "/AUX/PRN"},
+			want: "20261009-2100 こたつテスト1/AUX_/PRN_.m2ts",
 		},
 		{
 			name: "empty, dot and dot-dot elements are dropped",

@@ -103,7 +103,38 @@ func stripName(name string) string {
 		return r
 	}, name)
 
-	return strings.Trim(name, trimmedChars)
+	return escapeReservedName(strings.Trim(name, trimmedChars))
+}
+
+// escapeReservedName は、Windows が装置の名前として予約している名前 (CON、NUL、COM1 など) なら、最初のドットの前に _ を付ける。
+// Windows では、予約された名前は、拡張子を付けてもファイルの名前にもディレクトリの名前にも使えないため。
+func escapeReservedName(name string) string {
+	base, rest, hasExt := strings.Cut(name, ".")
+	if !isReservedName(strings.TrimRight(base, " ")) {
+		return name
+	}
+	if !hasExt {
+		return base + "_"
+	}
+
+	return base + "_." + rest
+}
+
+// isReservedName は、name (拡張子と末尾の空白を除いたもの) が、Windows の予約された名前かを返す。大文字と小文字は区別しない。
+func isReservedName(name string) bool {
+	upper := strings.ToUpper(name)
+	switch upper {
+	case "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$":
+		return true
+	}
+	for _, prefix := range []string{"COM", "LPT"} {
+		if n, ok := strings.CutPrefix(upper, prefix); ok {
+			// 数字のほか、上付きの ¹、²、³ も番号とみなされる。
+			return len(n) == 1 && '0' <= n[0] && n[0] <= '9' || n == "¹" || n == "²" || n == "³"
+		}
+	}
+
+	return false
 }
 
 // fitName は、base + suffix + ext が maxFileNameBytes 以内に収まるよう、base を文字の境界で切り詰める。
