@@ -362,22 +362,11 @@ func (s *Store) NewChecker() *Checker {
 
 // Exists は、Store.Exists と同じく、プールにファイル rel があるかを返す。
 func (c *Checker) Exists(poolID, rel string) (bool, error) {
-	if !filepath.IsLocal(rel) {
-		return false, fmt.Errorf("%w: %q", ErrInvalidPath, rel)
+	root, err := c.root(poolID, rel)
+	if err != nil {
+		return false, err
 	}
-	root, ok := c.roots[poolID]
-	if !ok {
-		mount, mounted := c.store.mounts[poolID]
-		if !mounted {
-			return false, fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
-		}
-		var err error
-		if root, err = os.OpenRoot(mount); err != nil {
-			return false, fmt.Errorf("failed to open pool %s: %w", poolID, err)
-		}
-		c.roots[poolID] = root
-	}
-	_, err := root.Stat(rel)
+	_, err = root.Stat(rel)
 	switch {
 	case err == nil:
 		return true, nil
@@ -388,12 +377,56 @@ func (c *Checker) Exists(poolID, rel string) (bool, error) {
 	}
 }
 
+// SameFile は、プールの a と b が、同じファイルを指すかを返す。どちらかがなければ false を返す。
+// 大文字と小文字を区別しないファイルシステム (NTFS、APFS の既定) や、名前を NFD で保存する HFS+ では、
+// 大文字と小文字や Unicode の正規化だけが違う a と b が、同じファイルになる。
+func (c *Checker) SameFile(poolID, a, b string) (bool, error) {
+	infos := make([]os.FileInfo, 0, 2)
+	for _, rel := range []string{a, b} {
+		root, err := c.root(poolID, rel)
+		if err != nil {
+			return false, err
+		}
+		info, err := root.Stat(rel)
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		if err != nil {
+			return false, fmt.Errorf("failed to inspect a file in pool %s: %w", poolID, err)
+		}
+		infos = append(infos, info)
+	}
+
+	return os.SameFile(infos[0], infos[1]), nil
+}
+
 // Close は、開いたプールを閉じる。
 func (c *Checker) Close() {
 	for _, root := range c.roots {
 		_ = root.Close()
 	}
 	c.roots = map[string]*os.Root{}
+}
+
+// root は、プール poolID を開いて返す。開いたプールは、Close まで使い回す。rel がプールの外を指すときは ErrInvalidPath を返す。
+func (c *Checker) root(poolID, rel string) (*os.Root, error) {
+	if !filepath.IsLocal(rel) {
+		return nil, fmt.Errorf("%w: %q", ErrInvalidPath, rel)
+	}
+	if root, ok := c.roots[poolID]; ok {
+		return root, nil
+	}
+	mount, mounted := c.store.mounts[poolID]
+	if !mounted {
+		return nil, fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
+	}
+	root, err := os.OpenRoot(mount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open pool %s: %w", poolID, err)
+	}
+	c.roots[poolID] = root
+
+	return root, nil
 }
 
 // rank は、プールの順での位置を返す。マウントされていないプールは、どれよりも後にする。
