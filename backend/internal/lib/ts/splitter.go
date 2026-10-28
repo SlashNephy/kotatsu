@@ -144,6 +144,7 @@ func (s *Splitter) Close() error {
 
 // Abort は、書きかけのセグメントを置かずに捨てる。置くのに失敗したセグメントも捨てる。書き終えたセグメントには触らない。
 // 入力を最後まで書かずに止めるときと、Write か Close が失敗したときに呼ぶ。以後の Write と Close は ErrAborted を返す。
+// 先に失敗していたときは、そのエラーを返し続ける。
 func (s *Splitter) Abort() error {
 	if s.err == nil {
 		s.err = ErrAborted
