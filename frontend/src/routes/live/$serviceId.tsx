@@ -271,16 +271,14 @@ function Live({
             passthrough
           }
         }
-        # 視聴画面の中で選局するための、番組表と同じ並びのサービス (#493)。
+        # OS のメディア操作の前と次で移る局と、データ放送の選局で移る先を引く、番組表と同じ並びのサービス (#493、#440)。
         services {
           id
           name
-          logoUrl
           networkId
           serviceId
           channelType {
             type
-            displayName
           }
         }
       }
