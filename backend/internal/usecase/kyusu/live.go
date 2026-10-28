@@ -17,6 +17,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 )
 
 const (
@@ -287,7 +288,7 @@ func (l *Live) playlist(ctx context.Context, s *session) ([]byte, error) {
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 	for {
-		data, err := os.ReadFile(filepath.Join(s.dir, PlaylistName))
+		data, err := sharedfile.ReadFile(filepath.Join(s.dir, PlaylistName))
 		if err == nil && bytes.Contains(data, []byte("#EXTINF:")) {
 			l.markReady(s)
 
@@ -389,7 +390,7 @@ func (l *Live) serveSegment(w http.ResponseWriter, r *http.Request, serviceID in
 
 		return
 	}
-	file, err := os.Open(path)
+	file, err := sharedfile.Open(path)
 	if err != nil {
 		http.NotFound(w, r)
 

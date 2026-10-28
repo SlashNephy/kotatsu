@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
@@ -138,7 +139,7 @@ func (f *segmentFile) Close() error {
 	if err := f.File.Close(); err != nil {
 		return fmt.Errorf("failed to write a segment: %w", err)
 	}
-	if err := os.Rename(f.Name(), f.path); err != nil {
+	if err := sharedfile.Rename(f.Name(), f.path); err != nil {
 		return fmt.Errorf("failed to put a segment: %w", err)
 	}
 

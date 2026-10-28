@@ -15,10 +15,10 @@ import (
 	"image/jpeg"
 	"io"
 	"math"
-	"os"
 	"slices"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
@@ -262,7 +262,7 @@ func (g *Generator) preview(ctx context.Context, segments []Segment, keyframes [
 
 // extract は、I フレームから始まる TS の一部を、Extractor に渡して 1 枚にする。
 func (g *Generator) extract(ctx context.Context, segments []Segment, k keyframe, size Size) ([]byte, error) {
-	file, err := os.Open(segments[k.segment].Path)
+	file, err := sharedfile.Open(segments[k.segment].Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the segment: %w", err)
 	}

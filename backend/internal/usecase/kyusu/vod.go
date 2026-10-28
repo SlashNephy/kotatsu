@@ -22,6 +22,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
@@ -483,7 +484,7 @@ func (v *VOD) serveSegment(w http.ResponseWriter, r *http.Request, key vodKey, p
 
 		return
 	}
-	file, err := os.Open(path)
+	file, err := sharedfile.Open(path)
 	if err != nil {
 		http.NotFound(w, r)
 
