@@ -1,6 +1,7 @@
-import { ActionIcon, Button, Group, Menu, ScrollArea, Stack, Text } from '@mantine/core';
+import { ActionIcon, Box, Group, Menu, Paper, ScrollArea, Stack, Text } from '@mantine/core';
 import { useClipboard } from '@mantine/hooks';
-import { Copy, EllipsisVertical, IdCard, List, UserX } from 'lucide-react';
+import { Copy, EllipsisVertical, IdCard, UserX } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -15,11 +16,13 @@ type ListProps = {
   rows: readonly CommentRow[];
   // onMuteUser は、行から、そのコメントを書いたユーザーをミュートする (#767)。渡さなければ、メニューに出さない。
   onMuteUser?: (userId: string) => void;
+  // height は、一覧の高さ。CSS の長さで渡す。
+  height?: string | number;
 };
 
 // CommentList は、実況のコメントの一覧 (#489、設計書 7.4)。新しいものを下に足す。
 // 各行のメニューから、コメントとユーザー ID をコピーし、そのユーザーをミュートできる (#767)。
-export function CommentList({ rows, onMuteUser }: ListProps) {
+export function CommentList({ rows, onMuteUser, height = 240 }: ListProps) {
   const { t } = useTranslation();
   const clipboard = useClipboard();
   // copiedKey は、最後にコピーした行。コピーしたことを、その行にしばらく出す。
@@ -40,7 +43,7 @@ export function CommentList({ rows, onMuteUser }: ListProps) {
 
   return (
     <ScrollArea
-      h={240}
+      h={height}
       type="auto"
       viewportRef={viewport}
       onScrollPositionChange={() => {
@@ -118,34 +121,38 @@ export function CommentList({ rows, onMuteUser }: ListProps) {
   );
 }
 
-// CommentListToggle は、コメントの一覧を開閉するボタンと、一覧。場所を取るので、既定では閉じる。
-// rows は、開いている間だけ求める。
-export function CommentListToggle({
+// CommentPanel は、右の列に置く実況の枠 (設計書 7.4)。見出しと、流れていったコメントの一覧を、常に開いて出す。
+// footer は、枠の下端に付けるもの (ライブ視聴の投稿の欄)。
+export function CommentPanel({
   rows,
   onMuteUser,
+  height,
+  footer,
 }: {
-  rows: () => readonly CommentRow[];
+  rows: readonly CommentRow[];
   onMuteUser?: (userId: string) => void;
+  height: string;
+  footer?: ReactNode;
 }) {
   const { t } = useTranslation();
-  const [opened, setOpened] = useState(false);
 
   return (
-    <Stack gap="xs">
-      <Group>
-        <Button
-          size="compact-sm"
-          variant="default"
-          leftSection={<List size={14} aria-hidden />}
-          aria-expanded={opened}
-          onClick={() => setOpened(!opened)}
-        >
-          {opened ? t('jikkyo.hideList') : t('jikkyo.showList')}
-        </Button>
-      </Group>
-      {opened && (
-        <CommentList rows={rows()} {...(onMuteUser === undefined ? {} : { onMuteUser })} />
-      )}
-    </Stack>
+    <Paper withBorder radius="md">
+      <Stack gap={0}>
+        <Text size="sm" fw={600} px="sm" py="xs">
+          {t('jikkyo.toggle')}
+        </Text>
+        <CommentList
+          rows={rows}
+          height={height}
+          {...(onMuteUser === undefined ? {} : { onMuteUser })}
+        />
+        {footer !== undefined && (
+          <Box p="xs" style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>
+            {footer}
+          </Box>
+        )}
+      </Stack>
+    </Paper>
   );
 }

@@ -1,0 +1,22 @@
+/* 一覧の 1 行。押せることが分かるよう、ホバーで背景を付ける。 */
+.row {
+  display: block;
+  padding: 4px;
+  border-radius: var(--mantine-radius-md);
+}
+
+@media (hover: hover) {
+  .row:hover {
+    background: var(--mantine-color-default-hover);
+  }
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
+.thumbnail {
+  overflow: hidden;
+  border-radius: var(--mantine-radius-sm);
+}

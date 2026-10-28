@@ -1,5 +1,5 @@
 import type { PlayerState } from '@mpeg2toh264/player';
-import { Alert, Anchor, Button, Group, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Captions, Keyboard, MessageSquareText } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
@@ -18,7 +18,9 @@ import {
 } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
-import { CommentListToggle } from '../../jikkyo/CommentList';
+import { CommentPanel } from '../../jikkyo/CommentList';
+import { RuleRecordingList } from '../../recordings/RuleRecordingList';
+import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
 import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
 import { noCrop, type Crop } from '../../yunomi/crop';
@@ -97,7 +99,6 @@ import { canRetryImmediately, endedEarly } from '../../yunomi/reconnect';
 import { resumePosition } from '../../yunomi/resume';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
-import { ServiceLabel } from '../../guide/ServiceLabel';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -106,6 +107,8 @@ const volumeStep = 0.05;
 type PlaySearch = { t?: number };
 
 export const Route = createFileRoute('/recordings/$recordingId_/play')({
+  // 右の列を置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
+  staticData: { fluid: true },
   validateSearch: (search: Record<string, unknown>): PlaySearch => {
     const t = typeof search.t === 'number' ? search.t : Number(search.t);
 
@@ -171,6 +174,10 @@ const playQuery = graphql`
           to
         }
         jikkyoCommentsUrl
+        rule {
+          id
+          name
+        }
         watchPositionMs
         thumbnailUrl
         previewUrl
@@ -922,42 +929,71 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     </div>
   );
 
+  // 実況の過去ログがあれば、右の列に一覧を出す。
+  const commentsShown = jikkyo.comments !== null && jikkyo.comments.length > 0;
+
   return (
-    <Stack gap="xs">
-      <Title order={2} size="h4">
-        <ProgramTitle name={recording.name} />
-      </Title>
-      <Text size="sm" c="dimmed">
-        <ServiceLabel name={recording.service.name} logoUrl={recording.service.logoUrl} />
-      </Text>
-      <PlaybackUnavailable route={route} />
-      <div ref={frameRef}>
-        {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
-      </div>
-      {pip.container !== null && createPortal(playerBox, pip.container)}
-      {error !== null && (
-        <Alert color="red" role="alert">
-          <Group justify="space-between" gap="xs">
-            <Text size="sm">{error}</Text>
-            <Button size="compact-sm" variant="light" color="red" onClick={retry}>
-              {t('player.retry')}
-            </Button>
-          </Group>
-        </Alert>
-      )}
-      {recording !== null && (
-        <CaptionHistoryToggle
-          entries={captionEntries}
-          label={(entry) =>
-            formatClock(broadcastTime(recording.recordedFrom, recording.gaps, entry.at))
-          }
-          onSelect={(entry) => seek(entry.at)}
-        />
-      )}
-      {/* 実況の過去ログのうち、再生位置までに流れたもの (#489)。 */}
-      {jikkyo.comments !== null && jikkyo.comments.length > 0 && (
-        <CommentListToggle rows={() => recordedRows} onMuteUser={muteUser} />
-      )}
-    </Stack>
+    <WatchLayout
+      player={
+        <Stack gap="xs">
+          <PlaybackUnavailable route={route} />
+          <div ref={frameRef}>
+            {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
+          </div>
+          {pip.container !== null && createPortal(playerBox, pip.container)}
+        </Stack>
+      }
+      info={
+        <>
+          <WatchHeading
+            title={<ProgramTitle name={recording.name} />}
+            serviceName={recording.service.name}
+            serviceLogoUrl={recording.service.logoUrl}
+          />
+          {error !== null && (
+            <Alert color="red" role="alert">
+              <Group justify="space-between" gap="xs">
+                <Text size="sm">{error}</Text>
+                <Button size="compact-sm" variant="light" color="red" onClick={retry}>
+                  {t('player.retry')}
+                </Button>
+              </Group>
+            </Alert>
+          )}
+          <CaptionHistoryToggle
+            entries={captionEntries}
+            label={(entry) =>
+              formatClock(broadcastTime(recording.recordedFrom, recording.gaps, entry.at))
+            }
+            onSelect={(entry) => seek(entry.at)}
+          />
+        </>
+      }
+      side={
+        // 実況の過去ログも、同じルールの録画もなければ、右の列を出さず、映像を広げる。
+        commentsShown || recording.rule != null ? (
+          <>
+            {/* 実況の過去ログのうち、再生位置までに流れたもの (#489)。 */}
+            {commentsShown && (
+              <CommentPanel
+                rows={recordedRows}
+                onMuteUser={muteUser}
+                height={watchCommentsHeight}
+              />
+            )}
+            {recording.rule != null && (
+              // 一覧は読み込みを待たず、映像を先に出す。
+              <Suspense fallback={null}>
+                <RuleRecordingList
+                  ruleId={recording.rule.id}
+                  ruleName={recording.rule.name}
+                  recordingId={recordingId}
+                />
+              </Suspense>
+            )}
+          </>
+        ) : null
+      }
+    />
   );
 }
