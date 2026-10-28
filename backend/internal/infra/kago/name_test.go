@@ -484,3 +484,19 @@ func TestRestore(t *testing.T) {
 	_, err := os.Stat(filepath.Join(mount, "same.m2ts"))
 	require.NoError(t, err)
 }
+
+// TestRestoreToTheSameFileWithAnotherName は、大文字と小文字や正規化だけを変えた付け直しを戻すとき、元のパスが自分自身として見つかっても、
+// ふさがっているとみなさずに戻すことを確かめる (#1095)。大文字と小文字を区別しないファイルシステムの代わりに、ハードリンクを置く。
+func TestRestoreToTheSameFileWithAnotherName(t *testing.T) {
+	t.Parallel()
+
+	mount := t.TempDir()
+	store := kago.New(map[string]string{poolMain: mount}, nil)
+	require.NoError(t, os.WriteFile(filepath.Join(mount, "NEW.m2ts"), []byte("recording"), 0o600))
+	require.NoError(t, os.Link(filepath.Join(mount, "NEW.m2ts"), filepath.Join(mount, "new.m2ts")))
+
+	require.NoError(t, store.Restore(poolMain, "NEW.m2ts", "new.m2ts"))
+	got, err := os.ReadFile(filepath.Join(mount, "new.m2ts"))
+	require.NoError(t, err)
+	assert.Equal(t, "recording", string(got))
+}

@@ -320,7 +320,8 @@ func (s *Store) Restore(poolID, from, to string) error {
 			return fmt.Errorf("failed to create a directory in pool %s: %w", poolID, err)
 		}
 	}
-	if exists(root, to) {
+	// 大文字と小文字や正規化だけを変えた付け直しを戻すときは、元のパスが自分自身として見つかる。ふさがっているとはみなさない。
+	if exists(root, to) && !sameFile(root, from, to) {
 		return fmt.Errorf("failed to restore a file in pool %s: %q already exists", poolID, to)
 	}
 	if err := root.Rename(from, to); err != nil {
