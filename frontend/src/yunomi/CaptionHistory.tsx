@@ -1,6 +1,6 @@
-import { ActionIcon, Button, Group, ScrollArea, Stack, Text, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Group, ScrollArea, Text, UnstyledButton } from '@mantine/core';
 import { useClipboard } from '@mantine/hooks';
-import { Check, Copy, Subtitles } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -15,11 +15,13 @@ type Props = {
   label: (entry: CaptionEntry) => string;
   // onSelect は、行を押したときに呼ぶ。録画では、その字幕の位置へ移る。渡さなければ、行は押せない。
   onSelect?: (entry: CaptionEntry) => void;
+  // height は、履歴の高さ。CSS の長さで渡す。
+  height?: string | number;
 };
 
 // CaptionHistory は、字幕の履歴 (#450、設計書 7.4)。出た字幕を時刻の順に並べ、新しい字幕が出たらその行へ追う。
 // 各行から字幕の文をコピーでき、録画では行を押すとその位置へ移る。
-export function CaptionHistory({ entries, label, onSelect }: Props) {
+export function CaptionHistory({ entries, label, onSelect, height = 240 }: Props) {
   const { t } = useTranslation();
   const clipboard = useClipboard();
   const [copiedKey, setCopiedKey] = useState<number | null>(null);
@@ -55,7 +57,7 @@ export function CaptionHistory({ entries, label, onSelect }: Props) {
 
   return (
     <ScrollArea
-      h={240}
+      h={height}
       type="auto"
       viewportRef={viewport}
       onWheel={markScrolled}
@@ -122,28 +124,5 @@ export function CaptionHistory({ entries, label, onSelect }: Props) {
         </ul>
       )}
     </ScrollArea>
-  );
-}
-
-// CaptionHistoryToggle は、字幕の履歴を開閉するボタンと、履歴。場所を取るので、既定では閉じる。
-export function CaptionHistoryToggle(props: Props) {
-  const { t } = useTranslation();
-  const [opened, setOpened] = useState(false);
-
-  return (
-    <Stack gap="xs">
-      <Group>
-        <Button
-          size="compact-sm"
-          variant="default"
-          leftSection={<Subtitles size={14} aria-hidden />}
-          aria-expanded={opened}
-          onClick={() => setOpened(!opened)}
-        >
-          {opened ? t('captionHistory.hide') : t('captionHistory.show')}
-        </Button>
-      </Group>
-      {opened && <CaptionHistory {...props} />}
-    </Stack>
   );
 }

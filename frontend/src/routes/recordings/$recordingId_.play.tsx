@@ -18,13 +18,14 @@ import {
 } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
-import { CommentPanel } from '../../jikkyo/CommentList';
+import { CommentList } from '../../jikkyo/CommentList';
+import { WatchPanel } from '../../yunomi/WatchPanel';
 import { RuleRecordingList } from '../../recordings/RuleRecordingList';
 import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
 import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
 import { noCrop, type Crop } from '../../yunomi/crop';
-import { CaptionHistoryToggle } from '../../yunomi/CaptionHistory';
+import { CaptionHistory } from '../../yunomi/CaptionHistory';
 import {
   insertRecordedCaption,
   normalizeCaption,
@@ -931,7 +932,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     </div>
   );
 
-  // 実況の過去ログがあれば、右の列に一覧を出す。
+  // 実況の過去ログがあれば、右の列で字幕の履歴と切り替えて出す。
   const commentsShown = jikkyo.comments !== null && jikkyo.comments.length > 0;
 
   return (
@@ -963,39 +964,56 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
               </Group>
             </Alert>
           )}
-          <CaptionHistoryToggle
-            entries={captionEntries}
-            label={(entry) =>
-              formatClock(broadcastTime(recording.recordedFrom, recording.gaps, entry.at))
-            }
-            onSelect={(entry) => seek(entry.at)}
-          />
         </>
       }
       side={
-        // 実況の過去ログも、同じルールの録画もなければ、右の列を出さず、映像を広げる。
-        commentsShown || recording.rule != null ? (
-          <>
-            {/* 実況の過去ログのうち、再生位置までに流れたもの (#489)。 */}
-            {commentsShown && (
-              <CommentPanel
-                rows={recordedRows}
-                onMuteUser={muteUser}
-                height={watchCommentsHeight}
+        <>
+          {/* 実況の過去ログのうち再生位置までに流れたもの (#489) と、字幕の履歴を、見出しで切り替える。過去ログがなければ、字幕の履歴だけを出す。 */}
+          <WatchPanel
+            label={t('player.sidePanel')}
+            tabs={[
+              ...(commentsShown
+                ? [
+                    {
+                      value: 'jikkyo',
+                      label: t('jikkyo.toggle'),
+                      content: (
+                        <CommentList
+                          rows={recordedRows}
+                          onMuteUser={muteUser}
+                          height={watchCommentsHeight}
+                        />
+                      ),
+                    },
+                  ]
+                : []),
+              {
+                value: 'captions',
+                label: t('captionHistory.tab'),
+                content: (
+                  <CaptionHistory
+                    entries={captionEntries}
+                    label={(entry) =>
+                      formatClock(broadcastTime(recording.recordedFrom, recording.gaps, entry.at))
+                    }
+                    onSelect={(entry) => seek(entry.at)}
+                    height={watchCommentsHeight}
+                  />
+                ),
+              },
+            ]}
+          />
+          {recording.rule != null && (
+            // 一覧は読み込みを待たず、映像を先に出す。
+            <Suspense fallback={null}>
+              <RuleRecordingList
+                ruleId={recording.rule.id}
+                ruleName={recording.rule.name}
+                recordingId={recordingId}
               />
-            )}
-            {recording.rule != null && (
-              // 一覧は読み込みを待たず、映像を先に出す。
-              <Suspense fallback={null}>
-                <RuleRecordingList
-                  ruleId={recording.rule.id}
-                  ruleName={recording.rule.name}
-                  recordingId={recordingId}
-                />
-              </Suspense>
-            )}
-          </>
-        ) : null
+            </Suspense>
+          )}
+        </>
       }
     />
   );

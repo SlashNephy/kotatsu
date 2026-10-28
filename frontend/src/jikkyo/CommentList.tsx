@@ -1,7 +1,6 @@
-import { ActionIcon, Box, Group, Menu, Paper, ScrollArea, Stack, Text } from '@mantine/core';
+import { ActionIcon, Group, Menu, ScrollArea, Text } from '@mantine/core';
 import { useClipboard } from '@mantine/hooks';
 import { Copy, EllipsisVertical, IdCard, UserX } from 'lucide-react';
-import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -118,41 +117,5 @@ export function CommentList({ rows, onMuteUser, height = 240 }: ListProps) {
         </ul>
       )}
     </ScrollArea>
-  );
-}
-
-// CommentPanel は、右の列に置く実況の枠 (設計書 7.4)。見出しと、流れていったコメントの一覧を、常に開いて出す。
-// footer は、枠の下端に付けるもの (ライブ視聴の投稿の欄)。
-export function CommentPanel({
-  rows,
-  onMuteUser,
-  height,
-  footer,
-}: {
-  rows: readonly CommentRow[];
-  onMuteUser?: (userId: string) => void;
-  height: string;
-  footer?: ReactNode;
-}) {
-  const { t } = useTranslation();
-
-  return (
-    <Paper withBorder radius="md">
-      <Stack gap={0}>
-        <Text size="sm" fw={600} px="sm" py="xs">
-          {t('jikkyo.toggle')}
-        </Text>
-        <CommentList
-          rows={rows}
-          height={height}
-          {...(onMuteUser === undefined ? {} : { onMuteUser })}
-        />
-        {footer !== undefined && (
-          <Box p="xs" style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>
-            {footer}
-          </Box>
-        )}
-      </Stack>
-    </Paper>
   );
 }

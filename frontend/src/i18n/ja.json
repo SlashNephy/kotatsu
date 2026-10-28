@@ -1080,6 +1080,7 @@
     },
     "backToRecording": "録画の詳細に戻る",
     "ruleRecordings": "「{{rule}}」の録画",
+    "sidePanel": "右の列に出す一覧",
     "loading": "映像を読み込んでいます",
     "error": "再生できませんでした。時間をおいてやり直してください",
     "retry": "やり直す",
@@ -1154,12 +1155,11 @@
     }
   },
   "captionHistory": {
-    "show": "字幕の履歴を出す",
-    "hide": "字幕の履歴を隠す",
     "list": "字幕の履歴",
     "empty": "まだ字幕は出ていません",
     "copy": "字幕をコピー",
-    "seek": "この字幕の位置へ移る"
+    "seek": "この字幕の位置へ移る",
+    "tab": "字幕"
   },
   "jikkyo": {
     "force": "勢い {{count}}",

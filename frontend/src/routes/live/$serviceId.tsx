@@ -22,13 +22,14 @@ import {
   toHalfWidth,
   useDocumentTitle,
 } from '../../futon';
-import { CommentPanel } from '../../jikkyo/CommentList';
+import { CommentList } from '../../jikkyo/CommentList';
+import { WatchPanel } from '../../yunomi/WatchPanel';
 import { LiveServiceList } from '../../guide/LiveServiceList';
 import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
 import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
 import { noCrop, type Crop } from '../../yunomi/crop';
-import { CaptionHistoryToggle } from '../../yunomi/CaptionHistory';
+import { CaptionHistory } from '../../yunomi/CaptionHistory';
 import {
   appendLiveCaption,
   normalizeCaption,
@@ -990,29 +991,50 @@ function Live({
                 onPress={dataBroadcast.press}
               />
             )}
-            <CaptionHistoryToggle
-              entries={captionEntries}
-              label={(entry) => formatClock(entry.at)}
-            />
           </>
         }
         side={
           <>
-            {channel !== null && jikkyoEnabled && (
-              <CommentPanel
-                rows={commentRows}
-                onMuteUser={muteUser}
-                height={watchCommentsHeight}
-                footer={
-                  <JikkyoPanel
-                    channelName={channel.name}
-                    status={jikkyo.status}
-                    onPost={jikkyo.post}
-                    force={jikkyo.force}
-                  />
-                }
-              />
-            )}
+            {/* 実況のコメントの一覧と字幕の履歴を、見出しで切り替える。実況を切っていれば、字幕の履歴だけを出す。 */}
+            <WatchPanel
+              label={t('player.sidePanel')}
+              tabs={[
+                ...(channel !== null && jikkyoEnabled
+                  ? [
+                      {
+                        value: 'jikkyo',
+                        label: t('jikkyo.toggle'),
+                        content: (
+                          <CommentList
+                            rows={commentRows}
+                            onMuteUser={muteUser}
+                            height={watchCommentsHeight}
+                          />
+                        ),
+                        footer: (
+                          <JikkyoPanel
+                            channelName={channel.name}
+                            status={jikkyo.status}
+                            onPost={jikkyo.post}
+                            force={jikkyo.force}
+                          />
+                        ),
+                      },
+                    ]
+                  : []),
+                {
+                  value: 'captions',
+                  label: t('captionHistory.tab'),
+                  content: (
+                    <CaptionHistory
+                      entries={captionEntries}
+                      label={(entry) => formatClock(entry.at)}
+                      height={watchCommentsHeight}
+                    />
+                  ),
+                },
+              ]}
+            />
             <LiveServiceList serviceId={serviceId} />
           </>
         }
