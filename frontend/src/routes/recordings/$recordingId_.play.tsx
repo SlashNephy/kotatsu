@@ -165,6 +165,8 @@ const playQuery = graphql`
       __typename
       ... on Recording {
         name
+        startAt
+        endAt
         streamUrl
         videoFormat
         recordedFrom
@@ -949,6 +951,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             title={<ProgramTitle name={recording.name} />}
             serviceName={recording.service.name}
             serviceLogoUrl={recording.service.logoUrl}
+            time={recording}
           />
           {error !== null && (
             <Alert color="red" role="alert">

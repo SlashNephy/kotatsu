@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<d9dabda2eed214afe5f9ac8352974d58>>
+ * @generated SignedSource<<099d709d10931d1e01654ec123386069>>
  * @lightSyntaxTransform
  */
 
@@ -20,6 +20,7 @@ export type RecordingIdPlayQuery$data = {
       readonly componentType: number;
       readonly languages: ReadonlyArray<string>;
     }>;
+    readonly endAt: string;
     readonly gaps: ReadonlyArray<{
       readonly from: string;
       readonly to: string;
@@ -41,6 +42,7 @@ export type RecordingIdPlayQuery$data = {
       readonly logoUrl: string | null | undefined;
       readonly name: string;
     };
+    readonly startAt: string;
     readonly streamUrl: string;
     readonly thumbnailUrl: string | null | undefined;
     readonly videoFormat: VideoFormat;
@@ -97,31 +99,45 @@ v4 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "streamUrl",
+  "name": "startAt",
   "storageKey": null
 },
 v5 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "videoFormat",
+  "name": "endAt",
   "storageKey": null
 },
 v6 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedFrom",
+  "name": "streamUrl",
   "storageKey": null
 },
 v7 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedUntil",
+  "name": "videoFormat",
   "storageKey": null
 },
 v8 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "recordedFrom",
+  "storageKey": null
+},
+v9 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "recordedUntil",
+  "storageKey": null
+},
+v10 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingGap",
@@ -146,56 +162,56 @@ v8 = {
   ],
   "storageKey": null
 },
-v9 = {
+v11 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "jikkyoCommentsUrl",
   "storageKey": null
 },
-v10 = {
+v12 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "id",
   "storageKey": null
 },
-v11 = [
-  (v10/*:: as any*/),
+v13 = [
+  (v12/*:: as any*/),
   (v3/*:: as any*/)
 ],
-v12 = {
+v14 = {
   "alias": null,
   "args": null,
   "concreteType": "Rule",
   "kind": "LinkedField",
   "name": "rule",
   "plural": false,
-  "selections": (v11/*:: as any*/),
-  "storageKey": null
-},
-v13 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "watchPositionMs",
-  "storageKey": null
-},
-v14 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "thumbnailUrl",
+  "selections": (v13/*:: as any*/),
   "storageKey": null
 },
 v15 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "previewUrl",
+  "name": "watchPositionMs",
   "storageKey": null
 },
 v16 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "thumbnailUrl",
+  "storageKey": null
+},
+v17 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "previewUrl",
+  "storageKey": null
+},
+v18 = {
   "alias": null,
   "args": null,
   "concreteType": "ProgramAudio",
@@ -220,24 +236,24 @@ v16 = {
   ],
   "storageKey": null
 },
-v17 = {
+v19 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v18 = {
+v20 = {
   "alias": null,
   "args": null,
   "concreteType": "JikkyoChannel",
   "kind": "LinkedField",
   "name": "jikkyo",
   "plural": false,
-  "selections": (v11/*:: as any*/),
+  "selections": (v13/*:: as any*/),
   "storageKey": null
 },
-v19 = {
+v21 = {
   "alias": null,
   "args": null,
   "concreteType": "Transcoding",
@@ -307,11 +323,13 @@ return {
               (v7/*:: as any*/),
               (v8/*:: as any*/),
               (v9/*:: as any*/),
-              (v12/*:: as any*/),
-              (v13/*:: as any*/),
+              (v10/*:: as any*/),
+              (v11/*:: as any*/),
               (v14/*:: as any*/),
               (v15/*:: as any*/),
               (v16/*:: as any*/),
+              (v17/*:: as any*/),
+              (v18/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -321,8 +339,8 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v17/*:: as any*/),
-                  (v18/*:: as any*/)
+                  (v19/*:: as any*/),
+                  (v20/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -333,7 +351,7 @@ return {
         ],
         "storageKey": null
       },
-      (v19/*:: as any*/)
+      (v21/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -363,11 +381,13 @@ return {
               (v7/*:: as any*/),
               (v8/*:: as any*/),
               (v9/*:: as any*/),
-              (v12/*:: as any*/),
-              (v13/*:: as any*/),
+              (v10/*:: as any*/),
+              (v11/*:: as any*/),
               (v14/*:: as any*/),
               (v15/*:: as any*/),
               (v16/*:: as any*/),
+              (v17/*:: as any*/),
+              (v18/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -377,9 +397,9 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v17/*:: as any*/),
-                  (v18/*:: as any*/),
-                  (v10/*:: as any*/)
+                  (v19/*:: as any*/),
+                  (v20/*:: as any*/),
+                  (v12/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -387,24 +407,24 @@ return {
             "type": "Recording",
             "abstractKey": null
           },
-          (v10/*:: as any*/)
+          (v12/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v19/*:: as any*/)
+      (v21/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "14cc9df523336f9911b43360dc0bc89a",
+    "cacheID": "17b0fdd381426f3d9ad7d390652614c8",
     "id": null,
     "metadata": {},
     "name": "RecordingIdPlayQuery",
     "operationKind": "query",
-    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      streamUrl\n      videoFormat\n      recordedFrom\n      recordedUntil\n      gaps {\n        from\n        to\n      }\n      jikkyoCommentsUrl\n      rule {\n        id\n        name\n      }\n      watchPositionMs\n      thumbnailUrl\n      previewUrl\n      audios {\n        componentType\n        languages\n      }\n      service {\n        name\n        logoUrl\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
+    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      startAt\n      endAt\n      streamUrl\n      videoFormat\n      recordedFrom\n      recordedUntil\n      gaps {\n        from\n        to\n      }\n      jikkyoCommentsUrl\n      rule {\n        id\n        name\n      }\n      watchPositionMs\n      thumbnailUrl\n      previewUrl\n      audios {\n        componentType\n        languages\n      }\n      service {\n        name\n        logoUrl\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "d0e04531673903773cb439f32ce0bbc1";
+(node as any).hash = "eeb6e04fca6418b638890daa3d8f25b2";
 
 export default node;

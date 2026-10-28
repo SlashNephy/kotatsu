@@ -952,6 +952,7 @@ function Live({
               }
               serviceName={service.name}
               serviceLogoUrl={service.logoUrl}
+              time={program}
               // 使うことの少ない操作は、メニューにまとめる (#487)。
               actions={
                 <Menu position="bottom-end">
