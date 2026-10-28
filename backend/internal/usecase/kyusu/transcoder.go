@@ -96,17 +96,24 @@ func (t *Transcoder) RunVOD(ctx context.Context, src io.Reader, preset *Preset, 
 	if !preset.Passthrough {
 		return t.run(ctx, src, ffmpegArgs(t.cfg, preset, audio, dir, opts), io.Discard)
 	}
-	splitter, err := ts.NewSplitter(opts.Cuts, VODSegmentDuration, func(i int) (io.WriteCloser, error) {
+	splitter, err := ts.NewSplitter(opts.Cuts, VODSegmentDuration, func(i int) (ts.Segment, error) {
 		return newSegmentFile(filepath.Join(dir, fmt.Sprintf(segmentPattern, opts.StartNumber+i)))
 	})
 	if err != nil {
 		return err
 	}
-	if err := t.run(ctx, src, ffmpegArgs(t.cfg, preset, audio, dir, opts), splitter); err != nil {
-		return err
+	err = t.run(ctx, src, ffmpegArgs(t.cfg, preset, audio, dir, opts), splitter)
+	if err == nil {
+		err = splitter.Close()
+	}
+	// 止めたか失敗したときは、書きかけのセグメントを捨てる。開いたままにすると、ハンドルが漏れ、一時ファイルも残る (#1094)。
+	if err != nil {
+		if abortErr := splitter.Abort(); abortErr != nil {
+			err = errors.Join(err, abortErr)
+		}
 	}
 
-	return splitter.Close()
+	return err
 }
 
 // segmentFile は、セグメントを一時的な名前で書き、閉じるときに本来の名前に変える。
@@ -116,7 +123,7 @@ type segmentFile struct {
 	path string
 }
 
-var _ io.WriteCloser = new(segmentFile)
+var _ ts.Segment = new(segmentFile)
 
 func newSegmentFile(path string) (*segmentFile, error) {
 	file, err := os.Create(path + ".tmp")
@@ -133,6 +140,17 @@ func (f *segmentFile) Close() error {
 	}
 	if err := os.Rename(f.Name(), f.path); err != nil {
 		return fmt.Errorf("failed to put a segment: %w", err)
+	}
+
+	return nil
+}
+
+// Abort は、書きかけのセグメントを閉じ、一時的な名前のファイルを消す。Close で閉じた後でも消す。
+func (f *segmentFile) Abort() error {
+	// 捨てるので、閉じるときのエラー (閉じ済みも含む) は気にしない。
+	_ = f.File.Close()
+	if err := os.Remove(f.Name()); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to discard a segment: %w", err)
 	}
 
 	return nil

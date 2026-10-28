@@ -3,7 +3,6 @@ package ts_test
 import (
 	"bytes"
 	"errors"
-	"io"
 	"testing"
 	"time"
 
@@ -13,21 +12,30 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
-// segmentBuffer は、Splitter が書いたセグメント。閉じたかどうかも控える。
+// segmentBuffer は、Splitter が書いたセグメント。置いたか捨てたかも控える。
 type segmentBuffer struct {
 	bytes.Buffer
 
-	cut    int
-	closed bool
+	cut     int
+	closed  bool
+	aborted bool
+	// closeErr は、Close が返すエラー。
+	closeErr error
 }
 
 func (b *segmentBuffer) Close() error {
 	b.closed = true
 
+	return b.closeErr
+}
+
+func (b *segmentBuffer) Abort() error {
+	b.aborted = true
+
 	return nil
 }
 
-var _ io.WriteCloser = new(segmentBuffer)
+var _ ts.Segment = new(segmentBuffer)
 
 // TestSplitterCutsAtKeyframes は、Splitter が、区切りの PTS に届いた I フレームの PES の先頭でセグメントを切り、
 // 各セグメントの先頭に PAT と PMT を写すことを確かめる (#806)。
@@ -92,8 +100,8 @@ func TestSplitterCutsAtKeyframes(t *testing.T) {
 			t.Parallel()
 
 			segments := []*segmentBuffer{}
-			splitter, err := ts.NewSplitter(tt.cuts, tt.interval, func(i int) (io.WriteCloser, error) {
-				segment := &segmentBuffer{Buffer: bytes.Buffer{}, cut: i, closed: false}
+			splitter, err := ts.NewSplitter(tt.cuts, tt.interval, func(i int) (ts.Segment, error) {
+				segment := &segmentBuffer{Buffer: bytes.Buffer{}, cut: i, closed: false, aborted: false, closeErr: nil}
 				segments = append(segments, segment)
 
 				return segment, nil
@@ -142,12 +150,12 @@ func TestSplitterReportsCreateFailure(t *testing.T) {
 
 	input := loadTestTSFile(t, "test-hevc-main10.ts")
 	errFull := errors.New("disk full")
-	splitter, err := ts.NewSplitter([]int64{129003, 219093}, time.Hour, func(i int) (io.WriteCloser, error) {
+	splitter, err := ts.NewSplitter([]int64{129003, 219093}, time.Hour, func(i int) (ts.Segment, error) {
 		if i == 1 {
 			return nil, errFull
 		}
 
-		return &segmentBuffer{Buffer: bytes.Buffer{}, cut: i, closed: false}, nil
+		return &segmentBuffer{Buffer: bytes.Buffer{}, cut: i, closed: false, aborted: false, closeErr: nil}, nil
 	})
 	require.NoError(t, err)
 
@@ -159,4 +167,56 @@ func TestSplitterReportsCreateFailure(t *testing.T) {
 	_, err = splitter.Write(input)
 	require.ErrorIs(t, err, errFull)
 	require.ErrorIs(t, splitter.Close(), errFull)
+}
+
+// TestSplitterAbortDiscardsTheCurrentSegment は、Abort が、書きかけのセグメントを置かずに捨て、
+// 書き終えたセグメントには触らないことを確かめる (#1094)。以後の Write と Close は ErrAborted を返す。
+func TestSplitterAbortDiscardsTheCurrentSegment(t *testing.T) {
+	t.Parallel()
+
+	input := loadTestTSFile(t, "test-hevc-main10.ts")
+	segments := []*segmentBuffer{}
+	splitter, err := ts.NewSplitter([]int64{129003, 219093}, time.Hour, func(i int) (ts.Segment, error) {
+		segment := &segmentBuffer{Buffer: bytes.Buffer{}, cut: i, closed: false, aborted: false, closeErr: nil}
+		segments = append(segments, segment)
+
+		return segment, nil
+	})
+	require.NoError(t, err)
+	_, err = splitter.Write(input)
+	require.NoError(t, err)
+
+	require.NoError(t, splitter.Abort())
+	require.Len(t, segments, 2)
+	assert.True(t, segments[0].closed)
+	assert.False(t, segments[0].aborted)
+	assert.False(t, segments[1].closed, "the partial segment is not put")
+	assert.True(t, segments[1].aborted)
+	_, err = splitter.Write(input)
+	require.ErrorIs(t, err, ts.ErrAborted)
+	require.ErrorIs(t, splitter.Close(), ts.ErrAborted)
+	require.NoError(t, splitter.Abort(), "aborting twice does nothing")
+}
+
+// TestSplitterAbortDiscardsTheSegmentThatFailedToClose は、セグメントを置くのに失敗したときも、
+// Abort がそのセグメントを捨てることを確かめる。置けなかった一時ファイルを残さないため。
+func TestSplitterAbortDiscardsTheSegmentThatFailedToClose(t *testing.T) {
+	t.Parallel()
+
+	input := loadTestTSFile(t, "test-hevc-main10.ts")
+	errRename := errors.New("rename failed")
+	segments := []*segmentBuffer{}
+	splitter, err := ts.NewSplitter([]int64{129003, 219093}, time.Hour, func(i int) (ts.Segment, error) {
+		segment := &segmentBuffer{Buffer: bytes.Buffer{}, cut: i, closed: false, aborted: false, closeErr: errRename}
+		segments = append(segments, segment)
+
+		return segment, nil
+	})
+	require.NoError(t, err)
+
+	_, err = splitter.Write(input)
+	require.ErrorIs(t, err, errRename)
+	require.NoError(t, splitter.Abort())
+	require.Len(t, segments, 1, "no segment is started after the failure")
+	assert.True(t, segments[0].aborted)
 }
