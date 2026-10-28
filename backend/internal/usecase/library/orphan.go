@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
@@ -44,6 +45,8 @@ func (l *Library) FindOrphans(ctx context.Context, db sqlc.DBTX) ([]*OrphanFile,
 	if err != nil {
 		return nil, err
 	}
+	checker := l.store.NewChecker()
+	defer checker.Close()
 	now := l.clock.Now()
 	result := []*OrphanFile{}
 	for _, poolID := range l.store.ScanPoolIDs() {
@@ -52,7 +55,7 @@ func (l *Library) FindOrphans(ctx context.Context, db sqlc.DBTX) ([]*OrphanFile,
 			return nil, err
 		}
 		for _, entry := range entries {
-			if used.orphan(poolID, entry, now) {
+			if used.orphan(checker, poolID, entry, now) {
 				result = append(result, &OrphanFile{PoolID: poolID, Entry: entry})
 			}
 		}
@@ -83,8 +86,10 @@ func (l *Library) DeleteOrphans(ctx context.Context, db Database, actor *audit.A
 	if err != nil {
 		return nil, err
 	}
+	checker := l.store.NewChecker()
+	defer checker.Close()
 	for _, target := range targets {
-		err := l.deleteOrphan(ctx, db, actor, used, target)
+		err := l.deleteOrphan(ctx, db, actor, used, checker, target)
 		switch {
 		case errors.Is(err, ErrNotOrphan), errors.Is(err, ErrNotFound):
 			result.Skipped++
@@ -99,7 +104,7 @@ func (l *Library) DeleteOrphans(ctx context.Context, db Database, actor *audit.A
 }
 
 // deleteOrphan は、target を確かめ直して消す。DB にあるか、使っているか、書いたばかりなら ErrNotOrphan を、なければ ErrNotFound を返す。
-func (l *Library) deleteOrphan(ctx context.Context, db Database, actor *audit.Actor, used *usedFiles, target *OrphanTarget) error {
+func (l *Library) deleteOrphan(ctx context.Context, db Database, actor *audit.Actor, used *usedFiles, checker *kago.Checker, target *OrphanTarget) error {
 	// 走査の対象でないもの (タイムシフトのバッファなど) は、DB にないのが正常なので、孤児として消さない。
 	if !slices.Contains(l.store.ScanPoolIDs(), target.PoolID) {
 		return fmt.Errorf("%w: pool %s is not scanned", ErrNotOrphan, target.PoolID)
@@ -113,7 +118,7 @@ func (l *Library) deleteOrphan(ctx context.Context, db Database, actor *audit.Ac
 	case err != nil:
 		return err
 	}
-	if !used.orphan(target.PoolID, entry, l.clock.Now()) {
+	if !used.orphan(checker, target.PoolID, entry, l.clock.Now()) {
 		return ErrNotOrphan
 	}
 
@@ -143,14 +148,41 @@ func (l *Library) deleteOrphan(ctx context.Context, db Database, actor *audit.Ac
 // ID は、生成物のディレクトリの持ち主を確かめるのに使う。
 type usedFiles struct {
 	locations map[kago.Location]struct{}
-	ids       map[uuid.UUID]struct{}
+	// folded は、パスを foldPath で揃えた置き場所から、DB の置き場所を引く。走査した名前が DB と一致しないときに、同じファイルの候補を探すのに使う。
+	folded map[kago.Location][]kago.Location
+	ids    map[uuid.UUID]struct{}
 }
 
 func (u *usedFiles) add(id uuid.UUID, poolID, path string) {
-	u.locations[kago.Location{PoolID: poolID, Path: path}] = struct{}{}
+	location := kago.Location{PoolID: poolID, Path: path}
+	u.locations[location] = struct{}{}
+	key := kago.Location{PoolID: poolID, Path: foldPath(path)}
+	u.folded[key] = append(u.folded[key], location)
 	if id != uuid.Nil {
 		u.ids[id] = struct{}{}
 	}
+}
+
+// foldPath は、大文字と小文字と Unicode の正規化を揃えたパスを返す。同じファイルの候補を探すためのもので、同じファイルかは確かめない。
+func foldPath(path string) string {
+	return strings.ToLower(norm.NFC.String(path))
+}
+
+// uses は、location を使っているかを返す。DB のパスと名前が一致しなくても、大文字と小文字や正規化だけが違い、
+// ファイルシステムが同じファイルとみなすなら、使っているとする (#1095)。区別しないファイルシステムや HFS+ では、
+// 走査で見つかる名前が DB と違うことがある。調べられなければ、消さないよう、使っているとみなす。
+func (u *usedFiles) uses(checker *kago.Checker, location kago.Location) bool {
+	if _, ok := u.locations[location]; ok {
+		return true
+	}
+	for _, recorded := range u.folded[kago.Location{PoolID: location.PoolID, Path: foldPath(location.Path)}] {
+		same, err := checker.SameFile(location.PoolID, location.Path, recorded.Path)
+		if err != nil || same {
+			return true
+		}
+	}
+
+	return false
 }
 
 // usedFiles は、DB にある録画ファイル (録画中のものも含む) と、終わっていないつなぐ処理が置き換えるファイルと消すファイルを返す。
@@ -159,7 +191,7 @@ func (l *Library) usedFiles(ctx context.Context, db sqlc.DBTX) (*usedFiles, erro
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the recording files: %w", err)
 	}
-	used := &usedFiles{locations: map[kago.Location]struct{}{}, ids: map[uuid.UUID]struct{}{}}
+	used := &usedFiles{locations: map[kago.Location]struct{}{}, folded: map[kago.Location][]kago.Location{}, ids: map[uuid.UUID]struct{}{}}
 	for _, row := range rows {
 		used.add(row.ID, row.PoolID, row.Path)
 	}
@@ -203,7 +235,7 @@ func (l *Library) usedFiles(ctx context.Context, db sqlc.DBTX) (*usedFiles, erro
 
 // orphan は、プール poolID の entry が、DB にも、つなぐ処理にもなく、書くか名前を変えてから orphanGrace が過ぎたかを返す。
 // 録画のファイル名を付け直すときは、ファイルを移してから記録を書き換えるので、移したばかりのファイルは DB にないことがある。
-func (u *usedFiles) orphan(poolID string, entry *kago.Entry, now time.Time) bool {
+func (u *usedFiles) orphan(checker *kago.Checker, poolID string, entry *kago.Entry, now time.Time) bool {
 	if now.Sub(entry.ChangedAt) < orphanGrace {
 		return false
 	}
@@ -225,8 +257,6 @@ func (u *usedFiles) orphan(poolID string, entry *kago.Entry, now time.Time) bool
 	}
 
 	return !slices.ContainsFunc(candidates, func(location kago.Location) bool {
-		_, ok := u.locations[location]
-
-		return ok
+		return u.uses(checker, location)
 	})
 }

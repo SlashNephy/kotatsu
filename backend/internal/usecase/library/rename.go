@@ -193,6 +193,10 @@ func destination(checker *kago.Checker, taken map[string]bool, poolID, from, dir
 		if !exists {
 			return to, true
 		}
+		// 大文字と小文字や正規化だけを変えるときは、移す先が自分自身として見つかる。ふさがっているとはみなさない。
+		if same, err := checker.SameFile(poolID, from, to); err == nil && same {
+			return to, true
+		}
 	}
 }
 
