@@ -19,6 +19,8 @@ export type DemoService = {
   jikkyo: null;
   // videoFormat は、放送中の番組の映像の種類。デモの局は、どれも 2K にする。
   videoFormat: 'HD';
+  // timeshiftPrograms は、タイムシフトのバッファから再生できる番組。デモはバッファを持たないので、空にする。
+  timeshiftPrograms: [];
 };
 
 export type DemoProgram = {
@@ -184,6 +186,7 @@ export const services: DemoService[] = serviceSeeds.map((seed, index) => {
     // 実況は、外部の NX-Jikkyo につながるので、デモでは持たせない。
     jikkyo: null,
     videoFormat: 'HD',
+    timeshiftPrograms: [],
   };
 });
 

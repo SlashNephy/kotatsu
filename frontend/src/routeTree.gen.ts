@@ -43,6 +43,7 @@ import { Route as SettingsPasswordRouteImport } from './routes/settings/password
 import { Route as SettingsPlayerRouteImport } from './routes/settings/player'
 import { Route as SettingsSecurityRouteImport } from './routes/settings/security'
 import { Route as SettingsSessionsRouteImport } from './routes/settings/sessions'
+import { Route as TimeshiftServiceIdRouteImport } from './routes/timeshift/$serviceId'
 import { Route as GuideChannelServiceIdRouteImport } from './routes/guide/channel.$serviceId'
 import { Route as RecordingsRecordingIdPlayRouteImport } from './routes/recordings/$recordingId_.play'
 import { Route as TimeshiftServiceIdPlayRouteImport } from './routes/timeshift/$serviceId_.play'
@@ -217,6 +218,11 @@ const SettingsSessionsRoute = SettingsSessionsRouteImport.update({
   path: '/settings/sessions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TimeshiftServiceIdRoute = TimeshiftServiceIdRouteImport.update({
+  id: '/timeshift/$serviceId',
+  path: '/timeshift/$serviceId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GuideChannelServiceIdRoute = GuideChannelServiceIdRouteImport.update({
   id: '/guide/channel/$serviceId',
   path: '/guide/channel/$serviceId',
@@ -263,6 +269,7 @@ export interface FileRoutesByFullPath {
   '/settings/player': typeof SettingsPlayerRoute
   '/settings/security': typeof SettingsSecurityRoute
   '/settings/sessions': typeof SettingsSessionsRoute
+  '/timeshift/$serviceId': typeof TimeshiftServiceIdRoute
   '/guide/': typeof GuideIndexRoute
   '/live/': typeof LiveIndexRoute
   '/login/': typeof LoginIndexRoute
@@ -302,6 +309,7 @@ export interface FileRoutesByTo {
   '/settings/player': typeof SettingsPlayerRoute
   '/settings/security': typeof SettingsSecurityRoute
   '/settings/sessions': typeof SettingsSessionsRoute
+  '/timeshift/$serviceId': typeof TimeshiftServiceIdRoute
   '/guide': typeof GuideIndexRoute
   '/live': typeof LiveIndexRoute
   '/login': typeof LoginIndexRoute
@@ -342,6 +350,7 @@ export interface FileRoutesById {
   '/settings/player': typeof SettingsPlayerRoute
   '/settings/security': typeof SettingsSecurityRoute
   '/settings/sessions': typeof SettingsSessionsRoute
+  '/timeshift/$serviceId': typeof TimeshiftServiceIdRoute
   '/guide/': typeof GuideIndexRoute
   '/live/': typeof LiveIndexRoute
   '/login/': typeof LoginIndexRoute
@@ -383,6 +392,7 @@ export interface FileRouteTypes {
     | '/settings/player'
     | '/settings/security'
     | '/settings/sessions'
+    | '/timeshift/$serviceId'
     | '/guide/'
     | '/live/'
     | '/login/'
@@ -422,6 +432,7 @@ export interface FileRouteTypes {
     | '/settings/player'
     | '/settings/security'
     | '/settings/sessions'
+    | '/timeshift/$serviceId'
     | '/guide'
     | '/live'
     | '/login'
@@ -461,6 +472,7 @@ export interface FileRouteTypes {
     | '/settings/player'
     | '/settings/security'
     | '/settings/sessions'
+    | '/timeshift/$serviceId'
     | '/guide/'
     | '/live/'
     | '/login/'
@@ -501,6 +513,7 @@ export interface RootRouteChildren {
   SettingsPlayerRoute: typeof SettingsPlayerRoute
   SettingsSecurityRoute: typeof SettingsSecurityRoute
   SettingsSessionsRoute: typeof SettingsSessionsRoute
+  TimeshiftServiceIdRoute: typeof TimeshiftServiceIdRoute
   GuideIndexRoute: typeof GuideIndexRoute
   LiveIndexRoute: typeof LiveIndexRoute
   LoginIndexRoute: typeof LoginIndexRoute
@@ -752,6 +765,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSessionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/timeshift/$serviceId': {
+      id: '/timeshift/$serviceId'
+      path: '/timeshift/$serviceId'
+      fullPath: '/timeshift/$serviceId'
+      preLoaderRoute: typeof TimeshiftServiceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/guide/channel/$serviceId': {
       id: '/guide/channel/$serviceId'
       path: '/guide/channel/$serviceId'
@@ -805,6 +825,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsPlayerRoute: SettingsPlayerRoute,
   SettingsSecurityRoute: SettingsSecurityRoute,
   SettingsSessionsRoute: SettingsSessionsRoute,
+  TimeshiftServiceIdRoute: TimeshiftServiceIdRoute,
   GuideIndexRoute: GuideIndexRoute,
   LiveIndexRoute: LiveIndexRoute,
   LoginIndexRoute: LoginIndexRoute,

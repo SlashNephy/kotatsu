@@ -4,8 +4,10 @@ import {
   Captions,
   EllipsisVertical,
   ExternalLink,
+  History,
   Keyboard,
   MessageSquareText,
+  RotateCcw,
   Tv,
 } from 'lucide-react';
 import { startTransition, Suspense, useEffect, useMemo, useRef, useState } from 'react';
@@ -248,6 +250,12 @@ function Live({
             jikkyo {
               id
               name
+            }
+            # タイムシフトのバッファから、放送中の番組を最初から再生できるかを知る (設計書 5.7)。
+            timeshiftPrograms {
+              startAt
+              endAt
+              playableFrom
             }
           }
         }
@@ -700,6 +708,13 @@ function Live({
   if (service === null) {
     return <Alert color="amber">{t('live.notFound')}</Alert>;
   }
+  // startOver は、放送中の番組を、タイムシフトのバッファから最初から再生するときの、番組の始まり。
+  // 番組の頭がバッファになければ、途中からしか見られないので出さない (設計書 5.7)。
+  const onAirInBuffer = [...service.timeshiftPrograms].reverse().find((p) => p.endAt == null);
+  const startOver =
+    onAirInBuffer !== undefined && onAirInBuffer.playableFrom === onAirInBuffer.startAt
+      ? onAirInBuffer.startAt
+      : null;
   // session を付けて、つなぎ直すたびに URL を変える。
   const withSession = (base: string) =>
     `${base}${base.includes('?') ? '&' : '?'}session=${session}`;
@@ -954,21 +969,51 @@ function Live({
               time={program}
               // 使うことの少ない操作は、メニューにまとめる (#487)。
               actions={
-                <Menu position="bottom-end">
-                  <Menu.Target>
-                    <ActionIcon variant="default" size="md" aria-label={t('live.moreActions')}>
-                      <EllipsisVertical size={16} aria-hidden />
-                    </ActionIcon>
-                  </Menu.Target>
-                  <Menu.Dropdown>
-                    <Menu.Item
-                      leftSection={<ExternalLink size={14} aria-hidden />}
-                      onClick={() => setExternalOpen(true)}
+                <Group gap="xs" wrap="nowrap">
+                  {startOver !== null && (
+                    <Button
+                      size="compact-sm"
+                      variant="default"
+                      leftSection={<RotateCcw size={14} aria-hidden />}
+                      title={t('timeshift.startOverHint')}
+                      renderRoot={(props) => (
+                        <Link
+                          {...props}
+                          to="/timeshift/$serviceId/play"
+                          params={{ serviceId }}
+                          search={{ program: startOver }}
+                        />
+                      )}
                     >
-                      {t('streamURL.open')}
-                    </Menu.Item>
-                  </Menu.Dropdown>
-                </Menu>
+                      {t('timeshift.startOver')}
+                    </Button>
+                  )}
+                  <Menu position="bottom-end">
+                    <Menu.Target>
+                      <ActionIcon variant="default" size="md" aria-label={t('live.moreActions')}>
+                        <EllipsisVertical size={16} aria-hidden />
+                      </ActionIcon>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item
+                        leftSection={<ExternalLink size={14} aria-hidden />}
+                        onClick={() => setExternalOpen(true)}
+                      >
+                        {t('streamURL.open')}
+                      </Menu.Item>
+                      {service.timeshiftPrograms.length > 0 && (
+                        <Menu.Item
+                          leftSection={<History size={14} aria-hidden />}
+                          renderRoot={(props) => (
+                            <Link {...props} to="/timeshift/$serviceId" params={{ serviceId }} />
+                          )}
+                        >
+                          {t('timeshift.list')}
+                        </Menu.Item>
+                      )}
+                    </Menu.Dropdown>
+                  </Menu>
+                </Group>
               }
             />
             {disconnection !== null && (
