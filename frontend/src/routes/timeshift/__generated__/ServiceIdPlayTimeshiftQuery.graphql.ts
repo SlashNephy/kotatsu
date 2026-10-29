@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<fa4468048a55dba0fdc28c78efb35c33>>
+ * @generated SignedSource<<24743ce0f0e0d15a14b34becf9bdfed0>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type VideoCodec = "H264" | "HEVC" | "%future added value";
 export type VideoFormat = "HD" | "SHV" | "UHD" | "%future added value";
 export type ServiceIdPlayTimeshiftQuery$variables = {
   serviceId: string;
@@ -20,6 +21,7 @@ export type ServiceIdPlayTimeshiftQuery$data = {
       readonly from: string;
       readonly to: string;
     }>;
+    readonly hlsUrl: string;
     readonly name: string;
     readonly playableFrom: string;
     readonly service: {
@@ -29,6 +31,14 @@ export type ServiceIdPlayTimeshiftQuery$data = {
     };
     readonly startAt: string;
     readonly streamUrl: string;
+  };
+  readonly transcoding: {
+    readonly available: boolean;
+    readonly presets: ReadonlyArray<{
+      readonly codec: VideoCodec;
+      readonly name: string;
+      readonly passthrough: boolean;
+    }>;
   };
 };
 export type ServiceIdPlayTimeshiftQuery = {
@@ -125,14 +135,65 @@ v8 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "logoUrl",
+  "name": "hlsUrl",
   "storageKey": null
 },
 v9 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v10 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
   "name": "videoFormat",
+  "storageKey": null
+},
+v11 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "Transcoding",
+  "kind": "LinkedField",
+  "name": "transcoding",
+  "plural": false,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "available",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "StreamPreset",
+      "kind": "LinkedField",
+      "name": "presets",
+      "plural": true,
+      "selections": [
+        (v2/*:: as any*/),
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "codec",
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "passthrough",
+          "storageKey": null
+        }
+      ],
+      "storageKey": null
+    }
+  ],
   "storageKey": null
 };
 return {
@@ -156,6 +217,7 @@ return {
           (v5/*:: as any*/),
           (v6/*:: as any*/),
           (v7/*:: as any*/),
+          (v8/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -165,14 +227,15 @@ return {
             "plural": false,
             "selections": [
               (v2/*:: as any*/),
-              (v8/*:: as any*/),
-              (v9/*:: as any*/)
+              (v9/*:: as any*/),
+              (v10/*:: as any*/)
             ],
             "storageKey": null
           }
         ],
         "storageKey": null
-      }
+      },
+      (v11/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -197,6 +260,7 @@ return {
           (v5/*:: as any*/),
           (v6/*:: as any*/),
           (v7/*:: as any*/),
+          (v8/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -206,8 +270,8 @@ return {
             "plural": false,
             "selections": [
               (v2/*:: as any*/),
-              (v8/*:: as any*/),
               (v9/*:: as any*/),
+              (v10/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -220,20 +284,21 @@ return {
           }
         ],
         "storageKey": null
-      }
+      },
+      (v11/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "4bd0cbe40142b1287d667bbc83abd4ed",
+    "cacheID": "5763ac454dd75b395d1f72ee13335903",
     "id": null,
     "metadata": {},
     "name": "ServiceIdPlayTimeshiftQuery",
     "operationKind": "query",
-    "text": "query ServiceIdPlayTimeshiftQuery(\n  $serviceId: ID!\n  $startAt: Time!\n) {\n  timeshiftProgram(serviceId: $serviceId, startAt: $startAt) {\n    name\n    startAt\n    endAt\n    playableFrom\n    gaps {\n      from\n      to\n    }\n    streamUrl\n    service {\n      name\n      logoUrl\n      videoFormat\n      id\n    }\n  }\n}\n"
+    "text": "query ServiceIdPlayTimeshiftQuery(\n  $serviceId: ID!\n  $startAt: Time!\n) {\n  timeshiftProgram(serviceId: $serviceId, startAt: $startAt) {\n    name\n    startAt\n    endAt\n    playableFrom\n    gaps {\n      from\n      to\n    }\n    streamUrl\n    hlsUrl\n    service {\n      name\n      logoUrl\n      videoFormat\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "6e5bb48e0b54d717504c0937566e54ca";
+(node as any).hash = "3b2bbbd4420e38ff5400fcd817aea53e";
 
 export default node;

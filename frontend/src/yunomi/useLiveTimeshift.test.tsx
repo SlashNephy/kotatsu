@@ -1,7 +1,12 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { liveThresholdSeconds, resumeBehindMs, useLiveTimeshift } from './useLiveTimeshift';
+import {
+  liveThresholdSeconds,
+  resumeBehindMs,
+  useLiveTimeshift,
+  type TimeshiftMode,
+} from './useLiveTimeshift';
 
 const origin = Date.parse('2026-10-29T08:00:00Z');
 // buffer は、10 分前から録っているバッファ。途切れた区間はない。
@@ -9,6 +14,7 @@ const buffer = {
   from: new Date(origin - 600_000).toISOString(),
   gaps: [],
   streamUrl: '/streams/timeshift/1?from=x',
+  hlsUrl: '/streams/timeshift/1-0',
 };
 
 function fire(video: HTMLVideoElement, type: string) {
@@ -44,7 +50,7 @@ describe('useLiveTimeshift', () => {
     { name: '長く止めたら、止めた位置からバッファで続ける', pausedMs: 60_000, behind: true },
   ])('$name', ({ pausedMs, behind }) => {
     const video = document.createElement('video');
-    const { result } = renderHook(() => useLiveTimeshift(buffer, video, true));
+    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'convert'));
     fire(video, 'pause');
     act(() => {
       vi.advanceTimersByTime(pausedMs);
@@ -67,7 +73,7 @@ describe('useLiveTimeshift', () => {
     },
   ])('$name', ({ back, behind }) => {
     const video = document.createElement('video');
-    const { result } = renderHook(() => useLiveTimeshift(buffer, video, true));
+    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'convert'));
     act(() => {
       result.current.seekTo(result.current.edge - back);
     });
@@ -75,18 +81,48 @@ describe('useLiveTimeshift', () => {
     expect(result.current.behind).toBe(behind);
   });
 
+  test('kyusu の経路では、仮想 HLS を起点からの位置で読み直す', () => {
+    const video = document.createElement('video');
+    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'hls'));
+    act(() => {
+      result.current.seekTo(120);
+    });
+
+    expect(result.current.behind).toBe(true);
+    expect(result.current.hlsStart).toBeCloseTo(120, 0);
+    expect(result.current.hlsLoads).toBe(1);
+    expect(result.current.frame?.hlsUrl).toBe(buffer.hlsUrl);
+    // 仮想 HLS は、ブラウザの中で変換する配信を使わないので、HEAD を送らない。
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  test('バッファを再生している間に経路を替えたら、新しい経路でそれまでの位置から読み直す', () => {
+    const video = document.createElement('video');
+    const { result, rerender } = renderHook(({ mode }) => useLiveTimeshift(buffer, video, mode), {
+      initialProps: { mode: 'convert' as TimeshiftMode },
+    });
+    act(() => {
+      result.current.seekTo(120);
+    });
+    expect(result.current.hlsLoads).toBe(0);
+
+    rerender({ mode: 'hls' });
+    expect(result.current.behind).toBe(true);
+    expect(result.current.hlsLoads).toBe(1);
+    expect(result.current.hlsStart).toBeCloseTo(120, 0);
+  });
+
   test('経路を替えてバッファを再生できなくなったら、ライブに戻ったものとして扱う', () => {
     const video = document.createElement('video');
-    const { result, rerender } = renderHook(
-      ({ enabled }) => useLiveTimeshift(buffer, video, enabled),
-      { initialProps: { enabled: true } },
-    );
+    const { result, rerender } = renderHook(({ mode }) => useLiveTimeshift(buffer, video, mode), {
+      initialProps: { mode: 'convert' as TimeshiftMode },
+    });
     act(() => {
       result.current.seekTo(60);
     });
     expect(result.current.behind).toBe(true);
 
-    rerender({ enabled: false });
+    rerender({ mode: null });
     expect(result.current.behind).toBe(false);
     expect(result.current.available).toBe(false);
   });

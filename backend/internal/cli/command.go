@@ -510,7 +510,9 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 			return err
 		}
 		mux.Handle(kyusu.LivePathPrefix, live.Handler(token))
-		mux.Handle(kyusu.RecordingPathPrefix, vod.Handler(token))
+		vodHandler := vod.Handler(token)
+		mux.Handle(kyusu.RecordingPathPrefix, vodHandler)
+		mux.Handle(kyusu.TimeshiftPathPrefix, vodHandler)
 	}
 	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider))
 	metricsHandler := telemetry.NewMetricsHandler(prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics)
@@ -850,6 +852,8 @@ func handleStreams(
 		authorizer.Middleware(kyusu.NewRelay(instances, kyusuToken, streamLogger)))
 	mux.Handle("GET /streams/recordings/{id}/hls/{preset}/{audio}/{file}",
 		authorizer.Middleware(kyusu.NewRecordingRelay(instances, kyusuToken, streamLogger)))
+	mux.Handle("GET /streams/timeshift/{id}/hls/{preset}/{audio}/{file}",
+		authorizer.Middleware(kyusu.NewTimeshiftRelay(instances, kyusuToken, streamLogger)))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
 	mux.Handle("GET /streams/recordings/{id}", httpserver.StopOnShutdown(authorizer.Middleware(
 		streams.Count(streamapi.StreamRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
@@ -989,8 +993,9 @@ func newKyusu(ctx context.Context, logger *slog.Logger, deps *Deps) (*kyusu.Live
 		return nil, nil, nil, err
 	}
 	vod, err := kyusu.NewVOD(&kyusu.VODOptions{
-		Opener:  stream.NewRecordingSource(deps.DB, storeOf(deps.Config), 0),
-		Encoder: vodEncoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock, Logger: kyusuLogger, IdleTimeout: 0, MaxSessions: 0,
+		Opener:    stream.NewRecordingSource(deps.DB, storeOf(deps.Config), 0),
+		Timeshift: stream.NewTimeshiftSource(deps.DB, storeOf(deps.Config), 0),
+		Encoder:   vodEncoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock, Logger: kyusuLogger, IdleTimeout: 0, MaxSessions: 0,
 	})
 	if err != nil {
 		return nil, nil, nil, err

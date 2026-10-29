@@ -32,7 +32,8 @@ type Instances interface {
 var _ Instances = new(registry.Registry)
 
 // Relay は、tenban で、HLS を担当の kyusu に中継する (設計書 7.3)。
-// ライブ視聴は GET /streams/services/{id}/hls/{preset}/{audio}/{file}、録画は GET /streams/recordings/{id}/hls/{preset}/{audio}/{file} で受け付ける。
+// ライブ視聴は GET /streams/services/{id}/hls/{preset}/{audio}/{file}、録画は GET /streams/recordings/{id}/hls/{preset}/{audio}/{file}、
+// タイムシフトのバッファは GET /streams/timeshift/{id}/hls/{preset}/{audio}/{file} で受け付ける。
 //
 // 同じものを同じ画質と音声で見る視聴者が 1 つのエンコーダーを共有できるよう、(サービスか録画, 画質, 音声) から決まった kyusu に中継する。
 // kyusu が増えたり減ったりして担当が変わると、見ている視聴者は新しい担当のエンコーダーに移る。
@@ -70,6 +71,19 @@ func NewRecordingRelay(instances Instances, token *Token, logger *slog.Logger) *
 			recordingID, err := uuid.Parse(id)
 
 			return recordingID.String(), err == nil
+		},
+	}
+}
+
+// NewTimeshiftRelay は、タイムシフトのバッファの仮想 HLS を中継する Relay を返す。token は、kyusu へのリクエストに付ける。
+func NewTimeshiftRelay(instances Instances, token *Token, logger *slog.Logger) *Relay {
+	return &Relay{
+		instances: instances, token: token, client: &http.Client{Timeout: relayTimeout}, logger: logger,
+		prefix: TimeshiftPathPrefix,
+		canonical: func(id string) (string, bool) {
+			serviceID, from, ok := ParseTimeshiftID(id)
+
+			return FormatTimeshiftID(serviceID, from), ok
 		},
 	}
 }

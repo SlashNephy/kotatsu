@@ -98,7 +98,10 @@ func (r *Recording) FileName() string {
 // Position は、録画を流し始める位置。
 type Position struct {
 	// At は、録画の始まりから、流し始める I フレームまでの時間。
-	At     time.Duration
+	At time.Duration
+	// Before は、流し始める I フレームが、起点よりどれだけ前にあるか。タイムシフトのバッファの起点が I フレームの間にあると、
+	// その手前の I フレームから流すので、起点より前の映像が入る。At は 0 にし、ここに前にはみ出た分を持つ。録画では 0。
+	Before time.Duration
 	pieces []*piece
 }
 
@@ -129,19 +132,36 @@ func (s *RecordingSource) Open(ctx context.Context, recordingID uuid.UUID) (*Rec
 func (r *Recording) Seek(start time.Duration) *Position {
 	pieces, at := plan(r.segments, start+r.skip)
 
-	return &Position{At: max(at-r.skip, 0), pieces: pieces}
+	return &Position{At: max(at-r.skip, 0), Before: max(r.skip-at, 0), pieces: pieces}
 }
 
-// Keyframes は、流す I フレームの、録画の始まりからの時間を、順に返す。引き継ぎで切り詰める区間の I フレームは含めない。
-// 索引のないセグメントは、その始まりだけを含める。
+// Keyframes は、流す I フレームの、録画の始まり (タイムシフトのバッファでは起点) からの時間を、順に返す。
+// 引き継ぎで切り詰める区間の I フレームと、起点より前の I フレームは含めない。索引のないセグメントは、その始まりだけを含める。
 func (r *Recording) Keyframes() []time.Duration {
-	return keyframes(r.segments)
+	points := r.KeyframePoints()
+	times := make([]time.Duration, 0, len(points))
+	for _, point := range points {
+		times = append(times, point.At)
+	}
+
+	return times
 }
 
-// KeyframePoints は、Keyframes と同じ I フレームの、録画の始まりからの時間と PTS を、順に返す。
+// KeyframePoints は、Keyframes と同じ I フレームの、起点からの時間と PTS を、順に返す。
 // kyusu が、録画の映像を変換せずに配信するとき、I フレームの位置でセグメントを切るのに使う (#806)。
 func (r *Recording) KeyframePoints() []Keyframe {
-	return keyframePoints(r.segments)
+	points := keyframePoints(r.segments)
+	if r.skip == 0 {
+		return points
+	}
+	shifted := make([]Keyframe, 0, len(points))
+	for _, point := range points {
+		if at := point.At - r.skip; at >= 0 {
+			shifted = append(shifted, Keyframe{At: at, PTS: point.PTS})
+		}
+	}
+
+	return shifted
 }
 
 // Indexed は、索引のあるセグメントがあるかどうかを返す。取り込んだ直後の録画は、解析するまで索引がない。
