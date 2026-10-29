@@ -84,6 +84,8 @@ config: {}
 #     volume:
 #       persistentVolumeClaim:
 #         claimName: kotatsu-recordings
+# hostPath で渡すときは、ディスクのマウントポイントそのものでなく、その中のディレクトリを path にし、type: Directory にする (設計書 5.6)。
+# マウントされていないときに、空のマウントポイントを測ったり、そこに録画を書いたりしないためである。
 # storage.data は、録画の生成物 (索引、代表画像、プレビュー画像) を、セグメントのファイルの ID ごとに置く volume (設計書 5.6)。
 # プールを設定するなら必ず要る。プールと同じロールにマウントする。
 # 例:

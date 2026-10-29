@@ -169,13 +169,31 @@ Helm Chartは、この値に自動でPodのIPを入れます。
 ```yaml
 storage:
   pools:
-    main: /mnt/main
-    sub: /mnt/sub
+    main: /mnt/main/kotatsu
+    sub: /mnt/sub/kotatsu
 ```
 
 ```bash
-KOTATSU_STORAGE_POOLS=main=/mnt/main,sub=/mnt/sub
+KOTATSU_STORAGE_POOLS=main=/mnt/main/kotatsu,sub=/mnt/sub/kotatsu
 ```
+
+プールには、ディスクのマウントポイント（例の`/mnt/main`）そのものではなく、その中のディレクトリを指定してください。
+マウントポイントそのものだと、ディスクがマウントされていないときも空のディレクトリが残るので、Kotatsuは親のファイルシステムの容量を測り、そこに録画を書いてしまいます。
+中のディレクトリなら、マウントされていないときはパスがないので、Kotatsuはそのプールを測れず、書き込み先にも選びません。
+
+コンテナに渡すときも、ないディレクトリを作らせないでください。
+Docker Composeでは、短い書き方（`/mnt/main/kotatsu:/recordings`）はホストにないディレクトリを作るので、長い書き方で`create_host_path: false`にします。
+
+```yaml
+volumes:
+  - type: bind
+    source: /mnt/main/kotatsu
+    target: /recordings
+    bind:
+      create_host_path: false
+```
+
+KubernetesのhostPathでは、`type: Directory`にします。
 
 Windowsでは、ドライブ文字から書きます（`KOTATSU_STORAGE_POOLS=main=D:\rec`）。
 YAMLでは、二重引用符で囲むと`\`がエスケープになるので、引用符なしか一重引用符で書いてください（`main: 'D:\rec'`）。
