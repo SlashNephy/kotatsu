@@ -204,7 +204,7 @@ func TestTimeshiftUnavailable(t *testing.T) {
 }
 
 const timeshiftPrograms = `query($id: ID!) { node(id: $id) { ... on Service {
-	timeshiftPrograms { service { id } eventId name startAt endAt playableFrom fromStart gaps { from to } streamUrl } } } }`
+	timeshiftPrograms { service { id } eventId name startAt endAt playableFrom fromStart gaps { from to } streamUrl hlsUrl } } } }`
 
 type timeshiftProgram struct {
 	Service struct {
@@ -221,6 +221,7 @@ type timeshiftProgram struct {
 		To   time.Time `json:"to"`
 	} `json:"gaps"`
 	StreamURL string `json:"streamUrl"`
+	HlsURL    string `json:"hlsUrl"`
 }
 
 // TestTimeshiftPrograms は、視聴者が、バッファから再生できる番組と、それを流す URL を読めることを確かめる (設計書 7.2)。
@@ -293,6 +294,7 @@ func TestTimeshiftPrograms(t *testing.T) {
 			assert.True(t, now.Add(-25*time.Minute).Equal(program.Gaps[0].From))
 			assert.True(t, now.Add(-20*time.Minute).Equal(program.Gaps[0].To))
 			assert.Equal(t, "/streams/timeshift/3273601024?from="+url.QueryEscape(program.PlayableFrom.UTC().Format(time.RFC3339Nano)), program.StreamURL)
+			assert.Equal(t, "/streams/timeshift/3273601024-"+strconv.FormatInt(program.PlayableFrom.UnixMicro(), 10), program.HlsURL)
 
 			// サービスのバッファの範囲も返す。今チャンクを書いているので、終わりの途切れはない。
 			var buffer struct {

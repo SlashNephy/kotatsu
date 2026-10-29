@@ -839,6 +839,7 @@ type ComplexityRoot struct {
 	TimeshiftBuffer struct {
 		From      func(childComplexity int) int
 		Gaps      func(childComplexity int) int
+		HlsURL    func(childComplexity int) int
 		StreamURL func(childComplexity int) int
 	}
 
@@ -855,6 +856,7 @@ type ComplexityRoot struct {
 		EventID      func(childComplexity int) int
 		FromStart    func(childComplexity int) int
 		Gaps         func(childComplexity int) int
+		HlsURL       func(childComplexity int) int
 		Name         func(childComplexity int) int
 		PlayableFrom func(childComplexity int) int
 		Service      func(childComplexity int) int
@@ -4783,6 +4785,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TimeshiftBuffer.Gaps(childComplexity), true
+	case "TimeshiftBuffer.hlsUrl":
+		if e.ComplexityRoot.TimeshiftBuffer.HlsURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftBuffer.HlsURL(childComplexity), true
 	case "TimeshiftBuffer.streamUrl":
 		if e.ComplexityRoot.TimeshiftBuffer.StreamURL == nil {
 			break
@@ -4845,6 +4853,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TimeshiftProgram.Gaps(childComplexity), true
+	case "TimeshiftProgram.hlsUrl":
+		if e.ComplexityRoot.TimeshiftProgram.HlsURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftProgram.HlsURL(childComplexity), true
 	case "TimeshiftProgram.name":
 		if e.ComplexityRoot.TimeshiftProgram.Name == nil {
 			break
@@ -7585,6 +7599,11 @@ type TimeshiftProgram {
   gaps: [RecordingGap!]!
   "バッファの TS を、playableFrom を起点に流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"
   streamUrl: String!
+  """
+  バッファを、playableFrom を起点に kyusu で変換して流す仮想 HLS の、元の URL のパス (設計書 7.3)。
+  後ろに /hls/{画質}/{音声}/playlist.m3u8 を付けて使う。ログイン中のセッションで使う。
+  """
+  hlsUrl: String!
 }
 
 extend type Service {
@@ -7613,6 +7632,8 @@ type TimeshiftBuffer {
   gaps: [RecordingGap!]!
   "バッファの TS を、from を起点に流す URL のパス。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"
   streamUrl: String!
+  "バッファを、from を起点に kyusu で変換して流す仮想 HLS の、元の URL のパス。後ろに /hls/{画質}/{音声}/playlist.m3u8 を付けて使う。"
+  hlsUrl: String!
 }
 
 extend type Service {
@@ -9209,6 +9230,8 @@ func (ec *executionContext) childFields_TimeshiftBuffer(ctx context.Context, fie
 		return ec.fieldContext_TimeshiftBuffer_gaps(ctx, field)
 	case "streamUrl":
 		return ec.fieldContext_TimeshiftBuffer_streamUrl(ctx, field)
+	case "hlsUrl":
+		return ec.fieldContext_TimeshiftBuffer_hlsUrl(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TimeshiftBuffer", field.Name)
 }
@@ -9249,6 +9272,8 @@ func (ec *executionContext) childFields_TimeshiftProgram(ctx context.Context, fi
 		return ec.fieldContext_TimeshiftProgram_gaps(ctx, field)
 	case "streamUrl":
 		return ec.fieldContext_TimeshiftProgram_streamUrl(ctx, field)
+	case "hlsUrl":
+		return ec.fieldContext_TimeshiftProgram_hlsUrl(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TimeshiftProgram", field.Name)
 }
@@ -25968,6 +25993,29 @@ func (ec *executionContext) fieldContext_TimeshiftBuffer_streamUrl(_ context.Con
 	return graphql.NewScalarFieldContext("TimeshiftBuffer", field, true, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _TimeshiftBuffer_hlsUrl(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftBuffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftBuffer_hlsUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HlsURL(), nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftBuffer_hlsUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftBuffer", field, true, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _TimeshiftChannel_service(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftChannel) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -26314,6 +26362,29 @@ func (ec *executionContext) _TimeshiftProgram_streamUrl(ctx context.Context, fie
 	)
 }
 func (ec *executionContext) fieldContext_TimeshiftProgram_streamUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftProgram", field, true, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TimeshiftProgram_hlsUrl(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftProgram) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftProgram_hlsUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HlsURL(), nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftProgram_hlsUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TimeshiftProgram", field, true, false, errors.New("field of type String does not have child fields"))
 }
 
@@ -37533,6 +37604,11 @@ func (ec *executionContext) _TimeshiftBuffer(ctx context.Context, sel ast.Select
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "hlsUrl":
+			out.Values[i] = ec._TimeshiftBuffer_hlsUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -37732,6 +37808,11 @@ func (ec *executionContext) _TimeshiftProgram(ctx context.Context, sel ast.Selec
 			}
 		case "streamUrl":
 			out.Values[i] = ec._TimeshiftProgram_streamUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "hlsUrl":
+			out.Values[i] = ec._TimeshiftProgram_hlsUrl(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

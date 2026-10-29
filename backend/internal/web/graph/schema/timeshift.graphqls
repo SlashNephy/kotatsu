@@ -61,6 +61,11 @@ type TimeshiftProgram {
   gaps: [RecordingGap!]!
   "バッファの TS を、playableFrom を起点に流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"
   streamUrl: String!
+  """
+  バッファを、playableFrom を起点に kyusu で変換して流す仮想 HLS の、元の URL のパス (設計書 7.3)。
+  後ろに /hls/{画質}/{音声}/playlist.m3u8 を付けて使う。ログイン中のセッションで使う。
+  """
+  hlsUrl: String!
 }
 
 extend type Service {
@@ -89,6 +94,8 @@ type TimeshiftBuffer {
   gaps: [RecordingGap!]!
   "バッファの TS を、from を起点に流す URL のパス。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"
   streamUrl: String!
+  "バッファを、from を起点に kyusu で変換して流す仮想 HLS の、元の URL のパス。後ろに /hls/{画質}/{音声}/playlist.m3u8 を付けて使う。"
+  hlsUrl: String!
 }
 
 extend type Service {

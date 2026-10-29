@@ -132,16 +132,33 @@ func (r *Recording) Seek(start time.Duration) *Position {
 	return &Position{At: max(at-r.skip, 0), pieces: pieces}
 }
 
-// Keyframes は、流す I フレームの、録画の始まりからの時間を、順に返す。引き継ぎで切り詰める区間の I フレームは含めない。
-// 索引のないセグメントは、その始まりだけを含める。
+// Keyframes は、流す I フレームの、録画の始まり (タイムシフトのバッファでは起点) からの時間を、順に返す。
+// 引き継ぎで切り詰める区間の I フレームと、起点より前の I フレームは含めない。索引のないセグメントは、その始まりだけを含める。
 func (r *Recording) Keyframes() []time.Duration {
-	return keyframes(r.segments)
+	points := r.KeyframePoints()
+	times := make([]time.Duration, 0, len(points))
+	for _, point := range points {
+		times = append(times, point.At)
+	}
+
+	return times
 }
 
-// KeyframePoints は、Keyframes と同じ I フレームの、録画の始まりからの時間と PTS を、順に返す。
+// KeyframePoints は、Keyframes と同じ I フレームの、起点からの時間と PTS を、順に返す。
 // kyusu が、録画の映像を変換せずに配信するとき、I フレームの位置でセグメントを切るのに使う (#806)。
 func (r *Recording) KeyframePoints() []Keyframe {
-	return keyframePoints(r.segments)
+	points := keyframePoints(r.segments)
+	if r.skip == 0 {
+		return points
+	}
+	shifted := make([]Keyframe, 0, len(points))
+	for _, point := range points {
+		if at := point.At - r.skip; at >= 0 {
+			shifted = append(shifted, Keyframe{At: at, PTS: point.PTS})
+		}
+	}
+
+	return shifted
 }
 
 // Indexed は、索引のあるセグメントがあるかどうかを返す。取り込んだ直後の録画は、解析するまで索引がない。

@@ -35,8 +35,17 @@ import {
   formatDuration,
 } from '../../yunomi/position';
 import { useSeekableStream } from '../../yunomi/useSeekableStream';
-import { RateSelect, CropSelect, NormalizeVolumeToggle } from '../../yunomi/QualitySelect';
-import { toVideoFormat } from '../../yunomi/route';
+import {
+  RateSelect,
+  CropSelect,
+  NormalizeVolumeToggle,
+  PlaybackUnavailable,
+  QualitySelect,
+} from '../../yunomi/QualitySelect';
+import { hlsURL, toVideoFormat } from '../../yunomi/route';
+import { HlsPlayer } from '../../yunomi/HlsPlayer';
+import { useHlsStream } from '../../yunomi/useHlsStream';
+import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
 import { SeekBar } from '../../yunomi/SeekBar';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
@@ -149,10 +158,19 @@ const playQuery = graphql`
         to
       }
       streamUrl
+      hlsUrl
       service {
         name
         logoUrl
         videoFormat
+      }
+    }
+    transcoding {
+      available
+      presets {
+        name
+        codec
+        passthrough
       }
     }
   }
@@ -164,7 +182,7 @@ const refreshMs = 30_000;
 function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) {
   const { t } = useTranslation();
   const variables = { serviceId, startAt };
-  const { timeshiftProgram: program } = useLazyLoadQuery<ServiceIdPlayTimeshiftQuery>(
+  const { timeshiftProgram: program, transcoding } = useLazyLoadQuery<ServiceIdPlayTimeshiftQuery>(
     playQuery,
     variables,
   );
@@ -181,11 +199,12 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const controls = useControlsVisibility({ playing: !videoState.paused && !shortcutsOpen });
   useWakeLock(!videoState.paused);
-  // バッファは kyusu で変換しないので、ブラウザの中で変換できる端末と番組だけで再生する。
-  const { route } = usePlaybackRoute(
-    { available: false, presets: [] },
+  // 録画と同じく、ブラウザの中で変換するか、kyusu の仮想 HLS で再生する (設計書 7.1)。
+  const { route, choices, quality, setQuality } = usePlaybackRoute(
+    transcoding,
     toVideoFormat(program.service.videoFormat),
   );
+  const hls = route.kind === 'kyusu';
   const {
     captionsEnabled: captions,
     setCaptionsEnabled: setCaptions,
@@ -215,9 +234,10 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
     program.gaps,
     program.endAt == null ? Date.now() : Date.parse(program.endAt),
   );
-  // stream は、再生できる範囲の始まりからの秒で、位置を指定して読み直す配信 (設計書 7.2)。
-  const stream = useSeekableStream(program.streamUrl, video, 0);
-  const { position, positionRef, currentPosition } = stream;
+  // stream は、再生できる範囲の始まりからの秒で、位置を指定して読み直す配信 (設計書 7.2)。kyusu の経路では、仮想 HLS を流す。
+  const stream = useSeekableStream(program.streamUrl, video, 0, !hls);
+  const hlsStream = useHlsStream(video, hls);
+  const { position, positionRef, currentPosition } = hls ? hlsStream : stream;
   const [seeking, setSeeking] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastAutoRetry = useRef<number | null>(null);
@@ -232,6 +252,11 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
   // restartAt は、指定の位置から読み直す。
   const restartAt = (seconds: number) => {
     setHandover(false);
+    if (hls) {
+      hlsStream.restartAt(seconds);
+
+      return;
+    }
     stream.restartAt(seconds);
   };
   // tenban が止まる前に知らせてきたら、今の位置から、新しい接続を張ってから切り替える (#1085)。
@@ -262,14 +287,31 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
     setCaptionEntries((list) => insertRecordedCaption(list, at, text));
   };
   // seek は、指定の位置に移る。再生できる範囲の外へは移らない。
-  const seek = (target: number) => restartAt(Math.min(Math.max(target, 0), duration));
+  // kyusu の仮想 HLS は、プレイリストの中を移るだけで、読み直さない。
+  const seek = (target: number) => {
+    const seconds = Math.min(Math.max(target, 0), duration);
+    const video = videoRef.current;
+    if (hls && video !== null) {
+      video.currentTime = seconds;
+
+      return;
+    }
+    restartAt(seconds);
+  };
+  // changeQuality は、画質を変え、それまでの位置から続ける。
+  const changeQuality = (next: string) => {
+    restartAt(positionRef.current);
+    setQuality(next);
+  };
+  // 音声は、経路ごとのメニューで選ぶ。バッファの番組の音声の構成は分からないので、プレイヤーに任せる。
+  const audio = usePlayerAudio(route, null, () => restartAt(positionRef.current));
   const [rate, setRate] = useState(1);
   useEffect(() => {
     if (video !== null) {
       video.defaultPlaybackRate = rate;
       video.playbackRate = rate;
     }
-  }, [rate, video, stream.url]);
+  }, [rate, video, stream.url, hlsStream.loads]);
 
   const togglePlay = () => {
     const video = videoRef.current;
@@ -469,6 +511,8 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
             onClick={() => setCaptions(!captions)}
           />
           <SettingsButton>
+            <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
+            {audio.menu}
             <RateSelect value={rate} onChange={setRate} />
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
@@ -515,50 +559,76 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
       }}
       onPointerUp={doubleTap}
     >
-      <TsPlayer
-        url={stream.url}
-        handover={handover}
-        videoRef={videoRef}
-        onVideo={setVideo}
-        controls={controlBar}
-        captions={captions}
-        superimpose={captionSettings.superimposeRecorded}
-        captionStyle={captionSettings}
-        crop={crop}
-        onCaptionText={onCaptionText}
-        onLoaded={() => {
-          // 最初のフレームが出たときの時刻を、base にする。
-          stream.onLoaded();
-          setError(null);
-        }}
-        onError={resumeAfterCut}
-        onState={onConvertState}
-        overlay={
-          <>
-            {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
-            {statsShown && <PlayerStats video={video} quality={null} />}
-            {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
-            {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
-            {errorAlert}
-          </>
-        }
-      />
+      {route.kind === 'convert' && (
+        <TsPlayer
+          url={stream.url}
+          handover={handover}
+          videoRef={videoRef}
+          onVideo={setVideo}
+          controls={controlBar}
+          captions={captions}
+          superimpose={captionSettings.superimposeRecorded}
+          captionStyle={captionSettings}
+          crop={crop}
+          onCaptionText={onCaptionText}
+          onLoaded={() => {
+            // 最初のフレームが出たときの時刻を、base にする。
+            stream.onLoaded();
+            setError(null);
+          }}
+          onError={resumeAfterCut}
+          onState={onConvertState}
+          onAudio={audio.onAudio}
+          audio={audio.convertAudio}
+          overlay={
+            <>
+              {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
+              {statsShown && <PlayerStats video={video} quality={quality} />}
+              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
+              {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
+              {errorAlert}
+            </>
+          }
+        />
+      )}
+      {route.kind === 'kyusu' && (
+        <HlsPlayer
+          // 読み直すたびに URL を変え、hls.js を作り直す。fragment は、サーバーへは送られない。
+          url={`${hlsURL(program.hlsUrl, route.preset, audio.kyusuAudio)}#${hlsStream.loads}`}
+          videoRef={videoRef}
+          onVideo={setVideo}
+          controls={controlBar}
+          captions={captions}
+          superimpose={captionSettings.superimposeRecorded}
+          captionStyle={captionSettings}
+          crop={crop}
+          onCaptionText={onCaptionText}
+          live={false}
+          startPosition={hlsStream.start}
+          overlay={
+            <>
+              {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
+              {statsShown && <PlayerStats video={video} quality={quality} />}
+              {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
+              {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
+              {errorAlert}
+            </>
+          }
+          onLoaded={() => setError(null)}
+          onError={resumeAfterCut}
+        />
+      )}
     </div>
   );
 
   return (
     <WatchLayout
       player={
-        route.kind === 'convert' ? (
-          <div>
-            {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
-            {pip.container !== null && createPortal(playerBox, pip.container)}
-          </div>
-        ) : (
-          <Alert color="amber" role="alert" title={t('player.unavailable.title')}>
-            {t('timeshift.convertOnly')}
-          </Alert>
-        )
+        <Stack gap="xs">
+          <PlaybackUnavailable route={route} />
+          <div>{pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}</div>
+          {pip.container !== null && createPortal(playerBox, pip.container)}
+        </Stack>
       }
       info={
         <>

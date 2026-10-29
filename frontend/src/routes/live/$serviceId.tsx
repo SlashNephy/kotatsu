@@ -266,6 +266,7 @@ function Live({
                 to
               }
               streamUrl
+              hlsUrl
             }
           }
         }
@@ -355,11 +356,11 @@ function Live({
   // dataBroadcastEnabled は、データ放送を出すかどうか。映像を覆うので、既定では出さない (設計書 7.4)。
   const [dataBroadcastEnabled, setDataBroadcastEnabled] = useState(false);
   const [dataBroadcastPreload] = useDataBroadcastPreload();
-  // timeshift は、タイムシフトのバッファへのシーク (設計書 5.7)。バッファは kyusu で変換しないので、ブラウザ内で変換する経路でだけ使う。
+  // timeshift は、タイムシフトのバッファへのシーク (設計書 5.7)。ブラウザ内で変換する経路では TS を、kyusu の経路では仮想 HLS を流す。
   const timeshift = useLiveTimeshift(
     data.node?.__typename === 'Service' ? (data.node.timeshiftBuffer ?? null) : null,
     video,
-    route.kind === 'convert',
+    route.kind === 'convert' ? 'convert' : route.kind === 'kyusu' ? 'hls' : null,
   );
   // seeking は、シークバーを動かしている間の位置。
   const [seeking, setSeeking] = useState<number | null>(null);
@@ -491,9 +492,7 @@ function Live({
     const normalized = normalizeCaption(text);
     currentCaption.current = normalized === '' ? null : normalized;
     // バッファを再生している間は、映像の放送時刻で並べる。
-    const at = timeshift.behind
-      ? timeshift.clockAt(timeshift.stream.currentPosition())
-      : Date.now();
+    const at = timeshift.behind ? timeshift.clockAt(timeshift.currentPosition()) : Date.now();
     setCaptionEntries((list) => appendLiveCaption(list, at, text));
   };
   // externalOpen は、外部プレイヤー用の URL を発行するダイアログを出しているかどうか (#487)。
@@ -557,7 +556,7 @@ function Live({
     serviceName,
     programName,
     captureTime: () =>
-      timeshift.behind ? timeshift.clockAt(timeshift.stream.currentPosition()) : Date.now(),
+      timeshift.behind ? timeshift.clockAt(timeshift.currentPosition()) : Date.now(),
     caption: () => currentCaption.current,
   });
   const saveCapture = async () => {
@@ -577,9 +576,7 @@ function Live({
   };
   // skip は、今の位置から seconds 秒だけ進むか戻る。ライブなら、ライブの端から数える。
   const skip = (seconds: number) =>
-    timeshift.seekTo(
-      (timeshift.behind ? timeshift.stream.currentPosition() : timeshift.edge) + seconds,
-    );
+    timeshift.seekTo((timeshift.behind ? timeshift.currentPosition() : timeshift.edge) + seconds);
   const shortcuts = {
     togglePlay: () => {
       const video = videoRef.current;
@@ -777,7 +774,7 @@ function Live({
   // resumeBehind は、バッファの配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、ライブに戻る。
   // 映像の要素が復号に失敗して止まったなら、壊れた所を飛び越えて読み直す。
   const resumeBehind = () => {
-    const position = timeshift.stream.positionRef.current;
+    const position = timeshift.positionRef.current;
     if (videoRef.current?.error != null) {
       const next = skipBrokenMedia(position, lastBrokenSkip.current);
       if (next !== null) {
@@ -1004,11 +1001,14 @@ function Live({
       )}
       {route.kind === 'kyusu' && (
         <HlsPlayer
-          lowLatency={lowLatency}
+          lowLatency={lowLatency && !timeshift.behind}
           url={
-            disconnection === null
-              ? withSession(hlsURL(service.streamUrl, route.preset, audio.kyusuAudio))
-              : null
+            // バッファを再生している間は、起点にしているバッファの仮想 HLS を、読み直すたびに URL を変えて読む。
+            timeshift.behind && timeshift.frame !== null
+              ? `${hlsURL(timeshift.frame.hlsUrl, route.preset, audio.kyusuAudio)}#${timeshift.hlsLoads}`
+              : disconnection === null
+                ? withSession(hlsURL(service.streamUrl, route.preset, audio.kyusuAudio))
+                : null
           }
           videoRef={videoRef}
           onVideo={setVideo}
@@ -1018,12 +1018,14 @@ function Live({
           captionStyle={captionSettings}
           crop={crop}
           onCaptionText={onCaptionText}
-          live
+          live={!timeshift.behind}
+          startPosition={timeshift.hlsStart}
           onLoaded={onLoaded}
           overlay={
             <>
-              {dataBroadcast.layer}
-              {jikkyo.overlay}
+              {/* データ放送と実況のコメントは、ライブのものなので、バッファを再生している間は重ねない。 */}
+              {!timeshift.behind && dataBroadcast.layer}
+              {!timeshift.behind && jikkyo.overlay}
               {/* 番組名は映像の下に出すので、映像の下が見えない別のウィンドウでだけ重ねる。 */}
               {pip.container !== null && (
                 <ProgramOverlay
@@ -1044,7 +1046,7 @@ function Live({
             </>
           }
           // チューナーを使われて切れると、hls.js が読み直しを諦めたところで、致命的なエラーになる。
-          onError={disconnected}
+          onError={timeshift.behind ? resumeBehind : disconnected}
         />
       )}
     </div>
