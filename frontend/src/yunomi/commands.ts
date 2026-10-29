@@ -1,6 +1,6 @@
 import type { RemoteKey } from './useDataBroadcast';
 
-// プレイヤーの操作の登録簿 (設計書 7.5、#809)。キー、ショートカットの一覧、OS のメディア操作、ほかの端末からの操作は、
+// プレイヤーの操作の登録簿 (設計書 7.5、#809)。キー、ショートカットの一覧、OS のメディア操作、ほかの端末からの操作、操作バーは、
 // どれも、ここの ID で操作を呼ぶ。画面は、今使える操作だけを PlayerCommands に入れて渡す。
 
 // PlayerCommandArgs は、操作ごとの引数。
@@ -15,6 +15,7 @@ export type PlayerCommandArgs = {
   // seekTo は、録画の始まり (ライブのバッファでは、バッファの始まり) からの秒の位置へ移る。
   seekTo: [seconds: number];
   toggleCaptions: [];
+  toggleJikkyo: [];
   toggleMute: [];
   setMuted: [muted: boolean];
   volumeUp: [];
@@ -65,6 +66,7 @@ export const playerCommands: Readonly<Record<PlayerCommandId, PlayerCommandDefin
   seekForwardLong: { repeatable: true },
   seekTo: { repeatable: false },
   toggleCaptions: { repeatable: false },
+  toggleJikkyo: { repeatable: false },
   toggleMute: { repeatable: false },
   setMuted: { repeatable: false },
   toggleFullscreen: { repeatable: false },

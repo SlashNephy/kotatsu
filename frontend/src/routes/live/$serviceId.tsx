@@ -49,7 +49,7 @@ import { useDataBroadcastKeys } from '../../yunomi/dataBroadcastKeys';
 import {
   BigPlayButton,
   PlayerLoading,
-  ControlButton,
+  CommandButton,
   FullscreenButton,
   LiveStatus,
   PlayButton,
@@ -89,7 +89,7 @@ import { useMediaSession } from '../../yunomi/useMediaSession';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
-import type { PlayerCommands } from '../../yunomi/commands';
+import { runCommand, type PlayerCommands } from '../../yunomi/commands';
 import { useAutoPictureInPicture } from '../../yunomi/autoPictureInPicture';
 import {
   CaptureButton,
@@ -584,6 +584,39 @@ function Live({
   const skip = (seconds: number) =>
     timeshift.seekTo((timeshift.behind ? timeshift.currentPosition() : timeshift.edge) + seconds);
   const [autoPictureInPicture] = useAutoPictureInPicture();
+  const service = data.node?.__typename === 'Service' ? data.node : null;
+  // データ放送は、プリロードする設定か、一度出したあとは、出していない間も裏で受け取り、出したらすぐに d ボタンで入れるようにする
+  // (設計書 7.4)。
+  // 視聴が切れている間と、映像が見えていない間は、データ放送の TS も読まない。
+  const dataBroadcast = useDataBroadcast(
+    service !== null &&
+      dataBroadcastAvailable &&
+      (dataBroadcastPreload || dataBroadcastUsed) &&
+      visible &&
+      disconnection === null
+      ? dataBroadcastSource(service.streamUrl)
+      : null,
+    videoRef,
+    dataBroadcastEnabled,
+    {
+      // 文書が勝手に局を変えないよう、移る先を出して確かめてから移る (#440)。
+      onTune: (networkId, sid) => {
+        const target = data.services.find(
+          (candidate) => candidate.networkId === networkId && candidate.serviceId === sid,
+        );
+        if (target === undefined) {
+          return false;
+        }
+        if (target.id !== serviceId) {
+          setTuneRequest({ id: target.id, name: toHalfWidth(target.name) });
+        }
+
+        return true;
+      },
+      // 音声の切り替えは、確かめずに従う。
+      onSelectAudio: audio.selectComponent,
+    },
+  );
   // commands は、この画面で今使える操作 (#809)。キー、OS のメディア操作、ほかの端末からの操作は、どれもここから呼ぶ。
   const commands: PlayerCommands = {
     play: () => void videoRef.current?.play().catch(() => {}),
@@ -618,6 +651,7 @@ function Live({
         }
       : {}),
     toggleCaptions: () => setCaptions(!captions),
+    ...(channel === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
     toggleMute: () => {
       const video = videoRef.current;
       if (video === null) {
@@ -630,14 +664,31 @@ function Live({
     volumeUp: () => changeVolume(volumeStep),
     volumeDown: () => changeVolume(-volumeStep),
     capture: () => void saveCapture(),
-    toggleDataBroadcast: () => {
-      if (!dataBroadcastAvailable) {
+    // データ放送のない映像 (HD でないもの) では、出し入れできない。
+    ...(dataBroadcastAvailable
+      ? {
+          toggleDataBroadcast: () => {
+            setDataBroadcastEnabled(!dataBroadcastEnabled);
+            showFlash(
+              t(
+                dataBroadcastEnabled
+                  ? 'player.flash.dataBroadcastOff'
+                  : 'player.flash.dataBroadcastOn',
+              ),
+            );
+          },
+        }
+      : {}),
+    // データ放送を出していなければ、d ボタンで出す。リモコンのほかのボタンは、出している間だけ渡す。
+    pressKey: (key) => {
+      if (!dataBroadcastEnabled) {
+        if (key === RemoteKey.d) {
+          setDataBroadcastEnabled(true);
+        }
+
         return;
       }
-      setDataBroadcastEnabled(!dataBroadcastEnabled);
-      showFlash(
-        t(dataBroadcastEnabled ? 'player.flash.dataBroadcastOff' : 'player.flash.dataBroadcastOn'),
-      );
+      dataBroadcast.press(key);
     },
     // r で読み直す。映像が止まったり乱れたりしたときに、ページを読み直さずに直す (#499)。
     restart: () => {
@@ -682,44 +733,11 @@ function Live({
     autoPictureInPicture,
   );
 
-  const service = data.node?.__typename === 'Service' ? data.node : null;
-  // データ放送は、プリロードする設定か、一度出したあとは、出していない間も裏で受け取り、出したらすぐに d ボタンで入れるようにする
-  // (設計書 7.4)。
-  // 視聴が切れている間と、映像が見えていない間は、データ放送の TS も読まない。
-  const dataBroadcast = useDataBroadcast(
-    service !== null &&
-      dataBroadcastAvailable &&
-      (dataBroadcastPreload || dataBroadcastUsed) &&
-      visible &&
-      disconnection === null
-      ? dataBroadcastSource(service.streamUrl)
-      : null,
-    videoRef,
-    dataBroadcastEnabled,
-    {
-      // 文書が勝手に局を変えないよう、移る先を出して確かめてから移る (#440)。
-      onTune: (networkId, sid) => {
-        const target = data.services.find(
-          (candidate) => candidate.networkId === networkId && candidate.serviceId === sid,
-        );
-        if (target === undefined) {
-          return false;
-        }
-        if (target.id !== serviceId) {
-          setTuneRequest({ id: target.id, name: toHalfWidth(target.name) });
-        }
-
-        return true;
-      },
-      // 音声の切り替えは、確かめずに従う。
-      onSelectAudio: audio.selectComponent,
-    },
-  );
   // データ放送を出している間は、⌥+矢印、Enter、Backspace、数字、⌥+b/r/g/y でリモコンを押せる (#441)。
   useDataBroadcastKeys(
     dataBroadcastEnabled && dataBroadcast.state === 'shown' && !dataBroadcast.receiving,
     dataBroadcast.keyGroups,
-    dataBroadcast.press,
+    (key) => runCommand(commands, 'pressKey', key),
   );
   // 同じアカウントのほかの端末から、このプレイヤーを操作できるようにする (#459、設計書 7.7)。
   useRemotePlayer(
@@ -739,21 +757,7 @@ function Live({
           dataBroadcast: dataBroadcastEnabled,
           keyGroups: [...dataBroadcast.keyGroups],
         },
-    {
-      ...commands,
-      // データ放送を出していなければ、d ボタンで出す。リモコンのほかのボタンは、出している間だけ渡す。
-      // データ放送は commands より後で作るので、ここで足す。
-      pressKey: (key) => {
-        if (!dataBroadcastEnabled) {
-          if (key === RemoteKey.d) {
-            setDataBroadcastEnabled(true);
-          }
-
-          return;
-        }
-        dataBroadcast.press(key);
-      },
-    },
+    commands,
   );
   // commentRows は、右の列のコメントの一覧の行。操作バーの出し入れなどで描き直すたびに作らず、コメントが届いたときだけ作り直す。
   const commentRows = useMemo(
@@ -828,11 +832,11 @@ function Live({
       start={
         timeshift.available ? (
           <>
-            <PlayButton video={videoState} />
-            <VolumeControl video={videoState} />
+            <PlayButton video={videoState} commands={commands} />
+            <VolumeControl video={videoState} commands={commands} />
           </>
         ) : (
-          <VolumeControl video={videoState} />
+          <VolumeControl video={videoState} commands={commands} />
         )
       }
       status={
@@ -847,29 +851,28 @@ function Live({
       }
       end={
         <>
-          <ControlButton
+          <CommandButton
+            commands={commands}
+            command="toggleCaptions"
             label={t('player.captions')}
             icon={Captions}
             active={captions}
-            onClick={() => setCaptions(!captions)}
           />
-          {channel !== null && (
-            <ControlButton
-              label={t('jikkyo.toggle')}
-              icon={MessageSquareText}
-              active={jikkyoEnabled}
-              onClick={() => setJikkyoEnabled(!jikkyoEnabled)}
-            />
-          )}
-          {dataBroadcastAvailable && (
-            <ControlButton
-              label={t('player.dataBroadcast')}
-              icon={Tv}
-              active={dataBroadcastEnabled}
-              optional
-              onClick={() => setDataBroadcastEnabled(!dataBroadcastEnabled)}
-            />
-          )}
+          <CommandButton
+            commands={commands}
+            command="toggleJikkyo"
+            label={t('jikkyo.toggle')}
+            icon={MessageSquareText}
+            active={jikkyoEnabled}
+          />
+          <CommandButton
+            commands={commands}
+            command="toggleDataBroadcast"
+            label={t('player.dataBroadcast')}
+            icon={Tv}
+            active={dataBroadcastEnabled}
+            optional
+          />
           <SettingsButton>
             <QualitySelect
               choices={choices}
@@ -886,11 +889,12 @@ function Live({
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
           <CaptureButton capture={capture} />
-          <ControlButton
+          <CommandButton
+            commands={commands}
+            command="showShortcuts"
             label={t('player.shortcuts.title')}
             icon={Keyboard}
             optional
-            onClick={() => setShortcutsOpen(true)}
           />
           <ShortcutsHelp
             opened={shortcutsOpen}
@@ -900,7 +904,7 @@ function Live({
             dataBroadcast
           />
           <PipButton pip={pip} />
-          <FullscreenButton active={fullscreen.active} onToggle={fullscreen.toggle} />
+          <FullscreenButton active={fullscreen.active} commands={commands} />
         </>
       }
     />
@@ -922,7 +926,7 @@ function Live({
           state={dataBroadcast.state}
           receiving={dataBroadcast.receiving}
           keyGroups={dataBroadcast.keyGroups}
-          onPress={dataBroadcast.press}
+          onPress={(key) => runCommand(commands, 'pressKey', key)}
         />
       )}
     </>
@@ -1156,7 +1160,7 @@ function Live({
                 state={dataBroadcast.state}
                 receiving={dataBroadcast.receiving}
                 keyGroups={dataBroadcast.keyGroups}
-                onPress={dataBroadcast.press}
+                onPress={(key) => runCommand(commands, 'pressKey', key)}
               />
             )}
           </>

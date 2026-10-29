@@ -65,7 +65,7 @@ import {
   PlayerAlert,
   BigPlayButton,
   PlayerLoading,
-  ControlButton,
+  CommandButton,
   FullscreenButton,
   PlayButton,
   PlayerControls,
@@ -399,6 +399,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
     seekTo: seek,
     toggleStats: () => setStatsShown(!statsShown),
     showShortcuts: () => setShortcutsOpen(true),
+    setVolume: videoState.setVolume,
     ...(pip.supported
       ? {
           pictureInPicture: () => {
@@ -497,18 +498,19 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
       }
       start={
         <>
-          <PlayButton video={videoState} />
-          <VolumeControl video={videoState} />
+          <PlayButton video={videoState} commands={commands} />
+          <VolumeControl video={videoState} commands={commands} />
         </>
       }
       status={`${formatDuration(shown)} / ${formatDuration(duration)} · ${formatClock(broadcastTime(program.playableFrom, program.gaps, shown))}`}
       end={
         <>
-          <ControlButton
+          <CommandButton
+            commands={commands}
+            command="toggleCaptions"
             label={t('player.captions')}
             icon={Captions}
             active={captions}
-            onClick={() => setCaptions(!captions)}
           />
           <SettingsButton>
             <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
@@ -519,11 +521,12 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
           <CaptureButton capture={capture} />
-          <ControlButton
+          <CommandButton
+            commands={commands}
+            command="showShortcuts"
             label={t('player.shortcuts.title')}
             icon={Keyboard}
             optional
-            onClick={() => setShortcutsOpen(true)}
           />
           <ShortcutsHelp
             opened={shortcutsOpen}
@@ -532,7 +535,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
             target={playerBoxRef}
           />
           <PipButton pip={pip} />
-          <FullscreenButton active={fullscreen.active} onToggle={fullscreen.toggle} />
+          <FullscreenButton active={fullscreen.active} commands={commands} />
         </>
       }
     />

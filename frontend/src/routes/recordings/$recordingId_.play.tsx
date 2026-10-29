@@ -75,7 +75,7 @@ import {
   PlayerAlert,
   BigPlayButton,
   PlayerLoading,
-  ControlButton,
+  CommandButton,
   FullscreenButton,
   PlayButton,
   PlayerControls,
@@ -580,6 +580,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       showFlash(t('player.flash.seekForwardLong'));
     },
     toggleCaptions: () => setCaptions(!captions),
+    ...(channel === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
     toggleMute: () => {
       const video = videoRef.current;
       if (video === null) {
@@ -792,27 +793,27 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       }
       start={
         <>
-          <PlayButton video={videoState} />
-          <VolumeControl video={videoState} />
+          <PlayButton video={videoState} commands={commands} />
+          <VolumeControl video={videoState} commands={commands} />
         </>
       }
       status={`${formatDuration(shown)} / ${formatDuration(duration)} · ${formatClock(broadcastTime(recording.recordedFrom, recording.gaps, shown))}`}
       end={
         <>
-          <ControlButton
+          <CommandButton
+            commands={commands}
+            command="toggleCaptions"
             label={t('player.captions')}
             icon={Captions}
             active={captions}
-            onClick={() => setCaptions(!captions)}
           />
-          {channel !== null && (
-            <ControlButton
-              label={jikkyoLabel}
-              icon={MessageSquareText}
-              active={jikkyoEnabled}
-              onClick={() => setJikkyoEnabled(!jikkyoEnabled)}
-            />
-          )}
+          <CommandButton
+            commands={commands}
+            command="toggleJikkyo"
+            label={jikkyoLabel}
+            icon={MessageSquareText}
+            active={jikkyoEnabled}
+          />
           <SettingsButton>
             <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
             {audio.menu}
@@ -823,11 +824,12 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
           <CaptureButton capture={capture} />
-          <ControlButton
+          <CommandButton
+            commands={commands}
+            command="showShortcuts"
             label={t('player.shortcuts.title')}
             icon={Keyboard}
             optional
-            onClick={() => setShortcutsOpen(true)}
           />
           <ShortcutsHelp
             opened={shortcutsOpen}
@@ -836,7 +838,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             target={playerBoxRef}
           />
           <PipButton pip={pip} />
-          <FullscreenButton active={fullscreen.active} onToggle={fullscreen.toggle} />
+          <FullscreenButton active={fullscreen.active} commands={commands} />
         </>
       }
     />
