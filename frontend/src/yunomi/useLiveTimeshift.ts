@@ -105,6 +105,17 @@ export function useLiveTimeshift(
     }
     restart(seconds);
   };
+  // バッファを再生している間に経路 (ブラウザの中での変換と kyusu) を替えたら、新しい経路で、それまでの位置から読み直す。
+  const lastPosition = useRef(0);
+  const lastMode = useRef(mode);
+  const restartOnMode = useRef(restart);
+  restartOnMode.current = restart;
+  useEffect(() => {
+    if (lastMode.current !== mode && behind && mode !== null) {
+      restartOnMode.current(lastPosition.current);
+    }
+    lastMode.current = mode;
+  }, [mode, behind]);
   // ライブを一時停止して、しばらくしてから再開したら、止めた位置からバッファで続ける。止めた時間がライブの端に近くても、
   // ライブに戻さない。
   const restartRef = useRef(restart);
@@ -138,6 +149,11 @@ export function useLiveTimeshift(
   }, [video, live]);
 
   const positionRef = hlsBehind ? hls.positionRef : stream.positionRef;
+  const position = behind ? (hlsBehind ? hls.position : stream.position) : edge;
+  // 経路を替えた描画では、新しい経路の位置になるので、覚えるのは描画を終えた後にし、経路を替えたときの読み直しに前の位置を使う。
+  useEffect(() => {
+    lastPosition.current = position;
+  });
 
   return {
     available,
@@ -149,7 +165,7 @@ export function useLiveTimeshift(
     positionRef,
     currentPosition: hlsBehind ? hls.currentPosition : stream.currentPosition,
     edge,
-    position: behind ? (hlsBehind ? hls.position : stream.position) : edge,
+    position,
     seekTo,
     restart,
     goLive: () => setPinned(null),

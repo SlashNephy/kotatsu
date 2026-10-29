@@ -98,7 +98,10 @@ func (r *Recording) FileName() string {
 // Position は、録画を流し始める位置。
 type Position struct {
 	// At は、録画の始まりから、流し始める I フレームまでの時間。
-	At     time.Duration
+	At time.Duration
+	// Before は、流し始める I フレームが、起点よりどれだけ前にあるか。タイムシフトのバッファの起点が I フレームの間にあると、
+	// その手前の I フレームから流すので、起点より前の映像が入る。At は 0 にし、ここに前にはみ出た分を持つ。録画では 0。
+	Before time.Duration
 	pieces []*piece
 }
 
@@ -129,7 +132,7 @@ func (s *RecordingSource) Open(ctx context.Context, recordingID uuid.UUID) (*Rec
 func (r *Recording) Seek(start time.Duration) *Position {
 	pieces, at := plan(r.segments, start+r.skip)
 
-	return &Position{At: max(at-r.skip, 0), pieces: pieces}
+	return &Position{At: max(at-r.skip, 0), Before: max(r.skip-at, 0), pieces: pieces}
 }
 
 // Keyframes は、流す I フレームの、録画の始まり (タイムシフトのバッファでは起点) からの時間を、順に返す。

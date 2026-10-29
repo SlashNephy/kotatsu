@@ -537,7 +537,13 @@ function Live({
     return () => clearTimeout(timer);
   }, [programEnd, range, onProgramEnd]);
   // 音声は、経路ごとのメニューで選び、画質を変えても同じ音声を保つ。kyusu の経路では、番組の音声の構成から選ぶ。
-  const audio = usePlayerAudio(route, program?.audios ?? null);
+  // バッファを再生している間に画質か音声を替えたら、それまでの位置から読み直す。
+  const restartBehind = () => {
+    if (timeshift.behind) {
+      timeshift.restart(timeshift.currentPosition());
+    }
+  };
+  const audio = usePlayerAudio(route, program?.audios ?? null, restartBehind);
   // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
   const surroundAvailable = route.kind === 'convert' && isSurroundAudio(program?.audios ?? null);
   useVirtualSurround(video, surroundAvailable);
@@ -872,7 +878,14 @@ function Live({
             />
           )}
           <SettingsButton>
-            <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
+            <QualitySelect
+              choices={choices}
+              quality={quality}
+              onChange={(next) => {
+                restartBehind();
+                setQuality(next);
+              }}
+            />
             {audio.menu}
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />

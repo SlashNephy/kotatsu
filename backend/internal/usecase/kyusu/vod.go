@@ -866,7 +866,8 @@ func (v *VOD) start(ctx context.Context, s *vodSession, preset *Preset, number i
 	go func() {
 		opts := passthrough
 		if opts == nil {
-			opts = &RunOptions{StartNumber: number, Trim: max(at-pos.At, 0), Cuts: nil, Offset: 0}
+			// タイムシフトのバッファの起点より前から流すときは、起点より前の映像も切り落とす。
+			opts = &RunOptions{StartNumber: number, Trim: max(at-pos.At+pos.Before, 0), Cuts: nil, Offset: 0}
 		}
 		err := v.encoder.RunVOD(runCtx, reader, preset, s.key.audio, s.dir, opts)
 		reader.CloseWithError(err)

@@ -293,6 +293,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
     const video = videoRef.current;
     if (hls && video !== null) {
       video.currentTime = seconds;
+      hlsStream.seekTo(seconds);
 
       return;
     }
