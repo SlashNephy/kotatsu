@@ -13,6 +13,7 @@ import {
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { runCommand, type PlayerCommands, type SimpleCommandId } from './commands';
 import classes from './PlayerControls.module.css';
 import { controlsAttribute } from './useControlsVisibility';
 import type { VideoState } from './useVideoState';
@@ -89,21 +90,43 @@ export function ControlButton({
   );
 }
 
+type CommandButtonProps = Omit<ButtonProps, 'onClick'> & {
+  commands: PlayerCommands;
+  command: SimpleCommandId;
+};
+
+// CommandButton は、登録簿の操作を呼ぶボタン (#809)。今使えない操作なら、出さない。
+// 名前とアイコンは、今の状態 (再生中か、ミュートか、など) に合わせて、呼ぶ側が渡す。
+export function CommandButton({ commands, command, ...props }: CommandButtonProps) {
+  if (commands[command] === undefined) {
+    return null;
+  }
+
+  return <ControlButton {...props} onClick={() => runCommand(commands, command)} />;
+}
+
 // PlayButton は、再生と一時停止を切り替える。
-export function PlayButton({ video }: { video: VideoState }) {
+export function PlayButton({ video, commands }: { video: VideoState; commands: PlayerCommands }) {
   const { t } = useTranslation();
 
   return (
-    <ControlButton
+    <CommandButton
+      commands={commands}
+      command="togglePlay"
       label={video.paused ? t('player.play') : t('player.pause')}
       icon={video.paused ? Play : Pause}
-      onClick={video.togglePlay}
     />
   );
 }
 
 // VolumeControl は、ミュートのボタンと、ホバーで広がる音量のスライダー。
-export function VolumeControl({ video }: { video: VideoState }) {
+export function VolumeControl({
+  video,
+  commands,
+}: {
+  video: VideoState;
+  commands: PlayerCommands;
+}) {
   const { t } = useTranslation();
   // ミュートしている間に目盛りが残っていると、音が出るように見えるので、0 として見せる。
   const shown = video.muted ? 0 : video.volume;
@@ -111,10 +134,11 @@ export function VolumeControl({ video }: { video: VideoState }) {
 
   return (
     <div className={classes.volume}>
-      <ControlButton
+      <CommandButton
+        commands={commands}
+        command="toggleMute"
         label={video.muted ? t('player.unmute') : t('player.mute')}
         icon={icon}
-        onClick={video.toggleMute}
       />
       <div className={classes.volumeSlider}>
         <Slider
@@ -129,7 +153,7 @@ export function VolumeControl({ video }: { video: VideoState }) {
           color="white"
           label={null}
           value={shown}
-          onChange={video.setVolume}
+          onChange={(volume) => runCommand(commands, 'setVolume', volume)}
         />
       </div>
     </div>
@@ -177,14 +201,21 @@ export function SettingsButton({ children }: { children: ReactNode }) {
 }
 
 // FullscreenButton は、プレイヤーを全画面にする。
-export function FullscreenButton({ active, onToggle }: { active: boolean; onToggle: () => void }) {
+export function FullscreenButton({
+  active,
+  commands,
+}: {
+  active: boolean;
+  commands: PlayerCommands;
+}) {
   const { t } = useTranslation();
 
   return (
-    <ControlButton
+    <CommandButton
+      commands={commands}
+      command="toggleFullscreen"
       label={active ? t('player.exitFullscreen') : t('player.fullscreen')}
       icon={active ? Minimize : Maximize}
-      onClick={onToggle}
     />
   );
 }

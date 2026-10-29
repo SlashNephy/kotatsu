@@ -1,19 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 import { splitProgramMarks } from '../futon/programMarks';
-
-type Actions = Partial<{
-  play: () => void;
-  pause: () => void;
-  seekBackward: () => void;
-  seekForward: () => void;
-  seekTo: (seconds: number) => void;
-  // previousTrack と nextTrack は、ライブで、前と次の局へ移る (#493)。
-  previousTrack: () => void;
-  nextTrack: () => void;
-  // enterPictureInPicture は、タブを切り替えたときに、ブラウザが呼ぶ。視聴画面を別のウィンドウに出す (#492)。
-  enterPictureInPicture: () => void;
-}>;
+import { runCommand, type PlayerCommandId, type PlayerCommands } from './commands';
 
 // Playback は、OS に知らせる再生の状態。position は、録画のようにシークできるときの再生位置 (秒)。ライブでは null。
 export type Playback = {
@@ -38,15 +26,40 @@ export function positionState(position: Playback['position']): MediaPositionStat
   };
 }
 
+// mediaSessionCommands は、OS の操作の名前と、それで呼ぶ操作。前と次のボタンは、ライブで前と次の局へ移る (#493)。
+const mediaSessionCommands: readonly (readonly [
+  MediaSessionAction,
+  PlayerCommandId,
+  (commands: PlayerCommands, details: MediaSessionActionDetails) => void,
+])[] = [
+  ['play', 'play', (commands) => runCommand(commands, 'play')],
+  ['pause', 'pause', (commands) => runCommand(commands, 'pause')],
+  ['seekbackward', 'seekBackward', (commands) => runCommand(commands, 'seekBackward')],
+  ['seekforward', 'seekForward', (commands) => runCommand(commands, 'seekForward')],
+  [
+    'seekto',
+    'seekTo',
+    (commands, details) => {
+      if (details.seekTime !== undefined) {
+        runCommand(commands, 'seekTo', details.seekTime);
+      }
+    },
+  ],
+  ['previoustrack', 'previousChannel', (commands) => runCommand(commands, 'previousChannel')],
+  ['nexttrack', 'nextChannel', (commands) => runCommand(commands, 'nextChannel')],
+];
+
 // useMediaSession は、OS のメディア操作 (ロック画面やメディアキー) に、番組名、再生の状態と位置、操作を知らせる (設計書 7.5)。
-// 番組名の囲み文字は、OS の表示で潰れないよう外す。
+// 番組名の囲み文字は、OS の表示で潰れないよう外す。autoPictureInPicture を入れると、タブを切り替えたときに、
+// ブラウザが pictureInPicture の操作を呼び、視聴画面を別のウィンドウに出す (#492)。
 export function useMediaSession(
   metadata: { title: string; artist: string; artwork: string | null },
-  actions: Actions,
+  commands: PlayerCommands,
   playback: Playback,
+  autoPictureInPicture = false,
 ): void {
-  const actionsRef = useRef(actions);
-  actionsRef.current = actions;
+  const commandsRef = useRef(commands);
+  commandsRef.current = commands;
   const { artist, artwork } = metadata;
   const title = splitProgramMarks(metadata.title).name;
   const state = positionState(playback.position);
@@ -108,56 +121,46 @@ export function useMediaSession(
     };
   }, [title, artist, artwork]);
 
+  // 使える操作だけを OS に出す。使える操作が変わったら (局の一覧を読んだ、データ放送を出したなど)、出し直す。
+  const available = mediaSessionCommands
+    .filter(([, id]) => commands[id] !== undefined)
+    .map(([action]) => action)
+    .join(',');
   useEffect(() => {
     if (!('mediaSession' in navigator)) {
       return;
     }
-    // OS の操作の名前と、割り当てる操作の名前の組。割り当てていない操作は、OS に出さない。
-    const handlers: [MediaSessionAction, keyof Actions, MediaSessionActionHandler][] = [
-      ['play', 'play', () => actionsRef.current.play?.()],
-      ['pause', 'pause', () => actionsRef.current.pause?.()],
-      ['seekbackward', 'seekBackward', () => actionsRef.current.seekBackward?.()],
-      ['seekforward', 'seekForward', () => actionsRef.current.seekForward?.()],
-      ['previoustrack', 'previousTrack', () => actionsRef.current.previousTrack?.()],
-      ['nexttrack', 'nextTrack', () => actionsRef.current.nextTrack?.()],
-      [
-        'seekto',
-        'seekTo',
-        (details) => {
-          if (details.seekTime !== undefined) {
-            actionsRef.current.seekTo?.(details.seekTime);
-          }
-        },
-      ],
-    ];
-    for (const [action, name, handler] of handlers) {
-      if (actionsRef.current[name] !== undefined) {
-        navigator.mediaSession.setActionHandler(action, handler);
-      }
+    const actions = mediaSessionCommands.filter(([action]) =>
+      available.split(',').includes(action),
+    );
+    for (const [action, , run] of actions) {
+      navigator.mediaSession.setActionHandler(action, (details) =>
+        run(commandsRef.current, details),
+      );
     }
 
     return () => {
-      for (const [action] of handlers) {
+      for (const [action] of actions) {
         navigator.mediaSession.setActionHandler(action, null);
       }
     };
-  }, []);
+  }, [available]);
   // 自動で別のウィンドウに出す設定は、ほかのタブで変えても追うので、変わったら登録し直す。
   // 知らない操作を渡すと例外を投げるブラウザがあるので、受け付けなければ何もしない。
-  const autoPictureInPicture = actions.enterPictureInPicture !== undefined;
+  const pictureInPicture = autoPictureInPicture && commands.pictureInPicture !== undefined;
   useEffect(() => {
-    if (!autoPictureInPicture || !('mediaSession' in navigator)) {
+    if (!pictureInPicture || !('mediaSession' in navigator)) {
       return;
     }
     const action = 'enterpictureinpicture' as MediaSessionAction;
     try {
       navigator.mediaSession.setActionHandler(action, () =>
-        actionsRef.current.enterPictureInPicture?.(),
+        runCommand(commandsRef.current, 'pictureInPicture'),
       );
     } catch {
       return;
     }
 
     return () => navigator.mediaSession.setActionHandler(action, null);
-  }, [autoPictureInPicture]);
+  }, [pictureInPicture]);
 }

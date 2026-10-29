@@ -7,6 +7,7 @@ import type { useRemotePlayerCommandsSubscription } from './__generated__/useRem
 import type { useRemotePlayerRegisterMutation } from './__generated__/useRemotePlayerRegisterMutation.graphql';
 import type { useRemotePlayerUnregisterMutation } from './__generated__/useRemotePlayerUnregisterMutation.graphql';
 import type { useRemotePlayerUpdateMutation } from './__generated__/useRemotePlayerUpdateMutation.graphql';
+import { runCommand, type PlayerCommands } from './commands';
 import { RemoteKey } from './useDataBroadcast';
 
 // heartbeatMs は、状態を送る間隔。サーバーは、3 回分送られてこなければ、閉じたとみなす (設計書 7.7)。
@@ -49,18 +50,6 @@ export type RemoteCommand = {
   key: string | null;
 };
 
-// RemoteHandlers は、届いた操作を、プレイヤーの操作に渡すもの。seek は、録画の再生だけで渡す。
-export type RemoteHandlers = {
-  play: () => void;
-  pause: () => void;
-  seek?: (seconds: number) => void;
-  setVolume: (volume: number) => void;
-  setMuted: (muted: boolean) => void;
-  selectAudio: (id: string) => void;
-  pressKey: (key: RemoteKey) => void;
-  stop: () => void;
-};
-
 // RemoteApi は、サーバーとのやり取り。テストでは差し替える。
 export type RemoteApi = {
   register: (state: RemoteState) => Promise<string>;
@@ -81,54 +70,54 @@ function announced(state: RemoteState): string {
   return JSON.stringify({ ...state, position: null, duration: null });
 }
 
-// dispatch は、届いた操作を、プレイヤーの操作に渡す。
-export function dispatch(command: RemoteCommand, handlers: RemoteHandlers) {
+// dispatch は、届いた操作を、登録簿の操作にして呼ぶ。今使えない操作と、値の足りない操作は捨てる。
+export function dispatch(command: RemoteCommand, commands: PlayerCommands) {
   switch (command.type) {
     case 'PLAY':
-      handlers.play();
+      runCommand(commands, 'play');
       break;
     case 'PAUSE':
-      handlers.pause();
+      runCommand(commands, 'pause');
       break;
     case 'SEEK':
       if (command.position !== null) {
-        handlers.seek?.(command.position);
+        runCommand(commands, 'seekTo', command.position);
       }
       break;
     case 'SET_VOLUME':
       if (command.volume !== null) {
-        handlers.setVolume(command.volume);
+        runCommand(commands, 'setVolume', command.volume);
       }
       break;
     case 'SET_MUTED':
       if (command.muted !== null) {
-        handlers.setMuted(command.muted);
+        runCommand(commands, 'setMuted', command.muted);
       }
       break;
     case 'SELECT_AUDIO':
       if (command.audio !== null) {
-        handlers.selectAudio(command.audio);
+        runCommand(commands, 'selectAudio', command.audio);
       }
       break;
     case 'PRESS_KEY': {
       const key = command.key === null ? null : remoteKey(command.key);
       if (key !== null) {
-        handlers.pressKey(key);
+        runCommand(commands, 'pressKey', key);
       }
       break;
     }
     case 'STOP':
-      handlers.stop();
+      runCommand(commands, 'stop');
       break;
   }
 }
 
 // useRemotePlayer は、このプレイヤーを「再生中のプレイヤー」として登録し、同じアカウントのほかの端末から操作できるようにする
 // (#459、設計書 7.7)。state が null の間は登録しない。登録したら、状態を 10 秒ごとに送り、再生位置のほかが変わったら、
-// すぐにほかの端末に知らせる。届いた操作は handlers に渡す。画面を離れたら、登録を取り消す。
+// すぐにほかの端末に知らせる。届いた操作は、commands の操作にして呼ぶ。画面を離れたら、登録を取り消す。
 export function useRemotePlayer(
   state: RemoteState | null,
-  handlers: RemoteHandlers,
+  commands: PlayerCommands,
   api?: RemoteApi,
 ): void {
   const environment = useRelayEnvironment();
@@ -137,8 +126,8 @@ export function useRemotePlayer(
   const apiRef = useRef(remoteApi);
   const stateRef = useRef(state);
   stateRef.current = state;
-  const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
+  const commandsRef = useRef(commands);
+  commandsRef.current = commands;
   // id は、登録したプレイヤーの ID。登録の返事を待つ間に状態が変わったら、返事が来たところで知らせられるよう、state に持つ。
   const [id, setId] = useState<string | null>(null);
   const idRef = useRef<string | null>(null);
@@ -178,7 +167,7 @@ export function useRemotePlayer(
             return;
           }
           handled = commandId;
-          dispatch(command, handlersRef.current);
+          dispatch(command, commandsRef.current);
         });
         timer = setInterval(() => {
           const current = stateRef.current;

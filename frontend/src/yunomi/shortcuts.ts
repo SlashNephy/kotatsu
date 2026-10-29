@@ -1,25 +1,11 @@
-// プレイヤーのキーボードショートカット (設計書 7.5)。
+import { playerCommands, type PlayerCommandId, type SimpleCommandId } from './commands';
 
-export type ShortcutAction =
-  | 'togglePlay'
-  | 'seekBackward'
-  | 'seekForward'
-  | 'seekBackwardLong'
-  | 'seekForwardLong'
-  | 'toggleCaptions'
-  | 'toggleMute'
-  | 'toggleFullscreen'
-  | 'volumeUp'
-  | 'volumeDown'
-  | 'toggleDataBroadcast'
-  | 'capture'
-  | 'restart'
-  | 'toggleStats'
-  | 'showShortcuts';
+// プレイヤーのキーボードショートカット (設計書 7.5)。操作そのものは commands.ts の登録簿にあり、ここはキーの割り当てだけを持つ。
 
-// shortcutKeys は、操作ごとに割り当てたキー (KeyboardEvent.key)。ショートカットの一覧も、これから作る。
+// shortcutKeys は、操作ごとに割り当てたキー (KeyboardEvent.key)。割り当てのない操作は、キーでは呼べない。
+// ショートカットの一覧も、これから作る。
 // 文字でないキーを Shift と一緒に押すときは、`Shift+` を前に付けて書く。文字のキーは、Shift で変わった文字 (? など) で書く。
-export const shortcutKeys: Readonly<Record<ShortcutAction, readonly string[]>> = {
+export const shortcutKeys: Readonly<Partial<Record<SimpleCommandId, readonly string[]>>> = {
   togglePlay: [' ', 'k'],
   seekBackward: ['ArrowLeft', 'j'],
   seekForward: ['ArrowRight', 'l'],
@@ -38,8 +24,13 @@ export const shortcutKeys: Readonly<Record<ShortcutAction, readonly string[]>> =
   showShortcuts: ['?'],
 };
 
-const actionsByKey: ReadonlyMap<string, ShortcutAction> = new Map(
-  (Object.entries(shortcutKeys) as [ShortcutAction, readonly string[]][]).flatMap(
+// keysFor は、操作に割り当てたキーを返す。割り当てがなければ空。
+export function keysFor(id: PlayerCommandId): readonly string[] {
+  return (shortcutKeys as Partial<Record<PlayerCommandId, readonly string[]>>)[id] ?? [];
+}
+
+const actionsByKey: ReadonlyMap<string, SimpleCommandId> = new Map(
+  (Object.entries(shortcutKeys) as [SimpleCommandId, readonly string[]][]).flatMap(
     ([action, keys]) => keys.map((key) => [key, action] as const),
   ),
 );
@@ -51,24 +42,14 @@ type KeyLike = Pick<
   target: EventTarget | null;
 };
 
-// repeatable は、キーを押し続けたときに、繰り返してよい操作。切り替える操作は、押すたびに 1 回だけにする。
-const repeatable: ReadonlySet<ShortcutAction> = new Set([
-  'seekBackward',
-  'seekForward',
-  'seekBackwardLong',
-  'seekForwardLong',
-  'volumeUp',
-  'volumeDown',
-]);
-
 // shortcutFor は、押したキーに割り当てた操作を返す。文字を入力している欄では、ショートカットにしない。
-export function shortcutFor(event: KeyLike): ShortcutAction | null {
+export function shortcutFor(event: KeyLike): SimpleCommandId | null {
   const action = actionFor(event);
 
-  return action !== null && event.repeat && !repeatable.has(action) ? null : action;
+  return action !== null && event.repeat && !playerCommands[action].repeatable ? null : action;
 }
 
-function actionFor(event: KeyLike): ShortcutAction | null {
+function actionFor(event: KeyLike): SimpleCommandId | null {
   if (event.ctrlKey || event.metaKey || event.altKey) {
     return null;
   }
