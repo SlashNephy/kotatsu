@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<581d96c34fa8c4eb403a7d348f45f034>>
+ * @generated SignedSource<<ec6500c1c8f6750307b3793a349793f1>>
  * @lightSyntaxTransform
  */
 
@@ -38,8 +38,6 @@ export type ServiceIdLiveQuery$data = {
     readonly name: string;
     readonly streamUrl: string;
     readonly timeshiftPrograms: ReadonlyArray<{
-      readonly endAt: string | null | undefined;
-      readonly fromStart: boolean;
       readonly startAt: string;
     }>;
     readonly videoFormat: VideoFormat;
@@ -123,13 +121,6 @@ v7 = {
   "storageKey": null
 },
 v8 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "endAt",
-  "storageKey": null
-},
-v9 = {
   "kind": "InlineFragment",
   "selections": [
     (v5/*:: as any*/),
@@ -175,15 +166,7 @@ v9 = {
       "name": "timeshiftPrograms",
       "plural": true,
       "selections": [
-        (v7/*:: as any*/),
-        (v8/*:: as any*/),
-        {
-          "alias": null,
-          "args": null,
-          "kind": "ScalarField",
-          "name": "fromStart",
-          "storageKey": null
-        }
+        (v7/*:: as any*/)
       ],
       "storageKey": null
     }
@@ -191,7 +174,7 @@ v9 = {
   "type": "Service",
   "abstractKey": null
 },
-v10 = [
+v9 = [
   {
     "kind": "Variable",
     "name": "from",
@@ -214,6 +197,13 @@ v10 = [
     "variableName": "to"
   }
 ],
+v10 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "endAt",
+  "storageKey": null
+},
 v11 = {
   "alias": null,
   "args": null,
@@ -355,13 +345,13 @@ return {
         "plural": false,
         "selections": [
           (v4/*:: as any*/),
-          (v9/*:: as any*/)
+          (v8/*:: as any*/)
         ],
         "storageKey": null
       },
       {
         "alias": null,
-        "args": (v10/*:: as any*/),
+        "args": (v9/*:: as any*/),
         "concreteType": "GuideRow",
         "kind": "LinkedField",
         "name": "guide",
@@ -377,7 +367,7 @@ return {
             "selections": [
               (v5/*:: as any*/),
               (v7/*:: as any*/),
-              (v8/*:: as any*/),
+              (v10/*:: as any*/),
               (v11/*:: as any*/),
               (v12/*:: as any*/)
             ],
@@ -411,14 +401,14 @@ return {
         "plural": false,
         "selections": [
           (v4/*:: as any*/),
-          (v9/*:: as any*/),
+          (v8/*:: as any*/),
           (v6/*:: as any*/)
         ],
         "storageKey": null
       },
       {
         "alias": null,
-        "args": (v10/*:: as any*/),
+        "args": (v9/*:: as any*/),
         "concreteType": "GuideRow",
         "kind": "LinkedField",
         "name": "guide",
@@ -434,7 +424,7 @@ return {
             "selections": [
               (v5/*:: as any*/),
               (v7/*:: as any*/),
-              (v8/*:: as any*/),
+              (v10/*:: as any*/),
               (v11/*:: as any*/),
               (v12/*:: as any*/),
               (v6/*:: as any*/)
@@ -449,16 +439,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "61d3a4e21597d228ec60d8e3255ede8c",
+    "cacheID": "cbd7c94fed4d237acb0a0ab7c32a3870",
     "id": null,
     "metadata": {},
     "name": "ServiceIdLiveQuery",
     "operationKind": "query",
-    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      videoFormat\n      jikkyo {\n        id\n        name\n      }\n      timeshiftPrograms {\n        startAt\n        endAt\n        fromStart\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      startAt\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n      }\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n  services {\n    id\n    name\n    networkId\n    serviceId\n    channelType {\n      type\n    }\n  }\n}\n"
+    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      videoFormat\n      jikkyo {\n        id\n        name\n      }\n      timeshiftPrograms {\n        startAt\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      startAt\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n      }\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n  services {\n    id\n    name\n    networkId\n    serviceId\n    channelType {\n      type\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "4798452fc632b8804d8451aad8e4690d";
+(node as any).hash = "2b05458387d0e5d334a6fb4657d5d6a5";
 
 export default node;
