@@ -390,35 +390,25 @@ func (s *streamer) serveGrowing(ctx context.Context, w io.Writer, tl timeline, p
 	// 録画は TS をまとめて書くので、索引が指す位置を、まだファイルに書いていないことがある。書くまで待つ。
 	// 書き込みのエラーなどで、その位置まで書かないままセグメントを閉じたら、流すものがないので終える。
 	offset := p.from
-	for {
-		// 閉じたかを確かめてからファイルの大きさを見るので、確かめた後に書かれた分も見落とさない。
-		closed, err := segmentClosedOrUnknown(ctx, tl, p.segment.id)
-		if err != nil {
-			return err
-		}
-		info, err := file.Stat()
-		if err != nil {
-			return fmt.Errorf("failed to inspect the segment: %w", err)
-		}
-		if info.Size() >= offset {
-			break
-		}
-		if closed {
-			return nil
-		}
-		if err := sleep(ctx, s.pollInterval); err != nil {
-			return err
-		}
+	if size, err := s.waitSize(ctx, tl, p, file, offset); err != nil || size < offset {
+		return err
 	}
 	if err := writePrelude(w, file, offset); err != nil {
 		return err
 	}
-	info, err := file.Stat()
-	if err != nil {
-		return fmt.Errorf("failed to inspect the segment: %w", err)
-	}
-	if offset, err = writeHead(w, file, p, joined, offset, info.Size()); err != nil {
-		return err
+	if joined && !p.segment.continues {
+		// 頭の前から続く PES の残りを落とすには、頭の範囲が書かれるのを待つ。書き終えたら、そこまでで落とす。
+		want := offset + headWindow
+		if p.to >= 0 {
+			want = min(want, p.to)
+		}
+		size, err := s.waitSize(ctx, tl, p, file, want)
+		if err != nil {
+			return err
+		}
+		if offset, err = writeHead(w, file, p, joined, offset, min(size, want)); err != nil {
+			return err
+		}
 	}
 	if _, err := file.Seek(offset, io.SeekStart); err != nil {
 		return fmt.Errorf("failed to seek the segment: %w", err)
@@ -465,6 +455,27 @@ func servedEnd(file *os.File, p *piece) (int64, error) {
 	}
 
 	return completeTail(file, p.from, to)
+}
+
+// waitSize は、書いている途中のセグメントが want まで書かれるか、書き終えるまで待ち、そのときのファイルの大きさを返す。
+func (s *streamer) waitSize(ctx context.Context, tl timeline, p *piece, file *os.File, want int64) (int64, error) {
+	for {
+		// 閉じたかを確かめてからファイルの大きさを見るので、確かめた後に書かれた分も見落とさない。
+		closed, err := segmentClosedOrUnknown(ctx, tl, p.segment.id)
+		if err != nil {
+			return 0, err
+		}
+		info, err := file.Stat()
+		if err != nil {
+			return 0, fmt.Errorf("failed to inspect the segment: %w", err)
+		}
+		if info.Size() >= want || closed {
+			return info.Size(), nil
+		}
+		if err := sleep(ctx, s.pollInterval); err != nil {
+			return 0, err
+		}
+	}
 }
 
 // writeHead は、セグメントの範囲 p を from から流すとき、前のセグメントにつなぐ (joined) なら、頭の前から続く PES の残りを落として書き

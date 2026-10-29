@@ -43,6 +43,10 @@ func TestCompleteTail(t *testing.T) {
 	// 1 パケットの PES のペイロードは 184 バイトで、PES の長さは、その中の 6 バイトの後ろから数える。
 	// 4 パケットに収まる音声の PES の長さは 184*4 - 6。
 	const whole = 184*4 - 6
+	// 2 つ目の音声の PID。音声が 2 つある放送では、2 つの PID の PES のパケットが交互に並ぶ。
+	const secondAudioPID = 0x111
+	first := pesPackets(audioPID, 184*2-6, 2)
+	second := pesPackets(secondAudioPID, 184*2-6, 2)
 	tests := []struct {
 		name    string
 		packets [][]byte
@@ -65,6 +69,17 @@ func TestCompleteTail(t *testing.T) {
 			want:    7,
 		},
 		{
+			// 2 つ目の PID の PES は途中で切れている。その始まりで切ると、1 つ目の PID の PES の残りも落ちるので、1 つ目の始まりで切る。
+			name:    "交互に並ぶ PES は、切る位置をまたぐものの始まりまで戻して切る",
+			packets: [][]byte{first[0], second[0], first[1]},
+			want:    0,
+		},
+		{
+			name:    "交互に並んでも、全部が届いた PES は切らない",
+			packets: [][]byte{first[0], second[0], first[1], second[1]},
+			want:    4,
+		},
+		{
 			name: "途中で切れた PES の後のほかの PID のパケットも、その始まりで切る",
 			packets: append(append(pesPackets(audioPID, whole, 4), pesPackets(audioPID, whole, 1)...),
 				pesPackets(videoPID, 0, 2)...),
@@ -81,6 +96,16 @@ func TestCompleteTail(t *testing.T) {
 			assert.Equal(t, int64(tt.want*ts.PacketSize), got)
 		})
 	}
+}
+
+// TestCompleteTailAlignsToPackets は、書きかけのまま閉じて、パケットの途中で終わるセグメントは、パケットの境目で切ることを確かめる。
+func TestCompleteTailAlignsToPackets(t *testing.T) {
+	t.Parallel()
+
+	data := append(bytes.Join(pesPackets(videoPID, 0, 2), nil), bytes.Repeat([]byte{0x47}, 100)...)
+	got, err := completeTail(bytes.NewReader(data), 0, int64(len(data)))
+	require.NoError(t, err)
+	assert.Equal(t, int64(2*ts.PacketSize), got)
 }
 
 // continuation は、PID の、PES の始まりでない (前から続く) パケットを count 個返す。
