@@ -29,7 +29,9 @@ func TestPlayablePrograms(t *testing.T) {
 		configured bool
 		chunks     []period
 		programs   []period
-		want       []want
+		// sameEvent は、行の添え字から、同じイベント ID にする前の行の添え字への対応。ほかの行は、別のイベント ID にする。
+		sameEvent map[int]int
+		want      []want
 	}{
 		{
 			name: "区切ったチャンクの境目は途切れない", configured: true,
@@ -81,6 +83,17 @@ func TestPlayablePrograms(t *testing.T) {
 			},
 		},
 		{
+			name: "録り直して分かれた同じ番組の行は、1 つの番組にまとめる", configured: true,
+			chunks:   []period{{0, 5 * time.Minute}, {5 * time.Minute, 9 * time.Minute}, {10 * time.Minute, 0}},
+			programs: []period{{0, 5 * time.Minute}, {5 * time.Minute, 9 * time.Minute}, {10 * time.Minute, 0}},
+			// 2 つ目と 3 つ目の行は、同じイベント ID の番組を録り直したもの。
+			sameEvent: map[int]int{2: 1},
+			want: []want{
+				{start: 0, playableFrom: 0, gaps: []period{}, fromStart: false},
+				{start: 5 * time.Minute, playableFrom: 5 * time.Minute, gaps: []period{{9 * time.Minute, 10 * time.Minute}}, fromStart: true},
+			},
+		},
+		{
 			name: "タイムシフトから外したサービスは空", configured: false,
 			chunks:   []period{{0, 5 * time.Minute}},
 			programs: []period{{time.Minute, 4 * time.Minute}},
@@ -108,9 +121,14 @@ func TestPlayablePrograms(t *testing.T) {
 					require.NoError(t, err)
 				}
 			}
+			eventIDs := make([]int64, len(tt.programs))
 			for i, p := range tt.programs {
+				eventIDs[i] = int64(i + 1)
+				if same, ok := tt.sameEvent[i]; ok {
+					eventIDs[i] = eventIDs[same]
+				}
 				require.NoError(t, e.q.StartTimeshiftProgram(t.Context(), sqlc.StartTimeshiftProgramParams{
-					ServiceID: serviceID, StartedAt: base.Add(p.start), EventID: int64(i + 1), Name: "番組",
+					ServiceID: serviceID, StartedAt: base.Add(p.start), EventID: eventIDs[i], Name: "番組",
 				}))
 				if p.end > 0 {
 					_, err := e.q.EndTimeshiftProgram(t.Context(), sqlc.EndTimeshiftProgramParams{ServiceID: serviceID, EndedAt: new(base.Add(p.end))})

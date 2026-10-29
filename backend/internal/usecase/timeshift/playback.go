@@ -58,7 +58,28 @@ func PlayablePrograms(ctx context.Context, db sqlc.DBTX, serviceID int64, now ti
 		spans = append(spans, span{from: chunks[i].StartedAt, to: end})
 	}
 
-	return playable(programs, spans, now), nil
+	return playable(mergeRecorded(programs), spans, now), nil
+}
+
+// mergeRecorded は、同じ番組 (イベント ID) が続けて記録された行を、1 つの番組にまとめる。
+// mikan を録り直すと、放送中の番組を新しい行に記録し直すので、同じ番組が何行にも分かれる。
+// まとめた番組は、最初の行に始まり、最後の行に終わる。番組名は、最後の行の名前を使い、空なら前の行の名前を使う。
+func mergeRecorded(programs []sqlc.TimeshiftProgram) []sqlc.TimeshiftProgram {
+	merged := make([]sqlc.TimeshiftProgram, 0, len(programs))
+	for _, program := range programs {
+		if n := len(merged); n > 0 && merged[n-1].EventID == program.EventID {
+			last := &merged[n-1]
+			last.EndedAt = program.EndedAt
+			if program.Name != "" {
+				last.Name = program.Name
+			}
+
+			continue
+		}
+		merged = append(merged, program)
+	}
+
+	return merged
 }
 
 // span は、チャンクが録った時間。書いている途中のチャンクは、今まで録れているものとする。
