@@ -229,6 +229,8 @@ type Querier interface {
 	GetSystemSettings(ctx context.Context) (SystemSetting, error)
 	GetTOTPEnrollmentForUpdate(ctx context.Context, arg GetTOTPEnrollmentForUpdateParams) (TotpEnrollment, error)
 	GetTimeshiftAssignmentStream(ctx context.Context, id uuid.UUID) (GetTimeshiftAssignmentStreamRow, error)
+	// チャンクの終わりの時刻。書いている途中なら NULL。バッファから再生している間に、チャンクを書き終えたかを確かめるのに使う。
+	GetTimeshiftChunkEnd(ctx context.Context, id uuid.UUID) (*time.Time, error)
 	GetTunerServerStatus(ctx context.Context) (GetTunerServerStatusRow, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
@@ -451,6 +453,10 @@ type Querier interface {
 	ListTimeshiftChannels(ctx context.Context) ([]ListTimeshiftChannelsRow, error)
 	// 記録のあるチャンクの ID とパス。ディスク上のファイルとの突き合わせに使う。
 	ListTimeshiftChunkIDs(ctx context.Context) ([]ListTimeshiftChunkIDsRow, error)
+	// since より後まで録ったチャンク (書いている途中のものを含む) を、始まりの順に返す。バッファから再生するときに、流すチャンクを引くのに使う (設計書 7.2)。
+	ListTimeshiftChunksSince(ctx context.Context, arg ListTimeshiftChunksSinceParams) ([]ListTimeshiftChunksSinceRow, error)
+	// バッファに残っている番組の記録を、始まりの順に返す。視聴の画面から、番組を頭から再生するのに使う。
+	ListTimeshiftPrograms(ctx context.Context, serviceID int64) ([]TimeshiftProgram, error)
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
 	ListUsableTuners(ctx context.Context) ([]ListUsableTunersRow, error)
 	ListUserOIDCIdentities(ctx context.Context, userID uuid.UUID) ([]UserOidcIdentity, error)
@@ -648,6 +654,8 @@ type Querier interface {
 	TakeWebAuthnCeremony(ctx context.Context, arg TakeWebAuthnCeremonyParams) (WebauthnCeremony, error)
 	// 割り振りが残っているかどうか。neko が取り消すと、割り振りは消える。
 	TimeshiftAssignmentExists(ctx context.Context, id uuid.UUID) (bool, error)
+	// サービスをタイムシフトで録っているか。外したサービスのバッファは、破棄を待つだけなので、再生させない。
+	TimeshiftChannelExists(ctx context.Context, serviceID int64) (bool, error)
 	TouchAPIToken(ctx context.Context, arg TouchAPITokenParams) error
 	TouchOAuthGrant(ctx context.Context, arg TouchOAuthGrantParams) error
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。

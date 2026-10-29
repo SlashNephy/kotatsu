@@ -47,6 +47,13 @@ models:
         resolver: true
       videoFormat:
         resolver: true
+      timeshiftPrograms:
+        resolver: true
+  TimeshiftProgram:
+    model: github.com/SlashNephy/kotatsu/internal/web/graph/model.TimeshiftProgram
+    fields:
+      service:
+        resolver: true
   TimeshiftChannel:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.TimeshiftChannel
     fields:

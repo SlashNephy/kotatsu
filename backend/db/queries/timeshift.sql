@@ -116,6 +116,26 @@ ON CONFLICT (id) DO NOTHING;
 UPDATE timeshift_chunks SET size = @size, ended_at = @ended_at
 WHERE id = @id;
 
+-- name: ListTimeshiftChunksSince :many
+-- since より後まで録ったチャンク (書いている途中のものを含む) を、始まりの順に返す。バッファから再生するときに、流すチャンクを引くのに使う (設計書 7.2)。
+SELECT id, path, started_at, ended_at FROM timeshift_chunks
+WHERE service_id = @service_id AND (ended_at IS NULL OR ended_at > @since::timestamptz)
+ORDER BY started_at, id;
+
+-- name: GetTimeshiftChunkEnd :one
+-- チャンクの終わりの時刻。書いている途中なら NULL。バッファから再生している間に、チャンクを書き終えたかを確かめるのに使う。
+SELECT ended_at FROM timeshift_chunks WHERE id = @id;
+
+-- name: TimeshiftChannelExists :one
+-- サービスをタイムシフトで録っているか。外したサービスのバッファは、破棄を待つだけなので、再生させない。
+SELECT EXISTS (SELECT 1 FROM timeshift_channels WHERE service_id = @service_id);
+
+-- name: ListTimeshiftPrograms :many
+-- バッファに残っている番組の記録を、始まりの順に返す。視聴の画面から、番組を頭から再生するのに使う。
+SELECT service_id, started_at, event_id, name, ended_at FROM timeshift_programs
+WHERE service_id = @service_id
+ORDER BY started_at;
+
 -- name: ListOpenTimeshiftChunks :many
 -- 書きかけのチャンク。mikan が落ちるなどして残ったものを、サービスを録り直す前か、外したチャンネルのものを破棄する前に、
 -- ファイルの大きさと最後に書いた時刻で閉じる。

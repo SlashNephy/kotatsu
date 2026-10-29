@@ -1,6 +1,7 @@
 package graph_test
 
 import (
+	"net/url"
 	"strconv"
 	"testing"
 	"time"
@@ -200,4 +201,96 @@ func TestTimeshiftUnavailable(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, admin.query(t, removeTimeshiftChannel, map[string]any{varServiceID: timeshiftServiceID()}, nil))
 	assert.Empty(t, admin.listTimeshiftChannels(t))
+}
+
+const timeshiftPrograms = `query($id: ID!) { node(id: $id) { ... on Service {
+	timeshiftPrograms { service { id } eventId name startAt endAt playableFrom gaps { from to } streamUrl } } } }`
+
+type timeshiftProgram struct {
+	Service struct {
+		ID string `json:"id"`
+	} `json:"service"`
+	EventID      int        `json:"eventId"`
+	Name         string     `json:"name"`
+	StartAt      time.Time  `json:"startAt"`
+	EndAt        *time.Time `json:"endAt"`
+	PlayableFrom time.Time  `json:"playableFrom"`
+	Gaps         []struct {
+		From time.Time `json:"from"`
+		To   time.Time `json:"to"`
+	} `json:"gaps"`
+	StreamURL string `json:"streamUrl"`
+}
+
+// TestTimeshiftPrograms は、視聴者が、バッファから再生できる番組と、それを流す URL を読めることを確かめる (設計書 7.2)。
+// タイムシフトのディレクトリがない tenban では、バッファを流せないので、番組を返さない。
+func TestTimeshiftPrograms(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		configured bool
+		want       int
+	}{
+		{name: "タイムシフトのディレクトリがある", configured: true, want: 1},
+		{name: "タイムシフトのディレクトリがない", configured: false, want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := &graph.Options{}
+			if tt.configured {
+				opts.TimeshiftDir = t.TempDir()
+			}
+			f := newFixture(t, opts)
+			f.syncEPG(t)
+			now := f.clock.Now()
+			exec := func(sql string, args ...any) {
+				t.Helper()
+				_, err := f.pool.Exec(t.Context(), sql, args...)
+				require.NoError(t, err)
+			}
+			exec(`INSERT INTO timeshift_channels (service_id, retention_seconds, created_at, updated_at) VALUES ($1, 7200, $2, $2)`, timeshiftServiceKey, now)
+			// 番組の頭のチャンクは破棄した。2 つ目のチャンクの前に穴がある。
+			exec(`INSERT INTO timeshift_chunks (id, service_id, path, size, started_at, ended_at, created_at)
+				VALUES ($1, $2, 'a.m2ts', 1, $3, $4, $3), ($5, $2, 'b.m2ts', 1, $6, NULL, $6)`,
+				id.New(), timeshiftServiceKey, now.Add(-30*time.Minute), now.Add(-25*time.Minute), id.New(), now.Add(-20*time.Minute))
+			exec(`INSERT INTO timeshift_programs (service_id, started_at, event_id, name, ended_at) VALUES ($1, $2, 100, '番組', NULL)`,
+				timeshiftServiceKey, now.Add(-40*time.Minute))
+
+			viewer := f.as(t, "viewer", auth.RoleViewer)
+			var got struct {
+				Node struct {
+					TimeshiftPrograms []timeshiftProgram `json:"timeshiftPrograms"`
+				} `json:"node"`
+			}
+			require.Empty(t, viewer.query(t, timeshiftPrograms, map[string]any{varID: timeshiftServiceID()}, &got))
+			require.Len(t, got.Node.TimeshiftPrograms, tt.want)
+			if tt.want == 0 {
+				return
+			}
+			program := got.Node.TimeshiftPrograms[0]
+			assert.Equal(t, timeshiftServiceID(), program.Service.ID)
+			assert.Equal(t, 100, program.EventID)
+			assert.Nil(t, program.EndAt)
+			assert.True(t, now.Add(-40*time.Minute).Equal(program.StartAt))
+			assert.True(t, now.Add(-30*time.Minute).Equal(program.PlayableFrom))
+			require.Len(t, program.Gaps, 1)
+			assert.True(t, now.Add(-25*time.Minute).Equal(program.Gaps[0].From))
+			assert.True(t, now.Add(-20*time.Minute).Equal(program.Gaps[0].To))
+			assert.Equal(t, "/streams/timeshift/3273601024?from="+url.QueryEscape(program.PlayableFrom.UTC().Format(time.RFC3339Nano)), program.StreamURL)
+
+			// 始まりの時刻で 1 つの番組を引く。ない番組は NOT_FOUND。
+			const one = `query($serviceId: ID!, $startAt: Time!) { timeshiftProgram(serviceId: $serviceId, startAt: $startAt) { eventId } }`
+			var single struct {
+				TimeshiftProgram struct {
+					EventID int `json:"eventId"`
+				} `json:"timeshiftProgram"`
+			}
+			require.Empty(t, viewer.query(t, one, map[string]any{varServiceID: timeshiftServiceID(), "startAt": program.StartAt}, &single))
+			assert.Equal(t, 100, single.TimeshiftProgram.EventID)
+			assert.Equal(t, []string{codeNotFound}, viewer.query(t, one, map[string]any{varServiceID: timeshiftServiceID(), "startAt": now}, nil))
+		})
+	}
 }

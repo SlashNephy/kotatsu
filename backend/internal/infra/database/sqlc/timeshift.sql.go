@@ -264,6 +264,18 @@ func (q *Queries) GetTimeshiftAssignmentStream(ctx context.Context, id uuid.UUID
 	return i, err
 }
 
+const getTimeshiftChunkEnd = `-- name: GetTimeshiftChunkEnd :one
+SELECT ended_at FROM timeshift_chunks WHERE id = $1
+`
+
+// チャンクの終わりの時刻。書いている途中なら NULL。バッファから再生している間に、チャンクを書き終えたかを確かめるのに使う。
+func (q *Queries) GetTimeshiftChunkEnd(ctx context.Context, id uuid.UUID) (*time.Time, error) {
+	row := q.db.QueryRow(ctx, getTimeshiftChunkEnd, id)
+	var ended_at *time.Time
+	err := row.Scan(&ended_at)
+	return ended_at, err
+}
+
 const insertTimeshiftAssignment = `-- name: InsertTimeshiftAssignment :exec
 INSERT INTO timeshift_assignments (id, service_id, priority, state, generation, holder, lease_expires_at, created_at, updated_at)
 VALUES ($1, $2, $3, 'waiting', 0, NULL, NULL, $4, $4)
@@ -693,6 +705,83 @@ func (q *Queries) ListTimeshiftChunkIDs(ctx context.Context) ([]ListTimeshiftChu
 	return items, nil
 }
 
+const listTimeshiftChunksSince = `-- name: ListTimeshiftChunksSince :many
+SELECT id, path, started_at, ended_at FROM timeshift_chunks
+WHERE service_id = $1 AND (ended_at IS NULL OR ended_at > $2::timestamptz)
+ORDER BY started_at, id
+`
+
+type ListTimeshiftChunksSinceParams struct {
+	ServiceID int64
+	Since     time.Time
+}
+
+type ListTimeshiftChunksSinceRow struct {
+	ID        uuid.UUID
+	Path      string
+	StartedAt time.Time
+	EndedAt   *time.Time
+}
+
+// since より後まで録ったチャンク (書いている途中のものを含む) を、始まりの順に返す。バッファから再生するときに、流すチャンクを引くのに使う (設計書 7.2)。
+func (q *Queries) ListTimeshiftChunksSince(ctx context.Context, arg ListTimeshiftChunksSinceParams) ([]ListTimeshiftChunksSinceRow, error) {
+	rows, err := q.db.Query(ctx, listTimeshiftChunksSince, arg.ServiceID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTimeshiftChunksSinceRow{}
+	for rows.Next() {
+		var i ListTimeshiftChunksSinceRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Path,
+			&i.StartedAt,
+			&i.EndedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTimeshiftPrograms = `-- name: ListTimeshiftPrograms :many
+SELECT service_id, started_at, event_id, name, ended_at FROM timeshift_programs
+WHERE service_id = $1
+ORDER BY started_at
+`
+
+// バッファに残っている番組の記録を、始まりの順に返す。視聴の画面から、番組を頭から再生するのに使う。
+func (q *Queries) ListTimeshiftPrograms(ctx context.Context, serviceID int64) ([]TimeshiftProgram, error) {
+	rows, err := q.db.Query(ctx, listTimeshiftPrograms, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TimeshiftProgram{}
+	for rows.Next() {
+		var i TimeshiftProgram
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.StartedAt,
+			&i.EventID,
+			&i.Name,
+			&i.EndedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockTimeshiftAssignmentGeneration = `-- name: LockTimeshiftAssignmentGeneration :one
 SELECT generation FROM timeshift_assignments WHERE id = $1 FOR UPDATE
 `
@@ -866,6 +955,18 @@ SELECT EXISTS (SELECT 1 FROM timeshift_assignments WHERE id = $1)
 // 割り振りが残っているかどうか。neko が取り消すと、割り振りは消える。
 func (q *Queries) TimeshiftAssignmentExists(ctx context.Context, id uuid.UUID) (bool, error) {
 	row := q.db.QueryRow(ctx, timeshiftAssignmentExists, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const timeshiftChannelExists = `-- name: TimeshiftChannelExists :one
+SELECT EXISTS (SELECT 1 FROM timeshift_channels WHERE service_id = $1)
+`
+
+// サービスをタイムシフトで録っているか。外したサービスのバッファは、破棄を待つだけなので、再生させない。
+func (q *Queries) TimeshiftChannelExists(ctx context.Context, serviceID int64) (bool, error) {
+	row := q.db.QueryRow(ctx, timeshiftChannelExists, serviceID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err

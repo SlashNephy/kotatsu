@@ -40,6 +40,7 @@ type ResolverRoot interface {
 	Service() ServiceResolver
 	Subscription() SubscriptionResolver
 	TimeshiftChannel() TimeshiftChannelResolver
+	TimeshiftProgram() TimeshiftProgramResolver
 	User() UserResolver
 }
 
@@ -533,6 +534,7 @@ type ComplexityRoot struct {
 		TimeZone                func(childComplexity int) int
 		TimeshiftAvailable      func(childComplexity int) int
 		TimeshiftChannels       func(childComplexity int) int
+		TimeshiftProgram        func(childComplexity int, serviceID string, startAt time.Time) int
 		Transcoding             func(childComplexity int) int
 		TunerServerHealth       func(childComplexity int) int
 		UnreadNotificationCount func(childComplexity int) int
@@ -733,6 +735,7 @@ type ComplexityRoot struct {
 		ServiceID          func(childComplexity int) int
 		SortOrder          func(childComplexity int) int
 		StreamURL          func(childComplexity int) int
+		TimeshiftPrograms  func(childComplexity int) int
 		VideoFormat        func(childComplexity int) int
 	}
 
@@ -838,6 +841,17 @@ type ComplexityRoot struct {
 		Recording        func(childComplexity int) int
 		RetentionSeconds func(childComplexity int) int
 		Service          func(childComplexity int) int
+	}
+
+	TimeshiftProgram struct {
+		EndAt        func(childComplexity int) int
+		EventID      func(childComplexity int) int
+		Gaps         func(childComplexity int) int
+		Name         func(childComplexity int) int
+		PlayableFrom func(childComplexity int) int
+		Service      func(childComplexity int) int
+		StartAt      func(childComplexity int) int
+		StreamURL    func(childComplexity int) int
 	}
 
 	Transcoding struct {
@@ -1046,6 +1060,7 @@ type QueryResolver interface {
 	Transcoding(ctx context.Context) (*model.Transcoding, error)
 	TimeshiftAvailable(ctx context.Context) (bool, error)
 	TimeshiftChannels(ctx context.Context) ([]*model.TimeshiftChannel, error)
+	TimeshiftProgram(ctx context.Context, serviceID string, startAt time.Time) (*model.TimeshiftProgram, error)
 	Users(ctx context.Context) ([]*model.User, error)
 	Sessions(ctx context.Context) ([]*model.Session, error)
 	WatchReservations(ctx context.Context) ([]*model.WatchReservation, error)
@@ -1078,6 +1093,7 @@ type ServiceResolver interface {
 
 	Jikkyo(ctx context.Context, obj *model.Service) (*model.JikkyoChannel, error)
 	VideoFormat(ctx context.Context, obj *model.Service) (model.VideoFormat, error)
+	TimeshiftPrograms(ctx context.Context, obj *model.Service) ([]*model.TimeshiftProgram, error)
 }
 type SubscriptionResolver interface {
 	Heartbeat(ctx context.Context) (<-chan *time.Time, error)
@@ -1090,6 +1106,9 @@ type SubscriptionResolver interface {
 }
 type TimeshiftChannelResolver interface {
 	Service(ctx context.Context, obj *model.TimeshiftChannel) (*model.Service, error)
+}
+type TimeshiftProgramResolver interface {
+	Service(ctx context.Context, obj *model.TimeshiftProgram) (*model.Service, error)
 }
 type UserResolver interface {
 	AvatarURL(ctx context.Context, obj *model.User) (*string, error)
@@ -3493,6 +3512,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.TimeshiftChannels(childComplexity), true
+	case "Query.timeshiftProgram":
+		if e.ComplexityRoot.Query.TimeshiftProgram == nil {
+			break
+		}
+
+		args, err := ec.field_Query_timeshiftProgram_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.TimeshiftProgram(childComplexity, args["serviceId"].(string), args["startAt"].(time.Time)), true
 	case "Query.transcoding":
 		if e.ComplexityRoot.Query.Transcoding == nil {
 			break
@@ -4353,6 +4383,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Service.StreamURL(childComplexity), true
+	case "Service.timeshiftPrograms":
+		if e.ComplexityRoot.Service.TimeshiftPrograms == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Service.TimeshiftPrograms(childComplexity), true
 	case "Service.videoFormat":
 		if e.ComplexityRoot.Service.VideoFormat == nil {
 			break
@@ -4750,6 +4786,55 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TimeshiftChannel.Service(childComplexity), true
+
+	case "TimeshiftProgram.endAt":
+		if e.ComplexityRoot.TimeshiftProgram.EndAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftProgram.EndAt(childComplexity), true
+	case "TimeshiftProgram.eventId":
+		if e.ComplexityRoot.TimeshiftProgram.EventID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftProgram.EventID(childComplexity), true
+	case "TimeshiftProgram.gaps":
+		if e.ComplexityRoot.TimeshiftProgram.Gaps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftProgram.Gaps(childComplexity), true
+	case "TimeshiftProgram.name":
+		if e.ComplexityRoot.TimeshiftProgram.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftProgram.Name(childComplexity), true
+	case "TimeshiftProgram.playableFrom":
+		if e.ComplexityRoot.TimeshiftProgram.PlayableFrom == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftProgram.PlayableFrom(childComplexity), true
+	case "TimeshiftProgram.service":
+		if e.ComplexityRoot.TimeshiftProgram.Service == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftProgram.Service(childComplexity), true
+	case "TimeshiftProgram.startAt":
+		if e.ComplexityRoot.TimeshiftProgram.StartAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftProgram.StartAt(childComplexity), true
+	case "TimeshiftProgram.streamUrl":
+		if e.ComplexityRoot.TimeshiftProgram.StreamURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftProgram.StreamURL(childComplexity), true
 
 	case "Transcoding.available":
 		if e.ComplexityRoot.Transcoding.Available == nil {
@@ -7435,6 +7520,43 @@ extend type Mutation {
   """
   removeTimeshiftChannel(serviceId: ID!): ID!
 }
+
+"""
+タイムシフトのバッファから再生できる番組 (設計書 7.2)。mikan が、放送中の番組が替わったのに気づいた時刻で区切る。
+"""
+type TimeshiftProgram {
+  service: Service!
+  "番組のイベント ID。"
+  eventId: Int!
+  "番組名。mikan が番組の始まりに気づいたときに、番組表になければ空。"
+  name: String!
+  "mikan が番組の始まりに気づいた時刻。番組表の開始時刻より少し遅れる。"
+  startAt: Time!
+  "mikan が番組の終わりに気づいた時刻。放送中なら null。"
+  endAt: Time
+  "再生できる範囲の始まり。番組の頭のチャンクを破棄したか、録れていなかったら、startAt より後になる。再生位置は、ここからの秒で表す。"
+  playableFrom: Time!
+  "playableFrom から番組の終わりまでの、途切れた区間。チャンクの間の穴で、再生の時間に含めない。"
+  gaps: [RecordingGap!]!
+  "バッファの TS を、playableFrom を起点に流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"
+  streamUrl: String!
+}
+
+extend type Service {
+  """
+  タイムシフトのバッファから再生できる番組を、始まりの順に返す。サービスをタイムシフトで録っていないか、
+  この tenban にタイムシフトのディレクトリがなく再生できなければ、空にする。
+  """
+  timeshiftPrograms: [TimeshiftProgram!]!
+}
+
+extend type Query {
+  """
+  サービス serviceId のバッファから再生できる、startAt に始まった番組を返す。
+  番組を破棄したか、サービスをタイムシフトで録っていなければ NOT_FOUND を返す。
+  """
+  timeshiftProgram(serviceId: ID!, startAt: Time!): TimeshiftProgram!
+}
 `, BuiltIn: false},
 	{Name: "../schema/user.graphqls", Input: `"""
 ユーザーのロール (設計書 9.7)。
@@ -8834,6 +8956,8 @@ func (ec *executionContext) childFields_Service(ctx context.Context, field graph
 		return ec.fieldContext_Service_jikkyo(ctx, field)
 	case "videoFormat":
 		return ec.fieldContext_Service_videoFormat(ctx, field)
+	case "timeshiftPrograms":
+		return ec.fieldContext_Service_timeshiftPrograms(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Service", field.Name)
 }
@@ -9024,6 +9148,28 @@ func (ec *executionContext) childFields_TimeshiftChannel(ctx context.Context, fi
 		return ec.fieldContext_TimeshiftChannel_recording(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TimeshiftChannel", field.Name)
+}
+
+func (ec *executionContext) childFields_TimeshiftProgram(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "service":
+		return ec.fieldContext_TimeshiftProgram_service(ctx, field)
+	case "eventId":
+		return ec.fieldContext_TimeshiftProgram_eventId(ctx, field)
+	case "name":
+		return ec.fieldContext_TimeshiftProgram_name(ctx, field)
+	case "startAt":
+		return ec.fieldContext_TimeshiftProgram_startAt(ctx, field)
+	case "endAt":
+		return ec.fieldContext_TimeshiftProgram_endAt(ctx, field)
+	case "playableFrom":
+		return ec.fieldContext_TimeshiftProgram_playableFrom(ctx, field)
+	case "gaps":
+		return ec.fieldContext_TimeshiftProgram_gaps(ctx, field)
+	case "streamUrl":
+		return ec.fieldContext_TimeshiftProgram_streamUrl(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TimeshiftProgram", field.Name)
 }
 
 func (ec *executionContext) childFields_Transcoding(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -10701,6 +10847,28 @@ func (ec *executionContext) field_Query_services_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["includeHidden"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_timeshiftProgram_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "serviceId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["serviceId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "startAt",
+		func(ctx context.Context, v any) (time.Time, error) {
+			return ec.unmarshalNTime2timeᚐTime(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["startAt"] = arg1
 	return args, nil
 }
 
@@ -20551,6 +20719,50 @@ func (ec *executionContext) fieldContext_Query_timeshiftChannels(_ context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_timeshiftProgram(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_timeshiftProgram(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().TimeshiftProgram(ctx, fc.Args["serviceId"].(string), fc.Args["startAt"].(time.Time))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.TimeshiftProgram) graphql.Marshaler {
+			return ec.marshalNTimeshiftProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTimeshiftProgram(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_timeshiftProgram(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TimeshiftProgram(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_timeshiftProgram_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_users(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -24102,6 +24314,38 @@ func (ec *executionContext) fieldContext_Service_videoFormat(_ context.Context, 
 	return graphql.NewScalarFieldContext("Service", field, true, true, errors.New("field of type VideoFormat does not have child fields"))
 }
 
+func (ec *executionContext) _Service_timeshiftPrograms(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Service_timeshiftPrograms(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Service().TimeshiftPrograms(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.TimeshiftProgram) graphql.Marshaler {
+			return ec.marshalNTimeshiftProgram2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTimeshiftProgramᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Service_timeshiftPrograms(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Service",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TimeshiftProgram(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Session_id(ctx context.Context, field graphql.CollectedField, obj *model.Session) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -25655,6 +25899,208 @@ func (ec *executionContext) _TimeshiftChannel_recording(ctx context.Context, fie
 }
 func (ec *executionContext) fieldContext_TimeshiftChannel_recording(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TimeshiftChannel", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _TimeshiftProgram_service(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftProgram) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftProgram_service(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.TimeshiftProgram().Service(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Service) graphql.Marshaler {
+			return ec.marshalNService2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐService(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftProgram_service(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TimeshiftProgram",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Service(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TimeshiftProgram_eventId(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftProgram) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftProgram_eventId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EventID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftProgram_eventId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftProgram", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TimeshiftProgram_name(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftProgram) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftProgram_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftProgram_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftProgram", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TimeshiftProgram_startAt(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftProgram) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftProgram_startAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftProgram_startAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftProgram", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _TimeshiftProgram_endAt(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftProgram) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftProgram_endAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftProgram_endAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftProgram", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _TimeshiftProgram_playableFrom(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftProgram) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftProgram_playableFrom(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PlayableFrom, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftProgram_playableFrom(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftProgram", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _TimeshiftProgram_gaps(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftProgram) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftProgram_gaps(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Gaps, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.RecordingGap) graphql.Marshaler {
+			return ec.marshalNRecordingGap2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingGapᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftProgram_gaps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TimeshiftProgram",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingGap(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TimeshiftProgram_streamUrl(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftProgram) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftProgram_streamUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StreamURL(), nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftProgram_streamUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftProgram", field, true, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _Transcoding_available(ctx context.Context, field graphql.CollectedField, obj *model.Transcoding) (ret graphql.Marshaler) {
@@ -34208,6 +34654,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "timeshiftProgram":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_timeshiftProgram(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "users":
 			field := field
 
@@ -36049,6 +36517,44 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "timeshiftPrograms":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Service_timeshiftPrograms(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -36815,6 +37321,112 @@ func (ec *executionContext) _TimeshiftChannel(ctx context.Context, sel ast.Selec
 			}
 		case "recording":
 			out.Values[i] = ec._TimeshiftChannel_recording(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var timeshiftProgramImplementors = []string{"TimeshiftProgram"}
+
+func (ec *executionContext) _TimeshiftProgram(ctx context.Context, sel ast.SelectionSet, obj *model.TimeshiftProgram) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, timeshiftProgramImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TimeshiftProgram")
+		case "service":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._TimeshiftProgram_service(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "eventId":
+			out.Values[i] = ec._TimeshiftProgram_eventId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "name":
+			out.Values[i] = ec._TimeshiftProgram_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "startAt":
+			out.Values[i] = ec._TimeshiftProgram_startAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "endAt":
+			out.Values[i] = ec._TimeshiftProgram_endAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "playableFrom":
+			out.Values[i] = ec._TimeshiftProgram_playableFrom(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "gaps":
+			out.Values[i] = ec._TimeshiftProgram_gaps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "streamUrl":
+			out.Values[i] = ec._TimeshiftProgram_streamUrl(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
@@ -39898,6 +40510,32 @@ func (ec *executionContext) marshalNTimeshiftChannel2ᚖgithubᚗcomᚋSlashNeph
 		return graphql.Null
 	}
 	return ec._TimeshiftChannel(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTimeshiftProgram2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTimeshiftProgramᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.TimeshiftProgram) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTimeshiftProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTimeshiftProgram(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTimeshiftProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTimeshiftProgram(ctx context.Context, sel ast.SelectionSet, v *model.TimeshiftProgram) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TimeshiftProgram(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNTranscoding2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTranscoding(ctx context.Context, sel ast.SelectionSet, v *model.Transcoding) graphql.Marshaler {
