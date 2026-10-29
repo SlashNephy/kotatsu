@@ -59,9 +59,19 @@ services:
       KOTATSU_SERVER_LISTEN: ":8080"
     ports:
       - "8080:8080"
+    # ディスクをマウントして録画を置くなら、マウントポイントの中のディレクトリを source にする (設計書 5.6)。
+    # create_host_path: false で、ないディレクトリを作らせない。マウントされていないときに、空のディレクトリへ書かないためである。
     volumes:
-      - ./recordings:/recordings
-      - ./data:/data
+      - type: bind
+        source: ./recordings
+        target: /recordings
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./data
+        target: /data
+        bind:
+          create_host_path: false
     tmpfs:
       - /tmp
     secrets:
