@@ -25,6 +25,8 @@ export type LiveTimeshift = {
   position: number;
   // seekTo は、位置へ移る。ライブの端に近ければ、ライブに戻る。
   seekTo: (seconds: number) => void;
+  // restart は、位置からバッファを読み直す。ライブの端に近くても、ライブに戻らない。
+  restart: (seconds: number) => void;
   // goLive は、ライブに戻る。
   goLive: () => void;
   // positionAt は、放送時刻 (Unix ミリ秒) に当たる位置。
@@ -44,15 +46,29 @@ export function useLiveTimeshift(
 ): LiveTimeshift {
   // pinned は、バッファを再生している間の、起点にするバッファ。ライブなら null。
   const [pinned, setPinned] = useState<TimeshiftBuffer | null>(null);
-  const frame = pinned ?? buffer;
-  const stream = useSeekableStream(frame?.streamUrl ?? '', video, 0, pinned !== null);
-  const now = useNow(1000);
   const available = enabled && buffer !== null;
+  // 経路を替えてバッファを再生できなくなったら、ライブに戻ったものとして扱う。
+  const behind = available && pinned !== null;
+  const frame = behind ? pinned : buffer;
+  const stream = useSeekableStream(frame?.streamUrl ?? '', video, 0, behind);
+  const now = useNow(1000);
   const positionAt = (at: number) =>
     frame === null ? 0 : recordingPosition(frame.from, frame.gaps, at);
+  const clockAt = (seconds: number) =>
+    frame === null ? Date.now() : broadcastTime(frame.from, frame.gaps, seconds);
   const edge = positionAt(now);
+  // restart は、今の起点での位置 seconds から、バッファを読み直す。読み直すたびに、起点を最新のバッファに移す。
+  // 古いチャンクを破棄すると、配信は残ったチャンクから流すので、破棄した範囲の途切れた区間を、起点のバッファと数え違えるためである。
+  const restart = (seconds: number) => {
+    if (!available || buffer === null) {
+      return;
+    }
+    const at = clockAt(seconds);
+    setPinned(buffer);
+    stream.restartAt(Math.max(recordingPosition(buffer.from, buffer.gaps, at), 0));
+  };
   const seekTo = (seconds: number) => {
-    if (!available || frame === null) {
+    if (!available) {
       return;
     }
     if (seconds >= positionAt(Date.now()) - liveThresholdSeconds) {
@@ -60,15 +76,15 @@ export function useLiveTimeshift(
 
       return;
     }
-    setPinned(frame);
-    stream.restartAt(Math.max(seconds, 0));
+    restart(seconds);
   };
-  // ライブを一時停止して、しばらくしてから再開したら、止めた位置からバッファで続ける。
-  const seekToRef = useRef(seekTo);
-  seekToRef.current = seekTo;
+  // ライブを一時停止して、しばらくしてから再開したら、止めた位置からバッファで続ける。止めた時間がライブの端に近くても、
+  // ライブに戻さない。
+  const restartRef = useRef(restart);
+  restartRef.current = restart;
   const positionAtRef = useRef(positionAt);
   positionAtRef.current = positionAt;
-  const live = pinned === null && available;
+  const live = !behind && available;
   useEffect(() => {
     if (video === null || !live) {
       return;
@@ -81,7 +97,7 @@ export function useLiveTimeshift(
     };
     const play = () => {
       if (pausedAt !== null && Date.now() - pausedAt > resumeBehindMs) {
-        seekToRef.current(positionAtRef.current(pausedAt));
+        restartRef.current(positionAtRef.current(pausedAt));
       }
       pausedAt = null;
     };
@@ -96,14 +112,14 @@ export function useLiveTimeshift(
 
   return {
     available,
-    behind: pinned !== null,
+    behind,
     stream,
     edge,
-    position: pinned === null ? edge : stream.position,
+    position: behind ? stream.position : edge,
     seekTo,
+    restart,
     goLive: () => setPinned(null),
     positionAt,
-    clockAt: (seconds) =>
-      frame === null ? Date.now() : broadcastTime(frame.from, frame.gaps, seconds),
+    clockAt,
   };
 }

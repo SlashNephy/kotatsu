@@ -381,7 +381,7 @@ function Live({
   // retryingImmediately は、知らせを出さずにすぐつなぎ直している最中かどうか。lastImmediateRetry は、その時刻 (#1083)。
   const retryingImmediately = useRef(false);
   const lastImmediateRetry = useRef<number | null>(null);
-  // lastBrokenSkip は、バッファの再生で、壊れた所を最後に飛び越えたときの位置。
+  // lastBrokenSkip は、バッファの再生で、壊れた所を最後に飛び越えた先の位置。
   const lastBrokenSkip = useRef<number | null>(null);
 
   // 視聴が切れたら、まず知らせを出さずにすぐつなぎ直す。tenban の入れ替えや回線の瞬断なら、これで戻る (#1083)。
@@ -505,16 +505,17 @@ function Live({
     reloadOnResume: route.kind === 'convert' && !timeshift.available,
     onReload: reload,
   });
-  // バッファの範囲は、古いチャンクを破棄すると変わるので、ライブを見ている間は 1 分ごとに読み直す。
-  const timeshiftLive = timeshift.available && !timeshift.behind;
+  // バッファの範囲は、伸びたり、古いチャンクを破棄して縮んだりするので、1 分ごとに読み直す。
+  // バッファを再生している間も、シークや読み直しのときに、起点を最新のバッファに移すので読み直す。
+  const timeshiftAvailable = timeshift.available;
   useEffect(() => {
-    if (!timeshiftLive) {
+    if (!timeshiftAvailable) {
       return;
     }
     const timer = setInterval(onProgramEnd, 60_000);
 
     return () => clearInterval(timer);
-  }, [timeshiftLive, onProgramEnd]);
+  }, [timeshiftAvailable, onProgramEnd]);
   // 時間帯に重なる番組のうち、読み直した時刻に放送中のものと、その次のもの。
   const programs = data.guide[0]?.programs ?? [];
   const program =
@@ -780,8 +781,8 @@ function Live({
     if (videoRef.current?.error != null) {
       const next = skipBrokenMedia(position, lastBrokenSkip.current);
       if (next !== null) {
-        lastBrokenSkip.current = position;
-        timeshift.stream.restartAt(next);
+        lastBrokenSkip.current = next;
+        timeshift.restart(next);
 
         return;
       }
@@ -793,7 +794,7 @@ function Live({
       return;
     }
     lastImmediateRetry.current = at;
-    timeshift.stream.restartAt(position);
+    timeshift.restart(position);
   };
   // session を付けて、つなぎ直すたびに URL を変える。
   const withSession = (base: string) =>

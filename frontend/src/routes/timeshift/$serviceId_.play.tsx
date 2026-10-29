@@ -221,7 +221,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
   const [seeking, setSeeking] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastAutoRetry = useRef<number | null>(null);
-  // lastBrokenSkip は、壊れた所を最後に飛び越えたときの位置。
+  // lastBrokenSkip は、壊れた所を最後に飛び越えた先の位置。
   const lastBrokenSkip = useRef<number | null>(null);
   // handover は、次の読み直しで、今の映像を流したまま裏で読み込んで切り替えるかどうか (#1085)。
   const [handover, setHandover] = useState(false);
@@ -386,7 +386,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
     if (videoRef.current?.error != null) {
       const next = skipBrokenMedia(positionRef.current, lastBrokenSkip.current);
       if (next !== null) {
-        lastBrokenSkip.current = positionRef.current;
+        lastBrokenSkip.current = next;
         restartAt(next);
 
         return;

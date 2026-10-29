@@ -73,15 +73,15 @@ describe('skipBrokenMedia', () => {
       want: 23.7,
     },
     {
-      name: '前に飛び越えた所より先で止まったら、また飛び越える',
+      name: '前に飛び越えた先より進んで止まったら、また飛び越える',
       position: 40,
-      lastSkipped: 22.7,
+      lastSkipped: 23.7,
       want: 41,
     },
     {
-      name: '前に飛び越えた所から進んでいなければ、飛び越えない',
-      position: 22.7,
-      lastSkipped: 22.7,
+      name: '前に飛び越えた先から進んでいなければ、飛び越えない',
+      position: 23.7,
+      lastSkipped: 23.7,
       want: null,
     },
   ])('$name', ({ position, lastSkipped, want }) => {

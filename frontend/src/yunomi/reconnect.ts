@@ -52,7 +52,7 @@ export function endedEarly(bufferedEnd: number, duration: number): boolean {
 export const brokenMediaSkipSeconds = 1;
 
 // skipBrokenMedia は、映像の要素が復号に失敗して止まったときに、壊れた所を飛び越えて読み直す位置を返す。
-// 前に飛び越えた位置 (lastSkipped) より先へ進んでいなければ、同じ所で止まり続けているので、null を返す。
+// lastSkipped は、前に飛び越えた先の位置。そこより先へ進んでいなければ、飛び越えても止まり続けているので、null を返す。
 // 飛び越えるたびに位置は進むので、30 秒に 1 回の制限 (canRetryImmediately) は掛けない。録り直しの切れ目が続いても止めないためである。
 export function skipBrokenMedia(position: number, lastSkipped: number | null): number | null {
   return lastSkipped !== null && position <= lastSkipped ? null : position + brokenMediaSkipSeconds;
