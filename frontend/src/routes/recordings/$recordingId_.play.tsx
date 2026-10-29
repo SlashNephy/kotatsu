@@ -96,7 +96,7 @@ import { currentVolume } from '../../yunomi/volumeBoost';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { useStreamsDrains } from '../../changes/DataChanges';
-import { canRetryImmediately, endedEarly } from '../../yunomi/reconnect';
+import { canRetryImmediately, endedEarly, skipBrokenMedia } from '../../yunomi/reconnect';
 import { resumePosition } from '../../yunomi/resume';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
@@ -347,6 +347,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const [error, setError] = useState<string | null>(null);
   // lastAutoRetry は、切れたときに、知らせを出さずに今の位置から読み直した時刻 (#1083)。
   const lastAutoRetry = useRef<number | null>(null);
+  // lastBrokenSkip は、壊れた所を最後に飛び越えた先の位置。
+  const lastBrokenSkip = useRef<number | null>(null);
   // handover は、次の読み直しで、今の映像を流したまま裏で読み込んで切り替えるかどうか (#1085)。
   // tenban が止まる前の知らせで読み直すときだけ使い、シークなどでは、すぐ読み直す。
   const [handover, setHandover] = useState(false);
@@ -734,6 +736,17 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // resumeAfterCut は、配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。tenban の入れ替えや回線の瞬断なら、これで戻る。
   // 続けて切れるなら、読み直しを繰り返さずに、エラーを出して利用者に任せる。
   const resumeAfterCut = () => {
+    // 放送の受信で壊れた音声のフレームなどで、映像の要素が復号に失敗して止まったなら、壊れた所を飛び越えて読み直す (#1131)。
+    // 同じ位置から読み直すと、同じフレームでまた止まる。
+    if (videoRef.current?.error != null) {
+      const next = skipBrokenMedia(positionRef.current, lastBrokenSkip.current);
+      if (next !== null) {
+        lastBrokenSkip.current = next;
+        startAt(Math.min(next, duration));
+
+        return;
+      }
+    }
     const now = Date.now();
     if (!canRetryImmediately(lastAutoRetry.current, now)) {
       setError(t('player.error'));

@@ -181,7 +181,7 @@ func (t *recordingTimeline) load(ctx context.Context) ([]*segment, error) {
 		}
 		seg := &segment{
 			id: file.ID, poolID: file.PoolID, path: file.Path, startedAt: file.StartedAt, endedAt: file.EndedAt, open: file.EndedAt == nil,
-			continues: false, index: []ts.IndexEntry{},
+			continues: false, continued: false, index: []ts.IndexEntry{},
 		}
 		if seg.index, err = t.source.streamer.readIndex(kago.IndexLocation(file.ID)); err != nil {
 			return nil, err
@@ -252,7 +252,8 @@ func (s *streamer) write(ctx context.Context, w io.Writer, tl timeline, pieces [
 	var last *segment
 	for {
 		for _, p := range pieces {
-			if err := s.servePiece(ctx, w, tl, p); err != nil {
+			// joined は、前のセグメントに続けて流すかどうか。最初の範囲は、プレイヤーが読み始めるところなので、つなぎ目にならない。
+			if err := s.servePiece(ctx, w, tl, p, last != nil); err != nil {
 				return err
 			}
 			last = p.segment
@@ -356,32 +357,36 @@ func segmentClosedOrUnknown(ctx context.Context, tl timeline, segmentID uuid.UUI
 }
 
 // servePiece は、セグメントの範囲を流す。書いている途中のセグメントは、書き終えるまで、伸びるのを待ちながら流す。
-func (s *streamer) servePiece(ctx context.Context, w io.Writer, tl timeline, p *piece) error {
+func (s *streamer) servePiece(ctx context.Context, w io.Writer, tl timeline, p *piece, joined bool) error {
 	file, err := s.store.Open(p.segment.poolID, p.segment.path)
 	if err != nil {
 		return fmt.Errorf("failed to open the segment: %w", err)
 	}
 	defer file.Close()
 	if !p.segment.open {
+		to, err := servedEnd(file, p)
+		if err != nil {
+			return err
+		}
 		if err := writePrelude(w, file, p.from); err != nil {
 			return err
 		}
-		if _, err := file.Seek(p.from, io.SeekStart); err != nil {
+		from, err := writeHead(w, file, p, joined, p.from, to)
+		if err != nil {
+			return err
+		}
+		if _, err := file.Seek(from, io.SeekStart); err != nil {
 			return fmt.Errorf("failed to seek the segment: %w", err)
 		}
-		var src io.Reader = file
-		if p.to >= 0 {
-			src = io.LimitReader(file, p.to-p.from)
-		}
 
-		return CopyFlushing(w, src)
+		return CopyFlushing(w, io.LimitReader(file, max(to-from, 0)))
 	}
 
-	return s.serveGrowing(ctx, w, tl, p, file)
+	return s.serveGrowing(ctx, w, tl, p, joined, file)
 }
 
 // serveGrowing は、書いている途中のセグメントを、書き終えるまで、伸びるのを待ちながら流す。
-func (s *streamer) serveGrowing(ctx context.Context, w io.Writer, tl timeline, p *piece, file *os.File) error {
+func (s *streamer) serveGrowing(ctx context.Context, w io.Writer, tl timeline, p *piece, joined bool, file *os.File) error {
 	// 録画は TS をまとめて書くので、索引が指す位置を、まだファイルに書いていないことがある。書くまで待つ。
 	// 書き込みのエラーなどで、その位置まで書かないままセグメントを閉じたら、流すものがないので終える。
 	offset := p.from
@@ -406,6 +411,13 @@ func (s *streamer) serveGrowing(ctx context.Context, w io.Writer, tl timeline, p
 		}
 	}
 	if err := writePrelude(w, file, offset); err != nil {
+		return err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to inspect the segment: %w", err)
+	}
+	if offset, err = writeHead(w, file, p, joined, offset, info.Size()); err != nil {
 		return err
 	}
 	if _, err := file.Seek(offset, io.SeekStart); err != nil {
@@ -435,6 +447,42 @@ func (s *streamer) serveGrowing(ctx context.Context, w io.Writer, tl timeline, p
 			return err
 		}
 	}
+}
+
+// servedEnd は、書き終えたセグメントの範囲 p を、どこまで流すかを返す。続きのないセグメントは、終わりで途中で切れた PES を流さない
+// (completeTail)。mikan が区切っただけで、次のセグメントが続き (continues) のものは、次のセグメントが PES の残りを運ぶので切らない。
+func servedEnd(file *os.File, p *piece) (int64, error) {
+	info, err := file.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("failed to inspect the segment: %w", err)
+	}
+	to := info.Size()
+	if p.to >= 0 {
+		to = min(p.to, to)
+	}
+	if p.segment.continued {
+		return to, nil
+	}
+
+	return completeTail(file, p.from, to)
+}
+
+// writeHead は、セグメントの範囲 p を from から流すとき、前のセグメントにつなぐ (joined) なら、頭の前から続く PES の残りを落として書き
+// (completeHead)、続きを流す位置を返す。前のセグメントの続き (continues) は、残りが前の PES の続きなので、落とさずに from を返す。
+// 最初の範囲は、プレイヤーが前から続く残りを捨てるので、そのまま流す。
+func writeHead(w io.Writer, file io.ReaderAt, p *piece, joined bool, from, end int64) (int64, error) {
+	if !joined || p.segment.continues {
+		return from, nil
+	}
+	head, consumed, err := completeHead(file, from, end)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := w.Write(head); err != nil {
+		return 0, err
+	}
+
+	return from + consumed, nil
 }
 
 // writePrelude は、セグメントを途中の offset から流すとき、その手前の PAT と PMT を先に書く。
