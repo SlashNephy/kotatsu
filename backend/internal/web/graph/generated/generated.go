@@ -735,6 +735,7 @@ type ComplexityRoot struct {
 		ServiceID          func(childComplexity int) int
 		SortOrder          func(childComplexity int) int
 		StreamURL          func(childComplexity int) int
+		TimeshiftBuffer    func(childComplexity int) int
 		TimeshiftPrograms  func(childComplexity int) int
 		VideoFormat        func(childComplexity int) int
 	}
@@ -833,6 +834,12 @@ type ComplexityRoot struct {
 		DurationMinutes func(childComplexity int) int
 		StartMinute     func(childComplexity int) int
 		Weekdays        func(childComplexity int) int
+	}
+
+	TimeshiftBuffer struct {
+		From      func(childComplexity int) int
+		Gaps      func(childComplexity int) int
+		StreamURL func(childComplexity int) int
 	}
 
 	TimeshiftChannel struct {
@@ -1095,6 +1102,7 @@ type ServiceResolver interface {
 	Jikkyo(ctx context.Context, obj *model.Service) (*model.JikkyoChannel, error)
 	VideoFormat(ctx context.Context, obj *model.Service) (model.VideoFormat, error)
 	TimeshiftPrograms(ctx context.Context, obj *model.Service) ([]*model.TimeshiftProgram, error)
+	TimeshiftBuffer(ctx context.Context, obj *model.Service) (*model.TimeshiftBuffer, error)
 }
 type SubscriptionResolver interface {
 	Heartbeat(ctx context.Context) (<-chan *time.Time, error)
@@ -4384,6 +4392,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Service.StreamURL(childComplexity), true
+	case "Service.timeshiftBuffer":
+		if e.ComplexityRoot.Service.TimeshiftBuffer == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Service.TimeshiftBuffer(childComplexity), true
 	case "Service.timeshiftPrograms":
 		if e.ComplexityRoot.Service.TimeshiftPrograms == nil {
 			break
@@ -4756,6 +4770,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TimeRange.Weekdays(childComplexity), true
+
+	case "TimeshiftBuffer.from":
+		if e.ComplexityRoot.TimeshiftBuffer.From == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftBuffer.From(childComplexity), true
+	case "TimeshiftBuffer.gaps":
+		if e.ComplexityRoot.TimeshiftBuffer.Gaps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftBuffer.Gaps(childComplexity), true
+	case "TimeshiftBuffer.streamUrl":
+		if e.ComplexityRoot.TimeshiftBuffer.StreamURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftBuffer.StreamURL(childComplexity), true
 
 	case "TimeshiftChannel.bufferedFrom":
 		if e.ComplexityRoot.TimeshiftChannel.BufferedFrom == nil {
@@ -7569,6 +7602,26 @@ extend type Query {
   """
   timeshiftProgram(serviceId: ID!, startAt: Time!): TimeshiftProgram!
 }
+
+"""
+サービスのタイムシフトのバッファの、再生できる範囲 (設計書 7.2)。ライブ視聴の画面から、過去へシークするのに使う。
+"""
+type TimeshiftBuffer {
+  "最も古いチャンクの始まり。再生位置は、ここからの秒で表す。"
+  from: Time!
+  "from から今までの、途切れた区間。今チャンクを書いていなければ、最後のチャンクの終わりから今までも含む。"
+  gaps: [RecordingGap!]!
+  "バッファの TS を、from を起点に流す URL のパス。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"
+  streamUrl: String!
+}
+
+extend type Service {
+  """
+  タイムシフトのバッファの、再生できる範囲。サービスをタイムシフトで録っていないか、チャンクがないか、
+  この tenban にタイムシフトのディレクトリがなく再生できなければ null。
+  """
+  timeshiftBuffer: TimeshiftBuffer
+}
 `, BuiltIn: false},
 	{Name: "../schema/user.graphqls", Input: `"""
 ユーザーのロール (設計書 9.7)。
@@ -8970,6 +9023,8 @@ func (ec *executionContext) childFields_Service(ctx context.Context, field graph
 		return ec.fieldContext_Service_videoFormat(ctx, field)
 	case "timeshiftPrograms":
 		return ec.fieldContext_Service_timeshiftPrograms(ctx, field)
+	case "timeshiftBuffer":
+		return ec.fieldContext_Service_timeshiftBuffer(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Service", field.Name)
 }
@@ -9144,6 +9199,18 @@ func (ec *executionContext) childFields_TimeRange(ctx context.Context, field gra
 		return ec.fieldContext_TimeRange_durationMinutes(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TimeRange", field.Name)
+}
+
+func (ec *executionContext) childFields_TimeshiftBuffer(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "from":
+		return ec.fieldContext_TimeshiftBuffer_from(ctx, field)
+	case "gaps":
+		return ec.fieldContext_TimeshiftBuffer_gaps(ctx, field)
+	case "streamUrl":
+		return ec.fieldContext_TimeshiftBuffer_streamUrl(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TimeshiftBuffer", field.Name)
 }
 
 func (ec *executionContext) childFields_TimeshiftChannel(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -24360,6 +24427,38 @@ func (ec *executionContext) fieldContext_Service_timeshiftPrograms(_ context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _Service_timeshiftBuffer(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Service_timeshiftBuffer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Service().TimeshiftBuffer(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.TimeshiftBuffer) graphql.Marshaler {
+			return ec.marshalOTimeshiftBuffer2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTimeshiftBuffer(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Service_timeshiftBuffer(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Service",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TimeshiftBuffer(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Session_id(ctx context.Context, field graphql.CollectedField, obj *model.Session) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -25789,6 +25888,84 @@ func (ec *executionContext) _TimeRange_durationMinutes(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_TimeRange_durationMinutes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TimeRange", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _TimeshiftBuffer_from(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftBuffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftBuffer_from(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.From, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftBuffer_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftBuffer", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _TimeshiftBuffer_gaps(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftBuffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftBuffer_gaps(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Gaps, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.RecordingGap) graphql.Marshaler {
+			return ec.marshalNRecordingGap2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingGapᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftBuffer_gaps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TimeshiftBuffer",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingGap(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TimeshiftBuffer_streamUrl(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftBuffer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftBuffer_streamUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StreamURL(), nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftBuffer_streamUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftBuffer", field, true, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _TimeshiftChannel_service(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftChannel) (ret graphql.Marshaler) {
@@ -36592,6 +36769,44 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "timeshiftBuffer":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Service_timeshiftBuffer(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -37267,6 +37482,54 @@ func (ec *executionContext) _TimeRange(ctx context.Context, sel ast.SelectionSet
 			}
 		case "durationMinutes":
 			out.Values[i] = ec._TimeRange_durationMinutes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var timeshiftBufferImplementors = []string{"TimeshiftBuffer"}
+
+func (ec *executionContext) _TimeshiftBuffer(ctx context.Context, sel ast.SelectionSet, obj *model.TimeshiftBuffer) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, timeshiftBufferImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TimeshiftBuffer")
+		case "from":
+			out.Values[i] = ec._TimeshiftBuffer_from(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "gaps":
+			out.Values[i] = ec._TimeshiftBuffer_gaps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "streamUrl":
+			out.Values[i] = ec._TimeshiftBuffer_streamUrl(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -41485,6 +41748,13 @@ func (ec *executionContext) unmarshalOTimeRangeInput2ᚕᚖgithubᚗcomᚋSlashN
 		}
 	}
 	return res, nil
+}
+
+func (ec *executionContext) marshalOTimeshiftBuffer2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTimeshiftBuffer(ctx context.Context, sel ast.SelectionSet, v *model.TimeshiftBuffer) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._TimeshiftBuffer(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOTunerServerStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTunerServerStatus(ctx context.Context, sel ast.SelectionSet, v *model.TunerServerStatus) graphql.Marshaler {

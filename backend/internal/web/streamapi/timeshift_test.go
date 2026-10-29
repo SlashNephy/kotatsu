@@ -179,6 +179,22 @@ func TestTimeshiftHandler(t *testing.T) {
 			from: time.Second, query: "&start=1.01", want: wantIFramePTS()[4:], wantStart: "1.002", wantSuffix: nil,
 		},
 		{
+			name: "起点がバッファの始まりより前なら、起点からの時間で表す",
+			chunks: func(t *testing.T, f *timeshiftFixture) {
+				t.Helper()
+				f.chunk(t, "a.m2ts", data, 30*time.Second, time.Minute)
+			},
+			from: 0, query: "", want: wantIFramePTS(), wantStart: "30.000", wantSuffix: nil,
+		},
+		{
+			name: "起点がバッファの始まりより前でも、位置はチャンクの中の I フレームに丸める",
+			chunks: func(t *testing.T, f *timeshiftFixture) {
+				t.Helper()
+				f.chunk(t, "a.m2ts", data, 30*time.Second, time.Minute)
+			},
+			from: 0, query: "&start=32.01", want: wantIFramePTS()[4:], wantStart: "32.002", wantSuffix: nil,
+		},
+		{
 			name: "起点より前に終わったチャンクは流さない",
 			chunks: func(t *testing.T, f *timeshiftFixture) {
 				t.Helper()

@@ -33,7 +33,8 @@ func NewTimeshiftSource(db sqlc.DBTX, store *kago.Store, pollInterval time.Durat
 }
 
 // Open は、サービスのバッファを、from の時刻を再生の時間の起点にして開く。from より前に終わったチャンクは流さない。
-// from がバッファの始まりより前か、チャンクの間の穴にあれば、その後の最初のチャンクの始まりを起点にする。
+// from がバッファの始まりより前か、チャンクの間の穴にあれば、その後の最初のチャンクから流し、位置は from からの時間で表す。
+// ライブ視聴の画面は、開いたときのバッファの始まりを起点にし続けるので、古いチャンクを破棄した後も、位置をずらさないためである。
 // タイムシフトのディレクトリがなければ ErrNotMounted、サービスを録っていなければ ErrTimeshiftNotFound、
 // from より後のチャンクがなければ ErrNoSegment を返す。
 func (s *TimeshiftSource) Open(ctx context.Context, serviceID int64, from time.Time) (*Recording, error) {
@@ -56,7 +57,7 @@ func (s *TimeshiftSource) Open(ctx context.Context, serviceID int64, from time.T
 		return nil, ErrNoSegment
 	}
 
-	return &Recording{streamer: s.streamer, timeline: tl, InProgress: true, segments: segments, skip: max(from.Sub(segments[0].startedAt), 0)}, nil
+	return &Recording{streamer: s.streamer, timeline: tl, InProgress: true, segments: segments, skip: from.Sub(segments[0].startedAt)}, nil
 }
 
 // timeshiftTimeline は、サービスのバッファの、since より後まで録ったチャンクの並び。

@@ -86,7 +86,7 @@ type Recording struct {
 	InProgress bool
 	segments   []*segment
 	// skip は、最初のセグメントの始まりから、再生の時間の起点までの時間。タイムシフトのバッファを、番組の頭から流すのに使う。
-	// Seek と Position.At の時間は、ここからの時間で表す。録画では 0。
+	// Seek と Position.At の時間は、ここからの時間で表す。起点が最初のセグメントの始まりより前なら負になる。録画では 0。
 	skip time.Duration
 }
 

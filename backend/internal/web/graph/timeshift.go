@@ -103,6 +103,27 @@ func (r *Resolver) timeshiftPrograms(ctx context.Context, serviceID int64) ([]*m
 	return result, nil
 }
 
+// timeshiftBuffer は、サービスのバッファの再生できる範囲を返す。どのロールも視聴できるので、ログインだけを確かめる。
+// 録っていないか、チャンクがないか、この tenban にタイムシフトのディレクトリがなければ、ok を false にする。
+func (r *Resolver) timeshiftBuffer(ctx context.Context, serviceID int64) (*model.TimeshiftBuffer, bool, error) {
+	if _, err := viewer(ctx); err != nil {
+		return nil, false, err
+	}
+	if !r.store.HasTimeshiftDir() {
+		return nil, false, nil
+	}
+	found, ok, err := timeshift.PlayableBuffer(ctx, r.db, serviceID, r.clock.Now())
+	if err != nil || !ok {
+		return nil, false, err
+	}
+	gaps := make([]*model.RecordingGap, 0, len(found.Gaps))
+	for _, gap := range found.Gaps {
+		gaps = append(gaps, &model.RecordingGap{From: gap.From, To: gap.To})
+	}
+
+	return &model.TimeshiftBuffer{From: found.From, Gaps: gaps, ServiceKey: serviceID}, true, nil
+}
+
 // timeshiftProgram は、サービスのバッファから再生できる、startAt に始まった番組を返す。なければ NOT_FOUND を返す。
 func (r *Resolver) timeshiftProgram(ctx context.Context, serviceGlobalID string, startAt time.Time) (*model.TimeshiftProgram, error) {
 	serviceID, err := parseServiceGlobalID(serviceGlobalID)

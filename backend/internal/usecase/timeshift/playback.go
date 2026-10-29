@@ -82,6 +82,52 @@ func mergeRecorded(programs []sqlc.TimeshiftProgram) []sqlc.TimeshiftProgram {
 	return merged
 }
 
+// Buffer は、サービスのバッファの、再生できる範囲 (設計書 7.2)。ライブ視聴の画面から、過去へシークするのに使う。
+type Buffer struct {
+	// From は、最も古いチャンクの始まり。
+	From time.Time
+	// Gaps は、From から今までの、途切れた区間。始まりの順に並ぶ。今チャンクを書いていなければ、最後のチャンクの終わりから今までも含む。
+	Gaps []Gap
+}
+
+// PlayableBuffer は、サービスのバッファの再生できる範囲を返す。サービスをタイムシフトで録っていないか、チャンクがなければ、ok を false にする。
+func PlayableBuffer(ctx context.Context, db sqlc.DBTX, serviceID int64, now time.Time) (*Buffer, bool, error) {
+	q := sqlc.New(db)
+	exists, err := q.TimeshiftChannelExists(ctx, serviceID)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to check the timeshift channel: %w", err)
+	}
+	if !exists {
+		return nil, false, nil
+	}
+	chunks, err := q.ListTimeshiftChunksSince(ctx, sqlc.ListTimeshiftChunksSinceParams{ServiceID: serviceID, Since: time.Time{}})
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to list the timeshift chunks: %w", err)
+	}
+	if len(chunks) == 0 {
+		return nil, false, nil
+	}
+	buffer := &Buffer{From: chunks[0].StartedAt, Gaps: []Gap{}}
+	covered := buffer.From
+	for i := range chunks {
+		chunk := &chunks[i]
+		// 引き継ぎで重なったチャンクは、途切れていない。
+		if chunk.StartedAt.After(covered) {
+			buffer.Gaps = append(buffer.Gaps, Gap{From: covered, To: chunk.StartedAt})
+		}
+		end := now
+		if chunk.EndedAt != nil {
+			end = *chunk.EndedAt
+		}
+		covered = maxTime(covered, end)
+	}
+	if now.After(covered) {
+		buffer.Gaps = append(buffer.Gaps, Gap{From: covered, To: now})
+	}
+
+	return buffer, true, nil
+}
+
 // span は、チャンクが録った時間。書いている途中のチャンクは、今まで録れているものとする。
 type span struct {
 	from, to time.Time

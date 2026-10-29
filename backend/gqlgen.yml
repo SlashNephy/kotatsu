@@ -49,11 +49,15 @@ models:
         resolver: true
       timeshiftPrograms:
         resolver: true
+      timeshiftBuffer:
+        resolver: true
   TimeshiftProgram:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.TimeshiftProgram
     fields:
       service:
         resolver: true
+  TimeshiftBuffer:
+    model: github.com/SlashNephy/kotatsu/internal/web/graph/model.TimeshiftBuffer
   TimeshiftChannel:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.TimeshiftChannel
     fields:

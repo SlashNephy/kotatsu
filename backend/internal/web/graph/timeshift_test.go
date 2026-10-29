@@ -269,6 +269,17 @@ func TestTimeshiftPrograms(t *testing.T) {
 			require.Empty(t, viewer.query(t, timeshiftPrograms, map[string]any{varID: timeshiftServiceID()}, &got))
 			require.Len(t, got.Node.TimeshiftPrograms, tt.want)
 			if tt.want == 0 {
+				var buffer struct {
+					Node struct {
+						TimeshiftBuffer *struct {
+							From time.Time `json:"from"`
+						} `json:"timeshiftBuffer"`
+					} `json:"node"`
+				}
+				require.Empty(t, viewer.query(t, `query($id: ID!) { node(id: $id) { ... on Service { timeshiftBuffer { from } } } }`,
+					map[string]any{varID: timeshiftServiceID()}, &buffer))
+				assert.Nil(t, buffer.Node.TimeshiftBuffer)
+
 				return
 			}
 			program := got.Node.TimeshiftPrograms[0]
@@ -282,6 +293,28 @@ func TestTimeshiftPrograms(t *testing.T) {
 			assert.True(t, now.Add(-25*time.Minute).Equal(program.Gaps[0].From))
 			assert.True(t, now.Add(-20*time.Minute).Equal(program.Gaps[0].To))
 			assert.Equal(t, "/streams/timeshift/3273601024?from="+url.QueryEscape(program.PlayableFrom.UTC().Format(time.RFC3339Nano)), program.StreamURL)
+
+			// サービスのバッファの範囲も返す。今チャンクを書いているので、終わりの途切れはない。
+			var buffer struct {
+				Node struct {
+					TimeshiftBuffer *struct {
+						From time.Time `json:"from"`
+						Gaps []struct {
+							From time.Time `json:"from"`
+							To   time.Time `json:"to"`
+						} `json:"gaps"`
+						StreamURL string `json:"streamUrl"`
+					} `json:"timeshiftBuffer"`
+				} `json:"node"`
+			}
+			require.Empty(t, viewer.query(t, `query($id: ID!) { node(id: $id) { ... on Service { timeshiftBuffer { from gaps { from to } streamUrl } } } }`,
+				map[string]any{varID: timeshiftServiceID()}, &buffer))
+			require.NotNil(t, buffer.Node.TimeshiftBuffer)
+			assert.True(t, now.Add(-30*time.Minute).Equal(buffer.Node.TimeshiftBuffer.From))
+			require.Len(t, buffer.Node.TimeshiftBuffer.Gaps, 1)
+			assert.True(t, now.Add(-25*time.Minute).Equal(buffer.Node.TimeshiftBuffer.Gaps[0].From))
+			assert.Equal(t, "/streams/timeshift/3273601024?from="+url.QueryEscape(buffer.Node.TimeshiftBuffer.From.UTC().Format(time.RFC3339Nano)),
+				buffer.Node.TimeshiftBuffer.StreamURL)
 
 			// 始まりの時刻で 1 つの番組を引く。ない番組は NOT_FOUND。
 			const one = `query($serviceId: ID!, $startAt: Time!) { timeshiftProgram(serviceId: $serviceId, startAt: $startAt) { eventId } }`

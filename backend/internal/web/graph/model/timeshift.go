@@ -33,3 +33,16 @@ type TimeshiftProgram struct {
 func (p *TimeshiftProgram) StreamURL() string {
 	return "/streams/timeshift/" + strconv.FormatInt(p.ServiceKey, 10) + "?from=" + url.QueryEscape(p.PlayableFrom.UTC().Format(time.RFC3339Nano))
 }
+
+// TimeshiftBuffer は、サービスのタイムシフトのバッファの、再生できる範囲。
+type TimeshiftBuffer struct {
+	From time.Time       `json:"from"`
+	Gaps []*RecordingGap `json:"gaps"`
+	// ServiceKey は、Mirakurun のサービス ID。スキーマには出さない。
+	ServiceKey int64 `json:"-"`
+}
+
+// StreamURL は、バッファの TS を、From を起点に流す URL のパス。
+func (b *TimeshiftBuffer) StreamURL() string {
+	return "/streams/timeshift/" + strconv.FormatInt(b.ServiceKey, 10) + "?from=" + url.QueryEscape(b.From.UTC().Format(time.RFC3339Nano))
+}

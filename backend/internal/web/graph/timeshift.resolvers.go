@@ -46,6 +46,16 @@ func (r *serviceResolver) TimeshiftPrograms(ctx context.Context, obj *model.Serv
 	return r.timeshiftPrograms(ctx, obj.MirakurunID())
 }
 
+// TimeshiftBuffer is the resolver for the timeshiftBuffer field.
+func (r *serviceResolver) TimeshiftBuffer(ctx context.Context, obj *model.Service) (*model.TimeshiftBuffer, error) {
+	buffer, ok, err := r.timeshiftBuffer(ctx, obj.MirakurunID())
+	if err != nil || !ok {
+		return nil, err
+	}
+
+	return buffer, nil
+}
+
 // Service is the resolver for the service field.
 func (r *timeshiftChannelResolver) Service(ctx context.Context, obj *model.TimeshiftChannel) (*model.Service, error) {
 	row, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)

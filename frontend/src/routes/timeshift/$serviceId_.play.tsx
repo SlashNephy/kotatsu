@@ -31,12 +31,10 @@ import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import {
   broadcastTime,
   recordingPosition,
-  parseStreamStart,
   formatClock,
   formatDuration,
-  playbackPosition,
-  skipJump,
 } from '../../yunomi/position';
+import { useSeekableStream } from '../../yunomi/useSeekableStream';
 import { RateSelect, CropSelect, NormalizeVolumeToggle } from '../../yunomi/QualitySelect';
 import { toVideoFormat } from '../../yunomi/route';
 import { SeekBar } from '../../yunomi/SeekBar';
@@ -217,70 +215,22 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
     program.gaps,
     program.endAt == null ? Date.now() : Date.parse(program.endAt),
   );
-  // offset は、今の読み込みを始めた、再生できる範囲の始まりからの秒。シークすると、新しい開始位置で読み直す (設計書 7.2)。
-  const [offset, setOffset] = useState(0);
-  const [loads, setLoads] = useState(0);
-  // streamStart は、配信が実際に流し始めた位置。配信は、指定した位置の手前の I フレームから流すので、再生位置はここから数える。
-  const [streamStart, setStreamStart] = useState<{ key: string; at: number } | null>(null);
-  const streamKey = `${offset}:${loads}`;
-  const startedAt = streamStart?.key === streamKey ? streamStart.at : offset;
-  const streamUrl = program.streamUrl;
-  useEffect(() => {
-    // 配信は、HEAD でも、流し始める位置を返す。
-    const controller = new AbortController();
-    fetch(`${streamUrl}&start=${offset.toFixed(1)}`, {
-      method: 'HEAD',
-      credentials: 'same-origin',
-      signal: controller.signal,
-    })
-      .then((response) => {
-        const at = response.ok ? parseStreamStart(response.headers.get('X-Kotatsu-Start')) : null;
-        if (at !== null) {
-          setStreamStart({ key: `${offset}:${loads}`, at });
-        }
-      })
-      .catch(() => {});
-
-    return () => controller.abort();
-  }, [streamUrl, offset, loads]);
-  // base は、読み込んだ映像の最初のフレームの、video の時刻。lastVideoTime は、途切れた区間で飛んだのを見つけるのに使う。
-  const base = useRef(0);
-  const lastVideoTime = useRef(0);
-  const convertedPosition = (current: number) => {
-    base.current = skipJump(base.current, lastVideoTime.current, current);
-    lastVideoTime.current = current;
-
-    return playbackPosition(startedAt, base.current, current);
-  };
-  // phase は、読み込みの段階。読み直している間に、前の映像の時刻で位置を動かさないよう、base を決めるまで位置を更新しない。
-  const phase = useRef<'loading' | 'awaitingBase' | 'playing'>('loading');
-  const [position, setPosition] = useState(0);
-  const positionRef = useRef(0);
+  // stream は、再生できる範囲の始まりからの秒で、位置を指定して読み直す配信 (設計書 7.2)。
+  const stream = useSeekableStream(program.streamUrl, video, 0);
+  const { position, positionRef, currentPosition } = stream;
   const [seeking, setSeeking] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastAutoRetry = useRef<number | null>(null);
   // handover は、次の読み直しで、今の映像を流したまま裏で読み込んで切り替えるかどうか (#1085)。
   const [handover, setHandover] = useState(false);
 
-  const currentPosition = () => {
-    const video = videoRef.current;
-    if (video === null || phase.current !== 'playing') {
-      return positionRef.current;
-    }
-
-    return convertedPosition(video.currentTime);
-  };
   const [statsShown, setStatsShown] = useState(false);
   useVolumeNormalizer(video);
   const [crop, setCrop] = useState<Crop>(noCrop);
   // restartAt は、指定の位置から読み直す。
   const restartAt = (seconds: number) => {
     setHandover(false);
-    phase.current = 'loading';
-    positionRef.current = seconds;
-    setPosition(seconds);
-    setOffset(seconds);
-    setLoads((n) => n + 1);
+    stream.restartAt(seconds);
   };
   // tenban が止まる前に知らせてきたら、今の位置から、新しい接続を張ってから切り替える (#1085)。
   const drains = useStreamsDrains();
@@ -317,7 +267,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
       video.defaultPlaybackRate = rate;
       video.playbackRate = rate;
     }
-  }, [rate, video, loads]);
+  }, [rate, video, stream.url]);
 
   const togglePlay = () => {
     const video = videoRef.current;
@@ -428,35 +378,6 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
     },
   );
 
-  // 再生位置を、再生できる範囲の始まりからの秒で追う。
-  useEffect(() => {
-    if (video === null) {
-      return;
-    }
-    const update = () => {
-      if (phase.current === 'loading') {
-        return;
-      }
-      if (phase.current === 'awaitingBase') {
-        if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-          return;
-        }
-        base.current = video.currentTime;
-        lastVideoTime.current = video.currentTime;
-        phase.current = 'playing';
-      }
-      const next = convertedPosition(video.currentTime);
-      positionRef.current = next;
-      setPosition(next);
-    };
-    video.addEventListener('timeupdate', update);
-
-    return () => video.removeEventListener('timeupdate', update);
-    // 別のウィンドウに出したり戻したりしたときは、video の要素を作り直すので、付け直す。
-  }, [startedAt, video]);
-
-  // フラグメントはサーバーに送られないので、読み込みを始め直すためだけに使う。
-  const url = `${streamUrl}&start=${offset.toFixed(1)}#${loads}`;
   // resumeAfterCut は、配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、エラーを出して利用者に任せる。
   const resumeAfterCut = () => {
     const now = Date.now();
@@ -478,7 +399,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
     const end =
       buffered.length === 0
         ? positionRef.current
-        : playbackPosition(startedAt, base.current, buffered.end(buffered.length - 1));
+        : stream.positionOf(buffered.end(buffered.length - 1));
     if (endedEarly(end, duration)) {
       resumeAfterCut();
     }
@@ -583,7 +504,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
       onPointerUp={doubleTap}
     >
       <TsPlayer
-        url={url}
+        url={stream.url}
         handover={handover}
         videoRef={videoRef}
         onVideo={setVideo}
@@ -595,7 +516,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
         onCaptionText={onCaptionText}
         onLoaded={() => {
           // 最初のフレームが出たときの時刻を、base にする。
-          phase.current = 'awaitingBase';
+          stream.onLoaded();
           setError(null);
         }}
         onError={resumeAfterCut}

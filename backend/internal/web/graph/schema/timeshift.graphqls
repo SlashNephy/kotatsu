@@ -78,3 +78,23 @@ extend type Query {
   """
   timeshiftProgram(serviceId: ID!, startAt: Time!): TimeshiftProgram!
 }
+
+"""
+サービスのタイムシフトのバッファの、再生できる範囲 (設計書 7.2)。ライブ視聴の画面から、過去へシークするのに使う。
+"""
+type TimeshiftBuffer {
+  "最も古いチャンクの始まり。再生位置は、ここからの秒で表す。"
+  from: Time!
+  "from から今までの、途切れた区間。今チャンクを書いていなければ、最後のチャンクの終わりから今までも含む。"
+  gaps: [RecordingGap!]!
+  "バッファの TS を、from を起点に流す URL のパス。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"
+  streamUrl: String!
+}
+
+extend type Service {
+  """
+  タイムシフトのバッファの、再生できる範囲。サービスをタイムシフトで録っていないか、チャンクがないか、
+  この tenban にタイムシフトのディレクトリがなく再生できなければ null。
+  """
+  timeshiftBuffer: TimeshiftBuffer
+}

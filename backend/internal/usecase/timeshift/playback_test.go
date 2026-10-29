@@ -150,3 +150,73 @@ func TestPlayablePrograms(t *testing.T) {
 		})
 	}
 }
+
+// TestPlayableBuffer は、サービスのバッファの始まりと、今までの途切れた区間を求めることを確かめる (設計書 7.2)。
+func TestPlayableBuffer(t *testing.T) {
+	t.Parallel()
+
+	// 時間は、今の 1 時間前からの時間で表す。end が 0 なら、書いている途中のチャンク。
+	type period struct{ start, end time.Duration }
+	tests := []struct {
+		name       string
+		configured bool
+		chunks     []period
+		wantOK     bool
+		wantFrom   time.Duration
+		wantGaps   []period
+	}{
+		{
+			name: "区切ったチャンクと引き継ぎで重なったチャンクは途切れない", configured: true,
+			chunks: []period{{0, 5 * time.Minute}, {5 * time.Minute, 10 * time.Minute}, {9 * time.Minute, 0}},
+			wantOK: true, wantFrom: 0, wantGaps: []period{},
+		},
+		{
+			name: "チャンクの間の穴は途切れた区間にする", configured: true,
+			chunks: []period{{0, 5 * time.Minute}, {7 * time.Minute, 0}},
+			wantOK: true, wantFrom: 0, wantGaps: []period{{5 * time.Minute, 7 * time.Minute}},
+		},
+		{
+			name: "今チャンクを書いていなければ、最後のチャンクの終わりから今までも途切れた区間にする", configured: true,
+			chunks: []period{{10 * time.Minute, 50 * time.Minute}},
+			wantOK: true, wantFrom: 10 * time.Minute, wantGaps: []period{{50 * time.Minute, time.Hour}},
+		},
+		{name: "チャンクがない", configured: true, chunks: []period{}, wantOK: false, wantFrom: 0, wantGaps: nil},
+		{name: "タイムシフトから外したサービス", configured: false, chunks: []period{{0, 0}}, wantOK: false, wantFrom: 0, wantGaps: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			e := newEnv(t)
+			if tt.configured {
+				e.configure(t, 0)
+			}
+			serviceID := grService(0)
+			base := e.clk.Now().Add(-time.Hour)
+			for _, c := range tt.chunks {
+				chunkID := id.New()
+				started := base.Add(c.start)
+				require.NoError(t, e.q.InsertTimeshiftChunk(t.Context(), sqlc.InsertTimeshiftChunkParams{
+					ID: chunkID, ServiceID: serviceID, Path: chunkPath(serviceID, started), Size: 0, StartedAt: started, Now: started,
+				}))
+				if c.end > 0 {
+					_, err := e.q.CloseTimeshiftChunk(t.Context(), sqlc.CloseTimeshiftChunkParams{ID: chunkID, Size: 0, EndedAt: new(base.Add(c.end))})
+					require.NoError(t, err)
+				}
+			}
+
+			got, ok, err := timeshift.PlayableBuffer(t.Context(), e.pool, serviceID, e.clk.Now())
+			require.NoError(t, err)
+			require.Equal(t, tt.wantOK, ok)
+			if !ok {
+				return
+			}
+			assert.Equal(t, tt.wantFrom, got.From.Sub(base))
+			gaps := make([]period, 0, len(got.Gaps))
+			for _, gap := range got.Gaps {
+				gaps = append(gaps, period{start: gap.From.Sub(base), end: gap.To.Sub(base)})
+			}
+			assert.Equal(t, tt.wantGaps, gaps)
+		})
+	}
+}

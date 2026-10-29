@@ -37,6 +37,8 @@ import {
   type CaptionEntry,
 } from '../../yunomi/captionHistory';
 import { formatClock } from '../../yunomi/position';
+import { SeekBar } from '../../yunomi/SeekBar';
+import { liveThresholdSeconds, useLiveTimeshift } from '../../yunomi/useLiveTimeshift';
 import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -50,6 +52,7 @@ import {
   ControlButton,
   FullscreenButton,
   LiveStatus,
+  PlayButton,
   PlayerAlert,
   PlayerControls,
   playerControlsClasses,
@@ -254,6 +257,15 @@ function Live({
             timeshiftPrograms {
               startAt
             }
+            # タイムシフトのバッファの範囲。ライブ視聴から、過去へシークするのに使う (設計書 5.7)。
+            timeshiftBuffer {
+              from
+              gaps {
+                from
+                to
+              }
+              streamUrl
+            }
           }
         }
         guide(from: $from, to: $to, services: [$id]) {
@@ -342,10 +354,18 @@ function Live({
   // dataBroadcastEnabled は、データ放送を出すかどうか。映像を覆うので、既定では出さない (設計書 7.4)。
   const [dataBroadcastEnabled, setDataBroadcastEnabled] = useState(false);
   const [dataBroadcastPreload] = useDataBroadcastPreload();
+  // timeshift は、タイムシフトのバッファへのシーク (設計書 5.7)。バッファは kyusu で変換しないので、ブラウザ内で変換する経路でだけ使う。
+  const timeshift = useLiveTimeshift(
+    data.node?.__typename === 'Service' ? (data.node.timeshiftBuffer ?? null) : null,
+    video,
+    route.kind === 'convert',
+  );
+  // seeking は、シークバーを動かしている間の位置。
+  const [seeking, setSeeking] = useState<number | null>(null);
   // 低遅延モードなら、放送からの遅れが広がったときに、少し速く再生して追いつく (#495)。
   const [lowLatency] = useLowLatency();
-  // kyusu の経路は、hls.js が追いつくので、ブラウザ内で変換する経路でだけ、再生の速さを変える。
-  useLiveCatchUp(video, lowLatency && route.kind === 'convert');
+  // kyusu の経路は、hls.js が追いつくので、ブラウザ内で変換する経路でだけ、再生の速さを変える。バッファを再生している間は追いつかない。
+  useLiveCatchUp(video, lowLatency && route.kind === 'convert' && !timeshift.behind);
   // dataBroadcastUsed は、このページでデータ放送を出したことがあるか。一度出したら、消しても受け取りを続け、次はすぐに出す。
   const [dataBroadcastUsed, setDataBroadcastUsed] = useState(false);
   if (dataBroadcastEnabled && !dataBroadcastUsed) {
@@ -467,13 +487,31 @@ function Live({
   const onCaptionText = (text: string) => {
     const normalized = normalizeCaption(text);
     currentCaption.current = normalized === '' ? null : normalized;
-    setCaptionEntries((list) => appendLiveCaption(list, Date.now(), text));
+    // バッファを再生している間は、映像の放送時刻で並べる。
+    const at = timeshift.behind
+      ? timeshift.clockAt(timeshift.stream.currentPosition())
+      : Date.now();
+    setCaptionEntries((list) => appendLiveCaption(list, at, text));
   };
   // externalOpen は、外部プレイヤー用の URL を発行するダイアログを出しているかどうか (#487)。
   const [externalOpen, setExternalOpen] = useState(false);
   // tuneRequest は、データ放送の文書が選局しようとしたサービス。確かめてから移る (#440)。
   const [tuneRequest, setTuneRequest] = useState<{ id: string; name: string } | null>(null);
-  const behind = useLiveLag(video, { reloadOnResume: route.kind === 'convert', onReload: reload });
+  // バッファへシークできるなら、長く止めた後も、止めた位置からバッファで続けるので、読み直さない。
+  const behind = useLiveLag(video, {
+    reloadOnResume: route.kind === 'convert' && !timeshift.available,
+    onReload: reload,
+  });
+  // バッファの範囲は、古いチャンクを破棄すると変わるので、ライブを見ている間は 1 分ごとに読み直す。
+  const timeshiftLive = timeshift.available && !timeshift.behind;
+  useEffect(() => {
+    if (!timeshiftLive) {
+      return;
+    }
+    const timer = setInterval(onProgramEnd, 60_000);
+
+    return () => clearInterval(timer);
+  }, [timeshiftLive, onProgramEnd]);
   // 時間帯に重なる番組のうち、読み直した時刻に放送中のものと、その次のもの。
   const programs = data.guide[0]?.programs ?? [];
   const program =
@@ -514,7 +552,8 @@ function Live({
     videoRef,
     serviceName,
     programName,
-    captureTime: Date.now,
+    captureTime: () =>
+      timeshift.behind ? timeshift.clockAt(timeshift.stream.currentPosition()) : Date.now(),
     caption: () => currentCaption.current,
   });
   const saveCapture = async () => {
@@ -532,6 +571,11 @@ function Live({
     videoState.setVolume(next);
     showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
   };
+  // skip は、今の位置から seconds 秒だけ進むか戻る。ライブなら、ライブの端から数える。
+  const skip = (seconds: number) =>
+    timeshift.seekTo(
+      (timeshift.behind ? timeshift.stream.currentPosition() : timeshift.edge) + seconds,
+    );
   const shortcuts = {
     togglePlay: () => {
       const video = videoRef.current;
@@ -541,6 +585,27 @@ function Live({
         video?.pause();
       }
     },
+    // バッファへシークできるなら、録画と同じく、← と → で戻ったり進んだりする。データ放送を出している間は、データ放送の操作に譲る。
+    ...(timeshift.available && !dataBroadcastEnabled
+      ? {
+          seekBackward: () => {
+            skip(-10);
+            showFlash(t('player.flash.seekBackward'));
+          },
+          seekForward: () => {
+            skip(10);
+            showFlash(t('player.flash.seekForward'));
+          },
+          seekBackwardLong: () => {
+            skip(-30);
+            showFlash(t('player.flash.seekBackwardLong'));
+          },
+          seekForwardLong: () => {
+            skip(30);
+            showFlash(t('player.flash.seekForwardLong'));
+          },
+        }
+      : {}),
     toggleCaptions: () => setCaptions(!captions),
     toggleMute: () => {
       const video = videoRef.current;
@@ -705,6 +770,17 @@ function Live({
   if (service === null) {
     return <Alert color="amber">{t('live.notFound')}</Alert>;
   }
+  // resumeBehind は、バッファの配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、ライブに戻る。
+  const resumeBehind = () => {
+    const at = Date.now();
+    if (!canRetryImmediately(lastImmediateRetry.current, at)) {
+      timeshift.goLive();
+
+      return;
+    }
+    lastImmediateRetry.current = at;
+    timeshift.stream.restartAt(timeshift.stream.positionRef.current);
+  };
   // session を付けて、つなぎ直すたびに URL を変える。
   const withSession = (base: string) =>
     `${base}${base.includes('?') ? '&' : '?'}session=${session}`;
@@ -717,8 +793,47 @@ function Live({
   const controlBar = (
     <PlayerControls
       visible={controls.visible}
-      start={<VolumeControl video={videoState} />}
-      status={<LiveStatus onCatchUp={behind ? reload : undefined} />}
+      // バッファへシークできるなら、バッファの始まりからライブの端までのシークバーを出す (設計書 5.7)。
+      seek={
+        timeshift.available ? (
+          <SeekBar
+            bands={[]}
+            duration={timeshift.edge}
+            value={seeking ?? timeshift.position}
+            previewUrl={null}
+            label={(value) =>
+              value >= timeshift.edge - liveThresholdSeconds
+                ? t('player.live')
+                : formatClock(timeshift.clockAt(value))
+            }
+            onChange={setSeeking}
+            onChangeEnd={(value) => {
+              setSeeking(null);
+              timeshift.seekTo(value);
+            }}
+          />
+        ) : undefined
+      }
+      start={
+        timeshift.available ? (
+          <>
+            <PlayButton video={videoState} />
+            <VolumeControl video={videoState} />
+          </>
+        ) : (
+          <VolumeControl video={videoState} />
+        )
+      }
+      status={
+        timeshift.behind ? (
+          <>
+            <LiveStatus onCatchUp={timeshift.goLive} />
+            {` · ${formatClock(timeshift.clockAt(timeshift.position))}`}
+          </>
+        ) : (
+          <LiveStatus onCatchUp={behind ? reload : undefined} />
+        )
+      }
       end={
         <>
           <ControlButton
@@ -810,8 +925,15 @@ function Live({
     >
       {route.kind === 'convert' && (
         <TsPlayer
-          url={disconnection === null ? withSession(service.streamUrl) : null}
-          handover
+          url={
+            timeshift.behind
+              ? timeshift.stream.url
+              : disconnection === null
+                ? withSession(service.streamUrl)
+                : null
+          }
+          // シークしたときは、すぐに読み直す。ライブのつなぎ直しは、裏で読み込んでから切り替える。
+          handover={!timeshift.behind}
           videoRef={videoRef}
           onVideo={setVideo}
           controls={controlBar}
@@ -820,11 +942,17 @@ function Live({
           captionStyle={captionSettings}
           crop={crop}
           onCaptionText={onCaptionText}
-          onLoaded={onLoaded}
+          onLoaded={() => {
+            if (timeshift.behind) {
+              timeshift.stream.onLoaded();
+            }
+            onLoaded();
+          }}
           overlay={
             <>
-              {dataBroadcast.layer}
-              {jikkyo.overlay}
+              {/* データ放送と実況のコメントは、ライブのものなので、バッファを再生している間は重ねない。 */}
+              {!timeshift.behind && dataBroadcast.layer}
+              {!timeshift.behind && jikkyo.overlay}
               {/* 番組名は映像の下に出すので、映像の下が見えない別のウィンドウでだけ重ねる。 */}
               {pip.container !== null && (
                 <ProgramOverlay
@@ -845,12 +973,16 @@ function Live({
             </>
           }
           onState={(state) => {
-            // ライブのストリームは終わらないので、読み終えたのは、切れたということ。
+            // ライブのストリームもバッファも終わらないので、読み終えたのは、切れたということ。
             if (state === 'completed' || state === 'error') {
-              disconnected();
+              if (timeshift.behind) {
+                resumeBehind();
+              } else {
+                disconnected();
+              }
             }
           }}
-          onError={disconnected}
+          onError={timeshift.behind ? resumeBehind : disconnected}
           onAudio={audio.onAudio}
           audio={audio.convertAudio}
         />
