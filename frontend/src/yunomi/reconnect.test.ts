@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
   canRetryImmediately,
   endedEarly,
+  skipBrokenMedia,
   reconnectDelay,
   recordingsThatTookTuner,
 } from './reconnect';
@@ -60,5 +61,30 @@ describe('endedEarly', () => {
     { name: '途中で切れた', bufferedEnd: 600, duration: 1800, want: true },
   ])('$name', ({ bufferedEnd, duration, want }) => {
     expect(endedEarly(bufferedEnd, duration)).toBe(want);
+  });
+});
+
+describe('skipBrokenMedia', () => {
+  test.each([
+    {
+      name: '初めて止まったら、壊れた所の先から読み直す',
+      position: 22.7,
+      lastSkipped: null,
+      want: 23.7,
+    },
+    {
+      name: '前に飛び越えた所より先で止まったら、また飛び越える',
+      position: 40,
+      lastSkipped: 22.7,
+      want: 41,
+    },
+    {
+      name: '前に飛び越えた所から進んでいなければ、飛び越えない',
+      position: 22.7,
+      lastSkipped: 22.7,
+      want: null,
+    },
+  ])('$name', ({ position, lastSkipped, want }) => {
+    expect(skipBrokenMedia(position, lastSkipped)).toBe(want);
   });
 });

@@ -137,6 +137,13 @@ export function TsPlayer({
     renderer.setSuperimposeVisible(superimposeRef.current);
     renderer.setStyle(styleRef.current);
     const slot: Slot = { container, video, captions: renderer, player: null, destroyed: false };
+    // 壊れた音声のフレームなどで、映像の要素が復号に失敗すると、ブラウザは再生を止める。止まると読み込みの止まりも
+    // 見張れないので、知らせて読み直させる。
+    video.addEventListener('error', () => {
+      if (!slot.destroyed && activeRef.current === slot && video.error !== null) {
+        handlers.current.onError?.(new Error(video.error.message || 'the media element failed'));
+      }
+    });
 
     return slot;
   };

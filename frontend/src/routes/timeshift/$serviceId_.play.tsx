@@ -78,7 +78,7 @@ import { currentVolume } from '../../yunomi/volumeBoost';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { useStreamsDrains } from '../../changes/DataChanges';
-import { canRetryImmediately, endedEarly } from '../../yunomi/reconnect';
+import { canRetryImmediately, endedEarly, skipBrokenMedia } from '../../yunomi/reconnect';
 import type { ServiceIdPlayTimeshiftQuery } from './__generated__/ServiceIdPlayTimeshiftQuery.graphql';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
@@ -221,6 +221,8 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
   const [seeking, setSeeking] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastAutoRetry = useRef<number | null>(null);
+  // lastBrokenSkip は、壊れた所を最後に飛び越えたときの位置。
+  const lastBrokenSkip = useRef<number | null>(null);
   // handover は、次の読み直しで、今の映像を流したまま裏で読み込んで切り替えるかどうか (#1085)。
   const [handover, setHandover] = useState(false);
 
@@ -380,6 +382,16 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
 
   // resumeAfterCut は、配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、エラーを出して利用者に任せる。
   const resumeAfterCut = () => {
+    // 映像の要素が復号に失敗して止まったなら、壊れた所を飛び越えて読み直す。
+    if (videoRef.current?.error != null) {
+      const next = skipBrokenMedia(positionRef.current, lastBrokenSkip.current);
+      if (next !== null) {
+        lastBrokenSkip.current = positionRef.current;
+        restartAt(next);
+
+        return;
+      }
+    }
     const now = Date.now();
     if (!canRetryImmediately(lastAutoRetry.current, now)) {
       setError(t('player.error'));

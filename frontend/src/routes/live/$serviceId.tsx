@@ -74,6 +74,7 @@ import {
   canRetryImmediately,
   reconnectDelay,
   recordingsThatTookTuner,
+  skipBrokenMedia,
 } from '../../yunomi/reconnect';
 import { dataBroadcastSource, hlsURL, toVideoFormat } from '../../yunomi/route';
 import { RemoteKey, useDataBroadcast } from '../../yunomi/useDataBroadcast';
@@ -380,6 +381,8 @@ function Live({
   // retryingImmediately は、知らせを出さずにすぐつなぎ直している最中かどうか。lastImmediateRetry は、その時刻 (#1083)。
   const retryingImmediately = useRef(false);
   const lastImmediateRetry = useRef<number | null>(null);
+  // lastBrokenSkip は、バッファの再生で、壊れた所を最後に飛び越えたときの位置。
+  const lastBrokenSkip = useRef<number | null>(null);
 
   // 視聴が切れたら、まず知らせを出さずにすぐつなぎ直す。tenban の入れ替えや回線の瞬断なら、これで戻る (#1083)。
   // ブラウザ内での変換では、切れる前に受け取った映像を流したまま、裏でつなぎ直して切り替える。
@@ -771,7 +774,18 @@ function Live({
     return <Alert color="amber">{t('live.notFound')}</Alert>;
   }
   // resumeBehind は、バッファの配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、ライブに戻る。
+  // 映像の要素が復号に失敗して止まったなら、壊れた所を飛び越えて読み直す。
   const resumeBehind = () => {
+    const position = timeshift.stream.positionRef.current;
+    if (videoRef.current?.error != null) {
+      const next = skipBrokenMedia(position, lastBrokenSkip.current);
+      if (next !== null) {
+        lastBrokenSkip.current = position;
+        timeshift.stream.restartAt(next);
+
+        return;
+      }
+    }
     const at = Date.now();
     if (!canRetryImmediately(lastImmediateRetry.current, at)) {
       timeshift.goLive();
@@ -779,7 +793,7 @@ function Live({
       return;
     }
     lastImmediateRetry.current = at;
-    timeshift.stream.restartAt(timeshift.stream.positionRef.current);
+    timeshift.stream.restartAt(position);
   };
   // session を付けて、つなぎ直すたびに URL を変える。
   const withSession = (base: string) =>
