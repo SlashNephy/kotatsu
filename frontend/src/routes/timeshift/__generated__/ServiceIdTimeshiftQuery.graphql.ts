@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<fe9dc4c3342f01cea571ce7adc7d3e82>>
+ * @generated SignedSource<<25524f10d18cb871a912edbddeaf1b05>>
  * @lightSyntaxTransform
  */
 
@@ -18,8 +18,8 @@ export type ServiceIdTimeshiftQuery$data = {
     readonly name: string;
     readonly timeshiftPrograms: ReadonlyArray<{
       readonly endAt: string | null | undefined;
+      readonly fromStart: boolean;
       readonly name: string;
-      readonly playableFrom: string;
       readonly startAt: string;
     }>;
   } | {
@@ -100,7 +100,7 @@ v4 = {
           "alias": null,
           "args": null,
           "kind": "ScalarField",
-          "name": "playableFrom",
+          "name": "fromStart",
           "storageKey": null
         }
       ],
@@ -163,16 +163,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "53e59a70fd45fc007358cf70691c604e",
+    "cacheID": "ad163a0ab2a4fb9194e0a755e473dd1e",
     "id": null,
     "metadata": {},
     "name": "ServiceIdTimeshiftQuery",
     "operationKind": "query",
-    "text": "query ServiceIdTimeshiftQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      timeshiftPrograms {\n        name\n        startAt\n        endAt\n        playableFrom\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ServiceIdTimeshiftQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      timeshiftPrograms {\n        name\n        startAt\n        endAt\n        fromStart\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "53053810a05cf3dee4a6fca498b19beb";
+(node as any).hash = "c04e12b72ed358f9cf4a3800bce2c692";
 
 export default node;

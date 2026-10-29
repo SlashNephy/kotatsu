@@ -255,7 +255,7 @@ function Live({
             timeshiftPrograms {
               startAt
               endAt
-              playableFrom
+              fromStart
             }
           }
         }
@@ -709,12 +709,9 @@ function Live({
     return <Alert color="amber">{t('live.notFound')}</Alert>;
   }
   // startOver は、放送中の番組を、タイムシフトのバッファから最初から再生するときの、番組の始まり。
-  // 番組の頭がバッファになければ、途中からしか見られないので出さない (設計書 5.7)。
+  // 番組の頭から録れていなければ、途中からしか見られないので出さない (設計書 5.7)。
   const onAirInBuffer = [...service.timeshiftPrograms].reverse().find((p) => p.endAt == null);
-  const startOver =
-    onAirInBuffer !== undefined && onAirInBuffer.playableFrom === onAirInBuffer.startAt
-      ? onAirInBuffer.startAt
-      : null;
+  const startOver = onAirInBuffer?.fromStart === true ? onAirInBuffer.startAt : null;
   // session を付けて、つなぎ直すたびに URL を変える。
   const withSession = (base: string) =>
     `${base}${base.includes('?') ? '&' : '?'}session=${session}`;

@@ -80,7 +80,7 @@ function ProgramList({ serviceId }: { serviceId: string }) {
               name
               startAt
               endAt
-              playableFrom
+              fromStart
             }
           }
         }
@@ -131,8 +131,8 @@ function ProgramList({ serviceId }: { serviceId: string }) {
                       <ProgramTitle name={program.name} />
                     )}
                   </Text>
-                  {/* 番組の頭のチャンクがないときは、残っているところから再生する。 */}
-                  {program.playableFrom !== program.startAt && (
+                  {/* 番組の頭から録れていないときは、残っているところから再生する。 */}
+                  {!program.fromStart && (
                     <Badge size="sm" variant="light" color="gray">
                       {t('timeshift.partial')}
                     </Badge>
