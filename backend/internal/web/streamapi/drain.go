@@ -34,7 +34,7 @@ func (d *Drainer) Draining() <-chan struct{} {
 	return d.draining
 }
 
-// Drain は、知らせを始め、ライブ視聴と録画のストリームがなくなるか、timeout が過ぎるか、ctx が終わるまで待つ。
+// Drain は、知らせを始め、ライブ視聴と録画とタイムシフトのストリームがなくなるか、timeout が過ぎるか、ctx が終わるまで待つ。
 // データ放送のストリームは、ライブ視聴をつなぎ直しても張り直さないので、待たない。
 func (d *Drainer) Drain(ctx context.Context, timeout time.Duration) {
 	d.start()
@@ -42,7 +42,7 @@ func (d *Drainer) Drain(ctx context.Context, timeout time.Duration) {
 	defer cancel()
 	ticker := time.NewTicker(drainPollInterval)
 	defer ticker.Stop()
-	for d.streams.Streams(StreamLive)+d.streams.Streams(StreamRecording) > 0 {
+	for d.streams.Streams(StreamLive)+d.streams.Streams(StreamRecording)+d.streams.Streams(StreamTimeshift) > 0 {
 		select {
 		case <-ctx.Done():
 			return

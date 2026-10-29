@@ -16,11 +16,13 @@ const (
 	StreamDataBroadcast StreamKind = "data_broadcast"
 	// StreamRecording は、録画の再生と、取り込んだ録画の TS 以外のファイル。
 	StreamRecording StreamKind = "recording"
+	// StreamTimeshift は、タイムシフトのバッファの再生。
+	StreamTimeshift StreamKind = "timeshift"
 )
 
 // StreamKinds は、配信の種類をすべて返す。
 func StreamKinds() []StreamKind {
-	return []StreamKind{StreamLive, StreamDataBroadcast, StreamRecording}
+	return []StreamKind{StreamLive, StreamDataBroadcast, StreamRecording, StreamTimeshift}
 }
 
 // StreamCounter は、このインスタンスで流している最中の応答を、種類ごとに数える (設計書 11.3)。

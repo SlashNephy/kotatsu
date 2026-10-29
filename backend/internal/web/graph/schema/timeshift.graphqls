@@ -36,3 +36,65 @@ extend type Mutation {
   """
   removeTimeshiftChannel(serviceId: ID!): ID!
 }
+
+"""
+タイムシフトのバッファから再生できる番組 (設計書 7.2)。mikan が、放送中の番組が替わったのに気づいた時刻で区切る。
+"""
+type TimeshiftProgram {
+  service: Service!
+  "番組のイベント ID。"
+  eventId: Int!
+  "番組名。mikan が番組の始まりに気づいたときに、番組表になければ空。"
+  name: String!
+  "mikan が番組の始まりに気づいた時刻。番組表の開始時刻より少し遅れる。"
+  startAt: Time!
+  "mikan が番組の終わりに気づいた時刻。放送中なら null。"
+  endAt: Time
+  "再生できる範囲の始まり。番組の頭のチャンクを破棄したか、録れていなかったら、startAt より後になる。再生位置は、ここからの秒で表す。"
+  playableFrom: Time!
+  """
+  番組の頭から録れていて、頭から再生できるかどうか。mikan が番組の替わりに気づいて記録した番組だけが、頭から録れている。
+  タイムシフトに足したときや、落ちた mikan の後を録り直したときに放送中だった番組は、途中から録っている。
+  """
+  fromStart: Boolean!
+  "playableFrom から番組の終わりまでの、途切れた区間。チャンクの間の穴で、再生の時間に含めない。"
+  gaps: [RecordingGap!]!
+  "バッファの TS を、playableFrom を起点に流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"
+  streamUrl: String!
+}
+
+extend type Service {
+  """
+  タイムシフトのバッファから再生できる番組を、始まりの順に返す。サービスをタイムシフトで録っていないか、
+  この tenban にタイムシフトのディレクトリがなく再生できなければ、空にする。
+  """
+  timeshiftPrograms: [TimeshiftProgram!]!
+}
+
+extend type Query {
+  """
+  サービス serviceId のバッファから再生できる、startAt に始まった番組を返す。
+  番組を破棄したか、サービスをタイムシフトで録っていなければ NOT_FOUND を返す。
+  """
+  timeshiftProgram(serviceId: ID!, startAt: Time!): TimeshiftProgram!
+}
+
+"""
+サービスのタイムシフトのバッファの、再生できる範囲 (設計書 7.2)。ライブ視聴の画面から、過去へシークするのに使う。
+"""
+type TimeshiftBuffer {
+  "最も古いチャンクの始まり。再生位置は、ここからの秒で表す。"
+  from: Time!
+  "from から今までの、途切れた区間。今チャンクを書いていなければ、最後のチャンクの終わりから今までも含む。"
+  gaps: [RecordingGap!]!
+  "バッファの TS を、from を起点に流す URL のパス。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"
+  streamUrl: String!
+}
+
+extend type Service {
+  """
+  タイムシフトのバッファの、再生できる範囲。サービスをタイムシフトで録っていないか、チャンクがないか、
+  この tenban にタイムシフトのディレクトリがなく再生できなければ null。
+  """
+  timeshiftBuffer: TimeshiftBuffer
+}

@@ -43,8 +43,10 @@ import { Route as SettingsPasswordRouteImport } from './routes/settings/password
 import { Route as SettingsPlayerRouteImport } from './routes/settings/player'
 import { Route as SettingsSecurityRouteImport } from './routes/settings/security'
 import { Route as SettingsSessionsRouteImport } from './routes/settings/sessions'
+import { Route as TimeshiftServiceIdRouteImport } from './routes/timeshift/$serviceId'
 import { Route as GuideChannelServiceIdRouteImport } from './routes/guide/channel.$serviceId'
 import { Route as RecordingsRecordingIdPlayRouteImport } from './routes/recordings/$recordingId_.play'
+import { Route as TimeshiftServiceIdPlayRouteImport } from './routes/timeshift/$serviceId_.play'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -216,6 +218,11 @@ const SettingsSessionsRoute = SettingsSessionsRouteImport.update({
   path: '/settings/sessions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TimeshiftServiceIdRoute = TimeshiftServiceIdRouteImport.update({
+  id: '/timeshift/$serviceId',
+  path: '/timeshift/$serviceId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GuideChannelServiceIdRoute = GuideChannelServiceIdRouteImport.update({
   id: '/guide/channel/$serviceId',
   path: '/guide/channel/$serviceId',
@@ -227,6 +234,11 @@ const RecordingsRecordingIdPlayRoute =
     path: '/recordings/$recordingId/play',
     getParentRoute: () => rootRouteImport,
   } as any)
+const TimeshiftServiceIdPlayRoute = TimeshiftServiceIdPlayRouteImport.update({
+  id: '/timeshift/$serviceId_/play',
+  path: '/timeshift/$serviceId/play',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -257,6 +269,7 @@ export interface FileRoutesByFullPath {
   '/settings/player': typeof SettingsPlayerRoute
   '/settings/security': typeof SettingsSecurityRoute
   '/settings/sessions': typeof SettingsSessionsRoute
+  '/timeshift/$serviceId': typeof TimeshiftServiceIdRoute
   '/guide/': typeof GuideIndexRoute
   '/live/': typeof LiveIndexRoute
   '/login/': typeof LoginIndexRoute
@@ -265,6 +278,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof SettingsIndexRoute
   '/guide/channel/$serviceId': typeof GuideChannelServiceIdRoute
   '/recordings/$recordingId/play': typeof RecordingsRecordingIdPlayRoute
+  '/timeshift/$serviceId/play': typeof TimeshiftServiceIdPlayRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -295,6 +309,7 @@ export interface FileRoutesByTo {
   '/settings/player': typeof SettingsPlayerRoute
   '/settings/security': typeof SettingsSecurityRoute
   '/settings/sessions': typeof SettingsSessionsRoute
+  '/timeshift/$serviceId': typeof TimeshiftServiceIdRoute
   '/guide': typeof GuideIndexRoute
   '/live': typeof LiveIndexRoute
   '/login': typeof LoginIndexRoute
@@ -303,6 +318,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsIndexRoute
   '/guide/channel/$serviceId': typeof GuideChannelServiceIdRoute
   '/recordings/$recordingId/play': typeof RecordingsRecordingIdPlayRoute
+  '/timeshift/$serviceId/play': typeof TimeshiftServiceIdPlayRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -334,6 +350,7 @@ export interface FileRoutesById {
   '/settings/player': typeof SettingsPlayerRoute
   '/settings/security': typeof SettingsSecurityRoute
   '/settings/sessions': typeof SettingsSessionsRoute
+  '/timeshift/$serviceId': typeof TimeshiftServiceIdRoute
   '/guide/': typeof GuideIndexRoute
   '/live/': typeof LiveIndexRoute
   '/login/': typeof LoginIndexRoute
@@ -342,6 +359,7 @@ export interface FileRoutesById {
   '/settings/': typeof SettingsIndexRoute
   '/guide/channel/$serviceId': typeof GuideChannelServiceIdRoute
   '/recordings/$recordingId_/play': typeof RecordingsRecordingIdPlayRoute
+  '/timeshift/$serviceId_/play': typeof TimeshiftServiceIdPlayRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -374,6 +392,7 @@ export interface FileRouteTypes {
     | '/settings/player'
     | '/settings/security'
     | '/settings/sessions'
+    | '/timeshift/$serviceId'
     | '/guide/'
     | '/live/'
     | '/login/'
@@ -382,6 +401,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/guide/channel/$serviceId'
     | '/recordings/$recordingId/play'
+    | '/timeshift/$serviceId/play'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -412,6 +432,7 @@ export interface FileRouteTypes {
     | '/settings/player'
     | '/settings/security'
     | '/settings/sessions'
+    | '/timeshift/$serviceId'
     | '/guide'
     | '/live'
     | '/login'
@@ -420,6 +441,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/guide/channel/$serviceId'
     | '/recordings/$recordingId/play'
+    | '/timeshift/$serviceId/play'
   id:
     | '__root__'
     | '/'
@@ -450,6 +472,7 @@ export interface FileRouteTypes {
     | '/settings/player'
     | '/settings/security'
     | '/settings/sessions'
+    | '/timeshift/$serviceId'
     | '/guide/'
     | '/live/'
     | '/login/'
@@ -458,6 +481,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/guide/channel/$serviceId'
     | '/recordings/$recordingId_/play'
+    | '/timeshift/$serviceId_/play'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -489,6 +513,7 @@ export interface RootRouteChildren {
   SettingsPlayerRoute: typeof SettingsPlayerRoute
   SettingsSecurityRoute: typeof SettingsSecurityRoute
   SettingsSessionsRoute: typeof SettingsSessionsRoute
+  TimeshiftServiceIdRoute: typeof TimeshiftServiceIdRoute
   GuideIndexRoute: typeof GuideIndexRoute
   LiveIndexRoute: typeof LiveIndexRoute
   LoginIndexRoute: typeof LoginIndexRoute
@@ -497,6 +522,7 @@ export interface RootRouteChildren {
   SettingsIndexRoute: typeof SettingsIndexRoute
   GuideChannelServiceIdRoute: typeof GuideChannelServiceIdRoute
   RecordingsRecordingIdPlayRoute: typeof RecordingsRecordingIdPlayRoute
+  TimeshiftServiceIdPlayRoute: typeof TimeshiftServiceIdPlayRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -739,6 +765,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSessionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/timeshift/$serviceId': {
+      id: '/timeshift/$serviceId'
+      path: '/timeshift/$serviceId'
+      fullPath: '/timeshift/$serviceId'
+      preLoaderRoute: typeof TimeshiftServiceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/guide/channel/$serviceId': {
       id: '/guide/channel/$serviceId'
       path: '/guide/channel/$serviceId'
@@ -751,6 +784,13 @@ declare module '@tanstack/react-router' {
       path: '/recordings/$recordingId/play'
       fullPath: '/recordings/$recordingId/play'
       preLoaderRoute: typeof RecordingsRecordingIdPlayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/timeshift/$serviceId_/play': {
+      id: '/timeshift/$serviceId_/play'
+      path: '/timeshift/$serviceId/play'
+      fullPath: '/timeshift/$serviceId/play'
+      preLoaderRoute: typeof TimeshiftServiceIdPlayRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -785,6 +825,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsPlayerRoute: SettingsPlayerRoute,
   SettingsSecurityRoute: SettingsSecurityRoute,
   SettingsSessionsRoute: SettingsSessionsRoute,
+  TimeshiftServiceIdRoute: TimeshiftServiceIdRoute,
   GuideIndexRoute: GuideIndexRoute,
   LiveIndexRoute: LiveIndexRoute,
   LoginIndexRoute: LoginIndexRoute,
@@ -793,6 +834,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsIndexRoute: SettingsIndexRoute,
   GuideChannelServiceIdRoute: GuideChannelServiceIdRoute,
   RecordingsRecordingIdPlayRoute: RecordingsRecordingIdPlayRoute,
+  TimeshiftServiceIdPlayRoute: TimeshiftServiceIdPlayRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

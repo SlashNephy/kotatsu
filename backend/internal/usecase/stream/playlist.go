@@ -20,6 +20,9 @@ type segment struct {
 	endedAt *time.Time
 	// open は、セグメントを書いている途中かどうか。
 	open bool
+	// continues は、前のセグメントと同じストリームを、区切りだけ替えて書き続けたものかどうか。タイムシフトのチャンクは、
+	// 一定の長さごとに TS パケットの区切りで替わるので、前のセグメントの最後の GOP の続きから始まる。バイトをそのままつなぐと続く。
+	continues bool
 	// index は、セグメントの索引。索引がなければ空で、そのセグメントには始まりからしか入れない。
 	index []ts.IndexEntry
 }
@@ -81,11 +84,12 @@ func keyframePoints(segments []*segment) []Keyframe {
 }
 
 // trim は、セグメントごとに配信する範囲を決め、引き継ぎで重なった区間を切り詰める。
+// 前のセグメントの続き (continues) は、重なりがないので、切り詰めずに始まりから配信する。
 func trim(segments []*segment) []*piece {
 	pieces := make([]*piece, 0, len(segments))
 	for i, seg := range segments {
 		p := &piece{segment: seg, from: 0, to: -1}
-		if i > 0 && len(seg.index) > 0 && len(segments[i-1].index) > 0 {
+		if i > 0 && !seg.continues && len(seg.index) > 0 && len(segments[i-1].index) > 0 {
 			prev := pieces[i-1]
 			first := seg.index[0]
 			for _, entry := range segments[i-1].index {
