@@ -60,9 +60,9 @@ import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useWatchPositionSaver } from '../../yunomi/useWatchPositionSaver';
 import { useMediaSession } from '../../yunomi/useMediaSession';
-import type { ShortcutAction } from '../../yunomi/shortcuts';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
+import type { PlayerCommands } from '../../yunomi/commands';
 import { useAutoPictureInPicture } from '../../yunomi/autoPictureInPicture';
 import {
   CaptureButton,
@@ -557,7 +557,11 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     videoState.setVolume(next);
     showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
   };
-  const shortcuts = {
+  const [autoPictureInPicture] = useAutoPictureInPicture();
+  // commands は、この画面で今使える操作 (#809)。キー、OS のメディア操作、ほかの端末からの操作は、どれもここから呼ぶ。
+  const commands: PlayerCommands = {
+    play: () => void videoRef.current?.play().catch(() => {}),
+    pause: () => videoRef.current?.pause(),
     togglePlay,
     seekBackward: () => {
       skip(-10);
@@ -593,42 +597,45 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       retry();
       showFlash(t('player.flash.restarted'));
     },
+    seekTo: seek,
     toggleStats: () => setStatsShown(!statsShown),
     showShortcuts: () => setShortcutsOpen(true),
-  } satisfies Partial<Record<ShortcutAction, () => void>>;
-  usePlayerShortcuts(shortcuts);
+    setVolume: videoState.setVolume,
+    setMuted: (muted) => {
+      if (muted !== videoState.muted) {
+        videoState.toggleMute();
+      }
+    },
+    selectAudio: audio.remote.select,
+    stop: () => void navigate({ to: '/recordings/$recordingId', params: { recordingId } }),
+    ...(pip.supported
+      ? {
+          pictureInPicture: () => {
+            if (pip.container === null) {
+              openPictureInPicture(pip).catch(() => {});
+            }
+          },
+        }
+      : {}),
+  };
+  usePlayerShortcuts(commands);
   // タブの題名や OS のメディアの表示は印を描けないので、囲み文字を外し、全角の英数字は半角にする。
   const recordingTitle =
     recording == null ? null : toHalfWidth(splitProgramMarks(recording.name).name);
   useDocumentTitle([recordingTitle]);
-  const [autoPictureInPicture] = useAutoPictureInPicture();
   useMediaSession(
     {
       title: recordingTitle ?? '',
       artist: toHalfWidth(recording?.service.name ?? ''),
       artwork: recording?.thumbnailUrl ?? null,
     },
-    {
-      play: () => void videoRef.current?.play().catch(() => {}),
-      pause: () => videoRef.current?.pause(),
-      seekBackward: () => skip(-10),
-      seekForward: () => skip(10),
-      seekTo: (seconds) => seek(seconds),
-      // 設定で選んでいれば、タブを切り替えたときに、別のウィンドウに出す (#492)。
-      ...(autoPictureInPicture && pip.supported
-        ? {
-            enterPictureInPicture: () => {
-              if (pip.container === null) {
-                openPictureInPicture(pip).catch(() => {});
-              }
-            },
-          }
-        : {}),
-    },
+    commands,
     {
       playing: !videoState.paused,
       position: { duration, position: seeking ?? position, playbackRate: rate },
     },
+    // 設定で選んでいれば、タブを切り替えたときに、別のウィンドウに出す (#492)。
+    autoPictureInPicture,
   );
 
   // 再生位置を、録画の始まりからの秒で追う。
@@ -703,29 +710,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           dataBroadcast: false,
           keyGroups: [],
         },
-    {
-      play: () => {
-        if (paused) {
-          togglePlay();
-        }
-      },
-      pause: () => {
-        if (!paused) {
-          togglePlay();
-        }
-      },
-      seek,
-      setVolume: videoState.setVolume,
-      setMuted: (muted) => {
-        if (muted !== videoState.muted) {
-          videoState.toggleMute();
-        }
-      },
-      selectAudio: audio.remote.select,
-      // 録画の再生では、データ放送を出さない。
-      pressKey: () => {},
-      stop: () => void navigate({ to: '/recordings/$recordingId', params: { recordingId } }),
-    },
+    commands,
   );
 
   if (recording === null) {
@@ -847,7 +832,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           <ShortcutsHelp
             opened={shortcutsOpen}
             onClose={() => setShortcutsOpen(false)}
-            actions={Object.keys(shortcuts) as ShortcutAction[]}
+            commands={commands}
             target={playerBoxRef}
           />
           <PipButton pip={pip} />

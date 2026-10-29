@@ -86,10 +86,10 @@ import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useMediaSession } from '../../yunomi/useMediaSession';
-import type { ShortcutAction } from '../../yunomi/shortcuts';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
+import type { PlayerCommands } from '../../yunomi/commands';
 import { useAutoPictureInPicture } from '../../yunomi/autoPictureInPicture';
 import {
   CaptureButton,
@@ -583,7 +583,11 @@ function Live({
   // skip は、今の位置から seconds 秒だけ進むか戻る。ライブなら、ライブの端から数える。
   const skip = (seconds: number) =>
     timeshift.seekTo((timeshift.behind ? timeshift.currentPosition() : timeshift.edge) + seconds);
-  const shortcuts = {
+  const [autoPictureInPicture] = useAutoPictureInPicture();
+  // commands は、この画面で今使える操作 (#809)。キー、OS のメディア操作、ほかの端末からの操作は、どれもここから呼ぶ。
+  const commands: PlayerCommands = {
+    play: () => void videoRef.current?.play().catch(() => {}),
+    pause: () => videoRef.current?.pause(),
     togglePlay: () => {
       const video = videoRef.current;
       if (video?.paused === true) {
@@ -642,35 +646,40 @@ function Live({
     },
     toggleStats: () => setStatsShown(!statsShown),
     showShortcuts: () => setShortcutsOpen(true),
-  } satisfies Partial<Record<ShortcutAction, () => void>>;
-  usePlayerShortcuts(shortcuts);
+    setVolume: videoState.setVolume,
+    setMuted: (muted) => {
+      if (muted !== videoState.muted) {
+        videoState.toggleMute();
+      }
+    },
+    selectAudio: audio.remote.select,
+    stop: () => void navigate({ to: '/live' }),
+    // 同じ種別の前後の局へ移る (#493)。移る先がなければ、使えない。
+    ...(neighbors.previous === null ? {} : { previousChannel: () => tune(neighbors.previous!.id) }),
+    ...(neighbors.next === null ? {} : { nextChannel: () => tune(neighbors.next!.id) }),
+    ...(pip.supported
+      ? {
+          pictureInPicture: () => {
+            if (pip.container === null) {
+              openPictureInPicture(pip).catch(() => {});
+            }
+          },
+        }
+      : {}),
+  };
+  usePlayerShortcuts(commands);
   useDocumentTitle([programTitle, toHalfWidth(serviceName)]);
-  const [autoPictureInPicture] = useAutoPictureInPicture();
   useMediaSession(
     {
       title: programTitle ?? toHalfWidth(serviceName),
       artist: toHalfWidth(serviceName),
       artwork: serviceLogoUrl,
     },
-    {
-      play: () => void videoRef.current?.play().catch(() => {}),
-      pause: () => videoRef.current?.pause(),
-      // OS の前と次のボタンで、同じ種別の前後の局へ移る (#493)。移る先がなければ、OS にボタンを出さない。
-      ...(neighbors.previous === null ? {} : { previousTrack: () => tune(neighbors.previous!.id) }),
-      ...(neighbors.next === null ? {} : { nextTrack: () => tune(neighbors.next!.id) }),
-      // 設定で選んでいれば、タブを切り替えたときに、別のウィンドウに出す (#492)。
-      ...(autoPictureInPicture && pip.supported
-        ? {
-            enterPictureInPicture: () => {
-              if (pip.container === null) {
-                openPictureInPicture(pip).catch(() => {});
-              }
-            },
-          }
-        : {}),
-    },
+    commands,
     // ライブはシークできないので、再生位置は知らせない。
     { playing: !videoState.paused, position: null },
+    // 設定で選んでいれば、タブを切り替えたときに、別のウィンドウに出す (#492)。
+    autoPictureInPicture,
   );
 
   const service = data.node?.__typename === 'Service' ? data.node : null;
@@ -731,24 +740,9 @@ function Live({
           keyGroups: [...dataBroadcast.keyGroups],
         },
     {
-      play: () => {
-        if (videoState.paused) {
-          videoState.togglePlay();
-        }
-      },
-      pause: () => {
-        if (!videoState.paused) {
-          videoState.togglePlay();
-        }
-      },
-      setVolume: videoState.setVolume,
-      setMuted: (muted) => {
-        if (muted !== videoState.muted) {
-          videoState.toggleMute();
-        }
-      },
-      selectAudio: audio.remote.select,
+      ...commands,
       // データ放送を出していなければ、d ボタンで出す。リモコンのほかのボタンは、出している間だけ渡す。
+      // データ放送は commands より後で作るので、ここで足す。
       pressKey: (key) => {
         if (!dataBroadcastEnabled) {
           if (key === RemoteKey.d) {
@@ -759,7 +753,6 @@ function Live({
         }
         dataBroadcast.press(key);
       },
-      stop: () => void navigate({ to: '/live' }),
     },
   );
   // commentRows は、右の列のコメントの一覧の行。操作バーの出し入れなどで描き直すたびに作らず、コメントが届いたときだけ作り直す。
@@ -902,7 +895,7 @@ function Live({
           <ShortcutsHelp
             opened={shortcutsOpen}
             onClose={() => setShortcutsOpen(false)}
-            actions={Object.keys(shortcuts) as ShortcutAction[]}
+            commands={commands}
             target={playerBoxRef}
             dataBroadcast
           />

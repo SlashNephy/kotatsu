@@ -51,9 +51,9 @@ import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useMediaSession } from '../../yunomi/useMediaSession';
-import type { ShortcutAction } from '../../yunomi/shortcuts';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
+import type { PlayerCommands } from '../../yunomi/commands';
 import {
   CaptureButton,
   openPictureInPicture,
@@ -357,7 +357,11 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
     videoState.setVolume(next);
     showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
   };
-  const shortcuts = {
+  const [autoPictureInPicture] = useAutoPictureInPicture();
+  // commands は、この画面で今使える操作 (#809)。キーと OS のメディア操作は、どちらもここから呼ぶ。
+  const commands: PlayerCommands = {
+    play: () => void videoRef.current?.play().catch(() => {}),
+    pause: () => videoRef.current?.pause(),
     togglePlay,
     seekBackward: () => {
       skip(-10);
@@ -392,35 +396,30 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
       retry();
       showFlash(t('player.flash.restarted'));
     },
+    seekTo: seek,
     toggleStats: () => setStatsShown(!statsShown),
     showShortcuts: () => setShortcutsOpen(true),
-  } satisfies Partial<Record<ShortcutAction, () => void>>;
-  usePlayerShortcuts(shortcuts);
+    ...(pip.supported
+      ? {
+          pictureInPicture: () => {
+            if (pip.container === null) {
+              openPictureInPicture(pip).catch(() => {});
+            }
+          },
+        }
+      : {}),
+  };
+  usePlayerShortcuts(commands);
   const programTitle = toHalfWidth(splitProgramMarks(program.name).name);
   useDocumentTitle([programTitle === '' ? null : programTitle]);
-  const [autoPictureInPicture] = useAutoPictureInPicture();
   useMediaSession(
     { title: programTitle, artist: toHalfWidth(program.service.name), artwork: null },
-    {
-      play: () => void videoRef.current?.play().catch(() => {}),
-      pause: () => videoRef.current?.pause(),
-      seekBackward: () => skip(-10),
-      seekForward: () => skip(10),
-      seekTo: (seconds) => seek(seconds),
-      ...(autoPictureInPicture && pip.supported
-        ? {
-            enterPictureInPicture: () => {
-              if (pip.container === null) {
-                openPictureInPicture(pip).catch(() => {});
-              }
-            },
-          }
-        : {}),
-    },
+    commands,
     {
       playing: !videoState.paused,
       position: { duration, position: seeking ?? position, playbackRate: rate },
     },
+    autoPictureInPicture,
   );
 
   // resumeAfterCut は、配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、エラーを出して利用者に任せる。
@@ -529,7 +528,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
           <ShortcutsHelp
             opened={shortcutsOpen}
             onClose={() => setShortcutsOpen(false)}
-            actions={Object.keys(shortcuts) as ShortcutAction[]}
+            commands={commands}
             target={playerBoxRef}
           />
           <PipButton pip={pip} />

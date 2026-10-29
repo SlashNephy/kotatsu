@@ -1,6 +1,8 @@
-import { describe, expect, test } from 'vitest';
+import { cleanup, renderHook } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { positionState } from './useMediaSession';
+import type { PlayerCommands } from './commands';
+import { positionState, useMediaSession } from './useMediaSession';
 
 describe('positionState', () => {
   test.each([
@@ -27,5 +29,65 @@ describe('positionState', () => {
     },
   ])('$name', ({ position, want }) => {
     expect(positionState(position)).toEqual(want);
+  });
+});
+
+describe('useMediaSession', () => {
+  // handlers は、OS に出している操作。jsdom には Media Session がないので、代わりを置く。
+  let handlers: Map<string, MediaSessionActionHandler>;
+  beforeEach(() => {
+    handlers = new Map();
+    vi.stubGlobal('MediaMetadata', class {});
+    Object.defineProperty(navigator, 'mediaSession', {
+      configurable: true,
+      value: {
+        metadata: null,
+        playbackState: 'none',
+        setActionHandler: (action: string, handler: MediaSessionActionHandler | null) => {
+          if (handler === null) {
+            handlers.delete(action);
+          } else {
+            handlers.set(action, handler);
+          }
+        },
+      },
+    });
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(navigator, 'mediaSession');
+  });
+
+  const metadata = { title: 'こたつのニュース', artist: 'こたつテレビ', artwork: null };
+  const playback = { playing: true, position: null };
+
+  test('今使える操作だけを OS に出し、OS の操作で登録簿の操作を呼ぶ', () => {
+    const seekTo = vi.fn();
+    const play = vi.fn();
+    renderHook(() => useMediaSession(metadata, { play, seekTo }, playback));
+
+    expect([...handlers.keys()].sort()).toEqual(['play', 'seekto']);
+    handlers.get('seekto')?.({ action: 'seekto', seekTime: 120 });
+    handlers.get('play')?.({ action: 'play' });
+    expect(seekTo).toHaveBeenCalledExactlyOnceWith(120);
+    expect(play).toHaveBeenCalledOnce();
+  });
+
+  test('使える操作が変わったら、OS に出し直す', () => {
+    // ライブで、局の一覧を読んで、次の局へ移れるようになったとき。
+    const { rerender } = renderHook(
+      ({ commands }) => useMediaSession(metadata, commands, playback),
+      { initialProps: { commands: { play: vi.fn() } as PlayerCommands } },
+    );
+    expect(handlers.has('nexttrack')).toBe(false);
+
+    const nextChannel = vi.fn();
+    rerender({ commands: { play: vi.fn(), nextChannel } });
+    handlers.get('nexttrack')?.({ action: 'nexttrack' });
+    expect(nextChannel).toHaveBeenCalledOnce();
+
+    rerender({ commands: { play: vi.fn() } });
+    expect(handlers.has('nexttrack')).toBe(false);
   });
 });

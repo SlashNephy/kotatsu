@@ -4,6 +4,7 @@ import { RelayEnvironmentProvider } from 'react-relay';
 import { Environment, Network, RecordSource, Store } from 'relay-runtime';
 import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from 'vitest';
 
+import type { PlayerCommandArgs } from './commands';
 import { RemoteKey } from './useDataBroadcast';
 import {
   announceDelayMs,
@@ -13,7 +14,6 @@ import {
   useRemotePlayer,
   type RemoteApi,
   type RemoteCommand,
-  type RemoteHandlers,
   type RemoteState,
 } from './useRemotePlayer';
 
@@ -32,13 +32,25 @@ const state: RemoteState = {
   keyGroups: [],
 };
 
-type MockHandlers = { [K in keyof RemoteHandlers]-?: Mock<NonNullable<RemoteHandlers[K]>> };
+type RemoteCommandId =
+  | 'play'
+  | 'pause'
+  | 'seekTo'
+  | 'setVolume'
+  | 'setMuted'
+  | 'selectAudio'
+  | 'pressKey'
+  | 'stop';
+type MockHandlers = {
+  [Id in RemoteCommandId]: Mock<(...args: PlayerCommandArgs[Id]) => void>;
+};
 
+// handlers は、ほかの端末から呼べる操作を、すべて使える状態にした登録簿。
 function handlers(): MockHandlers {
   return {
     play: vi.fn(),
     pause: vi.fn(),
-    seek: vi.fn(),
+    seekTo: vi.fn(),
     setVolume: vi.fn(),
     setMuted: vi.fn(),
     selectAudio: vi.fn(),
@@ -246,7 +258,7 @@ describe('dispatch', () => {
     {
       name: 'シーク',
       command: command(1, { type: 'SEEK', position: 120 }),
-      call: 'seek',
+      call: 'seekTo',
       args: [120],
     },
     {
@@ -278,8 +290,16 @@ describe('dispatch', () => {
     const remote = handlers();
     dispatch(command(1, { type: 'SEEK' }), remote);
     dispatch(command(2, { type: 'PRESS_KEY', key: 'power' }), remote);
-    expect(remote.seek).not.toHaveBeenCalled();
+    expect(remote.seekTo).not.toHaveBeenCalled();
     expect(remote.pressKey).not.toHaveBeenCalled();
+  });
+
+  test('今使えない操作は、捨てる', () => {
+    // 録画の再生では、データ放送のキーを受け付けない。
+    const { pressKey: _pressKey, ...recording } = handlers();
+    expect(() => dispatch(command(1, { type: 'PRESS_KEY', key: 'blue' }), recording)).not.toThrow();
+    dispatch(command(2, { type: 'PLAY' }), recording);
+    expect(recording.play).toHaveBeenCalledOnce();
   });
 });
 
