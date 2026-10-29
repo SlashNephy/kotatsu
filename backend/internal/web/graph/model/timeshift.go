@@ -24,6 +24,7 @@ type TimeshiftProgram struct {
 	EndAt        *time.Time      `json:"endAt,omitempty"`
 	PlayableFrom time.Time       `json:"playableFrom"`
 	Gaps         []*RecordingGap `json:"gaps"`
+	FromStart    bool            `json:"fromStart"`
 	// ServiceKey は、Mirakurun のサービス ID。スキーマには出さない。
 	ServiceKey int64 `json:"-"`
 }

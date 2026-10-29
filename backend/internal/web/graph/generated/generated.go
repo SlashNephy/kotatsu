@@ -846,6 +846,7 @@ type ComplexityRoot struct {
 	TimeshiftProgram struct {
 		EndAt        func(childComplexity int) int
 		EventID      func(childComplexity int) int
+		FromStart    func(childComplexity int) int
 		Gaps         func(childComplexity int) int
 		Name         func(childComplexity int) int
 		PlayableFrom func(childComplexity int) int
@@ -4799,6 +4800,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TimeshiftProgram.EventID(childComplexity), true
+	case "TimeshiftProgram.fromStart":
+		if e.ComplexityRoot.TimeshiftProgram.FromStart == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftProgram.FromStart(childComplexity), true
 	case "TimeshiftProgram.gaps":
 		if e.ComplexityRoot.TimeshiftProgram.Gaps == nil {
 			break
@@ -7536,6 +7543,11 @@ type TimeshiftProgram {
   endAt: Time
   "再生できる範囲の始まり。番組の頭のチャンクを破棄したか、録れていなかったら、startAt より後になる。再生位置は、ここからの秒で表す。"
   playableFrom: Time!
+  """
+  番組の頭から録れていて、頭から再生できるかどうか。mikan が番組の替わりに気づいて記録した番組だけが、頭から録れている。
+  タイムシフトに足したときや、落ちた mikan の後を録り直したときに放送中だった番組は、途中から録っている。
+  """
+  fromStart: Boolean!
   "playableFrom から番組の終わりまでの、途切れた区間。チャンクの間の穴で、再生の時間に含めない。"
   gaps: [RecordingGap!]!
   "バッファの TS を、playableFrom を起点に流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"
@@ -9164,6 +9176,8 @@ func (ec *executionContext) childFields_TimeshiftProgram(ctx context.Context, fi
 		return ec.fieldContext_TimeshiftProgram_endAt(ctx, field)
 	case "playableFrom":
 		return ec.fieldContext_TimeshiftProgram_playableFrom(ctx, field)
+	case "fromStart":
+		return ec.fieldContext_TimeshiftProgram_fromStart(ctx, field)
 	case "gaps":
 		return ec.fieldContext_TimeshiftProgram_gaps(ctx, field)
 	case "streamUrl":
@@ -26048,6 +26062,29 @@ func (ec *executionContext) fieldContext_TimeshiftProgram_playableFrom(_ context
 	return graphql.NewScalarFieldContext("TimeshiftProgram", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _TimeshiftProgram_fromStart(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftProgram) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftProgram_fromStart(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FromStart, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftProgram_fromStart(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftProgram", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _TimeshiftProgram_gaps(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftProgram) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -37417,6 +37454,11 @@ func (ec *executionContext) _TimeshiftProgram(ctx context.Context, sel ast.Selec
 			}
 		case "playableFrom":
 			out.Values[i] = ec._TimeshiftProgram_playableFrom(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "fromStart":
+			out.Values[i] = ec._TimeshiftProgram_fromStart(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

@@ -22,6 +22,7 @@ func TestPlayablePrograms(t *testing.T) {
 		start        time.Duration
 		playableFrom time.Duration
 		gaps         []period
+		fromStart    bool
 	}
 	tests := []struct {
 		name       string
@@ -59,6 +60,25 @@ func TestPlayablePrograms(t *testing.T) {
 			chunks:   []period{{20 * time.Minute, 25 * time.Minute}},
 			programs: []period{{0, 10 * time.Minute}, {10 * time.Minute, 30 * time.Minute}},
 			want:     []want{{start: 10 * time.Minute, playableFrom: 20 * time.Minute, gaps: []period{}}},
+		},
+		{
+			name: "前の番組の終わりに始まった番組だけを、頭から録れたものとする", configured: true,
+			chunks:   []period{{0, 0}},
+			programs: []period{{0, 5 * time.Minute}, {5 * time.Minute, 0}},
+			// 録り始めたときの番組は、途中から録っている。
+			want: []want{
+				{start: 0, playableFrom: 0, gaps: []period{}, fromStart: false},
+				{start: 5 * time.Minute, playableFrom: 5 * time.Minute, gaps: []period{}, fromStart: true},
+			},
+		},
+		{
+			name: "録り直した後の番組は、頭から録れていない", configured: true,
+			chunks:   []period{{0, 5 * time.Minute}, {7 * time.Minute, 0}},
+			programs: []period{{0, 5 * time.Minute}, {7 * time.Minute, 0}},
+			want: []want{
+				{start: 0, playableFrom: 0, gaps: []period{}, fromStart: false},
+				{start: 7 * time.Minute, playableFrom: 7 * time.Minute, gaps: []period{}, fromStart: false},
+			},
 		},
 		{
 			name: "タイムシフトから外したサービスは空", configured: false,
@@ -106,7 +126,7 @@ func TestPlayablePrograms(t *testing.T) {
 				for _, gap := range p.Gaps {
 					gaps = append(gaps, period{start: gap.From.Sub(base), end: gap.To.Sub(base)})
 				}
-				wants = append(wants, want{start: p.StartedAt.Sub(base), playableFrom: p.PlayableFrom.Sub(base), gaps: gaps})
+				wants = append(wants, want{start: p.StartedAt.Sub(base), playableFrom: p.PlayableFrom.Sub(base), gaps: gaps, fromStart: p.FromStart})
 			}
 			assert.Equal(t, tt.want, wants)
 		})

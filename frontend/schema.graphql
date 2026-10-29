@@ -2814,6 +2814,11 @@ type TimeshiftProgram {
   """
   playableFrom: Time!
   """
+  番組の頭から録れていて、頭から再生できるかどうか。mikan が番組の替わりに気づいて記録した番組だけが、頭から録れている。
+  タイムシフトに足したときや、落ちた mikan の後を録り直したときに放送中だった番組は、途中から録っている。
+  """
+  fromStart: Boolean!
+  """
   playableFrom から番組の終わりまでの、途切れた区間。チャンクの間の穴で、再生の時間に含めない。
   """
   gaps: [RecordingGap!]!

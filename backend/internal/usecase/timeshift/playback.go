@@ -26,6 +26,8 @@ type PlayableProgram struct {
 	PlayableFrom time.Time
 	// Gaps は、PlayableFrom から番組の終わりまでの、途切れた区間。始まりの順に並ぶ。
 	Gaps []Gap
+	// FromStart は、番組の頭から録れていて、頭から再生できるかどうか。
+	FromStart bool
 }
 
 // PlayablePrograms は、サービスのバッファから再生できる番組を、始まりの順に返す。
@@ -65,7 +67,11 @@ type span struct {
 }
 
 // playable は、番組ごとに、番組の時間と重なるチャンクから、再生できる範囲の始まりと途切れた区間を求める。
-// spans は始まりの順に並ぶ。重なるチャンクがない番組は、再生できないので除く。
+// programs と spans は始まりの順に並ぶ。重なるチャンクがない番組は、再生できないので除く。
+//
+// 番組の始まりは、mikan が番組の替わりに気づいた時刻である。録り始めたときと、落ちた mikan の後を録り直したときは、
+// 放送中の番組を、その時刻から始まる行に記録するので、行の始まりは番組の頭ではない。番組の替わりに気づいたときは、
+// 前の番組を閉じた時刻と同じ時刻で次の番組を始めるので、前の行の終わりと同じ時刻に始まった行だけを、頭から録れたものとする。
 func playable(programs []sqlc.TimeshiftProgram, spans []span, now time.Time) []*PlayableProgram {
 	result := []*PlayableProgram{}
 	for i := range programs {
@@ -78,7 +84,7 @@ func playable(programs []sqlc.TimeshiftProgram, spans []span, now time.Time) []*
 		var covered time.Time
 		p := &PlayableProgram{
 			EventID: program.EventID, Name: program.Name, StartedAt: program.StartedAt, EndedAt: program.EndedAt,
-			PlayableFrom: time.Time{}, Gaps: []Gap{},
+			PlayableFrom: time.Time{}, Gaps: []Gap{}, FromStart: false,
 		}
 		for _, s := range spans {
 			if !s.to.After(program.StartedAt) || !s.from.Before(end) {
@@ -97,6 +103,8 @@ func playable(programs []sqlc.TimeshiftProgram, spans []span, now time.Time) []*
 		if p.PlayableFrom.IsZero() {
 			continue
 		}
+		p.FromStart = i > 0 && programs[i-1].EndedAt != nil && programs[i-1].EndedAt.Equal(program.StartedAt) &&
+			p.PlayableFrom.Equal(program.StartedAt)
 		result = append(result, p)
 	}
 

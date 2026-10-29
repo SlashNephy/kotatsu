@@ -131,7 +131,7 @@ func toTimeshiftProgram(serviceID int64, program *timeshift.PlayableProgram) *mo
 
 	return &model.TimeshiftProgram{
 		EventID: int(program.EventID), Name: program.Name, StartAt: program.StartedAt, EndAt: program.EndedAt,
-		PlayableFrom: program.PlayableFrom, Gaps: gaps, ServiceKey: serviceID,
+		PlayableFrom: program.PlayableFrom, Gaps: gaps, FromStart: program.FromStart, ServiceKey: serviceID,
 	}
 }
 

@@ -204,7 +204,7 @@ func TestTimeshiftUnavailable(t *testing.T) {
 }
 
 const timeshiftPrograms = `query($id: ID!) { node(id: $id) { ... on Service {
-	timeshiftPrograms { service { id } eventId name startAt endAt playableFrom gaps { from to } streamUrl } } } }`
+	timeshiftPrograms { service { id } eventId name startAt endAt playableFrom fromStart gaps { from to } streamUrl } } } }`
 
 type timeshiftProgram struct {
 	Service struct {
@@ -215,6 +215,7 @@ type timeshiftProgram struct {
 	StartAt      time.Time  `json:"startAt"`
 	EndAt        *time.Time `json:"endAt"`
 	PlayableFrom time.Time  `json:"playableFrom"`
+	FromStart    bool       `json:"fromStart"`
 	Gaps         []struct {
 		From time.Time `json:"from"`
 		To   time.Time `json:"to"`
@@ -276,6 +277,7 @@ func TestTimeshiftPrograms(t *testing.T) {
 			assert.Nil(t, program.EndAt)
 			assert.True(t, now.Add(-40*time.Minute).Equal(program.StartAt))
 			assert.True(t, now.Add(-30*time.Minute).Equal(program.PlayableFrom))
+			assert.False(t, program.FromStart)
 			require.Len(t, program.Gaps, 1)
 			assert.True(t, now.Add(-25*time.Minute).Equal(program.Gaps[0].From))
 			assert.True(t, now.Add(-20*time.Minute).Equal(program.Gaps[0].To))
@@ -288,9 +290,9 @@ func TestTimeshiftPrograms(t *testing.T) {
 					EventID int `json:"eventId"`
 				} `json:"timeshiftProgram"`
 			}
-			require.Empty(t, viewer.query(t, one, map[string]any{varServiceID: timeshiftServiceID(), "startAt": program.StartAt}, &single))
+			require.Empty(t, viewer.query(t, one, map[string]any{varServiceID: timeshiftServiceID(), varStartAt: program.StartAt}, &single))
 			assert.Equal(t, 100, single.TimeshiftProgram.EventID)
-			assert.Equal(t, []string{codeNotFound}, viewer.query(t, one, map[string]any{varServiceID: timeshiftServiceID(), "startAt": now}, nil))
+			assert.Equal(t, []string{codeNotFound}, viewer.query(t, one, map[string]any{varServiceID: timeshiftServiceID(), varStartAt: now}, nil))
 		})
 	}
 }
