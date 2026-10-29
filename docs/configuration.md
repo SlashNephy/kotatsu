@@ -32,7 +32,7 @@ kotatsu all --config /etc/kotatsu/config.yaml
 | 文字列 | `listen: ":8080"` | `KOTATSU_SERVER_LISTEN=:8080` |
 | 真偽値 | `pooler: true` | `KOTATSU_DATABASE_POOLER=true` |
 | 一覧 | `scopes: [openid, email]` | `KOTATSU_AUTH_OIDC_SCOPES=openid,email` |
-| 対応 | `pools: {main: /mnt/main}` | `KOTATSU_STORAGE_POOLS=main=/mnt/main` |
+| 対応 | `pools: {main: /mnt/main/kotatsu}` | `KOTATSU_STORAGE_POOLS=main=/mnt/main/kotatsu` |
 
 環境変数では、一覧と対応の要素をカンマで区切ってください。
 対応の要素は「キー=値」の形で書きます。
