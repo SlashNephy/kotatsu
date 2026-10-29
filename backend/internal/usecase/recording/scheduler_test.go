@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -88,6 +89,16 @@ func newFixture(t *testing.T) *fixture {
 		assigner:     assign.NewRunner(pool, clk, noGuard, slog.New(slog.DiscardHandler), nil, nil),
 		scheduler:    recording.NewScheduler(pool, clk, noGuard, slog.New(slog.DiscardHandler), nil),
 	}
+}
+
+// streaming は、偽のチューナーサーバーのストリームを、誰かが開いているかどうかを返す。
+func (f *fixture) streaming(t *testing.T) bool {
+	t.Helper()
+
+	tuners, err := f.tuner.Tuners(t.Context())
+	require.NoError(t, err)
+
+	return slices.ContainsFunc(tuners, func(tuner *mirakurun.Tuner) bool { return len(tuner.Users) > 0 })
 }
 
 // reserve は、地上波の i 番目のサービスの、13:30 に始まる番組を予約し、チューナーを割り当てる。
