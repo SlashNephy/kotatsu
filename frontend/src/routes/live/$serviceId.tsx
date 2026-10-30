@@ -113,6 +113,7 @@ import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
 import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordingsQuery.graphql';
 import { ProgramOverlay } from '../../yunomi/ProgramOverlay';
+import { useProgramOsd } from '../../yunomi/programOsd';
 import { neighborServices } from '../../yunomi/channels';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
@@ -738,6 +739,9 @@ function Live({
     keyGroups: [...dataBroadcast.keyGroups],
   } satisfies PlayerSnapshot;
   const playerEvents = usePlayerEvents(player);
+  // osd は、選局したときと番組が変わったときに、番組の情報を映像に重ねて出しているか (#815)。
+  // バッファを再生している間は、放送中の番組と映像の番組が違うので出さない。
+  const osd = useProgramOsd(playerEvents, video !== null && !videoLoading, !timeshift.behind);
   useDocumentTitle(documentTitle(player));
   useMediaSession(
     player,
@@ -970,15 +974,14 @@ function Live({
               {/* データ放送と実況のコメントは、ライブのものなので、バッファを再生している間は重ねない。 */}
               {!timeshift.behind && dataBroadcast.layer}
               {!timeshift.behind && jikkyo.overlay}
-              {/* 番組名は映像の下に出すので、映像の下が見えない別のウィンドウでだけ重ねる。 */}
-              {pip.container !== null && (
-                <ProgramOverlay
-                  visible={controls.visible}
-                  serviceName={serviceName}
-                  current={program}
-                  next={nextProgram}
-                />
-              )}
+              {/* 番組名は映像の下に出すので、操作バーと一緒に重ねるのは、映像の下が見えない別のウィンドウでだけにする。
+                  選局したときと番組が変わったときは、どこでも数秒だけ重ねる。 */}
+              <ProgramOverlay
+                visible={osd || (pip.container !== null && controls.visible)}
+                serviceName={serviceName}
+                current={program}
+                next={nextProgram}
+              />
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {statsShown && <PlayerStats video={video} quality={quality} />}
               {dataBroadcast.receiving && (
@@ -1031,15 +1034,14 @@ function Live({
               {/* データ放送と実況のコメントは、ライブのものなので、バッファを再生している間は重ねない。 */}
               {!timeshift.behind && dataBroadcast.layer}
               {!timeshift.behind && jikkyo.overlay}
-              {/* 番組名は映像の下に出すので、映像の下が見えない別のウィンドウでだけ重ねる。 */}
-              {pip.container !== null && (
-                <ProgramOverlay
-                  visible={controls.visible}
-                  serviceName={serviceName}
-                  current={program}
-                  next={nextProgram}
-                />
-              )}
+              {/* 番組名は映像の下に出すので、操作バーと一緒に重ねるのは、映像の下が見えない別のウィンドウでだけにする。
+                  選局したときと番組が変わったときは、どこでも数秒だけ重ねる。 */}
+              <ProgramOverlay
+                visible={osd || (pip.container !== null && controls.visible)}
+                serviceName={serviceName}
+                current={program}
+                next={nextProgram}
+              />
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {statsShown && <PlayerStats video={video} quality={quality} />}
               {dataBroadcast.receiving && (
