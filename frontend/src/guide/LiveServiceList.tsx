@@ -106,13 +106,15 @@ function ServiceList({
   const currentType = data.guide.find((row) => row.service.id === serviceId)?.service.channelType
     .type;
   const [selectedType, setType] = useState<string | null>(null);
-  const type = selectedType ?? currentType ?? types[0]?.type ?? '';
   const listed = new Set(data.guide.map((row) => row.service.id));
   // recent は、この端末で最近見た局のうち、今見ている局を除いたもの (#816)。新しい順に並べる。
   const [recentIds] = useState(() => loadRecentChannels(browserStorage()));
   const recent = otherRecentChannels(recentIds, serviceId, listed).flatMap(
     (id) => data.guide.find((row) => row.service.id === id) ?? [],
   );
+  // 「最近」を選んでいても、読み直して並べる局がなくなったら (チップも消える)、見ている局の種別に戻す。
+  const selected = selectedType === recentType && recent.length === 0 ? null : selectedType;
+  const type = selected ?? currentType ?? types[0]?.type ?? '';
   // サブチャンネルがメインチャンネルと同じ番組を流しているときは、メインチャンネルだけを出す (ライブの一覧と同じ)。
   const shown =
     type === recentType
