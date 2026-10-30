@@ -1,17 +1,15 @@
 import { useEffect, useRef } from 'react';
 
-import { splitProgramMarks } from '../futon/programMarks';
+import { toHalfWidth } from '../futon';
 import { runCommand, type PlayerCommandId, type PlayerCommands } from './commands';
+import { playerTitle, type PlayerSnapshot } from './playerState';
 
-// Playback は、OS に知らせる再生の状態。position は、録画のようにシークできるときの再生位置 (秒)。ライブでは null。
-export type Playback = {
-  playing: boolean;
-  position: { duration: number; position: number; playbackRate: number } | null;
-};
+// PlaybackPosition は、録画のようにシークできるときの再生位置 (秒)。
+type PlaybackPosition = { duration: number; position: number; playbackRate: number };
 
 // positionState は、OS に渡す再生位置を返す。渡せない値 (長さが分からない、位置が範囲の外) は直すか、null にする。
 // 再生位置は秒の単位に丸める。OS は再生速度から位置を進めるので、細かく知らせ直さなくてよい。
-export function positionState(position: Playback['position']): MediaPositionState | null {
+export function positionState(position: PlaybackPosition | null): MediaPositionState | null {
   if (position === null || !Number.isFinite(position.duration) || position.duration <= 0) {
     return null;
   }
@@ -50,20 +48,24 @@ const mediaSessionCommands: readonly (readonly [
 ];
 
 // useMediaSession は、OS のメディア操作 (ロック画面やメディアキー) に、番組名、再生の状態と位置、操作を知らせる (設計書 7.5)。
-// 番組名の囲み文字は、OS の表示で潰れないよう外す。autoPictureInPicture を入れると、タブを切り替えたときに、
-// ブラウザが pictureInPicture の操作を呼び、視聴画面を別のウィンドウに出す (#492)。
+// 番組名の囲み文字は、OS の表示で潰れないよう外す。番組が分からなければ、局の名前を出す。autoPictureInPicture を入れると、
+// タブを切り替えたときに、ブラウザが pictureInPicture の操作を呼び、視聴画面を別のウィンドウに出す (#492)。
 export function useMediaSession(
-  metadata: { title: string; artist: string; artwork: string | null },
+  player: PlayerSnapshot,
   commands: PlayerCommands,
-  playback: Playback,
   autoPictureInPicture = false,
 ): void {
   const commandsRef = useRef(commands);
   commandsRef.current = commands;
-  const { artist, artwork } = metadata;
-  const title = splitProgramMarks(metadata.title).name;
-  const state = positionState(playback.position);
-  const { playing } = playback;
+  const artist = toHalfWidth(player.serviceName);
+  const title = playerTitle(player) ?? artist;
+  const { artwork } = player;
+  const state = positionState(
+    player.position === null || player.duration === null
+      ? null
+      : { duration: player.duration, position: player.position, playbackRate: player.playbackRate },
+  );
+  const playing = !player.paused;
   const duration = state?.duration;
   const position = state?.position;
   const playbackRate = state?.playbackRate;
