@@ -18,6 +18,8 @@ export const shortcutKeys: Readonly<Partial<Record<SimpleCommandId, readonly str
   volumeUp: ['ArrowUp'],
   volumeDown: ['ArrowDown'],
   toggleDataBroadcast: ['d'],
+  // b (back) で、直前に見ていた局へ戻る。もう一度押すと、元の局へ戻る (#816)。
+  lastChannel: ['b'],
   capture: ['s'],
   restart: ['r'],
   toggleStats: ['i'],

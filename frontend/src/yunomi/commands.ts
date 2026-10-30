@@ -29,6 +29,8 @@ export type PlayerCommandArgs = {
   pressKey: [key: RemoteKey];
   previousChannel: [];
   nextChannel: [];
+  // lastChannel は、直前に見ていた局へ戻る (#816)。
+  lastChannel: [];
   pictureInPicture: [];
   capture: [];
   restart: [];
@@ -76,6 +78,7 @@ export const playerCommands: Readonly<Record<PlayerCommandId, PlayerCommandDefin
   selectAudio: { repeatable: false },
   previousChannel: { repeatable: false },
   nextChannel: { repeatable: false },
+  lastChannel: { repeatable: false },
   pictureInPicture: { repeatable: false },
   capture: { repeatable: false },
   toggleDataBroadcast: { repeatable: false },

@@ -103,7 +103,7 @@ import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoLoading } from '../../yunomi/useVideoLoading';
 import { useVideoState } from '../../yunomi/useVideoState';
-import { stepVolume } from '../../yunomi/volume';
+import { browserStorage, stepVolume } from '../../yunomi/volume';
 import { currentVolume } from '../../yunomi/volumeBoost';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
@@ -113,6 +113,12 @@ import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.grap
 import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordingsQuery.graphql';
 import { ProgramOverlay } from '../../yunomi/ProgramOverlay';
 import { neighborServices } from '../../yunomi/channels';
+import {
+  loadRecentChannels,
+  otherRecentChannels,
+  recordChannel,
+  saveRecentChannels,
+} from '../../yunomi/recentChannels';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -307,6 +313,19 @@ function Live({
   const navigate = useNavigate();
   const neighbors = neighborServices(data.services, serviceId);
   const tune = (id: string) => void navigate({ to: '/live/$serviceId', params: { serviceId: id } });
+  // lastService は、この局の前に見ていた局 (#816)。局を変えると画面ごと作り直すので、開いたときの履歴から決める。
+  const [recent] = useState(() => loadRecentChannels(browserStorage()));
+  const lastService =
+    otherRecentChannels(
+      recent,
+      serviceId,
+      new Set(data.services.map((service) => service.id)),
+    )[0] ?? null;
+  // 開いた局を、履歴の先頭に置く。
+  useEffect(() => {
+    const storage = browserStorage();
+    saveRecentChannels(storage, recordChannel(loadRecentChannels(storage), serviceId));
+  }, [serviceId]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で調べる。
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -708,6 +727,8 @@ function Live({
     // 同じ種別の前後の局へ移る (#493)。移る先がなければ、使えない。
     ...(neighbors.previous === null ? {} : { previousChannel: () => tune(neighbors.previous!.id) }),
     ...(neighbors.next === null ? {} : { nextChannel: () => tune(neighbors.next!.id) }),
+    // 直前に見ていた局へ戻る (#816)。履歴がなければ、使えない。
+    ...(lastService === null ? {} : { lastChannel: () => tune(lastService) }),
     ...(pip.supported
       ? {
           pictureInPicture: () => {

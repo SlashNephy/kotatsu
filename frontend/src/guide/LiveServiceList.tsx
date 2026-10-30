@@ -8,6 +8,8 @@ import { useDataChanges } from '../changes/DataChanges';
 import type { ChangeChannel } from '../changes/dataChanges';
 import { nextWakeAt, ProgramTitle, useWakeAt, zonedFormat } from '../futon';
 import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
+import { loadRecentChannels, otherRecentChannels } from '../yunomi/recentChannels';
+import { browserStorage } from '../yunomi/volume';
 import type { LiveServiceListQuery } from './__generated__/LiveServiceListQuery.graphql';
 import { ServiceLabel } from './ServiceLabel';
 import { sharesWithListed } from './sharedEvent';
@@ -23,6 +25,9 @@ const liveChannels: readonly ChangeChannel[] = ['EPG'];
 
 // maxWaitMs は、時刻で読み直すまでに待つ最大の時間。放送中の番組がないサービスで、番組が始まるのに気づくのに使う。
 const maxWaitMs = 10 * 60_000;
+
+// recentType は、種別のチップのうち、最近見た局を並べるチップの値。チャンネル種別と重ならない値にする。
+const recentType = '#recent';
 
 type Range = { now: number; from: string; to: string };
 
@@ -102,20 +107,33 @@ function ServiceList({
     .type;
   const [selectedType, setType] = useState<string | null>(null);
   const type = selectedType ?? currentType ?? types[0]?.type ?? '';
-  // サブチャンネルがメインチャンネルと同じ番組を流しているときは、メインチャンネルだけを出す (ライブの一覧と同じ)。
   const listed = new Set(data.guide.map((row) => row.service.id));
-  const shown = data.guide.filter(
-    (row) =>
-      row.service.channelType.type === type &&
-      (row.service.id === serviceId || !sharesWithListed(row.programs[0], listed)),
+  // recent は、この端末で最近見た局のうち、今見ている局を除いたもの (#816)。新しい順に並べる。
+  const [recentIds] = useState(() => loadRecentChannels(browserStorage()));
+  const recent = otherRecentChannels(recentIds, serviceId, listed).flatMap(
+    (id) => data.guide.find((row) => row.service.id === id) ?? [],
   );
+  // サブチャンネルがメインチャンネルと同じ番組を流しているときは、メインチャンネルだけを出す (ライブの一覧と同じ)。
+  const shown =
+    type === recentType
+      ? recent
+      : data.guide.filter(
+          (row) =>
+            row.service.channelType.type === type &&
+            (row.service.id === serviceId || !sharesWithListed(row.programs[0], listed)),
+        );
 
   return (
     <Stack gap="xs">
       {/* 種別は、YouTube の絞り込みのチップと同じく、折り返して並べる。種別が多い (EXT など) と、横並びの切り替えには収まらない。 */}
-      {types.length > 1 && (
+      {types.length + (recent.length > 0 ? 1 : 0) > 1 && (
         <Chip.Group value={type} onChange={(value) => setType(value)}>
           <Group gap={6}>
+            {recent.length > 0 && (
+              <Chip value={recentType} size="xs">
+                {t('live.recentChannels')}
+              </Chip>
+            )}
             {types.map((channelType) => (
               <Chip key={channelType.type} value={channelType.type} size="xs">
                 {channelType.displayName}
