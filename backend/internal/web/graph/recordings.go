@@ -177,7 +177,8 @@ func searchParams(filter *model.RecordingFilter) (*query.SearchRecordingsParams,
 		params.TagIDs = append(params.TagIDs, tagID)
 	}
 	if filter.Keyword != nil && strings.TrimSpace(*filter.Keyword) != "" {
-		params.Keyword = new(escapeLike(strings.TrimSpace(*filter.Keyword)))
+		// 番組名と概要の正規化した列に当てるので、キーワードも正規化する (設計書 3.5)。
+		params.Keyword = new(escapeLike(domain.Normalize(strings.TrimSpace(*filter.Keyword))))
 	}
 	params.Since, params.Until = filter.Since, filter.Until
 	if filter.RuleID != nil {

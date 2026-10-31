@@ -1607,7 +1607,9 @@ func (r *Recorder) start(ctx context.Context, reservation *sqlc.GetReservationFo
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		started, err := sqlc.New(tx).StartRecording(ctx, sqlc.StartRecordingParams{
 			ID: id.New(), ReservationID: &reservation.ID, ServiceID: reservation.ServiceID, EventID: reservation.EventID,
-			Name: reservation.Name, Description: reservation.Description, StartAt: reservation.StartAt, EndAt: reservation.EndAt,
+			Name: reservation.Name, Description: reservation.Description,
+			NameNormalized: new(domain.Normalize(reservation.Name)), DescriptionNormalized: new(domain.Normalize(reservation.Description)),
+			StartAt: reservation.StartAt, EndAt: reservation.EndAt,
 			RecordedFrom: maxTime(at, *reservation.PlannedStartAt), Now: at,
 		})
 		if err != nil {

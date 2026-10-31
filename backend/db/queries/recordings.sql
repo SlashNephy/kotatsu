@@ -3,9 +3,10 @@
 -- 番組の音声の構成と映像の解像度は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
 -- ジャンルと、一致したルール (最も古いもの) とその名前も、予約から写す。予約やルールを消しても、録画を絞れるようにする (#468)。
 -- recorded_from は、録画ファイルに書き始める時刻。チューニングのために早く開いたストリームは、予定の開始まで捨てるので (#847)、now より後になることがある。
-INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
-  protected, drops, errors, scrambled, audios, video_resolution, genres, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
-SELECT @id, @reservation_id, @service_id, @event_id, @name, @description, @start_at, @end_at, 'recording', NULL,
+INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
+  start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, audios, video_resolution, genres, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
+SELECT @id, @reservation_id, @service_id, @event_id, @name, @description, @name_normalized, @description_normalized,
+  @start_at, @end_at, 'recording', NULL,
   false, 0, 0, 0,
   COALESCE((SELECT p.audios FROM programs p WHERE p.service_id = @service_id AND p.event_id = sqlc.narg(event_id)), '[]'::jsonb),
   (SELECT p.video_resolution FROM programs p WHERE p.service_id = @service_id AND p.event_id = sqlc.narg(event_id)),
@@ -259,9 +260,10 @@ SELECT id, reservation_id, name, start_at, end_at, service_name FROM failed;
 -- 同じ予約の録画がすでにあれば何もせず、0 を返す。記録したときは、同じ文で失敗の累計に足す (#960)。
 -- 返す行数は累計の行を更新した数で、記録した録画の数と同じになる (理由の行はマイグレーションが作っておく)。
 WITH inserted AS (
-  INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
-    recorded_from, recorded_until, created_at, updated_at)
-  VALUES (@id, @reservation_id, @service_id, @event_id, @name, @description, @start_at, @end_at, 'failed', 'recorder_unavailable',
+  INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
+    start_at, end_at, state, failure_reason, recorded_from, recorded_until, created_at, updated_at)
+  VALUES (@id, @reservation_id, @service_id, @event_id, @name, @description, @name_normalized, @description_normalized,
+    @start_at, @end_at, 'failed', 'recorder_unavailable',
     @recorded_from, @recorded_from, @now, @now)
   ON CONFLICT (reservation_id) DO NOTHING
   RETURNING failure_reason
@@ -296,8 +298,20 @@ WHERE l.recording_id = @recording_id AND r.state = 'recording' AND l.updated_at 
 -- name: InsertPromotedRecording :one
 -- タイムシフトのバッファから昇格する、放送の終わった番組の録画を、録画中として記録する (#1057、設計書 5.7)。予約とは結び付けない。
 -- nekonote のジョブが、バッファから書き出し終えたら完了にする。番組情報は、昇格したときの番組表から写す。
-INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
-  protected, drops, errors, scrambled, audios, video_resolution, genres, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
-VALUES (@id, NULL, @service_id, @event_id, @name, @description, @start_at, @end_at, 'recording', NULL,
+INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
+  start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, audios, video_resolution, genres, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
+VALUES (@id, NULL, @service_id, @event_id, @name, @description, @name_normalized, @description_normalized,
+  @start_at, @end_at, 'recording', NULL,
   false, 0, 0, 0, @audios, sqlc.narg(video_resolution), @genres, NULL, NULL, @recorded_from, NULL, @now, @now)
 RETURNING *;
+
+-- name: ListRecordingsWithoutNormalized :many
+-- 正規化した番組名と概要の列がまだない録画を、ID の順に max_count 件返す (#1044)。kotatsu migrate が埋める。
+SELECT id, name, description FROM recordings
+WHERE name_normalized IS NULL OR description_normalized IS NULL
+ORDER BY id
+LIMIT @max_count;
+
+-- name: SetRecordingNormalized :batchexec
+-- 録画の正規化した番組名と概要を書く (#1044)。
+UPDATE recordings SET name_normalized = @name_normalized, description_normalized = @description_normalized WHERE id = @id;

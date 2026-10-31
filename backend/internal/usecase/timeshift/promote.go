@@ -129,7 +129,7 @@ func (p *Promoter) enqueue(
 	}
 	q := sqlc.New(db)
 	insert := sqlc.InsertPromotedRecordingParams{
-		ID: id.New(), ServiceID: serviceID, EventID: &program.EventID, Name: program.Name, Description: "",
+		ID: id.New(), ServiceID: serviceID, EventID: &program.EventID, Name: program.Name, Description: "", NameNormalized: nil, DescriptionNormalized: nil,
 		StartAt: program.StartedAt, EndAt: *program.EndedAt, Audios: []byte("[]"), VideoResolution: nil, Genres: []byte("[]"),
 		RecordedFrom: time.Time{}, Now: now,
 	}
@@ -148,6 +148,7 @@ func (p *Promoter) enqueue(
 	from := minTime(insert.StartAt, program.StartedAt).Add(-time.Duration(settings.StartMarginSeconds) * time.Second)
 	to := maxTime(insert.EndAt, *program.EndedAt).Add(time.Duration(settings.EndMarginSeconds) * time.Second)
 	insert.RecordedFrom = from
+	insert.NameNormalized, insert.DescriptionNormalized = new(domain.Normalize(insert.Name)), new(domain.Normalize(insert.Description))
 
 	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)

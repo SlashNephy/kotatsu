@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
@@ -158,7 +159,7 @@ func (f *fixture) recordings(t *testing.T, first int, after *string, filter map[
 func TestRecordings(t *testing.T) {
 	t.Parallel()
 
-	const travelogue = "みかん紀行"
+	const travelogue = "みかん紀行 ＳＰ"
 	f, dir := newRecordingFixture(t)
 	oldest := f.addRecording(t, dir, episode1, "completed", 3*time.Hour)
 	f.addRecording(t, dir, travelogue, "failed", 2*time.Hour)
@@ -243,6 +244,13 @@ func TestRecordings(t *testing.T) {
 	assert.Equal(t, "アニメ", tags.Tags[0].Name)
 	assert.Equal(t, 1, tags.Tags[0].Recordings)
 
+	const filterKeyword = "keyword"
+	// 番組名と概要の正規化した列は、録画を書くときに Go で作る (設計書 3.5)。ほかの録画は、列を知らない古いバイナリが書いたものとして NULL のまま残す。
+	const travelogueDescription = "ＴＯＫＹＯ　ＭＸで放送"
+	_, err := f.pool.Exec(t.Context(), `UPDATE recordings SET description = $2, name_normalized = $3, description_normalized = $4 WHERE name = $1`,
+		travelogue, travelogueDescription, domain.Normalize(travelogue), domain.Normalize(travelogueDescription))
+	require.NoError(t, err)
+
 	tests := []struct {
 		name   string
 		filter map[string]any
@@ -250,8 +258,11 @@ func TestRecordings(t *testing.T) {
 	}{
 		{name: "タグ", filter: map[string]any{"tagIds": []string{tags.Tags[1].ID}}, want: []string{episode1}},
 		{name: "状態", filter: map[string]any{"states": []string{"COMPLETED", "PARTIAL"}}, want: []string{episode2, episode1}},
-		{name: "番組名", filter: map[string]any{"keyword": "こたつ特集 第"}, want: []string{episode2, episode1}},
-		{name: "LIKE の特別な文字は文字そのもの", filter: map[string]any{"keyword": "%"}, want: []string{}},
+		{name: "番組名", filter: map[string]any{filterKeyword: "こたつ特集 第"}, want: []string{episode2, episode1}},
+		{name: "正規化した番組名", filter: map[string]any{filterKeyword: "紀行 sp"}, want: []string{travelogue}},
+		{name: "正規化した概要", filter: map[string]any{filterKeyword: "tokyo mx"}, want: []string{travelogue}},
+		{name: "キーワードも正規化する", filter: map[string]any{filterKeyword: "ＴＯＫＹＯ"}, want: []string{travelogue}},
+		{name: "LIKE の特別な文字は文字そのもの", filter: map[string]any{filterKeyword: "%"}, want: []string{}},
 		{name: "放送の期間", filter: map[string]any{"since": testNow().Add(-150 * time.Minute)}, want: []string{episode2, travelogue}},
 	}
 	for _, tt := range tests {

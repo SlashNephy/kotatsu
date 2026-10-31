@@ -8,30 +8,34 @@ import (
 
 // Recording は、録画。
 type Recording struct {
-	ID                 uuid.UUID
-	APIID              int64
-	ReservationID      *uuid.UUID
-	ServiceID          int64
-	EventID            *int64
-	Name               string
-	Description        string
-	StartAt            time.Time
-	EndAt              time.Time
-	State              string
-	FailureReason      *string
-	Protected          bool
-	Drops              int64
-	Errors             int64
-	Scrambled          int64
-	Gaps               []byte
-	Audios             []byte
-	VideoResolution    *string
-	Genres             []byte
-	RuleID             *uuid.UUID
-	RuleName           *string
-	ProgramLost        bool
-	BroadcastStartedAt *time.Time
-	BroadcastEndedAt   *time.Time
+	ID            uuid.UUID
+	APIID         int64
+	ReservationID *uuid.UUID
+	ServiceID     int64
+	EventID       *int64
+	Name          string
+	Description   string
+	// NameNormalized と DescriptionNormalized は、NFKC で正規化した番組名と概要 (設計書 3.5)。録画の検索に使う。
+	// 列を知らない古いバイナリが書いた録画では nil。
+	NameNormalized        *string
+	DescriptionNormalized *string
+	StartAt               time.Time
+	EndAt                 time.Time
+	State                 string
+	FailureReason         *string
+	Protected             bool
+	Drops                 int64
+	Errors                int64
+	Scrambled             int64
+	Gaps                  []byte
+	Audios                []byte
+	VideoResolution       *string
+	Genres                []byte
+	RuleID                *uuid.UUID
+	RuleName              *string
+	ProgramLost           bool
+	BroadcastStartedAt    *time.Time
+	BroadcastEndedAt      *time.Time
 	// WaitedForBroadcast は、番組が遅れて始まったので、前の番組の TS を消し、放送中になるまで待ってから書き始めたかどうか (#1046)。
 	WaitedForBroadcast bool
 	NotBroadcast       bool

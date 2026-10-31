@@ -424,6 +424,8 @@ type Querier interface {
 	// ファイル名を付け直す録画と、ファイル名のテンプレートに当てはめる番組とサービスと、録画設定を求めるための予約。
 	// 録画中の録画は除く。予約が消えていれば、予約の項目は NULL になる。
 	ListRecordingsForRename(ctx context.Context, ids []uuid.UUID) ([]ListRecordingsForRenameRow, error)
+	// 正規化した番組名と概要の列がまだない録画を、ID の順に max_count 件返す (#1044)。kotatsu migrate が埋める。
+	ListRecordingsWithoutNormalized(ctx context.Context, maxCount int32) ([]ListRecordingsWithoutNormalizedRow, error)
 	// 予約に一致したルール。ルールを作った順に返す。
 	ListReservationRules(ctx context.Context, reservationIds []uuid.UUID) ([]ReservationRule, error)
 	// 時間帯 [from, to) に重なる予約を、開始時刻の順に返す。(after_start_at, after_id) より後ろから limit 件読む。
@@ -612,6 +614,7 @@ type Querier interface {
 	// 候補の数の 2 乗に比例して遅くなる (#852)。枝ごとの条件は、archived で分けて外に書く。
 	SearchProgramCandidates(ctx context.Context, arg SearchProgramCandidatesParams) ([]SearchProgramCandidatesRow, error)
 	// 録画を、録画を始めた日時の新しい順に返す。絞り込まない条件は NULL か空にする。
+	// キーワードは、NFKC で正規化して LIKE のために逃がしたものを渡し、正規化した番組名か概要に当てる (設計書 3.5、#1044)。
 	// ジャンルは、大分類 (lv1) のどれかに当たる録画を返す (#468)。
 	// before_at と before_id より前 (古い) の録画だけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
 	// 並び順をパラメーターで切り替えると、インデックスの順に読めなくなるので、古い順は SearchRecordingsOldest に分ける。
@@ -641,6 +644,8 @@ type Querier interface {
 	SetRecordingFilePath(ctx context.Context, arg SetRecordingFilePathParams) error
 	// 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
 	SetRecordingGaps(ctx context.Context, arg SetRecordingGapsParams) error
+	// 録画の正規化した番組名と概要を書く (#1044)。
+	SetRecordingNormalized(ctx context.Context, arg []SetRecordingNormalizedParams) *SetRecordingNormalizedBatchResults
 	SetRecordingProtected(ctx context.Context, arg SetRecordingProtectedParams) error
 	// 待った後に書き始めた日時を、実際に録画を始めた日時にする (#1046)。すでにセグメントがあれば (引き継いだ mikan が待ち直したときなど)、
 	// 最初のセグメントから録り始めているので、変えない。
