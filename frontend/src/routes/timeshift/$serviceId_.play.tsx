@@ -8,14 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
-import {
-  ErrorBoundary,
-  PageLoader,
-  ProgramTitle,
-  splitProgramMarks,
-  toHalfWidth,
-  useDocumentTitle,
-} from '../../futon';
+import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { WatchPanel } from '../../yunomi/WatchPanel';
 import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
@@ -46,6 +39,7 @@ import { hlsURL, toVideoFormat } from '../../yunomi/route';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { useHlsStream } from '../../yunomi/useHlsStream';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
+import { documentTitle, type PlayerSnapshot } from '../../yunomi/playerState';
 import { SeekBar } from '../../yunomi/SeekBar';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
@@ -411,17 +405,27 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
       : {}),
   };
   usePlayerShortcuts(commands);
-  const programTitle = toHalfWidth(splitProgramMarks(program.name).name);
-  useDocumentTitle([programTitle === '' ? null : programTitle]);
-  useMediaSession(
-    { title: programTitle, artist: toHalfWidth(program.service.name), artwork: null },
-    commands,
-    {
-      playing: !videoState.paused,
-      position: { duration, position: seeking ?? position, playbackRate: rate },
-    },
-    autoPictureInPicture,
-  );
+  // player は、プレイヤーの今の状態 (#811)。タブの題名と OS のメディア操作は、これを読む。
+  // バッファの番組には ID がないので、局と始まりの時刻で見分ける。
+  const player = {
+    kind: 'TIMESHIFT',
+    target: serviceId,
+    serviceName: program.service.name,
+    program: { id: `${serviceId}:${startAt}`, name: program.name },
+    artwork: null,
+    paused: videoState.paused,
+    position,
+    duration,
+    playbackRate: rate,
+    volume: videoState.volume,
+    muted: videoState.muted,
+    audios: audio.remote.choices,
+    audio: audio.remote.selected,
+    dataBroadcast: false,
+    keyGroups: [],
+  } satisfies PlayerSnapshot;
+  useDocumentTitle(documentTitle(player));
+  useMediaSession(player, commands, autoPictureInPicture);
 
   // resumeAfterCut は、配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、エラーを出して利用者に任せる。
   const resumeAfterCut = () => {

@@ -2,6 +2,7 @@ import { cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import type { PlayerCommands } from './commands';
+import type { PlayerSnapshot } from './playerState';
 import { positionState, useMediaSession } from './useMediaSession';
 
 describe('positionState', () => {
@@ -37,7 +38,14 @@ describe('useMediaSession', () => {
   let handlers: Map<string, MediaSessionActionHandler>;
   beforeEach(() => {
     handlers = new Map();
-    vi.stubGlobal('MediaMetadata', class {});
+    vi.stubGlobal(
+      'MediaMetadata',
+      class {
+        constructor(init: MediaMetadataInit) {
+          Object.assign(this, init);
+        }
+      },
+    );
     Object.defineProperty(navigator, 'mediaSession', {
       configurable: true,
       value: {
@@ -59,13 +67,44 @@ describe('useMediaSession', () => {
     Reflect.deleteProperty(navigator, 'mediaSession');
   });
 
-  const metadata = { title: 'こたつのニュース', artist: 'こたつテレビ', artwork: null };
-  const playback = { playing: true, position: null };
+  const player: PlayerSnapshot = {
+    kind: 'LIVE',
+    target: 'U2VydmljZTozMjczNjAxMDI0',
+    serviceName: 'こたつテレビ',
+    program: { id: 'UHJvZ3JhbTox', name: '🈑こたつのニュース' },
+    artwork: null,
+    paused: false,
+    position: null,
+    duration: null,
+    playbackRate: 1,
+    volume: 1,
+    muted: false,
+    audios: [],
+    audio: null,
+    dataBroadcast: false,
+    keyGroups: [],
+  };
+
+  test('番組名の囲み文字を外して出す。番組が分からなければ、局の名前を出す', () => {
+    const { rerender } = renderHook(({ current }) => useMediaSession(current, {}), {
+      initialProps: { current: player },
+    });
+    expect(navigator.mediaSession.metadata).toMatchObject({
+      title: 'こたつのニュース',
+      artist: 'こたつテレビ',
+    });
+
+    rerender({ current: { ...player, program: null } });
+    expect(navigator.mediaSession.metadata).toMatchObject({
+      title: 'こたつテレビ',
+      artist: 'こたつテレビ',
+    });
+  });
 
   test('今使える操作だけを OS に出し、OS の操作で登録簿の操作を呼ぶ', () => {
     const seekTo = vi.fn();
     const play = vi.fn();
-    renderHook(() => useMediaSession(metadata, { play, seekTo }, playback));
+    renderHook(() => useMediaSession(player, { play, seekTo }));
 
     expect([...handlers.keys()].sort()).toEqual(['play', 'seekto']);
     handlers.get('seekto')?.({ action: 'seekto', seekTime: 120 });
@@ -76,10 +115,9 @@ describe('useMediaSession', () => {
 
   test('使える操作が変わったら、OS に出し直す', () => {
     // ライブで、局の一覧を読んで、次の局へ移れるようになったとき。
-    const { rerender } = renderHook(
-      ({ commands }) => useMediaSession(metadata, commands, playback),
-      { initialProps: { commands: { play: vi.fn() } as PlayerCommands } },
-    );
+    const { rerender } = renderHook(({ commands }) => useMediaSession(player, commands), {
+      initialProps: { commands: { play: vi.fn() } as PlayerCommands },
+    });
     expect(handlers.has('nexttrack')).toBe(false);
 
     const nextChannel = vi.fn();
