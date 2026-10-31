@@ -1302,7 +1302,8 @@
     "tunerTaken": "録画のためにチューナーを使っているので、視聴が止まりました。録画中: {{recordings}}",
     "streamEnded": "チューナーサーバーとの接続が切れました",
     "retryIn": "{{seconds}}秒後につなぎ直します",
-    "reconnectNow": "今すぐつなぎ直す"
+    "reconnectNow": "今すぐつなぎ直す",
+    "programDetail": "この番組の詳細と録画予約"
   },
   "timeshift": {
     "backToLive": "ライブ視聴に戻る",

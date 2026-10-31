@@ -2,6 +2,7 @@ import { ActionIcon, Alert, Anchor, Button, Group, Menu, Modal, Stack, Text } fr
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
   Captions,
+  CircleDot,
   EllipsisVertical,
   ExternalLink,
   History,
@@ -26,6 +27,7 @@ import {
 } from '../../futon';
 import { CommentList } from '../../jikkyo/CommentList';
 import { WatchPanel } from '../../yunomi/WatchPanel';
+import { ProgramDetail } from '../../guide/ProgramDetail';
 import { LiveServiceList } from '../../guide/LiveServiceList';
 import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
 import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
@@ -543,6 +545,8 @@ function Live({
   };
   // externalOpen は、外部プレイヤー用の URL を発行するダイアログを出しているかどうか (#487)。
   const [externalOpen, setExternalOpen] = useState(false);
+  // detailOpen は、放送中の番組の詳細 (録画予約のボタンがある) を出しているかどうか (#826)。
+  const [detailOpen, setDetailOpen] = useState(false);
   // tuneRequest は、データ放送の文書が選局しようとしたサービス。確かめてから移る (#440)。
   const [tuneRequest, setTuneRequest] = useState<{ id: string; name: string } | null>(null);
   // バッファへシークできるなら、長く止めた後も、止めた位置からバッファで続けるので、読み直さない。
@@ -1157,6 +1161,11 @@ function Live({
           </Group>
         </Stack>
       </Modal>
+      {/* 放送中の番組の詳細。番組表と同じく、録画予約やルールの作成をここからできる (#826)。 */}
+      <ProgramDetail
+        programId={detailOpen && program !== null ? program.id : undefined}
+        onClose={() => setDetailOpen(false)}
+      />
       {/* VLC や mpv で開く URL。開いている間は、ブラウザの視聴とは別にチューナーを使う (#487)。 */}
       <Modal
         opened={externalOpen}
@@ -1194,6 +1203,14 @@ function Live({
                     </ActionIcon>
                   </Menu.Target>
                   <Menu.Dropdown>
+                    {program !== null && (
+                      <Menu.Item
+                        leftSection={<CircleDot size={14} aria-hidden />}
+                        onClick={() => setDetailOpen(true)}
+                      >
+                        {t('live.programDetail')}
+                      </Menu.Item>
+                    )}
                     <Menu.Item
                       leftSection={<ExternalLink size={14} aria-hidden />}
                       onClick={() => setExternalOpen(true)}
