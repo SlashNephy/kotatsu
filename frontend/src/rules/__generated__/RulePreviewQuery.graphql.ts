@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a60194cbd5d3845194bb6497066d4bf8>>
+ * @generated SignedSource<<cf082fccc13f1548739170fcfdb33d7c>>
  * @lightSyntaxTransform
  */
 
@@ -10,6 +10,7 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type KeywordField = "DESCRIPTION" | "EXTENDED" | "NAME" | "%future added value";
 export type KeywordMatch = "ALL" | "ANY" | "%future added value";
+export type RuleWarningKind = "UNFILTERABLE_REGEXP" | "%future added value";
 export type RuleInput = {
   avoidDuplicates?: boolean;
   conditions: ProgramConditionsInput;
@@ -81,6 +82,11 @@ export type RulePreviewQuery$data = {
       readonly hasNextPage: boolean;
     };
   };
+  readonly ruleWarnings: ReadonlyArray<{
+    readonly exclude: boolean;
+    readonly index: number;
+    readonly kind: RuleWarningKind;
+  }>;
 };
 export type RulePreviewQuery = {
   response: RulePreviewQuery$data;
@@ -95,47 +101,82 @@ var v0 = [
     "name": "input"
   }
 ],
-v1 = [
+v1 = {
+  "kind": "Variable",
+  "name": "input",
+  "variableName": "input"
+},
+v2 = {
+  "alias": null,
+  "args": [
+    (v1/*:: as any*/)
+  ],
+  "concreteType": "RuleWarning",
+  "kind": "LinkedField",
+  "name": "ruleWarnings",
+  "plural": true,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "kind",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "exclude",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "index",
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v3 = [
   {
     "kind": "Literal",
     "name": "first",
     "value": 30
   },
-  {
-    "kind": "Variable",
-    "name": "input",
-    "variableName": "input"
-  }
+  (v1/*:: as any*/)
 ],
-v2 = {
+v4 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "id",
   "storageKey": null
 },
-v3 = {
+v5 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "name",
   "storageKey": null
 },
-v4 = {
+v6 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "startAt",
   "storageKey": null
 },
-v5 = {
+v7 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v6 = {
+v8 = {
   "alias": null,
   "args": null,
   "concreteType": "PageInfo",
@@ -160,9 +201,10 @@ return {
     "metadata": null,
     "name": "RulePreviewQuery",
     "selections": [
+      (v2/*:: as any*/),
       {
         "alias": null,
-        "args": (v1/*:: as any*/),
+        "args": (v3/*:: as any*/),
         "concreteType": "ProgramConnection",
         "kind": "LinkedField",
         "name": "previewRule",
@@ -184,9 +226,9 @@ return {
                 "name": "node",
                 "plural": false,
                 "selections": [
-                  (v2/*:: as any*/),
-                  (v3/*:: as any*/),
                   (v4/*:: as any*/),
+                  (v5/*:: as any*/),
+                  (v6/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -195,8 +237,8 @@ return {
                     "name": "service",
                     "plural": false,
                     "selections": [
-                      (v3/*:: as any*/),
-                      (v5/*:: as any*/)
+                      (v5/*:: as any*/),
+                      (v7/*:: as any*/)
                     ],
                     "storageKey": null
                   }
@@ -206,7 +248,7 @@ return {
             ],
             "storageKey": null
           },
-          (v6/*:: as any*/)
+          (v8/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -220,9 +262,10 @@ return {
     "kind": "Operation",
     "name": "RulePreviewQuery",
     "selections": [
+      (v2/*:: as any*/),
       {
         "alias": null,
-        "args": (v1/*:: as any*/),
+        "args": (v3/*:: as any*/),
         "concreteType": "ProgramConnection",
         "kind": "LinkedField",
         "name": "previewRule",
@@ -244,9 +287,9 @@ return {
                 "name": "node",
                 "plural": false,
                 "selections": [
-                  (v2/*:: as any*/),
-                  (v3/*:: as any*/),
                   (v4/*:: as any*/),
+                  (v5/*:: as any*/),
+                  (v6/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -255,9 +298,9 @@ return {
                     "name": "service",
                     "plural": false,
                     "selections": [
-                      (v3/*:: as any*/),
                       (v5/*:: as any*/),
-                      (v2/*:: as any*/)
+                      (v7/*:: as any*/),
+                      (v4/*:: as any*/)
                     ],
                     "storageKey": null
                   }
@@ -267,23 +310,23 @@ return {
             ],
             "storageKey": null
           },
-          (v6/*:: as any*/)
+          (v8/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "56bc9f40e2916a479cea885a7d6f88d9",
+    "cacheID": "b6abbd621faa20ac63a7d2d3c0a1c9c7",
     "id": null,
     "metadata": {},
     "name": "RulePreviewQuery",
     "operationKind": "query",
-    "text": "query RulePreviewQuery(\n  $input: RuleInput!\n) {\n  previewRule(input: $input, first: 30) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
+    "text": "query RulePreviewQuery(\n  $input: RuleInput!\n) {\n  ruleWarnings(input: $input) {\n    kind\n    exclude\n    index\n  }\n  previewRule(input: $input, first: 30) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "97e3fdddfe3d0dd6cd29ead8839582ea";
+(node as any).hash = "9115601e0a72f795520ea8bb5b930731";
 
 export default node;

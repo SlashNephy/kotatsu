@@ -287,6 +287,24 @@ func (r *Resolver) recordingRule(ctx context.Context, recording *model.Recording
 	return toRuleModel(ctx, found)
 }
 
+// ruleWarnings は、保存する前のルールの、照合を重くする書き方を返す (#904)。ログインしたユーザーにだけ返す。
+func (r *Resolver) ruleWarnings(ctx context.Context, in *model.RuleInput) ([]*model.RuleWarning, error) {
+	if _, err := viewer(ctx); err != nil {
+		return nil, err
+	}
+	input, err := toRuleInput(in)
+	if err != nil {
+		return nil, err
+	}
+	refs := match.UnfilterableKeywords(input.Conditions)
+	warnings := make([]*model.RuleWarning, 0, len(refs))
+	for _, ref := range refs {
+		warnings = append(warnings, &model.RuleWarning{Kind: model.RuleWarningKindUnfilterableRegexp, Exclude: ref.Exclude, Index: ref.Index})
+	}
+
+	return warnings, nil
+}
+
 // previewRule は、保存する前のルールに一致する番組を、開始時刻の順に返す。
 // ルールの照合 (rule.Engine) と同じく、放送が始まった番組、終了時刻が未定の番組、ルールの有効期間の外の番組は含めない。
 func (r *Resolver) previewRule(ctx context.Context, in *model.RuleInput, first int, after *string) (*model.ProgramConnection, error) {

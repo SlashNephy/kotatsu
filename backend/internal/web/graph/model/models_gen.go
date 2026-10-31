@@ -961,6 +961,15 @@ type RuleInput struct {
 	FollowEventRelay    bool `json:"followEventRelay"`
 }
 
+// ルールの照合を重くする書き方 (#904、設計書 3.5)。警告にとどめ、保存は止めない。
+type RuleWarning struct {
+	Kind RuleWarningKind `json:"kind"`
+	// 除外するキーワード (excludeKeywords) かどうか
+	Exclude bool `json:"exclude"`
+	// keywords か excludeKeywords の中の位置 (0 から)
+	Index int `json:"index"`
+}
+
 // ログイン中のユーザーの第二要素の状態 (設計書 9.3)。
 type SecondFactorStatus struct {
 	// TOTP を登録しているかどうか。
@@ -2207,6 +2216,60 @@ func (e *Role) UnmarshalJSON(b []byte) error {
 }
 
 func (e Role) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type RuleWarningKind string
+
+const (
+	// 必ず含む文字列を決められない正規表現で、詳細まで探す。前段で絞り込めないので、すべての番組の詳細を正規表現にかける。
+	RuleWarningKindUnfilterableRegexp RuleWarningKind = "UNFILTERABLE_REGEXP"
+)
+
+var AllRuleWarningKind = []RuleWarningKind{
+	RuleWarningKindUnfilterableRegexp,
+}
+
+func (e RuleWarningKind) IsValid() bool {
+	switch e {
+	case RuleWarningKindUnfilterableRegexp:
+		return true
+	}
+	return false
+}
+
+func (e RuleWarningKind) String() string {
+	return string(e)
+}
+
+func (e *RuleWarningKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = RuleWarningKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid RuleWarningKind", str)
+	}
+	return nil
+}
+
+func (e RuleWarningKind) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *RuleWarningKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e RuleWarningKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
