@@ -257,37 +257,39 @@ type ProgramArchive struct {
 }
 
 type Recording struct {
-	ID                 uuid.UUID
-	APIID              int64
-	ReservationID      *uuid.UUID
-	ServiceID          int64
-	EventID            *int64
-	Name               string
-	Description        string
-	StartAt            time.Time
-	EndAt              time.Time
-	State              string
-	FailureReason      *string
-	Protected          bool
-	Drops              int64
-	Errors             int64
-	Scrambled          int64
-	Gaps               []byte
-	Audios             []byte
-	VideoResolution    *string
-	Genres             []byte
-	RuleID             *uuid.UUID
-	RuleName           *string
-	ProgramLost        bool
-	BroadcastStartedAt *time.Time
-	BroadcastEndedAt   *time.Time
-	WaitedForBroadcast bool
-	NotBroadcast       bool
-	AiredEventID       *int64
-	RecordedFrom       time.Time
-	RecordedUntil      *time.Time
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID                    uuid.UUID
+	APIID                 int64
+	ReservationID         *uuid.UUID
+	ServiceID             int64
+	EventID               *int64
+	Name                  string
+	Description           string
+	NameNormalized        *string
+	DescriptionNormalized *string
+	StartAt               time.Time
+	EndAt                 time.Time
+	State                 string
+	FailureReason         *string
+	Protected             bool
+	Drops                 int64
+	Errors                int64
+	Scrambled             int64
+	Gaps                  []byte
+	Audios                []byte
+	VideoResolution       *string
+	Genres                []byte
+	RuleID                *uuid.UUID
+	RuleName              *string
+	ProgramLost           bool
+	BroadcastStartedAt    *time.Time
+	BroadcastEndedAt      *time.Time
+	WaitedForBroadcast    bool
+	NotBroadcast          bool
+	AiredEventID          *int64
+	RecordedFrom          time.Time
+	RecordedUntil         *time.Time
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 type RecordingAssignment struct {

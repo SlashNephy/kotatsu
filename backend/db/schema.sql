@@ -779,6 +779,10 @@ CREATE TABLE recordings (
   -- 番組情報。録画を始めたときの予約からコピーし、放送後に確定したものに置き換える。
   name text NOT NULL,
   description text NOT NULL,
+  -- NFKC で正規化した番組名と概要 (設計書 3.5)。録画の検索に使う。列を足す前の録画は、kotatsu migrate が埋める。
+  -- 列を知らない古いバイナリが書いた録画では NULL になり、検索では正規化していない番組名と概要に当てる。
+  name_normalized text,
+  description_normalized text,
   start_at timestamptz NOT NULL,
   end_at timestamptz NOT NULL,
   -- 状態は、録画中 (recording)、完了 (completed)、エラーあり完了 (completed_with_errors)、一部のみ (partial)、失敗 (failed) のどれか。

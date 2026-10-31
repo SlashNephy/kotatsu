@@ -18,6 +18,7 @@ import (
 	"github.com/pressly/goose/v3/lock"
 
 	"github.com/SlashNephy/kotatsu/db"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 )
 
@@ -66,6 +67,10 @@ func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
 		)
 	}
 
+	if err := fillRecordingsNormalized(ctx, logger, migrationPool); err != nil {
+		return err
+	}
+
 	if err := sqlc.New(pool).RaiseMinBinaryVersion(ctx, sqlc.RaiseMinBinaryVersionParams{
 		MinBinaryVersion: CompatibleSince,
 		UpdatedAt:        time.Now(),
@@ -78,6 +83,49 @@ func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
 		return fmt.Errorf("failed to get the schema version: %w", err)
 	}
 	logger.InfoContext(ctx, "database schema is up to date", slog.Int64("version", current), slog.Int("applied", len(results)))
+
+	return nil
+}
+
+// fillBatchSize は、正規化した列を埋めるときに、1 回に読み書きする録画の数。
+const fillBatchSize = 500
+
+// fillRecordingsNormalized は、正規化した番組名と概要の列がない録画の列を埋める (#1044、設計書 3.5)。
+// 正規化は囲み文字を括弧にしてから NFKC にするので (domain.Normalize)、SQL の normalize では書けず、Go で埋める。
+// 列を足す前の録画と、列を知らない古いバイナリがローリング更新の間に書いた録画を、次の kotatsu migrate で埋める。
+func fillRecordingsNormalized(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
+	q := sqlc.New(pool)
+	filled := 0
+	for {
+		rows, err := q.ListRecordingsWithoutNormalized(ctx, fillBatchSize)
+		if err != nil {
+			return fmt.Errorf("failed to list the recordings to normalize: %w", err)
+		}
+		if len(rows) == 0 {
+			break
+		}
+		params := make([]sqlc.SetRecordingNormalizedParams, 0, len(rows))
+		for _, row := range rows {
+			params = append(params, sqlc.SetRecordingNormalizedParams{
+				ID:                    row.ID,
+				NameNormalized:        new(domain.Normalize(row.Name)),
+				DescriptionNormalized: new(domain.Normalize(row.Description)),
+			})
+		}
+		errs := []error{}
+		q.SetRecordingNormalized(ctx, params).Exec(func(i int, err error) {
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to normalize recording %s: %w", params[i].ID, err))
+			}
+		})
+		if err := errors.Join(errs...); err != nil {
+			return err
+		}
+		filled += len(rows)
+	}
+	if filled > 0 {
+		logger.InfoContext(ctx, "recordings normalized", slog.Int("count", filled))
+	}
 
 	return nil
 }

@@ -53,6 +53,7 @@ SELECT * FROM watch_progress WHERE user_id = @user_id AND recording_id = ANY(@re
 
 -- name: SearchRecordings :many
 -- 録画を、録画を始めた日時の新しい順に返す。絞り込まない条件は NULL か空にする。
+-- キーワードは、NFKC で正規化して LIKE のために逃がしたものを渡し、正規化した番組名か概要に当てる (設計書 3.5、#1044)。
 -- ジャンルは、大分類 (lv1) のどれかに当たる録画を返す (#468)。
 -- before_at と before_id より前 (古い) の録画だけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
 -- 並び順をパラメーターで切り替えると、インデックスの順に読めなくなるので、古い順は SearchRecordingsOldest に分ける。
@@ -62,7 +63,9 @@ WHERE (cardinality(@states::text[]) = 0 OR r.state = ANY(@states::text[]))
   AND (cardinality(@tag_ids::uuid[]) = 0 OR EXISTS (
     SELECT 1 FROM recording_tags rt WHERE rt.recording_id = r.id AND rt.tag_id = ANY(@tag_ids::uuid[])
   ))
-  AND (sqlc.narg(keyword)::text IS NULL OR r.name ILIKE '%' || sqlc.narg(keyword)::text || '%')
+  AND (sqlc.narg(keyword)::text IS NULL
+    OR COALESCE(r.name_normalized, r.name) ILIKE '%' || sqlc.narg(keyword)::text || '%'
+    OR COALESCE(r.description_normalized, r.description) ILIKE '%' || sqlc.narg(keyword)::text || '%')
   AND (sqlc.narg(rule_id)::uuid IS NULL OR r.rule_id = sqlc.narg(rule_id)::uuid)
   AND (cardinality(@genres::int[]) = 0 OR EXISTS (
     SELECT 1 FROM jsonb_array_elements(r.genres) g WHERE (g ->> 'lv1')::int = ANY(@genres::int[])
@@ -82,7 +85,9 @@ WHERE (cardinality(@states::text[]) = 0 OR r.state = ANY(@states::text[]))
   AND (cardinality(@tag_ids::uuid[]) = 0 OR EXISTS (
     SELECT 1 FROM recording_tags rt WHERE rt.recording_id = r.id AND rt.tag_id = ANY(@tag_ids::uuid[])
   ))
-  AND (sqlc.narg(keyword)::text IS NULL OR r.name ILIKE '%' || sqlc.narg(keyword)::text || '%')
+  AND (sqlc.narg(keyword)::text IS NULL
+    OR COALESCE(r.name_normalized, r.name) ILIKE '%' || sqlc.narg(keyword)::text || '%'
+    OR COALESCE(r.description_normalized, r.description) ILIKE '%' || sqlc.narg(keyword)::text || '%')
   AND (sqlc.narg(rule_id)::uuid IS NULL OR r.rule_id = sqlc.narg(rule_id)::uuid)
   AND (cardinality(@genres::int[]) = 0 OR EXISTS (
     SELECT 1 FROM jsonb_array_elements(r.genres) g WHERE (g ->> 'lv1')::int = ANY(@genres::int[])
