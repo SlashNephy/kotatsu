@@ -301,6 +301,26 @@ func (c *Client) OpenServiceStream(ctx context.Context, serviceID int64, opts *S
 	return c.openStream(req, c.idleTimeout)
 }
 
+// OpenChannelStream は、チャンネル種別 channelType (GR、BS など) のチャンネル channel のストリームを、
+// そのチャンネルのすべてのサービスを含んだまま開く (#830)。返す io.ReadCloser は、読み終えたら必ず閉じる。
+// opts が nil なら、スクランブルを解除せず、優先度 0 で開く。チューナーを確保できなければ、StatusCode が 503 の *APIError を返す。
+func (c *Client) OpenChannelStream(ctx context.Context, channelType, channel string, opts *StreamOptions) (io.ReadCloser, error) {
+	if opts == nil {
+		opts = &StreamOptions{Decode: false, Priority: 0}
+	}
+	values := url.Values{}
+	if opts.Decode {
+		values.Set("decode", "1")
+	}
+	req, err := c.newRequest(ctx, "api/channels/"+url.PathEscape(channelType)+"/"+url.PathEscape(channel)+"/stream", values)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set(PriorityHeader, strconv.Itoa(opts.Priority))
+
+	return c.openStream(req, c.idleTimeout)
+}
+
 // ServiceLogo は、サービス ID (networkId × 100000 + serviceId) のロゴの画像を返す。Mirakurun 互換のサーバーは PNG を返す。
 // サービスがなければ StatusCode が 404、ロゴをまだ受信していなければ 503 の *APIError を返す。
 func (c *Client) ServiceLogo(ctx context.Context, serviceID int64) ([]byte, error) {

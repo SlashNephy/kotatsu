@@ -716,12 +716,13 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	var opener streamapi.ServiceOpener
 	var logos streamapi.LogoFetcher
 	var ratesOpener stream.ServiceOpener
+	var channelOpener stream.ChannelOpener
 	if deps.Config.Tuner.URL.Value() != "" {
 		client, err := newTunerClient(deps)
 		if err != nil {
 			return nil, err
 		}
-		opener, logos, ratesOpener = client, client, client
+		opener, logos, ratesOpener, channelOpener = client, client, client, client
 	}
 	graphQL := graph.NewHandler(&graph.Options{
 		DB:                deps.DB,
@@ -741,6 +742,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		WebPush:           webPush,
 		StreamSigner:      signer,
 		LiveRates:         stream.NewLiveRatesWatcher(ratesOpener, deps.Clock, 0),
+		ChannelInspector:  stream.NewChannelInspector(channelOpener, deps.Clock),
 		JikkyoTable:       jikkyoTable,
 		JikkyoClient:      jikkyoClient,
 		Changes:           changes,

@@ -61,10 +61,12 @@ type Resolver struct {
 	webPush      *webpush.Service
 	streamSigner *stream.Signer
 	// liveRates は、ライブのサービスの内訳を数える (#812)。
-	liveRates    *stream.LiveRatesWatcher
-	jikkyoTable  *jikkyo.Table
-	jikkyoClient *jikkyoclient.Client
-	logger       *slog.Logger
+	liveRates *stream.LiveRatesWatcher
+	// channelInspector は、物理チャンネルの TS を調べる (#830)。
+	channelInspector *stream.ChannelInspector
+	jikkyoTable      *jikkyo.Table
+	jikkyoClient     *jikkyoclient.Client
+	logger           *slog.Logger
 	// store は、録画のファイルと生成物を読むための、このインスタンスにマウントしたプール。
 	store     *kago.Store
 	library   *library.Library

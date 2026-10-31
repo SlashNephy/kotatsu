@@ -91,10 +91,12 @@ type programTable struct {
 	programs map[uint16]*Program
 	// generation は、PAT か PMT を読んで構成が変わるたびに増える。
 	generation int
+	// transportStreamID は、最後に読んだ PAT の transport_stream_id (#830)。まだ読んでいなければ nil。
+	transportStreamID *uint16
 }
 
 func newProgramTable() *programTable {
-	return &programTable{patVersion: -1, pmtPIDs: map[uint16]uint16{}, programs: map[uint16]*Program{}, generation: 0}
+	return &programTable{patVersion: -1, pmtPIDs: map[uint16]uint16{}, programs: map[uint16]*Program{}, generation: 0, transportStreamID: nil}
 }
 
 // isPMTPID は、pid が PAT に書かれた PMT の PID かどうかを返す。
@@ -114,6 +116,7 @@ func (t *programTable) handlePAT(section []byte) {
 	if header == nil || header.tableID != tableIDPAT || !header.currentNext {
 		return
 	}
+	t.transportStreamID = new(header.tableIDExtension)
 	// PAT は 100 ミリ秒ほどの間隔で同じ内容が繰り返し届くので、構成が変わったときだけ世代を進める。
 	changed := false
 	if int(header.version) != t.patVersion {

@@ -103,6 +103,14 @@ type ComplexityRoot struct {
 		SuperimposeRecorded func(childComplexity int) int
 	}
 
+	ChannelInspection struct {
+		Others            func(childComplexity int) int
+		Programs          func(childComplexity int) int
+		Seconds           func(childComplexity int) int
+		TotalBps          func(childComplexity int) int
+		TransportStreamID func(childComplexity int) int
+	}
+
 	ChannelType struct {
 		DisplayName func(childComplexity int) int
 		SortOrder   func(childComplexity int) int
@@ -202,6 +210,23 @@ type ComplexityRoot struct {
 		Services           func(childComplexity int) int
 	}
 
+	InspectedProgram struct {
+		Bps       func(childComplexity int) int
+		Name      func(childComplexity int) int
+		ServiceID func(childComplexity int) int
+		Streams   func(childComplexity int) int
+	}
+
+	InspectedStream struct {
+		Bps        func(childComplexity int) int
+		Drops      func(childComplexity int) int
+		Errors     func(childComplexity int) int
+		Kind       func(childComplexity int) int
+		Pid        func(childComplexity int) int
+		Scrambled  func(childComplexity int) int
+		StreamType func(childComplexity int) int
+	}
+
 	Instance struct {
 		Address     func(childComplexity int) int
 		Alive       func(childComplexity int) int
@@ -282,6 +307,7 @@ type ComplexityRoot struct {
 		DenyOAuthAuthorization       func(childComplexity int, query string) int
 		DisableUser                  func(childComplexity int, id string) int
 		EnableUser                   func(childComplexity int, id string) int
+		InspectChannel               func(childComplexity int, channelType string, channel string) int
 		MarkAllNotificationsRead     func(childComplexity int) int
 		MarkNotificationsRead        func(childComplexity int, ids []string) int
 		ReanalyzeRecording           func(childComplexity int, id string) int
@@ -979,6 +1005,7 @@ type MutationResolver interface {
 	DeleteGuideView(ctx context.Context, id string) (string, error)
 	CreateAPIToken(ctx context.Context, name string) (*model.CreatedAPIToken, error)
 	DeleteAPIToken(ctx context.Context, id string) (string, error)
+	InspectChannel(ctx context.Context, channelType string, channel string) (*model.ChannelInspection, error)
 	CleanUpMissingRecordings(ctx context.Context, ids []string) (*model.CleanUpMissingRecordingsPayload, error)
 	MarkNotificationsRead(ctx context.Context, ids []string) (int, error)
 	MarkAllNotificationsRead(ctx context.Context) (int, error)
@@ -1365,6 +1392,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.CaptionSettings.SuperimposeRecorded(childComplexity), true
 
+	case "ChannelInspection.others":
+		if e.ComplexityRoot.ChannelInspection.Others == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChannelInspection.Others(childComplexity), true
+	case "ChannelInspection.programs":
+		if e.ComplexityRoot.ChannelInspection.Programs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChannelInspection.Programs(childComplexity), true
+	case "ChannelInspection.seconds":
+		if e.ComplexityRoot.ChannelInspection.Seconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChannelInspection.Seconds(childComplexity), true
+	case "ChannelInspection.totalBps":
+		if e.ComplexityRoot.ChannelInspection.TotalBps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChannelInspection.TotalBps(childComplexity), true
+	case "ChannelInspection.transportStreamId":
+		if e.ComplexityRoot.ChannelInspection.TransportStreamID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ChannelInspection.TransportStreamID(childComplexity), true
+
 	case "ChannelType.displayName":
 		if e.ComplexityRoot.ChannelType.DisplayName == nil {
 			break
@@ -1669,6 +1727,74 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.GuideView.Services(childComplexity), true
+
+	case "InspectedProgram.bps":
+		if e.ComplexityRoot.InspectedProgram.Bps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InspectedProgram.Bps(childComplexity), true
+	case "InspectedProgram.name":
+		if e.ComplexityRoot.InspectedProgram.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InspectedProgram.Name(childComplexity), true
+	case "InspectedProgram.serviceId":
+		if e.ComplexityRoot.InspectedProgram.ServiceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InspectedProgram.ServiceID(childComplexity), true
+	case "InspectedProgram.streams":
+		if e.ComplexityRoot.InspectedProgram.Streams == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InspectedProgram.Streams(childComplexity), true
+
+	case "InspectedStream.bps":
+		if e.ComplexityRoot.InspectedStream.Bps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InspectedStream.Bps(childComplexity), true
+	case "InspectedStream.drops":
+		if e.ComplexityRoot.InspectedStream.Drops == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InspectedStream.Drops(childComplexity), true
+	case "InspectedStream.errors":
+		if e.ComplexityRoot.InspectedStream.Errors == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InspectedStream.Errors(childComplexity), true
+	case "InspectedStream.kind":
+		if e.ComplexityRoot.InspectedStream.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InspectedStream.Kind(childComplexity), true
+	case "InspectedStream.pid":
+		if e.ComplexityRoot.InspectedStream.Pid == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InspectedStream.Pid(childComplexity), true
+	case "InspectedStream.scrambled":
+		if e.ComplexityRoot.InspectedStream.Scrambled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InspectedStream.Scrambled(childComplexity), true
+	case "InspectedStream.streamType":
+		if e.ComplexityRoot.InspectedStream.StreamType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InspectedStream.StreamType(childComplexity), true
 
 	case "Instance.address":
 		if e.ComplexityRoot.Instance.Address == nil {
@@ -2177,6 +2303,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.EnableUser(childComplexity, args["id"].(string)), true
+	case "Mutation.inspectChannel":
+		if e.ComplexityRoot.Mutation.InspectChannel == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_inspectChannel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.InspectChannel(childComplexity, args["channelType"].(string), args["channel"].(string)), true
 	case "Mutation.markAllNotificationsRead":
 		if e.ComplexityRoot.Mutation.MarkAllNotificationsRead == nil {
 			break
@@ -5744,6 +5881,59 @@ extend type Subscription {
   viewerSettingsChanged: Int!
 }
 `, BuiltIn: false},
+	{Name: "../schema/channel_inspection.graphqls", Input: `"""
+物理チャンネルの TS をまるごと数秒受け取って調べた結果 (#830)。
+"""
+type ChannelInspection {
+  "PAT の transport_stream_id。PAT を受け取れなければ null。"
+  transportStreamId: Int
+  "実際に受け取った長さ (秒)。"
+  seconds: Float!
+  "全体のビットレート (bps)。"
+  totalBps: Int!
+  "PAT に書かれた番組 (サービス)。program_number の昇順に並べる。"
+  programs: [InspectedProgram!]!
+  "どの番組の PMT にも載っていない PID (PAT、EIT などの SI、ECM、EMM など)。PID の昇順に並べる。"
+  others: [InspectedStream!]!
+}
+
+"""
+調べた TS の、番組 (サービス) 1 つの様子。
+"""
+type InspectedProgram {
+  "program_number。ARIB ではサービス ID と同じ値になる。"
+  serviceId: Int!
+  "Kotatsu が知っているサービスなら、その名前。知らなければ null。"
+  name: String
+  "PMT と ES のビットレートの合計 (bps)。"
+  bps: Int!
+  "PMT と ES。PMT、PMT に書かれた順の ES の順に並べる。"
+  streams: [InspectedStream!]!
+}
+
+"""
+調べた TS の、PID 1 つの様子。
+"""
+type InspectedStream {
+  pid: Int!
+  kind: StreamKind!
+  "PMT の stream_type。PMT に載っていなければ null。"
+  streamType: Int
+  bps: Int!
+  drops: Int64!
+  errors: Int64!
+  scrambled: Int64!
+}
+
+extend type Mutation {
+  """
+  物理チャンネル channelType/channel の TS を、まるごと数秒受け取って調べる (#830、設計書 10.3)。管理者だけが使える。
+  チューナーを奪わない優先度でチャンネルのストリームを開くので、空いたチューナーがなければ失敗する。
+  調べる間、チューナーを 1 本使う。
+  """
+  inspectChannel(channelType: String!, channel: String!): ChannelInspection!
+}
+`, BuiltIn: false},
 	{Name: "../schema/conditions.graphqls", Input: `"""
 含めるキーワードの照合のしかた。
 """
@@ -8218,6 +8408,22 @@ func (ec *executionContext) childFields_CaptionSettings(ctx context.Context, fie
 	return nil, fmt.Errorf("no field named %q was found under type CaptionSettings", field.Name)
 }
 
+func (ec *executionContext) childFields_ChannelInspection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "transportStreamId":
+		return ec.fieldContext_ChannelInspection_transportStreamId(ctx, field)
+	case "seconds":
+		return ec.fieldContext_ChannelInspection_seconds(ctx, field)
+	case "totalBps":
+		return ec.fieldContext_ChannelInspection_totalBps(ctx, field)
+	case "programs":
+		return ec.fieldContext_ChannelInspection_programs(ctx, field)
+	case "others":
+		return ec.fieldContext_ChannelInspection_others(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ChannelInspection", field.Name)
+}
+
 func (ec *executionContext) childFields_ChannelType(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "type":
@@ -8414,6 +8620,40 @@ func (ec *executionContext) childFields_GuideView(ctx context.Context, field gra
 		return ec.fieldContext_GuideView_freeOnly(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type GuideView", field.Name)
+}
+
+func (ec *executionContext) childFields_InspectedProgram(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "serviceId":
+		return ec.fieldContext_InspectedProgram_serviceId(ctx, field)
+	case "name":
+		return ec.fieldContext_InspectedProgram_name(ctx, field)
+	case "bps":
+		return ec.fieldContext_InspectedProgram_bps(ctx, field)
+	case "streams":
+		return ec.fieldContext_InspectedProgram_streams(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type InspectedProgram", field.Name)
+}
+
+func (ec *executionContext) childFields_InspectedStream(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "pid":
+		return ec.fieldContext_InspectedStream_pid(ctx, field)
+	case "kind":
+		return ec.fieldContext_InspectedStream_kind(ctx, field)
+	case "streamType":
+		return ec.fieldContext_InspectedStream_streamType(ctx, field)
+	case "bps":
+		return ec.fieldContext_InspectedStream_bps(ctx, field)
+	case "drops":
+		return ec.fieldContext_InspectedStream_drops(ctx, field)
+	case "errors":
+		return ec.fieldContext_InspectedStream_errors(ctx, field)
+	case "scrambled":
+		return ec.fieldContext_InspectedStream_scrambled(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type InspectedStream", field.Name)
 }
 
 func (ec *executionContext) childFields_Instance(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -10177,6 +10417,28 @@ func (ec *executionContext) field_Mutation_enableUser_args(ctx context.Context, 
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_inspectChannel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "channelType",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channelType"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "channel",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["channel"] = arg1
 	return args, nil
 }
 
@@ -12089,6 +12351,139 @@ func (ec *executionContext) fieldContext_CaptionSettings_backgroundOpacity(_ con
 	return graphql.NewScalarFieldContext("CaptionSettings", field, false, false, errors.New("field of type Float does not have child fields"))
 }
 
+func (ec *executionContext) _ChannelInspection_transportStreamId(ctx context.Context, field graphql.CollectedField, obj *model.ChannelInspection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChannelInspection_transportStreamId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TransportStreamID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ChannelInspection_transportStreamId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChannelInspection", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ChannelInspection_seconds(ctx context.Context, field graphql.CollectedField, obj *model.ChannelInspection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChannelInspection_seconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Seconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChannelInspection_seconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChannelInspection", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _ChannelInspection_totalBps(ctx context.Context, field graphql.CollectedField, obj *model.ChannelInspection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChannelInspection_totalBps(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalBps, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChannelInspection_totalBps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ChannelInspection", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _ChannelInspection_programs(ctx context.Context, field graphql.CollectedField, obj *model.ChannelInspection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChannelInspection_programs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Programs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.InspectedProgram) graphql.Marshaler {
+			return ec.marshalNInspectedProgram2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐInspectedProgramᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChannelInspection_programs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ChannelInspection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InspectedProgram(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ChannelInspection_others(ctx context.Context, field graphql.CollectedField, obj *model.ChannelInspection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ChannelInspection_others(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Others, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.InspectedStream) graphql.Marshaler {
+			return ec.marshalNInspectedStream2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐInspectedStreamᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ChannelInspection_others(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ChannelInspection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InspectedStream(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ChannelType_type(ctx context.Context, field graphql.CollectedField, obj *model.ChannelType) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -13292,6 +13687,268 @@ func (ec *executionContext) fieldContext_GuideView_freeOnly(_ context.Context, f
 	return graphql.NewScalarFieldContext("GuideView", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _InspectedProgram_serviceId(ctx context.Context, field graphql.CollectedField, obj *model.InspectedProgram) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InspectedProgram_serviceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ServiceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InspectedProgram_serviceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InspectedProgram", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _InspectedProgram_name(ctx context.Context, field graphql.CollectedField, obj *model.InspectedProgram) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InspectedProgram_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InspectedProgram_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InspectedProgram", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _InspectedProgram_bps(ctx context.Context, field graphql.CollectedField, obj *model.InspectedProgram) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InspectedProgram_bps(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Bps, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InspectedProgram_bps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InspectedProgram", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _InspectedProgram_streams(ctx context.Context, field graphql.CollectedField, obj *model.InspectedProgram) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InspectedProgram_streams(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Streams, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.InspectedStream) graphql.Marshaler {
+			return ec.marshalNInspectedStream2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐInspectedStreamᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InspectedProgram_streams(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InspectedProgram",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InspectedStream(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _InspectedStream_pid(ctx context.Context, field graphql.CollectedField, obj *model.InspectedStream) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InspectedStream_pid(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Pid, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InspectedStream_pid(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InspectedStream", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _InspectedStream_kind(ctx context.Context, field graphql.CollectedField, obj *model.InspectedStream) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InspectedStream_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.StreamKind) graphql.Marshaler {
+			return ec.marshalNStreamKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐStreamKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InspectedStream_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InspectedStream", field, false, false, errors.New("field of type StreamKind does not have child fields"))
+}
+
+func (ec *executionContext) _InspectedStream_streamType(ctx context.Context, field graphql.CollectedField, obj *model.InspectedStream) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InspectedStream_streamType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StreamType, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InspectedStream_streamType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InspectedStream", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _InspectedStream_bps(ctx context.Context, field graphql.CollectedField, obj *model.InspectedStream) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InspectedStream_bps(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Bps, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InspectedStream_bps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InspectedStream", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _InspectedStream_drops(ctx context.Context, field graphql.CollectedField, obj *model.InspectedStream) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InspectedStream_drops(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Drops, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InspectedStream_drops(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InspectedStream", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _InspectedStream_errors(ctx context.Context, field graphql.CollectedField, obj *model.InspectedStream) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InspectedStream_errors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Errors, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InspectedStream_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InspectedStream", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _InspectedStream_scrambled(ctx context.Context, field graphql.CollectedField, obj *model.InspectedStream) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InspectedStream_scrambled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Scrambled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InspectedStream_scrambled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InspectedStream", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
 func (ec *executionContext) _Instance_instanceId(ctx context.Context, field graphql.CollectedField, obj *model.Instance) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -14251,6 +14908,50 @@ func (ec *executionContext) fieldContext_Mutation_deleteApiToken(ctx context.Con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteApiToken_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_inspectChannel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_inspectChannel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().InspectChannel(ctx, fc.Args["channelType"].(string), fc.Args["channel"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ChannelInspection) graphql.Marshaler {
+			return ec.marshalNChannelInspection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐChannelInspection(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_inspectChannel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ChannelInspection(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_inspectChannel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -31615,6 +32316,64 @@ func (ec *executionContext) _CaptionSettings(ctx context.Context, sel ast.Select
 	return out
 }
 
+var channelInspectionImplementors = []string{"ChannelInspection"}
+
+func (ec *executionContext) _ChannelInspection(ctx context.Context, sel ast.SelectionSet, obj *model.ChannelInspection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, channelInspectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ChannelInspection")
+		case "transportStreamId":
+			out.Values[i] = ec._ChannelInspection_transportStreamId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "seconds":
+			out.Values[i] = ec._ChannelInspection_seconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalBps":
+			out.Values[i] = ec._ChannelInspection_totalBps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "programs":
+			out.Values[i] = ec._ChannelInspection_programs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "others":
+			out.Values[i] = ec._ChannelInspection_others(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var channelTypeImplementors = []string{"ChannelType"}
 
 func (ec *executionContext) _ChannelType(ctx context.Context, sel ast.SelectionSet, obj *model.ChannelType) graphql.Marshaler {
@@ -32449,6 +33208,127 @@ func (ec *executionContext) _GuideView(ctx context.Context, sel ast.SelectionSet
 	return out
 }
 
+var inspectedProgramImplementors = []string{"InspectedProgram"}
+
+func (ec *executionContext) _InspectedProgram(ctx context.Context, sel ast.SelectionSet, obj *model.InspectedProgram) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, inspectedProgramImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InspectedProgram")
+		case "serviceId":
+			out.Values[i] = ec._InspectedProgram_serviceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._InspectedProgram_name(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "bps":
+			out.Values[i] = ec._InspectedProgram_bps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "streams":
+			out.Values[i] = ec._InspectedProgram_streams(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var inspectedStreamImplementors = []string{"InspectedStream"}
+
+func (ec *executionContext) _InspectedStream(ctx context.Context, sel ast.SelectionSet, obj *model.InspectedStream) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, inspectedStreamImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InspectedStream")
+		case "pid":
+			out.Values[i] = ec._InspectedStream_pid(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._InspectedStream_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "streamType":
+			out.Values[i] = ec._InspectedStream_streamType(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "bps":
+			out.Values[i] = ec._InspectedStream_bps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "drops":
+			out.Values[i] = ec._InspectedStream_drops(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errors":
+			out.Values[i] = ec._InspectedStream_errors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scrambled":
+			out.Values[i] = ec._InspectedStream_scrambled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var instanceImplementors = []string{"Instance"}
 
 func (ec *executionContext) _Instance(ctx context.Context, sel ast.SelectionSet, obj *model.Instance) graphql.Marshaler {
@@ -32858,6 +33738,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteApiToken":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteApiToken(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "inspectChannel":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_inspectChannel(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -39880,6 +40767,16 @@ func (ec *executionContext) marshalNCaptionSettings2ᚖgithubᚗcomᚋSlashNephy
 	return ec._CaptionSettings(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNChannelInspection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐChannelInspection(ctx context.Context, sel ast.SelectionSet, v *model.ChannelInspection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ChannelInspection(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNChannelType2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐChannelTypeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ChannelType) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -40272,6 +41169,58 @@ func (ec *executionContext) marshalNID2ᚕstringᚄ(ctx context.Context, sel ast
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalNInspectedProgram2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐInspectedProgramᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.InspectedProgram) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNInspectedProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐInspectedProgram(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNInspectedProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐInspectedProgram(ctx context.Context, sel ast.SelectionSet, v *model.InspectedProgram) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InspectedProgram(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNInspectedStream2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐInspectedStreamᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.InspectedStream) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNInspectedStream2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐInspectedStream(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNInspectedStream2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐInspectedStream(ctx context.Context, sel ast.SelectionSet, v *model.InspectedStream) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InspectedStream(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNInstance2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐInstanceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Instance) graphql.Marshaler {
