@@ -75,6 +75,9 @@ func TestDBCollector(t *testing.T) {
 	recording("failed", new("cancelled"), 0)
 	// 失敗の累計 (#960)。マイグレーションが、理由ごとに 0 件の行を作っておく。録画を消しても減らないので、録画の数とは合わない。
 	exec(`UPDATE recording_failure_counts SET count = 5, last_failed_at = $1 WHERE reason = 'cancelled'`, now.Add(-time.Hour))
+	// 管理者が累計を 0 に戻した理由 (#1035)。
+	resetAt := now.Add(-30 * time.Minute).Truncate(time.Microsecond)
+	exec(`UPDATE recording_failure_counts SET reset_at = $1 WHERE reason = 'storage_full'`, resetAt)
 	tuner := func(index int, available, fault bool) {
 		t.Helper()
 		exec(`INSERT INTO tuners (tuner_index, name, types, is_available, is_remote, is_fault, updated_at)
@@ -209,22 +212,27 @@ kotatsu_metrics_collection_errors 0
 	assert.Zero(t, testutil.CollectAndCount(collector, "kotatsu_neko_leader"))
 
 	// 失敗の累計の作成の時刻は、どのインスタンスでも同じ値にする。リーダーが替わっても、OTLP の受け手がカウンターのリセットとみなさないようにする (#962)。
+	// 管理者が累計を 0 に戻した理由だけは、戻した日時にし、受け手にリセットを伝える (#1035)。
 	registry := prometheus.NewPedanticRegistry()
 	require.NoError(t, registry.Register(collector))
 	families, err := registry.Gather()
 	require.NoError(t, err)
-	var created []time.Time
+	created := map[string]time.Time{}
 	for _, family := range families {
 		if family.GetName() != "kotatsu_recording_failures_total" {
 			continue
 		}
 		for _, m := range family.GetMetric() {
-			created = append(created, m.GetCounter().GetCreatedTimestamp().AsTime())
+			created[m.GetLabel()[0].GetValue()] = m.GetCounter().GetCreatedTimestamp().AsTime()
 		}
 	}
-	require.NotEmpty(t, created)
-	for _, at := range created {
-		assert.True(t, at.Equal(metrics.FailureCountsCreated()), at)
+	require.Len(t, created, 8)
+	for reason, at := range created {
+		want := metrics.FailureCountsCreated()
+		if reason == "storage_full" {
+			want = resetAt
+		}
+		assert.True(t, at.Equal(want), "%s: %s", reason, at)
 	}
 }
 

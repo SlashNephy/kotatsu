@@ -597,6 +597,9 @@ type Querier interface {
 	// 期限が切れていても、世代番号が進んでいなければ誰も取っていないので、延長する。DB が止まっていた間に期限が切れても、録り続けるため (#1073)。
 	RenewTimeshiftAssignment(ctx context.Context, arg RenewTimeshiftAssignmentParams) (int64, error)
 	ResetLoginThrottle(ctx context.Context, key string) error
+	// 理由 reasons の、録画の失敗の累計を 0 に、最後に失敗した日時を NULL に戻し、戻した日時を残す (#1035)。
+	// 監査ログに残すため、戻す前の累計と最後に失敗した日時を返す。
+	ResetRecordingFailureCounts(ctx context.Context, arg ResetRecordingFailureCountsParams) ([]ResetRecordingFailureCountsRow, error)
 	// セグメントを閉じたときに、書いているセグメントの様子を 0 に戻す。閉じたセグメントの数は、録画とファイルに足す。
 	ResetRecordingLiveStats(ctx context.Context, arg ResetRecordingLiveStatsParams) error
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)

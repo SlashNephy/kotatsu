@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b968bc518dee86b88e293c7d73ec48b1>>
+ * @generated SignedSource<<e963029048239aec964f86b71f005d9a>>
  * @lightSyntaxTransform
  */
 
@@ -9,10 +9,10 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type NotificationKind = "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
-export type notificationsListQuery$variables = {
+export type NotificationListQuery$variables = {
   first: number;
 };
-export type notificationsListQuery$data = {
+export type NotificationListQuery$data = {
   readonly notifications: {
     readonly edges: ReadonlyArray<{
       readonly node: {
@@ -28,9 +28,9 @@ export type notificationsListQuery$data = {
   };
   readonly unreadNotificationCount: number;
 };
-export type notificationsListQuery = {
-  response: notificationsListQuery$data;
-  variables: notificationsListQuery$variables;
+export type NotificationListQuery = {
+  response: NotificationListQuery$data;
+  variables: NotificationListQuery$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -143,7 +143,7 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Fragment",
     "metadata": null,
-    "name": "notificationsListQuery",
+    "name": "NotificationListQuery",
     "selections": (v1/*:: as any*/),
     "type": "Query",
     "abstractKey": null
@@ -152,20 +152,20 @@ return {
   "operation": {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
-    "name": "notificationsListQuery",
+    "name": "NotificationListQuery",
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "51de236db988bc27cc0b3fd2cfab7041",
+    "cacheID": "79103be40dc92aaa90a292865c8794c4",
     "id": null,
     "metadata": {},
-    "name": "notificationsListQuery",
+    "name": "NotificationListQuery",
     "operationKind": "query",
-    "text": "query notificationsListQuery(\n  $first: Int!\n) {\n  unreadNotificationCount\n  notifications(first: $first) {\n    edges {\n      node {\n        id\n        kind\n        occurredAt\n        message\n        payload\n        url\n        readAt\n      }\n    }\n  }\n}\n"
+    "text": "query NotificationListQuery(\n  $first: Int!\n) {\n  unreadNotificationCount\n  notifications(first: $first) {\n    edges {\n      node {\n        id\n        kind\n        occurredAt\n        message\n        payload\n        url\n        readAt\n      }\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "2324c106163037658e35cda11f1429a3";
+(node as any).hash = "8e018e4d3202fe7e521662c3588a07cb";
 
 export default node;

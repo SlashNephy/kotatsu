@@ -8,7 +8,20 @@ SELECT failure_reason::text AS reason, count(*) AS count FROM recordings WHERE f
 
 -- name: ListRecordingFailureCounts :many
 -- /metrics に出す、失敗の理由ごとの、録画の失敗の累計と最後に失敗した日時 (#960)。録画を消しても減らない。
-SELECT reason, count, last_failed_at FROM recording_failure_counts ORDER BY reason;
+SELECT reason, count, last_failed_at, reset_at FROM recording_failure_counts ORDER BY reason;
+
+-- name: ResetRecordingFailureCounts :many
+-- 理由 reasons の、録画の失敗の累計を 0 に、最後に失敗した日時を NULL に戻し、戻した日時を残す (#1035)。
+-- 監査ログに残すため、戻す前の累計と最後に失敗した日時を返す。
+WITH old AS (
+  SELECT reason, count, last_failed_at FROM recording_failure_counts
+  WHERE reason = ANY(@reasons::text[])
+  FOR UPDATE
+)
+UPDATE recording_failure_counts c SET count = 0, last_failed_at = NULL, reset_at = @now::timestamptz
+FROM old
+WHERE c.reason = old.reason
+RETURNING old.reason, old.count, old.last_failed_at;
 
 -- name: SumActiveRecordingPackets :one
 -- /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。閉じたセグメントの数に、書いているセグメントの数 (#829) を足す。

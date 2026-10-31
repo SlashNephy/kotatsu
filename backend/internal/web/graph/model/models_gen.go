@@ -763,6 +763,16 @@ type RecordingEdge struct {
 	Node   *Recording `json:"node"`
 }
 
+// 理由ごとの、録画の失敗の累計 (設計書 5.5)。録画を消しても減らない。
+type RecordingFailureCount struct {
+	Reason RecordingFailureReason `json:"reason"`
+	Count  int64                  `json:"count"`
+	// 最後に失敗した日時。一度も失敗していないか、累計を 0 に戻してから失敗していなければ null。
+	LastFailedAt *time.Time `json:"lastFailedAt,omitempty"`
+	// 管理者が累計を 0 に戻した日時 (#1035)。戻していなければ null。
+	ResetAt *time.Time `json:"resetAt,omitempty"`
+}
+
 // 録画のファイル。
 type RecordingFile struct {
 	Kind RecordingFileKind `json:"kind"`
@@ -1120,6 +1130,8 @@ type SystemStatus struct {
 	TunerServer *TunerServerStatus `json:"tunerServer,omitempty"`
 	Tuners      []*Tuner           `json:"tuners"`
 	Pools       []*StoragePool     `json:"pools"`
+	// 理由ごとの、録画の失敗の累計。
+	RecordingFailures []*RecordingFailureCount `json:"recordingFailures"`
 }
 
 // 登録中の TOTP。秘密キーは、この応答でしか見せない。

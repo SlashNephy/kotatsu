@@ -309,3 +309,49 @@ func TestStoragePoolNames(t *testing.T) {
 		})
 	}
 }
+
+// TestResetRecordingFailureCounts は、管理者が、理由ごとに録画の失敗の累計を 0 に戻し、監査ログに残すことを確かめる (#1035)。
+func TestResetRecordingFailureCounts(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	admin := f.as(t, adminName, auth.RoleAdmin)
+	failedAt := f.clock.Now().Add(-time.Hour)
+	_, err := f.pool.Exec(t.Context(), `UPDATE recording_failure_counts SET count = 3, last_failed_at = $1 WHERE reason IN ('cancelled', 'storage_full')`, failedAt)
+	require.NoError(t, err)
+	const reset = `mutation($reasons: [RecordingFailureReason!]!) {
+		resetRecordingFailureCounts(reasons: $reasons) { reason count lastFailedAt resetAt }
+	}`
+	variables := map[string]any{"reasons": []string{"CANCELLED"}}
+
+	assert.Equal(t, []string{codeForbidden}, f.query(t, reset, variables, nil), "members cannot reset the counts")
+
+	var got struct {
+		ResetRecordingFailureCounts []struct {
+			Reason       string     `json:"reason"`
+			Count        int64      `json:"count"`
+			LastFailedAt *time.Time `json:"lastFailedAt"`
+			ResetAt      *time.Time `json:"resetAt"`
+		} `json:"resetRecordingFailureCounts"`
+	}
+	require.Empty(t, admin.query(t, reset, variables, &got))
+	counts := map[string]int{}
+	for i, row := range got.ResetRecordingFailureCounts {
+		counts[row.Reason] = i
+	}
+	cancelled := got.ResetRecordingFailureCounts[counts["CANCELLED"]]
+	assert.Zero(t, cancelled.Count)
+	assert.Nil(t, cancelled.LastFailedAt)
+	require.NotNil(t, cancelled.ResetAt)
+	assert.True(t, cancelled.ResetAt.Equal(f.clock.Now()))
+	// ほかの理由は戻さない。
+	full := got.ResetRecordingFailureCounts[counts["STORAGE_FULL"]]
+	assert.Equal(t, int64(3), full.Count)
+	assert.Nil(t, full.ResetAt)
+
+	// 戻したことを、戻す前の累計とともに監査ログに残す。
+	var count int64
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		`SELECT (summary->>'count')::bigint FROM audit_events WHERE action = 'recording_failure_count.reset' AND target_id = 'cancelled'`).Scan(&count))
+	assert.Equal(t, int64(3), count)
+}

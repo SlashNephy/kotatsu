@@ -309,6 +309,7 @@ type RecordingFailureCount struct {
 	Reason       string
 	Count        int64
 	LastFailedAt *time.Time
+	ResetAt      *time.Time
 }
 
 type RecordingFile struct {
