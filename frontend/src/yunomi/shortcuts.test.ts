@@ -150,6 +150,7 @@ describe('eventKey', () => {
     { name: '修飾キーだけなら null', event: event('Shift', { shiftKey: true }), want: null },
     { name: 'Ctrl と一緒なら null', event: event('x', { ctrlKey: true }), want: null },
     { name: 'Escape は、割り当てをやめるのに使うので null', event: event('Escape'), want: null },
+    { name: 'デッドキーは null', event: event('Dead'), want: null },
   ])('$name', ({ event, want }) => {
     expect(eventKey(event)).toBe(want);
   });
@@ -180,6 +181,11 @@ describe('parseKeymap', () => {
       name: '覚えた割り当てを読む',
       raw: '{"toggleMute":["x"]}',
       want: { ...defaultKeymap, toggleMute: ['x'] },
+    },
+    {
+      name: '覚えていない操作の既定のキーは、覚えた操作が使っていれば外す',
+      raw: '{"toggleMute":["c"]}',
+      want: { ...defaultKeymap, toggleMute: ['c'], toggleCaptions: [] },
     },
     {
       name: '知らない操作と、文字列でないキーは捨てる',

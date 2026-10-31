@@ -10,7 +10,7 @@ import {
   Text,
   Title,
 } from '@mantine/core';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { simpleCommandIds, type SimpleCommandId } from '../yunomi/commands';
@@ -24,6 +24,45 @@ export function ShortcutKeysCard() {
   const [keymap, setKeymap] = useKeymap();
   // capturing は、キーを待っている操作。Escape か、ほかの所へフォーカスを移すとやめる。
   const [capturing, setCapturing] = useState<SimpleCommandId | null>(null);
+  // キーを待っている間は、ページ全体のキーを先に受け取る。Safari と macOS の Firefox は、押したボタンにフォーカスを
+  // 移さないので、ボタンのキーの処理では受け取れない。ほかの所を押したら、待つのをやめる。
+  useEffect(() => {
+    if (capturing === null) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      // Tab でフォーカスを移せるよう、Tab は横取りしない。
+      if (event.key === 'Tab') {
+        setCapturing(null);
+
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === 'Escape') {
+        setCapturing(null);
+
+        return;
+      }
+      const key = eventKey(event);
+      if (key !== null) {
+        setKeymap(assignKey(keymap, capturing, key));
+        setCapturing(null);
+      }
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Element) || event.target.closest('[data-capturing]') === null) {
+        setCapturing(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('pointerdown', onPointerDown, true);
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('pointerdown', onPointerDown, true);
+    };
+  }, [capturing, keymap, setKeymap]);
 
   return (
     <Card withBorder>
@@ -55,7 +94,9 @@ export function ShortcutKeysCard() {
                           ))}
                           <CloseButton
                             size="xs"
-                            aria-label={t('settings.shortcutKeys.remove', { key })}
+                            aria-label={t('settings.shortcutKeys.remove', {
+                              key: keyLabels[key] ?? key,
+                            })}
                             onClick={() => setKeymap(removeKey(keymap, id, key))}
                           />
                         </Group>
@@ -64,30 +105,7 @@ export function ShortcutKeysCard() {
                         size="compact-xs"
                         variant={capturing === id ? 'filled' : 'subtle'}
                         onClick={() => setCapturing(capturing === id ? null : id)}
-                        onBlur={() => setCapturing(null)}
-                        onKeyDown={(event) => {
-                          if (capturing !== id) {
-                            return;
-                          }
-                          // Tab でフォーカスを移せるよう、Tab は横取りしない。
-                          if (event.key === 'Tab') {
-                            setCapturing(null);
-
-                            return;
-                          }
-                          event.preventDefault();
-                          event.stopPropagation();
-                          if (event.key === 'Escape') {
-                            setCapturing(null);
-
-                            return;
-                          }
-                          const key = eventKey(event);
-                          if (key !== null) {
-                            setKeymap(assignKey(keymap, id, key));
-                            setCapturing(null);
-                          }
-                        }}
+                        data-capturing={capturing === id ? '' : undefined}
                       >
                         {capturing === id
                           ? t('settings.shortcutKeys.waiting')

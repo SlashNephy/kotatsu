@@ -97,7 +97,19 @@ function actionFor(
 }
 
 // modifierKeys は、それだけでは割り当てられない、修飾キーの名前。
-const modifierKeys = new Set(['Shift', 'Control', 'Alt', 'Meta', 'AltGraph', 'CapsLock', 'Fn']);
+// Dead (デッドキー)、Process (IME の変換中)、Unidentified は、押したキーを見分けられないので、割り当てない。
+const modifierKeys = new Set([
+  'Shift',
+  'Control',
+  'Alt',
+  'Meta',
+  'AltGraph',
+  'CapsLock',
+  'Fn',
+  'Dead',
+  'Process',
+  'Unidentified',
+]);
 
 // eventKey は、押したキーを、割り当てに書く形にする。修飾キーだけ、Ctrl、Alt、Meta と一緒のとき、
 // 割り当てをやめるのに使う Escape は、null を返す。
@@ -139,6 +151,8 @@ const storageKey = 'kotatsu.player.keymap';
 const changeEvent = 'kotatsu:keymap';
 
 // parseKeymap は、覚えた割り当てを読む。覚えた操作は、その割り当てで置き換える。読めなければ既定を返す。
+// 覚えたときになかった操作 (後の版で足した操作) は既定のキーにするが、覚えた操作が使っているキーは外し、
+// 1 つのキーを 1 つの操作にだけ割り当てる。
 export function parseKeymap(raw: string | null): Keymap {
   if (raw === null) {
     return defaultKeymap;
@@ -148,11 +162,19 @@ export function parseKeymap(raw: string | null): Keymap {
     if (typeof parsed !== 'object' || parsed === null) {
       return defaultKeymap;
     }
-    const next: Partial<Record<SimpleCommandId, readonly string[]>> = { ...defaultKeymap };
+    const stored: Partial<Record<SimpleCommandId, readonly string[]>> = {};
     for (const id of simpleCommandIds) {
       const keys = (parsed as Record<string, unknown>)[id];
       if (Array.isArray(keys)) {
-        next[id] = keys.filter((key): key is string => typeof key === 'string');
+        stored[id] = keys.filter((key): key is string => typeof key === 'string');
+      }
+    }
+    const used = new Set(Object.values(stored).flat());
+    const next: Partial<Record<SimpleCommandId, readonly string[]>> = {};
+    for (const id of simpleCommandIds) {
+      const keys = stored[id] ?? defaultKeymap[id]?.filter((key) => !used.has(key));
+      if (keys !== undefined) {
+        next[id] = keys;
       }
     }
 
