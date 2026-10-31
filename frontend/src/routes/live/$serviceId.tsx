@@ -103,6 +103,7 @@ import { useMediaSession } from '../../yunomi/useMediaSession';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
+import { usePlayerContextMenu } from '../../yunomi/PlayerContextMenu';
 import { usePlayerGamepad } from '../../yunomi/gamepad';
 import { runCommand, type PlayerCommands } from '../../yunomi/commands';
 import { useAutoPictureInPicture } from '../../yunomi/autoPictureInPicture';
@@ -766,6 +767,8 @@ function Live({
       : {}),
   };
   usePlayerShortcuts(commands);
+  // contextMenu は、映像を右クリックしたときのメニュー (#1140)。
+  const contextMenu = usePlayerContextMenu(commands);
   // ゲームパッドでも、同じ操作を呼べるようにする (#810)。
   usePlayerGamepad(commands);
   // player は、プレイヤーの今の状態 (#811)。タブの題名、OS のメディア操作、ほかの端末は、どれもこれを読む。
@@ -992,6 +995,8 @@ function Live({
   const playerBox = (
     <div
       ref={playerBoxRef}
+      // 映像を右クリックすると、操作のメニューを出す (#1140)。
+      onContextMenu={contextMenu.onContextMenu}
       className={playerControlsClasses.box}
       data-controls-visible={controls.visible}
       {...controls.containerProps}
@@ -1002,6 +1007,7 @@ function Live({
         }
       }}
     >
+      {contextMenu.menu}
       {route.kind === 'convert' && (
         <TsPlayer
           url={
