@@ -18,6 +18,7 @@ import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/Wat
 import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
 import { useAudioDelayCommands, useAudioDelayer } from '../../yunomi/audioDelay';
+import { useSleepTimer } from '../../yunomi/sleepTimer';
 import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistory } from '../../yunomi/CaptionHistory';
 import {
@@ -44,6 +45,7 @@ import {
   CropSelect,
   AudioDelaySetting,
   NormalizeVolumeToggle,
+  SleepTimerSelect,
   VirtualSurroundToggle,
 } from '../../yunomi/QualitySelect';
 import { hlsURL, toVideoFormat } from '../../yunomi/route';
@@ -638,6 +640,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
         }
       : {}),
   };
+  // sleep は、スリープタイマー (#821)。時間になったら、プレイヤーを閉じる。
+  const sleep = useSleepTimer(() => commands.stop?.());
   usePlayerShortcuts(commands);
   // player は、プレイヤーの今の状態 (#811)。タブの題名、OS のメディア操作、ほかの端末は、どれもこれを読む。
   const player = {
@@ -830,6 +834,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
             <AudioDelaySetting />
+            <SleepTimerSelect timer={sleep} />
             {surroundAvailable && <VirtualSurroundToggle />}
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>

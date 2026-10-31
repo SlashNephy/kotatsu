@@ -6,6 +6,7 @@ import type { AudioChoice, KyusuAudioChoice } from './audio';
 import { cropOrigins, cropScales, type Crop } from './crop';
 import { useNormalizeVolume } from './volumeNormalize';
 import { audioDelayStepMs, maxAudioDelayMs, useAudioDelay, useResetAudioDelay } from './audioDelay';
+import { sleepMinuteChoices, type SleepChoice, type SleepTimer } from './sleepTimer';
 import { useVirtualSurroundSetting } from './useVirtualSurround';
 import { original, type KyusuAudio, type PlaybackRoute } from './route';
 
@@ -309,6 +310,48 @@ export function CropSelect({ value, onChange }: { value: Crop; onChange: (crop: 
         />
       )}
     </>
+  );
+}
+
+// SleepTimerSelect は、設定のメニューに置く、スリープタイマー (#821) の選択。
+// programEnd なら (ライブ視聴)、番組が終わったら止める選択肢も出す。
+export function SleepTimerSelect({
+  timer,
+  programEnd = false,
+}: {
+  timer: SleepTimer;
+  programEnd?: boolean;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Select
+      size="xs"
+      label={t('player.sleepTimer.label')}
+      description={
+        timer.remaining !== null
+          ? t('player.sleepTimer.remaining', { minutes: timer.remaining })
+          : timer.choice === 'programEnd'
+            ? t('player.sleepTimer.untilProgramEnd')
+            : undefined
+      }
+      value={timer.choice}
+      allowDeselect={false}
+      comboboxProps={{ withinPortal: false }}
+      data={[
+        { value: 'off', label: t('player.sleepTimer.off') },
+        ...sleepMinuteChoices.map((minutes) => ({
+          value: minutes,
+          label: t('player.sleepTimer.minutes', { minutes }),
+        })),
+        ...(programEnd ? [{ value: 'programEnd', label: t('player.sleepTimer.programEnd') }] : []),
+      ]}
+      onChange={(value) => {
+        if (value !== null) {
+          timer.setChoice(value as SleepChoice);
+        }
+      }}
+    />
   );
 }
 
