@@ -60,6 +60,7 @@ import { useWatchPositionSaver } from '../../yunomi/useWatchPositionSaver';
 import { useMediaSession } from '../../yunomi/useMediaSession';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
+import { usePlayerGamepad } from '../../yunomi/gamepad';
 import type { PlayerCommands } from '../../yunomi/commands';
 import { useAutoPictureInPicture } from '../../yunomi/autoPictureInPicture';
 import {
@@ -643,6 +644,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // sleep は、スリープタイマー (#821)。時間になったら、プレイヤーを閉じる。
   const sleep = useSleepTimer(() => commands.stop?.());
   usePlayerShortcuts(commands);
+  // ゲームパッドでも、同じ操作を呼べるようにする (#810)。
+  usePlayerGamepad(commands);
   // player は、プレイヤーの今の状態 (#811)。タブの題名、OS のメディア操作、ほかの端末は、どれもこれを読む。
   const player = {
     kind: 'RECORDING',
