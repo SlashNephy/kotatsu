@@ -44,15 +44,16 @@ export function NotificationBell() {
       withinPortal
       trapFocus
     >
-      <Popover.Target>
-        <Tooltip label={t('nav.notifications')} disabled={opened}>
-          <Indicator
-            label={unread ?? 0}
-            size={16}
-            offset={4}
-            disabled={unread === null || unread === 0}
-            color="mikan"
-          >
+      {/* ポップオーバーの対象はボタンにし、開閉を示す属性 (aria-expanded など) をボタンに付ける。 */}
+      <Tooltip label={t('nav.notifications')} disabled={opened}>
+        <Indicator
+          label={unread ?? 0}
+          size={16}
+          offset={4}
+          disabled={unread === null || unread === 0}
+          color="mikan"
+        >
+          <Popover.Target>
             <ActionIcon
               variant="subtle"
               color="gray"
@@ -62,14 +63,13 @@ export function NotificationBell() {
                   ? t('nav.notifications')
                   : t('notifications.bellLabel', { count: unread })
               }
-              aria-expanded={opened}
               onClick={() => setOpened((value) => !value)}
             >
               <Bell size={20} aria-hidden />
             </ActionIcon>
-          </Indicator>
-        </Tooltip>
-      </Popover.Target>
+          </Popover.Target>
+        </Indicator>
+      </Tooltip>
       <Popover.Dropdown p="xs">
         <Group justify="space-between" mb="xs">
           <Text fw={700} size="sm">
