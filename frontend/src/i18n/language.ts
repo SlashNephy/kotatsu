@@ -5,10 +5,10 @@ export const languages = ['ja', 'en'] as const;
 export type Language = (typeof languages)[number];
 
 // detectLanguage は、ブラウザの言語の設定から、画面の言語を選ぶ。対応する言語がなければ英語にする。
-// 「ja-JP」や「en-GB」のような地域つきの名前は、言語の部分で比べる。
-export function detectLanguage(preferred: readonly string[]): Language {
+// 「ja-JP」や「en_GB」のような地域つきの名前は、言語の部分で比べる。
+export function detectLanguage(preferred: readonly (string | undefined)[]): Language {
   for (const tag of preferred) {
-    const language = tag.toLowerCase().split('-')[0];
+    const language = tag?.toLowerCase().split(/[-_]/)[0];
     const found = languages.find((candidate) => candidate === language);
     if (found !== undefined) {
       return found;

@@ -8,8 +8,13 @@ import { detectLanguage } from './language';
 // 文言は i18next を通す (設計書 10.1)。言語は、ブラウザの言語の設定から選ぶ (#831)。
 export const resources = { ja: { translation: ja }, en: { translation: en } } as const;
 
-// navigator がない環境 (テストなど) では、日本語にする。
-const preferred = typeof navigator === 'undefined' ? ['ja'] : navigator.languages;
+// 言語の一覧を持たないブラウザ (一部の WebView) では、ブラウザの言語 1 つから選ぶ。navigator がない環境では、日本語にする。
+const preferred =
+  typeof navigator === 'undefined'
+    ? ['ja']
+    : Array.isArray(navigator.languages)
+      ? navigator.languages
+      : [navigator.language];
 
 void i18next.use(initReactI18next).init({
   lng: detectLanguage(preferred),
