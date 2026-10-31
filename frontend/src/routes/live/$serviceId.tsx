@@ -67,6 +67,7 @@ import {
   QualitySelect,
   CropSelect,
   NormalizeVolumeToggle,
+  SleepTimerSelect,
   VirtualSurroundToggle,
 } from '../../yunomi/QualitySelect';
 import { useStreamsDrains } from '../../changes/DataChanges';
@@ -79,7 +80,13 @@ import {
 import { dataBroadcastSource, hlsURL, toVideoFormat } from '../../yunomi/route';
 import { RemoteKey, useDataBroadcast } from '../../yunomi/useDataBroadcast';
 import { useRemotePlayer } from '../../yunomi/useRemotePlayer';
-import { documentTitle, usePlayerEvents, type PlayerSnapshot } from '../../yunomi/playerState';
+import {
+  documentTitle,
+  usePlayerEvent,
+  usePlayerEvents,
+  type PlayerSnapshot,
+} from '../../yunomi/playerState';
+import { useSleepTimer } from '../../yunomi/sleepTimer';
 import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
 import { useLiveCatchUp, useLowLatency } from '../../yunomi/liveCatchUp';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
@@ -765,6 +772,13 @@ function Live({
     keyGroups: [...dataBroadcast.keyGroups],
   } satisfies PlayerSnapshot;
   const playerEvents = usePlayerEvents(player);
+  // sleep は、スリープタイマー (#821)。時間になるか、番組が終わったら、プレイヤーを閉じてチューナーを手放す。
+  const sleep = useSleepTimer(() => runCommand(commands, 'stop'));
+  usePlayerEvent(playerEvents, 'programChanged', ({ previous }) => {
+    if (sleep.choice === 'programEnd' && previous !== null) {
+      sleep.fire();
+    }
+  });
   // osd は、選局したときと番組が変わったときに、番組の情報を映像に重ねて出しているか (#815)。
   // バッファを再生している間は、放送中の番組と映像の番組が違うので出さない。
   const osd = useProgramOsd(playerEvents, video !== null && !videoLoading, !timeshift.behind);
@@ -910,6 +924,7 @@ function Live({
             {audio.menu}
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
+            <SleepTimerSelect timer={sleep} programEnd />
             {surroundAvailable && <VirtualSurroundToggle />}
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>

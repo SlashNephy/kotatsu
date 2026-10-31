@@ -1019,6 +1019,14 @@
   },
   "player": {
     "normalizeVolume": "音量を補正する",
+    "sleepTimer": {
+      "label": "スリープタイマー",
+      "off": "切る",
+      "minutes": "{{minutes}} 分後に止める",
+      "programEnd": "この番組が終わったら止める",
+      "remaining": "あと {{minutes}} 分で止めます",
+      "untilProgramEnd": "番組が終わったら止めます"
+    },
     "virtualSurround": "5.1chをヘッドホン向けのサラウンドで聞く",
     "gapMark": "ここで {{duration}} 途切れています",
     "crop": {
