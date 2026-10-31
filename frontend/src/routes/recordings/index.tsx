@@ -363,6 +363,8 @@ function Recordings({
         position="bottom"
         title={t('recordings.filters')}
         styles={{
+          // 下から出るので、見出しはステータスバーに届かない (futon/global.css)。
+          root: { '--drawer-safe-area-top': '0px' },
           // シートの高さは中身に合わせ、一覧が後ろに見えるようにする。
           content: {
             height: 'auto',

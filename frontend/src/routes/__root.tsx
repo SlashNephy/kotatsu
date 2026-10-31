@@ -75,7 +75,8 @@ function RootLayout() {
   return (
     <DataChangesProvider>
       <AppShell
-        header={{ height: 64 }}
+        // ステータスバーの下まで描くときは、その分だけヘッダーを高くする (#425)。本文の上の余白も、この高さに揃う。
+        header={{ height: 'calc(64px + env(safe-area-inset-top))' }}
         navbar={{ width: 240, breakpoint: 'sm', collapsed: { mobile: !opened, desktop: true } }}
         padding="md"
       >
