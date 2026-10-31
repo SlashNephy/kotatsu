@@ -146,6 +146,7 @@ function boosterOf(video: HTMLMediaElement): Booster | null {
       enabled: new Set(wanted.get(video)),
     };
     wire(sharedContext, booster);
+    applyDelay(video, booster);
     boosters.set(video, booster);
 
     return booster;
@@ -194,13 +195,18 @@ function setStage(video: HTMLMediaElement, name: AudioStageName, enabled: boolea
     }
     wire(sharedContext, booster);
   }
-  // 音ずれ補正の段は、作ったときも、長さだけを変えたときも、覚えた長さにする。
+  applyDelay(video, booster);
+  // 作ったばかりの AudioContext は止まっていることがあるので、動かす。動かさないと、WebAudio を通した音が出ない。
+  resumeContext();
+}
+
+// applyDelay は、音ずれ補正の段に、覚えた長さを当てる。段を作ったとき (setStage でも、音量を上げて booster を
+// 作ったときでも) と、長さだけを変えたときに呼ぶ。
+function applyDelay(video: HTMLMediaElement, booster: Booster): void {
   const delay = booster.stages.get('delay')?.input as DelayNode | undefined;
   if (delay !== undefined) {
     delay.delayTime.value = delays.get(video) ?? 0;
   }
-  // 作ったばかりの AudioContext は止まっていることがあるので、動かす。動かさないと、WebAudio を通した音が出ない。
-  resumeContext();
 }
 
 // hasStage は、video の音に、今、段 name を入れているかを返す。

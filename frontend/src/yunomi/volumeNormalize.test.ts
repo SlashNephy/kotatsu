@@ -245,4 +245,20 @@ describe('setAudioDelay', () => {
     resumePendingBoost(video);
     expect(delays[0]?.delayTime.value).toBe(0.1);
   });
+
+  test('操作の前に音量を上げて遅らせたら、操作した後に、上げた音量で作るグラフにも覚えた長さを当てる', async () => {
+    const { RecordingContext, delays } = recordingContext();
+    vi.stubGlobal('AudioContext', RecordingContext);
+    const { applyVolume, boostOf, setAudioDelay, resumePendingBoost } =
+      await import('./volumeBoost');
+    const video = document.createElement('video');
+
+    applyVolume(video, 1.5);
+    setAudioDelay(video, 0.1);
+
+    window.dispatchEvent(new Event('pointerdown'));
+    resumePendingBoost(video);
+    expect(delays[0]?.delayTime.value).toBe(0.1);
+    expect(boostOf(video)).toBe(1.5);
+  });
 });
