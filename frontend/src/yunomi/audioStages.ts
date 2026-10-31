@@ -2,8 +2,9 @@
 // 段は、名前の付いた順に並べ、入れていない段は飛ばす。イコライザーや音ずれ補正を足すときは、ここに名前と順を足す。
 
 // audioStageOrder は、段を並べる順。source に近いほうから並べる。
-// 仮想サラウンドは、元のチャンネルを読むので最初に置き、音量の補正は、混ぜた後の音に効かせる。
-export const audioStageOrder = ['surround', 'normalize'] as const;
+// 音ずれ補正 (#818) は、ほかの段の効き方を変えないので最初に置く。仮想サラウンドは、元のチャンネルを読むので
+// その次に置き、音量の補正は、混ぜた後の音に効かせる。
+export const audioStageOrder = ['delay', 'surround', 'normalize'] as const;
 
 export type AudioStageName = (typeof audioStageOrder)[number];
 

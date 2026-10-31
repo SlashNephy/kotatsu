@@ -1,10 +1,11 @@
-import { Alert, Select, Switch } from '@mantine/core';
+import { Alert, NumberInput, Select, Switch } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
 import type { AudioChoice, KyusuAudioChoice } from './audio';
 import { cropOrigins, cropScales, type Crop } from './crop';
 import { useNormalizeVolume } from './volumeNormalize';
+import { audioDelayStepMs, maxAudioDelayMs, useAudioDelay, useResetAudioDelay } from './audioDelay';
 import { useVirtualSurroundSetting } from './useVirtualSurround';
 import { original, type KyusuAudio, type PlaybackRoute } from './route';
 
@@ -323,6 +324,39 @@ export function NormalizeVolumeToggle() {
       checked={enabled}
       onChange={(event) => setEnabled(event.currentTarget.checked)}
     />
+  );
+}
+
+// AudioDelaySetting は、設定のメニューに置く、音ずれ補正 (#818) の長さ。端末ごとの設定を変える。
+// resettable なら (ライブ視聴)、選局したときに元に戻すかの切り替えも出す。
+export function AudioDelaySetting({ resettable = false }: { resettable?: boolean }) {
+  const { t } = useTranslation();
+  const [ms, setMs] = useAudioDelay();
+  const [reset, setReset] = useResetAudioDelay();
+
+  return (
+    <>
+      <NumberInput
+        size="xs"
+        label={t('player.audioDelay.label')}
+        description={t('player.audioDelay.description')}
+        value={ms}
+        min={0}
+        max={maxAudioDelayMs}
+        step={audioDelayStepMs}
+        suffix=" ms"
+        allowDecimal={false}
+        onChange={(value) => setMs(typeof value === 'number' ? value : Number(value) || 0)}
+      />
+      {resettable && (
+        <Switch
+          size="xs"
+          label={t('player.audioDelay.resetOnChannelChange')}
+          checked={reset}
+          onChange={(event) => setReset(event.currentTarget.checked)}
+        />
+      )}
+    </>
   );
 }
 

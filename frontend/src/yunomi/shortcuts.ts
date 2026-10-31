@@ -23,6 +23,9 @@ export const shortcutKeys: Readonly<Partial<Record<SimpleCommandId, readonly str
   capture: ['s'],
   restart: ['r'],
   toggleStats: ['i'],
+  // ] で音を遅らせ、[ で戻す (#818)。
+  audioDelayIncrease: [']'],
+  audioDelayDecrease: ['['],
   showShortcuts: ['?'],
 };
 
