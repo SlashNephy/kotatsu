@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 )
@@ -89,7 +90,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 			want: func(userID uuid.UUID) *promoted {
 				return &promoted{
 					state: string(recording.StateCompleted), gaps: 0, starts: []time.Time{from}, ends: []time.Time{to}, recordedFrom: from,
-					history: 1, promotion: false, notified: []string{"recording_completed"}, audience: [][]uuid.UUID{{userID}},
+					history: 1, promotion: false, notified: []string{string(domain.NotificationKindRecordingCompleted)}, audience: [][]uuid.UUID{{userID}},
 				}
 			},
 		},
@@ -100,7 +101,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 				return &promoted{
 					state: string(recording.StatePartial), gaps: 1, starts: []time.Time{from.Add(2 * time.Minute)}, ends: []time.Time{to},
 					recordedFrom: from.Add(2 * time.Minute), history: 0, promotion: false,
-					notified: []string{"recording_completed"}, audience: [][]uuid.UUID{{userID}},
+					notified: []string{string(domain.NotificationKindRecordingCompleted)}, audience: [][]uuid.UUID{{userID}},
 				}
 			},
 		},
@@ -114,7 +115,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 				return &promoted{
 					state: string(recording.StatePartial), gaps: 1, starts: []time.Time{from, from.Add(5 * time.Minute)},
 					ends: []time.Time{from.Add(3 * time.Minute), to}, recordedFrom: from, history: 0, promotion: false,
-					notified: []string{"recording_completed"}, audience: [][]uuid.UUID{{userID}},
+					notified: []string{string(domain.NotificationKindRecordingCompleted)}, audience: [][]uuid.UUID{{userID}},
 				}
 			},
 		},
@@ -124,7 +125,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 			want: func(userID uuid.UUID) *promoted {
 				return &promoted{
 					state: string(recording.StatePartial), gaps: 1, starts: []time.Time{from}, ends: []time.Time{from.Add(5 * time.Minute)},
-					recordedFrom: from, history: 0, promotion: false, notified: []string{"recording_completed"}, audience: [][]uuid.UUID{{userID}},
+					recordedFrom: from, history: 0, promotion: false, notified: []string{string(domain.NotificationKindRecordingCompleted)}, audience: [][]uuid.UUID{{userID}},
 				}
 			},
 		},
@@ -135,7 +136,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 				return &promoted{
 					state: string(recording.StateFailed), failureReason: new(string(recording.FailureProgramNotFound)), gaps: 0,
 					starts: []time.Time{}, ends: []time.Time{}, recordedFrom: from, history: 0, promotion: false,
-					notified: []string{"recording_failed"}, audience: [][]uuid.UUID{{userID}},
+					notified: []string{string(domain.NotificationKindRecordingFailed)}, audience: [][]uuid.UUID{{userID}},
 				}
 			},
 		},

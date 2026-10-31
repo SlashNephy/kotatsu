@@ -293,8 +293,9 @@ func TestPruneKeepsPromotedChunks(t *testing.T) {
 	pruned, err := worker.RunOnce(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, pruned)
-	kept := []uuid.UUID{}
-	for _, c := range chunks(t, e) {
+	rows := chunks(t, e)
+	kept := make([]uuid.UUID, 0, len(rows))
+	for _, c := range rows {
 		kept = append(kept, c.id)
 	}
 	assert.Equal(t, ids[1:], kept)

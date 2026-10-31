@@ -23,6 +23,10 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 )
 
+// promoteDelay は、書き出す範囲の終わりから、書き出し始めるまで待つ時間。mikan はチャンクを 1 秒ごとに書き出すので、
+// 書いている途中のチャンクが、書き出す範囲の終わりを確かに越えるようにする。
+const promoteDelay = 5 * time.Second
+
 // promoteAction は、バッファの番組を録画に昇格したことを残す、監査ログの操作の種類。
 const promoteAction = "timeshift.promote"
 
@@ -159,11 +163,11 @@ func (p *Promoter) enqueue(
 		if inserted == 0 {
 			return ErrAlreadyPromoting
 		}
-		// 終わりのマージンがまだ過ぎていなければ、バッファに録り終えるまで待ってから書き出す。
+		// 終わりのマージンを過ぎて、書いている途中のチャンクが書き出す範囲の終わりを越えるまで待ってから書き出す。
 		args := recording.PromoteArgs{RecordingID: row.ID}
 		opts := args.InsertOpts()
-		if to.After(now) {
-			opts.ScheduledAt = to
+		if ready := to.Add(promoteDelay); ready.After(now) {
+			opts.ScheduledAt = ready
 		}
 		if _, err := p.inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: args, InsertOpts: &opts}}); err != nil {
 			return fmt.Errorf("failed to enqueue the timeshift promotion: %w", err)
