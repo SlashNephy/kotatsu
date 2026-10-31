@@ -1,5 +1,5 @@
 import { Kbd, Menu, ScrollArea } from '@mantine/core';
-import { useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -10,7 +10,7 @@ import {
 } from './commands';
 import { keysFor, useKeymap } from './shortcuts';
 import { keyLabels, splitKey } from './ShortcutsHelp';
-import { onVideoSurface } from './useControlsVisibility';
+import { controlsAttribute, onVideoSurface } from './useControlsVisibility';
 
 // プレイヤーを右クリックしたときのメニュー (#1140、設計書 7.5)。ブラウザの動画用のメニューの代わりに、
 // その画面で今使える操作を、操作の登録簿の順に並べる。
@@ -37,6 +37,24 @@ export function usePlayerContextMenu(commands: PlayerCommands): {
   const [keymap] = useKeymap();
   // position は、メニューを出す位置 (画面の座標)。閉じていれば null。
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  // メニューの外を押したら閉じる。Mantine は、ページの document だけを見るので、プレイヤーを別のウィンドウ
+  // (Document Picture-in-Picture) に移したときは、そのウィンドウの document でも見る。
+  useEffect(() => {
+    const doc = anchorRef.current?.ownerDocument;
+    if (position === null || doc === undefined || doc === document) {
+      return;
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node) || !dropdownRef.current?.contains(event.target)) {
+        setPosition(null);
+      }
+    };
+    doc.addEventListener('pointerdown', onPointerDown, true);
+
+    return () => doc.removeEventListener('pointerdown', onPointerDown, true);
+  }, [position]);
 
   const onContextMenu = (event: MouseEvent<HTMLElement>) => {
     if (!onVideoSurface(event.target)) {
@@ -48,8 +66,15 @@ export function usePlayerContextMenu(commands: PlayerCommands): {
 
   const items = contextMenuItems(commands);
   const menu = (
-    // メニューの中のクリックが、映像のクリック (再生と一時停止) に伝わらないよう止める。
-    <div style={{ display: 'contents' }} onClick={(event) => event.stopPropagation()}>
+    // メニューは操作バーと同じく扱い、開いている間は操作バーを隠さず、メニューの上のクリックや長押しを映像の操作にしない。
+    // メニューの中のクリックとキーが、映像のクリック (再生と一時停止) とショートカットに伝わらないよう止める。
+    <div
+      style={{ display: 'contents' }}
+      {...{ [controlsAttribute]: '' }}
+      onClick={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
       <Menu
         opened={position !== null}
         onChange={(opened) => {
@@ -65,6 +90,7 @@ export function usePlayerContextMenu(commands: PlayerCommands): {
       >
         <Menu.Target>
           <div
+            ref={anchorRef}
             aria-hidden
             style={{
               position: 'fixed',
@@ -76,7 +102,7 @@ export function usePlayerContextMenu(commands: PlayerCommands): {
             }}
           />
         </Menu.Target>
-        <Menu.Dropdown>
+        <Menu.Dropdown ref={dropdownRef}>
           <ScrollArea.Autosize mah={menuMaxHeight} type="auto">
             {items.map((id) => {
               const key = keysFor(id, keymap)[0];
