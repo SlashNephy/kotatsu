@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<5c4fd4958d5fe75d25d3131de99b96e5>>
+ * @generated SignedSource<<bc7f3479cfdff30e9248211f9f2d778f>>
  * @lightSyntaxTransform
  */
 
@@ -9,6 +9,7 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type RecordingFileKind = "OTHER" | "SEGMENT" | "%future added value";
+export type StreamKind = "AUDIO" | "OTHER" | "PSI" | "UNKNOWN" | "VIDEO" | "%future added value";
 export type VideoCodec = "H264" | "HEVC" | "%future added value";
 export type VideoFormat = "HD" | "SHV" | "UHD" | "%future added value";
 export type RecordingIdPlayQuery$variables = {
@@ -52,6 +53,10 @@ export type RecordingIdPlayQuery$data = {
       readonly name: string;
     };
     readonly startAt: string;
+    readonly streamQuality: ReadonlyArray<{
+      readonly kind: StreamKind;
+      readonly packets: number;
+    }>;
     readonly streamUrl: string;
     readonly thumbnailUrl: string | null | undefined;
     readonly videoFormat: VideoFormat;
@@ -255,18 +260,19 @@ v18 = {
 v19 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "kind",
+  "storageKey": null
+},
+v20 = {
+  "alias": null,
+  "args": null,
   "concreteType": "RecordingFile",
   "kind": "LinkedField",
   "name": "files",
   "plural": true,
   "selections": [
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "kind",
-      "storageKey": null
-    },
+    (v19/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -277,35 +283,54 @@ v19 = {
   ],
   "storageKey": null
 },
-v20 = {
+v21 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "drops",
   "storageKey": null
 },
-v21 = {
+v22 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "errors",
   "storageKey": null
 },
-v22 = {
+v23 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "scrambled",
   "storageKey": null
 },
-v23 = {
+v24 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "StreamQuality",
+  "kind": "LinkedField",
+  "name": "streamQuality",
+  "plural": true,
+  "selections": [
+    (v19/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "packets",
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v25 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v24 = {
+v26 = {
   "alias": null,
   "args": null,
   "concreteType": "JikkyoChannel",
@@ -315,7 +340,7 @@ v24 = {
   "selections": (v13/*:: as any*/),
   "storageKey": null
 },
-v25 = {
+v27 = {
   "alias": null,
   "args": null,
   "concreteType": "Transcoding",
@@ -392,10 +417,11 @@ return {
               (v16/*:: as any*/),
               (v17/*:: as any*/),
               (v18/*:: as any*/),
-              (v19/*:: as any*/),
               (v20/*:: as any*/),
               (v21/*:: as any*/),
               (v22/*:: as any*/),
+              (v23/*:: as any*/),
+              (v24/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -405,8 +431,8 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v23/*:: as any*/),
-                  (v24/*:: as any*/)
+                  (v25/*:: as any*/),
+                  (v26/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -417,7 +443,7 @@ return {
         ],
         "storageKey": null
       },
-      (v25/*:: as any*/)
+      (v27/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -454,10 +480,11 @@ return {
               (v16/*:: as any*/),
               (v17/*:: as any*/),
               (v18/*:: as any*/),
-              (v19/*:: as any*/),
               (v20/*:: as any*/),
               (v21/*:: as any*/),
               (v22/*:: as any*/),
+              (v23/*:: as any*/),
+              (v24/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -467,8 +494,8 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v23/*:: as any*/),
-                  (v24/*:: as any*/),
+                  (v25/*:: as any*/),
+                  (v26/*:: as any*/),
                   (v12/*:: as any*/)
                 ],
                 "storageKey": null
@@ -481,20 +508,20 @@ return {
         ],
         "storageKey": null
       },
-      (v25/*:: as any*/)
+      (v27/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "ac9b5bd86034910a69c2f7a11e9ba34a",
+    "cacheID": "ad758c7aeeb20a16a4db4d2ad3de940f",
     "id": null,
     "metadata": {},
     "name": "RecordingIdPlayQuery",
     "operationKind": "query",
-    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      startAt\n      endAt\n      streamUrl\n      videoFormat\n      recordedFrom\n      recordedUntil\n      gaps {\n        from\n        to\n      }\n      jikkyoCommentsUrl\n      rule {\n        id\n        name\n      }\n      watchPositionMs\n      thumbnailUrl\n      previewUrl\n      audios {\n        componentType\n        languages\n        samplingRate\n      }\n      files {\n        kind\n        size\n      }\n      drops\n      errors\n      scrambled\n      service {\n        name\n        logoUrl\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
+    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      startAt\n      endAt\n      streamUrl\n      videoFormat\n      recordedFrom\n      recordedUntil\n      gaps {\n        from\n        to\n      }\n      jikkyoCommentsUrl\n      rule {\n        id\n        name\n      }\n      watchPositionMs\n      thumbnailUrl\n      previewUrl\n      audios {\n        componentType\n        languages\n        samplingRate\n      }\n      files {\n        kind\n        size\n      }\n      drops\n      errors\n      scrambled\n      streamQuality {\n        kind\n        packets\n      }\n      service {\n        name\n        logoUrl\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "9dd5456fbfe980a35e2622089f743904";
+(node as any).hash = "124a65b9dc731be7b8fc738fe3cfac80";
 
 export default node;

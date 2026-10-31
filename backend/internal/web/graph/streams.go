@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -141,4 +142,53 @@ func (r *Resolver) recordingVideoFormat(ctx context.Context, obj *model.Recordin
 	}
 
 	return videoFormat(obj.VideoResolution, service.ChannelType), nil
+}
+
+// errLiveRatesUnavailable は、内訳を数えられない (チューナーサーバーを設定していない) ときのエラー。
+var errLiveRatesUnavailable = errors.New("live stream rates are unavailable")
+
+// subscribeLiveStreamRates は、ライブのサービス service の、PID の種類ごとのビットレートを送る (#812)。
+func (r *Resolver) subscribeLiveStreamRates(ctx context.Context, service string) (<-chan *model.LiveStreamRates, error) {
+	if _, err := viewer(ctx); err != nil {
+		return nil, err
+	}
+	serviceID, err := parseServiceGlobalID(service)
+	if err != nil {
+		return nil, err
+	}
+	if r.liveRates == nil {
+		return nil, errLiveRatesUnavailable
+	}
+	rates, err := r.liveRates.Watch(ctx, serviceID)
+	switch {
+	case errors.Is(err, stream.ErrNoTuner):
+		return nil, errLiveRatesUnavailable
+	case err != nil:
+		r.logger.WarnContext(ctx, "failed to watch the live stream rates", slog.Int64("service_id", serviceID), slog.Any("error", err))
+
+		return nil, errLiveRatesUnavailable
+	}
+	out := make(chan *model.LiveStreamRates, 1)
+	go func() {
+		defer close(out)
+		for rate := range rates {
+			select {
+			case out <- &model.LiveStreamRates{
+				VideoBps:   int(rate.BPS.Video),
+				AudioBps:   int(rate.BPS.Audio),
+				OtherBps:   int(rate.BPS.Other),
+				PsiBps:     int(rate.BPS.PSI),
+				UnknownBps: int(rate.BPS.Unknown),
+				TotalBps:   int(rate.TotalBPS),
+				Drops:      rate.Drops,
+				Errors:     rate.Errors,
+				Scrambled:  rate.Scrambled,
+			}:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return out, nil
 }
