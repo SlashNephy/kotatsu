@@ -15,7 +15,7 @@ goreleaser = "2.19.0"
 # Helm Chart から Kubernetes のマニフェストを生成する (設計書 11.1)。
 helm = "4.3.1"
 # フロントエンドのツールチェーン。frontend/ はここから引き継ぐ。Vite+ は frontend/package.json の devDependency にする (設計書 10.1)。
-node = "24.22.1"
+node = "26.13.0"
 pnpm = "12.16.0"
 
 # 開発用の Compose を、ソースの変更を見てビルドし直す構成で動かす (docs/development.md)。
