@@ -1,6 +1,14 @@
 import { describe, expect, test } from 'vitest';
 
-import { shortcutFor } from './shortcuts';
+import {
+  assignKey,
+  defaultKeymap,
+  eventKey,
+  keysFor,
+  parseKeymap,
+  removeKey,
+  shortcutFor,
+} from './shortcuts';
 
 describe('shortcutFor', () => {
   const body = document.body;
@@ -94,5 +102,93 @@ describe('shortcutFor', () => {
     expect(
       shortcutFor({ key, target, ctrlKey, metaKey: false, altKey: false, shiftKey, repeat }),
     ).toBe(want);
+  });
+});
+
+describe('shortcutFor with a keymap', () => {
+  test('割り当てを変えたら、そのキーで操作を呼ぶ', () => {
+    const keymap = assignKey(defaultKeymap, 'toggleMute', 'x');
+    const event = {
+      key: 'x',
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+      shiftKey: false,
+      repeat: false,
+      target: document.body,
+    };
+
+    expect(shortcutFor(event, keymap)).toBe('toggleMute');
+  });
+});
+
+describe('eventKey', () => {
+  const event = (
+    key: string,
+    mods: Partial<{ ctrlKey: boolean; altKey: boolean; metaKey: boolean; shiftKey: boolean }> = {},
+  ) => ({
+    key,
+    ctrlKey: false,
+    altKey: false,
+    metaKey: false,
+    shiftKey: false,
+    ...mods,
+  });
+
+  test.each([
+    { name: '文字のキーは、そのまま', event: event('x'), want: 'x' },
+    {
+      name: 'Shift で変わった文字は、変わった文字のまま',
+      event: event('?', { shiftKey: true }),
+      want: '?',
+    },
+    {
+      name: '文字でないキーと Shift は、Shift+ を付ける',
+      event: event('ArrowLeft', { shiftKey: true }),
+      want: 'Shift+ArrowLeft',
+    },
+    { name: '修飾キーだけなら null', event: event('Shift', { shiftKey: true }), want: null },
+    { name: 'Ctrl と一緒なら null', event: event('x', { ctrlKey: true }), want: null },
+    { name: 'Escape は、割り当てをやめるのに使うので null', event: event('Escape'), want: null },
+  ])('$name', ({ event, want }) => {
+    expect(eventKey(event)).toBe(want);
+  });
+});
+
+describe('assignKey', () => {
+  test('ほかの操作に割り当てていたキーは、そちらから外す', () => {
+    const keymap = assignKey(defaultKeymap, 'toggleMute', 'c');
+
+    expect(keysFor('toggleMute', keymap)).toEqual(['m', 'c']);
+    expect(keysFor('toggleCaptions', keymap)).toEqual([]);
+  });
+
+  test('同じキーを 2 度足さない', () => {
+    expect(keysFor('toggleMute', assignKey(defaultKeymap, 'toggleMute', 'm'))).toEqual(['m']);
+  });
+});
+
+describe('removeKey', () => {
+  test('操作からキーを外す', () => {
+    expect(keysFor('togglePlay', removeKey(defaultKeymap, 'togglePlay', 'k'))).toEqual([' ']);
+  });
+});
+
+describe('parseKeymap', () => {
+  test.each([
+    {
+      name: '覚えた割り当てを読む',
+      raw: '{"toggleMute":["x"]}',
+      want: { ...defaultKeymap, toggleMute: ['x'] },
+    },
+    {
+      name: '知らない操作と、文字列でないキーは捨てる',
+      raw: '{"unknown":["x"],"toggleMute":[1,"y"]}',
+      want: { ...defaultKeymap, toggleMute: ['y'] },
+    },
+    { name: '壊れていれば既定', raw: '{', want: defaultKeymap },
+    { name: 'なければ既定', raw: null, want: defaultKeymap },
+  ])('$name', ({ raw, want }) => {
+    expect(parseKeymap(raw)).toEqual(want);
   });
 });
