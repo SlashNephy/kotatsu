@@ -19,15 +19,16 @@ type Program = {
 };
 
 type Props = {
-  // visible は、操作バーと一緒に出すかどうか。
+  // visible は、出すかどうか。
   visible: boolean;
   serviceName: string;
   current: Program | null;
   next: Program | null;
 };
 
-// ProgramOverlay は、ライブ視聴で、操作バーを出している間、映像の上端に、放送中の番組と次の番組を重ねる (#438)。
-// ページでは番組名を映像の下に出すので、映像の下が見えない別のウィンドウ (Document Picture-in-Picture) でだけ使う。
+// ProgramOverlay は、ライブ視聴で、映像の上端に、放送中の番組と次の番組を重ねる。別のウィンドウ (Document
+// Picture-in-Picture) では、映像の下が見えないので、操作バーを出している間は出す (#438)。選局したときと番組が変わったときは、
+// どこでも数秒だけ出す (#815)。
 export function ProgramOverlay({ visible, serviceName, current, next }: Props) {
   const { t } = useTranslation();
   const range = (program: Program) =>

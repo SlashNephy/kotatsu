@@ -8,14 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
-import {
-  ErrorBoundary,
-  PageLoader,
-  ProgramTitle,
-  splitProgramMarks,
-  toHalfWidth,
-  useDocumentTitle,
-} from '../../futon';
+import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { CommentList } from '../../jikkyo/CommentList';
@@ -54,6 +47,7 @@ import {
 import { hlsURL, toVideoFormat } from '../../yunomi/route';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
 import { useRemotePlayer } from '../../yunomi/useRemotePlayer';
+import { documentTitle, usePlayerEvents, type PlayerSnapshot } from '../../yunomi/playerState';
 import { SeekBar } from '../../yunomi/SeekBar';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
@@ -620,21 +614,29 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       : {}),
   };
   usePlayerShortcuts(commands);
-  // タブの題名や OS のメディアの表示は印を描けないので、囲み文字を外し、全角の英数字は半角にする。
-  const recordingTitle =
-    recording == null ? null : toHalfWidth(splitProgramMarks(recording.name).name);
-  useDocumentTitle([recordingTitle]);
+  // player は、プレイヤーの今の状態 (#811)。タブの題名、OS のメディア操作、ほかの端末は、どれもこれを読む。
+  const player = {
+    kind: 'RECORDING',
+    target: recordingId,
+    serviceName: recording?.service.name ?? '',
+    program: recording === null ? null : { id: recordingId, name: recording.name },
+    artwork: recording?.thumbnailUrl ?? null,
+    paused,
+    position,
+    duration,
+    playbackRate: rate,
+    volume: videoState.volume,
+    muted: videoState.muted,
+    audios: audio.remote.choices,
+    audio: audio.remote.selected,
+    dataBroadcast: false,
+    keyGroups: [],
+  } satisfies PlayerSnapshot;
+  const playerEvents = usePlayerEvents(player);
+  useDocumentTitle(documentTitle(player));
   useMediaSession(
-    {
-      title: recordingTitle ?? '',
-      artist: toHalfWidth(recording?.service.name ?? ''),
-      artwork: recording?.thumbnailUrl ?? null,
-    },
+    player,
     commands,
-    {
-      playing: !videoState.paused,
-      position: { duration, position: seeking ?? position, playbackRate: rate },
-    },
     // 設定で選んでいれば、タブを切り替えたときに、別のウィンドウに出す (#492)。
     autoPictureInPicture,
   );
@@ -694,25 +696,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   }, [startedAt, hls, video]);
 
   // 同じアカウントのほかの端末から、このプレイヤーを操作できるようにする (#459、設計書 7.7)。
-  useRemotePlayer(
-    recording === null || video === null
-      ? null
-      : {
-          kind: 'RECORDING',
-          target: recordingId,
-          title: recording.name,
-          paused,
-          position,
-          duration,
-          volume: videoState.volume,
-          muted: videoState.muted,
-          audios: audio.remote.choices,
-          audio: audio.remote.selected,
-          dataBroadcast: false,
-          keyGroups: [],
-        },
-    commands,
-  );
+  useRemotePlayer(recording === null || video === null ? null : player, playerEvents, commands);
 
   if (recording === null) {
     return <Alert color="amber">{t('recordings.notFound')}</Alert>;

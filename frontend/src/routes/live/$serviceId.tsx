@@ -79,6 +79,7 @@ import {
 import { dataBroadcastSource, hlsURL, toVideoFormat } from '../../yunomi/route';
 import { RemoteKey, useDataBroadcast } from '../../yunomi/useDataBroadcast';
 import { useRemotePlayer } from '../../yunomi/useRemotePlayer';
+import { documentTitle, usePlayerEvents, type PlayerSnapshot } from '../../yunomi/playerState';
 import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
 import { useLiveCatchUp, useLowLatency } from '../../yunomi/liveCatchUp';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
@@ -112,6 +113,7 @@ import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
 import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordingsQuery.graphql';
 import { ProgramOverlay } from '../../yunomi/ProgramOverlay';
+import { useProgramOsd } from '../../yunomi/programOsd';
 import { neighborServices } from '../../yunomi/channels';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
@@ -272,6 +274,7 @@ function Live({
         }
         guide(from: $from, to: $to, services: [$id]) {
           programs {
+            id
             name
             startAt
             endAt
@@ -548,9 +551,6 @@ function Live({
   const surroundAvailable = route.kind === 'convert' && isSurroundAudio(program?.audios ?? null);
   useVirtualSurround(video, surroundAvailable);
   const programName = program?.name ?? null;
-  // programTitle は、タブの題名や OS のメディアの表示に出す番組名。印を描けないので囲み文字を外し、全角の英数字は半角にする。
-  const programTitle =
-    programName === null ? null : toHalfWidth(splitProgramMarks(programName).name);
   const serviceName = data.node?.__typename === 'Service' ? data.node.name : '';
   const serviceLogoUrl = data.node?.__typename === 'Service' ? (data.node.logoUrl ?? null) : null;
   // flash は、キーで操作した結果。映像の上に短く出す (#448)。
@@ -719,16 +719,33 @@ function Live({
       : {}),
   };
   usePlayerShortcuts(commands);
-  useDocumentTitle([programTitle, toHalfWidth(serviceName)]);
-  useMediaSession(
-    {
-      title: programTitle ?? toHalfWidth(serviceName),
-      artist: toHalfWidth(serviceName),
-      artwork: serviceLogoUrl,
-    },
-    commands,
+  // player は、プレイヤーの今の状態 (#811)。タブの題名、OS のメディア操作、ほかの端末は、どれもこれを読む。
+  const player = {
+    kind: 'LIVE',
+    target: serviceId,
+    serviceName,
+    program: program === null ? null : { id: program.id, name: program.name },
+    artwork: serviceLogoUrl,
+    paused: videoState.paused,
     // ライブはシークできないので、再生位置は知らせない。
-    { playing: !videoState.paused, position: null },
+    position: null,
+    duration: null,
+    playbackRate: 1,
+    volume: videoState.volume,
+    muted: videoState.muted,
+    audios: audio.remote.choices,
+    audio: audio.remote.selected,
+    dataBroadcast: dataBroadcastEnabled,
+    keyGroups: [...dataBroadcast.keyGroups],
+  } satisfies PlayerSnapshot;
+  const playerEvents = usePlayerEvents(player);
+  // osd は、選局したときと番組が変わったときに、番組の情報を映像に重ねて出しているか (#815)。
+  // バッファを再生している間は、放送中の番組と映像の番組が違うので出さない。
+  const osd = useProgramOsd(playerEvents, video !== null && !videoLoading, !timeshift.behind);
+  useDocumentTitle(documentTitle(player));
+  useMediaSession(
+    player,
+    commands,
     // 設定で選んでいれば、タブを切り替えたときに、別のウィンドウに出す (#492)。
     autoPictureInPicture,
   );
@@ -740,25 +757,7 @@ function Live({
     (key) => runCommand(commands, 'pressKey', key),
   );
   // 同じアカウントのほかの端末から、このプレイヤーを操作できるようにする (#459、設計書 7.7)。
-  useRemotePlayer(
-    video === null
-      ? null
-      : {
-          kind: 'LIVE',
-          target: serviceId,
-          title: program?.name ?? null,
-          paused: videoState.paused,
-          position: null,
-          duration: null,
-          volume: videoState.volume,
-          muted: videoState.muted,
-          audios: audio.remote.choices,
-          audio: audio.remote.selected,
-          dataBroadcast: dataBroadcastEnabled,
-          keyGroups: [...dataBroadcast.keyGroups],
-        },
-    commands,
-  );
+  useRemotePlayer(video === null ? null : player, playerEvents, commands);
   // commentRows は、右の列のコメントの一覧の行。操作バーの出し入れなどで描き直すたびに作らず、コメントが届いたときだけ作り直す。
   const commentRows = useMemo(
     () =>
@@ -975,15 +974,14 @@ function Live({
               {/* データ放送と実況のコメントは、ライブのものなので、バッファを再生している間は重ねない。 */}
               {!timeshift.behind && dataBroadcast.layer}
               {!timeshift.behind && jikkyo.overlay}
-              {/* 番組名は映像の下に出すので、映像の下が見えない別のウィンドウでだけ重ねる。 */}
-              {pip.container !== null && (
-                <ProgramOverlay
-                  visible={controls.visible}
-                  serviceName={serviceName}
-                  current={program}
-                  next={nextProgram}
-                />
-              )}
+              {/* 番組名は映像の下に出すので、操作バーと一緒に重ねるのは、映像の下が見えない別のウィンドウでだけにする。
+                  選局したときと番組が変わったときは、どこでも数秒だけ重ねる。 */}
+              <ProgramOverlay
+                visible={osd || (pip.container !== null && controls.visible)}
+                serviceName={serviceName}
+                current={program}
+                next={nextProgram}
+              />
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {statsShown && <PlayerStats video={video} quality={quality} />}
               {dataBroadcast.receiving && (
@@ -1036,15 +1034,14 @@ function Live({
               {/* データ放送と実況のコメントは、ライブのものなので、バッファを再生している間は重ねない。 */}
               {!timeshift.behind && dataBroadcast.layer}
               {!timeshift.behind && jikkyo.overlay}
-              {/* 番組名は映像の下に出すので、映像の下が見えない別のウィンドウでだけ重ねる。 */}
-              {pip.container !== null && (
-                <ProgramOverlay
-                  visible={controls.visible}
-                  serviceName={serviceName}
-                  current={program}
-                  next={nextProgram}
-                />
-              )}
+              {/* 番組名は映像の下に出すので、操作バーと一緒に重ねるのは、映像の下が見えない別のウィンドウでだけにする。
+                  選局したときと番組が変わったときは、どこでも数秒だけ重ねる。 */}
+              <ProgramOverlay
+                visible={osd || (pip.container !== null && controls.visible)}
+                serviceName={serviceName}
+                current={program}
+                next={nextProgram}
+              />
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {statsShown && <PlayerStats video={video} quality={quality} />}
               {dataBroadcast.receiving && (
