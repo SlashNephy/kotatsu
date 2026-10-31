@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a4b4f7f17b3ce63e5b5eb5a464d9ccaa>>
+ * @generated SignedSource<<3bd92782fde36d8c12263ea17b3facef>>
  * @lightSyntaxTransform
  */
 
@@ -32,7 +32,7 @@ export type RuleDefaultsInput = {
 };
 export type DrcsReplacementInput = {
   md5: string;
-  text: string;
+  text?: string | null | undefined;
 };
 export type captionsMutation$variables = {
   input: SystemSettingsInput;

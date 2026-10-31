@@ -7761,7 +7761,10 @@ input SystemSettingsInput {
   "ルールを作るときの既定値の変える項目。省いた項目は変えない。"
   ruleDefaults: RuleDefaultsInput
   mcpEnabled: Boolean
-  "字幕の外字の置き換えの表。渡すと、表をこれで置き換える。2000 件まで。"
+  """
+  字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
+  表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
+  """
   drcsReplacements: [DrcsReplacementInput!]
 }
 
@@ -7777,7 +7780,8 @@ type DrcsReplacement {
 
 input DrcsReplacementInput {
   md5: String!
-  text: String!
+  "置き換える文字。null なら、この外字を表から消す。"
+  text: String
 }
 
 extend type Query {
@@ -30537,7 +30541,7 @@ func (ec *executionContext) unmarshalInputDrcsReplacementInput(ctx context.Conte
 			it.Md5 = data
 		case "text":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("text"))
-			data, err := ec.unmarshalNString2string(ctx, v)
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}

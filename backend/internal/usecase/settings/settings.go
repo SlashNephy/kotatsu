@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/netip"
 	"strings"
 	"time"
@@ -116,8 +117,8 @@ type Changes struct {
 	NotificationRetentionDays *int
 	Rule                      *RuleChanges
 	MCPEnabled                *bool
-	// DRCSReplacements は、外字の置き換えの表 (#825)。渡すと、表をこれで置き換える。
-	DRCSReplacements map[string]string
+	// DRCSReplacements は、外字の置き換えの表の変更 (#825)。MD5 から、置き換える文字 (nil なら消す) へ。書いていない外字は変えない。
+	DRCSReplacements map[string]*string
 }
 
 // Load は、全体の設定を返す。一度も変えていなければ、既定値を返す。
@@ -230,8 +231,8 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"notificationRetentionDays": change(current.NotificationRetentionDays, updated.NotificationRetentionDays),
 				"rule":                      change(current.Rule, updated.Rule),
 				"mcpEnabled":                change(current.MCPEnabled, updated.MCPEnabled),
-				// 表は大きくなりうるので、監査ログには数だけを残す。
-				"drcsReplacements": change(len(current.DRCSReplacements), len(updated.DRCSReplacements)),
+				// 表は大きくなりうるので、監査ログには、変えた外字だけを残す。
+				"drcsReplacements": drcsChanges(current.DRCSReplacements, updated.DRCSReplacements, changes.DRCSReplacements),
 			},
 			// 送信元は、操作者 (actor) に持たせる。
 			SourceIP:  netip.Addr{},
@@ -404,16 +405,31 @@ const (
 	maxDRCSReplacementLength = 4
 )
 
-// encodeDRCSReplacements は、外字の置き換えの表を変えたあとの、保存する JSON を返す。
-// changes が nil なら、current をそのまま保存する。
-func encodeDRCSReplacements(current, changes map[string]string) ([]byte, error) {
-	replacements := current
-	if changes != nil {
-		normalized, err := normalizeDRCSReplacements(changes)
-		if err != nil {
-			return nil, err
+// encodeDRCSReplacements は、外字の置き換えの表に changes を当てたあとの、保存する JSON を返す。
+// changes は、MD5 から、置き換える文字 (nil なら表から消す) への表。書いていない外字は変えない。
+// 表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
+func encodeDRCSReplacements(current map[string]string, changes map[string]*string) ([]byte, error) {
+	replacements := maps.Clone(current)
+	if replacements == nil {
+		replacements = map[string]string{}
+	}
+	for md5, text := range changes {
+		key := strings.ToLower(md5)
+		if len(key) != 32 || strings.Trim(key, "0123456789abcdef") != "" {
+			return nil, fmt.Errorf("%w: %q is not an MD5 hash", ErrInvalidSettings, md5)
 		}
-		replacements = normalized
+		if text == nil {
+			delete(replacements, key)
+
+			continue
+		}
+		if n := utf8.RuneCountInString(*text); n == 0 || n > maxDRCSReplacementLength {
+			return nil, fmt.Errorf("%w: the replacement of %s must be 1 to %d characters", ErrInvalidSettings, key, maxDRCSReplacementLength)
+		}
+		replacements[key] = *text
+	}
+	if len(replacements) > maxDRCSReplacements {
+		return nil, fmt.Errorf("%w: drcsReplacements must have at most %d entries", ErrInvalidSettings, maxDRCSReplacements)
 	}
 	encoded, err := json.Marshal(replacements)
 	if err != nil {
@@ -423,23 +439,13 @@ func encodeDRCSReplacements(current, changes map[string]string) ([]byte, error) 
 	return encoded, nil
 }
 
-// normalizeDRCSReplacements は、外字の置き換えの表を確かめ、MD5 を小文字にそろえて返す。
-// MD5 は 32 桁の 16 進、置き換える文字は 1〜maxDRCSReplacementLength 文字に限る。
-func normalizeDRCSReplacements(replacements map[string]string) (map[string]string, error) {
-	if len(replacements) > maxDRCSReplacements {
-		return nil, fmt.Errorf("%w: drcsReplacements must have at most %d entries", ErrInvalidSettings, maxDRCSReplacements)
-	}
-	normalized := make(map[string]string, len(replacements))
-	for md5, text := range replacements {
+// drcsChanges は、監査ログに残す、変えた外字の、変える前と後の文字。消した外字は、後を空にする。
+func drcsChanges(current, updated map[string]string, changes map[string]*string) map[string]any {
+	result := make(map[string]any, len(changes))
+	for md5 := range changes {
 		key := strings.ToLower(md5)
-		if len(key) != 32 || strings.Trim(key, "0123456789abcdef") != "" {
-			return nil, fmt.Errorf("%w: %q is not an MD5 hash", ErrInvalidSettings, md5)
-		}
-		if n := utf8.RuneCountInString(text); n == 0 || n > maxDRCSReplacementLength {
-			return nil, fmt.Errorf("%w: the replacement of %s must be 1 to %d characters", ErrInvalidSettings, key, maxDRCSReplacementLength)
-		}
-		normalized[key] = text
+		result[key] = change(current[key], updated[key])
 	}
 
-	return normalized, nil
+	return result
 }

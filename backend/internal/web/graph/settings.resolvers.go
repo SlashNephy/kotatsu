@@ -16,7 +16,7 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		return nil, err
 	}
 	// nil のままなら、外字の置き換えの表は変えない。
-	var replacements map[string]string
+	var replacements map[string]*string
 	if input.DrcsReplacements != nil {
 		if replacements, err = toDRCSReplacements(input.DrcsReplacements); err != nil {
 			return nil, err

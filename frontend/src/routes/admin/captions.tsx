@@ -24,7 +24,7 @@ import { useAction } from '../../admin/useAction';
 import { SaveRow } from '../../admin/SaveRow';
 import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
-import { validDRCSText } from '../../yunomi/drcs';
+import { diffDRCS, validDRCSText } from '../../yunomi/drcs';
 import type { captionsMutation } from './__generated__/captionsMutation.graphql';
 import type { captionsQuery } from './__generated__/captionsQuery.graphql';
 
@@ -72,7 +72,16 @@ function DRCSReplacements() {
   const action = useAction();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const settings = data.systemSettings;
+  // base は、編集を始めたときのサーバーの表。保存では、base から変えた外字だけを送る。
+  // 表を丸ごと送らないのは、ほかの画面 (字幕の履歴) や管理者が登録したものを、古い表で上書きして消さないためである。
+  const [base, setBase] = useState(settings.drcsReplacements);
   const [rows, setRows] = useState(() => settings.drcsReplacements.map((row) => ({ ...row })));
+  const changes = diffDRCS(base, rows);
+  // 読み直した表が変わっていて、まだ何も編集していなければ、読み直した表に合わせる。
+  if (settings.drcsReplacements !== base && changes.length === 0) {
+    setBase(settings.drcsReplacements);
+    setRows(settings.drcsReplacements.map((row) => ({ ...row })));
+  }
   const [md5, setMD5] = useState('');
   const [text, setText] = useState('');
   const newValid =
@@ -103,7 +112,7 @@ function DRCSReplacements() {
               }
             }
           `,
-          { input: { drcsReplacements: rows } },
+          { input: { drcsReplacements: changes } },
         );
         setMessage({ ok: true, text: t('admin.saved') });
         startTransition(() => setFetchKey((key) => key + 1));
@@ -209,7 +218,10 @@ function DRCSReplacements() {
           </Stack>
         </Card>
 
-        <SaveRow updatedAt={settings.updatedAt} disabled={!valid || action.busy} />
+        <SaveRow
+          updatedAt={settings.updatedAt}
+          disabled={!valid || changes.length === 0 || action.busy}
+        />
       </Stack>
     </form>
   );

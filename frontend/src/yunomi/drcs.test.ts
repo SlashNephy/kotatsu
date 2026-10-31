@@ -3,6 +3,7 @@ import { replaceDRCS } from 'aribb24.js';
 import { afterEach, describe, expect, test } from 'vitest';
 
 import {
+  diffDRCS,
   drcsPixels,
   drcsReplacements,
   recordDRCS,
@@ -78,5 +79,26 @@ describe('validDRCSText', () => {
     ['😀😀😀😀', true],
   ])('%j', (text, want) => {
     expect(validDRCSText(text)).toBe(want);
+  });
+});
+
+describe('diffDRCS', () => {
+  test('returns only changed glyphs, with null for removed ones', () => {
+    const base = [
+      { md5: 'a', text: '1' },
+      { md5: 'b', text: '2' },
+      { md5: 'c', text: '3' },
+    ];
+    const rows = [
+      { md5: 'a', text: '1' },
+      { md5: 'b', text: '22' },
+      { md5: 'd', text: '4' },
+    ];
+    expect(diffDRCS(base, rows)).toEqual([
+      { md5: 'b', text: '22' },
+      { md5: 'd', text: '4' },
+      { md5: 'c', text: null },
+    ]);
+    expect(diffDRCS(base, base)).toEqual([]);
   });
 });

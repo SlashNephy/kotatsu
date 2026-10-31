@@ -64,10 +64,10 @@ func drcsReplacementsOf(replacements map[string]string) []*model.DrcsReplacement
 	return result
 }
 
-// toDRCSReplacements は、外字の置き換えの表の入力を、MD5 から文字への表にする。
+// toDRCSReplacements は、外字の置き換えの表の変更の入力を、MD5 から文字 (nil なら消す) への表にする。
 // 同じ MD5 が 2 度出てきたら、どちらを採るか決められないので拒む。
-func toDRCSReplacements(input []*model.DrcsReplacementInput) (map[string]string, error) {
-	replacements := make(map[string]string, len(input))
+func toDRCSReplacements(input []*model.DrcsReplacementInput) (map[string]*string, error) {
+	replacements := make(map[string]*string, len(input))
 	for _, row := range input {
 		key := strings.ToLower(row.Md5)
 		if _, ok := replacements[key]; ok {

@@ -1,6 +1,6 @@
-import { Button, Code, Group, Image, Stack, Text, TextInput } from '@mantine/core';
+import { Box, Button, Code, Group, Image, Stack, Text, TextInput } from '@mantine/core';
 import { useComputedColorScheme } from '@mantine/core';
-import { useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment } from 'react-relay';
 
@@ -9,7 +9,6 @@ import { settingsErrorMessage } from '../settings/errors';
 import { mutate } from '../settings/mutate';
 import {
   drcsImage,
-  drcsReplacements,
   setDRCSReplacements,
   useUnknownDRCS,
   validDRCSText,
@@ -31,9 +30,14 @@ export function UnknownDRCSList() {
       <Text size="xs" c="dimmed">
         {t('drcs.unknown', { count: glyphs.length })}
       </Text>
-      {glyphs.map((glyph) => (
-        <UnknownDRCSRow key={glyph.md5} glyph={glyph} />
-      ))}
+      {/* 登録しない外字 (ロゴなど) が溜まっても、字幕の履歴を押し下げすぎないよう、高さを抑える。 */}
+      <Box mah={200} style={{ overflowY: 'auto' }}>
+        <Stack gap={4}>
+          {glyphs.map((glyph) => (
+            <UnknownDRCSRow key={glyph.md5} glyph={glyph} />
+          ))}
+        </Stack>
+      </Box>
     </Stack>
   );
 }
@@ -46,15 +50,18 @@ function UnknownDRCSRow({ glyph }: { glyph: DRCSGlyph }) {
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const valid = validDRCSText(text);
+  // 字幕が出るたびに描き直さないよう、画像は外字と色が変わったときだけ作る。
+  const image = useMemo(
+    () => drcsImage(glyph, scheme === 'dark' ? '#fff' : '#000'),
+    [glyph, scheme],
+  );
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setError(null);
     action.run(
       async () => {
-        // 表は丸ごと送るので、今の表に足して送る。
-        const rows = [...drcsReplacements].map(([md5, value]) => ({ md5, text: value }));
-        rows.push({ md5: glyph.md5, text });
+        // この外字だけを送る。サーバーが今の表に足すので、続けて登録しても、前の登録を消さない。
         const response = await mutate<UnknownDRCSListMutation>(
           environment,
           graphql`
@@ -67,7 +74,7 @@ function UnknownDRCSRow({ glyph }: { glyph: DRCSGlyph }) {
               }
             }
           `,
-          { input: { drcsReplacements: rows } },
+          { input: { drcsReplacements: [{ md5: glyph.md5, text }] } },
         );
         setDRCSReplacements(response.updateSystemSettings.drcsReplacements);
       },
@@ -79,7 +86,7 @@ function UnknownDRCSRow({ glyph }: { glyph: DRCSGlyph }) {
     <form onSubmit={submit}>
       <Group gap="xs" wrap="nowrap" align="center">
         <Image
-          src={drcsImage(glyph, scheme === 'dark' ? '#fff' : '#000')}
+          src={image}
           alt={t('drcs.glyph')}
           w={glyph.width * 2}
           h={glyph.height * 2}
