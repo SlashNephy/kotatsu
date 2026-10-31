@@ -209,6 +209,8 @@ type Querier interface {
 	GetRecordingInProgressByReservation(ctx context.Context, reservationID *uuid.UUID) (Recording, error)
 	// 実況の過去ログを引くための、録画した時間帯とサービス (設計書 7.4)。
 	GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (GetRecordingJikkyoSourceRow, error)
+	// 録画中の録画の、書いているセグメントの様子を読む。録画を終えていれば、行があっても返さない。
+	GetRecordingLiveStats(ctx context.Context, recordingID uuid.UUID) (RecordingLiveStat, error)
 	// 通知に載せる、録画とサービス名。
 	GetRecordingWithService(ctx context.Context, id uuid.UUID) (GetRecordingWithServiceRow, error)
 	GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error)
@@ -575,6 +577,8 @@ type Querier interface {
 	// 期限が切れていても、世代番号が進んでいなければ誰も取っていないので、延長する。DB が止まっていた間に期限が切れても、録り続けるため (#1073)。
 	RenewTimeshiftAssignment(ctx context.Context, arg RenewTimeshiftAssignmentParams) (int64, error)
 	ResetLoginThrottle(ctx context.Context, key string) error
+	// セグメントを閉じたときに、書いているセグメントの様子を 0 に戻す。閉じたセグメントの数は、録画とファイルに足す。
+	ResetRecordingLiveStats(ctx context.Context, arg ResetRecordingLiveStatsParams) error
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	// ユーザーのセッションをまとめて失効させる。keep_id のセッション (パスワードを変えた本人の今のセッション) は残す。
 	RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error)
@@ -643,7 +647,9 @@ type Querier interface {
 	StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error)
 	// 番組の始まりを記録する。同じ時刻の行があれば、その番組は始まってすぐに替わったので、新しい番組で置き換え、放送中に戻す。
 	StartTimeshiftProgram(ctx context.Context, arg StartTimeshiftProgramParams) error
-	// /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。
+	// /metrics に出す、録画中の録画が書いたバイト数の合計 (#829)。閉じたセグメントの大きさに、書いているセグメントのバイト数を足す。
+	SumActiveRecordingBytes(ctx context.Context) (int64, error)
+	// /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。閉じたセグメントの数に、書いているセグメントの数 (#829) を足す。
 	SumActiveRecordingPackets(ctx context.Context) (SumActiveRecordingPacketsRow, error)
 	// 通知を送る時刻 (放送の開始からユーザーの設定の分だけ前) を過ぎ、放送が終わっていない視聴予約を消して返す。
 	// 消した行を返すので、nekonote が何台あっても、同じ視聴予約を二度は通知しない。
@@ -689,6 +695,8 @@ type Querier interface {
 	// プレイヤーの設定を変える。null の項目は変えない。
 	UpsertPlayerSettings(ctx context.Context, arg UpsertPlayerSettingsParams) (UpsertPlayerSettingsRow, error)
 	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults
+	// 録画中の録画の、書いているセグメントの様子を書く (#829)。
+	UpsertRecordingLiveStats(ctx context.Context, arg UpsertRecordingLiveStatsParams) error
 	// 上流から来る項目だけを更新する。非表示の印と並び順の上書きは、管理者のものなので触らない。
 	UpsertService(ctx context.Context, arg UpsertServiceParams) error
 	UpsertStoragePool(ctx context.Context, arg UpsertStoragePoolParams) (StoragePool, error)

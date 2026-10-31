@@ -267,3 +267,21 @@ WHERE c.reason = inserted.failure_reason;
 -- name: SetRecordingFailureHint :exec
 -- 録画中の録画に、録画できなかった理由を残す。割り振りを手放した後、ほかの mikan も録れなければ、この理由で失敗にする (#524)。
 UPDATE recordings SET failure_reason = @failure_reason, updated_at = @now WHERE id = @id AND state = 'recording';
+
+-- name: UpsertRecordingLiveStats :exec
+-- 録画中の録画の、書いているセグメントの様子を書く (#829)。
+INSERT INTO recording_live_stats (recording_id, bytes, drops, errors, scrambled, bitrate, updated_at)
+VALUES (@recording_id, @bytes, @drops, @errors, @scrambled, @bitrate, @now)
+ON CONFLICT (recording_id) DO UPDATE SET
+  bytes = excluded.bytes, drops = excluded.drops, errors = excluded.errors, scrambled = excluded.scrambled,
+  bitrate = excluded.bitrate, updated_at = excluded.updated_at;
+
+-- name: ResetRecordingLiveStats :exec
+-- セグメントを閉じたときに、書いているセグメントの様子を 0 に戻す。閉じたセグメントの数は、録画とファイルに足す。
+UPDATE recording_live_stats SET bytes = 0, drops = 0, errors = 0, scrambled = 0, bitrate = 0, updated_at = @now
+WHERE recording_id = @recording_id;
+
+-- name: GetRecordingLiveStats :one
+-- 録画中の録画の、書いているセグメントの様子を読む。録画を終えていれば、行があっても返さない。
+SELECT l.* FROM recording_live_stats l JOIN recordings r ON r.id = l.recording_id
+WHERE l.recording_id = @recording_id AND r.state = 'recording';

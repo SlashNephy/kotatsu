@@ -46,6 +46,7 @@ type DBCollector struct {
 	failuresTotal    *prometheus.Desc
 	lastFailure      *prometheus.Desc
 	activePackets    *prometheus.Desc
+	activeBytes      *prometheus.Desc
 	reservations     *prometheus.Desc
 	assignments      *prometheus.Desc
 	tuners           *prometheus.Desc
@@ -72,6 +73,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *D
 		failuresTotal:    desc("recording_failures_total", "Number of recordings that have failed, by failure reason. Deleting recordings does not decrease it.", "reason"),
 		lastFailure:      desc("recording_last_failure_timestamp_seconds", "Time when a recording last failed, by failure reason.", "reason"),
 		activePackets:    desc("recording_active_packets", "Dropped, errored, and scrambled packets of the recordings in progress.", "kind"),
+		activeBytes:      desc("recording_active_bytes", "Bytes written by the recordings in progress. Take rate() of it for the bitrate."),
 		reservations:     desc("reservations", "Number of reservations that have not ended, by assignment state, or disabled.", "state"),
 		assignments:      desc("recording_assignments", "Number of recording assignments by state.", "state"),
 		tuners:           desc("tuners", "Number of tuners of the tuner server by state.", "state"),
@@ -87,7 +89,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *D
 // Describe は、集めるメトリクスの説明を送る。
 func (c *DBCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{
-		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.reservations, c.assignments, c.tuners, c.poolBytes, c.poolThreshold, c.poolMeasured, c.jobs, c.timeshiftBuffer, c.collectionErrors,
+		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.activeBytes, c.reservations, c.assignments, c.tuners, c.poolBytes, c.poolThreshold, c.poolMeasured, c.jobs, c.timeshiftBuffer, c.collectionErrors,
 	} {
 		ch <- d
 	}
@@ -144,6 +146,12 @@ func (c *DBCollector) collectRecordings(ctx context.Context, ch chan<- prometheu
 	for kind, value := range map[string]int64{"drop": packets.Drops, "error": packets.Errors, "scrambled": packets.Scrambled} {
 		ch <- prometheus.MustNewConstMetric(c.activePackets, prometheus.GaugeValue, float64(value), kind)
 	}
+	// 録画中の録画が書いたバイト数 (#829)。録画を終えると減るので、rate() は、その間だけ欠ける。
+	bytes, err := q.SumActiveRecordingBytes(ctx)
+	if err != nil {
+		return err
+	}
+	ch <- prometheus.MustNewConstMetric(c.activeBytes, prometheus.GaugeValue, float64(bytes))
 
 	return nil
 }

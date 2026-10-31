@@ -234,7 +234,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		logger.InfoContext(ctx, "started recording", slog.String("pool_id", segment.poolID), slog.String("path", segment.path))
 		openedAt := r.clock.Now()
 
-		stats, end, copyErr := r.copyUntilEnd(ctx, tracker, stream, segment)
+		stats, end, copyErr := r.copyUntilEnd(ctx, tracker, stream, segment, recording.ID)
 		_ = stream.Close()
 		// stoppedAt は、セグメントに書くのをやめた時刻。DB に届かずに記録が遅れても、この時刻で記録する (#1073)。
 		// 予定の終わりで止めたなら、そう判断した時刻にする。DB を待った分だけ遅れないようにする。
@@ -974,7 +974,9 @@ func skipUntil(clk clock.Clock, stream io.Reader, until time.Time) error {
 	return nil
 }
 
-func (r *Recorder) copyUntilEnd(ctx context.Context, tracker *endTracker, stream io.ReadCloser, seg *segment) (*ts.Stats, endReason, error) {
+func (r *Recorder) copyUntilEnd(
+	ctx context.Context, tracker *endTracker, stream io.ReadCloser, seg *segment, recordingID uuid.UUID,
+) (*ts.Stats, endReason, error) {
 	tracker.watch(seg.analyzer)
 	ended := make(chan endReason, 1)
 	watchCtx, stopWatch := context.WithCancel(ctx)
@@ -994,8 +996,11 @@ func (r *Recorder) copyUntilEnd(ctx context.Context, tracker *endTracker, stream
 		defer close(sampleDone)
 		ticker := time.NewTicker(r.opts.Tick)
 		defer ticker.Stop()
+		live := newLiveStatsWriter(r, recordingID)
 		for {
-			seg.samples.add(r.clock.Now(), countsOf(seg.analyzer.Stats()))
+			stats := seg.analyzer.Stats()
+			seg.samples.add(r.clock.Now(), countsOf(stats))
+			live.maybeWrite(watchCtx, stats)
 			// 書き込みが途絶えても、書いた分をファイルに出す。書き出しのエラーは、閉じるときにも返る。
 			_ = writer.flushIfStale()
 			select {
@@ -1532,6 +1537,8 @@ func (r *Recorder) saveSegmentStats(seg *segment, stats *ts.Stats, now time.Time
 		if err != nil {
 			return fmt.Errorf("failed to save the recording stats: %w", err)
 		}
+		// 閉じたセグメントの数は、録画に足したので、書いているセグメントの様子を 0 に戻す (#829)。見るためだけなので、書けなくても止めない。
+		_ = q.ResetRecordingLiveStats(ctx, sqlc.ResetRecordingLiveStatsParams{Now: now, RecordingID: recordingID})
 
 		return nil
 	}
@@ -1836,4 +1843,48 @@ func valueOr(v *int64) int64 {
 	}
 
 	return *v
+}
+
+// liveStatsInterval は、録画中の録画の、書いているセグメントの様子を DB に書く間隔 (#829)。
+const liveStatsInterval = 10 * time.Second
+
+// liveStatsWriter は、書いているセグメントの様子 (バイト数、ドロップなど、直近のビットレート) を、liveStatsInterval ごとに
+// DB に書く (#829)。システムの状態の画面と /metrics が読む。見るためだけなので、書けなくても録画を止めない。
+type liveStatsWriter struct {
+	recorder    *Recorder
+	recordingID uuid.UUID
+	stopwatch   clock.Stopwatch
+	// lastAt と lastBytes は、前に書いたときの経過時間とバイト数。まだ書いていなければ、lastAt は負。
+	lastAt    time.Duration
+	lastBytes int64
+}
+
+func newLiveStatsWriter(r *Recorder, recordingID uuid.UUID) *liveStatsWriter {
+	return &liveStatsWriter{recorder: r, recordingID: recordingID, stopwatch: r.clock.StartStopwatch(), lastAt: -1, lastBytes: 0}
+}
+
+// maybeWrite は、前に書いてから liveStatsInterval が過ぎていれば、stats を書く。最初は、ビットレートを測るための区切りにする。
+func (w *liveStatsWriter) maybeWrite(ctx context.Context, stats *ts.Stats) {
+	now := w.stopwatch.Elapsed()
+	if w.lastAt < 0 {
+		w.lastAt, w.lastBytes = now, stats.Bytes
+
+		return
+	}
+	elapsed := now - w.lastAt
+	if elapsed < liveStatsInterval {
+		return
+	}
+	bitrate := (stats.Bytes - w.lastBytes) * 8 * int64(time.Second) / int64(elapsed)
+	w.lastAt, w.lastBytes = now, stats.Bytes
+	counts := countsOf(stats)
+	dbCtx, cancel := context.WithTimeout(ctx, w.recorder.opts.DatabaseTimeout)
+	defer cancel()
+	err := sqlc.New(w.recorder.pool).UpsertRecordingLiveStats(dbCtx, sqlc.UpsertRecordingLiveStatsParams{
+		RecordingID: w.recordingID, Bytes: stats.Bytes, Drops: counts.Drops, Errors: counts.Errors, Scrambled: counts.Scrambled,
+		Bitrate: max(bitrate, 0), Now: w.recorder.clock.Now(),
+	})
+	if err != nil && ctx.Err() == nil {
+		w.recorder.logger.WarnContext(ctx, "failed to save the live recording stats", slog.Any("error", err))
+	}
 }

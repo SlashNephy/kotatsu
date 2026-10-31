@@ -241,9 +241,30 @@ func (q *Queries) ListStoragePoolMeasurements(ctx context.Context) ([]ListStorag
 	return items, nil
 }
 
+const sumActiveRecordingBytes = `-- name: SumActiveRecordingBytes :one
+SELECT (
+  COALESCE((SELECT sum(f.size) FROM recording_files f JOIN recordings r ON r.id = f.recording_id
+    WHERE r.state = 'recording' AND f.kind = 'segment' AND f.ended_at IS NOT NULL), 0)
+  + COALESCE((SELECT sum(l.bytes) FROM recording_live_stats l JOIN recordings r ON r.id = l.recording_id
+    WHERE r.state = 'recording'), 0)
+)::bigint AS bytes
+`
+
+// /metrics に出す、録画中の録画が書いたバイト数の合計 (#829)。閉じたセグメントの大きさに、書いているセグメントのバイト数を足す。
+func (q *Queries) SumActiveRecordingBytes(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, sumActiveRecordingBytes)
+	var bytes int64
+	err := row.Scan(&bytes)
+	return bytes, err
+}
+
 const sumActiveRecordingPackets = `-- name: SumActiveRecordingPackets :one
-SELECT COALESCE(sum(drops), 0)::bigint AS drops, COALESCE(sum(errors), 0)::bigint AS errors, COALESCE(sum(scrambled), 0)::bigint AS scrambled
-FROM recordings WHERE state = 'recording'
+SELECT
+  (COALESCE(sum(r.drops), 0) + COALESCE(sum(l.drops), 0))::bigint AS drops,
+  (COALESCE(sum(r.errors), 0) + COALESCE(sum(l.errors), 0))::bigint AS errors,
+  (COALESCE(sum(r.scrambled), 0) + COALESCE(sum(l.scrambled), 0))::bigint AS scrambled
+FROM recordings r LEFT JOIN recording_live_stats l ON l.recording_id = r.id
+WHERE r.state = 'recording'
 `
 
 type SumActiveRecordingPacketsRow struct {
@@ -252,7 +273,7 @@ type SumActiveRecordingPacketsRow struct {
 	Scrambled int64
 }
 
-// /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。
+// /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。閉じたセグメントの数に、書いているセグメントの数 (#829) を足す。
 func (q *Queries) SumActiveRecordingPackets(ctx context.Context) (SumActiveRecordingPacketsRow, error) {
 	row := q.db.QueryRow(ctx, sumActiveRecordingPackets)
 	var i SumActiveRecordingPacketsRow

@@ -99,6 +99,8 @@ models:
         resolver: true
       rule:
         resolver: true
+      liveStats:
+        resolver: true
   Reservation:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.Reservation
     fields:

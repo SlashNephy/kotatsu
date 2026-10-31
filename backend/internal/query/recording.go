@@ -270,3 +270,14 @@ func (q *Queries) GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (d
 
 	return domain.RecordingJikkyoSource(result), nil
 }
+
+// GetRecordingLiveStats は、録画中の録画の、書いているセグメントの様子を返す (#829)。録画中でないか、まだ書いていなければ
+// pgx.ErrNoRows を返す。
+func (q *Queries) GetRecordingLiveStats(ctx context.Context, recordingID uuid.UUID) (domain.RecordingLiveStats, error) {
+	result, err := sqlc.New(q.pool).GetRecordingLiveStats(ctx, recordingID)
+	if err != nil {
+		return domain.RecordingLiveStats{}, err
+	}
+
+	return domain.RecordingLiveStats(result), nil
+}

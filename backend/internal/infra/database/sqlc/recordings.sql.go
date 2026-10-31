@@ -409,6 +409,27 @@ func (q *Queries) GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (G
 	return i, err
 }
 
+const getRecordingLiveStats = `-- name: GetRecordingLiveStats :one
+SELECT l.recording_id, l.bytes, l.drops, l.errors, l.scrambled, l.bitrate, l.updated_at FROM recording_live_stats l JOIN recordings r ON r.id = l.recording_id
+WHERE l.recording_id = $1 AND r.state = 'recording'
+`
+
+// 録画中の録画の、書いているセグメントの様子を読む。録画を終えていれば、行があっても返さない。
+func (q *Queries) GetRecordingLiveStats(ctx context.Context, recordingID uuid.UUID) (RecordingLiveStat, error) {
+	row := q.db.QueryRow(ctx, getRecordingLiveStats, recordingID)
+	var i RecordingLiveStat
+	err := row.Scan(
+		&i.RecordingID,
+		&i.Bytes,
+		&i.Drops,
+		&i.Errors,
+		&i.Scrambled,
+		&i.Bitrate,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getRecordingWithService = `-- name: GetRecordingWithService :one
 SELECT recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
 FROM recordings
@@ -898,6 +919,22 @@ func (q *Queries) MarkRecordingWaitedForBroadcast(ctx context.Context, arg MarkR
 	return result.RowsAffected(), nil
 }
 
+const resetRecordingLiveStats = `-- name: ResetRecordingLiveStats :exec
+UPDATE recording_live_stats SET bytes = 0, drops = 0, errors = 0, scrambled = 0, bitrate = 0, updated_at = $1
+WHERE recording_id = $2
+`
+
+type ResetRecordingLiveStatsParams struct {
+	Now         time.Time
+	RecordingID uuid.UUID
+}
+
+// セグメントを閉じたときに、書いているセグメントの様子を 0 に戻す。閉じたセグメントの数は、録画とファイルに足す。
+func (q *Queries) ResetRecordingLiveStats(ctx context.Context, arg ResetRecordingLiveStatsParams) error {
+	_, err := q.db.Exec(ctx, resetRecordingLiveStats, arg.Now, arg.RecordingID)
+	return err
+}
+
 const setJoinedRecordingFile = `-- name: SetJoinedRecordingFile :execrows
 UPDATE recording_files SET size = $1, ended_at = $2 WHERE id = $3
 `
@@ -1188,4 +1225,36 @@ func (q *Queries) UnlockRecordingJoin(ctx context.Context, recordingID string) (
 	var unlocked bool
 	err := row.Scan(&unlocked)
 	return unlocked, err
+}
+
+const upsertRecordingLiveStats = `-- name: UpsertRecordingLiveStats :exec
+INSERT INTO recording_live_stats (recording_id, bytes, drops, errors, scrambled, bitrate, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (recording_id) DO UPDATE SET
+  bytes = excluded.bytes, drops = excluded.drops, errors = excluded.errors, scrambled = excluded.scrambled,
+  bitrate = excluded.bitrate, updated_at = excluded.updated_at
+`
+
+type UpsertRecordingLiveStatsParams struct {
+	RecordingID uuid.UUID
+	Bytes       int64
+	Drops       int64
+	Errors      int64
+	Scrambled   int64
+	Bitrate     int64
+	Now         time.Time
+}
+
+// 録画中の録画の、書いているセグメントの様子を書く (#829)。
+func (q *Queries) UpsertRecordingLiveStats(ctx context.Context, arg UpsertRecordingLiveStatsParams) error {
+	_, err := q.db.Exec(ctx, upsertRecordingLiveStats,
+		arg.RecordingID,
+		arg.Bytes,
+		arg.Drops,
+		arg.Errors,
+		arg.Scrambled,
+		arg.Bitrate,
+		arg.Now,
+	)
+	return err
 }

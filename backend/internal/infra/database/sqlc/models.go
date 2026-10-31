@@ -332,6 +332,16 @@ type RecordingHistory struct {
 	CreatedAt time.Time
 }
 
+type RecordingLiveStat struct {
+	RecordingID uuid.UUID
+	Bytes       int64
+	Drops       int64
+	Errors      int64
+	Scrambled   int64
+	Bitrate     int64
+	UpdatedAt   time.Time
+}
+
 type RecordingTag struct {
 	RecordingID uuid.UUID
 	TagID       uuid.UUID

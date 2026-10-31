@@ -759,6 +759,18 @@ type RecordingGap struct {
 	To   time.Time `json:"to"`
 }
 
+// 録画中の録画の、書いているセグメントの様子 (#829)。
+type RecordingLiveStats struct {
+	// 直前の 10 秒ほどに書いたビットレート (bps)。
+	Bitrate int64 `json:"bitrate"`
+	// 書いているセグメントのバイト数と、ドロップ、エラー、スクランブルの数。閉じたセグメントの数は、Recording の drops などにある。
+	Bytes     int64     `json:"bytes"`
+	Drops     int64     `json:"drops"`
+	Errors    int64     `json:"errors"`
+	Scrambled int64     `json:"scrambled"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 // 録画のファイルの付け直し (設計書 4.7)。ファイル名のテンプレートを変えた後に、既存の録画のファイルを今のテンプレートの名前にする。
 type RecordingRename struct {
 	Recording *Recording `json:"recording"`

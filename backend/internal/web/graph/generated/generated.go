@@ -575,6 +575,7 @@ type ComplexityRoot struct {
 		Genres             func(childComplexity int) int
 		ID                 func(childComplexity int) int
 		JikkyoCommentsURL  func(childComplexity int) int
+		LiveStats          func(childComplexity int) int
 		Name               func(childComplexity int) int
 		NotBroadcast       func(childComplexity int) int
 		PreviewURL         func(childComplexity int) int
@@ -625,6 +626,15 @@ type ComplexityRoot struct {
 	RecordingGap struct {
 		From func(childComplexity int) int
 		To   func(childComplexity int) int
+	}
+
+	RecordingLiveStats struct {
+		Bitrate   func(childComplexity int) int
+		Bytes     func(childComplexity int) int
+		Drops     func(childComplexity int) int
+		Errors    func(childComplexity int) int
+		Scrambled func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
 	}
 
 	RecordingRename struct {
@@ -1102,6 +1112,8 @@ type RecordingResolver interface {
 	VideoFormat(ctx context.Context, obj *model.Recording) (model.VideoFormat, error)
 
 	Rule(ctx context.Context, obj *model.Recording) (*model.Rule, error)
+
+	LiveStats(ctx context.Context, obj *model.Recording) (*model.RecordingLiveStats, error)
 
 	WatchFrame(ctx context.Context, obj *model.Recording) (*model.PreviewFrame, error)
 }
@@ -3756,6 +3768,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.JikkyoCommentsURL(childComplexity), true
+	case "Recording.liveStats":
+		if e.ComplexityRoot.Recording.LiveStats == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.LiveStats(childComplexity), true
 	case "Recording.name":
 		if e.ComplexityRoot.Recording.Name == nil {
 			break
@@ -3971,6 +3989,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingGap.To(childComplexity), true
+
+	case "RecordingLiveStats.bitrate":
+		if e.ComplexityRoot.RecordingLiveStats.Bitrate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingLiveStats.Bitrate(childComplexity), true
+	case "RecordingLiveStats.bytes":
+		if e.ComplexityRoot.RecordingLiveStats.Bytes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingLiveStats.Bytes(childComplexity), true
+	case "RecordingLiveStats.drops":
+		if e.ComplexityRoot.RecordingLiveStats.Drops == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingLiveStats.Drops(childComplexity), true
+	case "RecordingLiveStats.errors":
+		if e.ComplexityRoot.RecordingLiveStats.Errors == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingLiveStats.Errors(childComplexity), true
+	case "RecordingLiveStats.scrambled":
+		if e.ComplexityRoot.RecordingLiveStats.Scrambled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingLiveStats.Scrambled(childComplexity), true
+	case "RecordingLiveStats.updatedAt":
+		if e.ComplexityRoot.RecordingLiveStats.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingLiveStats.UpdatedAt(childComplexity), true
 
 	case "RecordingRename.files":
 		if e.ComplexityRoot.RecordingRename.Files == nil {
@@ -6727,6 +6782,8 @@ type Recording implements Node {
   broadcastEndedAt: Time
   "予約した番組が、予定の時間に放送されなかったかどうか。録った TS は残す。遅れて始まるのを待った番組が延長の上限まで放送中にならなかったときは、前の番組の TS を残さず、録画は失敗になる (#1046)。"
   notBroadcast: Boolean!
+  "録画中の録画の、書いているセグメントの様子 (#829)。mikan が 10 秒ごとに書く。録画中でないか、まだ書いていなければ null。"
+  liveStats: RecordingLiveStats
   "実際に録画を始めた日時と、終えた日時。録画中なら終えた日時は null。"
   recordedFrom: Time!
   recordedUntil: Time
@@ -6889,6 +6946,20 @@ type StreamQuality {
   streamType: Int
   "ストリーム識別記述子の component_tag (#827)。EPG の映像と音声のコンポーネントと対応づける。記述子がなければ null。"
   componentTag: Int
+}
+
+"""
+録画中の録画の、書いているセグメントの様子 (#829)。
+"""
+type RecordingLiveStats {
+  "直前の 10 秒ほどに書いたビットレート (bps)。"
+  bitrate: Int64!
+  "書いているセグメントのバイト数と、ドロップ、エラー、スクランブルの数。閉じたセグメントの数は、Recording の drops などにある。"
+  bytes: Int64!
+  drops: Int64!
+  errors: Int64!
+  scrambled: Int64!
+  updatedAt: Time!
 }
 `, BuiltIn: false},
 	{Name: "../schema/reservations.graphqls", Input: `"""
@@ -8869,6 +8940,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_broadcastEndedAt(ctx, field)
 	case "notBroadcast":
 		return ec.fieldContext_Recording_notBroadcast(ctx, field)
+	case "liveStats":
+		return ec.fieldContext_Recording_liveStats(ctx, field)
 	case "recordedFrom":
 		return ec.fieldContext_Recording_recordedFrom(ctx, field)
 	case "recordedUntil":
@@ -8951,6 +9024,24 @@ func (ec *executionContext) childFields_RecordingGap(ctx context.Context, field 
 		return ec.fieldContext_RecordingGap_to(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingGap", field.Name)
+}
+
+func (ec *executionContext) childFields_RecordingLiveStats(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "bitrate":
+		return ec.fieldContext_RecordingLiveStats_bitrate(ctx, field)
+	case "bytes":
+		return ec.fieldContext_RecordingLiveStats_bytes(ctx, field)
+	case "drops":
+		return ec.fieldContext_RecordingLiveStats_drops(ctx, field)
+	case "errors":
+		return ec.fieldContext_RecordingLiveStats_errors(ctx, field)
+	case "scrambled":
+		return ec.fieldContext_RecordingLiveStats_scrambled(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_RecordingLiveStats_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RecordingLiveStats", field.Name)
 }
 
 func (ec *executionContext) childFields_RecordingRename(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -22144,6 +22235,38 @@ func (ec *executionContext) fieldContext_Recording_notBroadcast(_ context.Contex
 	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _Recording_liveStats(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_liveStats(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().LiveStats(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RecordingLiveStats) graphql.Marshaler {
+			return ec.marshalORecordingLiveStats2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingLiveStats(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_liveStats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingLiveStats(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Recording_recordedFrom(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -22771,6 +22894,144 @@ func (ec *executionContext) _RecordingGap_to(ctx context.Context, field graphql.
 }
 func (ec *executionContext) fieldContext_RecordingGap_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RecordingGap", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingLiveStats_bitrate(ctx context.Context, field graphql.CollectedField, obj *model.RecordingLiveStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingLiveStats_bitrate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Bitrate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingLiveStats_bitrate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingLiveStats", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingLiveStats_bytes(ctx context.Context, field graphql.CollectedField, obj *model.RecordingLiveStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingLiveStats_bytes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Bytes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingLiveStats_bytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingLiveStats", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingLiveStats_drops(ctx context.Context, field graphql.CollectedField, obj *model.RecordingLiveStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingLiveStats_drops(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Drops, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingLiveStats_drops(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingLiveStats", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingLiveStats_errors(ctx context.Context, field graphql.CollectedField, obj *model.RecordingLiveStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingLiveStats_errors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Errors, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingLiveStats_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingLiveStats", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingLiveStats_scrambled(ctx context.Context, field graphql.CollectedField, obj *model.RecordingLiveStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingLiveStats_scrambled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Scrambled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingLiveStats_scrambled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingLiveStats", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingLiveStats_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.RecordingLiveStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingLiveStats_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingLiveStats_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingLiveStats", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _RecordingRename_recording(ctx context.Context, field graphql.CollectedField, obj *model.RecordingRename) (ret graphql.Marshaler) {
@@ -35960,6 +36221,44 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "liveStats":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Recording_liveStats(ctx, field, obj)
+				if res == graphql.RequiredNull {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "recordedFrom":
 			out.Values[i] = ec._Recording_recordedFrom(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -36280,6 +36579,69 @@ func (ec *executionContext) _RecordingGap(ctx context.Context, sel ast.Selection
 			}
 		case "to":
 			out.Values[i] = ec._RecordingGap_to(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var recordingLiveStatsImplementors = []string{"RecordingLiveStats"}
+
+func (ec *executionContext) _RecordingLiveStats(ctx context.Context, sel ast.SelectionSet, obj *model.RecordingLiveStats) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, recordingLiveStatsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RecordingLiveStats")
+		case "bitrate":
+			out.Values[i] = ec._RecordingLiveStats_bitrate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "bytes":
+			out.Values[i] = ec._RecordingLiveStats_bytes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "drops":
+			out.Values[i] = ec._RecordingLiveStats_drops(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errors":
+			out.Values[i] = ec._RecordingLiveStats_errors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scrambled":
+			out.Values[i] = ec._RecordingLiveStats_scrambled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._RecordingLiveStats_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -42213,6 +42575,13 @@ func (ec *executionContext) unmarshalORecordingFilter2ᚖgithubᚗcomᚋSlashNep
 	}
 	res, err := ec.unmarshalInputRecordingFilter(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalORecordingLiveStats2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingLiveStats(ctx context.Context, sel ast.SelectionSet, v *model.RecordingLiveStats) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._RecordingLiveStats(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalORecordingSettingsOverridesInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingSettingsOverridesInput(ctx context.Context, v any) (*model.RecordingSettingsOverridesInput, error) {

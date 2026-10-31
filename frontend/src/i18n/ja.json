@@ -1425,7 +1425,12 @@
       "servicesDescription": "番組表とライブに出さないサービスを選び、並び順を変えます。並び順は、同じ放送波の中で、小さいほど前に並びます",
       "serviceHidden": "出さない",
       "serviceOrder": "並び順",
-      "serviceOrderDefault": "既定"
+      "serviceOrderDefault": "既定",
+      "activeRecordings": "録画中の録画",
+      "noActiveRecordings": "録画中の録画はありません",
+      "activeRecordingName": "番組名",
+      "activeRecordingService": "サービス",
+      "activeRecordingBitrate": "直近のビットレート"
     },
     "users": {
       "title": "ユーザー",

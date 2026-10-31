@@ -41,15 +41,32 @@ func TestDBCollector(t *testing.T) {
 	exec("INSERT INTO channel_types (type, display_name, sort_order) VALUES ('GR', '地上波', 10)")
 	exec(`INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
 		VALUES (3273601024, 32736, 1024, 'テスト', 'テスト', 1, 'GR', '27', $1, $1)`, now)
-	recording := func(state string, reason *string, drops int) {
+	recording := func(state string, reason *string, drops int) uuid.UUID {
 		t.Helper()
+		recordingID := id.New()
 		exec(`INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
 			state, failure_reason, protected, drops, errors, scrambled, recorded_from, created_at, updated_at)
-			VALUES ($1, NULL, 3273601024, NULL, '', '', $2, $2, $3, $4, false, $5, 1, 0, $2, $2, $2)`, id.New(), now, state, reason, drops)
+			VALUES ($1, NULL, 3273601024, NULL, '', '', $2, $2, $3, $4, false, $5, 1, 0, $2, $2, $2)`, recordingID, now, state, reason, drops)
+
+		return recordingID
 	}
-	recording("recording", nil, 3)
+	// segment は、録画のセグメントを足す。書いている途中なら、ended を nil にする。
+	segment := func(recordingID uuid.UUID, size int64, ended *time.Time) {
+		t.Helper()
+		exec(`INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+			VALUES ($1, $2, 'segment', 'main', $3, $4, $5, $6, $5)`, id.New(), recordingID, id.New().String()+".m2ts", size, now, ended)
+	}
+	// 録画中の録画は、閉じたセグメントの大きさと、書いているセグメントの様子 (#829) を足す。録画を終えた録画は数えない。
+	active := recording("recording", nil, 3)
+	segment(active, 5000, new(now))
+	segment(active, 0, nil)
+	exec(`INSERT INTO recording_live_stats (recording_id, bytes, drops, errors, scrambled, bitrate, updated_at)
+		VALUES ($1, 1000, 2, 0, 0, 16000000, $2)`, active, now)
 	recording("recording", nil, 4)
-	recording("completed", nil, 0)
+	completed := recording("completed", nil, 0)
+	segment(completed, 9000, new(now))
+	exec(`INSERT INTO recording_live_stats (recording_id, bytes, drops, errors, scrambled, bitrate, updated_at)
+		VALUES ($1, 700, 5, 0, 0, 16000000, $2)`, completed, now)
 	recording("failed", new("tuner_unavailable"), 0)
 	recording("failed", new("cancelled"), 0)
 	recording("failed", new("cancelled"), 0)
@@ -136,9 +153,12 @@ kotatsu_recording_failures_total{reason="tuner_unavailable"} 0
 kotatsu_recording_last_failure_timestamp_seconds{reason="cancelled"} 1.79163e+09
 # HELP kotatsu_recording_active_packets Dropped, errored, and scrambled packets of the recordings in progress.
 # TYPE kotatsu_recording_active_packets gauge
-kotatsu_recording_active_packets{kind="drop"} 7
+kotatsu_recording_active_packets{kind="drop"} 9
 kotatsu_recording_active_packets{kind="error"} 2
 kotatsu_recording_active_packets{kind="scrambled"} 0
+# HELP kotatsu_recording_active_bytes Bytes written by the recordings in progress. Take rate() of it for the bitrate.
+# TYPE kotatsu_recording_active_bytes gauge
+kotatsu_recording_active_bytes 6000
 # HELP kotatsu_reservations Number of reservations that have not ended, by assignment state, or disabled.
 # TYPE kotatsu_reservations gauge
 kotatsu_reservations{state="conflict"} 2

@@ -1,11 +1,12 @@
-import { Alert, Anchor, Badge, Button, Group, Stack, Table, Text } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, Loader, Stack, Table, Text } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
-import { startTransition, useState, type ReactNode } from 'react';
+import { startTransition, Suspense, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { AdminPage } from '../../admin/AdminPage';
+import { ActiveRecordings } from '../../admin/ActiveRecordings';
 import { Section } from '../../admin/Section';
 import { useDataChanges } from '../../changes/DataChanges';
 import type { systemQuery } from './__generated__/systemQuery.graphql';
@@ -216,6 +217,12 @@ function SystemStatus() {
             }))}
           />
         )}
+      </Section>
+
+      <Section title={t('admin.system.activeRecordings')}>
+        <Suspense fallback={<Loader size="sm" />}>
+          <ActiveRecordings />
+        </Suspense>
       </Section>
 
       <Section title={t('admin.system.instances')}>
