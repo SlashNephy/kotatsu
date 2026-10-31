@@ -459,13 +459,18 @@ function Recording({ recordingId }: { recordingId: string }) {
               </Text>
               <StreamQualityButton
                 streams={recording.streamQuality}
-                seconds={recordingPosition(
-                  recording.recordedFrom,
-                  recording.gaps,
-                  recording.recordedUntil == null
-                    ? Date.now()
-                    : Date.parse(recording.recordedUntil),
-                )}
+                // 終えた日時がなく、録画中でもない録画は、長さが分からないので、ビットレートを出さない。
+                seconds={
+                  recording.recordedUntil != null
+                    ? recordingPosition(
+                        recording.recordedFrom,
+                        recording.gaps,
+                        Date.parse(recording.recordedUntil),
+                      )
+                    : recording.state === 'RECORDING'
+                      ? recordingPosition(recording.recordedFrom, recording.gaps, Date.now())
+                      : 0
+                }
               />
               <Text size="sm" c="dimmed">
                 {t('recordings.recordedRange', {
