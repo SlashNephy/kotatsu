@@ -67,6 +67,7 @@ import {
 import { PlayerStats, StatsToggle } from '../../yunomi/PlayerStats';
 import { StreamInfo, useStreamMeter } from '../../yunomi/StreamInfo';
 import { averageBitrate } from '../../yunomi/streamMeter';
+import { kindBitrates } from '../../recordings/streamQuality';
 import {
   PlayerAlert,
   BigPlayButton,
@@ -192,6 +193,10 @@ const playQuery = graphql`
         drops
         errors
         scrambled
+        streamQuality {
+          kind
+          packets
+        }
         service {
           name
           logoUrl
@@ -1009,6 +1014,9 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
                     quality={quality}
                     kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
                     audios={recording?.audios ?? null}
+                    recordedKinds={
+                      recording === null ? null : kindBitrates(recording.streamQuality, duration)
+                    }
                     average={recording === null ? null : averageBitrate(recording, Date.now())}
                     transport={
                       recording === null

@@ -84,6 +84,8 @@ type Options struct {
 	WebPush *webpush.Service
 	// StreamSigner は、外部プレイヤー用の映像の URL に署名する。nil なら、URL の発行は内部のエラーにする。
 	StreamSigner *stream.Signer
+	// LiveRates は、ライブのサービスの内訳を数える (#812)。nil なら、liveStreamRates は失敗する。
+	LiveRates *stream.LiveRatesWatcher
 	// JikkyoTable と JikkyoClient は、サービスの実況のチャンネルを引くのに使う。どちらかが nil なら、実況のチャンネルは null にする。
 	JikkyoTable  *jikkyo.Table
 	JikkyoClient *jikkyoclient.Client
@@ -191,6 +193,7 @@ func NewHandler(opts *Options) http.Handler {
 		webhooks:     o.Webhooks,
 		webPush:      o.WebPush,
 		streamSigner: o.StreamSigner,
+		liveRates:    o.LiveRates,
 		jikkyoTable:  o.JikkyoTable,
 		jikkyoClient: o.JikkyoClient,
 		logger:       o.Logger,

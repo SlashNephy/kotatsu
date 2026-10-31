@@ -712,6 +712,17 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	// 変換せずに流す配信を数える。tenban を止める前に、視聴者がつなぎ直したかを、これで見る (#1085)。
 	streams := newStreamCounter(deps)
 	drainer := streamapi.NewDrainer(streams)
+	// 映像の配信 (設計書 7.2、7.6、9.6) と、ライブの内訳 (#812) に使うチューナーサーバー。
+	var opener streamapi.ServiceOpener
+	var logos streamapi.LogoFetcher
+	var ratesOpener stream.ServiceOpener
+	if deps.Config.Tuner.URL.Value() != "" {
+		client, err := newTunerClient(deps)
+		if err != nil {
+			return nil, err
+		}
+		opener, logos, ratesOpener = client, client, client
+	}
 	graphQL := graph.NewHandler(&graph.Options{
 		DB:                deps.DB,
 		Recorder:          audit.NewRecorder(deps.Clock),
@@ -729,6 +740,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Webhooks:          webhooks,
 		WebPush:           webPush,
 		StreamSigner:      signer,
+		LiveRates:         stream.NewLiveRatesWatcher(ratesOpener, deps.Clock, 0),
 		JikkyoTable:       jikkyoTable,
 		JikkyoClient:      jikkyoClient,
 		Changes:           changes,
@@ -788,16 +800,6 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		"POST /auth/oidc/link":                     oidc.LinkHandler(deps.DB, clientInfo),
 	} {
 		mux.Handle(pattern, httpserver.RequireSameOrigin(handler))
-	}
-	// 映像の配信 (設計書 7.2、7.6、9.6)。セッションか署名付き URL で認可する。
-	var opener streamapi.ServiceOpener
-	var logos streamapi.LogoFetcher
-	if deps.Config.Tuner.URL.Value() != "" {
-		client, err := newTunerClient(deps)
-		if err != nil {
-			return nil, err
-		}
-		opener, logos = client, client
 	}
 	streamLogger := logger.With(slog.String("component", "stream"))
 	authorizer := streamapi.NewAuthorizer(signer, urlUsers, deps.Clock)

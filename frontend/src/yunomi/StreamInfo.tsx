@@ -1,7 +1,14 @@
 import { ScrollArea, Stack, Text } from '@mantine/core';
-import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { graphql, useSubscription } from 'react-relay';
 import type { TFunction } from 'i18next';
+
+import type { KindBitrates } from '../recordings/streamQuality';
+import type {
+  StreamInfoLiveRatesSubscription,
+  StreamInfoLiveRatesSubscription$data,
+} from './__generated__/StreamInfoLiveRatesSubscription.graphql';
 
 import { readVideoStats, type VideoStats } from './PlayerStats';
 import { languageName } from './QualitySelect';
@@ -97,6 +104,10 @@ type Props = {
   // transport は、プレイヤーが数えた数の代わりに出す、TS のパケットの異常の数。録画では、録画しながらサーバーが数えた数を渡す。
   // プレイヤーは、録画のファイルを読み始めたところでも、ドロップとして数えることがある。
   transport?: TransportCounts | null;
+  // serviceId は、ライブ視聴のサービスの ID。渡せば、tenban が数えた放送の内訳を購読する (#812、#1156)。
+  serviceId?: string;
+  // recordedKinds は、録画の、PID の種類ごとの平均のビットレート (#1156)。分からなければ null。
+  recordedKinds?: KindBitrates | null;
   // height は、枠の高さ。CSS の長さで渡す。
   height?: string | number;
 };
@@ -112,6 +123,8 @@ export function StreamInfo({
   audios,
   average,
   transport: recordedTransport,
+  serviceId,
+  recordedKinds,
   height = 240,
 }: Props) {
   const { t } = useTranslation();
@@ -154,11 +167,34 @@ export function StreamInfo({
     return () => clearInterval(timer);
   }, [meter, video]);
 
+  // live は、tenban から届いた放送の内訳。購読していないか、まだ届いていなければ null。
+  const [live, setLive] = useState<LiveRates | null>(null);
+  const kinds: KindBitrates | null =
+    live !== null
+      ? {
+          video: live.videoBps,
+          audio: live.audioBps,
+          other: live.otherBps,
+          psi: live.psiBps,
+          unknown: live.unknownBps,
+        }
+      : (recordedKinds ?? null);
   const stats = snapshot?.video ?? null;
   const encoded = snapshot?.encoded ?? null;
   const source = snapshot?.source ?? null;
+  // TS の異常の数は、録画では録画しながら数えた数を、ブラウザ内での変換ではプレイヤーが数えた数を、
+  // kyusu のライブでは tenban が数えた数を出す。
   const transport =
-    recordedTransport !== undefined ? recordedTransport : (snapshot?.transport ?? null);
+    recordedTransport !== undefined
+      ? recordedTransport
+      : kind === 'kyusu' && live !== null
+        ? {
+            dropped: Number(live.drops),
+            errors: Number(live.errors),
+            scrambled: Number(live.scrambled),
+          }
+        : (snapshot?.transport ?? null);
+  const transportShown = kind === 'convert' || recordedTransport !== undefined || live !== null;
   // averaged は、測った値でなく平均を出すかどうか。
   const averaged = kind === 'convert' && average !== undefined;
   const rate = averaged ? average : (snapshot?.rate ?? null);
@@ -194,6 +230,33 @@ export function StreamInfo({
           </Text>
           {!averaged && <Sparkline values={snapshot?.history ?? []} />}
         </div>
+        {serviceId !== undefined && <LiveRatesSubscriber serviceId={serviceId} onRates={setLive} />}
+        {kinds !== null && (
+          <div>
+            <Text size="xs" c="dimmed">
+              {live !== null
+                ? t('player.streamInfo.breakdownLive')
+                : t('player.streamInfo.breakdownRecorded')}
+            </Text>
+            <dl className={classes.list}>
+              {(
+                [
+                  ['VIDEO', kinds.video],
+                  ['AUDIO', kinds.audio],
+                  ['OTHER', kinds.other],
+                  ['PSI', kinds.psi],
+                  ['UNKNOWN', kinds.unknown],
+                ] as const
+              ).map(([key, bps]) => (
+                <BreakdownRow
+                  key={key}
+                  label={t(`recordings.streamQuality.kind.${key}`)}
+                  bps={bps}
+                />
+              ))}
+            </dl>
+          </div>
+        )}
         <dl className={classes.list}>
           <dt>{t('player.stats.quality')}</dt>
           <dd>{quality ?? '-'}</dd>
@@ -223,7 +286,7 @@ export function StreamInfo({
               <dd>{encoded?.bandwidth == null ? '-' : formatBitrate(encoded.bandwidth)}</dd>
             </>
           )}
-          {(kind === 'convert' || recordedTransport !== undefined) && (
+          {transportShown && (
             <>
               <dt>{t('player.streamInfo.transport')}</dt>
               <dd>
@@ -332,4 +395,58 @@ function Sparkline({ values }: { values: readonly (number | null)[] }) {
       </Text>
     </div>
   );
+}
+
+// BreakdownRow は、放送の内訳の 1 行。
+function BreakdownRow({ label, bps }: { label: string; bps: number }) {
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd>{formatBitrate(bps)}</dd>
+    </>
+  );
+}
+
+type LiveRates = StreamInfoLiveRatesSubscription$data['liveStreamRates'];
+
+// LiveRatesSubscriber は、tenban が数えたライブのサービスの内訳を購読し、届くたびに onRates に渡す (#812)。
+// 「情報」を開いている間だけ描くので、開いている間だけ tenban がストリームを数える。
+function LiveRatesSubscriber({
+  serviceId,
+  onRates,
+}: {
+  serviceId: string;
+  onRates: (rates: LiveRates | null) => void;
+}) {
+  const config = useMemo(
+    () => ({
+      subscription: graphql`
+        subscription StreamInfoLiveRatesSubscription($service: ID!) {
+          liveStreamRates(service: $service) {
+            videoBps
+            audioBps
+            otherBps
+            psiBps
+            unknownBps
+            totalBps
+            drops
+            errors
+            scrambled
+          }
+        }
+      `,
+      variables: { service: serviceId },
+      onNext: (response: StreamInfoLiveRatesSubscription['response'] | null | undefined) => {
+        if (response) {
+          onRates(response.liveStreamRates);
+        }
+      },
+      // 数えられなければ (チューナーサーバーがないなど)、内訳を出さない。
+      onError: () => onRates(null),
+    }),
+    [serviceId, onRates],
+  );
+  useSubscription<StreamInfoLiveRatesSubscription>(config);
+
+  return null;
 }
