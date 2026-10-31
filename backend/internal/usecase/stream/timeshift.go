@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -123,4 +124,116 @@ func (t *timeshiftTimeline) segmentClosed(ctx context.Context, segmentID uuid.UU
 	}
 
 	return endedAt != nil, nil
+}
+
+// TimeshiftRun は、バッファのうち、mikan が同じストリームを区切って書き続けた、続いたチャンクの並び (#826)。
+// 録画の開始が遅れたとき、mikan が、予定の開始からの分を、バッファから録画のセグメントに写すのに使う (設計書 5.7)。
+type TimeshiftRun struct {
+	// From は、写し始める時刻。並びの最初のチャンクの始まりか、OpenRuns に渡した from の遅いほう。
+	From time.Time
+	// To は、並びの最後のチャンクの終わり。書いている途中なら nil で、開いた時点の大きさまで写す。
+	To        *time.Time
+	recording *Recording
+	// limits は、書いている途中のチャンクの、開いた時点の大きさ。そこまでを写す。
+	limits map[uuid.UUID]int64
+}
+
+// OpenRuns は、サービスのバッファのうち、from より後まで録ったチャンクを、続いたチャンクの並びごとに、始まりの順に開く。
+// 並びの間は、チューナーを予約に渡したり、mikan が録り直したりして途切れた区間なので、録画では別のセグメントにする。
+// 書いている途中のチャンクは、開いた時点の大きさまでを写し、伸びるのを待たない。録画の続きは、mikan がライブのストリームで書いているためである。
+// タイムシフトのディレクトリがなければ ErrNotMounted、サービスを録っていなければ ErrTimeshiftNotFound を返す。
+func (s *TimeshiftSource) OpenRuns(ctx context.Context, serviceID int64, from time.Time) ([]*TimeshiftRun, error) {
+	if !s.streamer.store.HasTimeshiftDir() {
+		return nil, ErrNotMounted
+	}
+	exists, err := sqlc.New(s.db).TimeshiftChannelExists(ctx, serviceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check the timeshift channel: %w", err)
+	}
+	if !exists {
+		return nil, ErrTimeshiftNotFound
+	}
+	segments, err := (&timeshiftTimeline{source: s, serviceID: serviceID, since: from}).load(ctx)
+	if err != nil {
+		return nil, err
+	}
+	runs := []*TimeshiftRun{}
+	for start := 0; start < len(segments); {
+		end := start + 1
+		for end < len(segments) && segments[end].continues {
+			end++
+		}
+		run, err := s.openRun(segments[start:end], from)
+		if err != nil {
+			return nil, err
+		}
+		runs = append(runs, run)
+		start = end
+	}
+
+	return runs, nil
+}
+
+// openRun は、続いたチャンクの並び segments を、from から写せるように開く。書いている途中のチャンクは、今の大きさを写す範囲の終わりにする。
+func (s *TimeshiftSource) openRun(segments []*segment, from time.Time) (*TimeshiftRun, error) {
+	last := segments[len(segments)-1]
+	// 書いている途中のチャンクは、測った大きさで切るので、末尾の PES が途中で切れることがある。
+	// 録画の再生とセグメントをつなぐ処理は、ライブのセグメントとの重なりで切り詰めるので、そのまま写す。
+	limits := map[uuid.UUID]int64{}
+	for _, seg := range segments {
+		if !seg.open {
+			continue
+		}
+		info, err := s.streamer.store.Stat(seg.poolID, seg.path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to inspect the timeshift chunk: %w", err)
+		}
+		limits[seg.id] = info.Size()
+	}
+	first := segments[0]
+	start := first.startedAt
+	if from.After(start) {
+		start = from
+	}
+	run := &TimeshiftRun{
+		From: start, To: last.endedAt,
+		recording: &Recording{
+			streamer: s.streamer, timeline: &snapshotTimeline{segments: segments}, InProgress: false,
+			segments: segments, skip: max(from.Sub(first.startedAt), 0),
+		},
+		limits: limits,
+	}
+
+	return run, nil
+}
+
+// Write は、並びを From の手前の I フレームから w に写す。書いている途中のチャンクは、開いた時点の大きさまで写して終える。
+func (r *TimeshiftRun) Write(ctx context.Context, w io.Writer) error {
+	pos := r.recording.Seek(0)
+	for _, p := range pos.pieces {
+		if limit, ok := r.limits[p.segment.id]; ok && (p.to < 0 || p.to > limit) {
+			p.to = limit
+		}
+	}
+
+	return r.recording.Write(ctx, w, pos)
+}
+
+// snapshotTimeline は、開いた時点のチャンクの並び。並びは増えず、書いている途中のチャンクも、書き終えたものとして扱い、伸びるのを待たない。
+type snapshotTimeline struct {
+	segments []*segment
+}
+
+var _ timeline = new(snapshotTimeline)
+
+func (t *snapshotTimeline) load(context.Context) ([]*segment, error) {
+	return t.segments, nil
+}
+
+func (t *snapshotTimeline) inProgress(context.Context) (bool, error) {
+	return false, nil
+}
+
+func (t *snapshotTimeline) segmentClosed(context.Context, uuid.UUID) (bool, error) {
+	return true, nil
 }
