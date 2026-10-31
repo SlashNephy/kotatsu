@@ -98,6 +98,20 @@ export const playerCommands: Readonly<Record<PlayerCommandId, PlayerCommandDefin
 
 export const playerCommandIds = Object.keys(playerCommands) as PlayerCommandId[];
 
+// argumentCommands は、引数を取る操作。キーには割り当てられない。操作を足したら、型がここに足すことを求める。
+const argumentCommands: Readonly<Record<Exclude<PlayerCommandId, SimpleCommandId>, true>> = {
+  seekTo: true,
+  setMuted: true,
+  setVolume: true,
+  selectAudio: true,
+  pressKey: true,
+};
+
+// simpleCommandIds は、キーに割り当てられる操作。登録簿の順に並べる。
+export const simpleCommandIds = playerCommandIds.filter(
+  (id): id is SimpleCommandId => !Object.hasOwn(argumentCommands, id),
+);
+
 // runCommand は、操作を呼ぶ。今使えない操作なら、何もせず false を返す。
 export function runCommand<Id extends PlayerCommandId>(
   commands: PlayerCommands,

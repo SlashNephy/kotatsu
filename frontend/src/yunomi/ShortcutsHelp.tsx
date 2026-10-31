@@ -4,10 +4,10 @@ import { useTranslation } from 'react-i18next';
 
 import { playerCommandIds, type PlayerCommands } from './commands';
 import { dataBroadcastKeyHelp } from './dataBroadcastKeys';
-import { keysFor } from './shortcuts';
+import { keysFor, useKeymap } from './shortcuts';
 
 // keyLabels は、記号で見せるキーの名前。ほかのキーは、そのまま見せる。
-const keyLabels: Readonly<Record<string, string>> = {
+export const keyLabels: Readonly<Record<string, string>> = {
   ' ': 'Space',
   ArrowLeft: '←',
   ArrowRight: '→',
@@ -16,7 +16,7 @@ const keyLabels: Readonly<Record<string, string>> = {
 };
 
 // splitKey は、`Shift+ArrowLeft` を、Shift と ArrowLeft に分ける。`+` のキーそのものは分けない。
-function splitKey(key: string): string[] {
+export function splitKey(key: string): string[] {
   return key.length > 1 && key.startsWith('Shift+') ? ['Shift', key.slice('Shift+'.length)] : [key];
 }
 
@@ -34,9 +34,10 @@ type Props = {
 // ShortcutsHelp は、キーボードショートカットの一覧 (設計書 7.5)。割り当ては shortcuts.ts から作る。
 export function ShortcutsHelp({ opened, onClose, commands, target, dataBroadcast = false }: Props) {
   const { t } = useTranslation();
+  const [keymap] = useKeymap();
   const rows = playerCommandIds
     .filter((id) => commands[id] !== undefined)
-    .map((id) => ({ id, keys: keysFor(id) }))
+    .map((id) => ({ id, keys: keysFor(id, keymap) }))
     .filter(({ keys }) => keys.length > 0);
 
   // 一覧はプレイヤーの中に描くので、一覧のクリックが、映像のクリック (再生と一時停止) に伝わらないよう止める。
