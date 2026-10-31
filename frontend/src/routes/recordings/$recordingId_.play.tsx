@@ -65,6 +65,8 @@ import {
   useCapture,
 } from '../../yunomi/PlayerTools';
 import { PlayerStats, StatsToggle } from '../../yunomi/PlayerStats';
+import { StreamInfo, useStreamMeter } from '../../yunomi/StreamInfo';
+import { averageBitrate } from '../../yunomi/streamMeter';
 import {
   PlayerAlert,
   BigPlayButton,
@@ -181,7 +183,15 @@ const playQuery = graphql`
         audios {
           componentType
           languages
+          samplingRate
         }
+        files {
+          kind
+          size
+        }
+        drops
+        errors
+        scrambled
         service {
           name
           logoUrl
@@ -417,6 +427,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
 
   // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
   const [statsShown, setStatsShown] = useState(false);
+  // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
+  const streamMeter = useStreamMeter(quality);
   // 音量の補正 (#499)。端末ごとの設定に合わせる。
   useVolumeNormalizer(video);
   // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
@@ -882,6 +894,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             </>
           }
           onAudio={audio.onAudio}
+          onReading={streamMeter.onReading}
           audio={audio.convertAudio}
         />
       )}
@@ -891,6 +904,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           url={`${hlsURL(recording.streamUrl, route.preset, audio.kyusuAudio)}#${loads}`}
           videoRef={videoRef}
           onVideo={setVideo}
+          onSegment={streamMeter.onSegment}
           controls={controlBar}
           captions={captions}
           superimpose={captionSettings.superimposeRecorded}
@@ -952,7 +966,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       }
       side={
         <>
-          {/* 実況の過去ログのうち再生位置までに流れたもの (#489) と、字幕の履歴を、見出しで切り替える。過去ログがなければ、字幕の履歴だけを出す。 */}
+          {/* 実況の過去ログのうち再生位置までに流れたもの (#489) と、字幕の履歴と再生の情報 (#828) を、見出しで切り替える。過去ログがなければ、コメントの一覧を出さない。 */}
           <WatchPanel
             label={t('player.sidePanel')}
             tabs={[
@@ -981,6 +995,30 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
                       formatClock(broadcastTime(recording.recordedFrom, recording.gaps, entry.at))
                     }
                     onSelect={(entry) => seek(entry.at)}
+                    height={watchCommentsHeight}
+                  />
+                ),
+              },
+              {
+                value: 'info',
+                label: t('player.streamInfo.tab'),
+                content: (
+                  <StreamInfo
+                    meter={streamMeter.meter}
+                    video={video}
+                    quality={quality}
+                    kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
+                    audios={recording?.audios ?? null}
+                    average={recording === null ? null : averageBitrate(recording, Date.now())}
+                    transport={
+                      recording === null
+                        ? null
+                        : {
+                            dropped: Number(recording.drops),
+                            errors: Number(recording.errors),
+                            scrambled: Number(recording.scrambled),
+                          }
+                    }
                     height={watchCommentsHeight}
                   />
                 ),

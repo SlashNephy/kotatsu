@@ -1039,6 +1039,30 @@
       "seconds": "{{seconds}} 秒",
       "rate": "再生速度"
     },
+    "streamInfo": {
+      "tab": "情報",
+      "bitrateTs": "届いた TS 全体のビットレート",
+      "bitrateSegment": "セグメントのビットレート",
+      "bitrateAverage": "録画の TS の平均ビットレート",
+      "bitrateHistory": "直近 {{seconds}} 秒のビットレート",
+      "now": "今",
+      "secondsAgo": "{{seconds}} 秒前",
+      "source": "放送の映像",
+      "playing": "再生している映像",
+      "frameRate": "フレームレート",
+      "audio": "放送の音声",
+      "audioFormat": {
+        "mono": "モノラル",
+        "dualMono": "デュアルモノ",
+        "stereo": "ステレオ",
+        "surround": "5.1ch",
+        "other": "component_type {{type}}"
+      },
+      "samplingRate": "{{khz}} kHz",
+      "bandwidth": "推定した帯域",
+      "transport": "TS の異常",
+      "transportCounts": "ドロップ {{dropped}}、エラー {{errors}}、スクランブル {{scrambled}}"
+    },
     "commands": {
       "togglePlay": "再生と一時停止",
       "play": "再生する",

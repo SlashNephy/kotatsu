@@ -136,7 +136,7 @@ export function DataBroadcastToggle({
 const languages = ['jpn', 'eng', 'kor', 'zho', 'chi', 'etc'] as const;
 
 // languageName は、言語のコードを、メニューに出す名前にする。知らない言語は、コードのまま出す。
-function languageName(t: TFunction, code: string): string {
+export function languageName(t: TFunction, code: string): string {
   const known = languages.find((language) => language === code);
 
   return known === undefined ? code : t(`player.languages.${known}`);

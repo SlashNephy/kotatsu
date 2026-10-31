@@ -99,6 +99,7 @@ import {
   useCapture,
 } from '../../yunomi/PlayerTools';
 import { PlayerStats, StatsToggle } from '../../yunomi/PlayerStats';
+import { StreamInfo, useStreamMeter } from '../../yunomi/StreamInfo';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
@@ -288,6 +289,7 @@ function Live({
             audios {
               componentType
               languages
+              samplingRate
             }
           }
         }
@@ -502,6 +504,9 @@ function Live({
   }, [drains, route.kind, disconnection]);
   // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
   const [statsShown, setStatsShown] = useState(false);
+  // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
+  // タイムシフトのバッファは測れないので、バッファへ移ったときと、放送中の位置へ戻ったときに、それまでの分を捨てる。
+  const streamMeter = useStreamMeter(`${quality}:${timeshift.behind}`);
   // 音量の補正 (#499)。端末ごとの設定に合わせる。
   useVolumeNormalizer(video);
   // crop は、L 字放送の切り抜き (#496)。その場限りで、画面を開き直したら戻す。
@@ -1025,6 +1030,7 @@ function Live({
           }}
           onError={timeshift.behind ? resumeBehind : disconnected}
           onAudio={audio.onAudio}
+          onReading={streamMeter.onReading}
           audio={audio.convertAudio}
         />
       )}
@@ -1041,6 +1047,7 @@ function Live({
           }
           videoRef={videoRef}
           onVideo={setVideo}
+          onSegment={streamMeter.onSegment}
           controls={controlBar}
           captions={captions}
           superimpose={captionSettings.superimposeLive}
@@ -1185,7 +1192,7 @@ function Live({
         }
         side={
           <>
-            {/* 実況のコメントの一覧と字幕の履歴を、見出しで切り替える。実況を切っていれば、字幕の履歴だけを出す。 */}
+            {/* 実況のコメントの一覧と字幕の履歴と再生の情報 (#828) を、見出しで切り替える。実況を切っていれば、実況のコメントの一覧を出さない。 */}
             <WatchPanel
               label={t('player.sidePanel')}
               tabs={[
@@ -1219,6 +1226,22 @@ function Live({
                     <CaptionHistory
                       entries={captionEntries}
                       label={(entry) => formatClock(entry.at)}
+                      height={watchCommentsHeight}
+                    />
+                  ),
+                },
+                {
+                  value: 'info',
+                  label: t('player.streamInfo.tab'),
+                  content: (
+                    <StreamInfo
+                      meter={streamMeter.meter}
+                      video={video}
+                      quality={quality}
+                      kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
+                      audios={program?.audios ?? null}
+                      // タイムシフトのバッファは、プレイヤーが先まで読むので測れない。平均も分からないので出さない。
+                      {...(timeshift.behind ? { average: null } : {})}
                       height={watchCommentsHeight}
                     />
                   ),
