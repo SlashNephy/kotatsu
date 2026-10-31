@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next';
 import type { AudioChoice, KyusuAudioChoice } from './audio';
 import { cropOrigins, cropScales, type Crop } from './crop';
 import { useNormalizeVolume } from './volumeNormalize';
+import { audioLanguages, useAudioLanguage, type AudioLanguage } from './audioLanguage';
 import { audioDelayStepMs, maxAudioDelayMs, useAudioDelay, useResetAudioDelay } from './audioDelay';
 import { sleepMinuteChoices, type SleepChoice, type SleepTimer } from './sleepTimer';
 import { useVirtualSurroundSetting } from './useVirtualSurround';
@@ -166,6 +167,40 @@ export function kyusuAudioChoiceLabel(t: TFunction, choice: KyusuAudioChoice): s
   }
 
   return choice.language === null ? base : `${base}（${languageName(t, choice.language)}）`;
+}
+
+// AudioLanguageSelect は、音声のメニューに置く、優先する言語 (#819) の選択。端末ごとの設定を変える。
+// 選んだ言語の音声が番組にあれば、利用者が音声を選ぶまで、その音声を聞く。
+// onChange は、言語を変える直前に、新しい言語を受け取る。
+export function AudioLanguageSelect({
+  onChange,
+}: {
+  onChange?: (language: AudioLanguage | null) => void;
+}) {
+  const { t } = useTranslation();
+  const [language, setLanguage] = useAudioLanguage();
+
+  return (
+    <Select
+      size="xs"
+      label={t('player.audioLanguage.label')}
+      description={t('player.audioLanguage.description')}
+      comboboxProps={{ withinPortal: false }}
+      allowDeselect={false}
+      value={language ?? 'none'}
+      data={[
+        { value: 'none', label: t('player.audioLanguage.none') },
+        ...audioLanguages.map((code) => ({ value: code, label: languageName(t, code) })),
+      ]}
+      onChange={(next) => {
+        if (next !== null) {
+          const language = audioLanguages.find((code) => code === next) ?? null;
+          onChange?.(language);
+          setLanguage(language);
+        }
+      }}
+    />
+  );
 }
 
 // AudioSelect は、音声のメニュー。二か国語放送の音声や、デュアルモノの主音声と副音声を選ぶ (設計書 7.5)。
