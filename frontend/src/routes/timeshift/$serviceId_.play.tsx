@@ -14,6 +14,7 @@ import { WatchPanel } from '../../yunomi/WatchPanel';
 import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
 import { useAudioDelayCommands, useAudioDelayer } from '../../yunomi/audioDelay';
+import { useSleepTimer } from '../../yunomi/sleepTimer';
 import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistory } from '../../yunomi/CaptionHistory';
 import {
@@ -34,6 +35,7 @@ import {
   CropSelect,
   AudioDelaySetting,
   NormalizeVolumeToggle,
+  SleepTimerSelect,
   PlaybackUnavailable,
   QualitySelect,
 } from '../../yunomi/QualitySelect';
@@ -412,6 +414,8 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
         }
       : {}),
   };
+  // sleep は、スリープタイマー (#821)。時間になったら、プレイヤーを閉じる。
+  const sleep = useSleepTimer(() => commands.stop?.());
   usePlayerShortcuts(commands);
   // player は、プレイヤーの今の状態 (#811)。タブの題名と OS のメディア操作は、これを読む。
   // バッファの番組には ID がないので、局と始まりの時刻で見分ける。
@@ -531,6 +535,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
             <AudioDelaySetting />
+            <SleepTimerSelect timer={sleep} />
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
           <CaptureButton capture={capture} />
