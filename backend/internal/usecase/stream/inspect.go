@@ -2,6 +2,7 @@ package stream
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -17,6 +18,9 @@ const (
 	// DefaultInspectDuration は、チャンネルの TS を調べる長さ。PAT と PMT は 0.1 秒ほどの間隔で届くので、数秒あれば揃う。
 	DefaultInspectDuration = 5 * time.Second
 )
+
+// ErrInspectionInterrupted は、調べる長さより前に、チャンネルのストリームが終わったときのエラー。
+var ErrInspectionInterrupted = errors.New("the channel stream ended before the inspection finished")
 
 // ChannelOpener は、チャンネルのストリームを開く。*mirakurun.Client が満たす。
 type ChannelOpener interface {
@@ -75,21 +79,28 @@ func (i *ChannelInspector) Inspect(ctx context.Context, channelType, channel str
 	if i.opener == nil {
 		return nil, ErrNoTuner
 	}
-	readCtx, cancel := context.WithTimeout(ctx, duration)
-	defer cancel()
-	upstream, err := i.opener.OpenChannelStream(readCtx, channelType, channel, &mirakurun.StreamOptions{Decode: true, Priority: inspectPriority})
+	upstream, err := i.opener.OpenChannelStream(ctx, channelType, channel, &mirakurun.StreamOptions{Decode: true, Priority: inspectPriority})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the channel stream: %w", err)
 	}
 	defer func() {
 		_ = upstream.Close()
 	}()
+	// 調べる長さは、開いてから数える。チューニングと応答を待つ時間で、受け取る長さを削らない。
+	readCtx, cancel := context.WithTimeout(ctx, duration)
+	defer cancel()
+	// 長さを過ぎたら、ストリームを閉じて読み込みを終わらせる。
+	stop := context.AfterFunc(readCtx, func() { _ = upstream.Close() })
+	defer stop()
 	analyzer := ts.NewAnalyzer(nil)
 	stopwatch := i.clock.StartStopwatch()
-	// 長さを過ぎると ctx が終わってストリームが閉じ、読み込みが終わる。調べるのはそこまでに受け取った分なので、エラーは見ない。
-	_, _ = io.Copy(analyzer, upstream)
-	if ctx.Err() != nil {
+	_, copyErr := io.Copy(analyzer, upstream)
+	switch {
+	case ctx.Err() != nil:
 		return nil, context.Cause(ctx)
+	case readCtx.Err() == nil:
+		// 長さより前に終わった。録画や視聴にチューナーを奪われたか、接続が切れた。途中までの結果は、欠けているので返さない。
+		return nil, fmt.Errorf("%w: %w", ErrInspectionInterrupted, copyErr)
 	}
 
 	return inspection(analyzer.Stats(), stopwatch.Elapsed()), nil

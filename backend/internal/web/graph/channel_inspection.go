@@ -26,6 +26,8 @@ func (r *Resolver) inspectChannel(ctx context.Context, channelType, channel stri
 	switch {
 	case errors.Is(err, stream.ErrNoTuner):
 		return nil, errChannelInspectionUnavailable
+	case errors.Is(err, stream.ErrInspectionInterrupted):
+		return nil, NewError(CodeConflict, "the channel stream ended before the inspection finished; the tuner may have been taken")
 	case err != nil:
 		r.logger.WarnContext(ctx, "failed to inspect the channel", slog.String("channel_type", channelType), slog.String("channel", channel), slog.Any("error", err))
 

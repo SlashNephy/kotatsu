@@ -87,7 +87,9 @@ export function ChannelInspector() {
       return;
     }
     const [channelType = '', channel = ''] = selected.split('/');
+    // 前の結果は、どのチャンネルのものか分からなくなるので消す。
     setFailed(false);
+    setResult(null);
     run(
       async () => {
         const response = await mutate<ChannelInspectorMutation>(environment, inspectMutation, {
