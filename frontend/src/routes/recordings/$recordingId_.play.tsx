@@ -17,6 +17,7 @@ import { RuleRecordingList } from '../../recordings/RuleRecordingList';
 import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
 import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
+import { useAudioDelayCommands, useAudioDelayer } from '../../yunomi/audioDelay';
 import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistory } from '../../yunomi/CaptionHistory';
 import {
@@ -41,6 +42,7 @@ import {
   PlaybackUnavailable,
   QualitySelect,
   CropSelect,
+  AudioDelaySetting,
   NormalizeVolumeToggle,
   VirtualSurroundToggle,
 } from '../../yunomi/QualitySelect';
@@ -431,6 +433,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const streamMeter = useStreamMeter(quality);
   // 音量の補正 (#499)。端末ごとの設定に合わせる。
   useVolumeNormalizer(video);
+  useAudioDelayer(video);
   // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
   const surroundAvailable = route.kind === 'convert' && isSurroundAudio(recording?.audios ?? null);
   useVirtualSurround(video, surroundAvailable);
@@ -565,7 +568,12 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   };
   const [autoPictureInPicture] = useAutoPictureInPicture();
   // commands は、この画面で今使える操作 (#809)。キー、OS のメディア操作、ほかの端末からの操作は、どれもここから呼ぶ。
+  // audioDelayCommands は、音ずれ補正 (#818) の操作。変えたら、長さを映像の上に短く出す。
+  const audioDelayCommands = useAudioDelayCommands((ms) =>
+    showFlash(t('player.flash.audioDelay', { ms })),
+  );
   const commands: PlayerCommands = {
+    ...audioDelayCommands,
     play: () => void videoRef.current?.play().catch(() => {}),
     pause: () => videoRef.current?.pause(),
     togglePlay,
@@ -816,6 +824,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             <RateSelect value={rate} onChange={setRate} />
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
+            <AudioDelaySetting />
             {surroundAvailable && <VirtualSurroundToggle />}
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
