@@ -104,6 +104,7 @@ import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { usePlayerGamepad } from '../../yunomi/gamepad';
+import { usePlayerMouse } from '../../yunomi/mouseActions';
 import { runCommand, type PlayerCommands } from '../../yunomi/commands';
 import { useAutoPictureInPicture } from '../../yunomi/autoPictureInPicture';
 import {
@@ -768,6 +769,8 @@ function Live({
   usePlayerShortcuts(commands);
   // ゲームパッドでも、同じ操作を呼べるようにする (#810)。
   usePlayerGamepad(commands);
+  // 映像の上のホイールと中クリックも、設定の操作にする (#810)。
+  usePlayerMouse(playerBoxRef, commands);
   // player は、プレイヤーの今の状態 (#811)。タブの題名、OS のメディア操作、ほかの端末は、どれもこれを読む。
   const player = {
     kind: 'LIVE',

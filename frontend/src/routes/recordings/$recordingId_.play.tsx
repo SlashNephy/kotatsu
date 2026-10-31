@@ -61,6 +61,7 @@ import { useMediaSession } from '../../yunomi/useMediaSession';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { usePlayerGamepad } from '../../yunomi/gamepad';
+import { usePlayerMouse } from '../../yunomi/mouseActions';
 import type { PlayerCommands } from '../../yunomi/commands';
 import { useAutoPictureInPicture } from '../../yunomi/autoPictureInPicture';
 import {
@@ -646,6 +647,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   usePlayerShortcuts(commands);
   // ゲームパッドでも、同じ操作を呼べるようにする (#810)。
   usePlayerGamepad(commands);
+  // 映像の上のホイールと中クリックも、設定の操作にする (#810)。
+  usePlayerMouse(playerBoxRef, commands);
   // player は、プレイヤーの今の状態 (#811)。タブの題名、OS のメディア操作、ほかの端末は、どれもこれを読む。
   const player = {
     kind: 'RECORDING',

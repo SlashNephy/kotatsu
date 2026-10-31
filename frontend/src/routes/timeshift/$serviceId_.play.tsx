@@ -52,6 +52,7 @@ import { useMediaSession } from '../../yunomi/useMediaSession';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { usePlayerGamepad } from '../../yunomi/gamepad';
+import { usePlayerMouse } from '../../yunomi/mouseActions';
 import type { PlayerCommands } from '../../yunomi/commands';
 import {
   CaptureButton,
@@ -420,6 +421,8 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
   usePlayerShortcuts(commands);
   // ゲームパッドでも、同じ操作を呼べるようにする (#810)。
   usePlayerGamepad(commands);
+  // 映像の上のホイールと中クリックも、設定の操作にする (#810)。
+  usePlayerMouse(playerBoxRef, commands);
   // player は、プレイヤーの今の状態 (#811)。タブの題名と OS のメディア操作は、これを読む。
   // バッファの番組には ID がないので、局と始まりの時刻で見分ける。
   const player = {
