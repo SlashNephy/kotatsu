@@ -45,6 +45,28 @@ type Stream struct {
 	// StreamType は stream_type。0x02 は MPEG-2 映像、0x1B は H.264、0x24 は HEVC、0x0F は AAC (ADTS) を表す。
 	StreamType uint8
 	Kind       StreamKind
+	// ComponentTag は、ストリーム識別記述子の component_tag (#827)。EPG の映像と音声のコンポーネントと対応づける。
+	// 記述子がなければ nil。
+	ComponentTag *uint8
+}
+
+// descriptorTagStreamIdentifier は、ストリーム識別記述子 (stream_identifier_descriptor) の記述子タグ。
+const descriptorTagStreamIdentifier = 0x52
+
+// componentTag は、PMT の ES_info の記述子の並びから、ストリーム識別記述子の component_tag を読む。なければ nil。
+func componentTag(descriptors []byte) *uint8 {
+	for len(descriptors) >= 2 {
+		tag, length := descriptors[0], int(descriptors[1])
+		if 2+length > len(descriptors) {
+			return nil
+		}
+		if tag == descriptorTagStreamIdentifier && length >= 1 {
+			return new(descriptors[2])
+		}
+		descriptors = descriptors[2+length:]
+	}
+
+	return nil
 }
 
 // streamKind は、stream_type から大まかな種類を決める。
@@ -150,10 +172,15 @@ func (t *programTable) handlePMT(pid uint16, section []byte) {
 	for entry := body[4+programInfoLength:]; len(entry) >= 5; {
 		streamType := entry[0]
 		esInfoLength := int(entry[3]&0x0F)<<8 | int(entry[4])
+		var tag *uint8
+		if 5+esInfoLength <= len(entry) {
+			tag = componentTag(entry[5 : 5+esInfoLength])
+		}
 		program.Streams = append(program.Streams, &Stream{
-			PID:        uint16(entry[1]&0x1F)<<8 | uint16(entry[2]),
-			StreamType: streamType,
-			Kind:       streamKind(streamType),
+			PID:          uint16(entry[1]&0x1F)<<8 | uint16(entry[2]),
+			StreamType:   streamType,
+			Kind:         streamKind(streamType),
+			ComponentTag: tag,
 		})
 		if 5+esInfoLength > len(entry) {
 			break

@@ -968,6 +968,10 @@ type StreamQuality struct {
 	Drops     int64      `json:"drops"`
 	Errors    int64      `json:"errors"`
 	Scrambled int64      `json:"scrambled"`
+	// PMT の stream_type (#827)。0x02 は MPEG-2 映像、0x1B は H.264、0x24 は HEVC、0x0F は AAC など。PMT に載っていない PID と、記録する前に録った録画では null。
+	StreamType *int `json:"streamType,omitempty"`
+	// ストリーム識別記述子の component_tag (#827)。EPG の映像と音声のコンポーネントと対応づける。記述子がなければ null。
+	ComponentTag *int `json:"componentTag,omitempty"`
 }
 
 // 外部プレイヤー (VLC や mpv) で開くための、署名付きの映像の URL (設計書 7.6、9.6)。

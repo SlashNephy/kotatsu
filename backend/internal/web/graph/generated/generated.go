@@ -778,12 +778,14 @@ type ComplexityRoot struct {
 	}
 
 	StreamQuality struct {
-		Drops     func(childComplexity int) int
-		Errors    func(childComplexity int) int
-		Kind      func(childComplexity int) int
-		Packets   func(childComplexity int) int
-		Pid       func(childComplexity int) int
-		Scrambled func(childComplexity int) int
+		ComponentTag func(childComplexity int) int
+		Drops        func(childComplexity int) int
+		Errors       func(childComplexity int) int
+		Kind         func(childComplexity int) int
+		Packets      func(childComplexity int) int
+		Pid          func(childComplexity int) int
+		Scrambled    func(childComplexity int) int
+		StreamType   func(childComplexity int) int
 	}
 
 	StreamURL struct {
@@ -4550,6 +4552,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.StreamPreset.VideoBitrate(childComplexity), true
 
+	case "StreamQuality.componentTag":
+		if e.ComplexityRoot.StreamQuality.ComponentTag == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamQuality.ComponentTag(childComplexity), true
 	case "StreamQuality.drops":
 		if e.ComplexityRoot.StreamQuality.Drops == nil {
 			break
@@ -4586,6 +4594,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.StreamQuality.Scrambled(childComplexity), true
+	case "StreamQuality.streamType":
+		if e.ComplexityRoot.StreamQuality.StreamType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StreamQuality.StreamType(childComplexity), true
 
 	case "StreamURL.expiresAt":
 		if e.ComplexityRoot.StreamURL.ExpiresAt == nil {
@@ -6791,6 +6805,10 @@ type StreamQuality {
   drops: Int64!
   errors: Int64!
   scrambled: Int64!
+  "PMT の stream_type (#827)。0x02 は MPEG-2 映像、0x1B は H.264、0x24 は HEVC、0x0F は AAC など。PMT に載っていない PID と、記録する前に録った録画では null。"
+  streamType: Int
+  "ストリーム識別記述子の component_tag (#827)。EPG の映像と音声のコンポーネントと対応づける。記述子がなければ null。"
+  componentTag: Int
 }
 `, BuiltIn: false},
 	{Name: "../schema/reservations.graphqls", Input: `"""
@@ -9138,6 +9156,10 @@ func (ec *executionContext) childFields_StreamQuality(ctx context.Context, field
 		return ec.fieldContext_StreamQuality_errors(ctx, field)
 	case "scrambled":
 		return ec.fieldContext_StreamQuality_scrambled(ctx, field)
+	case "streamType":
+		return ec.fieldContext_StreamQuality_streamType(ctx, field)
+	case "componentTag":
+		return ec.fieldContext_StreamQuality_componentTag(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type StreamQuality", field.Name)
 }
@@ -25146,6 +25168,52 @@ func (ec *executionContext) fieldContext_StreamQuality_scrambled(_ context.Conte
 	return graphql.NewScalarFieldContext("StreamQuality", field, false, false, errors.New("field of type Int64 does not have child fields"))
 }
 
+func (ec *executionContext) _StreamQuality_streamType(ctx context.Context, field graphql.CollectedField, obj *model.StreamQuality) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StreamQuality_streamType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StreamType, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_StreamQuality_streamType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StreamQuality", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _StreamQuality_componentTag(ctx context.Context, field graphql.CollectedField, obj *model.StreamQuality) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StreamQuality_componentTag(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ComponentTag, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_StreamQuality_componentTag(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StreamQuality", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _StreamURL_url(ctx context.Context, field graphql.CollectedField, obj *model.StreamURL) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -37214,6 +37282,16 @@ func (ec *executionContext) _StreamQuality(ctx context.Context, sel ast.Selectio
 		case "scrambled":
 			out.Values[i] = ec._StreamQuality_scrambled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "streamType":
+			out.Values[i] = ec._StreamQuality_streamType(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "componentTag":
+			out.Values[i] = ec._StreamQuality_componentTag(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:

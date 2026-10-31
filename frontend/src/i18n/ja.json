@@ -913,12 +913,16 @@
     "streamQuality": {
       "open": "PID ごとの内訳",
       "title": "PID ごとの品質",
-      "description": "セグメントを足し合わせた、PID ごとのパケット、ドロップ、エラー、スクランブルの数です。引き継ぎで重なった区間は二重に数えます",
+      "description": "セグメントを足し合わせた、PID ごとのパケット、ドロップ、エラー、スクランブルの数です。引き継ぎで重なった区間は二重に数えます。ビットレートは、パケットの数を録画の長さ（途切れた区間を除く）で割った平均です",
       "kindHeader": "種類",
+      "codec": "形式",
+      "componentTag": "component_tag",
       "packets": "パケット",
+      "bitrate": "ビットレート",
       "drops": "ドロップ",
       "errors": "エラー",
       "scrambled": "スクランブル",
+      "total": "合計",
       "kind": {
         "VIDEO": "映像",
         "AUDIO": "音声",

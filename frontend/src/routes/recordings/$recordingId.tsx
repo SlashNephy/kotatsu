@@ -45,6 +45,7 @@ import {
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
 import { RecordingStateBadge } from '../../recordings/RecordingStateBadge';
 import { StreamQualityButton } from '../../recordings/StreamQualityButton';
+import { recordingPosition } from '../../yunomi/position';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { RecordingIdDeleteMutation } from './__generated__/RecordingIdDeleteMutation.graphql';
 import type { RecordingIdProtectMutation } from './__generated__/RecordingIdProtectMutation.graphql';
@@ -177,6 +178,8 @@ function Recording({ recordingId }: { recordingId: string }) {
               drops
               errors
               scrambled
+              streamType
+              componentTag
             }
             gaps {
               from
@@ -454,7 +457,16 @@ function Recording({ recordingId }: { recordingId: string }) {
                   scrambled: recording.scrambled,
                 })}
               </Text>
-              <StreamQualityButton streams={recording.streamQuality} />
+              <StreamQualityButton
+                streams={recording.streamQuality}
+                seconds={recordingPosition(
+                  recording.recordedFrom,
+                  recording.gaps,
+                  recording.recordedUntil == null
+                    ? Date.now()
+                    : Date.parse(recording.recordedUntil),
+                )}
+              />
               <Text size="sm" c="dimmed">
                 {t('recordings.recordedRange', {
                   from: timeFormat.format(Date.parse(recording.recordedFrom)),

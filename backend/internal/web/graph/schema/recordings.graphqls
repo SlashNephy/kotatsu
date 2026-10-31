@@ -288,4 +288,8 @@ type StreamQuality {
   drops: Int64!
   errors: Int64!
   scrambled: Int64!
+  "PMT の stream_type (#827)。0x02 は MPEG-2 映像、0x1B は H.264、0x24 は HEVC、0x0F は AAC など。PMT に載っていない PID と、記録する前に録った録画では null。"
+  streamType: Int
+  "ストリーム識別記述子の component_tag (#827)。EPG の映像と音声のコンポーネントと対応づける。記述子がなければ null。"
+  componentTag: Int
 }
