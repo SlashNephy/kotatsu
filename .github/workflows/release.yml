@@ -76,7 +76,7 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -89,35 +89,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REF_NAME: ${{ github.ref_name }}
         run: gh release download "$REF_NAME" --pattern 'kotatsu-*.tgz' --dir "$RUNNER_TEMP/chart"
+      # gh-pages ブランチには、GitHub App (kotatsu-artifacts) で書く (#1060)。API で作ったコミットは、App の名前で GitHub が署名する。
+      - id: app-token
+        uses: actions/create-github-app-token@v3.3.0
+        with:
+          client-id: ${{ vars.KOTATSU_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.KOTATSU_BOT_PRIVATE_KEY }}
+          # gh-pages ブランチに書く権限だけにする。
+          permission-contents: write
       - name: Update the Helm repository index
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           REF_NAME: ${{ github.ref_name }}
           REPOSITORY: ${{ github.repository }}
-        # 生成した index.yaml は apiVersion: で始まるので、Jekyll はそのまま配る。
-        # 先頭に --- を付けると front matter として読まれ、配るファイルから消えるので付けない。
-        run: |
-          pages="$RUNNER_TEMP/gh-pages"
-          remote="https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.git"
-          # 最初のリリースでは gh-pages ブランチがないので、空のブランチから始める。
-          if git ls-remote --exit-code --heads "$remote" gh-pages >/dev/null; then
-            git clone --depth 1 --branch gh-pages "$remote" "$pages"
-          else
-            git init --initial-branch gh-pages "$pages"
-            git -C "$pages" remote add origin "$remote"
-          fi
-          merge=()
-          if [ -f "$pages/index.yaml" ]; then
-            merge=(--merge "$pages/index.yaml")
-          fi
-          helm repo index "$RUNNER_TEMP/chart" --url "https://github.com/${REPOSITORY}/releases/download/${REF_NAME}" "${merge[@]}"
-          cp "$RUNNER_TEMP/chart/index.yaml" "$pages/index.yaml"
-          cd "$pages"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.yaml
-          git commit -m "chore: publish the kotatsu chart ${REF_NAME#v}"
-          git push origin HEAD:gh-pages
+        run: scripts/publish-helm-index.sh "$RUNNER_TEMP/chart" "$REF_NAME"
 
   # 更新した index.yaml を、GitHub Pages に配信し直す。Pages はデモと一緒に pages.yml が配信する。
   pages:
