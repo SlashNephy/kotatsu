@@ -1678,7 +1678,16 @@
     "unmute": "ミュートを解除",
     "audio": "音声",
     "showDataBroadcast": "データ放送を出す",
-    "stop": "プレイヤーを閉じる"
+    "stop": "プレイヤーを閉じる",
+    "open": {
+      "title": "ほかのチャンネルや録画を開かせる",
+      "live": "チャンネル",
+      "recording": "録画",
+      "servicePlaceholder": "チャンネルを選ぶ",
+      "recordingPlaceholder": "番組名で録画を探す",
+      "searchError": "録画を探せませんでした",
+      "noRecordings": "一致する録画はありません"
+    }
   },
   "captures": {
     "title": "キャプチャの履歴",

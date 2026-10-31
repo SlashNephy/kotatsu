@@ -119,6 +119,8 @@ function command(id: number, patch: Partial<RemoteCommand>): RemoteCommand {
     muted: null,
     audio: null,
     key: null,
+    serviceId: null,
+    recordingId: null,
     ...patch,
   };
 }
@@ -339,6 +341,30 @@ describe('dispatch', () => {
     dispatch(command(2, { type: 'PRESS_KEY', key: 'power' }), remote);
     expect(remote.seekTo).not.toHaveBeenCalled();
     expect(remote.pressKey).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    {
+      name: 'サービスを開かせる',
+      command: command(1, { type: 'OPEN', serviceId: 'U2VydmljZTox' }),
+      want: { kind: 'LIVE', serviceId: 'U2VydmljZTox' },
+    },
+    {
+      name: '録画を開かせる',
+      command: command(1, { type: 'OPEN', recordingId: 'UmVjb3JkaW5nOjE=' }),
+      want: { kind: 'RECORDING', recordingId: 'UmVjb3JkaW5nOjE=' },
+    },
+  ] as const)('$name (#802)', ({ command: received, want }) => {
+    const open = vi.fn();
+    dispatch(received, handlers(), open);
+    expect(open).toHaveBeenCalledExactlyOnceWith(want);
+  });
+
+  test('開くもののない OPEN と、開けない画面への OPEN は捨てる', () => {
+    const open = vi.fn();
+    dispatch(command(1, { type: 'OPEN' }), handlers(), open);
+    expect(open).not.toHaveBeenCalled();
+    expect(() => dispatch(command(2, { type: 'OPEN', serviceId: 'x' }), handlers())).not.toThrow();
   });
 
   test('今使えない操作は、捨てる', () => {

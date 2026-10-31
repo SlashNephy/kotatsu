@@ -614,15 +614,21 @@ type PlayerCommand struct {
 	Muted    *bool             `json:"muted,omitempty"`
 	Audio    *string           `json:"audio,omitempty"`
 	Key      *string           `json:"key,omitempty"`
+	// 開くサービス (OPEN)。
+	ServiceID *string `json:"serviceId,omitempty"`
+	// 開く録画 (OPEN)。
+	RecordingID *string `json:"recordingId,omitempty"`
 }
 
 type PlayerCommandInput struct {
-	Type     PlayerCommandType `json:"type"`
-	Position *float64          `json:"position,omitempty"`
-	Volume   *float64          `json:"volume,omitempty"`
-	Muted    *bool             `json:"muted,omitempty"`
-	Audio    *string           `json:"audio,omitempty"`
-	Key      *string           `json:"key,omitempty"`
+	Type        PlayerCommandType `json:"type"`
+	Position    *float64          `json:"position,omitempty"`
+	Volume      *float64          `json:"volume,omitempty"`
+	Muted       *bool             `json:"muted,omitempty"`
+	Audio       *string           `json:"audio,omitempty"`
+	Key         *string           `json:"key,omitempty"`
+	ServiceID   *string           `json:"serviceId,omitempty"`
+	RecordingID *string           `json:"recordingId,omitempty"`
 }
 
 // ログイン中のユーザーのプレイヤーの設定 (設計書 9.1)。端末をまたいで同期する。
@@ -1742,6 +1748,8 @@ const (
 	PlayerCommandTypePressKey PlayerCommandType = "PRESS_KEY"
 	// プレイヤーを閉じる。
 	PlayerCommandTypeStop PlayerCommandType = "STOP"
+	// serviceId のサービスのライブ視聴か、recordingId の録画の再生を開く (キャスト、#802)。どちらか 1 つを渡す。
+	PlayerCommandTypeOpen PlayerCommandType = "OPEN"
 )
 
 var AllPlayerCommandType = []PlayerCommandType{
@@ -1753,11 +1761,12 @@ var AllPlayerCommandType = []PlayerCommandType{
 	PlayerCommandTypeSelectAudio,
 	PlayerCommandTypePressKey,
 	PlayerCommandTypeStop,
+	PlayerCommandTypeOpen,
 }
 
 func (e PlayerCommandType) IsValid() bool {
 	switch e {
-	case PlayerCommandTypePlay, PlayerCommandTypePause, PlayerCommandTypeSeek, PlayerCommandTypeSetVolume, PlayerCommandTypeSetMuted, PlayerCommandTypeSelectAudio, PlayerCommandTypePressKey, PlayerCommandTypeStop:
+	case PlayerCommandTypePlay, PlayerCommandTypePause, PlayerCommandTypeSeek, PlayerCommandTypeSetVolume, PlayerCommandTypeSetMuted, PlayerCommandTypeSelectAudio, PlayerCommandTypePressKey, PlayerCommandTypeStop, PlayerCommandTypeOpen:
 		return true
 	}
 	return false

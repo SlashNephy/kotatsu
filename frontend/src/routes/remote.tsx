@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Group,
+  Loader,
   SegmentedControl,
   Slider,
   Stack,
@@ -30,6 +31,7 @@ import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import { EmptyState, ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../futon';
 import { estimatedPosition, remoteKeyName } from '../remote/remote';
+import { RemoteOpen } from '../remote/RemoteOpen';
 import { settingsErrorMessage } from '../settings/errors';
 import { deviceName } from '../settings/device';
 import { mutate } from '../settings/mutate';
@@ -339,6 +341,11 @@ function PlayerRemote({ player }: { player: Player }) {
               {t('remote.showDataBroadcast')}
             </Button>
           ))}
+
+        {/* 別のチャンネルや録画を開かせる (キャスト、#802)。 */}
+        <Suspense fallback={<Loader size="sm" />}>
+          <RemoteOpen onOpen={(target) => send({ type: 'OPEN', ...target })} />
+        </Suspense>
 
         <Button
           variant="subtle"

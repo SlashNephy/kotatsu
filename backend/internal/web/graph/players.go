@@ -80,6 +80,8 @@ func playerCommand(command *model.PlayerCommandInput) ([]byte, error) {
 		valid = command.Audio != nil && utf8.RuneCountInString(*command.Audio) <= maxPlayerText
 	case model.PlayerCommandTypePressKey:
 		valid = command.Key != nil && utf8.RuneCountInString(*command.Key) <= maxPlayerText
+	case model.PlayerCommandTypeOpen:
+		valid = openTarget(command.ServiceID, command.RecordingID)
 	case model.PlayerCommandTypePlay, model.PlayerCommandTypePause, model.PlayerCommandTypeStop:
 	default:
 		valid = false
@@ -93,6 +95,23 @@ func playerCommand(command *model.PlayerCommandInput) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// openTarget は、開かせるもの (サービスか録画のどちらか 1 つ) の ID が正しいかを確かめる (#802)。
+// サービスや録画があるかは確かめない。開いた画面が、見つからないことを示す。
+func openTarget(serviceID, recordingID *string) bool {
+	switch {
+	case serviceID != nil && recordingID == nil:
+		_, err := parseServiceGlobalID(*serviceID)
+
+		return err == nil
+	case serviceID == nil && recordingID != nil:
+		_, err := parseRecordingID(*recordingID)
+
+		return err == nil
+	default:
+		return false
+	}
 }
 
 func playerOf(p *player.Player, sessionID uuid.UUID) (*model.Player, error) {
