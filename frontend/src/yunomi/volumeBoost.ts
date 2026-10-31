@@ -1,22 +1,20 @@
+import { audioStageChain, type AudioStage, type AudioStageName } from './audioStages';
 import { maxVolume } from './volume';
-import { createVirtualSurround, type VirtualSurround } from './virtualSurround';
+import { createVirtualSurround } from './virtualSurround';
 
 // 音量を 100% より上げる (#453)。video.volume は 1 までなので、超えた分を WebAudio の GainNode で上げる。
 // WebAudio を通すと、iOS の Safari、別のウィンドウ (PiP)、バックグラウンドの再生で動きが変わるおそれがあるので、
 // 初めて 100% を超えたときにだけ GainNode を挟む。一度挟んだら、その video の音は WebAudio を通り続ける。
 
 // Booster は、video の音の WebAudio のグラフ。
-// source → (仮想サラウンド: surround) → (音量の補正: compressor → makeup) → gain → 出力。
-// 仮想サラウンド (#454) と音量の補正 (#499) は、切っているときは飛ばして繋ぐ。
+// source → 入れている段 (audioStageOrder の順) → gain → 出力。切っている段は、飛ばして繋ぐ (#812)。
 type Booster = {
   source: MediaElementAudioSourceNode;
-  compressor: DynamicsCompressorNode;
-  makeup: GainNode;
   gain: GainNode;
-  normalized: boolean;
-  // surround は、仮想サラウンドのノード。初めて入れたときに作る。
-  surround: VirtualSurround | null;
-  surrounded: boolean;
+  // stages は、作った段。初めて入れたときに作り、切っても残しておく。
+  stages: Map<AudioStageName, AudioStage>;
+  // enabled は、入れている段。
+  enabled: Set<AudioStageName>;
 };
 
 // sharedContext は、すべての video で使う AudioContext。画質を変えたり選局したりするたびに video は作り直されるが、
@@ -28,16 +26,46 @@ const boosters = new WeakMap<HTMLMediaElement, Booster>();
 const sources = new WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>();
 // pending は、まだ GainNode を挟めていない video の、上げたい倍率。ユーザーが操作するまで、AudioContext を動かせないため。
 const pending = new WeakMap<HTMLMediaElement, number>();
-// normalizing は、音量の補正を入れた video。まだ WebAudio を通せていなくても、通せたら補正する。
-const normalizing = new WeakSet<HTMLMediaElement>();
-// surrounding は、仮想サラウンドを入れた video。normalizing と同じく、通せたら入れる。
-const surrounding = new WeakSet<HTMLMediaElement>();
+// wanted は、video ごとの、入れた段。まだ WebAudio を通せていなくても、通せたら入れる。
+const wanted = new WeakMap<HTMLMediaElement, Set<AudioStageName>>();
 
 // 音量の補正 (#499) のコンプレッサーの設定。大きな音を抑え、抑えた分を makeupGain で全体に足して、
 // 番組と CM、局どうしの音量の差を縮める。音が割れないよう、比は控えめにする。
 const compressorSettings = { threshold: -30, knee: 20, ratio: 4, attack: 0.01, release: 0.3 };
 // makeupGain は、コンプレッサーで抑えた分を戻す倍率 (約 +4 dB)。
 const makeupGain = 1.6;
+
+// createNormalize は、音量の補正の段 (compressor → makeup) を作る。
+function createNormalize(ctx: BaseAudioContext): AudioStage {
+  const compressor = ctx.createDynamicsCompressor();
+  compressor.threshold.value = compressorSettings.threshold;
+  compressor.knee.value = compressorSettings.knee;
+  compressor.ratio.value = compressorSettings.ratio;
+  compressor.attack.value = compressorSettings.attack;
+  compressor.release.value = compressorSettings.release;
+  const makeup = ctx.createGain();
+  makeup.gain.value = makeupGain;
+  compressor.connect(makeup);
+
+  return { input: compressor, output: makeup, nodes: [compressor, makeup] };
+}
+
+// stageFactories は、段ごとの作り方。段を足すときは、audioStageOrder とここに足す。
+const stageFactories: Record<AudioStageName, (ctx: BaseAudioContext) => AudioStage> = {
+  surround: createVirtualSurround,
+  normalize: createNormalize,
+};
+
+// wantedOf は、video に入れた段を返す。
+function wantedOf(video: HTMLMediaElement): Set<AudioStageName> {
+  let stages = wanted.get(video);
+  if (stages === undefined) {
+    stages = new Set();
+    wanted.set(video, stages);
+  }
+
+  return stages;
+}
 
 // splitVolume は、0 から maxVolume の音量を、video.volume (0〜1) と GainNode の倍率 (1 以上) に分ける。
 export function splitVolume(volume: number): { element: number; gain: number } {
@@ -94,28 +122,16 @@ function boosterOf(video: HTMLMediaElement): Booster | null {
   try {
     sharedContext ??= new AudioContext();
     const gain = sharedContext.createGain();
-    const compressor = sharedContext.createDynamicsCompressor();
-    compressor.threshold.value = compressorSettings.threshold;
-    compressor.knee.value = compressorSettings.knee;
-    compressor.ratio.value = compressorSettings.ratio;
-    compressor.attack.value = compressorSettings.attack;
-    compressor.release.value = compressorSettings.release;
-    const makeup = sharedContext.createGain();
-    makeup.gain.value = makeupGain;
-    compressor.connect(makeup).connect(gain);
     const source = sources.get(video) ?? sharedContext.createMediaElementSource(video);
     sources.set(video, source);
     gain.connect(sharedContext.destination);
     const booster: Booster = {
       source,
-      compressor,
-      makeup,
       gain,
-      normalized: normalizing.has(video),
-      surround: null,
-      surrounded: surrounding.has(video),
+      stages: new Map(),
+      enabled: new Set(wanted.get(video)),
     };
-    wire(booster);
+    wire(sharedContext, booster);
     boosters.set(video, booster);
 
     return booster;
@@ -125,67 +141,72 @@ function boosterOf(video: HTMLMediaElement): Booster | null {
   }
 }
 
-// wire は、booster の normalized と surrounded に合わせて、source から gain までを繋ぎ直す。
-function wire(booster: Booster): void {
+// wire は、booster の入れている段に合わせて、source から gain までを繋ぎ直す。段の中の繋がりは、そのまま残す。
+function wire(ctx: BaseAudioContext, booster: Booster): void {
   booster.source.disconnect();
-  booster.surround?.output.disconnect();
-  const next = booster.normalized ? booster.compressor : booster.gain;
-  if (booster.surrounded && sharedContext !== null) {
-    booster.surround ??= createVirtualSurround(sharedContext);
-    booster.source.connect(booster.surround.input);
-    booster.surround.output.connect(next);
-  } else {
-    booster.source.connect(next);
+  for (const stage of booster.stages.values()) {
+    stage.output.disconnect();
   }
+  let previous: AudioNode = booster.source;
+  for (const name of audioStageChain(booster.enabled)) {
+    let stage = booster.stages.get(name);
+    if (stage === undefined) {
+      stage = stageFactories[name](ctx);
+      booster.stages.set(name, stage);
+    }
+    previous.connect(stage.input);
+    previous = stage.output;
+  }
+  previous.connect(booster.gain);
 }
 
-// setSurround は、video の仮想サラウンド (#454) を入れるか切る。入れるときは、WebAudio を通す。
-// 音量の補正と同じく、AudioContext をまだ動かせなければ、覚えておき、操作した後に入れる。
-export function setSurround(video: HTMLMediaElement, enabled: boolean): void {
-  if (enabled) {
-    surrounding.add(video);
-  } else {
-    surrounding.delete(video);
-  }
-  const booster = enabled || sources.has(video) ? boosterOf(video) : null;
-  if (booster === null) {
-    return;
-  }
-  if (booster.surrounded !== enabled) {
-    booster.surrounded = enabled;
-    wire(booster);
-  }
-  resumeContext();
-}
-
-// isSurrounded は、video の音を、今、仮想サラウンドにしているかを返す。
-export function isSurrounded(video: HTMLMediaElement): boolean {
-  return boosters.get(video)?.surrounded ?? false;
-}
-
-// setNormalize は、video の音量の補正 (#499) を入れるか切る。入れるときは、WebAudio を通す。
+// setStage は、video の音の段 name を入れるか切る。入れるときは、WebAudio を通す。
 // ユーザーがまだ操作しておらず AudioContext を動かせなければ、覚えておき、操作した後 (resumePendingBoost) に入れる。
-export function setNormalize(video: HTMLMediaElement, enabled: boolean): void {
+function setStage(video: HTMLMediaElement, name: AudioStageName, enabled: boolean): void {
   if (enabled) {
-    normalizing.add(video);
+    wantedOf(video).add(name);
   } else {
-    normalizing.delete(video);
+    wanted.get(video)?.delete(name);
   }
   const booster = enabled || sources.has(video) ? boosterOf(video) : null;
-  if (booster === null) {
+  if (booster === null || sharedContext === null) {
     return;
   }
-  if (booster.normalized !== enabled) {
-    booster.normalized = enabled;
-    wire(booster);
+  if (booster.enabled.has(name) !== enabled) {
+    if (enabled) {
+      booster.enabled.add(name);
+    } else {
+      booster.enabled.delete(name);
+    }
+    wire(sharedContext, booster);
   }
   // 作ったばかりの AudioContext は止まっていることがあるので、動かす。動かさないと、WebAudio を通した音が出ない。
   resumeContext();
 }
 
+// hasStage は、video の音に、今、段 name を入れているかを返す。
+function hasStage(video: HTMLMediaElement, name: AudioStageName): boolean {
+  return boosters.get(video)?.enabled.has(name) ?? false;
+}
+
+// setSurround は、video の仮想サラウンド (#454) を入れるか切る。
+export function setSurround(video: HTMLMediaElement, enabled: boolean): void {
+  setStage(video, 'surround', enabled);
+}
+
+// isSurrounded は、video の音を、今、仮想サラウンドにしているかを返す。
+export function isSurrounded(video: HTMLMediaElement): boolean {
+  return hasStage(video, 'surround');
+}
+
+// setNormalize は、video の音量の補正 (#499) を入れるか切る。
+export function setNormalize(video: HTMLMediaElement, enabled: boolean): void {
+  setStage(video, 'normalize', enabled);
+}
+
 // isNormalized は、video の音を、今、補正しているかを返す。
 export function isNormalized(video: HTMLMediaElement): boolean {
-  return boosters.get(video)?.normalized ?? false;
+  return hasStage(video, 'normalize');
 }
 
 // applyVolume は、video に音量 (0 から maxVolume) を当てる。100% を超える分は GainNode で上げる。
@@ -215,11 +236,10 @@ export function resumePendingBoost(video: HTMLMediaElement): void {
   if (gain !== undefined) {
     applyVolume(video, gain);
   }
-  if (normalizing.has(video) && !isNormalized(video)) {
-    setNormalize(video, true);
-  }
-  if (surrounding.has(video) && !isSurrounded(video)) {
-    setSurround(video, true);
+  for (const name of wanted.get(video) ?? []) {
+    if (!hasStage(video, name)) {
+      setStage(video, name, true);
+    }
   }
   resumeContext();
 }
@@ -231,11 +251,11 @@ export function releaseBoost(video: HTMLMediaElement): void {
   const booster = boosters.get(video);
   if (booster !== undefined) {
     booster.source.disconnect();
-    for (const node of booster.surround?.nodes ?? []) {
-      node.disconnect();
+    for (const stage of booster.stages.values()) {
+      for (const node of stage.nodes) {
+        node.disconnect();
+      }
     }
-    booster.compressor.disconnect();
-    booster.makeup.disconnect();
     booster.gain.disconnect();
     boosters.delete(video);
   }
