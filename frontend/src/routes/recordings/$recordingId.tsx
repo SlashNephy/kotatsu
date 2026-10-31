@@ -59,6 +59,7 @@ import { ServiceLabel } from '../../guide/ServiceLabel';
 import { zonedFormat } from '../../futon';
 import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
+import { failureKey } from '../../recordings/failureReason';
 
 export const Route = createFileRoute('/recordings/$recordingId')({
   component: RecordingPage,
@@ -92,17 +93,6 @@ const timeFormat = zonedFormat({
   second: '2-digit',
   hourCycle: 'h23',
 });
-
-const failureKeys = {
-  TUNER_UNAVAILABLE: 'recordings.failure.TUNER_UNAVAILABLE',
-  TUNER_SERVER_UNREACHABLE: 'recordings.failure.TUNER_SERVER_UNREACHABLE',
-  STREAM_INTERRUPTED: 'recordings.failure.STREAM_INTERRUPTED',
-  STORAGE_UNAVAILABLE: 'recordings.failure.STORAGE_UNAVAILABLE',
-  STORAGE_FULL: 'recordings.failure.STORAGE_FULL',
-  PROGRAM_NOT_FOUND: 'recordings.failure.PROGRAM_NOT_FOUND',
-  CANCELLED: 'recordings.failure.CANCELLED',
-  RECORDER_UNAVAILABLE: 'recordings.failure.RECORDER_UNAVAILABLE',
-} as const;
 
 // RecordingPage は、録画の詳細の画面 (設計書 10.3)。保護、タグ付け、削除と、外部プレイヤーでの再生ができる。
 function RecordingPage() {
@@ -435,12 +425,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               </Text>
             ))}
           {recording.failureReason != null && (
-            <Alert color="red">
-              {t(
-                failureKeys[recording.failureReason as keyof typeof failureKeys] ??
-                  'recordings.failure.unknown',
-              )}
-            </Alert>
+            <Alert color="red">{t(failureKey(recording.failureReason))}</Alert>
           )}
           {recording.description !== '' && (
             <Text size="sm">

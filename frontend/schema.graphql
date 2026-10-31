@@ -794,6 +794,11 @@ type Mutation {
   """
   deleteGuideView(id: ID!): ID!
   """
+  理由 reasons の、録画の失敗の累計を 0 に、最後に失敗した日時を空に戻し、戻した後の累計を返す (#1035)。
+  検証で失敗させた分や、直した障害の分を消すのに使う。理由ごとに監査ログに残す。管理者だけが使える (設計書 9.7)。
+  """
+  resetRecordingFailureCounts(reasons: [RecordingFailureReason!]!): [RecordingFailureCount!]!
+  """
   API トークンを発行する。名前は 1 文字以上 64 文字以下。直近 10 分以内の認証が要る。
   トークンは、発行したユーザーのロールのまま、読み取り専用の API にだけ使える。
   """
@@ -2053,6 +2058,21 @@ type RecordingEdge {
   node: Recording!
 }
 """
+理由ごとの、録画の失敗の累計 (設計書 5.5)。録画を消しても減らない。
+"""
+type RecordingFailureCount {
+  reason: RecordingFailureReason!
+  count: Int64!
+  """
+  最後に失敗した日時。一度も失敗していないか、累計を 0 に戻してから失敗していなければ null。
+  """
+  lastFailedAt: Time
+  """
+  管理者が累計を 0 に戻した日時 (#1035)。戻していなければ null。
+  """
+  resetAt: Time
+}
+"""
 録画に失敗した理由 (設計書 5.5)。
 """
 enum RecordingFailureReason {
@@ -2896,6 +2916,10 @@ type SystemStatus {
   tunerServer: TunerServerStatus
   tuners: [Tuner!]!
   pools: [StoragePool!]!
+  """
+  理由ごとの、録画の失敗の累計。
+  """
+  recordingFailures: [RecordingFailureCount!]!
 }
 """
 登録中の TOTP。秘密キーは、この応答でしか見せない。

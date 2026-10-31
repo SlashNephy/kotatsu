@@ -29,6 +29,7 @@ const (
 )
 
 // FailureCountsCreated は、kotatsu_recording_failures_total の作成の時刻を返す。失敗の累計を数え始めた版の日付で、どのインスタンスでも変わらない。
+// 管理者が累計を 0 に戻した理由は、戻した日時を作成の時刻にする (#1035)。
 // 値は DB に持つので、送るインスタンスが替わっても続く。作成の時刻も同じにして、OTLP の受け手がカウンターのリセットとみなさないようにする (#962)。
 func FailureCountsCreated() time.Time {
 	return time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC)
@@ -137,7 +138,12 @@ func (c *DBCollector) collectRecordings(ctx context.Context, ch chan<- prometheu
 		return err
 	}
 	for _, row := range counts {
-		ch <- prometheus.MustNewConstMetricWithCreatedTimestamp(c.failuresTotal, prometheus.CounterValue, float64(row.Count), FailureCountsCreated(), row.Reason)
+		// 管理者が累計を 0 に戻したら、戻した日時を作成の時刻にし、受け手にカウンターのリセットを伝える (#1035)。
+		created := FailureCountsCreated()
+		if row.ResetAt != nil {
+			created = *row.ResetAt
+		}
+		ch <- prometheus.MustNewConstMetricWithCreatedTimestamp(c.failuresTotal, prometheus.CounterValue, float64(row.Count), created, row.Reason)
 		if row.LastFailedAt != nil {
 			ch <- prometheus.MustNewConstMetric(c.lastFailure, prometheus.GaugeValue, float64(row.LastFailedAt.Unix()), row.Reason)
 		}
