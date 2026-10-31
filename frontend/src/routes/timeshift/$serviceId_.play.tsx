@@ -4,6 +4,7 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { Captions, Keyboard } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useMergedRef } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
@@ -53,6 +54,7 @@ import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
 import { usePlayerContextMenu } from '../../yunomi/PlayerContextMenu';
 import { usePlayerGamepad } from '../../yunomi/gamepad';
+import { usePlayerMouse } from '../../yunomi/mouseActions';
 import type { PlayerCommands } from '../../yunomi/commands';
 import {
   CaptureButton,
@@ -423,6 +425,10 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
   const contextMenu = usePlayerContextMenu(commands);
   // ゲームパッドでも、同じ操作を呼べるようにする (#810)。
   usePlayerGamepad(commands);
+  // 映像の上のホイールと中クリックも、設定の操作にする (#810)。
+  const mouseRef = usePlayerMouse(commands);
+  // boxRef は、プレイヤーを包む要素に渡す ref。キャプチャや全画面が使う playerBoxRef と、マウスの操作の両方に渡す。
+  const boxRef = useMergedRef(playerBoxRef, mouseRef);
   // player は、プレイヤーの今の状態 (#811)。タブの題名と OS のメディア操作は、これを読む。
   // バッファの番組には ID がないので、局と始まりの時刻で見分ける。
   const player = {
@@ -567,7 +573,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
 
   const playerBox = (
     <div
-      ref={playerBoxRef}
+      ref={boxRef}
       // 映像を右クリックすると、操作のメニューを出す (#1140)。
       onContextMenu={contextMenu.onContextMenu}
       className={playerControlsClasses.box}

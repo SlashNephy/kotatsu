@@ -5,6 +5,7 @@ import {
   CloseButton,
   Group,
   Kbd,
+  Select,
   Stack,
   Table,
   Text,
@@ -21,6 +22,12 @@ import {
   useGamepadButtons,
   useGamepadMap,
 } from '../yunomi/gamepad';
+import {
+  defaultMouseActions,
+  middleClickActions,
+  useMouseActions,
+  wheelActions,
+} from '../yunomi/mouseActions';
 import { assignKey, eventKey, keysFor, removeKey, useKeymap } from '../yunomi/shortcuts';
 import { keyLabels, splitKey } from '../yunomi/ShortcutsHelp';
 
@@ -32,6 +39,7 @@ export function ShortcutKeysCard() {
   // capturing は、キーを待っている操作。Escape か、ほかの所へフォーカスを移すとやめる。
   const [capturing, setCapturing] = useState<SimpleCommandId | null>(null);
   const [gamepadMap, setGamepadMap] = useGamepadMap();
+  const [mouseActions, setMouseActions] = useMouseActions();
   // capturingButton は、ゲームパッドのボタンを待っている操作。
   const [capturingButton, setCapturingButton] = useState<SimpleCommandId | null>(null);
   // 同じフレームで 2 つ押されても、1 つだけを割り当てるよう、待っている操作は ref でも持つ。
@@ -191,6 +199,46 @@ export function ShortcutKeysCard() {
             </Table.Tbody>
           </Table>
         </Table.ScrollContainer>
+        {/* マウスの割り当て。映像の上のホイールと中クリックで何をするか (#810)。 */}
+        <Group gap="md" align="flex-end">
+          <Select
+            size="xs"
+            label={t('settings.shortcutKeys.wheel')}
+            value={mouseActions.wheel}
+            allowDeselect={false}
+            data={wheelActions.map((action) => ({
+              value: action,
+              label: t(`settings.shortcutKeys.wheelActions.${action}`),
+            }))}
+            onChange={(value) => {
+              const wheel = wheelActions.find((action) => action === value);
+              if (wheel !== undefined) {
+                setMouseActions({ ...mouseActions, wheel });
+              }
+            }}
+            maw={240}
+          />
+          <Select
+            size="xs"
+            label={t('settings.shortcutKeys.middleClick')}
+            value={mouseActions.middleClick}
+            allowDeselect={false}
+            data={middleClickActions.map((action) => ({
+              value: action,
+              label:
+                action === 'none'
+                  ? t('settings.shortcutKeys.none')
+                  : t(`player.commands.${action}`),
+            }))}
+            onChange={(value) => {
+              const middleClick = middleClickActions.find((action) => action === value);
+              if (middleClick !== undefined) {
+                setMouseActions({ ...mouseActions, middleClick });
+              }
+            }}
+            maw={240}
+          />
+        </Group>
         <Group>
           <Button
             size="xs"
@@ -198,6 +246,7 @@ export function ShortcutKeysCard() {
             onClick={() => {
               setKeymap(null);
               setGamepadMap(null);
+              setMouseActions(defaultMouseActions);
             }}
           >
             {t('settings.shortcutKeys.reset')}
