@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore, type RefObject } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { runCommand, type PlayerCommands, type SimpleCommandId } from './commands';
 import { onVideoSurface } from './useControlsVisibility';
@@ -108,35 +108,48 @@ export function useMouseActions(): [MouseActions, (actions: MouseActions) => voi
   ];
 }
 
-// usePlayerMouse は、プレイヤーを包む要素 box で、映像の上のホイールと中クリックを、設定の操作にする。
-// 操作バーの上では、ブラウザの動きのままにする。ホイールでページを流さないよう、受け取るのは映像の上だけにする。
-export function usePlayerMouse(box: RefObject<HTMLElement | null>, commands: PlayerCommands): void {
+// usePlayerMouse は、プレイヤーを包む要素で、映像の上のホイールと中クリックを、設定の操作にする。返す ref を、その要素に渡す。
+// 要素は、別のウィンドウ (Document Picture-in-Picture) に移すと作り直されるので、ref で受けて、変わるたびに付け直す。
+// 操作バーの上では、ブラウザの動きのままにする。呼ぶ操作がないときも、ページのスクロールは止めない。
+export function usePlayerMouse(commands: PlayerCommands): (element: HTMLElement | null) => void {
   const [actions] = useMouseActions();
   const latest = useRef({ actions, commands });
   latest.current = { actions, commands };
+  const [element, setElement] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    const element = box.current;
     if (element === null) {
       return;
     }
     let accumulated = 0;
     const onWheel = (event: WheelEvent) => {
       const { actions, commands } = latest.current;
-      if (actions.wheel === 'none' || !onVideoSurface(event.target) || event.ctrlKey) {
+      if (
+        actions.wheel === 'none' ||
+        event.deltaY === 0 ||
+        !onVideoSurface(event.target) ||
+        event.ctrlKey
+      ) {
+        return;
+      }
+      // 呼ぶ操作がなければ (シークできないライブなど)、ページを流すのを止めない。
+      const { command } = wheelCommands(actions.wheel, Math.sign(event.deltaY) * wheelStep);
+      if (command === null || commands[command] === undefined) {
         return;
       }
       event.preventDefault();
-      // 行やページの単位で届いたときは、目盛りの量にそろえる。
-      const scale = event.deltaMode === WheelEvent.DOM_DELTA_PIXEL ? 1 : wheelStep;
-      accumulated += event.deltaY * scale;
+      // 行やページの単位で届いたとき (Firefox) は、1 回の知らせを 1 目盛りとみなす。
+      accumulated +=
+        event.deltaMode === WheelEvent.DOM_DELTA_PIXEL
+          ? event.deltaY
+          : Math.sign(event.deltaY) * wheelStep;
       for (;;) {
-        const { command, rest } = wheelCommands(actions.wheel, accumulated);
-        accumulated = rest;
-        if (command === null) {
+        const next = wheelCommands(actions.wheel, accumulated);
+        accumulated = next.rest;
+        if (next.command === null) {
           break;
         }
-        runCommand(commands, command);
+        runCommand(commands, next.command);
       }
     };
     // 中ボタンを押すと出る、ブラウザの自動スクロールを止める。
@@ -166,5 +179,7 @@ export function usePlayerMouse(box: RefObject<HTMLElement | null>, commands: Pla
       element.removeEventListener('mousedown', onMouseDown);
       element.removeEventListener('auxclick', onAuxClick);
     };
-  }, [box]);
+  }, [element]);
+
+  return setElement;
 }
