@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
@@ -85,7 +85,10 @@ func (r *Recorder) runBackfill(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording,
 	reservation *sqlc.GetReservationForRecordingRow, liveStart time.Time,
 ) {
-	planned, found, err := r.plannedStart(ctx, assignment, recording.ID)
+	// DB への接続が応答のないまま詰まっても、録画を終えるのを待たせないよう、DB を待つのは DatabaseTimeout までにする。
+	dbCtx, cancel := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
+	planned, found, err := r.plannedStart(dbCtx, assignment, recording.ID)
+	cancel()
 	if err != nil {
 		logger.WarnContext(ctx, "failed to get the planned start; not backfilling from the timeshift buffer", slog.Any("error", err))
 
@@ -105,7 +108,7 @@ func (r *Recorder) runBackfill(
 		}
 	}
 	snapshotAt := r.clock.Now()
-	runs, err := stream.NewTimeshiftSource(r.pool, r.store, 0).OpenRuns(ctx, reservation.ServiceID, planned)
+	runs, settings, pools, err := r.openBackfill(ctx, reservation, planned)
 	switch {
 	case errors.Is(err, stream.ErrTimeshiftNotFound), errors.Is(err, stream.ErrNotMounted):
 		return
@@ -114,19 +117,6 @@ func (r *Recorder) runBackfill(
 
 		return
 	}
-	settings, err := r.settings(ctx, reservation)
-	if err != nil {
-		logger.WarnContext(ctx, "failed to get the recording settings; not backfilling", slog.Any("error", err))
-
-		return
-	}
-	rows, err := sqlc.New(r.pool).ListStoragePools(ctx)
-	if err != nil {
-		logger.WarnContext(ctx, "failed to list storage pools; not backfilling", slog.Any("error", err))
-
-		return
-	}
-	pools := poolsFrom(rows, r.store.PoolIDs(), settings.PoolID)
 
 	earliest := liveStart
 	for _, run := range runs {
@@ -159,8 +149,32 @@ func (r *Recorder) runBackfill(
 	}
 }
 
+// openBackfill は、予定の開始 planned からのバッファと、写す先を選ぶための録画設定と保存先プールを読む。
+func (r *Recorder) openBackfill(
+	ctx context.Context, reservation *sqlc.GetReservationForRecordingRow, planned time.Time,
+) ([]*stream.TimeshiftRun, *domain.RecordingSettings, []*kago.Pool, error) {
+	ctx, cancel := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
+	defer cancel()
+	runs, err := stream.NewTimeshiftSource(r.pool, r.store, 0).OpenRuns(ctx, reservation.ServiceID, planned)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	settings, err := r.settings(ctx, reservation)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to get the recording settings: %w", err)
+	}
+	rows, err := sqlc.New(r.pool).ListStoragePools(ctx)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to list storage pools: %w", err)
+	}
+
+	return runs, settings, poolsFrom(rows, r.store.PoolIDs(), settings.PoolID), nil
+}
+
 // backfillRun は、続いたチャンクの並び run を、録画の新しいセグメントに写し、end までを表すセグメントとして記録する。
-// 写し終える前にやめるか、失敗したら、書きかけのセグメントを、ファイルと記録ごと消す。
+// セグメントは、写し終えてから、作成と終わりを 1 つのトランザクションで記録する。写している途中で mikan が落ちても、
+// 書きかけの記録が残って、写せなかった区間を録れたものと数えないようにするためである。
+// 写し終える前にやめるか、失敗したら、ファイルと索引を消す。
 func (r *Recorder) backfillRun(
 	ctx context.Context, logger *slog.Logger, recording *sqlc.Recording, reservation *sqlc.GetReservationForRecordingRow,
 	settings *domain.RecordingSettings, pools []*kago.Pool, run *stream.TimeshiftRun, end time.Time,
@@ -170,48 +184,41 @@ func (r *Recorder) backfillRun(
 	if err != nil {
 		return err
 	}
-	q := sqlc.New(r.pool)
-	dbCtx, cancel := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
-	err = q.InsertRecordingFile(dbCtx, segmentParams(seg, recording.ID))
-	cancel()
-	if err != nil {
-		seg.closeFiles()
-		r.removeBackfilled(ctx, logger, recording.ID, seg)
-
-		return fmt.Errorf("failed to save the recording file: %w", err)
-	}
 	copyErr := run.Write(ctx, io.MultiWriter(writeErrorWriter{w: seg.buffer}, seg.analyzer))
 	closeErrs := seg.syncAndClose(ctx, logger)
 	if err := errors.Join(append(closeErrs, copyErr)...); err != nil {
-		r.removeBackfilled(ctx, logger, recording.ID, seg)
+		r.removeBackfilled(logger, seg)
 
 		return err
 	}
 	stats := seg.analyzer.Stats()
-	dbCtx, cancel = context.WithTimeout(ctx, r.opts.DatabaseTimeout)
+	dbCtx, cancel := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
 	defer cancel()
-	if err := r.closeSegmentFile(logger, recording, seg, stats, end)(dbCtx, q, recording.ID); err != nil {
-		r.removeBackfilled(ctx, logger, recording.ID, seg)
+	err = pgx.BeginFunc(dbCtx, r.pool, func(tx pgx.Tx) error {
+		q := sqlc.New(tx)
+		if err := insertSegment(seg)(dbCtx, q, recording.ID); err != nil {
+			return err
+		}
+		if err := r.closeSegmentFile(logger, recording, seg, stats, end)(dbCtx, q, recording.ID); err != nil {
+			return err
+		}
+
+		// 書いているセグメントの様子 (#829) は、ライブのセグメントのものなので、0 に戻さない。
+		return addSegmentStats(dbCtx, q, recording.ID, seg, stats, end)
+	})
+	if err != nil {
+		r.removeBackfilled(logger, seg)
 
 		return err
-	}
-	// 書いているセグメントの様子 (#829) は、ライブのセグメントのものなので、0 に戻さない。
-	if err := addSegmentStats(dbCtx, q, recording.ID, seg, stats, end); err != nil {
-		logger.WarnContext(ctx, "failed to save the stats of the backfilled segment", slog.Any("error", err))
 	}
 
 	return nil
 }
 
-// removeBackfilled は、写すのをやめたセグメントの記録と、ファイルと索引を消す。消せなくても、ログに残すだけにする。
-// 記録が残ると、録画の途切れた区間を数え違えるので、写すのをやめた後でも消す。
-func (r *Recorder) removeBackfilled(ctx context.Context, logger *slog.Logger, recordingID uuid.UUID, seg *segment) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.opts.DatabaseTimeout)
-	defer cancel()
-	if err := sqlc.New(r.pool).DeleteRecordingFiles(ctx, sqlc.DeleteRecordingFilesParams{RecordingID: recordingID, Ids: []uuid.UUID{seg.fileID}}); err != nil {
-		logger.WarnContext(ctx, "failed to delete the record of the backfilled segment", slog.Any("error", err))
-	}
+// removeBackfilled は、記録しなかったセグメントのファイルと索引を消す。消せなくても、ログに残すだけにする。
+// 消せずに残ったファイルは、DB にないファイルとして、保存先の画面から消せる (設計書 5.6)。
+func (r *Recorder) removeBackfilled(logger *slog.Logger, seg *segment) {
 	if err := r.store.Remove(seg.poolID, seg.path, seg.fileID); err != nil {
-		logger.WarnContext(ctx, "failed to remove the backfilled segment", slog.String("path", seg.path), slog.Any("error", err))
+		logger.Warn("failed to remove the backfilled segment", slog.String("path", seg.path), slog.Any("error", err))
 	}
 }

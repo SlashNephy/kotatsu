@@ -177,8 +177,8 @@ func (s *TimeshiftSource) OpenRuns(ctx context.Context, serviceID int64, from ti
 // openRun は、続いたチャンクの並び segments を、from から写せるように開く。書いている途中のチャンクは、今の大きさを写す範囲の終わりにする。
 func (s *TimeshiftSource) openRun(segments []*segment, from time.Time) (*TimeshiftRun, error) {
 	last := segments[len(segments)-1]
-	// 並びの最後のチャンクの後は、写さない。続きのない最後のチャンクとして、終わりで途中で切れた PES を流さない。
-	last.continued = false
+	// 書いている途中のチャンクは、測った大きさで切るので、末尾の PES が途中で切れることがある。
+	// 録画の再生とセグメントをつなぐ処理は、ライブのセグメントとの重なりで切り詰めるので、そのまま写す。
 	limits := map[uuid.UUID]int64{}
 	for _, seg := range segments {
 		if !seg.open {
