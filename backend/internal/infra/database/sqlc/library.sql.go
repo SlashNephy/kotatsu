@@ -21,6 +21,21 @@ func (q *Queries) DeleteRecordingTags(ctx context.Context, recordingID uuid.UUID
 	return err
 }
 
+const deleteWatchProgress = `-- name: DeleteWatchProgress :exec
+DELETE FROM watch_progress WHERE user_id = $1 AND recording_id = $2
+`
+
+type DeleteWatchProgressParams struct {
+	UserID      uuid.UUID
+	RecordingID uuid.UUID
+}
+
+// ユーザーの録画の再生位置を消す。続きから見るの一覧から外すのに使う (#1074)。
+func (q *Queries) DeleteWatchProgress(ctx context.Context, arg DeleteWatchProgressParams) error {
+	_, err := q.db.Exec(ctx, deleteWatchProgress, arg.UserID, arg.RecordingID)
+	return err
+}
+
 const insertRecordingTag = `-- name: InsertRecordingTag :exec
 INSERT INTO recording_tags (recording_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
 `

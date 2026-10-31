@@ -636,6 +636,22 @@ func TestContinueWatching(t *testing.T) {
 			Name string `json:"name"`
 		} `json:"continueWatching"`
 	}
-	require.Empty(t, f.as(t, "other", auth.RoleMember).query(t, `{ continueWatching { name } }`, nil, &other))
+	otherFixture := f.as(t, "other", auth.RoleMember)
+	require.Empty(t, otherFixture.query(t, `{ continueWatching { name } }`, nil, &other))
 	assert.Empty(t, other.ContinueWatching)
+
+	// 再生位置を消すと、一覧から外れる (#1074)。ほかのユーザーが消しても、自分の再生位置は消えない。
+	const clearWatchPosition = `mutation($id: ID!) { clearWatchPosition(id: $id) { ` + recordingFields + ` } }`
+	require.Empty(t, otherFixture.query(t, clearWatchPosition, map[string]any{varID: ids["後半"]}, nil))
+	var cleared struct {
+		ClearWatchPosition recordingNode `json:"clearWatchPosition"`
+	}
+	require.Empty(t, f.query(t, clearWatchPosition, map[string]any{varID: ids["後半"]}, &cleared))
+	assert.Nil(t, cleared.ClearWatchPosition.WatchPositionMs)
+	require.Empty(t, f.query(t, `{ continueWatching { name } }`, nil, &got))
+	names = names[:0]
+	for _, recording := range got.ContinueWatching {
+		names = append(names, recording.Name)
+	}
+	assert.Equal(t, []string{"録画中", "前半"}, names)
 }

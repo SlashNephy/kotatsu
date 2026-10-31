@@ -32,6 +32,11 @@ func (r *mutationResolver) SaveWatchPosition(ctx context.Context, id string, pos
 	return r.saveWatchPosition(ctx, id, positionMs)
 }
 
+// ClearWatchPosition is the resolver for the clearWatchPosition field.
+func (r *mutationResolver) ClearWatchPosition(ctx context.Context, id string) (*model.Recording, error) {
+	return r.clearWatchPosition(ctx, id)
+}
+
 // RegenerateRecordingImages is the resolver for the regenerateRecordingImages field.
 func (r *mutationResolver) RegenerateRecordingImages(ctx context.Context, id string) (bool, error) {
 	return r.regenerateRecordingImages(ctx, id)

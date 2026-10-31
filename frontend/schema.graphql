@@ -907,6 +907,10 @@ type Mutation {
   """
   saveWatchPosition(id: ID!, positionMs: Int64!): Recording!
   """
+  ログイン中のユーザーの再生位置を消し、続きから見るの一覧から外す (#1074)。誰でも使える。
+  """
+  clearWatchPosition(id: ID!): Recording!
+  """
   録画の代表画像とプレビュー画像を作り直すジョブを入れる (設計書 6.1)。視聴者は使えない。
   作り直すまでは、今の画像を出す。同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
   """

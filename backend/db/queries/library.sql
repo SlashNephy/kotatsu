@@ -36,6 +36,10 @@ ORDER BY t.name;
 INSERT INTO watch_progress (user_id, recording_id, position_ms, updated_at) VALUES (@user_id, @recording_id, @position_ms, @now)
 ON CONFLICT (user_id, recording_id) DO UPDATE SET position_ms = EXCLUDED.position_ms, updated_at = EXCLUDED.updated_at;
 
+-- name: DeleteWatchProgress :exec
+-- ユーザーの録画の再生位置を消す。続きから見るの一覧から外すのに使う (#1074)。
+DELETE FROM watch_progress WHERE user_id = @user_id AND recording_id = @recording_id;
+
 -- name: ListContinueWatching :many
 -- ユーザーが途中まで見た録画を、最後に見た新しい順に返す (続きから見る)。
 -- 少しだけ見た録画 (min_position_ms より前) と、終わりの end_margin_ms 以内まで見た録画は、見終えたものとして外す。

@@ -581,6 +581,22 @@ func (r *Resolver) saveWatchPosition(ctx context.Context, globalID string, posit
 	return r.recording(ctx, recordingID)
 }
 
+func (r *Resolver) clearWatchPosition(ctx context.Context, globalID string) (*model.Recording, error) {
+	principal, err := viewer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	recordingID, err := parseRecordingID(globalID)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.library.ClearProgress(ctx, r.db, principal.UserID, recordingID); err != nil {
+		return nil, libraryError(err)
+	}
+
+	return r.recording(ctx, recordingID)
+}
+
 func parseRecordingID(globalID string) (uuid.UUID, error) {
 	return parseTypedID(globalID, recordingType, "invalid recording ID")
 }
