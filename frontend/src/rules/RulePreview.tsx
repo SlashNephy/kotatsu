@@ -67,13 +67,16 @@ const debounceMs = 400;
 
 type Preview = RulePreviewQuery$data['previewRule'];
 type Warning = RulePreviewQuery$data['ruleWarnings'][number];
+// Warnings は、警告と、警告を求めた入力。警告はキーワードを位置で指すので、求めた入力から文字列を引く。
+// 入力を変えた後の入力から引くと、キーワードを消したときに、別のキーワードを指してしまう。
+type Warnings = { items: readonly Warning[]; input: Props['input'] };
 
 // RulePreview は、編集中のルールに一致するこれからの番組を、その場で示す (設計書 4.3)。
 export function RulePreview({ input, enabled, onPrograms }: Props) {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [warnings, setWarnings] = useState<readonly Warning[]>([]);
+  const [warnings, setWarnings] = useState<Warnings | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [selected, setSelected] = useState<string | undefined>(undefined);
@@ -89,7 +92,7 @@ export function RulePreview({ input, enabled, onPrograms }: Props) {
     if (!enabled) {
       // 条件を消したら、読み込み中とエラーの表示も消す。読み込み中の応答は、cleanup で捨てている。
       setPreview(null);
-      setWarnings([]);
+      setWarnings(null);
       setLoading(false);
       setError(false);
       onProgramsRef.current?.([]);
@@ -108,7 +111,7 @@ export function RulePreview({ input, enabled, onPrograms }: Props) {
           (data) => {
             if (!cancelled && data !== undefined) {
               setPreview(data.previewRule);
-              setWarnings(data.ruleWarnings);
+              setWarnings({ items: data.ruleWarnings, input: variables.input });
               onProgramsRef.current?.(
                 // 同じ番組名の回を見分けられるよう、放送の日時も添える。選択肢の文字は印を描けないので、
                 // 囲み文字を外し、全角の英数字は半角にする。
@@ -122,6 +125,7 @@ export function RulePreview({ input, enabled, onPrograms }: Props) {
           () => {
             if (!cancelled) {
               setError(true);
+              setWarnings(null);
             }
           },
         )
@@ -157,17 +161,17 @@ export function RulePreview({ input, enabled, onPrograms }: Props) {
             {t('rules.preview.error')}
           </Alert>
         )}
-        {enabled && warnings.length > 0 && (
+        {enabled && warnings !== null && warnings.items.length > 0 && (
           <Alert color="amber" title={t('rules.preview.slowTitle')}>
             <Stack gap={4}>
-              {warnings.map((warning) => (
+              {warnings.items.map((warning) => (
                 <Text key={`${warning.exclude}:${warning.index}`} size="sm">
                   {t(
                     warning.exclude
                       ? 'rules.preview.slowExcludeKeyword'
                       : 'rules.preview.slowKeyword',
                     {
-                      text: keywordText(input, warning),
+                      text: keywordText(warnings.input, warning),
                     },
                   )}
                 </Text>
