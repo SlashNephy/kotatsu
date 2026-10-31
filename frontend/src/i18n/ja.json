@@ -1053,8 +1053,14 @@
     "virtualSurround": "5.1chをヘッドホン向けのサラウンドで聞く",
     "gapMark": "ここで {{duration}} 途切れています",
     "crop": {
-      "scale": "L字の切り抜き",
-      "none": "切り抜かない",
+      "mode": "表示の比率",
+      "modes": {
+        "none": "そのまま",
+        "lShape": "L 字放送を切り抜く",
+        "pillarbox": "4:3 の左右の黒い縁を消す（上下が切れる）",
+        "stretch": "4:3 を横に伸ばして合わせる"
+      },
+      "scale": "拡大率",
       "origin": "拡大の起点",
       "origins": {
         "top-left": "左上",

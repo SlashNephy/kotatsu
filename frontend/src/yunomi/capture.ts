@@ -1,7 +1,7 @@
 // 再生中の場面を画像にする (設計書 7.5)。
 
 import { splitProgramMarks } from '../futon/programMarks';
-import { cropSource, noCrop, type Crop } from './crop';
+import { cropSource, isCropped, noCrop, type Crop } from './crop';
 import { withPNGText, type PNGText } from './pngText';
 
 // captureSize は、画像の大きさ。放送の映像の表示の比率 (16:9) にそろえる。
@@ -48,7 +48,7 @@ export async function captureFrame(
   const shown = fitContain(video.videoWidth, video.videoHeight, canvas.width, canvas.height);
   const captions = overlays.filter((overlay) => overlay.dataset['overlay'] === 'captions');
   const others = overlays.filter((overlay) => overlay.dataset['overlay'] !== 'captions');
-  if (crop.scale === 1) {
+  if (!isCropped(crop)) {
     context.drawImage(video, shown.x, shown.y, shown.width, shown.height);
     for (const overlay of captions) {
       context.drawImage(overlay, 0, 0, canvas.width, canvas.height);

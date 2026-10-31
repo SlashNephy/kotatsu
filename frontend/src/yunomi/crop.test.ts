@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { cropSource, cropStyle, noCrop } from './crop';
+import { cropForMode, cropMode, cropSource, cropStyle, noCrop } from './crop';
 
 describe('cropStyle', () => {
   test('切り抜かなければ、変形を掛けない', () => {
@@ -40,5 +40,34 @@ describe('cropSource', () => {
 
   test('切り抜かなければ、全体', () => {
     expect(cropSource(noCrop, 1920, 1080)).toEqual({ x: 0, y: 0, width: 1920, height: 1080 });
+  });
+});
+
+describe('横に伸ばす (#824)', () => {
+  test('変形は、横と縦の倍率を分けて掛ける', () => {
+    expect(cropStyle(cropForMode('stretch'))).toEqual({
+      transform: `scale(${4 / 3}, 1)`,
+      transformOrigin: '50% 50%',
+    });
+  });
+
+  test('キャプチャで切り出す範囲は、横だけ狭くなる', () => {
+    expect(cropSource(cropForMode('stretch'), 1440, 1080)).toEqual({
+      x: 180,
+      y: 0,
+      width: 1080,
+      height: 1080,
+    });
+  });
+});
+
+describe('cropMode', () => {
+  test.each([
+    { name: '切り抜かない', crop: noCrop, want: 'none' },
+    { name: '4:3 の左右の黒い縁を消す', crop: cropForMode('pillarbox'), want: 'pillarbox' },
+    { name: '4:3 を横に伸ばす', crop: cropForMode('stretch'), want: 'stretch' },
+    { name: 'L 字の切り抜き', crop: { scale: 1.25, origin: 'top-left' as const }, want: 'lShape' },
+  ])('$name', ({ crop, want }) => {
+    expect(cropMode(crop)).toBe(want);
   });
 });

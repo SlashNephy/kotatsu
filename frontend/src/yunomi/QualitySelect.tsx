@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
 import type { AudioChoice, KyusuAudioChoice } from './audio';
-import { cropOrigins, cropScales, type Crop } from './crop';
+import { type Crop, cropForMode, cropMode, cropModes, cropOrigins, cropScales } from './crop';
 import { useNormalizeVolume } from './volumeNormalize';
 import { audioLanguages, useAudioLanguage, type AudioLanguage } from './audioLanguage';
 import { audioDelayStepMs, maxAudioDelayMs, useAudioDelay, useResetAudioDelay } from './audioDelay';
@@ -303,46 +303,66 @@ export function RateSelect({
   );
 }
 
-// CropSelect は、L 字放送の切り抜き (#496) を選ぶ。拡大率と、拡大の起点を選ぶ。切り抜きは、その場限りで覚えない。
+// CropSelect は、表示の比率を選ぶ (#496、#824)。L 字放送の切り抜きでは、拡大率と拡大の起点も選ぶ。
+// 4:3 の映像の左右の黒い縁を消す、横に伸ばす、のプリセットも選べる。切り抜きは、その場限りで覚えない。
 export function CropSelect({ value, onChange }: { value: Crop; onChange: (crop: Crop) => void }) {
   const { t } = useTranslation();
+  const mode = cropMode(value);
 
   return (
     <>
       <Select
-        label={t('player.crop.scale')}
+        label={t('player.crop.mode')}
         size="xs"
         comboboxProps={{ withinPortal: false }}
         allowDeselect={false}
-        data={cropScales.map((scale) => ({
-          value: String(scale),
-          label: scale === 1 ? t('player.crop.none') : `${scale}x`,
+        data={cropModes.map((candidate) => ({
+          value: candidate,
+          label: t(`player.crop.modes.${candidate}`),
         }))}
-        value={String(value.scale)}
+        value={mode}
         onChange={(next) => {
-          if (next !== null) {
-            onChange({ ...value, scale: Number(next) });
+          const selected = cropModes.find((candidate) => candidate === next);
+          if (selected !== undefined && selected !== mode) {
+            onChange(cropForMode(selected));
           }
         }}
       />
-      {value.scale !== 1 && (
-        <Select
-          label={t('player.crop.origin')}
-          size="xs"
-          comboboxProps={{ withinPortal: false }}
-          allowDeselect={false}
-          data={cropOrigins.map((origin) => ({
-            value: origin,
-            label: t(`player.crop.origins.${origin}`),
-          }))}
-          value={value.origin}
-          onChange={(next) => {
-            const origin = cropOrigins.find((candidate) => candidate === next);
-            if (origin !== undefined) {
-              onChange({ ...value, origin });
-            }
-          }}
-        />
+      {mode === 'lShape' && (
+        <>
+          <Select
+            label={t('player.crop.scale')}
+            size="xs"
+            comboboxProps={{ withinPortal: false }}
+            allowDeselect={false}
+            data={cropScales
+              .filter((scale) => scale !== 1)
+              .map((scale) => ({ value: String(scale), label: `${scale}x` }))}
+            value={String(value.scale)}
+            onChange={(next) => {
+              if (next !== null) {
+                onChange({ ...value, scale: Number(next) });
+              }
+            }}
+          />
+          <Select
+            label={t('player.crop.origin')}
+            size="xs"
+            comboboxProps={{ withinPortal: false }}
+            allowDeselect={false}
+            data={cropOrigins.map((origin) => ({
+              value: origin,
+              label: t(`player.crop.origins.${origin}`),
+            }))}
+            value={value.origin}
+            onChange={(next) => {
+              const origin = cropOrigins.find((candidate) => candidate === next);
+              if (origin !== undefined) {
+                onChange({ ...value, origin });
+              }
+            }}
+          />
+        </>
       )}
     </>
   );
