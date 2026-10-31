@@ -1173,6 +1173,11 @@
       "digit": "数字 {{digit}}"
     },
     "audio": "音声",
+    "audioLanguage": {
+      "label": "優先する言語",
+      "description": "この言語の音声があれば、音声を選ぶまでその音声を聞きます（この端末で覚えます）",
+      "none": "決めない（主音声）"
+    },
     "audioMain": "主音声",
     "audioSub": "副音声",
     "audioSecond": "副音声・第2音声",
