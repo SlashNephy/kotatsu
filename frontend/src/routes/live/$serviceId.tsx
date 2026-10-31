@@ -90,6 +90,7 @@ import {
 import { dataBroadcastSource, hlsURL, toVideoFormat } from '../../yunomi/route';
 import { RemoteKey, useDataBroadcast } from '../../yunomi/useDataBroadcast';
 import { useRemotePlayer } from '../../yunomi/useRemotePlayer';
+import { useRemoteOpen } from '../../yunomi/useRemoteOpen';
 import {
   documentTitle,
   usePlayerEvent,
@@ -829,7 +830,9 @@ function Live({
     (key) => runCommand(commands, 'pressKey', key),
   );
   // 同じアカウントのほかの端末から、このプレイヤーを操作できるようにする (#459、設計書 7.7)。
-  useRemotePlayer(video === null ? null : player, playerEvents, commands);
+  // ほかの端末から、別のチャンネルや録画を開かせられる (キャスト、#802)。
+  const openRemote = useRemoteOpen();
+  useRemotePlayer(video === null ? null : player, playerEvents, commands, undefined, openRemote);
   // commentRows は、右の列のコメントの一覧の行。操作バーの出し入れなどで描き直すたびに作らず、コメントが届いたときだけ作り直す。
   const commentRows = useMemo(
     () =>

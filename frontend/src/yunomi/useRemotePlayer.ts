@@ -48,13 +48,22 @@ export type RemoteCommand = {
     | 'SET_MUTED'
     | 'SELECT_AUDIO'
     | 'PRESS_KEY'
-    | 'STOP';
+    | 'STOP'
+    | 'OPEN';
   position: number | null;
   volume: number | null;
   muted: boolean | null;
   audio: string | null;
   key: string | null;
+  // serviceId と recordingId は、開かせるもの (OPEN、#802)。どちらか 1 つが入る。
+  serviceId: string | null;
+  recordingId: string | null;
 };
+
+// RemoteTarget は、ほかの端末から開かせるもの (キャスト、#802)。
+export type RemoteTarget =
+  | { kind: 'LIVE'; serviceId: string }
+  | { kind: 'RECORDING'; recordingId: string };
 
 // RemoteApi は、サーバーとのやり取り。テストでは差し替える。
 export type RemoteApi = {
@@ -103,7 +112,12 @@ export function remoteKey(name: string): RemoteKey | null {
 }
 
 // dispatch は、届いた操作を、登録簿の操作にして呼ぶ。今使えない操作と、値の足りない操作は捨てる。
-export function dispatch(command: RemoteCommand, commands: PlayerCommands) {
+// 開かせる操作 (OPEN) は、open で、その画面へ移る。open がなければ捨てる。
+export function dispatch(
+  command: RemoteCommand,
+  commands: PlayerCommands,
+  open?: (target: RemoteTarget) => void,
+) {
   switch (command.type) {
     case 'PLAY':
       runCommand(commands, 'play');
@@ -141,6 +155,13 @@ export function dispatch(command: RemoteCommand, commands: PlayerCommands) {
     case 'STOP':
       runCommand(commands, 'stop');
       break;
+    case 'OPEN':
+      if (command.serviceId !== null) {
+        open?.({ kind: 'LIVE', serviceId: command.serviceId });
+      } else if (command.recordingId !== null) {
+        open?.({ kind: 'RECORDING', recordingId: command.recordingId });
+      }
+      break;
   }
 }
 
@@ -152,6 +173,8 @@ export function useRemotePlayer(
   events: PlayerEvents,
   commands: PlayerCommands,
   api?: RemoteApi,
+  // open は、ほかの端末から開かせられたものの画面へ移る (#802)。
+  open?: (target: RemoteTarget) => void,
 ): void {
   const environment = useRelayEnvironment();
   // remote は、最初に描いたときの API を使い続ける。
@@ -161,6 +184,8 @@ export function useRemotePlayer(
   stateRef.current = state;
   const commandsRef = useRef(commands);
   commandsRef.current = commands;
+  const openRef = useRef(open);
+  openRef.current = open;
   // id は、登録したプレイヤーの ID。
   const idRef = useRef<string | null>(null);
   // changed は、最後に送ってから、知らせるべき変化があったかどうか。登録の返事を待つ間に変わったら、返事が来たところで知らせる。
@@ -224,7 +249,7 @@ export function useRemotePlayer(
             return;
           }
           handled = commandId;
-          dispatch(command, commandsRef.current);
+          dispatch(command, commandsRef.current, openRef.current);
         });
         timer = setInterval(() => {
           const current = stateRef.current;
@@ -313,6 +338,8 @@ function relayRemoteApi(environment: Environment): RemoteApi {
               muted
               audio
               key
+              serviceId
+              recordingId
             }
           }
         `,
@@ -328,6 +355,8 @@ function relayRemoteApi(environment: Environment): RemoteApi {
               muted: command.muted ?? null,
               audio: command.audio ?? null,
               key: command.key ?? null,
+              serviceId: command.serviceId ?? null,
+              recordingId: command.recordingId ?? null,
             });
           }
         },

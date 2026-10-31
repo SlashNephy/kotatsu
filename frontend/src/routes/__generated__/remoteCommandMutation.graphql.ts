@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<24d95e95052080c92197d2809f8ea832>>
+ * @generated SignedSource<<c3ae576ec4dabc3d82720c3ffd25bb5a>>
  * @lightSyntaxTransform
  */
 
@@ -8,12 +8,14 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type PlayerCommandType = "PAUSE" | "PLAY" | "PRESS_KEY" | "SEEK" | "SELECT_AUDIO" | "SET_MUTED" | "SET_VOLUME" | "STOP" | "%future added value";
+export type PlayerCommandType = "OPEN" | "PAUSE" | "PLAY" | "PRESS_KEY" | "SEEK" | "SELECT_AUDIO" | "SET_MUTED" | "SET_VOLUME" | "STOP" | "%future added value";
 export type PlayerCommandInput = {
   audio?: string | null | undefined;
   key?: string | null | undefined;
   muted?: boolean | null | undefined;
   position?: number | null | undefined;
+  recordingId?: string | null | undefined;
+  serviceId?: string | null | undefined;
   type: PlayerCommandType;
   volume?: number | null | undefined;
 };

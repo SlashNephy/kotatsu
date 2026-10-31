@@ -1752,7 +1752,17 @@
     "unmute": "Unmute",
     "audio": "Audio",
     "showDataBroadcast": "Show data broadcasting",
-    "stop": "Close player"
+    "stop": "Close player",
+    "open": {
+      "title": "Open another channel or recording",
+      "live": "Channel",
+      "recording": "Recording",
+      "servicePlaceholder": "Choose a channel",
+      "recordingPlaceholder": "Search recordings by program name",
+      "searchError": "Could not search recordings",
+      "noRecordings": "No matching recordings",
+      "search": "Search"
+    }
   },
   "captures": {
     "title": "Capture history",
