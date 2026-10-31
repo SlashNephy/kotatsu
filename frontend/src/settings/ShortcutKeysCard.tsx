@@ -14,6 +14,13 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { simpleCommandIds, type SimpleCommandId } from '../yunomi/commands';
+import {
+  assignButton,
+  buttonLabel,
+  removeButton,
+  useGamepadButtons,
+  useGamepadMap,
+} from '../yunomi/gamepad';
 import { assignKey, eventKey, keysFor, removeKey, useKeymap } from '../yunomi/shortcuts';
 import { keyLabels, splitKey } from '../yunomi/ShortcutsHelp';
 
@@ -24,6 +31,15 @@ export function ShortcutKeysCard() {
   const [keymap, setKeymap] = useKeymap();
   // capturing は、キーを待っている操作。Escape か、ほかの所へフォーカスを移すとやめる。
   const [capturing, setCapturing] = useState<SimpleCommandId | null>(null);
+  const [gamepadMap, setGamepadMap] = useGamepadMap();
+  // capturingButton は、ゲームパッドのボタンを待っている操作。
+  const [capturingButton, setCapturingButton] = useState<SimpleCommandId | null>(null);
+  useGamepadButtons((button) => {
+    if (capturingButton !== null) {
+      setGamepadMap(assignButton(gamepadMap, capturingButton, button));
+      setCapturingButton(null);
+    }
+  });
   // キーを待っている間は、ページ全体のキーを先に受け取る。Safari と macOS の Firefox は、押したボタンにフォーカスを
   // 移さないので、ボタンのキーの処理では受け取れない。ほかの所を押したら、待つのをやめる。
   useEffect(() => {
@@ -112,6 +128,29 @@ export function ShortcutKeysCard() {
                           : t('settings.shortcutKeys.add')}
                       </Button>
                     </Group>
+                    <Group gap={6} mt={4}>
+                      {(gamepadMap[id] ?? []).map((button) => (
+                        <Group key={button} gap={2} wrap="nowrap">
+                          <Kbd>{buttonLabel(button)}</Kbd>
+                          <CloseButton
+                            size="xs"
+                            aria-label={t('settings.shortcutKeys.remove', {
+                              key: buttonLabel(button),
+                            })}
+                            onClick={() => setGamepadMap(removeButton(gamepadMap, id, button))}
+                          />
+                        </Group>
+                      ))}
+                      <Button
+                        size="compact-xs"
+                        variant={capturingButton === id ? 'filled' : 'subtle'}
+                        onClick={() => setCapturingButton(capturingButton === id ? null : id)}
+                      >
+                        {capturingButton === id
+                          ? t('settings.shortcutKeys.waitingButton')
+                          : t('settings.shortcutKeys.addButton')}
+                      </Button>
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -119,7 +158,14 @@ export function ShortcutKeysCard() {
           </Table>
         </Table.ScrollContainer>
         <Group>
-          <Button size="xs" variant="default" onClick={() => setKeymap(null)}>
+          <Button
+            size="xs"
+            variant="default"
+            onClick={() => {
+              setKeymap(null);
+              setGamepadMap(null);
+            }}
+          >
             {t('settings.shortcutKeys.reset')}
           </Button>
         </Group>
