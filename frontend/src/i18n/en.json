@@ -50,6 +50,7 @@
   "notifications": {
     "title": "Notifications",
     "settings": "Settings",
+    "viewAll": "View all notifications",
     "settingsTitle": "Notification settings",
     "back": "Back to notifications",
     "bellLabel": "Notifications ({{count}} unread)",
@@ -1470,6 +1471,19 @@
       "confirm_other": "This renames the files of the {{count}} selected recordings using the current template. If the destination name already exists, a sequence number is added. Recordings in progress and recordings whose files are being joined are not renamed."
     },
     "system": {
+      "failures": {
+        "title": "Recording failure totals",
+        "description": "The number of failed recordings, counted by reason. Deleting recordings does not decrease it. You can reset counts caused by testing or by problems that have been fixed. Resets are recorded in the audit log.",
+        "reason": "Reason",
+        "count": "Total",
+        "lastFailedAt": "Last failed at",
+        "resetAt": "Reset at",
+        "reset": "Reset to 0",
+        "confirmTitle": "Reset the failure total",
+        "confirm": "Reset the failure total for \"{{reason}}\" to 0 and clear the last failure time. Monitoring alerts treat this as a counter reset.",
+        "cancel": "Cancel",
+        "resetError": "Could not reset the failure total"
+      },
       "newRelease": "A new version {{version}} is available",
       "newReleaseBody": "The running version is {{current}}. It was published on {{published}}.",
       "newReleaseLink": "Open the release page",
