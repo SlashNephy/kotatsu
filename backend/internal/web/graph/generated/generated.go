@@ -567,6 +567,7 @@ type ComplexityRoot struct {
 		RecordingRenames        func(childComplexity int) int
 		Recordings              func(childComplexity int, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) int
 		Reservations            func(childComplexity int, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, rule *string, first int, after *string) int
+		RuleWarnings            func(childComplexity int, input model.RuleInput) int
 		Rules                   func(childComplexity int) int
 		SearchPrograms          func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
 		SecondFactors           func(childComplexity int) int
@@ -771,6 +772,12 @@ type ComplexityRoot struct {
 		AvoidDuplicates     func(childComplexity int) int
 		DuplicateWindowDays func(childComplexity int) int
 		FollowEventRelay    func(childComplexity int) int
+	}
+
+	RuleWarning struct {
+		Exclude func(childComplexity int) int
+		Index   func(childComplexity int) int
+		Kind    func(childComplexity int) int
 	}
 
 	SecondFactorStatus struct {
@@ -1131,6 +1138,7 @@ type QueryResolver interface {
 	Tags(ctx context.Context) ([]*model.Tag, error)
 	Reservations(ctx context.Context, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, rule *string, first int, after *string) (*model.ReservationConnection, error)
 	Rules(ctx context.Context) ([]*model.Rule, error)
+	RuleWarnings(ctx context.Context, input model.RuleInput) ([]*model.RuleWarning, error)
 	PreviewRule(ctx context.Context, input model.RuleInput, first int, after *string) (*model.ProgramConnection, error)
 	SearchPrograms(ctx context.Context, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) (*model.ProgramConnection, error)
 	SecondFactors(ctx context.Context) (*model.SecondFactorStatus, error)
@@ -3714,6 +3722,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Reservations(childComplexity, args["from"].(time.Time), args["to"].(time.Time), args["states"].([]model.AssignmentState), args["enabled"].(*bool), args["rule"].(*string), args["first"].(int), args["after"].(*string)), true
+	case "Query.ruleWarnings":
+		if e.ComplexityRoot.Query.RuleWarnings == nil {
+			break
+		}
+
+		args, err := ec.field_Query_ruleWarnings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.RuleWarnings(childComplexity, args["input"].(model.RuleInput)), true
 	case "Query.rules":
 		if e.ComplexityRoot.Query.Rules == nil {
 			break
@@ -4630,6 +4649,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RuleDefaults.FollowEventRelay(childComplexity), true
+
+	case "RuleWarning.exclude":
+		if e.ComplexityRoot.RuleWarning.Exclude == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleWarning.Exclude(childComplexity), true
+	case "RuleWarning.index":
+		if e.ComplexityRoot.RuleWarning.Index == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleWarning.Index(childComplexity), true
+	case "RuleWarning.kind":
+		if e.ComplexityRoot.RuleWarning.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleWarning.Kind(childComplexity), true
 
 	case "SecondFactorStatus.remainingRecoveryCodes":
 		if e.ComplexityRoot.SecondFactorStatus.RemainingRecoveryCodes == nil {
@@ -7526,9 +7564,25 @@ input RuleInput {
   followEventRelay: Boolean! = true
 }
 
+"ルールの照合を重くする書き方 (#904、設計書 3.5)。警告にとどめ、保存は止めない。"
+type RuleWarning {
+  kind: RuleWarningKind!
+  "除外するキーワード (excludeKeywords) かどうか"
+  exclude: Boolean!
+  "keywords か excludeKeywords の中の位置 (0 から)"
+  index: Int!
+}
+
+enum RuleWarningKind {
+  "必ず含む文字列を決められない正規表現で、詳細まで探す。前段で絞り込めないので、すべての番組の詳細を正規表現にかける。"
+  UNFILTERABLE_REGEXP
+}
+
 extend type Query {
   "すべてのルールを、作った順に返す。"
   rules: [Rule!]!
+  "保存する前のルールの、照合を重くする書き方を返す (#904)。ルールのプレビューと同じく、視聴者も使える。"
+  ruleWarnings(input: RuleInput!): [RuleWarning!]!
   """
   保存する前のルールに一致する番組を、開始時刻の順に返す (設計書 4.3)。
   ルールの照合と同じく、放送が始まった番組、終了時刻が未定の番組、ルールの有効期間の外の番組は含めない。
@@ -9632,6 +9686,18 @@ func (ec *executionContext) childFields_RuleDefaults(ctx context.Context, field 
 	return nil, fmt.Errorf("no field named %q was found under type RuleDefaults", field.Name)
 }
 
+func (ec *executionContext) childFields_RuleWarning(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "kind":
+		return ec.fieldContext_RuleWarning_kind(ctx, field)
+	case "exclude":
+		return ec.fieldContext_RuleWarning_exclude(ctx, field)
+	case "index":
+		return ec.fieldContext_RuleWarning_index(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RuleWarning", field.Name)
+}
+
 func (ec *executionContext) childFields_SecondFactorStatus(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "totp":
@@ -11605,6 +11671,20 @@ func (ec *executionContext) field_Query_reservations_args(ctx context.Context, r
 		return nil, err
 	}
 	args["after"] = arg6
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_ruleWarnings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.RuleInput, error) {
+			return ec.unmarshalNRuleInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -22052,6 +22132,50 @@ func (ec *executionContext) fieldContext_Query_rules(_ context.Context, field gr
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_ruleWarnings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_ruleWarnings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().RuleWarnings(ctx, fc.Args["input"].(model.RuleInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.RuleWarning) graphql.Marshaler {
+			return ec.marshalNRuleWarning2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleWarningᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_ruleWarnings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RuleWarning(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_ruleWarnings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_previewRule(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -25755,6 +25879,75 @@ func (ec *executionContext) _RuleDefaults_followEventRelay(ctx context.Context, 
 }
 func (ec *executionContext) fieldContext_RuleDefaults_followEventRelay(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RuleDefaults", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _RuleWarning_kind(ctx context.Context, field graphql.CollectedField, obj *model.RuleWarning) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleWarning_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.RuleWarningKind) graphql.Marshaler {
+			return ec.marshalNRuleWarningKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleWarningKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleWarning_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleWarning", field, false, false, errors.New("field of type RuleWarningKind does not have child fields"))
+}
+
+func (ec *executionContext) _RuleWarning_exclude(ctx context.Context, field graphql.CollectedField, obj *model.RuleWarning) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleWarning_exclude(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Exclude, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleWarning_exclude(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleWarning", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _RuleWarning_index(ctx context.Context, field graphql.CollectedField, obj *model.RuleWarning) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleWarning_index(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Index, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleWarning_index(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleWarning", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _SecondFactorStatus_totp(ctx context.Context, field graphql.CollectedField, obj *model.SecondFactorStatus) (ret graphql.Marshaler) {
@@ -37037,6 +37230,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "ruleWarnings":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_ruleWarnings(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "previewRule":
 			field := field
 
@@ -38956,6 +39171,54 @@ func (ec *executionContext) _RuleDefaults(ctx context.Context, sel ast.Selection
 			}
 		case "followEventRelay":
 			out.Values[i] = ec._RuleDefaults_followEventRelay(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var ruleWarningImplementors = []string{"RuleWarning"}
+
+func (ec *executionContext) _RuleWarning(ctx context.Context, sel ast.SelectionSet, obj *model.RuleWarning) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, ruleWarningImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RuleWarning")
+		case "kind":
+			out.Values[i] = ec._RuleWarning_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "exclude":
+			out.Values[i] = ec._RuleWarning_exclude(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "index":
+			out.Values[i] = ec._RuleWarning_index(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -43033,6 +43296,42 @@ func (ec *executionContext) marshalNRuleDefaults2ᚖgithubᚗcomᚋSlashNephyᚋ
 func (ec *executionContext) unmarshalNRuleInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleInput(ctx context.Context, v any) (model.RuleInput, error) {
 	res, err := ec.unmarshalInputRuleInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRuleWarning2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleWarningᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RuleWarning) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNRuleWarning2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleWarning(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNRuleWarning2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleWarning(ctx context.Context, sel ast.SelectionSet, v *model.RuleWarning) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RuleWarning(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRuleWarningKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleWarningKind(ctx context.Context, v any) (model.RuleWarningKind, error) {
+	var res model.RuleWarningKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRuleWarningKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleWarningKind(ctx context.Context, sel ast.SelectionSet, v model.RuleWarningKind) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNSecondFactorStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSecondFactorStatus(ctx context.Context, sel ast.SelectionSet, v *model.SecondFactorStatus) graphql.Marshaler {

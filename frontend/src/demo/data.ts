@@ -255,6 +255,8 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
       args: Parameters<typeof scheduler.reservations>[0] & { first: number; after?: string | null },
     ) => paginate(scheduler.reservations(args), args.first, args.after),
     rules: () => scheduler.rules(),
+    // デモでは、照合の重さを警告しない。
+    ruleWarnings: () => [],
     previewRule: (args: { input: RuleInput; first: number; after?: string | null }) =>
       paginate(scheduler.previewRule(args).map(program), args.first, args.after),
     // 重複の回避で見送った番組は、録画の履歴から求める。デモには録画の履歴がないので、ない。
