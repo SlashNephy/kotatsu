@@ -9,6 +9,7 @@ import {
   StreamMeter,
   audioFormatKey,
   codecName,
+  continuesFrames,
   formatBitrate,
   frameRate,
   historySeconds,
@@ -121,7 +122,16 @@ export function StreamInfo({
       const now = Date.now();
       const quality = video?.getVideoPlaybackQuality?.();
       if (video !== null && quality !== undefined && !video.paused) {
-        frames.push({ frames: quality.totalVideoFrames, time: video.currentTime });
+        const next = { frames: quality.totalVideoFrames, time: video.currentTime };
+        const previous = frames.at(-1);
+        // シークや読み直しを挟んだら、その前の点を捨てる。
+        if (
+          previous !== undefined &&
+          !continuesFrames(previous, next, snapshotIntervalMs / 1_000, video.playbackRate)
+        ) {
+          frames.length = 0;
+        }
+        frames.push(next);
         if (frames.length > fpsWindow) {
           frames.shift();
         }

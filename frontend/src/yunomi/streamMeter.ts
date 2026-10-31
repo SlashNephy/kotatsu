@@ -125,6 +125,20 @@ export function averageBitrate(recording: RecordingSpan, now: number): number | 
 // FrameCount は、ある時点で video が受け取ったフレームの数と、再生位置。
 export type FrameCount = { frames: number; time: number };
 
+// continuesFrames は、next が previous から途切れずに再生を続けた点かどうか。再生位置が、経った時間と速さから
+// 見込むより 1 秒以上ずれたら (シーク)、フレームの数が戻ったら (読み直し)、続いていないとみなす。
+export function continuesFrames(
+  previous: FrameCount,
+  next: FrameCount,
+  elapsedSeconds: number,
+  rate: number,
+): boolean {
+  return (
+    next.frames >= previous.frames &&
+    Math.abs(next.time - previous.time - elapsedSeconds * rate) <= 1
+  );
+}
+
 // frameRate は、2 つの時点の間の、再生位置の進みあたりのフレームの数。進んでいないか、読み直して数え直したら null。
 export function frameRate(previous: FrameCount, next: FrameCount): number | null {
   const time = next.time - previous.time;

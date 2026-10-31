@@ -505,7 +505,8 @@ function Live({
   // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
   const [statsShown, setStatsShown] = useState(false);
   // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
-  const streamMeter = useStreamMeter(quality);
+  // タイムシフトのバッファは測れないので、バッファへ移ったときと、放送中の位置へ戻ったときに、それまでの分を捨てる。
+  const streamMeter = useStreamMeter(`${quality}:${timeshift.behind}`);
   // 音量の補正 (#499)。端末ごとの設定に合わせる。
   useVolumeNormalizer(video);
   // crop は、L 字放送の切り抜き (#496)。その場限りで、画面を開き直したら戻す。

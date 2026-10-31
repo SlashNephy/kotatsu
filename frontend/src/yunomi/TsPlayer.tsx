@@ -70,6 +70,8 @@ type Slot = {
   load: number;
   // stats は、この読み込みでプレイヤーが最後に知らせた統計。
   stats: Stats | null;
+  // bytesRead は、この読み込みで読んだバイト数。
+  bytesRead: number;
   destroyed: boolean;
 };
 
@@ -188,6 +190,7 @@ export function TsPlayer({
       player: null,
       load: 0,
       stats: null,
+      bytesRead: 0,
       destroyed: false,
     };
     // 壊れた音声のフレームなどで、映像の要素が復号に失敗すると、ブラウザは再生を止める。止まると読み込みの止まりも
@@ -232,11 +235,11 @@ export function TsPlayer({
     });
     // 読んだバイト数と、変換を終えたメディアの長さから、ビットレートを出す (#828)。
     // 最初の progress までは、読んだバイト数が分からないので知らせない。
-    const report = (bytesRead: number) => {
-      if (isActive() && bytesRead > 0) {
+    const report = () => {
+      if (isActive() && slot.bytesRead > 0) {
         handlers.current.onReading?.({
           load: slot.load,
-          bytesRead,
+          bytesRead: slot.bytesRead,
           mediaEnd: bufferedEnd(slot.video),
           seeking: player.state === 'seeking',
           transport:
@@ -251,14 +254,13 @@ export function TsPlayer({
         });
       }
     };
-    let bytesRead = 0;
     player.addEventListener('progress', (event) => {
-      bytesRead = event.detail.bytesRead;
-      report(bytesRead);
+      slot.bytesRead = event.detail.bytesRead;
+      report();
     });
     player.addEventListener('stats', (event) => {
       slot.stats = event.detail;
-      report(bytesRead);
+      report();
     });
     // 字幕は private_stream_1、文字スーパーは private_stream_2 で届く。時刻は、video の時刻にそろっている。
     const feed = (event: CustomEvent<PrivateStream>) => {
@@ -412,6 +414,7 @@ export function TsPlayer({
           selectAudio(next, audioRef.current);
           slot.load = ++loads;
           slot.stats = null;
+          slot.bytesRead = 0;
           await next.load(url);
           // 映像が出る前に、読み込みが失敗するか終わったら、切り替えずに失敗として知らせる。
           await Promise.race([firstPicture(slot.video), failureBeforePicture(next)]);
@@ -442,6 +445,7 @@ export function TsPlayer({
     selectAudio(player, audioRef.current);
     active.load = ++loads;
     active.stats = null;
+    active.bytesRead = 0;
     player.load(url).then(
       () => {
         if (!cancelled) {

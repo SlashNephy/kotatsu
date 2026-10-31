@@ -4,7 +4,9 @@ import {
   BitrateMeter,
   averageBitrate,
   audioFormatKey,
+  StreamMeter,
   codecName,
+  continuesFrames,
   formatBitrate,
   frameRate,
   nextTsChunk,
@@ -227,5 +229,71 @@ describe('averageBitrate', () => {
     },
   ])('$name', ({ recording, want }) => {
     expect(averageBitrate(recording, now)).toBe(want);
+  });
+});
+
+describe('continuesFrames', () => {
+  test.each([
+    {
+      name: '経った時間だけ再生位置が進めば、続いている',
+      previous: { frames: 0, time: 10 },
+      next: { frames: 30, time: 11 },
+      rate: 1,
+      want: true,
+    },
+    {
+      name: '倍速なら、その分だけ進んでも続いている',
+      previous: { frames: 0, time: 10 },
+      next: { frames: 60, time: 12 },
+      rate: 2,
+      want: true,
+    },
+    {
+      name: '先へシークしたら、続いていない',
+      previous: { frames: 0, time: 10 },
+      next: { frames: 30, time: 21 },
+      rate: 1,
+      want: false,
+    },
+    {
+      name: '読み直してフレームの数が戻ったら、続いていない',
+      previous: { frames: 300, time: 10 },
+      next: { frames: 3, time: 11 },
+      rate: 1,
+      want: false,
+    },
+  ])('$name', ({ previous, next, rate, want }) => {
+    expect(continuesFrames(previous, next, 1, rate)).toBe(want);
+  });
+});
+
+describe('StreamMeter', () => {
+  const reading = (load: number, bytesRead: number, mediaEnd: number) => ({
+    load,
+    bytesRead,
+    mediaEnd,
+    seeking: false,
+    transport: { dropped: 1, errors: 2, scrambled: 3 },
+    source: { width: 1440, height: 1080, interlaced: true },
+  });
+
+  test('変換の経路の読みから、ビットレートと TS の異常と放送の映像を溜める', () => {
+    const meter = new StreamMeter();
+    meter.feedTs(1_000, reading(1, 1_000_000, 1));
+    meter.feedTs(2_000, reading(1, 3_000_000, 2));
+
+    expect(meter.bitrate.rate(2_000)).toBe(16_000_000);
+    expect(meter.transport).toEqual({ dropped: 1, errors: 2, scrambled: 3 });
+    expect(meter.source).toEqual({ width: 1440, height: 1080, interlaced: true });
+  });
+
+  test('reset の後の最初の読みは、区切りにするだけ', () => {
+    const meter = new StreamMeter();
+    meter.feedTs(1_000, reading(1, 1_000_000, 1));
+    meter.reset();
+    meter.feedTs(2_000, reading(1, 3_000_000, 2));
+
+    expect(meter.bitrate.rate(2_000)).toBeNull();
+    expect(meter.transport).toEqual({ dropped: 1, errors: 2, scrambled: 3 });
   });
 });
