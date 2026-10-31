@@ -142,6 +142,8 @@ type Querier interface {
 	DeleteUserOAuthGrant(ctx context.Context, arg DeleteUserOAuthGrantParams) (DeleteUserOAuthGrantRow, error)
 	DeleteUserPasskey(ctx context.Context, arg DeleteUserPasskeyParams) (int64, error)
 	DeleteUserTOTP(ctx context.Context, userID uuid.UUID) (int64, error)
+	// ユーザーの録画の再生位置を消す。続きから見るの一覧から外すのに使う (#1074)。
+	DeleteWatchProgress(ctx context.Context, arg DeleteWatchProgressParams) error
 	DeleteWatchReservation(ctx context.Context, arg DeleteWatchReservationParams) (int64, error)
 	DeleteWebPushSubscription(ctx context.Context, arg DeleteWebPushSubscriptionParams) (int64, error)
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (int64, error)

@@ -287,6 +287,7 @@ type ComplexityRoot struct {
 		BeginTotpEnrollment          func(childComplexity int) int
 		ChangePassword               func(childComplexity int, password string) int
 		CleanUpMissingRecordings     func(childComplexity int, ids []string) int
+		ClearWatchPosition           func(childComplexity int, id string) int
 		ConfirmTotpEnrollment        func(childComplexity int, code string) int
 		CreateAPIToken               func(childComplexity int, name string) int
 		CreateGuideView              func(childComplexity int, input model.GuideViewInput) int
@@ -1042,6 +1043,7 @@ type MutationResolver interface {
 	SetRecordingProtected(ctx context.Context, id string, protected bool) (*model.Recording, error)
 	SetRecordingTags(ctx context.Context, id string, tags []string) (*model.Recording, error)
 	SaveWatchPosition(ctx context.Context, id string, positionMs int64) (*model.Recording, error)
+	ClearWatchPosition(ctx context.Context, id string) (*model.Recording, error)
 	RegenerateRecordingImages(ctx context.Context, id string) (bool, error)
 	ReanalyzeRecording(ctx context.Context, id string) (bool, error)
 	CreateProgramReservation(ctx context.Context, input model.ProgramReservationInput) (*model.Reservation, error)
@@ -2062,6 +2064,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CleanUpMissingRecordings(childComplexity, args["ids"].([]string)), true
+	case "Mutation.clearWatchPosition":
+		if e.ComplexityRoot.Mutation.ClearWatchPosition == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_clearWatchPosition_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ClearWatchPosition(childComplexity, args["id"].(string)), true
 	case "Mutation.confirmTotpEnrollment":
 		if e.ComplexityRoot.Mutation.ConfirmTotpEnrollment == nil {
 			break
@@ -7155,6 +7168,8 @@ extend type Mutation {
   setRecordingTags(id: ID!, tags: [String!]!): Recording!
   "ログイン中のユーザーの再生位置 (ミリ秒) を保存する。誰でも使える。"
   saveWatchPosition(id: ID!, positionMs: Int64!): Recording!
+  "ログイン中のユーザーの再生位置を消し、続きから見るの一覧から外す (#1074)。誰でも使える。"
+  clearWatchPosition(id: ID!): Recording!
   """
   録画の代表画像とプレビュー画像を作り直すジョブを入れる (設計書 6.1)。視聴者は使えない。
   作り直すまでは、今の画像を出す。同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
@@ -10224,6 +10239,20 @@ func (ec *executionContext) field_Mutation_cleanUpMissingRecordings_args(ctx con
 		return nil, err
 	}
 	args["ids"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_clearWatchPosition_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -16110,6 +16139,50 @@ func (ec *executionContext) fieldContext_Mutation_saveWatchPosition(ctx context.
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_saveWatchPosition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_clearWatchPosition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_clearWatchPosition(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ClearWatchPosition(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Recording) graphql.Marshaler {
+			return ec.marshalNRecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecording(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_clearWatchPosition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Recording(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_clearWatchPosition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -34392,6 +34465,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "saveWatchPosition":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_saveWatchPosition(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "clearWatchPosition":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_clearWatchPosition(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

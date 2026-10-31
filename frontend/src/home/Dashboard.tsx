@@ -19,6 +19,7 @@ import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 import { useDataChanges } from '../changes/DataChanges';
 import type { ChangeChannel } from '../changes/dataChanges';
 import { RecordingCard } from '../recordings/RecordingCard';
+import { ContinueWatchingCard } from './ContinueWatchingCard';
 import type { DashboardQuery } from './__generated__/DashboardQuery.graphql';
 import classes from './Dashboard.module.css';
 import { nowPlaying, pinnedNowPlaying } from './nowPlaying';
@@ -398,7 +399,11 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
           </Title>
           <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="xs" className={classes.recentGrid}>
             {data.continueWatching.map((recording) => (
-              <RecordingCard key={recording.id} recording={recording} />
+              <ContinueWatchingCard
+                key={recording.id}
+                recording={recording}
+                first={recentRecordings}
+              />
             ))}
           </SimpleGrid>
         </Stack>
