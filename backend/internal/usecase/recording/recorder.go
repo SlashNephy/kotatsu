@@ -204,6 +204,8 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		endMargin = time.Duration(settings.EndMarginSeconds) * time.Second
 	}
 	tracker := newEndTracker(r, &recording, &reservation, startMargin, endMargin)
+	// 録画を終えずにやめるとき (リースを失ったときなど) は、写すのもやめさせ、書きかけのセグメントを消させる。
+	defer func() { tracker.backfill.stop() }()
 	tracker.pending = &pendingSave{
 		recording: &recording, start: pendingStart, closeStale: false, startedAt: startedAt, handedOver: assignment.HandedOver,
 		writes: []pendingWrite{}, cache: cached,
@@ -233,6 +235,8 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 
 			continue
 		}
+		// 録画が予定の開始より遅れて始まったら、予定の開始からの分を、タイムシフトのバッファから写す (#826、設計書 5.7)。
+		r.maybeStartBackfill(ctx, logger, assignment, tracker, &recording, &reservation, created, pendingStart, segment.startedAt)
 		created++
 		logger.InfoContext(ctx, "started recording", slog.String("pool_id", segment.poolID), slog.String("path", segment.path))
 		openedAt := r.clock.Now()
@@ -255,6 +259,9 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 			return errors.Join(context.Cause(ctx), closeErr)
 		case end == endDelayed:
 			// 予約した番組が遅れて始まるので、前の番組しか入っていないセグメントを消し、開き直して放送中になるのを待つ (#1046)。
+			// バッファから写していれば、前の番組なので、写すのもやめさせる。
+			tracker.backfill.stop()
+			tracker.backfill = nil
 			created = r.discardSegments(ctx, logger, &recording, tracker, created)
 
 			continue
@@ -576,6 +583,9 @@ func (r *Recorder) finish(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, end endReason, result *sessionResult, disconnected bool,
 	now time.Time, tracker *endTracker,
 ) error {
+	// バッファから写したセグメントも、録画の途切れた区間と、セグメントをつなぐ処理に入れるため、写し終えてから終える。
+	tracker.backfill.wait()
+
 	return r.untilDatabase(ctx, logger, "finish the recording", func(ctx context.Context) error {
 		if err := tracker.pending.save(ctx, r, tracker); err != nil {
 			return err
@@ -822,6 +832,29 @@ func (r *Recorder) createSegment(
 	// 推定サイズは、これから録る残りの時間から求める。途中で開き直すときに、全長で選ぶと終盤ほど選べなくなる (#519)。
 	from := maxTime(r.clock.Now(), *reservation.PlannedStartAt)
 	estimated := uint64(max(reservation.PlannedEndAt.Sub(from), 0)/time.Second) * estimatedBytesPerSecond
+	seg, reason, err := r.newSegment(ctx, settings, pools, reservation, startedAt, estimated)
+	if err != nil {
+		return nil, reason, err
+	}
+
+	// DB に届かなければ、ファイルは残して書き続け、記録は DB に届くようになってからにする (#1073)。
+	// 先に記録できていないものがあれば、順を守るため、これも後にする。
+	err = tracker.pending.writeOrDefer(ctx, r, insertSegment(seg))
+	if err != nil {
+		seg.closeFiles()
+
+		return nil, FailureStorageUnavailable, fmt.Errorf("failed to save the recording file: %w", err)
+	}
+
+	return seg, "", nil
+}
+
+// newSegment は、推定サイズ estimated の入るプールを選んで、録画ファイルと索引を作る。DB には記録しない。
+// 失敗したら、録画の失敗の理由も返す。
+func (r *Recorder) newSegment(
+	ctx context.Context, settings *domain.RecordingSettings, pools []*kago.Pool, reservation *sqlc.GetReservationForRecordingRow,
+	startedAt time.Time, estimated uint64,
+) (*segment, FailureReason, error) {
 	pool, err := r.store.Select(pools, estimated)
 	if errors.Is(err, kago.ErrNoPoolFits) {
 		return nil, FailureStorageFull, err
@@ -859,19 +892,15 @@ func (r *Recorder) createSegment(
 		samples: qualitySamples{mu: sync.Mutex{}, samples: []qualitySample{}}, excluded: qualityCounts{Drops: 0, Errors: 0, Scrambled: 0},
 	}
 
-	// DB に届かなければ、ファイルは残して書き続け、記録は DB に届くようになってからにする (#1073)。
-	// 先に記録できていないものがあれば、順を守るため、これも後にする。
-	err = tracker.pending.writeOrDefer(ctx, r, insertSegment(seg))
-	if err != nil {
-		_ = file.Close()
-		if seg.indexFile != nil {
-			_ = seg.indexFile.Close()
-		}
-
-		return nil, FailureStorageUnavailable, fmt.Errorf("failed to save the recording file: %w", err)
-	}
-
 	return seg, "", nil
+}
+
+// closeFiles は、録画ファイルと索引を、書き出さずに閉じる。記録できなかったセグメントを捨てるときに使う。
+func (seg *segment) closeFiles() {
+	_ = seg.file.Close()
+	if seg.indexFile != nil {
+		_ = seg.indexFile.Close()
+	}
 }
 
 // pools は、録画を書く候補のプールを、優先順位と容量の閾値の設定と一緒に返す (設計書 5.6)。
@@ -1080,6 +1109,9 @@ type endTracker struct {
 	// savedRecordingID は、DB に記録した録画の ID。DB に届かずに仮の録画で始めた間は nil (#1073)。
 	// 書いているセグメントの様子 (#829) を書くゴルーチンが読むので、atomic で持つ。
 	savedRecordingID atomic.Pointer[uuid.UUID]
+	// backfill は、遅れて始めた録画に、予定の開始からの分をタイムシフトのバッファから写す処理 (#826)。写していなければ nil。
+	// 録画を終える前に、写し終えるのを待つ。
+	backfill *backfill
 }
 
 func newEndTracker(
@@ -1095,7 +1127,7 @@ func newEndTracker(
 		pending: &pendingSave{
 			recording: recording, start: false, closeStale: false, startedAt: time.Time{}, handedOver: false, writes: []pendingWrite{}, cache: nil,
 		},
-		savedRecordingID: atomic.Pointer[uuid.UUID]{},
+		savedRecordingID: atomic.Pointer[uuid.UUID]{}, backfill: nil,
 	}
 	// 時刻予約や、ID が EIT の範囲に収まらない予約では、EIT[p/f] で追わない。
 	sid, ok := ts.BroadcastServiceID(reservation.ServiceID)
@@ -1455,26 +1487,7 @@ func (r *Recorder) closeSegment(
 ) error {
 	stop := ctx
 	ctx = context.WithoutCancel(ctx)
-	errs := []error{}
-	// 書いたデータを確実に残すため、閉じる前に fsync する (設計書 5.2)。
-	if err := seg.buffer.Flush(); err != nil {
-		errs = append(errs, fmt.Errorf("failed to flush the recording file: %w", err))
-	}
-	if err := seg.file.Sync(); err != nil {
-		errs = append(errs, fmt.Errorf("failed to sync the recording file: %w", err))
-	}
-	if err := seg.file.Close(); err != nil {
-		errs = append(errs, fmt.Errorf("failed to close the recording file: %w", err))
-	}
-	if seg.indexFile != nil {
-		// 索引は、なくても再生できるので、書けなくても録画の失敗にしない。
-		if err := seg.indexFile.Sync(); err != nil {
-			logger.WarnContext(ctx, "failed to sync the index file", slog.Any("error", err))
-		}
-		if err := seg.indexFile.Close(); err != nil {
-			logger.WarnContext(ctx, "failed to close the index file", slog.Any("error", err))
-		}
-	}
+	errs := seg.syncAndClose(ctx, logger)
 	writes := []pendingWrite{r.closeSegmentFile(logger, recording, seg, stats, now), r.saveSegmentStats(seg, stats, now)}
 	if stop.Err() != nil {
 		// リースを失ったか、止めるときは、DB に届くのを待たずに、1 度だけ書いてみる。
@@ -1497,6 +1510,31 @@ func (r *Recorder) closeSegment(
 	}
 
 	return errors.Join(errs...)
+}
+
+// syncAndClose は、録画ファイルと索引を書き出し、fsync してから閉じる (設計書 5.2)。録画ファイルを残せなかったエラーを返す。
+// 索引は、なくても再生できるので、書けなくてもエラーにしない。
+func (seg *segment) syncAndClose(ctx context.Context, logger *slog.Logger) []error {
+	errs := []error{}
+	if err := seg.buffer.Flush(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to flush the recording file: %w", err))
+	}
+	if err := seg.file.Sync(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to sync the recording file: %w", err))
+	}
+	if err := seg.file.Close(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to close the recording file: %w", err))
+	}
+	if seg.indexFile != nil {
+		if err := seg.indexFile.Sync(); err != nil {
+			logger.WarnContext(ctx, "failed to sync the index file", slog.Any("error", err))
+		}
+		if err := seg.indexFile.Close(); err != nil {
+			logger.WarnContext(ctx, "failed to close the index file", slog.Any("error", err))
+		}
+	}
+
+	return errs
 }
 
 // closeSegmentFile は、セグメント seg の大きさと、表す時間の終わり now を記録する書き込みを返す。
@@ -1527,6 +1565,19 @@ func (r *Recorder) closeSegmentFile(logger *slog.Logger, recording *sqlc.Recordi
 
 // saveSegmentStats は、セグメント seg のドロップ、エラー、スクランブルの数を、録画に足す書き込みを返す。
 func (r *Recorder) saveSegmentStats(seg *segment, stats *ts.Stats, now time.Time) pendingWrite {
+	return func(ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID) error {
+		if err := addSegmentStats(ctx, q, recordingID, seg, stats, now); err != nil {
+			return err
+		}
+		// 閉じたセグメントの数は、録画に足したので、書いているセグメントの様子を 0 に戻す (#829)。見るためだけなので、書けなくても止めない。
+		_ = q.ResetRecordingLiveStats(ctx, sqlc.ResetRecordingLiveStatsParams{Now: now, RecordingID: recordingID})
+
+		return nil
+	}
+}
+
+// addSegmentStats は、セグメント seg のドロップ、エラー、スクランブルの数を、録画 recordingID に足す。
+func addSegmentStats(ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID, seg *segment, stats *ts.Stats, now time.Time) error {
 	var errorsCount, scrambled int64
 	for _, pid := range stats.PIDs {
 		errorsCount += pid.Errors
@@ -1534,19 +1585,14 @@ func (r *Recorder) saveSegmentStats(seg *segment, stats *ts.Stats, now time.Time
 	}
 	// 引き継がれた後の区間は、新しい mikan のセグメントで数えるので、差し引く (#525)。
 	counted := qualityCounts{Drops: drops(stats), Errors: errorsCount, Scrambled: scrambled}.minus(seg.excluded)
-
-	return func(ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID) error {
-		err := q.AddRecordingStats(ctx, sqlc.AddRecordingStatsParams{
-			Drops: max(counted.Drops, 0), Errors: max(counted.Errors, 0), Scrambled: max(counted.Scrambled, 0), Now: now, ID: recordingID,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to save the recording stats: %w", err)
-		}
-		// 閉じたセグメントの数は、録画に足したので、書いているセグメントの様子を 0 に戻す (#829)。見るためだけなので、書けなくても止めない。
-		_ = q.ResetRecordingLiveStats(ctx, sqlc.ResetRecordingLiveStatsParams{Now: now, RecordingID: recordingID})
-
-		return nil
+	err := q.AddRecordingStats(ctx, sqlc.AddRecordingStatsParams{
+		Drops: max(counted.Drops, 0), Errors: max(counted.Errors, 0), Scrambled: max(counted.Scrambled, 0), Now: now, ID: recordingID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to save the recording stats: %w", err)
 	}
+
+	return nil
 }
 
 // fail は、録画を失敗にし、理由を記録する。割り振りは終わったことにするので、nil を返す。at は、録画を止めた時刻。

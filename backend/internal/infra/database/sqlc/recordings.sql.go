@@ -925,6 +925,22 @@ func (q *Queries) MarkRecordingWaitedForBroadcast(ctx context.Context, arg MarkR
 	return result.RowsAffected(), nil
 }
 
+const moveRecordingRecordedFromBack = `-- name: MoveRecordingRecordedFromBack :exec
+UPDATE recordings SET recorded_from = LEAST(recorded_from, $1::timestamptz), updated_at = $2 WHERE id = $3
+`
+
+type MoveRecordingRecordedFromBackParams struct {
+	At  time.Time
+	Now time.Time
+	ID  uuid.UUID
+}
+
+// 録画の開始が遅れて、予定の開始からの分をタイムシフトのバッファから写したとき、写した分の始まりを、録り始めた日時にする (#826)。
+func (q *Queries) MoveRecordingRecordedFromBack(ctx context.Context, arg MoveRecordingRecordedFromBackParams) error {
+	_, err := q.db.Exec(ctx, moveRecordingRecordedFromBack, arg.At, arg.Now, arg.ID)
+	return err
+}
+
 const resetRecordingLiveStats = `-- name: ResetRecordingLiveStats :exec
 UPDATE recording_live_stats SET bytes = 0, drops = 0, errors = 0, scrambled = 0, bitrate = 0, updated_at = $1
 WHERE recording_id = $2

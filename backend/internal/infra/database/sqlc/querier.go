@@ -534,6 +534,8 @@ type Querier interface {
 	MarkTimeshiftHandover(ctx context.Context, arg MarkTimeshiftHandoverParams) (int64, error)
 	// 割り振りを取った mikan が、ストリームを開いたことを記録する。
 	MarkTimeshiftStreamOpened(ctx context.Context, arg MarkTimeshiftStreamOpenedParams) error
+	// 録画の開始が遅れて、予定の開始からの分をタイムシフトのバッファから写したとき、写した分の始まりを、録り始めた日時にする (#826)。
+	MoveRecordingRecordedFromBack(ctx context.Context, arg MoveRecordingRecordedFromBackParams) error
 	// NOTIFY はトランザクションのコミット時に送られる。ロールバックすれば送られない。
 	NotifyChange(ctx context.Context, arg NotifyChangeParams) error
 	PinService(ctx context.Context, arg PinServiceParams) error

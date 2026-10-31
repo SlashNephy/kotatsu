@@ -191,6 +191,10 @@ DELETE FROM recording_files WHERE recording_id = @recording_id AND kind = 'segme
 UPDATE recordings r SET recorded_from = @at, updated_at = @now
 WHERE r.id = @id AND NOT EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment');
 
+-- name: MoveRecordingRecordedFromBack :exec
+-- 録画の開始が遅れて、予定の開始からの分をタイムシフトのバッファから写したとき、写した分の始まりを、録り始めた日時にする (#826)。
+UPDATE recordings SET recorded_from = LEAST(recorded_from, @at::timestamptz), updated_at = @now WHERE id = @id;
+
 -- name: MarkRecordingNotBroadcast :exec
 -- 予約した番組が放送されなかったことと、その時間に放送されていた番組を記録する。
 UPDATE recordings SET not_broadcast = true, aired_event_id = sqlc.narg(aired_event_id), updated_at = @now WHERE id = @id;
